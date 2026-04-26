@@ -7,7 +7,7 @@ RESET   := \033[0m
 # Argument optionnel : make regression builtins/io
 _TARGET := $(filter-out all build build-tools test regression lint clean help install install-tools uninstall,$(MAKECMDGOALS))
 
-.PHONY: all build build-tools test regression lint clean help install install-tools uninstall $(_TARGET)
+.PHONY: all build build-tools test regression lint clean help install install-tools uninstall unittest $(_TARGET)
 
 all: build test regression
 
@@ -16,7 +16,7 @@ help:
 	@echo "Usage : make <cible> [argument]"
 	@echo ""
 	@echo "  build                   Compile le runtime + le compilateur Ocara"
-	@echo "  build-tools             Compile les outils (ocaracs)"
+	@echo "  build-tools             Compile les outils (ocaracs, ocaraunit)"
 	@echo "  test                    Lance les tests unitaires Cargo (cargo test)"
 	@echo "  regression              Lance la régression complète (tous les exemples)"
 	@echo "  regression <chemin>     Lance uniquement examples/<chemin>.oc"
@@ -24,6 +24,7 @@ help:
 	@echo "                            ex: make regression 07_loops"
 	@echo "                            ex: make regression project/main"
 	@echo "  lint                    Lance ocaracs sur tous les exemples"
+	@echo "  unittest [<dossier>]    Lance ocaraunit sur le dossier (défaut: .)"
 	@echo "  all                     build + test + regression"
 	@echo "  clean                   Supprime les artefacts de compilation"
 	@echo "  install                 Installe ocara dans /usr/local/bin/"
@@ -166,15 +167,22 @@ clean:
 	cargo clean
 	rm -f $(TMP)
 
-# ── Outils (ocaracs) ─────────────────────────────────────────────────────────
+# ── Outils (ocaracs + ocaraunit) ─────────────────────────────────────────────
 build-tools:
 	RUSTFLAGS="-D warnings" cargo build --release -p ocaracs
+	RUSTFLAGS="-D warnings" cargo build --release -p ocaraunit
 
 lint: build-tools
 	@echo "══════════════════════════════════════════════"
 	@echo " Lint ocaracs — examples/"
 	@echo "══════════════════════════════════════════════"
 	./target/release/ocaracs examples/ || true
+
+unittest: build-tools build
+	@echo "══════════════════════════════════════════════"
+	@echo " ocaraunit"
+	@echo "══════════════════════════════════════════════"
+	OCARA=./target/release/ocara ./target/release/ocaraunit $(if $(_TARGET),$(_TARGET),.)
 
 # ── Installation ──────────────────────────────────────────────────────────────
 install: build
@@ -185,8 +193,10 @@ install: build
 install-tools: build-tools
 	install -m 755 ./target/release/ocaracs /usr/local/bin/ocaracs
 	@echo "$(GREEN)ocaracs installé dans /usr/local/bin/ocaracs$(RESET)"
+	install -m 755 ./target/release/ocaraunit /usr/local/bin/ocaraunit
+	@echo "$(GREEN)ocaraunit installé dans /usr/local/bin/ocaraunit$(RESET)"
 
 uninstall:
-	rm -f /usr/local/bin/ocara /usr/local/bin/ocaracs
-	@echo "$(GREEN)Ocara et ocaracs désinstallés.$(RESET)"
+	rm -f /usr/local/bin/ocara /usr/local/bin/ocaracs /usr/local/bin/ocaraunit
+	@echo "$(GREEN)Ocara, ocaracs et ocaraunit désinstallés.$(RESET)"
 

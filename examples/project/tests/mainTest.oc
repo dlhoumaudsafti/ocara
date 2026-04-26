@@ -1,0 +1,94 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// tests/mainTest.oc — tests unitaires pour main.oc (classes Score et Student)
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+import main
+
+class mainTest {
+
+    public method printTest(): int {
+        scoped s:Score = use Score("Alice", 90)
+        s.print()
+        UnitTest::pass("print appelé sans erreur")
+        return 0
+    }
+
+    public method compareTest(): int {
+        scoped s:Score = use Score("Alice", 80)
+        UnitTest::assertEquals(1,  s.compare(70))
+        UnitTest::assertEquals(-1, s.compare(90))
+        UnitTest::assertEquals(0,  s.compare(80))
+        return 0
+    }
+
+    public method add_bonusTest(): int {
+        scoped s:Score = use Score("Bob", 70)
+        UnitTest::assertEquals(70, s.get_value())
+        s.add_bonus(10)
+        UnitTest::assertEquals(70, s.get_value())
+        UnitTest::pass("add_bonus appliqué sans erreur")
+        return 0
+    }
+
+    public method is_passingTest(): int {
+        scoped passing:Score = use Score("Alice", 80)
+        scoped failing:Score = use Score("Bob", 50)
+        scoped limit:Score   = use Score("Carol", 60)
+        UnitTest::assertTrue(passing.is_passing())
+        UnitTest::assertFalse(failing.is_passing())
+        UnitTest::assertTrue(limit.is_passing())
+        return 0
+    }
+
+    public method get_valueTest(): int {
+        scoped s:Score = use Score("Alice", 75)
+        UnitTest::assertEquals(75, s.get_value())
+        return 0
+    }
+
+    public method get_nameTest(): int {
+        scoped s:Score = use Score("Charlie", 90)
+        UnitTest::assertNotNull(s.get_name())
+        UnitTest::pass("get_name retourne une valeur non nulle")
+        return 0
+    }
+
+    public method enrollTest(): int {
+        scoped st:Student = use Student("Dave", "S001")
+        UnitTest::assertEquals(0, st.get_value())
+        st.enroll("Math", 15)
+        UnitTest::assertEquals(15, st.get_value())
+        st.enroll("Info", 18)
+        UnitTest::assertEquals(33, st.get_value())
+        return 0
+    }
+
+    public method get_idTest(): int {
+        scoped st:Student = use Student("Eve", "S042")
+        UnitTest::assertNotNull(st.get_id())
+        UnitTest::pass("get_id retourne une valeur non nulle")
+        return 0
+    }
+
+    public method mixTest(): int {
+        UnitTest::assertNotNull(Color::mix(Color::RED, Color::BLUE))
+        UnitTest::pass("mix appelé sans erreur")
+        return 0
+    }
+
+    public method is_primaryTest(): int {
+        UnitTest::assertTrue(Color::is_primary(Color::RED))
+        UnitTest::assertTrue(Color::is_primary(Color::GREEN))
+        UnitTest::assertTrue(Color::is_primary(Color::BLUE))
+        UnitTest::assertFalse(Color::is_primary("violet"))
+        return 0
+    }
+
+    public method describeTest(): int {
+        UnitTest::assertNotNull(Color::describe(Color::RED))
+        UnitTest::assertNotNull(Color::describe("inconnu"))
+        UnitTest::pass("describe appelé sans erreur")
+        return 0
+    }
+}

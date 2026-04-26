@@ -4,9 +4,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import ocara.IO
-import models   as Models
-import services as Services
-import utils    as Utils
+import classes.Models
+import classes.Services
+import classes.Utils
 
 // ── Constantes globales ───────────────────────────────────────────────────────
 
