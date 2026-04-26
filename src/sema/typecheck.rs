@@ -347,10 +347,9 @@ impl<'a> TypeChecker<'a> {
 
             Expr::Field { object, field, span } => {
                 let obj_ty = self.infer_expr(object);
-                let cls_name = match &obj_ty {
-                    Type::Named(n)         => n.clone(),
-                    Type::Qualified(parts) => parts.last().cloned().unwrap_or_default(),
-                    _ => return Type::Mixed,
+                let cls_name = match type_class_name(&obj_ty) {
+                    Some(n) => n,
+                    None    => return Type::Mixed,
                 };
                 if let Some(info) = self.symbols.lookup_class(&cls_name) {
                     // Classe opaque (import non résolu) — accès permissif
@@ -395,9 +394,8 @@ impl<'a> TypeChecker<'a> {
                 // Appel de méthode : Field { object, field } → méthode
                 if let Expr::Field { object, field, span: fspan } = callee.as_ref() {
                     let obj_ty = self.infer_expr(object);
-                    let cls_name = match &obj_ty {
-                        Type::Named(n) => n.clone(),
-                        Type::Qualified(parts) => parts.last().cloned().unwrap_or_default(),
+                    let cls_name = match type_class_name(&obj_ty) {
+                        Some(n) => n,
                         _ => { for a in args { self.infer_expr(a); } return Type::Mixed; }
                     };
                     if let Some(info) = self.symbols.lookup_class(&cls_name) {
@@ -580,6 +578,16 @@ impl<'a> TypeChecker<'a> {
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Extrait le nom de classe depuis un type Named, Qualified, ou Union (premier Named trouvé).
+fn type_class_name(ty: &Type) -> Option<String> {
+    match ty {
+        Type::Named(n)         => Some(n.clone()),
+        Type::Qualified(parts) => parts.last().cloned(),
+        Type::Union(variants)  => variants.iter().find_map(type_class_name),
+        _                      => None,
+    }
+}
+
 fn literal_type(lit: &Literal) -> Type {
     match lit {
         Literal::Int(_)    => Type::Int,
@@ -612,12 +620,7 @@ pub fn types_compat(found: &Type, expected: &Type) -> bool {
     if matches!(found, Type::Mixed) || matches!(expected, Type::Mixed) {
         return true;
     }
-    // null est compatible avec tout type référence (string, objet, tableau, map)
-    if matches!(found, Type::Null) {
-        return matches!(expected,
-            Type::String | Type::Named(_) | Type::Array(_) | Type::Map(..) | Type::Null
-        );
-    }
+    // Les unions sont vérifiés en premier (avant le cas null)
     // union en position "found" : compatible si l'une des variantes est compatible avec expected
     if let Type::Union(variants) = found {
         return variants.iter().any(|v| types_compat(v, expected));
@@ -625,6 +628,12 @@ pub fn types_compat(found: &Type, expected: &Type) -> bool {
     // union en position "expected" : compatible si found est compatible avec au moins une variante
     if let Type::Union(variants) = expected {
         return variants.iter().any(|v| types_compat(found, v));
+    }
+    // null est compatible avec tout type référence (string, objet, tableau, map)
+    if matches!(found, Type::Null) {
+        return matches!(expected,
+            Type::String | Type::Named(_) | Type::Array(_) | Type::Map(..) | Type::Null
+        );
     }
     match (found, expected) {
         (Type::Array(f), Type::Array(e)) => types_compat(f, e),

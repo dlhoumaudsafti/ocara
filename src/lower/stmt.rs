@@ -54,6 +54,14 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
             if let crate::ast::Type::Named(class_name) = ty {
                 builder.var_class.insert(name.clone(), class_name.clone());
             }
+            // Union contenant un type nommé : utiliser le premier Named pour l'accès aux champs
+            if let crate::ast::Type::Union(variants) = ty {
+                if let Some(class_name) = variants.iter().find_map(|v| {
+                    if let crate::ast::Type::Named(n) = v { Some(n.clone()) } else { None }
+                }) {
+                    builder.var_class.insert(name.clone(), class_name);
+                }
+            }
             let _slot = builder.declare_local(name, ir_ty.clone(), *mutable);
             let val_ty = expr_ir_type_pub(builder, value);
             let val = lower_expr(builder, value);
