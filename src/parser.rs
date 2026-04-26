@@ -893,6 +893,10 @@ impl Parser {
                 self.advance();
                 Ok(Expr::Literal(Literal::Bool(false), span))
             }
+            TokenKind::LitNull => {
+                self.advance();
+                Ok(Expr::Literal(Literal::Null, span))
+            }
 
             // ── self ────────────────────────────────────────────────────────
             TokenKind::SelfKw => {
@@ -1030,6 +1034,7 @@ impl Parser {
             TokenKind::LitString(s) => { self.advance(); Ok(Literal::String(s)) }
             TokenKind::LitTrue      => { self.advance(); Ok(Literal::Bool(true)) }
             TokenKind::LitFalse     => { self.advance(); Ok(Literal::Bool(false)) }
+            TokenKind::LitNull      => { self.advance(); Ok(Literal::Null) }
             other => Err(ParseError::new(
                 format!("littéral attendu, trouvé {:?}", other),
                 span,

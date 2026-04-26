@@ -240,6 +240,7 @@ fn lower_const_global(module: &mut IrModule, c: &ConstDecl) {
         Expr::Literal(Literal::Float(f), _) => f.to_le_bytes().to_vec(),
         Expr::Literal(Literal::Bool(b), _)  => vec![*b as u8],
         Expr::Literal(Literal::String(s), _) => s.as_bytes().to_vec(),
+        Expr::Literal(Literal::Null, _)      => vec![0u8; 8],
         _ => vec![],
     };
     module.add_global(IrGlobal { name: c.name.clone(), bytes });

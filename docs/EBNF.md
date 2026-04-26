@@ -183,6 +183,7 @@ Literal  ::= Integer
            | String
            | TemplateString
            | Boolean
+           | "null"
 
 Integer  ::= Digit+
 Float    ::= Digit+ "." Digit+
@@ -193,6 +194,15 @@ Boolean  ::= "true" | "false"
 EscapeSeq ::= "\" ( "n" | "t" | "r" | '"' | "'" | "\" | "0" )
 Digit     ::= [0-9]
 ```
+
+> **`null`** représente l'absence de valeur pour les types référence (`string`, classes, tableaux, maps).
+> Son type inféré est `null`. Il est compatible avec tout type référence mais **pas** avec les types primitifs (`int`, `float`, `bool`).
+>
+> ```ocara
+> var nom:string = null        // OK
+> var obj:MonObjet = null      // OK
+> var n:int = null             // ERREUR — int n'accepte pas null
+> ```
 
 **Séquences d'échappement dans les chaînes :**
 
@@ -342,7 +352,7 @@ if        elseif    else       switch     default    match
 while     for       in         return     use        break    continue  self
 try       on        is         raise
 int       float     string     bool       mixed      map      void
-true      false
+true      false     null
 ```
 
 ---
@@ -625,6 +635,27 @@ Constructor ::= "init" "(" ParamList? ")" Block
 
 - `property` : champ d'instance d'une classe — **obligatoire** pour les champs. `var` et `scoped` sont **interdits** sur un champ de classe.
 - `const` : constante **statique** de classe, accessible via `Class::NAME`
+
+> **Initialisation implicite des `property`** : tout champ non assigné dans `init` est automatiquement mis à zéro par le runtime (`alloc_zeroed`).
+> - Type référence (`string`, classe, tableau, map) → `null` (pointeur nul)
+> - Type primitif (`int`, `float`) → `0`
+> - `bool` → `false`
+>
+> ```ocara
+> class Personne {
+>     public property nom:string   // → null si non assigné dans init
+>     public property age:int      // → 0   si non assigné dans init
+>
+>     init() { }   // rien assigné
+> }
+>
+> var p:Personne = use Personne()
+> IO::writeln(p.nom)   // null
+> IO::writeln(p.age)   // 0
+> ```
+>
+> Ce comportement est garanti mais **implicite** : préférer une initialisation explicite dans `init` pour que l'intention soit claire.
+> Contrairement à `var` (qui oblige une valeur à la déclaration), une `property` ne requiert pas de valeur dans la déclaration.
 
 ### 14.3 Constantes de classe
 

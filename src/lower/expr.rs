@@ -60,6 +60,7 @@ fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
         Expr::Literal(Literal::Float(_), _)  => IrType::F64,
         Expr::Literal(Literal::Bool(_), _)   => IrType::Bool,
         Expr::Literal(Literal::String(_), _) => IrType::Ptr,
+        Expr::Literal(Literal::Null, _)      => IrType::Ptr,
         Expr::Ident(name, _) => {
             if let Some((_, ty, _)) = builder.locals.get(name.as_str()) {
                 ty.clone()
@@ -246,8 +247,12 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             let dest = builder.new_value();
             builder.emit(Inst::ConstStr { dest: dest.clone(), idx });
             dest
+        }        Expr::Literal(Literal::Null, _) => {
+            // null = pointeur nul (0)
+            let dest = builder.new_value();
+            builder.emit(Inst::ConstInt { dest: dest.clone(), value: 0 });
+            dest
         }
-
         // ── Identifiant ──────────────────────────────────────────────────────
         Expr::Ident(name, _) => {
             if let Some((val, _)) = builder.load_local(name) {
@@ -441,6 +446,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                         builder.emit(Inst::ConstStr { dest: dest.clone(), idx });
                         let _ = ty;
                     }
+                    Literal::Null => builder.emit(Inst::ConstInt { dest: dest.clone(), value: 0 }),
                 }
             } else if class == "System" && (name == "OS" || name == "ARCH") {
                 // Constantes de plateforme — déterminées à la compilation du runtime
@@ -902,6 +908,11 @@ pub fn lower_literal(builder: &mut LowerBuilder, lit: &Literal) -> Value {
             let idx = builder.module.intern_string(s);
             let dest = builder.new_value();
             builder.emit(Inst::ConstStr { dest: dest.clone(), idx });
+            dest
+        }
+        Literal::Null => {
+            let dest = builder.new_value();
+            builder.emit(Inst::ConstInt { dest: dest.clone(), value: 0 });
             dest
         }
     }

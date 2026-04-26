@@ -158,6 +158,10 @@ unsafe fn unbox_bool(val: i64) -> bool {
 
 /// Convertit n'importe quelle valeur i64 (int, float boxé, bool boxé, string ptr) en String.
 fn val_to_string(val: i64) -> String {
+    // null (pointeur nul = 0) → affiche "null"
+    if val == 0 {
+        return "null".to_string();
+    }
     if is_float_box(val) {
         unsafe { unbox_float(val).to_string() }
     } else if is_bool_box(val) {
