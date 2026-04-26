@@ -238,6 +238,7 @@ make build
 |---|---|
 | [docs/EBNF.md](docs/EBNF.md) | **Spécification formelle du langage** — grammaire complète (EBNF) |
 | [docs/compilation-guide.md](docs/compilation-guide.md) | Guide de compilation — options, pipeline, messages d'erreur |
+| [docs/diagnostics.md](docs/diagnostics.md) | Référence des erreurs et warnings — format, codes, corrections |
 | [docs/builtins/IO.md](docs/builtins/IO.md) | Référence `IO` — `writeln`, `read`, `read_int`, … |
 | [docs/builtins/Math.md](docs/builtins/Math.md) | Référence `Math` — `sqrt`, `pow`, constantes `PI`, `E`, … |
 | [docs/builtins/String.md](docs/builtins/String.md) | Référence `String` — `split`, `replace`, `trim`, … |
