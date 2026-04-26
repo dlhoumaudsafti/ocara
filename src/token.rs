@@ -93,6 +93,7 @@ pub enum TokenKind {
     LitString(String),
     LitTrue,
     LitFalse,
+    LitNull,
     /// Chaîne template : `` `Bonjour ${name} !` ``
     /// Chaque partie est soit un texte brut, soit le source d'une expression.
     LitTemplate(Vec<TemplatePart>),
