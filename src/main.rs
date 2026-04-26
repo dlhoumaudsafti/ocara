@@ -164,7 +164,7 @@ fn main() {
     // Tout autre import doit pointer vers un fichier .oc existant.
     const OCARA_BUILTINS: &[&str] = &[
         "IO", "Math", "String", "Array", "Map",
-        "Convert", "System", "Regex", "HTTPRequest", "UnitTest",
+        "Convert", "System", "Regex", "HTTPRequest", "Thread", "UnitTest",
     ];
     let source_dir = args.input.parent().unwrap_or_else(|| std::path::Path::new("."));
     // Collecter les imports utilisateur avant d'itérer (pour éviter borrow conflict)
