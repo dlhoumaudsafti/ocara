@@ -19,6 +19,7 @@ pub mod math;
 pub mod regex;
 pub mod string;
 pub mod system;
+pub mod unittest;
 
 use crate::sema::symbols::ClassInfo;
 
@@ -34,6 +35,7 @@ pub fn builtin_class(name: &str) -> Option<ClassInfo> {
         "Regex"       => Some(regex::class()),
         "String"      => Some(string::class()),
         "System"      => Some(system::class()),
+        "UnitTest"    => Some(unittest::class()),
         _             => None,
     }
 }
@@ -50,5 +52,6 @@ pub fn all_builtins() -> Vec<(&'static str, ClassInfo)> {
         ("Regex",       regex::class()),
         ("String",      string::class()),
         ("System",      system::class()),
+        ("UnitTest",    unittest::class()),
     ]
 }
