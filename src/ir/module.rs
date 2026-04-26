@@ -25,6 +25,8 @@ pub struct IrModule {
     pub ctor_param_types: HashMap<String, Vec<IrType>>,
     /// Constantes de classes : "ClassName__NAME" → (IrType, Literal)
     pub class_consts: HashMap<String, (IrType, Literal)>,
+    /// Compteur pour nommer les closures anonymes (__anon_0, __anon_1, ...)
+    pub anon_counter: usize,
 }
 
 #[derive(Debug, Clone)]

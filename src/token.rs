@@ -119,7 +119,8 @@ pub enum TokenKind {
     // ── Opérateurs logiques ───────────────────────────────────────────────────
     KwAnd, // and
     KwOr,  // or
-    KwNot, // not
+    KwNot,      // not
+    KwNameless, // nameless
 
     // ── Affectation ───────────────────────────────────────────────────────────
     Eq, // =
