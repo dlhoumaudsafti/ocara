@@ -165,6 +165,14 @@ pub enum Expr {
 
     /// `self`
     SelfExpr(Span),
+
+    /// Fonction anonyme (closure) : `nameless(params): ret { body }`
+    Nameless {
+        params: Vec<Param>,
+        ret_ty: Option<Type>,
+        body:   Block,
+        span:   Span,
+    },
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

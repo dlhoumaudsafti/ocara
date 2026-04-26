@@ -294,6 +294,7 @@ impl Lexer {
             "and"        => TokenKind::KwAnd,
             "or"         => TokenKind::KwOr,
             "not"        => TokenKind::KwNot,
+            "nameless"   => TokenKind::KwNameless,
             _            => TokenKind::Ident(s.to_string()),
         }
     }

@@ -211,7 +211,7 @@ function greet(name:string): void { }
 
 ### 4.5 Type `Function`
 
-Le type `Function` permet de stocker une référence à une **fonction libre** ou à une **méthode statique** et de la passer en paramètre (fonctions de première classe).
+Le type `Function` représente toute valeur appelable : **fonction libre**, **méthode statique** ou **fonction anonyme** (`nameless`). Les valeurs `Function` sont des *fat pointers* (pointeur de fonction + contexte de capture).
 
 ```ebnf
 FunctionType ::= "Function"
@@ -220,14 +220,16 @@ FunctionType ::= "Function"
 ```ocara
 var f:Function = double                 // référence à une fonction libre
 var g:Function = MathOp::square        // référence à une méthode statique
+var h:Function = nameless(x:int): int { return x * 2 }  // fonction anonyme
 ```
 
 **Règles :**
 
-- `Function` ne peut référencer que des **fonctions libres** et des **méthodes statiques**. Les méthodes d'instance ne sont pas supportées.
+- `Function` peut référencer des **fonctions libres**, des **méthodes statiques** et des **fonctions anonymes** (`nameless`).
 - L'appel d'une valeur `Function` utilise la syntaxe d'appel normale : `f(args...)`.
-- Le type de retour et les types de paramètres ne sont **pas** encodés dans `Function` — la compatibilité est vérifiée dynamiquement.
+- Le type de retour et les types de paramètres ne sont **pas** encodés dans `Function` — la compatibilité est vérifiée à l'exécution.
 - `Function` n'est pas un mot-clé mais un **type réservé** (PascalCase). Il ne peut pas être utilisé comme nom de classe ou de variable.
+- Les fonctions anonymes peuvent capturer des variables locales et `self` depuis leur portée d'enclosement (closure lexicale).
 
 ---
 
@@ -533,6 +535,9 @@ PrimaryExpr  ::= Literal
                | ArrayLiteral
                | MapLiteral
                | "(" Expression ")"
+               | NamelessExpr
+
+NamelessExpr ::= "nameless" "(" ParamList? ")" ( ":" Type )? Block
 
 ArgList ::= Expression ( "," Expression )*
 ```
@@ -642,6 +647,62 @@ IO::writeln(apply(MathOp::square, 4)) // 16
 var op:Function = MathOp::negate
 IO::writeln(op(7))                     // -7
 ```
+
+### 12.2 Fonctions anonymes (`nameless`)
+
+Une **fonction anonyme** est une expression qui produit une valeur de type `Function`. Elle est introduite par le mot-clé `nameless` et peut capturer des variables locales de sa portée d'enclosement (**closure lexicale**).
+
+```ebnf
+NamelessExpr ::= "nameless" "(" ParamList? ")" ( ":" Type )? Block
+```
+
+**Syntaxe :**
+
+```ocara
+var f:Function = nameless(x:int): int {
+    return x * 2
+}
+
+// Sans paramètre, sans type de retour explicite (void implicite)
+var g:Function = nameless(): void {
+    IO::writeln("hello")
+}
+```
+
+**Captures (closures) :**
+
+Une `nameless` capture automatiquement les variables locales et `self` référencés dans son corps mais déclarés dans la portée englobante.
+
+```ocara
+var step:int = 5
+var inc:Function = nameless(x:int): int {
+    return x + step        // `step` est capturé
+}
+IO::writeln(inc(10))      // 15
+```
+
+**Captures de `self` dans une méthode :**
+
+```ocara
+class Counter {
+    public property value:int
+    init(start:int) { self.value = start }
+
+    public method make_adder(step:int): Function {
+        return nameless(): void {
+            self.value = self.value + step   // `self` et `step` capturés
+        }
+    }
+}
+```
+
+**Règles :**
+
+- Le type de retour est **optionnel** ; s'il est omis, `void` est supposé.
+- Les captures sont **par valeur au moment de la création** de la closure (snapshot du pointeur/valeur).
+- `self` peut être capturé depuis une méthode d'instance ; les mutations de champs via `self` sont visibles depuis l'extérieur.
+- Les closures imbriquées ne capturent pas les variables de la closure parente (seulement la portée immédiate).
+- Une `nameless` ne peut pas être récursive directement (elle n'a pas de nom).
 
 ---
 
@@ -1305,12 +1366,14 @@ PrimaryExpr ::= Literal
               | NewExpr
               | StaticCall
               | MatchExpr
+              | NamelessExpr
               | ArrayLiteral
               | MapLiteral
               | "(" Expression ")"
               | Identifier
 
-NewExpr     ::= "use" Identifier "(" ArgList? ")"
+NewExpr      ::= "use" Identifier "(" ArgList? ")"
+NamelessExpr ::= "nameless" "(" ParamList? ")" ( ":" Type )? Block
 StaticCallee ::= Identifier | "self"
 StaticCall  ::= StaticCallee "::" Identifier "(" ArgList? ")"
 StaticConst ::= StaticCallee "::" Identifier

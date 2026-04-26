@@ -611,6 +611,21 @@ impl<'a> TypeChecker<'a> {
                 }
                 Type::String
             }
+
+            Expr::Nameless { params, ret_ty: _, body, span: _ } => {
+                // Ouvre un scope pour les paramètres de la closure
+                self.scopes.push();
+                for p in params {
+                    self.scopes.declare(
+                        p.name.clone(),
+                        LocalBinding { ty: p.ty.clone(), mutable: false, span: p.span.clone(), used: false, is_param: true },
+                    );
+                }
+                // Analyse le corps — les variables capturées du scope parent sont marquées utilisées
+                self.check_block(body);
+                { let _u = self.scopes.pop_with_warnings(); self.flush_warnings(_u); }
+                Type::Function
+            }
         }
     }
 }
