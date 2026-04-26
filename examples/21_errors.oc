@@ -1,0 +1,43 @@
+// 21_errors.oc — Démonstration des erreurs et warnings sémantiques d'Ocara
+//
+// Ce fichier est volontairement invalide.
+// Il doit être analysé avec --check et ne doit PAS compiler.
+//
+// Usage :
+//   ./target/release/ocara examples/21_errors.oc --check
+
+import ocara.IO
+import ocara.Math
+
+function main(): int {
+    // Warning 1 — variable déclarée mais jamais utilisée
+    var inutile: string = "jamais lue"
+
+    // Erreur 1 — symbole indéfini
+    var a: int = foo
+
+    // Erreur 2 — mauvais type : on attend int, on donne string
+    var c: int = "bonjour"
+
+    // Erreur 3 — condition non booléenne
+    if 42 {
+        IO::writeln("ne devrait pas compiler")
+    }
+
+    // Warning 2 — variable déclarée dans un bloc mais jamais lue
+    if true {
+        var temp: int = 99
+    }
+
+    // Erreur 4 — mauvais nombre d'arguments
+    IO::writeln("trop", "d'", "arguments")
+
+    // Erreur 5 — double déclaration dans le même scope
+    var x: int = 1
+    var x: int = 2
+
+    // Erreur 6 — assignation à une constante
+    Math::PI = 3
+
+    return 0
+}
