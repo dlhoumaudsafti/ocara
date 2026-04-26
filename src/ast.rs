@@ -12,6 +12,7 @@ pub enum Type {
     Bool,
     Mixed,
     Void,
+    Null,
     /// Type nommé (classe, interface, alias d'import)
     Named(String),
     /// Type qualifié : `repository.User`
@@ -43,6 +44,7 @@ pub enum Literal {
     Float(f64),
     String(String),
     Bool(bool),
+    Null,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

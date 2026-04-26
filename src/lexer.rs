@@ -290,6 +290,7 @@ impl Lexer {
             "void"       => TokenKind::TVoid,
             "true"       => TokenKind::LitTrue,
             "false"      => TokenKind::LitFalse,
+            "null"       => TokenKind::LitNull,
             _            => TokenKind::Ident(s.to_string()),
         }
     }

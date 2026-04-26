@@ -21,6 +21,7 @@ impl IrType {
             Type::Void             => IrType::Void,
             Type::String           => IrType::Ptr,
             Type::Mixed              => IrType::Ptr,
+            Type::Null             => IrType::Ptr,
             Type::Named(_)         => IrType::Ptr,
             Type::Qualified(_)     => IrType::Ptr,
             Type::Array(_)         => IrType::Ptr,

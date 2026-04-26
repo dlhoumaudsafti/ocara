@@ -586,6 +586,7 @@ fn literal_type(lit: &Literal) -> Type {
         Literal::Float(_)  => Type::Float,
         Literal::String(_) => Type::String,
         Literal::Bool(_)   => Type::Bool,
+        Literal::Null      => Type::Null,
     }
 }
 
@@ -597,6 +598,7 @@ pub fn type_name(ty: &Type) -> String {
         Type::Bool             => "bool".into(),
         Type::Mixed              => "mixed".into(),
         Type::Void             => "void".into(),
+        Type::Null             => "null".into(),
         Type::Named(n)         => n.clone(),
         Type::Qualified(parts) => parts.join("."),
         Type::Array(inner)     => format!("{}[]", type_name(inner)),
@@ -604,10 +606,16 @@ pub fn type_name(ty: &Type) -> String {
     }
 }
 
-/// Compatibilité laxiste : `mixed` accepte tout
+/// Compatibilité laxiste : `mixed` accepte tout, `null` compatible avec tout type référence
 pub fn types_compat(found: &Type, expected: &Type) -> bool {
     if matches!(found, Type::Mixed) || matches!(expected, Type::Mixed) {
         return true;
+    }
+    // null est compatible avec tout type référence (string, objet, tableau, map)
+    if matches!(found, Type::Null) {
+        return matches!(expected,
+            Type::String | Type::Named(_) | Type::Array(_) | Type::Map(..) | Type::Null
+        );
     }
     match (found, expected) {
         (Type::Array(f), Type::Array(e)) => types_compat(f, e),
