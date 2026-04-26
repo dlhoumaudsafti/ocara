@@ -5,9 +5,9 @@ RED     := \033[0;31m
 RESET   := \033[0m
 
 # Argument optionnel : make regression builtins/io
-_TARGET := $(filter-out all build test regression clean help,$(MAKECMDGOALS))
+_TARGET := $(filter-out all build build-tools test regression lint clean help install install-tools uninstall,$(MAKECMDGOALS))
 
-.PHONY: all build test regression clean help install uninstall $(_TARGET)
+.PHONY: all build build-tools test regression lint clean help install install-tools uninstall $(_TARGET)
 
 all: build test regression
 
@@ -16,16 +16,19 @@ help:
 	@echo "Usage : make <cible> [argument]"
 	@echo ""
 	@echo "  build                   Compile le runtime + le compilateur Ocara"
+	@echo "  build-tools             Compile les outils (ocaracs)"
 	@echo "  test                    Lance les tests unitaires Cargo (cargo test)"
 	@echo "  regression              Lance la régression complète (tous les exemples)"
 	@echo "  regression <chemin>     Lance uniquement examples/<chemin>.oc"
 	@echo "                            ex: make regression builtins/io"
 	@echo "                            ex: make regression 07_loops"
 	@echo "                            ex: make regression project/main"
+	@echo "  lint                    Lance ocaracs sur tous les exemples"
 	@echo "  all                     build + test + regression"
 	@echo "  clean                   Supprime les artefacts de compilation"
-	@echo "  install                 Installe le binaire dans /usr/local/bin/"
-	@echo "  uninstall               Supprime le binaire de /usr/local/bin/"
+	@echo "  install                 Installe ocara dans /usr/local/bin/"
+	@echo "  install-tools           Installe ocaracs dans /usr/local/bin/"
+	@echo "  uninstall               Supprime ocara de /usr/local/bin/"
 	@echo "  help                    Affiche ce message"
 
 # Absorber l'argument positionnel pour éviter "No rule to make target"
@@ -163,13 +166,27 @@ clean:
 	cargo clean
 	rm -f $(TMP)
 
+# ── Outils (ocaracs) ─────────────────────────────────────────────────────────
+build-tools:
+	RUSTFLAGS="-D warnings" cargo build --release -p ocaracs
+
+lint: build-tools
+	@echo "══════════════════════════════════════════════"
+	@echo " Lint ocaracs — examples/"
+	@echo "══════════════════════════════════════════════"
+	./target/release/ocaracs examples/ || true
+
 # ── Installation ──────────────────────────────────────────────────────────────
 install: build
 	install -m 755 $(OCARA) /usr/local/bin/ocara
 	@echo "$(GREEN)Ocara installé dans /usr/local/bin/ocara$(RESET)"
 	@echo "$(GREEN)Le runtime est embarqué dans le binaire — aucun fichier supplémentaire requis.$(RESET)"
 
+install-tools: build-tools
+	install -m 755 ./target/release/ocaracs /usr/local/bin/ocaracs
+	@echo "$(GREEN)ocaracs installé dans /usr/local/bin/ocaracs$(RESET)"
+
 uninstall:
-	rm -f /usr/local/bin/ocara
-	@echo "$(GREEN)Ocara désinstallé.$(RESET)"
+	rm -f /usr/local/bin/ocara /usr/local/bin/ocaracs
+	@echo "$(GREEN)Ocara et ocaracs désinstallés.$(RESET)"
 
