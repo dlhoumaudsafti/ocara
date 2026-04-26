@@ -612,7 +612,7 @@ impl<'a> TypeChecker<'a> {
                 Type::String
             }
 
-            Expr::Nameless { params, ret_ty: _, body, span: _ } => {
+            Expr::Nameless { params, ret_ty, body, span: _ } => {
                 // Ouvre un scope pour les paramètres de la closure
                 self.scopes.push();
                 for p in params {
@@ -621,8 +621,13 @@ impl<'a> TypeChecker<'a> {
                         LocalBinding { ty: p.ty.clone(), mutable: false, span: p.span.clone(), used: false, is_param: true },
                     );
                 }
-                // Analyse le corps — les variables capturées du scope parent sont marquées utilisées
+                // Sauvegarder current_ret et le remplacer par le type de retour de la closure
+                // pour que les `return` internes soient vérifiés contre le bon type
+                let saved_ret = self.current_ret.take();
+                let closure_ret = ret_ty.as_ref().cloned().unwrap_or(Type::Void);
+                self.current_ret = Some(closure_ret);
                 self.check_block(body);
+                self.current_ret = saved_ret;
                 { let _u = self.scopes.pop_with_warnings(); self.flush_warnings(_u); }
                 Type::Function
             }
