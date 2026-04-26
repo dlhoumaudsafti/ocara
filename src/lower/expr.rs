@@ -166,20 +166,16 @@ fn lower_nameless_fn(
         }
         builder.func.params = updated_params;
 
-        // Charger les captures depuis __env
+        // Enregistrer les captures comme accès directs à l'env struct (GetField/SetField).
+        // Cela garantit que les mutations (ex: x = x + 1) sont persistantes d'un appel
+        // à l'autre : les reads/writes vont directement dans le struct env sur le tas.
         if !captures.is_empty() {
             let env_val = builder.load_local("__env").map(|(v, _)| v).unwrap();
             for (i, (cap_name, cap_ty)) in captures.iter().enumerate() {
-                let cap_dest = builder.new_value();
-                builder.emit(Inst::GetField {
-                    dest:   cap_dest.clone(),
-                    obj:    env_val.clone(),
-                    field:  format!("__cap_{}", i),
-                    ty:     cap_ty.clone(),
-                    offset: (i * 8) as i32,
-                });
-                let slot = builder.declare_local(cap_name, cap_ty.clone(), false);
-                builder.emit(Inst::Store { ptr: slot, src: cap_dest });
+                builder.captured_vars.insert(
+                    cap_name.clone(),
+                    (env_val.clone(), i, cap_ty.clone()),
+                );
                 // Propager le type de classe si c'est une instance
                 if let Some(cls) = var_class.get(cap_name.as_str()) {
                     builder.var_class.insert(cap_name.clone(), cls.clone());
@@ -261,6 +257,8 @@ fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
         Expr::Literal(Literal::Null, _)      => IrType::Ptr,
         Expr::Ident(name, _) => {
             if let Some((_, ty, _)) = builder.locals.get(name.as_str()) {
+                ty.clone()
+            } else if let Some((_, _, ty)) = builder.captured_vars.get(name.as_str()) {
                 ty.clone()
             } else {
                 IrType::Ptr
