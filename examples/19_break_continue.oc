@@ -34,7 +34,7 @@ function main(): int {
 
     // continue dans for..range
     for n in 0..6 {
-        if n == 2 || n == 4 {
+        if n == 2 or n == 4 {
             continue
         }
         IO::writeln("skip 2,4 : " + n)

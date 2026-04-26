@@ -4,8 +4,8 @@
 // Illustre :
 //   - Arithmétiques : + - * / %
 //   - Comparaison   : == != < <= > >=
-//   - Logiques      : && || !
-//   - Unaires       : - (négation) ! (not)
+//   - Logiques      : and or !
+//   - Unaires       : - (négation) not
 //   - Plage         : start..end
 //   - Précédence des opérateurs
 // ─────────────────────────────────────────────────────────────────────────────
@@ -31,9 +31,9 @@ function main(): int {
     IO::writeln(-(-n))            // 5
 
     var flag:bool = false
-    IO::writeln(!flag)            // true
-    IO::writeln(!true)            // false
-    IO::writeln(!!true)           // true
+    IO::writeln(not flag)            // true
+    IO::writeln(not true)            // false
+    IO::writeln(not not true)        // true
 
     // ── Comparaisons ─────────────────────────────────────────────────────────
     IO::writeln(5 == 5)           // true
@@ -44,18 +44,18 @@ function main(): int {
     IO::writeln(10 >= 10)         // true
 
     // ── Logiques ─────────────────────────────────────────────────────────────
-    IO::writeln(true && true)     // true
-    IO::writeln(true && false)    // false
-    IO::writeln(false || true)    // true
-    IO::writeln(false || false)   // false
+    IO::writeln(true and true)     // true
+    IO::writeln(true and false)    // false
+    IO::writeln(false or true)    // true
+    IO::writeln(false or false)   // false
 
     // ── Court-circuit logique ─────────────────────────────────────────────────
     var a:int = 5
     var b:int = 0
-    if a > 0 && b >= 0 {
+    if a > 0 and b >= 0 {
         IO::writeln("les deux conditions sont vraies")
     }
-    if a > 10 || b == 0 {
+    if a > 10 or b == 0 {
         IO::writeln("au moins une condition vraie")
     }
 

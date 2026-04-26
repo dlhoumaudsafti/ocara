@@ -103,7 +103,7 @@ function main(): int {
             scoped c:int = Map::get(compteurs, mot)
             Map::set(compteurs, mot, c + 1)
         }
-        if !Map::has(compteurs, mot) {
+        if not Map::has(compteurs, mot) {
             Map::set(compteurs, mot, 1)
         }
     }

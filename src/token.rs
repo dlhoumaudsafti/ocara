@@ -117,9 +117,9 @@ pub enum TokenKind {
     GtEq,   // >=
 
     // ── Opérateurs logiques ───────────────────────────────────────────────────
-    And,  // &&
-    Or,   // ||
-    Bang, // !
+    KwAnd, // and
+    KwOr,  // or
+    KwNot, // not
 
     // ── Affectation ───────────────────────────────────────────────────────────
     Eq, // =

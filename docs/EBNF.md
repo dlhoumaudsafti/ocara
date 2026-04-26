@@ -390,6 +390,7 @@ while     for       in         return     use        break    continue  self
 try       on        is         raise
 int       float     string     bool       mixed      map      void
 true      false     null
+or        and       not
 ```
 
 ---
@@ -479,14 +480,14 @@ Les règles de visibilité s'appliquent normalement (`public` accessible depuis 
 ```ebnf
 Expression ::= OrExpr
 
-OrExpr       ::= AndExpr ( "||" AndExpr )*
-AndExpr      ::= EqualityExpr ( "&&" EqualityExpr )*
+OrExpr       ::= AndExpr ( "or" AndExpr )*
+AndExpr      ::= EqualityExpr ( "and" EqualityExpr )*
 EqualityExpr ::= ComparisonExpr ( ( "==" | "!=" ) ComparisonExpr )*
 ComparisonExpr ::= RangeExpr ( ( "<" | "<=" | ">" | ">=" ) RangeExpr )*
 RangeExpr    ::= AdditiveExpr ( ".." AdditiveExpr )?
 AdditiveExpr ::= MultiplicativeExpr ( ( "+" | "-" ) MultiplicativeExpr )*
 MultiplicativeExpr ::= UnaryExpr ( ( "*" | "/" | "%" ) UnaryExpr )*
-UnaryExpr    ::= ( "!" | "-" ) UnaryExpr
+UnaryExpr    ::= ( "not" | "-" ) UnaryExpr
                | PostfixExpr
 PostfixExpr  ::= PrimaryExpr PostfixTail*
 PostfixTail  ::= "." Identifier ( "(" ArgList? ")" )?
@@ -522,14 +523,14 @@ Du plus faible au plus fort :
 
 | Niveau | Opérateurs               | Associativité |
 |--------|--------------------------|---------------|
-| 1      | `\|\|`                   | Gauche        |
-| 2      | `&&`                     | Gauche        |
+| 1      | `or`                     | Gauche        |
+| 2      | `and`                    | Gauche        |
 | 3      | `==` `!=`                | Gauche        |
 | 4      | `<` `<=` `>` `>=`        | Gauche        |
 | 5      | `..`                     | Aucune        |
 | 6      | `+` `-`                  | Gauche        |
 | 7      | `*` `/` `%`              | Gauche        |
-| 8      | `!` `-` (unaire)         | Droite        |
+| 8      | `not` `-` (unaire)       | Droite        |
 | 9      | `.` `()` `[]` (postfix)  | Gauche        |
 
 ---
@@ -1200,14 +1201,14 @@ WhileStmt   ::= "while" Expression Block
 (* ── Expressions (hiérarchie de précédence) ─────────────────────── *)
 
 Expression  ::= OrExpr
-OrExpr      ::= AndExpr ( "||" AndExpr )*
-AndExpr     ::= EqualityExpr ( "&&" EqualityExpr )*
+OrExpr      ::= AndExpr ( "or" AndExpr )*
+AndExpr     ::= EqualityExpr ( "and" EqualityExpr )*
 EqualityExpr ::= ComparisonExpr ( ( "==" | "!=" ) ComparisonExpr )*
 ComparisonExpr ::= RangeExpr ( ( "<" | "<=" | ">" | ">=" ) RangeExpr )*
 RangeExpr   ::= AdditiveExpr ( ".." AdditiveExpr )?
 AdditiveExpr ::= MultiplicativeExpr ( ( "+" | "-" ) MultiplicativeExpr )*
 MultiplicativeExpr ::= UnaryExpr ( ( "*" | "/" | "%" ) UnaryExpr )*
-UnaryExpr   ::= ( "!" | "-" ) UnaryExpr | PostfixExpr
+UnaryExpr   ::= ( "not" | "-" ) UnaryExpr | PostfixExpr
 PostfixExpr ::= PrimaryExpr PostfixTail*
 PostfixTail ::= "." Identifier ( "(" ArgList? ")" )?
               | "(" ArgList? ")"
