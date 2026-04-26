@@ -170,23 +170,6 @@ impl Parser {
     // ── Types ────────────────────────────────────────────────────────────────
 
     fn parse_type(&mut self) -> ParseResult<Type> {
-        let first = self.parse_type_base()?;
-
-        // Type union : `T | U | ...`
-        if self.check_exact(&TokenKind::Pipe) {
-            let mut variants = vec![first];
-            while self.check_exact(&TokenKind::Pipe) {
-                self.advance();
-                variants.push(self.parse_type_base()?);
-            }
-            return Ok(Type::Union(variants));
-        }
-
-        Ok(first)
-    }
-
-    /// Analyse un type de base sans consommer les `|` qui suivent (appelé depuis parse_type pour les unions).
-    fn parse_type_base(&mut self) -> ParseResult<Type> {
         let base = match self.peek_kind().clone() {
             TokenKind::TInt    => { self.advance(); Type::Int    }
             TokenKind::TFloat  => { self.advance(); Type::Float  }
@@ -207,6 +190,7 @@ impl Parser {
 
             TokenKind::Ident(name) => {
                 self.advance();
+                // type qualifié : `repository.User`
                 if self.check_exact(&TokenKind::Dot) {
                     let mut parts = vec![name];
                     while self.check_exact(&TokenKind::Dot) {
@@ -227,6 +211,7 @@ impl Parser {
             }
         };
 
+        // Suffixe(s) tableau : `Type[]` (possiblement répété pour `Type[][]`)
         let mut ty = base;
         while self.check_exact(&TokenKind::LBracket) {
             self.advance();

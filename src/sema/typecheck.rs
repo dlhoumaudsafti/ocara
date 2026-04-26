@@ -603,7 +603,6 @@ pub fn type_name(ty: &Type) -> String {
         Type::Qualified(parts) => parts.join("."),
         Type::Array(inner)     => format!("{}[]", type_name(inner)),
         Type::Map(k, v)        => format!("map<{},{}>", type_name(k), type_name(v)),
-        Type::Union(variants)  => variants.iter().map(type_name).collect::<Vec<_>>().join("|"),
     }
 }
 
@@ -617,14 +616,6 @@ pub fn types_compat(found: &Type, expected: &Type) -> bool {
         return matches!(expected,
             Type::String | Type::Named(_) | Type::Array(_) | Type::Map(..) | Type::Null
         );
-    }
-    // union en position "found" : compatible si l'une des variantes est compatible avec expected
-    if let Type::Union(variants) = found {
-        return variants.iter().any(|v| types_compat(v, expected));
-    }
-    // union en position "expected" : compatible si found est compatible avec au moins une variante
-    if let Type::Union(variants) = expected {
-        return variants.iter().any(|v| types_compat(found, v));
     }
     match (found, expected) {
         (Type::Array(f), Type::Array(e)) => types_compat(f, e),

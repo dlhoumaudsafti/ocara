@@ -144,13 +144,11 @@ Type ::= "int"
        | ArrayType
        | MapType
        | QualifiedType
-       | UnionType
        | Identifier
 
 ArrayType    ::= Type "[]"
 MapType      ::= "map" "<" Type "," Type ">"
 QualifiedType ::= Identifier ( "." Identifier )+
-UnionType    ::= Type ( "|" Type )+
 ```
 
 **Exemples :**
@@ -163,42 +161,7 @@ map<string, int>
 repository.User
 ```
 
-### 4.3 Types union
-
-Un type union exprime qu'une valeur peut être de **l'un ou l'autre** des types listés, séparés par `|`.
-
-```ebnf
-UnionType ::= Type ( "|" Type )+
-```
-
-```ocara
-function find(id:int): User|null { ... }
-public method parse(raw:string): int|float { ... }
-```
-
-**Règles sémantiques :**
-
-- Un union peut combiner n'importe quels types : primitifs, classes, `null`, tableaux, maps.
-- `null` dans un union indique une valeur optionnelle (pattern courant : `T|null`).
-- La valeur retournée doit être compatible avec **au moins une** variante de l'union.
-- L'ordre des variantes est sans importance sémantique.
-- Les unions ne sont pas autorisés comme type de `property` — utiliser `mixed` dans ce cas.
-
-```ocara
-// OK — retourner null ou un objet
-function lookup(key:string): Config|null {
-    // ...
-    return null
-}
-
-// OK — retourner int ou float
-function divide(a:int, b:int): int|float {
-    if b == 0 { return 0 }
-    return a / b
-}
-```
-
-### 4.4 Annotation de type
+### 4.3 Annotation de type
 
 Les variables et paramètres sont obligatoirement annotés :
 
@@ -1146,12 +1109,10 @@ Type        ::= "int" | "float" | "string" | "bool" | "mixed" | "void"
               | ArrayType
               | MapType
               | QualifiedType
-              | UnionType
               | Identifier
 ArrayType   ::= Type "[]"
 MapType     ::= "map" "<" Type "," Type ">"
 QualifiedType ::= Identifier ( "." Identifier )+
-UnionType   ::= Type ( "|" Type )+
 
 (* ── Bloc et instructions ───────────────────────────────────────── *)
 

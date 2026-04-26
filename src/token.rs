@@ -137,7 +137,6 @@ pub enum TokenKind {
     DotDot,      // ..   (range)
     Arrow,       // =>   (match arm / map for)
     ColonColon,  // ::   (accès statique)
-    Pipe,        // |    (union de types)
 
     // ── Fin de fichier ────────────────────────────────────────────────────────
     Eof,
