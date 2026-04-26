@@ -58,7 +58,7 @@ class HttpStatus {
     public const INTERNAL_ERROR:int = 500
 
     public static method is_success(code:int): bool {
-        return code >= 200 && code < 300
+        return code >= 200 and code < 300
     }
 }
 

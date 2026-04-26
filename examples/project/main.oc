@@ -39,7 +39,7 @@ class Color {
     }
 
     public static method is_primary(c:string): bool {
-        return c == Color::RED || c == Color::GREEN || c == Color::BLUE
+        return c == Color::RED or c == Color::GREEN or c == Color::BLUE
     }
 
     public static method describe(c:string): string {
@@ -223,9 +223,9 @@ function main(): int {
     scoped gte:bool = n >= 42
     IO::writeln("Comp : eq=" + eq + " neq=" + neq + " lt=" + lt + " gt=" + gt)
 
-    scoped and_r:bool = b && eq
-    scoped or_r:bool  = b || false
-    scoped not_r:bool = !b
+    scoped and_r:bool = b and eq
+    scoped or_r:bool  = b or false
+    scoped not_r:bool = not b
     IO::writeln("Logic : " + and_r + " " + or_r + " " + not_r)
 
     // Négation unaire
