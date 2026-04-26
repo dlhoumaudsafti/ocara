@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use crate::ast::Type;
+use crate::token::Span;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scope lexical empilé
@@ -10,6 +11,18 @@ use crate::ast::Type;
 pub struct LocalBinding {
     pub ty:      Type,
     pub mutable: bool,
+    /// Déclaré à cette position (pour les warnings)
+    pub span:    Span,
+    /// Marqué vrai dès qu'on lit la variable
+    pub used:    bool,
+    /// Paramètre de fonction → pas de warning unused
+    pub is_param: bool,
+}
+
+/// Variable non utilisée retournée par `pop_with_warnings`.
+pub struct UnusedVar {
+    pub name: String,
+    pub span: Span,
 }
 
 /// Pile de scopes lexicaux.
@@ -24,8 +37,24 @@ impl ScopeStack {
         self.frames.push(HashMap::new());
     }
 
+    #[allow(dead_code)]
     pub fn pop(&mut self) {
         self.frames.pop();
+    }
+
+    /// Dépile le scope courant et retourne les variables non utilisées.
+    pub fn pop_with_warnings(&mut self) -> Vec<UnusedVar> {
+        let frame = match self.frames.pop() {
+            Some(f) => f,
+            None    => return vec![],
+        };
+        let mut unused: Vec<UnusedVar> = frame.into_iter()
+            .filter(|(_, b)| !b.used && !b.is_param)
+            .map(|(name, b)| UnusedVar { name, span: b.span.clone() })
+            .collect();
+        // Tri pour ordre déterministe (ligne, colonne)
+        unused.sort_by_key(|u| (u.span.line, u.span.col));
+        unused
     }
 
     /// Déclare un symbole dans le scope courant.
@@ -47,5 +76,15 @@ impl ScopeStack {
             }
         }
         None
+    }
+
+    /// Marque une variable comme utilisée (en remontant la pile).
+    pub fn mark_used(&mut self, name: &str) {
+        for frame in self.frames.iter_mut().rev() {
+            if let Some(b) = frame.get_mut(name) {
+                b.used = true;
+                return;
+            }
+        }
     }
 }

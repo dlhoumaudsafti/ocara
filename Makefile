@@ -52,20 +52,30 @@ regression: build
 	    echo "══════════════════════════════════════════════"; \
 	    echo " Régression $$src"; \
 	    echo "══════════════════════════════════════════════"; \
-	    $(OCARA) $$src -o $(TMP); rc=$$?; \
-	    if [ $$rc -ne 0 ]; then \
-	        echo "$(RED)FAIL [compile] $$name$(RESET)"; rm -f $(TMP); exit 1; \
-	    fi; \
 	    case "$$name" in \
-	        03_builtins) echo -e "david\n45" | $(TMP) ;; \
-	        builtins/io) printf 'Alice\nParis\n21\n3.14\ntrue\nrust,ocara,web\nlang=fr,theme=dark\n' | $(TMP) ;; \
-	        *) $(TMP) ;; \
+	        21_errors) \
+	            $(OCARA) $$src --check; rc=$$?; \
+	            if [ $$rc -eq 0 ]; then \
+	                echo "$(RED)FAIL [check devait échouer] $$name$(RESET)"; rm -f $(TMP); exit 1; \
+	            fi; \
+	            echo "$(GREEN)OK   $$name$(RESET)" ;; \
+	        *) \
+	            $(OCARA) $$src -o $(TMP); rc=$$?; \
+	            if [ $$rc -ne 0 ]; then \
+	                echo "$(RED)FAIL [compile] $$name$(RESET)"; rm -f $(TMP); exit 1; \
+	            fi; \
+	            case "$$name" in \
+	                03_builtins) echo -e "david\n45" | $(TMP) ;; \
+	                builtins/io) printf 'Alice\nParis\n21\n3.14\ntrue\nrust,ocara,web\nlang=fr,theme=dark\n' | $(TMP) ;; \
+	                builtins/http) $(TMP) > /dev/null ;; \
+	                *) $(TMP) ;; \
+	            esac; \
+	            if [ $$? -ne 0 ]; then \
+	                echo "$(RED)FAIL [run] $$name$(RESET)"; rm -f $(TMP); exit 1; \
+	            fi; \
+	            echo "$(GREEN)OK   $$name$(RESET)"; \
+	            rm -f $(TMP) ;; \
 	    esac; \
-	    if [ $$? -ne 0 ]; then \
-	        echo "$(RED)FAIL [run] $$name$(RESET)"; rm -f $(TMP); exit 1; \
-	    fi; \
-	    echo "$(GREEN)OK   $$name$(RESET)"; \
-	    rm -f $(TMP); \
 	else \
 	    fail=0; \
 	    failed=""; \
@@ -74,18 +84,27 @@ regression: build
 	    echo "══════════════════════════════════════════════"; \
 	    for src in examples/[0-9][0-9]_*.oc; do \
 	        name=$$(basename $$src .oc); \
-	        $(OCARA) $$src -o $(TMP); rc=$$?; \
-	        if [ $$rc -ne 0 ]; then \
-	            echo "$(RED)FAIL [compile] $$name$(RESET)"; fail=1; failed="$$failed $$name"; \
-	        else \
-	            case "$$name" in \
-	                03_builtins) echo -e "david\n45" | $(TMP) ;; \
-	                *) $(TMP) ;; \
-	            esac; \
-	            if [ $$? -ne 0 ]; then \
-	                echo "$(RED)FAIL [run] $$name$(RESET)"; fail=1; failed="$$failed $$name"; \
+	        if [ "$$name" = "21_errors" ]; then \
+	            $(OCARA) $$src --check > /dev/null; rc=$$?; \
+	            if [ $$rc -eq 0 ]; then \
+	                echo "$(RED)FAIL [check devait échouer] $$name$(RESET)"; fail=1; failed="$$failed $$name"; \
 	            else \
 	                echo "$(GREEN)OK   $$name$(RESET)"; \
+	            fi; \
+	        else \
+	            $(OCARA) $$src -o $(TMP); rc=$$?; \
+	            if [ $$rc -ne 0 ]; then \
+	                echo "$(RED)FAIL [compile] $$name$(RESET)"; fail=1; failed="$$failed $$name"; \
+	            else \
+	                case "$$name" in \
+	                    03_builtins) echo -e "david\n45" | $(TMP) ;; \
+	                    *) $(TMP) ;; \
+	                esac; \
+	                if [ $$? -ne 0 ]; then \
+	                    echo "$(RED)FAIL [run] $$name$(RESET)"; fail=1; failed="$$failed $$name"; \
+	                else \
+	                    echo "$(GREEN)OK   $$name$(RESET)"; \
+	                fi; \
 	            fi; \
 	        fi; \
 	    done; \
@@ -116,6 +135,7 @@ regression: build
 	        else \
 	            case "$$name" in \
 	                io) printf 'Alice\nParis\n21\n3.14\ntrue\nrust,ocara,web\nlang=fr,theme=dark\n' | $(TMP) ;; \
+	                http) $(TMP) > /dev/null ;; \
 	                *) $(TMP) ;; \
 	            esac; \
 	            if [ $$? -ne 0 ]; then \

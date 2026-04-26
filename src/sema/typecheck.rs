@@ -1,5 +1,5 @@
 use crate::ast::*;
-use crate::sema::error::SemaError;
+use crate::sema::error::{SemaError, SemaWarning};
 use crate::sema::scope::{LocalBinding, ScopeStack};
 use crate::sema::symbols::SymbolTable;
 use crate::token::Span;
@@ -9,11 +9,12 @@ use crate::token::Span;
 // ─────────────────────────────────────────────────────────────────────────────
 
 pub struct TypeChecker<'a> {
-    pub symbols:  &'a SymbolTable,
-    pub errors:   Vec<SemaError>,
-    scopes:       ScopeStack,
+    pub symbols:   &'a SymbolTable,
+    pub errors:    Vec<SemaError>,
+    pub warnings:  Vec<SemaWarning>,
+    scopes:        ScopeStack,
     /// Type de retour de la fonction en cours d'analyse
-    current_ret:  Option<Type>,
+    current_ret:   Option<Type>,
     /// Nom de la classe en cours (pour `self`)
     current_class: Option<String>,
 }
@@ -22,9 +23,10 @@ impl<'a> TypeChecker<'a> {
     pub fn new(symbols: &'a SymbolTable) -> Self {
         Self {
             symbols,
-            errors: Vec::new(),
-            scopes: ScopeStack::default(),
-            current_ret: None,
+            errors:   Vec::new(),
+            warnings: Vec::new(),
+            scopes:   ScopeStack::default(),
+            current_ret:   None,
             current_class: None,
         }
     }
@@ -51,12 +53,12 @@ impl<'a> TypeChecker<'a> {
         for param in &func.params {
             self.scopes.declare(
                 param.name.clone(),
-                LocalBinding { ty: param.ty.clone(), mutable: false },
+                LocalBinding { ty: param.ty.clone(), mutable: false, span: param.span.clone(), used: false, is_param: true },
             );
         }
 
         self.check_block(&func.body);
-        self.scopes.pop();
+        { let _u = self.scopes.pop_with_warnings(); self.flush_warnings(_u); }
         self.current_ret = None;
     }
 
@@ -74,11 +76,11 @@ impl<'a> TypeChecker<'a> {
                     for p in params {
                         self.scopes.declare(
                             p.name.clone(),
-                            LocalBinding { ty: p.ty.clone(), mutable: false },
+                            LocalBinding { ty: p.ty.clone(), mutable: false, span: p.span.clone(), used: false, is_param: true },
                         );
                     }
                     self.check_block(body);
-                    self.scopes.pop();
+                    { let _u = self.scopes.pop_with_warnings(); self.flush_warnings(_u); }
                     self.current_ret = None;
                 }
                 ClassMember::Const { ty, value, span, .. } => {
@@ -105,7 +107,14 @@ impl<'a> TypeChecker<'a> {
         for stmt in &block.stmts {
             self.check_stmt(stmt);
         }
-        self.scopes.pop();
+        { let _u = self.scopes.pop_with_warnings(); self.flush_warnings(_u); }
+    }
+
+    /// Convertit les variables inutilisées retournées par pop_with_warnings en SemaWarning.
+    fn flush_warnings(&mut self, unused: Vec<crate::sema::scope::UnusedVar>) {
+        for u in unused {
+            self.warnings.push(SemaWarning::UnusedVariable { name: u.name, span: u.span });
+        }
     }
 
     // ── Statement ────────────────────────────────────────────────────────────
@@ -123,7 +132,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 if !self.scopes.declare(
                     name.clone(),
-                    LocalBinding { ty: ty.clone(), mutable: *mutable },
+                    LocalBinding { ty: ty.clone(), mutable: *mutable, span: span.clone(), used: false, is_param: false },
                 ) {
                     self.errors.push(SemaError::DuplicateSymbol {
                         name: name.clone(),
@@ -143,7 +152,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 if !self.scopes.declare(
                     name.clone(),
-                    LocalBinding { ty: ty.clone(), mutable: false },
+                    LocalBinding { ty: ty.clone(), mutable: false, span: span.clone(), used: false, is_param: false },
                 ) {
                     self.errors.push(SemaError::DuplicateSymbol {
                         name: name.clone(),
@@ -207,18 +216,18 @@ impl<'a> TypeChecker<'a> {
                     }
                 };
                 self.scopes.push();
-                self.scopes.declare(var.clone(), LocalBinding { ty: elem_ty, mutable: false });
+                self.scopes.declare(var.clone(), LocalBinding { ty: elem_ty, mutable: false, span: span.clone(), used: false, is_param: true });
                 self.check_block(body);
-                self.scopes.pop();
+                { let _u = self.scopes.pop_with_warnings(); self.flush_warnings(_u); }
             }
 
-            Stmt::ForMap { key, value, iter, body, .. } => {
+            Stmt::ForMap { key, value, iter, body, span } => {
                 self.infer_expr(iter);
                 self.scopes.push();
-                self.scopes.declare(key.clone(),   LocalBinding { ty: Type::Mixed, mutable: false });
-                self.scopes.declare(value.clone(), LocalBinding { ty: Type::Mixed, mutable: false });
+                self.scopes.declare(key.clone(),   LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true });
+                self.scopes.declare(value.clone(), LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true });
                 self.check_block(body);
-                self.scopes.pop();
+                { let _u = self.scopes.pop_with_warnings(); self.flush_warnings(_u); }
             }
 
             Stmt::Return { value, span } => {
@@ -252,10 +261,10 @@ impl<'a> TypeChecker<'a> {
                     // Le binding est de type mixed (type de l'erreur inconnu statiquement)
                     self.scopes.declare(
                         handler.binding.clone(),
-                        crate::sema::scope::LocalBinding { ty: Type::Mixed, mutable: false },
+                        LocalBinding { ty: Type::Mixed, mutable: false, span: handler.span.clone(), used: false, is_param: true },
                     );
                     self.check_block(&handler.body);
-                    self.scopes.pop();
+                    { let _u = self.scopes.pop_with_warnings(); self.flush_warnings(_u); }
                 }
             }
 
@@ -317,7 +326,9 @@ impl<'a> TypeChecker<'a> {
             Expr::Ident(name, span) => {
                 // 1. variable locale
                 if let Some(b) = self.scopes.lookup(name) {
-                    return b.ty.clone();
+                    let ty = b.ty.clone();
+                    self.scopes.mark_used(name);
+                    return ty;
                 }
                 // 2. constante globale
                 if let Some(ty) = self.symbols.lookup_const(name) {
