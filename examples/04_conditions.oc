@@ -4,7 +4,7 @@
 // Illustre :
 //   - if / elseif / else
 //   - Opérateurs de comparaison : == != < <= > >=
-//   - Opérateurs logiques : && ||  !
+//   - Opérateurs logiques : and or not
 // ─────────────────────────────────────────────────────────────────────────────
 
 import ocara.IO
@@ -49,15 +49,15 @@ function main(): int {
     // Opérateurs logiques
     var a:int = 5
     var b:int = 10
-    if a > 0 && b > 0 {
+    if a > 0 and b > 0 {
         IO::writeln("a et b sont positifs")
     }
 
-    if a > 100 || b > 5 {
+    if a > 100 or b > 5 {
         IO::writeln("au moins une condition vraie")
     }
 
-    if !false {
+    if not false {
         IO::writeln("négation de false vaut true")
     }
 

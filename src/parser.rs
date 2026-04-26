@@ -660,7 +660,7 @@ impl Parser {
 
     fn parse_or(&mut self) -> ParseResult<Expr> {
         let mut left = self.parse_and()?;
-        while self.check_exact(&TokenKind::Or) {
+        while self.check_exact(&TokenKind::KwOr) {
             let span = self.span();
             self.advance();
             let right = self.parse_and()?;
@@ -676,7 +676,7 @@ impl Parser {
 
     fn parse_and(&mut self) -> ParseResult<Expr> {
         let mut left = self.parse_equality()?;
-        while self.check_exact(&TokenKind::And) {
+        while self.check_exact(&TokenKind::KwAnd) {
             let span = self.span();
             self.advance();
             let right = self.parse_equality()?;
@@ -776,7 +776,7 @@ impl Parser {
     fn parse_unary(&mut self) -> ParseResult<Expr> {
         let span = self.span();
         match self.peek_kind().clone() {
-            TokenKind::Bang => {
+            TokenKind::KwNot => {
                 self.advance();
                 let operand = self.parse_unary()?;
                 Ok(Expr::Unary { op: UnaryOp::Not, operand: Box::new(operand), span })

@@ -291,6 +291,9 @@ impl Lexer {
             "true"       => TokenKind::LitTrue,
             "false"      => TokenKind::LitFalse,
             "null"       => TokenKind::LitNull,
+            "and"        => TokenKind::KwAnd,
+            "or"         => TokenKind::KwOr,
+            "not"        => TokenKind::KwNot,
             _            => TokenKind::Ident(s.to_string()),
         }
     }
@@ -347,10 +350,10 @@ impl Lexer {
             ']' => TokenKind::RBracket,
             ',' => TokenKind::Comma,
 
-            // !  ou  !=
+            // ! ou != (! seul est interdit, utiliser 'not')
             '!' => match self.current() {
                 Some('=') => { self.advance(); TokenKind::BangEq }
-                _         => TokenKind::Bang,
+                _         => return Err(LexError::UnexpectedChar('!', span)),
             },
 
             // =  ou  ==  ou  =>
@@ -372,15 +375,12 @@ impl Lexer {
                 _         => TokenKind::Gt,
             },
 
-            // &&
-            '&' => match self.current() {
-                Some('&') => { self.advance(); TokenKind::And }
-                _         => return Err(LexError::UnexpectedChar('&', span)),
-            },
+            // & interdit (utiliser 'and')
+            '&' => return Err(LexError::UnexpectedChar('&', span)),
 
-            // || ou |
+            // | ou || interdit (| = union de type, || = utiliser 'or')
             '|' => match self.current() {
-                Some('|') => { self.advance(); TokenKind::Or }
+                Some('|') => return Err(LexError::UnexpectedChar('|', span)),
                 _         => TokenKind::Pipe,
             },
 
@@ -430,8 +430,6 @@ fn lexeme_str(kind: &TokenKind, first: char) -> String {
         TokenKind::Arrow      => "=>".into(),
         TokenKind::LtEq       => "<=".into(),
         TokenKind::GtEq       => ">=".into(),
-        TokenKind::And        => "&&".into(),
-        TokenKind::Or         => "||".into(),
         TokenKind::ColonColon => "::".into(),
         TokenKind::DotDot     => "..".into(),
         _                     => first.to_string(),
@@ -547,15 +545,13 @@ mod tests {
 
     #[test]
     fn test_multi_char_ops() {
-        let tks = kinds("== != <= >= && || => ::");
+        let tks = kinds("== != <= >= => ::");
         assert_eq!(tks[0], TokenKind::EqEq);
         assert_eq!(tks[1], TokenKind::BangEq);
         assert_eq!(tks[2], TokenKind::LtEq);
         assert_eq!(tks[3], TokenKind::GtEq);
-        assert_eq!(tks[4], TokenKind::And);
-        assert_eq!(tks[5], TokenKind::Or);
-        assert_eq!(tks[6], TokenKind::Arrow);
-        assert_eq!(tks[7], TokenKind::ColonColon);
+        assert_eq!(tks[4], TokenKind::Arrow);
+        assert_eq!(tks[5], TokenKind::ColonColon);
     }
 
     #[test]
