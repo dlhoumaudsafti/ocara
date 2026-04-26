@@ -1,0 +1,8 @@
+[package]
+name    = "ocaracs"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "ocaracs"
+path = "src/main.rs"
