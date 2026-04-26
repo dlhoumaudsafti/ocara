@@ -1,0 +1,63 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 08 — Tableaux
+//
+// Illustre :
+//   - Tableau simple     : int[]
+//   - Tableau multi-type : mixed[]
+//   - Tableau 2D         : int[][]
+//   - Accès par index    : arr[i]
+//   - Itération avec for in
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+import ocara.Array
+
+function main(): int {
+
+    // ── Tableau d'entiers ────────────────────────────────────────────────────
+    var numbers:int[] = [10, 20, 30, 40, 50]
+
+    IO::writeln(numbers[0])       // 10
+    IO::writeln(numbers[2])       // 30
+    IO::writeln(numbers[4])       // 50
+
+    // Itération sur le tableau
+    for n in numbers {
+        IO::writeln(n)
+    }
+
+    // ── Tableau de chaînes ───────────────────────────────────────────────────
+    var jours:string[] = ["lundi", "mardi", "mercredi", "jeudi", "vendredi"]
+
+    IO::writeln(jours[0])         // lundi
+    IO::writeln(jours[4])         // vendredi
+
+    for j in jours {
+        IO::writeln(j)
+    }
+
+    // ── Tableau multi-type (mixed[]) ───────────────────────────────────────────
+    var vals:mixed[] = [42, "hello", true, 3.14]
+
+    IO::writeln(vals[0])         // 42
+    IO::writeln(vals[1])         // hello
+    IO::writeln(vals[2])         // true
+    IO::writeln(vals[3])         // 3.14
+
+    // ── Tableau multidimensionnel (matrice 3×3) ──────────────────────────────
+    var matrix:int[][] = [
+        [1, 2, 3],
+        [4, 5, 6],
+        [7, 8, 9]
+    ]
+
+    IO::writeln(Array::join(matrix[0], ", "))  // ligne 0 : 1, 2, 3
+    IO::writeln(Array::join(matrix[1], ", "))  // ligne 1 : 4, 5, 6
+    IO::writeln(Array::join(matrix[2], ", "))  // ligne 2 : 7, 8, 9
+
+    // ── Tableau vide ─────────────────────────────────────────────────────────
+    var empty:int[] = []
+    IO::writeln(Array::join(empty, ", "))
+
+    return 0
+}

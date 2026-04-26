@@ -1,0 +1,97 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 11 — Interfaces
+//
+// Illustre :
+//   - Déclaration interface avec signatures de méthodes
+//   - Implémentation d'une interface (implements)
+//   - Polymorphisme via le type de l'interface
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+
+interface Printable {
+    method print_info(): void
+}
+
+interface Serializable {
+    method serialize(): string
+}
+
+interface Shape {
+    method area(): float
+    method perimeter(): float
+    method describe(): void
+}
+
+
+class Circle implements Shape, Printable {
+
+    private property radius:float
+
+    init(radius:float) {
+        self.radius = radius
+    }
+
+    public method area(): float {
+        return 3.14159 * self.radius * self.radius
+    }
+
+    public method perimeter(): float {
+        return 2.0 * 3.14159 * self.radius
+    }
+
+    public method describe(): void {
+        IO::writeln("Cercle de rayon " + self.radius)
+    }
+
+    public method print_info(): void {
+        IO::writeln("Cercle — rayon=" + self.radius + " aire=" + self.area())
+    }
+}
+
+
+class Rectangle implements Shape, Printable {
+
+    private property width:float
+    private property height:float
+
+    init(width:float, height:float) {
+        self.width  = width
+        self.height = height
+    }
+
+    public method area(): float {
+        return self.width * self.height
+    }
+
+    public method perimeter(): float {
+        return 2.0 * (self.width + self.height)
+    }
+
+    public method describe(): void {
+        IO::writeln("Rectangle " + self.width + "×" + self.height)
+    }
+
+    public method print_info(): void {
+        IO::writeln("Rectangle — " + self.width + "×" + self.height + " aire=" + self.area())
+    }
+}
+
+
+function main(): int {
+
+    var c:Circle    = use Circle(5.0)
+    var r:Rectangle = use Rectangle(4.0, 6.0)
+
+    c.describe()            // Cercle de rayon 5.0
+    IO::writeln(c.area())         // ~78.54
+    IO::writeln(c.perimeter())    // ~31.42
+    c.print_info()
+
+    r.describe()            // Rectangle 4.0×6.0
+    IO::writeln(r.area())         // 24.0
+    IO::writeln(r.perimeter())    // 20.0
+    r.print_info()
+
+    return 0
+}

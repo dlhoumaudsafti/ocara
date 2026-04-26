@@ -1,0 +1,97 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 12 — Héritage et implémentation
+//
+// Illustre :
+//   - Héritage simple : extends
+//   - Implémentation d'interface : implements
+//   - Surcharge de méthode dans la sous-classe
+//   - Combinaison extends + implements
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface Loggable {
+    method log(msg:string): void
+}
+
+import ocara.IO
+
+
+class Animal {
+
+    protected property name:string
+    protected property sound:string
+
+    init(name:string, sound:string) {
+        self.name  = name
+        self.sound = sound
+    }
+
+    public method speak(): void {
+        IO::writeln(self.name + " dit : " + self.sound)
+    }
+
+    public method describe(): void {
+        IO::writeln("Animal : " + self.name)
+    }
+}
+
+
+class Dog extends Animal implements Loggable {
+
+    private property breed:string
+
+    init(name:string, breed:string) {
+        self.name  = name
+        self.sound = "Woof"
+        self.breed = breed
+    }
+
+    public method describe(): void {
+        IO::writeln("Chien : " + self.name + " (" + self.breed + ")")
+    }
+
+    public method fetch(): void {
+        IO::writeln(self.name + " rapporte la balle !")
+    }
+
+    public method log(msg:string): void {
+        IO::writeln("[Dog:" + self.name + "] " + msg)
+    }
+}
+
+
+class Cat extends Animal {
+
+    private property indoor:bool
+
+    init(name:string, indoor:bool) {
+        self.name   = name
+        self.sound  = "Meow"
+        self.indoor = indoor
+    }
+
+    public method describe(): void {
+        scoped type:string = match self.indoor {
+            true  => "d'intérieur"
+            false => "d'extérieur"
+            default => "inconnu"
+        }
+        IO::writeln("Chat " + type + " : " + self.name)
+    }
+}
+
+
+function main(): int {
+
+    var dog:Dog = use Dog("Rex", "Labrador")
+    var cat:Cat = use Cat("Mimi", true)
+
+    dog.speak()             // Rex dit : Woof
+    dog.describe()          // Chien : Rex (Labrador)
+    dog.fetch()             // Rex rapporte la balle !
+    dog.log("promenade effectuée")
+
+    cat.speak()             // Mimi dit : Meow
+    cat.describe()          // Chat d'intérieur : Mimi
+
+    return 0
+}

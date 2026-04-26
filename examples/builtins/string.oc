@@ -1,0 +1,108 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// examples/builtins/string.oc — classe builtin ocara.String
+//
+// Illustre :
+//   - import ocara.String
+//   - String::len(s)
+//   - String::upper(s) / String::lower(s) / String::capitalize(s)
+//   - String::trim(s)
+//   - String::replace(s, from, to)
+//   - String::split(s, sep) / String::explode(s, sep)
+//   - String::between(s, start, end)
+//   - String::empty(s)
+//   - Combinaison avec les template strings
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+import ocara.String
+
+
+function main(): int {
+
+    // ── Données de base ────────────────────────────────────────────────────
+    var phrase:string = "  Bonjour, Monde !  "
+    var csv:string    = "alice,bob,charlie,david"
+    var url:string    = "https://[ocara]0.1[/ocara]"
+
+
+    // ── len ───────────────────────────────────────────────────────────────
+    // Retourne le nombre de caractères (int)
+    scoped n:int = String::len("Ocara")
+    IO::writeln(`String::len("Ocara") = ${n}`)         // 5
+
+
+    // ── upper / lower / capitalize ────────────────────────────────────────
+    scoped up:string   = String::upper("ocara")
+    scoped down:string = String::lower("OCARA")
+    scoped cap:string  = String::capitalize("bonjour monde")
+
+    IO::writeln(`upper("ocara")            = ${up}`)    // OCARA
+    IO::writeln(`lower("OCARA")            = ${down}`)  // ocara
+    IO::writeln(`capitalize("bonjour...")  = ${cap}`)   // Bonjour monde
+
+
+    // ── trim ──────────────────────────────────────────────────────────────
+    // Supprime les espaces en début et fin de chaîne
+    scoped trimmed:string = String::trim(phrase)
+    IO::writeln(`trim("  Bonjour, Monde !  ") = "${trimmed}"`)
+
+
+    // ── replace ───────────────────────────────────────────────────────────
+    // Remplace toutes les occurrences de `from` par `to`
+    scoped r:string = String::replace("chat noir chat blanc", "chat", "chien")
+    IO::writeln(`replace : ${r}`)    // chien noir chien blanc
+
+
+    // ── split / explode ───────────────────────────────────────────────────
+    // Découpe une chaîne selon un séparateur → string[]
+    // split et explode sont des aliases
+    scoped parts:string[]  = String::split(csv, ",")
+    scoped parts2:string[] = String::explode("a|b|c", "|")
+
+    IO::writeln(`split("alice,bob,...", ",") retourne ${String::len(csv)} octets source`)
+    IO::writeln(`explode("a|b|c", "|") — premier segment via split`)
+
+
+    // ── between ───────────────────────────────────────────────────────────
+    // Extrait la sous-chaîne comprise entre `start` et `end`
+    scoped inner:string = String::between(url, "[ocara]", "[/ocara]")
+    IO::writeln(`between(url, "[ocara]", "[/ocara]") = ${inner}`)  // 0.1
+
+
+    // ── empty ─────────────────────────────────────────────────────────────
+    // Retourne true si la chaîne est vide ou ne contient que des espaces
+    scoped e1:bool = String::empty("")
+    scoped e2:bool = String::empty("   ")
+    scoped e3:bool = String::empty("non vide")
+
+    IO::writeln(`empty("")        = ${e1}`)   // true
+    IO::writeln(`empty("   ")     = ${e2}`)   // true
+    IO::writeln(`empty("non vide")= ${e3}`)   // false
+
+
+    // ── Combinaison avec les templates ────────────────────────────────────
+    var nom:string = "  alice  "
+    scoped prenom:string = String::capitalize(String::trim(nom))
+    IO::writeln(`capitalize(trim("  alice  ")) = ${prenom}`)   // Alice
+
+    scoped salut:string = `Bonjour ${prenom}, ton nom fait ${String::len(prenom)} lettres.`
+    IO::writeln(salut)
+
+
+    // ── Test conditionnel avec empty ──────────────────────────────────────
+    var saisie:string = ""
+
+    if String::empty(saisie) {
+        IO::writeln("Saisie vide — valeur par défaut utilisée")
+        saisie = "inconnu"
+    }
+    IO::writeln(`Saisie finale : ${saisie}`)
+
+
+    // ── import ocara.* (alternative) ──────────────────────────────────────
+    // On peut aussi écrire :  import ocara.*
+    // Cela enregistre toutes les classes builtins en une seule ligne.
+    // L'utilisation reste identique : String::len(s), etc.
+
+    return 0
+}

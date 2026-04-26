@@ -1,0 +1,144 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 09 — Tableaux associatifs (maps)
+//
+// Illustre :
+//   - Déclaration map<K, V>
+//   - Littéral avec la syntaxe { clé: valeur, ... }
+//   - Accès par clé : map["clé"]
+//   - Itération for key => val in map
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+import ocara.Map
+import ocara.Array
+
+function main(): int {
+
+    // ── Map string → int ────────────────────────────────────────────────────
+    var ages:map<string, int> = {
+        'Alice': 30,
+        'Bob':   25,
+        'Carol': 35
+    }
+
+    IO::writeln(ages["Alice"])    // 30
+    IO::writeln(ages["Bob"])      // 25
+
+    for nom => age in ages {
+        IO::writeln(`${nom} a ${age} ans`)
+    }
+
+    // ── Map string → string ──────────────────────────────────────────────────
+    var capitales:map<string, string> = {
+        "France":    "Paris",
+        "Allemagne": "Berlin",
+        "Espagne":   "Madrid"
+    }
+
+    IO::writeln(capitales["France"])      // Paris
+    IO::writeln(capitales["Espagne"])     // Madrid
+
+    for pays => capitale in capitales {
+        IO::writeln(`${pays} → ${capitale}`)
+    }
+
+    // ── Map string → mixed (valeurs hétérogènes) ───────────────────────────────
+    var profil:map<string, mixed> = {
+        "nom":   "David",
+        "age":   43,
+        "actif": true,
+        "score": 9.8
+    }
+
+    IO::writeln(profil["nom"])    // David
+    IO::writeln(profil["age"])    // 43
+    IO::writeln(profil["actif"])  // true
+    IO::writeln(profil["score"])  // 9.8
+
+    for cle => valeur in profil {
+        IO::writeln(`${cle} = ${valeur}`)
+    }
+
+    // ── Map int → string ─────────────────────────────────────────────────────
+    var codes:map<int, string> = {
+        200: "OK",
+        404: "Not Found",
+        500: "Server Error"
+    }
+
+    IO::writeln(codes[200])       // OK
+    IO::writeln(codes[404])       // Not Found
+
+    // ── Map associant des tableaux ────────────────────────────────────────────
+    var tags:map<string, mixed> = {
+        "Alice": ["rust", "ocara", "linux"],
+        "Bob":   ["python", "django"],
+        "Carol": ["go", "kubernetes", "docker"]
+    }
+
+    var alice_tags:mixed[] = tags["Alice"]
+    IO::writeln(Array::join(alice_tags, ", "))   // rust, ocara, linux
+
+    var bob_tags:mixed[] = tags["Bob"]
+    IO::writeln(Array::join(bob_tags, ", "))     // python, django
+
+    // ── Map associant d'autres maps ───────────────────────────────────────────
+    var users:map<string, mixed> = {
+        "alice": {"age": 30, "admin": true,  "score": 98},
+        "bob":   {"age": 25, "admin": false, "score": 74},
+        "carol": {"age": 35, "admin": true,  "score": 91}
+    }
+
+    var alice_info:map<string, mixed> = users["alice"]
+    IO::writeln(alice_info["age"])    // 30
+    IO::writeln(alice_info["admin"])  // 1 (true)
+    IO::writeln(alice_info["score"])  // 98
+
+    // ── Map de maps de tableaux ───────────────────────────────────────────────
+    var catalog:map<string, mixed> = {
+        "frontend": {
+            "langs":   ["js", "ts", "css"],
+            "tools":   ["webpack", "vite"]
+        },
+        "backend": {
+            "langs":   ["rust", "go", "ocara"],
+            "tools":   ["docker", "nginx"]
+        }
+    }
+
+    var frontend:map<string, mixed> = catalog["frontend"]
+    var fe_langs:mixed[] = frontend["langs"]
+    IO::writeln(Array::join(fe_langs, ", "))   // js, ts, css
+
+    var backend:map<string, mixed> = catalog["backend"]
+    var be_langs:mixed[] = backend["langs"]
+    IO::writeln(Array::join(be_langs, ", "))   // rust, go, ocara
+
+    // ── Contrôles Map (size, has, remove, keys, values) ──────────────────────
+    var scores:map<string, int> = {
+        "Alice": 95,
+        "Bob":   78,
+        "Carol": 88
+    }
+
+    IO::writeln(Map::size(scores))           // 3
+    IO::writeln(Map::has(scores, "Alice"))   // 1 (true)
+    IO::writeln(Map::has(scores, "Dave"))    // 0 (false)
+
+    Map::remove(scores, "Bob")
+    IO::writeln(Map::size(scores))           // 2
+    IO::writeln(Map::has(scores, "Bob"))     // 0 (false)
+
+    var keys:string[] = Map::keys(scores)
+    IO::writeln(Array::join(keys, ", "))     // Alice, Carol (ordre d'insertion)
+
+    var vals:int[] = Map::values(scores)
+    IO::writeln(Array::join(vals, ", "))     // 95, 88
+
+    IO::writeln(Map::is_empty(scores))       // 0 (false)
+
+    var empty_map:map<string, int> = {}
+    IO::writeln(Map::is_empty(empty_map))    // 1 (true)
+
+    return 0
+}

@@ -1,0 +1,35 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 17 — Système de modules (imports)
+//
+// Illustre :
+//   - import path.To.Module as Alias
+//   - Utilisation de l'alias comme type et comme constructeur
+//   - Accès statique via un alias
+//
+// Note : cet exemple montre la syntaxe ; les fichiers importés ne sont pas
+//        présents dans le dossier examples/ — le compilateur résoudrait
+//        chaque import depuis la racine du projet.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+import modules.User as UserModel
+import modules.Logger as AppLogger
+import modules.Math as MathUtils
+
+
+function main(): int {
+
+    // Import avec alias — accès via le nom de l'alias
+    var u:UserModel = use UserModel("Alice", 30)
+    u.greet()
+
+    // Logger applicatif
+    var log:AppLogger = use AppLogger()
+    log.info("démarrage de l'application")
+
+    // Accès statique sur module importé avec alias
+    IO::writeln(MathUtils::abs(-7))
+    IO::writeln(MathUtils::max(3, 8))
+
+    return 0
+}

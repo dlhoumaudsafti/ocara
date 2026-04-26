@@ -1,0 +1,53 @@
+import ocara.IO
+
+function main(): int {
+    IO::writeln("── 19. break / continue ─────────────────────")
+
+    // break dans while
+    var i:int = 0
+    while i < 10 {
+        if i == 5 {
+            break
+        }
+        IO::writeln("while : " + i)
+        i = i + 1
+    }
+    IO::writeln("après break : i=" + i)
+
+    // continue dans while
+    var j:int = 0
+    while j < 8 {
+        j = j + 1
+        if j % 2 == 0 {
+            continue
+        }
+        IO::writeln("impair : " + j)
+    }
+
+    // break dans for..range
+    for k in 0..10 {
+        if k == 4 {
+            break
+        }
+        IO::writeln("range : " + k)
+    }
+
+    // continue dans for..range
+    for n in 0..6 {
+        if n == 2 || n == 4 {
+            continue
+        }
+        IO::writeln("skip 2,4 : " + n)
+    }
+
+    // break dans for..in (tableau)
+    var nums:int[] = [10, 20, 30, 40, 50]
+    for v in nums {
+        if v == 30 {
+            break
+        }
+        IO::writeln("arr : " + v)
+    }
+
+    return 0
+}

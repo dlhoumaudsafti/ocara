@@ -1,0 +1,23 @@
+[workspace]
+members = ["runtime"]
+
+[package]
+name    = "ocara"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "ocara"
+path = "src/main.rs"
+
+[dependencies]
+# Cranelift — backend JIT/AOT pur Rust (version compatible Rust 1.75)
+cranelift-codegen  = "0.105"
+cranelift-frontend = "0.105"
+cranelift-module   = "0.105"
+cranelift-object   = "0.105"
+cranelift-native   = "0.105"
+
+# Liaison objet natif
+object = "0.32"
+target-lexicon = "0.12"

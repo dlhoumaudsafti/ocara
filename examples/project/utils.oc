@@ -1,0 +1,35 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Projet Ocara — utils.oc
+// Façade : classe utils (renommée en Utils à l'import)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Classe façade — sera renommée "Utils" via l'alias d'import
+class utils {
+
+    init() {}
+
+    public method abs(n:int): int {
+        if n < 0 {
+            return 0 - n
+        }
+        return n
+    }
+
+    public method pow(base:int, exp:int): int {
+        var result:int = 1
+        var i:int = 0
+        while i < exp {
+            result = result * base
+            i = i + 1
+        }
+        return result
+    }
+
+    public method sum_range(from:int, to:int): int {
+        var total:int = 0
+        for i in from..to {
+            total = total + i
+        }
+        return total
+    }
+}

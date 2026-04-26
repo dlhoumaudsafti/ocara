@@ -1,0 +1,64 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 07 — Boucles
+//
+// Illustre :
+//   - while : boucle conditionnelle
+//   - for i in range : itération sur une plage d'entiers
+//   - for i in array : itération sur un tableau
+//   - for key => val in map : itération clé/valeur
+//   - Opérateur de plage : start..end (end exclus)
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+
+function main(): int {
+
+    // ── while ──────────────────────────────────────────────────────────────
+    var i:int = 0
+    while i < 5 {
+        IO::writeln(i)
+        i = i + 1
+    }
+    // 0 1 2 3 4
+
+    // ── for in range ────────────────────────────────────────────────────────
+    for j in 1..6 {
+        IO::writeln(j)
+    }
+    // 1 2 3 4 5
+
+    // ── Calcul de somme avec for ─────────────────────────────────────────────
+    var sum:int = 0
+    for k in 1..11 {
+        sum = sum + k
+    }
+    IO::writeln(sum)              // 55  (1+2+…10)
+
+    // ── for sur un tableau ───────────────────────────────────────────────────
+    var fruits:string[] = ["pomme", "banane", "cerise"]
+    for fruit in fruits {
+        IO::writeln(fruit)
+    }
+    // pomme  banane  cerise
+
+    // ── for clé/valeur sur une map ───────────────────────────────────────────
+    var scores:map<string, int> = {
+        "Alice": 95,
+        "Bob":   82,
+        "Carol": 78
+    }
+    for nom => points in scores {
+        IO::writeln(nom)
+        IO::writeln(points)
+    }
+
+    // ── Boucle de compte à rebours ───────────────────────────────────────────
+    var countdown:int = 5
+    while countdown > 0 {
+        IO::writeln(countdown)
+        countdown = countdown - 1
+    }
+    IO::writeln("Go!")
+
+    return 0
+}

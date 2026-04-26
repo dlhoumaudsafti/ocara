@@ -1,0 +1,435 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Projet Ocara — main.oc
+// Démonstration complète de toutes les fonctionnalités du langage Ocara
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+import models   as Models
+import services as Services
+import utils    as Utils
+
+// ── Constantes globales ───────────────────────────────────────────────────────
+
+const DEMO_TITLE:string = "=== Démonstration complète Ocara ==="
+const MAX_SCORE:int     = 100
+const PASS_MARK:int     = 60
+const VERSION:float     = 1.0
+
+// ── Interfaces ────────────────────────────────────────────────────────────────
+
+interface Printable {
+    method print(): void
+}
+
+interface Comparable {
+    method compare(other:int): int
+}
+
+// ── Classe Color (constantes de classe + méthodes statiques) ─────────────────
+
+class Color {
+
+    public const RED:string   = "rouge"
+    public const GREEN:string = "vert"
+    public const BLUE:string  = "bleu"
+    public const COUNT:int    = 3
+
+    public static method mix(a:string, b:string): string {
+        return a + "+" + b
+    }
+
+    public static method is_primary(c:string): bool {
+        return c == Color::RED || c == Color::GREEN || c == Color::BLUE
+    }
+
+    public static method describe(c:string): string {
+        switch c {
+            "rouge" {
+                return "Chaud"
+            }
+            "vert" {
+                return "Neutre"
+            }
+            "bleu" {
+                return "Froid"
+            }
+            default {
+                return "Inconnu"
+            }
+        }
+    }
+}
+
+// ── Classe Score (implements Printable + Comparable) ─────────────────────────
+
+class Score implements Printable, Comparable {
+
+    public const MAX:int = 100
+    public const MIN:int = 0
+
+    protected property name:string
+    protected property value:int
+    protected property bonus:int
+
+    init(name:string, value:int) {
+        self.name  = name
+        self.value = value
+        self.bonus = 0
+    }
+
+    public method print(): void {
+        scoped grade:string = match self.value:int {
+            100     => "Parfait !"
+            90      => "Excellent"
+            80      => "Très bien"
+            70      => "Bien"
+            60      => "Assez bien"
+            default => "À améliorer"
+        }
+        IO::writeln(self.name + " : " + self.value + "/" + Score::MAX + " (" + grade + ")")
+    }
+
+    public method compare(other:int): int {
+        if self.value > other {
+            return 1
+        }
+        if self.value < other {
+            return -1
+        }
+        return 0
+    }
+
+    public method add_bonus(points:int): void {
+        self.bonus = self.bonus + points
+        scoped total:int = self.value + self.bonus
+        IO::writeln("Bonus appliqué pour " + self.name + " — total : " + total)
+    }
+
+    public method is_passing(): bool {
+        return self.value >= PASS_MARK
+    }
+
+    public method get_value(): int {
+        return self.value
+    }
+
+    public method get_name(): string {
+        return self.name
+    }
+}
+
+// ── Classe Student (héritage depuis Score, surcharge de print) ────────────────
+
+class Student extends Score {
+
+    private property student_id:string
+    private property courses:mixed[]
+    private property course_grades:map<string,int>
+
+    init(name:string, student_id:string) {
+        self.name          = name
+        self.value         = 0
+        self.bonus         = 0
+        self.student_id    = student_id
+        self.courses       = []
+        self.course_grades = {'init': 0}
+    }
+
+    // Surcharge de print()
+    public method print(): void {
+        IO::writeln("Étudiant [" + self.student_id + "] " + self.name)
+        IO::writeln("  Score global : " + self.value + "/" + Score::MAX)
+        for course=>grade in self.course_grades {
+            IO::writeln("  " + course + " → " + grade + "/20")
+        }
+    }
+
+    public method enroll(course:string, grade:int): void {
+        self.course_grades[course] = grade
+        self.value = self.value + grade
+        IO::writeln(self.name + " inscrit à '" + course + "' (note: " + grade + ")")
+    }
+
+    public method get_id(): string {
+        return self.student_id
+    }
+}
+
+// ── Fonctions libres ──────────────────────────────────────────────────────────
+
+// Récursion
+function factorial(n:int): int {
+    if n <= 1 {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+function fibonacci(n:int): int {
+    if n <= 1 {
+        return n
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2)
+}
+
+// Paramètre bool, string + T
+function greet(name:string, formal:bool): string {
+    if formal {
+        return "Bonjour, " + name + "."
+    }
+    return "Salut " + name + " !"
+}
+
+// ── Programme principal ───────────────────────────────────────────────────────
+
+function main(): int {
+    IO::writeln(DEMO_TITLE)
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 1. VARIABLES — var, scoped, const global
+    // ─────────────────────────────────────────────────────────────────────────
+    IO::writeln("── 1. Variables ─────────────────────────────────────")
+    var n:int     = 42
+    var f:float   = 3.14
+    var s:string  = "Ocara"
+    var b:bool    = true
+
+    IO::writeln("var : n=" + n + " f=" + f + " s=" + s + " b=" + b)
+    IO::writeln("const VERSION = " + VERSION)
+
+    if true {
+        scoped local:int    = n * 2
+        scoped msg:string   = "bloc scoped — local=" + local
+        IO::writeln(msg)
+        // local et msg libérés à la fin de ce bloc
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 2. OPÉRATEURS
+    // ─────────────────────────────────────────────────────────────────────────
+    IO::writeln("── 2. Opérateurs ────────────────────────────────────")
+    scoped add:int  = n + 8
+    scoped sub:int  = n - 2
+    scoped mul:int  = n * 2
+    scoped div:int  = n / 6
+    scoped mod:int  = n % 5
+    IO::writeln("Arith : " + add + " " + sub + " " + mul + " " + div + " " + mod)
+
+    scoped eq:bool  = n == 42
+    scoped neq:bool = n != 0
+    scoped lt:bool  = n < 100
+    scoped gt:bool  = n > 10
+    scoped lte:bool = n <= 42
+    scoped gte:bool = n >= 42
+    IO::writeln("Comp : eq=" + eq + " neq=" + neq + " lt=" + lt + " gt=" + gt)
+
+    scoped and_r:bool = b && eq
+    scoped or_r:bool  = b || false
+    scoped not_r:bool = !b
+    IO::writeln("Logic : " + and_r + " " + or_r + " " + not_r)
+
+    // Négation unaire
+    scoped neg:int = -n
+    IO::writeln("Négatif : " + neg)
+
+    // Concaténation string + T (int, float, bool)
+    IO::writeln("Concat : " + n + " | " + f + " | " + b)
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 3. CONDITIONS if / elseif / else
+    // ─────────────────────────────────────────────────────────────────────────
+    IO::writeln("── 3. Conditions ────────────────────────────────────")
+    if n > 50 {
+        IO::writeln("n > 50")
+    } elseif n == 42 {
+        IO::writeln("La réponse universelle !")
+    } else {
+        IO::writeln("n < 50")
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 4. SWITCH
+    // ─────────────────────────────────────────────────────────────────────────
+    IO::writeln("── 4. Switch ────────────────────────────────────────")
+    switch mod {
+        0 {
+            IO::writeln("Divisible par 5")
+        }
+        1 {
+            IO::writeln("Reste 1")
+        }
+        2 {
+            IO::writeln("Reste 2")
+        }
+        default {
+            IO::writeln("Reste : " + mod)
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 5. MATCH (expression avec annotation de type)
+    // ─────────────────────────────────────────────────────────────────────────
+    IO::writeln("── 5. Match ─────────────────────────────────────────")
+    scoped label:string = match n:int {
+        1       => "un"
+        10      => "dix"
+        42      => "quarante-deux"
+        default => "autre"
+    }
+    IO::writeln("Match n = " + label)
+
+    scoped color:string = match mod:int {
+        0       => Color::RED
+        1       => Color::GREEN
+        default => Color::BLUE
+    }
+    IO::writeln("Couleur du reste : " + color)
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 6. TABLEAUX — 1D, 2D, mixed[]
+    // ─────────────────────────────────────────────────────────────────────────
+    IO::writeln("── 6. Tableaux ──────────────────────────────────────")
+    var scores_arr:int[]  = [95, 87, 73, 100, 42]
+    var names:string[]    = ["Alice", "Bob", "Carol", "Dave", "Eve"]
+    var matrix:int[][]    = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+    var vals:mixed[]       = [42, "bonjour", true, 3.14]
+
+    for score in scores_arr {
+        IO::writeln("  score = " + score)
+    }
+    for nom in names {
+        IO::writeln("  nom = " + nom)
+    }
+    for row in matrix {
+        IO::writeln("  ligne = " + row)
+    }
+    for item in vals {
+        IO::writeln("  item = " + item)
+    }
+
+    // Accès par index
+    var first_score:int   = scores_arr[0]
+    var last_name:string  = names[4]
+    IO::writeln("Premier score : " + first_score + " — Dernier nom : " + last_name)
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 7. MAPS
+    // ─────────────────────────────────────────────────────────────────────────
+    IO::writeln("── 7. Maps ──────────────────────────────────────────")
+    var grades:map<string,int>    = {'Alice': 18, 'Bob': 15, 'Carol': 19}
+    var config:map<string,string> = {'lang': 'fr', 'theme': 'dark'}
+
+    // Itération clé=>valeur
+    for student=>grade in grades {
+        IO::writeln("  " + student + " → " + grade + "/20")
+    }
+    for key=>val in config {
+        IO::writeln("  config." + key + " = " + val)
+    }
+
+    // Accès par clé
+    var alice_grade:int    = grades["Alice"]
+    IO::writeln("Note d'Alice : " + alice_grade)
+
+    // Mise à jour
+    grades["Alice"] = 20
+    IO::writeln("Nouveau score Alice : " + grades["Alice"])
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 8. BOUCLES — while, for..in, for..range
+    // ─────────────────────────────────────────────────────────────────────────
+    IO::writeln("── 8. Boucles ───────────────────────────────────────")
+
+    // While
+    var counter:int = 0
+    while counter < 4 {
+        counter = counter + 1
+        IO::writeln("  while : " + counter)
+    }
+
+    // For..in sur tableau
+    for sc in scores_arr {
+        IO::writeln("  for-in : " + sc)
+    }
+
+    // For..range
+    for i in 1..6 {
+        IO::writeln("  range : " + i)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 9. FONCTIONS LIBRES + RÉCURSION
+    // ─────────────────────────────────────────────────────────────────────────
+    IO::writeln("── 9. Fonctions ─────────────────────────────────────")
+    IO::writeln("6! = " + factorial(6))
+    IO::writeln("fib(8) = " + fibonacci(8))
+    IO::writeln(greet("Alice", true))
+    IO::writeln(greet("Bob", false))
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 10. CLASSES LOCALES — Color, Score, Student
+    // ─────────────────────────────────────────────────────────────────────────
+    IO::writeln("── 10. Classes ──────────────────────────────────────")
+
+    // Color — constantes + statique + switch interne
+    IO::writeln("Couleurs primaires : " + Color::RED + ", " + Color::GREEN + ", " + Color::BLUE)
+    IO::writeln("COUNT = " + Color::COUNT)
+    scoped mix:string  = Color::mix(Color::RED, Color::BLUE)
+    scoped prim:bool   = Color::is_primary(Color::GREEN)
+    scoped desc:string = Color::describe(Color::RED)
+    IO::writeln("mix(rouge,bleu) = " + mix)
+    IO::writeln("is_primary(vert) = " + prim)
+    IO::writeln("describe(rouge) = " + desc)
+
+    // Score — instanciation, méthodes, match interne
+    var sc1:Score = use Score("Alice", 95)
+    var sc2:Score = use Score("Bob", 55)
+    sc1.print()
+    sc2.print()
+    sc1.add_bonus(5)
+    IO::writeln("Alice passe ? " + sc1.is_passing())
+    IO::writeln("Bob passe ? " + sc2.is_passing())
+    IO::writeln("compare(80) = " + sc1.compare(80))
+    IO::writeln("compare(95) = " + sc1.compare(95))
+    IO::writeln("compare(99) = " + sc1.compare(99))
+    IO::writeln("MAX = " + Score::MAX + " MIN = " + Score::MIN)
+
+    // Student — héritage, surcharge, maps, mixed[]
+    var stu:Student = use Student("Carol", "S001")
+    stu.enroll("Mathématiques", 17)
+    stu.enroll("Informatique", 19)
+    stu.enroll("Physique", 14)
+    stu.print()
+    IO::writeln("ID étudiant : " + stu.get_id())
+    stu.add_bonus(3)
+    IO::writeln("Carol passe ? " + stu.is_passing())
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 11. MODULES IMPORTÉS (opaque)
+    // ─────────────────────────────────────────────────────────────────────────
+    IO::writeln("── 11. Modules ──────────────────────────────────────")
+    var mdl:Models   = use Models("tâche importée", 2)
+    var svc:Services = use Services()
+    var utl:Utils    = use Utils()
+
+    mdl.display()
+    svc.add(mdl)
+    svc.tag("urgent")
+    svc.process_range(0, 3)
+    svc.show_summary()
+    utl.abs(-99)
+    IO::writeln("MathUtils::pow = " + utl.pow(2, 8))
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 12. BUILT-INS write / read
+    // ─────────────────────────────────────────────────────────────────────────
+    IO::writeln("── 12. Built-ins ────────────────────────────────────")
+    IO::writeln("write accepte n'importe quel type : " + 42 + " " + 3.14 + " " + true)
+    // read() est commenté pour éviter l'attente interactive
+    // scoped input:string = read()
+    // IO::writeln("Saisie : " + input)
+
+    IO::writeln("═══════════════════════════════════════════════════")
+    IO::writeln("Démonstration terminée — toutes les fonctionnalités couvertes.")
+    return 0
+}

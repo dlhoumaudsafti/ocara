@@ -1,0 +1,54 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 06 — Match (expression)
+//
+// Illustre :
+//   - match est une EXPRESSION (retourne une valeur)
+//   - Bras littéraux avec =>
+//   - Bras default =>
+//   - Annotation de type postfix sur le sujet (hint visuel)
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+
+function main(): int {
+
+    // match retourne une valeur directement assignée
+    var score:int = 90
+    scoped mention:string = match score {
+        100 => "Parfait"
+        90  => "Excellent"
+        75  => "Bien"
+        60  => "Passable"
+        default => "Insuffisant"
+    }
+    IO::writeln(mention)          // Excellent
+
+    // match utilisé dans write directement
+    var code:int = 2
+    IO::writeln(match code {
+        1 => "un"
+        2 => "deux"
+        3 => "trois"
+        default => "autre"
+    })                      // deux
+
+    // match sur un booléen
+    var actif:bool = true
+    scoped etat:string = match actif {
+        true  => "actif"
+        false => "inactif"
+        default => "inconnu"
+    }
+    IO::writeln(etat)             // actif
+
+    // match avec annotation de type (hint uniquement, ignoré sémantiquement)
+    var age:int = 43
+    scoped tranche:string = match age:int {
+        43 => "senior"
+        20 => "jeune"
+        default => "autre tranche"
+    }
+    IO::writeln(tranche)          // senior
+
+    return 0
+}

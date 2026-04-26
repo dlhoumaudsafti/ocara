@@ -1,0 +1,46 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Projet Ocara — services.oc
+// Façade : classe services (renommée en Services à l'import)
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+
+// Classe façade — sera renommée "Services" via l'alias d'import
+class services {
+
+    private property count:int
+    private property tag_counts:map<string,int>
+
+    init() {
+        self.count      = 0
+        self.tag_counts = {"urgent": 0, "normal": 0}
+    }
+
+    public method add(task:mixed): void {
+        self.count = self.count + 1
+        IO::writeln("Tâche ajoutée — total : " + self.count)
+    }
+
+    public method tag(label:string): void {
+        var current:int = self.tag_counts[label]
+        self.tag_counts[label] = current + 1
+        IO::writeln("Tag '" + label + "' → " + self.tag_counts[label])
+    }
+
+    public method process_range(from:int, to:int): void {
+        IO::writeln("── Traitement " + from + ".." + to + " ──")
+        for i in from..to {
+            IO::writeln("  item " + i)
+        }
+    }
+
+    public method show_summary(): void {
+        IO::writeln("════════════════════════════════════")
+        IO::writeln("Total tâches : " + self.count)
+        IO::writeln("════════════════════════════════════")
+    }
+
+    public method count_tasks(): int {
+        return self.count
+    }
+}

@@ -1,0 +1,66 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 01 — Variables et constantes
+//
+// Illustre :
+//   - var   : variable mutable, portée de la fonction
+//   - scoped   : variable de BLOC — détruite à la fermeture du bloc
+//   - const : constante globale (évaluée à la compilation)
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+
+const PI:float = 3.14159
+const APP_NAME:string = "Ocara"
+const MAX_SCORE:int = 100
+
+
+function main(): int {
+
+    // var — variable MUTABLE, portée de la fonction
+    // Elle peut être réassignée à tout moment
+    var score:int = 0
+    score = 42              // OK : var est réassignable
+    IO::writeln(score)      // 42
+
+    var compteur:int = 10
+    compteur = compteur + 1
+    IO::writeln(compteur)   // 11
+
+    // scoped — variable de BLOC (block-scoped)
+    // Portée : strictement limitée au bloc { } où elle est déclarée
+    // La mémoire est libérée à la fermeture du bloc
+    if true {
+        scoped message:string = "dans le bloc if"
+        IO::writeln(message) // dans le bloc if
+        // message existe ici...
+    }
+    // ...mais n'existe plus ici (libérée)
+
+    var i:int = 0
+    while i < 3 {
+        scoped temp:int = i * 2    // temp est créé et détruit à chaque itération
+        IO::writeln(temp)
+        i = i + 1
+    }
+    // temp n'existe plus ici
+
+    // Constantes globales
+    IO::writeln(PI)         // 3.14159
+    IO::writeln(APP_NAME)   // Ocara
+    IO::writeln(MAX_SCORE)  // 100
+
+    // Types primitifs disponibles
+    var count:int    = 10
+    var rate:float   = 0.75
+    var flag:bool    = true
+    var label:string = "hello"
+    var unknown:mixed  = 99
+
+    IO::writeln(count)
+    IO::writeln(rate)
+    IO::writeln(flag)
+    IO::writeln(label)
+    IO::writeln(unknown)
+
+    return 0
+}

@@ -1,0 +1,30 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Projet Ocara — models.oc
+// Façade : classe models (renommée en Models à l'import)
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+
+// Classe façade — sera renommée "Models" via l'alias d'import
+class models {
+
+    public property title:string
+    public property    id:int
+
+    init(title:string, id:int) {
+        self.title = title
+        self.id    = id
+    }
+
+    public method display(): void {
+        IO::writeln("[" + self.id + "] " + self.title)
+    }
+
+    public method get_title(): string {
+        return self.title
+    }
+
+    public method get_id(): int {
+        return self.id
+    }
+}
