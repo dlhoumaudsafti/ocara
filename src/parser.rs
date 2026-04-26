@@ -194,6 +194,7 @@ impl Parser {
             TokenKind::TBool   => { self.advance(); Type::Bool   }
             TokenKind::TMixed    => { self.advance(); Type::Mixed    }
             TokenKind::TVoid   => { self.advance(); Type::Void   }
+            TokenKind::LitNull => { self.advance(); Type::Null   }
 
             TokenKind::TMap => {
                 self.advance();

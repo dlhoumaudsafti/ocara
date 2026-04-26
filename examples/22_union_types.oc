@@ -1,0 +1,132 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 22 — Types union
+//
+// Illustre :
+//   - Type union dans le type de retour : T|null
+//   - Union avec type nommé : User|null
+//   - Méthodes avec type de retour union (string|null)
+//   - Tester null après retour d'un type union
+//
+// Note : les unions sont restreints aux types référence (string, classes,
+// tableaux, maps, null). Les primitifs (int, float, bool) ne peuvent pas
+// être combinés dans un union en v0.1.0.
+// ─────────────────────────────────────────────────────────────────────────────
+import ocara.IO
+
+class User {
+    public property name:string
+    public property age:int
+
+    init(name:string, age:int) {
+        self.name = name
+        self.age  = age
+    }
+
+    // Retourne le titre honorifique ou null si mineur
+    public method title(): string|null {
+        if self.age >= 18 {
+            return "M."
+        }
+        return null
+    }
+
+    // Retourne le groupe d'âge ou null si inconnu
+    public method age_group(): string|null {
+        if self.age >= 60 {
+            return "senior"
+        }
+        if self.age >= 18 {
+            return "adulte"
+        }
+        if self.age >= 0 {
+            return "mineur"
+        }
+        return null
+    }
+}
+
+// Retourne un User ou null selon l'id
+function find_user(id:int): User|null {
+    if id == 1 {
+        return use User("Alice", 30)
+    }
+    if id == 2 {
+        return use User("Bob", 15)
+    }
+    return null
+}
+
+// Retourne une chaîne ou null si hors plage
+function grade(score:int): string|null {
+    if score >= 90 {
+        return "A"
+    }
+    if score >= 75 {
+        return "B"
+    }
+    if score >= 60 {
+        return "C"
+    }
+    return null
+}
+
+
+function main(): int {
+
+    // ── User|null ────────────────────────────────────────────────────────────
+    var u1:User|null = find_user(1)
+    if u1 == null {
+        IO::writeln("utilisateur introuvable")
+    } else {
+        IO::writeln(u1.name)   // Alice
+        IO::writeln(u1.age)    // 30
+
+        // Méthode retournant string|null
+        var t:string|null = u1.title()
+        if t == null {
+            IO::writeln("pas de titre")
+        } else {
+            IO::writeln(t)     // M.
+        }
+
+        var g:string|null = u1.age_group()
+        if g == null {
+            IO::writeln("groupe inconnu")
+        } else {
+            IO::writeln(g)     // adulte
+        }
+    }
+
+    // User non trouvé
+    var u2:User|null = find_user(99)
+    if u2 == null {
+        IO::writeln("utilisateur introuvable")   // utilisateur introuvable
+    } else {
+        IO::writeln(u2.name)
+    }
+
+    // User mineur → title() retourne null
+    var u3:User|null = find_user(2)
+    if u3 == null {
+        IO::writeln("utilisateur introuvable")
+    } else {
+        IO::writeln(u3.name)   // Bob
+        var t3:string|null = u3.title()
+        if t3 == null {
+            IO::writeln("pas de titre")   // pas de titre (mineur)
+        } else {
+            IO::writeln(t3)
+        }
+    }
+
+    // ── string|null ──────────────────────────────────────────────────────────
+    var g1:string|null = grade(95)
+    IO::writeln(g1)   // A
+
+    var g2:string|null = grade(50)
+    if g2 == null {
+        IO::writeln("note insuffisante")   // note insuffisante
+    }
+
+    return 0
+}
