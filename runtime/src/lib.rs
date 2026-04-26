@@ -1227,6 +1227,209 @@ pub extern "C" fn Regex_extract(pattern: i64, text: i64, n: i64) -> i64 {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ocara.UnitTest — assertions pour les tests unitaires
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Affiche PASS ou FAIL sur stderr, avec un message optionnel.
+/// Appelé par ocaraunit — chaque assertion notifie son résultat via stdout.
+///
+/// Format stdout (pour ocaraunit) :
+///   PASS <message>
+///   FAIL <message>
+fn ut_pass(msg: &str) {
+    let s = format!("PASS {}\n", msg);
+    write_stdout_raw(s.as_bytes());
+}
+
+fn ut_fail(msg: &str) {
+    let s = format!("FAIL {}\n", msg);
+    write_stdout_raw(s.as_bytes());
+}
+
+unsafe fn ut_val_to_display(val: i64) -> String {
+    // Heuristique simple : si ressemble à un pointeur de chaîne, l'afficher
+    if val == 0 {
+        return "null".to_string();
+    }
+    // Booléen boxé (tag 10 en bits bas) ou float (tag 01) → afficher directement
+    let tag = val & 0b11;
+    if tag == 0b01 {
+        // float boxé
+        let bits = ((val >> 2) << 2) as u64;
+        let f = f64::from_bits(bits);
+        return format!("{}", f);
+    }
+    if tag == 0b10 {
+        // bool boxé
+        return if (val >> 2) != 0 { "true".to_string() } else { "false".to_string() };
+    }
+    // Int ou ptr
+    if val >= 0x10000 {
+        // Probablement une chaîne
+        let s = ptr_to_str(val);
+        format!("\"{}\"", s)
+    } else {
+        format!("{}", val)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertEquals(expected: i64, actual: i64) {
+    if expected == actual {
+        ut_pass(&format!("assertEquals: {} == {}", expected, actual));
+    } else {
+        unsafe {
+            ut_fail(&format!("assertEquals: attendu {} mais obtenu {}",
+                ut_val_to_display(expected), ut_val_to_display(actual)));
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertNotEquals(expected: i64, actual: i64) {
+    if expected != actual {
+        ut_pass(&format!("assertNotEquals: {} != {}", expected, actual));
+    } else {
+        unsafe {
+            ut_fail(&format!("assertNotEquals: valeurs égales ({})", ut_val_to_display(actual)));
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertTrue(value: i64) {
+    if value != 0 {
+        ut_pass("assertTrue");
+    } else {
+        ut_fail("assertTrue: valeur fausse");
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertFalse(value: i64) {
+    if value == 0 {
+        ut_pass("assertFalse");
+    } else {
+        ut_fail("assertFalse: valeur vraie");
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertNull(value: i64) {
+    if value == 0 {
+        ut_pass("assertNull");
+    } else {
+        ut_fail("assertNull: valeur non nulle");
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertNotNull(value: i64) {
+    if value != 0 {
+        ut_pass("assertNotNull");
+    } else {
+        ut_fail("assertNotNull: valeur nulle");
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertGreater(a: i64, b: i64) {
+    if a > b {
+        ut_pass(&format!("assertGreater: {} > {}", a, b));
+    } else {
+        ut_fail(&format!("assertGreater: {} n'est pas > {}", a, b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertLess(a: i64, b: i64) {
+    if a < b {
+        ut_pass(&format!("assertLess: {} < {}", a, b));
+    } else {
+        ut_fail(&format!("assertLess: {} n'est pas < {}", a, b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertGreaterOrEquals(a: i64, b: i64) {
+    if a >= b {
+        ut_pass(&format!("assertGreaterOrEquals: {} >= {}", a, b));
+    } else {
+        ut_fail(&format!("assertGreaterOrEquals: {} n'est pas >= {}", a, b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertLessOrEquals(a: i64, b: i64) {
+    if a <= b {
+        ut_pass(&format!("assertLessOrEquals: {} <= {}", a, b));
+    } else {
+        ut_fail(&format!("assertLessOrEquals: {} n'est pas <= {}", a, b));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertContains(haystack: i64, needle: i64) {
+    unsafe {
+        let h = ptr_to_str(haystack);
+        let n = ptr_to_str(needle);
+        if h.contains(n) {
+            ut_pass(&format!("assertContains: \"{}\" contient \"{}\"", h, n));
+        } else {
+            ut_fail(&format!("assertContains: \"{}\" ne contient pas \"{}\"", h, n));
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertEmpty(value: i64) {
+    let empty = if value == 0 {
+        true
+    } else if value >= 0x10000 {
+        unsafe { ptr_to_str(value).is_empty() }
+    } else {
+        value == 0
+    };
+    if empty {
+        ut_pass("assertEmpty");
+    } else {
+        ut_fail("assertEmpty: valeur non vide");
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertNotEmpty(value: i64) {
+    let empty = if value == 0 {
+        true
+    } else if value >= 0x10000 {
+        unsafe { ptr_to_str(value).is_empty() }
+    } else {
+        value == 0
+    };
+    if !empty {
+        ut_pass("assertNotEmpty");
+    } else {
+        ut_fail("assertNotEmpty: valeur vide");
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_fail(message: i64) {
+    unsafe {
+        let msg = ptr_to_str(message);
+        ut_fail(msg);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_pass(message: i64) {
+    unsafe {
+        let msg = ptr_to_str(message);
+        ut_pass(msg);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Gestion des erreurs — wrappers Rust côté runtime
 // (le mécanisme setjmp/longjmp réel est dans try_impl.c)
 // ─────────────────────────────────────────────────────────────────────────────
