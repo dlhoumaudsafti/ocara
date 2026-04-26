@@ -35,6 +35,8 @@ struct CliArgs {
     check:   bool,
     /// true = produire le fichier .o mais ne pas linker
     no_link: bool,
+    /// true = strip les symboles du binaire produit (via le linker)
+    release: bool,
 }
 
 fn print_help() {
@@ -71,6 +73,7 @@ fn parse_args() -> CliArgs {
     let mut dump    = false;
     let mut check   = false;
     let mut no_link = false;
+    let mut release = false;
 
     let mut i = 1;
     while i < args.len() {
@@ -78,6 +81,7 @@ fn parse_args() -> CliArgs {
             "--dump"    => dump    = true,
             "--check"   => check   = true,
             "--no-link" => no_link = true,
+            "--release" => release = true,
             "-o" if i + 1 < args.len() => {
                 output = PathBuf::from(&args[i + 1]);
                 i += 1;
@@ -90,7 +94,7 @@ fn parse_args() -> CliArgs {
         }
         i += 1;
     }
-    CliArgs { input, output, dump, check, no_link }
+    CliArgs { input, output, dump, check, no_link, release }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -355,7 +359,7 @@ fn main() {
 
     // ── 8. Liaison finale ─────────────────────────────────────────────────────
     let obj_path = args.output.with_extension("o");
-    match link(&obj_bytes, &obj_path, &args.output) {
+    match link(&obj_bytes, &obj_path, &args.output, args.release) {
         Ok(()) => {
             println!("compilation réussie → {}", args.output.display());
         }

@@ -33,6 +33,7 @@ pub fn link(
     obj_bytes: &[u8],
     obj_path:  &Path,
     out_path:  &Path,
+    release:   bool,
 ) -> Result<(), LinkerError> {
     // 1. Écriture du fichier objet
     std::fs::write(obj_path, obj_bytes)
@@ -43,15 +44,21 @@ pub fn link(
 
     // 3. Liaison : objet + runtime → exécutable
     // --allow-multiple-definition : les symboles du .o (programme) priment sur la .a (runtime)
-    let status = Command::new("cc")
-        .arg(obj_path)
+    let mut cmd = Command::new("cc");
+    cmd.arg(obj_path)
         .arg(&runtime)
         .arg("-o")
         .arg(out_path)
         .arg("-lm")
         .arg("-no-pie")
-        .arg("-Wl,--allow-multiple-definition")
-        .status()
+        .arg("-Wl,--allow-multiple-definition");
+
+    // --release : demande au linker de supprimer les symboles (strip intégré)
+    if release {
+        cmd.arg("-Wl,-s");
+    }
+
+    let status = cmd.status()
         .map_err(|e| LinkerError(format!("impossible de lancer cc: {}", e)))?;
 
     // 4. Nettoyage du fichier temporaire
