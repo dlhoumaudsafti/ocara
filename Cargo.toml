@@ -21,3 +21,6 @@ cranelift-native   = "0.105"
 # Liaison objet natif
 object = "0.32"
 target-lexicon = "0.12"
+
+[profile.release]
+strip = true
