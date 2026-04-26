@@ -26,6 +26,11 @@ Ce dossier contient un script `.oc` par fonctionnalité du langage.
 | [18_class_consts.oc](18_class_consts.oc) | Constantes de classe avec visibilité (`public/protected/private const`) |
 | [19_break_continue.oc](19_break_continue.oc) | `break` et `continue` dans les boucles |
 | [20_try_fail.oc](20_try_fail.oc) | Gestion des erreurs : `try` / `on` / `raise` |
+| [21_errors.oc](21_errors.oc) | Démonstration des erreurs sémantiques (fichier invalide, analyse avec `--check`) |
+| [22_union_types.oc](22_union_types.oc) | Types union `T\|null`, retour union, test de nullité |
+| [23_static_method.oc](23_static_method.oc) | Appels inter-statiques via `self::`, raccourci intra-classe |
+| [24_function_type.oc](24_function_type.oc) | Type `Function` : fonctions de première classe, méthodes statiques, `self::` |
+| [25_nameless.oc](25_nameless.oc) | Fonctions anonymes `nameless`, closures, capture de variables et de `self` |
 
 ## Classes builtins (`builtins/`)
 
@@ -44,6 +49,22 @@ Ce dossier contient un script `.oc` par fonctionnalité du langage.
 ## Projet multi-fichiers (`project/`)
 
 Exemple complet illustrant imports, classes, modules et toutes les fonctionnalités du langage en situation réelle.
+
+| Fichier | Contenu |
+|---------|---------|
+| [project/main.oc](project/main.oc) | Point d'entrée, classes `Score` et `Student` |
+| [project/classes/Models.oc](project/classes/Models.oc) | Modèles de données |
+| [project/classes/Services.oc](project/classes/Services.oc) | Couche service |
+| [project/classes/Utils.oc](project/classes/Utils.oc) | Utilitaires |
+
+### Tests unitaires (`project/tests/`)
+
+| Fichier | Ce qui est testé |
+|---------|-----------------|
+| [project/tests/mainTest.oc](project/tests/mainTest.oc) | Classes `Score` et `Student` (main.oc) |
+| [project/tests/ModelsTest.oc](project/tests/ModelsTest.oc) | `classes/Models.oc` |
+| [project/tests/ServicesTest.oc](project/tests/ServicesTest.oc) | `classes/Services.oc` |
+| [project/tests/UtilsTest.oc](project/tests/UtilsTest.oc) | `classes/Utils.oc` |
 
 ## Compiler et exécuter un exemple
 
