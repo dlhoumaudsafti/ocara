@@ -385,6 +385,14 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
 
         // ── Accès statique ──────────────────────────────────────────────────
         Expr::StaticCall { class, method, args, .. } => {
+            // Résoudre "<self>" vers la classe courante
+            let self_class;
+            let class: &str = if class == "<self>" {
+                self_class = builder.current_class.clone().unwrap_or_default();
+                &self_class
+            } else {
+                class.as_str()
+            };
             let func_name = format!("{}_{}", class, method);
 
             // Vérification de l'import : les modules ocara builtins doivent être importés
@@ -393,8 +401,8 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 "String", "Math", "Array", "Map", "IO",
                 "Convert", "System", "Regex", "HTTPRequest",
             ];
-            let is_local_class = builder.module.class_layouts.contains_key(class.as_str());
-            if BUILTIN_MODULES.contains(&class.as_str()) && !is_local_class {
+            let is_local_class = builder.module.class_layouts.contains_key(class);
+            if BUILTIN_MODULES.contains(&class) && !is_local_class {
                 let imported = builder.module.imports.iter().any(|m| m == class);
                 if !imported {
                     eprintln!(
@@ -434,7 +442,15 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
 
         // ── Lecture de constante de classe : `Class::NAME` ────────────────────
         Expr::StaticConst { class, name, .. } => {
-            let key = format!("{}__{}", class, name);
+            // Résoudre "<self>" vers la classe courante
+            let self_class;
+            let class: &str = if class == "<self>" {
+                self_class = builder.current_class.clone().unwrap_or_default();
+                &self_class
+            } else {
+                class.as_str()
+            };
+            let key = format!("{}__{}" , class, name);
             let dest = builder.new_value();
             if let Some((ty, lit)) = builder.module.class_consts.get(&key).cloned() {
                 match lit {

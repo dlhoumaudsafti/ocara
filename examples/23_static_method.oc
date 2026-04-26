@@ -1,0 +1,108 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 23 — Appels inter-statiques avec self::
+//
+// Illustre :
+//   - Méthodes statiques qui s'appellent entre elles via self::
+//   - self:: = raccourci pour ClassName:: depuis l'intérieur d'une classe
+//   - Réutilisation de logique sans instanciation
+// ─────────────────────────────────────────────────────────────────────────────
+import ocara.IO
+import ocara.String
+
+class Validator {
+
+    public static method is_positive(n:int): bool {
+        return n > 0
+    }
+
+    public static method is_in_range(n:int, low:int, high:int): bool {
+        return n >= low and n <= high
+    }
+
+    // Appelle d'autres méthodes statiques de la même classe via self::
+    public static method is_valid_age(age:int): bool {
+        return self::is_positive(age) and self::is_in_range(age, 1, 150)
+    }
+
+    public static method is_valid_score(score:int): bool {
+        return self::is_in_range(score, 0, 100)
+    }
+}
+
+
+class Temperature {
+
+    public const ABSOLUTE_ZERO:int = -273
+
+    // Conversion Celsius → Fahrenheit
+    public static method to_fahrenheit(c:int): int {
+        return c * 9 / 5 + 32
+    }
+
+    // Conversion Fahrenheit → Celsius
+    public static method to_celsius(f:int): int {
+        return (f - 32) * 5 / 9
+    }
+
+    // Vérifie qu'une température est physiquement possible
+    public static method is_valid(c:int): bool {
+        return c >= Temperature::ABSOLUTE_ZERO
+    }
+
+    // Normalise : si en-dessous du zéro absolu, renvoie le zéro absolu
+    public static method clamp(c:int): int {
+        if self::is_valid(c) {
+            return c
+        }
+        return Temperature::ABSOLUTE_ZERO
+    }
+}
+
+
+class StringCheck {
+
+    public static method has_content(s:string): bool {
+        return s != ""
+    }
+
+    public static method starts_with_upper(s:string): bool {
+        var first:string = String::slice(s, 0, 1)
+        var up:string    = String::to_upper(first)
+        return first == up and self::has_content(s)
+    }
+
+    public static method is_valid_name(s:string): bool {
+        return self::has_content(s) and self::starts_with_upper(s)
+    }
+}
+
+
+function main(): int {
+
+    // ── Validator ────────────────────────────────────────────────────────────
+    IO::writeln(Validator::is_positive(5))          // true
+    IO::writeln(Validator::is_positive(-3))         // false
+    IO::writeln(Validator::is_valid_age(25))        // true
+    IO::writeln(Validator::is_valid_age(0))         // false
+    IO::writeln(Validator::is_valid_age(200))       // false
+    IO::writeln(Validator::is_valid_score(85))      // true
+    IO::writeln(Validator::is_valid_score(101))     // false
+
+    // ── Temperature ──────────────────────────────────────────────────────────
+    IO::writeln(Temperature::to_fahrenheit(100))    // 212
+    IO::writeln(Temperature::to_fahrenheit(0))      // 32
+    IO::writeln(Temperature::to_celsius(212))       // 100
+    IO::writeln(Temperature::is_valid(-273))        // true
+    IO::writeln(Temperature::is_valid(-300))        // false
+    IO::writeln(Temperature::clamp(-300))           // -273
+    IO::writeln(Temperature::clamp(20))             // 20
+
+    // ── StringCheck ──────────────────────────────────────────────────────────
+    IO::writeln(StringCheck::has_content("hello"))  // true
+    IO::writeln(StringCheck::has_content(""))       // false
+    IO::writeln(StringCheck::is_valid_name("Alice"))// true
+    IO::writeln(StringCheck::is_valid_name("alice"))// false
+    IO::writeln(StringCheck::is_valid_name(""))     // false
+
+    return 0
+}
