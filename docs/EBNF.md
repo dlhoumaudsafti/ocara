@@ -732,6 +732,27 @@ class MathUtils {
 var r:int = MathUtils::pow(2, 8)   // 256
 ```
 
+#### Appel inter-statique avec `self::`
+
+Depuis l'intérieur d'une classe, une méthode statique peut en appeler une autre de la **même classe** avec `self::` sans répéter le nom de la classe. C'est un raccourci pour `ClassName::method()`.
+
+```ocara
+class Validator {
+    public static method is_positive(n:int): bool {
+        return n > 0
+    }
+
+    public static method are_both_positive(a:int, b:int): bool {
+        return self::is_positive(a) and self::is_positive(b)
+    }
+}
+```
+
+> **Règles :**
+> - `self::method()` n'est valide qu'à l'intérieur d'une méthode ou du constructeur d'une classe.
+> - `self::` appelle uniquement des méthodes `static` — pas des méthodes d'instance.
+> - Depuis l'extérieur de la classe, on utilise toujours `ClassName::method()`.
+
 ### 14.5 `self`
 
 Le mot-clé `self` référence l'instance courante à l'intérieur des méthodes et du constructeur.
@@ -820,14 +841,24 @@ var logger:Logger = use ConsoleLogger()
 ## 18. Accès statique
 
 ```ebnf
-StaticCall ::= Identifier "::" Identifier "(" ArgList? ")"
+StaticCallee ::= Identifier | "self"
+StaticCall   ::= StaticCallee "::" Identifier "(" ArgList? ")"
+StaticConst  ::= StaticCallee "::" Identifier
 ```
 
-Appel d'une méthode ou d'une fonction associée à une classe sans instanciation.
+Appel d'une méthode statique ou lecture d'une constante de classe, sans instanciation. `self::` est utilisable uniquement depuis l'intérieur d'une classe pour référencer la classe courante.
 
 ```ocara
-var result:int = Math::abs(-5)
+var result:int = Math::abs(-5)         // depuis l'extérieur
 var s:string = String::from(42)
+
+class Validator {
+    public static method is_positive(n:int): bool { return n > 0 }
+
+    public static method are_both_positive(a:int, b:int): bool {
+        return self::is_positive(a) and self::is_positive(b)  // depuis l'intérieur
+    }
+}
 ```
 
 ---
@@ -1225,7 +1256,9 @@ PrimaryExpr ::= Literal
               | Identifier
 
 NewExpr     ::= "use" Identifier "(" ArgList? ")"
-StaticCall  ::= Identifier "::" Identifier "(" ArgList? ")"
+StaticCallee ::= Identifier | "self"
+StaticCall  ::= StaticCallee "::" Identifier "(" ArgList? ")"
+StaticConst ::= StaticCallee "::" Identifier
 ArrayLiteral ::= "[" ( Expression ( "," Expression )* ","? )? "]"
 MapLiteral   ::= "{" MapEntry ( "," MapEntry )* ","? "}"
 MapEntry     ::= Expression ":" Expression

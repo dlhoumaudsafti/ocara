@@ -439,12 +439,28 @@ impl<'a> TypeChecker<'a> {
             }
 
             Expr::StaticCall { class, method, args, span } => {
-                if let Some(info) = self.symbols.lookup_class(class) {
+                // Résoudre "<self>" vers la classe courante
+                let resolved_class = if class == "<self>" {
+                    match &self.current_class {
+                        Some(c) => c.clone(),
+                        None => {
+                            self.errors.push(SemaError::SelfOutsideClass {
+                                span: span.clone(),
+                            });
+                            for a in args { self.infer_expr(a); }
+                            return Type::Mixed;
+                        }
+                    }
+                } else {
+                    class.clone()
+                };
+
+                if let Some(info) = self.symbols.lookup_class(&resolved_class) {
                     if let Some(sig) = info.methods.get(method) {
                         // Une méthode non-static ne peut pas être appelée via ::
                         if !sig.is_static {
                             self.errors.push(SemaError::NotStaticMethod {
-                                class:  class.clone(),
+                                class:  resolved_class.clone(),
                                 method: method.clone(),
                                 span:   span.clone(),
                             });
@@ -452,7 +468,7 @@ impl<'a> TypeChecker<'a> {
                         let ret = sig.ret_ty.clone();
                         if args.len() != sig.params.len() {
                             self.errors.push(SemaError::WrongArgCount {
-                                name:     format!("{}::{}", class, method),
+                                name:     format!("{}::{}", resolved_class, method),
                                 expected: sig.params.len(),
                                 found:    args.len(),
                                 span:     span.clone(),
