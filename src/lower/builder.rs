@@ -33,6 +33,9 @@ pub struct LowerBuilder<'m> {
     /// Variables capturées par une closure — accès via GetField/SetField sur __env
     /// (env_ptr: Value, index: usize, type: IrType)
     pub captured_vars: HashMap<String, (Value, usize, IrType)>,
+    /// Variables locales déjà promues sur le tas pour le partage avec des closures.
+    /// Après promotion, `locals[name]` est un heap pointer (pas une Alloca stack).
+    pub heap_promoted: HashSet<String>,
 }
 
 impl<'m> LowerBuilder<'m> {
@@ -56,6 +59,7 @@ impl<'m> LowerBuilder<'m> {
             loop_stack: Vec::new(),
             func_vars: HashSet::new(),
             captured_vars: HashMap::new(),
+            heap_promoted: HashSet::new(),
         }
     }
 
@@ -90,18 +94,26 @@ impl<'m> LowerBuilder<'m> {
         slot
     }
 
+    /// Retourne le slot (stack ou heap pointer) d'un local sans émettre de Load.
+    pub fn slot_of_local(&self, name: &str) -> Option<Value> {
+        self.locals.get(name).map(|(slot, _, _)| slot.clone())
+    }
+
     /// Stocke `src` dans le slot du local `name`.
-    /// Pour les variables capturées, écrit directement dans le struct env sur le tas
-    /// afin que la mutation soit persistante d'un appel à l'autre de la closure.
+    /// Pour les variables capturées, écrit via double-indirection :
+    /// GetField(env, idx) → heap_ptr, puis Store(heap_ptr, src).
     pub fn store_local(&mut self, name: &str, src: Value) {
-        // Variable capturée → SetField sur l'env struct (mutation persistante)
+        // Variable capturée → double-indirection via l'env struct (heap pointer)
         if let Some((env_val, idx, _)) = self.captured_vars.get(name).cloned() {
-            self.emit(Inst::SetField {
+            let ptr = self.new_value();
+            self.emit(Inst::GetField {
+                dest:   ptr.clone(),
                 obj:    env_val,
                 field:  format!("__cap_{}", idx),
-                src,
+                ty:     IrType::Ptr,
                 offset: (idx * 8) as i32,
             });
+            self.emit(Inst::Store { ptr, src });
             return;
         }
         if let Some((slot, _, _)) = self.locals.get(name) {
@@ -111,18 +123,21 @@ impl<'m> LowerBuilder<'m> {
     }
 
     /// Charge le local `name` → retourne (Value résultat, IrType).
-    /// Pour les variables capturées, lit directement depuis le struct env sur le tas.
+    /// Pour les variables capturées, lit via double-indirection :
+    /// GetField(env, idx) → heap_ptr, puis Load(heap_ptr) → valeur.
     pub fn load_local(&mut self, name: &str) -> Option<(Value, IrType)> {
-        // Variable capturée → GetField sur l'env struct
+        // Variable capturée → double-indirection via l'env struct
         if let Some((env_val, idx, ty)) = self.captured_vars.get(name).cloned() {
-            let dest = self.new_value();
+            let ptr = self.new_value();
             self.emit(Inst::GetField {
-                dest:   dest.clone(),
+                dest:   ptr.clone(),
                 obj:    env_val,
                 field:  format!("__cap_{}", idx),
-                ty:     ty.clone(),
+                ty:     IrType::Ptr,
                 offset: (idx * 8) as i32,
             });
+            let dest = self.new_value();
+            self.emit(Inst::Load { dest: dest.clone(), ptr, ty: ty.clone() });
             return Some((dest, ty));
         }
         if let Some((slot, ty, _)) = self.locals.get(name).cloned() {
