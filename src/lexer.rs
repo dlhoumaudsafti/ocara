@@ -378,10 +378,10 @@ impl Lexer {
                 _         => return Err(LexError::UnexpectedChar('&', span)),
             },
 
-            // ||
+            // || ou |
             '|' => match self.current() {
                 Some('|') => { self.advance(); TokenKind::Or }
-                _         => return Err(LexError::UnexpectedChar('|', span)),
+                _         => TokenKind::Pipe,
             },
 
             // :  ou  ::
