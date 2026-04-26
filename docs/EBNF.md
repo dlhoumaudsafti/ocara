@@ -229,7 +229,7 @@ var h:Function = nameless(x:int): int { return x * 2 }  // fonction anonyme
 - L'appel d'une valeur `Function` utilise la syntaxe d'appel normale : `f(args...)`.
 - Le type de retour et les types de paramètres ne sont **pas** encodés dans `Function` — la compatibilité est vérifiée à l'exécution.
 - `Function` n'est pas un mot-clé mais un **type réservé** (PascalCase). Il ne peut pas être utilisé comme nom de classe ou de variable.
-- Les fonctions anonymes peuvent capturer des variables locales et `self` depuis leur portée d'enclosement (closure lexicale).
+- Les fonctions anonymes peuvent capturer des variables locales et `self` depuis leur portée d'enclosement. Les primitifs (`int`, `float`, `bool`) sont capturés par valeur dans l'env (mutations persistantes) ; les objets, tableaux et maps sont capturés par leur pointeur (l'original est partagé).
 
 ---
 
@@ -414,6 +414,7 @@ try       on        is         raise
 int       float     string     bool       mixed      map      void
 true      false     null
 or        and       not
+nameless
 ```
 
 **Types réservés (PascalCase) :**
@@ -699,7 +700,29 @@ class Counter {
 **Règles :**
 
 - Le type de retour est **optionnel** ; s'il est omis, `void` est supposé.
-- Les captures sont **par valeur au moment de la création** de la closure (snapshot du pointeur/valeur).
+- Les captures sont stockées dans un struct env alloué sur le tas au moment de la création de la closure. La sémantique dépend du type :
+
+| Type capturé | Ce qui est stocké dans l'env | Effet d'une mutation dans la closure |
+|---|---|---|
+| `int`, `float`, `bool` | La **valeur** (copiée dans l'env) | Modifie la cellule env — persistant d'un appel à l'autre |
+| Classe (objet) | Le **pointeur** vers l'objet | Modifie l'objet original — visible depuis l'extérieur |
+| Tableau (`T[]`) | Le **pointeur** vers le tableau | Modifie le tableau original — visible depuis l'extérieur |
+| Map (`map<K,V>`) | Le **pointeur** vers la map | Modifie la map originale — visible depuis l'extérieur |
+
+```ocara
+// Primitif : la valeur vit dans l'env, mutations persistantes
+var x:int = 0
+var inc:Function = nameless(): int { x = x + 1; return x }
+inc()   // 1
+inc()   // 2  ← x dans l'env vaut maintenant 2
+
+// Objet : le pointeur est capturé, l'objet est partagé
+var user:User = use User("David")
+var rename:Function = nameless(): void { user.name = "Bob" }
+rename()
+IO::writeln(user.name)   // "Bob" — l'objet original est muté
+```
+
 - `self` peut être capturé depuis une méthode d'instance ; les mutations de champs via `self` sont visibles depuis l'extérieur.
 - Les closures imbriquées ne capturent pas les variables de la closure parente (seulement la portée immédiate).
 - Une `nameless` ne peut pas être récursive directement (elle n'a pas de nom).

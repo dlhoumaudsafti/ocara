@@ -30,6 +30,9 @@ pub struct LowerBuilder<'m> {
     pub loop_stack: Vec<(BlockId, BlockId)>,
     /// Variables de type Function (pointeurs de fonction) — pour CallIndirect
     pub func_vars: HashSet<String>,
+    /// Variables capturées par une closure — accès via GetField/SetField sur __env
+    /// (env_ptr: Value, index: usize, type: IrType)
+    pub captured_vars: HashMap<String, (Value, usize, IrType)>,
 }
 
 impl<'m> LowerBuilder<'m> {
@@ -52,6 +55,7 @@ impl<'m> LowerBuilder<'m> {
             current_class: None,
             loop_stack: Vec::new(),
             func_vars: HashSet::new(),
+            captured_vars: HashMap::new(),
         }
     }
 
@@ -86,16 +90,41 @@ impl<'m> LowerBuilder<'m> {
         slot
     }
 
-    /// Stocke `src` dans le slot du local `name`
+    /// Stocke `src` dans le slot du local `name`.
+    /// Pour les variables capturées, écrit directement dans le struct env sur le tas
+    /// afin que la mutation soit persistante d'un appel à l'autre de la closure.
     pub fn store_local(&mut self, name: &str, src: Value) {
+        // Variable capturée → SetField sur l'env struct (mutation persistante)
+        if let Some((env_val, idx, _)) = self.captured_vars.get(name).cloned() {
+            self.emit(Inst::SetField {
+                obj:    env_val,
+                field:  format!("__cap_{}", idx),
+                src,
+                offset: (idx * 8) as i32,
+            });
+            return;
+        }
         if let Some((slot, _, _)) = self.locals.get(name) {
             let slot = slot.clone();
             self.emit(Inst::Store { ptr: slot, src });
         }
     }
 
-    /// Charge le local `name` → retourne (Value résultat, IrType)
+    /// Charge le local `name` → retourne (Value résultat, IrType).
+    /// Pour les variables capturées, lit directement depuis le struct env sur le tas.
     pub fn load_local(&mut self, name: &str) -> Option<(Value, IrType)> {
+        // Variable capturée → GetField sur l'env struct
+        if let Some((env_val, idx, ty)) = self.captured_vars.get(name).cloned() {
+            let dest = self.new_value();
+            self.emit(Inst::GetField {
+                dest:   dest.clone(),
+                obj:    env_val,
+                field:  format!("__cap_{}", idx),
+                ty:     ty.clone(),
+                offset: (idx * 8) as i32,
+            });
+            return Some((dest, ty));
+        }
         if let Some((slot, ty, _)) = self.locals.get(name).cloned() {
             let dest = self.new_value();
             self.emit(Inst::Load { dest: dest.clone(), ptr: slot, ty: ty.clone() });
