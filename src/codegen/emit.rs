@@ -570,7 +570,11 @@ fn emit_inst(
             // Alloue n_fields * 8 octets sur le TAS via __alloc_obj.
             // L'allocation tas est obligatoire pour les objets passés à `fail` :
             // longjmp dépilement la pile du corps try, un objet pile deviendrait dangling.
-            let n_fields = class_layouts.get(class.as_str()).map(|f| f.len()).unwrap_or(1);
+            let n_fields = if class == "__fat_ptr" {
+                2  // {func_ptr, env_ptr} — 16 octets
+            } else {
+                class_layouts.get(class.as_str()).map(|f| f.len()).unwrap_or(1)
+            };
             let size = (n_fields as i64) * 8;
             let size_val = builder.ins().iconst(clt::I64, size);
             // Appel __alloc_obj(size) → ptr heap

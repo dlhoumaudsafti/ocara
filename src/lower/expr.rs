@@ -1,8 +1,206 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use crate::ast::*;
+use crate::ir::func::IrParam;
 use crate::ir::inst::{Inst, Value};
 use crate::ir::types::IrType;
 use crate::lower::builder::LowerBuilder;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Capture Analysis — Walk AST pour trouver les variables capturées
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Retourne la liste des variables locales du scope englobant référencées dans `body`,
+/// en excluant les paramètres propres de la closure.
+fn collect_captures(
+    body:        &Block,
+    param_names: &HashSet<String>,
+    locals:      &HashMap<String, (Value, IrType, bool)>,
+) -> Vec<(String, IrType)> {
+    let mut caps: Vec<(String, IrType)> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    walk_block_caps(body, param_names, locals, &mut caps, &mut seen);
+    caps
+}
+
+fn walk_block_caps(b: &Block, p: &HashSet<String>, l: &HashMap<String, (Value, IrType, bool)>, caps: &mut Vec<(String, IrType)>, seen: &mut HashSet<String>) {
+    for stmt in &b.stmts { walk_stmt_caps(stmt, p, l, caps, seen); }
+}
+
+fn walk_stmt_caps(stmt: &Stmt, p: &HashSet<String>, l: &HashMap<String, (Value, IrType, bool)>, caps: &mut Vec<(String, IrType)>, seen: &mut HashSet<String>) {
+    match stmt {
+        Stmt::Var   { value, .. }     => walk_expr_caps(value, p, l, caps, seen),
+        Stmt::Const { value, .. }     => walk_expr_caps(value, p, l, caps, seen),
+        Stmt::Expr(e)                 => walk_expr_caps(e, p, l, caps, seen),
+        Stmt::Assign { target, value, .. } => {
+            walk_expr_caps(target, p, l, caps, seen);
+            walk_expr_caps(value,  p, l, caps, seen);
+        }
+        Stmt::Return { value: Some(e), .. } => walk_expr_caps(e, p, l, caps, seen),
+        Stmt::Return { .. } | Stmt::Break { .. } | Stmt::Continue { .. } => {}
+        Stmt::If { condition, then_block, elseif, else_block, .. } => {
+            walk_expr_caps(condition, p, l, caps, seen);
+            walk_block_caps(then_block, p, l, caps, seen);
+            for (c, blk) in elseif { walk_expr_caps(c, p, l, caps, seen); walk_block_caps(blk, p, l, caps, seen); }
+            if let Some(blk) = else_block { walk_block_caps(blk, p, l, caps, seen); }
+        }
+        Stmt::While { condition, body, .. } => {
+            walk_expr_caps(condition, p, l, caps, seen);
+            walk_block_caps(body, p, l, caps, seen);
+        }
+        Stmt::ForIn { iter, body, .. } => {
+            walk_expr_caps(iter, p, l, caps, seen);
+            walk_block_caps(body, p, l, caps, seen);
+        }
+        Stmt::ForMap { iter, body, .. } => {
+            walk_expr_caps(iter, p, l, caps, seen);
+            walk_block_caps(body, p, l, caps, seen);
+        }
+        Stmt::Switch { subject, cases, default, .. } => {
+            walk_expr_caps(subject, p, l, caps, seen);
+            for c in cases { walk_block_caps(&c.body, p, l, caps, seen); }
+            if let Some(blk) = default { walk_block_caps(blk, p, l, caps, seen); }
+        }
+        Stmt::Try { body, handlers, .. } => {
+            walk_block_caps(body, p, l, caps, seen);
+            for h in handlers { walk_block_caps(&h.body, p, l, caps, seen); }
+        }
+        Stmt::Raise { value, .. } => walk_expr_caps(value, p, l, caps, seen),
+    }
+}
+
+fn walk_expr_caps(expr: &Expr, p: &HashSet<String>, l: &HashMap<String, (Value, IrType, bool)>, caps: &mut Vec<(String, IrType)>, seen: &mut HashSet<String>) {
+    match expr {
+        Expr::Ident(name, _) => {
+            if !p.contains(name.as_str()) && !seen.contains(name.as_str()) {
+                if let Some((_, ty, _)) = l.get(name.as_str()) {
+                    caps.push((name.clone(), ty.clone()));
+                    seen.insert(name.clone());
+                }
+            }
+        }
+        Expr::SelfExpr(_) => {
+            let key = "self";
+            if !seen.contains(key) {
+                if let Some((_, ty, _)) = l.get(key) {
+                    caps.push((key.to_string(), ty.clone()));
+                    seen.insert(key.to_string());
+                }
+            }
+        }
+        Expr::Binary { left, right, .. } => { walk_expr_caps(left, p, l, caps, seen); walk_expr_caps(right, p, l, caps, seen); }
+        Expr::Unary  { operand, .. }     => walk_expr_caps(operand, p, l, caps, seen),
+        Expr::Field  { object, .. }      => walk_expr_caps(object, p, l, caps, seen),
+        Expr::Call   { callee, args, .. } => { walk_expr_caps(callee, p, l, caps, seen); for a in args { walk_expr_caps(a, p, l, caps, seen); } }
+        Expr::StaticCall { args, .. }    => { for a in args { walk_expr_caps(a, p, l, caps, seen); } }
+        Expr::New    { args, .. }        => { for a in args { walk_expr_caps(a, p, l, caps, seen); } }
+        Expr::Index  { object, index, ..} => { walk_expr_caps(object, p, l, caps, seen); walk_expr_caps(index, p, l, caps, seen); }
+        Expr::Range  { start, end, .. }  => { walk_expr_caps(start, p, l, caps, seen); walk_expr_caps(end, p, l, caps, seen); }
+        Expr::Array  { elements, .. }    => { for e in elements { walk_expr_caps(e, p, l, caps, seen); } }
+        Expr::Map    { entries, .. }     => { for (k, v) in entries { walk_expr_caps(k, p, l, caps, seen); walk_expr_caps(v, p, l, caps, seen); } }
+        Expr::Template { parts, .. }     => { for part in parts { if let TemplatePartExpr::Expr(e) = part { walk_expr_caps(e, p, l, caps, seen); } } }
+        Expr::Match  { subject, arms, ..} => { walk_expr_caps(subject, p, l, caps, seen); for arm in arms { walk_expr_caps(&arm.body, p, l, caps, seen); } }
+        // Ne pas descendre dans les nameless imbriquées (elles ont leurs propres captures)
+        Expr::Nameless { .. } | Expr::Literal(..) | Expr::StaticConst { .. } => {}
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lowering d'une fonction anonyme (closure)
+// ─────────────────────────────────────────────────────────────────────────────
+
+fn lower_nameless_fn(
+    module:        &mut crate::ir::module::IrModule,
+    anon_name:     &str,
+    params:        &[Param],
+    _ret_ty:        IrType,  // ignoré — toutes les closures retournent I64 (convention uniforme)
+    body:          &Block,
+    captures:      &[(String, IrType)],
+    fn_ret_types:  &HashMap<String, IrType>,
+    fn_param_types: &HashMap<String, Vec<IrType>>,
+    current_class: &Option<String>,
+    var_class:     &HashMap<String, String>,
+    func_vars:     &HashSet<String>,
+) {
+    // Enregistrer le layout de l'env dans class_layouts
+    if !captures.is_empty() {
+        let env_class  = format!("__env_{}", anon_name);
+        let env_fields: Vec<(String, IrType)> = captures.iter().enumerate()
+            .map(|(i, (_, ty))| (format!("__cap_{}", i), ty.clone()))
+            .collect();
+        module.class_layouts.insert(env_class, env_fields);
+    }
+
+    let ir_func = {
+        let ir_params: Vec<IrParam> = {
+            let mut p = vec![IrParam { name: "__env".into(), ty: IrType::Ptr, slot: Value(0) }];
+            for param in params {
+                p.push(IrParam { name: param.name.clone(), ty: IrType::from_ast(&param.ty), slot: Value(0) });
+            }
+            p
+        };
+
+        // Convention uniforme : toutes les closures retournent I64
+        // (void → retourne 0, les callers ignorent le résultat)
+        let mut builder = LowerBuilder::new(module, anon_name.into(), ir_params, IrType::I64);
+        builder.fn_ret_types   = fn_ret_types.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        builder.fn_param_types = fn_param_types.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        builder.current_class  = current_class.clone();
+        builder.var_class      = var_class.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        builder.func_vars      = func_vars.clone();
+
+        // Setup params (alloca + receiver)
+        let mut updated_params: Vec<IrParam> = Vec::new();
+        let env_slot = builder.declare_local("__env", IrType::Ptr, false);
+        let env_recv = builder.new_value();
+        builder.emit(Inst::Store { ptr: env_slot, src: env_recv.clone() });
+        updated_params.push(IrParam { name: "__env".into(), ty: IrType::Ptr, slot: env_recv });
+
+        for param in params {
+            let ir_ty = IrType::from_ast(&param.ty);
+            if let Type::Map(_, _) = &param.ty  { builder.map_vars.insert(param.name.clone()); }
+            if let Type::Function  = &param.ty  { builder.func_vars.insert(param.name.clone()); }
+            let slot = builder.declare_local(&param.name, ir_ty.clone(), false);
+            let recv = builder.new_value();
+            builder.emit(Inst::Store { ptr: slot, src: recv.clone() });
+            updated_params.push(IrParam { name: param.name.clone(), ty: ir_ty, slot: recv });
+        }
+        builder.func.params = updated_params;
+
+        // Charger les captures depuis __env
+        if !captures.is_empty() {
+            let env_val = builder.load_local("__env").map(|(v, _)| v).unwrap();
+            for (i, (cap_name, cap_ty)) in captures.iter().enumerate() {
+                let cap_dest = builder.new_value();
+                builder.emit(Inst::GetField {
+                    dest:   cap_dest.clone(),
+                    obj:    env_val.clone(),
+                    field:  format!("__cap_{}", i),
+                    ty:     cap_ty.clone(),
+                    offset: (i * 8) as i32,
+                });
+                let slot = builder.declare_local(cap_name, cap_ty.clone(), false);
+                builder.emit(Inst::Store { ptr: slot, src: cap_dest });
+                // Propager le type de classe si c'est une instance
+                if let Some(cls) = var_class.get(cap_name.as_str()) {
+                    builder.var_class.insert(cap_name.clone(), cls.clone());
+                }
+            }
+        }
+
+        crate::lower::stmt::lower_block(&mut builder, body);
+
+        // Toujours retourner I64(0) en fallthrough (convention uniforme CallIndirect)
+        if !builder.is_terminated() {
+            let z = builder.new_value();
+            builder.emit(Inst::ConstInt { dest: z.clone(), value: 0 });
+            builder.emit(Inst::Return { value: Some(z) });
+        }
+
+        builder.func
+    };
+
+    module.add_function(ir_func);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers pour les champs de classes
@@ -200,6 +398,7 @@ fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                 UnaryOp::Neg => expr_ir_type(builder, operand),
             }
         }
+        Expr::Nameless { .. } => IrType::Ptr,
         _ => IrType::I64,
     }
 }
@@ -258,11 +457,18 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             if let Some((val, _)) = builder.load_local(name) {
                 return val;
             }
-            // Référence à une fonction libre (var f:Function = maFonction)
-            if builder.fn_ret_types.contains_key(name.as_str()) {
-                let dest = builder.new_value();
-                builder.emit(Inst::FuncAddr { dest: dest.clone(), func: name.clone() });
-                return dest;
+            // Référence à une fonction libre → fat pointer {wrapper_addr, 0}
+            if builder.fn_param_types.contains_key(name.as_str()) {
+                let wrapper_name = format!("__fn_wrap_{}", name);
+                let func_addr = builder.new_value();
+                builder.emit(Inst::FuncAddr { dest: func_addr.clone(), func: wrapper_name });
+                let zero = builder.new_value();
+                builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+                let fat_ptr = builder.new_value();
+                builder.emit(Inst::Alloc { dest: fat_ptr.clone(), class: "__fat_ptr".into() });
+                builder.emit(Inst::SetField { obj: fat_ptr.clone(), field: "func".into(), src: func_addr, offset: 0 });
+                builder.emit(Inst::SetField { obj: fat_ptr.clone(), field: "env".into(),  src: zero,      offset: 8 });
+                return fat_ptr;
             }
             // Fallback : constante globale ou symbole non résolu → nop
             let dest = builder.new_value();
@@ -327,18 +533,27 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 }
             }
 
-            // Appel indirect : variable de type Function → CallIndirect
+            // Appel indirect : variable de type Function → déréférence fat pointer
             if let Expr::Ident(name, _) = callee.as_ref() {
                 if builder.func_vars.contains(name.as_str()) {
-                    let func_ptr = builder.load_local(name)
+                    let fat_ptr = builder.load_local(name)
                         .map(|(v, _)| v)
                         .unwrap_or_else(|| { let d = builder.new_value(); builder.emit(Inst::Nop); d });
+                    // Lire func_ptr depuis fat_ptr[0]
+                    let func_ptr = builder.new_value();
+                    builder.emit(Inst::GetField { dest: func_ptr.clone(), obj: fat_ptr.clone(), field: "func".into(), ty: IrType::Ptr, offset: 0 });
+                    // Lire env_ptr depuis fat_ptr[8]
+                    let env_ptr = builder.new_value();
+                    builder.emit(Inst::GetField { dest: env_ptr.clone(), obj: fat_ptr, field: "env".into(), ty: IrType::Ptr, offset: 8 });
                     let arg_vals: Vec<Value> = args.iter().map(|a| lower_expr(builder, a)).collect();
+                    // Appel avec env_ptr en premier (convention uniforme)
+                    let mut all_args = vec![env_ptr];
+                    all_args.extend(arg_vals);
                     let dest = builder.new_value();
                     builder.emit(Inst::CallIndirect {
                         dest:   Some(dest.clone()),
                         callee: func_ptr,
-                        args:   arg_vals,
+                        args:   all_args,
                         ret_ty: IrType::I64,
                     });
                     return dest;
@@ -498,10 +713,17 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     ret_ty: IrType::Ptr,
                 });
             } else {
-                // Référence à une méthode statique sans appel → pointeur de fonction
+                // Référence à une méthode statique sans appel → fat pointer
                 let method_key = format!("{}_{}", class, name);
-                if builder.fn_ret_types.contains_key(&method_key) {
-                    builder.emit(Inst::FuncAddr { dest: dest.clone(), func: method_key });
+                if builder.fn_param_types.contains_key(&method_key) {
+                    let wrapper_name = format!("__fn_wrap_{}", method_key);
+                    let func_addr = builder.new_value();
+                    builder.emit(Inst::FuncAddr { dest: func_addr.clone(), func: wrapper_name });
+                    let zero = builder.new_value();
+                    builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+                    builder.emit(Inst::Alloc { dest: dest.clone(), class: "__fat_ptr".into() });
+                    builder.emit(Inst::SetField { obj: dest.clone(), field: "func".into(), src: func_addr, offset: 0 });
+                    builder.emit(Inst::SetField { obj: dest.clone(), field: "env".into(),  src: zero,      offset: 8 });
                 } else {
                     // Fallback : charge le global manglé comme pointeur
                     let idx = builder.module.intern_string(&key);
@@ -925,6 +1147,82 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 acc = dest;
             }
             acc
+        }
+
+        // ── Fonction anonyme (closure) ─────────────────────────────────────
+        Expr::Nameless { params, ret_ty, body, .. } => {
+            let actual_ret_ty = ret_ty.as_ref()
+                .map(|t| IrType::from_ast(t))
+                .unwrap_or(IrType::Ptr);
+
+            // Analyser les captures
+            let param_names: HashSet<String> = params.iter().map(|p| p.name.clone()).collect();
+            let captures = collect_captures(body, &param_names, &builder.locals);
+
+            // Générer un nom unique
+            let anon_name = {
+                let count = builder.module.anon_counter;
+                builder.module.anon_counter += 1;
+                format!("__anon_{}", count)
+            };
+
+            // Cloner les données nécessaires avant d'emprunter builder.module
+            let fn_ret_types_clone   = builder.fn_ret_types.clone();
+            let fn_param_types_clone = builder.fn_param_types.clone();
+            let current_class        = builder.current_class.clone();
+            let var_class_snap       = builder.var_class.clone();
+            let func_vars_snap       = builder.func_vars.clone();
+
+            // Charger les valeurs capturées AVANT d'emprunter module
+            let capture_vals: Vec<Value> = captures.iter().map(|(cap_name, _)| {
+                builder.load_local(cap_name)
+                    .map(|(v, _)| v)
+                    .unwrap_or_else(|| { let d = builder.new_value(); builder.emit(Inst::Nop); d })
+            }).collect();
+
+            // Générer la fonction anonyme (emprunt temporaire de builder.module)
+            lower_nameless_fn(
+                builder.module,
+                &anon_name,
+                params,
+                actual_ret_ty.clone(),
+                body,
+                &captures,
+                &fn_ret_types_clone,
+                &fn_param_types_clone,
+                &current_class,
+                &var_class_snap,
+                &func_vars_snap,
+            );
+
+            // Créer l'env avec les valeurs capturées
+            let env_ptr_val = if captures.is_empty() {
+                let z = builder.new_value();
+                builder.emit(Inst::ConstInt { dest: z.clone(), value: 0 });
+                z
+            } else {
+                let env_class = format!("__env_{}", anon_name);
+                let env = builder.new_value();
+                builder.emit(Inst::Alloc { dest: env.clone(), class: env_class });
+                for (i, _) in captures.iter().enumerate() {
+                    builder.emit(Inst::SetField {
+                        obj:    env.clone(),
+                        field:  format!("__cap_{}", i),
+                        src:    capture_vals[i].clone(),
+                        offset: (i * 8) as i32,
+                    });
+                }
+                env
+            };
+
+            // Créer le fat pointer {func_addr, env_ptr}
+            let func_addr = builder.new_value();
+            builder.emit(Inst::FuncAddr { dest: func_addr.clone(), func: anon_name });
+            let fat_ptr = builder.new_value();
+            builder.emit(Inst::Alloc { dest: fat_ptr.clone(), class: "__fat_ptr".into() });
+            builder.emit(Inst::SetField { obj: fat_ptr.clone(), field: "func".into(), src: func_addr,    offset: 0 });
+            builder.emit(Inst::SetField { obj: fat_ptr.clone(), field: "env".into(),  src: env_ptr_val, offset: 8 });
+            fat_ptr
         }
     }
 }

@@ -1,0 +1,135 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 25 — Fonctions anonymes (nameless / closures)
+//
+// Illustre :
+//   - Syntaxe `nameless(params): ret { body }`
+//   - Capture de variables locales (closure lexicale)
+//   - Closure void sans paramètre
+//   - Capture de `self` dans une méthode d'instance
+//   - Passage de closures en paramètre (type Function)
+//   - Retour d'une closure depuis une méthode
+//   - Combinaison avec des fonctions d'ordre supérieur
+// ─────────────────────────────────────────────────────────────────────────────
+import ocara.IO
+
+
+// ── Fonctions d'ordre supérieur ───────────────────────────────────────────────
+
+function apply(f:Function, n:int): int {
+    return f(n)
+}
+
+function run(f:Function): void {
+    f()
+}
+
+function times(f:Function, n:int): void {
+    var i:int = 0
+    while i < n {
+        f()
+        i = i + 1
+    }
+}
+
+
+// ── Classe avec compteur interne ──────────────────────────────────────────────
+
+class Counter {
+    public property value:int
+
+    init(start:int) {
+        self.value = start
+    }
+
+    // Retourne une closure qui incrémente self.value de `step` à chaque appel
+    public method make_incrementer(step:int): Function {
+        return nameless(): void {
+            self.value = self.value + step
+            IO::writeln(self.value)
+        }
+    }
+
+    // Retourne une closure qui multiplie self.value par `factor`
+    public method make_multiplier(factor:int): Function {
+        return nameless(): void {
+            self.value = self.value * factor
+            IO::writeln(self.value)
+        }
+    }
+}
+
+
+function main(): int {
+
+    // ── Closure simple sans capture ──────────────────────────────────────────
+    var greet:Function = nameless(): void {
+        IO::writeln("hello from nameless")
+    }
+    greet()                        // hello from nameless
+
+
+    // ── Closure avec paramètre ───────────────────────────────────────────────
+    var double:Function = nameless(x:int): int {
+        return x * 2
+    }
+    IO::writeln(double(7))         // 14
+    IO::writeln(apply(double, 5))  // 10
+
+
+    // ── Capture d'une variable locale ────────────────────────────────────────
+    var step:int = 3
+    var adder:Function = nameless(x:int): int {
+        return x + step            // `step` capturé depuis la portée englobante
+    }
+    IO::writeln(adder(10))         // 13
+    IO::writeln(adder(20))         // 23
+
+
+    // ── Capture de plusieurs variables ───────────────────────────────────────
+    var base:int = 100
+    var coeff:int = 2
+    var transform:Function = nameless(x:int): int {
+        return base + x * coeff   // `base` et `coeff` capturés
+    }
+    IO::writeln(transform(5))      // 110
+    IO::writeln(transform(10))     // 120
+
+
+    // ── Passage d'une closure à une fonction d'ordre supérieur ───────────────
+    var multiplier:int = 4
+    var scale:Function = nameless(x:int): int {
+        return x * multiplier
+    }
+    IO::writeln(apply(scale, 3))   // 12
+    IO::writeln(apply(scale, 7))   // 28
+
+
+    // ── Closure void répétée avec times() ────────────────────────────────────
+    var tick:Function = nameless(): void {
+        IO::writeln("tick")
+    }
+    times(tick, 3)
+    // tick
+    // tick
+    // tick
+
+
+    // ── Closure capturant self dans une méthode ───────────────────────────────
+    scoped c:Counter = use Counter(0)
+    var inc:Function = c.make_incrementer(5)
+    run(inc)                       // 5
+    run(inc)                       // 10
+    run(inc)                       // 15
+
+
+    // ── Deux closures indépendantes sur le même objet ─────────────────────────
+    scoped d:Counter = use Counter(1)
+    var by2:Function = d.make_multiplier(2)
+    var by3:Function = d.make_multiplier(3)
+    run(by2)                       // 2  (1 * 2)
+    run(by3)                       // 6  (2 * 3)
+    run(by2)                       // 12 (6 * 2)
+
+
+    return 0
+}

@@ -918,9 +918,24 @@ impl Parser {
                 Ok(Expr::Literal(Literal::Null, span))
             }
 
-            // ── self ────────────────────────────────────────────────────────
-            TokenKind::SelfKw => {
+            // ── nameless (closure anonyme) ───────────────────────────────────
+            TokenKind::KwNameless => {
                 self.advance();
+                self.eat(&TokenKind::LParen)?;
+                let params = self.parse_param_list()?;
+                self.eat(&TokenKind::RParen)?;
+                let ret_ty = if self.check_exact(&TokenKind::Colon) {
+                    self.advance();
+                    Some(self.parse_type()?)
+                } else {
+                    None
+                };
+                let body = self.parse_block()?;
+                Ok(Expr::Nameless { params, ret_ty, body, span })
+            }
+
+            // ── self ────────────────────────────────────────────────────────
+            TokenKind::SelfKw => {                self.advance();
 
                 // self::method(args) — appel d'une méthode statique de la classe courante
                 if self.check_exact(&TokenKind::ColonColon) {
