@@ -198,33 +198,84 @@ Ce format est lu par `ocaraunit` pour produire le rapport final.
 
 ## Exemple complet
 
-Fichier `MathTest.oc` :
+Un projet d'exemple complet est disponible dans `examples/project/` du dépôt Ocara.
+Il illustre toutes les conventions décrites ci-dessous.
+
+### Structure
+
+```
+examples/project/
+├── main.oc               ← classes Color, Score, Student + fonctions libres
+├── classes/
+│   ├── Models.oc
+│   ├── Services.oc
+│   └── Utils.oc
+└── tests/
+    ├── mainTest.oc       ← teste Color (statiques), Score, Student
+    ├── ModelsTest.oc
+    ├── ServicesTest.oc
+    └── UtilsTest.oc
+```
+
+### Exemple — tester des méthodes statiques (`Color`)
+
+`main.oc` déclare :
+
+```ocara
+class Color {
+    public const RED:string = "rouge"
+    // ...
+    public static method mix(a:string, b:string): string { ... }
+    public static method is_primary(c:string): bool { ... }
+    public static method describe(c:string): string { ... }
+}
+```
+
+`tests/mainTest.oc` les couvre :
 
 ```ocara
 import ocara.UnitTest
+import main
 
-function add(a: int, b: int): int {
-    return a + b
-}
+class mainTest {
 
-function addBasicTest(): int {
-    UnitTest::assertEquals(5, add(2, 3))
-    UnitTest::assertEquals(0, add(-1, 1))
-    return 0
-}
+    public method mixTest(): int {
+        UnitTest::assertNotNull(Color::mix(Color::RED, Color::BLUE))
+        UnitTest::pass("mix appelé sans erreur")
+        return 0
+    }
 
-function addComparisonTest(): int {
-    UnitTest::assertTrue(add(1, 1) > 0)
-    UnitTest::assertNotEquals(99, add(2, 3))
-    UnitTest::assertGreater(add(10, 5), 10)
-    return 0
+    public method is_primaryTest(): int {
+        UnitTest::assertTrue(Color::is_primary(Color::RED))
+        UnitTest::assertFalse(Color::is_primary("violet"))
+        return 0
+    }
+
+    public method describeTest(): int {
+        UnitTest::assertNotNull(Color::describe(Color::RED))
+        UnitTest::pass("describe appelé sans erreur")
+        return 0
+    }
 }
 ```
 
-Sortie d'`ocaraunit` lors de l'exécution de `addBasicTest` :
+### Exemple — tester des méthodes d'instance
+
+```ocara
+    public method compareTest(): int {
+        scoped s:Score = use Score("Alice", 80)
+        UnitTest::assertEquals(1,  s.compare(70))
+        UnitTest::assertEquals(-1, s.compare(90))
+        UnitTest::assertEquals(0,  s.compare(80))
+        return 0
+    }
+```
+
+Sortie d'`ocaraunit` :
 
 ```
-PASS assertEquals: 5 == 5
+PASS assertEquals: 1 == 1
+PASS assertEquals: -1 == -1
 PASS assertEquals: 0 == 0
 ```
 
@@ -232,8 +283,20 @@ PASS assertEquals: 0 == 0
 
 ## Conventions pour ocaraunit
 
-Les fichiers de test sont nommés `*Test.oc` (ex : `MathTest.oc`, `UserServiceTest.oc`).  
+Les fichiers de test sont placés dans un dossier **`tests/`** à la racine du projet.  
 Un fichier de test peut être un **script simple** ou une **classe**.
+
+### Nommage
+
+Le nom du fichier de test correspond au nom du fichier source suffixe de `Test` :
+
+| Fichier source              | Exemple de fichier de test              |
+|-----------------------------|------------------------------------------|
+| `src/Math.oc`               | `tests/MathTest.oc`                      |
+| `examples/01_variables.oc`  | `tests/01_variablesTest.oc`              |
+| `services/UserService.oc`   | `tests/services/UserServiceTest.oc`      |
+
+Les fichiers de test peuvent être organisés en sous-dossiers dans `tests/`. `ocaraunit` les découvre récursivement.
 
 ### Script sans classe
 
@@ -263,6 +326,8 @@ function helper(): int {
 
 Seules les méthodes **publiques** dont le nom se termine par `Test` sont exécutées par `ocaraunit`.  
 Les méthodes de classe utilisent le mot-clé `method` précédé d'un modificateur de visibilité.
+
+Les méthodes **statiques** (`public static method fooTest`) sont aussi reconnues et exécutées.
 
 ```ocara
 import ocara.UnitTest

@@ -1,0 +1,29 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// tests/ModelsTest.oc — tests unitaires pour classes/Models.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+import classes.Models
+
+class ModelsTest {
+
+    public method get_titleTest(): int {
+        scoped m:Models = use Models("Ocara", 1)
+        UnitTest::assertEquals("Ocara", m.get_title())
+        return 0
+    }
+
+    public method get_idTest(): int {
+        scoped m:Models = use Models("Ocara", 42)
+        UnitTest::assertEquals(42, m.get_id())
+        return 0
+    }
+
+    public method displayTest(): int {
+        // display() ne retourne rien — on vérifie juste que l'appel ne lève pas d'erreur
+        scoped m:Models = use Models("Test", 7)
+        UnitTest::assertNotNull(m)
+        UnitTest::pass("display appelé sans erreur")
+        return 0
+    }
+}

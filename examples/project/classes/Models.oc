@@ -1,12 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Projet Ocara — models.oc
-// Façade : classe models (renommée en Models à l'import)
+// Projet Ocara — Models.oc
+// Façade : classe Models
 // ─────────────────────────────────────────────────────────────────────────────
 
 import ocara.IO
 
 // Classe façade — sera renommée "Models" via l'alias d'import
-class models {
+class Models {
 
     public property title:string
     public property    id:int

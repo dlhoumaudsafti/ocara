@@ -1,12 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Projet Ocara — services.oc
-// Façade : classe services (renommée en Services à l'import)
+// Projet Ocara — Services.oc
+// Façade : classe Services
 // ─────────────────────────────────────────────────────────────────────────────
 
 import ocara.IO
 
 // Classe façade — sera renommée "Services" via l'alias d'import
-class services {
+class Services {
 
     private property count:int
     private property tag_counts:map<string,int>

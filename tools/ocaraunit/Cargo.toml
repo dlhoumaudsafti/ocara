@@ -1,0 +1,8 @@
+[package]
+name    = "ocaraunit"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "ocaraunit"
+path = "src/main.rs"

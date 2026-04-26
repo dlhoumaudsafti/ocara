@@ -1,5 +1,5 @@
 [workspace]
-members = ["runtime", "tools/ocaracs"]
+members = ["runtime", "tools/ocaracs", "tools/ocaraunit"]
 
 [package]
 name    = "ocara"
