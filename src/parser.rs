@@ -208,6 +208,10 @@ impl Parser {
 
             TokenKind::Ident(name) => {
                 self.advance();
+                // `Function` est un type de première classe
+                if name == "Function" {
+                    return Ok(Type::Function);
+                }
                 if self.check_exact(&TokenKind::Dot) {
                     let mut parts = vec![name];
                     while self.check_exact(&TokenKind::Dot) {

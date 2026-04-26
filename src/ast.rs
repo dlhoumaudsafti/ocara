@@ -23,6 +23,8 @@ pub enum Type {
     Map(Box<Type>, Box<Type>),
     /// `T | U | ...` — type union
     Union(Vec<Type>),
+    /// Référence à une fonction ou méthode statique (premier ordre)
+    Function,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
