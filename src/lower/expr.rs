@@ -258,6 +258,12 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             if let Some((val, _)) = builder.load_local(name) {
                 return val;
             }
+            // Référence à une fonction libre (var f:Function = maFonction)
+            if builder.fn_ret_types.contains_key(name.as_str()) {
+                let dest = builder.new_value();
+                builder.emit(Inst::FuncAddr { dest: dest.clone(), func: name.clone() });
+                return dest;
+            }
             // Fallback : constante globale ou symbole non résolu → nop
             let dest = builder.new_value();
             builder.emit(Inst::Nop);
@@ -318,6 +324,24 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 if name.starts_with("__") {
                     eprintln!("error: `{}` est une fonction interne du compilateur et ne peut pas être appelée directement", name);
                     std::process::exit(1);
+                }
+            }
+
+            // Appel indirect : variable de type Function → CallIndirect
+            if let Expr::Ident(name, _) = callee.as_ref() {
+                if builder.func_vars.contains(name.as_str()) {
+                    let func_ptr = builder.load_local(name)
+                        .map(|(v, _)| v)
+                        .unwrap_or_else(|| { let d = builder.new_value(); builder.emit(Inst::Nop); d });
+                    let arg_vals: Vec<Value> = args.iter().map(|a| lower_expr(builder, a)).collect();
+                    let dest = builder.new_value();
+                    builder.emit(Inst::CallIndirect {
+                        dest:   Some(dest.clone()),
+                        callee: func_ptr,
+                        args:   arg_vals,
+                        ret_ty: IrType::I64,
+                    });
+                    return dest;
                 }
             }
 
@@ -474,9 +498,15 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     ret_ty: IrType::Ptr,
                 });
             } else {
-                // Fallback : charge le global manglé comme pointeur
-                let idx = builder.module.intern_string(&key);
-                builder.emit(Inst::ConstStr { dest: dest.clone(), idx });
+                // Référence à une méthode statique sans appel → pointeur de fonction
+                let method_key = format!("{}_{}", class, name);
+                if builder.fn_ret_types.contains_key(&method_key) {
+                    builder.emit(Inst::FuncAddr { dest: dest.clone(), func: method_key });
+                } else {
+                    // Fallback : charge le global manglé comme pointeur
+                    let idx = builder.module.intern_string(&key);
+                    builder.emit(Inst::ConstStr { dest: dest.clone(), idx });
+                }
             }
             dest
         }

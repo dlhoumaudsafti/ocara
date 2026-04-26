@@ -54,6 +54,10 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
             if let crate::ast::Type::Named(class_name) = ty {
                 builder.var_class.insert(name.clone(), class_name.clone());
             }
+            // Variable de type Function → enregistrer pour CallIndirect
+            if let crate::ast::Type::Function = ty {
+                builder.func_vars.insert(name.clone());
+            }
             // Union contenant un type nommé : utiliser le premier Named pour l'accès aux champs
             if let crate::ast::Type::Union(variants) = ty {
                 if let Some(class_name) = variants.iter().find_map(|v| {
