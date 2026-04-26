@@ -229,7 +229,7 @@ var h:Function = nameless(x:int): int { return x * 2 }  // fonction anonyme
 - L'appel d'une valeur `Function` utilise la syntaxe d'appel normale : `f(args...)`.
 - Le type de retour et les types de paramètres ne sont **pas** encodés dans `Function` — la compatibilité est vérifiée à l'exécution.
 - `Function` n'est pas un mot-clé mais un **type réservé** (PascalCase). Il ne peut pas être utilisé comme nom de classe ou de variable.
-- Les fonctions anonymes peuvent capturer des variables locales et `self` depuis leur portée d'enclosement. Les primitifs (`int`, `float`, `bool`) sont capturés par valeur dans l'env (mutations persistantes) ; les objets, tableaux et maps sont capturés par leur pointeur (l'original est partagé).
+- Les fonctions anonymes peuvent capturer des variables locales et `self` depuis leur portée d'enclosement. Toute variable capturée (primitif ou référence) est **promue sur le tas** au moment de la création de la closure : le scope d'origine et la closure partagent la même cellule heap (**shared cell**). Toute mutation — depuis la closure ou depuis le scope extérieur — est immédiatement visible des deux côtés. Voir §12.2 pour les détails.
 
 ---
 
