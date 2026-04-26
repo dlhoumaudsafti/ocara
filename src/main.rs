@@ -1,6 +1,7 @@
 mod ast;
 mod builtins;
 mod codegen;
+mod diagnostic;
 mod error;
 mod ir;
 mod lexer;
@@ -103,7 +104,7 @@ fn main() {
     let source = match fs::read_to_string(&args.input) {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("error: impossible de lire '{}': {}", args.input.display(), e);
+            diagnostic::print_error(&args.input, 0, 0, &format!("impossible de lire '{}': {}", args.input.display(), e));
             std::process::exit(1);
         }
     };
@@ -112,7 +113,20 @@ fn main() {
     let tokens = match Lexer::new(&source).tokenize() {
         Ok(t) => t,
         Err(e) => {
-            eprintln!("lexer error: {}", e);
+            use crate::error::LexError;
+            let (line, col) = match &e {
+                LexError::UnexpectedChar(_, s)    => (s.line, s.col),
+                LexError::UnterminatedString(s)   => (s.line, s.col),
+                LexError::InvalidEscape(_, s)     => (s.line, s.col),
+                LexError::IntegerOverflow(_, s)   => (s.line, s.col),
+            };
+            let msg = match &e {
+                LexError::UnexpectedChar(ch, _)    => format!("caractère inattendu '{}'", ch),
+                LexError::UnterminatedString(_)    => "chaîne non fermée".into(),
+                LexError::InvalidEscape(ch, _)     => format!("séquence d'échappement invalide '\\{}'", ch),
+                LexError::IntegerOverflow(raw, _)  => format!("entier trop grand : {}", raw),
+            };
+            diagnostic::print_error(&args.input, line, col, &msg);
             std::process::exit(1);
         }
     };
@@ -130,7 +144,7 @@ fn main() {
     let mut program = match Parser::new(tokens).parse_program() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("parse error: {}", e);
+            diagnostic::print_error(&args.input, e.span.line, e.span.col, &e.message);
             std::process::exit(1);
         }
     };
@@ -189,15 +203,24 @@ fn main() {
 
         let mod_src = match fs::read_to_string(&file_path) {
             Ok(s) => s,
-            Err(e) => { eprintln!("error: lecture module '{}': {}", file_path.display(), e); std::process::exit(1); }
+            Err(e) => {
+                diagnostic::print_error(&file_path, 0, 0, &format!("lecture module '{}': {}", file_path.display(), e));
+                std::process::exit(1);
+            }
         };
         let mod_tokens = match Lexer::new(&mod_src).tokenize() {
             Ok(t) => t,
-            Err(e) => { eprintln!("error dans '{}': {}", file_path.display(), e); std::process::exit(1); }
+            Err(e) => {
+                diagnostic::print_error(&file_path, 0, 0, &format!("{}", e));
+                std::process::exit(1);
+            }
         };
         let mut mod_prog = match Parser::new(mod_tokens).parse_program() {
             Ok(p) => p,
-            Err(e) => { eprintln!("parse error dans '{}': {}", file_path.display(), e); std::process::exit(1); }
+            Err(e) => {
+                diagnostic::print_error(&file_path, e.span.line, e.span.col, &e.message);
+                std::process::exit(1);
+            }
         };
 
         // Renommage via alias : la classe dont le nom = dernier segment → alias
@@ -248,11 +271,32 @@ fn main() {
     let mut checker = TypeChecker::new(&symbols);
     checker.check_program(&program);
 
-    if !checker.errors.is_empty() {
+    // Afficher erreurs + warnings triés par ligne (format GCC cliquable)
+    let has_errors   = !checker.errors.is_empty();
+    let has_warnings = !checker.warnings.is_empty();
+
+    if has_errors || has_warnings {
+        // Collecter tous les messages avec leur ligne pour trier
+        let mut items: Vec<(usize, usize, bool, String)> = Vec::new();
         for err in &checker.errors {
-            eprintln!("semantic error: {}", err);
+            items.push((err.span().line, err.span().col, true, err.message()));
         }
-        std::process::exit(1);
+        for w in &checker.warnings {
+            items.push((w.span().line, w.span().col, false, w.message()));
+        }
+        items.sort_by_key(|i| (i.0, i.1));
+
+        for (line, col, is_error, msg) in &items {
+            if *is_error {
+                diagnostic::print_error(&args.input, *line, *col, msg);
+            } else {
+                diagnostic::print_warn(&args.input, *line, *col, msg);
+            }
+        }
+
+        if has_errors {
+            std::process::exit(1);
+        }
     }
 
     if args.check {
@@ -286,7 +330,7 @@ fn main() {
     let emitter = match CraneliftEmitter::new(module_name) {
         Ok(e) => e,
         Err(e) => {
-            eprintln!("codegen init error: {}", e);
+            diagnostic::print_error(&args.input, 0, 0, &format!("codegen init: {}", e));
             std::process::exit(1);
         }
     };
@@ -294,7 +338,7 @@ fn main() {
     let obj_bytes = match emitter.compile(&ir_module) {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("codegen error: {}", e);
+            diagnostic::print_error(&args.input, 0, 0, &format!("codegen: {}", e));
             std::process::exit(1);
         }
     };
@@ -302,7 +346,7 @@ fn main() {
     if args.no_link {
         let obj_path = args.output.with_extension("o");
         if let Err(e) = fs::write(&obj_path, &obj_bytes) {
-            eprintln!("error: écriture de '{}': {}", obj_path.display(), e);
+            diagnostic::print_error(&args.input, 0, 0, &format!("écriture de '{}': {}", obj_path.display(), e));
             std::process::exit(1);
         }
         println!("objet généré: {}", obj_path.display());
@@ -316,7 +360,7 @@ fn main() {
             println!("compilation réussie → {}", args.output.display());
         }
         Err(e) => {
-            eprintln!("link error: {}", e);
+            diagnostic::print_error(&args.input, 0, 0, &format!("link: {}", e));
             std::process::exit(1);
         }
     }
