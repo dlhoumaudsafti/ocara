@@ -141,6 +141,7 @@ Type ::= "int"
        | "bool"
        | "mixed"
        | "void"
+       | "Function"
        | ArrayType
        | MapType
        | QualifiedType
@@ -207,6 +208,26 @@ var x:int = 5
 scoped name:string = "Alice"
 function greet(name:string): void { }
 ```
+
+### 4.5 Type `Function`
+
+Le type `Function` permet de stocker une référence à une **fonction libre** ou à une **méthode statique** et de la passer en paramètre (fonctions de première classe).
+
+```ebnf
+FunctionType ::= "Function"
+```
+
+```ocara
+var f:Function = double                 // référence à une fonction libre
+var g:Function = MathOp::square        // référence à une méthode statique
+```
+
+**Règles :**
+
+- `Function` ne peut référencer que des **fonctions libres** et des **méthodes statiques**. Les méthodes d'instance ne sont pas supportées.
+- L'appel d'une valeur `Function` utilise la syntaxe d'appel normale : `f(args...)`.
+- Le type de retour et les types de paramètres ne sont **pas** encodés dans `Function` — la compatibilité est vérifiée dynamiquement.
+- `Function` n'est pas un mot-clé mais un **type réservé** (PascalCase). Il ne peut pas être utilisé comme nom de classe ou de variable.
 
 ---
 
@@ -392,6 +413,14 @@ int       float     string     bool       mixed      map      void
 true      false     null
 or        and       not
 ```
+
+**Types réservés (PascalCase) :**
+
+```
+Function
+```
+
+> Ces identifiants sont réservés comme types et ne peuvent pas être utilisés comme noms de classe, variable, paramètre ou fonction.
 
 ---
 
@@ -591,6 +620,27 @@ function add(a:int, b:int): int {
 function greet(name:string): void {
     IO::writeln("Hello " + name)
 }
+```
+
+### 12.1 Fonctions de première classe
+
+Une fonction peut être passée comme valeur en utilisant le type `Function` (voir §4.5).
+
+```ocara
+function double(n:int): int { return n * 2 }
+
+// Passer une fonction libre
+function apply(f:Function, n:int): int {
+    return f(n)
+}
+IO::writeln(apply(double, 5))          // 10
+
+// Passer une méthode statique
+IO::writeln(apply(MathOp::square, 4)) // 16
+
+// Stocker dans une variable
+var op:Function = MathOp::negate
+IO::writeln(op(7))                     // -7
 ```
 
 ---
@@ -848,15 +898,20 @@ StaticConst  ::= StaticCallee "::" Identifier
 
 Appel d'une méthode statique ou lecture d'une constante de classe, sans instanciation. `self::` est utilisable uniquement depuis l'intérieur d'une classe pour référencer la classe courante.
 
+`StaticConst` sans `()` produit une **référence de fonction** (`Function`) lorsque le membre désigné est une méthode statique.
+
 ```ocara
-var result:int = Math::abs(-5)         // depuis l'extérieur
+var result:int = Math::abs(-5)         // appel statique
 var s:string = String::from(42)
+
+var f:Function = MathOp::square        // référence — pas d'appel
+var g:Function = self::is_positive     // référence depuis l'intérieur
 
 class Validator {
     public static method is_positive(n:int): bool { return n > 0 }
 
     public static method are_both_positive(a:int, b:int): bool {
-        return self::is_positive(a) and self::is_positive(b)  // depuis l'intérieur
+        return self::is_positive(a) and self::is_positive(b)
     }
 }
 ```
@@ -1174,7 +1229,7 @@ Param       ::= Identifier ":" Type
 
 (* ── Types ──────────────────────────────────────────────────────── *)
 
-Type        ::= "int" | "float" | "string" | "bool" | "mixed" | "void"
+Type        ::= "int" | "float" | "string" | "bool" | "mixed" | "void" | "Function"
               | ArrayType
               | MapType
               | QualifiedType

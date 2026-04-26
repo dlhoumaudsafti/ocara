@@ -338,6 +338,10 @@ impl<'a> TypeChecker<'a> {
                 if self.symbols.lookup_class(name).is_some() {
                     return Type::Named(name.clone());
                 }
+                // 4. référence à une fonction libre (sans appel)
+                if self.symbols.lookup_function(name).is_some() {
+                    return Type::Function;
+                }
                 self.errors.push(SemaError::UndefinedSymbol {
                     name: name.clone(),
                     span: span.clone(),
@@ -373,6 +377,16 @@ impl<'a> TypeChecker<'a> {
             }
 
             Expr::Call { callee, args, span } => {
+                // Appel indirect : variable locale de type Function
+                if let Expr::Ident(name, _) = callee.as_ref() {
+                    if let Some(b) = self.scopes.lookup(name) {
+                        if b.ty == Type::Function {
+                            self.scopes.mark_used(name);
+                            for arg in args { self.infer_expr(arg); }
+                            return Type::Mixed;
+                        }
+                    }
+                }
                 // Résolution : Ident direct → fonction libre
                 if let Expr::Ident(name, _) = callee.as_ref() {
                     if let Some(sig) = self.symbols.lookup_function(name) {
@@ -489,6 +503,17 @@ impl<'a> TypeChecker<'a> {
                 }
                 if let Some((ty, _)) = self.symbols.lookup_class_const(class, name) {
                     return ty.clone();
+                }
+                // Référence à une méthode statique sans appel : ClassName::myStatic
+                let resolved = if class == "<self>" {
+                    self.current_class.clone().unwrap_or_default()
+                } else {
+                    class.clone()
+                };
+                if let Some(sig) = self.symbols.lookup_method_in_chain(&resolved, name) {
+                    if sig.is_static {
+                        return Type::Function;
+                    }
                 }
                 self.errors.push(SemaError::UndefinedSymbol {
                     name: format!("{}::{}", class, name),
@@ -628,6 +653,7 @@ pub fn type_name(ty: &Type) -> String {
         Type::Array(inner)     => format!("{}[]", type_name(inner)),
         Type::Map(k, v)        => format!("map<{},{}>", type_name(k), type_name(v)),
         Type::Union(variants)  => variants.iter().map(type_name).collect::<Vec<_>>().join("|"),
+        Type::Function         => "Function".into(),
     }
 }
 

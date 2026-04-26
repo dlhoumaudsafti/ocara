@@ -26,6 +26,8 @@ pub struct LowerBuilder<'m> {
     pub current_class: Option<String>,
     /// Pile de boucles : (continue_bb, break_bb) — pour break/continue
     pub loop_stack: Vec<(BlockId, BlockId)>,
+    /// Variables de type Function (pointeurs de fonction) — pour CallIndirect
+    pub func_vars: HashSet<String>,
 }
 
 impl<'m> LowerBuilder<'m> {
@@ -46,6 +48,7 @@ impl<'m> LowerBuilder<'m> {
             var_class: HashMap::new(),
             current_class: None,
             loop_stack: Vec::new(),
+            func_vars: HashSet::new(),
         }
     }
 
@@ -283,6 +286,10 @@ pub fn lower_func(module: &mut IrModule, func: &FuncDecl, consts: &[crate::ast::
         // Marquer les paramètres de type map<> pour Expr::Index → __map_get
         if let crate::ast::Type::Map(_, _) = &param.ty {
             builder.map_vars.insert(param.name.clone());
+        }
+        // Marquer les paramètres de type Function pour CallIndirect
+        if let crate::ast::Type::Function = &param.ty {
+            builder.func_vars.insert(param.name.clone());
         }
         // Slot alloca qui recevra la valeur du paramètre
         let alloca_slot = builder.declare_local(&param.name, ir_ty.clone(), false);
