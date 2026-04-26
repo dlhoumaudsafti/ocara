@@ -917,6 +917,22 @@ impl Parser {
             // ── self ────────────────────────────────────────────────────────
             TokenKind::SelfKw => {
                 self.advance();
+
+                // self::method(args) — appel d'une méthode statique de la classe courante
+                if self.check_exact(&TokenKind::ColonColon) {
+                    self.advance();
+                    let (member, _) = self.eat_ident()?;
+                    if self.check_exact(&TokenKind::LParen) {
+                        self.advance();
+                        let args = self.parse_arg_list()?;
+                        self.eat(&TokenKind::RParen)?;
+                        // "<self>" est un marqueur résolu plus tard par le typecheck/lower
+                        return Ok(Expr::StaticCall { class: "<self>".into(), method: member, args, span });
+                    }
+                    // self::CONST — constante de classe courante
+                    return Ok(Expr::StaticConst { class: "<self>".into(), name: member, span });
+                }
+
                 Ok(Expr::SelfExpr(span))
             }
 

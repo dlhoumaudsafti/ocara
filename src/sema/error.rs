@@ -20,6 +20,7 @@ pub enum SemaError {
     InvalidAssign     { name: String, span: Span },
     NotStaticMethod   { class: String, method: String, span: Span },
     StaticOnInstance  { class: String, method: String, span: Span },
+    SelfOutsideClass  { span: Span },
 }
 
 impl SemaError {
@@ -37,6 +38,7 @@ impl SemaError {
             SemaError::InvalidAssign      { span, .. } => span,
             SemaError::NotStaticMethod    { span, .. } => span,
             SemaError::StaticOnInstance   { span, .. } => span,
+            SemaError::SelfOutsideClass   { span, .. } => span,
         }
     }
 
@@ -65,7 +67,9 @@ impl SemaError {
             SemaError::NotStaticMethod   { class, method, .. } =>
                 format!("'{}::{}' n'est pas statique — utilisez une instance", class, method),
             SemaError::StaticOnInstance  { class, method, .. } =>
-                format!("'{}::{}' est statique — appelez-la via {}::{} sans instance", class, method, class, method),
+                format!("'{}' est statique — utilisez self::{}() depuis la classe ou {}::{}() depuis l'extérieur", method, method, class, method),
+            SemaError::SelfOutsideClass  { .. } =>
+                "erreur interne : self:: hors contexte de classe".into(),
         }
     }
 }
