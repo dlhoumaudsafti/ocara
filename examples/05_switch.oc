@@ -1,0 +1,80 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 05 — Switch
+//
+// Illustre :
+//   - switch sur un entier, un string, un booléen
+//   - Cas littéraux isolés (pas de fall-through)
+//   - Cas default optionnel
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+
+function http_status(code:int): void {
+    switch code {
+        200 {
+            IO::writeln("200 OK")
+        }
+        201 {
+            IO::writeln("201 Created")
+        }
+        400 {
+            IO::writeln("400 Bad Request")
+        }
+        401 {
+            IO::writeln("401 Unauthorized")
+        }
+        404 {
+            IO::writeln("404 Not Found")
+        }
+        500 {
+            IO::writeln("500 Internal Server Error")
+        }
+        default {
+            IO::writeln("Code HTTP inconnu")
+        }
+    }
+}
+
+function day_type(day:string): void {
+    switch day {
+        "samedi" {
+            IO::writeln("Week-end")
+        }
+        "dimanche" {
+            IO::writeln("Week-end")
+        }
+        default {
+            IO::writeln("Jour de semaine")
+        }
+    }
+}
+
+
+function main(): int {
+
+    http_status(200)        // 200 OK
+    http_status(404)        // 404 Not Found
+    http_status(999)        // Code HTTP inconnu
+
+    day_type("lundi")       // Jour de semaine
+    day_type("samedi")      // Week-end
+
+    // Switch inline
+    var niveau:int = 3
+    switch niveau {
+        1 {
+            IO::writeln("Débutant")
+        }
+        2 {
+            IO::writeln("Intermédiaire")
+        }
+        3 {
+            IO::writeln("Avancé")
+        }
+        default {
+            IO::writeln("Niveau inconnu")
+        }
+    }
+
+    return 0
+}

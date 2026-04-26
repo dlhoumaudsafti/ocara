@@ -1,0 +1,64 @@
+// examples/builtins/http.oc
+// Démonstration de ocara.HTTPRequest
+
+import ocara.HTTPRequest
+import ocara.IO
+
+function main(): int {
+
+    // ── 1. Requête GET simple (raccourci) ────────────────────────────────────
+    scoped res:int = HTTPRequest::get("http://useragent.fr/")
+
+    IO::writeln("=== GET /users ===")
+    IO::writeln(`Status : ${HTTPRequest::status(res)}`)
+
+    if HTTPRequest::ok(res) {
+        IO::writeln(HTTPRequest::body(res))
+    } else {
+        IO::writeln(`Erreur HTTP : ${HTTPRequest::status(res)}`)
+    }
+
+    // ── 2. Requête POST avec en-têtes et corps ───────────────────────────────
+    scoped req:int = HTTPRequest::new("http://useragent.fr/")
+    HTTPRequest::set_method(req, "POST")
+    HTTPRequest::set_header(req, "Content-Type", "application/json")
+    HTTPRequest::set_header(req, "Authorization", "Bearer secret-token")
+    HTTPRequest::set_body(req, "{\"name\": \"Alice\", \"age\": 30}")
+    HTTPRequest::set_timeout(req, 5000)
+
+    scoped res2:int = HTTPRequest::send(req)
+
+    IO::writeln("=== POST /users ===")
+    IO::writeln(`Status : ${HTTPRequest::status(res2)}`)
+    IO::writeln(`Content-Type reçu : ${HTTPRequest::header(res2, "Content-Type")}`)
+
+    if HTTPRequest::ok(res2) {
+        IO::writeln(HTTPRequest::body(res2))
+    } else {
+        IO::writeln(`Erreur : ${HTTPRequest::error(res2)}`)
+    }
+
+    // ── 3. Gestion d'une erreur réseau ───────────────────────────────────────
+    scoped res3:int = HTTPRequest::get("https://hote-inexistant.local/api")
+
+    IO::writeln("=== Erreur réseau ===")
+    if HTTPRequest::is_error(res3) {
+        IO::writeln(`Erreur réseau : ${HTTPRequest::error(res3)}`)
+    } else {
+        IO::writeln(`Status : ${HTTPRequest::status(res3)}`)
+    }
+
+    // ── 4. PUT et DELETE ─────────────────────────────────────────────────────
+    scoped res4:int = HTTPRequest::put("http://useragent.fr/", "{\"name\": \"Bob\"}")
+    IO::writeln(`PUT status : ${HTTPRequest::status(res4)}`)
+
+    scoped res5:int = HTTPRequest::delete("http://useragent.fr/")
+    IO::writeln(`DELETE status : ${HTTPRequest::status(res5)}`)
+
+    // ── 5. Lecture de tous les en-têtes ──────────────────────────────────────
+    scoped res6:int = HTTPRequest::get("http://useragent.fr/")
+    scoped hdrs:map<string, string> = HTTPRequest::headers(res6)
+    IO::writeln("=== En-têtes de réponse ===")
+
+    return 0
+}

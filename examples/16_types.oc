@@ -1,0 +1,85 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 16 — Système de types
+//
+// Illustre :
+//   - Tous les types primitifs : int float string bool mixed void
+//   - Types composites : T[]  T[][]  map<K,V>
+//   - Types nommés (classes)
+//   - Annotations de type obligatoires
+//   - Le type mixed accepte toutes les valeurs
+// ─────────────────────────────────────────────────────────────────────────────
+import ocara.IO
+import ocara.Array
+
+class Vector2 {
+    public property x:float
+    public property y:float
+    init(x:float, y:float) {
+        self.x = x
+        self.y = y
+    }
+    public method display(): void {
+        IO::writeln("Vector2(" + self.x + ", " + self.y + ")")
+    }
+}
+
+
+function display_all(values:mixed[]): void {
+    for v in values {
+        IO::writeln(v)
+    }
+}
+
+
+function main(): int {
+
+    // ── Types primitifs ──────────────────────────────────────────────────────
+    var i:int    = 42
+    var f:float  = 3.14
+    var s:string = "Ocara"
+    var b:bool   = true
+    var a:mixed    = "peut être n'importe quoi"
+
+    IO::writeln(i)
+    IO::writeln(f)
+    IO::writeln(s)
+    IO::writeln(b)
+    IO::writeln(a)
+
+    // mixed peut stocker des valeurs de différents types
+    a = 100
+    IO::writeln(a)
+    a = false
+    IO::writeln(a)
+
+    // ── Types tableau ────────────────────────────────────────────────────────
+    var ints:int[]       = [1, 2, 3]
+    var strs:string[]    = ["a", "b", "c"]
+    var bools:bool[]     = [true, false, true]
+    var vals:mixed[]      = [1, "deux", 3.0, false]
+    var matrix:int[][]   = [[1, 2], [3, 4]]
+
+    IO::writeln(ints[0])
+    IO::writeln(strs[1])
+    IO::writeln(bools[2])
+    IO::writeln(vals[1])
+    IO::writeln(Array::join(matrix[1], ", "))
+
+    // ── Type map ─────────────────────────────────────────────────────────────
+    var config:map<string, mixed> = {
+        "debug":   true,
+        "version": 1,
+        "name":    "app"
+    }
+    IO::writeln(config["debug"])
+    IO::writeln(config["version"])
+
+    // ── Type nommé ───────────────────────────────────────────────────────────
+    var v:Vector2 = use Vector2(1.0, 2.5)
+    v.display()
+
+    // ── Fonction prenant mixed[] ───────────────────────────────────────────────
+    display_all([42, "hello", true])
+
+    return 0
+}

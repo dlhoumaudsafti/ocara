@@ -1,0 +1,119 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// examples/builtins/regex.oc — classe builtin ocara.Regex
+//
+// Illustre :
+//   - import ocara.Regex
+//   - Regex::test(pattern, str)               → bool
+//   - Regex::find(pattern, str)               → string
+//   - Regex::find_all(pattern, str)           → string[]
+//   - Regex::replace(pattern, str, repl)      → string
+//   - Regex::replace_all(pattern, str, repl)  → string
+//   - Regex::split(pattern, str)              → string[]
+//   - Regex::count(pattern, str)              → int
+//   - Regex::extract(pattern, str, group)     → string
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+import ocara.Regex
+
+
+function main(): int {
+
+    // ── test ──────────────────────────────────────────────────────────────
+    // Retourne true si str correspond au pattern (match partiel)
+    scoped ok1:bool = Regex::test("[0-9]+", "abc123")
+    scoped ok2:bool = Regex::test("^[0-9]+$", "abc123")
+    scoped ok3:bool = Regex::test("^[a-z]+$", "hello")
+
+    IO::writeln(`test("[0-9]+",    "abc123") = ${ok1}`)   // true
+    IO::writeln(`test("^[0-9]+$", "abc123") = ${ok2}`)   // false
+    IO::writeln(`test("^[a-z]+$", "hello")  = ${ok3}`)   // true
+
+
+    // ── find ──────────────────────────────────────────────────────────────
+    // Retourne la première correspondance (chaîne vide si aucune)
+    scoped m1:string = Regex::find("[0-9]+", "prix: 42 euros")
+    scoped m2:string = Regex::find("[A-Z][a-z]+", "Bonjour Alice et Bob")
+    scoped m3:string = Regex::find("[0-9]+", "aucun chiffre ici")
+
+    IO::writeln(`find("[0-9]+",       "prix: 42 euros")    = "${m1}"`)   // "42"
+    IO::writeln(`find("[A-Z][a-z]+",  "Bonjour Alice...") = "${m2}"`)   // "Bonjour"
+    IO::writeln(`find("[0-9]+",       "aucun chiffre")     = "${m3}"`)   // ""
+
+
+    // ── find_all ──────────────────────────────────────────────────────────
+    // Retourne toutes les correspondances dans un tableau
+    scoped nums:string[] = Regex::find_all("[0-9]+", "a1 b22 c333 d4444")
+    IO::writeln(`find_all("[0-9]+", "a1 b22 c333 d4444") → ${Regex::count("[0-9]+", "a1 b22 c333 d4444")} résultats`)
+
+
+    // ── count ─────────────────────────────────────────────────────────────
+    // Nombre de correspondances
+    scoped n1:int = Regex::count("[aeiou]", "bonjour monde")
+    scoped n2:int = Regex::count("\\d+", "2 chats et 3 chiens et 1 poisson")
+
+    IO::writeln(`count("[aeiou]",  "bonjour monde")   = ${n1}`)   // 4
+    IO::writeln(`count("\\d+",    "2 chats 3 chiens") = ${n2}`)   // 3
+
+
+    // ── replace ───────────────────────────────────────────────────────────
+    // Remplace la première occurrence
+    scoped r1:string = Regex::replace("[0-9]+", "ref-123-abc-456", "NUM")
+    IO::writeln(`replace("[0-9]+", "ref-123-abc-456", "NUM") = ${r1}`)   // ref-NUM-abc-456
+
+
+    // ── replace_all ───────────────────────────────────────────────────────
+    // Remplace toutes les occurrences
+    scoped r2:string = Regex::replace_all("[0-9]+", "ref-123-abc-456", "NUM")
+    scoped r3:string = Regex::replace_all("\\s+", "  espaces   multiples  ", " ")
+
+    IO::writeln(`replace_all("[0-9]+", "ref-123-abc-456", "NUM") = ${r2}`)   // ref-NUM-abc-NUM
+    IO::writeln(`replace_all("\\s+",  "  espaces   mult", " ")   = ${r3}`)   // espaces multiples
+
+
+    // ── split ─────────────────────────────────────────────────────────────
+    // Découpe une chaîne selon un pattern
+    scoped parts:string[]  = Regex::split("[,;|]+", "a,b;;c|d")
+    scoped words:string[]  = Regex::split("\\s+", "un  deux   trois")
+    scoped nparts:int = Regex::count("[,;|]+", "a,b;;c|d") + 1
+    scoped nwords:int = Regex::count("\\s+", "un  deux   trois") + 1
+
+    IO::writeln(`split("[,;|]+", "a,b;;c|d")  → ${nparts} parties`)    // 4
+    IO::writeln(`split("\\s+",   "un  deux…") → ${nwords} mots`)        // 3
+
+
+    // ── extract ───────────────────────────────────────────────────────────
+    // Capture d'un groupe de capture (1-indexé)
+    scoped date:string  = "2026-04-25"
+    scoped annee:string = Regex::extract("(\\d{4})-(\\d{2})-(\\d{2})", date, 1)
+    scoped mois:string  = Regex::extract("(\\d{4})-(\\d{2})-(\\d{2})", date, 2)
+    scoped jour:string  = Regex::extract("(\\d{4})-(\\d{2})-(\\d{2})", date, 3)
+
+    IO::writeln(`Date : ${date}`)
+    IO::writeln(`  Année  : ${annee}`)   // 2026
+    IO::writeln(`  Mois   : ${mois}`)    // 04
+    IO::writeln(`  Jour   : ${jour}`)    // 25
+
+    scoped email:string = "contact@ocara-lang.org"
+    scoped user:string  = Regex::extract("([^@]+)@(.+)", email, 1)
+    scoped domain:string = Regex::extract("([^@]+)@(.+)", email, 2)
+    IO::writeln(`Email : ${email}`)
+    IO::writeln(`  Utilisateur : ${user}`)     // contact
+    IO::writeln(`  Domaine     : ${domain}`)   // ocara-lang.org
+
+
+    // ── Validation d'entrées ──────────────────────────────────────────────
+    var email_saisi:string = "test@example.com"
+
+    if Regex::test("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", email_saisi) {
+        IO::writeln(`"${email_saisi}" est une adresse e-mail valide`)
+    }
+
+    var code_postal:string = "75001"
+    if Regex::test("^[0-9]{5}$", code_postal) {
+        IO::writeln(`"${code_postal}" est un code postal français valide`)
+    }
+
+
+    return 0
+}

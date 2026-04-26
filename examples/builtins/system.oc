@@ -1,0 +1,53 @@
+// examples/builtins/system.oc
+// Démonstration de ocara.System
+
+import ocara.System
+import ocara.IO
+
+function main(): int {
+
+    // ── Constantes ────────────────────────────────────────────────────────────
+    IO::writeln(`OS   : ${System::OS}`)
+    IO::writeln(`ARCH : ${System::ARCH}`)
+
+    // ── Informations processus ────────────────────────────────────────────────
+    IO::writeln(`PID  : ${System::pid()}`)
+    IO::writeln(`CWD  : ${System::cwd()}`)
+
+    // ── Arguments de la ligne de commande ─────────────────────────────────────
+    scoped argv:string[] = System::args()
+    IO::writeln(`Args : ${argv}`)
+
+    // ── Variables d'environnement ─────────────────────────────────────────────
+    scoped home:string = System::env("HOME")
+    IO::writeln(`HOME : ${home}`)
+
+    System::set_env("OCARA_ENV", "production")
+    scoped env_val:string = System::env("OCARA_ENV")
+    IO::writeln(`OCARA_ENV : ${env_val}`)
+
+    // ── Exécution de commandes ────────────────────────────────────────────────
+
+    // exec : capture stdout dans une string
+    scoped output:string = System::exec("echo hello from ocara")
+    IO::writeln(`exec → "${output}"`)
+
+    // exec_code : retourne uniquement le code de sortie
+    scoped code:int = System::exec_code("test -f /etc/hostname")
+    IO::writeln(`exec_code → ${code}`)
+
+    // passthrough : stdio hérité (affichage direct dans le terminal)
+    IO::writeln("--- passthrough ls ---")
+    scoped exit_code:int = System::passthrough("ls -1 examples/builtins/")
+    IO::writeln(`--- fin (code: ${exit_code}) ---`)
+
+    // ── Pause ─────────────────────────────────────────────────────────────────
+    IO::writeln("pause 100ms…")
+    System::sleep(100)
+    IO::writeln("reprise")
+
+    // ── Sortie contrôlée ──────────────────────────────────────────────────────
+    // System::exit(0)  ← décommentez pour tester la sortie forcée
+
+    return 0
+}

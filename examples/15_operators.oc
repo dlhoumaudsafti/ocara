@@ -1,0 +1,75 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 15 — Opérateurs et précédence
+//
+// Illustre :
+//   - Arithmétiques : + - * / %
+//   - Comparaison   : == != < <= > >=
+//   - Logiques      : && || !
+//   - Unaires       : - (négation) ! (not)
+//   - Plage         : start..end
+//   - Précédence des opérateurs
+// ─────────────────────────────────────────────────────────────────────────────
+import ocara.IO
+
+function main(): int {
+
+    // ── Arithmétiques ────────────────────────────────────────────────────────
+    IO::writeln(10 + 3)           // 13
+    IO::writeln(10 - 3)           // 7
+    IO::writeln(10 * 3)           // 30
+    IO::writeln(10 / 3)           // 3  (division entière)
+    IO::writeln(10 % 3)           // 1  (modulo)
+
+    // ── Précédence (multiplication avant addition) ───────────────────────────
+    IO::writeln(2 + 3 * 4)        // 14  (pas 20)
+    IO::writeln((2 + 3) * 4)      // 20
+    IO::writeln(10 - 2 * 3 + 1)   // 5
+
+    // ── Unaires ──────────────────────────────────────────────────────────────
+    var n:int = 5
+    IO::writeln(-n)               // -5
+    IO::writeln(-(-n))            // 5
+
+    var flag:bool = false
+    IO::writeln(!flag)            // true
+    IO::writeln(!true)            // false
+    IO::writeln(!!true)           // true
+
+    // ── Comparaisons ─────────────────────────────────────────────────────────
+    IO::writeln(5 == 5)           // true
+    IO::writeln(5 != 3)           // true
+    IO::writeln(5 < 10)           // true
+    IO::writeln(5 <= 5)           // true
+    IO::writeln(10 > 5)           // true
+    IO::writeln(10 >= 10)         // true
+
+    // ── Logiques ─────────────────────────────────────────────────────────────
+    IO::writeln(true && true)     // true
+    IO::writeln(true && false)    // false
+    IO::writeln(false || true)    // true
+    IO::writeln(false || false)   // false
+
+    // ── Court-circuit logique ─────────────────────────────────────────────────
+    var a:int = 5
+    var b:int = 0
+    if a > 0 && b >= 0 {
+        IO::writeln("les deux conditions sont vraies")
+    }
+    if a > 10 || b == 0 {
+        IO::writeln("au moins une condition vraie")
+    }
+
+    // ── Plage .. ─────────────────────────────────────────────────────────────
+    // 0..5 → 0, 1, 2, 3, 4  (end exclus)
+    for i in 0..5 {
+        IO::writeln(i)
+    }
+
+    // La plage a une précédence inférieure à l'addition
+    scoped limit:int = 3
+    for j in 0..limit + 2 {    // 0 .. (3 + 2) = 0..5
+        IO::writeln(j)
+    }
+
+    return 0
+}

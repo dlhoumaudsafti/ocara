@@ -1,0 +1,114 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// examples/builtins/map.oc — classe builtin ocara.Map
+//
+// Illustre :
+//   - import ocara.Map
+//   - Map::size(m) / Map::is_empty(m)
+//   - Map::has(m, key) / Map::get(m, key)
+//   - Map::set(m, key, val) / Map::remove(m, key)
+//   - Map::keys(m) / Map::values(m)
+//   - Map::merge(a, b)
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+import ocara.Map
+import ocara.Array
+
+
+function main(): int {
+
+    // ── Création et remplissage ────────────────────────────────────────────
+    var scores:map<string, int> = {"alice": 95, "bob": 72, "charlie": 88}
+
+
+    // ── size / is_empty ───────────────────────────────────────────────────
+    IO::writeln(`size(scores)     = ${Map::size(scores)}`)      // 3
+    IO::writeln(`is_empty(scores) = ${Map::is_empty(scores)}`)  // false
+
+    var vide:map<string, int> = {}
+    IO::writeln(`is_empty({})     = ${Map::is_empty(vide)}`)    // true
+
+
+    // ── has / get ─────────────────────────────────────────────────────────
+    scoped h1:bool = Map::has(scores, "alice")
+    scoped h2:bool = Map::has(scores, "david")
+    IO::writeln(`has("alice") = ${h1}`)   // true
+    IO::writeln(`has("david") = ${h2}`)   // false
+
+    scoped s1:int = Map::get(scores, "alice")
+    scoped s2:int = Map::get(scores, "bob")
+    IO::writeln(`get("alice") = ${s1}`)   // 95
+    IO::writeln(`get("bob")   = ${s2}`)   // 72
+
+
+    // ── set ───────────────────────────────────────────────────────────────
+    // Insère ou met à jour une entrée
+    Map::set(scores, "david", 81)
+    Map::set(scores, "alice", 99)
+    IO::writeln(`après set : size = ${Map::size(scores)}`)             // 4
+    IO::writeln(`alice mis à jour : ${Map::get(scores, "alice")}`)     // 99
+
+
+    // ── remove ────────────────────────────────────────────────────────────
+    Map::remove(scores, "bob")
+    IO::writeln(`après remove("bob") : size = ${Map::size(scores)}`)          // 3
+    IO::writeln(`has("bob") après remove = ${Map::has(scores, "bob")}`)       // false
+
+
+    // ── keys / values ─────────────────────────────────────────────────────
+    scoped cles:mixed[]    = Map::keys(scores)
+    scoped valeurs:mixed[] = Map::values(scores)
+    IO::writeln(`keys   : ${Array::len(cles)} clé(s)`)
+    IO::writeln(`values : ${Array::len(valeurs)} valeur(s)`)
+
+
+    // ── Itération sur les clés ────────────────────────────────────────────
+    for cle in Map::keys(scores) {
+        scoped val:int = Map::get(scores, cle)
+        IO::writeln(`  ${cle} → ${val}`)
+    }
+
+
+    // ── merge ─────────────────────────────────────────────────────────────
+    // b écrase les clés communes
+    var config_defaut:map<string, int> = {"timeout": 30, "retry": 3, "verbose": 0}
+    var config_user:map<string, int>   = {"timeout": 60, "debug": 1}
+
+    scoped config:map<string, int> = Map::merge(config_defaut, config_user)
+    IO::writeln(`timeout après merge : ${Map::get(config, "timeout")}`)   // 60
+    IO::writeln(`retry   après merge : ${Map::get(config, "retry")}`)     // 3
+    IO::writeln(`debug   après merge : ${Map::get(config, "debug")}`)     // 1
+    IO::writeln(`taille merge        : ${Map::size(config)}`)             // 4
+
+
+    // ── Cache clé/valeur ──────────────────────────────────────────────────
+    var cache:map<string, int> = {}
+    var cle_a:string = "42"
+
+    if Map::has(cache, cle_a) {
+        IO::writeln(`cache hit : ${Map::get(cache, cle_a)}`)
+    }
+
+    scoped res:int = 42 * 42 + 42
+    Map::set(cache, cle_a, res)
+    IO::writeln(`résultat stocké : ${Map::get(cache, cle_a)}`)   // 1806
+
+
+    // ── Comptage de mots ──────────────────────────────────────────────────
+    var compteurs:map<string, int> = {}
+    var mots:string[] = ["foo", "bar", "foo", "baz", "foo", "bar"]
+
+    for mot in mots {
+        if Map::has(compteurs, mot) {
+            scoped c:int = Map::get(compteurs, mot)
+            Map::set(compteurs, mot, c + 1)
+        }
+        if !Map::has(compteurs, mot) {
+            Map::set(compteurs, mot, 1)
+        }
+    }
+
+    IO::writeln(`taille compteurs : ${Map::size(compteurs)}`)   // 3
+
+    return 0
+}

@@ -1,0 +1,98 @@
+// examples/20_try_fail.oc
+// Démonstration de la gestion des erreurs : try / on / raise
+//
+// Concepts illustrés :
+//   - `raise` pour lever une erreur (avec ou sans classe d'exception)
+//   - `try { } on e { }` pour attraper toute erreur
+//   - `try { } on e is Foo { }` pour filtrer par classe d'exception
+//   - Plusieurs clauses `on` (du plus spécifique au plus général)
+//   - Une classe d'exception ordinaire (pas de base requise)
+
+import ocara.IO
+
+
+// ─── Classe d'exception ───────────────────────────────────────────────────────
+
+class IOException {
+    public property message: string
+    public property code: int
+
+    init(message: string, code: int) {
+        self.message = message
+        self.code    = code
+    }
+}
+
+class NetworkError {
+    public property message: string
+
+    init(message: string) {
+        self.message = message
+    }
+}
+
+
+// ─── Fonctions qui peuvent échouer ───────────────────────────────────────────
+
+function open_file(path: string): void {
+    raise use IOException("Fichier introuvable : " + path, 404)
+}
+
+function fetch_url(url: string): void {
+    raise use NetworkError("Impossible de joindre : " + url)
+}
+
+function risky_int(): void {
+    raise "erreur simple (string)"
+}
+
+
+// ─── Programme principal ──────────────────────────────────────────────────────
+
+function main(): int {
+
+    // ── Cas 1 : attraper une IOException ────────────────────────────────────
+    IO::writeln("=== Cas 1 : IOException ===")
+    try {
+        open_file("/etc/secret.txt")
+    } on e is IOException {
+        IO::writeln(`[${e.code}] ${e.message}`)
+    } on e {
+        IO::writeln(`erreur inattendue : ${e}`)
+    }
+
+
+    // ── Cas 2 : attraper une NetworkError ───────────────────────────────────
+    IO::writeln("=== Cas 2 : NetworkError ===")
+    try {
+        fetch_url("https://exemple.oc")
+    } on e is IOException {
+        IO::writeln(`IOException : ${e.message}`)
+    } on e is NetworkError {
+        IO::writeln(`réseau : ${e.message}`)
+    } on e {
+        IO::writeln(`inconnu : ${e}`)
+    }
+
+
+    // ── Cas 3 : attraper une erreur de type string ───────────────────────────
+    IO::writeln("=== Cas 3 : raise string ===")
+    try {
+        risky_int()
+    } on e {
+        IO::writeln(`capturé : ${e}`)
+    }
+
+
+    // ── Cas 4 : raise inline dans le corps try ───────────────────────────
+    IO::writeln("=== Cas 4 : raise inline ===")
+    try {
+        raise "erreur directe"
+    } on e {
+        IO::writeln(`inline : ${e}`)
+    }
+
+
+    IO::writeln("=== fin ===")
+    return 0
+}

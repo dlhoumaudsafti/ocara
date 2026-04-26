@@ -1,0 +1,108 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// examples/builtins/math.oc — classe builtin ocara.Math
+//
+// Illustre :
+//   - import ocara.Math
+//   - Constantes : Math::PI, Math::E, Math::TAU, Math::INF
+//   - Math::abs(n)
+//   - Math::min(a, b) / Math::max(a, b)
+//   - Math::pow(base, exp)
+//   - Math::clamp(n, lo, hi)
+//   - Math::sqrt(n)
+//   - Math::floor(n) / Math::ceil(n) / Math::round(n)
+//   - Combinaisons et cas concrets
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+import ocara.Math
+
+
+function main(): int {
+
+    // ── Constantes de classe ───────────────────────────────────────────────
+    IO::writeln(`Math::PI  = ${Math::PI}`)     // 3.14159265358979
+    IO::writeln(`Math::E   = ${Math::E}`)      // 2.71828182845904
+    IO::writeln(`Math::TAU = ${Math::TAU}`)    // 6.28318530717958
+
+
+    // ── abs ───────────────────────────────────────────────────────────────
+    // Valeur absolue d'un entier
+    scoped a1:int = Math::abs(-42)
+    scoped a2:int = Math::abs(7)
+    IO::writeln(`abs(-42) = ${a1}`)    // 42
+    IO::writeln(`abs(7)   = ${a2}`)    // 7
+
+
+    // ── min / max ─────────────────────────────────────────────────────────
+    scoped lo:int = Math::min(10, 3)
+    scoped hi:int = Math::max(10, 3)
+    IO::writeln(`min(10, 3) = ${lo}`)  // 3
+    IO::writeln(`max(10, 3) = ${hi}`)  // 10
+
+
+    // ── pow ───────────────────────────────────────────────────────────────
+    // Puissance entière : base^exp
+    scoped p1:int = Math::pow(2, 10)
+    scoped p2:int = Math::pow(3, 4)
+    IO::writeln(`pow(2, 10) = ${p1}`)  // 1024
+    IO::writeln(`pow(3, 4)  = ${p2}`)  // 81
+
+
+    // ── clamp ─────────────────────────────────────────────────────────────
+    // Borne n dans [lo, hi]
+    scoped c1:int = Math::clamp(150, 0, 100)   // au-dessus → 100
+    scoped c2:int = Math::clamp(-5,  0, 100)   // en-dessous → 0
+    scoped c3:int = Math::clamp(42,  0, 100)   // dans la plage → 42
+    IO::writeln(`clamp(150, 0, 100) = ${c1}`)
+    IO::writeln(`clamp(-5,  0, 100) = ${c2}`)
+    IO::writeln(`clamp(42,  0, 100) = ${c3}`)
+
+
+    // ── sqrt ──────────────────────────────────────────────────────────────
+    // Racine carrée (float → float)
+    scoped s1:float = Math::sqrt(16.0)
+    scoped s2:float = Math::sqrt(2.0)
+    IO::writeln(`sqrt(16.0) = ${s1}`)  // 4.0
+    IO::writeln(`sqrt(2.0)  = ${s2}`)  // 1.4142...
+
+
+    // ── floor / ceil / round ──────────────────────────────────────────────
+    // Arrondis (float → int)
+    scoped fl:int = Math::floor(3.7)
+    scoped ce:int = Math::ceil(3.2)
+    scoped ro:int = Math::round(3.5)
+    IO::writeln(`floor(3.7) = ${fl}`)  // 3
+    IO::writeln(`ceil(3.2)  = ${ce}`)  // 4
+    IO::writeln(`round(3.5) = ${ro}`)  // 4
+
+
+    // ── Combinaisons ──────────────────────────────────────────────────────
+
+    // Aire d'un cercle : PI * r²
+    var r:float = 5.0
+    scoped aire:float = Math::PI * r * r
+    IO::writeln(`Aire cercle r=5 : ${aire}`)
+
+    // Distance entre deux points (Pythagore)
+    var dx:int = 3
+    var dy:int = 4
+    scoped dist:float = Math::sqrt(Math::pow(dx, 2) + Math::pow(dy, 2))
+    IO::writeln(`Distance (3,4) = ${dist}`)    // 5.0
+
+    // Normalisation d'un score (0–100) avec borne
+    var score:int = 120
+    scoped normalise:int = Math::clamp(score, 0, 100)
+    IO::writeln(`Score normalisé : ${normalise}`)   // 100
+
+    // Puissance via boucle vérifiée avec pow
+    var base:int = 2
+    var resultat:int = 1
+    for _ in 0..8 {
+        resultat = resultat * base
+    }
+    scoped attendu:int = Math::pow(2, 8)
+    IO::writeln(`2^8 boucle = ${resultat}, Math::pow = ${attendu}`)   // 256
+
+
+    return 0
+}

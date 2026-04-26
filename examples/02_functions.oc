@@ -1,0 +1,59 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 02 — Fonctions
+//
+// Illustre :
+//   - Déclaration func avec paramètres typés et type de retour
+//   - Fonction void (sans retour de valeur)
+//   - Appel de fonction
+//   - Récursion
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+
+function add(a:int, b:int): int {
+    return a + b
+}
+
+function multiply(a:int, b:int): int {
+    return a * b
+}
+
+function greet(name:string): void {
+    IO::writeln("Bonjour " + name + " !")
+}
+
+function max(a:int, b:int): int {
+    if a > b {
+        return a
+    }
+    return b
+}
+
+// Récursion : calcul du factoriel
+function factorial(n:int): int {
+    if n <= 1 {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+// Récursion : suite de Fibonacci
+function fibonacci(n:int): int {
+    if n <= 1 {
+        return n
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2)
+}
+
+
+function main(): int {
+
+    IO::writeln(add(3, 4))      // 7
+    IO::writeln(multiply(6, 7)) // 42
+    greet("Ocara")              // Bonjour Ocara !
+    IO::writeln(max(10, 20))    // 20
+    IO::writeln(factorial(5))   // 120
+    IO::writeln(fibonacci(8))   // 21
+
+    return 0
+}

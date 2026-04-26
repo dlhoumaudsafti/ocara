@@ -1,0 +1,114 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 14 — Accès statique
+//
+// Illustre :
+//   - `static` avant la visibilité : méthode statique (appelable via ::)
+//   - Syntaxe Class::method(args)  → appel de méthode statique
+//   - Syntaxe Class::NAME          → lecture d'une constante de classe
+//   - Appel sans instanciation
+// ─────────────────────────────────────────────────────────────────────────────
+import ocara.IO
+
+class Math {
+
+    public const PI:float    = 3.14159
+    public const E:float     = 2.71828
+    public const MAX_INT:int = 9223372036854775807
+
+    public static method abs(n:int): int {
+        if n < 0 {
+            return -n
+        }
+        return n
+    }
+
+    public static method min(a:int, b:int): int {
+        if a < b {
+            return a
+        }
+        return b
+    }
+
+    public static method max(a:int, b:int): int {
+        if a > b {
+            return a
+        }
+        return b
+    }
+
+    public static method clamp(value:int, low:int, high:int): int {
+        if value < low {
+            return low
+        }
+        if value > high {
+            return high
+        }
+        return value
+    }
+}
+
+
+class HttpStatus {
+
+    public const OK:int             = 200
+    public const CREATED:int        = 201
+    public const BAD_REQUEST:int    = 400
+    public const UNAUTHORIZED:int   = 401
+    public const NOT_FOUND:int      = 404
+    public const INTERNAL_ERROR:int = 500
+
+    public static method is_success(code:int): bool {
+        return code >= 200 && code < 300
+    }
+}
+
+
+class StringUtils {
+
+    public const EMPTY:string = ""
+
+    public static method is_empty(s:string): bool {
+        return s == StringUtils::EMPTY
+    }
+
+    public static method repeat(c:string, n:int): string {
+        var result:string = ""
+        for i in 0..n {
+            result = result + c
+        }
+        return result
+    }
+}
+
+
+function main(): int {
+
+    // ── Lecture de constantes de classe (Class::NAME) ────────────────────────
+    IO::writeln(Math::PI)                     // 3.14159
+    IO::writeln(Math::E)                      // 2.71828
+    IO::writeln(Math::MAX_INT)                // 9223372036854775807
+
+    IO::writeln(HttpStatus::OK)               // 200
+    IO::writeln(HttpStatus::NOT_FOUND)        // 404
+    IO::writeln(HttpStatus::INTERNAL_ERROR)   // 500
+
+    IO::writeln(StringUtils::EMPTY)           // ""
+
+    // ── Appels statiques de méthodes (Class::method(...)) ────────────────────
+    IO::writeln(Math::abs(-42))               // 42
+    IO::writeln(Math::abs(7))                 // 7
+    IO::writeln(Math::min(3, 8))              // 3
+    IO::writeln(Math::max(3, 8))              // 8
+    IO::writeln(Math::clamp(150, 0, 100))     // 100
+    IO::writeln(Math::clamp(-5, 0, 100))      // 0
+    IO::writeln(Math::clamp(50, 0, 100))      // 50
+
+    IO::writeln(HttpStatus::is_success(200))  // true
+    IO::writeln(HttpStatus::is_success(404))  // false
+
+    IO::writeln(StringUtils::is_empty(""))    // true
+    IO::writeln(StringUtils::is_empty("hi"))  // false
+    IO::writeln(StringUtils::repeat("*", 5))  // *****
+
+    return 0
+}

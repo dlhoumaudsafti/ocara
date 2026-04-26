@@ -1,0 +1,124 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// examples/builtins/convert.oc — classe builtin ocara.Convert
+//
+// Illustre :
+//   - import ocara.Convert
+//   - Conversions string → int, float, bool, array, map
+//   - Conversions int → string, float, bool
+//   - Conversions float → string, int, bool
+//   - Conversions bool → string, int, float
+//   - Conversions array → string, map
+//   - Conversions map → string, keys[], values[]
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+import ocara.Convert
+import ocara.Array
+import ocara.Map
+
+
+function main(): int {
+
+    // ── string → * ────────────────────────────────────────────────────────
+
+    scoped n:int   = Convert::str_to_int("42")
+    scoped f:float = Convert::str_to_float("3.14")
+    scoped b:bool  = Convert::str_to_bool("true")
+
+    IO::writeln(`str_to_int("42")    = ${n}`)    // 42
+    IO::writeln(`str_to_float("3.14")= ${f}`)   // 3.14
+    IO::writeln(`str_to_bool("true") = ${b}`)   // true
+    IO::writeln(`str_to_bool("0")    = ${Convert::str_to_bool("0")}`)   // false
+
+    // str → array : découpe selon un séparateur
+    scoped mots:string[] = Convert::str_to_array("rust,ocara,cranelift", ",")
+    IO::writeln(`str_to_array : ${Array::len(mots)} éléments`)   // 3
+
+    // str → map : "k=v,k=v" → map
+    scoped cfg:map<string, string> = Convert::str_to_map("lang=fr,theme=dark,limit=50", ",", "=")
+    IO::writeln(`str_to_map : ${Map::size(cfg)} entrées`)         // 3
+    IO::writeln(`  lang  = ${Map::get(cfg, "lang")}`)             // fr
+    IO::writeln(`  theme = ${Map::get(cfg, "theme")}`)            // dark
+
+
+    // ── int → * ───────────────────────────────────────────────────────────
+
+    scoped s_int:string = Convert::int_to_str(42)
+    scoped f_int:float  = Convert::int_to_float(7)
+    scoped b_int0:bool  = Convert::int_to_bool(0)
+    scoped b_int1:bool  = Convert::int_to_bool(5)
+
+    IO::writeln(`int_to_str(42)   = "${s_int}"`)   // "42"
+    IO::writeln(`int_to_float(7)  = ${f_int}`)     // 7.0
+    IO::writeln(`int_to_bool(0)   = ${b_int0}`)    // false
+    IO::writeln(`int_to_bool(5)   = ${b_int1}`)    // true
+
+
+    // ── float → * ─────────────────────────────────────────────────────────
+
+    scoped s_f:string = Convert::float_to_str(3.14)
+    scoped i_f:int    = Convert::float_to_int(9.99)    // troncature → 9
+    scoped b_f0:bool  = Convert::float_to_bool(0.0)
+    scoped b_f1:bool  = Convert::float_to_bool(1.5)
+
+    IO::writeln(`float_to_str(3.14) = "${s_f}"`)   // "3.14"
+    IO::writeln(`float_to_int(9.99) = ${i_f}`)     // 9  (troncature)
+    IO::writeln(`float_to_bool(0.0) = ${b_f0}`)    // false
+    IO::writeln(`float_to_bool(1.5) = ${b_f1}`)    // true
+
+
+    // ── bool → * ──────────────────────────────────────────────────────────
+
+    scoped s_bt:string  = Convert::bool_to_str(true)
+    scoped s_bf:string  = Convert::bool_to_str(false)
+    scoped i_bt:int     = Convert::bool_to_int(true)
+    scoped fl_bt:float  = Convert::bool_to_float(true)
+
+    IO::writeln(`bool_to_str(true)   = "${s_bt}"`)   // "true"
+    IO::writeln(`bool_to_str(false)  = "${s_bf}"`)   // "false"
+    IO::writeln(`bool_to_int(true)   = ${i_bt}`)     // 1
+    IO::writeln(`bool_to_float(true) = ${fl_bt}`)    // 1.0
+
+
+    // ── array → * ─────────────────────────────────────────────────────────
+
+    var tags:string[] = ["rust", "ocara", "web"]
+
+    // array → string (join)
+    scoped joined:string = Convert::array_to_str(tags, ", ")
+    IO::writeln(`array_to_str(tags, ", ") = "${joined}"`)   // "rust, ocara, web"
+
+    // array → map : chaque élément est "k=v", kv="="
+    var pairs:string[] = ["lang=fr", "theme=dark", "debug=1"]
+    scoped m_arr:map<string, string> = Convert::array_to_map(pairs, "=")
+    IO::writeln(`array_to_map : ${Map::size(m_arr)} entrées`)   // 3
+    IO::writeln(`  lang  = ${Map::get(m_arr, "lang")}`)          // fr
+
+
+    // ── map → * ───────────────────────────────────────────────────────────
+
+    var infos:map<string, string> = {"ville": "Paris", "pays": "France", "code": "75"}
+
+    // map → string : reconstruit la représentation "k=v,k=v"
+    scoped s_map:string = Convert::map_to_str(infos, ",", "=")
+    IO::writeln(`map_to_str : "${s_map}"`)
+
+    // map → keys[]
+    scoped cles:string[] = Convert::map_keys_to_array(infos)
+    IO::writeln(`map_keys_to_array : ${Array::len(cles)} clé(s)`)    // 3
+
+    // map → values[]
+    scoped vals:mixed[] = Convert::map_values_to_array(infos)
+    IO::writeln(`map_values_to_array : ${Array::len(vals)} valeur(s)`)   // 3
+
+
+    // ── Cas pratique : pipeline de conversion ─────────────────────────────
+    // Lire un entier stocké en string, calculer, reconvertir en string
+    var stock_str:string = "128"
+    scoped stock:int     = Convert::str_to_int(stock_str)
+    scoped half:int      = stock / 2
+    scoped result:string = Convert::int_to_str(half)
+    IO::writeln(`Moitié de ${stock_str} = "${result}"`)   // "64"
+
+    return 0
+}
