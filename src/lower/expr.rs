@@ -636,7 +636,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // SAUF si la classe est définie localement dans le programme
             const BUILTIN_MODULES: &[&str] = &[
                 "String", "Math", "Array", "Map", "IO",
-                "Convert", "System", "Regex", "HTTPRequest",
+                "Convert", "System", "Regex", "HTTPRequest", "Thread",
             ];
             let is_local_class = builder.module.class_layouts.contains_key(class);
             if BUILTIN_MODULES.contains(&class) && !is_local_class {

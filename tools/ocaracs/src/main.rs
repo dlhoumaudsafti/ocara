@@ -175,7 +175,7 @@ fn backtick_flags(lines: &[&str]) -> Vec<bool> {
 
 const OCARA_BUILTINS: &[&str] = &[
     "IO", "Math", "String", "Array", "Map",
-    "Convert", "System", "Regex", "HTTPRequest",
+    "Convert", "System", "Regex", "HTTPRequest", "Thread",
 ];
 
 fn extract_user_imports(content: &str, file_dir: &Path) -> Vec<PathBuf> {

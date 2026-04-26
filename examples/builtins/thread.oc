@@ -1,0 +1,90 @@
+// examples/builtins/thread.oc
+// Démonstration de ocara.Thread
+
+import ocara.Thread
+import ocara.IO
+
+function main(): void {
+
+    // ── Thread simple : run + join ─────────────────────────────────────────────
+    IO::writeln("=== run + join ===")
+    var t1:Thread = use Thread()
+    t1.run(nameless(): void {
+        IO::writeln("t1 : hello depuis le thread")
+        IO::writeln(t1.id())
+    })
+    t1.join()
+    IO::writeln("t1 terminé")
+
+    // ── Plusieurs threads en parallèle ────────────────────────────────────────
+    IO::writeln("=== 3 threads en parallèle ===")
+    var ta:Thread = use Thread()
+    var tb:Thread = use Thread()
+    var tc:Thread = use Thread()
+
+    ta.run(nameless(): void {
+        Thread::sleep(80)
+        IO::writeln("ta done")
+    })
+    tb.run(nameless(): void {
+        Thread::sleep(40)
+        IO::writeln("tb done")
+    })
+    tc.run(nameless(): void {
+        IO::writeln("tc done")
+    })
+
+    ta.join()
+    tb.join()
+    tc.join()
+    IO::writeln("tous terminés (ordre attendu : tc, tb, ta)")
+
+    // ── Thread::current_id() ──────────────────────────────────────────────────
+    IO::writeln("=== current_id ===")
+    IO::write("main id = ")
+    IO::writeln(Thread::current_id())
+
+    var tid:Thread = use Thread()
+    tid.run(nameless(): void {
+        IO::write("thread id = ")
+        IO::writeln(Thread::current_id())
+    })
+    tid.join()
+
+    // ── Thread::sleep ─────────────────────────────────────────────────────────
+    IO::writeln("=== sleep 50ms ===")
+    IO::writeln("avant")
+    Thread::sleep(50)
+    IO::writeln("après")
+
+    // ── t.id() ────────────────────────────────────────────────────────────────
+    IO::writeln("=== t.id() ===")
+    var tx:Thread = use Thread()
+    var ty:Thread = use Thread()
+    IO::write("tx.id = ")
+    IO::writeln(tx.id())
+    IO::write("ty.id = ")
+    IO::writeln(ty.id())
+
+    // ── detach (fire-and-forget) ──────────────────────────────────────────────
+    IO::writeln("=== detach ===")
+    var td:Thread = use Thread()
+    td.run(nameless(): void {
+        Thread::sleep(10)
+        IO::writeln("detached thread terminé")
+    })
+    td.detach()
+    Thread::sleep(50)
+    IO::writeln("main continue après detach")
+
+    // ── Capture de variable (shared cell) ─────────────────────────────────────
+    IO::writeln("=== shared cell capture ===")
+    var counter:int = 0
+    var tw:Thread = use Thread()
+    tw.run(nameless(): void {
+        counter = 42
+    })
+    tw.join()
+    IO::write("counter après thread = ")
+    IO::writeln(counter)
+}
