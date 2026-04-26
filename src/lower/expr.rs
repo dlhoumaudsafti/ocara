@@ -1171,11 +1171,55 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             let var_class_snap       = builder.var_class.clone();
             let func_vars_snap       = builder.func_vars.clone();
 
-            // Charger les valeurs capturées AVANT d'emprunter module
+            // Collecter les heap pointers des captures.
+            // Pour chaque variable capturée :
+            //   - si déjà promue (heap_promoted) → le slot EST déjà le heap pointer
+            //   - si c'est un slot stack (Alloca) → allouer une cellule sur le tas, y copier
+            //     la valeur courante, rediriger `locals[name]` vers le heap pointer.
+            // Ainsi le scope extérieur et la closure partagent la même cellule heap :
+            // toute mutation ultérieure de la variable dans le scope extérieur sera
+            // visible depuis la closure, et vice-versa.
             let capture_vals: Vec<Value> = captures.iter().map(|(cap_name, _)| {
-                builder.load_local(cap_name)
-                    .map(|(v, _)| v)
-                    .unwrap_or_else(|| { let d = builder.new_value(); builder.emit(Inst::Nop); d })
+                // Déjà promu par une closure précédente dans la même fonction
+                if builder.heap_promoted.contains(cap_name.as_str()) {
+                    return builder.slot_of_local(cap_name)
+                        .unwrap_or_else(|| { let d = builder.new_value(); builder.emit(Inst::Nop); d });
+                }
+                // Variable locale stack → promouvoir au tas
+                if let Some((slot, ty, mutable)) = builder.locals.get(cap_name.as_str()).cloned() {
+                    let size = builder.new_value();
+                    builder.emit(Inst::ConstInt { dest: size.clone(), value: 8 });
+                    let heap_ptr = builder.new_value();
+                    builder.emit(Inst::Call {
+                        dest:   Some(heap_ptr.clone()),
+                        func:   "__alloc_obj".into(),
+                        args:   vec![size],
+                        ret_ty: IrType::Ptr,
+                    });
+                    // Copier la valeur courante (stack → heap)
+                    let cur_val = builder.new_value();
+                    builder.emit(Inst::Load { dest: cur_val.clone(), ptr: slot, ty: ty.clone() });
+                    builder.emit(Inst::Store { ptr: heap_ptr.clone(), src: cur_val });
+                    // Rediriger les futurs accès dans le scope extérieur vers le heap
+                    builder.locals.insert(cap_name.clone(), (heap_ptr.clone(), ty, mutable));
+                    builder.heap_promoted.insert(cap_name.clone());
+                    heap_ptr
+                } else if let Some((env_val, idx, _)) = builder.captured_vars.get(cap_name.as_str()).cloned() {
+                    // Closure imbriquée : récupérer le heap pointer depuis l'env parent
+                    let ptr = builder.new_value();
+                    builder.emit(Inst::GetField {
+                        dest:   ptr.clone(),
+                        obj:    env_val,
+                        field:  format!("__cap_{}", idx),
+                        ty:     IrType::Ptr,
+                        offset: (idx * 8) as i32,
+                    });
+                    ptr
+                } else {
+                    let d = builder.new_value();
+                    builder.emit(Inst::Nop);
+                    d
+                }
             }).collect();
 
             // Générer la fonction anonyme (emprunt temporaire de builder.module)

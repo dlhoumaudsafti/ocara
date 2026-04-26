@@ -700,23 +700,30 @@ class Counter {
 **Règles :**
 
 - Le type de retour est **optionnel** ; s'il est omis, `void` est supposé.
-- Les captures sont stockées dans un struct env alloué sur le tas au moment de la création de la closure. La sémantique dépend du type :
+- Les captures utilisent une sémantique de **cellule partagée** (shared cell) : au moment de la création de la closure, chaque variable locale capturée est **promue sur le tas** (allocation d'une cellule de 8 octets via `__alloc_obj`). Le scope extérieur et la closure partagent ensuite le même pointeur heap. Toute mutation de la variable — que ce soit depuis la closure ou depuis le scope d'origine — est visible des deux côtés.
 
-| Type capturé | Ce qui est stocké dans l'env | Effet d'une mutation dans la closure |
-|---|---|---|
-| `int`, `float`, `bool` | La **valeur** (copiée dans l'env) | Modifie la cellule env — persistant d'un appel à l'autre |
-| Classe (objet) | Le **pointeur** vers l'objet | Modifie l'objet original — visible depuis l'extérieur |
-| Tableau (`T[]`) | Le **pointeur** vers le tableau | Modifie le tableau original — visible depuis l'extérieur |
-| Map (`map<K,V>`) | Le **pointeur** vers la map | Modifie la map originale — visible depuis l'extérieur |
+| Type capturé | Ce qui est stocké dans l'env | Accès depuis la closure | Mutation visible de l'extérieur ? |
+|---|---|---|---|
+| `int`, `float`, `bool` | **Pointeur** vers une cellule heap 8 octets | Double-indirection (load du pointeur, puis load de la valeur) | Oui — la cellule est partagée |
+| Classe (objet) | **Pointeur** vers le pointeur heap de l'objet | Double-indirection | Oui — le pointeur et l'objet sont partagés |
+| Tableau (`T[]`) | **Pointeur** vers le pointeur du tableau | Double-indirection | Oui |
+| Map (`map<K,V>`) | **Pointeur** vers le pointeur de la map | Double-indirection | Oui |
 
 ```ocara
-// Primitif : la valeur vit dans l'env, mutations persistantes
-var x:int = 0
-var inc:Function = nameless(): int { x = x + 1; return x }
-inc()   // 1
-inc()   // 2  ← x dans l'env vaut maintenant 2
+// Shared cell : mutation extérieure visible dans la closure
+var x:int = 10
+var f:Function = nameless(): int { return x }
+x = 50
+IO::writeln(f())    // 50  ← la closure lit la valeur actuelle de x
 
-// Objet : le pointeur est capturé, l'objet est partagé
+// Mutations dans la closure persistantes d'un appel à l'autre
+var count:int = 0
+var inc:Function = nameless(): int { count = count + 1; return count }
+inc()   // 1
+inc()   // 2
+inc()   // 3
+
+// Objet : le pointeur partagé, mutations de champs visibles partout
 var user:User = use User("David")
 var rename:Function = nameless(): void { user.name = "Bob" }
 rename()
