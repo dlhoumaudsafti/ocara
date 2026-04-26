@@ -1,0 +1,34 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// tests/UtilsTest.oc — tests unitaires pour classes/Utils.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+import classes.Utils
+
+class UtilsTest {
+
+    public method absTest(): int {
+        scoped u:Utils = use Utils()
+        UnitTest::assertEquals(42, u.abs(-42))
+        UnitTest::assertEquals(7,  u.abs(7))
+        UnitTest::assertEquals(0,  u.abs(0))
+        return 0
+    }
+
+    public method powTest(): int {
+        scoped u:Utils = use Utils()
+        UnitTest::assertEquals(1,    u.pow(5, 0))
+        UnitTest::assertEquals(8,    u.pow(2, 3))
+        UnitTest::assertEquals(1024, u.pow(2, 10))
+        UnitTest::assertEquals(81,   u.pow(3, 4))
+        return 0
+    }
+
+    public method sum_rangeTest(): int {
+        scoped u:Utils = use Utils()
+        UnitTest::assertEquals(0,  u.sum_range(0, 0))
+        UnitTest::assertEquals(10, u.sum_range(0, 5))
+        UnitTest::assertEquals(9,  u.sum_range(2, 5))
+        return 0
+    }
+}
