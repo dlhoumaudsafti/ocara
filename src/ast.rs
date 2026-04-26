@@ -21,6 +21,8 @@ pub enum Type {
     Array(Box<Type>),
     /// `map<K, V>`
     Map(Box<Type>, Box<Type>),
+    /// `T | U | ...` — type union
+    Union(Vec<Type>),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

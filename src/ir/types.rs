@@ -26,6 +26,7 @@ impl IrType {
             Type::Qualified(_)     => IrType::Ptr,
             Type::Array(_)         => IrType::Ptr,
             Type::Map(_, _)        => IrType::Ptr,
+            Type::Union(_)         => IrType::Ptr,
         }
     }
 }
