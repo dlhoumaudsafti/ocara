@@ -1,0 +1,81 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 10 — Classes
+//
+// Illustre :
+//   - Déclaration class avec champs (var/scoped) et visibilité
+//   - Constructeur init
+//   - Méthodes public / private / protected
+//   - Mot-clé self
+//   - Instanciation avec use
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+
+class Point {
+
+    public property x:int
+    public property y:int
+
+    init(x:int, y:int) {
+        self.x = x
+        self.y = y
+    }
+
+    public method display(): void {
+        IO::writeln("Point(" + self.x + ", " + self.y + ")")
+    }
+
+    public method distance_from_origin(): int {
+        return self.x * self.x + self.y * self.y
+    }
+}
+
+
+class BankAccount {
+
+    private property owner:string
+    private property balance:float
+
+    init(owner:string, initial:float) {
+        self.owner   = owner
+        self.balance = initial
+    }
+
+    public method deposit(amount:float): void {
+        self.balance = self.balance + amount
+        IO::writeln("Dépôt de " + amount + " — solde : " + self.balance)
+    }
+
+    public method withdraw(amount:float): void {
+        if amount > self.balance {
+            IO::writeln("Fonds insuffisants")
+        } else {
+            self.balance = self.balance - amount
+            IO::writeln("Retrait de " + amount + " — solde : " + self.balance)
+        }
+    }
+
+    public method show_balance(): void {
+        IO::writeln(self.owner + " — solde : " + self.balance)
+    }
+
+    private method is_negative(): bool {
+        return self.balance < 0.0
+    }
+}
+
+
+function main(): int {
+
+    var p:Point = use Point(3, 4)
+    p.display()                         // Point(3, 4)
+    IO::writeln(p.distance_from_origin())     // 25
+
+    var account:BankAccount = use BankAccount("Alice", 1000.0)
+    account.show_balance()              // Alice — solde : 1000.0
+    account.deposit(500.0)             // Dépôt de 500.0 — solde : 1500.0
+    account.withdraw(200.0)            // Retrait de 200.0 — solde : 1300.0
+    account.withdraw(2000.0)           // Fonds insuffisants
+
+    return 0
+}

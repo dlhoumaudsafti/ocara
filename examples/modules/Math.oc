@@ -1,0 +1,32 @@
+class Math {
+    public static method abs(n:int): int {
+        if n < 0 {
+            return -n
+        }
+        return n
+    }
+
+    public static method min(a:int, b:int): int {
+        if a < b {
+            return a
+        }
+        return b
+    }
+
+    public static method max(a:int, b:int): int {
+        if a > b {
+            return a
+        }
+        return b
+    }
+
+    public static method clamp(value:int, low:int, high:int): int {
+        if value < low {
+            return low
+        }
+        if value > high {
+            return high
+        }
+        return value
+    }
+}

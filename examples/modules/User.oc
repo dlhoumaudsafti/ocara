@@ -1,0 +1,15 @@
+import ocara.IO
+
+class User {
+    public property name:string
+    public property age:int
+
+    init(name:string, age:int) {
+        self.name = name
+        self.age = age
+    }
+
+    public method greet(): void {
+        IO::writeln("Bonjour, je suis " + self.name + " et j'ai " + self.age + " ans")
+    }
+}

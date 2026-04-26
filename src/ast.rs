@@ -1,0 +1,453 @@
+use crate::token::Span;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types Ocara v1.0
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Type {
+    Int,
+    Float,
+    String,
+    Bool,
+    Mixed,
+    Void,
+    /// Type nommé (classe, interface, alias d'import)
+    Named(String),
+    /// Type qualifié : `repository.User`
+    Qualified(Vec<String>),
+    /// `Type[]`
+    Array(Box<Type>),
+    /// `map<K, V>`
+    Map(Box<Type>, Box<Type>),
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Visibilité
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Visibility {
+    Public,
+    Private,
+    Protected,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Littéraux
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Literal {
+    Int(i64),
+    Float(f64),
+    String(String),
+    Bool(bool),
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TemplatePartExpr — fragment AST d'une chaîne template
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TemplatePartExpr {
+    Literal(String),
+    Expr(Box<Expr>),
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Expressions
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Expr {
+    /// Littéral : `42`, `3.14`, `"hello"`, `true`
+    Literal(Literal, Span),
+
+    /// Identifiant simple : `x`
+    Ident(String, Span),
+
+    /// Accès de membre : `user.age`
+    Field {
+        object: Box<Expr>,
+        field:  String,
+        span:   Span,
+    },
+
+    /// Appel de méthode / fonction simple : `foo(a, b)`
+    Call {
+        callee: Box<Expr>,
+        args:   Vec<Expr>,
+        span:   Span,
+    },
+
+    /// Accès statique puis appel : `Math::abs(x)`
+    StaticCall {
+        class:  String,
+        method: String,
+        args:   Vec<Expr>,
+        span:   Span,
+    },
+
+    /// Lecture d'une constante de classe : `Test::NAME`
+    StaticConst {
+        class: String,
+        name:  String,
+        span:  Span,
+    },
+
+    /// Instanciation : `use Foo(a, b)`
+    New {
+        class: String,
+        args:  Vec<Expr>,
+        span:  Span,
+    },
+
+    /// Opération binaire
+    Binary {
+        op:    BinOp,
+        left:  Box<Expr>,
+        right: Box<Expr>,
+        span:  Span,
+    },
+
+    /// Négation logique : `!x`
+    Unary {
+        op:      UnaryOp,
+        operand: Box<Expr>,
+        span:    Span,
+    },
+
+    /// Tableau littéral : `[1, 2, 3]`
+    Array {
+        elements: Vec<Expr>,
+        span:     Span,
+    },
+
+    /// Tableau associatif littéral : `{"name": "Lucas"}`
+    Map {
+        entries: Vec<(Expr, Expr)>,
+        span:    Span,
+    },
+
+    /// Chaîne template : `` `Bonjour ${name} !` ``
+    Template {
+        parts: Vec<TemplatePartExpr>,
+        span:  Span,
+    },
+
+    /// Accès par index : `arr[0]` / `map["key"]`
+    Index {
+        object: Box<Expr>,
+        index:  Box<Expr>,
+        span:   Span,
+    },
+
+    /// Plage : `0..5`
+    Range {
+        start: Box<Expr>,
+        end:   Box<Expr>,
+        span:  Span,
+    },
+
+    /// Expression `match`
+    Match {
+        subject: Box<Expr>,
+        arms:    Vec<MatchArm>,
+        span:    Span,
+    },
+
+    /// `self`
+    SelfExpr(Span),
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Opérateurs
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BinOp {
+    Add, Sub, Mul, Div, Mod,
+    EqEq, NotEq, Lt, LtEq, Gt, GtEq,
+    And, Or,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum UnaryOp {
+    Not,
+    Neg,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bras de match
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MatchArm {
+    /// `None` → bras `default`
+    pub pattern: Option<Literal>,
+    pub body:    Expr,
+    pub span:    Span,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Statements
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Stmt {
+    /// `var x:T = expr`
+    Var {
+        name:    String,
+        ty:      Type,
+        value:   Expr,
+        mutable: bool,     // true = var, false = let
+        span:    Span,
+    },
+
+    /// `const X:T = expr`
+    Const {
+        name:  String,
+        ty:    Type,
+        value: Expr,
+        span:  Span,
+    },
+
+    /// Appel d'expression utilisé comme statement
+    Expr(Expr),
+
+    /// `if expr { } elseif expr { } else { }`
+    If {
+        condition:  Expr,
+        then_block: Block,
+        elseif:     Vec<(Expr, Block)>,
+        else_block: Option<Block>,
+        span:       Span,
+    },
+
+    /// `switch expr { lit { } default { } }`
+    Switch {
+        subject:  Expr,
+        cases:    Vec<SwitchCase>,
+        default:  Option<Block>,
+        span:     Span,
+    },
+
+    /// `while expr { }`
+    While {
+        condition: Expr,
+        body:      Block,
+        span:      Span,
+    },
+
+    /// `for i in expr { }`
+    ForIn {
+        var:  String,
+        iter: Expr,
+        body: Block,
+        span: Span,
+    },
+
+    /// `for k => v in expr { }`
+    ForMap {
+        key:   String,
+        value: String,
+        iter:  Expr,
+        body:  Block,
+        span:  Span,
+    },
+
+    /// `return expr`
+    Return {
+        value: Option<Expr>,
+        span:  Span,
+    },
+
+    /// `break` — sortie immédiate de la boucle courante
+    Break { span: Span },
+
+    /// `continue` — passe à l'itération suivante de la boucle courante
+    Continue { span: Span },
+
+    /// `try { } on e [is Foo] { }`
+    Try {
+        body:     Block,
+        handlers: Vec<OnClause>,
+        span:     Span,
+    },
+
+    /// `raise expr`
+    Raise {
+        value: Expr,
+        span:  Span,
+    },
+
+    /// Affectation : `target = value`
+    /// target peut être Ident, Field ou Index
+    Assign {
+        target: Expr,
+        value:  Expr,
+        span:   Span,
+    },
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Clause `on` d'un bloc try
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct OnClause {
+    /// Nom de la variable d'erreur : `on e { }` → binding = "e"
+    pub binding:      String,
+    /// Filtre de classe optionnel : `on e is IOException { }` → Some("IOException")
+    pub class_filter: Option<String>,
+    pub body:         Block,
+    pub span:         Span,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cas de switch
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SwitchCase {
+    pub pattern: Literal,
+    pub body:    Block,
+    pub span:    Span,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Block
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Block {
+    pub stmts: Vec<Stmt>,
+    pub span:  Span,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Paramètre de fonction / constructeur
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Param {
+    pub name: String,
+    pub ty:   Type,
+    pub span: Span,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Déclarations de haut niveau
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Déclaration de fonction de niveau module
+#[derive(Debug, Clone, PartialEq)]
+pub struct FuncDecl {
+    pub name:   String,
+    pub params: Vec<Param>,
+    pub ret_ty: Type,
+    pub body:   Block,
+    pub span:   Span,
+}
+
+/// Membre d'une classe
+#[derive(Debug, Clone, PartialEq)]
+pub enum ClassMember {
+    Field {
+        vis:     Visibility,
+        mutable: bool,
+        name:    String,
+        ty:      Type,
+        span:    Span,
+    },
+    Const {
+        vis:   Visibility,
+        name:  String,
+        ty:    Type,
+        value: Expr,
+        span:  Span,
+    },
+    Method {
+        vis:       Visibility,
+        is_static: bool,
+        decl:      FuncDecl,
+        span:      Span,
+    },
+    Constructor {
+        params: Vec<Param>,
+        body:   Block,
+        span:   Span,
+    },
+}
+
+/// Déclaration de classe
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClassDecl {
+    pub name:       String,
+    pub extends:    Option<String>,
+    pub implements: Vec<String>,
+    pub members:    Vec<ClassMember>,
+    pub span:       Span,
+}
+
+/// Méthode d'interface (signature seule)
+#[derive(Debug, Clone, PartialEq)]
+pub struct InterfaceMethod {
+    pub name:   String,
+    pub params: Vec<Param>,
+    pub ret_ty: Type,
+    pub span:   Span,
+}
+
+/// Déclaration d'interface
+#[derive(Debug, Clone, PartialEq)]
+pub struct InterfaceDecl {
+    pub name:    String,
+    pub methods: Vec<InterfaceMethod>,
+    pub span:    Span,
+}
+
+/// Déclaration de constante globale
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConstDecl {
+    pub name:  String,
+    pub ty:    Type,
+    pub value: Expr,
+    pub span:  Span,
+}
+
+/// Import
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImportDecl {
+    /// Chemin qualifié : `["datas", "User"]`
+    pub path:  Vec<String>,
+    /// Alias optionnel : `as UserData`
+    pub alias: Option<String>,
+    pub span:  Span,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Programme (racine de l'AST)
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Program {
+    pub imports:    Vec<ImportDecl>,
+    pub consts:     Vec<ConstDecl>,
+    pub classes:    Vec<ClassDecl>,
+    pub interfaces: Vec<InterfaceDecl>,
+    pub functions:  Vec<FuncDecl>,
+}
+
+impl Program {
+    pub fn new() -> Self {
+        Self {
+            imports:    Vec::new(),
+            consts:     Vec::new(),
+            classes:    Vec::new(),
+            interfaces: Vec::new(),
+            functions:  Vec::new(),
+        }
+    }
+}

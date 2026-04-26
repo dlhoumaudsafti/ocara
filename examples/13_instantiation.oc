@@ -1,0 +1,98 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 13 — Instanciation (use)
+//
+// Illustre :
+//   - Le mot-clé use remplace new
+//   - Appel du constructeur init avec arguments
+//   - Variable de type classe / interface
+//   - Multiple instances
+// ─────────────────────────────────────────────────────────────────────────────
+import ocara.IO
+
+class Color {
+
+    public property r:int
+    public property g:int
+    public property b:int
+
+    init(r:int, g:int, b:int) {
+        self.r = r
+        self.g = g
+        self.b = b
+    }
+
+    public method display(): void {
+        IO::writeln("rgb(" + self.r + ", " + self.g + ", " + self.b + ")")
+    }
+}
+
+
+class Timer {
+
+    private property seconds:int
+
+    init(seconds:int) {
+        self.seconds = seconds
+    }
+
+    public method tick(): void {
+        if self.seconds > 0 {
+            self.seconds = self.seconds - 1
+        }
+    }
+
+    public method remaining(): int {
+        return self.seconds
+    }
+
+    public method is_done(): bool {
+        return self.seconds == 0
+    }
+}
+
+
+class Pair {
+
+    public property first:mixed
+    public property second:mixed
+
+    init(first:mixed, second:mixed) {
+        self.first  = first
+        self.second = second
+    }
+
+    public method display(): void {
+        IO::writeln("(" + self.first + ", " + self.second + ")")
+    }
+}
+
+
+function main(): int {
+
+    // Instanciation simple
+    var red:Color   = use Color(255, 0, 0)
+    var green:Color = use Color(0, 255, 0)
+    var blue:Color  = use Color(0, 0, 255)
+
+    red.display()           // rgb(255, 0, 0)
+    green.display()         // rgb(0, 255, 0)
+    blue.display()          // rgb(0, 0, 255)
+
+    // Plusieurs instances indépendantes
+    var t1:Timer = use Timer(3)
+    var t2:Timer = use Timer(5)
+
+    t1.tick()
+    t1.tick()
+    IO::writeln(t1.remaining())   // 1
+    IO::writeln(t2.remaining())   // 5
+
+    // Paires hétérogènes
+    var p1:Pair = use Pair("clé", 42)
+    var p2:Pair = use Pair(true, 3.14)
+
+    p1.display()            // (clé, 42)
+    p2.display()            // (true, 3.14)
+
+    return 0
+}

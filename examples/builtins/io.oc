@@ -1,0 +1,100 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// examples/builtins/io.oc — classe builtin ocara.IO
+//
+// Illustre :
+//   - import ocara.IO
+//   - IO::write(val) / IO::writeln(val)
+//   - IO::read() / IO::readln()
+//   - IO::read_int() / IO::read_float() / IO::read_bool()
+//   - IO::read_array(sep) / IO::read_map(sep, kv)
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+import ocara.Array
+import ocara.Map
+
+
+function main(): int {
+
+    // ── write / writeln ───────────────────────────────────────────────────
+    // IO::write  : affiche sans saut de ligne final
+    // IO::writeln : affiche avec saut de ligne final (équivalent à write())
+    IO::write("Ocara IO — ")
+    IO::writeln("classe builtin")
+
+    IO::writeln(42)
+    IO::writeln(3.14)
+    IO::writeln(true)
+
+    // Avec template strings
+    var nom:string = "Ocara"
+    var version:int = 1
+    IO::writeln(`${nom} v${version}`)
+
+
+    // ── read / readln ─────────────────────────────────────────────────────
+    // Lit une ligne saisie au clavier et retourne une string
+    IO::write("Votre prénom : ")
+    scoped prenom:string = IO::read()
+    IO::writeln(`Bonjour ${prenom} !`)
+
+    // readln est un alias de read
+    IO::write("Votre ville  : ")
+    scoped ville:string = IO::readln()
+    IO::writeln(`Ville : ${ville}`)
+
+
+    // ── read_int ──────────────────────────────────────────────────────────
+    // Lit une ligne et la convertit en int
+    IO::write("Entrez un entier : ")
+    scoped n:int = IO::read_int()
+    IO::writeln(`Vous avez saisi : ${n}`)
+    IO::writeln(`Le double : ${n * 2}`)
+
+
+    // ── read_float ────────────────────────────────────────────────────────
+    // Lit une ligne et la convertit en float
+    IO::write("Entrez un nombre décimal : ")
+    scoped f:float = IO::read_float()
+    IO::writeln(`Float saisi : ${f}`)
+
+
+    // ── read_bool ─────────────────────────────────────────────────────────
+    // Lit une ligne — "true" ou "1" → true, tout le reste → false
+    IO::write("Continuer ? (true/false) : ")
+    scoped continuer:bool = IO::read_bool()
+    if continuer {
+        IO::writeln("Vous avez choisi de continuer.")
+    }
+    if !continuer {
+        IO::writeln("Vous avez choisi d'arrêter.")
+    }
+
+
+    // ── read_array ────────────────────────────────────────────────────────
+    // Lit une ligne et la découpe selon le séparateur → string[]
+    IO::writeln("Entrez des tags séparés par des virgules (ex: rust,ocara,web) :")
+    scoped tags:string[] = IO::read_array(",")
+    IO::writeln(`${Array::len(tags)} tag(s) reçu(s)`)
+    for tag in tags {
+        IO::writeln(`  - ${tag}`)
+    }
+
+
+    // ── read_map ──────────────────────────────────────────────────────────
+    // Lit une ligne et construit une map clé/valeur
+    // sep  : séparateur entre les paires (ex: "," pour "a=1,b=2")
+    // kv   : séparateur clé/valeur au sein d'une paire (ex: "=")
+    IO::writeln("Entrez des paramètres (ex: lang=fr,theme=dark,limit=50) :")
+    scoped params:map<string, string> = IO::read_map(",", "=")
+    IO::writeln(`${Map::size(params)} paramètre(s) reçu(s)`)
+
+    if Map::has(params, "lang") {
+        IO::writeln(`  lang  = ${Map::get(params, "lang")}`)
+    }
+    if Map::has(params, "theme") {
+        IO::writeln(`  theme = ${Map::get(params, "theme")}`)
+    }
+
+    return 0
+}

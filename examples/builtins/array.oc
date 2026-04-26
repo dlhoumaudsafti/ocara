@@ -1,0 +1,114 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// examples/builtins/array.oc — classe builtin ocara.Array
+//
+// Illustre :
+//   - import ocara.Array
+//   - Array::len(arr)
+//   - Array::push(arr, val) / Array::pop(arr)
+//   - Array::first(arr) / Array::last(arr)
+//   - Array::contains(arr, val) / Array::index_of(arr, val)
+//   - Array::reverse(arr)
+//   - Array::slice(arr, from, to)
+//   - Array::join(arr, sep)
+//   - Array::sort(arr)
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+import ocara.Array
+
+
+function main(): int {
+
+    var nombres:int[] = [10, 30, 20, 50, 40]
+    var mots:string[] = ["banane", "pomme", "cerise", "abricot"]
+
+
+    // ── len ───────────────────────────────────────────────────────────────
+    scoped n:int = Array::len(nombres)
+    IO::writeln(`Array::len([10,30,20,50,40]) = ${n}`)   // 5
+
+
+    // ── push / pop ────────────────────────────────────────────────────────
+    // push mutates in-place, pop retires le dernier élément
+    Array::push(nombres, 99)
+    IO::writeln(`après push(99) : len = ${Array::len(nombres)}`)   // 6
+
+    scoped dernier:int = Array::pop(nombres)
+    IO::writeln(`pop() = ${dernier}`)                              // 99
+    IO::writeln(`après pop : len = ${Array::len(nombres)}`)        // 5
+
+
+    // ── first / last ──────────────────────────────────────────────────────
+    scoped premier:int = Array::first(nombres)
+    scoped fin:int     = Array::last(nombres)
+    IO::writeln(`first([10,30,20,50,40]) = ${premier}`)   // 10
+    IO::writeln(`last([10,30,20,50,40])  = ${fin}`)        // 40
+
+
+    // ── contains / index_of ───────────────────────────────────────────────
+    scoped c1:bool = Array::contains(nombres, 30)
+    scoped c2:bool = Array::contains(nombres, 99)
+    IO::writeln(`contains(30) = ${c1}`)   // true
+    IO::writeln(`contains(99) = ${c2}`)   // false
+
+    scoped i1:int = Array::index_of(nombres, 20)
+    scoped i2:int = Array::index_of(nombres, 99)
+    IO::writeln(`index_of(20) = ${i1}`)   // 2
+    IO::writeln(`index_of(99) = ${i2}`)   // -1
+
+
+    // ── reverse ───────────────────────────────────────────────────────────
+    // Retourne un nouvel array inversé, sans modifier l'original
+    scoped inv:int[] = Array::reverse(nombres)
+    IO::writeln(`reverse([10,30,20,50,40]) → first=${Array::first(inv)} last=${Array::last(inv)}`)
+    // first=40, last=10
+
+
+    // ── slice ─────────────────────────────────────────────────────────────
+    // Extrait [from, to) — indices 0-basés
+    scoped sub:int[] = Array::slice(nombres, 1, 4)
+    IO::writeln(`slice([10,30,20,50,40], 1, 4) : len=${Array::len(sub)}`)   // 3 (30,20,50)
+
+
+    // ── join ──────────────────────────────────────────────────────────────
+    // Concatène les éléments en une chaîne
+    scoped csv:string  = Array::join(mots, ", ")
+    scoped pipe:string = Array::join(mots, " | ")
+    IO::writeln(`join(mots, ", ")  = ${csv}`)    // banane, pomme, cerise, abricot
+    IO::writeln(`join(mots, " | ") = ${pipe}`)   // banane | pomme | cerise | abricot
+
+
+    // ── sort ──────────────────────────────────────────────────────────────
+    // Retourne un nouvel array trié (ordre naturel)
+    scoped tries:string[] = Array::sort(mots)
+    scoped tries_nb:int[] = Array::sort(nombres)
+    IO::writeln(`sort(mots)    → ${Array::join(tries, ", ")}`)      // abricot, banane, cerise, pomme
+    IO::writeln(`sort(nombres) → first=${Array::first(tries_nb)} last=${Array::last(tries_nb)}`)
+    // first=10, last=50
+
+
+    // ── Combinaisons ──────────────────────────────────────────────────────
+
+    // Supprimer les doublons via index_of (pattern courant)
+    var source:int[]  = [1, 2, 3, 2, 4, 1, 5]
+    var unique:int[]  = []
+    for val in source {
+        if Array::index_of(unique, val) == -1 {
+            Array::push(unique, val)
+        }
+    }
+    IO::writeln(`unique : len=${Array::len(unique)}`)   // 5
+
+    // Derniers 3 éléments d'un tableau
+    var data:int[] = [10, 20, 30, 40, 50, 60]
+    scoped tail:int[] = Array::slice(data, Array::len(data) - 3, Array::len(data))
+    IO::writeln(`3 derniers : ${Array::join(tail, ", ")}`)   // 40, 50, 60
+
+    // Vérification avant accès
+    var vide:int[] = []
+    if Array::len(vide) == 0 {
+        IO::writeln("tableau vide — aucun accès")
+    }
+
+    return 0
+}

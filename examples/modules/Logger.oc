@@ -1,0 +1,17 @@
+import ocara.IO
+
+class Logger {
+    init() {}
+
+    public method info(msg:string): void {
+        IO::writeln("[INFO] " + msg)
+    }
+
+    public method warn(msg:string): void {
+        IO::writeln("[WARN] " + msg)
+    }
+
+    public method error(msg:string): void {
+        IO::writeln("[ERROR] " + msg)
+    }
+}

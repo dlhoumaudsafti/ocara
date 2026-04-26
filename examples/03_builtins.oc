@@ -1,0 +1,54 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 03 — Fonctions builtins
+//
+// Illustre :
+//   - IO::write / IO::writeln  : affiche des valeurs sur stdout
+//   - IO::readln               : lit une ligne clavier
+//   - Chaînes template : `Bonjour ${nom} !`
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+
+function main(): int {
+
+    // IO::writeln accepte tous les types primitifs
+    IO::writeln("Chaîne de caractères")
+    IO::writeln(42)
+    IO::writeln(3.14)
+    IO::writeln(true)
+    IO::writeln(false)
+
+    // Affichage de résultats d'expressions
+    IO::writeln(10 + 5)                      // 15
+    IO::writeln("Bonjour " + "monde")        // Bonjour monde
+
+    // ── Chaînes template `` `...${expr}...` `` ────────────────────────────
+    var nom:string  = "Alice"
+    var age:int     = 30
+    var score:float = 9.8
+    var actif:bool  = true
+
+    // Interpolation de variables
+    IO::writeln(`Bonjour ${nom}, tu as ${age} ans !`)
+    IO::writeln(`Score : ${score} — actif : ${actif}`)
+
+    // Interpolation d'expressions
+    IO::writeln(`${nom} a ${age} ans, dans 10 ans : ${age + 10}`)
+    IO::writeln(`1 + 1 = ${1 + 1}`)
+
+    // Guillemets simples dans le template
+    IO::writeln(`Bonjour '${nom}'`)
+
+    // Lecture clavier
+    IO::writeln("Quel est votre prénom ?")
+    scoped prenom:string = IO::readln()
+
+    IO::writeln(`Votre prénom est : ${prenom}`)
+
+    // Lecture d'un entier (retourné en string puis utilisé comme mixed)
+    IO::writeln("Entrez votre âge :")
+    scoped age_input:string = IO::readln()
+    IO::writeln(`Vous avez entré : ${age_input}`)
+
+    return 0
+}

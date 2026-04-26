@@ -1,0 +1,75 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 04 — Conditions
+//
+// Illustre :
+//   - if / elseif / else
+//   - Opérateurs de comparaison : == != < <= > >=
+//   - Opérateurs logiques : && ||  !
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+
+function note_to_mention(note:int): string {
+    if note >= 90 {
+        return "Excellent"
+    } elseif note >= 75 {
+        return "Bien"
+    } elseif note >= 60 {
+        return "Passable"
+    } else {
+        return "Insuffisant"
+    }
+}
+
+function is_adult(age:int): bool {
+    return age >= 18
+}
+
+
+function main(): int {
+
+    // Condition simple
+    var x:int = 10
+    if x > 0 {
+        IO::writeln("x est positif")
+    }
+
+    // if / elseif / else
+    var temperature:int = 25
+    if temperature < 0 {
+        IO::writeln("Gel")
+    } elseif temperature < 15 {
+        IO::writeln("Frais")
+    } elseif temperature < 25 {
+        IO::writeln("Agréable")
+    } else {
+        IO::writeln("Chaud")
+    }
+
+    // Opérateurs logiques
+    var a:int = 5
+    var b:int = 10
+    if a > 0 && b > 0 {
+        IO::writeln("a et b sont positifs")
+    }
+
+    if a > 100 || b > 5 {
+        IO::writeln("au moins une condition vraie")
+    }
+
+    if !false {
+        IO::writeln("négation de false vaut true")
+    }
+
+    // Appel de fonction avec condition
+    IO::writeln(note_to_mention(85))      // Bien
+    IO::writeln(note_to_mention(45))      // Insuffisant
+
+    if is_adult(20) {
+        IO::writeln("majeur")
+    } else {
+        IO::writeln("mineur")
+    }
+
+    return 0
+}

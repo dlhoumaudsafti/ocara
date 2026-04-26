@@ -1,0 +1,90 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 18 — Constantes de classe + méthodes statiques
+//
+// Illustre :
+//   - Déclaration : public/protected/private const NAME:T = value
+//   - Accès : Class::NAME (sans instanciation)
+//   - Méthodes statiques : public static method ... (appelables via ::)
+//   - Combinaison const + static func dans la même classe
+// ─────────────────────────────────────────────────────────────────────────────
+import ocara.IO
+
+class Direction {
+    public const NORTH:string = "N"
+    public const SOUTH:string = "S"
+    public const EAST:string  = "E"
+    public const WEST:string  = "W"
+
+    public static method opposite(dir:string): string {
+        return match dir {
+            "N" => "S"
+            "S" => "N"
+            "E" => "W"
+            "W" => "E"
+            default => "?"
+        }
+    }
+}
+
+
+class Config {
+    public const VERSION:string   = "1.0.0"
+    public const APP_NAME:string  = "Ocara App"
+    public const MAX_RETRY:int    = 3
+    public const TIMEOUT_SEC:int  = 30
+    protected const SECRET:string = "super-secret"
+
+    public static method banner(): void {
+        IO::writeln(Config::APP_NAME + " v" + Config::VERSION)
+    }
+
+    public static method retry_limit_ok(attempt:int): bool {
+        return attempt < Config::MAX_RETRY
+    }
+}
+
+
+class Color {
+    public const RED:string   = "#FF0000"
+    public const GREEN:string = "#00FF00"
+    public const BLUE:string  = "#0000FF"
+    public const WHITE:string = "#FFFFFF"
+    public const BLACK:string = "#000000"
+
+    public static method primary_colors(): void {
+        IO::writeln("Rouge : " + Color::RED)
+        IO::writeln("Vert  : " + Color::GREEN)
+        IO::writeln("Bleu  : " + Color::BLUE)
+    }
+}
+
+
+function main(): int {
+
+    // ── Constantes de classe ─────────────────────────────────────────────────
+    IO::writeln(Direction::NORTH)         // N
+    IO::writeln(Direction::SOUTH)         // S
+    IO::writeln(Config::VERSION)          // 1.0.0
+    IO::writeln(Config::MAX_RETRY)        // 3
+    IO::writeln(Color::RED)               // #FF0000
+
+    // ── Méthodes statiques ───────────────────────────────────────────────────
+    IO::writeln(Direction::opposite("N")) // S
+    IO::writeln(Direction::opposite("E")) // W
+
+    Config::banner()                // Ocara App v1.0.0
+    IO::writeln(Config::retry_limit_ok(0))    // true
+    IO::writeln(Config::retry_limit_ok(2))    // true
+    IO::writeln(Config::retry_limit_ok(3))    // false
+
+    Color::primary_colors()
+
+    // ── Constantes dans expressions ──────────────────────────────────────────
+    var attempt:int = 0
+    while Config::retry_limit_ok(attempt) {
+        IO::writeln("tentative " + attempt)
+        attempt = attempt + 1
+    }
+
+    return 0
+}
