@@ -16,6 +16,16 @@ Extension des fichiers source : `.oc`
 | Rust / Cargo | 1.75+ | Construire le compilateur |
 | `cc` (gcc ou clang) | tout | Éditeur de liens final |
 
+### Installer Rust et Cargo
+
+| Plateforme | Installation |
+|---|---|
+| Debian / Ubuntu | `sudo apt install cargo` |
+| Fedora / RHEL | `sudo dnf install cargo` |
+| macOS | `brew install rust` ou `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
+
+### Installer l'éditeur de liens `cc`
+
 `cc` est l'éditeur de liens appelé à chaque compilation d'un fichier `.oc`. Il doit être présent sur le système :
 
 | Plateforme | Installation |
