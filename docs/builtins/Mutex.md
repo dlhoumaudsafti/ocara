@@ -1,6 +1,6 @@
 # Mutex
 
-Classe builtin `ocara.Mutex` — synchronisation thread-safe pour protéger les accès concurrents aux données partagées.
+Classe de la bibliothèque runtime `ocara.Mutex` — synchronisation thread-safe pour protéger les accès concurrents aux données partagées.
 
 Un **mutex** (mutual exclusion) garantit qu'un seul thread à la fois peut accéder à une section critique protégée. Tout autre thread tentant d'acquérir le verrou sera bloqué jusqu'à ce que le mutex soit déverrouillé.
 

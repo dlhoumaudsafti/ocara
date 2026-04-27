@@ -1,4 +1,4 @@
-# `ocara.String` — Classe builtin
+# `ocara.String` — Classe de la bibliothèque runtime
 
 > Classe de manipulation de chaînes de caractères.  
 > Toutes les méthodes sont **statiques** : elles s'appellent via `String::<méthode>(args)`.

@@ -695,12 +695,35 @@ impl Parser {
         self.parse_or()
     }
 
+    /// Parse expression sans autoriser 'is' au top level
+    /// Utilisé pour les body de match arms où 'is' est réservé aux patterns
+    fn parse_expr_no_is(&mut self) -> ParseResult<Expr> {
+        self.parse_or_no_is()
+    }
+
     fn parse_or(&mut self) -> ParseResult<Expr> {
         let mut left = self.parse_and()?;
         while self.check_exact(&TokenKind::KwOr) {
             let span = self.span();
             self.advance();
             let right = self.parse_and()?;
+            left = Expr::Binary {
+                op: BinOp::Or,
+                left: Box::new(left),
+                right: Box::new(right),
+                span,
+            };
+        }
+        Ok(left)
+    }
+
+    /// Version sans 'is' pour les match arms
+    fn parse_or_no_is(&mut self) -> ParseResult<Expr> {
+        let mut left = self.parse_and_no_is()?;
+        while self.check_exact(&TokenKind::KwOr) {
+            let span = self.span();
+            self.advance();
+            let right = self.parse_and_no_is()?;
             left = Expr::Binary {
                 op: BinOp::Or,
                 left: Box::new(left),
@@ -727,7 +750,41 @@ impl Parser {
         Ok(left)
     }
 
+    /// Version sans 'is' pour les match arms
+    fn parse_and_no_is(&mut self) -> ParseResult<Expr> {
+        let mut left = self.parse_equality_no_is()?;
+        while self.check_exact(&TokenKind::KwAnd) {
+            let span = self.span();
+            self.advance();
+            let right = self.parse_equality_no_is()?;
+            left = Expr::Binary {
+                op: BinOp::And,
+                left: Box::new(left),
+                right: Box::new(right),
+                span,
+            };
+        }
+        Ok(left)
+    }
+
     fn parse_equality(&mut self) -> ParseResult<Expr> {
+        let mut left = self.parse_is_check()?;
+        loop {
+            let span = self.span();
+            let op = match self.peek_kind() {
+                TokenKind::EqEq   => BinOp::EqEq,
+                TokenKind::BangEq => BinOp::NotEq,
+                _ => break,
+            };
+            self.advance();
+            let right = self.parse_is_check()?;
+            left = Expr::Binary { op, left: Box::new(left), right: Box::new(right), span };
+        }
+        Ok(left)
+    }
+
+    /// Version sans 'is' pour les match arms
+    fn parse_equality_no_is(&mut self) -> ParseResult<Expr> {
         let mut left = self.parse_comparison()?;
         loop {
             let span = self.span();
@@ -741,6 +798,22 @@ impl Parser {
             left = Expr::Binary { op, left: Box::new(left), right: Box::new(right), span };
         }
         Ok(left)
+    }
+
+    /// Test de type : `expr is Type` — retourne bool
+    fn parse_is_check(&mut self) -> ParseResult<Expr> {
+        let mut expr = self.parse_comparison()?;
+        if self.check_exact(&TokenKind::Is) {
+            let span = self.span();
+            self.advance();
+            let ty = self.parse_type()?;
+            expr = Expr::IsCheck {
+                expr: Box::new(expr),
+                ty,
+                span,
+            };
+        }
+        Ok(expr)
     }
 
     fn parse_comparison(&mut self) -> ParseResult<Expr> {
@@ -1094,18 +1167,33 @@ impl Parser {
             if self.check_exact(&TokenKind::Default) {
                 self.advance();
                 self.eat(&TokenKind::Arrow)?;
-                let body = self.parse_expr()?;
+                let body = self.parse_expr_no_is()?;
                 arms.push(MatchArm { pattern: None, body, span: arm_span });
             } else {
-                let pattern = Some(self.parse_literal()?);
+                let pattern = Some(self.parse_match_pattern()?);
                 self.eat(&TokenKind::Arrow)?;
-                let body = self.parse_expr()?;
+                let body = self.parse_expr_no_is()?;
                 arms.push(MatchArm { pattern, body, span: arm_span });
             }
         }
 
         self.eat(&TokenKind::RBrace)?;
         Ok(Expr::Match { subject: Box::new(subject), arms, span })
+    }
+
+    // ── Pattern de match ─────────────────────────────────────────────────────
+
+    fn parse_match_pattern(&mut self) -> ParseResult<MatchPattern> {
+        if self.check_exact(&TokenKind::Is) {
+            // Pattern : `is Type`
+            self.advance();
+            let ty = self.parse_type()?;
+            Ok(MatchPattern::IsType(ty))
+        } else {
+            // Pattern : littéral
+            let lit = self.parse_literal()?;
+            Ok(MatchPattern::Literal(lit))
+        }
     }
 
     // ── Littéral isolé (pour patterns) ───────────────────────────────────────

@@ -1,0 +1,156 @@
+// ============================================================================
+// Type Narrowing avec 'is'
+// ============================================================================
+// Démonstration du narrowing de type avec l'opérateur 'is' et les patterns
+
+import ocara.IO
+import ocara.Convert
+
+class Animal {
+    public property name:string
+    init(n:string) { self.name = n }
+}
+
+// ── Match avec patterns 'is Type' ──────────────────────────────────────────
+
+function process(val:int|string|null): void {
+    IO::writeln("Test avec match :")
+    match val {
+        is null   => IO::writeln("  → Valeur nulle")
+        is int    => IO::writeln("  → Entier")
+        is string => IO::writeln("  → Chaîne")
+    }
+}
+
+// ── Expression 'is' retournant un bool ─────────────────────────────────────
+
+function check_type(val:int|string|null): void {
+    IO::writeln("Test avec expression is :")
+
+    var is_null:bool = val is null
+    if is_null {
+        IO::writeln("  → C'est null")
+    }
+
+    var is_int:bool = val is int
+    if is_int {
+        IO::writeln("  → C'est un int")
+    }
+
+    var is_string:bool = val is string
+    if is_string {
+        IO::writeln("  → C'est une string")
+    }
+}
+
+// ── Narrowing dans les conditions if ───────────────────────────────────────
+
+function format_value(val:int|string|null): string {
+    if val is null {
+        return "(null)"
+    }
+    if val is int {
+        return "entier"
+    }
+    if val is string {
+        return "chaîne"
+    }
+    return "inconnu"
+}
+
+// ── Main ────────────────────────────────────────────────────────────────────
+
+function main(): int {
+    IO::writeln("=== Type Narrowing avec 'is' ===")
+    IO::writeln("")
+
+    // Test avec null
+    IO::writeln("1. Valeur null :")
+    process(null)
+    check_type(null)
+    IO::writeln("   Format : " + format_value(null))
+    IO::writeln("")
+
+    // Test avec int
+    IO::writeln("2. Valeur int (42) :")
+    var i:int|string|null = 42
+    process(i)
+    check_type(i)
+    IO::writeln("   Format : " + format_value(i))
+    IO::writeln("")
+
+    // Test avec string
+    IO::writeln("3. Valeur string (\"hello\") :")
+    var s:int|string|null = "hello"
+    process(s)
+    check_type(s)
+    IO::writeln("   Format : " + format_value(s))
+    IO::writeln("")
+
+    // ── Tests des types manquants ─────────────────────────────────────────
+
+    IO::writeln("4. float :")
+    var f:float = 3.14
+    IO::writeln("   3.14 is float  → " + Convert::bool_to_str(f is float))
+    IO::writeln("   42   is float  → " + Convert::bool_to_str(42 is float))
+    IO::writeln("")
+
+    IO::writeln("5. array :")
+    var arr:int[] = [1, 2, 3]
+    IO::writeln("   [1,2,3] is int[]          → " + Convert::bool_to_str(arr is int[]))
+    IO::writeln("   \"hello\" is int[]          → " + Convert::bool_to_str(s is int[]))
+    IO::writeln("   42      is int[]          → " + Convert::bool_to_str(i is int[]))
+    IO::writeln("")
+
+    IO::writeln("6. map :")
+    var m:map<string, int> = {"x": 1, "y": 2}
+    IO::writeln("   {x:1}  is map<string,int> → " + Convert::bool_to_str(m is map<string, int>))
+    IO::writeln("   [1,2]  is map<string,int> → " + Convert::bool_to_str(arr is map<string, int>))
+    IO::writeln("   42     is map<string,int> → " + Convert::bool_to_str(i is map<string, int>))
+    IO::writeln("")
+
+    IO::writeln("7. object (instance de classe) :")
+    var a:Animal = use Animal("Rex")
+    IO::writeln("   Animal is object → " + Convert::bool_to_str(a is Animal))
+    IO::writeln("   a is Animal → " + Convert::bool_to_str(a is object))
+    IO::writeln("   string is object → " + Convert::bool_to_str(s is Animal))
+    IO::writeln("   int    is object → " + Convert::bool_to_str(i is Animal))
+    IO::writeln("")
+
+    IO::writeln("8. Function :")
+    var fn_val:Function<int> = nameless(): int { return 99 }
+    IO::writeln("   nameless is Function<int> → " + Convert::bool_to_str(fn_val is Function<int>))
+    IO::writeln("   string   is Function<int> → " + Convert::bool_to_str(s is Function<int>))
+    IO::writeln("   int      is Function<int> → " + Convert::bool_to_str(i is Function<int>))
+    IO::writeln("")
+
+    // ── Match sur tous les types ──────────────────────────────────────────
+
+    IO::writeln("9. match is (tous types) :")
+    describe(null)
+    describe(42)
+    describe(f)
+    describe("hello")
+    describe(arr)
+    describe(m)
+    describe(a)
+    describe(fn_val)
+
+    return 0
+}
+
+// ── Fonction utilitaire match is ──────────────────────────────────────────────
+
+function describe(val:mixed): void {
+    match val {
+        is null             => IO::writeln(`   ${val}  → null`)
+        is int              => IO::writeln(`   ${val}  → int`)
+        is float            => IO::writeln(`   ${val}  → float`)
+        is string           => IO::writeln(`   ${val}  → string`)
+        is int[]            => IO::writeln(`   arr  → array`)
+        is map<string, int> => IO::writeln(`   m  → map`)
+        is Animal           => IO::writeln(`   Animal  → object Animal`)
+        is Function<int>    => IO::writeln(`   fn_val  → Function`)
+        default             => IO::writeln(`   ${val}  → inconnu`)
+    }
+}

@@ -1,6 +1,6 @@
 # Thread
 
-Classe builtin `ocara.Thread` — création et gestion de threads OS natifs (POSIX `pthread` via la stdlib Rust).
+Classe de la bibliothèque runtime `ocara.Thread` — création et gestion de threads OS natifs (POSIX `pthread` via la stdlib Rust).
 
 Contrairement aux autres builtins, `Thread` est une **classe d'instance** : chaque thread est représenté par un objet créé avec `use Thread()`.
 

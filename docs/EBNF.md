@@ -23,8 +23,8 @@
 10. [Instructions](#10-instructions)
 11. [Blocs](#11-blocs)
 12. [Fonctions](#12-fonctions)
-13. [Fonctions builtins](#13-fonctions-builtins)
-    - [13.1 Classes builtins (namespace ocara)](#131-classes-builtins-namespace-ocara)
+13. [Bibliothèque standard runtime](#13-bibliothèque-standard-runtime)
+    - [13.1 Classes de la bibliothèque standard runtime (namespace ocara)](#131-classes-de-la-bibliothèque-standard-runtime-namespace-ocara)
 14. [Classes](#14-classes)
 15. [Interfaces](#15-interfaces)
 16. [Héritage et implémentation](#16-héritage-et-implémentation)
@@ -257,6 +257,79 @@ function divide(a:int, b:int): int|float {
     return a / b
 }
 ```
+
+**Type narrowing (raffinement de type) :**
+
+Ocara v0.1.0 supporte le narrowing via l'opérateur `is` dans les expressions `match` et les conditions, pour **tous les types** :
+
+```ocara
+// Narrowing dans match — tous les types supportés
+class Animal {
+    public property name:string
+    init(n:string) { self.name = n }
+}
+
+function describe(val:mixed): void {
+    match val {
+        is null             => IO::writeln("null")
+        is int              => IO::writeln("int")
+        is float            => IO::writeln("float")
+        is string           => IO::writeln("string")
+        is int[]            => IO::writeln("array")
+        is map<string, int> => IO::writeln("map")
+        is Animal           => IO::writeln("object Animal")
+        is Function<int>    => IO::writeln("Function")
+        default             => IO::writeln("inconnu")
+    }
+}
+
+// Narrowing dans les conditions
+function get_length(s:string|null): int {
+    if s is null {
+        return 0
+    }
+    return String::len(s)
+}
+
+// Expression is retournant bool
+var is_null:bool = val is null
+var is_int:bool = val is int
+var is_str:bool = val is string
+var is_arr:bool = val is int[]
+var is_map:bool = val is map<string, int>
+var is_obj:bool = val is Animal
+var is_fn:bool  = val is Function<int>
+```
+
+**Implémentation du type checking runtime :**
+
+Toutes les allocations heap (string, array, map, objet, fat-pointer) sont précédées d'un **header de 8 octets** contenant un tag de type. `is Type` lit ce tag pour une discrimination exacte.
+
+| Opérateur | Mécanisme | Précision |
+|-----------|-----------|-----------|
+| `is null` | teste `val == 0` | ✓ précis |
+| `is int` | teste `val != 0 && val < 65536` | ✓ précis pour les cas usuels |
+| `is float` | shortcut statique à la compilation (type connu) | ✓ précis statiquement |
+| `is bool` | teste `val == 0 \|\| val == 1` | ⚠️ peut confondre avec int 0 et 1 |
+| `is string` | lit le tag header : `TAG_STRING` (1) | ✓ précis |
+| `is T[]` | lit le tag header : `TAG_ARRAY` (2) | ✓ précis |
+| `is map<K,V>` | lit le tag header : `TAG_MAP` (3) | ✓ précis |
+| `is ClassName` | lit le tag header : `TAG_OBJECT` (4) | ✓ précis |
+| `is Function<T>` | lit le tag header : `TAG_FUNCTION` (5) | ✓ précis |
+
+**Schéma mémoire avec header :**
+
+```
+[tag: i64 — 8 octets]  [données...]
+                        ^
+                        pointeur retourné au code Ocara
+```
+
+**Limitations actuelles (v0.1.0) :**
+
+- `is float` fonctionne uniquement quand le type est connu **statiquement** à la compilation. Dans un contexte `mixed` dynamique, seuls les floats explicitement boxés (via `__box_float`) sont détectables.
+- `is bool` peut être confondu avec les `int` 0 et 1.
+- `is ClassName` vérifie seulement que la valeur est une instance d'**un** objet (tag `TAG_OBJECT`), sans distinguer les classes entre elles. Pour un narrowing fin par classe, utiliser les patterns dans `on … is ClassName` dans les blocs `try/on`.
 
 ### 4.4 Annotation de type
 
@@ -798,7 +871,7 @@ IO::writeln(user.name)   // "Bob" — l'objet original est muté
 
 ---
 
-## 13. Fonctions builtins (dépréciées)
+## 13. Bibliothèque standard runtime
 
 > **Déprécié.** Les alias globaux `write` et `read` sont conservés pour la compatibilité ascendante mais ne doivent plus être utilisés dans le code nouveau.
 > Utiliser à la place `IO::writeln` et `IO::read` du module `ocara.IO`.
@@ -826,9 +899,9 @@ IO::writeln("Bonjour " + nom)
 - `IO::read` retourne toujours une valeur de type `string`.
 - Le module `ocara.IO` doit être importé explicitement : `import ocara.IO`.
 
-### 13.1 Classes builtins (namespace ocara)
+### 13.1 Classes de la bibliothèque standard runtime (namespace ocara)
 
-Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace `ocara.*`. Ces classes sont compilées dans le runtime et disponibles via import.
+Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace `ocara.*`. Ces classes sont compilées dans le runtime et disponibles via import explicite (`import ocara.Classe`).
 
 #### Entrées/Sorties
 
@@ -897,7 +970,7 @@ function main(): void {
 }
 ```
 
-**Documentation détaillée :** Voir `docs/builtins/` pour la documentation complète de chaque classe.
+**Documentation détaillée :** Voir `docs/builtins/` pour la documentation complète de chaque classe de la bibliothèque standard runtime.
 
 ---
 
@@ -1312,8 +1385,11 @@ switch code {
 ```ebnf
 MatchExpr ::= "match" PostfixExpr "{" MatchArm+ "}"
 
-MatchArm ::= Literal "=>" Expression
+MatchArm ::= MatchPattern "=>" Expression
            | "default" "=>" Expression
+
+MatchPattern ::= Literal
+               | "is" Type
 ```
 
 `match` est une **expression** (retourne une valeur). Chaque bras produit une valeur.
@@ -1323,6 +1399,30 @@ scoped label:string = match score {
     100 => "parfait"
     90  => "excellent"
     default => "insuffisant"
+}
+```
+
+**Patterns de type avec `is` :**
+
+```ocara
+function process(val:int|string|null): void {
+    match val {
+        is null   => IO::writeln("Valeur nulle")
+        is int    => IO::writeln("Entier")
+        is string => IO::writeln("Chaîne")
+    }
+}
+```
+
+**Mélange de patterns :**
+
+Les patterns littéraux et les patterns de type peuvent être mélangés dans un même `match` :
+
+```ocara
+match x {
+    is null => IO::writeln("null")
+    42      => IO::writeln("quarante-deux")
+    default => IO::writeln("autre")
 }
 ```
 
@@ -1663,9 +1763,11 @@ ArgList     ::= Expression ( "," Expression )*
 
 (* ── Match expression ───────────────────────────────────────────── *)
 
-MatchExpr   ::= "match" PostfixExpr "{" MatchArm+ "}"
-MatchArm    ::= Literal "=>" Expression
-              | "default" "=>" Expression
+MatchExpr    ::= "match" PostfixExpr "{" MatchArm+ "}"
+MatchArm     ::= MatchPattern "=>" Expression
+               | "default" "=>" Expression
+MatchPattern ::= Literal
+               | "is" Type
 
 (* ── Littéraux ──────────────────────────────────────────────────── *)
 
