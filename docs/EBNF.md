@@ -24,6 +24,7 @@
 11. [Blocs](#11-blocs)
 12. [Fonctions](#12-fonctions)
 13. [Fonctions builtins](#13-fonctions-builtins)
+    - [13.1 Classes builtins (namespace ocara)](#131-classes-builtins-namespace-ocara)
 14. [Classes](#14-classes)
 15. [Interfaces](#15-interfaces)
 16. [Héritage et implémentation](#16-héritage-et-implémentation)
@@ -764,6 +765,79 @@ IO::writeln("Bonjour " + nom)
 - `IO::writeln` accepte n'importe quel type (`mixed`) : entier, flottant, booléen, chaîne, tableau, etc.
 - `IO::read` retourne toujours une valeur de type `string`.
 - Le module `ocara.IO` doit être importé explicitement : `import ocara.IO`.
+
+### 13.1 Classes builtins (namespace ocara)
+
+Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace `ocara.*`. Ces classes sont compilées dans le runtime et disponibles via import.
+
+#### Entrées/Sorties
+
+- **IO** — Lecture/écriture console (stdin/stdout/stderr)
+  - `writeln()`, `write()`, `read()`, `write_stderr()`, `flush()`
+- **HTTPRequest** — Client HTTP pour requêtes GET/POST
+  - `get()`, `post()`, `set_header()`, `get_status()`, `get_body()`
+- **HTTPServer** — Serveur HTTP embarqué
+  - `start()`, `stop()`, `handle()`, `send_response()`
+
+#### Manipulation de données
+
+- **Array** — Opérations sur les tableaux
+  - `push()`, `pop()`, `shift()`, `unshift()`, `slice()`, `join()`, `length()`, `sort()`, `reverse()`, `contains()`, `index_of()`, `remove()`
+- **Map** — Opérations sur les dictionnaires (clé-valeur)
+  - `set()`, `get()`, `has()`, `remove()`, `keys()`, `values()`, `size()`, `clear()`, `merge()`
+- **String** — Manipulation de chaînes
+  - `length()`, `substring()`, `index_of()`, `split()`, `replace()`, `to_upper()`, `to_lower()`, `trim()`, `starts_with()`, `ends_with()`, `char_at()`
+- **Regex** — Expressions régulières PCRE
+  - `match()`, `test()`, `replace()`, `split()`, `match_all()`
+
+#### Utilitaires
+
+- **Math** — Fonctions mathématiques (classe statique)
+  - `abs()`, `sqrt()`, `pow()`, `sin()`, `cos()`, `tan()`, `floor()`, `ceil()`, `round()`, `min()`, `max()`, `random()`, `PI`, `E`
+- **Convert** — Conversions de types (classe statique)
+  - `int_to_str()`, `str_to_int()`, `float_to_str()`, `str_to_float()`, `bool_to_str()`, `char_to_int()`, `int_to_char()`
+- **System** — Informations système et exécution de commandes (classe statique)
+  - `os()`, `arch()`, `exec()`, `exit()`, `env()`, `args()`
+
+#### Date et Heure
+
+- **DateTime** — Manipulation de timestamps Unix (classe statique)
+  - `now()`, `from_timestamp()`, `year()`, `month()`, `day()`, `hour()`, `minute()`, `second()`, `format()`, `parse()`
+- **Date** — Manipulation de dates sans heure (classe statique)
+  - `today()`, `from_timestamp()`, `year()`, `month()`, `day()`, `day_of_week()`, `is_leap_year()`, `days_in_month()`, `add_days()`, `diff_days()`
+- **Time** — Manipulation d'heures sans date (classe statique)
+  - `now()`, `from_timestamp()`, `hour()`, `minute()`, `second()`, `from_seconds()`, `to_seconds()`, `add_seconds()`, `diff_seconds()`
+
+#### Concurrence
+
+- **Thread** — Gestion de threads natifs (classe d'instance)
+  - `run()`, `join()`, `detach()`, `id()`, `sleep()`, `current_id()`
+- **Mutex** — Synchronisation thread-safe (classe d'instance)
+  - `lock()`, `unlock()`, `try_lock()`
+
+#### Tests
+
+- **UnitTest** — Assertions pour tests unitaires (classe statique)
+  - `assertEquals()`, `assertNotEquals()`, `assertTrue()`, `assertFalse()`, `assertNull()`, `assertNotNull()`, `assertGreater()`, `assertLess()`
+
+**Utilisation :**
+
+```ocara
+import ocara.DateTime
+import ocara.IO
+import ocara.Convert
+
+function main(): void {
+    var now:int = DateTime::now()
+    var date:string = DateTime::from_timestamp(now)
+    IO::writeln("Date actuelle : " + date)
+    
+    var year:int = DateTime::year(now)
+    IO::writeln("Année : " + Convert::int_to_str(year))
+}
+```
+
+**Documentation détaillée :** Voir `docs/builtins/` pour la documentation complète de chaque classe.
 
 ---
 
