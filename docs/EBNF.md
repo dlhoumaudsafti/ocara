@@ -72,12 +72,12 @@ Chaque fichier suit strictement l'ordre suivant :
 
 ```
 Program ::= ImportDecl*
-            ( ConstDecl | ClassDecl | InterfaceDecl | FuncDecl )*
+            ( ConstDecl | ClassDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
 ```
 
 **Contraintes d'ordre :**
 - Les imports sont toujours en tête de fichier.
-- Les déclarations de constantes, classes, interfaces et fonctions peuvent être dans n'importe quel ordre entre elles.
+- Les déclarations de constantes, classes, modules, interfaces et fonctions peuvent être dans n'importe quel ordre entre elles.
 - Il n'existe pas de code de niveau module exécutable hors d'une fonction.
 
 ---
@@ -663,15 +663,17 @@ PostfixTail  ::= "." Identifier ( "(" ArgList? ")" )?
 
 PrimaryExpr  ::= Literal
                | "self"
-               | "use" Identifier "(" ArgList? ")"
-               | Identifier "::" Identifier "(" ArgList? ")"
-               | Identifier "::" Identifier
-               | Identifier
+               | NewExpr
+               | StaticCall
+               | StaticConst
                | MatchExpr
+               | NamelessExpr
                | ArrayLiteral
                | MapLiteral
                | "(" Expression ")"
-               | NamelessExpr
+               | Identifier
+
+NewExpr      ::= "use" Identifier "(" ArgList? ")"
 
 NamelessExpr ::= "nameless" "(" ParamList? ")" ( ":" Type )? Block
 
@@ -1331,7 +1333,7 @@ class Validator {
 
 ---
 
-## 19. Conditions
+## 20. Conditions
 
 ```ebnf
 IfStmt ::= "if" Expression Block
@@ -1351,7 +1353,7 @@ if x > 0 {
 
 ---
 
-## 20. Switch
+## 21. Switch
 
 ```ebnf
 SwitchStmt  ::= "switch" Expression "{" SwitchCase* DefaultCase? "}"
@@ -1380,7 +1382,7 @@ switch code {
 
 ---
 
-## 21. Match (expression)
+## 22. Match (expression)
 
 ```ebnf
 MatchExpr ::= "match" PostfixExpr "{" MatchArm+ "}"
@@ -1438,7 +1440,7 @@ scoped desc:string = match user.age:int {
 
 ---
 
-## 22. Boucles
+## 23. Boucles
 
 ### 22.1 While
 
@@ -1531,7 +1533,7 @@ for i in 0..10 {
 
 ---
 
-## 23. Gestion des erreurs
+## 24. Gestion des erreurs
 
 ```ebnf
 TryStmt  ::= "try" Block OnClause+
@@ -1606,7 +1608,7 @@ try {
 
 ---
 
-## 24. Résolution des noms
+## 25. Résolution des noms
 
 L'ordre de résolution strict est le suivant (priorité décroissante) :
 
@@ -1623,7 +1625,7 @@ Un import ne peut jamais écraser un symbole local existant.
 
 ---
 
-## 25. Grammaire EBNF complète
+## 26. Grammaire EBNF complète
 
 > Notation : `*` = zéro ou plus, `+` = un ou plus, `?` = optionnel, `|` = alternative, `( )` = groupement.
 
@@ -1631,7 +1633,7 @@ Un import ne peut jamais écraser un symbole local existant.
 (* ── Programme ─────────────────────────────────────────────────── *)
 
 Program     ::= ImportDecl*
-                ( ConstDecl | ClassDecl | InterfaceDecl | FuncDecl )*
+                ( ConstDecl | ClassDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
 
 (* ── Imports ────────────────────────────────────────────────────── *)
 
@@ -1643,6 +1645,7 @@ ModulePath  ::= Identifier ( "." Identifier )*
 ConstDecl   ::= "const" Identifier ":" Type "=" Expression
 ClassDecl   ::= "class" Identifier
                 ( "extends" Identifier )?
+                ( "modules" Identifier ( "," Identifier )* )?
                 ( "implements" Identifier ( "," Identifier )* )?
                 ClassBody
 InterfaceDecl ::= "interface" Identifier "{" InterfaceMethod* "}"
@@ -1669,12 +1672,14 @@ Param       ::= Identifier ":" Type
 
 (* ── Types ──────────────────────────────────────────────────────── *)
 
-Type        ::= "int" | "float" | "string" | "bool" | "mixed" | "void" | "Function"
+Type        ::= "int" | "float" | "string" | "bool" | "mixed" | "void"
+              | FunctionType
               | ArrayType
               | MapType
               | QualifiedType
               | UnionType
               | Identifier
+FunctionType  ::= "Function" "<" Type ">"
 ArrayType   ::= Type "[]"
 MapType     ::= "map" "<" Type "," Type ">"
 QualifiedType ::= Identifier ( "." Identifier )+
@@ -1744,6 +1749,7 @@ PrimaryExpr ::= Literal
               | "self"
               | NewExpr
               | StaticCall
+              | StaticConst
               | MatchExpr
               | NamelessExpr
               | ArrayLiteral
@@ -1771,7 +1777,7 @@ MatchPattern ::= Literal
 
 (* ── Littéraux ──────────────────────────────────────────────────── *)
 
-Literal     ::= Integer | Float | String | Boolean
+Literal     ::= Integer | Float | String | TemplateString | Boolean | "null"
 Integer     ::= Digit+
 Float       ::= Digit+ "." Digit+
 String      ::= '"' ( EscapeSeq | [^"\n] )* '"'
