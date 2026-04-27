@@ -622,7 +622,30 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 return dest;
             }
 
-            let arg_vals: Vec<Value> = args.iter().map(|a| lower_expr(builder, a)).collect();
+            // Boxer F64/Bool si le paramètre cible est `mixed` (Ptr)
+            let param_types = builder.fn_param_types.get(func_name.as_str()).cloned();
+            let arg_vals: Vec<Value> = args.iter().enumerate().map(|(i, a)| {
+                let raw = lower_expr(builder, a);
+                let arg_ty = expr_ir_type(builder, a);
+                let param_ty = param_types.as_ref().and_then(|pts| pts.get(i)).cloned();
+                if param_ty == Some(IrType::Ptr) {
+                    match arg_ty {
+                        IrType::F64 => {
+                            let d = builder.new_value();
+                            builder.emit(Inst::Call { dest: Some(d.clone()), func: "__box_float".into(), args: vec![raw], ret_ty: IrType::Ptr });
+                            d
+                        }
+                        IrType::Bool => {
+                            let d = builder.new_value();
+                            builder.emit(Inst::Call { dest: Some(d.clone()), func: "__box_bool".into(), args: vec![raw], ret_ty: IrType::Ptr });
+                            d
+                        }
+                        _ => raw,
+                    }
+                } else {
+                    raw
+                }
+            }).collect();
             let dest = builder.new_value();
             builder.emit(Inst::Call {
                 dest:   Some(dest.clone()),
@@ -1304,7 +1327,29 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
         }
 
         Expr::IsCheck { expr, ty, .. } => {
-            // Test de type runtime : `val is int` → bool
+            // Shortcut statique pour `is float` :
+            // Les floats directs (f64 bits dans i64) ne portent aucun tag runtime
+            // distinguable d'un int. On exploite le type statique connu à la compilation.
+            if matches!(ty, Type::Float) {
+                let static_ty = expr_ir_type(builder, expr);
+                match static_ty {
+                    IrType::F64 => {
+                        // Statiquement float → toujours vrai
+                        let dest = builder.new_value();
+                        builder.emit(Inst::ConstBool { dest: dest.clone(), value: true });
+                        return dest;
+                    }
+                    IrType::I64 | IrType::Bool => {
+                        // Statiquement int/bool → jamais un float
+                        let dest = builder.new_value();
+                        builder.emit(Inst::ConstBool { dest: dest.clone(), value: false });
+                        return dest;
+                    }
+                    _ => {
+                        // Ptr (mixed) → fallback runtime : détecte les floats boxés
+                    }
+                }
+            }
             let val = lower_expr(builder, expr);
             lower_is_check(builder, &val, ty)
         }

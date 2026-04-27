@@ -260,15 +260,26 @@ function divide(a:int, b:int): int|float {
 
 **Type narrowing (raffinement de type) :**
 
-Ocara v0.1.0 supporte le narrowing via l'opérateur `is` dans les expressions `match` et les conditions :
+Ocara v0.1.0 supporte le narrowing via l'opérateur `is` dans les expressions `match` et les conditions, pour **tous les types** :
 
 ```ocara
-// Narrowing dans match
-function process(val:int|string|null): void {
+// Narrowing dans match — tous les types supportés
+class Animal {
+    public property name:string
+    init(n:string) { self.name = n }
+}
+
+function describe(val:mixed): void {
     match val {
-        is null   => IO::writeln("Valeur nulle")
-        is int    => IO::writeln("Entier")
-        is string => IO::writeln("Chaîne")
+        is null             => IO::writeln("null")
+        is int              => IO::writeln("int")
+        is float            => IO::writeln("float")
+        is string           => IO::writeln("string")
+        is int[]            => IO::writeln("array")
+        is map<string, int> => IO::writeln("map")
+        is Animal           => IO::writeln("object Animal")
+        is Function<int>    => IO::writeln("Function")
+        default             => IO::writeln("inconnu")
     }
 }
 
@@ -277,31 +288,48 @@ function get_length(s:string|null): int {
     if s is null {
         return 0
     }
-    // Ici, s est automatiquement raffiné en string (non-null)
     return String::len(s)
 }
 
 // Expression is retournant bool
 var is_null:bool = val is null
 var is_int:bool = val is int
+var is_str:bool = val is string
+var is_arr:bool = val is int[]
+var is_map:bool = val is map<string, int>
+var is_obj:bool = val is Animal
+var is_fn:bool  = val is Function<int>
 ```
 
 **Implémentation du type checking runtime :**
 
-Le type narrowing utilise des heuristiques basées sur les représentations mémoire :
+Toutes les allocations heap (string, array, map, objet, fat-pointer) sont précédées d'un **header de 8 octets** contenant un tag de type. `is Type` lit ce tag pour une discrimination exacte.
 
-- `is null` : teste si `val == 0` ✓ précis
-- `is int` : teste si `val` est dans la plage des petits entiers (< 65536 et != 0) ✓ précis pour les cas usuels
-- `is string` / `is array` / `is map` / `is object` / `is Function` : teste si `val >= 65536` (pointeur) ✓ précis
-- `is bool` : teste si `val == 0` ou `val == 1` ⚠️ conservateur (peut confondre avec de petits int)
-- `is float` : non distinguable sans boxing ❌ retourne toujours false
+| Opérateur | Mécanisme | Précision |
+|-----------|-----------|-----------|
+| `is null` | teste `val == 0` | ✓ précis |
+| `is int` | teste `val != 0 && val < 65536` | ✓ précis pour les cas usuels |
+| `is float` | shortcut statique à la compilation (type connu) | ✓ précis statiquement |
+| `is bool` | teste `val == 0 \|\| val == 1` | ⚠️ peut confondre avec int 0 et 1 |
+| `is string` | lit le tag header : `TAG_STRING` (1) | ✓ précis |
+| `is T[]` | lit le tag header : `TAG_ARRAY` (2) | ✓ précis |
+| `is map<K,V>` | lit le tag header : `TAG_MAP` (3) | ✓ précis |
+| `is ClassName` | lit le tag header : `TAG_OBJECT` (4) | ✓ précis |
+| `is Function<T>` | lit le tag header : `TAG_FUNCTION` (5) | ✓ précis |
+
+**Schéma mémoire avec header :**
+
+```
+[tag: i64 — 8 octets]  [données...]
+                        ^
+                        pointeur retourné au code Ocara
+```
 
 **Limitations actuelles (v0.1.0) :**
 
-- Les types `float` ne peuvent pas être distingués des `int` sans un système de boxing avec tags (retourne toujours `false`)
-- Les `bool` peuvent être confondus avec les `int` 0 et 1
-- Le narrowing fonctionne mieux avec les types union simples : `T|null`, `int|string`, etc.
-- Pour les unions complexes (3+ variantes), les heuristiques peuvent donner des faux positifs entre types primitifs
+- `is float` fonctionne uniquement quand le type est connu **statiquement** à la compilation. Dans un contexte `mixed` dynamique, seuls les floats explicitement boxés (via `__box_float`) sont détectables.
+- `is bool` peut être confondu avec les `int` 0 et 1.
+- `is ClassName` vérifie seulement que la valeur est une instance d'**un** objet (tag `TAG_OBJECT`), sans distinguer les classes entre elles. Pour un narrowing fin par classe, utiliser les patterns dans `on … is ClassName` dans les blocs `try/on`.
 
 ### 4.4 Annotation de type
 

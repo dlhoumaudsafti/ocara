@@ -246,6 +246,8 @@ pub const BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__ocara_unhandled_fail", params: &[clt::I64],                        returns: None,              module: None },
     // Allocation d'objet tas (toujours disponible)
     BuiltinDesc { name: "__alloc_obj",            params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__alloc_class_obj",      params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__alloc_fat_ptr",        params: &[],                                returns: Some(clt::I64),    module: None },
     // Conversion string — sans heuristique pointeur
     BuiltinDesc { name: "__str_from_int",         params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__array_to_str",         params: &[clt::I64],                        returns: Some(clt::I64),    module: None },

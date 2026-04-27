@@ -22,7 +22,8 @@
 
 #![allow(clippy::missing_safety_doc)]
 
-use std::alloc::{alloc, Layout};
+use std::alloc::{alloc, alloc_zeroed, Layout};
+use crate::typecheck::{TAG_STRING, TAG_ARRAY, TAG_MAP, TAG_OBJECT, TAG_FUNCTION};
 use std::ffi::CStr;
 use std::io::{self, BufRead};
 use std::process::Command;
@@ -113,12 +114,19 @@ pub mod typecheck;
 /// Alignement 8 pour garantir que les 3 bits bas sont 0 (invariant boxing).
 pub(crate) unsafe fn alloc_str(s: &str) -> i64 {
     let bytes = s.as_bytes();
-    let layout = Layout::from_size_align(bytes.len() + 1, 8).unwrap();
-    let ptr = alloc(layout);
-    assert!(!ptr.is_null(), "ocara_runtime: OOM");
-    std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr, bytes.len());
-    *ptr.add(bytes.len()) = 0u8;
-    ptr as i64
+    // 8 octets header (tag) + données + null-terminator
+    let total = 8 + bytes.len() + 1;
+    let layout = Layout::from_size_align(total, 8).unwrap();
+    let raw = alloc(layout);
+    assert!(!raw.is_null(), "ocara_runtime: OOM");
+    // Écrire le tag dans le header
+    *(raw as *mut i64) = TAG_STRING;
+    // Copier les données de la chaîne après le header
+    let data = raw.add(8);
+    std::ptr::copy_nonoverlapping(bytes.as_ptr(), data, bytes.len());
+    *data.add(bytes.len()) = 0u8;
+    // Retourner le pointeur APRÈS le header (= pointeur vers les données)
+    (raw as i64) + 8
 }
 
 /// Lit un pointeur i64 comme &str (null-terminated UTF-8).
@@ -201,7 +209,16 @@ struct OcaraMap {
 }
 
 fn new_array() -> i64 {
-    Box::into_raw(Box::new(OcaraArray { data: Vec::new() })) as i64
+    unsafe {
+        let size = std::mem::size_of::<OcaraArray>();
+        let layout = Layout::from_size_align(8 + size, 8).unwrap();
+        let raw = alloc(layout);
+        assert!(!raw.is_null(), "ocara_runtime: OOM (array)");
+        *(raw as *mut i64) = TAG_ARRAY;
+        let arr_ptr = raw.add(8) as *mut OcaraArray;
+        std::ptr::write(arr_ptr, OcaraArray { data: Vec::new() });
+        (raw as i64) + 8
+    }
 }
 
 #[no_mangle]
@@ -216,7 +233,16 @@ pub extern "C" fn __array_push(ptr: i64, val: i64) {
 }
 
 pub(crate) fn new_map() -> i64 {
-    Box::into_raw(Box::new(OcaraMap { data: Vec::new() })) as i64
+    unsafe {
+        let size = std::mem::size_of::<OcaraMap>();
+        let layout = Layout::from_size_align(8 + size, 8).unwrap();
+        let raw = alloc(layout);
+        assert!(!raw.is_null(), "ocara_runtime: OOM (map)");
+        *(raw as *mut i64) = TAG_MAP;
+        let map_ptr = raw.add(8) as *mut OcaraMap;
+        std::ptr::write(map_ptr, OcaraMap { data: Vec::new() });
+        (raw as i64) + 8
+    }
 }
 
 unsafe fn array_ref(ptr: i64) -> &'static mut OcaraArray {
@@ -1456,16 +1482,45 @@ pub extern "C" fn __ocara_unhandled_fail(val: i64) {
     std::process::exit(1);
 }
 
-/// Alloue `size` octets sur le tas (alignement 8) et retourne le pointeur en i64.
-/// Utilisé par Inst::Alloc pour garantir que les objets survivent à longjmp.
+/// Alloue `size` octets sans tag — pour les closures env et allocations internes.
 #[no_mangle]
 pub extern "C" fn __alloc_obj(size: i64) -> i64 {
     if size <= 0 { return 0; }
     unsafe {
-        let layout = std::alloc::Layout::from_size_align(size as usize, 8).unwrap();
-        let ptr = std::alloc::alloc_zeroed(layout);
+        let layout = Layout::from_size_align(size as usize, 8).unwrap();
+        let ptr = alloc_zeroed(layout);
         assert!(!ptr.is_null(), "ocara_runtime: OOM in __alloc_obj");
         ptr as i64
+    }
+}
+
+/// Alloue une instance de classe utilisateur avec tag TAG_OBJECT.
+/// Le pointeur retourné pointe APRÈS le header de 8 octets.
+#[no_mangle]
+pub extern "C" fn __alloc_class_obj(size: i64) -> i64 {
+    if size <= 0 { return 0; }
+    unsafe {
+        let total = (size as usize) + 8;
+        let layout = Layout::from_size_align(total, 8).unwrap();
+        let raw = alloc_zeroed(layout);
+        assert!(!raw.is_null(), "ocara_runtime: OOM in __alloc_class_obj");
+        *(raw as *mut i64) = TAG_OBJECT;
+        (raw as i64) + 8
+    }
+}
+
+/// Alloue un fat pointer (Function) avec tag TAG_FUNCTION.
+/// 16 octets de données : {func_ptr: i64, env_ptr: i64}.
+/// Le pointeur retourné pointe APRÈS le header de 8 octets.
+#[no_mangle]
+pub extern "C" fn __alloc_fat_ptr() -> i64 {
+    unsafe {
+        let total = 8 + 16; // header + func_ptr + env_ptr
+        let layout = Layout::from_size_align(total, 8).unwrap();
+        let raw = alloc_zeroed(layout);
+        assert!(!raw.is_null(), "ocara_runtime: OOM in __alloc_fat_ptr");
+        *(raw as *mut i64) = TAG_FUNCTION;
+        (raw as i64) + 8
     }
 }
 
