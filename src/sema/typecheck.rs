@@ -370,8 +370,8 @@ impl<'a> TypeChecker<'a> {
                     return Type::Named(name.clone());
                 }
                 // 4. référence à une fonction libre (sans appel)
-                if self.symbols.lookup_function(name).is_some() {
-                    return Type::Function;
+                if let Some(sig) = self.symbols.lookup_function(name) {
+                    return Type::Function(Box::new(sig.ret_ty.clone()));
                 }
                 self.errors.push(SemaError::UndefinedSymbol {
                     name: name.clone(),
@@ -411,10 +411,11 @@ impl<'a> TypeChecker<'a> {
                 // Appel indirect : variable locale de type Function
                 if let Expr::Ident(name, _) = callee.as_ref() {
                     if let Some(b) = self.scopes.lookup(name) {
-                        if b.ty == Type::Function {
+                        if let Type::Function(ret_ty) = &b.ty {
+                            let ret = ret_ty.as_ref().clone();
                             self.scopes.mark_used(name);
                             for arg in args { self.infer_expr(arg); }
-                            return Type::Mixed;
+                            return ret;
                         }
                     }
                 }
@@ -543,7 +544,7 @@ impl<'a> TypeChecker<'a> {
                 };
                 if let Some(sig) = self.symbols.lookup_method_in_chain(&resolved, name) {
                     if sig.is_static {
-                        return Type::Function;
+                        return Type::Function(Box::new(sig.ret_ty.clone()));
                     }
                 }
                 self.errors.push(SemaError::UndefinedSymbol {
@@ -656,11 +657,11 @@ impl<'a> TypeChecker<'a> {
                 // pour que les `return` internes soient vérifiés contre le bon type
                 let saved_ret = self.current_ret.take();
                 let closure_ret = ret_ty.as_ref().cloned().unwrap_or(Type::Void);
-                self.current_ret = Some(closure_ret);
+                self.current_ret = Some(closure_ret.clone());
                 self.check_block(body);
                 self.current_ret = saved_ret;
                 { let _u = self.scopes.pop_with_warnings(); self.flush_warnings(_u); }
-                Type::Function
+                Type::Function(Box::new(closure_ret))
             }
         }
     }
@@ -704,7 +705,7 @@ pub fn type_name(ty: &Type) -> String {
         Type::Array(inner)     => format!("{}[]", type_name(inner)),
         Type::Map(k, v)        => format!("map<{},{}>", type_name(k), type_name(v)),
         Type::Union(variants)  => variants.iter().map(type_name).collect::<Vec<_>>().join("|"),
-        Type::Function         => "Function".into(),
+        Type::Function(ret_ty) => format!("Function<{}>", type_name(ret_ty)),
     }
 }
 
@@ -732,6 +733,7 @@ pub fn types_compat(found: &Type, expected: &Type) -> bool {
         (Type::Array(f), Type::Array(e)) => types_compat(f, e),
         (Type::Map(fk, fv), Type::Map(ek, ev)) =>
             types_compat(fk, ek) && types_compat(fv, ev),
+        (Type::Function(f_ret), Type::Function(e_ret)) => types_compat(f_ret, e_ret),
         _ => found == expected,
     }
 }

@@ -30,6 +30,8 @@ pub struct LowerBuilder<'m> {
     pub loop_stack: Vec<(BlockId, BlockId)>,
     /// Variables de type Function (pointeurs de fonction) — pour CallIndirect
     pub func_vars: HashSet<String>,
+    /// Type de retour des variables Function<ReturnType> — pour CallIndirect
+    pub func_ret_types: HashMap<String, IrType>,
     /// Variables capturées par une closure — accès via GetField/SetField sur __env
     /// (env_ptr: Value, index: usize, type: IrType)
     pub captured_vars: HashMap<String, (Value, usize, IrType)>,
@@ -58,6 +60,7 @@ impl<'m> LowerBuilder<'m> {
             current_class: None,
             loop_stack: Vec::new(),
             func_vars: HashSet::new(),
+            func_ret_types: HashMap::new(),
             captured_vars: HashMap::new(),
             heap_promoted: HashSet::new(),
         }
@@ -396,8 +399,9 @@ pub fn lower_func(module: &mut IrModule, func: &FuncDecl, consts: &[crate::ast::
             builder.map_vars.insert(param.name.clone());
         }
         // Marquer les paramètres de type Function pour CallIndirect
-        if let crate::ast::Type::Function = &param.ty {
+        if let crate::ast::Type::Function(ret_ty) = &param.ty {
             builder.func_vars.insert(param.name.clone());
+            builder.func_ret_types.insert(param.name.clone(), IrType::from_ast(ret_ty));
         }
         // Slot alloca qui recevra la valeur du paramètre
         let alloca_slot = builder.declare_local(&param.name, ir_ty.clone(), false);

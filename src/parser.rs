@@ -211,9 +211,12 @@ impl Parser {
 
             TokenKind::Ident(name) => {
                 self.advance();
-                // `Function` est un type de première classe
+                // `Function<ReturnType>` est un type de première classe avec retour typé
                 if name == "Function" {
-                    return Ok(Type::Function);
+                    self.eat(&TokenKind::Lt)?;
+                    let ret_ty = self.parse_type()?;
+                    self.eat(&TokenKind::Gt)?;
+                    return Ok(Type::Function(Box::new(ret_ty)));
                 }
                 if self.check_exact(&TokenKind::Dot) {
                     let mut parts = vec![name];
