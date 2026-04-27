@@ -1,6 +1,6 @@
 # Time
 
-Classe builtin `ocara.Time` — manipulation d'heures (sans date).
+Classe de la bibliothèque runtime `ocara.Time` — manipulation d'heures (sans date).
 
 `Time` est une **classe statique** : toutes les méthodes sont appelées directement sur la classe (par exemple `Time::now()`).
 

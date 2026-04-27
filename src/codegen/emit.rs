@@ -144,7 +144,11 @@ impl CraneliftEmitter {
             let name = format!("__str_{}", i);
             let mut desc = DataDescription::new();
             desc.set_align(8); // align 8 pour garantir bits bas = 000 (invariant boxing)
-            let mut bytes = s.as_bytes().to_vec();
+            // Header de 8 octets : TAG_STRING = 1 (little-endian i64)
+            // Suivi des données de la chaîne null-terminated.
+            // Le pointeur retourné à Ocara pointe APRÈS ce header.
+            let mut bytes: Vec<u8> = vec![1, 0, 0, 0, 0, 0, 0, 0]; // TAG_STRING
+            bytes.extend_from_slice(s.as_bytes());
             bytes.push(0); // null-terminated
             desc.define(bytes.into_boxed_slice());
             let data_id = self.module
@@ -326,12 +330,17 @@ fn emit_inst(
         }
         Inst::ConstStr { dest, idx } => {
             // Résolution de l'adresse réelle du symbole de données __str_N
+            // Le premier mot (8 octets) est le header TAG_STRING ; les données
+            // commencent à l'offset +8. On retourne l'adresse +8.
             let name = format!("__str_{}", idx);
             let data_id = module
                 .declare_data(&name, Linkage::Local, false, false)
                 .map_err(|e| CodegenError(format!("declare_data({}): {}", name, e)))?;
-            let gv = module.declare_data_in_func(data_id, builder.func);
-            let ptr = builder.ins().global_value(clt::I64, gv);
+            let gv  = module.declare_data_in_func(data_id, builder.func);
+            let raw = builder.ins().global_value(clt::I64, gv);
+            // Sauter le header de 8 octets pour pointer vers les données
+            let eight = builder.ins().iconst(clt::I64, 8);
+            let ptr   = builder.ins().iadd(raw, eight);
             def!(dest, ptr);
         }
 
@@ -567,24 +576,44 @@ fn emit_inst(
         }
 
         Inst::Alloc { dest, class } => {
-            // Alloue n_fields * 8 octets sur le TAS via __alloc_obj.
-            // L'allocation tas est obligatoire pour les objets passés à `fail` :
-            // longjmp dépilement la pile du corps try, un objet pile deviendrait dangling.
-            let n_fields = if class == "__fat_ptr" {
-                2  // {func_ptr, env_ptr} — 16 octets
+            // Dispatch selon la nature de l'allocation :
+            //   "__fat_ptr"     → __alloc_fat_ptr()      (TAG_FUNCTION, sans arg)
+            //   "__env_*" / "__*" → __alloc_obj(size)    (interne, sans tag)
+            //   classe utilisateur → __alloc_class_obj(size) (TAG_OBJECT)
+            if class == "__fat_ptr" {
+                // Fat pointer : {func_ptr, env_ptr} — taille fixe 16 octets
+                let alloc_fid = func_ids.get("__alloc_fat_ptr")
+                    .copied()
+                    .expect("__alloc_fat_ptr non déclaré");
+                let fref = module.declare_func_in_func(alloc_fid, builder.func);
+                let call = builder.ins().call(fref, &[]);
+                let ptr  = builder.inst_results(call)[0];
+                def!(dest, ptr);
+            } else if class.starts_with("__") {
+                // Allocations internes (closure envs, etc.) — sans tag
+                let n_fields = class_layouts.get(class.as_str()).map(|f| f.len()).unwrap_or(1);
+                let size     = (n_fields as i64) * 8;
+                let size_val = builder.ins().iconst(clt::I64, size);
+                let alloc_fid = func_ids.get("__alloc_obj")
+                    .copied()
+                    .expect("__alloc_obj non déclaré");
+                let fref = module.declare_func_in_func(alloc_fid, builder.func);
+                let call = builder.ins().call(fref, &[size_val]);
+                let ptr  = builder.inst_results(call)[0];
+                def!(dest, ptr);
             } else {
-                class_layouts.get(class.as_str()).map(|f| f.len()).unwrap_or(1)
-            };
-            let size = (n_fields as i64) * 8;
-            let size_val = builder.ins().iconst(clt::I64, size);
-            // Appel __alloc_obj(size) → ptr heap
-            let alloc_fid = func_ids.get("__alloc_obj")
-                .copied()
-                .expect("__alloc_obj non déclaré");
-            let fref = module.declare_func_in_func(alloc_fid, builder.func);
-            let call = builder.ins().call(fref, &[size_val]);
-            let ptr  = builder.inst_results(call)[0];
-            def!(dest, ptr);
+                // Instance de classe utilisateur — TAG_OBJECT
+                let n_fields = class_layouts.get(class.as_str()).map(|f| f.len()).unwrap_or(1);
+                let size     = (n_fields as i64) * 8;
+                let size_val = builder.ins().iconst(clt::I64, size);
+                let alloc_fid = func_ids.get("__alloc_class_obj")
+                    .copied()
+                    .expect("__alloc_class_obj non déclaré");
+                let fref = module.declare_func_in_func(alloc_fid, builder.func);
+                let call = builder.ins().call(fref, &[size_val]);
+                let ptr  = builder.inst_results(call)[0];
+                def!(dest, ptr);
+            }
         }
         Inst::SetField { obj, field: _, src, offset } => {
             let o = use_var!(obj);

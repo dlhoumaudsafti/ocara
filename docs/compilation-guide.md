@@ -188,9 +188,9 @@ make build
 
 ---
 
-## 6. Classes builtins
+## 6. Bibliothèque standard runtime
 
-Les classes builtins sont disponibles via `import ocara.<Classe>` ou `import ocara.*`.
+Les classes de la bibliothèque standard runtime sont disponibles via `import ocara.<Classe>` ou `import ocara.*`.
 
 | Classe | Import | Description |
 |--------|--------|-------------|

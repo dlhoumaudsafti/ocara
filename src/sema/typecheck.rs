@@ -663,6 +663,12 @@ impl<'a> TypeChecker<'a> {
                 { let _u = self.scopes.pop_with_warnings(); self.flush_warnings(_u); }
                 Type::Function(Box::new(closure_ret))
             }
+
+            Expr::IsCheck { expr, ty: _, span: _ } => {
+                // Test de type runtime : `val is int` retourne toujours bool
+                self.infer_expr(expr);
+                Type::Bool
+            }
         }
     }
 }

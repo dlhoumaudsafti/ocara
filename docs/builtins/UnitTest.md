@@ -1,6 +1,6 @@
 # ocara.UnitTest
 
-> Classe builtin pour l'écriture de tests unitaires en Ocara.  
+> Classe de la bibliothèque runtime pour l'écriture de tests unitaires en Ocara.  
 > Utilisée conjointement avec l'outil `ocaraunit`.
 
 ---

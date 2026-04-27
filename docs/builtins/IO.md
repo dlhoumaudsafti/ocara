@@ -1,4 +1,4 @@
-# `ocara.IO` — Classe builtin
+# `ocara.IO` — Classe de la bibliothèque runtime
 
 > Classe d'entrées/sorties standard.  
 > Toutes les méthodes sont **statiques** : elles s'appellent via `IO::<méthode>(args)`.
@@ -9,7 +9,7 @@
 
 ```ocara
 import ocara.IO        // importe uniquement IO
-import ocara.*         // importe toutes les classes builtins
+import ocara.*         // importe toutes les classes de la bibliothèque runtime
 ```
 
 ---

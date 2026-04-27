@@ -23,10 +23,10 @@ ocaracs mon_fichier.oc
 ocaracs examples/
 
 # Suivre les imports automatiquement
-ocaracs main.oc      # analyse main.oc + tous ses imports utilisateur
+ocaracs main.oc      # analyse main.oc + tous ses imports utilisateur (hors bibliothèque runtime)
 ```
 
-`ocaracs` suit les `import` utilisateur (non-builtins) récursivement et déduplique les fichiers déjà analysés.
+`ocaracs` suit les `import` utilisateur (non-runtime) récursivement et déduplique les fichiers déjà analysés.
 
 ---
 
