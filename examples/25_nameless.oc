@@ -15,15 +15,15 @@ import ocara.IO
 
 // ── Fonctions d'ordre supérieur ───────────────────────────────────────────────
 
-function apply(f:Function, n:int): int {
+function apply(f:Function<int>, n:int): int {
     return f(n)
 }
 
-function run(f:Function): void {
+function run(f:Function<void>): void {
     f()
 }
 
-function times(f:Function, n:int): void {
+function times(f:Function<void>, n:int): void {
     var i:int = 0
     while i < n {
         f()
@@ -42,7 +42,7 @@ class Counter {
     }
 
     // Retourne une closure qui incrémente self.value de `step` à chaque appel
-    public method make_incrementer(step:int): Function {
+    public method make_incrementer(step:int): Function<void> {
         return nameless(): void {
             self.value = self.value + step
             IO::writeln(self.value)
@@ -50,7 +50,7 @@ class Counter {
     }
 
     // Retourne une closure qui multiplie self.value par `factor`
-    public method make_multiplier(factor:int): Function {
+    public method make_multiplier(factor:int): Function<void> {
         return nameless(): void {
             self.value = self.value * factor
             IO::writeln(self.value)
@@ -62,14 +62,14 @@ class Counter {
 function main(): int {
 
     // ── Closure simple sans capture ──────────────────────────────────────────
-    var greet:Function = nameless(): void {
+    var greet:Function<void> = nameless(): void {
         IO::writeln("hello from nameless")
     }
     greet()                        // hello from nameless
 
 
-    // ── Closure avec paramètre ───────────────────────────────────────────────
-    var double:Function = nameless(x:int): int {
+    // ── Closure avec paramètre ─────────────────────────────────────────────
+    var double:Function<int> = nameless(x:int): int {
         return x * 2
     }
     IO::writeln(double(7))         // 14
@@ -78,7 +78,7 @@ function main(): int {
 
     // ── Capture d'une variable locale ────────────────────────────────────────
     var step:int = 3
-    var adder:Function = nameless(x:int): int {
+    var adder:Function<int> = nameless(x:int): int {
         return x + step            // `step` capturé depuis la portée englobante
     }
     IO::writeln(adder(10))         // 13
@@ -88,7 +88,7 @@ function main(): int {
     // ── Capture de plusieurs variables ───────────────────────────────────────
     var base:int = 100
     var coeff:int = 2
-    var transform:Function = nameless(x:int): int {
+    var transform:Function<int> = nameless(x:int): int {
         return base + x * coeff   // `base` et `coeff` capturés
     }
     IO::writeln(transform(5))      // 110
@@ -97,7 +97,7 @@ function main(): int {
 
     // ── Passage d'une closure à une fonction d'ordre supérieur ───────────────
     var multiplier:int = 4
-    var scale:Function = nameless(x:int): int {
+    var scale:Function<int> = nameless(x:int): int {
         return x * multiplier
     }
     IO::writeln(apply(scale, 3))   // 12
@@ -105,7 +105,7 @@ function main(): int {
 
 
     // ── Closure void répétée avec times() ────────────────────────────────────
-    var tick:Function = nameless(): void {
+    var tick:Function<void> = nameless(): void {
         IO::writeln("tick")
     }
     times(tick, 3)
@@ -116,7 +116,7 @@ function main(): int {
 
     // ── Closure capturant self dans une méthode ───────────────────────────────
     scoped c:Counter = use Counter(0)
-    var inc:Function = c.make_incrementer(5)
+    var inc:Function<void> = c.make_incrementer(5)
     run(inc)                       // 5
     run(inc)                       // 10
     run(inc)                       // 15
@@ -124,8 +124,8 @@ function main(): int {
 
     // ── Deux closures indépendantes sur le même objet ─────────────────────────
     scoped d:Counter = use Counter(1)
-    var by2:Function = d.make_multiplier(2)
-    var by3:Function = d.make_multiplier(3)
+    var by2:Function<void> = d.make_multiplier(2)
+    var by3:Function<void> = d.make_multiplier(3)
     run(by2)                       // 2  (1 * 2)
     run(by3)                       // 6  (2 * 3)
     run(by2)                       // 12 (6 * 2)

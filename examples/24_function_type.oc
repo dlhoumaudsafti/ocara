@@ -2,13 +2,15 @@
 // Exemple 24 — Type Function (fonctions de première classe)
 //
 // Illustre :
-//   - Type `Function` pour annoter une variable ou un paramètre
+//   - Type `Function<ReturnType>` pour annoter une variable ou un paramètre
 //   - Passer une fonction libre comme valeur : execute(maFonction)
 //   - Passer une méthode statique : execute(ClassName::methodeStatique)
 //   - Passer self:: depuis l'intérieur d'une classe
 //   - Appeler une valeur Function : f()  / f(arg)
 // ─────────────────────────────────────────────────────────────────────────────
 import ocara.IO
+import ocara.Array
+import ocara.Map
 
 
 // ── Fonctions libres ─────────────────────────────────────────────────────────
@@ -25,6 +27,29 @@ function greet(): void {
     IO::writeln("hello from Function type")
 }
 
+function get_name(): string {
+    return "Ocara"
+}
+
+function is_positive(n:int): bool {
+    return n > 0
+}
+
+function maybe_value(flag:bool): int|null {
+    if flag {
+        return 42
+    }
+    return null
+}
+
+function make_array(): int[] {
+    return [1, 2, 3]
+}
+
+function make_map(): map<string, int> {
+    return {"a": 10, "b": 20}
+}
+
 
 // ── Classe avec méthodes statiques ───────────────────────────────────────────
 
@@ -39,7 +64,7 @@ class MathOp {
     }
 
     // Appelle une opération passée en paramètre via self::
-    public static method apply_twice(f:Function, n:int): int {
+    public static method apply_twice(f:Function<int>, n:int): int {
         var a:int = f(n)
         return f(a)
     }
@@ -48,11 +73,11 @@ class MathOp {
 
 // ── Fonctions d'ordre supérieur ───────────────────────────────────────────────
 
-function apply(f:Function, n:int): int {
+function apply(f:Function<int>, n:int): int {
     return f(n)
 }
 
-function run(f:Function): void {
+function run(f:Function<void>): void {
     f()
 }
 
@@ -60,10 +85,10 @@ function run(f:Function): void {
 function main(): int {
 
     // ── Référence à une fonction libre ────────────────────────────────────────
-    var f:Function = double
+    var f:Function<int> = double
     IO::writeln(f(5))           // 10
 
-    var g:Function = triple
+    var g:Function<int> = triple
     IO::writeln(g(4))           // 12
 
     // ── Passage en paramètre ──────────────────────────────────────────────────
@@ -71,7 +96,7 @@ function main(): int {
     IO::writeln(apply(triple, 7))    // 21
 
     // ── Référence à une méthode statique ─────────────────────────────────────
-    var op:Function = MathOp::square
+    var op:Function<int> = MathOp::square
     IO::writeln(op(6))               // 36
 
     IO::writeln(apply(MathOp::square, 5))   // 25
@@ -82,6 +107,30 @@ function main(): int {
 
     // ── Fonctions sans retour ─────────────────────────────────────────────────
     run(greet)                       // "hello from Function type"
+
+    // ── Fonction retournant string ────────────────────────────────────────────
+    var fname:Function<string> = get_name
+    IO::writeln(fname())             // Ocara
+
+    // ── Fonction retournant bool ──────────────────────────────────────────────
+    var check:Function<bool> = is_positive
+    IO::writeln(check(5))            // true
+    IO::writeln(check(-3))           // false
+
+    // ── Fonction retournant null|int ──────────────────────────────────────────
+    var optional:Function<int|null> = maybe_value
+    IO::writeln(optional(true))      // 42
+    IO::writeln(optional(false))     // null
+
+    // ── Fonction retournant array ─────────────────────────────────────────────
+    var arr_fn:Function<int[]> = make_array
+    var items:int[] = arr_fn()
+    IO::writeln(Array::len(items))   // 3
+
+    // ── Fonction retournant map ───────────────────────────────────────────────
+    var map_fn:Function<map<string, int>> = make_map
+    var data:map<string, int> = map_fn()
+    IO::writeln(Map::size(data))     // 2
 
     return 0
 }

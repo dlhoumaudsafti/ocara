@@ -199,13 +199,14 @@ Type ::= "int"
        | "bool"
        | "mixed"
        | "void"
-       | "Function"
+       | FunctionType
        | ArrayType
        | MapType
        | QualifiedType
        | UnionType
        | Identifier
 
+FunctionType ::= "Function" "<" Type ">"
 ArrayType    ::= Type "[]"
 MapType      ::= "map" "<" Type "," Type ">"
 QualifiedType ::= Identifier ( "." Identifier )+
@@ -269,23 +270,26 @@ function greet(name:string): void { }
 
 ### 4.5 Type `Function`
 
-Le type `Function` représente toute valeur appelable : **fonction libre**, **méthode statique** ou **fonction anonyme** (`nameless`). Les valeurs `Function` sont des *fat pointers* (pointeur de fonction + contexte de capture).
+Le type `Function<ReturnType>` représente toute valeur appelable : **fonction libre**, **méthode statique** ou **fonction anonyme** (`nameless`). Les valeurs `Function` sont des *fat pointers* (pointeur de fonction + contexte de capture).
 
 ```ebnf
-FunctionType ::= "Function"
+FunctionType ::= "Function" "<" Type ">"
 ```
 
 ```ocara
-var f:Function = double                 // référence à une fonction libre
-var g:Function = MathOp::square        // référence à une méthode statique
-var h:Function = nameless(x:int): int { return x * 2 }  // fonction anonyme
+var f:Function<int> = double                 // référence à une fonction libre
+var g:Function<int> = MathOp::square        // référence à une méthode statique
+var h:Function<int> = nameless(x:int): int { return x * 2 }  // fonction anonyme
+var p:Function<void> = nameless(): void { IO::writeln("tick") }
 ```
 
 **Règles :**
 
-- `Function` peut référencer des **fonctions libres**, des **méthodes statiques** et des **fonctions anonymes** (`nameless`).
-- L'appel d'une valeur `Function` utilise la syntaxe d'appel normale : `f(args...)`.
-- Le type de retour et les types de paramètres ne sont **pas** encodés dans `Function` — la compatibilité est vérifiée à l'exécution.
+- `Function<ReturnType>` peut référencer des **fonctions libres**, des **méthodes statiques** et des **fonctions anonymes** (`nameless`).
+- L'appel d'une valeur `Function` utilise la syntaxe d'appel normale : `f(args...)` et retourne le type spécifié.
+- Le **type de retour** est **obligatoire** et typé statiquement : `Function<int>`, `Function<string|null>`, `Function<void>`, etc.
+- Les types de paramètres ne sont **pas** encodés dans le type `Function` — seul le type de retour est vérifié statiquement.
+- La compatibilité des types : `Function<T>` est compatible avec `Function<U>` si `T` est compatible avec `U`.
 - `Function` n'est pas un mot-clé mais un **type réservé** (PascalCase). Il ne peut pas être utilisé comme nom de classe ou de variable.
 - Les fonctions anonymes peuvent capturer des variables locales et `self` depuis leur portée d'enclosement. Toute variable capturée (primitif ou référence) est **promue sur le tas** au moment de la création de la closure : le scope d'origine et la closure partagent la même cellule heap (**shared cell**). Toute mutation — depuis la closure ou depuis le scope extérieur — est immédiatement visible des deux côtés. Voir §12.2 pour les détails.
 
