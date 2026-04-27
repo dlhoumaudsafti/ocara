@@ -21,6 +21,8 @@ pub enum SemaError {
     NotStaticMethod   { class: String, method: String, span: Span },
     StaticOnInstance  { class: String, method: String, span: Span },
     SelfOutsideClass  { span: Span },
+    MixedInProperty   { class: String, field: String, span: Span },
+    MixedInReturnType { name: String, span: Span },
 }
 
 impl SemaError {
@@ -39,6 +41,8 @@ impl SemaError {
             SemaError::NotStaticMethod    { span, .. } => span,
             SemaError::StaticOnInstance   { span, .. } => span,
             SemaError::SelfOutsideClass   { span, .. } => span,
+            SemaError::MixedInProperty    { span, .. } => span,
+            SemaError::MixedInReturnType  { span, .. } => span,
         }
     }
 
@@ -70,6 +74,10 @@ impl SemaError {
                 format!("'{}' est statique — utilisez self::{}() depuis la classe ou {}::{}() depuis l'extérieur", method, method, class, method),
             SemaError::SelfOutsideClass  { .. } =>
                 "erreur interne : self:: hors contexte de classe".into(),
+            SemaError::MixedInProperty   { class, field, .. } =>
+                format!("le type 'mixed' est interdit pour les champs de classe : '{}.{}' doit utiliser un type concret ou 'map<string, mixed>'", class, field),
+            SemaError::MixedInReturnType { name, .. } =>
+                format!("le type 'mixed' est interdit comme type de retour : '{}' doit retourner un type concret ou utiliser des unions (ex: int|string|null)", name),
         }
     }
 }
@@ -89,12 +97,14 @@ impl std::error::Error for SemaError {}
 #[derive(Debug, Clone)]
 pub enum SemaWarning {
     UnusedVariable { name: String, span: Span },
+    MixedLocalVariable { name: String, span: Span },
 }
 
 impl SemaWarning {
     pub fn span(&self) -> &Span {
         match self {
             SemaWarning::UnusedVariable { span, .. } => span,
+            SemaWarning::MixedLocalVariable { span, .. } => span,
         }
     }
 
@@ -102,6 +112,8 @@ impl SemaWarning {
         match self {
             SemaWarning::UnusedVariable { name, .. } =>
                 format!("variable '{}' jamais utilisée", name),
+            SemaWarning::MixedLocalVariable { name, .. } =>
+                format!("variable locale '{}' : le type 'mixed' désactive les vérifications de type — préférer un type concret ou une union (ex: int|string|null)", name),
         }
     }
 }
