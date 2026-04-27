@@ -19,6 +19,7 @@ pub mod math;
 pub mod regex;
 pub mod string;
 pub mod system;
+pub mod httpserver;
 pub mod thread;
 pub mod unittest;
 
@@ -36,6 +37,7 @@ pub fn builtin_class(name: &str) -> Option<ClassInfo> {
         "Regex"       => Some(regex::class()),
         "String"      => Some(string::class()),
         "System"      => Some(system::class()),
+        "HTTPServer" => Some(httpserver::class()),
         "Thread"      => Some(thread::class()),
         "UnitTest"    => Some(unittest::class()),
         _             => None,
@@ -54,6 +56,7 @@ pub fn all_builtins() -> Vec<(&'static str, ClassInfo)> {
         ("Regex",       regex::class()),
         ("String",      string::class()),
         ("System",      system::class()),
+        ("HTTPServer", httpserver::class()),
         ("Thread",      thread::class()),
         ("UnitTest",    unittest::class()),
     ]
