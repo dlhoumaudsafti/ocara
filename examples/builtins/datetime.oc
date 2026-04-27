@@ -1,0 +1,75 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple : utilisation de la classe DateTime
+//
+// Compile : make
+// Run     : ./ocara examples/builtins/datetime.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.DateTime
+import ocara.IO
+import ocara.Convert
+
+function main(): int {
+    IO::writeln("=== Classe DateTime ===")
+    IO::writeln("")
+    
+    // Timestamp actuel
+    var now:int = DateTime::now()
+    IO::writeln("Timestamp actuel: " + Convert::int_to_str(now))
+    
+    // Conversion en chaîne ISO 8601
+    var dt:string = DateTime::from_timestamp(now)
+    IO::writeln("Date/heure ISO: " + dt)
+    IO::writeln("")
+    
+    // Extraction des composants
+    IO::writeln("Extraction des composants:")
+    var year:int = DateTime::year(now)
+    var month:int = DateTime::month(now)
+    var day:int = DateTime::day(now)
+    var hour:int = DateTime::hour(now)
+    var minute:int = DateTime::minute(now)
+    var second:int = DateTime::second(now)
+    
+    IO::writeln("  Année: " + Convert::int_to_str(year))
+    IO::writeln("  Mois: " + Convert::int_to_str(month))
+    IO::writeln("  Jour: " + Convert::int_to_str(day))
+    IO::writeln("  Heure: " + Convert::int_to_str(hour))
+    IO::writeln("  Minute: " + Convert::int_to_str(minute))
+    IO::writeln("  Seconde: " + Convert::int_to_str(second))
+    IO::writeln("")
+    
+    // Formatage personnalisé
+    IO::writeln("Formatage personnalisé:")
+    var formatted1:string = DateTime::format(now, "Le %d/%m/%Y à %H:%M:%S")
+    IO::writeln("  " + formatted1)
+    
+    var formatted2:string = DateTime::format(now, "%Y-%m-%d")
+    IO::writeln("  Date seule: " + formatted2)
+    
+    var formatted3:string = DateTime::format(now, "%H:%M:%S")
+    IO::writeln("  Heure seule: " + formatted3)
+    IO::writeln("")
+    
+    // Parsing
+    IO::writeln("Parsing de dates:")
+    var ts1:int = DateTime::parse("2024-12-31T23:59:59")
+    IO::writeln("  Réveillon 2024: " + Convert::int_to_str(ts1))
+    var dt1:string = DateTime::from_timestamp(ts1)
+    IO::writeln("  Vérification: " + dt1)
+    
+    var ts2:int = DateTime::parse("2024-01-01 00:00:00")
+    IO::writeln("  Nouvel An 2024: " + Convert::int_to_str(ts2))
+    var dt2:string = DateTime::from_timestamp(ts2)
+    IO::writeln("  Vérification: " + dt2)
+    IO::writeln("")
+    
+    // Calculs
+    IO::writeln("Calculs:")
+    var diff:int = ts1 - ts2
+    IO::writeln("  Secondes dans l'année 2024: " + Convert::int_to_str(diff))
+    var days:int = diff / 86400
+    IO::writeln("  Jours: " + Convert::int_to_str(days))
+    
+    return 0
+}
