@@ -72,6 +72,7 @@ regression: build
 	                03_builtins) echo -e "david\n45" | $(TMP) ;; \
 	                builtins/io) printf 'Alice\nParis\n21\n3.14\ntrue\nrust,ocara,web\nlang=fr,theme=dark\n' | $(TMP) ;; \
 	                builtins/http) $(TMP) > /dev/null ;; \
+	                builtins/httpserver) examples/builtins/httpserver.sh $(TMP) ;; \
 	                *) $(TMP) ;; \
 	            esac; \
 	            if [ $$? -ne 0 ]; then \
@@ -140,6 +141,7 @@ regression: build
 	            case "$$name" in \
 	                io) printf 'Alice\nParis\n21\n3.14\ntrue\nrust,ocara,web\nlang=fr,theme=dark\n' | $(TMP) ;; \
 	                http) $(TMP) > /dev/null ;; \
+	                httpserver) examples/builtins/httpserver.sh $(TMP) ;; \
 	                *) $(TMP) ;; \
 	            esac; \
 	            if [ $$? -ne 0 ]; then \

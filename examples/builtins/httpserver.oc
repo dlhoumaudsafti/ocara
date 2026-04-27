@@ -1,0 +1,71 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// examples/builtins/httpserver.oc
+//
+// Démonstration de ocara.HTTPServer
+//
+// Pour tester :
+//   ./target/release/ocara examples/builtins/httpserver.oc -o /tmp/httpserver_demo
+//   /tmp/httpserver_demo
+// Puis dans un autre terminal :
+//   curl http://localhost:8080/
+//   curl "http://localhost:8080/?name=Alice"
+//   curl -X POST -d "bonjour" http://localhost:8080/echo
+//   curl http://localhost:8080/json
+//   curl http://localhost:8080/info
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.HTTPServer
+import ocara.IO
+
+function main(): int {
+
+    const server:HTTPServer = use HTTPServer()
+    server.set_port(8080)
+    server.set_workers(4)
+
+    // ── Route GET / ──────────────────────────────────────────────────────────
+    // Accueil : salue le visiteur avec le paramètre ?name=
+    server.route("/", "GET", nameless(req:int): int {
+        var name:string = HTTPServer::req_query(req, "name")
+        if name == "" {
+            name = "Monde"
+        }
+        HTTPServer::set_resp_header(req, "Content-Type", "text/plain; charset=utf-8")
+        HTTPServer::respond(req, 200, `Bonjour ${name} !`)
+        return 0
+    })
+
+    // ── Route POST /echo ─────────────────────────────────────────────────────
+    // Renvoie le corps de la requête tel quel
+    server.route("/echo", "POST", nameless(req:int): int {
+        var body:string = HTTPServer::req_body(req)
+        HTTPServer::set_resp_header(req, "Content-Type", "text/plain")
+        HTTPServer::respond(req, 200, body)
+        return 0
+    })
+
+    // ── Route GET /json ──────────────────────────────────────────────────────
+    // Retourne une réponse JSON
+    server.route("/json", "GET", nameless(req:int): int {
+        var path:string = HTTPServer::req_path(req)
+        var meth:string = HTTPServer::req_method(req)
+        HTTPServer::set_resp_header(req, "Content-Type", "application/json")
+        HTTPServer::respond(req, 200, `{"path":"${path}","method":"${meth}","status":"ok"}`)
+        return 0
+    })
+
+    // ── Route GET /info ──────────────────────────────────────────────────────
+    // Lit un en-tête de la requête
+    server.route("/info", "GET", nameless(req:int): int {
+        var ua:string = HTTPServer::req_header(req, "user-agent")
+        HTTPServer::set_resp_header(req, "Content-Type", "text/plain")
+        HTTPServer::respond(req, 200, `User-Agent: ${ua}`)
+        return 0
+    })
+
+    IO::writeln("HTTPServer démarré sur http://localhost:8080")
+    IO::writeln("Arrêt : Ctrl+C")
+    server.run()
+
+    return 0
+}
