@@ -1,0 +1,200 @@
+// examples/builtins/mutex.oc
+// Démonstration de ocara.Mutex avec ocara.Thread
+
+import ocara.Mutex
+import ocara.Thread
+import ocara.IO
+
+function main(): int {
+
+    // ── Mutex basique : lock + unlock ──────────────────────────────────────
+    IO::writeln("=== lock + unlock basique ===")
+    var m:Mutex = use Mutex()
+    m.lock()
+    IO::writeln("section critique protégée")
+    m.unlock()
+    IO::writeln("mutex déverrouillé")
+
+    // ── try_lock : tentative sans blocage ─────────────────────────────────
+    IO::writeln("=== try_lock ===")
+    var m2:Mutex = use Mutex()
+    
+    if m2.try_lock() {
+        IO::writeln("try_lock : succès")
+        m2.unlock()
+    } else {
+        IO::writeln("try_lock : échec")
+    }
+    
+    // try_lock sur un mutex déjà verrouillé
+    m2.lock()
+    if m2.try_lock() {
+        IO::writeln("try_lock : succès (ne devrait pas arriver)")
+        m2.unlock()
+    } else {
+        IO::writeln("try_lock : échec (mutex déjà verrouillé)")
+    }
+    m2.unlock()
+
+    // ── Protection d'une variable partagée entre threads ──────────────────
+    IO::writeln("=== protection counter avec Mutex ===")
+    var counter:int = 0
+    var m_counter:Mutex = use Mutex()
+    
+    var t1:Thread = use Thread()
+    var t2:Thread = use Thread()
+    var t3:Thread = use Thread()
+    
+    t1.run(nameless(): void {
+        var i:int = 0
+        while i < 100 {
+            m_counter.lock()
+            counter = counter + 1
+            m_counter.unlock()
+            i = i + 1
+        }
+    })
+    
+    t2.run(nameless(): void {
+        var i:int = 0
+        while i < 100 {
+            m_counter.lock()
+            counter = counter + 1
+            m_counter.unlock()
+            i = i + 1
+        }
+    })
+    
+    t3.run(nameless(): void {
+        var i:int = 0
+        while i < 100 {
+            m_counter.lock()
+            counter = counter + 1
+            m_counter.unlock()
+            i = i + 1
+        }
+    })
+    
+    t1.join()
+    t2.join()
+    t3.join()
+    
+    IO::write("counter final (attendu 300) = ")
+    IO::writeln(counter)
+
+    // ── Comparaison : sans Mutex (data race) ──────────────────────────────
+    IO::writeln("=== SANS Mutex (data race) ===")
+    var unsafe_counter:int = 0
+    
+    var tu1:Thread = use Thread()
+    var tu2:Thread = use Thread()
+    var tu3:Thread = use Thread()
+    
+    tu1.run(nameless(): void {
+        var i:int = 0
+        while i < 100 {
+            unsafe_counter = unsafe_counter + 1
+            i = i + 1
+        }
+    })
+    
+    tu2.run(nameless(): void {
+        var i:int = 0
+        while i < 100 {
+            unsafe_counter = unsafe_counter + 1
+            i = i + 1
+        }
+    })
+    
+    tu3.run(nameless(): void {
+        var i:int = 0
+        while i < 100 {
+            unsafe_counter = unsafe_counter + 1
+            i = i + 1
+        }
+    })
+    
+    tu1.join()
+    tu2.join()
+    tu3.join()
+    
+    IO::write("unsafe_counter final (attendu 300, mais incorrect) = ")
+    IO::writeln(unsafe_counter)
+    IO::writeln("(résultat aléatoire à cause du data race)")
+
+    // ── Section critique plus longue ───────────────────────────────────────
+    IO::writeln("=== section critique avec sleep ===")
+    var m_slow:Mutex = use Mutex()
+    var done:int = 0
+    
+    var ts1:Thread = use Thread()
+    var ts2:Thread = use Thread()
+    
+    ts1.run(nameless(): void {
+        m_slow.lock()
+        IO::writeln("ts1 : début section critique")
+        Thread::sleep(50)
+        done = 1
+        IO::writeln("ts1 : fin section critique")
+        m_slow.unlock()
+    })
+    
+    Thread::sleep(10)  // s'assurer que ts1 démarre en premier
+    
+    ts2.run(nameless(): void {
+        IO::writeln("ts2 : tentative d'acquisition du mutex...")
+        m_slow.lock()
+        IO::writeln("ts2 : mutex acquis (ts1 a terminé)")
+        IO::write("ts2 : done = ")
+        IO::writeln(done)
+        m_slow.unlock()
+    })
+    
+    ts1.join()
+    ts2.join()
+
+    // ── Mutex multiples (attention aux deadlocks) ─────────────────────────
+    IO::writeln("=== deux mutex indépendants ===")
+    var m_a:Mutex = use Mutex()
+    var m_b:Mutex = use Mutex()
+    var data_a:int = 0
+    var data_b:int = 0
+    
+    var tma:Thread = use Thread()
+    var tmb:Thread = use Thread()
+    
+    tma.run(nameless(): void {
+        m_a.lock()
+        data_a = 10
+        m_a.unlock()
+        
+        Thread::sleep(10)
+        
+        m_b.lock()
+        data_b = 20
+        m_b.unlock()
+    })
+    
+    tmb.run(nameless(): void {
+        m_b.lock()
+        data_b = data_b + 1
+        m_b.unlock()
+        
+        Thread::sleep(10)
+        
+        m_a.lock()
+        data_a = data_a + 1
+        m_a.unlock()
+    })
+    
+    tma.join()
+    tmb.join()
+    
+    IO::write("data_a = ")
+    IO::writeln(data_a)
+    IO::write("data_b = ")
+    IO::writeln(data_b)
+
+    IO::writeln("=== tous les tests terminés ===")
+    return 0
+}

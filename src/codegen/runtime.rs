@@ -175,6 +175,11 @@ pub const BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "Thread_id",          params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("Thread") },
     BuiltinDesc { name: "Thread_sleep",       params: &[clt::I64],                            returns: None,              module: Some("Thread") },
     BuiltinDesc { name: "Thread_current_id",  params: &[],                                    returns: Some(clt::I64),    module: Some("Thread") },
+    // ── ocara.Mutex ──────────────────────────────────────────────────────────
+    BuiltinDesc { name: "Mutex_init",         params: &[clt::I64],                            returns: None,              module: Some("Mutex") },
+    BuiltinDesc { name: "Mutex_lock",         params: &[clt::I64],                            returns: None,              module: Some("Mutex") },
+    BuiltinDesc { name: "Mutex_unlock",       params: &[clt::I64],                            returns: None,              module: Some("Mutex") },
+    BuiltinDesc { name: "Mutex_try_lock",     params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("Mutex") },
     // ── ocara.UnitTest ───────────────────────────────────────────────────────
     BuiltinDesc { name: "UnitTest_assertEquals",         params: &[clt::I64, clt::I64],       returns: None,              module: Some("UnitTest") },
     BuiltinDesc { name: "UnitTest_assertNotEquals",      params: &[clt::I64, clt::I64],       returns: None,              module: Some("UnitTest") },
