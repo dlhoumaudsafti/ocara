@@ -22,6 +22,9 @@ pub mod system;
 pub mod httpserver;
 pub mod thread;
 pub mod mutex;
+pub mod datetime;
+pub mod date;
+pub mod time;
 pub mod unittest;
 
 use crate::sema::symbols::ClassInfo;
@@ -41,6 +44,9 @@ pub fn builtin_class(name: &str) -> Option<ClassInfo> {
         "HTTPServer" => Some(httpserver::class()),
         "Thread"      => Some(thread::class()),
         "Mutex"       => Some(mutex::class()),
+        "DateTime"    => Some(datetime::class()),
+        "Date"        => Some(date::class()),
+        "Time"        => Some(time::class()),
         "UnitTest"    => Some(unittest::class()),
         _             => None,
     }
@@ -61,6 +67,9 @@ pub fn all_builtins() -> Vec<(&'static str, ClassInfo)> {
         ("HTTPServer", httpserver::class()),
         ("Thread",      thread::class()),
         ("Mutex",       mutex::class()),
+        ("DateTime",    datetime::class()),
+        ("Date",        date::class()),
+        ("Time",        time::class()),
         ("UnitTest",    unittest::class()),
     ]
 }
