@@ -99,6 +99,7 @@ fn walk_expr_caps(expr: &Expr, p: &HashSet<String>, l: &HashMap<String, (Value, 
         Expr::Map    { entries, .. }     => { for (k, v) in entries { walk_expr_caps(k, p, l, caps, seen); walk_expr_caps(v, p, l, caps, seen); } }
         Expr::Template { parts, .. }     => { for part in parts { if let TemplatePartExpr::Expr(e) = part { walk_expr_caps(e, p, l, caps, seen); } } }
         Expr::Match  { subject, arms, ..} => { walk_expr_caps(subject, p, l, caps, seen); for arm in arms { walk_expr_caps(&arm.body, p, l, caps, seen); } }
+        Expr::IsCheck { expr, .. }       => walk_expr_caps(expr, p, l, caps, seen),
         // Ne pas descendre dans les nameless imbriquées (elles ont leurs propres captures)
         Expr::Nameless { .. } | Expr::Literal(..) | Expr::StaticConst { .. } => {}
     }
@@ -405,6 +406,7 @@ fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                 UnaryOp::Neg => expr_ir_type(builder, operand),
             }
         }
+        Expr::IsCheck { .. } => IrType::Bool,
         Expr::Nameless { .. } => IrType::Ptr,
         _ => IrType::I64,
     }
@@ -1029,28 +1031,51 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 let arm_bb = builder.new_block();
                 // Test du pattern (sauf default)
                 if let Some(pat) = &arm.pattern {
-                    let pat_val = lower_literal(builder, pat);
-                    let test = builder.new_value();
-                    builder.emit(Inst::CmpEq {
-                        dest: test.clone(),
-                        lhs:  subj.clone(),
-                        rhs:  pat_val,
-                        ty:   IrType::I64,
-                    });
-                    let next_bb = builder.new_block();
-                    builder.emit(Inst::Branch {
-                        cond:    test,
-                        then_bb: arm_bb.clone(),
-                        else_bb: next_bb.clone(),
-                    });
-                    builder.switch_to(&arm_bb);
-                    let arm_val = lower_expr(builder, &arm.body);
-                    builder.emit(Inst::Store { ptr: result_slot.clone(), src: arm_val.clone() });
-                    if !builder.is_terminated() {
-                        builder.emit(Inst::Jump { target: merge_bb.clone() });
+                    match pat {
+                        MatchPattern::Literal(lit) => {
+                            // Pattern littéral : comparaison directe
+                            let pat_val = lower_literal(builder, lit);
+                            let test = builder.new_value();
+                            builder.emit(Inst::CmpEq {
+                                dest: test.clone(),
+                                lhs:  subj.clone(),
+                                rhs:  pat_val,
+                                ty:   IrType::I64,
+                            });
+                            let next_bb = builder.new_block();
+                            builder.emit(Inst::Branch {
+                                cond:    test,
+                                then_bb: arm_bb.clone(),
+                                else_bb: next_bb.clone(),
+                            });
+                            builder.switch_to(&arm_bb);
+                            let arm_val = lower_expr(builder, &arm.body);
+                            builder.emit(Inst::Store { ptr: result_slot.clone(), src: arm_val.clone() });
+                            if !builder.is_terminated() {
+                                builder.emit(Inst::Jump { target: merge_bb.clone() });
+                            }
+                            arm_blocks.push((arm_bb, arm_val));
+                            builder.switch_to(&next_bb);
+                        }
+                        MatchPattern::IsType(ty) => {
+                            // Pattern de type : test runtime avec `is Type`
+                            let test = lower_is_check(builder, &subj, ty);
+                            let next_bb = builder.new_block();
+                            builder.emit(Inst::Branch {
+                                cond:    test,
+                                then_bb: arm_bb.clone(),
+                                else_bb: next_bb.clone(),
+                            });
+                            builder.switch_to(&arm_bb);
+                            let arm_val = lower_expr(builder, &arm.body);
+                            builder.emit(Inst::Store { ptr: result_slot.clone(), src: arm_val.clone() });
+                            if !builder.is_terminated() {
+                                builder.emit(Inst::Jump { target: merge_bb.clone() });
+                            }
+                            arm_blocks.push((arm_bb, arm_val));
+                            builder.switch_to(&next_bb);
+                        }
                     }
-                    arm_blocks.push((arm_bb, arm_val));
-                    builder.switch_to(&next_bb);
                 } else {
                     // default
                     builder.emit(Inst::Jump { target: arm_bb.clone() });
@@ -1277,12 +1302,50 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             builder.emit(Inst::SetField { obj: fat_ptr.clone(), field: "env".into(),  src: env_ptr_val, offset: 8 });
             fat_ptr
         }
+
+        Expr::IsCheck { expr, ty, .. } => {
+            // Test de type runtime : `val is int` → bool
+            let val = lower_expr(builder, expr);
+            lower_is_check(builder, &val, ty)
+        }
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Littéral → Value (inline, sans slot)
 // ─────────────────────────────────────────────────────────────────────────────
+
+/// Génère un test de type runtime : `val is Type` → bool
+/// Appelle des fonctions runtime pour faire le check
+fn lower_is_check(builder: &mut LowerBuilder, val: &Value, ty: &Type) -> Value {
+    let runtime_func = match ty {
+        Type::Null => "__is_null",
+        Type::Int => "__is_int",
+        Type::Float => "__is_float",
+        Type::Bool => "__is_bool",
+        Type::String => "__is_string",
+        Type::Array(_) => "__is_array",
+        Type::Map(_, _) => "__is_map",
+        Type::Function(_) => "__is_function",
+        Type::Named(_) | Type::Qualified(_) => "__is_object",
+        _ => {
+            // Pour les autres types (mixed, void, union), retourne false
+            let dest = builder.new_value();
+            builder.emit(Inst::ConstBool { dest: dest.clone(), value: false });
+            return dest;
+        }
+    };
+
+    // Appel de la fonction runtime de type check
+    let dest = builder.new_value();
+    builder.emit(Inst::Call {
+        dest: Some(dest.clone()),
+        func: runtime_func.into(),
+        args: vec![val.clone()],
+        ret_ty: IrType::I64,  // bool retourné comme i64
+    });
+    dest
+}
 
 pub fn lower_literal(builder: &mut LowerBuilder, lit: &Literal) -> Value {
     match lit {

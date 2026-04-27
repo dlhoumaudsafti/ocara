@@ -1,0 +1,85 @@
+// ============================================================================
+// Type Narrowing avec 'is'
+// ============================================================================
+// Démonstration du narrowing de type avec l'opérateur 'is' et les patterns
+
+import ocara.IO
+import ocara.Convert
+
+// ── Match avec patterns 'is Type' ──────────────────────────────────────────
+
+function process(val:int|string|null): void {
+    IO::writeln("Test avec match :")
+    match val {
+        is null   => IO::writeln("  → Valeur nulle")
+        is int    => IO::writeln("  → Entier")
+        is string => IO::writeln("  → Chaîne")
+    }
+}
+
+// ── Expression 'is' retournant un bool ─────────────────────────────────────
+
+function check_type(val:int|string|null): void {
+    IO::writeln("Test avec expression is :")
+    
+    var is_null:bool = val is null
+    if is_null {
+        IO::writeln("  → C'est null")
+    }
+    
+    var is_int:bool = val is int
+    if is_int {
+        IO::writeln("  → C'est un int")
+    }
+    
+    var is_string:bool = val is string
+    if is_string {
+        IO::writeln("  → C'est une string")
+    }
+}
+
+// ── Narrowing dans les conditions if ───────────────────────────────────────
+
+function format_value(val:int|string|null): string {
+    if val is null {
+        return "(null)"
+    }
+    if val is int {
+        return "entier"
+    }
+    if val is string {
+        return "chaîne"
+    }
+    return "inconnu"
+}
+
+// ── Main ────────────────────────────────────────────────────────────────────
+
+function main(): int {
+    IO::writeln("=== Type Narrowing avec 'is' ===")
+    IO::writeln("")
+    
+    // Test avec null
+    IO::writeln("1. Valeur null :")
+    process(null)
+    check_type(null)
+    IO::writeln("   Format : " + format_value(null))
+    IO::writeln("")
+    
+    // Test avec int
+    IO::writeln("2. Valeur int (42) :")
+    var i:int|string|null = 42
+    process(i)
+    check_type(i)
+    IO::writeln("   Format : " + format_value(i))
+    IO::writeln("")
+    
+    // Test avec string
+    IO::writeln("3. Valeur string (\"hello\") :")
+    var s:int|string|null = "hello"
+    process(s)
+    check_type(s)
+    IO::writeln("   Format : " + format_value(s))
+    
+    return 0
+}

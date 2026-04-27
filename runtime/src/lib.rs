@@ -104,6 +104,7 @@ pub mod httpserver;
 pub mod datetime;
 pub mod date;
 pub mod time;
+pub mod typecheck;
 
 // Helpers mémoire internes
 // ─────────────────────────────────────────────────────────────────────────────

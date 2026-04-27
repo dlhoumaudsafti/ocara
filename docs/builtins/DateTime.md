@@ -1,6 +1,6 @@
 # DateTime
 
-Classe builtin `ocara.DateTime` — manipulation de dates et heures combinées (timestamp Unix).
+Classe de la bibliothèque runtime `ocara.DateTime` — manipulation de dates et heures combinées (timestamp Unix).
 
 `DateTime` est une **classe statique** : toutes les méthodes sont appelées directement sur la classe (par exemple `DateTime::now()`).
 

@@ -1,6 +1,6 @@
 # Date
 
-Classe builtin `ocara.Date` — manipulation de dates (sans heure).
+Classe de la bibliothèque runtime `ocara.Date` — manipulation de dates (sans heure).
 
 `Date` est une **classe statique** : toutes les méthodes sont appelées directement sur la classe (par exemple `Date::today()`).
 

@@ -26,6 +26,17 @@ pub const BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__box_float",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__box_bool",        params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
 
+    // ── Type checking runtime (narrowing 'is Type') ───────────────────────────
+    BuiltinDesc { name: "__is_null",         params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__is_int",          params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__is_float",        params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__is_bool",         params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__is_string",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__is_array",        params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__is_map",          params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__is_object",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__is_function",     params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+
     BuiltinDesc { name: "__range",           params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__array_new",       params: &[],                                     returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__array_push",      params: &[clt::I64, clt::I64],                   returns: None,              module: None },

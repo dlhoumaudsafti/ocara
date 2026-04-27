@@ -1,4 +1,4 @@
-# `ocara.Math` — Classe builtin
+# `ocara.Math` — Classe de la bibliothèque runtime
 
 > Classe de fonctions mathématiques.  
 > Toutes les méthodes sont **statiques** : elles s'appellent via `Math::<méthode>(args)`.
