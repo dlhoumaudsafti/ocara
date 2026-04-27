@@ -158,7 +158,10 @@ fn lower_nameless_fn(
         for param in params {
             let ir_ty = IrType::from_ast(&param.ty);
             if let Type::Map(_, _) = &param.ty  { builder.map_vars.insert(param.name.clone()); }
-            if let Type::Function  = &param.ty  { builder.func_vars.insert(param.name.clone()); }
+            if let Type::Function(ret_ty)  = &param.ty  {
+                builder.func_vars.insert(param.name.clone());
+                builder.func_ret_types.insert(param.name.clone(), IrType::from_ast(ret_ty));
+            }
             let slot = builder.declare_local(&param.name, ir_ty.clone(), false);
             let recv = builder.new_value();
             builder.emit(Inst::Store { ptr: slot, src: recv.clone() });
@@ -360,6 +363,12 @@ fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
         }
         // Exception : fonctions utilisateur dont on connaît le type de retour
         Expr::Call { callee, .. } => {
+            // Appel indirect : variable de type Function<ReturnType>
+            if let Expr::Ident(fname, _) = callee.as_ref() {
+                if let Some(ty) = builder.func_ret_types.get(fname.as_str()) {
+                    return ty.clone();
+                }
+            }
             // Callee = Ident (fonction libre)
             if let Expr::Ident(fname, _) = callee.as_ref() {
                 if let Some(ty) = builder.fn_ret_types.get(fname.as_str()) {
@@ -548,11 +557,13 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     let mut all_args = vec![env_ptr];
                     all_args.extend(arg_vals);
                     let dest = builder.new_value();
+                    // Déterminer le type de retour depuis func_ret_types
+                    let ret_ty = builder.func_ret_types.get(name.as_str()).cloned().unwrap_or(IrType::I64);
                     builder.emit(Inst::CallIndirect {
                         dest:   Some(dest.clone()),
                         callee: func_ptr,
                         args:   all_args,
-                        ret_ty: IrType::I64,
+                        ret_ty,
                     });
                     return dest;
                 }

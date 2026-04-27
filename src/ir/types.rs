@@ -27,7 +27,7 @@ impl IrType {
             Type::Array(_)         => IrType::Ptr,
             Type::Map(_, _)        => IrType::Ptr,
             Type::Union(_)         => IrType::Ptr,
-            Type::Function         => IrType::Ptr,
+            Type::Function(_)      => IrType::Ptr,
         }
     }
 }

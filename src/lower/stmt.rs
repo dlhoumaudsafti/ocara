@@ -55,8 +55,9 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
                 builder.var_class.insert(name.clone(), class_name.clone());
             }
             // Variable de type Function → enregistrer pour CallIndirect
-            if let crate::ast::Type::Function = ty {
+            if let crate::ast::Type::Function(ret_ty) = ty {
                 builder.func_vars.insert(name.clone());
+                builder.func_ret_types.insert(name.clone(), IrType::from_ast(ret_ty));
             }
             // Union contenant un type nommé : utiliser le premier Named pour l'accès aux champs
             if let crate::ast::Type::Union(variants) = ty {

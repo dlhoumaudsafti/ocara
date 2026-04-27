@@ -43,9 +43,9 @@ pub fn class() -> ClassInfo {
 
     // ── Méthodes d'instance ───────────────────────────────────────────────────
 
-    // t.run(f:Function) → void
+    // t.run(f:Function<void>) → void
     methods.insert("run".into(), instance(
-        vec![("f", Type::Function)],
+        vec![("f", Type::Function(Box::new(Type::Void)))],
         Type::Void,
     ));
 

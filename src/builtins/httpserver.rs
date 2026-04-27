@@ -71,12 +71,12 @@ pub fn class() -> ClassInfo {
         Type::Void,
     ));
 
-    // s.route(path:string, method:string, f:Function) → void
+    // s.route(path:string, method:string, f:Function<void>) → void
     methods.insert("route".into(), instance(
         vec![
             ("path",   Type::String),
             ("method", Type::String),
-            ("f",      Type::Function),
+            ("f",      Type::Function(Box::new(Type::Void))),
         ],
         Type::Void,
     ));
