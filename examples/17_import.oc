@@ -12,9 +12,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import ocara.IO
-import modules.User as UserModel
-import modules.Logger as AppLogger
-import modules.Math as MathUtils
+import mods.User as UserModel
+import mods.Logger as AppLogger
+import mods.Math as MathUtils
 
 
 function main(): int {

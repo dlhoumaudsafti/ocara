@@ -1,0 +1,98 @@
+// examples/26_modules.oc
+// Démonstration des modules (mixins)
+
+import ocara.IO
+
+// ── Module Timestamped ────────────────────────────────────────────────────────
+// Ajoute un timestamp de création aux classes qui l'utilisent
+
+module Timestamped {
+    private property created_at: int
+
+    public method mark_created(): void {
+        self.created_at = 42  // Placeholder, devrait être System::time()
+    }
+
+    public method get_age(): int {
+        return 100 - self.created_at
+    }
+}
+
+// ── Module Identifiable ───────────────────────────────────────────────────────
+// Ajoute un identifiant numérique aux classes qui l'utilisent
+
+module Identifiable {
+    private property id: int
+
+    public method set_id(i: int): void {
+        self.id = i
+    }
+
+    public method get_id(): int {
+        return self.id
+    }
+}
+
+// ── Classe User utilisant les deux modules ────────────────────────────────────
+
+class User modules Timestamped, Identifiable {
+    private property score: int
+
+    init(s: int) {
+        self.score = s
+        self.id = 0
+        self.created_at = 0
+    }
+
+    public method get_score(): int {
+        return self.score
+    }
+    
+    public method add_points(points: int): void {
+        self.score = self.score + points
+    }
+}
+
+// ── Programme principal ───────────────────────────────────────────────────────
+
+function main(): int {
+    IO::writeln("=== Démonstration des modules (mixins) ===")
+
+    var u: User = use User(100)
+
+    // Utilisation des méthodes de User
+    IO::write("Score initial: ")
+    IO::writeln(u.get_score())
+    
+    u.add_points(50)
+    IO::write("Score après bonus: ")
+    IO::writeln(u.get_score())
+
+    // Utilisation des méthodes du module Identifiable
+    u.set_id(1001)
+    IO::write("ID utilisateur: ")
+    IO::writeln(u.get_id())
+
+    // Utilisation des méthodes du module Timestamped
+    IO::write("Age initial: ")
+    IO::writeln(u.get_age())
+    
+    u.mark_created()
+    IO::write("Age après création: ")
+    IO::writeln(u.get_age())
+
+    IO::writeln("")
+    IO::writeln("=== Résumé ===")
+    IO::write("Utilisateur #")
+    IO::writeln(u.get_id())
+    IO::write("  Score: ")
+    IO::writeln(u.get_score())
+    IO::write("  Age:   ")
+    IO::writeln(u.get_age())
+
+    IO::writeln("")
+    IO::writeln("Les modules (mixins) permettent de composer")
+    IO::writeln("des comportements réutilisables dans les classes !")
+
+    return 0
+}
