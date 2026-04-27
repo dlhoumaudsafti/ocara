@@ -43,6 +43,8 @@ endif
 build:
 	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime
 	RUSTFLAGS="-D warnings" cargo build --release -p ocara
+	RUSTFLAGS="-D warnings" cargo build --release -p ocaracs
+	RUSTFLAGS="-D warnings" cargo build --release -p ocaraunit
 
 # ── Tests unitaires Cargo ─────────────────────────────────────────────────────
 test:

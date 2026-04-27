@@ -99,6 +99,7 @@ fn ocara_println(s: &str) {
 // ─────────────────────────────────────────────────────────────────────────────
 pub mod http;
 pub mod thread;
+pub mod mutex;
 pub mod httpserver;
 
 // Helpers mémoire internes
