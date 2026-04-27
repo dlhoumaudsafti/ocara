@@ -38,7 +38,7 @@ use std::time::Duration;
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[cfg(target_os = "linux")]
-fn write_stdout_raw(bytes: &[u8]) {
+pub(crate) fn write_stdout_raw(bytes: &[u8]) {
     if bytes.is_empty() { return; }
     unsafe {
         core::arch::asm!(
@@ -54,31 +54,13 @@ fn write_stdout_raw(bytes: &[u8]) {
     }
 }
 
-#[cfg(not(target_os = "linux"))]
-fn write_stdout_raw(bytes: &[u8]) {
-    // Fallback : utilise println uniquement sur les plateformes non-Linux
-    // où le conflit de symbole n'existe pas (macOS link dynamique par défaut).
-    use std::io::Write as _;
-    let _ = io::stdout().write_all(bytes);
-    let _ = io::stdout().flush();
-}
-
-fn ocara_print(s: &str) {
-    write_stdout_raw(s.as_bytes());
-}
-
-fn ocara_println(s: &str) {
-    write_stdout_raw(s.as_bytes());
-    write_stdout_raw(b"\n");
-}
-
 #[cfg(target_os = "linux")]
-fn write_stderr_raw(bytes: &[u8]) {
+pub(crate) fn write_stderr_raw(bytes: &[u8]) {
     if bytes.is_empty() { return; }
     unsafe {
         core::arch::asm!(
             "syscall",
-            inout("rax") 1isize => _,
+            inout("rax") 1isize => _,   // SYS_write → retour ignoré
             in("rdi") 2usize,           // fd = STDERR_FILENO
             in("rsi") bytes.as_ptr(),
             in("rdx") bytes.len(),
@@ -90,15 +72,34 @@ fn write_stderr_raw(bytes: &[u8]) {
 }
 
 #[cfg(not(target_os = "linux"))]
-fn write_stderr_raw(bytes: &[u8]) {
+pub(crate) fn write_stdout_raw(bytes: &[u8]) {
+    // Fallback : utilise println uniquement sur les plateformes non-Linux
+    // où le conflit de symbole n'existe pas (macOS link dynamique par défaut).
+    use std::io::Write as _;
+    let _ = io::stdout().write_all(bytes);
+    let _ = io::stdout().flush();
+}
+
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn write_stderr_raw(bytes: &[u8]) {
     use std::io::Write as _;
     let _ = io::stderr().write_all(bytes);
     let _ = io::stderr().flush();
 }
 
+fn ocara_print(s: &str) {
+    write_stdout_raw(s.as_bytes());
+}
+
+fn ocara_println(s: &str) {
+    write_stdout_raw(s.as_bytes());
+    write_stdout_raw(b"\n");
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 pub mod http;
 pub mod thread;
+pub mod httpserver;
 
 // Helpers mémoire internes
 // ─────────────────────────────────────────────────────────────────────────────
