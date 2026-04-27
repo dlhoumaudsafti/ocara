@@ -1,0 +1,99 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple : utilisation de la classe Date
+//
+// Compile : make
+// Run     : ./ocara examples/builtins/date.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.Date
+import ocara.IO
+import ocara.Convert
+
+function main(): int {
+    IO::writeln("=== Classe Date ===")
+    IO::writeln("")
+    
+    // Date actuelle
+    var today:string = Date::today()
+    IO::writeln("Date actuelle: " + today)
+    IO::writeln("")
+    
+    // Extraction des composants
+    IO::writeln("Extraction des composants:")
+    var year:int = Date::year(today)
+    var month:int = Date::month(today)
+    var day:int = Date::day(today)
+    
+    IO::writeln("  Année: " + Convert::int_to_str(year))
+    IO::writeln("  Mois: " + Convert::int_to_str(month))
+    IO::writeln("  Jour: " + Convert::int_to_str(day))
+    IO::writeln("")
+    
+    // Jour de la semaine
+    var dow:int = Date::day_of_week(today)
+    IO::writeln("Jour de la semaine (0=lundi, 6=dimanche): " + Convert::int_to_str(dow))
+    
+    if dow == 0 {
+        IO::writeln("  C'est lundi")
+    } elseif dow == 5 {
+        IO::writeln("  C'est vendredi")
+    } elseif dow == 6 {
+        IO::writeln("  C'est dimanche")
+    }
+    IO::writeln("")
+    
+    // Année bissextile
+    IO::writeln("Année bissextile:")
+    if Date::is_leap_year(year) {
+        IO::writeln("  " + Convert::int_to_str(year) + " est une année bissextile")
+    } else {
+        IO::writeln("  " + Convert::int_to_str(year) + " n'est pas une année bissextile")
+    }
+    
+    if Date::is_leap_year(2024) {
+        IO::writeln("  2024 est bissextile")
+    }
+    if Date::is_leap_year(2100) {
+        IO::writeln("  2100 est bissextile")
+    } else {
+        IO::writeln("  2100 n'est pas bissextile (divisible par 100 mais pas par 400)")
+    }
+    IO::writeln("")
+    
+    // Jours dans le mois
+    var days_in_month:int = Date::days_in_month(year, month)
+    IO::writeln("Jours dans ce mois: " + Convert::int_to_str(days_in_month))
+    
+    var feb_2024:int = Date::days_in_month(2024, 2)
+    IO::writeln("  Février 2024: " + Convert::int_to_str(feb_2024) + " jours")
+    
+    var feb_2023:int = Date::days_in_month(2023, 2)
+    IO::writeln("  Février 2023: " + Convert::int_to_str(feb_2023) + " jours")
+    IO::writeln("")
+    
+    // Calculs sur les dates
+    IO::writeln("Calculs sur les dates:")
+    var future:string = Date::add_days(today, 100)
+    IO::writeln("  Dans 100 jours: " + future)
+    
+    var past:string = Date::add_days(today, -50)
+    IO::writeln("  Il y a 50 jours: " + past)
+    
+    var diff:int = Date::diff_days(future, today)
+    IO::writeln("  Différence: " + Convert::int_to_str(diff) + " jours")
+    IO::writeln("")
+    
+    // Test de dates fixes
+    IO::writeln("Calcul de durée:")
+    var d1:string = "2024-01-01"
+    var d2:string = "2024-12-31"
+    var diff2:int = Date::diff_days(d2, d1)
+    IO::writeln("  Du " + d1 + " au " + d2 + ": " + Convert::int_to_str(diff2) + " jours")
+    
+    // Conversion depuis timestamp
+    var ts:int = 1704067200  // 2024-01-01 00:00:00
+    var date_from_ts:string = Date::from_timestamp(ts)
+    IO::writeln("  Timestamp " + Convert::int_to_str(ts) + " = " + date_from_ts)
+    
+    return 0
+}

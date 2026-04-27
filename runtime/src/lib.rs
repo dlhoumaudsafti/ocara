@@ -101,6 +101,9 @@ pub mod http;
 pub mod thread;
 pub mod mutex;
 pub mod httpserver;
+pub mod datetime;
+pub mod date;
+pub mod time;
 
 // Helpers mémoire internes
 // ─────────────────────────────────────────────────────────────────────────────
