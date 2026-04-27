@@ -53,10 +53,10 @@ class Timer {
 
 class Pair {
 
-    public property first:mixed
-    public property second:mixed
+    public property first:int|string|bool|float
+    public property second:int|string|bool|float
 
-    init(first:mixed, second:mixed) {
+    init(first:int|string|bool|float, second:int|string|bool|float) {
         self.first  = first
         self.second = second
     }

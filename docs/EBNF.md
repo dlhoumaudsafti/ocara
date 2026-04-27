@@ -129,10 +129,67 @@ import services.Logger
 | `float`  | Flottant IEEE 754 double précision |
 | `string` | Chaîne de caractères UTF-8         |
 | `bool`   | Booléen (`true` / `false`)         |
-| `mixed`  | Type dynamique, accepte toute valeur — **à utiliser avec parcimonie** |
+| `mixed`  | Type dynamique, accepte toute valeur — **usage restreint** (voir restrictions ci-dessous) |
 | `void`   | Absence de valeur (retour seulement) |
 
-> **Avertissement `mixed`** : le type `mixed` désactive la vérification de type statique. Préférer les types concrets chaque fois que possible.
+#### Restrictions sur le type `mixed`
+
+Le type `mixed` désactive la vérification de type statique et doit être utilisé **uniquement** dans des contextes spécifiques. Le compilateur applique les règles suivantes :
+
+**❌ Interdictions strictes (erreur de compilation) :**
+
+1. **Interdit comme type de `property`** (champ de classe)
+   ```ocara
+   class User {
+       public property data:mixed  // ❌ ERREUR
+   }
+   ```
+   → Utiliser un type concret ou `map<string, mixed>`
+
+2. **Interdit comme type de retour de fonction/méthode**
+   ```ocara
+   function get_value(): mixed { }  // ❌ ERREUR
+   public method compute(): mixed { }  // ❌ ERREUR
+   ```
+   → Utiliser des unions explicites : `int|string|null`
+
+**⚠️ Avertissements (warning du compilateur) :**
+
+3. **Variables locales `mixed`** génèrent un warning
+   ```ocara
+   var temp:mixed = some_value()  // ⚠️ WARNING
+   scoped data:mixed = get_data()  // ⚠️ WARNING
+   ```
+   → Le compilateur suggère d'utiliser un type concret
+
+**✅ Usages autorisés :**
+
+4. **Paramètres de fonctions polymorphes**
+   ```ocara
+   function log(val:mixed): void {    // ✅ OK
+       IO::writeln(val)
+   }
+   ```
+
+5. **Éléments de collections hétérogènes**
+   ```ocara
+   var items:mixed[] = [1, "hello", true]              // ✅ OK
+   var config:map<string, mixed> = {"port": 8080}      // ✅ OK
+   ```
+
+6. **Constantes globales `mixed`** (usage rare)
+   ```ocara
+   const DEFAULT_VALUE:mixed = null  // ✅ OK (mais déconseillé)
+   ```
+
+**Justification :**
+
+Ces restrictions guident vers un typage fort tout en préservant la flexibilité nécessaire pour :
+- Les fonctions polymorphes utilitaires (`IO::writeln`, etc.)
+- Les structures de données dynamiques (config JSON, etc.)
+- L'interopérabilité avec des systèmes externes
+
+> **Recommandation** : privilégier systématiquement les **types union** (`T1|T2|null`) plutôt que `mixed` lorsque les types possibles sont connus à l'avance.
 
 ### 4.2 Types composites
 

@@ -34,8 +34,14 @@ impl<'a> TypeChecker<'a> {
     // ── Point d'entrée ───────────────────────────────────────────────────────
 
     pub fn check_program(&mut self, program: &Program) {
-        // Fonctions libres
+        // Fonctions libres — vérifier les types de retour mixed
         for func in &program.functions {
+            if let Type::Mixed = func.ret_ty {
+                self.errors.push(SemaError::MixedInReturnType {
+                    name: func.name.clone(),
+                    span: func.span.clone(),
+                });
+            }
             self.check_func(func);
         }
         // Classes
@@ -69,7 +75,16 @@ impl<'a> TypeChecker<'a> {
 
         for member in &class.members {
             match member {
-                ClassMember::Method { decl, .. } => self.check_func(decl),
+                ClassMember::Method { decl, .. } => {
+                    // Vérifier le type de retour mixed
+                    if let Type::Mixed = decl.ret_ty {
+                        self.errors.push(SemaError::MixedInReturnType {
+                            name: format!("{}::{}", class.name, decl.name),
+                            span: decl.span.clone(),
+                        });
+                    }
+                    self.check_func(decl)
+                },
                 ClassMember::Constructor { params, body, .. } => {
                     self.scopes.push();
                     self.current_ret = Some(Type::Void);
@@ -93,7 +108,16 @@ impl<'a> TypeChecker<'a> {
                         });
                     }
                 }
-                ClassMember::Field { .. } => {}
+                ClassMember::Field { name, ty, span, .. } => {
+                    // Vérifier que les property ne sont pas de type mixed
+                    if let Type::Mixed = ty {
+                        self.errors.push(SemaError::MixedInProperty {
+                            class: class.name.clone(),
+                            field: name.clone(),
+                            span: span.clone(),
+                        });
+                    }
+                }
             }
         }
 
@@ -128,6 +152,13 @@ impl<'a> TypeChecker<'a> {
                         expected: type_name(ty),
                         found:    type_name(&val_ty),
                         span:     span.clone(),
+                    });
+                }
+                // Warning si le type est mixed
+                if let Type::Mixed = ty {
+                    self.warnings.push(SemaWarning::MixedLocalVariable {
+                        name: name.clone(),
+                        span: span.clone(),
                     });
                 }
                 if !self.scopes.declare(
