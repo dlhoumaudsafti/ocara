@@ -32,7 +32,7 @@ Lance la closure `f` dans un thread OS séparé. La closure ne doit pas accepter
 
 Les variables capturées par la closure sont partagées via le mécanisme **shared cell** (heap promotion) — les mutations sont visibles depuis les deux côtés.
 
-> **Attention** : les accès concurrents non synchronisés à des variables partagées constituent un *data race*. Utiliser `ocara.Mutex` (à venir) pour la synchronisation.
+> **Attention** : les accès concurrents non synchronisés à des variables partagées constituent un *data race*. Utiliser `ocara.Mutex` pour la synchronisation thread-safe. Voir [Mutex](Mutex.md).
 
 ```ocara
 var t:Thread = use Thread()
@@ -137,3 +137,10 @@ function main(): void {
 - Si `run()` n'est pas appelé, `join()` et `detach()` sont sans effet.
 - Appeler `run()` deux fois sur le même objet `Thread` est un comportement non défini (le handle précédent est écrasé).
 - La durée passée à `Thread::sleep()` est un minimum — le système peut dormir plus longtemps.
+
+---
+
+## Voir aussi
+
+- [Mutex](Mutex.md) — synchronisation thread-safe pour protéger les données partagées
+- [docs/builtins/](../builtins/) — toutes les classes builtins
