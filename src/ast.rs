@@ -400,9 +400,18 @@ pub enum ClassMember {
 pub struct ClassDecl {
     pub name:       String,
     pub extends:    Option<String>,
+    pub modules:    Vec<String>,
     pub implements: Vec<String>,
     pub members:    Vec<ClassMember>,
     pub span:       Span,
+}
+
+/// Déclaration de module (mixin)
+#[derive(Debug, Clone, PartialEq)]
+pub struct ModuleDecl {
+    pub name:    String,
+    pub members: Vec<ClassMember>,
+    pub span:    Span,
 }
 
 /// Méthode d'interface (signature seule)
@@ -449,6 +458,7 @@ pub struct ImportDecl {
 pub struct Program {
     pub imports:    Vec<ImportDecl>,
     pub consts:     Vec<ConstDecl>,
+    pub modules:    Vec<ModuleDecl>,
     pub classes:    Vec<ClassDecl>,
     pub interfaces: Vec<InterfaceDecl>,
     pub functions:  Vec<FuncDecl>,
@@ -459,6 +469,7 @@ impl Program {
         Self {
             imports:    Vec::new(),
             consts:     Vec::new(),
+            modules:    Vec::new(),
             classes:    Vec::new(),
             interfaces: Vec::new(),
             functions:  Vec::new(),

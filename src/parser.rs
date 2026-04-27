@@ -105,6 +105,9 @@ impl Parser {
                 TokenKind::Const => {
                     program.consts.push(self.parse_const_decl()?);
                 }
+                TokenKind::Module => {
+                    program.modules.push(self.parse_module()?);
+                }
                 TokenKind::Class => {
                     program.classes.push(self.parse_class()?);
                 }
@@ -306,6 +309,16 @@ impl Parser {
             None
         };
 
+        let mut modules = Vec::new();
+        if self.check_exact(&TokenKind::Modules) {
+            self.advance();
+            modules.push(self.eat_ident()?.0);
+            while self.check_exact(&TokenKind::Comma) {
+                self.advance();
+                modules.push(self.eat_ident()?.0);
+            }
+        }
+
         let mut implements = Vec::new();
         if self.check_exact(&TokenKind::Implements) {
             self.advance();
@@ -323,7 +336,24 @@ impl Parser {
         }
         self.eat(&TokenKind::RBrace)?;
 
-        Ok(ClassDecl { name, extends, implements, members, span })
+        Ok(ClassDecl { name, extends, modules, implements, members, span })
+    }
+
+    // ── Module (mixin) ───────────────────────────────────────────────────────
+
+    fn parse_module(&mut self) -> ParseResult<ModuleDecl> {
+        let span = self.span();
+        self.eat(&TokenKind::Module)?;
+        let (name, _) = self.eat_ident()?;
+
+        self.eat(&TokenKind::LBrace)?;
+        let mut members = Vec::new();
+        while !self.check_exact(&TokenKind::RBrace) {
+            members.push(self.parse_class_member()?);
+        }
+        self.eat(&TokenKind::RBrace)?;
+
+        Ok(ModuleDecl { name, members, span })
     }
 
     fn parse_class_member(&mut self) -> ParseResult<ClassMember> {
