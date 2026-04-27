@@ -208,6 +208,7 @@ pub fn lower_program(program: &Program) -> IrModule {
     // Construction des layouts dans l'ordre (parents avant enfants) — on refait si besoin
     fn collect_fields(
         classes: &[ClassDecl],
+        modules: &[ModuleDecl],
         class_name: &str,
     ) -> Vec<(String, IrType)> {
         let class = match classes.iter().find(|c| c.name == class_name) {
@@ -215,19 +216,38 @@ pub fn lower_program(program: &Program) -> IrModule {
             None    => return vec![],
         };
         let mut fields = if let Some(parent) = &class.extends {
-            collect_fields(classes, parent)
+            collect_fields(classes, modules, parent)
         } else {
             vec![]
         };
+        
+        // Ajouter les champs des modules en premier
+        for module_name in &class.modules {
+            if let Some(module_decl) = modules.iter().find(|m| &m.name == module_name) {
+                for member in &module_decl.members {
+                    if let ClassMember::Field { name, ty, .. } = member {
+                        // Éviter les doublons
+                        if !fields.iter().any(|(f, _)| f == name) {
+                            fields.push((name.clone(), IrType::from_ast(ty)));
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Puis ajouter les champs de la classe elle-même
         for member in &class.members {
             if let ClassMember::Field { name, ty, .. } = member {
-                fields.push((name.clone(), IrType::from_ast(ty)));
+                // Éviter les doublons
+                if !fields.iter().any(|(f, _)| f == name) {
+                    fields.push((name.clone(), IrType::from_ast(ty)));
+                }
             }
         }
         fields
     }
     for class in &program.classes {
-        let fields = collect_fields(&program.classes, &class.name);
+        let fields = collect_fields(&program.classes, &program.modules, &class.name);
         module.class_layouts.insert(class.name.clone(), fields);
     }
 
@@ -310,7 +330,7 @@ pub fn lower_program(program: &Program) -> IrModule {
 
     // Méthodes de classes (passe toutes les classes pour l'héritage)
     for class in &program.classes {
-        lower_class(&mut module, class, &program.classes, &program.consts, &fn_ret_types, &fn_param_types);
+        lower_class(&mut module, class, &program.classes, &program.modules, &program.consts, &fn_ret_types, &fn_param_types);
     }
 
     module
@@ -415,7 +435,15 @@ pub fn lower_func(module: &mut IrModule, func: &FuncDecl, consts: &[crate::ast::
 // Classe
 // ─────────────────────────────────────────────────────────────────────────────
 
-fn lower_class(module: &mut IrModule, class: &ClassDecl, all_classes: &[ClassDecl], consts: &[crate::ast::ConstDecl], fn_ret_types: &HashMap<String, IrType>, fn_param_types: &HashMap<String, Vec<IrType>>) {
+fn lower_class(
+    module: &mut IrModule,
+    class: &ClassDecl,
+    all_classes: &[ClassDecl],
+    all_modules: &[ModuleDecl],
+    consts: &[crate::ast::ConstDecl],
+    fn_ret_types: &HashMap<String, IrType>,
+    fn_param_types: &HashMap<String, Vec<IrType>>,
+) {
     // Collecte des noms de méthodes propres (pour détecter les surcharges)
     let own_methods: HashSet<String> = class.members.iter()
         .filter_map(|m| if let ClassMember::Method { decl, .. } = m { Some(decl.name.clone()) } else { None })
@@ -480,6 +508,43 @@ fn lower_class(module: &mut IrModule, class: &ClassDecl, all_classes: &[ClassDec
                 });
             }
             ClassMember::Field { .. } => {}
+        }
+    }
+
+    // Émettre les méthodes des modules pour cette classe
+    for module_name in &class.modules {
+        if let Some(module_decl) = all_modules.iter().find(|m| &m.name == module_name) {
+            for member in &module_decl.members {
+                if let ClassMember::Method { decl, is_static, .. } = member {
+                    // Ne générer que si la classe n'a pas surchargé cette méthode
+                    if !own_methods.contains(&decl.name) {
+                        if *is_static {
+                            // Méthode statique du module (rare mais possible)
+                            let mangled = FuncDecl {
+                                name: format!("{}_{}", class.name, decl.name),
+                                ..decl.clone()
+                            };
+                            lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, None);
+                        } else {
+                            // Méthode d'instance du module
+                            let self_param = crate::ast::Param {
+                                name: "self".into(),
+                                ty:   Type::Mixed,
+                                span: decl.span.clone(),
+                            };
+                            let mut full_params = vec![self_param];
+                            full_params.extend(decl.params.clone());
+                            let mangled = FuncDecl {
+                                name:   format!("{}_{}", class.name, decl.name),
+                                params: full_params,
+                                ..decl.clone()
+                            };
+                            // Générer avec le contexte de la classe (layouts corrects!)
+                            lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, Some(&class.name));
+                        }
+                    }
+                }
+            }
         }
     }
 

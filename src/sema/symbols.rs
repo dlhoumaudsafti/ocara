@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use crate::ast::{
-    ClassDecl, FuncDecl, InterfaceDecl, ImportDecl, ConstDecl, Type, Param, Visibility,
+    ClassDecl, ModuleDecl, FuncDecl, InterfaceDecl, ImportDecl, ConstDecl, Type, Param, Visibility,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -35,6 +35,14 @@ pub struct ClassInfo {
     pub is_opaque:    bool,
 }
 
+/// Descripteur complet d'un module (mixin)
+#[derive(Debug, Clone)]
+pub struct ModuleInfo {
+    pub fields:       HashMap<String, FieldInfo>,
+    pub methods:      HashMap<String, FuncSig>,
+    pub class_consts: HashMap<String, (Type, Visibility)>,
+}
+
 /// Descripteur d'une interface enregistrée
 #[derive(Debug, Clone)]
 pub struct InterfaceInfo {
@@ -55,6 +63,7 @@ pub struct ImportInfo {
 #[derive(Debug, Default)]
 pub struct SymbolTable {
     pub functions:  HashMap<String, FuncSig>,
+    pub modules:    HashMap<String, ModuleInfo>,
     pub classes:    HashMap<String, ClassInfo>,
     pub interfaces: HashMap<String, InterfaceInfo>,
     pub consts:     HashMap<String, Type>,
@@ -151,6 +160,52 @@ impl SymbolTable {
         true
     }
 
+    pub fn register_module(&mut self, decl: &ModuleDecl) -> bool {
+        use crate::ast::ClassMember;
+        if self.modules.contains_key(&decl.name) {
+            return false;
+        }
+        let mut fields       = HashMap::new();
+        let mut methods      = HashMap::new();
+        let mut class_consts = HashMap::new();
+
+        for member in &decl.members {
+            match member {
+                ClassMember::Field { vis, mutable, name, ty, .. } => {
+                    fields.insert(name.clone(), FieldInfo {
+                        ty:      ty.clone(),
+                        mutable: *mutable,
+                        vis:     vis.clone(),
+                    });
+                }
+                ClassMember::Const { vis, name, ty, .. } => {
+                    class_consts.insert(name.clone(), (ty.clone(), vis.clone()));
+                }
+                ClassMember::Method { vis: _, is_static, decl: fd, .. } => {
+                    methods.insert(fd.name.clone(), FuncSig {
+                        params:    params_to_vec(&fd.params),
+                        ret_ty:    fd.ret_ty.clone(),
+                        is_static: *is_static,
+                    });
+                }
+                ClassMember::Constructor { .. } => {
+                    // Les modules ne peuvent pas avoir de constructeurs
+                    // On ignore silencieusement ou on pourrait générer une erreur
+                }
+            }
+        }
+
+        self.modules.insert(
+            decl.name.clone(),
+            ModuleInfo {
+                fields,
+                methods,
+                class_consts,
+            },
+        );
+        true
+    }
+
     pub fn register_class(&mut self, decl: &ClassDecl) -> bool {
         use crate::ast::ClassMember;
         if self.classes.contains_key(&decl.name) {
@@ -183,6 +238,25 @@ impl SymbolTable {
             }
         }
 
+        // Composer les membres des modules (mixins)
+        for module_name in &decl.modules {
+            if let Some(module_info) = self.modules.get(module_name).cloned() {
+                // Ajouter les champs du module
+                for (name, field) in module_info.fields {
+                    fields.entry(name).or_insert(field);
+                }
+                // Ajouter les méthodes du module
+                for (name, method) in module_info.methods {
+                    methods.entry(name).or_insert(method);
+                }
+                // Ajouter les constantes du module
+                for (name, const_info) in module_info.class_consts {
+                    class_consts.entry(name).or_insert(const_info);
+                }
+            }
+            // Si le module n'existe pas, on pourrait générer une erreur plus tard
+        }
+
         self.classes.insert(
             decl.name.clone(),
             ClassInfo {
@@ -205,6 +279,11 @@ impl SymbolTable {
 
     pub fn lookup_class(&self, name: &str) -> Option<&ClassInfo> {
         self.classes.get(name)
+    }
+
+    #[allow(dead_code)]
+    pub fn lookup_module(&self, name: &str) -> Option<&ModuleInfo> {
+        self.modules.get(name)
     }
 
     #[allow(dead_code)]

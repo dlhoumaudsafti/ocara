@@ -27,16 +27,17 @@
 14. [Classes](#14-classes)
 15. [Interfaces](#15-interfaces)
 16. [Héritage et implémentation](#16-héritage-et-implémentation)
-17. [Instanciation](#17-instanciation)
-18. [Accès statique](#18-accès-statique)
-19. [Conditions](#19-conditions)
-20. [Switch](#20-switch)
-21. [Match (expression)](#21-match-expression)
-22. [Boucles](#22-boucles)
-23. [Gestion des erreurs](#23-gestion-des-erreurs)
-24. [Résolution des noms](#24-résolution-des-noms)
-25. [Grammaire EBNF complète](#25-grammaire-ebnf-complète)
-26. [Exemple complet](#26-exemple-complet)
+17. [Modules (mixins)](#17-modules-mixins)
+18. [Instanciation](#18-instanciation)
+19. [Accès statique](#19-accès-statique)
+20. [Conditions](#20-conditions)
+21. [Switch](#21-switch)
+22. [Match (expression)](#22-match-expression)
+23. [Boucles](#23-boucles)
+24. [Gestion des erreurs](#24-gestion-des-erreurs)
+25. [Résolution des noms](#25-résolution-des-noms)
+26. [Grammaire EBNF complète](#26-grammaire-ebnf-complète)
+27. [Exemple complet](#27-exemple-complet)
 
 ---
 
@@ -771,6 +772,7 @@ IO::writeln("Bonjour " + nom)
 ```ebnf
 ClassDecl  ::= "class" Identifier
                ( "extends" Identifier )?
+               ( "modules" Identifier ( "," Identifier )* )?
                ( "implements" Identifier ( "," Identifier )* )?
                ClassBody
 
@@ -786,7 +788,27 @@ Constructor ::= "init" "(" ParamList? ")" Block
 Visibility  ::= "public" | "private" | "protected"
 ```
 
-### 14.1 Constructeur (`init`)
+### 14.1 Composition avec modules (mixins)
+
+Les modules permettent de composer des comportements réutilisables dans une classe via le mot-clé `modules` :
+
+```ocara
+class User modules Timestamped, Identifiable {
+    // ... membres de la classe
+}
+```
+
+Les champs et méthodes des modules sont ajoutés à la classe comme si ils avaient été déclarés directement dans celle-ci. Si une classe définit une méthode avec le même nom qu'une méthode d'un module, la méthode de la classe prend la priorité (surcharge).
+
+**Règles :**
+- Les modules sont appliqués dans l'ordre de déclaration
+- Les champs des modules sont ajoutés avant les champs de la classe
+- Les méthodes des modules non surchargées sont disponibles sur les instances de la classe
+- Les modules ne peuvent pas avoir de constructeurs
+
+**Voir aussi :** Section 28 — Modules (mixins)
+
+### 14.2 Constructeur (`init`)
 
 Le constructeur est déclaré avec le mot-clé `init`. Il est **toujours public** : aucun mot-clé de visibilité ne peut le précéder. Écrire `public init(...)` est une erreur de syntaxe.
 
@@ -964,7 +986,100 @@ class AdminLogger extends ConsoleLogger implements Logger, Auditable {
 
 ---
 
-## 17. Instanciation
+## 17. Modules (mixins)
+
+Les **modules** (ou **mixins**) permettent la composition horizontale de comportements réutilisables. Un module est similaire à une classe, mais il ne peut pas être instancié directement. Ses membres (champs, méthodes, constantes) sont incorporés dans les classes qui l'utilisent via le mot-clé `modules`.
+
+```ebnf
+ModuleDecl ::= "module" Identifier ClassBody
+
+ClassDecl  ::= "class" Identifier
+               ( "extends" Identifier )?
+               ( "modules" Identifier ( "," Identifier )* )?
+               ( "implements" Identifier ( "," Identifier )* )?
+               ClassBody
+```
+
+### 17.1 Déclaration d'un module
+
+```ocara
+module Timestamped {
+    private property created_at: int
+
+    public method mark_created(): void {
+        self.created_at = System::time()
+    }
+
+    public method get_age(): int {
+        return System::time() - self.created_at
+    }
+}
+```
+
+### 17.2 Utilisation dans une classe
+
+```ocara
+class User modules Timestamped {
+    private property name: string
+
+    init(n: string) {
+        self.name = n
+        self.created_at = 0  // champ du module
+    }
+
+    public method get_name(): string {
+        return self.name
+    }
+}
+
+function main(): int {
+    var u: User = use User("Alice")
+    u.mark_created()          // méthode du module
+    IO::writeln(u.get_age())  // méthode du module
+    return 0
+}
+```
+
+### 17.3 Règles de composition
+
+- **Ordre des modules** : les modules sont appliqués dans l'ordre de déclaration (`modules A, B` → A puis B)
+- **Champs** : les champs des modules sont ajoutés avant les champs de la classe
+- **Surcharge** : si une classe définit une méthode avec le même nom qu'une méthode d'un module, la méthode de la classe prend la priorité
+- **Constructeur** : les modules ne peuvent pas avoir de constructeur `init`. Le constructeur de la classe doit initialiser les champs des modules
+- **Visibilité** : les règles de visibilité (`public`, `private`, `protected`) s'appliquent normalement
+- **Multiple composition** : une classe peut utiliser plusieurs modules
+
+### 17.4 Conflits de noms
+
+Si deux modules définissent une méthode ou un champ avec le même nom, le dernier module déclaré prend la priorité. Si la classe elle-même définit un membre avec le même nom, la classe l'emporte.
+
+```ocara
+module A {
+    public method greet(): string {
+        return "Hello from A"
+    }
+}
+
+module B {
+    public method greet(): string {
+        return "Hello from B"
+    }
+}
+
+class C modules A, B {
+    // B.greet() prend la priorité car B est après A
+}
+
+class D modules A, B {
+    public method greet(): string {
+        return "Hello from D"  // D.greet() prend la priorité sur A et B
+    }
+}
+```
+
+---
+
+## 18. Instanciation
 
 ```ebnf
 NewExpr ::= "use" Identifier "(" ArgList? ")"
@@ -979,7 +1094,7 @@ var logger:Logger = use ConsoleLogger()
 
 ---
 
-## 18. Accès statique
+## 19. Accès statique
 
 ```ebnf
 StaticCallee ::= Identifier | "self"
