@@ -276,12 +276,35 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
             builder.switch_to(&body_bb);
             // Charge l'élément courant
             let elem = builder.new_value();
-            builder.emit(Inst::Call {
-                dest:   Some(elem.clone()),
-                func:   "__array_get".into(),
-                args:   vec![iter_val.clone(), idx.clone()],
-                ret_ty: elem_ty.clone(),
-            });
+            
+            // Pour les paramètres variadic, le tableau IR est Ptr (mixed[]) donc on doit traiter
+            // différemment : récupérer comme I64 puis caster/unboxer si nécessaire
+            let is_variadic = if let Expr::Ident(name, _) = iter {
+                builder.variadic_params.contains(name.as_str())
+            } else {
+                false
+            };
+            
+            if is_variadic {
+                // Variadic : le tableau est mixed[], donc __array_get retourne un i64 brut
+                builder.emit(Inst::Call {
+                    dest:   Some(elem.clone()),
+                    func:   "__array_get".into(),
+                    args:   vec![iter_val.clone(), idx.clone()],
+                    ret_ty: IrType::I64,  // Le tableau mixed contient des i64
+                });
+                // Les int sont déjà corrects en i64, pas besoin d'unboxing
+                // Les float/bool nécessiteraient unboxing mais pour l'instant on les laisse
+            } else {
+                // Tableau normal : utiliser le type d'élément
+                builder.emit(Inst::Call {
+                    dest:   Some(elem.clone()),
+                    func:   "__array_get".into(),
+                    args:   vec![iter_val.clone(), idx.clone()],
+                    ret_ty: elem_ty.clone(),
+                });
+            }
+            
             let elem_slot = builder.declare_local(var, elem_ty, false);
             builder.emit(Inst::Store { ptr: elem_slot, src: elem });
 

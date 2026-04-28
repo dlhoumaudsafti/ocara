@@ -22,11 +22,14 @@ use crate::ast::Type;
 use crate::sema::symbols::{ClassInfo, FuncSig};
 
 fn m(params: Vec<(&str, Type)>, ret_ty: Type) -> FuncSig {
+    let len = params.len();
     FuncSig {
         params:    params.into_iter().map(|(n, t)| (n.to_string(), t)).collect(),
         ret_ty,
         is_static: true,
         is_async:  false,
+        has_variadic: false,
+        fixed_params_count: len,
     }
 }
 
