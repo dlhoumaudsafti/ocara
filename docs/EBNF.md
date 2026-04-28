@@ -1085,7 +1085,7 @@ Constructor ::= "init" "(" ParamList? ")" Block
 - Appel via `use ClassName(args)`.
 - Ne peut pas être `private`, `protected` ou `static`.
 
-### 14.2 Membres
+### 14.3 Membres
 
 | Visibilité  | Accès                                    |
 |-------------|------------------------------------------|
@@ -1117,7 +1117,7 @@ Constructor ::= "init" "(" ParamList? ")" Block
 > Ce comportement est garanti mais **implicite** : préférer une initialisation explicite dans `init` pour que l'intention soit claire.
 > Contrairement à `var` (qui oblige une valeur à la déclaration), une `property` ne requiert pas de valeur dans la déclaration.
 
-### 14.3 Constantes de classe
+### 14.4 Constantes de classe
 
 ```ocara
 class Config {
@@ -1136,7 +1136,7 @@ IO::writeln(Config::MAX_RETRY)  // 3
 
 Elles ne peuvent pas être modifiées. Les règles de visibilité s'appliquent normalement.
 
-### 14.4 Méthodes statiques
+### 14.5 Méthodes statiques
 
 Une méthode préfixée par `static` appartient à la classe et non à une instance. Elle s'appelle via `::` sans créer d'objet.
 
@@ -1175,7 +1175,7 @@ class Validator {
 > - `self::` appelle uniquement des méthodes `static` — pas des méthodes d'instance.
 > - Depuis l'extérieur de la classe, on utilise toujours `ClassName::method()`.
 
-### 14.5 `self`
+### 14.6 `self`
 
 Le mot-clé `self` référence l'instance courante à l'intérieur des méthodes et du constructeur.
 
@@ -1534,7 +1534,7 @@ scoped desc:string = match user.age:int {
 
 ## 24. Boucles
 
-### 22.1 While
+### 24.1 While
 
 ```ebnf
 WhileStmt ::= "while" Expression Block
@@ -1546,7 +1546,7 @@ while x > 0 {
 }
 ```
 
-### 22.2 For (itération simple)
+### 24.2 For (itération simple)
 
 ```ebnf
 ForInStmt ::= "for" Identifier "in" Expression Block
@@ -1558,7 +1558,7 @@ for i in 0..5 {
 }
 ```
 
-### 22.3 For (paires clé/valeur)
+### 24.3 For (paires clé/valeur)
 
 ```ebnf
 ForMapStmt ::= "for" Identifier "=>" Identifier "in" Expression Block
@@ -1570,7 +1570,7 @@ for key => value in profile {
 }
 ```
 
-### 22.4 Opérateur de plage
+### 24.4 Opérateur de plage
 
 ```ebnf
 RangeExpr ::= AdditiveExpr ".." AdditiveExpr
@@ -1583,7 +1583,7 @@ Produit une séquence d'entiers de `start` inclus à `end` **exclus**.
 1..n+1  // 1, 2, …, n
 ```
 
-### 22.5 Break
+### 24.5 Break
 
 ```ebnf
 BreakStmt ::= "break"
@@ -1604,7 +1604,7 @@ while i < 10 {
 
 > `break` n'est valide qu'à l'intérieur d'une boucle. En dehors, c'est une erreur de compilation.
 
-### 22.6 Continue
+### 24.6 Continue
 
 ```ebnf
 ContinueStmt ::= "continue"
@@ -1634,7 +1634,7 @@ OnClause ::= "on" Identifier ( "is" Identifier )? Block
 RaiseStmt ::= "raise" Expression
 ```
 
-### 23.1 `try` / `on`
+### 25.1 `try` / `on`
 
 Le bloc `try` exécute du code susceptible de lever une erreur. Chaque clause `on` définit un handler avec un **binding explicite** — le nom après `on` est la variable qui contiendra l'erreur capturée.
 
@@ -1646,7 +1646,7 @@ try {
 }
 ```
 
-### 23.2 Filtrage par classe (`is`)
+### 25.2 Filtrage par classe (`is`)
 
 La variante `on <binding> is <Classe>` filtre les erreurs par type. Plusieurs handlers peuvent être chaînés, du plus spécifique au plus général. Le premier handler dont le type correspond est exécuté.
 
@@ -1664,7 +1664,7 @@ try {
 
 > Le handler générique (`on e` sans `is`) doit toujours être placé en dernier.
 
-### 23.3 `raise`
+### 25.3 `raise`
 
 `raise` lève une erreur. Il accepte n'importe quelle expression : chaîne, template string, ou instance d'une classe d'exception.
 
@@ -1676,7 +1676,7 @@ raise use IOException("Fichier introuvable", 404)
 
 > `raise` interrompt immédiatement l'exécution du bloc courant. En dehors d'un `on`, l'erreur remonte la pile d'appels.
 
-### 23.4 Classe d'exception
+### 25.4 Classe d'exception
 
 Une exception est une **classe ordinaire** — aucune interface ni classe de base requise. Par convention, les classes d'exception ont un champ `message:string`.
 
