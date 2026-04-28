@@ -26,6 +26,7 @@ fn m(params: Vec<(&str, Type)>, ret_ty: Type) -> FuncSig {
         params:    params.into_iter().map(|(n, t)| (n.to_string(), t)).collect(),
         ret_ty,
         is_static: true,
+        is_async:  false,
     }
 }
 

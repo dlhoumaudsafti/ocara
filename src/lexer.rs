@@ -284,6 +284,8 @@ impl Lexer {
             "is"         => TokenKind::Is,
             "raise"      => TokenKind::Raise,
             "self"       => TokenKind::SelfKw,
+            "async"      => TokenKind::Async,
+            "resolve"    => TokenKind::Resolve,
             "int"        => TokenKind::TInt,
             "float"      => TokenKind::TFloat,
             "string"     => TokenKind::TString,

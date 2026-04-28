@@ -243,6 +243,10 @@ pub const BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__ocara_try_exec",       params: &[clt::I64, clt::I64],              returns: None,              module: None },
     BuiltinDesc { name: "__ocara_fail",           params: &[clt::I64, clt::I64],              returns: None,              module: None },
     BuiltinDesc { name: "__ocara_type_matches",   params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__task_spawn",           params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__task_resolve",         params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__unbox_float",          params: &[clt::I64],                        returns: Some(clt::F64),    module: None },
+    BuiltinDesc { name: "__unbox_bool",           params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__ocara_unhandled_fail", params: &[clt::I64],                        returns: None,              module: None },
     // Allocation d'objet tas (toujours disponible)
     BuiltinDesc { name: "__alloc_obj",            params: &[clt::I64],                        returns: Some(clt::I64),    module: None },

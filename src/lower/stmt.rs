@@ -71,6 +71,17 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
             let val_ty = expr_ir_type_pub(builder, value);
             let val = lower_expr(builder, value);
             let val = box_for_any(builder, &ir_ty, val_ty, val);
+            // Tracker le type de retour original si l'init est un appel async
+            // (nécessaire pour l'unboxing dans Expr::Resolve)
+            if let Expr::Call { callee, .. } = value {
+                if let Expr::Ident(func_name, _) = callee.as_ref() {
+                    if builder.async_funcs.contains(func_name.as_str()) {
+                        if let Some(orig_ret) = builder.fn_ret_types.get(func_name.as_str()).cloned() {
+                            builder.async_var_ret.insert(name.clone(), orig_ret);
+                        }
+                    }
+                }
+            }
             builder.store_local(name, val);
         }
 
