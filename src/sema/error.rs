@@ -98,6 +98,7 @@ impl std::error::Error for SemaError {}
 pub enum SemaWarning {
     UnusedVariable { name: String, span: Span },
     MixedLocalVariable { name: String, span: Span },
+    VariadicMixed { name: String, span: Span },
 }
 
 impl SemaWarning {
@@ -105,6 +106,7 @@ impl SemaWarning {
         match self {
             SemaWarning::UnusedVariable { span, .. } => span,
             SemaWarning::MixedLocalVariable { span, .. } => span,
+            SemaWarning::VariadicMixed { span, .. } => span,
         }
     }
 
@@ -114,6 +116,8 @@ impl SemaWarning {
                 format!("variable '{}' jamais utilisée", name),
             SemaWarning::MixedLocalVariable { name, .. } =>
                 format!("variable locale '{}' : le type 'mixed' désactive les vérifications de type — préférer un type concret ou une union (ex: int|string|null)", name),
+            SemaWarning::VariadicMixed { name, .. } =>
+                format!("paramètre variadic '{}' : variadic<mixed> désactive les vérifications de type — envisager variadic<T|U> avec union explicite", name),
         }
     }
 }

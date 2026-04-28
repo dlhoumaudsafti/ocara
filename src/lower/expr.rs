@@ -706,11 +706,75 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     raw
                 }
             }).collect();
+            
+            // Si fonction variadic, empaqueter les arguments excédentaires dans un tableau
+            let final_args = if let Some(&(fixed_count, ref _elem_ty)) = builder.fn_variadic_info.get(func_name.as_str()) {
+                if arg_vals.len() >= fixed_count {
+                    let mut final_args = arg_vals[..fixed_count].to_vec();
+                    
+                    // Créer le tableau variadic
+                    let arr = builder.new_value();
+                    builder.emit(Inst::Call {
+                        dest:   Some(arr.clone()),
+                        func:   "__array_new".into(),
+                        args:   vec![],
+                        ret_ty: IrType::Ptr,
+                    });
+                    
+                    // Pousser chaque argument variadic dans le tableau (avec boxing si nécessaire)
+                    for (idx, variadic_arg) in arg_vals[fixed_count..].iter().enumerate() {
+                        let arg_expr = &args[fixed_count + idx];
+                        let arg_ty = expr_ir_type(builder, arg_expr);
+                        
+                        // Boxer uniquement F64 et Bool pour stockage dans mixed[]
+                        // Les int (I64) sont stockés directement comme tagged values
+                        let stored_val = match arg_ty {
+                            IrType::F64 => {
+                                let boxed = builder.new_value();
+                                builder.emit(Inst::Call {
+                                    dest:   Some(boxed.clone()),
+                                    func:   "__box_float".into(),
+                                    args:   vec![variadic_arg.clone()],
+                                    ret_ty: IrType::Ptr,
+                                });
+                                boxed
+                            }
+                            IrType::Bool => {
+                                let boxed = builder.new_value();
+                                builder.emit(Inst::Call {
+                                    dest:   Some(boxed.clone()),
+                                    func:   "__box_bool".into(),
+                                    args:   vec![variadic_arg.clone()],
+                                    ret_ty: IrType::Ptr,
+                                });
+                                boxed
+                            }
+                            _ => variadic_arg.clone(),  // I64, Ptr, etc. → stockage direct
+                        };
+                        
+                        builder.emit(Inst::Call {
+                            dest:   None,
+                            func:   "__array_push".into(),
+                            args:   vec![arr.clone(), stored_val],
+                            ret_ty: IrType::Void,
+                        });
+                    }
+                    
+                    // Ajouter le tableau comme dernier argument
+                    final_args.push(arr);
+                    final_args
+                } else {
+                    arg_vals
+                }
+            } else {
+                arg_vals
+            };
+            
             let dest = builder.new_value();
             builder.emit(Inst::Call {
                 dest:   Some(dest.clone()),
                 func:   func_name,
-                args:   arg_vals,
+                args:   final_args,
                 ret_ty: IrType::Ptr,
             });
             dest

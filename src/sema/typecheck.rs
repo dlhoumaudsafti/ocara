@@ -79,9 +79,26 @@ impl<'a> TypeChecker<'a> {
         self.current_ret = Some(func.ret_ty.clone());
 
         for param in &func.params {
+            // Warning si variadic<mixed>
+            if param.is_variadic {
+                if let Type::Mixed = param.ty {
+                    self.warnings.push(SemaWarning::VariadicMixed {
+                        name: param.name.clone(),
+                        span: param.span.clone(),
+                    });
+                }
+            }
+            
+            // Désucrage : variadic<T> → T[] dans le corps de la fonction
+            let param_ty = if param.is_variadic {
+                Type::Array(Box::new(param.ty.clone()))
+            } else {
+                param.ty.clone()
+            };
+            
             self.scopes.declare(
                 param.name.clone(),
-                LocalBinding { ty: param.ty.clone(), mutable: false, span: param.span.clone(), used: false, is_param: true },
+                LocalBinding { ty: param_ty, mutable: false, span: param.span.clone(), used: false, is_param: true },
             );
         }
 
@@ -111,9 +128,26 @@ impl<'a> TypeChecker<'a> {
                     self.scopes.push();
                     self.current_ret = Some(Type::Void);
                     for p in params {
+                        // Warning si variadic<mixed>
+                        if p.is_variadic {
+                            if let Type::Mixed = p.ty {
+                                self.warnings.push(SemaWarning::VariadicMixed {
+                                    name: p.name.clone(),
+                                    span: p.span.clone(),
+                                });
+                            }
+                        }
+                        
+                        // Désucrage : variadic<T> → T[]
+                        let param_ty = if p.is_variadic {
+                            Type::Array(Box::new(p.ty.clone()))
+                        } else {
+                            p.ty.clone()
+                        };
+                        
                         self.scopes.declare(
                             p.name.clone(),
-                            LocalBinding { ty: p.ty.clone(), mutable: false, span: p.span.clone(), used: false, is_param: true },
+                            LocalBinding { ty: param_ty, mutable: false, span: p.span.clone(), used: false, is_param: true },
                         );
                     }
                     self.check_block(body);
@@ -454,8 +488,21 @@ impl<'a> TypeChecker<'a> {
                 // Résolution : Ident direct → fonction libre
                 if let Expr::Ident(name, _) = callee.as_ref() {
                     if let Some(sig) = self.symbols.lookup_function(name) {
-                        let expected = sig.params.len();
-                        if args.len() != expected {
+                        // Vérification du nombre d'arguments avec support variadic
+                        let args_ok = if sig.has_variadic {
+                            // Si variadic : accepte fixed_params_count ou plus
+                            args.len() >= sig.fixed_params_count
+                        } else {
+                            // Si non-variadic : doit être exactement params.len()
+                            args.len() == sig.params.len()
+                        };
+                        
+                        if !args_ok {
+                            let expected = if sig.has_variadic {
+                                sig.fixed_params_count  // Afficher le minimum requis
+                            } else {
+                                sig.params.len()
+                            };
                             self.errors.push(SemaError::WrongArgCount {
                                 name:     name.clone(),
                                 expected,
@@ -492,8 +539,19 @@ impl<'a> TypeChecker<'a> {
                                     span:   fspan.clone(),
                                 });
                             }
-                            let expected = sig.params.len();
-                            if args.len() != expected {
+                            // Vérification du nombre d'arguments avec support variadic
+                            let args_ok = if sig.has_variadic {
+                                args.len() >= sig.fixed_params_count
+                            } else {
+                                args.len() == sig.params.len()
+                            };
+                            
+                            if !args_ok {
+                                let expected = if sig.has_variadic {
+                                    sig.fixed_params_count
+                                } else {
+                                    sig.params.len()
+                                };
                                 self.errors.push(SemaError::WrongArgCount {
                                     name:     format!("{}::{}", cls_name, field),
                                     expected,
@@ -545,10 +603,22 @@ impl<'a> TypeChecker<'a> {
                             });
                         }
                         let ret = sig.ret_ty.clone();
-                        if args.len() != sig.params.len() {
+                        // Vérification du nombre d'arguments avec support variadic
+                        let args_ok = if sig.has_variadic {
+                            args.len() >= sig.fixed_params_count
+                        } else {
+                            args.len() == sig.params.len()
+                        };
+                        
+                        if !args_ok {
+                            let expected = if sig.has_variadic {
+                                sig.fixed_params_count
+                            } else {
+                                sig.params.len()
+                            };
                             self.errors.push(SemaError::WrongArgCount {
                                 name:     format!("{}::{}", resolved_class, method),
-                                expected: sig.params.len(),
+                                expected,
                                 found:    args.len(),
                                 span:     span.clone(),
                             });
