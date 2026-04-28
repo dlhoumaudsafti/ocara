@@ -18,11 +18,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 use std::{
-    collections::HashSet,
+    collections::{HashSet, hash_map::DefaultHasher},
     fs,
+    hash::{Hash, Hasher},
     io::IsTerminal,
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    time::Instant,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -252,6 +254,10 @@ struct TestResult {
     asserts: Vec<AssertResult>,
     /// true si la compilation ou l'exécution a échoué
     error:   Option<String>,
+    /// Temps de compilation en millisecondes
+    compile_time_ms: u128,
+    /// Temps d'exécution en millisecondes
+    run_time_ms: u128,
 }
 
 impl TestResult {
@@ -266,6 +272,14 @@ impl TestResult {
 // ─────────────────────────────────────────────────────────────────────────────
 // Exécution d'un test
 // ─────────────────────────────────────────────────────────────────────────────
+
+/// Calcule un hash rapide du contenu d'un fichier pour le cache.
+fn hash_file_content(path: &Path) -> Option<u64> {
+    let content = fs::read(path).ok()?;
+    let mut hasher = DefaultHasher::new();
+    content.hash(&mut hasher);
+    Some(hasher.finish())
+}
 
 fn find_ocara_bin() -> PathBuf {
     // 1. Variable d'environnement OCARA
@@ -307,51 +321,69 @@ fn find_ocara_bin() -> PathBuf {
 fn run_test_file(
     ocara: &Path,
     src: &Path,
-    tmp_dir: &Path,
+    cache_dir: &Path,
     project_root: &Path,
 ) -> (Vec<TestResult>, Option<String>) {
     let stem = src.file_stem().unwrap_or_default().to_string_lossy();
-    let bin = tmp_dir.join(stem.as_ref());
-
-    // Le compilateur résout les imports relatifs au répertoire du fichier source.
-    // On copie le fichier test à la racine du projet et on y injecte un main()
-    // qui appelle toutes les fonctions/méthodes *Test.
-    let tmp_src = project_root.join(format!("__ocaraunit__{}.oc", stem));
-    let source = match fs::read_to_string(src) {
-        Ok(s)  => s,
-        Err(e) => return (vec![], Some(format!("impossible de lire le fichier : {}", e))),
+    
+    // Calculer le hash du fichier source pour le cache
+    let source_hash = match hash_file_content(src) {
+        Some(h) => h,
+        None => return (vec![], Some("impossible de lire le fichier source".to_string())),
     };
-    let test_names = extract_test_names(&source);
-    let main_code  = generate_main(&source, &test_names);
-    let _ = fs::write(&tmp_src, format!("{}\n{}", source, main_code));
+    
+    let bin = cache_dir.join(format!("{}-{:x}", stem, source_hash));
+    let mut compile_time_ms = 0u128;
+    let mut used_cache = false;
+    
+    // Vérifier si un binaire caché existe
+    if !bin.exists() {
+        // Le compilateur résout les imports relatifs au répertoire du fichier source.
+        // On copie le fichier test à la racine du projet et on y injecte un main()
+        // qui appelle toutes les fonctions/méthodes *Test.
+        let tmp_src = project_root.join(format!("__ocaraunit__{}.oc", stem));
+        let source = match fs::read_to_string(src) {
+            Ok(s)  => s,
+            Err(e) => return (vec![], Some(format!("impossible de lire le fichier : {}", e))),
+        };
+        let test_names = extract_test_names(&source);
+        let main_code  = generate_main(&source, &test_names);
+        let _ = fs::write(&tmp_src, format!("{}\n{}", source, main_code));
 
-    // Compilation depuis la racine du projet
-    let compile = Command::new(ocara)
-        .args([tmp_src.as_os_str(), std::ffi::OsStr::new("-o"), bin.as_os_str()])
-        .current_dir(project_root)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output();
+        // Compilation depuis la racine du projet
+        let compile_start = Instant::now();
+        let compile = Command::new(ocara)
+            .args([tmp_src.as_os_str(), std::ffi::OsStr::new("-o"), bin.as_os_str()])
+            .current_dir(project_root)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output();
+        compile_time_ms = compile_start.elapsed().as_millis();
 
-    let _ = fs::remove_file(&tmp_src); // nettoyage immédiat
+        let _ = fs::remove_file(&tmp_src); // nettoyage immédiat
 
-    let compile_out = match compile {
-        Err(e) => return (vec![], Some(format!("impossible de lancer ocara : {}", e))),
-        Ok(o)  => o,
-    };
+        let compile_out = match compile {
+            Err(e) => return (vec![], Some(format!("impossible de lancer ocara : {}", e))),
+            Ok(o)  => o,
+        };
 
-    if !compile_out.status.success() {
-        let stderr = String::from_utf8_lossy(&compile_out.stderr).to_string();
-        return (vec![], Some(stderr.trim().to_string()));
+        if !compile_out.status.success() {
+            let stderr = String::from_utf8_lossy(&compile_out.stderr).to_string();
+            // Afficher les 15 premières lignes d'erreur au lieu d'une seule
+            let error_lines: Vec<&str> = stderr.lines().take(15).collect();
+            return (vec![], Some(error_lines.join("\n")));
+        }
+    } else {
+        used_cache = true;
     }
 
     // Exécution
+    let run_start = Instant::now();
     let run_out = Command::new(&bin)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output();
-
-    let _ = fs::remove_file(&bin); // nettoyage
+    let run_time_ms = run_start.elapsed().as_millis();
 
     let run_out = match run_out {
         Err(e) => return (vec![], Some(format!("impossible d'exécuter le binaire : {}", e))),
@@ -373,12 +405,19 @@ fn run_test_file(
     let _name = stem.to_string();
     let error = if !run_out.status.success() && all_asserts.is_empty() {
         let stderr = String::from_utf8_lossy(&run_out.stderr).to_string();
-        Some(stderr.trim().to_string())
+        // Afficher les 10 premières lignes d'erreur
+        let error_lines: Vec<&str> = stderr.lines().take(10).collect();
+        Some(error_lines.join("\n"))
     } else {
         None
     };
 
-    (vec![TestResult { asserts: all_asserts, error }], None)
+    (vec![TestResult { 
+        asserts: all_asserts, 
+        error,
+        compile_time_ms: if used_cache { 0 } else { compile_time_ms },
+        run_time_ms,
+    }], None)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -543,9 +582,9 @@ fn main() {
 
     let ocara = find_ocara_bin();
 
-    // Répertoire temporaire pour les binaires compilés
-    let tmp_dir = std::env::temp_dir().join("ocaraunit_bins");
-    let _ = fs::create_dir_all(&tmp_dir);
+    // Répertoire de cache pour les binaires compilés
+    let cache_dir = config_root.join(".ocaraunit_cache");
+    let _ = fs::create_dir_all(&cache_dir);
 
     // ── Découverte des fichiers de test ──────────────────────────────────────
     let test_files = collect_test_files(&scan_root, &cfg.exclude, &config_root);
@@ -565,6 +604,8 @@ fn main() {
     let mut total_fail = 0usize;
     let mut total_errors = 0usize;
     let mut has_failure = false;
+    let mut total_compile_time_ms = 0u128;
+    let mut total_run_time_ms = 0u128;
 
     if test_files.is_empty() {
         print_separator(&c);
@@ -581,10 +622,13 @@ fn main() {
         println!();
         println!("{}{}{}:", c.bold, rel, c.reset);
 
-        let (results, compile_err) = run_test_file(&ocara, tf, &tmp_dir, &cwd);
+        let (results, compile_err) = run_test_file(&ocara, tf, &cache_dir, &cwd);
 
         if let Some(err) = compile_err {
-            println!("  {}ERREUR compilation :{} {}", c.red, c.reset, err.lines().next().unwrap_or(""));
+            println!("  {}ERREUR compilation :{}", c.red, c.reset);
+            for line in err.lines() {
+                println!("  {}", line);
+            }
             total_errors += 1;
             has_failure = true;
             continue;
@@ -592,11 +636,17 @@ fn main() {
 
         for res in &results {
             if let Some(ref err) = res.error {
-                println!("  {}ERREUR exécution :{} {}", c.red, c.reset, err.lines().next().unwrap_or(""));
+                println!("  {}ERREUR exécution :{}", c.red, c.reset);
+                for line in err.lines() {
+                    println!("  {}", line);
+                }
                 total_errors += 1;
                 has_failure = true;
                 continue;
             }
+            
+            total_compile_time_ms += res.compile_time_ms;
+            total_run_time_ms += res.run_time_ms;
 
             if res.asserts.is_empty() {
                 println!("  {}(aucune assertion){}", c.dim, c.reset);
@@ -617,15 +667,30 @@ fn main() {
             let p = res.pass_count();
             let f = res.fail_count();
             let col = if f == 0 { c.green } else { c.red };
-            println!("  {}{} PASS  {} FAIL{}", col, p, f, c.reset);
+            let time_info = if res.compile_time_ms > 0 {
+                format!(" {}(compile: {}ms, run: {}ms){}",
+                    c.dim, res.compile_time_ms, res.run_time_ms, c.reset)
+            } else {
+                format!(" {}(cached, run: {}ms){}", c.dim, res.run_time_ms, c.reset)
+            };
+            println!("  {}{} PASS  {} FAIL{}{}", col, p, f, c.reset, time_info);
         }
     }
 
     println!();
     print_separator(&c);
     let global_col = if has_failure { c.red } else { c.green };
+    let total_time_s = (total_compile_time_ms + total_run_time_ms) as f64 / 1000.0;
     println!("{}Résultat global : {} PASS  {} FAIL  {} ERREUR(S){}",
         global_col, total_pass, total_fail, total_errors, c.reset);
+    if total_compile_time_ms > 0 || total_run_time_ms > 0 {
+        println!("{}Temps total : {:.2}s (compile: {:.2}s, run: {:.2}s){}",
+            c.dim,
+            total_time_s,
+            total_compile_time_ms as f64 / 1000.0,
+            total_run_time_ms as f64 / 1000.0,
+            c.reset);
+    }
     print_separator(&c);
     } // fin else test_files non vide
 
@@ -711,8 +776,7 @@ fn main() {
         print_separator(&c);
     }
 
-    // Nettoyage du dossier temporaire
-    let _ = fs::remove_dir_all(&tmp_dir);
-
+    // Note: on ne nettoie PAS le cache pour qu'il persiste entre exécutions
+    
     std::process::exit(if has_failure { 1 } else { 0 });
 }

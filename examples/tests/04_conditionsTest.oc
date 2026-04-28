@@ -1,0 +1,63 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 04_conditions.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+
+class Test_04_conditions {
+    
+    public method simpleIfTest(): int {
+        var result:int = 0
+        var x:int = 10
+        if x > 5 {
+            result = 1
+        }
+        UnitTest::assertEquals(1, result)
+        return 0
+    }
+    
+    public method ifElseTest(): int {
+        var result:int = 0
+        var x:int = 3
+        if x > 5 {
+            result = 1
+        } else {
+            result = 2
+        }
+        UnitTest::assertEquals(2, result)
+        return 0
+    }
+    
+    public method elseifTest(): int {
+        var score:int = 75
+        var grade:string = ""
+        
+        if score >= 90 {
+            grade = "A"
+        } elseif score >= 80 {
+            grade = "B"
+        } elseif score >= 70 {
+            grade = "C"
+        } else {
+            grade = "F"
+        }
+        
+        UnitTest::assertEquals("C", grade)
+        return 0
+    }
+    
+    public method nestedIfTest(): int {
+        var x:int = 10
+        var y:int = 20
+        var result:int = 0
+        
+        if x > 5 {
+            if y > 15 {
+                result = 3
+            }
+        }
+        
+        UnitTest::assertEquals(3, result)
+        return 0
+    }
+}

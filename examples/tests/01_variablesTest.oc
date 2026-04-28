@@ -1,0 +1,42 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour les fonctionnalités de base
+// Vérifie que les opérations de base fonctionnent correctement
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+
+class Test_01_variables {
+    
+    public method varMutabilityTest(): int {
+        var score:int = 0
+        score = 42
+        UnitTest::assertEquals(42, score)
+        
+        var compteur:int = 10
+        compteur = compteur + 1
+        UnitTest::assertEquals(11, compteur)
+        return 0
+    }
+    
+    public method scopedVariableTest(): int {
+        var result:int = 0
+        if true {
+            scoped message:int = 100
+            result = message
+        }
+        UnitTest::assertEquals(100, result)
+        return 0
+    }
+    
+    public method loopScopedTest(): int {
+        var sum:int = 0
+        var i:int = 0
+        while i < 3 {
+            scoped temp:int = i * 2
+            sum = sum + temp
+            i = i + 1
+        }
+        UnitTest::assertEquals(6, sum)  // 0 + 2 + 4 = 6
+        return 0
+    }
+}
