@@ -450,6 +450,23 @@ pub struct InterfaceDecl {
     pub span:    Span,
 }
 
+/// Variante d'un enum
+#[derive(Debug, Clone, PartialEq)]
+pub struct EnumVariant {
+    pub name:  String,
+    /// Valeur explicite, ou None → valeur auto (index)
+    pub value: Option<i64>,
+    pub span:  Span,
+}
+
+/// Déclaration d'un enum
+#[derive(Debug, Clone, PartialEq)]
+pub struct EnumDecl {
+    pub name:     String,
+    pub variants: Vec<EnumVariant>,
+    pub span:     Span,
+}
+
 /// Déclaration de constante globale
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConstDecl {
@@ -478,6 +495,7 @@ pub struct Program {
     pub imports:    Vec<ImportDecl>,
     pub consts:     Vec<ConstDecl>,
     pub modules:    Vec<ModuleDecl>,
+    pub enums:      Vec<EnumDecl>,
     pub classes:    Vec<ClassDecl>,
     pub interfaces: Vec<InterfaceDecl>,
     pub functions:  Vec<FuncDecl>,
@@ -489,6 +507,7 @@ impl Program {
             imports:    Vec::new(),
             consts:     Vec::new(),
             modules:    Vec::new(),
+            enums:      Vec::new(),
             classes:    Vec::new(),
             interfaces: Vec::new(),
             functions:  Vec::new(),

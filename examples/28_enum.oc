@@ -1,0 +1,72 @@
+import ocara.IO
+import ocara.Convert
+
+// ── 1. Enum simple (valeurs auto 0, 1, 2, ...) ──────────────────────────────
+enum Direction {
+    North,
+    East,
+    South,
+    West
+}
+
+// ── 2. Enum avec valeurs explicites ─────────────────────────────────────────
+enum HttpStatus {
+    Ok      = 200,
+    Created = 201,
+    NotFound = 404,
+    Error   = 500
+}
+
+// ── 3. Enum utilisé dans switch ──────────────────────────────────────────────
+function direction_name(d:int): string {
+    switch d {
+        0 { return "Nord" }
+        1 { return "Est" }
+        2 { return "Sud" }
+        3 { return "Ouest" }
+        default { return "Inconnu" }
+    }
+}
+
+function http_label(code:int): string {
+    switch code {
+        200 { return "OK" }
+        201 { return "Created" }
+        404 { return "Not Found" }
+        500 { return "Internal Server Error" }
+        default { return "?" }
+    }
+}
+
+// ── 4. Enum utilisé dans if ──────────────────────────────────────────────────
+function is_error(status:int): bool {
+    return status == HttpStatus::Error
+}
+
+function main(): void {
+    IO::writeln("1. valeurs automatiques :")
+    IO::writeln(Convert::int_to_str(Direction::North))   // 0
+    IO::writeln(Convert::int_to_str(Direction::East))    // 1
+    IO::writeln(Convert::int_to_str(Direction::South))   // 2
+    IO::writeln(Convert::int_to_str(Direction::West))    // 3
+
+    IO::writeln("2. valeurs explicites :")
+    IO::writeln(Convert::int_to_str(HttpStatus::Ok))       // 200
+    IO::writeln(Convert::int_to_str(HttpStatus::Created))  // 201
+    IO::writeln(Convert::int_to_str(HttpStatus::NotFound)) // 404
+    IO::writeln(Convert::int_to_str(HttpStatus::Error))    // 500
+
+    IO::writeln("3. switch sur enum :")
+    IO::writeln(direction_name(Direction::North))  // Nord
+    IO::writeln(direction_name(Direction::South))  // Sud
+    IO::writeln(http_label(HttpStatus::NotFound))  // Not Found
+
+    IO::writeln("4. comparaison :")
+    var s:int = HttpStatus::Error
+    if is_error(s) {
+        IO::writeln("erreur detectee")
+    }
+    if s == HttpStatus::Error {
+        IO::writeln("statut = 500")
+    }
+}
