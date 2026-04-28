@@ -1,0 +1,45 @@
+import ocara.IO
+import ocara.Convert
+
+// ── 1. Fonction async simple ─────────────────────────────────────────────────
+async function square(n:int): int {
+    return n * n
+}
+
+// ── 2. Fonction async avec plusieurs étapes ──────────────────────────────────
+async function sum_of_squares(a:int, b:int): int {
+    return a * a + b * b
+}
+
+// ── 3. Utilisation de resolve ────────────────────────────────────────────────
+function main(): void {
+    IO::writeln("1. resolve basique :")
+    var t1:int = square(5)
+    var r1:int = resolve t1
+    IO::writeln(Convert::int_to_str(r1))   // 25
+
+    IO::writeln("2. plusieurs taches en parallele :")
+    // Les 3 taches sont lancees sans bloquer
+    var t2:int = square(3)
+    var t3:int = square(7)
+    var t4:int = square(9)
+    // On attend les resultats
+    var r2:int = resolve t2
+    var r3:int = resolve t3
+    var r4:int = resolve t4
+    IO::writeln(Convert::int_to_str(r2))   // 9
+    IO::writeln(Convert::int_to_str(r3))   // 49
+    IO::writeln(Convert::int_to_str(r4))   // 81
+
+    IO::writeln("3. async avec plusieurs parametres :")
+    var t5:int = sum_of_squares(3, 4)
+    var r5:int = resolve t5
+    IO::writeln(Convert::int_to_str(r5))   // 25
+
+    IO::writeln("4. resolve dans une expression :")
+    var a:int = resolve square(6)
+    var b:int = resolve square(8)
+    var c:int = a + b
+    IO::writeln(Convert::int_to_str(c))    // 100
+}
+

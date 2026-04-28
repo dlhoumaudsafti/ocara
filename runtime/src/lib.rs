@@ -1669,3 +1669,31 @@ pub extern "C" fn __ocara_type_matches(stored: i64, filter: i64) -> i64 {
         if s == f { 1 } else { 0 }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Async tasks
+// ─────────────────────────────────────────────────────────────────────────────
+
+struct OcaraTask {
+    handle: Option<std::thread::JoinHandle<i64>>,
+}
+
+#[no_mangle]
+pub extern "C" fn __task_spawn(func: i64, env: i64) -> i64 {
+    let handle = std::thread::spawn(move || unsafe {
+        let f: extern "C" fn(i64) -> i64 = std::mem::transmute(func as usize);
+        f(env)
+    });
+    let task = Box::new(OcaraTask { handle: Some(handle) });
+    Box::into_raw(task) as i64
+}
+
+#[no_mangle]
+pub extern "C" fn __task_resolve(task_ptr: i64) -> i64 {
+    let task = unsafe { &mut *(task_ptr as *mut OcaraTask) };
+    if let Some(handle) = task.handle.take() {
+        handle.join().unwrap_or(0)
+    } else {
+        0
+    }
+}

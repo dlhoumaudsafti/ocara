@@ -38,6 +38,8 @@ pub struct LowerBuilder<'m> {
     /// Variables locales déjà promues sur le tas pour le partage avec des closures.
     /// Après promotion, `locals[name]` est un heap pointer (pas une Alloca stack).
     pub heap_promoted: HashSet<String>,
+    /// Noms des fonctions marquées `async` (au sens Ocara : spawn thread)
+    pub async_funcs: HashSet<String>,
 }
 
 impl<'m> LowerBuilder<'m> {
@@ -63,6 +65,7 @@ impl<'m> LowerBuilder<'m> {
             func_ret_types: HashMap::new(),
             captured_vars: HashMap::new(),
             heap_promoted: HashSet::new(),
+            async_funcs: HashSet::new(),
         }
     }
 
@@ -177,6 +180,14 @@ pub fn lower_program(program: &Program) -> IrModule {
     let mut fn_ret_types: HashMap<String, IrType> = HashMap::new();
     for func in &program.functions {
         fn_ret_types.insert(func.name.clone(), IrType::from_ast(&func.ret_ty));
+    }
+
+    // Collecte des fonctions marquées async
+    let mut async_funcs: HashSet<String> = HashSet::new();
+    for func in &program.functions {
+        if func.is_async {
+            async_funcs.insert(func.name.clone());
+        }
     }
 
     // Pré-collecte des types de paramètres (fonctions libres + méthodes statiques)
@@ -339,7 +350,14 @@ pub fn lower_program(program: &Program) -> IrModule {
 
     // Fonctions libres (les constantes sont inlinées dans chaque fonction)
     for func in &program.functions {
-        lower_func(&mut module, func, &program.consts, &fn_ret_types, &fn_param_types, None);
+        lower_func(&mut module, func, &program.consts, &fn_ret_types, &fn_param_types, None, &async_funcs);
+        // Générer le wrapper async si la fonction est marquée async
+        if func.is_async {
+            let param_tys: Vec<IrType> = func.params.iter().map(|p| IrType::from_ast(&p.ty)).collect();
+            let ret_ty = IrType::from_ast(&func.ret_ty);
+            let wrapper_name = format!("__async_wrap_{}", func.name);
+            generate_async_wrapper(&mut module, &func.name, &wrapper_name, &param_tys, ret_ty, &fn_ret_types);
+        }
     }
 
     // Méthodes de classes (passe toutes les classes pour l'héritage)
@@ -372,7 +390,7 @@ fn lower_const_global(module: &mut IrModule, c: &ConstDecl) {
 // Fonction libre
 // ─────────────────────────────────────────────────────────────────────────────
 
-pub fn lower_func(module: &mut IrModule, func: &FuncDecl, consts: &[crate::ast::ConstDecl], fn_ret_types: &HashMap<String, IrType>, fn_param_types: &HashMap<String, Vec<IrType>>, class_name: Option<&str>) {
+pub fn lower_func(module: &mut IrModule, func: &FuncDecl, consts: &[crate::ast::ConstDecl], fn_ret_types: &HashMap<String, IrType>, fn_param_types: &HashMap<String, Vec<IrType>>, class_name: Option<&str>, async_funcs: &HashSet<String>) {
     let ir_params: Vec<IrParam> = func.params.iter().enumerate().map(|(i, p)| {
         IrParam {
             name: p.name.clone(),
@@ -394,6 +412,7 @@ pub fn lower_func(module: &mut IrModule, func: &FuncDecl, consts: &[crate::ast::
     builder.fn_param_types = fn_param_types.iter()
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect();
+    builder.async_funcs = async_funcs.iter().cloned().collect();
     for c in consts {
         let ir_ty = IrType::from_ast(&c.ty);
         let _slot = builder.declare_local(&c.name, ir_ty, false);
@@ -473,7 +492,7 @@ fn lower_class(
                         name: format!("{}_{}", class.name, decl.name),
                         ..decl.clone()
                     };
-                    lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, None);
+                    lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, None, &Default::default());
                 } else {
                     // Méthode d'instance : self en premier paramètre
                     let self_param = crate::ast::Param {
@@ -488,7 +507,7 @@ fn lower_class(
                         params: full_params,
                         ..decl.clone()
                     };
-                    lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, Some(&class.name));
+                    lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, Some(&class.name), &Default::default());
                 }
             }
             ClassMember::Constructor { params, body, span } => {
@@ -500,13 +519,14 @@ fn lower_class(
                 let mut full_params = vec![self_param];
                 full_params.extend(params.clone());
                 let init_func = FuncDecl {
-                    name:   format!("{}_init", class.name),
-                    params: full_params,
-                    ret_ty: Type::Void,
-                    body:   body.clone(),
-                    span:   span.clone(),
+                    name:     format!("{}_init", class.name),
+                    params:   full_params,
+                    ret_ty:   Type::Void,
+                    body:     body.clone(),
+                    is_async: false,
+                    span:     span.clone(),
                 };
-                lower_func(module, &init_func, consts, fn_ret_types, fn_param_types, Some(&class.name));
+                lower_func(module, &init_func, consts, fn_ret_types, fn_param_types, Some(&class.name), &Default::default());
             }
             ClassMember::Const { name, value, .. } => {
                 use crate::ir::module::IrGlobal;
@@ -539,7 +559,7 @@ fn lower_class(
                                 name: format!("{}_{}", class.name, decl.name),
                                 ..decl.clone()
                             };
-                            lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, None);
+                            lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, None, &Default::default());
                         } else {
                             // Méthode d'instance du module
                             let self_param = crate::ast::Param {
@@ -555,7 +575,7 @@ fn lower_class(
                                 ..decl.clone()
                             };
                             // Générer avec le contexte de la classe (layouts corrects!)
-                            lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, Some(&class.name));
+                            lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, Some(&class.name), &Default::default());
                         }
                     }
                 }
@@ -582,7 +602,7 @@ fn lower_class(
                             ..decl.clone()
                         };
                         // Émettre avec le contexte de la classe enfant (layouts corrects)
-                        lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, Some(&class.name));
+                        lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, Some(&class.name), &Default::default());
                     }
                 }
             }
@@ -650,6 +670,94 @@ pub fn generate_wrapper(
                 ret_ty: ret_ty.clone(),
             });
             builder.emit(Inst::Return { value: Some(dest) });
+        } else {
+            builder.emit(Inst::Call {
+                dest:   None,
+                func:   original_name.into(),
+                args:   call_args,
+                ret_ty: IrType::Void,
+            });
+            let zero = builder.new_value();
+            builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+            builder.emit(Inst::Return { value: Some(zero) });
+        }
+
+        builder.func
+    };
+
+    module.add_function(ir_func);
+}
+
+/// Génère un wrapper async `__async_wrap_FUNCNAME(env: i64) -> i64`
+/// Lit les arguments depuis l'env heap (env[0], env[8], ...) et appelle la fonction réelle.
+pub fn generate_async_wrapper(
+    module:        &mut IrModule,
+    original_name: &str,
+    wrapper_name:  &str,
+    param_tys:     &[IrType],
+    ret_ty:        IrType,
+    fn_ret_types:  &HashMap<String, IrType>,
+) {
+    let ir_func = {
+        let ir_params = vec![IrParam { name: "__env".into(), ty: IrType::I64, slot: Value(0) }];
+
+        let mut builder = LowerBuilder::new(module, wrapper_name.into(), ir_params, IrType::I64);
+        builder.fn_ret_types = fn_ret_types.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+
+        // Paramètre : slot alloca pour __env
+        let env_slot = builder.declare_local("__env", IrType::I64, false);
+        let env_recv = builder.new_value();
+        builder.emit(Inst::Store { ptr: env_slot, src: env_recv.clone() });
+        builder.func.params = vec![IrParam { name: "__env".into(), ty: IrType::I64, slot: env_recv }];
+
+        // Charger __env
+        let (env_val, _) = builder.load_local("__env").unwrap();
+
+        // Lire chaque arg depuis env[i*8]
+        let mut call_args = Vec::new();
+        for (i, ty) in param_tys.iter().enumerate() {
+            let dest = builder.new_value();
+            builder.emit(Inst::GetField {
+                dest:   dest.clone(),
+                obj:    env_val.clone(),
+                field:  format!("__arg{}", i),
+                ty:     ty.clone(),
+                offset: (i * 8) as i32,
+            });
+            call_args.push(dest);
+        }
+
+        // Appel direct
+        if ret_ty != IrType::Void {
+            let result = builder.new_value();
+            builder.emit(Inst::Call {
+                dest:   Some(result.clone()),
+                func:   original_name.into(),
+                args:   call_args,
+                ret_ty: ret_ty.clone(),
+            });
+            // Convertir en I64 si nécessaire
+            let final_val = if ret_ty == IrType::I64 {
+                result
+            } else {
+                let boxed = builder.new_value();
+                match ret_ty {
+                    IrType::F64 => builder.emit(Inst::Call {
+                        dest: Some(boxed.clone()), func: "__box_float".into(),
+                        args: vec![result], ret_ty: IrType::Ptr,
+                    }),
+                    IrType::Bool => builder.emit(Inst::Call {
+                        dest: Some(boxed.clone()), func: "__box_bool".into(),
+                        args: vec![result], ret_ty: IrType::Ptr,
+                    }),
+                    _ => builder.emit(Inst::Call {
+                        dest: Some(boxed.clone()), func: "__identity".into(),
+                        args: vec![result], ret_ty: IrType::Ptr,
+                    }),
+                }
+                boxed
+            };
+            builder.emit(Inst::Return { value: Some(final_val) });
         } else {
             builder.emit(Inst::Call {
                 dest:   None,

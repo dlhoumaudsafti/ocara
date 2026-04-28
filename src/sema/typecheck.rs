@@ -687,6 +687,13 @@ impl<'a> TypeChecker<'a> {
                 self.infer_expr(expr);
                 Type::Bool
             }
+
+            Expr::Resolve { expr, .. } => {
+                // resolve task : le type de retour est int (handle de tâche opaque)
+                // La valeur réelle est reçue comme i64 depuis __task_resolve
+                self.infer_expr(expr);
+                Type::Int
+            }
         }
     }
 }

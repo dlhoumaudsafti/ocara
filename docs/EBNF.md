@@ -550,7 +550,7 @@ try       on        is         raise
 int       float     string     bool       mixed      map      void
 true      false     null
 or        and       not
-nameless
+nameless  async     resolve    enum
 ```
 
 **Types réservés (PascalCase) :**
@@ -742,7 +742,7 @@ Les variables déclarées dans un bloc ne sont pas visibles en dehors.
 ## 12. Fonctions
 
 ```ebnf
-FuncDecl ::= "function" Identifier "(" ParamList? ")" ":" Type Block
+FuncDecl ::= "async"? "function" Identifier "(" ParamList? ")" ":" Type Block
 
 ParamList ::= Param ( "," Param )*
 Param     ::= Identifier ":" Type
@@ -871,6 +871,55 @@ IO::writeln(user.name)   // "Bob" — l'objet original est muté
 - `self` peut être capturé depuis une méthode d'instance ; les mutations de champs via `self` sont visibles depuis l'extérieur.
 - Les closures imbriquées ne capturent pas les variables de la closure parente (seulement la portée immédiate).
 - Une `nameless` ne peut pas être récursive directement (elle n'a pas de nom).
+
+---
+
+### 12.3 Fonctions asynchrones (`async` / `resolve`)
+
+Une **fonction asynchrone** est déclarée avec le modificateur `async`. Son appel ne bloque pas l'appelant : il retourne immédiatement une **handle de tâche** de type `int`. La valeur finale est récupérée avec l'expression `resolve`.
+
+```ebnf
+FuncDecl    ::= "async"? "function" Identifier "(" ParamList? ")" ":" Type Block
+ClassMember ::= ... | Visibility "static"? "async"? "method" Identifier "(" ParamList? ")" ":" Type Block
+ResolveExpr ::= "resolve" Expression
+```
+
+**Syntaxe :**
+
+```ocara
+async function compute(n:int): int {
+    return n * n
+}
+
+function main(): void {
+    var t1:int = compute(5)    // lance la tâche, retourne un handle int
+    var t2:int = compute(10)
+    var r1:int = resolve t1    // attend la fin de t1, retourne le résultat
+    var r2:int = resolve t2
+}
+```
+
+`resolve` peut aussi être utilisé directement sur l'appel :
+
+```ocara
+var a:int = resolve compute(6)
+```
+
+**Modèle d'exécution :**
+
+| Étape | Mécanique interne |
+|-------|------------------|
+| Déclaration `async function f(args): T` | Le compilateur génère un wrapper `__async_wrap_f(env: i64): i64` qui dépack les arguments depuis l'env heap et appelle `f`. |
+| Appel à `f(...)` (dans un contexte non-`resolve`) | Les arguments sont packagés dans un env heap ; `__task_spawn(wrapper_ptr, env_ptr)` est appelé → crée un thread OS et retourne un `int` (pointeur opaque vers une `OcaraTask`). |
+| `resolve expr` | Appel à `__task_resolve(task_ptr)` → joint le thread (`JoinHandle::join`), retourne le résultat sous forme de `int`. |
+
+**Règles :**
+
+- Le type de retour d'une fonction `async` doit être `int` (toute valeur est transmise comme `i64` à travers le thread).
+- `resolve` retourne un `int` quel que soit le contexte.
+- Une handle ne peut être résolue qu'une seule fois ; une seconde résolution retourne `0`.
+- `async` et `nameless` ne peuvent pas être combinés.
+- `async` ne modifie pas le type `Function` : une fonction async ne peut pas être passée comme `Function`.
 
 ---
 
@@ -1694,13 +1743,13 @@ ClassDecl   ::= "class" Identifier
                 ( "implements" Identifier ( "," Identifier )* )?
                 ClassBody
 InterfaceDecl ::= "interface" Identifier "{" InterfaceMethod* "}"
-FuncDecl    ::= "function" Identifier "(" ParamList? ")" ":" Type Block
+FuncDecl    ::= "async"? "function" Identifier "(" ParamList? ")" ":" Type Block
 
 (* ── Classe ─────────────────────────────────────────────────────── *)
 
 ClassBody   ::= "{" ClassMember* "}"
 ClassMember ::= Constructor
-              | Visibility "static"? "method" Identifier "(" ParamList? ")" ":" Type Block
+              | Visibility "static"? "async"? "method" Identifier "(" ParamList? ")" ":" Type Block
               | Visibility "property" Identifier ":" Type
               | Visibility "const" Identifier ":" Type "=" Expression
 Constructor ::= "init" "(" ParamList? ")" Block
@@ -1784,7 +1833,7 @@ ComparisonExpr ::= RangeExpr ( ( "<" | "<=" | ">" | ">=" ) RangeExpr )*
 RangeExpr   ::= AdditiveExpr ( ".." AdditiveExpr )?
 AdditiveExpr ::= MultiplicativeExpr ( ( "+" | "-" ) MultiplicativeExpr )*
 MultiplicativeExpr ::= UnaryExpr ( ( "*" | "/" | "%" ) UnaryExpr )*
-UnaryExpr   ::= ( "not" | "-" ) UnaryExpr | PostfixExpr
+UnaryExpr   ::= ( "not" | "-" | "resolve" ) UnaryExpr | PostfixExpr
 PostfixExpr ::= PrimaryExpr PostfixTail*
 PostfixTail ::= "." Identifier ( "(" ArgList? ")" )?
               | "(" ArgList? ")"
