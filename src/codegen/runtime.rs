@@ -239,6 +239,11 @@ pub const BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "UnitTest_assertNotEmpty",       params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
     BuiltinDesc { name: "UnitTest_fail",                 params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
     BuiltinDesc { name: "UnitTest_pass",                 params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
+    BuiltinDesc { name: "UnitTest_assertFunction",       params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
+    BuiltinDesc { name: "UnitTest_assertClass",          params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
+    BuiltinDesc { name: "UnitTest_assertEnum",           params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
+    BuiltinDesc { name: "UnitTest_assertMap",            params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
+    BuiltinDesc { name: "UnitTest_assertArray",          params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
     // ── Gestion des erreurs (try/on/fail) — toujours disponibles ─────────────
     BuiltinDesc { name: "__ocara_try_exec",       params: &[clt::I64, clt::I64],              returns: None,              module: None },
     BuiltinDesc { name: "__ocara_fail",           params: &[clt::I64, clt::I64],              returns: None,              module: None },

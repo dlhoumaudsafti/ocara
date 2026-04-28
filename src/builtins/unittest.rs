@@ -130,6 +130,36 @@ pub fn class() -> ClassInfo {
         Type::Void,
     ));
 
+    // UnitTest::assertFunction(value) → void
+    methods.insert("assertFunction".into(), m(
+        vec![("value", Type::Mixed)],
+        Type::Void,
+    ));
+
+    // UnitTest::assertClass(value) → void
+    methods.insert("assertClass".into(), m(
+        vec![("value", Type::Mixed)],
+        Type::Void,
+    ));
+
+    // UnitTest::assertEnum(value) → void
+    methods.insert("assertEnum".into(), m(
+        vec![("value", Type::Mixed)],
+        Type::Void,
+    ));
+
+    // UnitTest::assertMap(value) → void
+    methods.insert("assertMap".into(), m(
+        vec![("value", Type::Mixed)],
+        Type::Void,
+    ));
+
+    // UnitTest::assertArray(value) → void
+    methods.insert("assertArray".into(), m(
+        vec![("value", Type::Mixed)],
+        Type::Void,
+    ));
+
     ClassInfo {
         extends:      None,
         implements:   vec![],
