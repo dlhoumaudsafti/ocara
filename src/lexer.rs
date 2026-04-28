@@ -286,6 +286,7 @@ impl Lexer {
             "self"       => TokenKind::SelfKw,
             "async"      => TokenKind::Async,
             "resolve"    => TokenKind::Resolve,
+            "variadic"   => TokenKind::Variadic,
             "int"        => TokenKind::TInt,
             "float"      => TokenKind::TFloat,
             "string"     => TokenKind::TString,

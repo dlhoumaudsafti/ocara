@@ -371,9 +371,10 @@ pub struct Block {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Param {
-    pub name: String,
-    pub ty:   Type,
-    pub span: Span,
+    pub name:        String,
+    pub ty:          Type,
+    pub is_variadic: bool,
+    pub span:        Span,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

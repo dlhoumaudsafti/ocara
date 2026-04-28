@@ -266,6 +266,19 @@ impl Parser {
             self.advance();
             params.push(self.parse_param()?);
         }
+        
+        // Vérification : si variadic présent, doit être le dernier paramètre
+        if params.len() > 1 {
+            for (i, param) in params.iter().enumerate() {
+                if param.is_variadic && i != params.len() - 1 {
+                    return Err(ParseError {
+                        message: "le paramètre variadic doit être le dernier paramètre".to_string(),
+                        span: param.span.clone(),
+                    });
+                }
+            }
+        }
+        
         Ok(params)
     }
 
@@ -273,8 +286,19 @@ impl Parser {
         let span = self.span();
         let (name, _) = self.eat_ident()?;
         self.eat(&TokenKind::Colon)?;
-        let ty = self.parse_type()?;
-        Ok(Param { name, ty, span })
+        
+        // Vérifier si c'est un paramètre variadic
+        let is_variadic = self.check_exact(&TokenKind::Variadic);
+        if is_variadic {
+            self.advance(); // consommer 'variadic'
+            self.eat(&TokenKind::Lt)?; // '<'
+            let ty = self.parse_type()?;
+            self.eat(&TokenKind::Gt)?; // '>'
+            Ok(Param { name, ty, is_variadic: true, span })
+        } else {
+            let ty = self.parse_type()?;
+            Ok(Param { name, ty, is_variadic: false, span })
+        }
     }
 
     // ── Fonction ─────────────────────────────────────────────────────────────

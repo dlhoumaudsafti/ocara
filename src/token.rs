@@ -82,6 +82,7 @@ pub enum TokenKind {
     SelfKw, // self
     Async,
     Resolve,
+    Variadic,
 
     // ── Types primitifs ───────────────────────────────────────────────────────
     TInt,

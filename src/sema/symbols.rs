@@ -14,6 +14,8 @@ pub struct FuncSig {
     pub ret_ty:    Type,
     pub is_static: bool,
     pub is_async:  bool,
+    pub has_variadic: bool,  // true si le dernier paramètre est variadic
+    pub fixed_params_count: usize,  // nombre de paramètres fixes (avant variadic)
 }
 
 /// Descripteur d'un champ de classe
@@ -146,6 +148,8 @@ impl SymbolTable {
                 ret_ty:    decl.ret_ty.clone(),
                 is_static: false,
                 is_async:  decl.is_async,
+                has_variadic: has_variadic_param(&decl.params),
+                fixed_params_count: fixed_params_count(&decl.params),
             },
         );
         true
@@ -164,6 +168,8 @@ impl SymbolTable {
                     ret_ty:    m.ret_ty.clone(),
                     is_static: false,
         is_async:  false,
+                    has_variadic: has_variadic_param(&m.params),
+                    fixed_params_count: fixed_params_count(&m.params),
                 },
             );
         }
@@ -198,6 +204,8 @@ impl SymbolTable {
                         ret_ty:    fd.ret_ty.clone(),
                         is_static: *is_static,
         is_async:  false,
+                        has_variadic: has_variadic_param(&fd.params),
+                        fixed_params_count: fixed_params_count(&fd.params),
                     });
                 }
                 ClassMember::Constructor { .. } => {
@@ -274,6 +282,8 @@ impl SymbolTable {
                         ret_ty:    fd.ret_ty.clone(),
                         is_static: *is_static,
         is_async:  false,
+                        has_variadic: has_variadic_param(&fd.params),
+                        fixed_params_count: fixed_params_count(&fd.params),
                     });
                 }
                 ClassMember::Constructor { .. } => {}
@@ -394,4 +404,16 @@ impl SymbolTable {
 
 fn params_to_vec(params: &[Param]) -> Vec<(String, Type)> {
     params.iter().map(|p| (p.name.clone(), p.ty.clone())).collect()
+}
+
+fn has_variadic_param(params: &[Param]) -> bool {
+    params.last().map_or(false, |p| p.is_variadic)
+}
+
+fn fixed_params_count(params: &[Param]) -> usize {
+    if has_variadic_param(params) {
+        params.len() - 1
+    } else {
+        params.len()
+    }
 }

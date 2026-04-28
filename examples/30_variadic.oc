@@ -1,0 +1,247 @@
+// ============================================================================
+// Paramètres variadics — Tests exhaustifs de TOUS les types
+// ============================================================================
+// Démonstration complète : int, float, string, bool, null, array, map, 
+// Function, classes, unions, mixed
+
+import ocara.IO
+import ocara.Convert
+import ocara.Array
+
+// ── Classe de test ──────────────────────────────────────────────────────────
+
+class Animal {
+    public property name:string
+    init(n:string) { self.name = n }
+}
+
+// ── 1. variadic<int> ────────────────────────────────────────────────────────
+
+function sum_int(nums:variadic<int>): int {
+    var total:int = 0
+    for n in nums {
+        total = total + n
+    }
+    return total
+}
+
+// ── 2. variadic<float> ──────────────────────────────────────────────────────
+
+function sum_float(nums:variadic<float>): float {
+    var total:float = 0.0
+    for n in nums {
+        total = total + n
+    }
+    return total
+}
+
+// ── 3. variadic<string> ─────────────────────────────────────────────────────
+
+function concat_string(parts:variadic<string>): string {
+    var result:string = ""
+    for p in parts {
+        result = result + p
+    }
+    return result
+}
+
+// ── 4. variadic<bool> ───────────────────────────────────────────────────────
+
+function all_true(flags:variadic<bool>): bool {
+    for f in flags {
+        if not f {
+            return false
+        }
+    }
+    return true
+}
+
+// ── 5. variadic<int|null> (union avec null) ────────────────────────────────
+
+function sum_nullable(nums:variadic<int|null>): int {
+    var total:int = 0
+    for n in nums {
+        if n is int {
+            total = total + n
+        }
+    }
+    return total
+}
+
+// ── 6. variadic<int[]> (tableaux) ───────────────────────────────────────────
+
+function flatten_arrays(arrays:variadic<int[]>): int {
+    var count:int = 0
+    for arr in arrays {
+        count = count + Array::length(arr)
+    }
+    return count
+}
+
+// ── 7. variadic<map<string,int>> (maps) ─────────────────────────────────────
+
+function count_maps(maps:variadic<map<string,int>>): int {
+    var total:int = 0
+    for m in maps {
+        total = total + 1
+    }
+    return total
+}
+
+// ── 8. variadic<Function<int>> (fonctions) ──────────────────────────────────
+
+function apply_functions(val:int, funcs:variadic<Function<int>>): int {
+    var result:int = val
+    for f in funcs {
+        result = f(result)
+    }
+    return result
+}
+
+function double(x:int): int { return x * 2 }
+function triple(x:int): int { return x * 3 }
+
+// ── 9. variadic<Animal> (classes/objets) ────────────────────────────────────
+
+function list_animals(animals:variadic<Animal>): int {
+    var count:int = 0
+    for a in animals {
+        IO::writeln("  - " + a.name)
+        count = count + 1
+    }
+    return count
+}
+
+// ── 10. variadic<int|string|bool|null> (union multiple) ────────────────────
+
+function describe_union(vals:variadic<int|string|bool|null>): void {
+    IO::writeln("Union values:")
+    for val in vals {
+        match val {
+            is null   => IO::writeln("  → null")
+            is int    => IO::writeln("  → int: " + Convert::int_to_str(val))
+            is string => IO::writeln("  → string: " + val)
+            is bool   => IO::writeln("  → bool: " + Convert::bool_to_str(val))
+        }
+    }
+}
+
+// ── 11. variadic<mixed> (type dynamique avec warning) ───────────────────────
+
+function debug_mixed(vals:variadic<mixed>): void {
+    IO::writeln("Mixed values (count: " + Convert::int_to_str(Array::length(vals)) + "):")
+    for val in vals {
+        IO::writeln("  → " + Convert::int_to_str(val))  // Simplifié
+    }
+}
+
+// ── 12. Paramètres fixes + variadic ─────────────────────────────────────────
+
+function prefix_concat(prefix:string, parts:variadic<string>): string {
+    var result:string = prefix
+    for p in parts {
+        result = result + " " + p
+    }
+    return result
+}
+
+// ── 13. variadic avec 0 argument ────────────────────────────────────────────
+
+function default_sum(nums:variadic<int>): int {
+    if Array::length(nums) == 0 {
+        return -1
+    }
+    return sum_int(nums)
+}
+
+// ── Main ────────────────────────────────────────────────────────────────────
+
+function main(): int {
+    IO::writeln("=== Tests exhaustifs de paramètres variadics ===")
+    IO::writeln("")
+
+    // Test 1: variadic<int>
+    IO::writeln("1. variadic<int>:")
+    IO::writeln("   sum_int(1, 2, 3, 4, 5) = " + Convert::int_to_str(sum_int(1, 2, 3, 4, 5)))
+    IO::writeln("   sum_int() = " + Convert::int_to_str(sum_int()))
+    IO::writeln("   sum_int(42) = " + Convert::int_to_str(sum_int(42)))
+    IO::writeln("")
+
+    // Test 2: variadic<float>
+    IO::writeln("2. variadic<float>:")
+    IO::writeln("   sum_float(1.5, 2.5, 3.0) = " + Convert::float_to_str(sum_float(1.5, 2.5, 3.0)))
+    IO::writeln("   sum_float() = " + Convert::float_to_str(sum_float()))
+    IO::writeln("")
+
+    // Test 3: variadic<string>
+    IO::writeln("3. variadic<string>:")
+    IO::writeln("   concat_string(\"Hello\", \" \", \"World\") = " + concat_string("Hello", " ", "World"))
+    IO::writeln("   concat_string() = \"" + concat_string() + "\"")
+    IO::writeln("")
+
+    // Test 4: variadic<bool>
+    IO::writeln("4. variadic<bool>:")
+    IO::writeln("   all_true(true, true, true) = " + Convert::bool_to_str(all_true(true, true, true)))
+    IO::writeln("   all_true(true, false, true) = " + Convert::bool_to_str(all_true(true, false, true)))
+    IO::writeln("   all_true() = " + Convert::bool_to_str(all_true()))
+    IO::writeln("")
+
+    // Test 5: variadic<int|null>
+    IO::writeln("5. variadic<int|null> (union avec null):")
+    IO::writeln("   sum_nullable(1, null, 3, null, 5) = " + Convert::int_to_str(sum_nullable(1, null, 3, null, 5)))
+    IO::writeln("")
+
+    // Test 6: variadic<int[]>
+    IO::writeln("6. variadic<int[]> (tableaux):")
+    var arr1:int[] = [1, 2, 3]
+    var arr2:int[] = [4, 5]
+    var arr3:int[] = [6, 7, 8, 9]
+    IO::writeln("   flatten_arrays([1,2,3], [4,5], [6,7,8,9]) = " + Convert::int_to_str(flatten_arrays(arr1, arr2, arr3)))
+    IO::writeln("")
+
+    // Test 7: variadic<map<string,int>>
+    IO::writeln("7. variadic<map<string,int>> (maps):")
+    var map1:map<string,int> = {"a": 1, "b": 2}
+    var map2:map<string,int> = {"c": 3}
+    IO::writeln("   count_maps(map1, map2) = " + Convert::int_to_str(count_maps(map1, map2)))
+    IO::writeln("")
+
+    // Test 8: variadic<Function<int>>
+    IO::writeln("8. variadic<Function<int>> (fonctions):")
+    IO::writeln("   apply_functions(5, double, triple) = " + Convert::int_to_str(apply_functions(5, double, triple)))
+    IO::writeln("")
+
+    // Test 9: variadic<Animal> (classes)
+    IO::writeln("9. variadic<Animal> (objets):")
+    var cat:Animal = use Animal("Chat")
+    var dog:Animal = use Animal("Chien")
+    var bird:Animal = use Animal("Oiseau")
+    var count:int = list_animals(cat, dog, bird)
+    IO::writeln("   Total: " + Convert::int_to_str(count) + " animaux")
+    IO::writeln("")
+
+    // Test 10: variadic<int|string|bool|null> (union multiple)
+    IO::writeln("10. variadic<int|string|bool|null>:")
+    describe_union(42, "hello", true, null, 100, "world", false)
+    IO::writeln("")
+
+    // Test 11: variadic<mixed> (warning attendu)
+    IO::writeln("11. variadic<mixed> (avec warning à la compilation):")
+    debug_mixed(1, 2, 3)
+    IO::writeln("")
+
+    // Test 12: Paramètres fixes + variadic
+    IO::writeln("12. Paramètres fixes + variadic:")
+    IO::writeln("   prefix_concat(\"Prefix:\", \"a\", \"b\", \"c\") = " + prefix_concat("Prefix:", "a", "b", "c"))
+    IO::writeln("   prefix_concat(\"Prefix:\") = " + prefix_concat("Prefix:"))
+    IO::writeln("")
+
+    // Test 13: Appel avec 0 argument
+    IO::writeln("13. Gestion de 0 argument:")
+    IO::writeln("   default_sum() = " + Convert::int_to_str(default_sum()))
+    IO::writeln("   default_sum(10, 20) = " + Convert::int_to_str(default_sum(10, 20)))
+    IO::writeln("")
+
+    IO::writeln("✓ Tous les types testés avec succès !")
+    return 0
+}
