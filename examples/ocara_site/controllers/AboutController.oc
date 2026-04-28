@@ -1,0 +1,31 @@
+// examples/builtins/html/controllers/AboutController.oc
+// Contrôleur de la page "À propos".
+//
+// Contenu statique — mis en cache avec render_cached après le premier rendu.
+
+import ocara.HTML
+import ocara.HTTPServer
+
+class AboutController {
+
+    public static method handle(req:int): int {
+        scoped html:string = HTML::render_cached(`<layout title="A propos" active="about">
+  <card title="A propos d'Ocara">
+    <p>Auteur : David Lhoumaud</p>
+    <p>Compile via Cranelift, sans ramasse-miettes, avec un systeme de types riche.</p>
+    <p>Inspire de Rust, Java, PHP, TypeScript et Go.</p>
+  </card>
+  <card title="Fonctionnalites">
+    <p>Classes · Interfaces · Modules (mixins) · Enums · Async/Resolve</p>
+    <p>HTMLComponent · HTTPServer · Thread · Mutex · Regex · IO</p>
+  </card>
+  <card title="Licence">
+    <p>Projet open source — contributions bienvenues.</p>
+  </card>
+</layout>`, "page_about")
+
+        HTTPServer::set_resp_header(req, "Content-Type", "text/html; charset=utf-8")
+        HTTPServer::respond(req, 200, html)
+        return 0
+    }
+}
