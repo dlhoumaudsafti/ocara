@@ -1,0 +1,334 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Ocara",
+  "scopeName": "source.ocara",
+  "fileTypes": ["oc"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#import" },
+    { "include": "#string-template" },
+    { "include": "#string-double" },
+    { "include": "#string-single" },
+    { "include": "#class-declaration" },
+    { "include": "#interface-module-enum-declaration" },
+    { "include": "#function-declaration" },
+    { "include": "#method-declaration" },
+    { "include": "#method-call" },
+    { "include": "#function-call" },
+    { "include": "#self-static-access" },
+    { "include": "#static-access" },
+    { "include": "#class-instantiation" },
+    { "include": "#storage-modifier" },
+    { "include": "#keyword-control" },
+    { "include": "#keyword-declaration" },
+    { "include": "#keyword-other" },
+    { "include": "#type-primitive" },
+    { "include": "#constant-language" },
+    { "include": "#number" },
+    { "include": "#class-name" },
+    { "include": "#operator" },
+    { "include": "#punctuation" }
+  ],
+  "repository": {
+
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.ocara",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.ocara",
+          "begin": "/\\*",
+          "end": "\\*/",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.comment.begin.ocara" }
+          },
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.comment.end.ocara" }
+          }
+        }
+      ]
+    },
+
+    "import": {
+      "patterns": [
+        {
+          "comment": "import ocara.Builtin — namespace builtin en couleur distincte",
+          "match": "^(import)\\s+(ocara)(\\.)([\\w]+)\\s*$",
+          "captures": {
+            "1": { "name": "keyword.control.import.ocara" },
+            "2": { "name": "support.class.builtin.namespace.ocara" },
+            "3": { "name": "punctuation.separator.dot.ocara" },
+            "4": { "name": "support.class.builtin.ocara" }
+          }
+        },
+        {
+          "comment": "import path.to.Module [as Alias]",
+          "match": "^(import)\\s+([\\w]+(?:\\.[\\w]+)*)(?:\\s+(as)\\s+([A-Z][\\w]*))?\\s*$",
+          "captures": {
+            "1": { "name": "keyword.control.import.ocara" },
+            "2": { "name": "entity.name.namespace.ocara" },
+            "3": { "name": "keyword.control.as.ocara" },
+            "4": { "name": "entity.name.type.alias.ocara" }
+          }
+        }
+      ]
+    },
+
+    "string-template": {
+      "name": "string.template.ocara",
+      "begin": "`",
+      "end": "`",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.string.template.begin.ocara" }
+      },
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.string.template.end.ocara" }
+      },
+      "patterns": [
+        { "include": "#template-expression" },
+        { "include": "#string-escape" },
+        { "include": "text.html.basic" }
+      ]
+    },
+
+    "template-expression": {
+      "name": "meta.template.expression.ocara",
+      "begin": "\\$\\{",
+      "end": "\\}",
+      "beginCaptures": {
+        "0": { "name": "punctuation.section.embedded.begin.ocara" }
+      },
+      "endCaptures": {
+        "0": { "name": "punctuation.section.embedded.end.ocara" }
+      },
+      "contentName": "source.ocara.embedded",
+      "patterns": [
+        { "include": "$self" }
+      ]
+    },
+
+    "string-double": {
+      "name": "string.quoted.double.ocara",
+      "begin": "\"",
+      "end": "\"",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.string.begin.ocara" }
+      },
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.string.end.ocara" }
+      },
+      "patterns": [
+        { "include": "#string-escape" }
+      ]
+    },
+
+    "string-single": {
+      "name": "string.quoted.single.ocara",
+      "begin": "'",
+      "end": "'",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.string.begin.ocara" }
+      },
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.string.end.ocara" }
+      },
+      "patterns": [
+        { "include": "#string-escape" }
+      ]
+    },
+
+    "string-escape": {
+      "name": "constant.character.escape.ocara",
+      "match": "\\\\[ntr\"'\\\\0]"
+    },
+
+    "class-declaration": {
+      "match": "\\b(class)\\s+([A-Z][\\w]*)\\b",
+      "captures": {
+        "1": { "name": "keyword.declaration.class.ocara" },
+        "2": { "name": "entity.name.class.ocara" }
+      }
+    },
+
+    "interface-module-enum-declaration": {
+      "match": "\\b(interface|module|enum)\\s+([A-Z][\\w]*)\\b",
+      "captures": {
+        "1": { "name": "keyword.declaration.ocara" },
+        "2": { "name": "entity.name.class.ocara" }
+      }
+    },
+
+    "function-declaration": {
+      "match": "\\b(?:(async)\\s+)?(function)\\s+([a-z_][\\w]*)\\b",
+      "captures": {
+        "1": { "name": "storage.modifier.async.ocara" },
+        "2": { "name": "keyword.declaration.function.ocara" },
+        "3": { "name": "entity.name.function.ocara" }
+      }
+    },
+
+    "method-declaration": {
+      "comment": "public static async method methodName",
+      "match": "\\b(?:(async)\\s+)?(method)\\s+([a-z_][\\w]*)\\b",
+      "captures": {
+        "1": { "name": "storage.modifier.async.ocara" },
+        "2": { "name": "keyword.declaration.function.ocara" },
+        "3": { "name": "entity.name.function.method.ocara" }
+      }
+    },
+
+    "method-call": {
+      "comment": "obj.method( — appel de méthode sur instance",
+      "match": "(?<![:])\\.([a-zA-Z_][\\w]*)(?=\\s*\\()",
+      "captures": {
+        "1": { "name": "entity.name.function.method.ocara" }
+      }
+    },
+
+    "function-call": {
+      "comment": "free function call: name(",
+      "match": "\\b([a-z_][\\w]*)(?=\\s*\\()",
+      "captures": {
+        "1": { "name": "entity.name.function.ocara" }
+      }
+    },
+
+    "self-static-access": {
+      "comment": "self::methodName — accès statique depuis l'intérieur d'une classe",
+      "match": "\\b(self)(::)([\\w]+)\\b",
+      "captures": {
+        "1": { "name": "variable.language.self.ocara" },
+        "2": { "name": "punctuation.accessor.double-colon.ocara" },
+        "3": { "name": "entity.name.function.static.ocara" }
+      }
+    },
+
+    "static-access": {
+      "comment": "ClassName::member ou ClassName::CONST",
+      "match": "\\b([A-Z][\\w]*)(::)([\\w]+)\\b",
+      "captures": {
+        "1": { "name": "entity.name.class.ocara" },
+        "2": { "name": "punctuation.accessor.double-colon.ocara" },
+        "3": { "name": "entity.name.function.static.ocara" }
+      }
+    },
+
+    "class-instantiation": {
+      "comment": "use ClassName(",
+      "match": "\\b(use)\\s+([A-Z][\\w]*)\\b",
+      "captures": {
+        "1": { "name": "keyword.operator.new.ocara" },
+        "2": { "name": "entity.name.class.ocara" }
+      }
+    },
+
+    "storage-modifier": {
+      "name": "storage.modifier.ocara",
+      "match": "\\b(public|private|protected|static|async)\\b"
+    },
+
+    "keyword-control": {
+      "name": "keyword.control.ocara",
+      "match": "\\b(if|elseif|else|switch|match|while|for|in|return|break|continue|default|try|on|raise)\\b"
+    },
+
+    "keyword-declaration": {
+      "name": "keyword.declaration.ocara",
+      "match": "\\b(var|scoped|const|init|property)\\b"
+    },
+
+    "keyword-other": {
+      "name": "keyword.other.ocara",
+      "match": "\\b(as|use|nameless|resolve|extends|implements|modules|is|self)\\b"
+    },
+
+    "type-primitive": {
+      "name": "support.type.primitive.ocara",
+      "match": "\\b(int|float|string|bool|mixed|void|map|Function|variadic|null)\\b"
+    },
+
+    "constant-language": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.true.ocara",
+          "match": "\\btrue\\b"
+        },
+        {
+          "name": "constant.language.boolean.false.ocara",
+          "match": "\\bfalse\\b"
+        }
+      ]
+    },
+
+    "number": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.ocara",
+          "match": "\\b\\d+\\.\\d+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.ocara",
+          "match": "\\b\\d+\\b"
+        }
+      ]
+    },
+
+    "class-name": {
+      "comment": "Toute référence PascalCase (type, classe importée, etc.)",
+      "name": "entity.name.type.ocara",
+      "match": "\\b[A-Z][\\w]*\\b"
+    },
+
+    "operator": {
+      "patterns": [
+        {
+          "name": "keyword.operator.logical.ocara",
+          "match": "\\b(and|or|not)\\b"
+        },
+        {
+          "name": "keyword.operator.range.ocara",
+          "match": "\\.\\."
+        },
+        {
+          "name": "keyword.operator.comparison.ocara",
+          "match": "==|!=|<=|>="
+        },
+        {
+          "name": "keyword.operator.comparison.ocara",
+          "match": "(?<![=!<>])[<>](?![=])"
+        },
+        {
+          "name": "keyword.operator.assignment.ocara",
+          "match": "(?<![=!<>])=(?!=)"
+        },
+        {
+          "name": "keyword.operator.arithmetic.ocara",
+          "match": "[+\\-*/%]"
+        },
+        {
+          "name": "keyword.operator.type.ocara",
+          "match": "\\|"
+        }
+      ]
+    },
+
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.accessor.dot.ocara",
+          "match": "\\."
+        },
+        {
+          "name": "punctuation.separator.comma.ocara",
+          "match": ","
+        },
+        {
+          "name": "punctuation.separator.colon.ocara",
+          "match": ":"
+        }
+      ]
+    }
+  }
+}
