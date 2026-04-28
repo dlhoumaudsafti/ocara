@@ -1,0 +1,57 @@
+{
+  "name": "ocara-language",
+  "displayName": "Ocara Language Support",
+  "description": "Syntax highlighting, HTML template embedding and Go-to-Definition for Ocara (.oc) files",
+  "version": "0.1.0",
+  "publisher": "david-lhoumaud",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:ocara"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "ocara",
+        "aliases": [
+          "Ocara",
+          "ocara"
+        ],
+        "extensions": [
+          ".oc"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "ocara",
+        "scopeName": "source.ocara",
+        "path": "./syntaxes/ocara.tmLanguage.json",
+        "embeddedLanguages": {
+          "text.html.basic": "html",
+          "source.ocara.embedded": "ocara"
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.15.0",
+    "cheerio": "^1.0.0-rc.12",
+    "typescript": "^5.3.0"
+  }
+}
