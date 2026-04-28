@@ -278,6 +278,17 @@ pub fn lower_program(program: &Program) -> IrModule {
         }
     }
 
+    // Collecte les variantes d'enum comme constantes int inlinables (Enum::Variant)
+    for en in &program.enums {
+        let mut next_val: i64 = 0;
+        for v in &en.variants {
+            let val = v.value.unwrap_or(next_val);
+            next_val = val + 1;
+            let key = format!("{}__{}", en.name, v.name);
+            module.class_consts.insert(key, (IrType::I64, crate::ast::Literal::Int(val)));
+        }
+    }
+
     // Collecte les types de retour des méthodes propres
     for class in &program.classes {
         for member in &class.members {

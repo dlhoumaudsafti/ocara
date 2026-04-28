@@ -256,6 +256,7 @@ impl Lexer {
             "method"     => TokenKind::Method,
             "class"      => TokenKind::Class,
             "module"     => TokenKind::Module,
+            "enum"       => TokenKind::Enum,
             "interface"  => TokenKind::Interface,
             "extends"    => TokenKind::Extends,
             "modules"    => TokenKind::Modules,

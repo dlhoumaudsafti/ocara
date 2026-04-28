@@ -108,6 +108,9 @@ impl Parser {
                 TokenKind::Module => {
                     program.modules.push(self.parse_module()?);
                 }
+                TokenKind::Enum => {
+                    program.enums.push(self.parse_enum()?);
+                }
                 TokenKind::Class => {
                     program.classes.push(self.parse_class()?);
                 }
@@ -357,6 +360,46 @@ impl Parser {
         self.eat(&TokenKind::RBrace)?;
 
         Ok(ModuleDecl { name, members, span })
+    }
+
+    fn parse_enum(&mut self) -> ParseResult<EnumDecl> {
+        let span = self.span();
+        self.eat(&TokenKind::Enum)?;
+        let (name, _) = self.eat_ident()?;
+        self.eat(&TokenKind::LBrace)?;
+
+        let mut variants = Vec::new();
+        while !self.check_exact(&TokenKind::RBrace) {
+            let vspan = self.span();
+            let (vname, _) = self.eat_ident()?;
+            // Valeur explicite optionnelle : `Variant = 42`
+            let value = if self.check_exact(&TokenKind::Eq) {
+                self.advance();
+                let vspan2 = self.span();
+                match self.peek_kind().clone() {
+                    TokenKind::LitInt(n) => {
+                        self.advance();
+                        Some(n)
+                    }
+                    other => {
+                        return Err(ParseError::new(
+                            format!("valeur d'enum doit être un entier littéral, trouvé {:?}", other),
+                            vspan2,
+                        ));
+                    }
+                }
+            } else {
+                None
+            };
+            variants.push(EnumVariant { name: vname, value, span: vspan });
+            // Virgule optionnelle entre variantes
+            if self.check_exact(&TokenKind::Comma) {
+                self.advance();
+            }
+        }
+        self.eat(&TokenKind::RBrace)?;
+
+        Ok(EnumDecl { name, variants, span })
     }
 
     fn parse_class_member(&mut self) -> ParseResult<ClassMember> {

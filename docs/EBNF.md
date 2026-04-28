@@ -29,15 +29,16 @@
 15. [Interfaces](#15-interfaces)
 16. [Héritage et implémentation](#16-héritage-et-implémentation)
 17. [Modules (mixins)](#17-modules-mixins)
-18. [Instanciation](#18-instanciation)
-19. [Accès statique](#19-accès-statique)
-20. [Conditions](#20-conditions)
-21. [Switch](#21-switch)
-22. [Match (expression)](#22-match-expression)
-23. [Boucles](#23-boucles)
-24. [Gestion des erreurs](#24-gestion-des-erreurs)
-25. [Résolution des noms](#25-résolution-des-noms)
-26. [Grammaire EBNF complète](#26-grammaire-ebnf-complète)
+18. [Enums](#18-enums)
+19. [Instanciation](#19-instanciation)
+20. [Accès statique](#20-accès-statique)
+21. [Conditions](#21-conditions)
+22. [Switch](#22-switch)
+23. [Match (expression)](#23-match-expression)
+24. [Boucles](#24-boucles)
+25. [Gestion des erreurs](#25-gestion-des-erreurs)
+26. [Résolution des noms](#26-résolution-des-noms)
+27. [Grammaire EBNF complète](#27-grammaire-ebnf-complète)
 
 ---
 
@@ -72,12 +73,12 @@ Chaque fichier suit strictement l'ordre suivant :
 
 ```
 Program ::= ImportDecl*
-            ( ConstDecl | ClassDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
+            ( ConstDecl | EnumDecl | ClassDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
 ```
 
 **Contraintes d'ordre :**
 - Les imports sont toujours en tête de fichier.
-- Les déclarations de constantes, classes, modules, interfaces et fonctions peuvent être dans n'importe quel ordre entre elles.
+- Les déclarations de constantes, enums, classes, modules, interfaces et fonctions peuvent être dans n'importe quel ordre entre elles.
 - Il n'existe pas de code de niveau module exécutable hors d'une fonction.
 
 ---
@@ -1288,7 +1289,49 @@ class D modules A, B {
 
 ---
 
-## 18. Instanciation
+## 18. Enums
+
+```ebnf
+EnumDecl    ::= "enum" Identifier "{" EnumVariant ( "," EnumVariant )* ","? "}"
+EnumVariant ::= Identifier ( "=" Integer )?
+```
+
+Un enum définit un ensemble de variantes nommées qui compilent vers des constantes entières. Les variantes sont accessibles via l'opérateur `::` sans instanciation.
+
+```ocara
+// Valeurs automatiques : 0, 1, 2, 3
+enum Direction {
+    North,
+    East,
+    South,
+    West
+}
+
+// Valeurs explicites
+enum HttpStatus {
+    Ok      = 200,
+    Created = 201,
+    NotFound = 404,
+    Error   = 500
+}
+
+var d:int = Direction::North    // 0
+var s:int = HttpStatus::NotFound // 404
+```
+
+**Règles :**
+
+- Les variantes sans valeur explicite sont numérotées automatiquement à partir de 0 (ou à partir de la valeur précédente + 1).
+- Les variantes avec valeur explicite doivent être des **entiers littéraux** (`int`).
+- Une variante d'enum a le type `int` — elle peut être utilisée partout où un `int` est attendu.
+- Les variantes sont accessibles via `EnumName::VariantName` (syntaxe `StaticConst`).
+- `enum` n'est pas instanciable via `use`.
+- Les noms de variantes doivent être uniques dans leur enum.
+- La virgule finale est optionnelle.
+
+---
+
+## 19. Instanciation
 
 ```ebnf
 NewExpr ::= "use" Identifier "(" ArgList? ")"
@@ -1303,7 +1346,7 @@ var logger:Logger = use ConsoleLogger()
 
 ---
 
-## 19. Accès statique
+## 20. Accès statique
 
 ```ebnf
 StaticCallee ::= Identifier | "self"
@@ -1333,7 +1376,7 @@ class Validator {
 
 ---
 
-## 20. Conditions
+## 21. Conditions
 
 ```ebnf
 IfStmt ::= "if" Expression Block
@@ -1353,7 +1396,7 @@ if x > 0 {
 
 ---
 
-## 21. Switch
+## 22. Switch
 
 ```ebnf
 SwitchStmt  ::= "switch" Expression "{" SwitchCase* DefaultCase? "}"
@@ -1382,7 +1425,7 @@ switch code {
 
 ---
 
-## 22. Match (expression)
+## 23. Match (expression)
 
 ```ebnf
 MatchExpr ::= "match" PostfixExpr "{" MatchArm+ "}"
@@ -1440,7 +1483,7 @@ scoped desc:string = match user.age:int {
 
 ---
 
-## 23. Boucles
+## 24. Boucles
 
 ### 22.1 While
 
@@ -1533,7 +1576,7 @@ for i in 0..10 {
 
 ---
 
-## 24. Gestion des erreurs
+## 25. Gestion des erreurs
 
 ```ebnf
 TryStmt  ::= "try" Block OnClause+
@@ -1608,7 +1651,7 @@ try {
 
 ---
 
-## 25. Résolution des noms
+## 26. Résolution des noms
 
 L'ordre de résolution strict est le suivant (priorité décroissante) :
 
@@ -1625,7 +1668,7 @@ Un import ne peut jamais écraser un symbole local existant.
 
 ---
 
-## 26. Grammaire EBNF complète
+## 27. Grammaire EBNF complète
 
 > Notation : `*` = zéro ou plus, `+` = un ou plus, `?` = optionnel, `|` = alternative, `( )` = groupement.
 
@@ -1633,7 +1676,7 @@ Un import ne peut jamais écraser un symbole local existant.
 (* ── Programme ─────────────────────────────────────────────────── *)
 
 Program     ::= ImportDecl*
-                ( ConstDecl | ClassDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
+                ( ConstDecl | EnumDecl | ClassDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
 
 (* ── Imports ────────────────────────────────────────────────────── *)
 
@@ -1643,6 +1686,8 @@ ModulePath  ::= Identifier ( "." Identifier )*
 (* ── Déclarations globales ──────────────────────────────────────── *)
 
 ConstDecl   ::= "const" Identifier ":" Type "=" Expression
+EnumDecl    ::= "enum" Identifier "{" EnumVariant ( "," EnumVariant )* ","? "}"
+EnumVariant ::= Identifier ( "=" Integer )?
 ClassDecl   ::= "class" Identifier
                 ( "extends" Identifier )?
                 ( "modules" Identifier ( "," Identifier )* )?

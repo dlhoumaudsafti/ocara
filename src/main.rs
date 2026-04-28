@@ -270,6 +270,7 @@ fn main() {
     for decl in &program.consts     { symbols.register_const(decl); }
     for decl in &program.interfaces { symbols.register_interface(decl); }
     for decl in &program.modules    { symbols.register_module(decl); }
+    for decl in &program.enums      { symbols.register_enum(decl); }
     for decl in &program.classes    { symbols.register_class(decl); }
     for decl in &program.functions  { symbols.register_function(decl); }
 
