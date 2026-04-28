@@ -745,7 +745,7 @@ Les variables déclarées dans un bloc ne sont pas visibles en dehors.
 FuncDecl ::= "async"? "function" Identifier "(" ParamList? ")" ":" Type Block
 
 ParamList ::= Param ( "," Param )*
-Param     ::= Identifier ":" Type
+Param     ::= Identifier ":" ( "variadic" "<" Type ">" | Type )
 ```
 
 **Règles :**
@@ -753,6 +753,8 @@ Param     ::= Identifier ":" Type
 - Le type de retour est **obligatoire** (utiliser `void` si la fonction ne retourne rien).
 - Une fonction `void` peut omettre le `return`.
 - Une fonction non-`void` **doit** retourner une valeur sur tous les chemins d'exécution.
+- Un paramètre `variadic<Type>` accepte 0 ou N arguments du type spécifié.
+- Un paramètre variadic **doit** être le dernier paramètre de la liste.
 
 **Exemple :**
 
@@ -766,7 +768,122 @@ function greet(name:string): void {
 }
 ```
 
-### 12.1 Fonctions de première classe
+### 12.1 Paramètres variadics
+
+Un **paramètre variadic** permet à une fonction d'accepter un nombre variable d'arguments du même type. Il est déclaré avec la syntaxe `variadic<Type>`.
+
+```ebnf
+VariadicParam ::= Identifier ":" "variadic" "<" Type ">"
+```
+
+**Syntaxe :**
+
+```ocara
+function sum(nums:variadic<int>): int {
+    var total:int = 0
+    for n in nums {
+        total = total + n
+    }
+    return total
+}
+
+// Appels
+sum(1, 2, 3, 4, 5)        // 15
+sum(10, 20)               // 30
+sum()                     // 0
+```
+
+**Règles :**
+
+- Un paramètre variadic est traité comme un **tableau** (`Type[]`) dans le corps de la fonction.
+- Le paramètre variadic **doit être le dernier paramètre** de la liste. Toute tentative de le placer ailleurs génère une erreur de compilation.
+- Une fonction peut avoir des paramètres fixes suivis d'un paramètre variadic :
+
+```ocara
+function format(prefix:string, parts:variadic<string>): string {
+    var result:string = prefix
+    for p in parts {
+        result = result + " " + p
+    }
+    return result
+}
+
+format("Log:", "error", "file", "not", "found")  // "Log: error file not found"
+format("Debug:")                                  // "Debug:"
+```
+
+**Types supportés :**
+
+Tous les types Ocara sont supportés dans les paramètres variadics :
+
+| Type | Exemple |
+|------|---------|
+| Primitifs | `variadic<int>`, `variadic<float>`, `variadic<string>`, `variadic<bool>` |
+| Null | `variadic<null>` |
+| Tableaux | `variadic<int[]>`, `variadic<string[]>` |
+| Maps | `variadic<map<string, int>>` |
+| Classes | `variadic<User>`, `variadic<Animal>` |
+| Functions | `variadic<Function<int>>` |
+| Unions | `variadic<int\|string>`, `variadic<User\|null>` |
+| Mixed | `variadic<mixed>` (avec warning) |
+
+**`variadic<mixed>` et warning :**
+
+L'utilisation de `variadic<mixed>` désactive les vérifications de type statiques. Le compilateur émet un **warning** suggérant d'utiliser un type union explicite à la place :
+
+```ocara
+function log(vals:variadic<mixed>): void {  // ⚠️ warning émis
+    for v in vals {
+        IO::writeln(v)
+    }
+}
+```
+
+**Warning émis :**
+```
+warning: paramètre variadic 'vals' : variadic<mixed> désactive les vérifications de type — envisager variadic<T|U> avec union explicite
+```
+
+**Alternative recommandée :**
+```ocara
+function log(vals:variadic<int|string|bool|null>): void {  // ✓ préféré
+    for v in vals {
+        match v {
+            is int    => IO::writeln("int: " + Convert::toString(v))
+            is string => IO::writeln("string: " + v)
+            is bool   => IO::writeln("bool: " + Convert::toString(v))
+            is null   => IO::writeln("null")
+            default   => IO::writeln("unknown")
+        }
+    }
+}
+```
+
+**Désucrage sémantique :**
+
+En interne, `variadic<T>` est désuré en `T[]` pour la vérification de type. Le corps de la fonction traite le paramètre comme un tableau normal :
+
+```ocara
+// Déclaration
+function process(items:variadic<string>): void
+
+// Équivalent sémantique dans le corps
+function process(items:string[]): void
+```
+
+**Implémentation :**
+
+Au site d'appel, les arguments excédentaires sont automatiquement **empaquetés** dans un tableau :
+
+```ocara
+sum(1, 2, 3)
+
+// Équivalent généré :
+var __variadic_arr = [1, 2, 3]
+sum(__variadic_arr)
+```
+
+### 12.2 Fonctions de première classe
 
 Une fonction peut être passée comme valeur en utilisant le type `Function` (voir §4.5).
 
@@ -787,7 +904,7 @@ var op:Function = MathOp::negate
 IO::writeln(op(7))                     // -7
 ```
 
-### 12.2 Fonctions anonymes (`nameless`)
+### 12.3 Fonctions anonymes (`nameless`)
 
 Une **fonction anonyme** est une expression qui produit une valeur de type `Function`. Elle est introduite par le mot-clé `nameless` et peut capturer des variables locales de sa portée d'enclosement (**closure lexicale**).
 
@@ -1762,7 +1879,7 @@ InterfaceMethod ::= "method" Identifier "(" ParamList? ")" ":" Type
 (* ── Paramètres ─────────────────────────────────────────────────── *)
 
 ParamList   ::= Param ( "," Param )*
-Param       ::= Identifier ":" Type
+Param       ::= Identifier ":" ( "variadic" "<" Type ">" | Type )
 
 (* ── Types ──────────────────────────────────────────────────────── *)
 
