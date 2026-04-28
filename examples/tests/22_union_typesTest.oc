@@ -1,0 +1,34 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 22_union_types.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+
+class Test_22_union_types {
+    
+    public method unionIntOrStringTest(): int {
+        var value:int|string = 42
+        UnitTest::assertTrue(value is int)
+        UnitTest::assertFalse(value is string)
+        return 0
+    }
+    
+    public method unionNullableTest(): int {
+        var name:string|null = "Alice"
+        UnitTest::assertFalse(name is null)
+        UnitTest::assertTrue(name is string)
+        return 0
+    }
+    
+    public method unionNullTest(): int {
+        var empty:string|null = null
+        UnitTest::assertTrue(empty is null)
+        return 0
+    }
+    
+    public method unionMultipleTypesTest(): int {
+        var val:int|string|bool = true
+        UnitTest::assertNotNull(val)
+        return 0
+    }
+}

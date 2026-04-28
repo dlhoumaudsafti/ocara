@@ -1,0 +1,79 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 02_functions.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+
+function add(a:int, b:int): int {
+    return a + b
+}
+
+function multiply(a:int, b:int): int {
+    return a * b
+}
+
+function max(a:int, b:int): int {
+    if a > b {
+        return a
+    }
+    return b
+}
+
+function factorial(n:int): int {
+    if n <= 1 {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+function fibonacci(n:int): int {
+    if n <= 1 {
+        return n
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2)
+}
+
+class Test_02_functions {
+    
+    public method addTest(): int {
+        UnitTest::assertEquals(5, add(2, 3))
+        UnitTest::assertEquals(0, add(0, 0))
+        UnitTest::assertEquals(-1, add(2, -3))
+        return 0
+    }
+    
+    public method multiplyTest(): int {
+        UnitTest::assertEquals(6, multiply(2, 3))
+        UnitTest::assertEquals(0, multiply(0, 5))
+        UnitTest::assertEquals(-6, multiply(2, -3))
+        return 0
+    }
+    
+    public method maxTest(): int {
+        UnitTest::assertEquals(10, max(10, 5))
+        UnitTest::assertEquals(10, max(5, 10))
+        UnitTest::assertEquals(7, max(7, 7))
+        return 0
+    }
+    
+    public method factorialTest(): int {
+        UnitTest::assertEquals(1, factorial(0))
+        UnitTest::assertEquals(1, factorial(1))
+        UnitTest::assertEquals(2, factorial(2))
+        UnitTest::assertEquals(6, factorial(3))
+        UnitTest::assertEquals(24, factorial(4))
+        UnitTest::assertEquals(120, factorial(5))
+        return 0
+    }
+    
+    public method fibonacciTest(): int {
+        UnitTest::assertEquals(0, fibonacci(0))
+        UnitTest::assertEquals(1, fibonacci(1))
+        UnitTest::assertEquals(1, fibonacci(2))
+        UnitTest::assertEquals(2, fibonacci(3))
+        UnitTest::assertEquals(3, fibonacci(4))
+        UnitTest::assertEquals(5, fibonacci(5))
+        UnitTest::assertEquals(8, fibonacci(6))
+        return 0
+    }
+}

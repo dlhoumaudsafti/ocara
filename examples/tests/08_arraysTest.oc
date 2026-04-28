@@ -1,0 +1,50 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 08_arrays.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+import ocara.Array
+
+class Test_08_arrays {
+    
+    public method arrayAccessTest(): int {
+        var numbers:int[] = [10, 20, 30, 40, 50]
+        UnitTest::assertEquals(10, numbers[0])
+        UnitTest::assertEquals(30, numbers[2])
+        UnitTest::assertEquals(50, numbers[4])
+        return 0
+    }
+    
+    public method arrayIterationTest(): int {
+        var numbers:int[] = [10, 20, 30]
+        var sum:int = 0
+        for n in numbers {
+            sum = sum + n
+        }
+        UnitTest::assertEquals(60, sum)
+        return 0
+    }
+    
+    public method stringArrayTest(): int {
+        var jours:string[] = ["lundi", "mardi", "mercredi"]
+        UnitTest::assertEquals("lundi", jours[0])
+        UnitTest::assertEquals("mercredi", jours[2])
+        return 0
+    }
+    
+    public method mixedArrayTest(): int {
+        var vals:mixed[] = [42, "hello", true]
+        UnitTest::assertNotNull(vals[0])
+        UnitTest::assertNotNull(vals[1])
+        UnitTest::assertNotNull(vals[2])
+        return 0
+    }
+    
+    public method array2DTest(): int {
+        var matrix:int[][] = [[1, 2], [3, 4], [5, 6]]
+        UnitTest::assertEquals(1, matrix[0][0])
+        UnitTest::assertEquals(4, matrix[1][1])
+        UnitTest::assertEquals(6, matrix[2][1])
+        return 0
+    }
+}

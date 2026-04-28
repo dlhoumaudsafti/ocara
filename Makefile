@@ -51,120 +51,13 @@ test:
 	RUSTFLAGS="-D warnings" cargo test
 
 # ── Régression ────────────────────────────────────────────────────────────────
-regression: build
+regression:
 	@if [ -n "$(_TARGET)" ]; then \
-	    src=examples/$(_TARGET).oc; \
-	    name=$(_TARGET); \
-	    echo "══════════════════════════════════════════════"; \
-	    echo " Régression $$src"; \
-	    echo "══════════════════════════════════════════════"; \
-	    case "$$name" in \
-	        21_errors) \
-	            $(OCARA) $$src --check; rc=$$?; \
-	            if [ $$rc -eq 0 ]; then \
-	                echo "$(RED)FAIL [check devait échouer] $$name$(RESET)"; rm -f $(TMP); exit 1; \
-	            fi; \
-	            echo "$(GREEN)OK   $$name$(RESET)" ;; \
-	        *) \
-	            $(OCARA) $$src -o $(TMP); rc=$$?; \
-	            if [ $$rc -ne 0 ]; then \
-	                echo "$(RED)FAIL [compile] $$name$(RESET)"; rm -f $(TMP); exit 1; \
-	            fi; \
-	            case "$$name" in \
-	                03_builtins) echo -e "david\n45" | $(TMP) ;; \
-	                builtins/io) printf 'Alice\nParis\n21\n3.14\ntrue\nrust,ocara,web\nlang=fr,theme=dark\n' | $(TMP) ;; \
-	                builtins/http) $(TMP) > /dev/null ;; \
-	                builtins/httpserver) examples/builtins/httpserver.sh $(TMP) ;; \
-	                *) $(TMP) ;; \
-	            esac; \
-	            if [ $$? -ne 0 ]; then \
-	                echo "$(RED)FAIL [run] $$name$(RESET)"; rm -f $(TMP); exit 1; \
-	            fi; \
-	            echo "$(GREEN)OK   $$name$(RESET)"; \
-	            rm -f $(TMP) ;; \
-	    esac; \
+	    ./ci/regression.sh $(_TARGET); \
 	else \
-	    fail=0; \
-	    failed=""; \
-	    echo "══════════════════════════════════════════════"; \
-	    echo " Régression examples/NN_*.oc"; \
-	    echo "══════════════════════════════════════════════"; \
-	    for src in examples/[0-9][0-9]_*.oc; do \
-	        name=$$(basename $$src .oc); \
-	        if [ "$$name" = "21_errors" ]; then \
-	            $(OCARA) $$src --check > /dev/null; rc=$$?; \
-	            if [ $$rc -eq 0 ]; then \
-	                echo "$(RED)FAIL [check devait échouer] $$name$(RESET)"; fail=1; failed="$$failed $$name"; \
-	            else \
-	                echo "$(GREEN)OK   $$name$(RESET)"; \
-	            fi; \
-	        else \
-	            $(OCARA) $$src -o $(TMP); rc=$$?; \
-	            if [ $$rc -ne 0 ]; then \
-	                echo "$(RED)FAIL [compile] $$name$(RESET)"; fail=1; failed="$$failed $$name"; \
-	            else \
-	                case "$$name" in \
-	                    03_builtins) echo -e "david\n45" | $(TMP) ;; \
-	                    *) $(TMP) ;; \
-	                esac; \
-	                if [ $$? -ne 0 ]; then \
-	                    echo "$(RED)FAIL [run] $$name$(RESET)"; fail=1; failed="$$failed $$name"; \
-	                else \
-	                    echo "$(GREEN)OK   $$name$(RESET)"; \
-	                fi; \
-	            fi; \
-	        fi; \
-	    done; \
-	    echo ""; \
-	    echo "══════════════════════════════════════════════"; \
-	    echo " Régression examples/project/main.oc"; \
-	    echo "══════════════════════════════════════════════"; \
-	    $(OCARA) examples/project/main.oc -o $(TMP); rc=$$?; \
-	    if [ $$rc -ne 0 ]; then \
-	        echo "$(RED)FAIL [compile] project/main.oc$(RESET)"; fail=1; failed="$$failed project/main"; \
-	    else \
-	        $(TMP); \
-	        if [ $$? -ne 0 ]; then \
-	            echo "$(RED)FAIL [run] project/main.oc$(RESET)"; fail=1; failed="$$failed project/main"; \
-	        else \
-	            echo "$(GREEN)OK   project/main.oc$(RESET)"; \
-	        fi; \
-	    fi; \
-	    echo ""; \
-	    echo "══════════════════════════════════════════════"; \
-	    echo " Régression examples/builtins/*.oc"; \
-	    echo "══════════════════════════════════════════════"; \
-	    for src in examples/builtins/*.oc; do \
-	        name=$$(basename $$src .oc); \
-	        $(OCARA) $$src -o $(TMP); rc=$$?; \
-	        if [ $$rc -ne 0 ]; then \
-	            echo "$(RED)FAIL [compile] builtins/$$name$(RESET)"; fail=1; failed="$$failed builtins/$$name"; \
-	        else \
-	            case "$$name" in \
-	                io) printf 'Alice\nParis\n21\n3.14\ntrue\nrust,ocara,web\nlang=fr,theme=dark\n' | $(TMP) ;; \
-	                http) $(TMP) > /dev/null ;; \
-	                httpserver) examples/builtins/httpserver.sh $(TMP) ;; \
-	                *) $(TMP) ;; \
-	            esac; \
-	            if [ $$? -ne 0 ]; then \
-	                echo "$(RED)FAIL [run] builtins/$$name$(RESET)"; fail=1; failed="$$failed builtins/$$name"; \
-	            else \
-	                echo "$(GREEN)OK   builtins/$$name$(RESET)"; \
-	            fi; \
-	        fi; \
-	    done; \
-	    rm -f $(TMP); \
-	    echo ""; \
-	    echo "══════════════════════════════════════════════"; \
-	    if [ $$fail -eq 0 ]; then \
-	        echo "$(GREEN)Tous les tests ont réussi.$(RESET)"; \
-	    else \
-	        echo "$(RED)Échecs :$(RESET)"; \
-	        for f in $$failed; do echo "  $(RED)✗ $$f$(RESET)"; done; \
-	        echo ""; \
-	        echo "$(RED)Des tests ont échoué.$(RESET)"; exit 1; \
-	    fi; \
-	    echo "══════════════════════════════════════════════"; \
+	    ./ci/regression.sh; \
+	    ./ci/unittests.sh examples/project/tests; \
+	    ./ci/unittests.sh examples/tests; \
 	fi
 
 clean:

@@ -23,7 +23,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 use std::alloc::{alloc, alloc_zeroed, Layout};
-use crate::typecheck::{TAG_STRING, TAG_ARRAY, TAG_MAP, TAG_OBJECT, TAG_FUNCTION};
+use crate::typecheck::{TAG_STRING, TAG_ARRAY, TAG_MAP, TAG_OBJECT, TAG_FUNCTION, __is_function, __is_object, __is_map, __is_array};
 use std::ffi::CStr;
 use std::io::{self, BufRead};
 use std::process::Command;
@@ -1463,6 +1463,57 @@ pub extern "C" fn UnitTest_pass(message: i64) {
     unsafe {
         let msg = ptr_to_str(message);
         ut_pass(msg);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertFunction(value: i64) {
+    let is_func = __is_function(value) != 0;
+    if is_func {
+        ut_pass("assertFunction");
+    } else {
+        ut_fail("assertFunction: la valeur n'est pas une fonction");
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertClass(value: i64) {
+    let is_obj = __is_object(value) != 0;
+    if is_obj {
+        ut_pass("assertClass");
+    } else {
+        ut_fail("assertClass: la valeur n'est pas une instance de classe");
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertEnum(value: i64) {
+    // Les enums sont implémentés comme des objets en Ocara
+    let is_obj = __is_object(value) != 0;
+    if is_obj {
+        ut_pass("assertEnum");
+    } else {
+        ut_fail("assertEnum: la valeur n'est pas un enum");
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertMap(value: i64) {
+    let is_map = __is_map(value) != 0;
+    if is_map {
+        ut_pass("assertMap");
+    } else {
+        ut_fail("assertMap: la valeur n'est pas une map");
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertArray(value: i64) {
+    let is_arr = __is_array(value) != 0;
+    if is_arr {
+        ut_pass("assertArray");
+    } else {
+        ut_fail("assertArray: la valeur n'est pas un array");
     }
 }
 

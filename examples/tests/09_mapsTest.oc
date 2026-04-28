@@ -1,0 +1,53 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 09_maps.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+
+class Test_09_maps {
+    
+    public method mapCreationTest(): int {
+        var scores:map<string, int> = {}
+        scores["Alice"] = 90
+        scores["Bob"] = 85
+        
+        UnitTest::assertEquals(90, scores["Alice"])
+        UnitTest::assertEquals(85, scores["Bob"])
+        return 0
+    }
+    
+    public method mapLiteralTest(): int {
+        var config:map<string, string> = {
+            "lang": "fr",
+            "theme": "dark"
+        }
+        
+        UnitTest::assertEquals("fr", config["lang"])
+        UnitTest::assertEquals("dark", config["theme"])
+        return 0
+    }
+    
+    public method mapUpdateTest(): int {
+        var prices:map<string, int> = {}
+        prices["pomme"] = 2
+        UnitTest::assertEquals(2, prices["pomme"])
+        
+        prices["pomme"] = 3
+        UnitTest::assertEquals(3, prices["pomme"])
+        return 0
+    }
+    
+    public method mapIterationTest(): int {
+        var data:map<string, int> = {
+            "a": 1,
+            "b": 2
+        }
+        
+        var sum:int = 0
+        for k => v in data {
+            sum = sum + v
+        }
+        UnitTest::assertEquals(3, sum)
+        return 0
+    }
+}
