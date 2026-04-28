@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use crate::ast::{
-    ClassDecl, ModuleDecl, FuncDecl, InterfaceDecl, ImportDecl, ConstDecl, Type, Param, Visibility,
+    ClassDecl, ModuleDecl, FuncDecl, InterfaceDecl, ImportDecl, ConstDecl, EnumDecl, Type, Param, Visibility,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -56,6 +56,13 @@ pub struct ImportInfo {
     pub alias: Option<String>,
 }
 
+/// Descripteur d'un enum
+#[derive(Debug, Clone)]
+pub struct EnumInfo {
+    /// Variantes avec leur valeur int
+    pub variants: HashMap<String, i64>,
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // SymbolTable
 // ─────────────────────────────────────────────────────────────────────────────
@@ -66,6 +73,7 @@ pub struct SymbolTable {
     pub modules:    HashMap<String, ModuleInfo>,
     pub classes:    HashMap<String, ClassInfo>,
     pub interfaces: HashMap<String, InterfaceInfo>,
+    pub enums:      HashMap<String, EnumInfo>,
     pub consts:     HashMap<String, Type>,
     pub imports:    Vec<ImportInfo>,
 }
@@ -206,8 +214,37 @@ impl SymbolTable {
         true
     }
 
-    pub fn register_class(&mut self, decl: &ClassDecl) -> bool {
-        use crate::ast::ClassMember;
+    pub fn register_enum(&mut self, decl: &EnumDecl) -> bool {
+        if self.enums.contains_key(&decl.name) || self.classes.contains_key(&decl.name) {
+            return false;
+        }
+        // Calculer les valeurs : auto-incrémentation depuis 0, ou valeur explicite
+        let mut next_val: i64 = 0;
+        let mut variants = HashMap::new();
+        let mut class_consts = HashMap::new();
+
+        for v in &decl.variants {
+            let val = v.value.unwrap_or(next_val);
+            next_val = val + 1;
+            variants.insert(v.name.clone(), val);
+            class_consts.insert(v.name.clone(), (Type::Int, Visibility::Public));
+        }
+
+        self.enums.insert(decl.name.clone(), EnumInfo { variants });
+        // Enregistrer aussi comme "classe" avec class_consts pour que
+        // StaticConst `Enum::Variant` soit résolu par la sema existante
+        self.classes.insert(decl.name.clone(), ClassInfo {
+            extends:      None,
+            implements:   vec![],
+            fields:       HashMap::new(),
+            methods:      HashMap::new(),
+            class_consts,
+            is_opaque:    false,
+        });
+        true
+    }
+
+    pub fn register_class(&mut self, decl: &ClassDecl) -> bool {        use crate::ast::ClassMember;
         if self.classes.contains_key(&decl.name) {
             return false;
         }
@@ -293,6 +330,11 @@ impl SymbolTable {
 
     pub fn lookup_const(&self, name: &str) -> Option<&Type> {
         self.consts.get(name)
+    }
+
+    #[allow(dead_code)]
+    pub fn lookup_enum(&self, name: &str) -> Option<&EnumInfo> {
+        self.enums.get(name)
     }
 
     pub fn lookup_class_const(&self, class: &str, name: &str) -> Option<&(Type, Visibility)> {

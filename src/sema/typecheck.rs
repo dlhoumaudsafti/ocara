@@ -34,6 +34,10 @@ impl<'a> TypeChecker<'a> {
     // ── Point d'entrée ───────────────────────────────────────────────────────
 
     pub fn check_program(&mut self, program: &Program) {
+        // Enums — vérifier les doublons de variantes
+        for en in &program.enums {
+            self.check_enum(en);
+        }
         // Fonctions libres — vérifier les types de retour mixed
         for func in &program.functions {
             if let Type::Mixed = func.ret_ty {
@@ -47,6 +51,20 @@ impl<'a> TypeChecker<'a> {
         // Classes
         for class in &program.classes {
             self.check_class(class);
+        }
+    }
+
+    // ── Enum ─────────────────────────────────────────────────────────────────
+
+    fn check_enum(&mut self, en: &crate::ast::EnumDecl) {
+        let mut seen = std::collections::HashSet::new();
+        for v in &en.variants {
+            if !seen.insert(v.name.clone()) {
+                self.errors.push(SemaError::DuplicateSymbol {
+                    name: format!("{}::{}", en.name, v.name),
+                    span: v.span.clone(),
+                });
+            }
         }
     }
 
