@@ -915,8 +915,8 @@ var a:int = resolve compute(6)
 
 **Règles :**
 
-- Le type de retour d'une fonction `async` doit être `int` (toute valeur est transmise comme `i64` à travers le thread).
-- `resolve` retourne un `int` quel que soit le contexte.
+- Le type de retour d'une fonction `async` peut être n'importe quel type Ocara : `int`, `float`, `bool`, `string`, `Type[]`, `map<K,V>`, `Function<T>`, une classe, ou un enum (qui est un `int`).
+- `resolve` retourne le type de retour réel de la fonction `async` sous-jacente.
 - Une handle ne peut être résolue qu'une seule fois ; une seconde résolution retourne `0`.
 - `async` et `nameless` ne peuvent pas être combinés.
 - `async` ne modifie pas le type `Function` : une fonction async ne peut pas être passée comme `Function`.

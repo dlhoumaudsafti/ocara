@@ -1678,6 +1678,24 @@ struct OcaraTask {
     handle: Option<std::thread::JoinHandle<i64>>,
 }
 
+/// Déboxe un float précédemment boxé par `__box_float`.
+/// Entrée : `ptr | 1` (tagged heap pointer).
+/// Sortie : la valeur f64 originale.
+#[no_mangle]
+pub extern "C" fn __unbox_float(tagged: i64) -> f64 {
+    let ptr = (tagged & !1) as *const f64;
+    unsafe { *ptr }
+}
+
+/// Déboxe un bool précédemment boxé par `__box_bool`.
+/// Entrée : `ptr | 2` (tagged heap pointer).
+/// Sortie : 0 ou 1 comme i64.
+#[no_mangle]
+pub extern "C" fn __unbox_bool(tagged: i64) -> i64 {
+    let ptr = (tagged & !3) as *const i64;
+    unsafe { *ptr }
+}
+
 #[no_mangle]
 pub extern "C" fn __task_spawn(func: i64, env: i64) -> i64 {
     let handle = std::thread::spawn(move || unsafe {

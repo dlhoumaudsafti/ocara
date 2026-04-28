@@ -40,6 +40,9 @@ pub struct LowerBuilder<'m> {
     pub heap_promoted: HashSet<String>,
     /// Noms des fonctions marquées `async` (au sens Ocara : spawn thread)
     pub async_funcs: HashSet<String>,
+    /// Mapping var_name → IrType de retour original de la fonction async
+    /// Utilisé par Expr::Resolve pour savoir quel unboxing appliquer.
+    pub async_var_ret: HashMap<String, IrType>,
 }
 
 impl<'m> LowerBuilder<'m> {
@@ -66,6 +69,7 @@ impl<'m> LowerBuilder<'m> {
             captured_vars: HashMap::new(),
             heap_promoted: HashSet::new(),
             async_funcs: HashSet::new(),
+            async_var_ret: HashMap::new(),
         }
     }
 
@@ -737,7 +741,9 @@ pub fn generate_async_wrapper(
                 ret_ty: ret_ty.clone(),
             });
             // Convertir en I64 si nécessaire
-            let final_val = if ret_ty == IrType::I64 {
+            let final_val = if ret_ty == IrType::I64 || ret_ty == IrType::Ptr {
+                // I64 et Ptr (string, object, array, map, Function) sont déjà
+                // des valeurs i64 valides — pas de boxing nécessaire.
                 result
             } else {
                 let boxed = builder.new_value();
@@ -750,10 +756,10 @@ pub fn generate_async_wrapper(
                         dest: Some(boxed.clone()), func: "__box_bool".into(),
                         args: vec![result], ret_ty: IrType::Ptr,
                     }),
-                    _ => builder.emit(Inst::Call {
-                        dest: Some(boxed.clone()), func: "__identity".into(),
-                        args: vec![result], ret_ty: IrType::Ptr,
-                    }),
+                    _ => {
+                        // Void ou autre : retourner 0
+                        builder.emit(Inst::ConstInt { dest: boxed.clone(), value: 0 });
+                    }
                 }
                 boxed
             };

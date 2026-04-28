@@ -408,7 +408,26 @@ fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
             }
         }
         Expr::IsCheck { .. } => IrType::Bool,
-        Expr::Resolve { .. } => IrType::I64,
+        Expr::Resolve { expr, .. } => {
+            // Retourne le type IR original de la fonction async sous-jacente.
+            match expr.as_ref() {
+                Expr::Ident(var_name, _) => {
+                    builder.async_var_ret.get(var_name).cloned().unwrap_or(IrType::I64)
+                }
+                Expr::Call { callee, .. } => {
+                    if let Expr::Ident(fn_name, _) = callee.as_ref() {
+                        if builder.async_funcs.contains(fn_name.as_str()) {
+                            builder.fn_ret_types.get(fn_name.as_str()).cloned().unwrap_or(IrType::I64)
+                        } else {
+                            IrType::I64
+                        }
+                    } else {
+                        IrType::I64
+                    }
+                }
+                _ => IrType::I64,
+            }
+        }
         Expr::Nameless { .. } => IrType::Ptr,
         _ => IrType::I64,
     }
@@ -1368,15 +1387,59 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
         }
 
         Expr::Resolve { expr, .. } => {
+            // Déterminer le type de retour original de la fonction async
+            let orig_ty = match expr.as_ref() {
+                Expr::Ident(var_name, _) => {
+                    builder.async_var_ret.get(var_name).cloned().unwrap_or(IrType::I64)
+                }
+                Expr::Call { callee, .. } => {
+                    if let Expr::Ident(fn_name, _) = callee.as_ref() {
+                        if builder.async_funcs.contains(fn_name.as_str()) {
+                            builder.fn_ret_types.get(fn_name.as_str()).cloned().unwrap_or(IrType::I64)
+                        } else {
+                            IrType::I64
+                        }
+                    } else {
+                        IrType::I64
+                    }
+                }
+                _ => IrType::I64,
+            };
+
             let task_ptr = lower_expr(builder, expr);
-            let dest = builder.new_value();
+            let raw = builder.new_value();
             builder.emit(Inst::Call {
-                dest:   Some(dest.clone()),
+                dest:   Some(raw.clone()),
                 func:   "__task_resolve".into(),
                 args:   vec![task_ptr],
                 ret_ty: IrType::I64,
             });
-            dest
+
+            // Unboxer si nécessaire
+            match orig_ty {
+                IrType::F64 => {
+                    let unboxed = builder.new_value();
+                    builder.emit(Inst::Call {
+                        dest:   Some(unboxed.clone()),
+                        func:   "__unbox_float".into(),
+                        args:   vec![raw],
+                        ret_ty: IrType::F64,
+                    });
+                    unboxed
+                }
+                IrType::Bool => {
+                    let unboxed = builder.new_value();
+                    builder.emit(Inst::Call {
+                        dest:   Some(unboxed.clone()),
+                        func:   "__unbox_bool".into(),
+                        args:   vec![raw],
+                        ret_ty: IrType::Bool,
+                    });
+                    unboxed
+                }
+                // I64, Ptr (string, array, map, Function, object) : le i64 EST la valeur
+                _ => raw,
+            }
         }
 
         Expr::IsCheck { expr, ty, .. } => {

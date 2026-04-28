@@ -17,6 +17,9 @@ pub struct TypeChecker<'a> {
     current_ret:   Option<Type>,
     /// Nom de la classe en cours (pour `self`)
     current_class: Option<String>,
+    /// Mapping var_name → func_name pour les variables qui contiennent un task handle async.
+    /// Utilisé par Expr::Resolve pour retrouver le type de retour original.
+    async_var_funcs: std::collections::HashMap<String, String>,
 }
 
 impl<'a> TypeChecker<'a> {
@@ -28,6 +31,7 @@ impl<'a> TypeChecker<'a> {
             scopes:   ScopeStack::default(),
             current_ret:   None,
             current_class: None,
+            async_var_funcs: std::collections::HashMap::new(),
         }
     }
 
@@ -178,6 +182,16 @@ impl<'a> TypeChecker<'a> {
                         name: name.clone(),
                         span: span.clone(),
                     });
+                }
+                // Tracker les variables qui stockent un task handle async
+                if let Expr::Call { callee, .. } = value {
+                    if let Expr::Ident(func_name, _) = callee.as_ref() {
+                        if let Some(sig) = self.symbols.lookup_function(func_name) {
+                            if sig.is_async {
+                                self.async_var_funcs.insert(name.clone(), func_name.clone());
+                            }
+                        }
+                    }
                 }
                 if !self.scopes.declare(
                     name.clone(),
@@ -449,7 +463,8 @@ impl<'a> TypeChecker<'a> {
                                 span:     span.clone(),
                             });
                         }
-                        let ret = sig.ret_ty.clone();
+                        // Appel async : retourne Type::Int (le task handle opaque)
+                        let ret = if sig.is_async { Type::Int } else { sig.ret_ty.clone() };
                         for arg in args { self.infer_expr(arg); }
                         return ret;
                     }
@@ -689,10 +704,28 @@ impl<'a> TypeChecker<'a> {
             }
 
             Expr::Resolve { expr, .. } => {
-                // resolve task : le type de retour est int (handle de tâche opaque)
-                // La valeur réelle est reçue comme i64 depuis __task_resolve
                 self.infer_expr(expr);
-                Type::Int
+                // Retrouver le type de retour original de la fonction async
+                let orig_ty: Option<Type> = match expr.as_ref() {
+                    Expr::Ident(var_name, _) => {
+                        self.async_var_funcs
+                            .get(var_name)
+                            .and_then(|fn_name| self.symbols.lookup_function(fn_name))
+                            .map(|sig| sig.ret_ty.clone())
+                    }
+                    Expr::Call { callee, .. } => {
+                        if let Expr::Ident(fn_name, _) = callee.as_ref() {
+                            self.symbols
+                                .lookup_function(fn_name)
+                                .filter(|sig| sig.is_async)
+                                .map(|sig| sig.ret_ty.clone())
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                };
+                orig_ty.unwrap_or(Type::Int)
             }
         }
     }
