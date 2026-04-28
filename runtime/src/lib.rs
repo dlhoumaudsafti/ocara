@@ -1669,3 +1669,49 @@ pub extern "C" fn __ocara_type_matches(stored: i64, filter: i64) -> i64 {
         if s == f { 1 } else { 0 }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Async tasks
+// ─────────────────────────────────────────────────────────────────────────────
+
+struct OcaraTask {
+    handle: Option<std::thread::JoinHandle<i64>>,
+}
+
+/// Déboxe un float précédemment boxé par `__box_float`.
+/// Entrée : `ptr | 1` (tagged heap pointer).
+/// Sortie : la valeur f64 originale.
+#[no_mangle]
+pub extern "C" fn __unbox_float(tagged: i64) -> f64 {
+    let ptr = (tagged & !1) as *const f64;
+    unsafe { *ptr }
+}
+
+/// Déboxe un bool précédemment boxé par `__box_bool`.
+/// Entrée : `ptr | 2` (tagged heap pointer).
+/// Sortie : 0 ou 1 comme i64.
+#[no_mangle]
+pub extern "C" fn __unbox_bool(tagged: i64) -> i64 {
+    let ptr = (tagged & !3) as *const i64;
+    unsafe { *ptr }
+}
+
+#[no_mangle]
+pub extern "C" fn __task_spawn(func: i64, env: i64) -> i64 {
+    let handle = std::thread::spawn(move || unsafe {
+        let f: extern "C" fn(i64) -> i64 = std::mem::transmute(func as usize);
+        f(env)
+    });
+    let task = Box::new(OcaraTask { handle: Some(handle) });
+    Box::into_raw(task) as i64
+}
+
+#[no_mangle]
+pub extern "C" fn __task_resolve(task_ptr: i64) -> i64 {
+    let task = unsafe { &mut *(task_ptr as *mut OcaraTask) };
+    if let Some(handle) = task.handle.take() {
+        handle.join().unwrap_or(0)
+    } else {
+        0
+    }
+}

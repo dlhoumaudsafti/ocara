@@ -13,6 +13,7 @@ pub struct FuncSig {
     pub params:    Vec<(String, Type)>,
     pub ret_ty:    Type,
     pub is_static: bool,
+    pub is_async:  bool,
 }
 
 /// Descripteur d'un champ de classe
@@ -144,6 +145,7 @@ impl SymbolTable {
                 params:    params_to_vec(&decl.params),
                 ret_ty:    decl.ret_ty.clone(),
                 is_static: false,
+                is_async:  decl.is_async,
             },
         );
         true
@@ -161,6 +163,7 @@ impl SymbolTable {
                     params:    params_to_vec(&m.params),
                     ret_ty:    m.ret_ty.clone(),
                     is_static: false,
+        is_async:  false,
                 },
             );
         }
@@ -194,6 +197,7 @@ impl SymbolTable {
                         params:    params_to_vec(&fd.params),
                         ret_ty:    fd.ret_ty.clone(),
                         is_static: *is_static,
+        is_async:  false,
                     });
                 }
                 ClassMember::Constructor { .. } => {
@@ -269,6 +273,7 @@ impl SymbolTable {
                         params:    params_to_vec(&fd.params),
                         ret_ty:    fd.ret_ty.clone(),
                         is_static: *is_static,
+        is_async:  false,
                     });
                 }
                 ClassMember::Constructor { .. } => {}

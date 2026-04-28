@@ -100,6 +100,7 @@ fn walk_expr_caps(expr: &Expr, p: &HashSet<String>, l: &HashMap<String, (Value, 
         Expr::Template { parts, .. }     => { for part in parts { if let TemplatePartExpr::Expr(e) = part { walk_expr_caps(e, p, l, caps, seen); } } }
         Expr::Match  { subject, arms, ..} => { walk_expr_caps(subject, p, l, caps, seen); for arm in arms { walk_expr_caps(&arm.body, p, l, caps, seen); } }
         Expr::IsCheck { expr, .. }       => walk_expr_caps(expr, p, l, caps, seen),
+        Expr::Resolve { expr, .. }        => walk_expr_caps(expr, p, l, caps, seen),
         // Ne pas descendre dans les nameless imbriquées (elles ont leurs propres captures)
         Expr::Nameless { .. } | Expr::Literal(..) | Expr::StaticConst { .. } => {}
     }
@@ -407,6 +408,26 @@ fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
             }
         }
         Expr::IsCheck { .. } => IrType::Bool,
+        Expr::Resolve { expr, .. } => {
+            // Retourne le type IR original de la fonction async sous-jacente.
+            match expr.as_ref() {
+                Expr::Ident(var_name, _) => {
+                    builder.async_var_ret.get(var_name).cloned().unwrap_or(IrType::I64)
+                }
+                Expr::Call { callee, .. } => {
+                    if let Expr::Ident(fn_name, _) = callee.as_ref() {
+                        if builder.async_funcs.contains(fn_name.as_str()) {
+                            builder.fn_ret_types.get(fn_name.as_str()).cloned().unwrap_or(IrType::I64)
+                        } else {
+                            IrType::I64
+                        }
+                    } else {
+                        IrType::I64
+                    }
+                }
+                _ => IrType::I64,
+            }
+        }
         Expr::Nameless { .. } => IrType::Ptr,
         _ => IrType::I64,
     }
@@ -620,6 +641,45 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     ret_ty: IrType::Void,
                 });
                 return dest;
+            }
+
+            // Appel async : spawn un thread, retourne un task handle (i64)
+            if builder.async_funcs.contains(func_name.as_str()) {
+                let wrapper_name = format!("__async_wrap_{}", func_name);
+                // Évaluer les arguments
+                let arg_vals: Vec<Value> = args.iter().map(|a| lower_expr(builder, a)).collect();
+                let n_args = arg_vals.len();
+                // Allouer l'env heap : n_args * 8 octets
+                let env_size = builder.new_value();
+                builder.emit(Inst::ConstInt { dest: env_size.clone(), value: (n_args * 8) as i64 });
+                let env_ptr = builder.new_value();
+                builder.emit(Inst::Call {
+                    dest:   Some(env_ptr.clone()),
+                    func:   "__alloc_obj".into(),
+                    args:   vec![env_size],
+                    ret_ty: IrType::I64,
+                });
+                // Stocker chaque arg dans env[i*8]
+                for (i, arg_val) in arg_vals.iter().enumerate() {
+                    builder.emit(Inst::SetField {
+                        obj:    env_ptr.clone(),
+                        field:  format!("__arg{}", i),
+                        src:    arg_val.clone(),
+                        offset: (i * 8) as i32,
+                    });
+                }
+                // Obtenir l'adresse du wrapper
+                let func_addr = builder.new_value();
+                builder.emit(Inst::FuncAddr { dest: func_addr.clone(), func: wrapper_name });
+                // Appeler __task_spawn(func_addr, env_ptr) → task handle
+                let task = builder.new_value();
+                builder.emit(Inst::Call {
+                    dest:   Some(task.clone()),
+                    func:   "__task_spawn".into(),
+                    args:   vec![func_addr, env_ptr],
+                    ret_ty: IrType::I64,
+                });
+                return task;
             }
 
             // Boxer F64/Bool si le paramètre cible est `mixed` (Ptr)
@@ -1324,6 +1384,62 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             builder.emit(Inst::SetField { obj: fat_ptr.clone(), field: "func".into(), src: func_addr,    offset: 0 });
             builder.emit(Inst::SetField { obj: fat_ptr.clone(), field: "env".into(),  src: env_ptr_val, offset: 8 });
             fat_ptr
+        }
+
+        Expr::Resolve { expr, .. } => {
+            // Déterminer le type de retour original de la fonction async
+            let orig_ty = match expr.as_ref() {
+                Expr::Ident(var_name, _) => {
+                    builder.async_var_ret.get(var_name).cloned().unwrap_or(IrType::I64)
+                }
+                Expr::Call { callee, .. } => {
+                    if let Expr::Ident(fn_name, _) = callee.as_ref() {
+                        if builder.async_funcs.contains(fn_name.as_str()) {
+                            builder.fn_ret_types.get(fn_name.as_str()).cloned().unwrap_or(IrType::I64)
+                        } else {
+                            IrType::I64
+                        }
+                    } else {
+                        IrType::I64
+                    }
+                }
+                _ => IrType::I64,
+            };
+
+            let task_ptr = lower_expr(builder, expr);
+            let raw = builder.new_value();
+            builder.emit(Inst::Call {
+                dest:   Some(raw.clone()),
+                func:   "__task_resolve".into(),
+                args:   vec![task_ptr],
+                ret_ty: IrType::I64,
+            });
+
+            // Unboxer si nécessaire
+            match orig_ty {
+                IrType::F64 => {
+                    let unboxed = builder.new_value();
+                    builder.emit(Inst::Call {
+                        dest:   Some(unboxed.clone()),
+                        func:   "__unbox_float".into(),
+                        args:   vec![raw],
+                        ret_ty: IrType::F64,
+                    });
+                    unboxed
+                }
+                IrType::Bool => {
+                    let unboxed = builder.new_value();
+                    builder.emit(Inst::Call {
+                        dest:   Some(unboxed.clone()),
+                        func:   "__unbox_bool".into(),
+                        args:   vec![raw],
+                        ret_ty: IrType::Bool,
+                    });
+                    unboxed
+                }
+                // I64, Ptr (string, array, map, Function, object) : le i64 EST la valeur
+                _ => raw,
+            }
         }
 
         Expr::IsCheck { expr, ty, .. } => {

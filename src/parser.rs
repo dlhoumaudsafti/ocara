@@ -120,6 +120,10 @@ impl Parser {
                 TokenKind::Function => {
                     program.functions.push(self.parse_func()?);
                 }
+                TokenKind::Async => {
+                    // `async function ...` au niveau du module
+                    program.functions.push(self.parse_func()?);
+                }
                 other => {
                     return Err(ParseError::new(
                         format!("déclaration de haut niveau inattendue : {:?}", other),
@@ -277,6 +281,8 @@ impl Parser {
 
     fn parse_func(&mut self) -> ParseResult<FuncDecl> {
         let span = self.span();
+        let is_async = self.check_exact(&TokenKind::Async);
+        if is_async { self.advance(); }
         self.eat(&TokenKind::Function)?;
         let (name, _) = self.eat_ident()?;
         self.eat(&TokenKind::LParen)?;
@@ -285,11 +291,13 @@ impl Parser {
         self.eat(&TokenKind::Colon)?;
         let ret_ty = self.parse_type()?;
         let body = self.parse_block()?;
-        Ok(FuncDecl { name, params, ret_ty, body, span })
+        Ok(FuncDecl { name, params, ret_ty, body, is_async, span })
     }
 
     fn parse_method_decl(&mut self) -> ParseResult<FuncDecl> {
         let span = self.span();
+        let is_async = self.check_exact(&TokenKind::Async);
+        if is_async { self.advance(); }
         self.eat(&TokenKind::Method)?;
         let (name, _) = self.eat_ident()?;
         self.eat(&TokenKind::LParen)?;
@@ -298,7 +306,7 @@ impl Parser {
         self.eat(&TokenKind::Colon)?;
         let ret_ty = self.parse_type()?;
         let body = self.parse_block()?;
-        Ok(FuncDecl { name, params, ret_ty, body, span })
+        Ok(FuncDecl { name, params, ret_ty, body, is_async, span })
     }
 
     // ── Classe ───────────────────────────────────────────────────────────────
@@ -420,6 +428,15 @@ impl Parser {
 
         // Modificateur statique optionnel après la visibilité : `public static method ...`
         let is_static = if self.check_exact(&TokenKind::Static) {
+            self.advance();
+            true
+        } else {
+            false
+        };
+
+        // Modificateur async optionnel : `public [static] async method ...`
+        // (accepté aussi sans static)
+        let _is_async_member = if self.check_exact(&TokenKind::Async) {
             self.advance();
             true
         } else {
@@ -938,6 +955,11 @@ impl Parser {
                 self.advance();
                 let operand = self.parse_unary()?;
                 Ok(Expr::Unary { op: UnaryOp::Neg, operand: Box::new(operand), span })
+            }
+            TokenKind::Resolve => {
+                self.advance();
+                let expr = self.parse_unary()?;
+                Ok(Expr::Resolve { expr: Box::new(expr), span })
             }
             _ => self.parse_postfix(),
         }

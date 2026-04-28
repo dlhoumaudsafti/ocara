@@ -174,6 +174,12 @@ pub enum Expr {
         span:   Span,
     },
 
+    /// `resolve expr` — attend la fin d'une tâche async et retourne son résultat
+    Resolve {
+        expr: Box<Expr>,
+        span: Span,
+    },
+
     /// Test de type runtime : `val is int`, `obj is null`
     IsCheck {
         expr: Box<Expr>,
@@ -377,11 +383,12 @@ pub struct Param {
 /// Déclaration de fonction de niveau module
 #[derive(Debug, Clone, PartialEq)]
 pub struct FuncDecl {
-    pub name:   String,
-    pub params: Vec<Param>,
-    pub ret_ty: Type,
-    pub body:   Block,
-    pub span:   Span,
+    pub name:     String,
+    pub params:   Vec<Param>,
+    pub ret_ty:   Type,
+    pub body:     Block,
+    pub is_async: bool,
+    pub span:     Span,
 }
 
 /// Membre d'une classe

@@ -80,6 +80,8 @@ pub enum TokenKind {
     Is,
     Raise,
     SelfKw, // self
+    Async,
+    Resolve,
 
     // ── Types primitifs ───────────────────────────────────────────────────────
     TInt,
