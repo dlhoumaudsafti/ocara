@@ -26,6 +26,8 @@ pub mod datetime;
 pub mod date;
 pub mod time;
 pub mod unittest;
+pub mod htmlcomponent;
+pub mod html;
 
 use crate::sema::symbols::ClassInfo;
 
@@ -48,6 +50,8 @@ pub fn builtin_class(name: &str) -> Option<ClassInfo> {
         "Date"        => Some(date::class()),
         "Time"        => Some(time::class()),
         "UnitTest"    => Some(unittest::class()),
+        "HTMLComponent" => Some(htmlcomponent::class()),
+        "HTML"        => Some(html::class()),
         _             => None,
     }
 }
@@ -71,5 +75,7 @@ pub fn all_builtins() -> Vec<(&'static str, ClassInfo)> {
         ("Date",        date::class()),
         ("Time",        time::class()),
         ("UnitTest",    unittest::class()),
+        ("HTMLComponent", htmlcomponent::class()),
+        ("HTML",        html::class()),
     ]
 }

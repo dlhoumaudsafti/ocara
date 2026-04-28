@@ -1,0 +1,86 @@
+// examples/builtins/html/components.oc
+// Enregistrement de tous les composants HTML du mini projet.
+//
+// Composants :
+//   <nav-bar active="home|about|contact">  — barre commune à toutes les pages
+//   <layout title="..." active="...">      — mise en page complète (slot)
+//   <card title="...">                     — carte de contenu (slot)
+//   <stats value="...">                    — badge de statistiques
+
+import ocara.HTML
+import ocara.HTMLComponent
+
+function setup_components(): void {
+
+    // ── <nav-bar active="home|about|contact"> ─────────────────────────────────
+    // Barre de navigation commune à toutes les pages.
+    // L'attribut active détermine quel lien est surligné.
+    var nav:HTMLComponent = use HTMLComponent("nav-bar")
+    nav.register(nameless(attrs:map<string, mixed>): string {
+        scoped active:string      = attrs["active"]
+        scoped home_cls:string    = match active { "home"    => " active" default => "" }
+        scoped about_cls:string   = match active { "about"   => " active" default => "" }
+        scoped contact_cls:string = match active { "contact" => " active" default => "" }
+        return `<nav>
+  <span class="brand">Ocara</span>
+  <a href="/" class="nav-link${home_cls}">Accueil</a>
+  <a href="/about" class="nav-link${about_cls}">A propos</a>
+  <a href="/contact" class="nav-link${contact_cls}">Contact</a>
+</nav>`
+    })
+
+    // ── <layout title="..." active="..."> ────────────────────────────────────
+    // Mise en page complète : DOCTYPE, CSS, <nav-bar>, contenu (slot), footer.
+    // Le HTML retourné contient <nav-bar active="..."> qui sera résolu
+    // récursivement par HTML::render.
+    var layout:HTMLComponent = use HTMLComponent("layout")
+    layout.register(nameless(attrs:map<string, mixed>): string {
+        scoped title:string   = attrs["title"]
+        scoped active:string  = attrs["active"]
+        scoped content:string = attrs["__slot__"]
+        return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>${title} - Ocara</title>
+  <style>
+    *{box-sizing:border-box}
+    body{font-family:sans-serif;margin:0;background:#f5f5f5;color:#222}
+    nav{background:#1a1a2e;padding:12px 24px;display:flex;gap:8px;align-items:center}
+    .brand{color:#e94560;font-weight:700;font-size:18px;margin-right:16px}
+    .nav-link{color:#ccc;text-decoration:none;padding:6px 14px;border-radius:4px}
+    .nav-link:hover{background:#2a2a4e;color:#fff}
+    .nav-link.active{background:#e94560;color:#fff}
+    main{max-width:800px;margin:32px auto;padding:0 16px}
+    .card{background:#fff;border-radius:8px;padding:24px;margin-bottom:16px;box-shadow:0 2px 6px rgba(0,0,0,.07)}
+    .card h2{margin-top:0;color:#1a1a2e;border-bottom:2px solid #e94560;padding-bottom:8px}
+    .stats-badge{background:#e94560;color:#fff;padding:6px 14px;border-radius:20px;font-size:14px;display:inline-block;margin-top:8px}
+    footer{text-align:center;padding:24px;color:#999;font-size:13px;border-top:1px solid #e0e0e0;margin-top:16px}
+    code{background:#f0f0f0;padding:2px 6px;border-radius:3px;font-size:13px}
+  </style>
+</head>
+<body>
+  <nav-bar active="${active}">
+  <main>${content}</main>
+  <footer>Ocara - Compile natif - Zero GC - Open Source</footer>
+</body>
+</html>`
+    })
+
+    // ── <card title="..."> ───────────────────────────────────────────────────
+    // Carte de contenu avec titre et corps injecté via __slot__.
+    var card:HTMLComponent = use HTMLComponent("card")
+    card.register(nameless(attrs:map<string, mixed>): string {
+        scoped title:string   = attrs["title"]
+        scoped content:string = attrs["__slot__"]
+        return `<div class="card"><h2>${title}</h2>${content}</div>`
+    })
+
+    // ── <stats value="..."> ──────────────────────────────────────────────────
+    // Badge de statistiques dynamiques affiché sur la page d'accueil.
+    var stats_comp:HTMLComponent = use HTMLComponent("stats")
+    stats_comp.register(nameless(attrs:map<string, mixed>): string {
+        scoped value:string = attrs["value"]
+        return `<span class="stats-badge">${value}</span>`
+    })
+}

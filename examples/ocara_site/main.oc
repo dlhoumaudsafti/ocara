@@ -1,0 +1,45 @@
+// examples/builtins/html/main.oc
+// Point d'entrée du mini projet.
+//
+// Enregistre les composants, configure les routes, démarre le serveur.
+//
+// Architecture :
+//   components.oc                    — définition des composants HTMLComponent
+//   controllers/HomeController.oc    — page d'accueil (async/resolve + render)
+//   controllers/AboutController.oc   — page à propos (render_cached)
+//   controllers/ContactController.oc — page contact (render_cached)
+//
+// Lancer :
+//   ./target/release/ocara examples/builtins/html/main.oc -o /tmp/site
+//   /tmp/site
+//
+// Tester :
+//   curl http://localhost:3000/
+//   curl http://localhost:3000/about
+//   curl http://localhost:3000/contact
+
+import ocara.IO
+import ocara.HTTPServer
+import components
+import controllers.HomeController
+import controllers.AboutController
+import controllers.ContactController
+
+function main(): int {
+    setup_components()
+
+    const server:HTTPServer = use HTTPServer()
+    server.set_port(3000)
+    server.set_workers(4)
+
+    server.route("/",        "GET", HomeController::handle)
+    server.route("/about",   "GET", AboutController::handle)
+    server.route("/contact", "GET", ContactController::handle)
+
+    IO::writeln("Site demarre sur http://localhost:3000")
+    IO::writeln("  /          -> home (async stats)")
+    IO::writeln("  /about     -> a propos (render_cached)")
+    IO::writeln("  /contact   -> contact (render_cached)")
+    server.run()
+    return 0
+}

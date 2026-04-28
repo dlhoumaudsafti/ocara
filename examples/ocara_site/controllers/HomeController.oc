@@ -1,0 +1,60 @@
+// examples/builtins/html/controllers/HomeController.oc
+// Contrôleur de la page d'accueil.
+//
+// Charge deux statistiques en parallèle via async/resolve,
+// puis rend la page dynamiquement (pas de cache — les stats changent).
+
+import ocara.HTMLComponent
+import ocara.HTML
+import ocara.HTTPServer
+import ocara.Convert
+import ocara.Thread
+
+// ── Données simulées ──────────────────────────────────────────────────────────
+// Dans un vrai projet, ces fonctions feraient des requêtes DB ou API.
+// Elles s'exécutent en parallèle grâce à async/resolve.
+
+async function fetch_user_count(): int {
+    Thread::sleep(10)   // simule 10 ms de latence
+    return 1247
+}
+
+async function fetch_article_count(): int {
+    Thread::sleep(15)   // simule 15 ms de latence
+    return 83
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class HomeController {
+
+    public static method handle(req:int): int {
+        // Lancer les deux chargements en parallèle
+        var t_users:int    = fetch_user_count()
+        var t_articles:int = fetch_article_count()
+
+        // Attendre les résultats (resolve bloque jusqu'à la fin de chaque tâche)
+        var users:int    = resolve t_users
+        var articles:int = resolve t_articles
+
+        scoped stats:string = Convert::int_to_str(users) + " utilisateurs · " +
+                              Convert::int_to_str(articles) + " articles"
+
+        scoped html:string = HTML::render(`<layout title="Accueil" active="home">
+  <card title="Bienvenue sur Ocara">
+    <p>Ocara est un langage compile natif, statiquement type, oriente objet.</p>
+    <p>Cranelift codegen, zero GC, typage strict.</p>
+    <stats value="${stats}">
+  </card>
+  <card title="Demarrage rapide">
+    <p>1. Installer Rust et Cargo</p>
+    <p>2. <code>make build</code></p>
+    <p>3. <code>./target/release/ocara mon_fichier.oc -o mon_binaire</code></p>
+  </card>
+</layout>`)
+
+        HTTPServer::set_resp_header(req, "Content-Type", "text/html; charset=utf-8")
+        HTTPServer::respond(req, 200, html)
+        return 0
+    }
+}

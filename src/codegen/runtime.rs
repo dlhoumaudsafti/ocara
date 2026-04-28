@@ -244,6 +244,15 @@ pub const BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "UnitTest_assertEnum",           params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
     BuiltinDesc { name: "UnitTest_assertMap",            params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
     BuiltinDesc { name: "UnitTest_assertArray",          params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
+    // ── ocara.HTMLComponent ───────────────────────────────────────────────────
+    BuiltinDesc { name: "HTMLComponent_init",     params: &[clt::I64, clt::I64],              returns: None,              module: Some("HTMLComponent") },
+    BuiltinDesc { name: "HTMLComponent_register", params: &[clt::I64, clt::I64],              returns: None,              module: Some("HTMLComponent") },
+    // ── ocara.HTML ────────────────────────────────────────────────────────────
+    BuiltinDesc { name: "HTML_render",            params: &[clt::I64],                        returns: Some(clt::I64),    module: Some("HTML") },
+    BuiltinDesc { name: "HTML_render_cached",     params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: Some("HTML") },
+    BuiltinDesc { name: "HTML_cache_delete",      params: &[clt::I64],                        returns: None,              module: Some("HTML") },
+    BuiltinDesc { name: "HTML_cache_clear",       params: &[],                                returns: None,              module: Some("HTML") },
+    BuiltinDesc { name: "HTML_escape",            params: &[clt::I64],                        returns: Some(clt::I64),    module: Some("HTML") },
     // ── Gestion des erreurs (try/on/fail) — toujours disponibles ─────────────
     BuiltinDesc { name: "__ocara_try_exec",       params: &[clt::I64, clt::I64],              returns: None,              module: None },
     BuiltinDesc { name: "__ocara_fail",           params: &[clt::I64, clt::I64],              returns: None,              module: None },
