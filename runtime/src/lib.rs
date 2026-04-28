@@ -106,6 +106,7 @@ pub mod datetime;
 pub mod date;
 pub mod time;
 pub mod typecheck;
+pub mod htmlcomponent;
 
 // Helpers mémoire internes
 // ─────────────────────────────────────────────────────────────────────────────

@@ -1,0 +1,27 @@
+// examples/builtins/html/controllers/ContactController.oc
+// Contrôleur de la page "Contact".
+//
+// Contenu statique — mis en cache avec render_cached après le premier rendu.
+
+import ocara.HTML
+import ocara.HTTPServer
+
+class ContactController {
+
+    public static method handle(req:int): int {
+        scoped html:string = HTML::render_cached(`<layout title="Contact" active="contact">
+  <card title="Nous contacter">
+    <p>Email : <a href="https://github.com/dlhoumaudsafti/ocara" target="_blank">hello@ocara-lang.dev</a></p>
+    <p>GitHub : <a href="https://github.com/dlhoumaudsafti/ocara" target="_blank">https://github.com/dlhoumaudsafti/ocara</a></p>
+  </card>
+  <card title="Signaler un bug">
+    <p>Ouvrir une issue sur le depot GitHub.</p>
+    <p>Merci de preciser la version du compilateur et le code minimal reproducible.</p>
+  </card>
+</layout>`, "page_contact")
+
+        HTTPServer::set_resp_header(req, "Content-Type", "text/html; charset=utf-8")
+        HTTPServer::respond(req, 200, html)
+        return 0
+    }
+}

@@ -1,0 +1,107 @@
+// examples/builtins/html.oc
+// Démonstration de ocara.HTMLComponent et ocara.HTML
+
+import ocara.IO
+import ocara.HTML
+import ocara.HTMLComponent
+
+function main(): int {
+
+    // ── Composant <card> ──────────────────────────────────────────────────────
+    var card:HTMLComponent = use HTMLComponent("card")
+    card.register(nameless(attrs:map<string, mixed>): string {
+        scoped title:string = attrs["title"]
+        scoped body:string = attrs["body"]
+        return `<div class="card"><h2>${title}</h2><p>${body}</p></div>`
+    })
+
+    // ── Composant <badge> ─────────────────────────────────────────────────────
+    var badge:HTMLComponent = use HTMLComponent("badge")
+    badge.register(nameless(attrs:map<string, mixed>): string {
+        scoped label:string = attrs["label"]
+        scoped color:string = attrs["color"]
+        return `<span class="badge" style="background:${color}">${label}</span>`
+    })
+
+    // ── Rendu HTML avec composants custom ─────────────────────────────────────
+    var html:string = HTML::render(`<section>
+  <card title="Bienvenue" body="Ocara est un langage compile natif.">
+  <card title="Performance" body="Cranelift codegen, zero GC.">
+  <badge label="stable" color="green">
+  <badge label="v0.1.0" color="blue">
+</section>`)
+
+    IO::writeln(html)
+
+    // ── Composant <rating> (attribut entier) ─────────────────────────────────
+    var rating:HTMLComponent = use HTMLComponent("rating")
+    rating.register(nameless(attrs:map<string, mixed>): string {
+        scoped stars:int = attrs["stars"]
+        var out:string = ""
+        var n:int = 0
+        while n < stars {
+            out = out + "★"
+            n = n + 1
+        }
+        return `<span class="rating">${out}</span>`
+    })
+
+    IO::writeln("=== rating ===")
+    scoped r:string = HTML::render(`<rating stars=4>`)
+    IO::writeln(r)
+
+    // ── Composant <panel> (slot) ──────────────────────────────────────────────
+    var panel:HTMLComponent = use HTMLComponent("panel")
+    panel.register(nameless(attrs:map<string, mixed>): string {
+        scoped title:string   = attrs["title"]
+        scoped content:string = attrs["__slot__"]
+        return `<div class="panel"><h3>${title}</h3><div class="panel-body">${content}</div></div>`
+    })
+
+    IO::writeln("=== panel avec slot ===")
+    scoped p:string = HTML::render(`<panel title="Résumé">
+  <badge label="done" color="teal">
+  <p>Contenu riche dans le slot.</p>
+</panel>`)
+    IO::writeln(p)
+
+    // ── Composant <page> (slots nommés) ──────────────────────────────────────
+    var page:HTMLComponent = use HTMLComponent("page")
+    page.register(nameless(attrs:map<string, mixed>): string {
+        scoped header:string  = attrs["__slot_header__"]
+        scoped content:string = attrs["__slot_content__"]
+        scoped footer:string  = attrs["__slot_footer__"]
+        return `<div class="page"><header>${header}</header><main>${content}</main><footer>${footer}</footer></div>`
+    })
+
+    IO::writeln("=== slots nommes ===")
+    scoped pg:string = HTML::render(`<page>
+  <slot name="header"><h1>Mon titre</h1></slot>
+  <slot name="content"><badge label="actif" color="teal"><p>Corps de la page.</p></slot>
+  <slot name="footer"><p>Pied de page 2026</p></slot>
+</page>`)
+    IO::writeln(pg)
+
+    // ── HTML::escape ──────────────────────────────────────────────────────────
+    IO::writeln("=== escape ===")
+    scoped raw:string = "<script>alert(\"xss\")</script>"
+    scoped safe:string = HTML::escape(raw)
+    IO::writeln(safe)
+    // ── HTML::render_cached ──────────────────────────────────────────────
+    IO::writeln("=== render_cached ===")
+    scoped tpl:string = `<badge label="cached" color="purple">`
+    scoped r1:string = HTML::render_cached(tpl, "badge_cached")
+    scoped r2:string = HTML::render_cached(tpl, "badge_cached")  // hit cache
+    IO::writeln(r1)
+    IO::writeln(r2)
+
+    // ── HTML::cache_delete + HTML::cache_clear ────────────────────────────────
+    IO::writeln("=== cache_delete / cache_clear ===")
+    HTML::cache_delete("badge_cached")                           // supprime une entrée
+    scoped r3:string = HTML::render_cached(tpl, "badge_cached") // re-parse
+    IO::writeln(r3)
+    HTML::cache_clear()                                          // purge tout
+    IO::writeln("cache purgé")
+
+    return 0
+}

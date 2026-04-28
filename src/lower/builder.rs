@@ -393,7 +393,7 @@ pub fn lower_program(program: &Program) -> IrModule {
 
     // Méthodes de classes (passe toutes les classes pour l'héritage)
     for class in &program.classes {
-        lower_class(&mut module, class, &program.classes, &program.modules, &program.consts, &fn_ret_types, &fn_param_types, &fn_variadic_info);
+        lower_class(&mut module, class, &program.classes, &program.modules, &program.consts, &fn_ret_types, &fn_param_types, &fn_variadic_info, &async_funcs);
     }
 
     module
@@ -542,6 +542,7 @@ fn lower_class(
     fn_ret_types: &HashMap<String, IrType>,
     fn_param_types: &HashMap<String, Vec<IrType>>,
     fn_variadic_info: &HashMap<String, (usize, IrType)>,
+    async_funcs: &HashSet<String>,
 ) {
     // Collecte des noms de méthodes propres (pour détecter les surcharges)
     let own_methods: HashSet<String> = class.members.iter()
@@ -557,7 +558,7 @@ fn lower_class(
                         name: format!("{}_{}", class.name, decl.name),
                         ..decl.clone()
                     };
-                    lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, None, &Default::default());
+                    lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, None, async_funcs);
                 } else {
                     // Méthode d'instance : self en premier paramètre
                     let self_param = crate::ast::Param {
@@ -573,7 +574,7 @@ fn lower_class(
                         params: full_params,
                         ..decl.clone()
                     };
-                    lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, Some(&class.name), &Default::default());
+                    lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, Some(&class.name), async_funcs);
                 }
             }
             ClassMember::Constructor { params, body, span } => {
@@ -593,7 +594,7 @@ fn lower_class(
                     is_async: false,
                     span:     span.clone(),
                 };
-                lower_func(module, &init_func, consts, fn_ret_types, fn_param_types, fn_variadic_info, Some(&class.name), &Default::default());
+                lower_func(module, &init_func, consts, fn_ret_types, fn_param_types, fn_variadic_info, Some(&class.name), async_funcs);
             }
             ClassMember::Const { name, value, .. } => {
                 use crate::ir::module::IrGlobal;
@@ -626,7 +627,7 @@ fn lower_class(
                                 name: format!("{}_{}", class.name, decl.name),
                                 ..decl.clone()
                             };
-                            lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, None, &Default::default());
+                            lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, None, async_funcs);
                         } else {
                             // Méthode d'instance du module
                             let self_param = crate::ast::Param {
@@ -643,7 +644,7 @@ fn lower_class(
                                 ..decl.clone()
                             };
                             // Générer avec le contexte de la classe (layouts corrects!)
-                            lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, Some(&class.name), &Default::default());
+                            lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, Some(&class.name), async_funcs);
                         }
                     }
                 }
@@ -671,7 +672,7 @@ fn lower_class(
                             ..decl.clone()
                         };
                         // Émettre avec le contexte de la classe enfant (layouts corrects)
-                        lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, Some(&class.name), &Default::default());
+                        lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, Some(&class.name), async_funcs);
                     }
                 }
             }

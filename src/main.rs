@@ -165,7 +165,7 @@ fn main() {
     const OCARA_BUILTINS: &[&str] = &[
         "IO", "Math", "String", "Array", "Map",
         "Convert", "System", "Regex", "HTTPRequest", "HTTPServer", "Thread", "Mutex",
-        "DateTime", "Date", "Time", "UnitTest",
+        "DateTime", "Date", "Time", "UnitTest", "HTMLComponent", "HTML",
     ];
     let source_dir = args.input.parent().unwrap_or_else(|| std::path::Path::new("."));
     // Collecter les imports utilisateur avant d'itérer (pour éviter borrow conflict)
