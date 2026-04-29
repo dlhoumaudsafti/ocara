@@ -64,7 +64,6 @@ pub fn builtin_class(name: &str) -> Option<ClassInfo> {
         "SystemException" => Some(exception::system_exception_class()),
         "ArrayException" => Some(exception::array_exception_class()),
         "MapException" => Some(exception::map_exception_class()),
-        "StringException" => Some(exception::string_exception_class()),
         "MathException" => Some(exception::math_exception_class()),
         "ConvertException" => Some(exception::convert_exception_class()),
         "RegexException" => Some(exception::regex_exception_class()),
@@ -73,6 +72,7 @@ pub fn builtin_class(name: &str) -> Option<ClassInfo> {
         "TimeException" => Some(exception::time_exception_class()),
         "ThreadException" => Some(exception::thread_exception_class()),
         "MutexException" => Some(exception::mutex_exception_class()),
+        "UnitTestException" => Some(exception::unittest_exception_class()),
         _             => None,
     }
 }
@@ -107,7 +107,6 @@ pub fn all_builtins() -> Vec<(&'static str, ClassInfo)> {
         ("SystemException", exception::system_exception_class()),
         ("ArrayException", exception::array_exception_class()),
         ("MapException", exception::map_exception_class()),
-        ("StringException", exception::string_exception_class()),
         ("MathException", exception::math_exception_class()),
         ("ConvertException", exception::convert_exception_class()),
         ("RegexException", exception::regex_exception_class()),
@@ -116,5 +115,6 @@ pub fn all_builtins() -> Vec<(&'static str, ClassInfo)> {
         ("TimeException", exception::time_exception_class()),
         ("ThreadException", exception::thread_exception_class()),
         ("MutexException", exception::mutex_exception_class()),
+        ("UnitTestException", exception::unittest_exception_class()),
     ]
 }

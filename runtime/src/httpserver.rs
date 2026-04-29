@@ -472,7 +472,7 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
     let server = match tiny_http::Server::http(&addr) {
         Ok(s)  => Arc::new(s),
         Err(e) => {
-            server_log!("HTTPServer: impossible de démarrer sur {} : {}\n", addr, e);
+            server_log!("HTTPServer: unable to start on {} : {}\n", addr, e);
             return;
         }
     };
@@ -480,7 +480,7 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
     let root_path: Arc<Option<String>> = Arc::new(data.root_path.clone());
     let error_handlers: Arc<HashMap<u16, SendHandler>> = Arc::new(std::mem::take(&mut data.error_handlers));
 
-    server_log!("HTTPServer: écoute sur http://{}\n", addr);
+    server_log!("HTTPServer: listening on http://{}\n", addr);
 
     let handles: Vec<_> = (0..data.workers).map(|_| {
         let server = Arc::clone(&server);
