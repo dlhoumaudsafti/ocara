@@ -10,10 +10,10 @@
 //   or make regression builtins/httpserver_static
 //
 // Puis dans un autre terminal :
-//   curl http://localhost:8080/
+//   curl http://localhost:8080/                  # → index.html automatique
 //   curl http://localhost:8080/style.css
 //   curl http://localhost:8080/api/status
-//   curl http://localhost:8080/unknown.html
+//   curl http://localhost:8080/unknown.html      # → page 404 personnalisée
 // ─────────────────────────────────────────────────────────────────────────────
 
 import ocara.HTTPServer
@@ -23,7 +23,6 @@ function main(): int {
 
     const server:HTTPServer = use HTTPServer()
     server.set_port(8080)
-    server.set_workers(4)
     
     // Définir le répertoire racine pour les fichiers statiques
     // Relatif au répertoire courant où le programme est lancé
@@ -58,17 +57,63 @@ function main(): int {
         return 0
     })
 
+    // ── Route HTML sans Content-Type explicite ───────────────────────────────
+    // Content-Type: text/html; charset=utf-8 est ajouté automatiquement
+    server.route("/about", "GET", nameless(req:int): int {
+        var html:string = `<!DOCTYPE html>
+<html>
+    <head><title>À propos</title></head>
+    <body>
+        <h1>À propos de ce serveur</h1>
+        <p>Serveur HTTP Ocara avec support des fichiers statiques.</p>
+        <a href="/">Retour à l'accueil</a>
+    </body>
+</html>`
+        // Pas besoin de set_resp_header, Content-Type HTML par défaut !
+        HTTPServer::respond(req, 200, html)
+        return 0
+    })
+
+    // ── Page d'erreur 404 personnalisée ──────────────────────────────────────
+    server.route_error(404, nameless(req:int): int {
+        var path:string = HTTPServer::req_path(req)
+        var html:string = `<!DOCTYPE html>
+<html>
+    <head>
+        <title>404 - Page non trouvée</title>
+        <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+            h1 { color: #e74c3c; }
+            a { color: #3498db; text-decoration: none; }
+        </style>
+    </head>
+    <body>
+        <h1>404 - Page non trouvée</h1>
+        <p>La page <code>${path}</code> n'existe pas sur ce serveur.</p>
+        <p><a href="/">Retour à l'accueil</a></p>
+    </body>
+</html>`
+        // Content-Type HTML par défaut
+        HTTPServer::respond(req, 404, html)
+        return 0
+    })
+
     IO::writeln("HTTPServer démarré sur http://localhost:8080")
     IO::writeln("")
     IO::writeln("Routes dynamiques (priorité) :")
     IO::writeln("  GET  /api/status  → JSON status")
     IO::writeln("  GET  /api/users   → JSON users list")
     IO::writeln("  POST /api/echo    → Echo JSON")
+    IO::writeln("  GET  /about       → Page HTML (Content-Type automatique)")
     IO::writeln("")
-    IO::writeln("Fichiers statiques (fallback depuis ./public/) :")
-    IO::writeln("  GET  /index.html   → public/index.html")
-    IO::writeln("  GET  /style.css    → public/style.css")
-    IO::writeln("  GET  /app.js       → public/app.js")
+    IO::writeln("Fichiers statiques (fallback) :")
+    IO::writeln("  GET  /            → public/index.html (automatique)")
+    IO::writeln("  GET  /index.html  → public/index.html")
+    IO::writeln("  GET  /style.css   → public/style.css")
+    IO::writeln("  GET  /app.js      → public/app.js")
+    IO::writeln("")
+    IO::writeln("Erreurs :")
+    IO::writeln("  GET  /unknown     → Page 404 personnalisée")
     IO::writeln("")
     IO::writeln("Arrêt : Ctrl+C")
     

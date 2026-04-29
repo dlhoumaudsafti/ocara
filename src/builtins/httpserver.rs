@@ -96,6 +96,15 @@ pub fn class() -> ClassInfo {
         Type::Void,
     ));
 
+    // s.route_error(code:int, f:Function<void>) → void
+    methods.insert("route_error".into(), instance(
+        vec![
+            ("code", Type::Int),
+            ("f",    Type::Function(Box::new(Type::Void))),
+        ],
+        Type::Void,
+    ));
+
     // s.run() → void  (bloquant)
     methods.insert("run".into(), instance(
         vec![],
