@@ -169,6 +169,7 @@ pub const BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "HTTPServer_set_port",        params: &[clt::I64, clt::I64],                  returns: None,              module: Some("HTTPServer") },
     BuiltinDesc { name: "HTTPServer_set_host",        params: &[clt::I64, clt::I64],                  returns: None,              module: Some("HTTPServer") },
     BuiltinDesc { name: "HTTPServer_set_workers",     params: &[clt::I64, clt::I64],                  returns: None,              module: Some("HTTPServer") },
+    BuiltinDesc { name: "HTTPServer_set_root_path",   params: &[clt::I64, clt::I64],                  returns: None,              module: Some("HTTPServer") },
     BuiltinDesc { name: "HTTPServer_route",           params: &[clt::I64, clt::I64, clt::I64, clt::I64], returns: None,           module: Some("HTTPServer") },
     BuiltinDesc { name: "HTTPServer_run",             params: &[clt::I64],                            returns: None,              module: Some("HTTPServer") },
     BuiltinDesc { name: "HTTPServer_req_path",        params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("HTTPServer") },
