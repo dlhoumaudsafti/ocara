@@ -2,11 +2,12 @@
 // ocara.Exception — classe d'exception générique
 // ocara.FileException — classe d'exception pour les erreurs de fichiers  
 // ocara.DirectoryException — classe d'exception pour les erreurs de répertoires
+// ocara.IOException — classe d'exception pour les erreurs d'entrées/sorties
 //
 // Toutes ont les mêmes propriétés :
 //   - message: string  — Description de l'erreur
 //   - code: int        — Code d'erreur optionnel (0 = pas de code)
-//   - source: string   — Origine de l'erreur ("File", "Directory", etc.)
+//   - source: string   — Origine de l'erreur ("File", "Directory", "IO", etc.)
 //
 // Usage générique (attrape tout) :
 //   try {
@@ -19,10 +20,13 @@
 //   try {
 //       File::read("/a.txt")
 //       Directory::create("/b")
+//       var input:string = IO::read()
 //   } on e is FileException {
 //       IO::writeln(`Erreur fichier: ${e.message}`)
 //   } on e is DirectoryException {
 //       IO::writeln(`Erreur répertoire: ${e.message}`)
+//   } on e is IOException {
+//       IO::writeln(`Erreur IO: ${e.message}`)
 //   }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -67,5 +71,9 @@ pub fn file_exception_class() -> ClassInfo {
 }
 
 pub fn directory_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn io_exception_class() -> ClassInfo {
     make_exception_class()
 }

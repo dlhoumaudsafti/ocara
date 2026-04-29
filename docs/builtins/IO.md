@@ -204,6 +204,87 @@ function main(): int {
 
 ---
 
+## Gestion d'erreurs
+
+Les méthodes de lecture (`IO::read()`, `IO::readln()`, `IO::read_int()`, etc.) peuvent lever une `IOException` en cas d'erreur de lecture depuis stdin (par exemple si stdin est fermé).
+
+Les méthodes d'écriture (`IO::write()`, `IO::writeln()`) n'échouent généralement pas, sauf dans des cas exceptionnels (stdout fermé, erreur système).
+
+### Codes d'erreur IOException
+
+| Code | Nom | Opération | Description |
+|------|------|-----------|-------------|
+| 101 | `READ` | `IO::read()`, `IO::readln()`, `IO::read_int()`, etc. | Échec de lecture depuis stdin (stdin fermé, erreur I/O, etc.) |
+| 102 | `WRITE` | `IO::write()`, `IO::writeln()` | Échec d'écriture sur stdout (réservé pour usage futur) |
+
+### Exemples de gestion d'erreurs
+
+#### Gestion générique
+
+```ocara
+import ocara.IO
+
+function main(): int {
+    try {
+        IO::write("Votre nom: ")
+        var nom:string = IO::read()
+        IO::writeln(`Bonjour ${nom}!`)
+    } on e is IOException {
+        IO::writeln(`Erreur de lecture: ${e.message}`)
+        IO::writeln(`Code: ${e.code}`)
+    }
+    return 0
+}
+```
+
+#### Gestion avec code d'erreur spécifique
+
+```ocara
+import ocara.IO
+
+function safe_read(): string {
+    try {
+        return IO::read()
+    } on e is IOException {
+        if e.code == 101 {
+            IO::writeln("Erreur: impossible de lire depuis stdin")
+            return ""
+        } else {
+            IO::writeln(`Erreur IO inattendue: ${e.message}`)
+            return ""
+        }
+    }
+}
+```
+
+#### Catch générique (sans type)
+
+```ocara
+import ocara.IO
+
+function main(): int {
+    try {
+        var input:string = IO::read()
+        IO::writeln(input)
+    } on e {
+        // Capture toute exception (pas seulement IOException)
+        IO::writeln(`Exception: ${e.message}`)
+    }
+    return 0
+}
+```
+
+### Format des messages d'exception
+
+Les messages d'exception sont en anglais et incluent :
+- L'opération qui a échoué
+- L'erreur système sous-jacente
+
+Exemple :
+- `Failed to read from stdin: operation not supported (os error 95)`
+
+---
+
 ## Différence avec `write()` / `read()` globaux
 
 | Fonction globale | Équivalent IO         | Différence                            |
