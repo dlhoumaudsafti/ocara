@@ -605,12 +605,15 @@ fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]) {
     let handler_fn_name = format!("__try_handler_{}", try_id);
 
     // ── 1. Corps try ─────────────────────────────────────────────────────────
+    // Le body doit avoir le même type de retour que la fonction englobante
+    // car il peut contenir des return qui remontent à la fonction parente
+    let body_ret_ty = builder.func.ret_ty.clone();
     let body_fn = {
         let mut bb = LowerBuilder::new(
             &mut *builder.module,
             body_fn_name.clone(),
             vec![],
-            IrType::Void,
+            body_ret_ty.clone(),
         );
         bb.fn_ret_types  = builder.fn_ret_types.clone();
         bb.var_class     = builder.var_class.clone();
@@ -620,19 +623,31 @@ fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]) {
 
         lower_block(&mut bb, body);
         if !bb.is_terminated() {
-            bb.emit(Inst::Return { value: None });
+            // Return implicite : valeur dummy si type non-void
+            let ret_val = if body_ret_ty != IrType::Void {
+                let dummy = bb.new_value();
+                bb.emit(Inst::ConstInt { dest: dummy.clone(), value: 0 });
+                Some(dummy)
+            } else {
+                None
+            };
+            bb.emit(Inst::Return { value: ret_val });
         }
         bb.func   // move func out, drops bb, releases module reborrow
     };
     builder.module.add_function(body_fn);
 
     // ── 2. Gestionnaire ──────────────────────────────────────────────────────
+    // Le handler doit avoir le même type de retour que la fonction englobante
+    // car il peut contenir des return qui remontent à la fonction parente
+    let handler_ret_ty = builder.func.ret_ty.clone();
+    let handler_ret_ty_for_return = handler_ret_ty.clone();
     let handler_fn = {
         let mut hb = LowerBuilder::new(
             &mut *builder.module,
             handler_fn_name.clone(),
             vec![],            // params déclarés manuellement ci-dessous
-            IrType::Void,
+            handler_ret_ty,
         );
         hb.fn_ret_types  = builder.fn_ret_types.clone();
         hb.var_class     = builder.var_class.clone();
@@ -701,10 +716,10 @@ fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]) {
             let e_slot = hb.declare_local(&handler.binding, IrType::I64, false);
             hb.emit(Inst::Store { ptr: e_slot, src: ev });
 
-            // Si filtre connu → associer le binding à la classe pour l'accès aux champs
-            if let Some(class_filter) = &handler.class_filter {
-                hb.var_class.insert(handler.binding.clone(), class_filter.clone());
-            }
+            // Associer le binding à la classe pour l'accès aux champs
+            // Si filtre connu → utiliser le filtre, sinon → Exception par défaut
+            let exception_class = handler.class_filter.clone().unwrap_or_else(|| "Exception".to_string());
+            hb.var_class.insert(handler.binding.clone(), exception_class);
 
             lower_block(&mut hb, &handler.body);
             if !hb.is_terminated() {
@@ -727,11 +742,27 @@ fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]) {
                 args:   vec![ev, et],
                 ret_ty: IrType::Void,
             });
-            hb.emit(Inst::Return { value: None });
+            // Après __ocara_fail, code mort mais l'IR doit être terminé
+            let ret_val = if handler_ret_ty_for_return != IrType::Void {
+                let dummy = hb.new_value();
+                hb.emit(Inst::ConstInt { dest: dummy.clone(), value: 0 });
+                Some(dummy)
+            } else {
+                None
+            };
+            hb.emit(Inst::Return { value: ret_val });
         }
 
         hb.switch_to(&end_bb);
-        hb.emit(Inst::Return { value: None });
+        // Return implicite : si aucun handler n'a fait return explicite
+        let ret_val = if handler_ret_ty_for_return != IrType::Void {
+            let dummy = hb.new_value();
+            hb.emit(Inst::ConstInt { dest: dummy.clone(), value: 0 });
+            Some(dummy)
+        } else {
+            None
+        };
+        hb.emit(Inst::Return { value: ret_val });
 
         hb.func   // move func out, drops hb, releases module reborrow
     };

@@ -1,0 +1,199 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// examples/builtins/file.oc
+//
+// Démonstration de ocara.File
+//
+// Pour tester :
+//   ./target/release/ocara examples/builtins/file.oc -o /tmp/file_demo
+//   /tmp/file_demo
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.File
+import ocara.IO
+import ocara.String
+import ocara.Array
+
+function demo_write_read(): void {
+    IO::writeln("=== Écriture et lecture ===")
+    
+    // Écrire un fichier
+    var content:string = "Bonjour depuis Ocara!\nCeci est la ligne 2.\nEt voici la ligne 3."
+    File::write("/tmp/ocara_demo.txt", content)
+    IO::writeln("✓ Fichier écrit: /tmp/ocara_demo.txt")
+    
+    // Lire le fichier
+    var read_content:string = File::read("/tmp/ocara_demo.txt")
+    IO::writeln("Contenu lu:")
+    IO::writeln(read_content)
+    IO::writeln("")
+}
+
+function demo_append(): void {
+    IO::writeln("=== Ajout à un fichier ===")
+    
+    // Ajouter une ligne
+    File::append("/tmp/ocara_demo.txt", "Ligne ajoutée avec append()\n")
+    IO::writeln("✓ Ligne ajoutée")
+    
+    // Relire
+    var content:string = File::read("/tmp/ocara_demo.txt")
+    var lines:string[] = String::split(content, "\n")
+    IO::writeln(`Nombre de lignes: ${Array::length(lines)}`)
+    IO::writeln("")
+}
+
+function demo_exists_size(): void {
+    IO::writeln("=== Test existence et taille ===")
+    
+    if File::exists("/tmp/ocara_demo.txt") {
+        var size:int = File::size("/tmp/ocara_demo.txt")
+        IO::writeln(`✓ Le fichier existe (${size} octets)`)
+    } else {
+        IO::writeln("✗ Le fichier n'existe pas")
+    }
+    
+    if File::exists("/tmp/inexistant.txt") {
+        IO::writeln("✓ /tmp/inexistant.txt existe")
+    } else {
+        IO::writeln("✗ /tmp/inexistant.txt n'existe pas")
+    }
+    IO::writeln("")
+}
+
+function demo_extension(): void {
+    IO::writeln("=== Extensions de fichiers ===")
+    
+    var paths:string[] = [
+        "/tmp/document.pdf",
+        "/tmp/image.png",
+        "/tmp/script.oc",
+        "/tmp/README"
+    ]
+    
+    for path in paths {
+        var ext:string = File::extension(path)
+        if ext == "" {
+            IO::writeln(`${path} → (pas d'extension)`)
+        } else {
+            IO::writeln(`${path} → .${ext}`)
+        }
+    }
+    IO::writeln("")
+}
+
+function demo_infos(): void {
+    IO::writeln("=== Métadonnées complètes ===")
+    
+    var infos:map<string, mixed> = File::infos("/tmp/ocara_demo.txt")
+    
+    IO::writeln("Informations sur /tmp/ocara_demo.txt:")
+    IO::writeln(`  Taille: ${infos["size"]} octets`)
+    IO::writeln(`  Extension: ${infos["extension"]}`)
+    IO::writeln(`  Est un fichier: ${infos["is_file"]}`)
+    IO::writeln(`  Est un répertoire: ${infos["is_dir"]}`)
+    IO::writeln(`  Modifié (timestamp): ${infos["modified"]}`)
+    IO::writeln("")
+}
+
+function demo_copy(): void {
+    IO::writeln("=== Copie de fichier ===")
+    
+    File::copy("/tmp/ocara_demo.txt", "/tmp/ocara_demo_copy.txt")
+    IO::writeln("✓ Copie créée: /tmp/ocara_demo_copy.txt")
+    
+    var original_size:int = File::size("/tmp/ocara_demo.txt")
+    var copy_size:int = File::size("/tmp/ocara_demo_copy.txt")
+    IO::writeln(`  Original: ${original_size} octets`)
+    IO::writeln(`  Copie: ${copy_size} octets`)
+    IO::writeln("")
+}
+
+function demo_move(): void {
+    IO::writeln("=== Déplacement/Renommage ===")
+    
+    File::move("/tmp/ocara_demo_copy.txt", "/tmp/ocara_renamed.txt")
+    IO::writeln("✓ Fichier renommé: /tmp/ocara_renamed.txt")
+    
+    if not File::exists("/tmp/ocara_demo_copy.txt") {
+        IO::writeln("✓ L'ancien fichier n'existe plus")
+    }
+    if File::exists("/tmp/ocara_renamed.txt") {
+        IO::writeln("✓ Le nouveau fichier existe")
+    }
+    IO::writeln("")
+}
+
+function demo_binary(): void {
+    IO::writeln("=== Fichiers binaires ===")
+    
+    // Créer des données binaires (signature PNG)
+    var png_header:int[] = [137, 80, 78, 71, 13, 10, 26, 10]
+    File::write_bytes("/tmp/test.dat", png_header)
+    IO::writeln("✓ Fichier binaire écrit")
+    
+    // Relire
+    var read_bytes:int[] = File::read_bytes("/tmp/test.dat")
+    IO::write("Octets lus: ")
+    for byte in read_bytes {
+        IO::write(`${byte} `)
+    }
+    IO::writeln("")
+    IO::writeln("")
+}
+
+function demo_remove(): void {
+    IO::writeln("=== Suppression ===")
+    
+    // Supprimer les fichiers de démonstration
+    File::remove("/tmp/ocara_demo.txt")
+    IO::writeln("✓ Supprimé: /tmp/ocara_demo.txt")
+    
+    File::remove("/tmp/ocara_renamed.txt")
+    IO::writeln("✓ Supprimé: /tmp/ocara_renamed.txt")
+    
+    File::remove("/tmp/test.dat")
+    IO::writeln("✓ Supprimé: /tmp/test.dat")
+    IO::writeln("")
+}
+
+function demo_error_handling(): void {
+    IO::writeln("=== Gestion d'erreurs ===")
+    
+    try {
+        // Essayer de lire un fichier inexistant
+        var content:string = File::read("/tmp/fichier_inexistant.txt")
+        IO::writeln(content)
+    } on e {
+        IO::writeln(`✓ Erreur capturée: ${e}`)
+    }
+    IO::writeln("")
+}
+
+function main(): int {
+    IO::writeln("╔═══════════════════════════════════════════╗")
+    IO::writeln("║  Démonstration ocara.File                 ║")
+    IO::writeln("╚═══════════════════════════════════════════╝")
+    IO::writeln("")
+    
+    try {
+        demo_write_read()
+        demo_append()
+        demo_exists_size()
+        demo_extension()
+        demo_infos()
+        demo_copy()
+        demo_move()
+        demo_binary()
+        demo_remove()
+        demo_error_handling()
+        
+        IO::writeln("╔═══════════════════════════════════════════╗")
+        IO::writeln("║  Toutes les démonstrations terminées ✓   ║")
+        IO::writeln("╚═══════════════════════════════════════════╝")
+    } on e {
+        IO::writeln(`ERREUR: ${e}`)
+        return 1
+    }
+    
+    return 0
+}
