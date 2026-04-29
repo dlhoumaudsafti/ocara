@@ -212,6 +212,124 @@ function main(): int {
 
 ---
 
+## Gestion d'erreurs
+
+Certaines méthodes System peuvent lever une `SystemException` en cas d'erreur.
+
+### Codes d'erreur SystemException
+
+| Code | Nom | Opération | Description |
+|------|------|-----------|-------------|
+| 101 | `EXEC` | `System::exec()`, `System::passthrough()`, `System::exec_code()` | Échec d'exécution de commande (commande introuvable, permission refusée, etc.) |
+| 102 | `CWD` | `System::cwd()` | Échec de lecture du répertoire de travail courant (répertoire supprimé, permission refusée, etc.) |
+| 103 | `SET_ENV` | `System::set_env()` | Échec de définition de variable d'environnement (nom ou valeur invalide) |
+
+### Exemples de gestion d'erreurs
+
+#### Gestion générique
+
+```ocara
+import ocara.System
+import ocara.IO
+
+function main(): int {
+    try {
+        var out:string = System::exec("uname -r")
+        IO::writeln(out)
+    } on e is SystemException {
+        IO::writeln(`Erreur système: ${e.message}`)
+        IO::writeln(`Code: ${e.code}`)
+    }
+    return 0
+}
+```
+
+#### Gestion avec code d'erreur spécifique
+
+```ocara
+import ocara.System
+import ocara.IO
+
+function safe_exec(cmd:string): string {
+    try {
+        return System::exec(cmd)
+    } on e is SystemException {
+        if e.code == 101 {
+            IO::writeln(`Erreur d'exécution: ${cmd}`)
+            return ""
+        } else {
+            IO::writeln(`Erreur système inattendue: ${e.message}`)
+            return ""
+        }
+    }
+}
+
+function main(): int {
+    var result:string = safe_exec("ls -la")
+    IO::writeln(result)
+    return 0
+}
+```
+
+#### Gestion du répertoire courant
+
+```ocara
+import ocara.System
+import ocara.IO
+
+function main(): int {
+    try {
+        var cwd:string = System::cwd()
+        IO::writeln(`Répertoire courant: ${cwd}`)
+    } on e is SystemException {
+        if e.code == 102 {
+            IO::writeln("Erreur: répertoire courant inaccessible")
+        }
+    }
+    return 0
+}
+```
+
+#### Catch générique (sans type)
+
+```ocara
+import ocara.System
+import ocara.IO
+
+function main(): int {
+    try {
+        System::set_env("MY_VAR", "value")
+        var value:string = System::env("MY_VAR")
+        IO::writeln(`MY_VAR = ${value}`)
+    } on e {
+        // Capture toute exception
+        IO::writeln(`Exception: ${e.message}`)
+    }
+    return 0
+}
+```
+
+### Format des messages d'exception
+
+Les messages d'exception sont en anglais et incluent :
+- L'opération qui a échoué
+- La commande ou le paramètre concerné
+- L'erreur système sous-jacente
+
+Exemples :
+- `Failed to execute command 'invalid-cmd': No such file or directory (os error 2)`
+- `Failed to get current working directory: No such file or directory (os error 2)`
+- `Failed to set environment variable 'MY=VAR': invalid name or value`
+
+**Notes :**
+- `System::env()` retourne une chaîne vide si la variable n'existe pas (pas d'exception)
+- `System::exit()` termine le processus immédiatement (ne peut pas lever d'exception)
+- `System::sleep()` ne lève jamais d'exception
+- `System::pid()` ne lève jamais d'exception
+- `System::args()` ne lève jamais d'exception
+
+---
+
 ## Symboles runtime
 
 | Méthode Ocara | Symbole C runtime |

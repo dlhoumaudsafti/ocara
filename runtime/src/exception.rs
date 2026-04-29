@@ -5,7 +5,7 @@
 use std::alloc::{alloc, Layout};
 use crate::{alloc_str, __ocara_fail};
 
-/// Structure runtime pour Exception / FileException / DirectoryException / IOException
+/// Structure runtime pour Exception / FileException / DirectoryException / IOException / SystemException / ArrayException / MapException / StringException / MathException / ConvertException / RegexException
 /// { message: string, code: int, source: string }
 #[repr(C)]
 struct OcaraException {
@@ -42,6 +42,62 @@ pub unsafe fn throw_directory_exception(message: &str, code: i64, source: &str) 
 pub unsafe fn throw_io_exception(message: &str, code: i64, source: &str) -> ! {
     let obj_ptr = alloc_exception(message, code, source);
     let type_name = alloc_str("IOException");
+    __ocara_fail(obj_ptr, type_name);
+    std::hint::unreachable_unchecked()
+}
+
+/// Crée une SystemException et la lève (ne retourne jamais)
+pub unsafe fn throw_system_exception(message: &str, code: i64, source: &str) -> ! {
+    let obj_ptr = alloc_exception(message, code, source);
+    let type_name = alloc_str("SystemException");
+    __ocara_fail(obj_ptr, type_name);
+    std::hint::unreachable_unchecked()
+}
+
+/// Crée une ArrayException et la lève (ne retourne jamais)
+pub unsafe fn throw_array_exception(message: &str, code: i64, source: &str) -> ! {
+    let obj_ptr = alloc_exception(message, code, source);
+    let type_name = alloc_str("ArrayException");
+    __ocara_fail(obj_ptr, type_name);
+    std::hint::unreachable_unchecked()
+}
+
+/// Crée une MapException et la lève (ne retourne jamais)
+pub unsafe fn throw_map_exception(message: &str, code: i64, source: &str) -> ! {
+    let obj_ptr = alloc_exception(message, code, source);
+    let type_name = alloc_str("MapException");
+    __ocara_fail(obj_ptr, type_name);
+    std::hint::unreachable_unchecked()
+}
+
+/// Crée une StringException et la lève (ne retourne jamais)
+pub unsafe fn throw_string_exception(message: &str, code: i64, source: &str) -> ! {
+    let obj_ptr = alloc_exception(message, code, source);
+    let type_name = alloc_str("StringException");
+    __ocara_fail(obj_ptr, type_name);
+    std::hint::unreachable_unchecked()
+}
+
+/// Crée une MathException et la lève (ne retourne jamais)
+pub unsafe fn throw_math_exception(message: &str, code: i64, source: &str) -> ! {
+    let obj_ptr = alloc_exception(message, code, source);
+    let type_name = alloc_str("MathException");
+    __ocara_fail(obj_ptr, type_name);
+    std::hint::unreachable_unchecked()
+}
+
+/// Crée une ConvertException et la lève (ne retourne jamais)
+pub unsafe fn throw_convert_exception(message: &str, code: i64, source: &str) -> ! {
+    let obj_ptr = alloc_exception(message, code, source);
+    let type_name = alloc_str("ConvertException");
+    __ocara_fail(obj_ptr, type_name);
+    std::hint::unreachable_unchecked()
+}
+
+/// Crée une RegexException et la lève (ne retourne jamais)
+pub unsafe fn throw_regex_exception(message: &str, code: i64, source: &str) -> ! {
+    let obj_ptr = alloc_exception(message, code, source);
+    let type_name = alloc_str("RegexException");
     __ocara_fail(obj_ptr, type_name);
     std::hint::unreachable_unchecked()
 }

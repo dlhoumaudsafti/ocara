@@ -190,6 +190,242 @@ function main(): int {
 
 ---
 
+## Gestion d'erreurs
+
+Toutes les méthodes Regex peuvent lever une `RegexException` en cas d'erreur.
+
+### Codes d'erreur RegexException
+
+| Code | Nom | Opération | Description |
+|------|------|-----------|-------------|
+| 101 | `INVALID_PATTERN` | Toutes les méthodes | Pattern d'expression régulière invalide (erreur de syntaxe) |
+
+### Exemples de gestion d'erreurs
+
+#### Gestion de pattern invalide
+
+```ocara
+import ocara.Regex
+import ocara.RegexException
+import ocara.IO
+
+function main(): int {
+    var text:string = "Hello World 123"
+    var bad_pattern:string = "[0-9"  // Pattern invalide (crochet non fermé)
+    
+    try {
+        var result:bool = Regex::test(bad_pattern, text)
+        IO::writeln(`Result: ${result}`)
+    } on e is RegexException {
+        IO::writeln(`Regex error: ${e.message}`)
+        IO::writeln(`Code: ${e.code}`)
+        if e.code == 101 {
+            IO::writeln("Invalid regex pattern syntax")
+        }
+    }
+    
+    return 0
+}
+```
+
+#### Fonction safe_regex_test avec valeur par défaut
+
+```ocara
+import ocara.Regex
+import ocara.RegexException
+import ocara.IO
+
+function safe_regex_test(pattern:string, text:string): bool {
+    try {
+        return Regex::test(pattern, text)
+    } on e is RegexException {
+        IO::writeln(`Invalid pattern: ${pattern}`)
+        return false
+    }
+}
+
+function main(): int {
+    var text:string = "Contact: email@example.com"
+    
+    // Pattern valide
+    var valid:bool = safe_regex_test("\\w+@\\w+\\.\\w+", text)
+    IO::writeln(`Valid email pattern: ${valid}`)
+    
+    // Pattern invalide
+    var invalid:bool = safe_regex_test("(unclosed", text)
+    IO::writeln(`Invalid pattern result: ${invalid}`)
+    
+    return 0
+}
+```
+
+#### Validation de pattern regex
+
+```ocara
+import ocara.Regex
+import ocara.RegexException
+import ocara.IO
+
+function validate_regex_pattern(pattern:string): bool {
+    try {
+        // Tester avec une chaîne vide pour valider la syntaxe
+        Regex::test(pattern, "")
+        return true
+    } on e is RegexException {
+        return false
+    }
+}
+
+function main(): int {
+    var patterns:string[] = [
+        "\\d+",           // Valide
+        "[a-z]+",         // Valide
+        "(?P<name>\\w+)", // Valide
+        "[0-9",           // Invalide (crochet non fermé)
+        "(?P<",           // Invalide (groupe nommé incomplet)
+        "*",              // Invalide (répétition sans cible)
+    ]
+    
+    scoped i:int = 0
+    scoped len:int = Array::len(patterns)
+    while i < len {
+        var p:string = patterns.get(i)
+        var valid:bool = validate_regex_pattern(p)
+        if valid {
+            IO::writeln(`✓ '${p}' is valid`)
+        } else {
+            IO::writeln(`✗ '${p}' is invalid`)
+        }
+        i = i + 1
+    }
+    
+    return 0
+}
+```
+
+#### Catch générique
+
+```ocara
+import ocara.Regex
+import ocara.IO
+
+function main(): int {
+    var pattern:string = "\\d{2,1}"  // Invalide: min > max
+    var text:string = "123"
+    
+    try {
+        var matches:string[] = Regex::find_all(pattern, text)
+        IO::writeln(`Found ${Array::len(matches)} matches`)
+    } on e {
+        // Capture toute exception
+        IO::writeln(`Exception: ${e.message}`)
+        IO::writeln(`Source: ${e.source}`)
+        IO::writeln(`Code: ${e.code}`)
+    }
+    
+    return 0
+}
+```
+
+#### Multiple opérations avec pattern dynamique
+
+```ocara
+import ocara.Regex
+import ocara.RegexException
+import ocara.IO
+
+function search_with_pattern(pattern:string, texts:string[]): void {
+    IO::writeln(`Pattern: ${pattern}`)
+    
+    try {
+        scoped i:int = 0
+        scoped len:int = Array::len(texts)
+        while i < len {
+            var text:string = texts.get(i)
+            var found:bool = Regex::test(pattern, text)
+            if found {
+                var match:string = Regex::find(pattern, text)
+                IO::writeln(`  ✓ Found in '${text}': '${match}'`)
+            } else {
+                IO::writeln(`  - Not found in '${text}'`)
+            }
+            i = i + 1
+        }
+    } on e is RegexException {
+        IO::writeln(`  ✗ Invalid pattern: ${e.message}`)
+    }
+    
+    IO::writeln("")
+}
+
+function main(): int {
+    var texts:string[] = ["Hello 123", "World 456", "Test ABC"]
+    
+    search_with_pattern("\\d+", texts)        // Valide
+    search_with_pattern("[A-Z]+", texts)      // Valide
+    search_with_pattern("(broken", texts)     // Invalide
+    
+    return 0
+}
+```
+
+#### Remplacement avec pattern invalide
+
+```ocara
+import ocara.Regex
+import ocara.RegexException
+import ocara.IO
+
+function safe_replace(pattern:string, text:string, replacement:string): string {
+    try {
+        return Regex::replace_all(pattern, text, replacement)
+    } on e is RegexException {
+        IO::writeln(`Cannot replace with invalid pattern '${pattern}'`)
+        return text  // Retourne le texte original
+    }
+}
+
+function main(): int {
+    var text:string = "Hello 123 World 456"
+    
+    // Remplacement valide
+    var result1:string = safe_replace("\\d+", text, "XXX")
+    IO::writeln(`Result 1: ${result1}`)
+    
+    // Pattern invalide
+    var result2:string = safe_replace("[0-9", text, "YYY")
+    IO::writeln(`Result 2: ${result2}`)
+    
+    return 0
+}
+```
+
+### Format des messages d'exception
+
+Les messages d'exception sont en anglais et incluent le pattern problématique ainsi que l'erreur de syntaxe :
+- `Invalid regex pattern: '[0-9' (regex parse error: unclosed character class)`
+- `Invalid regex pattern: '*' (regex parse error: repetition operator missing expression)`
+- `Invalid regex pattern: '(?P<' (regex parse error: unclosed group name)`
+
+**Notes importantes :**
+- **Toutes les méthodes Regex peuvent lever une exception** si le pattern est invalide
+- L'exception est levée lors de la compilation du pattern, pas lors de l'exécution du match
+- Il est recommandé de valider les patterns regex provenant de l'utilisateur avec try/on
+- Les patterns regex suivent la syntaxe de la crate Rust `regex`
+- Pour tester si un pattern est valide sans exception, utilisez try/on avec une opération quelconque
+
+**Liste des méthodes qui peuvent lever RegexException :**
+- `Regex::test()` - Test si le pattern match
+- `Regex::find()` - Trouve la première correspondance
+- `Regex::find_all()` - Trouve toutes les correspondances
+- `Regex::replace()` - Remplace la première occurrence
+- `Regex::replace_all()` - Remplace toutes les occurrences
+- `Regex::split()` - Découpe selon le pattern
+- `Regex::count()` - Compte les correspondances
+- `Regex::extract()` - Extrait un groupe de capture
+
+---
+
 ## Conventions runtime
 
 | Méthode Ocara           | Symbole runtime C     | Params Cranelift        | Retour  |
