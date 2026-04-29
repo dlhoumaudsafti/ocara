@@ -1503,11 +1503,6 @@ fn ut_pass(msg: &str) {
     write_stdout_raw(s.as_bytes());
 }
 
-fn ut_fail(msg: &str) {
-    let s = format!("FAIL {}\n", msg);
-    write_stdout_raw(s.as_bytes());
-}
-
 unsafe fn ut_val_to_display(val: i64) -> String {
     // Heuristique simple : si ressemble à un pointeur de chaîne, l'afficher
     if val == 0 {
@@ -1541,8 +1536,11 @@ pub extern "C" fn UnitTest_assertEquals(expected: i64, actual: i64) {
         ut_pass(&format!("assertEquals: {} == {}", expected, actual));
     } else {
         unsafe {
-            ut_fail(&format!("assertEquals: attendu {} mais obtenu {}",
-                ut_val_to_display(expected), ut_val_to_display(actual)));
+            crate::exception::throw_unittest_exception(
+                &format!("assertEquals: expected {} but got {}",
+                    ut_val_to_display(expected), ut_val_to_display(actual)),
+                101
+            );
         }
     }
 }
@@ -1553,7 +1551,10 @@ pub extern "C" fn UnitTest_assertNotEquals(expected: i64, actual: i64) {
         ut_pass(&format!("assertNotEquals: {} != {}", expected, actual));
     } else {
         unsafe {
-            ut_fail(&format!("assertNotEquals: valeurs égales ({})", ut_val_to_display(actual)));
+            crate::exception::throw_unittest_exception(
+                &format!("assertNotEquals: values are equal ({})", ut_val_to_display(actual)),
+                102
+            );
         }
     }
 }
@@ -1563,7 +1564,9 @@ pub extern "C" fn UnitTest_assertTrue(value: i64) {
     if value != 0 {
         ut_pass("assertTrue");
     } else {
-        ut_fail("assertTrue: valeur fausse");
+        unsafe {
+            crate::exception::throw_unittest_exception("assertTrue: value is false", 103);
+        }
     }
 }
 
@@ -1572,7 +1575,9 @@ pub extern "C" fn UnitTest_assertFalse(value: i64) {
     if value == 0 {
         ut_pass("assertFalse");
     } else {
-        ut_fail("assertFalse: valeur vraie");
+        unsafe {
+            crate::exception::throw_unittest_exception("assertFalse: value is true", 104);
+        }
     }
 }
 
@@ -1581,7 +1586,9 @@ pub extern "C" fn UnitTest_assertNull(value: i64) {
     if value == 0 {
         ut_pass("assertNull");
     } else {
-        ut_fail("assertNull: valeur non nulle");
+        unsafe {
+            crate::exception::throw_unittest_exception("assertNull: value is not null", 105);
+        }
     }
 }
 
@@ -1590,7 +1597,9 @@ pub extern "C" fn UnitTest_assertNotNull(value: i64) {
     if value != 0 {
         ut_pass("assertNotNull");
     } else {
-        ut_fail("assertNotNull: valeur nulle");
+        unsafe {
+            crate::exception::throw_unittest_exception("assertNotNull: value is null", 106);
+        }
     }
 }
 
@@ -1599,7 +1608,12 @@ pub extern "C" fn UnitTest_assertGreater(a: i64, b: i64) {
     if a > b {
         ut_pass(&format!("assertGreater: {} > {}", a, b));
     } else {
-        ut_fail(&format!("assertGreater: {} n'est pas > {}", a, b));
+        unsafe {
+            crate::exception::throw_unittest_exception(
+                &format!("assertGreater: {} is not > {}", a, b),
+                107
+            );
+        }
     }
 }
 
@@ -1608,7 +1622,12 @@ pub extern "C" fn UnitTest_assertLess(a: i64, b: i64) {
     if a < b {
         ut_pass(&format!("assertLess: {} < {}", a, b));
     } else {
-        ut_fail(&format!("assertLess: {} n'est pas < {}", a, b));
+        unsafe {
+            crate::exception::throw_unittest_exception(
+                &format!("assertLess: {} is not < {}", a, b),
+                108
+            );
+        }
     }
 }
 
@@ -1617,7 +1636,12 @@ pub extern "C" fn UnitTest_assertGreaterOrEquals(a: i64, b: i64) {
     if a >= b {
         ut_pass(&format!("assertGreaterOrEquals: {} >= {}", a, b));
     } else {
-        ut_fail(&format!("assertGreaterOrEquals: {} n'est pas >= {}", a, b));
+        unsafe {
+            crate::exception::throw_unittest_exception(
+                &format!("assertGreaterOrEquals: {} is not >= {}", a, b),
+                109
+            );
+        }
     }
 }
 
@@ -1626,7 +1650,12 @@ pub extern "C" fn UnitTest_assertLessOrEquals(a: i64, b: i64) {
     if a <= b {
         ut_pass(&format!("assertLessOrEquals: {} <= {}", a, b));
     } else {
-        ut_fail(&format!("assertLessOrEquals: {} n'est pas <= {}", a, b));
+        unsafe {
+            crate::exception::throw_unittest_exception(
+                &format!("assertLessOrEquals: {} is not <= {}", a, b),
+                110
+            );
+        }
     }
 }
 
@@ -1636,9 +1665,12 @@ pub extern "C" fn UnitTest_assertContains(haystack: i64, needle: i64) {
         let h = ptr_to_str(haystack);
         let n = ptr_to_str(needle);
         if h.contains(n) {
-            ut_pass(&format!("assertContains: \"{}\" contient \"{}\"", h, n));
+            ut_pass(&format!("assertContains: \"{}\" contains \"{}\"", h, n));
         } else {
-            ut_fail(&format!("assertContains: \"{}\" ne contient pas \"{}\"", h, n));
+            crate::exception::throw_unittest_exception(
+                &format!("assertContains: \"{}\" does not contain \"{}\"", h, n),
+                111
+            );
         }
     }
 }
@@ -1655,7 +1687,9 @@ pub extern "C" fn UnitTest_assertEmpty(value: i64) {
     if empty {
         ut_pass("assertEmpty");
     } else {
-        ut_fail("assertEmpty: valeur non vide");
+        unsafe {
+            crate::exception::throw_unittest_exception("assertEmpty: value is not empty", 112);
+        }
     }
 }
 
@@ -1671,7 +1705,9 @@ pub extern "C" fn UnitTest_assertNotEmpty(value: i64) {
     if !empty {
         ut_pass("assertNotEmpty");
     } else {
-        ut_fail("assertNotEmpty: valeur vide");
+        unsafe {
+            crate::exception::throw_unittest_exception("assertNotEmpty: value is empty", 113);
+        }
     }
 }
 
@@ -1679,7 +1715,7 @@ pub extern "C" fn UnitTest_assertNotEmpty(value: i64) {
 pub extern "C" fn UnitTest_fail(message: i64) {
     unsafe {
         let msg = ptr_to_str(message);
-        ut_fail(msg);
+        crate::exception::throw_unittest_exception(msg, 114);
     }
 }
 
@@ -1697,7 +1733,9 @@ pub extern "C" fn UnitTest_assertFunction(value: i64) {
     if is_func {
         ut_pass("assertFunction");
     } else {
-        ut_fail("assertFunction: la valeur n'est pas une fonction");
+        unsafe {
+            crate::exception::throw_unittest_exception("assertFunction: value is not a function", 115);
+        }
     }
 }
 
@@ -1707,7 +1745,9 @@ pub extern "C" fn UnitTest_assertClass(value: i64) {
     if is_obj {
         ut_pass("assertClass");
     } else {
-        ut_fail("assertClass: la valeur n'est pas une instance de classe");
+        unsafe {
+            crate::exception::throw_unittest_exception("assertClass: value is not a class instance", 116);
+        }
     }
 }
 
@@ -1718,7 +1758,9 @@ pub extern "C" fn UnitTest_assertEnum(value: i64) {
     if is_obj {
         ut_pass("assertEnum");
     } else {
-        ut_fail("assertEnum: la valeur n'est pas un enum");
+        unsafe {
+            crate::exception::throw_unittest_exception("assertEnum: value is not an enum", 117);
+        }
     }
 }
 
@@ -1728,7 +1770,9 @@ pub extern "C" fn UnitTest_assertMap(value: i64) {
     if is_map {
         ut_pass("assertMap");
     } else {
-        ut_fail("assertMap: la valeur n'est pas une map");
+        unsafe {
+            crate::exception::throw_unittest_exception("assertMap: value is not a map", 118);
+        }
     }
 }
 
@@ -1738,7 +1782,9 @@ pub extern "C" fn UnitTest_assertArray(value: i64) {
     if is_arr {
         ut_pass("assertArray");
     } else {
-        ut_fail("assertArray: la valeur n'est pas un array");
+        unsafe {
+            crate::exception::throw_unittest_exception("assertArray: value is not an array", 119);
+        }
     }
 }
 

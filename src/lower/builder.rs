@@ -309,7 +309,6 @@ pub fn lower_program(program: &Program) -> IrModule {
     module.class_layouts.insert("SystemException".to_string(), exception_layout.clone());
     module.class_layouts.insert("ArrayException".to_string(), exception_layout.clone());
     module.class_layouts.insert("MapException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("StringException".to_string(), exception_layout.clone());
     module.class_layouts.insert("MathException".to_string(), exception_layout.clone());
     module.class_layouts.insert("ConvertException".to_string(), exception_layout.clone());
     module.class_layouts.insert("RegexException".to_string(), exception_layout.clone());
@@ -317,7 +316,8 @@ pub fn lower_program(program: &Program) -> IrModule {
     module.class_layouts.insert("DateException".to_string(), exception_layout.clone());
     module.class_layouts.insert("TimeException".to_string(), exception_layout.clone());
     module.class_layouts.insert("ThreadException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("MutexException".to_string(), exception_layout);
+    module.class_layouts.insert("MutexException".to_string(), exception_layout.clone());
+    module.class_layouts.insert("UnitTestException".to_string(), exception_layout);
 
     // Collecte les types de paramètres des constructeurs (pour le boxing mixed)
     for class in &program.classes {

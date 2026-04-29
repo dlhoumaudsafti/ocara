@@ -5,7 +5,7 @@
 use std::alloc::{alloc, Layout};
 use crate::{alloc_str, __ocara_fail};
 
-/// Structure runtime pour Exception / FileException / DirectoryException / IOException / SystemException / ArrayException / MapException / StringException / MathException / ConvertException / RegexException
+/// Structure runtime pour Exception / FileException / DirectoryException / IOException / SystemException / ArrayException / MapException / MathException / ConvertException / RegexException
 /// { message: string, code: int, source: string }
 #[repr(C)]
 struct OcaraException {
@@ -70,14 +70,6 @@ pub unsafe fn throw_map_exception(message: &str, code: i64, source: &str) -> ! {
     std::hint::unreachable_unchecked()
 }
 
-/// Crée une StringException et la lève (ne retourne jamais)
-pub unsafe fn throw_string_exception(message: &str, code: i64, source: &str) -> ! {
-    let obj_ptr = alloc_exception(message, code, source);
-    let type_name = alloc_str("StringException");
-    __ocara_fail(obj_ptr, type_name);
-    std::hint::unreachable_unchecked()
-}
-
 /// Crée une MathException et la lève (ne retourne jamais)
 pub unsafe fn throw_math_exception(message: &str, code: i64, source: &str) -> ! {
     let obj_ptr = alloc_exception(message, code, source);
@@ -138,6 +130,14 @@ pub unsafe fn throw_thread_exception(message: &str, code: i64) -> ! {
 pub unsafe fn throw_mutex_exception(message: &str, code: i64) -> ! {
     let obj_ptr = alloc_exception(message, code, "Mutex");
     let type_name = alloc_str("MutexException");
+    __ocara_fail(obj_ptr, type_name);
+    std::hint::unreachable_unchecked()
+}
+
+/// Lance une UnitTestException
+pub unsafe fn throw_unittest_exception(message: &str, code: i64) -> ! {
+    let obj_ptr = alloc_exception(message, code, "UnitTest");
+    let type_name = alloc_str("UnitTestException");
     __ocara_fail(obj_ptr, type_name);
     std::hint::unreachable_unchecked()
 }

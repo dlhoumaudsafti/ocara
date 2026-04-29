@@ -6,7 +6,6 @@
 // ocara.SystemException — classe d'exception pour les erreurs système
 // ocara.ArrayException — classe d'exception pour les erreurs de tableaux
 // ocara.MapException — classe d'exception pour les erreurs de maps
-// ocara.StringException — classe d'exception pour les erreurs de chaînes
 // ocara.MathException — classe d'exception pour les erreurs mathématiques
 // ocara.ConvertException — classe d'exception pour les erreurs de conversion
 // ocara.RegexException — classe d'exception pour les erreurs d'expressions régulières
@@ -15,6 +14,7 @@
 // ocara.TimeException — classe d'exception pour les erreurs de temps
 // ocara.ThreadException — classe d'exception pour les erreurs de threads
 // ocara.MutexException — classe d'exception pour les erreurs de mutex
+// ocara.UnitTestException — classe d'exception pour les échecs d'assertions de tests
 //
 // Toutes ont les mêmes propriétés :
 //   - message: string  — Description de l'erreur
@@ -66,6 +66,8 @@
 //       IO::writeln(`Erreur thread: ${e.message}`)
 //   } on e is MutexException {
 //       IO::writeln(`Erreur mutex: ${e.message}`)
+//   } on e is UnitTestException {
+//       IO::writeln(`Échec de test: ${e.message}`)
 //   }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -129,10 +131,6 @@ pub fn map_exception_class() -> ClassInfo {
     make_exception_class()
 }
 
-pub fn string_exception_class() -> ClassInfo {
-    make_exception_class()
-}
-
 pub fn math_exception_class() -> ClassInfo {
     make_exception_class()
 }
@@ -162,5 +160,9 @@ pub fn thread_exception_class() -> ClassInfo {
 }
 
 pub fn mutex_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn unittest_exception_class() -> ClassInfo {
     make_exception_class()
 }
