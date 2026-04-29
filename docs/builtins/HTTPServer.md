@@ -37,6 +37,75 @@ server.route("/", "GET", nameless(req:int): int {
 })
 ```
 
+## Pages d'erreur personnalisées
+
+Vous pouvez définir des handlers personnalisés pour les codes d'erreur HTTP (404, 500, etc.) :
+
+```ocara
+server.route_error(code:int, handler:Function)
+```
+
+- **`code`** : code d'erreur HTTP (404, 500, 403, etc.)
+- **`handler`** : closure appelée quand ce code d'erreur est déclenché
+
+```ocara
+server.route_error(404, nameless(req:int): int {
+    var path:string = HTTPServer::req_path(req)
+    var html:string = `<!DOCTYPE html>
+<html>
+    <head><title>404 - Page non trouvée</title></head>
+    <body>
+        <h1>Erreur 404</h1>
+        <p>La page ${path} n'existe pas.</p>
+    </body>
+</html>`
+    HTTPServer::respond(req, 404, html)
+    return 0
+})
+```
+
+Si aucun handler d'erreur n'est défini, le serveur retourne une page d'erreur par défaut.
+
+## Fonctionnalités automatiques
+
+### Content-Type par défaut
+
+Toutes les réponses reçoivent automatiquement l'en-tête :
+```
+Content-Type: text/html; charset=utf-8
+```
+
+Vous pouvez le remplacer avec `set_resp_header` :
+
+```ocara
+// Réponse HTML (Content-Type automatique)
+server.route("/page", "GET", nameless(req:int): int {
+    HTTPServer::respond(req, 200, "<h1>Hello</h1>")
+    return 0
+})
+
+// Réponse JSON (Content-Type personnalisé)
+server.route("/api", "GET", nameless(req:int): int {
+    HTTPServer::set_resp_header(req, "Content-Type", "application/json")
+    HTTPServer::respond(req, 200, `{"status":"ok"}`)
+    return 0
+})
+```
+
+### Index automatique
+
+Si vous définissez un `root_path` et qu'aucune route ne correspond à `GET /`, le serveur cherche automatiquement `/index.html` :
+
+```ocara
+server.set_root_path("./public")
+
+// GET /           → cherche ./public/index.html (automatique)
+// GET /index.html → cherche ./public/index.html (explicite)
+// GET /about.html → cherche ./public/about.html
+```
+
+Cela permet de servir votre page d'accueil sans définir de route pour `/`.
+
 ## Démarrage
 
 ```ocara
@@ -72,6 +141,7 @@ est le handle de requête passé automatiquement au handler.
 | `set_workers` | `(n:int) → void` | Nombre de threads workers |
 | `set_root_path` | `(path:string) → void` | Répertoire racine pour fichiers statiques |
 | `route` | `(path:string, method:string, f:Function) → void` | Enregistre une route |
+| `route_error` | `(code:int, f:Function) → void` | Enregistre un handler d'erreur personnalisé |
 | `run` | `() → void` | Démarre le serveur (bloquant) |
 
 ## Exemple complet

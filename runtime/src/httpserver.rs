@@ -84,21 +84,23 @@ struct Route {
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct OcaraHttpServer {
-    port:      u16,
-    host:      String,
-    workers:   usize,
-    routes:    Vec<Route>,
-    root_path: Option<String>,  // Répertoire racine pour fichiers statiques
+    port:          u16,
+    host:          String,
+    workers:       usize,
+    routes:        Vec<Route>,
+    root_path:     Option<String>,  // Répertoire racine pour fichiers statiques
+    error_handlers: HashMap<u16, SendHandler>, // Handlers pour codes d'erreur (404, 500, etc.)
 }
 
 impl OcaraHttpServer {
     fn new() -> Self {
         OcaraHttpServer {
-            port:      8080,
-            host:      "0.0.0.0".into(),
-            workers:   4,
-            routes:    Vec::new(),
-            root_path: None,
+            port:           8080,
+            host:           "0.0.0.0".into(),
+            workers:        4,
+            routes:         Vec::new(),
+            root_path:      None,
+            error_handlers: HashMap::new(),
         }
     }
 }
@@ -267,7 +269,12 @@ fn try_serve_static_file(req_handle: i64, req_path: &str, root_path: Option<&str
 // Traitement d'une requête
 // ─────────────────────────────────────────────────────────────────────────────
 
-fn handle_request(mut request: tiny_http::Request, routes: &[Route], root_path: Option<&str>) {
+fn handle_request(
+    mut request: tiny_http::Request, 
+    routes: &[Route], 
+    root_path: Option<&str>,
+    error_handlers: &HashMap<u16, SendHandler>
+) {
     // Lire le corps
     let mut body = String::new();
     let _ = request.as_reader().read_to_string(&mut body);
@@ -315,27 +322,62 @@ fn handle_request(mut request: tiny_http::Request, routes: &[Route], root_path: 
     if let Some(h) = handler {
         let f: OcaraHandlerFn = unsafe { std::mem::transmute(h.func_ptr as usize) };
         unsafe { f(h.env_ptr, req_handle) };
-    } else if method_str == "GET" && try_serve_static_file(req_handle, &path_str, root_path) {
-        // Fichier statique servi avec succès
+    } else if method_str == "GET" {
+        // Si GET / sans route → essayer /index.html automatiquement
+        let serve_path = if path_str == "/" { "/index.html" } else { &path_str };
+        
+        if try_serve_static_file(req_handle, serve_path, root_path) {
+            // Fichier statique servi avec succès
+        } else {
+            // Aucune route trouvée et pas de fichier statique → 404
+            let ctx = unsafe { ctx_ref(req_handle) };
+            ctx.resp_status = 404;
+            
+            // Chercher un handler d'erreur 404 personnalisé
+            if let Some(error_h) = error_handlers.get(&404) {
+                let f: OcaraHandlerFn = unsafe { std::mem::transmute(error_h.func_ptr as usize) };
+                unsafe { f(error_h.env_ptr, req_handle) };
+            } else {
+                ctx.resp_body = format!("404 Not Found: {} {}", method_str, path_str);
+            }
+        }
     } else {
-        // Aucune route trouvée et pas de fichier statique → 404
+        // Méthode non-GET sans route → 404
         let ctx = unsafe { ctx_ref(req_handle) };
         ctx.resp_status = 404;
-        ctx.resp_body   = format!("404 Not Found: {} {}", method_str, path_str);
+        
+        // Chercher un handler d'erreur 404 personnalisé
+        if let Some(error_h) = error_handlers.get(&404) {
+            let f: OcaraHandlerFn = unsafe { std::mem::transmute(error_h.func_ptr as usize) };
+            unsafe { f(error_h.env_ptr, req_handle) };
+        } else {
+            ctx.resp_body = format!("404 Not Found: {} {}", method_str, path_str);
+        }
     }
 
     // Envoyer la réponse
     let ctx = unsafe { &mut *(req_handle as *mut OcaraHttpContext) };
+    
+    // Ajouter Content-Type par défaut si non défini
+    let has_content_type = ctx.resp_headers.iter().any(|h| {
+        h.field.to_string().eq_ignore_ascii_case("Content-Type")
+    });
+    if !has_content_type {
+        let default_ct = tiny_http::Header::from_bytes(
+            &b"Content-Type"[..],
+            &b"text/html; charset=utf-8"[..],
+        ).unwrap();
+        ctx.resp_headers.push(default_ct);
+    }
+    
     if let Some(req) = ctx.request.take() {
         let status = tiny_http::StatusCode(ctx.resp_status);
         let mut resp = tiny_http::Response::from_string(ctx.resp_body.clone())
             .with_status_code(status);
-        // Ajouter les en-têtes de réponse définis par l'utilisateur
+        // Ajouter les en-têtes de réponse
         for h in ctx.resp_headers.drain(..) {
             resp = resp.with_header(h);
         }
-        // En-tête Content-Length automatique (tiny_http le fait déjà, mais
-        // on s'assure d'avoir Content-Type par défaut)
         let _ = req.respond(resp);
     }
 
@@ -407,6 +449,20 @@ pub extern "C" fn HTTPServer_route(
     });
 }
 
+/// Enregistre un handler pour un code d'erreur HTTP spécifique.
+/// Permet de personnaliser les pages d'erreur (404, 500, etc.).
+#[no_mangle]
+pub extern "C" fn HTTPServer_route_error(
+    self_ptr: i64,
+    code: i64,
+    fat_ptr: i64,
+) {
+    let s        = unsafe { server_from_slot(self_ptr) };
+    let func_ptr = unsafe { *(fat_ptr as *const i64) };
+    let env_ptr  = unsafe { *((fat_ptr as *const i64).add(1)) };
+    s.error_handlers.insert(code as u16, SendHandler { func_ptr, env_ptr });
+}
+
 /// Démarre le serveur (appel bloquant).
 /// Lance `workers` threads qui acceptent les connexions en parallèle.
 #[no_mangle]
@@ -422,6 +478,7 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
     };
     let routes: Arc<Vec<Route>> = Arc::new(std::mem::take(&mut data.routes));
     let root_path: Arc<Option<String>> = Arc::new(data.root_path.clone());
+    let error_handlers: Arc<HashMap<u16, SendHandler>> = Arc::new(std::mem::take(&mut data.error_handlers));
 
     server_log!("HTTPServer: écoute sur http://{}\n", addr);
 
@@ -429,10 +486,11 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
         let server = Arc::clone(&server);
         let routes = Arc::clone(&routes);
         let root_path = Arc::clone(&root_path);
+        let error_handlers = Arc::clone(&error_handlers);
         std::thread::spawn(move || {
             loop {
                 match server.recv() {
-                    Ok(request) => handle_request(request, &routes, root_path.as_deref()),
+                    Ok(request) => handle_request(request, &routes, root_path.as_deref(), &error_handlers),
                     Err(_)      => break,
                 }
             }
