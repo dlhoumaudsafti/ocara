@@ -140,6 +140,89 @@ function main(): void {
 
 ---
 
+## Exceptions
+
+### ThreadException
+
+Deux méthodes peuvent lever une **ThreadException** :
+
+**Codes d'erreur** :
+
+| Code | Signification |
+|------|---------------|
+| 101  | Thread spawn failed (ressources insuffisantes) |
+| 102  | Thread panicked during execution |
+
+**Méthodes concernées** :
+
+- `t.run(f)` — lève une exception si la création du thread OS échoue (code 101)
+- `t.join()` — lève une exception si le thread a paniqué pendant son exécution (code 102)
+
+**Exemples d'utilisation** :
+
+```ocara
+import ocara.IO
+import ocara.Thread
+import ocara.ThreadException
+
+// Exemple 1 : Capture d'exception lors de la création
+function main(): void {
+    var t:Thread = use Thread()
+    try {
+        t.run(nameless(): void {
+            IO::writeln("Thread started")
+        })
+        t.join()
+    } on e is ThreadException {
+        IO::writeln(`Erreur: ${e.message}`)
+        IO::writeln(`Code: ${e.code}`)
+    }
+}
+
+// Exemple 2 : Thread qui pourrait paniquer
+function test_panic(): void {
+    var t:Thread = use Thread()
+    try {
+        t.run(nameless(): void {
+            // Code qui pourrait causer un panic
+            IO::writeln("Running...")
+        })
+        t.join()  // Lève ThreadException si le thread a paniqué
+    } on e is ThreadException {
+        if e.code == 102 {
+            IO::writeln("Le thread a paniqué")
+        }
+    }
+}
+
+// Exemple 3 : Gestion multiple avec d'autres exceptions
+function complex_case(): void {
+    var t:Thread = use Thread()
+    try {
+        t.run(nameless(): void {
+            var result:int = Convert::str_to_int("invalid")
+        })
+        t.join()
+    } on e is ThreadException {
+        IO::writeln(`Thread error: ${e.message}`)
+    } on e {
+        IO::writeln(`Other error: ${e.message}`)
+    }
+}
+```
+
+**Notes** :
+
+- Les méthodes **safe** (qui ne lèvent jamais d'exception) :
+  - `t.id()` — toujours valide
+  - `t.detach()` — toujours valide
+  - `Thread::sleep(ms)` — toujours valide
+  - `Thread::current_id()` — toujours valide
+- Si `join()` est appelé sur un thread qui n'a pas été lancé ou déjà joint, il ne fait rien (pas d'exception)
+- Les exceptions lancées à l'intérieur de la closure du thread sont capturées par `join()` et transformées en ThreadException code 102
+
+---
+
 ## Voir aussi
 
 - [Mutex](Mutex.md) — synchronisation thread-safe pour protéger les données partagées

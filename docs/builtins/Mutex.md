@@ -169,6 +169,108 @@ function main(): void {
 
 ---
 
+## Exceptions
+
+### MutexException
+
+Deux méthodes peuvent lever une **MutexException** :
+
+**Codes d'erreur** :
+
+| Code | Signification |
+|------|---------------|
+| 101  | Lock failed (mutex invalide ou erreur système) |
+| 102  | Unlock failed (mutex non possédé par le thread courant) |
+
+**Méthodes concernées** :
+
+- `m.lock()` — lève une exception si l'opération pthread échoue (code 101)
+- `m.unlock()` — lève une exception si le thread appelant ne possède pas le mutex (code 102)
+
+**Exemples d'utilisation** :
+
+```ocara
+import ocara.IO
+import ocara.Mutex
+import ocara.MutexException
+
+// Exemple 1 : Gestion d'erreur lors du verrouillage
+function main(): void {
+    var m:Mutex = use Mutex()
+    try {
+        m.lock()
+        // section critique
+        m.unlock()
+    } on e is MutexException {
+        IO::writeln(`Erreur mutex: ${e.message}`)
+        IO::writeln(`Code: ${e.code}`)
+    }
+}
+
+// Exemple 2 : Détection d'unlock invalide
+function bad_unlock(): void {
+    var m:Mutex = use Mutex()
+    try {
+        // Erreur : unlock sans lock préalable
+        m.unlock()
+    } on e is MutexException {
+        if e.code == 102 {
+            IO::writeln("Tentative d'unlock sans lock")
+        }
+    }
+}
+
+// Exemple 3 : Protection avec try_lock
+function safe_access(): void {
+    var m:Mutex = use Mutex()
+    if m.try_lock() {
+        try {
+            // section critique
+            m.unlock()
+        } on e is MutexException {
+            IO::writeln("Erreur lors du unlock")
+        }
+    } else {
+        IO::writeln("Mutex déjà verrouillé, skip")
+    }
+}
+
+// Exemple 4 : Garantir le unlock même en cas d'erreur
+function guaranteed_unlock(): void {
+    var m:Mutex = use Mutex()
+    var locked:bool = false
+    try {
+        m.lock()
+        locked = true
+        // Opérations qui peuvent échouer
+        var n:int = Convert::str_to_int("invalid")
+    } on e {
+        IO::writeln(`Erreur: ${e.message}`)
+    }
+    
+    // Toujours déverrouiller si on a locké
+    if locked {
+        try {
+            m.unlock()
+        } on e is MutexException {
+            IO::writeln("Erreur critique: impossible de déverrouiller")
+        }
+    }
+}
+```
+
+**Notes** :
+
+- La méthode **safe** (qui ne lève jamais d'exception) :
+  - `m.try_lock()` — retourne bool, ne bloque jamais
+- Les erreurs pthread sont rares en utilisation normale mais peuvent survenir :
+  - Code 101 : mutex corrompu, ressources épuisées
+  - Code 102 : unlock par un thread qui ne possède pas le mutex
+- **Bonne pratique** : toujours utiliser un pattern qui garantit l'appel de `unlock()` après `lock()`, même en cas d'exception dans la section critique
+- Le double-lock depuis le même thread provoque un **deadlock** (blocage permanent), pas une exception
+
+---
+
 ## Voir aussi
 
 - [Thread](Thread.md) — création et gestion de threads

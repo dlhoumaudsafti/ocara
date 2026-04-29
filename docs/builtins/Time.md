@@ -159,6 +159,88 @@ fun main(): void {
 
 ---
 
+## Exceptions
+
+### TimeException
+
+Plusieurs méthodes lèvent une **TimeException** si le format du temps est invalide.
+
+**Code d'erreur** :
+
+| Code | Signification |
+|------|---------------|
+| 101  | Invalid time format (parsing error) |
+
+**Méthodes concernées** :
+
+- `Time::hour(time)` — format invalide ou heure hors plage (0-23)
+- `Time::minute(time)` — format invalide ou minutes hors plage (0-59)
+- `Time::second(time)` — format invalide ou secondes hors plage (0-59)
+- `Time::to_seconds(time)` — time invalide (appelle les fonctions ci-dessus)
+- `Time::add_seconds(time, s)` — time de départ invalide
+- `Time::diff_seconds(t1, t2)` — l'un des deux times invalide
+
+**Exemples d'utilisation** :
+
+```ocara
+import ocara.Time
+import ocara.TimeException
+import ocara.IO
+
+// Exemple 1 : Format incomplet
+try {
+    var h:int = Time::hour("18:30")
+} on e is TimeException {
+    IO::writeln(`Erreur: ${e.message}`)
+    IO::writeln(`Code: ${e.code}`)
+}
+
+// Exemple 2 : Heure invalide
+try {
+    var h:int = Time::hour("25:30:00")
+} on e is TimeException {
+    IO::writeln("Heure hors plage (doit être 0-23)")
+}
+
+// Exemple 3 : Minutes invalides
+try {
+    var m:int = Time::minute("18:70:00")
+} on e is TimeException {
+    IO::writeln("Minutes hors plage (doivent être 0-59)")
+}
+
+// Exemple 4 : Extraction réussie
+try {
+    var h:int = Time::hour("18:30:45")
+    var m:int = Time::minute("18:30:45")
+    var s:int = Time::second("18:30:45")
+    IO::writeln(`Time valide: ${h}:${m}:${s}`)
+} on e is TimeException {
+    IO::writeln("Ne devrait pas arriver ici")
+}
+
+// Exemple 5 : Catch générique
+try {
+    var seconds:int = Time::to_seconds("invalid")
+} on e {
+    IO::writeln(`Exception: ${e.message}`)
+    if e.code == 101 {
+        IO::writeln("➡️ Code 101 = INVALID_TIME_FORMAT")
+    }
+}
+```
+
+**Notes** :
+
+- Les méthodes **safe** (qui ne lèvent jamais d'exception) :
+  - `Time::now()` — toujours valide
+  - `Time::from_timestamp(ts)` — toujours valide
+  - `Time::from_seconds(seconds)` — toujours valide (modulo 86400)
+- Format requis : `HH:MM:SS` avec séparateur `:`
+- Les valeurs doivent être dans les plages valides (heure 0-23, minutes 0-59, secondes 0-59)
+
+---
+
 ## Remarques
 
 - Les calculs sur les times ne gèrent **pas** les changements de jour. Si vous avez besoin de calculer des durées sur plusieurs jours, utilisez [DateTime](DateTime.md) avec des timestamps.

@@ -68,6 +68,11 @@ pub fn builtin_class(name: &str) -> Option<ClassInfo> {
         "MathException" => Some(exception::math_exception_class()),
         "ConvertException" => Some(exception::convert_exception_class()),
         "RegexException" => Some(exception::regex_exception_class()),
+        "DateTimeException" => Some(exception::datetime_exception_class()),
+        "DateException" => Some(exception::date_exception_class()),
+        "TimeException" => Some(exception::time_exception_class()),
+        "ThreadException" => Some(exception::thread_exception_class()),
+        "MutexException" => Some(exception::mutex_exception_class()),
         _             => None,
     }
 }
@@ -106,5 +111,10 @@ pub fn all_builtins() -> Vec<(&'static str, ClassInfo)> {
         ("MathException", exception::math_exception_class()),
         ("ConvertException", exception::convert_exception_class()),
         ("RegexException", exception::regex_exception_class()),
+        ("DateTimeException", exception::datetime_exception_class()),
+        ("DateException", exception::date_exception_class()),
+        ("TimeException", exception::time_exception_class()),
+        ("ThreadException", exception::thread_exception_class()),
+        ("MutexException", exception::mutex_exception_class()),
     ]
 }
