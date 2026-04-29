@@ -391,12 +391,23 @@ pub extern "C" fn write_bool(b: i64) {
 /// Fonction interne (pas exportée en C) — lit une ligne sur stdin.
 /// NOTE : pas de #[no_mangle] pour éviter de shadower le `read(fd,buf,n)` POSIX
 ///        dont Rust's io::stdin() a besoin en interne.
+/// Lève une IOException en cas d'erreur de lecture.
 fn read() -> i64 {
     let mut line = String::new();
-    let _ = io::stdin().lock().read_line(&mut line);
-    if line.ends_with('\n') { line.pop(); }
-    if line.ends_with('\r') { line.pop(); }
-    unsafe { alloc_str(&line) }
+    match io::stdin().lock().read_line(&mut line) {
+        Ok(_) => {
+            if line.ends_with('\n') { line.pop(); }
+            if line.ends_with('\r') { line.pop(); }
+            unsafe { alloc_str(&line) }
+        }
+        Err(e) => unsafe {
+            exception::throw_io_exception(
+                &format!("Failed to read from stdin: {}", e),
+                ERR_IO_READ,
+                "IO"
+            );
+        }
+    }
 }
 
 /// Alias exporté pour les programmes Ocara qui appellent `read()` directement
@@ -506,7 +517,15 @@ pub extern "C" fn __map_foreach(_ptr: i64, _cb: i64, _ctx: i64) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ocara.IO
+//
+// Codes d'erreur IOException :
+//   101 - READ  : Erreur de lecture depuis stdin
+//   102 - WRITE : Erreur d'écriture sur stdout
 // ─────────────────────────────────────────────────────────────────────────────
+
+const ERR_IO_READ: i64 = 101;
+#[allow(dead_code)]  // Réservé pour une future implémentation d'erreurs write
+const ERR_IO_WRITE: i64 = 102;
 
 #[no_mangle]
 pub extern "C" fn IO_write(val: i64) {

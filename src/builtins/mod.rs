@@ -60,6 +60,7 @@ pub fn builtin_class(name: &str) -> Option<ClassInfo> {
         "Exception"   => Some(exception::exception_class()),
         "FileException" => Some(exception::file_exception_class()),
         "DirectoryException" => Some(exception::directory_exception_class()),
+        "IOException" => Some(exception::io_exception_class()),
         _             => None,
     }
 }
@@ -90,5 +91,6 @@ pub fn all_builtins() -> Vec<(&'static str, ClassInfo)> {
         ("Exception",   exception::exception_class()),
         ("FileException", exception::file_exception_class()),
         ("DirectoryException", exception::directory_exception_class()),
+        ("IOException", exception::io_exception_class()),
     ]
 }

@@ -166,7 +166,7 @@ fn main() {
         "IO", "Math", "String", "Array", "Map",
         "Convert", "System", "Regex", "HTTPRequest", "HTTPServer", "Thread", "Mutex",
         "DateTime", "Date", "Time", "UnitTest", "HTMLComponent", "HTML",
-        "File", "Directory", "Exception", "FileException", "DirectoryException",
+        "File", "Directory", "Exception", "FileException", "DirectoryException", "IOException",
     ];
     let source_dir = args.input.parent().unwrap_or_else(|| std::path::Path::new("."));
     // Collecter les imports utilisateur avant d'itérer (pour éviter borrow conflict)
