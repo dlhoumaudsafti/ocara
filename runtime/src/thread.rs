@@ -89,12 +89,20 @@ pub extern "C" fn Thread_run(self_ptr: i64, fat_ptr: i64) {
 
     let sc = SendClosure { func_ptr, env_ptr, thread_id: t.id };
 
-    let handle = std::thread::spawn(move || {
+    let handle = match std::thread::Builder::new().spawn(move || {
         // Initialiser l'ID du thread courant pour ce thread
         CURRENT_THREAD_ID.with(|c| c.set(sc.thread_id));
         let f: OcaraClosureFn = unsafe { std::mem::transmute(sc.func_ptr as usize) };
         unsafe { f(sc.env_ptr) };
-    });
+    }) {
+        Ok(h) => h,
+        Err(e) => unsafe {
+            crate::exception::throw_thread_exception(
+                &format!("Failed to spawn thread: {}", e),
+                101
+            );
+        }
+    };
 
     t.handle = Some(handle);
 }
@@ -105,7 +113,14 @@ pub extern "C" fn Thread_run(self_ptr: i64, fat_ptr: i64) {
 pub extern "C" fn Thread_join(self_ptr: i64) {
     let t = unsafe { &mut *thread_from_slot(self_ptr) };
     if let Some(h) = t.handle.take() {
-        let _ = h.join();
+        if let Err(_) = h.join() {
+            unsafe {
+                crate::exception::throw_thread_exception(
+                    "Thread panicked during execution",
+                    102
+                );
+            }
+        }
     }
 }
 

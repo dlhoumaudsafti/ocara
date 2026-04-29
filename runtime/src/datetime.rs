@@ -99,22 +99,80 @@ pub extern "C" fn DateTime_parse(s: i64) -> i64 {
     // Parser YYYY-MM-DDTHH:MM:SS ou YYYY-MM-DD HH:MM:SS
     let parts: Vec<&str> = s_str.split(&['T', ' '][..]).collect();
     if parts.len() != 2 {
-        return 0; // Erreur de parsing
+        unsafe {
+            crate::exception::throw_datetime_exception(
+                &format!("Invalid datetime format: '{}' (expected YYYY-MM-DDTHH:MM:SS or YYYY-MM-DD HH:MM:SS)", s_str),
+                101
+            );
+        }
     }
     
     let date_parts: Vec<&str> = parts[0].split('-').collect();
     let time_parts: Vec<&str> = parts[1].split(':').collect();
     
     if date_parts.len() != 3 || time_parts.len() != 3 {
-        return 0; // Erreur de parsing
+        unsafe {
+            crate::exception::throw_datetime_exception(
+                &format!("Invalid datetime format: '{}' (expected YYYY-MM-DDTHH:MM:SS or YYYY-MM-DD HH:MM:SS)", s_str),
+                101
+            );
+        }
     }
     
-    let year = date_parts[0].parse::<i32>().unwrap_or(1970);
-    let month = date_parts[1].parse::<i32>().unwrap_or(1);
-    let day = date_parts[2].parse::<i32>().unwrap_or(1);
-    let hour = time_parts[0].parse::<i32>().unwrap_or(0);
-    let minute = time_parts[1].parse::<i32>().unwrap_or(0);
-    let second = time_parts[2].parse::<i32>().unwrap_or(0);
+    let year = match date_parts[0].parse::<i32>() {
+        Ok(y) => y,
+        Err(_) => unsafe {
+            crate::exception::throw_datetime_exception(
+                &format!("Invalid year in datetime: '{}'", s_str),
+                101
+            );
+        }
+    };
+    let month = match date_parts[1].parse::<i32>() {
+        Ok(m) if m >= 1 && m <= 12 => m,
+        _ => unsafe {
+            crate::exception::throw_datetime_exception(
+                &format!("Invalid month in datetime: '{}' (must be 1-12)", s_str),
+                101
+            );
+        }
+    };
+    let day = match date_parts[2].parse::<i32>() {
+        Ok(d) if d >= 1 && d <= 31 => d,
+        _ => unsafe {
+            crate::exception::throw_datetime_exception(
+                &format!("Invalid day in datetime: '{}' (must be 1-31)", s_str),
+                101
+            );
+        }
+    };
+    let hour = match time_parts[0].parse::<i32>() {
+        Ok(h) if h >= 0 && h <= 23 => h,
+        _ => unsafe {
+            crate::exception::throw_datetime_exception(
+                &format!("Invalid hour in datetime: '{}' (must be 0-23)", s_str),
+                101
+            );
+        }
+    };
+    let minute = match time_parts[1].parse::<i32>() {
+        Ok(m) if m >= 0 && m <= 59 => m,
+        _ => unsafe {
+            crate::exception::throw_datetime_exception(
+                &format!("Invalid minute in datetime: '{}' (must be 0-59)", s_str),
+                101
+            );
+        }
+    };
+    let second = match time_parts[2].parse::<i32>() {
+        Ok(s) if s >= 0 && s <= 59 => s,
+        _ => unsafe {
+            crate::exception::throw_datetime_exception(
+                &format!("Invalid second in datetime: '{}' (must be 0-59)", s_str),
+                101
+            );
+        }
+    };
     
     parts_to_timestamp(year, month, day, hour, minute, second)
 }

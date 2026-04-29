@@ -10,6 +10,11 @@
 // ocara.MathException — classe d'exception pour les erreurs mathématiques
 // ocara.ConvertException — classe d'exception pour les erreurs de conversion
 // ocara.RegexException — classe d'exception pour les erreurs d'expressions régulières
+// ocara.DateTimeException — classe d'exception pour les erreurs de date/heure
+// ocara.DateException — classe d'exception pour les erreurs de date
+// ocara.TimeException — classe d'exception pour les erreurs de temps
+// ocara.ThreadException — classe d'exception pour les erreurs de threads
+// ocara.MutexException — classe d'exception pour les erreurs de mutex
 //
 // Toutes ont les mêmes propriétés :
 //   - message: string  — Description de l'erreur
@@ -51,6 +56,16 @@
 //       IO::writeln(`Erreur de conversion: ${e.message}`)
 //   } on e is RegexException {
 //       IO::writeln(`Erreur regex: ${e.message}`)
+//   } on e is DateTimeException {
+//       IO::writeln(`Erreur date/heure: ${e.message}`)
+//   } on e is DateException {
+//       IO::writeln(`Erreur date: ${e.message}`)
+//   } on e is TimeException {
+//       IO::writeln(`Erreur temps: ${e.message}`)
+//   } on e is ThreadException {
+//       IO::writeln(`Erreur thread: ${e.message}`)
+//   } on e is MutexException {
+//       IO::writeln(`Erreur mutex: ${e.message}`)
 //   }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -127,5 +142,25 @@ pub fn convert_exception_class() -> ClassInfo {
 }
 
 pub fn regex_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn datetime_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn date_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn time_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn thread_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn mutex_exception_class() -> ClassInfo {
     make_exception_class()
 }
