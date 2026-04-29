@@ -205,8 +205,6 @@ Les cas limites retournent des valeurs sensées :
 - `String::split()` retourne toujours un tableau (vide si chaîne vide)
 - `String::empty()` retourne toujours `true` ou `false`
 
-Aucune StringException n'est actuellement définie ou levée par les méthodes de la classe String.
-
 **Remarque :** Le typage statique d'Ocara garantit que vous ne passerez jamais un type incorrect à une méthode String (erreur de compilation).
 
 ---

@@ -350,4 +350,128 @@ class MathTest {
 }
 ```
 
+---
+
+## Exceptions
+
+### UnitTestException
+
+**Toutes les assertions** lèvent une **UnitTestException** lorsqu'elles échouent.
+
+**Codes d'erreur** :
+
+| Code | Méthode | Condition d'échec |
+|------|---------|-------------------|
+| 101  | `assertEquals` | Valeurs différentes |
+| 102  | `assertNotEquals` | Valeurs égales |
+| 103  | `assertTrue` | Valeur fausse |
+| 104  | `assertFalse` | Valeur vraie |
+| 105  | `assertNull` | Valeur non nulle |
+| 106  | `assertNotNull` | Valeur nulle |
+| 107  | `assertGreater` | a ≤ b |
+| 108  | `assertLess` | a ≥ b |
+| 109  | `assertGreaterOrEquals` | a < b |
+| 110  | `assertLessOrEquals` | a > b |
+| 111  | `assertContains` | Substring non trouvée |
+| 112  | `assertEmpty` | Valeur non vide |
+| 113  | `assertNotEmpty` | Valeur vide |
+| 114  | `fail()` | Échec explicite |
+| 115  | `assertFunction` | Non fonction |
+| 116  | `assertClass` | Non instance |
+| 117  | `assertEnum` | Non enum |
+| 118  | `assertMap` | Non map |
+| 119  | `assertArray` | Non array |
+
+**Exemples d'utilisation** :
+
+```ocara
+import ocara.UnitTest
+import ocara.UnitTestException
+import ocara.IO
+
+// Exemple 1 : Capture d'une assertion qui échoue
+function testWithException(): int {
+    try {
+        UnitTest::assertEquals(42, 10)
+        IO::writeln("✗ Should have thrown")
+    } on e is UnitTestException {
+        IO::writeln(`✓ Exception: ${e.message}`)
+        IO::writeln(`  Code: ${e.code}`)
+    }
+    return 0
+}
+
+// Exemple 2 : Vérifier plusieurs assertions
+function testMultiple(): int {
+    var passed:int = 0
+    var failed:int = 0
+    
+    try {
+        UnitTest::assertTrue(1 == 1)
+        passed = passed + 1
+    } on e is UnitTestException {
+        failed = failed + 1
+    }
+    
+    try {
+        UnitTest::assertEquals("hello", "world")
+    } on e is UnitTestException {
+        IO::writeln(`Échec attendu: ${e.message}`)
+        failed = failed + 1
+    }
+    
+    IO::writeln(`Tests: ${passed} réussis, ${failed} échoués`)
+    return 0
+}
+
+// Exemple 3 : Test conditionnel avec catch
+function testSafe(): int {
+    try {
+        var result:int = compute()
+        UnitTest::assertGreater(result, 0)
+        IO::writeln("✓ Test passed")
+    } on e is UnitTestException {
+        IO::writeln(`✗ Test failed: ${e.message}`)
+        return 1
+    }
+    return 0
+}
+
+// Exemple 4 : Échec explicite avec fail()
+function testFailure(): int {
+    try {
+        if some_condition() {
+            UnitTest::fail("Condition invalide détectée")
+        }
+    } on e is UnitTestException {
+        if e.code == 114 {
+            IO::writeln("✓ Échec explicite capturé")
+        }
+    }
+    return 0
+}
+
+// Exemple 5 : Catch générique
+function testGeneric(): int {
+    try {
+        UnitTest::assertNotNull(getValue())
+    } on e {
+        IO::writeln(`Exception: ${e.message}`)
+        IO::writeln(`Source: ${e.source}`)
+    }
+    return 0
+}
+```
+
+**Notes** :
+
+- Les exceptions permettent de **capturer** les échecs d'assertions plutôt que de terminer le test immédiatement
+- En l'absence de `try/on`, une UnitTestException non capturée arrête l'exécution du programme
+- L'outil `ocaraunit` capture automatiquement les exceptions pour afficher les résultats des tests
+- Le champ `e.message` contient une description détaillée de l'échec (valeurs attendues vs réelles)
+- Le champ `e.code` permet de distinguer précisément quelle assertion a échoué
+- La méthode `pass()` ne lève jamais d'exception, elle affiche seulement "PASS"
+
+---
+
 Voir `docs/tools/ocaraunit.md` pour la documentation du runner.
