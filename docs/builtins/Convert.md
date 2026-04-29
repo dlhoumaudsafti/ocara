@@ -249,6 +249,185 @@ function main(): int {
 
 ---
 
+## Gestion d'erreurs
+
+Certaines méthodes Convert peuvent lever une `ConvertException` en cas d'erreur.
+
+### Codes d'erreur ConvertException
+
+| Code | Nom | Opération | Description |
+|------|------|-----------|-------------|
+| 101 | `INVALID_INT` | `Convert::str_to_int()` | Impossible de convertir la chaîne en entier (format invalide) |
+| 102 | `INVALID_FLOAT` | `Convert::str_to_float()` | Impossible de convertir la chaîne en flottant (format invalide) |
+
+### Exemples de gestion d'erreurs
+
+#### Conversion string vers int avec gestion d'erreur
+
+```ocara
+import ocara.Convert
+import ocara.ConvertException
+import ocara.IO
+
+function main(): int {
+    var input:string = "abc123"
+    
+    try {
+        var num:int = Convert::str_to_int(input)
+        IO::writeln(`Number: ${num}`)
+    } on e is ConvertException {
+        IO::writeln(`Conversion error: ${e.message}`)
+        IO::writeln(`Code: ${e.code}`)
+        if e.code == 101 {
+            IO::writeln("Invalid integer format")
+        }
+    }
+    
+    return 0
+}
+```
+
+#### Conversion string vers float avec gestion d'erreur
+
+```ocara
+import ocara.Convert
+import ocara.ConvertException
+import ocara.IO
+
+function main(): int {
+    var values:string[] = ["3.14", "2.71", "not_a_number", "1.41"]
+    
+    scoped i:int = 0
+    scoped len:int = Array::len(values)
+    while i < len {
+        var s:string = values.get(i)
+        try {
+            var f:float = Convert::str_to_float(s)
+            IO::writeln(`✓ '${s}' = ${f}`)
+        } on e is ConvertException {
+            IO::writeln(`✗ '${s}' - invalid format`)
+        }
+        i = i + 1
+    }
+    
+    return 0
+}
+```
+
+#### Fonction safe avec valeur par défaut
+
+```ocara
+import ocara.Convert
+import ocara.ConvertException
+import ocara.IO
+
+function safe_str_to_int(s:string, default:int): int {
+    try {
+        return Convert::str_to_int(s)
+    } on e is ConvertException {
+        IO::writeln(`Warning: invalid int '${s}', using default ${default}`)
+        return default
+    }
+}
+
+function main(): int {
+    var result1:int = safe_str_to_int("42", 0)
+    IO::writeln(`Result 1: ${result1}`)
+    
+    var result2:int = safe_str_to_int("xyz", -1)
+    IO::writeln(`Result 2: ${result2}`)
+    
+    return 0
+}
+```
+
+#### Catch générique
+
+```ocara
+import ocara.Convert
+import ocara.IO
+
+function main(): int {
+    var text:string = "hello"
+    
+    try {
+        var num:int = Convert::str_to_int(text)
+        IO::writeln(`Number: ${num}`)
+    } on e {
+        // Capture toute exception
+        IO::writeln(`Exception: ${e.message}`)
+        IO::writeln(`Source: ${e.source}`)
+        IO::writeln(`Code: ${e.code}`)
+    }
+    
+    return 0
+}
+```
+
+#### Multiple conversions avec handlers
+
+```ocara
+import ocara.Convert
+import ocara.ConvertException
+import ocara.IO
+
+function parse_config(line:string): void {
+    // Format: "key=value"
+    var parts:string[] = String::split(line, "=")
+    
+    if Array::len(parts) != 2 {
+        IO::writeln("Invalid config line format")
+        return
+    }
+    
+    var key:string = parts.get(0)
+    var val:string = parts.get(1)
+    
+    // Essayer différents types
+    try {
+        var n:int = Convert::str_to_int(val)
+        IO::writeln(`${key} (int) = ${n}`)
+        return
+    } on e is ConvertException {
+        // Pas un int, essayer float
+    }
+    
+    try {
+        var f:float = Convert::str_to_float(val)
+        IO::writeln(`${key} (float) = ${f}`)
+        return
+    } on e is ConvertException {
+        // Pas un float non plus, c'est une string
+        IO::writeln(`${key} (string) = ${val}`)
+    }
+}
+
+function main(): int {
+    parse_config("port=8080")
+    parse_config("rate=0.05")
+    parse_config("name=MyApp")
+    return 0
+}
+```
+
+### Format des messages d'exception
+
+Les messages d'exception sont en anglais et incluent la valeur problématique :
+- `Cannot convert string to int: 'abc123'`
+- `Cannot convert string to float: 'not_a_number'`
+
+**Notes sur les conversions sûres :**
+- `Convert::str_to_bool()` ne lève jamais d'exception (retourne false pour valeurs inconnues)
+- `Convert::int_to_*()` ne lèvent jamais d'exception (conversions toujours possibles)
+- `Convert::float_to_*()` ne lèvent jamais d'exception (troncature pour int, toujours convertible)
+- `Convert::bool_to_*()` ne lèvent jamais d'exception (true=1/"true", false=0/"false")
+- `Convert::array_to_*()` ne lèvent jamais d'exception
+- `Convert::map_to_*()` ne lèvent jamais d'exception
+
+**Seules `str_to_int()` et `str_to_float()` peuvent lever des exceptions** car elles nécessitent un format spécifique.
+
+---
+
 ## Conventions runtime
 
 | Méthode Ocara                     | Symbole runtime C                    | Params       | Retour  |

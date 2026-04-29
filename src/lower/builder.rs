@@ -305,7 +305,14 @@ pub fn lower_program(program: &Program) -> IrModule {
     module.class_layouts.insert("Exception".to_string(), exception_layout.clone());
     module.class_layouts.insert("FileException".to_string(), exception_layout.clone());
     module.class_layouts.insert("DirectoryException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("IOException".to_string(), exception_layout);
+    module.class_layouts.insert("IOException".to_string(), exception_layout.clone());
+    module.class_layouts.insert("SystemException".to_string(), exception_layout.clone());
+    module.class_layouts.insert("ArrayException".to_string(), exception_layout.clone());
+    module.class_layouts.insert("MapException".to_string(), exception_layout.clone());
+    module.class_layouts.insert("StringException".to_string(), exception_layout.clone());
+    module.class_layouts.insert("MathException".to_string(), exception_layout.clone());
+    module.class_layouts.insert("ConvertException".to_string(), exception_layout.clone());
+    module.class_layouts.insert("RegexException".to_string(), exception_layout);
 
     // Collecte les types de paramètres des constructeurs (pour le boxing mixed)
     for class in &program.classes {

@@ -3,11 +3,18 @@
 // ocara.FileException — classe d'exception pour les erreurs de fichiers  
 // ocara.DirectoryException — classe d'exception pour les erreurs de répertoires
 // ocara.IOException — classe d'exception pour les erreurs d'entrées/sorties
+// ocara.SystemException — classe d'exception pour les erreurs système
+// ocara.ArrayException — classe d'exception pour les erreurs de tableaux
+// ocara.MapException — classe d'exception pour les erreurs de maps
+// ocara.StringException — classe d'exception pour les erreurs de chaînes
+// ocara.MathException — classe d'exception pour les erreurs mathématiques
+// ocara.ConvertException — classe d'exception pour les erreurs de conversion
+// ocara.RegexException — classe d'exception pour les erreurs d'expressions régulières
 //
 // Toutes ont les mêmes propriétés :
 //   - message: string  — Description de l'erreur
 //   - code: int        — Code d'erreur optionnel (0 = pas de code)
-//   - source: string   — Origine de l'erreur ("File", "Directory", "IO", etc.)
+//   - source: string   — Origine de l'erreur ("File", "Directory", "IO", "System", "Array", "Map", "String", "Math", "Convert", "Regex", etc.)
 //
 // Usage générique (attrape tout) :
 //   try {
@@ -21,12 +28,29 @@
 //       File::read("/a.txt")
 //       Directory::create("/b")
 //       var input:string = IO::read()
+//       var out:string = System::exec("invalid-cmd")
+//       var arr:Array<int> = Array::new()
+//       var val:int = arr.pop()
+//       var result:float = Math::sqrt(-1.0)
+//       var num:int = Convert::str_to_int("abc")
 //   } on e is FileException {
 //       IO::writeln(`Erreur fichier: ${e.message}`)
 //   } on e is DirectoryException {
 //       IO::writeln(`Erreur répertoire: ${e.message}`)
 //   } on e is IOException {
 //       IO::writeln(`Erreur IO: ${e.message}`)
+//   } on e is SystemException {
+//       IO::writeln(`Erreur système: ${e.message}`)
+//   } on e is ArrayException {
+//       IO::writeln(`Erreur tableau: ${e.message}`)
+//   } on e is MapException {
+//       IO::writeln(`Erreur map: ${e.message}`)
+//   } on e is MathException {
+//       IO::writeln(`Erreur mathématique: ${e.message}`)
+//   } on e is ConvertException {
+//       IO::writeln(`Erreur de conversion: ${e.message}`)
+//   } on e is RegexException {
+//       IO::writeln(`Erreur regex: ${e.message}`)
 //   }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -75,5 +99,33 @@ pub fn directory_exception_class() -> ClassInfo {
 }
 
 pub fn io_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn system_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn array_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn map_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn string_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn math_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn convert_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn regex_exception_class() -> ClassInfo {
     make_exception_class()
 }

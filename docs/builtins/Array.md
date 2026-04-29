@@ -200,6 +200,159 @@ function main(): int {
 
 ---
 
+## Gestion d'erreurs
+
+Certaines méthodes Array peuvent lever une `ArrayException` en cas d'erreur.
+
+### Codes d'erreur ArrayException
+
+| Code | Nom | Opération | Description |
+|------|------|-----------|-------------|
+| 101 | `EMPTY_ARRAY` | `Array::pop()`, `Array::first()`, `Array::last()` | Opération sur un tableau vide |
+
+### Exemples de gestion d'erreurs
+
+#### Gestion générique
+
+```ocara
+import ocara.Array
+import ocara.IO
+
+function main(): int {
+    var arr:int[] = []
+    
+    try {
+        var val:int = Array::pop(arr)
+        IO::writeln(`Value: ${val}`)
+    } on e is ArrayException {
+        IO::writeln(`Array error: ${e.message}`)
+        IO::writeln(`Code: ${e.code}`)
+    }
+    
+    return 0
+}
+```
+
+#### Gestion avec code d'erreur spécifique
+
+```ocara
+import ocara.Array
+import ocara.IO
+
+function safe_pop(arr:int[]): int {
+    try {
+        return Array::pop(arr)
+    } on e is ArrayException {
+        if e.code == 101 {
+            IO::writeln("Array is empty, returning default")
+            return -1
+        } else {
+            IO::writeln(`Unexpected error: ${e.message}`)
+            return -1
+        }
+    }
+}
+
+function main(): int {
+    var arr:int[] = []
+    var val:int = safe_pop(arr)
+    IO::writeln(`Result: ${val}`)
+    return 0
+}
+```
+
+#### Gestion de first() et last()
+
+```ocara
+import ocara.Array
+import ocara.IO
+
+function main(): int {
+    var numbers:int[] = []
+    
+    try {
+        var first:int = Array::first(numbers)
+        IO::writeln(`First: ${first}`)
+    } on e is ArrayException {
+        IO::writeln("Cannot get first element from empty array")
+    }
+    
+    try {
+        var last:int = Array::last(numbers)
+        IO::writeln(`Last: ${last}`)
+    } on e is ArrayException {
+        IO::writeln("Cannot get last element from empty array")
+    }
+    
+    return 0
+}
+```
+
+#### Catch générique (sans type)
+
+```ocara
+import ocara.Array
+import ocara.IO
+
+function main(): int {
+    var arr:string[] = []
+    
+    try {
+        var item:string = Array::pop(arr)
+        IO::writeln(item)
+    } on e {
+        // Capture toute exception
+        IO::writeln(`Exception: ${e.message}`)
+        IO::writeln(`Source: ${e.source}`)
+    }
+    
+    return 0
+}
+```
+
+#### Multiple handlers avec filtrage par type
+
+```ocara
+import ocara.Array
+import ocara.File
+import ocara.ArrayException
+import ocara.FileException
+import ocara.IO
+
+function main(): int {
+    var items:string[] = []
+    
+    try {
+        var content:string = File::read("/data.txt")
+        items.push(content)
+        var last:string = Array::pop(items)
+        IO::writeln(last)
+    } on e is ArrayException {
+        IO::writeln(`Array error (code ${e.code}): ${e.message}`)
+    } on e is FileException {
+        IO::writeln(`File error (code ${e.code}): ${e.message}`)
+    }
+    
+    return 0
+}
+```
+
+### Format des messages d'exception
+
+Les messages d'exception sont en anglais :
+- `Cannot pop from empty array`
+- `Cannot get first element from empty array`
+- `Cannot get last element from empty array`
+
+**Notes :**
+- `Array::len()` retourne toujours un nombre (0 pour un tableau vide, jamais d'exception)
+- `Array::push()` ne lève jamais d'exception
+- `Array::contains()`, `Array::index_of()` ne lèvent jamais d'exception (retournent false/-1)
+- `Array::slice()` ne lève jamais d'exception (ajuste automatiquement les indices)
+- `Array::reverse()`, `Array::sort()`, `Array::join()` ne lèvent jamais d'exception
+
+---
+
 ## Conventions runtime
 
 | Méthode Ocara        | Symbole runtime C  | Params Cranelift          | Retour  |

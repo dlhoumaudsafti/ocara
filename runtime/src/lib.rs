@@ -732,7 +732,14 @@ pub extern "C" fn String_empty(s: i64) -> i64 {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ocara.Math
+//
+// Codes d'erreur MathException :
+//   101 - NEGATIVE_SQRT : Racine carrée d'un nombre négatif
+//   102 - NEGATIVE_EXPONENT : Exposant négatif dans pow()
 // ─────────────────────────────────────────────────────────────────────────────
+
+const ERR_MATH_NEGATIVE_SQRT: i64 = 101;
+const ERR_MATH_NEGATIVE_EXPONENT: i64 = 102;
 
 #[no_mangle]
 pub extern "C" fn Math_abs(n: i64) -> i64 { n.abs() }
@@ -745,7 +752,15 @@ pub extern "C" fn Math_max(a: i64, b: i64) -> i64 { a.max(b) }
 
 #[no_mangle]
 pub extern "C" fn Math_pow(base: i64, exp: i64) -> i64 {
-    if exp < 0 { return 0; }
+    if exp < 0 {
+        unsafe {
+            exception::throw_math_exception(
+                &format!("Cannot compute power with negative exponent: {}^{}", base, exp),
+                ERR_MATH_NEGATIVE_EXPONENT,
+                "Math"
+            );
+        }
+    }
     base.pow(exp as u32)
 }
 
@@ -753,7 +768,18 @@ pub extern "C" fn Math_pow(base: i64, exp: i64) -> i64 {
 pub extern "C" fn Math_clamp(n: i64, lo: i64, hi: i64) -> i64 { n.clamp(lo, hi) }
 
 #[no_mangle]
-pub extern "C" fn Math_sqrt(n: f64) -> f64 { n.sqrt() }
+pub extern "C" fn Math_sqrt(n: f64) -> f64 {
+    if n < 0.0 {
+        unsafe {
+            exception::throw_math_exception(
+                &format!("Cannot compute square root of negative number: {}", n),
+                ERR_MATH_NEGATIVE_SQRT,
+                "Math"
+            );
+        }
+    }
+    n.sqrt()
+}
 
 #[no_mangle]
 pub extern "C" fn Math_floor(n: f64) -> i64 { n.floor() as i64 }
@@ -766,7 +792,12 @@ pub extern "C" fn Math_round(n: f64) -> i64 { n.round() as i64 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ocara.Array
+//
+// Codes d'erreur ArrayException :
+//   101 - EMPTY_ARRAY : Opération sur un tableau vide (pop, first, last)
 // ─────────────────────────────────────────────────────────────────────────────
+
+const ERR_ARRAY_EMPTY: i64 = 101;
 
 #[no_mangle]
 pub extern "C" fn Array_len(ptr: i64) -> i64 {
@@ -781,20 +812,74 @@ pub extern "C" fn Array_push(ptr: i64, val: i64) {
 
 #[no_mangle]
 pub extern "C" fn Array_pop(ptr: i64) -> i64 {
-    if ptr == 0 { return 0; }
-    unsafe { array_ref(ptr).data.pop().unwrap_or(0) }
+    if ptr == 0 {
+        unsafe {
+            exception::throw_array_exception(
+                "Cannot pop from empty array",
+                ERR_ARRAY_EMPTY,
+                "Array"
+            );
+        }
+    }
+    unsafe {
+        let arr = array_ref(ptr);
+        if arr.data.is_empty() {
+            exception::throw_array_exception(
+                "Cannot pop from empty array",
+                ERR_ARRAY_EMPTY,
+                "Array"
+            );
+        }
+        arr.data.pop().unwrap()
+    }
 }
 
 #[no_mangle]
 pub extern "C" fn Array_first(ptr: i64) -> i64 {
-    if ptr == 0 { return 0; }
-    unsafe { *array_ref(ptr).data.first().unwrap_or(&0) }
+    if ptr == 0 {
+        unsafe {
+            exception::throw_array_exception(
+                "Cannot get first element from empty array",
+                ERR_ARRAY_EMPTY,
+                "Array"
+            );
+        }
+    }
+    unsafe {
+        let arr = array_ref(ptr);
+        if arr.data.is_empty() {
+            exception::throw_array_exception(
+                "Cannot get first element from empty array",
+                ERR_ARRAY_EMPTY,
+                "Array"
+            );
+        }
+        *arr.data.first().unwrap()
+    }
 }
 
 #[no_mangle]
 pub extern "C" fn Array_last(ptr: i64) -> i64 {
-    if ptr == 0 { return 0; }
-    unsafe { *array_ref(ptr).data.last().unwrap_or(&0) }
+    if ptr == 0 {
+        unsafe {
+            exception::throw_array_exception(
+                "Cannot get last element from empty array",
+                ERR_ARRAY_EMPTY,
+                "Array"
+            );
+        }
+    }
+    unsafe {
+        let arr = array_ref(ptr);
+        if arr.data.is_empty() {
+            exception::throw_array_exception(
+                "Cannot get last element from empty array",
+                ERR_ARRAY_EMPTY,
+                "Array"
+            );
+        }
+        *arr.data.last().unwrap()
+    }
 }
 
 #[no_mangle]
@@ -862,7 +947,12 @@ pub extern "C" fn Array_sort(ptr: i64) -> i64 {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ocara.Map
+//
+// Codes d'erreur MapException :
+//   101 - KEY_NOT_FOUND : Clé inexistante (get)
 // ─────────────────────────────────────────────────────────────────────────────
+
+const ERR_MAP_KEY_NOT_FOUND: i64 = 101;
 
 #[no_mangle]
 pub extern "C" fn Map_size(ptr: i64) -> i64 {
@@ -881,7 +971,30 @@ pub extern "C" fn Map_has(ptr: i64, key: i64) -> i64 {
 
 #[no_mangle]
 pub extern "C" fn Map_get(ptr: i64, key: i64) -> i64 {
-    __map_get(ptr, key)
+    if ptr == 0 {
+        unsafe {
+            let key_str = if is_ptr(key) { ptr_to_str(key).to_string() } else { key.to_string() };
+            exception::throw_map_exception(
+                &format!("Key not found: {}", key_str),
+                ERR_MAP_KEY_NOT_FOUND,
+                "Map"
+            );
+        }
+    }
+    unsafe {
+        let k = key_to_string(key);
+        let map = map_ref(ptr);
+        match map.data.iter().find(|e| e.0 == k) {
+            Some((_, v)) => *v,
+            None => {
+                exception::throw_map_exception(
+                    &format!("Key not found: {}", k),
+                    ERR_MAP_KEY_NOT_FOUND,
+                    "Map"
+                );
+            }
+        }
+    }
 }
 
 #[no_mangle]
@@ -951,18 +1064,45 @@ pub extern "C" fn Map_is_empty(ptr: i64) -> i64 {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ocara.Convert
+//
+// Codes d'erreur ConvertException :
+//   101 - INVALID_INT   : Conversion string vers int invalide
+//   102 - INVALID_FLOAT : Conversion string vers float invalide
 // ─────────────────────────────────────────────────────────────────────────────
+
+const ERR_CONVERT_INVALID_INT: i64 = 101;
+const ERR_CONVERT_INVALID_FLOAT: i64 = 102;
 
 #[no_mangle]
 pub extern "C" fn Convert_str_to_int(s: i64) -> i64 {
     if !is_ptr(s) { return 0; }
-    unsafe { ptr_to_str(s).trim().parse::<i64>().unwrap_or(0) }
+    let src = unsafe { ptr_to_str(s).trim() };
+    match src.parse::<i64>() {
+        Ok(n) => n,
+        Err(_) => unsafe {
+            exception::throw_convert_exception(
+                &format!("Cannot convert string to int: '{}'", src),
+                ERR_CONVERT_INVALID_INT,
+                "Convert"
+            );
+        }
+    }
 }
 
 #[no_mangle]
 pub extern "C" fn Convert_str_to_float(s: i64) -> f64 {
     if !is_ptr(s) { return 0.0; }
-    unsafe { ptr_to_str(s).trim().parse::<f64>().unwrap_or(0.0) }
+    let src = unsafe { ptr_to_str(s).trim() };
+    match src.parse::<f64>() {
+        Ok(f) => f,
+        Err(_) => unsafe {
+            exception::throw_convert_exception(
+                &format!("Cannot convert string to float: '{}'", src),
+                ERR_CONVERT_INVALID_FLOAT,
+                "Convert"
+            );
+        }
+    }
 }
 
 #[no_mangle]
@@ -1089,37 +1229,59 @@ pub extern "C" fn Convert_map_values_to_array(ptr: i64) -> i64 {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ocara.System
+//
+// Codes d'erreur SystemException :
+//   101 - EXEC    : Erreur d'exécution de commande
+//   102 - CWD     : Erreur de lecture du répertoire courant
+//   103 - SET_ENV : Erreur de définition de variable d'environnement
 // ─────────────────────────────────────────────────────────────────────────────
+
+const ERR_SYSTEM_EXEC: i64 = 101;
+const ERR_SYSTEM_CWD: i64 = 102;
+const ERR_SYSTEM_SET_ENV: i64 = 103;
 
 #[no_mangle]
 pub extern "C" fn System_exec(cmd: i64) -> i64 {
     if !is_ptr(cmd) { return unsafe { alloc_str("") }; }
     let cmd_s = unsafe { ptr_to_str(cmd) };
-    let output = Command::new("sh")
+    match Command::new("sh")
         .arg("-c")
         .arg(cmd_s)
         .output()
-        .unwrap_or_else(|_| std::process::Output {
-            status: std::process::ExitStatus::default(),
-            stdout: Vec::new(),
-            stderr: Vec::new(),
-        });
-    let mut out = String::from_utf8_lossy(&output.stdout).to_string();
-    if out.ends_with('\n') { out.pop(); }
-    unsafe { alloc_str(&out) }
+    {
+        Ok(output) => {
+            let mut out = String::from_utf8_lossy(&output.stdout).to_string();
+            if out.ends_with('\n') { out.pop(); }
+            unsafe { alloc_str(&out) }
+        }
+        Err(e) => unsafe {
+            exception::throw_system_exception(
+                &format!("Failed to execute command '{}': {}", cmd_s, e),
+                ERR_SYSTEM_EXEC,
+                "System"
+            );
+        }
+    }
 }
 
 #[no_mangle]
 pub extern "C" fn System_passthrough(cmd: i64) -> i64 {
     if !is_ptr(cmd) { return 0; }
     let cmd_s = unsafe { ptr_to_str(cmd) };
-    let status = Command::new("sh")
+    match Command::new("sh")
         .arg("-c")
         .arg(cmd_s)
         .status()
-        .map(|s| s.code().unwrap_or(1))
-        .unwrap_or(1);
-    status as i64
+    {
+        Ok(status) => status.code().unwrap_or(1) as i64,
+        Err(e) => unsafe {
+            exception::throw_system_exception(
+                &format!("Failed to execute command '{}': {}", cmd_s, e),
+                ERR_SYSTEM_EXEC,
+                "System"
+            );
+        }
+    }
 }
 
 #[no_mangle]
@@ -1145,15 +1307,38 @@ pub extern "C" fn System_set_env(name: i64, val: i64) {
     if !is_ptr(name) { return; }
     let key = unsafe { ptr_to_str(name) };
     let v   = if is_ptr(val) { unsafe { ptr_to_str(val).to_string() } } else { val.to_string() };
-    std::env::set_var(key, v);
+    
+    // set_var peut paniquer si le nom ou la valeur contient '=' ou NUL
+    // On catch le panic potentiel
+    match std::panic::catch_unwind(|| {
+        std::env::set_var(key, &v);
+    }) {
+        Ok(_) => {},
+        Err(_) => unsafe {
+            exception::throw_system_exception(
+                &format!("Failed to set environment variable '{}': invalid name or value", key),
+                ERR_SYSTEM_SET_ENV,
+                "System"
+            );
+        }
+    }
 }
 
 #[no_mangle]
 pub extern "C" fn System_cwd() -> i64 {
-    let path = std::env::current_dir()
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_default();
-    unsafe { alloc_str(&path) }
+    match std::env::current_dir() {
+        Ok(path) => {
+            let path_str = path.to_string_lossy().to_string();
+            unsafe { alloc_str(&path_str) }
+        }
+        Err(e) => unsafe {
+            exception::throw_system_exception(
+                &format!("Failed to get current working directory: {}", e),
+                ERR_SYSTEM_CWD,
+                "System"
+            );
+        }
+    }
 }
 
 #[no_mangle]
@@ -1180,20 +1365,34 @@ pub extern "C" fn System_args() -> i64 {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ocara.Regex — implémentation via la crate `regex`
+//
+// Codes d'erreur RegexException :
+//   101 - INVALID_PATTERN : Pattern regex invalide (erreur de syntaxe)
 // ─────────────────────────────────────────────────────────────────────────────
 
 use regex::Regex as Re;
 
-/// Compile le pattern (i64 ptr → &str) ; retourne None si invalide.
-unsafe fn compile_regex(pattern: i64) -> Option<Re> {
+const ERR_REGEX_INVALID_PATTERN: i64 = 101;
+
+/// Compile le pattern (i64 ptr → &str) ; lève RegexException si invalide.
+unsafe fn compile_regex(pattern: i64) -> Re {
     let pat = ptr_to_str(pattern);
-    Re::new(pat).ok()
+    match Re::new(pat) {
+        Ok(re) => re,
+        Err(e) => {
+            exception::throw_regex_exception(
+                &format!("Invalid regex pattern: '{}' ({})", pat, e),
+                ERR_REGEX_INVALID_PATTERN,
+                "Regex"
+            );
+        }
+    }
 }
 
 #[no_mangle]
 pub extern "C" fn Regex_test(pattern: i64, text: i64) -> i64 {
     unsafe {
-        let re = match compile_regex(pattern) { Some(r) => r, None => return 0 };
+        let re = compile_regex(pattern);
         let s  = ptr_to_str(text);
         if re.is_match(s) { 1 } else { 0 }
     }
@@ -1202,7 +1401,7 @@ pub extern "C" fn Regex_test(pattern: i64, text: i64) -> i64 {
 #[no_mangle]
 pub extern "C" fn Regex_find(pattern: i64, text: i64) -> i64 {
     unsafe {
-        let re = match compile_regex(pattern) { Some(r) => r, None => return alloc_str("") };
+        let re = compile_regex(pattern);
         let s  = ptr_to_str(text);
         match re.find(s) {
             Some(m) => alloc_str(m.as_str()),
@@ -1214,7 +1413,7 @@ pub extern "C" fn Regex_find(pattern: i64, text: i64) -> i64 {
 #[no_mangle]
 pub extern "C" fn Regex_find_all(pattern: i64, text: i64) -> i64 {
     unsafe {
-        let re = match compile_regex(pattern) { Some(r) => r, None => return new_array() };
+        let re = compile_regex(pattern);
         let s  = ptr_to_str(text);
         let arr = new_array();
         for m in re.find_iter(s) {
@@ -1228,7 +1427,7 @@ pub extern "C" fn Regex_find_all(pattern: i64, text: i64) -> i64 {
 #[no_mangle]
 pub extern "C" fn Regex_replace(pattern: i64, text: i64, repl: i64) -> i64 {
     unsafe {
-        let re = match compile_regex(pattern) { Some(r) => r, None => return text };
+        let re = compile_regex(pattern);
         let s  = ptr_to_str(text);
         let r  = ptr_to_str(repl);
         let result = re.replacen(s, 1, r).into_owned();
@@ -1239,7 +1438,7 @@ pub extern "C" fn Regex_replace(pattern: i64, text: i64, repl: i64) -> i64 {
 #[no_mangle]
 pub extern "C" fn Regex_replace_all(pattern: i64, text: i64, repl: i64) -> i64 {
     unsafe {
-        let re = match compile_regex(pattern) { Some(r) => r, None => return text };
+        let re = compile_regex(pattern);
         let s  = ptr_to_str(text);
         let r  = ptr_to_str(repl);
         let result = re.replace_all(s, r).into_owned();
@@ -1250,7 +1449,7 @@ pub extern "C" fn Regex_replace_all(pattern: i64, text: i64, repl: i64) -> i64 {
 #[no_mangle]
 pub extern "C" fn Regex_split(pattern: i64, text: i64) -> i64 {
     unsafe {
-        let re = match compile_regex(pattern) { Some(r) => r, None => return new_array() };
+        let re = compile_regex(pattern);
         let s  = ptr_to_str(text);
         let arr = new_array();
         for part in re.split(s) {
@@ -1264,7 +1463,7 @@ pub extern "C" fn Regex_split(pattern: i64, text: i64) -> i64 {
 #[no_mangle]
 pub extern "C" fn Regex_count(pattern: i64, text: i64) -> i64 {
     unsafe {
-        let re = match compile_regex(pattern) { Some(r) => r, None => return 0 };
+        let re = compile_regex(pattern);
         let s  = ptr_to_str(text);
         re.find_iter(s).count() as i64
     }
@@ -1273,7 +1472,7 @@ pub extern "C" fn Regex_count(pattern: i64, text: i64) -> i64 {
 #[no_mangle]
 pub extern "C" fn Regex_extract(pattern: i64, text: i64, n: i64) -> i64 {
     unsafe {
-        let re = match compile_regex(pattern) { Some(r) => r, None => return alloc_str("") };
+        let re = compile_regex(pattern);
         let s  = ptr_to_str(text);
         match re.captures(s) {
             Some(caps) => match caps.get(n as usize) {
