@@ -28,6 +28,9 @@ pub mod time;
 pub mod unittest;
 pub mod htmlcomponent;
 pub mod html;
+pub mod file;
+pub mod directory;
+pub mod exception;
 
 use crate::sema::symbols::ClassInfo;
 
@@ -52,6 +55,11 @@ pub fn builtin_class(name: &str) -> Option<ClassInfo> {
         "UnitTest"    => Some(unittest::class()),
         "HTMLComponent" => Some(htmlcomponent::class()),
         "HTML"        => Some(html::class()),
+        "File"        => Some(file::class()),
+        "Directory"   => Some(directory::class()),
+        "Exception"   => Some(exception::exception_class()),
+        "FileException" => Some(exception::file_exception_class()),
+        "DirectoryException" => Some(exception::directory_exception_class()),
         _             => None,
     }
 }
@@ -77,5 +85,10 @@ pub fn all_builtins() -> Vec<(&'static str, ClassInfo)> {
         ("UnitTest",    unittest::class()),
         ("HTMLComponent", htmlcomponent::class()),
         ("HTML",        html::class()),
+        ("File",        file::class()),
+        ("Directory",   directory::class()),
+        ("Exception",   exception::exception_class()),
+        ("FileException", exception::file_exception_class()),
+        ("DirectoryException", exception::directory_exception_class()),
     ]
 }

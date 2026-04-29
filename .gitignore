@@ -21,3 +21,5 @@ target
 #.idea/
 *.ocaraunit_cache/
 *node_modules/
+out
+out.o

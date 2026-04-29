@@ -107,6 +107,9 @@ pub mod date;
 pub mod time;
 pub mod typecheck;
 pub mod htmlcomponent;
+pub mod file;
+pub mod directory;
+pub mod exception;
 
 // Helpers mémoire internes
 // ─────────────────────────────────────────────────────────────────────────────
@@ -258,8 +261,11 @@ unsafe fn map_ref(ptr: i64) -> &'static mut OcaraMap {
 // I/O de base — write / read
 // ─────────────────────────────────────────────────────────────────────────────
 
-#[no_mangle]
-pub extern "C" fn write(val: i64) {
+/// Fonction interne (pas exportée en C) — écrit une valeur sur stdout.
+/// NOTE : pas de #[no_mangle] pour éviter de shadower le `write(fd,buf,n)` POSIX
+///        dont Rust's std::fs::write a besoin en interne.
+#[allow(dead_code)]
+fn write(val: i64) {
     ocara_print(&fmt_val(val));
 }
 
