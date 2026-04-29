@@ -7,6 +7,7 @@
 //   HTTPServer_set_port(self_ptr, port)               → void
 //   HTTPServer_set_host(self_ptr, host_ptr)           → void
 //   HTTPServer_set_workers(self_ptr, n)               → void  threads accepteurs
+//   HTTPServer_set_root_path(self_ptr, path_ptr)      → void  répertoire fichiers statiques
 //   HTTPServer_route(self_ptr, path, method, fat_ptr) → void  enregistre une route
 //   HTTPServer_run(self_ptr)                          → void  démarre (bloquant)
 //
@@ -83,19 +84,21 @@ struct Route {
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct OcaraHttpServer {
-    port:    u16,
-    host:    String,
-    workers: usize,
-    routes:  Vec<Route>,
+    port:      u16,
+    host:      String,
+    workers:   usize,
+    routes:    Vec<Route>,
+    root_path: Option<String>,  // Répertoire racine pour fichiers statiques
 }
 
 impl OcaraHttpServer {
     fn new() -> Self {
         OcaraHttpServer {
-            port:    8080,
-            host:    "0.0.0.0".into(),
-            workers: 4,
-            routes:  Vec::new(),
+            port:      8080,
+            host:      "0.0.0.0".into(),
+            workers:   4,
+            routes:    Vec::new(),
+            root_path: None,
         }
     }
 }
@@ -178,10 +181,93 @@ fn url_decode(s: &str) -> String {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Serveur de fichiers statiques
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Détermine le MIME type selon l'extension du fichier.
+fn mime_type_from_path(path: &str) -> &'static str {
+    let ext = path.rsplit('.').next().unwrap_or("");
+    match ext.to_lowercase().as_str() {
+        "html" | "htm" => "text/html; charset=utf-8",
+        "css"  => "text/css; charset=utf-8",
+        "js"   => "application/javascript; charset=utf-8",
+        "json" => "application/json; charset=utf-8",
+        "xml"  => "application/xml; charset=utf-8",
+        "txt"  => "text/plain; charset=utf-8",
+        "md"   => "text/markdown; charset=utf-8",
+        "png"  => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif"  => "image/gif",
+        "svg"  => "image/svg+xml",
+        "webp" => "image/webp",
+        "ico"  => "image/x-icon",
+        "woff" => "font/woff",
+        "woff2" => "font/woff2",
+        "ttf"  => "font/ttf",
+        "eot"  => "application/vnd.ms-fontobject",
+        "pdf"  => "application/pdf",
+        "zip"  => "application/zip",
+        _      => "application/octet-stream",
+    }
+}
+
+/// Tente de servir un fichier statique depuis le répertoire root_path.
+/// Retourne true si un fichier a été servi, false sinon.
+fn try_serve_static_file(req_handle: i64, req_path: &str, root_path: Option<&str>) -> bool {
+    let root = match root_path {
+        Some(r) => r,
+        None => return false,
+    };
+
+    // Nettoyer le chemin : retirer le / initial et décoder
+    let clean_path = req_path.trim_start_matches('/');
+    
+    // Protection contre path traversal : bloquer ../ ou ../
+    if clean_path.contains("..") {
+        return false;
+    }
+
+    // Construire le chemin complet
+    let file_path = std::path::Path::new(root).join(clean_path);
+    
+    // Vérifier que le fichier canonique reste dans le root (double protection)
+    if let Ok(canonical) = file_path.canonicalize() {
+        if let Ok(root_canonical) = std::path::Path::new(root).canonicalize() {
+            if !canonical.starts_with(&root_canonical) {
+                return false;
+            }
+        }
+    }
+
+    // Tenter de lire le fichier
+    let content = match std::fs::read(&file_path) {
+        Ok(bytes) => bytes,
+        Err(_) => return false,
+    };
+
+    // Déterminer le MIME type
+    let mime = mime_type_from_path(clean_path);
+
+    // Remplir la réponse
+    let ctx = unsafe { ctx_ref(req_handle) };
+    ctx.resp_status = 200;
+    ctx.resp_body = String::from_utf8_lossy(&content).to_string();
+    
+    // Ajouter Content-Type
+    let header = tiny_http::Header::from_bytes(
+        &b"Content-Type"[..],
+        mime.as_bytes(),
+    ).unwrap();
+    ctx.resp_headers.push(header);
+
+    true
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Traitement d'une requête
 // ─────────────────────────────────────────────────────────────────────────────
 
-fn handle_request(mut request: tiny_http::Request, routes: &[Route]) {
+fn handle_request(mut request: tiny_http::Request, routes: &[Route], root_path: Option<&str>) {
     // Lire le corps
     let mut body = String::new();
     let _ = request.as_reader().read_to_string(&mut body);
@@ -225,12 +311,14 @@ fn handle_request(mut request: tiny_http::Request, routes: &[Route]) {
     });
     let req_handle = Box::into_raw(ctx) as i64;
 
-    // Appeler le handler ou retourner 404
+    // Appeler le handler ou tenter de servir un fichier statique
     if let Some(h) = handler {
         let f: OcaraHandlerFn = unsafe { std::mem::transmute(h.func_ptr as usize) };
         unsafe { f(h.env_ptr, req_handle) };
+    } else if method_str == "GET" && try_serve_static_file(req_handle, &path_str, root_path) {
+        // Fichier statique servi avec succès
     } else {
-        // Aucune route trouvée → 404 par défaut
+        // Aucune route trouvée et pas de fichier statique → 404
         let ctx = unsafe { ctx_ref(req_handle) };
         ctx.resp_status = 404;
         ctx.resp_body   = format!("404 Not Found: {} {}", method_str, path_str);
@@ -288,6 +376,16 @@ pub extern "C" fn HTTPServer_set_workers(self_ptr: i64, n: i64) {
     s.workers = n.max(1) as usize;
 }
 
+/// Définit le répertoire racine pour servir les fichiers statiques.
+/// Si défini, les requêtes qui ne matchent aucune route tenteront de servir
+/// un fichier depuis ce répertoire. Protégé contre path traversal.
+#[no_mangle]
+pub extern "C" fn HTTPServer_set_root_path(self_ptr: i64, path_ptr: i64) {
+    let s = unsafe { server_from_slot(self_ptr) };
+    let path = unsafe { ptr_to_str(path_ptr).to_string() };
+    s.root_path = if path.is_empty() { None } else { Some(path) };
+}
+
 /// Enregistre une route.
 /// `fat_ptr` pointe sur un struct {func_ptr: i64, env_ptr: i64} (fat pointer Ocara).
 #[no_mangle]
@@ -323,16 +421,18 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
         }
     };
     let routes: Arc<Vec<Route>> = Arc::new(std::mem::take(&mut data.routes));
+    let root_path: Arc<Option<String>> = Arc::new(data.root_path.clone());
 
     server_log!("HTTPServer: écoute sur http://{}\n", addr);
 
     let handles: Vec<_> = (0..data.workers).map(|_| {
         let server = Arc::clone(&server);
         let routes = Arc::clone(&routes);
+        let root_path = Arc::clone(&root_path);
         std::thread::spawn(move || {
             loop {
                 match server.recv() {
-                    Ok(request) => handle_request(request, &routes),
+                    Ok(request) => handle_request(request, &routes, root_path.as_deref()),
                     Err(_)      => break,
                 }
             }
