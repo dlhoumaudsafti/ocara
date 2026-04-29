@@ -5,6 +5,7 @@
 //   s.set_port(port:int)                         → void
 //   s.set_host(host:string)                      → void
 //   s.set_workers(n:int)                         → void
+//   s.set_root_path(path:string)                 → void
 //   s.route(path:string, method:string, f:Function) → void
 //   s.run()                                      → void  (bloquant)
 //
@@ -76,6 +77,12 @@ pub fn class() -> ClassInfo {
     // s.set_workers(n:int) → void
     methods.insert("set_workers".into(), instance(
         vec![("n", Type::Int)],
+        Type::Void,
+    ));
+
+    // s.set_root_path(path:string) → void
+    methods.insert("set_root_path".into(), instance(
+        vec![("path", Type::String)],
         Type::Void,
     ));
 

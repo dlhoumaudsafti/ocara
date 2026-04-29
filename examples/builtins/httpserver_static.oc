@@ -1,0 +1,77 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// examples/builtins/httpserver_static.oc
+//
+// Démonstration de HTTPServer avec serveur de fichiers statiques
+//
+// Pour tester :
+//   ./target/release/ocara examples/builtins/httpserver_static.oc -o /tmp/httpserver_static
+//   cd examples/builtins/
+//   /tmp/httpserver_static
+//   or make regression builtins/httpserver_static
+//
+// Puis dans un autre terminal :
+//   curl http://localhost:8080/
+//   curl http://localhost:8080/style.css
+//   curl http://localhost:8080/api/status
+//   curl http://localhost:8080/unknown.html
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.HTTPServer
+import ocara.IO
+
+function main(): int {
+
+    const server:HTTPServer = use HTTPServer()
+    server.set_port(8080)
+    server.set_workers(4)
+    
+    // Définir le répertoire racine pour les fichiers statiques
+    // Relatif au répertoire courant où le programme est lancé
+    server.set_root_path("./examples/builtins/public")
+
+    // ── Route API dynamique ──────────────────────────────────────────────────
+    // Cette route a la priorité sur les fichiers statiques
+    server.route("/api/status", "GET", nameless(req:int): int {
+        HTTPServer::set_resp_header(req, "Content-Type", "application/json")
+        HTTPServer::respond(req, 200, `{"status":"ok","server":"HTTPServer Ocara"}`)
+        return 0
+    })
+
+    // ── Route API avec données ───────────────────────────────────────────────
+    server.route("/api/users", "GET", nameless(req:int): int {
+        HTTPServer::set_resp_header(req, "Content-Type", "application/json")
+        var json:string = `{
+    "users": [
+        {"id": 1, "name": "Alice"},
+        {"id": 2, "name": "Bob"}
+    ]
+}`
+        HTTPServer::respond(req, 200, json)
+        return 0
+    })
+
+    // ── Route API POST ───────────────────────────────────────────────────────
+    server.route("/api/echo", "POST", nameless(req:int): int {
+        var body:string = HTTPServer::req_body(req)
+        HTTPServer::set_resp_header(req, "Content-Type", "application/json")
+        HTTPServer::respond(req, 200, `{"received":"${body}"}`)
+        return 0
+    })
+
+    IO::writeln("HTTPServer démarré sur http://localhost:8080")
+    IO::writeln("")
+    IO::writeln("Routes dynamiques (priorité) :")
+    IO::writeln("  GET  /api/status  → JSON status")
+    IO::writeln("  GET  /api/users   → JSON users list")
+    IO::writeln("  POST /api/echo    → Echo JSON")
+    IO::writeln("")
+    IO::writeln("Fichiers statiques (fallback depuis ./public/) :")
+    IO::writeln("  GET  /index.html   → public/index.html")
+    IO::writeln("  GET  /style.css    → public/style.css")
+    IO::writeln("  GET  /app.js       → public/app.js")
+    IO::writeln("")
+    IO::writeln("Arrêt : Ctrl+C")
+    
+    server.run()
+    return 0
+}
