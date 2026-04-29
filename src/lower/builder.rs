@@ -296,6 +296,16 @@ pub fn lower_program(program: &Program) -> IrModule {
         module.class_layouts.insert(class.name.clone(), fields);
     }
 
+    // Ajouter les layouts des exceptions builtin (même structure pour toutes)
+    let exception_layout = vec![
+        ("message".to_string(), IrType::Ptr),  // offset 0
+        ("code".to_string(), IrType::I64),      // offset 8
+        ("source".to_string(), IrType::Ptr),    // offset 16
+    ];
+    module.class_layouts.insert("Exception".to_string(), exception_layout.clone());
+    module.class_layouts.insert("FileException".to_string(), exception_layout.clone());
+    module.class_layouts.insert("DirectoryException".to_string(), exception_layout);
+
     // Collecte les types de paramètres des constructeurs (pour le boxing mixed)
     for class in &program.classes {
         if let Some(ctor_params) = class.members.iter().find_map(|m| {

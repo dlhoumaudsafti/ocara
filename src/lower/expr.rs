@@ -4,6 +4,7 @@ use crate::ir::func::IrParam;
 use crate::ir::inst::{Inst, Value};
 use crate::ir::types::IrType;
 use crate::lower::builder::LowerBuilder;
+use crate::codegen::runtime::BUILTINS;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Capture Analysis — Walk AST pour trouver les variables capturées
@@ -249,6 +250,11 @@ fn is_array_expr(builder: &LowerBuilder, expr: &Expr) -> bool {
         }
         _ => false,
     }
+}
+
+/// Retourne true si une fonction builtin retourne void (returns: None dans BUILTINS).
+fn is_void_builtin(func_name: &str) -> bool {
+    BUILTINS.iter().any(|b| b.name == func_name && b.returns.is_none())
 }
 
 /// Détermine le type IR d'une expression sans générer de code.
@@ -633,14 +639,16 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 let arg_ty  = expr_ir_type(builder, &args[0]);
                 let variant = write_variant(&func_name, &arg_ty);
                 let arg_val = lower_expr(builder, &args[0]);
-                let dest    = builder.new_value();
                 builder.emit(Inst::Call {
-                    dest:   Some(dest.clone()),
+                    dest:   None,
                     func:   variant,
                     args:   vec![arg_val],
                     ret_ty: IrType::Void,
                 });
-                return dest;
+                // Les fonctions void ne retournent rien, donc on retourne une constante dummy
+                let dummy = builder.new_value();
+                builder.emit(Inst::ConstInt { dest: dummy.clone(), value: 0 });
+                return dummy;
             }
 
             // Appel async : spawn un thread, retourne un task handle (i64)
@@ -816,17 +824,34 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 let arg_ty  = expr_ir_type(builder, &args[0]);
                 let variant = write_variant(&func_name, &arg_ty);
                 let arg_val = lower_expr(builder, &args[0]);
-                let dest    = builder.new_value();
                 builder.emit(Inst::Call {
-                    dest:   Some(dest.clone()),
+                    dest:   None,
                     func:   variant,
                     args:   vec![arg_val],
                     ret_ty: IrType::Void,
                 });
-                return dest;
+                // Les fonctions void ne retournent rien, donc on retourne une constante dummy
+                let dummy = builder.new_value();
+                builder.emit(Inst::ConstInt { dest: dummy.clone(), value: 0 });
+                return dummy;
             }
 
             let arg_vals: Vec<Value> = args.iter().map(|a| lower_expr(builder, a)).collect();
+            
+            // Vérifier si le builtin retourne void
+            if is_void_builtin(&func_name) {
+                builder.emit(Inst::Call {
+                    dest:   None,
+                    func:   func_name,
+                    args:   arg_vals,
+                    ret_ty: IrType::Void,
+                });
+                // Les fonctions void ne retournent rien, donc on retourne une constante dummy
+                let dummy = builder.new_value();
+                builder.emit(Inst::ConstInt { dest: dummy.clone(), value: 0 });
+                return dummy;
+            }
+            
             let dest = builder.new_value();
             builder.emit(Inst::Call {
                 dest:   Some(dest.clone()),
