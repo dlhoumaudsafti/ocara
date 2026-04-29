@@ -5,7 +5,7 @@
 use std::alloc::{alloc, Layout};
 use crate::{alloc_str, __ocara_fail};
 
-/// Structure runtime pour Exception / FileException / DirectoryException
+/// Structure runtime pour Exception / FileException / DirectoryException / IOException
 /// { message: string, code: int, source: string }
 #[repr(C)]
 struct OcaraException {
@@ -34,6 +34,14 @@ pub unsafe fn throw_file_exception(message: &str, code: i64, source: &str) -> ! 
 pub unsafe fn throw_directory_exception(message: &str, code: i64, source: &str) -> ! {
     let obj_ptr = alloc_exception(message, code, source);
     let type_name = alloc_str("DirectoryException");
+    __ocara_fail(obj_ptr, type_name);
+    std::hint::unreachable_unchecked()
+}
+
+/// Crée une IOException et la lève (ne retourne jamais)
+pub unsafe fn throw_io_exception(message: &str, code: i64, source: &str) -> ! {
+    let obj_ptr = alloc_exception(message, code, source);
+    let type_name = alloc_str("IOException");
     __ocara_fail(obj_ptr, type_name);
     std::hint::unreachable_unchecked()
 }

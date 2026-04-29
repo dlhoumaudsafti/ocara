@@ -177,7 +177,7 @@ const OCARA_BUILTINS: &[&str] = &[
     "IO", "Math", "String", "Array", "Map",
     "Convert", "System", "Regex", "HTTPRequest", "HTTPServer", "Thread", "Mutex",
     "DateTime", "Date", "Time", "UnitTest", "HTMLComponent", "HTML",
-    "File", "Directory", "Exception", "FileException", "DirectoryException",
+    "File", "Directory", "Exception", "FileException", "DirectoryException", "IOException",
 ];
 
 fn extract_user_imports(content: &str, file_dir: &Path) -> Vec<PathBuf> {
