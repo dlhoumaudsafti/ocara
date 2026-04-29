@@ -179,6 +179,167 @@ function main(): int {
 
 ---
 
+## Gestion d'erreurs
+
+Certaines méthodes Map peuvent lever une `MapException` en cas d'erreur.
+
+### Codes d'erreur MapException
+
+| Code | Nom | Opération | Description |
+|------|------|-----------|-------------|
+| 101 | `KEY_NOT_FOUND` | `Map::get()` | Clé inexistante dans la map |
+
+### Exemples de gestion d'erreurs
+
+#### Gestion générique
+
+```ocara
+import ocara.Map
+import ocara.IO
+
+function main(): int {
+    var config:Map<string,string> = {"env": "prod"}
+    
+    try {
+        var db:string = Map::get(config, "database")
+        IO::writeln(`Database: ${db}`)
+    } on e is MapException {
+        IO::writeln(`Map error: ${e.message}`)
+        IO::writeln(`Code: ${e.code}`)
+    }
+    
+    return 0
+}
+```
+
+#### Gestion avec code d'erreur spécifique
+
+```ocara
+import ocara.Map
+import ocara.IO
+
+function safe_get(m:Map<string,string>, key:string): string {
+    try {
+        return Map::get(m, key)
+    } on e is MapException {
+        if e.code == 101 {
+            IO::writeln(`Key '${key}' not found, using default`)
+            return ""
+        } else {
+            IO::writeln(`Unexpected error: ${e.message}`)
+            return ""
+        }
+    }
+}
+
+function main(): int {
+    var settings:Map<string,string> = {"mode": "debug"}
+    var host:string = safe_get(settings, "host")
+    IO::writeln(`Host: ${host}`)
+    return 0
+}
+```
+
+#### Vérification avec has() avant get()
+
+```ocara
+import ocara.Map
+import ocara.IO
+
+function main(): int {
+    var data:Map<string,int> = {"count": 42}
+    
+    // Approche sûre : vérifier d'abord
+    if Map::has(data, "count") {
+        var count:int = Map::get(data, "count")
+        IO::writeln(`Count: ${count}`)
+    } else {
+        IO::writeln("Key 'count' not found")
+    }
+    
+    // Ou utiliser try/on
+    try {
+        var total:int = Map::get(data, "total")
+        IO::writeln(`Total: ${total}`)
+    } on e is MapException {
+        IO::writeln("Key 'total' not found")
+    }
+    
+    return 0
+}
+```
+
+#### Catch générique (sans type)
+
+```ocara
+import ocara.Map
+import ocara.IO
+
+function main(): int {
+    var users:Map<string,string> = {"admin": "alice"}
+    
+    try {
+        var user:string = Map::get(users, "guest")
+        IO::writeln(`User: ${user}`)
+    } on e {
+        // Capture toute exception
+        IO::writeln(`Exception: ${e.message}`)
+        IO::writeln(`Source: ${e.source}`)
+    }
+    
+    return 0
+}
+```
+
+#### Multiple handlers avec filtrage par type
+
+```ocara
+import ocara.Map
+import ocara.File
+import ocara.MapException
+import ocara.FileException
+import ocara.IO
+
+function load_config(path:string): Map<string,string> {
+    var content:string = File::read(path)
+    // ... parse content into map ...
+    var cfg:Map<string,string> = {"version": "1.0"}
+    return cfg
+}
+
+function main(): int {
+    try {
+        var config:Map<string,string> = load_config("/config.json")
+        var dbUrl:string = Map::get(config, "database_url")
+        IO::writeln(`DB: ${dbUrl}`)
+    } on e is MapException {
+        IO::writeln(`Config key missing (code ${e.code}): ${e.message}`)
+    } on e is FileException {
+        IO::writeln(`Config file error (code ${e.code}): ${e.message}`)
+    }
+    
+    return 0
+}
+```
+
+### Format des messages d'exception
+
+Les messages d'exception sont en anglais et incluent la clé recherchée :
+- `Key not found: database_url`
+- `Key not found: 123` (pour les clés numériques)
+
+**Notes :**
+- `Map::has()` ne lève jamais d'exception (retourne true/false)
+- `Map::set()` ne lève jamais d'exception (crée ou met à jour la clé)
+- `Map::remove()` ne lève jamais d'exception (même si la clé n'existe pas)
+- `Map::size()`, `Map::is_empty()` ne lèvent jamais d'exception
+- `Map::keys()`, `Map::values()` ne lèvent jamais d'exception (retournent un tableau vide si la map est vide)
+- `Map::merge()` ne lève jamais d'exception
+
+**Conseil :** Pour éviter les exceptions, utilisez `Map::has()` pour vérifier l'existence d'une clé avant d'appeler `Map::get()`.
+
+---
+
 ## Conventions runtime
 
 | Méthode Ocara      | Symbole runtime C | Params Cranelift        | Retour  |

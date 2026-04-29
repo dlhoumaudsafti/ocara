@@ -195,6 +195,22 @@ function main(): int {
 
 ---
 
+## Gestion d'erreurs
+
+**Toutes les méthodes String sont "safe"** et ne lèvent jamais d'exception.
+
+Les cas limites retournent des valeurs sensées :
+- `String::len()` retourne toujours un nombre (0 pour chaîne vide)
+- `String::between()` retourne une chaîne vide si les délimiteurs ne sont pas trouvés
+- `String::split()` retourne toujours un tableau (vide si chaîne vide)
+- `String::empty()` retourne toujours `true` ou `false`
+
+Aucune StringException n'est actuellement définie ou levée par les méthodes de la classe String.
+
+**Remarque :** Le typage statique d'Ocara garantit que vous ne passerez jamais un type incorrect à une méthode String (erreur de compilation).
+
+---
+
 ## Conventions runtime
 
 Les méthodes sont implémentées côté runtime C sous le préfixe `String_` :
