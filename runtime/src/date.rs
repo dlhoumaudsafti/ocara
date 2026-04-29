@@ -41,10 +41,22 @@ pub extern "C" fn Date_from_timestamp(ts: i64) -> i64 {
 pub extern "C" fn Date_year(date: i64) -> i64 {
     let date_str = unsafe { CStr::from_ptr(date as *const i8) }.to_str().unwrap_or("");
     let parts: Vec<&str> = date_str.split('-').collect();
-    if parts.len() >= 1 {
-        parts[0].parse::<i64>().unwrap_or(0)
-    } else {
-        0
+    if parts.len() < 3 {
+        unsafe {
+            crate::exception::throw_date_exception(
+                &format!("Invalid date format: '{}' (expected YYYY-MM-DD)", date_str),
+                101
+            );
+        }
+    }
+    match parts[0].parse::<i64>() {
+        Ok(y) => y,
+        Err(_) => unsafe {
+            crate::exception::throw_date_exception(
+                &format!("Invalid year in date: '{}'", date_str),
+                101
+            );
+        }
     }
 }
 
@@ -53,10 +65,22 @@ pub extern "C" fn Date_year(date: i64) -> i64 {
 pub extern "C" fn Date_month(date: i64) -> i64 {
     let date_str = unsafe { CStr::from_ptr(date as *const i8) }.to_str().unwrap_or("");
     let parts: Vec<&str> = date_str.split('-').collect();
-    if parts.len() >= 2 {
-        parts[1].parse::<i64>().unwrap_or(0)
-    } else {
-        0
+    if parts.len() < 3 {
+        unsafe {
+            crate::exception::throw_date_exception(
+                &format!("Invalid date format: '{}' (expected YYYY-MM-DD)", date_str),
+                101
+            );
+        }
+    }
+    match parts[1].parse::<i64>() {
+        Ok(m) if m >= 1 && m <= 12 => m,
+        _ => unsafe {
+            crate::exception::throw_date_exception(
+                &format!("Invalid month in date: '{}' (must be 1-12)", date_str),
+                101
+            );
+        }
     }
 }
 
@@ -65,10 +89,22 @@ pub extern "C" fn Date_month(date: i64) -> i64 {
 pub extern "C" fn Date_day(date: i64) -> i64 {
     let date_str = unsafe { CStr::from_ptr(date as *const i8) }.to_str().unwrap_or("");
     let parts: Vec<&str> = date_str.split('-').collect();
-    if parts.len() >= 3 {
-        parts[2].parse::<i64>().unwrap_or(0)
-    } else {
-        0
+    if parts.len() < 3 {
+        unsafe {
+            crate::exception::throw_date_exception(
+                &format!("Invalid date format: '{}' (expected YYYY-MM-DD)", date_str),
+                101
+            );
+        }
+    }
+    match parts[2].parse::<i64>() {
+        Ok(d) if d >= 1 && d <= 31 => d,
+        _ => unsafe {
+            crate::exception::throw_date_exception(
+                &format!("Invalid day in date: '{}' (must be 1-31)", date_str),
+                101
+            );
+        }
     }
 }
 

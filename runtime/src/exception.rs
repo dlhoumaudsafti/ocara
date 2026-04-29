@@ -102,6 +102,46 @@ pub unsafe fn throw_regex_exception(message: &str, code: i64, source: &str) -> !
     std::hint::unreachable_unchecked()
 }
 
+/// Lance une DateTimeException
+pub unsafe fn throw_datetime_exception(message: &str, code: i64) -> ! {
+    let obj_ptr = alloc_exception(message, code, "DateTime");
+    let type_name = alloc_str("DateTimeException");
+    __ocara_fail(obj_ptr, type_name);
+    std::hint::unreachable_unchecked()
+}
+
+/// Lance une DateException
+pub unsafe fn throw_date_exception(message: &str, code: i64) -> ! {
+    let obj_ptr = alloc_exception(message, code, "Date");
+    let type_name = alloc_str("DateException");
+    __ocara_fail(obj_ptr, type_name);
+    std::hint::unreachable_unchecked()
+}
+
+/// Lance une TimeException
+pub unsafe fn throw_time_exception(message: &str, code: i64) -> ! {
+    let obj_ptr = alloc_exception(message, code, "Time");
+    let type_name = alloc_str("TimeException");
+    __ocara_fail(obj_ptr, type_name);
+    std::hint::unreachable_unchecked()
+}
+
+/// Lance une ThreadException
+pub unsafe fn throw_thread_exception(message: &str, code: i64) -> ! {
+    let obj_ptr = alloc_exception(message, code, "Thread");
+    let type_name = alloc_str("ThreadException");
+    __ocara_fail(obj_ptr, type_name);
+    std::hint::unreachable_unchecked()
+}
+
+/// Lance une MutexException
+pub unsafe fn throw_mutex_exception(message: &str, code: i64) -> ! {
+    let obj_ptr = alloc_exception(message, code, "Mutex");
+    let type_name = alloc_str("MutexException");
+    __ocara_fail(obj_ptr, type_name);
+    std::hint::unreachable_unchecked()
+}
+
 /// Alloue un objet Exception sur le heap
 unsafe fn alloc_exception(message: &str, code: i64, source: &str) -> i64 {
     let size = std::mem::size_of::<OcaraException>();

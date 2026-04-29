@@ -44,10 +44,22 @@ pub extern "C" fn Time_from_timestamp(ts: i64) -> i64 {
 pub extern "C" fn Time_hour(time: i64) -> i64 {
     let time_str = unsafe { CStr::from_ptr(time as *const i8) }.to_str().unwrap_or("");
     let parts: Vec<&str> = time_str.split(':').collect();
-    if parts.len() >= 1 {
-        parts[0].parse::<i64>().unwrap_or(0)
-    } else {
-        0
+    if parts.len() < 3 {
+        unsafe {
+            crate::exception::throw_time_exception(
+                &format!("Invalid time format: '{}' (expected HH:MM:SS)", time_str),
+                101
+            );
+        }
+    }
+    match parts[0].parse::<i64>() {
+        Ok(h) if h >= 0 && h <= 23 => h,
+        _ => unsafe {
+            crate::exception::throw_time_exception(
+                &format!("Invalid hour in time: '{}' (must be 0-23)", time_str),
+                101
+            );
+        }
     }
 }
 
@@ -56,10 +68,22 @@ pub extern "C" fn Time_hour(time: i64) -> i64 {
 pub extern "C" fn Time_minute(time: i64) -> i64 {
     let time_str = unsafe { CStr::from_ptr(time as *const i8) }.to_str().unwrap_or("");
     let parts: Vec<&str> = time_str.split(':').collect();
-    if parts.len() >= 2 {
-        parts[1].parse::<i64>().unwrap_or(0)
-    } else {
-        0
+    if parts.len() < 3 {
+        unsafe {
+            crate::exception::throw_time_exception(
+                &format!("Invalid time format: '{}' (expected HH:MM:SS)", time_str),
+                101
+            );
+        }
+    }
+    match parts[1].parse::<i64>() {
+        Ok(m) if m >= 0 && m <= 59 => m,
+        _ => unsafe {
+            crate::exception::throw_time_exception(
+                &format!("Invalid minute in time: '{}' (must be 0-59)", time_str),
+                101
+            );
+        }
     }
 }
 
@@ -68,10 +92,22 @@ pub extern "C" fn Time_minute(time: i64) -> i64 {
 pub extern "C" fn Time_second(time: i64) -> i64 {
     let time_str = unsafe { CStr::from_ptr(time as *const i8) }.to_str().unwrap_or("");
     let parts: Vec<&str> = time_str.split(':').collect();
-    if parts.len() >= 3 {
-        parts[2].parse::<i64>().unwrap_or(0)
-    } else {
-        0
+    if parts.len() < 3 {
+        unsafe {
+            crate::exception::throw_time_exception(
+                &format!("Invalid time format: '{}' (expected HH:MM:SS)", time_str),
+                101
+            );
+        }
+    }
+    match parts[2].parse::<i64>() {
+        Ok(s) if s >= 0 && s <= 59 => s,
+        _ => unsafe {
+            crate::exception::throw_time_exception(
+                &format!("Invalid second in time: '{}' (must be 0-59)", time_str),
+                101
+            );
+        }
     }
 }
 

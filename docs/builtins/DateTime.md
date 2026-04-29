@@ -155,6 +155,76 @@ fun main(): void {
 
 ---
 
+## Exceptions
+
+### DateTimeException
+
+`DateTime::parse()` lève une **DateTimeException** si le format de la chaîne est invalide.
+
+**Code d'erreur** :
+
+| Code | Signification |
+|------|---------------|
+| 101  | Invalid datetime format (parsing error) |
+
+**Exemples d'utilisation** :
+
+```ocara
+import ocara.DateTime
+import ocara.DateTimeException
+import ocara.IO
+
+// Exemple 1 : Capture d'exception de parsing
+try {
+    var ts:int = DateTime::parse("invalid-format")
+} on e is DateTimeException {
+    IO::writeln(`Erreur: ${e.message}`)
+    IO::writeln(`Code: ${e.code}`)
+    IO::writeln(`Source: ${e.source}`)
+}
+
+// Exemple 2 : Format incomplet
+try {
+    var ts:int = DateTime::parse("2024-04-27")
+} on e is DateTimeException {
+    IO::writeln("Format incomplet (manque l'heure)")
+}
+
+// Exemple 3 : Valeurs hors plage
+try {
+    var ts:int = DateTime::parse("2024-13-45T25:70:80")
+} on e is DateTimeException {
+    IO::writeln(`Valeurs invalides: ${e.message}`)
+}
+
+// Exemple 4 : Parsing réussi
+try {
+    var ts:int = DateTime::parse("2024-04-27T18:30:45")
+    IO::writeln(`Success: ${ts}`)
+} on e is DateTimeException {
+    IO::writeln("Ne devrait pas arriver ici")
+}
+
+// Exemple 5 : Catch générique
+try {
+    var ts:int = DateTime::parse("bad")
+} on e {
+    IO::writeln(`Exception: ${e.message}`)
+    if e.code == 101 {
+        IO::writeln("➡️ Code 101 = INVALID_DATETIME_FORMAT")
+    }
+}
+```
+
+**Notes** :
+
+- Seule la méthode `parse()` peut lever une exception
+- Toutes les autres méthodes sont **safe** (extractions, formatage)
+- Formats acceptés : `YYYY-MM-DDTHH:MM:SS` ou `YYYY-MM-DD HH:MM:SS`
+- Les valeurs doivent être dans les plages valides (mois 1-12, jour 1-31, heure 0-23, etc.)
+
+---
+
 ## Voir aussi
 
 - [Date](Date.md) — manipulation de dates sans heure

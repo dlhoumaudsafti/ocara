@@ -90,8 +90,14 @@ pub extern "C" fn Mutex_init(self_ptr: i64) {
 #[no_mangle]
 pub extern "C" fn Mutex_lock(self_ptr: i64) {
     let m = unsafe { &*mutex_from_slot(self_ptr) };
-    unsafe {
-        pthread_mutex_lock(m.mutex);
+    let result = unsafe { pthread_mutex_lock(m.mutex) };
+    if result != 0 {
+        unsafe {
+            crate::exception::throw_mutex_exception(
+                &format!("Failed to lock mutex: error code {}", result),
+                101
+            );
+        }
     }
 }
 
@@ -101,8 +107,14 @@ pub extern "C" fn Mutex_lock(self_ptr: i64) {
 #[no_mangle]
 pub extern "C" fn Mutex_unlock(self_ptr: i64) {
     let m = unsafe { &*mutex_from_slot(self_ptr) };
-    unsafe {
-        pthread_mutex_unlock(m.mutex);
+    let result = unsafe { pthread_mutex_unlock(m.mutex) };
+    if result != 0 {
+        unsafe {
+            crate::exception::throw_mutex_exception(
+                &format!("Failed to unlock mutex: error code {} (not owned by current thread?)", result),
+                102
+            );
+        }
     }
 }
 

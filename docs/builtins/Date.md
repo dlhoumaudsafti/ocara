@@ -179,6 +179,89 @@ fun main(): void {
 
 ---
 
+## Exceptions
+
+### DateException
+
+Plusieurs méthodes lèvent une **DateException** si le format de la date est invalide.
+
+**Code d'erreur** :
+
+| Code | Signification |
+|------|---------------|
+| 101  | Invalid date format (parsing error) |
+
+**Méthodes concernées** :
+
+- `Date::year(date)` — format invalide ou année non parsable
+- `Date::month(date)` — format invalide ou mois hors plage (1-12)
+- `Date::day(date)` — format invalide ou jour hors plage (1-31)
+- `Date::day_of_week(date)` — date invalide (appelle les fonctions ci-dessus)
+- `Date::add_days(date, days)` — date de départ invalide
+- `Date::diff_days(date1, date2)` — l'une des deux dates invalide
+
+**Exemples d'utilisation** :
+
+```ocara
+import ocara.Date
+import ocara.DateException
+import ocara.IO
+
+// Exemple 1 : Format incomplet
+try {
+    var y:int = Date::year("2024")
+} on e is DateException {
+    IO::writeln(`Erreur: ${e.message}`)
+    IO::writeln(`Code: ${e.code}`)
+}
+
+// Exemple 2 : Mois invalide
+try {
+    var m:int = Date::month("2024-13-01")
+} on e is DateException {
+    IO::writeln("Mois hors plage (doit être 1-12)")
+}
+
+// Exemple 3 : Format avec séparateur incorrect
+try {
+    var d:int = Date::day("2024/04/27")
+} on e is DateException {
+    IO::writeln("Format attendu: YYYY-MM-DD")
+}
+
+// Exemple 4 : Extraction réussie
+try {
+    var y:int = Date::year("2024-04-27")
+    var m:int = Date::month("2024-04-27")
+    var d:int = Date::day("2024-04-27")
+    IO::writeln(`Date valide: ${y}/${m}/${d}`)
+} on e is DateException {
+    IO::writeln("Ne devrait pas arriver ici")
+}
+
+// Exemple 5 : Catch générique
+try {
+    var dow:int = Date::day_of_week("invalid")
+} on e {
+    IO::writeln(`Exception: ${e.message}`)
+    if e.code == 101 {
+        IO::writeln("➡️ Code 101 = INVALID_DATE_FORMAT")
+    }
+}
+```
+
+**Notes** :
+
+- Les méthodes **safe** (qui ne lèvent jamais d'exception) :
+  - `Date::today()` — toujours valide
+  - `Date::from_timestamp(ts)` — toujours valide
+  - `Date::is_leap_year(year)` — toujours valide
+  - `Date::days_in_month(year, month)` — retourne 0 si mois invalide
+- Format requis : `YYYY-MM-DD` avec séparateur `-`
+- Les valeurs doivent être dans les plages valides (mois 1-12, jour 1-31)
+
+---
+
 ## Voir aussi
 
 - [DateTime](DateTime.md) — manipulation de dates et heures combinées
