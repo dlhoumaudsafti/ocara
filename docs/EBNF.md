@@ -382,7 +382,7 @@ Type ::= "int"
        | UnionType
        | Identifier
 
-FunctionType ::= "Function" "<" Type ">"
+FunctionType ::= "Function" "<" Type "(" ( Type ( "," Type )* )? ")" ">"
 ArrayType    ::= Type "[]"
 MapType      ::= "map" "<" Type "," Type ">"
 QualifiedType ::= Identifier ( "." Identifier )+
@@ -454,7 +454,7 @@ function describe(val:mixed): void {
         is int[]            => IO::writeln("array")
         is map<string, int> => IO::writeln("map")
         is Animal           => IO::writeln("object Animal")
-        is Function<int>    => IO::writeln("Function")
+        is Function<int()>  => IO::writeln("Function")
         default             => IO::writeln("inconnu")
     }
 }
@@ -474,7 +474,7 @@ var is_str:bool = val is string
 var is_arr:bool = val is int[]
 var is_map:bool = val is map<string, int>
 var is_obj:bool = val is Animal
-var is_fn:bool  = val is Function<int>
+var is_fn:bool  = val is Function<int()>
 ```
 
 **Implémentation du type checking runtime :**
@@ -491,7 +491,7 @@ Toutes les allocations heap (string, array, map, objet, fat-pointer) sont préc�
 | `is T[]` | lit le tag header : `TAG_ARRAY` (2) | ✓ précis |
 | `is map<K,V>` | lit le tag header : `TAG_MAP` (3) | ✓ précis |
 | `is ClassName` | lit le tag header : `TAG_OBJECT` (4) | ✓ précis |
-| `is Function<T>` | lit le tag header : `TAG_FUNCTION` (5) | ✓ précis |
+| `is Function<T(...)>` | lit le tag header : `TAG_FUNCTION` (5) | ✓ précis |
 
 **Schéma mémoire avec header :**
 
@@ -519,33 +519,42 @@ function greet(name:string): void { }
 
 ### 4.5 Type `Function`
 
-Le type `Function<ReturnType>` ou `Function<ReturnType(ParamTypes)>` représente toute valeur appelable : **fonction libre**, **méthode statique** ou **fonction anonyme** (`nameless`). Les valeurs `Function` sont des *fat pointers* (pointeur de fonction + contexte de capture).
+Le type `Function<ReturnType(ParamTypes)>` représente toute valeur appelable : **fonction libre**, **méthode statique** ou **fonction anonyme** (`nameless`). Les valeurs `Function` sont des *fat pointers* (pointeur de fonction + contexte de capture).
 
 ```ebnf
-FunctionType ::= "Function" "<" Type ( "(" ( Type ( "," Type )* )? ")" )? ">"
+FunctionType ::= "Function" "<" Type "(" ( Type ( "," Type )* )? ")" ">"
 ```
 
-**Deux syntaxes disponibles :**
+**Syntaxe obligatoire :**
 
-1. **Ancienne syntaxe (rétro-compatible)** : `Function<ReturnType>`
-   - Type le retour uniquement, sans typage des paramètres
-   - Exemple : `var f:Function<int> = add`
+La syntaxe avec parenthèses est **obligatoire** depuis la version 0.1.0 :
+- `Function<ReturnType(ParamType1, ParamType2, ...)`
+- Pour les fonctions sans paramètres : `Function<ReturnType()>`
+- Exemples :
+  - `Function<int(int, int)>` - fonction prenant deux int et retournant int
+  - `Function<void()>` - fonction sans paramètres ni retour
+  - `Function<string(int, bool)>` - fonction prenant int et bool, retournant string
 
-2. **Nouvelle syntaxe (recommandée)** : `Function<ReturnType(ParamType1, ParamType2, ...)>`
-   - Type complet avec types de retour et types des paramètres
-   - Exemple : `var f:Function<int(int, int)> = add`
+> **Note historique :** Les versions antérieures supportaient `Function<ReturnType>` sans parenthèses. Cette syntaxe a été supprimée pour améliorer la sécurité du typage. La nouvelle syntaxe vérifie **à la fois** le type de retour **et** les types des paramètres lors de l'assignation et des appels.
 
 **Exemples :**
 
 ```ocara
-// Ancienne syntaxe
-var f:Function<int> = double                 // référence à une fonction libre
-var g:Function<int> = MathOp::square        // référence à une méthode statique
-
-// Nouvelle syntaxe avec paramètres typés
-var add:Function<int(int, int)> = nameless(x:int, y:int): int { return x + y }
-var process:Function<string(string)> = nameless(s:string): string { return s }
+// Fonction sans paramètres
 var action:Function<void()> = nameless(): void { IO::writeln("tick") }
+
+// Fonction avec un paramètre
+var double:Function<int(int)> = nameless(x:int): int { return x * 2 }
+
+// Fonction avec plusieurs paramètres
+var add:Function<int(int, int)> = nameless(x:int, y:int): int { return x + y }
+
+// Référence à une fonction libre
+function multiply(a:int, b:int): int { return a * b }
+var op:Function<int(int, int)> = multiply
+
+// Référence à une méthode statique
+var square:Function<int(int)> = MathOp::square
 
 // Fonction qui prend une callback typée
 function compute(a:int, b:int, op:Function<int(int, int)>): int {
@@ -555,15 +564,15 @@ function compute(a:int, b:int, op:Function<int(int, int)>): int {
 
 **Règles :**
 
-- `Function<ReturnType>` (ancienne syntaxe) peut référencer n'importe quelle fonction avec le bon type de retour, sans vérification des paramètres.
-- `Function<ReturnType(ParamTypes)>` (nouvelle syntaxe) vérifie **à la fois** le type de retour **et** les types des paramètres lors de l'assignation et de l'appel.
+- `Function<ReturnType(ParamTypes)>` vérifie **strictement** le type de retour **et** les types des paramètres lors de l'assignation et de l'appel.
 - L'appel d'une valeur `Function` utilise la syntaxe d'appel normale : `f(args...)` et retourne le type spécifié.
-- Le **type de retour** est **obligatoire** et typé statiquement : `Function<int>`, `Function<string|null>`, `Function<void>`, etc.
-- Avec la nouvelle syntaxe, le compilateur vérifie que le nombre et les types des paramètres correspondent lors de l'assignation et lors des appels indirects.
+- Le **type de retour** est **obligatoire** et typé statiquement : `Function<int(...)>`, `Function<string|null(...)>`, `Function<void()>`, etc.
+- Le compilateur vérifie que le nombre et les types des paramètres correspondent exactement lors de l'assignation.
 - La compatibilité des types : 
-  - `Function<T>` est compatible avec `Function<U>` si `T` est compatible avec `U` (ancienne syntaxe)
-  - `Function<T(A, B)>` est compatible avec `Function<U(X, Y)>` si `T` est compatible avec `U` ET `A` compatible avec `X` ET `B` compatible avec `Y` (nouvelle syntaxe)
-  - Une fonction avec l'ancienne syntaxe est compatible avec n'importe quelle fonction ayant le même type de retour (rétro-compatibilité)
+  - `Function<T(A, B)>` est compatible avec `Function<U(X, Y)>` si et seulement si :
+    - `T` est compatible avec `U` (covariance du retour)
+    - `A` est compatible avec `X` (contravariance des paramètres)
+    - `B` est compatible avec `Y` (contravariance des paramètres)
 - `Function` n'est pas un mot-clé mais un **type réservé** (PascalCase). Il ne peut pas être utilisé comme nom de classe ou de variable.
 - Les fonctions anonymes peuvent capturer des variables locales et `self` depuis leur portée d'enclosement. Toute variable capturée (primitif ou référence) est **promue sur le tas** au moment de la création de la closure : le scope d'origine et la closure partagent la même cellule heap (**shared cell**). Toute mutation — depuis la closure ou depuis le scope extérieur — est immédiatement visible des deux côtés. Voir §12.2 pour les détails.
 
@@ -894,17 +903,141 @@ ArgList ::= Expression ( "," Expression )*
 
 Du plus faible au plus fort :
 
-| Niveau | Opérateurs               | Associativité |
-|--------|--------------------------|---------------|
-| 1      | `or`                     | Gauche        |
-| 2      | `and`                    | Gauche        |
-| 3      | `==` `!=`                | Gauche        |
-| 4      | `<` `<=` `>` `>=`        | Gauche        |
-| 5      | `..`                     | Aucune        |
-| 6      | `+` `-`                  | Gauche        |
-| 7      | `*` `/` `%`              | Gauche        |
-| 8      | `not` `-` (unaire)       | Droite        |
-| 9      | `.` `()` `[]` (postfix)  | Gauche        |
+| Niveau | Opérateurs               | Associativité | Notes |
+|--------|--------------------------|---------------|-------|
+| 1      | `or`                     | Gauche        | |
+| 2      | `and`                    | Gauche        | |
+| 3      | `==` `!=`                | Gauche        | Égalité standard (valeur uniquement) |
+| 4      | `===` `!==` `egal` `not egal` | Gauche        | Égalité stricte (avec vérification de type) |
+| 5      | `<` `<=` `>` `>=`        | Gauche        | Comparaison standard |
+| 6      | `<==` `>==`              | Gauche        | Comparaison stricte (avec vérification de type) |
+| 7      | `..`                     | Aucune        | Opérateur de plage |
+| 8      | `+` `-`                  | Gauche        | |
+| 9      | `*` `/` `%`              | Gauche        | |
+| 10     | `not` `-` (unaire)       | Droite        | |
+| 11     | `.` `()` `[]` (postfix)  | Gauche        | |
+
+### 9.1 Opérateurs de comparaison stricts
+
+Ocara fournit deux catégories d'opérateurs de comparaison :
+
+#### Opérateurs standards (comparaison de valeurs)
+
+Les opérateurs standards effectuent une comparaison de valeurs **sans vérification de type** :
+
+| Opérateur | Description |
+|-----------|-------------|
+| `==` | Égalité |
+| `!=` | Inégalité |
+| `<` | Inférieur à |
+| `<=` | Inférieur ou égal |
+| `>` | Supérieur à |
+| `>=` | Supérieur ou égal |
+
+**Exemples :**
+
+```ocara
+var a:int = 42
+var b:float = 42.0
+var result:bool = (a == b)        // true (comparaison de valeur)
+```
+
+#### Opérateurs stricts (comparaison de valeurs + types)
+
+Les opérateurs stricts effectuent une **vérification de type à l'exécution** avant la comparaison :
+
+| Opérateur | Équivalent verbal | Description |
+|-----------|-------------------|-------------|
+| `===` | `egal` | Égalité stricte |
+| `!==` | `not egal` | Inégalité stricte |
+| `<==` | - | Inférieur strict |
+| `>==` | - | Supérieur strict |
+
+**Opérateurs verbeux :**
+
+Les mots-clés `egal` et `not egal` sont des **synonymes exacts** de `===` et `!==` :
+- Même précédence (niveau 4)
+- Même sémantique (vérification de type + comparaison de valeur)
+- Peuvent être utilisés de manière interchangeable
+- Améliorent la lisibilité dans certains contextes
+
+```ocara
+if user.role egal "admin" {
+    IO::writeln("Accès autorisé")
+}
+
+if status not egal "active" {
+    raise "Service inactif"
+}
+
+// Équivalent à :
+if user.role === "admin" { ... }
+if status !== "active" { ... }
+```
+
+**Comportement :**
+
+1. **Vérification de type** : Les opérateurs stricts vérifient d'abord que les deux opérandes ont le **même type à l'exécution**
+2. **Comparaison de valeur** : Si les types correspondent, la comparaison de valeur est effectuée
+3. **Résultat** :
+   - Si les types diffèrent → `false` (pour `===`, `<==`, `>==`) ou `true` (pour `!==`)
+   - Si les types correspondent → résultat de la comparaison de valeur
+
+**Exemples :**
+
+```ocara
+var a:int = 42
+var b:float = 42.0
+
+// Comparaison standard (valeur uniquement)
+IO::writeln(a == b)   // true  (valeurs égales)
+
+// Comparaison stricte (type + valeur)
+IO::writeln(a === b)  // false (types différents : int vs float)
+IO::writeln(a egal b) // false (identique à ===)
+
+var x:int = 10
+var y:int = 10
+IO::writeln(x === y)  // true  (même type ET même valeur)
+IO::writeln(x egal y) // true  (identique à ===)
+
+var s1:string = "hello"
+var s2:mixed = "hello"
+IO::writeln(s1 == s2)    // true  (valeurs égales)
+IO::writeln(s1 === s2)   // true  (types identiques ET valeurs égales)
+IO::writeln(s1 egal s2)  // true  (identique à ===)
+```
+
+**Cas d'usage :**
+
+Les opérateurs stricts sont utiles lorsque la distinction de type est importante :
+
+```ocara
+function validate(value:mixed): bool {
+    // Accepter uniquement les entiers, pas les flottants
+    if value egal 42 {  // ou : value === 42
+        return true
+    }
+    return false
+}
+
+validate(42)     // true  (int)
+validate(42.0)   // false (float, même si valeur égale)
+```
+
+**Limitations techniques :**
+
+En raison de la représentation interne (tagged pointers), les opérateurs stricts ont certaines limitations :
+
+- **Types primitifs** (`int`, `float`, `bool`) : La distinction n'est pas toujours possible
+  - Les flottants sont bitcastés en int dans les registres
+  - `42` (int) et `42.0` (float) peuvent être indiscernables à l'exécution dans certains contextes
+  
+- **Types référence** (`string`, `array`, `map`, `object`, `Function`) : La vérification de type est **précise**
+  - Les valeurs heap ont des tags de type explicites
+  - La distinction entre types est toujours fiable
+
+> **Recommandation** : Utiliser les opérateurs stricts principalement pour les types référence et les unions de types (`mixed`, `T|U|null`) où la distinction de type est garantie et pertinente.
 
 ---
 
@@ -1308,7 +1441,7 @@ var a:int = resolve compute(6)
 
 **Règles :**
 
-- Le type de retour d'une fonction `async` peut être n'importe quel type Ocara : `int`, `float`, `bool`, `string`, `Type[]`, `map<K,V>`, `Function<T>`, une classe, ou un enum (qui est un `int`).
+- Le type de retour d'une fonction `async` peut être n'importe quel type Ocara : `int`, `float`, `bool`, `string`, `Type[]`, `map<K,V>`, `Function<T(...)>`, une classe, ou un enum (qui est un `int`).
 - `resolve` retourne le type de retour réel de la fonction `async` sous-jacente.
 - Une handle ne peut être résolue qu'une seule fois ; une seconde résolution retourne `0`.
 - `async` et `nameless` ne peuvent pas être combinés.
@@ -2243,7 +2376,7 @@ Type        ::= "int" | "float" | "string" | "bool" | "mixed" | "void"
               | QualifiedType
               | UnionType
               | Identifier
-FunctionType  ::= "Function" "<" Type ">"
+FunctionType  ::= "Function" "<" Type "(" ( Type ( "," Type )* )? ")" ">"
 ArrayType   ::= Type "[]"
 MapType     ::= "map" "<" Type "," Type ">"
 QualifiedType ::= Identifier ( "." Identifier )+
@@ -2296,10 +2429,12 @@ WhileStmt   ::= "while" Expression Block
 (* ── Expressions (hiérarchie de précédence) ─────────────────────── *)
 
 Expression  ::= OrExpr
-OrExpr      ::= AndExpr ( "or" AndExpr )*
-AndExpr     ::= EqualityExpr ( "and" EqualityExpr )*
-EqualityExpr ::= ComparisonExpr ( ( "==" | "!=" ) ComparisonExpr )*
-ComparisonExpr ::= RangeExpr ( ( "<" | "<=" | ">" | ">=" ) RangeExpr )*
+OrExpr      ::= AndExpr ( "or" AndExpr )*) StrictEqualityExpr )*
+StrictEqualityExpr ::= ComparisonExpr ( ( "===" | "!==" | "egal" | "not egal
+EqualityExpr ::= StrictEqualityExpr ( ( "==" | "!=" | "egal" | "not egal" ) StrictEqualityExpr )*
+StrictEqualityExpr ::= ComparisonExpr ( ( "===" | "!==" ) ComparisonExpr )*
+ComparisonExpr ::= StrictComparisonExpr ( ( "<" | "<=" | ">" | ">=" ) StrictComparisonExpr )*
+StrictComparisonExpr ::= RangeExpr ( ( "<==" | ">==" ) RangeExpr )*
 RangeExpr   ::= AdditiveExpr ( ".." AdditiveExpr )?
 AdditiveExpr ::= MultiplicativeExpr ( ( "+" | "-" ) MultiplicativeExpr )*
 MultiplicativeExpr ::= UnaryExpr ( ( "*" | "/" | "%" ) UnaryExpr )*

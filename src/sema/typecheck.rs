@@ -913,12 +913,8 @@ pub fn type_name(ty: &Type) -> String {
         Type::Map(k, v)        => format!("map<{},{}>", type_name(k), type_name(v)),
         Type::Union(variants)  => variants.iter().map(type_name).collect::<Vec<_>>().join("|"),
         Type::Function { ret_ty, param_tys } => {
-            if param_tys.is_empty() {
-                format!("Function<{}>", type_name(ret_ty))
-            } else {
-                let params = param_tys.iter().map(type_name).collect::<Vec<_>>().join(", ");
-                format!("Function<{}({})>", type_name(ret_ty), params)
-            }
+            let params = param_tys.iter().map(type_name).collect::<Vec<_>>().join(", ");
+            format!("Function<{}({})>", type_name(ret_ty), params)
         }
     }
 }
@@ -955,19 +951,15 @@ pub fn types_compat(found: &Type, expected: &Type) -> bool {
             if !types_compat(f_ret, e_ret) {
                 return false;
             }
-            // Si les deux ont des paramètres typés, ils doivent correspondre
-            if !f_params.is_empty() && !e_params.is_empty() {
-                if f_params.len() != e_params.len() {
+            // Les paramètres doivent correspondre exactement
+            if f_params.len() != e_params.len() {
+                return false;
+            }
+            for (fp, ep) in f_params.iter().zip(e_params.iter()) {
+                if !types_compat(fp, ep) {
                     return false;
                 }
-                for (fp, ep) in f_params.iter().zip(e_params.iter()) {
-                    if !types_compat(fp, ep) {
-                        return false;
-                    }
-                }
             }
-            // Si l'un des deux n'a pas de paramètres typés (ancienne syntaxe),
-            // on accepte la compatibilité basée uniquement sur le type de retour
             true
         }
         _ => found == expected,

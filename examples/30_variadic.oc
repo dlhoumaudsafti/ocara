@@ -88,9 +88,9 @@ function count_maps(maps:variadic<map<string,int>>): int {
     return total
 }
 
-// ── 8. variadic<Function<int>> (fonctions) ──────────────────────────────────
+// ── 8. variadic<Function<int(int)>> (fonctions) ──────────────────────────────────────────────────
 
-function apply_functions(val:int, funcs:variadic<Function<int>>): int {
+function apply_functions(val:int, funcs:variadic<Function<int(int)>>): int {
     var result:int = val
     for f in funcs {
         result = f(result)
@@ -206,8 +206,8 @@ function main(): int {
     IO::writeln("   count_maps(map1, map2) = " + Convert::intToStr(count_maps(map1, map2)))
     IO::writeln("")
 
-    // Test 8: variadic<Function<int>>
-    IO::writeln("8. variadic<Function<int>> (fonctions):")
+    // Test 8: variadic<Function<int(int)>>
+    IO::writeln("8. variadic<Function<int(int)>> (fonctions):")
     IO::writeln("   apply_functions(5, double, triple) = " + Convert::intToStr(apply_functions(5, double, triple)))
     IO::writeln("")
 
