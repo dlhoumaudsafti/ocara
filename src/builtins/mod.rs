@@ -14,6 +14,7 @@ pub mod array;
 pub mod convert;
 pub mod http;
 pub mod io;
+pub mod json;
 pub mod map;
 pub mod math;
 pub mod regex;
@@ -41,6 +42,7 @@ pub fn builtin_class(name: &str) -> Option<ClassInfo> {
         "Convert"     => Some(convert::class()),
         "HTTPRequest" => Some(http::class()),
         "IO"          => Some(io::class()),
+        "JSON"        => Some(json::class()),
         "Map"         => Some(map::class()),
         "Math"        => Some(math::class()),
         "Regex"       => Some(regex::class()),
@@ -84,6 +86,7 @@ pub fn all_builtins() -> Vec<(&'static str, ClassInfo)> {
         ("Convert",     convert::class()),
         ("HTTPRequest", http::class()),
         ("IO",          io::class()),
+        ("JSON",        json::class()),
         ("Map",         map::class()),
         ("Math",        math::class()),
         ("Regex",       regex::class()),

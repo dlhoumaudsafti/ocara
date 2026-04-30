@@ -107,6 +107,13 @@ pub const BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "Map_values",        params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "Map_merge",         params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "Map_isEmpty",      params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    // ── ocara.JSON ───────────────────────────────────────────────────────────
+    // Note: module: None pour permettre les méthodes d'instance sans import
+    // L'import est vérifié dans lower/expr.rs pour l'appel initial
+    BuiltinDesc { name: "JSON_encode",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "JSON_decode",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "JSON_pretty",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "JSON_minimize",     params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
     // ── ocara.IO ─────────────────────────────────────────────────────────────
     BuiltinDesc { name: "IO_write",          params: &[clt::I64],                             returns: None,              module: Some("IO") },
     BuiltinDesc { name: "IO_writeInt",       params: &[clt::I64],                             returns: None,              module: Some("IO") },

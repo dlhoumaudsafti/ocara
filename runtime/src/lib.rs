@@ -2196,4 +2196,195 @@ pub extern "C" fn __cmp_ge_strict(lhs: i64, rhs: i64) -> i64 {
     0
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// ocara.JSON — Sérialisation et désérialisation JSON
+// ────────────────────────────────────────────────────────────────────────────
 
+use serde_json::{Value as JsonValue, Map as JsonMap};
+
+/// JSON::encode(data) → string
+/// Encode un array ou map en JSON
+#[no_mangle]
+pub extern "C" fn JSON_encode(data: i64) -> i64 {
+    if data == 0 {
+        return unsafe { alloc_str("null") };
+    }
+    
+    let typ = get_value_type(data);
+    
+    match typ {
+        5 => {  // TAG_ARRAY (valeur = 5 selon get_value_type)
+            encode_array_to_json(data)
+        }
+        6 => {  // TAG_MAP (valeur = 6 selon get_value_type)
+            encode_map_to_json(data)
+        }
+        _ => {
+            // Type non supporté pour encode, retourner une chaîne vide
+            unsafe { alloc_str("") }
+        }
+    }
+}
+
+/// Encode récursivement un array Ocara en JSON
+fn encode_array_to_json(arr: i64) -> i64 {
+    let mut json_arr = Vec::new();
+    let len = __array_len(arr);
+    
+    for i in 0..len {
+        let elem = __array_get(arr, i);
+        let json_val = value_to_json(elem);
+        json_arr.push(json_val);
+    }
+    
+    let json_str = serde_json::to_string(&json_arr).unwrap_or_else(|_| "[]".to_string());
+    unsafe { alloc_str(&json_str) }
+}
+
+/// Encode récursivement une map Ocara en JSON
+fn encode_map_to_json(map: i64) -> i64 {
+    let mut json_obj = JsonMap::new();
+    
+    // Parcourir les clés de la map
+    unsafe {
+        let map_ptr = map as *mut OcaraMap;
+        for (key_str, value) in (*map_ptr).data.iter() {
+            let json_val = value_to_json(*value);
+            json_obj.insert(key_str.clone(), json_val);
+        }
+    }
+    
+    let json_str = serde_json::to_string(&json_obj).unwrap_or_else(|_| "{}".to_string());
+    unsafe { alloc_str(&json_str) }
+}
+
+/// Convertit une valeur Ocara en JsonValue
+fn value_to_json(val: i64) -> JsonValue {
+    if val == 0 {
+        return JsonValue::Null;
+    }
+    
+    let typ = get_value_type(val);
+    
+    match typ {
+        1 => {  // Primitif (int ou bool)
+            if val == 1 {  // true
+                JsonValue::Bool(true)
+            } else if val == 0 {  // false (mais déjà traité par le test au début)
+                JsonValue::Bool(false)
+            } else {
+                JsonValue::Number(serde_json::Number::from(val))
+            }
+        }
+        4 => {  // String
+            JsonValue::String(unsafe { ptr_to_str(val) }.to_string())
+        }
+        5 => {  // Array
+            let mut json_arr = Vec::new();
+            let len = __array_len(val);
+            for i in 0..len {
+                let elem = __array_get(val, i);
+                json_arr.push(value_to_json(elem));
+            }
+            JsonValue::Array(json_arr)
+        }
+        6 => {  // Map
+            let mut json_obj = JsonMap::new();
+            unsafe {
+                let map_ptr = val as *mut OcaraMap;
+                for (key_str, value) in (*map_ptr).data.iter() {
+                    json_obj.insert(key_str.clone(), value_to_json(*value));
+                }
+            }
+            JsonValue::Object(json_obj)
+        }
+        _ => JsonValue::Null
+    }
+}
+
+/// JSON::decode(json) → mixed (array ou map)
+/// Décode une string JSON en structure Ocara
+#[no_mangle]
+pub extern "C" fn JSON_decode(json: i64) -> i64 {
+    if json == 0 {
+        return 0;
+    }
+    
+    let json_str = unsafe { ptr_to_str(json) };
+    
+    match serde_json::from_str::<JsonValue>(json_str) {
+        Ok(value) => json_to_value(&value),
+        Err(_) => 0  // Retourner null en cas d'erreur
+    }
+}
+
+/// Convertit un JsonValue en valeur Ocara
+fn json_to_value(json: &JsonValue) -> i64 {
+    match json {
+        JsonValue::Null => 0,
+        JsonValue::Bool(b) => if *b { 1 } else { 0 },
+        JsonValue::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                i
+            } else {
+                0
+            }
+        }
+        JsonValue::String(s) => unsafe { alloc_str(s) },
+        JsonValue::Array(arr) => {
+            let ocara_arr = __array_new();
+            for elem in arr {
+                let ocara_val = json_to_value(elem);
+                __array_push(ocara_arr, ocara_val);
+            }
+            ocara_arr
+        }
+        JsonValue::Object(obj) => {
+            let ocara_map = __map_new();
+            for (key, value) in obj {
+                let key_str = unsafe { alloc_str(key) };
+                let ocara_val = json_to_value(value);
+                __map_set(ocara_map, key_str, ocara_val);
+            }
+            ocara_map
+        }
+    }
+}
+
+/// JSON::pretty(json) → string
+/// Formatte le JSON avec indentation
+#[no_mangle]
+pub extern "C" fn JSON_pretty(json: i64) -> i64 {
+    if json == 0 {
+        return unsafe { alloc_str("") };
+    }
+    
+    let json_str = unsafe { ptr_to_str(json) };
+    
+    match serde_json::from_str::<JsonValue>(json_str) {
+        Ok(value) => {
+            let pretty = serde_json::to_string_pretty(&value).unwrap_or_else(|_| json_str.to_string());
+            unsafe { alloc_str(&pretty) }
+        }
+        Err(_) => json  // Retourner la string originale en cas d'erreur
+    }
+}
+
+/// JSON::minimize(json) → string
+/// Minifie le JSON (supprime les espaces)
+#[no_mangle]
+pub extern "C" fn JSON_minimize(json: i64) -> i64 {
+    if json == 0 {
+        return unsafe { alloc_str("") };
+    }
+    
+    let json_str = unsafe { ptr_to_str(json) };
+    
+    match serde_json::from_str::<JsonValue>(json_str) {
+        Ok(value) => {
+            let minimized = serde_json::to_string(&value).unwrap_or_else(|_| json_str.to_string());
+            unsafe { alloc_str(&minimized) }
+        }
+        Err(_) => json  // Retourner la string originale en cas d'erreur
+    }
+}
