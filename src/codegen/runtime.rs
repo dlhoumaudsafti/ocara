@@ -48,16 +48,18 @@ pub const BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__map_set",         params: &[clt::I64, clt::I64, clt::I64],         returns: None,              module: None },
     BuiltinDesc { name: "__map_get",         params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
     // ── ocara.String ─────────────────────────────────────────────────────────
-    BuiltinDesc { name: "String_len",        params: &[clt::I64],                             returns: Some(clt::I64),    module: Some("String") },
-    BuiltinDesc { name: "String_upper",      params: &[clt::I64],                             returns: Some(clt::I64),    module: Some("String") },
-    BuiltinDesc { name: "String_lower",      params: &[clt::I64],                             returns: Some(clt::I64),    module: Some("String") },
-    BuiltinDesc { name: "String_capitalize", params: &[clt::I64],                             returns: Some(clt::I64),    module: Some("String") },
-    BuiltinDesc { name: "String_trim",       params: &[clt::I64],                             returns: Some(clt::I64),    module: Some("String") },
-    BuiltinDesc { name: "String_replace",    params: &[clt::I64, clt::I64, clt::I64],         returns: Some(clt::I64),    module: Some("String") },
-    BuiltinDesc { name: "String_split",      params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: Some("String") },
-    BuiltinDesc { name: "String_explode",    params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: Some("String") },
-    BuiltinDesc { name: "String_between",    params: &[clt::I64, clt::I64, clt::I64],         returns: Some(clt::I64),    module: Some("String") },
-    BuiltinDesc { name: "String_empty",      params: &[clt::I64],                             returns: Some(clt::I64),    module: Some("String") },
+    // Note: module: None pour permettre les méthodes d'instance sans import
+    // L'import est vérifié uniquement pour les appels statiques String::method() dans lower/expr.rs
+    BuiltinDesc { name: "String_len",        params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "String_upper",      params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "String_lower",      params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "String_capitalize", params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "String_trim",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "String_replace",    params: &[clt::I64, clt::I64, clt::I64],         returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "String_split",      params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "String_explode",    params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "String_between",    params: &[clt::I64, clt::I64, clt::I64],         returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "String_empty",      params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
     // ── ocara.Math ───────────────────────────────────────────────────────────
     BuiltinDesc { name: "Math_abs",          params: &[clt::I64],                             returns: Some(clt::I64),    module: Some("Math") },
     BuiltinDesc { name: "Math_min",          params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: Some("Math") },
@@ -89,6 +91,8 @@ pub const BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "Array_slice",       params: &[clt::I64, clt::I64, clt::I64],         returns: Some(clt::I64),    module: Some("Array") },
     BuiltinDesc { name: "Array_join",        params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: Some("Array") },
     BuiltinDesc { name: "Array_sort",        params: &[clt::I64],                             returns: Some(clt::I64),    module: Some("Array") },
+    BuiltinDesc { name: "Array_get",         params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: Some("Array") },
+    BuiltinDesc { name: "Array_set",         params: &[clt::I64, clt::I64, clt::I64],         returns: None,              module: Some("Array") },
     // ── ocara.Map ────────────────────────────────────────────────────────────
     BuiltinDesc { name: "Map_size",          params: &[clt::I64],                             returns: Some(clt::I64),    module: Some("Map") },
     BuiltinDesc { name: "Map_has",           params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: Some("Map") },

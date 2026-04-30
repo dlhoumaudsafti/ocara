@@ -102,7 +102,19 @@ pub fn class() -> ClassInfo {
     // Array::sort(arr) → mixed[]
     methods.insert("sort".into(), m(
         vec![("arr", any_arr.clone())],
-        any_arr,
+        any_arr.clone(),
+    ));
+
+    // Array::get(arr, idx) → mixed
+    methods.insert("get".into(), m(
+        vec![("arr", any_arr.clone()), ("idx", Type::Int)],
+        Type::Mixed,
+    ));
+
+    // Array::set(arr, idx, val) → void
+    methods.insert("set".into(), m(
+        vec![("arr", any_arr.clone()), ("idx", Type::Int), ("val", Type::Mixed)],
+        Type::Void,
     ));
 
     ClassInfo {
