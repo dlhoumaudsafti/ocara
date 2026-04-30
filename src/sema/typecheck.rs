@@ -999,8 +999,10 @@ fn binary_result_type(
             }
         }
         BinOp::EqEq | BinOp::NotEq |
+        BinOp::EqEqEq | BinOp::NotEqEq |  // Opérateurs stricts
         BinOp::Lt   | BinOp::LtEq  |
         BinOp::Gt   | BinOp::GtEq  |
+        BinOp::LtEqEq | BinOp::GtEqEq |  // Opérateurs stricts
         BinOp::And  | BinOp::Or    => Type::Bool,
     }
 }

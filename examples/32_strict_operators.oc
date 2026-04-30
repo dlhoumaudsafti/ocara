@@ -1,0 +1,144 @@
+// Exemple : Operateurs de comparaison stricte
+// Ocara v0.1.0 - Operateurs strictes avec verification de type :
+//   ===  ou 'egal'     : egalite stricte (meme type ET meme valeur)
+//   !==  ou 'not egal' : inegalite stricte
+//   <==                : inferieur ou egal strict
+//   >==                : superieur ou egal strict
+
+import ocara.IO
+
+function main(): int {
+    IO::writeln("=== Operateurs de comparaison stricte ===")
+    IO::writeln("")
+
+    // 1. Egalite stricte (===) vs egalite standard (==)
+    IO::writeln("1. Egalite stricte === vs ==")
+    
+    var x:int = 42
+    var y:float = 42.0
+    var z:int = 42
+    
+    // Comparaison standard (==) : compare les valeurs, ignore le type
+    if x == y {
+        IO::writeln("  x == y : true (42 == 42.0, ignore le type)")
+    }
+    
+    // Comparaison stricte (===) : verifie type ET valeur
+    if x === z {
+        IO::writeln("  x === z : true (meme type int, meme valeur 42)")
+    }
+    
+    if x !== y {
+        IO::writeln("  x !== y : true (types differents: int vs float)")
+    }
+    
+    IO::writeln("")
+
+    // 2. Operateur 'egal' (alias de ===)
+    IO::writeln("2. Mot-cle 'egal' (alias de ===)")
+    
+    var name:string = "Alice"
+    var otherName:string = "Alice"
+    
+    if name egal otherName {
+        IO::writeln("  name egal otherName : true")
+    }
+    
+    IO::writeln("")
+
+    // 3. Inegalite stricte (!==) et 'not egal'
+    IO::writeln("3. Inegalite stricte !== et 'not egal'")
+    
+    var a:int = 10
+    var b:float = 10.0
+    var c:int = 20
+    
+    if a !== b {
+        IO::writeln("  a !== b : true (types differents)")
+    }
+    
+    if a not egal b {
+        IO::writeln("  a not egal b : true (alias de !==)")
+    }
+    
+    if a !== c {
+        IO::writeln("  a !== c : true (meme type mais valeurs differentes)")
+    }
+    
+    IO::writeln("")
+
+    // 4. Comparaisons strictes <== et >==
+    IO::writeln("4. Comparaisons strictes <== et >==")
+    
+    var num1:int = 100
+    var num2:int = 200
+    var num3:float = 150.0
+    
+    // <== : inferieur ou egal strict (meme type requis)
+    if num1 <== num2 {
+        IO::writeln("  num1 <== num2 : true (100 <= 200, meme type int)")
+    }
+    
+    // Avec types differents, retourne false meme si la valeur est correcte
+    if not (num1 <== num3) {
+        IO::writeln("  num1 <== num3 : false (types differents: int vs float)")
+    }
+    
+    // >== : superieur ou egal strict (meme type requis)
+    if num2 >== num1 {
+        IO::writeln("  num2 >== num1 : true (200 >= 100, meme type int)")
+    }
+    
+    if not (num3 >== num1) {
+        IO::writeln("  num3 >== num1 : false (types differents: float vs int)")
+    }
+    
+    IO::writeln("")
+
+    // 5. Cas d'usage pratique : validation de type
+    IO::writeln("5. Cas d'usage : validation de type stricte")
+    
+    var value:mixed = 42
+    var expected:int = 42
+    
+    // Verifier que value a le bon type ET la bonne valeur
+    if value is int {
+        if value === expected {
+            IO::writeln("  Validation OK : value est un int avec la valeur 42")
+        }
+    }
+    
+    // Avec des booleens
+    var flag:bool = true
+    var check:int = 1
+    
+    if flag == check {
+        IO::writeln("  flag == check : true (1 converti en true)")
+    }
+    
+    if flag !== check {
+        IO::writeln("  flag !== check : true (types differents: bool vs int)")
+    }
+    
+    IO::writeln("")
+
+    // 6. Avec null
+    IO::writeln("6. Comparaisons strictes avec null")
+    
+    var nullable:mixed = null
+    var zero:int = 0
+    
+    if nullable !== zero {
+        IO::writeln("  nullable !== zero : true (types differents: null vs int)")
+    }
+    
+    if nullable egal null {
+        IO::writeln("  nullable egal null : true (meme type null)")
+    }
+    
+    IO::writeln("")
+    IO::writeln("=== Fin des exemples ===")
+
+    return 0
+}
+

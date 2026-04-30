@@ -193,6 +193,33 @@ pub enum Expr {
     },
 }
 
+impl Expr {
+    /// Retourne le span de l'expression
+    pub fn span(&self) -> &Span {
+        match self {
+            Expr::Literal(_, span) => span,
+            Expr::Ident(_, span) => span,
+            Expr::Field { span, .. } => span,
+            Expr::Call { span, .. } => span,
+            Expr::StaticCall { span, .. } => span,
+            Expr::StaticConst { span, .. } => span,
+            Expr::New { span, .. } => span,
+            Expr::Binary { span, .. } => span,
+            Expr::Unary { span, .. } => span,
+            Expr::Array { span, .. } => span,
+            Expr::Map { span, .. } => span,
+            Expr::Template { span, .. } => span,
+            Expr::Index { span, .. } => span,
+            Expr::Range { span, .. } => span,
+            Expr::Match { span, .. } => span,
+            Expr::SelfExpr(span) => span,
+            Expr::Nameless { span, .. } => span,
+            Expr::Resolve { span, .. } => span,
+            Expr::IsCheck { span, .. } => span,
+        }
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Opérateurs
 // ─────────────────────────────────────────────────────────────────────────────
@@ -201,6 +228,7 @@ pub enum Expr {
 pub enum BinOp {
     Add, Sub, Mul, Div, Mod,
     EqEq, NotEq, Lt, LtEq, Gt, GtEq,
+    EqEqEq, NotEqEq, LtEqEq, GtEqEq, // Opérateurs stricts avec vérification de type
     And, Or,
 }
 

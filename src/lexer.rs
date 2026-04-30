@@ -300,6 +300,7 @@ impl Lexer {
             "and"        => TokenKind::KwAnd,
             "or"         => TokenKind::KwOr,
             "not"        => TokenKind::KwNot,
+            "egal"       => TokenKind::KwEgal,
             "nameless"   => TokenKind::KwNameless,
             _            => TokenKind::Ident(s.to_string()),
         }
@@ -357,29 +358,53 @@ impl Lexer {
             ']' => TokenKind::RBracket,
             ',' => TokenKind::Comma,
 
-            // ! ou != (! seul est interdit, utiliser 'not')
+            // ! ou != ou !==
             '!' => match self.current() {
-                Some('=') => { self.advance(); TokenKind::BangEq }
-                _         => return Err(LexError::UnexpectedChar('!', span)),
+                Some('=') => {
+                    self.advance();
+                    match self.current() {
+                        Some('=') => { self.advance(); TokenKind::BangEqEq }
+                        _         => TokenKind::BangEq
+                    }
+                }
+                _ => return Err(LexError::UnexpectedChar('!', span)),
             },
 
-            // =  ou  ==  ou  =>
+            // =  ou  ==  ou === ou  =>
             '=' => match self.current() {
-                Some('=') => { self.advance(); TokenKind::EqEq   }
+                Some('=') => {
+                    self.advance();
+                    match self.current() {
+                        Some('=') => { self.advance(); TokenKind::EqEqEq }
+                        _         => TokenKind::EqEq
+                    }
+                }
                 Some('>') => { self.advance(); TokenKind::Arrow   }
                 _         => TokenKind::Eq,
             },
 
-            // <  ou  <=
+            // <  ou  <= ou <==
             '<' => match self.current() {
-                Some('=') => { self.advance(); TokenKind::LtEq }
-                _         => TokenKind::Lt,
+                Some('=') => {
+                    self.advance();
+                    match self.current() {
+                        Some('=') => { self.advance(); TokenKind::LtEqEq }
+                        _         => TokenKind::LtEq
+                    }
+                }
+                _ => TokenKind::Lt,
             },
 
-            // >  ou  >=
+            // >  ou  >= ou >==
             '>' => match self.current() {
-                Some('=') => { self.advance(); TokenKind::GtEq }
-                _         => TokenKind::Gt,
+                Some('=') => {
+                    self.advance();
+                    match self.current() {
+                        Some('=') => { self.advance(); TokenKind::GtEqEq }
+                        _         => TokenKind::GtEq
+                    }
+                }
+                _ => TokenKind::Gt,
             },
 
             // & interdit (utiliser 'and')
@@ -433,10 +458,16 @@ impl Lexer {
 fn lexeme_str(kind: &TokenKind, first: char) -> String {
     match kind {
         TokenKind::BangEq     => "!=".into(),
+        TokenKind::BangEqEq   => "!==".into(),
         TokenKind::EqEq       => "==".into(),
-        TokenKind::Arrow      => "=>".into(),
+        TokenKind::EqEqEq     => "===".into(),
+        TokenKind::Lt         => "<".into(),
         TokenKind::LtEq       => "<=".into(),
+        TokenKind::LtEqEq     => "<==".into(),
+        TokenKind::Gt         => ">".into(),
         TokenKind::GtEq       => ">=".into(),
+        TokenKind::GtEqEq     => ">==".into(),
+        TokenKind::Arrow      => "=>".into(),
         TokenKind::ColonColon => "::".into(),
         TokenKind::DotDot     => "..".into(),
         _                     => first.to_string(),
