@@ -8,10 +8,10 @@
 // Méthodes statiques :
 //   System::exec(cmd)              → string   exécute cmd, retourne stdout
 //   System::passthrough(cmd)       → int      exécute cmd (stdio hérité), retourne le code
-//   System::exec_code(cmd)         → int      exécute cmd, retourne uniquement le code de sortie
+//   System::execCode(cmd)         → int      exécute cmd, retourne uniquement le code de sortie
 //   System::exit(code)             → void     quitte le processus
 //   System::env(name)              → string   lit une variable d'environnement ("" si absente)
-//   System::set_env(name, value)   → void     définit une variable d'environnement
+//   System::setEnv(name, value)   → void     définit une variable d'environnement
 //   System::cwd()                  → string   répertoire de travail courant
 //   System::sleep(ms)              → void     pause en millisecondes
 //   System::pid()                  → int      PID du processus courant
@@ -52,8 +52,8 @@ pub fn class() -> ClassInfo {
         Type::Int,
     ));
 
-    // System::exec_code(cmd) → int
-    methods.insert("exec_code".into(), m(
+    // System::execCode(cmd) → int
+    methods.insert("execCode".into(), m(
         vec![("cmd", Type::String)],
         Type::Int,
     ));
@@ -70,8 +70,8 @@ pub fn class() -> ClassInfo {
         Type::String,
     ));
 
-    // System::set_env(name, value) → void
-    methods.insert("set_env".into(), m(
+    // System::setEnv(name, value) → void
+    methods.insert("setEnv".into(), m(
         vec![("name", Type::String), ("value", Type::String)],
         Type::Void,
     ));

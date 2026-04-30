@@ -63,17 +63,17 @@ function main(): void {
     IO::writeln("--- int ---")
     var ti:int = async_int(7)
     var ri:int = resolve ti
-    IO::writeln(Convert::int_to_str(ri))
+    IO::writeln(Convert::intToStr(ri))
 
     IO::writeln("--- float ---")
     var tf:int = async_float(4.0)
     var rf:float = resolve tf
-    IO::writeln(Convert::float_to_str(rf))
+    IO::writeln(Convert::floatToStr(rf))
 
     IO::writeln("--- bool ---")
     var tb:int = async_bool(5)
     var rb:bool = resolve tb
-    IO::writeln(Convert::bool_to_str(rb))
+    IO::writeln(Convert::boolToStr(rb))
 
     IO::writeln("--- string ---")
     var ts:int = async_string("world")
@@ -83,28 +83,28 @@ function main(): void {
     IO::writeln("--- array ---")
     var ta:int = async_array()
     var ra:int[] = resolve ta
-    IO::writeln(Convert::int_to_str(Array::len(ra)))
-    IO::writeln(Convert::int_to_str(ra[0]))
+    IO::writeln(Convert::intToStr(Array::len(ra)))
+    IO::writeln(Convert::intToStr(ra[0]))
 
     IO::writeln("--- Function ---")
     var tfn:int = async_func(3)
     var rfn:Function<int> = resolve tfn
     var res:int = rfn(7)
-    IO::writeln(Convert::int_to_str(res))
+    IO::writeln(Convert::intToStr(res))
 
     IO::writeln("--- object ---")
     var to:int = async_object(3, 4)
     var ro:Point = resolve to
-    IO::writeln(Convert::int_to_str(ro.x))
-    IO::writeln(Convert::int_to_str(ro.y))
+    IO::writeln(Convert::intToStr(ro.x))
+    IO::writeln(Convert::intToStr(ro.y))
 
     IO::writeln("--- map ---")
     var tm:int = async_map()
     var rm:map<string, int> = resolve tm
-    IO::writeln(Convert::int_to_str(rm["a"]))
+    IO::writeln(Convert::intToStr(rm["a"]))
 
     IO::writeln("--- enum ---")
     var ten:int = async_enum()
     var ren:int = resolve ten
-    IO::writeln(Convert::int_to_str(ren))
+    IO::writeln(Convert::intToStr(ren))
 }

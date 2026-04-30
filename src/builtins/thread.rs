@@ -9,7 +9,7 @@
 //
 // Méthodes statiques (is_static: true) :
 //   Thread::sleep(ms:int)   → void   pause ms millisecondes
-//   Thread::current_id()    → int    ID du thread courant
+//   Thread::currentId()    → int    ID du thread courant
 //
 // Convention runtime : Thread_<method>
 // Usage :
@@ -85,8 +85,8 @@ pub fn class() -> ClassInfo {
         Type::Void,
     ));
 
-    // Thread::current_id() → int
-    methods.insert("current_id".into(), static_m(
+    // Thread::currentId() → int
+    methods.insert("currentId".into(), static_m(
         vec![],
         Type::Int,
     ));

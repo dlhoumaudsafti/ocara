@@ -255,7 +255,7 @@ var size:int = config.size()                // 2
 var has_port:bool = config.has("port")      // true
 var port:int = config.get("port")           // 8080
 var keys:mixed[] = config.keys()            // ["port", "workers"]
-var is_empty:bool = config.is_empty()       // false
+var is_empty:bool = config.isEmpty()       // false
 ```
 
 **Méthodes disponibles :**
@@ -270,7 +270,7 @@ var is_empty:bool = config.is_empty()       // false
 | `keys()` | `→ mixed[]` | array | ❌ | Retourne un tableau de toutes les clés |
 | `values()` | `→ mixed[]` | array | ❌ | Retourne un tableau de toutes les valeurs |
 | `merge(other:map<K,V>)` | `→ map<K,V>` | map | ✅ | Fusionne deux maps (other écrase les clés communes) |
-| `is_empty()` | `→ bool` | bool | ❌ | Teste si la map est vide |
+| `isEmpty()` | `→ bool` | bool | ❌ | Teste si la map est vide |
 
 **Méthode chainable :**
 
@@ -1326,28 +1326,28 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
 #### Entrées/Sorties
 
 - **IO** — Lecture/écriture console (stdin/stdout/stderr)
-  - `writeln()`, `write()`, `read()`, `read_int()`, `read_float()`, `read_bool()`, `read_array()`, `read_map()`
+  - `writeln()`, `write()`, `read()`, `readInt()`, `readFloat()`, `readBool()`, `readArray()`, `readMap()`
 - **File** — Manipulation de fichiers (classe statique)
   - `read()`, `write()`, `append()`, `exists()`, `delete()`, `copy()`, `move()`, `size()`, `is_file()`, `is_readable()`, `is_writable()`
 - **Directory** — Manipulation de répertoires (classe statique)
-  - `create()`, `delete()`, `exists()`, `list()`, `is_directory()`, `is_empty()`, `copy()`, `move()`, `create_recursive()`, `delete_recursive()`, `size()`
+  - `create()`, `delete()`, `exists()`, `list()`, `is_directory()`, `isEmpty()`, `copy()`, `move()`, `createRecursive()`, `delete_recursive()`, `size()`
 - **HTTPRequest** — Client HTTP pour requêtes GET/POST/PUT/DELETE/PATCH
-  - `new()`, `set_method()`, `set_header()`, `set_body()`, `set_timeout()`, `send()`, `status()`, `body()`, `header()`, `headers()`, `ok()`, `is_error()`, `error()`, `get()`, `post()`, `put()`, `delete()`, `patch()`
+  - `new()`, `setMethod()`, `setHeader()`, `setBody()`, `setTimeout()`, `send()`, `status()`, `body()`, `header()`, `headers()`, `ok()`, `isError()`, `error()`, `get()`, `post()`, `put()`, `delete()`, `patch()`
 - **HTTPServer** — Serveur HTTP multi-thread embarqué (classe d'instance)
-  - `set_port()`, `set_host()`, `set_workers()`, `set_root_path()`, `route()`, `route_error()`, `run()`, `req_path()`, `req_method()`, `req_body()`, `req_header()`, `req_query()`, `respond()`, `set_resp_header()`
+  - `setPort()`, `setHost()`, `setWorkers()`, `setRootPath()`, `route()`, `routeError()`, `run()`, `reqPath()`, `reqMethod()`, `reqBody()`, `reqHeader()`, `reqQuery()`, `respond()`, `setRespHeader()`
 
 #### Manipulation de données
 
 - **Array** — Opérations sur les tableaux (méthodes appelables en instance ou en statique)
   - **Méthodes d'instance** (sans import, directement sur variables) : `arr.len()`, `arr.sort()`, `arr.reverse()`
   - **Méthodes statiques** (avec `import ocara.Array`) : `Array::len(arr)`, `Array::sort(arr)`
-  - Liste complète : `len()`, `push()`, `pop()`, `first()`, `last()`, `contains()`, `index_of()`, `reverse()`, `slice()`, `join()`, `sort()`, `get()`, `set()`
+  - Liste complète : `len()`, `push()`, `pop()`, `first()`, `last()`, `contains()`, `indexOf()`, `reverse()`, `slice()`, `join()`, `sort()`, `get()`, `set()`
   - Méthodes chainables : `reverse()`, `slice()`, `sort()`
   - Voir section [Méthodes intégrées aux tableaux](#méthodes-intégrées-aux-tableaux) pour détails
 - **Map** — Opérations sur les dictionnaires (méthodes appelables en instance ou en statique)
   - **Méthodes d'instance** (sans import, directement sur variables) : `m.size()`, `m.has(key)`, `m.get(key)`
   - **Méthodes statiques** (avec `import ocara.Map`) : `Map::size(m)`, `Map::has(m, key)`
-  - Liste complète : `size()`, `has()`, `get()`, `set()`, `remove()`, `keys()`, `values()`, `merge()`, `is_empty()`
+  - Liste complète : `size()`, `has()`, `get()`, `set()`, `remove()`, `keys()`, `values()`, `merge()`, `isEmpty()`
   - Méthode chainable : `merge()`
   - Voir section [Méthodes intégrées aux maps](#méthodes-intégrées-aux-maps) pour détails
 - **String** — Manipulation de chaînes (méthodes appelables en instance ou en statique)
@@ -1363,25 +1363,25 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
 - **Math** — Fonctions mathématiques (classe statique)
   - `abs()`, `sqrt()`, `pow()`, `sin()`, `cos()`, `tan()`, `floor()`, `ceil()`, `round()`, `min()`, `max()`, `random()`, `PI`, `E`
 - **Convert** — Conversions de types (classe statique)
-  - `int_to_str()`, `str_to_int()`, `float_to_str()`, `str_to_float()`, `bool_to_str()`, `char_to_int()`, `int_to_char()`
+  - `intToStr()`, `strToInt()`, `floatToStr()`, `strToFloat()`, `boolToStr()`, `char_to_int()`, `int_to_char()`
 - **System** — Informations système et exécution de commandes (classe statique)
   - `os()`, `arch()`, `exec()`, `exit()`, `env()`, `args()`
 
 #### Date et Heure
 
 - **DateTime** — Manipulation de timestamps Unix (classe statique)
-  - `now()`, `from_timestamp()`, `year()`, `month()`, `day()`, `hour()`, `minute()`, `second()`, `format()`, `parse()`
+  - `now()`, `fromTimestamp()`, `year()`, `month()`, `day()`, `hour()`, `minute()`, `second()`, `format()`, `parse()`
 - **Date** — Manipulation de dates sans heure (classe statique)
-  - `today()`, `from_timestamp()`, `year()`, `month()`, `day()`, `day_of_week()`, `is_leap_year()`, `days_in_month()`, `add_days()`, `diff_days()`
+  - `today()`, `fromTimestamp()`, `year()`, `month()`, `day()`, `dayOfWeek()`, `isLeapYear()`, `daysInMonth()`, `addDays()`, `diffDays()`
 - **Time** — Manipulation d'heures sans date (classe statique)
-  - `now()`, `from_timestamp()`, `hour()`, `minute()`, `second()`, `from_seconds()`, `to_seconds()`, `add_seconds()`, `diff_seconds()`
+  - `now()`, `fromTimestamp()`, `hour()`, `minute()`, `second()`, `fromSeconds()`, `toSeconds()`, `addSeconds()`, `diffSeconds()`
 
 #### Concurrence
 
 - **Thread** — Gestion de threads natifs (classe d'instance)
-  - `run()`, `join()`, `detach()`, `id()`, `sleep()`, `current_id()`
+  - `run()`, `join()`, `detach()`, `id()`, `sleep()`, `currentId()`
 - **Mutex** — Synchronisation thread-safe (classe d'instance)
-  - `lock()`, `unlock()`, `try_lock()`
+  - `lock()`, `unlock()`, `tryLock()`
 
 #### Tests
 
@@ -1391,7 +1391,7 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
 #### Composants Web
 
 - **HTML** — Rendu de composants HTML (classe statique)
-  - `render()`, `render_cached()`, `cache_delete()`, `cache_clear()`, `escape()`
+  - `render()`, `renderCached()`, `cacheDelete()`, `cacheClear()`, `escape()`
 - **HTMLComponent** — Définition de composants HTML personnalisés (classe d'instance)
   - `init()`, `register()`
 
@@ -1459,11 +1459,11 @@ import ocara.Convert
 
 function main(): void {
     var now:int = DateTime::now()
-    var date:string = DateTime::from_timestamp(now)
+    var date:string = DateTime::fromTimestamp(now)
     IO::writeln("Date actuelle : " + date)
     
     var year:int = DateTime::year(now)
-    IO::writeln("Année : " + Convert::int_to_str(year))
+    IO::writeln("Année : " + Convert::intToStr(year))
 }
 ```
 

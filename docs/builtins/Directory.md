@@ -20,12 +20,12 @@ Directory::create("/tmp/data")
 
 **Erreur** : `fail` si le parent n'existe pas ou si le répertoire existe déjà.
 
-### `Directory::create_recursive(path: string) → void`
+### `Directory::createRecursive(path: string) → void`
 
 Crée un répertoire et tous ses parents (équivalent `mkdir -p`).
 
 ```ocara
-Directory::create_recursive("/tmp/project/src/utils")
+Directory::createRecursive("/tmp/project/src/utils")
 ```
 
 **Erreur** : `fail` en cas d'erreur de permissions.
@@ -40,12 +40,12 @@ Directory::remove("/tmp/empty")
 
 **Erreur** : `fail` si le répertoire n'est pas vide ou n'existe pas.
 
-### `Directory::remove_recursive(path: string) → void`
+### `Directory::removeRecursive(path: string) → void`
 
 Supprime un répertoire et tout son contenu (équivalent `rm -rf`).
 
 ```ocara
-Directory::remove_recursive("/tmp/old_project")
+Directory::removeRecursive("/tmp/old_project")
 ```
 
 **Erreur** : `fail` en cas d'erreur de permissions.
@@ -66,12 +66,12 @@ for entry in entries {
 
 **Erreur** : `fail` si le répertoire n'existe pas ou n'est pas accessible.
 
-### `Directory::list_files(path: string) → string[]`
+### `Directory::listFiles(path: string) → string[]`
 
 Liste uniquement les fichiers d'un répertoire.
 
 ```ocara
-var files:string[] = Directory::list_files("/tmp")
+var files:string[] = Directory::listFiles("/tmp")
 
 for file in files {
     IO::writeln(`Fichier: ${file}`)
@@ -80,12 +80,12 @@ for file in files {
 
 **Erreur** : `fail` si le répertoire n'existe pas ou n'est pas accessible.
 
-### `Directory::list_dirs(path: string) → string[]`
+### `Directory::listDirs(path: string) → string[]`
 
 Liste uniquement les sous-répertoires d'un répertoire.
 
 ```ocara
-var dirs:string[] = Directory::list_dirs("/tmp")
+var dirs:string[] = Directory::listDirs("/tmp")
 
 for dir in dirs {
     IO::writeln(`Répertoire: ${dir}`)
@@ -164,7 +164,7 @@ Toutes les méthodes qui peuvent échouer lèvent une `DirectoryException`. Util
 
 ```ocara
 try {
-    Directory::create_recursive("/tmp/project/src")
+    Directory::createRecursive("/tmp/project/src")
     IO::writeln("Répertoire créé")
 } on e is DirectoryException {
     IO::writeln(`Erreur: ${e.message}`)
@@ -185,10 +185,10 @@ import ocara.IO
 
 function init_project(root:string): void {
     // Créer l'arborescence
-    Directory::create_recursive(`${root}/src`)
-    Directory::create_recursive(`${root}/tests`)
-    Directory::create_recursive(`${root}/docs`)
-    Directory::create_recursive(`${root}/build`)
+    Directory::createRecursive(`${root}/src`)
+    Directory::createRecursive(`${root}/tests`)
+    Directory::createRecursive(`${root}/docs`)
+    Directory::createRecursive(`${root}/build`)
     
     // Créer des fichiers par défaut
     File::write(`${root}/README.md`, "# Mon Projet")
@@ -248,7 +248,7 @@ import ocara.IO
 
 function count_by_extension(path:string): map<string, int> {
     var counts:map<string, int> = use map<string, int>()
-    var files:string[] = Directory::list_files(path)
+    var files:string[] = Directory::listFiles(path)
     
     for file in files {
         var ext:string = File::extension(`${path}/${file}`)
@@ -293,7 +293,7 @@ function rotate_backups(backup_dir:string, max_backups:int): void {
         return
     }
     
-    var dirs:string[] = Directory::list_dirs(backup_dir)
+    var dirs:string[] = Directory::listDirs(backup_dir)
     var count:int = Array::length(dirs)
     
     // Si on dépasse le max, supprimer les plus anciens
@@ -303,7 +303,7 @@ function rotate_backups(backup_dir:string, max_backups:int): void {
         
         // Supprimer le plus ancien
         var oldest:string = `${backup_dir}/${dirs[0]}`
-        Directory::remove_recursive(oldest)
+        Directory::removeRecursive(oldest)
         IO::writeln(`Suppression: ${oldest}`)
     }
     
@@ -332,7 +332,7 @@ import ocara.IO
 
 function clean_temp_files(path:string): int {
     var count:int = 0
-    var files:string[] = Directory::list_files(path)
+    var files:string[] = Directory::listFiles(path)
     
     for file in files {
         var ext:string = File::extension(file)
@@ -371,7 +371,7 @@ import ocara.IO
 
 function copy_by_extension(src:string, dst:string, ext:string): int {
     var count:int = 0
-    var files:string[] = Directory::list_files(src)
+    var files:string[] = Directory::listFiles(src)
     
     if !Directory::exists(dst) {
         Directory::create(dst)
@@ -407,12 +407,12 @@ Toutes les opérations `Directory` susceptibles d'échouer lèvent une `Director
 | Code | Nom | Opération | Description |
 |------|------|-----------|-------------|
 | 101 | `CREATE` | `Directory::create()` | Échec de création du répertoire (parent inexistant, permission refusée, existe déjà, etc.) |
-| 102 | `CREATE_RECURSIVE` | `Directory::create_recursive()` | Échec de création récursive (permission refusée, chemin invalide, etc.) |
+| 102 | `CREATE_RECURSIVE` | `Directory::createRecursive()` | Échec de création récursive (permission refusée, chemin invalide, etc.) |
 | 103 | `REMOVE` | `Directory::remove()` | Échec de suppression du répertoire (introuvable, non vide, permission refusée, etc.) |
-| 104 | `REMOVE_RECURSIVE` | `Directory::remove_recursive()` | Échec de suppression récursive (permission refusée, répertoire utilisé, etc.) |
+| 104 | `REMOVE_RECURSIVE` | `Directory::removeRecursive()` | Échec de suppression récursive (permission refusée, répertoire utilisé, etc.) |
 | 105 | `LIST` | `Directory::list()` | Échec de listage du contenu (répertoire introuvable, permission refusée, etc.) |
-| 106 | `LIST_FILES` | `Directory::list_files()` | Échec de listage des fichiers (répertoire introuvable, permission refusée, etc.) |
-| 107 | `LIST_DIRS` | `Directory::list_dirs()` | Échec de listage des sous-répertoires (répertoire introuvable, permission refusée, etc.) |
+| 106 | `LIST_FILES` | `Directory::listFiles()` | Échec de listage des fichiers (répertoire introuvable, permission refusée, etc.) |
+| 107 | `LIST_DIRS` | `Directory::listDirs()` | Échec de listage des sous-répertoires (répertoire introuvable, permission refusée, etc.) |
 | 108 | `COUNT` | `Directory::count()` | Échec de comptage des entrées (répertoire introuvable, permission refusée, etc.) |
 | 109 | `COPY` | `Directory::copy()` | Échec de copie du répertoire (source introuvable, erreur destination, disque plein, etc.) |
 | 110 | `MOVE` | `Directory::move()` | Échec de déplacement/renommage (source introuvable, destination existe, erreur cross-device, etc.) |
@@ -478,7 +478,7 @@ import ocara.IO
 
 function setup_and_list(path:string): void {
     try {
-        Directory::create_recursive(path)
+        Directory::createRecursive(path)
         var entries:string[] = Directory::list(path)
         IO::writeln(`Répertoire créé avec ${Array::length(entries)} entrées`)
     } on e is DirectoryException {
@@ -507,8 +507,8 @@ function manage_directory(path:string): void {
         }
         
         var count:int = Directory::count(path)
-        var files:string[] = Directory::list_files(path)
-        var dirs:string[] = Directory::list_dirs(path)
+        var files:string[] = Directory::listFiles(path)
+        var dirs:string[] = Directory::listDirs(path)
         
         IO::writeln(`Total: ${count} entrées`)
         IO::writeln(`Fichiers: ${Array::length(files)}`)
@@ -573,8 +573,8 @@ Exemples :
 
 ## Notes
 
-- Les noms retournés par `list()`, `list_files()` et `list_dirs()` sont **relatifs** au répertoire listé
+- Les noms retournés par `list()`, `listFiles()` et `listDirs()` sont **relatifs** au répertoire listé
 - Pour obtenir le chemin complet, concaténer le chemin du répertoire : `` `${path}/${entry}` ``
 - Les entrées `.` et `..` ne sont **pas** incluses dans les listings
-- `Directory::remove_recursive()` est **dangereux** - utilisez avec précaution
+- `Directory::removeRecursive()` est **dangereux** - utilisez avec précaution
 - Pour les fichiers, voir [File](File.md)

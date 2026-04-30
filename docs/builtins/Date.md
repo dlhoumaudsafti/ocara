@@ -25,13 +25,13 @@ var d:string = Date::today()
 IO::write(d)  // "2024-04-27"
 ```
 
-### `Date::from_timestamp(ts:int) → string`
+### `Date::fromTimestamp(ts:int) → string`
 
 Convertit un timestamp Unix en date au format `YYYY-MM-DD`.
 
 ```ocara
 var ts:int = 1714233600
-var date:string = Date::from_timestamp(ts)
+var date:string = Date::fromTimestamp(ts)
 IO::write(date)  // "2024-04-27"
 ```
 
@@ -60,12 +60,12 @@ Extrait le jour du mois d'une date (1-31).
 var d:int = Date::day("2024-04-27")  // 27
 ```
 
-### `Date::day_of_week(date:string) → int`
+### `Date::dayOfWeek(date:string) → int`
 
 Retourne le jour de la semaine (0 = lundi, 6 = dimanche).
 
 ```ocara
-var dow:int = Date::day_of_week("2024-04-27")
+var dow:int = Date::dayOfWeek("2024-04-27")
 if dow == 0 {
     IO::write("Lundi")
 } else if dow == 6 {
@@ -82,7 +82,7 @@ if dow == 0 {
 - `5` = samedi
 - `6` = dimanche
 
-### `Date::is_leap_year(year:int) → bool`
+### `Date::isLeapYear(year:int) → bool`
 
 Retourne `true` si l'année est bissextile, `false` sinon.
 
@@ -91,47 +91,47 @@ Une année est bissextile si :
 - Elle est divisible par 400
 
 ```ocara
-if Date::is_leap_year(2024) {
+if Date::isLeapYear(2024) {
     IO::write("2024 est bissextile")  // true
 }
-if Date::is_leap_year(2100) {
+if Date::isLeapYear(2100) {
     IO::write("2100 est bissextile")  // false (divisible par 100 mais pas par 400)
 }
 ```
 
-### `Date::days_in_month(year:int, month:int) → int`
+### `Date::daysInMonth(year:int, month:int) → int`
 
 Retourne le nombre de jours dans un mois donné (prend en compte les années bissextiles).
 
 ```ocara
-var days:int = Date::days_in_month(2024, 2)
+var days:int = Date::daysInMonth(2024, 2)
 IO::write(days)  // 29 (février 2024, année bissextile)
 
-days = Date::days_in_month(2023, 2)
+days = Date::daysInMonth(2023, 2)
 IO::write(days)  // 28 (février 2023, année normale)
 ```
 
-### `Date::add_days(date:string, days:int) → string`
+### `Date::addDays(date:string, days:int) → string`
 
 Ajoute un nombre de jours (positif ou négatif) à une date.
 
 ```ocara
-var d1:string = Date::add_days("2024-04-27", 10)
+var d1:string = Date::addDays("2024-04-27", 10)
 IO::write(d1)  // "2024-05-07"
 
-var d2:string = Date::add_days("2024-04-27", -10)
+var d2:string = Date::addDays("2024-04-27", -10)
 IO::write(d2)  // "2024-04-17"
 ```
 
-### `Date::diff_days(date1:string, date2:string) → int`
+### `Date::diffDays(date1:string, date2:string) → int`
 
 Calcule la différence en jours entre deux dates (date1 - date2).
 
 ```ocara
-var diff:int = Date::diff_days("2024-05-07", "2024-04-27")
+var diff:int = Date::diffDays("2024-05-07", "2024-04-27")
 IO::write(diff)  // 10
 
-diff = Date::diff_days("2024-04-27", "2024-05-07")
+diff = Date::diffDays("2024-04-27", "2024-05-07")
 IO::write(diff)  // -10
 ```
 
@@ -153,27 +153,27 @@ fun main(): void {
     var year:int = Date::year(today)
     var month:int = Date::month(today)
     var day:int = Date::day(today)
-    IO::write("Année: " + Convert::int_to_str(year))
-    IO::write("Mois: " + Convert::int_to_str(month))
-    IO::write("Jour: " + Convert::int_to_str(day))
+    IO::write("Année: " + Convert::intToStr(year))
+    IO::write("Mois: " + Convert::intToStr(month))
+    IO::write("Jour: " + Convert::intToStr(day))
     
     // Jour de la semaine
-    var dow:int = Date::day_of_week(today)
-    IO::write("Jour de la semaine: " + Convert::int_to_str(dow))
+    var dow:int = Date::dayOfWeek(today)
+    IO::write("Jour de la semaine: " + Convert::intToStr(dow))
     
     // Année bissextile
-    if Date::is_leap_year(year) {
+    if Date::isLeapYear(year) {
         IO::write("Année bissextile")
     } else {
         IO::write("Année normale")
     }
     
     // Calculs sur les dates
-    var future:string = Date::add_days(today, 100)
+    var future:string = Date::addDays(today, 100)
     IO::write("Dans 100 jours: " + future)
     
-    var diff:int = Date::diff_days(future, today)
-    IO::write("Différence: " + Convert::int_to_str(diff) + " jours")
+    var diff:int = Date::diffDays(future, today)
+    IO::write("Différence: " + Convert::intToStr(diff) + " jours")
 }
 ```
 
@@ -196,9 +196,9 @@ Plusieurs méthodes lèvent une **DateException** si le format de la date est in
 - `Date::year(date)` — format invalide ou année non parsable
 - `Date::month(date)` — format invalide ou mois hors plage (1-12)
 - `Date::day(date)` — format invalide ou jour hors plage (1-31)
-- `Date::day_of_week(date)` — date invalide (appelle les fonctions ci-dessus)
-- `Date::add_days(date, days)` — date de départ invalide
-- `Date::diff_days(date1, date2)` — l'une des deux dates invalide
+- `Date::dayOfWeek(date)` — date invalide (appelle les fonctions ci-dessus)
+- `Date::addDays(date, days)` — date de départ invalide
+- `Date::diffDays(date1, date2)` — l'une des deux dates invalide
 
 **Exemples d'utilisation** :
 
@@ -241,7 +241,7 @@ try {
 
 // Exemple 5 : Catch générique
 try {
-    var dow:int = Date::day_of_week("invalid")
+    var dow:int = Date::dayOfWeek("invalid")
 } on e {
     IO::writeln(`Exception: ${e.message}`)
     if e.code == 101 {
@@ -254,9 +254,9 @@ try {
 
 - Les méthodes **safe** (qui ne lèvent jamais d'exception) :
   - `Date::today()` — toujours valide
-  - `Date::from_timestamp(ts)` — toujours valide
-  - `Date::is_leap_year(year)` — toujours valide
-  - `Date::days_in_month(year, month)` — retourne 0 si mois invalide
+  - `Date::fromTimestamp(ts)` — toujours valide
+  - `Date::isLeapYear(year)` — toujours valide
+  - `Date::daysInMonth(year, month)` — retourne 0 si mois invalide
 - Format requis : `YYYY-MM-DD` avec séparateur `-`
 - Les valeurs doivent être dans les plages valides (mois 1-12, jour 1-31)
 

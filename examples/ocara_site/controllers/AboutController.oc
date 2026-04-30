@@ -9,7 +9,7 @@ import ocara.HTTPServer
 class AboutController {
 
     public static method handle(req:int): int {
-        scoped html:string = HTML::render_cached(`<layout title="A propos" active="about">
+        scoped html:string = HTML::renderCached(`<layout title="A propos" active="about">
   <card title="A propos d'Ocara">
     <p>Auteur : David Lhoumaud</p>
     <p>Compile via Cranelift, sans ramasse-miettes, avec un systeme de types riche.</p>
@@ -24,7 +24,7 @@ class AboutController {
   </card>
 </layout>`, "page_about")
 
-        HTTPServer::set_resp_header(req, "Content-Type", "text/html; charset=utf-8")
+        HTTPServer::setRespHeader(req, "Content-Type", "text/html; charset=utf-8")
         HTTPServer::respond(req, 200, html)
         return 0
     }

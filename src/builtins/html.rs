@@ -32,20 +32,20 @@ pub fn class() -> ClassInfo {
         Type::String,
     ));
 
-    // HTML::render_cached(template: string, cache_key: string) → string
-    methods.insert("render_cached".into(), static_m(
+    // HTML::renderCached(template: string, cache_key: string) → string
+    methods.insert("renderCached".into(), static_m(
         vec![("template", Type::String), ("cache_key", Type::String)],
         Type::String,
     ));
 
-    // HTML::cache_delete(cache_key: string) → void
-    methods.insert("cache_delete".into(), static_m(
+    // HTML::cacheDelete(cache_key: string) → void
+    methods.insert("cacheDelete".into(), static_m(
         vec![("cache_key", Type::String)],
         Type::Void,
     ));
 
-    // HTML::cache_clear() → void
-    methods.insert("cache_clear".into(), static_m(
+    // HTML::cacheClear() → void
+    methods.insert("cacheClear".into(), static_m(
         vec![],
         Type::Void,
     ));

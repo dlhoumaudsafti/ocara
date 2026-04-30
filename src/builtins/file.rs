@@ -3,9 +3,9 @@
 //
 // Méthodes statiques :
 //   File::read(path:string|File) → string
-//   File::read_bytes(path:string|File) → int[]
+//   File::readBytes(path:string|File) → int[]
 //   File::write(path:string|File, content:string) → void
-//   File::write_bytes(path:string|File, data:int[]) → void
+//   File::writeBytes(path:string|File, data:int[]) → void
 //   File::append(path:string|File, content:string) → void
 //   File::exists(path:string|File) → bool
 //   File::size(path:string|File) → int
@@ -46,8 +46,8 @@ pub fn class() -> ClassInfo {
         Type::String,
     ));
 
-    // File::read_bytes(path:string) → int[]
-    methods.insert("read_bytes".into(), m(
+    // File::readBytes(path:string) → int[]
+    methods.insert("readBytes".into(), m(
         vec![("path", Type::String)],
         Type::Array(Box::new(Type::Int)),
     ));
@@ -60,8 +60,8 @@ pub fn class() -> ClassInfo {
         Type::Void,
     ));
 
-    // File::write_bytes(path:string, data:int[]) → void
-    methods.insert("write_bytes".into(), m(
+    // File::writeBytes(path:string, data:int[]) → void
+    methods.insert("writeBytes".into(), m(
         vec![("path", Type::String), ("data", Type::Array(Box::new(Type::Int)))],
         Type::Void,
     ));

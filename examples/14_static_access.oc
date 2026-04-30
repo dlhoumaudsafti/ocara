@@ -106,8 +106,8 @@ function main(): int {
     IO::writeln(HttpStatus::is_success(200))  // true
     IO::writeln(HttpStatus::is_success(404))  // false
 
-    IO::writeln(StringUtils::is_empty(""))    // true
-    IO::writeln(StringUtils::is_empty("hi"))  // false
+    IO::writeln(StringUtils::isEmpty(""))    // true
+    IO::writeln(StringUtils::isEmpty("hi"))  // false
     IO::writeln(StringUtils::repeat("*", 5))  // *****
 
     return 0

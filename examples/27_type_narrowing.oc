@@ -91,37 +91,37 @@ function main(): int {
 
     IO::writeln("4. float :")
     var f:float = 3.14
-    IO::writeln("   3.14 is float  → " + Convert::bool_to_str(f is float))
-    IO::writeln("   42   is float  → " + Convert::bool_to_str(42 is float))
+    IO::writeln("   3.14 is float  → " + Convert::boolToStr(f is float))
+    IO::writeln("   42   is float  → " + Convert::boolToStr(42 is float))
     IO::writeln("")
 
     IO::writeln("5. array :")
     var arr:int[] = [1, 2, 3]
-    IO::writeln("   [1,2,3] is int[]          → " + Convert::bool_to_str(arr is int[]))
-    IO::writeln("   \"hello\" is int[]          → " + Convert::bool_to_str(s is int[]))
-    IO::writeln("   42      is int[]          → " + Convert::bool_to_str(i is int[]))
+    IO::writeln("   [1,2,3] is int[]          → " + Convert::boolToStr(arr is int[]))
+    IO::writeln("   \"hello\" is int[]          → " + Convert::boolToStr(s is int[]))
+    IO::writeln("   42      is int[]          → " + Convert::boolToStr(i is int[]))
     IO::writeln("")
 
     IO::writeln("6. map :")
     var m:map<string, int> = {"x": 1, "y": 2}
-    IO::writeln("   {x:1}  is map<string,int> → " + Convert::bool_to_str(m is map<string, int>))
-    IO::writeln("   [1,2]  is map<string,int> → " + Convert::bool_to_str(arr is map<string, int>))
-    IO::writeln("   42     is map<string,int> → " + Convert::bool_to_str(i is map<string, int>))
+    IO::writeln("   {x:1}  is map<string,int> → " + Convert::boolToStr(m is map<string, int>))
+    IO::writeln("   [1,2]  is map<string,int> → " + Convert::boolToStr(arr is map<string, int>))
+    IO::writeln("   42     is map<string,int> → " + Convert::boolToStr(i is map<string, int>))
     IO::writeln("")
 
     IO::writeln("7. object (instance de classe) :")
     var a:Animal = use Animal("Rex")
-    IO::writeln("   Animal is object → " + Convert::bool_to_str(a is Animal))
-    IO::writeln("   a is Animal → " + Convert::bool_to_str(a is object))
-    IO::writeln("   string is object → " + Convert::bool_to_str(s is Animal))
-    IO::writeln("   int    is object → " + Convert::bool_to_str(i is Animal))
+    IO::writeln("   Animal is object → " + Convert::boolToStr(a is Animal))
+    IO::writeln("   a is Animal → " + Convert::boolToStr(a is object))
+    IO::writeln("   string is object → " + Convert::boolToStr(s is Animal))
+    IO::writeln("   int    is object → " + Convert::boolToStr(i is Animal))
     IO::writeln("")
 
     IO::writeln("8. Function :")
     var fn_val:Function<int> = nameless(): int { return 99 }
-    IO::writeln("   nameless is Function<int> → " + Convert::bool_to_str(fn_val is Function<int>))
-    IO::writeln("   string   is Function<int> → " + Convert::bool_to_str(s is Function<int>))
-    IO::writeln("   int      is Function<int> → " + Convert::bool_to_str(i is Function<int>))
+    IO::writeln("   nameless is Function<int> → " + Convert::boolToStr(fn_val is Function<int>))
+    IO::writeln("   string   is Function<int> → " + Convert::boolToStr(s is Function<int>))
+    IO::writeln("   int      is Function<int> → " + Convert::boolToStr(i is Function<int>))
     IO::writeln("")
 
     // ── Match sur tous les types ──────────────────────────────────────────

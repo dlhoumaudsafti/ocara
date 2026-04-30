@@ -587,9 +587,9 @@ fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
 /// "write_bool"  → booléens
 fn write_variant(base: &str, ty: &IrType) -> String {
     let suffix = match ty {
-        IrType::F64  => "_float",
-        IrType::Bool => "_bool",
-        IrType::I64  => "_int",
+        IrType::F64  => "Float",
+        IrType::Bool => "Bool",
+        IrType::I64  => "Int",
         _            => "",   // Ptr / Mixed → write directement
     };
     format!("{}{}", base, suffix)

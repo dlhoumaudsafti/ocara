@@ -8,7 +8,7 @@
 //   Array::first(arr)            → mixed     premier élément
 //   Array::last(arr)             → mixed     dernier élément
 //   Array::contains(arr, val)    → bool    vrai si val est présent
-//   Array::index_of(arr, val)    → int     index de val (-1 si absent)
+//   Array::indexOf(arr, val)    → int     index de val (-1 si absent)
 //   Array::reverse(arr)          → mixed[]   tableau inversé (nouvel array)
 //   Array::slice(arr, from, to)  → mixed[]   sous-tableau [from, to) (nouvel array)
 //   Array::join(arr, sep)        → string  concatène les éléments avec le séparateur
@@ -75,8 +75,8 @@ pub fn class() -> ClassInfo {
         Type::Bool,
     ));
 
-    // Array::index_of(arr, val) → int  (-1 si absent)
-    methods.insert("index_of".into(), m(
+    // Array::indexOf(arr, val) → int  (-1 si absent)
+    methods.insert("indexOf".into(), m(
         vec![("arr", any_arr.clone()), ("val", Type::Mixed)],
         Type::Int,
     ));

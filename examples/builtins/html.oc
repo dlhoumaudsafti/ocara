@@ -90,17 +90,17 @@ function main(): int {
     // ── HTML::render_cached ──────────────────────────────────────────────
     IO::writeln("=== render_cached ===")
     scoped tpl:string = `<badge label="cached" color="purple">`
-    scoped r1:string = HTML::render_cached(tpl, "badge_cached")
-    scoped r2:string = HTML::render_cached(tpl, "badge_cached")  // hit cache
+    scoped r1:string = HTML::renderCached(tpl, "badge_cached")
+    scoped r2:string = HTML::renderCached(tpl, "badge_cached")  // hit cache
     IO::writeln(r1)
     IO::writeln(r2)
 
     // ── HTML::cache_delete + HTML::cache_clear ────────────────────────────────
     IO::writeln("=== cache_delete / cache_clear ===")
-    HTML::cache_delete("badge_cached")                           // supprime une entrée
-    scoped r3:string = HTML::render_cached(tpl, "badge_cached") // re-parse
+    HTML::cacheDelete("badge_cached")                           // supprime une entrée
+    scoped r3:string = HTML::renderCached(tpl, "badge_cached") // re-parse
     IO::writeln(r3)
-    HTML::cache_clear()                                          // purge tout
+    HTML::cacheClear()                                          // purge tout
     IO::writeln("cache purgé")
 
     return 0

@@ -6,10 +6,10 @@
 //
 // ── Construction & configuration ────────────────────────────────────────────
 //   HTTPRequest::new(url)                 → int   crée une requête
-//   HTTPRequest::set_method(req, method)  → void  "GET" | "POST" | "PUT" | …
-//   HTTPRequest::set_header(req, k, v)    → void  ajoute un en-tête
-//   HTTPRequest::set_body(req, body)      → void  corps (JSON, form, …)
-//   HTTPRequest::set_timeout(req, ms)     → void  délai en millisecondes
+//   HTTPRequest::setMethod(req, method)  → void  "GET" | "POST" | "PUT" | …
+//   HTTPRequest::setHeader(req, k, v)    → void  ajoute un en-tête
+//   HTTPRequest::setBody(req, body)      → void  corps (JSON, form, …)
+//   HTTPRequest::setTimeout(req, ms)     → void  délai en millisecondes
 //
 // ── Exécution ────────────────────────────────────────────────────────────────
 //   HTTPRequest::send(req)                → int   envoie et retourne une réponse
@@ -20,7 +20,7 @@
 //   HTTPRequest::header(res, name)        → string         valeur d'un en-tête
 //   HTTPRequest::headers(res)             → map<str,str>   tous les en-têtes
 //   HTTPRequest::ok(res)                  → bool           status 2xx
-//   HTTPRequest::is_error(res)            → bool           erreur réseau/timeout
+//   HTTPRequest::isError(res)            → bool           erreur réseau/timeout
 //   HTTPRequest::error(res)               → string         message d'erreur
 //
 // ── Raccourcis ───────────────────────────────────────────────────────────────
@@ -61,26 +61,26 @@ pub fn class() -> ClassInfo {
         Type::Int,
     ));
 
-    // HTTPRequest::set_method(req, method) → void
-    methods.insert("set_method".into(), m(
+    // HTTPRequest::setMethod(req, method) → void
+    methods.insert("setMethod".into(), m(
         vec![("req", Type::Int), ("method", Type::String)],
         Type::Void,
     ));
 
-    // HTTPRequest::set_header(req, name, value) → void
-    methods.insert("set_header".into(), m(
+    // HTTPRequest::setHeader(req, name, value) → void
+    methods.insert("setHeader".into(), m(
         vec![("req", Type::Int), ("name", Type::String), ("value", Type::String)],
         Type::Void,
     ));
 
-    // HTTPRequest::set_body(req, body) → void
-    methods.insert("set_body".into(), m(
+    // HTTPRequest::setBody(req, body) → void
+    methods.insert("setBody".into(), m(
         vec![("req", Type::Int), ("body", Type::String)],
         Type::Void,
     ));
 
-    // HTTPRequest::set_timeout(req, ms) → void
-    methods.insert("set_timeout".into(), m(
+    // HTTPRequest::setTimeout(req, ms) → void
+    methods.insert("setTimeout".into(), m(
         vec![("req", Type::Int), ("ms", Type::Int)],
         Type::Void,
     ));
@@ -125,8 +125,8 @@ pub fn class() -> ClassInfo {
         Type::Bool,
     ));
 
-    // HTTPRequest::is_error(res) → bool  (erreur réseau ou timeout)
-    methods.insert("is_error".into(), m(
+    // HTTPRequest::isError(res) → bool  (erreur réseau ou timeout)
+    methods.insert("isError".into(), m(
         vec![("res", Type::Int)],
         Type::Bool,
     ));

@@ -22,23 +22,23 @@ import ocara.IO
 function main(): int {
 
     const server:HTTPServer = use HTTPServer()
-    server.set_port(8080)
+    server.setPort(8080)
     
     // Définir le répertoire racine pour les fichiers statiques
     // Relatif au répertoire courant où le programme est lancé
-    server.set_root_path("./examples/builtins/public")
+    server.setRootPath("./examples/builtins/public")
 
     // ── Route API dynamique ──────────────────────────────────────────────────
     // Cette route a la priorité sur les fichiers statiques
     server.route("/api/status", "GET", nameless(req:int): int {
-        HTTPServer::set_resp_header(req, "Content-Type", "application/json")
+        HTTPServer::setRespHeader(req, "Content-Type", "application/json")
         HTTPServer::respond(req, 200, `{"status":"ok","server":"HTTPServer Ocara"}`)
         return 0
     })
 
     // ── Route API avec données ───────────────────────────────────────────────
     server.route("/api/users", "GET", nameless(req:int): int {
-        HTTPServer::set_resp_header(req, "Content-Type", "application/json")
+        HTTPServer::setRespHeader(req, "Content-Type", "application/json")
         var json:string = `{
     "users": [
         {"id": 1, "name": "Alice"},
@@ -51,8 +51,8 @@ function main(): int {
 
     // ── Route API POST ───────────────────────────────────────────────────────
     server.route("/api/echo", "POST", nameless(req:int): int {
-        var body:string = HTTPServer::req_body(req)
-        HTTPServer::set_resp_header(req, "Content-Type", "application/json")
+        var body:string = HTTPServer::reqBody(req)
+        HTTPServer::setRespHeader(req, "Content-Type", "application/json")
         HTTPServer::respond(req, 200, `{"received":"${body}"}`)
         return 0
     })
@@ -75,8 +75,8 @@ function main(): int {
     })
 
     // ── Page d'erreur 404 personnalisée ──────────────────────────────────────
-    server.route_error(404, nameless(req:int): int {
-        var path:string = HTTPServer::req_path(req)
+    server.routeError(404, nameless(req:int): int {
+        var path:string = HTTPServer::reqPath(req)
         var html:string = `<!DOCTYPE html>
 <html>
     <head>

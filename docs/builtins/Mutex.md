@@ -56,14 +56,14 @@ m.lock()
 m.unlock()
 ```
 
-### `m.try_lock() → bool`
+### `m.tryLock() → bool`
 
 Tente de verrouiller le mutex **sans bloquer**. Retourne `true` si le verrou a été acquis, `false` si le mutex était déjà verrouillé.
 
-Si `try_lock()` retourne `true`, un appel à `unlock()` est requis plus tard.
+Si `tryLock()` retourne `true`, un appel à `unlock()` est requis plus tard.
 
 ```ocara
-if m.try_lock() {
+if m.tryLock() {
     // verrou acquis
     // section critique
     m.unlock()
@@ -129,7 +129,7 @@ import ocara.Mutex
 function main(): void {
     var m:Mutex = use Mutex()
     
-    if m.try_lock() {
+    if m.tryLock() {
         IO::writeln("verrou acquis")
         // section critique
         m.unlock()
@@ -157,7 +157,7 @@ function main(): void {
 2. **Sections critiques courtes** : minimiser le temps passé entre `lock()` et `unlock()`.
 3. **Éviter les deadlocks** : ne jamais verrouiller deux fois le même mutex depuis le même thread.
 4. **Un mutex par ressource** : utiliser un mutex distinct pour chaque donnée partagée indépendante.
-5. **try_lock pour éviter les blocages** : préférer `try_lock()` quand un échec est acceptable.
+5. **try_lock pour éviter les blocages** : préférer `tryLock()` quand un échec est acceptable.
 
 ---
 
@@ -223,7 +223,7 @@ function bad_unlock(): void {
 // Exemple 3 : Protection avec try_lock
 function safe_access(): void {
     var m:Mutex = use Mutex()
-    if m.try_lock() {
+    if m.tryLock() {
         try {
             // section critique
             m.unlock()
@@ -243,7 +243,7 @@ function guaranteed_unlock(): void {
         m.lock()
         locked = true
         // Opérations qui peuvent échouer
-        var n:int = Convert::str_to_int("invalid")
+        var n:int = Convert::strToInt("invalid")
     } on e {
         IO::writeln(`Erreur: ${e.message}`)
     }
@@ -262,7 +262,7 @@ function guaranteed_unlock(): void {
 **Notes** :
 
 - La méthode **safe** (qui ne lève jamais d'exception) :
-  - `m.try_lock()` — retourne bool, ne bloque jamais
+  - `m.tryLock()` — retourne bool, ne bloque jamais
 - Les erreurs pthread sont rares en utilisation normale mais peuvent survenir :
   - Code 101 : mutex corrompu, ressources épuisées
   - Code 102 : unlock par un thread qui ne possède pas le mutex

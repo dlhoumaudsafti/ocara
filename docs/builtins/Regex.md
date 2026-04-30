@@ -43,15 +43,15 @@ Regex::find("[0-9]+",      "aucun chiffre ici")   // → ""
 
 ---
 
-### `Regex::find_all(pattern, s)` → `string[]`
+### `Regex::findAll(pattern, s)` → `string[]`
 
 Retourne **toutes** les sous-chaînes correspondant à `pattern` sous forme de tableau.
 
 ```ocara
-scoped nums:string[] = Regex::find_all("[0-9]+", "a1 b22 c333")
+scoped nums:string[] = Regex::findAll("[0-9]+", "a1 b22 c333")
 // → ["1", "22", "333"]
 
-scoped mots:string[] = Regex::find_all("[a-z]+", "hello world foo")
+scoped mots:string[] = Regex::findAll("[a-z]+", "hello world foo")
 // → ["hello", "world", "foo"]
 ```
 
@@ -74,15 +74,15 @@ Regex::replace("[0-9]+", "ref-123-abc-456", "NUM")
 
 ---
 
-### `Regex::replace_all(pattern, s, repl)` → `string`
+### `Regex::replaceAll(pattern, s, repl)` → `string`
 
 Remplace **toutes** les occurrences de `pattern` dans `s` par `repl`.
 
 ```ocara
-Regex::replace_all("[0-9]+", "ref-123-abc-456", "NUM")
+Regex::replaceAll("[0-9]+", "ref-123-abc-456", "NUM")
 // → "ref-NUM-abc-NUM"
 
-Regex::replace_all("\\s+", "  espaces   multiples  ", " ")
+Regex::replaceAll("\\s+", "  espaces   multiples  ", " ")
 // → " espaces multiples "
 ```
 
@@ -169,12 +169,12 @@ function main(): int {
 
     // Extraire toutes les URLs d'un texte
     var texte:string = "voir https://ocara.dev et https://github.com/ocara"
-    scoped urls:string[] = Regex::find_all("https?://[^\\s]+", texte)
+    scoped urls:string[] = Regex::findAll("https?://[^\\s]+", texte)
     scoped nb:int = Regex::count("https?://[^\\s]+", texte)
     write(`${nb} URL(s) trouvée(s)`)
 
     // Normaliser des séparateurs
-    scoped csv:string = Regex::replace_all("[,;\\t]+", "a,b;c\td", ",")
+    scoped csv:string = Regex::replaceAll("[,;\\t]+", "a,b;c\td", ",")
     write(csv)   // a,b,c,d
 
     // Extraire année/mois/jour d'une date
@@ -314,7 +314,7 @@ function main(): int {
     var text:string = "123"
     
     try {
-        var matches:string[] = Regex::find_all(pattern, text)
+        var matches:string[] = Regex::findAll(pattern, text)
         IO::writeln(`Found ${Array::len(matches)} matches`)
     } on e {
         // Capture toute exception
@@ -378,7 +378,7 @@ import ocara.IO
 
 function safe_replace(pattern:string, text:string, replacement:string): string {
     try {
-        return Regex::replace_all(pattern, text, replacement)
+        return Regex::replaceAll(pattern, text, replacement)
     } on e is RegexException {
         IO::writeln(`Cannot replace with invalid pattern '${pattern}'`)
         return text  // Retourne le texte original
@@ -417,9 +417,9 @@ Les messages d'exception sont en anglais et incluent le pattern problématique a
 **Liste des méthodes qui peuvent lever RegexException :**
 - `Regex::test()` - Test si le pattern match
 - `Regex::find()` - Trouve la première correspondance
-- `Regex::find_all()` - Trouve toutes les correspondances
+- `Regex::findAll()` - Trouve toutes les correspondances
 - `Regex::replace()` - Remplace la première occurrence
-- `Regex::replace_all()` - Remplace toutes les occurrences
+- `Regex::replaceAll()` - Remplace toutes les occurrences
 - `Regex::split()` - Découpe selon le pattern
 - `Regex::count()` - Compte les correspondances
 - `Regex::extract()` - Extrait un groupe de capture
@@ -432,9 +432,9 @@ Les messages d'exception sont en anglais et incluent le pattern problématique a
 |-------------------------|-----------------------|-------------------------|---------|
 | `Regex::test`           | `Regex_test`          | `I64, I64`              | `I64`   |
 | `Regex::find`           | `Regex_find`          | `I64, I64`              | `I64`   |
-| `Regex::find_all`       | `Regex_find_all`      | `I64, I64`              | `I64`   |
+| `Regex::find_all`       | `Regex_findAll`      | `I64, I64`              | `I64`   |
 | `Regex::replace`        | `Regex_replace`       | `I64, I64, I64`         | `I64`   |
-| `Regex::replace_all`    | `Regex_replace_all`   | `I64, I64, I64`         | `I64`   |
+| `Regex::replace_all`    | `Regex_replaceAll`   | `I64, I64, I64`         | `I64`   |
 | `Regex::split`          | `Regex_split`         | `I64, I64`              | `I64`   |
 | `Regex::count`          | `Regex_count`         | `I64, I64`              | `I64`   |
 | `Regex::extract`        | `Regex_extract`       | `I64, I64, I64`         | `I64`   |

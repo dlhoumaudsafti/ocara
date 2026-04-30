@@ -5,8 +5,8 @@
 //   - import ocara.IO
 //   - IO::write(val) / IO::writeln(val)
 //   - IO::read() / IO::readln()
-//   - IO::read_int() / IO::read_float() / IO::read_bool()
-//   - IO::read_array(sep) / IO::read_map(sep, kv)
+//   - IO::readInt() / IO::readFloat() / IO::readBool()
+//   - IO::readArray(sep) / IO::readMap(sep, kv)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import ocara.IO
@@ -47,7 +47,7 @@ function main(): int {
     // ── read_int ──────────────────────────────────────────────────────────
     // Lit une ligne et la convertit en int
     IO::write("Entrez un entier : ")
-    scoped n:int = IO::read_int()
+    scoped n:int = IO::readInt()
     IO::writeln(`Vous avez saisi : ${n}`)
     IO::writeln(`Le double : ${n * 2}`)
 
@@ -55,14 +55,14 @@ function main(): int {
     // ── read_float ────────────────────────────────────────────────────────
     // Lit une ligne et la convertit en float
     IO::write("Entrez un nombre décimal : ")
-    scoped f:float = IO::read_float()
+    scoped f:float = IO::readFloat()
     IO::writeln(`Float saisi : ${f}`)
 
 
     // ── read_bool ─────────────────────────────────────────────────────────
     // Lit une ligne — "true" ou "1" → true, tout le reste → false
     IO::write("Continuer ? (true/false) : ")
-    scoped continuer:bool = IO::read_bool()
+    scoped continuer:bool = IO::readBool()
     if continuer {
         IO::writeln("Vous avez choisi de continuer.")
     }
@@ -74,7 +74,7 @@ function main(): int {
     // ── read_array ────────────────────────────────────────────────────────
     // Lit une ligne et la découpe selon le séparateur → string[]
     IO::writeln("Entrez des tags séparés par des virgules (ex: rust,ocara,web) :")
-    scoped tags:string[] = IO::read_array(",")
+    scoped tags:string[] = IO::readArray(",")
     IO::writeln(`${Array::len(tags)} tag(s) reçu(s)`)
     for tag in tags {
         IO::writeln(`  - ${tag}`)
@@ -86,7 +86,7 @@ function main(): int {
     // sep  : séparateur entre les paires (ex: "," pour "a=1,b=2")
     // kv   : séparateur clé/valeur au sein d'une paire (ex: "=")
     IO::writeln("Entrez des paramètres (ex: lang=fr,theme=dark,limit=50) :")
-    scoped params:map<string, string> = IO::read_map(",", "=")
+    scoped params:map<string, string> = IO::readMap(",", "=")
     IO::writeln(`${Map::size(params)} paramètre(s) reçu(s)`)
 
     if Map::has(params, "lang") {

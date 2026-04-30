@@ -24,54 +24,54 @@ function main(): int {
     var minute:int = Time::minute(now)
     var second:int = Time::second(now)
     
-    IO::writeln("  Heure: " + Convert::int_to_str(hour))
-    IO::writeln("  Minutes: " + Convert::int_to_str(minute))
-    IO::writeln("  Secondes: " + Convert::int_to_str(second))
+    IO::writeln("  Heure: " + Convert::intToStr(hour))
+    IO::writeln("  Minutes: " + Convert::intToStr(minute))
+    IO::writeln("  Secondes: " + Convert::intToStr(second))
     IO::writeln("")
     
     // Conversion en secondes
-    var total_seconds:int = Time::to_seconds(now)
+    var total_seconds:int = Time::toSeconds(now)
     IO::writeln("Conversion en secondes:")
-    IO::writeln("  Secondes depuis minuit: " + Convert::int_to_str(total_seconds))
+    IO::writeln("  Secondes depuis minuit: " + Convert::intToStr(total_seconds))
     
     // Reconversion
-    var back:string = Time::from_seconds(total_seconds)
+    var back:string = Time::fromSeconds(total_seconds)
     IO::writeln("  Reconverti: " + back)
     IO::writeln("")
     
     // Calculs sur les heures
     IO::writeln("Calculs temporels:")
-    var later:string = Time::add_seconds(now, 3600)
+    var later:string = Time::addSeconds(now, 3600)
     IO::writeln("  Dans 1 heure: " + later)
     
-    var earlier:string = Time::add_seconds(now, -1800)
+    var earlier:string = Time::addSeconds(now, -1800)
     IO::writeln("  Il y a 30 minutes: " + earlier)
     
-    var diff:int = Time::diff_seconds(later, now)
-    IO::writeln("  Différence: " + Convert::int_to_str(diff) + " secondes")
+    var diff:int = Time::diffSeconds(later, now)
+    IO::writeln("  Différence: " + Convert::intToStr(diff) + " secondes")
     IO::writeln("")
     
     // Test de débordement (wrap around)
     IO::writeln("Gestion du débordement:")
-    var midnight:string = Time::add_seconds("23:00:00", 7200)
+    var midnight:string = Time::addSeconds("23:00:00", 7200)
     IO::writeln("  23:00:00 + 2h = " + midnight)
     
-    var wrap:string = Time::add_seconds("02:00:00", -7200)
+    var wrap:string = Time::addSeconds("02:00:00", -7200)
     IO::writeln("  02:00:00 - 2h = " + wrap)
     IO::writeln("")
     
     // Test de conversion
     IO::writeln("Conversions:")
-    var t1:string = Time::from_seconds(3661)
+    var t1:string = Time::fromSeconds(3661)
     IO::writeln("  3661 secondes = " + t1 + " (1h 1min 1s)")
     
-    var s1:int = Time::to_seconds("01:01:01")
-    IO::writeln("  01:01:01 = " + Convert::int_to_str(s1) + " secondes")
+    var s1:int = Time::toSeconds("01:01:01")
+    IO::writeln("  01:01:01 = " + Convert::intToStr(s1) + " secondes")
     
-    var t2:string = Time::from_seconds(0)
+    var t2:string = Time::fromSeconds(0)
     IO::writeln("  0 secondes = " + t2)
     
-    var t3:string = Time::from_seconds(86399)
+    var t3:string = Time::fromSeconds(86399)
     IO::writeln("  86399 secondes = " + t3 + " (23:59:59)")
     IO::writeln("")
     
@@ -79,17 +79,17 @@ function main(): int {
     IO::writeln("Calculs de durée:")
     var start:string = "09:00:00"
     var end:string = "17:30:00"
-    var duration:int = Time::diff_seconds(end, start)
-    IO::writeln("  De " + start + " à " + end + ": " + Convert::int_to_str(duration) + " secondes")
+    var duration:int = Time::diffSeconds(end, start)
+    IO::writeln("  De " + start + " à " + end + ": " + Convert::intToStr(duration) + " secondes")
     
     var hours:int = duration / 3600
     var minutes:int = (duration % 3600) / 60
-    IO::writeln("  Soit " + Convert::int_to_str(hours) + "h" + Convert::int_to_str(minutes))
+    IO::writeln("  Soit " + Convert::intToStr(hours) + "h" + Convert::intToStr(minutes))
     
     // Extraction depuis timestamp
     var ts:int = 1714233600  // exemple de timestamp
-    var time_from_ts:string = Time::from_timestamp(ts)
-    IO::writeln("  Heure du timestamp " + Convert::int_to_str(ts) + ": " + time_from_ts)
+    var time_from_ts:string = Time::fromTimestamp(ts)
+    IO::writeln("  Heure du timestamp " + Convert::intToStr(ts) + ": " + time_from_ts)
     
     return 0
 }

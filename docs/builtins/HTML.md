@@ -104,7 +104,7 @@ page.register(nameless(attrs:map<string, mixed>): string {
 
 ---
 
-### `HTML::render_cached(template, cache_key)` → `string`
+### `HTML::renderCached(template, cache_key)` → `string`
 
 Identique à `HTML::render`, mais met le résultat en cache sous la clé `cache_key`. Les appels suivants avec la même clé retournent immédiatement le résultat mis en cache sans re-parser le template.
 
@@ -117,10 +117,10 @@ Identique à `HTML::render`, mais met le résultat en cache sous la clé `cache_
 scoped tpl:string = `<badge label="stable" color="green">`
 
 // Premier appel : parse et met en cache sous "badge_stable"
-scoped r1:string = HTML::render_cached(tpl, "badge_stable")
+scoped r1:string = HTML::renderCached(tpl, "badge_stable")
 
 // Second appel : retourne directement depuis le cache
-scoped r2:string = HTML::render_cached(tpl, "badge_stable")
+scoped r2:string = HTML::renderCached(tpl, "badge_stable")
 ```
 
 **Règles :**
@@ -132,7 +132,7 @@ scoped r2:string = HTML::render_cached(tpl, "badge_stable")
 
 ---
 
-### `HTML::cache_delete(cache_key)` → `void`
+### `HTML::cacheDelete(cache_key)` → `void`
 
 Supprime une entrée du cache par sa clé. Sans effet si la clé n'existe pas.
 
@@ -141,19 +141,19 @@ Supprime une entrée du cache par sa clé. Sans effet si la clé n'existe pas.
 | `cache_key` | `string` | Clé du rendu à supprimer du cache  |
 
 ```ocara
-HTML::render_cached(`<badge label="stable" color="green">`, "my_badge")
-HTML::cache_delete("my_badge")  // entrée supprimée
+HTML::renderCached(`<badge label="stable" color="green">`, "my_badge")
+HTML::cacheDelete("my_badge")  // entrée supprimée
 // prochain render_cached avec "my_badge" re-parsera le template
 ```
 
 ---
 
-### `HTML::cache_clear()` → `void`
+### `HTML::cacheClear()` → `void`
 
 Purge toutes les entrées du cache de rendu.
 
 ```ocara
-HTML::cache_clear()  // le cache est vide, tous les prochains render_cached re-parseront
+HTML::cacheClear()  // le cache est vide, tous les prochains render_cached re-parseront
 ```
 
 ---

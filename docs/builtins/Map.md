@@ -29,13 +29,13 @@ Map::size({})   // → 0
 
 ---
 
-### `Map::is_empty(m)` → `bool`
+### `Map::isEmpty(m)` → `bool`
 
 Retourne `true` si la map ne contient aucune entrée.
 
 ```ocara
-Map::is_empty({})              // → true
-Map::is_empty({"x": 1})       // → false
+Map::isEmpty({})              // → true
+Map::isEmpty({"x": 1})       // → false
 ```
 
 ---
@@ -169,7 +169,7 @@ function main(): int {
 
     // Vérification avant accès
     var m:map = {}
-    if Map::is_empty(m) {
+    if Map::isEmpty(m) {
         write("aucune donnée")
     }
 
@@ -332,7 +332,7 @@ Les messages d'exception sont en anglais et incluent la clé recherchée :
 - `Map::has()` ne lève jamais d'exception (retourne true/false)
 - `Map::set()` ne lève jamais d'exception (crée ou met à jour la clé)
 - `Map::remove()` ne lève jamais d'exception (même si la clé n'existe pas)
-- `Map::size()`, `Map::is_empty()` ne lèvent jamais d'exception
+- `Map::size()`, `Map::isEmpty()` ne lèvent jamais d'exception
 - `Map::keys()`, `Map::values()` ne lèvent jamais d'exception (retournent un tableau vide si la map est vide)
 - `Map::merge()` ne lève jamais d'exception
 
@@ -352,7 +352,7 @@ Les messages d'exception sont en anglais et incluent la clé recherchée :
 | `Map::keys`        | `Map_keys`        | `I64`                   | `I64`   |
 | `Map::values`      | `Map_values`      | `I64`                   | `I64`   |
 | `Map::merge`       | `Map_merge`       | `I64, I64`              | `I64`   |
-| `Map::is_empty`    | `Map_is_empty`    | `I64`                   | `I64`   |
+| `Map::is_empty`    | `Map_isEmpty`    | `I64`                   | `I64`   |
 
 > **Note** : les primitives internes `__map_new`, `__map_get`, `__map_set`, `__map_foreach` sont utilisées par le compilateur pour la syntaxe `{"k": v}` et les boucles `for k in map`. La classe `Map` builtin fournit une API de haut niveau au-dessus.
 

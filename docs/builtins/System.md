@@ -51,12 +51,12 @@ scoped out:string = System::exec("uname -r")
 IO::writeln(out)   // ex. "6.8.0-57-generic"
 ```
 
-### `System::exec_code(cmd: string) → int`
+### `System::execCode(cmd: string) → int`
 
 Exécute `cmd` et retourne **uniquement le code de sortie**. Stdout et stderr ne sont pas capturés.
 
 ```ocara
-scoped ok:int = System::exec_code("test -f /etc/hostname")
+scoped ok:int = System::execCode("test -f /etc/hostname")
 if ok == 0 {
     IO::writeln("fichier présent")
 }
@@ -135,13 +135,13 @@ scoped home:string = System::env("HOME")
 scoped path:string = System::env("PATH")
 ```
 
-### `System::set_env(name: string, value: string) → void`
+### `System::setEnv(name: string, value: string) → void`
 
 Définit ou remplace la variable d'environnement `name` avec la valeur `value`. Visible par les processus enfants lancés après cet appel.
 
 ```ocara
-System::set_env("APP_ENV", "production")
-System::set_env("LOG_LEVEL", "debug")
+System::setEnv("APP_ENV", "production")
+System::setEnv("LOG_LEVEL", "debug")
 ```
 
 ---
@@ -190,13 +190,13 @@ import ocara.IO
 function main(): int {
     IO::writeln("Déploiement en cours…")
 
-    scoped build:int = System::exec_code("cargo build --release")
+    scoped build:int = System::execCode("cargo build --release")
     if build != 0 {
         IO::writeln("Échec du build")
         System::exit(1)
     }
 
-    System::set_env("APP_ENV", "production")
+    System::setEnv("APP_ENV", "production")
     scoped deploy:int = System::passthrough("./scripts/deploy.sh")
 
     if deploy == 0 {
@@ -220,9 +220,9 @@ Certaines méthodes System peuvent lever une `SystemException` en cas d'erreur.
 
 | Code | Nom | Opération | Description |
 |------|------|-----------|-------------|
-| 101 | `EXEC` | `System::exec()`, `System::passthrough()`, `System::exec_code()` | Échec d'exécution de commande (commande introuvable, permission refusée, etc.) |
+| 101 | `EXEC` | `System::exec()`, `System::passthrough()`, `System::execCode()` | Échec d'exécution de commande (commande introuvable, permission refusée, etc.) |
 | 102 | `CWD` | `System::cwd()` | Échec de lecture du répertoire de travail courant (répertoire supprimé, permission refusée, etc.) |
-| 103 | `SET_ENV` | `System::set_env()` | Échec de définition de variable d'environnement (nom ou valeur invalide) |
+| 103 | `SET_ENV` | `System::setEnv()` | Échec de définition de variable d'environnement (nom ou valeur invalide) |
 
 ### Exemples de gestion d'erreurs
 
@@ -298,7 +298,7 @@ import ocara.IO
 
 function main(): int {
     try {
-        System::set_env("MY_VAR", "value")
+        System::setEnv("MY_VAR", "value")
         var value:string = System::env("MY_VAR")
         IO::writeln(`MY_VAR = ${value}`)
     } on e {
@@ -336,10 +336,10 @@ Exemples :
 |---|---|
 | `exec` | `System_exec` |
 | `passthrough` | `System_passthrough` |
-| `exec_code` | `System_exec_code` |
+| `exec_code` | `System_execCode` |
 | `exit` | `System_exit` |
 | `env` | `System_env` |
-| `set_env` | `System_set_env` |
+| `set_env` | `System_setEnv` |
 | `cwd` | `System_cwd` |
 | `sleep` | `System_sleep` |
 | `pid` | `System_pid` |

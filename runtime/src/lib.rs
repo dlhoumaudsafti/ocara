@@ -17,7 +17,7 @@
 //   Toute adresse valide est donc >= 0x10000.
 //   Les entiers pratiques dans Ocara sont < 0x10000 → pas d'ambiguïté.
 //   Limitation : les entiers >= 65536 passés à `write()` seront traités
-//   comme des pointeurs. Pour ces cas, utiliser Convert::int_to_str() d'abord.
+//   comme des pointeurs. Pour ces cas, utiliser Convert::intToStr() d'abord.
 // ─────────────────────────────────────────────────────────────────────────────
 
 #![allow(clippy::missing_safety_doc)]
@@ -533,17 +533,17 @@ pub extern "C" fn IO_write(val: i64) {
 }
 
 #[no_mangle]
-pub extern "C" fn IO_write_int(n: i64) {
+pub extern "C" fn IO_writeInt(n: i64) {
     ocara_print(&n.to_string());
 }
 
 #[no_mangle]
-pub extern "C" fn IO_write_float(f: f64) {
+pub extern "C" fn IO_writeFloat(f: f64) {
     ocara_print(&f.to_string());
 }
 
 #[no_mangle]
-pub extern "C" fn IO_write_bool(b: i64) {
+pub extern "C" fn IO_writeBool(b: i64) {
     ocara_print(if b != 0 { "true" } else { "false" });
 }
 
@@ -553,17 +553,17 @@ pub extern "C" fn IO_writeln(val: i64) {
 }
 
 #[no_mangle]
-pub extern "C" fn IO_writeln_int(n: i64) {
+pub extern "C" fn IO_writelnInt(n: i64) {
     ocara_println(&n.to_string());
 }
 
 #[no_mangle]
-pub extern "C" fn IO_writeln_float(f: f64) {
+pub extern "C" fn IO_writelnFloat(f: f64) {
     ocara_println(&f.to_string());
 }
 
 #[no_mangle]
-pub extern "C" fn IO_writeln_bool(b: i64) {
+pub extern "C" fn IO_writelnBool(b: i64) {
     ocara_println(if b != 0 { "true" } else { "false" });
 }
 
@@ -578,21 +578,21 @@ pub extern "C" fn IO_readln() -> i64 {
 }
 
 #[no_mangle]
-pub extern "C" fn IO_read_int() -> i64 {
+pub extern "C" fn IO_readInt() -> i64 {
     let s = read();
     if s == 0 { return 0; }
     unsafe { ptr_to_str(s).trim().parse::<i64>().unwrap_or(0) }
 }
 
 #[no_mangle]
-pub extern "C" fn IO_read_float() -> f64 {
+pub extern "C" fn IO_readFloat() -> f64 {
     let s = read();
     if s == 0 { return 0.0; }
     unsafe { ptr_to_str(s).trim().parse::<f64>().unwrap_or(0.0) }
 }
 
 #[no_mangle]
-pub extern "C" fn IO_read_bool() -> i64 {
+pub extern "C" fn IO_readBool() -> i64 {
     let s = read();
     if s == 0 { return 0; }
     let t = unsafe { ptr_to_str(s).trim().to_lowercase() };
@@ -600,7 +600,7 @@ pub extern "C" fn IO_read_bool() -> i64 {
 }
 
 #[no_mangle]
-pub extern "C" fn IO_read_array(sep: i64) -> i64 {
+pub extern "C" fn IO_readArray(sep: i64) -> i64 {
     let s = read();
     if s == 0 { return new_array(); }
     let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep).to_string() } } else { " ".to_string() };
@@ -616,7 +616,7 @@ pub extern "C" fn IO_read_array(sep: i64) -> i64 {
 }
 
 #[no_mangle]
-pub extern "C" fn IO_read_map(sep: i64, kv: i64) -> i64 {
+pub extern "C" fn IO_readMap(sep: i64, kv: i64) -> i64 {
     let s = read();
     if s == 0 { return new_map(); }
     let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep).to_string() } } else { " ".to_string() };
@@ -889,7 +889,7 @@ pub extern "C" fn Array_contains(ptr: i64, val: i64) -> i64 {
 }
 
 #[no_mangle]
-pub extern "C" fn Array_index_of(ptr: i64, val: i64) -> i64 {
+pub extern "C" fn Array_indexOf(ptr: i64, val: i64) -> i64 {
     if ptr == 0 { return -1; }
     unsafe {
         array_ref(ptr).data.iter().position(|&x| x == val).map(|i| i as i64).unwrap_or(-1)
@@ -1067,7 +1067,7 @@ pub extern "C" fn Map_merge(a: i64, b: i64) -> i64 {
 }
 
 #[no_mangle]
-pub extern "C" fn Map_is_empty(ptr: i64) -> i64 {
+pub extern "C" fn Map_isEmpty(ptr: i64) -> i64 {
     if ptr == 0 { return 1; }
     if unsafe { map_ref(ptr).data.is_empty() } { 1 } else { 0 }
 }
@@ -1084,7 +1084,7 @@ const ERR_CONVERT_INVALID_INT: i64 = 101;
 const ERR_CONVERT_INVALID_FLOAT: i64 = 102;
 
 #[no_mangle]
-pub extern "C" fn Convert_str_to_int(s: i64) -> i64 {
+pub extern "C" fn Convert_strToInt(s: i64) -> i64 {
     if !is_ptr(s) { return 0; }
     let src = unsafe { ptr_to_str(s).trim() };
     match src.parse::<i64>() {
@@ -1100,7 +1100,7 @@ pub extern "C" fn Convert_str_to_int(s: i64) -> i64 {
 }
 
 #[no_mangle]
-pub extern "C" fn Convert_str_to_float(s: i64) -> f64 {
+pub extern "C" fn Convert_strToFloat(s: i64) -> f64 {
     if !is_ptr(s) { return 0.0; }
     let src = unsafe { ptr_to_str(s).trim() };
     match src.parse::<f64>() {
@@ -1116,19 +1116,19 @@ pub extern "C" fn Convert_str_to_float(s: i64) -> f64 {
 }
 
 #[no_mangle]
-pub extern "C" fn Convert_str_to_bool(s: i64) -> i64 {
+pub extern "C" fn Convert_strToBool(s: i64) -> i64 {
     if !is_ptr(s) { return 0; }
     let t = unsafe { ptr_to_str(s).trim().to_lowercase() };
     if t == "true" || t == "1" { 1 } else { 0 }
 }
 
 #[no_mangle]
-pub extern "C" fn Convert_str_to_array(s: i64, sep: i64) -> i64 {
+pub extern "C" fn Convert_strToArray(s: i64, sep: i64) -> i64 {
     String_split(s, sep)
 }
 
 #[no_mangle]
-pub extern "C" fn Convert_str_to_map(s: i64, sep: i64, kv: i64) -> i64 {
+pub extern "C" fn Convert_strToMap(s: i64, sep: i64, kv: i64) -> i64 {
     if !is_ptr(s) { return new_map(); }
     let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep).to_string() } } else { ",".to_string() };
     let kv_s  = if is_ptr(kv)  { unsafe { ptr_to_str(kv).to_string() }  } else { "=".to_string() };
@@ -1144,57 +1144,57 @@ pub extern "C" fn Convert_str_to_map(s: i64, sep: i64, kv: i64) -> i64 {
 }
 
 #[no_mangle]
-pub extern "C" fn Convert_int_to_str(n: i64) -> i64 {
+pub extern "C" fn Convert_intToStr(n: i64) -> i64 {
     unsafe { alloc_str(&n.to_string()) }
 }
 
 #[no_mangle]
-pub extern "C" fn Convert_int_to_float(n: i64) -> f64 {
+pub extern "C" fn Convert_intToFloat(n: i64) -> f64 {
     n as f64
 }
 
 #[no_mangle]
-pub extern "C" fn Convert_int_to_bool(n: i64) -> i64 {
+pub extern "C" fn Convert_intToBool(n: i64) -> i64 {
     if n != 0 { 1 } else { 0 }
 }
 
 #[no_mangle]
-pub extern "C" fn Convert_float_to_str(f: f64) -> i64 {
+pub extern "C" fn Convert_floatToStr(f: f64) -> i64 {
     unsafe { alloc_str(&f.to_string()) }
 }
 
 #[no_mangle]
-pub extern "C" fn Convert_float_to_int(f: f64) -> i64 {
+pub extern "C" fn Convert_floatToInt(f: f64) -> i64 {
     f as i64
 }
 
 #[no_mangle]
-pub extern "C" fn Convert_float_to_bool(f: f64) -> i64 {
+pub extern "C" fn Convert_floatToBool(f: f64) -> i64 {
     if f != 0.0 { 1 } else { 0 }
 }
 
 #[no_mangle]
-pub extern "C" fn Convert_bool_to_str(b: i64) -> i64 {
+pub extern "C" fn Convert_boolToStr(b: i64) -> i64 {
     unsafe { alloc_str(if b != 0 { "true" } else { "false" }) }
 }
 
 #[no_mangle]
-pub extern "C" fn Convert_bool_to_int(b: i64) -> i64 {
+pub extern "C" fn Convert_boolToInt(b: i64) -> i64 {
     if b != 0 { 1 } else { 0 }
 }
 
 #[no_mangle]
-pub extern "C" fn Convert_bool_to_float(b: i64) -> f64 {
+pub extern "C" fn Convert_boolToFloat(b: i64) -> f64 {
     if b != 0 { 1.0 } else { 0.0 }
 }
 
 #[no_mangle]
-pub extern "C" fn Convert_array_to_str(ptr: i64, sep: i64) -> i64 {
+pub extern "C" fn Convert_arrayToStr(ptr: i64, sep: i64) -> i64 {
     Array_join(ptr, sep)
 }
 
 #[no_mangle]
-pub extern "C" fn Convert_array_to_map(ptr: i64, kv: i64) -> i64 {
+pub extern "C" fn Convert_arrayToMap(ptr: i64, kv: i64) -> i64 {
     if ptr == 0 { return new_map(); }
     let kv_s = if is_ptr(kv) { unsafe { ptr_to_str(kv).to_string() } } else { "=".to_string() };
     let map_ptr = new_map();
@@ -1214,7 +1214,7 @@ pub extern "C" fn Convert_array_to_map(ptr: i64, kv: i64) -> i64 {
 }
 
 #[no_mangle]
-pub extern "C" fn Convert_map_to_str(ptr: i64, sep: i64, kv: i64) -> i64 {
+pub extern "C" fn Convert_mapToStr(ptr: i64, sep: i64, kv: i64) -> i64 {
     if ptr == 0 { return unsafe { alloc_str("") }; }
     let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep).to_string() } } else { ",".to_string() };
     let kv_s  = if is_ptr(kv)  { unsafe { ptr_to_str(kv).to_string() }  } else { "=".to_string() };
@@ -1228,12 +1228,12 @@ pub extern "C" fn Convert_map_to_str(ptr: i64, sep: i64, kv: i64) -> i64 {
 }
 
 #[no_mangle]
-pub extern "C" fn Convert_map_keys_to_array(ptr: i64) -> i64 {
+pub extern "C" fn Convert_mapKeysToArray(ptr: i64) -> i64 {
     Map_keys(ptr)
 }
 
 #[no_mangle]
-pub extern "C" fn Convert_map_values_to_array(ptr: i64) -> i64 {
+pub extern "C" fn Convert_mapValuesToArray(ptr: i64) -> i64 {
     Map_values(ptr)
 }
 
@@ -1295,7 +1295,7 @@ pub extern "C" fn System_passthrough(cmd: i64) -> i64 {
 }
 
 #[no_mangle]
-pub extern "C" fn System_exec_code(cmd: i64) -> i64 {
+pub extern "C" fn System_execCode(cmd: i64) -> i64 {
     System_passthrough(cmd)
 }
 
@@ -1313,7 +1313,7 @@ pub extern "C" fn System_env(name: i64) -> i64 {
 }
 
 #[no_mangle]
-pub extern "C" fn System_set_env(name: i64, val: i64) {
+pub extern "C" fn System_setEnv(name: i64, val: i64) {
     if !is_ptr(name) { return; }
     let key = unsafe { ptr_to_str(name) };
     let v   = if is_ptr(val) { unsafe { ptr_to_str(val).to_string() } } else { val.to_string() };
@@ -1421,7 +1421,7 @@ pub extern "C" fn Regex_find(pattern: i64, text: i64) -> i64 {
 }
 
 #[no_mangle]
-pub extern "C" fn Regex_find_all(pattern: i64, text: i64) -> i64 {
+pub extern "C" fn Regex_findAll(pattern: i64, text: i64) -> i64 {
     unsafe {
         let re = compile_regex(pattern);
         let s  = ptr_to_str(text);
@@ -1446,7 +1446,7 @@ pub extern "C" fn Regex_replace(pattern: i64, text: i64, repl: i64) -> i64 {
 }
 
 #[no_mangle]
-pub extern "C" fn Regex_replace_all(pattern: i64, text: i64, repl: i64) -> i64 {
+pub extern "C" fn Regex_replaceAll(pattern: i64, text: i64, repl: i64) -> i64 {
     unsafe {
         let re = compile_regex(pattern);
         let s  = ptr_to_str(text);

@@ -22,33 +22,33 @@ Méthode par défaut : `GET`.
 scoped req = HTTPRequest::new("https://api.example.com/resource")
 ```
 
-### `HTTPRequest::set_method(req: int, method: string) → void`
+### `HTTPRequest::setMethod(req: int, method: string) → void`
 Définit la méthode HTTP : `"GET"`, `"POST"`, `"PUT"`, `"DELETE"`, `"PATCH"`, `"HEAD"`, `"OPTIONS"`.
 
 ```ocara
-HTTPRequest::set_method(req, "POST")
+HTTPRequest::setMethod(req, "POST")
 ```
 
-### `HTTPRequest::set_header(req: int, name: string, value: string) → void`
+### `HTTPRequest::setHeader(req: int, name: string, value: string) → void`
 Ajoute ou remplace un en-tête de requête.
 
 ```ocara
-HTTPRequest::set_header(req, "Content-Type", "application/json")
-HTTPRequest::set_header(req, "Authorization", "Bearer token")
+HTTPRequest::setHeader(req, "Content-Type", "application/json")
+HTTPRequest::setHeader(req, "Authorization", "Bearer token")
 ```
 
-### `HTTPRequest::set_body(req: int, body: string) → void`
+### `HTTPRequest::setBody(req: int, body: string) → void`
 Définit le corps de la requête (JSON, form-data, texte brut…).
 
 ```ocara
-HTTPRequest::set_body(req, "{\"key\": \"value\"}")
+HTTPRequest::setBody(req, "{\"key\": \"value\"}")
 ```
 
-### `HTTPRequest::set_timeout(req: int, ms: int) → void`
+### `HTTPRequest::setTimeout(req: int, ms: int) → void`
 Délai maximum en millisecondes avant abandon de la connexion.
 
 ```ocara
-HTTPRequest::set_timeout(req, 5000)  // 5 secondes
+HTTPRequest::setTimeout(req, 5000)  // 5 secondes
 ```
 
 ---
@@ -85,7 +85,7 @@ Tous les en-têtes de réponse sous forme de map.
 ### `HTTPRequest::ok(res: int) → bool`
 `true` si le code de statut est entre `200` et `299` inclus.
 
-### `HTTPRequest::is_error(res: int) → bool`
+### `HTTPRequest::isError(res: int) → bool`
 `true` si une erreur réseau ou un timeout s'est produit (indépendamment du code HTTP).
 
 ### `HTTPRequest::error(res: int) → string`
@@ -135,11 +135,11 @@ import ocara.HTTPRequest
 import ocara.IO
 
 scoped req = HTTPRequest::new("https://api.example.com/users")
-HTTPRequest::set_method(req, "POST")
-HTTPRequest::set_header(req, "Content-Type", "application/json")
-HTTPRequest::set_header(req, "Authorization", "Bearer mon-token")
-HTTPRequest::set_body(req, "{\"name\": \"Alice\", \"age\": 30}")
-HTTPRequest::set_timeout(req, 10000)
+HTTPRequest::setMethod(req, "POST")
+HTTPRequest::setHeader(req, "Content-Type", "application/json")
+HTTPRequest::setHeader(req, "Authorization", "Bearer mon-token")
+HTTPRequest::setBody(req, "{\"name\": \"Alice\", \"age\": 30}")
+HTTPRequest::setTimeout(req, 10000)
 
 scoped res = HTTPRequest::send(req)
 
@@ -154,7 +154,7 @@ import ocara.IO
 
 scoped res = HTTPRequest::get("https://hote-inexistant.local/api")
 
-if HTTPRequest::is_error(res) {
+if HTTPRequest::isError(res) {
     IO::writeln(`Erreur réseau : ${HTTPRequest::error(res)}`)
 } else {
     IO::writeln(`Status : ${HTTPRequest::status(res)}`)
@@ -199,17 +199,17 @@ IO::writeln(`X-RateLimit-Remaining : ${HTTPRequest::header(res, "X-RateLimit-Rem
 | Méthode Ocara | Symbole C runtime |
 |---|---|
 | `new` | `HTTPRequest_new` |
-| `set_method` | `HTTPRequest_set_method` |
-| `set_header` | `HTTPRequest_set_header` |
-| `set_body` | `HTTPRequest_set_body` |
-| `set_timeout` | `HTTPRequest_set_timeout` |
+| `set_method` | `HTTPRequest_setMethod` |
+| `set_header` | `HTTPRequest_setHeader` |
+| `set_body` | `HTTPRequest_setBody` |
+| `set_timeout` | `HTTPRequest_setTimeout` |
 | `send` | `HTTPRequest_send` |
 | `status` | `HTTPRequest_status` |
 | `body` | `HTTPRequest_body` |
 | `header` | `HTTPRequest_header` |
 | `headers` | `HTTPRequest_headers` |
 | `ok` | `HTTPRequest_ok` |
-| `is_error` | `HTTPRequest_is_error` |
+| `is_error` | `HTTPRequest_isError` |
 | `error` | `HTTPRequest_error` |
 | `get` | `HTTPRequest_get` |
 | `post` | `HTTPRequest_post` |

@@ -128,11 +128,11 @@ function demo_binary(): void {
     
     // Créer des données binaires (signature PNG)
     var png_header:int[] = [137, 80, 78, 71, 13, 10, 26, 10]
-    File::write_bytes("/tmp/test.dat", png_header)
+    File::writeBytes("/tmp/test.dat", png_header)
     IO::writeln("✓ Fichier binaire écrit")
     
     // Relire
-    var read_bytes:int[] = File::read_bytes("/tmp/test.dat")
+    var read_bytes:int[] = File::readBytes("/tmp/test.dat")
     IO::write("Octets lus: ")
     for byte in read_bytes {
         IO::write(`${byte} `)

@@ -29,8 +29,8 @@ function main(): int {
     setup_components()
 
     const server:HTTPServer = use HTTPServer()
-    server.set_port(3000)
-    server.set_workers(4)
+    server.setPort(3000)
+    server.setWorkers(4)
 
     server.route("/",        "GET", HomeController::handle)
     server.route("/about",   "GET", AboutController::handle)

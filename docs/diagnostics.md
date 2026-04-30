@@ -80,7 +80,7 @@ La valeur assignée ou retournée ne correspond pas au type déclaré.
 var n: int = "bonjour"    // string assigné à int
 ```
 
-**Correction :** utiliser `Convert::str_to_int()` ou corriger le type déclaré.
+**Correction :** utiliser `Convert::strToInt()` ou corriger le type déclaré.
 
 ---
 

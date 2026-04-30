@@ -37,8 +37,8 @@ class HomeController {
         var users:int    = resolve t_users
         var articles:int = resolve t_articles
 
-        scoped stats:string = Convert::int_to_str(users) + " utilisateurs · " +
-                              Convert::int_to_str(articles) + " articles"
+        scoped stats:string = Convert::intToStr(users) + " utilisateurs · " +
+                              Convert::intToStr(articles) + " articles"
 
         scoped html:string = HTML::render(`<layout title="Accueil" active="home">
   <card title="Bienvenue sur Ocara">
@@ -53,7 +53,7 @@ class HomeController {
   </card>
 </layout>`)
 
-        HTTPServer::set_resp_header(req, "Content-Type", "text/html; charset=utf-8")
+        HTTPServer::setRespHeader(req, "Content-Type", "text/html; charset=utf-8")
         HTTPServer::respond(req, 200, html)
         return 0
     }
