@@ -93,9 +93,15 @@ impl SymbolTable {
         }
         
         // Enregistrer automatiquement la classe Array pour les méthodes intégrées
-        // sur les variables de type array (ex: arr.length())
+        // sur les variables de type array (ex: arr.len())
         if let Some(array_class) = crate::builtins::builtin_class("Array") {
             table.classes.insert("Array".to_string(), array_class);
+        }
+        
+        // Enregistrer automatiquement la classe Map pour les méthodes intégrées
+        // sur les variables de type map (ex: m.size())
+        if let Some(map_class) = crate::builtins::builtin_class("Map") {
+            table.classes.insert("Map".to_string(), map_class);
         }
         
         table

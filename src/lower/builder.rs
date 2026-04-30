@@ -425,6 +425,18 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     fn_ret_types.insert("Array_get".to_string(), IrType::Ptr);
     fn_ret_types.insert("Array_set".to_string(), IrType::Void);
     
+    // Ajout des types de retour des méthodes builtin Map
+    // (utilisé pour le chaînage des appels si nécessaire)
+    fn_ret_types.insert("Map_size".to_string(), IrType::I64);
+    fn_ret_types.insert("Map_has".to_string(), IrType::Bool);
+    fn_ret_types.insert("Map_get".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Map_set".to_string(), IrType::Void);
+    fn_ret_types.insert("Map_remove".to_string(), IrType::Void);
+    fn_ret_types.insert("Map_keys".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Map_values".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Map_merge".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Map_is_empty".to_string(), IrType::Bool);
+    
     // Propage les types de retour des méthodes héritées (non surchargées) dans fn_ret_types
     for class in &program.classes {
         if let Some(parent_name) = &class.extends {
