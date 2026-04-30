@@ -55,7 +55,7 @@ pub fn class() -> ClassInfo {
 
     // t.run(f:Function<void>) → void
     methods.insert("run".into(), instance(
-        vec![("f", Type::Function(Box::new(Type::Void)))],
+        vec![("f", Type::Function { ret_ty: Box::new(Type::Void), param_tys: vec![] })],
         Type::Void,
     ));
 
