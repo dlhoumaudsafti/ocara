@@ -1,0 +1,101 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 26 — Paramètres par défaut
+//
+// Illustre :
+//   - Fonction avec paramètres optionnels (valeurs par défaut)
+//   - Appels avec arguments partiels
+//   - Combinaison paramètres obligatoires/optionnels/variadic
+//   - Méthodes de classe avec paramètres par défaut
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+import ocara.Convert
+
+// Fonction simple avec un paramètre par défaut
+function greet(name:string = "World"):string {
+    return "Hello, " + name + "!"
+}
+
+// Fonction avec plusieurs paramètres par défaut
+function add(a:int, b:int = 0, c:int = 0):int {
+    return a + b + c
+}
+
+// Fonction avec mix de paramètres obligatoires et optionnels
+function format(text:string, prefix:string = "[", suffix:string = "]"):string {
+    return prefix + text + suffix
+}
+
+// Fonction avec paramètre variadic après paramètres par défaut
+function log(level:string = "INFO", messages:variadic<string>):void {
+    IO::write(level)
+    IO::write(": ")
+    var i:int = 0
+    while i < messages.length() {
+        if i > 0 {
+            IO::write(" ")
+        }
+        IO::write(messages.get(i))
+        i = i + 1
+    }
+    IO::writeln("")
+}
+
+// Classe avec méthode ayant des paramètres par défaut
+class Calculator {
+    public method multiply(a:int, b:int = 1):int {
+        return a * b
+    }
+    
+    public method power(base:int, exponent:int = 2):int {
+        var result:int = 1
+        var i:int = 0
+        while i < exponent {
+            result = result * base
+            i = i + 1
+        }
+        return result
+    }
+}
+
+function main():int {
+    IO::writeln("=== Test paramètres par défaut ===")
+    IO::writeln("")
+    
+    // Test 1: Appels avec différents nombres d'arguments
+    IO::writeln("Test 1: greet()")
+    IO::writeln(greet())             // Utilise valeur par défaut "World"
+    
+    IO::writeln("Test 2: greet(\"Ocara\")")
+    IO::writeln(greet("Ocara"))      // Remplace la valeur par défaut
+    IO::writeln("")
+    
+    // Test 3: Fonction avec plusieurs paramètres par défaut
+    IO::writeln("Test 3: add(5) = " + Convert::toString(add(5)))
+    IO::writeln("Test 4: add(5, 3) = " + Convert::toString(add(5, 3)))
+    IO::writeln("Test 5: add(5, 3, 2) = " + Convert::toString(add(5, 3, 2)))
+    IO::writeln("")
+    
+    // Test 4: Format avec différentes combinaisons
+    IO::writeln("Test 6: format(\"test\") = " + format("test"))
+    IO::writeln("Test 7: format(\"test\", \"<\") = " + format("test", "<"))
+    IO::writeln("Test 8: format(\"test\", \"<\", \">\") = " + format("test", "<", ">"))
+    IO::writeln("")
+    
+    // Test 5: Fonction variadic avec paramètre par défaut
+    IO::writeln("Test 9: log(\"Hello\", \"world\")")
+    log("Hello", "world")
+    IO::writeln("Test 10: log(\"ERROR\", \"Failed\", \"to\", \"connect\")")
+    log("ERROR", "Failed", "to", "connect")
+    IO::writeln("")
+    
+    // Test 6: Méthodes de classe
+    IO::writeln("Test 11: Méthodes de classe avec paramètres par défaut")
+    var calc:Calculator = Calculator()
+    IO::writeln("calc.multiply(5) = " + Convert::toString(calc.multiply(5)))
+    IO::writeln("calc.multiply(5, 3) = " + Convert::toString(calc.multiply(5, 3)))
+    IO::writeln("calc.power(2) = " + Convert::toString(calc.power(2)))
+    IO::writeln("calc.power(2, 3) = " + Convert::toString(calc.power(2, 3)))
+    
+    return 0
+}
