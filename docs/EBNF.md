@@ -176,6 +176,75 @@ var upper:string = String::upper("world")      // "WORLD"
 - Toutes les méthodes sont safe et ne lèvent aucune exception.
 - Le chaînage de méthodes est supporté : `text.trim().lower().capitalize()`.
 
+#### Méthodes intégrées aux tableaux
+
+Les tableaux (`T[]`) disposent de méthodes intégrées qui peuvent être appelées directement sur les variables et littéraux sans import :
+
+```ocara
+var numbers:int[] = [5, 1, 3, 2, 4]
+var length:int = numbers.len()              // 5
+var first:int = numbers.first()             // 5
+var contains:bool = numbers.contains(3)     // true
+var sorted:int[] = numbers.sort()           // [1, 2, 3, 4, 5]
+var reversed:int[] = numbers.reverse()      // [4, 2, 3, 1, 5]
+var chained:int[] = numbers.sort().reverse() // [5, 4, 3, 2, 1] (chaînage)
+```
+
+**Méthodes disponibles :**
+
+| Méthode | Signature | Retour | Chainable | Description |
+|---------|-----------|--------|-----------|-------------|
+| `len()` | `→ int` | int | ❌ | Retourne la longueur du tableau |
+| `push(val:T)` | `→ void` | void | ❌ | Ajoute un élément à la fin |
+| `pop()` | `→ T` | mixed | ❌ | Retire et retourne le dernier élément |
+| `first()` | `→ T` | mixed | ❌ | Retourne le premier élément |
+| `last()` | `→ T` | mixed | ❌ | Retourne le dernier élément |
+| `contains(val:T)` | `→ bool` | bool | ❌ | Teste la présence d'un élément |
+| `index_of(val:T)` | `→ int` | int | ❌ | Retourne l'index (-1 si absent) |
+| `reverse()` | `→ T[]` | array | ✅ | Retourne un nouveau tableau inversé |
+| `slice(from:int, to:int)` | `→ T[]` | array | ✅ | Retourne un sous-tableau |
+| `join(sep:string)` | `→ string` | string | ❌ | Joint les éléments en chaîne |
+| `sort()` | `→ T[]` | array | ✅ | Retourne un nouveau tableau trié |
+| `get(index:int)` | `→ T` | mixed | ❌ | Accède à un élément par index |
+| `set(index:int, val:T)` | `→ void` | void | ❌ | Modifie un élément par index |
+
+**Méthodes chainables :**
+
+Les méthodes qui retournent un tableau (`reverse()`, `slice()`, `sort()`) peuvent être enchaînées :
+
+```ocara
+var arr:int[] = [5, 1, 3, 2, 4]
+
+// Trier puis inverser
+var result:int[] = arr.sort().reverse()  // [5, 4, 3, 2, 1]
+
+// Extraire une portion puis inverser
+var slice:int[] = arr.slice(1, 4).reverse()  // [2, 3, 1]
+
+// Inverser puis extraire
+var partial:int[] = arr.reverse().slice(0, 3)  // [4, 2, 3]
+```
+
+**Appels statiques (nécessitent `import ocara.Array`) :**
+
+Les mêmes méthodes peuvent être appelées en mode statique sur la classe `Array`, en passant le tableau comme premier argument :
+
+```ocara
+import ocara.Array
+
+var numbers:int[] = [1, 2, 3, 4, 5]
+var length:int = Array::len(numbers)        // 5
+var sorted:int[] = Array::sort(numbers)     // [1, 2, 3, 4, 5]
+var text:string = Array::join(numbers, ", ") // "1, 2, 3, 4, 5"
+```
+
+**Remarques :**
+- Les méthodes d'instance **ne nécessitent pas d'import** — elles sont toujours disponibles sur les variables de type tableau.
+- L'import `ocara.Array` est requis **uniquement** pour les appels statiques explicites `Array::method()`.
+- Les méthodes `pop()`, `first()`, `last()` lèvent une **ArrayException** si le tableau est vide.
+- Les méthodes `reverse()`, `slice()`, `sort()` retournent un **nouveau tableau** (pas de modification in-place).
+- Le chaînage de méthodes est supporté pour les méthodes retournant un tableau : `arr.sort().reverse().slice(0, 3)`.
+
 #### Restrictions sur le type `mixed`
 
 Le type `mixed` désactive la vérification de type statique et doit être utilisé **uniquement** dans des contextes spécifiques. Le compilateur applique les règles suivantes :
@@ -1207,8 +1276,12 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
 
 #### Manipulation de données
 
-- **Array** — Opérations sur les tableaux
-  - `push()`, `pop()`, `shift()`, `unshift()`, `slice()`, `join()`, `length()`, `sort()`, `reverse()`, `contains()`, `index_of()`, `remove()`
+- **Array** — Opérations sur les tableaux (méthodes appelables en instance ou en statique)
+  - **Méthodes d'instance** (sans import, directement sur variables) : `arr.len()`, `arr.sort()`, `arr.reverse()`
+  - **Méthodes statiques** (avec `import ocara.Array`) : `Array::len(arr)`, `Array::sort(arr)`
+  - Liste complète : `len()`, `push()`, `pop()`, `first()`, `last()`, `contains()`, `index_of()`, `reverse()`, `slice()`, `join()`, `sort()`, `get()`, `set()`
+  - Méthodes chainables : `reverse()`, `slice()`, `sort()`
+  - Voir section [Méthodes intégrées aux tableaux](#méthodes-intégrées-aux-tableaux) pour détails
 - **Map** — Opérations sur les dictionnaires (clé-valeur)
   - `set()`, `get()`, `has()`, `remove()`, `keys()`, `values()`, `size()`, `clear()`, `merge()`
 - **String** — Manipulation de chaînes (méthodes appelables en instance ou en statique)

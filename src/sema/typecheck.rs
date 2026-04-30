@@ -532,9 +532,9 @@ impl<'a> TypeChecker<'a> {
                         }
                         if let Some(sig) = self.symbols.lookup_method_in_chain(&cls_name, field) {
                             // Une méthode static ne peut pas être appelée sur une instance
-                            // SAUF pour la classe String : les méthodes sont statiques mais utilisables
-                            // comme méthodes d'instance sur les variables string (ex: a.trim())
-                            if sig.is_static && cls_name != "String" {
+                            // SAUF pour les classes String et Array : les méthodes sont statiques mais utilisables
+                            // comme méthodes d'instance sur les variables (ex: a.trim(), arr.length())
+                            if sig.is_static && cls_name != "String" && cls_name != "Array" {
                                 self.errors.push(SemaError::StaticOnInstance {
                                     class:  cls_name.clone(),
                                     method: field.clone(),
@@ -542,10 +542,11 @@ impl<'a> TypeChecker<'a> {
                                 });
                             }
                             
-                            // Pour String, ajuster le comptage des arguments :
+                            // Pour String et Array, ajuster le comptage des arguments :
                             // String::trim(s) a 1 paramètre, mais a.trim() n'en fournit 0
-                            // car 'a' sera automatiquement passé comme premier argument
-                            let (expected_min, expected_max) = if cls_name == "String" && sig.is_static {
+                            // Array::len(arr) a 1 paramètre, mais arr.length() n'en fournit 0
+                            // car l'objet sera automatiquement passé comme premier argument
+                            let (expected_min, expected_max) = if (cls_name == "String" || cls_name == "Array") && sig.is_static {
                                 // Accepter N-1 arguments (le self est ajouté automatiquement)
                                 let min = if sig.required_params_count > 0 {
                                     sig.required_params_count - 1
@@ -836,6 +837,8 @@ fn type_class_name(ty: &Type) -> Option<String> {
         Type::Union(variants)  => variants.iter().find_map(type_class_name),
         // Les variables string héritent automatiquement des méthodes de String
         Type::String           => Some("String".into()),
+        // Les variables array héritent automatiquement des méthodes de Array
+        Type::Array(_)         => Some("Array".into()),
         _                      => None,
     }
 }

@@ -409,6 +409,22 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     fn_ret_types.insert("String_between".to_string(), IrType::Ptr);
     fn_ret_types.insert("String_empty".to_string(), IrType::Bool);
     
+    // Ajout des types de retour des méthodes builtin Array
+    // (utilisé pour le chaînage des appels comme arr.sort().reverse())
+    fn_ret_types.insert("Array_len".to_string(), IrType::I64);
+    fn_ret_types.insert("Array_push".to_string(), IrType::Void);
+    fn_ret_types.insert("Array_pop".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Array_first".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Array_last".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Array_contains".to_string(), IrType::Bool);
+    fn_ret_types.insert("Array_index_of".to_string(), IrType::I64);
+    fn_ret_types.insert("Array_reverse".to_string(), IrType::Ptr);  // Chainable
+    fn_ret_types.insert("Array_slice".to_string(), IrType::Ptr);    // Chainable
+    fn_ret_types.insert("Array_join".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Array_sort".to_string(), IrType::Ptr);     // Chainable
+    fn_ret_types.insert("Array_get".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Array_set".to_string(), IrType::Void);
+    
     // Propage les types de retour des méthodes héritées (non surchargées) dans fn_ret_types
     for class in &program.classes {
         if let Some(parent_name) = &class.extends {
