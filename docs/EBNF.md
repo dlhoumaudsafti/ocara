@@ -245,6 +245,68 @@ var text:string = Array::join(numbers, ", ") // "1, 2, 3, 4, 5"
 - Les méthodes `reverse()`, `slice()`, `sort()` retournent un **nouveau tableau** (pas de modification in-place).
 - Le chaînage de méthodes est supporté pour les méthodes retournant un tableau : `arr.sort().reverse().slice(0, 3)`.
 
+#### Méthodes intégrées aux maps
+
+Les maps (`map<K, V>`) disposent de méthodes intégrées qui peuvent être appelées directement sur les variables sans import :
+
+```ocara
+var config:map<string, int> = {"port": 8080, "workers": 4}
+var size:int = config.size()                // 2
+var has_port:bool = config.has("port")      // true
+var port:int = config.get("port")           // 8080
+var keys:mixed[] = config.keys()            // ["port", "workers"]
+var is_empty:bool = config.is_empty()       // false
+```
+
+**Méthodes disponibles :**
+
+| Méthode | Signature | Retour | Chainable | Description |
+|---------|-----------|--------|-----------|-------------|
+| `size()` | `→ int` | int | ❌ | Retourne le nombre de clés |
+| `has(key:K)` | `→ bool` | bool | ❌ | Teste la présence d'une clé |
+| `get(key:K)` | `→ V` | mixed | ❌ | Retourne la valeur associée (mixed si absente) |
+| `set(key:K, val:V)` | `→ void` | void | ❌ | Insère ou met à jour une entrée |
+| `remove(key:K)` | `→ void` | void | ❌ | Supprime une entrée |
+| `keys()` | `→ mixed[]` | array | ❌ | Retourne un tableau de toutes les clés |
+| `values()` | `→ mixed[]` | array | ❌ | Retourne un tableau de toutes les valeurs |
+| `merge(other:map<K,V>)` | `→ map<K,V>` | map | ✅ | Fusionne deux maps (other écrase les clés communes) |
+| `is_empty()` | `→ bool` | bool | ❌ | Teste si la map est vide |
+
+**Méthode chainable :**
+
+La méthode qui retourne une map (`merge()`) peut être enchaînée :
+
+```ocara
+var base:map<string, int> = {"a": 1, "b": 2}
+var extra1:map<string, int> = {"c": 3}
+var extra2:map<string, int> = {"d": 4}
+
+// Fusionner plusieurs maps en une seule avec chaînage
+var all:map<string, int> = base.merge(extra1).merge(extra2)
+// all = {"a": 1, "b": 2, "c": 3, "d": 4}
+```
+
+**Appels statiques (nécessitent `import ocara.Map`) :**
+
+Les mêmes méthodes peuvent être appelées en mode statique sur la classe `Map`, en passant la map comme premier argument :
+
+```ocara
+import ocara.Map
+
+var config:map<string, int> = {"port": 8080, "workers": 4}
+var size:int = Map::size(config)                    // 2
+var has_port:bool = Map::has(config, "port")        // true
+var port:int = Map::get(config, "port")             // 8080
+var keys:mixed[] = Map::keys(config)                // ["port", "workers"]
+```
+
+**Remarques :**
+- Les méthodes d'instance **ne nécessitent pas d'import** — elles sont toujours disponibles sur les variables de type map.
+- L'import `ocara.Map` est requis **uniquement** pour les appels statiques explicites `Map::method()`.
+- `get()` retourne `mixed` si la clé n'existe pas (pas d'exception).
+- `merge()` retourne une **nouvelle map** (pas de modification in-place) et est chainable : `m1.merge(m2).merge(m3)`.
+- Les clés et valeurs retournées par `keys()` et `values()` sont de type `mixed[]`.
+
 #### Restrictions sur le type `mixed`
 
 Le type `mixed` désactive la vérification de type statique et doit être utilisé **uniquement** dans des contextes spécifiques. Le compilateur applique les règles suivantes :
@@ -1282,8 +1344,12 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
   - Liste complète : `len()`, `push()`, `pop()`, `first()`, `last()`, `contains()`, `index_of()`, `reverse()`, `slice()`, `join()`, `sort()`, `get()`, `set()`
   - Méthodes chainables : `reverse()`, `slice()`, `sort()`
   - Voir section [Méthodes intégrées aux tableaux](#méthodes-intégrées-aux-tableaux) pour détails
-- **Map** — Opérations sur les dictionnaires (clé-valeur)
-  - `set()`, `get()`, `has()`, `remove()`, `keys()`, `values()`, `size()`, `clear()`, `merge()`
+- **Map** — Opérations sur les dictionnaires (méthodes appelables en instance ou en statique)
+  - **Méthodes d'instance** (sans import, directement sur variables) : `m.size()`, `m.has(key)`, `m.get(key)`
+  - **Méthodes statiques** (avec `import ocara.Map`) : `Map::size(m)`, `Map::has(m, key)`
+  - Liste complète : `size()`, `has()`, `get()`, `set()`, `remove()`, `keys()`, `values()`, `merge()`, `is_empty()`
+  - Méthode chainable : `merge()`
+  - Voir section [Méthodes intégrées aux maps](#méthodes-intégrées-aux-maps) pour détails
 - **String** — Manipulation de chaînes (méthodes appelables en instance ou en statique)
   - **Méthodes d'instance** (sans import, directement sur variables) : `text.trim()`, `text.upper()`, `text.lower()`
   - **Méthodes statiques** (avec `import ocara.String`) : `String::trim(s)`, `String::upper(s)`

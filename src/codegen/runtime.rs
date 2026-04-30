@@ -96,15 +96,17 @@ pub const BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "Array_get",         params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "Array_set",         params: &[clt::I64, clt::I64, clt::I64],         returns: None,              module: None },
     // ── ocara.Map ────────────────────────────────────────────────────────────
-    BuiltinDesc { name: "Map_size",          params: &[clt::I64],                             returns: Some(clt::I64),    module: Some("Map") },
-    BuiltinDesc { name: "Map_has",           params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: Some("Map") },
-    BuiltinDesc { name: "Map_get",           params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: Some("Map") },
-    BuiltinDesc { name: "Map_set",           params: &[clt::I64, clt::I64, clt::I64],         returns: None,              module: Some("Map") },
-    BuiltinDesc { name: "Map_remove",        params: &[clt::I64, clt::I64],                   returns: None,              module: Some("Map") },
-    BuiltinDesc { name: "Map_keys",          params: &[clt::I64],                             returns: Some(clt::I64),    module: Some("Map") },
-    BuiltinDesc { name: "Map_values",        params: &[clt::I64],                             returns: Some(clt::I64),    module: Some("Map") },
-    BuiltinDesc { name: "Map_merge",         params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: Some("Map") },
-    BuiltinDesc { name: "Map_is_empty",      params: &[clt::I64],                             returns: Some(clt::I64),    module: Some("Map") },
+    // Note: module: None pour permettre les méthodes d'instance sans import
+    // L'import est vérifié uniquement pour les appels statiques Map::method() dans lower/expr.rs
+    BuiltinDesc { name: "Map_size",          params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "Map_has",           params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "Map_get",           params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "Map_set",           params: &[clt::I64, clt::I64, clt::I64],         returns: None,              module: None },
+    BuiltinDesc { name: "Map_remove",        params: &[clt::I64, clt::I64],                   returns: None,              module: None },
+    BuiltinDesc { name: "Map_keys",          params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "Map_values",        params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "Map_merge",         params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "Map_is_empty",      params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
     // ── ocara.IO ─────────────────────────────────────────────────────────────
     BuiltinDesc { name: "IO_write",          params: &[clt::I64],                             returns: None,              module: Some("IO") },
     BuiltinDesc { name: "IO_write_int",      params: &[clt::I64],                             returns: None,              module: Some("IO") },
