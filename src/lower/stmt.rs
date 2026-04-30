@@ -58,6 +58,10 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
             if let crate::ast::Type::String = ty {
                 builder.var_class.insert(name.clone(), "String".to_string());
             }
+            // Les variables array ont automatiquement accès aux méthodes de Array
+            if let crate::ast::Type::Array(_) = ty {
+                builder.var_class.insert(name.clone(), "Array".to_string());
+            }
             // Variable de type Function → enregistrer pour CallIndirect
             if let crate::ast::Type::Function(ret_ty) = ty {
                 builder.func_vars.insert(name.clone());
@@ -100,6 +104,14 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
             }
             if let crate::ast::Type::Named(class_name) = ty {
                 builder.var_class.insert(name.clone(), class_name.clone());
+            }
+            // Les variables string ont automatiquement accès aux méthodes de String
+            if let crate::ast::Type::String = ty {
+                builder.var_class.insert(name.clone(), "String".to_string());
+            }
+            // Les variables array ont automatiquement accès aux méthodes de Array
+            if let crate::ast::Type::Array(_) = ty {
+                builder.var_class.insert(name.clone(), "Array".to_string());
             }
             let _slot = builder.declare_local(name, ir_ty.clone(), false);
             let val_ty = expr_ir_type_pub(builder, value);

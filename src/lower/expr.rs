@@ -503,17 +503,33 @@ fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                     Expr::SelfExpr(_)    => builder.current_class.clone(),
                     Expr::Literal(Literal::String(_), _) => Some("String".to_string()),
                     // Appel chaîné : obj.method1().method2()
-                    // On détermine récursivement le type de l'objet
-                    _ => {
-                        let obj_ty = expr_ir_type(builder, object);
-                        // Si le type est Ptr, on suppose que c'est String
-                        // (utile pour les appels chaînés comme a.trim().lower())
-                        if matches!(obj_ty, IrType::Ptr) {
-                            Some("String".to_string())
+                    Expr::Call { callee: inner_callee, .. } => {
+                        if let Expr::Field { object: inner_obj, field: inner_method, .. } = inner_callee.as_ref() {
+                            // Essayer de trouver la classe de l'objet interne
+                            if let Expr::Ident(name, _) = inner_obj.as_ref() {
+                                if let Some(cls) = builder.var_class.get(name.as_str()).cloned() {
+                                    let method_name = format!("{}_{}", cls, inner_method);
+                                    // Si la méthode retourne un Ptr, continuer avec la même classe
+                                    if let Some(ret_ty) = builder.fn_ret_types.get(&method_name) {
+                                        if matches!(ret_ty, IrType::Ptr) {
+                                            Some(cls)
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
                         } else {
                             None
                         }
                     }
+                    _ => None,
                 };
                 if let Some(cls) = class_name {
                     let mangled = format!("{}_{}", cls, field);
@@ -748,6 +764,34 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                         Expr::SelfExpr(_) => builder.current_class.clone(),
                         // String littérale : "hello".trim()
                         Expr::Literal(Literal::String(_), _) => Some("String".to_string()),
+                        // Appel chainé : arr.sort().reverse() ou text.trim().lower()
+                        Expr::Call { callee: inner_callee, .. } => {
+                            if let Expr::Field { object: inner_obj, field: inner_method, .. } = inner_callee.as_ref() {
+                                // Essayer de trouver la classe de l'objet interne
+                                let inner_class = match inner_obj.as_ref() {
+                                    Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
+                                    _ => None,
+                                };
+                                // Si on a trouvé la classe, vérifier le type de retour de la méthode
+                                if let Some(cls) = inner_class {
+                                    let method_name = format!("{}_{}", cls, inner_method);
+                                    // Si la méthode retourne un Ptr et que c'est la même classe, continuer avec elle
+                                    if let Some(ret_ty) = builder.fn_ret_types.get(&method_name) {
+                                        if matches!(ret_ty, IrType::Ptr) {
+                                            Some(cls)
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        }
                         // Appel de fonction retournant string : func().trim()
                         // Accès de champ retournant string : obj.name.trim()
                         _ => {
