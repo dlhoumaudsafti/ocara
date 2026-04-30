@@ -945,6 +945,16 @@ pub extern "C" fn Array_sort(ptr: i64) -> i64 {
     new_ptr
 }
 
+#[no_mangle]
+pub extern "C" fn Array_get(ptr: i64, idx: i64) -> i64 {
+    __array_get(ptr, idx)
+}
+
+#[no_mangle]
+pub extern "C" fn Array_set(ptr: i64, idx: i64, val: i64) {
+    __array_set(ptr, idx, val)
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ocara.Map
 //

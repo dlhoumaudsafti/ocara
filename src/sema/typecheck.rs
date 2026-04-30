@@ -532,25 +532,48 @@ impl<'a> TypeChecker<'a> {
                         }
                         if let Some(sig) = self.symbols.lookup_method_in_chain(&cls_name, field) {
                             // Une méthode static ne peut pas être appelée sur une instance
-                            if sig.is_static {
+                            // SAUF pour la classe String : les méthodes sont statiques mais utilisables
+                            // comme méthodes d'instance sur les variables string (ex: a.trim())
+                            if sig.is_static && cls_name != "String" {
                                 self.errors.push(SemaError::StaticOnInstance {
                                     class:  cls_name.clone(),
                                     method: field.clone(),
                                     span:   fspan.clone(),
                                 });
                             }
+                            
+                            // Pour String, ajuster le comptage des arguments :
+                            // String::trim(s) a 1 paramètre, mais a.trim() n'en fournit 0
+                            // car 'a' sera automatiquement passé comme premier argument
+                            let (expected_min, expected_max) = if cls_name == "String" && sig.is_static {
+                                // Accepter N-1 arguments (le self est ajouté automatiquement)
+                                let min = if sig.required_params_count > 0 {
+                                    sig.required_params_count - 1
+                                } else {
+                                    0
+                                };
+                                let max = if sig.params.len() > 0 {
+                                    sig.params.len() - 1
+                                } else {
+                                    0
+                                };
+                                (min, max)
+                            } else {
+                                (sig.required_params_count, sig.params.len())
+                            };
+                            
                             // Vérification du nombre d'arguments avec support variadic et paramètres optionnels
                             let args_ok = if sig.has_variadic {
-                                args.len() >= sig.required_params_count
+                                args.len() >= expected_min
                             } else {
-                                args.len() >= sig.required_params_count && args.len() <= sig.params.len()
+                                args.len() >= expected_min && args.len() <= expected_max
                             };
                             
                             if !args_ok {
                                 let expected = if sig.has_variadic {
-                                    sig.required_params_count
+                                    expected_min
                                 } else {
-                                    sig.required_params_count
+                                    expected_min
                                 };
                                 self.errors.push(SemaError::WrongArgCount {
                                     name:     format!("{}::{}", cls_name, field),
@@ -811,6 +834,8 @@ fn type_class_name(ty: &Type) -> Option<String> {
         Type::Named(n)         => Some(n.clone()),
         Type::Qualified(parts) => parts.last().cloned(),
         Type::Union(variants)  => variants.iter().find_map(type_class_name),
+        // Les variables string héritent automatiquement des méthodes de String
+        Type::String           => Some("String".into()),
         _                      => None,
     }
 }

@@ -84,7 +84,15 @@ pub struct SymbolTable {
 
 impl SymbolTable {
     pub fn new() -> Self {
-        Self::default()
+        let mut table = Self::default();
+        
+        // Enregistrer automatiquement la classe String pour les méthodes intégrées
+        // sur les variables de type string (ex: "hello".trim())
+        if let Some(string_class) = crate::builtins::builtin_class("String") {
+            table.classes.insert("String".to_string(), string_class);
+        }
+        
+        table
     }
 
     // ── Enregistrement ───────────────────────────────────────────────────────

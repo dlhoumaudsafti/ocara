@@ -10,6 +10,7 @@ use crate::ast::Literal;
 #[derive(Debug, Default)]
 pub struct IrModule {
     pub name:      String,
+    pub source_file: String,
     pub functions: Vec<IrFunction>,
     /// Table des chaînes littérales (index → contenu)
     pub strings:   Vec<String>,
@@ -37,7 +38,11 @@ pub struct IrGlobal {
 
 impl IrModule {
     pub fn new(name: impl Into<String>) -> Self {
-        Self { name: name.into(), ..Default::default() }
+        Self { 
+            name: name.into(), 
+            source_file: String::new(),
+            ..Default::default() 
+        }
     }
 
     /// Enregistre une chaîne littérale et retourne son index

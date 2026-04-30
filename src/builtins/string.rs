@@ -14,7 +14,7 @@ fn m(params: Vec<(&str, Type)>, ret_ty: Type) -> FuncSig {
     FuncSig {
         params:    params.into_iter().map(|(n, t)| (n.to_string(), t)).collect(),
         ret_ty,
-        is_static: true,
+        is_static: true,  // Méthodes statiques pour String::trim(s)
         is_async:  false,
         has_variadic: false,
         fixed_params_count: len,
@@ -25,7 +25,7 @@ fn m(params: Vec<(&str, Type)>, ret_ty: Type) -> FuncSig {
 pub fn class() -> ClassInfo {
     let mut methods: HashMap<String, FuncSig> = HashMap::new();
 
-    // String::len(s) → int
+    // Méthodes statiques : String::len(s) → int
     methods.insert("len".into(),        m(vec![("s", Type::String)], Type::Int));
     // String::upper(s) → string
     methods.insert("upper".into(),      m(vec![("s", Type::String)], Type::String));
