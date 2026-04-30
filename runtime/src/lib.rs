@@ -23,7 +23,8 @@
 #![allow(clippy::missing_safety_doc)]
 
 use std::alloc::{alloc, alloc_zeroed, Layout};
-use crate::typecheck::{TAG_STRING, TAG_ARRAY, TAG_MAP, TAG_OBJECT, TAG_FUNCTION, __is_function, __is_object, __is_map, __is_array};
+use crate::typecheck::{TAG_STRING, TAG_ARRAY, TAG_MAP, TAG_OBJECT, TAG_FUNCTION, 
+    __is_function, __is_object, __is_map, __is_array, __is_string};
 use std::ffi::CStr;
 use std::io::{self, BufRead};
 use std::process::Command;
@@ -2047,3 +2048,152 @@ pub extern "C" fn __task_resolve(task_ptr: i64) -> i64 {
         0
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Operateurs de comparaison stricte avec verification de type
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// NOTE : L'implementation actuelle est limitee car les types primitifs
+// (int, float non-boxe, bool) ne portent pas d'information de type au runtime.
+// Les floats sont bitcastes en i64, donc indistinguables des grands entiers.
+//
+// Solution actuelle : comparaison basee sur les tags des types heap (string,
+// array, map, object, function). Pour les types primitifs, on compare les
+// valeurs brutes. Cela signifie qu'un int et un float avec la meme representation
+// binaire seront consideres comme egaux (limitation acceptee).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PTR_THRESHOLD: i64 = 65536;
+const MAX_USERSPACE_ADDR: i64 = 0x800000000000; // 128 TB, limite typique Linux
+
+/// Determine le type d'une valeur pour les comparaisons strictes.
+/// Retourne un code de type :
+///   0 = null
+///   1 = primitif (int/float/bool non distinguables au runtime)
+///   4 = string
+///   5 = array
+///   6 = map
+///   7 = object
+///   8 = function
+fn get_value_type(val: i64) -> i32 {
+    if val == 0 {
+        return 0; // null
+    }
+    
+    // Petits entiers/bool : certainement pas des pointeurs
+    if val > 0 && val < PTR_THRESHOLD {
+        return 1; // primitif
+    }
+    
+    // Si val est negatif ou >= MAX_USERSPACE_ADDR, ce n'est pas un pointeur heap valide
+    // (probablement un float bitcaste ou un grand entier)
+    if val < 0 || val >= MAX_USERSPACE_ADDR {
+        return 1; // primitif
+    }
+    
+    // Si val est dans la plage des pointeurs heap et aligne sur 8 octets,
+    // on peut verifier les tags
+    if val >= PTR_THRESHOLD && val < MAX_USERSPACE_ADDR && (val & 7) == 0 {
+        // string
+        if __is_string(val) != 0 {
+            return 4;
+        }
+        // array
+        if __is_array(val) != 0 {
+            return 5;
+        }
+        // map
+        if __is_map(val) != 0 {
+            return 6;
+        }
+        // object
+        if __is_object(val) != 0 {
+            return 7;
+        }
+        // function
+        if __is_function(val) != 0 {
+            return 8;
+        }
+    }
+    
+    // Par defaut : primitif (int/float/bool non distinguables)
+    1
+}
+
+/// Egalite stricte (===) : retourne 1 si meme type ET meme valeur, 0 sinon.
+#[no_mangle]
+pub extern "C" fn __cmp_eq_strict(lhs: i64, rhs: i64) -> i64 {
+    let lhs_type = get_value_type(lhs);
+    let rhs_type = get_value_type(rhs);
+    
+    // Types differents -> false
+    if lhs_type != rhs_type {
+        return 0;
+    }
+    
+    // Null
+    if lhs_type == 0 {
+        return 1; // null === null
+    }
+    
+    // Types primitifs (int/float/bool) : comparaison directe
+    if lhs_type == 1 {
+        return if lhs == rhs { 1 } else { 0 };
+    }
+    
+    // Strings : comparer le contenu
+    if lhs_type == 4 {
+        return if unsafe { ptr_to_str(lhs) == ptr_to_str(rhs) } { 1 } else { 0 };
+    }
+    
+    // Autres types heap : comparaison de pointeurs
+    if lhs == rhs { 1 } else { 0 }
+}
+
+/// Inegalite stricte (!==) : retourne 1 si types differents OU valeurs differentes, 0 sinon.
+#[no_mangle]
+pub extern "C" fn __cmp_ne_strict(lhs: i64, rhs: i64) -> i64 {
+    if __cmp_eq_strict(lhs, rhs) != 0 { 0 } else { 1 }
+}
+
+/// Inferieur ou egal strict (<==) : retourne 1 si meme type ET lhs <= rhs, 0 sinon.
+#[no_mangle]
+pub extern "C" fn __cmp_le_strict(lhs: i64, rhs: i64) -> i64 {
+    let lhs_type = get_value_type(lhs);
+    let rhs_type = get_value_type(rhs);
+    
+    // Types differents -> false
+    if lhs_type != rhs_type {
+        return 0;
+    }
+    
+    // Primitifs : comparaison directe (ne distingue pas int/float/bool)
+    if lhs_type == 1 {
+        return if lhs <= rhs { 1 } else { 0 };
+    }
+    
+    // Autres types non comparables
+    0
+}
+
+/// Superieur ou egal strict (>==) : retourne 1 si meme type ET lhs >= rhs, 0 sinon.
+#[no_mangle]
+pub extern "C" fn __cmp_ge_strict(lhs: i64, rhs: i64) -> i64 {
+    let lhs_type = get_value_type(lhs);
+    let rhs_type = get_value_type(rhs);
+    
+    // Types differents -> false
+    if lhs_type != rhs_type {
+        return 0;
+    }
+    
+    // Primitifs : comparaison directe (ne distingue pas int/float/bool)
+    if lhs_type == 1 {
+        return if lhs >= rhs { 1 } else { 0 };
+    }
+    
+    // Autres types non comparables
+    0
+}
+
+

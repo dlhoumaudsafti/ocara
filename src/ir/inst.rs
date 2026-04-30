@@ -54,8 +54,7 @@ pub enum Inst {
     CmpLt  { dest: Value, lhs: Value, rhs: Value, ty: IrType },
     CmpLe  { dest: Value, lhs: Value, rhs: Value, ty: IrType },
     CmpGt  { dest: Value, lhs: Value, rhs: Value, ty: IrType },
-    CmpGe  { dest: Value, lhs: Value, rhs: Value, ty: IrType },
-
+    CmpGe  { dest: Value, lhs: Value, rhs: Value, ty: IrType },    
     // ── Logique booléenne ──────────────────────────────────────────────────────
     And  { dest: Value, lhs: Value, rhs: Value },
     Or   { dest: Value, lhs: Value, rhs: Value },

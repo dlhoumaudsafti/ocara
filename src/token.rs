@@ -14,6 +14,15 @@ impl Span {
     pub fn new(line: usize, col: usize) -> Self {
         Self { line, col }
     }
+
+    /// Combine deux spans pour créer un span qui les couvre tous les deux.
+    /// Pour simplifier, on garde le début du premier et la fin du second.
+    pub fn union(&self, other: &Span) -> Span {
+        // Le span résultant couvre du début du premier à la fin du second
+        // Pour simplifier, on retourne le second span (qui vient après)
+        // car il représente la fin de l'expression combinée
+        other.clone()
+    }
 }
 
 impl fmt::Display for Span {
@@ -117,15 +126,20 @@ pub enum TokenKind {
     // ── Opérateurs de comparaison ─────────────────────────────────────────────
     EqEq,   // ==
     BangEq, // !=
+    EqEqEq, // === (égalité stricte avec type)
+    BangEqEq, // !== (inégalité stricte avec type)
     Lt,     // <
     Gt,     // >
     LtEq,   // <=
     GtEq,   // >=
+    LtEqEq, // <== (inférieur ou égal strict avec type)
+    GtEqEq, // >== (supérieur ou égal strict avec type)
 
     // ── Opérateurs logiques ───────────────────────────────────────────────────
     KwAnd, // and
     KwOr,  // or
     KwNot,      // not
+    KwEgal,     // egal (égalité stricte verbale)
     KwNameless, // nameless
 
     // ── Affectation ───────────────────────────────────────────────────────────

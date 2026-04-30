@@ -51,6 +51,15 @@ impl Parser {
         &self.current().kind
     }
 
+    fn peek_ahead(&self, offset: usize) -> Option<&Token> {
+        let target_pos = self.pos + offset;
+        if target_pos < self.tokens.len() {
+            Some(&self.tokens[target_pos])
+        } else {
+            None
+        }
+    }
+
     fn span(&self) -> Span {
         self.current().span.clone()
     }
@@ -917,15 +926,35 @@ impl Parser {
     fn parse_equality(&mut self) -> ParseResult<Expr> {
         let mut left = self.parse_is_check()?;
         loop {
-            let span = self.span();
+            // Cas spécial : "not egal" → BinOp::NotEqEq
+            if self.check_exact(&TokenKind::KwNot) && self.peek_ahead(1).map(|t| &t.kind) == Some(&TokenKind::KwEgal) {
+                let span = left.span().clone();
+                self.advance(); // consomme 'not'
+                self.advance(); // consomme 'egal'
+                let right = self.parse_is_check()?;
+                let full_span = span.union(right.span());
+                left = Expr::Binary {
+                    op: BinOp::NotEqEq,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                    span: full_span,
+                };
+                continue;
+            }
+            
+            let span = left.span().clone();
             let op = match self.peek_kind() {
-                TokenKind::EqEq   => BinOp::EqEq,
-                TokenKind::BangEq => BinOp::NotEq,
+                TokenKind::EqEq      => BinOp::EqEq,
+                TokenKind::BangEq    => BinOp::NotEq,
+                TokenKind::EqEqEq    => BinOp::EqEqEq,
+                TokenKind::BangEqEq  => BinOp::NotEqEq,
+                TokenKind::KwEgal    => BinOp::EqEqEq,  // "egal" → ===
                 _ => break,
             };
             self.advance();
             let right = self.parse_is_check()?;
-            left = Expr::Binary { op, left: Box::new(left), right: Box::new(right), span };
+            let full_span = span.union(right.span());
+            left = Expr::Binary { op, left: Box::new(left), right: Box::new(right), span: full_span };
         }
         Ok(left)
     }
@@ -934,15 +963,19 @@ impl Parser {
     fn parse_equality_no_is(&mut self) -> ParseResult<Expr> {
         let mut left = self.parse_comparison()?;
         loop {
-            let span = self.span();
+            let span = left.span().clone();
             let op = match self.peek_kind() {
-                TokenKind::EqEq   => BinOp::EqEq,
-                TokenKind::BangEq => BinOp::NotEq,
+                TokenKind::EqEq      => BinOp::EqEq,
+                TokenKind::BangEq    => BinOp::NotEq,
+                TokenKind::EqEqEq    => BinOp::EqEqEq,
+                TokenKind::BangEqEq  => BinOp::NotEqEq,
+                TokenKind::KwEgal    => BinOp::EqEqEq,  // "egal" → ===
                 _ => break,
             };
             self.advance();
             let right = self.parse_comparison()?;
-            left = Expr::Binary { op, left: Box::new(left), right: Box::new(right), span };
+            let full_span = span.union(right.span());
+            left = Expr::Binary { op, left: Box::new(left), right: Box::new(right), span: full_span };
         }
         Ok(left)
     }
@@ -966,17 +999,20 @@ impl Parser {
     fn parse_comparison(&mut self) -> ParseResult<Expr> {
         let mut left = self.parse_range()?;
         loop {
-            let span = self.span();
+            let span = left.span().clone();
             let op = match self.peek_kind() {
-                TokenKind::Lt   => BinOp::Lt,
-                TokenKind::LtEq => BinOp::LtEq,
-                TokenKind::Gt   => BinOp::Gt,
-                TokenKind::GtEq => BinOp::GtEq,
+                TokenKind::Lt      => BinOp::Lt,
+                TokenKind::LtEq    => BinOp::LtEq,
+                TokenKind::Gt      => BinOp::Gt,
+                TokenKind::GtEq    => BinOp::GtEq,
+                TokenKind::LtEqEq  => BinOp::LtEqEq,
+                TokenKind::GtEqEq  => BinOp::GtEqEq,
                 _ => break,
             };
             self.advance();
             let right = self.parse_additive()?;
-            left = Expr::Binary { op, left: Box::new(left), right: Box::new(right), span };
+            let full_span = span.union(right.span());
+            left = Expr::Binary { op, left: Box::new(left), right: Box::new(right), span: full_span };
         }
         Ok(left)
     }
