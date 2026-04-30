@@ -7,6 +7,37 @@ use crate::lower::builder::LowerBuilder;
 use crate::codegen::runtime::BUILTINS;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Helper : compléter les arguments avec les valeurs par défaut
+// ─────────────────────────────────────────────────────────────────────────────
+
+fn complete_args_with_defaults(
+    builder: &LowerBuilder,
+    func_name: &str,
+    args: &[Expr],
+) -> Vec<Expr> {
+    // Récupérer les valeurs par défaut de la fonction
+    let default_args = match builder.func_default_args.get(func_name) {
+        Some(defaults) => defaults,
+        None => return args.to_vec(), // Pas de valeurs par défaut
+    };
+    
+    // Si tous les arguments sont fournis, retourner tel quel
+    if args.len() >= default_args.len() {
+        return args.to_vec();
+    }
+    
+    // Compléter avec les valeurs par défaut manquantes
+    let mut completed = args.to_vec();
+    for i in args.len()..default_args.len() {
+        if let Some(ref default_expr) = default_args[i] {
+            completed.push(default_expr.clone());
+        }
+    }
+    
+    completed
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Capture Analysis — Walk AST pour trouver les variables capturées
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -123,13 +154,24 @@ fn lower_nameless_fn(
     current_class: &Option<String>,
     var_class:     &HashMap<String, String>,
     func_vars:     &HashSet<String>,
+    has_defaults:  bool,
 ) {
     // Enregistrer le layout de l'env dans class_layouts
-    if !captures.is_empty() {
+    if !captures.is_empty() || has_defaults {
         let env_class  = format!("__env_{}", anon_name);
-        let env_fields: Vec<(String, IrType)> = captures.iter().enumerate()
+        let mut env_fields: Vec<(String, IrType)> = captures.iter().enumerate()
             .map(|(i, (_, ty))| (format!("__cap_{}", i), ty.clone()))
             .collect();
+        
+        // Ajouter les champs pour les valeurs par défaut
+        if has_defaults {
+            for (i, param) in params.iter().enumerate() {
+                if param.default_value.is_some() {
+                    env_fields.push((format!("__default_{}", i), IrType::from_ast(&param.ty)));
+                }
+            }
+        }
+        
         module.class_layouts.insert(env_class, env_fields);
     }
 
@@ -171,6 +213,77 @@ fn lower_nameless_fn(
             updated_params.push(IrParam { name: param.name.clone(), ty: ir_ty, slot: recv });
         }
         builder.func.params = updated_params;
+
+        // Si paramètres avec valeurs par défaut, vérifier et remplacer les sentinelles (0)
+        if has_defaults {
+            let env_val = builder.load_local("__env").map(|(v, _)| v).unwrap();
+            for (i, param) in params.iter().enumerate() {
+                if param.default_value.is_some() {
+                    let param_val = builder.load_local(&param.name).map(|(v, _)| v).unwrap();
+                    let ir_ty = IrType::from_ast(&param.ty);
+                    
+                    // Vérifier si le paramètre est 0 (sentinelle pour valeur non fournie)
+                    let zero = builder.new_value();
+                    match ir_ty {
+                        IrType::I64 | IrType::Ptr => {
+                            builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+                        }
+                        IrType::F64 => {
+                            builder.emit(Inst::ConstFloat { dest: zero.clone(), value: 0.0 });
+                        }
+                        IrType::Bool => {
+                            builder.emit(Inst::ConstBool { dest: zero.clone(), value: false });
+                        }
+                        _ => {
+                            builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+                        }
+                    }
+                    
+                    let is_sentinel = builder.new_value();
+                    builder.emit(Inst::CmpEq {
+                        dest: is_sentinel.clone(),
+                        lhs: param_val,
+                        rhs: zero,
+                        ty: ir_ty.clone(),
+                    });
+                    
+                    // Si c'est une sentinelle, charger la valeur par défaut de l'env
+                    let then_bb = builder.new_block();
+                    let else_bb = builder.new_block();
+                    let merge_bb = builder.new_block();
+                    
+                    builder.emit(Inst::Branch {
+                        cond: is_sentinel,
+                        then_bb: then_bb.clone(),
+                        else_bb: else_bb.clone(),
+                    });
+                    
+                    // Branch then : charger la valeur par défaut
+                    builder.switch_to(&then_bb);
+                    let default_offset = (captures.len() + i) * 8;
+                    let default_val = builder.new_value();
+                    builder.emit(Inst::GetField {
+                        dest: default_val.clone(),
+                        obj: env_val.clone(),
+                        field: format!("__default_{}", i),
+                        ty: ir_ty.clone(),
+                        offset: default_offset as i32,
+                    });
+                    builder.emit(Inst::Store {
+                        ptr: builder.slot_of_local(&param.name).unwrap(),
+                        src: default_val,
+                    });
+                    builder.emit(Inst::Jump { target: merge_bb.clone() });
+                    
+                    // Branch else : garder la valeur reçue
+                    builder.switch_to(&else_bb);
+                    builder.emit(Inst::Jump { target: merge_bb.clone() });
+                    
+                    // Merge
+                    builder.switch_to(&merge_bb);
+                }
+            }
+        }
 
         // Enregistrer les captures comme accès directs à l'env struct (GetField/SetField).
         // Cela garantit que les mutations (ex: x = x + 1) sont persistantes d'un appel
@@ -581,7 +694,20 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     // Lire env_ptr depuis fat_ptr[8]
                     let env_ptr = builder.new_value();
                     builder.emit(Inst::GetField { dest: env_ptr.clone(), obj: fat_ptr, field: "env".into(), ty: IrType::Ptr, offset: 8 });
-                    let arg_vals: Vec<Value> = args.iter().map(|a| lower_expr(builder, a)).collect();
+                    
+                    // Évaluer les arguments fournis
+                    let mut arg_vals: Vec<Value> = args.iter().map(|a| lower_expr(builder, a)).collect();
+                    
+                    // Pour supporter les paramètres par défaut dans les nameless,
+                    // compléter avec des sentinelles (0) jusqu'à un maximum raisonnable
+                    // La fonction nameless détectera ces sentinelles et utilisera ses valeurs par défaut
+                    const MAX_PARAMS: usize = 5;
+                    while arg_vals.len() < MAX_PARAMS {
+                        let zero = builder.new_value();
+                        builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+                        arg_vals.push(zero);
+                    }
+                    
                     // Appel avec env_ptr en premier (convention uniforme)
                     let mut all_args = vec![env_ptr];
                     all_args.extend(arg_vals);
@@ -615,9 +741,13 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     } else {
                         format!("_method_{}", field) // fallback (ne devrait pas arriver)
                     };
+                    
+                    // Compléter les arguments avec les valeurs par défaut si nécessaire
+                    let completed_args = complete_args_with_defaults(builder, &func_mangled, args);
+                    
                     let obj_val = lower_expr(builder, object);
                     let dest = builder.new_value();
-                    let arg_vals: Vec<Value> = args.iter().map(|a| lower_expr(builder, a)).collect();
+                    let arg_vals: Vec<Value> = completed_args.iter().map(|a| lower_expr(builder, a)).collect();
                     let mut all_args = vec![obj_val];
                     all_args.extend(arg_vals);
                     // Résoudre le type de retour depuis fn_ret_types
@@ -632,6 +762,10 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 }
                 _ => "_unknown".into(),
             };
+
+            // Compléter les arguments avec les valeurs par défaut si nécessaire
+            let completed_args = complete_args_with_defaults(builder, &func_name, args);
+            let args = &completed_args; // Remplacer args par completed_args pour le reste
 
             // Fonctions d'affichage : dispatch vers la variante typée
             const WRITE_FUNS: &[&str] = &["IO_write", "IO_writeln"];
@@ -1364,6 +1498,9 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // Analyser les captures
             let param_names: HashSet<String> = params.iter().map(|p| p.name.clone()).collect();
             let captures = collect_captures(body, &param_names, &builder.locals);
+            
+            // Collecter les valeurs par défaut des paramètres
+            let has_defaults = params.iter().any(|p| p.default_value.is_some());
 
             // Générer un nom unique
             let anon_name = {
@@ -1443,10 +1580,11 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 &current_class,
                 &var_class_snap,
                 &func_vars_snap,
+                has_defaults,
             );
 
-            // Créer l'env avec les valeurs capturées
-            let env_ptr_val = if captures.is_empty() {
+            // Créer l'env avec les valeurs capturées ET les valeurs par défaut
+            let env_ptr_val = if captures.is_empty() && !has_defaults {
                 let z = builder.new_value();
                 builder.emit(Inst::ConstInt { dest: z.clone(), value: 0 });
                 z
@@ -1454,6 +1592,8 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 let env_class = format!("__env_{}", anon_name);
                 let env = builder.new_value();
                 builder.emit(Inst::Alloc { dest: env.clone(), class: env_class });
+                
+                // Stocker les captures
                 for (i, _) in captures.iter().enumerate() {
                     builder.emit(Inst::SetField {
                         obj:    env.clone(),
@@ -1462,6 +1602,23 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                         offset: (i * 8) as i32,
                     });
                 }
+                
+                // Stocker les valeurs par défaut des paramètres
+                if has_defaults {
+                    let default_offset = captures.len();
+                    for (i, param) in params.iter().enumerate() {
+                        if let Some(ref default_expr) = param.default_value {
+                            let default_val = lower_expr(builder, default_expr);
+                            builder.emit(Inst::SetField {
+                                obj:    env.clone(),
+                                field:  format!("__default_{}", i),
+                                src:    default_val,
+                                offset: ((default_offset + i) * 8) as i32,
+                            });
+                        }
+                    }
+                }
+                
                 env
             };
 

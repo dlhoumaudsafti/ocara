@@ -745,7 +745,7 @@ Les variables déclarées dans un bloc ne sont pas visibles en dehors.
 FuncDecl ::= "async"? "function" Identifier "(" ParamList? ")" ":" Type Block
 
 ParamList ::= Param ( "," Param )*
-Param     ::= Identifier ":" ( "variadic" "<" Type ">" | Type )
+Param     ::= Identifier ":" ( "variadic" "<" Type ">" | Type ( "=" Expr )? )
 ```
 
 **Règles :**
@@ -755,6 +755,9 @@ Param     ::= Identifier ":" ( "variadic" "<" Type ">" | Type )
 - Une fonction non-`void` **doit** retourner une valeur sur tous les chemins d'exécution.
 - Un paramètre `variadic<Type>` accepte 0 ou N arguments du type spécifié.
 - Un paramètre variadic **doit** être le dernier paramètre de la liste.
+- Un paramètre peut avoir une **valeur par défaut** avec la syntaxe `param:Type = valeur`.
+- Les paramètres avec valeur par défaut **doivent être placés après** les paramètres obligatoires (sauf pour un variadic en dernière position).
+- Un paramètre variadic **ne peut pas** avoir de valeur par défaut.
 
 **Exemple :**
 
@@ -766,9 +769,82 @@ function add(a:int, b:int): int {
 function greet(name:string): void {
     IO::writeln("Hello " + name)
 }
+
+// Avec valeurs par défaut
+function connect(host:string, port:int = 8080, timeout:int = 5000): void {
+    IO::writeln(`Connexion à ${host}:${port} (timeout: ${timeout}ms)`)
+}
+
+connect("localhost")              // port=8080, timeout=5000
+connect("localhost", 3000)        // port=3000, timeout=5000
+connect("localhost", 3000, 1000)  // port=3000, timeout=1000
 ```
 
-### 12.1 Paramètres variadics
+### 12.1 Paramètres avec valeurs par défaut
+
+Un paramètre peut avoir une **valeur par défaut** qui sera utilisée si l'argument correspondant n'est pas fourni lors de l'appel.
+
+**Syntaxe :**
+
+```ocara
+function log(message:string, level:string = "INFO", timestamp:bool = true): void {
+    if timestamp {
+        IO::writeln(`[${level}] ${message}`)
+    } else {
+        IO::writeln(`${level}: ${message}`)
+    }
+}
+
+// Appels possibles
+log("Démarrage")                      // level="INFO", timestamp=true
+log("Erreur détectée", "ERROR")       // timestamp=true
+log("Debug", "DEBUG", false)          // timestamp=false
+```
+
+**Règles de positionnement :**
+
+Les paramètres avec valeur par défaut doivent respecter un ordre strict :
+
+| Configuration | Valide | Exemple |
+|--------------|---------|---------|
+| Tous obligatoires | ✅ | `f(a:int, b:int)` |
+| Obligatoires puis optionnels | ✅ | `f(a:int, b:int = 0)` |
+| Tous optionnels | ✅ | `f(a:int = 0, b:int = 1)` |
+| Optionnels puis obligatoires | ❌ | `f(a:int = 0, b:int)` — erreur |
+| Optionnels puis variadic | ✅ | `f(a:int = 0, b:variadic<int>)` |
+| Variadic puis optionnels | ❌ | `f(a:variadic<int>, b:int = 0)` — erreur |
+
+**Valeurs par défaut autorisées :**
+
+Les valeurs par défaut peuvent être :
+
+```ocara
+// Littéraux
+function f1(x:int = 42): void { }
+function f2(s:string = "default"): void { }
+function f3(b:bool = true): void { }
+function f4(f:float = 3.14): void { }
+function f5(n:null = null): void { }
+
+// Expressions constantes
+const DEFAULT_PORT:int = 8080
+function connect(port:int = DEFAULT_PORT): void { }
+
+// Expressions calculées
+function delay(ms:int = 1000 * 60): void { }  // 60 secondes
+
+// Collections littérales
+function init(items:Array<int> = []): void { }
+function config(opts:map<string, int> = {}): void { }
+```
+
+**Restrictions :**
+
+- Un paramètre **variadic** ne peut pas avoir de valeur par défaut.
+- Les valeurs par défaut sont évaluées **à chaque appel** de la fonction.
+- Pour les types mutables (arrays, maps, objets), une nouvelle instance est créée à chaque appel.
+
+### 12.2 Paramètres variadics
 
 Un **paramètre variadic** permet à une fonction d'accepter un nombre variable d'arguments du même type. Il est déclaré avec la syntaxe `variadic<Type>`.
 
@@ -1075,11 +1151,15 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
 #### Entrées/Sorties
 
 - **IO** — Lecture/écriture console (stdin/stdout/stderr)
-  - `writeln()`, `write()`, `read()`, `write_stderr()`, `flush()`
-- **HTTPRequest** — Client HTTP pour requêtes GET/POST
-  - `get()`, `post()`, `set_header()`, `get_status()`, `get_body()`
-- **HTTPServer** — Serveur HTTP embarqué
-  - `start()`, `stop()`, `handle()`, `send_response()`
+  - `writeln()`, `write()`, `read()`, `read_int()`, `read_float()`, `read_bool()`, `read_array()`, `read_map()`
+- **File** — Manipulation de fichiers (classe statique)
+  - `read()`, `write()`, `append()`, `exists()`, `delete()`, `copy()`, `move()`, `size()`, `is_file()`, `is_readable()`, `is_writable()`
+- **Directory** — Manipulation de répertoires (classe statique)
+  - `create()`, `delete()`, `exists()`, `list()`, `is_directory()`, `is_empty()`, `copy()`, `move()`, `create_recursive()`, `delete_recursive()`, `size()`
+- **HTTPRequest** — Client HTTP pour requêtes GET/POST/PUT/DELETE/PATCH
+  - `new()`, `set_method()`, `set_header()`, `set_body()`, `set_timeout()`, `send()`, `status()`, `body()`, `header()`, `headers()`, `ok()`, `is_error()`, `error()`, `get()`, `post()`, `put()`, `delete()`, `patch()`
+- **HTTPServer** — Serveur HTTP multi-thread embarqué (classe d'instance)
+  - `set_port()`, `set_host()`, `set_workers()`, `set_root_path()`, `route()`, `route_error()`, `run()`, `req_path()`, `req_method()`, `req_body()`, `req_header()`, `req_query()`, `respond()`, `set_resp_header()`
 
 #### Manipulation de données
 
@@ -1120,7 +1200,37 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
 #### Tests
 
 - **UnitTest** — Assertions pour tests unitaires (classe statique)
-  - `assertEquals()`, `assertNotEquals()`, `assertTrue()`, `assertFalse()`, `assertNull()`, `assertNotNull()`, `assertGreater()`, `assertLess()`
+  - `assertEquals()`, `assertNotEquals()`, `assertTrue()`, `assertFalse()`, `assertNull()`, `assertNotNull()`, `assertGreater()`, `assertLess()`, `assertGreaterOrEquals()`, `assertLessOrEquals()`, `assertContains()`, `assertEmpty()`, `assertNotEmpty()`, `fail()`, `pass()`, `assertFunction()`, `assertClass()`, `assertEnum()`, `assertMap()`, `assertArray()`
+
+#### Composants Web
+
+- **HTML** — Rendu de composants HTML (classe statique)
+  - `render()`, `render_cached()`, `cache_delete()`, `cache_clear()`, `escape()`
+- **HTMLComponent** — Définition de composants HTML personnalisés (classe d'instance)
+  - `init()`, `register()`
+
+#### Gestion des erreurs
+
+Les classes d'exception permettent une gestion fine des erreurs avec `try/on`. Toutes héritent d'une structure commune avec les champs `message:string`, `code:int`, et `source:string`.
+
+- **Exception** — Exception générique de base
+- **FileException** — Erreurs de manipulation de fichiers (10 codes d'erreur)
+- **DirectoryException** — Erreurs de manipulation de répertoires (11 codes d'erreur)
+- **IOException** — Erreurs d'entrées/sorties stdin/stdout (2 codes d'erreur)
+- **SystemException** — Erreurs système (exec, env) (3 codes d'erreur)
+- **ArrayException** — Erreurs sur tableaux vides (pop, first, last)
+- **MapException** — Erreurs de clé inexistante dans les maps
+- **MathException** — Erreurs mathématiques (sqrt négatif, pow exposant négatif)
+- **ConvertException** — Erreurs de conversion de types invalides
+- **RegexException** — Erreurs de syntaxe regex
+- **DateTimeException** — Erreurs de parsing de date/heure
+- **DateException** — Erreurs de format/range de date
+- **TimeException** — Erreurs de format/range de temps
+- **ThreadException** — Erreurs de création/join de threads
+- **MutexException** — Erreurs de lock/unlock de mutex
+- **UnitTestException** — Échecs d'assertions de tests (19 codes d'erreur)
+
+> **Note :** La classe `String` ne lève aucune exception - toutes ses méthodes sont safe.
 
 **Utilisation :**
 
@@ -1879,7 +1989,7 @@ InterfaceMethod ::= "method" Identifier "(" ParamList? ")" ":" Type
 (* ── Paramètres ─────────────────────────────────────────────────── *)
 
 ParamList   ::= Param ( "," Param )*
-Param       ::= Identifier ":" ( "variadic" "<" Type ">" | Type )
+Param       ::= Identifier ":" ( "variadic" "<" Type ">" | Type ( "=" Expression )? )
 
 (* ── Types ──────────────────────────────────────────────────────── *)
 
