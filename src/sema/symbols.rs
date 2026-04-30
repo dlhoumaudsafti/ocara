@@ -104,6 +104,12 @@ impl SymbolTable {
             table.classes.insert("Map".to_string(), map_class);
         }
         
+        // Enregistrer automatiquement la classe JSON pour les méthodes intégrées
+        // sur les variables de type array/map/string (ex: data.encode(), json.decode())
+        if let Some(json_class) = crate::builtins::builtin_class("JSON") {
+            table.classes.insert("JSON".to_string(), json_class);
+        }
+        
         table
     }
 

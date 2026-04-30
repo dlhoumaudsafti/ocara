@@ -758,6 +758,33 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 Expr::Field { object, field, .. } => {
                     // méthode → appel manglé ClassName_method
                     // On résout le nom de classe depuis var_class ou current_class (self)
+                    
+                    // ── Cas spécial : méthodes JSON sur types primitifs ───────────────
+                    // array/map.encode() → JSON_encode(obj)
+                    // string.decode() / string.pretty() / string.minimize() → JSON_<method>(obj)
+                    let is_json_method = match field.as_str() {
+                        "encode" | "decode" | "pretty" | "minimize" => true,
+                        _ => false,
+                    };
+                    
+                    if is_json_method {
+                        let obj_val = lower_expr(builder, object);
+                        let dest = builder.new_value();
+                        let func_name = format!("JSON_{}", field);
+                        
+                        // JSON est maintenant toujours disponible, pas besoin de vérifier l'import
+                        
+                        let ret_ty = builder.fn_ret_types.get(&func_name).cloned().unwrap_or(IrType::Ptr);
+                        builder.emit(Inst::Call {
+                            dest:   Some(dest.clone()),
+                            func:   func_name,
+                            args:   vec![obj_val],
+                            ret_ty,
+                        });
+                        return dest;
+                    }
+                    
+                    // ── Cas normal : résolution de classe ─────────────────────────────
                     let class_name = match object.as_ref() {
                         Expr::Ident(var_name, _) => {
                             builder.var_class.get(var_name.as_str()).cloned()
@@ -1007,7 +1034,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // Vérification de l'import : les modules ocara builtins doivent être importés
             // SAUF si la classe est définie localement dans le programme
             const BUILTIN_MODULES: &[&str] = &[
-                "String", "Math", "Array", "Map", "IO",
+                "String", "Math", "Array", "Map", "IO", "JSON",
                 "Convert", "System", "Regex", "HTTPRequest", "HTTPServer", "Thread",
             ];
             let is_local_class = builder.module.class_layouts.contains_key(class);
