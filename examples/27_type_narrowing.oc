@@ -118,10 +118,10 @@ function main(): int {
     IO::writeln("")
 
     IO::writeln("8. Function :")
-    var fn_val:Function<int> = nameless(): int { return 99 }
-    IO::writeln("   nameless is Function<int> → " + Convert::boolToStr(fn_val is Function<int>))
-    IO::writeln("   string   is Function<int> → " + Convert::boolToStr(s is Function<int>))
-    IO::writeln("   int      is Function<int> → " + Convert::boolToStr(i is Function<int>))
+    var fn_val:Function<int()> = nameless(): int { return 99 }
+    IO::writeln("   nameless is Function<int()> → " + Convert::boolToStr(fn_val is Function<int()>))
+    IO::writeln("   string   is Function<int()> → " + Convert::boolToStr(s is Function<int()>))
+    IO::writeln("   int      is Function<int()> → " + Convert::boolToStr(i is Function<int()>))
     IO::writeln("")
 
     // ── Match sur tous les types ──────────────────────────────────────────
@@ -150,7 +150,7 @@ function describe(val:mixed): void {
         is int[]            => IO::writeln(`   arr  → array`)
         is map<string, int> => IO::writeln(`   m  → map`)
         is Animal           => IO::writeln(`   Animal  → object Animal`)
-        is Function<int>    => IO::writeln(`   fn_val  → Function`)
+        is Function<int()>  => IO::writeln(`   fn_val  → Function`)
         default             => IO::writeln(`   ${val}  → inconnu`)
     }
 }

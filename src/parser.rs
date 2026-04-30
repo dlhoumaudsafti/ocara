@@ -227,27 +227,22 @@ impl Parser {
 
             TokenKind::Ident(name) => {
                 self.advance();
-                // `Function<ReturnType>` ou `Function<ReturnType(ParamType, ...)>`
+                // `Function<ReturnType(ParamType, ...)>`
                 if name == "Function" {
                     self.eat(&TokenKind::Lt)?;
                     let ret_ty = self.parse_type()?;
                     
-                    // Vérifier si on a des paramètres : `Function<RetType(Params)>`
-                    let param_tys = if self.check_exact(&TokenKind::LParen) {
-                        self.advance(); // consomme '('
-                        let mut params = Vec::new();
-                        if !self.check_exact(&TokenKind::RParen) {
-                            params.push(self.parse_type()?);
-                            while self.check_exact(&TokenKind::Comma) {
-                                self.advance();
-                                params.push(self.parse_type()?);
-                            }
+                    // Les paramètres sont obligatoires
+                    self.eat(&TokenKind::LParen)?;
+                    let mut param_tys = Vec::new();
+                    if !self.check_exact(&TokenKind::RParen) {
+                        param_tys.push(self.parse_type()?);
+                        while self.check_exact(&TokenKind::Comma) {
+                            self.advance();
+                            param_tys.push(self.parse_type()?);
                         }
-                        self.eat(&TokenKind::RParen)?;
-                        params
-                    } else {
-                        Vec::new() // ancienne syntaxe sans paramètres
-                    };
+                    }
+                    self.eat(&TokenKind::RParen)?;
                     
                     self.eat(&TokenKind::Gt)?;
                     return Ok(Type::Function {

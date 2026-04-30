@@ -3,8 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // 
 // Depuis Ocara v0.1.0, les fonctions peuvent être typées avec leurs paramètres :
-//   - Ancienne syntaxe : Function<RetType>  (rétro-compatible, sans typage des paramètres)
-//   - Nouvelle syntaxe : Function<RetType(ParamType1, ParamType2, ...)>
+//   Syntaxe : Function<RetType(ParamType1, ParamType2, ...)>
 //
 // Cette syntaxe permet un typage plus strict des callbacks et des fonctions 
 // passées en paramètres.
@@ -100,12 +99,6 @@ function main(): int {
     scoped action:Function<void()> = printStar
     repeat(5, action)
     IO::writeln("")
-    
-    // ── 4. Ancienne syntaxe (rétro-compatible) ──
-    IO::writeln("")
-    IO::writeln("4. Ancienne syntaxe : Function<RetType>")
-    scoped fn:Function<int> = add
-    IO::writeln("   fn assigné = OK (pas de vérification des paramètres)")
     
     IO::writeln("")
     IO::writeln("=== Fin de l'exemple ===")
