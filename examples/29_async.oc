@@ -28,7 +28,7 @@ async function async_array(): int[] {
 }
 
 // ── 6. Function / nameless ────────────────────────────────────────────────────
-async function async_func(factor:int): Function<int> {
+async function async_func(factor:int): Function<int(int)> {
     return nameless(x:int): int { return x * factor }
 }
 
@@ -88,7 +88,7 @@ function main(): void {
 
     IO::writeln("--- Function ---")
     var tfn:int = async_func(3)
-    var rfn:Function<int> = resolve tfn
+    var rfn:Function<int(int)> = resolve tfn
     var res:int = rfn(7)
     IO::writeln(Convert::intToStr(res))
 
