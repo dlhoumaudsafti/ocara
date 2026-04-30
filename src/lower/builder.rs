@@ -47,6 +47,10 @@ pub struct LowerBuilder<'m> {
     pub async_var_ret: HashMap<String, IrType>,
     /// Noms des paramètres variadic (pour unboxing dans les boucles for)
     pub variadic_params: HashSet<String>,
+    /// Valeurs par défaut des paramètres : func_name → Vec<Option<Expr>>
+    pub func_default_args: HashMap<String, Vec<Option<Expr>>>,
+    /// Nombre total de paramètres pour les variables Function : var_name → count
+    pub func_var_param_count: HashMap<String, usize>,
 }
 
 impl<'m> LowerBuilder<'m> {
@@ -76,6 +80,8 @@ impl<'m> LowerBuilder<'m> {
             async_funcs: HashSet::new(),
             async_var_ret: HashMap::new(),
             variadic_params: HashSet::new(),
+            func_default_args: HashMap::new(),
+            func_var_param_count: HashMap::new(),
         }
     }
 
@@ -204,12 +210,19 @@ pub fn lower_program(program: &Program) -> IrModule {
     // Uniquement les fonctions référençables comme type Function
     let mut fn_param_types: HashMap<String, Vec<IrType>> = HashMap::new();
     let mut fn_variadic_info: HashMap<String, (usize, IrType)> = HashMap::new();
+    let mut func_default_args: HashMap<String, Vec<Option<Expr>>> = HashMap::new();
     
     for func in &program.functions {
         let param_types: Vec<IrType> = func.params.iter()
             .map(|p| IrType::from_ast(&p.ty))
             .collect();
         fn_param_types.insert(func.name.clone(), param_types);
+        
+        // Collecte des valeurs par défaut
+        let default_args: Vec<Option<Expr>> = func.params.iter()
+            .map(|p| p.default_value.clone())
+            .collect();
+        func_default_args.insert(func.name.clone(), default_args);
         
         // Si dernier paramètre est variadic, enregistrer les infos
         if let Some(last_param) = func.params.last() {
@@ -224,12 +237,19 @@ pub fn lower_program(program: &Program) -> IrModule {
     for class in &program.classes {
         for member in &class.members {
             if let ClassMember::Method { decl, is_static, .. } = member {
+                let mangled = format!("{}_{}", class.name, decl.name);
+                
                 if *is_static {
-                    let mangled = format!("{}_{}", class.name, decl.name);
                     let param_types: Vec<IrType> = decl.params.iter()
                         .map(|p| IrType::from_ast(&p.ty))
                         .collect();
                     fn_param_types.insert(mangled.clone(), param_types);
+                    
+                    // Collecte des valeurs par défaut
+                    let default_args: Vec<Option<Expr>> = decl.params.iter()
+                        .map(|p| p.default_value.clone())
+                        .collect();
+                    func_default_args.insert(mangled.clone(), default_args);
                     
                     // Si dernier paramètre est variadic
                     if let Some(last_param) = decl.params.last() {
@@ -239,6 +259,13 @@ pub fn lower_program(program: &Program) -> IrModule {
                             fn_variadic_info.insert(mangled, (fixed_count, elem_ty));
                         }
                     }
+                } else {
+                    // Méthodes d'instance : collecte des valeurs par défaut (sans self)
+                    // self est géré séparément dans le lowering, donc on ne l'inclut pas ici
+                    let default_args: Vec<Option<Expr>> = decl.params.iter()
+                        .map(|p| p.default_value.clone())
+                        .collect();
+                    func_default_args.insert(mangled, default_args);
                 }
             }
         }
@@ -404,7 +431,7 @@ pub fn lower_program(program: &Program) -> IrModule {
 
     // Fonctions libres (les constantes sont inlinées dans chaque fonction)
     for func in &program.functions {
-        lower_func(&mut module, func, &program.consts, &fn_ret_types, &fn_param_types, &fn_variadic_info, None, &async_funcs);
+        lower_func(&mut module, func, &program.consts, &fn_ret_types, &fn_param_types, &fn_variadic_info, &func_default_args, None, &async_funcs);
         // Générer le wrapper async si la fonction est marquée async
         if func.is_async {
             let param_tys: Vec<IrType> = func.params.iter().map(|p| IrType::from_ast(&p.ty)).collect();
@@ -416,7 +443,7 @@ pub fn lower_program(program: &Program) -> IrModule {
 
     // Méthodes de classes (passe toutes les classes pour l'héritage)
     for class in &program.classes {
-        lower_class(&mut module, class, &program.classes, &program.modules, &program.consts, &fn_ret_types, &fn_param_types, &fn_variadic_info, &async_funcs);
+        lower_class(&mut module, class, &program.classes, &program.modules, &program.consts, &fn_ret_types, &fn_param_types, &fn_variadic_info, &func_default_args, &async_funcs);
     }
 
     module
@@ -451,6 +478,7 @@ pub fn lower_func(
     fn_ret_types: &HashMap<String, IrType>,
     fn_param_types: &HashMap<String, Vec<IrType>>,
     fn_variadic_info: &HashMap<String, (usize, IrType)>,
+    func_default_args: &HashMap<String, Vec<Option<Expr>>>,
     class_name: Option<&str>,
     async_funcs: &HashSet<String>,
 ) {
@@ -483,6 +511,9 @@ pub fn lower_func(
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect();
     builder.fn_variadic_info = fn_variadic_info.iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+    builder.func_default_args = func_default_args.iter()
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect();
     builder.async_funcs = async_funcs.iter().cloned().collect();
@@ -565,6 +596,7 @@ fn lower_class(
     fn_ret_types: &HashMap<String, IrType>,
     fn_param_types: &HashMap<String, Vec<IrType>>,
     fn_variadic_info: &HashMap<String, (usize, IrType)>,
+    func_default_args: &HashMap<String, Vec<Option<Expr>>>,
     async_funcs: &HashSet<String>,
 ) {
     // Collecte des noms de méthodes propres (pour détecter les surcharges)
@@ -581,13 +613,14 @@ fn lower_class(
                         name: format!("{}_{}", class.name, decl.name),
                         ..decl.clone()
                     };
-                    lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, None, async_funcs);
+                    lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, func_default_args, None, async_funcs);
                 } else {
                     // Méthode d'instance : self en premier paramètre
                     let self_param = crate::ast::Param {
                         name: "self".into(),
                         ty:   Type::Mixed,
                         is_variadic: false,
+                        default_value: None,
                         span: decl.span.clone(),
                     };
                     let mut full_params = vec![self_param];
@@ -597,7 +630,7 @@ fn lower_class(
                         params: full_params,
                         ..decl.clone()
                     };
-                    lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, Some(&class.name), async_funcs);
+                    lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, func_default_args, Some(&class.name), async_funcs);
                 }
             }
             ClassMember::Constructor { params, body, span } => {
@@ -605,6 +638,7 @@ fn lower_class(
                     name: "self".into(),
                     ty:   Type::Mixed,
                     is_variadic: false,
+                    default_value: None,
                     span: span.clone(),
                 };
                 let mut full_params = vec![self_param];
@@ -617,7 +651,7 @@ fn lower_class(
                     is_async: false,
                     span:     span.clone(),
                 };
-                lower_func(module, &init_func, consts, fn_ret_types, fn_param_types, fn_variadic_info, Some(&class.name), async_funcs);
+                lower_func(module, &init_func, consts, fn_ret_types, fn_param_types, fn_variadic_info, func_default_args, Some(&class.name), async_funcs);
             }
             ClassMember::Const { name, value, .. } => {
                 use crate::ir::module::IrGlobal;
@@ -650,13 +684,14 @@ fn lower_class(
                                 name: format!("{}_{}", class.name, decl.name),
                                 ..decl.clone()
                             };
-                            lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, None, async_funcs);
+                            lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, func_default_args, None, async_funcs);
                         } else {
                             // Méthode d'instance du module
                             let self_param = crate::ast::Param {
                                 name: "self".into(),
                                 ty:   Type::Mixed,
                                 is_variadic: false,
+                                default_value: None,
                                 span: decl.span.clone(),
                             };
                             let mut full_params = vec![self_param];
@@ -667,7 +702,7 @@ fn lower_class(
                                 ..decl.clone()
                             };
                             // Générer avec le contexte de la classe (layouts corrects!)
-                            lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, Some(&class.name), async_funcs);
+                            lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, func_default_args, Some(&class.name), async_funcs);
                         }
                     }
                 }
@@ -685,6 +720,7 @@ fn lower_class(
                             name: "self".into(),
                             ty:   Type::Mixed,
                             is_variadic: false,
+                            default_value: None,
                             span: decl.span.clone(),
                         };
                         let mut full_params = vec![self_param];
@@ -695,7 +731,7 @@ fn lower_class(
                             ..decl.clone()
                         };
                         // Émettre avec le contexte de la classe enfant (layouts corrects)
-                        lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, Some(&class.name), async_funcs);
+                        lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, func_default_args, Some(&class.name), async_funcs);
                     }
                 }
             }

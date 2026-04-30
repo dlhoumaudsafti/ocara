@@ -488,20 +488,20 @@ impl<'a> TypeChecker<'a> {
                 // Résolution : Ident direct → fonction libre
                 if let Expr::Ident(name, _) = callee.as_ref() {
                     if let Some(sig) = self.symbols.lookup_function(name) {
-                        // Vérification du nombre d'arguments avec support variadic
+                        // Vérification du nombre d'arguments avec support variadic et paramètres optionnels
                         let args_ok = if sig.has_variadic {
-                            // Si variadic : accepte fixed_params_count ou plus
-                            args.len() >= sig.fixed_params_count
+                            // Si variadic : accepte required_params_count ou plus
+                            args.len() >= sig.required_params_count
                         } else {
-                            // Si non-variadic : doit être exactement params.len()
-                            args.len() == sig.params.len()
+                            // Si non-variadic : entre required_params_count et params.len()
+                            args.len() >= sig.required_params_count && args.len() <= sig.params.len()
                         };
                         
                         if !args_ok {
                             let expected = if sig.has_variadic {
-                                sig.fixed_params_count  // Afficher le minimum requis
+                                sig.required_params_count  // Minimum avec variadic
                             } else {
-                                sig.params.len()
+                                sig.required_params_count  // Minimum sans variadic
                             };
                             self.errors.push(SemaError::WrongArgCount {
                                 name:     name.clone(),
@@ -539,18 +539,18 @@ impl<'a> TypeChecker<'a> {
                                     span:   fspan.clone(),
                                 });
                             }
-                            // Vérification du nombre d'arguments avec support variadic
+                            // Vérification du nombre d'arguments avec support variadic et paramètres optionnels
                             let args_ok = if sig.has_variadic {
-                                args.len() >= sig.fixed_params_count
+                                args.len() >= sig.required_params_count
                             } else {
-                                args.len() == sig.params.len()
+                                args.len() >= sig.required_params_count && args.len() <= sig.params.len()
                             };
                             
                             if !args_ok {
                                 let expected = if sig.has_variadic {
-                                    sig.fixed_params_count
+                                    sig.required_params_count
                                 } else {
-                                    sig.params.len()
+                                    sig.required_params_count
                                 };
                                 self.errors.push(SemaError::WrongArgCount {
                                     name:     format!("{}::{}", cls_name, field),
@@ -603,18 +603,18 @@ impl<'a> TypeChecker<'a> {
                             });
                         }
                         let ret = sig.ret_ty.clone();
-                        // Vérification du nombre d'arguments avec support variadic
+                        // Vérification du nombre d'arguments avec support variadic et paramètres optionnels
                         let args_ok = if sig.has_variadic {
-                            args.len() >= sig.fixed_params_count
+                            args.len() >= sig.required_params_count
                         } else {
-                            args.len() == sig.params.len()
+                            args.len() >= sig.required_params_count && args.len() <= sig.params.len()
                         };
                         
                         if !args_ok {
                             let expected = if sig.has_variadic {
-                                sig.fixed_params_count
+                                sig.required_params_count
                             } else {
-                                sig.params.len()
+                                sig.required_params_count
                             };
                             self.errors.push(SemaError::WrongArgCount {
                                 name:     format!("{}::{}", resolved_class, method),

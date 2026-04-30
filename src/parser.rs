@@ -267,7 +267,7 @@ impl Parser {
             params.push(self.parse_param()?);
         }
         
-        // Vérification : si variadic présent, doit être le dernier paramètre
+        // Vérification 1 : si variadic présent, doit être le dernier paramètre
         if params.len() > 1 {
             for (i, param) in params.iter().enumerate() {
                 if param.is_variadic && i != params.len() - 1 {
@@ -276,6 +276,30 @@ impl Parser {
                         span: param.span.clone(),
                     });
                 }
+            }
+        }
+        
+        // Vérification 2 : les paramètres avec valeur par défaut doivent être après les paramètres obligatoires
+        // (sauf si le dernier paramètre est variadic, qui peut suivre des paramètres avec default)
+        let has_variadic_at_end = params.last().map(|p| p.is_variadic).unwrap_or(false);
+        let params_to_check = if has_variadic_at_end {
+            &params[..params.len() - 1]  // exclure le variadic de la vérification
+        } else {
+            &params[..]
+        };
+        
+        let mut found_default = false;
+        for param in params_to_check {
+            if param.default_value.is_some() {
+                found_default = true;
+            } else if found_default {
+                return Err(ParseError {
+                    message: format!(
+                        "le paramètre '{}' sans valeur par défaut ne peut pas suivre un paramètre avec valeur par défaut",
+                        param.name
+                    ),
+                    span: param.span.clone(),
+                });
             }
         }
         
@@ -294,10 +318,28 @@ impl Parser {
             self.eat(&TokenKind::Lt)?; // '<'
             let ty = self.parse_type()?;
             self.eat(&TokenKind::Gt)?; // '>'
-            Ok(Param { name, ty, is_variadic: true, span })
+            
+            // Les paramètres variadic ne peuvent pas avoir de valeur par défaut
+            if self.check_exact(&TokenKind::Eq) {
+                return Err(ParseError {
+                    message: "un paramètre variadic ne peut pas avoir de valeur par défaut".to_string(),
+                    span,
+                });
+            }
+            
+            Ok(Param { name, ty, is_variadic: true, default_value: None, span })
         } else {
             let ty = self.parse_type()?;
-            Ok(Param { name, ty, is_variadic: false, span })
+            
+            // Vérifier s'il y a une valeur par défaut (= expression)
+            let default_value = if self.check_exact(&TokenKind::Eq) {
+                self.advance(); // consommer '='
+                Some(self.parse_expr()?)
+            } else {
+                None
+            };
+            
+            Ok(Param { name, ty, is_variadic: false, default_value, span })
         }
     }
 

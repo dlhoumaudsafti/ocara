@@ -30,6 +30,7 @@ fn m(params: Vec<(&str, Type)>, ret_ty: Type) -> FuncSig {
         is_async:  false,
         has_variadic: false,
         fixed_params_count: len,
+        required_params_count: len,
     }
 }
 

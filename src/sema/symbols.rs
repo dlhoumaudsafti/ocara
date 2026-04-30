@@ -16,6 +16,7 @@ pub struct FuncSig {
     pub is_async:  bool,
     pub has_variadic: bool,  // true si le dernier paramètre est variadic
     pub fixed_params_count: usize,  // nombre de paramètres fixes (avant variadic)
+    pub required_params_count: usize,  // nombre de paramètres obligatoires (sans default_value)
 }
 
 /// Descripteur d'un champ de classe
@@ -150,6 +151,7 @@ impl SymbolTable {
                 is_async:  decl.is_async,
                 has_variadic: has_variadic_param(&decl.params),
                 fixed_params_count: fixed_params_count(&decl.params),
+                required_params_count: required_params_count(&decl.params),
             },
         );
         true
@@ -170,6 +172,7 @@ impl SymbolTable {
         is_async:  false,
                     has_variadic: has_variadic_param(&m.params),
                     fixed_params_count: fixed_params_count(&m.params),
+                    required_params_count: required_params_count(&m.params),
                 },
             );
         }
@@ -206,6 +209,7 @@ impl SymbolTable {
         is_async:  false,
                         has_variadic: has_variadic_param(&fd.params),
                         fixed_params_count: fixed_params_count(&fd.params),
+                        required_params_count: required_params_count(&fd.params),
                     });
                 }
                 ClassMember::Constructor { .. } => {
@@ -284,6 +288,7 @@ impl SymbolTable {
         is_async:  false,
                         has_variadic: has_variadic_param(&fd.params),
                         fixed_params_count: fixed_params_count(&fd.params),
+                        required_params_count: required_params_count(&fd.params),
                     });
                 }
                 ClassMember::Constructor { .. } => {}
@@ -416,4 +421,11 @@ fn fixed_params_count(params: &[Param]) -> usize {
     } else {
         params.len()
     }
+}
+
+fn required_params_count(params: &[Param]) -> usize {
+    // Compte les paramètres sans default_value (obligatoires)
+    params.iter()
+        .take_while(|p| !p.is_variadic && p.default_value.is_none())
+        .count()
 }
