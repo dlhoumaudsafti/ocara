@@ -20,11 +20,11 @@ function main(): int {
 
     // ── 2. Requête POST avec en-têtes et corps ───────────────────────────────
     scoped req:int = HTTPRequest::new("http://useragent.fr/")
-    HTTPRequest::set_method(req, "POST")
-    HTTPRequest::set_header(req, "Content-Type", "application/json")
-    HTTPRequest::set_header(req, "Authorization", "Bearer secret-token")
-    HTTPRequest::set_body(req, "{\"name\": \"Alice\", \"age\": 30}")
-    HTTPRequest::set_timeout(req, 5000)
+    HTTPRequest::setMethod(req, "POST")
+    HTTPRequest::setHeader(req, "Content-Type", "application/json")
+    HTTPRequest::setHeader(req, "Authorization", "Bearer secret-token")
+    HTTPRequest::setBody(req, "{\"name\": \"Alice\", \"age\": 30}")
+    HTTPRequest::setTimeout(req, 5000)
 
     scoped res2:int = HTTPRequest::send(req)
 
@@ -42,7 +42,7 @@ function main(): int {
     scoped res3:int = HTTPRequest::get("https://hote-inexistant.local/api")
 
     IO::writeln("=== Erreur réseau ===")
-    if HTTPRequest::is_error(res3) {
+    if HTTPRequest::isError(res3) {
         IO::writeln(`Erreur réseau : ${HTTPRequest::error(res3)}`)
     } else {
         IO::writeln(`Status : ${HTTPRequest::status(res3)}`)

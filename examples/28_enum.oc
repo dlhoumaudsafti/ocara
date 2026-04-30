@@ -45,16 +45,16 @@ function is_error(status:int): bool {
 
 function main(): void {
     IO::writeln("1. valeurs automatiques :")
-    IO::writeln(Convert::int_to_str(Direction::North))   // 0
-    IO::writeln(Convert::int_to_str(Direction::East))    // 1
-    IO::writeln(Convert::int_to_str(Direction::South))   // 2
-    IO::writeln(Convert::int_to_str(Direction::West))    // 3
+    IO::writeln(Convert::intToStr(Direction::North))   // 0
+    IO::writeln(Convert::intToStr(Direction::East))    // 1
+    IO::writeln(Convert::intToStr(Direction::South))   // 2
+    IO::writeln(Convert::intToStr(Direction::West))    // 3
 
     IO::writeln("2. valeurs explicites :")
-    IO::writeln(Convert::int_to_str(HttpStatus::Ok))       // 200
-    IO::writeln(Convert::int_to_str(HttpStatus::Created))  // 201
-    IO::writeln(Convert::int_to_str(HttpStatus::NotFound)) // 404
-    IO::writeln(Convert::int_to_str(HttpStatus::Error))    // 500
+    IO::writeln(Convert::intToStr(HttpStatus::Ok))       // 200
+    IO::writeln(Convert::intToStr(HttpStatus::Created))  // 201
+    IO::writeln(Convert::intToStr(HttpStatus::NotFound)) // 404
+    IO::writeln(Convert::intToStr(HttpStatus::Error))    // 500
 
     IO::writeln("3. switch sur enum :")
     IO::writeln(direction_name(Direction::North))  // Nord

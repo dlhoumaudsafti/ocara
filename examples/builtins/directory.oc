@@ -21,7 +21,7 @@ function demo_create(): void {
     IO::writeln("✓ Répertoire créé: /tmp/ocara_test")
     
     // Créer une arborescence
-    Directory::create_recursive("/tmp/ocara_test/niveau1/niveau2/niveau3")
+    Directory::createRecursive("/tmp/ocara_test/niveau1/niveau2/niveau3")
     IO::writeln("✓ Arborescence créée: /tmp/ocara_test/niveau1/niveau2/niveau3")
     IO::writeln("")
 }
@@ -74,13 +74,13 @@ function demo_list(): void {
 function demo_list_filtered(): void {
     IO::writeln("=== Listing filtré ===")
     
-    var files:string[] = Directory::list_files("/tmp/ocara_test")
+    var files:string[] = Directory::listFiles("/tmp/ocara_test")
     IO::writeln(`Fichiers uniquement (${Array::length(files)}):`)
     for file in files {
         IO::writeln(`  📄 ${file}`)
     }
     
-    var dirs:string[] = Directory::list_dirs("/tmp/ocara_test")
+    var dirs:string[] = Directory::listDirs("/tmp/ocara_test")
     IO::writeln(`Répertoires uniquement (${Array::length(dirs)}):`)
     for dir in dirs {
         IO::writeln(`  📁 ${dir}`)
@@ -170,10 +170,10 @@ function demo_remove(): void {
     IO::writeln("✓ Supprimé (vide): niveau3")
     
     // Supprimer récursivement
-    Directory::remove_recursive("/tmp/ocara_test")
+    Directory::removeRecursive("/tmp/ocara_test")
     IO::writeln("✓ Supprimé (récursif): /tmp/ocara_test")
     
-    Directory::remove_recursive("/tmp/ocara_test_renamed")
+    Directory::removeRecursive("/tmp/ocara_test_renamed")
     IO::writeln("✓ Supprimé (récursif): /tmp/ocara_test_renamed")
     IO::writeln("")
 }
@@ -198,7 +198,7 @@ function demo_error_handling(): void {
     } on e {
         IO::writeln(`✓ Erreur capturée (répertoire non vide): ${e}`)
         // Nettoyer
-        Directory::remove_recursive("/tmp/test_error")
+        Directory::removeRecursive("/tmp/test_error")
     }
     IO::writeln("")
 }
@@ -215,7 +215,7 @@ function demo_practical_example(): void {
     File::write("/tmp/files_test/README", "readme")
     
     // Compter par extension
-    var files:string[] = Directory::list_files("/tmp/files_test")
+    var files:string[] = Directory::listFiles("/tmp/files_test")
     var txt_count:int = 0
     var other_count:int = 0
     
@@ -232,7 +232,7 @@ function demo_practical_example(): void {
     IO::writeln(`Autres fichiers: ${other_count}`)
     
     // Nettoyer
-    Directory::remove_recursive("/tmp/files_test")
+    Directory::removeRecursive("/tmp/files_test")
     IO::writeln("")
 }
 

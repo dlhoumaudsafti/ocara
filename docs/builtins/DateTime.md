@@ -25,13 +25,13 @@ var ts:int = DateTime::now()
 IO::write(ts)  // exemple: 1714233600
 ```
 
-### `DateTime::from_timestamp(ts:int) → string`
+### `DateTime::fromTimestamp(ts:int) → string`
 
 Convertit un timestamp en chaîne au format ISO 8601 : `YYYY-MM-DDTHH:MM:SS`.
 
 ```ocara
 var ts:int = 1714233600
-var dt:string = DateTime::from_timestamp(ts)
+var dt:string = DateTime::fromTimestamp(ts)
 IO::write(dt)  // "2024-04-27T18:00:00"
 ```
 
@@ -133,14 +133,14 @@ fun main(): void {
     IO::write(now)
     
     // Conversion en chaîne lisible
-    var dt:string = DateTime::from_timestamp(now)
+    var dt:string = DateTime::fromTimestamp(now)
     IO::write("Date/heure: " + dt)
     
     // Extraction des composants
-    IO::write("Année: " + Convert::int_to_str(DateTime::year(now)))
-    IO::write("Mois: " + Convert::int_to_str(DateTime::month(now)))
-    IO::write("Jour: " + Convert::int_to_str(DateTime::day(now)))
-    IO::write("Heure: " + Convert::int_to_str(DateTime::hour(now)))
+    IO::write("Année: " + Convert::intToStr(DateTime::year(now)))
+    IO::write("Mois: " + Convert::intToStr(DateTime::month(now)))
+    IO::write("Jour: " + Convert::intToStr(DateTime::day(now)))
+    IO::write("Heure: " + Convert::intToStr(DateTime::hour(now)))
     
     // Formatage personnalisé
     var formatted:string = DateTime::format(now, "Le %d/%m/%Y à %H:%M:%S")

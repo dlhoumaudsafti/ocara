@@ -21,12 +21,12 @@ IO::writeln(content)
 
 **Erreur** : `fail` si le fichier n'existe pas ou n'est pas lisible.
 
-### `File::read_bytes(path: string) → int[]`
+### `File::readBytes(path: string) → int[]`
 
 Lit le contenu d'un fichier en binaire (array d'octets).
 
 ```ocara
-var bytes:int[] = File::read_bytes("/tmp/image.png")
+var bytes:int[] = File::readBytes("/tmp/image.png")
 IO::writeln(`Taille: ${Array::length(bytes)} octets`)
 ```
 
@@ -44,13 +44,13 @@ File::write("/tmp/output.txt", "Hello, World!")
 
 **Erreur** : `fail` en cas d'erreur d'écriture (permissions, disque plein, etc.).
 
-### `File::write_bytes(path: string, data: int[]) → void`
+### `File::writeBytes(path: string, data: int[]) → void`
 
 Écrit des données binaires dans un fichier.
 
 ```ocara
 var data:int[] = [0x89, 0x50, 0x4E, 0x47]  // Signature PNG
-File::write_bytes("/tmp/test.png", data)
+File::writeBytes("/tmp/test.png", data)
 ```
 
 **Erreur** : `fail` en cas d'erreur d'écriture.
@@ -264,12 +264,12 @@ import ocara.IO
 function main(): int {
     try {
         // Read an image
-        var image:int[] = File::read_bytes("/tmp/input.png")
+        var image:int[] = File::readBytes("/tmp/input.png")
         
         IO::writeln(`Image loaded: ${Array::length(image)} bytes`)
         
         // Save a copy
-        File::write_bytes("/tmp/output.png", image)
+        File::writeBytes("/tmp/output.png", image)
         
         IO::writeln("Copy created successfully")
     } on e is FileException {
@@ -288,9 +288,9 @@ Toutes les opérations `File` susceptibles d'échouer lèvent une `FileException
 | Code | Nom | Opération | Description |
 |------|------|-----------|-------------|
 | 101 | `READ` | `File::read()` | Échec de lecture du fichier texte (fichier introuvable, permission refusée, UTF-8 invalide, etc.) |
-| 102 | `READ_BYTES` | `File::read_bytes()` | Échec de lecture du fichier binaire (fichier introuvable, permission refusée, erreur I/O, etc.) |
+| 102 | `READ_BYTES` | `File::readBytes()` | Échec de lecture du fichier binaire (fichier introuvable, permission refusée, erreur I/O, etc.) |
 | 103 | `WRITE` | `File::write()` | Échec d'écriture du fichier texte (permission refusée, disque plein, chemin invalide, etc.) |
-| 104 | `WRITE_BYTES` | `File::write_bytes()` | Échec d'écriture du fichier binaire (permission refusée, disque plein, chemin invalide, etc.) |
+| 104 | `WRITE_BYTES` | `File::writeBytes()` | Échec d'écriture du fichier binaire (permission refusée, disque plein, chemin invalide, etc.) |
 | 105 | `APPEND` | `File::append()` | Échec d'ajout au fichier (permission refusée, erreur I/O, etc.) |
 | 106 | `SIZE` | `File::size()` | Échec de lecture de la taille du fichier (fichier introuvable, permission refusée, etc.) |
 | 107 | `REMOVE` | `File::remove()` | Échec de suppression du fichier (fichier introuvable, permission refusée, fichier utilisé, etc.) |

@@ -16,65 +16,65 @@ import ocara.*              // importe toutes les classes builtins
 
 ## `string` → *
 
-### `Convert::str_to_int(s)` → `int`
+### `Convert::strToInt(s)` → `int`
 
 Convertit la chaîne `s` en entier. Retourne `0` si la conversion échoue.
 
 ```ocara
-Convert::str_to_int("42")     // → 42
-Convert::str_to_int("-7")     // → -7
-Convert::str_to_int("abc")    // → 0
+Convert::strToInt("42")     // → 42
+Convert::strToInt("-7")     // → -7
+Convert::strToInt("abc")    // → 0
 ```
 
 ---
 
-### `Convert::str_to_float(s)` → `float`
+### `Convert::strToFloat(s)` → `float`
 
 Convertit la chaîne `s` en décimal. Retourne `0.0` si la conversion échoue.
 
 ```ocara
-Convert::str_to_float("3.14")   // → 3.14
-Convert::str_to_float("42")     // → 42.0
-Convert::str_to_float("abc")    // → 0.0
+Convert::strToFloat("3.14")   // → 3.14
+Convert::strToFloat("42")     // → 42.0
+Convert::strToFloat("abc")    // → 0.0
 ```
 
 ---
 
-### `Convert::str_to_bool(s)` → `bool`
+### `Convert::strToBool(s)` → `bool`
 
 Retourne `true` si `s` vaut `"true"` ou `"1"` (insensible à la casse), `false` sinon.
 
 ```ocara
-Convert::str_to_bool("true")    // → true
-Convert::str_to_bool("1")       // → true
-Convert::str_to_bool("false")   // → false
-Convert::str_to_bool("0")       // → false
+Convert::strToBool("true")    // → true
+Convert::strToBool("1")       // → true
+Convert::strToBool("false")   // → false
+Convert::strToBool("0")       // → false
 ```
 
 ---
 
-### `Convert::str_to_array(s, sep)` → `string[]`
+### `Convert::strToArray(s, sep)` → `string[]`
 
 Découpe `s` selon le séparateur `sep` et retourne un `string[]`.
 
 ```ocara
-Convert::str_to_array("rust,ocara,web", ",")   // → ["rust", "ocara", "web"]
-Convert::str_to_array("10 20 30", " ")          // → ["10", "20", "30"]
+Convert::strToArray("rust,ocara,web", ",")   // → ["rust", "ocara", "web"]
+Convert::strToArray("10 20 30", " ")          // → ["10", "20", "30"]
 ```
 
 ---
 
-### `Convert::str_to_map(s, sep, kv)` → `map<string, string>`
+### `Convert::strToMap(s, sep, kv)` → `map<string, string>`
 
 Parse `s` en map clé/valeur.  
 - `sep` : séparateur entre les paires  
 - `kv`  : séparateur clé/valeur au sein d'une paire
 
 ```ocara
-scoped m:map<string, string> = Convert::str_to_map("lang=fr,theme=dark", ",", "=")
+scoped m:map<string, string> = Convert::strToMap("lang=fr,theme=dark", ",", "=")
 // → {"lang": "fr", "theme": "dark"}
 
-scoped m2:map<string, string> = Convert::str_to_map("x:10 y:20", " ", ":")
+scoped m2:map<string, string> = Convert::strToMap("x:10 y:20", " ", ":")
 // → {"x": "10", "y": "20"}
 ```
 
@@ -82,104 +82,104 @@ scoped m2:map<string, string> = Convert::str_to_map("x:10 y:20", " ", ":")
 
 ## `int` → *
 
-### `Convert::int_to_str(n)` → `string`
+### `Convert::intToStr(n)` → `string`
 
 ```ocara
-Convert::int_to_str(42)    // → "42"
-Convert::int_to_str(-7)    // → "-7"
+Convert::intToStr(42)    // → "42"
+Convert::intToStr(-7)    // → "-7"
 ```
 
-### `Convert::int_to_float(n)` → `float`
+### `Convert::intToFloat(n)` → `float`
 
 ```ocara
-Convert::int_to_float(7)   // → 7.0
+Convert::intToFloat(7)   // → 7.0
 ```
 
-### `Convert::int_to_bool(n)` → `bool`
+### `Convert::intToBool(n)` → `bool`
 
 Retourne `false` si `n == 0`, `true` sinon.
 
 ```ocara
-Convert::int_to_bool(0)    // → false
-Convert::int_to_bool(1)    // → true
-Convert::int_to_bool(-3)   // → true
+Convert::intToBool(0)    // → false
+Convert::intToBool(1)    // → true
+Convert::intToBool(-3)   // → true
 ```
 
 ---
 
 ## `float` → *
 
-### `Convert::float_to_str(f)` → `string`
+### `Convert::floatToStr(f)` → `string`
 
 ```ocara
-Convert::float_to_str(3.14)   // → "3.14"
+Convert::floatToStr(3.14)   // → "3.14"
 ```
 
-### `Convert::float_to_int(f)` → `int`
+### `Convert::floatToInt(f)` → `int`
 
 Troncature vers zéro (pas d'arrondi).
 
 ```ocara
-Convert::float_to_int(9.99)    // → 9
-Convert::float_to_int(-3.7)    // → -3
+Convert::floatToInt(9.99)    // → 9
+Convert::floatToInt(-3.7)    // → -3
 ```
 
-### `Convert::float_to_bool(f)` → `bool`
+### `Convert::floatToBool(f)` → `bool`
 
 Retourne `false` si `f == 0.0`, `true` sinon.
 
 ```ocara
-Convert::float_to_bool(0.0)    // → false
-Convert::float_to_bool(1.5)    // → true
+Convert::floatToBool(0.0)    // → false
+Convert::floatToBool(1.5)    // → true
 ```
 
 ---
 
 ## `bool` → *
 
-### `Convert::bool_to_str(b)` → `string`
+### `Convert::boolToStr(b)` → `string`
 
 ```ocara
-Convert::bool_to_str(true)    // → "true"
-Convert::bool_to_str(false)   // → "false"
+Convert::boolToStr(true)    // → "true"
+Convert::boolToStr(false)   // → "false"
 ```
 
-### `Convert::bool_to_int(b)` → `int`
+### `Convert::boolToInt(b)` → `int`
 
 ```ocara
-Convert::bool_to_int(true)    // → 1
-Convert::bool_to_int(false)   // → 0
+Convert::boolToInt(true)    // → 1
+Convert::boolToInt(false)   // → 0
 ```
 
-### `Convert::bool_to_float(b)` → `float`
+### `Convert::boolToFloat(b)` → `float`
 
 ```ocara
-Convert::bool_to_float(true)    // → 1.0
-Convert::bool_to_float(false)   // → 0.0
+Convert::boolToFloat(true)    // → 1.0
+Convert::boolToFloat(false)   // → 0.0
 ```
 
 ---
 
 ## `array` → *
 
-### `Convert::array_to_str(arr, sep)` → `string`
+### `Convert::arrayToStr(arr, sep)` → `string`
 
 Joint les éléments du tableau en une chaîne séparée par `sep`.  
 Équivalent à `Array::join`.
 
 ```ocara
 var t:string[] = ["rust", "ocara", "web"]
-Convert::array_to_str(t, ", ")   // → "rust, ocara, web"
-Convert::array_to_str(t, " | ")  // → "rust | ocara | web"
+Convert::arrayToStr(t, ", ")   // → "rust, ocara, web"
+Convert::arrayToStr(t, " | ")  // → "rust | ocara | web"
 ```
 
-### `Convert::array_to_map(arr, kv)` → `map<string, string>`
+### `Convert::arrayToMap(arr, kv)` → `map<string, string>`
 
 Chaque élément du tableau doit être de la forme `"clé<kv>valeur"`.
 
 ```ocara
 var pairs:string[] = ["lang=fr", "theme=dark", "debug=1"]
-scoped m:map<string, string> = Convert::array_to_map(pairs, "=")
+scoped m:map<string, string> = Convert::arrayToMap(pairs, "=")
 // → {"lang": "fr", "theme": "dark", "debug": "1"}
 ```
 
@@ -187,30 +187,30 @@ scoped m:map<string, string> = Convert::array_to_map(pairs, "=")
 
 ## `map` → *
 
-### `Convert::map_to_str(m, sep, kv)` → `string`
+### `Convert::mapToStr(m, sep, kv)` → `string`
 
 Sérialise la map en chaîne. Inverse de `str_to_map`.
 
 ```ocara
 var m:map<string, string> = {"lang": "fr", "theme": "dark"}
-Convert::map_to_str(m, ",", "=")   // → "lang=fr,theme=dark"
+Convert::mapToStr(m, ",", "=")   // → "lang=fr,theme=dark"
 ```
 
-### `Convert::map_keys_to_array(m)` → `string[]`
+### `Convert::mapKeysToArray(m)` → `string[]`
 
 Retourne un tableau de toutes les clés. Équivalent à `Map::keys`.
 
 ```ocara
-scoped cles:string[] = Convert::map_keys_to_array(m)
+scoped cles:string[] = Convert::mapKeysToArray(m)
 // → ["lang", "theme"]
 ```
 
-### `Convert::map_values_to_array(m)` → `mixed[]`
+### `Convert::mapValuesToArray(m)` → `mixed[]`
 
 Retourne un tableau de toutes les valeurs. Équivalent à `Map::values`.
 
 ```ocara
-scoped vals:mixed[] = Convert::map_values_to_array(m)
+scoped vals:mixed[] = Convert::mapValuesToArray(m)
 // → ["fr", "dark"]
 ```
 
@@ -227,20 +227,20 @@ function main(): int {
 
     // Lire un entier stocké en string, calculer, reconvertir
     var s:string  = "128"
-    scoped n:int  = Convert::str_to_int(s)
-    scoped r:string = Convert::int_to_str(n / 2)
+    scoped n:int  = Convert::strToInt(s)
+    scoped r:string = Convert::intToStr(n / 2)
     write(`Moitié de ${s} = ${r}`)   // 64
 
     // Parser une config inline
-    scoped cfg:map<string, string> = Convert::str_to_map("debug=1,lang=fr,limit=50", ",", "=")
-    scoped debug:bool = Convert::str_to_bool(Map::get(cfg, "debug"))
-    scoped limit:int  = Convert::str_to_int(Map::get(cfg, "limit"))
+    scoped cfg:map<string, string> = Convert::strToMap("debug=1,lang=fr,limit=50", ",", "=")
+    scoped debug:bool = Convert::strToBool(Map::get(cfg, "debug"))
+    scoped limit:int  = Convert::strToInt(Map::get(cfg, "limit"))
     write(`debug=${debug}  limit=${limit}`)   // debug=true  limit=50
 
     // Sérialiser un tableau en CSV puis le reparseur
     var data:string[] = ["alice", "bob", "charlie"]
-    scoped csv:string    = Convert::array_to_str(data, ",")
-    scoped back:string[] = Convert::str_to_array(csv, ",")
+    scoped csv:string    = Convert::arrayToStr(data, ",")
+    scoped back:string[] = Convert::strToArray(csv, ",")
     write(`roundtrip : ${Array::len(back)} éléments`)   // 3
 
     return 0
@@ -257,8 +257,8 @@ Certaines méthodes Convert peuvent lever une `ConvertException` en cas d'erreur
 
 | Code | Nom | Opération | Description |
 |------|------|-----------|-------------|
-| 101 | `INVALID_INT` | `Convert::str_to_int()` | Impossible de convertir la chaîne en entier (format invalide) |
-| 102 | `INVALID_FLOAT` | `Convert::str_to_float()` | Impossible de convertir la chaîne en flottant (format invalide) |
+| 101 | `INVALID_INT` | `Convert::strToInt()` | Impossible de convertir la chaîne en entier (format invalide) |
+| 102 | `INVALID_FLOAT` | `Convert::strToFloat()` | Impossible de convertir la chaîne en flottant (format invalide) |
 
 ### Exemples de gestion d'erreurs
 
@@ -273,7 +273,7 @@ function main(): int {
     var input:string = "abc123"
     
     try {
-        var num:int = Convert::str_to_int(input)
+        var num:int = Convert::strToInt(input)
         IO::writeln(`Number: ${num}`)
     } on e is ConvertException {
         IO::writeln(`Conversion error: ${e.message}`)
@@ -302,7 +302,7 @@ function main(): int {
     while i < len {
         var s:string = values.get(i)
         try {
-            var f:float = Convert::str_to_float(s)
+            var f:float = Convert::strToFloat(s)
             IO::writeln(`✓ '${s}' = ${f}`)
         } on e is ConvertException {
             IO::writeln(`✗ '${s}' - invalid format`)
@@ -323,7 +323,7 @@ import ocara.IO
 
 function safe_str_to_int(s:string, default:int): int {
     try {
-        return Convert::str_to_int(s)
+        return Convert::strToInt(s)
     } on e is ConvertException {
         IO::writeln(`Warning: invalid int '${s}', using default ${default}`)
         return default
@@ -351,7 +351,7 @@ function main(): int {
     var text:string = "hello"
     
     try {
-        var num:int = Convert::str_to_int(text)
+        var num:int = Convert::strToInt(text)
         IO::writeln(`Number: ${num}`)
     } on e {
         // Capture toute exception
@@ -385,7 +385,7 @@ function parse_config(line:string): void {
     
     // Essayer différents types
     try {
-        var n:int = Convert::str_to_int(val)
+        var n:int = Convert::strToInt(val)
         IO::writeln(`${key} (int) = ${n}`)
         return
     } on e is ConvertException {
@@ -393,7 +393,7 @@ function parse_config(line:string): void {
     }
     
     try {
-        var f:float = Convert::str_to_float(val)
+        var f:float = Convert::strToFloat(val)
         IO::writeln(`${key} (float) = ${f}`)
         return
     } on e is ConvertException {
@@ -417,14 +417,14 @@ Les messages d'exception sont en anglais et incluent la valeur problématique :
 - `Cannot convert string to float: 'not_a_number'`
 
 **Notes sur les conversions sûres :**
-- `Convert::str_to_bool()` ne lève jamais d'exception (retourne false pour valeurs inconnues)
+- `Convert::strToBool()` ne lève jamais d'exception (retourne false pour valeurs inconnues)
 - `Convert::int_to_*()` ne lèvent jamais d'exception (conversions toujours possibles)
 - `Convert::float_to_*()` ne lèvent jamais d'exception (troncature pour int, toujours convertible)
 - `Convert::bool_to_*()` ne lèvent jamais d'exception (true=1/"true", false=0/"false")
 - `Convert::array_to_*()` ne lèvent jamais d'exception
 - `Convert::map_to_*()` ne lèvent jamais d'exception
 
-**Seules `str_to_int()` et `str_to_float()` peuvent lever des exceptions** car elles nécessitent un format spécifique.
+**Seules `strToInt()` et `strToFloat()` peuvent lever des exceptions** car elles nécessitent un format spécifique.
 
 ---
 
@@ -432,25 +432,25 @@ Les messages d'exception sont en anglais et incluent la valeur problématique :
 
 | Méthode Ocara                     | Symbole runtime C                    | Params       | Retour  |
 |-----------------------------------|--------------------------------------|--------------|---------|
-| `Convert::str_to_int`             | `Convert_str_to_int`                 | `I64`        | `I64`   |
-| `Convert::str_to_float`           | `Convert_str_to_float`               | `I64`        | `F64`   |
-| `Convert::str_to_bool`            | `Convert_str_to_bool`                | `I64`        | `I64`   |
-| `Convert::str_to_array`           | `Convert_str_to_array`               | `I64, I64`   | `I64`   |
-| `Convert::str_to_map`             | `Convert_str_to_map`                 | `I64×3`      | `I64`   |
-| `Convert::int_to_str`             | `Convert_int_to_str`                 | `I64`        | `I64`   |
-| `Convert::int_to_float`           | `Convert_int_to_float`               | `I64`        | `F64`   |
-| `Convert::int_to_bool`            | `Convert_int_to_bool`                | `I64`        | `I64`   |
-| `Convert::float_to_str`           | `Convert_float_to_str`               | `F64`        | `I64`   |
-| `Convert::float_to_int`           | `Convert_float_to_int`               | `F64`        | `I64`   |
-| `Convert::float_to_bool`          | `Convert_float_to_bool`              | `F64`        | `I64`   |
-| `Convert::bool_to_str`            | `Convert_bool_to_str`                | `I64`        | `I64`   |
-| `Convert::bool_to_int`            | `Convert_bool_to_int`                | `I64`        | `I64`   |
-| `Convert::bool_to_float`          | `Convert_bool_to_float`              | `I64`        | `F64`   |
-| `Convert::array_to_str`           | `Convert_array_to_str`               | `I64, I64`   | `I64`   |
-| `Convert::array_to_map`           | `Convert_array_to_map`               | `I64, I64`   | `I64`   |
-| `Convert::map_to_str`             | `Convert_map_to_str`                 | `I64×3`      | `I64`   |
-| `Convert::map_keys_to_array`      | `Convert_map_keys_to_array`          | `I64`        | `I64`   |
-| `Convert::map_values_to_array`    | `Convert_map_values_to_array`        | `I64`        | `I64`   |
+| `Convert::str_to_int`             | `Convert_strToInt`                 | `I64`        | `I64`   |
+| `Convert::str_to_float`           | `Convert_strToFloat`               | `I64`        | `F64`   |
+| `Convert::str_to_bool`            | `Convert_strToBool`                | `I64`        | `I64`   |
+| `Convert::str_to_array`           | `Convert_strToArray`               | `I64, I64`   | `I64`   |
+| `Convert::str_to_map`             | `Convert_strToMap`                 | `I64×3`      | `I64`   |
+| `Convert::int_to_str`             | `Convert_intToStr`                 | `I64`        | `I64`   |
+| `Convert::int_to_float`           | `Convert_intToFloat`               | `I64`        | `F64`   |
+| `Convert::int_to_bool`            | `Convert_intToBool`                | `I64`        | `I64`   |
+| `Convert::float_to_str`           | `Convert_floatToStr`               | `F64`        | `I64`   |
+| `Convert::float_to_int`           | `Convert_floatToInt`               | `F64`        | `I64`   |
+| `Convert::float_to_bool`          | `Convert_floatToBool`              | `F64`        | `I64`   |
+| `Convert::bool_to_str`            | `Convert_boolToStr`                | `I64`        | `I64`   |
+| `Convert::bool_to_int`            | `Convert_boolToInt`                | `I64`        | `I64`   |
+| `Convert::bool_to_float`          | `Convert_boolToFloat`              | `I64`        | `F64`   |
+| `Convert::array_to_str`           | `Convert_arrayToStr`               | `I64, I64`   | `I64`   |
+| `Convert::array_to_map`           | `Convert_arrayToMap`               | `I64, I64`   | `I64`   |
+| `Convert::map_to_str`             | `Convert_mapToStr`                 | `I64×3`      | `I64`   |
+| `Convert::map_keys_to_array`      | `Convert_mapKeysToArray`          | `I64`        | `I64`   |
+| `Convert::map_values_to_array`    | `Convert_mapValuesToArray`        | `I64`        | `I64`   |
 
 ---
 

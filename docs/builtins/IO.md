@@ -84,40 +84,40 @@ scoped ligne:string = IO::readln()
 
 ---
 
-### `IO::read_int()` → `int`
+### `IO::readInt()` → `int`
 
 Lit une ligne depuis stdin et la convertit en `int`.  
 Si la saisie n'est pas un entier valide, retourne `0`.
 
 ```ocara
 IO::write("Entrez un entier : ")
-scoped n:int = IO::read_int()
+scoped n:int = IO::readInt()
 IO::writeln(`Le double : ${n * 2}`)
 ```
 
 ---
 
-### `IO::read_float()` → `float`
+### `IO::readFloat()` → `float`
 
 Lit une ligne depuis stdin et la convertit en `float`.  
 Si la saisie n'est pas un décimal valide, retourne `0.0`.
 
 ```ocara
 IO::write("Entrez un décimal : ")
-scoped f:float = IO::read_float()
+scoped f:float = IO::readFloat()
 IO::writeln(`Valeur : ${f}`)
 ```
 
 ---
 
-### `IO::read_bool()` → `bool`
+### `IO::readBool()` → `bool`
 
 Lit une ligne depuis stdin et la convertit en `bool`.  
 Retourne `true` si la saisie est `"true"` ou `"1"` (insensible à la casse), `false` sinon.
 
 ```ocara
 IO::write("Continuer ? (true/false) : ")
-scoped rep:bool = IO::read_bool()
+scoped rep:bool = IO::readBool()
 if rep {
     IO::writeln("Poursuite...")
 }
@@ -125,7 +125,7 @@ if rep {
 
 ---
 
-### `IO::read_array(sep)` → `string[]`
+### `IO::readArray(sep)` → `string[]`
 
 Lit une ligne depuis stdin et la découpe selon le séparateur `sep`.  
 Retourne un `string[]`.
@@ -136,17 +136,17 @@ Retourne un `string[]`.
 
 ```ocara
 // Saisie : "rust,ocara,cranelift"
-scoped tags:string[] = IO::read_array(",")
+scoped tags:string[] = IO::readArray(",")
 // → ["rust", "ocara", "cranelift"]
 
 // Saisie : "10 20 30"
-scoped nums:string[] = IO::read_array(" ")
+scoped nums:string[] = IO::readArray(" ")
 // → ["10", "20", "30"]
 ```
 
 ---
 
-### `IO::read_map(sep, kv)` → `map<string, string>`
+### `IO::readMap(sep, kv)` → `map<string, string>`
 
 Lit une ligne depuis stdin et construit une map clé/valeur.  
 - `sep` : séparateur entre les paires  
@@ -159,12 +159,12 @@ Lit une ligne depuis stdin et construit une map clé/valeur.
 
 ```ocara
 // Saisie : "lang=fr,theme=dark,limit=50"
-scoped cfg:map<string, string> = IO::read_map(",", "=")
+scoped cfg:map<string, string> = IO::readMap(",", "=")
 Map::get(cfg, "lang")    // → "fr"
 Map::get(cfg, "theme")   // → "dark"
 
 // Saisie : "x:10 y:20 z:30"
-scoped pts:map<string, string> = IO::read_map(" ", ":")
+scoped pts:map<string, string> = IO::readMap(" ", ":")
 Map::get(pts, "x")   // → "10"
 ```
 
@@ -183,17 +183,17 @@ function main(): int {
     IO::write("Nom   : ")
     scoped nom:string = IO::read()
     IO::write("Âge   : ")
-    scoped age:int = IO::read_int()
+    scoped age:int = IO::readInt()
     IO::writeln(`Bienvenue ${nom}, ${age} ans.`)
 
     // Lire plusieurs entiers sur une ligne
     IO::writeln("Entrez 3 notes séparées par des espaces :")
-    scoped parts:string[] = IO::read_array(" ")
+    scoped parts:string[] = IO::readArray(" ")
     IO::writeln(`${Array::len(parts)} note(s) reçue(s)`)
 
     // Configuration inline
     IO::writeln("Paramètres (ex: debug=1,lang=fr) :")
-    scoped cfg:map<string, string> = IO::read_map(",", "=")
+    scoped cfg:map<string, string> = IO::readMap(",", "=")
     if Map::has(cfg, "debug") {
         IO::writeln(`debug activé : ${Map::get(cfg, "debug")}`)
     }
@@ -206,7 +206,7 @@ function main(): int {
 
 ## Gestion d'erreurs
 
-Les méthodes de lecture (`IO::read()`, `IO::readln()`, `IO::read_int()`, etc.) peuvent lever une `IOException` en cas d'erreur de lecture depuis stdin (par exemple si stdin est fermé).
+Les méthodes de lecture (`IO::read()`, `IO::readln()`, `IO::readInt()`, etc.) peuvent lever une `IOException` en cas d'erreur de lecture depuis stdin (par exemple si stdin est fermé).
 
 Les méthodes d'écriture (`IO::write()`, `IO::writeln()`) n'échouent généralement pas, sauf dans des cas exceptionnels (stdout fermé, erreur système).
 
@@ -214,7 +214,7 @@ Les méthodes d'écriture (`IO::write()`, `IO::writeln()`) n'échouent général
 
 | Code | Nom | Opération | Description |
 |------|------|-----------|-------------|
-| 101 | `READ` | `IO::read()`, `IO::readln()`, `IO::read_int()`, etc. | Échec de lecture depuis stdin (stdin fermé, erreur I/O, etc.) |
+| 101 | `READ` | `IO::read()`, `IO::readln()`, `IO::readInt()`, etc. | Échec de lecture depuis stdin (stdin fermé, erreur I/O, etc.) |
 | 102 | `WRITE` | `IO::write()`, `IO::writeln()` | Échec d'écriture sur stdout (réservé pour usage futur) |
 
 ### Exemples de gestion d'erreurs
@@ -292,11 +292,11 @@ Exemple :
 | `write(val)`     | `IO::writeln(val)`    | Identique (avec `\n`)                 |
 | `read()`         | `IO::read()`          | Identique                             |
 | —                | `IO::write(val)`      | Sans `\n` final                       |
-| —                | `IO::read_int()`      | Conversion automatique en `int`       |
-| —                | `IO::read_float()`    | Conversion automatique en `float`     |
-| —                | `IO::read_bool()`     | Conversion automatique en `bool`      |
-| —                | `IO::read_array(sep)` | Découpe automatique en `string[]`     |
-| —                | `IO::read_map(s, kv)` | Parsing automatique en `map<s,s>`     |
+| —                | `IO::readInt()`      | Conversion automatique en `int`       |
+| —                | `IO::readFloat()`    | Conversion automatique en `float`     |
+| —                | `IO::readBool()`     | Conversion automatique en `bool`      |
+| —                | `IO::readArray(sep)` | Découpe automatique en `string[]`     |
+| —                | `IO::readMap(s, kv)` | Parsing automatique en `map<s,s>`     |
 
 ---
 
@@ -308,11 +308,11 @@ Exemple :
 | `IO::writeln`       | `IO_writeln`       | `I64`               | —       |
 | `IO::read`          | `IO_read`          | —                   | `I64`   |
 | `IO::readln`        | `IO_readln`        | —                   | `I64`   |
-| `IO::read_int`      | `IO_read_int`      | —                   | `I64`   |
-| `IO::read_float`    | `IO_read_float`    | —                   | `F64`   |
-| `IO::read_bool`     | `IO_read_bool`     | —                   | `I64`   |
-| `IO::read_array`    | `IO_read_array`    | `I64`               | `I64`   |
-| `IO::read_map`      | `IO_read_map`      | `I64, I64`          | `I64`   |
+| `IO::read_int`      | `IO_readInt`      | —                   | `I64`   |
+| `IO::read_float`    | `IO_readFloat`    | —                   | `F64`   |
+| `IO::read_bool`     | `IO_readBool`     | —                   | `I64`   |
+| `IO::read_array`    | `IO_readArray`    | `I64`               | `I64`   |
+| `IO::read_map`      | `IO_readMap`      | `I64, I64`          | `I64`   |
 
 ---
 

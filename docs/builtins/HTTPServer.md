@@ -12,10 +12,10 @@ import ocara.HTTPServer
 
 ```ocara
 const server:HTTPServer = use HTTPServer()
-server.set_port(8080)            // port d'écoute (défaut : 8080)
-server.set_host("0.0.0.0")       // interface réseau (défaut : "0.0.0.0")
-server.set_workers(32)           // threads workers (défaut : 4)
-server.set_root_path("./public") // répertoire pour fichiers statiques (optionnel)
+server.setPort(8080)            // port d'écoute (défaut : 8080)
+server.setHost("0.0.0.0")       // interface réseau (défaut : "0.0.0.0")
+server.setWorkers(32)           // threads workers (défaut : 4)
+server.setRootPath("./public") // répertoire pour fichiers statiques (optionnel)
 ```
 
 > **Note** : Toutes les méthodes `set_*` sont optionnelles. Les valeurs par défaut sont adaptées pour un petit site web.
@@ -42,15 +42,15 @@ server.route("/", "GET", nameless(req:int): int {
 Vous pouvez définir des handlers personnalisés pour les codes d'erreur HTTP (404, 500, etc.) :
 
 ```ocara
-server.route_error(code:int, handler:Function)
+server.routeError(code:int, handler:Function)
 ```
 
 - **`code`** : code d'erreur HTTP (404, 500, 403, etc.)
 - **`handler`** : closure appelée quand ce code d'erreur est déclenché
 
 ```ocara
-server.route_error(404, nameless(req:int): int {
-    var path:string = HTTPServer::req_path(req)
+server.routeError(404, nameless(req:int): int {
+    var path:string = HTTPServer::reqPath(req)
     var html:string = `<!DOCTYPE html>
 <html>
     <head><title>404 - Page non trouvée</title></head>
@@ -86,7 +86,7 @@ server.route("/page", "GET", nameless(req:int): int {
 
 // Réponse JSON (Content-Type personnalisé)
 server.route("/api", "GET", nameless(req:int): int {
-    HTTPServer::set_resp_header(req, "Content-Type", "application/json")
+    HTTPServer::setRespHeader(req, "Content-Type", "application/json")
     HTTPServer::respond(req, 200, `{"status":"ok"}`)
     return 0
 })
@@ -97,7 +97,7 @@ server.route("/api", "GET", nameless(req:int): int {
 Si vous définissez un `root_path` et qu'aucune route ne correspond à `GET /`, le serveur cherche automatiquement `/index.html` :
 
 ```ocara
-server.set_root_path("./public")
+server.setRootPath("./public")
 
 // GET /           → cherche ./public/index.html (automatique)
 // GET /index.html → cherche ./public/index.html (explicite)
@@ -153,24 +153,24 @@ import ocara.IO
 function main(): int {
 
     const server:HTTPServer = use HTTPServer()
-    server.set_port(3000)
-    server.set_workers(8)
+    server.setPort(3000)
+    server.setWorkers(8)
 
     // Route GET /
     server.route("/", "GET", nameless(req:int): int {
-        var name:string = HTTPServer::req_query(req, "name")
+        var name:string = HTTPServer::reqQuery(req, "name")
         if name == "" {
             name = "Monde"
         }
-        HTTPServer::set_resp_header(req, "Content-Type", "text/plain; charset=utf-8")
+        HTTPServer::setRespHeader(req, "Content-Type", "text/plain; charset=utf-8")
         HTTPServer::respond(req, 200, `Bonjour ${name} !`)
         return 0
     })
 
     // Route POST /echo
     server.route("/echo", "POST", nameless(req:int): int {
-        var body:string = HTTPServer::req_body(req)
-        HTTPServer::set_resp_header(req, "Content-Type", "application/json")
+        var body:string = HTTPServer::reqBody(req)
+        HTTPServer::setRespHeader(req, "Content-Type", "application/json")
         HTTPServer::respond(req, 200, `{"echo":"${body}"}`)
         return 0
     })
@@ -197,7 +197,7 @@ class HomeController {
 
 function main(): int {
     const server:HTTPServer = use HTTPServer()
-    server.set_port(8080)
+    server.setPort(8080)
     server.route("/", "GET", HomeController::home)
     server.run()
     return 0
@@ -208,7 +208,7 @@ function main(): int {
 
 ## Fichiers statiques
 
-HTTPServer peut servir des fichiers statiques (HTML, CSS, JS, images, etc.) depuis un répertoire racine défini avec `set_root_path()`.
+HTTPServer peut servir des fichiers statiques (HTML, CSS, JS, images, etc.) depuis un répertoire racine défini avec `setRootPath()`.
 
 ### Fonctionnement
 
@@ -224,12 +224,12 @@ import ocara.IO
 
 function main(): int {
     const server:HTTPServer = use HTTPServer()
-    server.set_port(8080)
-    server.set_root_path("./public")
+    server.setPort(8080)
+    server.setRootPath("./public")
 
     // Route dynamique API
     server.route("/api/hello", "GET", nameless(req:int): int {
-        HTTPServer::set_resp_header(req, "Content-Type", "application/json")
+        HTTPServer::setRespHeader(req, "Content-Type", "application/json")
         HTTPServer::respond(req, 200, `{"message":"Hello API"}`)
         return 0
     })
@@ -301,7 +301,7 @@ Le modèle est **accept pool** :
 
 La méthode `set_workers(n)` définit le nombre de threads de traitement parallèle.
 
-> **Valeur par défaut** : `4` workers (si `set_workers()` n'est pas appelé)
+> **Valeur par défaut** : `4` workers (si `setWorkers()` n'est pas appelé)
 
 **Important** : Les workers définissent la **capacité de traitement parallèle**, pas le nombre maximum de connexions simultanées. Des milliers de clients peuvent se connecter, mais seuls `N` requêtes seront traitées en parallèle à un instant donné.
 
@@ -324,7 +324,7 @@ La méthode `set_workers(n)` définit le nombre de threads de traitement parall�
 ```ocara
 // Site web avec 1000 utilisateurs et APIs + base de données
 const server:HTTPServer = use HTTPServer()
-server.set_workers(32)  // Bon compromis pour cette charge
+server.setWorkers(32)  // Bon compromis pour cette charge
 server.run()
 ```
 

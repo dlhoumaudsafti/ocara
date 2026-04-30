@@ -85,14 +85,14 @@ Array::contains(t, 99)   // → false
 
 ---
 
-### `Array::index_of(arr, val)` → `int`
+### `Array::indexOf(arr, val)` → `int`
 
 Retourne l'index (0-basé) de la première occurrence de `val`, ou `-1` si absent.
 
 ```ocara
 var t:string[] = ["a", "b", "c"]
-Array::index_of(t, "b")    // → 1
-Array::index_of(t, "z")    // → -1
+Array::indexOf(t, "b")    // → 1
+Array::indexOf(t, "z")    // → -1
 ```
 
 ---
@@ -172,7 +172,7 @@ function main(): int {
     var src:int[]    = [1, 2, 3, 2, 4, 1, 5]
     var unique:int[] = []
     for v in src {
-        if Array::index_of(unique, v) == -1 {
+        if Array::indexOf(unique, v) == -1 {
             Array::push(unique, v)
         }
     }
@@ -347,7 +347,7 @@ Les messages d'exception sont en anglais :
 **Notes :**
 - `Array::len()` retourne toujours un nombre (0 pour un tableau vide, jamais d'exception)
 - `Array::push()` ne lève jamais d'exception
-- `Array::contains()`, `Array::index_of()` ne lèvent jamais d'exception (retournent false/-1)
+- `Array::contains()`, `Array::indexOf()` ne lèvent jamais d'exception (retournent false/-1)
 - `Array::slice()` ne lève jamais d'exception (ajuste automatiquement les indices)
 - `Array::reverse()`, `Array::sort()`, `Array::join()` ne lèvent jamais d'exception
 
@@ -363,7 +363,7 @@ Les messages d'exception sont en anglais :
 | `Array::first`       | `Array_first`      | `I64`                     | `I64`   |
 | `Array::last`        | `Array_last`       | `I64`                     | `I64`   |
 | `Array::contains`    | `Array_contains`   | `I64, I64`                | `I64`   |
-| `Array::index_of`    | `Array_index_of`   | `I64, I64`                | `I64`   |
+| `Array::index_of`    | `Array_indexOf`   | `I64, I64`                | `I64`   |
 | `Array::reverse`     | `Array_reverse`    | `I64`                     | `I64`   |
 | `Array::slice`       | `Array_slice`      | `I64, I64, I64`           | `I64`   |
 | `Array::join`        | `Array_join`       | `I64, I64`                | `I64`   |

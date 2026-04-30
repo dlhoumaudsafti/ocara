@@ -5,9 +5,9 @@
 //   - import ocara.Regex
 //   - Regex::test(pattern, str)               → bool
 //   - Regex::find(pattern, str)               → string
-//   - Regex::find_all(pattern, str)           → string[]
+//   - Regex::findAll(pattern, str)           → string[]
 //   - Regex::replace(pattern, str, repl)      → string
-//   - Regex::replace_all(pattern, str, repl)  → string
+//   - Regex::replaceAll(pattern, str, repl)  → string
 //   - Regex::split(pattern, str)              → string[]
 //   - Regex::count(pattern, str)              → int
 //   - Regex::extract(pattern, str, group)     → string
@@ -43,7 +43,7 @@ function main(): int {
 
     // ── find_all ──────────────────────────────────────────────────────────
     // Retourne toutes les correspondances dans un tableau
-    scoped nums:string[] = Regex::find_all("[0-9]+", "a1 b22 c333 d4444")
+    scoped nums:string[] = Regex::findAll("[0-9]+", "a1 b22 c333 d4444")
     IO::writeln(`find_all("[0-9]+", "a1 b22 c333 d4444") → ${Regex::count("[0-9]+", "a1 b22 c333 d4444")} résultats`)
 
 
@@ -64,8 +64,8 @@ function main(): int {
 
     // ── replace_all ───────────────────────────────────────────────────────
     // Remplace toutes les occurrences
-    scoped r2:string = Regex::replace_all("[0-9]+", "ref-123-abc-456", "NUM")
-    scoped r3:string = Regex::replace_all("\\s+", "  espaces   multiples  ", " ")
+    scoped r2:string = Regex::replaceAll("[0-9]+", "ref-123-abc-456", "NUM")
+    scoped r3:string = Regex::replaceAll("\\s+", "  espaces   multiples  ", " ")
 
     IO::writeln(`replace_all("[0-9]+", "ref-123-abc-456", "NUM") = ${r2}`)   // ref-NUM-abc-NUM
     IO::writeln(`replace_all("\\s+",  "  espaces   mult", " ")   = ${r3}`)   // espaces multiples

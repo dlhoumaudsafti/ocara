@@ -19,7 +19,7 @@ function main(): int {
     IO::writeln("=== try_lock ===")
     var m2:Mutex = use Mutex()
     
-    if m2.try_lock() {
+    if m2.tryLock() {
         IO::writeln("try_lock : succès")
         m2.unlock()
     } else {
@@ -28,7 +28,7 @@ function main(): int {
     
     // try_lock sur un mutex déjà verrouillé
     m2.lock()
-    if m2.try_lock() {
+    if m2.tryLock() {
         IO::writeln("try_lock : succès (ne devrait pas arriver)")
         m2.unlock()
     } else {
