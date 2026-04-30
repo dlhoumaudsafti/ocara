@@ -108,7 +108,7 @@ fn main() {
     let source = match fs::read_to_string(&args.input) {
         Ok(s) => s,
         Err(e) => {
-            diagnostic::print_error(&args.input, 0, 0, &format!("impossible de lire '{}': {}", args.input.display(), e));
+            diagnostic::print_error(&args.input, 0, 0, &format!("cannot read '{}': {}", args.input.display(), e));
             std::process::exit(1);
         }
     };
@@ -125,10 +125,10 @@ fn main() {
                 LexError::IntegerOverflow(_, s)   => (s.line, s.col),
             };
             let msg = match &e {
-                LexError::UnexpectedChar(ch, _)    => format!("caractère inattendu '{}'", ch),
-                LexError::UnterminatedString(_)    => "chaîne non fermée".into(),
-                LexError::InvalidEscape(ch, _)     => format!("séquence d'échappement invalide '\\{}'", ch),
-                LexError::IntegerOverflow(raw, _)  => format!("entier trop grand : {}", raw),
+                LexError::UnexpectedChar(ch, _)    => format!("unexpected character '{}'", ch),
+                LexError::UnterminatedString(_)    => "unterminated string".into(),
+                LexError::InvalidEscape(ch, _)     => format!("invalid escape sequence '\\{}'", ch),
+                LexError::IntegerOverflow(raw, _)  => format!("integer too large: {}", raw),
             };
             diagnostic::print_error(&args.input, line, col, &msg);
             std::process::exit(1);
@@ -185,7 +185,7 @@ fn main() {
             let last = imp.path.last().map(|s| s.as_str()).unwrap_or("");
             if last != "*" && !OCARA_BUILTINS.contains(&last) {
                 let name = imp.path.join(".");
-                eprintln!("error: module builtin inconnu : `{}` (modules disponibles : {})",
+                eprintln!("error: unknown builtin module: `{}` (available modules: {})",
                     name, OCARA_BUILTINS.join(", "));
                 std::process::exit(1);
             }
@@ -199,7 +199,7 @@ fn main() {
         file_path.set_extension("oc");
         if !file_path.exists() {
             let name = imp.path.join(".");
-            eprintln!("error: module introuvable : `{}` (fichier attendu : {})",
+            eprintln!("error: module not found: `{}` (expected file: {})",
                 name, file_path.display());
             std::process::exit(1);
         }
@@ -214,7 +214,7 @@ fn main() {
         let mod_src = match fs::read_to_string(&file_path) {
             Ok(s) => s,
             Err(e) => {
-                diagnostic::print_error(&file_path, 0, 0, &format!("lecture module '{}': {}", file_path.display(), e));
+                diagnostic::print_error(&file_path, 0, 0, &format!("reading module '{}': {}", file_path.display(), e));
                 std::process::exit(1);
             }
         };
@@ -317,7 +317,8 @@ fn main() {
     }
 
     // ── 5. Lowering AST → Ocara HIR ────────────────────────────────────────────
-    let ir_module = lower_program(&program);
+    let source_file = args.input.to_string_lossy().to_string();
+    let ir_module = lower_program(&program, &source_file);
 
     if args.dump {
         println!("=== HIR ({} fonctions) ===", ir_module.functions.len());

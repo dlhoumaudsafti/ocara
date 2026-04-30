@@ -501,7 +501,19 @@ fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                 let class_name = match object.as_ref() {
                     Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
                     Expr::SelfExpr(_)    => builder.current_class.clone(),
-                    _ => None,
+                    Expr::Literal(Literal::String(_), _) => Some("String".to_string()),
+                    // Appel chaîné : obj.method1().method2()
+                    // On détermine récursivement le type de l'objet
+                    _ => {
+                        let obj_ty = expr_ir_type(builder, object);
+                        // Si le type est Ptr, on suppose que c'est String
+                        // (utile pour les appels chaînés comme a.trim().lower())
+                        if matches!(obj_ty, IrType::Ptr) {
+                            Some("String".to_string())
+                        } else {
+                            None
+                        }
+                    }
                 };
                 if let Some(cls) = class_name {
                     let mangled = format!("{}_{}", cls, field);
@@ -677,7 +689,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // Bloquer les appels directs aux fonctions internes du codegen
             if let Expr::Ident(name, _) = callee.as_ref() {
                 if name.starts_with("__") {
-                    eprintln!("error: `{}` est une fonction interne du compilateur et ne peut pas être appelée directement", name);
+                    eprintln!("error: `{}` is an internal compiler function and cannot be called directly", name);
                     std::process::exit(1);
                 }
             }
@@ -734,7 +746,20 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                             builder.var_class.get(var_name.as_str()).cloned()
                         }
                         Expr::SelfExpr(_) => builder.current_class.clone(),
-                        _ => None,
+                        // String littérale : "hello".trim()
+                        Expr::Literal(Literal::String(_), _) => Some("String".to_string()),
+                        // Appel de fonction retournant string : func().trim()
+                        // Accès de champ retournant string : obj.name.trim()
+                        _ => {
+                            // Fallback : vérifier si c'est un type string via l'IR
+                            let ir_ty = expr_ir_type(builder, object);
+                            if matches!(ir_ty, IrType::Ptr) {
+                                // Peut être une string, on essaye avec String
+                                Some("String".to_string())
+                            } else {
+                                None
+                            }
+                        }
                     };
                     let func_mangled = if let Some(cls) = class_name {
                         format!("{}_{}", cls, field)
@@ -923,7 +948,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
         }
 
         // ── Accès statique ──────────────────────────────────────────────────
-        Expr::StaticCall { class, method, args, .. } => {
+        Expr::StaticCall { class, method, args, span } => {
             // Résoudre "<self>" vers la classe courante
             let self_class;
             let class: &str = if class == "<self>" {
@@ -945,8 +970,8 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 let imported = builder.module.imports.iter().any(|m| m == class);
                 if !imported {
                     eprintln!(
-                        "error: utilisation de `{}::{}` sans `import ocara.{}`",
-                        class, method, class
+                        "{}:{}:{}: error: using `{}::{}` without `import ocara.{}`",
+                        builder.module.source_file, span.line, span.col, class, method, class
                     );
                     std::process::exit(1);
                 }

@@ -132,6 +132,50 @@ import services.Logger
 | `mixed`  | Type dynamique, accepte toute valeur — **usage restreint** (voir restrictions ci-dessous) |
 | `void`   | Absence de valeur (retour seulement) |
 
+#### Méthodes intégrées au type `string`
+
+Le type `string` dispose de méthodes intégrées qui peuvent être appelées directement sur les variables et littéraux sans import :
+
+```ocara
+var text:string = "  Hello World  "
+var trimmed:string = text.trim()           // "Hello World"
+var upper:string = text.upper()            // "  HELLO WORLD  "
+var result:string = "hello".upper()        // "HELLO" (sur littéral)
+var chained:string = text.trim().lower()   // "hello world" (chaînage)
+```
+
+**Méthodes disponibles :**
+
+| Méthode | Signature | Description |
+|---------|-----------|-------------|
+| `len()` | `→ int` | Retourne la longueur de la chaîne |
+| `upper()` | `→ string` | Convertit en majuscules |
+| `lower()` | `→ string` | Convertit en minuscules |
+| `capitalize()` | `→ string` | Première lettre en majuscule |
+| `trim()` | `→ string` | Supprime les espaces de début/fin |
+| `replace(from:string, to:string)` | `→ string` | Remplace la première occurrence |
+| `split(sep:string)` | `→ string[]` | Découpe en tableau |
+| `explode(sep:string)` | `→ string[]` | Alias de `split()` |
+| `between(start:string, end:string)` | `→ string` | Extrait le texte entre deux délimiteurs |
+| `empty()` | `→ bool` | Teste si la chaîne est vide |
+
+**Appels statiques (nécessitent `import ocara.String`) :**
+
+Les mêmes méthodes peuvent être appelées en mode statique sur la classe `String`, en passant la chaîne comme premier argument :
+
+```ocara
+import ocara.String
+
+var result:string = String::trim("  hello  ")  // "hello"
+var upper:string = String::upper("world")      // "WORLD"
+```
+
+**Remarques :**
+- Les méthodes d'instance **ne nécessitent pas d'import** — elles sont toujours disponibles sur les variables de type `string`.
+- L'import `ocara.String` est requis **uniquement** pour les appels statiques explicites `String::method()`.
+- Toutes les méthodes sont safe et ne lèvent aucune exception.
+- Le chaînage de méthodes est supporté : `text.trim().lower().capitalize()`.
+
 #### Restrictions sur le type `mixed`
 
 Le type `mixed` désactive la vérification de type statique et doit être utilisé **uniquement** dans des contextes spécifiques. Le compilateur applique les règles suivantes :
@@ -1167,8 +1211,11 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
   - `push()`, `pop()`, `shift()`, `unshift()`, `slice()`, `join()`, `length()`, `sort()`, `reverse()`, `contains()`, `index_of()`, `remove()`
 - **Map** — Opérations sur les dictionnaires (clé-valeur)
   - `set()`, `get()`, `has()`, `remove()`, `keys()`, `values()`, `size()`, `clear()`, `merge()`
-- **String** — Manipulation de chaînes
-  - `length()`, `substring()`, `index_of()`, `split()`, `replace()`, `to_upper()`, `to_lower()`, `trim()`, `starts_with()`, `ends_with()`, `char_at()`
+- **String** — Manipulation de chaînes (méthodes appelables en instance ou en statique)
+  - **Méthodes d'instance** (sans import, directement sur variables) : `text.trim()`, `text.upper()`, `text.lower()`
+  - **Méthodes statiques** (avec `import ocara.String`) : `String::trim(s)`, `String::upper(s)`
+  - Liste complète : `len()`, `upper()`, `lower()`, `capitalize()`, `trim()`, `replace()`, `split()`, `explode()`, `between()`, `empty()`
+  - Voir section [4.1 Méthodes intégrées au type string](#méthodes-intégrées-au-type-string) pour détails
 - **Regex** — Expressions régulières PCRE
   - `match()`, `test()`, `replace()`, `split()`, `match_all()`
 
@@ -1232,9 +1279,41 @@ Les classes d'exception permettent une gestion fine des erreurs avec `try/on`. T
 
 > **Note :** La classe `String` ne lève aucune exception - toutes ses méthodes sont safe.
 
-**Utilisation :**
+**Exemples d'utilisation :**
 
 ```ocara
+// Méthodes intégrées string (sans import)
+import ocara.IO
+
+function main(): void {
+    var text:string = "  Hello World  "
+    var trimmed:string = text.trim()        // "Hello World"
+    var upper:string = text.upper()         // "  HELLO WORLD  "
+    var result:string = text.trim().lower() // "hello world" (chaînage)
+    
+    IO::writeln(trimmed)
+    IO::writeln(upper)
+    IO::writeln(result)
+}
+```
+
+```ocara
+// Appels statiques String (avec import)
+import ocara.String
+import ocara.IO
+
+function main(): void {
+    var cleaned:string = String::trim("  data  ")  // "data"
+    
+    IO::writeln(cleaned)
+    IO::writeln(String::upper("hello"))       // "HELLO"
+    IO::writeln(String::lower("WORLD"))       // "world"
+    IO::writeln(String::capitalize("ocara"))  // "Ocara"
+}
+```
+
+```ocara
+// DateTime et conversions
 import ocara.DateTime
 import ocara.IO
 import ocara.Convert

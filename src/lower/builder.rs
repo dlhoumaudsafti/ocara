@@ -176,9 +176,12 @@ impl<'m> LowerBuilder<'m> {
 // Point d'entrée du lowering
 // ─────────────────────────────────────────────────────────────────────────────
 
-pub fn lower_program(program: &Program) -> IrModule {
+pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     let module_name = "ocara_module".to_string();
     let mut module = IrModule::new(module_name);
+    
+    // Stocker le nom du fichier source pour les messages d'erreur
+    module.source_file = source_file.to_string();
 
     // Enregistre les modules importés (dernier segment du path : "ocara.IO" → "IO")
     for imp in &program.imports {
@@ -392,6 +395,20 @@ pub fn lower_program(program: &Program) -> IrModule {
             }
         }
     }
+    
+    // Ajout des types de retour des méthodes builtin String
+    // (utilisé pour le chaînage des appels comme a.trim().lower())
+    fn_ret_types.insert("String_len".to_string(), IrType::I64);
+    fn_ret_types.insert("String_upper".to_string(), IrType::Ptr);
+    fn_ret_types.insert("String_lower".to_string(), IrType::Ptr);
+    fn_ret_types.insert("String_capitalize".to_string(), IrType::Ptr);
+    fn_ret_types.insert("String_trim".to_string(), IrType::Ptr);
+    fn_ret_types.insert("String_replace".to_string(), IrType::Ptr);
+    fn_ret_types.insert("String_split".to_string(), IrType::Ptr);
+    fn_ret_types.insert("String_explode".to_string(), IrType::Ptr);
+    fn_ret_types.insert("String_between".to_string(), IrType::Ptr);
+    fn_ret_types.insert("String_empty".to_string(), IrType::Bool);
+    
     // Propage les types de retour des méthodes héritées (non surchargées) dans fn_ret_types
     for class in &program.classes {
         if let Some(parent_name) = &class.extends {
