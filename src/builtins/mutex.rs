@@ -4,7 +4,7 @@
 // Méthodes d'instance (is_static: false) :
 //   m.lock()         → void   verrouille le mutex (bloquant)
 //   m.unlock()       → void   déverrouille le mutex
-//   m.try_lock()     → bool   tente de verrouiller (non-bloquant)
+//   m.tryLock()     → bool   tente de verrouiller (non-bloquant)
 //
 // Convention runtime : Mutex_<method>
 // Usage :
@@ -48,8 +48,8 @@ pub fn class() -> ClassInfo {
         Type::Void,
     ));
 
-    // m.try_lock() → bool
-    methods.insert("try_lock".into(), instance(
+    // m.tryLock() → bool
+    methods.insert("tryLock".into(), instance(
         vec![],
         Type::Bool,
     ));

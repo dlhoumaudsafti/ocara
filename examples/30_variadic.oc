@@ -119,9 +119,9 @@ function describe_union(vals:variadic<int|string|bool|null>): void {
     for val in vals {
         match val {
             is null   => IO::writeln("  → null")
-            is int    => IO::writeln("  → int: " + Convert::int_to_str(val))
+            is int    => IO::writeln("  → int: " + Convert::intToStr(val))
             is string => IO::writeln("  → string: " + val)
-            is bool   => IO::writeln("  → bool: " + Convert::bool_to_str(val))
+            is bool   => IO::writeln("  → bool: " + Convert::boolToStr(val))
         }
     }
 }
@@ -129,9 +129,9 @@ function describe_union(vals:variadic<int|string|bool|null>): void {
 // ── 11. variadic<mixed> (type dynamique avec warning) ───────────────────────
 
 function debug_mixed(vals:variadic<mixed>): void {
-    IO::writeln("Mixed values (count: " + Convert::int_to_str(Array::length(vals)) + "):")
+    IO::writeln("Mixed values (count: " + Convert::intToStr(Array::length(vals)) + "):")
     for val in vals {
-        IO::writeln("  → " + Convert::int_to_str(val))  // Simplifié
+        IO::writeln("  → " + Convert::intToStr(val))  // Simplifié
     }
 }
 
@@ -162,15 +162,15 @@ function main(): int {
 
     // Test 1: variadic<int>
     IO::writeln("1. variadic<int>:")
-    IO::writeln("   sum_int(1, 2, 3, 4, 5) = " + Convert::int_to_str(sum_int(1, 2, 3, 4, 5)))
-    IO::writeln("   sum_int() = " + Convert::int_to_str(sum_int()))
-    IO::writeln("   sum_int(42) = " + Convert::int_to_str(sum_int(42)))
+    IO::writeln("   sum_int(1, 2, 3, 4, 5) = " + Convert::intToStr(sum_int(1, 2, 3, 4, 5)))
+    IO::writeln("   sum_int() = " + Convert::intToStr(sum_int()))
+    IO::writeln("   sum_int(42) = " + Convert::intToStr(sum_int(42)))
     IO::writeln("")
 
     // Test 2: variadic<float>
     IO::writeln("2. variadic<float>:")
-    IO::writeln("   sum_float(1.5, 2.5, 3.0) = " + Convert::float_to_str(sum_float(1.5, 2.5, 3.0)))
-    IO::writeln("   sum_float() = " + Convert::float_to_str(sum_float()))
+    IO::writeln("   sum_float(1.5, 2.5, 3.0) = " + Convert::floatToStr(sum_float(1.5, 2.5, 3.0)))
+    IO::writeln("   sum_float() = " + Convert::floatToStr(sum_float()))
     IO::writeln("")
 
     // Test 3: variadic<string>
@@ -181,14 +181,14 @@ function main(): int {
 
     // Test 4: variadic<bool>
     IO::writeln("4. variadic<bool>:")
-    IO::writeln("   all_true(true, true, true) = " + Convert::bool_to_str(all_true(true, true, true)))
-    IO::writeln("   all_true(true, false, true) = " + Convert::bool_to_str(all_true(true, false, true)))
-    IO::writeln("   all_true() = " + Convert::bool_to_str(all_true()))
+    IO::writeln("   all_true(true, true, true) = " + Convert::boolToStr(all_true(true, true, true)))
+    IO::writeln("   all_true(true, false, true) = " + Convert::boolToStr(all_true(true, false, true)))
+    IO::writeln("   all_true() = " + Convert::boolToStr(all_true()))
     IO::writeln("")
 
     // Test 5: variadic<int|null>
     IO::writeln("5. variadic<int|null> (union avec null):")
-    IO::writeln("   sum_nullable(1, null, 3, null, 5) = " + Convert::int_to_str(sum_nullable(1, null, 3, null, 5)))
+    IO::writeln("   sum_nullable(1, null, 3, null, 5) = " + Convert::intToStr(sum_nullable(1, null, 3, null, 5)))
     IO::writeln("")
 
     // Test 6: variadic<int[]>
@@ -196,19 +196,19 @@ function main(): int {
     var arr1:int[] = [1, 2, 3]
     var arr2:int[] = [4, 5]
     var arr3:int[] = [6, 7, 8, 9]
-    IO::writeln("   flatten_arrays([1,2,3], [4,5], [6,7,8,9]) = " + Convert::int_to_str(flatten_arrays(arr1, arr2, arr3)))
+    IO::writeln("   flatten_arrays([1,2,3], [4,5], [6,7,8,9]) = " + Convert::intToStr(flatten_arrays(arr1, arr2, arr3)))
     IO::writeln("")
 
     // Test 7: variadic<map<string,int>>
     IO::writeln("7. variadic<map<string,int>> (maps):")
     var map1:map<string,int> = {"a": 1, "b": 2}
     var map2:map<string,int> = {"c": 3}
-    IO::writeln("   count_maps(map1, map2) = " + Convert::int_to_str(count_maps(map1, map2)))
+    IO::writeln("   count_maps(map1, map2) = " + Convert::intToStr(count_maps(map1, map2)))
     IO::writeln("")
 
     // Test 8: variadic<Function<int>>
     IO::writeln("8. variadic<Function<int>> (fonctions):")
-    IO::writeln("   apply_functions(5, double, triple) = " + Convert::int_to_str(apply_functions(5, double, triple)))
+    IO::writeln("   apply_functions(5, double, triple) = " + Convert::intToStr(apply_functions(5, double, triple)))
     IO::writeln("")
 
     // Test 9: variadic<Animal> (classes)
@@ -217,7 +217,7 @@ function main(): int {
     var dog:Animal = use Animal("Chien")
     var bird:Animal = use Animal("Oiseau")
     var count:int = list_animals(cat, dog, bird)
-    IO::writeln("   Total: " + Convert::int_to_str(count) + " animaux")
+    IO::writeln("   Total: " + Convert::intToStr(count) + " animaux")
     IO::writeln("")
 
     // Test 10: variadic<int|string|bool|null> (union multiple)
@@ -238,8 +238,8 @@ function main(): int {
 
     // Test 13: Appel avec 0 argument
     IO::writeln("13. Gestion de 0 argument:")
-    IO::writeln("   default_sum() = " + Convert::int_to_str(default_sum()))
-    IO::writeln("   default_sum(10, 20) = " + Convert::int_to_str(default_sum(10, 20)))
+    IO::writeln("   default_sum() = " + Convert::intToStr(default_sum()))
+    IO::writeln("   default_sum(10, 20) = " + Convert::intToStr(default_sum(10, 20)))
     IO::writeln("")
 
     IO::writeln("✓ Tous les types testés avec succès !")

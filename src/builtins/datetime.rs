@@ -3,7 +3,7 @@
 //
 // Méthodes statiques :
 //   DateTime::now()                → int     timestamp Unix actuel
-//   DateTime::from_timestamp(ts)   → string  convertit timestamp en ISO 8601
+//   DateTime::fromTimestamp(ts)   → string  convertit timestamp en ISO 8601
 //   DateTime::year(ts)             → int     extrait l'année
 //   DateTime::month(ts)            → int     extrait le mois (1-12)
 //   DateTime::day(ts)              → int     extrait le jour (1-31)
@@ -37,7 +37,7 @@ pub fn class() -> ClassInfo {
     let mut methods: HashMap<String, FuncSig> = HashMap::new();
 
     methods.insert("now".into(),            m(vec![],                                               Type::Int));
-    methods.insert("from_timestamp".into(), m(vec![("ts", Type::Int)],                              Type::String));
+    methods.insert("fromTimestamp".into(), m(vec![("ts", Type::Int)],                              Type::String));
     methods.insert("year".into(),           m(vec![("ts", Type::Int)],                              Type::Int));
     methods.insert("month".into(),          m(vec![("ts", Type::Int)],                              Type::Int));
     methods.insert("day".into(),            m(vec![("ts", Type::Int)],                              Type::Int));

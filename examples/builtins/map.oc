@@ -3,7 +3,7 @@
 //
 // Illustre :
 //   - import ocara.Map
-//   - Map::size(m) / Map::is_empty(m)
+//   - Map::size(m) / Map::isEmpty(m)
 //   - Map::has(m, key) / Map::get(m, key)
 //   - Map::set(m, key, val) / Map::remove(m, key)
 //   - Map::keys(m) / Map::values(m)
@@ -23,10 +23,10 @@ function main(): int {
 
     // ── size / is_empty ───────────────────────────────────────────────────
     IO::writeln(`size(scores)     = ${Map::size(scores)}`)      // 3
-    IO::writeln(`is_empty(scores) = ${Map::is_empty(scores)}`)  // false
+    IO::writeln(`is_empty(scores) = ${Map::isEmpty(scores)}`)  // false
 
     var vide:map<string, int> = {}
-    IO::writeln(`is_empty({})     = ${Map::is_empty(vide)}`)    // true
+    IO::writeln(`is_empty({})     = ${Map::isEmpty(vide)}`)    // true
 
 
     // ── has / get ─────────────────────────────────────────────────────────

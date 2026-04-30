@@ -6,7 +6,7 @@
 //   - Array::len(arr)
 //   - Array::push(arr, val) / Array::pop(arr)
 //   - Array::first(arr) / Array::last(arr)
-//   - Array::contains(arr, val) / Array::index_of(arr, val)
+//   - Array::contains(arr, val) / Array::indexOf(arr, val)
 //   - Array::reverse(arr)
 //   - Array::slice(arr, from, to)
 //   - Array::join(arr, sep)
@@ -51,8 +51,8 @@ function main(): int {
     IO::writeln(`contains(30) = ${c1}`)   // true
     IO::writeln(`contains(99) = ${c2}`)   // false
 
-    scoped i1:int = Array::index_of(nombres, 20)
-    scoped i2:int = Array::index_of(nombres, 99)
+    scoped i1:int = Array::indexOf(nombres, 20)
+    scoped i2:int = Array::indexOf(nombres, 99)
     IO::writeln(`index_of(20) = ${i1}`)   // 2
     IO::writeln(`index_of(99) = ${i2}`)   // -1
 
@@ -93,7 +93,7 @@ function main(): int {
     var source:int[]  = [1, 2, 3, 2, 4, 1, 5]
     var unique:int[]  = []
     for val in source {
-        if Array::index_of(unique, val) == -1 {
+        if Array::indexOf(unique, val) == -1 {
             Array::push(unique, val)
         }
     }

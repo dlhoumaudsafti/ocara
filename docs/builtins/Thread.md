@@ -79,12 +79,12 @@ Suspend le **thread courant** pendant `ms` millisecondes.
 Thread::sleep(500)   // pause 500 ms
 ```
 
-### `Thread::current_id() → int`
+### `Thread::currentId() → int`
 
 Retourne l'ID du thread courant. Retourne `0` pour le thread principal.
 
 ```ocara
-IO::writeln(Thread::current_id())   // 0 dans main, 1..n dans les threads créés
+IO::writeln(Thread::currentId())   // 0 dans main, 1..n dans les threads créés
 ```
 
 ---
@@ -102,12 +102,12 @@ function main(): void {
     t1.run(nameless(): void {
         Thread::sleep(100)
         IO::writeln("t1 terminé, id=")
-        IO::writeln(Thread::current_id())
+        IO::writeln(Thread::currentId())
     })
 
     t2.run(nameless(): void {
         IO::writeln("t2 terminé, id=")
-        IO::writeln(Thread::current_id())
+        IO::writeln(Thread::currentId())
     })
 
     t1.join()
@@ -200,7 +200,7 @@ function complex_case(): void {
     var t:Thread = use Thread()
     try {
         t.run(nameless(): void {
-            var result:int = Convert::str_to_int("invalid")
+            var result:int = Convert::strToInt("invalid")
         })
         t.join()
     } on e is ThreadException {
@@ -217,7 +217,7 @@ function complex_case(): void {
   - `t.id()` — toujours valide
   - `t.detach()` — toujours valide
   - `Thread::sleep(ms)` — toujours valide
-  - `Thread::current_id()` — toujours valide
+  - `Thread::currentId()` — toujours valide
 - Si `join()` est appelé sur un thread qui n'a pas été lancé ou déjà joint, il ne fait rien (pas d'exception)
 - Les exceptions lancées à l'intérieur de la closure du thread sont capturées par `join()` et transformées en ThreadException code 102
 

@@ -135,10 +135,10 @@ function main(): int {
     var vals:int[] = Map::values(scores)
     IO::writeln(Array::join(vals, ", "))     // 95, 88
 
-    IO::writeln(Map::is_empty(scores))       // 0 (false)
+    IO::writeln(Map::isEmpty(scores))       // 0 (false)
 
     var empty_map:map<string, int> = {}
-    IO::writeln(Map::is_empty(empty_map))    // 1 (true)
+    IO::writeln(Map::isEmpty(empty_map))    // 1 (true)
 
     return 0
 }

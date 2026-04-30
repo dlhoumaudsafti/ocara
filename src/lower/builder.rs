@@ -417,7 +417,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     fn_ret_types.insert("Array_first".to_string(), IrType::Ptr);
     fn_ret_types.insert("Array_last".to_string(), IrType::Ptr);
     fn_ret_types.insert("Array_contains".to_string(), IrType::Bool);
-    fn_ret_types.insert("Array_index_of".to_string(), IrType::I64);
+    fn_ret_types.insert("Array_indexOf".to_string(), IrType::I64);
     fn_ret_types.insert("Array_reverse".to_string(), IrType::Ptr);  // Chainable
     fn_ret_types.insert("Array_slice".to_string(), IrType::Ptr);    // Chainable
     fn_ret_types.insert("Array_join".to_string(), IrType::Ptr);
@@ -435,7 +435,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     fn_ret_types.insert("Map_keys".to_string(), IrType::Ptr);
     fn_ret_types.insert("Map_values".to_string(), IrType::Ptr);
     fn_ret_types.insert("Map_merge".to_string(), IrType::Ptr);
-    fn_ret_types.insert("Map_is_empty".to_string(), IrType::Bool);
+    fn_ret_types.insert("Map_isEmpty".to_string(), IrType::Bool);
     
     // Propage les types de retour des méthodes héritées (non surchargées) dans fn_ret_types
     for class in &program.classes {

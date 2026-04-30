@@ -10,7 +10,7 @@
 //   Map::keys(m)              → mixed[]   tableau de toutes les clés
 //   Map::values(m)            → mixed[]   tableau de toutes les valeurs
 //   Map::merge(a, b)          → map     fusion (b écrase les clés communes)
-//   Map::is_empty(m)          → bool    vrai si aucune entrée
+//   Map::isEmpty(m)          → bool    vrai si aucune entrée
 //
 // Convention runtime : Map_<method>
 // ─────────────────────────────────────────────────────────────────────────────
@@ -86,8 +86,8 @@ pub fn class() -> ClassInfo {
         map_ty.clone(),
     ));
 
-    // Map::is_empty(m) → bool
-    methods.insert("is_empty".into(), m(
+    // Map::isEmpty(m) → bool
+    methods.insert("isEmpty".into(), m(
         vec![("m", map_ty)],
         Type::Bool,
     ));

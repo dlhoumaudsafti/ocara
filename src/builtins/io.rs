@@ -6,11 +6,11 @@
 //   IO::writeln(val)      → void     affiche val suivi d'un saut de ligne
 //   IO::read()            → string   lit une ligne (sans le \n final)
 //   IO::readln()          → string   alias de read()
-//   IO::read_int()        → int      lit une ligne et la convertit en int
-//   IO::read_float()      → float    lit une ligne et la convertit en float
-//   IO::read_bool()       → bool     lit une ligne ("true"/"1" → true, sinon false)
-//   IO::read_array(sep)   → string[] lit une ligne et la découpe selon sep
-//   IO::read_map(sep,kv)  → map<string,string>
+//   IO::readInt()        → int      lit une ligne et la convertit en int
+//   IO::readFloat()      → float    lit une ligne et la convertit en float
+//   IO::readBool()       → bool     lit une ligne ("true"/"1" → true, sinon false)
+//   IO::readArray(sep)   → string[] lit une ligne et la découpe selon sep
+//   IO::readMap(sep,kv)  → map<string,string>
 //                                    lit une ligne, découpe selon sep, puis
 //                                    chaque partie selon kv (ex. "=" pour "k=v")
 //
@@ -61,32 +61,32 @@ pub fn class() -> ClassInfo {
         Type::String,
     ));
 
-    // IO::read_int() → int
-    methods.insert("read_int".into(), m(
+    // IO::readInt() → int
+    methods.insert("readInt".into(), m(
         vec![],
         Type::Int,
     ));
 
-    // IO::read_float() → float
-    methods.insert("read_float".into(), m(
+    // IO::readFloat() → float
+    methods.insert("readFloat".into(), m(
         vec![],
         Type::Float,
     ));
 
-    // IO::read_bool() → bool
-    methods.insert("read_bool".into(), m(
+    // IO::readBool() → bool
+    methods.insert("readBool".into(), m(
         vec![],
         Type::Bool,
     ));
 
-    // IO::read_array(sep) → string[]
-    methods.insert("read_array".into(), m(
+    // IO::readArray(sep) → string[]
+    methods.insert("readArray".into(), m(
         vec![("sep", Type::String)],
         Type::Array(Box::new(Type::String)),
     ));
 
-    // IO::read_map(sep, kv) → map<string, string>
-    methods.insert("read_map".into(), m(
+    // IO::readMap(sep, kv) → map<string, string>
+    methods.insert("readMap".into(), m(
         vec![("sep", Type::String), ("kv", Type::String)],
         Type::Map(Box::new(Type::String), Box::new(Type::String)),
     ));

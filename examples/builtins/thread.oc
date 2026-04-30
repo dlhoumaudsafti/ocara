@@ -39,15 +39,15 @@ function main(): void {
     tc.join()
     IO::writeln("tous terminés (ordre attendu : tc, tb, ta)")
 
-    // ── Thread::current_id() ──────────────────────────────────────────────────
+    // ── Thread::currentId() ──────────────────────────────────────────────────
     IO::writeln("=== current_id ===")
     IO::write("main id = ")
-    IO::writeln(Thread::current_id())
+    IO::writeln(Thread::currentId())
 
     var tid:Thread = use Thread()
     tid.run(nameless(): void {
         IO::write("thread id = ")
-        IO::writeln(Thread::current_id())
+        IO::writeln(Thread::currentId())
     })
     tid.join()
 

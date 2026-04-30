@@ -25,13 +25,13 @@ var t:string = Time::now()
 IO::write(t)  // "18:30:45"
 ```
 
-### `Time::from_timestamp(ts:int) → string`
+### `Time::fromTimestamp(ts:int) → string`
 
 Extrait l'heure d'un timestamp Unix au format `HH:MM:SS`.
 
 ```ocara
 var ts:int = 1714233600
-var time:string = Time::from_timestamp(ts)
+var time:string = Time::fromTimestamp(ts)
 IO::write(time)  // "18:00:00"
 ```
 
@@ -62,55 +62,55 @@ var s:int = Time::second("18:30:45")
 IO::write(s)  // 45
 ```
 
-### `Time::from_seconds(seconds:int) → string`
+### `Time::fromSeconds(seconds:int) → string`
 
 Convertit un nombre de secondes depuis minuit en format `HH:MM:SS`.
 
 Les valeurs >= 86400 (24h) sont automatiquement ramenées dans la journée (modulo 86400).
 
 ```ocara
-var t1:string = Time::from_seconds(3661)
+var t1:string = Time::fromSeconds(3661)
 IO::write(t1)  // "01:01:01" (1h + 1min + 1s)
 
-var t2:string = Time::from_seconds(90000)
+var t2:string = Time::fromSeconds(90000)
 IO::write(t2)  // "01:00:00" (90000 % 86400 = 3600)
 ```
 
-### `Time::to_seconds(time:string) → int`
+### `Time::toSeconds(time:string) → int`
 
 Convertit un time `HH:MM:SS` en nombre de secondes depuis minuit.
 
 ```ocara
-var s:int = Time::to_seconds("18:30:45")
+var s:int = Time::toSeconds("18:30:45")
 IO::write(s)  // 66645 (18*3600 + 30*60 + 45)
 ```
 
-### `Time::add_seconds(time:string, s:int) → string`
+### `Time::addSeconds(time:string, s:int) → string`
 
 Ajoute un nombre de secondes (positif ou négatif) à un time.
 
 Le résultat reste dans l'intervalle 00:00:00 - 23:59:59 (modulo 24h).
 
 ```ocara
-var t1:string = Time::add_seconds("18:30:00", 3600)
+var t1:string = Time::addSeconds("18:30:00", 3600)
 IO::write(t1)  // "19:30:00" (+1h)
 
-var t2:string = Time::add_seconds("23:30:00", 3600)
+var t2:string = Time::addSeconds("23:30:00", 3600)
 IO::write(t2)  // "00:30:00" (déborde sur le jour suivant)
 
-var t3:string = Time::add_seconds("02:00:00", -7200)
+var t3:string = Time::addSeconds("02:00:00", -7200)
 IO::write(t3)  // "00:00:00" (-2h)
 ```
 
-### `Time::diff_seconds(t1:string, t2:string) → int`
+### `Time::diffSeconds(t1:string, t2:string) → int`
 
 Calcule la différence en secondes entre deux times (t1 - t2).
 
 ```ocara
-var diff:int = Time::diff_seconds("19:30:00", "18:30:00")
+var diff:int = Time::diffSeconds("19:30:00", "18:30:00")
 IO::write(diff)  // 3600 (1h)
 
-diff = Time::diff_seconds("18:30:00", "19:30:00")
+diff = Time::diffSeconds("18:30:00", "19:30:00")
 IO::write(diff)  // -3600
 ```
 
@@ -132,27 +132,27 @@ fun main(): void {
     var hour:int = Time::hour(now)
     var minute:int = Time::minute(now)
     var second:int = Time::second(now)
-    IO::write("Heure: " + Convert::int_to_str(hour))
-    IO::write("Minutes: " + Convert::int_to_str(minute))
-    IO::write("Secondes: " + Convert::int_to_str(second))
+    IO::write("Heure: " + Convert::intToStr(hour))
+    IO::write("Minutes: " + Convert::intToStr(minute))
+    IO::write("Secondes: " + Convert::intToStr(second))
     
     // Conversion en secondes
-    var total_seconds:int = Time::to_seconds(now)
-    IO::write("Secondes depuis minuit: " + Convert::int_to_str(total_seconds))
+    var total_seconds:int = Time::toSeconds(now)
+    IO::write("Secondes depuis minuit: " + Convert::intToStr(total_seconds))
     
     // Reconversion
-    var back:string = Time::from_seconds(total_seconds)
+    var back:string = Time::fromSeconds(total_seconds)
     IO::write("Reconverti: " + back)
     
     // Calculs sur les heures
-    var later:string = Time::add_seconds(now, 7200)
+    var later:string = Time::addSeconds(now, 7200)
     IO::write("Dans 2 heures: " + later)
     
-    var diff:int = Time::diff_seconds(later, now)
-    IO::write("Différence: " + Convert::int_to_str(diff) + " secondes")
+    var diff:int = Time::diffSeconds(later, now)
+    IO::write("Différence: " + Convert::intToStr(diff) + " secondes")
     
     // Gestion du débordement
-    var midnight:string = Time::add_seconds("23:00:00", 7200)
+    var midnight:string = Time::addSeconds("23:00:00", 7200)
     IO::write("23:00:00 + 2h = " + midnight)  // "01:00:00"
 }
 ```
@@ -176,9 +176,9 @@ Plusieurs méthodes lèvent une **TimeException** si le format du temps est inva
 - `Time::hour(time)` — format invalide ou heure hors plage (0-23)
 - `Time::minute(time)` — format invalide ou minutes hors plage (0-59)
 - `Time::second(time)` — format invalide ou secondes hors plage (0-59)
-- `Time::to_seconds(time)` — time invalide (appelle les fonctions ci-dessus)
-- `Time::add_seconds(time, s)` — time de départ invalide
-- `Time::diff_seconds(t1, t2)` — l'un des deux times invalide
+- `Time::toSeconds(time)` — time invalide (appelle les fonctions ci-dessus)
+- `Time::addSeconds(time, s)` — time de départ invalide
+- `Time::diffSeconds(t1, t2)` — l'un des deux times invalide
 
 **Exemples d'utilisation** :
 
@@ -221,7 +221,7 @@ try {
 
 // Exemple 5 : Catch générique
 try {
-    var seconds:int = Time::to_seconds("invalid")
+    var seconds:int = Time::toSeconds("invalid")
 } on e {
     IO::writeln(`Exception: ${e.message}`)
     if e.code == 101 {
@@ -234,8 +234,8 @@ try {
 
 - Les méthodes **safe** (qui ne lèvent jamais d'exception) :
   - `Time::now()` — toujours valide
-  - `Time::from_timestamp(ts)` — toujours valide
-  - `Time::from_seconds(seconds)` — toujours valide (modulo 86400)
+  - `Time::fromTimestamp(ts)` — toujours valide
+  - `Time::fromSeconds(seconds)` — toujours valide (modulo 86400)
 - Format requis : `HH:MM:SS` avec séparateur `:`
 - Les valeurs doivent être dans les plages valides (heure 0-23, minutes 0-59, secondes 0-59)
 

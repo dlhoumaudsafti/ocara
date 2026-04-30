@@ -4,35 +4,35 @@
 // Conversions entre types primitifs et structures de données.
 //
 // string → *
-//   Convert::str_to_int(s)          → int
-//   Convert::str_to_float(s)        → float
-//   Convert::str_to_bool(s)         → bool
-//   Convert::str_to_array(s, sep)   → string[]
-//   Convert::str_to_map(s, sep, kv) → map<string,string>
+//   Convert::strToInt(s)          → int
+//   Convert::strToFloat(s)        → float
+//   Convert::strToBool(s)         → bool
+//   Convert::strToArray(s, sep)   → string[]
+//   Convert::strToMap(s, sep, kv) → map<string,string>
 //
 // int → *
-//   Convert::int_to_str(n)          → string
-//   Convert::int_to_float(n)        → float
-//   Convert::int_to_bool(n)         → bool    (0 → false, sinon true)
+//   Convert::intToStr(n)          → string
+//   Convert::intToFloat(n)        → float
+//   Convert::intToBool(n)         → bool    (0 → false, sinon true)
 //
 // float → *
-//   Convert::float_to_str(f)        → string
-//   Convert::float_to_int(f)        → int     (troncature)
-//   Convert::float_to_bool(f)       → bool    (0.0 → false, sinon true)
+//   Convert::floatToStr(f)        → string
+//   Convert::floatToInt(f)        → int     (troncature)
+//   Convert::floatToBool(f)       → bool    (0.0 → false, sinon true)
 //
 // bool → *
-//   Convert::bool_to_str(b)         → string  ("true" / "false")
-//   Convert::bool_to_int(b)         → int     (true → 1, false → 0)
-//   Convert::bool_to_float(b)       → float   (true → 1.0, false → 0.0)
+//   Convert::boolToStr(b)         → string  ("true" / "false")
+//   Convert::boolToInt(b)         → int     (true → 1, false → 0)
+//   Convert::boolToFloat(b)       → float   (true → 1.0, false → 0.0)
 //
 // array → *
-//   Convert::array_to_str(arr, sep) → string  (join avec sep)
-//   Convert::array_to_map(arr, kv)  → map<string,string>
+//   Convert::arrayToStr(arr, sep) → string  (join avec sep)
+//   Convert::arrayToMap(arr, kv)  → map<string,string>
 //
 // map → *
-//   Convert::map_to_str(m, sep, kv)         → string
-//   Convert::map_keys_to_array(m)            → string[]
-//   Convert::map_values_to_array(m)          → mixed[]
+//   Convert::mapToStr(m, sep, kv)         → string
+//   Convert::mapKeysToArray(m)            → string[]
+//   Convert::mapValuesToArray(m)          → mixed[]
 //
 // Convention runtime : Convert_<method>
 // ─────────────────────────────────────────────────────────────────────────────
@@ -62,35 +62,35 @@ pub fn class() -> ClassInfo {
     let str_map = Type::Map(Box::new(Type::String), Box::new(Type::String));
 
     // ── string → * ────────────────────────────────────────────────────────
-    methods.insert("str_to_int".into(),   m(vec![("s", Type::String)],                                        Type::Int));
-    methods.insert("str_to_float".into(), m(vec![("s", Type::String)],                                        Type::Float));
-    methods.insert("str_to_bool".into(),  m(vec![("s", Type::String)],                                        Type::Bool));
-    methods.insert("str_to_array".into(), m(vec![("s", Type::String), ("sep", Type::String)],                 str_arr.clone()));
-    methods.insert("str_to_map".into(),   m(vec![("s", Type::String), ("sep", Type::String), ("kv", Type::String)], str_map.clone()));
+    methods.insert("strToInt".into(),   m(vec![("s", Type::String)],                                        Type::Int));
+    methods.insert("strToFloat".into(), m(vec![("s", Type::String)],                                        Type::Float));
+    methods.insert("strToBool".into(),  m(vec![("s", Type::String)],                                        Type::Bool));
+    methods.insert("strToArray".into(), m(vec![("s", Type::String), ("sep", Type::String)],                 str_arr.clone()));
+    methods.insert("strToMap".into(),   m(vec![("s", Type::String), ("sep", Type::String), ("kv", Type::String)], str_map.clone()));
 
     // ── int → * ───────────────────────────────────────────────────────────
-    methods.insert("int_to_str".into(),   m(vec![("n", Type::Int)],   Type::String));
-    methods.insert("int_to_float".into(), m(vec![("n", Type::Int)],   Type::Float));
-    methods.insert("int_to_bool".into(),  m(vec![("n", Type::Int)],   Type::Bool));
+    methods.insert("intToStr".into(),   m(vec![("n", Type::Int)],   Type::String));
+    methods.insert("intToFloat".into(), m(vec![("n", Type::Int)],   Type::Float));
+    methods.insert("intToBool".into(),  m(vec![("n", Type::Int)],   Type::Bool));
 
     // ── float → * ─────────────────────────────────────────────────────────
-    methods.insert("float_to_str".into(),  m(vec![("f", Type::Float)], Type::String));
-    methods.insert("float_to_int".into(),  m(vec![("f", Type::Float)], Type::Int));
-    methods.insert("float_to_bool".into(), m(vec![("f", Type::Float)], Type::Bool));
+    methods.insert("floatToStr".into(),  m(vec![("f", Type::Float)], Type::String));
+    methods.insert("floatToInt".into(),  m(vec![("f", Type::Float)], Type::Int));
+    methods.insert("floatToBool".into(), m(vec![("f", Type::Float)], Type::Bool));
 
     // ── bool → * ──────────────────────────────────────────────────────────
-    methods.insert("bool_to_str".into(),   m(vec![("b", Type::Bool)],  Type::String));
-    methods.insert("bool_to_int".into(),   m(vec![("b", Type::Bool)],  Type::Int));
-    methods.insert("bool_to_float".into(), m(vec![("b", Type::Bool)],  Type::Float));
+    methods.insert("boolToStr".into(),   m(vec![("b", Type::Bool)],  Type::String));
+    methods.insert("boolToInt".into(),   m(vec![("b", Type::Bool)],  Type::Int));
+    methods.insert("boolToFloat".into(), m(vec![("b", Type::Bool)],  Type::Float));
 
     // ── array → * ─────────────────────────────────────────────────────────
-    methods.insert("array_to_str".into(), m(vec![("arr", any_arr.clone()), ("sep", Type::String)], Type::String));
-    methods.insert("array_to_map".into(), m(vec![("arr", any_arr.clone()), ("kv", Type::String)],  str_map.clone()));
+    methods.insert("arrayToStr".into(), m(vec![("arr", any_arr.clone()), ("sep", Type::String)], Type::String));
+    methods.insert("arrayToMap".into(), m(vec![("arr", any_arr.clone()), ("kv", Type::String)],  str_map.clone()));
 
     // ── map → * ───────────────────────────────────────────────────────────
-    methods.insert("map_to_str".into(),          m(vec![("m", str_map.clone()), ("sep", Type::String), ("kv", Type::String)], Type::String));
-    methods.insert("map_keys_to_array".into(),   m(vec![("m", str_map.clone())], str_arr));
-    methods.insert("map_values_to_array".into(), m(vec![("m", str_map)],         any_arr));
+    methods.insert("mapToStr".into(),          m(vec![("m", str_map.clone()), ("sep", Type::String), ("kv", Type::String)], Type::String));
+    methods.insert("mapKeysToArray".into(),   m(vec![("m", str_map.clone())], str_arr));
+    methods.insert("mapValuesToArray".into(), m(vec![("m", str_map)],         any_arr));
 
     ClassInfo {
         extends:      None,

@@ -3,12 +3,12 @@
 //
 // Méthodes statiques :
 //   Directory::create(path:string|Directory) → void
-//   Directory::create_recursive(path:string|Directory) → void
+//   Directory::createRecursive(path:string|Directory) → void
 //   Directory::remove(path:string|Directory) → void
-//   Directory::remove_recursive(path:string|Directory) → void
+//   Directory::removeRecursive(path:string|Directory) → void
 //   Directory::list(path:string|Directory) → string[]
-//   Directory::list_files(path:string|Directory) → string[]
-//   Directory::list_dirs(path:string|Directory) → string[]
+//   Directory::listFiles(path:string|Directory) → string[]
+//   Directory::listDirs(path:string|Directory) → string[]
 //   Directory::exists(path:string|Directory) → bool
 //   Directory::count(path:string|Directory) → int
 //   Directory::copy(src:string|Directory, dst:string|Directory) → void
@@ -46,8 +46,8 @@ pub fn class() -> ClassInfo {
         Type::Void,
     ));
 
-    // Directory::create_recursive(path:string) → void
-    methods.insert("create_recursive".into(), m(
+    // Directory::createRecursive(path:string) → void
+    methods.insert("createRecursive".into(), m(
         vec![("path", Type::String)],
         Type::Void,
     ));
@@ -58,8 +58,8 @@ pub fn class() -> ClassInfo {
         Type::Void,
     ));
 
-    // Directory::remove_recursive(path:string) → void
-    methods.insert("remove_recursive".into(), m(
+    // Directory::removeRecursive(path:string) → void
+    methods.insert("removeRecursive".into(), m(
         vec![("path", Type::String)],
         Type::Void,
     ));
@@ -72,14 +72,14 @@ pub fn class() -> ClassInfo {
         Type::Array(Box::new(Type::String)),
     ));
 
-    // Directory::list_files(path:string) → string[]
-    methods.insert("list_files".into(), m(
+    // Directory::listFiles(path:string) → string[]
+    methods.insert("listFiles".into(), m(
         vec![("path", Type::String)],
         Type::Array(Box::new(Type::String)),
     ));
 
-    // Directory::list_dirs(path:string) → string[]
-    methods.insert("list_dirs".into(), m(
+    // Directory::listDirs(path:string) → string[]
+    methods.insert("listDirs".into(), m(
         vec![("path", Type::String)],
         Type::Array(Box::new(Type::String)),
     ));
