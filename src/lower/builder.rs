@@ -592,7 +592,7 @@ pub fn lower_func(
             builder.map_vars.insert(param.name.clone());
         }
         // Marquer les paramètres de type Function pour CallIndirect
-        if let crate::ast::Type::Function(ret_ty) = &param.ty {
+        if let crate::ast::Type::Function { ret_ty, .. } = &param.ty {
             builder.func_vars.insert(param.name.clone());
             builder.func_ret_types.insert(param.name.clone(), IrType::from_ast(ret_ty));
         }

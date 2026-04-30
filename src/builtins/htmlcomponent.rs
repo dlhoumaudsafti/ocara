@@ -31,7 +31,7 @@ pub fn class() -> ClassInfo {
 
     // c.register(handler: Function<string>) → void
     methods.insert("register".into(), instance(
-        vec![("handler", Type::Function(Box::new(Type::String)))],
+        vec![("handler", Type::Function { ret_ty: Box::new(Type::String), param_tys: vec![] })],
         Type::Void,
     ));
 

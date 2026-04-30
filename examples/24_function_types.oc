@@ -1,0 +1,114 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 26 : Typage complet des fonctions
+// ─────────────────────────────────────────────────────────────────────────────
+// 
+// Depuis Ocara v0.1.0, les fonctions peuvent être typées avec leurs paramètres :
+//   - Ancienne syntaxe : Function<RetType>  (rétro-compatible, sans typage des paramètres)
+//   - Nouvelle syntaxe : Function<RetType(ParamType1, ParamType2, ...)>
+//
+// Cette syntaxe permet un typage plus strict des callbacks et des fonctions 
+// passées en paramètres.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+
+// ─── Définition de fonctions simples ───
+
+function add(x: int, y: int): int {
+    return x + y
+}
+
+function subtract(x: int, y: int): int {
+    return x - y
+}
+
+function multiply(x: int, y: int): int {
+    return x * y
+}
+
+function double(n: int): int {
+    return n * 2
+}
+
+function triple(n: int): int {
+    return n * 3
+}
+
+// ─── Fonction qui accepte une opération binaire ───
+
+function compute(a: int, b: int, operation: Function<int(int, int)>): int {
+    return operation(a, b)
+}
+
+// ─── Fonction qui applique une transformation ───
+
+function transform(value: int, transformer: Function<int(int)>): int {
+    return transformer(value)
+}
+
+// ─── Fonction qui exécute une action ───
+
+function repeat(times: int, action: Function<void()>): void {
+    scoped i:int = 0
+    while i < times {
+        action()
+        i = i + 1
+    }
+}
+
+function printStar(): void {
+    IO::write("*")
+}
+
+// ─── Main ───
+
+function main(): int {
+    IO::writeln("=== Exemple 26 : Typage complet des fonctions ===")
+    IO::writeln("")
+    
+    // ── 1. Fonction avec 2 paramètres ──
+    IO::writeln("1. Opérations binaires : Function<int(int, int)>")
+    
+    scoped op1:Function<int(int, int)> = add
+    IO::write("   compute(10, 5, add)      = ")
+    IO::writeln(compute(10, 5, op1))
+    
+    scoped op2:Function<int(int, int)> = subtract
+    IO::write("   compute(10, 5, subtract) = ")
+    IO::writeln(compute(10, 5, op2))
+    
+    scoped op3:Function<int(int, int)> = multiply
+    IO::write("   compute(10, 5, multiply) = ")
+    IO::writeln(compute(10, 5, op3))
+    
+    // ── 2. Fonction avec 1 paramètre ──
+    IO::writeln("")
+    IO::writeln("2. Transformations unaires : Function<int(int)>")
+    
+    scoped t1:Function<int(int)> = double
+    IO::write("   transform(7, double) = ")
+    IO::writeln(transform(7, t1))
+    
+    scoped t2:Function<int(int)> = triple
+    IO::write("   transform(7, triple) = ")
+    IO::writeln(transform(7, t2))
+    
+    // ── 3. Fonction sans paramètre ──
+    IO::writeln("")
+    IO::writeln("3. Actions sans paramètre : Function<void()>")
+    IO::write("   repeat(5, printStar) = ")
+    scoped action:Function<void()> = printStar
+    repeat(5, action)
+    IO::writeln("")
+    
+    // ── 4. Ancienne syntaxe (rétro-compatible) ──
+    IO::writeln("")
+    IO::writeln("4. Ancienne syntaxe : Function<RetType>")
+    scoped fn:Function<int> = add
+    IO::writeln("   fn assigné = OK (pas de vérification des paramètres)")
+    
+    IO::writeln("")
+    IO::writeln("=== Fin de l'exemple ===")
+    
+    return 0
+}

@@ -29,7 +29,7 @@ Ce dossier contient un script `.oc` par fonctionnalité du langage.
 | [21_errors.oc](21_errors.oc) | Démonstration des erreurs sémantiques (fichier invalide, analyse avec `--check`) |
 | [22_union_types.oc](22_union_types.oc) | Types union `T\|null`, retour union, test de nullité |
 | [23_static_method.oc](23_static_method.oc) | Appels inter-statiques via `self::`, raccourci intra-classe |
-| [24_function_type.oc](24_function_type.oc) | Type `Function` : fonctions de première classe, méthodes statiques, `self::` |
+| [24_function_types.oc](24_function_type.oc) | Type `Function` : fonctions de première classe, méthodes statiques, `self::` |
 | [25_nameless.oc](25_nameless.oc) | Fonctions anonymes `nameless`, closures, capture de variables et de `self` |
 
 ## Classes builtins (`builtins/`)

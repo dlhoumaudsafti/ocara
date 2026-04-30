@@ -23,8 +23,13 @@ pub enum Type {
     Map(Box<Type>, Box<Type>),
     /// `T | U | ...` — type union
     Union(Vec<Type>),
-    /// Référence à une fonction ou méthode statique (premier ordre) : `Function<ReturnType>`
-    Function(Box<Type>),
+    /// Référence à une fonction ou méthode statique (premier ordre) :
+    /// - `Function<ReturnType>` (ancienne syntaxe, param_tys vide)
+    /// - `Function<ReturnType(ParamType1, ParamType2, ...)>` (nouvelle syntaxe)
+    Function {
+        ret_ty: Box<Type>,
+        param_tys: Vec<Type>,
+    },
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
