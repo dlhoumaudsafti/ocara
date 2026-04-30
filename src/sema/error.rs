@@ -49,35 +49,35 @@ impl SemaError {
     pub fn message(&self) -> String {
         match self {
             SemaError::UndefinedSymbol   { name, .. } =>
-                format!("symbole indéfini '{}'", name),
+                format!("undefined symbol '{}'", name),
             SemaError::TypeMismatch      { expected, found, .. } =>
-                format!("type attendu '{}', trouvé '{}'", expected, found),
+                format!("expected type '{}', found '{}'", expected, found),
             SemaError::DuplicateSymbol   { name, .. } =>
-                format!("symbole en double '{}'", name),
+                format!("duplicate symbol '{}'", name),
             SemaError::NotCallable       { name, .. } =>
-                format!("'{}' n'est pas appelable", name),
+                format!("'{}' is not callable", name),
             SemaError::WrongArgCount     { name, expected, found, .. } =>
-                format!("'{}' attend {} argument(s), {} fourni(s)", name, expected, found),
+                format!("'{}' expects {} argument(s), {} provided", name, expected, found),
             SemaError::ReturnTypeMismatch{ expected, found, .. } =>
-                format!("retour attendu '{}', trouvé '{}'", expected, found),
+                format!("expected return type '{}', found '{}'", expected, found),
             SemaError::NotAClass         { name, .. } =>
-                format!("'{}' n'est pas une classe", name),
+                format!("'{}' is not a class", name),
             SemaError::FieldNotFound     { class, field, .. } =>
-                format!("champ '{}' introuvable dans la classe '{}'", field, class),
+                format!("field '{}' not found in class '{}'", field, class),
             SemaError::InterfaceNotImpl  { class, iface, method, .. } =>
-                format!("classe '{}' n'implante pas '{}::{}' de l'interface '{}'", class, iface, method, iface),
+                format!("class '{}' does not implement '{}::{}' from interface '{}'", class, iface, method, iface),
             SemaError::InvalidAssign     { name, .. } =>
-                format!("impossible d'assigner à '{}' (immuable ou non-déclaré)", name),
+                format!("cannot assign to '{}' (immutable or undeclared)", name),
             SemaError::NotStaticMethod   { class, method, .. } =>
-                format!("'{}::{}' n'est pas statique — utilisez une instance", class, method),
+                format!("'{}::{}' is not static — use an instance", class, method),
             SemaError::StaticOnInstance  { class, method, .. } =>
-                format!("'{}' est statique — utilisez self::{}() depuis la classe ou {}::{}() depuis l'extérieur", method, method, class, method),
+                format!("'{}' is static — use self::{}() from within the class or {}::{}() from outside", method, method, class, method),
             SemaError::SelfOutsideClass  { .. } =>
-                "erreur interne : self:: hors contexte de classe".into(),
+                "internal error: self:: outside class context".into(),
             SemaError::MixedInProperty   { class, field, .. } =>
-                format!("le type 'mixed' est interdit pour les champs de classe : '{}.{}' doit utiliser un type concret ou 'map<string, mixed>'", class, field),
+                format!("type 'mixed' is forbidden for class fields: '{}.{}' must use a concrete type or 'map<string, mixed>'", class, field),
             SemaError::MixedInReturnType { name, .. } =>
-                format!("le type 'mixed' est interdit comme type de retour : '{}' doit retourner un type concret ou utiliser des unions (ex: int|string|null)", name),
+                format!("type 'mixed' is forbidden as return type: '{}' must return a concrete type or use unions (e.g., int|string|null)", name),
         }
     }
 }
@@ -113,11 +113,11 @@ impl SemaWarning {
     pub fn message(&self) -> String {
         match self {
             SemaWarning::UnusedVariable { name, .. } =>
-                format!("variable '{}' jamais utilisée", name),
+                format!("variable '{}' is never used", name),
             SemaWarning::MixedLocalVariable { name, .. } =>
-                format!("variable locale '{}' : le type 'mixed' désactive les vérifications de type — préférer un type concret ou une union (ex: int|string|null)", name),
+                format!("local variable '{}': type 'mixed' disables type checking — prefer a concrete type or union (e.g., int|string|null)", name),
             SemaWarning::VariadicMixed { name, .. } =>
-                format!("paramètre variadic '{}' : variadic<mixed> désactive les vérifications de type — envisager variadic<T|U> avec union explicite", name),
+                format!("variadic parameter '{}': variadic<mixed> disables type checking — consider variadic<T|U> with explicit union", name),
         }
     }
 }

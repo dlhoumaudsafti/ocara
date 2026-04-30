@@ -72,7 +72,7 @@ impl Parser {
             Ok(self.advance().clone())
         } else {
             Err(ParseError::new(
-                format!("attendu {:?}, trouvé {:?}", kind, self.peek_kind()),
+                format!("expected {:?}, found {:?}", kind, self.peek_kind()),
                 self.span(),
             ))
         }
@@ -86,7 +86,7 @@ impl Parser {
                 Ok((name, span))
             }
             other => Err(ParseError::new(
-                format!("attendu un identifiant, trouvé {:?}", other),
+                format!("expected identifier, found {:?}", other),
                 span,
             )),
         }
@@ -126,7 +126,7 @@ impl Parser {
                 }
                 other => {
                     return Err(ParseError::new(
-                        format!("déclaration de haut niveau inattendue : {:?}", other),
+                        format!("unexpected top-level declaration: {:?}", other),
                         self.span(),
                     ))
                 }
@@ -218,12 +218,33 @@ impl Parser {
 
             TokenKind::Ident(name) => {
                 self.advance();
-                // `Function<ReturnType>` est un type de première classe avec retour typé
+                // `Function<ReturnType>` ou `Function<ReturnType(ParamType, ...)>`
                 if name == "Function" {
                     self.eat(&TokenKind::Lt)?;
                     let ret_ty = self.parse_type()?;
+                    
+                    // Vérifier si on a des paramètres : `Function<RetType(Params)>`
+                    let param_tys = if self.check_exact(&TokenKind::LParen) {
+                        self.advance(); // consomme '('
+                        let mut params = Vec::new();
+                        if !self.check_exact(&TokenKind::RParen) {
+                            params.push(self.parse_type()?);
+                            while self.check_exact(&TokenKind::Comma) {
+                                self.advance();
+                                params.push(self.parse_type()?);
+                            }
+                        }
+                        self.eat(&TokenKind::RParen)?;
+                        params
+                    } else {
+                        Vec::new() // ancienne syntaxe sans paramètres
+                    };
+                    
                     self.eat(&TokenKind::Gt)?;
-                    return Ok(Type::Function(Box::new(ret_ty)));
+                    return Ok(Type::Function {
+                        ret_ty: Box::new(ret_ty),
+                        param_tys,
+                    });
                 }
                 if self.check_exact(&TokenKind::Dot) {
                     let mut parts = vec![name];
@@ -239,7 +260,7 @@ impl Parser {
 
             other => {
                 return Err(ParseError::new(
-                    format!("type attendu, trouvé {:?}", other),
+                    format!("expected type, found {:?}", other),
                     self.span(),
                 ))
             }
@@ -457,7 +478,7 @@ impl Parser {
                     }
                     other => {
                         return Err(ParseError::new(
-                            format!("valeur d'enum doit être un entier littéral, trouvé {:?}", other),
+                            format!("enum value must be an integer literal, found {:?}", other),
                             vspan2,
                         ));
                     }
@@ -550,7 +571,7 @@ impl Parser {
                 ));
             }
             other => return Err(ParseError::new(
-                format!("'property', 'const' ou 'method' attendu, trouvé {:?}", other),
+                format!("expected 'property', 'const' or 'method', found {:?}", other),
                 self.span(),
             )),
         };
@@ -567,7 +588,7 @@ impl Parser {
             TokenKind::Private   => { self.advance(); Ok(Visibility::Private)   }
             TokenKind::Protected => { self.advance(); Ok(Visibility::Protected) }
             other => Err(ParseError::new(
-                format!("visibilité (public/private/protected) attendue, trouvé {:?}", other),
+                format!("expected visibility (public/private/protected), found {:?}", other),
                 span,
             )),
         }
@@ -1130,7 +1151,7 @@ impl Parser {
                             let mut sub_lex = crate::lexer::Lexer::new(&src);
                             let sub_tokens = sub_lex.tokenize().map_err(|e| {
                                 ParseError::new(
-                                    format!("erreur dans interpolation `${{{}}}` : {}", src, e),
+                                    format!("error in interpolation `${{{}}}`: {}", src, e),
                                     span.clone(),
                                 )
                             })?;
@@ -1273,7 +1294,7 @@ impl Parser {
             }
 
             _ => Err(ParseError::new(
-                format!("expression primaire inattendue : {:?}", self.peek_kind()),
+                format!("unexpected primary expression: {:?}", self.peek_kind()),
                 span,
             )),
         }
@@ -1339,7 +1360,7 @@ impl Parser {
             TokenKind::LitFalse     => { self.advance(); Ok(Literal::Bool(false)) }
             TokenKind::LitNull      => { self.advance(); Ok(Literal::Null) }
             other => Err(ParseError::new(
-                format!("littéral attendu, trouvé {:?}", other),
+                format!("expected literal, found {:?}", other),
                 span,
             )),
         }

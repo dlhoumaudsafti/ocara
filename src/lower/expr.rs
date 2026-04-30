@@ -203,7 +203,7 @@ fn lower_nameless_fn(
         for param in params {
             let ir_ty = IrType::from_ast(&param.ty);
             if let Type::Map(_, _) = &param.ty  { builder.map_vars.insert(param.name.clone()); }
-            if let Type::Function(ret_ty)  = &param.ty  {
+            if let Type::Function { ret_ty, .. }  = &param.ty  {
                 builder.func_vars.insert(param.name.clone());
                 builder.func_ret_types.insert(param.name.clone(), IrType::from_ast(ret_ty));
             }
@@ -1802,7 +1802,7 @@ fn lower_is_check(builder: &mut LowerBuilder, val: &Value, ty: &Type) -> Value {
         Type::String => "__is_string",
         Type::Array(_) => "__is_array",
         Type::Map(_, _) => "__is_map",
-        Type::Function(_) => "__is_function",
+        Type::Function { .. } => "__is_function",
         Type::Named(_) | Type::Qualified(_) => "__is_object",
         _ => {
             // Pour les autres types (mixed, void, union), retourne false

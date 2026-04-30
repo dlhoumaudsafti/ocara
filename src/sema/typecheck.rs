@@ -437,7 +437,12 @@ impl<'a> TypeChecker<'a> {
                 }
                 // 4. référence à une fonction libre (sans appel)
                 if let Some(sig) = self.symbols.lookup_function(name) {
-                    return Type::Function(Box::new(sig.ret_ty.clone()));
+                    // Construire le type Function avec les paramètres
+                    let param_tys = sig.params.iter().map(|(_, ty)| ty.clone()).collect();
+                    return Type::Function {
+                        ret_ty: Box::new(sig.ret_ty.clone()),
+                        param_tys,
+                    };
                 }
                 self.errors.push(SemaError::UndefinedSymbol {
                     name: name.clone(),
@@ -477,10 +482,36 @@ impl<'a> TypeChecker<'a> {
                 // Appel indirect : variable locale de type Function
                 if let Expr::Ident(name, _) = callee.as_ref() {
                     if let Some(b) = self.scopes.lookup(name) {
-                        if let Type::Function(ret_ty) = &b.ty {
+                        if let Type::Function { ret_ty, param_tys } = &b.ty {
                             let ret = ret_ty.as_ref().clone();
+                            let param_tys_clone = param_tys.clone(); // Cloner pour éviter les problèmes de borrowing
                             self.scopes.mark_used(name);
-                            for arg in args { self.infer_expr(arg); }
+                            
+                            // Vérifier le nombre et les types des arguments si param_tys est défini
+                            if !param_tys_clone.is_empty() {
+                                if args.len() != param_tys_clone.len() {
+                                    self.errors.push(SemaError::WrongArgCount {
+                                        name: name.clone(),
+                                        expected: param_tys_clone.len(),
+                                        found: args.len(),
+                                        span: span.clone(),
+                                    });
+                                } else {
+                                    for (arg, expected_ty) in args.iter().zip(param_tys_clone.iter()) {
+                                        let arg_ty = self.infer_expr(arg);
+                                        if !types_compat(&arg_ty, expected_ty) {
+                                            self.errors.push(SemaError::TypeMismatch {
+                                                expected: type_name(expected_ty),
+                                                found: type_name(&arg_ty),
+                                                span: span.clone(),
+                                            });
+                                        }
+                                    }
+                                }
+                            } else {
+                                // Ancienne syntaxe : inférer les arguments sans vérification
+                                for arg in args { self.infer_expr(arg); }
+                            }
                             return ret;
                         }
                     }
@@ -672,7 +703,12 @@ impl<'a> TypeChecker<'a> {
                 };
                 if let Some(sig) = self.symbols.lookup_method_in_chain(&resolved, name) {
                     if sig.is_static {
-                        return Type::Function(Box::new(sig.ret_ty.clone()));
+                        // Construire le type Function avec les paramètres
+                        let param_tys = sig.params.iter().map(|(_, ty)| ty.clone()).collect();
+                        return Type::Function {
+                            ret_ty: Box::new(sig.ret_ty.clone()),
+                            param_tys,
+                        };
                     }
                 }
                 self.errors.push(SemaError::UndefinedSymbol {
@@ -789,7 +825,13 @@ impl<'a> TypeChecker<'a> {
                 self.check_block(body);
                 self.current_ret = saved_ret;
                 { let _u = self.scopes.pop_with_warnings(); self.flush_warnings(_u); }
-                Type::Function(Box::new(closure_ret))
+                
+                // Construire le type Function avec les paramètres
+                let param_tys = params.iter().map(|p| p.ty.clone()).collect();
+                Type::Function {
+                    ret_ty: Box::new(closure_ret),
+                    param_tys,
+                }
             }
 
             Expr::IsCheck { expr, ty: _, span: _ } => {
@@ -870,7 +912,14 @@ pub fn type_name(ty: &Type) -> String {
         Type::Array(inner)     => format!("{}[]", type_name(inner)),
         Type::Map(k, v)        => format!("map<{},{}>", type_name(k), type_name(v)),
         Type::Union(variants)  => variants.iter().map(type_name).collect::<Vec<_>>().join("|"),
-        Type::Function(ret_ty) => format!("Function<{}>", type_name(ret_ty)),
+        Type::Function { ret_ty, param_tys } => {
+            if param_tys.is_empty() {
+                format!("Function<{}>", type_name(ret_ty))
+            } else {
+                let params = param_tys.iter().map(type_name).collect::<Vec<_>>().join(", ");
+                format!("Function<{}({})>", type_name(ret_ty), params)
+            }
+        }
     }
 }
 
@@ -898,7 +947,29 @@ pub fn types_compat(found: &Type, expected: &Type) -> bool {
         (Type::Array(f), Type::Array(e)) => types_compat(f, e),
         (Type::Map(fk, fv), Type::Map(ek, ev)) =>
             types_compat(fk, ek) && types_compat(fv, ev),
-        (Type::Function(f_ret), Type::Function(e_ret)) => types_compat(f_ret, e_ret),
+        (
+            Type::Function { ret_ty: f_ret, param_tys: f_params },
+            Type::Function { ret_ty: e_ret, param_tys: e_params }
+        ) => {
+            // Le type de retour doit être compatible
+            if !types_compat(f_ret, e_ret) {
+                return false;
+            }
+            // Si les deux ont des paramètres typés, ils doivent correspondre
+            if !f_params.is_empty() && !e_params.is_empty() {
+                if f_params.len() != e_params.len() {
+                    return false;
+                }
+                for (fp, ep) in f_params.iter().zip(e_params.iter()) {
+                    if !types_compat(fp, ep) {
+                        return false;
+                    }
+                }
+            }
+            // Si l'un des deux n'a pas de paramètres typés (ancienne syntaxe),
+            // on accepte la compatibilité basée uniquement sur le type de retour
+            true
+        }
         _ => found == expected,
     }
 }

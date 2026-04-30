@@ -93,7 +93,7 @@ pub fn class() -> ClassInfo {
         vec![
             ("path",   Type::String),
             ("method", Type::String),
-            ("f",      Type::Function(Box::new(Type::Void))),
+            ("f",      Type::Function { ret_ty: Box::new(Type::Void), param_tys: vec![] }),
         ],
         Type::Void,
     ));
@@ -102,7 +102,7 @@ pub fn class() -> ClassInfo {
     methods.insert("routeError".into(), instance(
         vec![
             ("code", Type::Int),
-            ("f",    Type::Function(Box::new(Type::Void))),
+            ("f",    Type::Function { ret_ty: Box::new(Type::Void), param_tys: vec![] }),
         ],
         Type::Void,
     ));

@@ -312,7 +312,7 @@ fn main() {
     }
 
     if args.check {
-        println!("check ok — aucune erreur sémantique.");
+        println!("check ok — no semantic errors.");
         return;
     }
 

@@ -519,26 +519,51 @@ function greet(name:string): void { }
 
 ### 4.5 Type `Function`
 
-Le type `Function<ReturnType>` représente toute valeur appelable : **fonction libre**, **méthode statique** ou **fonction anonyme** (`nameless`). Les valeurs `Function` sont des *fat pointers* (pointeur de fonction + contexte de capture).
+Le type `Function<ReturnType>` ou `Function<ReturnType(ParamTypes)>` représente toute valeur appelable : **fonction libre**, **méthode statique** ou **fonction anonyme** (`nameless`). Les valeurs `Function` sont des *fat pointers* (pointeur de fonction + contexte de capture).
 
 ```ebnf
-FunctionType ::= "Function" "<" Type ">"
+FunctionType ::= "Function" "<" Type ( "(" ( Type ( "," Type )* )? ")" )? ">"
 ```
 
+**Deux syntaxes disponibles :**
+
+1. **Ancienne syntaxe (rétro-compatible)** : `Function<ReturnType>`
+   - Type le retour uniquement, sans typage des paramètres
+   - Exemple : `var f:Function<int> = add`
+
+2. **Nouvelle syntaxe (recommandée)** : `Function<ReturnType(ParamType1, ParamType2, ...)>`
+   - Type complet avec types de retour et types des paramètres
+   - Exemple : `var f:Function<int(int, int)> = add`
+
+**Exemples :**
+
 ```ocara
+// Ancienne syntaxe
 var f:Function<int> = double                 // référence à une fonction libre
 var g:Function<int> = MathOp::square        // référence à une méthode statique
-var h:Function<int> = nameless(x:int): int { return x * 2 }  // fonction anonyme
-var p:Function<void> = nameless(): void { IO::writeln("tick") }
+
+// Nouvelle syntaxe avec paramètres typés
+var add:Function<int(int, int)> = nameless(x:int, y:int): int { return x + y }
+var process:Function<string(string)> = nameless(s:string): string { return s }
+var action:Function<void()> = nameless(): void { IO::writeln("tick") }
+
+// Fonction qui prend une callback typée
+function compute(a:int, b:int, op:Function<int(int, int)>): int {
+    return op(a, b)
+}
 ```
 
 **Règles :**
 
-- `Function<ReturnType>` peut référencer des **fonctions libres**, des **méthodes statiques** et des **fonctions anonymes** (`nameless`).
+- `Function<ReturnType>` (ancienne syntaxe) peut référencer n'importe quelle fonction avec le bon type de retour, sans vérification des paramètres.
+- `Function<ReturnType(ParamTypes)>` (nouvelle syntaxe) vérifie **à la fois** le type de retour **et** les types des paramètres lors de l'assignation et de l'appel.
 - L'appel d'une valeur `Function` utilise la syntaxe d'appel normale : `f(args...)` et retourne le type spécifié.
 - Le **type de retour** est **obligatoire** et typé statiquement : `Function<int>`, `Function<string|null>`, `Function<void>`, etc.
-- Les types de paramètres ne sont **pas** encodés dans le type `Function` — seul le type de retour est vérifié statiquement.
-- La compatibilité des types : `Function<T>` est compatible avec `Function<U>` si `T` est compatible avec `U`.
+- Avec la nouvelle syntaxe, le compilateur vérifie que le nombre et les types des paramètres correspondent lors de l'assignation et lors des appels indirects.
+- La compatibilité des types : 
+  - `Function<T>` est compatible avec `Function<U>` si `T` est compatible avec `U` (ancienne syntaxe)
+  - `Function<T(A, B)>` est compatible avec `Function<U(X, Y)>` si `T` est compatible avec `U` ET `A` compatible avec `X` ET `B` compatible avec `Y` (nouvelle syntaxe)
+  - Une fonction avec l'ancienne syntaxe est compatible avec n'importe quelle fonction ayant le même type de retour (rétro-compatibilité)
 - `Function` n'est pas un mot-clé mais un **type réservé** (PascalCase). Il ne peut pas être utilisé comme nom de classe ou de variable.
 - Les fonctions anonymes peuvent capturer des variables locales et `self` depuis leur portée d'enclosement. Toute variable capturée (primitif ou référence) est **promue sur le tas** au moment de la création de la closure : le scope d'origine et la closure partagent la même cellule heap (**shared cell**). Toute mutation — depuis la closure ou depuis le scope extérieur — est immédiatement visible des deux côtés. Voir §12.2 pour les détails.
 
