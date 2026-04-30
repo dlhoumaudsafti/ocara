@@ -62,6 +62,10 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
             if let crate::ast::Type::Array(_) = ty {
                 builder.var_class.insert(name.clone(), "Array".to_string());
             }
+            // Les variables map ont automatiquement accès aux méthodes de Map
+            if let crate::ast::Type::Map(_, _) = ty {
+                builder.var_class.insert(name.clone(), "Map".to_string());
+            }
             // Variable de type Function → enregistrer pour CallIndirect
             if let crate::ast::Type::Function(ret_ty) = ty {
                 builder.func_vars.insert(name.clone());
