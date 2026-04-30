@@ -563,9 +563,9 @@ impl<'a> TypeChecker<'a> {
                         }
                         if let Some(sig) = self.symbols.lookup_method_in_chain(&cls_name, field) {
                             // Une méthode static ne peut pas être appelée sur une instance
-                            // SAUF pour les classes String, Array et Map : les méthodes sont statiques mais utilisables
-                            // comme méthodes d'instance sur les variables (ex: a.trim(), arr.len(), m.size())
-                            if sig.is_static && cls_name != "String" && cls_name != "Array" && cls_name != "Map" {
+                            // SAUF pour les classes String, Array, Map et JSON : les méthodes sont statiques mais utilisables
+                            // comme méthodes d'instance sur les variables (ex: a.trim(), arr.len(), m.size(), data.encode())
+                            if sig.is_static && cls_name != "String" && cls_name != "Array" && cls_name != "Map" && cls_name != "JSON" {
                                 self.errors.push(SemaError::StaticOnInstance {
                                     class:  cls_name.clone(),
                                     method: field.clone(),
@@ -573,12 +573,13 @@ impl<'a> TypeChecker<'a> {
                                 });
                             }
                             
-                            // Pour String, Array et Map, ajuster le comptage des arguments :
+                            // Pour String, Array, Map et JSON, ajuster le comptage des arguments :
                             // String::trim(s) a 1 paramètre, mais a.trim() n'en fournit 0
                             // Array::len(arr) a 1 paramètre, mais arr.len() n'en fournit 0
                             // Map::size(m) a 1 paramètre, mais m.size() n'en fournit 0
+                            // JSON::encode(data) a 1 paramètre, mais data.encode() n'en fournit 0
                             // car l'objet sera automatiquement passé comme premier argument
-                            let (expected_min, expected_max) = if (cls_name == "String" || cls_name == "Array" || cls_name == "Map") && sig.is_static {
+                            let (expected_min, expected_max) = if (cls_name == "String" || cls_name == "Array" || cls_name == "Map" || cls_name == "JSON") && sig.is_static {
                                 // Accepter N-1 arguments (le self est ajouté automatiquement)
                                 let min = if sig.required_params_count > 0 {
                                     sig.required_params_count - 1
@@ -619,6 +620,67 @@ impl<'a> TypeChecker<'a> {
                             for arg in args { self.infer_expr(arg); }
                             return ret;
                         }
+                        
+                        // ── Méthodes JSON sur types primitifs ─────────────────────────────
+                        // array/map.encode() → JSON::encode(obj)
+                        // string.decode() / string.pretty() / string.minimize() → JSON::<method>(obj)
+                        let is_json_method = matches!(field.as_str(), "encode" | "decode" | "pretty" | "minimize");
+                        if is_json_method {
+                            // JSON est maintenant toujours disponible (enregistré dans SymbolTable::new())
+                            // pas besoin de vérifier l'import
+                            
+                            // Vérifier que le type est compatible
+                            let is_compatible = match (field.as_str(), cls_name.as_str()) {
+                                ("encode", "Array") => true,
+                                ("encode", "Map") => true,
+                                ("decode", "String") => true,
+                                ("pretty", "String") => true,
+                                ("minimize", "String") => true,
+                                _ => false,
+                            };
+                            
+                            if !is_compatible {
+                                self.errors.push(SemaError::FieldNotFound {
+                                    class: cls_name.clone(),
+                                    field: field.clone(),
+                                    span:  fspan.clone(),
+                                });
+                                for a in args { self.infer_expr(a); }
+                                return Type::Mixed;
+                            }
+                            
+                            // Résoudre depuis JSON
+                            if let Some(json_info) = self.symbols.lookup_class("JSON") {
+                                if let Some(sig) = json_info.methods.get(field) {
+                                    // Ajuster le comptage des arguments (N-1 car l'objet est passé automatiquement)
+                                    let expected_min = if sig.required_params_count > 0 {
+                                        sig.required_params_count - 1
+                                    } else {
+                                        0
+                                    };
+                                    let expected_max = if sig.params.len() > 0 {
+                                        sig.params.len() - 1
+                                    } else {
+                                        0
+                                    };
+                                    
+                                    let args_ok = args.len() >= expected_min && args.len() <= expected_max;
+                                    if !args_ok {
+                                        self.errors.push(SemaError::WrongArgCount {
+                                            name:     format!("JSON::{}", field),
+                                            expected: expected_min,
+                                            found:    args.len(),
+                                            span:     span.clone(),
+                                        });
+                                    }
+                                    
+                                    let ret = sig.ret_ty.clone();
+                                    for arg in args { self.infer_expr(arg); }
+                                    return ret;
+                                }
+                            }
+                        }
+                        
                         let _ = info;
                         self.errors.push(SemaError::FieldNotFound {
                             class: cls_name,

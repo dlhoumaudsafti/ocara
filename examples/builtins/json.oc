@@ -1,0 +1,167 @@
+// Exemple d'utilisation de la classe builtin JSON
+// 
+// Ce fichier démontre :
+// - L'encodage d'arrays et maps en JSON
+// - Le décodage de strings JSON
+// - Le formatage et la minification de JSON
+// - Les méthodes statiques ET d'instance
+// - Les méthodes d'instance ne nécessitent PAS d'import JSON
+
+import ocara.IO
+import ocara.JSON  // Nécessaire uniquement pour les méthodes statiques (JSON::encode, etc.)
+import ocara.Array
+
+function main(): int {
+    IO::writeln("═══════════════════════════════════════════════════════════")
+    IO::writeln("  Ocara JSON — Exemples d'utilisation")
+    IO::writeln("═══════════════════════════════════════════════════════════")
+    IO::writeln("")
+
+    // ── 1. Encoder un array ───────────────────────────────────────────────
+    IO::writeln("1. Encodage d'un array:")
+    var numbers:int[] = [1, 2, 3, 4, 5]
+    scoped arr_json:string = JSON::encode(numbers)
+    IO::writeln(`   Méthode statique: ${arr_json}`)
+    scoped arr_json2:string = numbers.encode()
+    IO::writeln(`   Méthode d'instance: ${arr_json2}`)
+    scoped arr_json3:string = [1, 2, 3, 4, 5].encode()
+    IO::writeln(`   Méthode d'instance directe: ${arr_json3}`)
+    IO::writeln("")
+
+    // ── 2. Encoder une map ────────────────────────────────────────────────
+    IO::writeln("2. Encodage d'une map:")
+    var user:map<string, mixed> = {
+        "name": "Alice",
+        "age": 30,
+        "active": true
+    }
+    scoped user_json:string = JSON::encode(user)
+    IO::writeln(`   Méthode statique: ${user_json}`)
+    IO::writeln(`   Méthode d'instance: ${user.encode()}`)
+    IO::writeln("")
+
+    // ── 3. Encoder une structure imbriquée ────────────────────────────────
+    IO::writeln("3. Structure imbriquée:")
+    var profile:map<string, mixed> = {
+        "name": "Bob",
+        "age": 25,
+        "roles": ["admin", "dev"],
+        "settings": {
+            "theme": "dark",
+            "lang": "fr"
+        }
+    }
+    scoped profile_json:string = profile.encode()
+    IO::writeln(`   Profile → JSON (instance): ${profile_json}`)
+    IO::writeln("")
+
+    // ── 4. Pretty print ───────────────────────────────────────────────────
+    IO::writeln("4. Formatage avec pretty():")
+    scoped pretty_json:string = JSON::pretty(profile_json)
+    IO::writeln("   Méthode statique:")
+    IO::writeln(pretty_json)
+    IO::writeln("")
+    
+    IO::writeln("   Méthode d'instance:")
+    scoped pretty_json2:string = profile_json.pretty()
+    IO::writeln(pretty_json2)
+    IO::writeln("")
+
+    // ── 5. Minifier ───────────────────────────────────────────────────────
+    IO::writeln("5. Minification avec minimize():")
+    scoped formatted:string = `{
+  "x": 1,
+  "y": 2,
+  "z": 3
+}`
+    scoped mini:string = JSON::minimize(formatted)
+    IO::writeln("   Avant (multiligne):")
+    IO::writeln(formatted)
+    IO::writeln(`   Après (statique): ${mini}`)
+    scoped mini2:string = formatted.minimize()
+    IO::writeln(`   Après (instance): ${mini2}`)
+    IO::writeln("")
+
+    // ── 6. Décoder un JSON ────────────────────────────────────────────────
+    IO::writeln("6. Décodage d'un JSON:")
+    scoped json_str:string = `{"name":"Charlie","age":35,"active":true}`
+    var decoded:mixed = JSON::decode(json_str)
+    IO::writeln("   Méthode statique: décodé avec succès")
+    
+    // Accéder aux valeurs
+    var decoded_map:map<string, mixed> = decoded
+    IO::writeln(`   Nom: ${decoded_map["name"]}`)
+    IO::writeln(`   Age: ${decoded_map["age"]}`)
+    
+    // Méthode d'instance
+    var decoded2:mixed = json_str.decode()
+    var decoded_map2:map<string, mixed> = decoded2
+    IO::writeln("   Méthode d'instance: décodé avec succès")
+    IO::writeln(`   Nom: ${decoded_map2["name"]}`)
+    IO::writeln("")
+
+    // ── 7. Décoder un array JSON ──────────────────────────────────────────
+    IO::writeln("7. Décodage d'un array JSON:")
+    scoped arr_str:string = `[10, 20, 30, 40]`
+    var decoded_arr:mixed = arr_str.decode()
+    IO::writeln("   JSON → Array: décodé avec succès (instance)")
+    
+    // Parcourir l'array
+    var arr:mixed[] = decoded_arr
+    scoped len:int = Array::len(arr)
+    IO::writeln(`   Taille: ${len}`)
+    IO::writeln("")
+
+    // ── 8. Round-trip (encode → decode) ───────────────────────────────────
+    IO::writeln("8. Round-trip (encode → decode):")
+    var original:map<string, int> = {
+        "x": 100,
+        "y": 200,
+        "z": 300
+    }
+    scoped encoded:string = original.encode()
+    var decoded_rt:mixed = encoded.decode()
+    var decoded_map_rt:map<string, mixed> = decoded_rt
+    
+    IO::writeln(`   Original x: ${original["x"]}`)
+    IO::writeln(`   Décodé x: ${decoded_map_rt["x"]}`)
+    IO::writeln(`   Valeurs identiques: ${original["x"] egal decoded_map_rt["x"]}`)
+    IO::writeln("")
+
+    // ── 9. Gestion des erreurs ────────────────────────────────────────────
+    IO::writeln("9. Gestion des erreurs:")
+    scoped invalid_json:string = `{"malformed": `
+    var error_result:mixed = invalid_json.decode()
+    
+    if error_result is null {
+        IO::writeln("   ✓ JSON invalide détecté, retourne null")
+    } else {
+        IO::writeln("   ✗ Erreur de détection")
+    }
+    IO::writeln("")
+
+    // ── 10. Cas d'usage API REST ──────────────────────────────────────────
+    IO::writeln("10. Exemple API REST:")
+    var api_response:map<string, mixed> = {
+        "status": "ok",
+        "code": 200,
+        "data": [
+            {"id": 1, "name": "Alice"},
+            {"id": 2, "name": "Bob"}
+        ]
+    }
+    scoped api_json:string = api_response.encode()
+    IO::writeln("   API Response (compact):")
+    IO::writeln(api_json)
+    IO::writeln("")
+    IO::writeln("   API Response (pretty):")
+    scoped pretty_api:string = api_json.pretty()
+    IO::writeln(pretty_api)
+    IO::writeln("")
+
+    IO::writeln("═══════════════════════════════════════════════════════════")
+    IO::writeln("  Tests terminés avec succès !")
+    IO::writeln("═══════════════════════════════════════════════════════════")
+    
+    return 0
+}
