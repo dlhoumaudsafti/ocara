@@ -420,7 +420,8 @@ fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
         // Opérations binaires : propager Ptr si c'est une concat string
         Expr::Binary { op, left, right, .. } => {
             // Comparaisons → Bool
-            if matches!(op, BinOp::EqEq | BinOp::NotEq | BinOp::Lt | BinOp::LtEq | BinOp::Gt | BinOp::GtEq) {
+            if matches!(op, BinOp::EqEq | BinOp::NotEq | BinOp::EqEqEq | BinOp::NotEqEq |
+                        BinOp::Lt | BinOp::LtEq | BinOp::Gt | BinOp::GtEq | BinOp::LtEqEq | BinOp::GtEqEq) {
                 return IrType::Bool;
             }
             // Logiques && || → Bool
@@ -1232,6 +1233,48 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             let lv = lower_expr(builder, left);
             let rv = lower_expr(builder, right);
             let dest = builder.new_value();
+            
+            // Opérateurs stricts : appel aux fonctions runtime
+            match op {
+                BinOp::EqEqEq => {
+                    builder.emit(Inst::Call {
+                        dest: Some(dest.clone()),
+                        func: "__cmp_eq_strict".to_string(),
+                        args: vec![lv, rv],
+                        ret_ty: IrType::Bool,
+                    });
+                    return dest;
+                }
+                BinOp::NotEqEq => {
+                    builder.emit(Inst::Call {
+                        dest: Some(dest.clone()),
+                        func: "__cmp_ne_strict".to_string(),
+                        args: vec![lv, rv],
+                        ret_ty: IrType::Bool,
+                    });
+                    return dest;
+                }
+                BinOp::LtEqEq => {
+                    builder.emit(Inst::Call {
+                        dest: Some(dest.clone()),
+                        func: "__cmp_le_strict".to_string(),
+                        args: vec![lv, rv],
+                        ret_ty: IrType::Bool,
+                    });
+                    return dest;
+                }
+                BinOp::GtEqEq => {
+                    builder.emit(Inst::Call {
+                        dest: Some(dest.clone()),
+                        func: "__cmp_ge_strict".to_string(),
+                        args: vec![lv, rv],
+                        ret_ty: IrType::Bool,
+                    });
+                    return dest;
+                }
+                _ => {}
+            }
+            
             let inst = match op {
                 BinOp::Add   => Inst::Add { dest: dest.clone(), lhs: lv, rhs: rv, ty },
                 BinOp::Sub   => Inst::Sub { dest: dest.clone(), lhs: lv, rhs: rv, ty },
@@ -1246,6 +1289,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 BinOp::GtEq  => Inst::CmpGe { dest: dest.clone(), lhs: lv, rhs: rv, ty },
                 BinOp::And   => Inst::And { dest: dest.clone(), lhs: lv, rhs: rv },
                 BinOp::Or    => Inst::Or  { dest: dest.clone(), lhs: lv, rhs: rv },
+                _ => unreachable!("strict operators handled above"),
             };
             builder.emit(inst);
             dest

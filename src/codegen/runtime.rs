@@ -289,6 +289,11 @@ pub const BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "Directory_copy",                params: &[clt::I64, clt::I64],       returns: None,              module: Some("Directory") },
     BuiltinDesc { name: "Directory_move",                params: &[clt::I64, clt::I64],       returns: None,              module: Some("Directory") },
     BuiltinDesc { name: "Directory_infos",               params: &[clt::I64],                 returns: Some(clt::I64),    module: Some("Directory") },
+    // ── Strict comparison operators (===, !==, <==, >==) ──────────────────────
+    BuiltinDesc { name: "__cmp_eq_strict",        params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__cmp_ne_strict",        params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__cmp_le_strict",        params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__cmp_ge_strict",        params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
     // ── Gestion des erreurs (try/on/fail) — toujours disponibles ─────────────
     BuiltinDesc { name: "__ocara_try_exec",       params: &[clt::I64, clt::I64],              returns: None,              module: None },
     BuiltinDesc { name: "__ocara_fail",           params: &[clt::I64, clt::I64],              returns: None,              module: None },
