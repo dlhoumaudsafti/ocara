@@ -1,11 +1,29 @@
 # Ocara
 
+[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/yourusername/ocara/releases)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
+
 **O**bject **C**ode **A**bstraction **R**untime **A**rchitecture
 
-Langage de programmation compilé natif, statiquement typé, orienté objet.  
-Extension des fichiers source : `.oc`
+Langage de programmation moderne compilé en natif avec typage statique fort et architecture web complète intégrée.  
+Serveur HTTP, composants HTML réutilisables avec slots, génération de pages dynamiques — le tout compilé en binaire natif.
+
+> Un langage compilé natif avec composants web intégrés. Performances C++, ergonomie TypeScript, architecture Vue.js — tout dans un binaire zéro-dépendance.
 
 ![Logo Ocara](logo.png)
+
+---
+
+## Caractéristiques
+
+- 🛡️ **Typage statique fort** — détection des erreurs à la compilation
+- ⚡ **Compilation native** — backend Cranelift pour des performances optimales
+- 🌐 **Architecture web intégrée** — serveur HTTP, composants HTML avec slots, routing natif
+- 📦 **Bibliothèque standard riche** — HTTP, JSON, Regex, Threads, et plus
+- 🎯 **Orienté objet** — classes, interfaces, héritage, méthodes statiques
+- ✅ **Tests intégrés** — ocaraunit pour tests unitaires avec couverture
+- 🛠️ **Outillage complet** — linter (ocaracs), test runner, diagnostics
 
 ---
 
@@ -36,136 +54,75 @@ Extension des fichiers source : `.oc`
 
 ---
 
-## Compiler
+## Démarrage rapide
 
 ```bash
+# 1. Compiler Ocara
 make build
-```
 
-Compile le runtime (`libocara_runtime.a`) et le compilateur. Le binaire est produit dans `target/release/ocara`.
+# 2. Créer un fichier hello.oc
+cat > hello.oc << 'EOF'
+import ocara.IO
 
-Optionnel — l'ajouter au `PATH` :
+function main(): int {
+    IO::writeln("Bonjour depuis Ocara !")
+    return 0
+}
+EOF
 
-```bash
-export PATH="$PATH:$(pwd)/target/release"
+# 3. Compiler et exécuter
+./target/release/ocara hello.oc -o hello
+./hello
+# Bonjour depuis Ocara !
 ```
 
 ---
 
 ## Commandes Makefile
 
+### Compilation
+
 | Commande | Description |
 |---|---|
-| `make build` | Compile le runtime + le compilateur |
-| `make test` | Lance les tests unitaires Cargo |
-| `make regression` | Régression complète (tous les exemples) |
-| `make regression <chemin>` | Un seul exemple, ex : `make regression 07_loops` |
-| `make all` | `build` + `test` + `regression` |
-| `make clean` | Supprime les artefacts de compilation |
-| `make install` | Installe `ocara` dans `/usr/local/bin/` (binaire autonome) |
-| `make uninstall` | Supprime `ocara` de `/usr/local/bin/` |
+| `make build` | Compile ocara (release, strict) |
+| `make build-dev` | Compile ocara (debug, strict) |
+| `make build-tools` | Compile les outils (release, strict) |
+| `make build-tools-dev` | Compile les outils (debug, strict) |
+| `make build-all` | Compile tout (release) |
+| `make build-all-dev` | Compile tout (debug) |
 
-Résultat attendu de `make test` :
+### Tests
 
-```
-test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-```
-
----
-
-## Vérification sémantique d'un fichier `.oc`
-
-La vérification sémantique analyse les types et les symboles sans produire de binaire.
-
-```bash
-./target/release/ocara mon_fichier.oc --check
-```
-
-Résultat attendu si le fichier est valide :
-
-```
-check ok — aucune erreur sémantique.
-```
-
-Pour vérifier tous les exemples, utiliser `make regression`.
-
----
-
-## Compiler un fichier `.oc` en binaire
-
-```bash
-./target/release/ocara mon_fichier.oc -o mon_binaire
-./mon_binaire
-```
-
----
-
-## Options du compilateur
-
-| Option | Description |
+| Commande | Description |
 |---|---|
-| `-o NOM` | Nom du binaire de sortie (défaut : `out`) |
-| `--check` | Vérification sémantique uniquement, sans produire de binaire |
-| `--no-link` | Produit le fichier objet `.o` sans lier |
-| `--dump` | Affiche les tokens, l'AST et le HIR puis s'arrête |
+| `make tests` | Lance les tests unitaires Cargo |
+| `make regression` | Teste tous les exemples |
+| `make tests-examples` | Lance ocaraunit sur les exemples |
+| `make lint-examples` | Lance ocaracs sur les exemples |
 
----
+### Installation
 
-## Utiliser un fichier Ocara depuis un autre
+| Commande | Description |
+|---|---|
+| `make install` | Installe ocara dans `/usr/local/bin/` |
+| `make install-tools` | Installe les outils dans `/usr/local/bin/` |
+| `make install-all` | Installe tout (ocara + outils) |
 
-### Situation actuelle
+### Désinstallation
 
-Le compilateur Ocara v0.1.0 ne dispose pas encore d'un mode bibliothèque natif (`--lib`, `.a`, `.so`).  
-La seule option disponible est `--no-link` qui produit un fichier objet `.o` brut.
+| Commande | Description |
+|---|---|
+| `make uninstall` | Désinstalle ocara |
+| `make uninstall-tools` | Désinstalle les outils |
+| `make uninstall-all` | Désinstalle tout |
 
-Il est possible de lier manuellement plusieurs `.o` ensemble via `cc` :
+### Nettoyage
 
-```bash
-# Compiler chaque module en .o
-./target/release/ocara utils.oc --no-link -o utils.o
-./target/release/ocara main.oc  --no-link -o main.o
-
-# Lier les deux en un seul binaire
-cc utils.o main.o -o mon_programme -lm -no-pie
-./mon_programme
-```
-
-> **Limite :** les symboles exportés par `utils.oc` (fonctions, classes) ne sont pas
-> automatiquement visibles dans `main.oc` au moment de la vérification sémantique.
-> Le système de modules multi-fichiers (résolution inter-fichiers à la compilation)
-> est prévu dans une version future.
-
-### Approche recommandée aujourd'hui : `import`
-
-Pour partager du code entre fichiers, utiliser le système d'import existant.  
-Le compilateur résout les imports à la compilation depuis la racine du projet :
-
-```
-projet/
-├── utils.oc
-├── models.oc
-└── main.oc
-```
-
-```ocara
-// main.oc
-import utils
-import models
-
-function main(): int {
-    // utilise les symboles de utils.oc et models.oc
-    return 0
-}
-```
-
-Compiler le point d'entrée suffit — le compilateur suit les imports :
-
-```bash
-./target/release/ocara main.oc -o mon_programme
-./mon_programme
-```
-
-Voir `examples/project/` pour un exemple complet multi-fichiers.
+| Commande | Description |
+|---|---|
+| `make clean` | Supprime les artefacts d'ocara |
+| `make clean-tools` | Supprime les artefacts des outils |
+| `make clean-all` | Supprime tous les artefacts |
 
 ---
 
@@ -173,71 +130,11 @@ Voir `examples/project/` pour un exemple complet multi-fichiers.
 
 ```
 Ocara/
-├── src/
-│   ├── main.rs            ← point d'entrée du compilateur
-│   ├── lexer.rs           ← tokenisation
-│   ├── token.rs           ← définition des tokens
-│   ├── parser.rs          ← parsing et construction de l'AST
-│   ├── ast.rs             ← types de l'AST
-│   ├── builtins/          ← classes builtins (ocara.*)
-│   │   ├── mod.rs
-│   │   ├── array.rs
-│   │   ├── convert.rs
-│   │   ├── http.rs
-│   │   ├── io.rs
-│   │   ├── map.rs
-│   │   ├── math.rs
-│   │   ├── regex.rs
-│   │   ├── string.rs
-│   │   └── system.rs
-│   ├── sema/              ← analyse sémantique et typage
-│   ├── ir/                ← représentation intermédiaire (HIR)
-│   └── codegen/           ← émission de code via Cranelift
-├── examples/              ← exemples de code Ocara
-│   ├── builtins/          ← exemples par classe builtin
-│   └── project/           ← exemple de projet multi-fichiers
-└── docs/                  ← documentation
-    ├── EBNF.md            ← spécification du langage
-    ├── compilation-guide.md
-    └── builtins/          ← documentation des classes builtins
-```
-
----
-
-## Classes builtins disponibles
-
-Importables via `import ocara.NomClasse` ou `import ocara.*`.
-
-| Classe | Rôle |
-|---|---|
-| `Array` | Manipulation de tableaux |
-| `Convert` | Conversions entre types |
-| `HTTPRequest` | Requêtes HTTP/HTTPS |
-| `IO` | Entrées / sorties standard (`IO::writeln`, `IO::read`) |
-| `Map` | Manipulation de maps |
-| `Math` | Fonctions et constantes mathématiques |
-| `Regex` | Expressions régulières (POSIX ERE) |
-| `String` | Manipulation de chaînes |
-| `System` | Interaction avec le système d'exploitation |
-
----
-
-## Exemple minimal
-
-```ocara
-import ocara.IO
-
-function main(): int {
-    IO::writeln("Bonjour depuis Ocara !")
-    return 0
-}
-```
-
-```bash
-make build
-./target/release/ocara hello.oc -o hello
-./hello
-# Bonjour depuis Ocara !
+├── src/               ← Code source du compilateur (Rust)
+├── runtime/           ← Runtime C pour les builtins
+├── examples/          ← Exemples de code Ocara (.oc)
+├── docs/              ← Documentation complète
+└── tools/             ← Outils (ocaraunit, ocaracs)
 ```
 
 ---
@@ -246,17 +143,16 @@ make build
 
 | Document | Description |
 |---|---|
-| [docs/EBNF.md](docs/EBNF.md) | **Spécification formelle du langage** — grammaire complète (EBNF) |
-| [docs/compilation-guide.md](docs/compilation-guide.md) | Guide de compilation — options, pipeline, messages d'erreur |
-| [docs/diagnostics.md](docs/diagnostics.md) | Référence des erreurs et warnings — format, codes, corrections |
-| [docs/builtins/IO.md](docs/builtins/IO.md) | Référence `IO` — `writeln`, `read`, `read_int`, … |
-| [docs/builtins/Math.md](docs/builtins/Math.md) | Référence `Math` — `sqrt`, `pow`, constantes `PI`, `E`, … |
-| [docs/builtins/String.md](docs/builtins/String.md) | Référence `String` — `split`, `replace`, `trim`, … |
-| [docs/builtins/Array.md](docs/builtins/Array.md) | Référence `Array` — `push`, `pop`, `sort`, `slice`, … |
-| [docs/builtins/Map.md](docs/builtins/Map.md) | Référence `Map` — `get`, `set`, `keys`, `merge`, … |
-| [docs/builtins/Convert.md](docs/builtins/Convert.md) | Référence `Convert` — conversions entre tous les types |
-| [docs/builtins/Regex.md](docs/builtins/Regex.md) | Référence `Regex` — `test`, `find`, `replace_all`, `extract`, … |
-| [docs/builtins/System.md](docs/builtins/System.md) | Référence `System` — `exec`, `env`, `args`, `OS`, `ARCH`, … |
-| [docs/builtins/HTTPRequest.md](docs/builtins/HTTPRequest.md) | Référence `HTTPRequest` — `get`, `post`, `send`, `body`, … |
+| [docs/README.md](docs/README.md) | **Index complet de la documentation** — guides, builtins, outils |
 | [examples/README.md](examples/README.md) | Index des exemples de code Ocara |
+| [tools/ocaraunit/README.md](tools/ocaraunit/README.md) | Runner de tests unitaires avec couverture |
+| [tools/ocaracs/README.md](tools/ocaracs/README.md) | Analyseur de style et linter |
+
+---
+
+## Licence
+
+Ocara est distribué sous licence MIT. Voir le fichier [LICENSE](LICENSE) pour plus de détails.
+
+Copyright © 2026 David Lhoumaud
 
