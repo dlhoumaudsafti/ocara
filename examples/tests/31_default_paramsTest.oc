@@ -1,0 +1,87 @@
+import ocara.UnitTest
+
+class Test_31_default_params {
+    
+    public method multiplyTest(): int {
+        var calc:Calculator = Calculator()
+        UnitTest::assertEquals(5, calc.multiply(5))
+        UnitTest::assertEquals(15, calc.multiply(5, 3))
+        return 0
+    }
+    
+    public method powerTest(): int {
+        var calc:Calculator = Calculator()
+        UnitTest::assertEquals(4, calc.power(2))
+        UnitTest::assertEquals(8, calc.power(2, 3))
+        return 0
+    }
+    
+    public method defaultParamTest(): int {
+        UnitTest::assertEquals("Hello, World!", greet())
+        UnitTest::assertEquals("Hello, Ocara!", greet("Ocara"))
+        return 0
+    }
+    
+    public method multipleDefaultsTest(): int {
+        UnitTest::assertEquals(5, add(5))
+        UnitTest::assertEquals(8, add(5, 3))
+        UnitTest::assertEquals(10, add(5, 3, 2))
+        return 0
+    }
+    
+    public method formatDefaultsTest(): int {
+        UnitTest::assertEquals("[test]", format("test"))
+        UnitTest::assertEquals("<test]", format("test", "<"))
+        UnitTest::assertEquals("<test>", format("test", "<", ">"))
+        return 0
+    }
+    
+    public method mainTest(): int {
+        UnitTest::assertEquals("Hello, World!", greet())
+        UnitTest::assertEquals("Hello, Ocara!", greet("Ocara"))
+        UnitTest::assertEquals(5, add(5))
+        UnitTest::assertEquals(8, add(5, 3))
+        UnitTest::assertEquals(10, add(5, 3, 2))
+        UnitTest::assertEquals("[test]", format("test"))
+        
+        var calc:Calculator = Calculator()
+        UnitTest::assertEquals(5, calc.multiply(5))
+        UnitTest::assertEquals(4, calc.power(2))
+        
+        return 0
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 31_default_params.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+function greet(name:string = "World"): string {
+    return "Hello, " + name + "!"
+}
+
+function add(a:int, b:int = 0, c:int = 0): int {
+    return a + b + c
+}
+
+function format(text:string, prefix:string = "[", suffix:string = "]"): string {
+    return prefix + text + suffix
+}
+
+class Calculator {
+    public method multiply(a:int, b:int = 1): int {
+        return a * b
+    }
+
+    public method power(base:int, exponent:int = 2): int {
+        var result:int = 1
+        var i:int = 0
+        while i < exponent {
+            result = result * base
+            i = i + 1
+        }
+        return result
+    }
+}
+

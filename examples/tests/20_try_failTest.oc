@@ -1,0 +1,84 @@
+import ocara.UnitTest
+
+class Test_20_try_fail {
+    
+    public method tryFailTest(): int {
+        var caught:bool = false
+        
+        try {
+            raise use IOException("Test error", 404)
+        } on e is IOException {
+            caught = true
+            UnitTest::assertEquals(404, e.code)
+        } on e {
+            caught = false
+        }
+        
+        UnitTest::assertTrue(caught)
+        return 0
+    }
+    
+    public method networkErrorTest(): int {
+        var caught:bool = false
+        
+        try {
+            raise use NetworkError("Network test")
+        } on e is NetworkError {
+            caught = true
+            UnitTest::assertEquals("Network test", e.message)
+        } on e {
+            caught = false
+        }
+        
+        UnitTest::assertTrue(caught)
+        return 0
+    }
+    
+    public method mainTest(): int {
+        var caught1:bool = false
+        try {
+            raise use IOException("File error", 404)
+        } on e is IOException {
+            caught1 = true
+        } on e {
+            caught1 = false
+        }
+        UnitTest::assertTrue(caught1)
+        
+        var caught2:bool = false
+        try {
+            raise use NetworkError("Net error")
+        } on e is NetworkError {
+            caught2 = true
+        } on e {
+            caught2 = false
+        }
+        UnitTest::assertTrue(caught2)
+        
+        return 0
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 20_try_fail.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+class IOException {
+    public property message:string
+    public property code:int
+
+    init(message:string, code:int) {
+        self.message = message
+        self.code = code
+    }
+}
+
+class NetworkError {
+    public property message:string
+
+    init(message:string) {
+        self.message = message
+    }
+}
+

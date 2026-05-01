@@ -23,3 +23,7 @@ target
 *node_modules/
 out
 out.o
+
+# CI artifacts
+ci/dumps/
+ci/ci-report.txt

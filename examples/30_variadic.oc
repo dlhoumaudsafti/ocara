@@ -1,7 +1,7 @@
 // ============================================================================
 // Paramètres variadics — Tests exhaustifs de TOUS les types
 // ============================================================================
-// Démonstration complète : int, float, string, bool, null, array, map, 
+// Démonstration complète : int, float, string, bool, null, array, map,
 // Function, classes, unions, mixed
 
 import ocara.IO

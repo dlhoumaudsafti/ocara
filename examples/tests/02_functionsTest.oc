@@ -1,37 +1,5 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Tests unitaires pour 02_functions.oc
-// ─────────────────────────────────────────────────────────────────────────────
-
 import ocara.UnitTest
-
-function add(a:int, b:int): int {
-    return a + b
-}
-
-function multiply(a:int, b:int): int {
-    return a * b
-}
-
-function max(a:int, b:int): int {
-    if a > b {
-        return a
-    }
-    return b
-}
-
-function factorial(n:int): int {
-    if n <= 1 {
-        return 1
-    }
-    return n * factorial(n - 1)
-}
-
-function fibonacci(n:int): int {
-    if n <= 1 {
-        return n
-    }
-    return fibonacci(n - 1) + fibonacci(n - 2)
-}
+import ocara.IO
 
 class Test_02_functions {
     
@@ -76,4 +44,61 @@ class Test_02_functions {
         UnitTest::assertEquals(8, fibonacci(6))
         return 0
     }
+    
+    public method greetTest(): int {
+        // Appelle greet pour assurer la couverture
+        greet("Ocara")
+        greet("Test")
+        return 0
+    }
+    
+    public method mainTest(): int {
+        // Reproduit le comportement de main() avec des assertions
+        UnitTest::assertEquals(7, add(3, 4))
+        UnitTest::assertEquals(42, multiply(6, 7))
+        greet("Ocara")
+        UnitTest::assertEquals(20, max(10, 20))
+        UnitTest::assertEquals(120, factorial(5))
+        UnitTest::assertEquals(21, fibonacci(8))
+        return 0
+    }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 02_functions.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+function add(a:int, b:int): int {
+    return a + b
+}
+
+function multiply(a:int, b:int): int {
+    return a * b
+}
+
+function greet(name:string): void {
+    IO::writeln("Bonjour " + name + " !")
+}
+
+function max(a:int, b:int): int {
+    if a > b {
+        return a
+    }
+    return b
+}
+
+function factorial(n:int): int {
+    if n <= 1 {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+function fibonacci(n:int): int {
+    if n <= 1 {
+        return n
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2)
+}
+

@@ -49,4 +49,60 @@ class Test_19_break_continue {
         UnitTest::assertEquals(6, count)  // 3 * 2 = 6
         return 0
     }
+    
+    public method mainTest(): int {
+        // Reproduit le comportement de main()
+        var i:int = 0
+        var break_count:int = 0
+        while i < 10 {
+            if i == 5 {
+                break
+            }
+            break_count = break_count + 1
+            i = i + 1
+        }
+        UnitTest::assertEquals(5, i)
+        UnitTest::assertEquals(5, break_count)
+        
+        var j:int = 0
+        var odd_count:int = 0
+        while j < 8 {
+            j = j + 1
+            if j % 2 == 0 {
+                continue
+            }
+            odd_count = odd_count + 1
+        }
+        UnitTest::assertEquals(4, odd_count)
+        
+        var k_count:int = 0
+        for k in 0..10 {
+            if k == 4 {
+                break
+            }
+            k_count = k_count + 1
+        }
+        UnitTest::assertEquals(4, k_count)
+        
+        var n_count:int = 0
+        for n in 0..6 {
+            if n == 2 or n == 4 {
+                continue
+            }
+            n_count = n_count + 1
+        }
+        UnitTest::assertEquals(4, n_count)
+        
+        var nums:int[] = [10, 20, 30, 40, 50]
+        var nums_count:int = 0
+        for v in nums {
+            if v == 30 {
+                break
+            }
+            nums_count = nums_count + 1
+        }
+        UnitTest::assertEquals(2, nums_count)
+        
+        return 0
+    }
 }

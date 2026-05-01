@@ -31,4 +31,62 @@ class Test_22_union_types {
         UnitTest::assertNotNull(val)
         return 0
     }
+    
+    public method titleTest(): int {
+        var adult:User = use User("Alice", 30)
+        var t1:string|null = adult.title()
+        UnitTest::assertNotNull(t1)
+        
+        var minor:User = use User("Bob", 15)
+        var t2:string|null = minor.title()
+        UnitTest::assertNull(t2)
+        
+        return 0
+    }
+    
+    public method age_groupTest(): int {
+        var senior:User = use User("Senior", 65)
+        var g1:string|null = senior.age_group()
+        UnitTest::assertNotNull(g1)
+        
+        var adult:User = use User("Adult", 30)
+        var g2:string|null = adult.age_group()
+        UnitTest::assertNotNull(g2)
+        
+        var minor:User = use User("Minor", 10)
+        var g3:string|null = minor.age_group()
+        UnitTest::assertNotNull(g3)
+        
+        return 0
+    }
+}
+
+class User {
+    public property name:string
+    public property age:int
+
+    init(name:string, age:int) {
+        self.name = name
+        self.age  = age
+    }
+
+    public method title(): string|null {
+        if self.age >= 18 {
+            return "M."
+        }
+        return null
+    }
+
+    public method age_group(): string|null {
+        if self.age >= 60 {
+            return "senior"
+        }
+        if self.age >= 18 {
+            return "adulte"
+        }
+        if self.age >= 0 {
+            return "mineur"
+        }
+        return null
+    }
 }

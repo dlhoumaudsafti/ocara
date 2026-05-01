@@ -1,0 +1,80 @@
+import ocara.UnitTest
+
+class Test_13_instantiation {
+    
+    public method colorTest(): int {
+        var red:Color = use Color(255, 0, 0)
+        UnitTest::assertEquals(255, red.r)
+        UnitTest::assertEquals(0, red.g)
+        UnitTest::assertEquals(0, red.b)
+        return 0
+    }
+    
+    public method timerTest(): int {
+        var timer:Timer = use Timer(10)
+        UnitTest::assertEquals(10, timer.remaining())
+        UnitTest::assertFalse(timer.is_done())
+        
+        timer.tick()
+        UnitTest::assertEquals(9, timer.remaining())
+        
+        return 0
+    }
+    
+    public method mainTest(): int {
+        var red:Color = use Color(255, 0, 0)
+        var green:Color = use Color(0, 255, 0)
+        var blue:Color = use Color(0, 0, 255)
+        
+        UnitTest::assertEquals(255, red.r)
+        UnitTest::assertEquals(255, green.g)
+        UnitTest::assertEquals(255, blue.b)
+        
+        var timer:Timer = use Timer(5)
+        UnitTest::assertEquals(5, timer.remaining())
+        timer.tick()
+        UnitTest::assertEquals(4, timer.remaining())
+        
+        return 0
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 13_instantiation.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+class Color {
+    public property r:int
+    public property g:int
+    public property b:int
+
+    init(r:int, g:int, b:int) {
+        self.r = r
+        self.g = g
+        self.b = b
+    }
+}
+
+class Timer {
+    private property seconds:int
+
+    init(seconds:int) {
+        self.seconds = seconds
+    }
+
+    public method tick(): void {
+        if self.seconds > 0 {
+            self.seconds = self.seconds - 1
+        }
+    }
+
+    public method remaining(): int {
+        return self.seconds
+    }
+
+    public method is_done(): bool {
+        return self.seconds == 0
+    }
+}
+

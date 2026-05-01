@@ -323,23 +323,17 @@ fn find_ocara_bin() -> PathBuf {
     PathBuf::from("ocara")
 }
 
-/// Génère un wrapper source qui appelle uniquement la fonction/méthode `test_name`
-/// depuis le fichier source `src_path`, et le compile + exécute.
+/// Compile et exécute un fichier de test Ocara.
 ///
-/// Stratégie : on passe l'argument `--entry <test_name>` au compilateur ocara
-/// si celui-ci le supporte. Sinon on compile le fichier entier avec `--test <name>`.
-/// Pour la simplicité, on utilise le flag `--run-test <name>` défini comme
-/// convention dans le compilateur Ocara.
+/// Processus :
+/// 1. Lit le fichier source et extrait tous les noms de tests (*Test)
+/// 2. Génère une fonction main() qui appelle tous les tests
+/// 3. Compile avec `ocara --src <project_root>` pour résoudre les imports
+/// 4. Met en cache le binaire (hash du fichier source)
+/// 5. Exécute le binaire et parse la sortie (lignes PASS/FAIL)
 ///
-/// Puisque le compilateur Ocara n'a pas encore ce flag, ocaraunit utilise
-/// une approche simple : compiler le fichier avec `-o tmp` puis appeler
-/// le binaire avec l'argument `<test_name>`. Si le binaire ne comprend pas
-/// d'argument, on ne peut pas isoler les tests — on les exécute tous à la fois.
-///
-/// → Pour cette version, on compile le fichier et on exécute le binaire
-///   sans argument. Le runtime UnitTest écrit PASS/FAIL sur stdout.
-///   On ne peut pas isoler les tests à ce stade sans support du compilateur.
-///   On exécute donc tout le fichier *Test.oc et on parse toute la sortie.
+/// Le cache (`.ocaraunit_cache/`) évite de recompiler si le fichier n'a pas changé.
+/// Utilisez `--clear` pour forcer la recompilation après une mise à jour du compilateur.
 fn run_test_file(
     ocara: &Path,
     src: &Path,
@@ -374,12 +368,13 @@ fn run_test_file(
 
         // Compilation depuis la racine du projet
         let compile_start = Instant::now();
-        let compile = Command::new(ocara)
-            .args([tmp_src.as_os_str(), std::ffi::OsStr::new("-o"), bin.as_os_str()])
+        let mut cmd = Command::new(ocara);
+        cmd.args([tmp_src.as_os_str(), std::ffi::OsStr::new("-o"), bin.as_os_str()])
+            .args([std::ffi::OsStr::new("--src"), project_root.as_os_str()])
             .current_dir(project_root)
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output();
+            .stderr(Stdio::piped());
+        let compile = cmd.output();
         compile_time_ms = compile_start.elapsed().as_millis();
 
         let _ = fs::remove_file(&tmp_src); // nettoyage immédiat
@@ -551,9 +546,10 @@ fn usage() {
     eprintln!("Usage: ocaraunit [options] [<dossier|fichier>]");
     eprintln!();
     eprintln!("Options:");
-    eprintln!("  --coverage [<dossier>]     Analyse la couverture des sources de <dossier> (défaut : .)");
-    eprintln!("  --src <dossier>            Dossier racine du projet pour résoudre les imports");
-    eprintln!("  --help, -h                 Afficher cette aide");
+    eprintln!("  --coverage [<dossier|fichier>]  Analyse la couverture (défaut : tout le projet)");
+    eprintln!("  --src <dossier>                 Dossier racine du projet pour résoudre les imports");
+    eprintln!("  --clear                         Supprimer le cache (seul) ou avant de lancer les tests");
+    eprintln!("  --help, -h                      Afficher cette aide");
     eprintln!();
     eprintln!("Arguments:");
     eprintln!("  <dossier>                  Exécuter tous les tests du dossier (défaut : tests/)");
@@ -572,6 +568,7 @@ fn main() {
     let mut coverage_source_arg: Option<String> = None;
     let mut test_dir_arg: Option<String> = None;
     let mut src_arg: Option<String> = None;
+    let mut clear_cache = false;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -592,6 +589,9 @@ fn main() {
                     std::process::exit(1);
                 }
             }
+            "--clear" => {
+                clear_cache = true;
+            }
             "--help" | "-h" => { usage(); std::process::exit(0); }
             other => {
                 // Si ce n'est pas une option, c'est le dossier de tests
@@ -604,6 +604,21 @@ fn main() {
 
     // Déterminer le dossier ou fichier de tests
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    
+    // Si --clear est utilisé seul (sans tests), purger et quitter
+    if clear_cache && test_dir_arg.is_none() {
+        let config_root = find_config_root(&cwd).unwrap_or_else(|| cwd.clone());
+        let cache_dir = config_root.join(".ocaraunit_cache");
+        if cache_dir.exists() {
+            match fs::remove_dir_all(&cache_dir) {
+                Ok(_) => println!("{}✓ Cache supprimé : {}{}", c.green, cache_dir.display(), c.reset),
+                Err(e) => eprintln!("{}Erreur lors de la suppression du cache : {}{}", c.red, e, c.reset),
+            }
+        } else {
+            println!("{}Aucun cache à supprimer{}", c.dim, c.reset);
+        }
+        std::process::exit(0);
+    }
     
     // Garder une copie pour project_root
     let test_dir_arg_clone = test_dir_arg.clone();
@@ -655,10 +670,28 @@ fn main() {
         (scan, files)
     };
 
+    // Déterminer si --coverage pointe vers un fichier unique pour limiter la couverture
+    let coverage_single_file: Option<PathBuf> = if let Some(ref cov_arg) = coverage_source_arg {
+        let p = PathBuf::from(cov_arg);
+        let abs_p = fs::canonicalize(&p).unwrap_or(p.clone());
+        if abs_p.is_file() {
+            Some(abs_p)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     // Dossier source pour la couverture (argument ou cwd)
-    let coverage_source = fs::canonicalize(
-        PathBuf::from(coverage_source_arg.unwrap_or_else(|| ".".to_string()))
-    ).unwrap_or_else(|_| cwd.clone());
+    let coverage_source = if let Some(ref single_file) = coverage_single_file {
+        // Si --coverage est un fichier, utiliser son dossier parent comme racine
+        single_file.parent().unwrap_or(&cwd).to_path_buf()
+    } else {
+        fs::canonicalize(
+            PathBuf::from(coverage_source_arg.unwrap_or_else(|| ".".to_string()))
+        ).unwrap_or_else(|_| cwd.clone())
+    };
     
     // Déterminer le dossier racine du projet pour résoudre les imports
     let project_root = if let Some(proj_dir) = src_arg {
@@ -705,6 +738,15 @@ fn main() {
 
     // Répertoire de cache pour les binaires compilés
     let cache_dir = config_root.join(".ocaraunit_cache");
+    
+    // Supprimer le cache si --clear est activé
+    if clear_cache && cache_dir.exists() {
+        match fs::remove_dir_all(&cache_dir) {
+            Ok(_) => println!("{}✓ Cache supprimé{}", c.green, c.reset),
+            Err(e) => eprintln!("{}Erreur lors de la suppression du cache : {}{}", c.red, e, c.reset),
+        }
+    }
+    
     let _ = fs::create_dir_all(&cache_dir);
 
     // ── Collecte des noms de tests (pour couverture) ─────────────────────────
@@ -820,13 +862,20 @@ fn main() {
         print_separator(&c);
         println!();
 
-        let all_oc = collect_oc_files(&coverage_source, &cfg.exclude, &config_root);
-        // Exclure les fichiers *Test.oc eux-mêmes et le dossier tests/
-        let test_file_set: HashSet<PathBuf> = test_files.iter().cloned().collect();
-        let source_files: Vec<PathBuf> = all_oc
-            .into_iter()
-            .filter(|p| !test_file_set.contains(p))
-            .collect();
+        // Si --coverage pointe vers un fichier unique, limiter la couverture à ce fichier
+        let source_files: Vec<PathBuf> = if let Some(ref single_file) = coverage_single_file {
+            // Couverture limitée au fichier spécifié uniquement
+            vec![single_file.clone()]
+        } else {
+            // Comportement par défaut : tous les fichiers du dossier
+            let all_oc = collect_oc_files(&coverage_source, &cfg.exclude, &config_root);
+            // Exclure les fichiers *Test.oc eux-mêmes et le dossier tests/
+            let test_file_set: HashSet<PathBuf> = test_files.iter().cloned().collect();
+            all_oc
+                .into_iter()
+                .filter(|p| !test_file_set.contains(p))
+                .collect()
+        };
 
         let mut total_funcs_all = 0usize;
         let mut covered_funcs_all = 0usize;

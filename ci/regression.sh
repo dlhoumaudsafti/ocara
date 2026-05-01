@@ -87,18 +87,33 @@ run_test() {
 # ── Exécution d'un seul test (si argument fourni) ─────────────────────────────
 if [ $# -eq 1 ]; then
     TARGET="$1"
-    src="examples/${TARGET}.oc"
+    
+    # Déterminer le chemin du fichier source
+    if [[ "$TARGET" == *.oc ]]; then
+        # Si .oc déjà présent, utiliser tel quel
+        src="$TARGET"
+    elif [[ "$TARGET" == examples/* ]]; then
+        # Si commence par examples/, ajouter juste .oc
+        src="${TARGET}.oc"
+    else
+        # Sinon, préfixer avec examples/
+        src="examples/${TARGET}.oc"
+    fi
     
     if [ ! -f "$src" ]; then
         echo -e "${RED}Erreur : $src n'existe pas${RESET}"
         exit 1
     fi
     
+    # Extraire le nom pour l'affichage (enlever examples/ et .oc)
+    name="${src#examples/}"
+    name="${name%.oc}"
+    
     echo "══════════════════════════════════════════════"
     echo " Régression $src"
     echo "══════════════════════════════════════════════"
     
-    run_test "$src" "$TARGET"
+    run_test "$src" "$name"
     exit $?
 fi
 

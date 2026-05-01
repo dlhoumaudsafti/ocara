@@ -17,6 +17,13 @@
 //   UnitTest::assertNotEmpty(value)                → void
 //   UnitTest::fail(message)                        → void
 //   UnitTest::pass(message)                        → void
+//   UnitTest::assertRaises(callable)               → Exception
+//   UnitTest::assertExceptionMessageEquals(message, expected)     → void
+//   UnitTest::assertExceptionMessageNotEquals(message, expected)  → void
+//   UnitTest::assertExceptionCodeEquals(code, expected)           → void
+//   UnitTest::assertExceptionCodeNotEquals(code, expected)        → void
+//   UnitTest::assertExceptionSourceEquals(source, expected)       → void
+//   UnitTest::assertExceptionSourceNotEquals(source, expected)    → void
 //
 // Convention runtime : UnitTest_<method>
 // ─────────────────────────────────────────────────────────────────────────────
@@ -158,6 +165,53 @@ pub fn class() -> ClassInfo {
     // UnitTest::assertArray(value) → void
     methods.insert("assertArray".into(), m(
         vec![("value", Type::Mixed)],
+        Type::Void,
+    ));
+
+    // UnitTest::assertRaises(callable) → mixed (retourne l'exception capturée)
+    methods.insert("assertRaises".into(), FuncSig {
+        params: vec![("callable".to_string(), Type::Mixed)],
+        ret_ty: Type::Mixed,
+        is_static: true,
+        is_async: false,
+        has_variadic: false,
+        fixed_params_count: 1,
+        required_params_count: 1,
+    });
+
+    // UnitTest::assertExceptionMessageEquals(message, expected) → void
+    methods.insert("assertExceptionMessageEquals".into(), m(
+        vec![("message", Type::String), ("expected", Type::String)],
+        Type::Void,
+    ));
+
+    // UnitTest::assertExceptionMessageNotEquals(message, expected) → void
+    methods.insert("assertExceptionMessageNotEquals".into(), m(
+        vec![("message", Type::String), ("expected", Type::String)],
+        Type::Void,
+    ));
+
+    // UnitTest::assertExceptionCodeEquals(code, expected) → void
+    methods.insert("assertExceptionCodeEquals".into(), m(
+        vec![("code", Type::Int), ("expected", Type::Int)],
+        Type::Void,
+    ));
+
+    // UnitTest::assertExceptionCodeNotEquals(code, expected) → void
+    methods.insert("assertExceptionCodeNotEquals".into(), m(
+        vec![("code", Type::Int), ("expected", Type::Int)],
+        Type::Void,
+    ));
+
+    // UnitTest::assertExceptionSourceEquals(source, expected) → void
+    methods.insert("assertExceptionSourceEquals".into(), m(
+        vec![("source", Type::String), ("expected", Type::String)],
+        Type::Void,
+    ));
+
+    // UnitTest::assertExceptionSourceNotEquals(source, expected) → void
+    methods.insert("assertExceptionSourceNotEquals".into(), m(
+        vec![("source", Type::String), ("expected", Type::String)],
         Type::Void,
     ));
 

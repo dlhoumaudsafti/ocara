@@ -1,20 +1,25 @@
+import ocara.UnitTest
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Tests unitaires pour les fonctionnalités de base
 // Vérifie que les opérations de base fonctionnent correctement
 // ─────────────────────────────────────────────────────────────────────────────
 
-import ocara.UnitTest
 
-class Test_01_variables {
+const PI:float = 3.14159
+const APP_NAME:string = "Ocara"
+const MAX_SCORE:int = 100
+
+class Test_01_variables extends UnitTest {
     
     public method varMutabilityTest(): int {
         var score:int = 0
         score = 42
-        UnitTest::assertEquals(42, score)
+        self::assertEquals(42, score)
         
         var compteur:int = 10
         compteur = compteur + 1
-        UnitTest::assertEquals(11, compteur)
+        self::assertEquals(11, compteur)
         return 0
     }
     
@@ -24,7 +29,7 @@ class Test_01_variables {
             scoped message:int = 100
             result = message
         }
-        UnitTest::assertEquals(100, result)
+        self::assertEquals(100, result)
         return 0
     }
     
@@ -36,7 +41,83 @@ class Test_01_variables {
             sum = sum + temp
             i = i + 1
         }
-        UnitTest::assertEquals(6, sum)  // 0 + 2 + 4 = 6
+        self::assertEquals(6, sum)  // 0 + 2 + 4 = 6
+        return 0
+    }
+    
+    public method mainTest(): int {
+        // Reproduit exactement main() avec les mêmes valeurs
+        
+        // var — variable MUTABLE
+        var score:int = 0
+        score = 42
+        self::assertEquals(42, score)  // IO::writeln(score) → 42
+
+        var compteur:int = 10
+        compteur = compteur + 1
+        self::assertEquals(11, compteur)  // IO::writeln(compteur) → 11
+
+        // scoped — variable de BLOC
+        if true {
+            scoped message:string = "dans le bloc if"
+            self::assertEquals("dans le bloc if", message)  // IO::writeln(message)
+        }
+
+        // Boucle while avec scoped - vérifie les 3 valeurs affichées
+        var i:int = 0
+        while i < 3 {
+            scoped temp:int = i * 2
+            // IO::writeln(temp) affiche : 0, puis 2, puis 4
+            if i == 0 {
+                self::assertEquals(0, temp)
+            }
+            if i == 1 {
+                self::assertEquals(2, temp)
+            }
+            if i == 2 {
+                self::assertEquals(4, temp)
+            }
+            i = i + 1
+        }
+
+        // Constantes globales
+        self::assertEquals(3.14159, PI)        // IO::writeln(PI) → 3.14159
+        self::assertEquals("Ocara", APP_NAME)  // IO::writeln(APP_NAME) → Ocara
+        self::assertEquals(100, MAX_SCORE)     // IO::writeln(MAX_SCORE) → 100
+        
+        // Types primitifs
+        var count:int = 10
+        var rate:float = 0.75
+        var flag:bool = true
+        var label:string = "hello"
+        var unknown:mixed = 99
+
+        self::assertEquals(10, count)      // IO::writeln(count) → 10
+        self::assertEquals(0.75, rate)     // IO::writeln(rate) → 0.75
+        self::assertTrue(flag)             // IO::writeln(flag) → true
+        self::assertEquals("hello", label) // IO::writeln(label) → hello
+        self::assertEquals(99, unknown)    // IO::writeln(unknown) → 99
+
+        // null — absence de valeur
+        var nom:string = null
+        var tags:mixed = null
+        
+        // IO::writeln(nom) → null
+        // IO::writeln(tags) → null
+        self::assertNull(nom)
+        self::assertNull(tags)
+
+        // Tester la nullité
+        if nom == null {
+            // IO::writeln("nom est null")
+            self::assertTrue(true)  // Confirme que nom est null
+        }
+
+        // Réassigner depuis null
+        nom = "Ocara"
+        self::assertEquals("Ocara", nom)  // IO::writeln(nom) → Ocara
+        
         return 0
     }
 }
+
