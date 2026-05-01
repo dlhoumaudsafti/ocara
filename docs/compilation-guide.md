@@ -196,28 +196,45 @@ Les classes de la bibliothèque standard runtime sont disponibles via `import oc
 |--------|--------|-------------|
 | `IO` | `import ocara.IO` | `IO::writeln(val)`, `IO::read()` — entrées/sorties standard |
 | `Math` | `import ocara.Math` | Fonctions mathématiques et constantes (`Math::PI`, `Math::sqrt`, …) |
-| `String` | `import ocara.String` | Manipulation de chaînes |
-| `Array` | `import ocara.Array` | Manipulation de tableaux |
-| `Map` | `import ocara.Map` | Manipulation de maps |
-| `Convert` | `import ocara.Convert` | Conversions entre types |
+| `String` | `import ocara.String` | Manipulation de chaînes (`split`, `trim`, `replace`, …) |
+| `Array` | `import ocara.Array` | Manipulation de tableaux (`push`, `pop`, `sort`, …) |
+| `Map` | `import ocara.Map` | Manipulation de maps (`keys`, `values`, `has`, …) |
+| `JSON` | `import ocara.JSON` | Encodage/décodage JSON (`encode`, `decode`, `pretty`, `minimize`) |
+| `Convert` | `import ocara.Convert` | Conversions entre types (`toInt`, `toString`, …) |
 | `Regex` | `import ocara.Regex` | Expressions régulières (POSIX ERE) |
-| `System` | `import ocara.System` | OS, PID, env, exec, args, `System::OS`, `System::ARCH` |
+| `System` | `import ocara.System` | OS, PID, env, exec, args (`System::OS`, `System::ARCH`) |
+| `Thread` | `import ocara.Thread` | Threads natifs (`spawn`, `join`, `sleep`) |
 | `HTTPRequest` | `import ocara.HTTPRequest` | Requêtes HTTP/HTTPS (GET, POST, PUT, DELETE, PATCH) |
+| `HTTPServer` | `import ocara.HTTPServer` | Serveur HTTP simple (`listen`, `route`, `response`) |
+| `UnitTest` | `import ocara.UnitTest` | Assertions pour tests unitaires (`assertEquals`, `assertTrue`, …) |
 
-> **Note :** `write()` et `read()` sans import sont dépréciés. Utiliser `IO::writeln()` et `IO::read()`.
+> **Note :** Certaines méthodes de `String`, `Array`, `Map` et `JSON` sont disponibles comme **méthodes d'instance** sans import :
+> - `array.encode()`, `map.encode()` — convertir en JSON
+> - `string.decode()`, `string.pretty()`, `string.minimize()` — opérations JSON
+> - `string.split()`, `string.trim()` — manipulation de chaînes
+> - `array.push()`, `array.pop()` — manipulation de tableaux
 
 ### Exemple
 
 ```ocara
 import ocara.IO
+import ocara.JSON
 
 function main(): int {
     IO::writeln("Quel est ton nom ?")
     var nom:string = IO::read()
     IO::writeln("Bonjour " + nom)
+    
+    // Utiliser JSON
+    var data:map = map("nom": nom, "age": 25)
+    var json:string = JSON::encode(data)
+    IO::writeln("JSON: " + json)
+    
     return 0
 }
 ```
+
+Voir `examples/builtins/` pour des exemples complets de chaque classe builtin.
 
 ---
 
@@ -243,10 +260,14 @@ Un projet Ocara est un dossier contenant des fichiers `.oc`. Le point d'entrée 
 ```
 mon-projet/
 ├── main.oc          ← point d'entrée (function main(): int)
-├── models/
-│   └── User.oc
-└── services/
-    └── Logger.oc
+├── classes/
+│   ├── Models.oc
+│   ├── Services.oc
+│   └── Utils.oc
+└── tests/           ← tests unitaires (*Test.oc)
+    ├── ModelsTest.oc
+    ├── ServicesTest.oc
+    └── UtilsTest.oc
 ```
 
 Le compilateur suit les imports automatiquement — compiler le point d'entrée suffit :
@@ -255,7 +276,28 @@ Le compilateur suit les imports automatiquement — compiler le point d'entrée 
 ./target/release/ocara main.oc -o mon-projet
 ```
 
-Voir `examples/project/` pour un exemple complet multi-fichiers.
+### Tests unitaires
+
+Pour lancer les tests avec `ocaraunit` :
+
+```bash
+# Installer ocaraunit
+make build-tools
+make install-tools
+
+# Lancer tous les tests
+ocaraunit
+
+# Avec couverture
+ocaraunit --coverage
+
+# Test spécifique
+ocaraunit tests/ModelsTest.oc
+```
+
+Voir `tools/ocaraunit/Readme.md` pour la documentation complète.
+
+Voir `examples/project/` pour un exemple complet multi-fichiers avec tests.
 
 ---
 
@@ -273,4 +315,37 @@ make regression
 
 # Un seul exemple
 make regression 07_loops
+
+# Tests unitaires du projet
+make unittest
+
+# Tests avec couverture
+make unittest-coverage
 ```
+
+---
+
+## 10. Outils complémentaires
+
+### ocaraunit — Runner de tests
+
+Exécute automatiquement les fichiers `*Test.oc` et génère un rapport de couverture.
+
+```bash
+ocaraunit                    # tous les tests dans tests/
+ocaraunit --coverage         # avec analyse de couverture
+ocaraunit tests/MyTest.oc    # un test spécifique
+```
+
+Voir `tools/ocaraunit/Readme.md`
+
+### ocaracs — Analyseur de style
+
+Vérifie le respect des conventions de codage Ocara.
+
+```bash
+ocaracs src/               # analyser un dossier
+ocaracs main.oc            # analyser un fichier
+```
+
+Voir `tools/ocaracs/Readme.md`

@@ -17,22 +17,42 @@ make install-tools   # installe dans /usr/local/bin/ocaraunit
 ## Usage
 
 ```
-ocaraunit [--coverage [<dossier>]]
+ocaraunit [options] [<dossier|fichier>]
 ```
 
-| Argument                  | Description                                                        |
-|---------------------------|--------------------------------------------------------------------|
+### Options
+
+| Option                    | Description                                                        |
+|---------------------------|--------------------------------------------------------------------||
 | `--coverage [<dossier>]`  | Active l'analyse de couverture sur `<dossier>` (défaut : `.`)      |
+| `--src <dossier>`         | Dossier racine du projet pour résoudre les imports                |
+| `--help`, `-h`            | Afficher l'aide                                                    |
 
-`ocaraunit` cherche toujours les fichiers de test dans le dossier **`tests/`** à la racine du répertoire de lancement. Si `tests/` n'existe pas, `ocaraunit` avertit et quitte.
+### Arguments
 
-**Exemples :**
+| Argument   | Description                                                              |
+|------------|--------------------------------------------------------------------------|
+| `<dossier>`| Exécuter tous les tests du dossier (défaut : `tests/`)                   |
+| `<fichier>`| Exécuter un fichier de test spécifique (`*Test.oc`)                      |
+
+### Exemples
 
 ```bash
-ocaraunit                          # lance les tests dans tests/
-ocaraunit --coverage               # tests + couverture sur .
-ocaraunit --coverage src/          # tests + couverture sur src/
-ocaraunit --coverage examples/     # tests + couverture sur examples/
+# Lancer tous les tests du dossier tests/
+ocaraunit
+
+# Lancer les tests d'un dossier spécifique
+ocaraunit examples/project/tests
+
+# Lancer un seul fichier de test
+ocaraunit examples/project/tests/ModelsTest.oc
+
+# Spécifier le dossier projet pour résoudre les imports
+ocaraunit --src examples/project examples/project/tests
+
+# Tests avec couverture
+ocaraunit --coverage
+ocaraunit --coverage src/
 ```
 
 Via Makefile :
@@ -47,16 +67,23 @@ make unittest                      # lance les tests dans tests/
 
 ### Dossier `tests/`
 
-`ocaraunit` cherche **toujours** les fichiers de test dans un dossier `tests/` à la racine du projet (là où la commande est lancée).
+**Par défaut**, `ocaraunit` cherche les fichiers de test dans un dossier `tests/` à la racine du répertoire courant.
+
+Vous pouvez spécifier un autre dossier ou un fichier spécifique :
+
+```bash
+ocaraunit examples/project/tests           # dossier spécifique
+ocaraunit tests/MyTest.oc                  # fichier spécifique
+```
 
 ```
 projet/
-├── tests/          ← les fichiers *Test.oc sont ici
+├── tests/          ← les fichiers *Test.oc sont ici par défaut
 ├── src/
 └── examples/
 ```
 
-Si le dossier `tests/` n'existe pas, `ocaraunit` affiche un avertissement et quitte.
+Si le dossier `tests/` n'existe pas (et qu'aucun argument n'est fourni), `ocaraunit` affiche un avertissement et quitte.
 
 ### Nommage des fichiers de test
 
@@ -223,6 +250,34 @@ examples/
 
 ---
 
+## Résolution des imports
+
+`ocaraunit` compile les tests depuis le **dossier racine du projet** pour que les imports relatifs fonctionnent correctement.
+
+### Détection automatique
+
+Lorsque vous spécifiez un chemin de test, `ocaraunit` détecte automatiquement le dossier projet :
+
+```bash
+# Détection automatique : compile depuis examples/project/
+ocaraunit examples/project/tests
+ocaraunit examples/project/tests/ModelsTest.oc
+```
+
+La détection cherche le parent du dossier `tests/` comme racine du projet.
+
+### Option `--src`
+
+Pour spécifier explicitement le dossier projet :
+
+```bash
+ocaraunit --src examples/project examples/project/tests
+```
+
+Utile si vos tests ne sont pas dans un dossier `tests/` ou pour des structures de projet complexes.
+
+---
+
 ## Variable d'environnement
 
 | Variable | Description                                     |
@@ -231,10 +286,16 @@ examples/
 
 Auto-détection dans l'ordre :
 1. Variable `OCARA`
-2. `./target/release/ocara`
-3. `../target/release/ocara`
-4. `../../target/release/ocara`
-5. `ocara` dans le `PATH`
+2. Même dossier que `ocaraunit`
+3. `bin/ocara` (relatif au dossier courant)
+4. `/usr/local/bin/ocara`
+5. `/usr/bin/ocara`
+6. `/opt/ocara/bin/ocara`
+7. `/opt/bin/ocara`
+8. `./target/release/ocara` (développement)
+9. `../target/release/ocara`
+10. `../../target/release/ocara`
+11. `ocara` dans le `PATH`
 
 ---
 
@@ -251,11 +312,17 @@ Auto-détection dans l'ordre :
 
 ```makefile
 unittest: build-tools build
-	OCARA=./target/release/ocara ./target/release/ocaraunit $(dossier)
+	./target/release/ocaraunit $(dossier)
 
 unittest-coverage: build-tools build
-	OCARA=./target/release/ocara ./target/release/ocaraunit --coverage $(dossier)
+	./target/release/ocaraunit --coverage $(dossier)
+
+# Lancer un test spécifique
+unittest-file: build-tools build
+	./target/release/ocaraunit $(fichier)
 ```
+
+Note : la variable `OCARA` n'est plus nécessaire grâce à l'auto-détection améliorée.
 
 ---
 
@@ -281,8 +348,18 @@ examples/project/
 Pour le lancer :
 
 ```bash
+# Depuis la racine du projet Ocara
+./target/release/ocaraunit examples/project/tests --coverage
+
+# Ou depuis examples/project/
 cd examples/project
-OCARA=../../target/release/ocara ../../target/release/ocaraunit --coverage
+../../target/release/ocaraunit --coverage
+
+# Ou avec --src explicite
+./target/release/ocaraunit --src examples/project --coverage examples/project/tests
+
+# Lancer un seul test
+./target/release/ocaraunit examples/project/tests/ModelsTest.oc
 ```
 
 Résultat attendu :
@@ -320,4 +397,3 @@ Résultat global : 49 PASS  0 FAIL  0 ERREUR(S)
 ## Voir aussi
 
 - [docs/builtins/UnitTest.md](../builtins/UnitTest.md) — assertions disponibles
-- [docs/tools/ocaracs.md](ocaracs.md) — analyseur de style

@@ -287,7 +287,28 @@ fn find_ocara_bin() -> PathBuf {
         let p = PathBuf::from(v);
         if p.exists() { return p; }
     }
-    // 2. Relatif à l'emplacement de ocaraunit
+    
+    // 2. Dans le même dossier que ocaraunit (le plus évident)
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let sibling = dir.join("ocara");
+            if sibling.exists() { return sibling; }
+        }
+    }
+    
+    // 3. Emplacements standards Unix/Linux
+    for system_path in [
+        "bin/ocara",
+        "/usr/local/bin/ocara",
+        "/usr/bin/ocara",
+        "/opt/ocara/bin/ocara",
+        "/opt/bin/ocara",
+    ] {
+        let p = PathBuf::from(system_path);
+        if p.exists() { return p; }
+    }
+    
+    // 4. Relatif au dossier courant (pour développement)
     let candidates = [
         "./target/release/ocara",
         "../target/release/ocara",
@@ -297,7 +318,8 @@ fn find_ocara_bin() -> PathBuf {
         let p = PathBuf::from(c);
         if p.exists() { return p; }
     }
-    // 3. PATH
+    
+    // 5. Fallback : espérer qu'il est dans PATH
     PathBuf::from("ocara")
 }
 
@@ -526,9 +548,16 @@ fn print_separator(c: &Ansi) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 fn usage() {
-    eprintln!("Usage: ocaraunit [--coverage [<dossier>]]");
+    eprintln!("Usage: ocaraunit [options] [<dossier|fichier>]");
     eprintln!();
-    eprintln!("  --coverage [<dossier>]  Analyse la couverture des sources de <dossier> (défaut : .)");
+    eprintln!("Options:");
+    eprintln!("  --coverage [<dossier>]     Analyse la couverture des sources de <dossier> (défaut : .)");
+    eprintln!("  --src <dossier>            Dossier racine du projet pour résoudre les imports");
+    eprintln!("  --help, -h                 Afficher cette aide");
+    eprintln!();
+    eprintln!("Arguments:");
+    eprintln!("  <dossier>                  Exécuter tous les tests du dossier (défaut : tests/)");
+    eprintln!("  <fichier>                  Exécuter un fichier de test spécifique");
     eprintln!();
     eprintln!("Convention :");
     eprintln!("  Les fichiers de test doivent être dans un dossier tests/ à la racine du projet.");
@@ -541,6 +570,8 @@ fn main() {
     let mut args = std::env::args().skip(1).peekable();
     let mut coverage_mode = false;
     let mut coverage_source_arg: Option<String> = None;
+    let mut test_dir_arg: Option<String> = None;
+    let mut src_arg: Option<String> = None;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -553,28 +584,118 @@ fn main() {
                     }
                 }
             }
+            "--src" => {
+                if let Some(dir) = args.next() {
+                    src_arg = Some(dir);
+                } else {
+                    eprintln!("{}Erreur: --src nécessite un argument{}", c.red, c.reset);
+                    std::process::exit(1);
+                }
+            }
             "--help" | "-h" => { usage(); std::process::exit(0); }
-            _ => {}
+            other => {
+                // Si ce n'est pas une option, c'est le dossier de tests
+                if !other.starts_with('-') && test_dir_arg.is_none() {
+                    test_dir_arg = Some(other.to_string());
+                }
+            }
         }
     }
 
-    // Les tests sont TOUJOURS dans ./tests/ (cwd de lancement)
+    // Déterminer le dossier ou fichier de tests
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let tests_dir = cwd.join("tests");
-
-    if !tests_dir.exists() {
-        println!("{}Aucun dossier tests/ trouvé à la racine ({}){}",
-            c.yellow, cwd.display(), c.reset);
-        println!("{}Créez un dossier tests/ et placez-y vos fichiers *Test.oc{}", c.dim, c.reset);
-        std::process::exit(0);
-    }
-
-    let scan_root = fs::canonicalize(&tests_dir).unwrap_or(tests_dir.clone());
+    
+    // Garder une copie pour project_root
+    let test_dir_arg_clone = test_dir_arg.clone();
+    
+    // Vérifier si l'argument est un fichier spécifique
+    let (_scan_root, test_files) = if let Some(path_arg) = test_dir_arg {
+        let path = PathBuf::from(&path_arg);
+        if path.is_file() {
+            // Fichier spécifique fourni
+            if !path.exists() {
+                println!("{}Fichier de test introuvable : {}{}",
+                    c.red, path.display(), c.reset);
+                std::process::exit(1);
+            }
+            let dir = path.parent().unwrap_or(&cwd).to_path_buf();
+            let scan = fs::canonicalize(&dir).unwrap_or(dir.clone());
+            (scan.clone(), vec![path])
+        } else if path.is_dir() {
+            // Dossier fourni
+            if !path.exists() {
+                println!("{}Aucun dossier de tests trouvé : {}{}",
+                    c.yellow, path.display(), c.reset);
+                println!("{}Créez le dossier ou spécifiez un chemin : ocaraunit <dossier|fichier>{}", c.dim, c.reset);
+                std::process::exit(0);
+            }
+            let scan = fs::canonicalize(&path).unwrap_or(path.clone());
+            let cfg_root = find_config_root(&cwd).unwrap_or_else(|| cwd.clone());
+            let cfg = load_config(&cfg_root);
+            let files = collect_test_files(&scan, &cfg.exclude, &cfg_root);
+            (scan, files)
+        } else {
+            println!("{}Chemin invalide : {}{}",
+                c.red, path.display(), c.reset);
+            std::process::exit(1);
+        }
+    } else {
+        // Par défaut : chercher ./tests/
+        let tests_dir = cwd.join("tests");
+        if !tests_dir.exists() {
+            println!("{}Aucun dossier de tests trouvé : {}{}",
+                c.yellow, tests_dir.display(), c.reset);
+            println!("{}Créez le dossier ou spécifiez un chemin : ocaraunit <dossier|fichier>{}", c.dim, c.reset);
+            std::process::exit(0);
+        }
+        let scan = fs::canonicalize(&tests_dir).unwrap_or(tests_dir.clone());
+        let cfg_root = find_config_root(&cwd).unwrap_or_else(|| cwd.clone());
+        let cfg = load_config(&cfg_root);
+        let files = collect_test_files(&scan, &cfg.exclude, &cfg_root);
+        (scan, files)
+    };
 
     // Dossier source pour la couverture (argument ou cwd)
     let coverage_source = fs::canonicalize(
         PathBuf::from(coverage_source_arg.unwrap_or_else(|| ".".to_string()))
     ).unwrap_or_else(|_| cwd.clone());
+    
+    // Déterminer le dossier racine du projet pour résoudre les imports
+    let project_root = if let Some(proj_dir) = src_arg {
+        // Option --src fournie explicitement
+        let p = PathBuf::from(proj_dir);
+        fs::canonicalize(&p).unwrap_or(p)
+    } else if let Some(ref test_path_arg) = test_dir_arg_clone.as_ref() {
+        // Détecter automatiquement depuis le chemin fourni
+        let test_path = PathBuf::from(test_path_arg);
+        let abs_path = if test_path.is_absolute() {
+            test_path.clone()
+        } else {
+            cwd.join(&test_path)
+        };
+        
+        // Si le chemin se termine par "tests" ou contient "tests/", le projet est le parent
+        if abs_path.ends_with("tests") {
+            abs_path.parent().unwrap_or(&cwd).to_path_buf()
+        } else if abs_path.components().any(|c| c.as_os_str() == "tests") {
+            // Remonter jusqu'au parent de "tests"
+            let mut proj = abs_path.clone();
+            while let Some(parent) = proj.parent() {
+                if parent.join("tests").exists() {
+                    proj = parent.to_path_buf();
+                    break;
+                }
+                proj = parent.to_path_buf();
+            }
+            proj
+        } else {
+            // Le chemin fourni est probablement le projet lui-même
+            abs_path
+        }
+    } else {
+        // Par défaut : dossier courant
+        cwd.clone()
+    };
 
     // Chercher la racine de config en remontant depuis cwd
     let config_root = find_config_root(&cwd).unwrap_or_else(|| cwd.clone());
@@ -585,9 +706,6 @@ fn main() {
     // Répertoire de cache pour les binaires compilés
     let cache_dir = config_root.join(".ocaraunit_cache");
     let _ = fs::create_dir_all(&cache_dir);
-
-    // ── Découverte des fichiers de test ──────────────────────────────────────
-    let test_files = collect_test_files(&scan_root, &cfg.exclude, &config_root);
 
     // ── Collecte des noms de tests (pour couverture) ─────────────────────────
     let mut global_test_names: HashSet<String> = HashSet::new();
@@ -622,7 +740,7 @@ fn main() {
         println!();
         println!("{}{}{}:", c.bold, rel, c.reset);
 
-        let (results, compile_err) = run_test_file(&ocara, tf, &cache_dir, &cwd);
+        let (results, compile_err) = run_test_file(&ocara, tf, &cache_dir, &project_root);
 
         if let Some(err) = compile_err {
             println!("  {}ERREUR compilation :{}", c.red, c.reset);
