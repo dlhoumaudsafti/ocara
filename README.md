@@ -78,6 +78,67 @@ EOF
 
 ---
 
+## Utilisation du compilateur
+
+### Syntaxe
+
+```bash
+ocara [options] <fichier.oc>
+```
+
+### Options
+
+| Option | Description |
+|---|---|
+| `-o <fichier>` | Nom du binaire de sortie |
+| `--check` | Validation sémantique uniquement (pas de génération de code) |
+| `--dump` | Afficher la représentation intermédiaire (IR) |
+| `--no-link` | Compiler sans lier (génère un `.o`) |
+| `--release` | Optimisations maximales (défaut : debug) |
+| `--src <dossier>` | Dossier racine pour la résolution des imports |
+
+### Exemples
+
+```bash
+# Compilation simple
+ocara main.oc -o main
+
+# Validation sans compilation
+ocara main.oc --check
+
+# Afficher l'IR généré
+ocara main.oc --dump
+
+# Compilation optimisée
+ocara main.oc -o main --release
+
+# Résoudre les imports depuis un dossier spécifique
+ocara tests/MyTest.oc --src . -o test
+```
+
+### Résolution des imports
+
+Par défaut, ocara résout les imports relativement au dossier du fichier compilé. 
+
+Utilisez `--src` pour spécifier un dossier racine :
+
+```bash
+# Structure :
+# project/
+#   ├── lib/
+#   │   └── Math.oc
+#   └── tests/
+#       └── MathTest.oc   # import lib.Math
+
+# Sans --src : échec (cherche lib/ dans tests/)
+ocara tests/MathTest.oc -o test
+
+# Avec --src : succès (cherche lib/ depuis project/)
+ocara --src . tests/MathTest.oc -o test
+```
+
+---
+
 ## Commandes Makefile
 
 ### Compilation

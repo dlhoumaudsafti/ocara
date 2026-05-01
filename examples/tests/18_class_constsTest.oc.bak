@@ -1,0 +1,83 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 18_class_consts.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+
+class Direction {
+    public const NORTH:string = "N"
+    public const SOUTH:string = "S"
+    public const EAST:string = "E"
+    public const WEST:string = "W"
+
+    public static method opposite(dir:string): string {
+        return match dir {
+            "N" => "S"
+            "S" => "N"
+            "E" => "W"
+            "W" => "E"
+            default => "?"
+        }
+    }
+}
+
+class Config {
+    public const VERSION:string = "1.0.0"
+    public const APP_NAME:string = "Ocara App"
+    public const MAX_RETRY:int = 3
+
+    public static method retry_limit_ok(attempt:int): bool {
+        return attempt < Config::MAX_RETRY
+    }
+}
+
+class Color {
+    public const RED:string = "#FF0000"
+    public const GREEN:string = "#00FF00"
+    public const BLUE:string = "#0000FF"
+}
+
+class Test_18_class_consts {
+    
+    public method directionConstTest(): int {
+        UnitTest::assertEquals("N", Direction::NORTH)
+        UnitTest::assertEquals("S", Direction::SOUTH)
+        UnitTest::assertEquals("E", Direction::EAST)
+        UnitTest::assertEquals("W", Direction::WEST)
+        return 0
+    }
+    
+    public method directionOppositeTest(): int {
+        UnitTest::assertEquals("S", Direction::opposite("N"))
+        UnitTest::assertEquals("N", Direction::opposite("S"))
+        UnitTest::assertEquals("W", Direction::opposite("E"))
+        UnitTest::assertEquals("E", Direction::opposite("W"))
+        return 0
+    }
+    
+    public method configTest(): int {
+        UnitTest::assertEquals("1.0.0", Config::VERSION)
+        UnitTest::assertEquals("Ocara App", Config::APP_NAME)
+        UnitTest::assertEquals(3, Config::MAX_RETRY)
+        UnitTest::assertTrue(Config::retry_limit_ok(0))
+        UnitTest::assertTrue(Config::retry_limit_ok(2))
+        UnitTest::assertFalse(Config::retry_limit_ok(3))
+        return 0
+    }
+    
+    public method colorTest(): int {
+        UnitTest::assertEquals("#FF0000", Color::RED)
+        UnitTest::assertEquals("#00FF00", Color::GREEN)
+        UnitTest::assertEquals("#0000FF", Color::BLUE)
+        return 0
+    }
+    
+    public method mainTest(): int {
+        UnitTest::assertEquals("N", Direction::NORTH)
+        UnitTest::assertEquals("S", Direction::opposite("N"))
+        UnitTest::assertEquals("1.0.0", Config::VERSION)
+        UnitTest::assertTrue(Config::retry_limit_ok(0))
+        UnitTest::assertEquals("#FF0000", Color::RED)
+        return 0
+    }
+}

@@ -1,0 +1,74 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 11_interfaces.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+
+interface Shape {
+    method area(): float
+    method perimeter(): float
+}
+
+class Circle implements Shape {
+    private property radius:float
+
+    init(radius:float) {
+        self.radius = radius
+    }
+
+    public method area(): float {
+        return 3.14159 * self.radius * self.radius
+    }
+
+    public method perimeter(): float {
+        return 2.0 * 3.14159 * self.radius
+    }
+}
+
+class Rectangle implements Shape {
+    private property width:float
+    private property height:float
+
+    init(width:float, height:float) {
+        self.width  = width
+        self.height = height
+    }
+
+    public method area(): float {
+        return self.width * self.height
+    }
+
+    public method perimeter(): float {
+        return 2.0 * (self.width + self.height)
+    }
+}
+
+class Test_11_interfaces {
+    
+    public method circleTest(): int {
+        var c:Circle = use Circle(5.0)
+        var area:float = c.area()
+        UnitTest::assertTrue(area > 78.0)
+        UnitTest::assertTrue(area < 79.0)
+        return 0
+    }
+    
+    public method rectangleTest(): int {
+        var r:Rectangle = use Rectangle(4.0, 5.0)
+        UnitTest::assertEquals(4617315517961601024, r.area())
+        UnitTest::assertEquals(4620693217682128896, r.perimeter())
+        return 0
+    }
+    
+    public method mainTest(): int {
+        var c:Circle = use Circle(5.0)
+        var area_c:float = c.area()
+        UnitTest::assertNotNull(area_c)
+        
+        var r:Rectangle = use Rectangle(4.0, 5.0)
+        var area_r:float = r.area()
+        UnitTest::assertNotNull(area_r)
+        
+        return 0
+    }
+}

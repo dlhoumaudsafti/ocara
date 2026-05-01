@@ -1,0 +1,73 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 27_type_narrowing.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+
+function format_value(val:int|string|null): string {
+    if val is null {
+        return "(null)"
+    }
+    if val is int {
+        return "entier"
+    }
+    if val is string {
+        return "chaîne"
+    }
+    return "inconnu"
+}
+
+class Test_27_type_narrowing {
+    
+    public method isNullTest(): int {
+        var val:int|string|null = null
+        UnitTest::assertTrue(val is null)
+        UnitTest::assertFalse(val is int)
+        UnitTest::assertFalse(val is string)
+        return 0
+    }
+    
+    public method isIntTest(): int {
+        var val:int|string|null = 42
+        UnitTest::assertFalse(val is null)
+        UnitTest::assertTrue(val is int)
+        UnitTest::assertFalse(val is string)
+        return 0
+    }
+    
+    public method isStringTest(): int {
+        var val:int|string|null = "test"
+        UnitTest::assertFalse(val is null)
+        UnitTest::assertFalse(val is int)
+        UnitTest::assertTrue(val is string)
+        return 0
+    }
+    
+    public method formatValueTest(): int {
+        UnitTest::assertEquals("(null)", format_value(null))
+        
+        var i:int|string|null = 42
+        UnitTest::assertEquals("entier", format_value(i))
+        
+        var s:int|string|null = "hello"
+        UnitTest::assertEquals("chaîne", format_value(s))
+        
+        return 0
+    }
+    
+    public method mainTest(): int {
+        var val_null:int|string|null = null
+        UnitTest::assertTrue(val_null is null)
+        UnitTest::assertEquals("(null)", format_value(val_null))
+        
+        var val_int:int|string|null = 42
+        UnitTest::assertTrue(val_int is int)
+        UnitTest::assertEquals("entier", format_value(val_int))
+        
+        var val_str:int|string|null = "test"
+        UnitTest::assertTrue(val_str is string)
+        UnitTest::assertEquals("chaîne", format_value(val_str))
+        
+        return 0
+    }
+}

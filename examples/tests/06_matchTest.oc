@@ -1,0 +1,60 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 06_match.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+
+class Test_06_match {
+    
+    public method matchExpressionTest(): int {
+        var score:int = 90
+        scoped mention:string = match score {
+            100 => "Parfait"
+            90  => "Excellent"
+            75  => "Bien"
+            60  => "Passable"
+            default => "Insuffisant"
+        }
+        UnitTest::assertEquals("Excellent", mention)
+        return 0
+    }
+    
+    public method mainTest(): int {
+        var score:int = 90
+        scoped mention:string = match score {
+            100 => "Parfait"
+            90  => "Excellent"
+            75  => "Bien"
+            60  => "Passable"
+            default => "Insuffisant"
+        }
+        UnitTest::assertEquals("Excellent", mention)
+        
+        var code:int = 2
+        var result:string = match code {
+            1 => "un"
+            2 => "deux"
+            3 => "trois"
+            default => "autre"
+        }
+        UnitTest::assertEquals("deux", result)
+        
+        var actif:bool = true
+        scoped etat:string = match actif {
+            true  => "actif"
+            false => "inactif"
+            default => "inconnu"
+        }
+        UnitTest::assertEquals("actif", etat)
+        
+        var age:int = 43
+        scoped tranche:string = match age:int {
+            43 => "senior"
+            20 => "jeune"
+            default => "autre tranche"
+        }
+        UnitTest::assertEquals("senior", tranche)
+        
+        return 0
+    }
+}

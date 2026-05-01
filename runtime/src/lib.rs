@@ -1800,17 +1800,203 @@ pub extern "C" fn UnitTest_assertArray(value: i64) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Gestion des erreurs — wrappers Rust côté runtime
-// (le mécanisme setjmp/longjmp réel est dans try_impl.c)
+// assertRaises : mécanisme de capture d'exception pour les tests
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Fail non géré : appelé si `fail` est lancé hors de tout `try`.
-/// Imprimé en rouge sur stderr, puis exit(1).
-/// En pratique, __ocara_fail dans try_impl.c appelle cette logique en C.
-/// Ce symbole Rust sert de fallback / documentation.
+/// Signature d'une closure Ocara : fn(env_ptr: i64) -> i64
+type OcaraClosureFn = unsafe extern "C" fn(i64) -> i64;
+
+thread_local! {
+    static ASSERT_RAISES_FUNC_PTR: Cell<i64> = Cell::new(0);
+    static ASSERT_RAISES_ENV_PTR: Cell<i64> = Cell::new(0);
+    static ASSERT_RAISES_EXCEPTION: Cell<i64> = Cell::new(0);
+    static ASSERT_RAISES_EXCEPTION_TYPE: Cell<i64> = Cell::new(0);
+}
+
 #[no_mangle]
-pub extern "C" fn __ocara_unhandled_fail(val: i64) {
-    let msg = format!("\x1b[31mfail non géré: {}\x1b[0m\n", fmt_val(val));
+extern "C" fn __assert_raises_body() {
+    let func_ptr = ASSERT_RAISES_FUNC_PTR.with(|c| c.get());
+    let env_ptr = ASSERT_RAISES_ENV_PTR.with(|c| c.get());
+    
+    if func_ptr != 0 {
+        unsafe {
+            let f: OcaraClosureFn = std::mem::transmute(func_ptr as usize);
+            f(env_ptr);
+        }
+    }
+}
+
+#[no_mangle]
+extern "C" fn __assert_raises_handler(error_val: i64, error_type: i64) {
+    ASSERT_RAISES_EXCEPTION.with(|e| e.set(error_val));
+    ASSERT_RAISES_EXCEPTION_TYPE.with(|t| t.set(error_type));
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertRaises(fat_ptr: i64) -> i64 {
+    // Extraire func_ptr et env_ptr du fat pointer
+    let func_ptr = unsafe { *(fat_ptr as *const i64) };
+    let env_ptr  = unsafe { *((fat_ptr as *const i64).add(1)) };
+    
+    // Stocker dans les thread_locals
+    ASSERT_RAISES_FUNC_PTR.with(|c| c.set(func_ptr));
+    ASSERT_RAISES_ENV_PTR.with(|c| c.set(env_ptr));
+    ASSERT_RAISES_EXCEPTION.with(|e| e.set(0));
+    ASSERT_RAISES_EXCEPTION_TYPE.with(|t| t.set(0));
+    
+    // Exécuter le callable dans un contexte try
+    let body_addr = __assert_raises_body as usize as i64;
+    let handler_addr = __assert_raises_handler as usize as i64;
+    __ocara_try_exec(body_addr, handler_addr);
+    
+    // Récupérer l'exception capturée
+    let exception = ASSERT_RAISES_EXCEPTION.with(|e| e.get());
+    
+    if exception == 0 {
+        // Aucune exception levée
+        unsafe {
+            crate::exception::throw_unittest_exception(
+                "assertRaises: callable did not raise an exception",
+                120
+            );
+        }
+    }
+    
+    ut_pass("assertRaises");
+    exception
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertExceptionMessageEquals(message: i64, expected: i64) {
+    unsafe {
+        let msg_str = if is_ptr(message) { ptr_to_str(message) } else { "" };
+        let exp_str = if is_ptr(expected) { ptr_to_str(expected) } else { "" };
+        if msg_str == exp_str {
+            ut_pass(&format!("assertExceptionMessageEquals: \"{}\" == \"{}\"", msg_str, exp_str));
+        } else {
+            crate::exception::throw_unittest_exception(
+                &format!("assertExceptionMessageEquals: attendu \"{}\" mais obtenu \"{}\"", exp_str, msg_str),
+                121
+            );
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertExceptionMessageNotEquals(message: i64, expected: i64) {
+    unsafe {
+        let msg_str = if is_ptr(message) { ptr_to_str(message) } else { "" };
+        let exp_str = if is_ptr(expected) { ptr_to_str(expected) } else { "" };
+        if msg_str != exp_str {
+            ut_pass(&format!("assertExceptionMessageNotEquals: \"{}\" != \"{}\"", msg_str, exp_str));
+        } else {
+            crate::exception::throw_unittest_exception(
+                &format!("assertExceptionMessageNotEquals: ne devait pas être égal à \"{}\"", exp_str),
+                122
+            );
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertExceptionCodeEquals(code: i64, expected: i64) {
+    if code == expected {
+        ut_pass(&format!("assertExceptionCodeEquals: {} == {}", code, expected));
+    } else {
+        unsafe {
+            crate::exception::throw_unittest_exception(
+                &format!("assertExceptionCodeEquals: attendu {} mais obtenu {}", expected, code),
+                123
+            );
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertExceptionCodeNotEquals(code: i64, expected: i64) {
+    if code != expected {
+        ut_pass(&format!("assertExceptionCodeNotEquals: {} != {}", code, expected));
+    } else {
+        unsafe {
+            crate::exception::throw_unittest_exception(
+                &format!("assertExceptionCodeNotEquals: ne devait pas être égal à {}", expected),
+                124
+            );
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertExceptionSourceEquals(source: i64, expected: i64) {
+    unsafe {
+        let src_str = if is_ptr(source) { ptr_to_str(source) } else { "" };
+        let exp_str = if is_ptr(expected) { ptr_to_str(expected) } else { "" };
+        if src_str == exp_str {
+            ut_pass(&format!("assertExceptionSourceEquals: \"{}\" == \"{}\"", src_str, exp_str));
+        } else {
+            crate::exception::throw_unittest_exception(
+                &format!("assertExceptionSourceEquals: attendu \"{}\" mais obtenu \"{}\"", exp_str, src_str),
+                125
+            );
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn UnitTest_assertExceptionSourceNotEquals(source: i64, expected: i64) {
+    unsafe {
+        let src_str = if is_ptr(source) { ptr_to_str(source) } else { "" };
+        let exp_str = if is_ptr(expected) { ptr_to_str(expected) } else { "" };
+        if src_str != exp_str {
+            ut_pass(&format!("assertExceptionSourceNotEquals: \"{}\" != \"{}\"", src_str, exp_str));
+        } else {
+            crate::exception::throw_unittest_exception(
+                &format!("assertExceptionSourceNotEquals: ne devait pas être égal à \"{}\"", exp_str),
+                126
+            );
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Error handling — Rust-side runtime wrappers
+// (the real setjmp/longjmp mechanism is in try_impl.c)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Unhandled exception: called if `raise` is thrown outside any `try`.
+/// Printed in red on stderr, then exit(1).
+/// In practice, __ocara_fail in try_impl.c calls this logic in C.
+/// This Rust symbol serves as fallback / documentation.
+#[no_mangle]
+pub extern "C" fn __ocara_unhandled_fail(_val: i64, type_name: i64) {
+    let type_str = unsafe { ptr_to_str(type_name) }.to_string();
+    let max_width = 46;
+    let char_count = type_str.chars().count();
+    
+    // Tronquer et padder manuellement pour gérer correctement les caractères Unicode
+    let display_val = if char_count > max_width {
+        let truncated: String = type_str.chars().take(max_width - 3).collect();
+        let padding = " ".repeat(max_width - (max_width - 3) - 3);  // padding pour "..."
+        format!("{}...{}", truncated, padding)
+    } else {
+        let padding = " ".repeat(max_width - char_count);
+        format!("{}{}", type_str, padding)
+    };
+    
+    let msg = format!(
+        "\x1b[31m╔═════════════════════════════════════════════════════════════════╗\n\
+         ║ UNHANDLED EXCEPTION                                             ║\n\
+         ╠═════════════════════════════════════════════════════════════════╣\n\
+         ║ Exception raised: {}║\n\
+         ║                                                                 ║\n\
+         ║ No try/on block found to catch this exception.                  ║\n\
+         ║                                                                 ║\n\
+         ║ Solutions:                                                      ║\n\
+         ║  • Wrap the code in a try/on block to catch exceptions          ║\n\
+         ║  • Run unit tests with 'ocaraunit' instead of direct execution  ║\n\
+         ╚═════════════════════════════════════════════════════════════════╝\x1b[0m\n",
+        display_val
+    );
     write_stderr_raw(msg.as_bytes());
     std::process::exit(1);
 }
@@ -1986,7 +2172,34 @@ pub extern "C" fn __ocara_fail(val: i64, type_name: i64) {
 
     if !jumped {
         // Aucun try actif : message d'erreur + exit
-        let msg = format!("\x1b[31mfail non géré: {}\x1b[0m\n", fmt_val(val));
+        let type_str = unsafe { ptr_to_str(type_name) }.to_string();
+        let max_width = 46;
+        let char_count = type_str.chars().count();
+        
+        // Tronquer et padder manuellement pour gérer correctement les caractères Unicode
+        let display_val = if char_count > max_width {
+            let truncated: String = type_str.chars().take(max_width - 3).collect();
+            let padding = " ".repeat(max_width - (max_width - 3) - 3);  // padding pour "..."
+            format!("{}...{}", truncated, padding)
+        } else {
+            let padding = " ".repeat(max_width - char_count);
+            format!("{}{}", type_str, padding)
+        };
+        
+        let msg = format!(
+            "\x1b[31m╔═════════════════════════════════════════════════════════════════╗\n\
+             ║ UNHANDLED EXCEPTION                                             ║\n\
+             ╠═════════════════════════════════════════════════════════════════╣\n\
+             ║ Exception raised: {}║\n\
+             ║                                                                 ║\n\
+             ║ No try/on block found to catch this exception.                  ║\n\
+             ║                                                                 ║\n\
+             ║ Solutions:                                                      ║\n\
+             ║  • Wrap the code in a try/on block to catch exceptions          ║\n\
+             ║  • Run unit tests with 'ocaraunit' instead of direct execution  ║\n\
+             ╚═════════════════════════════════════════════════════════════════╝\x1b[0m\n",
+            display_val
+        );
         write_stderr_raw(msg.as_bytes());
         std::process::exit(1);
     }

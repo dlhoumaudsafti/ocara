@@ -26,6 +26,7 @@ ocaraunit [options] [<dossier|fichier>]
 |---------------------------|--------------------------------------------------------------------||
 | `--coverage [<dossier>]`  | Active l'analyse de couverture sur `<dossier>` (défaut : `.`)      |
 | `--src <dossier>`         | Dossier racine du projet pour résoudre les imports                |
+| `--clear`                 | Supprimer le cache (seul) ou avant de lancer les tests            |
 | `--help`, `-h`            | Afficher l'aide                                                    |
 
 ### Arguments
@@ -53,12 +54,60 @@ ocaraunit --src examples/project examples/project/tests
 # Tests avec couverture
 ocaraunit --coverage
 ocaraunit --coverage src/
+
+# Supprimer le cache uniquement
+ocaraunit --clear
+
+# Purger le cache puis lancer les tests (utile après changement du compilateur)
+ocaraunit --clear examples/tests/MyTest.oc
+
+# Combinaison complète : --clear + --src + --coverage
+ocaraunit --clear --src examples examples/tests/17_importTest.oc --coverage examples/17_import.oc
 ```
 
 Via Makefile :
 
 ```bash
 make unittest                      # lance les tests dans tests/
+```
+
+---
+
+## Gestion du cache
+
+ocaraunit met en cache les binaires compilés dans `.ocaraunit_cache/` pour accélérer les exécutions successives.
+
+**Purger le cache :**
+
+```bash
+# Supprimer le cache uniquement
+ocaraunit --clear
+
+# Purger puis lancer les tests
+ocaraunit --clear tests/
+```
+
+Le cache est invalidé automatiquement si le fichier source change. Utilisez `--clear` après une mise à jour du compilateur pour forcer la recompilation.
+
+---
+
+## Résolution des imports avec `--src`
+
+Quand vos fichiers de test sont dans un sous-dossier (`tests/`) et importent des modules depuis le parent, utilisez `--src` pour spécifier le dossier racine :
+
+```bash
+# Structure :
+# examples/
+#   ├── mods/
+#   │   └── Math.oc
+#   └── tests/
+#       └── MathTest.oc   # import mods.Math
+
+# Sans --src : échec (cherche mods/ dans tests/)
+ocaraunit examples/tests/MathTest.oc
+
+# Avec --src : succès (cherche mods/ depuis examples/)
+ocaraunit --src examples examples/tests/MathTest.oc
 ```
 
 ---

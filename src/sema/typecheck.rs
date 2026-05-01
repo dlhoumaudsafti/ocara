@@ -710,40 +710,39 @@ impl<'a> TypeChecker<'a> {
                     class.clone()
                 };
 
-                if let Some(info) = self.symbols.lookup_class(&resolved_class) {
-                    if let Some(sig) = info.methods.get(method) {
-                        // Une méthode non-static ne peut pas être appelée via ::
-                        if !sig.is_static {
-                            self.errors.push(SemaError::NotStaticMethod {
-                                class:  resolved_class.clone(),
-                                method: method.clone(),
-                                span:   span.clone(),
-                            });
-                        }
-                        let ret = sig.ret_ty.clone();
-                        // Vérification du nombre d'arguments avec support variadic et paramètres optionnels
-                        let args_ok = if sig.has_variadic {
-                            args.len() >= sig.required_params_count
-                        } else {
-                            args.len() >= sig.required_params_count && args.len() <= sig.params.len()
-                        };
-                        
-                        if !args_ok {
-                            let expected = if sig.has_variadic {
-                                sig.required_params_count
-                            } else {
-                                sig.required_params_count
-                            };
-                            self.errors.push(SemaError::WrongArgCount {
-                                name:     format!("{}::{}", resolved_class, method),
-                                expected,
-                                found:    args.len(),
-                                span:     span.clone(),
-                            });
-                        }
-                        for arg in args { self.infer_expr(arg); }
-                        return ret;
+                // Chercher la méthode dans la chaîne d'héritage
+                if let Some(sig) = self.symbols.lookup_method_in_chain(&resolved_class, method) {
+                    // Une méthode non-static ne peut pas être appelée via ::
+                    if !sig.is_static {
+                        self.errors.push(SemaError::NotStaticMethod {
+                            class:  resolved_class.clone(),
+                            method: method.clone(),
+                            span:   span.clone(),
+                        });
                     }
+                    let ret = sig.ret_ty.clone();
+                    // Vérification du nombre d'arguments avec support variadic et paramètres optionnels
+                    let args_ok = if sig.has_variadic {
+                        args.len() >= sig.required_params_count
+                    } else {
+                        args.len() >= sig.required_params_count && args.len() <= sig.params.len()
+                    };
+                    
+                    if !args_ok {
+                        let expected = if sig.has_variadic {
+                            sig.required_params_count
+                        } else {
+                            sig.required_params_count
+                        };
+                        self.errors.push(SemaError::WrongArgCount {
+                            name:     format!("{}::{}", resolved_class, method),
+                            expected,
+                            found:    args.len(),
+                            span:     span.clone(),
+                        });
+                    }
+                    for arg in args { self.infer_expr(arg); }
+                    return ret;
                 }
                 for arg in args { self.infer_expr(arg); }
                 Type::Mixed

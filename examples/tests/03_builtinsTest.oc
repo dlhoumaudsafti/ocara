@@ -1,0 +1,71 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 03_builtins.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+import ocara.IO
+
+class Test_03_builtins extends UnitTest {
+    
+    public method stringTemplateTest(): int {
+        var nom:string = "Alice"
+        var age:int = 30
+        var score:float = 9.8
+        var actif:bool = true
+        
+        // Test de base sur les templates
+        var msg1:string = `Bonjour ${nom}, tu as ${age} ans !`
+        self::assertNotNull(msg1)
+        
+        var msg2:string = `Score : ${score} — actif : ${actif}`
+        self::assertNotNull(msg2)
+        
+        var msg3:string = `${nom} a ${age} ans, dans 10 ans : ${age + 10}`
+        self::assertNotNull(msg3)
+        
+        var msg4:string = `1 + 1 = ${1 + 1}`
+        self::assertNotNull(msg4)
+        
+        var msg5:string = `Bonjour '${nom}'`
+        self::assertNotNull(msg5)
+        
+        return 0
+    }
+    
+    public method ioWritelnTest(): int {
+        // Test que IO::writeln accepte différents types
+        IO::writeln("Chaîne de caractères")
+        IO::writeln(42)
+        IO::writeln(3.14)
+        IO::writeln(true)
+        IO::writeln(false)
+        
+        IO::writeln(10 + 5)
+        IO::writeln("Bonjour " + "monde")
+        
+        return 0
+    }
+    
+    public method mainTest(): int {
+        // Test des parties non-interactives de main()
+        var nom:string = "Alice"
+        var age:int = 30
+        var score:float = 9.8
+        var actif:bool = true
+        
+        // Vérifications basiques
+        self::assertEquals(30, age)
+        self::assertEquals("Alice", nom)
+        self::assertTrue(actif)
+        
+        // Test des opérations
+        self::assertEquals(15, 10 + 5)
+        self::assertEquals("Bonjour monde", "Bonjour monde")
+        
+        // Test des templates
+        var msg:string = `Bonjour ${nom}, tu as ${age} ans !`
+        self::assertNotNull(msg)
+        
+        return 0
+    }
+}

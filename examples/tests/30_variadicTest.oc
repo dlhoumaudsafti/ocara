@@ -1,0 +1,67 @@
+import ocara.UnitTest
+
+class Test_30_variadic {
+    
+    public method variadicIntTest(): int {
+        UnitTest::assertEquals(0, sum_int())
+        UnitTest::assertEquals(5, sum_int(5))
+        UnitTest::assertEquals(15, sum_int(5, 10))
+        UnitTest::assertEquals(30, sum_int(5, 10, 15))
+        return 0
+    }
+    
+    public method variadicStringTest(): int {
+        UnitTest::assertEquals("", concat_string())
+        UnitTest::assertEquals("hello", concat_string("hello"))
+        UnitTest::assertEquals("helloworld", concat_string("hello", "world"))
+        return 0
+    }
+    
+    public method variadicBoolTest(): int {
+        UnitTest::assertTrue(all_true())
+        UnitTest::assertTrue(all_true(true))
+        UnitTest::assertTrue(all_true(true, true))
+        UnitTest::assertFalse(all_true(true, false))
+        UnitTest::assertFalse(all_true(false, true))
+        return 0
+    }
+    
+    public method mainTest(): int {
+        UnitTest::assertEquals(30, sum_int(5, 10, 15))
+        UnitTest::assertEquals("helloworld", concat_string("hello", "world"))
+        UnitTest::assertTrue(all_true(true, true))
+        UnitTest::assertFalse(all_true(true, false))
+        return 0
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 30_variadic.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+function sum_int(nums:variadic<int>): int {
+    var total:int = 0
+    for n in nums {
+        total = total + n
+    }
+    return total
+}
+
+function concat_string(parts:variadic<string>): string {
+    var result:string = ""
+    for p in parts {
+        result = result + p
+    }
+    return result
+}
+
+function all_true(flags:variadic<bool>): bool {
+    for f in flags {
+        if not f {
+            return false
+        }
+    }
+    return true
+}
+

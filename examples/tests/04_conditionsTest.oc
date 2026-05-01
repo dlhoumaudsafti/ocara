@@ -1,10 +1,7 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Tests unitaires pour 04_conditions.oc
-// ─────────────────────────────────────────────────────────────────────────────
-
 import ocara.UnitTest
+import ocara.IO
 
-class Test_04_conditions {
+class Test_04_conditions extends UnitTest {
     
     public method simpleIfTest(): int {
         var result:int = 0
@@ -12,7 +9,7 @@ class Test_04_conditions {
         if x > 5 {
             result = 1
         }
-        UnitTest::assertEquals(1, result)
+        self::assertEquals(1, result)
         return 0
     }
     
@@ -24,7 +21,7 @@ class Test_04_conditions {
         } else {
             result = 2
         }
-        UnitTest::assertEquals(2, result)
+        self::assertEquals(2, result)
         return 0
     }
     
@@ -42,7 +39,7 @@ class Test_04_conditions {
             grade = "F"
         }
         
-        UnitTest::assertEquals("C", grade)
+        self::assertEquals("C", grade)
         return 0
     }
     
@@ -57,7 +54,90 @@ class Test_04_conditions {
             }
         }
         
-        UnitTest::assertEquals(3, result)
+        self::assertEquals(3, result)
+        return 0
+    }
+
+    public method ifStrictEqualityTest(): void {
+        var result:bool = false
+        var a:int = 5
+        var b:string = "5"
+        if a egal b {
+            result = true
+        }
+        
+        self::assertFalse(result)
+
+        if a not egal b {
+            result = true
+        }
+        
+        self::assertTrue(result)
+    }
+    
+    public method note_to_mentionTest(): int {
+        self::assertEquals("Excellent", note_to_mention(95))
+        self::assertEquals("Excellent", note_to_mention(90))
+        self::assertEquals("Bien", note_to_mention(85))
+        self::assertEquals("Bien", note_to_mention(75))
+        self::assertEquals("Passable", note_to_mention(65))
+        self::assertEquals("Passable", note_to_mention(60))
+        self::assertEquals("Insuffisant", note_to_mention(45))
+        self::assertEquals("Insuffisant", note_to_mention(0))
+        return 0
+    }
+    
+    public method is_adultTest(): int {
+        self::assertTrue(is_adult(18))
+        self::assertTrue(is_adult(20))
+        self::assertTrue(is_adult(100))
+        self::assertFalse(is_adult(17))
+        self::assertFalse(is_adult(0))
+        return 0
+    }
+    
+    public method mainTest(): int {
+        // Reproduit le comportement de main() avec des assertions
+        var x:int = 10
+        self::assertTrue(x > 0)
+        
+        var temperature:int = 25
+        self::assertTrue(temperature >= 25)
+        
+        var a:int = 5
+        var b:int = 10
+        self::assertTrue(a > 0 and b > 0)
+        self::assertTrue(a > 100 or b > 5)
+        self::assertTrue(not false)
+        
+        self::assertEquals("Bien", note_to_mention(85))
+        self::assertEquals("Insuffisant", note_to_mention(45))
+        
+        self::assertTrue(is_adult(20))
+        self::assertFalse(is_adult(15))
+        
         return 0
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 04_conditions.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+function note_to_mention(note:int): string {
+    if note >= 90 {
+        return "Excellent"
+    } elseif note >= 75 {
+        return "Bien"
+    } elseif note >= 60 {
+        return "Passable"
+    } else {
+        return "Insuffisant"
+    }
+}
+
+function is_adult(age:int): bool {
+    return age >= 18
+}
+

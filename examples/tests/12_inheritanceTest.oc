@@ -1,0 +1,85 @@
+import ocara.UnitTest
+
+class Test_12_inheritance {
+    
+    public method dogTest(): int {
+        var dog:Dog = use Dog("Rex", "Labrador")
+        UnitTest::assertEquals("Rex", dog.get_name())
+        UnitTest::assertEquals("Labrador", dog.get_breed())
+        dog.log("test")
+        return 0
+    }
+    
+    public method catTest(): int {
+        var cat:Cat = use Cat("Mimi", true)
+        UnitTest::assertEquals("Mimi", cat.get_name())
+        UnitTest::assertTrue(cat.is_indoor())
+        return 0
+    }
+    
+    public method mainTest(): int {
+        var dog:Dog = use Dog("Rex", "Labrador")
+        UnitTest::assertEquals("Rex", dog.get_name())
+        
+        var cat:Cat = use Cat("Mimi", true)
+        UnitTest::assertEquals("Mimi", cat.get_name())
+        
+        return 0
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 12_inheritance.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+interface Loggable {
+    method log(msg:string): void
+}
+
+class Animal {
+    protected property name:string
+    protected property sound:string
+
+    init(name:string, sound:string) {
+        self.name  = name
+        self.sound = sound
+    }
+
+    public method get_name(): string {
+        return self.name
+    }
+}
+
+class Dog extends Animal implements Loggable {
+    private property breed:string
+
+    init(name:string, breed:string) {
+        self.name  = name
+        self.sound = "Woof"
+        self.breed = breed
+    }
+
+    public method get_breed(): string {
+        return self.breed
+    }
+
+    public method log(msg:string): void {
+        // Log implementation
+    }
+}
+
+class Cat extends Animal {
+    private property indoor:bool
+
+    init(name:string, indoor:bool) {
+        self.name   = name
+        self.sound  = "Meow"
+        self.indoor = indoor
+    }
+
+    public method is_indoor(): bool {
+        return self.indoor
+    }
+}
+

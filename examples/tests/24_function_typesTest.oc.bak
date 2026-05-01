@@ -1,0 +1,46 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 24_function_types.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+
+function add(x:int, y:int): int {
+    return x + y
+}
+
+function double(n:int): int {
+    return n * 2
+}
+
+function compute(a:int, b:int, operation:Function<int(int, int)>): int {
+    return operation(a, b)
+}
+
+function transform(value:int, transformer:Function<int(int)>): int {
+    return transformer(value)
+}
+
+class Test_24_function_types {
+    
+    public method binaryOpTest(): int {
+        var op:Function<int(int, int)> = add
+        UnitTest::assertEquals(15, compute(10, 5, op))
+        return 0
+    }
+    
+    public method transformerTest(): int {
+        var tr:Function<int(int)> = double
+        UnitTest::assertEquals(20, transform(10, tr))
+        return 0
+    }
+    
+    public method mainTest(): int {
+        var op:Function<int(int, int)> = add
+        UnitTest::assertEquals(15, compute(10, 5, op))
+        
+        var tr:Function<int(int)> = double
+        UnitTest::assertEquals(20, transform(10, tr))
+        
+        return 0
+    }
+}
