@@ -50,4 +50,58 @@ class Test_07_loops {
         UnitTest::assertEquals(6, count)  // 3 * 2 = 6
         return 0
     }
+    
+    public method mainTest(): int {
+        // Reproduit le comportement de main()
+        var i:int = 0
+        var counter:int = 0
+        while i < 5 {
+            counter = counter + 1
+            i = i + 1
+        }
+        UnitTest::assertEquals(5, counter)
+        
+        // Test for in range
+        var count_range:int = 0
+        for j in 1..6 {
+            count_range = count_range + 1
+        }
+        UnitTest::assertEquals(5, count_range)
+        
+        // Test sum
+        var sum:int = 0
+        for k in 1..11 {
+            sum = sum + k
+        }
+        UnitTest::assertEquals(55, sum)
+        
+        // Test array iteration
+        var fruits:string[] = ["pomme", "banane", "cerise"]
+        var fruit_count:int = 0
+        for fruit in fruits {
+            fruit_count = fruit_count + 1
+        }
+        UnitTest::assertEquals(3, fruit_count)
+        
+        // Test map iteration
+        var scores:map<string, int> = {
+            "Alice": 95,
+            "Bob":   82,
+            "Carol": 78
+        }
+        var entry_count:int = 0
+        for nom => points in scores {
+            entry_count = entry_count + 1
+        }
+        UnitTest::assertEquals(3, entry_count)
+        
+        // Test countdown
+        var countdown:int = 5
+        while countdown > 0 {
+            countdown = countdown - 1
+        }
+        UnitTest::assertEquals(0, countdown)
+        
+        return 0
+    }
 }

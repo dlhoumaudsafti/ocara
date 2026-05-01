@@ -1,0 +1,73 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 28_enum.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+
+enum Direction {
+    North,
+    East,
+    South,
+    West
+}
+
+enum HttpStatus {
+    Ok = 200,
+    Created = 201,
+    NotFound = 404,
+    Error = 500
+}
+
+function direction_name(d:int): string {
+    switch d {
+        0 { return "Nord" }
+        1 { return "Est" }
+        2 { return "Sud" }
+        3 { return "Ouest" }
+        default { return "Inconnu" }
+    }
+}
+
+function is_error(status:int): bool {
+    return status == HttpStatus::Error
+}
+
+class Test_28_enum {
+    
+    public method enumAutoValuesTest(): int {
+        UnitTest::assertEquals(0, Direction::North)
+        UnitTest::assertEquals(1, Direction::East)
+        UnitTest::assertEquals(2, Direction::South)
+        UnitTest::assertEquals(3, Direction::West)
+        return 0
+    }
+    
+    public method enumExplicitValuesTest(): int {
+        UnitTest::assertEquals(200, HttpStatus::Ok)
+        UnitTest::assertEquals(201, HttpStatus::Created)
+        UnitTest::assertEquals(404, HttpStatus::NotFound)
+        UnitTest::assertEquals(500, HttpStatus::Error)
+        return 0
+    }
+    
+    public method enumSwitchTest(): int {
+        UnitTest::assertEquals("Nord", direction_name(Direction::North))
+        UnitTest::assertEquals("Sud", direction_name(Direction::South))
+        return 0
+    }
+    
+    public method enumComparisonTest(): int {
+        var s:int = HttpStatus::Error
+        UnitTest::assertTrue(is_error(s))
+        UnitTest::assertTrue(s == HttpStatus::Error)
+        return 0
+    }
+    
+    public method mainTest(): int {
+        UnitTest::assertEquals(0, Direction::North)
+        UnitTest::assertEquals(200, HttpStatus::Ok)
+        UnitTest::assertEquals("Nord", direction_name(Direction::North))
+        UnitTest::assertTrue(is_error(HttpStatus::Error))
+        return 0
+    }
+}

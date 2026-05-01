@@ -1,0 +1,64 @@
+import ocara.UnitTest
+
+class Test_29_async {
+    
+    public method asyncIntTest(): int {
+        var ti:int = async_int(7)
+        var ri:int = resolve ti
+        UnitTest::assertEquals(49, ri)
+        return 0
+    }
+    
+    public method asyncBoolTest(): int {
+        var tb:int = async_bool(5)
+        var rb:bool = resolve tb
+        UnitTest::assertTrue(rb)
+        
+        var tb2:int = async_bool(-5)
+        var rb2:bool = resolve tb2
+        UnitTest::assertFalse(rb2)
+        
+        return 0
+    }
+    
+    public method asyncStringTest(): int {
+        var ts:int = async_string("world")
+        var rs:string = resolve ts
+        UnitTest::assertEquals("hello world", rs)
+        return 0
+    }
+    
+    public method mainTest(): int {
+        var ti:int = async_int(7)
+        var ri:int = resolve ti
+        UnitTest::assertEquals(49, ri)
+        
+        var tb:int = async_bool(5)
+        var rb:bool = resolve tb
+        UnitTest::assertTrue(rb)
+        
+        var ts:int = async_string("world")
+        var rs:string = resolve ts
+        UnitTest::assertEquals("hello world", rs)
+        
+        return 0
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 29_async.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+async function async_int(n:int): int {
+    return n * n
+}
+
+async function async_bool(n:int): bool {
+    return n > 0
+}
+
+async function async_string(s:string): string {
+    return "hello " + s
+}
+

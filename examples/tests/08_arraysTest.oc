@@ -47,4 +47,52 @@ class Test_08_arrays {
         UnitTest::assertEquals(6, matrix[2][1])
         return 0
     }
+    
+    public method mainTest(): int {
+        // Reproduit le comportement de main()
+        var numbers:int[] = [10, 20, 30, 40, 50]
+        UnitTest::assertEquals(10, numbers[0])
+        UnitTest::assertEquals(30, numbers[2])
+        UnitTest::assertEquals(50, numbers[4])
+        
+        var count:int = 0
+        for n in numbers {
+            count = count + 1
+        }
+        UnitTest::assertEquals(5, count)
+        
+        var jours:string[] = ["lundi", "mardi", "mercredi", "jeudi", "vendredi"]
+        UnitTest::assertEquals("lundi", jours[0])
+        UnitTest::assertEquals("vendredi", jours[4])
+        
+        var jour_count:int = 0
+        for j in jours {
+            jour_count = jour_count + 1
+        }
+        UnitTest::assertEquals(5, jour_count)
+        
+        var vals:mixed[] = [42, "hello", true, 3.14]
+        UnitTest::assertNotNull(vals[0])
+        UnitTest::assertNotNull(vals[1])
+        UnitTest::assertNotNull(vals[2])
+        UnitTest::assertNotNull(vals[3])
+        
+        var matrix:int[][] = [
+            [1, 2, 3],
+            [4, 5, 6],
+            [7, 8, 9]
+        ]
+        var line0:string = Array::join(matrix[0], ", ")
+        var line1:string = Array::join(matrix[1], ", ")
+        var line2:string = Array::join(matrix[2], ", ")
+        UnitTest::assertNotNull(line0)
+        UnitTest::assertNotNull(line1)
+        UnitTest::assertNotNull(line2)
+        
+        var empty:int[] = []
+        var empty_str:string = Array::join(empty, ", ")
+        UnitTest::assertNotNull(empty_str)
+        
+        return 0
+    }
 }

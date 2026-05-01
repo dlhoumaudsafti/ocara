@@ -1,11 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Exemple 26 : Typage complet des fonctions
 // ─────────────────────────────────────────────────────────────────────────────
-// 
+//
 // Depuis Ocara v0.1.0, les fonctions peuvent être typées avec leurs paramètres :
 //   Syntaxe : Function<RetType(ParamType1, ParamType2, ...)>
 //
-// Cette syntaxe permet un typage plus strict des callbacks et des fonctions 
+// Cette syntaxe permet un typage plus strict des callbacks et des fonctions
 // passées en paramètres.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -64,34 +64,34 @@ function printStar(): void {
 function main(): int {
     IO::writeln("=== Exemple 26 : Typage complet des fonctions ===")
     IO::writeln("")
-    
+
     // ── 1. Fonction avec 2 paramètres ──
     IO::writeln("1. Opérations binaires : Function<int(int, int)>")
-    
+
     scoped op1:Function<int(int, int)> = add
     IO::write("   compute(10, 5, add)      = ")
     IO::writeln(compute(10, 5, op1))
-    
+
     scoped op2:Function<int(int, int)> = subtract
     IO::write("   compute(10, 5, subtract) = ")
     IO::writeln(compute(10, 5, op2))
-    
+
     scoped op3:Function<int(int, int)> = multiply
     IO::write("   compute(10, 5, multiply) = ")
     IO::writeln(compute(10, 5, op3))
-    
+
     // ── 2. Fonction avec 1 paramètre ──
     IO::writeln("")
     IO::writeln("2. Transformations unaires : Function<int(int)>")
-    
+
     scoped t1:Function<int(int)> = double
     IO::write("   transform(7, double) = ")
     IO::writeln(transform(7, t1))
-    
+
     scoped t2:Function<int(int)> = triple
     IO::write("   transform(7, triple) = ")
     IO::writeln(transform(7, t2))
-    
+
     // ── 3. Fonction sans paramètre ──
     IO::writeln("")
     IO::writeln("3. Actions sans paramètre : Function<void()>")
@@ -99,9 +99,9 @@ function main(): int {
     scoped action:Function<void()> = printStar
     repeat(5, action)
     IO::writeln("")
-    
+
     IO::writeln("")
     IO::writeln("=== Fin de l'exemple ===")
-    
+
     return 0
 }

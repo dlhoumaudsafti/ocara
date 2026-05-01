@@ -1,0 +1,82 @@
+import ocara.UnitTest
+
+class Test_23_static_method {
+    
+    public method validatorTest(): int {
+        UnitTest::assertTrue(Validator::is_positive(5))
+        UnitTest::assertFalse(Validator::is_positive(-5))
+        UnitTest::assertTrue(Validator::is_in_range(50, 0, 100))
+        UnitTest::assertFalse(Validator::is_in_range(150, 0, 100))
+        UnitTest::assertTrue(Validator::is_valid_age(30))
+        UnitTest::assertFalse(Validator::is_valid_age(200))
+        UnitTest::assertTrue(Validator::is_valid_score(75))
+        UnitTest::assertFalse(Validator::is_valid_score(150))
+        return 0
+    }
+    
+    public method temperatureTest(): int {
+        UnitTest::assertEquals(32, Temperature::to_fahrenheit(0))
+        UnitTest::assertEquals(212, Temperature::to_fahrenheit(100))
+        UnitTest::assertEquals(0, Temperature::to_celsius(32))
+        UnitTest::assertTrue(Temperature::is_valid(0))
+        UnitTest::assertFalse(Temperature::is_valid(-300))
+        UnitTest::assertEquals(-273, Temperature::clamp(-300))
+        UnitTest::assertEquals(25, Temperature::clamp(25))
+        return 0
+    }
+    
+    public method mainTest(): int {
+        UnitTest::assertTrue(Validator::is_valid_age(30))
+        UnitTest::assertTrue(Validator::is_valid_score(75))
+        UnitTest::assertEquals(32, Temperature::to_fahrenheit(0))
+        UnitTest::assertTrue(Temperature::is_valid(0))
+        return 0
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 23_static_method.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+class Validator {
+    public static method is_positive(n:int): bool {
+        return n > 0
+    }
+
+    public static method is_in_range(n:int, low:int, high:int): bool {
+        return n >= low and n <= high
+    }
+
+    public static method is_valid_age(age:int): bool {
+        return self::is_positive(age) and self::is_in_range(age, 1, 150)
+    }
+
+    public static method is_valid_score(score:int): bool {
+        return self::is_in_range(score, 0, 100)
+    }
+}
+
+class Temperature {
+    public const ABSOLUTE_ZERO:int = -273
+
+    public static method to_fahrenheit(c:int): int {
+        return c * 9 / 5 + 32
+    }
+
+    public static method to_celsius(f:int): int {
+        return (f - 32) * 5 / 9
+    }
+
+    public static method is_valid(c:int): bool {
+        return c >= Temperature::ABSOLUTE_ZERO
+    }
+
+    public static method clamp(c:int): int {
+        if self::is_valid(c) {
+            return c
+        }
+        return Temperature::ABSOLUTE_ZERO
+    }
+}
+

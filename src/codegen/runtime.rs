@@ -261,6 +261,13 @@ pub const BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "UnitTest_assertEnum",           params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
     BuiltinDesc { name: "UnitTest_assertMap",            params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
     BuiltinDesc { name: "UnitTest_assertArray",          params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
+    BuiltinDesc { name: "UnitTest_assertRaises",         params: &[clt::I64],                 returns: Some(clt::I64),    module: Some("UnitTest") },
+    BuiltinDesc { name: "UnitTest_assertExceptionMessageEquals",    params: &[clt::I64, clt::I64], returns: None,         module: Some("UnitTest") },
+    BuiltinDesc { name: "UnitTest_assertExceptionMessageNotEquals", params: &[clt::I64, clt::I64], returns: None,         module: Some("UnitTest") },
+    BuiltinDesc { name: "UnitTest_assertExceptionCodeEquals",       params: &[clt::I64, clt::I64], returns: None,         module: Some("UnitTest") },
+    BuiltinDesc { name: "UnitTest_assertExceptionCodeNotEquals",    params: &[clt::I64, clt::I64], returns: None,         module: Some("UnitTest") },
+    BuiltinDesc { name: "UnitTest_assertExceptionSourceEquals",     params: &[clt::I64, clt::I64], returns: None,         module: Some("UnitTest") },
+    BuiltinDesc { name: "UnitTest_assertExceptionSourceNotEquals",  params: &[clt::I64, clt::I64], returns: None,         module: Some("UnitTest") },
     // ── ocara.HTMLComponent ───────────────────────────────────────────────────
     BuiltinDesc { name: "HTMLComponent_init",     params: &[clt::I64, clt::I64],              returns: None,              module: Some("HTMLComponent") },
     BuiltinDesc { name: "HTMLComponent_register", params: &[clt::I64, clt::I64],              returns: None,              module: Some("HTMLComponent") },

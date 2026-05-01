@@ -1,0 +1,61 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 25_nameless.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+
+function apply(f:Function<int(int)>, n:int): int {
+    return f(n)
+}
+
+class Test_25_nameless {
+    
+    public method simpleClosureTest(): int {
+        var called:int = 0
+        var greet:Function<void()> = nameless(): void {
+            called = called + 1
+        }
+        greet()
+        UnitTest::assertEquals(1, called)
+        return 0
+    }
+    
+    public method closureWithParamTest(): int {
+        var double:Function<int(int)> = nameless(x:int): int {
+            return x * 2
+        }
+        UnitTest::assertEquals(14, double(7))
+        UnitTest::assertEquals(10, apply(double, 5))
+        return 0
+    }
+    
+    public method captureScopeTest(): int {
+        var step:int = 3
+        var add_step:Function<int(int)> = nameless(x:int): int {
+            return x + step
+        }
+        UnitTest::assertEquals(13, add_step(10))
+        return 0
+    }
+    
+    public method mainTest(): int {
+        var greet:Function<void()> = nameless(): void {
+            // Simple closure
+        }
+        greet()
+        
+        var double:Function<int(int)> = nameless(x:int): int {
+            return x * 2
+        }
+        UnitTest::assertEquals(14, double(7))
+        UnitTest::assertEquals(10, apply(double, 5))
+        
+        var step:int = 3
+        var add_step:Function<int(int)> = nameless(x:int): int {
+            return x + step
+        }
+        UnitTest::assertEquals(13, add_step(10))
+        
+        return 0
+    }
+}

@@ -1023,27 +1023,59 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
         Expr::StaticCall { class, method, args, span } => {
             // Résoudre "<self>" vers la classe courante
             let self_class;
-            let class: &str = if class == "<self>" {
+            let mut resolved_class: &str = if class == "<self>" {
                 self_class = builder.current_class.clone().unwrap_or_default();
                 &self_class
             } else {
                 class.as_str()
             };
-            let func_name = format!("{}_{}", class, method);
+            
+            // Pour self::method, chercher la méthode dans la chaîne d'héritage
+            if class == "<self>" && !resolved_class.is_empty() {
+                let func_name = format!("{}_{}", resolved_class, method);
+                // Vérifier si la méthode existe dans la classe courante
+                let method_exists = builder.module.functions.iter()
+                    .any(|f| f.name == func_name);
+                
+                if !method_exists {
+                    // Chercher dans la chaîne d'héritage
+                    let mut current = resolved_class;
+                    loop {
+                        if let Some(parent) = builder.module.class_parents.get(current) {
+                            let parent_func_name = format!("{}_{}", parent, method);
+                            // Vérifier dans les fonctions du module ET dans les builtins
+                            let parent_method_exists = builder.module.functions.iter()
+                                .any(|f| f.name == parent_func_name)
+                                || BUILTINS.iter().any(|b| b.name == parent_func_name);
+                            if parent_method_exists {
+                                resolved_class = parent.as_str();
+                                break;
+                            }
+                            current = parent.as_str();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            let func_name = format!("{}_{}", resolved_class, method);
 
             // Vérification de l'import : les modules ocara builtins doivent être importés
             // SAUF si la classe est définie localement dans le programme
             const BUILTIN_MODULES: &[&str] = &[
                 "String", "Math", "Array", "Map", "IO", "JSON",
                 "Convert", "System", "Regex", "HTTPRequest", "HTTPServer", "Thread",
+                "Mutex", "HTML", "HTMLComponent", "UnitTest", "File", "Directory",
+                "Date", "Time", "DateTime",
             ];
-            let is_local_class = builder.module.class_layouts.contains_key(class);
-            if BUILTIN_MODULES.contains(&class) && !is_local_class {
-                let imported = builder.module.imports.iter().any(|m| m == class);
+            let is_local_class = builder.module.class_layouts.contains_key(resolved_class);
+            if BUILTIN_MODULES.contains(&resolved_class) && !is_local_class {
+                let imported = builder.module.imports.iter().any(|m| m == resolved_class);
                 if !imported {
                     eprintln!(
                         "{}:{}:{}: error: using `{}::{}` without `import ocara.{}`",
-                        builder.module.source_file, span.line, span.col, class, method, class
+                        builder.module.source_file, span.line, span.col, resolved_class, method, resolved_class
                     );
                     std::process::exit(1);
                 }

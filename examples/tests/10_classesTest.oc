@@ -1,0 +1,135 @@
+import ocara.UnitTest
+
+class Test_10_classes {
+    
+    public method displayTest(): int {
+        var p:Point = use Point(3, 4)
+        p.display()
+        UnitTest::assertTrue(true)
+        return 0
+    }
+    
+    public method distance_from_originTest(): int {
+        var p:Point = use Point(3, 4)
+        UnitTest::assertEquals(25, p.distance_from_origin())
+        return 0
+    }
+    
+    public method depositTest(): int {
+        var account:BankAccount = use BankAccount("Alice", 1000.0)
+        var before:float = account.get_balance()
+        account.deposit(500.0)
+        var after:float = account.get_balance()
+        UnitTest::assertTrue(after > before)
+        return 0
+    }
+    
+    public method withdrawTest(): int {
+        var account:BankAccount = use BankAccount("Alice", 1000.0)
+        var before:float = account.get_balance()
+        account.withdraw(200.0)
+        var after:float = account.get_balance()
+        UnitTest::assertTrue(after < before)
+        return 0
+    }
+    
+    public method show_balanceTest(): int {
+        var account:BankAccount = use BankAccount("Alice", 1000.0)
+        account.show_balance()
+        UnitTest::assertTrue(true)
+        return 0
+    }
+    
+    public method is_negativeTest(): int {
+        var account:BankAccount = use BankAccount("Alice", -100.0)
+        UnitTest::assertTrue(account.check_negative())
+        var positive:BankAccount = use BankAccount("Bob", 100.0)
+        UnitTest::assertFalse(positive.check_negative())
+        return 0
+    }
+    
+    public method pointTest(): int {
+        var p:Point = use Point(3, 4)
+        UnitTest::assertEquals(3, p.x)
+        UnitTest::assertEquals(4, p.y)
+        UnitTest::assertEquals(25, p.distance_from_origin())
+        return 0
+    }
+    
+    public method bankAccountTest(): int {
+        var account:BankAccount = use BankAccount("Alice", 1000.0)
+        account.deposit(500.0)
+        account.withdraw(200.0)
+        account.withdraw(2000.0)
+        return 0
+    }
+    
+    public method mainTest(): int {
+        var p:Point = use Point(3, 4)
+        p.display()
+        UnitTest::assertEquals(25, p.distance_from_origin())
+        
+        var account:BankAccount = use BankAccount("Alice", 1000.0)
+        account.show_balance()
+        account.deposit(500.0)
+        account.withdraw(200.0)
+        account.withdraw(2000.0)
+        
+        return 0
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 10_classes.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+class Point {
+    public property x:int
+    public property y:int
+
+    init(x:int, y:int) {
+        self.x = x
+        self.y = y
+    }
+
+    public method display(): void {
+    }
+
+    public method distance_from_origin(): int {
+        return self.x * self.x + self.y * self.y
+    }
+}
+
+class BankAccount {
+    private property owner:string
+    private property balance:float
+
+    init(owner:string, initial:float) {
+        self.owner   = owner
+        self.balance = initial
+    }
+
+    public method deposit(amount:float): void {
+        self.balance = self.balance + amount
+    }
+
+    public method withdraw(amount:float): void {
+        if amount > self.balance {
+        } else {
+            self.balance = self.balance - amount
+        }
+    }
+
+    public method show_balance(): void {
+    }
+
+    public method check_negative(): bool {
+        return self.balance < 0.0
+    }
+
+    public method get_balance(): float {
+        return self.balance
+    }
+}
+

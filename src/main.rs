@@ -37,6 +37,8 @@ struct CliArgs {
     no_link: bool,
     /// true = strip les symboles du binaire produit (via le linker)
     release: bool,
+    /// Répertoire racine pour la résolution des imports (défaut : répertoire du fichier d'entrée)
+    src_dir: Option<PathBuf>,
 }
 
 fn print_help() {
@@ -49,6 +51,7 @@ fn print_help() {
     println!();
     println!("Options :");
     println!("  -o <sortie>   Fichier de sortie (défaut : out)");
+    println!("  --src <dir>   Répertoire racine pour la résolution des imports");
     println!("  --check       Analyse sémantique uniquement, sans compilation");
     println!("  --dump        Affiche les tokens et l'AST");
     println!("  --no-link     Produit le fichier .o sans linker");
@@ -57,6 +60,7 @@ fn print_help() {
     println!("Exemples :");
     println!("  ocara main.oc -o ./mon_programme");
     println!("  ocara main.oc --check");
+    println!("  ocara tests/mainTest.oc --src .");
 }
 
 fn parse_args() -> CliArgs {
@@ -74,6 +78,7 @@ fn parse_args() -> CliArgs {
     let mut check   = false;
     let mut no_link = false;
     let mut release = false;
+    let mut src_dir = None;
 
     let mut i = 1;
     while i < args.len() {
@@ -86,6 +91,10 @@ fn parse_args() -> CliArgs {
                 output = PathBuf::from(&args[i + 1]);
                 i += 1;
             }
+            "--src" if i + 1 < args.len() => {
+                src_dir = Some(PathBuf::from(&args[i + 1]));
+                i += 1;
+            }
             arg => {
                 if !arg.starts_with('-') {
                     input = PathBuf::from(arg);
@@ -94,7 +103,7 @@ fn parse_args() -> CliArgs {
         }
         i += 1;
     }
-    CliArgs { input, output, dump, check, no_link, release }
+    CliArgs { input, output, dump, check, no_link, release, src_dir }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -172,7 +181,10 @@ fn main() {
         "ThreadException", "MutexException",
         "UnitTestException",
     ];
-    let source_dir = args.input.parent().unwrap_or_else(|| std::path::Path::new("."));
+    // Répertoire de base pour la résolution des imports
+    let source_dir = args.src_dir.as_ref()
+        .map(|p| p.as_path())
+        .unwrap_or_else(|| args.input.parent().unwrap_or_else(|| std::path::Path::new(".")));
     // Collecter les imports utilisateur avant d'itérer (pour éviter borrow conflict)
     let user_imports: Vec<crate::ast::ImportDecl> = program.imports.iter()
         .filter(|imp| imp.path.first().map(|s| s.as_str()) != Some("ocara"))

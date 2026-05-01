@@ -1,0 +1,124 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 04_conditions.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+import ocara.IO
+
+function note_to_mention(note:int): string {
+    if note >= 90 {
+        return "Excellent"
+    } elseif note >= 75 {
+        return "Bien"
+    } elseif note >= 60 {
+        return "Passable"
+    } else {
+        return "Insuffisant"
+    }
+}
+
+function is_adult(age:int): bool {
+    return age >= 18
+}
+
+class Test_04_conditions {
+    
+    public method simpleIfTest(): int {
+        var result:int = 0
+        var x:int = 10
+        if x > 5 {
+            result = 1
+        }
+        UnitTest::assertEquals(1, result)
+        return 0
+    }
+    
+    public method ifElseTest(): int {
+        var result:int = 0
+        var x:int = 3
+        if x > 5 {
+            result = 1
+        } else {
+            result = 2
+        }
+        UnitTest::assertEquals(2, result)
+        return 0
+    }
+    
+    public method elseifTest(): int {
+        var score:int = 75
+        var grade:string = ""
+        
+        if score >= 90 {
+            grade = "A"
+        } elseif score >= 80 {
+            grade = "B"
+        } elseif score >= 70 {
+            grade = "C"
+        } else {
+            grade = "F"
+        }
+        
+        UnitTest::assertEquals("C", grade)
+        return 0
+    }
+    
+    public method nestedIfTest(): int {
+        var x:int = 10
+        var y:int = 20
+        var result:int = 0
+        
+        if x > 5 {
+            if y > 15 {
+                result = 3
+            }
+        }
+        
+        UnitTest::assertEquals(3, result)
+        return 0
+    }
+    
+    public method note_to_mentionTest(): int {
+        UnitTest::assertEquals("Excellent", note_to_mention(95))
+        UnitTest::assertEquals("Excellent", note_to_mention(90))
+        UnitTest::assertEquals("Bien", note_to_mention(85))
+        UnitTest::assertEquals("Bien", note_to_mention(75))
+        UnitTest::assertEquals("Passable", note_to_mention(65))
+        UnitTest::assertEquals("Passable", note_to_mention(60))
+        UnitTest::assertEquals("Insuffisant", note_to_mention(45))
+        UnitTest::assertEquals("Insuffisant", note_to_mention(0))
+        return 0
+    }
+    
+    public method is_adultTest(): int {
+        UnitTest::assertTrue(is_adult(18))
+        UnitTest::assertTrue(is_adult(20))
+        UnitTest::assertTrue(is_adult(100))
+        UnitTest::assertFalse(is_adult(17))
+        UnitTest::assertFalse(is_adult(0))
+        return 0
+    }
+    
+    public method mainTest(): int {
+        // Reproduit le comportement de main() avec des assertions
+        var x:int = 10
+        UnitTest::assertTrue(x > 0)
+        
+        var temperature:int = 25
+        UnitTest::assertTrue(temperature >= 25)
+        
+        var a:int = 5
+        var b:int = 10
+        UnitTest::assertTrue(a > 0 and b > 0)
+        UnitTest::assertTrue(a > 100 or b > 5)
+        UnitTest::assertTrue(not false)
+        
+        UnitTest::assertEquals("Bien", note_to_mention(85))
+        UnitTest::assertEquals("Insuffisant", note_to_mention(45))
+        
+        UnitTest::assertTrue(is_adult(20))
+        UnitTest::assertFalse(is_adult(15))
+        
+        return 0
+    }
+}

@@ -47,7 +47,7 @@ class User modules Timestamped, Identifiable {
     public method get_score(): int {
         return self.score
     }
-    
+
     public method add_points(points: int): void {
         self.score = self.score + points
     }
@@ -63,7 +63,7 @@ function main(): int {
     // Utilisation des méthodes de User
     IO::write("Score initial: ")
     IO::writeln(u.get_score())
-    
+
     u.add_points(50)
     IO::write("Score après bonus: ")
     IO::writeln(u.get_score())
@@ -76,7 +76,7 @@ function main(): int {
     // Utilisation des méthodes du module Timestamped
     IO::write("Age initial: ")
     IO::writeln(u.get_age())
-    
+
     u.mark_created()
     IO::write("Age après création: ")
     IO::writeln(u.get_age())

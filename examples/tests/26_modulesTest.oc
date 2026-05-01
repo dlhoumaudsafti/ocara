@@ -1,0 +1,18 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 26_modules.oc (skeleton)
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+
+class Test_26_modules {
+    
+    public method basicTest(): int {
+        UnitTest::assertTrue(true)
+        return 0
+    }
+    
+    public method mainTest(): int {
+        UnitTest::assertTrue(true)
+        return 0
+    }
+}

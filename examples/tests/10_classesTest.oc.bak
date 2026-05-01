@@ -1,0 +1,85 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 10_classes.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+
+class Point {
+    public property x:int
+    public property y:int
+
+    init(x:int, y:int) {
+        self.x = x
+        self.y = y
+    }
+
+    public method distance_from_origin(): int {
+        return self.x * self.x + self.y * self.y
+    }
+}
+
+class BankAccount {
+    private property owner:string
+    private property balance:float
+
+    init(owner:string, initial:float) {
+        self.owner   = owner
+        self.balance = initial
+    }
+
+    public method deposit(amount:float): void {
+        self.balance = self.balance + amount
+    }
+
+    public method withdraw(amount:float): bool {
+        if amount > self.balance {
+            return false
+        } else {
+            self.balance = self.balance - amount
+            return true
+        }
+    }
+
+    public method get_balance(): float {
+        return self.balance
+    }
+}
+
+class Test_10_classes {
+    
+    public method pointTest(): int {
+        var p:Point = use Point(3, 4)
+        UnitTest::assertEquals(3, p.x)
+        UnitTest::assertEquals(4, p.y)
+        UnitTest::assertEquals(25, p.distance_from_origin())
+        return 0
+    }
+    
+    public method bankAccountTest(): int {
+        var account:BankAccount = use BankAccount("Alice", 1000.0)
+        UnitTest::assertEquals(4607182418800017408, account.get_balance())
+        
+        account.deposit(500.0)
+        UnitTest::assertEquals(4609434218613702656, account.get_balance())
+        
+        var success:bool = account.withdraw(200.0)
+        UnitTest::assertTrue(success)
+        
+        var fail:bool = account.withdraw(2000.0)
+        UnitTest::assertFalse(fail)
+        
+        return 0
+    }
+    
+    public method mainTest(): int {
+        var p:Point = use Point(3, 4)
+        UnitTest::assertEquals(25, p.distance_from_origin())
+        
+        var account:BankAccount = use BankAccount("Alice", 1000.0)
+        account.deposit(500.0)
+        account.withdraw(200.0)
+        account.withdraw(2000.0)
+        
+        return 0
+    }
+}

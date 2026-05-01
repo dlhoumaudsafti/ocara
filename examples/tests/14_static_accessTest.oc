@@ -1,0 +1,72 @@
+import ocara.UnitTest
+
+class Test_14_static_access {
+    
+    public method mathStaticTest(): int {
+        UnitTest::assertEquals(5, Math::abs(-5))
+        UnitTest::assertEquals(5, Math::abs(5))
+        UnitTest::assertEquals(3, Math::min(5, 3))
+        UnitTest::assertEquals(5, Math::max(5, 3))
+        return 0
+    }
+    
+    public method httpStatusTest(): int {
+        UnitTest::assertEquals(200, HttpStatus::OK)
+        UnitTest::assertEquals(404, HttpStatus::NOT_FOUND)
+        UnitTest::assertTrue(HttpStatus::is_success(200))
+        UnitTest::assertFalse(HttpStatus::is_success(404))
+        return 0
+    }
+    
+    public method mainTest(): int {
+        UnitTest::assertEquals(5, Math::abs(-5))
+        UnitTest::assertEquals(3, Math::min(5, 3))
+        UnitTest::assertEquals(5, Math::max(5, 3))
+        
+        UnitTest::assertTrue(HttpStatus::is_success(200))
+        UnitTest::assertFalse(HttpStatus::is_success(404))
+        
+        return 0
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 14_static_access.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+class Math {
+    public const PI:float = 3.14159
+    public const E:float = 2.71828
+
+    public static method abs(n:int): int {
+        if n < 0 {
+            return -n
+        }
+        return n
+    }
+
+    public static method min(a:int, b:int): int {
+        if a < b {
+            return a
+        }
+        return b
+    }
+
+    public static method max(a:int, b:int): int {
+        if a > b {
+            return a
+        }
+        return b
+    }
+}
+
+class HttpStatus {
+    public const OK:int = 200
+    public const NOT_FOUND:int = 404
+
+    public static method is_success(code:int): bool {
+        return code >= 200 and code < 300
+    }
+}
+

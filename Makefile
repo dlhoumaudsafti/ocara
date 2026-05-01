@@ -7,7 +7,7 @@ RESET   := \033[0m
 # Argument optionnel : make regression builtins/io
 _TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev test tests regression lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all,$(MAKECMDGOALS))
 
-.PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev test tests regression lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all $(_TARGET)
+.PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev test tests regression ci lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all $(_TARGET)
 
 # ── Aide ──────────────────────────────────────────────────────────────────────
 help:
@@ -25,6 +25,7 @@ help:
 	@echo "                            ex: make regression builtins/io"
 	@echo "                            ex: make regression 07_loops"
 	@echo "                            ex: make regression project/main"
+	@echo "  ci                      Lance le pipeline CI complet (check + dump + tests + lint)"
 	@echo "  lint-examples           Lance ocaracs sur tous les exemples"
 	@echo "  tests-examples          Lance ocaraunit sur les exemples"
 	@echo "  install                 Installe ocara dans /usr/local/bin/"
@@ -68,6 +69,13 @@ regression:
 	    ./ci/unittests.sh examples/project/tests; \
 	    ./ci/unittests.sh examples/tests; \
 	fi
+
+# ── CI Pipeline ───────────────────────────────────────────────────────────────
+ci:
+	@echo "══════════════════════════════════════════════"
+	@echo " Pipeline CI — Intégration Continue"
+	@echo "══════════════════════════════════════════════"
+	./ci/start.sh
 
 # ── Outils (ocaracs + ocaraunit) ─────────────────────────────────────────────
 build-tools:

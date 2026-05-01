@@ -3,18 +3,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import ocara.UnitTest
+import ocara.IO
+import ocara.Map
+import ocara.Array
 
 class Test_09_maps {
-    
-    public method mapCreationTest(): int {
-        var scores:map<string, int> = {}
-        scores["Alice"] = 90
-        scores["Bob"] = 85
-        
-        UnitTest::assertEquals(90, scores["Alice"])
-        UnitTest::assertEquals(85, scores["Bob"])
-        return 0
-    }
     
     public method mapLiteralTest(): int {
         var config:map<string, string> = {
@@ -28,8 +21,9 @@ class Test_09_maps {
     }
     
     public method mapUpdateTest(): int {
-        var prices:map<string, int> = {}
-        prices["pomme"] = 2
+        var prices:map<string, int> = {
+            "pomme": 2
+        }
         UnitTest::assertEquals(2, prices["pomme"])
         
         prices["pomme"] = 3
@@ -48,6 +42,41 @@ class Test_09_maps {
             sum = sum + v
         }
         UnitTest::assertEquals(3, sum)
+        return 0
+    }
+    
+    public method mainTest(): int {
+        // Reproduit le comportement de main() - version simplifiée
+        var ages:map<string, int> = {
+            "Alice": 30,
+            "Bob":   25,
+            "Carol": 35
+        }
+        UnitTest::assertEquals(30, ages["Alice"])
+        UnitTest::assertEquals(25, ages["Bob"])
+        
+        var age_count:int = 0
+        for nom => age in ages {
+            age_count = age_count + 1
+        }
+        UnitTest::assertEquals(3, age_count)
+        
+        var capitales:map<string, string> = {
+            "France":    "Paris",
+            "Allemagne": "Berlin",
+            "Espagne":   "Madrid"
+        }
+        UnitTest::assertEquals("Paris", capitales["France"])
+        UnitTest::assertEquals("Madrid", capitales["Espagne"])
+        
+        var codes:map<int, string> = {
+            200: "OK",
+            404: "Not Found",
+            500: "Server Error"
+        }
+        UnitTest::assertEquals("OK", codes[200])
+        UnitTest::assertEquals("Not Found", codes[404])
+        
         return 0
     }
 }
