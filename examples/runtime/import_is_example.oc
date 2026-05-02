@@ -1,0 +1,43 @@
+// Exemple : Import runtime avec 'is' (le contenu devient directement le bloc spécifié)
+
+import ocara.IO
+
+// Importer config.oc comme bloc init
+runtime config is init
+
+main {
+    IO::writeln("")
+    IO::writeln("╔═══════════════════════════════════════════╗")
+    IO::writeln("║  Traitement principal                    ║")
+    IO::writeln("╚═══════════════════════════════════════════╝")
+    
+    // Utiliser les variables définies dans config.oc
+    if debugMode {
+        IO::writeln("[DEBUG] Mode debug activé")
+        IO::writeln(`[DEBUG] Config: ${configFile}`)
+    }
+    
+    var attempts: int = 0
+    while attempts < maxRetries {
+        attempts = attempts + 1
+        IO::writeln(`Tentative ${attempts}/${maxRetries}...`)
+    }
+    
+    IO::writeln("✓ Traitement terminé")
+}
+
+success {
+    IO::writeln("")
+    IO::writeln("╔═══════════════════════════════════════════╗")
+    IO::writeln("║  Succès !                                 ║")
+    IO::writeln("╚═══════════════════════════════════════════╝")
+}
+
+exit {
+    IO::writeln("")
+    if SUCCESS {
+        IO::writeln("Programme terminé normalement")
+    } else {
+        IO::writeln(`Erreur ${ERROR}`)
+    }
+}

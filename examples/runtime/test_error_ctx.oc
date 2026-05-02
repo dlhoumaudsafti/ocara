@@ -1,0 +1,23 @@
+import ocara.IO
+
+init {
+    IO::writeln("=== INIT ===")
+    var counter: int = 0
+    var counter2: int = 2
+}
+
+main {
+    IO::writeln("=== MAIN ===")
+    foo = 5  // Erreur : variable non déclarée
+    counter = counter + 1
+}
+
+success {
+    IO::writeln("SUCCESS")
+    bar = 10  // Erreur : variable non déclarée
+}
+
+exit {
+    IO::writeln("EXIT")
+    baz = 20  // Erreur : variable non déclarée
+}

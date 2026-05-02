@@ -1,0 +1,42 @@
+namespace .
+import ocara.IO
+
+init {
+    IO::writeln("=== INIT ===")
+    var value:int = 42
+    var threshold:int = 50
+}
+
+main {
+    IO::writeln("=== MAIN ===")
+    IO::writeln(`Valeur: ${value}, Seuil: ${threshold}`)
+    
+    if value < threshold {
+        IO::writeln("Erreur: la valeur est trop petite !")
+        return ERROR
+    }
+}
+
+error {
+    IO::writeln("=== ERROR ===")
+    IO::writeln(`Code d'erreur: ${ERROR}`)
+    IO::writeln(`Valeur problématique: ${value}`)
+}
+
+success {
+    IO::writeln("=== SUCCESS ===")
+    IO::writeln("Tout s'est bien passé !")
+}
+
+exit {
+    IO::writeln("=== EXIT ===")
+    IO::writeln(`Variables magiques:`)
+    IO::writeln(`  - SUCCESS: ${SUCCESS}`)
+    IO::writeln(`  - ERROR: ${ERROR}`)
+    
+    if SUCCESS {
+        IO::writeln("→ Programme terminé avec succès")
+    } else {
+        IO::writeln("→ Programme terminé avec erreur")
+    }
+}

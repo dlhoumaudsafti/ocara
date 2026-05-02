@@ -1,0 +1,62 @@
+// Exemple : Codes d'erreur personnalisés avec les blocs runtime
+
+import ocara.IO
+
+init {
+    IO::writeln("=== INIT ===")
+    var mode: string = "fatal"
+    IO::writeln(`Mode sélectionné: ${mode}`)
+}
+
+main {
+    IO::writeln("=== MAIN ===")
+    
+    if mode == "critical" {
+        IO::writeln("Erreur critique détectée !")
+        return 2
+    } elseif mode == "warning" {
+        IO::writeln("Avertissement : problème mineur")
+        return 1
+    } elseif mode == "fatal" {
+        IO::writeln("Erreur fatale : arrêt immédiat")
+        return 127
+    } elseif mode == "invalid_mode" {
+        IO::writeln("Erreur : mode invalide")
+        return 5
+    } else {
+        IO::writeln("Tout va bien !")
+    }
+}
+
+error {
+    IO::writeln("=== ERROR ===")
+    IO::writeln(`Code d'erreur retourné: ${ERROR}`)
+    
+    if ERROR == 1 {
+        IO::writeln("→ Avertissement (code 1)")
+    } elseif ERROR == 2 {
+        IO::writeln("→ Erreur critique (code 2)")
+    } elseif ERROR == 5 {
+        IO::writeln("→ Mode invalide (code 5)")
+    } elseif ERROR == 127 {
+        IO::writeln("→ Erreur fatale (code 127)")
+    } else {
+        IO::writeln(`→ Erreur inconnue (code ${ERROR})`)
+    }
+}
+
+success {
+    IO::writeln("=== SUCCESS ===")
+    IO::writeln("Traitement réussi !")
+}
+
+exit {
+    IO::writeln("=== EXIT ===")
+    IO::writeln(`Variables magiques: SUCCESS=${SUCCESS}, ERROR=${ERROR}`)
+    
+    if SUCCESS {
+        IO::writeln("✓ Programme terminé avec succès")
+    } else {
+        IO::writeln("✗ Programme terminé avec erreur")
+    }
+}

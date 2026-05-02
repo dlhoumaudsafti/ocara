@@ -96,6 +96,13 @@ pub enum TokenKind {
     Resolve,
     Variadic,
 
+    // ── Blocs runtime ─────────────────────────────────────────────────────────
+    Runtime,
+    Main,
+    Error,
+    Success,
+    Exit,
+
     // ── Types primitifs ───────────────────────────────────────────────────────
     TInt,
     TFloat,

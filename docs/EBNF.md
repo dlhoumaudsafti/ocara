@@ -15,32 +15,33 @@
 2. [Structure d'un programme](#2-structure-dun-programme)
 3. [Namespaces](#3-namespaces)
 4. [Système d'imports](#4-système-dimports)
-5. [Types](#5-types)
-6. [Littéraux et collections](#6-littéraux-et-collections)
-7. [Identifiants](#7-identifiants)
-8. [Variables et constantes](#8-variables-et-constantes)
-9. [Expressions](#9-expressions)
-10. [Opérateurs et précédence](#10-opérateurs-et-précédence)
-11. [Instructions](#11-instructions)
-12. [Blocs](#12-blocs)
-13. [Fonctions](#13-fonctions)
-14. [Bibliothèque standard runtime](#14-bibliothèque-standard-runtime)
-    - [14.1 Classes de la bibliothèque standard runtime (namespace ocara)](#141-classes-de-la-bibliothèque-standard-runtime-namespace-ocara)
-15. [Classes](#15-classes)
-16. [Interfaces](#16-interfaces)
-17. [Héritage et implémentation](#17-héritage-et-implémentation)
-18. [Modules (mixins)](#18-modules-mixins)
-19. [Génériques (generic)](#19-génériques-generic)
-20. [Enums](#20-enums)
-21. [Instanciation](#21-instanciation)
-22. [Accès statique](#22-accès-statique)
-23. [Conditions](#23-conditions)
-24. [Switch](#24-switch)
-25. [Match (expression)](#25-match-expression)
-26. [Boucles](#26-boucles)
-27. [Gestion des erreurs](#27-gestion-des-erreurs)
-28. [Résolution des noms](#28-résolution-des-noms)
-29. [Grammaire EBNF complète](#29-grammaire-ebnf-complète)
+5. [Blocs runtime](#5-blocs-runtime)
+6. [Types](#6-types)
+7. [Littéraux et collections](#7-littéraux-et-collections)
+8. [Identifiants](#8-identifiants)
+9. [Variables et constantes](#9-variables-et-constantes)
+10. [Expressions](#10-expressions)
+11. [Opérateurs et précédence](#11-opérateurs-et-précédence)
+12. [Instructions](#12-instructions)
+13. [Blocs](#13-blocs)
+14. [Fonctions](#14-fonctions)
+15. [Bibliothèque standard runtime](#15-bibliothèque-standard-runtime)
+    - [15.1 Classes de la bibliothèque standard runtime (namespace ocara)](#151-classes-de-la-bibliothèque-standard-runtime-namespace-ocara)
+16. [Classes](#16-classes)
+17. [Interfaces](#17-interfaces)
+18. [Héritage et implémentation](#18-héritage-et-implémentation)
+19. [Modules (mixins)](#19-modules-mixins)
+20. [Génériques (generic)](#20-génériques-generic)
+21. [Enums](#21-enums)
+22. [Instanciation](#22-instanciation)
+23. [Accès statique](#23-accès-statique)
+24. [Conditions](#24-conditions)
+25. [Switch](#25-switch)
+26. [Match (expression)](#26-match-expression)
+27. [Boucles](#27-boucles)
+28. [Gestion des erreurs](#28-gestion-des-erreurs)
+29. [Résolution des noms](#29-résolution-des-noms)
+30. [Grammaire EBNF complète](#30-grammaire-ebnf-complète)
 
 ---
 
@@ -76,14 +77,17 @@ Chaque fichier suit strictement l'ordre suivant :
 ```
 Program ::= NamespaceDecl?
             ImportDecl*
+            RuntimeImport*
+            RuntimeBlock*
             ( ConstDecl | EnumDecl | ClassDecl | GenericDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
 ```
 
 **Contraintes d'ordre :**
 - La déclaration de namespace (optionnelle) est toujours en première position.
 - Les imports viennent ensuite.
+- Les imports runtime et blocs runtime (v0.3.0) sont optionnels.
 - Les déclarations de constantes, enums, classes, modules, interfaces et fonctions peuvent être dans n'importe quel ordre entre elles.
-- Il n'existe pas de code de niveau module exécutable hors d'une fonction.
+- Il n'existe pas de code de niveau module exécutable hors d'une fonction (sauf dans les blocs runtime).
 
 ---
 
@@ -254,7 +258,231 @@ import Button from "./components/Button"             // sélectif (from)
 
 ---
 
-## 5. Types
+## 5. Blocs runtime
+
+**Nouveauté v0.3.0** : Les blocs runtime permettent de structurer l'exécution d'un programme avec un cycle de vie prédéfini.
+
+### 5.1 Vue d'ensemble
+
+Un programme peut définir jusqu'à 5 blocs runtime qui s'exécutent dans un ordre spécifique :
+
+```
+init → main → (error | success) → exit → return ERROR
+```
+
+### 5.2 Grammaire
+
+```ebnf
+RuntimeImport ::= "runtime" ModulePath ( "is" RuntimeBlockKind )?
+
+RuntimeBlock  ::= RuntimeBlockKind "{" Statement* "}"
+
+RuntimeBlockKind ::= "init" | "main" | "error" | "success" | "exit"
+
+ModulePath    ::= Identifier ( "." Identifier )*
+```
+
+### 5.3 Les cinq blocs
+
+| Bloc      | Ordre | Condition d'exécution          | Description                           |
+|-----------|-------|--------------------------------|---------------------------------------|
+| `init`    | 1     | Toujours                       | Initialisation avant exécution        |
+| `main`    | 2     | Toujours                       | Logique principale du programme       |
+| `error`   | 3a    | Si `ERROR != 0`                | Gestion des erreurs                   |
+| `success` | 3b    | Si `ERROR == 0`                | Traitement en cas de succès           |
+| `exit`    | 4     | Toujours                       | Nettoyage final                       |
+
+**Particularités :**
+- Les blocs `error` et `success` sont **mutuellement exclusifs**
+- Tous les blocs sont optionnels
+- Si aucun bloc n'est défini, le programme démarre avec une fonction `main()` classique
+- Les variables déclarées dans un bloc sont accessibles dans tous les blocs suivants
+
+### 5.4 Variables magiques
+
+Deux variables sont automatiquement injectées si les blocs correspondants existent :
+
+| Variable   | Type   | Portée             | Description                              |
+|------------|--------|--------------------|------------------------------------------|
+| `ERROR`    | `int`  | error, exit        | Code d'erreur (0 = succès, ≠0 = erreur) |
+| `SUCCESS`  | `bool` | exit               | Indicateur de succès (true si ERROR==0) |
+
+Ces variables sont **en lecture/écriture** et définissent le code de sortie du programme.
+
+### 5.5 Syntaxe `return` dans les blocs runtime
+
+Dans un bloc runtime, `return` a un comportement spécial :
+
+```ocara
+return ERROR    // Équivalent à : ERROR = 1
+return 5        // Équivalent à : ERROR = 5
+return 42       // Équivalent à : ERROR = 42
+```
+
+**Important** : contrairement aux fonctions, `return` dans un bloc runtime **ne termine pas l'exécution**. Il assigne seulement une valeur à `ERROR`. Pour éviter l'exécution de code après un `return`, utilisez des structures conditionnelles :
+
+```ocara
+main {
+    if condition {
+        return 1
+    } elseif other {
+        return 2
+    } else {
+        // Code normal
+    }
+}
+```
+
+### 5.6 Imports runtime
+
+Deux syntaxes d'import sont disponibles :
+
+#### 5.6.1 Import de blocs déclarés (sans `is`)
+
+Le fichier source contient des blocs déclarés :
+
+```ocara
+// logger.runtime.oc
+import ocara.IO
+
+init {
+    IO::writeln("Application démarrée")
+}
+
+exit {
+    IO::writeln("Application terminée")
+}
+```
+
+Import dans le programme principal :
+
+```ocara
+runtime logger  // Importe tous les blocs déclarés (init et exit)
+```
+
+#### 5.6.2 Import avec `is` (contenu brut)
+
+Le fichier source contient du code **sans** déclaration de bloc :
+
+```ocara
+// config.oc
+import ocara.IO
+
+var debugMode: bool = true
+IO::writeln("Configuration chargée")
+```
+
+Import dans le programme principal :
+
+```ocara
+runtime config is init  // Le contenu de config.oc devient le bloc init
+```
+
+**Résolution des fichiers** : le compilateur cherche dans cet ordre :
+1. `nom.runtime.oc`
+2. `nom.run.oc`
+3. `nom.rt.oc`
+4. `nom.oc`
+
+### 5.7 Exemple complet
+
+```ocara
+import ocara.IO
+
+init {
+    IO::writeln("=== INIT ===")
+    var counter: int = 0
+}
+
+main {
+    IO::writeln("=== MAIN ===")
+    counter = counter + 1
+    
+    if counter < 0 {
+        return ERROR  // ERROR = 1
+    }
+}
+
+error {
+    IO::writeln("=== ERROR ===")
+    IO::writeln(`Code: ${ERROR}`)
+}
+
+success {
+    IO::writeln("=== SUCCESS ===")
+    IO::writeln(`Compteur: ${counter}`)
+}
+
+exit {
+    IO::writeln("=== EXIT ===")
+    IO::writeln(`SUCCESS=${SUCCESS}, ERROR=${ERROR}`)
+}
+```
+
+**Sortie** :
+```
+=== INIT ===
+=== MAIN ===
+=== SUCCESS ===
+Compteur: 1
+=== EXIT ===
+SUCCESS=true, ERROR=0
+```
+
+**Code de sortie** : `0` (valeur de `ERROR`)
+
+### 5.8 Compilation et diagnostics
+
+Lors de la compilation, tous les blocs runtime sont fusionnés en une seule fonction `main()` :
+
+```rust
+fn main() -> int {
+    var ERROR: int = 0
+    var SUCCESS: bool = false
+    
+    // Bloc init (ligne 4-6 du fichier source)
+    IO::writeln("=== INIT ===")
+    var counter: int = 0
+    
+    // Bloc main (ligne 8-14 du fichier source)
+    IO::writeln("=== MAIN ===")
+    counter = counter + 1
+    if counter < 0 {
+        ERROR = 1
+    }
+    
+    // Conditionnel error/success
+    if ERROR != 0 {
+        // Bloc error (ligne 16-19 du fichier source)
+        IO::writeln("=== ERROR ===")
+        IO::writeln(`Code: ${ERROR}`)
+    } else {
+        SUCCESS = true
+        // Bloc success (ligne 21-24 du fichier source)
+        IO::writeln("=== SUCCESS ===")
+        IO::writeln(`Compteur: ${counter}`)
+    }
+    
+    // Bloc exit (ligne 26-29 du fichier source)
+    IO::writeln("=== EXIT ===")
+    IO::writeln(`SUCCESS=${SUCCESS}, ERROR=${ERROR}`)
+    
+    return ERROR
+}
+```
+
+**Diagnostics d'erreur** : Les erreurs de compilation pointent directement vers le fichier source avec les bons numéros de ligne, permettant de cliquer sur l'erreur dans VS Code :
+
+```
+examples/runtime/app.oc:5:9: error: variable 'foo' not found (in runtime block 'init')
+examples/runtime/app.oc:11:16: error: type mismatch (in runtime block 'main')
+```
+
+Le compilateur détecte automatiquement le bloc runtime correspondant à chaque ligne et l'ajoute dans le message d'erreur pour faciliter le débogage.
+
+---
+
+## 6. Types
 
 ### 5.1 Types primitifs
 
@@ -902,7 +1130,16 @@ int       float     string     bool       mixed      map      void
 true      false     null
 or        and       not
 nameless  async     resolve    enum
+runtime   main      error      success    exit
 ```
+
+**Variables magiques réservées :**
+
+```
+ERROR     SUCCESS
+```
+
+> Ces variables sont automatiquement injectées dans les blocs runtime et ne peuvent pas être redéclarées.
 
 **Types réservés (PascalCase) :**
 
@@ -2986,7 +3223,7 @@ Un import ne peut jamais écraser un symbole local existant.
 
 ---
 
-## 29. Grammaire EBNF complète
+## 30. Grammaire EBNF complète
 
 > Notation : `*` = zéro ou plus, `+` = un ou plus, `?` = optionnel, `|` = alternative, `( )` = groupement.
 
@@ -2995,6 +3232,8 @@ Un import ne peut jamais écraser un symbole local existant.
 
 Program     ::= NamespaceDecl?
                 ImportDecl*
+                RuntimeImport*
+                RuntimeBlock*
                 ( ConstDecl | EnumDecl | ClassDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
 
 (* ── Namespace ───────────────────────────────────────────────────── *)
@@ -3007,6 +3246,12 @@ ImportDecl  ::= "import" ModulePath ( "as" Identifier )?
               | "import" ImportTarget "from" StringLiteral ( "as" Identifier )?
 ModulePath  ::= Identifier ( "." Identifier )*
 ImportTarget ::= "*" | Identifier
+
+(* ── Blocs runtime ─────────────────────────────────────── *)
+
+RuntimeImport    ::= "runtime" ModulePath ( "is" RuntimeBlockKind )?
+RuntimeBlock     ::= RuntimeBlockKind "{" Statement* "}"
+RuntimeBlockKind ::= "init" | "main" | "error" | "success" | "exit"
 
 (* ── Déclarations globales ──────────────────────────────────────── *)
 
