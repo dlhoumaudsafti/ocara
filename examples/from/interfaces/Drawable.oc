@@ -1,0 +1,7 @@
+// Interface pour les objets dessinables
+namespace interfaces
+
+interface Drawable {
+    method draw(): void
+    method getColor(): string
+}

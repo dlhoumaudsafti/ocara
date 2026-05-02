@@ -5,6 +5,7 @@
   "fileTypes": ["oc"],
   "patterns": [
     { "include": "#comments" },
+    { "include": "#namespace" },
     { "include": "#import" },
     { "include": "#string-template" },
     { "include": "#string-double" },
@@ -51,8 +52,53 @@
       ]
     },
 
+    "namespace": {
+      "patterns": [
+        {
+          "comment": "namespace . — root namespace",
+          "match": "^(namespace)\\s+(\\.)\\s*$",
+          "captures": {
+            "1": { "name": "keyword.other.namespace.ocara" },
+            "2": { "name": "punctuation.separator.namespace.root.ocara" }
+          }
+        },
+        {
+          "comment": "namespace identifier — named namespace",
+          "match": "^(namespace)\\s+([\\w]+)\\s*$",
+          "captures": {
+            "1": { "name": "keyword.other.namespace.ocara" },
+            "2": { "name": "entity.name.namespace.ocara" }
+          }
+        }
+      ]
+    },
+
     "import": {
       "patterns": [
+        {
+          "comment": "import * from \"file\" — wildcard import",
+          "match": "^(import)\\s+(\\*)\\s+(from)\\s+(\"[^\"]+\")(?:\\s+(as)\\s+([A-Z][\\w]*))?\\s*$",
+          "captures": {
+            "1": { "name": "keyword.control.import.ocara" },
+            "2": { "name": "constant.language.import-all.ocara" },
+            "3": { "name": "keyword.control.from.ocara" },
+            "4": { "name": "string.quoted.double.ocara" },
+            "5": { "name": "keyword.control.as.ocara" },
+            "6": { "name": "entity.name.type.alias.ocara" }
+          }
+        },
+        {
+          "comment": "import Circle from \"file\" [as Alias] — selective import",
+          "match": "^(import)\\s+([A-Z][\\w]*)\\s+(from)\\s+(\"[^\"]+\")(?:\\s+(as)\\s+([A-Z][\\w]*))?\\s*$",
+          "captures": {
+            "1": { "name": "keyword.control.import.ocara" },
+            "2": { "name": "entity.name.type.ocara" },
+            "3": { "name": "keyword.control.from.ocara" },
+            "4": { "name": "string.quoted.double.ocara" },
+            "5": { "name": "keyword.control.as.ocara" },
+            "6": { "name": "entity.name.type.alias.ocara" }
+          }
+        },
         {
           "comment": "import ocara.Builtin — namespace builtin en couleur distincte",
           "match": "^(import)\\s+(ocara)(\\.)([\\w]+)\\s*$",
@@ -241,7 +287,7 @@
 
     "keyword-other": {
       "name": "keyword.other.ocara",
-      "match": "\\b(as|use|nameless|resolve|extends|implements|modules|is|self)\\b"
+      "match": "\\b(as|from|use|nameless|resolve|extends|implements|modules|is|self|namespace)\\b"
     },
 
     "type-primitive": {

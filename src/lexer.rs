@@ -247,6 +247,8 @@ impl Lexer {
     fn keyword_or_ident(s: &str) -> TokenKind {
         match s {
             "import"     => TokenKind::Import,
+            "from"       => TokenKind::From,
+            "namespace"  => TokenKind::Namespace,
             "as"         => TokenKind::As,
             "var"        => TokenKind::Var,
             "scoped"     => TokenKind::Scoped,
