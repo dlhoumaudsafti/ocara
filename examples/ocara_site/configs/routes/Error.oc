@@ -1,0 +1,11 @@
+namespace configs.routes
+
+import ocara.HTTPServer
+
+import controllers.ErrorController
+
+class Error {
+    init(server:HTTPServer) {
+       server.routeError(404, ErrorController::handle404)
+    }
+}
