@@ -28,6 +28,50 @@ fn box_for_any(builder: &mut LowerBuilder, target_ty: &IrType, val_ty: IrType, v
     }
 }
 
+/// Génère le nom monomorphisé pour un type générique (identique à la monomorphisation dans main.rs)
+fn monomorphized_name_for_lowering(base: &str, type_args: &[Type]) -> String {
+    let mut name = base.to_string();
+    for ty in type_args {
+        name.push('_');
+        name.push_str(&type_name_for_mangle(ty));
+    }
+    name
+}
+
+/// Convertit un type en chaîne pour le name mangling (identique à main.rs)
+fn type_name_for_mangle(ty: &Type) -> String {
+    match ty {
+        Type::Int => "int".to_string(),
+        Type::Float => "float".to_string(),
+        Type::Bool => "bool".to_string(),
+        Type::String => "string".to_string(),
+        Type::Void => "void".to_string(),
+        Type::Mixed => "mixed".to_string(),
+        Type::Null => "null".to_string(),
+        Type::Named(n) => n.clone(),
+        Type::Qualified(parts) => parts.join("_"),
+        Type::Array(inner) => format!("array_{}", type_name_for_mangle(inner)),
+        Type::Map(k, v) => format!("map_{}_{}", type_name_for_mangle(k), type_name_for_mangle(v)),
+        Type::Generic { name, args } => {
+            let mut s = name.clone();
+            for arg in args {
+                s.push('_');
+                s.push_str(&type_name_for_mangle(arg));
+            }
+            s
+        }
+        Type::Union(variants) => {
+            let mut s = String::from("union");
+            for v in variants {
+                s.push('_');
+                s.push_str(&type_name_for_mangle(v));
+            }
+            s
+        }
+        Type::Function { .. } => "function".to_string(),
+    }
+}
+
 pub fn lower_block(builder: &mut LowerBuilder, block: &Block) {
     for stmt in &block.stmts {
         if builder.is_terminated() { break; }
@@ -53,6 +97,11 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
             // Si c'est un type de classe, enregistrer le mapping var → classe
             if let crate::ast::Type::Named(class_name) = ty {
                 builder.var_class.insert(name.clone(), class_name.clone());
+            }
+            // Si c'est un générique, utiliser le nom monomorphisé
+            if let crate::ast::Type::Generic { name: generic_name, args } = ty {
+                let specialized_name = monomorphized_name_for_lowering(generic_name, args);
+                builder.var_class.insert(name.clone(), specialized_name);
             }
             // Les variables string ont automatiquement accès aux méthodes de String
             if let crate::ast::Type::String = ty {
@@ -108,6 +157,11 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
             }
             if let crate::ast::Type::Named(class_name) = ty {
                 builder.var_class.insert(name.clone(), class_name.clone());
+            }
+            // Si c'est un générique, utiliser le nom monomorphisé
+            if let crate::ast::Type::Generic { name: generic_name, args } = ty {
+                let specialized_name = monomorphized_name_for_lowering(generic_name, args);
+                builder.var_class.insert(name.clone(), specialized_name);
             }
             // Les variables string ont automatiquement accès aux méthodes de String
             if let crate::ast::Type::String = ty {

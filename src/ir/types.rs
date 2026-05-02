@@ -20,12 +20,13 @@ impl IrType {
             Type::Bool             => IrType::Bool,
             Type::Void             => IrType::Void,
             Type::String           => IrType::Ptr,
-            Type::Mixed              => IrType::Ptr,
+            Type::Mixed            => IrType::Ptr,
             Type::Null             => IrType::Ptr,
             Type::Named(_)         => IrType::Ptr,
             Type::Qualified(_)     => IrType::Ptr,
             Type::Array(_)         => IrType::Ptr,
             Type::Map(_, _)        => IrType::Ptr,
+            Type::Generic { .. }   => IrType::Ptr,  // Générique monomorphisé = objet
             Type::Union(_)         => IrType::Ptr,
             Type::Function { .. }  => IrType::Ptr,
         }

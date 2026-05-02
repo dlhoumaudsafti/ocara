@@ -4,7 +4,7 @@ use crate::token::Span;
 // Types Ocara v1.0
 // ─────────────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
     Int,
     Float,
@@ -21,6 +21,11 @@ pub enum Type {
     Array(Box<Type>),
     /// `map<K, V>`
     Map(Box<Type>, Box<Type>),
+    /// Type générique avec arguments : `List<int>`, `Cache<string, User>`
+    Generic {
+        name: String,
+        args: Vec<Type>,
+    },
     /// `T | U | ...` — type union
     Union(Vec<Type>),
     /// Référence à une fonction ou méthode statique (premier ordre) :
@@ -106,11 +111,12 @@ pub enum Expr {
         span:  Span,
     },
 
-    /// Instanciation : `use Foo(a, b)`
+    /// Instanciation : `use Foo(a, b)` ou `use Cache<int, User>()`
     New {
-        class: String,
-        args:  Vec<Expr>,
-        span:  Span,
+        class:     String,
+        type_args: Vec<Type>,
+        args:      Vec<Expr>,
+        span:      Span,
     },
 
     /// Opération binaire
@@ -466,6 +472,29 @@ pub struct ClassDecl {
     pub span:       Span,
 }
 
+/// Paramètre de type générique (ex: T, K, V = string)
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeParam {
+    pub name:    String,
+    /// Valeur par défaut optionnelle
+    pub default: Option<Type>,
+    pub span:    Span,
+}
+
+/// Déclaration générique (ex: generic List<T> { ... })
+#[derive(Debug, Clone, PartialEq)]
+pub struct GenericDecl {
+    pub name:        String,
+    pub type_params: Vec<TypeParam>,
+    pub extends:     Option<String>,
+    /// Arguments de type pour extends (ex: extends Base<T>)
+    pub extends_args: Vec<Type>,
+    pub modules:     Vec<String>,
+    pub implements:  Vec<String>,
+    pub members:     Vec<ClassMember>,
+    pub span:        Span,
+}
+
 /// Déclaration de module (mixin)
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModuleDecl {
@@ -545,6 +574,7 @@ pub struct Program {
     pub modules:    Vec<ModuleDecl>,
     pub enums:      Vec<EnumDecl>,
     pub classes:    Vec<ClassDecl>,
+    pub generics:   Vec<GenericDecl>,
     pub interfaces: Vec<InterfaceDecl>,
     pub functions:  Vec<FuncDecl>,
 }
@@ -558,6 +588,7 @@ impl Program {
             modules:    Vec::new(),
             enums:      Vec::new(),
             classes:    Vec::new(),
+            generics:   Vec::new(),
             interfaces: Vec::new(),
             functions:  Vec::new(),
         }

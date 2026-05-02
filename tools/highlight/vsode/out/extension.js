@@ -190,21 +190,21 @@ class OcaraDefinitionProvider {
     }
     // ─── Trouve le type d'une variable/propriété ──────────────────────────────
     findVariableType(document, varName) {
-        // Cherche les déclarations de propriétés : private/public/property name:Type
-        const propertyRe = new RegExp(`\\b(?:private|public)?\\s*property\\s+(${esc(varName)})\\s*:\\s*([A-Z]\\w*)`);
-        // Cherche les déclarations de variables : var name:Type
-        const varRe = new RegExp(`\\b(?:var|scoped|const)\\s+(${esc(varName)})\\s*:\\s*([A-Z]\\w*)`);
+        // Cherche les déclarations de propriétés : private/public/property name:Type ou name:Generic<T>
+        const propertyRe = new RegExp(`\\b(?:private|public)?\\s*property\\s+(${esc(varName)})\\s*:\\s*([A-Z]\\w*)(?:<[^>]+>)?`);
+        // Cherche les déclarations de variables : var name:Type ou var name:Generic<T>
+        const varRe = new RegExp(`\\b(?:var|scoped|const)\\s+(${esc(varName)})\\s*:\\s*([A-Z]\\w*)(?:<[^>]+>)?`);
         for (let i = 0; i < document.lineCount; i++) {
             const text = document.lineAt(i).text;
             // Propriété
             let m = text.match(propertyRe);
             if (m && m[2]) {
-                return m[2]; // Retourne le type
+                return m[2]; // Retourne le type de base (sans les arguments génériques)
             }
             // Variable
             m = text.match(varRe);
             if (m && m[2]) {
-                return m[2]; // Retourne le type
+                return m[2]; // Retourne le type de base (sans les arguments génériques)
             }
         }
         return undefined;
@@ -352,8 +352,8 @@ class OcaraDefinitionProvider {
         // Sinon, cherche la définition du symbole dans le fichier cible
         const content = fs.readFileSync(absolutePath, 'utf8');
         const lines = content.split('\n');
-        // Cherche class, interface, function, module, enum
-        const symbolRe = new RegExp(`\\b(?:class|interface|function|module|enum)\\s+(${esc(symbol)})\\b`);
+        // Cherche class, generic, interface, function, module, enum
+        const symbolRe = new RegExp(`\\b(?:generic|class|interface|function|module|enum)\\s+(${esc(symbol)})\\b`);
         for (let i = 0; i < lines.length; i++) {
             const m = lines[i].match(symbolRe);
             if (m && m.index !== undefined) {
@@ -464,7 +464,7 @@ class OcaraDefinitionProvider {
     }
     // ─── Déclaration locale d'un type (class / interface / module / enum) ──────
     findTypeDeclaration(document, name, position) {
-        const re = new RegExp(`\\b(?:class|interface|module|enum)\\s+(${esc(name)})\\b`);
+        const re = new RegExp(`\\b(?:generic|class|interface|module|enum)\\s+(${esc(name)})\\b`);
         for (let i = 0; i < document.lineCount; i++) {
             const text = document.lineAt(i).text;
             const m = text.match(re);
