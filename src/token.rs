@@ -8,11 +8,18 @@ use std::fmt;
 pub struct Span {
     pub line: usize,
     pub col: usize,
+    pub file: Option<String>,
+    pub runtime_ctx: Option<String>,
 }
 
 impl Span {
     pub fn new(line: usize, col: usize) -> Self {
-        Self { line, col }
+        Self { line, col, file: None, runtime_ctx: None }
+    }
+    
+    #[allow(dead_code)]
+    pub fn with_file(line: usize, col: usize, file: String) -> Self {
+        Self { line, col, file: Some(file), runtime_ctx: None }
     }
 
     /// Combine deux spans pour créer un span qui les couvre tous les deux.

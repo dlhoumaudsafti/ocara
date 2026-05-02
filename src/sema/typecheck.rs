@@ -17,6 +17,12 @@ pub struct TypeChecker<'a> {
     current_ret:   Option<Type>,
     /// Nom de la classe en cours (pour `self`)
     current_class: Option<String>,
+    /// Contexte runtime actuel (init, main, error, success, exit)
+    current_runtime_ctx: Option<String>,
+    /// Classes déjà typecheckées (pour éviter de les typecheck plusieurs fois)
+    checked_classes: std::collections::HashSet<String>,
+    /// Référence au Program pour accéder aux ClassDecl lors du typecheck lazy
+    program: Option<&'a Program>,
     /// Mapping var_name → func_name pour les variables qui contiennent un task handle async.
     /// Utilisé par Expr::Resolve pour retrouver le type de retour original.
     async_var_funcs: std::collections::HashMap<String, String>,
@@ -31,17 +37,38 @@ impl<'a> TypeChecker<'a> {
             scopes:   ScopeStack::default(),
             current_ret:   None,
             current_class: None,
+            current_runtime_ctx: None,
+            checked_classes: std::collections::HashSet::new(),
+            program: None,
             async_var_funcs: std::collections::HashMap::new(),
         }
+    }
+    
+    // ── Helper pour ajouter le contexte runtime au span ──────────────────────
+    
+    fn with_runtime_ctx(&self, span: &Span) -> Span {
+        let mut s = span.clone();
+        if let Some(ctx) = &self.current_runtime_ctx {
+            s.runtime_ctx = Some(ctx.clone());
+        }
+        s
     }
 
     // ── Point d'entrée ───────────────────────────────────────────────────────
 
-    pub fn check_program(&mut self, program: &Program) {
+    pub fn check_program(&mut self, program: &'a Program) {
+        // Stocker la référence au program pour le typecheck lazy
+        self.program = Some(program);
+        
         // Enums — vérifier les doublons de variantes
         for en in &program.enums {
             self.check_enum(en);
         }
+        
+        // Blocs runtime AVANT les classes et fonctions
+        // Comme ça, les classes utilisées dans les runtime blocks seront typecheckées avec le contexte
+        self.check_runtime_blocks(program);
+        
         // Fonctions libres — vérifier les types de retour mixed
         for func in &program.functions {
             if let Type::Mixed = func.ret_ty {
@@ -52,12 +79,10 @@ impl<'a> TypeChecker<'a> {
             }
             self.check_func(func);
         }
-        // Classes
+        // Classes (celles qui n'ont pas été typecheckées via les runtime blocks)
         for class in &program.classes {
             self.check_class(class);
         }
-        // Blocs runtime
-        self.check_runtime_blocks(program);
     }
 
     // ── Enum ─────────────────────────────────────────────────────────────────
@@ -112,6 +137,12 @@ impl<'a> TypeChecker<'a> {
     // ── Classe ───────────────────────────────────────────────────────────────
 
     fn check_class(&mut self, class: &ClassDecl) {
+        // Ne pas typecheck deux fois la même classe
+        if self.checked_classes.contains(&class.name) {
+            return;
+        }
+        self.checked_classes.insert(class.name.clone());
+        
         self.current_class = Some(class.name.clone());
 
         for member in &class.members {
@@ -260,9 +291,15 @@ impl<'a> TypeChecker<'a> {
         
         for kind in &order {
             if let Some(block) = program.runtime_blocks.iter().find(|b| b.kind == *kind) {
+                // Définir le contexte runtime actuel
+                self.current_runtime_ctx = Some(kind.as_str().to_string());
+                
                 for stmt in &block.statements {
                     self.check_stmt(stmt);
                 }
+                
+                // Réinitialiser le contexte
+                self.current_runtime_ctx = None;
             }
         }
         
@@ -563,7 +600,7 @@ impl<'a> TypeChecker<'a> {
                     self.errors.push(SemaError::FieldNotFound {
                         class: cls_name,
                         field: field.clone(),
-                        span:  span.clone(),
+                        span:  self.with_runtime_ctx(span),
                     });
                 }
                 Type::Mixed
@@ -734,7 +771,7 @@ impl<'a> TypeChecker<'a> {
                                 self.errors.push(SemaError::FieldNotFound {
                                     class: cls_name.clone(),
                                     field: field.clone(),
-                                    span:  fspan.clone(),
+                                    span:  self.with_runtime_ctx(fspan),
                                 });
                                 for a in args { self.infer_expr(a); }
                                 return Type::Mixed;
@@ -776,7 +813,7 @@ impl<'a> TypeChecker<'a> {
                         self.errors.push(SemaError::FieldNotFound {
                             class: cls_name,
                             field: field.clone(),
-                            span:  fspan.clone(),
+                            span:  self.with_runtime_ctx(fspan),
                         });
                     }
                 }
@@ -878,8 +915,17 @@ impl<'a> TypeChecker<'a> {
                 if !is_class && !is_generic {
                     self.errors.push(SemaError::NotAClass {
                         name: class.clone(),
-                        span: span.clone(),
+                        span: self.with_runtime_ctx(span),
                     });
+                }
+                
+                // Typecheck lazy de la classe si elle n'a pas déjà été typecheckée
+                if is_class && !self.checked_classes.contains(class) {
+                    if let Some(prog) = self.program {
+                        if let Some(class_decl) = prog.classes.iter().find(|c| &c.name == class) {
+                            self.check_class(class_decl);
+                        }
+                    }
                 }
                 
                 // TODO: Pour les génériques, vérifier que type_args correspondent aux type_params
@@ -898,7 +944,7 @@ impl<'a> TypeChecker<'a> {
                     // TODO: ajouter une erreur spécifique pour cela
                     self.errors.push(SemaError::NotAClass {
                         name: class.clone(),
-                        span: span.clone(),
+                        span: self.with_runtime_ctx(span),
                     });
                     Type::Mixed
                 } else {

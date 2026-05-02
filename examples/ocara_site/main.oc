@@ -17,29 +17,32 @@
 //   curl http://localhost:3000/
 //   curl http://localhost:3000/about
 //   curl http://localhost:3000/contact
+namespace .
 
 import ocara.IO
-import ocara.HTTPServer
-import components
-import controllers.HomeController
-import controllers.AboutController
-import controllers.ContactController
+import configs.Components 
+import configs.Server
 
-function main(): int {
-    setup_components()
+init {
+    IO::writeln("Initialisation du site...")
+    use Components()
+    const server:Server = use Server()
+    server.routes()
+}
 
-    const server:HTTPServer = use HTTPServer()
-    server.setPort(3000)
-    server.setWorkers(4)
-
-    server.route("/",        "GET", HomeController::handle)
-    server.route("/about",   "GET", AboutController::handle)
-    server.route("/contact", "GET", ContactController::handle)
-
+main {
     IO::writeln("Site demarre sur http://localhost:3000")
     IO::writeln("  /          -> home (async stats)")
     IO::writeln("  /about     -> a propos (render_cached)")
     IO::writeln("  /contact   -> contact (render_cached)")
-    server.run()
-    return 0
+    const result:Exception|void = server.run()
+    if result is Exception {
+        return result.code
+    }
 }
+
+error {
+    IO::writeln(`ERROR ${ERROR} : ${result.message}`)
+}
+
+

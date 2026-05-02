@@ -1,0 +1,10 @@
+namespace configs.routes
+
+import ocara.HTTPServer
+import controllers.HomeController
+
+class General {
+    init(server:HTTPServer) {
+       server.route("/",        "GET", HomeController::handle)
+    }
+}

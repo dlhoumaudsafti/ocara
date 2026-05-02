@@ -1,0 +1,14 @@
+namespace configs.components
+
+import ocara.HTMLComponent
+
+class Card extends HTMLComponent {
+    init() {
+        self.setTag("card")
+        self.register(nameless(attrs:map<string, mixed>): string {
+            scoped title:string   = attrs["title"]
+            scoped content:string = attrs["__slot__"]
+            return `<div class="card"><h2>${title}</h2>${content}</div>`
+        })
+    }
+}

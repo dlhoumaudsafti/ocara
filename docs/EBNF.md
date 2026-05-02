@@ -260,7 +260,7 @@ import Button from "./components/Button"             // sélectif (from)
 
 ## 5. Blocs runtime
 
-**Nouveauté v0.3.0** : Les blocs runtime permettent de structurer l'exécution d'un programme avec un cycle de vie prédéfini.
+Les blocs runtime permettent de structurer l'exécution d'un programme avec un cycle de vie prédéfini.
 
 ### 5.1 Vue d'ensemble
 
@@ -469,13 +469,6 @@ fn main() -> int {
     
     return ERROR
 }
-```
-
-**Diagnostics d'erreur** : Les erreurs de compilation pointent directement vers le fichier source avec les bons numéros de ligne, permettant de cliquer sur l'erreur dans VS Code :
-
-```
-examples/runtime/app.oc:5:9: error: variable 'foo' not found (in runtime block 'init')
-examples/runtime/app.oc:11:16: error: type mismatch (in runtime block 'main')
 ```
 
 Le compilateur détecte automatiquement le bloc runtime correspondant à chaque ligne et l'ajoute dans le message d'erreur pour faciliter le débogage.
