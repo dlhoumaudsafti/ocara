@@ -1,0 +1,40 @@
+// examples/builtins/html/components.oc
+// Enregistrement de tous les composants HTML du mini projet.
+//
+// Composants :
+//   <nav-bar active="home|about|contact">  — barre commune à toutes les pages
+//   <layout title="..." active="...">      — mise en page complète (slot)
+//   <card title="...">                     — carte de contenu (slot)
+//   <stats value="...">                    — badge de statistiques
+namespace configs
+
+import ocara.HTTPServer
+import controllers.AboutController
+import controllers.ContactController
+import routes.General
+import routes.Error
+import routes.Infos
+
+class Server {
+    private property server:HTTPServer
+
+    init() {
+        self.server = use HTTPServer()
+        self.server.setPort(3000)
+        self.server.setWorkers(4)
+    }
+
+    public method routes(): void {
+        use General(self.server)
+        use Error(self.server)
+        use Infos(self.server)
+    }
+
+    public method run(): Exception|void {
+        try {
+            self.server.run()
+        } on e {
+            return e
+        }
+    }
+}

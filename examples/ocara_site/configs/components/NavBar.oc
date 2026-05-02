@@ -1,0 +1,21 @@
+namespace configs.components
+
+import ocara.HTMLComponent
+
+class NavBar extends HTMLComponent {
+    init() {
+        self.setTag("nav-bar")
+        self.register(nameless(attrs:map<string, mixed>): string {
+            scoped active:string      = attrs["active"]
+            scoped home_cls:string    = match active { "home"    => " active" default => "" }
+            scoped about_cls:string   = match active { "about"   => " active" default => "" }
+            scoped contact_cls:string = match active { "contact" => " active" default => "" }
+            return `<nav>
+      <span class="brand">Ocara</span>
+      <a href="/" class="nav-link${home_cls}">Accueil</a>
+      <a href="/about" class="nav-link${about_cls}">A propos</a>
+      <a href="/contact" class="nav-link${contact_cls}">Contact</a>
+    </nav>`
+        })
+    }
+}

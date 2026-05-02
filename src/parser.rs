@@ -132,17 +132,33 @@ impl Parser {
         if self.check_exact(&TokenKind::Namespace) {
             self.advance(); // consommer 'namespace'
             
-            // namespace . ou namespace identifier
+            // namespace . ou namespace identifier[.identifier]*
             if self.check_exact(&TokenKind::Dot) {
                 self.advance(); // consommer '.'
                 program.namespace = Some(".".to_string()); // namespace racine explicite
             } else {
-                // Doit être un identifiant
+                // Doit être un identifiant (ou plusieurs séparés par des points)
                 let tok = self.current().clone();
                 if let TokenKind::Ident(_) = tok.kind {
-                    let ns = tok.lexeme.clone();
+                    let mut ns_parts = vec![tok.lexeme.clone()];
                     self.advance();
-                    program.namespace = Some(ns);
+                    
+                    // Lire les parties supplémentaires du namespace (ex: configs.components)
+                    while self.check_exact(&TokenKind::Dot) {
+                        self.advance(); // consommer '.'
+                        let tok = self.current().clone();
+                        if let TokenKind::Ident(_) = tok.kind {
+                            ns_parts.push(tok.lexeme.clone());
+                            self.advance();
+                        } else {
+                            return Err(ParseError::new(
+                                "expected identifier after '.' in namespace declaration".to_string(),
+                                self.span(),
+                            ));
+                        }
+                    }
+                    
+                    program.namespace = Some(ns_parts.join("."));
                 } else {
                     return Err(ParseError::new(
                         "expected '.' or identifier after 'namespace'".to_string(),

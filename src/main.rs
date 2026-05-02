@@ -968,6 +968,281 @@ fn monomorphize(program: &mut ast::Program) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Helper pour mettre à jour tous les Spans d'un Program avec le nom du fichier
+// ─────────────────────────────────────────────────────────────────────────────
+
+fn update_program_spans_with_file(program: &mut ast::Program, file_path: &str) {
+    // Helper pour mettre à jour un Span
+    fn update_span(span: &mut token::Span, file: &str) {
+        span.file = Some(file.to_string());
+    }
+    
+    // Helper pour mettre à jour les spans dans une expression
+    fn update_expr_spans(expr: &mut Expr, file: &str) {
+        match expr {
+            Expr::Literal(_, span) | Expr::Ident(_, span) | Expr::SelfExpr(span) => {
+                update_span(span, file);
+            }
+            Expr::Binary { left, right, span, .. } => {
+                update_span(span, file);
+                update_expr_spans(left, file);
+                update_expr_spans(right, file);
+            }
+            Expr::Unary { operand, span, .. } => {
+                update_span(span, file);
+                update_expr_spans(operand, file);
+            }
+            Expr::Call { callee, args, span } => {
+                update_span(span, file);
+                update_expr_spans(callee, file);
+                for arg in args {
+                    update_expr_spans(arg, file);
+                }
+            }
+            Expr::StaticCall { args, span, .. } => {
+                update_span(span, file);
+                for arg in args {
+                    update_expr_spans(arg, file);
+                }
+            }
+            Expr::Field { object, span, .. } => {
+                update_span(span, file);
+                update_expr_spans(object, file);
+            }
+            Expr::Index { object, index, span } => {
+                update_span(span, file);
+                update_expr_spans(object, file);
+                update_expr_spans(index, file);
+            }
+            Expr::Array { elements, span } => {
+                update_span(span, file);
+                for elem in elements {
+                    update_expr_spans(elem, file);
+                }
+            }
+            Expr::Map { entries, span } => {
+                update_span(span, file);
+                for (k, v) in entries {
+                    update_expr_spans(k, file);
+                    update_expr_spans(v, file);
+                }
+            }
+            Expr::Range { start, end, span, .. } => {
+                update_span(span, file);
+                update_expr_spans(start, file);
+                update_expr_spans(end, file);
+            }
+            Expr::Match { subject, arms, span } => {
+                update_span(span, file);
+                update_expr_spans(subject, file);
+                for arm in arms {
+                    update_expr_spans(&mut arm.body, file);
+                }
+            }
+            Expr::Template { span, .. } => {
+                update_span(span, file);
+            }
+            Expr::Nameless { body, span, .. } => {
+                update_span(span, file);
+                for stmt in &mut body.stmts {
+                    update_stmt_spans(stmt, file);
+                }
+            }
+            Expr::Resolve { expr: e, span } | Expr::IsCheck { expr: e, span, .. } => {
+                update_span(span, file);
+                update_expr_spans(e, file);
+            }
+            Expr::New { args, span, .. } => {
+                update_span(span, file);
+                for arg in args {
+                    update_expr_spans(arg, file);
+                }
+            }
+            Expr::StaticConst { span, .. } => {
+                update_span(span, file);
+            }
+        }
+    }
+    
+    // Helper pour mettre à jour les spans dans un statement
+    fn update_stmt_spans(stmt: &mut Stmt, file: &str) {
+        match stmt {
+            Stmt::Var { value, span, .. } | Stmt::Const { value, span, .. } => {
+                update_span(span, file);
+                update_expr_spans(value, file);
+            }
+            Stmt::Assign { target, value, span } => {
+                update_span(span, file);
+                update_expr_spans(target, file);
+                update_expr_spans(value, file);
+            }
+            Stmt::Expr(expr) => {
+                update_expr_spans(expr, file);
+            }
+            Stmt::If { condition, then_block, elseif, else_block, span } => {
+                update_span(span, file);
+                update_expr_spans(condition, file);
+                for stmt in &mut then_block.stmts {
+                    update_stmt_spans(stmt, file);
+                }
+                for (cond, block) in elseif {
+                    update_expr_spans(cond, file);
+                    for stmt in &mut block.stmts {
+                        update_stmt_spans(stmt, file);
+                    }
+                }
+                if let Some(block) = else_block {
+                    for stmt in &mut block.stmts {
+                        update_stmt_spans(stmt, file);
+                    }
+                }
+            }
+            Stmt::While { condition, body, span } | Stmt::ForIn { iter: condition, body, span, .. } | Stmt::ForMap { iter: condition, body, span, .. } => {
+                update_span(span, file);
+                update_expr_spans(condition, file);
+                for stmt in &mut body.stmts {
+                    update_stmt_spans(stmt, file);
+                }
+            }
+            Stmt::Switch { subject, cases, default, span } => {
+                update_span(span, file);
+                update_expr_spans(subject, file);
+                for case in cases {
+                    for stmt in &mut case.body.stmts {
+                        update_stmt_spans(stmt, file);
+                    }
+                }
+                if let Some(block) = default {
+                    for stmt in &mut block.stmts {
+                        update_stmt_spans(stmt, file);
+                    }
+                }
+            }
+            Stmt::Try { body, handlers, span } => {
+                update_span(span, file);
+                for stmt in &mut body.stmts {
+                    update_stmt_spans(stmt, file);
+                }
+                for handler in handlers {
+                    for stmt in &mut handler.body.stmts {
+                        update_stmt_spans(stmt, file);
+                    }
+                }
+            }
+            Stmt::Return { value, span } => {
+                update_span(span, file);
+                if let Some(expr) = value {
+                    update_expr_spans(expr, file);
+                }
+            }
+            Stmt::Raise { value, span } => {
+                update_span(span, file);
+                update_expr_spans(value, file);
+            }
+            Stmt::Break { span } | Stmt::Continue { span } => {
+                update_span(span, file);
+            }
+        }
+    }
+    
+    // Mettre à jour les classes
+    for class in &mut program.classes {
+        update_span(&mut class.span, file_path);
+        for member in &mut class.members {
+            match member {
+                ast::ClassMember::Field { span, .. } => update_span(span, file_path),
+                ast::ClassMember::Method { span, decl, .. } => {
+                    update_span(span, file_path);
+                    update_span(&mut decl.span, file_path);
+                    // Mettre à jour le body de la méthode
+                    for stmt in &mut decl.body.stmts {
+                        update_stmt_spans(stmt, file_path);
+                    }
+                }
+                ast::ClassMember::Constructor { span, body, .. } => {
+                    update_span(span, file_path);
+                    // Mettre à jour le body du constructeur
+                    for stmt in &mut body.stmts {
+                        update_stmt_spans(stmt, file_path);
+                    }
+                }
+                ast::ClassMember::Const { span, value, .. } => {
+                    update_span(span, file_path);
+                    update_expr_spans(value, file_path);
+                }
+            }
+        }
+    }
+    
+    // Mettre à jour les fonctions
+    for func in &mut program.functions {
+        update_span(&mut func.span, file_path);
+        for stmt in &mut func.body.stmts {
+            update_stmt_spans(stmt, file_path);
+        }
+    }
+    
+    // Mettre à jour les interfaces
+    for iface in &mut program.interfaces {
+        update_span(&mut iface.span, file_path);
+    }
+    
+    // Mettre à jour les constantes
+    for const_decl in &mut program.consts {
+        update_span(&mut const_decl.span, file_path);
+        update_expr_spans(&mut const_decl.value, file_path);
+    }
+    
+    // Mettre à jour les génériques
+    for generic in &mut program.generics {
+        update_span(&mut generic.span, file_path);
+        for member in &mut generic.members {
+            match member {
+                ast::ClassMember::Field { span, .. } => update_span(span, file_path),
+                ast::ClassMember::Method { span, decl, .. } => {
+                    update_span(span, file_path);
+                    update_span(&mut decl.span, file_path);
+                    for stmt in &mut decl.body.stmts {
+                        update_stmt_spans(stmt, file_path);
+                    }
+                }
+                ast::ClassMember::Constructor { span, body, .. } => {
+                    update_span(span, file_path);
+                    for stmt in &mut body.stmts {
+                        update_stmt_spans(stmt, file_path);
+                    }
+                }
+                ast::ClassMember::Const { span, value, .. } => {
+                    update_span(span, file_path);
+                    update_expr_spans(value, file_path);
+                }
+            }
+        }
+    }
+    
+    // Mettre à jour les modules
+    for module in &mut program.modules {
+        update_span(&mut module.span, file_path);
+        for member in &mut module.members {
+            match member {
+                ast::ClassMember::Method { span, decl, .. } => {
+                    update_span(span, file_path);
+                    update_span(&mut decl.span, file_path);
+                    for stmt in &mut decl.body.stmts {
+                        update_stmt_spans(stmt, file_path);
+                    }
+                }
+                ast::ClassMember::Const { span, value, .. } => {
+                    update_span(span, file_path);
+                    update_expr_spans(value, file_path);
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Pipeline de compilation complet
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1120,16 +1395,7 @@ fn main() {
     
     // Ajouter les imports namespace (ancien format) - créer un ImportDecl virtuel avec file_path
     for imp in &module_imports {
-        // Si l'import n'a qu'un seul segment (ex: UIComponent) et qu'on est dans un namespace,
-        // essayer d'abord dans le namespace courant
-        let file_path_str = if imp.path.len() == 1 && main_namespace.is_some() && main_namespace.as_deref() != Some(".") {
-            // Essayer namespace/Symbol (ex: classes/UIComponent)
-            let ns = main_namespace.as_ref().unwrap();
-            format!("{}/{}", ns, imp.path[0])
-        } else {
-            // Chemin complet (ex: classes.Button → classes/Button)
-            imp.path.join("/")
-        };
+        let file_path_str = imp.path.join("/");
         
         // Le dernier segment est le nom du symbole à importer
         let symbol_name = imp.path.last().cloned().unwrap_or_default();
@@ -1145,33 +1411,34 @@ fn main() {
     }
     
     while !imports_to_process.is_empty() {
-        let (imp, parent_dir, _parent_namespace) = imports_to_process.remove(0);
+        let (imp, parent_dir, parent_namespace) = imports_to_process.remove(0);
         let file_path_str = imp.file_path.as_ref().unwrap();
         
         // Résoudre le chemin depuis le répertoire parent
         let clean_path = file_path_str.trim_end_matches(".oc");
-        let mut file_path = if clean_path.starts_with("../") || clean_path.starts_with("./") {
+        let mut file_path;
+        
+        if clean_path.starts_with("../") || clean_path.starts_with("./") {
             // Chemin relatif : résoudre depuis le répertoire parent
-            parent_dir.join(clean_path)
+            file_path = parent_dir.join(clean_path);
+            if !file_path.extension().is_some() {
+                file_path.set_extension("oc");
+            }
         } else {
-            // Chemin absolu ou depuis source_dir
-            source_dir.join(clean_path)
-        };
-        
-        if !file_path.extension().is_some() {
-            file_path.set_extension("oc");
-        }
-        
-        // Si le fichier n'existe pas et que le chemin pourrait être dans un namespace,
-        // essayer un fallback vers la racine (sans le namespace)
-        if !file_path.exists() && file_path_str.contains('/') {
-            let parts: Vec<&str> = file_path_str.split('/').collect();
-            if parts.len() == 2 {
-                // Essayer juste le nom du symbole (ex: classes/UIComponent → UIComponent)
-                let fallback_path = source_dir.join(parts[1]).with_extension("oc");
-                if fallback_path.exists() {
-                    file_path = fallback_path;
+            // Chemin depuis namespace courant ou racine
+            // 1. D'abord essayer dans le namespace courant (si on en a un)
+            if parent_namespace.is_some() && parent_namespace.as_deref() != Some(".") {
+                let ns = parent_namespace.as_ref().unwrap().replace(".", "/");
+                file_path = source_dir.join(&ns).join(clean_path).with_extension("oc");
+                
+                // Si trouvé dans le namespace, on s'arrête
+                if !file_path.exists() {
+                    // 2. Sinon essayer à la racine
+                    file_path = source_dir.join(clean_path).with_extension("oc");
                 }
+            } else {
+                // Pas de namespace, chercher directement à la racine
+                file_path = source_dir.join(clean_path).with_extension("oc");
             }
         }
         
@@ -1199,13 +1466,16 @@ fn main() {
                 std::process::exit(1);
             }
         };
-        let mod_prog = match Parser::new(mod_tokens).parse_program() {
+        let mut mod_prog = match Parser::new(mod_tokens).parse_program() {
             Ok(p) => p,
             Err(e) => {
                 diagnostic::print_error(&file_path, e.span.line, e.span.col, &e.message);
                 std::process::exit(1);
             }
         };
+        
+        // Mettre à jour tous les spans du programme importé avec le nom du fichier
+        update_program_spans_with_file(&mut mod_prog, &file_path.to_string_lossy());
 
         // Extraire ce qui est demandé
         let is_wildcard = imp.path.first().map(|s| s == "*").unwrap_or(false);
@@ -1281,16 +1551,7 @@ fn main() {
                 imports_to_process.push((new_imp, current_file_dir.clone(), loaded_namespace.clone()));
             } else {
                 // Import namespace - convertir en import virtuel "from"
-                // Si l'import n'a qu'un seul segment et qu'on est dans un namespace,
-                // essayer d'abord dans le namespace courant
-                let file_path_str = if new_imp.path.len() == 1 && loaded_namespace.is_some() && loaded_namespace.as_deref() != Some(".") {
-                    // Essayer namespace/Symbol (ex: classes/UIComponent)
-                    let ns = loaded_namespace.as_ref().unwrap();
-                    format!("{}/{}", ns, new_imp.path[0])
-                } else {
-                    // Chemin complet (ex: classes.Button → classes/Button)
-                    new_imp.path.join("/")
-                };
+                let file_path_str = new_imp.path.join("/");
                 let symbol_name = new_imp.path.last().cloned().unwrap_or_default();
                 
                 let virtual_imp = crate::ast::ImportDecl {
@@ -1331,6 +1592,9 @@ fn main() {
                 std::process::exit(1);
             }
         };
+        
+        // Mettre à jour tous les spans du programme importé avec le nom du fichier
+        update_program_spans_with_file(&mut mod_prog, &file_path.to_string_lossy());
 
         // Renommage via alias : la classe dont le nom = dernier segment → alias
         if let Some(alias) = &imp.alias {
@@ -1435,25 +1699,35 @@ fn main() {
         }
         
         // Collecter tous les messages avec leur ligne pour trier
-        let mut items: Vec<(usize, usize, bool, String)> = Vec::new();
+        let mut items: Vec<(usize, usize, bool, String, Option<String>, Option<String>)> = Vec::new();
         for err in &checker.errors {
-            items.push((err.span().line, err.span().col, true, err.message()));
+            items.push((err.span().line, err.span().col, true, err.message(), err.span().file.clone(), err.span().runtime_ctx.clone()));
         }
         for w in &checker.warnings {
-            items.push((w.span().line, w.span().col, false, w.message()));
+            items.push((w.span().line, w.span().col, false, w.message(), w.span().file.clone(), w.span().runtime_ctx.clone()));
         }
         items.sort_by_key(|i| (i.0, i.1));
 
-        for (line, col, is_error, msg) in &items {
-            // Trouver le contexte runtime pour cette ligne
-            let runtime_ctx = runtime_ranges.iter()
-                .find(|(range, _)| range.contains(line))
-                .map(|(_, kind)| *kind);
+        for (line, col, is_error, msg, file_opt, runtime_ctx_opt) in &items {
+            // Utiliser le fichier du span si disponible, sinon args.input
+            let file_path = file_opt.as_ref()
+                .map(|f| std::path::PathBuf::from(f))
+                .unwrap_or_else(|| args.input.clone());
+            
+            // Utiliser le contexte runtime du span s'il existe, sinon chercher dans runtime_ranges
+            let runtime_ctx = if runtime_ctx_opt.is_some() {
+                runtime_ctx_opt.as_deref()
+            } else {
+                // Fallback : chercher dans runtime_ranges (pour les erreurs sans contexte)
+                runtime_ranges.iter()
+                    .find(|(range, _)| range.contains(line))
+                    .map(|(_, kind)| *kind)
+            };
             
             if *is_error {
-                diagnostic::print_error_ctx(&args.input, *line, *col, msg, runtime_ctx);
+                diagnostic::print_error_ctx(&file_path, *line, *col, msg, runtime_ctx);
             } else {
-                diagnostic::print_warn_ctx(&args.input, *line, *col, msg, runtime_ctx);
+                diagnostic::print_warn_ctx(&file_path, *line, *col, msg, runtime_ctx);
             }
         }
 
