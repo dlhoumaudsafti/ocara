@@ -7,6 +7,8 @@
     { "include": "#comments" },
     { "include": "#namespace" },
     { "include": "#import" },
+    { "include": "#runtime-import" },
+    { "include": "#runtime-block" },
     { "include": "#string-template" },
     { "include": "#string-double" },
     { "include": "#string-single" },
@@ -51,6 +53,29 @@
             "0": { "name": "punctuation.definition.comment.end.ocara" }
           }
         }
+      ]
+    },
+
+    "runtime-import": {
+      "comment": "runtime start.Init as init — runtime block import",
+      "match": "^(runtime)\\s+([\\w]+(?:\\.[\\w]+)*)\\s+(as)\\s+(init|main|error|success|exit)\\s*$",
+      "captures": {
+        "1": { "name": "keyword.control.runtime.ocara" },
+        "2": { "name": "entity.name.namespace.ocara" },
+        "3": { "name": "keyword.control.as.ocara" },
+        "4": { "name": "keyword.declaration.runtime.block.ocara" }
+      }
+    },
+
+    "runtime-block": {
+      "comment": "init { ... } — runtime lifecycle blocks",
+      "begin": "\\b(init|main|error|success|exit)\\s*\\{",
+      "end": "\\}",
+      "beginCaptures": {
+        "1": { "name": "keyword.declaration.runtime.block.ocara" }
+      },
+      "patterns": [
+        { "include": "$self" }
       ]
     },
 
@@ -304,7 +329,7 @@
 
     "keyword-declaration": {
       "name": "keyword.declaration.ocara",
-      "match": "\\b(var|scoped|const|init|property|generic)\\b"
+      "match": "\\b(var|scoped|const|init|property|generic|runtime|main|error|success|exit)\\b"
     },
 
     "keyword-other": {

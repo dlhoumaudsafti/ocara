@@ -704,8 +704,9 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
         // ── Appel de fonction libre ───────────────────────────────────────────
         Expr::Call { callee, args, .. } => {
             // Bloquer les appels directs aux fonctions internes du codegen
+            // SAUF pour les fonctions runtime appelées depuis main()
             if let Expr::Ident(name, _) = callee.as_ref() {
-                if name.starts_with("__") {
+                if name.starts_with("__") && !name.starts_with("__runtime_") {
                     eprintln!("error: `{}` is an internal compiler function and cannot be called directly", name);
                     std::process::exit(1);
                 }

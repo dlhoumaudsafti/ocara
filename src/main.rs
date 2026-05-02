@@ -24,6 +24,83 @@ use sema::typecheck::TypeChecker;
 use ast::{Type, Expr, Stmt, ClassMember, FuncDecl, ClassDecl};
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Helpers pour extraire les numéros de ligne des statements (pour contexte runtime)
+// ─────────────────────────────────────────────────────────────────────────────
+
+fn get_stmt_start_line(stmt: &Stmt) -> usize {
+    match stmt {
+        Stmt::Var { span, .. } => span.line,
+        Stmt::Const { span, .. } => span.line,
+        Stmt::Assign { span, .. } => span.line,
+        Stmt::Expr(e) => e.span().line,
+        Stmt::If { span, .. } => span.line,
+        Stmt::While { span, .. } => span.line,
+        Stmt::ForIn { span, .. } => span.line,
+        Stmt::ForMap { span, .. } => span.line,
+        Stmt::Switch { span, .. } => span.line,
+        Stmt::Return { span, .. } => span.line,
+        Stmt::Break { span, .. } => span.line,
+        Stmt::Continue { span, .. } => span.line,
+        Stmt::Try { span, .. } => span.line,
+        Stmt::Raise { span, .. } => span.line,
+    }
+}
+
+fn get_stmt_end_line(stmt: &Stmt) -> usize {
+    match stmt {
+        Stmt::Var { span, .. } | Stmt::Const { span, .. } | Stmt::Assign { span, .. }
+        | Stmt::Return { span, .. } | Stmt::Break { span, .. }
+        | Stmt::Continue { span, .. } | Stmt::Raise { span, .. } => span.line,
+        
+        Stmt::Expr(e) => e.span().line,
+        
+        Stmt::If { else_block, then_block, elseif, span, .. } => {
+            if let Some(eb) = else_block {
+                if let Some(last) = eb.stmts.last() {
+                    return get_stmt_end_line(last);
+                }
+            }
+            for (_, block) in elseif.iter().rev() {
+                if let Some(last) = block.stmts.last() {
+                    return get_stmt_end_line(last);
+                }
+            }
+            if let Some(last) = then_block.stmts.last() {
+                return get_stmt_end_line(last);
+            }
+            span.line
+        }
+        
+        Stmt::While { body, span, .. } | Stmt::ForIn { body, span, .. } | Stmt::ForMap { body, span, .. } => {
+            body.stmts.last().map_or(span.line, |last| get_stmt_end_line(last))
+        }
+        
+        Stmt::Switch { default, cases, span, .. } => {
+            if let Some(def) = default {
+                if let Some(last) = def.stmts.last() {
+                    return get_stmt_end_line(last);
+                }
+            }
+            for case in cases.iter().rev() {
+                if let Some(last) = case.body.stmts.last() {
+                    return get_stmt_end_line(last);
+                }
+            }
+            span.line
+        }
+        
+        Stmt::Try { handlers, body, span, .. } => {
+            for handler in handlers.iter().rev() {
+                if let Some(last) = handler.body.stmts.last() {
+                    return get_stmt_end_line(last);
+                }
+            }
+            body.stmts.last().map_or(span.line, |last| get_stmt_end_line(last))
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // CLI minimale
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -554,6 +631,211 @@ fn collect_from_expr(expr: &Expr, instantiations: &mut HashSet<(String, Vec<Type
         }
         Expr::Literal(..) | Expr::Ident(..) | Expr::SelfExpr(..) | Expr::StaticConst { .. } => {}
     }
+}
+
+/// Expand les imports runtime : charge les fichiers .runtime.oc et fusionne les blocs
+fn expand_runtime_imports(program: &mut ast::Program, source_dir: &std::path::Path, input_file: &std::path::Path) {
+    // Map: RuntimeBlockKind -> Vec<statements>
+    let mut blocks_map: HashMap<ast::RuntimeBlockKind, Vec<ast::Stmt>> = HashMap::new();
+    
+    // Ajouter les blocs existants dans le programme
+    for block in &program.runtime_blocks {
+        blocks_map.entry(block.kind)
+            .or_insert_with(Vec::new)
+            .extend(block.statements.clone());
+    }
+    
+    // Traiter chaque import runtime
+    for rt_import in &program.runtime_imports {
+        // Résoudre le chemin du fichier runtime
+        let runtime_file = resolve_runtime_file(source_dir, &rt_import.path);
+        
+        match runtime_file {
+            Some(path) => {
+                // Charger et parser le fichier runtime
+                match load_runtime_file(&path, rt_import, input_file) {
+                    Ok(blocks) => {
+                        // Si kind est spécifié (runtime X is init), ajouter tous les statements au bloc spécifié
+                        // Sinon (runtime X), importer tous les blocs déclarés
+                        if let Some(target_kind) = rt_import.kind {
+                            // Mode: le contenu du fichier devient le bloc spécifié
+                            for block in blocks {
+                                blocks_map.entry(target_kind)
+                                    .or_insert_with(Vec::new)
+                                    .extend(block.statements);
+                            }
+                        } else {
+                            // Mode: importer tous les blocs déclarés du fichier
+                            for block in blocks {
+                                blocks_map.entry(block.kind)
+                                    .or_insert_with(Vec::new)
+                                    .extend(block.statements);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        diagnostic::print_error(input_file, rt_import.span.line, rt_import.span.col, &e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            None => {
+                let path_str = rt_import.path.join(".");
+                diagnostic::print_error(
+                    input_file,
+                    rt_import.span.line,
+                    rt_import.span.col,
+                    &format!("runtime file not found: `{}` (tried .runtime.oc, .run.oc, .rt.oc, .oc)", path_str)
+                );
+                std::process::exit(1);
+            }
+        }
+    }
+    
+    // Reconstruire la liste des blocs runtime et transformer les return
+    program.runtime_blocks = blocks_map.into_iter()
+        .map(|(kind, mut statements)| {
+            transform_runtime_returns(&mut statements);
+            ast::RuntimeBlock {
+                kind,
+                statements,
+                span: token::Span::new(0, 0), // Span fusionné
+            }
+        })
+        .collect();
+}
+
+/// Transforme les return dans les blocs runtime
+/// - return error → error = 1
+/// - return <expr> → error = <expr>
+fn transform_runtime_returns(stmts: &mut Vec<ast::Stmt>) {
+    for stmt in stmts.iter_mut() {
+        match stmt {
+            ast::Stmt::Return { value: Some(expr), span } => {
+                // Vérifier si c'est "return ERROR"
+                if let ast::Expr::Ident(name, _) = expr {
+                    if name == "ERROR" {
+                        // Transformer en ERROR = 1
+                        *stmt = ast::Stmt::Assign {
+                            target: ast::Expr::Ident("ERROR".to_string(), token::Span::new(0, 0)),
+                            value: ast::Expr::Literal(ast::Literal::Int(1), token::Span::new(0, 0)),
+                            span: span.clone(),
+                        };
+                        continue;
+                    }
+                }
+                // Sinon c'est "return <expr>" → ERROR = <expr>
+                *stmt = ast::Stmt::Assign {
+                    target: ast::Expr::Ident("ERROR".to_string(), token::Span::new(0, 0)),
+                    value: expr.clone(),
+                    span: span.clone(),
+                };
+            }
+            ast::Stmt::If { then_block, elseif, else_block, .. } => {
+                transform_runtime_returns(&mut then_block.stmts);
+                for (_, block) in elseif.iter_mut() {
+                    transform_runtime_returns(&mut block.stmts);
+                }
+                if let Some(block) = else_block {
+                    transform_runtime_returns(&mut block.stmts);
+                }
+            }
+            ast::Stmt::While { body, .. } | ast::Stmt::ForIn { body, .. } | ast::Stmt::ForMap { body, .. } => {
+                transform_runtime_returns(&mut body.stmts);
+            }
+            ast::Stmt::Switch { cases, default, .. } => {
+                for case in cases.iter_mut() {
+                    transform_runtime_returns(&mut case.body.stmts);
+                }
+                if let Some(block) = default {
+                    transform_runtime_returns(&mut block.stmts);
+                }
+            }
+            ast::Stmt::Try { body, handlers, .. } => {
+                transform_runtime_returns(&mut body.stmts);
+                for handler in handlers.iter_mut() {
+                    transform_runtime_returns(&mut handler.body.stmts);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Résout le chemin d'un fichier runtime : essaie .runtime.oc, .run.oc, .rt.oc, .oc
+fn resolve_runtime_file(source_dir: &std::path::Path, path: &[String]) -> Option<std::path::PathBuf> {
+    let path_str = path.join("/");
+    let extensions = ["runtime.oc", "run.oc", "rt.oc", "oc"];
+    
+    for ext in &extensions {
+        let file_path = source_dir.join(format!("{}.{}", path_str, ext));
+        if file_path.exists() {
+            return Some(file_path);
+        }
+    }
+    
+    None
+}
+
+/// Charge et parse un fichier runtime, retourne tous les blocs définis
+fn load_runtime_file(
+    file_path: &std::path::Path,
+    rt_import: &ast::RuntimeImport,
+    _main_file: &std::path::Path,
+) -> Result<Vec<ast::RuntimeBlock>, String> {
+    // Lire le fichier
+    let source = fs::read_to_string(file_path)
+        .map_err(|e| format!("cannot read '{}': {}", file_path.display(), e))?;
+    
+    // Si kind est spécifié (ex: runtime config is init),
+    // le contenu du fichier devient directement le contenu du bloc spécifié
+    let source_to_parse = if let Some(target_kind) = rt_import.kind {
+        // Séparer les imports du reste du code
+        let mut imports = String::new();
+        let mut body = String::new();
+        
+        for line in source.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("import ") || trimmed.starts_with("namespace ") || trimmed.starts_with("//") || trimmed.is_empty() {
+                imports.push_str(line);
+                imports.push('\n');
+            } else {
+                body.push_str(line);
+                body.push('\n');
+            }
+        }
+        
+        // Wrapper le corps dans un bloc runtime fictif
+        format!("{}\n{} {{\n{}\n}}", imports, target_kind.as_str(), body)
+    } else {
+        // Sinon, parser le fichier tel quel (qui doit contenir des blocs déclarés)
+        source
+    };
+    
+    // Lexer
+    let tokens = Lexer::new(&source_to_parse).tokenize()
+        .map_err(|e| format!("lexing error in '{}': {:?}", file_path.display(), e))?;
+    
+    // Parser
+    let runtime_program = Parser::new(tokens).parse_program()
+        .map_err(|e| format!("parse error in '{}' at {}:{}: {}", 
+            file_path.display(), e.span.line, e.span.col, e.message))?;
+    
+    // Si kind est spécifié, retourner le bloc créé
+    if let Some(target_kind) = rt_import.kind {
+        // Le bloc doit exister car on l'a créé nous-même
+        for block in &runtime_program.runtime_blocks {
+            if block.kind == target_kind {
+                return Ok(vec![block.clone()]);
+            }
+        }
+        return Err(format!(
+            "internal error: failed to parse wrapped runtime block '{}'",
+            target_kind.as_str()
+        ));
+    }
+    
+    Ok(runtime_program.runtime_blocks)
 }
 
 /// Monomorphise les génériques : génère des classes spécialisées
@@ -1127,6 +1409,9 @@ fn main() {
         }
     }
 
+    // ── 4d. Expansion des imports runtime ─────────────────────────────────────
+    expand_runtime_imports(&mut program, source_dir, &args.input);
+
     // ── 4e. Analyse sémantique ────────────────────────────────────────────────
     let mut checker = TypeChecker::new(&symbols);
     checker.check_program(&program);
@@ -1136,6 +1421,19 @@ fn main() {
     let has_warnings = !checker.warnings.is_empty();
 
     if has_errors || has_warnings {
+        // Créer une map des plages de lignes pour chaque bloc runtime
+        let mut runtime_ranges: Vec<(std::ops::Range<usize>, &str)> = Vec::new();
+        for block in &program.runtime_blocks {
+            if let (Some(first), Some(last)) = (block.statements.first(), block.statements.last()) {
+                // Extraire le span du premier et dernier statement
+                let start_line = get_stmt_start_line(first);
+                let end_line = get_stmt_end_line(last);
+                if start_line > 0 && end_line > 0 {
+                    runtime_ranges.push((start_line..end_line + 1, block.kind.as_str()));
+                }
+            }
+        }
+        
         // Collecter tous les messages avec leur ligne pour trier
         let mut items: Vec<(usize, usize, bool, String)> = Vec::new();
         for err in &checker.errors {
@@ -1147,10 +1445,15 @@ fn main() {
         items.sort_by_key(|i| (i.0, i.1));
 
         for (line, col, is_error, msg) in &items {
+            // Trouver le contexte runtime pour cette ligne
+            let runtime_ctx = runtime_ranges.iter()
+                .find(|(range, _)| range.contains(line))
+                .map(|(_, kind)| *kind);
+            
             if *is_error {
-                diagnostic::print_error(&args.input, *line, *col, msg);
+                diagnostic::print_error_ctx(&args.input, *line, *col, msg, runtime_ctx);
             } else {
-                diagnostic::print_warn(&args.input, *line, *col, msg);
+                diagnostic::print_warn_ctx(&args.input, *line, *col, msg, runtime_ctx);
             }
         }
 
@@ -1164,7 +1467,7 @@ fn main() {
         return;
     }
 
-    // ── 4e. Monomorphisation des génériques ───────────────────────────────────
+    // ── 4f. Monomorphisation des génériques ───────────────────────────────────
     monomorphize(&mut program);
 
     // ── 5. Lowering AST → Ocara HIR ────────────────────────────────────────────

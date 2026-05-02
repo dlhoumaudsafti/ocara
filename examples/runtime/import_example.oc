@@ -1,0 +1,37 @@
+// Exemple : Utilisation de l'import runtime
+namespace .
+
+import ocara.IO
+
+// Importer les blocs init et exit depuis logger.runtime.oc
+runtime logger
+
+main {
+    IO::writeln("")
+    IO::writeln("=== TRAITEMENT PRINCIPAL ===")
+    
+    var operation: string = "calcul"
+    var result: int = 42
+    
+    IO::writeln(`Opération: ${operation}`)
+    IO::writeln(`Résultat: ${result}`)
+    
+    if result < 0 {
+        IO::writeln("Erreur: résultat négatif !")
+        return ERROR
+    }
+    
+    IO::writeln("Traitement terminé avec succès")
+}
+
+success {
+    IO::writeln("")
+    IO::writeln("=== SUCCÈS ===")
+    IO::writeln("Toutes les opérations se sont bien déroulées")
+}
+
+error {
+    IO::writeln("")
+    IO::writeln("=== ERREUR ===")
+    IO::writeln("Une erreur s'est produite pendant le traitement")
+}

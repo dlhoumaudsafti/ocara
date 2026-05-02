@@ -1,0 +1,18 @@
+// Fichier de configuration pour le bloc init
+// Ce fichier ne contient QUE du code (pas de bloc init)
+// Il sera importé avec "runtime config is init"
+
+import ocara.IO
+
+IO::writeln("╔═══════════════════════════════════════════╗")
+IO::writeln("║  Configuration de l'environnement        ║")
+IO::writeln("╚═══════════════════════════════════════════╝")
+
+var configFile: string = "/etc/app.conf"
+var debugMode: bool = true
+var maxRetries: int = 3
+
+IO::writeln(`Fichier de config: ${configFile}`)
+IO::writeln(`Mode debug: ${debugMode}`)
+IO::writeln(`Tentatives max: ${maxRetries}`)
+
