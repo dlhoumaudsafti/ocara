@@ -520,8 +520,14 @@ pub struct ConstDecl {
 /// Import
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImportDecl {
-    /// Chemin qualifié : `["datas", "User"]`
+    /// Chemin qualifié ou noms à importer
+    /// - Format ancien: `["ocara", "IO"]` pour `import ocara.IO`
+    /// - Format nouveau: `["Circle"]` pour `import Circle from "file"`
+    /// - Format wildcard: `["*"]` pour `import * from "file"`
     pub path:  Vec<String>,
+    /// Chemin de fichier optionnel pour `from "path"`
+    /// Ex: Some("11_interfaces.oc") pour `import Circle from "11_interfaces.oc"`
+    pub file_path: Option<String>,
     /// Alias optionnel : `as UserData`
     pub alias: Option<String>,
     pub span:  Span,
@@ -533,6 +539,7 @@ pub struct ImportDecl {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
+    pub namespace:  Option<String>, // None ou "." = racine, "classes" = namespace classes, etc.
     pub imports:    Vec<ImportDecl>,
     pub consts:     Vec<ConstDecl>,
     pub modules:    Vec<ModuleDecl>,
@@ -545,6 +552,7 @@ pub struct Program {
 impl Program {
     pub fn new() -> Self {
         Self {
+            namespace:  None,
             imports:    Vec::new(),
             consts:     Vec::new(),
             modules:    Vec::new(),

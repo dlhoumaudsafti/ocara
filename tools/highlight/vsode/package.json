@@ -5,6 +5,7 @@
   "version": "0.1.0",
   "publisher": "david-lhoumaud",
   "license": "MIT",
+  "icon": "logo-min.png",
   "engines": {
     "vscode": "^1.85.0"
   },

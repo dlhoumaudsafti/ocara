@@ -1,0 +1,54 @@
+namespace . // pas obligatoire, mais clarifie que les classes sont dans le namespace global
+
+import ocara.IO
+import ocara.Convert
+import classes.Button
+
+function main(): int {
+    IO::writeln("═══════════════════════════════════════")
+    IO::writeln(" Test import from avec sous-dossiers")
+    IO::writeln(" Button extends UIComponent")
+    IO::writeln(" Button implements Drawable")
+    IO::writeln(" Button modules Clickable")
+    IO::writeln("═══════════════════════════════════════")
+    IO::writeln("")
+    
+    // Crée un bouton
+    var btnSave:Button = use Button("Sauvegarder", "bleu")
+    
+    // Appelle les méthodes
+    // btnSave.draw()
+    IO::writeln("")
+    
+    // Test du module Clickable
+    btnSave.click()
+    btnSave.click()
+    btnSave.click()
+    IO::writeln("")
+    
+    IO::writeln("Nombre de clics: " + Convert::intToStr(btnSave.get_click_count()))
+    IO::writeln("")
+    
+    // Test des méthodes héritées de UIComponent
+    btnSave.show()
+    IO::writeln("")
+    btnSave.hide()
+    IO::writeln("")
+    
+    // Crée un autre bouton
+    var btnCancel:Button = use Button("Annuler", "rouge")
+    btnCancel.draw()
+    IO::writeln("")
+    
+    btnCancel.click()
+    IO::writeln("")
+    
+    IO::writeln("Couleur du bouton: " + btnCancel.getColor())
+    IO::writeln("Nombre de clics: " + Convert::intToStr(btnCancel.get_click_count()))
+    
+    IO::writeln("")
+    IO::writeln("✓ Test réussi!")
+    IO::writeln("✓ Button extends UIComponent, implements Drawable, modules Clickable")
+    
+    return 0
+}

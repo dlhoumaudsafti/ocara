@@ -7,8 +7,11 @@ Coloration syntaxique et navigation (Go-to-Definition) pour le langage **Ocara**
 - Highlight complet : mots-clés, types, classes, méthodes, imports, chaînes, templates
 - Appels de méthodes (`obj.method()`), accès statiques (`Class::member`), builtins `ocara.*`
 - **Ctrl+Click** sur un `import` → ouvre le fichier `.oc` correspondant
+- **Ctrl+Click** sur `import Circle from "11_interfaces"` → ouvre le fichier et positionne sur la classe `Circle`
+- **Ctrl+Click** sur `self.circle.area()` → navigue vers la méthode `area()` dans la classe importée
 - **Ctrl+Click** sur `ClassName::member` → ouvre le fichier de la classe et positionne le curseur sur la méthode
 - **Ctrl+Click** sur un nom de variable ou fonction → navigue vers la déclaration
+- **Scan automatique du workspace** pour résoudre les imports `from "file"` dans n'importe quel sous-dossier
 
 ---
 

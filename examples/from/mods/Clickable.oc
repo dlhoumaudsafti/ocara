@@ -1,0 +1,34 @@
+// Module Clickable - Ajoute un comportement de compteur de clics
+namespace mods
+
+module Clickable {
+    private property click_count:int
+    private property enabled:bool
+    
+    public method init_clickable(): void {
+        self.click_count = 0
+        self.enabled = true
+    }
+    
+    public method get_click_count(): int {
+        return self.click_count
+    }
+    
+    public method increment_clicks(): void {
+        if self.enabled {
+            self.click_count = self.click_count + 1
+        }
+    }
+    
+    public method enable(): void {
+        self.enabled = true
+    }
+    
+    public method disable(): void {
+        self.enabled = false
+    }
+    
+    public method is_enabled(): bool {
+        return self.enabled
+    }
+}

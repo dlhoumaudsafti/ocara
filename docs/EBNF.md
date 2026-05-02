@@ -13,32 +13,33 @@
 
 1. [Philosophie](#1-philosophie)
 2. [Structure d'un programme](#2-structure-dun-programme)
-3. [Système de modules](#3-système-de-modules)
-4. [Types](#4-types)
-5. [Littéraux et collections](#5-littéraux-et-collections)
-6. [Identifiants](#6-identifiants)
-7. [Variables et constantes](#7-variables-et-constantes)
-8. [Expressions](#8-expressions)
-9. [Opérateurs et précédence](#9-opérateurs-et-précédence)
-10. [Instructions](#10-instructions)
-11. [Blocs](#11-blocs)
-12. [Fonctions](#12-fonctions)
-13. [Bibliothèque standard runtime](#13-bibliothèque-standard-runtime)
-    - [13.1 Classes de la bibliothèque standard runtime (namespace ocara)](#131-classes-de-la-bibliothèque-standard-runtime-namespace-ocara)
-14. [Classes](#14-classes)
-15. [Interfaces](#15-interfaces)
-16. [Héritage et implémentation](#16-héritage-et-implémentation)
-17. [Modules (mixins)](#17-modules-mixins)
-18. [Enums](#18-enums)
-19. [Instanciation](#19-instanciation)
-20. [Accès statique](#20-accès-statique)
-21. [Conditions](#21-conditions)
-22. [Switch](#22-switch)
-23. [Match (expression)](#23-match-expression)
-24. [Boucles](#24-boucles)
-25. [Gestion des erreurs](#25-gestion-des-erreurs)
-26. [Résolution des noms](#26-résolution-des-noms)
-27. [Grammaire EBNF complète](#27-grammaire-ebnf-complète)
+3. [Namespaces](#3-namespaces)
+4. [Système d'imports](#4-système-dimports)
+5. [Types](#5-types)
+6. [Littéraux et collections](#6-littéraux-et-collections)
+7. [Identifiants](#7-identifiants)
+8. [Variables et constantes](#8-variables-et-constantes)
+9. [Expressions](#9-expressions)
+10. [Opérateurs et précédence](#10-opérateurs-et-précédence)
+11. [Instructions](#11-instructions)
+12. [Blocs](#12-blocs)
+13. [Fonctions](#13-fonctions)
+14. [Bibliothèque standard runtime](#14-bibliothèque-standard-runtime)
+    - [14.1 Classes de la bibliothèque standard runtime (namespace ocara)](#141-classes-de-la-bibliothèque-standard-runtime-namespace-ocara)
+15. [Classes](#15-classes)
+16. [Interfaces](#16-interfaces)
+17. [Héritage et implémentation](#17-héritage-et-implémentation)
+18. [Modules (mixins)](#18-modules-mixins)
+19. [Enums](#19-enums)
+20. [Instanciation](#20-instanciation)
+21. [Accès statique](#21-accès-statique)
+22. [Conditions](#22-conditions)
+23. [Switch](#23-switch)
+24. [Match (expression)](#24-match-expression)
+25. [Boucles](#25-boucles)
+26. [Gestion des erreurs](#26-gestion-des-erreurs)
+27. [Résolution des noms](#27-résolution-des-noms)
+28. [Grammaire EBNF complète](#28-grammaire-ebnf-complète)
 
 ---
 
@@ -72,20 +73,75 @@ Un programme Ocara est un ensemble de fichiers sources (extension `.oc`).
 Chaque fichier suit strictement l'ordre suivant :
 
 ```
-Program ::= ImportDecl*
+Program ::= NamespaceDecl?
+            ImportDecl*
             ( ConstDecl | EnumDecl | ClassDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
 ```
 
 **Contraintes d'ordre :**
-- Les imports sont toujours en tête de fichier.
+- La déclaration de namespace (optionnelle) est toujours en première position.
+- Les imports viennent ensuite.
 - Les déclarations de constantes, enums, classes, modules, interfaces et fonctions peuvent être dans n'importe quel ordre entre elles.
 - Il n'existe pas de code de niveau module exécutable hors d'une fonction.
 
 ---
 
-## 3. Système de modules
+## 3. Namespaces
 
-### 3.1 Import
+### 3.1 Déclaration de namespace
+
+Un fichier peut déclarer son namespace en première ligne :
+
+```ebnf
+NamespaceDecl ::= "namespace" ( "." | Identifier )
+```
+
+**Exemples :**
+
+```ocara
+namespace .          // Namespace racine (explicite)
+namespace classes    // Namespace "classes"
+namespace models     // Namespace "models"
+namespace utils.http // Namespace imbriqué (non supporté pour l'instant)
+```
+
+**Règles :**
+- Si aucun namespace n'est déclaré, le fichier est dans le **namespace racine par défaut** (équivalent à `namespace .`)
+- Le namespace définit le contexte de résolution des imports
+- Les classes dans le même namespace peuvent se référencer sans préfixe
+
+### 3.2 Résolution des imports avec namespace
+
+Quand un fichier avec `namespace classes` fait `import UIComponent` :
+
+1. **Recherche locale** : Le compilateur cherche d'abord dans `classes/UIComponent.oc` (même namespace)
+2. **Fallback racine** : Si pas trouvé, cherche dans `UIComponent.oc` (racine)
+3. **Import qualifié** : `import interfaces.Drawable` cherche toujours `interfaces/Drawable.oc`
+
+**Exemple complet :**
+
+```ocara
+// fichier: classes/Button.oc
+namespace classes
+
+import UIComponent           // → trouve classes/UIComponent.oc (même namespace)
+import interfaces.Drawable   // → trouve interfaces/Drawable.oc (qualifié)
+import mods.Clickable        // → trouve mods/Clickable.oc (qualifié)
+
+class Button extends UIComponent implements Drawable modules Clickable {
+    // ...
+}
+```
+
+---
+
+## 4. Système d'imports
+
+### 4.1 Import
+
+Ocara supporte **deux syntaxes d'import** :
+
+#### 3.1.1 Format namespace (ancien format)
 
 ```ebnf
 ImportDecl ::= "import" ModulePath ( "as" Identifier )?
@@ -100,28 +156,106 @@ Le chemin de module correspond à un chemin de fichier relatif à la racine du p
 | `import repository.User`      | `repository/User.oc`          |
 | `import datas.User as UserData` | `datas/User.oc`, alias `UserData` |
 
-### 3.2 Règles
+#### 3.1.2 Format fichier (nouveau format avec `from`)
 
-- Un alias (`as`) est optionnel.
+```ebnf
+ImportDecl ::= "import" ImportTarget "from" StringLiteral ( "as" Identifier )?
+
+ImportTarget ::= "*" | Identifier
+```
+
+Le chemin dans le littéral de chaîne est relatif au fichier courant. L'extension `.oc` est optionnelle :
+
+| Déclaration                   | Fichier correspondant           | Description |
+|-------------------------------|---------------------------------|-------------|
+| `import * from "11_interfaces"` | `11_interfaces.oc` (même dossier) | Import wildcard (tout) |
+| `import Circle from "shapes/Circle"` | `shapes/Circle.oc` (sous-dossier) | Import sélectif |
+| `import User from "./User"` | `User.oc` (même dossier) | Import explicite avec `./` |
+| `import Drawable from "../interfaces/Drawable"` | `../interfaces/Drawable.oc` (dossier parent) | Import avec chemin relatif parent |
+| `import Button from "Button" as Btn` | `Button.oc` (même dossier) | Import avec alias |
+
+**Formats supportés :**
+- `import * from "file"` — importe **tous** les symboles (classes, interfaces, modules, fonctions)
+- `import SymbolName from "file"` — importe **un seul** symbole spécifique
+- `import SymbolName from "file" as Alias` — importe avec un **alias**
+
+**Résolution des chemins relatifs :**
+- Les chemins sont résolus **relativement au fichier courant**
+- `../` remonte au dossier parent
+- `./` indique le dossier courant (optionnel)
+- Les sous-dossiers sont spécifiés directement : `"classes/Button"`
+
+**Chargement récursif :**
+- Les dépendances (`extends`, `implements`, `modules`) sont chargées automatiquement
+- Si `Button` extends `UIComponent`, alors `UIComponent.oc` est chargé automatiquement
+- Si `Button` implements `Drawable`, alors `Drawable.oc` est chargé automatiquement
+- Si `Button` modules `Clickable`, alors `Clickable.oc` est chargé automatiquement
+
+### 4.2 Règles
+
+- Un alias (`as`) est optionnel dans les deux formats.
 - Le dernier segment du chemin est le nom du symbole importé.
 - Deux imports peuvent pointer vers le même type sous des alias différents.
 - Un symbole importé sans alias est accessible par son nom simple **seulement si** aucun symbole local ne le masque.
 - Un symbole local masque toujours un import (voir §22).
 
-### 3.3 Exemple
+### 4.3 Quand utiliser chaque format
+
+**Format namespace** (`import ocara.IO`, `import repository.User`) :
+- **Cas d'usage principal** : Imports de modules builtin (`ocara.*`)
+- **Architecture** : Un fichier = un symbole (structure plate ou hiérarchique simple)
+- **Résolution** : Chemin relatif à la racine du projet (ou au namespace courant si déclaré)
+
+**Format `from`** (`import Symbol from "file"`) :
+- **Cas d'usage 1** : Importer depuis des dossiers parents avec chemins relatifs (`../../../interfaces/Base`)
+- **Cas d'usage 2** : Importer une classe spécifique depuis un fichier contenant **plusieurs classes**
+- **Cas d'usage 3** : Importer **toutes** les classes d'un fichier avec wildcard (`import * from "file"`)
+- **Résolution** : Chemin relatif au fichier courant (pas à la racine du projet)
+
+### 4.4 Exemples
+
+**Format namespace (builtins et structure plate) :**
 
 ```ocara
-import datas.User as UserData
-import roles.User as UserAcl
+// Modules builtin
+import ocara.IO
+import ocara.String
+import ocara.Convert
+
+// Imports projet avec structure plate (un fichier = un symbole)
 import repository.User
 import services.Logger
+import datas.User as UserData
+```
+
+**Format `from` (cas d'usage spécifiques) :**
+
+```ocara
+// ── Cas 1 : Navigation vers dossiers parents ──
+import Drawable from "../interfaces/Drawable"        // Dossier parent
+import BaseModel from "../../models/BaseModel"       // Deux niveaux au-dessus
+import Config from "../../../config/Config"          // Trois niveaux au-dessus
+
+// ── Cas 2 : Import sélectif depuis fichier multi-classes ──
+// Fichier shapes/Geometry.oc contient : Circle, Rectangle, Triangle
+import Circle from "shapes/Geometry"                 // Importer uniquement Circle
+import Rectangle from "shapes/Geometry" as Rect      // Avec alias
+
+// ── Cas 3 : Import wildcard (toutes les classes d'un fichier) ──
+// Fichier interfaces/UI.oc contient : Drawable, Clickable, Resizable
+import * from "interfaces/UI"                        // Importer tout (Drawable + Clickable + Resizable)
+
+// ── Combinaison des deux formats ──
+import ocara.IO                                      // builtin (namespace)
+import * from "11_interfaces"                        // wildcard (from)
+import Button from "./components/Button"             // sélectif (from)
 ```
 
 ---
 
-## 4. Types
+## 5. Types
 
-### 4.1 Types primitifs
+### 5.1 Types primitifs
 
 | Mot-clé  | Description                        |
 |----------|------------------------------------|
@@ -578,7 +712,7 @@ function compute(a:int, b:int, op:Function<int(int, int)>): int {
 
 ---
 
-## 5. Littéraux et collections
+## 6. Littéraux et collections
 
 ### 5.1 Littéraux scalaires
 
@@ -732,7 +866,7 @@ L'accès par index est un opérateur postfixe (précédence maximale).
 
 ---
 
-## 6. Identifiants
+## 7. Identifiants
 
 ```ebnf
 Identifier ::= Letter ( Letter | Digit | "_" )*
@@ -772,7 +906,7 @@ Function
 
 ---
 
-## 7. Variables et constantes
+## 8. Variables et constantes
 
 ### 7.1 Variable (`var`)
 
@@ -852,7 +986,7 @@ Les règles de visibilité s'appliquent normalement (`public` accessible depuis 
 
 ---
 
-## 8. Expressions
+## 9. Expressions
 
 ```ebnf
 Expression ::= OrExpr
@@ -899,7 +1033,7 @@ ArgList ::= Expression ( "," Expression )*
 
 ---
 
-## 9. Opérateurs et précédence
+## 10. Opérateurs et précédence
 
 Du plus faible au plus fort :
 
@@ -1041,7 +1175,7 @@ En raison de la représentation interne (tagged pointers), les opérateurs stric
 
 ---
 
-## 10. Instructions
+## 11. Instructions
 
 ```ebnf
 Statement ::= VarDecl
@@ -1061,7 +1195,7 @@ Statement ::= VarDecl
 
 ---
 
-## 11. Blocs
+## 12. Blocs
 
 ```ebnf
 Block ::= "{" Statement* "}"
@@ -1072,7 +1206,7 @@ Les variables déclarées dans un bloc ne sont pas visibles en dehors.
 
 ---
 
-## 12. Fonctions
+## 13. Fonctions
 
 ```ebnf
 FuncDecl ::= "async"? "function" Identifier "(" ParamList? ")" ":" Type Block
@@ -1449,7 +1583,7 @@ var a:int = resolve compute(6)
 
 ---
 
-## 13. Bibliothèque standard runtime
+## 14. Bibliothèque standard runtime
 
 > **Déprécié.** Les alias globaux `write` et `read` sont conservés pour la compatibilité ascendante mais ne doivent plus être utilisés dans le code nouveau.
 > Utiliser à la place `IO::writeln` et `IO::read` du module `ocara.IO`.
@@ -1629,7 +1763,7 @@ function main(): void {
 
 ---
 
-## 14. Classes
+## 15. Classes
 
 ```ebnf
 ClassDecl  ::= "class" Identifier
@@ -1798,7 +1932,7 @@ class User {
 
 ---
 
-## 15. Interfaces
+## 16. Interfaces
 
 ```ebnf
 InterfaceDecl ::= "interface" Identifier "{" InterfaceMethod* "}"
@@ -1819,7 +1953,7 @@ interface Logger {
 
 ---
 
-## 16. Héritage et implémentation
+## 17. Héritage et implémentation
 
 ```ebnf
 Inheritance  ::= "extends" Identifier
@@ -1848,7 +1982,7 @@ class AdminLogger extends ConsoleLogger implements Logger, Auditable {
 
 ---
 
-## 17. Modules (mixins)
+## 18. Modules (mixins)
 
 Les **modules** (ou **mixins**) permettent la composition horizontale de comportements réutilisables. Un module est similaire à une classe, mais il ne peut pas être instancié directement. Ses membres (champs, méthodes, constantes) sont incorporés dans les classes qui l'utilisent via le mot-clé `modules`.
 
@@ -1941,7 +2075,7 @@ class D modules A, B {
 
 ---
 
-## 18. Enums
+## 19. Enums
 
 ```ebnf
 EnumDecl    ::= "enum" Identifier "{" EnumVariant ( "," EnumVariant )* ","? "}"
@@ -1983,7 +2117,7 @@ var s:int = HttpStatus::NotFound // 404
 
 ---
 
-## 19. Instanciation
+## 20. Instanciation
 
 ```ebnf
 NewExpr ::= "use" Identifier "(" ArgList? ")"
@@ -1998,7 +2132,7 @@ var logger:Logger = use ConsoleLogger()
 
 ---
 
-## 20. Accès statique
+## 21. Accès statique
 
 ```ebnf
 StaticCallee ::= Identifier | "self"
@@ -2028,7 +2162,7 @@ class Validator {
 
 ---
 
-## 21. Conditions
+## 22. Conditions
 
 ```ebnf
 IfStmt ::= "if" Expression Block
@@ -2048,7 +2182,7 @@ if x > 0 {
 
 ---
 
-## 22. Switch
+## 23. Switch
 
 ```ebnf
 SwitchStmt  ::= "switch" Expression "{" SwitchCase* DefaultCase? "}"
@@ -2077,7 +2211,7 @@ switch code {
 
 ---
 
-## 23. Match (expression)
+## 24. Match (expression)
 
 ```ebnf
 MatchExpr ::= "match" PostfixExpr "{" MatchArm+ "}"
@@ -2135,9 +2269,9 @@ scoped desc:string = match user.age:int {
 
 ---
 
-## 24. Boucles
+## 25. Boucles
 
-### 24.1 While
+### 25.1 While
 
 ```ebnf
 WhileStmt ::= "while" Expression Block
@@ -2149,7 +2283,7 @@ while x > 0 {
 }
 ```
 
-### 24.2 For (itération simple)
+### 25.2 For (itération simple)
 
 ```ebnf
 ForInStmt ::= "for" Identifier "in" Expression Block
@@ -2161,7 +2295,7 @@ for i in 0..5 {
 }
 ```
 
-### 24.3 For (paires clé/valeur)
+### 25.3 For (paires clé/valeur)
 
 ```ebnf
 ForMapStmt ::= "for" Identifier "=>" Identifier "in" Expression Block
@@ -2173,7 +2307,7 @@ for key => value in profile {
 }
 ```
 
-### 24.4 Opérateur de plage
+### 25.4 Opérateur de plage
 
 ```ebnf
 RangeExpr ::= AdditiveExpr ".." AdditiveExpr
@@ -2186,7 +2320,7 @@ Produit une séquence d'entiers de `start` inclus à `end` **exclus**.
 1..n+1  // 1, 2, …, n
 ```
 
-### 24.5 Break
+### 25.5 Break
 
 ```ebnf
 BreakStmt ::= "break"
@@ -2207,7 +2341,7 @@ while i < 10 {
 
 > `break` n'est valide qu'à l'intérieur d'une boucle. En dehors, c'est une erreur de compilation.
 
-### 24.6 Continue
+### 25.6 Continue
 
 ```ebnf
 ContinueStmt ::= "continue"
@@ -2228,7 +2362,7 @@ for i in 0..10 {
 
 ---
 
-## 25. Gestion des erreurs
+## 26. Gestion des erreurs
 
 ```ebnf
 TryStmt  ::= "try" Block OnClause+
@@ -2237,7 +2371,7 @@ OnClause ::= "on" Identifier ( "is" Identifier )? Block
 RaiseStmt ::= "raise" Expression
 ```
 
-### 25.1 `try` / `on`
+### 26.1 `try` / `on`
 
 Le bloc `try` exécute du code susceptible de lever une erreur. Chaque clause `on` définit un handler avec un **binding explicite** — le nom après `on` est la variable qui contiendra l'erreur capturée.
 
@@ -2249,7 +2383,7 @@ try {
 }
 ```
 
-### 25.2 Filtrage par classe (`is`)
+### 26.2 Filtrage par classe (`is`)
 
 La variante `on <binding> is <Classe>` filtre les erreurs par type. Plusieurs handlers peuvent être chaînés, du plus spécifique au plus général. Le premier handler dont le type correspond est exécuté.
 
@@ -2267,7 +2401,7 @@ try {
 
 > Le handler générique (`on e` sans `is`) doit toujours être placé en dernier.
 
-### 25.3 `raise`
+### 26.3 `raise`
 
 `raise` lève une erreur. Il accepte n'importe quelle expression : chaîne, template string, ou instance d'une classe d'exception.
 
@@ -2279,7 +2413,7 @@ raise use IOException("Fichier introuvable", 404)
 
 > `raise` interrompt immédiatement l'exécution du bloc courant. En dehors d'un `on`, l'erreur remonte la pile d'appels.
 
-### 25.4 Classe d'exception
+### 26.4 Classe d'exception
 
 Une exception est une **classe ordinaire** — aucune interface ni classe de base requise. Par convention, les classes d'exception ont un champ `message:string`.
 
@@ -2303,7 +2437,7 @@ try {
 
 ---
 
-## 26. Résolution des noms
+## 27. Résolution des noms
 
 L'ordre de résolution strict est le suivant (priorité décroissante) :
 
@@ -2320,20 +2454,27 @@ Un import ne peut jamais écraser un symbole local existant.
 
 ---
 
-## 27. Grammaire EBNF complète
+## 28. Grammaire EBNF complète
 
 > Notation : `*` = zéro ou plus, `+` = un ou plus, `?` = optionnel, `|` = alternative, `( )` = groupement.
 
 ```ebnf
 (* ── Programme ─────────────────────────────────────────────────── *)
 
-Program     ::= ImportDecl*
+Program     ::= NamespaceDecl?
+                ImportDecl*
                 ( ConstDecl | EnumDecl | ClassDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
+
+(* ── Namespace ───────────────────────────────────────────────────── *)
+
+NamespaceDecl ::= "namespace" ( "." | Identifier )
 
 (* ── Imports ────────────────────────────────────────────────────── *)
 
 ImportDecl  ::= "import" ModulePath ( "as" Identifier )?
+              | "import" ImportTarget "from" StringLiteral ( "as" Identifier )?
 ModulePath  ::= Identifier ( "." Identifier )*
+ImportTarget ::= "*" | Identifier
 
 (* ── Déclarations globales ──────────────────────────────────────── *)
 
