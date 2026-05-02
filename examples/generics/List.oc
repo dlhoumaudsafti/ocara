@@ -1,0 +1,23 @@
+namespace .
+
+import ocara.Array
+
+generic List<T> {
+    private property items:T[]
+    
+    init() {
+        self.items = []
+    }
+    
+    public method add(item:T): void {
+        Array::push(self.items, item)
+    }
+    
+    public method get(index:int): T {
+        return self.items[index]
+    }
+    
+    public method size(): int {
+        return Array::len(self.items)
+    }
+}

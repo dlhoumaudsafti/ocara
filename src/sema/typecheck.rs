@@ -779,15 +779,40 @@ impl<'a> TypeChecker<'a> {
                 Type::Mixed
             }
 
-            Expr::New { class, args, span } => {
-                if self.symbols.lookup_class(class).is_none() {
+            Expr::New { class, type_args, args, span } => {
+                // Vérifier si c'est une classe ou un générique
+                let is_class = self.symbols.lookup_class(class).is_some();
+                let is_generic = self.symbols.lookup_generic(class).is_some();
+                
+                if !is_class && !is_generic {
                     self.errors.push(SemaError::NotAClass {
                         name: class.clone(),
                         span: span.clone(),
                     });
                 }
+                
+                // TODO: Pour les génériques, vérifier que type_args correspondent aux type_params
+                // et valider les contraintes (extends, implements)
+                
                 for arg in args { self.infer_expr(arg); }
-                Type::Named(class.clone())
+                
+                // Si c'est un générique avec type_args, retourner Type::Generic
+                if is_generic && !type_args.is_empty() {
+                    Type::Generic { 
+                        name: class.clone(), 
+                        args: type_args.clone() 
+                    }
+                } else if is_generic && type_args.is_empty() {
+                    // Générique sans arguments de type - erreur
+                    // TODO: ajouter une erreur spécifique pour cela
+                    self.errors.push(SemaError::NotAClass {
+                        name: class.clone(),
+                        span: span.clone(),
+                    });
+                    Type::Mixed
+                } else {
+                    Type::Named(class.clone())
+                }
             }
 
             Expr::Binary { op, left, right, span } => {
@@ -965,13 +990,17 @@ pub fn type_name(ty: &Type) -> String {
         Type::Float            => "float".into(),
         Type::String           => "string".into(),
         Type::Bool             => "bool".into(),
-        Type::Mixed              => "mixed".into(),
+        Type::Mixed            => "mixed".into(),
         Type::Void             => "void".into(),
         Type::Null             => "null".into(),
         Type::Named(n)         => n.clone(),
         Type::Qualified(parts) => parts.join("."),
         Type::Array(inner)     => format!("{}[]", type_name(inner)),
         Type::Map(k, v)        => format!("map<{},{}>", type_name(k), type_name(v)),
+        Type::Generic { name, args } => {
+            let type_args = args.iter().map(type_name).collect::<Vec<_>>().join(", ");
+            format!("{}<{}>", name, type_args)
+        }
         Type::Union(variants)  => variants.iter().map(type_name).collect::<Vec<_>>().join("|"),
         Type::Function { ret_ty, param_tys } => {
             let params = param_tys.iter().map(type_name).collect::<Vec<_>>().join(", ");

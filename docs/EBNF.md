@@ -30,16 +30,17 @@
 16. [Interfaces](#16-interfaces)
 17. [Héritage et implémentation](#17-héritage-et-implémentation)
 18. [Modules (mixins)](#18-modules-mixins)
-19. [Enums](#19-enums)
-20. [Instanciation](#20-instanciation)
-21. [Accès statique](#21-accès-statique)
-22. [Conditions](#22-conditions)
-23. [Switch](#23-switch)
-24. [Match (expression)](#24-match-expression)
-25. [Boucles](#25-boucles)
-26. [Gestion des erreurs](#26-gestion-des-erreurs)
-27. [Résolution des noms](#27-résolution-des-noms)
-28. [Grammaire EBNF complète](#28-grammaire-ebnf-complète)
+19. [Génériques (generic)](#19-génériques-generic)
+20. [Enums](#20-enums)
+21. [Instanciation](#21-instanciation)
+22. [Accès statique](#22-accès-statique)
+23. [Conditions](#23-conditions)
+24. [Switch](#24-switch)
+25. [Match (expression)](#25-match-expression)
+26. [Boucles](#26-boucles)
+27. [Gestion des erreurs](#27-gestion-des-erreurs)
+28. [Résolution des noms](#28-résolution-des-noms)
+29. [Grammaire EBNF complète](#29-grammaire-ebnf-complète)
 
 ---
 
@@ -75,7 +76,7 @@ Chaque fichier suit strictement l'ordre suivant :
 ```
 Program ::= NamespaceDecl?
             ImportDecl*
-            ( ConstDecl | EnumDecl | ClassDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
+            ( ConstDecl | EnumDecl | ClassDecl | GenericDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
 ```
 
 **Contraintes d'ordre :**
@@ -512,6 +513,7 @@ Type ::= "int"
        | FunctionType
        | ArrayType
        | MapType
+       | GenericType
        | QualifiedType
        | UnionType
        | Identifier
@@ -519,8 +521,11 @@ Type ::= "int"
 FunctionType ::= "Function" "<" Type "(" ( Type ( "," Type )* )? ")" ">"
 ArrayType    ::= Type "[]"
 MapType      ::= "map" "<" Type "," Type ">"
+GenericType  ::= Identifier "<" TypeArgs ">"
 QualifiedType ::= Identifier ( "." Identifier )+
 UnionType    ::= Type ( "|" Type )+
+
+TypeArgs     ::= Type ( "," Type )*
 ```
 
 **Exemples :**
@@ -531,6 +536,9 @@ float
 string[]
 map<string, int>
 repository.User
+List<int>              // générique avec un type
+Cache<string, User>    // générique avec plusieurs types
+Result<int, string>    // générique Result
 ```
 
 ### 4.3 Types union
@@ -1017,7 +1025,7 @@ PrimaryExpr  ::= Literal
                | "(" Expression ")"
                | Identifier
 
-NewExpr      ::= "use" Identifier "(" ArgList? ")"
+NewExpr      ::= "use" Identifier ( "<" TypeArgs ">" )? "(" ArgList? ")"
 
 NamelessExpr ::= "nameless" "(" ParamList? ")" ( ":" Type )? Block
 
@@ -2075,7 +2083,530 @@ class D modules A, B {
 
 ---
 
-## 19. Enums
+## 19. Génériques (generic)
+
+Les **génériques** permettent d'écrire du code réutilisable avec différents types. Une classe générique est déclarée avec le mot-clé `generic` suivi de paramètres de type entre chevrons `< >`.
+
+```ebnf
+GenericDecl ::= "generic" Identifier "<" TypeParams ">"
+                ( "extends" Identifier ( "<" TypeArgs ">" )? )?
+                ( "modules" Identifier ( "," Identifier )* )?
+                ( "implements" Identifier ( "," Identifier )* )?
+                ClassBody
+
+TypeParams ::= TypeParam ( "," TypeParam )*
+TypeParam  ::= Identifier ( "=" Type )?
+TypeArgs   ::= Type ( "," Type )*
+```
+
+### 19.1 Déclaration de base
+
+```ocara
+// Générique avec un paramètre de type
+generic List<T> {
+    private property items:T[]
+    
+    init() {
+        self.items = []
+    }
+    
+    public method add(item:T): void {
+        Array::push(self.items, item)
+    }
+    
+    public method get(index:int): T {
+        return self.items[index]
+    }
+    
+    public method size(): int {
+        return Array::len(self.items)
+    }
+}
+
+// Générique avec plusieurs paramètres
+generic Cache<K, V> {
+    private property data:map<K, V>
+    
+    init() {
+        self.data = {}
+    }
+    
+    public method set(key:K, value:V): void {
+        Map::set(self.data, key, value)
+    }
+    
+    public method get(key:K): V|null {
+        if Map::has(self.data, key) {
+            return Map::get(self.data, key)
+        }
+        return null
+    }
+}
+```
+
+### 19.2 Paramètres de type
+
+Les paramètres de type doivent suivre la convention **PascalCase strict** :
+
+```ocara
+// ✅ VALIDE
+generic List<T> { ... }
+generic Cache<K, V> { ... }
+generic Result<Value, Error> { ... }
+generic Map<Key, Value> { ... }
+generic Triple<A, B, C> { ... }
+
+// ❌ INVALIDE - pas PascalCase
+generic List<t> { ... }           // minuscule
+generic Cache<key, value> { ... } // minuscule
+generic Map<keY> { ... }          // mixte incorrect
+generic Result<vaLue> { ... }     // mixte incorrect
+```
+
+**Règles :**
+- Un paramètre de type est un identifiant commençant par une majuscule
+- Tous les caractères doivent respecter le PascalCase strict
+- Les noms courts (`T`, `K`, `V`, `E`) sont acceptés
+- Les noms descriptifs sont recommandés pour la clarté (`Key`, `Value`, `Element`, `Error`)
+
+### 19.3 Valeurs par défaut
+
+Un paramètre de type peut avoir une valeur par défaut. Les paramètres avec défaut doivent être placés **après** ceux sans défaut.
+
+```ocara
+// Valeur par défaut pour le dernier paramètre
+generic Cache<K, V = string> {
+    private property data:map<K, V>
+    init() { self.data = {} }
+}
+
+// Utilisation avec type explicite
+var cache1:Cache<int, User> = use Cache<int, User>()  // K=int, V=User
+
+// Utilisation avec défaut
+var cache2:Cache<int> = use Cache<int>()  // K=int, V=string (défaut)
+
+// Plusieurs paramètres avec défauts
+generic Triple<A, B = int, C = string> {
+    public property first:A
+    public property second:B
+    public property third:C
+    
+    init(a:A, b:B, c:C) {
+        self.first = a
+        self.second = b
+        self.third = c
+    }
+}
+
+// Instanciations possibles
+var t1:Triple<float, bool, User> = use Triple<float, bool, User>(1.5, true, user)
+var t2:Triple<float, bool> = use Triple<float, bool>(1.5, true, "text")
+var t3:Triple<float> = use Triple<float>(1.5, 42, "text")
+```
+
+**Règles :**
+- Les paramètres sans défaut doivent venir en premier
+- Les défauts s'appliquent de droite à gauche lors de l'instanciation
+- Un défaut peut être n'importe quel type valide : primitif, classe, union, générique
+
+### 19.4 Héritage et composition
+
+Un générique peut hériter d'une classe ou d'un autre générique, utiliser des modules et implémenter des interfaces.
+
+#### Extends
+
+```ocara
+// Classe de base générique
+generic BaseCollection<T> {
+    public method isEmpty(): bool {
+        return self.size() == 0
+    }
+    
+    public method size(): int {
+        return 0  // à surcharger
+    }
+}
+
+// Générique qui hérite d'un générique
+generic List<T> extends BaseCollection<T> {
+    private property items:T[]
+    
+    init() { self.items = [] }
+    
+    public method size(): int {
+        return Array::len(self.items)
+    }
+}
+
+// Générique qui hérite d'une classe normale
+class Storage {
+    protected property version:int
+    init() { self.version = 1 }
+}
+
+generic Cache<K, V> extends Storage {
+    private property data:map<K, V>
+    init() { self.data = {} }
+}
+```
+
+#### Modules
+
+```ocara
+module Timestamped {
+    private property created_at:int
+    
+    public method mark_created(): void {
+        self.created_at = DateTime::now()
+    }
+    
+    public method get_age(): int {
+        return DateTime::now() - self.created_at
+    }
+}
+
+// Générique avec module (mixin)
+generic Cache<K, V> modules Timestamped {
+    private property data:map<K, V>
+    
+    init() {
+        self.data = {}
+        self.mark_created()  // méthode du module
+    }
+}
+```
+
+#### Implements
+
+```ocara
+interface Serializable {
+    method toJson(): string
+}
+
+// Générique qui implémente une interface
+generic Cache<K, V> implements Serializable {
+    private property data:map<K, V>
+    
+    init() { self.data = {} }
+    
+    public method set(key:K, value:V): void {
+        Map::set(self.data, key, value)
+    }
+    
+    public method toJson(): string {
+        return JSON::encode(self.data)
+    }
+}
+```
+
+#### Combinaison complète
+
+```ocara
+generic Cache<K, V = string> extends Storage modules Timestamped implements Serializable {
+    private property data:map<K, V>
+    
+    init() {
+        self.data = {}
+        self.mark_created()
+    }
+    
+    public method set(key:K, value:V): void {
+        Map::set(self.data, key, value)
+    }
+    
+    public method get(key:K): V|null {
+        if Map::has(self.data, key) {
+            return Map::get(self.data, key)
+        }
+        return null
+    }
+    
+    public method toJson(): string {
+        return JSON::encode(self.data)
+    }
+}
+```
+
+### 19.5 Import et instanciation
+
+```ocara
+// Fichier: repository/Cache.oc
+namespace repository
+
+generic Cache<K, V> {
+    private property data:map<K, V>
+    
+    init() {
+        self.data = {}
+    }
+    
+    public method set(key:K, value:V): void {
+        Map::set(self.data, key, value)
+    }
+    
+    public method get(key:K): V|null {
+        if Map::has(self.data, key) {
+            return Map::get(self.data, key)
+        }
+        return null
+    }
+}
+
+// Fichier: main.oc
+import repository.Cache
+import repository.User
+
+function main(): int {
+    // Instanciation avec types concrets
+    var user_cache:Cache<int, User> = use Cache<int, User>()
+    user_cache.set(1, user1)
+    var u:User|null = user_cache.get(1)
+    
+    // Instanciation avec valeur par défaut (si déclaré)
+    var config:Cache<string> = use Cache<string>()  // V = string (défaut)
+    config.set("lang", "fr")
+    
+    return 0
+}
+```
+
+**Règles d'instanciation :**
+```ebnf
+NewExpr ::= "use" Identifier ( "<" TypeArgs ">" )? "(" ArgList? ")"
+```
+
+- Les types concrets doivent être fournis entre chevrons `< >` avant les parenthèses
+- Les types omis utilisent leurs valeurs par défaut (si définies)
+- L'ordre des types doit correspondre à l'ordre des paramètres
+
+### 19.6 Monomorphisation
+
+Le compilateur génère une version spécialisée du générique pour **chaque combinaison de types concrets** utilisée dans le programme. Ce processus s'appelle la **monomorphisation**.
+
+```ocara
+// Code source
+generic List<T> {
+    private property items:T[]
+    public method add(item:T): void { Array::push(self.items, item) }
+}
+
+function main(): int {
+    var nums:List<int> = use List<int>()
+    var names:List<string> = use List<string>()
+    return 0
+}
+```
+
+**Compilation :**
+
+Le compilateur génère **deux versions spécialisées** :
+
+```ocara
+// Généré automatiquement pour List<int>
+class List_int {
+    private property items:int[]
+    public method add(item:int): void { Array::push(self.items, item) }
+}
+
+// Généré automatiquement pour List<string>
+class List_string {
+    private property items:string[]
+    public method add(item:string): void { Array::push(self.items, item) }
+}
+```
+
+### 19.7 Exemples complets
+
+#### Liste générique
+
+```ocara
+import ocara.IO
+import ocara.Array
+
+generic List<T> {
+    private property items:T[]
+    
+    init() {
+        self.items = []
+    }
+    
+    public method add(item:T): void {
+        Array::push(self.items, item)
+    }
+    
+    public method get(index:int): T {
+        return self.items[index]
+    }
+    
+    public method size(): int {
+        return Array::len(self.items)
+    }
+    
+    public method contains(item:T): bool {
+        return Array::contains(self.items, item)
+    }
+}
+
+function main(): int {
+    var numbers:List<int> = use List<int>()
+    numbers.add(1)
+    numbers.add(2)
+    numbers.add(3)
+    
+    IO::writeln(numbers.size())  // 3
+    IO::writeln(numbers.get(0))  // 1
+    
+    var names:List<string> = use List<string>()
+    names.add("Alice")
+    names.add("Bob")
+    
+    if names.contains("Alice") {
+        IO::writeln("Alice trouvée")
+    }
+    
+    return 0
+}
+```
+
+#### Type Result (gestion d'erreurs)
+
+```ocara
+import ocara.IO
+
+generic Result<Value, Error> {
+    private property is_ok:bool
+    private property value:Value|null
+    private property error:Error|null
+    
+    init(ok:bool, val:Value|null, err:Error|null) {
+        self.is_ok = ok
+        self.value = val
+        self.error = err
+    }
+    
+    public static method ok(val:Value): Result<Value, Error> {
+        return use Result<Value, Error>(true, val, null)
+    }
+    
+    public static method err(e:Error): Result<Value, Error> {
+        return use Result<Value, Error>(false, null, e)
+    }
+    
+    public method isOk(): bool {
+        return self.is_ok
+    }
+    
+    public method isErr(): bool {
+        return not self.is_ok
+    }
+    
+    public method unwrap(): Value {
+        if self.is_ok {
+            return self.value
+        }
+        raise "Called unwrap on an error result"
+    }
+    
+    public method unwrapOr(default:Value): Value {
+        if self.is_ok {
+            return self.value
+        }
+        return default
+    }
+}
+
+function divide(a:int, b:int): Result<int, string> {
+    if b == 0 {
+        return Result::err("Division par zéro")
+    }
+    return Result::ok(a / b)
+}
+
+function main(): int {
+    var r1:Result<int, string> = divide(10, 2)
+    if r1.isOk() {
+        IO::writeln(`Résultat : ${r1.unwrap()}`)
+    }
+    
+    var r2:Result<int, string> = divide(10, 0)
+    if r2.isErr() {
+        IO::writeln("Erreur de division")
+    }
+    
+    return 0
+}
+```
+
+#### Type Option (valeur optionnelle)
+
+```ocara
+import ocara.IO
+
+generic Option<T> {
+    private property has_value:bool
+    private property value:T|null
+    
+    init(has:bool, val:T|null) {
+        self.has_value = has
+        self.value = val
+    }
+    
+    public static method some(val:T): Option<T> {
+        return use Option<T>(true, val)
+    }
+    
+    public static method none(): Option<T> {
+        return use Option<T>(false, null)
+    }
+    
+    public method isSome(): bool {
+        return self.has_value
+    }
+    
+    public method isNone(): bool {
+        return not self.has_value
+    }
+    
+    public method unwrap(): T {
+        if self.has_value {
+            return self.value
+        }
+        raise "Called unwrap on None"
+    }
+    
+    public method unwrapOr(default:T): T {
+        if self.has_value {
+            return self.value
+        }
+        return default
+    }
+}
+
+function find_user(id:int): Option<string> {
+    if id == 1 {
+        return Option::some("Alice")
+    }
+    return Option::none()
+}
+
+function main(): int {
+    var user:Option<string> = find_user(1)
+    if user.isSome() {
+        IO::writeln(`Utilisateur : ${user.unwrap()}`)
+    }
+    
+    var unknown:Option<string> = find_user(999)
+    var name:string = unknown.unwrapOr("Anonyme")
+    IO::writeln(name)  // Anonyme
+    
+    return 0
+}
+```
+
+---
+
+## 20. Enums
 
 ```ebnf
 EnumDecl    ::= "enum" Identifier "{" EnumVariant ( "," EnumVariant )* ","? "}"
@@ -2117,22 +2648,23 @@ var s:int = HttpStatus::NotFound // 404
 
 ---
 
-## 20. Instanciation
+## 21. Instanciation
 
 ```ebnf
-NewExpr ::= "use" Identifier "(" ArgList? ")"
+NewExpr ::= "use" Identifier ( "<" TypeArgs ">" )? "(" ArgList? ")"
 ```
 
-Le mot-clé `use` appelle le constructeur `init` de la classe.
+Le mot-clé `use` appelle le constructeur `init` de la classe ou du générique.
 
 ```ocara
 var user:User = use User("David", 43)
 var logger:Logger = use ConsoleLogger()
+var cache:Cache<int, User> = use Cache<int, User>()
 ```
 
 ---
 
-## 21. Accès statique
+## 22. Accès statique
 
 ```ebnf
 StaticCallee ::= Identifier | "self"
@@ -2162,7 +2694,7 @@ class Validator {
 
 ---
 
-## 22. Conditions
+## 23. Conditions
 
 ```ebnf
 IfStmt ::= "if" Expression Block
@@ -2182,7 +2714,7 @@ if x > 0 {
 
 ---
 
-## 23. Switch
+## 24. Switch
 
 ```ebnf
 SwitchStmt  ::= "switch" Expression "{" SwitchCase* DefaultCase? "}"
@@ -2211,7 +2743,7 @@ switch code {
 
 ---
 
-## 24. Match (expression)
+## 25. Match (expression)
 
 ```ebnf
 MatchExpr ::= "match" PostfixExpr "{" MatchArm+ "}"
@@ -2269,7 +2801,7 @@ scoped desc:string = match user.age:int {
 
 ---
 
-## 25. Boucles
+## 26. Boucles
 
 ### 25.1 While
 
@@ -2362,7 +2894,7 @@ for i in 0..10 {
 
 ---
 
-## 26. Gestion des erreurs
+## 27. Gestion des erreurs
 
 ```ebnf
 TryStmt  ::= "try" Block OnClause+
@@ -2437,7 +2969,7 @@ try {
 
 ---
 
-## 27. Résolution des noms
+## 28. Résolution des noms
 
 L'ordre de résolution strict est le suivant (priorité décroissante) :
 
@@ -2454,7 +2986,7 @@ Un import ne peut jamais écraser un symbole local existant.
 
 ---
 
-## 28. Grammaire EBNF complète
+## 29. Grammaire EBNF complète
 
 > Notation : `*` = zéro ou plus, `+` = un ou plus, `?` = optionnel, `|` = alternative, `( )` = groupement.
 
@@ -2486,8 +3018,19 @@ ClassDecl   ::= "class" Identifier
                 ( "modules" Identifier ( "," Identifier )* )?
                 ( "implements" Identifier ( "," Identifier )* )?
                 ClassBody
+GenericDecl ::= "generic" Identifier "<" TypeParams ">"
+                ( "extends" Identifier ( "<" TypeArgs ">" )? )?
+                ( "modules" Identifier ( "," Identifier )* )?
+                ( "implements" Identifier ( "," Identifier )* )?
+                ClassBody
 InterfaceDecl ::= "interface" Identifier "{" InterfaceMethod* "}"
 FuncDecl    ::= "async"? "function" Identifier "(" ParamList? ")" ":" Type Block
+
+(* ── Génériques ─────────────────────────────────────────────────── *)
+
+TypeParams  ::= TypeParam ( "," TypeParam )*
+TypeParam   ::= Identifier ( "=" Type )?
+TypeArgs    ::= Type ( "," Type )*
 
 (* ── Classe ─────────────────────────────────────────────────────── *)
 
@@ -2514,12 +3057,14 @@ Type        ::= "int" | "float" | "string" | "bool" | "mixed" | "void"
               | FunctionType
               | ArrayType
               | MapType
+              | GenericType
               | QualifiedType
               | UnionType
               | Identifier
 FunctionType  ::= "Function" "<" Type "(" ( Type ( "," Type )* )? ")" ">"
 ArrayType   ::= Type "[]"
 MapType     ::= "map" "<" Type "," Type ">"
+GenericType ::= Identifier "<" TypeArgs ">"
 QualifiedType ::= Identifier ( "." Identifier )+
 UnionType   ::= Type ( "|" Type )+
 
@@ -2597,7 +3142,7 @@ PrimaryExpr ::= Literal
               | "(" Expression ")"
               | Identifier
 
-NewExpr      ::= "use" Identifier "(" ArgList? ")"
+NewExpr      ::= "use" Identifier ( "<" TypeArgs ">" )? "(" ArgList? ")"
 NamelessExpr ::= "nameless" "(" ParamList? ")" ( ":" Type )? Block
 StaticCallee ::= Identifier | "self"
 StaticCall  ::= StaticCallee "::" Identifier "(" ArgList? ")"
