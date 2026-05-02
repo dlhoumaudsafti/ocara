@@ -10,6 +10,7 @@
     { "include": "#string-template" },
     { "include": "#string-double" },
     { "include": "#string-single" },
+    { "include": "#generic-declaration" },
     { "include": "#class-declaration" },
     { "include": "#interface-module-enum-declaration" },
     { "include": "#function-declaration" },
@@ -18,6 +19,7 @@
     { "include": "#function-call" },
     { "include": "#self-static-access" },
     { "include": "#static-access" },
+    { "include": "#generic-instantiation" },
     { "include": "#class-instantiation" },
     { "include": "#storage-modifier" },
     { "include": "#keyword-control" },
@@ -190,6 +192,16 @@
       "match": "\\\\[ntr\"'\\\\0]"
     },
 
+    "generic-declaration": {
+      "comment": "generic List<T> or generic Cache<K, V = string>",
+      "match": "\\b(generic)\\s+([A-Z][\\w]*)\\s*<([^>]+)>\\b",
+      "captures": {
+        "1": { "name": "keyword.declaration.generic.ocara" },
+        "2": { "name": "entity.name.class.generic.ocara" },
+        "3": { "name": "entity.name.type.parameter.ocara" }
+      }
+    },
+
     "class-declaration": {
       "match": "\\b(class)\\s+([A-Z][\\w]*)\\b",
       "captures": {
@@ -261,6 +273,16 @@
       }
     },
 
+    "generic-instantiation": {
+      "comment": "use List<int>() or use Cache<string, User>()",
+      "match": "\\b(use)\\s+([A-Z][\\w]*)\\s*<([^>]+)>\\s*\\(",
+      "captures": {
+        "1": { "name": "keyword.operator.new.ocara" },
+        "2": { "name": "entity.name.class.generic.ocara" },
+        "3": { "name": "entity.name.type.parameter.ocara" }
+      }
+    },
+
     "class-instantiation": {
       "comment": "use ClassName(",
       "match": "\\b(use)\\s+([A-Z][\\w]*)\\b",
@@ -282,7 +304,7 @@
 
     "keyword-declaration": {
       "name": "keyword.declaration.ocara",
-      "match": "\\b(var|scoped|const|init|property)\\b"
+      "match": "\\b(var|scoped|const|init|property|generic)\\b"
     },
 
     "keyword-other": {
@@ -330,31 +352,31 @@
     "operator": {
       "patterns": [
         {
-          "name": "keyword.operator.logical.ocara",
-          "match": "\\b(and|or|not)\\b"
+          "name": "keyword.control.ocara",
+          "match": "\\b(and|or|not|egal)\\b"
         },
         {
-          "name": "keyword.operator.range.ocara",
+          "name": "keyword.control.ocara",
           "match": "\\.\\."
         },
         {
-          "name": "keyword.operator.comparison.ocara",
+          "name": "keyword.control.ocara",
           "match": "==|!=|<=|>="
         },
         {
-          "name": "keyword.operator.comparison.ocara",
+          "name": "keyword.control.ocara",
           "match": "(?<![=!<>])[<>](?![=])"
         },
         {
-          "name": "keyword.operator.assignment.ocara",
+          "name": "keyword.control.ocara",
           "match": "(?<![=!<>])=(?!=)"
         },
         {
-          "name": "keyword.operator.arithmetic.ocara",
+          "name": "keyword.control.ocara",
           "match": "[+\\-*/%]"
         },
         {
-          "name": "keyword.operator.type.ocara",
+          "name": "keyword.control.ocara",
           "match": "\\|"
         }
       ]

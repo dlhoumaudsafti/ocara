@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use crate::ast::{
-    ClassDecl, ModuleDecl, FuncDecl, InterfaceDecl, ImportDecl, ConstDecl, EnumDecl, Type, Param, Visibility,
+    ClassDecl, ModuleDecl, FuncDecl, InterfaceDecl, ImportDecl, ConstDecl, EnumDecl, Type, Param, Visibility, TypeParam,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -67,6 +67,18 @@ pub struct EnumInfo {
     pub variants: HashMap<String, i64>,
 }
 
+/// Descripteur d'un générique enregistré
+#[derive(Debug, Clone)]
+pub struct GenericInfo {
+    pub type_params: Vec<TypeParam>,
+    pub extends:     Option<String>,
+    pub extends_args: Vec<Type>,
+    pub implements:  Vec<String>,
+    pub fields:      HashMap<String, FieldInfo>,
+    pub methods:     HashMap<String, FuncSig>,
+    pub class_consts: HashMap<String, (Type, Visibility)>,
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // SymbolTable
 // ─────────────────────────────────────────────────────────────────────────────
@@ -78,6 +90,7 @@ pub struct SymbolTable {
     pub classes:    HashMap<String, ClassInfo>,
     pub interfaces: HashMap<String, InterfaceInfo>,
     pub enums:      HashMap<String, EnumInfo>,
+    pub generics:   HashMap<String, GenericInfo>,
     pub consts:     HashMap<String, Type>,
     pub imports:    Vec<ImportInfo>,
 }
@@ -370,6 +383,75 @@ impl SymbolTable {
         true
     }
 
+    pub fn register_generic(&mut self, decl: &crate::ast::GenericDecl) -> bool {
+        use crate::ast::ClassMember;
+        if self.generics.contains_key(&decl.name) {
+            return false;
+        }
+        let mut fields       = HashMap::new();
+        let mut methods      = HashMap::new();
+        let mut class_consts = HashMap::new();
+
+        for member in &decl.members {
+            match member {
+                ClassMember::Field { vis, mutable, name, ty, .. } => {
+                    fields.insert(name.clone(), FieldInfo {
+                        ty:      ty.clone(),
+                        mutable: *mutable,
+                        vis:     vis.clone(),
+                    });
+                }
+                ClassMember::Const { vis, name, ty, .. } => {
+                    class_consts.insert(name.clone(), (ty.clone(), vis.clone()));
+                }
+                ClassMember::Method { vis: _, is_static, decl: fd, .. } => {
+                    methods.insert(fd.name.clone(), FuncSig {
+                        params:    params_to_vec(&fd.params),
+                        ret_ty:    fd.ret_ty.clone(),
+                        is_static: *is_static,
+                        is_async:  false,
+                        has_variadic: has_variadic_param(&fd.params),
+                        fixed_params_count: fixed_params_count(&fd.params),
+                        required_params_count: required_params_count(&fd.params),
+                    });
+                }
+                ClassMember::Constructor { .. } => {}
+            }
+        }
+
+        // Composer les membres des modules (mixins)
+        for module_name in &decl.modules {
+            if let Some(module_info) = self.modules.get(module_name).cloned() {
+                // Ajouter les champs du module
+                for (name, field) in module_info.fields {
+                    fields.entry(name).or_insert(field);
+                }
+                // Ajouter les méthodes du module
+                for (name, method) in module_info.methods {
+                    methods.entry(name).or_insert(method);
+                }
+                // Ajouter les constantes du module
+                for (name, const_info) in module_info.class_consts {
+                    class_consts.entry(name).or_insert(const_info);
+                }
+            }
+        }
+
+        self.generics.insert(
+            decl.name.clone(),
+            GenericInfo {
+                type_params: decl.type_params.clone(),
+                extends:     decl.extends.clone(),
+                extends_args: decl.extends_args.clone(),
+                implements:  decl.implements.clone(),
+                fields,
+                methods,
+                class_consts,
+            },
+        );
+        true
+    }
+
     // ── Requêtes ─────────────────────────────────────────────────────────────
 
     pub fn lookup_function(&self, name: &str) -> Option<&FuncSig> {
@@ -383,6 +465,10 @@ impl SymbolTable {
     #[allow(dead_code)]
     pub fn lookup_module(&self, name: &str) -> Option<&ModuleInfo> {
         self.modules.get(name)
+    }
+
+    pub fn lookup_generic(&self, name: &str) -> Option<&GenericInfo> {
+        self.generics.get(name)
     }
 
     #[allow(dead_code)]

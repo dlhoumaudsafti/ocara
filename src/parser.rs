@@ -147,6 +147,9 @@ impl Parser {
                 TokenKind::Class => {
                     program.classes.push(self.parse_class()?);
                 }
+                TokenKind::Generic => {
+                    program.generics.push(self.parse_generic()?);
+                }
                 TokenKind::Interface => {
                     program.interfaces.push(self.parse_interface()?);
                 }
@@ -318,6 +321,8 @@ impl Parser {
                         param_tys,
                     });
                 }
+                
+                // Type qualifié : repository.User
                 if self.check_exact(&TokenKind::Dot) {
                     let mut parts = vec![name];
                     while self.check_exact(&TokenKind::Dot) {
@@ -325,7 +330,21 @@ impl Parser {
                         parts.push(self.eat_ident()?.0);
                     }
                     Type::Qualified(parts)
-                } else {
+                } 
+                // Type générique : List<int>, Cache<string, User>
+                else if self.check_exact(&TokenKind::Lt) {
+                    self.advance(); // '<'
+                    let mut args = Vec::new();
+                    args.push(self.parse_type()?);
+                    while self.check_exact(&TokenKind::Comma) {
+                        self.advance();
+                        args.push(self.parse_type()?);
+                    }
+                    self.eat(&TokenKind::Gt)?; // '>'
+                    Type::Generic { name, args }
+                } 
+                // Type nommé simple
+                else {
                     Type::Named(name)
                 }
             }
@@ -510,6 +529,108 @@ impl Parser {
         self.eat(&TokenKind::RBrace)?;
 
         Ok(ClassDecl { name, extends, modules, implements, members, span })
+    }
+
+    // ── Générique ────────────────────────────────────────────────────────────
+
+    fn parse_generic(&mut self) -> ParseResult<GenericDecl> {
+        let span = self.span();
+        self.eat(&TokenKind::Generic)?;
+        let (name, _) = self.eat_ident()?;
+
+        // Parser les paramètres de type : <T, K, V = string>
+        self.eat(&TokenKind::Lt)?;
+        let mut type_params = Vec::new();
+        
+        loop {
+            let pspan = self.span();
+            let (pname, _) = self.eat_ident()?;
+            
+            // Vérifier PascalCase (première lettre majuscule)
+            if !pname.chars().next().unwrap().is_uppercase() {
+                return Err(ParseError::new(
+                    format!("generic type parameter '{}' must be in PascalCase (start with uppercase)", pname),
+                    pspan,
+                ));
+            }
+            
+            // Valeur par défaut optionnelle : T = string
+            let default = if self.check_exact(&TokenKind::Eq) {
+                self.advance();
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
+            
+            type_params.push(TypeParam { name: pname, default, span: pspan });
+            
+            if !self.check_exact(&TokenKind::Comma) {
+                break;
+            }
+            self.advance(); // ','
+        }
+        
+        self.eat(&TokenKind::Gt)?;
+
+        // Extends avec arguments de type optionnels : extends Base<T>
+        let mut extends = None;
+        let mut extends_args = Vec::new();
+        if self.check_exact(&TokenKind::Extends) {
+            self.advance();
+            extends = Some(self.eat_ident()?.0);
+            
+            // Arguments de type optionnels pour extends
+            if self.check_exact(&TokenKind::Lt) {
+                self.advance();
+                extends_args.push(self.parse_type()?);
+                while self.check_exact(&TokenKind::Comma) {
+                    self.advance();
+                    extends_args.push(self.parse_type()?);
+                }
+                self.eat(&TokenKind::Gt)?;
+            }
+        }
+
+        // Modules
+        let mut modules = Vec::new();
+        if self.check_exact(&TokenKind::Modules) {
+            self.advance();
+            modules.push(self.eat_ident()?.0);
+            while self.check_exact(&TokenKind::Comma) {
+                self.advance();
+                modules.push(self.eat_ident()?.0);
+            }
+        }
+
+        // Implements
+        let mut implements = Vec::new();
+        if self.check_exact(&TokenKind::Implements) {
+            self.advance();
+            implements.push(self.eat_ident()?.0);
+            while self.check_exact(&TokenKind::Comma) {
+                self.advance();
+                implements.push(self.eat_ident()?.0);
+            }
+        }
+
+        // Membres (comme une classe)
+        self.eat(&TokenKind::LBrace)?;
+        let mut members = Vec::new();
+        while !self.check_exact(&TokenKind::RBrace) {
+            members.push(self.parse_class_member()?);
+        }
+        self.eat(&TokenKind::RBrace)?;
+
+        Ok(GenericDecl { 
+            name, 
+            type_params, 
+            extends, 
+            extends_args,
+            modules, 
+            implements, 
+            members, 
+            span 
+        })
     }
 
     // ── Module (mixin) ───────────────────────────────────────────────────────
@@ -1316,10 +1437,26 @@ impl Parser {
             TokenKind::Use => {
                 self.advance();
                 let (class, _) = self.eat_ident()?;
+                
+                // Arguments de type optionnels : use Cache<int, User>()
+                let type_args = if self.check_exact(&TokenKind::Lt) {
+                    self.advance();
+                    let mut args = Vec::new();
+                    args.push(self.parse_type()?);
+                    while self.check_exact(&TokenKind::Comma) {
+                        self.advance();
+                        args.push(self.parse_type()?);
+                    }
+                    self.eat(&TokenKind::Gt)?;
+                    args
+                } else {
+                    Vec::new()
+                };
+                
                 self.eat(&TokenKind::LParen)?;
                 let args = self.parse_arg_list()?;
                 self.eat(&TokenKind::RParen)?;
-                Ok(Expr::New { class, args, span })
+                Ok(Expr::New { class, type_args, args, span })
             }
 
             // ── match ───────────────────────────────────────────────────────

@@ -1,0 +1,77 @@
+namespace .
+
+// Test de la coloration syntaxique des génériques
+
+// Déclaration d'un générique simple
+generic Stack<T> {
+    private property items:T[]
+    
+    init() {
+        self.items = []
+    }
+    
+    public method push(item:T): void {
+        Array::push(self.items, item)
+    }
+    
+    public method pop(): T {
+        return Array::pop(self.items)
+    }
+    
+    public method size(): int {
+        return Array::len(self.items)
+    }
+}
+
+// Déclaration d'un générique avec valeur par défaut
+generic Cache<K, V = string> {
+    private property data:map<K, V>
+    
+    init() {
+        self.data = {}
+    }
+    
+    public method set(key:K, value:V): void {
+        self.data[key] = value
+    }
+    
+    public method get(key:K): V {
+        return self.data[key]
+    }
+}
+
+// Déclaration d'un générique avec contrainte extends
+generic Result<Value, Error = string> extends BaseResult {
+    private property value:Value
+    private property error:Error
+    
+    init(val:Value, err:Error) {
+        self.value = val
+        self.error = err
+    }
+    
+    public method isOk(): bool {
+        return self.error == ""
+    }
+}
+
+import ocara.IO
+import ocara.Array
+
+function testGenerics(): int {
+    // Instanciation avec types explicites
+    var intStack:Stack<int> = use Stack<int>()
+    intStack.push(10)
+    intStack.push(20)
+    
+    IO::writeln("Stack size:")
+    IO::writeln(intStack.size())
+    
+    // Instanciation avec types génériques complexes
+    var userCache:Cache<int, User> = use Cache<int, User>()
+    
+    // Instanciation avec valeur par défaut
+    var simpleCache:Cache<string> = use Cache<string>()
+    
+    return 0
+}
