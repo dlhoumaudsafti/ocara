@@ -1,0 +1,38 @@
+namespace classes
+
+import ocara.IO
+import ocara.Convert
+import UIComponent
+import interfaces.Drawable
+import mods.Clickable
+
+class Button extends UIComponent modules Clickable implements Drawable {
+    
+    private property label:string
+    private property color:string
+    
+    init(label:string, color:string) {
+        self.label = label
+        self.color = color
+        self.x = 0
+        self.y = 0
+        self.visible = true
+        self.click_count = 0
+        self.enabled = true
+    }
+    
+    public method draw(): void {
+        IO::writeln(`Dessin du bouton: ${self.label}`)
+        IO::writeln(`Couleur: ${self.color}`)
+        IO::writeln("Clics: " + Convert::intToStr(self.click_count))
+    }
+    
+    public method getColor(): string {
+        return self.color
+    }
+    
+    public method click(): void {
+        self.increment_clicks()
+        IO::writeln("Bouton '" + self.label + "' cliqué! (total: " + Convert::intToStr(self.click_count) + ")")
+    }
+}

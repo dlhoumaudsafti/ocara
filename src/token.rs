@@ -52,6 +52,8 @@ pub enum TemplatePart {
 pub enum TokenKind {
     // ── Mots-clés ────────────────────────────────────────────────────────────
     Import,
+    From,
+    Namespace,
     As,
     Var,
     Scoped,

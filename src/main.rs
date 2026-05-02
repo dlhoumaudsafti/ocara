@@ -185,25 +185,51 @@ fn main() {
     let source_dir = args.src_dir.as_ref()
         .map(|p| p.as_path())
         .unwrap_or_else(|| args.input.parent().unwrap_or_else(|| std::path::Path::new(".")));
-    // Collecter les imports utilisateur avant d'itérer (pour éviter borrow conflict)
-    let user_imports: Vec<crate::ast::ImportDecl> = program.imports.iter()
-        .filter(|imp| imp.path.first().map(|s| s.as_str()) != Some("ocara"))
+    
+    // Séparer les imports en deux catégories
+    let module_imports: Vec<crate::ast::ImportDecl> = program.imports.iter()
+        .filter(|imp| imp.file_path.is_none() && imp.path.first().map(|s| s.as_str()) != Some("ocara"))
+        .cloned()
+        .collect();
+    
+    let file_imports: Vec<crate::ast::ImportDecl> = program.imports.iter()
+        .filter(|imp| imp.file_path.is_some())
         .cloned()
         .collect();
 
+    // Vérification des imports
     for imp in &program.imports {
         if imp.path.first().map(|s| s.as_str()) == Some("ocara") {
             // Import builtin : vérifier que le module existe dans le runtime
             let last = imp.path.last().map(|s| s.as_str()).unwrap_or("");
             if last != "*" && !OCARA_BUILTINS.contains(&last) {
                 let name = imp.path.join(".");
-                eprintln!("error: unknown builtin module: `{}` (available modules: {})",
-                    name, OCARA_BUILTINS.join(", "));
+                diagnostic::print_error(&args.input, imp.span.line, imp.span.col,
+                    &format!("unknown builtin module: `{}` (available modules: {})", name, OCARA_BUILTINS.join(", ")));
                 std::process::exit(1);
             }
             continue;
         }
-        // Import utilisateur : vérifier que le fichier .oc existe
+        
+        // Import depuis un fichier (nouveau format "from")
+        if let Some(file_path_str) = &imp.file_path {
+            let mut file_path = source_dir.to_path_buf();
+            // Support des chemins relatifs avec ../
+            let clean_path = file_path_str.trim_end_matches(".oc");
+            file_path.push(clean_path);
+            if !file_path.extension().is_some() {
+                file_path.set_extension("oc");
+            }
+            
+            if !file_path.exists() {
+                diagnostic::print_error(&args.input, imp.span.line, imp.span.col,
+                    &format!("file not found: `{}` (expected file: {})", file_path_str, file_path.display()));
+                std::process::exit(1);
+            }
+            continue;
+        }
+        
+        // Import utilisateur (ancien format) : vérifier que le fichier .oc existe
         let mut file_path = source_dir.to_path_buf();
         for segment in &imp.path {
             file_path.push(segment);
@@ -211,14 +237,206 @@ fn main() {
         file_path.set_extension("oc");
         if !file_path.exists() {
             let name = imp.path.join(".");
-            eprintln!("error: module not found: `{}` (expected file: {})",
-                name, file_path.display());
+            diagnostic::print_error(&args.input, imp.span.line, imp.span.col,
+                &format!("module not found: `{}` (expected file: {})", name, file_path.display()));
             std::process::exit(1);
         }
     }
 
-    // ── 4a. Chargement et fusion des modules utilisateur ─────────────────────
-    for imp in &user_imports {
+    // ── 4a. Chargement et fusion des imports (nouveau + ancien format) ───────
+    let mut processed_files: std::collections::HashSet<std::path::PathBuf> = std::collections::HashSet::new();
+    
+    // (ImportDecl, répertoire du fichier parent, namespace du fichier parent)
+    let mut imports_to_process: Vec<(crate::ast::ImportDecl, std::path::PathBuf, Option<String>)> = Vec::new();
+    
+    // Namespace du fichier principal
+    let main_namespace = program.namespace.clone();
+    
+    // Ajouter les imports "from" (nouveau format)
+    for imp in &file_imports {
+        imports_to_process.push((imp.clone(), source_dir.to_path_buf(), main_namespace.clone()));
+    }
+    
+    // Ajouter les imports namespace (ancien format) - créer un ImportDecl virtuel avec file_path
+    for imp in &module_imports {
+        // Si l'import n'a qu'un seul segment (ex: UIComponent) et qu'on est dans un namespace,
+        // essayer d'abord dans le namespace courant
+        let file_path_str = if imp.path.len() == 1 && main_namespace.is_some() && main_namespace.as_deref() != Some(".") {
+            // Essayer namespace/Symbol (ex: classes/UIComponent)
+            let ns = main_namespace.as_ref().unwrap();
+            format!("{}/{}", ns, imp.path[0])
+        } else {
+            // Chemin complet (ex: classes.Button → classes/Button)
+            imp.path.join("/")
+        };
+        
+        // Le dernier segment est le nom du symbole à importer
+        let symbol_name = imp.path.last().cloned().unwrap_or_default();
+        
+        // Créer un import virtuel avec file_path pour le traiter comme un import "from"
+        let virtual_imp = crate::ast::ImportDecl {
+            path: vec![symbol_name], // importer ce symbole spécifique
+            alias: imp.alias.clone(),
+            file_path: Some(file_path_str),
+            span: imp.span.clone(),
+        };
+        imports_to_process.push((virtual_imp, source_dir.to_path_buf(), main_namespace.clone()));
+    }
+    
+    while !imports_to_process.is_empty() {
+        let (imp, parent_dir, _parent_namespace) = imports_to_process.remove(0);
+        let file_path_str = imp.file_path.as_ref().unwrap();
+        
+        // Résoudre le chemin depuis le répertoire parent
+        let clean_path = file_path_str.trim_end_matches(".oc");
+        let mut file_path = if clean_path.starts_with("../") || clean_path.starts_with("./") {
+            // Chemin relatif : résoudre depuis le répertoire parent
+            parent_dir.join(clean_path)
+        } else {
+            // Chemin absolu ou depuis source_dir
+            source_dir.join(clean_path)
+        };
+        
+        if !file_path.extension().is_some() {
+            file_path.set_extension("oc");
+        }
+        
+        // Si le fichier n'existe pas et que le chemin pourrait être dans un namespace,
+        // essayer un fallback vers la racine (sans le namespace)
+        if !file_path.exists() && file_path_str.contains('/') {
+            let parts: Vec<&str> = file_path_str.split('/').collect();
+            if parts.len() == 2 {
+                // Essayer juste le nom du symbole (ex: classes/UIComponent → UIComponent)
+                let fallback_path = source_dir.join(parts[1]).with_extension("oc");
+                if fallback_path.exists() {
+                    file_path = fallback_path;
+                }
+            }
+        }
+        
+        // Éviter de traiter le même fichier plusieurs fois
+        let canonical_path = file_path.canonicalize().unwrap_or(file_path.clone());
+        if processed_files.contains(&canonical_path) {
+            continue;
+        }
+        processed_files.insert(canonical_path.clone());
+        
+        // Le répertoire parent pour les imports de ce fichier
+        let current_file_dir = file_path.parent().unwrap_or(&parent_dir).to_path_buf();
+
+        let mod_src = match fs::read_to_string(&file_path) {
+            Ok(s) => s,
+            Err(e) => {
+                diagnostic::print_error(&file_path, 0, 0, &format!("reading file '{}': {}", file_path.display(), e));
+                std::process::exit(1);
+            }
+        };
+        let mod_tokens = match Lexer::new(&mod_src).tokenize() {
+            Ok(t) => t,
+            Err(e) => {
+                diagnostic::print_error(&file_path, 0, 0, &format!("{}", e));
+                std::process::exit(1);
+            }
+        };
+        let mod_prog = match Parser::new(mod_tokens).parse_program() {
+            Ok(p) => p,
+            Err(e) => {
+                diagnostic::print_error(&file_path, e.span.line, e.span.col, &e.message);
+                std::process::exit(1);
+            }
+        };
+
+        // Extraire ce qui est demandé
+        let is_wildcard = imp.path.first().map(|s| s == "*").unwrap_or(false);
+        
+        if is_wildcard {
+            // import * from "file" → tout importer
+            program.classes.extend(mod_prog.classes);
+            program.interfaces.extend(mod_prog.interfaces);
+            program.functions.extend(mod_prog.functions);
+            program.consts.extend(mod_prog.consts);
+            program.modules.extend(mod_prog.modules);
+        } else {
+            // import Circle from "file" → importer seulement Circle
+            let requested_name = imp.path.first().cloned().unwrap_or_default();
+            let final_name = imp.alias.as_ref().cloned().unwrap_or(requested_name.clone());
+            
+            // Chercher la classe
+            if let Some(mut cls) = mod_prog.classes.iter().find(|c| c.name == requested_name).cloned() {
+                cls.name = final_name.clone();
+                program.classes.push(cls);
+            }
+            // Chercher l'interface
+            else if let Some(mut iface) = mod_prog.interfaces.iter().find(|i| i.name == requested_name).cloned() {
+                iface.name = final_name.clone();
+                program.interfaces.push(iface);
+            }
+            // Chercher le module
+            else if let Some(mut module) = mod_prog.modules.iter().find(|m| m.name == requested_name).cloned() {
+                module.name = final_name.clone();
+                program.modules.push(module);
+            }
+            // Chercher la fonction
+            else if let Some(mut func) = mod_prog.functions.iter().find(|f| f.name == requested_name).cloned() {
+                func.name = final_name.clone();
+                program.functions.push(func);
+            }
+            else {
+                diagnostic::print_error(&args.input, imp.span.line, imp.span.col,
+                    &format!("'{}' not found in file '{}'", requested_name, file_path_str));
+                std::process::exit(1);
+            }
+        }
+        
+        // Récupérer le namespace du fichier chargé
+        let loaded_namespace = mod_prog.namespace.clone();
+        
+        // Ajouter les imports du module chargé pour traitement récursif
+        for new_imp in mod_prog.imports {
+            // Skip les imports ocara.* (builtins)
+            if new_imp.path.first().map(|s| s.as_str()) == Some("ocara") {
+                if !program.imports.iter().any(|i| i.path == new_imp.path) {
+                    program.imports.push(new_imp.clone());
+                }
+                continue;
+            }
+            
+            // Ajouter à la liste globale si pas déjà présent
+            if !program.imports.iter().any(|i| i.path == new_imp.path && i.file_path == new_imp.file_path) {
+                program.imports.push(new_imp.clone());
+            }
+            
+            // Ajouter à la file de traitement récursif
+            if new_imp.file_path.is_some() {
+                // Import "from" - ajouter tel quel
+                imports_to_process.push((new_imp, current_file_dir.clone(), loaded_namespace.clone()));
+            } else {
+                // Import namespace - convertir en import virtuel "from"
+                // Si l'import n'a qu'un seul segment et qu'on est dans un namespace,
+                // essayer d'abord dans le namespace courant
+                let file_path_str = if new_imp.path.len() == 1 && loaded_namespace.is_some() && loaded_namespace.as_deref() != Some(".") {
+                    // Essayer namespace/Symbol (ex: classes/UIComponent)
+                    let ns = loaded_namespace.as_ref().unwrap();
+                    format!("{}/{}", ns, new_imp.path[0])
+                } else {
+                    // Chemin complet (ex: classes.Button → classes/Button)
+                    new_imp.path.join("/")
+                };
+                let symbol_name = new_imp.path.last().cloned().unwrap_or_default();
+                
+                let virtual_imp = crate::ast::ImportDecl {
+                    path: vec![symbol_name],
+                    alias: new_imp.alias.clone(),
+                    file_path: Some(file_path_str),
+                    span: new_imp.span.clone(),
+                };
+                imports_to_process.push((virtual_imp, source_dir.to_path_buf(), loaded_namespace.clone()));
+            }
+        }
+    }
+
+    // ── 4b. Chargement et fusion des modules utilisateur (ancien format) ─────
+    for imp in &module_imports {
         let mut file_path = source_dir.to_path_buf();
         for segment in &imp.path { file_path.push(segment); }
         file_path.set_extension("oc");
@@ -291,7 +509,37 @@ fn main() {
     for decl in &program.classes    { symbols.register_class(decl); }
     for decl in &program.functions  { symbols.register_function(decl); }
 
-    // ── 4c. Analyse sémantique ────────────────────────────────────────────────
+    // ── 4d. Vérification des interfaces implémentées ──────────────────────────
+    for class_decl in &program.classes {
+        for iface_name in &class_decl.implements {
+            // Vérifier que l'interface existe
+            let iface_info = match symbols.lookup_interface(iface_name) {
+                Some(info) => info,
+                None => {
+                    diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
+                        &format!("interface '{}' not found", iface_name));
+                    std::process::exit(1);
+                }
+            };
+            
+            // Vérifier que la classe implémente toutes les méthodes de l'interface
+            for (method_name, _iface_sig) in &iface_info.methods {
+                // Chercher la méthode dans la classe (en remontant la chaîne d'héritage)
+                let found = symbols.lookup_method_in_chain(&class_decl.name, method_name);
+                
+                if found.is_none() {
+                    diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
+                        &format!("class '{}' does not implement method '{}' from interface '{}'",
+                            class_decl.name, method_name, iface_name));
+                    std::process::exit(1);
+                }
+                
+                // TODO: vérifier aussi la signature (paramètres et type de retour)
+            }
+        }
+    }
+
+    // ── 4e. Analyse sémantique ────────────────────────────────────────────────
     let mut checker = TypeChecker::new(&symbols);
     checker.check_program(&program);
 

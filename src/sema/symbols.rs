@@ -136,7 +136,23 @@ impl SymbolTable {
             }
         }
 
-        // Import ordinaire : classe opaque
+        // Import depuis un fichier (nouveau format "from") : sera résolu dans main.rs
+        // On ne crée pas de classe opaque car les classes seront fusionnées
+        if decl.file_path.is_some() {
+            return;
+        }
+
+        // Import namespace non-ocara : sera chargé dans main.rs (depuis la v0.1.2)
+        // On ne crée pas de classe opaque car les classes seront chargées
+        if !is_ocara {
+            self.imports.push(ImportInfo {
+                path:  decl.path.clone(),
+                alias: decl.alias.clone(),
+            });
+            return;
+        }
+
+        // Import ordinaire : classe opaque (ne devrait plus arriver sauf bugs)
         let alias = decl
             .alias
             .as_ref()

@@ -106,6 +106,30 @@ impl Parser {
     pub fn parse_program(&mut self) -> ParseResult<Program> {
         let mut program = Program::new();
 
+        // Parser le namespace optionnel en début de fichier
+        if self.check_exact(&TokenKind::Namespace) {
+            self.advance(); // consommer 'namespace'
+            
+            // namespace . ou namespace identifier
+            if self.check_exact(&TokenKind::Dot) {
+                self.advance(); // consommer '.'
+                program.namespace = Some(".".to_string()); // namespace racine explicite
+            } else {
+                // Doit être un identifiant
+                let tok = self.current().clone();
+                if let TokenKind::Ident(_) = tok.kind {
+                    let ns = tok.lexeme.clone();
+                    self.advance();
+                    program.namespace = Some(ns);
+                } else {
+                    return Err(ParseError::new(
+                        "expected '.' or identifier after 'namespace'".to_string(),
+                        self.span(),
+                    ));
+                }
+            }
+        }
+
         while !self.check_exact(&TokenKind::Eof) {
             match self.peek_kind().clone() {
                 TokenKind::Import => {
@@ -151,7 +175,51 @@ impl Parser {
         let span = self.span();
         self.eat(&TokenKind::Import)?;
 
-        let mut path = vec![self.eat_ident()?.0];
+        // Deux formats possibles:
+        // 1. Ancien: import ocara.IO [as Alias]
+        // 2. Nouveau: import Circle from "file" [as Alias]
+        //            import * from "file"
+        
+        // Premier élément: soit un identifiant, soit *
+        let mut path = vec![];
+        if self.check_exact(&TokenKind::Star) {
+            self.advance();
+            path.push("*".to_string());
+        } else {
+            path.push(self.eat_ident()?.0);
+        }
+
+        // Vérifier si c'est le format "from"
+        if self.check_exact(&TokenKind::From) {
+            self.advance(); // 'from'
+            
+            // Attendre une string littérale pour le chemin de fichier
+            let file_path = match &self.current().kind {
+                TokenKind::LitString(s) => {
+                    let path = s.clone();
+                    self.advance();
+                    Some(path)
+                }
+                _ => {
+                    return Err(ParseError {
+                        message: "expected string literal after 'from'".to_string(),
+                        span: self.span(),
+                    });
+                }
+            };
+
+            // Alias optionnel
+            let alias = if self.check_exact(&TokenKind::As) {
+                self.advance();
+                Some(self.eat_ident()?.0)
+            } else {
+                None
+            };
+
+            return Ok(ImportDecl { path, file_path, alias, span });
+        }
+
+        // Sinon, format ancien: continuer avec les points
         while self.check_exact(&TokenKind::Dot) {
             self.advance(); // '.'
             // Accepter `*` (Star) comme dernier segment : import ocara.*
@@ -170,7 +238,7 @@ impl Parser {
             None
         };
 
-        Ok(ImportDecl { path, alias, span })
+        Ok(ImportDecl { path, file_path: None, alias, span })
     }
 
     // ── Constante globale ────────────────────────────────────────────────────
