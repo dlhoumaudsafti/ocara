@@ -1,0 +1,21 @@
+// Fichier de blocs runtime réutilisables pour le logging
+
+import ocara.IO
+
+init {
+    IO::writeln("╔════════════════════════════════════════╗")
+    IO::writeln("║     Application Ocara v0.3.0           ║")
+    IO::writeln("╚════════════════════════════════════════╝")
+    var startTime: string = "00:00:00"
+}
+
+exit {
+    IO::writeln("")
+    IO::writeln("╔════════════════════════════════════════╗")
+    if SUCCESS {
+        IO::writeln("║  ✓ Terminé avec succès                ║")
+    } else {
+        IO::writeln(`║  ✗ Erreur détectée (code ${ERROR})          ║`)
+    }
+    IO::writeln("╚════════════════════════════════════════╝")
+}

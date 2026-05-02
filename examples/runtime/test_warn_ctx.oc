@@ -1,0 +1,21 @@
+import ocara.IO
+
+init {
+    IO::writeln("=== INIT ===")
+    var unused1: int = 0
+}
+
+main {
+    IO::writeln("=== MAIN ===")
+    var unused2: int = 5
+}
+
+success {
+    IO::writeln("SUCCESS")
+    var unused3: int = 10
+}
+
+exit {
+    IO::writeln("EXIT")
+    var unused4: int = 20
+}

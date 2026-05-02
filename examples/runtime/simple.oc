@@ -1,0 +1,32 @@
+namespace .
+import ocara.IO
+
+init {
+    IO::writeln("=== INIT ===")
+    var counter:int = 0
+    var appName:string = "OcaraApp"
+    IO::writeln(`Initialisation de ${appName}`)
+}
+
+main {
+    IO::writeln("=== MAIN ===")
+    counter = counter + 1
+    IO::writeln(`Application: ${appName}`)
+    IO::writeln(`Compteur: ${counter}`)
+    
+    counter = counter + 10
+    IO::writeln(`Compteur après traitement: ${counter}`)
+}
+
+success {
+    IO::writeln("=== SUCCESS ===")
+    IO::writeln(`Résultat final: ${counter}`)
+}
+
+exit {
+    IO::writeln("=== EXIT ===")
+    IO::writeln(`Variables magiques:`)
+    IO::writeln(`  - SUCCESS: ${SUCCESS}`)
+    IO::writeln(`  - ERROR: ${ERROR}`)
+    IO::writeln(`${appName} terminé, compteur final: ${counter}`)
+}

@@ -1,0 +1,33 @@
+namespace .
+import ocara.IO
+import ocara.Array
+
+init {
+    IO::writeln("Initialisation...")
+    var items:int[] = []
+    var total:int = 0
+}
+
+main {
+    IO::writeln("Traitement des données...")
+    
+    Array::push(items, 10)
+    Array::push(items, 20)
+    Array::push(items, 30)
+    
+    var i:int = 0
+    while i < Array::len(items) {
+        total = total + items[i]
+        i = i + 1
+    }
+}
+
+success {
+    IO::writeln("Succès !")
+    IO::writeln(`Nombre d'éléments: ${Array::len(items)}`)
+    IO::writeln(`Total: ${total}`)
+}
+
+exit {
+    IO::writeln("Nettoyage et sortie...")
+}

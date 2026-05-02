@@ -47,7 +47,14 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
 
         const lineText = document.lineAt(position.line).text;
 
-        // ── 1a. Ligne d'import avec from : import ... from "file" ─────────────
+        // ── 1. Runtime import : runtime X ou runtime X is Y ────────────────────
+        const runtimeMatch = lineText.match(/^\s*runtime\s+([\w.]+)(?:\s+is\s+\w+)?\s*$/);
+        if (runtimeMatch) {
+            const runtimePath = runtimeMatch[1];
+            return this.resolveRuntimeImport(document, runtimePath);
+        }
+
+        // ── 2a. Ligne d'import avec from : import ... from "file" ─────────────
         const importFromMatch = lineText.match(/^\s*import\s+([\w*]+)\s+from\s+"([^"]+)"(?:\s+as\s+(\w+))?\s*$/);
         if (importFromMatch) {
             const symbol = importFromMatch[1];
@@ -55,7 +62,7 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
             return this.resolveFileImport(document, symbol, filePath);
         }
 
-        // ── 1b. Ligne d'import namespace : import foo.bar.Baz ─────────────────
+        // ── 2b. Ligne d'import namespace : import foo.bar.Baz ─────────────────
         const importLineMatch = lineText.match(/^\s*import\s+([\w.]+)(?:\s+as\s+(\w+))?\s*$/);
         if (importLineMatch) {
             const loc = this.resolveImportPath(document, importLineMatch[1]);
@@ -278,6 +285,49 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
         // Retourne le premier fichier trouvé
         if (files.length > 0) {
             return files[0];
+        }
+        
+        return undefined;
+    }
+
+    // ─── Résolution d'un import runtime ───────────────────────────────────────
+
+    /**
+     * Résout un import runtime vers le fichier correspondant.
+     * Cherche dans l'ordre : .runtime.oc, .run.oc, .rt.oc, .oc
+     * Supporte les chemins avec points (ex: config.prod → config/prod.runtime.oc)
+     */
+    private async resolveRuntimeImport(
+        document: vscode.TextDocument,
+        runtimePath: string
+    ): Promise<vscode.Location[] | undefined> {
+        const docDir = path.dirname(document.uri.fsPath);
+        const segments = runtimePath.split('.');
+        const relPath = segments.join('/');
+        
+        // Extensions à essayer dans l'ordre
+        const extensions = ['.runtime.oc', '.run.oc', '.rt.oc', '.oc'];
+        
+        // Essaye chaque extension
+        for (const ext of extensions) {
+            const fullPath = path.resolve(docDir, relPath + ext);
+            if (fs.existsSync(fullPath)) {
+                return [new vscode.Location(vscode.Uri.file(fullPath), new vscode.Position(0, 0))];
+            }
+        }
+        
+        // Si pas trouvé localement, cherche dans le workspace
+        const ws = vscode.workspace.getWorkspaceFolder(document.uri);
+        if (!ws) { return undefined; }
+        
+        for (const ext of extensions) {
+            const fileName = path.basename(relPath) + ext;
+            const pattern = new vscode.RelativePattern(ws, `**/${fileName}`);
+            const files = await vscode.workspace.findFiles(pattern, '**/node_modules/**');
+            
+            if (files.length > 0) {
+                return [new vscode.Location(files[0], new vscode.Position(0, 0))];
+            }
         }
         
         return undefined;

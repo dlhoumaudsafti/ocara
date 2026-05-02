@@ -1,0 +1,28 @@
+namespace .
+import ocara.IO
+
+init {
+    IO::writeln("Initialisation...")
+    var counter:int = 0
+}
+
+main {
+    IO::writeln("Exécution principale...")
+    counter = counter + 1
+    IO::writeln(`Compteur: ${counter}`)
+}
+
+success {
+    IO::writeln("Tout s'est bien passé !")
+}
+
+exit {
+    IO::writeln("Bloc exit:")
+    IO::writeln(`  SUCCESS = ${SUCCESS}`)
+    IO::writeln(`  ERROR = ${ERROR}`)
+    IO::writeln(`  counter = ${counter}`)
+    
+    if SUCCESS {
+        IO::writeln("→ Le programme s'est terminé avec succès")
+    }
+}

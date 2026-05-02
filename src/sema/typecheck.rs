@@ -56,6 +56,8 @@ impl<'a> TypeChecker<'a> {
         for class in &program.classes {
             self.check_class(class);
         }
+        // Blocs runtime
+        self.check_runtime_blocks(program);
     }
 
     // ── Enum ─────────────────────────────────────────────────────────────────
@@ -178,6 +180,95 @@ impl<'a> TypeChecker<'a> {
         }
 
         self.current_class = None;
+    }
+
+    // ── Blocs runtime ────────────────────────────────────────────────────────
+
+    fn check_runtime_blocks(&mut self, program: &Program) {
+        use std::collections::HashMap;
+        
+        // Vérifier qu'il n'y a pas de doublons de blocs runtime
+        let mut seen_kinds: HashMap<crate::ast::RuntimeBlockKind, crate::token::Span> = HashMap::new();
+        for block in &program.runtime_blocks {
+            if let Some(_prev_span) = seen_kinds.get(&block.kind) {
+                self.errors.push(SemaError::DuplicateSymbol {
+                    name: format!("{} runtime block", block.kind.as_str()),
+                    span: block.span.clone(),
+                });
+                // Note: on pourrait aussi référencer _prev_span dans l'erreur
+            } else {
+                seen_kinds.insert(block.kind, block.span.clone());
+            }
+        }
+        
+        // Le bloc main est obligatoire (au moins l'un des blocs doit exister)
+        // Note: Pour l'instant, nous permettons des programmes sans blocs runtime
+        // (pour compatibilité avec le code existant)
+        
+        // Vérifier tous les blocs runtime comme s'ils étaient dans une seule fonction
+        // pour éviter les warnings "unused" sur les variables qui flow entre blocs
+        self.check_runtime_blocks_merged(program);
+    }
+    
+    fn check_runtime_blocks_merged(&mut self, program: &Program) {
+        // Créer un scope global pour tous les blocs runtime
+        self.scopes.push();
+        
+        // Injecter les variables magiques si nécessaire
+        let has_error = program.runtime_blocks.iter().any(|b| 
+            b.kind == crate::ast::RuntimeBlockKind::Error || 
+            b.kind == crate::ast::RuntimeBlockKind::Exit
+        );
+        let has_exit = program.runtime_blocks.iter().any(|b| 
+            b.kind == crate::ast::RuntimeBlockKind::Exit
+        );
+        
+        if has_error {
+            self.scopes.declare(
+                "ERROR".to_string(),
+                LocalBinding {
+                    ty: Type::Int,
+                    mutable: true,
+                    span: crate::token::Span::new(0, 0),
+                    used: true,
+                    is_param: false,
+                },
+            );
+        }
+        
+        if has_exit {
+            self.scopes.declare(
+                "SUCCESS".to_string(),
+                LocalBinding {
+                    ty: Type::Bool,
+                    mutable: true,
+                    span: crate::token::Span::new(0, 0),
+                    used: true,
+                    is_param: false,
+                },
+            );
+        }
+        
+        // Vérifier tous les statements de tous les blocs dans l'ordre
+        let order = [
+            crate::ast::RuntimeBlockKind::Init,
+            crate::ast::RuntimeBlockKind::Main,
+            crate::ast::RuntimeBlockKind::Error,
+            crate::ast::RuntimeBlockKind::Success,
+            crate::ast::RuntimeBlockKind::Exit,
+        ];
+        
+        for kind in &order {
+            if let Some(block) = program.runtime_blocks.iter().find(|b| b.kind == *kind) {
+                for stmt in &block.statements {
+                    self.check_stmt(stmt);
+                }
+            }
+        }
+        
+        // Pop scope et flush warnings
+        let _u = self.scopes.pop_with_warnings();
+        self.flush_warnings(_u);
     }
 
     // ── Block ─────────────────────────────────────────────────────────────────
