@@ -10,55 +10,54 @@
 //   4. Ajouter les sigs Cranelift dans `src/codegen/runtime.rs`
 // ─────────────────────────────────────────────────────────────────────────────
 
-pub mod array;
-pub mod convert;
-pub mod http;
 pub mod io;
-pub mod json;
-pub mod map;
-pub mod math;
-pub mod regex;
-pub mod string;
 pub mod system;
-pub mod httpserver;
 pub mod thread;
 pub mod mutex;
+pub mod math;
+pub mod string;
+pub mod array;
+pub mod map;
+pub mod regex;
+pub mod convert;
 pub mod datetime;
 pub mod date;
 pub mod time;
-pub mod unittest;
-pub mod htmlcomponent;
-pub mod html;
 pub mod file;
 pub mod directory;
+pub mod json;
+pub mod httprequest;
+pub mod httpserver;
+pub mod htmlcomponent;
+pub mod html;
 pub mod exception;
+pub mod unittest;
 
 use crate::sema::symbols::ClassInfo;
 
 /// Retourne `Some(ClassInfo)` si `name` est une classe builtin du namespace `ocara`.
 pub fn builtin_class(name: &str) -> Option<ClassInfo> {
     match name {
-        "Array"       => Some(array::class()),
-        "Convert"     => Some(convert::class()),
-        "HTTPRequest" => Some(http::class()),
         "IO"          => Some(io::class()),
-        "JSON"        => Some(json::class()),
-        "Map"         => Some(map::class()),
-        "Math"        => Some(math::class()),
-        "Regex"       => Some(regex::class()),
-        "String"      => Some(string::class()),
         "System"      => Some(system::class()),
-        "HTTPServer" => Some(httpserver::class()),
         "Thread"      => Some(thread::class()),
         "Mutex"       => Some(mutex::class()),
+        "Math"        => Some(math::class()),
+        "String"      => Some(string::class()),
+        "Array"       => Some(array::class()),
+        "Map"         => Some(map::class()),
+        "Regex"       => Some(regex::class()),
+        "Convert"     => Some(convert::class()),
         "DateTime"    => Some(datetime::class()),
         "Date"        => Some(date::class()),
         "Time"        => Some(time::class()),
-        "UnitTest"    => Some(unittest::class()),
-        "HTMLComponent" => Some(htmlcomponent::class()),
-        "HTML"        => Some(html::class()),
         "File"        => Some(file::class()),
         "Directory"   => Some(directory::class()),
+        "JSON"        => Some(json::class()),
+        "HTTPRequest" => Some(httprequest::class()),
+        "HTTPServer" => Some(httpserver::class()),
+        "HTML"        => Some(html::class()),
+        "HTMLComponent" => Some(htmlcomponent::class()),
         "Exception"   => Some(exception::exception_class()),
         "FileException" => Some(exception::file_exception_class()),
         "DirectoryException" => Some(exception::directory_exception_class()),
@@ -75,6 +74,7 @@ pub fn builtin_class(name: &str) -> Option<ClassInfo> {
         "ThreadException" => Some(exception::thread_exception_class()),
         "MutexException" => Some(exception::mutex_exception_class()),
         "UnitTestException" => Some(exception::unittest_exception_class()),
+        "UnitTest"    => Some(unittest::class()),
         _             => None,
     }
 }
@@ -82,27 +82,26 @@ pub fn builtin_class(name: &str) -> Option<ClassInfo> {
 /// Toutes les classes builtins (pour `import ocara.*`).
 pub fn all_builtins() -> Vec<(&'static str, ClassInfo)> {
     vec![
-        ("Array",       array::class()),
-        ("Convert",     convert::class()),
-        ("HTTPRequest", http::class()),
         ("IO",          io::class()),
-        ("JSON",        json::class()),
-        ("Map",         map::class()),
-        ("Math",        math::class()),
-        ("Regex",       regex::class()),
-        ("String",      string::class()),
         ("System",      system::class()),
-        ("HTTPServer", httpserver::class()),
         ("Thread",      thread::class()),
         ("Mutex",       mutex::class()),
+        ("Math",        math::class()),
+        ("String",      string::class()),
+        ("Array",       array::class()),
+        ("Map",         map::class()),
+        ("Regex",       regex::class()),
+        ("Convert",     convert::class()),
         ("DateTime",    datetime::class()),
         ("Date",        date::class()),
         ("Time",        time::class()),
-        ("UnitTest",    unittest::class()),
-        ("HTMLComponent", htmlcomponent::class()),
-        ("HTML",        html::class()),
         ("File",        file::class()),
         ("Directory",   directory::class()),
+        ("JSON",        json::class()),
+        ("HTTPRequest", httprequest::class()),
+        ("HTTPServer", httpserver::class()),
+        ("HTML",        html::class()),
+        ("HTMLComponent", htmlcomponent::class()),
         ("Exception",   exception::exception_class()),
         ("FileException", exception::file_exception_class()),
         ("DirectoryException", exception::directory_exception_class()),
@@ -119,5 +118,6 @@ pub fn all_builtins() -> Vec<(&'static str, ClassInfo)> {
         ("ThreadException", exception::thread_exception_class()),
         ("MutexException", exception::mutex_exception_class()),
         ("UnitTestException", exception::unittest_exception_class()),
+        ("UnitTest",    unittest::class()),
     ]
 }

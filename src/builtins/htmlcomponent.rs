@@ -10,7 +10,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 use std::collections::HashMap;
-use crate::ast::Type;
+use crate::parsing::ast::Type;
 use crate::sema::symbols::{ClassInfo, FuncSig};
 
 fn instance(params: Vec<(&str, Type)>, ret_ty: Type) -> FuncSig {

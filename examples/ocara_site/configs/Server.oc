@@ -20,8 +20,8 @@ class Server {
 
     init() {
         self.server = use HTTPServer()
-        self.server.setPort(3000)
-        self.server.setWorkers(4)
+        self.server.port(3000)
+        self.server.workers(4)
     }
 
     public method routes(): void {

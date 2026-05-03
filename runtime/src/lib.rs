@@ -41,6 +41,8 @@ use std::time::Duration;
 
 #[cfg(target_os = "linux")]
 pub(crate) fn write_stdout_raw(bytes: &[u8]) {
+    // Appelle directement le syscall SYS_write pour éviter de shadower le `write(fd,buf,n)` POSIX
+    // dont Rust's std::fs::write a besoin en interne.
     if bytes.is_empty() { return; }
     unsafe {
         core::arch::asm!(
@@ -58,6 +60,8 @@ pub(crate) fn write_stdout_raw(bytes: &[u8]) {
 
 #[cfg(target_os = "linux")]
 pub(crate) fn write_stderr_raw(bytes: &[u8]) {
+    // Même implémentation que write_stdout_raw, mais avec fd = 2 (STDERR_FILENO)
+    // NOTE : on pourrait optimiser en combinant les deux fonctions et en passant le fd en paramètre,
     if bytes.is_empty() { return; }
     unsafe {
         core::arch::asm!(
@@ -84,6 +88,8 @@ pub(crate) fn write_stdout_raw(bytes: &[u8]) {
 
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn write_stderr_raw(bytes: &[u8]) {
+    // Fallback : utilise eprintln uniquement sur les plateformes non-Linux
+    // où le conflit de symbole n'existe pas (macOS link dynamique par défaut).
     use std::io::Write as _;
     let _ = io::stderr().write_all(bytes);
     let _ = io::stderr().flush();
@@ -99,7 +105,7 @@ fn ocara_println(s: &str) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-pub mod http;
+pub mod httprequest;
 pub mod thread;
 pub mod mutex;
 pub mod httpserver;
@@ -1496,7 +1502,7 @@ pub extern "C" fn Regex_extract(pattern: i64, text: i64, n: i64) -> i64 {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ocara.HTTPRequest — implémenté dans http.rs
+// ocara.HTTPRequest — implémenté dans httprequest.rs
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
