@@ -6,8 +6,33 @@
 /// Chaque entry décrit la signature attendue par Cranelift.
 use cranelift_codegen::ir::{AbiParam, Signature};
 use cranelift_codegen::isa::CallConv;
-use cranelift_codegen::ir::types as clt;
 
+use super::desc::{
+    LOWLEVEL_BUILTINS,
+    IO_BUILTINS,
+    SYSTEM_BUILTINS,
+    THREAD_BUILTINS,
+    MUTEX_BUILTINS,
+    MATH_BUILTINS,
+    STRING_BUILTINS,
+    ARRAY_BUILTINS,
+    MAP_BUILTINS,
+    REGEX_BUILTINS,
+    CONVERT_BUILTINS,
+    DATETIME_BUILTINS,
+    DATE_BUILTINS,
+    TIME_BUILTINS,
+    FILE_BUILTINS,
+    DIRECTORY_BUILTINS,
+    JSON_BUILTINS,
+    HTTPREQUEST_BUILTINS,
+    HTTPSERVER_BUILTINS,
+    HTML_BUILTINS,
+    HTMLCOMPONENT_BUILTINS,
+    UNITTEST_BUILTINS,
+};
+
+#[derive(Clone, Copy)]
 pub struct BuiltinDesc {
     pub name:    &'static str,
     pub params:  &'static [cranelift_codegen::ir::Type],
@@ -17,316 +42,42 @@ pub struct BuiltinDesc {
     pub module:  Option<&'static str>,
 }
 
-pub const BUILTINS: &[BuiltinDesc] = &[
-    // ── Internes (toujours disponibles, jamais appelables directement) ────────
-    BuiltinDesc { name: "__str_concat",      params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__val_to_str",      params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__str_from_float",  params: &[clt::F64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__str_from_bool",   params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__box_float",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__box_bool",        params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+// Fonction pour obtenir tous les builtins combinés
+use std::sync::OnceLock;
+static BUILTINS_COMBINED: OnceLock<Vec<BuiltinDesc>> = OnceLock::new();
 
-    // ── Type checking runtime (narrowing 'is Type') ───────────────────────────
-    BuiltinDesc { name: "__is_null",         params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__is_int",          params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__is_float",        params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__is_bool",         params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__is_string",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__is_array",        params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__is_map",          params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__is_object",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__is_function",     params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+pub fn builtins() -> &'static [BuiltinDesc] {
+    BUILTINS_COMBINED.get_or_init(|| {
+        let mut all = Vec::new();
+        // Builtins internes et méthodes d'instance par ordre de niveau d'importance
+        all.extend_from_slice(LOWLEVEL_BUILTINS);
+        all.extend_from_slice(IO_BUILTINS);
+        all.extend_from_slice(SYSTEM_BUILTINS);
+        all.extend_from_slice(THREAD_BUILTINS);
+        all.extend_from_slice(MUTEX_BUILTINS);
+        all.extend_from_slice(MATH_BUILTINS);
+        all.extend_from_slice(STRING_BUILTINS);
+        all.extend_from_slice(ARRAY_BUILTINS);
+        all.extend_from_slice(MAP_BUILTINS);
+        all.extend_from_slice(REGEX_BUILTINS);
+        all.extend_from_slice(CONVERT_BUILTINS);
+        all.extend_from_slice(DATETIME_BUILTINS);
+        all.extend_from_slice(DATE_BUILTINS);
+        all.extend_from_slice(TIME_BUILTINS);
+        all.extend_from_slice(FILE_BUILTINS);
+        all.extend_from_slice(JSON_BUILTINS);
+        all.extend_from_slice(DIRECTORY_BUILTINS);
+        all.extend_from_slice(HTTPREQUEST_BUILTINS);
+        all.extend_from_slice(HTTPSERVER_BUILTINS);
+        all.extend_from_slice(HTML_BUILTINS);
+        all.extend_from_slice(HTMLCOMPONENT_BUILTINS);
+        all.extend_from_slice(UNITTEST_BUILTINS);
+        all
+    })
+}
 
-    BuiltinDesc { name: "__range",           params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__array_new",       params: &[],                                     returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__array_push",      params: &[clt::I64, clt::I64],                   returns: None,              module: None },
-    BuiltinDesc { name: "__array_len",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__array_get",       params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__array_set",       params: &[clt::I64, clt::I64, clt::I64],         returns: None,              module: None },
-    BuiltinDesc { name: "__map_foreach",     params: &[clt::I64, clt::I64, clt::I64],         returns: None,              module: None },
-    BuiltinDesc { name: "__map_new",         params: &[],                                     returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__map_set",         params: &[clt::I64, clt::I64, clt::I64],         returns: None,              module: None },
-    BuiltinDesc { name: "__map_get",         params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
-    // ── ocara.String ─────────────────────────────────────────────────────────
-    // Note: module: None pour permettre les méthodes d'instance sans import
-    // L'import est vérifié uniquement pour les appels statiques String::method() dans lower/expr.rs
-    BuiltinDesc { name: "String_len",        params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "String_upper",      params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "String_lower",      params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "String_capitalize", params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "String_trim",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "String_replace",    params: &[clt::I64, clt::I64, clt::I64],         returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "String_split",      params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "String_explode",    params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "String_between",    params: &[clt::I64, clt::I64, clt::I64],         returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "String_empty",      params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    // ── ocara.Math ───────────────────────────────────────────────────────────
-    BuiltinDesc { name: "Math_abs",          params: &[clt::I64],                             returns: Some(clt::I64),    module: Some("Math") },
-    BuiltinDesc { name: "Math_min",          params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: Some("Math") },
-    BuiltinDesc { name: "Math_max",          params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: Some("Math") },
-    BuiltinDesc { name: "Math_pow",          params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: Some("Math") },
-    BuiltinDesc { name: "Math_clamp",        params: &[clt::I64, clt::I64, clt::I64],         returns: Some(clt::I64),    module: Some("Math") },
-    BuiltinDesc { name: "Math_sqrt",         params: &[clt::F64],                             returns: Some(clt::F64),    module: Some("Math") },
-    BuiltinDesc { name: "Math_floor",        params: &[clt::F64],                             returns: Some(clt::I64),    module: Some("Math") },
-    BuiltinDesc { name: "Math_ceil",         params: &[clt::F64],                             returns: Some(clt::I64),    module: Some("Math") },
-    BuiltinDesc { name: "Math_round",        params: &[clt::F64],                             returns: Some(clt::I64),    module: Some("Math") },
-    // ── ocara.Regex ──────────────────────────────────────────────────────────
-    BuiltinDesc { name: "Regex_test",        params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: Some("Regex") },
-    BuiltinDesc { name: "Regex_find",        params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: Some("Regex") },
-    BuiltinDesc { name: "Regex_findAll",    params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: Some("Regex") },
-    BuiltinDesc { name: "Regex_replace",     params: &[clt::I64, clt::I64, clt::I64],         returns: Some(clt::I64),    module: Some("Regex") },
-    BuiltinDesc { name: "Regex_replaceAll", params: &[clt::I64, clt::I64, clt::I64],         returns: Some(clt::I64),    module: Some("Regex") },
-    BuiltinDesc { name: "Regex_split",       params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: Some("Regex") },
-    BuiltinDesc { name: "Regex_count",       params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: Some("Regex") },
-    BuiltinDesc { name: "Regex_extract",     params: &[clt::I64, clt::I64, clt::I64],         returns: Some(clt::I64),    module: Some("Regex") },
-    // ── ocara.Array ──────────────────────────────────────────────────────────
-    // Note: module: None pour permettre les méthodes d'instance sans import
-    // L'import est vérifié uniquement pour les appels statiques Array::method() dans lower/expr.rs
-    BuiltinDesc { name: "Array_len",         params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "Array_push",        params: &[clt::I64, clt::I64],                   returns: None,              module: None },
-    BuiltinDesc { name: "Array_pop",         params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "Array_first",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "Array_last",        params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "Array_contains",    params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "Array_indexOf",    params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "Array_reverse",     params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "Array_slice",       params: &[clt::I64, clt::I64, clt::I64],         returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "Array_join",        params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "Array_sort",        params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "Array_get",         params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "Array_set",         params: &[clt::I64, clt::I64, clt::I64],         returns: None,              module: None },
-    // ── ocara.Map ────────────────────────────────────────────────────────────
-    // Note: module: None pour permettre les méthodes d'instance sans import
-    // L'import est vérifié uniquement pour les appels statiques Map::method() dans lower/expr.rs
-    BuiltinDesc { name: "Map_size",          params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "Map_has",           params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "Map_get",           params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "Map_set",           params: &[clt::I64, clt::I64, clt::I64],         returns: None,              module: None },
-    BuiltinDesc { name: "Map_remove",        params: &[clt::I64, clt::I64],                   returns: None,              module: None },
-    BuiltinDesc { name: "Map_keys",          params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "Map_values",        params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "Map_merge",         params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "Map_isEmpty",      params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    // ── ocara.JSON ───────────────────────────────────────────────────────────
-    // Note: module: None pour permettre les méthodes d'instance sans import
-    // L'import est vérifié dans lower/expr.rs pour l'appel initial
-    BuiltinDesc { name: "JSON_encode",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "JSON_decode",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "JSON_pretty",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "JSON_minimize",     params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    // ── ocara.IO ─────────────────────────────────────────────────────────────
-    BuiltinDesc { name: "IO_write",          params: &[clt::I64],                             returns: None,              module: Some("IO") },
-    BuiltinDesc { name: "IO_writeInt",       params: &[clt::I64],                             returns: None,              module: Some("IO") },
-    BuiltinDesc { name: "IO_writeFloat",     params: &[clt::F64],                             returns: None,              module: Some("IO") },
-    BuiltinDesc { name: "IO_writeBool",      params: &[clt::I64],                             returns: None,              module: Some("IO") },
-    BuiltinDesc { name: "IO_writeln",        params: &[clt::I64],                             returns: None,              module: Some("IO") },
-    BuiltinDesc { name: "IO_writelnInt",     params: &[clt::I64],                             returns: None,              module: Some("IO") },
-    BuiltinDesc { name: "IO_writelnFloat",   params: &[clt::F64],                             returns: None,              module: Some("IO") },
-    BuiltinDesc { name: "IO_writelnBool",    params: &[clt::I64],                             returns: None,              module: Some("IO") },
-    BuiltinDesc { name: "IO_read",           params: &[],                                     returns: Some(clt::I64),    module: Some("IO") },
-    BuiltinDesc { name: "IO_readln",         params: &[],                                     returns: Some(clt::I64),    module: Some("IO") },
-    BuiltinDesc { name: "IO_readInt",       params: &[],                                     returns: Some(clt::I64),    module: Some("IO") },
-    BuiltinDesc { name: "IO_readFloat",     params: &[],                                     returns: Some(clt::F64),    module: Some("IO") },
-    BuiltinDesc { name: "IO_readBool",      params: &[],                                     returns: Some(clt::I64),    module: Some("IO") },
-    BuiltinDesc { name: "IO_readArray",     params: &[clt::I64],                             returns: Some(clt::I64),    module: Some("IO") },
-    BuiltinDesc { name: "IO_readMap",       params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: Some("IO") },
-    // ── ocara.Convert ────────────────────────────────────────────────────────
-    BuiltinDesc { name: "Convert_strToInt",          params: &[clt::I64],                   returns: Some(clt::I64),    module: Some("Convert") },
-    BuiltinDesc { name: "Convert_strToFloat",        params: &[clt::I64],                   returns: Some(clt::F64),    module: Some("Convert") },
-    BuiltinDesc { name: "Convert_strToBool",         params: &[clt::I64],                   returns: Some(clt::I64),    module: Some("Convert") },
-    BuiltinDesc { name: "Convert_strToArray",        params: &[clt::I64, clt::I64],         returns: Some(clt::I64),    module: Some("Convert") },
-    BuiltinDesc { name: "Convert_strToMap",          params: &[clt::I64, clt::I64, clt::I64], returns: Some(clt::I64), module: Some("Convert") },
-    BuiltinDesc { name: "Convert_intToStr",          params: &[clt::I64],                   returns: Some(clt::I64),    module: Some("Convert") },
-    BuiltinDesc { name: "Convert_intToFloat",        params: &[clt::I64],                   returns: Some(clt::F64),    module: Some("Convert") },
-    BuiltinDesc { name: "Convert_intToBool",         params: &[clt::I64],                   returns: Some(clt::I64),    module: Some("Convert") },
-    BuiltinDesc { name: "Convert_floatToStr",        params: &[clt::F64],                   returns: Some(clt::I64),    module: Some("Convert") },
-    BuiltinDesc { name: "Convert_floatToInt",        params: &[clt::F64],                   returns: Some(clt::I64),    module: Some("Convert") },
-    BuiltinDesc { name: "Convert_floatToBool",       params: &[clt::F64],                   returns: Some(clt::I64),    module: Some("Convert") },
-    BuiltinDesc { name: "Convert_boolToStr",         params: &[clt::I64],                   returns: Some(clt::I64),    module: Some("Convert") },
-    BuiltinDesc { name: "Convert_boolToInt",         params: &[clt::I64],                   returns: Some(clt::I64),    module: Some("Convert") },
-    BuiltinDesc { name: "Convert_boolToFloat",       params: &[clt::I64],                   returns: Some(clt::F64),    module: Some("Convert") },
-    BuiltinDesc { name: "Convert_arrayToStr",        params: &[clt::I64, clt::I64],         returns: Some(clt::I64),    module: Some("Convert") },
-    BuiltinDesc { name: "Convert_arrayToMap",        params: &[clt::I64, clt::I64],         returns: Some(clt::I64),    module: Some("Convert") },
-    BuiltinDesc { name: "Convert_mapToStr",          params: &[clt::I64, clt::I64, clt::I64], returns: Some(clt::I64), module: Some("Convert") },
-    BuiltinDesc { name: "Convert_mapKeysToArray",   params: &[clt::I64],                   returns: Some(clt::I64),    module: Some("Convert") },
-    BuiltinDesc { name: "Convert_mapValuesToArray", params: &[clt::I64],                   returns: Some(clt::I64),    module: Some("Convert") },
-    // ── ocara.HTTPRequest ─────────────────────────────────────────────────────
-    BuiltinDesc { name: "HTTPRequest_new",         params: &[clt::I64],                       returns: Some(clt::I64),    module: Some("HTTPRequest") },
-    BuiltinDesc { name: "HTTPRequest_setMethod",  params: &[clt::I64, clt::I64],             returns: None,              module: Some("HTTPRequest") },
-    BuiltinDesc { name: "HTTPRequest_setHeader",  params: &[clt::I64, clt::I64, clt::I64],   returns: None,              module: Some("HTTPRequest") },
-    BuiltinDesc { name: "HTTPRequest_setBody",    params: &[clt::I64, clt::I64],             returns: None,              module: Some("HTTPRequest") },
-    BuiltinDesc { name: "HTTPRequest_setTimeout", params: &[clt::I64, clt::I64],             returns: None,              module: Some("HTTPRequest") },
-    BuiltinDesc { name: "HTTPRequest_send",        params: &[clt::I64],                       returns: Some(clt::I64),    module: Some("HTTPRequest") },
-    BuiltinDesc { name: "HTTPRequest_status",      params: &[clt::I64],                       returns: Some(clt::I64),    module: Some("HTTPRequest") },
-    BuiltinDesc { name: "HTTPRequest_body",        params: &[clt::I64],                       returns: Some(clt::I64),    module: Some("HTTPRequest") },
-    BuiltinDesc { name: "HTTPRequest_header",      params: &[clt::I64, clt::I64],             returns: Some(clt::I64),    module: Some("HTTPRequest") },
-    BuiltinDesc { name: "HTTPRequest_headers",     params: &[clt::I64],                       returns: Some(clt::I64),    module: Some("HTTPRequest") },
-    BuiltinDesc { name: "HTTPRequest_ok",          params: &[clt::I64],                       returns: Some(clt::I64),    module: Some("HTTPRequest") },
-    BuiltinDesc { name: "HTTPRequest_isError",    params: &[clt::I64],                       returns: Some(clt::I64),    module: Some("HTTPRequest") },
-    BuiltinDesc { name: "HTTPRequest_error",       params: &[clt::I64],                       returns: Some(clt::I64),    module: Some("HTTPRequest") },
-    BuiltinDesc { name: "HTTPRequest_get",         params: &[clt::I64],                       returns: Some(clt::I64),    module: Some("HTTPRequest") },
-    BuiltinDesc { name: "HTTPRequest_post",        params: &[clt::I64, clt::I64],             returns: Some(clt::I64),    module: Some("HTTPRequest") },
-    BuiltinDesc { name: "HTTPRequest_put",         params: &[clt::I64, clt::I64],             returns: Some(clt::I64),    module: Some("HTTPRequest") },
-    BuiltinDesc { name: "HTTPRequest_delete",      params: &[clt::I64],                       returns: Some(clt::I64),    module: Some("HTTPRequest") },
-    BuiltinDesc { name: "HTTPRequest_patch",       params: &[clt::I64, clt::I64],             returns: Some(clt::I64),    module: Some("HTTPRequest") },
-    // ── ocara.System ─────────────────────────────────────────────────────────
-    BuiltinDesc { name: "System_exec",        params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("System") },
-    BuiltinDesc { name: "System_passthrough", params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("System") },
-    BuiltinDesc { name: "System_execCode",   params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("System") },
-    BuiltinDesc { name: "System_exit",        params: &[clt::I64],                            returns: None,              module: Some("System") },    BuiltinDesc { name: "System_env",         params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("System") },
-    BuiltinDesc { name: "System_setEnv",     params: &[clt::I64, clt::I64],                  returns: None,              module: Some("System") },
-    BuiltinDesc { name: "System_cwd",         params: &[],                                    returns: Some(clt::I64),    module: Some("System") },
-    BuiltinDesc { name: "System_sleep",       params: &[clt::I64],                            returns: None,              module: Some("System") },
-    BuiltinDesc { name: "System_pid",         params: &[],                                    returns: Some(clt::I64),    module: Some("System") },
-    BuiltinDesc { name: "System_args",        params: &[],                                    returns: Some(clt::I64),    module: Some("System") },
-    // ── ocara.HTTPServer ───────────────────────────────────────────────────────
-    BuiltinDesc { name: "HTTPServer_init",           params: &[clt::I64],                            returns: None,              module: Some("HTTPServer") },
-    BuiltinDesc { name: "HTTPServer_setPort",        params: &[clt::I64, clt::I64],                  returns: None,              module: Some("HTTPServer") },
-    BuiltinDesc { name: "HTTPServer_setHost",        params: &[clt::I64, clt::I64],                  returns: None,              module: Some("HTTPServer") },
-    BuiltinDesc { name: "HTTPServer_setWorkers",     params: &[clt::I64, clt::I64],                  returns: None,              module: Some("HTTPServer") },
-    BuiltinDesc { name: "HTTPServer_setRootPath",   params: &[clt::I64, clt::I64],                  returns: None,              module: Some("HTTPServer") },
-    BuiltinDesc { name: "HTTPServer_route",           params: &[clt::I64, clt::I64, clt::I64, clt::I64], returns: None,           module: Some("HTTPServer") },
-    BuiltinDesc { name: "HTTPServer_routeError",     params: &[clt::I64, clt::I64, clt::I64],        returns: None,              module: Some("HTTPServer") },
-    BuiltinDesc { name: "HTTPServer_run",             params: &[clt::I64],                            returns: None,              module: Some("HTTPServer") },
-    BuiltinDesc { name: "HTTPServer_reqPath",        params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("HTTPServer") },
-    BuiltinDesc { name: "HTTPServer_reqMethod",      params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("HTTPServer") },
-    BuiltinDesc { name: "HTTPServer_reqBody",        params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("HTTPServer") },
-    BuiltinDesc { name: "HTTPServer_reqHeader",      params: &[clt::I64, clt::I64],                  returns: Some(clt::I64),    module: Some("HTTPServer") },
-    BuiltinDesc { name: "HTTPServer_reqQuery",       params: &[clt::I64, clt::I64],                  returns: Some(clt::I64),    module: Some("HTTPServer") },
-    BuiltinDesc { name: "HTTPServer_respond",         params: &[clt::I64, clt::I64, clt::I64],        returns: None,              module: Some("HTTPServer") },
-    BuiltinDesc { name: "HTTPServer_setRespHeader", params: &[clt::I64, clt::I64, clt::I64],        returns: None,              module: Some("HTTPServer") },
-    // ── ocara.Thread ─────────────────────────────────────────────────────────
-    BuiltinDesc { name: "Thread_init",        params: &[clt::I64],                            returns: None,              module: Some("Thread") },
-    BuiltinDesc { name: "Thread_run",         params: &[clt::I64, clt::I64],                  returns: None,              module: Some("Thread") },
-    BuiltinDesc { name: "Thread_join",        params: &[clt::I64],                            returns: None,              module: Some("Thread") },
-    BuiltinDesc { name: "Thread_detach",      params: &[clt::I64],                            returns: None,              module: Some("Thread") },
-    BuiltinDesc { name: "Thread_id",          params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("Thread") },
-    BuiltinDesc { name: "Thread_sleep",       params: &[clt::I64],                            returns: None,              module: Some("Thread") },
-    BuiltinDesc { name: "Thread_currentId",  params: &[],                                    returns: Some(clt::I64),    module: Some("Thread") },
-    // ── ocara.Mutex ──────────────────────────────────────────────────────────
-    BuiltinDesc { name: "Mutex_init",         params: &[clt::I64],                            returns: None,              module: Some("Mutex") },
-    BuiltinDesc { name: "Mutex_lock",         params: &[clt::I64],                            returns: None,              module: Some("Mutex") },
-    BuiltinDesc { name: "Mutex_unlock",       params: &[clt::I64],                            returns: None,              module: Some("Mutex") },
-    BuiltinDesc { name: "Mutex_tryLock",     params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("Mutex") },
-    // ── ocara.DateTime ───────────────────────────────────────────────────────
-    BuiltinDesc { name: "DateTime_now",             params: &[],                                    returns: Some(clt::I64),    module: Some("DateTime") },
-    BuiltinDesc { name: "DateTime_fromTimestamp",  params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("DateTime") },
-    BuiltinDesc { name: "DateTime_year",            params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("DateTime") },
-    BuiltinDesc { name: "DateTime_month",           params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("DateTime") },
-    BuiltinDesc { name: "DateTime_day",             params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("DateTime") },
-    BuiltinDesc { name: "DateTime_hour",            params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("DateTime") },
-    BuiltinDesc { name: "DateTime_minute",          params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("DateTime") },
-    BuiltinDesc { name: "DateTime_second",          params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("DateTime") },
-    BuiltinDesc { name: "DateTime_format",          params: &[clt::I64, clt::I64],                  returns: Some(clt::I64),    module: Some("DateTime") },
-    BuiltinDesc { name: "DateTime_parse",           params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("DateTime") },
-    // ── ocara.Date ───────────────────────────────────────────────────────────
-    BuiltinDesc { name: "Date_today",               params: &[],                                    returns: Some(clt::I64),    module: Some("Date") },
-    BuiltinDesc { name: "Date_fromTimestamp",      params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("Date") },
-    BuiltinDesc { name: "Date_year",                params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("Date") },
-    BuiltinDesc { name: "Date_month",               params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("Date") },
-    BuiltinDesc { name: "Date_day",                 params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("Date") },
-    BuiltinDesc { name: "Date_dayOfWeek",         params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("Date") },
-    BuiltinDesc { name: "Date_isLeapYear",        params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("Date") },
-    BuiltinDesc { name: "Date_daysInMonth",       params: &[clt::I64, clt::I64],                  returns: Some(clt::I64),    module: Some("Date") },
-    BuiltinDesc { name: "Date_addDays",            params: &[clt::I64, clt::I64],                  returns: Some(clt::I64),    module: Some("Date") },
-    BuiltinDesc { name: "Date_diffDays",           params: &[clt::I64, clt::I64],                  returns: Some(clt::I64),    module: Some("Date") },
-    // ── ocara.Time ───────────────────────────────────────────────────────────
-    BuiltinDesc { name: "Time_now",                 params: &[],                                    returns: Some(clt::I64),    module: Some("Time") },
-    BuiltinDesc { name: "Time_fromTimestamp",      params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("Time") },
-    BuiltinDesc { name: "Time_hour",                params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("Time") },
-    BuiltinDesc { name: "Time_minute",              params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("Time") },
-    BuiltinDesc { name: "Time_second",              params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("Time") },
-    BuiltinDesc { name: "Time_fromSeconds",        params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("Time") },
-    BuiltinDesc { name: "Time_toSeconds",          params: &[clt::I64],                            returns: Some(clt::I64),    module: Some("Time") },
-    BuiltinDesc { name: "Time_addSeconds",         params: &[clt::I64, clt::I64],                  returns: Some(clt::I64),    module: Some("Time") },
-    BuiltinDesc { name: "Time_diffSeconds",        params: &[clt::I64, clt::I64],                  returns: Some(clt::I64),    module: Some("Time") },
-    // ── ocara.UnitTest ───────────────────────────────────────────────────────
-    BuiltinDesc { name: "UnitTest_assertEquals",         params: &[clt::I64, clt::I64],       returns: None,              module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertNotEquals",      params: &[clt::I64, clt::I64],       returns: None,              module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertTrue",           params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertFalse",          params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertNull",           params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertNotNull",        params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertGreater",        params: &[clt::I64, clt::I64],       returns: None,              module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertLess",           params: &[clt::I64, clt::I64],       returns: None,              module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertGreaterOrEquals",params: &[clt::I64, clt::I64],       returns: None,              module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertLessOrEquals",   params: &[clt::I64, clt::I64],       returns: None,              module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertContains",       params: &[clt::I64, clt::I64],       returns: None,              module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertEmpty",          params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertNotEmpty",       params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_fail",                 params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_pass",                 params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertFunction",       params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertClass",          params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertEnum",           params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertMap",            params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertArray",          params: &[clt::I64],                 returns: None,              module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertRaises",         params: &[clt::I64],                 returns: Some(clt::I64),    module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertExceptionMessageEquals",    params: &[clt::I64, clt::I64], returns: None,         module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertExceptionMessageNotEquals", params: &[clt::I64, clt::I64], returns: None,         module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertExceptionCodeEquals",       params: &[clt::I64, clt::I64], returns: None,         module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertExceptionCodeNotEquals",    params: &[clt::I64, clt::I64], returns: None,         module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertExceptionSourceEquals",     params: &[clt::I64, clt::I64], returns: None,         module: Some("UnitTest") },
-    BuiltinDesc { name: "UnitTest_assertExceptionSourceNotEquals",  params: &[clt::I64, clt::I64], returns: None,         module: Some("UnitTest") },
-    // ── ocara.HTMLComponent ───────────────────────────────────────────────────
-    BuiltinDesc { name: "HTMLComponent_init",     params: &[clt::I64, clt::I64],              returns: None,              module: Some("HTMLComponent") },
-    BuiltinDesc { name: "HTMLComponent_register", params: &[clt::I64, clt::I64],              returns: None,              module: Some("HTMLComponent") },
-    // ── ocara.HTML ────────────────────────────────────────────────────────────
-    BuiltinDesc { name: "HTML_render",            params: &[clt::I64],                        returns: Some(clt::I64),    module: Some("HTML") },
-    BuiltinDesc { name: "HTML_renderCached",     params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: Some("HTML") },
-    BuiltinDesc { name: "HTML_cacheDelete",      params: &[clt::I64],                        returns: None,              module: Some("HTML") },
-    BuiltinDesc { name: "HTML_cacheClear",       params: &[],                                returns: None,              module: Some("HTML") },
-    BuiltinDesc { name: "HTML_escape",            params: &[clt::I64],                        returns: Some(clt::I64),    module: Some("HTML") },
-    // ── ocara.File ────────────────────────────────────────────────────────────
-    BuiltinDesc { name: "File_read",              params: &[clt::I64],                        returns: Some(clt::I64),    module: Some("File") },
-    BuiltinDesc { name: "File_readBytes",        params: &[clt::I64],                        returns: Some(clt::I64),    module: Some("File") },
-    BuiltinDesc { name: "File_write",             params: &[clt::I64, clt::I64],              returns: None,              module: Some("File") },
-    BuiltinDesc { name: "File_writeBytes",       params: &[clt::I64, clt::I64],              returns: None,              module: Some("File") },
-    BuiltinDesc { name: "File_append",            params: &[clt::I64, clt::I64],              returns: None,              module: Some("File") },
-    BuiltinDesc { name: "File_exists",            params: &[clt::I64],                        returns: Some(clt::I64),    module: Some("File") },
-    BuiltinDesc { name: "File_size",              params: &[clt::I64],                        returns: Some(clt::I64),    module: Some("File") },
-    BuiltinDesc { name: "File_extension",         params: &[clt::I64],                        returns: Some(clt::I64),    module: Some("File") },
-    BuiltinDesc { name: "File_remove",            params: &[clt::I64],                        returns: None,              module: Some("File") },
-    BuiltinDesc { name: "File_copy",              params: &[clt::I64, clt::I64],              returns: None,              module: Some("File") },
-    BuiltinDesc { name: "File_move",              params: &[clt::I64, clt::I64],              returns: None,              module: Some("File") },
-    BuiltinDesc { name: "File_infos",             params: &[clt::I64],                        returns: Some(clt::I64),    module: Some("File") },
-    // ── ocara.Directory ───────────────────────────────────────────────────────
-    BuiltinDesc { name: "Directory_create",              params: &[clt::I64],                 returns: None,              module: Some("Directory") },
-    BuiltinDesc { name: "Directory_createRecursive",    params: &[clt::I64],                 returns: None,              module: Some("Directory") },
-    BuiltinDesc { name: "Directory_remove",              params: &[clt::I64],                 returns: None,              module: Some("Directory") },
-    BuiltinDesc { name: "Directory_removeRecursive",    params: &[clt::I64],                 returns: None,              module: Some("Directory") },
-    BuiltinDesc { name: "Directory_list",                params: &[clt::I64],                 returns: Some(clt::I64),    module: Some("Directory") },
-    BuiltinDesc { name: "Directory_listFiles",          params: &[clt::I64],                 returns: Some(clt::I64),    module: Some("Directory") },
-    BuiltinDesc { name: "Directory_listDirs",           params: &[clt::I64],                 returns: Some(clt::I64),    module: Some("Directory") },
-    BuiltinDesc { name: "Directory_exists",              params: &[clt::I64],                 returns: Some(clt::I64),    module: Some("Directory") },
-    BuiltinDesc { name: "Directory_count",               params: &[clt::I64],                 returns: Some(clt::I64),    module: Some("Directory") },
-    BuiltinDesc { name: "Directory_copy",                params: &[clt::I64, clt::I64],       returns: None,              module: Some("Directory") },
-    BuiltinDesc { name: "Directory_move",                params: &[clt::I64, clt::I64],       returns: None,              module: Some("Directory") },
-    BuiltinDesc { name: "Directory_infos",               params: &[clt::I64],                 returns: Some(clt::I64),    module: Some("Directory") },
-    // ── Strict comparison operators (===, !==, <==, >==) ──────────────────────
-    BuiltinDesc { name: "__cmp_eq_strict",        params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__cmp_ne_strict",        params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__cmp_le_strict",        params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__cmp_ge_strict",        params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
-    // ── Gestion des erreurs (try/on/fail) — toujours disponibles ─────────────
-    BuiltinDesc { name: "__ocara_try_exec",       params: &[clt::I64, clt::I64],              returns: None,              module: None },
-    BuiltinDesc { name: "__ocara_fail",           params: &[clt::I64, clt::I64],              returns: None,              module: None },
-    BuiltinDesc { name: "__ocara_type_matches",   params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__task_spawn",           params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__task_resolve",         params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__unbox_float",          params: &[clt::I64],                        returns: Some(clt::F64),    module: None },
-    BuiltinDesc { name: "__unbox_bool",           params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__ocara_unhandled_fail", params: &[clt::I64],                        returns: None,              module: None },
-    // Allocation d'objet tas (toujours disponible)
-    BuiltinDesc { name: "__alloc_obj",            params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__alloc_class_obj",      params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__alloc_fat_ptr",        params: &[],                                returns: Some(clt::I64),    module: None },
-    // Conversion string — sans heuristique pointeur
-    BuiltinDesc { name: "__str_from_int",         params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__array_to_str",         params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__system_os",            params: &[],                                returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__system_arch",          params: &[],                                returns: Some(clt::I64),    module: None },
-];
+// Pour rétrocompatibilité (deprecated, utiliser builtins() à la place)
+pub const BUILTINS: &[BuiltinDesc] = &[];
 
 pub fn builtin_sig(desc: &BuiltinDesc, call_conv: CallConv) -> Signature {
     let mut sig = Signature::new(call_conv);

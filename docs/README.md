@@ -10,6 +10,7 @@
 |----------|-------------|
 | [compilation-guide.md](compilation-guide.md) | Guide complet de compilation avec le compilateur `ocara` |
 | [EBNF.md](EBNF.md) | Grammaire formelle du langage Ocara (EBNF) |
+| [workflow-compilation.d](workflow-compilation.md) | Workflow de Compilation Ocara |
 | [diagnostics.md](diagnostics.md) | Messages d'erreur et diagnostics du compilateur |
 
 ---

@@ -72,7 +72,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 use std::collections::HashMap;
-use crate::ast::{Type, Visibility};
+use crate::parsing::ast::{Type, Visibility};
 use crate::sema::symbols::{ClassInfo, FieldInfo};
 
 fn make_exception_class() -> ClassInfo {

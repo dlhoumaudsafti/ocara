@@ -1,8 +1,8 @@
-use crate::ast::*;
+use crate::parsing::ast::*;
 use crate::sema::error::{SemaError, SemaWarning};
 use crate::sema::scope::{LocalBinding, ScopeStack};
 use crate::sema::symbols::SymbolTable;
-use crate::token::Span;
+use crate::parsing::token::Span;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TypeChecker
@@ -87,7 +87,7 @@ impl<'a> TypeChecker<'a> {
 
     // ── Enum ─────────────────────────────────────────────────────────────────
 
-    fn check_enum(&mut self, en: &crate::ast::EnumDecl) {
+    fn check_enum(&mut self, en: &crate::parsing::ast::EnumDecl) {
         let mut seen = std::collections::HashSet::new();
         for v in &en.variants {
             if !seen.insert(v.name.clone()) {
@@ -219,7 +219,7 @@ impl<'a> TypeChecker<'a> {
         use std::collections::HashMap;
         
         // Vérifier qu'il n'y a pas de doublons de blocs runtime
-        let mut seen_kinds: HashMap<crate::ast::RuntimeBlockKind, crate::token::Span> = HashMap::new();
+        let mut seen_kinds: HashMap<crate::parsing::ast::RuntimeBlockKind, crate::parsing::token::Span> = HashMap::new();
         for block in &program.runtime_blocks {
             if let Some(_prev_span) = seen_kinds.get(&block.kind) {
                 self.errors.push(SemaError::DuplicateSymbol {
@@ -247,11 +247,11 @@ impl<'a> TypeChecker<'a> {
         
         // Injecter les variables magiques si nécessaire
         let has_error = program.runtime_blocks.iter().any(|b| 
-            b.kind == crate::ast::RuntimeBlockKind::Error || 
-            b.kind == crate::ast::RuntimeBlockKind::Exit
+            b.kind == crate::parsing::ast::RuntimeBlockKind::Error || 
+            b.kind == crate::parsing::ast::RuntimeBlockKind::Exit
         );
         let has_exit = program.runtime_blocks.iter().any(|b| 
-            b.kind == crate::ast::RuntimeBlockKind::Exit
+            b.kind == crate::parsing::ast::RuntimeBlockKind::Exit
         );
         
         if has_error {
@@ -260,7 +260,7 @@ impl<'a> TypeChecker<'a> {
                 LocalBinding {
                     ty: Type::Int,
                     mutable: true,
-                    span: crate::token::Span::new(0, 0),
+                    span: crate::parsing::token::Span::new(0, 0),
                     used: true,
                     is_param: false,
                 },
@@ -273,7 +273,7 @@ impl<'a> TypeChecker<'a> {
                 LocalBinding {
                     ty: Type::Bool,
                     mutable: true,
-                    span: crate::token::Span::new(0, 0),
+                    span: crate::parsing::token::Span::new(0, 0),
                     used: true,
                     is_param: false,
                 },
@@ -282,11 +282,11 @@ impl<'a> TypeChecker<'a> {
         
         // Vérifier tous les statements de tous les blocs dans l'ordre
         let order = [
-            crate::ast::RuntimeBlockKind::Init,
-            crate::ast::RuntimeBlockKind::Main,
-            crate::ast::RuntimeBlockKind::Error,
-            crate::ast::RuntimeBlockKind::Success,
-            crate::ast::RuntimeBlockKind::Exit,
+            crate::parsing::ast::RuntimeBlockKind::Init,
+            crate::parsing::ast::RuntimeBlockKind::Main,
+            crate::parsing::ast::RuntimeBlockKind::Error,
+            crate::parsing::ast::RuntimeBlockKind::Success,
+            crate::parsing::ast::RuntimeBlockKind::Exit,
         ];
         
         for kind in &order {

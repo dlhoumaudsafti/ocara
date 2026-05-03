@@ -21,7 +21,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 use std::collections::HashMap;
-use crate::ast::{Type, Visibility};
+use crate::parsing::ast::{Type, Visibility};
 use crate::sema::symbols::{ClassInfo, FuncSig};
 
 fn m(params: Vec<(&str, Type)>, ret_ty: Type) -> FuncSig {
