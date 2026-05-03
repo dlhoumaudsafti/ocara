@@ -4,22 +4,23 @@
 // Fonctions exportées (convention C) :
 //
 //   HTTPServer_init(self_ptr)                         → void  constructeur
-//   HTTPServer_set_port(self_ptr, port)               → void
-//   HTTPServer_set_host(self_ptr, host_ptr)           → void
-//   HTTPServer_set_workers(self_ptr, n)               → void  threads accepteurs
-//   HTTPServer_set_root_path(self_ptr, path_ptr)      → void  répertoire fichiers statiques
+//   HTTPServer_port(self_ptr, port)               → void
+//   HTTPServer_host(self_ptr, host_ptr)           → void
+//   HTTPServer_workers(self_ptr, n)               → void  threads accepteurs
+//   HTTPServer_rootPath(self_ptr, path_ptr)      → void  répertoire fichiers statiques
 //   HTTPServer_route(self_ptr, path, method, fat_ptr) → void  enregistre une route
+//   HTTPServer_routeError(self_ptr, code, fat_ptr) → void  enregistre un handler d'erreur
 //   HTTPServer_run(self_ptr)                          → void  démarre (bloquant)
 //
 // Fonctions statiques (appelées depuis un handler) :
 //
-//   HTTPServer_req_path(req)           → i64  chemin (sans query string)
-//   HTTPServer_req_method(req)         → i64  méthode HTTP en majuscules
-//   HTTPServer_req_body(req)           → i64  corps de la requête
-//   HTTPServer_req_header(req, name)   → i64  valeur d'un en-tête (vide si absent)
-//   HTTPServer_req_query(req, key)     → i64  valeur d'un paramètre query string
+//   HTTPServer_path(req)           → i64  chemin (sans query string)
+//   HTTPServer_method(req)         → i64  méthode HTTP en majuscules
+//   HTTPServer_body(req)           → i64  corps de la requête
+//   HTTPServer_header(req, name)   → i64  valeur d'un en-tête (vide si absent)
+//   HTTPServer_query(req, key)     → i64  valeur d'un paramètre query string
 //   HTTPServer_respond(req, status, body) → void  envoie la réponse
-//   HTTPServer_set_resp_header(req, name, value) → void  ajoute un en-tête à la réponse
+//   HTTPServer_respondHeader(req, name, value) → void  ajoute un en-tête à la réponse
 //
 // Architecture multi-thread :
 //   Le serveur écoute sur `host:port`. `workers` threads appellent chacun
@@ -399,21 +400,21 @@ pub extern "C" fn HTTPServer_init(self_ptr: i64) {
 
 /// Définit le port d'écoute (défaut : 8080).
 #[no_mangle]
-pub extern "C" fn HTTPServer_set_port(self_ptr: i64, port: i64) {
+pub extern "C" fn HTTPServer_port(self_ptr: i64, port: i64) {
     let s = unsafe { server_from_slot(self_ptr) };
     s.port = port as u16;
 }
 
 /// Définit l'adresse d'écoute (défaut : "0.0.0.0").
 #[no_mangle]
-pub extern "C" fn HTTPServer_set_host(self_ptr: i64, host_ptr: i64) {
+pub extern "C" fn HTTPServer_host(self_ptr: i64, host_ptr: i64) {
     let s = unsafe { server_from_slot(self_ptr) };
     s.host = unsafe { ptr_to_str(host_ptr).to_string() };
 }
 
 /// Définit le nombre de threads workers (défaut : 4).
 #[no_mangle]
-pub extern "C" fn HTTPServer_set_workers(self_ptr: i64, n: i64) {
+pub extern "C" fn HTTPServer_workers(self_ptr: i64, n: i64) {
     let s = unsafe { server_from_slot(self_ptr) };
     s.workers = n.max(1) as usize;
 }
@@ -422,7 +423,7 @@ pub extern "C" fn HTTPServer_set_workers(self_ptr: i64, n: i64) {
 /// Si défini, les requêtes qui ne matchent aucune route tenteront de servir
 /// un fichier depuis ce répertoire. Protégé contre path traversal.
 #[no_mangle]
-pub extern "C" fn HTTPServer_set_root_path(self_ptr: i64, path_ptr: i64) {
+pub extern "C" fn HTTPServer_rootPath(self_ptr: i64, path_ptr: i64) {
     let s = unsafe { server_from_slot(self_ptr) };
     let path = unsafe { ptr_to_str(path_ptr).to_string() };
     s.root_path = if path.is_empty() { None } else { Some(path) };
@@ -452,7 +453,7 @@ pub extern "C" fn HTTPServer_route(
 /// Enregistre un handler pour un code d'erreur HTTP spécifique.
 /// Permet de personnaliser les pages d'erreur (404, 500, etc.).
 #[no_mangle]
-pub extern "C" fn HTTPServer_route_error(
+pub extern "C" fn HTTPServer_routeError(
     self_ptr: i64,
     code: i64,
     fat_ptr: i64,
@@ -506,21 +507,21 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
 
 /// Retourne le chemin de la requête courante (sans query string).
 #[no_mangle]
-pub extern "C" fn HTTPServer_req_path(req: i64) -> i64 {
+pub extern "C" fn HTTPServer_path(req: i64) -> i64 {
     let path = unsafe { ctx_ref(req).path.clone() };
     unsafe { alloc_str(&path) }
 }
 
 /// Retourne la méthode HTTP de la requête courante (ex: "GET").
 #[no_mangle]
-pub extern "C" fn HTTPServer_req_method(req: i64) -> i64 {
+pub extern "C" fn HTTPServer_method(req: i64) -> i64 {
     let method = unsafe { ctx_ref(req).method.clone() };
     unsafe { alloc_str(&method) }
 }
 
 /// Retourne le corps de la requête courante.
 #[no_mangle]
-pub extern "C" fn HTTPServer_req_body(req: i64) -> i64 {
+pub extern "C" fn HTTPServer_body(req: i64) -> i64 {
     let body = unsafe { ctx_ref(req).body.clone() };
     unsafe { alloc_str(&body) }
 }
@@ -528,7 +529,7 @@ pub extern "C" fn HTTPServer_req_body(req: i64) -> i64 {
 /// Retourne la valeur d'un en-tête de la requête (clé insensible à la casse).
 /// Retourne une chaîne vide si l'en-tête est absent.
 #[no_mangle]
-pub extern "C" fn HTTPServer_req_header(req: i64, name_ptr: i64) -> i64 {
+pub extern "C" fn HTTPServer_header(req: i64, name_ptr: i64) -> i64 {
     let name = unsafe { ptr_to_str(name_ptr).to_lowercase() };
     let val  = unsafe { ctx_ref(req) }.headers.get(&name)
         .cloned()
@@ -539,7 +540,7 @@ pub extern "C" fn HTTPServer_req_header(req: i64, name_ptr: i64) -> i64 {
 /// Retourne la valeur d'un paramètre query string.
 /// Retourne une chaîne vide si le paramètre est absent.
 #[no_mangle]
-pub extern "C" fn HTTPServer_req_query(req: i64, key_ptr: i64) -> i64 {
+pub extern "C" fn HTTPServer_query(req: i64, key_ptr: i64) -> i64 {
     let key = unsafe { ptr_to_str(key_ptr).to_string() };
     let val = unsafe { ctx_ref(req) }.query.get(&key)
         .cloned()
@@ -561,7 +562,7 @@ pub extern "C" fn HTTPServer_respond(req: i64, status: i64, body_ptr: i64) {
 
 /// Ajoute un en-tête à la réponse (ex: "Content-Type", "text/html").
 #[no_mangle]
-pub extern "C" fn HTTPServer_set_resp_header(req: i64, name_ptr: i64, value_ptr: i64) {
+pub extern "C" fn HTTPServer_respondHeader(req: i64, name_ptr: i64, value_ptr: i64) {
     let name  = unsafe { ptr_to_str(name_ptr).to_string() };
     let value = unsafe { ptr_to_str(value_ptr).to_string() };
     let header_str = format!("{}: {}", name, value);

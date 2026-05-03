@@ -12,8 +12,8 @@ pub enum IrType {
 }
 
 impl IrType {
-    pub fn from_ast(ty: &crate::ast::Type) -> Self {
-        use crate::ast::Type;
+    pub fn from_ast(ty: &crate::parsing::ast::Type) -> Self {
+        use crate::parsing::ast::Type;
         match ty {
             Type::Int              => IrType::I64,
             Type::Float            => IrType::F64,

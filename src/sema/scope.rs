@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use crate::ast::Type;
-use crate::token::Span;
+use crate::parsing::ast::Type;
+use crate::parsing::token::Span;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scope lexical empilé

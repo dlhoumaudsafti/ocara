@@ -1,5 +1,5 @@
 use std::fmt;
-use crate::token::Span;
+use crate::parsing::token::Span;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Erreurs sémantiques

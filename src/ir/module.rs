@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use crate::ir::func::IrFunction;
 use crate::ir::types::IrType;
-use crate::ast::Literal;
+use crate::parsing::ast::Literal;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // IrModule — représentation complète d'un programme compilé

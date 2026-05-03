@@ -2,26 +2,26 @@
 // ocara.HTTPServer — classe builtin d'instance
 //
 // Méthodes d'instance (is_static: false) :
-//   s.setPort(port:int)                         → void
-//   s.setHost(host:string)                      → void
-//   s.setWorkers(n:int)                         → void
-//   s.setRootPath(path:string)                 → void
+//   s.port(port:int)                         → void
+//   s.host(host:string)                      → void
+//   s.workers(n:int)                         → void
+//   s.rootPath(path:string)                 → void
 //   s.route(path:string, method:string, f:Function) → void
 //   s.run()                                      → void  (bloquant)
 //
 // Méthodes statiques (is_static: true) — appelées depuis un handler :
-//   HTTPServer::reqPath(req:int)                → string
-//   HTTPServer::reqMethod(req:int)              → string
-//   HTTPServer::reqBody(req:int)                → string
-//   HTTPServer::reqHeader(req:int, name:string) → string
-//   HTTPServer::reqQuery(req:int, key:string)   → string
+//   HTTPServer::path(req:int)                → string
+//   HTTPServer::method(req:int)              → string
+//   HTTPServer::body(req:int)                → string
+//   HTTPServer::header(req:int, name:string) → string
+//   HTTPServer::query(req:int, key:string)   → string
 //   HTTPServer::respond(req:int, status:int, body:string) → void
-//   HTTPServer::setRespHeader(req:int, name:string, value:string) → void
+//   HTTPServer::respondHeader(req:int, name:string, value:string) → void
 //
 // Convention runtime : HTTPServer_<method>
 // Usage :
 //   const server:HTTPServer = use HTTPServer()
-//   server.setPort(8080)
+//   server.port(8080)
 //   server.route("/", "GET", nameless(req:int): int {
 //       HTTPServer::respond(req, 200, "Hello")
 //       return 0
@@ -30,7 +30,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 use std::collections::HashMap;
-use crate::ast::Type;
+use crate::parsing::ast::Type;
 use crate::sema::symbols::{ClassInfo, FuncSig};
 
 fn instance(params: Vec<(&str, Type)>, ret_ty: Type) -> FuncSig {
@@ -64,26 +64,26 @@ pub fn class() -> ClassInfo {
 
     // ── Méthodes d'instance ───────────────────────────────────────────────────
 
-    // s.setPort(port:int) → void
-    methods.insert("setPort".into(), instance(
+    // s.port(port:int) → void
+    methods.insert("port".into(), instance(
         vec![("port", Type::Int)],
         Type::Void,
     ));
 
-    // s.setHost(host:string) → void
-    methods.insert("setHost".into(), instance(
+    // s.host(host:string) → void
+    methods.insert("host".into(), instance(
         vec![("host", Type::String)],
         Type::Void,
     ));
 
-    // s.setWorkers(n:int) → void
-    methods.insert("setWorkers".into(), instance(
+    // s.workers(n:int) → void
+    methods.insert("workers".into(), instance(
         vec![("n", Type::Int)],
         Type::Void,
     ));
 
-    // s.setRootPath(path:string) → void
-    methods.insert("setRootPath".into(), instance(
+    // s.rootPath(path:string) → void
+    methods.insert("rootPath".into(), instance(
         vec![("path", Type::String)],
         Type::Void,
     ));
@@ -115,32 +115,32 @@ pub fn class() -> ClassInfo {
 
     // ── Méthodes statiques — lecture de la requête ───────────────────────────
 
-    // HTTPServer::reqPath(req:int) → string
-    methods.insert("reqPath".into(), static_m(
+    // HTTPServer::path(req:int) → string
+    methods.insert("path".into(), static_m(
         vec![("req", Type::Int)],
         Type::String,
     ));
 
-    // HTTPServer::reqMethod(req:int) → string
-    methods.insert("reqMethod".into(), static_m(
+    // HTTPServer::method(req:int) → string
+    methods.insert("method".into(), static_m(
         vec![("req", Type::Int)],
         Type::String,
     ));
 
-    // HTTPServer::reqBody(req:int) → string
-    methods.insert("reqBody".into(), static_m(
+    // HTTPServer::body(req:int) → string
+    methods.insert("body".into(), static_m(
         vec![("req", Type::Int)],
         Type::String,
     ));
 
-    // HTTPServer::reqHeader(req:int, name:string) → string
-    methods.insert("reqHeader".into(), static_m(
+    // HTTPServer::header(req:int, name:string) → string
+    methods.insert("header".into(), static_m(
         vec![("req", Type::Int), ("name", Type::String)],
         Type::String,
     ));
 
-    // HTTPServer::reqQuery(req:int, key:string) → string
-    methods.insert("reqQuery".into(), static_m(
+    // HTTPServer::query(req:int, key:string) → string
+    methods.insert("query".into(), static_m(
         vec![("req", Type::Int), ("key", Type::String)],
         Type::String,
     ));
@@ -157,8 +157,8 @@ pub fn class() -> ClassInfo {
         Type::Void,
     ));
 
-    // HTTPServer::setRespHeader(req:int, name:string, value:string) → void
-    methods.insert("setRespHeader".into(), static_m(
+    // HTTPServer::respondHeader(req:int, name:string, value:string) → void
+    methods.insert("respondHeader".into(), static_m(
         vec![
             ("req",   Type::Int),
             ("name",  Type::String),
