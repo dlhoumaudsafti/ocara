@@ -93,8 +93,20 @@ pub fn lower_for_in(
         });
     }
     
-    let elem_slot = builder.declare_local(var, elem_ty, false);
+    let elem_slot = builder.declare_local(var, elem_ty.clone(), false);
     builder.emit(Inst::Store { ptr: elem_slot, src: elem });
+    
+    // Si l'itérateur est une variable avec un type d'élément map, enregistrer les métadonnées
+    if let Expr::Ident(iter_name, _) = iter {
+        if let Some(elem_ast_ty) = builder.elem_ast_types.get(iter_name.as_str()) {
+            if let Type::Map(_, val_ty) = elem_ast_ty {
+                // L'élément est un map, enregistrer la variable d'itération comme map
+                builder.map_vars.insert(var.to_string());
+                builder.elem_types.insert(var.to_string(), IrType::from_ast(val_ty));
+                builder.var_class.insert(var.to_string(), "Map".to_string());
+            }
+        }
+    }
 
     // continue → incr_bb, break → merge_bb
     builder.loop_stack.push((incr_bb.clone(), merge_bb.clone()));

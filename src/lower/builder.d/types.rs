@@ -24,12 +24,16 @@ pub struct LowerBuilder<'m> {
     pub fn_variadic_info: HashMap<String, (usize, IrType)>,
     /// Type des éléments pour les variables tableau (ex: jours:string[] → Ptr)
     pub elem_types: HashMap<String, IrType>,
+    /// Type AST des éléments pour les variables tableau (pour métadonnées complètes)
+    pub elem_ast_types: HashMap<String, Type>,
     /// Noms des variables déclarées comme map<K,V> (pour Expr::Index → __map_get)
     pub map_vars: HashSet<String>,
     /// Mapping nom_variable → nom_classe (pour résoudre les appels de méthode)
     pub var_class: HashMap<String, String>,
     /// Classe courante (Some(name) si on est dans une méthode/constructeur)
     pub current_class: Option<String>,
+    /// Classe parent (Some(name) si current_class extends une autre classe)
+    pub parent_class: Option<String>,
     /// Pile de boucles : (continue_bb, break_bb) — pour break/continue
     pub loop_stack: Vec<(BlockId, BlockId)>,
     /// Variables de type Function (pointeurs de fonction) — pour CallIndirect
@@ -52,7 +56,11 @@ pub struct LowerBuilder<'m> {
     /// Valeurs par défaut des paramètres : func_name → Vec<Option<Expr>>
     pub func_default_args: HashMap<String, Vec<Option<Expr>>>,
     /// Nombre total de paramètres pour les variables Function : var_name → count
+    #[allow(dead_code)]
     pub func_var_param_count: HashMap<String, usize>,
+    /// Label de sortie anticipée pour les blocs runtime (fonction main seulement)
+    /// Pointe vers le label juste avant le `if (ERROR != 0)` qui détermine error/success
+    pub runtime_exit_bb: Option<BlockId>,
 }
 
 impl<'m> LowerBuilder<'m> {
@@ -71,9 +79,11 @@ impl<'m> LowerBuilder<'m> {
             fn_param_types: HashMap::new(),
             fn_variadic_info: HashMap::new(),
             elem_types: HashMap::new(),
+            elem_ast_types: HashMap::new(),
             map_vars: HashSet::new(),
             var_class: HashMap::new(),
             current_class: None,
+            parent_class: None,
             loop_stack: Vec::new(),
             func_vars: HashSet::new(),
             func_ret_types: HashMap::new(),
@@ -84,6 +94,7 @@ impl<'m> LowerBuilder<'m> {
             variadic_params: HashSet::new(),
             func_default_args: HashMap::new(),
             func_var_param_count: HashMap::new(),
+            runtime_exit_bb: None,
         }
     }
 

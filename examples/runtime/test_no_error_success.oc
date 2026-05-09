@@ -1,0 +1,17 @@
+import ocara.IO
+
+init {
+    IO::writeln("Init")
+}
+
+main {
+    IO::writeln("Main start")
+    try {
+        IO::writeln("In try block")
+        raise 123
+    } on e:int {
+        IO::writeln(`Caught error: ${e}`)
+        return e
+    }
+    IO::writeln("Main end")
+}

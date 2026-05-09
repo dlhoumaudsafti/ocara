@@ -42,6 +42,18 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
             async_funcs.insert(func.name.clone());
         }
     }
+    
+    // Collecte des méthodes async de classes
+    for class in &program.classes {
+        for member in &class.members {
+            if let ClassMember::Method { decl, .. } = member {
+                if decl.is_async {
+                    let mangled = format!("{}_{}", class.name, decl.name);
+                    async_funcs.insert(mangled);
+                }
+            }
+        }
+    }
 
     // Pré-collecte des types de paramètres (fonctions libres + méthodes statiques)
     // Uniquement les fonctions référençables comme type Function
@@ -114,18 +126,23 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
             module.class_parents.insert(class.name.clone(), parent_name.clone());
         }
     }
+    
     // Construction des layouts dans l'ordre (parents avant enfants) — on refait si besoin
     fn collect_fields(
         classes: &[ClassDecl],
         modules: &[ModuleDecl],
+        class_layouts: &HashMap<String, Vec<(String, IrType)>>,
         class_name: &str,
     ) -> Vec<(String, IrType)> {
         let class = match classes.iter().find(|c| c.name == class_name) {
             Some(c) => c,
-            None    => return vec![],
+            None    => {
+                // Si pas dans classes utilisateur, chercher dans les builtin layouts
+                return class_layouts.get(class_name).cloned().unwrap_or_default();
+            }
         };
         let mut fields = if let Some(parent) = &class.extends {
-            collect_fields(classes, modules, parent)
+            collect_fields(classes, modules, class_layouts, parent)
         } else {
             vec![]
         };
@@ -155,11 +172,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         }
         fields
     }
-    for class in &program.classes {
-        let fields = collect_fields(&program.classes, &program.modules, &class.name);
-        module.class_layouts.insert(class.name.clone(), fields);
-    }
-
+    
     // Ajouter les layouts des exceptions builtin (même structure pour toutes)
     let exception_layout = vec![
         ("message".to_string(), IrType::Ptr),  // offset 0
@@ -181,7 +194,22 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     module.class_layouts.insert("TimeException".to_string(), exception_layout.clone());
     module.class_layouts.insert("ThreadException".to_string(), exception_layout.clone());
     module.class_layouts.insert("MutexException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("UnitTestException".to_string(), exception_layout);
+    module.class_layouts.insert("UnitTestException".to_string(), exception_layout.clone());
+    module.class_layouts.insert("HTTPServerException".to_string(), exception_layout);
+
+    // Ajouter les layouts des builtins opaques (pointeur vers structure Rust)
+    // Ces classes ont un constructeur _init qui alloue une structure opaque
+    let opaque_layout = vec![("__opaque_ptr".to_string(), IrType::Ptr)];
+    module.class_layouts.insert("HTTPServer".to_string(), opaque_layout.clone());
+    module.class_layouts.insert("Thread".to_string(), opaque_layout.clone());
+    module.class_layouts.insert("Mutex".to_string(), opaque_layout.clone());
+    module.class_layouts.insert("HTMLComponent".to_string(), opaque_layout);
+    
+    // Construire les layouts des classes utilisateur (APRÈS les builtins)
+    for class in &program.classes {
+        let fields = collect_fields(&program.classes, &program.modules, &module.class_layouts, &class.name);
+        module.class_layouts.insert(class.name.clone(), fields);
+    }
 
     // Collecte les types de paramètres des constructeurs (pour le boxing mixed)
     for class in &program.classes {
@@ -310,7 +338,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
 
     // Fonctions libres (les constantes sont inlinées dans chaque fonction)
     for func in &program.functions {
-        lower_func(&mut module, func, &program.consts, &fn_ret_types, &fn_param_types, &fn_variadic_info, &func_default_args, None, &async_funcs);
+        lower_func(&mut module, func, &program.consts, &fn_ret_types, &fn_param_types, &fn_variadic_info, &func_default_args, None, None, &async_funcs);
         // Générer le wrapper async si la fonction est marquée async
         if func.is_async {
             let param_tys: Vec<IrType> = func.params.iter().map(|p| IrType::from_ast(&p.ty)).collect();
@@ -323,6 +351,27 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     // Méthodes de classes (passe toutes les classes pour l'héritage)
     for class in &program.classes {
         lower_class(&mut module, class, &program.classes, &program.modules, &program.consts, &fn_ret_types, &fn_param_types, &fn_variadic_info, &func_default_args, &async_funcs);
+        
+        // Générer les wrappers async pour les méthodes de classes
+        for member in &class.members {
+            if let ClassMember::Method { decl, is_static, .. } = member {
+                if decl.is_async {
+                    let mangled_name = format!("{}_{}", class.name, decl.name);
+                    let param_tys: Vec<IrType> = if *is_static {
+                        // Méthode statique : pas de self
+                        decl.params.iter().map(|p| IrType::from_ast(&p.ty)).collect()
+                    } else {
+                        // Méthode d'instance : self en premier (Type::Mixed → IrType::Ptr)
+                        let mut types = vec![IrType::Ptr];
+                        types.extend(decl.params.iter().map(|p| IrType::from_ast(&p.ty)));
+                        types
+                    };
+                    let ret_ty = IrType::from_ast(&decl.ret_ty);
+                    let wrapper_name = format!("__async_wrap_{}", mangled_name);
+                    generate_async_wrapper(&mut module, &mangled_name, &wrapper_name, &param_tys, ret_ty, &fn_ret_types);
+                }
+            }
+        }
     }
 
     // Blocs runtime → fonctions __init__, __main__, etc.

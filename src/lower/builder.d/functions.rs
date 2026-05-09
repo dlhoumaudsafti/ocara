@@ -35,6 +35,7 @@ pub fn lower_func(
     fn_variadic_info: &HashMap<String, (usize, IrType)>,
     func_default_args: &HashMap<String, Vec<Option<Expr>>>,
     class_name: Option<&str>,
+    parent_class: Option<&str>,
     async_funcs: &HashSet<String>,
 ) {
     // Transformer les paramètres : si variadic, le dernier devient Ptr (tableau)
@@ -58,6 +59,10 @@ pub fn lower_func(
     if let Some(cls) = class_name {
         builder.current_class = Some(cls.to_string());
         builder.var_class.insert("self".to_string(), cls.to_string());
+    }
+    // Si la classe a un parent, l'enregistrer aussi
+    if let Some(parent) = parent_class {
+        builder.parent_class = Some(parent.to_string());
     }
     builder.fn_ret_types = fn_ret_types.iter()
         .map(|(k, v)| (k.clone(), v.clone()))
@@ -95,6 +100,7 @@ pub fn lower_func(
         if let crate::parsing::ast::Type::Array(inner) = &param.ty {
             let elem_ty = IrType::from_ast(inner);
             builder.elem_types.insert(param.name.clone(), elem_ty);
+            builder.elem_ast_types.insert(param.name.clone(), (**inner).clone());
         }
         
         // Marquer les paramètres de type map<> pour Expr::Index → __map_get
@@ -105,6 +111,10 @@ pub fn lower_func(
         if let crate::parsing::ast::Type::Function { ret_ty, .. } = &param.ty {
             builder.func_vars.insert(param.name.clone());
             builder.func_ret_types.insert(param.name.clone(), IrType::from_ast(ret_ty));
+        }
+        // Enregistrer les paramètres de type Named (classes) dans var_class
+        if let crate::parsing::ast::Type::Named(class_name) = &param.ty {
+            builder.var_class.insert(param.name.clone(), class_name.clone());
         }
         // Slot alloca qui recevra la valeur du paramètre
         let alloca_slot = builder.declare_local(&param.name, ir_ty.clone(), false);

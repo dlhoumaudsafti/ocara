@@ -19,7 +19,7 @@ use std::ffi::CStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Retourne le timestamp Unix actuel (secondes depuis 1970-01-01 00:00:00 UTC)
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn DateTime_now() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -28,7 +28,7 @@ pub extern "C" fn DateTime_now() -> i64 {
 }
 
 /// Convertit un timestamp en string ISO 8601 (YYYY-MM-DDTHH:MM:SS)
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn DateTime_from_timestamp(ts: i64) -> i64 {
     let (year, month, day, hour, minute, second) = timestamp_to_parts(ts);
     let result = format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}",
@@ -37,44 +37,44 @@ pub extern "C" fn DateTime_from_timestamp(ts: i64) -> i64 {
 }
 
 /// Extrait l'année d'un timestamp
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn DateTime_year(ts: i64) -> i64 {
     timestamp_to_parts(ts).0 as i64
 }
 
 /// Extrait le mois d'un timestamp (1-12)
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn DateTime_month(ts: i64) -> i64 {
     timestamp_to_parts(ts).1 as i64
 }
 
 /// Extrait le jour d'un timestamp (1-31)
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn DateTime_day(ts: i64) -> i64 {
     timestamp_to_parts(ts).2 as i64
 }
 
 /// Extrait l'heure d'un timestamp (0-23)
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn DateTime_hour(ts: i64) -> i64 {
     timestamp_to_parts(ts).3 as i64
 }
 
 /// Extrait les minutes d'un timestamp (0-59)
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn DateTime_minute(ts: i64) -> i64 {
     timestamp_to_parts(ts).4 as i64
 }
 
 /// Extrait les secondes d'un timestamp (0-59)
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn DateTime_second(ts: i64) -> i64 {
     timestamp_to_parts(ts).5 as i64
 }
 
 /// Formate un timestamp selon un pattern
 /// Patterns supportés : %Y (année), %m (mois), %d (jour), %H (heure), %M (minute), %S (seconde)
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn DateTime_format(ts: i64, fmt: i64) -> i64 {
     let fmt_str = unsafe { CStr::from_ptr(fmt as *const i8) }.to_str().unwrap_or("");
     let (year, month, day, hour, minute, second) = timestamp_to_parts(ts);
@@ -92,7 +92,7 @@ pub extern "C" fn DateTime_format(ts: i64, fmt: i64) -> i64 {
 
 /// Parse une chaîne ISO 8601 en timestamp
 /// Format attendu : YYYY-MM-DDTHH:MM:SS ou YYYY-MM-DD HH:MM:SS
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn DateTime_parse(s: i64) -> i64 {
     let s_str = unsafe { CStr::from_ptr(s as *const i8) }.to_str().unwrap_or("");
     

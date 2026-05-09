@@ -52,190 +52,210 @@ const ERR_INFOS: i64 = 111;
 
 /// Directory::create(path:string) → void
 /// Crée un répertoire (échoue si parent n'existe pas).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn Directory_create(path_ptr: i64) {
-    let path = ptr_to_str(path_ptr).to_string();
-    if let Err(e) = fs::create_dir(&path) {
-        throw_directory_exception(
-            &format!("Failed to create directory '{}': {}", path, e),
-            ERR_CREATE,
-            "Directory"
-        );
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+        if let Err(e) = fs::create_dir(&path) {
+            throw_directory_exception(
+                &format!("Failed to create directory '{}': {}", path, e),
+                ERR_CREATE,
+                "Directory"
+            );
+        }
     }
 }
 
 /// Directory::create_recursive(path:string) → void
 /// Crée un répertoire et tous ses parents (équivalent mkdir -p).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn Directory_create_recursive(path_ptr: i64) {
-    let path = ptr_to_str(path_ptr).to_string();
-    if let Err(e) = fs::create_dir_all(&path) {
-        throw_directory_exception(
-            &format!("Failed to create directory recursively '{}': {}", path, e),
-            ERR_CREATE_RECURSIVE,
-            "Directory"
-        );
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+        if let Err(e) = fs::create_dir_all(&path) {
+            throw_directory_exception(
+                &format!("Failed to create directory recursively '{}': {}", path, e),
+                ERR_CREATE_RECURSIVE,
+                "Directory"
+            );
+        }
     }
 }
 
 /// Directory::remove(path:string) → void
 /// Supprime un répertoire vide.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn Directory_remove(path_ptr: i64) {
-    let path = ptr_to_str(path_ptr).to_string();
-    if let Err(e) = fs::remove_dir(&path) {
-        throw_directory_exception(
-            &format!("Failed to remove directory '{}': {}", path, e),
-            ERR_REMOVE,
-            "Directory"
-        );
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+        if let Err(e) = fs::remove_dir(&path) {
+            throw_directory_exception(
+                &format!("Failed to remove directory '{}': {}", path, e),
+                ERR_REMOVE,
+                "Directory"
+            );
+        }
     }
 }
 
 /// Directory::remove_recursive(path:string) → void
 /// Supprime un répertoire et tout son contenu (équivalent rm -rf).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn Directory_remove_recursive(path_ptr: i64) {
-    let path = ptr_to_str(path_ptr).to_string();
-    if let Err(e) = fs::remove_dir_all(&path) {
-        throw_directory_exception(
-            &format!("Failed to remove directory recursively '{}': {}", path, e),
-            ERR_REMOVE_RECURSIVE,
-            "Directory"
-        );
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+        if let Err(e) = fs::remove_dir_all(&path) {
+            throw_directory_exception(
+                &format!("Failed to remove directory recursively '{}': {}", path, e),
+                ERR_REMOVE_RECURSIVE,
+                "Directory"
+            );
+        }
     }
 }
 
 /// Directory::list(path:string) → string[]
 /// Liste tous les fichiers et répertoires d'un répertoire.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn Directory_list(path_ptr: i64) -> i64 {
-    let path = ptr_to_str(path_ptr).to_string();
-    match fs::read_dir(&path) {
-        Ok(entries) => {
-            let arr_ptr = crate::__array_new();
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    if let Some(name) = entry.file_name().to_str() {
-                        let name_ptr = alloc_str(name);
-                        crate::__array_push(arr_ptr, name_ptr);
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+        match fs::read_dir(&path) {
+            Ok(entries) => {
+                let arr_ptr = crate::__array_new();
+                for entry in entries {
+                    if let Ok(entry) = entry {
+                        if let Some(name) = entry.file_name().to_str() {
+                            let name_ptr = alloc_str(name);
+                            crate::__array_push(arr_ptr, name_ptr);
+                        }
                     }
                 }
+                arr_ptr
             }
-            arr_ptr
-        }
-        Err(e) => {
-            throw_directory_exception(
-                &format!("Failed to list directory '{}': {}", path, e),
-                ERR_LIST,
-                "Directory"
-            );
+            Err(e) => {
+                throw_directory_exception(
+                    &format!("Failed to list directory '{}': {}", path, e),
+                    ERR_LIST,
+                    "Directory"
+                );
+            }
         }
     }
 }
 
 /// Directory::list_files(path:string) → string[]
 /// Liste uniquement les fichiers d'un répertoire.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn Directory_list_files(path_ptr: i64) -> i64 {
-    let path = ptr_to_str(path_ptr).to_string();
-    match fs::read_dir(&path) {
-        Ok(entries) => {
-            let arr_ptr = crate::__array_new();
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    if let Ok(meta) = entry.metadata() {
-                        if meta.is_file() {
-                            if let Some(name) = entry.file_name().to_str() {
-                                let name_ptr = alloc_str(name);
-                                crate::__array_push(arr_ptr, name_ptr);
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+        match fs::read_dir(&path) {
+            Ok(entries) => {
+                let arr_ptr = crate::__array_new();
+                for entry in entries {
+                    if let Ok(entry) = entry {
+                        if let Ok(meta) = entry.metadata() {
+                            if meta.is_file() {
+                                if let Some(name) = entry.file_name().to_str() {
+                                    let name_ptr = alloc_str(name);
+                                    crate::__array_push(arr_ptr, name_ptr);
+                                }
                             }
                         }
                     }
                 }
+                arr_ptr
             }
-            arr_ptr
-        }
-        Err(e) => {
-            throw_directory_exception(
-                &format!("Failed to list files in directory '{}': {}", path, e),
-                ERR_LIST_FILES,
-                "Directory"
-            );
+            Err(e) => {
+                throw_directory_exception(
+                    &format!("Failed to list files in directory '{}': {}", path, e),
+                    ERR_LIST_FILES,
+                    "Directory"
+                );
+            }
         }
     }
 }
 
 /// Directory::list_dirs(path:string) → string[]
 /// Liste uniquement les sous-répertoires d'un répertoire.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn Directory_list_dirs(path_ptr: i64) -> i64 {
-    let path = ptr_to_str(path_ptr).to_string();
-    match fs::read_dir(&path) {
-        Ok(entries) => {
-            let arr_ptr = crate::__array_new();
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    if let Ok(meta) = entry.metadata() {
-                        if meta.is_dir() {
-                            if let Some(name) = entry.file_name().to_str() {
-                                let name_ptr = alloc_str(name);
-                                crate::__array_push(arr_ptr, name_ptr);
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+        match fs::read_dir(&path) {
+            Ok(entries) => {
+                let arr_ptr = crate::__array_new();
+                for entry in entries {
+                    if let Ok(entry) = entry {
+                        if let Ok(meta) = entry.metadata() {
+                            if meta.is_dir() {
+                                if let Some(name) = entry.file_name().to_str() {
+                                    let name_ptr = alloc_str(name);
+                                    crate::__array_push(arr_ptr, name_ptr);
+                                }
                             }
                         }
                     }
                 }
+                arr_ptr
             }
-            arr_ptr
-        }
-        Err(e) => {
-            throw_directory_exception(
-                &format!("Failed to list subdirectories in directory '{}': {}", path, e),
-                ERR_LIST_DIRS,
-                "Directory"
-            );
+            Err(e) => {
+                throw_directory_exception(
+                    &format!("Failed to list subdirectories in directory '{}': {}", path, e),
+                    ERR_LIST_DIRS,
+                    "Directory"
+                );
+            }
         }
     }
 }
 
 /// Directory::exists(path:string) → bool
 /// Teste si un répertoire existe.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn Directory_exists(path_ptr: i64) -> i64 {
-    let path = ptr_to_str(path_ptr).to_string();
-    Path::new(&path).is_dir() as i64
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+        Path::new(&path).is_dir() as i64
+    }
 }
 
 /// Directory::count(path:string) → int
 /// Compte le nombre d'entrées dans un répertoire.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn Directory_count(path_ptr: i64) -> i64 {
-    let path = ptr_to_str(path_ptr).to_string();
-    match fs::read_dir(&path) {
-        Ok(entries) => entries.count() as i64,
-        Err(e) => {
-            throw_directory_exception(
-                &format!("Failed to count entries in directory '{}': {}", path, e),
-                ERR_COUNT,
-                "Directory"
-            );
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+        match fs::read_dir(&path) {
+            Ok(entries) => entries.count() as i64,
+            Err(e) => {
+                throw_directory_exception(
+                    &format!("Failed to count entries in directory '{}': {}", path, e),
+                    ERR_COUNT,
+                    "Directory"
+                );
+            }
         }
     }
 }
 
 /// Directory::copy(src:string, dst:string) → void
 /// Copie un répertoire et tout son contenu (récursif).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn Directory_copy(src_ptr: i64, dst_ptr: i64) {
-    let src = ptr_to_str(src_ptr).to_string();
-    let dst = ptr_to_str(dst_ptr).to_string();
-    
-    if let Err(e) = copy_dir_recursive(&src, &dst) {
-        throw_directory_exception(
-            &format!("Failed to copy directory from '{}' to '{}': {}", src, dst, e),
-            ERR_COPY,
-            "Directory"
-        );
+    unsafe {
+        let src = ptr_to_str(src_ptr).to_string();
+        let dst = ptr_to_str(dst_ptr).to_string();
+        
+        if let Err(e) = copy_dir_recursive(&src, &dst) {
+            throw_directory_exception(
+                &format!("Failed to copy directory from '{}' to '{}': {}", src, dst, e),
+                ERR_COPY,
+                "Directory"
+            );
+        }
     }
 }
 
@@ -263,68 +283,72 @@ fn copy_dir_recursive(src: &str, dst: &str) -> std::io::Result<()> {
 
 /// Directory::move(src:string, dst:string) → void
 /// Déplace/renomme un répertoire.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn Directory_move(src_ptr: i64, dst_ptr: i64) {
-    let src = ptr_to_str(src_ptr).to_string();
-    let dst = ptr_to_str(dst_ptr).to_string();
-    if let Err(e) = fs::rename(&src, &dst) {
-        throw_directory_exception(
-            &format!("Failed to move directory from '{}' to '{}': {}", src, dst, e),
-            ERR_MOVE,
-            "Directory"
-        );
+    unsafe {
+        let src = ptr_to_str(src_ptr).to_string();
+        let dst = ptr_to_str(dst_ptr).to_string();
+        if let Err(e) = fs::rename(&src, &dst) {
+            throw_directory_exception(
+                &format!("Failed to move directory from '{}' to '{}': {}", src, dst, e),
+                ERR_MOVE,
+                "Directory"
+            );
+        }
     }
 }
 
 /// Directory::infos(path:string) → map<string, mixed>
 /// Retourne les métadonnées d'un répertoire.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn Directory_infos(path_ptr: i64) -> i64 {
-    let path = ptr_to_str(path_ptr).to_string();
-    
-    match fs::metadata(&path) {
-        Ok(meta) => {
-            let map_ptr = crate::__map_new();
-            
-            // modified: string (timestamp)
-            if let Ok(modified) = meta.modified() {
-                if let Ok(duration) = modified.duration_since(std::time::UNIX_EPOCH) {
-                    let timestamp = duration.as_secs();
-                    let mod_key = alloc_str("modified");
-                    let mod_val = alloc_str(&timestamp.to_string());
-                    crate::__map_set(map_ptr, mod_key, mod_val);
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+        
+        match fs::metadata(&path) {
+            Ok(meta) => {
+                let map_ptr = crate::__map_new();
+                
+                // modified: string (timestamp)
+                if let Ok(modified) = meta.modified() {
+                    if let Ok(duration) = modified.duration_since(std::time::UNIX_EPOCH) {
+                        let timestamp = duration.as_secs();
+                        let mod_key = alloc_str("modified");
+                        let mod_val = alloc_str(&timestamp.to_string());
+                        crate::__map_set(map_ptr, mod_key, mod_val);
+                    }
                 }
-            }
-            
-            // created: string (timestamp)
-            if let Ok(created) = meta.created() {
-                if let Ok(duration) = created.duration_since(std::time::UNIX_EPOCH) {
-                    let timestamp = duration.as_secs();
-                    let cre_key = alloc_str("created");
-                    let cre_val = alloc_str(&timestamp.to_string());
-                    crate::__map_set(map_ptr, cre_key, cre_val);
+                
+                // created: string (timestamp)
+                if let Ok(created) = meta.created() {
+                    if let Ok(duration) = created.duration_since(std::time::UNIX_EPOCH) {
+                        let timestamp = duration.as_secs();
+                        let cre_key = alloc_str("created");
+                        let cre_val = alloc_str(&timestamp.to_string());
+                        crate::__map_set(map_ptr, cre_key, cre_val);
+                    }
                 }
+                
+                // is_dir: bool
+                let is_dir_key = alloc_str("is_dir");
+                crate::__map_set(map_ptr, is_dir_key, meta.is_dir() as i64);
+                
+                // count: int (nombre d'entrées)
+                if let Ok(entries) = fs::read_dir(&path) {
+                    let count = entries.count() as i64;
+                    let count_key = alloc_str("count");
+                    crate::__map_set(map_ptr, count_key, count);
+                }
+                
+                map_ptr
             }
-            
-            // is_dir: bool
-            let is_dir_key = alloc_str("is_dir");
-            crate::__map_set(map_ptr, is_dir_key, meta.is_dir() as i64);
-            
-            // count: int (nombre d'entrées)
-            if let Ok(entries) = fs::read_dir(&path) {
-                let count = entries.count() as i64;
-                let count_key = alloc_str("count");
-                crate::__map_set(map_ptr, count_key, count);
+            Err(e) => {
+                throw_directory_exception(
+                    &format!("Failed to get metadata for directory '{}': {}", path, e),
+                    ERR_INFOS,
+                    "Directory"
+                );
             }
-            
-            map_ptr
-        }
-        Err(e) => {
-            throw_directory_exception(
-                &format!("Failed to get metadata for directory '{}': {}", path, e),
-                ERR_INFOS,
-                "Directory"
-            );
         }
     }
 }

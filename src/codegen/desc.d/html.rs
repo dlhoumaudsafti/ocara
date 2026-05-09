@@ -4,6 +4,7 @@ use cranelift_codegen::ir::types as clt;
 /// Builtins du module HTMLComponent
 pub const HTMLCOMPONENT_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "HTMLComponent_init",     params: &[clt::I64, clt::I64], returns: None, module: Some("HTMLComponent") },
+    BuiltinDesc { name: "HTMLComponent_tag",      params: &[clt::I64, clt::I64], returns: None, module: Some("HTMLComponent") },
     BuiltinDesc { name: "HTMLComponent_register", params: &[clt::I64, clt::I64], returns: None, module: Some("HTMLComponent") },
 ];
 

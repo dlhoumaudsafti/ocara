@@ -1,0 +1,80 @@
+import ocara.DotEnv
+import ocara.IO
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple d'utilisation de DotEnv pour charger des variables d'environnement
+// ─────────────────────────────────────────────────────────────────────────────
+
+main {
+    IO::writeln("=== Test DotEnv ===")
+    IO::writeln("")
+
+    // Charger le fichier .env par défaut
+    IO::writeln("Chargement de .env...")
+    DotEnv::load()
+
+    // Récupérer des variables
+    const appName:string = DotEnv::get("APP_NAME")
+    const appVersion:string = DotEnv::get("APP_VERSION")
+    const debug:string = DotEnv::get("DEBUG")
+    const port:string = DotEnv::get("PORT")
+
+    if appName != null {
+        IO::writeln(`APP_NAME: ${appName}`)
+    } else {
+        IO::writeln("APP_NAME: non définie")
+    }
+
+    if appVersion != null {
+        IO::writeln(`APP_VERSION: ${appVersion}`)
+    } else {
+        IO::writeln("APP_VERSION: non définie")
+    }
+
+    if debug != null {
+        IO::writeln(`DEBUG: ${debug}`)
+    } else {
+        IO::writeln("DEBUG: non définie")
+    }
+
+    if port != null {
+        IO::writeln(`PORT: ${port}`)
+    } else {
+        IO::writeln("PORT: non définie")
+    }
+
+    IO::writeln("")
+
+    // Charger un fichier .env.prod
+    IO::writeln("Chargement de .env.prod...")
+    DotEnv::load("prod")
+
+    const dbHost:string = DotEnv::get("DB_HOST")
+    const dbUser:string = DotEnv::get("DB_USER")
+    const dbPassword:string = DotEnv::get("DB_PASSWORD")
+
+    if dbHost != null {
+        IO::writeln(`DB_HOST: ${dbHost}`)
+    }
+
+    if dbUser != null {
+        IO::writeln(`DB_USER: ${dbUser}`)
+    }
+
+    if dbPassword != null {
+        IO::writeln(`DB_PASSWORD: ${dbPassword}`)
+    }
+
+    IO::writeln("")
+
+    // Test avec une variable inexistante
+    const inexistante:string = DotEnv::get("VARIABLE_INEXISTANTE")
+    if inexistante == null {
+        IO::writeln("VARIABLE_INEXISTANTE: non définie (normal)")
+    } else {
+        IO::writeln(`VARIABLE_INEXISTANTE: ${inexistante}`)
+    }
+
+    IO::writeln("")
+    IO::writeln("=== Test terminé ===")
+}

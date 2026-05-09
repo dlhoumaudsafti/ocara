@@ -20,6 +20,7 @@
     { "include": "#method-call" },
     { "include": "#function-call" },
     { "include": "#self-static-access" },
+    { "include": "#parent-static-access" },
     { "include": "#static-access" },
     { "include": "#generic-instantiation" },
     { "include": "#class-instantiation" },
@@ -288,6 +289,16 @@
       }
     },
 
+    "parent-static-access": {
+      "comment": "parent::methodName — accès statique depuis l'intérieur d'une classe parente",
+      "match": "\\b(parent)(::)([\\w]+)\\b",
+      "captures": {
+        "1": { "name": "variable.language.parent.ocara" },
+        "2": { "name": "punctuation.accessor.double-colon.ocara" },
+        "3": { "name": "entity.name.function.static.ocara" }
+      }
+    },
+
     "static-access": {
       "comment": "ClassName::member ou ClassName::CONST",
       "match": "\\b([A-Z][\\w]*)(::)([\\w]+)\\b",
@@ -334,12 +345,12 @@
 
     "keyword-other": {
       "name": "keyword.other.ocara",
-      "match": "\\b(as|from|use|nameless|resolve|extends|implements|modules|is|self|namespace)\\b"
+      "match": "\\b(as|from|use|nameless|resolve|extends|implements|modules|is|self|parent|namespace)\\b"
     },
 
     "type-primitive": {
       "name": "support.type.primitive.ocara",
-      "match": "\\b(int|float|string|bool|mixed|void|map|Function|variadic|null)\\b"
+      "match": "\\b(int|float|string|bool|mixed|void|map|array|Function|variadic|null)\\b"
     },
 
     "constant-language": {

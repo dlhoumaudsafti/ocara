@@ -4,7 +4,121 @@ use std::collections::{HashMap, HashSet};
 use crate::parsing::ast::*;
 use crate::ir::module::IrModule;
 use crate::ir::types::IrType;
-use super::functions::lower_func;
+
+/// Transforme les statements dans les blocs runtime (récursivement dans les if/while/etc.)
+/// Les returns sont conservés tels quels et seront transformés lors du lowering
+/// (voir statements.rs : return → Store(ERROR) + Jump(runtime_exit_bb))
+fn transform_runtime_block_returns(stmts: Vec<Stmt>) -> Vec<Stmt> {
+    stmts.into_iter().flat_map(|stmt| {
+        transform_runtime_stmt_return(stmt)
+    }).collect()
+}
+
+fn transform_runtime_stmt_return(stmt: Stmt) -> Vec<Stmt> {
+    match stmt {
+        Stmt::Return { value, span } => {
+            // Les returns dans les blocs runtime sont maintenant gérés directement
+            // par le lowering (voir statements.rs), qui transforme return en
+            // Store(ERROR) + Jump(runtime_exit_bb).
+            // On garde le return tel quel dans l'AST.
+            vec![Stmt::Return { value, span }]
+        }
+        
+        // Transformer récursivement dans les blocs imbriqués
+        Stmt::If { condition, then_block, elseif, else_block, span } => {
+            vec![Stmt::If {
+                condition,
+                then_block: Block {
+                    stmts: transform_runtime_block_returns(then_block.stmts),
+                    span: then_block.span,
+                },
+                elseif: elseif.into_iter().map(|(cond, block)| {
+                    (cond, Block {
+                        stmts: transform_runtime_block_returns(block.stmts),
+                        span: block.span,
+                    })
+                }).collect(),
+                else_block: else_block.map(|block| Block {
+                    stmts: transform_runtime_block_returns(block.stmts),
+                    span: block.span,
+                }),
+                span,
+            }]
+        }
+        
+        Stmt::While { condition, body, span } => {
+            vec![Stmt::While {
+                condition,
+                body: Block {
+                    stmts: transform_runtime_block_returns(body.stmts),
+                    span: body.span,
+                },
+                span,
+            }]
+        }
+        
+        Stmt::ForIn { var, iter, body, span } => {
+            vec![Stmt::ForIn {
+                var,
+                iter,
+                body: Block {
+                    stmts: transform_runtime_block_returns(body.stmts),
+                    span: body.span,
+                },
+                span,
+            }]
+        }
+        
+        Stmt::ForMap { key, value, iter, body, span } => {
+            vec![Stmt::ForMap {
+                key,
+                value,
+                iter,
+                body: Block {
+                    stmts: transform_runtime_block_returns(body.stmts),
+                    span: body.span,
+                },
+                span,
+            }]
+        }
+        
+        Stmt::Try { body, handlers, span } => {
+            vec![Stmt::Try {
+                body: Block {
+                    stmts: transform_runtime_block_returns(body.stmts),
+                    span: body.span,
+                },
+                // NE PAS transformer les returns dans les handlers !
+                // Ils doivent être gérés par le système de propagation de return
+                // des handlers d'exceptions (voir exceptions.rs)
+                handlers,
+                span,
+            }]
+        }
+        
+        Stmt::Switch { subject, cases, default, span } => {
+            vec![Stmt::Switch {
+                subject,
+                cases: cases.into_iter().map(|case| SwitchCase {
+                    pattern: case.pattern,
+                    body: Block {
+                        stmts: transform_runtime_block_returns(case.body.stmts),
+                        span: case.body.span,
+                    },
+                    span: case.span,
+                }).collect(),
+                default: default.map(|block| Block {
+                    stmts: transform_runtime_block_returns(block.stmts),
+                    span: block.span,
+                }),
+                span,
+            }]
+        }
+        
+        // Les autres statements ne contiennent pas de returns
+        _ => vec![stmt],
+    }
+}
 
 pub fn lower_runtime_blocks(
     module: &mut IrModule,
@@ -43,40 +157,42 @@ fn generate_runtime_main(
     
     // Vérifier quels blocs existent
     let has_error = program.runtime_blocks.iter().any(|b| b.kind == crate::parsing::ast::RuntimeBlockKind::Error);
-    let has_exit = program.runtime_blocks.iter().any(|b| b.kind == crate::parsing::ast::RuntimeBlockKind::Exit);
+    let has_success = program.runtime_blocks.iter().any(|b| b.kind == crate::parsing::ast::RuntimeBlockKind::Success);
     
-    // Injecter les variables magiques au début si nécessaire
-    if has_error || has_exit {
-        // var ERROR:int = 0
-        all_stmts.push(crate::parsing::ast::Stmt::Var {
-            name: "ERROR".to_string(),
-            ty: crate::parsing::ast::Type::Int,
-            value: crate::parsing::ast::Expr::Literal(crate::parsing::ast::Literal::Int(0), Span::new(0, 0)),
-            mutable: true,
-            span: Span::new(0, 0),
-        });
-    }
+    // Injecter les variables magiques ERROR et SUCCESS au début
+    // Elles sont toujours déclarées pour permettre leur utilisation dans tous les blocs
+    // (par exemple: return ERROR dans le bloc main)
+    // var ERROR:int = 0
+    all_stmts.push(crate::parsing::ast::Stmt::Var {
+        name: "ERROR".to_string(),
+        ty: crate::parsing::ast::Type::Int,
+        value: crate::parsing::ast::Expr::Literal(crate::parsing::ast::Literal::Int(0), Span::new(0, 0)),
+        mutable: true,
+        span: Span::new(0, 0),
+    });
     
-    if has_exit {
-        // var SUCCESS:bool = false (sera mis à true si tout va bien)
-        all_stmts.push(crate::parsing::ast::Stmt::Var {
-            name: "SUCCESS".to_string(),
-            ty: crate::parsing::ast::Type::Bool,
-            value: crate::parsing::ast::Expr::Literal(crate::parsing::ast::Literal::Bool(false), Span::new(0, 0)),
-            mutable: true,
-            span: Span::new(0, 0),
-        });
-    }
+    // var SUCCESS:bool = false (sera mis à true si tout va bien)
+    all_stmts.push(crate::parsing::ast::Stmt::Var {
+        name: "SUCCESS".to_string(),
+        ty: crate::parsing::ast::Type::Bool,
+        value: crate::parsing::ast::Expr::Literal(crate::parsing::ast::Literal::Bool(false), Span::new(0, 0)),
+        mutable: true,
+        span: Span::new(0, 0),
+    });
     
-    // Ajouter les blocs init et main
+    // Ajouter les blocs init et main (sans enveloppe conditionnelle)
+    // Les returns seront transformés en assignations ERROR + checks
+    let mut main_end_index = 2; // Après ERROR et SUCCESS
     for kind in &[crate::parsing::ast::RuntimeBlockKind::Init, crate::parsing::ast::RuntimeBlockKind::Main] {
         if let Some(block) = program.runtime_blocks.iter().find(|b| b.kind == *kind) {
-            all_stmts.extend(block.statements.clone());
+            // Transformer les returns dans les statements du bloc
+            let transformed_stmts = transform_runtime_block_returns(block.statements.clone());
+            all_stmts.extend(transformed_stmts.clone());
+            main_end_index += transformed_stmts.len();
         }
     }
     
     // Ajouter la logique conditionnelle pour error/success
-    let has_success = program.runtime_blocks.iter().any(|b| b.kind == crate::parsing::ast::RuntimeBlockKind::Success);
     
     if has_error || has_success {
         // Créer le bloc if (error != 0) { error } else { success = true; success }
@@ -137,30 +253,81 @@ fn generate_runtime_main(
         span: Span::new(0, 0),
     });
     
-    // Créer la fonction main() AST avec tous les statements mergés
-    let main_func = crate::parsing::ast::FuncDecl {
-        name: "main".to_string(),
-        params: vec![],
-        ret_ty: crate::parsing::ast::Type::Int,
-        body: crate::parsing::ast::Block {
-            stmts: all_stmts,
-            span: Span::new(0, 0),
-        },
-        span: Span::new(0, 0),
-        is_async: false,
-    };
-    
-    // Lower la fonction
-    lower_func(
+    // Lower manuellement la fonction main pour insérer le label runtime_exit_bb
+    lower_runtime_main_manual(
         module,
-        &main_func,
+        all_stmts,
+        main_end_index,
         consts,
         fn_ret_types,
         fn_param_types,
         fn_variadic_info,
         func_default_args,
-        None,
         async_funcs,
     );
+}
+
+/// Lower manuel de la fonction main des blocs runtime pour gérer le label runtime_exit_bb
+fn lower_runtime_main_manual(
+    module: &mut IrModule,
+    all_stmts: Vec<crate::parsing::ast::Stmt>,
+    main_end_index: usize,
+    _consts: &[ConstDecl],
+    fn_ret_types: &HashMap<String, IrType>,
+    fn_param_types: &HashMap<String, Vec<IrType>>,
+    fn_variadic_info: &HashMap<String, (usize, IrType)>,
+    func_default_args: &HashMap<String, Vec<Option<Expr>>>,
+    async_funcs: &HashSet<String>,
+) {
+    use crate::lower::builder::LowerBuilder;
+    use crate::lower::stmt::statements::lower_stmt;
+    use crate::ir::inst::Inst;
+    
+    let mut builder = LowerBuilder::new(module, "main".to_string(), vec![], IrType::I64);
+    builder.fn_ret_types = fn_ret_types.clone();
+    builder.fn_param_types = fn_param_types.clone();
+    builder.fn_variadic_info = fn_variadic_info.clone();
+    builder.func_default_args = func_default_args.clone();
+    builder.async_funcs = async_funcs.clone();
+    
+    // Créer le label de sortie anticipée (avant le if ERROR != 0)
+    let runtime_exit_label = builder.new_block();
+    builder.runtime_exit_bb = Some(runtime_exit_label.clone());
+    
+    // Le split_point est maintenant main_end_index, c'est-à-dire après les blocs init et main
+    let split_point = main_end_index;
+    
+    // Lower tous les statements AVANT le if (ERROR != 0)
+    for stmt in &all_stmts[..split_point] {
+        // Si le bloc est déjà terminé, ne pas lower les statements suivants (dead code)
+        if builder.is_terminated() {
+            break;
+        }
+        lower_stmt(&mut builder, stmt);
+    }
+    
+    
+    // Basculer vers le label de sortie anticipée
+    if !builder.is_terminated() {
+        builder.emit(Inst::Jump { target: runtime_exit_label.clone() });
+    }
+    builder.switch_to(&runtime_exit_label);
+    
+    // Désactiver runtime_exit_bb pour que les returns suivants ne soient plus transformés
+    builder.runtime_exit_bb = None;
+    
+    // Lower le if (ERROR != 0), exit, et return
+    for stmt in &all_stmts[split_point..] {
+        lower_stmt(&mut builder, stmt);
+    }
+    
+    if !builder.is_terminated() {
+        let zero = builder.new_value();
+        builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+        builder.emit(Inst::Return { value: Some(zero) });
+    }
+    
+    let func = builder.func;
+    module.add_function(func);
 }
 

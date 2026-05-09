@@ -137,7 +137,7 @@ fn do_request(
 
 // ─── API publique ─────────────────────────────────────────────────────────────
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPRequest_new(url: i64) -> i64 {
     let url_str = unsafe { ptr_to_str(url).to_string() };
     alloc_req(OcaraHttpRequest {
@@ -149,31 +149,31 @@ pub extern "C" fn HTTPRequest_new(url: i64) -> i64 {
     })
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPRequest_set_method(req: i64, method: i64) {
     let m = unsafe { ptr_to_str(method).to_string() };
     req_ref(req).method = m;
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPRequest_set_header(req: i64, k: i64, v: i64) {
     let key = unsafe { ptr_to_str(k).to_string() };
     let val = unsafe { ptr_to_str(v).to_string() };
     req_ref(req).headers.push((key, val));
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPRequest_set_body(req: i64, body: i64) {
     let b = unsafe { ptr_to_str(body).to_string() };
     req_ref(req).body = Some(b);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPRequest_set_timeout(req: i64, ms: i64) {
     req_ref(req).timeout = Some(ms as u64);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPRequest_send(req: i64) -> i64 {
     let r  = req_ref(req);
     let res = do_request(
@@ -186,19 +186,19 @@ pub extern "C" fn HTTPRequest_send(req: i64) -> i64 {
     alloc_res(res)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPRequest_status(res: i64) -> i64 {
     if res == 0 { return 0; }
     res_ref(res).status
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPRequest_body(res: i64) -> i64 {
     if res == 0 { return unsafe { alloc_str("") }; }
     unsafe { alloc_str(&res_ref(res).body.clone()) }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPRequest_header(res: i64, name: i64) -> i64 {
     if res == 0 { return unsafe { alloc_str("") }; }
     let k = unsafe { ptr_to_str(name).to_lowercase() };
@@ -211,7 +211,7 @@ pub extern "C" fn HTTPRequest_header(res: i64, name: i64) -> i64 {
     unsafe { alloc_str("") }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPRequest_headers(res: i64) -> i64 {
     let map_ptr = new_map();
     if res == 0 { return map_ptr; }
@@ -224,20 +224,20 @@ pub extern "C" fn HTTPRequest_headers(res: i64) -> i64 {
     map_ptr
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPRequest_ok(res: i64) -> i64 {
     if res == 0 { return 0; }
     let s = res_ref(res).status;
     if s >= 200 && s < 300 { 1 } else { 0 }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPRequest_is_error(res: i64) -> i64 {
     if res == 0 { return 1; }
     if res_ref(res).is_err { 1 } else { 0 }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPRequest_error(res: i64) -> i64 {
     if res == 0 { return unsafe { alloc_str("null response") }; }
     unsafe { alloc_str(&res_ref(res).error.clone()) }
@@ -245,14 +245,14 @@ pub extern "C" fn HTTPRequest_error(res: i64) -> i64 {
 
 // ─── Raccourcis statiques ─────────────────────────────────────────────────────
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPRequest_get(url: i64) -> i64 {
     let u   = unsafe { ptr_to_str(url).to_string() };
     let res = do_request(&u, "GET", &[], None, None);
     alloc_res(res)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPRequest_post(url: i64, body: i64) -> i64 {
     let u   = unsafe { ptr_to_str(url).to_string() };
     let b   = unsafe { ptr_to_str(body).to_string() };
@@ -260,7 +260,7 @@ pub extern "C" fn HTTPRequest_post(url: i64, body: i64) -> i64 {
     alloc_res(res)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPRequest_put(url: i64, body: i64) -> i64 {
     let u   = unsafe { ptr_to_str(url).to_string() };
     let b   = unsafe { ptr_to_str(body).to_string() };
@@ -268,14 +268,14 @@ pub extern "C" fn HTTPRequest_put(url: i64, body: i64) -> i64 {
     alloc_res(res)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPRequest_delete(url: i64) -> i64 {
     let u   = unsafe { ptr_to_str(url).to_string() };
     let res = do_request(&u, "DELETE", &[], None, None);
     alloc_res(res)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPRequest_patch(url: i64, body: i64) -> i64 {
     let u   = unsafe { ptr_to_str(url).to_string() };
     let b   = unsafe { ptr_to_str(body).to_string() };

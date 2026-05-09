@@ -32,6 +32,10 @@ pub mod htmlcomponent;
 pub mod html;
 pub mod exception;
 pub mod unittest;
+pub mod sqlite;
+pub mod mysql;
+pub mod dotenv;
+pub mod yaml;
 
 use crate::sema::symbols::ClassInfo;
 
@@ -74,7 +78,18 @@ pub fn builtin_class(name: &str) -> Option<ClassInfo> {
         "ThreadException" => Some(exception::thread_exception_class()),
         "MutexException" => Some(exception::mutex_exception_class()),
         "UnitTestException" => Some(exception::unittest_exception_class()),
+        "HTTPServerException" => Some(exception::httpserver_exception_class()),
+        "SQLiteException" => Some(exception::sqlite_exception_class()),
+        "MySQLException" => Some(exception::mysql_exception_class()),
+        "MariaDBException" => Some(exception::mysql_exception_class()),
         "UnitTest"    => Some(unittest::class()),
+        "SQLite"      => Some(sqlite::class()),
+        "MySQL"       => Some(mysql::class()),
+        "MariaDB"     => Some(mysql::class()),
+        "DotEnv"      => Some(dotenv::class()),
+        "DotEnvException" => Some(exception::dotenv_exception_class()),
+        "YAML"        => Some(yaml::class()),
+        "YAMLException" => Some(exception::yaml_exception_class()),
         _             => None,
     }
 }
@@ -118,6 +133,17 @@ pub fn all_builtins() -> Vec<(&'static str, ClassInfo)> {
         ("ThreadException", exception::thread_exception_class()),
         ("MutexException", exception::mutex_exception_class()),
         ("UnitTestException", exception::unittest_exception_class()),
+        ("HTTPServerException", exception::httpserver_exception_class()),
+        ("SQLiteException", exception::sqlite_exception_class()),
+        ("MySQLException", exception::mysql_exception_class()),
+        ("MariaDBException", exception::mysql_exception_class()),
         ("UnitTest",    unittest::class()),
+        ("SQLite",      sqlite::class()),
+        ("MySQL",       mysql::class()),
+        ("MariaDB",     mysql::class()),
+        ("DotEnv",      dotenv::class()),
+        ("DotEnvException", exception::dotenv_exception_class()),
+        ("YAML",        yaml::class()),
+        ("YAMLException", exception::yaml_exception_class()),
     ]
 }

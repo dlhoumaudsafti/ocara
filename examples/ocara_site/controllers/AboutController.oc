@@ -24,7 +24,6 @@ class AboutController {
   </card>
 </layout>`, "page_about")
 
-        HTTPServer::setRespHeader(req, "Content-Type", "text/html; charset=utf-8")
         HTTPServer::respond(req, 200, html)
         return 0
     }

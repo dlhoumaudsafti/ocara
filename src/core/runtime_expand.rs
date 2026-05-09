@@ -143,8 +143,10 @@ pub fn expand_runtime_imports(program: &mut ast::Program, source_dir: &std::path
     
     // Reconstruire la liste des blocs runtime et transformer les return
     program.runtime_blocks = blocks_map.into_iter()
-        .map(|(kind, mut statements)| {
-            transform_runtime_returns(&mut statements);
+        .map(|(kind, statements)| {
+            // NE PLUS transformer les returns ici !
+            // La transformation est maintenant faite au niveau du lowering IR
+            // (voir src/lower/stmt.d/statements.rs)
             ast::RuntimeBlock {
                 kind,
                 statements,
@@ -152,63 +154,6 @@ pub fn expand_runtime_imports(program: &mut ast::Program, source_dir: &std::path
             }
         })
         .collect();
-}
-
-/// Transforme les return dans les blocs runtime
-/// - return ERROR → ERROR = 1
-/// - return <expr> → ERROR = <expr>
-fn transform_runtime_returns(stmts: &mut Vec<ast::Stmt>) {
-    for stmt in stmts.iter_mut() {
-        match stmt {
-            ast::Stmt::Return { value: Some(expr), span } => {
-                // Vérifier si c'est "return ERROR"
-                if let ast::Expr::Ident(name, _) = expr {
-                    if name == "ERROR" {
-                        // Transformer en ERROR = 1
-                        *stmt = ast::Stmt::Assign {
-                            target: ast::Expr::Ident("ERROR".to_string(), token::Span::new(0, 0)),
-                            value: ast::Expr::Literal(ast::Literal::Int(1), token::Span::new(0, 0)),
-                            span: span.clone(),
-                        };
-                        continue;
-                    }
-                }
-                // Sinon c'est "return <expr>" → ERROR = <expr>
-                *stmt = ast::Stmt::Assign {
-                    target: ast::Expr::Ident("ERROR".to_string(), token::Span::new(0, 0)),
-                    value: expr.clone(),
-                    span: span.clone(),
-                };
-            }
-            ast::Stmt::If { then_block, elseif, else_block, .. } => {
-                transform_runtime_returns(&mut then_block.stmts);
-                for (_, block) in elseif.iter_mut() {
-                    transform_runtime_returns(&mut block.stmts);
-                }
-                if let Some(block) = else_block {
-                    transform_runtime_returns(&mut block.stmts);
-                }
-            }
-            ast::Stmt::While { body, .. } | ast::Stmt::ForIn { body, .. } | ast::Stmt::ForMap { body, .. } => {
-                transform_runtime_returns(&mut body.stmts);
-            }
-            ast::Stmt::Switch { cases, default, .. } => {
-                for case in cases.iter_mut() {
-                    transform_runtime_returns(&mut case.body.stmts);
-                }
-                if let Some(block) = default {
-                    transform_runtime_returns(&mut block.stmts);
-                }
-            }
-            ast::Stmt::Try { body, handlers, .. } => {
-                transform_runtime_returns(&mut body.stmts);
-                for handler in handlers.iter_mut() {
-                    transform_runtime_returns(&mut handler.body.stmts);
-                }
-            }
-            _ => {}
-        }
-    }
 }
 
 /// Résout le chemin d'un fichier runtime : essaie .runtime.oc, .run.oc, .rt.oc, .oc
@@ -302,7 +247,7 @@ pub fn update_program_spans_with_file(program: &mut ast::Program, file_path: &st
     // Helper pour mettre à jour les spans dans une expression
     fn update_expr_spans(expr: &mut Expr, file: &str) {
         match expr {
-            Expr::Literal(_, span) | Expr::Ident(_, span) | Expr::SelfExpr(span) => {
+            Expr::Literal(_, span) | Expr::Ident(_, span) | Expr::SelfExpr(span) | Expr::ParentExpr(span) => {
                 update_span(span, file);
             }
             Expr::Binary { left, right, span, .. } => {

@@ -9,29 +9,24 @@ import ocara.HTML
 import ocara.HTTPServer
 import ocara.Convert
 import ocara.Thread
-
-// ── Données simulées ──────────────────────────────────────────────────────────
-// Dans un vrai projet, ces fonctions feraient des requêtes DB ou API.
-// Elles s'exécutent en parallèle grâce à async/resolve.
-
-async function fetch_user_count(): int {
-    Thread::sleep(10)   // simule 10 ms de latence
-    return 1247
-}
-
-async function fetch_article_count(): int {
-    Thread::sleep(15)   // simule 15 ms de latence
-    return 83
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
+import ocara.IO
 
 class HomeController {
 
+    public static async method fetch_user_count(): int {
+        Thread::sleep(3000)   // simule 10 ms de latence
+        return 1247
+    }
+
+    public static async method fetch_article_count(): int {
+        Thread::sleep(5000)   // simule 15 ms de latence
+        return 83
+    }
+
     public static method handle(req:int): int {
         // Lancer les deux chargements en parallèle
-        var t_users:int    = fetch_user_count()
-        var t_articles:int = fetch_article_count()
+        var t_users:int    = self::fetch_user_count()
+        var t_articles:int = self::fetch_article_count()
 
         // Attendre les résultats (resolve bloque jusqu'à la fin de chaque tâche)
         var users:int    = resolve t_users
@@ -53,7 +48,6 @@ class HomeController {
   </card>
 </layout>`)
 
-        HTTPServer::setRespHeader(req, "Content-Type", "text/html; charset=utf-8")
         HTTPServer::respond(req, 200, html)
         return 0
     }

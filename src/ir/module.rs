@@ -8,6 +8,7 @@ use crate::parsing::ast::Literal;
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Default)]
+#[allow(dead_code)]
 pub struct IrModule {
     pub name:      String,
     pub source_file: String,
@@ -31,6 +32,7 @@ pub struct IrModule {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct IrGlobal {
     pub name:  String,
     pub bytes: Vec<u8>,

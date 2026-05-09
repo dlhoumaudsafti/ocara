@@ -1,0 +1,34 @@
+// examples/builtins/html/controllers/AboutController.oc
+// Contrôleur de la page "À propos".
+//
+// Contenu statique — mis en cache avec render_cached après le premier rendu.
+
+import ocara.HTTPServer
+import ocara.JSON
+
+class APIController {
+
+    public static method handle(req:int): int {
+        HTTPServer::respondHeader(req, "Content-Type", "application/json; charset=utf-8")
+        HTTPServer::respond(req, 200, 
+            JSON::encode({
+                "name": "Ocara Site API",
+                "version": "0.1.0",
+                "status": "ok"
+            })
+        )
+        return 0
+    }
+
+    public static method users(req:int): int {
+        HTTPServer::respondHeader(req, "Content-Type", "application/json; charset=utf-8")
+        HTTPServer::respond(req, 200, 
+            JSON::encode([
+                {"id": 1, "name": "Alice"},
+                {"id": 2, "name": "Bob"},
+                {"id": 3, "name": "Charlie"}
+            ])
+        )
+        return 0
+    }
+}

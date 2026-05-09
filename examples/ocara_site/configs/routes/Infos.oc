@@ -1,11 +1,11 @@
 namespace configs.routes
 
-import ocara.HTTPServer
 import controllers.AboutController
 import controllers.ContactController
+import configs.Server
 
 class Infos {
-    init(server:HTTPServer) {
+    init(server:Server) {
        server.route("/about",   "GET", AboutController::handle)
        server.route("/contact", "GET", ContactController::handle)
     }

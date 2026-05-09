@@ -387,6 +387,10 @@ Les **exceptions runtime** (levées pendant l'exécution du programme) sont docu
 | `MutexException` | Mutex | [Mutex.md](builtins/Mutex.md) |
 | `HTTPException` | HTTPRequest, HTTPServer | [HTTPRequest.md](builtins/HTTPRequest.md) |
 | `JSONException` | JSON | [JSON.md](builtins/JSON.md) |
+| `YAMLException` | YAML | [YAML.md](builtins/YAML.md) |
+| `SQLiteException` | SQLite | [SQLite.md](builtins/SQLite.md) |
+| `MySQLException` / `MariaDBException` | MySQL / MariaDB | [MySQL.md](builtins/MySQL.md) |
+| `DotEnvException` | DotEnv | [DotEnv.md](builtins/DotEnv.md) |
 
 Chaque exception a des **codes d'erreur spécifiques** (101, 102, etc.) documentés dans les pages correspondantes.
 

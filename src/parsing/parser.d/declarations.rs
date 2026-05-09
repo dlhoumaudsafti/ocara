@@ -194,16 +194,8 @@ impl Parser {
             false
         };
 
-        // Modificateur async optionnel : `public [static] async method ...`
-        let _is_async_member = if self.check_exact(&TokenKind::Async) {
-            self.advance();
-            true
-        } else {
-            false
-        };
-
         // `static` n'est autorisé que sur les méthodes
-        if is_static && !self.check_exact(&TokenKind::Method) {
+        if is_static && !self.check_exact(&TokenKind::Method) && !self.check_exact(&TokenKind::Async) {
             return Err(ParseError::new(
                 "'static' n'est autorisé que sur les méthodes (method)",
                 self.span(),
@@ -221,8 +213,8 @@ impl Parser {
             return Ok(ClassMember::Const { vis, name, ty, value, span });
         }
 
-        // Méthode : `public [static] method foo(...): T { }`
-        if self.check_exact(&TokenKind::Method) {
+        // Méthode : `public [static] [async] method foo(...): T { }`
+        if self.check_exact(&TokenKind::Method) || self.check_exact(&TokenKind::Async) {
             let decl = self.parse_method_decl()?;
             return Ok(ClassMember::Method { vis, is_static, decl, span });
         }

@@ -27,6 +27,7 @@ Documentation détaillée des classes intégrées au runtime Ocara :
 | [File.md](builtins/File.md) | Manipulation de fichiers (`read`, `write`, `exists`, `delete`) |
 | [Directory.md](builtins/Directory.md) | Manipulation de répertoires (`create`, `list`, `remove`) |
 | [System.md](builtins/System.md) | Informations système (`OS`, `ARCH`, `env`, `exec`, `args`) |
+| [DotEnv.md](builtins/DotEnv.md) | Chargement de fichiers .env (`load`, `get`) |
 
 ### Manipulation de données
 
@@ -36,6 +37,7 @@ Documentation détaillée des classes intégrées au runtime Ocara :
 | [Array.md](builtins/Array.md) | Manipulation de tableaux (`push`, `pop`, `sort`, `filter`, `map`) |
 | [Map.md](builtins/Map.md) | Manipulation de maps/dictionnaires (`keys`, `values`, `has`, `remove`) |
 | [JSON.md](builtins/JSON.md) | Encodage/décodage JSON (`encode`, `decode`, `pretty`, `minimize`) |
+| [YAML.md](builtins/YAML.md) | Encodage/décodage YAML (`encode`, `decode`, `parse`) |
 | [Regex.md](builtins/Regex.md) | Expressions régulières POSIX ERE (`match`, `replace`, `split`) |
 | [Convert.md](builtins/Convert.md) | Conversions entre types (`toInt`, `toFloat`, `toString`, `toBool`) |
 
@@ -56,6 +58,13 @@ Documentation détaillée des classes intégrées au runtime Ocara :
 | [HTTPServer.md](builtins/HTTPServer.md) | Serveur HTTP simple (`listen`, `route`, `response`) |
 | [HTML.md](builtins/HTML.md) | Génération de HTML programmatique |
 | [HTMLComponent.md](builtins/HTMLComponent.md) | Composants HTML réutilisables |
+
+### Bases de données
+
+| Builtin | Description |
+|---------|-------------|
+| [SQLite.md](builtins/SQLite.md) | Base de données SQLite embarquée (`open`, `execute`, `query`, `queryOne`) |
+| [MySQL.md](builtins/MySQL.md) | Connexion MySQL/MariaDB (`connect`, `execute`, `query`, `queryOne`) |
 
 ### Concurrence et Tests
 
