@@ -15,6 +15,7 @@
 // ocara.ThreadException — classe d'exception pour les erreurs de threads
 // ocara.MutexException — classe d'exception pour les erreurs de mutex
 // ocara.UnitTestException — classe d'exception pour les échecs d'assertions de tests
+// ocara.HTTPServerException — classe d'exception pour les erreurs du serveur HTTP
 //
 // Toutes ont les mêmes propriétés :
 //   - message: string  — Description de l'erreur
@@ -68,6 +69,8 @@
 //       IO::writeln(`Erreur mutex: ${e.message}`)
 //   } on e is UnitTestException {
 //       IO::writeln(`Échec de test: ${e.message}`)
+//   } on e is HTTPServerException {
+//       IO::writeln(`Erreur serveur HTTP: ${e.message}`)
 //   }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -164,5 +167,25 @@ pub fn mutex_exception_class() -> ClassInfo {
 }
 
 pub fn unittest_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn httpserver_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn sqlite_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn mysql_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn dotenv_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn yaml_exception_class() -> ClassInfo {
     make_exception_class()
 }

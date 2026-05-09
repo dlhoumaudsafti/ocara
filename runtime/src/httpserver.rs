@@ -35,6 +35,11 @@
 // Note sécurité concurrente :
 //   Les captures partagées entre handlers (heap_promoted) ne sont pas
 //   protégées par un mutex. Des accès concurrents constituent un data race.
+//
+// Gestion d'erreurs : HTTPServer_run() lève HTTPServerException en cas d'erreur de démarrage.
+//
+// Codes d'erreur HTTPServerException :
+//   101 - SERVER_START    : Erreur de démarrage du serveur (binding)
 // ─────────────────────────────────────────────────────────────────────────────
 
 use std::{
@@ -43,6 +48,10 @@ use std::{
 };
 
 use crate::{alloc_str, ptr_to_str};
+use crate::exception::throw_httpserver_exception;
+
+// Codes d'erreur HTTPServerException
+const ERR_SERVER_START: i64 = 101;
 
 // Macro safe pour les logs serveur (contourne le write(2) shadowé)
 macro_rules! server_log {
@@ -131,14 +140,18 @@ struct OcaraHttpContext {
 
 #[inline]
 unsafe fn server_from_slot(self_ptr: i64) -> &'static mut OcaraHttpServer {
-    let slot  = self_ptr as *const i64;
-    let inner = *slot as *mut OcaraHttpServer;
-    &mut *inner
+    unsafe {
+        let slot  = self_ptr as *const i64;
+        let inner = *slot as *mut OcaraHttpServer;
+        &mut *inner
+    }
 }
 
 #[inline]
 unsafe fn ctx_ref(req: i64) -> &'static mut OcaraHttpContext {
-    &mut *(req as *mut OcaraHttpContext)
+    unsafe {
+        &mut *(req as *mut OcaraHttpContext)
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -219,7 +232,10 @@ fn mime_type_from_path(path: &str) -> &'static str {
 fn try_serve_static_file(req_handle: i64, req_path: &str, root_path: Option<&str>) -> bool {
     let root = match root_path {
         Some(r) => r,
-        None => return false,
+        None => {
+            server_log!("[STATIC] No root_path configured\n");
+            return false;
+        }
     };
 
     // Nettoyer le chemin : retirer le / initial et décoder
@@ -227,25 +243,43 @@ fn try_serve_static_file(req_handle: i64, req_path: &str, root_path: Option<&str
     
     // Protection contre path traversal : bloquer ../ ou ../
     if clean_path.contains("..") {
+        server_log!("[STATIC] Path traversal attempt blocked\n");
         return false;
     }
 
     // Construire le chemin complet
     let file_path = std::path::Path::new(root).join(clean_path);
     
+    // Vérifier que le fichier existe
+    if !file_path.exists() {
+        server_log!("[STATIC] file does not exist\n");
+        return false;
+    }
+    
     // Vérifier que le fichier canonique reste dans le root (double protection)
-    if let Ok(canonical) = file_path.canonicalize() {
-        if let Ok(root_canonical) = std::path::Path::new(root).canonicalize() {
-            if !canonical.starts_with(&root_canonical) {
+    // Note : root est déjà canonicalisé par HTTPServer_rootPath
+    match file_path.canonicalize() {
+        Ok(canonical) => {
+            // Vérifier que le fichier est bien dans le root
+            let root_path_obj = std::path::Path::new(root);
+            if !canonical.starts_with(root_path_obj) {
+                server_log!("[STATIC] File is outside root directory\n");
                 return false;
             }
+        }
+        Err(e) => {
+            server_log!("[STATIC] Failed to canonicalize file path: {:?} - {}\n", file_path, e);
+            return false;
         }
     }
 
     // Tenter de lire le fichier
     let content = match std::fs::read(&file_path) {
         Ok(bytes) => bytes,
-        Err(_) => return false,
+        Err(e) => {
+            server_log!("[STATIC] Failed to read file: {}\n", e);
+            return false;
+        }
     };
 
     // Déterminer le MIME type
@@ -323,7 +357,7 @@ fn handle_request(
     if let Some(h) = handler {
         let f: OcaraHandlerFn = unsafe { std::mem::transmute(h.func_ptr as usize) };
         unsafe { f(h.env_ptr, req_handle) };
-    } else if method_str == "GET" {
+    } else if method_str == "GET" {        
         // Si GET / sans route → essayer /index.html automatiquement
         let serve_path = if path_str == "/" { "/index.html" } else { &path_str };
         
@@ -391,7 +425,7 @@ fn handle_request(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Constructeur : alloue un OcaraHttpServer et écrit le pointeur dans le slot.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPServer_init(self_ptr: i64) {
     let s   = Box::new(OcaraHttpServer::new());
     let raw = Box::into_raw(s) as i64;
@@ -399,21 +433,21 @@ pub extern "C" fn HTTPServer_init(self_ptr: i64) {
 }
 
 /// Définit le port d'écoute (défaut : 8080).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPServer_port(self_ptr: i64, port: i64) {
     let s = unsafe { server_from_slot(self_ptr) };
     s.port = port as u16;
 }
 
 /// Définit l'adresse d'écoute (défaut : "0.0.0.0").
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPServer_host(self_ptr: i64, host_ptr: i64) {
     let s = unsafe { server_from_slot(self_ptr) };
     s.host = unsafe { ptr_to_str(host_ptr).to_string() };
 }
 
 /// Définit le nombre de threads workers (défaut : 4).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPServer_workers(self_ptr: i64, n: i64) {
     let s = unsafe { server_from_slot(self_ptr) };
     s.workers = n.max(1) as usize;
@@ -422,16 +456,49 @@ pub extern "C" fn HTTPServer_workers(self_ptr: i64, n: i64) {
 /// Définit le répertoire racine pour servir les fichiers statiques.
 /// Si défini, les requêtes qui ne matchent aucune route tenteront de servir
 /// un fichier depuis ce répertoire. Protégé contre path traversal.
-#[no_mangle]
+/// Le chemin est automatiquement résolu en chemin absolu si possible.
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPServer_rootPath(self_ptr: i64, path_ptr: i64) {
     let s = unsafe { server_from_slot(self_ptr) };
     let path = unsafe { ptr_to_str(path_ptr).to_string() };
-    s.root_path = if path.is_empty() { None } else { Some(path) };
+    
+    if path.is_empty() {
+        s.root_path = None;
+        return;
+    }
+    
+    // Tenter de résoudre le chemin en absolu depuis le répertoire courant
+    let path_buf = std::path::Path::new(&path);
+    let resolved = if path_buf.is_absolute() {
+        // Déjà absolu
+        path
+    } else {
+        // Relatif : résoudre depuis le répertoire courant
+        match std::env::current_dir() {
+            Ok(cwd) => {
+                let full_path = cwd.join(&path);
+                match full_path.canonicalize() {
+                    Ok(canonical) => {
+                        let canonical_str = canonical.to_string_lossy().to_string();
+                        canonical_str
+                    }
+                    Err(_) => {
+                        path
+                    }
+                }
+            }
+            Err(_) => {
+                path
+            }
+        }
+    };
+    
+    s.root_path = Some(resolved);
 }
 
 /// Enregistre une route.
 /// `fat_ptr` pointe sur un struct {func_ptr: i64, env_ptr: i64} (fat pointer Ocara).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPServer_route(
     self_ptr: i64,
     path_ptr: i64,
@@ -452,7 +519,7 @@ pub extern "C" fn HTTPServer_route(
 
 /// Enregistre un handler pour un code d'erreur HTTP spécifique.
 /// Permet de personnaliser les pages d'erreur (404, 500, etc.).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPServer_routeError(
     self_ptr: i64,
     code: i64,
@@ -466,15 +533,19 @@ pub extern "C" fn HTTPServer_routeError(
 
 /// Démarre le serveur (appel bloquant).
 /// Lance `workers` threads qui acceptent les connexions en parallèle.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPServer_run(self_ptr: i64) {
     let data   = unsafe { server_from_slot(self_ptr) };
     let addr   = format!("{}:{}", data.host, data.port);
     let server = match tiny_http::Server::http(&addr) {
         Ok(s)  => Arc::new(s),
         Err(e) => {
-            server_log!("HTTPServer: unable to start on {} : {}\n", addr, e);
-            return;
+            unsafe {
+                throw_httpserver_exception(
+                    &format!("Unable to start HTTPServer on {}: {}", addr, e),
+                    ERR_SERVER_START
+                );
+            }
         }
     };
     let routes: Arc<Vec<Route>> = Arc::new(std::mem::take(&mut data.routes));
@@ -506,21 +577,21 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
 // ─── Méthodes statiques — lecture de la requête (appelées depuis un handler) ─
 
 /// Retourne le chemin de la requête courante (sans query string).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPServer_path(req: i64) -> i64 {
     let path = unsafe { ctx_ref(req).path.clone() };
     unsafe { alloc_str(&path) }
 }
 
 /// Retourne la méthode HTTP de la requête courante (ex: "GET").
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPServer_method(req: i64) -> i64 {
     let method = unsafe { ctx_ref(req).method.clone() };
     unsafe { alloc_str(&method) }
 }
 
 /// Retourne le corps de la requête courante.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPServer_body(req: i64) -> i64 {
     let body = unsafe { ctx_ref(req).body.clone() };
     unsafe { alloc_str(&body) }
@@ -528,7 +599,7 @@ pub extern "C" fn HTTPServer_body(req: i64) -> i64 {
 
 /// Retourne la valeur d'un en-tête de la requête (clé insensible à la casse).
 /// Retourne une chaîne vide si l'en-tête est absent.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPServer_header(req: i64, name_ptr: i64) -> i64 {
     let name = unsafe { ptr_to_str(name_ptr).to_lowercase() };
     let val  = unsafe { ctx_ref(req) }.headers.get(&name)
@@ -539,7 +610,7 @@ pub extern "C" fn HTTPServer_header(req: i64, name_ptr: i64) -> i64 {
 
 /// Retourne la valeur d'un paramètre query string.
 /// Retourne une chaîne vide si le paramètre est absent.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPServer_query(req: i64, key_ptr: i64) -> i64 {
     let key = unsafe { ptr_to_str(key_ptr).to_string() };
     let val = unsafe { ctx_ref(req) }.query.get(&key)
@@ -552,7 +623,7 @@ pub extern "C" fn HTTPServer_query(req: i64, key_ptr: i64) -> i64 {
 
 /// Définit le statut HTTP et le corps de la réponse.
 /// Peut être appelé plusieurs fois : seul le dernier appel est utilisé.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPServer_respond(req: i64, status: i64, body_ptr: i64) {
     let body      = unsafe { ptr_to_str(body_ptr).to_string() };
     let ctx       = unsafe { ctx_ref(req) };
@@ -561,7 +632,7 @@ pub extern "C" fn HTTPServer_respond(req: i64, status: i64, body_ptr: i64) {
 }
 
 /// Ajoute un en-tête à la réponse (ex: "Content-Type", "text/html").
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTTPServer_respondHeader(req: i64, name_ptr: i64, value_ptr: i64) {
     let name  = unsafe { ptr_to_str(name_ptr).to_string() };
     let value = unsafe { ptr_to_str(value_ptr).to_string() };

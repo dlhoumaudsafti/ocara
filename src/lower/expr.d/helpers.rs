@@ -60,8 +60,16 @@ pub fn is_array_expr(builder: &LowerBuilder, expr: &Expr) -> bool {
     match expr {
         Expr::Ident(name, _) => builder.elem_types.contains_key(name.as_str()),
         Expr::StaticCall { class, method, .. } => {
+            // Résoudre "<parent>" et "<self>" vers les classes appropriées
+            let resolved_class = if class == "<parent>" {
+                builder.parent_class.as_deref().unwrap_or(class.as_str())
+            } else if class == "<self>" {
+                builder.current_class.as_deref().unwrap_or(class.as_str())
+            } else {
+                class.as_str()
+            };
             matches!(
-                format!("{}_{}", class, method).as_str(),
+                format!("{}_{}", resolved_class, method).as_str(),
                 "System_args"
                 | "Array_sort"
                 | "Array_reverse"

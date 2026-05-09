@@ -99,6 +99,7 @@ pub enum TokenKind {
     Is,
     Raise,
     SelfKw, // self
+    ParentKw, // parent
     Async,
     Resolve,
     Variadic,
@@ -116,6 +117,7 @@ pub enum TokenKind {
     TString,
     TBool,
     TMixed,
+    TArray,
     TMap,
     TVoid,
 

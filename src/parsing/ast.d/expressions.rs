@@ -113,6 +113,9 @@ pub enum Expr {
     /// `self`
     SelfExpr(Span),
 
+    /// `parent` — référence à l'instance parent dans héritage
+    ParentExpr(Span),
+
     /// Fonction anonyme (closure) : `nameless(params): ret { body }`
     Nameless {
         params: Vec<Param>,
@@ -155,6 +158,7 @@ impl Expr {
             Expr::Range { span, .. } => span,
             Expr::Match { span, .. } => span,
             Expr::SelfExpr(span) => span,
+            Expr::ParentExpr(span) => span,
             Expr::Nameless { span, .. } => span,
             Expr::Resolve { span, .. } => span,
             Expr::IsCheck { span, .. } => span,

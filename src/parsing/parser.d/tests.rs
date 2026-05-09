@@ -139,7 +139,7 @@ mod tests {
 
     #[test]
     fn test_type_array() {
-        let p = parse("function foo(a:int[]): int {}");
+        let p = parse("function foo(a:array<int>): int {}");
         assert_eq!(p.functions[0].params[0].ty, Type::Array(Box::new(Type::Int)));
     }
 

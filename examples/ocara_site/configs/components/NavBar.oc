@@ -4,7 +4,7 @@ import ocara.HTMLComponent
 
 class NavBar extends HTMLComponent {
     init() {
-        self.setTag("nav-bar")
+        parent::init("nav-bar")
         self.register(nameless(attrs:map<string, mixed>): string {
             scoped active:string      = attrs["active"]
             scoped home_cls:string    = match active { "home"    => " active" default => "" }

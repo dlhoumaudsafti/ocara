@@ -4,7 +4,7 @@ import ocara.HTMLComponent
 
 class Stats extends HTMLComponent {
     init() {
-        self.setTag("stats")
+        parent::init("stats")
         self.register(nameless(attrs:map<string, mixed>): string {
             scoped value:string = attrs["value"]
             return `<span class="stats-badge">${value}</span>`

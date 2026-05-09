@@ -22,6 +22,11 @@ impl SymbolTable {
         self.classes.get(name)
     }
 
+    /// Récupère le nom de la classe parent d'une classe
+    pub fn lookup_parent_class(&self, name: &str) -> Option<String> {
+        self.classes.get(name)?.extends.clone()
+    }
+
     /// Recherche un module (mixin) par son nom
     #[allow(dead_code)]
     pub fn lookup_module(&self, name: &str) -> Option<&ModuleInfo> {

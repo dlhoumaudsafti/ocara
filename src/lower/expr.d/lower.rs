@@ -82,12 +82,29 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             }
         }
 
+        // ── parent ───────────────────────────────────────────────────────────
+        Expr::ParentExpr(_) => {
+            // `parent` référence aussi self (même objet, champs hérités inclus)
+            if let Some((dest, _)) = builder.load_local("self") {
+                dest
+            } else {
+                let dest = builder.new_value();
+                builder.emit(Inst::Load {
+                    dest: dest.clone(),
+                    ptr:  Value(0),
+                    ty:   IrType::Ptr,
+                });
+                dest
+            }
+        }
+
         // ── Accès de champ ───────────────────────────────────────────────────
         Expr::Field { object, field, .. } => {
             // Résoudre la classe de l'objet pour calculer l'offset
             let class_name = match object.as_ref() {
                 Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
                 Expr::SelfExpr(_)    => builder.current_class.clone(),
+                Expr::ParentExpr(_)  => builder.parent_class.clone(),
                 _ => None,
             };
             let offset = if let Some(cls) = &class_name {
@@ -202,6 +219,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                             builder.var_class.get(var_name.as_str()).cloned()
                         }
                         Expr::SelfExpr(_) => builder.current_class.clone(),
+                        Expr::ParentExpr(_) => builder.parent_class.clone(),
                         // String littérale : "hello".trim()
                         Expr::Literal(Literal::String(_), _) => Some("String".to_string()),
                         // Appel chainé : arr.sort().reverse() ou text.trim().lower()
@@ -245,11 +263,38 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                             }
                         }
                     };
-                    let func_mangled = if let Some(cls) = class_name {
+                    let mut func_mangled = if let Some(ref cls) = class_name {
                         format!("{}_{}", cls, field)
                     } else {
                         format!("_method_{}", field) // fallback (ne devrait pas arriver)
                     };
+                    
+                    // Chercher la méthode dans la chaîne d'héritage si elle n'existe pas dans la classe
+                    if let Some(cls) = &class_name {
+                        let method_exists = builder.module.functions.iter()
+                            .any(|f| f.name == func_mangled);
+                        
+                        if !method_exists {
+                            // Chercher dans la chaîne d'héritage
+                            let mut current = cls.as_str();
+                            loop {
+                                if let Some(parent) = builder.module.class_parents.get(current) {
+                                    let parent_func_name = format!("{}_{}", parent, field);
+                                    // Vérifier dans les fonctions du module ET dans les builtins
+                                    let parent_method_exists = builder.module.functions.iter()
+                                        .any(|f| f.name == parent_func_name)
+                                        || builtins().iter().any(|b| b.name == parent_func_name);
+                                    if parent_method_exists {
+                                        func_mangled = parent_func_name;
+                                        break;
+                                    }
+                                    current = parent.as_str();
+                                } else {
+                                    break;
+                                }
+                            }
+                        }
+                    }
                     
                     // Compléter les arguments avec les valeurs par défaut si nécessaire
                     let completed_args = complete_args_with_defaults(builder, &func_mangled, args);
@@ -276,6 +321,26 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             let completed_args = complete_args_with_defaults(builder, &func_name, args);
             let args = &completed_args; // Remplacer args par completed_args pour le reste
 
+            // Pour les builtins avec paramètres optionnels (surcharges),
+            // ajouter un suffixe _N où N est le nombre d'arguments réels
+            let func_name = {
+                let original_name = func_name.clone();
+                // Chercher si c'est un builtin
+                if let Some(builtin) = builtins().iter().find(|b| b.name == original_name) {
+                    // Vérifier si c'est un builtin avec surcharge (required < fixed)
+                    // Pour l'instant, on détecte les surcharges en cherchant si une variante _0 existe
+                    let has_overload = builtins().iter().any(|b| b.name == format!("{}_0", original_name));
+                    if has_overload && args.len() < builtin.params.len() {
+                        // Utiliser la variante surchargée
+                        format!("{}_{}", original_name, args.len())
+                    } else {
+                        original_name
+                    }
+                } else {
+                    original_name
+                }
+            };
+
             // Fonctions d'affichage : dispatch vers la variante typée
             const WRITE_FUNS: &[&str] = &["IO_write", "IO_writeln"];
             if WRITE_FUNS.contains(&func_name.as_str()) && args.len() == 1 {
@@ -300,9 +365,9 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 // Évaluer les arguments
                 let arg_vals: Vec<Value> = args.iter().map(|a| lower_expr(builder, a)).collect();
                 let n_args = arg_vals.len();
-                // Allouer l'env heap : n_args * 8 octets
+                // Allouer l'env heap : n_args * 8 octets (min 8 pour éviter null pointer)
                 let env_size = builder.new_value();
-                builder.emit(Inst::ConstInt { dest: env_size.clone(), value: (n_args * 8) as i64 });
+                builder.emit(Inst::ConstInt { dest: env_size.clone(), value: ((n_args * 8).max(8)) as i64 });
                 let env_ptr = builder.new_value();
                 builder.emit(Inst::Call {
                     dest:   Some(env_ptr.clone()),
@@ -433,9 +498,13 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
 
         // ── Accès statique ──────────────────────────────────────────────────
         Expr::StaticCall { class, method, args, span } => {
-            // Résoudre "<self>" vers la classe courante
+            // Résoudre "<parent>" et "<self>" vers les classes appropriées
             let self_class;
-            let mut resolved_class: &str = if class == "<self>" {
+            let parent_class;
+            let mut resolved_class: &str = if class == "<parent>" {
+                parent_class = builder.parent_class.clone().unwrap_or_default();
+                &parent_class
+            } else if class == "<self>" {
                 self_class = builder.current_class.clone().unwrap_or_default();
                 &self_class
             } else {
@@ -472,6 +541,72 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             }
             
             let func_name = format!("{}_{}", resolved_class, method);
+
+            // Pour les builtins avec paramètres optionnels (surcharges),
+            // ajouter un suffixe _N où N est le nombre d'arguments réels
+            let func_name = {
+                let original_name = func_name.clone();
+                // Chercher si c'est un builtin
+                if let Some(builtin) = builtins().iter().find(|b| b.name == original_name) {
+                    // Vérifier si c'est un builtin avec surcharge (une variante _0 existe)
+                    let has_overload = builtins().iter().any(|b| b.name == format!("{}_0", original_name));
+                    if has_overload && args.len() < builtin.params.len() {
+                        // Utiliser la variante surchargée
+                        format!("{}_{}", original_name, args.len())
+                    } else {
+                        original_name
+                    }
+                } else {
+                    original_name
+                }
+            };
+
+            // Vérifier si c'est une méthode async
+            if builder.async_funcs.contains(func_name.as_str()) {
+                let wrapper_name = format!("__async_wrap_{}", func_name);
+                // Évaluer les arguments
+                let mut arg_vals: Vec<Value> = args.iter().map(|a| lower_expr(builder, a)).collect();
+                
+                // Si c'est un appel parent::method(), il faut ajouter self comme premier argument
+                if class == "<parent>" {
+                    if let Some((self_val, _)) = builder.load_local("self") {
+                        arg_vals.insert(0, self_val);
+                    }
+                }
+                
+                let n_args = arg_vals.len();
+                // Allouer l'env heap : n_args * 8 octets (min 8 pour éviter null pointer)
+                let env_size = builder.new_value();
+                builder.emit(Inst::ConstInt { dest: env_size.clone(), value: ((n_args * 8).max(8)) as i64 });
+                let env_ptr = builder.new_value();
+                builder.emit(Inst::Call {
+                    dest:   Some(env_ptr.clone()),
+                    func:   "__alloc_obj".into(),
+                    args:   vec![env_size],
+                    ret_ty: IrType::I64,
+                });
+                // Stocker chaque arg dans env[i*8]
+                for (i, arg_val) in arg_vals.iter().enumerate() {
+                    builder.emit(Inst::SetField {
+                        obj:    env_ptr.clone(),
+                        field:  format!("__arg{}", i),
+                        src:    arg_val.clone(),
+                        offset: (i * 8) as i32,
+                    });
+                }
+                // Obtenir l'adresse du wrapper
+                let func_addr = builder.new_value();
+                builder.emit(Inst::FuncAddr { dest: func_addr.clone(), func: wrapper_name });
+                // Appeler __task_spawn(func_addr, env_ptr) → task handle
+                let task = builder.new_value();
+                builder.emit(Inst::Call {
+                    dest:   Some(task.clone()),
+                    func:   "__task_spawn".into(),
+                    args:   vec![func_addr, env_ptr],
+                    ret_ty: IrType::I64,
+                });
+                return task;
+            }
 
             // Vérification de l'import : les modules ocara builtins doivent être importés
             // SAUF si la classe est définie localement dans le programme
@@ -513,12 +648,27 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
 
             let arg_vals: Vec<Value> = args.iter().map(|a| lower_expr(builder, a)).collect();
             
+            // Si c'est un appel parent::method(), il faut ajouter self comme premier argument
+            // car les méthodes d'instance prennent toujours self en premier paramètre
+            let final_args = if class == "<parent>" {
+                // Charger self et l'insérer en tête des arguments
+                if let Some((self_val, _)) = builder.load_local("self") {
+                    let mut all_args = vec![self_val];
+                    all_args.extend(arg_vals);
+                    all_args
+                } else {
+                    arg_vals
+                }
+            } else {
+                arg_vals
+            };
+            
             // Vérifier si le builtin retourne void
             if is_void_builtin(&func_name) {
                 builder.emit(Inst::Call {
                     dest:   None,
                     func:   func_name,
-                    args:   arg_vals,
+                    args:   final_args,
                     ret_ty: IrType::Void,
                 });
                 // Les fonctions void ne retournent rien, donc on retourne une constante dummy
@@ -531,7 +681,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             builder.emit(Inst::Call {
                 dest:   Some(dest.clone()),
                 func:   func_name,
-                args:   arg_vals,
+                args:   final_args,
                 ret_ty: IrType::Ptr,
             });
             dest
@@ -539,9 +689,13 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
 
         // ── Lecture de constante de classe : `Class::NAME` ────────────────────
         Expr::StaticConst { class, name, .. } => {
-            // Résoudre "<self>" vers la classe courante
+            // Résoudre "<parent>" et "<self>" vers les classes appropriées
             let self_class;
-            let class: &str = if class == "<self>" {
+            let parent_class;
+            let class: &str = if class == "<parent>" {
+                parent_class = builder.parent_class.clone().unwrap_or_default();
+                &parent_class
+            } else if class == "<self>" {
                 self_class = builder.current_class.clone().unwrap_or_default();
                 &self_class
             } else {

@@ -1,0 +1,119 @@
+import ocara.YAML
+import ocara.IO
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple d'utilisation de YAML pour encoder/décoder des données
+// ─────────────────────────────────────────────────────────────────────────────
+
+main {
+    IO::writeln("=== Test YAML ===")
+    IO::writeln("")
+
+    // ── Test 1 : Encoder une map en YAML ──────────────────────────────────────
+    IO::writeln("Test 1 : Encoder une map en YAML")
+    
+    const user:map<string, mixed> = {
+        'name': "Alice",
+        'age': 30,
+        'email': "alice@example.com",
+        'active': true
+    }
+    
+    const yamlStr:string = YAML::encode(user)
+    IO::writeln("YAML généré:")
+    IO::write(yamlStr)
+    IO::writeln("")
+
+    // ── Test 2 : Décoder du YAML ──────────────────────────────────────────────
+    IO::writeln("Test 2 : Décoder du YAML")
+    
+    const yamlInput:string = `name: Bob
+age: 25
+city: Paris
+is_student: true
+`
+    
+    const decoded:map<string, mixed> = YAML::decode(yamlInput)
+    IO::writeln(`Nom: ${decoded["name"]}`)
+    IO::writeln(`Age: ${decoded["age"]}`)
+    IO::writeln(`Ville: ${decoded["city"]}`)
+    IO::writeln(`Étudiant: ${decoded["is_student"]}`)
+    IO::writeln("")
+
+    // ── Test 3 : Encoder un array en YAML ─────────────────────────────────────
+    IO::writeln("Test 3 : Encoder un array en YAML")
+    
+    const colors:array<string> = [
+        "red",
+        "green",
+        "blue"
+    ]
+    
+    const yamlArray:string = YAML::encode(colors)
+    IO::writeln("YAML array:")
+    IO::write(yamlArray)
+    IO::writeln("")
+
+    // ── Test 4 : Décoder un array YAML ────────────────────────────────────────
+    IO::writeln("Test 4 : Décoder un array YAML")
+    
+    const yamlArrayInput:string = `- apple
+- banana
+- orange
+`
+    
+    const fruits:array<string> = YAML::parse(yamlArrayInput)
+    IO::writeln("Fruits:")
+    for fruit in fruits {
+        IO::writeln(`  - ${fruit}`)
+    }
+    IO::writeln("")
+
+    // ── Test 5 : Structure complexe ───────────────────────────────────────────
+    IO::writeln("Test 5 : Structure complexe (array de maps)")
+    
+    
+    const user1:map<string, mixed> = {
+        'name': "Charlie",
+        'age': 28
+    }
+    
+    const user2:map<string, mixed> = {
+        'name': "Diana",
+        'age': 32
+    }
+    const users:array<map<string, mixed>> = [
+        user1,
+        user2
+    ]
+    
+    const complexYaml:string = YAML::encode(users)
+    IO::writeln("YAML complexe:")
+    IO::write(complexYaml)
+    IO::writeln("")
+
+    // ── Test 6 : Round-trip (encode puis decode) ──────────────────────────────
+    IO::writeln("Test 6 : Round-trip")
+    
+    const original:map<string, mixed> = {
+        'app': "OcaraApp",
+        'version': 1,
+        'debug': false
+    }
+    
+    const encoded:string = YAML::encode(original)
+    const roundtrip:map<string, mixed> = YAML::decode(encoded)
+    
+    IO::writeln("Données originales:")
+    IO::writeln(`  app: ${original["app"]}`)
+    IO::writeln(`  version: ${original["version"]}`)
+    IO::writeln(`  debug: ${original["debug"]}`)
+    
+    IO::writeln("Après round-trip:")
+    IO::writeln(`  app: ${roundtrip["app"]}`)
+    IO::writeln(`  version: ${roundtrip["version"]}`)
+    IO::writeln(`  debug: ${roundtrip["debug"]}`)
+    IO::writeln("")
+
+    IO::writeln("=== Test terminé ===")
+}

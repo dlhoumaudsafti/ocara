@@ -24,7 +24,15 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
         }
         // Appels de méthodes String_* et IO_read* retournent des strings
         Expr::StaticCall { class, method, .. } => {
-            let fname = format!("{}_{}", class, method);
+            // Résoudre "<parent>" et "<self>" vers les classes appropriées
+            let resolved_class = if class == "<parent>" {
+                builder.parent_class.as_deref().unwrap_or(class.as_str())
+            } else if class == "<self>" {
+                builder.current_class.as_deref().unwrap_or(class.as_str())
+            } else {
+                class.as_str()
+            };
+            let fname = format!("{}_{}", resolved_class, method);
             // D'abord consulter fn_ret_types (classes locales et builtins enregistrés)
             if let Some(ty) = builder.fn_ret_types.get(&fname) {
                 return ty.clone();

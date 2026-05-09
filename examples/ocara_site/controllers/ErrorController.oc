@@ -6,9 +6,10 @@ import ocara.HTTPServer
 class ErrorController {
 
     public static method handle404(req:int): int {
+        const path:string = HTTPServer::path(req)
         scoped html:string = HTML::render(`<layout title="Page non trouvée" active="error">
   <card title="Erreur 404">
-    <p>La page que vous recherchez n'existe pas.</p>
+    <p>La page ${path} que vous recherchez n'existe pas.</p>
   </card>
 </layout>`)
 

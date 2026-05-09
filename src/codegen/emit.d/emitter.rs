@@ -12,7 +12,7 @@ use crate::ir::func::IrFunction;
 use crate::ir::inst::BlockId;
 use crate::ir::module::IrModule;
 use crate::ir::types::IrType;
-use crate::codegen::runtime::{builtin_sig, BUILTINS};
+use crate::codegen::runtime::{builtin_sig, builtins};
 use super::error::{CodegenError, CgResult};
 use super::helpers::{ir_type_to_cl, max_value_id};
 use super::instructions::emit_inst;
@@ -66,7 +66,7 @@ impl CraneliftEmitter {
         let call_conv = self.module.isa().default_call_conv();
 
         // Builtins runtime — uniquement ceux dont le module est importé (ou internes)
-        for desc in BUILTINS {
+        for desc in builtins() {
             let allowed = match desc.module {
                 None => true, // interne, toujours disponible
                 Some(m) => ir.imports.iter().any(|imp| imp == m),

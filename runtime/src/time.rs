@@ -18,7 +18,7 @@ use std::ffi::CStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Retourne l'heure actuelle au format HH:MM:SS
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Time_now() -> i64 {
     let ts = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -28,7 +28,7 @@ pub extern "C" fn Time_now() -> i64 {
 }
 
 /// Extrait l'heure d'un timestamp au format HH:MM:SS
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Time_from_timestamp(ts: i64) -> i64 {
     let seconds_in_day = ts % 86400;
     let hour = (seconds_in_day / 3600) as i32;
@@ -40,7 +40,7 @@ pub extern "C" fn Time_from_timestamp(ts: i64) -> i64 {
 }
 
 /// Extrait l'heure d'un time HH:MM:SS (0-23)
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Time_hour(time: i64) -> i64 {
     let time_str = unsafe { CStr::from_ptr(time as *const i8) }.to_str().unwrap_or("");
     let parts: Vec<&str> = time_str.split(':').collect();
@@ -64,7 +64,7 @@ pub extern "C" fn Time_hour(time: i64) -> i64 {
 }
 
 /// Extrait les minutes d'un time HH:MM:SS (0-59)
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Time_minute(time: i64) -> i64 {
     let time_str = unsafe { CStr::from_ptr(time as *const i8) }.to_str().unwrap_or("");
     let parts: Vec<&str> = time_str.split(':').collect();
@@ -88,7 +88,7 @@ pub extern "C" fn Time_minute(time: i64) -> i64 {
 }
 
 /// Extrait les secondes d'un time HH:MM:SS (0-59)
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Time_second(time: i64) -> i64 {
     let time_str = unsafe { CStr::from_ptr(time as *const i8) }.to_str().unwrap_or("");
     let parts: Vec<&str> = time_str.split(':').collect();
@@ -112,7 +112,7 @@ pub extern "C" fn Time_second(time: i64) -> i64 {
 }
 
 /// Convertit un nombre de secondes en HH:MM:SS
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Time_from_seconds(seconds: i64) -> i64 {
     let s = seconds % 86400; // Garder dans la journée
     let hour = (s / 3600) as i32;
@@ -124,7 +124,7 @@ pub extern "C" fn Time_from_seconds(seconds: i64) -> i64 {
 }
 
 /// Convertit un time HH:MM:SS en nombre de secondes depuis minuit
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Time_to_seconds(time: i64) -> i64 {
     let hour = Time_hour(time);
     let minute = Time_minute(time);
@@ -134,7 +134,7 @@ pub extern "C" fn Time_to_seconds(time: i64) -> i64 {
 }
 
 /// Ajoute N secondes à un time
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Time_add_seconds(time: i64, s: i64) -> i64 {
     let current_seconds = Time_to_seconds(time);
     let new_seconds = (current_seconds + s) % 86400;
@@ -142,7 +142,7 @@ pub extern "C" fn Time_add_seconds(time: i64, s: i64) -> i64 {
 }
 
 /// Calcule la différence en secondes entre deux times
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Time_diff_seconds(t1: i64, t2: i64) -> i64 {
     let s1 = Time_to_seconds(t1);
     let s2 = Time_to_seconds(t2);

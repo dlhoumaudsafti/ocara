@@ -19,6 +19,7 @@ pub fn lower_var(
     // Si c'est un tableau, enregistrer le type des éléments
     if let Type::Array(inner) = ty {
         builder.elem_types.insert(name.to_string(), IrType::from_ast(inner));
+        builder.elem_ast_types.insert(name.to_string(), (**inner).clone());
     }
     
     // Si c'est une map, marquer la variable pour Expr::Index → __map_get
@@ -99,6 +100,7 @@ pub fn lower_const(
     
     if let Type::Array(inner) = ty {
         builder.elem_types.insert(name.to_string(), IrType::from_ast(inner));
+        builder.elem_ast_types.insert(name.to_string(), (**inner).clone());
     }
     
     if let Type::Map(_, val_ty) = ty {

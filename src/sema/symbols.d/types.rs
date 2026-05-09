@@ -8,6 +8,7 @@ use crate::parsing::ast::{Type, Visibility, TypeParam};
 
 /// Signature d'une fonction (méthode ou fonction libre)
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct FuncSig {
     pub params:    Vec<(String, Type)>,
     pub ret_ty:    Type,
@@ -20,6 +21,7 @@ pub struct FuncSig {
 
 /// Descripteur d'un champ de classe
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct FieldInfo {
     pub ty:      Type,
     pub mutable: bool,
@@ -28,6 +30,7 @@ pub struct FieldInfo {
 
 /// Descripteur complet d'une classe enregistrée
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct ClassInfo {
     pub extends:      Option<String>,
     pub implements:   Vec<String>,
@@ -54,6 +57,7 @@ pub struct InterfaceInfo {
 
 /// Descripteur d'un import
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct ImportInfo {
     pub path:  Vec<String>,
     pub alias: Option<String>,
@@ -61,6 +65,7 @@ pub struct ImportInfo {
 
 /// Descripteur d'un enum
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct EnumInfo {
     /// Variantes avec leur valeur int
     pub variants: HashMap<String, i64>,
@@ -68,6 +73,7 @@ pub struct EnumInfo {
 
 /// Descripteur d'un générique enregistré
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct GenericInfo {
     pub type_params: Vec<TypeParam>,
     pub extends:     Option<String>,

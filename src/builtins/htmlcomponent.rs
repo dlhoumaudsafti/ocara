@@ -2,11 +2,21 @@
 // ocara.HTMLComponent — classe builtin d'instance
 //
 // Méthodes d'instance :
+//   c.tag(name: string) → void
 //   c.register(handler: Function<string>) → void
 //
 // Usage :
 //   var btn:HTMLComponent = use HTMLComponent("button")
+//   btn.tag("my-button")
 //   btn.register(nameless(attrs:map<string,mixed>): string { ... })
+//
+//   // Ou lors d'un extends :
+//   class Card extends HTMLComponent {
+//     init() {
+//       self.tag("card")
+//       self.register(...)
+//     }
+//   }
 // ─────────────────────────────────────────────────────────────────────────────
 
 use std::collections::HashMap;
@@ -28,6 +38,12 @@ fn instance(params: Vec<(&str, Type)>, ret_ty: Type) -> FuncSig {
 
 pub fn class() -> ClassInfo {
     let mut methods: HashMap<String, FuncSig> = HashMap::new();
+
+    // c.tag(name: string) → void
+    methods.insert("tag".into(), instance(
+        vec![("name", Type::String)],
+        Type::Void,
+    ));
 
     // c.register(handler: Function<string>) → void
     methods.insert("register".into(), instance(

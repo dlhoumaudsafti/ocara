@@ -1,0 +1,10 @@
+import ocara.IO
+
+init {
+    IO::writeln("Init block")
+}
+
+main {
+    IO::writeln("Main block")
+    return 42
+}
