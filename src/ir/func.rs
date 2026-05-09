@@ -34,6 +34,7 @@ impl BasicBlock {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct IrParam {
     pub name: String,
     pub ty:   IrType,

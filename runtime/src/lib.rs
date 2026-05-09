@@ -2,7 +2,7 @@
 // ocara_runtime — bibliothèque runtime d'Ocara v1.0
 //
 // Toutes les fonctions sont exportées avec la convention C (`extern "C"`,
-// `#[no_mangle]`) pour être liées aux binaires produits par le compilateur.
+// `#[unsafe(no_mangle)]`) pour être liées aux binaires produits par le compilateur.
 //
 // Représentation des valeurs :
 //   - string  → i64 pointeur vers bytes UTF-8 null-terminated (heap ou .rodata)
@@ -117,6 +117,10 @@ pub mod htmlcomponent;
 pub mod file;
 pub mod directory;
 pub mod exception;
+pub mod sqlite;
+pub mod mysql;
+pub mod dotenv;
+pub mod yaml;
 
 // Helpers mémoire internes
 // ─────────────────────────────────────────────────────────────────────────────
@@ -128,16 +132,18 @@ pub(crate) unsafe fn alloc_str(s: &str) -> i64 {
     // 8 octets header (tag) + données + null-terminator
     let total = 8 + bytes.len() + 1;
     let layout = Layout::from_size_align(total, 8).unwrap();
-    let raw = alloc(layout);
-    assert!(!raw.is_null(), "ocara_runtime: OOM");
-    // Écrire le tag dans le header
-    *(raw as *mut i64) = TAG_STRING;
-    // Copier les données de la chaîne après le header
-    let data = raw.add(8);
-    std::ptr::copy_nonoverlapping(bytes.as_ptr(), data, bytes.len());
-    *data.add(bytes.len()) = 0u8;
-    // Retourner le pointeur APRÈS le header (= pointeur vers les données)
-    (raw as i64) + 8
+    unsafe {
+        let raw = alloc(layout);
+        assert!(!raw.is_null(), "ocara_runtime: OOM");
+        // Écrire le tag dans le header
+        *(raw as *mut i64) = TAG_STRING;
+        // Copier les données de la chaîne après le header
+        let data = raw.add(8);
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), data, bytes.len());
+        *data.add(bytes.len()) = 0u8;
+        // Retourner le pointeur APRÈS le header (= pointeur vers les données)
+        (raw as i64) + 8
+    }
 }
 
 /// Lit un pointeur i64 comme &str (null-terminated UTF-8).
@@ -145,8 +151,10 @@ pub(crate) unsafe fn ptr_to_str<'a>(val: i64) -> &'a str {
     if val == 0 {
         return "";
     }
-    let cstr = CStr::from_ptr(val as *const i8);
-    cstr.to_str().unwrap_or("")
+    unsafe {
+        let cstr = CStr::from_ptr(val as *const i8);
+        cstr.to_str().unwrap_or("")
+    }
 }
 
 // ─── Tagged-pointer boxing pour les valeurs `any` ───────────────────────────
@@ -174,12 +182,12 @@ fn is_bool_box(val: i64) -> bool {
 
 #[inline]
 unsafe fn unbox_float(val: i64) -> f64 {
-    *((val & !3) as *const f64)
+    unsafe { *((val & !3) as *const f64) }
 }
 
 #[inline]
 unsafe fn unbox_bool(val: i64) -> bool {
-    *((val & !3) as *const i64) != 0
+    unsafe { *((val & !3) as *const i64) != 0 }
 }
 
 /// Convertit n'importe quelle valeur i64 (int, float boxé, bool boxé, string ptr) en String.
@@ -232,12 +240,12 @@ fn new_array() -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __array_new() -> i64 {
     new_array()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __array_push(ptr: i64, val: i64) {
     if ptr == 0 { return; }
     unsafe { array_ref(ptr).data.push(val); }
@@ -257,11 +265,11 @@ pub(crate) fn new_map() -> i64 {
 }
 
 unsafe fn array_ref(ptr: i64) -> &'static mut OcaraArray {
-    &mut *(ptr as *mut OcaraArray)
+    unsafe { &mut *(ptr as *mut OcaraArray) }
 }
 
 unsafe fn map_ref(ptr: i64) -> &'static mut OcaraMap {
-    &mut *(ptr as *mut OcaraMap)
+    unsafe { &mut *(ptr as *mut OcaraMap) }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -269,14 +277,14 @@ unsafe fn map_ref(ptr: i64) -> &'static mut OcaraMap {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Fonction interne (pas exportée en C) — écrit une valeur sur stdout.
-/// NOTE : pas de #[no_mangle] pour éviter de shadower le `write(fd,buf,n)` POSIX
+/// NOTE : pas de #[unsafe(no_mangle)] pour éviter de shadower le `write(fd,buf,n)` POSIX
 ///        dont Rust's std::fs::write a besoin en interne.
 #[allow(dead_code)]
 fn write(val: i64) {
     ocara_print(&fmt_val(val));
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __str_concat(a: i64, b: i64) -> i64 {
     let sa = val_to_string(a);
     let sb = val_to_string(b);
@@ -284,7 +292,7 @@ pub extern "C" fn __str_concat(a: i64, b: i64) -> i64 {
 }
 
 /// Convertit n'importe quelle valeur I64 en string (pour les templates).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __val_to_str(val: i64) -> i64 {
     if is_float_box(val) || is_bool_box(val) {
         unsafe { alloc_str(&val_to_string(val)) }
@@ -296,7 +304,7 @@ pub extern "C" fn __val_to_str(val: i64) -> i64 {
 }
 
 /// Boxe un float (bits i64) dans une cellule heap ; retourne `ptr | 1`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __box_float(bits: i64) -> i64 {
     let f = f64::from_bits(bits as u64);
     unsafe {
@@ -309,7 +317,7 @@ pub extern "C" fn __box_float(bits: i64) -> i64 {
 }
 
 /// Boxe un bool (0/1) dans une cellule heap ; retourne `ptr | 2`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __box_bool(b: i64) -> i64 {
     unsafe {
         let layout = Layout::from_size_align(8, 8).unwrap();
@@ -320,25 +328,25 @@ pub extern "C" fn __box_bool(b: i64) -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __str_from_float(f: f64) -> i64 {
     unsafe { alloc_str(&f.to_string()) }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __str_from_bool(b: i64) -> i64 {
     unsafe { alloc_str(if b != 0 { "true" } else { "false" }) }
 }
 
 /// Convertit un entier i64 en string — sans heuristique pointeur.
 /// À utiliser dans les templates `${expr}` quand le type est I64.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __str_from_int(n: i64) -> i64 {
     unsafe { alloc_str(&n.to_string()) }
 }
 
 /// Convertit un tableau en string au format `[a, b, c]`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __array_to_str(ptr: i64) -> i64 {
     if ptr == 0 {
         return unsafe { alloc_str("[]") };
@@ -351,7 +359,7 @@ pub extern "C" fn __array_to_str(ptr: i64) -> i64 {
 }
 
 /// Retourne le nom du système d'exploitation cible.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __system_os() -> i64 {
     let os = if cfg!(target_os = "linux") {
         "linux"
@@ -366,7 +374,7 @@ pub extern "C" fn __system_os() -> i64 {
 }
 
 /// Retourne l'architecture cible.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __system_arch() -> i64 {
     let arch = if cfg!(target_arch = "x86_64") {
         "x86_64"
@@ -380,23 +388,23 @@ pub extern "C" fn __system_arch() -> i64 {
     unsafe { alloc_str(arch) }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn write_int(n: i64) {
     ocara_print(&n.to_string());
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn write_float(f: f64) {
     ocara_print(&f.to_string());
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn write_bool(b: i64) {
     ocara_print(if b != 0 { "true" } else { "false" });
 }
 
 /// Fonction interne (pas exportée en C) — lit une ligne sur stdin.
-/// NOTE : pas de #[no_mangle] pour éviter de shadower le `read(fd,buf,n)` POSIX
+/// NOTE : pas de #[unsafe(no_mangle)] pour éviter de shadower le `read(fd,buf,n)` POSIX
 ///        dont Rust's io::stdin() a besoin en interne.
 /// Lève une IOException en cas d'erreur de lecture.
 fn read() -> i64 {
@@ -418,7 +426,7 @@ fn read() -> i64 {
 }
 
 /// Alias exporté pour les programmes Ocara qui appellent `read()` directement
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn ocara_read() -> i64 {
     read()
 }
@@ -427,7 +435,7 @@ pub extern "C" fn ocara_read() -> i64 {
 // Tableaux internes (__array_*, __range)
 // ─────────────────────────────────────────────────────────────────────────────
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __range(lo: i64, hi: i64) -> i64 {
     let ptr = new_array();
     unsafe {
@@ -439,13 +447,13 @@ pub extern "C" fn __range(lo: i64, hi: i64) -> i64 {
     ptr
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __array_len(ptr: i64) -> i64 {
     if ptr == 0 { return 0; }
     unsafe { array_ref(ptr).data.len() as i64 }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __array_get(ptr: i64, idx: i64) -> i64 {
     if ptr == 0 { return 0; }
     unsafe {
@@ -455,7 +463,7 @@ pub extern "C" fn __array_get(ptr: i64, idx: i64) -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __array_set(ptr: i64, idx: i64, val: i64) {
     if ptr == 0 { return; }
     unsafe {
@@ -477,18 +485,18 @@ pub extern "C" fn __array_set(ptr: i64, idx: i64, val: i64) {
 /// Sinon, on convertit l'entier en string décimale.
 unsafe fn key_to_string(key: i64) -> String {
     if is_ptr(key) {
-        ptr_to_str(key).to_string()
+        unsafe { ptr_to_str(key).to_string() }
     } else {
         key.to_string()
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __map_new() -> i64 {
     new_map()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __map_set(ptr: i64, key: i64, val: i64) {
     if ptr == 0 { return; }
     unsafe {
@@ -505,7 +513,7 @@ pub extern "C" fn __map_set(ptr: i64, key: i64, val: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __map_get(ptr: i64, key: i64) -> i64 {
     if ptr == 0 { return 0; }
     unsafe {
@@ -517,7 +525,7 @@ pub extern "C" fn __map_get(ptr: i64, key: i64) -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __map_foreach(_ptr: i64, _cb: i64, _ctx: i64) {
     // TODO : implémentation complète nécessite le support des pointeurs de fonctions
 }
@@ -534,71 +542,71 @@ const ERR_IO_READ: i64 = 101;
 #[allow(dead_code)]  // Réservé pour une future implémentation d'erreurs write
 const ERR_IO_WRITE: i64 = 102;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn IO_write(val: i64) {
     ocara_print(&fmt_val(val));
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn IO_writeInt(n: i64) {
     ocara_print(&n.to_string());
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn IO_writeFloat(f: f64) {
     ocara_print(&f.to_string());
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn IO_writeBool(b: i64) {
     ocara_print(if b != 0 { "true" } else { "false" });
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn IO_writeln(val: i64) {
     ocara_println(&fmt_val(val));
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn IO_writelnInt(n: i64) {
     ocara_println(&n.to_string());
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn IO_writelnFloat(f: f64) {
     ocara_println(&f.to_string());
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn IO_writelnBool(b: i64) {
     ocara_println(if b != 0 { "true" } else { "false" });
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn IO_read() -> i64 {
     read()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn IO_readln() -> i64 {
     read()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn IO_readInt() -> i64 {
     let s = read();
     if s == 0 { return 0; }
     unsafe { ptr_to_str(s).trim().parse::<i64>().unwrap_or(0) }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn IO_readFloat() -> f64 {
     let s = read();
     if s == 0 { return 0.0; }
     unsafe { ptr_to_str(s).trim().parse::<f64>().unwrap_or(0.0) }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn IO_readBool() -> i64 {
     let s = read();
     if s == 0 { return 0; }
@@ -606,7 +614,7 @@ pub extern "C" fn IO_readBool() -> i64 {
     if t == "true" || t == "1" { 1 } else { 0 }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn IO_readArray(sep: i64) -> i64 {
     let s = read();
     if s == 0 { return new_array(); }
@@ -622,7 +630,7 @@ pub extern "C" fn IO_readArray(sep: i64) -> i64 {
     ptr
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn IO_readMap(sep: i64, kv: i64) -> i64 {
     let s = read();
     if s == 0 { return new_map(); }
@@ -643,27 +651,27 @@ pub extern "C" fn IO_readMap(sep: i64, kv: i64) -> i64 {
 // ocara.String
 // ─────────────────────────────────────────────────────────────────────────────
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn String_len(s: i64) -> i64 {
     if !is_ptr(s) { return 0; }
     unsafe { ptr_to_str(s).chars().count() as i64 }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn String_upper(s: i64) -> i64 {
     if !is_ptr(s) { return s; }
     let r = unsafe { ptr_to_str(s) }.to_uppercase();
     unsafe { alloc_str(&r) }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn String_lower(s: i64) -> i64 {
     if !is_ptr(s) { return s; }
     let r = unsafe { ptr_to_str(s) }.to_lowercase();
     unsafe { alloc_str(&r) }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn String_capitalize(s: i64) -> i64 {
     if !is_ptr(s) { return s; }
     let src = unsafe { ptr_to_str(s) };
@@ -675,14 +683,14 @@ pub extern "C" fn String_capitalize(s: i64) -> i64 {
     unsafe { alloc_str(&r) }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn String_trim(s: i64) -> i64 {
     if !is_ptr(s) { return s; }
     let r = unsafe { ptr_to_str(s) }.trim().to_string();
     unsafe { alloc_str(&r) }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn String_replace(s: i64, from: i64, to: i64) -> i64 {
     if !is_ptr(s) { return s; }
     let src    = unsafe { ptr_to_str(s) };
@@ -692,7 +700,7 @@ pub extern "C" fn String_replace(s: i64, from: i64, to: i64) -> i64 {
     unsafe { alloc_str(&r) }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn String_split(s: i64, sep: i64) -> i64 {
     if !is_ptr(s) { return new_array(); }
     let src   = unsafe { ptr_to_str(s).to_string() };
@@ -707,12 +715,12 @@ pub extern "C" fn String_split(s: i64, sep: i64) -> i64 {
     ptr
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn String_explode(s: i64, sep: i64) -> i64 {
     String_split(s, sep)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn String_between(s: i64, start: i64, end: i64) -> i64 {
     if !is_ptr(s) { return s; }
     let src     = unsafe { ptr_to_str(s) };
@@ -731,7 +739,7 @@ pub extern "C" fn String_between(s: i64, start: i64, end: i64) -> i64 {
     unsafe { alloc_str(&r) }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn String_empty(s: i64) -> i64 {
     if !is_ptr(s) { return 1; }
     if unsafe { ptr_to_str(s) }.is_empty() { 1 } else { 0 }
@@ -748,16 +756,16 @@ pub extern "C" fn String_empty(s: i64) -> i64 {
 const ERR_MATH_NEGATIVE_SQRT: i64 = 101;
 const ERR_MATH_NEGATIVE_EXPONENT: i64 = 102;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Math_abs(n: i64) -> i64 { n.abs() }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Math_min(a: i64, b: i64) -> i64 { a.min(b) }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Math_max(a: i64, b: i64) -> i64 { a.max(b) }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Math_pow(base: i64, exp: i64) -> i64 {
     if exp < 0 {
         unsafe {
@@ -771,10 +779,10 @@ pub extern "C" fn Math_pow(base: i64, exp: i64) -> i64 {
     base.pow(exp as u32)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Math_clamp(n: i64, lo: i64, hi: i64) -> i64 { n.clamp(lo, hi) }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Math_sqrt(n: f64) -> f64 {
     if n < 0.0 {
         unsafe {
@@ -788,13 +796,13 @@ pub extern "C" fn Math_sqrt(n: f64) -> f64 {
     n.sqrt()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Math_floor(n: f64) -> i64 { n.floor() as i64 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Math_ceil(n: f64) -> i64 { n.ceil() as i64 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Math_round(n: f64) -> i64 { n.round() as i64 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -806,18 +814,18 @@ pub extern "C" fn Math_round(n: f64) -> i64 { n.round() as i64 }
 
 const ERR_ARRAY_EMPTY: i64 = 101;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Array_len(ptr: i64) -> i64 {
     __array_len(ptr)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Array_push(ptr: i64, val: i64) {
     if ptr == 0 { return; }
     unsafe { array_ref(ptr).data.push(val); }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Array_pop(ptr: i64) -> i64 {
     if ptr == 0 {
         unsafe {
@@ -841,7 +849,7 @@ pub extern "C" fn Array_pop(ptr: i64) -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Array_first(ptr: i64) -> i64 {
     if ptr == 0 {
         unsafe {
@@ -865,7 +873,7 @@ pub extern "C" fn Array_first(ptr: i64) -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Array_last(ptr: i64) -> i64 {
     if ptr == 0 {
         unsafe {
@@ -889,13 +897,13 @@ pub extern "C" fn Array_last(ptr: i64) -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Array_contains(ptr: i64, val: i64) -> i64 {
     if ptr == 0 { return 0; }
     if unsafe { array_ref(ptr).data.contains(&val) } { 1 } else { 0 }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Array_indexOf(ptr: i64, val: i64) -> i64 {
     if ptr == 0 { return -1; }
     unsafe {
@@ -903,7 +911,7 @@ pub extern "C" fn Array_indexOf(ptr: i64, val: i64) -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Array_reverse(ptr: i64) -> i64 {
     if ptr == 0 { return new_array(); }
     let new_ptr = new_array();
@@ -915,7 +923,7 @@ pub extern "C" fn Array_reverse(ptr: i64) -> i64 {
     new_ptr
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Array_slice(ptr: i64, from: i64, to: i64) -> i64 {
     if ptr == 0 { return new_array(); }
     let new_ptr = new_array();
@@ -929,7 +937,7 @@ pub extern "C" fn Array_slice(ptr: i64, from: i64, to: i64) -> i64 {
     new_ptr
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Array_join(ptr: i64, sep: i64) -> i64 {
     if ptr == 0 { return unsafe { alloc_str("") }; }
     let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep).to_string() } } else { "".to_string() };
@@ -940,7 +948,7 @@ pub extern "C" fn Array_join(ptr: i64, sep: i64) -> i64 {
     unsafe { alloc_str(&r) }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Array_sort(ptr: i64) -> i64 {
     if ptr == 0 { return new_array(); }
     let new_ptr = new_array();
@@ -952,12 +960,12 @@ pub extern "C" fn Array_sort(ptr: i64) -> i64 {
     new_ptr
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Array_get(ptr: i64, idx: i64) -> i64 {
     __array_get(ptr, idx)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Array_set(ptr: i64, idx: i64, val: i64) {
     __array_set(ptr, idx, val)
 }
@@ -971,13 +979,13 @@ pub extern "C" fn Array_set(ptr: i64, idx: i64, val: i64) {
 
 const ERR_MAP_KEY_NOT_FOUND: i64 = 101;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Map_size(ptr: i64) -> i64 {
     if ptr == 0 { return 0; }
     unsafe { map_ref(ptr).data.len() as i64 }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Map_has(ptr: i64, key: i64) -> i64 {
     if ptr == 0 { return 0; }
     unsafe {
@@ -986,7 +994,7 @@ pub extern "C" fn Map_has(ptr: i64, key: i64) -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Map_get(ptr: i64, key: i64) -> i64 {
     if ptr == 0 {
         unsafe {
@@ -1014,12 +1022,12 @@ pub extern "C" fn Map_get(ptr: i64, key: i64) -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Map_set(ptr: i64, key: i64, val: i64) {
     __map_set(ptr, key, val);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Map_remove(ptr: i64, key: i64) {
     if ptr == 0 { return; }
     unsafe {
@@ -1028,7 +1036,7 @@ pub extern "C" fn Map_remove(ptr: i64, key: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Map_keys(ptr: i64) -> i64 {
     if ptr == 0 { return new_array(); }
     let arr_ptr = new_array();
@@ -1042,7 +1050,7 @@ pub extern "C" fn Map_keys(ptr: i64) -> i64 {
     arr_ptr
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Map_values(ptr: i64) -> i64 {
     if ptr == 0 { return new_array(); }
     let arr_ptr = new_array();
@@ -1053,7 +1061,7 @@ pub extern "C" fn Map_values(ptr: i64) -> i64 {
     arr_ptr
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Map_merge(a: i64, b: i64) -> i64 {
     let new_ptr = new_map();
     if a != 0 {
@@ -1073,7 +1081,7 @@ pub extern "C" fn Map_merge(a: i64, b: i64) -> i64 {
     new_ptr
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Map_isEmpty(ptr: i64) -> i64 {
     if ptr == 0 { return 1; }
     if unsafe { map_ref(ptr).data.is_empty() } { 1 } else { 0 }
@@ -1090,7 +1098,7 @@ pub extern "C" fn Map_isEmpty(ptr: i64) -> i64 {
 const ERR_CONVERT_INVALID_INT: i64 = 101;
 const ERR_CONVERT_INVALID_FLOAT: i64 = 102;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Convert_strToInt(s: i64) -> i64 {
     if !is_ptr(s) { return 0; }
     let src = unsafe { ptr_to_str(s).trim() };
@@ -1106,7 +1114,7 @@ pub extern "C" fn Convert_strToInt(s: i64) -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Convert_strToFloat(s: i64) -> f64 {
     if !is_ptr(s) { return 0.0; }
     let src = unsafe { ptr_to_str(s).trim() };
@@ -1122,19 +1130,19 @@ pub extern "C" fn Convert_strToFloat(s: i64) -> f64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Convert_strToBool(s: i64) -> i64 {
     if !is_ptr(s) { return 0; }
     let t = unsafe { ptr_to_str(s).trim().to_lowercase() };
     if t == "true" || t == "1" { 1 } else { 0 }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Convert_strToArray(s: i64, sep: i64) -> i64 {
     String_split(s, sep)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Convert_strToMap(s: i64, sep: i64, kv: i64) -> i64 {
     if !is_ptr(s) { return new_map(); }
     let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep).to_string() } } else { ",".to_string() };
@@ -1150,57 +1158,57 @@ pub extern "C" fn Convert_strToMap(s: i64, sep: i64, kv: i64) -> i64 {
     ptr
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Convert_intToStr(n: i64) -> i64 {
     unsafe { alloc_str(&n.to_string()) }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Convert_intToFloat(n: i64) -> f64 {
     n as f64
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Convert_intToBool(n: i64) -> i64 {
     if n != 0 { 1 } else { 0 }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Convert_floatToStr(f: f64) -> i64 {
     unsafe { alloc_str(&f.to_string()) }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Convert_floatToInt(f: f64) -> i64 {
     f as i64
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Convert_floatToBool(f: f64) -> i64 {
     if f != 0.0 { 1 } else { 0 }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Convert_boolToStr(b: i64) -> i64 {
     unsafe { alloc_str(if b != 0 { "true" } else { "false" }) }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Convert_boolToInt(b: i64) -> i64 {
     if b != 0 { 1 } else { 0 }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Convert_boolToFloat(b: i64) -> f64 {
     if b != 0 { 1.0 } else { 0.0 }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Convert_arrayToStr(ptr: i64, sep: i64) -> i64 {
     Array_join(ptr, sep)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Convert_arrayToMap(ptr: i64, kv: i64) -> i64 {
     if ptr == 0 { return new_map(); }
     let kv_s = if is_ptr(kv) { unsafe { ptr_to_str(kv).to_string() } } else { "=".to_string() };
@@ -1220,7 +1228,7 @@ pub extern "C" fn Convert_arrayToMap(ptr: i64, kv: i64) -> i64 {
     map_ptr
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Convert_mapToStr(ptr: i64, sep: i64, kv: i64) -> i64 {
     if ptr == 0 { return unsafe { alloc_str("") }; }
     let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep).to_string() } } else { ",".to_string() };
@@ -1234,12 +1242,12 @@ pub extern "C" fn Convert_mapToStr(ptr: i64, sep: i64, kv: i64) -> i64 {
     unsafe { alloc_str(&r) }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Convert_mapKeysToArray(ptr: i64) -> i64 {
     Map_keys(ptr)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Convert_mapValuesToArray(ptr: i64) -> i64 {
     Map_values(ptr)
 }
@@ -1257,7 +1265,7 @@ const ERR_SYSTEM_EXEC: i64 = 101;
 const ERR_SYSTEM_CWD: i64 = 102;
 const ERR_SYSTEM_SET_ENV: i64 = 103;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn System_exec(cmd: i64) -> i64 {
     if !is_ptr(cmd) { return unsafe { alloc_str("") }; }
     let cmd_s = unsafe { ptr_to_str(cmd) };
@@ -1281,7 +1289,7 @@ pub extern "C" fn System_exec(cmd: i64) -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn System_passthrough(cmd: i64) -> i64 {
     if !is_ptr(cmd) { return 0; }
     let cmd_s = unsafe { ptr_to_str(cmd) };
@@ -1301,17 +1309,17 @@ pub extern "C" fn System_passthrough(cmd: i64) -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn System_execCode(cmd: i64) -> i64 {
     System_passthrough(cmd)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn System_exit(code: i64) {
     std::process::exit(code as i32);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn System_env(name: i64) -> i64 {
     if !is_ptr(name) { return unsafe { alloc_str("") }; }
     let key = unsafe { ptr_to_str(name) };
@@ -1319,7 +1327,7 @@ pub extern "C" fn System_env(name: i64) -> i64 {
     unsafe { alloc_str(&val) }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn System_setEnv(name: i64, val: i64) {
     if !is_ptr(name) { return; }
     let key = unsafe { ptr_to_str(name) };
@@ -1328,7 +1336,7 @@ pub extern "C" fn System_setEnv(name: i64, val: i64) {
     // set_var peut paniquer si le nom ou la valeur contient '=' ou NUL
     // On catch le panic potentiel
     match std::panic::catch_unwind(|| {
-        std::env::set_var(key, &v);
+        unsafe { std::env::set_var(key, &v); }
     }) {
         Ok(_) => {},
         Err(_) => unsafe {
@@ -1341,7 +1349,7 @@ pub extern "C" fn System_setEnv(name: i64, val: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn System_cwd() -> i64 {
     match std::env::current_dir() {
         Ok(path) => {
@@ -1358,17 +1366,17 @@ pub extern "C" fn System_cwd() -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn System_sleep(ms: i64) {
     std::thread::sleep(Duration::from_millis(ms as u64));
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn System_pid() -> i64 {
     std::process::id() as i64
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn System_args() -> i64 {
     let ptr = new_array();
     unsafe {
@@ -1393,20 +1401,22 @@ const ERR_REGEX_INVALID_PATTERN: i64 = 101;
 
 /// Compile le pattern (i64 ptr → &str) ; lève RegexException si invalide.
 unsafe fn compile_regex(pattern: i64) -> Re {
-    let pat = ptr_to_str(pattern);
-    match Re::new(pat) {
-        Ok(re) => re,
-        Err(e) => {
-            exception::throw_regex_exception(
-                &format!("Invalid regex pattern: '{}' ({})", pat, e),
-                ERR_REGEX_INVALID_PATTERN,
-                "Regex"
-            );
+    unsafe {
+        let pat = ptr_to_str(pattern);
+        match Re::new(pat) {
+            Ok(re) => re,
+            Err(e) => {
+                exception::throw_regex_exception(
+                    &format!("Invalid regex pattern: '{}' ({})", pat, e),
+                    ERR_REGEX_INVALID_PATTERN,
+                    "Regex"
+                );
+            }
         }
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Regex_test(pattern: i64, text: i64) -> i64 {
     unsafe {
         let re = compile_regex(pattern);
@@ -1415,7 +1425,7 @@ pub extern "C" fn Regex_test(pattern: i64, text: i64) -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Regex_find(pattern: i64, text: i64) -> i64 {
     unsafe {
         let re = compile_regex(pattern);
@@ -1427,7 +1437,7 @@ pub extern "C" fn Regex_find(pattern: i64, text: i64) -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Regex_findAll(pattern: i64, text: i64) -> i64 {
     unsafe {
         let re = compile_regex(pattern);
@@ -1441,7 +1451,7 @@ pub extern "C" fn Regex_findAll(pattern: i64, text: i64) -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Regex_replace(pattern: i64, text: i64, repl: i64) -> i64 {
     unsafe {
         let re = compile_regex(pattern);
@@ -1452,7 +1462,7 @@ pub extern "C" fn Regex_replace(pattern: i64, text: i64, repl: i64) -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Regex_replaceAll(pattern: i64, text: i64, repl: i64) -> i64 {
     unsafe {
         let re = compile_regex(pattern);
@@ -1463,7 +1473,7 @@ pub extern "C" fn Regex_replaceAll(pattern: i64, text: i64, repl: i64) -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Regex_split(pattern: i64, text: i64) -> i64 {
     unsafe {
         let re = compile_regex(pattern);
@@ -1477,7 +1487,7 @@ pub extern "C" fn Regex_split(pattern: i64, text: i64) -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Regex_count(pattern: i64, text: i64) -> i64 {
     unsafe {
         let re = compile_regex(pattern);
@@ -1486,7 +1496,7 @@ pub extern "C" fn Regex_count(pattern: i64, text: i64) -> i64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Regex_extract(pattern: i64, text: i64, n: i64) -> i64 {
     unsafe {
         let re = compile_regex(pattern);
@@ -1540,14 +1550,16 @@ unsafe fn ut_val_to_display(val: i64) -> String {
     // Int ou ptr
     if val >= 0x10000 {
         // Probablement une chaîne
-        let s = ptr_to_str(val);
-        format!("\"{}\"", s)
+        unsafe {
+            let s = ptr_to_str(val);
+            format!("\"{}\"", s)
+        }
     } else {
         format!("{}", val)
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertEquals(expected: i64, actual: i64) {
     if expected == actual {
         ut_pass(&format!("assertEquals: {} == {}", expected, actual));
@@ -1562,7 +1574,7 @@ pub extern "C" fn UnitTest_assertEquals(expected: i64, actual: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertNotEquals(expected: i64, actual: i64) {
     if expected != actual {
         ut_pass(&format!("assertNotEquals: {} != {}", expected, actual));
@@ -1576,7 +1588,7 @@ pub extern "C" fn UnitTest_assertNotEquals(expected: i64, actual: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertTrue(value: i64) {
     if value != 0 {
         ut_pass("assertTrue");
@@ -1587,7 +1599,7 @@ pub extern "C" fn UnitTest_assertTrue(value: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertFalse(value: i64) {
     if value == 0 {
         ut_pass("assertFalse");
@@ -1598,7 +1610,7 @@ pub extern "C" fn UnitTest_assertFalse(value: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertNull(value: i64) {
     if value == 0 {
         ut_pass("assertNull");
@@ -1609,7 +1621,7 @@ pub extern "C" fn UnitTest_assertNull(value: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertNotNull(value: i64) {
     if value != 0 {
         ut_pass("assertNotNull");
@@ -1620,7 +1632,7 @@ pub extern "C" fn UnitTest_assertNotNull(value: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertGreater(a: i64, b: i64) {
     if a > b {
         ut_pass(&format!("assertGreater: {} > {}", a, b));
@@ -1634,7 +1646,7 @@ pub extern "C" fn UnitTest_assertGreater(a: i64, b: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertLess(a: i64, b: i64) {
     if a < b {
         ut_pass(&format!("assertLess: {} < {}", a, b));
@@ -1648,7 +1660,7 @@ pub extern "C" fn UnitTest_assertLess(a: i64, b: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertGreaterOrEquals(a: i64, b: i64) {
     if a >= b {
         ut_pass(&format!("assertGreaterOrEquals: {} >= {}", a, b));
@@ -1662,7 +1674,7 @@ pub extern "C" fn UnitTest_assertGreaterOrEquals(a: i64, b: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertLessOrEquals(a: i64, b: i64) {
     if a <= b {
         ut_pass(&format!("assertLessOrEquals: {} <= {}", a, b));
@@ -1676,7 +1688,7 @@ pub extern "C" fn UnitTest_assertLessOrEquals(a: i64, b: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertContains(haystack: i64, needle: i64) {
     unsafe {
         let h = ptr_to_str(haystack);
@@ -1692,7 +1704,7 @@ pub extern "C" fn UnitTest_assertContains(haystack: i64, needle: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertEmpty(value: i64) {
     let empty = if value == 0 {
         true
@@ -1710,7 +1722,7 @@ pub extern "C" fn UnitTest_assertEmpty(value: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertNotEmpty(value: i64) {
     let empty = if value == 0 {
         true
@@ -1728,7 +1740,7 @@ pub extern "C" fn UnitTest_assertNotEmpty(value: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_fail(message: i64) {
     unsafe {
         let msg = ptr_to_str(message);
@@ -1736,7 +1748,7 @@ pub extern "C" fn UnitTest_fail(message: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_pass(message: i64) {
     unsafe {
         let msg = ptr_to_str(message);
@@ -1744,7 +1756,7 @@ pub extern "C" fn UnitTest_pass(message: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertFunction(value: i64) {
     let is_func = __is_function(value) != 0;
     if is_func {
@@ -1756,7 +1768,7 @@ pub extern "C" fn UnitTest_assertFunction(value: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertClass(value: i64) {
     let is_obj = __is_object(value) != 0;
     if is_obj {
@@ -1768,7 +1780,7 @@ pub extern "C" fn UnitTest_assertClass(value: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertEnum(value: i64) {
     // Les enums sont implémentés comme des objets en Ocara
     let is_obj = __is_object(value) != 0;
@@ -1781,7 +1793,7 @@ pub extern "C" fn UnitTest_assertEnum(value: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertMap(value: i64) {
     let is_map = __is_map(value) != 0;
     if is_map {
@@ -1793,7 +1805,7 @@ pub extern "C" fn UnitTest_assertMap(value: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertArray(value: i64) {
     let is_arr = __is_array(value) != 0;
     if is_arr {
@@ -1819,7 +1831,7 @@ thread_local! {
     static ASSERT_RAISES_EXCEPTION_TYPE: Cell<i64> = Cell::new(0);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn __assert_raises_body() {
     let func_ptr = ASSERT_RAISES_FUNC_PTR.with(|c| c.get());
     let env_ptr = ASSERT_RAISES_ENV_PTR.with(|c| c.get());
@@ -1832,13 +1844,13 @@ extern "C" fn __assert_raises_body() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn __assert_raises_handler(error_val: i64, error_type: i64) {
     ASSERT_RAISES_EXCEPTION.with(|e| e.set(error_val));
     ASSERT_RAISES_EXCEPTION_TYPE.with(|t| t.set(error_type));
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertRaises(fat_ptr: i64) -> i64 {
     // Extraire func_ptr et env_ptr du fat pointer
     let func_ptr = unsafe { *(fat_ptr as *const i64) };
@@ -1851,8 +1863,8 @@ pub extern "C" fn UnitTest_assertRaises(fat_ptr: i64) -> i64 {
     ASSERT_RAISES_EXCEPTION_TYPE.with(|t| t.set(0));
     
     // Exécuter le callable dans un contexte try
-    let body_addr = __assert_raises_body as usize as i64;
-    let handler_addr = __assert_raises_handler as usize as i64;
+    let body_addr = __assert_raises_body as *const () as usize as i64;
+    let handler_addr = __assert_raises_handler as *const () as usize as i64;
     __ocara_try_exec(body_addr, handler_addr);
     
     // Récupérer l'exception capturée
@@ -1872,7 +1884,7 @@ pub extern "C" fn UnitTest_assertRaises(fat_ptr: i64) -> i64 {
     exception
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertExceptionMessageEquals(message: i64, expected: i64) {
     unsafe {
         let msg_str = if is_ptr(message) { ptr_to_str(message) } else { "" };
@@ -1888,7 +1900,7 @@ pub extern "C" fn UnitTest_assertExceptionMessageEquals(message: i64, expected: 
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertExceptionMessageNotEquals(message: i64, expected: i64) {
     unsafe {
         let msg_str = if is_ptr(message) { ptr_to_str(message) } else { "" };
@@ -1904,7 +1916,7 @@ pub extern "C" fn UnitTest_assertExceptionMessageNotEquals(message: i64, expecte
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertExceptionCodeEquals(code: i64, expected: i64) {
     if code == expected {
         ut_pass(&format!("assertExceptionCodeEquals: {} == {}", code, expected));
@@ -1918,7 +1930,7 @@ pub extern "C" fn UnitTest_assertExceptionCodeEquals(code: i64, expected: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertExceptionCodeNotEquals(code: i64, expected: i64) {
     if code != expected {
         ut_pass(&format!("assertExceptionCodeNotEquals: {} != {}", code, expected));
@@ -1932,7 +1944,7 @@ pub extern "C" fn UnitTest_assertExceptionCodeNotEquals(code: i64, expected: i64
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertExceptionSourceEquals(source: i64, expected: i64) {
     unsafe {
         let src_str = if is_ptr(source) { ptr_to_str(source) } else { "" };
@@ -1948,7 +1960,7 @@ pub extern "C" fn UnitTest_assertExceptionSourceEquals(source: i64, expected: i6
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertExceptionSourceNotEquals(source: i64, expected: i64) {
     unsafe {
         let src_str = if is_ptr(source) { ptr_to_str(source) } else { "" };
@@ -1973,7 +1985,7 @@ pub extern "C" fn UnitTest_assertExceptionSourceNotEquals(source: i64, expected:
 /// Printed in red on stderr, then exit(1).
 /// In practice, __ocara_fail in try_impl.c calls this logic in C.
 /// This Rust symbol serves as fallback / documentation.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __ocara_unhandled_fail(_val: i64, type_name: i64) {
     let type_str = unsafe { ptr_to_str(type_name) }.to_string();
     let max_width = 46;
@@ -2008,7 +2020,7 @@ pub extern "C" fn __ocara_unhandled_fail(_val: i64, type_name: i64) {
 }
 
 /// Alloue `size` octets sans tag — pour les closures env et allocations internes.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __alloc_obj(size: i64) -> i64 {
     if size <= 0 { return 0; }
     unsafe {
@@ -2021,7 +2033,7 @@ pub extern "C" fn __alloc_obj(size: i64) -> i64 {
 
 /// Alloue une instance de classe utilisateur avec tag TAG_OBJECT.
 /// Le pointeur retourné pointe APRÈS le header de 8 octets.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __alloc_class_obj(size: i64) -> i64 {
     if size <= 0 { return 0; }
     unsafe {
@@ -2037,7 +2049,7 @@ pub extern "C" fn __alloc_class_obj(size: i64) -> i64 {
 /// Alloue un fat pointer (Function) avec tag TAG_FUNCTION.
 /// 16 octets de données : {func_ptr: i64, env_ptr: i64}.
 /// Le pointeur retourné pointe APRÈS le header de 8 octets.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __alloc_fat_ptr() -> i64 {
     unsafe {
         let total = 8 + 16; // header + func_ptr + env_ptr
@@ -2067,7 +2079,7 @@ pub extern "C" fn __alloc_fat_ptr() -> i64 {
 #[repr(C, align(8))]
 struct JmpBuf([u64; 25]);
 
-extern "C" {
+unsafe extern "C" {
     #[allow(improper_ctypes)]
     fn setjmp(env: *mut JmpBuf) -> i32;
     #[allow(improper_ctypes)]
@@ -2104,8 +2116,44 @@ thread_local! {
     };
 }
 
-#[no_mangle]
-pub extern "C" fn __ocara_try_exec(body_fn: i64, handler_fn: i64) {
+// État pour propager les returns des handlers d'exception
+struct HandlerReturnState {
+    has_returned: Cell<bool>,
+    return_value: Cell<i64>,
+}
+
+thread_local! {
+    static HANDLER_RETURN: HandlerReturnState = HandlerReturnState {
+        has_returned: Cell::new(false),
+        return_value: Cell::new(0),
+    };
+}
+
+/// Appelée par le handler avant de faire return pour signaler qu'il veut propager
+#[unsafe(no_mangle)]
+pub extern "C" fn __ocara_handler_set_return(value: i64) {
+    HANDLER_RETURN.with(|state| {
+        state.has_returned.set(true);
+        state.return_value.set(value);
+    });
+}
+
+/// Appelée par __ocara_try_exec pour vérifier si le handler a fait return
+fn handler_has_returned() -> (bool, i64) {
+    HANDLER_RETURN.with(|state| {
+        let has_ret = state.has_returned.get();
+        let val = state.return_value.get();
+        // Reset pour le prochain try/on
+        state.has_returned.set(false);
+        state.return_value.set(0);
+        (has_ret, val)
+    })
+}
+
+/// Exécute un bloc try/on. Retourne 0 si le bloc se termine normalement,
+/// ou (1 + return_value) si le handler a fait un return explicite.
+#[unsafe(no_mangle)]
+pub extern "C" fn __ocara_try_exec(body_fn: i64, handler_fn: i64) -> i64 {
     TRY_STACK.with(|stack| {
         let depth = stack.depth.get();
         if depth >= MAX_TRY_DEPTH {
@@ -2140,6 +2188,7 @@ pub extern "C" fn __ocara_try_exec(body_fn: i64, handler_fn: i64) {
             }
             // Sortie normale : dépiler
             stack.depth.set(depth);
+            0  // Pas de return du handler
         } else {
             // longjmp déclenché : récupérer error_val et error_type
             let (ev, et) = unsafe {
@@ -2153,11 +2202,82 @@ pub extern "C" fn __ocara_try_exec(body_fn: i64, handler_fn: i64) {
                     std::mem::transmute(handler_fn as usize);
                 handler(ev, et);
             }
+            
+            // Vérifier si le handler a fait un return explicite
+            let (has_returned, return_value) = handler_has_returned();
+            if has_returned {
+                // Encoder : 1 + valeur pour distinguer de 0 (pas de return)
+                return_value.wrapping_add(1)
+            } else {
+                0  // Pas de return
+            }
         }
-    });
+    })
 }
 
-#[no_mangle]
+/// Version dynamique avec pointeur vers tableau de captures.
+/// Le body reçoit un *const i64 pointant vers le début du tableau.
+/// Retourne 0 si le bloc se termine normalement, ou (1 + return_value) si return.
+#[unsafe(no_mangle)]
+pub extern "C" fn __ocara_try_exec_with_captures(
+    body_fn: i64,
+    handler_fn: i64,
+    captures_ptr: *const i64,
+) -> i64 {
+    TRY_STACK.with(|stack| {
+        let depth = stack.depth.get();
+        if depth >= MAX_TRY_DEPTH {
+            std::process::abort();
+        }
+
+        let frame_ptr: *mut TryFrame = unsafe {
+            let arr = &mut *stack.frames.get();
+            &mut arr[depth]
+        };
+
+        unsafe {
+            (*frame_ptr).error_val  = 0;
+            (*frame_ptr).error_type = 0;
+        }
+
+        stack.depth.set(depth + 1);
+
+        let env_ptr: *mut JmpBuf = unsafe { &mut (*frame_ptr).env };
+        let ret = unsafe { setjmp(env_ptr) };
+
+        if ret == 0 {
+            // Le body reçoit le pointeur vers les captures
+            unsafe {
+                let body: unsafe extern "C" fn(*const i64) =
+                    std::mem::transmute(body_fn as usize);
+                body(captures_ptr);
+            }
+            stack.depth.set(depth);
+            0  // Pas de return
+        } else {
+            let (ev, et) = unsafe {
+                ((*frame_ptr).error_val, (*frame_ptr).error_type)
+            };
+            stack.depth.set(depth);
+            unsafe {
+                let handler: unsafe extern "C" fn(i64, i64) =
+                    std::mem::transmute(handler_fn as usize);
+                handler(ev, et);
+            }
+            
+            // Vérifier si le handler a fait un return explicite
+            let (has_returned, return_value) = handler_has_returned();
+            if has_returned {
+                // Encoder : 1 + valeur
+                return_value.wrapping_add(1)
+            } else {
+                0  // Pas de return
+            }
+        }
+    })
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn __ocara_fail(val: i64, type_name: i64) {
     let jumped = TRY_STACK.with(|stack| {
         let depth = stack.depth.get();
@@ -2211,7 +2331,7 @@ pub extern "C" fn __ocara_fail(val: i64, type_name: i64) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __ocara_type_matches(stored: i64, filter: i64) -> i64 {
     if filter == 0 { return 1; } // pas de filtre → accepte tout
     if stored == 0 { return 0; } // pas de type stocké → ne correspond pas
@@ -2233,7 +2353,7 @@ struct OcaraTask {
 /// Déboxe un float précédemment boxé par `__box_float`.
 /// Entrée : `ptr | 1` (tagged heap pointer).
 /// Sortie : la valeur f64 originale.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __unbox_float(tagged: i64) -> f64 {
     let ptr = (tagged & !1) as *const f64;
     unsafe { *ptr }
@@ -2242,13 +2362,13 @@ pub extern "C" fn __unbox_float(tagged: i64) -> f64 {
 /// Déboxe un bool précédemment boxé par `__box_bool`.
 /// Entrée : `ptr | 2` (tagged heap pointer).
 /// Sortie : 0 ou 1 comme i64.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __unbox_bool(tagged: i64) -> i64 {
     let ptr = (tagged & !3) as *const i64;
     unsafe { *ptr }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __task_spawn(func: i64, env: i64) -> i64 {
     let handle = std::thread::spawn(move || unsafe {
         let f: extern "C" fn(i64) -> i64 = std::mem::transmute(func as usize);
@@ -2258,7 +2378,7 @@ pub extern "C" fn __task_spawn(func: i64, env: i64) -> i64 {
     Box::into_raw(task) as i64
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __task_resolve(task_ptr: i64) -> i64 {
     let task = unsafe { &mut *(task_ptr as *mut OcaraTask) };
     if let Some(handle) = task.handle.take() {
@@ -2340,7 +2460,7 @@ fn get_value_type(val: i64) -> i32 {
 }
 
 /// Egalite stricte (===) : retourne 1 si meme type ET meme valeur, 0 sinon.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __cmp_eq_strict(lhs: i64, rhs: i64) -> i64 {
     let lhs_type = get_value_type(lhs);
     let rhs_type = get_value_type(rhs);
@@ -2370,13 +2490,13 @@ pub extern "C" fn __cmp_eq_strict(lhs: i64, rhs: i64) -> i64 {
 }
 
 /// Inegalite stricte (!==) : retourne 1 si types differents OU valeurs differentes, 0 sinon.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __cmp_ne_strict(lhs: i64, rhs: i64) -> i64 {
     if __cmp_eq_strict(lhs, rhs) != 0 { 0 } else { 1 }
 }
 
 /// Inferieur ou egal strict (<==) : retourne 1 si meme type ET lhs <= rhs, 0 sinon.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __cmp_le_strict(lhs: i64, rhs: i64) -> i64 {
     let lhs_type = get_value_type(lhs);
     let rhs_type = get_value_type(rhs);
@@ -2396,7 +2516,7 @@ pub extern "C" fn __cmp_le_strict(lhs: i64, rhs: i64) -> i64 {
 }
 
 /// Superieur ou egal strict (>==) : retourne 1 si meme type ET lhs >= rhs, 0 sinon.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __cmp_ge_strict(lhs: i64, rhs: i64) -> i64 {
     let lhs_type = get_value_type(lhs);
     let rhs_type = get_value_type(rhs);
@@ -2423,7 +2543,7 @@ use serde_json::{Value as JsonValue, Map as JsonMap};
 
 /// JSON::encode(data) → string
 /// Encode un array ou map en JSON
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn JSON_encode(data: i64) -> i64 {
     if data == 0 {
         return unsafe { alloc_str("null") };
@@ -2523,7 +2643,7 @@ fn value_to_json(val: i64) -> JsonValue {
 
 /// JSON::decode(json) → mixed (array ou map)
 /// Décode une string JSON en structure Ocara
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn JSON_decode(json: i64) -> i64 {
     if json == 0 {
         return 0;
@@ -2572,7 +2692,7 @@ fn json_to_value(json: &JsonValue) -> i64 {
 
 /// JSON::pretty(json) → string
 /// Formatte le JSON avec indentation
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn JSON_pretty(json: i64) -> i64 {
     if json == 0 {
         return unsafe { alloc_str("") };
@@ -2591,7 +2711,7 @@ pub extern "C" fn JSON_pretty(json: i64) -> i64 {
 
 /// JSON::minimize(json) → string
 /// Minifie le JSON (supprime les espaces)
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn JSON_minimize(json: i64) -> i64 {
     if json == 0 {
         return unsafe { alloc_str("") };

@@ -74,13 +74,14 @@ fn walk_expr_caps(expr: &Expr, p: &HashSet<String>, l: &HashMap<String, (Value, 
                 }
             }
         }
-        Expr::SelfExpr(_) => {
+        Expr::SelfExpr(_) | Expr::ParentExpr(_) => {
             let key = "self";
             if !seen.contains(key) {
-                if let Some((_, ty, _)) = l.get(key) {
-                    caps.push((key.to_string(), ty.clone()));
-                    seen.insert(key.to_string());
-                }
+                // self/parent est un paramètre de fonction, pas un local
+                // On doit l'inclure comme capture avec son type
+                // Dans le contexte d'une méthode, self est toujours de type I64 (pointeur)
+                caps.push((key.to_string(), IrType::I64));
+                seen.insert(key.to_string());
             }
         }
         Expr::Binary { left, right, .. } => { walk_expr_caps(left, p, l, caps, seen); walk_expr_caps(right, p, l, caps, seen); }

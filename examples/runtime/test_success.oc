@@ -1,0 +1,22 @@
+import ocara.IO
+
+init {
+    IO::writeln("Init block")
+}
+
+main {
+    IO::writeln("Main block - everything OK")
+    // Pas d'erreur, donc ERROR reste à 0 et SUCCESS est true
+}
+
+error {
+    IO::writeln(`Error block executed with ERROR=${ERROR}`)
+}
+
+success {
+    IO::writeln(`Success block executed with SUCCESS=${SUCCESS}`)
+}
+
+exit {
+    IO::writeln(`Exit block executed with ERROR=${ERROR} SUCCESS=${SUCCESS}`)
+}

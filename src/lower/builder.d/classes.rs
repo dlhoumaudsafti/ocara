@@ -28,11 +28,12 @@ pub fn lower_class(
             ClassMember::Method { decl, is_static, .. } => {
                 if *is_static {
                     // Méthode statique : pas de self, appelée via Class::method()
+                    // Mais on passe class_name pour résoudre self::method() correctement
                     let mangled = FuncDecl {
                         name: format!("{}_{}", class.name, decl.name),
                         ..decl.clone()
                     };
-                    lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, func_default_args, None, async_funcs);
+                    lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, func_default_args, Some(&class.name), class.extends.as_deref(), async_funcs);
                 } else {
                     // Méthode d'instance : self en premier paramètre
                     let self_param = crate::parsing::ast::Param {
@@ -49,7 +50,7 @@ pub fn lower_class(
                         params: full_params,
                         ..decl.clone()
                     };
-                    lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, func_default_args, Some(&class.name), async_funcs);
+                    lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, func_default_args, Some(&class.name), class.extends.as_deref(), async_funcs);
                 }
             }
             ClassMember::Constructor { params, body, span } => {
@@ -70,7 +71,7 @@ pub fn lower_class(
                     is_async: false,
                     span:     span.clone(),
                 };
-                lower_func(module, &init_func, consts, fn_ret_types, fn_param_types, fn_variadic_info, func_default_args, Some(&class.name), async_funcs);
+                lower_func(module, &init_func, consts, fn_ret_types, fn_param_types, fn_variadic_info, func_default_args, Some(&class.name), class.extends.as_deref(), async_funcs);
             }
             ClassMember::Const { name, value, .. } => {
                 use crate::ir::module::IrGlobal;
@@ -103,7 +104,7 @@ pub fn lower_class(
                                 name: format!("{}_{}", class.name, decl.name),
                                 ..decl.clone()
                             };
-                            lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, func_default_args, None, async_funcs);
+                            lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, func_default_args, None, None, async_funcs);
                         } else {
                             // Méthode d'instance du module
                             let self_param = crate::parsing::ast::Param {
@@ -121,7 +122,7 @@ pub fn lower_class(
                                 ..decl.clone()
                             };
                             // Générer avec le contexte de la classe (layouts corrects!)
-                            lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, func_default_args, Some(&class.name), async_funcs);
+                            lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, func_default_args, Some(&class.name), class.extends.as_deref(), async_funcs);
                         }
                     }
                 }
@@ -150,7 +151,7 @@ pub fn lower_class(
                             ..decl.clone()
                         };
                         // Émettre avec le contexte de la classe enfant (layouts corrects)
-                        lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, func_default_args, Some(&class.name), async_funcs);
+                        lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_variadic_info, func_default_args, Some(&class.name), class.extends.as_deref(), async_funcs);
                     }
                 }
             }

@@ -62,20 +62,38 @@ pub fn lower_raise(builder: &mut LowerBuilder, value: &Expr) {
 /// appelle le gestionnaire.  La frame de __ocara_try_exec reste vivante pendant
 /// tout l'exécution du corps, ce qui garantit la validité du jmp_buf.
 pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]) {
+    use crate::lower::expr::captures::collect_captures;
+    use crate::ir::inst::Value;
+    use std::collections::HashSet;
+    
     // ID unique fondé sur le nombre de fonctions déjà dans le module
     let try_id = builder.module.functions.len();
     let body_fn_name    = format!("__try_body_{}", try_id);
     let handler_fn_name = format!("__try_handler_{}", try_id);
 
+    // Collecter les captures du body (variables du scope parent référencées)
+    let captures = collect_captures(body, &HashSet::new(), &builder.locals);
+
     // ── 1. Corps try ─────────────────────────────────────────────────────────
-    // Le body doit avoir le même type de retour que la fonction englobante
-    // car il peut contenir des return qui remontent à la fonction parente
-    let body_ret_ty = builder.func.ret_ty.clone();
+    // Le body a un type de retour Void : il ne retourne jamais normalement,
+    // soit il bloque indéfiniment, soit il lève une exception
+    let body_ret_ty = IrType::Void;
     let body_fn = {
+        // Si captures, le body reçoit un Ptr vers le tableau
+        let ir_params = if captures.is_empty() {
+            vec![]
+        } else {
+            vec![IrParam {
+                name: "__captures_ptr".into(),
+                ty: IrType::Ptr,
+                slot: Value(0),
+            }]
+        };
+        
         let mut bb = LowerBuilder::new(
             &mut *builder.module,
             body_fn_name.clone(),
-            vec![],
+            ir_params,
             body_ret_ty.clone(),
         );
         bb.fn_ret_types  = builder.fn_ret_types.clone();
@@ -83,8 +101,50 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
         bb.elem_types    = builder.elem_types.clone();
         bb.map_vars      = builder.map_vars.clone();
         bb.current_class = builder.current_class.clone();
+        bb.parent_class  = builder.parent_class.clone();
+        
+        // Si captures, charger depuis le tableau pointé
+        if !captures.is_empty() {
+            // Créer une nouvelle Value pour le paramètre (receiver)
+            let captures_ptr = bb.new_value();
+            // Mettre à jour le slot du paramètre pour pointer vers cette Value
+            bb.func.params[0].slot = captures_ptr.clone();
+            
+            // Charger chaque capture : *(captures_ptr + idx*8)
+            for (idx, (name, ty)) in captures.iter().enumerate() {
+                let offset_bytes = (idx * 8) as i64;
+                
+                // Calculer l'adresse de l'élément : captures_ptr + offset
+                let offset_val = bb.new_value();
+                bb.emit(Inst::ConstInt { dest: offset_val.clone(), value: offset_bytes });
+                
+                let elem_addr = bb.new_value();
+                bb.emit(Inst::Add {
+                    dest: elem_addr.clone(),
+                    lhs: captures_ptr.clone(),
+                    rhs: offset_val,
+                    ty: IrType::I64,
+                });
+                
+                // Charger la valeur depuis cette adresse
+                let val = bb.new_value();
+                bb.emit(Inst::Load { dest: val.clone(), ptr: elem_addr, ty: ty.clone() });
+                
+                // Créer le local et stocker
+                let alloca_slot = bb.declare_local(name, ty.clone(), false);
+                bb.emit(Inst::Store { ptr: alloca_slot, src: val });
+                
+                // Si c'est self, mettre à jour var_class pour indiquer la classe
+                if name == "self" {
+                    if let Some(cls) = &bb.current_class {
+                        bb.var_class.insert("self".to_string(), cls.clone());
+                    }
+                }
+            }
+        }
 
         lower_block(&mut bb, body);
+        
         if !bb.is_terminated() {
             // Return implicite : valeur dummy si type non-void
             let ret_val = if body_ret_ty != IrType::Void {
@@ -238,10 +298,134 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
     let handler_addr = builder.new_value();
     builder.emit(Inst::FuncAddr { dest: handler_addr.clone(), func: handler_fn_name });
 
-    builder.emit(Inst::Call {
-        dest:   None,
-        func:   "__ocara_try_exec".into(),
-        args:   vec![body_addr, handler_addr],
-        ret_ty: IrType::Void,
+    let try_result = builder.new_value();
+    
+    if captures.is_empty() {
+        // Pas de captures : utiliser __ocara_try_exec
+        builder.emit(Inst::Call {
+            dest:   Some(try_result.clone()),
+            func:   "__ocara_try_exec".into(),
+            args:   vec![body_addr, handler_addr],
+            ret_ty: IrType::I64,
+        });
+    } else {
+        // Avec captures : allouer un tableau sur le tas et passer son adresse
+        
+        // Calculer la taille du tableau : num_captures * 8 bytes
+        let num_captures = captures.len();
+        let size_bytes = (num_captures * 8) as i64;
+        
+        // Allouer le tableau sur le tas avec __alloc_obj
+        let size_val = builder.new_value();
+        builder.emit(Inst::ConstInt { dest: size_val.clone(), value: size_bytes });
+        
+        let array_ptr = builder.new_value();
+        builder.emit(Inst::Call {
+            dest: Some(array_ptr.clone()),
+            func: "__alloc_obj".into(),
+            args: vec![size_val],
+            ret_ty: IrType::Ptr,
+        });
+        
+        // Stocker chaque capture dans le tableau
+        for (idx, (name, _ty)) in captures.iter().enumerate() {
+            // Charger la valeur depuis locals
+            let val = if let Some((slot, slot_ty, _)) = builder.locals.get(name).cloned() {
+                let v = builder.new_value();
+                builder.emit(Inst::Load { dest: v.clone(), ptr: slot, ty: slot_ty });
+                v
+            } else {
+                // Capture non trouvée dans locals - ne devrait pas arriver
+                let v = builder.new_value();
+                builder.emit(Inst::ConstInt { dest: v.clone(), value: 0 });
+                v
+            };
+            
+            // Calculer l'adresse de l'élément : array_ptr + idx*8
+            let offset = builder.new_value();
+            builder.emit(Inst::ConstInt { dest: offset.clone(), value: (idx * 8) as i64 });
+            
+            let elem_addr = builder.new_value();
+            builder.emit(Inst::Add {
+                dest: elem_addr.clone(),
+                lhs: array_ptr.clone(),
+                rhs: offset,
+                ty: IrType::I64,
+            });
+            
+            // Stocker la valeur à cette adresse
+            builder.emit(Inst::Store { ptr: elem_addr, src: val });
+        }
+        
+        // Appeler __ocara_try_exec_with_captures avec le pointeur vers le tableau
+        builder.emit(Inst::Call {
+            dest:   Some(try_result.clone()),
+            func:   "__ocara_try_exec_with_captures".into(),
+            args:   vec![body_addr, handler_addr, array_ptr],
+            ret_ty: IrType::I64,
+        });
+    }
+    
+    // Vérifier si le handler a fait un return (try_result != 0)
+    // Si oui, extraire la valeur (try_result - 1) et retourner immédiatement
+    let continue_bb = builder.new_block();
+    let return_bb = builder.new_block();
+    
+    // Comparaison explicite : try_result != 0
+    let zero = builder.new_value();
+    builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+    
+    let has_return = builder.new_value();
+    builder.emit(Inst::CmpNe {
+        dest: has_return.clone(),
+        lhs: try_result.clone(),
+        rhs: zero,
+        ty: IrType::I64,
     });
+    
+    builder.emit(Inst::Branch {
+        cond: has_return,
+        then_bb: return_bb.clone(),
+        else_bb: continue_bb.clone(),
+    });
+    
+    // Bloc return : extraire la valeur (try_result - 1) et retourner
+    builder.switch_to(&return_bb);
+    let one = builder.new_value();
+    builder.emit(Inst::ConstInt { dest: one.clone(), value: 1 });
+    
+    let return_value = builder.new_value();
+    builder.emit(Inst::Sub {
+        dest: return_value.clone(),
+        lhs: try_result,
+        rhs: one,
+        ty: IrType::I64,
+    });
+    
+    // Si on est dans la fonction main (bloc runtime), transformer le return
+    // en assignation ERROR puis sauter à la fin du bloc main
+    if builder.func.name == "main" {
+        // Charger le slot de ERROR (doit exister)
+        if let Some((error_slot, _, _)) = builder.locals.get("ERROR").cloned() {
+            // ERROR = return_value
+            builder.emit(Inst::Store { ptr: error_slot.clone(), src: return_value.clone() });
+            
+            // Sauter au label de sortie anticipée du bloc main (avant if ERROR != 0)
+            if let Some(exit_bb) = builder.runtime_exit_bb.clone() {
+                builder.emit(Inst::Jump { target: exit_bb });
+            } else {
+                builder.emit(Inst::Jump { target: continue_bb.clone() });
+            }
+        } else {
+            // ERROR n'existe pas (ne devrait pas arriver), faire un return normal
+            builder.emit(Inst::Return { value: Some(return_value) });
+        }
+    } else {
+        // Fonction normale : vrai return
+        builder.emit(Inst::Return { value: Some(return_value) });
+    }
+    
+    // Bloc continue : continuer l'exécution normale
+    // DOIT TOUJOURS être défini car il est référencé dans le Branch
+    builder.switch_to(&continue_bb);
 }

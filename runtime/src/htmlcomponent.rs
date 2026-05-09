@@ -3,9 +3,13 @@
 //
 // Fonctions exportées :
 //
-//   HTMLComponent_init(self_ptr)              → void  constructeur
+//   HTMLComponent_init(self_ptr, name_ptr)    → void  constructeur
+//   HTMLComponent_tag(self_ptr, name_ptr)     → void  définit/modifie le nom du tag
 //   HTMLComponent_register(self_ptr, fat_ptr) → void  enregistre le handler
 //   HTML_render(template_ptr)                 → i64   rend le template HTML
+//   HTML_renderCached(template_ptr, key_ptr)  → i64   rend avec cache
+//   HTML_cacheDelete(key_ptr)                 → void  supprime une entrée du cache
+//   HTML_cacheClear()                         → void  vide tout le cache
 //   HTML_escape(s_ptr)                        → i64   échappe les caractères HTML
 //
 // Modèle :
@@ -56,9 +60,11 @@ struct OcaraHtmlComponent {
 
 #[inline]
 unsafe fn component_from_slot(self_ptr: i64) -> &'static mut OcaraHtmlComponent {
-    let slot  = self_ptr as *const i64;
-    let inner = *slot as *mut OcaraHtmlComponent;
-    &mut *inner
+    unsafe {
+        let slot  = self_ptr as *const i64;
+        let inner = *slot as *mut OcaraHtmlComponent;
+        &mut *inner
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -69,7 +75,7 @@ unsafe fn component_from_slot(self_ptr: i64) -> &'static mut OcaraHtmlComponent 
 /// En Ocara : `use HTMLComponent("breadcrumb")` → self_ptr reçoit le slot,
 /// le constructeur doit lire son propre paramètre depuis la pile d'appels.
 /// Convention : self_ptr est le slot alloué, name_ptr est passé après.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTMLComponent_init(self_ptr: i64, name_ptr: i64) {
     let name = unsafe { ptr_to_str(name_ptr).to_string() };
     let c    = Box::new(OcaraHtmlComponent { name });
@@ -77,9 +83,29 @@ pub extern "C" fn HTMLComponent_init(self_ptr: i64, name_ptr: i64) {
     unsafe { *(self_ptr as *mut i64) = raw; }
 }
 
+/// Définit ou modifie le nom du tag du composant.
+/// Utile lors d'un extends pour définir le tag sans passer par le constructeur.
+/// Si le composant n'est pas encore initialisé, l'initialise avec un nom vide d'abord.
+#[unsafe(no_mangle)]
+pub extern "C" fn HTMLComponent_tag(self_ptr: i64, name_ptr: i64) {
+    // Vérifier si le composant est déjà initialisé
+    let slot = self_ptr as *const i64;
+    let inner = unsafe { *slot };
+    
+    // Si non initialisé (pointeur nul), initialiser d'abord
+    if inner == 0 {
+        let c = Box::new(OcaraHtmlComponent { name: String::new() });
+        let raw = Box::into_raw(c) as i64;
+        unsafe { *(self_ptr as *mut i64) = raw; }
+    }
+    
+    let comp = unsafe { component_from_slot(self_ptr) };
+    comp.name = unsafe { ptr_to_str(name_ptr).to_string() };
+}
+
 /// Enregistre un handler nameless(attrs: map<string, mixed>): string.
 /// fat_ptr = { func_ptr: i64, env_ptr: i64 }.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTMLComponent_register(self_ptr: i64, fat_ptr: i64) {
     let comp     = unsafe { component_from_slot(self_ptr) };
     let func_ptr = unsafe { *(fat_ptr as *const i64) };
@@ -103,18 +129,20 @@ enum AttrVal {
 
 /// Convertit une AttrVal en i64 Ocara.
 unsafe fn attr_to_ocara(val: AttrVal) -> i64 {
-    match val {
-        AttrVal::Str(s)  => alloc_str(&s),
-        AttrVal::Int(n)  => n,
-        AttrVal::Bool(b) => if b { 1 } else { 0 },
-        AttrVal::Map(entries) => {
-            let m = new_map();
-            for (k, v) in entries {
-                let kp = alloc_str(&k);
-                let vp = alloc_str(&v);
-                __map_set(m, kp, vp);
+    unsafe {
+        match val {
+            AttrVal::Str(s)  => alloc_str(&s),
+            AttrVal::Int(n)  => n,
+            AttrVal::Bool(b) => if b { 1 } else { 0 },
+            AttrVal::Map(entries) => {
+                let m = new_map();
+                for (k, v) in entries {
+                    let kp = alloc_str(&k);
+                    let vp = alloc_str(&v);
+                    __map_set(m, kp, vp);
+                }
+                m
             }
-            m
         }
     }
 }
@@ -208,27 +236,29 @@ fn parse_bare_string(s: &[u8], i: &mut usize, stops: &[u8]) -> String {
 /// Parse tous les attributs d'une balise et retourne un map Ocara.
 /// Entrée : slice qui commence après le nom de la balise, jusqu'à '>'.
 unsafe fn parse_attrs_to_ocara_map(attrs_bytes: &[u8]) -> i64 {
-    let map = new_map();
-    let mut i = 0;
-    loop {
-        skip_ws(attrs_bytes, &mut i);
-        if i >= attrs_bytes.len() { break; }
-        // Lire le nom de l'attribut
-        let name = parse_bare_string(attrs_bytes, &mut i, &[b'=', b'>', b' ', b'\t', b'\n', b'\r']);
-        let name = name.trim().to_string();
-        if name.is_empty() { break; }
-        skip_ws(attrs_bytes, &mut i);
-        let val: AttrVal = if i < attrs_bytes.len() && attrs_bytes[i] == b'=' {
-            i += 1;
-            parse_attr_value(attrs_bytes, &mut i)
-        } else {
-            AttrVal::Bool(true) // attribut booléen sans valeur
-        };
-        let key_ptr = alloc_str(&name);
-        let val_ptr = attr_to_ocara(val);
-        __map_set(map, key_ptr, val_ptr);
+    unsafe {
+        let map = new_map();
+        let mut i = 0;
+        loop {
+            skip_ws(attrs_bytes, &mut i);
+            if i >= attrs_bytes.len() { break; }
+            // Lire le nom de l'attribut
+            let name = parse_bare_string(attrs_bytes, &mut i, &[b'=', b'>', b' ', b'\t', b'\n', b'\r']);
+            let name = name.trim().to_string();
+            if name.is_empty() { break; }
+            skip_ws(attrs_bytes, &mut i);
+            let val: AttrVal = if i < attrs_bytes.len() && attrs_bytes[i] == b'=' {
+                i += 1;
+                parse_attr_value(attrs_bytes, &mut i)
+            } else {
+                AttrVal::Bool(true) // attribut booléen sans valeur
+            };
+            let key_ptr = alloc_str(&name);
+            let val_ptr = attr_to_ocara(val);
+            __map_set(map, key_ptr, val_ptr);
+        }
+        map
     }
-    map
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -238,13 +268,15 @@ unsafe fn parse_attrs_to_ocara_map(attrs_bytes: &[u8]) -> i64 {
 /// Appelle un handler enregistré avec les attributs.
 /// Signature du handler Ocara : fn(env_ptr: i64, attrs_ptr: i64) -> i64
 unsafe fn call_component(entry: &ComponentEntry, attrs_ptr: i64) -> String {
-    type HandlerFn = unsafe extern "C" fn(i64, i64) -> i64;
-    let f: HandlerFn = std::mem::transmute(entry.func_ptr as usize);
-    let result_ptr = f(entry.env_ptr, attrs_ptr);
-    if result_ptr == 0 {
-        String::new()
-    } else {
-        ptr_to_str(result_ptr).to_string()
+    unsafe {
+        type HandlerFn = unsafe extern "C" fn(i64, i64) -> i64;
+        let f: HandlerFn = std::mem::transmute(entry.func_ptr as usize);
+        let result_ptr = f(entry.env_ptr, attrs_ptr);
+        if result_ptr == 0 {
+            String::new()
+        } else {
+            ptr_to_str(result_ptr).to_string()
+        }
     }
 }
 
@@ -537,7 +569,7 @@ where F: FnOnce(&mut HashMap<String, String>) -> R {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Rend un template HTML en remplaçant les balises custom par leur HTML généré.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTML_render(template_ptr: i64) -> i64 {
     let template = unsafe { ptr_to_str(template_ptr) };
     let rendered = render_recursive(template, 0);
@@ -547,8 +579,8 @@ pub extern "C" fn HTML_render(template_ptr: i64) -> i64 {
 /// Rend un template HTML avec mise en cache par cache_key.
 /// Si cache_key a déjà été rendu, retourne le résultat mis en cache.
 /// Sinon, rend le template, le stocke dans le cache et le retourne.
-#[no_mangle]
-pub extern "C" fn HTML_render_cached(template_ptr: i64, cache_key_ptr: i64) -> i64 {
+#[unsafe(no_mangle)]
+pub extern "C" fn HTML_renderCached(template_ptr: i64, cache_key_ptr: i64) -> i64 {
     let cache_key = unsafe { ptr_to_str(cache_key_ptr).to_string() };
     // Vérifier le cache
     let cached = with_cache(|c| c.get(&cache_key).cloned());
@@ -564,21 +596,21 @@ pub extern "C" fn HTML_render_cached(template_ptr: i64, cache_key_ptr: i64) -> i
 
 /// Supprime une entrée du cache par sa clé.
 /// Sans effet si la clé n'existe pas.
-#[no_mangle]
-pub extern "C" fn HTML_cache_delete(cache_key_ptr: i64) {
+#[unsafe(no_mangle)]
+pub extern "C" fn HTML_cacheDelete(cache_key_ptr: i64) {
     let cache_key = unsafe { ptr_to_str(cache_key_ptr).to_string() };
     with_cache(|c| { c.remove(&cache_key); });
 }
 
 /// Purge toutes les entrées du cache de rendu.
-#[no_mangle]
-pub extern "C" fn HTML_cache_clear() {
+#[unsafe(no_mangle)]
+pub extern "C" fn HTML_cacheClear() {
     with_cache(|c| { c.clear(); });
 }
 
 /// Échappe les caractères HTML spéciaux dans une chaîne
 /// (prévention XSS de base).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn HTML_escape(s_ptr: i64) -> i64 {
     let s = unsafe { ptr_to_str(s_ptr) };
     let mut out = String::with_capacity(s.len());

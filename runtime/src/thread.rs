@@ -46,8 +46,10 @@ struct OcaraThread {
 /// Lit le pointeur vers OcaraThread depuis le slot Ocara (8 octets à self_ptr).
 #[inline]
 unsafe fn thread_from_slot(self_ptr: i64) -> *mut OcaraThread {
-    let slot = self_ptr as *const i64;
-    *slot as *mut OcaraThread
+    unsafe {
+        let slot = self_ptr as *const i64;
+        *slot as *mut OcaraThread
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -68,7 +70,7 @@ unsafe impl Send for SendClosure {}
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Constructeur : initialise le slot Ocara avec un nouveau OcaraThread.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Thread_init(self_ptr: i64) {
     let id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
     let t  = Box::new(OcaraThread { id, handle: None });
@@ -79,7 +81,7 @@ pub extern "C" fn Thread_init(self_ptr: i64) {
 
 /// Lance le thread avec une closure Ocara (fat pointer {func_ptr, env_ptr}).
 /// Le thread n'est pas encore joinable avant cet appel.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Thread_run(self_ptr: i64, fat_ptr: i64) {
     let t = unsafe { &mut *thread_from_slot(self_ptr) };
 
@@ -109,7 +111,7 @@ pub extern "C" fn Thread_run(self_ptr: i64, fat_ptr: i64) {
 
 /// Attend que le thread se termine (bloquant).
 /// Si le thread n'a pas été lancé ou a déjà été joint, retourne immédiatement.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Thread_join(self_ptr: i64) {
     let t = unsafe { &mut *thread_from_slot(self_ptr) };
     if let Some(h) = t.handle.take() {
@@ -126,7 +128,7 @@ pub extern "C" fn Thread_join(self_ptr: i64) {
 
 /// Détache le thread (fire-and-forget).
 /// Après detach(), join() n'a plus d'effet.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Thread_detach(self_ptr: i64) {
     let t = unsafe { &mut *thread_from_slot(self_ptr) };
     // Dropping a JoinHandle detaches the thread
@@ -134,20 +136,20 @@ pub extern "C" fn Thread_detach(self_ptr: i64) {
 }
 
 /// Retourne l'ID unique du thread (assigné à la création).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Thread_id(self_ptr: i64) -> i64 {
     let t = unsafe { &*thread_from_slot(self_ptr) };
     t.id
 }
 
 /// Pause le thread courant pendant `ms` millisecondes.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Thread_sleep(ms: i64) {
     std::thread::sleep(std::time::Duration::from_millis(ms as u64));
 }
 
 /// Retourne l'ID du thread courant (0 pour le thread principal).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Thread_current_id() -> i64 {
     CURRENT_THREAD_ID.with(|c| c.get())
 }

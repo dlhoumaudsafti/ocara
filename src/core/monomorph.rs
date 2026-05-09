@@ -110,7 +110,7 @@ fn substitute_expr(expr: &mut Expr, type_params: &[String], type_args: &[Type], 
                 substitute_expr(arg, type_params, type_args, mapping);
             }
         }
-        Expr::Literal(..) | Expr::Ident(..) | Expr::SelfExpr(..) | Expr::StaticConst { .. } => {}
+        Expr::Literal(..) | Expr::Ident(..) | Expr::SelfExpr(..) | Expr::ParentExpr(..) | Expr::StaticConst { .. } => {}
         Expr::Binary { left, right, .. } => {
             substitute_expr(left, type_params, type_args, mapping);
             substitute_expr(right, type_params, type_args, mapping);
@@ -441,7 +441,7 @@ fn collect_from_expr(expr: &Expr, instantiations: &mut HashSet<(String, Vec<Type
         Expr::IsCheck { expr: e, .. } => {
             collect_from_expr(e, instantiations);
         }
-        Expr::Literal(..) | Expr::Ident(..) | Expr::SelfExpr(..) | Expr::StaticConst { .. } => {}
+        Expr::Literal(..) | Expr::Ident(..) | Expr::SelfExpr(..) | Expr::ParentExpr(..) | Expr::StaticConst { .. } => {}
     }
 }
 

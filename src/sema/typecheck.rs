@@ -245,40 +245,30 @@ impl<'a> TypeChecker<'a> {
         // Créer un scope global pour tous les blocs runtime
         self.scopes.push();
         
-        // Injecter les variables magiques si nécessaire
-        let has_error = program.runtime_blocks.iter().any(|b| 
-            b.kind == crate::parsing::ast::RuntimeBlockKind::Error || 
-            b.kind == crate::parsing::ast::RuntimeBlockKind::Exit
-        );
-        let has_exit = program.runtime_blocks.iter().any(|b| 
-            b.kind == crate::parsing::ast::RuntimeBlockKind::Exit
+        // Injecter les variables magiques ERROR et SUCCESS
+        // Elles sont toujours disponibles dans les blocs runtime pour permettre
+        // leur utilisation dans tous les blocs (par exemple: return ERROR dans main)
+        self.scopes.declare(
+            "ERROR".to_string(),
+            LocalBinding {
+                ty: Type::Int,
+                mutable: true,
+                span: crate::parsing::token::Span::new(0, 0),
+                used: true,
+                is_param: false,
+            },
         );
         
-        if has_error {
-            self.scopes.declare(
-                "ERROR".to_string(),
-                LocalBinding {
-                    ty: Type::Int,
-                    mutable: true,
-                    span: crate::parsing::token::Span::new(0, 0),
-                    used: true,
-                    is_param: false,
-                },
-            );
-        }
-        
-        if has_exit {
-            self.scopes.declare(
-                "SUCCESS".to_string(),
-                LocalBinding {
-                    ty: Type::Bool,
-                    mutable: true,
-                    span: crate::parsing::token::Span::new(0, 0),
-                    used: true,
-                    is_param: false,
-                },
-            );
-        }
+        self.scopes.declare(
+            "SUCCESS".to_string(),
+            LocalBinding {
+                ty: Type::Bool,
+                mutable: true,
+                span: crate::parsing::token::Span::new(0, 0),
+                used: true,
+                is_param: false,
+            },
+        );
         
         // Vérifier tous les statements de tous les blocs dans l'ordre
         let order = [
@@ -459,7 +449,22 @@ impl<'a> TypeChecker<'a> {
                 let ret_ty = self.current_ret.clone().unwrap_or(Type::Void);
                 if let Some(expr) = value {
                     let ty = self.infer_expr(expr);
-                    if !types_compat(&ty, &ret_ty) {
+                    
+                    // Exception pour les blocs runtime : main peut retourner ERROR (int) ou SUCCESS (bool)
+                    // même si son type de retour est void
+                    let is_runtime_return = if self.current_runtime_ctx.is_some() && ret_ty == Type::Void {
+                        // Vérifier si c'est "return ERROR" ou "return SUCCESS"
+                        if let Expr::Ident(name, _) = expr {
+                            name == "ERROR" || name == "SUCCESS"
+                        } else {
+                            // Accepter aussi les expressions int dans main runtime
+                            ty == Type::Int
+                        }
+                    } else {
+                        false
+                    };
+                    
+                    if !is_runtime_return && !types_compat(&ty, &ret_ty) {
                         self.errors.push(SemaError::ReturnTypeMismatch {
                             expected: type_name(&ret_ty),
                             found:    type_name(&ty),
@@ -543,6 +548,19 @@ impl<'a> TypeChecker<'a> {
             Expr::SelfExpr(_) => {
                 if let Some(cls) = &self.current_class {
                     Type::Named(cls.clone())
+                } else {
+                    Type::Mixed
+                }
+            }
+
+            Expr::ParentExpr(_) => {
+                if let Some(cls) = &self.current_class {
+                    // Récupérer la classe parent
+                    if let Some(parent_name) = self.symbols.lookup_parent_class(cls) {
+                        Type::Named(parent_name)
+                    } else {
+                        Type::Mixed
+                    }
                 } else {
                     Type::Mixed
                 }

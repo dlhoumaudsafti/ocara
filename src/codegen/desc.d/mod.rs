@@ -16,6 +16,10 @@ mod httprequest;
 mod httpserver;
 mod html;
 mod unittest;
+mod sqlite;
+mod mysql;
+mod dotenv;
+mod yaml;
 
 pub use lowlevel::LOWLEVEL_BUILTINS;
 pub use io::IO_BUILTINS;
@@ -35,4 +39,8 @@ pub use httprequest::HTTPREQUEST_BUILTINS;
 pub use httpserver::HTTPSERVER_BUILTINS;
 pub use html::{HTML_BUILTINS, HTMLCOMPONENT_BUILTINS};
 pub use unittest::UNITTEST_BUILTINS;
+pub use sqlite::SQLITE_BUILTINS;
+pub use mysql::MYSQL_BUILTINS;
+pub use dotenv::DOTENV_BUILTINS;
+pub use yaml::YAML_BUILTINS;
 

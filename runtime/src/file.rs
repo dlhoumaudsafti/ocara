@@ -51,255 +51,279 @@ const ERR_INFOS: i64 = 110;
 
 /// File::read(path:string) → string
 /// Lit le contenu d'un fichier en UTF-8.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn File_read(path_ptr: i64) -> i64 {
-    let path = ptr_to_str(path_ptr).to_string();
-    match fs::read_to_string(&path) {
-        Ok(content) => alloc_str(&content),
-        Err(e) => throw_file_exception(
-            &format!("Failed to read file '{}': {}", path, e),
-            ERR_READ,
-            "File"
-        ),
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+        match fs::read_to_string(&path) {
+            Ok(content) => alloc_str(&content),
+            Err(e) => throw_file_exception(
+                &format!("Failed to read file '{}': {}", path, e),
+                ERR_READ,
+                "File"
+            ),
+        }
     }
 }
 
 /// File::read_bytes(path:string) → int[]
 /// Lit le contenu d'un fichier en binaire (array d'octets).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn File_read_bytes(path_ptr: i64) -> i64 {
-    let path = ptr_to_str(path_ptr).to_string();
-    match fs::read(&path) {
-        Ok(bytes) => {
-            // Créer un array Ocara d'entiers
-            let arr_ptr = crate::__array_new();
-            for byte in bytes {
-                crate::__array_push(arr_ptr, byte as i64);
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+        match fs::read(&path) {
+            Ok(bytes) => {
+                // Créer un array Ocara d'entiers
+                let arr_ptr = crate::__array_new();
+                for byte in bytes {
+                    crate::__array_push(arr_ptr, byte as i64);
+                }
+                arr_ptr
             }
-            arr_ptr
-        }
-        Err(e) => {
-            throw_file_exception(
-                &format!("Failed to read binary file '{}': {}", path, e),
-                ERR_READ_BYTES,
-                "File"
-            );
+            Err(e) => {
+                throw_file_exception(
+                    &format!("Failed to read binary file '{}': {}", path, e),
+                    ERR_READ_BYTES,
+                    "File"
+                );
+            }
         }
     }
 }
 
 /// File::write(path:string, content:string) → void
 /// Écrit du contenu texte dans un fichier (écrase si existe).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn File_write(path_ptr: i64, content_ptr: i64) {
-    let path = ptr_to_str(path_ptr).to_string();
-    let content = ptr_to_str(content_ptr).to_string();
-    if let Err(e) = fs::write(&path, &content) {
-        throw_file_exception(
-            &format!("Failed to write file '{}': {}", path, e),
-            ERR_WRITE,
-            "File"
-        );
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+        let content = ptr_to_str(content_ptr).to_string();
+        if let Err(e) = fs::write(&path, &content) {
+            throw_file_exception(
+                &format!("Failed to write file '{}': {}", path, e),
+                ERR_WRITE,
+                "File"
+            );
+        }
     }
 }
 
 /// File::write_bytes(path:string, data:int[]) → void
 /// Écrit des données binaires dans un fichier.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn File_write_bytes(path_ptr: i64, data_ptr: i64) {
-    let path = ptr_to_str(path_ptr).to_string();
-    
-    // Lire l'array Ocara et convertir en Vec<u8>
-    let len = crate::__array_len(data_ptr) as usize;
-    let mut bytes = Vec::with_capacity(len);
-    for i in 0..len {
-        let val = crate::__array_get(data_ptr, i as i64);
-        bytes.push(val as u8);
-    }
-    
-    if let Err(e) = fs::write(&path, &bytes) {
-        throw_file_exception(
-            &format!("Failed to write binary file '{}': {}", path, e),
-            ERR_WRITE_BYTES,
-            "File"
-        );
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+        
+        // Lire l'array Ocara et convertir en Vec<u8>
+        let len = crate::__array_len(data_ptr) as usize;
+        let mut bytes = Vec::with_capacity(len);
+        for i in 0..len {
+            let val = crate::__array_get(data_ptr, i as i64);
+            bytes.push(val as u8);
+        }
+        
+        if let Err(e) = fs::write(&path, &bytes) {
+            throw_file_exception(
+                &format!("Failed to write binary file '{}': {}", path, e),
+                ERR_WRITE_BYTES,
+                "File"
+            );
+        }
     }
 }
 
 /// File::append(path:string, content:string) → void
 /// Ajoute du contenu à la fin d'un fichier (crée si n'existe pas).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn File_append(path_ptr: i64, content_ptr: i64) {
-    let path = ptr_to_str(path_ptr).to_string();
-    let content = ptr_to_str(content_ptr).to_string();
-    
-    match fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)
-    {
-        Ok(mut file) => {
-            if let Err(e) = file.write_all(content.as_bytes()) {
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+        let content = ptr_to_str(content_ptr).to_string();
+        
+        match fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+        {
+            Ok(mut file) => {
+                if let Err(e) = file.write_all(content.as_bytes()) {
+                    throw_file_exception(
+                        &format!("Failed to append to file '{}': {}", path, e),
+                        ERR_APPEND,
+                        "File"
+                    );
+                }
+            }
+            Err(e) => {
                 throw_file_exception(
-                    &format!("Failed to append to file '{}': {}", path, e),
+                    &format!("Failed to open file '{}' for appending: {}", path, e),
                     ERR_APPEND,
                     "File"
                 );
             }
-        }
-        Err(e) => {
-            throw_file_exception(
-                &format!("Failed to open file '{}' for appending: {}", path, e),
-                ERR_APPEND,
-                "File"
-            );
         }
     }
 }
 
 /// File::exists(path:string) → bool
 /// Teste si un fichier existe.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn File_exists(path_ptr: i64) -> i64 {
-    let path = ptr_to_str(path_ptr).to_string();
-    Path::new(&path).is_file() as i64
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+        Path::new(&path).is_file() as i64
+    }
 }
 
 /// File::size(path:string) → int
 /// Retourne la taille d'un fichier en octets.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn File_size(path_ptr: i64) -> i64 {
-    let path = ptr_to_str(path_ptr).to_string();
-    match fs::metadata(&path) {
-        Ok(meta) => meta.len() as i64,
-        Err(e) => {
-            throw_file_exception(
-                &format!("Failed to get size of file '{}': {}", path, e),
-                ERR_SIZE,
-                "File"
-            );
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+        match fs::metadata(&path) {
+            Ok(meta) => meta.len() as i64,
+            Err(e) => {
+                throw_file_exception(
+                    &format!("Failed to get size of file '{}': {}", path, e),
+                    ERR_SIZE,
+                    "File"
+                );
+            }
         }
     }
 }
 
 /// File::extension(path:string) → string
 /// Retourne l'extension du fichier sans le point ("txt", "json", "").
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn File_extension(path_ptr: i64) -> i64 {
-    let path = ptr_to_str(path_ptr).to_string();
-    let p = Path::new(&path);
-    match p.extension() {
-        Some(ext) => alloc_str(ext.to_str().unwrap_or("")),
-        None => alloc_str(""),
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+        let p = Path::new(&path);
+        match p.extension() {
+            Some(ext) => alloc_str(ext.to_str().unwrap_or("")),
+            None => alloc_str(""),
+        }
     }
 }
 
 /// File::remove(path:string) → void
 /// Supprime un fichier.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn File_remove(path_ptr: i64) {
-    let path = ptr_to_str(path_ptr).to_string();
-    if let Err(e) = fs::remove_file(&path) {
-        throw_file_exception(
-            &format!("Failed to remove file '{}': {}", path, e),
-            ERR_REMOVE,
-            "File"
-        );
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+        if let Err(e) = fs::remove_file(&path) {
+            throw_file_exception(
+                &format!("Failed to remove file '{}': {}", path, e),
+                ERR_REMOVE,
+                "File"
+            );
+        }
     }
 }
 
 /// File::copy(src:string, dst:string) → void
 /// Copie un fichier.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn File_copy(src_ptr: i64, dst_ptr: i64) {
-    let src = ptr_to_str(src_ptr).to_string();
-    let dst = ptr_to_str(dst_ptr).to_string();
-    if let Err(e) = fs::copy(&src, &dst) {
-        throw_file_exception(
-            &format!("Failed to copy file from '{}' to '{}': {}", src, dst, e),
-            ERR_COPY,
-            "File"
-        );
+    unsafe {
+        let src = ptr_to_str(src_ptr).to_string();
+        let dst = ptr_to_str(dst_ptr).to_string();
+        if let Err(e) = fs::copy(&src, &dst) {
+            throw_file_exception(
+                &format!("Failed to copy file from '{}' to '{}': {}", src, dst, e),
+                ERR_COPY,
+                "File"
+            );
+        }
     }
 }
 
 /// File::move(src:string, dst:string) → void
 /// Déplace/renomme un fichier.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn File_move(src_ptr: i64, dst_ptr: i64) {
-    let src = ptr_to_str(src_ptr).to_string();
-    let dst = ptr_to_str(dst_ptr).to_string();
-    if let Err(e) = fs::rename(&src, &dst) {
-        throw_file_exception(
-            &format!("Failed to move file from '{}' to '{}': {}", src, dst, e),
-            ERR_MOVE,
-            "File"
-        );
+    unsafe {
+        let src = ptr_to_str(src_ptr).to_string();
+        let dst = ptr_to_str(dst_ptr).to_string();
+        if let Err(e) = fs::rename(&src, &dst) {
+            throw_file_exception(
+                &format!("Failed to move file from '{}' to '{}': {}", src, dst, e),
+                ERR_MOVE,
+                "File"
+            );
+        }
     }
 }
 
 /// File::infos(path:string) → map<string, mixed>
 /// Retourne les métadonnées d'un fichier.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn File_infos(path_ptr: i64) -> i64 {
-    let path = ptr_to_str(path_ptr).to_string();
-    let p = Path::new(&path);
-    
-    match fs::metadata(&path) {
-        Ok(meta) => {
-            let map_ptr = crate::__map_new();
-            
-            // size: int
-            let size_key = alloc_str("size");
-            crate::__map_set(map_ptr, size_key, meta.len() as i64);
-            
-            // modified: string (timestamp)
-            if let Ok(modified) = meta.modified() {
-                if let Ok(duration) = modified.duration_since(std::time::UNIX_EPOCH) {
-                    let timestamp = duration.as_secs();
-                    let mod_key = alloc_str("modified");
-                    let mod_val = alloc_str(&timestamp.to_string());
-                    crate::__map_set(map_ptr, mod_key, mod_val);
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+        let p = Path::new(&path);
+        
+        match fs::metadata(&path) {
+            Ok(meta) => {
+                let map_ptr = crate::__map_new();
+                
+                // size: int
+                let size_key = alloc_str("size");
+                crate::__map_set(map_ptr, size_key, meta.len() as i64);
+                
+                // modified: string (timestamp)
+                if let Ok(modified) = meta.modified() {
+                    if let Ok(duration) = modified.duration_since(std::time::UNIX_EPOCH) {
+                        let timestamp = duration.as_secs();
+                        let mod_key = alloc_str("modified");
+                        let mod_val = alloc_str(&timestamp.to_string());
+                        crate::__map_set(map_ptr, mod_key, mod_val);
+                    }
                 }
-            }
-            
-            // created: string (timestamp)
-            if let Ok(created) = meta.created() {
-                if let Ok(duration) = created.duration_since(std::time::UNIX_EPOCH) {
-                    let timestamp = duration.as_secs();
-                    let cre_key = alloc_str("created");
-                    let cre_val = alloc_str(&timestamp.to_string());
-                    crate::__map_set(map_ptr, cre_key, cre_val);
+                
+                // created: string (timestamp)
+                if let Ok(created) = meta.created() {
+                    if let Ok(duration) = created.duration_since(std::time::UNIX_EPOCH) {
+                        let timestamp = duration.as_secs();
+                        let cre_key = alloc_str("created");
+                        let cre_val = alloc_str(&timestamp.to_string());
+                        crate::__map_set(map_ptr, cre_key, cre_val);
+                    }
                 }
+                
+                // is_file: bool
+                let is_file_key = alloc_str("is_file");
+                crate::__map_set(map_ptr, is_file_key, meta.is_file() as i64);
+                
+                // is_dir: bool
+                let is_dir_key = alloc_str("is_dir");
+                crate::__map_set(map_ptr, is_dir_key, meta.is_dir() as i64);
+                
+                // extension: string
+                if let Some(ext) = p.extension() {
+                    let ext_key = alloc_str("extension");
+                    let ext_val = alloc_str(ext.to_str().unwrap_or(""));
+                    crate::__map_set(map_ptr, ext_key, ext_val);
+                } else {
+                    let ext_key = alloc_str("extension");
+                    let ext_val = alloc_str("");
+                    crate::__map_set(map_ptr, ext_key, ext_val);
+                }
+                
+                map_ptr
             }
-            
-            // is_file: bool
-            let is_file_key = alloc_str("is_file");
-            crate::__map_set(map_ptr, is_file_key, meta.is_file() as i64);
-            
-            // is_dir: bool
-            let is_dir_key = alloc_str("is_dir");
-            crate::__map_set(map_ptr, is_dir_key, meta.is_dir() as i64);
-            
-            // extension: string
-            if let Some(ext) = p.extension() {
-                let ext_key = alloc_str("extension");
-                let ext_val = alloc_str(ext.to_str().unwrap_or(""));
-                crate::__map_set(map_ptr, ext_key, ext_val);
-            } else {
-                let ext_key = alloc_str("extension");
-                let ext_val = alloc_str("");
-                crate::__map_set(map_ptr, ext_key, ext_val);
+            Err(e) => {
+                throw_file_exception(
+                    &format!("Failed to get metadata for file '{}': {}", path, e),
+                    ERR_INFOS,
+                    "File"
+                );
             }
-            
-            map_ptr
-        }
-        Err(e) => {
-            throw_file_exception(
-                &format!("Failed to get metadata for file '{}': {}", path, e),
-                ERR_INFOS,
-                "File"
-            );
         }
     }
 }

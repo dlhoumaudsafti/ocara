@@ -1,0 +1,23 @@
+import ocara.IO
+
+init {
+    IO::writeln("Init block")
+}
+
+main {
+    IO::writeln("Main block - return SUCCESS as int")
+    IO::writeln(`Before return: SUCCESS=${SUCCESS}`)
+    return SUCCESS
+}
+
+error {
+    IO::writeln(`Error block executed with ERROR=${ERROR}`)
+}
+
+success {
+    IO::writeln(`Success block executed with SUCCESS=${SUCCESS}`)
+}
+
+exit {
+    IO::writeln(`Exit block executed with ERROR=${ERROR} SUCCESS=${SUCCESS}`)
+}

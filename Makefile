@@ -48,13 +48,13 @@ endif
 # ── Compilation du compilateur + runtime ─────────────────────────────────────
 # Le runtime doit être compilé en premier : build.rs l'embarque dans le binaire
 # -j1 sur ocara : Cranelift est très lourd à compiler en parallèle (SIGKILL OOM)
-build: tests
-	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime
-	RUSTFLAGS="-D warnings" cargo build --release -p ocara -j1
+build:
+	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime -j4
+	RUSTFLAGS="-D warnings" cargo build --release -p ocara -j4
 
 build-dev:
-	RUSTFLAGS="-D warnings" cargo build -p ocara_runtime
-	RUSTFLAGS="-D warnings" cargo build -p ocara -j1
+	RUSTFLAGS="-D warnings" cargo build -p ocara_runtime -j4
+	RUSTFLAGS="-D warnings" cargo build -p ocara -j4
 
 # ── Tests unitaires Cargo ─────────────────────────────────────────────────────
 tests:

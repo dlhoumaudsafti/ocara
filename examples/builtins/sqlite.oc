@@ -1,0 +1,147 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple d'utilisation de la classe SQLite
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.SQLite
+import ocara.IO
+import ocara.Map
+import ocara.File
+
+init {
+    IO::writeln("=== Starting SQLite tests ===")
+    IO::writeln("")
+    // Supprimer la base existante pour un test propre
+    try {
+        if File::exists("test.db") {
+            File::remove("test.db")
+        }
+    } on e is FileException {
+        IO::writeln(`Error deleting existing database: ${e.message}`)
+        return e.code
+    }
+}
+
+main {
+    const db:SQLite = SQLite::open("test.db")
+    try {
+        // ── Ouverture de la base ──────────────────────────────────────────────
+        IO::writeln("1. Opening database...")
+        IO::writeln("   ✓ Database opened successfully")
+        IO::writeln("")
+        
+        // ── Création de table ─────────────────────────────────────────────────
+        IO::writeln("2. Creating table...")
+        db.execute(`CREATE TABLE users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT,
+            age INTEGER
+        )`)
+        IO::writeln("   ✓ Table created")
+        IO::writeln("")
+        
+        // ── Insertion de données ──────────────────────────────────────────────
+        IO::writeln("3. Inserting data...")
+        db.execute("INSERT INTO users (name, email, age) VALUES ('Alice', 'alice@example.com', 30)")
+        IO::writeln(`   ✓ Inserted user with ID: ${db.lastInsertId()}`)
+        
+        db.execute("INSERT INTO users (name, email, age) VALUES ('Bob', 'bob@example.com', 25)")
+        IO::writeln(`   ✓ Inserted user with ID: ${db.lastInsertId()}`)
+        
+        db.execute("INSERT INTO users (name, email, age) VALUES ('Charlie', 'charlie@example.com', 35)")
+        IO::writeln(`   ✓ Inserted user with ID: ${db.lastInsertId()}`)
+        
+        db.execute("INSERT INTO users (name, email, age) VALUES ('Diana', 'diana@example.com', 28)")
+        IO::writeln(`   ✓ Inserted user with ID: ${db.lastInsertId()}`)
+        IO::writeln("")
+        
+        // ── Requête SELECT ────────────────────────────────────────────────────
+        IO::writeln("4. Querying all users...")
+        const users:array<map<string, mixed>> = db.query("SELECT * FROM users")
+        IO::writeln(`   ✓ Found ${db.affectedRows()} users:`)
+        
+        for user in users {
+            const id:int = user["id"]
+            const name:string = user["name"]
+            const email:string = user["email"]
+            const age:int = user["age"]
+            IO::writeln(`     - #${id}: ${name} (${email}) - ${age} years`)
+        }
+        IO::writeln("")
+        
+        // ── Requête avec filtre ───────────────────────────────────────────────
+        IO::writeln("5. Querying users over 27 years old...")
+        const oldUsers:array<map<string, mixed>> = db.query("SELECT * FROM users WHERE age > 27")
+        IO::writeln(`   ✓ Found ${db.affectedRows()} users:`)
+        
+        for user in oldUsers {
+            IO::writeln(`     - ${user["name"]}: ${user["age"]} years`)
+        }
+        IO::writeln("")
+        
+        // ── Requête d'une seule ligne ─────────────────────────────────────────
+        IO::writeln("6. Querying a specific user...")
+        const alice:map<string, mixed> = db.queryOne("SELECT * FROM users WHERE name = 'Alice'")
+        
+        if Map::size(alice) > 0 {
+            IO::writeln(`   ✓ Found: ${alice["name"]} - ${alice["email"]}`)
+        } else {
+            IO::writeln("   ✗ User not found")
+        }
+        IO::writeln("")
+        
+        // ── Mise à jour ───────────────────────────────────────────────────────
+        IO::writeln("7. Updating Bob's age...")
+        db.execute("UPDATE users SET age = 26 WHERE name = 'Bob'")
+        IO::writeln(`   ✓ Updated ${db.affectedRows()} rows`)
+        
+        const bob:map<string, mixed> = db.queryOne("SELECT * FROM users WHERE name = 'Bob'")
+        IO::writeln(`   New age: ${bob["age"]}`)
+        IO::writeln("")
+        
+        // ── Suppression ───────────────────────────────────────────────────────
+        IO::writeln("8. Deleting users under 28...")
+        db.execute("DELETE FROM users WHERE age < 28")
+        IO::writeln(`   ✓ Deleted ${db.affectedRows()} rows`)
+        
+        const remaining:array<map<string, mixed>> = db.query("SELECT * FROM users")
+        IO::writeln(`   Remaining users: ${db.affectedRows()}`)
+        for user in remaining {
+            IO::writeln(`     - ${user["name"]}`)
+        }
+        IO::writeln("")
+        
+        // ── Compte ────────────────────────────────────────────────────────────
+        IO::writeln("9. Counting users...")
+        const countResult:map<string, mixed> = db.queryOne("SELECT COUNT(*) as total FROM users")
+        const total:int = countResult["total"]
+        IO::writeln(`   ✓ Total users: ${total}`)
+        IO::writeln("")
+        
+    } on e is SQLiteException {
+        IO::writeln(`✗ SQLite error (code ${e.code}): ${e.message}`)
+        return e.code
+    }
+}
+
+success {
+    IO::writeln(`Success block executed with ERROR=${ERROR} SUCCESS=${SUCCESS}`)
+    try {
+        // ── Fermeture ─────────────────────────────────────────────────────────
+        IO::writeln("10. Closing database...")
+        db.close()
+        IO::writeln("   ✓ Database closed")
+        IO::writeln("")
+    } on e is SQLiteException {
+        IO::writeln(`Error during cleanup: ${e.message}`)
+    }
+    try {
+        // Nettoyage : supprimer la base de données de test
+        if File::exists("test.db") {
+            File::remove("test.db")
+            IO::writeln("Cleaned up test database.")
+        }
+    } on e is FileException {
+        IO::writeln(`Error during cleanup: ${e.message}`)
+    }
+}

@@ -19,7 +19,7 @@ use std::ffi::CStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Retourne la date actuelle au format YYYY-MM-DD
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Date_today() -> i64 {
     let ts = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -29,7 +29,7 @@ pub extern "C" fn Date_today() -> i64 {
 }
 
 /// Convertit un timestamp en string YYYY-MM-DD
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Date_from_timestamp(ts: i64) -> i64 {
     let (year, month, day) = timestamp_to_date(ts);
     let result = format!("{:04}-{:02}-{:02}", year, month, day);
@@ -37,7 +37,7 @@ pub extern "C" fn Date_from_timestamp(ts: i64) -> i64 {
 }
 
 /// Extrait l'année d'une date YYYY-MM-DD
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Date_year(date: i64) -> i64 {
     let date_str = unsafe { CStr::from_ptr(date as *const i8) }.to_str().unwrap_or("");
     let parts: Vec<&str> = date_str.split('-').collect();
@@ -61,7 +61,7 @@ pub extern "C" fn Date_year(date: i64) -> i64 {
 }
 
 /// Extrait le mois d'une date YYYY-MM-DD (1-12)
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Date_month(date: i64) -> i64 {
     let date_str = unsafe { CStr::from_ptr(date as *const i8) }.to_str().unwrap_or("");
     let parts: Vec<&str> = date_str.split('-').collect();
@@ -85,7 +85,7 @@ pub extern "C" fn Date_month(date: i64) -> i64 {
 }
 
 /// Extrait le jour d'une date YYYY-MM-DD (1-31)
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Date_day(date: i64) -> i64 {
     let date_str = unsafe { CStr::from_ptr(date as *const i8) }.to_str().unwrap_or("");
     let parts: Vec<&str> = date_str.split('-').collect();
@@ -109,7 +109,7 @@ pub extern "C" fn Date_day(date: i64) -> i64 {
 }
 
 /// Retourne le jour de la semaine (0=lundi, 6=dimanche)
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Date_day_of_week(date: i64) -> i64 {
     let year = Date_year(date) as i32;
     let month = Date_month(date) as i32;
@@ -131,13 +131,13 @@ pub extern "C" fn Date_day_of_week(date: i64) -> i64 {
 }
 
 /// Retourne 1 si l'année est bissextile, 0 sinon
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Date_is_leap_year(year: i64) -> i64 {
     if is_leap_year(year as i32) { 1 } else { 0 }
 }
 
 /// Retourne le nombre de jours dans un mois donné
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Date_days_in_month(year: i64, month: i64) -> i64 {
     let months = days_in_months(year as i32);
     if month >= 1 && month <= 12 {
@@ -148,7 +148,7 @@ pub extern "C" fn Date_days_in_month(year: i64, month: i64) -> i64 {
 }
 
 /// Ajoute N jours à une date
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Date_add_days(date: i64, days: i64) -> i64 {
     let year = Date_year(date) as i32;
     let month = Date_month(date) as i32;
@@ -163,7 +163,7 @@ pub extern "C" fn Date_add_days(date: i64, days: i64) -> i64 {
 }
 
 /// Calcule la différence en jours entre deux dates
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Date_diff_days(date1: i64, date2: i64) -> i64 {
     let y1 = Date_year(date1) as i32;
     let m1 = Date_month(date1) as i32;

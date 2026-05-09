@@ -1,0 +1,116 @@
+// Exemple d'utilisation de MySQL/MariaDB
+
+namespace .
+import ocara.IO
+import ocara.MySQL
+import ocara.MySQLException
+
+main {
+    IO::writeln("=== MySQL/MariaDB Example ===")
+    IO::writeln("")
+    
+    // Connexion à la base de données
+    // Remplacez ces paramètres par vos propres paramètres de connexion
+    IO::writeln("Connecting to MySQL database...")
+    var db:MySQL = MySQL::connect("localhost", "root", "password", "test_db")
+    
+    if db egal null {
+        IO::writeln("Failed to connect to database!")
+        return 1
+    }
+    
+    IO::writeln("Connected successfully!")
+    IO::writeln("")
+    
+    try {
+        // Créer une table
+        IO::writeln("Creating users table...")
+        var create_result:int = db.execute("CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255), age INT)")
+        IO::writeln(`Table created. Affected rows: ${create_result}`)
+        IO::writeln("")
+        
+        // Insérer des données
+        IO::writeln("Inserting users...")
+        db.execute("INSERT INTO users (name, age) VALUES ('Alice', 30)")
+        IO::writeln(`Last insert ID: ${db.lastInsertId()}`)
+        IO::writeln(`Affected rows: ${db.affectedRows()}`)
+        
+        db.execute("INSERT INTO users (name, age) VALUES ('Bob', 25)")
+        IO::writeln(`Last insert ID: ${db.lastInsertId()}`)
+        IO::writeln(`Affected rows: ${db.affectedRows()}`)
+        
+        db.execute("INSERT INTO users (name, age) VALUES ('Charlie', 35)")
+        IO::writeln(`Last insert ID: ${db.lastInsertId()}`)
+        IO::writeln(`Affected rows: ${db.affectedRows()}`)
+        IO::writeln("")
+        
+        // Requête SELECT - tous les résultats
+        IO::writeln("Querying all users:")
+        var users:array<map<string, mixed>> = db.query("SELECT * FROM users")
+        
+        for user in users {
+            IO::writeln(`  User: ID=${user["id"]}, Name=${user["name"]}, Age=${user["age"]}`)
+        }
+        IO::writeln("")
+        
+        // Requête SELECT - un seul résultat
+        IO::writeln("Querying one user (Bob):")
+        var bob:map<string, mixed>|null = db.queryOne("SELECT * FROM users WHERE name = 'Bob'")
+        
+        if bob egal null {
+            IO::writeln("  Bob not found")
+        } else {
+            IO::writeln(`  Found: ID=${bob["id"]}, Name=${bob["name"]}, Age=${bob["age"]}`)
+        }
+        IO::writeln("")
+        
+        // Mise à jour
+        IO::writeln("Updating Bob's age...")
+        var update_result:int = db.execute("UPDATE users SET age = 26 WHERE name = 'Bob'")
+        IO::writeln(`Updated ${update_result} row(s)`)
+        IO::writeln("")
+        
+        // Vérifier la mise à jour
+        var updated_bob:map<string, mixed>|null = db.queryOne("SELECT * FROM users WHERE name = 'Bob'")
+        if updated_bob egal null {
+            IO::writeln("  Bob not found after update")
+        } else {
+            IO::writeln(`  Bob's new age: ${updated_bob["age"]}`)
+        }
+        IO::writeln("")
+        
+        // Suppression
+        IO::writeln("Deleting user Charlie...")
+        var delete_result:int = db.execute("DELETE FROM users WHERE name = 'Charlie'")
+        IO::writeln(`Deleted ${delete_result} row(s)`)
+        IO::writeln("")
+        
+        // Afficher les utilisateurs restants
+        IO::writeln("Remaining users:")
+        var remaining:array<map<string, mixed>> = db.query("SELECT * FROM users")
+        for user in remaining {
+            IO::writeln(`  User: ID=${user["id"]}, Name=${user["name"]}, Age=${user["age"]}`)
+        }
+        IO::writeln("")
+        
+        // Nettoyer
+        IO::writeln("Cleaning up...")
+        db.execute("DROP TABLE users")
+        IO::writeln("Table dropped")
+        
+    } on e is MySQLException {
+        IO::writeln(`MySQL Error: ${e.message} (code: ${e.code})`)
+        db.close()
+        return 1
+    } on e {
+        IO::writeln(`Error: ${e.message}`)
+        db.close()
+        return 1
+    }
+    
+    // Fermer la connexion
+    db.close()
+    IO::writeln("")
+    IO::writeln("Connection closed")
+    IO::writeln("=== Done ===")
+}

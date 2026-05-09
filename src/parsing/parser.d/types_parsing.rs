@@ -42,6 +42,14 @@ impl Parser {
                 Type::Map(Box::new(k), Box::new(v))
             }
 
+            TokenKind::TArray => {
+                self.advance();
+                self.eat(&TokenKind::Lt)?;
+                let elem_ty = self.parse_type()?;
+                self.eat(&TokenKind::Gt)?;
+                Type::Array(Box::new(elem_ty))
+            }
+
             TokenKind::Ident(name) => {
                 self.advance();
                 // `Function<ReturnType(ParamType, ...)>`
@@ -103,12 +111,6 @@ impl Parser {
             }
         };
 
-        let mut ty = base;
-        while self.check_exact(&TokenKind::LBracket) {
-            self.advance();
-            self.eat(&TokenKind::RBracket)?;
-            ty = Type::Array(Box::new(ty));
-        }
-        Ok(ty)
+        Ok(base)
     }
 }

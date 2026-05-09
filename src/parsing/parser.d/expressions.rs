@@ -412,6 +412,28 @@ impl Parser {
                 Ok(Expr::SelfExpr(span))
             }
 
+            // ── parent ──────────────────────────────────────────────────────
+            TokenKind::ParentKw => {
+                self.advance();
+
+                // parent::method(args) — appel d'une méthode statique de la classe parent
+                if self.check_exact(&TokenKind::ColonColon) {
+                    self.advance();
+                    let (member, _) = self.eat_ident()?;
+                    if self.check_exact(&TokenKind::LParen) {
+                        self.advance();
+                        let args = self.parse_arg_list()?;
+                        self.eat(&TokenKind::RParen)?;
+                        // "<parent>" est un marqueur résolu plus tard par le typecheck/lower
+                        return Ok(Expr::StaticCall { class: "<parent>".into(), method: member, args, span });
+                    }
+                    // parent::CONST — constante de classe parent
+                    return Ok(Expr::StaticConst { class: "<parent>".into(), name: member, span });
+                }
+
+                Ok(Expr::ParentExpr(span))
+            }
+
             // ── use (instanciation) ─────────────────────────────────────────
             TokenKind::Use => {
                 self.advance();

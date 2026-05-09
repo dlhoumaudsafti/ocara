@@ -23,6 +23,7 @@ import ocara.IO
 import configs.Components 
 import configs.Server
 
+
 init {
     IO::writeln("Initialisation du site...")
     use Components()
@@ -31,18 +32,23 @@ init {
 }
 
 main {
-    IO::writeln("Site demarre sur http://localhost:3000")
+    IO::writeln("Site demarre sur http://localhost:8080")
     IO::writeln("  /          -> home (async stats)")
     IO::writeln("  /about     -> a propos (render_cached)")
     IO::writeln("  /contact   -> contact (render_cached)")
-    const result:Exception|void = server.run()
-    if result is Exception {
-        return result.code
+    try {
+        server.start()
+    } on e {
+        IO::writeln(`Error ${e.source} ${e.code} : ${e.message}`)
+        return e.code
     }
+    IO::writeln("Server stopped.")
 }
 
 error {
-    IO::writeln(`ERROR ${ERROR} : ${result.message}`)
+    IO::writeln(`Error block executed with ERROR=${ERROR} SUCCESS=${SUCCESS}`)
 }
 
-
+success {
+    IO::writeln(`Success block executed with ERROR=${ERROR} SUCCESS=${SUCCESS}`)
+}

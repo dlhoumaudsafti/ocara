@@ -1,0 +1,15 @@
+import ocara.IO
+
+main {
+    IO::writeln("Before return")
+    return 42
+    IO::writeln("After return - SHOULD NOT PRINT")
+}
+
+error {
+    IO::writeln(`Error: ${ERROR}`)
+}
+
+success {
+    IO::writeln("Success")
+}

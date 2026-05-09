@@ -82,13 +82,13 @@ fn main() {
     // Tout autre import doit pointer vers un fichier .oc existant.
     const OCARA_BUILTINS: &[&str] = &[
         "IO", "Math", "String", "Array", "Map", "JSON",
-        "Convert", "System", "Regex", "HTTPRequest", "HTTPServer", "Thread", "Mutex",
+        "Convert", "System", "Regex", "HTTPRequest", "HTTPServer", "SQLite", "MySQL", "MariaDB", "DotEnv", "YAML", "Thread", "Mutex",
         "DateTime", "Date", "Time", "UnitTest", "HTMLComponent", "HTML",
         "File", "Directory", "Exception", "FileException", "DirectoryException", "IOException", "SystemException",
         "ArrayException", "MapException", "MathException", "ConvertException", "RegexException",
         "DateTimeException", "DateException", "TimeException",
         "ThreadException", "MutexException",
-        "UnitTestException",
+        "UnitTestException", "HTTPServerException", "SQLiteException", "MySQLException", "MariaDBException", "DotEnvException", "YAMLException",
     ];
     // Répertoire de base pour la résolution des imports
     let source_dir = args.src_dir.as_ref()
@@ -274,9 +274,9 @@ fn main() {
                 program.classes.push(cls);
             }
             // Chercher le générique
-            else if let Some(mut gen) = mod_prog.generics.iter().find(|g| g.name == requested_name).cloned() {
-                gen.name = final_name.clone();
-                program.generics.push(gen);
+            else if let Some(mut generic_item) = mod_prog.generics.iter().find(|g| g.name == requested_name).cloned() {
+                generic_item.name = final_name.clone();
+                program.generics.push(generic_item);
             }
             // Chercher l'interface
             else if let Some(mut iface) = mod_prog.interfaces.iter().find(|i| i.name == requested_name).cloned() {

@@ -36,7 +36,7 @@ type PthreadMutex = [u8; 64];  // sizeof(pthread_mutex_t) sur macOS
 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
 type PthreadMutex = [u8; 64];  // fallback
 
-extern "C" {
+unsafe extern "C" {
     fn pthread_mutex_init(mutex: *mut PthreadMutex, attr: *const u8) -> i32;
     fn pthread_mutex_lock(mutex: *mut PthreadMutex) -> i32;
     fn pthread_mutex_unlock(mutex: *mut PthreadMutex) -> i32;
@@ -61,8 +61,10 @@ impl Drop for OcaraMutex {
 /// Lit le pointeur vers OcaraMutex depuis le slot Ocara (8 octets à self_ptr).
 #[inline]
 unsafe fn mutex_from_slot(self_ptr: i64) -> *mut OcaraMutex {
-    let slot = self_ptr as *const i64;
-    *slot as *mut OcaraMutex
+    unsafe {
+        let slot = self_ptr as *const i64;
+        *slot as *mut OcaraMutex
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -70,7 +72,7 @@ unsafe fn mutex_from_slot(self_ptr: i64) -> *mut OcaraMutex {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Constructeur : initialise le slot Ocara avec un nouveau OcaraMutex.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Mutex_init(self_ptr: i64) {
     unsafe {
         let mutex_ptr = alloc(Layout::new::<PthreadMutex>()) as *mut PthreadMutex;
@@ -87,7 +89,7 @@ pub extern "C" fn Mutex_init(self_ptr: i64) {
 /// Verrouille le mutex. Bloque jusqu'à ce que le mutex soit disponible.
 /// Si le mutex est déjà verrouillé par un autre thread, le thread courant attend.
 /// Si le même thread tente de verrouiller deux fois, cela provoque un deadlock.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Mutex_lock(self_ptr: i64) {
     let m = unsafe { &*mutex_from_slot(self_ptr) };
     let result = unsafe { pthread_mutex_lock(m.mutex) };
@@ -104,7 +106,7 @@ pub extern "C" fn Mutex_lock(self_ptr: i64) {
 /// Déverrouille le mutex.
 /// ATTENTION : doit être appelé par le même thread qui a appelé lock().
 /// Appeler unlock() sans lock() préalable est un comportement non défini.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Mutex_unlock(self_ptr: i64) {
     let m = unsafe { &*mutex_from_slot(self_ptr) };
     let result = unsafe { pthread_mutex_unlock(m.mutex) };
@@ -121,7 +123,7 @@ pub extern "C" fn Mutex_unlock(self_ptr: i64) {
 /// Tente de verrouiller le mutex sans bloquer.
 /// Retourne 1 (true) si le verrou a été acquis, 0 (false) sinon.
 /// Si succès, un appel à unlock() est requis plus tard.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Mutex_try_lock(self_ptr: i64) -> i64 {
     let m = unsafe { &*mutex_from_slot(self_ptr) };
     let result = unsafe { pthread_mutex_trylock(m.mutex) };
