@@ -21,13 +21,13 @@ IO::writeln(content)
 
 **Erreur** : `fail` si le fichier n'existe pas ou n'est pas lisible.
 
-### `File::readBytes(path: string) → int[]`
+### `File::readBytes(path: string) → array<int>`
 
 Lit le contenu d'un fichier en binaire (array d'octets).
 
 ```ocara
-var bytes:int[] = File::readBytes("/tmp/image.png")
-IO::writeln(`Taille: ${Array::length(bytes)} octets`)
+var bytes:array<int> = File::readBytes("/tmp/image.png")
+IO::writeln(`Taille: ${Array::len(bytes)} octets`)
 ```
 
 **Erreur** : `fail` si le fichier n'existe pas ou n'est pas lisible.
@@ -44,12 +44,12 @@ File::write("/tmp/output.txt", "Hello, World!")
 
 **Erreur** : `fail` en cas d'erreur d'écriture (permissions, disque plein, etc.).
 
-### `File::writeBytes(path: string, data: int[]) → void`
+### `File::writeBytes(path: string, data: array<int>) → void`
 
 Écrit des données binaires dans un fichier.
 
 ```ocara
-var data:int[] = [0x89, 0x50, 0x4E, 0x47]  // Signature PNG
+var data:array<int> = [0x89, 0x50, 0x4E, 0x47]  // Signature PNG
 File::writeBytes("/tmp/test.png", data)
 ```
 
@@ -179,9 +179,9 @@ import ocara.IO
 function main(): int {
     try {
         var content:string = File::read("/tmp/data.txt")
-        var lines:string[] = String::split(content, "\n")
+        var lines:array<string> = String::split(content, "\n")
         
-        IO::writeln(`Number of lines: ${Array::length(lines)}`)
+        IO::writeln(`Number of lines: ${Array::len(lines)}`)
         
         for line in lines {
             IO::writeln(line)
@@ -264,9 +264,9 @@ import ocara.IO
 function main(): int {
     try {
         // Read an image
-        var image:int[] = File::readBytes("/tmp/input.png")
+        var image:array<int> = File::readBytes("/tmp/input.png")
         
-        IO::writeln(`Image loaded: ${Array::length(image)} bytes`)
+        IO::writeln(`Image loaded: ${Array::len(image)} bytes`)
         
         // Save a copy
         File::writeBytes("/tmp/output.png", image)

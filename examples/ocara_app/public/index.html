@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTTPServer Demo - Ocara</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 HTTPServer Ocara</h1>
+            <p class="subtitle">Serveur de fichiers statiques + Routes dynamiques</p>
+        </header>
+
+        <main>
+            <section class="card">
+                <h2>📁 Fichiers Statiques</h2>
+                <p>Cette page HTML est servie depuis <code>./public/index.html</code></p>
+                <p>Le CSS est chargé depuis <code>./public/style.css</code></p>
+                <p>Le JavaScript est chargé depuis <code>./public/app.js</code></p>
+            </section>
+
+            <section class="card">
+                <h2>🔌 Routes API Dynamiques</h2>
+                <div class="api-demo">
+                    <button id="btn-status">GET /api/status</button>
+                    <button id="btn-users">GET /api/users</button>
+                    <button id="btn-echo">POST /api/echo</button>
+                </div>
+                <pre id="api-result" class="result"></pre>
+            </section>
+
+            <section class="card">
+                <h2>ℹ️ Fonctionnement</h2>
+                <ol>
+                    <li>Les <strong>routes dynamiques</strong> sont traitées en priorité</li>
+                    <li>Si aucune route ne correspond, le serveur cherche un <strong>fichier statique</strong></li>
+                    <li>Si rien ne correspond, retourne <strong>404</strong></li>
+                </ol>
+            </section>
+
+            <section class="card">
+                <h2>🛡️ Sécurité</h2>
+                <ul>
+                    <li>Protection contre <strong>path traversal</strong> (<code>../</code>)</li>
+                    <li>Fichiers statiques uniquement en <strong>GET</strong></li>
+                    <li>MIME types détectés automatiquement</li>
+                </ul>
+            </section>
+        </main>
+
+        <footer>
+            <p>Powered by <strong>Ocara HTTPServer</strong> with <code>set_root_path()</code></p>
+        </footer>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>

@@ -6,7 +6,7 @@ init {
 
 main {
     IO::writeln("Main block - explicit error")
-    return 42
+    result 42
 }
 
 error {

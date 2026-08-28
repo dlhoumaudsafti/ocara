@@ -73,7 +73,7 @@ function sum_nullable(nums:variadic<int|null>): int {
 function flatten_arrays(arrays:variadic<int[]>): int {
     var count:int = 0
     for arr in arrays {
-        count = count + Array::length(arr)
+        count = count + Array::len(arr)
     }
     return count
 }
@@ -129,7 +129,7 @@ function describe_union(vals:variadic<int|string|bool|null>): void {
 // ── 11. variadic<mixed> (type dynamique avec warning) ───────────────────────
 
 function debug_mixed(vals:variadic<mixed>): void {
-    IO::writeln("Mixed values (count: " + Convert::intToStr(Array::length(vals)) + "):")
+    IO::writeln("Mixed values (count: " + Convert::intToStr(Array::len(vals)) + "):")
     for val in vals {
         IO::writeln("  → " + Convert::intToStr(val))  // Simplifié
     }
@@ -148,7 +148,7 @@ function prefix_concat(prefix:string, parts:variadic<string>): string {
 // ── 13. variadic avec 0 argument ────────────────────────────────────────────
 
 function default_sum(nums:variadic<int>): int {
-    if Array::length(nums) == 0 {
+    if Array::len(nums) == 0 {
         return -1
     }
     return sum_int(nums)

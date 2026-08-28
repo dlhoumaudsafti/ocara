@@ -8,7 +8,7 @@ runtime config is init
 main {
     IO::writeln("")
     IO::writeln("╔═══════════════════════════════════════════╗")
-    IO::writeln("║  Traitement principal                    ║")
+    IO::writeln("║  Traitement principal                     ║")
     IO::writeln("╚═══════════════════════════════════════════╝")
     
     // Utiliser les variables définies dans config.oc

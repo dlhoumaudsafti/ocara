@@ -102,12 +102,12 @@ Retourne le PID (identifiant de processus) du processus courant.
 IO::writeln(`PID : ${System::pid()}`)
 ```
 
-### `System::args() → string[]`
+### `System::args() → array<string>`
 
 Retourne les arguments passés à la ligne de commande (équivalent de `argv` en C, `argv[0]` inclus).
 
 ```ocara
-scoped argv:string[] = System::args()
+scoped argv:array<string> = System::args()
 ```
 
 ---
@@ -336,10 +336,10 @@ Exemples :
 |---|---|
 | `exec` | `System_exec` |
 | `passthrough` | `System_passthrough` |
-| `exec_code` | `System_execCode` |
+| `execCode` | `System_execCode` |
 | `exit` | `System_exit` |
 | `env` | `System_env` |
-| `set_env` | `System_setEnv` |
+| `setEnv` | `System_setEnv` |
 | `cwd` | `System_cwd` |
 | `sleep` | `System_sleep` |
 | `pid` | `System_pid` |

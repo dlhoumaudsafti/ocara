@@ -1,0 +1,28 @@
+namespace configs.components
+
+import ocara.HTMLComponent
+
+class Layout extends HTMLComponent {
+    init() {
+        parent::init("layout")
+        self.register(nameless(attrs:map<string, mixed>): string {
+            scoped title:string   = attrs["title"]
+            scoped active:string  = attrs["active"]
+            scoped content:string = attrs["__slot__"]
+            return `<!DOCTYPE html>
+    <html lang="fr">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${title} - Ocara</title>
+      <link rel="stylesheet" href="./style.css">
+    </head>
+    <body>
+      <nav-bar active="${active}">
+      <main>${content}</main>
+      <footer>Ocara - Compile natif - Zero GC - Open Source</footer>
+    </body>
+    </html>`
+        })
+    }
+}

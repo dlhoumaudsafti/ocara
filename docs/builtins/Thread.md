@@ -127,7 +127,7 @@ function main(): void {
 | `detach` | instance | `() → void` | Détache le thread (fire-and-forget) |
 | `id` | instance | `() → int` | ID unique du thread |
 | `Thread::sleep` | statique | `(ms: int) → void` | Pause en millisecondes |
-| `Thread::current_id` | statique | `() → int` | ID du thread courant (0 = main) |
+| `Thread::currentId` | statique | `() → int` | ID du thread courant (0 = main) |
 
 ---
 

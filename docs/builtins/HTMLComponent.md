@@ -73,7 +73,7 @@ La closure reçoit un `map<string, mixed>` dont les clés sont les noms d'attrib
 | `attr={k1:v1,k2:v2}`        | `map<string,string>`          |
 | `attrs["__slot__"]`         | `string` — contenu HTML pré-rendu entre les balises (voir Slots) |
 
-> **Note floats** : les flottants dans les attributs (`attr=3.14`) sont traités comme des chaînes. Utiliser `Convert::str_to_float` si une conversion est nécessaire.
+> **Note floats** : les flottants dans les attributs (`attr=3.14`) sont traités comme des chaînes. Utiliser `Convert::strToFloat` si une conversion est nécessaire.
 
 ---
 

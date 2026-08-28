@@ -2,9 +2,9 @@
 // Exemple 08 — Tableaux
 //
 // Illustre :
-//   - Tableau simple     : int[]
-//   - Tableau multi-type : mixed[]
-//   - Tableau 2D         : int[][]
+//   - Tableau simple     : array<int>
+//   - Tableau multi-type : array<mixed>
+//   - Tableau 2D         : array<array<int>>
 //   - Accès par index    : arr[i]
 //   - Itération avec for in
 // ─────────────────────────────────────────────────────────────────────────────
@@ -15,7 +15,7 @@ import ocara.Array
 function main(): int {
 
     // ── Tableau d'entiers ────────────────────────────────────────────────────
-    var numbers:int[] = [10, 20, 30, 40, 50]
+    var numbers:array<int> = [10, 20, 30, 40, 50]
 
     IO::writeln(numbers[0])       // 10
     IO::writeln(numbers[2])       // 30
@@ -27,7 +27,7 @@ function main(): int {
     }
 
     // ── Tableau de chaînes ───────────────────────────────────────────────────
-    var jours:string[] = ["lundi", "mardi", "mercredi", "jeudi", "vendredi"]
+    var jours:array<string> = ["lundi", "mardi", "mercredi", "jeudi", "vendredi"]
 
     IO::writeln(jours[0])         // lundi
     IO::writeln(jours[4])         // vendredi
@@ -36,8 +36,8 @@ function main(): int {
         IO::writeln(j)
     }
 
-    // ── Tableau multi-type (mixed[]) ───────────────────────────────────────────
-    var vals:mixed[] = [42, "hello", true, 3.14]
+    // ── Tableau multi-type (array<mixed>) ──────────────────────────────────────
+    var vals:array<mixed> = [42, "hello", true, 3.14]
 
     IO::writeln(vals[0])         // 42
     IO::writeln(vals[1])         // hello
@@ -45,7 +45,7 @@ function main(): int {
     IO::writeln(vals[3])         // 3.14
 
     // ── Tableau multidimensionnel (matrice 3×3) ──────────────────────────────
-    var matrix:int[][] = [
+    var matrix:array<array<int>> = [
         [1, 2, 3],
         [4, 5, 6],
         [7, 8, 9]
@@ -56,7 +56,7 @@ function main(): int {
     IO::writeln(Array::join(matrix[2], ", "))  // ligne 2 : 7, 8, 9
 
     // ── Tableau vide ─────────────────────────────────────────────────────────
-    var empty:int[] = []
+    var empty:array<int> = []
     IO::writeln(Array::join(empty, ", "))
 
     return 0

@@ -189,7 +189,7 @@ fn substitute_stmt(stmt: &mut Stmt, type_params: &[String], type_args: &[Type], 
             *ty = substitute_type(ty, type_params, type_args);
             substitute_expr(value, type_params, type_args, mapping);
         }
-        Stmt::Return { value, .. } => {
+        Stmt::Return { value, .. } | Stmt::Result { value, .. } => {
             if let Some(e) = value {
                 substitute_expr(e, type_params, type_args, mapping);
             }
@@ -296,7 +296,7 @@ fn collect_from_stmt(stmt: &Stmt, instantiations: &mut HashSet<(String, Vec<Type
         Stmt::Var { value, .. } | Stmt::Const { value, .. } => {
             collect_from_expr(value, instantiations);
         }
-        Stmt::Return { value, .. } => {
+        Stmt::Return { value, .. } | Stmt::Result { value, .. } => {
             if let Some(e) = value {
                 collect_from_expr(e, instantiations);
             }

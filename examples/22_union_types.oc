@@ -7,9 +7,10 @@
 //   - Méthodes avec type de retour union (string|null)
 //   - Tester null après retour d'un type union
 //
-// Note : les unions sont restreints aux types référence (string, classes,
-// tableaux, maps, null). Les primitifs (int, float, bool) ne peuvent pas
-// être combinés dans un union en v0.1.0.
+// Note : cet exemple se concentre sur les unions avec `null` (string|null,
+// User|null) pour représenter des valeurs optionnelles. Voir aussi
+// 27_type_narrowing.oc et 30_variadic.oc pour des unions combinant
+// plusieurs types primitifs (int|string|null, variadic<int|null>, ...).
 // ─────────────────────────────────────────────────────────────────────────────
 import ocara.IO
 

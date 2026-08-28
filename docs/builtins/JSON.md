@@ -39,7 +39,7 @@ IO::writeln(json)
 // → {"name":"Alice","age":30,"active":true}
 
 // Avec un tableau
-var items:mixed[] = [1, 2, "hello", true]
+var items:array<mixed> = [1, 2, "hello", true]
 scoped arr_json:string = JSON::encode(items)
 IO::writeln(arr_json)
 // → [1,2,"hello",true]
@@ -55,7 +55,7 @@ scoped json:string = config.encode()  // ✅ Appel direct sur la map
 IO::writeln(json)
 // → {"port":8080,"timeout":5000}
 
-var numbers:int[] = [1, 2, 3, 4, 5]
+var numbers:array<int> = [1, 2, 3, 4, 5]
 scoped arr:string = numbers.encode()  // ✅ Appel direct sur l'array
 IO::writeln(arr)
 // → [1,2,3,4,5]
@@ -91,7 +91,7 @@ IO::writeln(m["age"])   // → 25
 // Décoder un tableau
 scoped arr_json:string = `[10, 20, 30]`
 var arr:mixed = JSON::decode(arr_json)
-// arr est un mixed[] (array)
+// arr est un array<mixed> (array)
 ```
 
 **Méthode d'instance sur string :**
@@ -107,7 +107,7 @@ IO::writeln(result)
 **Règles :**
 - Retourne `null` (0) si le JSON est invalide
 - Les objets JSON deviennent des `map<string, mixed>`
-- Les tableaux JSON deviennent des `mixed[]`
+- Les tableaux JSON deviennent des `array<mixed>`
 - Les nombres JSON deviennent des `int`
 - Les booléens et `null` JSON sont préservés
 
@@ -203,7 +203,7 @@ Les méthodes JSON peuvent être appelées directement sur les types compatibles
 
 | Type | Méthodes disponibles | Exemple |
 |------|----------------------|---------|
-| `array` (T[]) | `.encode()` | `[1,2,3].encode()` |
+| `array` (`array<T>`) | `.encode()` | `[1,2,3].encode()` |
 | `map` (map<K,V>) | `.encode()` | `{"x":1}.encode()` |
 | `string` | `.decode()`, `.pretty()`, `.minimize()` | `json.decode()` |
 
@@ -305,7 +305,7 @@ function handle_api(req:int): int {
 
 ### Représentation interne
 
-- Les arrays JSON → `mixed[]` (array Ocara)
+- Les arrays JSON → `array<mixed>` (array Ocara)
 - Les objets JSON → `map<string, mixed>` (map Ocara)
 - Les nombres JSON → `int` (pas de distinction float pour l'instant)
 - Les strings JSON → `string` (avec échappement Unicode)

@@ -446,6 +446,13 @@ impl<'a> TypeChecker<'a> {
             }
 
             Stmt::Return { value, span } => {
+                // `return` est réservé aux fonctions/méthodes normales : dans un bloc
+                // runtime, c'est `result` qui fixe ERROR sans quitter le bloc.
+                if self.current_runtime_ctx.is_some() {
+                    self.errors.push(SemaError::ReturnInsideRuntimeBlock { span: span.clone() });
+                    return;
+                }
+
                 let ret_ty = self.current_ret.clone().unwrap_or(Type::Void);
                 if let Some(expr) = value {
                     let ty = self.infer_expr(expr);
@@ -477,6 +484,39 @@ impl<'a> TypeChecker<'a> {
                         found:    "void".into(),
                         span:     span.clone(),
                     });
+                }
+            }
+
+            Stmt::Result { value, span } => {
+                // `result` n'a de sens qu'à l'intérieur d'un bloc runtime.
+                if self.current_runtime_ctx.is_none() {
+                    self.errors.push(SemaError::ResultOutsideRuntimeBlock { span: span.clone() });
+                    return;
+                }
+
+                let ret_ty = self.current_ret.clone().unwrap_or(Type::Void);
+                if let Some(expr) = value {
+                    let ty = self.infer_expr(expr);
+
+                    // Un bloc runtime peut fixer ERROR (int) ou SUCCESS (bool) même si
+                    // son type de retour "apparent" est void.
+                    let is_runtime_result = if ret_ty == Type::Void {
+                        if let Expr::Ident(name, _) = expr {
+                            name == "ERROR" || name == "SUCCESS"
+                        } else {
+                            ty == Type::Int
+                        }
+                    } else {
+                        false
+                    };
+
+                    if !is_runtime_result && !types_compat(&ty, &ret_ty) {
+                        self.errors.push(SemaError::ReturnTypeMismatch {
+                            expected: type_name(&ret_ty),
+                            found:    type_name(&ty),
+                            span:     span.clone(),
+                        });
+                    }
                 }
             }
 
@@ -941,7 +981,14 @@ impl<'a> TypeChecker<'a> {
                 if is_class && !self.checked_classes.contains(class) {
                     if let Some(prog) = self.program {
                         if let Some(class_decl) = prog.classes.iter().find(|c| &c.name == class) {
+                            // Le typecheck d'une classe ne doit jamais hériter du contexte
+                            // "bloc runtime" du site d'appel (ex: `use Foo()` écrit dans un
+                            // `init { }`) : les méthodes de la classe (y compris une méthode
+                            // nommée `init`, le constructeur) ne sont pas elles-mêmes dans
+                            // ce bloc runtime.
+                            let saved_ctx = self.current_runtime_ctx.take();
                             self.check_class(class_decl);
+                            self.current_runtime_ctx = saved_ctx;
                         }
                     }
                 }

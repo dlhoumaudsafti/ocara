@@ -13,7 +13,7 @@ main {
     
     if value < threshold {
         IO::writeln("Erreur: la valeur est trop petite !")
-        return ERROR
+        result ERROR
     }
 }
 

@@ -23,6 +23,8 @@ pub enum SemaError {
     SelfOutsideClass  { span: Span },
     MixedInProperty   { class: String, field: String, span: Span },
     MixedInReturnType { name: String, span: Span },
+    ResultOutsideRuntimeBlock { span: Span },
+    ReturnInsideRuntimeBlock  { span: Span },
 }
 
 impl SemaError {
@@ -43,6 +45,8 @@ impl SemaError {
             SemaError::SelfOutsideClass   { span, .. } => span,
             SemaError::MixedInProperty    { span, .. } => span,
             SemaError::MixedInReturnType  { span, .. } => span,
+            SemaError::ResultOutsideRuntimeBlock { span } => span,
+            SemaError::ReturnInsideRuntimeBlock  { span } => span,
         }
     }
 
@@ -78,6 +82,10 @@ impl SemaError {
                 format!("type 'mixed' is forbidden for class fields: '{}.{}' must use a concrete type or 'map<string, mixed>'", class, field),
             SemaError::MixedInReturnType { name, .. } =>
                 format!("type 'mixed' is forbidden as return type: '{}' must return a concrete type or use unions (e.g., int|string|null)", name),
+            SemaError::ResultOutsideRuntimeBlock { .. } =>
+                "'result' can only be used inside a runtime block (init/main/error/success/exit)".into(),
+            SemaError::ReturnInsideRuntimeBlock { .. } =>
+                "'return' is not allowed inside a runtime block — use 'result' instead to set ERROR without exiting".into(),
         }
     }
 }

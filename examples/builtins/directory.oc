@@ -64,7 +64,7 @@ function demo_list(): void {
     IO::writeln("=== Listing de répertoire ===")
     
     var entries:string[] = Directory::list("/tmp/ocara_test")
-    IO::writeln(`Contenu de /tmp/ocara_test (${Array::length(entries)} entrées):`)
+    IO::writeln(`Contenu de /tmp/ocara_test (${Array::len(entries)} entrées):`)
     for entry in entries {
         IO::writeln(`  - ${entry}`)
     }
@@ -75,13 +75,13 @@ function demo_list_filtered(): void {
     IO::writeln("=== Listing filtré ===")
     
     var files:string[] = Directory::listFiles("/tmp/ocara_test")
-    IO::writeln(`Fichiers uniquement (${Array::length(files)}):`)
+    IO::writeln(`Fichiers uniquement (${Array::len(files)}):`)
     for file in files {
         IO::writeln(`  📄 ${file}`)
     }
     
     var dirs:string[] = Directory::listDirs("/tmp/ocara_test")
-    IO::writeln(`Répertoires uniquement (${Array::length(dirs)}):`)
+    IO::writeln(`Répertoires uniquement (${Array::len(dirs)}):`)
     for dir in dirs {
         IO::writeln(`  📁 ${dir}`)
     }
@@ -184,7 +184,7 @@ function demo_error_handling(): void {
     try {
         // Essayer de lister un répertoire inexistant
         var entries:string[] = Directory::list("/tmp/repertoire_inexistant")
-        IO::writeln(`Entrées: ${Array::length(entries)}`)
+        IO::writeln(`Entrées: ${Array::len(entries)}`)
     } on e {
         IO::writeln(`✓ Erreur capturée: ${e}`)
     }

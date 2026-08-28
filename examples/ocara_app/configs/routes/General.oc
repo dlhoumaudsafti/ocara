@@ -1,0 +1,10 @@
+namespace configs.routes
+
+import controllers.HomeController
+import configs.Server
+
+class General {
+    init(server:Server) {
+       server.route("/",        "GET", HomeController::handle)
+    }
+}

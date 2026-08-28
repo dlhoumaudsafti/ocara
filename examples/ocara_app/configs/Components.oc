@@ -1,0 +1,16 @@
+namespace configs
+
+import components.NavBar
+import components.Layout
+import components.Stats
+import components.Card
+
+class Components {
+
+    init() {
+        use NavBar()
+        use Layout()
+        use Stats()
+        use Card()
+    }
+}

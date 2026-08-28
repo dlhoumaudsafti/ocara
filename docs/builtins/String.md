@@ -99,7 +99,7 @@ String::replace("a-b-c", "-", ".")
 
 ---
 
-### `String::split(s, sep)` → `string[]`
+### `String::split(s, sep)` → `array<string>`
 
 Découpe `s` en un tableau de sous-chaînes, en utilisant `sep` comme séparateur.  
 Voir aussi [`String::explode`](#stringexplodes-sep--string) — fonctionnellement identique.
@@ -110,21 +110,21 @@ Voir aussi [`String::explode`](#stringexplodes-sep--string) — fonctionnellemen
 | `sep`     | `string` | Séparateur    |
 
 ```ocara
-scoped mots:string[] = String::split("alice,bob,charlie", ",")
+scoped mots:array<string> = String::split("alice,bob,charlie", ",")
 // → ["alice", "bob", "charlie"]
 
-scoped lignes:string[] = String::split("a\nb\nc", "\n")
+scoped lignes:array<string> = String::split("a\nb\nc", "\n")
 // → ["a", "b", "c"]
 ```
 
 ---
 
-### `String::explode(s, sep)` → `string[]`
+### `String::explode(s, sep)` → `array<string>`
 
 Alias de [`String::split`](#stringsplits-sep--string). Comportement identique.
 
 ```ocara
-scoped parts:string[] = String::explode("x|y|z", "|")
+scoped parts:array<string> = String::explode("x|y|z", "|")
 // → ["x", "y", "z"]
 ```
 
@@ -182,7 +182,7 @@ function main(): int {
     }
 
     // Découper et afficher
-    scoped tags:string[] = String::split("rust,ocara,cranelift", ",")
+    scoped tags:array<string> = String::split("rust,ocara,cranelift", ",")
     write(`Premier tag : ${String::upper(tags[0])}`)   // RUST
 
     // Extraire une donnée balisée

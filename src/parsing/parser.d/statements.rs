@@ -25,6 +25,7 @@ impl Parser {
             TokenKind::While               => self.parse_while(),
             TokenKind::For                 => self.parse_for(),
             TokenKind::Return              => self.parse_return(),
+            TokenKind::Result              => self.parse_result(),
             TokenKind::Break               => {
                 let span = self.span();
                 self.advance();
@@ -168,6 +169,22 @@ impl Parser {
         };
 
         Ok(Stmt::Return { value, span })
+    }
+
+    /// `result expr` — équivalent de `return` réservé aux blocs runtime
+    /// (voir Stmt::Result : fixe ERROR sans quitter le bloc).
+    fn parse_result(&mut self) -> ParseResult<Stmt> {
+        let span = self.span();
+        self.eat(&TokenKind::Result)?;
+
+        // `result` sans valeur si on tombe sur `}`
+        let value = if self.check_exact(&TokenKind::RBrace) {
+            None
+        } else {
+            Some(self.parse_expr()?)
+        };
+
+        Ok(Stmt::Result { value, span })
     }
 
     fn parse_try(&mut self) -> ParseResult<Stmt> {

@@ -125,10 +125,10 @@ if rep {
 
 ---
 
-### `IO::readArray(sep)` → `string[]`
+### `IO::readArray(sep)` → `array<string>`
 
 Lit une ligne depuis stdin et la découpe selon le séparateur `sep`.  
-Retourne un `string[]`.
+Retourne un `array<string>`.
 
 | Paramètre | Type     | Description    |
 |-----------|----------|----------------|
@@ -136,11 +136,11 @@ Retourne un `string[]`.
 
 ```ocara
 // Saisie : "rust,ocara,cranelift"
-scoped tags:string[] = IO::readArray(",")
+scoped tags:array<string> = IO::readArray(",")
 // → ["rust", "ocara", "cranelift"]
 
 // Saisie : "10 20 30"
-scoped nums:string[] = IO::readArray(" ")
+scoped nums:array<string> = IO::readArray(" ")
 // → ["10", "20", "30"]
 ```
 
@@ -188,7 +188,7 @@ function main(): int {
 
     // Lire plusieurs entiers sur une ligne
     IO::writeln("Entrez 3 notes séparées par des espaces :")
-    scoped parts:string[] = IO::readArray(" ")
+    scoped parts:array<string> = IO::readArray(" ")
     IO::writeln(`${Array::len(parts)} note(s) reçue(s)`)
 
     // Configuration inline
@@ -295,7 +295,7 @@ Exemple :
 | —                | `IO::readInt()`      | Conversion automatique en `int`       |
 | —                | `IO::readFloat()`    | Conversion automatique en `float`     |
 | —                | `IO::readBool()`     | Conversion automatique en `bool`      |
-| —                | `IO::readArray(sep)` | Découpe automatique en `string[]`     |
+| —                | `IO::readArray(sep)` | Découpe automatique en `array<string>` |
 | —                | `IO::readMap(s, kv)` | Parsing automatique en `map<s,s>`     |
 
 ---
@@ -308,11 +308,11 @@ Exemple :
 | `IO::writeln`       | `IO_writeln`       | `I64`               | —       |
 | `IO::read`          | `IO_read`          | —                   | `I64`   |
 | `IO::readln`        | `IO_readln`        | —                   | `I64`   |
-| `IO::read_int`      | `IO_readInt`      | —                   | `I64`   |
-| `IO::read_float`    | `IO_readFloat`    | —                   | `F64`   |
-| `IO::read_bool`     | `IO_readBool`     | —                   | `I64`   |
-| `IO::read_array`    | `IO_readArray`    | `I64`               | `I64`   |
-| `IO::read_map`      | `IO_readMap`      | `I64, I64`          | `I64`   |
+| `IO::readInt`       | `IO_readInt`      | —                   | `I64`   |
+| `IO::readFloat`     | `IO_readFloat`    | —                   | `F64`   |
+| `IO::readBool`      | `IO_readBool`     | —                   | `I64`   |
+| `IO::readArray`     | `IO_readArray`    | `I64`               | `I64`   |
+| `IO::readMap`       | `IO_readMap`      | `I64, I64`          | `I64`   |
 
 ---
 

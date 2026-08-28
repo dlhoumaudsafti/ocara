@@ -52,6 +52,19 @@ Serveur HTTP, composants HTML réutilisables avec slots, génération de pages d
 | Fedora / RHEL | `sudo dnf install gcc` |
 | macOS | `xcode-select --install` |
 
+### Dépendances GUI natives (builtin `Tauri`)
+
+Le builtin [Tauri](docs/builtins/Tauri.md) embarque une fenêtre WebView native (GTK/WebKit sur Linux). Ces bibliothèques système sont requises pour que `make build` compile `runtime/`, même sans utiliser Tauri dans votre script :
+
+| Plateforme | Installation |
+|---|---|
+| Debian / Ubuntu | `sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev libsoup2.4-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf` |
+| Fedora / RHEL | `sudo dnf install gtk3-devel webkit2gtk4.1-devel libsoup-devel libappindicator-gtk3-devel librsvg2-devel` |
+| macOS | Aucune — WebKit est fourni par le système (`xcode-select --install` suffit) |
+| Windows | [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) (préinstallé avec Edge sur Windows 10/11 récents) |
+
+> **Ubuntu ≥ 24.04 :** les paquets `libwebkit2gtk-4.0-dev` / `libjavascriptcoregtk-4.0-dev` n'existent plus dans les dépôts (remplacés par la 4.1, ABI compatible). Installez les paquets `4.1` ci-dessus — le `Makefile` génère automatiquement un alias pkg-config local (`.pkgconfig-shim/`, jamais dans `/usr/lib`) au moment de `make build`/`make build-dev`. Aucune action manuelle supplémentaire n'est nécessaire.
+
 ---
 
 ## Démarrage rapide

@@ -5,9 +5,9 @@ init {
 }
 
 main {
-    IO::writeln("Main block - return SUCCESS as int")
-    IO::writeln(`Before return: SUCCESS=${SUCCESS}`)
-    return SUCCESS
+    IO::writeln("Main block - result SUCCESS as int")
+    IO::writeln(`Before result: SUCCESS=${SUCCESS}`)
+    result SUCCESS
 }
 
 error {

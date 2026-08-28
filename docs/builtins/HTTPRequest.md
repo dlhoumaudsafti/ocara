@@ -199,17 +199,17 @@ IO::writeln(`X-RateLimit-Remaining : ${HTTPRequest::header(res, "X-RateLimit-Rem
 | Méthode Ocara | Symbole C runtime |
 |---|---|
 | `new` | `HTTPRequest_new` |
-| `set_method` | `HTTPRequest_setMethod` |
-| `set_header` | `HTTPRequest_setHeader` |
-| `set_body` | `HTTPRequest_setBody` |
-| `set_timeout` | `HTTPRequest_setTimeout` |
+| `setMethod` | `HTTPRequest_setMethod` |
+| `setHeader` | `HTTPRequest_setHeader` |
+| `setBody` | `HTTPRequest_setBody` |
+| `setTimeout` | `HTTPRequest_setTimeout` |
 | `send` | `HTTPRequest_send` |
 | `status` | `HTTPRequest_status` |
 | `body` | `HTTPRequest_body` |
 | `header` | `HTTPRequest_header` |
 | `headers` | `HTTPRequest_headers` |
 | `ok` | `HTTPRequest_ok` |
-| `is_error` | `HTTPRequest_isError` |
+| `isError` | `HTTPRequest_isError` |
 | `error` | `HTTPRequest_error` |
 | `get` | `HTTPRequest_get` |
 | `post` | `HTTPRequest_post` |

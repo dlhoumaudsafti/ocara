@@ -1,0 +1,10 @@
+namespace configs.routes
+
+import controllers.ErrorController
+import configs.Server
+
+class Error {
+    init(server:Server) {
+       server.routeError(404, ErrorController::handle404)
+    }
+}

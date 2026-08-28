@@ -17,7 +17,7 @@ init {
         }
     } on e is FileException {
         IO::writeln(`Error deleting existing database: ${e.message}`)
-        return e.code
+        result e.code
     }
 }
 
@@ -120,7 +120,7 @@ main {
         
     } on e is SQLiteException {
         IO::writeln(`✗ SQLite error (code ${e.code}): ${e.message}`)
-        return e.code
+        result e.code
     }
 }
 

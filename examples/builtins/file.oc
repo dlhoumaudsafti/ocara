@@ -38,7 +38,7 @@ function demo_append(): void {
     // Relire
     var content:string = File::read("/tmp/ocara_demo.txt")
     var lines:string[] = String::split(content, "\n")
-    IO::writeln(`Nombre de lignes: ${Array::length(lines)}`)
+    IO::writeln(`Nombre de lignes: ${Array::len(lines)}`)
     IO::writeln("")
 }
 

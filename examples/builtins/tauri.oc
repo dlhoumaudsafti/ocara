@@ -1,0 +1,60 @@
+// examples/builtins/tauri.oc
+// Démonstration de ocara.Tauri
+//
+// Le builtin Tauri est encore expérimental : il expose le contrat attendu
+// pour une app desktop native, mais le runtime peut rester un stub selon la
+// configuration utilisée.
+//
+// Test rapide :
+//   ./target/release/ocara examples/builtins/tauri.oc --check
+
+import ocara.IO
+import ocara.Tauri
+
+function main(): int {
+
+    var ui:Tauri = use Tauri({
+        "title": "Ocara Desktop Demo",
+        "width": 1000,
+        "height": 700,
+        "url": "index.html"
+    })
+
+    ui.listen("fromJS", nameless(data:string): void {
+        IO::writeln(`Message JS reçu : ${data}`)
+    })
+
+    IO::writeln(`Titre initial : ${ui.getTitle()}`)
+    IO::writeln(`Fenêtre ouverte : ${ui.isOpen()}`)
+
+    ui.setTitle("Ocara — fenêtre mise à jour")
+    ui.setWidth(1200)
+    ui.setHeight(760)
+
+    IO::writeln(`Nouveau titre : ${ui.getTitle()}`)
+    IO::writeln(`Dimensions : ${ui.getWidth()}x${ui.getHeight()}`)
+
+    ui.emit("backendReady", {
+        "status": "ready",
+        "version": "0.1.0"
+    })
+
+    ui.notify({
+        "title": "Ocara Tauri",
+        "body": "Application démarrée avec succès."
+    })
+
+    var answer:string = ui.dialog({
+        "type": "info",
+        "title": "Bienvenue",
+        "message": "L'application Tauri est prête."
+    })
+    IO::writeln(`Réponse dialogue : ${answer}`)
+
+    ui.focus()
+    ui.maximize()
+    ui.restore()
+
+    IO::writeln("Démonstration Tauri terminée.")
+    return 0
+}

@@ -26,6 +26,8 @@ pub mod time;
 pub mod file;
 pub mod directory;
 pub mod json;
+pub mod yaml;
+pub mod dotenv;
 pub mod httprequest;
 pub mod httpserver;
 pub mod htmlcomponent;
@@ -34,8 +36,7 @@ pub mod exception;
 pub mod unittest;
 pub mod sqlite;
 pub mod mysql;
-pub mod dotenv;
-pub mod yaml;
+pub mod tauri;
 
 use crate::sema::symbols::ClassInfo;
 
@@ -58,6 +59,7 @@ pub fn builtin_class(name: &str) -> Option<ClassInfo> {
         "File"        => Some(file::class()),
         "Directory"   => Some(directory::class()),
         "JSON"        => Some(json::class()),
+        "Tauri"       => Some(tauri::tauri_class()),
         "HTTPRequest" => Some(httprequest::class()),
         "HTTPServer" => Some(httpserver::class()),
         "HTML"        => Some(html::class()),
@@ -115,6 +117,7 @@ pub fn all_builtins() -> Vec<(&'static str, ClassInfo)> {
         ("JSON",        json::class()),
         ("HTTPRequest", httprequest::class()),
         ("HTTPServer", httpserver::class()),
+        ("Tauri", tauri::tauri_class()),
         ("HTML",        html::class()),
         ("HTMLComponent", htmlcomponent::class()),
         ("Exception",   exception::exception_class()),

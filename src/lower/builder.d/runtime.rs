@@ -6,8 +6,8 @@ use crate::ir::module::IrModule;
 use crate::ir::types::IrType;
 
 /// Transforme les statements dans les blocs runtime (récursivement dans les if/while/etc.)
-/// Les returns sont conservés tels quels et seront transformés lors du lowering
-/// (voir statements.rs : return → Store(ERROR) + Jump(runtime_exit_bb))
+/// Les `result` sont conservés tels quels et seront transformés lors du lowering
+/// (voir statements.rs : result → Store(ERROR) + Jump(runtime_exit_bb))
 fn transform_runtime_block_returns(stmts: Vec<Stmt>) -> Vec<Stmt> {
     stmts.into_iter().flat_map(|stmt| {
         transform_runtime_stmt_return(stmt)
@@ -16,12 +16,12 @@ fn transform_runtime_block_returns(stmts: Vec<Stmt>) -> Vec<Stmt> {
 
 fn transform_runtime_stmt_return(stmt: Stmt) -> Vec<Stmt> {
     match stmt {
-        Stmt::Return { value, span } => {
-            // Les returns dans les blocs runtime sont maintenant gérés directement
-            // par le lowering (voir statements.rs), qui transforme return en
+        Stmt::Result { value, span } => {
+            // Les `result` dans les blocs runtime sont maintenant gérés directement
+            // par le lowering (voir statements.rs), qui transforme result en
             // Store(ERROR) + Jump(runtime_exit_bb).
-            // On garde le return tel quel dans l'AST.
-            vec![Stmt::Return { value, span }]
+            // On garde le statement tel quel dans l'AST.
+            vec![Stmt::Result { value, span }]
         }
         
         // Transformer récursivement dans les blocs imbriqués

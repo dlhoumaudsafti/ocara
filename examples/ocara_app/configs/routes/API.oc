@@ -1,0 +1,11 @@
+namespace configs.routes
+
+import controllers.APIController
+import configs.Server
+
+class API {
+    init(server:Server) {
+        server.route("/version",      "GET", APIController::handle)
+        server.route("/users",        "GET", APIController::users)
+    }
+}

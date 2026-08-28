@@ -24,6 +24,9 @@ target
 out
 out.o
 
+# Shim pkg-config généré par le Makefile (Tauri sur Ubuntu 24.04+)
+.pkgconfig-shim/
+
 # CI artifacts
 ci/dumps/
 ci/ci-report.txt
