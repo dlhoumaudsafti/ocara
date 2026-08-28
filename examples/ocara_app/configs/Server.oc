@@ -1,0 +1,46 @@
+// examples/ocara_site/configs/Server.oc
+// Configuration du serveur HTTP du mini site.
+//
+// Server extends HTTPServer : fixe le port (8080), le nombre de workers,
+// le dossier racine des fichiers statiques (./public/), puis délègue
+// l'enregistrement des routes aux classes de routes/ (General, Error,
+// Infos, API).
+namespace configs
+
+import ocara.HTTPServer
+import controllers.AboutController
+import controllers.ContactController
+import routes.General
+import routes.Error
+import routes.Infos
+import routes.API
+
+import ocara.IO
+
+class Server extends HTTPServer {
+
+    init() {
+        IO::writeln("Configuration du serveur...")
+        parent::init()
+        self.port(8080)
+        self.workers(4)
+        self.rootPath("./public/")
+    }
+
+    public method routes(): void {
+        IO::writeln("Configuration des routes...")
+        use General(self)
+        use Error(self)
+        use Infos(self)
+        use API(self)
+    }
+
+    public method start(): HTTPServerException|void {
+        try {
+            IO::writeln("Demarrage du serveur...")
+            self.run()
+        } on e is HTTPServerException {
+            raise e
+        }
+    }
+}

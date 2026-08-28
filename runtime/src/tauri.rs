@@ -318,3 +318,145 @@ pub extern "C" fn Tauri_isMaximized(this: i64) -> i64 {
         0
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1 : vraie fenêtre native (pont vers le crate `tauri`)
+//
+// Tout ce qui précède dans ce fichier est une simulation en mémoire (aucune
+// fenêtre réelle). `Tauri_run` est le premier pont vers le vrai crate `tauri` :
+// il construit un `tauri::Context` dynamiquement (pas de tauri.conf.json ni de
+// macro `generate_context!()` — voir `tauri::Context::new`, un constructeur
+// public) à partir de l'état actuellement stocké dans TAURI_WINDOWS, puis
+// lance une vraie fenêtre GTK/WebKit.
+//
+// Portée de cette phase : une seule fenêtre déclarée statiquement via
+// `config.tauri.windows`, pas encore de pont IPC listen/emit réel (toujours
+// simulé), pas de dialog/notify réels. `run()` BLOQUE le thread appelant
+// jusqu'à la fermeture de la fenêtre — c'est une contrainte du crate `tauri`,
+// pas un choix : tout enregistrement (listen, etc.) doit se faire avant.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Implémentation de `tauri::Assets<R>` qui lit les fichiers du frontend
+/// directement sur le disque (au lieu de les embarquer à la compilation du
+/// runtime, ce qui serait figé pour tous les programmes Ocara).
+/// Base = répertoire courant du processus au moment de `use Tauri(...)`.
+struct DiskAssets {
+    base_dir: std::path::PathBuf,
+}
+
+impl<R: tauri::Runtime> tauri::Assets<R> for DiskAssets {
+    fn get(&self, key: &tauri::utils::assets::AssetKey) -> Option<std::borrow::Cow<'_, [u8]>> {
+        let rel = key.as_ref().trim_start_matches('/');
+        let rel = if rel.is_empty() { "index.html" } else { rel };
+        std::fs::read(self.base_dir.join(rel))
+            .ok()
+            .map(std::borrow::Cow::Owned)
+    }
+
+    fn iter(&self) -> Box<tauri::utils::assets::AssetsIter<'_>> {
+        // Pas d'introspection nécessaire (pas de bundling) : liste vide.
+        Box::new(std::iter::empty())
+    }
+
+    fn csp_hashes(
+        &self,
+        _html_path: &tauri::utils::assets::AssetKey,
+    ) -> Box<dyn Iterator<Item = tauri::utils::assets::CspHash<'_>> + '_> {
+        Box::new(std::iter::empty())
+    }
+}
+
+/// Lance réellement la fenêtre Tauri configurée par `use Tauri(...)` et les
+/// appels effectués avant `run()`. Bloque jusqu'à la fermeture de la fenêtre.
+/// Retire les variables GTK que des applications GTK tierces (typiquement VS Code,
+/// distribué en snap) injectent dans l'environnement hérité par ce process. GTK les
+/// lit au premier `gtk_init` et tente de charger LEURS modules (ex: un plugin son
+/// dans le sandbox snap de VS Code), dont les bibliothèques embarquées (libpthread
+/// notamment) sont incompatibles avec la glibc du système : ça plante immédiatement
+/// avec `undefined symbol: __libc_pthread_init` avant même qu'une fenêtre existe.
+/// Sans rapport avec Ocara ou Tauri eux-mêmes — un artefact d'environnement de
+/// terminal qu'on neutralise ici pour ne pas demander à chaque utilisateur de le
+/// faire manuellement à chaque lancement.
+fn clear_inherited_gtk_env() {
+    for var in [
+        "GTK_PATH",
+        "GTK_EXE_PREFIX",
+        "GDK_PIXBUF_MODULE_FILE",
+        "GDK_PIXBUF_MODULEDIR",
+        "GIO_MODULE_DIR",
+        "GTK_IM_MODULE_FILE",
+    ] {
+        unsafe { std::env::remove_var(var); }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn Tauri_run(this: i64) {
+    clear_inherited_gtk_env();
+    let (title, width, height, url) = {
+        let map = TAURI_WINDOWS.lock().unwrap();
+        match map.get(&this) {
+            Some(win) => {
+                let w = win.lock().unwrap();
+                (w.title.clone(), w.width, w.height, w.url.clone())
+            }
+            None => {
+                eprintln!("[Tauri_run] fenêtre introuvable pour ce handle, abandon.");
+                return;
+            }
+        }
+    };
+
+    let mut window_config = tauri::utils::config::WindowConfig::default();
+    window_config.title = title;
+    window_config.width = width as f64;
+    window_config.height = height as f64;
+    // "url" pointe soit vers un fichier local servi par DiskAssets (ex: "index.html"),
+    // soit vers un serveur déjà en cours d'exécution (ex: "http://localhost:8080") —
+    // dans ce second cas c'est une vraie URL externe, pas un asset embarqué.
+    window_config.url = match url::Url::parse(&url) {
+        Ok(u) if u.scheme() == "http" || u.scheme() == "https" => {
+            tauri::WebviewUrl::External(u)
+        }
+        _ => tauri::WebviewUrl::App(url.into()),
+    };
+
+    let mut config = tauri::utils::config::Config::default();
+    config.identifier = "app.ocara.demo".to_string();
+    config.app.windows = vec![window_config];
+
+    let assets: Box<dyn tauri::Assets<tauri::Wry>> = Box::new(DiskAssets {
+        base_dir: std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+    });
+
+    let package_info = tauri::PackageInfo {
+        name: "Ocara App".to_string(),
+        version: semver::Version::new(0, 1, 0),
+        authors: "",
+        description: "",
+        crate_name: "ocara_app",
+    };
+
+    // Aucune commande IPC enregistrée pour l'instant (Phase 1 : juste la fenêtre) →
+    // ACL résolue vide, ce qui suffit puisqu'on n'invoque encore aucune commande.
+    let resolved_acl = tauri::utils::acl::resolved::Resolved::default();
+    #[cfg(debug_assertions)]
+    let authority = tauri::ipc::RuntimeAuthority::new(std::collections::BTreeMap::new(), resolved_acl);
+    #[cfg(not(debug_assertions))]
+    let authority = tauri::ipc::RuntimeAuthority::new(resolved_acl);
+
+    let context = tauri::Context::new(
+        config,
+        assets,
+        None, // default_window_icon
+        None, // app_icon
+        package_info,
+        tauri::Pattern::Brownfield,
+        authority,
+        None, // plugin_global_api_scripts
+    );
+
+    if let Err(e) = tauri::Builder::<tauri::Wry>::new().run(context) {
+        eprintln!("[Tauri_run] erreur au lancement : {e}");
+    }
+}

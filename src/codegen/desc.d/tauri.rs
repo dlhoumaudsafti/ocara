@@ -148,4 +148,11 @@ pub const TAURI_BUILTINS: &[BuiltinDesc] = &[
 		returns: Some(clt::I64),
 		module:  Some("Tauri"),
 	},
+// Phase 1 : lance réellement la fenêtre (bloque jusqu'à sa fermeture)
+	BuiltinDesc {
+		name:    "Tauri_run",
+		params:  &[clt::I64],
+		returns: None,
+		module:  Some("Tauri"),
+	},
 ];

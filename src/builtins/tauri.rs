@@ -94,6 +94,11 @@ pub fn tauri_class() -> ClassInfo {
     methods.insert("isMinimized".to_string(), inst_m(vec![], Type::Bool));
     methods.insert("isMaximized".to_string(), inst_m(vec![], Type::Bool));
 
+    // run — lance réellement la fenêtre native (bloque jusqu'à sa fermeture).
+    // Doit être appelée en dernier : tout enregistrement (listen, etc.) doit
+    // se faire avant, le crate tauri prend possession du thread appelant.
+    methods.insert("run".to_string(), inst_m(vec![], Type::Void));
+
     ClassInfo {
         extends:      None,
         implements:   vec![],

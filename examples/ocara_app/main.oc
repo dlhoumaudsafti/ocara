@@ -1,0 +1,68 @@
+// examples/ocara_app/main.oc
+// Point d'entrée de l'app desktop : le serveur HTTP du site tourne en arrière-plan
+// (sur un thread dédié) et la fenêtre Tauri affiche directement son URL —
+// donc une vraie page servie par Ocara, pas un fichier HTML statique local.
+//
+// Architecture :
+//   components.oc                    — définition des composants HTMLComponent
+//   controllers/HomeController.oc    — page d'accueil (async/resolve + render)
+//   controllers/AboutController.oc   — page à propos (renderCached)
+//   controllers/ContactController.oc — page contact (renderCached)
+//
+// Lancer :
+//   ./target/release/ocara examples/ocara_app/main.oc -o /tmp/ocara_app
+//   /tmp/ocara_app
+namespace .
+
+import ocara.IO
+import ocara.Thread
+import ocara.Tauri
+import configs.Components
+import configs.Server
+
+
+init {
+    IO::writeln("Initialisation de l'app...")
+    use Components()
+    const server:Server = use Server()
+    server.routes()
+}
+
+main {
+    // Le serveur tourne sur son propre thread : Tauri::run() doit rester sur
+    // le thread principal (contrainte du crate tauri), donc le serveur ne peut
+    // pas être lancé ici en bloquant comme dans ocara_site/main.oc.
+    //
+    // Pas de try/on ici autour de server.start() (contournement volontaire) :
+    // un try/on à l'intérieur d'un nameless qui capture une variable externe
+    // (server) déclenche un bug distinct du compilateur, plus profond (mécanisme
+    // setjmp/longjmp), toujours en cours d'investigation. Server::start() a déjà
+    // son propre try/on interne (voir configs/Server.oc) qui capture les erreurs
+    // de démarrage HTTPServerException.
+    const serverThread:Thread = use Thread()
+    serverThread.run(nameless(): void {
+        server.start()
+    })
+
+    // Laisser le serveur le temps de démarrer avant que la fenêtre charge son URL.
+    Thread::sleep(200)
+
+    IO::writeln("Ouverture de la fenêtre vers http://localhost:8080 ...")
+    var ui:Tauri = use Tauri({
+        "title": "Ocara App",
+        "width": 1000,
+        "height": 700,
+        "url": "http://localhost:8080"
+    })
+    ui.run()
+
+    IO::writeln("Fenêtre fermée.")
+}
+
+error {
+    IO::writeln(`Error block executed with ERROR=${ERROR} SUCCESS=${SUCCESS}`)
+}
+
+success {
+    IO::writeln(`Success block executed with ERROR=${ERROR} SUCCESS=${SUCCESS}`)
+}

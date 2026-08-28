@@ -1,0 +1,35 @@
+// examples/ocara_site/controllers/APIController.oc
+// Contrôleur de l'API JSON du site (voir configs/routes/API.oc).
+//
+// Expose GET /version (nom, version et statut de l'API) et GET /users
+// (liste d'utilisateurs) — réponses JSON pures, sans rendu HTML ni cache.
+
+import ocara.HTTPServer
+import ocara.JSON
+
+class APIController {
+
+    public static method handle(req:int): int {
+        HTTPServer::respondHeader(req, "Content-Type", "application/json; charset=utf-8")
+        HTTPServer::respond(req, 200, 
+            JSON::encode({
+                "name": "Ocara Site API",
+                "version": "0.1.0",
+                "status": "ok"
+            })
+        )
+        return 0
+    }
+
+    public static method users(req:int): int {
+        HTTPServer::respondHeader(req, "Content-Type", "application/json; charset=utf-8")
+        HTTPServer::respond(req, 200, 
+            JSON::encode([
+                {"id": 1, "name": "Alice"},
+                {"id": 2, "name": "Bob"},
+                {"id": 3, "name": "Charlie"}
+            ])
+        )
+        return 0
+    }
+}

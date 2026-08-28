@@ -1233,9 +1233,17 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 .map(|t| IrType::from_ast(t))
                 .unwrap_or(IrType::Ptr);
 
-            // Analyser les captures
+            // Analyser les captures. Fusionner locals + captured_vars : une closure
+            // imbriquée dans une autre closure référence des variables que la closure
+            // englobante a déjà capturées (vivent dans captured_vars, pas locals) —
+            // sans ça collect_captures les ignore silencieusement (même bug que dans
+            // lower_try pour try/on imbriqué dans un nameless, voir exceptions.rs).
             let param_names: HashSet<String> = params.iter().map(|p| p.name.clone()).collect();
-            let captures = collect_captures(body, &param_names, &builder.locals);
+            let mut capture_scope: std::collections::HashMap<String, (Value, IrType, bool)> = builder.locals.clone();
+            for (name, (_env_val, _idx, ty)) in builder.captured_vars.iter() {
+                capture_scope.entry(name.clone()).or_insert_with(|| (Value(0), ty.clone(), false));
+            }
+            let captures = collect_captures(body, &param_names, &capture_scope);
             
             // Collecter les valeurs par défaut des paramètres
             let has_defaults = params.iter().any(|p| p.default_value.is_some());

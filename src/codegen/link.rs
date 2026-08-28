@@ -28,6 +28,29 @@ fn extract_runtime() -> Result<PathBuf, LinkerError> {
     Ok(path)
 }
 
+/// Résout les flags `--libs` de pkg-config pour un paquet, avec repli automatique
+/// `<nom>-4.0` → `<nom>-4.1` (Ubuntu ≥ 24.04 n'a plus les `.pc` en 4.0 — voir le
+/// même repli côté Makefile pour la compilation du runtime lui-même). Contrairement
+/// au Makefile, ce repli doit être autonome ici : ce code tourne à l'intérieur du
+/// binaire `ocara` déjà compilé, longtemps après que le PKG_CONFIG_PATH du build
+/// (`.pkgconfig-shim/`) ait cessé d'exister.
+fn pkg_config_libs(package: &str) -> Vec<String> {
+    let try_pkg = |pkg: &str| -> Option<Vec<String>> {
+        let out = Command::new("pkg-config").arg("--libs").arg(pkg).output().ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        let s = String::from_utf8_lossy(&out.stdout);
+        Some(s.split_whitespace().map(|f| f.to_string()).collect())
+    };
+
+    try_pkg(package)
+        .or_else(|| {
+            package.strip_suffix("-4.0").and_then(|base| try_pkg(&format!("{base}-4.1")))
+        })
+        .unwrap_or_default()
+}
+
 /// Écrit les bytes objet dans `obj_path` puis lance le linker système.
 pub fn link(
     obj_bytes: &[u8],
@@ -55,6 +78,16 @@ pub fn link(
         .arg("-lz")
         .arg("-no-pie")
         .arg("-Wl,--allow-multiple-definition");
+
+    // GTK/WebKit (builtin Tauri, v2 — libsoup3 uniquement, plus de binding soup2) :
+    // libocara_runtime.a embarque toujours ce code (le runtime est compilé une fois
+    // pour tous les programmes), donc même un programme qui n'utilise pas Tauri a
+    // besoin de ces symboles résolus au lien.
+    for pkg in ["gtk+-3.0", "webkit2gtk-4.0", "javascriptcoregtk-4.0"] {
+        for flag in pkg_config_libs(pkg) {
+            cmd.arg(flag);
+        }
+    }
 
     // --release : demande au linker de supprimer les symboles (strip intégré)
     if release {

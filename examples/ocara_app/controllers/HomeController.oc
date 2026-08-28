@@ -1,0 +1,54 @@
+// examples/ocara_site/controllers/HomeController.oc
+// Contrôleur de la page d'accueil.
+//
+// Charge deux statistiques en parallèle via async/resolve,
+// puis rend la page dynamiquement (pas de cache — les stats changent).
+
+import ocara.HTMLComponent
+import ocara.HTML
+import ocara.HTTPServer
+import ocara.Convert
+import ocara.Thread
+import ocara.IO
+
+class HomeController {
+
+    public static async method fetch_user_count(): int {
+        Thread::sleep(3000)   // simule 10 ms de latence
+        return 1247
+    }
+
+    public static async method fetch_article_count(): int {
+        Thread::sleep(5000)   // simule 15 ms de latence
+        return 83
+    }
+
+    public static method handle(req:int): int {
+        // Lancer les deux chargements en parallèle
+        var t_users:int    = self::fetch_user_count()
+        var t_articles:int = self::fetch_article_count()
+
+        // Attendre les résultats (resolve bloque jusqu'à la fin de chaque tâche)
+        var users:int    = resolve t_users
+        var articles:int = resolve t_articles
+
+        scoped stats:string = Convert::intToStr(users) + " utilisateurs · " +
+                              Convert::intToStr(articles) + " articles"
+
+        scoped html:string = HTML::render(`<layout title="Accueil" active="home">
+  <card title="Bienvenue sur Ocara">
+    <p>Ocara est un langage compile natif, statiquement type, oriente objet.</p>
+    <p>Cranelift codegen, zero GC, typage strict.</p>
+    <stats value="${stats}">
+  </card>
+  <card title="Demarrage rapide">
+    <p>1. Installer Rust et Cargo</p>
+    <p>2. <code>make build</code></p>
+    <p>3. <code>./target/release/ocara mon_fichier.oc -o mon_binaire</code></p>
+  </card>
+</layout>`)
+
+        HTTPServer::respond(req, 200, html)
+        return 0
+    }
+}

@@ -325,6 +325,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     fn_ret_types.insert("Tauri_hasFocus".to_string(), IrType::Bool);
     fn_ret_types.insert("Tauri_isMinimized".to_string(), IrType::Bool);
     fn_ret_types.insert("Tauri_isMaximized".to_string(), IrType::Bool);
+    fn_ret_types.insert("Tauri_run".to_string(), IrType::Void);
 
     // Propage les types de retour des méthodes héritées (non surchargées) dans fn_ret_types
     for class in &program.classes {

@@ -64,15 +64,26 @@ pub fn lower_raise(builder: &mut LowerBuilder, value: &Expr) {
 pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]) {
     use crate::lower::expr::captures::collect_captures;
     use crate::ir::inst::Value;
-    use std::collections::HashSet;
+    use std::collections::{HashSet, HashMap};
     
     // ID unique fondé sur le nombre de fonctions déjà dans le module
     let try_id = builder.module.functions.len();
     let body_fn_name    = format!("__try_body_{}", try_id);
     let handler_fn_name = format!("__try_handler_{}", try_id);
 
-    // Collecter les captures du body (variables du scope parent référencées)
-    let captures = collect_captures(body, &HashSet::new(), &builder.locals);
+    // Collecter les captures du body (variables du scope parent référencées).
+    // Un `try` peut être imbriqué dans une closure (nameless) : les variables que
+    // CETTE closure a elle-même capturées ne vivent pas dans `builder.locals` mais
+    // dans `builder.captured_vars` (accès via GetField sur son env, pas une alloca
+    // stack) — il faut fusionner les deux vues pour que collect_captures les voie,
+    // sinon une variable comme `server` référencée dans `server.run()` à l'intérieur
+    // du try est silencieusement ignorée, et le corps du try l'utilise avec un
+    // pointeur NULL (crash direct, ex: self_ptr NULL dans HTTPServer_run).
+    let mut capture_scope: HashMap<String, (Value, IrType, bool)> = builder.locals.clone();
+    for (name, (_env_val, _idx, ty)) in builder.captured_vars.iter() {
+        capture_scope.entry(name.clone()).or_insert_with(|| (Value(0), ty.clone(), false));
+    }
+    let captures = collect_captures(body, &HashSet::new(), &capture_scope);
 
     // ── 1. Corps try ─────────────────────────────────────────────────────────
     // Le body a un type de retour Void : il ne retourne jamais normalement,
@@ -329,13 +340,26 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
         
         // Stocker chaque capture dans le tableau
         for (idx, (name, _ty)) in captures.iter().enumerate() {
-            // Charger la valeur depuis locals
+            // Charger la valeur : d'abord depuis locals (variable stack normale),
+            // sinon depuis captured_vars (variable capturée par une closure englobante,
+            // vit dans son struct env sur le tas — voir Expr::Nameless dans lower.rs
+            // pour le même schéma de repli locals → captured_vars).
             let val = if let Some((slot, slot_ty, _)) = builder.locals.get(name).cloned() {
                 let v = builder.new_value();
                 builder.emit(Inst::Load { dest: v.clone(), ptr: slot, ty: slot_ty });
                 v
+            } else if let Some((env_val, cap_idx, cap_ty)) = builder.captured_vars.get(name).cloned() {
+                let v = builder.new_value();
+                builder.emit(Inst::GetField {
+                    dest:   v.clone(),
+                    obj:    env_val,
+                    field:  format!("__cap_{}", cap_idx),
+                    ty:     cap_ty,
+                    offset: (cap_idx * 8) as i32,
+                });
+                v
             } else {
-                // Capture non trouvée dans locals - ne devrait pas arriver
+                // Capture non trouvée dans locals ni captured_vars - ne devrait pas arriver
                 let v = builder.new_value();
                 builder.emit(Inst::ConstInt { dest: v.clone(), value: 0 });
                 v
