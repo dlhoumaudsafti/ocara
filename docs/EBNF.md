@@ -309,27 +309,25 @@ Deux variables sont automatiquement injectées si les blocs correspondants exist
 
 Ces variables sont **en lecture/écriture** et définissent le code de sortie du programme.
 
-### 5.5 Syntaxe `return` dans les blocs runtime
+### 5.5 Syntaxe `result` dans les blocs runtime
 
-Dans un bloc runtime, `return` a un comportement spécial :
+`return` est réservé aux fonctions et méthodes classiques (où il termine réellement leur exécution). À l'intérieur d'un bloc runtime, c'est **`result`** qui fixe `ERROR` — utiliser `return` dans un bloc runtime est une **erreur de compilation** (`'return' is not allowed inside a runtime block — use 'result' instead`).
 
 ```ocara
-return ERROR    // Équivalent à : ERROR = 1
-return 5        // Équivalent à : ERROR = 5
-return 42       // Équivalent à : ERROR = 42
+result ERROR    // Équivalent à : ERROR = 1
+result 5        // Équivalent à : ERROR = 5
+result 42       // Équivalent à : ERROR = 42
 ```
 
-**Important** : contrairement aux fonctions, `return` dans un bloc runtime **ne termine pas l'exécution**. Il assigne seulement une valeur à `ERROR`. Pour éviter l'exécution de code après un `return`, utilisez des structures conditionnelles :
+**Comportement** : `result` fixe `ERROR` puis **quitte immédiatement le reste du bloc courant** (`init`/`main`) pour passer directement à la résolution `error`/`success`, exactement comme une clause de garde (`if error { result ... }` suivi de code qui ne s'exécute pas si la condition est vraie). Contrairement à un `return` dans une fonction, il **ne termine pas le programme** : les blocs `error`/`success` puis `exit` s'exécutent toujours normalement après.
 
 ```ocara
 main {
     if condition {
-        return 1
-    } elseif other {
-        return 2
-    } else {
-        // Code normal
+        result 1
+        // ← ce qui suit ici, dans le même bloc `if`, ne s'exécute jamais
     }
+    IO::writeln("Cette ligne ne s'exécute que si `condition` est fausse")
 }
 ```
 
@@ -399,7 +397,7 @@ main {
     counter = counter + 1
     
     if counter < 0 {
-        return ERROR  // ERROR = 1
+        result ERROR  // ERROR = 1
     }
 }
 
@@ -471,13 +469,15 @@ fn main() -> int {
 }
 ```
 
+> **Note :** cette version simplifiée illustre l'assignation `ERROR = ...` faite par `result`, mais pas le saut qui l'accompagne : dans le vrai désucrage, un `result` à l'intérieur d'un `if`/`while`/etc. saute directement à la section `error`/`success` ci-dessous, sans repasser par le code qui suit dans `init`/`main` (voir §5.5).
+
 Le compilateur détecte automatiquement le bloc runtime correspondant à chaque ligne et l'ajoute dans le message d'erreur pour faciliter le débogage.
 
 ---
 
 ## 6. Types
 
-### 5.1 Types primitifs
+### 6.1 Types primitifs
 
 | Mot-clé  | Description                        |
 |----------|------------------------------------|
@@ -722,7 +722,7 @@ Ces restrictions guident vers un typage fort tout en préservant la flexibilité
 
 > **Recommandation** : privilégier systématiquement les **types union** (`T1|T2|null`) plutôt que `mixed` lorsque les types possibles sont connus à l'avance.
 
-### 4.2 Types composites
+### 6.2 Types composites
 
 ```ebnf
 Type ::= "int"
@@ -762,7 +762,7 @@ Cache<string, User>    // générique avec plusieurs types
 Result<int, string>    // générique Result
 ```
 
-### 4.3 Types union
+### 6.3 Types union
 
 Un type union exprime qu'une valeur peut être de **l'un ou l'autre** des types listés, séparés par `|`.
 
@@ -870,7 +870,7 @@ Toutes les allocations heap (string, array, map, objet, fat-pointer) sont préc�
 - `is bool` peut être confondu avec les `int` 0 et 1.
 - `is ClassName` vérifie seulement que la valeur est une instance d'**un** objet (tag `TAG_OBJECT`), sans distinguer les classes entre elles. Pour un narrowing fin par classe, utiliser les patterns dans `on … is ClassName` dans les blocs `try/on`.
 
-### 4.4 Annotation de type
+### 6.4 Annotation de type
 
 Les variables et paramètres sont obligatoirement annotés :
 
@@ -880,7 +880,7 @@ scoped name:string = "Alice"
 function greet(name:string): void { }
 ```
 
-### 4.5 Type `Function`
+### 6.5 Type `Function`
 
 Le type `Function<ReturnType(ParamTypes)>` représente toute valeur appelable : **fonction libre**, **méthode statique** ou **fonction anonyme** (`nameless`). Les valeurs `Function` sont des *fat pointers* (pointeur de fonction + contexte de capture).
 
@@ -941,9 +941,9 @@ function compute(a:int, b:int, op:Function<int(int, int)>): int {
 
 ---
 
-## 6. Littéraux et collections
+## 7. Littéraux et collections
 
-### 5.1 Littéraux scalaires
+### 7.1 Littéraux scalaires
 
 ```ebnf
 Literal  ::= Integer
@@ -990,7 +990,7 @@ Digit     ::= [0-9]
 
 ---
 
-### 5.1.1 Chaînes template (backticks)
+### 7.1.1 Chaînes template (backticks)
 
 ```ebnf
 TemplateString ::= "`" TemplatePart* "`"
@@ -1023,7 +1023,7 @@ Ville: ${ville}
 
 > Les séquences d'échappement `\n`, `\t`, etc. sont également valides dans les backticks.
 
-### 5.2 Tableaux
+### 7.2 Tableaux
 
 ```ebnf
 ArrayLiteral ::= "[" ( Expression ( "," Expression )* ","? )? "]"
@@ -1049,7 +1049,7 @@ var vals:mixed[] = [1, "hello", true]
 - Les tableaux multidimensionnels s'écrivent `T[][]`.
 - Un tableau `mixed[]` accepte n'importe quel type d'élément.
 
-### 5.3 Tableaux associatifs (map)
+### 7.3 Tableaux associatifs (map)
 
 ```ebnf
 MapLiteral ::= "{" MapEntry ( "," MapEntry )* ","? "}"
@@ -1078,7 +1078,7 @@ var config:map<string, string> = {
 - Les clés peuvent être de n'importe quel type.
 - Un tableau vide s'écrit `[]` et est distinct d'un map vide `{}`.
 
-### 5.4 Accès par index
+### 7.4 Accès par index
 
 ```ebnf
 IndexAccess ::= Expression "[" Expression "]"
@@ -1095,7 +1095,7 @@ L'accès par index est un opérateur postfixe (précédence maximale).
 
 ---
 
-## 7. Identifiants
+## 8. Identifiants
 
 ```ebnf
 Identifier ::= Letter ( Letter | Digit | "_" )*
@@ -1113,16 +1113,17 @@ Digit  ::= [0-9]
 **Mots-clés réservés :**
 
 ```
-import    as        var        scoped     property   const    function  method
-class     interface extends    implements init       static
+import    from      namespace  as         var        scoped   property  const
+function  method    class      generic    interface  extends  implements
+module    modules   init       static
 public    private   protected
 if        elseif    else       switch     default    match
-while     for       in         return     use        break    continue  self
+while     for       in         return     result     use      break     continue  self  parent
 try       on        is         raise
-int       float     string     bool       mixed      map      void
+int       float     string     bool       mixed      array    map       void
 true      false     null
-or        and       not
-nameless  async     resolve    enum
+or        and       not        equal
+nameless  async     resolve    variadic   enum
 runtime   main      error      success    exit
 ```
 
@@ -1144,9 +1145,9 @@ Function
 
 ---
 
-## 8. Variables et constantes
+## 9. Variables et constantes
 
-### 7.1 Variable (`var`)
+### 9.1 Variable (`var`)
 
 ```ebnf
 VarDecl ::= "var" Identifier ":" Type "=" Expression
@@ -1159,7 +1160,7 @@ count = 42      // réaffectation autorisée
 
 `var` déclare une variable **mutable** dont la portée est celle de la fonction. Elle peut être réaffectée à tout moment après sa déclaration.
 
-### 7.2 Variable de bloc (`scoped`)
+### 9.2 Variable de bloc (`scoped`)
 
 ```ebnf
 ScopedDecl ::= "scoped" Identifier ":" Type "=" Expression
@@ -1182,7 +1183,7 @@ x = x + 10   // valide
 
 > **`scoped` est interdit sur un champ de classe** : un champ vit aussi longtemps que l'objet, pas le temps d'un bloc. Utiliser `property` pour les champs de classe.
 
-### 7.3 Constante globale (`const`)
+### 9.3 Constante globale (`const`)
 
 ```ebnf
 ConstDecl ::= "const" Identifier ":" Type "=" Expression
@@ -1197,7 +1198,7 @@ Les constantes globales sont définies **au niveau du module** (hors de toute fo
 Leur valeur doit être un littéral ou une expression constante évaluable à la compilation.  
 Elles sont accessibles depuis n'importe quelle fonction ou méthode du module.
 
-### 7.4 Constante de classe (`class const`)
+### 9.4 Constante de classe (`class const`)
 
 ```ebnf
 ClassConstDecl ::= Visibility "const" Identifier ":" Type "=" Expression
@@ -1224,19 +1225,21 @@ Les règles de visibilité s'appliquent normalement (`public` accessible depuis 
 
 ---
 
-## 9. Expressions
+## 10. Expressions
 
 ```ebnf
 Expression ::= OrExpr
 
 OrExpr       ::= AndExpr ( "or" AndExpr )*
 AndExpr      ::= EqualityExpr ( "and" EqualityExpr )*
-EqualityExpr ::= ComparisonExpr ( ( "==" | "!=" ) ComparisonExpr )*
-ComparisonExpr ::= RangeExpr ( ( "<" | "<=" | ">" | ">=" ) RangeExpr )*
+EqualityExpr ::= StrictEqualityExpr ( ( "==" | "!=" ) StrictEqualityExpr )*
+StrictEqualityExpr ::= ComparisonExpr ( ( "===" | "!==" | "equal" | ( "not" "equal" ) ) ComparisonExpr )*
+ComparisonExpr ::= StrictComparisonExpr ( ( "<" | "<=" | ">" | ">=" ) StrictComparisonExpr )*
+StrictComparisonExpr ::= RangeExpr ( ( "<==" | ">==" ) RangeExpr )*
 RangeExpr    ::= AdditiveExpr ( ".." AdditiveExpr )?
 AdditiveExpr ::= MultiplicativeExpr ( ( "+" | "-" ) MultiplicativeExpr )*
 MultiplicativeExpr ::= UnaryExpr ( ( "*" | "/" | "%" ) UnaryExpr )*
-UnaryExpr    ::= ( "not" | "-" ) UnaryExpr
+UnaryExpr    ::= ( "not" | "-" | "resolve" ) UnaryExpr
                | PostfixExpr
 PostfixExpr  ::= PrimaryExpr PostfixTail*
 PostfixTail  ::= "." Identifier ( "(" ArgList? ")" )?
@@ -1262,7 +1265,7 @@ NamelessExpr ::= "nameless" "(" ParamList? ")" ( ":" Type )? Block
 ArgList ::= Expression ( "," Expression )*
 ```
 
-### 8.1 Notes importantes
+### 10.1 Notes importantes
 
 - **Priorité du `..`** : l'opérateur de plage a une précédence inférieure à l'addition — `0..n+1` est `0 .. (n+1)`.
 - **Annotation de type postfix** : dans un contexte `match` ou `switch`, l'accès `expr.field:type` est syntaxiquement autorisé ; l'annotation de type est ignorée sémantiquement (hint visuel uniquement).
@@ -1271,7 +1274,7 @@ ArgList ::= Expression ( "," Expression )*
 
 ---
 
-## 10. Opérateurs et précédence
+## 11. Opérateurs et précédence
 
 Du plus faible au plus fort :
 
@@ -1280,7 +1283,7 @@ Du plus faible au plus fort :
 | 1      | `or`                     | Gauche        | |
 | 2      | `and`                    | Gauche        | |
 | 3      | `==` `!=`                | Gauche        | Égalité standard (valeur uniquement) |
-| 4      | `===` `!==` `egal` `not egal` | Gauche        | Égalité stricte (avec vérification de type) |
+| 4      | `===` `!==` `equal` `not equal` | Gauche        | Égalité stricte (avec vérification de type) |
 | 5      | `<` `<=` `>` `>=`        | Gauche        | Comparaison standard |
 | 6      | `<==` `>==`              | Gauche        | Comparaison stricte (avec vérification de type) |
 | 7      | `..`                     | Aucune        | Opérateur de plage |
@@ -1289,7 +1292,7 @@ Du plus faible au plus fort :
 | 10     | `not` `-` (unaire)       | Droite        | |
 | 11     | `.` `()` `[]` (postfix)  | Gauche        | |
 
-### 9.1 Opérateurs de comparaison stricts
+### 11.1 Opérateurs de comparaison stricts
 
 Ocara fournit deux catégories d'opérateurs de comparaison :
 
@@ -1320,25 +1323,25 @@ Les opérateurs stricts effectuent une **vérification de type à l'exécution**
 
 | Opérateur | Équivalent verbal | Description |
 |-----------|-------------------|-------------|
-| `===` | `egal` | Égalité stricte |
-| `!==` | `not egal` | Inégalité stricte |
+| `===` | `equal` | Égalité stricte |
+| `!==` | `not equal` | Inégalité stricte |
 | `<==` | - | Inférieur strict |
 | `>==` | - | Supérieur strict |
 
 **Opérateurs verbeux :**
 
-Les mots-clés `egal` et `not egal` sont des **synonymes exacts** de `===` et `!==` :
+Les mots-clés `equal` et `not equal` sont des **synonymes exacts** de `===` et `!==` :
 - Même précédence (niveau 4)
 - Même sémantique (vérification de type + comparaison de valeur)
 - Peuvent être utilisés de manière interchangeable
 - Améliorent la lisibilité dans certains contextes
 
 ```ocara
-if user.role egal "admin" {
+if user.role equal "admin" {
     IO::writeln("Accès autorisé")
 }
 
-if status not egal "active" {
+if status not equal "active" {
     raise "Service inactif"
 }
 
@@ -1366,18 +1369,18 @@ IO::writeln(a == b)   // true  (valeurs égales)
 
 // Comparaison stricte (type + valeur)
 IO::writeln(a === b)  // false (types différents : int vs float)
-IO::writeln(a egal b) // false (identique à ===)
+IO::writeln(a equal b) // false (identique à ===)
 
 var x:int = 10
 var y:int = 10
 IO::writeln(x === y)  // true  (même type ET même valeur)
-IO::writeln(x egal y) // true  (identique à ===)
+IO::writeln(x equal y) // true  (identique à ===)
 
 var s1:string = "hello"
 var s2:mixed = "hello"
 IO::writeln(s1 == s2)    // true  (valeurs égales)
 IO::writeln(s1 === s2)   // true  (types identiques ET valeurs égales)
-IO::writeln(s1 egal s2)  // true  (identique à ===)
+IO::writeln(s1 equal s2)  // true  (identique à ===)
 ```
 
 **Cas d'usage :**
@@ -1387,7 +1390,7 @@ Les opérateurs stricts sont utiles lorsque la distinction de type est important
 ```ocara
 function validate(value:mixed): bool {
     // Accepter uniquement les entiers, pas les flottants
-    if value egal 42 {  // ou : value === 42
+    if value equal 42 {  // ou : value === 42
         return true
     }
     return false
@@ -1413,7 +1416,7 @@ En raison de la représentation interne (tagged pointers), les opérateurs stric
 
 ---
 
-## 11. Instructions
+## 12. Instructions
 
 ```ebnf
 Statement ::= VarDecl
@@ -1433,7 +1436,7 @@ Statement ::= VarDecl
 
 ---
 
-## 12. Blocs
+## 13. Blocs
 
 ```ebnf
 Block ::= "{" Statement* "}"
@@ -1444,7 +1447,7 @@ Les variables déclarées dans un bloc ne sont pas visibles en dehors.
 
 ---
 
-## 13. Fonctions
+## 14. Fonctions
 
 ```ebnf
 FuncDecl ::= "async"? "function" Identifier "(" ParamList? ")" ":" Type Block
@@ -1485,7 +1488,7 @@ connect("localhost", 3000)        // port=3000, timeout=5000
 connect("localhost", 3000, 1000)  // port=3000, timeout=1000
 ```
 
-### 12.1 Paramètres avec valeurs par défaut
+### 14.1 Paramètres avec valeurs par défaut
 
 Un paramètre peut avoir une **valeur par défaut** qui sera utilisée si l'argument correspondant n'est pas fourni lors de l'appel.
 
@@ -1549,7 +1552,7 @@ function config(opts:map<string, int> = {}): void { }
 - Les valeurs par défaut sont évaluées **à chaque appel** de la fonction.
 - Pour les types mutables (arrays, maps, objets), une nouvelle instance est créée à chaque appel.
 
-### 12.2 Paramètres variadics
+### 14.2 Paramètres variadics
 
 Un **paramètre variadic** permet à une fonction d'accepter un nombre variable d'arguments du même type. Il est déclaré avec la syntaxe `variadic<Type>`.
 
@@ -1664,7 +1667,7 @@ var __variadic_arr = [1, 2, 3]
 sum(__variadic_arr)
 ```
 
-### 12.2 Fonctions de première classe
+### 14.3 Fonctions de première classe
 
 Une fonction peut être passée comme valeur en utilisant le type `Function` (voir §4.5).
 
@@ -1685,7 +1688,7 @@ var op:Function = MathOp::negate
 IO::writeln(op(7))                     // -7
 ```
 
-### 12.3 Fonctions anonymes (`nameless`)
+### 14.4 Fonctions anonymes (`nameless`)
 
 Une **fonction anonyme** est une expression qui produit une valeur de type `Function`. Elle est introduite par le mot-clé `nameless` et peut capturer des variables locales de sa portée d'enclosement (**closure lexicale**).
 
@@ -1772,7 +1775,7 @@ IO::writeln(user.name)   // "Bob" — l'objet original est muté
 
 ---
 
-### 12.3 Fonctions asynchrones (`async` / `resolve`)
+### 14.5 Fonctions asynchrones (`async` / `resolve`)
 
 Une **fonction asynchrone** est déclarée avec le modificateur `async`. Son appel ne bloque pas l'appelant : il retourne immédiatement une **handle de tâche** de type `int`. La valeur finale est récupérée avec l'expression `resolve`.
 
@@ -1821,7 +1824,7 @@ var a:int = resolve compute(6)
 
 ---
 
-## 14. Bibliothèque standard runtime
+## 15. Bibliothèque standard runtime
 
 > **Déprécié.** Les alias globaux `write` et `read` sont conservés pour la compatibilité ascendante mais ne doivent plus être utilisés dans le code nouveau.
 > Utiliser à la place `IO::writeln` et `IO::read` du module `ocara.IO`.
@@ -1849,7 +1852,7 @@ IO::writeln("Bonjour " + nom)
 - `IO::read` retourne toujours une valeur de type `string`.
 - Le module `ocara.IO` doit être importé explicitement : `import ocara.IO`.
 
-### 13.1 Classes de la bibliothèque standard runtime (namespace ocara)
+### 15.1 Classes de la bibliothèque standard runtime (namespace ocara)
 
 Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace `ocara.*`. Ces classes sont compilées dans le runtime et disponibles via import explicite (`import ocara.Classe`).
 
@@ -1858,9 +1861,11 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
 - **IO** — Lecture/écriture console (stdin/stdout/stderr)
   - `writeln()`, `write()`, `read()`, `readInt()`, `readFloat()`, `readBool()`, `readArray()`, `readMap()`
 - **File** — Manipulation de fichiers (classe statique)
-  - `read()`, `write()`, `append()`, `exists()`, `delete()`, `copy()`, `move()`, `size()`, `is_file()`, `is_readable()`, `is_writable()`
+  - `read()`, `write()`, `append()`, `exists()`, `delete()`, `copy()`, `move()`, `size()`, `isFile()`, `isReadable()`, `isWritable()`
 - **Directory** — Manipulation de répertoires (classe statique)
-  - `create()`, `delete()`, `exists()`, `list()`, `is_directory()`, `isEmpty()`, `copy()`, `move()`, `createRecursive()`, `delete_recursive()`, `size()`
+  - `create()`, `delete()`, `exists()`, `list()`, `isDirectory()`, `isEmpty()`, `copy()`, `move()`, `createRecursive()`, `deleteRecursive()`, `size()`
+- **DotEnv** — Chargement de variables d'environnement depuis un fichier `.env` (classe statique)
+  - `load()`, `get()`
 - **HTTPRequest** — Client HTTP pour requêtes GET/POST/PUT/DELETE/PATCH
   - `new()`, `setMethod()`, `setHeader()`, `setBody()`, `setTimeout()`, `send()`, `status()`, `body()`, `header()`, `headers()`, `ok()`, `isError()`, `error()`, `get()`, `post()`, `put()`, `delete()`, `patch()`
 - **HTTPServer** — Serveur HTTP multi-thread embarqué (classe d'instance)
@@ -1884,18 +1889,29 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
   - **Méthodes d'instance** (sans import, directement sur variables) : `text.trim()`, `text.upper()`, `text.lower()`
   - **Méthodes statiques** (avec `import ocara.String`) : `String::trim(s)`, `String::upper(s)`
   - Liste complète : `len()`, `upper()`, `lower()`, `capitalize()`, `trim()`, `replace()`, `split()`, `explode()`, `between()`, `empty()`
-  - Voir section [4.1 Méthodes intégrées au type string](#méthodes-intégrées-au-type-string) pour détails
-- **Regex** — Expressions régulières PCRE
-  - `match()`, `test()`, `replace()`, `split()`, `match_all()`
+  - Voir section [Méthodes intégrées au type string](#méthodes-intégrées-au-type-string) pour détails
+- **Regex** — Expressions régulières POSIX ERE
+  - `match()`, `test()`, `replace()`, `split()`, `matchAll()`
+- **JSON** — Encodage/décodage JSON (classe statique)
+  - `encode()`, `decode()`, `pretty()`, `minimize()`
+- **YAML** — Encodage/décodage YAML (classe statique)
+  - `encode()`, `decode()`, `parse()`
 
 #### Utilitaires
 
 - **Math** — Fonctions mathématiques (classe statique)
   - `abs()`, `sqrt()`, `pow()`, `sin()`, `cos()`, `tan()`, `floor()`, `ceil()`, `round()`, `min()`, `max()`, `random()`, `PI`, `E`
 - **Convert** — Conversions de types (classe statique)
-  - `intToStr()`, `strToInt()`, `floatToStr()`, `strToFloat()`, `boolToStr()`, `char_to_int()`, `int_to_char()`
+  - `intToStr()`, `strToInt()`, `floatToStr()`, `strToFloat()`, `boolToStr()`, `charToInt()`, `intToChar()`
 - **System** — Informations système et exécution de commandes (classe statique)
   - `os()`, `arch()`, `exec()`, `exit()`, `env()`, `args()`
+
+#### Bases de données
+
+- **SQLite** — Base de données SQLite embarquée (classe d'instance)
+  - `open()`, `execute()`, `query()`, `queryOne()`, `lastInsertId()`, `affectedRows()`, `close()`
+- **MySQL** — Connexion MySQL/MariaDB (classe d'instance)
+  - `connect()`, `execute()`, `query()`, `queryOne()`, `lastInsertId()`, `affectedRows()`, `close()`
 
 #### Date et Heure
 
@@ -1945,6 +1961,11 @@ Les classes d'exception permettent une gestion fine des erreurs avec `try/on`. T
 - **ThreadException** — Erreurs de création/join de threads
 - **MutexException** — Erreurs de lock/unlock de mutex
 - **UnitTestException** — Échecs d'assertions de tests (19 codes d'erreur)
+- **JSONException** — Erreurs d'encodage/décodage JSON
+- **YAMLException** — Erreurs d'encodage/décodage YAML
+- **SQLiteException** — Erreurs de requête/connexion SQLite
+- **MySQLException** — Erreurs de requête/connexion MySQL/MariaDB
+- **DotEnvException** — Erreurs de chargement de fichier `.env`
 
 > **Note :** La classe `String` ne lève aucune exception - toutes ses méthodes sont safe.
 
@@ -2001,7 +2022,7 @@ function main(): void {
 
 ---
 
-## 15. Classes
+## 16. Classes
 
 ```ebnf
 ClassDecl  ::= "class" Identifier
@@ -2022,7 +2043,7 @@ Constructor ::= "init" "(" ParamList? ")" Block
 Visibility  ::= "public" | "private" | "protected"
 ```
 
-### 14.1 Composition avec modules (mixins)
+### 16.1 Composition avec modules (mixins)
 
 Les modules permettent de composer des comportements réutilisables dans une classe via le mot-clé `modules` :
 
@@ -2042,7 +2063,7 @@ Les champs et méthodes des modules sont ajoutés à la classe comme si ils avai
 
 **Voir aussi :** Section 28 — Modules (mixins)
 
-### 14.2 Constructeur (`init`)
+### 16.2 Constructeur (`init`)
 
 Le constructeur est déclaré avec le mot-clé `init`. Il est **toujours public** : aucun mot-clé de visibilité ne peut le précéder. Écrire `public init(...)` est une erreur de syntaxe.
 
@@ -2060,7 +2081,7 @@ Constructor ::= "init" "(" ParamList? ")" Block
 - Appel via `use ClassName(args)`.
 - Ne peut pas être `private`, `protected` ou `static`.
 
-### 14.3 Membres
+### 16.3 Membres
 
 | Visibilité  | Accès                                    |
 |-------------|------------------------------------------|
@@ -2092,7 +2113,7 @@ Constructor ::= "init" "(" ParamList? ")" Block
 > Ce comportement est garanti mais **implicite** : préférer une initialisation explicite dans `init` pour que l'intention soit claire.
 > Contrairement à `var` (qui oblige une valeur à la déclaration), une `property` ne requiert pas de valeur dans la déclaration.
 
-### 14.4 Constantes de classe
+### 16.4 Constantes de classe
 
 ```ocara
 class Config {
@@ -2111,7 +2132,7 @@ IO::writeln(Config::MAX_RETRY)  // 3
 
 Elles ne peuvent pas être modifiées. Les règles de visibilité s'appliquent normalement.
 
-### 14.5 Méthodes statiques
+### 16.5 Méthodes statiques
 
 Une méthode préfixée par `static` appartient à la classe et non à une instance. Elle s'appelle via `::` sans créer d'objet.
 
@@ -2150,7 +2171,7 @@ class Validator {
 > - `self::` appelle uniquement des méthodes `static` — pas des méthodes d'instance.
 > - Depuis l'extérieur de la classe, on utilise toujours `ClassName::method()`.
 
-### 14.6 `self`
+### 16.6 `self`
 
 Le mot-clé `self` référence l'instance courante à l'intérieur des méthodes et du constructeur.
 
@@ -2170,7 +2191,7 @@ class User {
 
 ---
 
-## 16. Interfaces
+## 17. Interfaces
 
 ```ebnf
 InterfaceDecl ::= "interface" Identifier "{" InterfaceMethod* "}"
@@ -2191,7 +2212,7 @@ interface Logger {
 
 ---
 
-## 17. Héritage et implémentation
+## 18. Héritage et implémentation
 
 ```ebnf
 Inheritance  ::= "extends" Identifier
@@ -2220,7 +2241,7 @@ class AdminLogger extends ConsoleLogger implements Logger, Auditable {
 
 ---
 
-## 18. Modules (mixins)
+## 19. Modules (mixins)
 
 Les **modules** (ou **mixins**) permettent la composition horizontale de comportements réutilisables. Un module est similaire à une classe, mais il ne peut pas être instancié directement. Ses membres (champs, méthodes, constantes) sont incorporés dans les classes qui l'utilisent via le mot-clé `modules`.
 
@@ -2234,7 +2255,7 @@ ClassDecl  ::= "class" Identifier
                ClassBody
 ```
 
-### 17.1 Déclaration d'un module
+### 19.1 Déclaration d'un module
 
 ```ocara
 module Timestamped {
@@ -2250,7 +2271,7 @@ module Timestamped {
 }
 ```
 
-### 17.2 Utilisation dans une classe
+### 19.2 Utilisation dans une classe
 
 ```ocara
 class User modules Timestamped {
@@ -2274,7 +2295,7 @@ function main(): int {
 }
 ```
 
-### 17.3 Règles de composition
+### 19.3 Règles de composition
 
 - **Ordre des modules** : les modules sont appliqués dans l'ordre de déclaration (`modules A, B` → A puis B)
 - **Champs** : les champs des modules sont ajoutés avant les champs de la classe
@@ -2283,7 +2304,7 @@ function main(): int {
 - **Visibilité** : les règles de visibilité (`public`, `private`, `protected`) s'appliquent normalement
 - **Multiple composition** : une classe peut utiliser plusieurs modules
 
-### 17.4 Conflits de noms
+### 19.4 Conflits de noms
 
 Si deux modules définissent une méthode ou un champ avec le même nom, le dernier module déclaré prend la priorité. Si la classe elle-même définit un membre avec le même nom, la classe l'emporte.
 
@@ -2313,7 +2334,7 @@ class D modules A, B {
 
 ---
 
-## 19. Génériques (generic)
+## 20. Génériques (generic)
 
 Les **génériques** permettent d'écrire du code réutilisable avec différents types. Une classe générique est déclarée avec le mot-clé `generic` suivi de paramètres de type entre chevrons `< >`.
 
@@ -2329,7 +2350,7 @@ TypeParam  ::= Identifier ( "=" Type )?
 TypeArgs   ::= Type ( "," Type )*
 ```
 
-### 19.1 Déclaration de base
+### 20.1 Déclaration de base
 
 ```ocara
 // Générique avec un paramètre de type
@@ -2374,7 +2395,7 @@ generic Cache<K, V> {
 }
 ```
 
-### 19.2 Paramètres de type
+### 20.2 Paramètres de type
 
 Les paramètres de type doivent suivre la convention **PascalCase strict** :
 
@@ -2399,7 +2420,7 @@ generic Result<vaLue> { ... }     // mixte incorrect
 - Les noms courts (`T`, `K`, `V`, `E`) sont acceptés
 - Les noms descriptifs sont recommandés pour la clarté (`Key`, `Value`, `Element`, `Error`)
 
-### 19.3 Valeurs par défaut
+### 20.3 Valeurs par défaut
 
 Un paramètre de type peut avoir une valeur par défaut. Les paramètres avec défaut doivent être placés **après** ceux sans défaut.
 
@@ -2440,7 +2461,7 @@ var t3:Triple<float> = use Triple<float>(1.5, 42, "text")
 - Les défauts s'appliquent de droite à gauche lors de l'instanciation
 - Un défaut peut être n'importe quel type valide : primitif, classe, union, générique
 
-### 19.4 Héritage et composition
+### 20.4 Héritage et composition
 
 Un générique peut hériter d'une classe ou d'un autre générique, utiliser des modules et implémenter des interfaces.
 
@@ -2558,7 +2579,7 @@ generic Cache<K, V = string> extends Storage modules Timestamped implements Seri
 }
 ```
 
-### 19.5 Import et instanciation
+### 20.5 Import et instanciation
 
 ```ocara
 // Fichier: repository/Cache.oc
@@ -2610,7 +2631,7 @@ NewExpr ::= "use" Identifier ( "<" TypeArgs ">" )? "(" ArgList? ")"
 - Les types omis utilisent leurs valeurs par défaut (si définies)
 - L'ordre des types doit correspondre à l'ordre des paramètres
 
-### 19.6 Monomorphisation
+### 20.6 Monomorphisation
 
 Le compilateur génère une version spécialisée du générique pour **chaque combinaison de types concrets** utilisée dans le programme. Ce processus s'appelle la **monomorphisation**.
 
@@ -2646,7 +2667,7 @@ class List_string {
 }
 ```
 
-### 19.7 Exemples complets
+### 20.7 Exemples complets
 
 #### Liste générique
 
@@ -2836,7 +2857,7 @@ function main(): int {
 
 ---
 
-## 20. Enums
+## 21. Enums
 
 ```ebnf
 EnumDecl    ::= "enum" Identifier "{" EnumVariant ( "," EnumVariant )* ","? "}"
@@ -2878,7 +2899,7 @@ var s:int = HttpStatus::NotFound // 404
 
 ---
 
-## 21. Instanciation
+## 22. Instanciation
 
 ```ebnf
 NewExpr ::= "use" Identifier ( "<" TypeArgs ">" )? "(" ArgList? ")"
@@ -2894,7 +2915,7 @@ var cache:Cache<int, User> = use Cache<int, User>()
 
 ---
 
-## 22. Accès statique
+## 23. Accès statique
 
 ```ebnf
 StaticCallee ::= Identifier | "self"
@@ -2924,7 +2945,7 @@ class Validator {
 
 ---
 
-## 23. Conditions
+## 24. Conditions
 
 ```ebnf
 IfStmt ::= "if" Expression Block
@@ -2944,7 +2965,7 @@ if x > 0 {
 
 ---
 
-## 24. Switch
+## 25. Switch
 
 ```ebnf
 SwitchStmt  ::= "switch" Expression "{" SwitchCase* DefaultCase? "}"
@@ -2973,7 +2994,7 @@ switch code {
 
 ---
 
-## 25. Match (expression)
+## 26. Match (expression)
 
 ```ebnf
 MatchExpr ::= "match" PostfixExpr "{" MatchArm+ "}"
@@ -3031,9 +3052,9 @@ scoped desc:string = match user.age:int {
 
 ---
 
-## 26. Boucles
+## 27. Boucles
 
-### 25.1 While
+### 27.1 While
 
 ```ebnf
 WhileStmt ::= "while" Expression Block
@@ -3045,7 +3066,7 @@ while x > 0 {
 }
 ```
 
-### 25.2 For (itération simple)
+### 27.2 For (itération simple)
 
 ```ebnf
 ForInStmt ::= "for" Identifier "in" Expression Block
@@ -3057,7 +3078,7 @@ for i in 0..5 {
 }
 ```
 
-### 25.3 For (paires clé/valeur)
+### 27.3 For (paires clé/valeur)
 
 ```ebnf
 ForMapStmt ::= "for" Identifier "=>" Identifier "in" Expression Block
@@ -3069,7 +3090,7 @@ for key => value in profile {
 }
 ```
 
-### 25.4 Opérateur de plage
+### 27.4 Opérateur de plage
 
 ```ebnf
 RangeExpr ::= AdditiveExpr ".." AdditiveExpr
@@ -3082,7 +3103,7 @@ Produit une séquence d'entiers de `start` inclus à `end` **exclus**.
 1..n+1  // 1, 2, …, n
 ```
 
-### 25.5 Break
+### 27.5 Break
 
 ```ebnf
 BreakStmt ::= "break"
@@ -3103,7 +3124,7 @@ while i < 10 {
 
 > `break` n'est valide qu'à l'intérieur d'une boucle. En dehors, c'est une erreur de compilation.
 
-### 25.6 Continue
+### 27.6 Continue
 
 ```ebnf
 ContinueStmt ::= "continue"
@@ -3124,7 +3145,7 @@ for i in 0..10 {
 
 ---
 
-## 27. Gestion des erreurs
+## 28. Gestion des erreurs
 
 ```ebnf
 TryStmt  ::= "try" Block OnClause+
@@ -3133,7 +3154,7 @@ OnClause ::= "on" Identifier ( "is" Identifier )? Block
 RaiseStmt ::= "raise" Expression
 ```
 
-### 26.1 `try` / `on`
+### 28.1 `try` / `on`
 
 Le bloc `try` exécute du code susceptible de lever une erreur. Chaque clause `on` définit un handler avec un **binding explicite** — le nom après `on` est la variable qui contiendra l'erreur capturée.
 
@@ -3145,7 +3166,7 @@ try {
 }
 ```
 
-### 26.2 Filtrage par classe (`is`)
+### 28.2 Filtrage par classe (`is`)
 
 La variante `on <binding> is <Classe>` filtre les erreurs par type. Plusieurs handlers peuvent être chaînés, du plus spécifique au plus général. Le premier handler dont le type correspond est exécuté.
 
@@ -3163,7 +3184,7 @@ try {
 
 > Le handler générique (`on e` sans `is`) doit toujours être placé en dernier.
 
-### 26.3 `raise`
+### 28.3 `raise`
 
 `raise` lève une erreur. Il accepte n'importe quelle expression : chaîne, template string, ou instance d'une classe d'exception.
 
@@ -3175,7 +3196,7 @@ raise use IOException("Fichier introuvable", 404)
 
 > `raise` interrompt immédiatement l'exécution du bloc courant. En dehors d'un `on`, l'erreur remonte la pile d'appels.
 
-### 26.4 Classe d'exception
+### 28.4 Classe d'exception
 
 Une exception est une **classe ordinaire** — aucune interface ni classe de base requise. Par convention, les classes d'exception ont un champ `message:string`.
 
@@ -3199,7 +3220,7 @@ try {
 
 ---
 
-## 28. Résolution des noms
+## 29. Résolution des noms
 
 L'ordre de résolution strict est le suivant (priorité décroissante) :
 
@@ -3353,10 +3374,10 @@ WhileStmt   ::= "while" Expression Block
 (* ── Expressions (hiérarchie de précédence) ─────────────────────── *)
 
 Expression  ::= OrExpr
-OrExpr      ::= AndExpr ( "or" AndExpr )*) StrictEqualityExpr )*
-StrictEqualityExpr ::= ComparisonExpr ( ( "===" | "!==" | "egal" | "not egal
-EqualityExpr ::= StrictEqualityExpr ( ( "==" | "!=" | "egal" | "not egal" ) StrictEqualityExpr )*
-StrictEqualityExpr ::= ComparisonExpr ( ( "===" | "!==" ) ComparisonExpr )*
+OrExpr      ::= AndExpr ( "or" AndExpr )*
+AndExpr     ::= EqualityExpr ( "and" EqualityExpr )*
+EqualityExpr ::= StrictEqualityExpr ( ( "==" | "!=" ) StrictEqualityExpr )*
+StrictEqualityExpr ::= ComparisonExpr ( ( "===" | "!==" | "equal" | ( "not" "equal" ) ) ComparisonExpr )*
 ComparisonExpr ::= StrictComparisonExpr ( ( "<" | "<=" | ">" | ">=" ) StrictComparisonExpr )*
 StrictComparisonExpr ::= RangeExpr ( ( "<==" | ">==" ) RangeExpr )*
 RangeExpr   ::= AdditiveExpr ( ".." AdditiveExpr )?

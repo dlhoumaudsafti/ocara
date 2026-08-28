@@ -324,7 +324,7 @@
 
     "keyword-control": {
       "name": "keyword.control.ocara",
-      "match": "\\b(if|elseif|else|switch|match|while|for|in|return|break|continue|default|try|on|raise)\\b"
+      "match": "\\b(if|elseif|else|switch|match|while|for|in|return|result|break|continue|default|try|on|raise)\\b"
     },
 
     "keyword-declaration": {
@@ -378,7 +378,7 @@
       "patterns": [
         {
           "name": "keyword.control.ocara",
-          "match": "\\b(and|or|not|egal)\\b"
+          "match": "\\b(and|or|not|equal)\\b"
         },
         {
           "name": "keyword.control.ocara",

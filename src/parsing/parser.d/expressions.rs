@@ -88,11 +88,11 @@ impl Parser {
     fn parse_equality(&mut self) -> ParseResult<Expr> {
         let mut left = self.parse_is_check()?;
         loop {
-            // Cas spécial : "not egal" → BinOp::NotEqEq
-            if self.check_exact(&TokenKind::KwNot) && self.peek_ahead(1).map(|t| &t.kind) == Some(&TokenKind::KwEgal) {
+            // Cas spécial : "not equal" → BinOp::NotEqEq
+            if self.check_exact(&TokenKind::KwNot) && self.peek_ahead(1).map(|t| &t.kind) == Some(&TokenKind::KwEqual) {
                 let span = left.span().clone();
                 self.advance(); // consomme 'not'
-                self.advance(); // consomme 'egal'
+                self.advance(); // consomme 'equal'
                 let right = self.parse_is_check()?;
                 let full_span = span.union(right.span());
                 left = Expr::Binary {
@@ -110,7 +110,7 @@ impl Parser {
                 TokenKind::BangEq    => BinOp::NotEq,
                 TokenKind::EqEqEq    => BinOp::EqEqEq,
                 TokenKind::BangEqEq  => BinOp::NotEqEq,
-                TokenKind::KwEgal    => BinOp::EqEqEq,  // "egal" → ===
+                TokenKind::KwEqual    => BinOp::EqEqEq,  // "equal" → ===
                 _ => break,
             };
             self.advance();
@@ -131,7 +131,7 @@ impl Parser {
                 TokenKind::BangEq    => BinOp::NotEq,
                 TokenKind::EqEqEq    => BinOp::EqEqEq,
                 TokenKind::BangEqEq  => BinOp::NotEqEq,
-                TokenKind::KwEgal    => BinOp::EqEqEq,  // "egal" → ===
+                TokenKind::KwEqual    => BinOp::EqEqEq,  // "equal" → ===
                 _ => break,
             };
             self.advance();

@@ -174,8 +174,8 @@ fn backtick_flags(lines: &[&str]) -> Vec<bool> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const OCARA_BUILTINS: &[&str] = &[
-    "IO", "Math", "String", "Array", "Map",
-    "Convert", "System", "Regex", "HTTPRequest", "HTTPServer", "Thread", "Mutex",
+    "IO", "Math", "String", "Array", "Map", "JSON", "Tauri",
+    "Convert", "System", "Regex", "HTTPRequest", "HTTPServer", "SQLite", "MySQL", "MariaDB", "DotEnv", "YAML", "Thread", "Mutex",
     "DateTime", "Date", "Time", "UnitTest", "HTMLComponent", "HTML",
     "File", "Directory", "Exception", "FileException", "DirectoryException", "IOException", "SystemException",
     "ArrayException", "MapException", "MathException", "ConvertException", "RegexException",

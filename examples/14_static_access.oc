@@ -57,7 +57,7 @@ class HttpStatus {
     public const NOT_FOUND:int      = 404
     public const INTERNAL_ERROR:int = 500
 
-    public static method is_success(code:int): bool {
+    public static method isSuccess(code:int): bool {
         return code >= 200 and code < 300
     }
 }
@@ -67,7 +67,7 @@ class StringUtils {
 
     public const EMPTY:string = ""
 
-    public static method is_empty(s:string): bool {
+    public static method isEmpty(s:string): bool {
         return s == StringUtils::EMPTY
     }
 
@@ -103,8 +103,8 @@ function main(): int {
     IO::writeln(Math::clamp(-5, 0, 100))      // 0
     IO::writeln(Math::clamp(50, 0, 100))      // 50
 
-    IO::writeln(HttpStatus::is_success(200))  // true
-    IO::writeln(HttpStatus::is_success(404))  // false
+    IO::writeln(HttpStatus::isSuccess(200))   // true
+    IO::writeln(HttpStatus::isSuccess(404))   // false
 
     IO::writeln(StringUtils::isEmpty(""))    // true
     IO::writeln(StringUtils::isEmpty("hi"))  // false

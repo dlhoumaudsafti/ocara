@@ -10,7 +10,7 @@
 |----------|-------------|
 | [compilation-guide.md](compilation-guide.md) | Guide complet de compilation avec le compilateur `ocara` |
 | [EBNF.md](EBNF.md) | Grammaire formelle du langage Ocara (EBNF) |
-| [workflow-compilation.d](workflow-compilation.md) | Workflow de Compilation Ocara |
+| [workflow-compilation.md](workflow-compilation.md) | Workflow de Compilation Ocara |
 | [diagnostics.md](diagnostics.md) | Messages d'erreur et diagnostics du compilateur |
 
 ---
@@ -64,6 +64,12 @@ Documentation détaillée des classes intégrées au runtime Ocara :
 | [Thread.md](builtins/Thread.md) | Threads natifs (`spawn`, `join`, `sleep`) |
 | [Mutex.md](builtins/Mutex.md) | Verrous mutex pour synchronisation (`lock`, `unlock`) |
 | [UnitTest.md](builtins/UnitTest.md) | Assertions pour tests unitaires (`assertEquals`, `assertTrue`, `assertFalse`) |
+
+### Interface graphique (expérimental)
+
+| Builtin | Description |
+|---------|-------------|
+| [Tauri.md](builtins/Tauri.md) | ⚠️ **En développement, non fonctionnel** — fenêtre desktop native (Tauri), communication Ocara ↔ JS |
 
 ---
 

@@ -1,9 +1,9 @@
 // Exemple : Operateurs de comparaison stricte
 // Ocara v0.1.0 - Operateurs strictes avec verification de type :
-//   ===  ou 'egal'     : egalite stricte (meme type ET meme valeur)
-//   !==  ou 'not egal' : inegalite stricte
-//   <==                : inferieur ou egal strict
-//   >==                : superieur ou egal strict
+//   ===  ou 'equal'     : egalite stricte (meme type ET meme valeur)
+//   !==  ou 'not equal' : inegalite stricte
+//   <==                : inferieur ou equal strict
+//   >==                : superieur ou equal strict
 
 import ocara.IO
 
@@ -34,20 +34,20 @@ function main(): int {
 
     IO::writeln("")
 
-    // 2. Operateur 'egal' (alias de ===)
-    IO::writeln("2. Mot-cle 'egal' (alias de ===)")
+    // 2. Operateur 'equal' (alias de ===)
+    IO::writeln("2. Mot-cle 'equal' (alias de ===)")
 
     var name:string = "Alice"
     var otherName:string = "Alice"
 
-    if name egal otherName {
-        IO::writeln("  name egal otherName : true")
+    if name equal otherName {
+        IO::writeln("  name equal otherName : true")
     }
 
     IO::writeln("")
 
-    // 3. Inegalite stricte (!==) et 'not egal'
-    IO::writeln("3. Inegalite stricte !== et 'not egal'")
+    // 3. Inegalite stricte (!==) et 'not equal'
+    IO::writeln("3. Inegalite stricte !== et 'not equal'")
 
     var a:int = 10
     var b:float = 10.0
@@ -57,8 +57,8 @@ function main(): int {
         IO::writeln("  a !== b : true (types differents)")
     }
 
-    if a not egal b {
-        IO::writeln("  a not egal b : true (alias de !==)")
+    if a not equal b {
+        IO::writeln("  a not equal b : true (alias de !==)")
     }
 
     if a !== c {
@@ -74,7 +74,7 @@ function main(): int {
     var num2:int = 200
     var num3:float = 150.0
 
-    // <== : inferieur ou egal strict (meme type requis)
+    // <== : inferieur ou equal strict (meme type requis)
     if num1 <== num2 {
         IO::writeln("  num1 <== num2 : true (100 <= 200, meme type int)")
     }
@@ -84,7 +84,7 @@ function main(): int {
         IO::writeln("  num1 <== num3 : false (types differents: int vs float)")
     }
 
-    // >== : superieur ou egal strict (meme type requis)
+    // >== : superieur ou equal strict (meme type requis)
     if num2 >== num1 {
         IO::writeln("  num2 >== num1 : true (200 >= 100, meme type int)")
     }
@@ -132,8 +132,8 @@ function main(): int {
         IO::writeln("  nullable !== zero : true (types differents: null vs int)")
     }
 
-    if nullable egal null {
-        IO::writeln("  nullable egal null : true (meme type null)")
+    if nullable equal null {
+        IO::writeln("  nullable equal null : true (meme type null)")
     }
 
     IO::writeln("")

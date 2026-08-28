@@ -270,7 +270,34 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     fn_ret_types.insert("Map_values".to_string(), IrType::Ptr);
     fn_ret_types.insert("Map_merge".to_string(), IrType::Ptr);
     fn_ret_types.insert("Map_isEmpty".to_string(), IrType::Bool);
-    
+
+    // Ajout des types de retour des méthodes builtin Tauri (voir src/builtins/tauri.rs
+    // pour la table de référence — sans cette entrée, expr_ir_type() (typeinfer.rs) ne
+    // peut pas savoir qu'un appel comme `ui.getTitle()` retourne un Ptr (string) plutôt
+    // qu'un I64 brut, ce qui casse par exemple le dispatch de IO::writeln(ui.getTitle())).
+    fn_ret_types.insert("Tauri_listen".to_string(), IrType::Void);
+    fn_ret_types.insert("Tauri_emit".to_string(), IrType::Void);
+    fn_ret_types.insert("Tauri_dialog".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Tauri_notify".to_string(), IrType::Void);
+    fn_ret_types.insert("Tauri_getTitle".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Tauri_setTitle".to_string(), IrType::Void);
+    fn_ret_types.insert("Tauri_getWidth".to_string(), IrType::I64);
+    fn_ret_types.insert("Tauri_setWidth".to_string(), IrType::Void);
+    fn_ret_types.insert("Tauri_getHeight".to_string(), IrType::I64);
+    fn_ret_types.insert("Tauri_setHeight".to_string(), IrType::Void);
+    fn_ret_types.insert("Tauri_getUrl".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Tauri_setUrl".to_string(), IrType::Void);
+    fn_ret_types.insert("Tauri_open".to_string(), IrType::Void);
+    fn_ret_types.insert("Tauri_close".to_string(), IrType::Void);
+    fn_ret_types.insert("Tauri_isOpen".to_string(), IrType::Bool);
+    fn_ret_types.insert("Tauri_focus".to_string(), IrType::Void);
+    fn_ret_types.insert("Tauri_minimize".to_string(), IrType::Void);
+    fn_ret_types.insert("Tauri_maximize".to_string(), IrType::Void);
+    fn_ret_types.insert("Tauri_restore".to_string(), IrType::Void);
+    fn_ret_types.insert("Tauri_hasFocus".to_string(), IrType::Bool);
+    fn_ret_types.insert("Tauri_isMinimized".to_string(), IrType::Bool);
+    fn_ret_types.insert("Tauri_isMaximized".to_string(), IrType::Bool);
+
     // Propage les types de retour des méthodes héritées (non surchargées) dans fn_ret_types
     for class in &program.classes {
         if let Some(parent_name) = &class.extends {

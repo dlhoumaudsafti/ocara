@@ -303,7 +303,7 @@ import ocara.ArrayException
 import ocara.IO
 
 function main(): int {
-    var numbers:float[] = [-4.0, 9.0, 16.0]
+    var numbers:array<float> = [-4.0, 9.0, 16.0]
     
     try {
         var x:float = Array::first(numbers)

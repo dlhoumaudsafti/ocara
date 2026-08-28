@@ -43,15 +43,15 @@ Regex::find("[0-9]+",      "aucun chiffre ici")   // → ""
 
 ---
 
-### `Regex::findAll(pattern, s)` → `string[]`
+### `Regex::findAll(pattern, s)` → `array<string>`
 
 Retourne **toutes** les sous-chaînes correspondant à `pattern` sous forme de tableau.
 
 ```ocara
-scoped nums:string[] = Regex::findAll("[0-9]+", "a1 b22 c333")
+scoped nums:array<string> = Regex::findAll("[0-9]+", "a1 b22 c333")
 // → ["1", "22", "333"]
 
-scoped mots:string[] = Regex::findAll("[a-z]+", "hello world foo")
+scoped mots:array<string> = Regex::findAll("[a-z]+", "hello world foo")
 // → ["hello", "world", "foo"]
 ```
 
@@ -88,7 +88,7 @@ Regex::replaceAll("\\s+", "  espaces   multiples  ", " ")
 
 ---
 
-### `Regex::split(pattern, s)` → `string[]`
+### `Regex::split(pattern, s)` → `array<string>`
 
 Découpe `s` en utilisant `pattern` comme séparateur.
 
@@ -169,7 +169,7 @@ function main(): int {
 
     // Extraire toutes les URLs d'un texte
     var texte:string = "voir https://ocara.dev et https://github.com/ocara"
-    scoped urls:string[] = Regex::findAll("https?://[^\\s]+", texte)
+    scoped urls:array<string> = Regex::findAll("https?://[^\\s]+", texte)
     scoped nb:int = Regex::count("https?://[^\\s]+", texte)
     write(`${nb} URL(s) trouvée(s)`)
 
@@ -277,7 +277,7 @@ function validate_regex_pattern(pattern:string): bool {
 }
 
 function main(): int {
-    var patterns:string[] = [
+    var patterns:array<string> = [
         "\\d+",           // Valide
         "[a-z]+",         // Valide
         "(?P<name>\\w+)", // Valide
@@ -314,7 +314,7 @@ function main(): int {
     var text:string = "123"
     
     try {
-        var matches:string[] = Regex::findAll(pattern, text)
+        var matches:array<string> = Regex::findAll(pattern, text)
         IO::writeln(`Found ${Array::len(matches)} matches`)
     } on e {
         // Capture toute exception
@@ -334,7 +334,7 @@ import ocara.Regex
 import ocara.RegexException
 import ocara.IO
 
-function search_with_pattern(pattern:string, texts:string[]): void {
+function search_with_pattern(pattern:string, texts:array<string>): void {
     IO::writeln(`Pattern: ${pattern}`)
     
     try {
@@ -359,7 +359,7 @@ function search_with_pattern(pattern:string, texts:string[]): void {
 }
 
 function main(): int {
-    var texts:string[] = ["Hello 123", "World 456", "Test ABC"]
+    var texts:array<string> = ["Hello 123", "World 456", "Test ABC"]
     
     search_with_pattern("\\d+", texts)        // Valide
     search_with_pattern("[A-Z]+", texts)      // Valide
@@ -432,9 +432,9 @@ Les messages d'exception sont en anglais et incluent le pattern problématique a
 |-------------------------|-----------------------|-------------------------|---------|
 | `Regex::test`           | `Regex_test`          | `I64, I64`              | `I64`   |
 | `Regex::find`           | `Regex_find`          | `I64, I64`              | `I64`   |
-| `Regex::find_all`       | `Regex_findAll`      | `I64, I64`              | `I64`   |
+| `Regex::findAll`        | `Regex_findAll`      | `I64, I64`              | `I64`   |
 | `Regex::replace`        | `Regex_replace`       | `I64, I64, I64`         | `I64`   |
-| `Regex::replace_all`    | `Regex_replaceAll`   | `I64, I64, I64`         | `I64`   |
+| `Regex::replaceAll`     | `Regex_replaceAll`   | `I64, I64, I64`         | `I64`   |
 | `Regex::split`          | `Regex_split`         | `I64, I64`              | `I64`   |
 | `Regex::count`          | `Regex_count`         | `I64, I64`              | `I64`   |
 | `Regex::extract`        | `Regex_extract`       | `I64, I64, I64`         | `I64`   |

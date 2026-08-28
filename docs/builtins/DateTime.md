@@ -126,7 +126,7 @@ IO::write(ts)  // 1714233600
 import ocara.DateTime
 import ocara.IO
 
-fun main(): void {
+function main(): void {
     // Timestamp actuel
     var now:int = DateTime::now()
     IO::write("Timestamp actuel: ")

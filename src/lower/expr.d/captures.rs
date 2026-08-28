@@ -31,8 +31,8 @@ fn walk_stmt_caps(stmt: &Stmt, p: &HashSet<String>, l: &HashMap<String, (Value, 
             walk_expr_caps(target, p, l, caps, seen);
             walk_expr_caps(value,  p, l, caps, seen);
         }
-        Stmt::Return { value: Some(e), .. } => walk_expr_caps(e, p, l, caps, seen),
-        Stmt::Return { .. } | Stmt::Break { .. } | Stmt::Continue { .. } => {}
+        Stmt::Return { value: Some(e), .. } | Stmt::Result { value: Some(e), .. } => walk_expr_caps(e, p, l, caps, seen),
+        Stmt::Return { .. } | Stmt::Result { .. } | Stmt::Break { .. } | Stmt::Continue { .. } => {}
         Stmt::If { condition, then_block, elseif, else_block, .. } => {
             walk_expr_caps(condition, p, l, caps, seen);
             walk_block_caps(then_block, p, l, caps, seen);

@@ -91,27 +91,27 @@ Map::remove(m, "a")
 
 ---
 
-### `Map::keys(m)` → `mixed[]`
+### `Map::keys(m)` → `array<mixed>`
 
 Retourne un tableau contenant toutes les clés de la map.  
 L'ordre n'est pas garanti.
 
 ```ocara
 var m:map = {"x": 10, "y": 20, "z": 30}
-scoped cles:string[] = Map::keys(m)
+scoped cles:array<string> = Map::keys(m)
 // → ["x", "y", "z"] (ordre quelconque)
 ```
 
 ---
 
-### `Map::values(m)` → `mixed[]`
+### `Map::values(m)` → `array<mixed>`
 
 Retourne un tableau contenant toutes les valeurs de la map.  
 L'ordre correspond à celui de `Map::keys`.
 
 ```ocara
 var m:map = {"x": 10, "y": 20}
-scoped vals:int[] = Map::values(m)
+scoped vals:array<int> = Map::values(m)
 // → [10, 20]
 ```
 
@@ -144,7 +144,7 @@ function main(): int {
 
     // Initialisation et alimentation dynamique
     var compteurs:map = {}
-    var mots:string[] = ["foo", "bar", "foo", "baz", "foo", "bar"]
+    var mots:array<string> = ["foo", "bar", "foo", "baz", "foo", "bar"]
 
     for mot in mots {
         if Map::has(compteurs, mot) {
@@ -198,7 +198,7 @@ import ocara.Map
 import ocara.IO
 
 function main(): int {
-    var config:Map<string,string> = {"env": "prod"}
+    var config:map<string,string> = {"env": "prod"}
     
     try {
         var db:string = Map::get(config, "database")
@@ -218,7 +218,7 @@ function main(): int {
 import ocara.Map
 import ocara.IO
 
-function safe_get(m:Map<string,string>, key:string): string {
+function safe_get(m:map<string,string>, key:string): string {
     try {
         return Map::get(m, key)
     } on e is MapException {
@@ -233,7 +233,7 @@ function safe_get(m:Map<string,string>, key:string): string {
 }
 
 function main(): int {
-    var settings:Map<string,string> = {"mode": "debug"}
+    var settings:map<string,string> = {"mode": "debug"}
     var host:string = safe_get(settings, "host")
     IO::writeln(`Host: ${host}`)
     return 0
@@ -247,7 +247,7 @@ import ocara.Map
 import ocara.IO
 
 function main(): int {
-    var data:Map<string,int> = {"count": 42}
+    var data:map<string,int> = {"count": 42}
     
     // Approche sûre : vérifier d'abord
     if Map::has(data, "count") {
@@ -276,7 +276,7 @@ import ocara.Map
 import ocara.IO
 
 function main(): int {
-    var users:Map<string,string> = {"admin": "alice"}
+    var users:map<string,string> = {"admin": "alice"}
     
     try {
         var user:string = Map::get(users, "guest")
@@ -300,16 +300,16 @@ import ocara.MapException
 import ocara.FileException
 import ocara.IO
 
-function load_config(path:string): Map<string,string> {
+function load_config(path:string): map<string,string> {
     var content:string = File::read(path)
     // ... parse content into map ...
-    var cfg:Map<string,string> = {"version": "1.0"}
+    var cfg:map<string,string> = {"version": "1.0"}
     return cfg
 }
 
 function main(): int {
     try {
-        var config:Map<string,string> = load_config("/config.json")
+        var config:map<string,string> = load_config("/config.json")
         var dbUrl:string = Map::get(config, "database_url")
         IO::writeln(`DB: ${dbUrl}`)
     } on e is MapException {
@@ -352,7 +352,7 @@ Les messages d'exception sont en anglais et incluent la clé recherchée :
 | `Map::keys`        | `Map_keys`        | `I64`                   | `I64`   |
 | `Map::values`      | `Map_values`      | `I64`                   | `I64`   |
 | `Map::merge`       | `Map_merge`       | `I64, I64`              | `I64`   |
-| `Map::is_empty`    | `Map_isEmpty`    | `I64`                   | `I64`   |
+| `Map::isEmpty`     | `Map_isEmpty`    | `I64`                   | `I64`   |
 
 > **Note** : les primitives internes `__map_new`, `__map_get`, `__map_set`, `__map_foreach` sont utilisées par le compilateur pour la syntaxe `{"k": v}` et les boucles `for k in map`. La classe `Map` builtin fournit une API de haut niveau au-dessus.
 

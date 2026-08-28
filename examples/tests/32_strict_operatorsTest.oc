@@ -11,7 +11,7 @@ class Test_32_strict_operators {
         var z:int = 42
         
         UnitTest::assertTrue(x === z)
-        UnitTest::assertTrue(x egal z)
+        UnitTest::assertTrue(x equal z)
         return 0
     }
     
@@ -21,7 +21,7 @@ class Test_32_strict_operators {
         var c:int = 20
         
         UnitTest::assertTrue(a !== b)
-        UnitTest::assertTrue(a not egal b)
+        UnitTest::assertTrue(a not equal b)
         UnitTest::assertTrue(a !== c)
         return 0
     }
@@ -39,12 +39,12 @@ class Test_32_strict_operators {
         var x:int = 42
         var z:int = 42
         UnitTest::assertTrue(x === z)
-        UnitTest::assertTrue(x egal z)
+        UnitTest::assertTrue(x equal z)
         
         var a:int = 10
         var b:float = 10.0
         UnitTest::assertTrue(a !== b)
-        UnitTest::assertTrue(a not egal b)
+        UnitTest::assertTrue(a not equal b)
         
         var num1:int = 100
         var num2:int = 200

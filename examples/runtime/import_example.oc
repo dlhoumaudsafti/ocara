@@ -11,14 +11,14 @@ main {
     IO::writeln("=== TRAITEMENT PRINCIPAL ===")
     
     var operation: string = "calcul"
-    var result: int = 42
+    var _result: int = 42
     
     IO::writeln(`Opération: ${operation}`)
-    IO::writeln(`Résultat: ${result}`)
+    IO::writeln(`Résultat: ${_result}`)
     
-    if result < 0 {
+    if _result < 0 {
         IO::writeln("Erreur: résultat négatif !")
-        return ERROR
+        result ERROR
     }
     
     IO::writeln("Traitement terminé avec succès")

@@ -3,7 +3,7 @@
 # Usage : examples/builtins/html/htmlserver.sh <binaire_compilé>
 
 BIN=${1:?Usage: htmlserver.sh <binaire>}
-PORT=3000
+PORT=8080
 
 "$BIN" &
 SRV_PID=$!
@@ -27,14 +27,14 @@ if ! echo "$resp" | grep -q "Ocara"; then
     FAIL=1
 fi
 
-# GET /about → doit contenir "propos" (render_cached)
+# GET /about → doit contenir "propos" (renderCached)
 resp=$(curl -s --max-time 5 "http://localhost:$PORT/about")
 if ! echo "$resp" | grep -q "propos"; then
     echo "FAIL: GET /about ne contient pas 'propos'" >&2
     FAIL=1
 fi
 
-# GET /contact → doit contenir "contacter" (render_cached)
+# GET /contact → doit contenir "contacter" (renderCached)
 resp=$(curl -s --max-time 5 "http://localhost:$PORT/contact")
 if ! echo "$resp" | grep -q "contacter"; then
     echo "FAIL: GET /contact ne contient pas 'contacter'" >&2

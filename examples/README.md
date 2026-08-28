@@ -29,7 +29,7 @@ Ce dossier contient un script `.oc` par fonctionnalité du langage.
 | [21_errors.oc](21_errors.oc) | Démonstration des erreurs sémantiques (fichier invalide, analyse avec `--check`) |
 | [22_union_types.oc](22_union_types.oc) | Types union `T\|null`, retour union, test de nullité |
 | [23_static_method.oc](23_static_method.oc) | Appels inter-statiques via `self::`, raccourci intra-classe |
-| [24_function_types.oc](24_function_types.oc) | Type `Function` : fonctions de première classe, méthodes statiques, `self::` |
+| [24_function_types.oc](24_function_types.oc) | Type `Function<Ret(Params)>` : typage des fonctions comme valeurs de première classe (variables, paramètres) |
 | [25_nameless.oc](25_nameless.oc) | Fonctions anonymes `nameless`, closures, capture de variables et de `self` |
 | [26_modules.oc](26_modules.oc) | Système de modules avancé, imports relatifs et absolus |
 | [27_type_narrowing.oc](27_type_narrowing.oc) | Type narrowing avec `is`, réduction de type dans les branches |
@@ -37,7 +37,7 @@ Ce dossier contient un script `.oc` par fonctionnalité du langage.
 | [29_async.oc](29_async.oc) | Programmation asynchrone : `async`, `await`, tâches concurrentes |
 | [30_variadic.oc](30_variadic.oc) | Paramètres variadiques : `variadic<T>`, arguments variables |
 | [31_default_params.oc](31_default_params.oc) | Paramètres par défaut : valeurs optionnelles dans les fonctions |
-| [32_strict_operators.oc](32_strict_operators.oc) | Opérateurs stricts : `===`, `!==`, `<==`, `>==`, `egal`, `not egal` |
+| [32_strict_operators.oc](32_strict_operators.oc) | Opérateurs stricts : `===`, `!==`, `<==`, `>==`, `equal`, `not equal` |
 
 ## Classes builtins (`builtins/`)
 
@@ -60,6 +60,7 @@ Ce dossier contient un script `.oc` par fonctionnalité du langage.
 | [builtins/regex.oc](builtins/regex.oc) | `Regex` — expressions régulières (POSIX ERE) |
 | [builtins/string.oc](builtins/string.oc) | `String` — manipulation de chaînes |
 | [builtins/system.oc](builtins/system.oc) | `System` — OS, PID, env, exec, args… |
+| [builtins/tauri.oc](builtins/tauri.oc) | `Tauri` — fenêtre desktop native et événements frontend/backend |
 | [builtins/thread.oc](builtins/thread.oc) | `Thread` — création et gestion de threads |
 | [builtins/time.oc](builtins/time.oc) | `Time` — manipulation de l'heure (heures, minutes, secondes) |
 

@@ -18,6 +18,7 @@ pub fn get_stmt_start_line(stmt: &Stmt) -> usize {
         Stmt::ForMap { span, .. } => span.line,
         Stmt::Switch { span, .. } => span.line,
         Stmt::Return { span, .. } => span.line,
+        Stmt::Result { span, .. } => span.line,
         Stmt::Break { span, .. } => span.line,
         Stmt::Continue { span, .. } => span.line,
         Stmt::Try { span, .. } => span.line,
@@ -28,7 +29,7 @@ pub fn get_stmt_start_line(stmt: &Stmt) -> usize {
 pub fn get_stmt_end_line(stmt: &Stmt) -> usize {
     match stmt {
         Stmt::Var { span, .. } | Stmt::Const { span, .. } | Stmt::Assign { span, .. }
-        | Stmt::Return { span, .. } | Stmt::Break { span, .. }
+        | Stmt::Return { span, .. } | Stmt::Result { span, .. } | Stmt::Break { span, .. }
         | Stmt::Continue { span, .. } | Stmt::Raise { span, .. } => span.line,
         
         Stmt::Expr(e) => e.span().line,
@@ -451,7 +452,7 @@ pub fn update_program_spans_with_file(program: &mut ast::Program, file_path: &st
                     }
                 }
             }
-            Stmt::Return { value, span } => {
+            Stmt::Return { value, span } | Stmt::Result { value, span } => {
                 update_span(span, file);
                 if let Some(expr) = value {
                     update_expr_spans(expr, file);

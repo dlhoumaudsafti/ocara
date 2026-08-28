@@ -91,6 +91,7 @@ pub enum TokenKind {
     For,
     In,
     Return,
+    Result,     // result (bloc runtime : fixe ERROR sans quitter, remplace `return`)
     Use,
     Break,
     Continue,
@@ -156,7 +157,7 @@ pub enum TokenKind {
     KwAnd, // and
     KwOr,  // or
     KwNot,      // not
-    KwEgal,     // egal (égalité stricte verbale)
+    KwEqual,    // equal (égalité stricte verbale)
     KwNameless, // nameless
 
     // ── Affectation ───────────────────────────────────────────────────────────

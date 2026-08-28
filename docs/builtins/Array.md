@@ -2,7 +2,7 @@
 
 > Classe de manipulation de tableaux.  
 > Toutes les méthodes sont **statiques** : elles s'appellent via `Array::<méthode>(args)`.  
-> Fonctionne avec n'importe quel type d'élément (`int[]`, `string[]`, etc.).
+> Fonctionne avec n'importe quel type d'élément (`array<int>`, `array<string>`, etc.).
 
 ---
 
@@ -22,7 +22,7 @@ import ocara.*            // importe toutes les classes builtins
 Retourne le nombre d'éléments du tableau.
 
 ```ocara
-var n:int[] = [1, 2, 3]
+var n:array<int> = [1, 2, 3]
 Array::len(n)   // → 3
 Array::len([])  // → 0
 ```
@@ -34,7 +34,7 @@ Array::len([])  // → 0
 Ajoute `val` à la **fin** du tableau. Modifie le tableau en place.
 
 ```ocara
-var t:int[] = [1, 2]
+var t:array<int> = [1, 2]
 Array::push(t, 3)
 // t est maintenant [1, 2, 3]
 ```
@@ -46,7 +46,7 @@ Array::push(t, 3)
 Retire et retourne le **dernier** élément du tableau. Modifie le tableau en place.
 
 ```ocara
-var t:int[] = [1, 2, 3]
+var t:array<int> = [1, 2, 3]
 scoped v:int = Array::pop(t)   // → 3
 // t est maintenant [1, 2]
 ```
@@ -78,7 +78,7 @@ Array::last([10, 20, 30])   // → 30
 Retourne `true` si `val` est présent dans le tableau (comparaison stricte).
 
 ```ocara
-var t:int[] = [1, 2, 3]
+var t:array<int> = [1, 2, 3]
 Array::contains(t, 2)    // → true
 Array::contains(t, 99)   // → false
 ```
@@ -90,45 +90,45 @@ Array::contains(t, 99)   // → false
 Retourne l'index (0-basé) de la première occurrence de `val`, ou `-1` si absent.
 
 ```ocara
-var t:string[] = ["a", "b", "c"]
+var t:array<string> = ["a", "b", "c"]
 Array::indexOf(t, "b")    // → 1
 Array::indexOf(t, "z")    // → -1
 ```
 
 ---
 
-### `Array::reverse(arr)` → `mixed[]`
+### `Array::reverse(arr)` → `array<mixed>`
 
 Retourne un **nouvel** array contenant les éléments dans l'ordre inverse.  
 Le tableau original n'est pas modifié.
 
 ```ocara
-scoped inv:int[] = Array::reverse([1, 2, 3])
+scoped inv:array<int> = Array::reverse([1, 2, 3])
 // → [3, 2, 1]
 ```
 
 ---
 
-### `Array::slice(arr, from, to)` → `mixed[]`
+### `Array::slice(arr, from, to)` → `array<mixed>`
 
 Retourne un **nouvel** array contenant les éléments de l'index `from` (inclus) à `to` (exclu).  
 Indices 0-basés.
 
 | Paramètre | Type  | Description               |
 |-----------|-------|---------------------------|
-| `arr`     | `T[]` | Tableau source            |
+| `arr`     | `array<T>` | Tableau source            |
 | `from`    | `int` | Index de début (inclus)   |
 | `to`      | `int` | Index de fin (exclu)      |
 
 ```ocara
-var t:int[] = [10, 20, 30, 40, 50]
+var t:array<int> = [10, 20, 30, 40, 50]
 Array::slice(t, 1, 4)   // → [20, 30, 40]
 Array::slice(t, 0, 2)   // → [10, 20]
 ```
 
 Extraire les N derniers éléments :
 ```ocara
-scoped tail:int[] = Array::slice(t, Array::len(t) - 2, Array::len(t))
+scoped tail:array<int> = Array::slice(t, Array::len(t) - 2, Array::len(t))
 // → [40, 50]
 ```
 
@@ -146,16 +146,16 @@ Array::join(["seul"], "-")             // → "seul"
 
 ---
 
-### `Array::sort(arr)` → `mixed[]`
+### `Array::sort(arr)` → `array<mixed>`
 
-Retourne un **nouvel** array trié en ordre naturel (numérique pour les `int[]`, lexicographique pour les `string[]`).  
+Retourne un **nouvel** array trié en ordre naturel (numérique pour les `array<int>`, lexicographique pour les `array<string>`).  
 Le tableau original n'est pas modifié.
 
 ```ocara
-scoped t:int[]    = Array::sort([30, 10, 50, 20])
+scoped t:array<int>    = Array::sort([30, 10, 50, 20])
 // → [10, 20, 30, 50]
 
-scoped s:string[] = Array::sort(["banane", "pomme", "abricot"])
+scoped s:array<string> = Array::sort(["banane", "pomme", "abricot"])
 // → ["abricot", "banane", "pomme"]
 ```
 
@@ -169,8 +169,8 @@ import ocara.Array
 function main(): int {
 
     // Dédupliquer un tableau
-    var src:int[]    = [1, 2, 3, 2, 4, 1, 5]
-    var unique:int[] = []
+    var src:array<int>    = [1, 2, 3, 2, 4, 1, 5]
+    var unique:array<int> = []
     for v in src {
         if Array::indexOf(unique, v) == -1 {
             Array::push(unique, v)
@@ -179,17 +179,17 @@ function main(): int {
     write(`unique : ${Array::join(unique, ", ")}`)   // 1, 2, 3, 4, 5
 
     // Extraire les 3 derniers éléments
-    var data:int[]    = [10, 20, 30, 40, 50, 60]
-    scoped tail:int[] = Array::slice(data, Array::len(data) - 3, Array::len(data))
+    var data:array<int>    = [10, 20, 30, 40, 50, 60]
+    scoped tail:array<int> = Array::slice(data, Array::len(data) - 3, Array::len(data))
     write(Array::join(tail, ", "))   // 40, 50, 60
 
     // Trier puis joindre
-    var tags:string[]      = ["rust", "ocara", "cranelift", "llvm"]
-    scoped sorted:string[] = Array::sort(tags)
+    var tags:array<string>      = ["rust", "ocara", "cranelift", "llvm"]
+    scoped sorted:array<string> = Array::sort(tags)
     write(Array::join(sorted, " | "))   // cranelift | llvm | ocara | rust
 
     // Vérification avant accès
-    var vide:int[] = []
+    var vide:array<int> = []
     if Array::len(vide) == 0 {
         write("tableau vide")
     }
@@ -219,7 +219,7 @@ import ocara.Array
 import ocara.IO
 
 function main(): int {
-    var arr:int[] = []
+    var arr:array<int> = []
     
     try {
         var val:int = Array::pop(arr)
@@ -239,7 +239,7 @@ function main(): int {
 import ocara.Array
 import ocara.IO
 
-function safe_pop(arr:int[]): int {
+function safe_pop(arr:array<int>): int {
     try {
         return Array::pop(arr)
     } on e is ArrayException {
@@ -254,7 +254,7 @@ function safe_pop(arr:int[]): int {
 }
 
 function main(): int {
-    var arr:int[] = []
+    var arr:array<int> = []
     var val:int = safe_pop(arr)
     IO::writeln(`Result: ${val}`)
     return 0
@@ -268,7 +268,7 @@ import ocara.Array
 import ocara.IO
 
 function main(): int {
-    var numbers:int[] = []
+    var numbers:array<int> = []
     
     try {
         var first:int = Array::first(numbers)
@@ -295,7 +295,7 @@ import ocara.Array
 import ocara.IO
 
 function main(): int {
-    var arr:string[] = []
+    var arr:array<string> = []
     
     try {
         var item:string = Array::pop(arr)
@@ -320,7 +320,7 @@ import ocara.FileException
 import ocara.IO
 
 function main(): int {
-    var items:string[] = []
+    var items:array<string> = []
     
     try {
         var content:string = File::read("/data.txt")
@@ -363,7 +363,7 @@ Les messages d'exception sont en anglais :
 | `Array::first`       | `Array_first`      | `I64`                     | `I64`   |
 | `Array::last`        | `Array_last`       | `I64`                     | `I64`   |
 | `Array::contains`    | `Array_contains`   | `I64, I64`                | `I64`   |
-| `Array::index_of`    | `Array_indexOf`   | `I64, I64`                | `I64`   |
+| `Array::indexOf`     | `Array_indexOf`   | `I64, I64`                | `I64`   |
 | `Array::reverse`     | `Array_reverse`    | `I64`                     | `I64`   |
 | `Array::slice`       | `Array_slice`      | `I64, I64, I64`           | `I64`   |
 | `Array::join`        | `Array_join`       | `I64, I64`                | `I64`   |

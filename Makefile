@@ -5,9 +5,9 @@ RED     := \033[0;31m
 RESET   := \033[0m
 
 # Argument optionnel : make regression builtins/io
-_TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev test tests regression lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all,$(MAKECMDGOALS))
+_TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all,$(MAKECMDGOALS))
 
-.PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev test tests regression ci lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all $(_TARGET)
+.PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression ci lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all $(_TARGET)
 
 # ── Aide ──────────────────────────────────────────────────────────────────────
 help:
@@ -45,16 +45,36 @@ $(_TARGET):
 	@:
 endif
 
+# ── Shim pkg-config pour le builtin Tauri ────────────────────────────────────
+# Sur Ubuntu ≥ 24.04, libwebkit2gtk-4.0-dev / libjavascriptcoregtk-4.0-dev n'existent
+# plus dans les dépôts (remplacés par la 4.1, ABI compatible pour wry 0.24 / tauri 1.x).
+# On génère ici des .pc locaux (jamais dans le système) plutôt que de symlinker /usr/lib,
+# et on les priorise via PKG_CONFIG_PATH au moment du build. Rien à committer :
+# régénéré à chaque `make build` si besoin, ignoré par git (.pkgconfig-shim/).
+PKGCONFIG_SHIM := $(CURDIR)/.pkgconfig-shim
+
+# Phony (pas un vrai target-fichier) : réévalué à chaque build, coût négligeable
+# (juste des requêtes pkg-config + symlinks), pour rattraper une install apt faite entre-temps.
+pkgconfig-shim:
+	@mkdir -p $(PKGCONFIG_SHIM)
+	@for pkg in webkit2gtk javascriptcoregtk; do \
+	    if ! pkg-config --exists $$pkg-4.0 2>/dev/null && pkg-config --exists $$pkg-4.1 2>/dev/null; then \
+	        SRC="$$(pkg-config --variable=pcfiledir $$pkg-4.1)/$$pkg-4.1.pc"; \
+	        ln -sf "$$SRC" "$(PKGCONFIG_SHIM)/$$pkg-4.0.pc"; \
+	        echo "  shim pkg-config: $$pkg-4.0.pc -> $$SRC"; \
+	    fi; \
+	done
+
 # ── Compilation du compilateur + runtime ─────────────────────────────────────
 # Le runtime doit être compilé en premier : build.rs l'embarque dans le binaire
 # -j1 sur ocara : Cranelift est très lourd à compiler en parallèle (SIGKILL OOM)
-build: tests
-	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime
-	RUSTFLAGS="-D warnings" cargo build --release -p ocara -j1
+build: pkgconfig-shim
+	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime -j4
+	RUSTFLAGS="-D warnings" cargo build --release -p ocara -j4
 
-build-dev:
-	RUSTFLAGS="-D warnings" cargo build -p ocara_runtime
-	RUSTFLAGS="-D warnings" cargo build -p ocara -j1
+build-dev: pkgconfig-shim
+	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo build -p ocara_runtime -j4
+	RUSTFLAGS="-D warnings" cargo build -p ocara -j4
 
 # ── Tests unitaires Cargo ─────────────────────────────────────────────────────
 tests:

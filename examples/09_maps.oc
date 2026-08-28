@@ -76,10 +76,10 @@ function main(): int {
         "Carol": ["go", "kubernetes", "docker"]
     }
 
-    var alice_tags:mixed[] = tags["Alice"]
+    var alice_tags:array<mixed> = tags["Alice"]
     IO::writeln(Array::join(alice_tags, ", "))   // rust, ocara, linux
 
-    var bob_tags:mixed[] = tags["Bob"]
+    var bob_tags:array<mixed> = tags["Bob"]
     IO::writeln(Array::join(bob_tags, ", "))     // python, django
 
     // ── Map associant d'autres maps ───────────────────────────────────────────
@@ -107,11 +107,11 @@ function main(): int {
     }
 
     var frontend:map<string, mixed> = catalog["frontend"]
-    var fe_langs:mixed[] = frontend["langs"]
+    var fe_langs:array<mixed> = frontend["langs"]
     IO::writeln(Array::join(fe_langs, ", "))   // js, ts, css
 
     var backend:map<string, mixed> = catalog["backend"]
-    var be_langs:mixed[] = backend["langs"]
+    var be_langs:array<mixed> = backend["langs"]
     IO::writeln(Array::join(be_langs, ", "))   // rust, go, ocara
 
     // ── Contrôles Map (size, has, remove, keys, values) ──────────────────────
@@ -129,10 +129,10 @@ function main(): int {
     IO::writeln(Map::size(scores))           // 2
     IO::writeln(Map::has(scores, "Bob"))     // 0 (false)
 
-    var keys:string[] = Map::keys(scores)
+    var keys:array<string> = Map::keys(scores)
     IO::writeln(Array::join(keys, ", "))     // Alice, Carol (ordre d'insertion)
 
-    var vals:int[] = Map::values(scores)
+    var vals:array<int> = Map::values(scores)
     IO::writeln(Array::join(vals, ", "))     // 95, 88
 
     IO::writeln(Map::isEmpty(scores))       // 0 (false)

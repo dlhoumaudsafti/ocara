@@ -50,6 +50,9 @@ pub fn link(
         .arg("-o")
         .arg(out_path)
         .arg("-lm")
+        .arg("-lssl")
+        .arg("-lcrypto")
+        .arg("-lz")
         .arg("-no-pie")
         .arg("-Wl,--allow-multiple-definition");
 

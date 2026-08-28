@@ -117,6 +117,11 @@ pub mod htmlcomponent;
 pub mod file;
 pub mod directory;
 pub mod exception;
+pub mod sqlite;
+pub mod mysql;
+pub mod dotenv;
+pub mod yaml;
+pub mod tauri;
 
 // Helpers mémoire internes
 // ─────────────────────────────────────────────────────────────────────────────

@@ -4,7 +4,121 @@ use std::collections::{HashMap, HashSet};
 use crate::parsing::ast::*;
 use crate::ir::module::IrModule;
 use crate::ir::types::IrType;
-use super::functions::lower_func;
+
+/// Transforme les statements dans les blocs runtime (récursivement dans les if/while/etc.)
+/// Les `result` sont conservés tels quels et seront transformés lors du lowering
+/// (voir statements.rs : result → Store(ERROR) + Jump(runtime_exit_bb))
+fn transform_runtime_block_returns(stmts: Vec<Stmt>) -> Vec<Stmt> {
+    stmts.into_iter().flat_map(|stmt| {
+        transform_runtime_stmt_return(stmt)
+    }).collect()
+}
+
+fn transform_runtime_stmt_return(stmt: Stmt) -> Vec<Stmt> {
+    match stmt {
+        Stmt::Result { value, span } => {
+            // Les `result` dans les blocs runtime sont maintenant gérés directement
+            // par le lowering (voir statements.rs), qui transforme result en
+            // Store(ERROR) + Jump(runtime_exit_bb).
+            // On garde le statement tel quel dans l'AST.
+            vec![Stmt::Result { value, span }]
+        }
+        
+        // Transformer récursivement dans les blocs imbriqués
+        Stmt::If { condition, then_block, elseif, else_block, span } => {
+            vec![Stmt::If {
+                condition,
+                then_block: Block {
+                    stmts: transform_runtime_block_returns(then_block.stmts),
+                    span: then_block.span,
+                },
+                elseif: elseif.into_iter().map(|(cond, block)| {
+                    (cond, Block {
+                        stmts: transform_runtime_block_returns(block.stmts),
+                        span: block.span,
+                    })
+                }).collect(),
+                else_block: else_block.map(|block| Block {
+                    stmts: transform_runtime_block_returns(block.stmts),
+                    span: block.span,
+                }),
+                span,
+            }]
+        }
+        
+        Stmt::While { condition, body, span } => {
+            vec![Stmt::While {
+                condition,
+                body: Block {
+                    stmts: transform_runtime_block_returns(body.stmts),
+                    span: body.span,
+                },
+                span,
+            }]
+        }
+        
+        Stmt::ForIn { var, iter, body, span } => {
+            vec![Stmt::ForIn {
+                var,
+                iter,
+                body: Block {
+                    stmts: transform_runtime_block_returns(body.stmts),
+                    span: body.span,
+                },
+                span,
+            }]
+        }
+        
+        Stmt::ForMap { key, value, iter, body, span } => {
+            vec![Stmt::ForMap {
+                key,
+                value,
+                iter,
+                body: Block {
+                    stmts: transform_runtime_block_returns(body.stmts),
+                    span: body.span,
+                },
+                span,
+            }]
+        }
+        
+        Stmt::Try { body, handlers, span } => {
+            vec![Stmt::Try {
+                body: Block {
+                    stmts: transform_runtime_block_returns(body.stmts),
+                    span: body.span,
+                },
+                // NE PAS transformer les returns dans les handlers !
+                // Ils doivent être gérés par le système de propagation de return
+                // des handlers d'exceptions (voir exceptions.rs)
+                handlers,
+                span,
+            }]
+        }
+        
+        Stmt::Switch { subject, cases, default, span } => {
+            vec![Stmt::Switch {
+                subject,
+                cases: cases.into_iter().map(|case| SwitchCase {
+                    pattern: case.pattern,
+                    body: Block {
+                        stmts: transform_runtime_block_returns(case.body.stmts),
+                        span: case.body.span,
+                    },
+                    span: case.span,
+                }).collect(),
+                default: default.map(|block| Block {
+                    stmts: transform_runtime_block_returns(block.stmts),
+                    span: block.span,
+                }),
+                span,
+            }]
+        }
+        
+        // Les autres statements ne contiennent pas de returns
+        _ => vec![stmt],
+    }
+}
 
 pub fn lower_runtime_blocks(
     module: &mut IrModule,

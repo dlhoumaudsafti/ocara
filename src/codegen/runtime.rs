@@ -30,6 +30,11 @@ use super::desc::{
     HTML_BUILTINS,
     HTMLCOMPONENT_BUILTINS,
     UNITTEST_BUILTINS,
+    SQLITE_BUILTINS,
+    MYSQL_BUILTINS,
+    DOTENV_BUILTINS,
+    YAML_BUILTINS,
+    TAURI_BUILTINS,
 };
 
 #[derive(Clone, Copy)]
@@ -72,6 +77,11 @@ pub fn builtins() -> &'static [BuiltinDesc] {
         all.extend_from_slice(HTML_BUILTINS);
         all.extend_from_slice(HTMLCOMPONENT_BUILTINS);
         all.extend_from_slice(UNITTEST_BUILTINS);
+        all.extend_from_slice(SQLITE_BUILTINS);
+        all.extend_from_slice(MYSQL_BUILTINS);
+        all.extend_from_slice(DOTENV_BUILTINS);
+        all.extend_from_slice(YAML_BUILTINS);
+        all.extend_from_slice(TAURI_BUILTINS);
         all
     })
 }

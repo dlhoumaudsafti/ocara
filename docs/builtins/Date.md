@@ -144,7 +144,7 @@ import ocara.Date
 import ocara.IO
 import ocara.Convert
 
-fun main(): void {
+function main(): void {
     // Date actuelle
     var today:string = Date::today()
     IO::write("Aujourd'hui: " + today)
