@@ -14,9 +14,9 @@ main {
     IO::writeln("Connecting to MySQL database...")
     var db:MySQL = MySQL::connect("localhost", "root", "password", "test_db")
     
-    if db egal null {
+    if db equal null {
         IO::writeln("Failed to connect to database!")
-        return 1
+        result 1
     }
     
     IO::writeln("Connected successfully!")
@@ -57,7 +57,7 @@ main {
         IO::writeln("Querying one user (Bob):")
         var bob:map<string, mixed>|null = db.queryOne("SELECT * FROM users WHERE name = 'Bob'")
         
-        if bob egal null {
+        if bob equal null {
             IO::writeln("  Bob not found")
         } else {
             IO::writeln(`  Found: ID=${bob["id"]}, Name=${bob["name"]}, Age=${bob["age"]}`)
@@ -72,7 +72,7 @@ main {
         
         // Vérifier la mise à jour
         var updated_bob:map<string, mixed>|null = db.queryOne("SELECT * FROM users WHERE name = 'Bob'")
-        if updated_bob egal null {
+        if updated_bob equal null {
             IO::writeln("  Bob not found after update")
         } else {
             IO::writeln(`  Bob's new age: ${updated_bob["age"]}`)
@@ -101,11 +101,11 @@ main {
     } on e is MySQLException {
         IO::writeln(`MySQL Error: ${e.message} (code: ${e.code})`)
         db.close()
-        return 1
+        result 1
     } on e {
         IO::writeln(`Error: ${e.message}`)
         db.close()
-        return 1
+        result 1
     }
     
     // Fermer la connexion

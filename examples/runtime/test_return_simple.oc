@@ -1,9 +1,9 @@
 import ocara.IO
 
 main {
-    IO::writeln("Before return")
-    return 42
-    IO::writeln("After return - SHOULD NOT PRINT")
+    IO::writeln("Before result")
+    result 42
+    IO::writeln("After result - SHOULD NOT PRINT")
 }
 
 error {

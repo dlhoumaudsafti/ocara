@@ -20,7 +20,7 @@ Encode un array ou une map en YAML.
 **Retour** : string YAML
 
 ```ocara
-const user:map<string, mixed> = map<string, mixed>()
+const user:map<string, mixed> = {}
 user["name"] = "Alice"
 user["age"] = 30
 user["active"] = true
@@ -38,7 +38,7 @@ active: true
 
 **Avec un array** :
 ```ocara
-const colors:array<string> = array<string>()
+const colors:array<string> = []
 colors[0] = "red"
 colors[1] = "green"
 colors[2] = "blue"
@@ -66,10 +66,7 @@ Décode une string YAML en structure Ocara (array ou map).
 **Retour** : `mixed` (sera un array ou une map selon le YAML)
 
 ```ocara
-const yamlStr:string = "name: Bob
-age: 25
-city: Paris
-"
+const yamlStr:string = "name: Bob\nage: 25\ncity: Paris\n"
 
 const data:map<string, mixed> = YAML::decode(yamlStr)
 IO::writeln(`Nom: ${data["name"]}`)      // Bob
@@ -79,10 +76,7 @@ IO::writeln(`Ville: ${data["city"]}`)    // Paris
 
 **Décoder un array** :
 ```ocara
-const yamlArray:string = "- apple
-- banana
-- orange
-"
+const yamlArray:string = "- apple\n- banana\n- orange\n"
 
 const fruits:array<string> = YAML::decode(yamlArray)
 for fruit in fruits {
@@ -117,12 +111,12 @@ import ocara.IO
 
 main {
     // Créer une structure de données
-    const config:map<string, mixed> = map<string, mixed>()
+    const config:map<string, mixed> = {}
     config["app_name"] = "MyApp"
     config["version"] = 1
     config["debug"] = true
     
-    const servers:array<string> = array<string>()
+    const servers:array<string> = []
     servers[0] = "server1.example.com"
     servers[1] = "server2.example.com"
     config["servers"] = servers
@@ -169,7 +163,7 @@ Serveurs:
 
 ```ocara
 // Données originales
-const original:map<string, mixed> = map<string, mixed>()
+const original:map<string, mixed> = {}
 original["name"] = "Alice"
 original["score"] = 100
 
@@ -212,7 +206,7 @@ File::write("users.yaml", yaml)
 
 ```ocara
 // Envoyer des données en YAML via HTTP
-const payload:map<string, mixed> = map<string, mixed>()
+const payload:map<string, mixed> = {}
 payload["action"] = "create_user"
 payload["username"] = "alice"
 
@@ -252,13 +246,13 @@ if result == null {
 }
 ```
 
-Pour une gestion d'erreur plus robuste, utilisez un bloc `try/fail` :
+Pour une gestion d'erreur plus robuste, utilisez un bloc `try/on` :
 
 ```ocara
 try {
     const data:map<string, mixed> = YAML::decode(yamlStr)
     // Traiter les données
-} fail (e:YAMLException) {
+} on e is YAMLException {
     IO::writeln(`Erreur YAML: ${e.message}`)
 }
 ```

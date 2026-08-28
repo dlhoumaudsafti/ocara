@@ -1,7 +1,7 @@
-// examples/builtins/html/controllers/AboutController.oc
+// examples/ocara_site/controllers/AboutController.oc
 // Contrôleur de la page "À propos".
 //
-// Contenu statique — mis en cache avec render_cached après le premier rendu.
+// Contenu statique — mis en cache avec renderCached après le premier rendu.
 
 import ocara.HTML
 import ocara.HTTPServer

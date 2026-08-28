@@ -9,9 +9,9 @@ main {
     try {
         IO::writeln("In try block")
         raise 123
-    } on e:int {
+    } on e {
         IO::writeln(`Caught error: ${e}`)
-        return e
+        result e
     }
     IO::writeln("Main end")
 }

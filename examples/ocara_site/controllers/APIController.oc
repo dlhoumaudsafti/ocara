@@ -1,7 +1,8 @@
-// examples/builtins/html/controllers/AboutController.oc
-// Contrôleur de la page "À propos".
+// examples/ocara_site/controllers/APIController.oc
+// Contrôleur de l'API JSON du site (voir configs/routes/API.oc).
 //
-// Contenu statique — mis en cache avec render_cached après le premier rendu.
+// Expose GET /version (nom, version et statut de l'API) et GET /users
+// (liste d'utilisateurs) — réponses JSON pures, sans rendu HTML ni cache.
 
 import ocara.HTTPServer
 import ocara.JSON

@@ -1,11 +1,10 @@
-// examples/builtins/html/components.oc
-// Enregistrement de tous les composants HTML du mini projet.
+// examples/ocara_site/configs/Server.oc
+// Configuration du serveur HTTP du mini site.
 //
-// Composants :
-//   <nav-bar active="home|about|contact">  — barre commune à toutes les pages
-//   <layout title="..." active="...">      — mise en page complète (slot)
-//   <card title="...">                     — carte de contenu (slot)
-//   <stats value="...">                    — badge de statistiques
+// Server extends HTTPServer : fixe le port (8080), le nombre de workers,
+// le dossier racine des fichiers statiques (./public/), puis délègue
+// l'enregistrement des routes aux classes de routes/ (General, Error,
+// Infos, API).
 namespace configs
 
 import ocara.HTTPServer

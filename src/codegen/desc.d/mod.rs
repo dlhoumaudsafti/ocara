@@ -20,6 +20,7 @@ mod sqlite;
 mod mysql;
 mod dotenv;
 mod yaml;
+mod tauri;
 
 pub use lowlevel::LOWLEVEL_BUILTINS;
 pub use io::IO_BUILTINS;
@@ -43,4 +44,5 @@ pub use sqlite::SQLITE_BUILTINS;
 pub use mysql::MYSQL_BUILTINS;
 pub use dotenv::DOTENV_BUILTINS;
 pub use yaml::YAML_BUILTINS;
+pub use tauri::TAURI_BUILTINS;
 

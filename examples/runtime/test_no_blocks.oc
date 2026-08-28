@@ -6,5 +6,5 @@ init {
 
 main {
     IO::writeln("Main block")
-    return 42
+    result 42
 }

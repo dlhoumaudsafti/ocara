@@ -37,6 +37,7 @@ pub(in crate::parsing::lexer) fn keyword_or_ident(s: &str) -> TokenKind {
         "for"        => TokenKind::For,
         "in"         => TokenKind::In,
         "return"     => TokenKind::Return,
+        "result"     => TokenKind::Result,
         "use"        => TokenKind::Use,
         "break"      => TokenKind::Break,
         "continue"   => TokenKind::Continue,
@@ -68,7 +69,7 @@ pub(in crate::parsing::lexer) fn keyword_or_ident(s: &str) -> TokenKind {
         "and"        => TokenKind::KwAnd,
         "or"         => TokenKind::KwOr,
         "not"        => TokenKind::KwNot,
-        "egal"       => TokenKind::KwEgal,
+        "equal"      => TokenKind::KwEqual,
         "nameless"   => TokenKind::KwNameless,
         _            => TokenKind::Ident(s.to_string()),
     }

@@ -19,7 +19,7 @@ function main(): int {
 
     // ── 1. Encoder un array ───────────────────────────────────────────────
     IO::writeln("1. Encodage d'un array:")
-    var numbers:int[] = [1, 2, 3, 4, 5]
+    var numbers:array<int> = [1, 2, 3, 4, 5]
     scoped arr_json:string = JSON::encode(numbers)
     IO::writeln(`   Méthode statique: ${arr_json}`)
     scoped arr_json2:string = numbers.encode()
@@ -107,7 +107,7 @@ function main(): int {
     IO::writeln("   JSON → Array: décodé avec succès (instance)")
     
     // Parcourir l'array
-    var arr:mixed[] = decoded_arr
+    var arr:array<mixed> = decoded_arr
     scoped len:int = Array::len(arr)
     IO::writeln(`   Taille: ${len}`)
     IO::writeln("")
@@ -125,7 +125,7 @@ function main(): int {
     
     IO::writeln(`   Original x: ${original["x"]}`)
     IO::writeln(`   Décodé x: ${decoded_map_rt["x"]}`)
-    IO::writeln(`   Valeurs identiques: ${original["x"] egal decoded_map_rt["x"]}`)
+    IO::writeln(`   Valeurs identiques: ${original["x"] equal decoded_map_rt["x"]}`)
     IO::writeln("")
 
     // ── 9. Gestion des erreurs ────────────────────────────────────────────

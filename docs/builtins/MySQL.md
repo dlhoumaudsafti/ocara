@@ -142,7 +142,7 @@ try {
     // Requête SELECT
     const users:array<map<string, mixed>> = db.query("SELECT * FROM users WHERE age > 20")
     
-    IO::writeln(`Found ${Array::length(users)} users:`)
+    IO::writeln(`Found ${Array::len(users)} users:`)
     for user in users {
         IO::writeln(`- ${user["name"]} (${user["age"]} years) - ${user["email"]}`)
     }
@@ -159,7 +159,7 @@ try {
     
     db.close()
     
-} fail (e:MySQLException) {
+} on e is MySQLException {
     IO::writeln(`MySQL error: ${e.message}`)
 }
 

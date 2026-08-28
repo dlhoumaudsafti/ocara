@@ -78,6 +78,13 @@ pub enum Stmt {
         span:  Span,
     },
 
+    /// `result expr` — uniquement dans un bloc runtime (init/main/error/success/exit) :
+    /// fixe la variable magique `ERROR` sans quitter le bloc courant (remplace `return`).
+    Result {
+        value: Option<Expr>,
+        span:  Span,
+    },
+
     /// `break` — sortie immédiate de la boucle courante
     Break { span: Span },
 

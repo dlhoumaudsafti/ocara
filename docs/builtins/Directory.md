@@ -52,12 +52,12 @@ Directory::removeRecursive("/tmp/old_project")
 
 ## Listing
 
-### `Directory::list(path: string) → string[]`
+### `Directory::list(path: string) → array<string>`
 
 Liste tous les fichiers et répertoires d'un répertoire.
 
 ```ocara
-var entries:string[] = Directory::list("/tmp")
+var entries:array<string> = Directory::list("/tmp")
 
 for entry in entries {
     IO::writeln(entry)
@@ -66,12 +66,12 @@ for entry in entries {
 
 **Erreur** : `fail` si le répertoire n'existe pas ou n'est pas accessible.
 
-### `Directory::listFiles(path: string) → string[]`
+### `Directory::listFiles(path: string) → array<string>`
 
 Liste uniquement les fichiers d'un répertoire.
 
 ```ocara
-var files:string[] = Directory::listFiles("/tmp")
+var files:array<string> = Directory::listFiles("/tmp")
 
 for file in files {
     IO::writeln(`Fichier: ${file}`)
@@ -80,12 +80,12 @@ for file in files {
 
 **Erreur** : `fail` si le répertoire n'existe pas ou n'est pas accessible.
 
-### `Directory::listDirs(path: string) → string[]`
+### `Directory::listDirs(path: string) → array<string>`
 
 Liste uniquement les sous-répertoires d'un répertoire.
 
 ```ocara
-var dirs:string[] = Directory::listDirs("/tmp")
+var dirs:array<string> = Directory::listDirs("/tmp")
 
 for dir in dirs {
     IO::writeln(`Répertoire: ${dir}`)
@@ -215,7 +215,7 @@ import ocara.File
 import ocara.IO
 
 function list_recursive(path:string, prefix:string): void {
-    var entries:string[] = Directory::list(path)
+    var entries:array<string> = Directory::list(path)
     
     for entry in entries {
         var full_path:string = `${path}/${entry}`
@@ -247,8 +247,8 @@ import ocara.Map
 import ocara.IO
 
 function count_by_extension(path:string): map<string, int> {
-    var counts:map<string, int> = use map<string, int>()
-    var files:string[] = Directory::listFiles(path)
+    var counts:map<string, int> = {}
+    var files:array<string> = Directory::listFiles(path)
     
     for file in files {
         var ext:string = File::extension(`${path}/${file}`)
@@ -293,8 +293,8 @@ function rotate_backups(backup_dir:string, max_backups:int): void {
         return
     }
     
-    var dirs:string[] = Directory::listDirs(backup_dir)
-    var count:int = Array::length(dirs)
+    var dirs:array<string> = Directory::listDirs(backup_dir)
+    var count:int = Array::len(dirs)
     
     // Si on dépasse le max, supprimer les plus anciens
     if count >= max_backups {
@@ -332,7 +332,7 @@ import ocara.IO
 
 function clean_temp_files(path:string): int {
     var count:int = 0
-    var files:string[] = Directory::listFiles(path)
+    var files:array<string> = Directory::listFiles(path)
     
     for file in files {
         var ext:string = File::extension(file)
@@ -371,7 +371,7 @@ import ocara.IO
 
 function copy_by_extension(src:string, dst:string, ext:string): int {
     var count:int = 0
-    var files:string[] = Directory::listFiles(src)
+    var files:array<string> = Directory::listFiles(src)
     
     if !Directory::exists(dst) {
         Directory::create(dst)
@@ -430,7 +430,7 @@ import ocara.IO
 
 function main(): int {
     try {
-        var entries:string[] = Directory::list("/tmp/data")
+        var entries:array<string> = Directory::list("/tmp/data")
         for entry in entries {
             IO::writeln(entry)
         }
@@ -479,8 +479,8 @@ import ocara.IO
 function setup_and_list(path:string): void {
     try {
         Directory::createRecursive(path)
-        var entries:string[] = Directory::list(path)
-        IO::writeln(`Répertoire créé avec ${Array::length(entries)} entrées`)
+        var entries:array<string> = Directory::list(path)
+        IO::writeln(`Répertoire créé avec ${Array::len(entries)} entrées`)
     } on e is DirectoryException {
         if e.code == 102 {
             IO::writeln(`Impossible de créer le répertoire '${path}'`)
@@ -507,12 +507,12 @@ function manage_directory(path:string): void {
         }
         
         var count:int = Directory::count(path)
-        var files:string[] = Directory::listFiles(path)
-        var dirs:string[] = Directory::listDirs(path)
+        var files:array<string> = Directory::listFiles(path)
+        var dirs:array<string> = Directory::listDirs(path)
         
         IO::writeln(`Total: ${count} entrées`)
-        IO::writeln(`Fichiers: ${Array::length(files)}`)
-        IO::writeln(`Sous-répertoires: ${Array::length(dirs)}`)
+        IO::writeln(`Fichiers: ${Array::len(files)}`)
+        IO::writeln(`Sous-répertoires: ${Array::len(dirs)}`)
         
     } on e is DirectoryException {
         if e.code == 108 {

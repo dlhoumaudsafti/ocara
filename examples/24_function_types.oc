@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Exemple 26 : Typage complet des fonctions
+// Exemple 24 : Typage complet des fonctions
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // Depuis Ocara v0.1.0, les fonctions peuvent être typées avec leurs paramètres :
@@ -62,7 +62,7 @@ function printStar(): void {
 // ─── Main ───
 
 function main(): int {
-    IO::writeln("=== Exemple 26 : Typage complet des fonctions ===")
+    IO::writeln("=== Exemple 24 : Typage complet des fonctions ===")
     IO::writeln("")
 
     // ── 1. Fonction avec 2 paramètres ──

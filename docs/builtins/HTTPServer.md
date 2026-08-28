@@ -18,7 +18,7 @@ server.setWorkers(32)           // threads workers (défaut : 4)
 server.setRootPath("./public") // répertoire pour fichiers statiques (optionnel)
 ```
 
-> **Note** : Toutes les méthodes `set_*` sont optionnelles. Les valeurs par défaut sont adaptées pour un petit site web.
+> **Note** : Toutes les méthodes `set*` sont optionnelles. Les valeurs par défaut sont adaptées pour un petit site web.
 
 ## Enregistrement des routes
 
@@ -75,7 +75,7 @@ Toutes les réponses reçoivent automatiquement l'en-tête :
 Content-Type: text/html; charset=utf-8
 ```
 
-Vous pouvez le remplacer avec `set_resp_header` :
+Vous pouvez le remplacer avec `setRespHeader` :
 
 ```ocara
 // Réponse HTML (Content-Type automatique)
@@ -119,29 +119,29 @@ est le handle de requête passé automatiquement au handler.
 
 | Méthode | Signature | Description |
 |---|---|---|
-| `req_path` | `(req:int) → string` | Chemin de la requête (sans query string) |
-| `req_method` | `(req:int) → string` | Méthode HTTP (`"GET"`, `"POST"`, …) |
-| `req_body` | `(req:int) → string` | Corps de la requête |
-| `req_header` | `(req:int, name:string) → string` | Valeur d'un en-tête (insensible à la casse) |
-| `req_query` | `(req:int, key:string) → string` | Valeur d'un paramètre query string |
+| `reqPath` | `(req:int) → string` | Chemin de la requête (sans query string) |
+| `reqMethod` | `(req:int) → string` | Méthode HTTP (`"GET"`, `"POST"`, …) |
+| `reqBody` | `(req:int) → string` | Corps de la requête |
+| `reqHeader` | `(req:int, name:string) → string` | Valeur d'un en-tête (insensible à la casse) |
+| `reqQuery` | `(req:int, key:string) → string` | Valeur d'un paramètre query string |
 
 ## Méthodes statiques — construction de la réponse
 
 | Méthode | Signature | Description |
 |---|---|---|
 | `respond` | `(req:int, status:int, body:string) → void` | Définit le statut et le corps de la réponse |
-| `set_resp_header` | `(req:int, name:string, value:string) → void` | Ajoute un en-tête à la réponse |
+| `setRespHeader` | `(req:int, name:string, value:string) → void` | Ajoute un en-tête à la réponse |
 
 ## Méthodes d'instance — récapitulatif
 
 | Méthode | Signature | Description |
 |---|---|---|
-| `set_port` | `(port:int) → void` | Port d'écoute |
-| `set_host` | `(host:string) → void` | Adresse d'écoute |
-| `set_workers` | `(n:int) → void` | Nombre de threads workers |
-| `set_root_path` | `(path:string) → void` | Répertoire racine pour fichiers statiques |
+| `setPort` | `(port:int) → void` | Port d'écoute |
+| `setHost` | `(host:string) → void` | Adresse d'écoute |
+| `setWorkers` | `(n:int) → void` | Nombre de threads workers |
+| `setRootPath` | `(path:string) → void` | Répertoire racine pour fichiers statiques |
 | `route` | `(path:string, method:string, f:Function) → void` | Enregistre une route |
-| `route_error` | `(code:int, f:Function) → void` | Enregistre un handler d'erreur personnalisé |
+| `routeError` | `(code:int, f:Function) → void` | Enregistre un handler d'erreur personnalisé |
 | `run` | `() → void` | Démarre le serveur (bloquant) |
 
 ## Exemple complet
@@ -299,7 +299,7 @@ Le modèle est **accept pool** :
 
 ### Configuration des workers
 
-La méthode `set_workers(n)` définit le nombre de threads de traitement parallèle.
+La méthode `setWorkers(n)` définit le nombre de threads de traitement parallèle.
 
 > **Valeur par défaut** : `4` workers (si `setWorkers()` n'est pas appelé)
 

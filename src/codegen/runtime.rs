@@ -34,6 +34,7 @@ use super::desc::{
     MYSQL_BUILTINS,
     DOTENV_BUILTINS,
     YAML_BUILTINS,
+    TAURI_BUILTINS,
 };
 
 #[derive(Clone, Copy)]
@@ -80,6 +81,7 @@ pub fn builtins() -> &'static [BuiltinDesc] {
         all.extend_from_slice(MYSQL_BUILTINS);
         all.extend_from_slice(DOTENV_BUILTINS);
         all.extend_from_slice(YAML_BUILTINS);
+        all.extend_from_slice(TAURI_BUILTINS);
         all
     })
 }

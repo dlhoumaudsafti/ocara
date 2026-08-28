@@ -53,9 +53,9 @@ Convert::strToBool("0")       // → false
 
 ---
 
-### `Convert::strToArray(s, sep)` → `string[]`
+### `Convert::strToArray(s, sep)` → `array<string>`
 
-Découpe `s` selon le séparateur `sep` et retourne un `string[]`.
+Découpe `s` selon le séparateur `sep` et retourne un `array<string>`.
 
 ```ocara
 Convert::strToArray("rust,ocara,web", ",")   // → ["rust", "ocara", "web"]
@@ -168,7 +168,7 @@ Joint les éléments du tableau en une chaîne séparée par `sep`.
 Équivalent à `Array::join`.
 
 ```ocara
-var t:string[] = ["rust", "ocara", "web"]
+var t:array<string> = ["rust", "ocara", "web"]
 Convert::arrayToStr(t, ", ")   // → "rust, ocara, web"
 Convert::arrayToStr(t, " | ")  // → "rust | ocara | web"
 ```
@@ -178,7 +178,7 @@ Convert::arrayToStr(t, " | ")  // → "rust | ocara | web"
 Chaque élément du tableau doit être de la forme `"clé<kv>valeur"`.
 
 ```ocara
-var pairs:string[] = ["lang=fr", "theme=dark", "debug=1"]
+var pairs:array<string> = ["lang=fr", "theme=dark", "debug=1"]
 scoped m:map<string, string> = Convert::arrayToMap(pairs, "=")
 // → {"lang": "fr", "theme": "dark", "debug": "1"}
 ```
@@ -189,28 +189,28 @@ scoped m:map<string, string> = Convert::arrayToMap(pairs, "=")
 
 ### `Convert::mapToStr(m, sep, kv)` → `string`
 
-Sérialise la map en chaîne. Inverse de `str_to_map`.
+Sérialise la map en chaîne. Inverse de `strToMap`.
 
 ```ocara
 var m:map<string, string> = {"lang": "fr", "theme": "dark"}
 Convert::mapToStr(m, ",", "=")   // → "lang=fr,theme=dark"
 ```
 
-### `Convert::mapKeysToArray(m)` → `string[]`
+### `Convert::mapKeysToArray(m)` → `array<string>`
 
 Retourne un tableau de toutes les clés. Équivalent à `Map::keys`.
 
 ```ocara
-scoped cles:string[] = Convert::mapKeysToArray(m)
+scoped cles:array<string> = Convert::mapKeysToArray(m)
 // → ["lang", "theme"]
 ```
 
-### `Convert::mapValuesToArray(m)` → `mixed[]`
+### `Convert::mapValuesToArray(m)` → `array<mixed>`
 
 Retourne un tableau de toutes les valeurs. Équivalent à `Map::values`.
 
 ```ocara
-scoped vals:mixed[] = Convert::mapValuesToArray(m)
+scoped vals:array<mixed> = Convert::mapValuesToArray(m)
 // → ["fr", "dark"]
 ```
 
@@ -238,9 +238,9 @@ function main(): int {
     write(`debug=${debug}  limit=${limit}`)   // debug=true  limit=50
 
     // Sérialiser un tableau en CSV puis le reparseur
-    var data:string[] = ["alice", "bob", "charlie"]
+    var data:array<string> = ["alice", "bob", "charlie"]
     scoped csv:string    = Convert::arrayToStr(data, ",")
-    scoped back:string[] = Convert::strToArray(csv, ",")
+    scoped back:array<string> = Convert::strToArray(csv, ",")
     write(`roundtrip : ${Array::len(back)} éléments`)   // 3
 
     return 0
@@ -295,7 +295,7 @@ import ocara.ConvertException
 import ocara.IO
 
 function main(): int {
-    var values:string[] = ["3.14", "2.71", "not_a_number", "1.41"]
+    var values:array<string> = ["3.14", "2.71", "not_a_number", "1.41"]
     
     scoped i:int = 0
     scoped len:int = Array::len(values)
@@ -373,7 +373,7 @@ import ocara.IO
 
 function parse_config(line:string): void {
     // Format: "key=value"
-    var parts:string[] = String::split(line, "=")
+    var parts:array<string> = String::split(line, "=")
     
     if Array::len(parts) != 2 {
         IO::writeln("Invalid config line format")
@@ -418,11 +418,11 @@ Les messages d'exception sont en anglais et incluent la valeur problématique :
 
 **Notes sur les conversions sûres :**
 - `Convert::strToBool()` ne lève jamais d'exception (retourne false pour valeurs inconnues)
-- `Convert::int_to_*()` ne lèvent jamais d'exception (conversions toujours possibles)
-- `Convert::float_to_*()` ne lèvent jamais d'exception (troncature pour int, toujours convertible)
-- `Convert::bool_to_*()` ne lèvent jamais d'exception (true=1/"true", false=0/"false")
-- `Convert::array_to_*()` ne lèvent jamais d'exception
-- `Convert::map_to_*()` ne lèvent jamais d'exception
+- `Convert::intTo*()` ne lèvent jamais d'exception (conversions toujours possibles)
+- `Convert::floatTo*()` ne lèvent jamais d'exception (troncature pour int, toujours convertible)
+- `Convert::boolTo*()` ne lèvent jamais d'exception (true=1/"true", false=0/"false")
+- `Convert::arrayTo*()` ne lèvent jamais d'exception
+- `Convert::mapTo*()` ne lèvent jamais d'exception
 
 **Seules `strToInt()` et `strToFloat()` peuvent lever des exceptions** car elles nécessitent un format spécifique.
 
@@ -432,25 +432,25 @@ Les messages d'exception sont en anglais et incluent la valeur problématique :
 
 | Méthode Ocara                     | Symbole runtime C                    | Params       | Retour  |
 |-----------------------------------|--------------------------------------|--------------|---------|
-| `Convert::str_to_int`             | `Convert_strToInt`                 | `I64`        | `I64`   |
-| `Convert::str_to_float`           | `Convert_strToFloat`               | `I64`        | `F64`   |
-| `Convert::str_to_bool`            | `Convert_strToBool`                | `I64`        | `I64`   |
-| `Convert::str_to_array`           | `Convert_strToArray`               | `I64, I64`   | `I64`   |
-| `Convert::str_to_map`             | `Convert_strToMap`                 | `I64×3`      | `I64`   |
-| `Convert::int_to_str`             | `Convert_intToStr`                 | `I64`        | `I64`   |
-| `Convert::int_to_float`           | `Convert_intToFloat`               | `I64`        | `F64`   |
-| `Convert::int_to_bool`            | `Convert_intToBool`                | `I64`        | `I64`   |
-| `Convert::float_to_str`           | `Convert_floatToStr`               | `F64`        | `I64`   |
-| `Convert::float_to_int`           | `Convert_floatToInt`               | `F64`        | `I64`   |
-| `Convert::float_to_bool`          | `Convert_floatToBool`              | `F64`        | `I64`   |
-| `Convert::bool_to_str`            | `Convert_boolToStr`                | `I64`        | `I64`   |
-| `Convert::bool_to_int`            | `Convert_boolToInt`                | `I64`        | `I64`   |
-| `Convert::bool_to_float`          | `Convert_boolToFloat`              | `I64`        | `F64`   |
-| `Convert::array_to_str`           | `Convert_arrayToStr`               | `I64, I64`   | `I64`   |
-| `Convert::array_to_map`           | `Convert_arrayToMap`               | `I64, I64`   | `I64`   |
-| `Convert::map_to_str`             | `Convert_mapToStr`                 | `I64×3`      | `I64`   |
-| `Convert::map_keys_to_array`      | `Convert_mapKeysToArray`          | `I64`        | `I64`   |
-| `Convert::map_values_to_array`    | `Convert_mapValuesToArray`        | `I64`        | `I64`   |
+| `Convert::strToInt`               | `Convert_strToInt`                 | `I64`        | `I64`   |
+| `Convert::strToFloat`             | `Convert_strToFloat`               | `I64`        | `F64`   |
+| `Convert::strToBool`              | `Convert_strToBool`                | `I64`        | `I64`   |
+| `Convert::strToArray`             | `Convert_strToArray`               | `I64, I64`   | `I64`   |
+| `Convert::strToMap`               | `Convert_strToMap`                 | `I64×3`      | `I64`   |
+| `Convert::intToStr`               | `Convert_intToStr`                 | `I64`        | `I64`   |
+| `Convert::intToFloat`             | `Convert_intToFloat`               | `I64`        | `F64`   |
+| `Convert::intToBool`              | `Convert_intToBool`                | `I64`        | `I64`   |
+| `Convert::floatToStr`             | `Convert_floatToStr`               | `F64`        | `I64`   |
+| `Convert::floatToInt`             | `Convert_floatToInt`               | `F64`        | `I64`   |
+| `Convert::floatToBool`            | `Convert_floatToBool`              | `F64`        | `I64`   |
+| `Convert::boolToStr`              | `Convert_boolToStr`                | `I64`        | `I64`   |
+| `Convert::boolToInt`              | `Convert_boolToInt`                | `I64`        | `I64`   |
+| `Convert::boolToFloat`            | `Convert_boolToFloat`              | `I64`        | `F64`   |
+| `Convert::arrayToStr`             | `Convert_arrayToStr`               | `I64, I64`   | `I64`   |
+| `Convert::arrayToMap`             | `Convert_arrayToMap`               | `I64, I64`   | `I64`   |
+| `Convert::mapToStr`               | `Convert_mapToStr`                 | `I64×3`      | `I64`   |
+| `Convert::mapKeysToArray`         | `Convert_mapKeysToArray`          | `I64`        | `I64`   |
+| `Convert::mapValuesToArray`       | `Convert_mapValuesToArray`        | `I64`        | `I64`   |
 
 ---
 

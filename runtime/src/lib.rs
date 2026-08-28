@@ -121,6 +121,7 @@ pub mod sqlite;
 pub mod mysql;
 pub mod dotenv;
 pub mod yaml;
+pub mod tauri;
 
 // Helpers mémoire internes
 // ─────────────────────────────────────────────────────────────────────────────

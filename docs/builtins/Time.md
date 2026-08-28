@@ -123,7 +123,7 @@ import ocara.Time
 import ocara.IO
 import ocara.Convert
 
-fun main(): void {
+function main(): void {
     // Heure actuelle
     var now:string = Time::now()
     IO::write("Heure actuelle: " + now)
