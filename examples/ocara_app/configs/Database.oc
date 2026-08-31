@@ -1,0 +1,39 @@
+// examples/ocara_app/configs/Database.oc
+// Accès SQLite de l'app — un compteur de visites persistant (survit aux
+// redémarrages, contrairement aux stats simulées de HomeController).
+//
+// Pas d'état statique partagé (Ocara n'a pas de propriété static, seulement des
+// méthodes static — voir docs/EBNF.md) : chaque appel ouvre sa propre connexion
+// SQLite vers le même fichier, le temps de l'opération, puis la referme. Simple
+// et suffisant pour un compteur — SQLite gère nativement les accès concurrents
+// à un même fichier.
+namespace configs
+
+import ocara.SQLite
+import ocara.DateTime
+import ocara.Convert
+
+class Database {
+
+    public static method path(): string {
+        return "./app.db"
+    }
+
+    // Crée la table si nécessaire — appelée une fois dans init{} (voir main.oc),
+    // avant que le serveur ne commence à traiter des requêtes.
+    public static method migrate(): void {
+        const db:SQLite = SQLite::open(self::path())
+        db.execute("CREATE TABLE IF NOT EXISTS visits (id INTEGER PRIMARY KEY AUTOINCREMENT, visited_at INTEGER)")
+        db.close()
+    }
+
+    // Enregistre une visite et retourne le nombre total de visites enregistrées.
+    public static method recordVisit(): int {
+        const db:SQLite = SQLite::open(self::path())
+        db.execute("INSERT INTO visits (visited_at) VALUES (" + Convert::intToStr(DateTime::now()) + ")")
+        const row:map<string, mixed> = db.queryOne("SELECT COUNT(*) as total FROM visits")
+        const total:int = row["total"]
+        db.close()
+        return total
+    }
+}

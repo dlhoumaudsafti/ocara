@@ -1,12 +1,14 @@
 
-// runtime/src/tauri.rs — squelette structuré pour intégration Tauri native
-// Ce fichier prépare tous les points d'extension pour brancher la logique Tauri (Rust natif)
+// runtime_tauri/src/lib.rs — intégration Tauri native, crate séparé de
+// ocara_runtime (voir la doc dans runtime_tauri/Cargo.toml et
+// src/codegen/link.rs : c'est ce qui permet de ne lier GTK/WebKit que pour les
+// programmes qui importent réellement ocara.Tauri).
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use once_cell::sync::Lazy;
 
-use crate::{alloc_str, ptr_to_str, __map_get};
+use ocara_runtime::{alloc_str, ptr_to_str, __map_get};
 
 /// Codes d'erreur TauriException (voir docs/builtins/Tauri.md)
 const ERR_TAURI_DUPLICATE_HANDLER: i64 = 101;
@@ -369,7 +371,7 @@ pub extern "C" fn Tauri_handler_register(this: i64, name_ptr: i64, trampoline_ad
             drop(w);
             drop(map);
             unsafe {
-                crate::exception::throw_tauri_exception(
+                ocara_runtime::exception::throw_tauri_exception(
                     &format!("un handler nommé '{}' est déjà enregistré (ui.handler/ui.handlers ne permet pas les doublons)", name),
                     ERR_TAURI_DUPLICATE_HANDLER,
                 );

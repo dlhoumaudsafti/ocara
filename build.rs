@@ -22,10 +22,32 @@ fn main() {
     std::fs::copy(&runtime_src, &runtime_dst)
         .expect("impossible de copier libocara_runtime.a dans OUT_DIR");
 
+    // libocara_runtime_tauri.a — crate séparé (voir sa doc et src/codegen/link.rs) :
+    // extrait/lié SEULEMENT pour les programmes qui importent réellement
+    // ocara.Tauri, afin qu'un programme qui ne l'utilise pas n'exige pas GTK/
+    // WebKit installés sur la machine cible.
+    let tauri_src = manifest_dir
+        .join("target")
+        .join("release")
+        .join("libocara_runtime_tauri.a");
+
+    if !tauri_src.exists() {
+        panic!(
+            "\n\nlibocara_runtime_tauri.a introuvable dans {}\n\
+             Utilisez `make build` (ou `cargo build --release -p ocara_runtime_tauri` en premier).\n",
+            tauri_src.display()
+        );
+    }
+
+    let tauri_dst = out_dir.join("libocara_runtime_tauri.a");
+    std::fs::copy(&tauri_src, &tauri_dst)
+        .expect("impossible de copier libocara_runtime_tauri.a dans OUT_DIR");
+
     // Lier les bibliothèques dynamiques nécessaires pour MySQL/OpenSSL
     println!("cargo:rustc-link-lib=ssl");
     println!("cargo:rustc-link-lib=crypto");
 
-    // Recompiler le compilateur si le runtime change
+    // Recompiler le compilateur si l'un des deux runtimes change
     println!("cargo:rerun-if-changed=target/release/libocara_runtime.a");
+    println!("cargo:rerun-if-changed=target/release/libocara_runtime_tauri.a");
 }

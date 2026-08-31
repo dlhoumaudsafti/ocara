@@ -5,7 +5,11 @@ edition = "2024"
 
 [lib]
 name       = "ocara_runtime"
-crate-type = ["staticlib"]
+# "rlib" en plus de "staticlib" : nécessaire pour que runtime_tauri (crate séparé,
+# voir sa doc dans son Cargo.toml) puisse dépendre normalement de ce crate côté
+# Rust (alloc_str, ptr_to_str, throw_tauri_exception) — un crate qui ne produit
+# QUE "staticlib" n'expose pas de métadonnées .rlib exploitables comme dépendance.
+crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 ureq      = { version = "=2.7.1", features = ["tls"] }
@@ -18,6 +22,15 @@ serde_yaml = "0.9"
 rusqlite  = { version = "=0.29.0", features = ["bundled"] }
 mysql     = "25.0"
 once_cell = "1.20"
-tauri     = { version = "2", default-features = false, features = ["wry", "compression"] }
-semver    = "1"
-glob      = "0.3"
+rand      = "0.8"
+# Force la variante "vendored" d'OpenSSL (compilée depuis les sources et intégrée
+# statiquement au binaire) au lieu de la liaison dynamique par défaut de
+# native-tls/openssl-sys (via ureq) — unification des features Cargo : cette
+# entrée directe active "vendored" sur LE MÊME crate openssl que celui utilisé en
+# transitif par ureq. Objectif : un binaire compilé avec Ocara n'exige plus
+# libssl.so/libcrypto.so installés sur la machine cible.
+openssl   = { version = "0.10", features = ["vendored"] }
+# Même principe que openssl "vendored" ci-dessus, pour zlib (via flate2, utilisé
+# par ureq et mysql) : "static" compile zlib depuis les sources au lieu de lier
+# dynamiquement libz.so.
+libz-sys  = { version = "1", features = ["static"] }

@@ -23,6 +23,7 @@ target
 *node_modules/
 out
 out.o
+*.db
 
 # Shim pkg-config généré par le Makefile (Tauri sur Ubuntu 24.04+)
 .pkgconfig-shim/
