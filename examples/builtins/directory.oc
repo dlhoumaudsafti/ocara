@@ -63,7 +63,7 @@ function demo_populate(): void {
 function demo_list(): void {
     IO::writeln("=== Listing de répertoire ===")
     
-    var entries:string[] = Directory::list("/tmp/ocara_test")
+    var entries:array<string> = Directory::list("/tmp/ocara_test")
     IO::writeln(`Contenu de /tmp/ocara_test (${Array::len(entries)} entrées):`)
     for entry in entries {
         IO::writeln(`  - ${entry}`)
@@ -74,13 +74,13 @@ function demo_list(): void {
 function demo_list_filtered(): void {
     IO::writeln("=== Listing filtré ===")
     
-    var files:string[] = Directory::listFiles("/tmp/ocara_test")
+    var files:array<string> = Directory::listFiles("/tmp/ocara_test")
     IO::writeln(`Fichiers uniquement (${Array::len(files)}):`)
     for file in files {
         IO::writeln(`  📄 ${file}`)
     }
     
-    var dirs:string[] = Directory::listDirs("/tmp/ocara_test")
+    var dirs:array<string> = Directory::listDirs("/tmp/ocara_test")
     IO::writeln(`Répertoires uniquement (${Array::len(dirs)}):`)
     for dir in dirs {
         IO::writeln(`  📁 ${dir}`)
@@ -140,7 +140,7 @@ function demo_move(): void {
 }
 
 function demo_recursive_list(path:string, prefix:string): void {
-    var entries:string[] = Directory::list(path)
+    var entries:array<string> = Directory::list(path)
     
     for entry in entries {
         var full_path:string = `${path}/${entry}`
@@ -183,7 +183,7 @@ function demo_error_handling(): void {
     
     try {
         // Essayer de lister un répertoire inexistant
-        var entries:string[] = Directory::list("/tmp/repertoire_inexistant")
+        var entries:array<string> = Directory::list("/tmp/repertoire_inexistant")
         IO::writeln(`Entrées: ${Array::len(entries)}`)
     } on e {
         IO::writeln(`✓ Erreur capturée: ${e}`)
@@ -215,7 +215,7 @@ function demo_practical_example(): void {
     File::write("/tmp/files_test/README", "readme")
     
     // Compter par extension
-    var files:string[] = Directory::listFiles("/tmp/files_test")
+    var files:array<string> = Directory::listFiles("/tmp/files_test")
     var txt_count:int = 0
     var other_count:int = 0
     

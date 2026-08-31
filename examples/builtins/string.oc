@@ -54,10 +54,10 @@ function main(): int {
 
 
     // ── split / explode ───────────────────────────────────────────────────
-    // Découpe une chaîne selon un séparateur → string[]
+    // Découpe une chaîne selon un séparateur → array<string>
     // split et explode sont des aliases
-    scoped parts:string[]  = String::split(csv, ",")
-    scoped parts2:string[] = String::explode("a|b|c", "|")
+    scoped parts:array<string>  = String::split(csv, ",")
+    scoped parts2:array<string> = String::explode("a|b|c", "|")
 
     IO::writeln(`split("alice,bob,...", ",") retourne ${String::len(csv)} octets source`)
     IO::writeln(`explode("a|b|c", "|") — premier segment via split`)

@@ -31,7 +31,7 @@ function main(): int {
     IO::writeln(`str_to_bool("0")    = ${Convert::strToBool("0")}`)   // false
 
     // str → array : découpe selon un séparateur
-    scoped mots:string[] = Convert::strToArray("rust,ocara,cranelift", ",")
+    scoped mots:array<string> = Convert::strToArray("rust,ocara,cranelift", ",")
     IO::writeln(`str_to_array : ${Array::len(mots)} éléments`)   // 3
 
     // str → map : "k=v,k=v" → map
@@ -82,14 +82,14 @@ function main(): int {
 
     // ── array → * ─────────────────────────────────────────────────────────
 
-    var tags:string[] = ["rust", "ocara", "web"]
+    var tags:array<string> = ["rust", "ocara", "web"]
 
     // array → string (join)
     scoped joined:string = Convert::arrayToStr(tags, ", ")
     IO::writeln(`array_to_str(tags, ", ") = "${joined}"`)   // "rust, ocara, web"
 
     // array → map : chaque élément est "k=v", kv="="
-    var pairs:string[] = ["lang=fr", "theme=dark", "debug=1"]
+    var pairs:array<string> = ["lang=fr", "theme=dark", "debug=1"]
     scoped m_arr:map<string, string> = Convert::arrayToMap(pairs, "=")
     IO::writeln(`array_to_map : ${Map::size(m_arr)} entrées`)   // 3
     IO::writeln(`  lang  = ${Map::get(m_arr, "lang")}`)          // fr
@@ -104,11 +104,11 @@ function main(): int {
     IO::writeln(`map_to_str : "${s_map}"`)
 
     // map → keys[]
-    scoped cles:string[] = Convert::mapKeysToArray(infos)
+    scoped cles:array<string> = Convert::mapKeysToArray(infos)
     IO::writeln(`map_keys_to_array : ${Array::len(cles)} clé(s)`)    // 3
 
     // map → values[]
-    scoped vals:mixed[] = Convert::mapValuesToArray(infos)
+    scoped vals:array<mixed> = Convert::mapValuesToArray(infos)
     IO::writeln(`map_values_to_array : ${Array::len(vals)} valeur(s)`)   // 3
 
 

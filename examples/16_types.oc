@@ -24,7 +24,7 @@ class Vector2 {
 }
 
 
-function display_all(values:mixed[]): void {
+function display_all(values:array<mixed>): void {
     for v in values {
         IO::writeln(v)
     }
@@ -53,11 +53,11 @@ function main(): int {
     IO::writeln(a)
 
     // ── Types tableau ────────────────────────────────────────────────────────
-    var ints:int[]       = [1, 2, 3]
-    var strs:string[]    = ["a", "b", "c"]
-    var bools:bool[]     = [true, false, true]
-    var vals:mixed[]      = [1, "deux", 3.0, false]
-    var matrix:int[][]   = [[1, 2], [3, 4]]
+    var ints:array<int>       = [1, 2, 3]
+    var strs:array<string>    = ["a", "b", "c"]
+    var bools:array<bool>     = [true, false, true]
+    var vals:array<mixed>      = [1, "deux", 3.0, false]
+    var matrix:array<array<int>>   = [[1, 2], [3, 4]]
 
     IO::writeln(ints[0])
     IO::writeln(strs[1])
@@ -78,7 +78,7 @@ function main(): int {
     var v:Vector2 = use Vector2(1.0, 2.5)
     v.display()
 
-    // ── Fonction prenant mixed[] ───────────────────────────────────────────────
+    // ── Fonction prenant array<mixed> ───────────────────────────────────────────────
     display_all([42, "hello", true])
 
     return 0

@@ -4,14 +4,14 @@
 // Fonctions exportées (convention C) :
 //
 //   Time_now()                   → i64      heure actuelle (HH:MM:SS)
-//   Time_from_timestamp(ts)      → i64      extrait l'heure d'un timestamp (HH:MM:SS)
+//   Time_fromTimestamp(ts)      → i64      extrait l'heure d'un timestamp (HH:MM:SS)
 //   Time_hour(time)              → i64      extrait l'heure (0-23)
 //   Time_minute(time)            → i64      extrait les minutes (0-59)
 //   Time_second(time)            → i64      extrait les secondes (0-59)
-//   Time_from_seconds(seconds)   → i64      convertit secondes → HH:MM:SS
-//   Time_to_seconds(time)        → i64      convertit HH:MM:SS → secondes
-//   Time_add_seconds(time, s)    → i64      ajoute N secondes
-//   Time_diff_seconds(t1, t2)    → i64      différence en secondes
+//   Time_fromSeconds(seconds)   → i64      convertit secondes → HH:MM:SS
+//   Time_toSeconds(time)        → i64      convertit HH:MM:SS → secondes
+//   Time_addSeconds(time, s)    → i64      ajoute N secondes
+//   Time_diffSeconds(t1, t2)    → i64      différence en secondes
 // ─────────────────────────────────────────────────────────────────────────────
 
 use std::ffi::CStr;
@@ -24,12 +24,12 @@ pub extern "C" fn Time_now() -> i64 {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs() as i64;
-    Time_from_timestamp(ts)
+    Time_fromTimestamp(ts)
 }
 
 /// Extrait l'heure d'un timestamp au format HH:MM:SS
 #[unsafe(no_mangle)]
-pub extern "C" fn Time_from_timestamp(ts: i64) -> i64 {
+pub extern "C" fn Time_fromTimestamp(ts: i64) -> i64 {
     let seconds_in_day = ts % 86400;
     let hour = (seconds_in_day / 3600) as i32;
     let minute = ((seconds_in_day % 3600) / 60) as i32;
@@ -113,7 +113,7 @@ pub extern "C" fn Time_second(time: i64) -> i64 {
 
 /// Convertit un nombre de secondes en HH:MM:SS
 #[unsafe(no_mangle)]
-pub extern "C" fn Time_from_seconds(seconds: i64) -> i64 {
+pub extern "C" fn Time_fromSeconds(seconds: i64) -> i64 {
     let s = seconds % 86400; // Garder dans la journée
     let hour = (s / 3600) as i32;
     let minute = ((s % 3600) / 60) as i32;
@@ -125,7 +125,7 @@ pub extern "C" fn Time_from_seconds(seconds: i64) -> i64 {
 
 /// Convertit un time HH:MM:SS en nombre de secondes depuis minuit
 #[unsafe(no_mangle)]
-pub extern "C" fn Time_to_seconds(time: i64) -> i64 {
+pub extern "C" fn Time_toSeconds(time: i64) -> i64 {
     let hour = Time_hour(time);
     let minute = Time_minute(time);
     let second = Time_second(time);
@@ -135,16 +135,16 @@ pub extern "C" fn Time_to_seconds(time: i64) -> i64 {
 
 /// Ajoute N secondes à un time
 #[unsafe(no_mangle)]
-pub extern "C" fn Time_add_seconds(time: i64, s: i64) -> i64 {
-    let current_seconds = Time_to_seconds(time);
+pub extern "C" fn Time_addSeconds(time: i64, s: i64) -> i64 {
+    let current_seconds = Time_toSeconds(time);
     let new_seconds = (current_seconds + s) % 86400;
-    Time_from_seconds(if new_seconds < 0 { new_seconds + 86400 } else { new_seconds })
+    Time_fromSeconds(if new_seconds < 0 { new_seconds + 86400 } else { new_seconds })
 }
 
 /// Calcule la différence en secondes entre deux times
 #[unsafe(no_mangle)]
-pub extern "C" fn Time_diff_seconds(t1: i64, t2: i64) -> i64 {
-    let s1 = Time_to_seconds(t1);
-    let s2 = Time_to_seconds(t2);
+pub extern "C" fn Time_diffSeconds(t1: i64, t2: i64) -> i64 {
+    let s1 = Time_toSeconds(t1);
+    let s2 = Time_toSeconds(t2);
     s1 - s2
 }

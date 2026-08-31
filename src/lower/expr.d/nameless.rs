@@ -16,6 +16,7 @@ pub fn lower_nameless_fn(
     captures:      &[(String, IrType)],
     fn_ret_types:  &HashMap<String, IrType>,
     fn_param_types: &HashMap<String, Vec<IrType>>,
+    fn_param_names: &HashMap<String, Vec<String>>,
     current_class: &Option<String>,
     var_class:     &HashMap<String, String>,
     func_vars:     &HashSet<String>,
@@ -54,6 +55,7 @@ pub fn lower_nameless_fn(
         let mut builder = LowerBuilder::new(module, anon_name.into(), ir_params, IrType::I64);
         builder.fn_ret_types   = fn_ret_types.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         builder.fn_param_types = fn_param_types.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        builder.fn_param_names = fn_param_names.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         builder.current_class  = current_class.clone();
         builder.var_class      = var_class.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         builder.func_vars      = func_vars.clone();

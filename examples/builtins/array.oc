@@ -19,8 +19,8 @@ import ocara.Array
 
 function main(): int {
 
-    var nombres:int[] = [10, 30, 20, 50, 40]
-    var mots:string[] = ["banane", "pomme", "cerise", "abricot"]
+    var nombres:array<int> = [10, 30, 20, 50, 40]
+    var mots:array<string> = ["banane", "pomme", "cerise", "abricot"]
 
 
     // ── len ───────────────────────────────────────────────────────────────
@@ -59,14 +59,14 @@ function main(): int {
 
     // ── reverse ───────────────────────────────────────────────────────────
     // Retourne un nouvel array inversé, sans modifier l'original
-    scoped inv:int[] = Array::reverse(nombres)
+    scoped inv:array<int> = Array::reverse(nombres)
     IO::writeln(`reverse([10,30,20,50,40]) → first=${Array::first(inv)} last=${Array::last(inv)}`)
     // first=40, last=10
 
 
     // ── slice ─────────────────────────────────────────────────────────────
     // Extrait [from, to) — indices 0-basés
-    scoped sub:int[] = Array::slice(nombres, 1, 4)
+    scoped sub:array<int> = Array::slice(nombres, 1, 4)
     IO::writeln(`slice([10,30,20,50,40], 1, 4) : len=${Array::len(sub)}`)   // 3 (30,20,50)
 
 
@@ -80,8 +80,8 @@ function main(): int {
 
     // ── sort ──────────────────────────────────────────────────────────────
     // Retourne un nouvel array trié (ordre naturel)
-    scoped tries:string[] = Array::sort(mots)
-    scoped tries_nb:int[] = Array::sort(nombres)
+    scoped tries:array<string> = Array::sort(mots)
+    scoped tries_nb:array<int> = Array::sort(nombres)
     IO::writeln(`sort(mots)    → ${Array::join(tries, ", ")}`)      // abricot, banane, cerise, pomme
     IO::writeln(`sort(nombres) → first=${Array::first(tries_nb)} last=${Array::last(tries_nb)}`)
     // first=10, last=50
@@ -90,8 +90,8 @@ function main(): int {
     // ── Combinaisons ──────────────────────────────────────────────────────
 
     // Supprimer les doublons via index_of (pattern courant)
-    var source:int[]  = [1, 2, 3, 2, 4, 1, 5]
-    var unique:int[]  = []
+    var source:array<int>  = [1, 2, 3, 2, 4, 1, 5]
+    var unique:array<int>  = []
     for val in source {
         if Array::indexOf(unique, val) == -1 {
             Array::push(unique, val)
@@ -100,12 +100,12 @@ function main(): int {
     IO::writeln(`unique : len=${Array::len(unique)}`)   // 5
 
     // Derniers 3 éléments d'un tableau
-    var data:int[] = [10, 20, 30, 40, 50, 60]
-    scoped tail:int[] = Array::slice(data, Array::len(data) - 3, Array::len(data))
+    var data:array<int> = [10, 20, 30, 40, 50, 60]
+    scoped tail:array<int> = Array::slice(data, Array::len(data) - 3, Array::len(data))
     IO::writeln(`3 derniers : ${Array::join(tail, ", ")}`)   // 40, 50, 60
 
     // Vérification avant accès
-    var vide:int[] = []
+    var vide:array<int> = []
     if Array::len(vide) == 0 {
         IO::writeln("tableau vide — aucun accès")
     }

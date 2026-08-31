@@ -35,7 +35,7 @@ function main(): int {
     IO::writeln(sum)              // 55  (1+2+…10)
 
     // ── for sur un tableau ───────────────────────────────────────────────────
-    var fruits:string[] = ["pomme", "banane", "cerise"]
+    var fruits:array<string> = ["pomme", "banane", "cerise"]
     for fruit in fruits {
         IO::writeln(fruit)
     }

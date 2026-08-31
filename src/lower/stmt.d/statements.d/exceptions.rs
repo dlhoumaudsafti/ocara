@@ -107,12 +107,19 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
             ir_params,
             body_ret_ty.clone(),
         );
-        bb.fn_ret_types  = builder.fn_ret_types.clone();
-        bb.var_class     = builder.var_class.clone();
-        bb.elem_types    = builder.elem_types.clone();
-        bb.map_vars      = builder.map_vars.clone();
-        bb.current_class = builder.current_class.clone();
-        bb.parent_class  = builder.parent_class.clone();
+        bb.fn_ret_types    = builder.fn_ret_types.clone();
+        bb.fn_param_types  = builder.fn_param_types.clone();
+        bb.fn_param_names  = builder.fn_param_names.clone();
+        bb.fn_variadic_info = builder.fn_variadic_info.clone();
+        bb.func_default_args = builder.func_default_args.clone();
+        bb.func_vars       = builder.func_vars.clone();
+        bb.func_ret_types  = builder.func_ret_types.clone();
+        bb.async_funcs     = builder.async_funcs.clone();
+        bb.var_class       = builder.var_class.clone();
+        bb.elem_types      = builder.elem_types.clone();
+        bb.map_vars        = builder.map_vars.clone();
+        bb.current_class   = builder.current_class.clone();
+        bb.parent_class    = builder.parent_class.clone();
         
         // Si captures, charger depuis le tableau pointé
         if !captures.is_empty() {
@@ -183,11 +190,19 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
             vec![],            // params déclarés manuellement ci-dessous
             handler_ret_ty,
         );
-        hb.fn_ret_types  = builder.fn_ret_types.clone();
-        hb.var_class     = builder.var_class.clone();
-        hb.elem_types    = builder.elem_types.clone();
-        hb.map_vars      = builder.map_vars.clone();
-        hb.current_class = builder.current_class.clone();
+        hb.fn_ret_types    = builder.fn_ret_types.clone();
+        hb.fn_param_types  = builder.fn_param_types.clone();
+        hb.fn_param_names  = builder.fn_param_names.clone();
+        hb.fn_variadic_info = builder.fn_variadic_info.clone();
+        hb.func_default_args = builder.func_default_args.clone();
+        hb.func_vars       = builder.func_vars.clone();
+        hb.func_ret_types  = builder.func_ret_types.clone();
+        hb.async_funcs     = builder.async_funcs.clone();
+        hb.var_class       = builder.var_class.clone();
+        hb.elem_types      = builder.elem_types.clone();
+        hb.map_vars        = builder.map_vars.clone();
+        hb.current_class   = builder.current_class.clone();
+        hb.parent_class    = builder.parent_class.clone();
 
         // Paramètres : err_val (i64) et err_type (i64)
         // On suit le même patron que lower_func :
@@ -442,11 +457,21 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
             }
         } else {
             // ERROR n'existe pas (ne devrait pas arriver), faire un return normal
-            builder.emit(Inst::Return { value: Some(return_value) });
+            let ret_val = if builder.func.ret_ty != IrType::Void { Some(return_value) } else { None };
+            builder.emit(Inst::Return { value: ret_val });
         }
     } else {
-        // Fonction normale : vrai return
-        builder.emit(Inst::Return { value: Some(return_value) });
+        // Fonction normale : vrai return. `return_value` encode la valeur réelle
+        // (try_result - 1) que le handler a explicitement retournée — mais si LA
+        // FONCTION ENGLOBANTE est void, sa signature Cranelift ne déclare aucune
+        // valeur de retour : lui passer `return_value` quand même ferait échouer
+        // le vérificateur ("arguments of return must match function signature").
+        // Le contrôle de flux (sortie anticipée) reste correct avec value:None —
+        // seule la valeur portée par un `return <expr>` dans le handler est
+        // nécessairement ignorée, ce qui est cohérent : une fonction void n'a de
+        // toute façon aucune valeur à propager.
+        let ret_val = if builder.func.ret_ty != IrType::Void { Some(return_value) } else { None };
+        builder.emit(Inst::Return { value: ret_val });
     }
     
     // Bloc continue : continuer l'exécution normale

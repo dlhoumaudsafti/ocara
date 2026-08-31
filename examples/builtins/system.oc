@@ -15,7 +15,7 @@ function main(): int {
     IO::writeln(`CWD  : ${System::cwd()}`)
 
     // ── Arguments de la ligne de commande ─────────────────────────────────────
-    scoped argv:string[] = System::args()
+    scoped argv:array<string> = System::args()
     IO::writeln(`Args : ${argv}`)
 
     // ── Variables d'environnement ─────────────────────────────────────────────

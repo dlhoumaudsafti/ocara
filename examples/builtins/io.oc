@@ -72,9 +72,9 @@ function main(): int {
 
 
     // ── read_array ────────────────────────────────────────────────────────
-    // Lit une ligne et la découpe selon le séparateur → string[]
+    // Lit une ligne et la découpe selon le séparateur → array<string>
     IO::writeln("Entrez des tags séparés par des virgules (ex: rust,ocara,web) :")
-    scoped tags:string[] = IO::readArray(",")
+    scoped tags:array<string> = IO::readArray(",")
     IO::writeln(`${Array::len(tags)} tag(s) reçu(s)`)
     for tag in tags {
         IO::writeln(`  - ${tag}`)

@@ -274,7 +274,7 @@ import ocara.JSON
 
 function handle_api(req:int): int {
     // Lire le body de la requête et le décoder
-    scoped body:string = HTTPServer::reqBody(req)
+    scoped body:string = HTTPServer::body(req)
     var data:mixed = body.decode()
     
     // Traiter les données...
@@ -284,7 +284,7 @@ function handle_api(req:int): int {
     }
     
     // Encoder la réponse et l'envoyer
-    HTTPServer::setRespHeader(req, "Content-Type", "application/json")
+    HTTPServer::respondHeader(req, "Content-Type", "application/json")
     HTTPServer::respond(req, 200, response.encode())
     return 0
 }

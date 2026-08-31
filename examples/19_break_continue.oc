@@ -41,7 +41,7 @@ function main(): int {
     }
 
     // break dans for..in (tableau)
-    var nums:int[] = [10, 20, 30, 40, 50]
+    var nums:array<int> = [10, 20, 30, 40, 50]
     for v in nums {
         if v == 30 {
             break

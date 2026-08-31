@@ -9,7 +9,7 @@
 //   Thread_detach(self_ptr)         → void   détache (fire-and-forget)
 //   Thread_id(self_ptr)             → i64    ID du thread (assigné à la création)
 //   Thread_sleep(ms)                → void   pause en millisecondes (statique)
-//   Thread_current_id()             → i64    ID du thread courant (statique)
+//   Thread_currentId()             → i64    ID du thread courant (statique)
 //
 // Représentation mémoire :
 //   Le slot Ocara de 8 octets (alloué par __alloc_obj) stocke un pointeur
@@ -150,6 +150,6 @@ pub extern "C" fn Thread_sleep(ms: i64) {
 
 /// Retourne l'ID du thread courant (0 pour le thread principal).
 #[unsafe(no_mangle)]
-pub extern "C" fn Thread_current_id() -> i64 {
+pub extern "C" fn Thread_currentId() -> i64 {
     CURRENT_THREAD_ID.with(|c| c.get())
 }

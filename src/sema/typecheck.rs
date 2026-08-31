@@ -103,6 +103,16 @@ impl<'a> TypeChecker<'a> {
 
     fn check_func(&mut self, func: &FuncDecl) {
         self.scopes.push();
+        // Sauvegarder/restaurer current_ret (pas juste le remettre à None) : cette
+        // fonction peut être appelée EN IMBRICATION d'une autre vérification en
+        // cours (le typecheck des classes est lazy — check_class() est déclenché
+        // au premier usage d'une classe, potentiellement DEPUIS le corps d'une
+        // fonction déjà en cours de vérification). Sans save/restore, vérifier une
+        // méthode void appelée depuis `main(): int` écrasait le current_ret de
+        // main à None, faisant croire que les `return <valeur>` suivants de main
+        // visaient une fonction void (bug : "expected return type 'void', found
+        // 'int'" sur un simple `function main(): int { ...; return 0 }`).
+        let saved_ret = self.current_ret.take();
         self.current_ret = Some(func.ret_ty.clone());
 
         for param in &func.params {
@@ -131,7 +141,7 @@ impl<'a> TypeChecker<'a> {
 
         self.check_block(&func.body);
         { let _u = self.scopes.pop_with_warnings(); self.flush_warnings(_u); }
-        self.current_ret = None;
+        self.current_ret = saved_ret;
     }
 
     // ── Classe ───────────────────────────────────────────────────────────────
@@ -142,7 +152,13 @@ impl<'a> TypeChecker<'a> {
             return;
         }
         self.checked_classes.insert(class.name.clone());
-        
+
+        // Save/restore (même raison que current_ret dans check_func) : le
+        // typecheck lazy peut déclencher check_class() DEPUIS le corps d'une
+        // méthode d'une AUTRE classe déjà en cours de vérification — sans
+        // save/restore, ceci écraserait durablement le current_class du
+        // contexte englobant (self:: y résoudrait alors la mauvaise classe).
+        let saved_class = self.current_class.take();
         self.current_class = Some(class.name.clone());
 
         for member in &class.members {
@@ -159,6 +175,10 @@ impl<'a> TypeChecker<'a> {
                 },
                 ClassMember::Constructor { params, body, .. } => {
                     self.scopes.push();
+                    // Save/restore : voir le commentaire équivalent dans check_func —
+                    // même risque d'écrasement du current_ret d'une fonction englobante
+                    // via le typecheck lazy des classes.
+                    let saved_ret = self.current_ret.take();
                     self.current_ret = Some(Type::Void);
                     for p in params {
                         // Warning si variadic<mixed>
@@ -185,7 +205,7 @@ impl<'a> TypeChecker<'a> {
                     }
                     self.check_block(body);
                     { let _u = self.scopes.pop_with_warnings(); self.flush_warnings(_u); }
-                    self.current_ret = None;
+                    self.current_ret = saved_ret;
                 }
                 ClassMember::Const { ty, value, span, .. } => {
                     let val_ty = self.infer_expr(value);
@@ -210,7 +230,7 @@ impl<'a> TypeChecker<'a> {
             }
         }
 
-        self.current_class = None;
+        self.current_class = saved_class;
     }
 
     // ── Blocs runtime ────────────────────────────────────────────────────────

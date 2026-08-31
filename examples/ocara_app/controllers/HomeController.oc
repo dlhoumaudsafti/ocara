@@ -1,8 +1,12 @@
-// examples/ocara_site/controllers/HomeController.oc
+// examples/ocara_app/controllers/HomeController.oc
 // Contrôleur de la page d'accueil.
 //
 // Charge deux statistiques en parallèle via async/resolve,
 // puis rend la page dynamiquement (pas de cache — les stats changent).
+//
+// La dernière carte de la page ("Appel Ocara en direct") démontre le pont IPC
+// JS -> Ocara (ui.handlers(), voir main.oc et controllers/IPCController.oc) :
+// le bouton appelle une vraie méthode Ocara compilée depuis le JS de la page.
 
 import ocara.HTMLComponent
 import ocara.HTML
@@ -45,6 +49,44 @@ class HomeController {
     <p>1. Installer Rust et Cargo</p>
     <p>2. <code>make build</code></p>
     <p>3. <code>./target/release/ocara mon_fichier.oc -o mon_binaire</code></p>
+  </card>
+  <card title="Appel Ocara en direct (IPC)">
+    <p>Ce formulaire appelle une vraie methode Ocara depuis le JS de la page,
+    via ui.handlers() (voir main.oc et controllers/IPCController.oc) — pas un
+    appel HTTP classique, un vrai pont IPC JS -> Ocara.</p>
+    <input id="ipc-name" type="text" placeholder="Votre prenom" value="Ada">
+    <button id="ipc-btn">Demander a Ocara</button>
+    <p id="ipc-result" class="stats-badge">Chargement...</p>
+    <script>
+    (function () {
+      var btn    = document.getElementById("ipc-btn");
+      var input  = document.getElementById("ipc-name");
+      var result = document.getElementById("ipc-result");
+
+      if (!window.ocara) {
+        result.textContent = "Disponible uniquement dans la fenetre Tauri (pas dans un navigateur classique).";
+        btn.disabled = true;
+        return;
+      }
+
+      btn.addEventListener("click", function () {
+        var name = input.value || "Invite";
+        result.textContent = "...";
+        window.ocara.invoke("greet", [name]).then(function (msg) {
+          result.textContent = msg;
+        }).catch(function (err) {
+          result.textContent = "Erreur : " + err;
+        });
+      });
+
+      // Payload array vide : demo de ui.handlers() sans argument.
+      window.ocara.invoke("serverTime", []).then(function (t) {
+        result.textContent = "Heure serveur (Ocara) : " + t;
+      }).catch(function (err) {
+        result.textContent = "Erreur : " + err;
+      });
+    })();
+    </script>
   </card>
 </layout>`)
 

@@ -123,7 +123,7 @@ class Score implements Printable, Comparable {
 class Student extends Score {
 
     private property student_id:string
-    private property courses:mixed[]
+    private property courses:array<mixed>
     private property course_grades:map<string,int>
 
     init(name:string, student_id:string) {
@@ -286,13 +286,13 @@ function main(): int {
     IO::writeln("Couleur du reste : " + color)
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 6. TABLEAUX — 1D, 2D, mixed[]
+    // 6. TABLEAUX — 1D, 2D, array<mixed>
     // ─────────────────────────────────────────────────────────────────────────
     IO::writeln("── 6. Tableaux ──────────────────────────────────────")
-    var scores_arr:int[]  = [95, 87, 73, 100, 42]
-    var names:string[]    = ["Alice", "Bob", "Carol", "Dave", "Eve"]
-    var matrix:int[][]    = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
-    var vals:mixed[]       = [42, "bonjour", true, 3.14]
+    var scores_arr:array<int>  = [95, 87, 73, 100, 42]
+    var names:array<string>    = ["Alice", "Bob", "Carol", "Dave", "Eve"]
+    var matrix:array<array<int>>    = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+    var vals:array<mixed>       = [42, "bonjour", true, 3.14]
 
     for score in scores_arr {
         IO::writeln("  score = " + score)
@@ -394,7 +394,7 @@ function main(): int {
     IO::writeln("compare(99) = " + sc1.compare(99))
     IO::writeln("MAX = " + Score::MAX + " MIN = " + Score::MIN)
 
-    // Student — héritage, surcharge, maps, mixed[]
+    // Student — héritage, surcharge, maps, array<mixed>
     var stu:Student = use Student("Carol", "S001")
     stu.enroll("Mathématiques", 17)
     stu.enroll("Informatique", 19)

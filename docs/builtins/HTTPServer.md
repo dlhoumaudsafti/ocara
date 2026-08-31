@@ -12,13 +12,13 @@ import ocara.HTTPServer
 
 ```ocara
 const server:HTTPServer = use HTTPServer()
-server.setPort(8080)            // port d'écoute (défaut : 8080)
-server.setHost("0.0.0.0")       // interface réseau (défaut : "0.0.0.0")
-server.setWorkers(32)           // threads workers (défaut : 4)
-server.setRootPath("./public") // répertoire pour fichiers statiques (optionnel)
+server.port(8080)            // port d'écoute (défaut : 8080)
+server.host("0.0.0.0")       // interface réseau (défaut : "0.0.0.0")
+server.workers(32)           // threads workers (défaut : 4)
+server.rootPath("./public") // répertoire pour fichiers statiques (optionnel)
 ```
 
-> **Note** : Toutes les méthodes `set*` sont optionnelles. Les valeurs par défaut sont adaptées pour un petit site web.
+> **Note** : Toutes ces méthodes de configuration sont optionnelles. Les valeurs par défaut sont adaptées pour un petit site web.
 
 ## Enregistrement des routes
 
@@ -50,7 +50,7 @@ server.routeError(code:int, handler:Function)
 
 ```ocara
 server.routeError(404, nameless(req:int): int {
-    var path:string = HTTPServer::reqPath(req)
+    var path:string = HTTPServer::path(req)
     var html:string = `<!DOCTYPE html>
 <html>
     <head><title>404 - Page non trouvée</title></head>
@@ -75,7 +75,7 @@ Toutes les réponses reçoivent automatiquement l'en-tête :
 Content-Type: text/html; charset=utf-8
 ```
 
-Vous pouvez le remplacer avec `setRespHeader` :
+Vous pouvez le remplacer avec `respondHeader` :
 
 ```ocara
 // Réponse HTML (Content-Type automatique)
@@ -86,7 +86,7 @@ server.route("/page", "GET", nameless(req:int): int {
 
 // Réponse JSON (Content-Type personnalisé)
 server.route("/api", "GET", nameless(req:int): int {
-    HTTPServer::setRespHeader(req, "Content-Type", "application/json")
+    HTTPServer::respondHeader(req, "Content-Type", "application/json")
     HTTPServer::respond(req, 200, `{"status":"ok"}`)
     return 0
 })
@@ -97,7 +97,7 @@ server.route("/api", "GET", nameless(req:int): int {
 Si vous définissez un `root_path` et qu'aucune route ne correspond à `GET /`, le serveur cherche automatiquement `/index.html` :
 
 ```ocara
-server.setRootPath("./public")
+server.rootPath("./public")
 
 // GET /           → cherche ./public/index.html (automatique)
 // GET /index.html → cherche ./public/index.html (explicite)
@@ -119,27 +119,27 @@ est le handle de requête passé automatiquement au handler.
 
 | Méthode | Signature | Description |
 |---|---|---|
-| `reqPath` | `(req:int) → string` | Chemin de la requête (sans query string) |
-| `reqMethod` | `(req:int) → string` | Méthode HTTP (`"GET"`, `"POST"`, …) |
-| `reqBody` | `(req:int) → string` | Corps de la requête |
-| `reqHeader` | `(req:int, name:string) → string` | Valeur d'un en-tête (insensible à la casse) |
-| `reqQuery` | `(req:int, key:string) → string` | Valeur d'un paramètre query string |
+| `path` | `(req:int) → string` | Chemin de la requête (sans query string) |
+| `method` | `(req:int) → string` | Méthode HTTP (`"GET"`, `"POST"`, …) |
+| `body` | `(req:int) → string` | Corps de la requête |
+| `header` | `(req:int, name:string) → string` | Valeur d'un en-tête (insensible à la casse) |
+| `query` | `(req:int, key:string) → string` | Valeur d'un paramètre query string |
 
 ## Méthodes statiques — construction de la réponse
 
 | Méthode | Signature | Description |
 |---|---|---|
 | `respond` | `(req:int, status:int, body:string) → void` | Définit le statut et le corps de la réponse |
-| `setRespHeader` | `(req:int, name:string, value:string) → void` | Ajoute un en-tête à la réponse |
+| `respondHeader` | `(req:int, name:string, value:string) → void` | Ajoute un en-tête à la réponse |
 
 ## Méthodes d'instance — récapitulatif
 
 | Méthode | Signature | Description |
 |---|---|---|
-| `setPort` | `(port:int) → void` | Port d'écoute |
-| `setHost` | `(host:string) → void` | Adresse d'écoute |
-| `setWorkers` | `(n:int) → void` | Nombre de threads workers |
-| `setRootPath` | `(path:string) → void` | Répertoire racine pour fichiers statiques |
+| `port` | `(port:int) → void` | Port d'écoute |
+| `host` | `(host:string) → void` | Adresse d'écoute |
+| `workers` | `(n:int) → void` | Nombre de threads workers |
+| `rootPath` | `(path:string) → void` | Répertoire racine pour fichiers statiques |
 | `route` | `(path:string, method:string, f:Function) → void` | Enregistre une route |
 | `routeError` | `(code:int, f:Function) → void` | Enregistre un handler d'erreur personnalisé |
 | `run` | `() → void` | Démarre le serveur (bloquant) |
@@ -153,24 +153,24 @@ import ocara.IO
 function main(): int {
 
     const server:HTTPServer = use HTTPServer()
-    server.setPort(3000)
-    server.setWorkers(8)
+    server.port(3000)
+    server.workers(8)
 
     // Route GET /
     server.route("/", "GET", nameless(req:int): int {
-        var name:string = HTTPServer::reqQuery(req, "name")
+        var name:string = HTTPServer::query(req, "name")
         if name == "" {
             name = "Monde"
         }
-        HTTPServer::setRespHeader(req, "Content-Type", "text/plain; charset=utf-8")
+        HTTPServer::respondHeader(req, "Content-Type", "text/plain; charset=utf-8")
         HTTPServer::respond(req, 200, `Bonjour ${name} !`)
         return 0
     })
 
     // Route POST /echo
     server.route("/echo", "POST", nameless(req:int): int {
-        var body:string = HTTPServer::reqBody(req)
-        HTTPServer::setRespHeader(req, "Content-Type", "application/json")
+        var body:string = HTTPServer::body(req)
+        HTTPServer::respondHeader(req, "Content-Type", "application/json")
         HTTPServer::respond(req, 200, `{"echo":"${body}"}`)
         return 0
     })
@@ -197,7 +197,7 @@ class HomeController {
 
 function main(): int {
     const server:HTTPServer = use HTTPServer()
-    server.setPort(8080)
+    server.port(8080)
     server.route("/", "GET", HomeController::home)
     server.run()
     return 0
@@ -208,7 +208,7 @@ function main(): int {
 
 ## Fichiers statiques
 
-HTTPServer peut servir des fichiers statiques (HTML, CSS, JS, images, etc.) depuis un répertoire racine défini avec `setRootPath()`.
+HTTPServer peut servir des fichiers statiques (HTML, CSS, JS, images, etc.) depuis un répertoire racine défini avec `rootPath()`.
 
 ### Fonctionnement
 
@@ -224,12 +224,12 @@ import ocara.IO
 
 function main(): int {
     const server:HTTPServer = use HTTPServer()
-    server.setPort(8080)
-    server.setRootPath("./public")
+    server.port(8080)
+    server.rootPath("./public")
 
     // Route dynamique API
     server.route("/api/hello", "GET", nameless(req:int): int {
-        HTTPServer::setRespHeader(req, "Content-Type", "application/json")
+        HTTPServer::respondHeader(req, "Content-Type", "application/json")
         HTTPServer::respond(req, 200, `{"message":"Hello API"}`)
         return 0
     })
@@ -299,9 +299,9 @@ Le modèle est **accept pool** :
 
 ### Configuration des workers
 
-La méthode `setWorkers(n)` définit le nombre de threads de traitement parallèle.
+La méthode `workers(n)` définit le nombre de threads de traitement parallèle.
 
-> **Valeur par défaut** : `4` workers (si `setWorkers()` n'est pas appelé)
+> **Valeur par défaut** : `4` workers (si `workers()` n'est pas appelé)
 
 **Important** : Les workers définissent la **capacité de traitement parallèle**, pas le nombre maximum de connexions simultanées. Des milliers de clients peuvent se connecter, mais seuls `N` requêtes seront traitées en parallèle à un instant donné.
 
@@ -324,7 +324,7 @@ La méthode `setWorkers(n)` définit le nombre de threads de traitement parallè
 ```ocara
 // Site web avec 1000 utilisateurs et APIs + base de données
 const server:HTTPServer = use HTTPServer()
-server.setWorkers(32)  // Bon compromis pour cette charge
+server.workers(32)  // Bon compromis pour cette charge
 server.run()
 ```
 

@@ -32,6 +32,7 @@ pub fn lower_func(
     consts: &[crate::parsing::ast::ConstDecl],
     fn_ret_types: &HashMap<String, IrType>,
     fn_param_types: &HashMap<String, Vec<IrType>>,
+    fn_param_names: &HashMap<String, Vec<String>>,
     fn_variadic_info: &HashMap<String, (usize, IrType)>,
     func_default_args: &HashMap<String, Vec<Option<Expr>>>,
     class_name: Option<&str>,
@@ -68,6 +69,9 @@ pub fn lower_func(
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect();
     builder.fn_param_types = fn_param_types.iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+    builder.fn_param_names = fn_param_names.iter()
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect();
     builder.fn_variadic_info = fn_variadic_info.iter()

@@ -1,0 +1,27 @@
+// examples/ocara_app/controllers/IPCController.oc
+// Démontre le pont IPC JS -> Ocara (ui.handlers(), voir main.oc et
+// docs/builtins/Tauri.md) : ces deux méthodes sont enregistrées comme
+// commandes Tauri et appelées directement depuis le JS de la page d'accueil
+// (voir la carte "Appel Ocara en direct" dans HomeController.oc). Le code qui
+// s'exécute est du vrai Ocara compilé, pas du JavaScript — l'horodatage vient
+// du serveur, pas de l'horloge du navigateur, pour bien montrer que l'appel
+// traverse réellement la frontière JS -> Ocara.
+
+import ocara.DateTime
+
+class IPCController {
+
+    // Appelée depuis le JS avec un payload array positionnel :
+    // window.ocara.invoke("greet", [name]) — voir HomeController.oc.
+    public static method greet(name:string): string {
+        var ts:int      = DateTime::now()
+        var when:string = DateTime::fromTimestamp(ts)
+        return "Bonjour " + name + " ! Ici Ocara, il est " + when + " côté serveur."
+    }
+
+    // Appelée sans argument : window.ocara.invoke("serverTime", []).
+    public static method serverTime(): string {
+        var ts:int = DateTime::now()
+        return DateTime::fromTimestamp(ts)
+    }
+}

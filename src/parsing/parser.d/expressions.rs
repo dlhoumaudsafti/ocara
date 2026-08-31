@@ -547,6 +547,21 @@ impl Parser {
                 self.advance();
                 Ok(Expr::Ident("exit".to_string(), span))
             }
+            // "result" reste utilisable comme identifiant ordinaire en dehors d'un
+            // bloc runtime (voir la même note dans eat_ident, primitives.rs) —
+            // sans ce cas, une référence comme `return result` ou `result = ...`
+            // échouerait avec "unexpected primary expression" partout où `result`
+            // est un simple nom de variable (motif d'accumulateur très courant).
+            TokenKind::Result => {
+                self.advance();
+                Ok(Expr::Ident("result".to_string(), span))
+            }
+            // "from" reste utilisable comme identifiant ordinaire hors de
+            // `import X from Y` — voir la même note dans eat_ident (primitives.rs).
+            TokenKind::From => {
+                self.advance();
+                Ok(Expr::Ident("from".to_string(), span))
+            }
 
             _ => Err(ParseError::new(
                 format!("unexpected primary expression: {:?}", self.peek_kind()),
