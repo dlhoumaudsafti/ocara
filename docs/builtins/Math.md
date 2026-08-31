@@ -104,6 +104,24 @@ Math::clamp(42,  0, 100)   // → 42   (dans la plage)
 
 ---
 
+### `Math::random(min, max)` → `int`
+
+Retourne un entier aléatoire dans l'intervalle `[min, max]` (bornes incluses).
+
+| Paramètre | Type  | Description       |
+|-----------|-------|-------------------|
+| `min`     | `int` | Borne inférieure  |
+| `max`     | `int` | Borne supérieure  |
+
+```ocara
+Math::random(1, 6)      // → un entier entre 1 et 6 (lancer de dé)
+Math::random(0, 100)    // → un entier entre 0 et 100
+```
+
+**Erreur** : lève une `MathException` (code 103, `INVALID_RANGE`) si `min > max`.
+
+---
+
 ### `Math::sqrt(n)` → `float`
 
 Retourne la racine carrée de `n` (float).
@@ -193,6 +211,7 @@ Certaines méthodes Math peuvent lever une `MathException` en cas d'erreur.
 |------|------|-----------|-------------|
 | 101 | `NEGATIVE_SQRT` | `Math::sqrt()` | Tentative de calcul de la racine carrée d'un nombre négatif |
 | 102 | `NEGATIVE_EXPONENT` | `Math::pow()` | Tentative d'élévation à une puissance négative |
+| 103 | `INVALID_RANGE` | `Math::random()` | Borne `min` supérieure à `max` |
 
 ### Exemples de gestion d'erreurs
 
@@ -217,6 +236,27 @@ function main(): int {
         }
     }
     
+    return 0
+}
+```
+
+#### Gestion de random() avec bornes invalides
+
+```ocara
+import ocara.Math
+import ocara.MathException
+import ocara.IO
+
+function main(): int {
+    try {
+        var n:int = Math::random(10, 1)   // min > max
+        IO::writeln(`Résultat: ${n}`)
+    } on e is MathException {
+        if e.code == 103 {
+            IO::writeln("Bornes invalides : min doit être <= max")
+        }
+    }
+
     return 0
 }
 ```
@@ -328,6 +368,7 @@ Les messages d'exception sont en anglais et incluent les valeurs problématiques
 **Notes :**
 - `Math::abs()`, `Math::min()`, `Math::max()` ne lèvent jamais d'exception
 - `Math::clamp()` ne lève jamais d'exception (ajuste automatiquement)
+- `Math::random()` lève une `MathException` (code 103) uniquement si `min > max`
 - `Math::floor()`, `Math::ceil()`, `Math::round()` ne lèvent jamais d'exception (fonctionnent avec tout float, y compris NaN et Inf)
 - Pour calculer des puissances négatives, utilisez la division flottante : `1.0 / Math::pow(base, abs(exp))`
 - Pour des calculs sur nombres complexes (racines de nombres négatifs), les fonctions Math actuelles ne les supportent pas
@@ -345,6 +386,7 @@ Les méthodes sont implémentées côté runtime C sous le préfixe `Math_` :
 | `Math::max`      | `Math_max`        | `I64, I64`                | `I64`            |
 | `Math::pow`      | `Math_pow`        | `I64, I64`                | `I64`            |
 | `Math::clamp`    | `Math_clamp`      | `I64, I64, I64`           | `I64`            |
+| `Math::random`   | `Math_random`     | `I64, I64`                | `I64`            |
 | `Math::sqrt`     | `Math_sqrt`       | `F64`                     | `F64`            |
 | `Math::floor`    | `Math_floor`      | `F64`                     | `I64`            |
 | `Math::ceil`     | `Math_ceil`       | `F64`                     | `I64`            |

@@ -569,7 +569,10 @@ fn main() {
 
     // ── 8. Liaison finale ─────────────────────────────────────────────────────
     let obj_path = args.output.with_extension("o");
-    match link(&obj_bytes, &obj_path, &args.output, args.release) {
+    // Ne lier libocara_runtime_tauri.a + GTK/WebKit que si le programme importe
+    // réellement ocara.Tauri (voir la doc dans src/codegen/link.rs).
+    let needs_tauri = ir_module.imports.iter().any(|m| m == "Tauri");
+    match link(&obj_bytes, &obj_path, &args.output, args.release, needs_tauri) {
         Ok(()) => {
             println!("compilation réussie → {}", args.output.display());
         }

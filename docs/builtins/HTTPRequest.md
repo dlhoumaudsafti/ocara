@@ -19,7 +19,7 @@ Crée une nouvelle requête HTTP vers `url`. Retourne un handle de requête.
 Méthode par défaut : `GET`.
 
 ```ocara
-scoped req = HTTPRequest::new("https://api.example.com/resource")
+scoped req:int = HTTPRequest::new("https://api.example.com/resource")
 ```
 
 ### `HTTPRequest::setMethod(req: int, method: string) → void`
@@ -59,7 +59,7 @@ HTTPRequest::setTimeout(req, 5000)  // 5 secondes
 Envoie la requête et retourne un handle de réponse. Bloquant.
 
 ```ocara
-scoped res = HTTPRequest::send(req)
+scoped res:int = HTTPRequest::send(req)
 ```
 
 ---
@@ -76,7 +76,7 @@ Corps brut de la réponse (JSON, HTML, texte…).
 Valeur d'un en-tête de réponse. Retourne `""` si absent.
 
 ```ocara
-scoped ct = HTTPRequest::header(res, "Content-Type")
+scoped ct:string = HTTPRequest::header(res, "Content-Type")
 ```
 
 ### `HTTPRequest::headers(res: int) → map<string, string>`
@@ -106,9 +106,9 @@ Ces méthodes créent, configurent et envoient la requête en une seule étape.
 | `patch` | `(url: string, body: string) → int` | Requête PATCH |
 
 ```ocara
-scoped res = HTTPRequest::get("https://api.example.com/users")
-scoped res = HTTPRequest::post("https://api.example.com/users", "{\"name\":\"Alice\"}")
-scoped res = HTTPRequest::delete("https://api.example.com/users/42")
+scoped res:int = HTTPRequest::get("https://api.example.com/users")
+scoped res:int = HTTPRequest::post("https://api.example.com/users", "{\"name\":\"Alice\"}")
+scoped res:int = HTTPRequest::delete("https://api.example.com/users/42")
 ```
 
 ---
@@ -120,7 +120,7 @@ scoped res = HTTPRequest::delete("https://api.example.com/users/42")
 import ocara.HTTPRequest
 import ocara.IO
 
-scoped res = HTTPRequest::get("https://api.example.com/users")
+scoped res:int = HTTPRequest::get("https://api.example.com/users")
 
 if HTTPRequest::ok(res) {
     IO::writeln(HTTPRequest::body(res))
@@ -134,14 +134,14 @@ if HTTPRequest::ok(res) {
 import ocara.HTTPRequest
 import ocara.IO
 
-scoped req = HTTPRequest::new("https://api.example.com/users")
+scoped req:int = HTTPRequest::new("https://api.example.com/users")
 HTTPRequest::setMethod(req, "POST")
 HTTPRequest::setHeader(req, "Content-Type", "application/json")
 HTTPRequest::setHeader(req, "Authorization", "Bearer mon-token")
 HTTPRequest::setBody(req, "{\"name\": \"Alice\", \"age\": 30}")
 HTTPRequest::setTimeout(req, 10000)
 
-scoped res = HTTPRequest::send(req)
+scoped res:int = HTTPRequest::send(req)
 
 IO::writeln(`Status : ${HTTPRequest::status(res)}`)
 IO::writeln(HTTPRequest::body(res))
@@ -152,7 +152,7 @@ IO::writeln(HTTPRequest::body(res))
 import ocara.HTTPRequest
 import ocara.IO
 
-scoped res = HTTPRequest::get("https://hote-inexistant.local/api")
+scoped res:int = HTTPRequest::get("https://hote-inexistant.local/api")
 
 if HTTPRequest::isError(res) {
     IO::writeln(`Erreur réseau : ${HTTPRequest::error(res)}`)
@@ -167,8 +167,8 @@ if HTTPRequest::isError(res) {
 import ocara.HTTPRequest
 import ocara.IO
 
-scoped res = HTTPRequest::get("https://api.example.com/info")
-scoped hdrs = HTTPRequest::headers(res)
+scoped res:int = HTTPRequest::get("https://api.example.com/info")
+scoped hdrs:map<string, string> = HTTPRequest::headers(res)
 
 IO::writeln(`Content-Type : ${HTTPRequest::header(res, "Content-Type")}`)
 IO::writeln(`X-RateLimit-Remaining : ${HTTPRequest::header(res, "X-RateLimit-Remaining")}`)

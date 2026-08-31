@@ -65,15 +65,21 @@ pkgconfig-shim:
 	    fi; \
 	done
 
-# ── Compilation du compilateur + runtime ─────────────────────────────────────
-# Le runtime doit être compilé en premier : build.rs l'embarque dans le binaire
+# ── Compilation du compilateur + runtime(s) ──────────────────────────────────
+# Les runtimes doivent être compilés en premier : build.rs les embarque dans le
+# binaire. ocara_runtime_tauri est un crate SÉPARÉ de ocara_runtime (voir
+# src/codegen/link.rs) : lié seulement pour les programmes qui importent
+# ocara.Tauri, il a donc aussi besoin du shim pkg-config GTK/WebKit à la
+# compilation (il dépend directement du crate `tauri`).
 # -j1 sur ocara : Cranelift est très lourd à compiler en parallèle (SIGKILL OOM)
 build: pkgconfig-shim
 	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime -j4
+	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime_tauri -j4
 	RUSTFLAGS="-D warnings" cargo build --release -p ocara -j4
 
 build-dev: pkgconfig-shim
 	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo build -p ocara_runtime -j4
+	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo build -p ocara_runtime_tauri -j4
 	RUSTFLAGS="-D warnings" cargo build -p ocara -j4
 
 # ── Tests unitaires Cargo ─────────────────────────────────────────────────────
@@ -158,7 +164,7 @@ uninstall-all: uninstall uninstall-tools
 
 # ── Nettoyage ───────────────────────────────────────────────────────────────
 clean:
-	cargo clean -p ocara -p ocara_runtime
+	cargo clean -p ocara -p ocara_runtime -p ocara_runtime_tauri
 	rm -f $(TMP)
 
 clean-tools:

@@ -121,14 +121,17 @@ pub mod sqlite;
 pub mod mysql;
 pub mod dotenv;
 pub mod yaml;
-pub mod tauri;
+// Tauri vit dans le crate séparé runtime_tauri (voir sa doc) : pas de `mod tauri`
+// ici, pour que ce code (et sa dépendance GTK/WebKit) n'existe dans le binaire
+// final QUE pour les programmes qui importent réellement ocara.Tauri.
 
 // Helpers mémoire internes
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Alloue une chaîne null-terminated sur le heap et retourne son adresse.
 /// Alignement 8 pour garantir que les 3 bits bas sont 0 (invariant boxing).
-pub(crate) unsafe fn alloc_str(s: &str) -> i64 {
+/// `pub` (pas `pub(crate)`) : utilisé depuis le crate séparé runtime_tauri.
+pub unsafe fn alloc_str(s: &str) -> i64 {
     let bytes = s.as_bytes();
     // 8 octets header (tag) + données + null-terminator
     let total = 8 + bytes.len() + 1;
@@ -148,7 +151,8 @@ pub(crate) unsafe fn alloc_str(s: &str) -> i64 {
 }
 
 /// Lit un pointeur i64 comme &str (null-terminated UTF-8).
-pub(crate) unsafe fn ptr_to_str<'a>(val: i64) -> &'a str {
+/// `pub` (pas `pub(crate)`) : utilisé depuis le crate séparé runtime_tauri.
+pub unsafe fn ptr_to_str<'a>(val: i64) -> &'a str {
     if val == 0 {
         return "";
     }
@@ -752,10 +756,12 @@ pub extern "C" fn String_empty(s: i64) -> i64 {
 // Codes d'erreur MathException :
 //   101 - NEGATIVE_SQRT : Racine carrée d'un nombre négatif
 //   102 - NEGATIVE_EXPONENT : Exposant négatif dans pow()
+//   103 - INVALID_RANGE : Borne min > max dans random()
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ERR_MATH_NEGATIVE_SQRT: i64 = 101;
 const ERR_MATH_NEGATIVE_EXPONENT: i64 = 102;
+const ERR_MATH_INVALID_RANGE: i64 = 103;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn Math_abs(n: i64) -> i64 { n.abs() }
@@ -782,6 +788,24 @@ pub extern "C" fn Math_pow(base: i64, exp: i64) -> i64 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn Math_clamp(n: i64, lo: i64, hi: i64) -> i64 { n.clamp(lo, hi) }
+
+// Symbole attendu par le compilateur : "Math_random" (voir src/codegen/desc.d/
+// math.rs) — `Math_` en majuscule comme tous les autres builtins Math_*.
+#[unsafe(no_mangle)]
+pub extern "C" fn Math_random(min: i64, max: i64) -> i64 {
+    if min > max {
+        unsafe {
+            exception::throw_math_exception(
+                &format!("Invalid range for random: min ({}) > max ({})", min, max),
+                ERR_MATH_INVALID_RANGE,
+                "Math"
+            );
+        }
+    }
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    rng.gen_range(min..=max)
+}
 
 #[unsafe(no_mangle)]
 pub extern "C" fn Math_sqrt(n: f64) -> f64 {

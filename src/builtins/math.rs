@@ -17,6 +17,7 @@
 //   Math::floor(n)            → int    arrondi inférieur
 //   Math::ceil(n)             → int    arrondi supérieur
 //   Math::round(n)            → int    arrondi au plus proche
+//   Math::random(min, max)    → int    nombre aléatoire entre min et max
 //
 // Convention runtime : Math_<method>
 // ─────────────────────────────────────────────────────────────────────────────
@@ -47,6 +48,7 @@ pub fn class() -> ClassInfo {
     methods.insert("max".into(),   m(vec![("a", Type::Int), ("b", Type::Int)],                     Type::Int));
     methods.insert("pow".into(),   m(vec![("base", Type::Int), ("exp", Type::Int)],                Type::Int));
     methods.insert("clamp".into(), m(vec![("n", Type::Int), ("lo", Type::Int), ("hi", Type::Int)], Type::Int));
+    methods.insert("random".into(), m(vec![("min", Type::Int), ("max", Type::Int)], Type::Int));
 
     // Méthodes flottantes
     methods.insert("sqrt".into(),  m(vec![("n", Type::Float)], Type::Float));
@@ -56,10 +58,10 @@ pub fn class() -> ClassInfo {
 
     // Constantes de classe
     let mut class_consts: HashMap<String, (Type, Visibility)> = HashMap::new();
-    class_consts.insert("PI".into(),  (Type::Float, Visibility::Public));
-    class_consts.insert("E".into(),   (Type::Float, Visibility::Public));
-    class_consts.insert("TAU".into(), (Type::Float, Visibility::Public));
-    class_consts.insert("INF".into(), (Type::Float, Visibility::Public));
+    class_consts.insert("PI".into(),  (Type::Float, Visibility::Public)); // constante de classe Math::PI qui vaut 3.14159265358979
+    class_consts.insert("E".into(),   (Type::Float, Visibility::Public)); // constante de classe Math::E qui vaut 2.71828182845904
+    class_consts.insert("TAU".into(), (Type::Float, Visibility::Public)); // constante de classe Math::TAU qui vaut 6.28318530717958
+    class_consts.insert("INF".into(), (Type::Float, Visibility::Public)); // constante de classe Math::INF qui vaut l'infini positif
 
     ClassInfo {
         extends:      None,

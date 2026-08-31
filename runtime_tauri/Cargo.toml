@@ -1,0 +1,25 @@
+[package]
+name    = "ocara_runtime_tauri"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name       = "ocara_runtime_tauri"
+crate-type = ["staticlib"]
+
+[dependencies]
+# Crate séparé du runtime principal (ocara_runtime) : voir la doc en tête de
+# src/codegen/link.rs. Tauri/GTK/WebKit ne sont liés dans le binaire final que
+# pour les programmes qui importent réellement ocara.Tauri — les isoler dans un
+# .a distinct (plutôt que dans libocara_runtime.a) est ce qui rend ça possible :
+# sans cette séparation, le partitionnement en unités de codegen de rustc mélange
+# du code Tauri avec du code toujours nécessaire (ex: thread.rs), et aucun flag
+# de linker (--gc-sections y compris) ne peut alors éviter que même un simple
+# "Hello World" exige GTK/WebKit installés sur la machine cible.
+ocara_runtime = { path = "../runtime" }
+tauri      = { version = "2", default-features = false, features = ["wry", "compression"] }
+semver     = "1"
+glob       = "0.3"
+serde_json = "=1.0.132"
+once_cell  = "1.20"
+url        = "2"

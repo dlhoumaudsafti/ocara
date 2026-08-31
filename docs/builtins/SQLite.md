@@ -35,20 +35,12 @@ db.execute("DELETE FROM users WHERE id = 1")
 
 **Erreur** : `SQLiteException` (code 102) si la requête échoue.
 
-<<<<<<< HEAD
-### `db.query(query: string) → map<string, mixed>[]`
-=======
 ### `db.query(query: string) → array<map<string, mixed>>`
->>>>>>> feat/tauri
 
 Exécute une requête SELECT et retourne un array de maps (une map par ligne).
 
 ```ocara
-<<<<<<< HEAD
-const rows:map<string, mixed>[] = db.query("SELECT * FROM users")
-=======
 const rows:array<map<string, mixed>> = db.query("SELECT * FROM users")
->>>>>>> feat/tauri
 
 for row in rows {
     const name:string = row["name"]
@@ -96,11 +88,7 @@ db.execute("UPDATE users SET age = 32 WHERE name = 'Alice'")
 const affected:int = db.affectedRows()
 IO::writeln(`${affected} rows updated`)
 
-<<<<<<< HEAD
-const rows:map<string, mixed>[] = db.query("SELECT * FROM users")
-=======
 const rows:array<map<string, mixed>> = db.query("SELECT * FROM users")
->>>>>>> feat/tauri
 const count:int = db.affectedRows()
 IO::writeln(`${count} rows returned`)
 ```
@@ -166,11 +154,7 @@ init {
         IO::writeln(`Last insert ID: ${db.lastInsertId()}`)
         
         // Requête
-<<<<<<< HEAD
-        const products:map<string, mixed>[] = db.query("SELECT * FROM products WHERE price > 50")
-=======
         const products:array<map<string, mixed>> = db.query("SELECT * FROM products WHERE price > 50")
->>>>>>> feat/tauri
         
         IO::writeln(`Found ${db.affectedRows()} products:`)
         for product in products {

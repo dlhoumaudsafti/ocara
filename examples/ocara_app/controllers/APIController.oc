@@ -23,13 +23,21 @@ class APIController {
 
     public static method users(req:int): int {
         HTTPServer::respondHeader(req, "Content-Type", "application/json; charset=utf-8")
-        HTTPServer::respond(req, 200, 
+        HTTPServer::respond(req, 200,
             JSON::encode([
                 {"id": 1, "name": "Alice"},
                 {"id": 2, "name": "Bob"},
                 {"id": 3, "name": "Charlie"}
             ])
         )
+        return 0
+    }
+
+    // Utilisée par main.oc pour attendre que le serveur soit réellement prêt à
+    // répondre avant d'ouvrir la fenêtre Tauri (voir la boucle de health-check).
+    public static method health(req:int): int {
+        HTTPServer::respondHeader(req, "Content-Type", "application/json; charset=utf-8")
+        HTTPServer::respond(req, 200, JSON::encode({"status": "ok"}))
         return 0
     }
 }

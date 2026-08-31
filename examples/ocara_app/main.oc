@@ -9,11 +9,17 @@
 //   controllers/AboutController.oc   — page à propos (renderCached)
 //   controllers/ContactController.oc — page contact (renderCached)
 //   controllers/IPCController.oc     — méthodes exposées au JS via ui.handlers()
+//   configs/Database.oc              — compteur de visites persistant (SQLite)
 //
 // La fenêtre enregistre aussi deux commandes IPC (ui.handlers(), voir plus bas)
 // que le JS de la page d'accueil appelle directement — un vrai appel Ocara
 // déclenché depuis un bouton HTML, pas une requête HTTP (voir la carte
 // "Appel Ocara en direct" dans controllers/HomeController.oc).
+//
+// Avant d'ouvrir la fenêtre, on attend que le serveur réponde réellement à
+// GET /health (au lieu d'un Thread::sleep à durée fixe, qui n'offre aucune
+// garantie) — voir la boucle dans main{} ci-dessous et controllers/
+// APIController.oc pour la route.
 //
 // Lancer :
 //   ./target/release/ocara examples/ocara_app/main.oc -o /tmp/ocara_app
@@ -23,14 +29,17 @@ namespace .
 import ocara.IO
 import ocara.Thread
 import ocara.Tauri
+import ocara.HTTPRequest
 import configs.Components
 import configs.Server
+import configs.Database
 import controllers.IPCController
 
 
 init {
     IO::writeln("Initialisation de l'app...")
     use Components()
+    Database::migrate()
     const server:Server = use Server()
     server.routes()
 }
@@ -51,8 +60,27 @@ main {
         server.start()
     })
 
-    // Laisser le serveur le temps de démarrer avant que la fenêtre charge son URL.
-    Thread::sleep(200)
+    // Attendre que le serveur réponde réellement (GET /health) avant d'ouvrir la
+    // fenêtre — plus fiable qu'un délai fixe, qui échouerait sous charge ou sur
+    // une machine lente et gâcherait du temps inutilement sur une machine rapide.
+    IO::writeln("Attente du serveur (GET /health)...")
+    var serverReady:bool = false
+    var attempts:int = 0
+    while not serverReady {
+        scoped res:int = HTTPRequest::get("http://localhost:8080/health")
+        if HTTPRequest::ok(res) {
+            serverReady = true
+        } else {
+            attempts = attempts + 1
+            if attempts > 100 {
+                IO::writeln("Le serveur ne répond toujours pas après 5s")
+                result 5
+            } else {
+                Thread::sleep(50)
+            }
+        }
+    }
+    IO::writeln("Serveur prêt.")
 
     IO::writeln("Ouverture de la fenêtre vers http://localhost:8080 ...")
     var ui:Tauri = use Tauri({

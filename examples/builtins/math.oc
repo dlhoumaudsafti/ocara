@@ -8,6 +8,7 @@
 //   - Math::min(a, b) / Math::max(a, b)
 //   - Math::pow(base, exp)
 //   - Math::clamp(n, lo, hi)
+//   - Math::random(min, max)
 //   - Math::sqrt(n)
 //   - Math::floor(n) / Math::ceil(n) / Math::round(n)
 //   - Combinaisons et cas concrets
@@ -56,6 +57,18 @@ function main(): int {
     IO::writeln(`clamp(150, 0, 100) = ${c1}`)
     IO::writeln(`clamp(-5,  0, 100) = ${c2}`)
     IO::writeln(`clamp(42,  0, 100) = ${c3}`)
+
+
+    // ── random ────────────────────────────────────────────────────────────
+    // Entier aléatoire dans [min, max] (bornes incluses)
+    scoped de:int = Math::random(1, 6)
+    IO::writeln(`random(1, 6) = ${de}`)   // entre 1 et 6
+
+    if de >= 1 and de <= 6 {
+        IO::writeln("  -> dans les bornes attendues")
+    } else {
+        IO::writeln("  -> ERREUR : hors bornes !")
+    }
 
 
     // ── sqrt ──────────────────────────────────────────────────────────────
