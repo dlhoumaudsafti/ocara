@@ -25,7 +25,18 @@ impl Parser {
             TokenKind::While               => self.parse_while(),
             TokenKind::For                 => self.parse_for(),
             TokenKind::Return              => self.parse_return(),
-            TokenKind::Result              => self.parse_result(),
+            // `result` est le mot-clé des blocs runtime (`result <expr>`), MAIS
+            // aussi un nom de variable ordinaire très courant (accumulateurs) en
+            // dehors de ce contexte — voir eat_ident()/l'expression primaire pour
+            // le même arbitrage. On ne peut pas trancher juste sur le token
+            // courant : `result = ...` (affectation d'une variable nommée
+            // `result`) doit passer par le chemin générique d'expression-statement
+            // ci-dessous, pas par parse_result() (qui attend une expression après
+            // `result`, jamais un `=`). Un simple lookahead d'un token suffit :
+            // `result <token≠=>` → statement runtime ; `result =` → affectation.
+            TokenKind::Result if self.peek_ahead(1).map(|t| &t.kind) != Some(&TokenKind::Eq) => {
+                self.parse_result()
+            }
             TokenKind::Break               => {
                 let span = self.span();
                 self.advance();

@@ -263,6 +263,22 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                             }
                         }
                     };
+                    // Cas spécial : ui.handler(name, Class::method) — génère un trampoline
+                    // dédié plutôt que de passer par le dispatch générique ci-dessous
+                    // (voir tauri_handler.rs pour le détail du mécanisme).
+                    if let Some(dest) = crate::lower::expr::tauri_handler::try_lower_tauri_handler_call(
+                        builder, &class_name, field, object, args,
+                    ) {
+                        return dest;
+                    }
+                    // Cas spécial : ui.handlers({"nom": Class::method, ...}) — désucré vers
+                    // plusieurs try_lower_tauri_handler_call (voir tauri_handler.rs).
+                    if let Some(dest) = crate::lower::expr::tauri_handler::try_lower_tauri_handlers_call(
+                        builder, &class_name, field, object, args,
+                    ) {
+                        return dest;
+                    }
+
                     let mut func_mangled = if let Some(ref cls) = class_name {
                         format!("{}_{}", cls, field)
                     } else {
@@ -1033,8 +1049,22 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             let idx_val = lower_expr(builder, index);
             let dest = builder.new_value();
             // Détermine si c'est un accès map ou array selon le type de la variable
+            // — ou, pour `self.champ[clé]`/`obj.champ[clé]`, selon le type déclaré
+            // du CHAMP (module.class_map_fields, seule source fiable : class_layouts
+            // réduit tout champ à IrType::Ptr, map/array/string indistinguables).
             let is_map = match object.as_ref() {
                 Expr::Ident(name, _) => builder.map_vars.contains(name.as_str()),
+                Expr::Field { object: inner, field, .. } => {
+                    let class_name = match inner.as_ref() {
+                        Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
+                        Expr::SelfExpr(_)    => builder.current_class.clone(),
+                        _ => None,
+                    };
+                    class_name
+                        .and_then(|cls| builder.module.class_map_fields.get(&cls).cloned())
+                        .map(|fields| fields.contains(field.as_str()))
+                        .unwrap_or(false)
+                }
                 _ => false,
             };
             let func = if is_map { "__map_get" } else { "__array_get" };
@@ -1258,6 +1288,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // Cloner les données nécessaires avant d'emprunter builder.module
             let fn_ret_types_clone   = builder.fn_ret_types.clone();
             let fn_param_types_clone = builder.fn_param_types.clone();
+            let fn_param_names_clone = builder.fn_param_names.clone();
             let current_class        = builder.current_class.clone();
             let var_class_snap       = builder.var_class.clone();
             let func_vars_snap       = builder.func_vars.clone();
@@ -1323,6 +1354,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 &captures,
                 &fn_ret_types_clone,
                 &fn_param_types_clone,
+                &fn_param_names_clone,
                 &current_class,
                 &var_class_snap,
                 &func_vars_snap,

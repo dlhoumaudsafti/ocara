@@ -4,7 +4,7 @@
 // Fonctions exportées (convention C) :
 //
 //   DateTime_now()                     → i64      timestamp Unix actuel
-//   DateTime_from_timestamp(ts)        → i64      convertit timestamp en ISO 8601
+//   DateTime_fromTimestamp(ts)         → i64      convertit timestamp en ISO 8601
 //   DateTime_year(ts)                  → i64      extrait l'année
 //   DateTime_month(ts)                 → i64      extrait le mois (1-12)
 //   DateTime_day(ts)                   → i64      extrait le jour (1-31)
@@ -29,7 +29,7 @@ pub extern "C" fn DateTime_now() -> i64 {
 
 /// Convertit un timestamp en string ISO 8601 (YYYY-MM-DDTHH:MM:SS)
 #[unsafe(no_mangle)]
-pub extern "C" fn DateTime_from_timestamp(ts: i64) -> i64 {
+pub extern "C" fn DateTime_fromTimestamp(ts: i64) -> i64 {
     let (year, month, day, hour, minute, second) = timestamp_to_parts(ts);
     let result = format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}",
                          year, month, day, hour, minute, second);

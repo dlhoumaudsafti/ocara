@@ -20,6 +20,10 @@ pub struct LowerBuilder<'m> {
     pub fn_ret_types: HashMap<String, IrType>,
     /// Types des paramètres des fonctions (pour la génération de wrappers Function)
     pub fn_param_types: HashMap<String, Vec<IrType>>,
+    /// Noms des paramètres des fonctions/méthodes statiques (pour ui.handler() côté Tauri :
+    /// permet de générer un trampoline JSON qui matche les arguments par nom, pas seulement
+    /// par position — voir src/lower/expr.d/tauri_handler.rs)
+    pub fn_param_names: HashMap<String, Vec<String>>,
     /// Infos variadic : (fixed_params_count, array_elem_type)
     pub fn_variadic_info: HashMap<String, (usize, IrType)>,
     /// Type des éléments pour les variables tableau (ex: jours:string[] → Ptr)
@@ -77,6 +81,7 @@ impl<'m> LowerBuilder<'m> {
             locals: HashMap::new(),
             fn_ret_types: HashMap::new(),
             fn_param_types: HashMap::new(),
+            fn_param_names: HashMap::new(),
             fn_variadic_info: HashMap::new(),
             elem_types: HashMap::new(),
             elem_ast_types: HashMap::new(),

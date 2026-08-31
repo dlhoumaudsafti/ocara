@@ -58,15 +58,17 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     // Pré-collecte des types de paramètres (fonctions libres + méthodes statiques)
     // Uniquement les fonctions référençables comme type Function
     let mut fn_param_types: HashMap<String, Vec<IrType>> = HashMap::new();
+    let mut fn_param_names: HashMap<String, Vec<String>> = HashMap::new();
     let mut fn_variadic_info: HashMap<String, (usize, IrType)> = HashMap::new();
     let mut func_default_args: HashMap<String, Vec<Option<Expr>>> = HashMap::new();
-    
+
     for func in &program.functions {
         let param_types: Vec<IrType> = func.params.iter()
             .map(|p| IrType::from_ast(&p.ty))
             .collect();
         fn_param_types.insert(func.name.clone(), param_types);
-        
+        fn_param_names.insert(func.name.clone(), func.params.iter().map(|p| p.name.clone()).collect());
+
         // Collecte des valeurs par défaut
         let default_args: Vec<Option<Expr>> = func.params.iter()
             .map(|p| p.default_value.clone())
@@ -93,7 +95,8 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
                         .map(|p| IrType::from_ast(&p.ty))
                         .collect();
                     fn_param_types.insert(mangled.clone(), param_types);
-                    
+                    fn_param_names.insert(mangled.clone(), decl.params.iter().map(|p| p.name.clone()).collect());
+
                     // Collecte des valeurs par défaut
                     let default_args: Vec<Option<Expr>> = decl.params.iter()
                         .map(|p| p.default_value.clone())
@@ -195,7 +198,9 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     module.class_layouts.insert("ThreadException".to_string(), exception_layout.clone());
     module.class_layouts.insert("MutexException".to_string(), exception_layout.clone());
     module.class_layouts.insert("UnitTestException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("HTTPServerException".to_string(), exception_layout);
+    module.class_layouts.insert("HTTPServerException".to_string(), exception_layout.clone());
+    module.class_layouts.insert("TauriException".to_string(), exception_layout.clone());
+    module.class_layouts.insert("SQLiteException".to_string(), exception_layout);
 
     // Ajouter les layouts des builtins opaques (pointeur vers structure Rust)
     // Ces classes ont un constructeur _init qui alloue une structure opaque
@@ -209,6 +214,31 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     for class in &program.classes {
         let fields = collect_fields(&program.classes, &program.modules, &module.class_layouts, &class.name);
         module.class_layouts.insert(class.name.clone(), fields);
+    }
+
+    // Champs de type map<K,V> par classe (hérités inclus) — voir la doc du champ
+    // module.class_map_fields (ir/module.rs) : indispensable pour que
+    // `self.champMap[clé] = v` émette __map_set plutôt que __array_set.
+    fn collect_map_fields(classes: &[ClassDecl], class_name: &str) -> HashSet<String> {
+        let class = match classes.iter().find(|c| c.name == class_name) {
+            Some(c) => c,
+            None    => return HashSet::new(),
+        };
+        let mut fields = if let Some(parent) = &class.extends {
+            collect_map_fields(classes, parent)
+        } else {
+            HashSet::new()
+        };
+        for member in &class.members {
+            if let ClassMember::Field { name, ty: Type::Map(_, _), .. } = member {
+                fields.insert(name.clone());
+            }
+        }
+        fields
+    }
+    for class in &program.classes {
+        let map_fields = collect_map_fields(&program.classes, &class.name);
+        module.class_map_fields.insert(class.name.clone(), map_fields);
     }
 
     // Collecte les types de paramètres des constructeurs (pour le boxing mixed)
@@ -299,6 +329,44 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     fn_ret_types.insert("Map_merge".to_string(), IrType::Ptr);
     fn_ret_types.insert("Map_isEmpty".to_string(), IrType::Bool);
 
+    // Ajout des types de retour des méthodes builtin Date/Time/DateTime (voir
+    // src/builtins/{date,time,datetime}.rs pour la table de référence — sans ces
+    // entrées, un appel direct comme IO::writeln(Date::today()) est mal dispatché
+    // (retombe sur I64 par défaut et affiche le pointeur comme un entier brut au
+    // lieu de la chaîne réelle) ; passer par une variable typée (var s:string =
+    // Date::today()) contournait déjà le problème, ce qui l'a laissé inaperçu.
+    fn_ret_types.insert("Date_today".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Date_fromTimestamp".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Date_year".to_string(), IrType::I64);
+    fn_ret_types.insert("Date_month".to_string(), IrType::I64);
+    fn_ret_types.insert("Date_day".to_string(), IrType::I64);
+    fn_ret_types.insert("Date_dayOfWeek".to_string(), IrType::I64);
+    fn_ret_types.insert("Date_isLeapYear".to_string(), IrType::Bool);
+    fn_ret_types.insert("Date_daysInMonth".to_string(), IrType::I64);
+    fn_ret_types.insert("Date_addDays".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Date_diffDays".to_string(), IrType::I64);
+
+    fn_ret_types.insert("Time_now".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Time_fromTimestamp".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Time_hour".to_string(), IrType::I64);
+    fn_ret_types.insert("Time_minute".to_string(), IrType::I64);
+    fn_ret_types.insert("Time_second".to_string(), IrType::I64);
+    fn_ret_types.insert("Time_fromSeconds".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Time_toSeconds".to_string(), IrType::I64);
+    fn_ret_types.insert("Time_addSeconds".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Time_diffSeconds".to_string(), IrType::I64);
+
+    fn_ret_types.insert("DateTime_now".to_string(), IrType::I64);
+    fn_ret_types.insert("DateTime_fromTimestamp".to_string(), IrType::Ptr);
+    fn_ret_types.insert("DateTime_year".to_string(), IrType::I64);
+    fn_ret_types.insert("DateTime_month".to_string(), IrType::I64);
+    fn_ret_types.insert("DateTime_day".to_string(), IrType::I64);
+    fn_ret_types.insert("DateTime_hour".to_string(), IrType::I64);
+    fn_ret_types.insert("DateTime_minute".to_string(), IrType::I64);
+    fn_ret_types.insert("DateTime_second".to_string(), IrType::I64);
+    fn_ret_types.insert("DateTime_format".to_string(), IrType::Ptr);
+    fn_ret_types.insert("DateTime_parse".to_string(), IrType::I64);
+
     // Ajout des types de retour des méthodes builtin Tauri (voir src/builtins/tauri.rs
     // pour la table de référence — sans cette entrée, expr_ir_type() (typeinfer.rs) ne
     // peut pas savoir qu'un appel comme `ui.getTitle()` retourne un Ptr (string) plutôt
@@ -366,7 +434,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
 
     // Fonctions libres (les constantes sont inlinées dans chaque fonction)
     for func in &program.functions {
-        lower_func(&mut module, func, &program.consts, &fn_ret_types, &fn_param_types, &fn_variadic_info, &func_default_args, None, None, &async_funcs);
+        lower_func(&mut module, func, &program.consts, &fn_ret_types, &fn_param_types, &fn_param_names, &fn_variadic_info, &func_default_args, None, None, &async_funcs);
         // Générer le wrapper async si la fonction est marquée async
         if func.is_async {
             let param_tys: Vec<IrType> = func.params.iter().map(|p| IrType::from_ast(&p.ty)).collect();
@@ -378,7 +446,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
 
     // Méthodes de classes (passe toutes les classes pour l'héritage)
     for class in &program.classes {
-        lower_class(&mut module, class, &program.classes, &program.modules, &program.consts, &fn_ret_types, &fn_param_types, &fn_variadic_info, &func_default_args, &async_funcs);
+        lower_class(&mut module, class, &program.classes, &program.modules, &program.consts, &fn_ret_types, &fn_param_types, &fn_param_names, &fn_variadic_info, &func_default_args, &async_funcs);
         
         // Générer les wrappers async pour les méthodes de classes
         for member in &class.members {
@@ -403,7 +471,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     }
 
     // Blocs runtime → fonctions __init__, __main__, etc.
-    lower_runtime_blocks(&mut module, program, &program.consts, &fn_ret_types, &fn_param_types, &fn_variadic_info, &func_default_args, &async_funcs);
+    lower_runtime_blocks(&mut module, program, &program.consts, &fn_ret_types, &fn_param_types, &fn_param_names, &fn_variadic_info, &func_default_args, &async_funcs);
 
     module
 }

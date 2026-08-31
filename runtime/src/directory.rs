@@ -4,12 +4,12 @@
 // Fonctions exportées (convention C) :
 //
 //   Directory_create(path_ptr) → void
-//   Directory_create_recursive(path_ptr) → void
+//   Directory_createRecursive(path_ptr) → void
 //   Directory_remove(path_ptr) → void
-//   Directory_remove_recursive(path_ptr) → void
+//   Directory_removeRecursive(path_ptr) → void
 //   Directory_list(path_ptr) → i64            // string[]
-//   Directory_list_files(path_ptr) → i64      // string[]
-//   Directory_list_dirs(path_ptr) → i64       // string[]
+//   Directory_listFiles(path_ptr) → i64      // string[]
+//   Directory_listDirs(path_ptr) → i64       // string[]
 //   Directory_exists(path_ptr) → i64          // bool
 //   Directory_count(path_ptr) → i64           // int
 //   Directory_copy(src_ptr, dst_ptr) → void
@@ -69,7 +69,7 @@ pub unsafe extern "C" fn Directory_create(path_ptr: i64) {
 /// Directory::create_recursive(path:string) → void
 /// Crée un répertoire et tous ses parents (équivalent mkdir -p).
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn Directory_create_recursive(path_ptr: i64) {
+pub unsafe extern "C" fn Directory_createRecursive(path_ptr: i64) {
     unsafe {
         let path = ptr_to_str(path_ptr).to_string();
         if let Err(e) = fs::create_dir_all(&path) {
@@ -101,7 +101,7 @@ pub unsafe extern "C" fn Directory_remove(path_ptr: i64) {
 /// Directory::remove_recursive(path:string) → void
 /// Supprime un répertoire et tout son contenu (équivalent rm -rf).
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn Directory_remove_recursive(path_ptr: i64) {
+pub unsafe extern "C" fn Directory_removeRecursive(path_ptr: i64) {
     unsafe {
         let path = ptr_to_str(path_ptr).to_string();
         if let Err(e) = fs::remove_dir_all(&path) {
@@ -147,7 +147,7 @@ pub unsafe extern "C" fn Directory_list(path_ptr: i64) -> i64 {
 /// Directory::list_files(path:string) → string[]
 /// Liste uniquement les fichiers d'un répertoire.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn Directory_list_files(path_ptr: i64) -> i64 {
+pub unsafe extern "C" fn Directory_listFiles(path_ptr: i64) -> i64 {
     unsafe {
         let path = ptr_to_str(path_ptr).to_string();
         match fs::read_dir(&path) {
@@ -181,7 +181,7 @@ pub unsafe extern "C" fn Directory_list_files(path_ptr: i64) -> i64 {
 /// Directory::list_dirs(path:string) → string[]
 /// Liste uniquement les sous-répertoires d'un répertoire.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn Directory_list_dirs(path_ptr: i64) -> i64 {
+pub unsafe extern "C" fn Directory_listDirs(path_ptr: i64) -> i64 {
     unsafe {
         let path = ptr_to_str(path_ptr).to_string();
         match fs::read_dir(&path) {

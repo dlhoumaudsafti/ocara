@@ -6,7 +6,7 @@
 //   Mutex_init(self_ptr)         → void   constructeur : alloue OcaraMutex
 //   Mutex_lock(self_ptr)         → void   verrouille le mutex (bloquant)
 //   Mutex_unlock(self_ptr)       → void   déverrouille le mutex
-//   Mutex_try_lock(self_ptr)     → i64    tente de verrouiller (non-bloquant, retourne 1 si succès, 0 sinon)
+//   Mutex_tryLock(self_ptr)     → i64    tente de verrouiller (non-bloquant, retourne 1 si succès, 0 sinon)
 //
 // Représentation mémoire :
 //   Le slot Ocara de 8 octets (alloué par __alloc_obj) stocke un pointeur
@@ -124,7 +124,7 @@ pub extern "C" fn Mutex_unlock(self_ptr: i64) {
 /// Retourne 1 (true) si le verrou a été acquis, 0 (false) sinon.
 /// Si succès, un appel à unlock() est requis plus tard.
 #[unsafe(no_mangle)]
-pub extern "C" fn Mutex_try_lock(self_ptr: i64) -> i64 {
+pub extern "C" fn Mutex_tryLock(self_ptr: i64) -> i64 {
     let m = unsafe { &*mutex_from_slot(self_ptr) };
     let result = unsafe { pthread_mutex_trylock(m.mutex) };
     if result == 0 {

@@ -76,6 +76,29 @@ impl Parser {
                 self.advance();
                 Ok(("exit".to_string(), span))
             }
+            // "method" est aussi le nom d'une méthode statique builtin (ex:
+            // HTTPServer::method(req)) — sans cette entrée, Classe::method(...)
+            // est syntaxiquement inatteignable (le lexer ne peut pas distinguer
+            // ce contexte de `public method foo()`).
+            TokenKind::Method => {
+                self.advance();
+                Ok(("method".to_string(), span))
+            }
+            // "result" est un nom de variable extrêmement courant (accumulateurs,
+            // motif "var result = ...; ...; return result") — le mot-clé `result`
+            // n'a de sens que DANS un bloc runtime (voir Stmt::Result) ; partout
+            // ailleurs, il doit rester utilisable comme identifiant ordinaire.
+            TokenKind::Result => {
+                self.advance();
+                Ok(("result".to_string(), span))
+            }
+            // "from" est un mot ordinaire très courant comme nom de paramètre/variable
+            // (ex: bornes d'intervalle `from`/`to`) — le mot-clé `from` n'a de sens
+            // que dans `import X from Y`, jamais en position de nom déclaré.
+            TokenKind::From => {
+                self.advance();
+                Ok(("from".to_string(), span))
+            }
             other => Err(ParseError::new(
                 format!("expected identifier, found {:?}", other),
                 span,

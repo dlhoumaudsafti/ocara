@@ -60,4 +60,21 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__array_to_str",         params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__system_os",            params: &[],                                returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__system_arch",          params: &[],                                returns: Some(clt::I64),    module: None },
+
+    // Trampolines ui.handler / ui.handlers (voir src/lower/expr.d/tauri_handler.rs)
+    BuiltinDesc { name: "__tauri_obj_is_string",   params: &[clt::I64, clt::I64],  returns: Some(clt::I64), module: None },
+    BuiltinDesc { name: "__tauri_obj_is_int",      params: &[clt::I64, clt::I64],  returns: Some(clt::I64), module: None },
+    BuiltinDesc { name: "__tauri_obj_is_float",    params: &[clt::I64, clt::I64],  returns: Some(clt::I64), module: None },
+    BuiltinDesc { name: "__tauri_obj_is_bool",     params: &[clt::I64, clt::I64],  returns: Some(clt::I64), module: None },
+    BuiltinDesc { name: "__tauri_obj_get_string",  params: &[clt::I64, clt::I64],  returns: Some(clt::I64), module: None },
+    BuiltinDesc { name: "__tauri_obj_get_int",     params: &[clt::I64, clt::I64],  returns: Some(clt::I64), module: None },
+    BuiltinDesc { name: "__tauri_obj_get_float",   params: &[clt::I64, clt::I64],  returns: Some(clt::F64), module: None },
+    BuiltinDesc { name: "__tauri_obj_get_bool",    params: &[clt::I64, clt::I64],  returns: Some(clt::I64), module: None },
+    BuiltinDesc { name: "__tauri_ok_string",       params: &[clt::I64],            returns: Some(clt::I64), module: None },
+    BuiltinDesc { name: "__tauri_ok_int",          params: &[clt::I64],            returns: Some(clt::I64), module: None },
+    BuiltinDesc { name: "__tauri_ok_float",        params: &[clt::F64],            returns: Some(clt::I64), module: None },
+    BuiltinDesc { name: "__tauri_ok_bool",         params: &[clt::I64],            returns: Some(clt::I64), module: None },
+    BuiltinDesc { name: "__tauri_ok_void",         params: &[],                    returns: Some(clt::I64), module: None },
+    BuiltinDesc { name: "__tauri_err",             params: &[clt::I64],            returns: Some(clt::I64), module: None },
+    BuiltinDesc { name: "Tauri_handler_register",  params: &[clt::I64, clt::I64, clt::I64, clt::I64], returns: None, module: None },
 ];

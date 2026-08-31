@@ -37,7 +37,7 @@ function demo_append(): void {
     
     // Relire
     var content:string = File::read("/tmp/ocara_demo.txt")
-    var lines:string[] = String::split(content, "\n")
+    var lines:array<string> = String::split(content, "\n")
     IO::writeln(`Nombre de lignes: ${Array::len(lines)}`)
     IO::writeln("")
 }
@@ -63,7 +63,7 @@ function demo_exists_size(): void {
 function demo_extension(): void {
     IO::writeln("=== Extensions de fichiers ===")
     
-    var paths:string[] = [
+    var paths:array<string> = [
         "/tmp/document.pdf",
         "/tmp/image.png",
         "/tmp/script.oc",
@@ -127,12 +127,12 @@ function demo_binary(): void {
     IO::writeln("=== Fichiers binaires ===")
     
     // Créer des données binaires (signature PNG)
-    var png_header:int[] = [137, 80, 78, 71, 13, 10, 26, 10]
+    var png_header:array<int> = [137, 80, 78, 71, 13, 10, 26, 10]
     File::writeBytes("/tmp/test.dat", png_header)
     IO::writeln("✓ Fichier binaire écrit")
     
     // Relire
-    var read_bytes:int[] = File::readBytes("/tmp/test.dat")
+    var read_bytes:array<int> = File::readBytes("/tmp/test.dat")
     IO::write("Octets lus: ")
     for byte in read_bytes {
         IO::write(`${byte} `)

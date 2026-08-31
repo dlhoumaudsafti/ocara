@@ -96,10 +96,10 @@ function main(): int {
     IO::writeln("")
 
     IO::writeln("5. array :")
-    var arr:int[] = [1, 2, 3]
-    IO::writeln("   [1,2,3] is int[]          → " + Convert::boolToStr(arr is int[]))
-    IO::writeln("   \"hello\" is int[]          → " + Convert::boolToStr(s is int[]))
-    IO::writeln("   42      is int[]          → " + Convert::boolToStr(i is int[]))
+    var arr:array<int> = [1, 2, 3]
+    IO::writeln("   [1,2,3] is array<int>          → " + Convert::boolToStr(arr is array<int>))
+    IO::writeln("   \"hello\" is array<int>          → " + Convert::boolToStr(s is array<int>))
+    IO::writeln("   42      is array<int>          → " + Convert::boolToStr(i is array<int>))
     IO::writeln("")
 
     IO::writeln("6. map :")
@@ -147,7 +147,7 @@ function describe(val:mixed): void {
         is int              => IO::writeln(`   ${val}  → int`)
         is float            => IO::writeln(`   ${val}  → float`)
         is string           => IO::writeln(`   ${val}  → string`)
-        is int[]            => IO::writeln(`   arr  → array`)
+        is array<int>            => IO::writeln(`   arr  → array`)
         is map<string, int> => IO::writeln(`   m  → map`)
         is Animal           => IO::writeln(`   Animal  → object Animal`)
         is Function<int()>  => IO::writeln(`   fn_val  → Function`)

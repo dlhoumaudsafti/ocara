@@ -8,6 +8,12 @@
 //   controllers/HomeController.oc    — page d'accueil (async/resolve + render)
 //   controllers/AboutController.oc   — page à propos (renderCached)
 //   controllers/ContactController.oc — page contact (renderCached)
+//   controllers/IPCController.oc     — méthodes exposées au JS via ui.handlers()
+//
+// La fenêtre enregistre aussi deux commandes IPC (ui.handlers(), voir plus bas)
+// que le JS de la page d'accueil appelle directement — un vrai appel Ocara
+// déclenché depuis un bouton HTML, pas une requête HTTP (voir la carte
+// "Appel Ocara en direct" dans controllers/HomeController.oc).
 //
 // Lancer :
 //   ./target/release/ocara examples/ocara_app/main.oc -o /tmp/ocara_app
@@ -19,6 +25,7 @@ import ocara.Thread
 import ocara.Tauri
 import configs.Components
 import configs.Server
+import controllers.IPCController
 
 
 init {
@@ -54,6 +61,15 @@ main {
         "height": 700,
         "url": "http://localhost:8080"
     })
+
+    // Pont IPC JS -> Ocara : le bouton de la page d'accueil appelle ces deux
+    // commandes directement (window.ocara.invoke(...) côté JS) — voir
+    // controllers/IPCController.oc pour le code réellement exécuté.
+    ui.handlers({
+        "greet":      IPCController::greet,
+        "serverTime": IPCController::serverTime
+    })
+
     ui.run()
 
     IO::writeln("Fenêtre fermée.")

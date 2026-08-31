@@ -1869,7 +1869,7 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
 - **HTTPRequest** — Client HTTP pour requêtes GET/POST/PUT/DELETE/PATCH
   - `new()`, `setMethod()`, `setHeader()`, `setBody()`, `setTimeout()`, `send()`, `status()`, `body()`, `header()`, `headers()`, `ok()`, `isError()`, `error()`, `get()`, `post()`, `put()`, `delete()`, `patch()`
 - **HTTPServer** — Serveur HTTP multi-thread embarqué (classe d'instance)
-  - `setPort()`, `setHost()`, `setWorkers()`, `setRootPath()`, `route()`, `routeError()`, `run()`, `reqPath()`, `reqMethod()`, `reqBody()`, `reqHeader()`, `reqQuery()`, `respond()`, `setRespHeader()`
+  - `port()`, `host()`, `workers()`, `rootPath()`, `route()`, `routeError()`, `run()`, `path()`, `method()`, `body()`, `header()`, `query()`, `respond()`, `respondHeader()`
 
 #### Manipulation de données
 
@@ -1941,6 +1941,12 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
 - **HTMLComponent** — Définition de composants HTML personnalisés (classe d'instance)
   - `init()`, `register()`
 
+#### Interface graphique (desktop)
+
+- **Tauri** — Fenêtre desktop native (Tauri v2/WebKitGTK) et pont IPC JS ↔ Ocara (classe d'instance ; voir [Tauri.md](builtins/Tauri.md) pour le détail du statut fonctionnel/simulé de chaque méthode)
+  - `handler()`, `handlers()`, `run()` — fonctionnel : commandes IPC JS → Ocara typées, ouverture de la vraie fenêtre
+  - `listen()`, `emit()`, `dialog()`, `notify()`, `getTitle()`/`setTitle()`, `getWidth()`/`setWidth()`, `getHeight()`/`setHeight()`, `getUrl()`/`setUrl()`, `open()`/`close()`/`isOpen()`, `focus()`/`hasFocus()`, `minimize()`/`maximize()`/`restore()`/`isMinimized()`/`isMaximized()` — encore simulés (état interne, sans effet sur la fenêtre réelle)
+
 #### Gestion des erreurs
 
 Les classes d'exception permettent une gestion fine des erreurs avec `try/on`. Toutes héritent d'une structure commune avec les champs `message:string`, `code:int`, et `source:string`.
@@ -1966,6 +1972,8 @@ Les classes d'exception permettent une gestion fine des erreurs avec `try/on`. T
 - **SQLiteException** — Erreurs de requête/connexion SQLite
 - **MySQLException** — Erreurs de requête/connexion MySQL/MariaDB
 - **DotEnvException** — Erreurs de chargement de fichier `.env`
+- **HTTPServerException** — Erreurs de démarrage du serveur HTTP (ex : port déjà utilisé)
+- **TauriException** — Erreurs d'enregistrement de handler IPC (`ui.handler`/`ui.handlers` avec un nom de commande déjà enregistré)
 
 > **Note :** La classe `String` ne lève aucune exception - toutes ses méthodes sont safe.
 

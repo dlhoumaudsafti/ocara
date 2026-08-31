@@ -56,8 +56,8 @@ function main(): int {
 
 
     // ── keys / values ─────────────────────────────────────────────────────
-    scoped cles:mixed[]    = Map::keys(scores)
-    scoped valeurs:mixed[] = Map::values(scores)
+    scoped cles:array<mixed>    = Map::keys(scores)
+    scoped valeurs:array<mixed> = Map::values(scores)
     IO::writeln(`keys   : ${Array::len(cles)} clé(s)`)
     IO::writeln(`values : ${Array::len(valeurs)} valeur(s)`)
 
@@ -96,7 +96,7 @@ function main(): int {
 
     // ── Comptage de mots ──────────────────────────────────────────────────
     var compteurs:map<string, int> = {}
-    var mots:string[] = ["foo", "bar", "foo", "baz", "foo", "bar"]
+    var mots:array<string> = ["foo", "bar", "foo", "baz", "foo", "bar"]
 
     for mot in mots {
         if Map::has(compteurs, mot) {

@@ -99,6 +99,26 @@ pub fn tauri_class() -> ClassInfo {
     // se faire avant, le crate tauri prend possession du thread appelant.
     methods.insert("run".to_string(), inst_m(vec![], Type::Void));
 
+    // handler(name, method) — expose une méthode Ocara comme commande IPC JS.
+    // Le second paramètre est une référence de méthode statique (ex:
+    // HomeController::updateDateTime, self::maMethode) : sa vraie signature
+    // est vérifiée statiquement par le lowering (voir tauri_handler.rs), pas
+    // ici — Mixed sert seulement à faire accepter la syntaxe par la sema.
+    methods.insert("handler".to_string(), inst_m(
+        vec![("name", Type::String), ("method", Type::Mixed)],
+        Type::Void,
+    ));
+
+    // handlers({"nom": Classe::methode, ...}) — enregistrement en masse, désucré
+    // à la compilation vers plusieurs handler(nom, methode) (voir tauri_handler.rs,
+    // try_lower_tauri_handlers_call) : même mécanisme, même registre anti-doublon.
+    // Mixed pour la même raison que ci-dessus : la vraie validation (littéral map,
+    // clés string, valeurs StaticConst) est faite au lowering, pas ici.
+    methods.insert("handlers".to_string(), inst_m(
+        vec![("map", Type::Mixed)],
+        Type::Void,
+    ));
+
     ClassInfo {
         extends:      None,
         implements:   vec![],

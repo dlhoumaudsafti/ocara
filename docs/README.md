@@ -78,7 +78,7 @@ Documentation détaillée des classes intégrées au runtime Ocara :
 
 | Builtin | Description |
 |---------|-------------|
-| [Tauri.md](builtins/Tauri.md) | ⚠️ **En développement, non fonctionnel** — fenêtre desktop native (Tauri), communication Ocara ↔ JS |
+| [Tauri.md](builtins/Tauri.md) | ⚠️ **Partiellement fonctionnel** — fenêtre desktop native (Tauri v2) et appel de code Ocara depuis le JS de la page (`ui.handler`/`ui.handlers`) opérationnels ; événements/dialogues/notifications encore simulés |
 
 ---
 

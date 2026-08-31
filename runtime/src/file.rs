@@ -4,9 +4,9 @@
 // Fonctions exportées (convention C) :
 //
 //   File_read(path_ptr) → i64                      // Lit contenu texte UTF-8
-//   File_read_bytes(path_ptr) → i64                // Lit contenu binaire (int[])
+//   File_readBytes(path_ptr) → i64                // Lit contenu binaire (int[])
 //   File_write(path_ptr, content_ptr) → void       // Écrit (écrase)
-//   File_write_bytes(path_ptr, data_ptr) → void    // Écrit binaire
+//   File_writeBytes(path_ptr, data_ptr) → void    // Écrit binaire
 //   File_append(path_ptr, content_ptr) → void      // Ajoute à la fin
 //   File_exists(path_ptr) → i64                    // Test existence (bool)
 //   File_size(path_ptr) → i64                      // Taille en octets
@@ -69,7 +69,7 @@ pub unsafe extern "C" fn File_read(path_ptr: i64) -> i64 {
 /// File::read_bytes(path:string) → int[]
 /// Lit le contenu d'un fichier en binaire (array d'octets).
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn File_read_bytes(path_ptr: i64) -> i64 {
+pub unsafe extern "C" fn File_readBytes(path_ptr: i64) -> i64 {
     unsafe {
         let path = ptr_to_str(path_ptr).to_string();
         match fs::read(&path) {
@@ -112,7 +112,7 @@ pub unsafe extern "C" fn File_write(path_ptr: i64, content_ptr: i64) {
 /// File::write_bytes(path:string, data:int[]) → void
 /// Écrit des données binaires dans un fichier.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn File_write_bytes(path_ptr: i64, data_ptr: i64) {
+pub unsafe extern "C" fn File_writeBytes(path_ptr: i64, data_ptr: i64) {
     unsafe {
         let path = ptr_to_str(path_ptr).to_string();
         

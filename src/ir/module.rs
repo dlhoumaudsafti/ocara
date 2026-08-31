@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use crate::ir::func::IrFunction;
 use crate::ir::types::IrType;
 use crate::parsing::ast::Literal;
@@ -21,6 +21,13 @@ pub struct IrModule {
     pub imports:   Vec<String>,
     /// Layout des classes : class_name → liste ordonnée (field_name, field_type)
     pub class_layouts: HashMap<String, Vec<(String, IrType)>>,
+    /// Champs de type map<K,V> par classe (hérités inclus) : class_name → noms de
+    /// champs. `class_layouts` réduit tout à IrType::Ptr (map/array/string
+    /// indistinguables) — indispensable pour que `self.champMap[clé] = v` émette
+    /// `__map_set` plutôt que `__array_set` (voir Expr::Index dans lower.rs et
+    /// assignments.rs : la distinction map/array pour un accès par index ne peut
+    /// se faire que via ce genre de méta-info, jamais via IrType seul).
+    pub class_map_fields: HashMap<String, HashSet<String>>,
     /// Héritage : class_name → parent_name
     pub class_parents: HashMap<String, String>,
     /// Types des paramètres du constructeur : class_name → Vec<IrType>

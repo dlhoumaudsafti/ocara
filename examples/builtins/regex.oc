@@ -5,10 +5,10 @@
 //   - import ocara.Regex
 //   - Regex::test(pattern, str)               → bool
 //   - Regex::find(pattern, str)               → string
-//   - Regex::findAll(pattern, str)           → string[]
+//   - Regex::findAll(pattern, str)           → array<string>
 //   - Regex::replace(pattern, str, repl)      → string
 //   - Regex::replaceAll(pattern, str, repl)  → string
-//   - Regex::split(pattern, str)              → string[]
+//   - Regex::split(pattern, str)              → array<string>
 //   - Regex::count(pattern, str)              → int
 //   - Regex::extract(pattern, str, group)     → string
 // ─────────────────────────────────────────────────────────────────────────────
@@ -43,7 +43,7 @@ function main(): int {
 
     // ── find_all ──────────────────────────────────────────────────────────
     // Retourne toutes les correspondances dans un tableau
-    scoped nums:string[] = Regex::findAll("[0-9]+", "a1 b22 c333 d4444")
+    scoped nums:array<string> = Regex::findAll("[0-9]+", "a1 b22 c333 d4444")
     IO::writeln(`find_all("[0-9]+", "a1 b22 c333 d4444") → ${Regex::count("[0-9]+", "a1 b22 c333 d4444")} résultats`)
 
 
@@ -73,8 +73,8 @@ function main(): int {
 
     // ── split ─────────────────────────────────────────────────────────────
     // Découpe une chaîne selon un pattern
-    scoped parts:string[]  = Regex::split("[,;|]+", "a,b;;c|d")
-    scoped words:string[]  = Regex::split("\\s+", "un  deux   trois")
+    scoped parts:array<string>  = Regex::split("[,;|]+", "a,b;;c|d")
+    scoped words:array<string>  = Regex::split("\\s+", "un  deux   trois")
     scoped nparts:int = Regex::count("[,;|]+", "a,b;;c|d") + 1
     scoped nwords:int = Regex::count("\\s+", "un  deux   trois") + 1
 

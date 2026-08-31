@@ -54,7 +54,12 @@ run_test() {
     echo "compilation réussie → $TMP"
     
     # Exécution avec gestion des cas spéciaux
-    case "$name" in
+    # basename ici : en mode single-target, $name garde le préfixe de sous-
+    # répertoire (ex: "builtins/httpserver_static") pour l'affichage, alors que
+    # les cas ci-dessous sont nommés sans préfixe (comme en mode suite complète,
+    # où $name est déjà un basename) — sans ce basename, ces cas ne matchaient
+    # jamais en mode single-target et retombaient sur le run bloquant par défaut.
+    case "$(basename "$name")" in
         03_builtins)
             echo -e "david\n45" | "$TMP"
             ;;
@@ -66,6 +71,9 @@ run_test() {
             ;;
         httpserver)
             examples/builtins/httpserver.sh "$TMP"
+            ;;
+        httpserver_static)
+            examples/builtins/httpserver_static.sh "$TMP"
             ;;
         *)
             "$TMP"

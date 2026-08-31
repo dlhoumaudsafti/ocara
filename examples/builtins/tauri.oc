@@ -1,15 +1,28 @@
 // examples/builtins/tauri.oc
 // Démonstration de ocara.Tauri
 //
-// Le builtin Tauri est encore expérimental : il expose le contrat attendu
-// pour une app desktop native, mais le runtime peut rester un stub selon la
-// configuration utilisée.
+// Statut (voir docs/builtins/Tauri.md pour le détail) :
+//   - Fonctionnel : création de fenêtre réelle (title/width/height/url) + run(),
+//     et le pont IPC JS -> Ocara ui.handler()/ui.handlers() ci-dessous.
+//   - Simulé (pas encore branché à la vraie fenêtre) : listen/emit/dialog/notify
+//     et les getters/setters d'état (getTitle, setWidth, isOpen, focus, ...).
+//     Ils sont montrés ici pour la surface d'API, mais n'ont aucun effet visible.
 //
-// Test rapide :
+// Test rapide (compile-check seulement, n'ouvre pas de fenêtre — pas de run()) :
 //   ./target/release/ocara examples/builtins/tauri.oc --check
 
 import ocara.IO
+import ocara.DateTime
 import ocara.Tauri
+
+class Backend {
+    public static method greet(name:string): string {
+        return "Bonjour " + name + " ! Il est " + DateTime::fromTimestamp(DateTime::now()) + "."
+    }
+    public static method ping(): string {
+        return "pong"
+    }
+}
 
 function main(): int {
 
@@ -20,6 +33,16 @@ function main(): int {
         "url": "index.html"
     })
 
+    // ── Pont IPC JS -> Ocara (fonctionnel) ──────────────────────────────────
+    // Le JS de la page peut appeler ces méthodes directement, en objet nommé
+    // (window.__TAURI_INTERNALS__.invoke("greet", {name: "Ada"})) ou en tableau
+    // positionnel (window.ocara.invoke("greet", ["Ada"])) — voir Tauri.md.
+    ui.handler("greet", Backend::greet)
+    ui.handlers({
+        "ping": Backend::ping
+    })
+
+    // ── Reste de l'API (encore simulé — voir docs/builtins/Tauri.md) ───────
     ui.listen("fromJS", nameless(data:string): void {
         IO::writeln(`Message JS reçu : ${data}`)
     })

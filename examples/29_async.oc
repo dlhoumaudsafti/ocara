@@ -23,7 +23,7 @@ async function async_string(s:string): string {
 }
 
 // ── 5. array ──────────────────────────────────────────────────────────────────
-async function async_array(): int[] {
+async function async_array(): array<int> {
     return [10, 20, 30]
 }
 
@@ -82,7 +82,7 @@ function main(): void {
 
     IO::writeln("--- array ---")
     var ta:int = async_array()
-    var ra:int[] = resolve ta
+    var ra:array<int> = resolve ta
     IO::writeln(Convert::intToStr(Array::len(ra)))
     IO::writeln(Convert::intToStr(ra[0]))
 

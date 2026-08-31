@@ -68,9 +68,9 @@ function sum_nullable(nums:variadic<int|null>): int {
     return total
 }
 
-// ── 6. variadic<int[]> (tableaux) ───────────────────────────────────────────
+// ── 6. variadic<array<int>> (tableaux) ───────────────────────────────────────────
 
-function flatten_arrays(arrays:variadic<int[]>): int {
+function flatten_arrays(arrays:variadic<array<int>>): int {
     var count:int = 0
     for arr in arrays {
         count = count + Array::len(arr)
@@ -191,11 +191,11 @@ function main(): int {
     IO::writeln("   sum_nullable(1, null, 3, null, 5) = " + Convert::intToStr(sum_nullable(1, null, 3, null, 5)))
     IO::writeln("")
 
-    // Test 6: variadic<int[]>
-    IO::writeln("6. variadic<int[]> (tableaux):")
-    var arr1:int[] = [1, 2, 3]
-    var arr2:int[] = [4, 5]
-    var arr3:int[] = [6, 7, 8, 9]
+    // Test 6: variadic<array<int>>
+    IO::writeln("6. variadic<array<int>> (tableaux):")
+    var arr1:array<int> = [1, 2, 3]
+    var arr2:array<int> = [4, 5]
+    var arr3:array<int> = [6, 7, 8, 9]
     IO::writeln("   flatten_arrays([1,2,3], [4,5], [6,7,8,9]) = " + Convert::intToStr(flatten_arrays(arr1, arr2, arr3)))
     IO::writeln("")
 

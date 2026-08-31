@@ -5,6 +5,7 @@ pub mod captures;
 pub mod nameless;
 pub mod typeinfer;
 pub mod literals;
+pub mod tauri_handler;
 pub mod lower;
 
 // Re-exports publics

@@ -48,9 +48,30 @@ pub fn lower_assign(
         Expr::Index { object, index, .. } => {
             let obj_val = lower_expr(builder, object);
             let idx_val = lower_expr(builder, index);
+            // Même détection map-vs-array que la lecture (Expr::Index dans
+            // lower.rs) — sans elle, `map[clé] = v` (variable OU self.champ)
+            // appelait toujours __array_set, qui réinterprète le pointeur de
+            // map comme un tableau et corrompt sa structure interne (crash au
+            // premier accès/itération suivant, silencieux avant ça).
+            let is_map = match object.as_ref() {
+                Expr::Ident(name, _) => builder.map_vars.contains(name.as_str()),
+                Expr::Field { object: inner, field, .. } => {
+                    let class_name = match inner.as_ref() {
+                        Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
+                        Expr::SelfExpr(_)    => builder.current_class.clone(),
+                        _ => None,
+                    };
+                    class_name
+                        .and_then(|cls| builder.module.class_map_fields.get(&cls).cloned())
+                        .map(|fields| fields.contains(field.as_str()))
+                        .unwrap_or(false)
+                }
+                _ => false,
+            };
+            let func = if is_map { "__map_set" } else { "__array_set" };
             builder.emit(Inst::Call {
                 dest:   None,
-                func:   "__array_set".into(),
+                func:   func.into(),
                 args:   vec![obj_val, idx_val, val],
                 ret_ty: IrType::Void,
             });

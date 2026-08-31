@@ -3,17 +3,17 @@
 //
 // API Ocara :
 //   HTTPRequest::new(url)                        → req:int
-//   HTTPRequest::set_method(req, method)         → void
-//   HTTPRequest::set_header(req, key, value)     → void
-//   HTTPRequest::set_body(req, body)             → void
-//   HTTPRequest::set_timeout(req, ms)            → void
+//   HTTPRequest::setMethod(req, method)         → void
+//   HTTPRequest::setHeader(req, key, value)     → void
+//   HTTPRequest::setBody(req, body)             → void
+//   HTTPRequest::setTimeout(req, ms)            → void
 //   HTTPRequest::send(req)                       → res:int
 //   HTTPRequest::status(res)                     → int
 //   HTTPRequest::body(res)                       → string
 //   HTTPRequest::header(res, name)               → string
 //   HTTPRequest::headers(res)                    → map<string,string>
 //   HTTPRequest::ok(res)                         → bool  (2xx)
-//   HTTPRequest::is_error(res)                   → bool
+//   HTTPRequest::isError(res)                   → bool
 //   HTTPRequest::error(res)                      → string
 //   HTTPRequest::get(url)                        → res:int
 //   HTTPRequest::post(url, body)                 → res:int
@@ -150,26 +150,26 @@ pub extern "C" fn HTTPRequest_new(url: i64) -> i64 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn HTTPRequest_set_method(req: i64, method: i64) {
+pub extern "C" fn HTTPRequest_setMethod(req: i64, method: i64) {
     let m = unsafe { ptr_to_str(method).to_string() };
     req_ref(req).method = m;
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn HTTPRequest_set_header(req: i64, k: i64, v: i64) {
+pub extern "C" fn HTTPRequest_setHeader(req: i64, k: i64, v: i64) {
     let key = unsafe { ptr_to_str(k).to_string() };
     let val = unsafe { ptr_to_str(v).to_string() };
     req_ref(req).headers.push((key, val));
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn HTTPRequest_set_body(req: i64, body: i64) {
+pub extern "C" fn HTTPRequest_setBody(req: i64, body: i64) {
     let b = unsafe { ptr_to_str(body).to_string() };
     req_ref(req).body = Some(b);
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn HTTPRequest_set_timeout(req: i64, ms: i64) {
+pub extern "C" fn HTTPRequest_setTimeout(req: i64, ms: i64) {
     req_ref(req).timeout = Some(ms as u64);
 }
 
@@ -232,7 +232,7 @@ pub extern "C" fn HTTPRequest_ok(res: i64) -> i64 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn HTTPRequest_is_error(res: i64) -> i64 {
+pub extern "C" fn HTTPRequest_isError(res: i64) -> i64 {
     if res == 0 { return 1; }
     if res_ref(res).is_err { 1 } else { 0 }
 }
