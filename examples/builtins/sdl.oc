@@ -1,18 +1,24 @@
 // examples/builtins/sdl.oc
-// Démonstration de ocara.SDL (Palier 1 — voir docs/builtins/SDL.md)
+// Démonstration de ocara.SDL (Palier 1 + Palier 2 — voir docs/builtins/SDL.md)
 //
 // Contrairement à ocara.Tauri, tout ce qui est montré ici est réellement
-// branché sur SDL3 (fenêtre, dessin, événements) — rien n'est simulé.
+// branché sur SDL3 (fenêtre, dessin, événements, textures, texte) — rien
+// n'est simulé.
 //
 // Test rapide (compile-check seulement, n'ouvre pas de fenêtre) :
 //   ./target/release/ocara examples/builtins/sdl.oc --check
 //
 // Exécution réelle (ouvre une vraie fenêtre ~3 secondes, ou jusqu'à
-// fermeture manuelle) :
+// fermeture manuelle) — à lancer DEPUIS LA RACINE DU REPO (le logo est
+// chargé via le chemin relatif 'logo-min.png') :
 //   ./target/release/ocara examples/builtins/sdl.oc -o /tmp/sdl_demo
 //   /tmp/sdl_demo
 // Sans serveur d'affichage (CI, machine headless), SDL::init échoue proprement
-// avec une SDLException — voir le try/on ci-dessous.
+// avec une SDLException — voir le try/on ci-dessous. Note : le logo et la
+// police sont chargés dans le MÊME try/on que le reste (pas de try imbriqués
+// séparés ici — deux `try` séquentiels imbriqués dans un `try` externe
+// déclenchent actuellement un bug de codegen sans rapport avec SDL, signalé
+// à part). Sur cette machine (Ubuntu, DejaVu installé), les deux existent.
 
 import ocara.IO
 import ocara.SDL
@@ -26,6 +32,14 @@ function main(): int {
         })
 
         IO::writeln(`Fenêtre ouverte : ${win.getTitle()} (${win.getWidth()}x${win.getHeight()})`)
+
+        // ── Palier 2 : texture + police ──────────────────────────────────────
+        // (même try/on que use SDL(...) ci-dessus — voir la note en tête de
+        // fichier sur les try imbriqués séquentiels)
+        var textureId:int = win.loadTexture("logo-min.png")
+        IO::writeln(`Logo chargé : ${win.textureWidth(textureId)}x${win.textureHeight(textureId)}`)
+
+        var fontId:int = win.loadFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
 
         var running:bool = true
         var frame:int = 0
@@ -58,6 +72,16 @@ function main(): int {
             win.setDrawColor(60, 180, 220, 255)
             win.drawRect(20, 20, 200, 100)
             win.drawLine(0, 0, 800, 600)
+
+            // Le logo, redimensionné, en haut à droite
+            if textureId greater 0 {
+                win.drawTextureScaled(textureId, 650, 20, 120, 120)
+            }
+
+            // Un peu de texte, en bas
+            if fontId greater 0 {
+                win.drawText(fontId, "Ocara + SDL3", 220, 500, 255, 255, 255, 255)
+            }
 
             win.present()
 

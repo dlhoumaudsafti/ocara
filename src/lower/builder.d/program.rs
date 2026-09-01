@@ -414,6 +414,13 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     fn_ret_types.insert("SDL_setTitle".to_string(), IrType::Void);
     fn_ret_types.insert("SDL_ticks".to_string(), IrType::I64);
     fn_ret_types.insert("SDL_delay".to_string(), IrType::Void);
+    fn_ret_types.insert("SDL_loadTexture".to_string(), IrType::I64);
+    fn_ret_types.insert("SDL_textureWidth".to_string(), IrType::I64);
+    fn_ret_types.insert("SDL_textureHeight".to_string(), IrType::I64);
+    fn_ret_types.insert("SDL_drawTexture".to_string(), IrType::Void);
+    fn_ret_types.insert("SDL_drawTextureScaled".to_string(), IrType::Void);
+    fn_ret_types.insert("SDL_loadFont".to_string(), IrType::I64);
+    fn_ret_types.insert("SDL_drawText".to_string(), IrType::Void);
 
     // Propage les types de retour des méthodes héritées (non surchargées) dans fn_ret_types
     for class in &program.classes {

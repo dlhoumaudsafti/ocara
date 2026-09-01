@@ -1904,8 +1904,9 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
 - **Tauri** — Fenêtre desktop native (Tauri v2/WebKitGTK) et pont IPC JS ↔ Ocara (classe d'instance ; voir [Tauri.md](builtins/Tauri.md) pour le détail du statut fonctionnel/simulé de chaque méthode)
   - `handler()`, `handlers()`, `run()` — fonctionnel : commandes IPC JS → Ocara typées, ouverture de la vraie fenêtre
   - `listen()`, `emit()`, `dialog()`, `notify()`, `getTitle()`/`setTitle()`, `getWidth()`/`setWidth()`, `getHeight()`/`setHeight()`, `getUrl()`/`setUrl()`, `open()`/`close()`/`isOpen()`, `focus()`/`hasFocus()`, `minimize()`/`maximize()`/`restore()`/`isMinimized()`/`isMaximized()` — encore simulés (état interne, sans effet sur la fenêtre réelle)
-- **SDL** — Fenêtrage + rendu 2D + entrées via SDL3 (classe d'instance ; Palier 1, voir [SDL.md](builtins/SDL.md)) — entièrement fonctionnel, rien de simulé
+- **SDL** — Fenêtrage + rendu 2D + entrées + images + texte via SDL3 (classe d'instance ; Palier 1 + Palier 2, voir [SDL.md](builtins/SDL.md)) — entièrement fonctionnel, rien de simulé
   - `pollEvent()`, `setDrawColor()`/`clear()`/`fillRect()`/`drawRect()`/`drawLine()`/`drawPoint()`/`present()`, `isOpen()`/`close()`, `getWidth()`/`getHeight()`/`getTitle()`/`setTitle()`, `SDL::ticks()`/`SDL::delay()` (statiques)
+  - Palier 2 : `loadTexture()`/`textureWidth()`/`textureHeight()`/`drawTexture()`/`drawTextureScaled()` (SDL_image), `loadFont()`/`drawText()` (SDL_ttf)
 
 #### Gestion des erreurs
 

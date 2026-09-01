@@ -71,11 +71,16 @@ Le builtin [SDL](docs/builtins/SDL.md) compile SDL3 **depuis les sources** et le
 
 | Plateforme | Installation |
 |---|---|
-| Debian / Ubuntu | `sudo apt install cmake libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev` |
-| Fedora / RHEL | `sudo dnf install cmake libX11-devel libXext-devel libXrandr-devel libXcursor-devel libXi-devel libXScrnSaver-devel` |
-| macOS | `brew install cmake` (les frameworks Cocoa/Metal nécessaires sont fournis par le système) |
+| Debian / Ubuntu | `sudo apt install cmake libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev libpng-dev zlib1g-dev` |
+| Fedora / RHEL | `sudo dnf install cmake libX11-devel libXext-devel libXrandr-devel libXcursor-devel libXi-devel libXScrnSaver-devel libpng-devel zlib-devel` |
+| macOS | `brew install cmake libpng` (les frameworks Cocoa/Metal nécessaires sont fournis par le système) |
 
 > Wayland (optionnel, en plus de X11 ci-dessus) : `libwayland-dev libxkbcommon-dev libdecor-0-dev` sur Debian/Ubuntu.
+
+> `libpng-dev`/`zlib1g-dev` : requis pour le chargement d'images PNG (Palier 2,
+> `SDL::loadTexture`) — le décodage JPEG et le rendu de texte (SDL_ttf,
+> FreeType/HarfBuzz) sont vendored automatiquement, aucune lib système
+> supplémentaire nécessaire pour eux.
 
 ---
 

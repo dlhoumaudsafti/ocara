@@ -2724,6 +2724,91 @@
         "static": false
       },
       {
+        "name": "drawText",
+        "params": [
+          {
+            "name": "fontId",
+            "type": "int"
+          },
+          {
+            "name": "text",
+            "type": "string"
+          },
+          {
+            "name": "x",
+            "type": "int"
+          },
+          {
+            "name": "y",
+            "type": "int"
+          },
+          {
+            "name": "r",
+            "type": "int"
+          },
+          {
+            "name": "g",
+            "type": "int"
+          },
+          {
+            "name": "b",
+            "type": "int"
+          },
+          {
+            "name": "a",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "drawTexture",
+        "params": [
+          {
+            "name": "textureId",
+            "type": "int"
+          },
+          {
+            "name": "x",
+            "type": "int"
+          },
+          {
+            "name": "y",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "drawTextureScaled",
+        "params": [
+          {
+            "name": "textureId",
+            "type": "int"
+          },
+          {
+            "name": "x",
+            "type": "int"
+          },
+          {
+            "name": "y",
+            "type": "int"
+          },
+          {
+            "name": "w",
+            "type": "int"
+          },
+          {
+            "name": "h",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
         "name": "fillRect",
         "params": [
           {
@@ -2771,6 +2856,32 @@
         "static": false
       },
       {
+        "name": "loadFont",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          },
+          {
+            "name": "size",
+            "type": "int"
+          }
+        ],
+        "returns": "int",
+        "static": false
+      },
+      {
+        "name": "loadTexture",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": false
+      },
+      {
         "name": "pollEvent",
         "params": [],
         "returns": "map<string, mixed>",
@@ -2814,6 +2925,28 @@
           }
         ],
         "returns": "void",
+        "static": false
+      },
+      {
+        "name": "textureHeight",
+        "params": [
+          {
+            "name": "textureId",
+            "type": "int"
+          }
+        ],
+        "returns": "int",
+        "static": false
+      },
+      {
+        "name": "textureWidth",
+        "params": [
+          {
+            "name": "textureId",
+            "type": "int"
+          }
+        ],
+        "returns": "int",
         "static": false
       },
       {

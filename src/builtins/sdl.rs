@@ -2,8 +2,9 @@
 // ocara.SDL — classe builtin pour fenêtrage + rendu 2D + entrées (SDL3)
 //
 // Palier 1 (MVP) : une fenêtre + un renderer 2D + une pompe d'événements
-// bundlés dans un seul objet. Pas de textures/images (SDL_image), pas de
-// fonts (SDL_ttf), pas d'audio, pas de manette — paliers suivants.
+// bundlés dans un seul objet. Palier 2 : textures/images (SDL_image) et
+// fonts/texte (SDL_ttf), toujours sur ce même objet. Pas d'audio, pas de
+// manette — paliers suivants.
 //
 // Méthodes d'instance :
 //   use SDL(options: map<string, mixed>) → SDL   // {title, width, height}
@@ -11,6 +12,9 @@
 //   sdl.setDrawColor(r, g, b, a) / clear() / present()
 //   sdl.fillRect/drawRect(x, y, w, h) / drawLine(x1,y1,x2,y2) / drawPoint(x,y)
 //   sdl.isOpen() / close() / getWidth() / getHeight() / getTitle() / setTitle()
+//   sdl.loadTexture(path) → int (handle) / textureWidth/Height(id) → int
+//   sdl.drawTexture(id, x, y) / drawTextureScaled(id, x, y, w, h)
+//   sdl.loadFont(path, size) → int (handle) / drawText(id, text, x, y, r,g,b,a)
 // Méthodes statiques :
 //   SDL::ticks() → int
 //   SDL::delay(ms: int)
@@ -101,6 +105,34 @@ pub fn sdl_class() -> ClassInfo {
     // Timing (statique — indépendant de toute instance de fenêtre)
     methods.insert("ticks".to_string(), static_m(vec![], Type::Int));
     methods.insert("delay".to_string(), static_m(vec![ ("ms", Type::Int) ], Type::Void));
+
+    // ── Palier 2 : textures/images (SDL_image) ─────────────────────────────
+    methods.insert("loadTexture".to_string(), inst_m(
+        vec![ ("path", Type::String) ], Type::Int, // handle
+    ));
+    methods.insert("textureWidth".to_string(), inst_m(vec![ ("textureId", Type::Int) ], Type::Int));
+    methods.insert("textureHeight".to_string(), inst_m(vec![ ("textureId", Type::Int) ], Type::Int));
+    methods.insert("drawTexture".to_string(), inst_m(
+        vec![ ("textureId", Type::Int), ("x", Type::Int), ("y", Type::Int) ],
+        Type::Void,
+    ));
+    methods.insert("drawTextureScaled".to_string(), inst_m(
+        vec![ ("textureId", Type::Int), ("x", Type::Int), ("y", Type::Int), ("w", Type::Int), ("h", Type::Int) ],
+        Type::Void,
+    ));
+
+    // ── Palier 2 : fonts/texte (SDL_ttf) ────────────────────────────────────
+    methods.insert("loadFont".to_string(), inst_m(
+        vec![ ("path", Type::String), ("size", Type::Int) ], Type::Int, // handle
+    ));
+    methods.insert("drawText".to_string(), inst_m(
+        vec![
+            ("fontId", Type::Int), ("text", Type::String),
+            ("x", Type::Int), ("y", Type::Int),
+            ("r", Type::Int), ("g", Type::Int), ("b", Type::Int), ("a", Type::Int),
+        ],
+        Type::Void,
+    ));
 
     ClassInfo {
         extends:      None,

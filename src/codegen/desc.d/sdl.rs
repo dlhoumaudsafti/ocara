@@ -114,4 +114,52 @@ pub const SDL_BUILTINS: &[BuiltinDesc] = &[
 		returns: None,
 		module:  Some("SDL"),
 	},
+// Palier 2 : textures/images
+	BuiltinDesc {
+		name:    "SDL_loadTexture",
+		params:  &[clt::I64, clt::I64], // this, path
+		returns: Some(clt::I64),        // handle (int)
+		module:  Some("SDL"),
+	},
+	BuiltinDesc {
+		name:    "SDL_textureWidth",
+		params:  &[clt::I64, clt::I64], // this, textureId
+		returns: Some(clt::I64),
+		module:  Some("SDL"),
+	},
+	BuiltinDesc {
+		name:    "SDL_textureHeight",
+		params:  &[clt::I64, clt::I64], // this, textureId
+		returns: Some(clt::I64),
+		module:  Some("SDL"),
+	},
+	BuiltinDesc {
+		name:    "SDL_drawTexture",
+		params:  &[clt::I64, clt::I64, clt::I64, clt::I64], // this, textureId, x, y
+		returns: None,
+		module:  Some("SDL"),
+	},
+	BuiltinDesc {
+		name:    "SDL_drawTextureScaled",
+		params:  &[clt::I64, clt::I64, clt::I64, clt::I64, clt::I64, clt::I64], // this, textureId, x, y, w, h
+		returns: None,
+		module:  Some("SDL"),
+	},
+// Palier 2 : fonts/texte
+	BuiltinDesc {
+		name:    "SDL_loadFont",
+		params:  &[clt::I64, clt::I64, clt::I64], // this, path, size
+		returns: Some(clt::I64),                  // handle (int)
+		module:  Some("SDL"),
+	},
+	BuiltinDesc {
+		name:    "SDL_drawText",
+		params:  &[
+			clt::I64, clt::I64, clt::I64, // this, fontId, text
+			clt::I64, clt::I64,           // x, y
+			clt::I64, clt::I64, clt::I64, clt::I64, // r, g, b, a
+		],
+		returns: None,
+		module:  Some("SDL"),
+	},
 ];

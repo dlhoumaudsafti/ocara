@@ -24,8 +24,10 @@ use once_cell::sync::Lazy;
 use ocara_runtime::{__map_get, __map_new, __map_set, alloc_str, ptr_to_str};
 
 use sdl3::event::{Event, WindowEvent};
+use sdl3::image::LoadTexture; // apporte .load_texture() sur TextureCreator
 use sdl3::pixels::Color;
-use sdl3::render::{Canvas, FPoint, FRect};
+use sdl3::render::{Canvas, FPoint, FRect, Texture};
+use sdl3::ttf::Font;
 use sdl3::video::Window;
 use sdl3::{EventPump, Sdl};
 
@@ -38,12 +40,24 @@ fn err_string<E: std::fmt::Debug>(e: E) -> String {
 
 /// Une fenêtre SDL côté Ocara : contexte + canvas (renderer) + pompe
 /// d'événements, plus le thread qui l'a créée.
+///
+/// `textures`/`fonts` (Palier 2) : grâce à la feature `unsafe_textures` de la
+/// crate `sdl3`, `Texture` n'a PAS de paramètre de lifetime (contrairement à
+/// `Texture<'r>` lié à son `TextureCreator` par défaut) — elle peut donc vivre
+/// directement à côté de `canvas` ici, sans Box::leak ni transmute. Textures
+/// issues de `loadTexture` : persistantes, jamais détruites (même philosophie
+/// que `close()` qui ne détruit pas la fenêtre native). `Font<'static>` porte
+/// déjà son propre contexte TTF ref-compté — rien à gérer en plus ici.
 struct OcaraSdlWindow {
-    _sdl:         Sdl, // gardé en vie tant que la fenêtre existe (RAII)
-    canvas:       Canvas<Window>,
-    event_pump:   EventPump,
-    owner_thread: ThreadId,
-    is_open:      bool,
+    _sdl:            Sdl, // gardé en vie tant que la fenêtre existe (RAII)
+    canvas:          Canvas<Window>,
+    event_pump:      EventPump,
+    owner_thread:    ThreadId,
+    is_open:         bool,
+    textures:        HashMap<i64, Texture>,
+    next_texture_id: i64,
+    fonts:           HashMap<i64, Font<'static>>,
+    next_font_id:    i64,
 }
 
 // SAFETY: Sdl/Window/Canvas/EventPump ne sont PAS Send dans sdl3-rs — ils
@@ -172,6 +186,10 @@ pub extern "C" fn SDL_init(this: i64, options_ptr: i64) {
             event_pump,
             owner_thread: std::thread::current().id(),
             is_open: true,
+            textures: HashMap::new(),
+            next_texture_id: 1,
+            fonts: HashMap::new(),
+            next_font_id: 1,
         })
     })();
 
@@ -393,6 +411,189 @@ pub extern "C" fn SDL_setTitle(this: i64, title_ptr: i64) {
     let title = unsafe { ptr_to_str(title_ptr).to_string() };
     with_open_window(this, |win| {
         let _ = win.canvas.window_mut().set_title(&title);
+    });
+}
+
+// ── Palier 2 : textures/images (SDL_image) ──────────────────────────────────
+
+/// Charge une image (PNG/JPEG) depuis le disque et renvoie un handle (int) —
+/// stocké dans `win.textures`, persistant jusqu'à la fin du processus (jamais
+/// détruit, même philosophie que `close()` pour la fenêtre elle-même).
+#[unsafe(no_mangle)]
+pub extern "C" fn SDL_loadTexture(this: i64, path_ptr: i64) -> i64 {
+    let path = unsafe { ptr_to_str(path_ptr).to_string() };
+    let win_arc = {
+        let map = SDL_WINDOWS.lock().unwrap();
+        match map.get(&this) {
+            Some(w) => w.clone(),
+            None => return 0,
+        }
+    };
+    let mut win = win_arc.lock().unwrap();
+    check_owner_thread(&win);
+    if !win.is_open {
+        return 0;
+    }
+
+    // Le TextureCreator n'a besoin de vivre que le temps de cet appel — la
+    // Texture produite (grâce à `unsafe_textures`) n'a plus de lifetime liée
+    // à lui ensuite, elle peut être déplacée dans win.textures sans souci.
+    let result = {
+        let creator = win.canvas.texture_creator();
+        creator.load_texture(&path)
+    };
+
+    match result {
+        Ok(tex) => {
+            let id = win.next_texture_id;
+            win.next_texture_id += 1;
+            win.textures.insert(id, tex);
+            id
+        }
+        Err(e) => unsafe {
+            ocara_runtime::exception::throw_sdl_exception(
+                &format!("cannot load texture '{}': {}", path, err_string(e)),
+                301,
+            );
+        },
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn SDL_textureWidth(this: i64, texture_id: i64) -> i64 {
+    let map = SDL_WINDOWS.lock().unwrap();
+    match map.get(&this) {
+        Some(w) => {
+            let win = w.lock().unwrap();
+            check_owner_thread(&win);
+            match win.textures.get(&texture_id) {
+                Some(tex) => tex.query().width as i64,
+                None => 0,
+            }
+        }
+        None => 0,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn SDL_textureHeight(this: i64, texture_id: i64) -> i64 {
+    let map = SDL_WINDOWS.lock().unwrap();
+    match map.get(&this) {
+        Some(w) => {
+            let win = w.lock().unwrap();
+            check_owner_thread(&win);
+            match win.textures.get(&texture_id) {
+                Some(tex) => tex.query().height as i64,
+                None => 0,
+            }
+        }
+        None => 0,
+    }
+}
+
+/// Dessine une texture à sa taille native. `textureId` inconnu : no-op
+/// silencieux (même philosophie que `this` inconnu dans `with_open_window`).
+#[unsafe(no_mangle)]
+pub extern "C" fn SDL_drawTexture(this: i64, texture_id: i64, x: i64, y: i64) {
+    with_open_window(this, |win| {
+        // Destructuration pour emprunter `canvas` (mutable) et `textures`
+        // (immutable) séparément — ce sont des champs disjoints, le
+        // vérificateur d'emprunts l'accepte, contrairement à deux appels de
+        // méthode successifs sur `win` en entier.
+        let OcaraSdlWindow { canvas, textures, .. } = win;
+        if let Some(tex) = textures.get(&texture_id) {
+            let q = tex.query();
+            let dst = FRect::new(x as f32, y as f32, q.width as f32, q.height as f32);
+            let _ = canvas.copy(tex, None, Some(dst));
+        }
+    });
+}
+
+/// Dessine une texture redimensionnée à (w, h).
+#[unsafe(no_mangle)]
+pub extern "C" fn SDL_drawTextureScaled(this: i64, texture_id: i64, x: i64, y: i64, w: i64, h: i64) {
+    with_open_window(this, |win| {
+        let OcaraSdlWindow { canvas, textures, .. } = win;
+        if let Some(tex) = textures.get(&texture_id) {
+            let dst = FRect::new(x as f32, y as f32, w as f32, h as f32);
+            let _ = canvas.copy(tex, None, Some(dst));
+        }
+    });
+}
+
+// ── Palier 2 : fonts/texte (SDL_ttf) ────────────────────────────────────────
+
+/// Charge une police (.ttf/.otf) à une taille donnée et renvoie un handle.
+/// `Font<'static>` porte son propre contexte TTF ref-compté (voir la doc de
+/// `OcaraSdlWindow`) — pas besoin d'initialisation globale séparée.
+#[unsafe(no_mangle)]
+pub extern "C" fn SDL_loadFont(this: i64, path_ptr: i64, size: i64) -> i64 {
+    let path = unsafe { ptr_to_str(path_ptr).to_string() };
+    let win_arc = {
+        let map = SDL_WINDOWS.lock().unwrap();
+        match map.get(&this) {
+            Some(w) => w.clone(),
+            None => return 0,
+        }
+    };
+    let mut win = win_arc.lock().unwrap();
+    check_owner_thread(&win);
+    if !win.is_open {
+        return 0;
+    }
+
+    let result = sdl3::ttf::init()
+        .map_err(err_string)
+        .and_then(|ctx| ctx.load_font(&path, size.max(1) as f32).map_err(err_string));
+
+    match result {
+        Ok(font) => {
+            let id = win.next_font_id;
+            win.next_font_id += 1;
+            win.fonts.insert(id, font);
+            id
+        }
+        Err(msg) => unsafe {
+            ocara_runtime::exception::throw_sdl_exception(
+                &format!("cannot load font '{}': {}", path, msg),
+                302,
+            );
+        },
+    }
+}
+
+/// Rend une ligne de texte à (x, y) avec la couleur (r,g,b,a). `fontId`
+/// inconnu : no-op silencieux. La texture générée est ÉPHÉMÈRE (rendue,
+/// dessinée, détruite dans la foulée) — contrairement à celles de
+/// `loadTexture`, elle ne doit jamais être stockée dans `win.textures` : avec
+/// `unsafe_textures` rien n'est libéré automatiquement, une texture par appel
+/// non détruite fuirait de la mémoire GPU à chaque frame.
+#[unsafe(no_mangle)]
+pub extern "C" fn SDL_drawText(
+    this: i64, font_id: i64, text_ptr: i64,
+    x: i64, y: i64, r: i64, g: i64, b: i64, a: i64,
+) {
+    let text = unsafe { ptr_to_str(text_ptr).to_string() };
+    with_open_window(this, |win| {
+        let OcaraSdlWindow { canvas, fonts, .. } = win;
+        let font = match fonts.get(&font_id) {
+            Some(f) => f,
+            None => return,
+        };
+        let surface = match font.render(&text).blended(Color::RGBA(r as u8, g as u8, b as u8, a as u8)) {
+            Ok(s) => s,
+            Err(_) => return,
+        };
+        let texture = match canvas.create_texture_from_surface(&surface) {
+            Ok(t) => t,
+            Err(_) => return,
+        };
+        let q = texture.query();
+        let dst = FRect::new(x as f32, y as f32, q.width as f32, q.height as f32);
+        let _ = canvas.copy(&texture, None, Some(dst));
+        unsafe {
+            texture.destroy();
+        }
     });
 }
 

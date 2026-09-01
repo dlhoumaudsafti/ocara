@@ -1,12 +1,13 @@
 # Builtin SDL
 
-> ⚠️ **Statut : Palier 1 (MVP).** Fenêtre, renderer 2D, polling d'événements
-> (fermeture/clavier/souris/redimensionnement) et primitives de dessin de base
-> sont **réellement branchés sur SDL3** — rien n'est simulé, contrairement au
-> Tauri "Phase 1". Pas encore disponible : textures/images (SDL_image), fonts
-> (SDL_ttf), audio, manettes — paliers suivants. Deux limitations structurelles
-> à connaître avant de commencer : voir [Limites](#limites-du-palier-1)
-> ci-dessous. Prérequis système (cmake + headers X11 dev) : voir
+> ⚠️ **Statut : Palier 1 + Palier 2.** Fenêtre, renderer 2D, polling
+> d'événements (fermeture/clavier/souris/redimensionnement), primitives de
+> dessin de base (Palier 1), **et** chargement d'images (SDL_image) + rendu de
+> texte (SDL_ttf) (Palier 2) sont **réellement branchés sur SDL3** — rien
+> n'est simulé, contrairement au Tauri "Phase 1". Pas encore disponible :
+> audio, manettes — paliers suivants. Deux limitations structurelles à
+> connaître avant de commencer : voir [Limites](#limites-du-palier-1)
+> ci-dessous. Prérequis système (cmake + headers X11 dev + libpng) : voir
 > [README.md](../../README.md).
 
 Ce builtin permet d'ouvrir une fenêtre native et d'y dessiner en 2D avec SDL3
@@ -102,6 +103,38 @@ win.present()                       // affiche la frame dessinée (à appeler un
 > sous-pixel), tronqués ici pour rester simple. Une variante `float` pourrait
 > arriver dans un palier ultérieur si besoin de précision fine.
 
+## Charger et dessiner une image (Palier 2)
+
+```ocara
+var logoId:int = win.loadTexture("logo.png")   // PNG ou JPEG
+IO::writeln(`Taille native : ${win.textureWidth(logoId)}x${win.textureHeight(logoId)}`)
+
+// Dans la boucle de rendu :
+win.drawTexture(logoId, 20, 20)                    // taille native
+win.drawTextureScaled(logoId, 650, 20, 120, 120)    // redimensionnée
+```
+
+`loadTexture` charge l'image **une seule fois** — le handle retourné (`int`)
+est réutilisable pour tous les `drawTexture`/`drawTextureScaled` suivants,
+frame après frame. La texture reste en mémoire jusqu'à la fin du programme
+(pas de méthode pour la libérer en Palier 2 — voir [Limites](#limites-du-palier-1)).
+
+## Afficher du texte (Palier 2)
+
+```ocara
+var fontId:int = win.loadFont("police.ttf", 24)   // chemin, taille en points
+
+// Dans la boucle de rendu :
+win.drawText(fontId, "Score : 42", 20, 20, 255, 255, 255, 255)   // texte blanc opaque
+```
+
+Une seule ligne de texte par appel (pas de retour à la ligne automatique),
+couleur en `(r, g, b, a)` comme `setDrawColor`. Contrairement aux textures de
+`loadTexture`, le rendu de texte génère et détruit une texture à chaque appel
+— pas de coût mémoire cumulatif, mais éviter d'appeler `drawText` avec un
+texte qui ne change pas à chaque frame si la performance est critique (charger
+une fois via une texture serait plus efficace pour du texte statique).
+
 ## Limites du Palier 1
 
 Ce sont des contraintes de SDL lui-même, pas des choix de design Ocara :
@@ -135,6 +168,8 @@ Certaines opérations SDL peuvent lever une `SDLException`.
 | 101 | `WINDOW_ALREADY_OPEN` | `use SDL(...)` | Une fenêtre SDL est déjà ouverte dans ce processus — une seule à la fois en Palier 1 (voir [Limites](#limites-du-palier-1)) |
 | 102 | `INIT_FAILED` | `use SDL(...)` | Échec d'initialisation SDL3 : pas de serveur d'affichage disponible, échec de création de la fenêtre ou du renderer... |
 | 201 | `WRONG_THREAD` | toute méthode d'instance (`pollEvent`, dessin, getters/setters...) | Appel depuis un thread différent de celui qui a créé la fenêtre (voir [Limites](#limites-du-palier-1)) |
+| 301 | `TEXTURE_LOAD_FAILED` | `loadTexture(path)` | Fichier introuvable ou format d'image non supporté |
+| 302 | `FONT_LOAD_FAILED` | `loadFont(path, size)` | Fichier introuvable ou police invalide |
 
 ### Exemple de gestion d'erreurs
 
@@ -180,9 +215,20 @@ Convention runtime : `SDL_<méthode>`.
 | `getTitle()` / `setTitle(title:string)` | Titre de la fenêtre |
 | `SDL::ticks()` → `int` (statique) | Millisecondes écoulées depuis l'initialisation SDL |
 | `SDL::delay(ms:int)` (statique) | Pause bloquante — utile pour limiter le framerate |
+| `loadTexture(path:string)` → `int` | Charge une image (PNG/JPEG), retourne un handle |
+| `textureWidth(textureId:int)` / `textureHeight(textureId:int)` → `int` | Dimensions natives d'une texture chargée |
+| `drawTexture(textureId:int, x:int, y:int)` → `void` | Dessine une texture à sa taille native |
+| `drawTextureScaled(textureId:int, x:int, y:int, w:int, h:int)` → `void` | Dessine une texture redimensionnée |
+| `loadFont(path:string, size:int)` → `int` | Charge une police (.ttf/.otf) à une taille donnée, retourne un handle |
+| `drawText(fontId:int, text:string, x:int, y:int, r:int, g:int, b:int, a:int)` → `void` | Rend une ligne de texte à la position et couleur données |
 
 > `close()` ne détruit pas la fenêtre native (elle reste ouverte à l'écran
 > jusqu'à la fin du programme) — elle rend simplement `isOpen()` faux et les
 > appels de dessin/événements suivants sans effet. Rouvrir une nouvelle
 > fenêtre dans le même processus après `close()` n'est **pas** supporté en
 > Palier 1 (voir [Limites](#limites-du-palier-1)).
+
+> Un `textureId`/`fontId` inconnu passé à `drawTexture*`/`drawText`/
+> `textureWidth`/`textureHeight` est un **no-op silencieux** (pas
+> d'exception) — même philosophie permissive qu'un appel sur une fenêtre déjà
+> fermée.
