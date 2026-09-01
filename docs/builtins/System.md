@@ -57,7 +57,7 @@ Exécute `cmd` et retourne **uniquement le code de sortie**. Stdout et stderr ne
 
 ```ocara
 scoped ok:int = System::execCode("test -f /etc/hostname")
-if ok == 0 {
+if ok equal 0 {
     IO::writeln("fichier présent")
 }
 ```
@@ -155,9 +155,9 @@ import ocara.System
 import ocara.IO
 
 function main(): int {
-    if System::OS == "linux" {
+    if System::OS equal "linux" {
         IO::writeln("Système Linux détecté")
-    } elseif System::OS == "macos" {
+    } elseif System::OS equal "macos" {
         IO::writeln("Système macOS détecté")
     } else {
         IO::writeln(`Système : ${System::OS}`)
@@ -191,7 +191,7 @@ function main(): int {
     IO::writeln("Déploiement en cours…")
 
     scoped build:int = System::execCode("cargo build --release")
-    if build != 0 {
+    if build not equal 0 {
         IO::writeln("Échec du build")
         System::exit(1)
     }
@@ -199,7 +199,7 @@ function main(): int {
     System::setEnv("APP_ENV", "production")
     scoped deploy:int = System::passthrough("./scripts/deploy.sh")
 
-    if deploy == 0 {
+    if deploy equal 0 {
         IO::writeln("Déploiement réussi")
     } else {
         IO::writeln(`Déploiement échoué (code : ${deploy})`)
@@ -254,7 +254,7 @@ function safe_exec(cmd:string): string {
     try {
         return System::exec(cmd)
     } on e is SystemException {
-        if e.code == 101 {
+        if e.code equal 101 {
             IO::writeln(`Erreur d'exécution: ${cmd}`)
             return ""
         } else {
@@ -282,7 +282,7 @@ function main(): int {
         var cwd:string = System::cwd()
         IO::writeln(`Répertoire courant: ${cwd}`)
     } on e is SystemException {
-        if e.code == 102 {
+        if e.code equal 102 {
             IO::writeln("Erreur: répertoire courant inaccessible")
         }
     }

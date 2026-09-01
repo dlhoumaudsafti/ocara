@@ -62,8 +62,8 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
         // Opérations binaires : propager Ptr si c'est une concat string
         Expr::Binary { op, left, right, .. } => {
             // Comparaisons → Bool
-            if matches!(op, BinOp::EqEq | BinOp::NotEq | BinOp::EqEqEq | BinOp::NotEqEq |
-                        BinOp::Lt | BinOp::LtEq | BinOp::Gt | BinOp::GtEq | BinOp::LtEqEq | BinOp::GtEqEq) {
+            if matches!(op, BinOp::Equal | BinOp::NotEqual |
+                        BinOp::Smaller | BinOp::Greater | BinOp::SmallerOrEqual | BinOp::GreaterOrEqual) {
                 return IrType::Bool;
             }
             // Logiques && || → Bool

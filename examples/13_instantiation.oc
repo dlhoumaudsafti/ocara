@@ -36,7 +36,7 @@ class Timer {
     }
 
     public method tick(): void {
-        if self.seconds > 0 {
+        if self.seconds greater 0 {
             self.seconds = self.seconds - 1
         }
     }
@@ -46,7 +46,7 @@ class Timer {
     }
 
     public method is_done(): bool {
-        return self.seconds == 0
+        return self.seconds equal 0
     }
 }
 

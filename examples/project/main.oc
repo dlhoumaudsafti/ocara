@@ -39,7 +39,7 @@ class Color {
     }
 
     public static method is_primary(c:string): bool {
-        return c == Color::RED or c == Color::GREEN or c == Color::BLUE
+        return c equal Color::RED or c equal Color::GREEN or c equal Color::BLUE
     }
 
     public static method describe(c:string): string {
@@ -90,10 +90,10 @@ class Score implements Printable, Comparable {
     }
 
     public method compare(other:int): int {
-        if self.value > other {
+        if self.value greater other {
             return 1
         }
-        if self.value < other {
+        if self.value smaller other {
             return -1
         }
         return 0
@@ -106,7 +106,7 @@ class Score implements Printable, Comparable {
     }
 
     public method is_passing(): bool {
-        return self.value >= PASS_MARK
+        return self.value greater or equal PASS_MARK
     }
 
     public method get_value(): int {
@@ -159,14 +159,14 @@ class Student extends Score {
 
 // Récursion
 function factorial(n:int): int {
-    if n <= 1 {
+    if n smaller or equal 1 {
         return 1
     }
     return n * factorial(n - 1)
 }
 
 function fibonacci(n:int): int {
-    if n <= 1 {
+    if n smaller or equal 1 {
         return n
     }
     return fibonacci(n - 1) + fibonacci(n - 2)
@@ -215,13 +215,13 @@ function main(): int {
     scoped mod:int  = n % 5
     IO::writeln("Arith : " + add + " " + sub + " " + mul + " " + div + " " + mod)
 
-    scoped eq:bool  = n == 42
-    scoped neq:bool = n != 0
-    scoped lt:bool  = n < 100
-    scoped gt:bool  = n > 10
-    scoped lte:bool = n <= 42
-    scoped gte:bool = n >= 42
-    IO::writeln("Comp : eq=" + eq + " neq=" + neq + " lt=" + lt + " gt=" + gt)
+    scoped eq:bool  = n equal 42
+    scoped neq:bool = n not equal 0
+    scoped lt:bool  = n smaller 100
+    scoped gt:bool  = n greater 10
+    scoped lte:bool = n smaller or equal 42
+    scoped gte:bool = n greater or equal 42
+    IO::writeln("Comp : eq=" + eq + " neq=" + neq + " lt=" + lt + " gt=" + gt + " lte=" + lte + " gte=" + gte)
 
     scoped and_r:bool = b and eq
     scoped or_r:bool  = b or false
@@ -239,9 +239,9 @@ function main(): int {
     // 3. CONDITIONS if / elseif / else
     // ─────────────────────────────────────────────────────────────────────────
     IO::writeln("── 3. Conditions ────────────────────────────────────")
-    if n > 50 {
+    if n greater 50 {
         IO::writeln("n > 50")
-    } elseif n == 42 {
+    } elseif n equal 42 {
         IO::writeln("La réponse universelle !")
     } else {
         IO::writeln("n < 50")
@@ -342,7 +342,7 @@ function main(): int {
 
     // While
     var counter:int = 0
-    while counter < 4 {
+    while counter smaller 4 {
         counter = counter + 1
         IO::writeln("  while : " + counter)
     }

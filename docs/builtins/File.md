@@ -210,7 +210,7 @@ function copy_if_newer(src:string, dst:string): void {
         var src_info:map<string, mixed> = File::infos(src)
         var dst_info:map<string, mixed> = File::infos(dst)
         
-        if src_info["modified"] <= dst_info["modified"] {
+        if src_info["modified"] smaller or equal dst_info["modified"] {
             IO::writeln("Destination already up to date")
             return
         }
@@ -333,7 +333,7 @@ function safe_read(path:string): string {
     try {
         return File::read(path)
     } on e is FileException {
-        if e.code == 101 {
+        if e.code equal 101 {
             IO::writeln(`Erreur de lecture: Fichier introuvable ou illisible`)
         } else {
             IO::writeln(`Erreur fichier inattendue: ${e.message}`)
@@ -344,7 +344,7 @@ function safe_read(path:string): string {
 
 function main(): int {
     var data:string = safe_read("/tmp/config.txt")
-    if data != "" {
+    if data not equal "" {
         IO::writeln(`Données: ${data}`)
     }
     return 0
@@ -363,9 +363,9 @@ function copy_with_error_handling(src:string, dst:string): void {
         File::write(dst, content)
         IO::writeln("Fichier copié avec succès")
     } on e is FileException {
-        if e.code == 101 {
+        if e.code equal 101 {
             IO::writeln(`Erreur fichier source: Impossible de lire '${src}'`)
-        } else if e.code == 103 {
+        } else if e.code equal 103 {
             IO::writeln(`Erreur fichier destination: Impossible d'écrire '${dst}'`)
         } else {
             IO::writeln(`Erreur opération fichier [${e.code}]: ${e.message}`)
@@ -396,11 +396,11 @@ function process_file(path:string): void {
         IO::writeln(`Modifié: ${infos["modified"]}`)
         
     } on e is FileException {
-        if e.code == 106 {
+        if e.code equal 106 {
             IO::writeln("Échec de lecture de la taille du fichier")
-        } else if e.code == 101 {
+        } else if e.code equal 101 {
             IO::writeln("Échec de lecture du contenu du fichier")
-        } else if e.code == 110 {
+        } else if e.code equal 110 {
             IO::writeln("Échec de lecture des métadonnées du fichier")
         } else {
             IO::writeln(`Erreur fichier [${e.code}]: ${e.message}`)

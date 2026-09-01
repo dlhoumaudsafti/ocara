@@ -5,8 +5,8 @@ function main(): int {
 
     // break dans while
     var i:int = 0
-    while i < 10 {
-        if i == 5 {
+    while i smaller 10 {
+        if i equal 5 {
             break
         }
         IO::writeln("while : " + i)
@@ -16,9 +16,9 @@ function main(): int {
 
     // continue dans while
     var j:int = 0
-    while j < 8 {
+    while j smaller 8 {
         j = j + 1
-        if j % 2 == 0 {
+        if j % 2 equal 0 {
             continue
         }
         IO::writeln("impair : " + j)
@@ -26,7 +26,7 @@ function main(): int {
 
     // break dans for..range
     for k in 0..10 {
-        if k == 4 {
+        if k equal 4 {
             break
         }
         IO::writeln("range : " + k)
@@ -34,7 +34,7 @@ function main(): int {
 
     // continue dans for..range
     for n in 0..6 {
-        if n == 2 or n == 4 {
+        if n equal 2 or n equal 4 {
             continue
         }
         IO::writeln("skip 2,4 : " + n)
@@ -43,7 +43,7 @@ function main(): int {
     // break dans for..in (tableau)
     var nums:array<int> = [10, 20, 30, 40, 50]
     for v in nums {
-        if v == 30 {
+        if v equal 30 {
             break
         }
         IO::writeln("arr : " + v)

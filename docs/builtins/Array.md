@@ -172,7 +172,7 @@ function main(): int {
     var src:array<int>    = [1, 2, 3, 2, 4, 1, 5]
     var unique:array<int> = []
     for v in src {
-        if Array::indexOf(unique, v) == -1 {
+        if Array::indexOf(unique, v) equal -1 {
             Array::push(unique, v)
         }
     }
@@ -190,7 +190,7 @@ function main(): int {
 
     // Vérification avant accès
     var vide:array<int> = []
-    if Array::len(vide) == 0 {
+    if Array::len(vide) equal 0 {
         write("tableau vide")
     }
 
@@ -243,7 +243,7 @@ function safe_pop(arr:array<int>): int {
     try {
         return Array::pop(arr)
     } on e is ArrayException {
-        if e.code == 101 {
+        if e.code equal 101 {
             IO::writeln("Array is empty, returning default")
             return -1
         } else {

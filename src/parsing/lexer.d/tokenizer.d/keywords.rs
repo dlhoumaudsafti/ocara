@@ -70,6 +70,8 @@ pub(in crate::parsing::lexer) fn keyword_or_ident(s: &str) -> TokenKind {
         "or"         => TokenKind::KwOr,
         "not"        => TokenKind::KwNot,
         "equal"      => TokenKind::KwEqual,
+        "smaller"    => TokenKind::KwSmaller,
+        "greater"    => TokenKind::KwGreater,
         "nameless"   => TokenKind::KwNameless,
         _            => TokenKind::Ident(s.to_string()),
     }

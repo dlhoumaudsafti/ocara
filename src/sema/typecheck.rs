@@ -1302,11 +1302,69 @@ fn binary_result_type(
                 lt.clone()
             }
         }
-        BinOp::EqEq | BinOp::NotEq |
-        BinOp::EqEqEq | BinOp::NotEqEq |  // Opérateurs stricts
-        BinOp::Lt   | BinOp::LtEq  |
-        BinOp::Gt   | BinOp::GtEq  |
-        BinOp::LtEqEq | BinOp::GtEqEq |  // Opérateurs stricts
-        BinOp::And  | BinOp::Or    => Type::Bool,
+        BinOp::Equal | BinOp::NotEqual => {
+            if !comparable_types(lt, rt) {
+                errors.push(SemaError::IncomparableTypes {
+                    op:    op_name(op),
+                    left:  type_name(lt),
+                    right: type_name(rt),
+                    span:  span.clone(),
+                });
+            }
+            Type::Bool
+        }
+        BinOp::Smaller | BinOp::Greater | BinOp::SmallerOrEqual | BinOp::GreaterOrEqual => {
+            if !orderable_types(lt, rt) {
+                errors.push(SemaError::IncomparableTypes {
+                    op:    op_name(op),
+                    left:  type_name(lt),
+                    right: type_name(rt),
+                    span:  span.clone(),
+                });
+            }
+            Type::Bool
+        }
+        BinOp::And | BinOp::Or => Type::Bool,
     }
+}
+
+fn op_name(op: &BinOp) -> String {
+    match op {
+        BinOp::Equal          => "equal",
+        BinOp::NotEqual        => "not equal",
+        BinOp::Smaller         => "smaller",
+        BinOp::Greater          => "greater",
+        BinOp::SmallerOrEqual   => "smaller or equal",
+        BinOp::GreaterOrEqual   => "greater or equal",
+        _ => "?",
+    }.to_string()
+}
+
+fn is_numeric(t: &Type) -> bool {
+    matches!(t, Type::Int | Type::Float)
+}
+
+/// `equal` / `not equal` : vérifiable à la compilation dès que les deux types
+/// sont statiquement connus. `int` et `float` sont l'unique paire compatible
+/// malgré des types nominaux différents (widening numérique explicite lors du
+/// lowering). `mixed` ne peut pas être vérifié statiquement — la comparaison
+/// est alors déléguée à un contrôle de type au runtime (voir lower::expr::lower).
+fn comparable_types(lt: &Type, rt: &Type) -> bool {
+    if matches!(lt, Type::Mixed) || matches!(rt, Type::Mixed) {
+        return true;
+    }
+    if is_numeric(lt) && is_numeric(rt) {
+        return true;
+    }
+    types_compat(lt, rt) || types_compat(rt, lt)
+}
+
+/// `smaller` / `greater` / `smaller or equal` / `greater or equal` : un ordre
+/// n'a de sens que pour des valeurs numériques (int/float, y compris mélangés).
+/// `mixed` reste autorisé (vérifié au runtime) faute d'information statique.
+fn orderable_types(lt: &Type, rt: &Type) -> bool {
+    if matches!(lt, Type::Mixed) || matches!(rt, Type::Mixed) {
+        return true;
+    }
+    is_numeric(lt) && is_numeric(rt)
 }

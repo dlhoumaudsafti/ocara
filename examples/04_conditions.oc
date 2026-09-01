@@ -10,11 +10,11 @@
 import ocara.IO
 
 function note_to_mention(note:int): string {
-    if note >= 90 {
+    if note greater or equal 90 {
         return "Excellent"
-    } elseif note >= 75 {
+    } elseif note greater or equal 75 {
         return "Bien"
-    } elseif note >= 60 {
+    } elseif note greater or equal 60 {
         return "Passable"
     } else {
         return "Insuffisant"
@@ -22,7 +22,7 @@ function note_to_mention(note:int): string {
 }
 
 function is_adult(age:int): bool {
-    return age >= 18
+    return age greater or equal 18
 }
 
 
@@ -30,17 +30,17 @@ function main(): int {
 
     // Condition simple
     var x:int = 10
-    if x > 0 {
+    if x greater 0 {
         IO::writeln("x est positif")
     }
 
     // if / elseif / else
     var temperature:int = 25
-    if temperature < 0 {
+    if temperature smaller 0 {
         IO::writeln("Gel")
-    } elseif temperature < 15 {
+    } elseif temperature smaller 15 {
         IO::writeln("Frais")
-    } elseif temperature < 25 {
+    } elseif temperature smaller 25 {
         IO::writeln("Agréable")
     } else {
         IO::writeln("Chaud")
@@ -49,11 +49,11 @@ function main(): int {
     // Opérateurs logiques
     var a:int = 5
     var b:int = 10
-    if a > 0 and b > 0 {
+    if a greater 0 and b greater 0 {
         IO::writeln("a et b sont positifs")
     }
 
-    if a > 100 or b > 5 {
+    if a greater 100 or b greater 5 {
         IO::writeln("au moins une condition vraie")
     }
 

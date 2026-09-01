@@ -32,8 +32,8 @@ function log(level:string = "INFO", messages:variadic<string>):void {
     IO::write(level)
     IO::write(": ")
     var i:int = 0
-    while i < Array::len(messages) {
-        if i > 0 {
+    while i smaller Array::len(messages) {
+        if i greater 0 {
             IO::write(" ")
         }
         IO::write(Array::get(messages, i))
@@ -51,7 +51,7 @@ class Calculator {
     public method power(base:int, exponent:int = 2):int {
         var result:int = 1
         var i:int = 0
-        while i < exponent {
+        while i smaller exponent {
             result = result * base
             i = i + 1
         }

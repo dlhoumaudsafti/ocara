@@ -71,20 +71,20 @@ class User {
     }
 
     public method title(): string|null {
-        if self.age >= 18 {
+        if self.age greater or equal 18 {
             return "M."
         }
         return null
     }
 
     public method age_group(): string|null {
-        if self.age >= 60 {
+        if self.age greater or equal 60 {
             return "senior"
         }
-        if self.age >= 18 {
+        if self.age greater or equal 18 {
             return "adulte"
         }
-        if self.age >= 0 {
+        if self.age greater or equal 0 {
             return "mineur"
         }
         return null

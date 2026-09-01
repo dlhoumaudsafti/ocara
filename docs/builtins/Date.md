@@ -66,9 +66,9 @@ Retourne le jour de la semaine (0 = lundi, 6 = dimanche).
 
 ```ocara
 var dow:int = Date::dayOfWeek("2024-04-27")
-if dow == 0 {
+if dow equal 0 {
     IO::write("Lundi")
-} else if dow == 6 {
+} else if dow equal 6 {
     IO::write("Dimanche")
 }
 ```
@@ -244,7 +244,7 @@ try {
     var dow:int = Date::dayOfWeek("invalid")
 } on e {
     IO::writeln(`Exception: ${e.message}`)
-    if e.code == 101 {
+    if e.code equal 101 {
         IO::writeln("➡️ Code 101 = INVALID_DATE_FORMAT")
     }
 }

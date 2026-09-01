@@ -25,6 +25,7 @@ pub enum SemaError {
     MixedInReturnType { name: String, span: Span },
     ResultOutsideRuntimeBlock { span: Span },
     ReturnInsideRuntimeBlock  { span: Span },
+    IncomparableTypes { op: String, left: String, right: String, span: Span },
 }
 
 impl SemaError {
@@ -47,6 +48,7 @@ impl SemaError {
             SemaError::MixedInReturnType  { span, .. } => span,
             SemaError::ResultOutsideRuntimeBlock { span } => span,
             SemaError::ReturnInsideRuntimeBlock  { span } => span,
+            SemaError::IncomparableTypes  { span, .. } => span,
         }
     }
 
@@ -86,6 +88,8 @@ impl SemaError {
                 "'result' can only be used inside a runtime block (init/main/error/success/exit)".into(),
             SemaError::ReturnInsideRuntimeBlock { .. } =>
                 "'return' is not allowed inside a runtime block — use 'result' instead to set ERROR without exiting".into(),
+            SemaError::IncomparableTypes { op, left, right, .. } =>
+                format!("cannot compare '{}' and '{}' with '{}': comparisons are strictly typed (int and float are the only compatible pair) — convert one side explicitly", left, right, op),
         }
     }
 }

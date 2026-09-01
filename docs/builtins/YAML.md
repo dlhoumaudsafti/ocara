@@ -241,7 +241,7 @@ En cas d'erreur de parsing YAML, `decode()` et `parse()` retournent `null` (0).
 const invalidYaml:string = "{ invalid : yaml : : }"
 const result:mixed = YAML::decode(invalidYaml)
 
-if result == null {
+if result equal null {
     IO::writeln("Erreur: YAML invalide")
 }
 ```

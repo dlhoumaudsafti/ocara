@@ -222,7 +222,7 @@ function safe_get(m:map<string,string>, key:string): string {
     try {
         return Map::get(m, key)
     } on e is MapException {
-        if e.code == 101 {
+        if e.code equal 101 {
             IO::writeln(`Key '${key}' not found, using default`)
             return ""
         } else {

@@ -148,7 +148,7 @@ function prefix_concat(prefix:string, parts:variadic<string>): string {
 // ── 13. variadic avec 0 argument ────────────────────────────────────────────
 
 function default_sum(nums:variadic<int>): int {
-    if Array::len(nums) == 0 {
+    if Array::len(nums) equal 0 {
         return -1
     }
     return sum_int(nums)

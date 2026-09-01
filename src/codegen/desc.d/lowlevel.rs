@@ -8,6 +8,7 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__str_from_float",  params: &[clt::F64],                             returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__str_from_bool",   params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__box_float",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__int_to_float",    params: &[clt::I64],                             returns: Some(clt::F64),    module: None },
     BuiltinDesc { name: "__box_bool",        params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
 
     // ── Type checking runtime (narrowing 'is Type') ───────────────────────────
@@ -32,9 +33,15 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__map_set",         params: &[clt::I64, clt::I64, clt::I64],         returns: None,              module: None },
     BuiltinDesc { name: "__map_get",         params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
     
-    // ── Strict comparison operators (===, !==, <==, >==) ──────────────────────
+    // ── Comparaisons avec vérification de type au runtime ─────────────────────
+    // Utilisées uniquement quand sema n'a pas pu vérifier statiquement (au
+    // moins un opérande `mixed`) — sinon la comparaison est émise en direct
+    // (CmpEq/CmpLt/...). Voir equal/not equal/smaller/greater/
+    // smaller or equal/greater or equal dans lower::expr::lower.
     BuiltinDesc { name: "__cmp_eq_strict",        params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__cmp_ne_strict",        params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__cmp_lt_strict",        params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__cmp_gt_strict",        params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__cmp_le_strict",        params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__cmp_ge_strict",        params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
     

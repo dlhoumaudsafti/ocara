@@ -246,7 +246,7 @@ function safe_read(): string {
     try {
         return IO::read()
     } on e is IOException {
-        if e.code == 101 {
+        if e.code equal 101 {
             IO::writeln("Erreur: impossible de lire depuis stdin")
             return ""
         } else {

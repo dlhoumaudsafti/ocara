@@ -68,7 +68,7 @@ Récupère la valeur d'une variable d'environnement.
 ```ocara
 const appName:string = DotEnv::get("APP_NAME")
 
-if appName != null {
+if appName not equal null {
     IO::writeln(`Application: ${appName}`)
 } else {
     IO::writeln("APP_NAME non définie")
@@ -108,7 +108,7 @@ import ocara.System
 // Déterminer l'environnement
 const env:string = System::getEnv("ENVIRONMENT")
 
-if env == "production" {
+if env equal "production" {
     IO::writeln("Mode production")
     DotEnv::load("prod")
 } else {
@@ -137,9 +137,9 @@ IO::writeln(`Database: ${dbUrl}`)
 // Charger la config selon l'environnement
 const env:string = System::getEnv("ENV")
 
-if env == "prod" {
+if env equal "prod" {
     DotEnv::load("prod")
-} else if env == "staging" {
+} else if env equal "staging" {
     DotEnv::load("staging")
 } else {
     DotEnv::load("dev")
@@ -159,7 +159,7 @@ const user:string = DotEnv::get("DB_USER")
 const password:string = DotEnv::get("DB_PASSWORD")
 const database:string = DotEnv::get("DB_NAME")
 
-if host != null and user != null and password != null and database != null {
+if host not equal null and user not equal null and password not equal null and database not equal null {
     const db:MySQL = MySQL::connect(host, user, password, database)
     // ...
 } else {
@@ -175,7 +175,7 @@ DotEnv::load("")
 const apiKey:string = DotEnv::get("API_KEY")
 const secretToken:string = DotEnv::get("SECRET_TOKEN")
 
-if apiKey != null {
+if apiKey not equal null {
     // Utiliser l'API key
 } else {
     IO::writeln("Warning: API_KEY non configurée")
@@ -291,7 +291,7 @@ Récupère la valeur d'une variable d'environnement.
 ```ocara
 const appName:string = DotEnv::get("APP_NAME")
 
-if appName != null {
+if appName not equal null {
     IO::writeln(`Application: ${appName}`)
 } else {
     IO::writeln("APP_NAME non définie")
@@ -331,7 +331,7 @@ import ocara.System
 // Déterminer l'environnement
 const env:string = System::env("ENVIRONMENT")
 
-if env == "production" {
+if env equal "production" {
     IO::writeln("Mode production")
     DotEnv::load("prod")
 } else {
@@ -360,9 +360,9 @@ IO::writeln(`Database: ${dbUrl}`)
 // Charger la config selon l'environnement
 const env:string = System::env("ENV")
 
-if env == "prod" {
+if env equal "prod" {
     DotEnv::load("prod")
-} else if env == "staging" {
+} else if env equal "staging" {
     DotEnv::load("staging")
 } else {
     DotEnv::load("dev")
@@ -382,7 +382,7 @@ const user:string = DotEnv::get("DB_USER")
 const password:string = DotEnv::get("DB_PASSWORD")
 const database:string = DotEnv::get("DB_NAME")
 
-if host != null and user != null and password != null and database != null {
+if host not equal null and user not equal null and password not equal null and database not equal null {
     const db:MySQL = MySQL::connect(host, user, password, database)
     // ...
 } else {
@@ -398,7 +398,7 @@ DotEnv::load("")
 const apiKey:string = DotEnv::get("API_KEY")
 const secretToken:string = DotEnv::get("SECRET_TOKEN")
 
-if apiKey != null {
+if apiKey not equal null {
     // Utiliser l'API key
 } else {
     IO::writeln("Warning: API_KEY non configurée")

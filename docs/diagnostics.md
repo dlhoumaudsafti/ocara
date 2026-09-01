@@ -48,6 +48,7 @@ Produites lors de la construction de l'AST.
 | `expected ':'` | Déclaration de type manquante |
 | `expected identifier` | Nom attendu mais token différent trouvé |
 | `unexpected token 'X'` | Token inattendu à cette position |
+| `operator 'X' has been removed — use 'Y' instead` | Ancien opérateur de comparaison symbolique (`==`, `!=`, `<`, `<=`, `>`, `>=`, `===`, `!==`, `<==`, `>==`) — voir [§11.1 de l'EBNF](EBNF.md#111-comparaisons) |
 
 ---
 
@@ -292,6 +293,45 @@ function getValue(): mixed {  // ❌ interdit
 ```
 
 **Correction :** utiliser un type union explicite (`int|string|null`) ou un type concret.
+
+---
+
+### E16 — Comparaison entre types incompatibles
+
+```
+fichier.oc:5:16: error: cannot compare 'int' and 'string' with 'equal': comparisons are strictly typed (int and float are the only compatible pair) — convert one side explicitly
+```
+
+Une comparaison (`equal`, `not equal`, `smaller`, `greater`, `smaller or equal`,
+`greater or equal`) porte sur deux types incompatibles. Depuis Ocara v0.2.0,
+toute comparaison est vérifiée **à la compilation** dès que les deux types
+sont statiquement connus — `int` et `float` sont l'unique paire compatible
+malgré des types nominaux différents (widening numérique explicite, jamais un
+bitcast) ; toute autre paire de types différents est rejetée. `smaller` /
+`greater` / `smaller or equal` / `greater or equal` exigent en plus que les
+deux types soient numériques (l'ordre n'a pas de sens pour un `bool` ou un
+`string`).
+
+```ocara
+var n:int = 5
+var s:string = "5"
+if n equal s {           // ❌ int et string ne sont pas comparables
+    ...
+}
+
+var b:bool = true
+var i:int = 1
+if b smaller i {         // ❌ smaller/greater n'accepte que des types numériques
+    ...
+}
+```
+
+**Correction :** convertir explicitement un des deux côtés (`Convert::intToStr`,
+`Convert::strToInt`, ...) ou corriger le type de l'un des deux opérandes.
+
+Une valeur `mixed` échappe à cette vérification statique (son type réel n'est
+pas connu à la compilation) : la comparaison est alors déléguée à un contrôle
+de type au runtime, plutôt qu'à ce diagnostic — voir [§11.1 de l'EBNF](EBNF.md#111-comparaisons).
 
 ---
 

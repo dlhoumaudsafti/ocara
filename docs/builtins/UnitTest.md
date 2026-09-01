@@ -87,7 +87,7 @@ UnitTest::assertNotNull(user)
 
 #### `UnitTest::assertGreater(a, b)`
 
-Vérifie que `a > b`.
+Vérifie que `a greater b`.
 
 ```ocara
 UnitTest::assertGreater(score, 50)
@@ -97,7 +97,7 @@ UnitTest::assertGreater(score, 50)
 
 #### `UnitTest::assertLess(a, b)`
 
-Vérifie que `a < b`.
+Vérifie que `a smaller b`.
 
 ```ocara
 UnitTest::assertLess(errors, 1)
@@ -107,7 +107,7 @@ UnitTest::assertLess(errors, 1)
 
 #### `UnitTest::assertGreaterOrEquals(a, b)`
 
-Vérifie que `a >= b`.
+Vérifie que `a greater or equal b`.
 
 ```ocara
 UnitTest::assertGreaterOrEquals(score, 60)
@@ -117,7 +117,7 @@ UnitTest::assertGreaterOrEquals(score, 60)
 
 #### `UnitTest::assertLessOrEquals(a, b)`
 
-Vérifie que `a <= b`.
+Vérifie que `a smaller or equal b`.
 
 ```ocara
 UnitTest::assertLessOrEquals(retries, 3)
@@ -407,7 +407,7 @@ function testMultiple(): int {
     var failed:int = 0
     
     try {
-        UnitTest::assertTrue(1 == 1)
+        UnitTest::assertTrue(1 equal 1)
         passed = passed + 1
     } on e is UnitTestException {
         failed = failed + 1
@@ -444,7 +444,7 @@ function testFailure(): int {
             UnitTest::fail("Condition invalide détectée")
         }
     } on e is UnitTestException {
-        if e.code == 114 {
+        if e.code equal 114 {
             IO::writeln("✓ Échec explicite capturé")
         }
     }

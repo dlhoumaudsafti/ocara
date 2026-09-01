@@ -49,7 +49,7 @@ function transform(value: int, transformer: Function<int(int)>): int {
 
 function repeat(times: int, action: Function<void()>): void {
     scoped i:int = 0
-    while i < times {
+    while i smaller times {
         action()
         i = i + 1
     }

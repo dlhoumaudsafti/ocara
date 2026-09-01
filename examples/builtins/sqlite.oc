@@ -83,7 +83,7 @@ main {
         IO::writeln("6. Querying a specific user...")
         const alice:map<string, mixed> = db.queryOne("SELECT * FROM users WHERE name = 'Alice'")
         
-        if Map::size(alice) > 0 {
+        if Map::size(alice) greater 0 {
             IO::writeln(`   ✓ Found: ${alice["name"]} - ${alice["email"]}`)
         } else {
             IO::writeln("   ✗ User not found")

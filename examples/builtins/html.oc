@@ -39,7 +39,7 @@ function main(): int {
         scoped stars:int = attrs["stars"]
         var out:string = ""
         var n:int = 0
-        while n < stars {
+        while n smaller stars {
             out = out + "★"
             n = n + 1
         }

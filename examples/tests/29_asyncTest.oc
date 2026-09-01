@@ -55,7 +55,7 @@ async function async_int(n:int): int {
 }
 
 async function async_bool(n:int): bool {
-    return n > 0
+    return n greater 0
 }
 
 async function async_string(s:string): string {

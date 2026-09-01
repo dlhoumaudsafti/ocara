@@ -27,7 +27,7 @@ function main(): int {
     // Accueil : salue le visiteur avec le paramètre ?name=
     server.route("/", "GET", nameless(req:int): int {
         var name:string = HTTPServer::query(req, "name")
-        if name == "" {
+        if name equal "" {
             name = "Monde"
         }
         HTTPServer::respondHeader(req, "Content-Type", "text/plain; charset=utf-8")

@@ -41,11 +41,11 @@ class Test_23_static_method {
 
 class Validator {
     public static method is_positive(n:int): bool {
-        return n > 0
+        return n greater 0
     }
 
     public static method is_in_range(n:int, low:int, high:int): bool {
-        return n >= low and n <= high
+        return n greater or equal low and n smaller or equal high
     }
 
     public static method is_valid_age(age:int): bool {
@@ -69,7 +69,7 @@ class Temperature {
     }
 
     public static method is_valid(c:int): bool {
-        return c >= Temperature::ABSOLUTE_ZERO
+        return c greater or equal Temperature::ABSOLUTE_ZERO
     }
 
     public static method clamp(c:int): int {

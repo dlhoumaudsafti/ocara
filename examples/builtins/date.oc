@@ -33,11 +33,11 @@ function main(): int {
     var dow:int = Date::dayOfWeek(today)
     IO::writeln("Jour de la semaine (0=lundi, 6=dimanche): " + Convert::intToStr(dow))
     
-    if dow == 0 {
+    if dow equal 0 {
         IO::writeln("  C'est lundi")
-    } elseif dow == 5 {
+    } elseif dow equal 5 {
         IO::writeln("  C'est vendredi")
-    } elseif dow == 6 {
+    } elseif dow equal 6 {
         IO::writeln("  C'est dimanche")
     }
     IO::writeln("")

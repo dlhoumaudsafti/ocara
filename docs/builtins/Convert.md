@@ -97,7 +97,7 @@ Convert::intToFloat(7)   // → 7.0
 
 ### `Convert::intToBool(n)` → `bool`
 
-Retourne `false` si `n == 0`, `true` sinon.
+Retourne `false` si `n equal 0`, `true` sinon.
 
 ```ocara
 Convert::intToBool(0)    // → false
@@ -126,7 +126,7 @@ Convert::floatToInt(-3.7)    // → -3
 
 ### `Convert::floatToBool(f)` → `bool`
 
-Retourne `false` si `f == 0.0`, `true` sinon.
+Retourne `false` si `f equal 0.0`, `true` sinon.
 
 ```ocara
 Convert::floatToBool(0.0)    // → false
@@ -278,7 +278,7 @@ function main(): int {
     } on e is ConvertException {
         IO::writeln(`Conversion error: ${e.message}`)
         IO::writeln(`Code: ${e.code}`)
-        if e.code == 101 {
+        if e.code equal 101 {
             IO::writeln("Invalid integer format")
         }
     }
@@ -375,7 +375,7 @@ function parse_config(line:string): void {
     // Format: "key=value"
     var parts:array<string> = String::split(line, "=")
     
-    if Array::len(parts) != 2 {
+    if Array::len(parts) not equal 2 {
         IO::writeln("Invalid config line format")
         return
     }

@@ -865,6 +865,79 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
 
             let left_ty  = expr_ir_type(builder, left);
             let right_ty = expr_ir_type(builder, right);
+
+            // ── Comparaisons (equal/not equal/smaller/greater/smaller or equal/
+            //    greater or equal) : toujours typées à la compilation (sema a
+            //    déjà rejeté toute paire incompatible sauf int/float et mixed).
+            if matches!(op, BinOp::Equal | BinOp::NotEqual |
+                        BinOp::Smaller | BinOp::Greater | BinOp::SmallerOrEqual | BinOp::GreaterOrEqual)
+            {
+                let lv_raw = lower_expr(builder, left);
+                let rv_raw = lower_expr(builder, right);
+                let dest = builder.new_value();
+
+                // `mixed` des deux côtés (représenté en Ptr, comme string/array/
+                // map/objet) : sema n'a pas pu vérifier statiquement — on retombe
+                // sur le contrôle de type au runtime (mêmes fonctions déjà
+                // utilisées côté strings pour equal/not equal).
+                let mixed_or_heap_side = matches!(left_ty, IrType::Ptr) || matches!(right_ty, IrType::Ptr);
+                if mixed_or_heap_side {
+                    let func = match op {
+                        BinOp::Equal          => "__cmp_eq_strict",
+                        BinOp::NotEqual        => "__cmp_ne_strict",
+                        BinOp::Smaller         => "__cmp_lt_strict",
+                        BinOp::Greater          => "__cmp_gt_strict",
+                        BinOp::SmallerOrEqual   => "__cmp_le_strict",
+                        BinOp::GreaterOrEqual   => "__cmp_ge_strict",
+                        _ => unreachable!(),
+                    };
+                    builder.emit(Inst::Call {
+                        dest: Some(dest.clone()),
+                        func: func.to_string(),
+                        args: vec![lv_raw, rv_raw],
+                        ret_ty: IrType::Bool,
+                    });
+                    return dest;
+                }
+
+                // int/float : widening explicite du côté entier (jamais un bitcast —
+                // __int_to_float effectue une vraie conversion numérique) avant
+                // de comparer en F64. Même type des deux côtés (int/int, float/float,
+                // bool/bool) : comparaison directe, aucune conversion.
+                let (lv, rv, ty) = match (&left_ty, &right_ty) {
+                    (IrType::I64, IrType::F64) => {
+                        let conv = builder.new_value();
+                        builder.emit(Inst::Call {
+                            dest: Some(conv.clone()), func: "__int_to_float".into(),
+                            args: vec![lv_raw], ret_ty: IrType::F64,
+                        });
+                        (conv, rv_raw, IrType::F64)
+                    }
+                    (IrType::F64, IrType::I64) => {
+                        let conv = builder.new_value();
+                        builder.emit(Inst::Call {
+                            dest: Some(conv.clone()), func: "__int_to_float".into(),
+                            args: vec![rv_raw], ret_ty: IrType::F64,
+                        });
+                        (lv_raw, conv, IrType::F64)
+                    }
+                    (IrType::F64, IrType::F64) => (lv_raw, rv_raw, IrType::F64),
+                    _                          => (lv_raw, rv_raw, IrType::I64),
+                };
+
+                let inst = match op {
+                    BinOp::Equal          => Inst::CmpEq { dest: dest.clone(), lhs: lv, rhs: rv, ty },
+                    BinOp::NotEqual        => Inst::CmpNe { dest: dest.clone(), lhs: lv, rhs: rv, ty },
+                    BinOp::Smaller         => Inst::CmpLt { dest: dest.clone(), lhs: lv, rhs: rv, ty },
+                    BinOp::Greater          => Inst::CmpGt { dest: dest.clone(), lhs: lv, rhs: rv, ty },
+                    BinOp::SmallerOrEqual   => Inst::CmpLe { dest: dest.clone(), lhs: lv, rhs: rv, ty },
+                    BinOp::GreaterOrEqual   => Inst::CmpGe { dest: dest.clone(), lhs: lv, rhs: rv, ty },
+                    _ => unreachable!(),
+                };
+                builder.emit(inst);
+                return dest;
+            }
+
             // Arithmétique float si au moins un côté est F64
             let ty = if matches!(left_ty, IrType::F64) || matches!(right_ty, IrType::F64) {
                 IrType::F64
@@ -874,63 +947,16 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             let lv = lower_expr(builder, left);
             let rv = lower_expr(builder, right);
             let dest = builder.new_value();
-            
-            // Opérateurs stricts : appel aux fonctions runtime
-            match op {
-                BinOp::EqEqEq => {
-                    builder.emit(Inst::Call {
-                        dest: Some(dest.clone()),
-                        func: "__cmp_eq_strict".to_string(),
-                        args: vec![lv, rv],
-                        ret_ty: IrType::Bool,
-                    });
-                    return dest;
-                }
-                BinOp::NotEqEq => {
-                    builder.emit(Inst::Call {
-                        dest: Some(dest.clone()),
-                        func: "__cmp_ne_strict".to_string(),
-                        args: vec![lv, rv],
-                        ret_ty: IrType::Bool,
-                    });
-                    return dest;
-                }
-                BinOp::LtEqEq => {
-                    builder.emit(Inst::Call {
-                        dest: Some(dest.clone()),
-                        func: "__cmp_le_strict".to_string(),
-                        args: vec![lv, rv],
-                        ret_ty: IrType::Bool,
-                    });
-                    return dest;
-                }
-                BinOp::GtEqEq => {
-                    builder.emit(Inst::Call {
-                        dest: Some(dest.clone()),
-                        func: "__cmp_ge_strict".to_string(),
-                        args: vec![lv, rv],
-                        ret_ty: IrType::Bool,
-                    });
-                    return dest;
-                }
-                _ => {}
-            }
-            
+
             let inst = match op {
                 BinOp::Add   => Inst::Add { dest: dest.clone(), lhs: lv, rhs: rv, ty },
                 BinOp::Sub   => Inst::Sub { dest: dest.clone(), lhs: lv, rhs: rv, ty },
                 BinOp::Mul   => Inst::Mul { dest: dest.clone(), lhs: lv, rhs: rv, ty },
                 BinOp::Div   => Inst::Div { dest: dest.clone(), lhs: lv, rhs: rv, ty },
                 BinOp::Mod   => Inst::Mod { dest: dest.clone(), lhs: lv, rhs: rv, ty },
-                BinOp::EqEq  => Inst::CmpEq { dest: dest.clone(), lhs: lv, rhs: rv, ty },
-                BinOp::NotEq => Inst::CmpNe { dest: dest.clone(), lhs: lv, rhs: rv, ty },
-                BinOp::Lt    => Inst::CmpLt { dest: dest.clone(), lhs: lv, rhs: rv, ty },
-                BinOp::LtEq  => Inst::CmpLe { dest: dest.clone(), lhs: lv, rhs: rv, ty },
-                BinOp::Gt    => Inst::CmpGt { dest: dest.clone(), lhs: lv, rhs: rv, ty },
-                BinOp::GtEq  => Inst::CmpGe { dest: dest.clone(), lhs: lv, rhs: rv, ty },
                 BinOp::And   => Inst::And { dest: dest.clone(), lhs: lv, rhs: rv },
                 BinOp::Or    => Inst::Or  { dest: dest.clone(), lhs: lv, rhs: rv },
-                _ => unreachable!("strict operators handled above"),
+                _ => unreachable!("comparisons handled above"),
             };
             builder.emit(inst);
             dest

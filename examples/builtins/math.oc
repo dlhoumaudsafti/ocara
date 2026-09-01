@@ -64,7 +64,7 @@ function main(): int {
     scoped de:int = Math::random(1, 6)
     IO::writeln(`random(1, 6) = ${de}`)   // entre 1 et 6
 
-    if de >= 1 and de <= 6 {
+    if de greater or equal 1 and de smaller or equal 6 {
         IO::writeln("  -> dans les bornes attendues")
     } else {
         IO::writeln("  -> ERREUR : hors bornes !")

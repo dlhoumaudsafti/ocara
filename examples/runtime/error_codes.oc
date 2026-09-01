@@ -11,16 +11,16 @@ init {
 main {
     IO::writeln("=== MAIN ===")
     
-    if mode == "critical" {
+    if mode equal "critical" {
         IO::writeln("Erreur critique détectée !")
         result 2
-    } elseif mode == "warning" {
+    } elseif mode equal "warning" {
         IO::writeln("Avertissement : problème mineur")
         result 1
-    } elseif mode == "fatal" {
+    } elseif mode equal "fatal" {
         IO::writeln("Erreur fatale : arrêt immédiat")
         result 127
-    } elseif mode == "invalid_mode" {
+    } elseif mode equal "invalid_mode" {
         IO::writeln("Erreur : mode invalide")
         result 5
     } else {
@@ -32,13 +32,13 @@ error {
     IO::writeln("=== ERROR ===")
     IO::writeln(`Code d'erreur retourné: ${ERROR}`)
     
-    if ERROR == 1 {
+    if ERROR equal 1 {
         IO::writeln("→ Avertissement (code 1)")
-    } elseif ERROR == 2 {
+    } elseif ERROR equal 2 {
         IO::writeln("→ Erreur critique (code 2)")
-    } elseif ERROR == 5 {
+    } elseif ERROR equal 5 {
         IO::writeln("→ Mode invalide (code 5)")
-    } elseif ERROR == 127 {
+    } elseif ERROR equal 127 {
         IO::writeln("→ Erreur fatale (code 127)")
     } else {
         IO::writeln(`→ Erreur inconnue (code ${ERROR})`)

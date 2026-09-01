@@ -252,7 +252,7 @@ function count_by_extension(path:string): map<string, int> {
     
     for file in files {
         var ext:string = File::extension(`${path}/${file}`)
-        if ext == "" {
+        if ext equal "" {
             ext = "(sans extension)"
         }
         
@@ -297,7 +297,7 @@ function rotate_backups(backup_dir:string, max_backups:int): void {
     var count:int = Array::len(dirs)
     
     // Si on dépasse le max, supprimer les plus anciens
-    if count >= max_backups {
+    if count greater or equal max_backups {
         // Tri par nom (backup_1, backup_2, ...)
         Array::sort(dirs)
         
@@ -338,7 +338,7 @@ function clean_temp_files(path:string): int {
         var ext:string = File::extension(file)
         
         // Supprimer .tmp, .temp, .bak
-        if ext == "tmp" || ext == "temp" || ext == "bak" {
+        if ext equal "tmp" or ext equal "temp" or ext equal "bak" {
             var full_path:string = `${path}/${file}`
             File::remove(full_path)
             IO::writeln(`Supprimé: ${file}`)
@@ -378,7 +378,7 @@ function copy_by_extension(src:string, dst:string, ext:string): int {
     }
     
     for file in files {
-        if File::extension(file) == ext {
+        if File::extension(file) equal ext {
             File::copy(`${src}/${file}`, `${dst}/${file}`)
             count = count + 1
         }
@@ -456,7 +456,7 @@ function safe_create(path:string): void {
         Directory::create(path)
         IO::writeln("Répertoire créé avec succès")
     } on e is DirectoryException {
-        if e.code == 101 {
+        if e.code equal 101 {
             IO::writeln(`Erreur de création: Vérifiez que le répertoire parent existe`)
         } else {
             IO::writeln(`Erreur répertoire inattendue: ${e.message}`)
@@ -482,9 +482,9 @@ function setup_and_list(path:string): void {
         var entries:array<string> = Directory::list(path)
         IO::writeln(`Répertoire créé avec ${Array::len(entries)} entrées`)
     } on e is DirectoryException {
-        if e.code == 102 {
+        if e.code equal 102 {
             IO::writeln(`Impossible de créer le répertoire '${path}'`)
-        } else if e.code == 105 {
+        } else if e.code equal 105 {
             IO::writeln(`Impossible de lister le répertoire '${path}'`)
         } else {
             IO::writeln(`Erreur opération répertoire [${e.code}]: ${e.message}`)
@@ -515,11 +515,11 @@ function manage_directory(path:string): void {
         IO::writeln(`Sous-répertoires: ${Array::len(dirs)}`)
         
     } on e is DirectoryException {
-        if e.code == 108 {
+        if e.code equal 108 {
             IO::writeln("Échec du comptage des entrées")
-        } else if e.code == 106 {
+        } else if e.code equal 106 {
             IO::writeln("Échec du listage des fichiers")
-        } else if e.code == 107 {
+        } else if e.code equal 107 {
             IO::writeln("Échec du listage des sous-répertoires")
         } else {
             IO::writeln(`Erreur répertoire [${e.code}]: ${e.message}`)
@@ -550,7 +550,7 @@ function safe_copy(src:string, dst:string): void {
         IO::writeln("Répertoire copié avec succès")
         
     } on e is DirectoryException {
-        if e.code == 109 {
+        if e.code equal 109 {
             IO::writeln(`Échec de copie de '${src}' vers '${dst}': ${e.message}`)
         } else {
             IO::writeln(`Erreur répertoire [${e.code}]: ${e.message}`)

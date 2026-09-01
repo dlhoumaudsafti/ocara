@@ -18,7 +18,7 @@ main {
     }
     
     var attempts: int = 0
-    while attempts < maxRetries {
+    while attempts smaller maxRetries {
         attempts = attempts + 1
         IO::writeln(`Tentative ${attempts}/${maxRetries}...`)
     }
