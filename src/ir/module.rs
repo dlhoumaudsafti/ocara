@@ -36,6 +36,14 @@ pub struct IrModule {
     pub class_consts: HashMap<String, (IrType, Literal)>,
     /// Compteur pour nommer les closures anonymes (__anon_0, __anon_1, ...)
     pub anon_counter: usize,
+    /// Compteur pour nommer les fonctions try/handler (__try_body_0, __try_handler_0, ...).
+    /// Doit être un compteur dédié, PAS `functions.len()` : un `try` imbriqué dans le
+    /// corps d'un autre `try` est lowered (et ajoute ses propres fonctions au module)
+    /// AVANT que le `try` englobant n'ajoute les siennes (voir lower_try) — dériver
+    /// l'id de `functions.len()` fait alors lire la même longueur pour l'englobant et
+    /// l'imbriqué, produisant deux fonctions au même nom (collision de signature au
+    /// codegen). Même patron que `anon_counter` ci-dessus, qui n'a pas ce problème.
+    pub try_counter: usize,
 }
 
 #[derive(Debug, Clone)]

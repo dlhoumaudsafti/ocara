@@ -14,11 +14,13 @@
 //   ./target/release/ocara examples/builtins/sdl.oc -o /tmp/sdl_demo
 //   /tmp/sdl_demo
 // Sans serveur d'affichage (CI, machine headless), SDL::init échoue proprement
-// avec une SDLException — voir le try/on ci-dessous. Note : le logo et la
-// police sont chargés dans le MÊME try/on que le reste (pas de try imbriqués
-// séparés ici — deux `try` séquentiels imbriqués dans un `try` externe
-// déclenchent actuellement un bug de codegen sans rapport avec SDL, signalé
-// à part). Sur cette machine (Ubuntu, DejaVu installé), les deux existent.
+// avec une SDLException — voir le try/on ci-dessous. Logo/police/son/musique
+// sont chacun dans leur propre try/on : leur absence individuelle ne fait pas
+// échouer le reste de la démonstration (dessin toujours affiché sans eux).
+// Ces 4 try séquentiels imbriqués dans le try englobant exercent au passage
+// un ancien bug de codegen (collision de noms __try_body_N/__try_handler_N
+// sur des try imbriqués successifs) corrigé dans src/ir/module.rs (compteur
+// dédié `try_counter`) / src/lower/stmt.d/statements.d/exceptions.rs.
 
 import ocara.IO
 import ocara.SDL
@@ -33,19 +35,39 @@ function main(): int {
 
         IO::writeln(`Fenêtre ouverte : ${win.getTitle()} (${win.getWidth()}x${win.getHeight()})`)
 
-        // ── Palier 2 : texture + police ──────────────────────────────────────
-        // (même try/on que use SDL(...) ci-dessus — voir la note en tête de
-        // fichier sur les try imbriqués séquentiels)
-        var textureId:int = win.loadTexture("logo-min.png")
-        IO::writeln(`Logo chargé : ${win.textureWidth(textureId)}x${win.textureHeight(textureId)}`)
+        // ── Palier 2 : texture (facultative — la démo continue sans elle) ──
+        var textureId:int = -1
+        try {
+            textureId = win.loadTexture("logo-min.png")
+            IO::writeln(`Logo chargé : ${win.textureWidth(textureId)}x${win.textureHeight(textureId)}`)
+        } on e is SDLException {
+            IO::writeln(`Logo non chargé (${e.message}) — dessin sans logo.`)
+        }
 
-        var fontId:int = win.loadFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
+        // ── Palier 2 : police (facultative aussi) ───────────────────────────
+        var fontId:int = -1
+        try {
+            fontId = win.loadFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
+        } on e is SDLException {
+            IO::writeln(`Police non chargée (${e.message}) — dessin sans texte.`)
+        }
 
-        // ── Palier 3 : audio ──────────────────────────────────────────────────
-        var soundId:int = win.loadSound("/usr/share/sounds/sound-icons/prompt.wav")
-        win.playSound(soundId)                       // joué une fois au démarrage
-        win.playMusic("/usr/share/sounds/sound-icons/prompt.wav", true)  // en boucle, en fond
-        win.setMusicVolume(30)
+        // ── Palier 3 : son (facultatif) ──────────────────────────────────────
+        var soundId:int = -1
+        try {
+            soundId = win.loadSound("/usr/share/sounds/sound-icons/prompt.wav")
+            win.playSound(soundId)   // joué une fois au démarrage
+        } on e is SDLException {
+            IO::writeln(`Son non chargé (${e.message}).`)
+        }
+
+        // ── Palier 3 : musique (facultative) ─────────────────────────────────
+        try {
+            win.playMusic("/usr/share/sounds/sound-icons/prompt.wav", true)  // en boucle, en fond
+            win.setMusicVolume(30)
+        } on e is SDLException {
+            IO::writeln(`Musique non chargée (${e.message}).`)
+        }
 
         // ── Palier 3 : manette (si une est branchée) ────────────────────────
         var gamepadId:int = -1

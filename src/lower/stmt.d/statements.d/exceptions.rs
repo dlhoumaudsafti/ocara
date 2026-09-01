@@ -66,8 +66,13 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
     use crate::ir::inst::Value;
     use std::collections::{HashSet, HashMap};
     
-    // ID unique fondé sur le nombre de fonctions déjà dans le module
-    let try_id = builder.module.functions.len();
+    // ID unique — compteur dédié (voir sa doc dans IrModule), PAS
+    // `functions.len()` : un try imbriqué dans ce corps est lowered avant que
+    // CE try n'ajoute ses propres fonctions au module (voir plus bas), donc
+    // `.len()` donnerait le même id aux deux dans certains agencements
+    // (ex: deux try imbriqués successifs dans le corps d'un try englobant).
+    let try_id = builder.module.try_counter;
+    builder.module.try_counter += 1;
     let body_fn_name    = format!("__try_body_{}", try_id);
     let handler_fn_name = format!("__try_handler_{}", try_id);
 
