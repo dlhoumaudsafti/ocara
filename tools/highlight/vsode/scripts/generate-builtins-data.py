@@ -31,6 +31,7 @@ CLASSES = [
     ("HTTPRequest", "httprequest", "class"),
     ("HTTPServer", "httpserver", "class"),
     ("Tauri", "tauri", "tauri_class"),
+    ("SDL", "sdl", "sdl_class"),
     ("HTML", "html", "class"),
     ("HTMLComponent", "htmlcomponent", "class"),
     ("UnitTest", "unittest", "class"),

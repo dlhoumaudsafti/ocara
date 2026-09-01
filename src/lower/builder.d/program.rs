@@ -200,6 +200,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     module.class_layouts.insert("UnitTestException".to_string(), exception_layout.clone());
     module.class_layouts.insert("HTTPServerException".to_string(), exception_layout.clone());
     module.class_layouts.insert("TauriException".to_string(), exception_layout.clone());
+    module.class_layouts.insert("SDLException".to_string(), exception_layout.clone());
     module.class_layouts.insert("SQLiteException".to_string(), exception_layout);
 
     // Ajouter les layouts des builtins opaques (pointeur vers structure Rust)
@@ -394,6 +395,25 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     fn_ret_types.insert("Tauri_isMinimized".to_string(), IrType::Bool);
     fn_ret_types.insert("Tauri_isMaximized".to_string(), IrType::Bool);
     fn_ret_types.insert("Tauri_run".to_string(), IrType::Void);
+
+    // Ajout des types de retour des méthodes builtin SDL (voir src/builtins/sdl.rs
+    // pour la table de référence — même raison que le bloc Tauri ci-dessus).
+    fn_ret_types.insert("SDL_pollEvent".to_string(), IrType::Ptr);
+    fn_ret_types.insert("SDL_setDrawColor".to_string(), IrType::Void);
+    fn_ret_types.insert("SDL_clear".to_string(), IrType::Void);
+    fn_ret_types.insert("SDL_fillRect".to_string(), IrType::Void);
+    fn_ret_types.insert("SDL_drawRect".to_string(), IrType::Void);
+    fn_ret_types.insert("SDL_drawLine".to_string(), IrType::Void);
+    fn_ret_types.insert("SDL_drawPoint".to_string(), IrType::Void);
+    fn_ret_types.insert("SDL_present".to_string(), IrType::Void);
+    fn_ret_types.insert("SDL_isOpen".to_string(), IrType::Bool);
+    fn_ret_types.insert("SDL_close".to_string(), IrType::Void);
+    fn_ret_types.insert("SDL_getWidth".to_string(), IrType::I64);
+    fn_ret_types.insert("SDL_getHeight".to_string(), IrType::I64);
+    fn_ret_types.insert("SDL_getTitle".to_string(), IrType::Ptr);
+    fn_ret_types.insert("SDL_setTitle".to_string(), IrType::Void);
+    fn_ret_types.insert("SDL_ticks".to_string(), IrType::I64);
+    fn_ret_types.insert("SDL_delay".to_string(), IrType::Void);
 
     // Propage les types de retour des méthodes héritées (non surchargées) dans fn_ret_types
     for class in &program.classes {

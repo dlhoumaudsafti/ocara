@@ -37,6 +37,7 @@ pub mod unittest;
 pub mod sqlite;
 pub mod mysql;
 pub mod tauri;
+pub mod sdl;
 
 use crate::sema::symbols::ClassInfo;
 
@@ -60,6 +61,7 @@ pub fn builtin_class(name: &str) -> Option<ClassInfo> {
         "Directory"   => Some(directory::class()),
         "JSON"        => Some(json::class()),
         "Tauri"       => Some(tauri::tauri_class()),
+        "SDL"         => Some(sdl::sdl_class()),
         "HTTPRequest" => Some(httprequest::class()),
         "HTTPServer" => Some(httpserver::class()),
         "HTML"        => Some(html::class()),
@@ -118,6 +120,7 @@ pub fn all_builtins() -> Vec<(&'static str, ClassInfo)> {
         ("HTTPRequest", httprequest::class()),
         ("HTTPServer", httpserver::class()),
         ("Tauri", tauri::tauri_class()),
+        ("SDL", sdl::sdl_class()),
         ("HTML",        html::class()),
         ("HTMLComponent", htmlcomponent::class()),
         ("Exception",   exception::exception_class()),

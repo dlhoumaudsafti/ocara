@@ -75,11 +75,16 @@ pkgconfig-shim:
 build: pkgconfig-shim
 	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime -j4
 	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime_tauri -j4
+	# ocara_runtime_sdl : pas de pkg-config (SDL3 compilé depuis les sources et
+	# lié statiquement, voir runtime_sdl/Cargo.toml) — nécessite cmake + un
+	# compilateur C (+ headers X11 dev sur Linux), voir README.
+	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime_sdl -j4
 	RUSTFLAGS="-D warnings" cargo build --release -p ocara -j4
 
 build-dev: pkgconfig-shim
 	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo build -p ocara_runtime -j4
 	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo build -p ocara_runtime_tauri -j4
+	RUSTFLAGS="-D warnings" cargo build -p ocara_runtime_sdl -j4
 	RUSTFLAGS="-D warnings" cargo build -p ocara -j4
 
 # ── Tests unitaires Cargo ─────────────────────────────────────────────────────
@@ -164,7 +169,7 @@ uninstall-all: uninstall uninstall-tools
 
 # ── Nettoyage ───────────────────────────────────────────────────────────────
 clean:
-	cargo clean -p ocara -p ocara_runtime -p ocara_runtime_tauri
+	cargo clean -p ocara -p ocara_runtime -p ocara_runtime_tauri -p ocara_runtime_sdl
 	rm -f $(TMP)
 
 clean-tools:

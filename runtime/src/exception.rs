@@ -192,6 +192,15 @@ pub unsafe fn throw_tauri_exception(message: &str, code: i64) -> ! {
         std::hint::unreachable_unchecked()
     }
 }
+/// Lance une SDLException
+pub unsafe fn throw_sdl_exception(message: &str, code: i64) -> ! {
+    unsafe {
+        let obj_ptr = alloc_exception(message, code, "SDL");
+        let type_name = alloc_str("SDLException");
+        __ocara_fail(obj_ptr, type_name);
+        std::hint::unreachable_unchecked()
+    }
+}
 /// Lance une SQLiteException
 pub unsafe fn throw_sqlite_exception(message: &str, code: i64, source: &str) -> ! {
     unsafe {

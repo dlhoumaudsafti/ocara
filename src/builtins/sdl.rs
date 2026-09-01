@@ -1,0 +1,113 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// ocara.SDL — classe builtin pour fenêtrage + rendu 2D + entrées (SDL3)
+//
+// Palier 1 (MVP) : une fenêtre + un renderer 2D + une pompe d'événements
+// bundlés dans un seul objet. Pas de textures/images (SDL_image), pas de
+// fonts (SDL_ttf), pas d'audio, pas de manette — paliers suivants.
+//
+// Méthodes d'instance :
+//   use SDL(options: map<string, mixed>) → SDL   // {title, width, height}
+//   sdl.pollEvent() → map<string, mixed>          // {"type":"none"} si vide
+//   sdl.setDrawColor(r, g, b, a) / clear() / present()
+//   sdl.fillRect/drawRect(x, y, w, h) / drawLine(x1,y1,x2,y2) / drawPoint(x,y)
+//   sdl.isOpen() / close() / getWidth() / getHeight() / getTitle() / setTitle()
+// Méthodes statiques :
+//   SDL::ticks() → int
+//   SDL::delay(ms: int)
+//
+// Convention runtime : SDL_<method>
+// Contrainte : une seule fenêtre SDL par processus (Sdl::event_pump() ne peut
+// être appelé qu'une fois), et tous les appels doivent venir du thread qui a
+// créé la fenêtre — voir docs/builtins/SDL.md.
+// ─────────────────────────────────────────────────────────────────────────────
+
+use std::collections::HashMap;
+use crate::parsing::ast::Type;
+use crate::sema::symbols::{ClassInfo, FuncSig};
+
+fn static_m(params: Vec<(&str, Type)>, ret_ty: Type) -> FuncSig {
+    let len = params.len();
+    FuncSig {
+        params:    params.into_iter().map(|(n, t)| (n.to_string(), t)).collect(),
+        ret_ty,
+        is_static: true,
+        is_async:  false,
+        has_variadic: false,
+        fixed_params_count: len,
+        required_params_count: len,
+    }
+}
+
+fn inst_m(params: Vec<(&str, Type)>, ret_ty: Type) -> FuncSig {
+    let len = params.len();
+    FuncSig {
+        params:    params.into_iter().map(|(n, t)| (n.to_string(), t)).collect(),
+        ret_ty,
+        is_static: false,
+        is_async:  false,
+        has_variadic: false,
+        fixed_params_count: len,
+        required_params_count: len,
+    }
+}
+
+pub fn sdl_class() -> ClassInfo {
+    let mut methods = HashMap::new();
+
+    // Constructeur (use SDL) — crée fenêtre + renderer + pompe d'événements.
+    methods.insert(
+        "__init__".to_string(),
+        static_m(vec![ ("options", Type::Map(Box::new(Type::String), Box::new(Type::Mixed))) ], Type::Named("SDL".to_string())),
+    );
+
+    // pollEvent — vide la file un événement à la fois ; {"type":"none"} quand elle est vide.
+    methods.insert(
+        "pollEvent".to_string(),
+        inst_m(vec![], Type::Map(Box::new(Type::String), Box::new(Type::Mixed))),
+    );
+
+    // Dessin
+    methods.insert("setDrawColor".to_string(), inst_m(
+        vec![ ("r", Type::Int), ("g", Type::Int), ("b", Type::Int), ("a", Type::Int) ],
+        Type::Void,
+    ));
+    methods.insert("clear".to_string(), inst_m(vec![], Type::Void));
+    methods.insert("fillRect".to_string(), inst_m(
+        vec![ ("x", Type::Int), ("y", Type::Int), ("w", Type::Int), ("h", Type::Int) ],
+        Type::Void,
+    ));
+    methods.insert("drawRect".to_string(), inst_m(
+        vec![ ("x", Type::Int), ("y", Type::Int), ("w", Type::Int), ("h", Type::Int) ],
+        Type::Void,
+    ));
+    methods.insert("drawLine".to_string(), inst_m(
+        vec![ ("x1", Type::Int), ("y1", Type::Int), ("x2", Type::Int), ("y2", Type::Int) ],
+        Type::Void,
+    ));
+    methods.insert("drawPoint".to_string(), inst_m(
+        vec![ ("x", Type::Int), ("y", Type::Int) ],
+        Type::Void,
+    ));
+    methods.insert("present".to_string(), inst_m(vec![], Type::Void));
+
+    // Fenêtre : état + getters/setters (requête live, pas de cache — cf. Tauri)
+    methods.insert("isOpen".to_string(), inst_m(vec![], Type::Bool));
+    methods.insert("close".to_string(), inst_m(vec![], Type::Void));
+    methods.insert("getWidth".to_string(), inst_m(vec![], Type::Int));
+    methods.insert("getHeight".to_string(), inst_m(vec![], Type::Int));
+    methods.insert("getTitle".to_string(), inst_m(vec![], Type::String));
+    methods.insert("setTitle".to_string(), inst_m(vec![ ("title", Type::String) ], Type::Void));
+
+    // Timing (statique — indépendant de toute instance de fenêtre)
+    methods.insert("ticks".to_string(), static_m(vec![], Type::Int));
+    methods.insert("delay".to_string(), static_m(vec![ ("ms", Type::Int) ], Type::Void));
+
+    ClassInfo {
+        extends:      None,
+        implements:   vec![],
+        fields:       HashMap::new(),
+        methods,
+        class_consts: HashMap::new(),
+        is_opaque:    false,
+    }
+}

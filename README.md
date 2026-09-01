@@ -65,6 +65,18 @@ Le builtin [Tauri](docs/builtins/Tauri.md) embarque une fenêtre WebView native 
 
 > **Ubuntu ≥ 24.04 :** les paquets `libwebkit2gtk-4.0-dev` / `libjavascriptcoregtk-4.0-dev` n'existent plus dans les dépôts (remplacés par la 4.1, ABI compatible). Installez les paquets `4.1` ci-dessus — le `Makefile` génère automatiquement un alias pkg-config local (`.pkgconfig-shim/`, jamais dans `/usr/lib`) au moment de `make build`/`make build-dev`. Aucune action manuelle supplémentaire n'est nécessaire.
 
+### Dépendances GUI natives (builtin `SDL`)
+
+Le builtin [SDL](docs/builtins/SDL.md) compile SDL3 **depuis les sources** et le lie statiquement (`sdl3-sys`, feature `build-from-source-static`) — aucun `libSDL3.so` n'est requis sur la machine qui **exécute** un binaire compilé avec Ocara. En revanche, compiler `runtime_sdl/` (donc `make build`/`make build-dev`, même sans utiliser SDL dans votre script) nécessite un compilateur C, **CMake**, et les headers de dev du serveur d'affichage :
+
+| Plateforme | Installation |
+|---|---|
+| Debian / Ubuntu | `sudo apt install cmake libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev` |
+| Fedora / RHEL | `sudo dnf install cmake libX11-devel libXext-devel libXrandr-devel libXcursor-devel libXi-devel libXScrnSaver-devel` |
+| macOS | `brew install cmake` (les frameworks Cocoa/Metal nécessaires sont fournis par le système) |
+
+> Wayland (optionnel, en plus de X11 ci-dessus) : `libwayland-dev libxkbcommon-dev libdecor-0-dev` sur Debian/Ubuntu.
+
 ---
 
 ## Démarrage rapide

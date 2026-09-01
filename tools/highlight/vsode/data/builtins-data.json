@@ -2626,6 +2626,206 @@
     "consts": []
   },
   {
+    "name": "SDL",
+    "methods": [
+      {
+        "name": "__init__",
+        "params": [
+          {
+            "name": "options",
+            "type": "map<string, mixed>"
+          }
+        ],
+        "returns": "SDL",
+        "static": true
+      },
+      {
+        "name": "clear",
+        "params": [],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "close",
+        "params": [],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "delay",
+        "params": [
+          {
+            "name": "ms",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "drawLine",
+        "params": [
+          {
+            "name": "x1",
+            "type": "int"
+          },
+          {
+            "name": "y1",
+            "type": "int"
+          },
+          {
+            "name": "x2",
+            "type": "int"
+          },
+          {
+            "name": "y2",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "drawPoint",
+        "params": [
+          {
+            "name": "x",
+            "type": "int"
+          },
+          {
+            "name": "y",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "drawRect",
+        "params": [
+          {
+            "name": "x",
+            "type": "int"
+          },
+          {
+            "name": "y",
+            "type": "int"
+          },
+          {
+            "name": "w",
+            "type": "int"
+          },
+          {
+            "name": "h",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "fillRect",
+        "params": [
+          {
+            "name": "x",
+            "type": "int"
+          },
+          {
+            "name": "y",
+            "type": "int"
+          },
+          {
+            "name": "w",
+            "type": "int"
+          },
+          {
+            "name": "h",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "getHeight",
+        "params": [],
+        "returns": "int",
+        "static": false
+      },
+      {
+        "name": "getTitle",
+        "params": [],
+        "returns": "string",
+        "static": false
+      },
+      {
+        "name": "getWidth",
+        "params": [],
+        "returns": "int",
+        "static": false
+      },
+      {
+        "name": "isOpen",
+        "params": [],
+        "returns": "bool",
+        "static": false
+      },
+      {
+        "name": "pollEvent",
+        "params": [],
+        "returns": "map<string, mixed>",
+        "static": false
+      },
+      {
+        "name": "present",
+        "params": [],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "setDrawColor",
+        "params": [
+          {
+            "name": "r",
+            "type": "int"
+          },
+          {
+            "name": "g",
+            "type": "int"
+          },
+          {
+            "name": "b",
+            "type": "int"
+          },
+          {
+            "name": "a",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "setTitle",
+        "params": [
+          {
+            "name": "title",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "ticks",
+        "params": [],
+        "returns": "int",
+        "static": true
+      }
+    ],
+    "consts": []
+  },
+  {
     "name": "HTML",
     "methods": [
       {
@@ -2668,36 +2868,10 @@
         "static": true
       },
       {
-        "name": "renderFile",
-        "params": [
-          {
-            "name": "path",
-            "type": "string"
-          }
-        ],
-        "returns": "string",
-        "static": true
-      },
-      {
         "name": "renderCached",
         "params": [
           {
             "name": "template",
-            "type": "string"
-          },
-          {
-            "name": "cache_key",
-            "type": "string"
-          }
-        ],
-        "returns": "string",
-        "static": true
-      },
-      {
-        "name": "renderFileCached",
-        "params": [
-          {
-            "name": "path",
             "type": "string"
           },
           {
