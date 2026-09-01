@@ -38,9 +38,14 @@ exports.deactivate = deactivate;
 const vscode = __importStar(require("vscode"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
+const completion_1 = require("./completion");
 function activate(context) {
     const selector = { language: 'ocara', scheme: 'file' };
     context.subscriptions.push(vscode.languages.registerDefinitionProvider(selector, new OcaraDefinitionProvider()));
+    // Autocomplétion : méthodes/constantes des classes builtin (ocara.*) et
+    // des classes utilisateur, déclenchée après `.` et `:` (pour `::`).
+    (0, completion_1.loadBuiltins)(context.extensionPath);
+    context.subscriptions.push(vscode.languages.registerCompletionItemProvider(selector, new completion_1.OcaraCompletionProvider(), '.', ':'));
 }
 function deactivate() { }
 // ─── Provider ────────────────────────────────────────────────────────────────

@@ -388,18 +388,16 @@
     "operator": {
       "patterns": [
         {
+          "comment": "Comparaisons littérales — seule syntaxe valide depuis v0.2.0 (plus de ==, !=, <=, >=, <, >, ===, !==, <==, >== en position de comparaison). 'smaller'/'greater' restent aussi des identifiants ordinaires ailleurs, d'où \\b des deux côtés plutôt qu'une capture des trois mots de 'smaller or equal'/'greater or equal' — le rendu reste correct token par token.",
           "name": "keyword.control.ocara",
-          "match": "\\b(and|or|not|equal)\\b"
+          "match": "\\b(and|or|not|equal|smaller|greater)\\b"
         },
         {
           "name": "keyword.control.ocara",
           "match": "\\.\\."
         },
         {
-          "name": "keyword.control.ocara",
-          "match": "==|!=|<=|>="
-        },
-        {
+          "comment": "< et > restent des tokens valides pour les génériques (List<T>, Function<int(int)>), jamais pour une comparaison.",
           "name": "keyword.control.ocara",
           "match": "(?<![=!<>])[<>](?![=])"
         },
