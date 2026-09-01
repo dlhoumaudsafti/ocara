@@ -431,6 +431,8 @@ Les **exceptions runtime** (levées pendant l'exécution du programme) sont docu
 | `SQLiteException` | SQLite | [SQLite.md](builtins/SQLite.md) |
 | `MySQLException` / `MariaDBException` | MySQL / MariaDB | [MySQL.md](builtins/MySQL.md) |
 | `DotEnvException` | DotEnv | [DotEnv.md](builtins/DotEnv.md) |
+| `TauriException` | Tauri | [Tauri.md](builtins/Tauri.md) |
+| `SDLException` | SDL | [SDL.md](builtins/SDL.md) |
 
 Chaque exception a des **codes d'erreur spécifiques** (101, 102, etc.) documentés dans les pages correspondantes.
 

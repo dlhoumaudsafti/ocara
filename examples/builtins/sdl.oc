@@ -1,0 +1,128 @@
+// examples/builtins/sdl.oc
+// Démonstration de ocara.SDL (Paliers 1-3 — voir docs/builtins/SDL.md)
+//
+// Contrairement à ocara.Tauri, tout ce qui est montré ici est réellement
+// branché sur SDL3 (fenêtre, dessin, événements, textures, texte, audio,
+// manettes) — rien n'est simulé.
+//
+// Test rapide (compile-check seulement, n'ouvre pas de fenêtre) :
+//   ./target/release/ocara examples/builtins/sdl.oc --check
+//
+// Exécution réelle (ouvre une vraie fenêtre ~3 secondes, ou jusqu'à
+// fermeture manuelle) — à lancer DEPUIS LA RACINE DU REPO (le logo est
+// chargé via le chemin relatif 'logo-min.png') :
+//   ./target/release/ocara examples/builtins/sdl.oc -o /tmp/sdl_demo
+//   /tmp/sdl_demo
+// Sans serveur d'affichage (CI, machine headless), SDL::init échoue proprement
+// avec une SDLException — voir le try/on ci-dessous. Note : le logo et la
+// police sont chargés dans le MÊME try/on que le reste (pas de try imbriqués
+// séparés ici — deux `try` séquentiels imbriqués dans un `try` externe
+// déclenchent actuellement un bug de codegen sans rapport avec SDL, signalé
+// à part). Sur cette machine (Ubuntu, DejaVu installé), les deux existent.
+
+import ocara.IO
+import ocara.SDL
+
+function main(): int {
+    try {
+        var win:SDL = use SDL({
+            "title": "Ocara SDL Demo",
+            "width": 800,
+            "height": 600
+        })
+
+        IO::writeln(`Fenêtre ouverte : ${win.getTitle()} (${win.getWidth()}x${win.getHeight()})`)
+
+        // ── Palier 2 : texture + police ──────────────────────────────────────
+        // (même try/on que use SDL(...) ci-dessus — voir la note en tête de
+        // fichier sur les try imbriqués séquentiels)
+        var textureId:int = win.loadTexture("logo-min.png")
+        IO::writeln(`Logo chargé : ${win.textureWidth(textureId)}x${win.textureHeight(textureId)}`)
+
+        var fontId:int = win.loadFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
+
+        // ── Palier 3 : audio ──────────────────────────────────────────────────
+        var soundId:int = win.loadSound("/usr/share/sounds/sound-icons/prompt.wav")
+        win.playSound(soundId)                       // joué une fois au démarrage
+        win.playMusic("/usr/share/sounds/sound-icons/prompt.wav", true)  // en boucle, en fond
+        win.setMusicVolume(30)
+
+        // ── Palier 3 : manette (si une est branchée) ────────────────────────
+        var gamepadId:int = -1
+
+        var running:bool = true
+        var frame:int = 0
+        var x:int = 50
+
+        while running and frame smaller 180 {   // ~3 secondes à 60 fps, ou fermeture manuelle
+            // Vider la file d'événements avant de dessiner la frame
+            var ev:map<string, mixed> = win.pollEvent()
+            while ev["type"] not equal "none" {
+                if ev["type"] equal "quit" {
+                    running = false
+                }
+                if ev["type"] equal "keydown" {
+                    if ev["key"] equal "Escape" {
+                        running = false
+                    }
+                }
+                if ev["type"] equal "gamepadconnected" {
+                    gamepadId = ev["gamepadId"]
+                    IO::writeln(`Manette connectée : id ${gamepadId}`)
+                }
+                if ev["type"] equal "gamepaddisconnected" {
+                    IO::writeln(`Manette déconnectée : id ${ev["gamepadId"]}`)
+                    gamepadId = -1
+                }
+                ev = win.pollEvent()
+            }
+
+            // Manette : lecture directe de l'état (utile pour un mouvement
+            // continu — ici juste affiché une fois par seconde pour l'exemple)
+            if gamepadId greater -1 and frame equal 60 {
+                IO::writeln(`Manette ${gamepadId} — bouton Sud appuyé : ${win.isButtonPressed(gamepadId, "south")}, stick gauche X : ${win.getAxis(gamepadId, "leftx")}`)
+            }
+
+            // Fond
+            win.setDrawColor(20, 20, 30, 255)
+            win.clear()
+
+            // Un carré qui traverse la fenêtre
+            win.setDrawColor(220, 60, 60, 255)
+            win.fillRect(x, 250, 80, 80)
+
+            // Contour + une ligne, pour montrer les autres primitives
+            win.setDrawColor(60, 180, 220, 255)
+            win.drawRect(20, 20, 200, 100)
+            win.drawLine(0, 0, 800, 600)
+
+            // Le logo, redimensionné, en haut à droite
+            if textureId greater 0 {
+                win.drawTextureScaled(textureId, 650, 20, 120, 120)
+            }
+
+            // Un peu de texte, en bas
+            if fontId greater 0 {
+                win.drawText(fontId, "Ocara + SDL3", 220, 500, 255, 255, 255, 255)
+            }
+
+            win.present()
+
+            x = x + 4
+            if x greater 800 {
+                x = -80
+            }
+
+            frame = frame + 1
+            SDL::delay(16)
+        }
+
+        win.stopMusic()
+        win.close()
+        IO::writeln(`Démonstration SDL terminée (${frame} frames, fenêtre ouverte : ${win.isOpen()}).`)
+    } on e is SDLException {
+        IO::writeln(`SDL indisponible ici (pas d'affichage ? machine headless ?) : ${e.message} (code ${e.code})`)
+    }
+
+    return 0
+}

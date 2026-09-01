@@ -32,6 +32,15 @@ static RUNTIME_BYTES: &[u8] =
 static RUNTIME_TAURI_BYTES: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/libocara_runtime_tauri.a"));
 
+/// Runtime SDL, même principe et même raison que RUNTIME_TAURI_BYTES ci-dessus
+/// (voir runtime_sdl/Cargo.toml) : crate séparé pour que SDL3 (et sa chaîne de
+/// build vendored — cmake, X11/Wayland dev) ne soit lié que pour les programmes
+/// qui importent réellement ocara.SDL. Contrairement à Tauri, SDL3 est compilé
+/// et lié STATIQUEMENT (feature `build-from-source-static`) — aucune bibliothèque
+/// dynamique supplémentaire à ajouter au lien final (pas de pkg-config ici).
+static RUNTIME_SDL_BYTES: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/libocara_runtime_sdl.a"));
+
 /// Extrait des bytes embarqués vers un fichier temporaire et retourne son chemin.
 fn extract_to_tmp(bytes: &[u8], label: &str) -> Result<PathBuf, LinkerError> {
     let path = std::env::temp_dir()
@@ -69,12 +78,14 @@ fn pkg_config_libs(package: &str) -> Vec<String> {
 /// `needs_tauri` : vrai si le programme compilé importe `ocara.Tauri` (déterminé
 /// par l'appelant via `ir_module.imports`). Contrôle si libocara_runtime_tauri.a
 /// et les bibliothèques GTK/WebKit sont liés — voir la doc de RUNTIME_TAURI_BYTES.
+/// `needs_sdl` : même principe pour `ocara.SDL` — voir la doc de RUNTIME_SDL_BYTES.
 pub fn link(
     obj_bytes:   &[u8],
     obj_path:    &Path,
     out_path:    &Path,
     release:     bool,
     needs_tauri: bool,
+    needs_sdl:   bool,
 ) -> Result<(), LinkerError> {
     // 1. Écriture du fichier objet
     std::fs::write(obj_path, obj_bytes)
@@ -87,6 +98,11 @@ pub fn link(
     } else {
         None
     };
+    let runtime_sdl = if needs_sdl {
+        Some(extract_to_tmp(RUNTIME_SDL_BYTES, "ocara_runtime_sdl")?)
+    } else {
+        None
+    };
 
     // 3. Liaison : objet + runtime(s) → exécutable
     // --allow-multiple-definition : les symboles du .o (programme) priment sur la .a (runtime)
@@ -94,6 +110,9 @@ pub fn link(
     cmd.arg(obj_path)
         .arg(&runtime);
     if let Some(rt) = &runtime_tauri {
+        cmd.arg(rt);
+    }
+    if let Some(rt) = &runtime_sdl {
         cmd.arg(rt);
     }
     cmd.arg("-o")
@@ -135,6 +154,9 @@ pub fn link(
     // 4. Nettoyage des fichiers temporaires
     let _ = std::fs::remove_file(&runtime);
     if let Some(rt) = &runtime_tauri {
+        let _ = std::fs::remove_file(rt);
+    }
+    if let Some(rt) = &runtime_sdl {
         let _ = std::fs::remove_file(rt);
     }
 

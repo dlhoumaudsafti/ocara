@@ -65,6 +65,35 @@ Le builtin [Tauri](docs/builtins/Tauri.md) embarque une fenêtre WebView native 
 
 > **Ubuntu ≥ 24.04 :** les paquets `libwebkit2gtk-4.0-dev` / `libjavascriptcoregtk-4.0-dev` n'existent plus dans les dépôts (remplacés par la 4.1, ABI compatible). Installez les paquets `4.1` ci-dessus — le `Makefile` génère automatiquement un alias pkg-config local (`.pkgconfig-shim/`, jamais dans `/usr/lib`) au moment de `make build`/`make build-dev`. Aucune action manuelle supplémentaire n'est nécessaire.
 
+### Dépendances GUI natives (builtin `SDL`)
+
+Le builtin [SDL](docs/builtins/SDL.md) compile SDL3 **depuis les sources** et le lie statiquement (`sdl3-sys`, feature `build-from-source-static`) — aucun `libSDL3.so` n'est requis sur la machine qui **exécute** un binaire compilé avec Ocara. En revanche, compiler `runtime_sdl/` (donc `make build`/`make build-dev`, même sans utiliser SDL dans votre script) nécessite un compilateur C, **CMake**, et les headers de dev du serveur d'affichage :
+
+| Plateforme | Installation |
+|---|---|
+| Debian / Ubuntu | `sudo apt install cmake libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev libpng-dev zlib1g-dev` |
+| Fedora / RHEL | `sudo dnf install cmake libX11-devel libXext-devel libXrandr-devel libXcursor-devel libXi-devel libXScrnSaver-devel libpng-devel zlib-devel` |
+| macOS | `brew install cmake libpng` (les frameworks Cocoa/Metal nécessaires sont fournis par le système) |
+
+> Wayland (optionnel, en plus de X11 ci-dessus) : `libwayland-dev libxkbcommon-dev libdecor-0-dev` sur Debian/Ubuntu.
+
+> `libpng-dev`/`zlib1g-dev` : requis pour le chargement d'images PNG (Palier 2,
+> `SDL::loadTexture`) — le décodage JPEG et le rendu de texte (SDL_ttf,
+> FreeType/HarfBuzz) sont vendored automatiquement, aucune lib système
+> supplémentaire nécessaire pour eux.
+
+> **Audio (Palier 3, `SDL::loadSound`/`playMusic`) sur un desktop Linux
+> moderne :** sans `libpulse-dev` (et/ou `libpipewire-0.3-dev`) installé au
+> moment de `make build`, SDL3 ne compile que le driver **ALSA** — qui exige
+> un accès direct à `/dev/snd`, généralement réservé au groupe Unix `audio`.
+> Sur une machine où le son passe par PipeWire/PulseAudio (le cas courant —
+> Ubuntu, GNOME, KDE récents), sans ces `-dev`, `loadSound`/`playMusic`
+> échoueront avec `SDLException` même si le son fonctionne très bien pour vos
+> autres applications. Installez `sudo apt install libpulse-dev` (Debian/
+> Ubuntu) avant `make build` pour que SDL détecte et utilise automatiquement
+> la session PipeWire/PulseAudio déjà active, comme n'importe quelle autre
+> application desktop.
+
 ---
 
 ## Démarrage rapide

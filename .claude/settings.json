@@ -178,7 +178,8 @@
       "Bash(node -e ' *)",
       "Bash(node /tmp/claude-277835533/-home-david-lhoumaud-SAFTI-local-Documents-Projects-ocara/1a64efee-0dfc-43c2-acf0-a0992dcf8357/scratchpad/test_completion.js)",
       "Bash(sed -i 's/doc.lineAt = \\(i\\) => i === 0 ? { text: line } : { text: '\\\\'''\\\\'' };/doc.lineAt = \\(\\) => \\({ text: line }\\);/' /tmp/claude-277835533/-home-david-lhoumaud-SAFTI-local-Documents-Projects-ocara/1a64efee-0dfc-43c2-acf0-a0992dcf8357/scratchpad/test_completion.js)",
-      "Bash(sed -i 's/doc.lineAt = \\(i\\) => \\({ text: line }\\);/doc.lineAt = \\(\\) => \\({ text: line }\\);/' /tmp/claude-277835533/-home-david-lhoumaud-SAFTI-local-Documents-Projects-ocara/1a64efee-0dfc-43c2-acf0-a0992dcf8357/scratchpad/test_completion.js)"
+      "Bash(sed -i 's/doc.lineAt = \\(i\\) => \\({ text: line }\\);/doc.lineAt = \\(\\) => \\({ text: line }\\);/' /tmp/claude-277835533/-home-david-lhoumaud-SAFTI-local-Documents-Projects-ocara/1a64efee-0dfc-43c2-acf0-a0992dcf8357/scratchpad/test_completion.js)",
+      "Bash(RUSTFLAGS=\"-D warnings\" cargo build --release -p ocara_runtime_sdl -j4)"
     ]
   }
 }

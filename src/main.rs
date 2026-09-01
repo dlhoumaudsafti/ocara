@@ -82,7 +82,7 @@ fn main() {
     // Les modules `ocara.*` sont builtins (livrés avec le runtime).
     // Tout autre import doit pointer vers un fichier .oc existant.
     const OCARA_BUILTINS: &[&str] = &[
-        "IO", "Math", "String", "Array", "Map", "JSON", "Tauri",
+        "IO", "Math", "String", "Array", "Map", "JSON", "Tauri", "SDL",
         "Convert", "System", "Regex", "HTTPRequest", "HTTPServer", "SQLite", "MySQL", "MariaDB", "DotEnv", "YAML", "Thread", "Mutex",
         "DateTime", "Date", "Time", "UnitTest", "HTMLComponent", "HTML",
         "File", "Directory", "Exception", "FileException", "DirectoryException", "IOException", "SystemException",
@@ -583,7 +583,8 @@ fn main() {
     // Ne lier libocara_runtime_tauri.a + GTK/WebKit que si le programme importe
     // réellement ocara.Tauri (voir la doc dans src/codegen/link.rs).
     let needs_tauri = ir_module.imports.iter().any(|m| m == "Tauri");
-    match link(&obj_bytes, &obj_path, &args.output, args.release, needs_tauri) {
+    let needs_sdl = ir_module.imports.iter().any(|m| m == "SDL");
+    match link(&obj_bytes, &obj_path, &args.output, args.release, needs_tauri, needs_sdl) {
         Ok(()) => {
             println!("compilation réussie → {}", args.output.display());
         }

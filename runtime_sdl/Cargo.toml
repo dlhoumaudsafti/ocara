@@ -1,0 +1,43 @@
+[package]
+name    = "ocara_runtime_sdl"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name       = "ocara_runtime_sdl"
+crate-type = ["staticlib"]
+
+[dependencies]
+# Crate séparé du runtime principal (ocara_runtime) : même raison que
+# runtime_tauri (voir la doc en tête de src/codegen/link.rs) — SDL3 n'est lié
+# dans le binaire final que pour les programmes qui importent réellement
+# ocara.SDL. Isoler ça dans un .a distinct est ce qui rend ça possible : sans
+# cette séparation, le partitionnement en unités de codegen de rustc mélange
+# du code SDL avec du code toujours nécessaire, et aucun flag de linker ne
+# peut alors éviter d'exiger SDL3 installé sur la machine cible.
+ocara_runtime = { path = "../runtime" }
+# build-from-source-static : SDL3 compilé depuis les sources (cmake + un
+# compilateur C, voir README) et lié STATIQUEMENT — aucun libSDL3.so requis sur
+# la machine cible, même esprit que rusqlite "bundled" / OpenSSL "vendored"
+# ailleurs dans ce projet. Nécessaire ici de toute façon : libsdl3-dev n'est pas
+# encore packagé sur les distributions courantes (SDL3 est récent).
+# image/ttf : Palier 2 (textures + texte), features de sdl3 elle-même — pas de
+# crate séparée (`sdl3-image`/`sdl3-ttf` n'existent pas en haut niveau, seuls
+# les `-sys` bas niveau existent, déjà tirés en transitif par ces features).
+# unsafe_textures : fait de `Texture` un newtype sans lifetime (au lieu de
+# `Texture<'r>` liée à son `TextureCreator`) — seul moyen propre de stocker des
+# textures à côté du `Canvas` dans la même struct sans hack (Box::leak/transmute).
+# Voir runtime_sdl/src/lib.rs pour la contrepartie (destroy() manuel requis
+# pour les textures éphémères de drawText, jamais pour celles de loadTexture).
+# mixer : Palier 3 (audio), feature de sdl3 elle-même (comme image/ttf) — pas
+# de crate séparée. `build-from-source-static` a déjà une arête faible vers
+# `sdl3-mixer-sys?/build-static-vendored` : elle s'active automatiquement dès
+# que "mixer" est présent, aucune feature de build supplémentaire à ajouter.
+sdl3 = { version = "0.18", default-features = false, features = [
+    "build-from-source-static",
+    "image",
+    "ttf",
+    "mixer",
+    "unsafe_textures",
+] }
+once_cell = "1.20"
