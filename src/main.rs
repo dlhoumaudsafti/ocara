@@ -16,6 +16,7 @@ use sema::typecheck::TypeChecker;
 
 use core::cli::parse_args;
 use core::monomorph::monomorphize;
+use core::render_file::desugar_render_file;
 use core::runtime_expand::{expand_runtime_imports, get_stmt_start_line, get_stmt_end_line, update_program_spans_with_file};
 use parsing::{lexer::Lexer, parser::Parser, diagnostic, token};
 
@@ -448,6 +449,16 @@ fn main() {
 
     // ── 4d. Expansion des imports runtime ─────────────────────────────────────
     expand_runtime_imports(&mut program, source_dir, &args.input);
+
+    // ── 4d-bis. Désucrage HTML::renderFile / HTML::renderFileCached ───────────
+    // Doit tourner avant le typecheck : le fichier est lu à la compilation et
+    // réécrit en HTML::render(...)/HTML::renderCached(...) avec un vrai
+    // template, pour que l'analyse sémantique (dont la détection des
+    // variables "unused") voie les mêmes expressions qu'un littéral backtick.
+    if let Err((span, msg)) = desugar_render_file(&mut program) {
+        diagnostic::print_error(&args.input, span.line, span.col, &msg);
+        std::process::exit(1);
+    }
 
     // ── 4e. Analyse sémantique ────────────────────────────────────────────────
     let mut checker = TypeChecker::new(&symbols);

@@ -2668,10 +2668,36 @@
         "static": true
       },
       {
+        "name": "renderFile",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
         "name": "renderCached",
         "params": [
           {
             "name": "template",
+            "type": "string"
+          },
+          {
+            "name": "cache_key",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "renderFileCached",
+        "params": [
+          {
+            "name": "path",
             "type": "string"
           },
           {

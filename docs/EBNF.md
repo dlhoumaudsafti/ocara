@@ -1895,7 +1895,7 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
 #### Composants Web
 
 - **HTML** — Rendu de composants HTML (classe statique)
-  - `render()`, `renderCached()`, `cacheDelete()`, `cacheClear()`, `escape()`
+  - `render()`, `renderFile()`, `renderCached()`, `renderFileCached()`, `cacheDelete()`, `cacheClear()`, `escape()`
 - **HTMLComponent** — Définition de composants HTML personnalisés (classe d'instance)
   - `init()`, `register()`
 
