@@ -200,7 +200,7 @@ impl Parser {
                 self.advance();
                 
                 // Function<ReturnType(ParamType, ...)>
-                if name equal "Function" {
+                if name == "Function" {
                     self.eat(&TokenKind::Lt)?;
                     let ret_ty = self.parse_type()?;
                     self.eat(&TokenKind::LParen)?;

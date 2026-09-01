@@ -1,11 +1,17 @@
 # Ocara Language — Extension VS Code
 
-Coloration syntaxique et navigation (Go-to-Definition) pour le langage **Ocara** (`.oc`).
+Coloration syntaxique, autocomplétion et navigation (Go-to-Definition) pour le langage **Ocara** (`.oc`).
 
 ## Fonctionnalités
 
 - Highlight complet : mots-clés, types, classes, méthodes, imports, chaînes, templates
 - Appels de méthodes (`obj.method()`), accès statiques (`Class::member`), builtins `ocara.*`
+- **Autocomplétion après `.` / `::`** — méthodes et constantes des classes builtin `ocara.*`
+  (catalogue généré depuis `src/builtins/*.rs`, voir `data/builtins-data.json`) et des
+  classes utilisateur (propres et héritées via `extends`, résolues à travers les imports)
+- **Autocomplétion `self.` / `self::` / `parent.`** dans le corps d'une classe
+- **Autocomplétion `e.message` / `e.code` / `e.source`** dans un bloc `on e is XException`
+- **Autocomplétion des noms de classe après `use `** (builtins instanciables + classes utilisateur)
 - **Ctrl+Click** sur un `import` → ouvre le fichier `.oc` correspondant
 - **Ctrl+Click** sur `import Circle from "11_interfaces"` → ouvre le fichier et positionne sur la classe `Circle`
 - **Ctrl+Click** sur `self.circle.area()` → navigue vers la méthode `area()` dans la classe importée

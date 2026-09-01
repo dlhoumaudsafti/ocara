@@ -19,6 +19,7 @@ import ocara.Convert
 import ocara.Thread
 import ocara.IO
 import ocara.Math
+import ocara.File
 import configs.Database
 
 class HomeController {
@@ -49,61 +50,7 @@ class HomeController {
         // incrémenté à chaque chargement de la page.
         scoped visits:int = Database::recordVisit()
 
-        scoped html:string = HTML::render(`<layout title="Accueil" active="home">
-  <card title="Bienvenue sur Ocara">
-    <p>Ocara est un langage compile natif, statiquement type, oriente objet.</p>
-    <p>Cranelift codegen, zero GC, typage strict.</p>
-    <stats value="${stats}">
-  </card>
-  <card title="Visites (SQLite)">
-    <p>Cette page a ete chargee <strong>${visits}</strong> fois — compteur
-    persistant stocke dans une vraie base SQLite (configs/Database.oc), pas un
-    simple compteur en memoire : il survit aux redemarrages du serveur.</p>
-  </card>
-  <card title="Demarrage rapide">
-    <p>1. Installer Rust et Cargo</p>
-    <p>2. <code>make build</code></p>
-    <p>3. <code>./target/release/ocara mon_fichier.oc -o mon_binaire</code></p>
-  </card>
-  <card title="Appel Ocara en direct (IPC)">
-    <p>Ce formulaire appelle une vraie methode Ocara depuis le JS de la page,
-    via ui.handlers() (voir main.oc et controllers/IPCController.oc) — pas un
-    appel HTTP classique, un vrai pont IPC JS -> Ocara.</p>
-    <input id="ipc-name" type="text" placeholder="Votre prenom" value="Ada">
-    <button id="ipc-btn">Demander a Ocara</button>
-    <p id="ipc-result" class="stats-badge">Chargement...</p>
-    <script>
-    (function () {
-      var btn    = document.getElementById("ipc-btn");
-      var input  = document.getElementById("ipc-name");
-      var result = document.getElementById("ipc-result");
-
-      if (!window.ocara) {
-        result.textContent = "Disponible uniquement dans la fenetre Tauri (pas dans un navigateur classique).";
-        btn.disabled = true;
-        return;
-      }
-
-      btn.addEventListener("click", function () {
-        var name = input.value || "Invite";
-        result.textContent = "...";
-        window.ocara.invoke("greet", [name]).then(function (msg) {
-          result.textContent = msg;
-        }).catch(function (err) {
-          result.textContent = "Erreur : " + err;
-        });
-      });
-
-      // Payload array vide : demo de ui.handlers() sans argument.
-      window.ocara.invoke("serverTime", []).then(function (t) {
-        result.textContent = "Heure serveur (Ocara) : " + t;
-      }).catch(function (err) {
-        result.textContent = "Erreur : " + err;
-      });
-    })();
-    </script>
-  </card>
-</layout>`)
+        scoped html:string = HTML::render(File::read('templates/home.html'))
 
         HTTPServer::respond(req, 200, html)
         return 0

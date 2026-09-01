@@ -1,0 +1,3275 @@
+[
+  {
+    "name": "IO",
+    "methods": [
+      {
+        "name": "read",
+        "params": [],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "readArray",
+        "params": [
+          {
+            "name": "sep",
+            "type": "string"
+          }
+        ],
+        "returns": "string[]",
+        "static": true
+      },
+      {
+        "name": "readBool",
+        "params": [],
+        "returns": "bool",
+        "static": true
+      },
+      {
+        "name": "readFloat",
+        "params": [],
+        "returns": "float",
+        "static": true
+      },
+      {
+        "name": "readInt",
+        "params": [],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "readMap",
+        "params": [
+          {
+            "name": "sep",
+            "type": "string"
+          },
+          {
+            "name": "kv",
+            "type": "string"
+          }
+        ],
+        "returns": "map<string, string>",
+        "static": true
+      },
+      {
+        "name": "readln",
+        "params": [],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "write",
+        "params": [
+          {
+            "name": "val",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "writeln",
+        "params": [
+          {
+            "name": "val",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "System",
+    "methods": [
+      {
+        "name": "args",
+        "params": [],
+        "returns": "string[]",
+        "static": true
+      },
+      {
+        "name": "cwd",
+        "params": [],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "env",
+        "params": [
+          {
+            "name": "name",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "exec",
+        "params": [
+          {
+            "name": "cmd",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "execCode",
+        "params": [
+          {
+            "name": "cmd",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "exit",
+        "params": [
+          {
+            "name": "code",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "passthrough",
+        "params": [
+          {
+            "name": "cmd",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "pid",
+        "params": [],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "setEnv",
+        "params": [
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "value",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "sleep",
+        "params": [
+          {
+            "name": "ms",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      }
+    ],
+    "consts": [
+      {
+        "name": "ARCH",
+        "type": "string"
+      },
+      {
+        "name": "OS",
+        "type": "string"
+      }
+    ]
+  },
+  {
+    "name": "Thread",
+    "methods": [
+      {
+        "name": "currentId",
+        "params": [],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "detach",
+        "params": [],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "id",
+        "params": [],
+        "returns": "int",
+        "static": false
+      },
+      {
+        "name": "join",
+        "params": [],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "run",
+        "params": [
+          {
+            "name": "f",
+            "type": "Function<void()>"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "sleep",
+        "params": [
+          {
+            "name": "ms",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "Mutex",
+    "methods": [
+      {
+        "name": "lock",
+        "params": [],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "tryLock",
+        "params": [],
+        "returns": "bool",
+        "static": false
+      },
+      {
+        "name": "unlock",
+        "params": [],
+        "returns": "void",
+        "static": false
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "Math",
+    "methods": [
+      {
+        "name": "abs",
+        "params": [
+          {
+            "name": "n",
+            "type": "int"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "ceil",
+        "params": [
+          {
+            "name": "n",
+            "type": "float"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "clamp",
+        "params": [
+          {
+            "name": "n",
+            "type": "int"
+          },
+          {
+            "name": "lo",
+            "type": "int"
+          },
+          {
+            "name": "hi",
+            "type": "int"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "floor",
+        "params": [
+          {
+            "name": "n",
+            "type": "float"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "max",
+        "params": [
+          {
+            "name": "a",
+            "type": "int"
+          },
+          {
+            "name": "b",
+            "type": "int"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "min",
+        "params": [
+          {
+            "name": "a",
+            "type": "int"
+          },
+          {
+            "name": "b",
+            "type": "int"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "pow",
+        "params": [
+          {
+            "name": "base",
+            "type": "int"
+          },
+          {
+            "name": "exp",
+            "type": "int"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "random",
+        "params": [
+          {
+            "name": "min",
+            "type": "int"
+          },
+          {
+            "name": "max",
+            "type": "int"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "round",
+        "params": [
+          {
+            "name": "n",
+            "type": "float"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "sqrt",
+        "params": [
+          {
+            "name": "n",
+            "type": "float"
+          }
+        ],
+        "returns": "float",
+        "static": true
+      }
+    ],
+    "consts": [
+      {
+        "name": "E",
+        "type": "float"
+      },
+      {
+        "name": "INF",
+        "type": "float"
+      },
+      {
+        "name": "PI",
+        "type": "float"
+      },
+      {
+        "name": "TAU",
+        "type": "float"
+      }
+    ]
+  },
+  {
+    "name": "String",
+    "methods": [
+      {
+        "name": "between",
+        "params": [
+          {
+            "name": "s",
+            "type": "string"
+          },
+          {
+            "name": "start",
+            "type": "string"
+          },
+          {
+            "name": "end",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "capitalize",
+        "params": [
+          {
+            "name": "s",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "empty",
+        "params": [
+          {
+            "name": "s",
+            "type": "string"
+          }
+        ],
+        "returns": "bool",
+        "static": true
+      },
+      {
+        "name": "explode",
+        "params": [
+          {
+            "name": "s",
+            "type": "string"
+          },
+          {
+            "name": "sep",
+            "type": "string"
+          }
+        ],
+        "returns": "string[]",
+        "static": true
+      },
+      {
+        "name": "len",
+        "params": [
+          {
+            "name": "s",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "lower",
+        "params": [
+          {
+            "name": "s",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "replace",
+        "params": [
+          {
+            "name": "s",
+            "type": "string"
+          },
+          {
+            "name": "from",
+            "type": "string"
+          },
+          {
+            "name": "to",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "split",
+        "params": [
+          {
+            "name": "s",
+            "type": "string"
+          },
+          {
+            "name": "sep",
+            "type": "string"
+          }
+        ],
+        "returns": "string[]",
+        "static": true
+      },
+      {
+        "name": "trim",
+        "params": [
+          {
+            "name": "s",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "upper",
+        "params": [
+          {
+            "name": "s",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "Array",
+    "methods": [
+      {
+        "name": "contains",
+        "params": [
+          {
+            "name": "arr",
+            "type": "mixed[]"
+          },
+          {
+            "name": "val",
+            "type": "mixed"
+          }
+        ],
+        "returns": "bool",
+        "static": true
+      },
+      {
+        "name": "first",
+        "params": [
+          {
+            "name": "arr",
+            "type": "mixed[]"
+          }
+        ],
+        "returns": "mixed",
+        "static": true
+      },
+      {
+        "name": "get",
+        "params": [
+          {
+            "name": "arr",
+            "type": "mixed[]"
+          },
+          {
+            "name": "idx",
+            "type": "int"
+          }
+        ],
+        "returns": "mixed",
+        "static": true
+      },
+      {
+        "name": "indexOf",
+        "params": [
+          {
+            "name": "arr",
+            "type": "mixed[]"
+          },
+          {
+            "name": "val",
+            "type": "mixed"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "join",
+        "params": [
+          {
+            "name": "arr",
+            "type": "mixed[]"
+          },
+          {
+            "name": "sep",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "last",
+        "params": [
+          {
+            "name": "arr",
+            "type": "mixed[]"
+          }
+        ],
+        "returns": "mixed",
+        "static": true
+      },
+      {
+        "name": "len",
+        "params": [
+          {
+            "name": "arr",
+            "type": "mixed[]"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "pop",
+        "params": [
+          {
+            "name": "arr",
+            "type": "mixed[]"
+          }
+        ],
+        "returns": "mixed",
+        "static": true
+      },
+      {
+        "name": "push",
+        "params": [
+          {
+            "name": "arr",
+            "type": "mixed[]"
+          },
+          {
+            "name": "val",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "reverse",
+        "params": [
+          {
+            "name": "arr",
+            "type": "mixed[]"
+          }
+        ],
+        "returns": "mixed[]",
+        "static": true
+      },
+      {
+        "name": "set",
+        "params": [
+          {
+            "name": "arr",
+            "type": "mixed[]"
+          },
+          {
+            "name": "idx",
+            "type": "int"
+          },
+          {
+            "name": "val",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "slice",
+        "params": [
+          {
+            "name": "arr",
+            "type": "mixed[]"
+          },
+          {
+            "name": "from",
+            "type": "int"
+          },
+          {
+            "name": "to",
+            "type": "int"
+          }
+        ],
+        "returns": "mixed[]",
+        "static": true
+      },
+      {
+        "name": "sort",
+        "params": [
+          {
+            "name": "arr",
+            "type": "mixed[]"
+          }
+        ],
+        "returns": "mixed[]",
+        "static": true
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "Map",
+    "methods": [
+      {
+        "name": "get",
+        "params": [
+          {
+            "name": "m",
+            "type": "map<mixed, mixed>"
+          },
+          {
+            "name": "key",
+            "type": "mixed"
+          }
+        ],
+        "returns": "mixed",
+        "static": true
+      },
+      {
+        "name": "has",
+        "params": [
+          {
+            "name": "m",
+            "type": "map<mixed, mixed>"
+          },
+          {
+            "name": "key",
+            "type": "mixed"
+          }
+        ],
+        "returns": "bool",
+        "static": true
+      },
+      {
+        "name": "isEmpty",
+        "params": [
+          {
+            "name": "m",
+            "type": "map<mixed, mixed>"
+          }
+        ],
+        "returns": "bool",
+        "static": true
+      },
+      {
+        "name": "keys",
+        "params": [
+          {
+            "name": "m",
+            "type": "map<mixed, mixed>"
+          }
+        ],
+        "returns": "mixed[]",
+        "static": true
+      },
+      {
+        "name": "merge",
+        "params": [
+          {
+            "name": "a",
+            "type": "map<mixed, mixed>"
+          },
+          {
+            "name": "b",
+            "type": "map<mixed, mixed>"
+          }
+        ],
+        "returns": "map<mixed, mixed>",
+        "static": true
+      },
+      {
+        "name": "remove",
+        "params": [
+          {
+            "name": "m",
+            "type": "map<mixed, mixed>"
+          },
+          {
+            "name": "key",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "set",
+        "params": [
+          {
+            "name": "m",
+            "type": "map<mixed, mixed>"
+          },
+          {
+            "name": "key",
+            "type": "mixed"
+          },
+          {
+            "name": "val",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "size",
+        "params": [
+          {
+            "name": "m",
+            "type": "map<mixed, mixed>"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "values",
+        "params": [
+          {
+            "name": "m",
+            "type": "map<mixed, mixed>"
+          }
+        ],
+        "returns": "mixed[]",
+        "static": true
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "Regex",
+    "methods": [
+      {
+        "name": "count",
+        "params": [
+          {
+            "name": "pattern",
+            "type": "string"
+          },
+          {
+            "name": "s",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "extract",
+        "params": [
+          {
+            "name": "pattern",
+            "type": "string"
+          },
+          {
+            "name": "s",
+            "type": "string"
+          },
+          {
+            "name": "group",
+            "type": "int"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "find",
+        "params": [
+          {
+            "name": "pattern",
+            "type": "string"
+          },
+          {
+            "name": "s",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "findAll",
+        "params": [
+          {
+            "name": "pattern",
+            "type": "string"
+          },
+          {
+            "name": "s",
+            "type": "string"
+          }
+        ],
+        "returns": "string[]",
+        "static": true
+      },
+      {
+        "name": "replace",
+        "params": [
+          {
+            "name": "pattern",
+            "type": "string"
+          },
+          {
+            "name": "s",
+            "type": "string"
+          },
+          {
+            "name": "repl",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "replaceAll",
+        "params": [
+          {
+            "name": "pattern",
+            "type": "string"
+          },
+          {
+            "name": "s",
+            "type": "string"
+          },
+          {
+            "name": "repl",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "split",
+        "params": [
+          {
+            "name": "pattern",
+            "type": "string"
+          },
+          {
+            "name": "s",
+            "type": "string"
+          }
+        ],
+        "returns": "string[]",
+        "static": true
+      },
+      {
+        "name": "test",
+        "params": [
+          {
+            "name": "pattern",
+            "type": "string"
+          },
+          {
+            "name": "s",
+            "type": "string"
+          }
+        ],
+        "returns": "bool",
+        "static": true
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "Convert",
+    "methods": [
+      {
+        "name": "arrayToMap",
+        "params": [
+          {
+            "name": "arr",
+            "type": "mixed[]"
+          },
+          {
+            "name": "kv",
+            "type": "string"
+          }
+        ],
+        "returns": "map<string, string>",
+        "static": true
+      },
+      {
+        "name": "arrayToStr",
+        "params": [
+          {
+            "name": "arr",
+            "type": "mixed[]"
+          },
+          {
+            "name": "sep",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "boolToFloat",
+        "params": [
+          {
+            "name": "b",
+            "type": "bool"
+          }
+        ],
+        "returns": "float",
+        "static": true
+      },
+      {
+        "name": "boolToInt",
+        "params": [
+          {
+            "name": "b",
+            "type": "bool"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "boolToStr",
+        "params": [
+          {
+            "name": "b",
+            "type": "bool"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "floatToBool",
+        "params": [
+          {
+            "name": "f",
+            "type": "float"
+          }
+        ],
+        "returns": "bool",
+        "static": true
+      },
+      {
+        "name": "floatToInt",
+        "params": [
+          {
+            "name": "f",
+            "type": "float"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "floatToStr",
+        "params": [
+          {
+            "name": "f",
+            "type": "float"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "intToBool",
+        "params": [
+          {
+            "name": "n",
+            "type": "int"
+          }
+        ],
+        "returns": "bool",
+        "static": true
+      },
+      {
+        "name": "intToFloat",
+        "params": [
+          {
+            "name": "n",
+            "type": "int"
+          }
+        ],
+        "returns": "float",
+        "static": true
+      },
+      {
+        "name": "intToStr",
+        "params": [
+          {
+            "name": "n",
+            "type": "int"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "mapKeysToArray",
+        "params": [
+          {
+            "name": "m",
+            "type": "map<string, string>"
+          }
+        ],
+        "returns": "string[]",
+        "static": true
+      },
+      {
+        "name": "mapToStr",
+        "params": [
+          {
+            "name": "m",
+            "type": "map<string, string>"
+          },
+          {
+            "name": "sep",
+            "type": "string"
+          },
+          {
+            "name": "kv",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "mapValuesToArray",
+        "params": [
+          {
+            "name": "m",
+            "type": "map<string, string>"
+          }
+        ],
+        "returns": "mixed[]",
+        "static": true
+      },
+      {
+        "name": "strToArray",
+        "params": [
+          {
+            "name": "s",
+            "type": "string"
+          },
+          {
+            "name": "sep",
+            "type": "string"
+          }
+        ],
+        "returns": "string[]",
+        "static": true
+      },
+      {
+        "name": "strToBool",
+        "params": [
+          {
+            "name": "s",
+            "type": "string"
+          }
+        ],
+        "returns": "bool",
+        "static": true
+      },
+      {
+        "name": "strToFloat",
+        "params": [
+          {
+            "name": "s",
+            "type": "string"
+          }
+        ],
+        "returns": "float",
+        "static": true
+      },
+      {
+        "name": "strToInt",
+        "params": [
+          {
+            "name": "s",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "strToMap",
+        "params": [
+          {
+            "name": "s",
+            "type": "string"
+          },
+          {
+            "name": "sep",
+            "type": "string"
+          },
+          {
+            "name": "kv",
+            "type": "string"
+          }
+        ],
+        "returns": "map<string, string>",
+        "static": true
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "DateTime",
+    "methods": [
+      {
+        "name": "day",
+        "params": [
+          {
+            "name": "ts",
+            "type": "int"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "format",
+        "params": [
+          {
+            "name": "ts",
+            "type": "int"
+          },
+          {
+            "name": "fmt",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "fromTimestamp",
+        "params": [
+          {
+            "name": "ts",
+            "type": "int"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "hour",
+        "params": [
+          {
+            "name": "ts",
+            "type": "int"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "minute",
+        "params": [
+          {
+            "name": "ts",
+            "type": "int"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "month",
+        "params": [
+          {
+            "name": "ts",
+            "type": "int"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "now",
+        "params": [],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "parse",
+        "params": [
+          {
+            "name": "s",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "second",
+        "params": [
+          {
+            "name": "ts",
+            "type": "int"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "year",
+        "params": [
+          {
+            "name": "ts",
+            "type": "int"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "Date",
+    "methods": [
+      {
+        "name": "addDays",
+        "params": [
+          {
+            "name": "date",
+            "type": "string"
+          },
+          {
+            "name": "days",
+            "type": "int"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "day",
+        "params": [
+          {
+            "name": "date",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "dayOfWeek",
+        "params": [
+          {
+            "name": "date",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "daysInMonth",
+        "params": [
+          {
+            "name": "year",
+            "type": "int"
+          },
+          {
+            "name": "month",
+            "type": "int"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "diffDays",
+        "params": [
+          {
+            "name": "date1",
+            "type": "string"
+          },
+          {
+            "name": "date2",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "fromTimestamp",
+        "params": [
+          {
+            "name": "ts",
+            "type": "int"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "isLeapYear",
+        "params": [
+          {
+            "name": "year",
+            "type": "int"
+          }
+        ],
+        "returns": "bool",
+        "static": true
+      },
+      {
+        "name": "month",
+        "params": [
+          {
+            "name": "date",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "today",
+        "params": [],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "year",
+        "params": [
+          {
+            "name": "date",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "Time",
+    "methods": [
+      {
+        "name": "addSeconds",
+        "params": [
+          {
+            "name": "time",
+            "type": "string"
+          },
+          {
+            "name": "s",
+            "type": "int"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "diffSeconds",
+        "params": [
+          {
+            "name": "t1",
+            "type": "string"
+          },
+          {
+            "name": "t2",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "fromSeconds",
+        "params": [
+          {
+            "name": "seconds",
+            "type": "int"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "fromTimestamp",
+        "params": [
+          {
+            "name": "ts",
+            "type": "int"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "hour",
+        "params": [
+          {
+            "name": "time",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "minute",
+        "params": [
+          {
+            "name": "time",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "now",
+        "params": [],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "second",
+        "params": [
+          {
+            "name": "time",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "toSeconds",
+        "params": [
+          {
+            "name": "time",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "File",
+    "methods": [
+      {
+        "name": "append",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          },
+          {
+            "name": "content",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "copy",
+        "params": [
+          {
+            "name": "src",
+            "type": "string"
+          },
+          {
+            "name": "dst",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "exists",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "bool",
+        "static": true
+      },
+      {
+        "name": "extension",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "infos",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "map<string, mixed>",
+        "static": true
+      },
+      {
+        "name": "move",
+        "params": [
+          {
+            "name": "src",
+            "type": "string"
+          },
+          {
+            "name": "dst",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "read",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "readBytes",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "int[]",
+        "static": true
+      },
+      {
+        "name": "remove",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "size",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "write",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          },
+          {
+            "name": "content",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "writeBytes",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          },
+          {
+            "name": "data",
+            "type": "int[]"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "Directory",
+    "methods": [
+      {
+        "name": "copy",
+        "params": [
+          {
+            "name": "src",
+            "type": "string"
+          },
+          {
+            "name": "dst",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "count",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "create",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "createRecursive",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "exists",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "bool",
+        "static": true
+      },
+      {
+        "name": "infos",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "map<string, mixed>",
+        "static": true
+      },
+      {
+        "name": "list",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "string[]",
+        "static": true
+      },
+      {
+        "name": "listDirs",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "string[]",
+        "static": true
+      },
+      {
+        "name": "listFiles",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "string[]",
+        "static": true
+      },
+      {
+        "name": "move",
+        "params": [
+          {
+            "name": "src",
+            "type": "string"
+          },
+          {
+            "name": "dst",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "remove",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "removeRecursive",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "JSON",
+    "methods": [
+      {
+        "name": "decode",
+        "params": [
+          {
+            "name": "json",
+            "type": "string"
+          }
+        ],
+        "returns": "mixed",
+        "static": true
+      },
+      {
+        "name": "encode",
+        "params": [
+          {
+            "name": "data",
+            "type": "mixed"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "minimize",
+        "params": [
+          {
+            "name": "json",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "pretty",
+        "params": [
+          {
+            "name": "json",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "HTTPRequest",
+    "methods": [
+      {
+        "name": "body",
+        "params": [
+          {
+            "name": "res",
+            "type": "int"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "delete",
+        "params": [
+          {
+            "name": "url",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "error",
+        "params": [
+          {
+            "name": "res",
+            "type": "int"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "get",
+        "params": [
+          {
+            "name": "url",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "header",
+        "params": [
+          {
+            "name": "res",
+            "type": "int"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "headers",
+        "params": [
+          {
+            "name": "res",
+            "type": "int"
+          }
+        ],
+        "returns": "map<string, string>",
+        "static": true
+      },
+      {
+        "name": "isError",
+        "params": [
+          {
+            "name": "res",
+            "type": "int"
+          }
+        ],
+        "returns": "bool",
+        "static": true
+      },
+      {
+        "name": "new",
+        "params": [
+          {
+            "name": "url",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "ok",
+        "params": [
+          {
+            "name": "res",
+            "type": "int"
+          }
+        ],
+        "returns": "bool",
+        "static": true
+      },
+      {
+        "name": "patch",
+        "params": [
+          {
+            "name": "url",
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "post",
+        "params": [
+          {
+            "name": "url",
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "put",
+        "params": [
+          {
+            "name": "url",
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "send",
+        "params": [
+          {
+            "name": "req",
+            "type": "int"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      },
+      {
+        "name": "setBody",
+        "params": [
+          {
+            "name": "req",
+            "type": "int"
+          },
+          {
+            "name": "body",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "setHeader",
+        "params": [
+          {
+            "name": "req",
+            "type": "int"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "value",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "setMethod",
+        "params": [
+          {
+            "name": "req",
+            "type": "int"
+          },
+          {
+            "name": "method",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "setTimeout",
+        "params": [
+          {
+            "name": "req",
+            "type": "int"
+          },
+          {
+            "name": "ms",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "status",
+        "params": [
+          {
+            "name": "res",
+            "type": "int"
+          }
+        ],
+        "returns": "int",
+        "static": true
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "HTTPServer",
+    "methods": [
+      {
+        "name": "body",
+        "params": [
+          {
+            "name": "req",
+            "type": "int"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "header",
+        "params": [
+          {
+            "name": "req",
+            "type": "int"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "host",
+        "params": [
+          {
+            "name": "host",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "method",
+        "params": [
+          {
+            "name": "req",
+            "type": "int"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "path",
+        "params": [
+          {
+            "name": "req",
+            "type": "int"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "port",
+        "params": [
+          {
+            "name": "port",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "query",
+        "params": [
+          {
+            "name": "req",
+            "type": "int"
+          },
+          {
+            "name": "key",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "respond",
+        "params": [
+          {
+            "name": "req",
+            "type": "int"
+          },
+          {
+            "name": "status",
+            "type": "int"
+          },
+          {
+            "name": "body",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "respondHeader",
+        "params": [
+          {
+            "name": "req",
+            "type": "int"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "value",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "rootPath",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "route",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          },
+          {
+            "name": "method",
+            "type": "string"
+          },
+          {
+            "name": "f",
+            "type": "Function<void()>"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "routeError",
+        "params": [
+          {
+            "name": "code",
+            "type": "int"
+          },
+          {
+            "name": "f",
+            "type": "Function<void()>"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "run",
+        "params": [],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "workers",
+        "params": [
+          {
+            "name": "n",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "Tauri",
+    "methods": [
+      {
+        "name": "__init__",
+        "params": [
+          {
+            "name": "options",
+            "type": "map<string, mixed>"
+          }
+        ],
+        "returns": "Tauri",
+        "static": true
+      },
+      {
+        "name": "close",
+        "params": [],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "dialog",
+        "params": [
+          {
+            "name": "options",
+            "type": "map<string, mixed>"
+          }
+        ],
+        "returns": "string",
+        "static": false
+      },
+      {
+        "name": "emit",
+        "params": [
+          {
+            "name": "event",
+            "type": "string"
+          },
+          {
+            "name": "data",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "focus",
+        "params": [],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "getHeight",
+        "params": [],
+        "returns": "int",
+        "static": false
+      },
+      {
+        "name": "getTitle",
+        "params": [],
+        "returns": "string",
+        "static": false
+      },
+      {
+        "name": "getUrl",
+        "params": [],
+        "returns": "string",
+        "static": false
+      },
+      {
+        "name": "getWidth",
+        "params": [],
+        "returns": "int",
+        "static": false
+      },
+      {
+        "name": "handler",
+        "params": [
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "method",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "handlers",
+        "params": [
+          {
+            "name": "map",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "hasFocus",
+        "params": [],
+        "returns": "bool",
+        "static": false
+      },
+      {
+        "name": "isMaximized",
+        "params": [],
+        "returns": "bool",
+        "static": false
+      },
+      {
+        "name": "isMinimized",
+        "params": [],
+        "returns": "bool",
+        "static": false
+      },
+      {
+        "name": "isOpen",
+        "params": [],
+        "returns": "bool",
+        "static": false
+      },
+      {
+        "name": "listen",
+        "params": [
+          {
+            "name": "event",
+            "type": "string"
+          },
+          {
+            "name": "callback",
+            "type": "Function<void(string)>"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "maximize",
+        "params": [],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "minimize",
+        "params": [],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "notify",
+        "params": [
+          {
+            "name": "options",
+            "type": "map<string, mixed>"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "open",
+        "params": [],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "restore",
+        "params": [],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "run",
+        "params": [],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "setHeight",
+        "params": [
+          {
+            "name": "height",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "setTitle",
+        "params": [
+          {
+            "name": "title",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "setUrl",
+        "params": [
+          {
+            "name": "url",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "setWidth",
+        "params": [
+          {
+            "name": "width",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "HTML",
+    "methods": [
+      {
+        "name": "cacheClear",
+        "params": [],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "cacheDelete",
+        "params": [
+          {
+            "name": "cache_key",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "escape",
+        "params": [
+          {
+            "name": "s",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "render",
+        "params": [
+          {
+            "name": "template",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "renderCached",
+        "params": [
+          {
+            "name": "template",
+            "type": "string"
+          },
+          {
+            "name": "cache_key",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "HTMLComponent",
+    "methods": [
+      {
+        "name": "register",
+        "params": [
+          {
+            "name": "handler",
+            "type": "Function<string()>"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "tag",
+        "params": [
+          {
+            "name": "name",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "UnitTest",
+    "methods": [
+      {
+        "name": "assertArray",
+        "params": [
+          {
+            "name": "value",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertClass",
+        "params": [
+          {
+            "name": "value",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertContains",
+        "params": [
+          {
+            "name": "haystack",
+            "type": "mixed"
+          },
+          {
+            "name": "needle",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertEmpty",
+        "params": [
+          {
+            "name": "value",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertEnum",
+        "params": [
+          {
+            "name": "value",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertEquals",
+        "params": [
+          {
+            "name": "expected",
+            "type": "mixed"
+          },
+          {
+            "name": "actual",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertExceptionCodeEquals",
+        "params": [
+          {
+            "name": "code",
+            "type": "int"
+          },
+          {
+            "name": "expected",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertExceptionCodeNotEquals",
+        "params": [
+          {
+            "name": "code",
+            "type": "int"
+          },
+          {
+            "name": "expected",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertExceptionMessageEquals",
+        "params": [
+          {
+            "name": "message",
+            "type": "string"
+          },
+          {
+            "name": "expected",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertExceptionMessageNotEquals",
+        "params": [
+          {
+            "name": "message",
+            "type": "string"
+          },
+          {
+            "name": "expected",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertExceptionSourceEquals",
+        "params": [
+          {
+            "name": "source",
+            "type": "string"
+          },
+          {
+            "name": "expected",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertExceptionSourceNotEquals",
+        "params": [
+          {
+            "name": "source",
+            "type": "string"
+          },
+          {
+            "name": "expected",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertFalse",
+        "params": [
+          {
+            "name": "value",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertFunction",
+        "params": [
+          {
+            "name": "value",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertGreater",
+        "params": [
+          {
+            "name": "a",
+            "type": "mixed"
+          },
+          {
+            "name": "b",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertGreaterOrEquals",
+        "params": [
+          {
+            "name": "a",
+            "type": "mixed"
+          },
+          {
+            "name": "b",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertLess",
+        "params": [
+          {
+            "name": "a",
+            "type": "mixed"
+          },
+          {
+            "name": "b",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertLessOrEquals",
+        "params": [
+          {
+            "name": "a",
+            "type": "mixed"
+          },
+          {
+            "name": "b",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertMap",
+        "params": [
+          {
+            "name": "value",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertNotEmpty",
+        "params": [
+          {
+            "name": "value",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertNotEquals",
+        "params": [
+          {
+            "name": "expected",
+            "type": "mixed"
+          },
+          {
+            "name": "actual",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertNotNull",
+        "params": [
+          {
+            "name": "value",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertNull",
+        "params": [
+          {
+            "name": "value",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "assertTrue",
+        "params": [
+          {
+            "name": "value",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "fail",
+        "params": [
+          {
+            "name": "message",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "pass",
+        "params": [
+          {
+            "name": "message",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "SQLite",
+    "methods": [
+      {
+        "name": "affectedRows",
+        "params": [],
+        "returns": "int",
+        "static": false
+      },
+      {
+        "name": "close",
+        "params": [],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "execute",
+        "params": [
+          {
+            "name": "query",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "lastInsertId",
+        "params": [],
+        "returns": "int",
+        "static": false
+      },
+      {
+        "name": "open",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "SQLite",
+        "static": true
+      },
+      {
+        "name": "query",
+        "params": [
+          {
+            "name": "query",
+            "type": "string"
+          }
+        ],
+        "returns": "map<string, mixed>[]",
+        "static": false
+      },
+      {
+        "name": "queryOne",
+        "params": [
+          {
+            "name": "query",
+            "type": "string"
+          }
+        ],
+        "returns": "map<string, mixed>",
+        "static": false
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "MySQL",
+    "methods": [
+      {
+        "name": "affectedRows",
+        "params": [],
+        "returns": "int",
+        "static": false
+      },
+      {
+        "name": "close",
+        "params": [],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "connect",
+        "params": [
+          {
+            "name": "host",
+            "type": "string"
+          },
+          {
+            "name": "user",
+            "type": "string"
+          },
+          {
+            "name": "password",
+            "type": "string"
+          },
+          {
+            "name": "database",
+            "type": "string"
+          }
+        ],
+        "returns": "MySQL",
+        "static": true
+      },
+      {
+        "name": "execute",
+        "params": [
+          {
+            "name": "query",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": false
+      },
+      {
+        "name": "lastInsertId",
+        "params": [],
+        "returns": "int",
+        "static": false
+      },
+      {
+        "name": "query",
+        "params": [
+          {
+            "name": "query",
+            "type": "string"
+          }
+        ],
+        "returns": "map<string, mixed>[]",
+        "static": false
+      },
+      {
+        "name": "queryOne",
+        "params": [
+          {
+            "name": "query",
+            "type": "string"
+          }
+        ],
+        "returns": "map<string, mixed>|null",
+        "static": false
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "DotEnv",
+    "methods": [
+      {
+        "name": "get",
+        "params": [
+          {
+            "name": "key",
+            "type": "string"
+          }
+        ],
+        "returns": "string|null",
+        "static": true
+      },
+      {
+        "name": "load",
+        "params": [
+          {
+            "name": "env",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "YAML",
+    "methods": [
+      {
+        "name": "decode",
+        "params": [
+          {
+            "name": "yaml",
+            "type": "string"
+          }
+        ],
+        "returns": "mixed",
+        "static": true
+      },
+      {
+        "name": "encode",
+        "params": [
+          {
+            "name": "data",
+            "type": "mixed"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "parse",
+        "params": [
+          {
+            "name": "yaml",
+            "type": "string"
+          }
+        ],
+        "returns": "mixed",
+        "static": true
+      }
+    ],
+    "consts": []
+  }
+]

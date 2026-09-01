@@ -1,11 +1,19 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { OcaraCompletionProvider, loadBuiltins } from './completion';
 
 export function activate(context: vscode.ExtensionContext): void {
     const selector: vscode.DocumentSelector = { language: 'ocara', scheme: 'file' };
     context.subscriptions.push(
         vscode.languages.registerDefinitionProvider(selector, new OcaraDefinitionProvider())
+    );
+
+    // Autocomplétion : méthodes/constantes des classes builtin (ocara.*) et
+    // des classes utilisateur, déclenchée après `.` et `:` (pour `::`).
+    loadBuiltins(context.extensionPath);
+    context.subscriptions.push(
+        vscode.languages.registerCompletionItemProvider(selector, new OcaraCompletionProvider(), '.', ':')
     );
 }
 
