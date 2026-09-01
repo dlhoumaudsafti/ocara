@@ -82,6 +82,18 @@ Le builtin [SDL](docs/builtins/SDL.md) compile SDL3 **depuis les sources** et le
 > FreeType/HarfBuzz) sont vendored automatiquement, aucune lib système
 > supplémentaire nécessaire pour eux.
 
+> **Audio (Palier 3, `SDL::loadSound`/`playMusic`) sur un desktop Linux
+> moderne :** sans `libpulse-dev` (et/ou `libpipewire-0.3-dev`) installé au
+> moment de `make build`, SDL3 ne compile que le driver **ALSA** — qui exige
+> un accès direct à `/dev/snd`, généralement réservé au groupe Unix `audio`.
+> Sur une machine où le son passe par PipeWire/PulseAudio (le cas courant —
+> Ubuntu, GNOME, KDE récents), sans ces `-dev`, `loadSound`/`playMusic`
+> échoueront avec `SDLException` même si le son fonctionne très bien pour vos
+> autres applications. Installez `sudo apt install libpulse-dev` (Debian/
+> Ubuntu) avant `make build` pour que SDL détecte et utilise automatiquement
+> la session PipeWire/PulseAudio déjà active, comme n'importe quelle autre
+> application desktop.
+
 ---
 
 ## Démarrage rapide

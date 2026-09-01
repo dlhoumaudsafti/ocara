@@ -3,8 +3,8 @@
 //
 // Palier 1 (MVP) : une fenêtre + un renderer 2D + une pompe d'événements
 // bundlés dans un seul objet. Palier 2 : textures/images (SDL_image) et
-// fonts/texte (SDL_ttf), toujours sur ce même objet. Pas d'audio, pas de
-// manette — paliers suivants.
+// fonts/texte (SDL_ttf). Palier 3 : manettes (SDL_gamepad) et audio
+// (SDL_mixer), toujours sur ce même objet.
 //
 // Méthodes d'instance :
 //   use SDL(options: map<string, mixed>) → SDL   // {title, width, height}
@@ -133,6 +133,32 @@ pub fn sdl_class() -> ClassInfo {
         ],
         Type::Void,
     ));
+
+    // ── Palier 3 : manettes (SDL_gamepad) ───────────────────────────────────
+    // Connexion/déconnexion/boutons/axes arrivent via pollEvent() (types
+    // "gamepadconnected"/"gamepaddisconnected"/"gamepadbuttondown"/
+    // "gamepadbuttonup"/"gamepadaxis") — pas de nouvelles méthodes pour ça.
+    // Ici : uniquement l'état direct (utile pour un mouvement continu, ex.
+    // stick analogique → vitesse du joueur, chaque frame).
+    methods.insert("isButtonPressed".to_string(), inst_m(
+        vec![ ("gamepadId", Type::Int), ("button", Type::String) ], Type::Bool,
+    ));
+    methods.insert("getAxis".to_string(), inst_m(
+        vec![ ("gamepadId", Type::Int), ("axis", Type::String) ], Type::Int,
+    ));
+
+    // ── Palier 3 : audio (SDL_mixer) ────────────────────────────────────────
+    methods.insert("loadSound".to_string(), inst_m(
+        vec![ ("path", Type::String) ], Type::Int, // handle
+    ));
+    methods.insert("playSound".to_string(), inst_m(vec![ ("soundId", Type::Int) ], Type::Void));
+    methods.insert("playMusic".to_string(), inst_m(
+        vec![ ("path", Type::String), ("loop", Type::Bool) ], Type::Void,
+    ));
+    methods.insert("pauseMusic".to_string(), inst_m(vec![], Type::Void));
+    methods.insert("resumeMusic".to_string(), inst_m(vec![], Type::Void));
+    methods.insert("stopMusic".to_string(), inst_m(vec![], Type::Void));
+    methods.insert("setMusicVolume".to_string(), inst_m(vec![ ("volume", Type::Int) ], Type::Void));
 
     ClassInfo {
         extends:      None,

@@ -2832,6 +2832,21 @@
         "static": false
       },
       {
+        "name": "getAxis",
+        "params": [
+          {
+            "name": "gamepadId",
+            "type": "int"
+          },
+          {
+            "name": "axis",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": false
+      },
+      {
         "name": "getHeight",
         "params": [],
         "returns": "int",
@@ -2847,6 +2862,21 @@
         "name": "getWidth",
         "params": [],
         "returns": "int",
+        "static": false
+      },
+      {
+        "name": "isButtonPressed",
+        "params": [
+          {
+            "name": "gamepadId",
+            "type": "int"
+          },
+          {
+            "name": "button",
+            "type": "string"
+          }
+        ],
+        "returns": "bool",
         "static": false
       },
       {
@@ -2871,6 +2901,17 @@
         "static": false
       },
       {
+        "name": "loadSound",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": false
+      },
+      {
         "name": "loadTexture",
         "params": [
           {
@@ -2882,6 +2923,38 @@
         "static": false
       },
       {
+        "name": "pauseMusic",
+        "params": [],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "playMusic",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          },
+          {
+            "name": "loop",
+            "type": "bool"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "playSound",
+        "params": [
+          {
+            "name": "soundId",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
         "name": "pollEvent",
         "params": [],
         "returns": "map<string, mixed>",
@@ -2889,6 +2962,12 @@
       },
       {
         "name": "present",
+        "params": [],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "resumeMusic",
         "params": [],
         "returns": "void",
         "static": false
@@ -2917,6 +2996,17 @@
         "static": false
       },
       {
+        "name": "setMusicVolume",
+        "params": [
+          {
+            "name": "volume",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
         "name": "setTitle",
         "params": [
           {
@@ -2924,6 +3014,12 @@
             "type": "string"
           }
         ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "stopMusic",
+        "params": [],
         "returns": "void",
         "static": false
       },

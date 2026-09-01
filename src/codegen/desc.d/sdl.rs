@@ -162,4 +162,60 @@ pub const SDL_BUILTINS: &[BuiltinDesc] = &[
 		returns: None,
 		module:  Some("SDL"),
 	},
+// Palier 3 : manettes
+	BuiltinDesc {
+		name:    "SDL_isButtonPressed",
+		params:  &[clt::I64, clt::I64, clt::I64], // this, gamepadId, button
+		returns: Some(clt::I64),                  // bool (0/1)
+		module:  Some("SDL"),
+	},
+	BuiltinDesc {
+		name:    "SDL_getAxis",
+		params:  &[clt::I64, clt::I64, clt::I64], // this, gamepadId, axis
+		returns: Some(clt::I64),
+		module:  Some("SDL"),
+	},
+// Palier 3 : audio
+	BuiltinDesc {
+		name:    "SDL_loadSound",
+		params:  &[clt::I64, clt::I64], // this, path
+		returns: Some(clt::I64),        // handle (int)
+		module:  Some("SDL"),
+	},
+	BuiltinDesc {
+		name:    "SDL_playSound",
+		params:  &[clt::I64, clt::I64], // this, soundId
+		returns: None,
+		module:  Some("SDL"),
+	},
+	BuiltinDesc {
+		name:    "SDL_playMusic",
+		params:  &[clt::I64, clt::I64, clt::I64], // this, path, loop (bool 0/1)
+		returns: None,
+		module:  Some("SDL"),
+	},
+	BuiltinDesc {
+		name:    "SDL_pauseMusic",
+		params:  &[clt::I64], // this
+		returns: None,
+		module:  Some("SDL"),
+	},
+	BuiltinDesc {
+		name:    "SDL_resumeMusic",
+		params:  &[clt::I64], // this
+		returns: None,
+		module:  Some("SDL"),
+	},
+	BuiltinDesc {
+		name:    "SDL_stopMusic",
+		params:  &[clt::I64], // this
+		returns: None,
+		module:  Some("SDL"),
+	},
+	BuiltinDesc {
+		name:    "SDL_setMusicVolume",
+		params:  &[clt::I64, clt::I64], // this, volume
+		returns: None,
+		module:  Some("SDL"),
+	},
 ];

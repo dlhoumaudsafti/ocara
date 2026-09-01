@@ -1,14 +1,12 @@
 # Builtin SDL
 
-> ⚠️ **Statut : Palier 1 + Palier 2.** Fenêtre, renderer 2D, polling
-> d'événements (fermeture/clavier/souris/redimensionnement), primitives de
-> dessin de base (Palier 1), **et** chargement d'images (SDL_image) + rendu de
-> texte (SDL_ttf) (Palier 2) sont **réellement branchés sur SDL3** — rien
-> n'est simulé, contrairement au Tauri "Phase 1". Pas encore disponible :
-> audio, manettes — paliers suivants. Deux limitations structurelles à
-> connaître avant de commencer : voir [Limites](#limites-du-palier-1)
-> ci-dessous. Prérequis système (cmake + headers X11 dev + libpng) : voir
-> [README.md](../../README.md).
+> ⚠️ **Statut : Paliers 1, 2 et 3.** Fenêtre, renderer 2D, événements
+> clavier/souris/redimensionnement, dessin (Palier 1), textures/images +
+> texte (Palier 2), et manettes + audio (Palier 3) sont **réellement branchés
+> sur SDL3** — rien n'est simulé, contrairement au Tauri "Phase 1". Deux
+> limitations structurelles à connaître avant de commencer : voir
+> [Limites](#limites-du-palier-1) ci-dessous. Prérequis système (cmake +
+> headers X11 dev + libpng) : voir [README.md](../../README.md).
 
 Ce builtin permet d'ouvrir une fenêtre native et d'y dessiner en 2D avec SDL3
 — fenêtrage, rendu, entrées clavier/souris, sans dépendance à un navigateur ou
@@ -70,7 +68,16 @@ l'exemple ci-dessus).
 | `"mousebuttondown"` / `"mousebuttonup"` | `button` (`1`=gauche, `2`=milieu, `3`=droit, `4`/`5`=boutons latéraux), `x`, `y` |
 | `"mousewheel"` | `x`, `y` |
 | `"resize"` | `width`, `height` |
-| `"unknown"` | événement SDL hors périmètre Palier 1 (ignorable) |
+| `"gamepadconnected"` / `"gamepaddisconnected"` | `gamepadId` |
+| `"gamepadbuttondown"` / `"gamepadbuttonup"` | `gamepadId`, `button` (nom SDL, ex. `"south"`, `"dpup"`, `"leftshoulder"`) |
+| `"gamepadaxis"` | `gamepadId`, `axis` (nom SDL, ex. `"leftx"`, `"lefttrigger"`), `value` (`-32768..32767`, gâchettes `0..32767`) |
+| `"unknown"` | événement SDL hors périmètre (ignorable) |
+
+> Brancher une manette **avant** de lancer le programme génère quand même un
+> `"gamepadconnected"` dès les premiers appels à `pollEvent()` — SDL signale
+> aussi les manettes déjà connectées au moment où le sous-système démarre, pas
+> seulement celles branchées après coup. C'est le comportement attendu, pas un
+> bug.
 
 ```ocara
 var ev:map<string, mixed> = win.pollEvent()
@@ -135,6 +142,62 @@ couleur en `(r, g, b, a)` comme `setDrawColor`. Contrairement aux textures de
 texte qui ne change pas à chaque frame si la performance est critique (charger
 une fois via une texture serait plus efficace pour du texte statique).
 
+## Manettes (Palier 3)
+
+Connexion/déconnexion et boutons/axes arrivent via `pollEvent()` (tableau
+ci-dessus) — la manette est ouverte automatiquement par Ocara dès sa
+connexion, aucun appel `openGamepad()` n'est nécessaire. Pour un mouvement
+continu (ex. déplacement au stick analogique), utiliser la lecture directe
+plutôt que d'attendre un événement à chaque frame :
+
+```ocara
+var ev:map<string, mixed> = win.pollEvent()
+if ev["type"] equal "gamepadconnected" {
+    gamepadId = ev["gamepadId"]
+}
+
+// Dans la boucle de rendu, chaque frame :
+if win.isButtonPressed(gamepadId, "south") {
+    // saut, tir, etc.
+}
+var moveX:int = win.getAxis(gamepadId, "leftx")   // -32768..32767
+```
+
+Noms de boutons courants : `"south"`/`"east"`/`"west"`/`"north"` (façon
+Xbox : A/B/X/Y), `"dpup"`/`"dpdown"`/`"dpleft"`/`"dpright"`,
+`"leftshoulder"`/`"rightshoulder"`, `"leftstick"`/`"rightstick"`,
+`"start"`/`"back"`/`"guide"`. Noms d'axes : `"leftx"`/`"lefty"`,
+`"rightx"`/`"righty"`, `"lefttrigger"`/`"righttrigger"`.
+
+> Un `gamepadId` référant à une manette jamais connectée (ou déconnectée
+> depuis) est un **no-op silencieux** — `isButtonPressed` renvoie `false`,
+> `getAxis` renvoie `0`. Un nom de bouton/axe non reconnu suit la même règle.
+
+## Audio (Palier 3)
+
+```ocara
+var jumpSound:int = win.loadSound("jump.wav")   // WAV/OGG/MP3
+win.playSound(jumpSound)                         // superposable à lui-même et aux autres sons
+
+win.playMusic("theme.ogg", true)                 // en boucle, remplace la piste en cours
+win.setMusicVolume(50)                           // 0-100
+win.pauseMusic()
+win.resumeMusic()
+win.stopMusic()
+```
+
+**`playSound` est polyphonique** : appeler `playSound` plusieurs fois de
+suite sur le même son les superpose (chaque appel est indépendant), utile
+pour des tirs rapides ou des sons qui se chevauchent. Contrepartie : pas de
+volume persistant par son dans ce palier (seul le volume global de la
+musique est réglable via `setMusicVolume`).
+
+**Un seul emplacement musique par fenêtre** : `playMusic` remplace
+immédiatement la piste en cours (arrêt net, pas de fondu) — ce n'est pas une
+limite de SDL3, c'est un choix pour garder l'API simple. `pauseMusic`/
+`resumeMusic`/`stopMusic`/`setMusicVolume` sont des no-op silencieux si
+aucune musique n'est en cours.
+
 ## Limites du Palier 1
 
 Ce sont des contraintes de SDL lui-même, pas des choix de design Ocara :
@@ -170,6 +233,9 @@ Certaines opérations SDL peuvent lever une `SDLException`.
 | 201 | `WRONG_THREAD` | toute méthode d'instance (`pollEvent`, dessin, getters/setters...) | Appel depuis un thread différent de celui qui a créé la fenêtre (voir [Limites](#limites-du-palier-1)) |
 | 301 | `TEXTURE_LOAD_FAILED` | `loadTexture(path)` | Fichier introuvable ou format d'image non supporté |
 | 302 | `FONT_LOAD_FAILED` | `loadFont(path, size)` | Fichier introuvable ou police invalide |
+| 401 | `AUDIO_INIT_FAILED` | `loadSound`/`playMusic` (1er appel) | Échec d'initialisation du sous-système audio (pas de périphérique audio disponible, etc.) |
+| 402 | `SOUND_LOAD_FAILED` | `loadSound(path)` | Fichier introuvable ou format audio non supporté |
+| 403 | `MUSIC_LOAD_FAILED` | `playMusic(path, loop)` | Fichier introuvable ou format audio non supporté |
 
 ### Exemple de gestion d'erreurs
 
@@ -221,6 +287,13 @@ Convention runtime : `SDL_<méthode>`.
 | `drawTextureScaled(textureId:int, x:int, y:int, w:int, h:int)` → `void` | Dessine une texture redimensionnée |
 | `loadFont(path:string, size:int)` → `int` | Charge une police (.ttf/.otf) à une taille donnée, retourne un handle |
 | `drawText(fontId:int, text:string, x:int, y:int, r:int, g:int, b:int, a:int)` → `void` | Rend une ligne de texte à la position et couleur données |
+| `isButtonPressed(gamepadId:int, button:string)` → `bool` | État direct d'un bouton de manette |
+| `getAxis(gamepadId:int, axis:string)` → `int` | État direct d'un axe de manette (`-32768..32767`) |
+| `loadSound(path:string)` → `int` | Charge un son (WAV/OGG/MP3), retourne un handle |
+| `playSound(soundId:int)` → `void` | Joue un son (superposable) |
+| `playMusic(path:string, loop:bool)` → `void` | Charge et joue une musique en remplaçant la piste en cours |
+| `pauseMusic()` / `resumeMusic()` / `stopMusic()` → `void` | Contrôle de la piste musicale en cours |
+| `setMusicVolume(volume:int)` → `void` | Volume de la musique (0-100) |
 
 > `close()` ne détruit pas la fenêtre native (elle reste ouverte à l'écran
 > jusqu'à la fin du programme) — elle rend simplement `isOpen()` faux et les

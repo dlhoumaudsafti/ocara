@@ -29,10 +29,15 @@ ocara_runtime = { path = "../runtime" }
 # textures à côté du `Canvas` dans la même struct sans hack (Box::leak/transmute).
 # Voir runtime_sdl/src/lib.rs pour la contrepartie (destroy() manuel requis
 # pour les textures éphémères de drawText, jamais pour celles de loadTexture).
+# mixer : Palier 3 (audio), feature de sdl3 elle-même (comme image/ttf) — pas
+# de crate séparée. `build-from-source-static` a déjà une arête faible vers
+# `sdl3-mixer-sys?/build-static-vendored` : elle s'active automatiquement dès
+# que "mixer" est présent, aucune feature de build supplémentaire à ajouter.
 sdl3 = { version = "0.18", default-features = false, features = [
     "build-from-source-static",
     "image",
     "ttf",
+    "mixer",
     "unsafe_textures",
 ] }
 once_cell = "1.20"

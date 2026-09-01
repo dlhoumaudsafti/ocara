@@ -1,9 +1,9 @@
 // examples/builtins/sdl.oc
-// Démonstration de ocara.SDL (Palier 1 + Palier 2 — voir docs/builtins/SDL.md)
+// Démonstration de ocara.SDL (Paliers 1-3 — voir docs/builtins/SDL.md)
 //
 // Contrairement à ocara.Tauri, tout ce qui est montré ici est réellement
-// branché sur SDL3 (fenêtre, dessin, événements, textures, texte) — rien
-// n'est simulé.
+// branché sur SDL3 (fenêtre, dessin, événements, textures, texte, audio,
+// manettes) — rien n'est simulé.
 //
 // Test rapide (compile-check seulement, n'ouvre pas de fenêtre) :
 //   ./target/release/ocara examples/builtins/sdl.oc --check
@@ -41,6 +41,15 @@ function main(): int {
 
         var fontId:int = win.loadFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
 
+        // ── Palier 3 : audio ──────────────────────────────────────────────────
+        var soundId:int = win.loadSound("/usr/share/sounds/sound-icons/prompt.wav")
+        win.playSound(soundId)                       // joué une fois au démarrage
+        win.playMusic("/usr/share/sounds/sound-icons/prompt.wav", true)  // en boucle, en fond
+        win.setMusicVolume(30)
+
+        // ── Palier 3 : manette (si une est branchée) ────────────────────────
+        var gamepadId:int = -1
+
         var running:bool = true
         var frame:int = 0
         var x:int = 50
@@ -57,7 +66,21 @@ function main(): int {
                         running = false
                     }
                 }
+                if ev["type"] equal "gamepadconnected" {
+                    gamepadId = ev["gamepadId"]
+                    IO::writeln(`Manette connectée : id ${gamepadId}`)
+                }
+                if ev["type"] equal "gamepaddisconnected" {
+                    IO::writeln(`Manette déconnectée : id ${ev["gamepadId"]}`)
+                    gamepadId = -1
+                }
                 ev = win.pollEvent()
+            }
+
+            // Manette : lecture directe de l'état (utile pour un mouvement
+            // continu — ici juste affiché une fois par seconde pour l'exemple)
+            if gamepadId greater -1 and frame equal 60 {
+                IO::writeln(`Manette ${gamepadId} — bouton Sud appuyé : ${win.isButtonPressed(gamepadId, "south")}, stick gauche X : ${win.getAxis(gamepadId, "leftx")}`)
             }
 
             // Fond
@@ -94,6 +117,7 @@ function main(): int {
             SDL::delay(16)
         }
 
+        win.stopMusic()
         win.close()
         IO::writeln(`Démonstration SDL terminée (${frame} frames, fenêtre ouverte : ${win.isOpen()}).`)
     } on e is SDLException {

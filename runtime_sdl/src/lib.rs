@@ -24,12 +24,15 @@ use once_cell::sync::Lazy;
 use ocara_runtime::{__map_get, __map_new, __map_set, alloc_str, ptr_to_str};
 
 use sdl3::event::{Event, WindowEvent};
+use sdl3::gamepad::{Axis, Button, Gamepad};
 use sdl3::image::LoadTexture; // apporte .load_texture() sur TextureCreator
+use sdl3::joystick::JoystickId;
+use sdl3::mixer::{self, Audio, Mixer, Track};
 use sdl3::pixels::Color;
 use sdl3::render::{Canvas, FPoint, FRect, Texture};
 use sdl3::ttf::Font;
 use sdl3::video::Window;
-use sdl3::{EventPump, Sdl};
+use sdl3::{AudioSubsystem, EventPump, GamepadSubsystem, Sdl};
 
 /// Convertit n'importe quelle erreur SDL (Display ou pas) en message lisible
 /// pour SDLException — Debug est quasi universellement dérivé, contrairement
@@ -58,6 +61,33 @@ struct OcaraSdlWindow {
     next_texture_id: i64,
     fonts:           HashMap<i64, Font<'static>>,
     next_font_id:    i64,
+    // Palier 3 — manettes : acquis une fois pour toutes dans SDL_init (comme
+    // `_sdl`/`event_pump`), sinon les événements de connexion des manettes
+    // déjà branchées au démarrage du programme seraient manqués. Clé de
+    // `gamepads` = id d'instance SDL lui-même (élargi en i64), pas un
+    // compteur `next_*_id` : SDL fournit déjà un id stable et réutilisable,
+    // contrairement aux textures/fonts qui n'ont aucune identité propre.
+    gamepad_subsystem: GamepadSubsystem,
+    gamepads:          HashMap<i64, Gamepad>,
+    // Palier 3 — audio : paresseux (Option), initialisé au premier
+    // loadSound/playMusic via ensure_audio_ready(). `mixer` est une référence
+    // 'static obtenue par Box::leak (pas d'équivalent à `unsafe_textures` pour
+    // Track<'mixer> — voir ensure_audio_ready) : jamais libéré, même
+    // philosophie que fenêtre/textures/fonts.
+    _audio:        Option<AudioSubsystem>,
+    mixer:         Option<&'static Mixer>,
+    sounds:        HashMap<i64, Audio>,
+    next_sound_id: i64,
+    music:         Option<LoadedTrack>,
+}
+
+/// Une piste musicale chargée : `Track::set_audio` ne fait qu'EMPRUNTER son
+/// `Audio` — il faut garder les deux ensemble tant que la piste doit
+/// continuer à exister/jouer, sinon l'audio sous-jacent pourrait être libéré
+/// alors que la piste y fait encore référence côté SDL.
+struct LoadedTrack {
+    _audio: Audio,
+    track:  Track<'static>,
 }
 
 // SAFETY: Sdl/Window/Canvas/EventPump ne sont PAS Send dans sdl3-rs — ils
@@ -180,6 +210,10 @@ pub extern "C" fn SDL_init(this: i64, options_ptr: i64) {
             .map_err(err_string)?;
         let canvas = window.into_canvas();
         let event_pump = sdl_context.event_pump().map_err(err_string)?;
+        // Acquis ici (pas paresseusement) : sinon les événements de connexion
+        // des manettes déjà branchées au démarrage seraient manqués (SDL ne
+        // les génère qu'à partir du moment où SDL_INIT_GAMEPAD est activé).
+        let gamepad_subsystem = sdl_context.gamepad().map_err(err_string)?;
         Ok(OcaraSdlWindow {
             _sdl: sdl_context,
             canvas,
@@ -190,6 +224,13 @@ pub extern "C" fn SDL_init(this: i64, options_ptr: i64) {
             next_texture_id: 1,
             fonts: HashMap::new(),
             next_font_id: 1,
+            gamepad_subsystem,
+            gamepads: HashMap::new(),
+            _audio: None,
+            mixer: None,
+            sounds: HashMap::new(),
+            next_sound_id: 1,
+            music: None,
         })
     })();
 
@@ -282,8 +323,54 @@ pub extern "C" fn SDL_pollEvent(this: i64) -> i64 {
             ("y", MixedVal::Int(integer_y as i64)),
         ]),
 
-        // Tout autre événement (autres sous-types Window, joystick, etc. —
-        // hors périmètre Palier 1) : passthrough générique plutôt que perdu.
+        // Palier 3 — manettes. Note : SDL a renommé le sous-système/type
+        // GameController -> Gamepad en SDL3, mais PAS ces variantes d'Event
+        // (toujours `Controller*` dans cette version de la crate) — pas une
+        // erreur de notre part, une incohérence confirmée de sdl3-rs 0.18.
+        // Les événements Joy* bruts (indexés, pas mappés) sont volontairement
+        // ignorés : ils doubleraient les mêmes entrées physiques que les
+        // Controller* ci-dessous, déjà exprimées par nom.
+        Some(Event::ControllerDeviceAdded { which, .. }) => {
+            let id = which as i64;
+            // JoystickId est un simple alias de type vers un tuple struct
+            // d'une autre crate (sdl3-sys) — l'alias ne porte que la partie
+            // "type", pas le constructeur ; on passe par la syntaxe littérale
+            // `{ 0: ... }` (valide pour les tuple structs à champ public)
+            // plutôt que l'appel `JoystickId(which)`, que rustc refuse ici.
+            match win.gamepad_subsystem.open(JoystickId { 0: which }) {
+                Ok(pad) => {
+                    win.gamepads.insert(id, pad);
+                    build_map(&[("type", MixedVal::Str("gamepadconnected")), ("gamepadId", MixedVal::Int(id))])
+                }
+                // Rare (lecture USB, permissions) — pollEvent ne lève jamais
+                // d'exception ailleurs dans ce fichier, on reste cohérent.
+                Err(_) => build_map(&[("type", MixedVal::Str("unknown"))]),
+            }
+        }
+        Some(Event::ControllerDeviceRemoved { which, .. }) => {
+            win.gamepads.remove(&(which as i64)); // Drop -> SDL_CloseGamepad, automatique
+            build_map(&[("type", MixedVal::Str("gamepaddisconnected")), ("gamepadId", MixedVal::Int(which as i64))])
+        }
+        Some(Event::ControllerButtonDown { which, button, .. }) => build_map(&[
+            ("type", MixedVal::Str("gamepadbuttondown")),
+            ("gamepadId", MixedVal::Int(which as i64)),
+            ("button", MixedVal::Str(&button.string())), // ex: "south", "dpup", "leftshoulder"
+        ]),
+        Some(Event::ControllerButtonUp { which, button, .. }) => build_map(&[
+            ("type", MixedVal::Str("gamepadbuttonup")),
+            ("gamepadId", MixedVal::Int(which as i64)),
+            ("button", MixedVal::Str(&button.string())),
+        ]),
+        Some(Event::ControllerAxisMotion { which, axis, value, .. }) => build_map(&[
+            ("type", MixedVal::Str("gamepadaxis")),
+            ("gamepadId", MixedVal::Int(which as i64)),
+            ("axis", MixedVal::Str(&axis.string())), // ex: "leftx", "lefttrigger"
+            ("value", MixedVal::Int(value as i64)),  // -32768..32767 (gâchettes : 0..32767)
+        ]),
+
+        // Tout autre événement (autres sous-types Window, joystick brut,
+        // manette non couverte ci-dessus, etc. — hors périmètre) : passthrough
+        // générique plutôt que perdu.
         Some(_) => build_map(&[("type", MixedVal::Str("unknown"))]),
     }
 }
@@ -611,4 +698,204 @@ pub extern "C" fn SDL_ticks() -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn SDL_delay(ms: i64) {
     sdl3::timer::delay(ms.max(0) as u32);
+}
+
+// ── Palier 3 : manettes — état direct (complément aux événements ci-dessus) ─
+//
+// Un `gamepadId` inconnu (jamais connecté, ou déconnecté depuis), ou un nom
+// de bouton/axe non reconnu, renvoie la valeur par défaut (`false`/`0`) —
+// même philosophie permissive qu'un `textureId`/`fontId` inconnu.
+
+#[unsafe(no_mangle)]
+pub extern "C" fn SDL_isButtonPressed(this: i64, gamepad_id: i64, button_ptr: i64) -> i64 {
+    let name = unsafe { ptr_to_str(button_ptr).to_string() };
+    let map = SDL_WINDOWS.lock().unwrap();
+    match map.get(&this) {
+        Some(w) => {
+            let win = w.lock().unwrap();
+            check_owner_thread(&win);
+            match (win.gamepads.get(&gamepad_id), Button::from_string(&name)) {
+                (Some(pad), Some(btn)) => {
+                    if pad.button(btn) { 1 } else { 0 }
+                }
+                _ => 0,
+            }
+        }
+        None => 0,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn SDL_getAxis(this: i64, gamepad_id: i64, axis_ptr: i64) -> i64 {
+    let name = unsafe { ptr_to_str(axis_ptr).to_string() };
+    let map = SDL_WINDOWS.lock().unwrap();
+    match map.get(&this) {
+        Some(w) => {
+            let win = w.lock().unwrap();
+            check_owner_thread(&win);
+            match (win.gamepads.get(&gamepad_id), Axis::from_string(&name)) {
+                (Some(pad), Some(ax)) => pad.axis(ax) as i64,
+                _ => 0,
+            }
+        }
+        None => 0,
+    }
+}
+
+// ── Palier 3 : audio (SDL_mixer) ────────────────────────────────────────────
+
+/// Initialise paresseusement (une seule fois) le sous-système audio + le
+/// mixeur, et renvoie une référence 'static réutilisable. `Mixer` n'a pas
+/// d'équivalent à la feature `unsafe_textures` du palier 2 pour se débarrasser
+/// de la lifetime de `Track<'mixer>` — même remède manuel (Box::leak), même
+/// philosophie déjà en place (fenêtre/textures/fonts : jamais libérés). Une
+/// fois qu'on tient un `&'static Mixer`, tout ce qu'il produit (dont
+/// `Track`) hérite naturellement de cette lifetime 'static — pas besoin de
+/// re-leaker quoi que ce soit d'autre.
+fn ensure_audio_ready(win: &mut OcaraSdlWindow) -> Result<&'static Mixer, String> {
+    if let Some(m) = win.mixer {
+        return Ok(m);
+    }
+    let audio = win._sdl.audio().map_err(err_string)?;
+    // Doit rester en vie au moins jusqu'à la fin de cette fonction : Mixer
+    // garde sa propre référence au contexte une fois open_device() réussi
+    // (voir la doc de module), mais la création de cette référence interne
+    // a besoin que MIX_Init soit encore actif pendant l'appel.
+    let _ctx = mixer::init().map_err(err_string)?;
+    let dev = mixer::Mixer::open_device(None).map_err(err_string)?;
+    let dev_ref: &'static Mixer = Box::leak(Box::new(dev));
+    win._audio = Some(audio);
+    win.mixer = Some(dev_ref);
+    Ok(dev_ref)
+}
+
+/// Charge un son (WAV/OGG/MP3...) entièrement en mémoire (`predecode=true`)
+/// et renvoie un handle — persistant jusqu'à la fin du processus, comme
+/// `loadTexture`.
+#[unsafe(no_mangle)]
+pub extern "C" fn SDL_loadSound(this: i64, path_ptr: i64) -> i64 {
+    let path = unsafe { ptr_to_str(path_ptr).to_string() };
+    let win_arc = {
+        let map = SDL_WINDOWS.lock().unwrap();
+        match map.get(&this) {
+            Some(w) => w.clone(),
+            None => return 0,
+        }
+    };
+    let mut win = win_arc.lock().unwrap();
+    check_owner_thread(&win);
+    if !win.is_open {
+        return 0;
+    }
+
+    let result = ensure_audio_ready(&mut win)
+        .and_then(|mixer| mixer.load_audio(std::path::Path::new(&path), true).map_err(err_string));
+
+    match result {
+        Ok(audio) => {
+            let id = win.next_sound_id;
+            win.next_sound_id += 1;
+            win.sounds.insert(id, audio);
+            id
+        }
+        Err(msg) => unsafe {
+            ocara_runtime::exception::throw_sdl_exception(
+                &format!("cannot load sound '{}': {}", path, msg),
+                402,
+            );
+        },
+    }
+}
+
+/// Joue un son déjà chargé — superposable à lui-même et aux autres (chaque
+/// appel est "fire-and-forget", pas de piste dédiée par son : voir la doc de
+/// module pour le compromis que ça implique sur le volume par son, non
+/// exposé dans ce palier).
+#[unsafe(no_mangle)]
+pub extern "C" fn SDL_playSound(this: i64, sound_id: i64) {
+    let map = SDL_WINDOWS.lock().unwrap();
+    if let Some(w) = map.get(&this) {
+        let win = w.lock().unwrap();
+        check_owner_thread(&win);
+        if let (Some(mixer), Some(audio)) = (win.mixer, win.sounds.get(&sound_id)) {
+            let _ = mixer.play_audio(audio);
+        }
+    }
+}
+
+/// Charge et joue immédiatement une musique en streaming (`predecode=false`),
+/// en remplaçant l'éventuelle piste en cours (celle-ci est arrêtée
+/// immédiatement — `Drop` sur `Track` détruit la piste sans fondu).
+#[unsafe(no_mangle)]
+pub extern "C" fn SDL_playMusic(this: i64, path_ptr: i64, loop_flag: i64) {
+    let path = unsafe { ptr_to_str(path_ptr).to_string() };
+    let win_arc = {
+        let map = SDL_WINDOWS.lock().unwrap();
+        match map.get(&this) {
+            Some(w) => w.clone(),
+            None => return,
+        }
+    };
+    let mut win = win_arc.lock().unwrap();
+    check_owner_thread(&win);
+    if !win.is_open {
+        return;
+    }
+
+    let result = ensure_audio_ready(&mut win).and_then(|mixer| {
+        let audio = mixer.load_audio(std::path::Path::new(&path), false).map_err(err_string)?;
+        let track = mixer.create_track().map_err(err_string)?;
+        track.set_audio(&audio).map_err(err_string)?;
+        track.set_loops(if loop_flag != 0 { -1 } else { 0 }).map_err(err_string)?;
+        track.play().map_err(err_string)?;
+        Ok(LoadedTrack { _audio: audio, track })
+    });
+
+    match result {
+        Ok(loaded) => {
+            win.music = Some(loaded); // remplace l'ancienne piste -> Drop -> arrêt immédiat
+        }
+        Err(msg) => unsafe {
+            ocara_runtime::exception::throw_sdl_exception(
+                &format!("cannot play music '{}': {}", path, msg),
+                403,
+            );
+        },
+    }
+}
+
+/// Pas de musique en cours : no-op silencieux (même philosophie que le reste).
+#[unsafe(no_mangle)]
+pub extern "C" fn SDL_pauseMusic(this: i64) {
+    with_open_window(this, |win| {
+        if let Some(m) = &win.music {
+            let _ = m.track.pause();
+        }
+    });
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn SDL_resumeMusic(this: i64) {
+    with_open_window(this, |win| {
+        if let Some(m) = &win.music {
+            let _ = m.track.resume();
+        }
+    });
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn SDL_stopMusic(this: i64) {
+    with_open_window(this, |win| {
+        win.music = None; // Drop -> MIX_DestroyTrack -> arrêt immédiat, sans fondu
+    });
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn SDL_setMusicVolume(this: i64, volume: i64) {
+    with_open_window(this, |win| {
+        if let Some(m) = &win.music {
+            let gain = (volume.clamp(0, 100) as f32) / 100.0;
+            let _ = m.track.set_gain(gain);
+        }
+    });
 }

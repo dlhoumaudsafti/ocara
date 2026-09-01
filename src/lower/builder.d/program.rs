@@ -421,6 +421,15 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     fn_ret_types.insert("SDL_drawTextureScaled".to_string(), IrType::Void);
     fn_ret_types.insert("SDL_loadFont".to_string(), IrType::I64);
     fn_ret_types.insert("SDL_drawText".to_string(), IrType::Void);
+    fn_ret_types.insert("SDL_isButtonPressed".to_string(), IrType::Bool);
+    fn_ret_types.insert("SDL_getAxis".to_string(), IrType::I64);
+    fn_ret_types.insert("SDL_loadSound".to_string(), IrType::I64);
+    fn_ret_types.insert("SDL_playSound".to_string(), IrType::Void);
+    fn_ret_types.insert("SDL_playMusic".to_string(), IrType::Void);
+    fn_ret_types.insert("SDL_pauseMusic".to_string(), IrType::Void);
+    fn_ret_types.insert("SDL_resumeMusic".to_string(), IrType::Void);
+    fn_ret_types.insert("SDL_stopMusic".to_string(), IrType::Void);
+    fn_ret_types.insert("SDL_setMusicVolume".to_string(), IrType::Void);
 
     // Propage les types de retour des méthodes héritées (non surchargées) dans fn_ret_types
     for class in &program.classes {
