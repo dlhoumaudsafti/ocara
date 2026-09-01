@@ -19,7 +19,6 @@ import ocara.Convert
 import ocara.Thread
 import ocara.IO
 import ocara.Math
-import ocara.File
 import configs.Database
 
 class HomeController {
@@ -50,7 +49,7 @@ class HomeController {
         // incrémenté à chaque chargement de la page.
         scoped visits:int = Database::recordVisit()
 
-        scoped html:string = HTML::render(File::read('templates/home.html'))
+        scoped html:string = HTML::renderFile('templates/home.html')
 
         HTTPServer::respond(req, 200, html)
         return 0

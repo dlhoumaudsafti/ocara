@@ -132,6 +132,64 @@ scoped r2:string = HTML::renderCached(tpl, "badge_stable")
 
 ---
 
+### `HTML::renderFile(path)` → `string`
+
+Identique à `HTML::render`, mais le template est chargé depuis un fichier au lieu d'être écrit en dur dans le code. `path` est lu **pendant la compilation** — pas à l'exécution — et son contenu est traité exactement comme un littéral `` `...` `` : les `${...}` qu'il contient sont interpolés avec les variables Ocara visibles à l'endroit de l'appel.
+
+| Paramètre | Type     | Description                                            |
+|-----------|----------|----------------------------------------------------------|
+| `path`    | `string` | Chemin du fichier template, connu à la compilation       |
+
+```ocara
+// templates/home.html :
+// <p>Bonjour ${name}, tu as ${count} messages.</p>
+
+var name:string  = "Ada"
+var count:int    = 42
+scoped html:string = HTML::renderFile('templates/home.html')
+IO::writeln(html)
+// → <p>Bonjour Ada, tu as 42 messages.</p>
+```
+
+**Résolution du chemin :**
+
+- Chemin absolu : utilisé tel quel.
+- Chemin relatif : résolu par rapport au répertoire courant **au moment de la compilation** (celui d'où `ocara` est invoqué) — pas au répertoire du fichier `.oc`, ni au répertoire courant du binaire compilé à l'exécution.
+
+**`path` peut être une variable**, à condition que sa valeur soit déterminable à la compilation :
+
+```ocara
+const TEMPLATES_DIR:string = "templates/"
+
+var path:string = TEMPLATES_DIR + "home.html"   // concaténation de littéraux, OK
+scoped html:string = HTML::renderFile(path)
+```
+
+Cas non résolvables (⚠️ erreur de compilation) : chemin venant d'un paramètre de fonction, d'un calcul à l'exécution, d'une variable réassignée dans une branche `if`/`switch`/boucle avant l'appel, etc. Le message d'erreur l'indique clairement.
+
+**Conséquences importantes :**
+
+- Le contenu du fichier est **figé dans le binaire** au moment de la compilation, exactement comme s'il avait été copié-collé dans un littéral `` `...` ``. Modifier le fichier `.html` après coup n'a aucun effet tant que le `.oc` n'est pas recompilé.
+- Comme pour un littéral template classique, chaque variable référencée via `${x}` compte comme « utilisée » pour l'analyse statique — plus de faux warning `unused` sur les variables uniquement consommées dans le fichier.
+- Contrairement à un littéral Ocara, **aucune séquence d'échappement n'est traitée** dans le fichier (`\n`, `` \` ``, `\$`...) : c'est du HTML/JS/CSS brut, ses `\` restent intacts. Seul `${...}` déclenche une interpolation.
+
+---
+
+### `HTML::renderFileCached(path, cache_key)` → `string`
+
+Combine `HTML::renderFile` (chargement + interpolation depuis un fichier, à la compilation) et `HTML::renderCached` (cache du rendu des composants, à l'exécution — voir les mêmes règles de cache que `HTML::renderCached`).
+
+| Paramètre   | Type     | Description                                         |
+|-------------|----------|------------------------------------------------------|
+| `path`      | `string` | Chemin du fichier template, connu à la compilation   |
+| `cache_key` | `string` | Clé unique identifiant ce rendu dans le cache         |
+
+```ocara
+scoped html:string = HTML::renderFileCached('templates/about.html', "page_about")
+```
+
+---
+
 ### `HTML::cacheDelete(cache_key)` → `void`
 
 Supprime une entrée du cache par sa clé. Sans effet si la clé n'existe pas.

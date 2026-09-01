@@ -5,12 +5,11 @@
 
 import ocara.HTML
 import ocara.HTTPServer
-import ocara.File
 
 class AboutController {
 
     public static method handle(req:int): int {
-        scoped html:string = HTML::renderCached(File::read('templates/about.html'), "page_about")
+        scoped html:string = HTML::renderFileCached('templates/about.html', "page_about")
 
         HTTPServer::respond(req, 200, html)
         return 0

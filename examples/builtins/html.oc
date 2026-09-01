@@ -103,5 +103,24 @@ function main(): int {
     HTML::cacheClear()                                          // purge tout
     IO::writeln("cache purgé")
 
+    // ── HTML::renderFile / HTML::renderFileCached ──────────────────────────────
+    // Le fichier examples/builtins/templates/render_file_demo.html est lu et
+    // interpolé PENDANT LA COMPILATION, exactement comme un littéral `...` :
+    // ${label}, ${color} et ${count} ci-dessous sont résolus par le
+    // compilateur (donc pas de warning "unused" sur ces variables), et le
+    // chemin doit rester relatif au répertoire depuis lequel `ocara` est
+    // lancé (lancer ce demo depuis la racine du repo).
+    IO::writeln("=== renderFile / renderFileCached ===")
+    var label:string = "depuis-fichier"
+    var color:string  = "teal"
+    var count:int     = 3
+    scoped rf:string = HTML::renderFile('examples/builtins/templates/render_file_demo.html')
+    IO::writeln(rf)
+
+    scoped rfc1:string = HTML::renderFileCached('examples/builtins/templates/render_file_demo.html', "render_file_demo")
+    scoped rfc2:string = HTML::renderFileCached('examples/builtins/templates/render_file_demo.html', "render_file_demo") // hit cache
+    IO::writeln(rfc1)
+    IO::writeln(rfc2)
+
     return 0
 }
