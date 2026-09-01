@@ -77,7 +77,7 @@ class Calculator {
     public method power(base:int, exponent:int = 2): int {
         var result:int = 1
         var i:int = 0
-        while i < exponent {
+        while i smaller exponent {
             result = result * base
             i = i + 1
         }

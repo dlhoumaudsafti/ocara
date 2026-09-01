@@ -6,7 +6,7 @@ class Test_04_conditions extends UnitTest {
     public method simpleIfTest(): int {
         var outcome:int = 0
         var x:int = 10
-        if x > 5 {
+        if x greater 5 {
             outcome = 1
         }
         self::assertEquals(1, outcome)
@@ -16,7 +16,7 @@ class Test_04_conditions extends UnitTest {
     public method ifElseTest(): int {
         var outcome:int = 0
         var x:int = 3
-        if x > 5 {
+        if x greater 5 {
             outcome = 1
         } else {
             outcome = 2
@@ -29,11 +29,11 @@ class Test_04_conditions extends UnitTest {
         var score:int = 75
         var grade:string = ""
         
-        if score >= 90 {
+        if score greater or equal 90 {
             grade = "A"
-        } elseif score >= 80 {
+        } elseif score greater or equal 80 {
             grade = "B"
-        } elseif score >= 70 {
+        } elseif score greater or equal 70 {
             grade = "C"
         } else {
             grade = "F"
@@ -48,8 +48,8 @@ class Test_04_conditions extends UnitTest {
         var y:int = 20
         var outcome:int = 0
         
-        if x > 5 {
-            if y > 15 {
+        if x greater 5 {
+            if y greater 15 {
                 outcome = 3
             }
         }
@@ -59,19 +59,26 @@ class Test_04_conditions extends UnitTest {
     }
 
     public method ifStrictEqualityTest(): void {
+        // Depuis Ocara v0.2.0, une comparaison entre types incompatibles
+        // (ex: int et string) est une erreur de COMPILATION (voir E16),
+        // plus un simple 'false' au runtime — impossible à exercer ici.
+        // int et float restent la seule paire de types compatible entre eux
+        // (widening numérique explicite) : 5 (int) et 5.0 (float) sont égaux.
         var outcome:bool = false
         var a:int = 5
-        var b:string = "5"
+        var b:float = 5.0
         if a equal b {
             outcome = true
         }
-        
-        self::assertFalse(outcome)
 
-        if a not equal b {
+        self::assertTrue(outcome)
+
+        var c:int = 6
+        outcome = false
+        if a not equal c {
             outcome = true
         }
-        
+
         self::assertTrue(outcome)
     }
     
@@ -99,15 +106,15 @@ class Test_04_conditions extends UnitTest {
     public method mainTest(): int {
         // Reproduit le comportement de main() avec des assertions
         var x:int = 10
-        self::assertTrue(x > 0)
+        self::assertTrue(x greater 0)
         
         var temperature:int = 25
-        self::assertTrue(temperature >= 25)
+        self::assertTrue(temperature greater or equal 25)
         
         var a:int = 5
         var b:int = 10
-        self::assertTrue(a > 0 and b > 0)
-        self::assertTrue(a > 100 or b > 5)
+        self::assertTrue(a greater 0 and b greater 0)
+        self::assertTrue(a greater 100 or b greater 5)
         self::assertTrue(not false)
         
         self::assertEquals("Bien", note_to_mention(85))
@@ -126,11 +133,11 @@ class Test_04_conditions extends UnitTest {
 
 
 function note_to_mention(note:int): string {
-    if note >= 90 {
+    if note greater or equal 90 {
         return "Excellent"
-    } elseif note >= 75 {
+    } elseif note greater or equal 75 {
         return "Bien"
-    } elseif note >= 60 {
+    } elseif note greater or equal 60 {
         return "Passable"
     } else {
         return "Insuffisant"
@@ -138,6 +145,6 @@ function note_to_mention(note:int): string {
 }
 
 function is_adult(age:int): bool {
-    return age >= 18
+    return age greater or equal 18
 }
 

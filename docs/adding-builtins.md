@@ -167,7 +167,7 @@ pub unsafe extern "C" fn Counter_create(initial: i64) -> i64 {
 /// Incrémente le compteur de 1
 #[no_mangle]
 pub unsafe extern "C" fn Counter_increment(self_ptr: i64) {
-    if self_ptr == 0 {
+    if self_ptr equal 0 {
         return;
     }
     let counter = &*(self_ptr as *const OcaraCounter);
@@ -179,7 +179,7 @@ pub unsafe extern "C" fn Counter_increment(self_ptr: i64) {
 /// Décrémente le compteur de 1
 #[no_mangle]
 pub unsafe extern "C" fn Counter_decrement(self_ptr: i64) {
-    if self_ptr == 0 {
+    if self_ptr equal 0 {
         return;
     }
     let counter = &*(self_ptr as *const OcaraCounter);
@@ -191,7 +191,7 @@ pub unsafe extern "C" fn Counter_decrement(self_ptr: i64) {
 /// Retourne la valeur actuelle du compteur
 #[no_mangle]
 pub unsafe extern "C" fn Counter_value(self_ptr: i64) -> i64 {
-    if self_ptr == 0 {
+    if self_ptr equal 0 {
         return 0;
     }
     let counter = &*(self_ptr as *const OcaraCounter);
@@ -202,7 +202,7 @@ pub unsafe extern "C" fn Counter_value(self_ptr: i64) -> i64 {
 /// Réinitialise le compteur à sa valeur initiale
 #[no_mangle]
 pub unsafe extern "C" fn Counter_reset(self_ptr: i64) {
-    if self_ptr == 0 {
+    if self_ptr equal 0 {
         return;
     }
     let counter = &*(self_ptr as *const OcaraCounter);
@@ -218,7 +218,7 @@ pub unsafe extern "C" fn Counter_reset(self_ptr: i64) {
 - Les méthodes statiques prennent les paramètres directement
 - Les méthodes d'instance reçoivent `self_ptr: i64` comme premier paramètre
 - Utiliser `Box::into_raw()` pour retourner un pointeur vers une instance
-- Toujours vérifier `self_ptr == 0` pour éviter les segfaults
+- Toujours vérifier `self_ptr equal 0` pour éviter les segfaults
 
 ---
 
@@ -567,7 +567,7 @@ pub unsafe fn throw_counter_exception(message: &str, code: i64, source: &str) ->
 
 Utilisation dans le runtime :
 ```rust
-if self_ptr == 0 {
+if self_ptr equal 0 {
     throw_counter_exception("Counter is null", 101, "Counter");
 }
 ```
@@ -576,7 +576,7 @@ if self_ptr == 0 {
 
 ## Bonnes pratiques
 
-1. **Sécurité** : Toujours vérifier `self_ptr == 0` dans les méthodes d'instance
+1. **Sécurité** : Toujours vérifier `self_ptr equal 0` dans les méthodes d'instance
 2. **Thread-safety** : Utiliser `Mutex` pour les données mutables partagées
 3. **Mémoire** : Utiliser `Box::new()` et `Box::into_raw()` pour allouer sur le tas
 4. **Nommage** : Convention `<Classe>_<methode>` pour les fonctions runtime

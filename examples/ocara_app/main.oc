@@ -72,7 +72,7 @@ main {
             serverReady = true
         } else {
             attempts = attempts + 1
-            if attempts > 100 {
+            if attempts greater 100 {
                 IO::writeln("Le serveur ne répond toujours pas après 5s")
                 result 5
             } else {

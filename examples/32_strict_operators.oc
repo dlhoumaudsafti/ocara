@@ -1,139 +1,112 @@
-// Exemple : Operateurs de comparaison stricte
-// Ocara v0.1.0 - Operateurs strictes avec verification de type :
-//   ===  ou 'equal'     : egalite stricte (meme type ET meme valeur)
-//   !==  ou 'not equal' : inegalite stricte
-//   <==                : inferieur ou equal strict
-//   >==                : superieur ou equal strict
+// Exemple : Comparaisons typées (equal / not equal / smaller / greater / ...)
+// Ocara v0.2.0 — toute comparaison s'écrit en toutes lettres, sans aucun
+// symbole (plus de ==, !=, <=, >=, <, >, ===, !==, <==, >==) :
+//   equal              : égalité
+//   not equal          : inégalité
+//   smaller            : inférieur
+//   greater            : supérieur
+//   smaller or equal   : inférieur ou égal
+//   greater or equal   : supérieur ou égal
+//
+// Les comparaisons sont toujours TYPÉES À LA COMPILATION (pas au runtime) :
+// comparer deux types incompatibles est une erreur de compilation (E16), pas
+// une valeur 'false' silencieuse découverte en production. int et float sont
+// l'unique paire de types compatible malgré des types nominaux différents
+// (widening numérique explicite lors de la compilation, pas un bitcast).
 
 import ocara.IO
 
 function main(): int {
-    IO::writeln("=== Operateurs de comparaison stricte ===")
+    IO::writeln("=== Comparaisons typées ===")
     IO::writeln("")
 
-    // 1. Egalite stricte (===) vs egalite standard (==)
-    IO::writeln("1. Egalite stricte === vs ==")
+    // 1. Égalité et inégalité (même type)
+    IO::writeln("1. equal / not equal — même type")
 
     var x:int = 42
-    var y:float = 42.0
     var z:int = 42
+    var y:int = 7
 
-    // Comparaison standard (==) : compare les valeurs, ignore le type
-    if x == y {
-        IO::writeln("  x == y : true (42 == 42.0, ignore le type)")
+    if x equal z {
+        IO::writeln("  x equal z : true (42 equal 42)")
     }
-
-    // Comparaison stricte (===) : verifie type ET valeur
-    if x === z {
-        IO::writeln("  x === z : true (meme type int, meme valeur 42)")
-    }
-
-    if x !== y {
-        IO::writeln("  x !== y : true (types differents: int vs float)")
+    if x not equal y {
+        IO::writeln("  x not equal y : true (42 not equal 7)")
     }
 
     IO::writeln("")
 
-    // 2. Operateur 'equal' (alias de ===)
-    IO::writeln("2. Mot-cle 'equal' (alias de ===)")
+    // 2. int et float : l'unique paire de types compatible
+    IO::writeln("2. equal / not equal — int et float mélangés")
+
+    var a:int = 10
+    var b:float = 10.0
+    var c:float = 2.5
+
+    if a equal b {
+        IO::writeln("  a equal b : true (10 equal 10.0, widening numerique)")
+    }
+    if a not equal c {
+        IO::writeln("  a not equal c : true (10 not equal 2.5)")
+    }
+
+    IO::writeln("")
+
+    // 3. equal compare le CONTENU des strings, pas leur adresse mémoire
+    IO::writeln("3. equal sur des strings — comparaison de contenu")
 
     var name:string = "Alice"
     var otherName:string = "Alice"
 
     if name equal otherName {
-        IO::writeln("  name equal otherName : true")
+        IO::writeln("  name equal otherName : true (meme contenu)")
     }
 
     IO::writeln("")
 
-    // 3. Inegalite stricte (!==) et 'not equal'
-    IO::writeln("3. Inegalite stricte !== et 'not equal'")
-
-    var a:int = 10
-    var b:float = 10.0
-    var c:int = 20
-
-    if a !== b {
-        IO::writeln("  a !== b : true (types differents)")
-    }
-
-    if a not equal b {
-        IO::writeln("  a not equal b : true (alias de !==)")
-    }
-
-    if a !== c {
-        IO::writeln("  a !== c : true (meme type mais valeurs differentes)")
-    }
-
-    IO::writeln("")
-
-    // 4. Comparaisons strictes <== et >==
-    IO::writeln("4. Comparaisons strictes <== et >==")
+    // 4. Ordre : smaller / greater / smaller or equal / greater or equal
+    IO::writeln("4. smaller / greater / smaller or equal / greater or equal")
 
     var num1:int = 100
     var num2:int = 200
-    var num3:float = 150.0
+    var num3:float = 100.0
 
-    // <== : inferieur ou equal strict (meme type requis)
-    if num1 <== num2 {
-        IO::writeln("  num1 <== num2 : true (100 <= 200, meme type int)")
+    if num1 smaller num2 {
+        IO::writeln("  num1 smaller num2 : true (100 smaller 200)")
     }
-
-    // Avec types differents, retourne false meme si la valeur est correcte
-    if not (num1 <== num3) {
-        IO::writeln("  num1 <== num3 : false (types differents: int vs float)")
+    if num2 greater num1 {
+        IO::writeln("  num2 greater num1 : true (200 greater 100)")
     }
-
-    // >== : superieur ou equal strict (meme type requis)
-    if num2 >== num1 {
-        IO::writeln("  num2 >== num1 : true (200 >= 100, meme type int)")
+    if num1 smaller or equal num3 {
+        IO::writeln("  num1 smaller or equal num3 : true (100 smaller or equal 100.0)")
     }
-
-    if not (num3 >== num1) {
-        IO::writeln("  num3 >== num1 : false (types differents: float vs int)")
+    if num2 greater or equal num1 {
+        IO::writeln("  num2 greater or equal num1 : true (200 greater or equal 100)")
     }
 
     IO::writeln("")
 
-    // 5. Cas d'usage pratique : validation de type
-    IO::writeln("5. Cas d'usage : validation de type stricte")
-
-    var value:mixed = 42
-    var expected:int = 42
-
-    // Verifier que value a le bon type ET la bonne valeur
-    if value is int {
-        if value === expected {
-            IO::writeln("  Validation OK : value est un int avec la valeur 42")
-        }
-    }
-
-    // Avec des booleens
-    var flag:bool = true
-    var check:int = 1
-
-    if flag == check {
-        IO::writeln("  flag == check : true (1 converti en true)")
-    }
-
-    if flag !== check {
-        IO::writeln("  flag !== check : true (types differents: bool vs int)")
-    }
+    // 5. Comparaison entre types incompatibles : erreur de COMPILATION, pas
+    //    une valeur 'false' silencieuse. Ce bloc ne compilerait pas :
+    //
+    //      var n:int = 5
+    //      var s:string = "5"
+    //      if n equal s { ... }
+    //      // error: cannot compare 'int' and 'string' with 'equal' ...
+    //
+    //    Voir docs/diagnostics.md — E16.
+    IO::writeln("5. equal/smaller/... entre types incompatibles = erreur a la compilation (E16)")
+    IO::writeln("   (voir examples/21_errors.oc et docs/diagnostics.md)")
 
     IO::writeln("")
 
     // 6. Avec null
-    IO::writeln("6. Comparaisons strictes avec null")
+    IO::writeln("6. Comparaisons avec null")
 
-    var nullable:mixed = null
-    var zero:int = 0
-
-    if nullable !== zero {
-        IO::writeln("  nullable !== zero : true (types differents: null vs int)")
-    }
+    var nullable:string|null = null
 
     if nullable equal null {
-        IO::writeln("  nullable equal null : true (meme type null)")
+        IO::writeln("  nullable equal null : true")
     }
 
     IO::writeln("")
@@ -141,4 +114,3 @@ function main(): int {
 
     return 0
 }
-

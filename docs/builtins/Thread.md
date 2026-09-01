@@ -189,7 +189,7 @@ function test_panic(): void {
         })
         t.join()  // Lève ThreadException si le thread a paniqué
     } on e is ThreadException {
-        if e.code == 102 {
+        if e.code equal 102 {
             IO::writeln("Le thread a paniqué")
         }
     }

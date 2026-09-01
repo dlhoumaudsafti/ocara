@@ -30,12 +30,12 @@ class Test_15_operators {
     }
     
     public method comparisonTest(): int {
-        UnitTest::assertTrue(5 == 5)
-        UnitTest::assertTrue(5 != 3)
-        UnitTest::assertTrue(5 < 10)
-        UnitTest::assertTrue(5 <= 5)
-        UnitTest::assertTrue(10 > 5)
-        UnitTest::assertTrue(10 >= 10)
+        UnitTest::assertTrue(5 equal 5)
+        UnitTest::assertTrue(5 not equal 3)
+        UnitTest::assertTrue(5 smaller 10)
+        UnitTest::assertTrue(5 smaller or equal 5)
+        UnitTest::assertTrue(10 greater 5)
+        UnitTest::assertTrue(10 greater or equal 10)
         return 0
     }
     
@@ -70,12 +70,12 @@ class Test_15_operators {
         UnitTest::assertFalse(not true)
         UnitTest::assertTrue(not not true)
         
-        UnitTest::assertTrue(5 == 5)
-        UnitTest::assertTrue(5 != 3)
-        UnitTest::assertTrue(5 < 10)
-        UnitTest::assertTrue(5 <= 5)
-        UnitTest::assertTrue(10 > 5)
-        UnitTest::assertTrue(10 >= 10)
+        UnitTest::assertTrue(5 equal 5)
+        UnitTest::assertTrue(5 not equal 3)
+        UnitTest::assertTrue(5 smaller 10)
+        UnitTest::assertTrue(5 smaller or equal 5)
+        UnitTest::assertTrue(10 greater 5)
+        UnitTest::assertTrue(10 greater or equal 10)
         
         UnitTest::assertTrue(true and true)
         UnitTest::assertFalse(true and false)
@@ -84,8 +84,8 @@ class Test_15_operators {
         
         var a:int = 5
         var b:int = 0
-        UnitTest::assertTrue(a > 0 and b >= 0)
-        UnitTest::assertTrue(a > 10 or b == 0)
+        UnitTest::assertTrue(a greater 0 and b greater or equal 0)
+        UnitTest::assertTrue(a greater 10 or b equal 0)
         
         var count:int = 0
         for i in 0..5 {

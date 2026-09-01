@@ -15,7 +15,7 @@ function main(): int {
 
     // ── while ──────────────────────────────────────────────────────────────
     var i:int = 0
-    while i < 5 {
+    while i smaller 5 {
         IO::writeln(i)
         i = i + 1
     }
@@ -54,7 +54,7 @@ function main(): int {
 
     // ── Boucle de compte à rebours ───────────────────────────────────────────
     var countdown:int = 5
-    while countdown > 0 {
+    while countdown greater 0 {
         IO::writeln(countdown)
         countdown = countdown - 1
     }

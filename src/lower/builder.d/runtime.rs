@@ -223,7 +223,7 @@ fn generate_runtime_main(
         all_stmts.push(crate::parsing::ast::Stmt::If {
             condition: crate::parsing::ast::Expr::Binary {
                 left: Box::new(crate::parsing::ast::Expr::Ident("ERROR".to_string(), Span::new(0, 0))),
-                op: crate::parsing::ast::BinOp::NotEq,
+                op: crate::parsing::ast::BinOp::NotEqual,
                 right: Box::new(crate::parsing::ast::Expr::Literal(crate::parsing::ast::Literal::Int(0), Span::new(0, 0))),
                 span: Span::new(0, 0),
             },

@@ -14,7 +14,7 @@ async function async_float(x:float): float {
 
 // ── 3. bool ───────────────────────────────────────────────────────────────────
 async function async_bool(n:int): bool {
-    return n > 0
+    return n greater 0
 }
 
 // ── 4. string ─────────────────────────────────────────────────────────────────

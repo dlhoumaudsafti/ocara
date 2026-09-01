@@ -219,7 +219,7 @@ function main(): int {
     } on e is RegexException {
         IO::writeln(`Regex error: ${e.message}`)
         IO::writeln(`Code: ${e.code}`)
-        if e.code == 101 {
+        if e.code equal 101 {
             IO::writeln("Invalid regex pattern syntax")
         }
     }

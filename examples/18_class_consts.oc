@@ -39,7 +39,7 @@ class Config {
     }
 
     public static method retry_limit_ok(attempt:int): bool {
-        return attempt < Config::MAX_RETRY
+        return attempt smaller Config::MAX_RETRY
     }
 }
 

@@ -23,7 +23,7 @@ function greet(name:string): void {
 }
 
 function max(a:int, b:int): int {
-    if a > b {
+    if a greater b {
         return a
     }
     return b
@@ -31,7 +31,7 @@ function max(a:int, b:int): int {
 
 // Récursion : calcul du factoriel
 function factorial(n:int): int {
-    if n <= 1 {
+    if n smaller or equal 1 {
         return 1
     }
     return n * factorial(n - 1)
@@ -39,7 +39,7 @@ function factorial(n:int): int {
 
 // Récursion : suite de Fibonacci
 function fibonacci(n:int): int {
-    if n <= 1 {
+    if n smaller or equal 1 {
         return n
     }
     return fibonacci(n - 1) + fibonacci(n - 2)

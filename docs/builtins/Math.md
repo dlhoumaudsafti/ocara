@@ -231,7 +231,7 @@ function main(): int {
     } on e is MathException {
         IO::writeln(`Math error: ${e.message}`)
         IO::writeln(`Code: ${e.code}`)
-        if e.code == 101 {
+        if e.code equal 101 {
             IO::writeln("Cannot compute square root of negative number")
         }
     }
@@ -252,7 +252,7 @@ function main(): int {
         var n:int = Math::random(10, 1)   // min > max
         IO::writeln(`Résultat: ${n}`)
     } on e is MathException {
-        if e.code == 103 {
+        if e.code equal 103 {
             IO::writeln("Bornes invalides : min doit être <= max")
         }
     }
@@ -273,7 +273,7 @@ function main(): int {
         var result:int = Math::pow(2, -3)
         IO::writeln(`Result: ${result}`)
     } on e is MathException {
-        if e.code == 102 {
+        if e.code equal 102 {
             IO::writeln("Cannot use negative exponent with integer power")
             IO::writeln("Use float division instead: 1.0 / Math::pow(2, 3)")
         }

@@ -143,23 +143,31 @@ pub enum TokenKind {
     Slash,   // /
     Percent, // %
 
-    // ── Opérateurs de comparaison ─────────────────────────────────────────────
-    EqEq,   // ==
-    BangEq, // !=
-    EqEqEq, // === (égalité stricte avec type)
-    BangEqEq, // !== (inégalité stricte avec type)
-    Lt,     // <
-    Gt,     // >
-    LtEq,   // <=
-    GtEq,   // >=
-    LtEqEq, // <== (inférieur ou égal strict avec type)
-    GtEqEq, // >== (supérieur ou égal strict avec type)
+    // ── Opérateurs de comparaison symboliques (SUPPRIMÉS du langage) ───────────
+    // Depuis Ocara v0.2.0, toute comparaison s'écrit en toutes lettres
+    // (`equal`, `not equal`, `smaller`, `greater`, `smaller or equal`,
+    // `greater or equal`) — comparaisons toujours typées à la compilation.
+    // Ces variantes ne sont plus produites par `parse_comparison` que pour
+    // détecter leur usage et renvoyer un message de migration explicite ;
+    // `Lt`/`Gt` restent utilisés ailleurs pour les génériques (`List<T>`).
+    EqEq,   // == (supprimé — utiliser 'equal')
+    BangEq, // != (supprimé — utiliser 'not equal')
+    EqEqEq, // === (supprimé — utiliser 'equal')
+    BangEqEq, // !== (supprimé — utiliser 'not equal')
+    Lt,     // < : délimiteur de génériques (List<T>) ; supprimé en comparaison
+    Gt,     // > : délimiteur de génériques (List<T>) ; supprimé en comparaison
+    LtEq,   // <= (supprimé — utiliser 'smaller or equal')
+    GtEq,   // >= (supprimé — utiliser 'greater or equal')
+    LtEqEq, // <== (supprimé — utiliser 'smaller or equal')
+    GtEqEq, // >== (supprimé — utiliser 'greater or equal')
 
-    // ── Opérateurs logiques ───────────────────────────────────────────────────
+    // ── Opérateurs logiques et de comparaison littéraux ────────────────────────
     KwAnd, // and
     KwOr,  // or
     KwNot,      // not
-    KwEqual,    // equal (égalité stricte verbale)
+    KwEqual,    // equal        — égalité typée
+    KwSmaller,  // smaller      — inférieur, typé
+    KwGreater,  // greater      — supérieur, typé
     KwNameless, // nameless
 
     // ── Affectation ───────────────────────────────────────────────────────────

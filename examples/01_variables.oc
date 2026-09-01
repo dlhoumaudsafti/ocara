@@ -38,7 +38,7 @@ function main(): int {
     // ...mais n'existe plus ici (libérée)
 
     var i:int = 0
-    while i < 3 {
+    while i smaller 3 {
         scoped temp:int = i * 2    // temp est créé et détruit à chaque itération
         IO::writeln(temp)
         i = i + 1
@@ -71,7 +71,7 @@ function main(): int {
     IO::writeln(tags)               // null
 
     // Tester la nullité avec une comparaison
-    if nom == null {
+    if nom equal null {
         IO::writeln("nom est null")  // nom est null
     }
 

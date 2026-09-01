@@ -214,7 +214,7 @@ function bad_unlock(): void {
         // Erreur : unlock sans lock préalable
         m.unlock()
     } on e is MutexException {
-        if e.code == 102 {
+        if e.code equal 102 {
             IO::writeln("Tentative d'unlock sans lock")
         }
     }

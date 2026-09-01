@@ -9,7 +9,7 @@ class Utils {
     init() {}
 
     public method abs(n:int): int {
-        if n < 0 {
+        if n smaller 0 {
             return 0 - n
         }
         return n
@@ -18,7 +18,7 @@ class Utils {
     public method pow(base:int, exp:int): int {
         var result:int = 1
         var i:int = 0
-        while i < exp {
+        while i smaller exp {
             result = result * base
             i = i + 1
         }

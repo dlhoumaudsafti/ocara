@@ -221,7 +221,7 @@ function demo_practical_example(): void {
     
     for file in files {
         var ext:string = File::extension(`/tmp/files_test/${file}`)
-        if ext == "txt" {
+        if ext equal "txt" {
             txt_count = txt_count + 1
         } else {
             other_count = other_count + 1

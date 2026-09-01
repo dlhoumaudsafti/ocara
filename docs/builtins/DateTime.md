@@ -210,7 +210,7 @@ try {
     var ts:int = DateTime::parse("bad")
 } on e {
     IO::writeln(`Exception: ${e.message}`)
-    if e.code == 101 {
+    if e.code equal 101 {
         IO::writeln("➡️ Code 101 = INVALID_DATETIME_FORMAT")
     }
 }

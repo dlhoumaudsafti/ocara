@@ -93,7 +93,7 @@ function main(): int {
     var source:array<int>  = [1, 2, 3, 2, 4, 1, 5]
     var unique:array<int>  = []
     for val in source {
-        if Array::indexOf(unique, val) == -1 {
+        if Array::indexOf(unique, val) equal -1 {
             Array::push(unique, val)
         }
     }
@@ -106,7 +106,7 @@ function main(): int {
 
     // Vérification avant accès
     var vide:array<int> = []
-    if Array::len(vide) == 0 {
+    if Array::len(vide) equal 0 {
         IO::writeln("tableau vide — aucun accès")
     }
 

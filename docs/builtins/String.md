@@ -152,7 +152,7 @@ String::between("<b>texte</b>", "<b>", "</b>")   // → "texte"
 ### `String::empty(s)` → `bool`
 
 Retourne `true` si `s` est vide ou ne contient que des espaces.  
-Équivalent à `String::len(String::trim(s)) == 0`.
+Équivalent à `String::len(String::trim(s)) equal 0`.
 
 ```ocara
 String::empty("")        // → true

@@ -288,8 +288,8 @@ ModulePath    ::= Identifier ( "." Identifier )*
 |-----------|-------|--------------------------------|---------------------------------------|
 | `init`    | 1     | Toujours                       | Initialisation avant exécution        |
 | `main`    | 2     | Toujours                       | Logique principale du programme       |
-| `error`   | 3a    | Si `ERROR != 0`                | Gestion des erreurs                   |
-| `success` | 3b    | Si `ERROR == 0`                | Traitement en cas de succès           |
+| `error`   | 3a    | Si `ERROR not equal 0`                | Gestion des erreurs                   |
+| `success` | 3b    | Si `ERROR equal 0`                | Traitement en cas de succès           |
 | `exit`    | 4     | Toujours                       | Nettoyage final                       |
 
 **Particularités :**
@@ -305,7 +305,7 @@ Deux variables sont automatiquement injectées si les blocs correspondants exist
 | Variable   | Type   | Portée             | Description                              |
 |------------|--------|--------------------|------------------------------------------|
 | `ERROR`    | `int`  | error, exit        | Code d'erreur (0 = succès, ≠0 = erreur) |
-| `SUCCESS`  | `bool` | exit               | Indicateur de succès (true si ERROR==0) |
+| `SUCCESS`  | `bool` | exit               | Indicateur de succès (true si ERROR equal 0) |
 
 Ces variables sont **en lecture/écriture** et définissent le code de sortie du programme.
 
@@ -396,7 +396,7 @@ main {
     IO::writeln("=== MAIN ===")
     counter = counter + 1
     
-    if counter < 0 {
+    if counter smaller 0 {
         result ERROR  // ERROR = 1
     }
 }
@@ -445,12 +445,12 @@ fn main() -> int {
     // Bloc main (ligne 8-14 du fichier source)
     IO::writeln("=== MAIN ===")
     counter = counter + 1
-    if counter < 0 {
+    if counter smaller 0 {
         ERROR = 1
     }
     
     // Conditionnel error/success
-    if ERROR != 0 {
+    if ERROR not equal 0 {
         // Bloc error (ligne 16-19 du fichier source)
         IO::writeln("=== ERROR ===")
         IO::writeln(`Code: ${ERROR}`)
@@ -792,7 +792,7 @@ function lookup(key:string): Config|null {
 
 // OK — retourner int ou float
 function divide(a:int, b:int): int|float {
-    if b == 0 { return 0 }
+    if b equal 0 { return 0 }
     return a / b
 }
 ```
@@ -1231,11 +1231,12 @@ Les règles de visibilité s'appliquent normalement (`public` accessible depuis 
 Expression ::= OrExpr
 
 OrExpr       ::= AndExpr ( "or" AndExpr )*
-AndExpr      ::= EqualityExpr ( "and" EqualityExpr )*
-EqualityExpr ::= StrictEqualityExpr ( ( "==" | "!=" ) StrictEqualityExpr )*
-StrictEqualityExpr ::= ComparisonExpr ( ( "===" | "!==" | "equal" | ( "not" "equal" ) ) ComparisonExpr )*
-ComparisonExpr ::= StrictComparisonExpr ( ( "<" | "<=" | ">" | ">=" ) StrictComparisonExpr )*
-StrictComparisonExpr ::= RangeExpr ( ( "<==" | ">==" ) RangeExpr )*
+AndExpr      ::= ComparisonExpr ( "and" ComparisonExpr )*
+ComparisonExpr ::= IsCheckExpr ( ComparisonOp IsCheckExpr )*
+ComparisonOp ::= "equal" | ( "not" "equal" )
+               | "smaller" ( "or" "equal" )?
+               | "greater" ( "or" "equal" )?
+IsCheckExpr  ::= RangeExpr ( "is" Type )?
 RangeExpr    ::= AdditiveExpr ( ".." AdditiveExpr )?
 AdditiveExpr ::= MultiplicativeExpr ( ( "+" | "-" ) MultiplicativeExpr )*
 MultiplicativeExpr ::= UnaryExpr ( ( "*" | "/" | "%" ) UnaryExpr )*
@@ -1282,135 +1283,92 @@ Du plus faible au plus fort :
 |--------|--------------------------|---------------|-------|
 | 1      | `or`                     | Gauche        | |
 | 2      | `and`                    | Gauche        | |
-| 3      | `==` `!=`                | Gauche        | Égalité standard (valeur uniquement) |
-| 4      | `===` `!==` `equal` `not equal` | Gauche        | Égalité stricte (avec vérification de type) |
-| 5      | `<` `<=` `>` `>=`        | Gauche        | Comparaison standard |
-| 6      | `<==` `>==`              | Gauche        | Comparaison stricte (avec vérification de type) |
-| 7      | `..`                     | Aucune        | Opérateur de plage |
-| 8      | `+` `-`                  | Gauche        | |
-| 9      | `*` `/` `%`              | Gauche        | |
-| 10     | `not` `-` (unaire)       | Droite        | |
-| 11     | `.` `()` `[]` (postfix)  | Gauche        | |
+| 3      | `equal` `not equal` `smaller` `greater` `smaller or equal` `greater or equal` | Gauche | Comparaisons, toutes typées à la compilation |
+| 4      | `is`                     | —             | Test de type (narrowing) |
+| 5      | `..`                     | Aucune        | Opérateur de plage |
+| 6      | `+` `-`                  | Gauche        | |
+| 7      | `*` `/` `%`              | Gauche        | |
+| 8      | `not` `-` (unaire)       | Droite        | |
+| 9      | `.` `()` `[]` (postfix)  | Gauche        | |
 
-### 11.1 Opérateurs de comparaison stricts
+### 11.1 Comparaisons
 
-Ocara fournit deux catégories d'opérateurs de comparaison :
+Depuis Ocara v0.2.0, **toute comparaison s'écrit en toutes lettres, sans aucun
+symbole** — plus de `==`, `!=`, `<`, `<=`, `>`, `>=`, `===`, `!==`, `<==`,
+`>==`. Un seul opérateur par relation, jamais deux orthographes pour la même
+chose :
 
-#### Opérateurs standards (comparaison de valeurs)
+| Opérateur          | Relation           |
+|--------------------|---------------------|
+| `equal`            | Égalité             |
+| `not equal`        | Inégalité           |
+| `smaller`          | Inférieur           |
+| `greater`          | Supérieur           |
+| `smaller or equal` | Inférieur ou égal   |
+| `greater or equal` | Supérieur ou égal   |
 
-Les opérateurs standards effectuent une comparaison de valeurs **sans vérification de type** :
+`smaller or equal` et `greater or equal` sont des opérateurs composés à trois
+mots, désambiguïsés par position (comme `not equal` l'était déjà) : `or` n'est
+reconnu comme suffixe de comparaison que juste après `smaller`/`greater`,
+jamais ailleurs — il reste par ailleurs l'opérateur logique `or` habituel.
 
-| Opérateur | Description |
-|-----------|-------------|
-| `==` | Égalité |
-| `!=` | Inégalité |
-| `<` | Inférieur à |
-| `<=` | Inférieur ou égal |
-| `>` | Supérieur à |
-| `>=` | Supérieur ou égal |
+**Comparaisons toujours typées à la compilation :**
 
-**Exemples :**
+Contrairement à l'ancien modèle (deux familles d'opérateurs, l'une vérifiant
+les types au runtime), toute comparaison est désormais vérifiée **à la
+compilation** dès que les deux types sont statiquement connus. Comparer deux
+types incompatibles est une **erreur de compilation** (voir [E16](diagnostics.md#e16--comparaison-entre-types-incompatibles)),
+jamais une valeur `false` silencieuse découverte en production.
 
-```ocara
-var a:int = 42
-var b:float = 42.0
-var result:bool = (a == b)        // true (comparaison de valeur)
-```
-
-#### Opérateurs stricts (comparaison de valeurs + types)
-
-Les opérateurs stricts effectuent une **vérification de type à l'exécution** avant la comparaison :
-
-| Opérateur | Équivalent verbal | Description |
-|-----------|-------------------|-------------|
-| `===` | `equal` | Égalité stricte |
-| `!==` | `not equal` | Inégalité stricte |
-| `<==` | - | Inférieur strict |
-| `>==` | - | Supérieur strict |
-
-**Opérateurs verbeux :**
-
-Les mots-clés `equal` et `not equal` sont des **synonymes exacts** de `===` et `!==` :
-- Même précédence (niveau 4)
-- Même sémantique (vérification de type + comparaison de valeur)
-- Peuvent être utilisés de manière interchangeable
-- Améliorent la lisibilité dans certains contextes
-
-```ocara
-if user.role equal "admin" {
-    IO::writeln("Accès autorisé")
-}
-
-if status not equal "active" {
-    raise "Service inactif"
-}
-
-// Équivalent à :
-if user.role === "admin" { ... }
-if status !== "active" { ... }
-```
-
-**Comportement :**
-
-1. **Vérification de type** : Les opérateurs stricts vérifient d'abord que les deux opérandes ont le **même type à l'exécution**
-2. **Comparaison de valeur** : Si les types correspondent, la comparaison de valeur est effectuée
-3. **Résultat** :
-   - Si les types diffèrent → `false` (pour `===`, `<==`, `>==`) ou `true` (pour `!==`)
-   - Si les types correspondent → résultat de la comparaison de valeur
-
-**Exemples :**
+`int` et `float` sont l'**unique paire de types compatible** malgré des types
+nominaux différents : le compilateur convertit numériquement (jamais un
+bitcast) l'opérande entier avant de comparer.
 
 ```ocara
 var a:int = 42
 var b:float = 42.0
+var c:int = 42
+var s:string = "42"
 
-// Comparaison standard (valeur uniquement)
-IO::writeln(a == b)   // true  (valeurs égales)
+IO::writeln(a equal b)   // true  (10 equal 10.0, widening numérique)
+IO::writeln(a equal c)   // true  (même type, même valeur)
+// IO::writeln(a equal s) // erreur de compilation (E16) : int et string incompatibles
+```
 
-// Comparaison stricte (type + valeur)
-IO::writeln(a === b)  // false (types différents : int vs float)
-IO::writeln(a equal b) // false (identique à ===)
+`equal`/`not equal` sur des `string` compare le **contenu**, jamais l'adresse
+mémoire :
 
-var x:int = 10
-var y:int = 10
-IO::writeln(x === y)  // true  (même type ET même valeur)
-IO::writeln(x equal y) // true  (identique à ===)
-
+```ocara
 var s1:string = "hello"
-var s2:mixed = "hello"
-IO::writeln(s1 == s2)    // true  (valeurs égales)
-IO::writeln(s1 === s2)   // true  (types identiques ET valeurs égales)
-IO::writeln(s1 equal s2)  // true  (identique à ===)
+var s2:string = "hello"
+IO::writeln(s1 equal s2)   // true (même contenu)
 ```
 
-**Cas d'usage :**
+`smaller`/`greater`/`smaller or equal`/`greater or equal` ne sont définis que
+pour des valeurs numériques (`int`/`float`, y compris mélangés) ; comparer un
+`bool`, un `string` ou tout autre type avec ces opérateurs est également une
+erreur de compilation (E16).
 
-Les opérateurs stricts sont utiles lorsque la distinction de type est importante :
+**Cas de `mixed`** : le type d'une valeur `mixed` n'étant pas connu
+statiquement, la comparaison est déléguée à une vérification de type au
+runtime (compatible avec les six opérateurs). Le compilateur ne peut alors pas
+garantir la comparabilité à la compilation — c'est un compromis délibéré pour
+que `mixed` reste utilisable, pas une échappatoire au typage strict des cas
+où les types sont connus.
 
 ```ocara
 function validate(value:mixed): bool {
-    // Accepter uniquement les entiers, pas les flottants
-    if value equal 42 {  // ou : value === 42
+    if value equal 42 {
         return true
     }
     return false
 }
 
-validate(42)     // true  (int)
-validate(42.0)   // false (float, même si valeur égale)
+validate(42)     // true
+validate(42.0)   // false — le widening numérique int/float n'existe que pour des
+                  // types concrets connus à la compilation ; via 'mixed', 42 et 42.0
+                  // ne sont pas reconnus comme numériquement égaux
 ```
-
-**Limitations techniques :**
-
-En raison de la représentation interne (tagged pointers), les opérateurs stricts ont certaines limitations :
-
-- **Types primitifs** (`int`, `float`, `bool`) : La distinction n'est pas toujours possible
-  - Les flottants sont bitcastés en int dans les registres
-  - `42` (int) et `42.0` (float) peuvent être indiscernables à l'exécution dans certains contextes
-  
-- **Types référence** (`string`, `array`, `map`, `object`, `Function`) : La vérification de type est **précise**
-  - Les valeurs heap ont des tags de type explicites
-  - La distinction entre types est toujours fiable
 
 > **Recommandation** : Utiliser les opérateurs stricts principalement pour les types référence et les unions de types (`mixed`, `T|U|null`) où la distinction de type est garantie et pertinente.
 
@@ -2165,7 +2123,7 @@ Depuis l'intérieur d'une classe, une méthode statique peut en appeler une autr
 ```ocara
 class Validator {
     public static method is_positive(n:int): bool {
-        return n > 0
+        return n greater 0
     }
 
     public static method are_both_positive(a:int, b:int): bool {
@@ -2479,7 +2437,7 @@ Un générique peut hériter d'une classe ou d'un autre générique, utiliser de
 // Classe de base générique
 generic BaseCollection<T> {
     public method isEmpty(): bool {
-        return self.size() == 0
+        return self.size() equal 0
     }
     
     public method size(): int {
@@ -2776,7 +2734,7 @@ generic Result<Value, Error> {
 }
 
 function divide(a:int, b:int): Result<int, string> {
-    if b == 0 {
+    if b equal 0 {
         return Result::err("Division par zéro")
     }
     return Result::ok(a / b)
@@ -2843,7 +2801,7 @@ generic Option<T> {
 }
 
 function find_user(id:int): Option<string> {
-    if id == 1 {
+    if id equal 1 {
         return Option::some("Alice")
     }
     return Option::none()
@@ -2943,7 +2901,7 @@ var f:Function = MathOp::square        // référence — pas d'appel
 var g:Function = self::is_positive     // référence depuis l'intérieur
 
 class Validator {
-    public static method is_positive(n:int): bool { return n > 0 }
+    public static method is_positive(n:int): bool { return n greater 0 }
 
     public static method are_both_positive(a:int, b:int): bool {
         return self::is_positive(a) and self::is_positive(b)
@@ -2962,9 +2920,9 @@ IfStmt ::= "if" Expression Block
 ```
 
 ```ocara
-if x > 0 {
+if x greater 0 {
     IO::writeln("positif")
-} elseif x == 0 {
+} elseif x equal 0 {
     IO::writeln("zéro")
 } else {
     IO::writeln("négatif")
@@ -3069,7 +3027,7 @@ WhileStmt ::= "while" Expression Block
 ```
 
 ```ocara
-while x > 0 {
+while x greater 0 {
     x = x - 1
 }
 ```
@@ -3121,8 +3079,8 @@ Interrompt immédiatement la boucle courante (`while`, `for..in`, `for..range`).
 
 ```ocara
 var i:int = 0
-while i < 10 {
-    if i == 5 {
+while i smaller 10 {
+    if i equal 5 {
         break
     }
     i = i + 1
@@ -3142,7 +3100,7 @@ Passe immédiatement à l'**itération suivante** de la boucle courante. Pour un
 
 ```ocara
 for i in 0..10 {
-    if i % 2 == 0 {
+    if i % 2 equal 0 {
         continue
     }
     IO::writeln(i)   // affiche uniquement les impairs
@@ -3383,11 +3341,12 @@ WhileStmt   ::= "while" Expression Block
 
 Expression  ::= OrExpr
 OrExpr      ::= AndExpr ( "or" AndExpr )*
-AndExpr     ::= EqualityExpr ( "and" EqualityExpr )*
-EqualityExpr ::= StrictEqualityExpr ( ( "==" | "!=" ) StrictEqualityExpr )*
-StrictEqualityExpr ::= ComparisonExpr ( ( "===" | "!==" | "equal" | ( "not" "equal" ) ) ComparisonExpr )*
-ComparisonExpr ::= StrictComparisonExpr ( ( "<" | "<=" | ">" | ">=" ) StrictComparisonExpr )*
-StrictComparisonExpr ::= RangeExpr ( ( "<==" | ">==" ) RangeExpr )*
+AndExpr     ::= ComparisonExpr ( "and" ComparisonExpr )*
+ComparisonExpr ::= IsCheckExpr ( ComparisonOp IsCheckExpr )*
+ComparisonOp ::= "equal" | ( "not" "equal" )
+              | "smaller" ( "or" "equal" )?
+              | "greater" ( "or" "equal" )?
+IsCheckExpr ::= RangeExpr ( "is" Type )?
 RangeExpr   ::= AdditiveExpr ( ".." AdditiveExpr )?
 AdditiveExpr ::= MultiplicativeExpr ( ( "+" | "-" ) MultiplicativeExpr )*
 MultiplicativeExpr ::= UnaryExpr ( ( "*" | "/" | "%" ) UnaryExpr )*

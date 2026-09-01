@@ -12,11 +12,11 @@ import ocara.String
 class Validator {
 
     public static method is_positive(n:int): bool {
-        return n > 0
+        return n greater 0
     }
 
     public static method is_in_range(n:int, low:int, high:int): bool {
-        return n >= low and n <= high
+        return n greater or equal low and n smaller or equal high
     }
 
     // Appelle d'autres méthodes statiques de la même classe via self::
@@ -46,7 +46,7 @@ class Temperature {
 
     // Vérifie qu'une température est physiquement possible
     public static method is_valid(c:int): bool {
-        return c >= Temperature::ABSOLUTE_ZERO
+        return c greater or equal Temperature::ABSOLUTE_ZERO
     }
 
     // Normalise : si en-dessous du zéro absolu, renvoie le zéro absolu
@@ -62,13 +62,13 @@ class Temperature {
 class StringCheck {
 
     public static method has_content(s:string): bool {
-        return s != ""
+        return s not equal ""
     }
 
     public static method starts_with_upper(s:string): bool {
         var first:string = String::slice(s, 0, 1)
         var up:string    = String::to_upper(first)
-        return first == up and self::has_content(s)
+        return first equal up and self::has_content(s)
     }
 
     public static method is_valid_name(s:string): bool {

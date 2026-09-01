@@ -36,12 +36,12 @@ function main(): int {
     IO::writeln(not not true)        // true
 
     // ── Comparaisons ─────────────────────────────────────────────────────────
-    IO::writeln(5 == 5)           // true
-    IO::writeln(5 != 3)           // true
-    IO::writeln(5 < 10)           // true
-    IO::writeln(5 <= 5)           // true
-    IO::writeln(10 > 5)           // true
-    IO::writeln(10 >= 10)         // true
+    IO::writeln(5 equal 5)           // true
+    IO::writeln(5 not equal 3)           // true
+    IO::writeln(5 smaller 10)           // true
+    IO::writeln(5 smaller or equal 5)           // true
+    IO::writeln(10 greater 5)           // true
+    IO::writeln(10 greater or equal 10)         // true
 
     // ── Logiques ─────────────────────────────────────────────────────────────
     IO::writeln(true and true)     // true
@@ -52,10 +52,10 @@ function main(): int {
     // ── Court-circuit logique ─────────────────────────────────────────────────
     var a:int = 5
     var b:int = 0
-    if a > 0 and b >= 0 {
+    if a greater 0 and b greater or equal 0 {
         IO::writeln("les deux conditions sont vraies")
     }
-    if a > 10 or b == 0 {
+    if a greater 10 or b equal 0 {
         IO::writeln("au moins une condition vraie")
     }
 

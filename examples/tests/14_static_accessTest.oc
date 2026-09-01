@@ -40,21 +40,21 @@ class Math {
     public const E:float = 2.71828
 
     public static method abs(n:int): int {
-        if n < 0 {
+        if n smaller 0 {
             return -n
         }
         return n
     }
 
     public static method min(a:int, b:int): int {
-        if a < b {
+        if a smaller b {
             return a
         }
         return b
     }
 
     public static method max(a:int, b:int): int {
-        if a > b {
+        if a greater b {
             return a
         }
         return b
@@ -66,7 +66,7 @@ class HttpStatus {
     public const NOT_FOUND:int = 404
 
     public static method is_success(code:int): bool {
-        return code >= 200 and code < 300
+        return code greater or equal 200 and code smaller 300
     }
 }
 

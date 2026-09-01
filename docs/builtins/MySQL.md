@@ -75,7 +75,7 @@ Exécute une requête SELECT et retourne la première ligne, ou `null` si aucun 
 ```ocara
 const user:map<string, mixed> = db.queryOne("SELECT * FROM users WHERE id = 1")
 
-if user != null {
+if user not equal null {
     IO::writeln(`User found: ${user["name"]}`)
 } else {
     IO::writeln("User not found")
@@ -153,7 +153,7 @@ try {
     
     // Recherche d'un utilisateur
     const alice:map<string, mixed> = db.queryOne("SELECT * FROM users WHERE name = 'Alice'")
-    if alice != null {
+    if alice not equal null {
         IO::writeln(`Alice's new age: ${alice["age"]}`)
     }
     

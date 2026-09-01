@@ -11,7 +11,7 @@ main {
     IO::writeln("=== MAIN ===")
     IO::writeln(`Valeur: ${value}, Seuil: ${threshold}`)
     
-    if value < threshold {
+    if value smaller threshold {
         IO::writeln("Erreur: la valeur est trop petite !")
         result ERROR
     }

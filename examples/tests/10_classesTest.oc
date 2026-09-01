@@ -20,7 +20,7 @@ class Test_10_classes {
         var before:float = account.get_balance()
         account.deposit(500.0)
         var after:float = account.get_balance()
-        UnitTest::assertTrue(after > before)
+        UnitTest::assertTrue(after greater before)
         return 0
     }
     
@@ -29,7 +29,7 @@ class Test_10_classes {
         var before:float = account.get_balance()
         account.withdraw(200.0)
         var after:float = account.get_balance()
-        UnitTest::assertTrue(after < before)
+        UnitTest::assertTrue(after smaller before)
         return 0
     }
     
@@ -115,7 +115,7 @@ class BankAccount {
     }
 
     public method withdraw(amount:float): void {
-        if amount > self.balance {
+        if amount greater self.balance {
         } else {
             self.balance = self.balance - amount
         }
@@ -125,7 +125,7 @@ class BankAccount {
     }
 
     public method check_negative(): bool {
-        return self.balance < 0.0
+        return self.balance smaller 0.0
     }
 
     public method get_balance(): float {

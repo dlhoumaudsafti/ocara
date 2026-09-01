@@ -39,5 +39,13 @@ function main(): int {
     // Erreur 6 — assignation à une constante
     Math::PI = 3
 
+    // Erreur 7 — comparaison entre types incompatibles (E16)
+    // int et float sont la seule paire compatible ; int et string ne le sont pas.
+    var n: int = 5
+    var s: string = "5"
+    if n equal s {
+        IO::writeln("ne devrait pas compiler")
+    }
+
     return 0
 }

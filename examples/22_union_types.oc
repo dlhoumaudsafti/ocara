@@ -25,7 +25,7 @@ class User {
 
     // Retourne le titre honorifique ou null si mineur
     public method title(): string|null {
-        if self.age >= 18 {
+        if self.age greater or equal 18 {
             return "M."
         }
         return null
@@ -33,13 +33,13 @@ class User {
 
     // Retourne le groupe d'âge ou null si inconnu
     public method age_group(): string|null {
-        if self.age >= 60 {
+        if self.age greater or equal 60 {
             return "senior"
         }
-        if self.age >= 18 {
+        if self.age greater or equal 18 {
             return "adulte"
         }
-        if self.age >= 0 {
+        if self.age greater or equal 0 {
             return "mineur"
         }
         return null
@@ -48,10 +48,10 @@ class User {
 
 // Retourne un User ou null selon l'id
 function find_user(id:int): User|null {
-    if id == 1 {
+    if id equal 1 {
         return use User("Alice", 30)
     }
-    if id == 2 {
+    if id equal 2 {
         return use User("Bob", 15)
     }
     return null
@@ -59,13 +59,13 @@ function find_user(id:int): User|null {
 
 // Retourne une chaîne ou null si hors plage
 function grade(score:int): string|null {
-    if score >= 90 {
+    if score greater or equal 90 {
         return "A"
     }
-    if score >= 75 {
+    if score greater or equal 75 {
         return "B"
     }
-    if score >= 60 {
+    if score greater or equal 60 {
         return "C"
     }
     return null
@@ -76,7 +76,7 @@ function main(): int {
 
     // ── User|null ────────────────────────────────────────────────────────────
     var u1:User|null = find_user(1)
-    if u1 == null {
+    if u1 equal null {
         IO::writeln("utilisateur introuvable")
     } else {
         IO::writeln(u1.name)   // Alice
@@ -84,14 +84,14 @@ function main(): int {
 
         // Méthode retournant string|null
         var t:string|null = u1.title()
-        if t == null {
+        if t equal null {
             IO::writeln("pas de titre")
         } else {
             IO::writeln(t)     // M.
         }
 
         var g:string|null = u1.age_group()
-        if g == null {
+        if g equal null {
             IO::writeln("groupe inconnu")
         } else {
             IO::writeln(g)     // adulte
@@ -100,7 +100,7 @@ function main(): int {
 
     // User non trouvé
     var u2:User|null = find_user(99)
-    if u2 == null {
+    if u2 equal null {
         IO::writeln("utilisateur introuvable")   // utilisateur introuvable
     } else {
         IO::writeln(u2.name)
@@ -108,12 +108,12 @@ function main(): int {
 
     // User mineur → title() retourne null
     var u3:User|null = find_user(2)
-    if u3 == null {
+    if u3 equal null {
         IO::writeln("utilisateur introuvable")
     } else {
         IO::writeln(u3.name)   // Bob
         var t3:string|null = u3.title()
-        if t3 == null {
+        if t3 equal null {
             IO::writeln("pas de titre")   // pas de titre (mineur)
         } else {
             IO::writeln(t3)
@@ -125,7 +125,7 @@ function main(): int {
     IO::writeln(g1)   // A
 
     var g2:string|null = grade(50)
-    if g2 == null {
+    if g2 equal null {
         IO::writeln("note insuffisante")   // note insuffisante
     }
 

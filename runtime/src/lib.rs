@@ -338,6 +338,18 @@ pub extern "C" fn __str_from_float(f: f64) -> i64 {
     unsafe { alloc_str(&f.to_string()) }
 }
 
+/// Conversion entier -> flottant pour le widening implicite des comparaisons
+/// typées (`equal`/`smaller`/`greater`/...) entre `int` et `float` : jamais un
+/// bitcast (qui reinterpreterait les bits de l'entier comme un float
+/// n'importe-quoi), une vraie conversion numerique. Interne uniquement — pas
+/// lie a l'import `ocara.Convert` (voir Convert_intToFloat, la version
+/// publique identique mais gatee par import), car requis meme dans un
+/// programme qui n'importe pas `Convert`.
+#[unsafe(no_mangle)]
+pub extern "C" fn __int_to_float(n: i64) -> f64 {
+    n as f64
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn __str_from_bool(b: i64) -> i64 {
     unsafe { alloc_str(if b != 0 { "true" } else { "false" }) }
@@ -2484,7 +2496,10 @@ fn get_value_type(val: i64) -> i32 {
     1
 }
 
-/// Egalite stricte (===) : retourne 1 si meme type ET meme valeur, 0 sinon.
+/// `equal` : retourne 1 si meme type ET meme valeur, 0 sinon.
+/// N'est appele que lorsque sema n'a pas pu verifier statiquement les types
+/// (au moins un operande `mixed`) ; sinon le compilateur emet une comparaison
+/// directe (CmpEq) car les types sont deja garantis compatibles.
 #[unsafe(no_mangle)]
 pub extern "C" fn __cmp_eq_strict(lhs: i64, rhs: i64) -> i64 {
     let lhs_type = get_value_type(lhs);
@@ -2514,48 +2529,87 @@ pub extern "C" fn __cmp_eq_strict(lhs: i64, rhs: i64) -> i64 {
     if lhs == rhs { 1 } else { 0 }
 }
 
-/// Inegalite stricte (!==) : retourne 1 si types differents OU valeurs differentes, 0 sinon.
+/// `not equal` : retourne 1 si types differents OU valeurs differentes, 0 sinon.
 #[unsafe(no_mangle)]
 pub extern "C" fn __cmp_ne_strict(lhs: i64, rhs: i64) -> i64 {
     if __cmp_eq_strict(lhs, rhs) != 0 { 0 } else { 1 }
 }
 
-/// Inferieur ou egal strict (<==) : retourne 1 si meme type ET lhs <= rhs, 0 sinon.
+/// `smaller` : retourne 1 si meme type ET lhs < rhs, 0 sinon.
+/// LIMITATION CONNUE : un `mixed` primitif (int/float/bool) n'est pas tagge —
+/// impossible de distinguer un float d'un int a cette etape (voir get_value_type).
+/// La comparaison se fait donc sur les bits i64 bruts : correcte pour deux int,
+/// non fiable pour deux float (l'ordre des bits IEEE-754 n'est pas celui d'une
+/// comparaison entiere signee). Meme limitation, deja presente, pour
+/// __cmp_gt_strict/__cmp_le_strict/__cmp_ge_strict ci-dessous.
+#[unsafe(no_mangle)]
+pub extern "C" fn __cmp_lt_strict(lhs: i64, rhs: i64) -> i64 {
+    let lhs_type = get_value_type(lhs);
+    let rhs_type = get_value_type(rhs);
+
+    if lhs_type != rhs_type {
+        return 0;
+    }
+    if lhs_type == 1 {
+        return if lhs < rhs { 1 } else { 0 };
+    }
+    0
+}
+
+/// `greater` : retourne 1 si meme type ET lhs > rhs, 0 sinon. Voir limitation
+/// documentee sur __cmp_lt_strict.
+#[unsafe(no_mangle)]
+pub extern "C" fn __cmp_gt_strict(lhs: i64, rhs: i64) -> i64 {
+    let lhs_type = get_value_type(lhs);
+    let rhs_type = get_value_type(rhs);
+
+    if lhs_type != rhs_type {
+        return 0;
+    }
+    if lhs_type == 1 {
+        return if lhs > rhs { 1 } else { 0 };
+    }
+    0
+}
+
+/// `smaller or equal` : retourne 1 si meme type ET lhs <= rhs, 0 sinon. Voir
+/// limitation documentee sur __cmp_lt_strict.
 #[unsafe(no_mangle)]
 pub extern "C" fn __cmp_le_strict(lhs: i64, rhs: i64) -> i64 {
     let lhs_type = get_value_type(lhs);
     let rhs_type = get_value_type(rhs);
-    
+
     // Types differents -> false
     if lhs_type != rhs_type {
         return 0;
     }
-    
+
     // Primitifs : comparaison directe (ne distingue pas int/float/bool)
     if lhs_type == 1 {
         return if lhs <= rhs { 1 } else { 0 };
     }
-    
+
     // Autres types non comparables
     0
 }
 
-/// Superieur ou egal strict (>==) : retourne 1 si meme type ET lhs >= rhs, 0 sinon.
+/// `greater or equal` : retourne 1 si meme type ET lhs >= rhs, 0 sinon. Voir
+/// limitation documentee sur __cmp_lt_strict.
 #[unsafe(no_mangle)]
 pub extern "C" fn __cmp_ge_strict(lhs: i64, rhs: i64) -> i64 {
     let lhs_type = get_value_type(lhs);
     let rhs_type = get_value_type(rhs);
-    
+
     // Types differents -> false
     if lhs_type != rhs_type {
         return 0;
     }
-    
+
     // Primitifs : comparaison directe (ne distingue pas int/float/bool)
     if lhs_type == 1 {
         return if lhs >= rhs { 1 } else { 0 };
     }
-    
+
     // Autres types non comparables
     0
 }

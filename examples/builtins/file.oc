@@ -72,7 +72,7 @@ function demo_extension(): void {
     
     for path in paths {
         var ext:string = File::extension(path)
-        if ext == "" {
+        if ext equal "" {
             IO::writeln(`${path} → (pas d'extension)`)
         } else {
             IO::writeln(`${path} → .${ext}`)

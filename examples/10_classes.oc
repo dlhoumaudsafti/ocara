@@ -47,7 +47,7 @@ class BankAccount {
     }
 
     public method withdraw(amount:float): void {
-        if amount > self.balance {
+        if amount greater self.balance {
             IO::writeln("Fonds insuffisants")
         } else {
             self.balance = self.balance - amount
@@ -60,7 +60,7 @@ class BankAccount {
     }
 
     private method is_negative(): bool {
-        return self.balance < 0.0
+        return self.balance smaller 0.0
     }
 }
 

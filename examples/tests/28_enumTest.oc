@@ -27,7 +27,7 @@ class Test_28_enum {
     public method enumComparisonTest(): int {
         var s:int = HttpStatus::Error
         UnitTest::assertTrue(is_error(s))
-        UnitTest::assertTrue(s == HttpStatus::Error)
+        UnitTest::assertTrue(s equal HttpStatus::Error)
         return 0
     }
     
@@ -70,6 +70,6 @@ function direction_name(d:int): string {
 }
 
 function is_error(status:int): bool {
-    return status == HttpStatus::Error
+    return status equal HttpStatus::Error
 }
 

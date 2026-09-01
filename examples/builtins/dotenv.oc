@@ -19,25 +19,25 @@ main {
     const debug:string = DotEnv::get("DEBUG")
     const port:string = DotEnv::get("PORT")
 
-    if appName != null {
+    if appName not equal null {
         IO::writeln(`APP_NAME: ${appName}`)
     } else {
         IO::writeln("APP_NAME: non définie")
     }
 
-    if appVersion != null {
+    if appVersion not equal null {
         IO::writeln(`APP_VERSION: ${appVersion}`)
     } else {
         IO::writeln("APP_VERSION: non définie")
     }
 
-    if debug != null {
+    if debug not equal null {
         IO::writeln(`DEBUG: ${debug}`)
     } else {
         IO::writeln("DEBUG: non définie")
     }
 
-    if port != null {
+    if port not equal null {
         IO::writeln(`PORT: ${port}`)
     } else {
         IO::writeln("PORT: non définie")
@@ -53,15 +53,15 @@ main {
     const dbUser:string = DotEnv::get("DB_USER")
     const dbPassword:string = DotEnv::get("DB_PASSWORD")
 
-    if dbHost != null {
+    if dbHost not equal null {
         IO::writeln(`DB_HOST: ${dbHost}`)
     }
 
-    if dbUser != null {
+    if dbUser not equal null {
         IO::writeln(`DB_USER: ${dbUser}`)
     }
 
-    if dbPassword != null {
+    if dbPassword not equal null {
         IO::writeln(`DB_PASSWORD: ${dbPassword}`)
     }
 
@@ -69,7 +69,7 @@ main {
 
     // Test avec une variable inexistante
     const inexistante:string = DotEnv::get("VARIABLE_INEXISTANTE")
-    if inexistante == null {
+    if inexistante equal null {
         IO::writeln("VARIABLE_INEXISTANTE: non définie (normal)")
     } else {
         IO::writeln(`VARIABLE_INEXISTANTE: ${inexistante}`)

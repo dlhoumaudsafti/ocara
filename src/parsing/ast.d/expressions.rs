@@ -173,8 +173,10 @@ impl Expr {
 #[derive(Debug, Clone, PartialEq)]
 pub enum BinOp {
     Add, Sub, Mul, Div, Mod,
-    EqEq, NotEq, Lt, LtEq, Gt, GtEq,
-    EqEqEq, NotEqEq, LtEqEq, GtEqEq, // Opérateurs stricts avec vérification de type
+    // Comparaisons : toujours typées à la compilation (voir sema::typecheck).
+    // Un seul mot-clé par opérateur — `equal`/`smaller`/`greater`/
+    // `smaller or equal`/`greater or equal`/`not equal` — aucun symbole.
+    Equal, NotEqual, Smaller, Greater, SmallerOrEqual, GreaterOrEqual,
     And, Or,
 }
 

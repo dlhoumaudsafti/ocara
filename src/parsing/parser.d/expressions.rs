@@ -53,11 +53,11 @@ impl Parser {
     }
 
     fn parse_and(&mut self) -> ParseResult<Expr> {
-        let mut left = self.parse_equality()?;
+        let mut left = self.parse_comparison()?;
         while self.check_exact(&TokenKind::KwAnd) {
             let span = self.span();
             self.advance();
-            let right = self.parse_equality()?;
+            let right = self.parse_comparison()?;
             left = Expr::Binary {
                 op: BinOp::And,
                 left: Box::new(left),
@@ -70,11 +70,11 @@ impl Parser {
 
     /// Version sans 'is' pour les match arms
     fn parse_and_no_is(&mut self) -> ParseResult<Expr> {
-        let mut left = self.parse_equality_no_is()?;
+        let mut left = self.parse_comparison_no_is()?;
         while self.check_exact(&TokenKind::KwAnd) {
             let span = self.span();
             self.advance();
-            let right = self.parse_equality_no_is()?;
+            let right = self.parse_comparison_no_is()?;
             left = Expr::Binary {
                 op: BinOp::And,
                 left: Box::new(left),
@@ -85,33 +85,30 @@ impl Parser {
         Ok(left)
     }
 
-    fn parse_equality(&mut self) -> ParseResult<Expr> {
+    /// Comparaisons — un seul niveau de précédence, toutes en toutes lettres :
+    ///   equal | not equal | smaller | greater | smaller or equal | greater or equal
+    /// Aucun symbole (===, ==, <=, <==, <, >==, >=, >) n'est accepté ici ; les
+    /// anciens tokens symboliques ne sont conservés dans le lexer que pour
+    /// produire un message de migration explicite (voir `removed_operator_error`).
+    fn parse_comparison(&mut self) -> ParseResult<Expr> {
         let mut left = self.parse_is_check()?;
         loop {
-            // Cas spécial : "not equal" → BinOp::NotEqEq
-            if self.check_exact(&TokenKind::KwNot) && self.peek_ahead(1).map(|t| &t.kind) == Some(&TokenKind::KwEqual) {
+            if let Some(op) = self.try_consume_compound_comparison()? {
                 let span = left.span().clone();
-                self.advance(); // consomme 'not'
-                self.advance(); // consomme 'equal'
                 let right = self.parse_is_check()?;
                 let full_span = span.union(right.span());
-                left = Expr::Binary {
-                    op: BinOp::NotEqEq,
-                    left: Box::new(left),
-                    right: Box::new(right),
-                    span: full_span,
-                };
+                left = Expr::Binary { op, left: Box::new(left), right: Box::new(right), span: full_span };
                 continue;
             }
-            
             let span = left.span().clone();
             let op = match self.peek_kind() {
-                TokenKind::EqEq      => BinOp::EqEq,
-                TokenKind::BangEq    => BinOp::NotEq,
-                TokenKind::EqEqEq    => BinOp::EqEqEq,
-                TokenKind::BangEqEq  => BinOp::NotEqEq,
-                TokenKind::KwEqual    => BinOp::EqEqEq,  // "equal" → ===
-                _ => break,
+                TokenKind::KwEqual   => BinOp::Equal,
+                TokenKind::KwSmaller => BinOp::Smaller,
+                TokenKind::KwGreater => BinOp::Greater,
+                _ => {
+                    self.reject_removed_comparison_operator()?;
+                    break;
+                }
             };
             self.advance();
             let right = self.parse_is_check()?;
@@ -122,29 +119,96 @@ impl Parser {
     }
 
     /// Version sans 'is' pour les match arms
-    fn parse_equality_no_is(&mut self) -> ParseResult<Expr> {
-        let mut left = self.parse_comparison()?;
+    fn parse_comparison_no_is(&mut self) -> ParseResult<Expr> {
+        let mut left = self.parse_range()?;
         loop {
+            if let Some(op) = self.try_consume_compound_comparison()? {
+                let span = left.span().clone();
+                let right = self.parse_range()?;
+                let full_span = span.union(right.span());
+                left = Expr::Binary { op, left: Box::new(left), right: Box::new(right), span: full_span };
+                continue;
+            }
             let span = left.span().clone();
             let op = match self.peek_kind() {
-                TokenKind::EqEq      => BinOp::EqEq,
-                TokenKind::BangEq    => BinOp::NotEq,
-                TokenKind::EqEqEq    => BinOp::EqEqEq,
-                TokenKind::BangEqEq  => BinOp::NotEqEq,
-                TokenKind::KwEqual    => BinOp::EqEqEq,  // "equal" → ===
-                _ => break,
+                TokenKind::KwEqual   => BinOp::Equal,
+                TokenKind::KwSmaller => BinOp::Smaller,
+                TokenKind::KwGreater => BinOp::Greater,
+                _ => {
+                    self.reject_removed_comparison_operator()?;
+                    break;
+                }
             };
             self.advance();
-            let right = self.parse_comparison()?;
+            let right = self.parse_range()?;
             let full_span = span.union(right.span());
             left = Expr::Binary { op, left: Box::new(left), right: Box::new(right), span: full_span };
         }
         Ok(left)
     }
 
+    /// Reconnaît les opérateurs composés à trois mots (`not equal`,
+    /// `smaller or equal`, `greater or equal`) sans les confondre avec les
+    /// mots-clés `not`/`or` utilisés ailleurs (unaire, logique) : la
+    /// désambiguïsation se fait uniquement par position (en tête d'un
+    /// opérande déjà complet), exactement comme pour `not equal` avant lui.
+    fn try_consume_compound_comparison(&mut self) -> ParseResult<Option<BinOp>> {
+        if self.check_exact(&TokenKind::KwNot)
+            && self.peek_ahead(1).map(|t| &t.kind) == Some(&TokenKind::KwEqual)
+        {
+            self.advance(); // 'not'
+            self.advance(); // 'equal'
+            return Ok(Some(BinOp::NotEqual));
+        }
+        if self.check_exact(&TokenKind::KwSmaller)
+            && self.peek_ahead(1).map(|t| &t.kind) == Some(&TokenKind::KwOr)
+            && self.peek_ahead(2).map(|t| &t.kind) == Some(&TokenKind::KwEqual)
+        {
+            self.advance(); // 'smaller'
+            self.advance(); // 'or'
+            self.advance(); // 'equal'
+            return Ok(Some(BinOp::SmallerOrEqual));
+        }
+        if self.check_exact(&TokenKind::KwGreater)
+            && self.peek_ahead(1).map(|t| &t.kind) == Some(&TokenKind::KwOr)
+            && self.peek_ahead(2).map(|t| &t.kind) == Some(&TokenKind::KwEqual)
+        {
+            self.advance(); // 'greater'
+            self.advance(); // 'or'
+            self.advance(); // 'equal'
+            return Ok(Some(BinOp::GreaterOrEqual));
+        }
+        Ok(None)
+    }
+
+    /// Si le token courant est un ancien opérateur symbolique (`===`, `==`,
+    /// `<=`, `<==`, `<`, `>==`, `>=`, `>`, `!=`, `!==`), renvoie une erreur de
+    /// migration nommant explicitement le remplaçant littéral. Sinon, ne fait
+    /// rien (le token n'est pas un opérateur de comparaison connu — laisse
+    /// l'appelant `break` normalement, ce n'est pas forcément une erreur ici).
+    fn reject_removed_comparison_operator(&mut self) -> ParseResult<()> {
+        let (removed, replacement) = match self.peek_kind() {
+            TokenKind::EqEq    => ("==",  "equal"),
+            TokenKind::EqEqEq  => ("===", "equal"),
+            TokenKind::BangEq  => ("!=",  "not equal"),
+            TokenKind::BangEqEq => ("!==", "not equal"),
+            TokenKind::LtEq    => ("<=",  "smaller or equal"),
+            TokenKind::LtEqEq  => ("<==", "smaller or equal"),
+            TokenKind::GtEq    => (">=",  "greater or equal"),
+            TokenKind::GtEqEq  => (">==", "greater or equal"),
+            TokenKind::Lt      => ("<",   "smaller"),
+            TokenKind::Gt      => (">",   "greater"),
+            _ => return Ok(()),
+        };
+        Err(ParseError::new(
+            format!("operator '{}' has been removed — use '{}' instead", removed, replacement),
+            self.span(),
+        ))
+    }
+
     /// Test de type : `expr is Type` — retourne bool
     fn parse_is_check(&mut self) -> ParseResult<Expr> {
-        let mut expr = self.parse_comparison()?;
+        let mut expr = self.parse_range()?;
         if self.check_exact(&TokenKind::Is) {
             let span = self.span();
             self.advance();
@@ -156,27 +220,6 @@ impl Parser {
             };
         }
         Ok(expr)
-    }
-
-    fn parse_comparison(&mut self) -> ParseResult<Expr> {
-        let mut left = self.parse_range()?;
-        loop {
-            let span = left.span().clone();
-            let op = match self.peek_kind() {
-                TokenKind::Lt      => BinOp::Lt,
-                TokenKind::LtEq    => BinOp::LtEq,
-                TokenKind::Gt      => BinOp::Gt,
-                TokenKind::GtEq    => BinOp::GtEq,
-                TokenKind::LtEqEq  => BinOp::LtEqEq,
-                TokenKind::GtEqEq  => BinOp::GtEqEq,
-                _ => break,
-            };
-            self.advance();
-            let right = self.parse_additive()?;
-            let full_span = span.union(right.span());
-            left = Expr::Binary { op, left: Box::new(left), right: Box::new(right), span: full_span };
-        }
-        Ok(left)
     }
 
     /// Range : `expr..expr`  — précédence entre comparaison et addition

@@ -16,31 +16,31 @@ class Math {
     public const MAX_INT:int = 9223372036854775807
 
     public static method abs(n:int): int {
-        if n < 0 {
+        if n smaller 0 {
             return -n
         }
         return n
     }
 
     public static method min(a:int, b:int): int {
-        if a < b {
+        if a smaller b {
             return a
         }
         return b
     }
 
     public static method max(a:int, b:int): int {
-        if a > b {
+        if a greater b {
             return a
         }
         return b
     }
 
     public static method clamp(value:int, low:int, high:int): int {
-        if value < low {
+        if value smaller low {
             return low
         }
-        if value > high {
+        if value greater high {
             return high
         }
         return value
@@ -58,7 +58,7 @@ class HttpStatus {
     public const INTERNAL_ERROR:int = 500
 
     public static method isSuccess(code:int): bool {
-        return code >= 200 and code < 300
+        return code greater or equal 200 and code smaller 300
     }
 }
 
@@ -68,7 +68,7 @@ class StringUtils {
     public const EMPTY:string = ""
 
     public static method isEmpty(s:string): bool {
-        return s == StringUtils::EMPTY
+        return s equal StringUtils::EMPTY
     }
 
     public static method repeat(c:string, n:int): string {

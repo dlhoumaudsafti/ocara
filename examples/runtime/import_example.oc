@@ -16,7 +16,7 @@ main {
     IO::writeln(`Opération: ${operation}`)
     IO::writeln(`Résultat: ${_result}`)
     
-    if _result < 0 {
+    if _result smaller 0 {
         IO::writeln("Erreur: résultat négatif !")
         result ERROR
     }
