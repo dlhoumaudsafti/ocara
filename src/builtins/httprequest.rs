@@ -169,6 +169,19 @@ pub fn class() -> ClassInfo {
         Type::Int,
     ));
 
+    // HTTPRequest::close(req) → void — libère un handle de `new` (Box::from_raw)
+    methods.insert("close".into(), m(
+        vec![("req", Type::Int)],
+        Type::Void,
+    ));
+
+    // HTTPRequest::closeResponse(res) → void — libère un handle de `send`/
+    // `get`/`post`/`put`/`delete`/`patch` (struct différente, fonction dédiée)
+    methods.insert("closeResponse".into(), m(
+        vec![("res", Type::Int)],
+        Type::Void,
+    ));
+
     ClassInfo {
         extends:      None,
         implements:   vec![],

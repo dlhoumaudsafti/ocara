@@ -140,6 +140,19 @@ function main(): int {
         }
 
         win.stopMusic()
+
+        // Libération explicite des ressources chargées (voir docs/builtins/SDL.md,
+        // section "Libération") — id inconnu/déjà libéré serait un no-op silencieux
+        if textureId greater 0 {
+            win.unloadTexture(textureId)
+        }
+        if fontId greater 0 {
+            win.unloadFont(fontId)
+        }
+        if soundId greater 0 {
+            win.unloadSound(soundId)
+        }
+
         win.close()
         IO::writeln(`Démonstration SDL terminée (${frame} frames, fenêtre ouverte : ${win.isOpen()}).`)
     } on e is SDLException {

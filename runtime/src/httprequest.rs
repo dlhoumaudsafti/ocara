@@ -282,3 +282,22 @@ pub extern "C" fn HTTPRequest_patch(url: i64, body: i64) -> i64 {
     let res = do_request(&u, "PATCH", &[], Some(&b), None);
     alloc_res(res)
 }
+
+// ─── Libération ─────────────────────────────────────────────────────────────
+// Ni `new` (OcaraHttpRequest) ni `send`/`get`/`post`/`put`/`delete`/`patch`
+// (OcaraHttpResponse) ne sont jamais libérés ailleurs — deux fonctions
+// distinctes (pas une seule "close" générique) car ce sont deux structs
+// différentes ; caster l'une vers le mauvais type serait UB. Même patron que
+// SQLite_close (Box::from_raw puis laisser tomber, le Drop fait le reste).
+
+#[unsafe(no_mangle)]
+pub extern "C" fn HTTPRequest_close(req: i64) {
+    if req == 0 { return; }
+    unsafe { let _ = Box::from_raw(req as *mut OcaraHttpRequest); }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn HTTPRequest_closeResponse(res: i64) {
+    if res == 0 { return; }
+    unsafe { let _ = Box::from_raw(res as *mut OcaraHttpResponse); }
+}

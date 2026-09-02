@@ -109,30 +109,50 @@ pub extern "C" fn Thread_run(self_ptr: i64, fat_ptr: i64) {
     t.handle = Some(handle);
 }
 
-/// Attend que le thread se termine (bloquant).
-/// Si le thread n'a pas été lancé ou a déjà été joint, retourne immédiatement.
+/// Attend que le thread se termine (bloquant), puis libère le wrapper
+/// OcaraThread (jusqu'ici jamais libéré, même sur ce chemin nominal — voir
+/// Thread_detach ci-dessous pour la même correction). Comme pour SQLite/Mutex,
+/// tout appel sur ce Thread APRÈS join() est UB (le slot pointe sur de la
+/// mémoire libérée) — discipline déjà acceptée ailleurs dans ce runtime.
+///
+/// Piège : les exceptions Ocara utilisent setjmp/longjmp (pas le unwinding
+/// Rust) — un longjmp saute par-dessus le Drop de fin de scope. Le wrapper
+/// doit donc être libéré EXPLICITEMENT avant throw_thread_exception sur le
+/// chemin panic, sinon cette libération serait elle-même sautée.
 #[unsafe(no_mangle)]
 pub extern "C" fn Thread_join(self_ptr: i64) {
-    let t = unsafe { &mut *thread_from_slot(self_ptr) };
-    if let Some(h) = t.handle.take() {
-        if let Err(_) = h.join() {
-            unsafe {
+    unsafe {
+        let ptr = thread_from_slot(self_ptr);
+        if ptr.is_null() {
+            return;
+        }
+        let mut t = Box::from_raw(ptr);
+        if let Some(h) = t.handle.take() {
+            if let Err(_) = h.join() {
+                drop(t); // avant le throw — voir la note ci-dessus
                 crate::exception::throw_thread_exception(
                     "Thread panicked during execution",
                     102
                 );
             }
         }
+        // chemin normal : `t` est droppé ici en sortant du bloc
     }
 }
 
-/// Détache le thread (fire-and-forget).
-/// Après detach(), join() n'a plus d'effet.
+/// Détache le thread (fire-and-forget) et libère le wrapper OcaraThread.
+/// Après detach(), tout appel sur ce Thread est UB (même remarque que join()).
 #[unsafe(no_mangle)]
 pub extern "C" fn Thread_detach(self_ptr: i64) {
-    let t = unsafe { &mut *thread_from_slot(self_ptr) };
-    // Dropping a JoinHandle detaches the thread
-    drop(t.handle.take());
+    unsafe {
+        let ptr = thread_from_slot(self_ptr);
+        if ptr.is_null() {
+            return;
+        }
+        // Dropping le JoinHandle (via le Drop implicite de OcaraThread ici)
+        // détache le thread — Box::from_raw libère aussi le wrapper.
+        let _ = Box::from_raw(ptr);
+    }
 }
 
 /// Retourne l'ID unique du thread (assigné à la création).

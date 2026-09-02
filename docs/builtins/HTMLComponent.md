@@ -57,6 +57,25 @@ card.register(nameless(attrs:map<string, mixed>): string {
 
 ---
 
+## Méthodes statiques
+
+### `HTMLComponent::unregister(name: string)` → `void`
+
+Retire un composant du registre global par son nom (la balise `name` n'est
+alors plus reconnue par `HTML::render`). Nom inconnu : sans effet.
+
+```ocara
+HTMLComponent::unregister("badge")
+```
+
+Le registre est global et persiste normalement pour toute la durée du
+programme — pour l'usage habituel (un petit nombre de composants enregistrés
+une fois au démarrage), `unregister` n'est généralement pas nécessaire. Utile
+surtout pour un enregistrement dynamique (composants créés/détruits en cours
+de route).
+
+---
+
 ## Structure des attributs
 
 La closure reçoit un `map<string, mixed>` dont les clés sont les noms d'attributs et les valeurs sont typées selon la syntaxe utilisée dans le template :

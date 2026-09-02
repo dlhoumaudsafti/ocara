@@ -133,3 +133,20 @@ pub extern "C" fn Mutex_tryLock(self_ptr: i64) -> i64 {
         0 // échec (mutex déjà verrouillé ou erreur)
     }
 }
+
+/// Libère le mutex (pthread_mutex_destroy + dealloc, via le `Drop` de
+/// OcaraMutex ci-dessus — jusqu'ici jamais atteint : rien n'appelait
+/// `Box::from_raw` sur le pointeur stocké par `Mutex_init`, donc chaque
+/// `use Mutex()` fuyait le wrapper ET le buffer pthread_mutex_t sous-jacent.
+/// Comme SQLite_close : usage après `destroy()` est UB (même discipline déjà
+/// acceptée pour SQLite/MySQL/SDL).
+#[unsafe(no_mangle)]
+pub extern "C" fn Mutex_destroy(self_ptr: i64) {
+    unsafe {
+        let ptr = mutex_from_slot(self_ptr);
+        if ptr.is_null() {
+            return;
+        }
+        let _ = Box::from_raw(ptr);
+    }
+}

@@ -253,6 +253,12 @@
     "name": "Mutex",
     "methods": [
       {
+        "name": "destroy",
+        "params": [],
+        "returns": "void",
+        "static": false
+      },
+      {
         "name": "lock",
         "params": [],
         "returns": "void",
@@ -1980,6 +1986,28 @@
         "static": true
       },
       {
+        "name": "close",
+        "params": [
+          {
+            "name": "req",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "closeResponse",
+        "params": [
+          {
+            "name": "res",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
         "name": "delete",
         "params": [
           {
@@ -3050,6 +3078,39 @@
         "params": [],
         "returns": "int",
         "static": true
+      },
+      {
+        "name": "unloadFont",
+        "params": [
+          {
+            "name": "fontId",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "unloadSound",
+        "params": [
+          {
+            "name": "soundId",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "unloadTexture",
+        "params": [
+          {
+            "name": "textureId",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false
       }
     ],
     "consts": []
@@ -3138,6 +3199,17 @@
         ],
         "returns": "void",
         "static": false
+      },
+      {
+        "name": "unregister",
+        "params": [
+          {
+            "name": "name",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
       }
     ],
     "consts": []

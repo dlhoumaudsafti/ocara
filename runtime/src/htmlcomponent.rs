@@ -115,6 +115,17 @@ pub extern "C" fn HTMLComponent_register(self_ptr: i64, fat_ptr: i64) {
     });
 }
 
+/// Retire un composant du registre global (méthode statique, pas de self_ptr —
+/// même patron que HTML_cacheDelete sur RENDER_CACHE, autre registre de ce
+/// même fichier). Nom inconnu : no-op silencieux.
+#[unsafe(no_mangle)]
+pub extern "C" fn HTMLComponent_unregister(name_ptr: i64) {
+    let name = unsafe { ptr_to_str(name_ptr).to_string() };
+    with_registry(|reg| {
+        reg.remove(&name);
+    });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Parser d'attributs HTML
 // ─────────────────────────────────────────────────────────────────────────────

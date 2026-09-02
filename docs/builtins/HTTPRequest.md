@@ -113,6 +113,36 @@ scoped res:int = HTTPRequest::delete("https://api.example.com/users/42")
 
 ---
 
+## Libération
+
+Chaque `req` (créé par `new`) et chaque `res` (créé par `send`/`get`/`post`/`put`/
+`delete`/`patch`) occupe une petite allocation native qui **n'est jamais
+libérée automatiquement** — ce runtime n'a pas de ramasse-miettes. Un
+programme qui fait beaucoup de requêtes (boucle, serveur de longue durée...)
+doit libérer chaque handle explicitement après sa dernière utilisation.
+
+### `HTTPRequest::close(req: int) → void`
+Libère un handle de requête créé par `new`.
+
+### `HTTPRequest::closeResponse(res: int) → void`
+Libère un handle de réponse créé par `send`/`get`/`post`/`put`/`delete`/`patch`.
+Deux fonctions distinctes car `req` et `res` sont deux structures différentes.
+
+```ocara
+scoped req:int = HTTPRequest::new("https://api.example.com/resource")
+HTTPRequest::setMethod(req, "POST")
+scoped res:int = HTTPRequest::send(req)
+IO::writeln(HTTPRequest::body(res))
+HTTPRequest::close(req)
+HTTPRequest::closeResponse(res)
+```
+
+> **Attention** : comme pour `SQLite::close()`, tout appel sur un handle après
+> sa fermeture est un comportement non défini (mémoire déjà libérée) — fermer
+> uniquement après la dernière lecture.
+
+---
+
 ## Exemples complets
 
 ### GET simple
@@ -216,6 +246,8 @@ IO::writeln(`X-RateLimit-Remaining : ${HTTPRequest::header(res, "X-RateLimit-Rem
 | `put` | `HTTPRequest_put` |
 | `delete` | `HTTPRequest_delete` |
 | `patch` | `HTTPRequest_patch` |
+| `close` | `HTTPRequest_close` |
+| `closeResponse` | `HTTPRequest_closeResponse` |
 
 
 ## Voir aussi

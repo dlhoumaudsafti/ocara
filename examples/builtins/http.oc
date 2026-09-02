@@ -17,6 +17,7 @@ function main(): int {
     } else {
         IO::writeln(`Erreur HTTP : ${HTTPRequest::status(res)}`)
     }
+    HTTPRequest::closeResponse(res) // libère res — ce runtime n'a pas de GC, voir docs/builtins/HTTPRequest.md
 
     // ── 2. Requête POST avec en-têtes et corps ───────────────────────────────
     scoped req:int = HTTPRequest::new("http://useragent.fr/")
@@ -37,6 +38,8 @@ function main(): int {
     } else {
         IO::writeln(`Erreur : ${HTTPRequest::error(res2)}`)
     }
+    HTTPRequest::close(req)          // libère req — plus utile une fois envoyée
+    HTTPRequest::closeResponse(res2)
 
     // ── 3. Gestion d'une erreur réseau ───────────────────────────────────────
     scoped res3:int = HTTPRequest::get("https://hote-inexistant.local/api")
@@ -47,18 +50,22 @@ function main(): int {
     } else {
         IO::writeln(`Status : ${HTTPRequest::status(res3)}`)
     }
+    HTTPRequest::closeResponse(res3)
 
     // ── 4. PUT et DELETE ─────────────────────────────────────────────────────
     scoped res4:int = HTTPRequest::put("http://useragent.fr/", "{\"name\": \"Bob\"}")
     IO::writeln(`PUT status : ${HTTPRequest::status(res4)}`)
+    HTTPRequest::closeResponse(res4)
 
     scoped res5:int = HTTPRequest::delete("http://useragent.fr/")
     IO::writeln(`DELETE status : ${HTTPRequest::status(res5)}`)
+    HTTPRequest::closeResponse(res5)
 
     // ── 5. Lecture de tous les en-têtes ──────────────────────────────────────
     scoped res6:int = HTTPRequest::get("http://useragent.fr/")
     scoped hdrs:map<string, string> = HTTPRequest::headers(res6)
     IO::writeln("=== En-têtes de réponse ===")
+    HTTPRequest::closeResponse(res6)
 
     return 0
 }

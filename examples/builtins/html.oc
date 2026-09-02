@@ -122,5 +122,14 @@ function main(): int {
     IO::writeln(rfc1)
     IO::writeln(rfc2)
 
+    // ── HTMLComponent::unregister ───────────────────────────────────────────
+    // Retire un composant du registre global — utile en future-proofing pour
+    // un enregistrement dynamique (l'usage habituel, register une fois au
+    // démarrage, n'en a pas besoin). Nom inconnu = no-op silencieux.
+    IO::writeln("=== unregister ===")
+    HTMLComponent::unregister("badge")
+    scoped afterUnregister:string = HTML::render(`<badge label="fantome" color="red">`)
+    IO::writeln(afterUnregister) // le tag <badge> n'est plus reconnu, laissé tel quel
+
     return 0
 }

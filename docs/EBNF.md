@@ -1825,7 +1825,7 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
 - **DotEnv** — Chargement de variables d'environnement depuis un fichier `.env` (classe statique)
   - `load()`, `get()`
 - **HTTPRequest** — Client HTTP pour requêtes GET/POST/PUT/DELETE/PATCH
-  - `new()`, `setMethod()`, `setHeader()`, `setBody()`, `setTimeout()`, `send()`, `status()`, `body()`, `header()`, `headers()`, `ok()`, `isError()`, `error()`, `get()`, `post()`, `put()`, `delete()`, `patch()`
+  - `new()`, `setMethod()`, `setHeader()`, `setBody()`, `setTimeout()`, `send()`, `status()`, `body()`, `header()`, `headers()`, `ok()`, `isError()`, `error()`, `get()`, `post()`, `put()`, `delete()`, `patch()`, `close()`, `closeResponse()`
 - **HTTPServer** — Serveur HTTP multi-thread embarqué (classe d'instance)
   - `port()`, `host()`, `workers()`, `rootPath()`, `route()`, `routeError()`, `run()`, `path()`, `method()`, `body()`, `header()`, `query()`, `respond()`, `respondHeader()`
 
@@ -1885,7 +1885,7 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
 - **Thread** — Gestion de threads natifs (classe d'instance)
   - `run()`, `join()`, `detach()`, `id()`, `sleep()`, `currentId()`
 - **Mutex** — Synchronisation thread-safe (classe d'instance)
-  - `lock()`, `unlock()`, `tryLock()`
+  - `lock()`, `unlock()`, `tryLock()`, `destroy()`
 
 #### Tests
 
@@ -1897,7 +1897,7 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
 - **HTML** — Rendu de composants HTML (classe statique)
   - `render()`, `renderFile()`, `renderCached()`, `renderFileCached()`, `cacheDelete()`, `cacheClear()`, `escape()`
 - **HTMLComponent** — Définition de composants HTML personnalisés (classe d'instance)
-  - `init()`, `register()`
+  - `init()`, `register()`, `unregister()` (statique)
 
 #### Interface graphique (desktop)
 
@@ -1929,7 +1929,6 @@ Les classes d'exception permettent une gestion fine des erreurs avec `try/on`. T
 - **ThreadException** — Erreurs de création/join de threads
 - **MutexException** — Erreurs de lock/unlock de mutex
 - **UnitTestException** — Échecs d'assertions de tests (19 codes d'erreur)
-- **JSONException** — Erreurs d'encodage/décodage JSON
 - **YAMLException** — Erreurs d'encodage/décodage YAML
 - **SQLiteException** — Erreurs de requête/connexion SQLite
 - **MySQLException** — Erreurs de requête/connexion MySQL/MariaDB

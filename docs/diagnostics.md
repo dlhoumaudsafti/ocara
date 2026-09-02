@@ -426,7 +426,6 @@ Les **exceptions runtime** (levées pendant l'exécution du programme) sont docu
 | `ThreadException` | Thread | [Thread.md](builtins/Thread.md) |
 | `MutexException` | Mutex | [Mutex.md](builtins/Mutex.md) |
 | `HTTPException` | HTTPRequest, HTTPServer | [HTTPRequest.md](builtins/HTTPRequest.md) |
-| `JSONException` | JSON | [JSON.md](builtins/JSON.md) |
 | `YAMLException` | YAML | [YAML.md](builtins/YAML.md) |
 | `SQLiteException` | SQLite | [SQLite.md](builtins/SQLite.md) |
 | `MySQLException` / `MariaDBException` | MySQL / MariaDB | [MySQL.md](builtins/MySQL.md) |

@@ -419,11 +419,14 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     fn_ret_types.insert("SDL_textureHeight".to_string(), IrType::I64);
     fn_ret_types.insert("SDL_drawTexture".to_string(), IrType::Void);
     fn_ret_types.insert("SDL_drawTextureScaled".to_string(), IrType::Void);
+    fn_ret_types.insert("SDL_unloadTexture".to_string(), IrType::Void);
     fn_ret_types.insert("SDL_loadFont".to_string(), IrType::I64);
+    fn_ret_types.insert("SDL_unloadFont".to_string(), IrType::Void);
     fn_ret_types.insert("SDL_drawText".to_string(), IrType::Void);
     fn_ret_types.insert("SDL_isButtonPressed".to_string(), IrType::Bool);
     fn_ret_types.insert("SDL_getAxis".to_string(), IrType::I64);
     fn_ret_types.insert("SDL_loadSound".to_string(), IrType::I64);
+    fn_ret_types.insert("SDL_unloadSound".to_string(), IrType::Void);
     fn_ret_types.insert("SDL_playSound".to_string(), IrType::Void);
     fn_ret_types.insert("SDL_playMusic".to_string(), IrType::Void);
     fn_ret_types.insert("SDL_pauseMusic".to_string(), IrType::Void);
