@@ -182,6 +182,7 @@ const OCARA_BUILTINS: &[&str] = &[
     "DateTimeException", "DateException", "TimeException",
     "ThreadException", "MutexException",
     "UnitTestException", "HTTPServerException", "SQLiteException", "MySQLException", "MariaDBException", "DotEnvException", "YAMLException",
+    "TauriException", "SDLException",
 ];
 
 fn extract_user_imports(content: &str, file_dir: &Path) -> Vec<PathBuf> {
@@ -393,10 +394,12 @@ fn check_file(path: &Path, content: &str, cfg: &Config) -> usize {
         }
 
         // ── R08 : Nommage des fonctions (camelCase / minuscule) ────────────
+        // Une fonction peut être préfixée par "async " (FuncDecl ::= "async"? "function" ...).
         if cfg.naming_function && !in_bt {
             let t = line.trim();
-            if t.starts_with("function ") {
-                let rest = t[9..].trim();
+            let after_async = t.strip_prefix("async ").map(str::trim_start).unwrap_or(t);
+            if let Some(rest) = after_async.strip_prefix("function ") {
+                let rest = rest.trim();
                 let name = rest.split(|c: char| c == '(' || c == ':' || c == ' ')
                     .next().unwrap_or("");
                 if !name.is_empty() && !starts_lowercase(name) {

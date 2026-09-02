@@ -684,6 +684,41 @@ pub extern "C" fn SDL_drawText(
     });
 }
 
+// ── Libération explicite de ressources chargées ─────────────────────────────
+// `loadTexture`/`loadFont`/`loadSound` sont persistantes par design (jamais
+// libérées seules, même philosophie que la fenêtre elle-même) — utile pour
+// un petit nombre d'assets fixes chargés une fois, mais un programme qui
+// charge/décharge dynamiquement (changement de niveau, etc.) a besoin de
+// pouvoir les libérer explicitement. `id` inconnu : no-op silencieux, même
+// philosophie que partout ailleurs dans ce fichier.
+
+#[unsafe(no_mangle)]
+pub extern "C" fn SDL_unloadTexture(this: i64, texture_id: i64) {
+    with_open_window(this, |win| {
+        // unsafe_textures : Texture n'a pas de Drop automatique (voir la doc
+        // de module) — destroy() explicite obligatoire, sinon fuite GPU.
+        if let Some(tex) = win.textures.remove(&texture_id) {
+            unsafe { tex.destroy(); }
+        }
+    });
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn SDL_unloadFont(this: i64, font_id: i64) {
+    with_open_window(this, |win| {
+        // Font a un vrai Drop (TTF_CloseFont) — un simple remove() suffit.
+        win.fonts.remove(&font_id);
+    });
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn SDL_unloadSound(this: i64, sound_id: i64) {
+    with_open_window(this, |win| {
+        // Audio a un vrai Drop (MIX_DestroyAudio) — idem, remove() suffit.
+        win.sounds.remove(&sound_id);
+    });
+}
+
 // ── Timing (statique — pas de fenêtre requise) ──────────────────────────────
 //
 // Limite Palier 1 : SDL doit avoir été initialisé (un `use SDL(...)` doit

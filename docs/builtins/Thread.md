@@ -136,6 +136,7 @@ function main(): void {
 - Les IDs sont assignés de manière atomique et croissante à partir de `1`. Le thread principal a l'ID `0`.
 - Si `run()` n'est pas appelé, `join()` et `detach()` sont sans effet.
 - Appeler `run()` deux fois sur le même objet `Thread` est un comportement non défini (le handle précédent est écrasé).
+- **`join()`/`detach()` libèrent aussi la structure interne du `Thread`** (ce runtime n'a pas de ramasse-miettes — sans ça, chaque `use Thread()` fuirait indéfiniment). Conséquence : **tout appel sur ce `Thread` après `join()` ou `detach()` est un comportement non défini** (`id()` inclus — ne plus lire l'ID après avoir joint/détaché). Un thread jamais `join()`é ni `detach()`é reste volontairement non libéré (rien n'impose cet appel côté langage).
 - La durée passée à `Thread::sleep()` est un minimum — le système peut dormir plus longtemps.
 
 ---
@@ -214,8 +215,8 @@ function complex_case(): void {
 **Notes** :
 
 - Les méthodes **safe** (qui ne lèvent jamais d'exception) :
-  - `t.id()` — toujours valide
-  - `t.detach()` — toujours valide
+  - `t.id()` — valide tant que `join()`/`detach()` n'a pas encore été appelé (voir la note sur la libération plus haut)
+  - `t.detach()` — toujours valide (peut être appelé même si `run()` n'a pas eu lieu)
   - `Thread::sleep(ms)` — toujours valide
   - `Thread::currentId()` — toujours valide
 - Si `join()` est appelé sur un thread qui n'a pas été lancé ou déjà joint, il ne fait rien (pas d'exception)

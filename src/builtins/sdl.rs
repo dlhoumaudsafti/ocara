@@ -120,11 +120,13 @@ pub fn sdl_class() -> ClassInfo {
         vec![ ("textureId", Type::Int), ("x", Type::Int), ("y", Type::Int), ("w", Type::Int), ("h", Type::Int) ],
         Type::Void,
     ));
+    methods.insert("unloadTexture".to_string(), inst_m(vec![ ("textureId", Type::Int) ], Type::Void));
 
     // ── Palier 2 : fonts/texte (SDL_ttf) ────────────────────────────────────
     methods.insert("loadFont".to_string(), inst_m(
         vec![ ("path", Type::String), ("size", Type::Int) ], Type::Int, // handle
     ));
+    methods.insert("unloadFont".to_string(), inst_m(vec![ ("fontId", Type::Int) ], Type::Void));
     methods.insert("drawText".to_string(), inst_m(
         vec![
             ("fontId", Type::Int), ("text", Type::String),
@@ -151,6 +153,7 @@ pub fn sdl_class() -> ClassInfo {
     methods.insert("loadSound".to_string(), inst_m(
         vec![ ("path", Type::String) ], Type::Int, // handle
     ));
+    methods.insert("unloadSound".to_string(), inst_m(vec![ ("soundId", Type::Int) ], Type::Void));
     methods.insert("playSound".to_string(), inst_m(vec![ ("soundId", Type::Int) ], Type::Void));
     methods.insert("playMusic".to_string(), inst_m(
         vec![ ("path", Type::String), ("loop", Type::Bool) ], Type::Void,

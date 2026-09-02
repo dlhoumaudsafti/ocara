@@ -145,11 +145,23 @@ pub const SDL_BUILTINS: &[BuiltinDesc] = &[
 		returns: None,
 		module:  Some("SDL"),
 	},
+	BuiltinDesc {
+		name:    "SDL_unloadTexture",
+		params:  &[clt::I64, clt::I64], // this, textureId
+		returns: None,
+		module:  Some("SDL"),
+	},
 // Palier 2 : fonts/texte
 	BuiltinDesc {
 		name:    "SDL_loadFont",
 		params:  &[clt::I64, clt::I64, clt::I64], // this, path, size
 		returns: Some(clt::I64),                  // handle (int)
+		module:  Some("SDL"),
+	},
+	BuiltinDesc {
+		name:    "SDL_unloadFont",
+		params:  &[clt::I64, clt::I64], // this, fontId
+		returns: None,
 		module:  Some("SDL"),
 	},
 	BuiltinDesc {
@@ -180,6 +192,12 @@ pub const SDL_BUILTINS: &[BuiltinDesc] = &[
 		name:    "SDL_loadSound",
 		params:  &[clt::I64, clt::I64], // this, path
 		returns: Some(clt::I64),        // handle (int)
+		module:  Some("SDL"),
+	},
+	BuiltinDesc {
+		name:    "SDL_unloadSound",
+		params:  &[clt::I64, clt::I64], // this, soundId
+		returns: None,
 		module:  Some("SDL"),
 	},
 	BuiltinDesc {

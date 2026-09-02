@@ -5,6 +5,7 @@
 //   m.lock()         → void   verrouille le mutex (bloquant)
 //   m.unlock()       → void   déverrouille le mutex
 //   m.tryLock()     → bool   tente de verrouiller (non-bloquant)
+//   m.destroy()      → void   libère le mutex (usage après = UB, comme SQLite)
 //
 // Convention runtime : Mutex_<method>
 // Usage :
@@ -52,6 +53,13 @@ pub fn class() -> ClassInfo {
     methods.insert("tryLock".into(), instance(
         vec![],
         Type::Bool,
+    ));
+
+    // m.destroy() → void — libère le mutex pthread + son wrapper (voir
+    // Mutex_destroy) ; sans ça, chaque `use Mutex()` fuyait indéfiniment
+    methods.insert("destroy".into(), instance(
+        vec![],
+        Type::Void,
     ));
 
     ClassInfo {

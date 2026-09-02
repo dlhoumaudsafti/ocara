@@ -22,7 +22,7 @@
 
 #![allow(clippy::missing_safety_doc)]
 
-use std::alloc::{alloc, alloc_zeroed, Layout};
+use std::alloc::{alloc, alloc_zeroed, dealloc, Layout};
 use crate::typecheck::{TAG_STRING, TAG_ARRAY, TAG_MAP, TAG_OBJECT, TAG_FUNCTION, 
     __is_function, __is_object, __is_map, __is_array, __is_string};
 use std::ffi::CStr;
@@ -147,6 +147,32 @@ pub unsafe fn alloc_str(s: &str) -> i64 {
         *data.add(bytes.len()) = 0u8;
         // Retourner le pointeur APRÈS le header (= pointeur vers les données)
         (raw as i64) + 8
+    }
+}
+
+/// Libère une chaîne allouée par `alloc_str` — exact inverse (même layout :
+/// 8 octets de tag + données + NUL, alignement 8). PAS un ramasse-miettes
+/// général : à utiliser uniquement sur des temporaires dont la durée de vie
+/// est connue et courte (ex. valeurs FFI internes à un appel), jamais sur une
+/// valeur Ocara ordinaire potentiellement encore référencée ailleurs — ce
+/// runtime ne fait aucun suivi de références, appeler ceci sur un pointeur
+/// encore utilisé ailleurs est un use-after-free.
+/// `pub` (pas `pub(crate)`) : utilisé depuis le crate séparé runtime_tauri.
+pub unsafe fn free_str(val: i64) {
+    if val == 0 {
+        return;
+    }
+    unsafe {
+        let data = val as *const u8;
+        // Retrouve la longueur via le null-terminator (même convention que
+        // ptr_to_str) — le layout original n'est pas stocké ailleurs.
+        let mut len = 0usize;
+        while *data.add(len) != 0 {
+            len += 1;
+        }
+        let raw = (val - 8) as *mut u8;
+        let layout = Layout::from_size_align(8 + len + 1, 8).unwrap();
+        dealloc(raw, layout);
     }
 }
 
@@ -2415,9 +2441,20 @@ pub extern "C" fn __task_spawn(func: i64, env: i64) -> i64 {
     Box::into_raw(task) as i64
 }
 
+// `resolve expr` : attend le thread et libère le wrapper OcaraTask (jusqu'ici
+// jamais libéré, même sur ce chemin nominal — le pointeur n'était que
+// déréférencé via `&mut *`, jamais repris via `Box::from_raw`). Pas de piège
+// longjmp ici : `handle.join()` ne lève pas d'exception Ocara (échec avalé
+// par `unwrap_or(0)`), donc un drop de fin de scope classique est sûr.
+// Limite assumée (hors périmètre) : une tâche jamais `resolve`e fuit toujours
+// — rien n'impose l'appel de `resolve` côté Ocara, pas d'équivalent `detach`
+// pour les tâches async.
 #[unsafe(no_mangle)]
 pub extern "C" fn __task_resolve(task_ptr: i64) -> i64 {
-    let task = unsafe { &mut *(task_ptr as *mut OcaraTask) };
+    if task_ptr == 0 {
+        return 0;
+    }
+    let mut task = unsafe { Box::from_raw(task_ptr as *mut OcaraTask) };
     if let Some(handle) = task.handle.take() {
         handle.join().unwrap_or(0)
     } else {

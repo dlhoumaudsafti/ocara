@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::sync::Mutex;
 use once_cell::sync::Lazy;
+use crate::alloc_str;
 
 // Stockage global des variables d'environnement chargées depuis .env
 static ENV_VARS: Lazy<Mutex<HashMap<String, String>>> = Lazy::new(|| {
@@ -100,16 +101,18 @@ pub unsafe extern "C" fn DotEnv_get(key_ptr: i64) -> i64 {
             .to_string();
 
         // D'abord chercher dans notre HashMap
+        // (alloc_str, pas CString::into_raw : convention standard de ce runtime
+        // pour toute string retournée à Ocara — en-tête TAG_STRING inclus, sinon
+        // `is string` sur la valeur lirait de la mémoire hors-limites en plus de
+        // fuir à chaque appel, faute de CString::from_raw nulle part)
         let env_vars = ENV_VARS.lock().unwrap();
         if let Some(value) = env_vars.get(&key) {
-            let c_str = std::ffi::CString::new(value.as_str()).unwrap();
-            return c_str.into_raw() as i64;
+            return alloc_str(value.as_str());
         }
 
         // Sinon chercher dans l'environnement système
         if let Ok(value) = std::env::var(&key) {
-            let c_str = std::ffi::CString::new(value.as_str()).unwrap();
-            return c_str.into_raw() as i64;
+            return alloc_str(value.as_str());
         }
 
         // Non trouvé

@@ -72,6 +72,24 @@ if m.tryLock() {
 }
 ```
 
+### `m.destroy() → void`
+
+Libère le mutex (verrou pthread + wrapper). Ce runtime n'a pas de
+ramasse-miettes — un mutex créé dans une boucle (un par item, par requête...)
+doit être libéré explicitement, sinon il fuit indéfiniment.
+
+```ocara
+var m:Mutex = use Mutex()
+m.lock()
+// section critique
+m.unlock()
+m.destroy()
+```
+
+> **Attention** : comme pour `SQLite::close()`, tout appel (`lock`/`unlock`/
+> `tryLock`/`destroy`) sur un mutex après `destroy()` est un comportement non
+> défini (mémoire déjà libérée) — appeler `destroy()` uniquement en dernier.
+
 ---
 
 ## Exemple avec Thread
@@ -147,7 +165,8 @@ function main(): void {
 |---|---|---|
 | `lock` | `() → void` | Verrouille le mutex (bloquant) |
 | `unlock` | `() → void` | Déverrouille le mutex |
-| `try_lock` | `() → bool` | Tente de verrouiller sans bloquer |
+| `tryLock` | `() → bool` | Tente de verrouiller sans bloquer |
+| `destroy` | `() → void` | Libère le mutex (usage après = comportement non défini) |
 
 ---
 
@@ -164,7 +183,7 @@ function main(): void {
 ## Notes
 
 - Le mutex utilise l'implémentation système native (pthread sur Linux/macOS, SRWLOCK sur Windows via Rust stdlib).
-- Un mutex non déverrouillé avant la fin du programme ne provoque pas de fuite mémoire, mais peut causer des blocages si d'autres threads attendent.
+- Un mutex non `unlock()` avant la fin du programme ne provoque pas de fuite mémoire en soi, mais peut causer des blocages si d'autres threads attendent. En revanche, un mutex jamais `destroy()` **fuit** (ce runtime n'a pas de ramasse-miettes) — appeler `destroy()` une fois le mutex définitivement inutile.
 - Pour des patterns plus avancés (read-write locks, condition variables), des classes futures seront ajoutées.
 
 ---

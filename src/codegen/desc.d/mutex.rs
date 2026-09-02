@@ -7,4 +7,5 @@ pub const MUTEX_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "Mutex_lock",    params: &[clt::I64], returns: None,           module: Some("Mutex") },
     BuiltinDesc { name: "Mutex_unlock",  params: &[clt::I64], returns: None,           module: Some("Mutex") },
     BuiltinDesc { name: "Mutex_tryLock", params: &[clt::I64], returns: Some(clt::I64), module: Some("Mutex") },
+    BuiltinDesc { name: "Mutex_destroy", params: &[clt::I64], returns: None,           module: Some("Mutex") },
 ];

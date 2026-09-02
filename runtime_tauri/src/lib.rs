@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use once_cell::sync::Lazy;
 
-use ocara_runtime::{alloc_str, ptr_to_str, __map_get};
+use ocara_runtime::{alloc_str, ptr_to_str, free_str, __map_get};
 
 /// Codes d'erreur TauriException (voir docs/builtins/Tauri.md)
 const ERR_TAURI_DUPLICATE_HANDLER: i64 = 101;
@@ -744,7 +744,14 @@ pub extern "C" fn Tauri_run(this: i64) {
                     let f: unsafe extern "C" fn(i64) -> i64 = std::mem::transmute(trampoline_addr as usize);
                     f(args_ptr)
                 };
+                // args_ptr n'est plus utile une fois le trampoline appelé — ni
+                // result_ptr une fois sa donnée copiée dans result_str juste en
+                // dessous. Sans ça, CHAQUE appel IPC (window.ocara.invoke)
+                // fuyait deux strings, potentiellement pendant des heures vu que
+                // run() reste bloqué tant que la fenêtre est ouverte.
+                unsafe { free_str(args_ptr); }
                 let result_str = unsafe { ptr_to_str(result_ptr) }.to_string();
+                unsafe { free_str(result_ptr); }
                 match serde_json::from_str::<serde_json::Value>(&result_str) {
                     Ok(serde_json::Value::Object(obj)) if obj.get("ok").and_then(|v| v.as_bool()) == Some(true) => {
                         invoke.resolver.resolve(obj.get("value").cloned().unwrap_or(serde_json::Value::Null));
@@ -784,4 +791,11 @@ pub extern "C" fn Tauri_run(this: i64) {
         .run(context) {
         eprintln!("[Tauri_run] erreur au lancement : {e}");
     }
+
+    // run() ne retourne qu'une fois la fenêtre réelle définitivement fermée
+    // (ou si son lancement a échoué) — l'entrée simulée de TAURI_WINDOWS peut
+    // alors être retirée sans risque (jusqu'ici jamais faite : chaque
+    // `use Tauri(...)` fuyait indéfiniment son état + ses registres
+    // handlers/event_callbacks).
+    TAURI_WINDOWS.lock().unwrap().remove(&this);
 }

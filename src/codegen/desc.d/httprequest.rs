@@ -21,4 +21,6 @@ pub const HTTPREQUEST_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "HTTPRequest_put",        params: &[clt::I64, clt::I64],         returns: Some(clt::I64), module: Some("HTTPRequest") },
     BuiltinDesc { name: "HTTPRequest_delete",     params: &[clt::I64],                   returns: Some(clt::I64), module: Some("HTTPRequest") },
     BuiltinDesc { name: "HTTPRequest_patch",      params: &[clt::I64, clt::I64],         returns: Some(clt::I64), module: Some("HTTPRequest") },
+    BuiltinDesc { name: "HTTPRequest_close",         params: &[clt::I64], returns: None, module: Some("HTTPRequest") },
+    BuiltinDesc { name: "HTTPRequest_closeResponse", params: &[clt::I64], returns: None, module: Some("HTTPRequest") },
 ];
