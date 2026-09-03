@@ -13,8 +13,8 @@ use statements_impl::*;
 pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
     match stmt {
         // ── Déclarations ──────────────────────────────────────────────────────
-        Stmt::Var { name, ty, value, mutable, .. } => {
-            lower_var(builder, name, ty, value, *mutable);
+        Stmt::Var { name, ty, value, mutable, kind, .. } => {
+            lower_var(builder, name, ty, value, *mutable, *kind);
         }
         Stmt::Const { name, ty, value, .. } => {
             lower_const(builder, name, ty, value);
@@ -55,7 +55,12 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
             lower_expr(builder, expr);
         }
         Stmt::Return { value, .. } => {
-            let v = value.as_ref().map(|e| lower_expr(builder, e));
+            // `return x` : `x` peut être une `scoped`/`consumed` qui
+            // s'échappe hors de son bloc (voir crate::lower::stmt::ownership).
+            let v = value.as_ref().map(|e| {
+                let val = lower_expr(builder, e);
+                crate::lower::stmt::ownership::maybe_clone_escaping(builder, e, val)
+            });
             // Si on est dans un handler d'exception (__try_handler_*), signaler le return
             // au runtime pour qu'il soit propagé à la fonction englobante
             if builder.func.name.starts_with("__try_handler_") {

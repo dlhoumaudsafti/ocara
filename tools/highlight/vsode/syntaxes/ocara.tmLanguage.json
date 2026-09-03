@@ -340,7 +340,7 @@
 
     "keyword-declaration": {
       "name": "keyword.declaration.ocara",
-      "match": "\\b(var|scoped|const|init|property|generic|runtime|main|error|success|exit)\\b"
+      "match": "\\b(var|scoped|consumed|const|init|property|generic|runtime|main|error|success|exit)\\b"
     },
 
     "keyword-other": {

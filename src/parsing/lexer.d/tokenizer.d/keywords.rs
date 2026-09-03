@@ -10,6 +10,7 @@ pub(in crate::parsing::lexer) fn keyword_or_ident(s: &str) -> TokenKind {
         "as"         => TokenKind::As,
         "var"        => TokenKind::Var,
         "scoped"     => TokenKind::Scoped,
+        "consumed"   => TokenKind::Consumed,
         "property"   => TokenKind::Property,
         "const"      => TokenKind::Const,
         "function"   => TokenKind::Function,

@@ -335,6 +335,64 @@ de type au runtime, plutôt qu'à ce diagnostic — voir [§11.1 de l'EBNF](EBNF
 
 ---
 
+### E17 — `consumed` utilisée deux fois
+
+```
+fichier.oc:6:17: error: 'x' is 'consumed' and was already used at 5:17 — it was destroyed right after that first use
+```
+
+Une variable `consumed` est détruite juste après sa toute première
+utilisation — la réutiliser ensuite est une erreur de compilation, qui cite
+la position de cette première utilisation. Voir [§9.3 de l'EBNF](EBNF.md#93-variable-à-usage-unique-consumed).
+
+```ocara
+consumed x:array<int> = [1, 2, 3]
+IO::writeln(Array::len(x))   // 1ʳᵉ (et unique) utilisation — x détruit juste après
+IO::writeln(Array::len(x))   // ❌ x n'existe déjà plus
+```
+
+**Correction :** n'utiliser `x` qu'une seule fois, ou passer à `scoped` si
+plusieurs utilisations dans le même bloc sont nécessaires.
+
+### E18 — Échappement d'une ressource `scoped`/`consumed`
+
+```
+fichier.oc:9:25: error: 'm' ('Mutex') cannot escape its 'scoped'/'consumed' block (assignment, return, or argument) — resource handles cannot be cloned or shared, use it locally via its own methods
+```
+
+Une `scoped`/`consumed` de type `Mutex`/`SQLite`/`MySQL`/`MariaDB`/`Thread`
+est affectée à une variable, un champ, ou retournée — donc destinée à
+survivre à son propre bloc. Contrairement à un `array`/`map` `scoped`/
+`consumed` (silencieusement cloné dans ce cas), un handle de ressource ne
+peut pas être dupliqué : deux « clones » d'un même `Mutex` ne protégeraient
+plus la même section critique.
+
+```ocara
+scoped m:Mutex = use Mutex()
+var leaked:Mutex = m   // ❌ m ne peut pas s'échapper de son bloc
+```
+
+**Correction :** garder l'usage de la ressource strictement local à son
+bloc `scoped`/`consumed` (verrouiller/déverrouiller, requêter, etc. avant
+la fin du bloc).
+
+### E19 — `Thread` `scoped`/`consumed` non finalisée
+
+```
+fichier.oc:5:5: error: 't' is a 'scoped'/'consumed' Thread that reaches the end of its block without a call to '.join()' or '.detach()' — pick one explicitly
+```
+
+Une `scoped`/`consumed Thread` atteint la fin de son bloc sans avoir été
+`.join()`ée (attendre sa fin) ni `.detach()`ée (la laisser tourner en tâche
+de fond) — le compilateur ne peut pas choisir ce comportement à la place du
+développeur, contrairement aux autres types ressource qui ont un
+destructeur implicite unique.
+
+**Correction :** appeler explicitement `.join()` ou `.detach()` sur la
+`Thread` avant la fin de son bloc.
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.

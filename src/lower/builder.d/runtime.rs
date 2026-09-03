@@ -170,6 +170,7 @@ fn generate_runtime_main(
         ty: crate::parsing::ast::Type::Int,
         value: crate::parsing::ast::Expr::Literal(crate::parsing::ast::Literal::Int(0), Span::new(0, 0)),
         mutable: true,
+        kind: crate::parsing::ast::VarKind::Var,
         span: Span::new(0, 0),
     });
     
@@ -179,6 +180,7 @@ fn generate_runtime_main(
         ty: crate::parsing::ast::Type::Bool,
         value: crate::parsing::ast::Expr::Literal(crate::parsing::ast::Literal::Bool(false), Span::new(0, 0)),
         mutable: true,
+        kind: crate::parsing::ast::VarKind::Var,
         span: Span::new(0, 0),
     });
     

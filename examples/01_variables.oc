@@ -2,13 +2,22 @@
 // Exemple 01 — Variables et constantes
 //
 // Illustre :
-//   - var   : variable mutable, portée de la fonction
+//   - var      : variable mutable, portée de la fonction
 //   - scoped   : variable de BLOC — détruite à la fermeture du bloc
-//   - const : constante globale (évaluée à la compilation)
-//   - null  : absence de valeur pour les types référence
+//   - consumed : variable à USAGE UNIQUE — détruite juste après son unique
+//                utilisation (voir §9.2/§9.3 de docs/EBNF.md)
+//   - const    : constante globale (évaluée à la compilation)
+//   - null     : absence de valeur pour les types référence
+//
+// NOTE : `scoped`/`consumed` ne détruisent réellement leur valeur que pour
+// array<T>/map<K,V> (échappement du bloc = clonée automatiquement) et pour
+// les classes ressource (Mutex/SQLite/MySQL/MariaDB/Thread — échappement
+// interdit à la compilation). Sur tout autre type (int/float/bool/string,
+// classes utilisateur...), elles se comportent exactement comme `var`.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import ocara.IO
+import ocara.Array
 
 const PI:float = 3.14159
 const APP_NAME:string = "Ocara"
@@ -28,22 +37,36 @@ function main(): int {
     IO::writeln(compteur)   // 11
 
     // scoped — variable de BLOC (block-scoped)
-    // Portée : strictement limitée au bloc { } où elle est déclarée
-    // La mémoire est libérée à la fermeture du bloc
+    // Portée : strictement limitée au bloc { } où elle est déclarée.
+    // Pour un array (comme ici), la mémoire est réellement libérée à la
+    // fermeture du bloc — pas seulement hors de portée côté compilateur.
     if true {
-        scoped message:string = "dans le bloc if"
+        scoped message:string = "dans le bloc if"   // string : se comporte comme var (voir note en-tête)
         IO::writeln(message) // dans le bloc if
-        // message existe ici...
+
+        scoped data:array<int> = [1, 2, 3]
+        IO::writeln(Array::len(data))   // 3
+        // message et data existent ici...
     }
-    // ...mais n'existe plus ici (libérée)
+    // ...mais n'existent plus ici (data est réellement libérée)
 
     var i:int = 0
     while i smaller 3 {
-        scoped temp:int = i * 2    // temp est créé et détruit à chaque itération
+        scoped temp:int = i * 2    // temp est créé à chaque itération (int : se comporte comme var)
         IO::writeln(temp)
         i = i + 1
     }
     // temp n'existe plus ici
+
+    // consumed — variable à USAGE UNIQUE
+    // Possédée dès sa déclaration, détruite juste après sa toute première
+    // utilisation (ici, un array — sinon, non-libéré, se comporte comme var).
+    // Une deuxième utilisation serait une erreur de compilation :
+    //   consumed once:array<int> = [7, 8, 9]
+    //   IO::writeln(Array::len(once))   // 1ʳᵉ (et unique) utilisation → once détruit juste après
+    //   IO::writeln(Array::len(once))   // ❌ erreur : 'once' déjà utilisée
+    consumed once:array<int> = [7, 8, 9]
+    IO::writeln(Array::len(once))   // 3
 
     // Constantes globales
     IO::writeln(PI)         // 3.14159

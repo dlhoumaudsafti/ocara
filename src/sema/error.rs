@@ -26,6 +26,20 @@ pub enum SemaError {
     ResultOutsideRuntimeBlock { span: Span },
     ReturnInsideRuntimeBlock  { span: Span },
     IncomparableTypes { op: String, left: String, right: String, span: Span },
+    /// `consumed x` lue/utilisée une seconde fois — elle est détruite après
+    /// sa première utilisation, toute réutilisation ultérieure est invalide.
+    ConsumedUsedTwice { name: String, first_use: Span, span: Span },
+    /// `scoped`/`consumed` sur une ressource (Mutex/SQLite/MySQL/Thread) qui
+    /// s'échappe de son bloc (affectation, `return`, argument autre que
+    /// `self`) — un handle de ressource ne peut pas être cloné ni partagé.
+    ResourceEscape { name: String, class_name: String, span: Span },
+    /// `scoped`/`consumed Thread` en fin de bloc sans `.join()`/`.detach()`
+    /// préalable — le compilateur ne peut pas choisir à la place du
+    /// développeur entre attendre le thread et le détacher.
+    ThreadNotFinalized { name: String, span: Span },
+    /// `scoped`/`consumed` sur un type non pris en charge par ce chantier
+    /// (primitif, SDL/Tauri, instance de classe utilisateur).
+    OwnershipNotSupported { name: String, ty_name: String, span: Span },
 }
 
 impl SemaError {
@@ -49,6 +63,10 @@ impl SemaError {
             SemaError::ResultOutsideRuntimeBlock { span } => span,
             SemaError::ReturnInsideRuntimeBlock  { span } => span,
             SemaError::IncomparableTypes  { span, .. } => span,
+            SemaError::ConsumedUsedTwice  { span, .. } => span,
+            SemaError::ResourceEscape     { span, .. } => span,
+            SemaError::ThreadNotFinalized { span, .. } => span,
+            SemaError::OwnershipNotSupported { span, .. } => span,
         }
     }
 
@@ -90,6 +108,14 @@ impl SemaError {
                 "'return' is not allowed inside a runtime block — use 'result' instead to set ERROR without exiting".into(),
             SemaError::IncomparableTypes { op, left, right, .. } =>
                 format!("cannot compare '{}' and '{}' with '{}': comparisons are strictly typed (int and float are the only compatible pair) — convert one side explicitly", left, right, op),
+            SemaError::ConsumedUsedTwice { name, first_use, .. } =>
+                format!("'{}' is 'consumed' and was already used at {} — it was destroyed right after that first use", name, first_use),
+            SemaError::ResourceEscape { name, class_name, .. } =>
+                format!("'{}' ('{}') cannot escape its 'scoped'/'consumed' block (assignment, return, or argument) — resource handles cannot be cloned or shared, use it locally via its own methods", name, class_name),
+            SemaError::ThreadNotFinalized { name, .. } =>
+                format!("'{}' is a 'scoped'/'consumed' Thread that reaches the end of its block without a call to '.join()' or '.detach()' — pick one explicitly", name),
+            SemaError::OwnershipNotSupported { name, ty_name, .. } =>
+                format!("'scoped'/'consumed' is not supported on '{}' for '{}' yet", ty_name, name),
         }
     }
 }

@@ -14,7 +14,10 @@ pub fn lower_assign(
 ) {
     let val_ty = expr_ir_type_pub(builder, value);
     let val = lower_expr(builder, value);
-    
+    // `target = value` : `value` peut être une `scoped`/`consumed` qui
+    // s'échappe vers `target` (voir crate::lower::stmt::ownership).
+    let val = crate::lower::stmt::ownership::maybe_clone_escaping(builder, value, val);
+
     match target {
         Expr::Ident(name, _) => {
             // Boxing si la variable cible est mixed
