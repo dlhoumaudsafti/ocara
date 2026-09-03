@@ -304,6 +304,110 @@ unsafe fn map_ref(ptr: i64) -> &'static mut OcaraMap {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Libération / clonage récursifs — `scoped`/`consumed` (voir docs/EBNF.md et
+// le plan "Gestion de propriété des variables"). Portée : string/array/map
+// uniquement — un élément TAG_OBJECT/TAG_FUNCTION imbriqué n'est ni libéré
+// ni cloné ici (hors périmètre de ce chantier, voir OwnershipClass::Unsupported
+// côté sema : ces types ne peuvent pas être `scoped`/`consumed` eux-mêmes,
+// mais peuvent apparaître comme élément d'un array/map `scoped`/`consumed`).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Libère `val` récursivement si c'est un pointeur heap string/array/map.
+/// No-op sur tout le reste — **y compris une string littérale** (`.rodata`,
+/// pas de header de tag devant, `__is_string` renvoie faux) : c'est ce qui
+/// rend cette fonction sûre comme point d'entrée UNIQUE pour la destruction
+/// `scoped`/`consumed` (voir `crate::lower::stmt::ownership` côté
+/// compilateur) — le type statique AST ne suffit pas à savoir si une valeur
+/// `string` donnée est réellement possédée (tas) ou seulement empruntée
+/// (littéral figé dans le binaire) ; seul le tag runtime le sait.
+#[unsafe(no_mangle)]
+pub extern "C" fn __value_free(val: i64) {
+    unsafe {
+        if __is_string(val) != 0 { free_str(val); }
+        else if __is_array(val) != 0 { __array_free(val); }
+        else if __is_map(val)   != 0 { __map_free(val); }
+    }
+}
+
+/// Clone `val` récursivement si c'est un pointeur heap string/array/map.
+/// Retourne `val` tel quel pour tout le reste — ces valeurs n'ont pas de
+/// propriétaire distinct à dupliquer (partagées par nature : primitifs,
+/// string littérale, objets, fonctions, 0). Voir `__value_free`.
+#[unsafe(no_mangle)]
+pub extern "C" fn __value_clone(val: i64) -> i64 {
+    unsafe {
+        if __is_string(val) != 0 { alloc_str(ptr_to_str(val)) }
+        else if __is_array(val) != 0 { __array_clone(val) }
+        else if __is_map(val)   != 0 { __map_clone(val) }
+        else { val }
+    }
+}
+
+/// Libère un array et récursivement chacun de ses éléments tas.
+#[unsafe(no_mangle)]
+pub extern "C" fn __array_free(ptr: i64) {
+    if ptr == 0 { return; }
+    unsafe {
+        let arr = array_ref(ptr);
+        for &el in &arr.data {
+            __value_free(el);
+        }
+        std::ptr::drop_in_place(arr as *mut OcaraArray);
+        let size = std::mem::size_of::<OcaraArray>();
+        let layout = Layout::from_size_align(8 + size, 8).unwrap();
+        dealloc((ptr - 8) as *mut u8, layout);
+    }
+}
+
+/// Libère une map et récursivement chacune de ses valeurs tas (les clés
+/// sont des `String` Rust natifs, libérées avec la map elle-même).
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_free(ptr: i64) {
+    if ptr == 0 { return; }
+    unsafe {
+        let m = map_ref(ptr);
+        for &(_, val) in &m.data {
+            __value_free(val);
+        }
+        std::ptr::drop_in_place(m as *mut OcaraMap);
+        let size = std::mem::size_of::<OcaraMap>();
+        let layout = Layout::from_size_align(8 + size, 8).unwrap();
+        dealloc((ptr - 8) as *mut u8, layout);
+    }
+}
+
+/// Copie profonde d'un array : nouvel array indépendant, chaque élément tas
+/// (string/array/map imbriqué) cloné récursivement — aucune mémoire
+/// partagée avec la source.
+#[unsafe(no_mangle)]
+pub extern "C" fn __array_clone(ptr: i64) -> i64 {
+    if ptr == 0 { return 0; }
+    unsafe {
+        let cloned: Vec<i64> = array_ref(ptr).data.iter()
+            .map(|&el| __value_clone(el))
+            .collect();
+        let new_ptr = new_array();
+        array_ref(new_ptr).data = cloned;
+        new_ptr
+    }
+}
+
+/// Copie profonde d'une map : nouvelle map indépendante, clés dupliquées
+/// (déjà des `String` Rust natifs) et valeurs tas clonées récursivement.
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_clone(ptr: i64) -> i64 {
+    if ptr == 0 { return 0; }
+    unsafe {
+        let cloned: Vec<(String, i64)> = map_ref(ptr).data.iter()
+            .map(|(k, v)| (k.clone(), __value_clone(*v)))
+            .collect();
+        let new_ptr = new_map();
+        map_ref(new_ptr).data = cloned;
+        new_ptr
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // I/O de base — write / read
 // ─────────────────────────────────────────────────────────────────────────────
 

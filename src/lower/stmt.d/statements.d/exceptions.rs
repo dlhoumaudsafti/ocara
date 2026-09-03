@@ -61,6 +61,15 @@ pub fn lower_raise(builder: &mut LowerBuilder, value: &Expr) {
 /// __ocara_try_exec (C) fait le setjmp, appelle le corps, et en cas d'erreur
 /// appelle le gestionnaire.  La frame de __ocara_try_exec reste vivante pendant
 /// tout l'exécution du corps, ce qui garantit la validité du jmp_buf.
+///
+/// NOTE (propriété `scoped`/`consumed`, voir crate::lower::stmt::ownership) :
+/// une `scoped`/`consumed` encore vivante dans le corps `try` au moment d'un
+/// `raise` fuit (pas de use-after-free — juste une fuite, voir la doc de
+/// ownership.rs) plutôt que d'être détruite. Le corps est lowered en
+/// fonction séparée (`__try_body_N`) dont la pile disparaît au `longjmp` ;
+/// le handler ne reçoit que `(err_val, err_type)`, aucun moyen d'accéder aux
+/// locals du corps pour les nettoyer sans étendre ce contrat runtime —
+/// reporté délibérément, voir ownership.rs.
 pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]) {
     use crate::lower::expr::captures::collect_captures;
     use crate::ir::inst::Value;

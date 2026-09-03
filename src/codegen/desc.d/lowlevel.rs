@@ -32,7 +32,21 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__map_new",         params: &[],                                     returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__map_set",         params: &[clt::I64, clt::I64, clt::I64],         returns: None,              module: None },
     BuiltinDesc { name: "__map_get",         params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
-    
+
+    // ── Libération / clonage (scoped/consumed — voir docs/EBNF.md) ────────────
+    // `__value_free`/`__value_clone` dispatchent sur le tag RUNTIME (pas le
+    // type statique AST) — seul moyen sûr de savoir si une `string` donnée
+    // est réellement possédée (tas) ou empruntée (littéral en .rodata).
+    // Point d'entrée unique utilisé par le lowering pour toute `scoped`/
+    // `consumed` de type valeur (string/array/map) — voir
+    // crate::lower::stmt::ownership.
+    BuiltinDesc { name: "__value_free",      params: &[clt::I64],                             returns: None,               module: None },
+    BuiltinDesc { name: "__value_clone",     params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__array_free",      params: &[clt::I64],                             returns: None,               module: None },
+    BuiltinDesc { name: "__map_free",        params: &[clt::I64],                             returns: None,               module: None },
+    BuiltinDesc { name: "__array_clone",     params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__map_clone",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+
     // ── Comparaisons avec vérification de type au runtime ─────────────────────
     // Utilisées uniquement quand sema n'a pas pu vérifier statiquement (au
     // moins un opérande `mixed`) — sinon la comparaison est émise en direct

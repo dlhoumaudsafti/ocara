@@ -1,6 +1,6 @@
 use crate::parsing::ast::*;
 use crate::sema::error::{SemaError, SemaWarning};
-use crate::sema::scope::{LocalBinding, ScopeStack};
+use crate::sema::scope::{LocalBinding, ScopeStack, OwnershipClass, ownership_class};
 use crate::sema::symbols::SymbolTable;
 use crate::parsing::token::Span;
 
@@ -135,12 +135,12 @@ impl<'a> TypeChecker<'a> {
             
             self.scopes.declare(
                 param.name.clone(),
-                LocalBinding { ty: param_ty, mutable: false, span: param.span.clone(), used: false, is_param: true },
+                LocalBinding { ty: param_ty, mutable: false, span: param.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, thread_finalized: false },
             );
         }
 
         self.check_block(&func.body);
-        { let _u = self.scopes.pop_with_warnings(); self.flush_warnings(_u); }
+        { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
         self.current_ret = saved_ret;
     }
 
@@ -200,11 +200,11 @@ impl<'a> TypeChecker<'a> {
                         
                         self.scopes.declare(
                             p.name.clone(),
-                            LocalBinding { ty: param_ty, mutable: false, span: p.span.clone(), used: false, is_param: true },
+                            LocalBinding { ty: param_ty, mutable: false, span: p.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, thread_finalized: false },
                         );
                     }
                     self.check_block(body);
-                    { let _u = self.scopes.pop_with_warnings(); self.flush_warnings(_u); }
+                    { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
                     self.current_ret = saved_ret;
                 }
                 ClassMember::Const { ty, value, span, .. } => {
@@ -276,6 +276,9 @@ impl<'a> TypeChecker<'a> {
                 span: crate::parsing::token::Span::new(0, 0),
                 used: true,
                 is_param: false,
+                kind: VarKind::Var,
+                consumed_used_at: None,
+                thread_finalized: false,
             },
         );
         
@@ -287,6 +290,9 @@ impl<'a> TypeChecker<'a> {
                 span: crate::parsing::token::Span::new(0, 0),
                 used: true,
                 is_param: false,
+                kind: VarKind::Var,
+                consumed_used_at: None,
+                thread_finalized: false,
             },
         );
         
@@ -314,7 +320,7 @@ impl<'a> TypeChecker<'a> {
         }
         
         // Pop scope et flush warnings
-        let _u = self.scopes.pop_with_warnings();
+        let _u = self.scopes.pop_scope();
         self.flush_warnings(_u);
     }
 
@@ -325,13 +331,18 @@ impl<'a> TypeChecker<'a> {
         for stmt in &block.stmts {
             self.check_stmt(stmt);
         }
-        { let _u = self.scopes.pop_with_warnings(); self.flush_warnings(_u); }
+        { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
     }
 
-    /// Convertit les variables inutilisées retournées par pop_with_warnings en SemaWarning.
-    fn flush_warnings(&mut self, unused: Vec<crate::sema::scope::UnusedVar>) {
-        for u in unused {
+    /// Convertit ce que `pop_scope` a trouvé en dépilant le scope courant :
+    /// variables inutilisées (warning) et `Thread` `scoped`/`consumed`
+    /// jamais `.join()`ées/`.detach()`ées (erreur — voir `OwnershipClass::Thread`).
+    fn flush_warnings(&mut self, popped: crate::sema::scope::PoppedScope) {
+        for u in popped.unused {
             self.warnings.push(SemaWarning::UnusedVariable { name: u.name, span: u.span });
+        }
+        for t in popped.unfinalized_threads {
+            self.errors.push(SemaError::ThreadNotFinalized { name: t.name, span: t.span });
         }
     }
 
@@ -339,8 +350,11 @@ impl<'a> TypeChecker<'a> {
 
     fn check_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::Var { name, ty, value, mutable, span } => {
+            Stmt::Var { name, ty, value, mutable, kind, span } => {
                 let val_ty = self.infer_expr(value);
+                // `value` peut lui-même être une `scoped`/`consumed` d'un
+                // autre binding (`var y = x`) — c'est un point d'échappement.
+                self.check_escape(value);
                 if !types_compat(&val_ty, ty) {
                     self.errors.push(SemaError::TypeMismatch {
                         expected: type_name(ty),
@@ -355,6 +369,14 @@ impl<'a> TypeChecker<'a> {
                         span: span.clone(),
                     });
                 }
+                // NB : `scoped`/`consumed` sur un type non pris en charge par
+                // ce chantier (primitif, Function, classe utilisateur,
+                // SDL/Tauri...) n'est PAS une erreur — `scoped` est déjà
+                // largement utilisée ainsi dans le code existant (déclaration
+                // "locale au bloc" générique, sans intention de possession
+                // d'une ressource tas). Ces cas se comportent exactement
+                // comme `var` : aucune destruction, aucune restriction —
+                // voir `OwnershipClass::Unsupported` et `check_escape`.
                 // Tracker les variables qui stockent un task handle async
                 if let Expr::Call { callee, .. } = value {
                     if let Expr::Ident(func_name, _) = callee.as_ref() {
@@ -367,7 +389,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 if !self.scopes.declare(
                     name.clone(),
-                    LocalBinding { ty: ty.clone(), mutable: *mutable, span: span.clone(), used: false, is_param: false },
+                    LocalBinding { ty: ty.clone(), mutable: *mutable, span: span.clone(), used: false, is_param: false, kind: *kind, consumed_used_at: None, thread_finalized: false },
                 ) {
                     self.errors.push(SemaError::DuplicateSymbol {
                         name: name.clone(),
@@ -387,7 +409,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 if !self.scopes.declare(
                     name.clone(),
-                    LocalBinding { ty: ty.clone(), mutable: false, span: span.clone(), used: false, is_param: false },
+                    LocalBinding { ty: ty.clone(), mutable: false, span: span.clone(), used: false, is_param: false, kind: VarKind::Var, consumed_used_at: None, thread_finalized: false },
                 ) {
                     self.errors.push(SemaError::DuplicateSymbol {
                         name: name.clone(),
@@ -451,18 +473,18 @@ impl<'a> TypeChecker<'a> {
                     }
                 };
                 self.scopes.push();
-                self.scopes.declare(var.clone(), LocalBinding { ty: elem_ty, mutable: false, span: span.clone(), used: false, is_param: true });
+                self.scopes.declare(var.clone(), LocalBinding { ty: elem_ty, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, thread_finalized: false });
                 self.check_block(body);
-                { let _u = self.scopes.pop_with_warnings(); self.flush_warnings(_u); }
+                { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
             }
 
             Stmt::ForMap { key, value, iter, body, span } => {
                 self.infer_expr(iter);
                 self.scopes.push();
-                self.scopes.declare(key.clone(),   LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true });
-                self.scopes.declare(value.clone(), LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true });
+                self.scopes.declare(key.clone(),   LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, thread_finalized: false });
+                self.scopes.declare(value.clone(), LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, thread_finalized: false });
                 self.check_block(body);
-                { let _u = self.scopes.pop_with_warnings(); self.flush_warnings(_u); }
+                { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
             }
 
             Stmt::Return { value, span } => {
@@ -476,7 +498,10 @@ impl<'a> TypeChecker<'a> {
                 let ret_ty = self.current_ret.clone().unwrap_or(Type::Void);
                 if let Some(expr) = value {
                     let ty = self.infer_expr(expr);
-                    
+                    // `return x` est un point d'échappement au même titre
+                    // qu'une affectation.
+                    self.check_escape(expr);
+
                     // Exception pour les blocs runtime : main peut retourner ERROR (int) ou SUCCESS (bool)
                     // même si son type de retour est void
                     let is_runtime_return = if self.current_runtime_ctx.is_some() && ret_ty == Type::Void {
@@ -551,10 +576,10 @@ impl<'a> TypeChecker<'a> {
                     // Le binding est de type mixed (type de l'erreur inconnu statiquement)
                     self.scopes.declare(
                         handler.binding.clone(),
-                        LocalBinding { ty: Type::Mixed, mutable: false, span: handler.span.clone(), used: false, is_param: true },
+                        LocalBinding { ty: Type::Mixed, mutable: false, span: handler.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, thread_finalized: false },
                     );
                     self.check_block(&handler.body);
-                    { let _u = self.scopes.pop_with_warnings(); self.flush_warnings(_u); }
+                    { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
                 }
             }
 
@@ -564,6 +589,9 @@ impl<'a> TypeChecker<'a> {
 
             Stmt::Assign { target, value, span } => {
                 let val_ty = self.infer_expr(value);
+                // `target = value` : `value` peut être une `scoped`/
+                // `consumed` qui s'échappe vers `target`.
+                self.check_escape(value);
                 match target {
                     Expr::Ident(name, _) => {
                         if let Some(binding) = self.scopes.lookup(name) {
@@ -599,6 +627,52 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
+    // ── Propriété (`scoped`/`consumed`) : points d'échappement ───────────────
+
+    /// Vérifie la règle d'échappement d'une `scoped`/`consumed` : appelé à
+    /// chaque point où une expression fait sortir une valeur vers un binding
+    /// qui survit à la portée de sa `scoped`/`consumed` source — affectation
+    /// (`var y = x`, `y = x`, `champ = x`) ou `return x`.
+    ///
+    /// PAS un argument d'appel : contrairement à une affectation, le
+    /// paramètre du côté du callee ne survit pas à l'appel — il meurt avec
+    /// le retour de la fonction, exactement comme n'importe quel `var`
+    /// aliasant un tableau aujourd'hui. Cloner systématiquement sur chaque
+    /// argument casserait par ailleurs le sucre `Array::push(arr, x)`/
+    /// `Map::set(m, k, v)` (méthodes statiques utilisées comme mutateurs :
+    /// `arr` y est un vrai alias à muter en place, pas une valeur qui
+    /// s'échappe) — confirmé par un cas concret : `Array::push(data, 99)`
+    /// sur une `scoped data` ne mutait plus `data` du tout, la mutation
+    /// atterrissant sur un clone jetable.
+    ///
+    /// Ne s'applique qu'aux identifiants simples référant à un binding local
+    /// `scoped`/`consumed` — tout le reste (littéraux, appels, accès de
+    /// champ...) produit de toute façon une valeur fraîche, rien à échapper.
+    fn check_escape(&mut self, expr: &Expr) {
+        let Expr::Ident(name, use_span) = expr else { return };
+        let Some(b) = self.scopes.lookup(name) else { return };
+        if b.kind == VarKind::Var {
+            return;
+        }
+        match ownership_class(&b.ty) {
+            OwnershipClass::Value => {
+                // OK : clonée automatiquement à l'échappement (chantier
+                // clonage réel) — la source reste possédée et détruite
+                // normalement à son propre point de destruction.
+            }
+            OwnershipClass::Resource | OwnershipClass::Thread => {
+                self.errors.push(SemaError::ResourceEscape {
+                    name: name.clone(),
+                    class_name: type_name(&b.ty),
+                    span: use_span.clone(),
+                });
+            }
+            OwnershipClass::Unsupported => {
+                // Déjà signalé une fois à la déclaration (OwnershipNotSupported).
+            }
+        }
+    }
+
     // ── Inférence de type des expressions ────────────────────────────────────
 
     pub fn infer_expr(&mut self, expr: &Expr) -> Type {
@@ -630,7 +704,13 @@ impl<'a> TypeChecker<'a> {
                 // 1. variable locale
                 if let Some(b) = self.scopes.lookup(name) {
                     let ty = b.ty.clone();
-                    self.scopes.mark_used(name);
+                    if let Err(first_use) = self.scopes.use_binding(name, span) {
+                        self.errors.push(SemaError::ConsumedUsedTwice {
+                            name: name.clone(),
+                            first_use,
+                            span: span.clone(),
+                        });
+                    }
                     return ty;
                 }
                 // 2. constante globale
@@ -691,7 +771,13 @@ impl<'a> TypeChecker<'a> {
                         if let Type::Function { ret_ty, param_tys } = &b.ty {
                             let ret = ret_ty.as_ref().clone();
                             let param_tys_clone = param_tys.clone(); // Cloner pour éviter les problèmes de borrowing
-                            self.scopes.mark_used(name);
+                            if let Err(first_use) = self.scopes.use_binding(name, span) {
+                                self.errors.push(SemaError::ConsumedUsedTwice {
+                                    name: name.clone(),
+                                    first_use,
+                                    span: span.clone(),
+                                });
+                            }
                             
                             // Vérifier le nombre et les types des arguments si param_tys est défini
                             if !param_tys_clone.is_empty() {
@@ -761,6 +847,13 @@ impl<'a> TypeChecker<'a> {
                         Some(n) => n,
                         _ => { for a in args { self.infer_expr(a); } return Type::Mixed; }
                     };
+                    // `t.join()`/`t.detach()` finalise une `scoped`/`consumed
+                    // Thread` — voir OwnershipClass::Thread et pop_scope().
+                    if cls_name == "Thread" && (field == "join" || field == "detach") {
+                        if let Expr::Ident(recv_name, _) = object.as_ref() {
+                            self.scopes.mark_thread_finalized(recv_name);
+                        }
+                    }
                     if let Some(info) = self.symbols.lookup_class(&cls_name) {
                         // Classe opaque (import non résolu) — accès permissif
                         if info.is_opaque {
@@ -1122,7 +1215,7 @@ impl<'a> TypeChecker<'a> {
                 for p in params {
                     self.scopes.declare(
                         p.name.clone(),
-                        LocalBinding { ty: p.ty.clone(), mutable: false, span: p.span.clone(), used: false, is_param: true },
+                        LocalBinding { ty: p.ty.clone(), mutable: false, span: p.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, thread_finalized: false },
                     );
                 }
                 // Sauvegarder current_ret et le remplacer par le type de retour de la closure
@@ -1132,7 +1225,7 @@ impl<'a> TypeChecker<'a> {
                 self.current_ret = Some(closure_ret.clone());
                 self.check_block(body);
                 self.current_ret = saved_ret;
-                { let _u = self.scopes.pop_with_warnings(); self.flush_warnings(_u); }
+                { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
                 
                 // Construire le type Function avec les paramètres
                 let param_tys = params.iter().map(|p| p.ty.clone()).collect();

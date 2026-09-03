@@ -65,6 +65,11 @@ pub struct LowerBuilder<'m> {
     /// Label de sortie anticipée pour les blocs runtime (fonction main seulement)
     /// Pointe vers le label juste avant le `if (ERROR != 0)` qui détermine error/success
     pub runtime_exit_bb: Option<BlockId>,
+    /// Métadonnées de propriété (`scoped`/`consumed`) par nom de variable —
+    /// voir `crate::lower::stmt::ownership`. Flat comme `locals` (pas de
+    /// scoping imbriqué) : une redéclaration du même nom dans un bloc frère
+    /// écrase simplement l'entrée précédente, exactement comme `locals`.
+    pub owned_locals: HashMap<String, crate::lower::stmt::ownership::OwnedLocalInfo>,
 }
 
 impl<'m> LowerBuilder<'m> {
@@ -100,6 +105,7 @@ impl<'m> LowerBuilder<'m> {
             func_default_args: HashMap::new(),
             func_var_param_count: HashMap::new(),
             runtime_exit_bb: None,
+            owned_locals: HashMap::new(),
         }
     }
 

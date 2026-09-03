@@ -1113,7 +1113,7 @@ Digit  ::= [0-9]
 **Mots-clés réservés :**
 
 ```
-import    from      namespace  as         var        scoped   property  const
+import    from      namespace  as         var        scoped   consumed  property  const
 function  method    class      generic    interface  extends  implements
 module    modules   init       static
 public    private   protected
@@ -1170,10 +1170,10 @@ ScopedDecl ::= "scoped" Identifier ":" Type "=" Expression
 if condition {
     scoped msg:string = "vrai"   // msg existe ici
     IO::writeln(msg)
-}                                // msg est libéré ici
+}                                // msg sort de portée ici
 ```
 
-`scoped` déclare une variable **mutable** dont la portée est strictement limitée au bloc `{ }` courant. Étant mutable, elle peut être réassignée librement dans ce bloc. À la fermeture du bloc, la variable est détruite et sa mémoire libérée.
+`scoped` déclare une variable **mutable** dont la portée est strictement limitée au bloc `{ }` courant — elle peut être réaffectée librement dans ce bloc.
 
 ```ocara
 scoped x:int = 1
@@ -1181,9 +1181,45 @@ x = 2   // valide — scoped est mutable
 x = x + 10   // valide
 ```
 
+**Destruction réelle à la fermeture du bloc** — uniquement pour les types possédables pris en charge à ce jour :
+
+| Type de `scoped` | À la fermeture du bloc |
+|---|---|
+| `array<T>`, `map<K,V>` | Le tableau/la map est réellement libéré(e) — récursivement pour les éléments eux-mêmes `array`/`map`. Si sa valeur a été affectée à une variable qui survit au bloc (`var y = x`, `y = x`, `return x`), cette variable reçoit une **copie profonde indépendante** au moment de l'affectation — la détruire ensuite ne l'affecte donc jamais. |
+| `Mutex`, `SQLite`, `MySQL`, `MariaDB` | La ressource native est réellement libérée (`.destroy()`/`.close()` implicite). **Ne peut pas s'échapper du bloc** (affectation, `return`) — erreur de compilation, un handle de ressource ne peut être ni cloné ni partagé. |
+| `Thread` | Doit avoir été explicitement `.join()`ée ou `.detach()`ée avant la fin du bloc — sinon erreur de compilation (le compilateur ne choisit pas à la place du développeur entre attendre le thread et le détacher). Même interdiction d'échappement que ci-dessus. |
+| Tout le reste (`int`/`float`/`bool`/`string`, `SDL`/`Tauri`, instances de classe utilisateur) | Se comporte exactement comme `var` — aucune destruction. `string` en particulier : un littéral (`"foo"`) est indiscernable au runtime d'une allocation possédée, donc pas encore de destruction sûre pour ce type. |
+
 > **`scoped` est interdit sur un champ de classe** : un champ vit aussi longtemps que l'objet, pas le temps d'un bloc. Utiliser `property` pour les champs de classe.
 
-### 9.3 Constante globale (`const`)
+> **Limite connue** : une sortie anticipée du bloc (`return`/`break`/`continue`, ou un `raise` qui traverse un `try` englobant) ne déclenche pas la destruction — la valeur fuit (pas de plantage ni de corruption : rien d'autre ne peut aliaser sa mémoire, juste une fuite mémoire/ressource non libérée).
+
+### 9.3 Variable à usage unique (`consumed`)
+
+```ebnf
+ConsumedDecl ::= "consumed" Identifier ":" Type "=" Expression
+```
+
+```ocara
+function loadOnce(): int {
+    consumed data:array<int> = fetchData()
+    return Array::len(data)   // seule utilisation permise
+}
+```
+
+`consumed` déclare une variable **mutable**, possédée dès sa déclaration, détruite **juste après sa toute première utilisation** (même règle de destruction par type que `scoped`, voir le tableau ci-dessus — uniquement `array`/`map`/`Mutex`/`SQLite`/`MySQL`/`MariaDB`/`Thread` ; les autres types se comportent comme `var`). Réutiliser la variable après cette première utilisation est une **erreur de compilation** :
+
+```ocara
+consumed x:array<int> = [1, 2, 3]
+IO::writeln(Array::len(x))   // OK — 1ʳᵉ (et unique) utilisation, x détruit juste après
+IO::writeln(Array::len(x))   // ❌ erreur : 'x' déjà utilisée à la ligne précédente
+```
+
+Si elle n'est jamais utilisée, elle est tout de même détruite à la fin du bloc (comme `scoped`) — pas de fuite silencieuse — avec un avertissement "variable non utilisée", cohérent avec `var`/`scoped`.
+
+> **`consumed` est interdit sur un champ de classe**, pour la même raison que `scoped`.
+
+### 9.4 Constante globale (`const`)
 
 ```ebnf
 ConstDecl ::= "const" Identifier ":" Type "=" Expression
@@ -1198,7 +1234,7 @@ Les constantes globales sont définies **au niveau du module** (hors de toute fo
 Leur valeur doit être un littéral ou une expression constante évaluable à la compilation.  
 Elles sont accessibles depuis n'importe quelle fonction ou méthode du module.
 
-### 9.4 Constante de classe (`class const`)
+### 9.5 Constante de classe (`class const`)
 
 ```ebnf
 ClassConstDecl ::= Visibility "const" Identifier ":" Type "=" Expression
@@ -2059,7 +2095,7 @@ Constructor ::= "init" "(" ParamList? ")" Block
 | `private`   | Depuis la classe courante uniquement     |
 | `protected` | Depuis la classe et ses sous-classes     |
 
-- `property` : champ d'instance d'une classe — **obligatoire** pour les champs. `var` et `scoped` sont **interdits** sur un champ de classe.
+- `property` : champ d'instance d'une classe — **obligatoire** pour les champs. `var`, `scoped` et `consumed` sont **interdits** sur un champ de classe.
 - `const` : constante **statique** de classe, accessible via `Class::NAME`
 
 > **Initialisation implicite des `property`** : tout champ non assigné dans `init` est automatiquement mis à zéro par le runtime (`alloc_zeroed`).
@@ -3303,6 +3339,7 @@ Block       ::= "{" Statement* "}"
 
 Statement   ::= VarDecl
               | ScopedDecl
+              | ConsumedDecl
               | ConstDecl
               | IfStmt
               | SwitchStmt
@@ -3315,8 +3352,9 @@ Statement   ::= VarDecl
               | RaiseStmt
               | Expression
 
-VarDecl     ::= "var" Identifier ":" Type "=" Expression
-ScopedDecl  ::= "scoped" Identifier ":" Type "=" Expression
+VarDecl      ::= "var" Identifier ":" Type "=" Expression
+ScopedDecl   ::= "scoped" Identifier ":" Type "=" Expression
+ConsumedDecl ::= "consumed" Identifier ":" Type "=" Expression
 ReturnStmt  ::= "return" Expression?
 BreakStmt    ::= "break"
 ContinueStmt ::= "continue"

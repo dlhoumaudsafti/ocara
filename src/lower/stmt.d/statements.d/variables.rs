@@ -13,6 +13,7 @@ pub fn lower_var(
     ty: &Type,
     value: &Expr,
     mutable: bool,
+    kind: VarKind,
 ) {
     let ir_ty = IrType::from_ast(ty);
     
@@ -73,6 +74,9 @@ pub fn lower_var(
     let _slot = builder.declare_local(name, ir_ty.clone(), mutable);
     let val_ty = expr_ir_type_pub(builder, value);
     let val = lower_expr(builder, value);
+    // `value` peut être une `scoped`/`consumed` qui s'échappe vers `name`
+    // (point d'échappement — voir crate::lower::stmt::ownership).
+    let val = crate::lower::stmt::ownership::maybe_clone_escaping(builder, value, val);
     let val = box_for_any(builder, &ir_ty, val_ty, val);
     
     // Tracker le type de retour original si l'init est un appel async
@@ -88,6 +92,13 @@ pub fn lower_var(
     }
     
     builder.store_local(name, val);
+
+    // Propriété (`scoped`/`consumed`) — voir crate::lower::stmt::ownership.
+    // Après `store_local` : le clonage éventuel à l'échappement (chantier
+    // clonage, src/lower/expr.d/lower.rs) a déjà eu lieu en amont dans
+    // `val`, ce qui est enregistré ici est bien la copie possédée par CE
+    // binding, jamais un alias d'une autre `scoped`/`consumed`.
+    crate::lower::stmt::ownership::register_owned_local(builder, name, ty, kind);
 }
 
 pub fn lower_const(

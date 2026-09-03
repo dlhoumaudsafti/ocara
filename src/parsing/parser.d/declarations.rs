@@ -234,6 +234,12 @@ impl Parser {
                     self.span(),
                 ));
             }
+            TokenKind::Consumed => {
+                return Err(ParseError::new(
+                    "'consumed' est interdit sur un champ de classe : un champ vit aussi longtemps que l'objet, utilisez 'property'".to_string(),
+                    self.span(),
+                ));
+            }
             other => return Err(ParseError::new(
                 format!("expected 'property', 'const' or 'method', found {:?}", other),
                 self.span(),

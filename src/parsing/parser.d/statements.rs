@@ -18,7 +18,7 @@ impl Parser {
 
     pub(super) fn parse_stmt(&mut self) -> ParseResult<Stmt> {
         match self.peek_kind().clone() {
-            TokenKind::Var | TokenKind::Scoped => self.parse_var_decl(),
+            TokenKind::Var | TokenKind::Scoped | TokenKind::Consumed => self.parse_var_decl(),
             TokenKind::Const               => self.parse_const_stmt(),
             TokenKind::If                  => self.parse_if(),
             TokenKind::Switch              => self.parse_switch(),
@@ -65,16 +65,25 @@ impl Parser {
 
     fn parse_var_decl(&mut self) -> ParseResult<Stmt> {
         let span = self.span();
-        let mutable = match self.peek_kind() {
-            TokenKind::Var    => { self.advance(); true  }
-            _                 => { self.advance(); true  } // Scoped : mutable, scope = durée de vie du bloc
+        // `var`/`scoped`/`consumed` sont tous mutables (réaffectables) ; seule
+        // la politique de destruction (VarKind) change selon le mot-clé.
+        let kind = match self.peek_kind() {
+            TokenKind::Var      => VarKind::Var,
+            TokenKind::Scoped   => VarKind::Scoped,
+            TokenKind::Consumed => VarKind::Consumed,
+            other => return Err(ParseError::new(
+                format!("expected 'var', 'scoped' or 'consumed', found {:?}", other),
+                span,
+            )),
         };
+        self.advance();
+        let mutable = true;
         let (name, _) = self.eat_ident()?;
         self.eat(&TokenKind::Colon)?;
         let ty = self.parse_type()?;
         self.eat(&TokenKind::Eq)?;
         let value = self.parse_expr()?;
-        Ok(Stmt::Var { name, ty, value, mutable, span })
+        Ok(Stmt::Var { name, ty, value, mutable, kind, span })
     }
 
     fn parse_const_stmt(&mut self) -> ParseResult<Stmt> {

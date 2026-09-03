@@ -9,14 +9,29 @@ use crate::parsing::token::Span;
 // Statements
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Distingue les trois mots-clés de déclaration de variable locale.
+/// Contrôle la politique de destruction (voir `docs/EBNF.md`) :
+///   - `Var`      : ne possède jamais rien, aucune destruction automatique.
+///   - `Scoped`   : possède sa valeur, détruite à la fin de son propre bloc.
+///   - `Consumed` : possède sa valeur, détruite juste après sa première
+///     utilisation (ou en fin de bloc si jamais utilisée, pour éviter une
+///     fuite silencieuse).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VarKind {
+    Var,
+    Scoped,
+    Consumed,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
-    /// `var x:T = expr`
+    /// `var x:T = expr` / `scoped x:T = expr` / `consumed x:T = expr`
     Var {
         name:    String,
         ty:      Type,
         value:   Expr,
         mutable: bool,     // true = var, false = let
+        kind:    VarKind,
         span:    Span,
     },
 

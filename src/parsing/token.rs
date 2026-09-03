@@ -64,6 +64,7 @@ pub enum TokenKind {
     As,
     Var,
     Scoped,
+    Consumed,
     Property,
     Const,
     Function,
