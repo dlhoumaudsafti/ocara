@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use crate::ir::func::IrFunction;
 use crate::ir::types::IrType;
-use crate::parsing::ast::Literal;
+use crate::parsing::ast::{Literal, Type};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // IrModule — représentation complète d'un programme compilé
@@ -21,6 +21,17 @@ pub struct IrModule {
     pub imports:   Vec<String>,
     /// Layout des classes : class_name → liste ordonnée (field_name, field_type)
     pub class_layouts: HashMap<String, Vec<(String, IrType)>>,
+    /// Comme `class_layouts`, mais avec le vrai type AST de chaque champ
+    /// (pas `IrType`, qui réduit string/array/map/instance à `Ptr`, tous
+    /// indistinguables) — indispensable pour générer les destructeurs/
+    /// clones réels des instances de classe utilisateur (`scoped`/
+    /// `consumed MaClasse`, voir `src/lower/builder.d/class_ownership.rs`).
+    /// UNIQUEMENT pour les classes utilisateur (`program.classes`) — sert
+    /// aussi de test d'appartenance : une classe absente d'ici (builtin/
+    /// opaque comme Mutex/SDL/Exception) n'a PAS de `__free_<Classe>`/
+    /// `__clone_<Classe>` généré, donc ne doit jamais être traitée comme un
+    /// objet possédable (voir `class_ownership::has_generated_destructor`).
+    pub class_field_types: HashMap<String, Vec<(String, Type)>>,
     /// Champs de type map<K,V> par classe (hérités inclus) : class_name → noms de
     /// champs. `class_layouts` réduit tout à IrType::Ptr (map/array/string
     /// indistinguables) — indispensable pour que `self.champMap[clé] = v` émette

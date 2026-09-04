@@ -114,6 +114,10 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
             let class_name = match object.as_ref() {
                 Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
                 Expr::SelfExpr(_)    => builder.current_class.clone(),
+                // Accès chaîné (`a.b.c`) — voir resolve_chained_field_class.
+                Expr::Field { object: inner, field: inner_field, .. } => {
+                    super::helpers::resolve_chained_field_class(builder, inner, inner_field)
+                }
                 _ => None,
             };
             if let Some(cls) = class_name {
@@ -171,6 +175,12 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                         } else {
                             None
                         }
+                    }
+                    // Accès chaîné : w.inner.methode() où `inner` est
+                    // elle-même une instance de classe — voir
+                    // resolve_chained_field_class.
+                    Expr::Field { object: inner_obj, field: inner_field, .. } => {
+                        super::helpers::resolve_chained_field_class(builder, inner_obj, inner_field)
                     }
                     _ => None,
                 };

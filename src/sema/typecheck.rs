@@ -336,7 +336,7 @@ impl<'a> TypeChecker<'a> {
 
     /// Convertit ce que `pop_scope` a trouvé en dépilant le scope courant :
     /// variables inutilisées (warning) et `Thread` `scoped`/`consumed`
-    /// jamais `.join()`ées/`.detach()`ées (erreur — voir `OwnershipClass::Thread`).
+    /// jamais `.join()`/`.detach()` (erreur — voir `OwnershipClass::Thread`).
     fn flush_warnings(&mut self, popped: crate::sema::scope::PoppedScope) {
         for u in popped.unused {
             self.warnings.push(SemaWarning::UnusedVariable { name: u.name, span: u.span });

@@ -217,6 +217,61 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         module.class_layouts.insert(class.name.clone(), fields);
     }
 
+    // Comme collect_fields ci-dessus, mais garde le vrai Type AST par champ
+    // (pas IrType) — voir la doc de IrModule::class_field_types. Volontairement
+    // limité aux classes utilisateur : si le parent (`extends`) n'est PAS
+    // dans `classes` (parent builtin, ex: exception personnalisée), on
+    // s'arrête là plutôt que d'inventer un type — ces champs hérités ne
+    // seront simplement pas libérés/clonés récursivement (fuite, pas un bug).
+    fn collect_field_types(
+        classes: &[ClassDecl],
+        modules: &[ModuleDecl],
+        class_name: &str,
+    ) -> Vec<(String, Type)> {
+        let class = match classes.iter().find(|c| c.name == class_name) {
+            Some(c) => c,
+            None    => return vec![],
+        };
+        let mut fields = if let Some(parent) = &class.extends {
+            collect_field_types(classes, modules, parent)
+        } else {
+            vec![]
+        };
+        for module_name in &class.modules {
+            if let Some(module_decl) = modules.iter().find(|m| &m.name == module_name) {
+                for member in &module_decl.members {
+                    if let ClassMember::Field { name, ty, .. } = member {
+                        if !fields.iter().any(|(f, _)| f == name) {
+                            fields.push((name.clone(), ty.clone()));
+                        }
+                    }
+                }
+            }
+        }
+        for member in &class.members {
+            if let ClassMember::Field { name, ty, .. } = member {
+                if !fields.iter().any(|(f, _)| f == name) {
+                    fields.push((name.clone(), ty.clone()));
+                }
+            }
+        }
+        fields
+    }
+    for class in &program.classes {
+        let fields = collect_field_types(&program.classes, &program.modules, &class.name);
+        module.class_field_types.insert(class.name.clone(), fields);
+    }
+
+    // Génère __free_<Classe>/__clone_<Classe> pour chaque classe utilisateur
+    // (scoped/consumed MaClasse — voir src/lower/builder.d/class_ownership.rs).
+    // Doit tourner APRÈS class_field_types ci-dessus (toutes les classes,
+    // pas seulement celle en cours) : une classe peut référencer une autre
+    // classe pas encore traitée dans cette boucle — sans risque, la
+    // résolution des appels __free_X/__clone_X entre fonctions du module se
+    // fait par nom au codegen (deux passes : déclaration puis définition),
+    // pas par ordre d'ajout à `module.functions`.
+    super::class_ownership::generate_class_ownership_functions(&mut module, program);
+
     // Champs de type map<K,V> par classe (hérités inclus) — voir la doc du champ
     // module.class_map_fields (ir/module.rs) : indispensable pour que
     // `self.champMap[clé] = v` émette __map_set plutôt que __array_set.

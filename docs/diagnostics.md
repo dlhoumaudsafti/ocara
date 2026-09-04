@@ -197,16 +197,29 @@ Une classe déclare implémenter une interface mais n'en définit pas toutes les
 ### E10 — Assignation invalide
 
 ```
-fichier.oc:35:5: error: cannot assign to 'PI' (immutable or undeclared)
+fichier.oc:35:5: error: cannot assign to 'n' (immutable or undeclared)
 ```
 
-Tentative de modification d'une constante (`const`), d'une variable `scoped`, ou d'un accès statique.
+Tentative de réaffectation d'un **paramètre de fonction/méthode** (toujours
+immutable, quel que soit son type) ou d'une cible d'affectation invalide
+(ex : une constante de classe accédée via `Classe::NOM`).
 
 ```ocara
-Math::PI = 3              // PI est une constante
-scoped x:int = 5
-x = 10                    // ❌ scoped est immutable
+function foo(n:int): int {
+    n = 10           // ❌ un paramètre n'est jamais réaffectable
+    return n
+}
+
+Math::PI = 3          // ❌ cible d'affectation invalide (constante statique)
 ```
+
+> **`var`, `scoped` et `consumed` sont tous les trois mutables** —
+> réaffectables librement après leur déclaration. Rien dans le langage
+> aujourd'hui ne rend une variable locale immutable après coup ; seuls un
+> paramètre ou une constante ne le sont jamais. Voir
+> [§9 de l'EBNF](EBNF.md#9-variables-et-constantes) pour la portée et la
+> politique de destruction de chacun — des sujets différents de la
+> mutabilité.
 
 ---
 
@@ -383,7 +396,7 @@ fichier.oc:5:5: error: 't' is a 'scoped'/'consumed' Thread that reaches the end 
 ```
 
 Une `scoped`/`consumed Thread` atteint la fin de son bloc sans avoir été
-`.join()`ée (attendre sa fin) ni `.detach()`ée (la laisser tourner en tâche
+`.join()` (attendre sa fin) ni `.detach()` (la laisser tourner en tâche
 de fond) — le compilateur ne peut pas choisir ce comportement à la place du
 développeur, contrairement aux autres types ressource qui ont un
 destructeur implicite unique.

@@ -109,7 +109,7 @@ pub fn lower_for_in(
     }
 
     // continue → incr_bb, break → merge_bb
-    builder.loop_stack.push((incr_bb.clone(), merge_bb.clone()));
+    builder.loop_stack.push((incr_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len()));
     lower_block(builder, body);
     builder.loop_stack.pop();
 
@@ -205,7 +205,7 @@ pub fn lower_for_map(
     builder.emit(Inst::Store { ptr: val_slot, src: v });
 
     // continue → incr_bb, break → merge_bb
-    builder.loop_stack.push((incr_bb.clone(), merge_bb.clone()));
+    builder.loop_stack.push((incr_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len()));
     lower_block(builder, body);
     builder.loop_stack.pop();
 
@@ -228,13 +228,21 @@ pub fn lower_for_map(
 }
 
 pub fn lower_break(builder: &mut LowerBuilder) {
-    if let Some((_, break_bb)) = builder.loop_stack.last().cloned() {
+    if let Some((_, break_bb, depth)) = builder.loop_stack.last().cloned() {
+        // Détruit les scoped/consumed encore vivantes entre ici et l'entrée
+        // de la boucle (corps de boucle inclus) avant de sauter dehors —
+        // voir crate::lower::stmt::ownership::emit_early_exit_drops.
+        crate::lower::stmt::ownership::emit_early_exit_drops(builder, depth);
         builder.emit(Inst::Jump { target: break_bb });
     }
 }
 
 pub fn lower_continue(builder: &mut LowerBuilder) {
-    if let Some((continue_bb, _)) = builder.loop_stack.last().cloned() {
+    if let Some((continue_bb, _, depth)) = builder.loop_stack.last().cloned() {
+        // Même destruction que `break` : `continue` quitte aussi le corps
+        // de boucle actuellement ouvert (et tout ce qu'il contient), juste
+        // pour reboucler plutôt que sortir complètement.
+        crate::lower::stmt::ownership::emit_early_exit_drops(builder, depth);
         builder.emit(Inst::Jump { target: continue_bb });
     }
 }

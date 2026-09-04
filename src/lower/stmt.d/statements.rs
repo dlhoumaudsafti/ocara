@@ -61,6 +61,11 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
                 let val = lower_expr(builder, e);
                 crate::lower::stmt::ownership::maybe_clone_escaping(builder, e, val)
             });
+            // Sortie anticipée de la fonction : détruit toutes les
+            // scoped/consumed encore vivantes dans les blocs actuellement
+            // ouverts (v, calculé juste au-dessus, a déjà sa propre copie
+            // indépendante si besoin — voir maybe_clone_escaping).
+            crate::lower::stmt::ownership::emit_early_exit_drops(builder, 0);
             // Si on est dans un handler d'exception (__try_handler_*), signaler le return
             // au runtime pour qu'il soit propagé à la fonction englobante
             if builder.func.name.starts_with("__try_handler_") {
