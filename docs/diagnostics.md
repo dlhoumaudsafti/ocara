@@ -383,7 +383,7 @@ fichier.oc:5:5: error: 't' is a 'scoped'/'consumed' Thread that reaches the end 
 ```
 
 Une `scoped`/`consumed Thread` atteint la fin de son bloc sans avoir été
-`.join()`ée (attendre sa fin) ni `.detach()`ée (la laisser tourner en tâche
+`.join()` (attendre sa fin) ni `.detach()` (la laisser tourner en tâche
 de fond) — le compilateur ne peut pas choisir ce comportement à la place du
 développeur, contrairement aux autres types ressource qui ont un
 destructeur implicite unique.

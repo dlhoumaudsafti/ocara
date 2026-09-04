@@ -10,10 +10,14 @@
 //   - null     : absence de valeur pour les types référence
 //
 // NOTE : `scoped`/`consumed` ne détruisent réellement leur valeur que pour
-// array<T>/map<K,V> (échappement du bloc = clonée automatiquement) et pour
-// les classes ressource (Mutex/SQLite/MySQL/MariaDB/Thread — échappement
-// interdit à la compilation). Sur tout autre type (int/float/bool/string,
-// classes utilisateur...), elles se comportent exactement comme `var`.
+// string/array<T>/map<K,V> (échappement du bloc = clonée automatiquement)
+// et pour les classes ressource (Mutex/SQLite/MySQL/MariaDB/Thread —
+// échappement interdit à la compilation). Sur tout autre type
+// (int/float/bool, classes utilisateur...), elles se comportent exactement
+// comme `var`. Cas particulier pour `string` : un littéral ("foo") n'est ni
+// libéré ni cloné (aliasé directement, toujours sûr — figé dans le binaire
+// pour toute la durée du programme) ; seule une string réellement allouée
+// (concaténation, String::*, lecture de fichier...) l'est.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import ocara.IO
@@ -38,17 +42,20 @@ function main(): int {
 
     // scoped — variable de BLOC (block-scoped)
     // Portée : strictement limitée au bloc { } où elle est déclarée.
-    // Pour un array (comme ici), la mémoire est réellement libérée à la
-    // fermeture du bloc — pas seulement hors de portée côté compilateur.
+    // Pour un array/string (comme ici), la mémoire est réellement libérée
+    // à la fermeture du bloc — pas seulement hors de portée côté compilateur.
     if true {
-        scoped message:string = "dans le bloc if"   // string : se comporte comme var (voir note en-tête)
+        scoped message:string = "dans le bloc if"       // littéral → aliasé, rien à libérer
         IO::writeln(message) // dans le bloc if
+
+        scoped built:string = "dans" + " le bloc if bis"   // concaténation → vraie allocation, réellement libérée ici
+        IO::writeln(built)
 
         scoped data:array<int> = [1, 2, 3]
         IO::writeln(Array::len(data))   // 3
-        // message et data existent ici...
+        // message, built et data existent ici...
     }
-    // ...mais n'existent plus ici (data est réellement libérée)
+    // ...mais n'existent plus ici (built et data sont réellement libérées)
 
     var i:int = 0
     while i smaller 3 {
@@ -60,7 +67,7 @@ function main(): int {
 
     // consumed — variable à USAGE UNIQUE
     // Possédée dès sa déclaration, détruite juste après sa toute première
-    // utilisation (ici, un array — sinon, non-libéré, se comporte comme var).
+    // utilisation (ici, un array — string/map suivent la même règle).
     // Une deuxième utilisation serait une erreur de compilation :
     //   consumed once:array<int> = [7, 8, 9]
     //   IO::writeln(Array::len(once))   // 1ʳᵉ (et unique) utilisation → once détruit juste après

@@ -41,17 +41,16 @@ pub struct LocalBinding {
 /// des variables" pour la justification de cette classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OwnershipClass {
-    /// `array<T>`/`map<K,V>` — clonée automatiquement à l'échappement.
-    /// NOTE : `string` n'est PAS ici malgré son type tas — un littéral
-    /// (`"foo"`) est compilé en une constante `.rodata` portant le même
-    /// header `TAG_STRING` qu'une vraie allocation tas (voir
-    /// `src/codegen/emit.d/instructions.d/constants.rs::Inst::ConstStr`),
-    /// donc indiscernable au runtime d'une string réellement possédée —
-    /// tenter de la libérer plante (`dealloc` sur une adresse jamais
-    /// allouée par l'allocateur). Distinguer les deux nécessite soit un tag
-    /// runtime dédié, soit une preuve statique à la déclaration ; ni l'un
-    /// ni l'autre n'existe encore, donc `string` reste `Unsupported` pour
-    /// ce chantier (se comporte comme `var`) jusqu'à ce que ce soit résolu.
+    /// `string`/`array<T>`/`map<K,V>` — clonée automatiquement à
+    /// l'échappement. Pour `string` spécifiquement : le runtime distingue
+    /// désormais un littéral (`"foo"`, tag `TAG_STRING`, `.rodata`, jamais
+    /// libéré ni cloné — aliasé directement, toujours sûr car immuable et
+    /// éternel) d'une allocation tas réelle (tag `TAG_STRING_OWNED`, posée
+    /// par `alloc_str` — concaténation, `String::*`, lecture fichier...),
+    /// via `__value_free`/`__value_clone` (`runtime/src/lib.rs`). Avant ce
+    /// tag dédié, les deux étaient indiscernables et libérer une `scoped
+    /// string` plantait dès qu'elle contenait un littéral — voir
+    /// l'historique de `TAG_STRING_OWNED` dans `runtime/src/typecheck.rs`.
     Value,
     /// Classe ressource avec un destructeur natif réel (Mutex/SQLite/
     /// MySQL/MariaDB) — échappement interdit, un handle ne peut pas être
@@ -62,21 +61,31 @@ pub enum OwnershipClass {
     /// (tâche de fond) est un choix sémantique que le compilateur ne peut
     /// pas prendre à la place du développeur.
     Thread,
-    /// Type non pris en charge par ce chantier — primitif (rien à
-    /// posséder), `string` (voir `Value` ci-dessus), SDL/Tauri (cycle de
-    /// vie "tout le process", incompatible avec une portée de bloc), ou
-    /// instance de classe utilisateur (pas de clonage/destructeur
-    /// générique pour l'instant).
+    /// Type non pris en charge par ce chantier — uniquement les primitifs
+    /// (`int`/`float`/`bool` : rien à posséder) et le reste (Function,
+    /// union, `mixed`...) désormais.
     Unsupported,
 }
 
+/// `Type::Named(n)` non-ressource est traitée comme `Value` (instance de
+/// classe utilisateur — clonée à l'échappement, comme `array`/`map`) SANS
+/// vérifier ici si `n` a réellement un destructeur généré : cette fonction
+/// n'a pas accès à `program.classes`. La sema (permissive : aucune classe
+/// n'a besoin d'être "reconnue" pour qu'un échappement soit autorisé) et le
+/// lowering restent cohérents grâce à un seul point de vérité côté lowering
+/// — `crate::lower::builder::class_ownership::has_generated_destructor` —
+/// consulté avant tout appel `__free_<Classe>`/`__clone_<Classe>` : si `n`
+/// n'est pas une classe utilisateur réelle (SDL/Tauri/Exception/toute autre
+/// classe builtin, qui n'ont pas d'entrée dans `class_field_types`), aucune
+/// fonction n'est appelée — comportement identique à `var` (aucune
+/// destruction, aucun clonage), pas de plantage ni de symbole manquant.
 pub fn ownership_class(ty: &Type) -> OwnershipClass {
     match ty {
-        Type::Array(_) | Type::Map(_, _) => OwnershipClass::Value,
+        Type::String | Type::Array(_) | Type::Map(_, _) => OwnershipClass::Value,
         Type::Named(n) => match n.as_str() {
             "Mutex" | "SQLite" | "MySQL" | "MariaDB" => OwnershipClass::Resource,
             "Thread" => OwnershipClass::Thread,
-            _ => OwnershipClass::Unsupported,
+            _ => OwnershipClass::Value,
         },
         _ => OwnershipClass::Unsupported,
     }
@@ -121,7 +130,7 @@ impl ScopeStack {
     }
 
     /// Dépile le scope courant et retourne les variables non utilisées ainsi
-    /// que les `Thread` `scoped`/`consumed` jamais `.join()`ées/`.detach()`ées.
+    /// que les `Thread` `scoped`/`consumed` jamais `.join()`/`.detach()`.
     pub fn pop_scope(&mut self) -> PoppedScope {
         let frame = match self.frames.pop() {
             Some(f) => f,

@@ -74,6 +74,7 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     // Allocation d'objet tas (toujours disponible)
     BuiltinDesc { name: "__alloc_obj",            params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__alloc_class_obj",      params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__object_free",          params: &[clt::I64, clt::I64],              returns: None,               module: None },
     BuiltinDesc { name: "__alloc_fat_ptr",        params: &[],                                returns: Some(clt::I64),    module: None },
     
     // Conversion string — sans heuristique pointeur

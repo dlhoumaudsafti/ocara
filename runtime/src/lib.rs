@@ -23,8 +23,8 @@
 #![allow(clippy::missing_safety_doc)]
 
 use std::alloc::{alloc, alloc_zeroed, dealloc, Layout};
-use crate::typecheck::{TAG_STRING, TAG_ARRAY, TAG_MAP, TAG_OBJECT, TAG_FUNCTION, 
-    __is_function, __is_object, __is_map, __is_array, __is_string};
+use crate::typecheck::{TAG_STRING_OWNED, TAG_ARRAY, TAG_MAP, TAG_OBJECT, TAG_FUNCTION,
+    __is_function, __is_object, __is_map, __is_array, __is_string, read_tag};
 use std::ffi::CStr;
 use std::io::{self, BufRead};
 use std::process::Command;
@@ -130,6 +130,12 @@ pub mod yaml;
 
 /// Alloue une chaîne null-terminated sur le heap et retourne son adresse.
 /// Alignement 8 pour garantir que les 3 bits bas sont 0 (invariant boxing).
+/// Taguée `TAG_STRING_OWNED` (pas `TAG_STRING`) : c'est ce qui distingue une
+/// string réellement possédée (libérable) d'un littéral `.rodata` — voir la
+/// doc de `TAG_STRING_OWNED` dans `typecheck.rs`. `alloc_str` est le SEUL
+/// point de création d'une string dynamique dans tout le runtime (170+
+/// appels à travers `runtime/src/*.rs`) : ce tag couvre donc uniformément
+/// toute string hors littéral, sans exception à traiter ailleurs.
 /// `pub` (pas `pub(crate)`) : utilisé depuis le crate séparé runtime_tauri.
 pub unsafe fn alloc_str(s: &str) -> i64 {
     let bytes = s.as_bytes();
@@ -140,7 +146,7 @@ pub unsafe fn alloc_str(s: &str) -> i64 {
         let raw = alloc(layout);
         assert!(!raw.is_null(), "ocara_runtime: OOM");
         // Écrire le tag dans le header
-        *(raw as *mut i64) = TAG_STRING;
+        *(raw as *mut i64) = TAG_STRING_OWNED;
         // Copier les données de la chaîne après le header
         let data = raw.add(8);
         std::ptr::copy_nonoverlapping(bytes.as_ptr(), data, bytes.len());
@@ -312,10 +318,20 @@ unsafe fn map_ref(ptr: i64) -> &'static mut OcaraMap {
 // mais peuvent apparaître comme élément d'un array/map `scoped`/`consumed`).
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Vrai uniquement pour une string ALLOUÉE SUR LE TAS (`TAG_STRING_OWNED`,
+/// posée par `alloc_str`) — pas pour un littéral `.rodata` (`TAG_STRING`).
+/// Contrairement à `__is_string` (qui répond vrai pour les deux, une
+/// question de TYPE), c'est une question de LIBÉRABILITÉ : seul un
+/// `dealloc` sur une adresse réellement `alloc()` est valide.
+#[inline]
+unsafe fn is_owned_string(val: i64) -> bool {
+    unsafe { read_tag(val) == TAG_STRING_OWNED }
+}
+
 /// Libère `val` récursivement si c'est un pointeur heap string/array/map.
 /// No-op sur tout le reste — **y compris une string littérale** (`.rodata`,
-/// pas de header de tag devant, `__is_string` renvoie faux) : c'est ce qui
-/// rend cette fonction sûre comme point d'entrée UNIQUE pour la destruction
+/// tag `TAG_STRING`, pas `TAG_STRING_OWNED`) : c'est ce qui rend cette
+/// fonction sûre comme point d'entrée UNIQUE pour la destruction
 /// `scoped`/`consumed` (voir `crate::lower::stmt::ownership` côté
 /// compilateur) — le type statique AST ne suffit pas à savoir si une valeur
 /// `string` donnée est réellement possédée (tas) ou seulement empruntée
@@ -323,7 +339,7 @@ unsafe fn map_ref(ptr: i64) -> &'static mut OcaraMap {
 #[unsafe(no_mangle)]
 pub extern "C" fn __value_free(val: i64) {
     unsafe {
-        if __is_string(val) != 0 { free_str(val); }
+        if is_owned_string(val) { free_str(val); }
         else if __is_array(val) != 0 { __array_free(val); }
         else if __is_map(val)   != 0 { __map_free(val); }
     }
@@ -332,11 +348,13 @@ pub extern "C" fn __value_free(val: i64) {
 /// Clone `val` récursivement si c'est un pointeur heap string/array/map.
 /// Retourne `val` tel quel pour tout le reste — ces valeurs n'ont pas de
 /// propriétaire distinct à dupliquer (partagées par nature : primitifs,
-/// string littérale, objets, fonctions, 0). Voir `__value_free`.
+/// objets, fonctions, 0) — **y compris une string littérale** : immuable et
+/// éternelle (vit tout le programme), l'aliaser directement sans copie est
+/// toujours sûr, pas besoin d'allouer un clone inutile. Voir `__value_free`.
 #[unsafe(no_mangle)]
 pub extern "C" fn __value_clone(val: i64) -> i64 {
     unsafe {
-        if __is_string(val) != 0 { alloc_str(ptr_to_str(val)) }
+        if is_owned_string(val) { alloc_str(ptr_to_str(val)) }
         else if __is_array(val) != 0 { __array_clone(val) }
         else if __is_map(val)   != 0 { __map_clone(val) }
         else { val }
@@ -2210,6 +2228,26 @@ pub extern "C" fn __alloc_class_obj(size: i64) -> i64 {
         assert!(!raw.is_null(), "ocara_runtime: OOM in __alloc_class_obj");
         *(raw as *mut i64) = TAG_OBJECT;
         (raw as i64) + 8
+    }
+}
+
+/// Libère une instance de classe utilisateur allouée par `__alloc_class_obj`
+/// (tag `TAG_OBJECT`). `n_fields` doit être EXACTEMENT le nombre de champs
+/// utilisé à l'allocation — connu statiquement par le compilateur pour
+/// chaque classe (`module.class_layouts[Classe].len()`), c'est pourquoi il
+/// est passé en argument plutôt que déduit d'un tag/header : rien ne stocke
+/// la taille ailleurs. Appelée uniquement depuis un `__free_<Classe>`
+/// généré (voir `src/lower/builder.d/class_ownership.rs`), jamais
+/// directement — ce n'est PAS un ramasse-miettes général, mêmes précautions
+/// que `free_str`.
+#[unsafe(no_mangle)]
+pub extern "C" fn __object_free(ptr: i64, n_fields: i64) {
+    if ptr == 0 { return; }
+    unsafe {
+        let raw = (ptr - 8) as *mut u8;
+        let size = 8 + (n_fields.max(0) as usize) * 8;
+        let layout = Layout::from_size_align(size, 8).unwrap();
+        dealloc(raw, layout);
     }
 }
 

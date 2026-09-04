@@ -6,6 +6,7 @@ pub mod runtime;
 pub mod functions;
 pub mod classes;
 pub mod wrappers;
+pub mod class_ownership;
 
 // Re-exports publics
 pub use types::LowerBuilder;

@@ -157,7 +157,7 @@ pub fn lower_while(
 
     builder.switch_to(&body_bb);
     // continue → cond_bb (réévalue la condition), break → merge_bb
-    builder.loop_stack.push((cond_bb.clone(), merge_bb.clone()));
+    builder.loop_stack.push((cond_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len()));
     lower_block(builder, body);
     builder.loop_stack.pop();
     if !builder.is_terminated() {

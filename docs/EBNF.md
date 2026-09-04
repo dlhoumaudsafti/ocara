@@ -1185,14 +1185,17 @@ x = x + 10   // valide
 
 | Type de `scoped` | À la fermeture du bloc |
 |---|---|
-| `array<T>`, `map<K,V>` | Le tableau/la map est réellement libéré(e) — récursivement pour les éléments eux-mêmes `array`/`map`. Si sa valeur a été affectée à une variable qui survit au bloc (`var y = x`, `y = x`, `return x`), cette variable reçoit une **copie profonde indépendante** au moment de l'affectation — la détruire ensuite ne l'affecte donc jamais. |
+| `string`, `array<T>`, `map<K,V>` | Réellement libérée — récursivement pour `array`/`map` dont les éléments sont eux-mêmes `string`/`array`/`map`. Si sa valeur a été affectée à une variable qui survit au bloc (`var y = x`, `y = x`, `return x`), cette variable reçoit une **copie profonde indépendante** au moment de l'affectation — la détruire ensuite ne l'affecte donc jamais. Pour `string` précisément : un littéral (`"foo"`) n'est ni libéré ni cloné (aliasé directement, toujours sûr — immuable et figé dans le binaire pour toute la durée du programme) ; seule une string réellement allouée sur le tas (concaténation, `String::*`, lecture de fichier...) l'est. |
 | `Mutex`, `SQLite`, `MySQL`, `MariaDB` | La ressource native est réellement libérée (`.destroy()`/`.close()` implicite). **Ne peut pas s'échapper du bloc** (affectation, `return`) — erreur de compilation, un handle de ressource ne peut être ni cloné ni partagé. |
-| `Thread` | Doit avoir été explicitement `.join()`ée ou `.detach()`ée avant la fin du bloc — sinon erreur de compilation (le compilateur ne choisit pas à la place du développeur entre attendre le thread et le détacher). Même interdiction d'échappement que ci-dessus. |
-| Tout le reste (`int`/`float`/`bool`/`string`, `SDL`/`Tauri`, instances de classe utilisateur) | Se comporte exactement comme `var` — aucune destruction. `string` en particulier : un littéral (`"foo"`) est indiscernable au runtime d'une allocation possédée, donc pas encore de destruction sûre pour ce type. |
+| `Thread` | Doit avoir été explicitement `.join()` ou `.detach()` avant la fin du bloc — sinon erreur de compilation (le compilateur ne choisit pas à la place du développeur entre attendre le thread et le détacher). Même interdiction d'échappement que ci-dessus. |
+| Instance de classe **utilisateur** (`class Foo { ... }`) | Réellement libérée, récursivement pour chaque champ `string`/`array`/`map`/instance d'une autre classe utilisateur (champs hérités via `extends` inclus) — un champ `Mutex`/`Thread`/... ou d'un type non pris en charge n'est pas libéré (fuite, pas un crash). Échappement : copie profonde (même logique récursive), pas d'interdiction. |
+| Tout le reste (`int`/`float`/`bool`, `SDL`/`Tauri`, classes builtin non listées ci-dessus) | Se comporte exactement comme `var` — aucune destruction. |
 
 > **`scoped` est interdit sur un champ de classe** : un champ vit aussi longtemps que l'objet, pas le temps d'un bloc. Utiliser `property` pour les champs de classe.
 
-> **Limite connue** : une sortie anticipée du bloc (`return`/`break`/`continue`, ou un `raise` qui traverse un `try` englobant) ne déclenche pas la destruction — la valeur fuit (pas de plantage ni de corruption : rien d'autre ne peut aliaser sa mémoire, juste une fuite mémoire/ressource non libérée).
+Une sortie anticipée du bloc (`return`, ou `break`/`continue` hors d'une boucle) détruit elle aussi correctement toutes les `scoped`/`consumed` encore vivantes dans les blocs qu'elle traverse — pas seulement une fin de bloc normale.
+
+> **Limite connue** : seul un `raise` qui traverse un `try` englobant (`longjmp`) échappe à cette règle — la valeur fuit (pas de plantage ni de corruption : rien d'autre ne peut aliaser sa mémoire, juste une fuite mémoire/ressource non libérée). Voir `src/lower/stmt.d/statements.d/exceptions.rs`.
 
 ### 9.3 Variable à usage unique (`consumed`)
 
@@ -1207,7 +1210,7 @@ function loadOnce(): int {
 }
 ```
 
-`consumed` déclare une variable **mutable**, possédée dès sa déclaration, détruite **juste après sa toute première utilisation** (même règle de destruction par type que `scoped`, voir le tableau ci-dessus — uniquement `array`/`map`/`Mutex`/`SQLite`/`MySQL`/`MariaDB`/`Thread` ; les autres types se comportent comme `var`). Réutiliser la variable après cette première utilisation est une **erreur de compilation** :
+`consumed` déclare une variable **mutable**, possédée dès sa déclaration, détruite **juste après sa toute première utilisation** (même règle de destruction par type que `scoped`, voir le tableau ci-dessus — uniquement `string`/`array`/`map`/`Mutex`/`SQLite`/`MySQL`/`MariaDB`/`Thread` ; les autres types se comportent comme `var`). Réutiliser la variable après cette première utilisation est une **erreur de compilation** :
 
 ```ocara
 consumed x:array<int> = [1, 2, 3]

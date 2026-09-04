@@ -38,8 +38,23 @@ pub struct LowerBuilder<'m> {
     pub current_class: Option<String>,
     /// Classe parent (Some(name) si current_class extends une autre classe)
     pub parent_class: Option<String>,
-    /// Pile de boucles : (continue_bb, break_bb) — pour break/continue
-    pub loop_stack: Vec<(BlockId, BlockId)>,
+    /// Pile de boucles : (continue_bb, break_bb, block_scope_depth) —
+    /// pour break/continue. `block_scope_depth` = profondeur de
+    /// `block_scope_stack` juste AVANT que le corps de la boucle ne pousse
+    /// sa propre frame (voir `lower_while`/`lower_for_in`/`lower_for_map`) —
+    /// permet à `break`/`continue` de savoir jusqu'où détruire les
+    /// `scoped`/`consumed` encore vivantes (voir `block_scope_stack`).
+    pub loop_stack: Vec<(BlockId, BlockId, usize)>,
+    /// Pile des blocs actuellement ouverts : chaque frame liste les noms
+    /// des variables `scoped`/`consumed` (types pris en charge) déclarées
+    /// DIRECTEMENT dans ce bloc, dans l'ordre de déclaration — alimentée par
+    /// `crate::lower::stmt::ownership::register_owned_local`, poussée/
+    /// dépilée par `lower_block`. Sert UNIQUEMENT à `return`/`break`/
+    /// `continue` anticipés (voir `emit_early_exit_drops` dans ownership.rs)
+    /// — le chemin normal (fin de bloc sans sortie anticipée) continue de
+    /// dériver sa propre liste depuis l'AST (`emit_scope_drops`), ce
+    /// mécanisme-ci est un ajout, pas un remplacement.
+    pub block_scope_stack: Vec<Vec<String>>,
     /// Variables de type Function (pointeurs de fonction) — pour CallIndirect
     pub func_vars: HashSet<String>,
     /// Type de retour des variables Function<ReturnType> — pour CallIndirect
@@ -95,6 +110,7 @@ impl<'m> LowerBuilder<'m> {
             current_class: None,
             parent_class: None,
             loop_stack: Vec::new(),
+            block_scope_stack: Vec::new(),
             func_vars: HashSet::new(),
             func_ret_types: HashMap::new(),
             captured_vars: HashMap::new(),

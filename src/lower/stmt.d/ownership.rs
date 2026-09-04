@@ -10,29 +10,36 @@
 /// (appelé depuis `lower_var`/`lower_assign`/`Stmt::Return` — PAS depuis un
 /// argument d'appel, voir la doc de `maybe_clone_escaping` pour pourquoi).
 ///
-/// Limite connue de ce premier chantier : une sortie de bloc anticipée
-/// (`return`/`break`/`continue`/`raise`, y compris un `raise` qui traverse
-/// un `try` via `longjmp` — voir `lower_try` dans
-/// `src/lower/stmt.d/statements.d/exceptions.rs`) ne déclenche PAS la
-/// destruction des `scoped`/`consumed` encore vivantes à ce point — elles
-/// fuient (pas de use-after-free : rien d'autre ne peut aliaser leur
-/// mémoire, voir `maybe_clone_escaping` — juste une fuite). Un vrai
-/// rattrapage nécessiterait d'étendre le contrat runtime entre
+/// `return`/`break`/`continue` anticipés détruisent eux aussi correctement
+/// les `scoped`/`consumed` encore vivantes dans les blocs qu'ils traversent
+/// — voir `emit_early_exit_drops` et `block_scope_stack`
+/// (`src/lower/builder.d/types.rs`), câblés depuis `Stmt::Return`
+/// (`src/lower/stmt.d/statements.rs`) et `lower_break`/`lower_continue`
+/// (`src/lower/stmt.d/statements.d/loops.rs`).
+///
+/// Limite connue restante (délibérément reportée) : un `raise` qui traverse
+/// un `try` englobant via `longjmp` (voir `lower_try` dans
+/// `src/lower/stmt.d/statements.d/exceptions.rs`) échappe à tout ça — les
+/// `scoped`/`consumed` encore vivantes à ce moment fuient (pas de
+/// use-after-free : rien d'autre ne peut aliaser leur mémoire, voir
+/// `maybe_clone_escaping` — juste une fuite). Un vrai rattrapage
+/// nécessiterait d'étendre le contrat runtime entre
 /// `__ocara_fail`/`__ocara_try_exec` et le handler généré (aujourd'hui le
 /// handler ne reçoit que `err_val`/`err_type`, pas d'accès aux locals du
 /// corps `try` — dont la pile a de toute façon disparu au moment du
 /// `longjmp`, il faudrait les faire vivre sur le tas comme le sont déjà les
-/// *captures*). Chantier délibérément reporté : risque élevé sur un
-/// mécanisme déjà fragile (voir le bug `Thread_join`/`longjmp` corrigé plus
-/// tôt dans ce projet) pour un gain limité à un cas de fuite, jamais de
-/// corruption.
+/// *captures*) : risque élevé sur un mécanisme déjà fragile (voir le bug
+/// `Thread_join`/`longjmp` corrigé plus tôt dans ce projet) pour un gain
+/// limité à un cas de fuite, jamais de corruption.
 use std::collections::HashMap;
 
 use crate::ir::inst::{Inst, Value};
+use crate::ir::module::IrModule;
 use crate::ir::types::IrType;
 use crate::parsing::ast::{Block, Expr, Stmt, TemplatePartExpr, Type, VarKind};
 use crate::sema::scope::{ownership_class, OwnershipClass};
 use crate::lower::builder::LowerBuilder;
+use crate::lower::builder::class_ownership;
 
 /// Point d'échappement (affectation, `return` — PAS un argument d'appel,
 /// voir `TypeChecker::check_escape` côté sema pour la justification) côté
@@ -46,17 +53,20 @@ use crate::lower::builder::LowerBuilder;
 /// qui l'atteindrait quand même n'aurait pas dû passer `--check`.
 pub fn maybe_clone_escaping(builder: &mut LowerBuilder, expr: &Expr, val: Value) -> Value {
     let Expr::Ident(name, _) = expr else { return val };
-    let Some(info) = builder.owned_locals.get(name) else { return val };
+    let Some(info) = builder.owned_locals.get(name).cloned() else { return val };
     if !matches!(info.kind, VarKind::Scoped | VarKind::Consumed) {
         return val;
     }
     if info.class != OwnershipClass::Value {
         return val;
     }
+    // Type non reconnu (SDL/Tauri/toute classe sans __clone_ généré) :
+    // aucun clone à faire — aliasé tel quel, comportement `var` inchangé.
+    let Some(func) = clone_func_for(builder.module, &info) else { return val };
     let cloned = builder.new_value();
     builder.emit(Inst::Call {
         dest: Some(cloned.clone()),
-        func: "__value_clone".into(),
+        func,
         args: vec![val],
         ret_ty: IrType::Ptr,
     });
@@ -91,33 +101,58 @@ pub fn register_owned_local(builder: &mut LowerBuilder, name: &str, ty: &Type, k
             name.to_string(),
             OwnedLocalInfo { kind, class, ty: ty.clone(), dropped: false },
         );
+        // Alimente block_scope_stack pour emit_early_exit_drops (return/
+        // break/continue anticipés) — voir sa doc dans builder.d/types.rs.
+        if let Some(frame) = builder.block_scope_stack.last_mut() {
+            frame.push(name.to_string());
+        }
     }
 }
 
 /// Fonction runtime de libération pour un type valeur/ressource pris en
 /// charge — `None` si ce type précis n'a finalement pas de destructeur
-/// connu (ne devrait pas arriver pour une entrée déjà filtrée par
-/// `register_owned_local`, mais on reste défensif).
+/// connu (Thread/Unsupported déjà filtrés par `register_owned_local` ;
+/// pour `Value`, une classe utilisateur sans `__free_` généré — voir
+/// `has_generated_destructor` — se comporte comme `var`, ni erreur ni crash).
 ///
-/// Types valeur : `array`/`map` sont toujours de vraies allocations tas par
-/// construction (`__array_new`/`__map_new`, jamais de littéral figé en
-/// mémoire statique comme pour `string` — voir `OwnershipClass::Value`,
-/// c'est justement pourquoi `string` n'atteint jamais cette branche).
-/// `__value_free` gère aussi la récursion sur les éléments imbriqués.
-fn drop_func_for(info: &OwnedLocalInfo) -> Option<&'static str> {
+/// Types valeur non-classe : toujours `__value_free`, qui dispatche sur le
+/// tag RUNTIME (pas ce type statique AST) — indispensable pour `string`, où
+/// un littéral (tag `TAG_STRING`) et une allocation tas réelle (tag
+/// `TAG_STRING_OWNED`) partagent le même type AST mais pas la même
+/// libérabilité (voir `OwnershipClass::Value`). `array`/`map` passent par
+/// la même fonction pour rester uniformes et gérer récursivement les
+/// éléments imbriqués. Instance de classe utilisateur : `__free_<Classe>`
+/// généré par `crate::lower::builder::class_ownership`.
+fn drop_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<String> {
     match info.class {
         OwnershipClass::Value => match &info.ty {
-            Type::Array(_) | Type::Map(_, _) => Some("__value_free"),
+            Type::String | Type::Array(_) | Type::Map(_, _) => Some("__value_free".to_string()),
+            Type::Named(n) if class_ownership::has_generated_destructor(module, n) => {
+                Some(format!("__free_{}", n))
+            }
             _ => None,
         },
         OwnershipClass::Resource => match &info.ty {
-            Type::Named(n) if n == "Mutex"    => Some("Mutex_destroy"),
-            Type::Named(n) if n == "SQLite"   => Some("SQLite_close"),
-            Type::Named(n) if n == "MySQL"    => Some("MySQL_close"),
-            Type::Named(n) if n == "MariaDB"  => Some("MariaDB_close"),
+            Type::Named(n) if n == "Mutex"    => Some("Mutex_destroy".to_string()),
+            Type::Named(n) if n == "SQLite"   => Some("SQLite_close".to_string()),
+            Type::Named(n) if n == "MySQL"    => Some("MySQL_close".to_string()),
+            Type::Named(n) if n == "MariaDB"  => Some("MariaDB_close".to_string()),
             _ => None,
         },
         OwnershipClass::Thread | OwnershipClass::Unsupported => None,
+    }
+}
+
+/// Comme `drop_func_for`, pour le clonage à l'échappement (voir
+/// `maybe_clone_escaping`) — uniquement pertinent pour `OwnershipClass::Value`
+/// (les ressources ne s'échappent jamais, refusé par la sema).
+fn clone_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<String> {
+    match &info.ty {
+        Type::String | Type::Array(_) | Type::Map(_, _) => Some("__value_clone".to_string()),
+        Type::Named(n) if class_ownership::has_generated_destructor(module, n) => {
+            Some(format!("__clone_{}", n))
+        }
+        _ => None,
     }
 }
 
@@ -128,9 +163,9 @@ fn emit_drop_if_owned(builder: &mut LowerBuilder, name: &str) {
     if info.dropped {
         return;
     }
-    let Some(func) = drop_func_for(&info) else { return };
+    let Some(func) = drop_func_for(builder.module, &info) else { return };
     let Some((val, _)) = builder.load_local(name) else { return };
-    builder.emit(Inst::Call { dest: None, func: func.into(), args: vec![val], ret_ty: IrType::Void });
+    builder.emit(Inst::Call { dest: None, func, args: vec![val], ret_ty: IrType::Void });
     if let Some(entry) = builder.owned_locals.get_mut(name) {
         entry.dropped = true;
     }
@@ -151,6 +186,34 @@ pub fn emit_scope_drops(builder: &mut LowerBuilder, block: &Block) {
     }).collect();
     for name in names {
         emit_drop_if_owned(builder, &name);
+    }
+}
+
+/// Détruit toutes les `scoped`/`consumed` encore vivantes dans les blocs
+/// actuellement ouverts, depuis le plus interne (`block_scope_stack.len() -
+/// 1`) jusqu'à `down_to_depth` INCLUS — appelé juste avant d'émettre le
+/// terminateur d'un `return`/`break`/`continue` anticipé, pour que sortir
+/// tôt d'un bloc ne fasse plus fuir ce qui y était encore possédé.
+///
+/// `down_to_depth` :
+///   - `0` pour `return` — sort de toute la fonction, tout est concerné.
+///   - la profondeur de `block_scope_stack` au moment où la boucle courante
+///     a été entrée (voir `loop_stack`) pour `break`/`continue` — sort du
+///     corps de la boucle (inclus) mais pas des blocs qui l'englobent.
+///
+/// Sans effet sur les blocs eux-mêmes : `lower_block` fait toujours son
+/// propre `pop()` normalement juste après (`is_terminated()` protège son
+/// `emit_scope_drops` contre un double-appel, voir sa doc).
+pub fn emit_early_exit_drops(builder: &mut LowerBuilder, down_to_depth: usize) {
+    let len = builder.block_scope_stack.len();
+    if down_to_depth >= len {
+        return;
+    }
+    for i in (down_to_depth..len).rev() {
+        let names = builder.block_scope_stack[i].clone();
+        for name in names.iter().rev() {
+            emit_drop_if_owned(builder, &name);
+        }
     }
 }
 
