@@ -105,6 +105,12 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
                 Expr::SelfExpr(_)    => builder.current_class.clone(),
                 Expr::ParentExpr(_)  => builder.parent_class.clone(),
+                // Accès chaîné (`a.b.c` où `b` est elle-même une instance de
+                // classe) — voir resolve_chained_field_class pour le bug que
+                // ça corrige.
+                Expr::Field { object: inner, field: inner_field, .. } => {
+                    resolve_chained_field_class(builder, inner, inner_field)
+                }
                 _ => None,
             };
             let offset = if let Some(cls) = &class_name {
@@ -250,8 +256,15 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                                 None
                             }
                         }
+                        // Accès chaîné : w.inner.sum() où `inner` est elle-même
+                        // une instance de classe/string/array/map — DOIT être
+                        // vérifié avant le fallback générique ci-dessous, qui
+                        // devinait "String" à tort pour ce cas (bug historique,
+                        // voir resolve_chained_field_class).
+                        Expr::Field { object: inner_obj, field: inner_field, .. } => {
+                            resolve_chained_field_class(builder, inner_obj, inner_field)
+                        }
                         // Appel de fonction retournant string : func().trim()
-                        // Accès de champ retournant string : obj.name.trim()
                         _ => {
                             // Fallback : vérifier si c'est un type string via l'IR
                             let ir_ty = expr_ir_type(builder, object);
@@ -1084,6 +1097,9 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     let class_name = match inner.as_ref() {
                         Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
                         Expr::SelfExpr(_)    => builder.current_class.clone(),
+                        Expr::Field { object: inner2, field: inner2_field, .. } => {
+                            resolve_chained_field_class(builder, inner2, inner2_field)
+                        }
                         _ => None,
                     };
                     class_name

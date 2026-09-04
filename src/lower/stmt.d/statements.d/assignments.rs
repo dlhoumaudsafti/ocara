@@ -6,6 +6,7 @@ use crate::ir::inst::Inst;
 use crate::lower::builder::LowerBuilder;
 use crate::lower::expr::{lower_expr, expr_ir_type_pub};
 use super::helpers::box_for_any;
+use crate::lower::expr::helpers::resolve_chained_field_class;
 
 pub fn lower_assign(
     builder: &mut LowerBuilder,
@@ -32,6 +33,11 @@ pub fn lower_assign(
             let class_name = match object.as_ref() {
                 Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
                 Expr::SelfExpr(_)    => builder.current_class.clone(),
+                // Accès chaîné (`w.inner.x = ...`) — voir
+                // resolve_chained_field_class pour le bug historique corrigé.
+                Expr::Field { object: inner, field: inner_field, .. } => {
+                    resolve_chained_field_class(builder, inner, inner_field)
+                }
                 _ => None,
             };
             let offset = if let Some(cls) = &class_name {
@@ -62,6 +68,9 @@ pub fn lower_assign(
                     let class_name = match inner.as_ref() {
                         Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
                         Expr::SelfExpr(_)    => builder.current_class.clone(),
+                        Expr::Field { object: inner2, field: inner2_field, .. } => {
+                            resolve_chained_field_class(builder, inner2, inner2_field)
+                        }
                         _ => None,
                     };
                     class_name

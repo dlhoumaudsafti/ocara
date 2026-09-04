@@ -1,10 +1,52 @@
 /// Helpers pour le lowering des expressions
 
 use std::collections::HashMap;
-use crate::parsing::ast::Expr;
+use crate::parsing::ast::{Expr, Literal, Type};
 use crate::ir::types::IrType;
 use crate::lower::builder::LowerBuilder;
 use crate::codegen::runtime::builtins;
+
+/// Résout le nom de classe d'un accès de champ CHAÎNÉ (`w.inner` où `inner`
+/// est elle-même une instance de classe/`string`/`array`/`map`) — récursif
+/// pour gérer plus de deux niveaux (`a.b.c.d`).
+///
+/// Bug historique corrigé par cette fonction : chaque site qui résout la
+/// classe d'un `object` pour un accès de champ/appel de méthode
+/// (`Expr::Field`/`Expr::Call` avec callee `Field`) ne savait gérer que
+/// `object` = `Ident`/`SelfExpr`/`ParentExpr`/littéral string — jamais
+/// `object` = un AUTRE `Expr::Field`. `w.inner.sum()` (où `inner:Point`)
+/// tombait alors dans le fallback générique de chaque site ("le type IR
+/// est Ptr, je suppose que c'est une String"), qui devinait la MAUVAISE
+/// classe silencieusement (`String_sum` au lieu de `Point_sum`) — pas
+/// d'erreur de compilation, juste une valeur incorrecte au runtime.
+///
+/// Nécessite `IrModule.class_field_types` (vrai `Type` AST par champ — pas
+/// `IrType`, qui réduit classe/string/array/map à `Ptr`, tous
+/// indistinguables) : ne résout donc que les champs de classes
+/// UTILISATEUR (voir sa doc) — un champ d'une classe builtin/opaque
+/// retourne `None` ici, comme avant ce correctif.
+pub fn resolve_chained_field_class(builder: &LowerBuilder, object: &Expr, field: &str) -> Option<String> {
+    let base_class = match object {
+        Expr::Ident(name, _)    => builder.var_class.get(name.as_str()).cloned(),
+        Expr::SelfExpr(_)       => builder.current_class.clone(),
+        Expr::ParentExpr(_)     => builder.parent_class.clone(),
+        Expr::Literal(Literal::String(_), _) => Some("String".to_string()),
+        Expr::Field { object: inner, field: inner_field, .. } => {
+            resolve_chained_field_class(builder, inner, inner_field)
+        }
+        _ => None,
+    }?;
+    let field_ty = builder.module.class_field_types.get(&base_class)?
+        .iter().find(|(f, _)| f == field)
+        .map(|(_, ty)| ty.clone())?;
+    match field_ty {
+        Type::Named(n)   => Some(n),
+        Type::String     => Some("String".to_string()),
+        Type::Array(_)   => Some("Array".to_string()),
+        Type::Map(_, _)  => Some("Map".to_string()),
+        _ => None,
+    }
+}
 
 /// Complète les arguments avec les valeurs par défaut si nécessaire
 pub fn complete_args_with_defaults(
