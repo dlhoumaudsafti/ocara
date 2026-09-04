@@ -22,7 +22,7 @@ class Point {
     }
 
     public method display(): void {
-        IO::writeln("Point(" + self.x + ", " + self.y + ")")
+        IO::writeln(`Point(${self.x}, ${self.y})`)
     }
 
     public method distance_from_origin(): int {
@@ -43,7 +43,7 @@ class BankAccount {
 
     public method deposit(amount:float): void {
         self.balance = self.balance + amount
-        IO::writeln("Dépôt de " + amount + " — solde : " + self.balance)
+        IO::writeln(`Dépôt de ${amount} — solde : ${self.balance}`)
     }
 
     public method withdraw(amount:float): void {
@@ -51,12 +51,12 @@ class BankAccount {
             IO::writeln("Fonds insuffisants")
         } else {
             self.balance = self.balance - amount
-            IO::writeln("Retrait de " + amount + " — solde : " + self.balance)
+            IO::writeln(`Retrait de ${amount} — solde : ${self.balance}`)
         }
     }
 
     public method show_balance(): void {
-        IO::writeln(self.owner + " — solde : " + self.balance)
+        IO::writeln(`${self.owner} — solde : ${self.balance}`)
     }
 
     private method is_negative(): bool {

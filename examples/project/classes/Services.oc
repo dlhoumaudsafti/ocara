@@ -18,25 +18,25 @@ class Services {
 
     public method add(task:mixed): void {
         self.count = self.count + 1
-        IO::writeln("Tâche ajoutée — total : " + self.count)
+        IO::writeln(`Tâche ajoutée — total : ${self.count}`)
     }
 
     public method tag(label:string): void {
         var current:int = self.tag_counts[label]
         self.tag_counts[label] = current + 1
-        IO::writeln("Tag '" + label + "' → " + self.tag_counts[label])
+        IO::writeln(`Tag '${label}' → ${self.tag_counts[label]}`)
     }
 
     public method process_range(from:int, to:int): void {
-        IO::writeln("── Traitement " + from + ".." + to + " ──")
+        IO::writeln(`── Traitement ${from}..${to} ──`)
         for i in from..to {
-            IO::writeln("  item " + i)
+            IO::writeln(`  item ${i}`)
         }
     }
 
     public method show_summary(): void {
         IO::writeln("════════════════════════════════════")
-        IO::writeln("Total tâches : " + self.count)
+        IO::writeln(`Total tâches : ${self.count}`)
         IO::writeln("════════════════════════════════════")
     }
 

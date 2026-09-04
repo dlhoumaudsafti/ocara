@@ -86,7 +86,7 @@ class Score implements Printable, Comparable {
             60      => "Assez bien"
             default => "À améliorer"
         }
-        IO::writeln(self.name + " : " + self.value + "/" + Score::MAX + " (" + grade + ")")
+        IO::writeln(`${self.name} : ${self.value}/${Score::MAX} (${grade})`)
     }
 
     public method compare(other:int): int {
@@ -102,7 +102,7 @@ class Score implements Printable, Comparable {
     public method add_bonus(points:int): void {
         self.bonus = self.bonus + points
         scoped total:int = self.value + self.bonus
-        IO::writeln("Bonus appliqué pour " + self.name + " — total : " + total)
+        IO::writeln(`Bonus appliqué pour ${self.name} — total : ${total}`)
     }
 
     public method is_passing(): bool {
@@ -138,16 +138,16 @@ class Student extends Score {
     // Surcharge de print()
     public method print(): void {
         IO::writeln("Étudiant [" + self.student_id + "] " + self.name)
-        IO::writeln("  Score global : " + self.value + "/" + Score::MAX)
+        IO::writeln(`  Score global : ${self.value}/${Score::MAX}`)
         for course=>grade in self.course_grades {
-            IO::writeln("  " + course + " → " + grade + "/20")
+            IO::writeln(`  ${course} → ${grade}/20`)
         }
     }
 
     public method enroll(course:string, grade:int): void {
         self.course_grades[course] = grade
         self.value = self.value + grade
-        IO::writeln(self.name + " inscrit à '" + course + "' (note: " + grade + ")")
+        IO::writeln(`${self.name} inscrit à '${course}' (note: ${grade})`)
     }
 
     public method get_id(): string {
@@ -194,12 +194,12 @@ function main(): int {
     var s:string  = "Ocara"
     var b:bool    = true
 
-    IO::writeln("var : n=" + n + " f=" + f + " s=" + s + " b=" + b)
-    IO::writeln("const VERSION = " + VERSION)
+    IO::writeln(`var : n=${n} f=${f} s=${s} b=${b}`)
+    IO::writeln(`const VERSION = ${VERSION}`)
 
     if true {
         scoped local:int    = n * 2
-        scoped msg:string   = "bloc scoped — local=" + local
+        scoped msg:string   = `bloc scoped — local=${local}`
         IO::writeln(msg)
         // local et msg libérés à la fin de ce bloc
     }
@@ -213,7 +213,7 @@ function main(): int {
     scoped mul:int  = n * 2
     scoped div:int  = n / 6
     scoped mod:int  = n % 5
-    IO::writeln("Arith : " + add + " " + sub + " " + mul + " " + div + " " + mod)
+    IO::writeln(`Arith : ${add} ${sub} ${mul} ${div} ${mod}`)
 
     scoped eq:bool  = n equal 42
     scoped neq:bool = n not equal 0
@@ -221,19 +221,20 @@ function main(): int {
     scoped gt:bool  = n greater 10
     scoped lte:bool = n smaller or equal 42
     scoped gte:bool = n greater or equal 42
-    IO::writeln("Comp : eq=" + eq + " neq=" + neq + " lt=" + lt + " gt=" + gt + " lte=" + lte + " gte=" + gte)
+    IO::writeln(`Comp : eq=${eq} neq=${neq} lt=${lt} gt=${gt} lte=${lte} gte=${gte}`)
 
     scoped and_r:bool = b and eq
     scoped or_r:bool  = b or false
     scoped not_r:bool = not b
-    IO::writeln("Logic : " + and_r + " " + or_r + " " + not_r)
+    IO::writeln(`Logic : ${and_r} ${or_r} ${not_r}`)
 
     // Négation unaire
     scoped neg:int = -n
-    IO::writeln("Négatif : " + neg)
+    IO::writeln(`Négatif : ${neg}`)
 
-    // Concaténation string + T (int, float, bool)
-    IO::writeln("Concat : " + n + " | " + f + " | " + b)
+    // Concaténation string + T (int, float, bool) — uniquement via template string,
+    // "+" est strictement string + string (voir diagnostic E20)
+    IO::writeln(`Concat : ${n} | ${f} | ${b}`)
 
     // ─────────────────────────────────────────────────────────────────────────
     // 3. CONDITIONS if / elseif / else
@@ -262,7 +263,7 @@ function main(): int {
             IO::writeln("Reste 2")
         }
         default {
-            IO::writeln("Reste : " + mod)
+            IO::writeln(`Reste : ${mod}`)
         }
     }
 
@@ -295,13 +296,13 @@ function main(): int {
     var vals:array<mixed>       = [42, "bonjour", true, 3.14]
 
     for score in scores_arr {
-        IO::writeln("  score = " + score)
+        IO::writeln(`  score = ${score}`)
     }
     for nom in names {
         IO::writeln("  nom = " + nom)
     }
     for row in matrix {
-        IO::writeln("  ligne = " + row)
+        IO::writeln(`  ligne = ${row}`)
     }
     for item in vals {
         IO::writeln("  item = " + item)
@@ -310,7 +311,7 @@ function main(): int {
     // Accès par index
     var first_score:int   = scores_arr[0]
     var last_name:string  = names[4]
-    IO::writeln("Premier score : " + first_score + " — Dernier nom : " + last_name)
+    IO::writeln(`Premier score : ${first_score} — Dernier nom : ${last_name}`)
 
     // ─────────────────────────────────────────────────────────────────────────
     // 7. MAPS
@@ -321,7 +322,7 @@ function main(): int {
 
     // Itération clé=>valeur
     for student=>grade in grades {
-        IO::writeln("  " + student + " → " + grade + "/20")
+        IO::writeln(`  ${student} → ${grade}/20`)
     }
     for key=>val in config {
         IO::writeln("  config." + key + " = " + val)
@@ -329,11 +330,11 @@ function main(): int {
 
     // Accès par clé
     var alice_grade:int    = grades["Alice"]
-    IO::writeln("Note d'Alice : " + alice_grade)
+    IO::writeln(`Note d'Alice : ${alice_grade}`)
 
     // Mise à jour
     grades["Alice"] = 20
-    IO::writeln("Nouveau score Alice : " + grades["Alice"])
+    IO::writeln(`Nouveau score Alice : ${grades["Alice"]}`)
 
     // ─────────────────────────────────────────────────────────────────────────
     // 8. BOUCLES — while, for..in, for..range
@@ -344,25 +345,25 @@ function main(): int {
     var counter:int = 0
     while counter smaller 4 {
         counter = counter + 1
-        IO::writeln("  while : " + counter)
+        IO::writeln(`  while : ${counter}`)
     }
 
     // For..in sur tableau
     for sc in scores_arr {
-        IO::writeln("  for-in : " + sc)
+        IO::writeln(`  for-in : ${sc}`)
     }
 
     // For..range
     for i in 1..6 {
-        IO::writeln("  range : " + i)
+        IO::writeln(`  range : ${i}`)
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // 9. FONCTIONS LIBRES + RÉCURSION
     // ─────────────────────────────────────────────────────────────────────────
     IO::writeln("── 9. Fonctions ─────────────────────────────────────")
-    IO::writeln("6! = " + factorial(6))
-    IO::writeln("fib(8) = " + fibonacci(8))
+    IO::writeln(`6! = ${factorial(6)}`)
+    IO::writeln(`fib(8) = ${fibonacci(8)}`)
     IO::writeln(greet("Alice", true))
     IO::writeln(greet("Bob", false))
 
@@ -373,12 +374,12 @@ function main(): int {
 
     // Color — constantes + statique + switch interne
     IO::writeln("Couleurs primaires : " + Color::RED + ", " + Color::GREEN + ", " + Color::BLUE)
-    IO::writeln("COUNT = " + Color::COUNT)
+    IO::writeln(`COUNT = ${Color::COUNT}`)
     scoped mix:string  = Color::mix(Color::RED, Color::BLUE)
     scoped prim:bool   = Color::is_primary(Color::GREEN)
     scoped desc:string = Color::describe(Color::RED)
     IO::writeln("mix(rouge,bleu) = " + mix)
-    IO::writeln("is_primary(vert) = " + prim)
+    IO::writeln(`is_primary(vert) = ${prim}`)
     IO::writeln("describe(rouge) = " + desc)
 
     // Score — instanciation, méthodes, match interne
@@ -387,12 +388,12 @@ function main(): int {
     sc1.print()
     sc2.print()
     sc1.add_bonus(5)
-    IO::writeln("Alice passe ? " + sc1.is_passing())
-    IO::writeln("Bob passe ? " + sc2.is_passing())
-    IO::writeln("compare(80) = " + sc1.compare(80))
-    IO::writeln("compare(95) = " + sc1.compare(95))
-    IO::writeln("compare(99) = " + sc1.compare(99))
-    IO::writeln("MAX = " + Score::MAX + " MIN = " + Score::MIN)
+    IO::writeln(`Alice passe ? ${sc1.is_passing()}`)
+    IO::writeln(`Bob passe ? ${sc2.is_passing()}`)
+    IO::writeln(`compare(80) = ${sc1.compare(80)}`)
+    IO::writeln(`compare(95) = ${sc1.compare(95)}`)
+    IO::writeln(`compare(99) = ${sc1.compare(99)}`)
+    IO::writeln(`MAX = ${Score::MAX} MIN = ${Score::MIN}`)
 
     // Student — héritage, surcharge, maps, array<mixed>
     var stu:Student = use Student("Carol", "S001")
@@ -402,7 +403,7 @@ function main(): int {
     stu.print()
     IO::writeln("ID étudiant : " + stu.get_id())
     stu.add_bonus(3)
-    IO::writeln("Carol passe ? " + stu.is_passing())
+    IO::writeln(`Carol passe ? ${stu.is_passing()}`)
 
     // ─────────────────────────────────────────────────────────────────────────
     // 11. MODULES IMPORTÉS (opaque)
@@ -418,13 +419,13 @@ function main(): int {
     svc.process_range(0, 3)
     svc.show_summary()
     utl.abs(-99)
-    IO::writeln("MathUtils::pow = " + utl.pow(2, 8))
+    IO::writeln(`MathUtils::pow = ${utl.pow(2, 8)}`)
 
     // ─────────────────────────────────────────────────────────────────────────
     // 12. BUILT-INS write / read
     // ─────────────────────────────────────────────────────────────────────────
     IO::writeln("── 12. Built-ins ────────────────────────────────────")
-    IO::writeln("write accepte n'importe quel type : " + 42 + " " + 3.14 + " " + true)
+    IO::writeln(`write accepte n'importe quel type : ${42} ${3.14} ${true}`)
     // read() est commenté pour éviter l'attente interactive
     // scoped input:string = read()
     // IO::writeln("Saisie : " + input)

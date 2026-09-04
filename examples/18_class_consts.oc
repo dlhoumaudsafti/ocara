@@ -82,7 +82,7 @@ function main(): int {
     // ── Constantes dans expressions ──────────────────────────────────────────
     var attempt:int = 0
     while Config::retry_limit_ok(attempt) {
-        IO::writeln("tentative " + attempt)
+        IO::writeln(`tentative ${attempt}`)
         attempt = attempt + 1
     }
 

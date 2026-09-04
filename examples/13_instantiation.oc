@@ -22,7 +22,7 @@ class Color {
     }
 
     public method display(): void {
-        IO::writeln("rgb(" + self.r + ", " + self.g + ", " + self.b + ")")
+        IO::writeln(`rgb(${self.r}, ${self.g}, ${self.b})`)
     }
 }
 
@@ -62,7 +62,7 @@ class Pair {
     }
 
     public method display(): void {
-        IO::writeln("(" + self.first + ", " + self.second + ")")
+        IO::writeln(`(${self.first}, ${self.second})`)
     }
 }
 
