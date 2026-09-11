@@ -1,0 +1,65 @@
+// examples/ocara_app_advanced/models/Maintenance.oc
+// Accès aux données de la table "maintenances". Le type est stocké tel quel
+// ("maintenance" | "improvement") — c'est services/PricingService.oc qui
+// exploite cette distinction pour le recalcul du prix de vente estimé.
+
+import ocara.SQLite
+import ocara.Convert
+import ocara.DateTime
+import configs.Database
+import helpers.SqlSafe
+
+class Maintenance {
+
+    public static method forCar(carId:int): array<map<string, mixed>> {
+        const db:SQLite = Database::connect()
+        const rows:array<map<string, mixed>> = db.query("SELECT * FROM maintenances WHERE car_id = " + Convert::intToStr(carId) + " ORDER BY created_at DESC")
+        db.close()
+        return rows
+    }
+
+    public static method create(carId:int, type:string, description:string, cost:float): int {
+        const db:SQLite = Database::connect()
+        scoped safeType:string = SqlSafe::escape(type)
+        scoped safeDesc:string = SqlSafe::escape(description)
+        db.execute("INSERT INTO maintenances (car_id, type, description, cost, created_at) VALUES (" +
+            Convert::intToStr(carId) + ", '" + safeType + "', '" + safeDesc + "', " + Convert::floatToStr(cost) + ", " + Convert::intToStr(DateTime::now()) + ")")
+        const id:int = db.lastInsertId()
+        db.close()
+        return id
+    }
+
+    // Somme des entretiens d'amélioration d'une voiture — base du recalcul
+    // du prix de vente estimé (services/PricingService.oc).
+    public static method improvementTotal(carId:int): float {
+        const db:SQLite = Database::connect()
+        const row:map<string, mixed> = db.queryOne("SELECT COALESCE(SUM(cost), 0) as total FROM maintenances WHERE car_id = " + Convert::intToStr(carId) + " AND type = 'improvement'")
+        db.close()
+        var total:float = row["total"]
+        return total
+    }
+
+    // Somme des entretiens de maintenance (hors amélioration) — coût suivi
+    // à titre informatif, sans impact sur le prix de vente estimé.
+    public static method maintenanceTotal(carId:int): float {
+        const db:SQLite = Database::connect()
+        const row:map<string, mixed> = db.queryOne("SELECT COALESCE(SUM(cost), 0) as total FROM maintenances WHERE car_id = " + Convert::intToStr(carId) + " AND type = 'maintenance'")
+        db.close()
+        var total:float = row["total"]
+        return total
+    }
+
+    // Recherche par description, avec la référence de la voiture associée
+    // (jointure) pour permettre un lien direct depuis la page de recherche.
+    public static method search(term:string): array<map<string, mixed>> {
+        const db:SQLite = Database::connect()
+        scoped pattern:string = "%" + SqlSafe::escape(term) + "%"
+        const rows:array<map<string, mixed>> = db.query(
+            "SELECT maintenances.*, cars.reference as car_reference FROM maintenances " +
+            "JOIN cars ON cars.id = maintenances.car_id " +
+            "WHERE maintenances.description LIKE '" + pattern + "' ORDER BY maintenances.created_at DESC"
+        )
+        db.close()
+        return rows
+    }
+}

@@ -1,0 +1,68 @@
+namespace .
+// examples/ocara_app_advanced/main.oc
+// Point d'entrée : le serveur HTTP tourne sur un thread dédié et la fenêtre
+// Tauri affiche directement son URL (http://localhost:8081) — une vraie
+// page servie par Ocara/SQLite, pas un fichier HTML statique local. Même
+// patron que examples/ocara_app/main.oc.
+
+import ocara.IO
+import ocara.Thread
+import ocara.Tauri
+import ocara.HTTPRequest
+import configs.Components
+import configs.Server
+import configs.Database
+
+init {
+    IO::writeln("Initialisation de Garage Ocara...")
+    use Components()
+    Database::migrate()
+    const server:Server = use Server()
+    server.routes()
+}
+
+main {
+    const serverThread:Thread = use Thread()
+    serverThread.run(nameless(): void {
+        server.start()
+    })
+
+    IO::writeln("Attente du serveur (GET /)...")
+    var serverReady:bool = false
+    var attempts:int = 0
+    while not serverReady {
+        scoped res:int = HTTPRequest::get("http://localhost:8081/")
+        if HTTPRequest::ok(res) {
+            serverReady = true
+        } else {
+            attempts = attempts + 1
+            if attempts greater 100 {
+                result 5
+            } else {
+                Thread::sleep(50)
+            }
+        }
+    }
+    IO::writeln("Serveur prêt.")
+
+    IO::writeln("Ouverture de la fenêtre vers http://localhost:8081 ...")
+    var ui:Tauri = use Tauri({
+        "title":  "Garage Ocara",
+        "width":  1200,
+        "height": 800,
+        "url":    "http://localhost:8081"
+    })
+
+    ui.run()
+}
+
+error {
+    match ERROR {
+        5 => IO::writeln("Le serveur ne répond toujours pas après 5s")
+        default => IO::writeln(`Erreur inconnue : ${ERROR}`)
+    }
+}
+
+exit {
+    IO::writeln("Fenêtre fermée.")
+}

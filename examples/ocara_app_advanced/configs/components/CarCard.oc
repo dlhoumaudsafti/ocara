@@ -1,0 +1,33 @@
+namespace configs.components
+// examples/ocara_app_advanced/configs/components/CarCard.oc
+// Une voiture dans une grille (accueil ou résultats de recherche). Tous les
+// prix arrivent déjà formatés (voir helpers/Format.oc) — ce composant ne
+// fait que de la présentation, aucun calcul.
+
+import ocara.HTMLComponent
+
+class CarCard extends HTMLComponent {
+    init() {
+        parent::init("car-card")
+        self.register(nameless(attrs:map<string, mixed>): string {
+            scoped id:string              = attrs["id"]
+            scoped reference:string       = attrs["reference"]
+            scoped brand:string           = attrs["brand"]
+            scoped model:string           = attrs["model"]
+            scoped purchasePrice:string   = attrs["purchase_price"]
+            scoped estimatedPrice:string  = attrs["estimated_price"]
+            scoped maintenanceTotal:string = attrs["maintenance_total"]
+            return `<a class="car-card" href="/voitures/detail?id=${id}">
+      <div class="car-card-header">
+        <span class="car-reference">${reference}</span>
+        <span class="car-model">${brand} ${model}</span>
+      </div>
+      <div class="car-card-body">
+        <div class="car-stat"><span class="car-stat-label">Achat</span><span class="car-stat-value">${purchasePrice}</span></div>
+        <div class="car-stat"><span class="car-stat-label">Vente estimée</span><span class="car-stat-value highlight">${estimatedPrice}</span></div>
+        <div class="car-stat"><span class="car-stat-label">Entretiens</span><span class="car-stat-value">${maintenanceTotal}</span></div>
+      </div>
+    </a>`
+        })
+    }
+}

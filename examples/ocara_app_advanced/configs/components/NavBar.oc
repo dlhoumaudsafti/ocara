@@ -1,0 +1,20 @@
+namespace configs.components
+// examples/ocara_app_advanced/configs/components/NavBar.oc
+
+import ocara.HTMLComponent
+
+class NavBar extends HTMLComponent {
+    init() {
+        parent::init("nav-bar")
+        self.register(nameless(attrs:map<string, mixed>): string {
+            scoped active:string    = attrs["active"]
+            scoped homeCls:string   = match active { "home"   => " active" default => "" }
+            scoped searchCls:string = match active { "search" => " active" default => "" }
+            return `<nav>
+      <a href="/" class="brand">🚗 Garage Ocara</a>
+      <a href="/" class="nav-link${homeCls}">Voitures</a>
+      <a href="/recherche" class="nav-link${searchCls}">Recherche</a>
+    </nav>`
+        })
+    }
+}

@@ -1,0 +1,37 @@
+namespace configs
+// examples/ocara_app_advanced/configs/Server.oc
+
+import ocara.HTTPServer
+import ocara.IO
+import routes.Pages
+import routes.Cars
+import routes.Maintenances
+import routes.Error
+
+class Server extends HTTPServer {
+
+    init() {
+        IO::writeln("Configuration du serveur...")
+        parent::init()
+        self.port(8081)
+        self.workers(4)
+        self.rootPath("./public/")
+    }
+
+    public method routes(): void {
+        IO::writeln("Configuration des routes...")
+        use Pages(self)
+        use Cars(self)
+        use Maintenances(self)
+        use Error(self)
+    }
+
+    public method start(): HTTPServerException|void {
+        try {
+            IO::writeln("Démarrage du serveur...")
+            self.run()
+        } on e is HTTPServerException {
+            raise e
+        }
+    }
+}

@@ -1,0 +1,28 @@
+namespace configs.components
+// examples/ocara_app_advanced/configs/components/SearchMaintenance.oc
+// Une ligne d'entretien dans les résultats de recherche — comme
+// <maintenance-row> mais cliquable vers la voiture correspondante, puisque
+// la recherche traverse toutes les voitures à la fois.
+
+import ocara.HTMLComponent
+
+class SearchMaintenance extends HTMLComponent {
+    init() {
+        parent::init("search-maintenance")
+        self.register(nameless(attrs:map<string, mixed>): string {
+            scoped carId:string       = attrs["car_id"]
+            scoped carReference:string = attrs["car_reference"]
+            scoped type:string        = attrs["type"]
+            scoped description:string = attrs["description"]
+            scoped cost:string        = attrs["cost"]
+            scoped badgeCls:string    = match type { "improvement" => "badge-improvement" default => "badge-maintenance" }
+            scoped badgeLabel:string  = match type { "improvement" => "Amélioration"       default => "Entretien" }
+            return `<a class="maintenance-row search-result" href="/voitures/detail?id=${carId}">
+      <span class="badge ${badgeCls}">${badgeLabel}</span>
+      <span class="maintenance-desc">${description}</span>
+      <span class="maintenance-car">${carReference}</span>
+      <span class="maintenance-cost">${cost}</span>
+    </a>`
+        })
+    }
+}

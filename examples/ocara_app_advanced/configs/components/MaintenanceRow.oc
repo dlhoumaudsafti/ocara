@@ -1,0 +1,27 @@
+namespace configs.components
+// examples/ocara_app_advanced/configs/components/MaintenanceRow.oc
+// Une ligne d'entretien dans l'historique d'une voiture — badge visuel pour
+// dissocier "Entretien" (maintenance) et "Amélioration" (impacte le prix
+// de vente estimé, voir services/PricingService.oc).
+
+import ocara.HTMLComponent
+
+class MaintenanceRow extends HTMLComponent {
+    init() {
+        parent::init("maintenance-row")
+        self.register(nameless(attrs:map<string, mixed>): string {
+            scoped type:string        = attrs["type"]
+            scoped description:string = attrs["description"]
+            scoped cost:string        = attrs["cost"]
+            scoped date:string        = attrs["date"]
+            scoped badgeCls:string    = match type { "improvement" => "badge-improvement" default => "badge-maintenance" }
+            scoped badgeLabel:string  = match type { "improvement" => "Amélioration"       default => "Entretien" }
+            return `<div class="maintenance-row">
+      <span class="badge ${badgeCls}">${badgeLabel}</span>
+      <span class="maintenance-desc">${description}</span>
+      <span class="maintenance-date">${date}</span>
+      <span class="maintenance-cost">${cost}</span>
+    </div>`
+        })
+    }
+}

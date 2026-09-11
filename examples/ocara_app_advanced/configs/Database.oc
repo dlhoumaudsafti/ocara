@@ -1,0 +1,27 @@
+namespace configs
+// examples/ocara_app_advanced/configs/Database.oc
+// Accès SQLite bas niveau : ouverture de connexion + migration du schéma.
+//
+// Comme dans examples/ocara_app/configs/Database.oc : pas de propriété
+// static en Ocara, donc chaque appel ouvre/ferme sa propre connexion vers le
+// même fichier ("./app.db") plutôt que de garder un handle partagé en mémoire.
+
+import ocara.SQLite
+
+class Database {
+
+    public static method path(): string {
+        return "./app.db"
+    }
+
+    public static method connect(): SQLite {
+        return SQLite::open(self::path())
+    }
+
+    public static method migrate(): void {
+        const db:SQLite = self::connect()
+        db.execute("CREATE TABLE IF NOT EXISTS cars (id INTEGER PRIMARY KEY AUTOINCREMENT, reference TEXT NOT NULL, brand TEXT NOT NULL, model TEXT NOT NULL, purchase_price REAL NOT NULL, estimated_sale_price REAL NOT NULL, created_at INTEGER NOT NULL)")
+        db.execute("CREATE TABLE IF NOT EXISTS maintenances (id INTEGER PRIMARY KEY AUTOINCREMENT, car_id INTEGER NOT NULL, type TEXT NOT NULL, description TEXT NOT NULL, cost REAL NOT NULL, created_at INTEGER NOT NULL)")
+        db.close()
+    }
+}
