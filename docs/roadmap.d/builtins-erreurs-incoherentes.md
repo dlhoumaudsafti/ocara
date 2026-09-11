@@ -1,21 +1,29 @@
 # Remontée d'erreurs incohérente entre builtins
 
-## Constat
+## ✅ MySQL/MariaDB — corrigé
 
-Le langage documente un modèle homogène (toute exception a `message`/`code`/`source`, EBNF:1981) mais dans la pratique :
+`MySQLException` (déclarée et documentée dans `docs/builtins/MySQL.md`, codes 101/102/103) n'était **jamais levée** — toute erreur de requête (`runtime/src/mysql.rs`) était avalée silencieusement (`eprintln!` + retour `0`/tableau vide), alors que `SQLite`, dans les mêmes situations, levait correctement `SQLiteException`.
 
-- **MySQL/MariaDB** : `MySQLException` est déclarée et documentée (`docs/builtins/MySQL.md`), mais **jamais levée** — toute erreur de requête (runtime/src/mysql.rs:74-243) est avalée silencieusement (`eprintln!` + retour `0`/tableau vide). `SQLite`, dans les mêmes situations, lève correctement `SQLiteException` — la comparaison directe des deux fichiers confirme que ce n'est pas une contrainte technique du driver mais un oubli.
-- **YAML** : `YAML_decode` retourne `0` sur erreur de parsing (runtime/src/yaml.rs:124) sans jamais lever `YAMLException`, alors que `docs/builtins/YAML.md` documente un bloc `try/on e is YAMLException` qui ne se déclenchera jamais.
-- **DotEnv** : `DotEnv_load` (runtime/src/dotenv.rs:47-54) fait un simple `eprintln!` sur fichier manquant ; `DotEnvException` est déclarée côté compilateur mais n'est même pas mentionnée dans sa propre documentation.
+**Corrigé** : `throw_mysql_exception` ajouté dans `runtime/src/exception.rs` (calqué sur `throw_sqlite_exception`) et branché sur les ~8 sites d'erreur de `runtime/src/mysql.rs` (`connect`/`execute`/`query`/`queryOne`, y compris les paramètres manquants et les erreurs de lecture de ligne). `MariaDB_*` en bénéficie automatiquement (délégation directe vers `MySQL_*`).
 
-## Impact concret
+**Bug additionnel découvert et corrigé au passage** : `MySQLException` (et `MariaDBException`/`DotEnvException`/`YAMLException`) étaient absentes de la table `class_layouts` codée en dur dans `src/lower/builder.d/program.rs` (celle qui donne l'offset mémoire de `message`/`code`/`source`). Résultat : dès qu'une de ces exceptions était réellement levée et qu'on lisait `e.code` ou `e.source`, l'accès retombait sur l'offset 0 (`message`) faute de layout connu — `e.code` affichait le texte du message. Corrigé en ajoutant les 4 classes manquantes à cette table, avec la même disposition que les autres exceptions (`message`, `code`, `source`).
 
-Un développeur qui suit `docs/builtins/MySQL.md`/`YAML.md` à la lettre (bloc `try/on ExceptionType`) écrit du code de gestion d'erreur mort — les échecs de requête ne sont détectables qu'en lisant `stderr` ou en inspectant `affectedRows()`/des valeurs nulles a posteriori. L'exemple `examples/builtins/mysql.oc:101-109` illustre involontairement ce piège.
+`examples/builtins/mysql.oc` mis à jour : `MySQL::connect(...)` doit maintenant être appelé à l'intérieur du `try` (comme le reste des opérations), puisqu'il peut désormais lever une exception au lieu de retourner `null`.
 
-## Ampleur
+Vérifié : `make regression` ne montre aucune régression (comparé au build d'avant ces changements via `git stash`) ; test manuel confirmant qu'une connexion échouée est bien attrapée par `on e is MySQLException` avec `e.code == 101`.
 
-Petit et mécanique : ajouter `throw_mysql_exception` (calqué sur `throw_sqlite_exception`, runtime/src/exception.rs:205-212) et remplacer les ~6 `eprintln!`/retours silencieux dans `mysql.rs` ; même chose pour YAML et DotEnv.
+## YAML et DotEnv — non modifiés (choix délibéré, pas un oubli)
+
+En creusant plus loin, `docs/builtins/YAML.md` et `docs/builtins/DotEnv.md` documentaient en réalité **déjà** le comportement silencieux actuel comme intentionnel :
+- `YAML::decode()`/`parse()` : la doc dit explicitement "retournent `null` (0)" en cas d'erreur de parsing — mais montrait *aussi*, en contradiction, un exemple `try/on e is YAMLException` qui ne se déclenche jamais.
+- `DotEnv::load()` : la doc dit explicitement "un warning est affiché mais le programme continue" si le fichier `.env` est absent.
+
+Changer ces deux comportements pour lever une exception serait un **changement de contrat public**, pas un simple correctif de cohérence (contrairement à MySQL, dont la doc n'a jamais mentionné de retour silencieux). Plutôt que de trancher ce choix de design unilatéralement, seule la documentation a été corrigée :
+- `YAML.md` : suppression de l'exemple `try/on YAMLException` trompeur, clarification que `decode()`/`parse()` ne lèvent jamais d'exception aujourd'hui.
+- `DotEnv.md` : précision que `load()` ne lève jamais `DotEnvException` (classe déclarée côté compilateur mais orpheline).
+
+**Reste ouvert si on veut aller plus loin** : décider si `YAMLException`/`DotEnvException` doivent un jour être réellement levées (et dans quels cas), ou si ces classes orphelines doivent être retirées du langage. Non traité ici — décision de design à prendre séparément.
 
 ## Fichiers clés
 
-`runtime/src/mysql.rs`, `runtime/src/yaml.rs`, `runtime/src/dotenv.rs`, `runtime/src/exception.rs`, `docs/builtins/{MySQL,YAML,DotEnv}.md`.
+`runtime/src/mysql.rs`, `runtime/src/exception.rs`, `src/lower/builder.d/program.rs`, `docs/builtins/{MySQL,YAML,DotEnv}.md`, `examples/builtins/mysql.oc`.

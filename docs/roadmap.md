@@ -6,6 +6,12 @@ Ce document liste ce qu'il reste à faire pour faire d'Ocara un langage solide, 
 
 Ce fichier ne contient volontairement **aucun détail technique**. Chaque point renvoie vers une fiche dans [`docs/roadmap.d/`](roadmap.d/) pour l'implémentation, les fichiers concernés et les extraits de reproduction. À mettre à jour au fil des avancées : un point traité doit être retiré (ou déplacé dans une section "Fait") et sa fiche technique mise à jour ou supprimée.
 
+## Fait récemment
+
+- ✅ **Cohérence de la remontée d'erreurs des builtins** — `MySQLException` (code 101/102/103) est maintenant réellement levée par `MySQL_connect`/`execute`/`query`/`queryOne` (calqué sur `SQLiteException`), y compris pour `MariaDB`. La documentation `YAML.md`/`DotEnv.md` a été corrigée pour ne plus promettre une exception qui n'est pas levée (comportement volontairement inchangé pour ces deux modules — voir la fiche pour le détail de ce choix).
+- ✅ **Interfaces implémentées transitivement à l'import** — `import Circle from "fichier"` rapatrie désormais aussi les interfaces référencées par `Circle.implements`, même sans les importer explicitement.
+- ✅ **Vérification de signature d'interface (E09)** — un `implements` dont la méthode ne correspond pas en arité ou en type (paramètres/retour) est maintenant rejeté à la compilation, au lieu d'être accepté silencieusement.
+
 ## Légende
 
 **Priorité** — Haute : bloque la fiabilité du langage · Moyenne : à traiter mais non bloquant · Basse : confort ou portée future
@@ -32,11 +38,6 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 ### Langage
 
 - **Étendre le typage aux valeurs génériques** — un appel de méthode invalide sur une valeur générique (`List<T>`) n'est aujourd'hui pas détecté. *(Structurel)* → [détails](roadmap.d/langage-generiques.md)
-- **Corriger la perte des interfaces implémentées transitivement à l'import** et vérifier la signature d'une méthode d'interface. *(Légère)* → [détails](roadmap.d/langage-interfaces.md)
-
-### Builtins
-
-- **Rendre cohérente la remontée d'erreurs des builtins** (MySQL et YAML déclarent une exception qu'ils ne lèvent jamais ; DotEnv échoue en silence). *(Simple)* → [détails](roadmap.d/builtins-erreurs-incoherentes.md)
 
 ---
 

@@ -235,7 +235,7 @@ HTTPRequest::post("https://api.example.com/users", yaml)
 
 ## Erreurs
 
-En cas d'erreur de parsing YAML, `decode()` et `parse()` retournent `null` (0).
+En cas d'erreur de parsing YAML, `decode()` et `parse()` retournent `null` (0) — ces fonctions ne lèvent jamais d'exception, il n'existe pas de `YAMLException` déclenchée en pratique aujourd'hui. Toujours vérifier le retour :
 
 ```ocara
 const invalidYaml:string = "{ invalid : yaml : : }"
@@ -243,16 +243,5 @@ const result:mixed = YAML::decode(invalidYaml)
 
 if result equal null {
     IO::writeln("Erreur: YAML invalide")
-}
-```
-
-Pour une gestion d'erreur plus robuste, utilisez un bloc `try/on` :
-
-```ocara
-try {
-    const data:map<string, mixed> = YAML::decode(yamlStr)
-    // Traiter les données
-} on e is YAMLException {
-    IO::writeln(`Erreur YAML: ${e.message}`)
 }
 ```

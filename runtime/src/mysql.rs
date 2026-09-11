@@ -16,6 +16,12 @@ use std::sync::Mutex;
 use mysql::{Pool, OptsBuilder};
 use mysql::prelude::*;
 use crate::{alloc_str, ptr_to_str};
+use crate::exception::throw_mysql_exception;
+
+// Codes d'erreur MySQLException (voir docs/builtins/MySQL.md)
+const ERR_CONNECT: i64 = 101;
+const ERR_EXECUTE: i64 = 102;
+const ERR_QUERY: i64 = 103;
 
 /// Structure interne représentant une connexion MySQL
 pub struct OcaraMySQLDatabase {
@@ -35,21 +41,24 @@ pub unsafe extern "C" fn MySQL_connect(
 ) -> i64 {
     unsafe {
         if host_ptr == 0 || user_ptr == 0 || password_ptr == 0 || database_ptr == 0 {
-            eprintln!("[MySQL] Error: null parameter in connect");
-            return 0;
+            throw_mysql_exception(
+                "Missing connection parameter (host/user/password/database)",
+                ERR_CONNECT,
+                "MySQL"
+            );
         }
-    
+
         let host = ptr_to_str(host_ptr);
         let user = ptr_to_str(user_ptr);
         let password = ptr_to_str(password_ptr);
         let database = ptr_to_str(database_ptr);
-    
+
         let opts = OptsBuilder::new()
             .ip_or_hostname(Some(host))
             .user(Some(user))
             .pass(Some(password))
             .db_name(Some(database));
-    
+
         match Pool::new(opts) {
             Ok(pool) => {
                 let db = Box::new(OcaraMySQLDatabase {
@@ -60,8 +69,11 @@ pub unsafe extern "C" fn MySQL_connect(
                 Box::into_raw(db) as i64
             }
             Err(e) => {
-                eprintln!("[MySQL] Connection error: {}", e);
-                0
+                throw_mysql_exception(
+                    &format!("Failed to connect to database '{}': {}", database, e),
+                    ERR_CONNECT,
+                    "MySQL"
+                );
             }
         }
     }
@@ -74,35 +86,40 @@ pub unsafe extern "C" fn MySQL_connect(
 pub unsafe extern "C" fn MySQL_execute(db_ptr: i64, query_ptr: i64) -> i64 {
     unsafe {
         if db_ptr == 0 || query_ptr == 0 {
-            eprintln!("[MySQL] Error: null parameter in execute");
-            return 0;
+            throw_mysql_exception("Missing parameter in execute", ERR_EXECUTE, "MySQL");
         }
-    
+
         let db = &*(db_ptr as *const OcaraMySQLDatabase);
         let query = ptr_to_str(query_ptr);
-    
+
         let pool = db.pool.lock().unwrap();
         let mut conn = match pool.get_conn() {
             Ok(c) => c,
             Err(e) => {
-                eprintln!("[MySQL] Failed to get connection: {}", e);
-                return 0;
+                throw_mysql_exception(
+                    &format!("Failed to get connection: {}", e),
+                    ERR_EXECUTE,
+                    "MySQL"
+                );
             }
         };
-    
+
         match conn.query_drop(&query) {
             Ok(_) => {
                 let affected = conn.affected_rows();
                 let last_id = conn.last_insert_id();
-                
+
                 *db.affected_rows.lock().unwrap() = affected as i64;
                 *db.last_insert_id.lock().unwrap() = last_id as i64;
-                
+
                 affected as i64
             }
             Err(e) => {
-                eprintln!("[MySQL] Execute error: {}", e);
-                0
+                throw_mysql_exception(
+                    &format!("Failed to execute query '{}': {}", query, e),
+                    ERR_EXECUTE,
+                    "MySQL"
+                );
             }
         }
     }
@@ -114,22 +131,24 @@ pub unsafe extern "C" fn MySQL_execute(db_ptr: i64, query_ptr: i64) -> i64 {
 pub unsafe extern "C" fn MySQL_query(db_ptr: i64, query_ptr: i64) -> i64 {
     unsafe {
         if db_ptr == 0 || query_ptr == 0 {
-            eprintln!("[MySQL] Error: null parameter in query");
-            return crate::__array_new();
+            throw_mysql_exception("Missing parameter in query", ERR_QUERY, "MySQL");
         }
-    
+
         let db = &*(db_ptr as *const OcaraMySQLDatabase);
         let query = ptr_to_str(query_ptr);
-    
+
         let pool = db.pool.lock().unwrap();
         let mut conn = match pool.get_conn() {
             Ok(c) => c,
             Err(e) => {
-                eprintln!("[MySQL] Failed to get connection: {}", e);
-                return crate::__array_new();
+                throw_mysql_exception(
+                    &format!("Failed to get connection: {}", e),
+                    ERR_QUERY,
+                    "MySQL"
+                );
             }
         };
-    
+
         let result_array = crate::__array_new();
     
         match conn.query_iter(&query) {
@@ -165,16 +184,24 @@ pub unsafe extern "C" fn MySQL_query(db_ptr: i64, query_ptr: i64) -> i64 {
                             crate::__array_push(result_array, row_map);
                         }
                         Err(e) => {
-                            eprintln!("[MySQL] Row error: {}", e);
+                            throw_mysql_exception(
+                                &format!("Failed to read row for query '{}': {}", query, e),
+                                ERR_QUERY,
+                                "MySQL"
+                            );
                         }
                     }
                 }
             }
             Err(e) => {
-                eprintln!("[MySQL] Query error: {}", e);
+                throw_mysql_exception(
+                    &format!("Failed to execute query '{}': {}", query, e),
+                    ERR_QUERY,
+                    "MySQL"
+                );
             }
         }
-    
+
         result_array
     }
 }
@@ -185,19 +212,21 @@ pub unsafe extern "C" fn MySQL_query(db_ptr: i64, query_ptr: i64) -> i64 {
 pub unsafe extern "C" fn MySQL_queryOne(db_ptr: i64, query_ptr: i64) -> i64 {
     unsafe {
         if db_ptr == 0 || query_ptr == 0 {
-            eprintln!("[MySQL] Error: null parameter in queryOne");
-            return 0;
+            throw_mysql_exception("Missing parameter in queryOne", ERR_QUERY, "MySQL");
         }
-    
+
         let db = &*(db_ptr as *const OcaraMySQLDatabase);
         let query = ptr_to_str(query_ptr);
-    
+
         let pool = db.pool.lock().unwrap();
         let mut conn = match pool.get_conn() {
             Ok(c) => c,
             Err(e) => {
-                eprintln!("[MySQL] Failed to get connection: {}", e);
-                return 0;
+                throw_mysql_exception(
+                    &format!("Failed to get connection: {}", e),
+                    ERR_QUERY,
+                    "MySQL"
+                );
             }
         };
     
@@ -235,8 +264,11 @@ pub unsafe extern "C" fn MySQL_queryOne(db_ptr: i64, query_ptr: i64) -> i64 {
                 }
             }
             Err(e) => {
-                eprintln!("[MySQL] QueryOne error: {}", e);
-                0
+                throw_mysql_exception(
+                    &format!("Failed to execute query '{}': {}", query, e),
+                    ERR_QUERY,
+                    "MySQL"
+                );
             }
         }
     }

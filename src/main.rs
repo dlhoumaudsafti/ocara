@@ -12,7 +12,7 @@ use codegen::emit::CraneliftEmitter;
 use codegen::link::link;
 use lower::builder::lower_program;
 use sema::symbols::SymbolTable;
-use sema::typecheck::TypeChecker;
+use sema::typecheck::{TypeChecker, type_name, types_compat};
 
 use core::cli::parse_args;
 use core::monomorph::monomorphize;
@@ -272,6 +272,17 @@ fn main() {
             // Chercher la classe
             if let Some(mut cls) = mod_prog.classes.iter().find(|c| c.name == requested_name).cloned() {
                 cls.name = final_name.clone();
+                // Rapatrier les interfaces implémentées par cette classe, même si
+                // elles n'ont pas été explicitement demandées par l'import : sinon
+                // la vérification E09 échoue plus loin avec "interface not found"
+                // pour une interface pourtant définie dans le même fichier source.
+                for iface_name in &cls.implements {
+                    if !program.interfaces.iter().any(|i| &i.name == iface_name) {
+                        if let Some(iface) = mod_prog.interfaces.iter().find(|i| &i.name == iface_name).cloned() {
+                            program.interfaces.push(iface);
+                        }
+                    }
+                }
                 program.classes.push(cls);
             }
             // Chercher le générique
@@ -431,18 +442,42 @@ fn main() {
             };
             
             // Vérifier que la classe implémente toutes les méthodes de l'interface
-            for (method_name, _iface_sig) in &iface_info.methods {
+            for (method_name, iface_sig) in &iface_info.methods {
                 // Chercher la méthode dans la classe (en remontant la chaîne d'héritage)
-                let found = symbols.lookup_method_in_chain(&class_decl.name, method_name);
-                
-                if found.is_none() {
+                let class_sig = match symbols.lookup_method_in_chain(&class_decl.name, method_name) {
+                    Some(sig) => sig,
+                    None => {
+                        diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
+                            &format!("class '{}' does not implement method '{}' from interface '{}'",
+                                class_decl.name, method_name, iface_name));
+                        std::process::exit(1);
+                    }
+                };
+
+                // Vérifier la signature : arité, types des paramètres, type de retour
+                if class_sig.params.len() != iface_sig.params.len() {
                     diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
-                        &format!("class '{}' does not implement method '{}' from interface '{}'",
-                            class_decl.name, method_name, iface_name));
+                        &format!("method '{}' of class '{}' does not match interface '{}': expected {} parameter(s), found {}",
+                            method_name, class_decl.name, iface_name, iface_sig.params.len(), class_sig.params.len()));
                     std::process::exit(1);
                 }
-                
-                // TODO: vérifier aussi la signature (paramètres et type de retour)
+                for (i, (_, iface_param_ty)) in iface_sig.params.iter().enumerate() {
+                    let (_, class_param_ty) = &class_sig.params[i];
+                    if !types_compat(class_param_ty, iface_param_ty) {
+                        diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
+                            &format!("method '{}' of class '{}' does not match interface '{}': parameter {} expected type '{}', found '{}'",
+                                method_name, class_decl.name, iface_name, i + 1,
+                                type_name(iface_param_ty), type_name(class_param_ty)));
+                        std::process::exit(1);
+                    }
+                }
+                if !types_compat(&class_sig.ret_ty, &iface_sig.ret_ty) {
+                    diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
+                        &format!("method '{}' of class '{}' does not match interface '{}': expected return type '{}', found '{}'",
+                            method_name, class_decl.name, iface_name,
+                            type_name(&iface_sig.ret_ty), type_name(&class_sig.ret_ty)));
+                    std::process::exit(1);
+                }
             }
         }
     }
