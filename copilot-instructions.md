@@ -1,1 +1,0 @@
-docs/copilot-instructions.md
