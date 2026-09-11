@@ -41,11 +41,11 @@ class Circle implements Shape, Printable {
     }
 
     public method describe(): void {
-        IO::writeln("Cercle de rayon " + self.radius)
+        IO::writeln(`Cercle de rayon ${self.radius}`)
     }
 
     public method print_info(): void {
-        IO::writeln("Cercle — rayon=" + self.radius + " aire=" + self.area())
+        IO::writeln(`Cercle — rayon=${self.radius} aire=${self.area()}`)
     }
 }
 
@@ -69,11 +69,11 @@ class Rectangle implements Shape, Printable {
     }
 
     public method describe(): void {
-        IO::writeln("Rectangle " + self.width + "×" + self.height)
+        IO::writeln(`Rectangle ${self.width}×${self.height}`)
     }
 
     public method print_info(): void {
-        IO::writeln("Rectangle — " + self.width + "×" + self.height + " aire=" + self.area())
+        IO::writeln(`Rectangle — ${self.width}×${self.height} aire=${self.area()}`)
     }
 }
 

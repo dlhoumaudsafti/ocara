@@ -1,0 +1,26 @@
+namespace configs
+// examples/ocara_app_advanced/configs/Components.oc
+// Point d'enregistrement centralisé de tous les <composants> HTML custom —
+// instancié une seule fois dans main.oc, avant le démarrage du serveur.
+
+import components.Layout
+import components.NavBar
+import components.SearchBar
+import components.Alert
+import components.StatBadge
+import components.CarCard
+import components.MaintenanceRow
+import components.SearchMaintenance
+
+class Components {
+    init() {
+        use Layout()
+        use NavBar()
+        use SearchBar()
+        use Alert()
+        use StatBadge()
+        use CarCard()
+        use MaintenanceRow()
+        use SearchMaintenance()
+    }
+}

@@ -120,7 +120,7 @@ function describe_union(vals:variadic<int|string|bool|null>): void {
         match val {
             is null   => IO::writeln("  → null")
             is int    => IO::writeln("  → int: " + Convert::intToStr(val))
-            is string => IO::writeln("  → string: " + val)
+            is string => IO::writeln(`  → string: ${val}`)
             is bool   => IO::writeln("  → bool: " + Convert::boolToStr(val))
         }
     }

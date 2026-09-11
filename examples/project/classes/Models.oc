@@ -17,7 +17,7 @@ class Models {
     }
 
     public method display(): void {
-        IO::writeln("[" + self.id + "] " + self.title)
+        IO::writeln(`[${self.id}] ${self.title}`)
     }
 
     public method get_title(): string {

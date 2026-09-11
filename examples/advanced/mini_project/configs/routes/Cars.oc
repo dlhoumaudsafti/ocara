@@ -1,0 +1,17 @@
+namespace configs.routes
+// examples/ocara_app_advanced/configs/routes/Cars.oc
+//
+// Mutation via GET plutôt que POST : HTTPServer::query() décode déjà l'URL
+// (voir runtime/src/httpserver.rs::parse_query), alors qu'aucun parseur
+// application/x-www-form-urlencoded n'est fourni pour un corps de requête
+// POST. Le "redirect after action" de CarController::create (302 vers une
+// URL propre) évite le risque habituel de resoumission au rechargement.
+
+import controllers.CarController
+import configs.Server
+
+class Cars {
+    init(server:Server) {
+        server.route("/voitures/ajouter", "GET", CarController::create)
+    }
+}

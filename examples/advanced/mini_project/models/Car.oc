@@ -1,0 +1,60 @@
+// examples/ocara_app_advanced/models/Car.oc
+// Accès aux données de la table "cars". Aucune règle métier ici (voir
+// services/PricingService.oc pour le recalcul du prix de vente estimé) —
+// ce fichier ne fait que lire/écrire la base.
+
+import ocara.SQLite
+import ocara.Convert
+import ocara.DateTime
+import configs.Database
+import helpers.SqlSafe
+
+class Car {
+
+    public static method all(): array<map<string, mixed>> {
+        const db:SQLite = Database::connect()
+        const rows:array<map<string, mixed>> = db.query("SELECT * FROM cars ORDER BY created_at DESC")
+        db.close()
+        return rows
+    }
+
+    public static method find(id:int): map<string, mixed> {
+        const db:SQLite = Database::connect()
+        const row:map<string, mixed> = db.queryOne("SELECT * FROM cars WHERE id = " + Convert::intToStr(id))
+        db.close()
+        return row
+    }
+
+    public static method create(reference:string, brand:string, model:string, purchasePrice:float): int {
+        const db:SQLite = Database::connect()
+        scoped ref:string   = SqlSafe::escape(reference)
+        scoped brd:string   = SqlSafe::escape(brand)
+        scoped mdl:string   = SqlSafe::escape(model)
+        scoped priceStr:string = Convert::floatToStr(purchasePrice)
+        scoped nowStr:string   = Convert::intToStr(DateTime::now())
+        // Le prix de vente estimé démarre égal au prix d'achat : il n'est
+        // ensuite fait évoluer que par les entretiens d'amélioration
+        // (voir services/PricingService.oc).
+        db.execute("INSERT INTO cars (reference, brand, model, purchase_price, estimated_sale_price, created_at) VALUES ('" +
+            ref + "', '" + brd + "', '" + mdl + "', " + priceStr + ", " + priceStr + ", " + nowStr + ")")
+        const id:int = db.lastInsertId()
+        db.close()
+        return id
+    }
+
+    public static method updateEstimatedPrice(id:int, newPrice:float): void {
+        const db:SQLite = Database::connect()
+        db.execute("UPDATE cars SET estimated_sale_price = " + Convert::floatToStr(newPrice) + " WHERE id = " + Convert::intToStr(id))
+        db.close()
+    }
+
+    public static method search(term:string): array<map<string, mixed>> {
+        const db:SQLite = Database::connect()
+        scoped pattern:string = "%" + SqlSafe::escape(term) + "%"
+        const rows:array<map<string, mixed>> = db.query(
+            "SELECT * FROM cars WHERE reference LIKE '" + pattern + "' OR brand LIKE '" + pattern + "' OR model LIKE '" + pattern + "' ORDER BY created_at DESC"
+        )
+        db.close()
+        return rows
+    }
+}

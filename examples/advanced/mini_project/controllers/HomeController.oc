@@ -1,0 +1,63 @@
+// examples/ocara_app_advanced/controllers/HomeController.oc
+// Page d'accueil : tableau de bord de la flotte + formulaire d'ajout de
+// voiture + grille des voitures existantes.
+//
+// La liste des voitures est de longueur dynamique : le HTML de chaque
+// <car-card> est construit ici par concaténation (une balise custom par
+// voiture), puis interpolé une seule fois dans templates/home.html — les
+// balises <car-card> qui en résultent sont résolues récursivement par
+// HTML::renderFile, exactement comme si elles avaient été écrites en dur.
+
+import ocara.HTML
+import ocara.HTTPServer
+import ocara.Array
+import ocara.Convert
+import models.Car
+import models.Maintenance
+import helpers.Format
+import helpers.Flash
+
+class HomeController {
+
+    public static method index(req:int): int {
+        const cars:array<map<string, mixed>> = Car::all()
+
+        var totalPurchaseValue:float = 0.0
+        var totalEstimatedValue:float = 0.0
+        var carsHtml:string = ""
+
+        for car in cars {
+            var id:int             = car["id"]
+            var reference:string   = car["reference"]
+            var brand:string       = car["brand"]
+            var model:string       = car["model"]
+            var purchasePrice:float  = car["purchase_price"]
+            var estimatedPrice:float = car["estimated_sale_price"]
+            var maintenanceTotal:float = Maintenance::maintenanceTotal(id)
+
+            totalPurchaseValue  = totalPurchaseValue + purchasePrice
+            totalEstimatedValue = totalEstimatedValue + estimatedPrice
+
+            scoped idStr:string = Convert::intToStr(id)
+            carsHtml = carsHtml + `<car-card id="${idStr}" reference="${reference}" brand="${brand}" model="${model}" purchase_price="${Format::price(purchasePrice)}" estimated_price="${Format::price(estimatedPrice)}" maintenance_total="${Format::price(maintenanceTotal)}">`
+        }
+
+        if Array::len(cars) equal 0 {
+            carsHtml = `<p class="empty">Aucune voiture pour le moment — ajoutez la première ci-dessus.</p>`
+        }
+
+        scoped carCount:string    = Convert::intToStr(Array::len(cars))
+        scoped purchaseText:string  = Format::price(totalPurchaseValue)
+        scoped estimatedText:string = Format::price(totalEstimatedValue)
+        scoped gainText:string      = Format::price(totalEstimatedValue - totalPurchaseValue)
+
+        scoped errorCode:string   = HTTPServer::query(req, "error")
+        scoped successCode:string = HTTPServer::query(req, "success")
+        scoped errorText:string   = Flash::message(errorCode)
+        scoped successText:string = Flash::message(successCode)
+
+        scoped html:string = HTML::renderFile('templates/home.html')
+        HTTPServer::respond(req, 200, html)
+        return 0
+    }
+}

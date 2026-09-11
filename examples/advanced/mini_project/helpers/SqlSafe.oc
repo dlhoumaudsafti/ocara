@@ -1,0 +1,16 @@
+// examples/ocara_app_advanced/helpers/SqlSafe.oc
+// Échappement minimal pour insérer une valeur utilisateur dans une requête
+// SQL brute : ocara.SQLite n'expose pas de requêtes préparées/paramétrées
+// (voir docs/builtins/SQLite.md), donc toute valeur variable concaténée dans
+// une requête DOIT passer par SqlSafe::escape() pour éviter l'injection SQL.
+
+import ocara.String
+
+class SqlSafe {
+
+    // Double chaque quote simple ('') — seul caractère significatif pour
+    // SQLite dans une valeur entre quotes ('...').
+    public static method escape(value:string): string {
+        return String::replace(value, "'", "''")
+    }
+}

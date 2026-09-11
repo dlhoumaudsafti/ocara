@@ -10,6 +10,6 @@ class User {
     }
 
     public method greet(): void {
-        IO::writeln("Bonjour, je suis " + self.name + " et j'ai " + self.age + " ans")
+        IO::writeln(`Bonjour, je suis ${self.name} et j'ai ${self.age} ans`)
     }
 }

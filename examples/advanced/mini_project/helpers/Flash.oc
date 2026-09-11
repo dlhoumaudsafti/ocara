@@ -1,0 +1,21 @@
+// examples/ocara_app_advanced/helpers/Flash.oc
+// Messages "flash" transmis d'une redirection à l'autre via un simple code
+// court dans la query string (?error=... / ?success=...), traduit ici en
+// texte affichable. Un code ASCII court (jamais d'espace/accent) évite tout
+// souci d'encodage dans une URL ou un en-tête Location — voir
+// controllers/CarController.oc et controllers/MaintenanceController.oc.
+
+class Flash {
+
+    public static method message(code:string): string {
+        return match code {
+            "missing_fields"   => "Merci de renseigner tous les champs correctement."
+            "invalid_price"     => "Le prix d'achat doit être un nombre positif."
+            "invalid_cost"       => "La description et le coût de l'entretien doivent être valides."
+            "not_found"          => "Voiture introuvable."
+            "car_added"          => "Voiture ajoutée avec succès."
+            "maintenance_added"  => "Entretien ajouté — prix de vente estimé mis à jour."
+            default              => ""
+        }
+    }
+}

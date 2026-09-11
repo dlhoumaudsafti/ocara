@@ -1,0 +1,13 @@
+// examples/ocara_app_advanced/controllers/ErrorController.oc
+
+import ocara.HTML
+import ocara.HTTPServer
+
+class ErrorController {
+    public static method handle404(req:int): int {
+        scoped path:string = HTTPServer::path(req)
+        scoped html:string = HTML::renderFile('templates/404.html')
+        HTTPServer::respond(req, 404, html)
+        return 0
+    }
+}

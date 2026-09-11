@@ -404,6 +404,36 @@ destructeur implicite unique.
 **Correction :** appeler explicitement `.join()` ou `.detach()` sur la
 `Thread` avant la fin de son bloc.
 
+### E20 — Concaténation `string` + type différent
+
+```
+fichier.oc:5:27: error: cannot concatenate 'string' and 'int' with '+': string concatenation is strictly typed (only string + string is allowed) — use a template string (`${...}`) or convert explicitly (Convert::*ToStr)
+```
+
+`+` sur `string` mélange un `string` avec un type différent (`int`, `float`,
+`bool`, `array<T>`, `map<K,V>`, une classe...). La concaténation `+` est
+strictement typée : **seule `string + string` produit un `string`** — il n'y a
+pas de conversion implicite d'un autre type vers `string` via `+`, ni dans un
+sens ni dans l'autre. Voir [§11.2 de l'EBNF](EBNF.md#112-concaténation--sur-string).
+
+```ocara
+var n:int = 42
+IO::writeln("Total : " + n)   // ❌ string et int ne se concatènent pas directement
+```
+
+**Correction :** utiliser un template string (conversion automatique de
+n'importe quel type interpolé), ou convertir explicitement un des deux côtés
+(`Convert::intToStr`, `Convert::floatToStr`, `Convert::boolToStr`, ...) :
+
+```ocara
+IO::writeln(`Total : ${n}`)                       // ✅ template string
+IO::writeln("Total : " + Convert::intToStr(n))    // ✅ conversion explicite
+```
+
+Une valeur `mixed` échappe à cette vérification statique (son type réel n'est
+pas connu à la compilation), comme pour E16 : `string + mixed` est délégué à
+un rendu au runtime plutôt qu'à ce diagnostic.
+
 ---
 
 ## Avertissements sémantiques

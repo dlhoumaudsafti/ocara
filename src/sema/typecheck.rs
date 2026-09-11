@@ -1380,10 +1380,27 @@ fn binary_result_type(
 ) -> Type {
     match op {
         BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod => {
-            // Concaténation implicite : string + T ou T + string → string
+            // Concaténation `+` : strictement string + string → string.
+            // Mélanger un string avec un autre type est une erreur de
+            // compilation (E20) — seul un template string ou une conversion
+            // explicite (Convert::*ToStr) produit ce résultat. `mixed`
+            // échappe à cette vérification statique (comme
+            // comparable_types/orderable_types) faute d'information
+            // disponible à la compilation.
             if op == &BinOp::Add
                 && (matches!(lt, Type::String) || matches!(rt, Type::String))
             {
+                if matches!(lt, Type::Mixed) || matches!(rt, Type::Mixed) {
+                    return Type::String;
+                }
+                if matches!(lt, Type::String) && matches!(rt, Type::String) {
+                    return Type::String;
+                }
+                errors.push(SemaError::StringConcatMismatch {
+                    left:  type_name(lt),
+                    right: type_name(rt),
+                    span:  span.clone(),
+                });
                 return Type::String;
             }
             if types_compat(lt, rt) { lt.clone() } else {

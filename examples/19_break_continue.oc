@@ -9,10 +9,10 @@ function main(): int {
         if i equal 5 {
             break
         }
-        IO::writeln("while : " + i)
+        IO::writeln(`while : ${i}`)
         i = i + 1
     }
-    IO::writeln("après break : i=" + i)
+    IO::writeln(`après break : i=${i}`)
 
     // continue dans while
     var j:int = 0
@@ -21,7 +21,7 @@ function main(): int {
         if j % 2 equal 0 {
             continue
         }
-        IO::writeln("impair : " + j)
+        IO::writeln(`impair : ${j}`)
     }
 
     // break dans for..range
@@ -29,7 +29,7 @@ function main(): int {
         if k equal 4 {
             break
         }
-        IO::writeln("range : " + k)
+        IO::writeln(`range : ${k}`)
     }
 
     // continue dans for..range
@@ -37,7 +37,7 @@ function main(): int {
         if n equal 2 or n equal 4 {
             continue
         }
-        IO::writeln("skip 2,4 : " + n)
+        IO::writeln(`skip 2,4 : ${n}`)
     }
 
     // break dans for..in (tableau)
@@ -46,7 +46,7 @@ function main(): int {
         if v equal 30 {
             break
         }
-        IO::writeln("arr : " + v)
+        IO::writeln(`arr : ${v}`)
     }
 
     return 0

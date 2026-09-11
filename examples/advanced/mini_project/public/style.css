@@ -1,0 +1,320 @@
+/* examples/ocara_app_advanced/public/style.css
+   Design "Garage Ocara" — palette sobre (ardoise + bleu pétrole), cartes,
+   grille responsive, badges de type d'entretien. */
+
+:root {
+  --bg:        #f4f6f8;
+  --surface:   #ffffff;
+  --border:    #e2e6ea;
+  --ink:       #1c2733;
+  --ink-soft:  #5b6b7a;
+  --brand:     #0f6e6a;
+  --brand-dark:#0a4f4c;
+  --accent:    #2f7cf6;
+  --success:   #1c8f5a;
+  --success-bg:#e7f6ee;
+  --danger:    #c94141;
+  --danger-bg: #fbebeb;
+  --amber:     #b7791f;
+  --amber-bg:  #fdf3e2;
+  --radius:    10px;
+  --shadow:    0 1px 2px rgba(28, 39, 51, 0.06), 0 8px 20px -12px rgba(28, 39, 51, 0.15);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+}
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+
+/* ── Navigation ────────────────────────────────────────────────────────── */
+
+nav {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 24px;
+  background: var(--brand-dark);
+  color: #eef7f6;
+}
+
+nav .brand {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #ffffff;
+  text-decoration: none;
+  margin-right: auto;
+}
+
+nav .nav-link {
+  color: #cfe9e6;
+  text-decoration: none;
+  font-size: 0.92rem;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+nav .nav-link:hover { background: rgba(255, 255, 255, 0.08); }
+nav .nav-link.active { color: #ffffff; background: var(--brand); }
+
+/* ── Titres / structure ───────────────────────────────────────────────── */
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+h1 { font-size: 1.6rem; margin: 0 0 4px; }
+h2 { font-size: 1.15rem; margin: 0 0 16px; color: var(--ink); }
+
+.car-model-inline {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--ink-soft);
+  margin-left: 8px;
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 20px;
+  color: var(--brand);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+.back-link:hover { text-decoration: underline; }
+
+section.card,
+section {
+  margin-bottom: 28px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 22px 24px;
+}
+
+footer {
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  padding: 24px;
+}
+
+/* ── Barre de recherche ───────────────────────────────────────────────── */
+
+.search-bar {
+  display: flex;
+  gap: 8px;
+  min-width: 280px;
+  flex: 1;
+  max-width: 480px;
+}
+
+.search-bar input {
+  flex: 1;
+}
+
+/* ── Formulaires ──────────────────────────────────────────────────────── */
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  align-items: end;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+input, select, button {
+  font: inherit;
+}
+
+input[type="text"], input[type="number"], select {
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(47, 124, 246, 0.15);
+}
+
+button {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 7px;
+  background: var(--brand);
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+button:hover { background: var(--brand-dark); }
+
+/* ── Alertes flash ────────────────────────────────────────────────────── */
+
+.alert {
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+}
+
+.alert-success { background: var(--success-bg); color: var(--success); }
+.alert-error   { background: var(--danger-bg);  color: var(--danger); }
+
+/* ── Statistiques ─────────────────────────────────────────────────────── */
+
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.stat-badge {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: var(--shadow);
+}
+
+.stat-value { font-size: 1.25rem; font-weight: 700; color: var(--ink); }
+.stat-label { font-size: 0.78rem; color: var(--ink-soft); }
+
+/* ── Grille de voitures ───────────────────────────────────────────────── */
+
+.cars-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.car-card {
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px 20px;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.car-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(28, 39, 51, 0.08), 0 14px 28px -14px rgba(28, 39, 51, 0.22);
+}
+
+.car-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.car-reference {
+  font-weight: 700;
+  font-size: 1.02rem;
+  letter-spacing: 0.02em;
+}
+
+.car-model { color: var(--ink-soft); font-size: 0.85rem; }
+
+.car-card-body { display: flex; flex-direction: column; gap: 8px; }
+
+.car-stat {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.88rem;
+}
+
+.car-stat-label { color: var(--ink-soft); }
+.car-stat-value { font-weight: 600; }
+.car-stat-value.highlight { color: var(--brand); }
+
+.empty {
+  color: var(--ink-soft);
+  font-style: italic;
+  padding: 12px 0;
+}
+
+/* ── Historique d'entretiens ──────────────────────────────────────────── */
+
+.maintenance-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.maintenance-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  text-decoration: none;
+  color: inherit;
+  font-size: 0.9rem;
+}
+
+.maintenance-row.search-result:hover { border-color: var(--accent); }
+
+.maintenance-desc { color: var(--ink); }
+.maintenance-date, .maintenance-car { color: var(--ink-soft); font-size: 0.82rem; }
+.maintenance-cost { font-weight: 700; text-align: right; }
+
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-maintenance { background: var(--amber-bg); color: var(--amber); }
+.badge-improvement { background: var(--success-bg); color: var(--success); }
+
+@media (max-width: 560px) {
+  .maintenance-row { grid-template-columns: auto 1fr; row-gap: 6px; }
+  .maintenance-date, .maintenance-cost, .maintenance-car { grid-column: 2; text-align: left; }
+}

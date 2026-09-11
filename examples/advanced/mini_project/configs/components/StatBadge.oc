@@ -1,0 +1,15 @@
+namespace configs.components
+// examples/ocara_app_advanced/configs/components/StatBadge.oc
+
+import ocara.HTMLComponent
+
+class StatBadge extends HTMLComponent {
+    init() {
+        parent::init("stat-badge")
+        self.register(nameless(attrs:map<string, mixed>): string {
+            scoped label:string = attrs["label"]
+            scoped value:string = attrs["value"]
+            return `<div class="stat-badge"><span class="stat-value">${value}</span><span class="stat-label">${label}</span></div>`
+        })
+    }
+}

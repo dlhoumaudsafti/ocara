@@ -1,0 +1,95 @@
+// examples/ocara_app_advanced/controllers/CarController.oc
+// Fiche détail d'une voiture (historique d'entretiens + formulaire d'ajout
+// d'entretien) et création d'une nouvelle voiture.
+//
+// GET plutôt que POST pour la création (voir configs/routes/Cars.oc) : le
+// runtime décode déjà la query string (HTTPServer::query) mais n'offre pas
+// de parseur de corps application/x-www-form-urlencoded pour POST.
+
+import ocara.HTML
+import ocara.HTTPServer
+import ocara.Array
+import ocara.Map
+import ocara.Convert
+import ocara.String
+import models.Car
+import models.Maintenance
+import helpers.Format
+import helpers.Flash
+
+class CarController {
+
+    public static method show(req:int): int {
+        scoped idParam:string = HTTPServer::query(req, "id")
+        var id:int = Convert::strToInt(idParam)
+        const car:map<string, mixed> = Car::find(id)
+
+        if Map::size(car) equal 0 {
+            HTTPServer::respondHeader(req, "Location", "/?error=not_found")
+            HTTPServer::respond(req, 302, "")
+            return 0
+        }
+
+        var reference:string = car["reference"]
+        var brand:string      = car["brand"]
+        var model:string      = car["model"]
+        var purchasePrice:float  = car["purchase_price"]
+        var estimatedPrice:float = car["estimated_sale_price"]
+
+        const maintenances:array<map<string, mixed>> = Maintenance::forCar(id)
+        var maintenanceTotal:float  = Maintenance::maintenanceTotal(id)
+        var improvementTotal:float  = Maintenance::improvementTotal(id)
+
+        var rowsHtml:string = ""
+        for m in maintenances {
+            var mType:string        = m["type"]
+            var mDescription:string = m["description"]
+            var mCost:float         = m["cost"]
+            var mDate:int           = m["created_at"]
+            rowsHtml = rowsHtml + `<maintenance-row type="${mType}" description="${mDescription}" cost="${Format::price(mCost)}" date="${Format::date(mDate)}">`
+        }
+        if Array::len(maintenances) equal 0 {
+            rowsHtml = `<p class="empty">Aucun entretien enregistré pour cette voiture.</p>`
+        }
+
+        scoped idStr:string = Convert::intToStr(id)
+        scoped purchasePriceText:string  = Format::price(purchasePrice)
+        scoped estimatedPriceText:string = Format::price(estimatedPrice)
+        scoped maintenanceTotalText:string = Format::price(maintenanceTotal)
+        scoped improvementTotalText:string = Format::price(improvementTotal)
+
+        scoped errorCode:string   = HTTPServer::query(req, "error")
+        scoped successCode:string = HTTPServer::query(req, "success")
+        scoped errorText:string   = Flash::message(errorCode)
+        scoped successText:string = Flash::message(successCode)
+
+        scoped html:string = HTML::renderFile('templates/car_detail.html')
+        HTTPServer::respond(req, 200, html)
+        return 0
+    }
+
+    public static method create(req:int): int {
+        scoped reference:string = String::trim(HTTPServer::query(req, "reference"))
+        scoped brand:string     = String::trim(HTTPServer::query(req, "brand"))
+        scoped model:string     = String::trim(HTTPServer::query(req, "model"))
+        scoped priceStr:string  = HTTPServer::query(req, "purchase_price")
+        var price:float = Convert::strToFloat(priceStr)
+
+        if String::empty(reference) or String::empty(brand) or String::empty(model) {
+            HTTPServer::respondHeader(req, "Location", "/?error=missing_fields")
+            HTTPServer::respond(req, 302, "")
+            return 0
+        }
+        if price smaller or equal 0.0 {
+            HTTPServer::respondHeader(req, "Location", "/?error=invalid_price")
+            HTTPServer::respond(req, 302, "")
+            return 0
+        }
+
+        Car::create(reference, brand, model, price)
+
+        HTTPServer::respondHeader(req, "Location", "/?success=car_added")
+        HTTPServer::respond(req, 302, "")
+        return 0
+    }
+}

@@ -1,0 +1,19 @@
+namespace configs.components
+// examples/ocara_app_advanced/configs/components/SearchBar.oc
+// Formulaire GET (jamais POST — voir configs/routes/Cars.oc pour la raison)
+// vers /recherche, réutilisé sur la page d'accueil et la page de recherche.
+
+import ocara.HTMLComponent
+
+class SearchBar extends HTMLComponent {
+    init() {
+        parent::init("search-bar")
+        self.register(nameless(attrs:map<string, mixed>): string {
+            scoped q:string = attrs["q"]
+            return `<form class="search-bar" method="GET" action="/recherche">
+      <input type="text" name="q" placeholder="Rechercher une référence, une marque, un entretien..." value="${q}">
+      <button type="submit">Rechercher</button>
+    </form>`
+        })
+    }
+}

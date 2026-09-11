@@ -1,0 +1,61 @@
+// examples/ocara_app_advanced/controllers/SearchController.oc
+// Recherche plein-texte simple (SQL LIKE, voir models/Car.oc et
+// models/Maintenance.oc) à travers les voitures ET les entretiens en une
+// seule requête utilisateur.
+
+import ocara.HTML
+import ocara.HTTPServer
+import ocara.Array
+import ocara.Convert
+import ocara.String
+import models.Car
+import models.Maintenance
+import helpers.Format
+
+class SearchController {
+
+    public static method handle(req:int): int {
+        scoped term:string = String::trim(HTTPServer::query(req, "q"))
+
+        var carsHtml:string = ""
+        var maintenancesHtml:string = ""
+
+        if not String::empty(term) {
+            const cars:array<map<string, mixed>> = Car::search(term)
+            for car in cars {
+                var id:int              = car["id"]
+                var reference:string    = car["reference"]
+                var brand:string        = car["brand"]
+                var model:string        = car["model"]
+                var purchasePrice:float   = car["purchase_price"]
+                var estimatedPrice:float  = car["estimated_sale_price"]
+                var maintenanceTotal:float = Maintenance::maintenanceTotal(id)
+                scoped idStr:string = Convert::intToStr(id)
+                carsHtml = carsHtml + `<car-card id="${idStr}" reference="${reference}" brand="${brand}" model="${model}" purchase_price="${Format::price(purchasePrice)}" estimated_price="${Format::price(estimatedPrice)}" maintenance_total="${Format::price(maintenanceTotal)}">`
+            }
+            if Array::len(cars) equal 0 {
+                carsHtml = `<p class="empty">Aucune voiture ne correspond à « ${term} ».</p>`
+            }
+
+            const maints:array<map<string, mixed>> = Maintenance::search(term)
+            for m in maints {
+                var carId:int             = m["car_id"]
+                var carReference:string   = m["car_reference"]
+                var mType:string          = m["type"]
+                var mDescription:string   = m["description"]
+                var mCost:float           = m["cost"]
+                scoped carIdStr:string = Convert::intToStr(carId)
+                maintenancesHtml = maintenancesHtml + `<search-maintenance car_id="${carIdStr}" car_reference="${carReference}" type="${mType}" description="${mDescription}" cost="${Format::price(mCost)}">`
+            }
+            if Array::len(maints) equal 0 {
+                maintenancesHtml = `<p class="empty">Aucun entretien ne correspond à « ${term} ».</p>`
+            }
+        } else {
+            carsHtml = `<p class="empty">Saisissez un terme ci-dessus pour lancer une recherche.</p>`
+        }
+
+        scoped html:string = HTML::renderFile('templates/search.html')
+        HTTPServer::respond(req, 200, html)
+        return 0
+    }
+}

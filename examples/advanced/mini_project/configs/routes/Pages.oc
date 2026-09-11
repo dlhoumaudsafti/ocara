@@ -1,0 +1,15 @@
+namespace configs.routes
+// examples/ocara_app_advanced/configs/routes/Pages.oc — routes de lecture (GET).
+
+import controllers.HomeController
+import controllers.CarController
+import controllers.SearchController
+import configs.Server
+
+class Pages {
+    init(server:Server) {
+        server.route("/",                "GET", HomeController::index)
+        server.route("/voitures/detail", "GET", CarController::show)
+        server.route("/recherche",       "GET", SearchController::handle)
+    }
+}

@@ -3,7 +3,7 @@
 //
 // Illustre :
 //   - Tous les types primitifs : int float string bool mixed void
-//   - Types composites : T[]  T[][]  map<K,V>
+//   - Types composites : array<T>  array<array<T>>  map<K,V>
 //   - Types nommés (classes)
 //   - Annotations de type obligatoires
 //   - Le type mixed accepte toutes les valeurs
@@ -19,7 +19,7 @@ class Vector2 {
         self.y = y
     }
     public method display(): void {
-        IO::writeln("Vector2(" + self.x + ", " + self.y + ")")
+        IO::writeln(`Vector2(${self.x}, ${self.y})`)
     }
 }
 

@@ -1411,6 +1411,34 @@ validate(42.0)   // false — le widening numérique int/float n'existe que pour
 
 > **Recommandation** : Utiliser les opérateurs stricts principalement pour les types référence et les unions de types (`mixed`, `T|U|null`) où la distinction de type est garantie et pertinente.
 
+### 11.2 Concaténation `+` sur `string`
+
+`+` sur `string` est **strictement typé : seule `string + string` est
+autorisée**. Mélanger un `string` avec un autre type (`int`, `float`, `bool`,
+`array<T>`, `map<K,V>`, une classe...) est une **erreur de compilation** (voir
+[E20](diagnostics.md#e20--concaténation-string--type-différent)) — il n'existe
+pas de conversion implicite d'un type vers `string` via `+`.
+
+```ocara
+var n:int = 42
+IO::writeln("Total : " + n)   // ❌ erreur de compilation (E20)
+```
+
+**Correction** : utiliser un template string (qui convertit automatiquement
+n'importe quel type interpolé), ou convertir explicitement via `Convert::*ToStr`
+avant la concaténation :
+
+```ocara
+IO::writeln(`Total : ${n}`)                       // ✅ template string
+IO::writeln("Total : " + Convert::intToStr(n))    // ✅ conversion explicite (string + string)
+```
+
+**Cas de `mixed`** : comme pour les comparaisons (§11.1), le type réel d'une
+valeur `mixed` n'étant pas connu à la compilation, `string + mixed` échappe à
+cette vérification statique et est délégué à un rendu au runtime — même
+compromis délibéré que pour `equal`/`smaller`/etc., pas une échappatoire
+générale au typage strict de `+`.
+
 ---
 
 ## 12. Instructions

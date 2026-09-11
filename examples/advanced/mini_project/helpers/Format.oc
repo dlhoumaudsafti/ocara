@@ -1,0 +1,29 @@
+// examples/ocara_app_advanced/helpers/Format.oc
+// Formatage d'affichage (prix, dates) partagé par tous les controllers.
+//
+// Convert::floatToStr ne garantit pas 2 décimales (5800.5 -> "5800.5",
+// 1234.0 -> "1234", voir docs/builtins/Convert.md) : Format::price()
+// arrondit au centime et complète toujours à 2 décimales pour un affichage
+// monétaire cohérent ("5 800,50 €" plutôt que "5800.5").
+
+import ocara.Convert
+import ocara.Math
+import ocara.DateTime
+
+class Format {
+
+    public static method price(amount:float): string {
+        scoped cents:int    = Math::round(amount * 100.0)
+        scoped whole:int    = cents / 100
+        scoped rem:int      = cents % 100
+        scoped remStr:string = Convert::intToStr(rem)
+        if rem smaller 10 {
+            remStr = "0" + remStr
+        }
+        return Convert::intToStr(whole) + "," + remStr + " €"
+    }
+
+    public static method date(timestamp:int): string {
+        return DateTime::format(timestamp, "%d/%m/%Y")
+    }
+}

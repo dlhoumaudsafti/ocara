@@ -1,0 +1,12 @@
+namespace configs.routes
+// examples/ocara_app_advanced/configs/routes/Maintenances.oc — voir Cars.oc
+// pour la raison du GET plutôt que POST.
+
+import controllers.MaintenanceController
+import configs.Server
+
+class Maintenances {
+    init(server:Server) {
+        server.route("/entretiens/ajouter", "GET", MaintenanceController::create)
+    }
+}
