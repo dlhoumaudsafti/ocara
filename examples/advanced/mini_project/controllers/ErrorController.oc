@@ -1,4 +1,4 @@
-// examples/ocara_app_advanced/controllers/ErrorController.oc
+// examples/advanced/mini_projet/controllers/ErrorController.oc
 
 import ocara.HTML
 import ocara.HTTPServer

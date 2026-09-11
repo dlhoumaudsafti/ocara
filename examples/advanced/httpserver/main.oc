@@ -1,4 +1,4 @@
-// examples/ocara_site/main.oc
+// examples/advanced/httpserver/main.oc
 // Point d'entrée du mini projet.
 //
 // Enregistre les composants, configure les routes, démarre le serveur.
@@ -10,7 +10,7 @@
 //   controllers/ContactController.oc — page contact (renderCached)
 //
 // Lancer :
-//   ./target/release/ocara examples/ocara_site/main.oc -o /tmp/site
+//   ./target/release/ocara examples/advanced/httpserver/main.oc -o /tmp/site
 //   /tmp/site
 //
 // Tester :

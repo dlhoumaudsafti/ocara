@@ -1,5 +1,5 @@
 namespace configs.components
-// examples/ocara_app_advanced/configs/components/MaintenanceRow.oc
+// examples/advanced/mini_projet/configs/components/MaintenanceRow.oc
 // Une ligne d'entretien dans l'historique d'une voiture — badge visuel pour
 // dissocier "Entretien" (maintenance) et "Amélioration" (impacte le prix
 // de vente estimé, voir services/PricingService.oc).

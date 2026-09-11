@@ -1,5 +1,5 @@
 namespace configs.components
-// examples/ocara_app_advanced/configs/components/SearchBar.oc
+// examples/advanced/mini_projet/configs/components/SearchBar.oc
 // Formulaire GET (jamais POST — voir configs/routes/Cars.oc pour la raison)
 // vers /recherche, réutilisé sur la page d'accueil et la page de recherche.
 

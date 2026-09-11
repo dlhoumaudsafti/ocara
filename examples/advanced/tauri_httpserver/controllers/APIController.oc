@@ -1,4 +1,4 @@
-// examples/ocara_app/controllers/APIController.oc
+// examples/advanced/tauri_httpserver/controllers/APIController.oc
 // Contrôleur de l'API JSON du site (voir configs/routes/API.oc).
 //
 // Expose GET /version (nom, version et statut de l'API) et GET /users

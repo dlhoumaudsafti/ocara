@@ -1,5 +1,5 @@
 namespace configs.routes
-// examples/ocara_app_advanced/configs/routes/Error.oc
+// examples/advanced/mini_projet/configs/routes/Error.oc
 
 import controllers.ErrorController
 import configs.Server

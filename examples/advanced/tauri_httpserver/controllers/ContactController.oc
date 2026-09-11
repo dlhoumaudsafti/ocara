@@ -1,4 +1,4 @@
-// examples/ocara_app/controllers/ContactController.oc
+// examples/advanced/tauri_httpserver/controllers/ContactController.oc
 // Contrôleur de la page "Contact".
 //
 // Contenu statique — mis en cache avec renderCached après le premier rendu.

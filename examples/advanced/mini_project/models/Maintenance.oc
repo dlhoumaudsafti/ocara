@@ -1,4 +1,4 @@
-// examples/ocara_app_advanced/models/Maintenance.oc
+// examples/advanced/mini_projet/models/Maintenance.oc
 // Accès aux données de la table "maintenances". Le type est stocké tel quel
 // ("maintenance" | "improvement") — c'est services/PricingService.oc qui
 // exploite cette distinction pour le recalcul du prix de vente estimé.

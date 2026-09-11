@@ -1,4 +1,4 @@
-// examples/ocara_app/controllers/HomeController.oc
+// examples/advanced/tauri_httpserver/controllers/HomeController.oc
 // Contrôleur de la page d'accueil.
 //
 // Charge deux statistiques en parallèle via async/resolve,

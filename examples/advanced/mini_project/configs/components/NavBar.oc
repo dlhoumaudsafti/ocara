@@ -1,5 +1,5 @@
 namespace configs.components
-// examples/ocara_app_advanced/configs/components/NavBar.oc
+// examples/advanced/mini_projet/configs/components/NavBar.oc
 
 import ocara.HTMLComponent
 

@@ -1,4 +1,4 @@
-// examples/ocara_app/controllers/AboutController.oc
+// examples/advanced/tauri_httpserver/controllers/AboutController.oc
 // Contrôleur de la page "À propos".
 //
 // Contenu statique — mis en cache avec renderCached après le premier rendu.

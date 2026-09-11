@@ -1,4 +1,4 @@
-// examples/ocara_app_advanced/controllers/HomeController.oc
+// examples/advanced/mini_projet/controllers/HomeController.oc
 // Page d'accueil : tableau de bord de la flotte + formulaire d'ajout de
 // voiture + grille des voitures existantes.
 //

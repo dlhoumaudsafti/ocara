@@ -1,4 +1,4 @@
-// examples/ocara_app/configs/Database.oc
+// examples/advanced/tauri_httpserver/configs/Database.oc
 // Accès SQLite de l'app — un compteur de visites persistant (survit aux
 // redémarrages, contrairement aux stats simulées de HomeController).
 //

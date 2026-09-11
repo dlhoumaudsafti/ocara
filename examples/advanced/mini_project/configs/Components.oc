@@ -1,5 +1,5 @@
 namespace configs
-// examples/ocara_app_advanced/configs/Components.oc
+// examples/advanced/mini_projet/configs/Components.oc
 // Point d'enregistrement centralisé de tous les <composants> HTML custom —
 // instancié une seule fois dans main.oc, avant le démarrage du serveur.
 

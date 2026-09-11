@@ -1,4 +1,4 @@
-// examples/ocara_app_advanced/controllers/SearchController.oc
+// examples/advanced/mini_projet/controllers/SearchController.oc
 // Recherche plein-texte simple (SQL LIKE, voir models/Car.oc et
 // models/Maintenance.oc) à travers les voitures ET les entretiens en une
 // seule requête utilisateur.
