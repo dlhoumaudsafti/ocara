@@ -161,6 +161,20 @@ fi
 
 echo ""
 
+# Test examples/from/import_from.oc — seul point d'entrée exécutable de
+# examples/from/ (les autres fichiers de ce dossier ne sont que des classes/
+# interfaces importées par celui-ci, pas des programmes autonomes).
+echo "══════════════════════════════════════════════"
+echo " Régression examples/from/import_from.oc"
+echo "══════════════════════════════════════════════"
+
+if ! run_test "examples/from/import_from.oc" "from/import_from"; then
+    fail=1
+    failed="$failed from/import_from"
+fi
+
+echo ""
+
 # Tests builtins/*.oc
 echo "══════════════════════════════════════════════"
 echo " Régression examples/builtins/*.oc"

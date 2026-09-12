@@ -11,6 +11,10 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 - ✅ **Cohérence de la remontée d'erreurs des builtins** — `MySQLException` (code 101/102/103) est maintenant réellement levée par `MySQL_connect`/`execute`/`query`/`queryOne` (calqué sur `SQLiteException`), y compris pour `MariaDB`. La documentation `YAML.md`/`DotEnv.md` a été corrigée pour ne plus promettre une exception qui n'est pas levée (comportement volontairement inchangé pour ces deux modules — voir la fiche pour le détail de ce choix).
 - ✅ **Interfaces implémentées transitivement à l'import** — `import Circle from "fichier"` rapatrie désormais aussi les interfaces référencées par `Circle.implements`, même sans les importer explicitement.
 - ✅ **Vérification de signature d'interface (E09)** — un `implements` dont la méthode ne correspond pas en arité ou en type (paramètres/retour) est maintenant rejeté à la compilation, au lieu d'être accepté silencieusement.
+- ✅ **Documentation du modèle mémoire** — `var` documenté comme ne libérant jamais rien, limite connue de l'échappement par argument ajoutée à côté de celle sur `raise`, formulation "pas de GC imposé" corrigée, nouvelle section dans `workflow-compilation.md` sur la phase d'insertion des libérations (+ renvoi vers E17-E19), mention dans le README.
+- ✅ **Arité des génériques** — `use List<int,string,Foo>()` sur un `generic List<T>` (1 paramètre) est maintenant rejeté (nouveau diagnostic **E21**), au lieu de compiler silencieusement.
+- ✅ **Support des flottants en YAML** — `YAML::decode`/`encode` reconstruisent maintenant un vrai flottant depuis/vers un nombre YAML à virgule, au lieu de silencieusement devenir `0`.
+- ✅ **Bug d'import bloquant un fichier multi-classes** — `import Circle from "X"` puis `import Rectangle from "X"` (cas d'usage documenté par l'EBNF elle-même) ignorait silencieusement le second import ; le test `examples/tests/11_interfacesTest.oc` (cassé pour cette raison) compile et passe maintenant ses 4 assertions, `examples/from/import_from.oc` est ajouté à la CI, et `consumed` a maintenant un test dédié.
 
 ## Légende
 
@@ -46,18 +50,14 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 ### Gestion mémoire
 
 - **Robustifier les libérations bas niveau du runtime** (tag d'exception ambigu, taille recalculée sans header fiable, détection de type par heuristique sur un entier). *(Dangereuse)* → [détails](roadmap.d/memoire-fiabilite-runtime-bas-niveau.md)
-- **Documenter le modèle mémoire et étoffer les diagnostics associés** (aucune section dédiée dans l'EBNF ni dans le guide de compilation, pas de diagnostic pour une fuite de handle natif). *(Légère)* → [détails](roadmap.d/memoire-documentation-diagnostics.md)
+- **Ajouter des diagnostics mémoire dédiés** (double-free explicite, fuite d'un handle natif déclaré en `var`, fuite d'un champ de classe non pris en charge) — bloqué tant que les mécanismes de suivi correspondants n'existent pas (voir les items Haute priorité ci-dessus). *(Structurel)* → [détails](roadmap.d/memoire-documentation-diagnostics.md)
 
 ### Langage
 
-- **Vérifier l'arité et les contraintes des paramètres de type génériques.** *(Légère)* → [détails](roadmap.d/langage-generiques.md)
 - **Donner une existence réelle aux interfaces à l'exécution** (dispatch dynamique, aujourd'hui purement statique). *(Massive)* → [détails](roadmap.d/langage-interfaces.md)
-- **Simplifier la résolution des imports** (deux chemins redondants et incohérents pour l'ancien format d'import). *(Structurel)* → [détails](roadmap.d/langage-imports-modules.md)
+- **Simplifier la résolution des imports** (deux chemins redondants et incohérents pour l'ancien format d'import — confirmé concrètement sur `examples/project/tests/mainTest.oc`). *(Structurel)* → [détails](roadmap.d/langage-imports-modules.md)
 - **Renforcer les vérifications de `try`/`on`/`raise`** (classe inconnue non détectée, ordre du catch-all non imposé, pas de hiérarchie d'exceptions réelle). *(Structurel)* → [détails](roadmap.d/langage-exceptions.md)
-
-### Builtins
-
-- **Achever le support YAML** (flottants perdus silencieusement, types "tagged" non supportés). *(Légère)* → [détails](roadmap.d/builtins-yaml.md)
+- **Les littéraux `float`/`bool` dans un `array<mixed>`/`map<string, mixed>` sont stockés comme leur représentation string** au lieu d'être boxés — perte de type silencieuse touchant tout consommateur de `mixed` (`YAML::encode`, `JSON::encode`, ...), découvert en travaillant sur le support YAML. *(Structurel)* → [détails](roadmap.d/langage-mixed-literal-stringification.md)
 
 ### Build & portabilité
 
@@ -65,7 +65,8 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 ### Qualité
 
-- **Étendre la CI/régression aux dossiers actuellement hors périmètre** (`examples/generics`, `examples/from`, `examples/mods`, `examples/advanced`) et réactiver de vraies assertions sur le test des interfaces. *(Légère)* → [détails](roadmap.d/qualite-couverture-tests.md)
+- **Écrire des scripts CI dédiés pour les exemples serveur HTTP de `examples/advanced/`** (`httpserver`, `mini_project`, `tauri_httpserver`) — ces programmes bloquent indéfiniment (`server.start()`/`run()`), il faut le même mécanisme que `examples/builtins/httpserver.sh` (démarrage en fond + requête + arrêt) pour chacun. *(Légère)* → [détails](roadmap.d/qualite-couverture-tests.md)
+- **Mettre en place une infrastructure CI pour MySQL** (service/container) pour que `builtins/mysql` cesse d'échouer faute de serveur local. *(Légère)* → [détails](roadmap.d/qualite-couverture-tests.md)
 
 ---
 
@@ -83,6 +84,7 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 ### Build & portabilité
 
 - **Étudier un vrai support Windows** pour la compilation du compilateur lui-même. *(Massive)* → [détails](roadmap.d/packaging-windows.md)
+- **Étudier un vrai support Android** pour la compilation du compilateur lui-même. *(Massive)*
 - **Fiabiliser les dépendances système de build** (OpenSSL imposé systématiquement, shim pkg-config ad hoc, contrainte `-j1`). *(Légère)* → [détails](roadmap.d/packaging-build-cargo.md)
 
 ### Qualité

@@ -434,6 +434,28 @@ Une valeur `mixed` échappe à cette vérification statique (son type réel n'es
 pas connu à la compilation), comme pour E16 : `string + mixed` est délégué à
 un rendu au runtime plutôt qu'à ce diagnostic.
 
+### E21 — Arité incorrecte des arguments de type d'un générique
+
+```
+fichier.oc:5:14: error: generic 'List' expects 1 type argument(s), 3 provided
+```
+
+Le nombre d'arguments de type passés à `use Foo<...>()` ne correspond pas au
+nombre de paramètres de type déclarés par `generic Foo<T, U=default>` — entre
+le nombre de paramètres **sans** valeur par défaut (minimum) et le nombre
+total de paramètres déclarés (maximum, défauts inclus).
+
+```ocara
+generic List<T> { ... }
+
+var l:List<int> = use List<int>()          // ✅ 1 attendu, 1 fourni
+var m:List<int,string,Foo> = use List<int,string,Foo>()   // ❌ 1 attendu, 3 fournis
+var n:List = use List()                     // ❌ 1 attendu, 0 fourni
+```
+
+**Correction :** fournir exactement le nombre d'arguments de type attendu par
+la déclaration `generic`.
+
 ---
 
 ## Avertissements sémantiques

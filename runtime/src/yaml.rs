@@ -71,10 +71,12 @@ fn value_to_yaml(val: i64) -> YamlValue {
     }
     
     let typ = get_value_type(val);
-    
+
     match typ {
-        1 => {  // Primitif (int ou bool)
-            if val == 1 {
+        1 => {  // Primitif : int / bool / float boxé (mixed) — voir __box_float
+            if crate::typecheck::__is_float(val) != 0 {
+                YamlValue::Number(serde_yaml::Number::from(crate::__unbox_float(val)))
+            } else if val == 1 {
                 YamlValue::Bool(true)
             } else if val == 0 {
                 YamlValue::Bool(false)
@@ -142,6 +144,11 @@ fn yaml_to_value(yaml: &YamlValue) -> i64 {
         YamlValue::Number(n) => {
             if let Some(i) = n.as_i64() {
                 i
+            } else if let Some(f) = n.as_f64() {
+                // Boxé comme un float `mixed` (voir __box_float) : un entier
+                // brut n'aurait pas atteint cette branche (as_i64() aurait
+                // réussi), donc n a réellement une partie décimale.
+                crate::__box_float(f.to_bits() as i64)
             } else {
                 0
             }

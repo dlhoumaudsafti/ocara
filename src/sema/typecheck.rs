@@ -1106,24 +1106,41 @@ impl<'a> TypeChecker<'a> {
                     }
                 }
                 
-                // TODO: Pour les génériques, vérifier que type_args correspondent aux type_params
-                // et valider les contraintes (extends, implements)
-                
+                // Arité des arguments de type : entre le nombre de paramètres
+                // sans valeur par défaut et le nombre total de paramètres
+                // déclarés par `generic Foo<T, U=default>` (les paramètres
+                // avec défaut sont optionnels à l'instanciation).
+                if is_generic {
+                    if let Some(generic_info) = self.symbols.lookup_generic(class) {
+                        let expected_max = generic_info.type_params.len();
+                        let expected_min = generic_info.type_params.iter()
+                            .filter(|p| p.default.is_none())
+                            .count();
+                        let found = type_args.len();
+                        if found < expected_min || found > expected_max {
+                            self.errors.push(SemaError::GenericArityMismatch {
+                                name: class.clone(),
+                                expected_min,
+                                expected_max,
+                                found,
+                                span: self.with_runtime_ctx(span),
+                            });
+                        }
+                    }
+                }
+
                 for arg in args { self.infer_expr(arg); }
-                
+
                 // Si c'est un générique avec type_args, retourner Type::Generic
                 if is_generic && !type_args.is_empty() {
-                    Type::Generic { 
-                        name: class.clone(), 
-                        args: type_args.clone() 
+                    Type::Generic {
+                        name: class.clone(),
+                        args: type_args.clone()
                     }
                 } else if is_generic && type_args.is_empty() {
-                    // Générique sans arguments de type - erreur
-                    // TODO: ajouter une erreur spécifique pour cela
-                    self.errors.push(SemaError::NotAClass {
-                        name: class.clone(),
-                        span: self.with_runtime_ctx(span),
-                    });
+                    // Arité déjà signalée ci-dessus si nécessaire (found=0) —
+                    // on retombe sur Mixed pour ne pas propager une cascade
+                    // d'erreurs de type incohérentes en aval.
                     Type::Mixed
                 } else {
                     Type::Named(class.clone())

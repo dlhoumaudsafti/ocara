@@ -149,6 +149,13 @@ Transformation de l'AST haut-niveau vers une représentation plus bas-niveau :
 - `while` → blocs avec `Jump` arrière
 - `return` → instruction `Return`
 
+**d) Gestion mémoire — insertion des libérations (`stmt.d/ownership.rs`, `builder.d/class_ownership.rs`)**
+
+Ocara n'a **aucun ramasse-miettes** : c'est cette phase de lowering qui insère les appels runtime de libération (`__value_free`, `__array_free`, `__map_free`, `__object_free`, `.destroy()`/`.close()` implicite) pour toute variable déclarée `scoped` ou `consumed` (voir `docs/EBNF.md` §9.2/9.3). Une variable `var` (le mot-clé par défaut) ne déclenche aucune libération. C'est également ici que sont vérifiées les règles associées, remontées comme diagnostics sémantiques dès la phase 3️⃣ :
+- **E17** : réutilisation d'une `consumed` après sa première utilisation
+- **E18** : échappement d'une ressource `scoped`/`consumed` (`Mutex`, `SQLite`, `MySQL`, `Thread`, ...) hors de son bloc
+- **E19** : `Thread` non finalisée (`.join()`/`.detach()`) avant la fin du bloc
+
 L'IR ressemble à un assembleur virtuel indépendant de la plateforme, avec un nombre illimité de registres.
 
 ### 5️⃣ **Code Generation** (IR → Code Natif)

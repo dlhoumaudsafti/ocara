@@ -46,6 +46,11 @@ pub enum SemaError {
     /// strictement typée : seule `string + string` est autorisée. Toute
     /// conversion implicite passe par un template string ou `Convert::*ToStr`.
     StringConcatMismatch { left: String, right: String, span: Span },
+    /// `use Foo<...>()` avec un nombre d'arguments de type incompatible avec
+    /// les paramètres de type déclarés par `generic Foo<T, U=default>` —
+    /// arité attendue : entre le nombre de paramètres sans valeur par défaut
+    /// et le nombre total de paramètres déclarés.
+    GenericArityMismatch { name: String, expected_min: usize, expected_max: usize, found: usize, span: Span },
 }
 
 impl SemaError {
@@ -74,6 +79,7 @@ impl SemaError {
             SemaError::ThreadNotFinalized { span, .. } => span,
             SemaError::OwnershipNotSupported { span, .. } => span,
             SemaError::StringConcatMismatch { span, .. } => span,
+            SemaError::GenericArityMismatch { span, .. } => span,
         }
     }
 
@@ -125,6 +131,12 @@ impl SemaError {
                 format!("'scoped'/'consumed' is not supported on '{}' for '{}' yet", ty_name, name),
             SemaError::StringConcatMismatch { left, right, .. } =>
                 format!("cannot concatenate '{}' and '{}' with '+': string concatenation is strictly typed (only string + string is allowed) — use a template string (`${{...}}`) or convert explicitly (Convert::*ToStr)", left, right),
+            SemaError::GenericArityMismatch { name, expected_min, expected_max, found, .. } =>
+                if expected_min == expected_max {
+                    format!("generic '{}' expects {} type argument(s), {} provided", name, expected_min, found)
+                } else {
+                    format!("generic '{}' expects between {} and {} type argument(s), {} provided", name, expected_min, expected_max, found)
+                },
         }
     }
 }

@@ -56,7 +56,7 @@
 | Orienté objet              | Classes, interfaces, héritage simple                |
 | Modulaire                  | Un fichier = un module, imports qualifiés           |
 | Simple à parser            | Grammaire non-ambiguë, syntaxe régulière            |
-| Sans dépendances runtime   | Pas de GC imposé, pas de runtime externe            |
+| Sans dépendances runtime   | **Aucun ramasse-miettes (GC)** — jamais, par choix de design définitif — pas de runtime externe |
 
 **Inspirations** :
 
@@ -1160,6 +1160,8 @@ count = 42      // réaffectation autorisée
 
 `var` déclare une variable **mutable** dont la portée est celle de la fonction. Elle peut être réaffectée à tout moment après sa déclaration.
 
+> **Aucune libération automatique** : contrairement à `scoped`/`consumed` (voir §9.2/9.3), une variable `var` n'est **jamais** libérée par le compilateur — il n'y a pas de ramasse-miettes. Toute valeur allouée sur le tas (`string`, `array`, `map`, instance de classe) stockée dans un `var` reste allouée jusqu'à la fin du programme. Utiliser `scoped`/`consumed` pour toute valeur dont la durée de vie doit rester limitée à un bloc.
+
 ### 9.2 Variable de bloc (`scoped`)
 
 ```ebnf
@@ -1196,6 +1198,8 @@ x = x + 10   // valide
 Une sortie anticipée du bloc (`return`, ou `break`/`continue` hors d'une boucle) détruit elle aussi correctement toutes les `scoped`/`consumed` encore vivantes dans les blocs qu'elle traverse — pas seulement une fin de bloc normale.
 
 > **Limite connue** : seul un `raise` qui traverse un `try` englobant (`longjmp`) échappe à cette règle — la valeur fuit (pas de plantage ni de corruption : rien d'autre ne peut aliaser sa mémoire, juste une fuite mémoire/ressource non libérée). Voir `src/lower/stmt.d/statements.d/exceptions.rs`.
+
+> **Limite connue (plus grave)** : la détection d'échappement ne couvre aujourd'hui que l'affectation directe (`var y = x`, `y = x`, `return x`) — **pas** le passage de `x` en argument d'un appel de fonction/constructeur. Si l'appelée stocke cet argument dans une structure qui survit à l'appel (ex. un constructeur qui affecte un paramètre à un champ), la valeur est libérée à la fin du bloc courant alors qu'un pointeur vers elle est toujours utilisé ailleurs — pointeur pendouillant (« dangling pointer »), pas seulement une fuite. Ne pas passer une `scoped`/`consumed` en argument à une fonction qui pourrait la conserver au-delà de l'appel.
 
 ### 9.3 Variable à usage unique (`consumed`)
 

@@ -154,8 +154,15 @@ fn main() {
     }
 
     // ── 4a. Chargement et fusion des imports (nouveau + ancien format) ───────
-    let mut processed_files: std::collections::HashSet<std::path::PathBuf> = std::collections::HashSet::new();
-    
+    // Déduplication par (fichier, symbole demandé) et non par fichier seul :
+    // `import Circle from "Geometry"` puis `import Rectangle from "Geometry"`
+    // (cas d'usage documenté EBNF §4.3 "fichier multi-classes") doivent tous
+    // les deux être traités, même si le fichier a déjà été chargé pour un
+    // autre symbole. Le programme parsé de chaque fichier est mis en cache
+    // pour éviter de le relire/reparser à chaque symbole demandé.
+    let mut processed_imports: std::collections::HashSet<(std::path::PathBuf, String)> = std::collections::HashSet::new();
+    let mut parsed_files_cache: std::collections::HashMap<std::path::PathBuf, parsing::ast::Program> = std::collections::HashMap::new();
+
     // (ImportDecl, répertoire du fichier parent, namespace du fichier parent)
     let mut imports_to_process: Vec<(parsing::ast::ImportDecl, std::path::PathBuf, Option<String>)> = Vec::new();
     
@@ -216,38 +223,54 @@ fn main() {
             }
         }
         
-        // Éviter de traiter le même fichier plusieurs fois
+        // Éviter de traiter deux fois le même symbole depuis le même fichier
+        // (mais pas le fichier entier : deux imports distincts d'un même
+        // fichier multi-classes, ex. `import Circle from "Geometry"` puis
+        // `import Rectangle from "Geometry"`, doivent chacun être traités).
         let canonical_path = file_path.canonicalize().unwrap_or(file_path.clone());
-        if processed_files.contains(&canonical_path) {
+        let requested_key = if imp.path.first().map(|s| s == "*").unwrap_or(false) {
+            "*".to_string()
+        } else {
+            imp.path.first().cloned().unwrap_or_default()
+        };
+        if processed_imports.contains(&(canonical_path.clone(), requested_key.clone())) {
             continue;
         }
-        processed_files.insert(canonical_path.clone());
-        
+        processed_imports.insert((canonical_path.clone(), requested_key));
+
         // Le répertoire parent pour les imports de ce fichier
         let current_file_dir = file_path.parent().unwrap_or(&parent_dir).to_path_buf();
 
-        let mod_src = match fs::read_to_string(&file_path) {
-            Ok(s) => s,
-            Err(e) => {
-                diagnostic::print_error(&file_path, 0, 0, &format!("reading file '{}': {}", file_path.display(), e));
-                std::process::exit(1);
-            }
+        // Réutilise le programme déjà parsé si un import précédent a déjà
+        // chargé ce même fichier pour un autre symbole.
+        let mut mod_prog = if let Some(cached) = parsed_files_cache.get(&canonical_path) {
+            cached.clone()
+        } else {
+            let mod_src = match fs::read_to_string(&file_path) {
+                Ok(s) => s,
+                Err(e) => {
+                    diagnostic::print_error(&file_path, 0, 0, &format!("reading file '{}': {}", file_path.display(), e));
+                    std::process::exit(1);
+                }
+            };
+            let mod_tokens = match Lexer::new(&mod_src).tokenize() {
+                Ok(t) => t,
+                Err(e) => {
+                    diagnostic::print_error(&file_path, 0, 0, &format!("{}", e));
+                    std::process::exit(1);
+                }
+            };
+            let parsed = match Parser::new(mod_tokens).parse_program() {
+                Ok(p) => p,
+                Err(e) => {
+                    diagnostic::print_error(&file_path, e.span.line, e.span.col, &e.message);
+                    std::process::exit(1);
+                }
+            };
+            parsed_files_cache.insert(canonical_path.clone(), parsed.clone());
+            parsed
         };
-        let mod_tokens = match Lexer::new(&mod_src).tokenize() {
-            Ok(t) => t,
-            Err(e) => {
-                diagnostic::print_error(&file_path, 0, 0, &format!("{}", e));
-                std::process::exit(1);
-            }
-        };
-        let mut mod_prog = match Parser::new(mod_tokens).parse_program() {
-            Ok(p) => p,
-            Err(e) => {
-                diagnostic::print_error(&file_path, e.span.line, e.span.col, &e.message);
-                std::process::exit(1);
-            }
-        };
-        
+
         // Mettre à jour tous les spans du programme importé avec le nom du fichier
         update_program_spans_with_file(&mut mod_prog, &file_path.to_string_lossy());
 
