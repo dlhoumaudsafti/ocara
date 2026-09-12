@@ -23,6 +23,17 @@ if [ ! -x "$OCARA" ]; then
     exit 1
 fi
 
+# ── Détecte un serveur MySQL/MariaDB joignable (voir builtins/mysql.oc) ───────
+# Simple sondage TCP (pas d'authentification) : suffisant pour distinguer
+# "aucun serveur disponible ici" (skip propre) de "serveur présent mais requête
+# invalide" (vrai échec du test). Voir docs/roadmap.d/qualite-couverture-tests.md
+# pour l'exemple de service CI (GitHub Actions) qui rendrait ce test actif.
+MYSQL_HOST="${MYSQL_HOST:-127.0.0.1}"
+MYSQL_PORT="${MYSQL_PORT:-3306}"
+mysql_server_available() {
+    (exec 3<>"/dev/tcp/$MYSQL_HOST/$MYSQL_PORT") 2>/dev/null
+}
+
 # ── Fonction pour compiler et exécuter un test ────────────────────────────────
 run_test() {
     local src="$1"
@@ -74,6 +85,9 @@ run_test() {
             ;;
         httpserver_static)
             examples/builtins/httpserver_static.sh "$TMP"
+            ;;
+        advanced_httpserver)
+            examples/advanced/httpserver/httpserver.sh "$TMP"
             ;;
         *)
             "$TMP"
@@ -175,6 +189,23 @@ fi
 
 echo ""
 
+# Test examples/advanced/httpserver/main.oc — serveur HTTP pur (pas de GUI),
+# testé via httpserver.sh (démarrage en fond + requêtes + arrêt), même
+# mécanisme que examples/builtins/httpserver.sh. `mini_project` et
+# `tauri_httpserver` (les 2 autres projets de examples/advanced/) ouvrent en
+# plus une fenêtre Tauri (WebView) et ne sont volontairement pas couverts ici
+# — voir docs/roadmap.d/qualite-couverture-tests.md.
+echo "══════════════════════════════════════════════"
+echo " Régression examples/advanced/httpserver/main.oc"
+echo "══════════════════════════════════════════════"
+
+if ! run_test "examples/advanced/httpserver/main.oc" "advanced_httpserver"; then
+    fail=1
+    failed="$failed advanced_httpserver"
+fi
+
+echo ""
+
 # Tests builtins/*.oc
 echo "══════════════════════════════════════════════"
 echo " Régression examples/builtins/*.oc"
@@ -184,9 +215,16 @@ for src in examples/builtins/*.oc; do
     if [ ! -f "$src" ]; then
         continue
     fi
-    
+
     name=$(basename "$src" .oc)
-    
+
+    # builtins/mysql.oc a besoin d'un vrai serveur MySQL/MariaDB — absent de
+    # cet environnement de dev, on saute proprement plutôt que d'échouer.
+    if [ "$name" = "mysql" ] && ! mysql_server_available; then
+        echo "SKIP: builtins/mysql (aucun serveur MySQL/MariaDB accessible sur $MYSQL_HOST:$MYSQL_PORT)"
+        continue
+    fi
+
     if ! run_test "$src" "$name"; then
         fail=1
         failed="$failed builtins/$name"

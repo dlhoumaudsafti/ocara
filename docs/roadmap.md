@@ -1,6 +1,6 @@
 # Roadmap Ocara
 
-_Dernière mise à jour : 2026-09-11_
+_Dernière mise à jour : 2026-09-12_
 
 Ce document liste ce qu'il reste à faire pour faire d'Ocara un langage solide, avec un focus prioritaire sur la **gestion mémoire** : le compilateur n'a pas de ramasse-miettes (choix assumé et définitif), mais rien aujourd'hui ne garantit l'absence de fuites, de doubles libérations ou de corruptions mémoire silencieuses.
 
@@ -15,6 +15,8 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 - ✅ **Arité des génériques** — `use List<int,string,Foo>()` sur un `generic List<T>` (1 paramètre) est maintenant rejeté (nouveau diagnostic **E21**), au lieu de compiler silencieusement.
 - ✅ **Support des flottants en YAML** — `YAML::decode`/`encode` reconstruisent maintenant un vrai flottant depuis/vers un nombre YAML à virgule, au lieu de silencieusement devenir `0`.
 - ✅ **Bug d'import bloquant un fichier multi-classes** — `import Circle from "X"` puis `import Rectangle from "X"` (cas d'usage documenté par l'EBNF elle-même) ignorait silencieusement le second import ; le test `examples/tests/11_interfacesTest.oc` (cassé pour cette raison) compile et passe maintenant ses 4 assertions, `examples/from/import_from.oc` est ajouté à la CI, et `consumed` a maintenant un test dédié.
+- ✅ **CI pour `examples/advanced/httpserver`** — nouveau script `httpserver.sh` (démarrage en fond, requêtes sur toutes les routes + cas 404, arrêt), câblé dans `ci/regression.sh`. `mini_project`/`tauri_httpserver` restent hors CI par choix explicite (les deux ouvrent une vraie fenêtre Tauri/WebView, pas seulement `tauri_httpserver` comme on le pensait initialement).
+- ✅ **`builtins/mysql` ne fait plus échouer la CI locale** — `ci/regression.sh` sonde `127.0.0.1:3306` et annonce `SKIP` (pas `FAIL`) si aucun serveur MySQL/MariaDB n'est joignable, plutôt que d'échouer systématiquement faute d'infrastructure. Exemple de service CI (GitHub Actions) documenté pour le jour où ce projet aura un pipeline versionné — aucun Docker/serveur local disponible pour aller plus loin ici.
 
 ## Légende
 
@@ -62,11 +64,6 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 ### Build & portabilité
 
 - **Rendre le compilateur constructible nativement avec Cargo** (aujourd'hui, `build.rs` exige une orchestration Makefile préalable). *(Structurel)* → [détails](roadmap.d/packaging-build-cargo.md)
-
-### Qualité
-
-- **Écrire des scripts CI dédiés pour les exemples serveur HTTP de `examples/advanced/`** (`httpserver`, `mini_project`, `tauri_httpserver`) — ces programmes bloquent indéfiniment (`server.start()`/`run()`), il faut le même mécanisme que `examples/builtins/httpserver.sh` (démarrage en fond + requête + arrêt) pour chacun. *(Légère)* → [détails](roadmap.d/qualite-couverture-tests.md)
-- **Mettre en place une infrastructure CI pour MySQL** (service/container) pour que `builtins/mysql` cesse d'échouer faute de serveur local. *(Légère)* → [détails](roadmap.d/qualite-couverture-tests.md)
 
 ---
 
