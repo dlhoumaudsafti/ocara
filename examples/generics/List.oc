@@ -3,7 +3,7 @@ namespace .
 import ocara.Array
 
 generic List<T> {
-    private property items:T[]
+    private property items:array<T>
     
     init() {
         self.items = []

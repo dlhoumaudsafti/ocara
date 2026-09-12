@@ -17,6 +17,9 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 - ✅ **Bug d'import bloquant un fichier multi-classes** — `import Circle from "X"` puis `import Rectangle from "X"` (cas d'usage documenté par l'EBNF elle-même) ignorait silencieusement le second import ; le test `examples/tests/11_interfacesTest.oc` (cassé pour cette raison) compile et passe maintenant ses 4 assertions, `examples/from/import_from.oc` est ajouté à la CI, et `consumed` a maintenant un test dédié.
 - ✅ **CI pour `examples/advanced/httpserver`** — nouveau script `httpserver.sh` (démarrage en fond, requêtes sur toutes les routes + cas 404, arrêt), câblé dans `ci/regression.sh`. `mini_project`/`tauri_httpserver` restent hors CI par choix explicite (les deux ouvrent une vraie fenêtre Tauri/WebView, pas seulement `tauri_httpserver` comme on le pensait initialement).
 - ✅ **`builtins/mysql` ne fait plus échouer la CI locale** — `ci/regression.sh` sonde `127.0.0.1:3306` et annonce `SKIP` (pas `FAIL`) si aucun serveur MySQL/MariaDB n'est joignable, plutôt que d'échouer systématiquement faute d'infrastructure. Exemple de service CI (GitHub Actions) documenté pour le jour où ce projet aura un pipeline versionné — aucun Docker/serveur local disponible pour aller plus loin ici.
+- ✅ **Syntaxe obsolète (`T[]`, `==`, `<`/`>`) nettoyée** — tous les exemples cassés compilent à nouveau (`07_loopsTest`, `08_arraysTest`, `16_typesTest`, `19_break_continueTest`, `examples/generics/*`, `examples/runtime/variables.oc`), contradiction sur les namespaces imbriqués corrigée dans l'EBNF, 20 fichiers `.bak` obsolètes supprimés. `make regression` termine désormais en succès complet (`exit 0`).
+- ✅ **`Map::forEach` implémenté** — le callback (fat pointer, même mécanisme que `HTTPServer::route`) est maintenant réellement appelé pour chaque entrée ; le stub mort `__map_foreach` (jamais invoqué par aucun chemin de lowering, malgré ce que laissait penser un commentaire de doc) est retiré. Découverte annexe non corrigée : l'arithmétique entre `int` et une valeur `mixed` produit un résultat faux (nouvelle fiche).
+- ✅ **Lien OpenSSL inconditionnel retiré du build du compilateur** — `build.rs` liait `-lssl`/`-lcrypto` au binaire `ocara` lui-même, en contradiction directe avec le choix documenté de `src/codegen/link.rs` (OpenSSL vendored, aucun lien dynamique nécessaire nulle part). Rebuild complet du compilateur + compilation/exécution d'un exemple MySQL confirment que ce n'était pas nécessaire.
 
 ## Légende
 
@@ -71,22 +74,16 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 ### Langage
 
-- **Mettre à jour les exemples utilisant une syntaxe obsolète** (`T[]`, `==`) et corriger les décalages doc/exemples restants. *(Simple)* → [détails](roadmap.d/langage-syntaxe-obsolete.md)
+- **L'arithmétique entre `int` et une valeur `mixed` produit un résultat faux** (`y + x` avec `x:mixed` contenant un entier) — découvert en documentant `Map::forEach`, aucune vérification/dispatch runtime équivalent à celui des comparaisons strictes (`__cmp_eq_strict`...) n'existe pour `+`/`-`/`*`/`/`. Contournement fonctionnel connu (conversion via string). *(Structurel)* → [détails](roadmap.d/langage-mixed-arithmetic.md)
 
 ### Builtins
 
 - **Finaliser l'intégration Tauri** (aujourd'hui simulation en mémoire pour `listen`/`emit`/`dialog`/`notify`). *(Massive)* → [détails](roadmap.d/builtins-tauri.md)
-- **Implémenter `Map::forEach`** (callback jamais appelé aujourd'hui, seul TODO fonctionnel du runtime). *(Simple)*
 
 ### Build & portabilité
 
 - **Étudier un vrai support Windows** pour la compilation du compilateur lui-même. *(Massive)* → [détails](roadmap.d/packaging-windows.md)
 - **Étudier un vrai support Android** pour la compilation du compilateur lui-même. *(Massive)*
-- **Fiabiliser les dépendances système de build** (OpenSSL imposé systématiquement, shim pkg-config ad hoc, contrainte `-j1`). *(Légère)* → [détails](roadmap.d/packaging-build-cargo.md)
-
-### Qualité
-
-- **Nettoyer le dépôt d'exemples** (fichiers `.bak` obsolètes, artefacts binaires committés). *(Simple)*
 
 ---
 

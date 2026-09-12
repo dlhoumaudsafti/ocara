@@ -690,11 +690,6 @@ pub extern "C" fn __map_get(ptr: i64, key: i64) -> i64 {
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn __map_foreach(_ptr: i64, _cb: i64, _ctx: i64) {
-    // TODO : implémentation complète nécessite le support des pointeurs de fonctions
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // ocara.IO
 //
@@ -1270,6 +1265,27 @@ pub extern "C" fn Map_merge(a: i64, b: i64) -> i64 {
 pub extern "C" fn Map_isEmpty(ptr: i64) -> i64 {
     if ptr == 0 { return 1; }
     if unsafe { map_ref(ptr).data.is_empty() } { 1 } else { 0 }
+}
+
+/// Map::forEach(m, callback) → void
+/// `callback` : nameless(key:mixed, value:mixed): void, appelé pour chaque
+/// entrée. `callback` est un fat pointer Ocara {func_ptr, env_ptr} (même
+/// convention que les handlers HTTPServer::route, voir runtime/src/httpserver.rs).
+#[unsafe(no_mangle)]
+pub extern "C" fn Map_forEach(ptr: i64, callback: i64) {
+    if ptr == 0 || callback == 0 { return; }
+    type ForEachFn = extern "C" fn(i64, i64, i64) -> i64;
+    let func_ptr = unsafe { *(callback as *const i64) };
+    let env_ptr  = unsafe { *(callback as *const i64).add(1) };
+    let f: ForEachFn = unsafe { std::mem::transmute(func_ptr as usize) };
+    // Copie des entrées avant d'itérer : le callback pourrait modifier la map
+    // (Map::set/remove) pendant l'itération, ce qui invaliderait une référence
+    // directe vers `data`.
+    let entries: Vec<(String, i64)> = unsafe { map_ref(ptr).data.clone() };
+    for (k, v) in entries {
+        let key_ptr = unsafe { alloc_str(&k) };
+        f(env_ptr, key_ptr, v);
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

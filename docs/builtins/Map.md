@@ -134,6 +134,37 @@ Map::get(config, "debug")     // → 1   (ajouté depuis extra)
 
 ---
 
+### `Map::forEach(m, callback)` → `void`
+
+Appelle `callback` pour chaque entrée de la map, avec la clé et la valeur.
+
+**Paramètres** :
+- `m` : la map à parcourir
+- `callback` : `nameless(key:mixed, value:mixed): void` — appelé une fois par entrée
+
+```ocara
+const scores:map<string, mixed> = {"Alice": 95, "Bob": 82}
+
+Map::forEach(scores, nameless(key:mixed, value:mixed): void {
+    IO::writeln(`${key} : ${value}`)
+})
+// Alice : 95
+// Bob : 82
+```
+
+Le callback peut capturer et modifier des variables du scope englobant (comme toute closure `nameless`) :
+
+```ocara
+var lines:array<string> = []
+Map::forEach(scores, nameless(key:mixed, value:mixed): void {
+    Array::push(lines, key + " -> " + value)
+})
+```
+
+> **Limite connue** : `value` est typé `mixed` (comme `Map::get`). Le concaténer à une `string` (`+` ou template) fonctionne, mais une **opération arithmétique** directe (`total + value`) sur une valeur `mixed` produit aujourd'hui un résultat incorrect, y compris après un narrowing `if value is int { ... }` — bug de compilateur indépendant de `forEach` (voir `docs/roadmap.d/langage-mixed-arithmetic.md`). En attendant, convertir explicitement via une string (`Convert::strToInt(\`${value}\`)`) plutôt qu'une addition directe.
+
+---
+
 ## Combinaisons courantes
 
 ```ocara

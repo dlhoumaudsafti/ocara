@@ -88,8 +88,18 @@ pub fn class() -> ClassInfo {
 
     // Map::isEmpty(m) → bool
     methods.insert("isEmpty".into(), m(
-        vec![("m", map_ty)],
+        vec![("m", map_ty.clone())],
         Type::Bool,
+    ));
+
+    // Map::forEach(m, callback) → void
+    // callback: nameless(key:mixed, value:mixed): void, appelé pour chaque entrée.
+    methods.insert("forEach".into(), m(
+        vec![
+            ("m", map_ty),
+            ("callback", Type::Function { ret_ty: Box::new(Type::Void), param_tys: vec![] }),
+        ],
+        Type::Void,
     ));
 
     ClassInfo {

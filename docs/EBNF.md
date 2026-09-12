@@ -107,7 +107,7 @@ NamespaceDecl ::= "namespace" ( "." | Identifier )
 namespace .          // Namespace racine (explicite)
 namespace classes    // Namespace "classes"
 namespace models     // Namespace "models"
-namespace utils.http // Namespace imbriqué (non supporté pour l'instant)
+namespace utils.http // Namespace imbriqué (ex: configs.routes dans examples/advanced/)
 ```
 
 **Règles :**

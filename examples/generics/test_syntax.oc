@@ -4,7 +4,7 @@ namespace .
 
 // Déclaration d'un générique simple
 generic Stack<T> {
-    private property items:T[]
+    private property items:array<T>
     
     init() {
         self.items = []
@@ -51,7 +51,7 @@ generic Result<Value, Error = string> extends BaseResult {
     }
     
     public method isOk(): bool {
-        return self.error == ""
+        return self.error equal ""
     }
 }
 

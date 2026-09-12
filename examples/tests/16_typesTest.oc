@@ -31,12 +31,12 @@ class Test_16_types {
     }
     
     public method arraysTest(): int {
-        var ints:int[] = [1, 2, 3]
-        var strs:string[] = ["a", "b", "c"]
-        
+        var ints:array<int> = [1, 2, 3]
+        var strs:array<string> = ["a", "b", "c"]
+
         UnitTest::assertEquals(1, ints[0])
         UnitTest::assertEquals("b", strs[1])
-        
+
         return 0
     }
     
@@ -56,11 +56,11 @@ class Test_16_types {
         a = 100
         a = false
         
-        var ints:int[] = [1, 2, 3]
-        var strs:string[] = ["a", "b", "c"]
-        var bools:bool[] = [true, false, true]
-        var vals:mixed[] = [1, "deux", 3.0, false]
-        var matrix:int[][] = [[1, 2], [3, 4]]
+        var ints:array<int> = [1, 2, 3]
+        var strs:array<string> = ["a", "b", "c"]
+        var bools:array<bool> = [true, false, true]
+        var vals:array<mixed> = [1, "deux", 3.0, false]
+        var matrix:array<array<int>> = [[1, 2], [3, 4]]
         
         UnitTest::assertEquals(1, ints[0])
         UnitTest::assertEquals("b", strs[1])

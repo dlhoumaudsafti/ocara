@@ -4,7 +4,7 @@ import ocara.Array
 
 init {
     IO::writeln("Initialisation...")
-    var items:int[] = []
+    var items:array<int> = []
     var total:int = 0
 }
 
@@ -16,7 +16,7 @@ main {
     Array::push(items, 30)
     
     var i:int = 0
-    while i < Array::len(items) {
+    while i smaller Array::len(items) {
         total = total + items[i]
         i = i + 1
     }

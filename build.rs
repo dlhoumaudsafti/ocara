@@ -67,10 +67,6 @@ fn main() {
     std::fs::copy(&sdl_src, &sdl_dst)
         .expect("impossible de copier libocara_runtime_sdl.a dans OUT_DIR");
 
-    // Lier les bibliothèques dynamiques nécessaires pour MySQL/OpenSSL
-    println!("cargo:rustc-link-lib=ssl");
-    println!("cargo:rustc-link-lib=crypto");
-
     // Recompiler le compilateur si l'un des runtimes change
     println!("cargo:rerun-if-changed=target/release/libocara_runtime.a");
     println!("cargo:rerun-if-changed=target/release/libocara_runtime_tauri.a");

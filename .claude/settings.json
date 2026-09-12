@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./target/release/ocara /tmp/mixed_add_test.oc -o /tmp/mixed_add_test_bin)",
+      "Bash(/tmp/mixed_add_test_bin)"
+    ]
+  }
+}
