@@ -2882,6 +2882,124 @@ pub extern "C" fn __cmp_ge_strict(lhs: i64, rhs: i64) -> i64 {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Arithmétique dynamique (`+`/`-`/`*`/`/`/`%`) avec un opérande `mixed`
+// ────────────────────────────────────────────────────────────────────────────
+// Comme pour les comparaisons strictes ci-dessus, `mixed` n'est pas taggé au
+// niveau du type IR statique (toujours réduit à `Ptr`, voir `IrType::from_ast`)
+// — mais un `mixed` contenant un `int` est stocké BRUT (jamais boxé,
+// `box_for_any` ne boxe que float/bool), donc numériquement correct tel quel ;
+// un `mixed` contenant un `float`/`bool` est boxé (`__box_float`/`__box_bool`,
+// tag dans les 2 bits bas, voir plus haut) et doit être déballé avant tout
+// calcul. Sans ce dispatch, le lowering traitait soit AUCUN opérande Ptr comme
+// numérique (le cas de `+`, qui supposait systématiquement une concaténation
+// string dès qu'un opérande est `Ptr` — donc aussi pour un `mixed` contenant un
+// entier), soit ne déballait JAMAIS un `mixed` boxé (float/bool) avant `-`/`*`/
+// `/`/`%`, qui opéraient alors sur le bit pattern du pointeur boxé lui-même.
+
+/// Déballe un opérande potentiellement `mixed` en entier — un entier brut (pas
+/// boxé) est déjà correct tel quel ; un float/bool boxé est reconverti ; un
+/// vrai pointeur tas (string/array/map/objet, déjà mal typé dans un contexte
+/// arithmétique) est laissé tel quel (comportement dégradé mais déterministe,
+/// identique au bit brut déjà utilisé avant ce correctif pour ce cas).
+#[inline]
+fn unbox_numeric_i64(val: i64) -> i64 {
+    if is_float_box(val) {
+        unsafe { unbox_float(val) as i64 }
+    } else if is_bool_box(val) {
+        if unsafe { unbox_bool(val) } { 1 } else { 0 }
+    } else {
+        val
+    }
+}
+
+/// Comme `unbox_numeric_i64`, mais pour un contexte flottant — un entier brut
+/// est converti numériquement (jamais un bitcast).
+#[inline]
+fn unbox_numeric_f64(val: i64) -> f64 {
+    if is_float_box(val) {
+        unsafe { unbox_float(val) }
+    } else if is_bool_box(val) {
+        if unsafe { unbox_bool(val) } { 1.0 } else { 0.0 }
+    } else {
+        val as f64
+    }
+}
+
+/// Vrai si `val` est un vrai objet tas (string/array/map/objet/fonction) —
+/// PAS un entier brut, ni un float/bool boxé (voir `get_value_type`, déjà
+/// utilisé par les comparaisons strictes : distingue fiablement, via les tags
+/// réels des allocations, un pointeur tas valide d'un entier qui y ressemble).
+#[inline]
+fn is_heap_object(val: i64) -> bool {
+    get_value_type(val) > 1
+}
+
+/// Déballe un opérande `mixed`/Ptr en entier pour l'utiliser comme opérande
+/// direct de `-`/`*`/`/`/`%` (voir `unbox_numeric_i64`) — le côté à type
+/// statique connu (`int`/`float`/`bool`) d'une expression n'a jamais besoin de
+/// passer par cette fonction, seul un opérande réellement `Ptr` (mixed, ou
+/// littéral string/array/... déjà mal typé dans ce contexte) en a besoin.
+#[unsafe(no_mangle)]
+pub extern "C" fn __mixed_to_int(val: i64) -> i64 {
+    unbox_numeric_i64(val)
+}
+
+/// Comme `__mixed_to_int`, pour un contexte flottant.
+#[unsafe(no_mangle)]
+pub extern "C" fn __mixed_to_float(val: i64) -> f64 {
+    unbox_numeric_f64(val)
+}
+
+/// `+` quand au moins un opérande est `Ptr` (mixed, ou un `string`/`array`/...
+/// réellement connu) : décide DYNAMIQUEMENT, au lieu de supposer
+/// systématiquement une concaténation string comme avant ce correctif — un
+/// `mixed` contenant un nombre doit s'additionner numériquement, pas se
+/// stringifier. Concaténation conservée (comportement historique inchangé)
+/// dès qu'un côté est un vrai objet tas (string/array/map/objet/fonction) ;
+/// sinon, addition numérique réelle (flottante si l'un des deux est un float
+/// boxé, entière sinon). Retourne une valeur "mixed" auto-décrite (pointeur
+/// string, entier brut, ou float boxé) — au même titre que n'importe quelle
+/// autre valeur `mixed` : c'est au consommateur (affectation vers une cible
+/// `int`/`float` concrète via `box_for_any`, ou un opérateur arithmétique
+/// englobant via `__mixed_to_int`/`__mixed_to_float`) de la déballer si besoin.
+#[unsafe(no_mangle)]
+pub extern "C" fn __dyn_add(a: i64, b: i64) -> i64 {
+    if is_heap_object(a) || is_heap_object(b) {
+        return unsafe { alloc_str(&(val_to_string(a) + &val_to_string(b))) };
+    }
+    if is_float_box(a) || is_float_box(b) {
+        return __box_float((unbox_numeric_f64(a) + unbox_numeric_f64(b)).to_bits() as i64);
+    }
+    unbox_numeric_i64(a) + unbox_numeric_i64(b)
+}
+
+/// `-`/`*`/`/` quand au moins un opérande est `Ptr` (mixed — jamais un vrai
+/// `string`/`array`/`map`/objet ici : la sema rejette déjà ces combinaisons
+/// pour un type concrètement connu, voir la doc de `lower::expr::lower`).
+/// Contrairement à `+`, pas de possibilité de concaténation à écarter : la
+/// seule question est entier vs flottant, décidée ICI dynamiquement
+/// (`is_float_box` sur CHAQUE opérande) plutôt que par le type statique de
+/// l'AUTRE opérande — un `mixed` contenant un float combiné à un `int` connu
+/// aurait sinon été silencieusement tronqué en entier (voir
+/// docs/roadmap.d/langage-mixed-arithmetic.md). Retourne, comme `__dyn_add`,
+/// une valeur "mixed" auto-décrite (entier brut ou float boxé).
+macro_rules! dyn_arith_op {
+    ($name:ident, $op:tt) => {
+        #[unsafe(no_mangle)]
+        pub extern "C" fn $name(a: i64, b: i64) -> i64 {
+            if is_float_box(a) || is_float_box(b) {
+                __box_float((unbox_numeric_f64(a) $op unbox_numeric_f64(b)).to_bits() as i64)
+            } else {
+                unbox_numeric_i64(a) $op unbox_numeric_i64(b)
+            }
+        }
+    };
+}
+dyn_arith_op!(__dyn_sub, -);
+dyn_arith_op!(__dyn_mul, *);
+dyn_arith_op!(__dyn_div, /);
+
+// ────────────────────────────────────────────────────────────────────────────
 // ocara.JSON — Sérialisation et désérialisation JSON
 // ────────────────────────────────────────────────────────────────────────────
 

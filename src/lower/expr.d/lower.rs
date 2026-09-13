@@ -12,6 +12,40 @@ use super::nameless::lower_nameless_fn;
 use super::captures::collect_captures;
 use super::literals::{lower_literal, lower_is_check};
 
+/// Convertit un opérande CONNU (I64/F64/Bool/Ptr) vers la représentation
+/// "mixed" attendue par `__dyn_add` (voir sa doc, `runtime/src/lib.rs`) — un
+/// `Ptr` (mixed, ou un vrai string/array/map/objet) ou un `I64` sont déjà
+/// dans cette représentation tels quels (un `int` n'est jamais boxé, voir
+/// `box_for_any`) ; seul un `F64`/`Bool` connu STATIQUEMENT doit être boxé au
+/// préalable — contrairement à la même valeur logée dans un `mixed`, qui,
+/// elle, l'est déjà (`box_for_any` box systématiquement à l'affectation).
+fn box_for_dyn_arith(builder: &mut LowerBuilder, ty: &IrType, val: Value) -> Value {
+    match ty {
+        IrType::F64 => {
+            let d = builder.new_value();
+            builder.emit(Inst::Call { dest: Some(d.clone()), func: "__box_float".into(), args: vec![val], ret_ty: IrType::Ptr });
+            d
+        }
+        IrType::Bool => {
+            let d = builder.new_value();
+            builder.emit(Inst::Call { dest: Some(d.clone()), func: "__box_bool".into(), args: vec![val], ret_ty: IrType::Ptr });
+            d
+        }
+        _ => val,
+    }
+}
+
+/// Déballe un opérande Ptr (mixed) de `-`/`*`/`/`/`%` via `func`
+/// (`__mixed_to_int`/`__mixed_to_float`, voir `runtime/src/lib.rs`) —
+/// `target_ty` détermine le type IR logique du résultat (purement pour le
+/// suivi ; l'ABI réel de l'appel est piloté par le `BuiltinDesc` enregistré,
+/// voir `src/codegen/emit.d/instructions.d/calls.rs`).
+fn unbox_mixed_operand(builder: &mut LowerBuilder, func: &str, target_ty: &IrType, val: Value) -> Value {
+    let d = builder.new_value();
+    builder.emit(Inst::Call { dest: Some(d.clone()), func: func.to_string(), args: vec![val], ret_ty: target_ty.clone() });
+    d
+}
+
 pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
     match expr {
         // ── Littéraux ────────────────────────────────────────────────────────
@@ -850,54 +884,35 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
 
         // ── Opération binaire ─────────────────────────────────────────────────
         Expr::Binary { op, left, right, .. } => {
-            // Détection de la concaténation string : au moins un opérande est Ptr/String
-            if matches!(op, BinOp::Add) {
-                let left_ty  = expr_ir_type(builder, left);
-                let right_ty = expr_ir_type(builder, right);
-                if matches!(left_ty, IrType::Ptr) || matches!(right_ty, IrType::Ptr) {
-                    let lv_raw = lower_expr(builder, left);
-                    let rv_raw = lower_expr(builder, right);
-                    // Convertir F64/Bool en string avant __str_concat (sinon les bits du float
-                    // sont interprétés comme pointeur et causent une segfault)
-                    let lv = match left_ty {
-                        IrType::F64 => {
-                            let d = builder.new_value();
-                            builder.emit(Inst::Call { dest: Some(d.clone()), func: "__str_from_float".into(), args: vec![lv_raw], ret_ty: IrType::Ptr });
-                            d
-                        }
-                        IrType::Bool => {
-                            let d = builder.new_value();
-                            builder.emit(Inst::Call { dest: Some(d.clone()), func: "__str_from_bool".into(), args: vec![lv_raw], ret_ty: IrType::Ptr });
-                            d
-                        }
-                        _ => lv_raw,
-                    };
-                    let rv = match right_ty {
-                        IrType::F64 => {
-                            let d = builder.new_value();
-                            builder.emit(Inst::Call { dest: Some(d.clone()), func: "__str_from_float".into(), args: vec![rv_raw], ret_ty: IrType::Ptr });
-                            d
-                        }
-                        IrType::Bool => {
-                            let d = builder.new_value();
-                            builder.emit(Inst::Call { dest: Some(d.clone()), func: "__str_from_bool".into(), args: vec![rv_raw], ret_ty: IrType::Ptr });
-                            d
-                        }
-                        _ => rv_raw,
-                    };
-                    let dest = builder.new_value();
-                    builder.emit(Inst::Call {
-                        dest:   Some(dest.clone()),
-                        func:   "__str_concat".into(),
-                        args:   vec![lv, rv],
-                        ret_ty: IrType::Ptr,
-                    });
-                    return dest;
-                }
-            }
-
             let left_ty  = expr_ir_type(builder, left);
             let right_ty = expr_ir_type(builder, right);
+
+            // `+` avec au moins un opérande Ptr (string/array/map/objet, ou
+            // `mixed` — indistinguable de ces derniers au niveau du type IR
+            // statique) : décidé DYNAMIQUEMENT par `__dyn_add` (concaténation
+            // si un côté est réellement un objet tas, addition numérique
+            // sinon) plutôt que de supposer systématiquement une
+            // concaténation comme avant ce correctif — ce qui produisait un
+            // résultat numérique faux pour un `mixed` contenant un nombre
+            // (voir docs/roadmap.d/langage-mixed-arithmetic.md). Un opérande
+            // à type CONNU F64/Bool (jamais taggé, contrairement à la même
+            // valeur stockée dans un `mixed`) est d'abord boxé pour rejoindre
+            // la même représentation "mixed" que `__dyn_add` attend des deux
+            // côtés — I64/Ptr sont déjà dans cette représentation tels quels.
+            if matches!(op, BinOp::Add) && (matches!(left_ty, IrType::Ptr) || matches!(right_ty, IrType::Ptr)) {
+                let lv_raw = lower_expr(builder, left);
+                let rv_raw = lower_expr(builder, right);
+                let lv = box_for_dyn_arith(builder, &left_ty, lv_raw);
+                let rv = box_for_dyn_arith(builder, &right_ty, rv_raw);
+                let dest = builder.new_value();
+                builder.emit(Inst::Call {
+                    dest:   Some(dest.clone()),
+                    func:   "__dyn_add".into(),
+                    args:   vec![lv, rv],
+                    ret_ty: IrType::Ptr,
+                });
+                return dest;
+            }
 
             // ── Comparaisons (equal/not equal/smaller/greater/smaller or equal/
             //    greater or equal) : toujours typées à la compilation (sema a
@@ -971,7 +986,63 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 return dest;
             }
 
-            // Arithmétique float si au moins un côté est F64
+            // `-`/`*`/`/` avec un opérande Ptr (mixed) : même dispatch
+            // dynamique que `+` (voir `__dyn_add`/`__dyn_sub`/`__dyn_mul`/
+            // `__dyn_div`, runtime/src/lib.rs) — décide RÉELLEMENT au runtime
+            // (`is_float_box`) si le résultat est entier ou flottant, plutôt
+            // que de se fier au type statique de l'AUTRE opérande : un `int`
+            // connu combiné à un `mixed` qui contient en réalité un `float`
+            // aurait sinon figé `ty` à I64, tronquant silencieusement le
+            // float (confirmé par reproduction — voir
+            // docs/roadmap.d/langage-mixed-arithmetic.md). Retourne, comme
+            // `__dyn_add`, une valeur "mixed" auto-décrite (entier brut ou
+            // float boxé) — `expr_ir_type` rapporte donc aussi `Ptr` pour ce
+            // cas (voir typeinfer.rs), le consommateur (`box_for_any` pour
+            // une affectation vers une cible concrète, ou cette même fonction
+            // récursivement pour un opérateur englobant) la déballe si besoin.
+            if matches!(op, BinOp::Sub | BinOp::Mul | BinOp::Div)
+                && (matches!(left_ty, IrType::Ptr) || matches!(right_ty, IrType::Ptr))
+            {
+                let lv_raw = lower_expr(builder, left);
+                let rv_raw = lower_expr(builder, right);
+                let lv = box_for_dyn_arith(builder, &left_ty, lv_raw);
+                let rv = box_for_dyn_arith(builder, &right_ty, rv_raw);
+                let func = match op {
+                    BinOp::Sub => "__dyn_sub",
+                    BinOp::Mul => "__dyn_mul",
+                    BinOp::Div => "__dyn_div",
+                    _ => unreachable!(),
+                };
+                let dest = builder.new_value();
+                builder.emit(Inst::Call { dest: Some(dest.clone()), func: func.into(), args: vec![lv, rv], ret_ty: IrType::Ptr });
+                return dest;
+            }
+
+            // `%` avec un opérande Ptr : toujours entier, `Inst::Mod` n'a de
+            // toute façon aucun support flottant (voir `emit_arithmetic` —
+            // `srem` inconditionnel) ; un opérande `mixed` est simplement
+            // déballé en entier avant l'opération, comme pour `-`/`*`/`/`
+            // avant que ce correctif ne les rende pleinement dynamiques.
+            if matches!(op, BinOp::Mod) && (matches!(left_ty, IrType::Ptr) || matches!(right_ty, IrType::Ptr)) {
+                let lv_raw = lower_expr(builder, left);
+                let rv_raw = lower_expr(builder, right);
+                let lv = if matches!(left_ty, IrType::Ptr) {
+                    unbox_mixed_operand(builder, "__mixed_to_int", &IrType::I64, lv_raw)
+                } else {
+                    lv_raw
+                };
+                let rv = if matches!(right_ty, IrType::Ptr) {
+                    unbox_mixed_operand(builder, "__mixed_to_int", &IrType::I64, rv_raw)
+                } else {
+                    rv_raw
+                };
+                let dest = builder.new_value();
+                builder.emit(Inst::Mod { dest: dest.clone(), lhs: lv, rhs: rv, ty: IrType::I64 });
+                return dest;
+            }
+
+            // Chemin normal : aucun opérande Ptr, types statiquement connus
+            // (int/float/bool) des deux côtés — inchangé.
             let ty = if matches!(left_ty, IrType::F64) || matches!(right_ty, IrType::F64) {
                 IrType::F64
             } else {

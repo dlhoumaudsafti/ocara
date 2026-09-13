@@ -26,6 +26,7 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 - ✅ **Typage des accès membres sur une valeur générique** — `numbers.add("texte")` sur un `List<int>` est maintenant rejeté (substitution réelle des paramètres de type par les arguments concrets de l'instance, avant de vérifier arité/types d'arguments/type de retour), au lieu de retomber silencieusement sur `Type::Mixed`.
 - ✅ **Un générique fonctionne maintenant en paramètre de fonction/méthode et en champ de classe** (`var_class` et la résolution de champ chaîné ne reconnaissaient que les variables locales directement initialisées) — confirmé par reproduction (`useBox(b:Box<int>)`/`self.box.get()` renvoyaient `0` au lieu de la vraie valeur), corrigé et vérifié y compris pour un générique auto-référent façon liste chaînée (`Node<T> { property next:Node<T> }`) et pour la libération/le clonage récursifs d'un champ générique (fuite + aliasing corrigés). Découverte annexe du tour précédent (`self.value = v` produisant `1` au lieu de `100`) retestée : ne se reproduit plus, vraisemblablement déjà corrigée par le correctif shadowing général de la même session.
 - ✅ **`implements` sur un `generic` est maintenant vérifié** (E09) — un `generic Bag<T> implements Sized` sans la méthode `size()` compilait sans erreur, quel que soit le nombre d'instanciations ; la vérification couvre maintenant aussi `program.generics`, pas seulement les classes concrètes.
+- ✅ **Arithmétique `+`/`-`/`*`/`/` entre un type connu et une valeur `mixed`** — `y + x` avec `x:mixed` contenant un entier traitait systématiquement l'opération comme une concaténation string (`105` devenait `1062449896`, le pointeur de `"1095"`). Nouveau dispatch runtime dynamique (`__dyn_add`/`__dyn_sub`/`__dyn_mul`/`__dyn_div`, même principe que les comparaisons strictes) qui décide réellement, au runtime, entre concaténation et calcul numérique (entier ou flottant). Découverte annexe corrigée en cours de route, plus large que prévu : `box_for_any` ne savait jamais déballer un `mixed` vers une cible concrète (`var f:float = mixedValue` était déjà faux, indépendamment de toute arithmétique), et un `mixed` contenant un float combiné à un `int` connu (jamais `float`) dans `-`/`*`/`/` était silencieusement tronqué en entier — les deux sont corrigés.
 
 ## Légende
 
@@ -71,10 +72,6 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 ---
 
 ## Priorité Basse
-
-### Langage
-
-- **L'arithmétique entre `int` et une valeur `mixed` produit un résultat faux** (`y + x` avec `x:mixed` contenant un entier) — découvert en documentant `Map::forEach`, aucune vérification/dispatch runtime équivalent à celui des comparaisons strictes (`__cmp_eq_strict`...) n'existe pour `+`/`-`/`*`/`/`. Contournement fonctionnel connu (conversion via string). *(Structurel)* → [détails](roadmap.d/langage-mixed-arithmetic.md)
 
 ### Builtins
 
