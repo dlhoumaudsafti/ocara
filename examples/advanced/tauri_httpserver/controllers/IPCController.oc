@@ -1,4 +1,4 @@
-// examples/ocara_app/controllers/IPCController.oc
+// examples/advanced/tauri_httpserver/controllers/IPCController.oc
 // Démontre le pont IPC JS -> Ocara (ui.handlers(), voir main.oc et
 // docs/builtins/Tauri.md) : ces deux méthodes sont enregistrées comme
 // commandes Tauri et appelées directement depuis le JS de la page d'accueil

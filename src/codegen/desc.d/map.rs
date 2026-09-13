@@ -13,4 +13,5 @@ pub const MAP_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "Map_values",        params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "Map_merge",         params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "Map_isEmpty",      params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "Map_forEach",       params: &[clt::I64, clt::I64],                   returns: None,              module: None },
 ];

@@ -1,4 +1,4 @@
-// examples/ocara_app_advanced/helpers/SqlSafe.oc
+// examples/advanced/mini_projet/helpers/SqlSafe.oc
 // Échappement minimal pour insérer une valeur utilisateur dans une requête
 // SQL brute : ocara.SQLite n'expose pas de requêtes préparées/paramétrées
 // (voir docs/builtins/SQLite.md), donc toute valeur variable concaténée dans

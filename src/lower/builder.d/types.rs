@@ -45,6 +45,15 @@ pub struct LowerBuilder<'m> {
     /// permet à `break`/`continue` de savoir jusqu'où détruire les
     /// `scoped`/`consumed` encore vivantes (voir `block_scope_stack`).
     pub loop_stack: Vec<(BlockId, BlockId, usize)>,
+    /// Nombre de corps de boucle (`while`/`for`) actuellement ouverts,
+    /// incrémenté/décrémenté par `lower_while`/`lower_for_in`/`lower_for_map`
+    /// autour de leur appel à `lower_block(body)`. Comparé à
+    /// `OwnedLocalInfo::declared_loop_depth` pour éviter qu'une `consumed`
+    /// déclarée AVANT une boucle, mais utilisée dans son corps, ne soit
+    /// libérée à répétition — une fois par itération réelle plutôt qu'une
+    /// seule fois (voir `crate::lower::stmt::ownership::drop_consumed_used_in`
+    /// et `docs/roadmap.d/memoire-double-free-et-fuites-scoped.md`).
+    pub loop_depth: usize,
     /// Pile des blocs actuellement ouverts : chaque frame liste les noms
     /// des variables `scoped`/`consumed` (types pris en charge) déclarées
     /// DIRECTEMENT dans ce bloc, dans l'ordre de déclaration — alimentée par
@@ -110,6 +119,7 @@ impl<'m> LowerBuilder<'m> {
             current_class: None,
             parent_class: None,
             loop_stack: Vec::new(),
+            loop_depth: 0,
             block_scope_stack: Vec::new(),
             func_vars: HashSet::new(),
             func_ret_types: HashMap::new(),
@@ -163,7 +173,9 @@ impl<'m> LowerBuilder<'m> {
 
     /// Stocke `src` dans le slot du local `name`.
     /// Pour les variables capturées, écrit via double-indirection :
-    /// GetField(env, idx) → heap_ptr, puis Store(heap_ptr, src).
+    /// GetField(env, idx) → heap_ptr, puis `__locked_cell_set(heap_ptr, src)`
+    /// (verrouillé — voir la doc de `heap_promoted` et
+    /// docs/roadmap.d/memoire-concurrence-threads.md).
     pub fn store_local(&mut self, name: &str, src: Value) {
         // Variable capturée → double-indirection via l'env struct (heap pointer)
         if let Some((env_val, idx, _)) = self.captured_vars.get(name).cloned() {
@@ -175,18 +187,36 @@ impl<'m> LowerBuilder<'m> {
                 ty:     IrType::Ptr,
                 offset: (idx * 8) as i32,
             });
-            self.emit(Inst::Store { ptr, src });
+            self.emit(Inst::Call {
+                dest:   None,
+                func:   "__locked_cell_set".into(),
+                args:   vec![ptr, src],
+                ret_ty: IrType::Void,
+            });
             return;
         }
         if let Some((slot, _, _)) = self.locals.get(name) {
             let slot = slot.clone();
+            // Variable capturée mais accédée depuis le scope EXTÉRIEUR (son
+            // slot EST directement la cellule verrouillée, pas de double
+            // indirection à faire ici — voir la promotion dans
+            // `crate::lower::expr::lower::lower_expr` / `Expr::Nameless`).
+            if self.heap_promoted.contains(name) {
+                self.emit(Inst::Call {
+                    dest:   None,
+                    func:   "__locked_cell_set".into(),
+                    args:   vec![slot, src],
+                    ret_ty: IrType::Void,
+                });
+                return;
+            }
             self.emit(Inst::Store { ptr: slot, src });
         }
     }
 
     /// Charge le local `name` → retourne (Value résultat, IrType).
     /// Pour les variables capturées, lit via double-indirection :
-    /// GetField(env, idx) → heap_ptr, puis Load(heap_ptr) → valeur.
+    /// GetField(env, idx) → heap_ptr, puis `__locked_cell_get(heap_ptr)`.
     pub fn load_local(&mut self, name: &str) -> Option<(Value, IrType)> {
         // Variable capturée → double-indirection via l'env struct
         if let Some((env_val, idx, ty)) = self.captured_vars.get(name).cloned() {
@@ -199,10 +229,25 @@ impl<'m> LowerBuilder<'m> {
                 offset: (idx * 8) as i32,
             });
             let dest = self.new_value();
-            self.emit(Inst::Load { dest: dest.clone(), ptr, ty: ty.clone() });
+            self.emit(Inst::Call {
+                dest:   Some(dest.clone()),
+                func:   "__locked_cell_get".into(),
+                args:   vec![ptr],
+                ret_ty: ty.clone(),
+            });
             return Some((dest, ty));
         }
         if let Some((slot, ty, _)) = self.locals.get(name).cloned() {
+            if self.heap_promoted.contains(name) {
+                let dest = self.new_value();
+                self.emit(Inst::Call {
+                    dest:   Some(dest.clone()),
+                    func:   "__locked_cell_get".into(),
+                    args:   vec![slot],
+                    ret_ty: ty.clone(),
+                });
+                return Some((dest, ty));
+            }
             let dest = self.new_value();
             self.emit(Inst::Load { dest: dest.clone(), ptr: slot, ty: ty.clone() });
             Some((dest, ty))

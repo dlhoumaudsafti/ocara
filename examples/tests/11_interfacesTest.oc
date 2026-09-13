@@ -16,19 +16,19 @@ class Test_11_interfaces {
     
     public method areaTest(): int {
         var area2:float = self.circle.area()
-        // UnitTest::assertEquals(area, 78.53975)
-        
+        UnitTest::assertEquals(area2, 78.53975)
+
         var rectArea:float = self.rectangle.area()
-        // UnitTest::assertEquals(rectArea, 24.0)
+        UnitTest::assertEquals(rectArea, 24.0)
         return 0
     }
-    
+
     public method perimeterTest(): int {
         var perimeter:float = self.circle.perimeter()
-        // UnitTest::assertEquals(perimeter, 31.4159)
-        
+        UnitTest::assertEquals(perimeter, 31.4159)
+
         var rectPerimeter:float = self.rectangle.perimeter()
-        // UnitTest::assertEquals(rectPerimeter, 20.0)
+        UnitTest::assertEquals(rectPerimeter, 20.0)
         return 0
     }
 

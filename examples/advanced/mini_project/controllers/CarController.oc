@@ -1,4 +1,4 @@
-// examples/ocara_app_advanced/controllers/CarController.oc
+// examples/advanced/mini_projet/controllers/CarController.oc
 // Fiche détail d'une voiture (historique d'entretiens + formulaire d'ajout
 // d'entretien) et création d'une nouvelle voiture.
 //

@@ -1,8 +1,8 @@
 namespace configs
-// examples/ocara_app_advanced/configs/Database.oc
+// examples/advanced/mini_projet/configs/Database.oc
 // Accès SQLite bas niveau : ouverture de connexion + migration du schéma.
 //
-// Comme dans examples/ocara_app/configs/Database.oc : pas de propriété
+// Comme dans examples/advanced/tauri_httpserver/configs/Database.oc : pas de propriété
 // static en Ocara, donc chaque appel ouvre/ferme sa propre connexion vers le
 // même fichier ("./app.db") plutôt que de garder un handle partagé en mémoire.
 

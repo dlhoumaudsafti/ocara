@@ -29,7 +29,7 @@ ui.run()   // bloquant — ouvre la vraie fenêtre, rend la main à la fermeture
 
 `url` peut être :
 - un **chemin de fichier local** (ex. `"index.html"`) : résolu depuis le répertoire courant du binaire compilé au moment de l'exécution ;
-- une **URL `http(s)://`** (ex. `"http://localhost:8080"`) : la fenêtre pointe alors vers un serveur déjà en cours d'exécution — typiquement un `ocara.HTTPServer` lancé sur son propre thread juste avant (voir [Exemple complet](#exemple-complet-serveur--fenêtre--ipc) et `examples/ocara_app/`).
+- une **URL `http(s)://`** (ex. `"http://localhost:8080"`) : la fenêtre pointe alors vers un serveur déjà en cours d'exécution — typiquement un `ocara.HTTPServer` lancé sur son propre thread juste avant (voir [Exemple complet](#exemple-complet-serveur--fenêtre--ipc) et `examples/advanced/tauri_httpserver/`).
 
 `ui.run()` doit être appelé sur le **thread principal** (contrainte de Tauri/WebKitGTK) et bloque jusqu'à la fermeture de la fenêtre.
 
@@ -127,7 +127,7 @@ try {
 
 ## Exemple complet (serveur + fenêtre + IPC)
 
-Voir `examples/ocara_app/` pour une application desktop complète : un
+Voir `examples/advanced/tauri_httpserver/` pour une application desktop complète : un
 `ocara.HTTPServer` sert un mini-site sur son propre thread, et la fenêtre Tauri
 affiche directement son URL — la page d'accueil contient un bouton qui appelle
 une méthode Ocara réelle via `ui.handlers()`.

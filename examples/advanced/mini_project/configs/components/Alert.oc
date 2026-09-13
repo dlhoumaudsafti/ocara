@@ -1,5 +1,5 @@
 namespace configs.components
-// examples/ocara_app_advanced/configs/components/Alert.oc
+// examples/advanced/mini_projet/configs/components/Alert.oc
 // Message flash (succès/erreur). Ne rend rien si le message est vide, pour
 // pouvoir toujours poser <alert kind="error" message="${errorText}"> dans un
 // template sans avoir à tester la présence du message côté controller.

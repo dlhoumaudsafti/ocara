@@ -1,4 +1,4 @@
-// examples/ocara_app_advanced/controllers/MaintenanceController.oc
+// examples/advanced/mini_projet/controllers/MaintenanceController.oc
 // Ajout d'un entretien à une voiture, puis recalcul immédiat du prix de
 // vente estimé (services/PricingService.oc) si c'est une amélioration.
 

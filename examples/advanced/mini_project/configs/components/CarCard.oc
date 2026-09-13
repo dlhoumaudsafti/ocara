@@ -1,5 +1,5 @@
 namespace configs.components
-// examples/ocara_app_advanced/configs/components/CarCard.oc
+// examples/advanced/mini_projet/configs/components/CarCard.oc
 // Une voiture dans une grille (accueil ou résultats de recherche). Tous les
 // prix arrivent déjà formatés (voir helpers/Format.oc) — ce composant ne
 // fait que de la présentation, aucun calcul.

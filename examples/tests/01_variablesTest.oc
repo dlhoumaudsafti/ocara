@@ -1,4 +1,5 @@
 import ocara.UnitTest
+import ocara.Array
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tests unitaires pour les fonctionnalités de base
@@ -33,6 +34,14 @@ class Test_01_variables extends UnitTest {
         return 0
     }
     
+    public method consumedVariableTest(): int {
+        // consumed — variable à usage unique, possédée dès sa déclaration et
+        // détruite juste après sa première (et unique) utilisation.
+        consumed once:array<int> = [7, 8, 9]
+        self::assertEquals(3, Array::len(once))
+        return 0
+    }
+
     public method loopScopedTest(): int {
         var sum:int = 0
         var i:int = 0

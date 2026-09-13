@@ -1,4 +1,4 @@
-// examples/ocara_app_advanced/helpers/Format.oc
+// examples/advanced/mini_projet/helpers/Format.oc
 // Formatage d'affichage (prix, dates) partagé par tous les controllers.
 //
 // Convert::floatToStr ne garantit pas 2 décimales (5800.5 -> "5800.5",

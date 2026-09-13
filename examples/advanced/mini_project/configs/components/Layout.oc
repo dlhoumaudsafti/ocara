@@ -1,5 +1,5 @@
 namespace configs.components
-// examples/ocara_app_advanced/configs/components/Layout.oc
+// examples/advanced/mini_projet/configs/components/Layout.oc
 // Squelette de page commun à toutes les vues (voir examples/ocara_app pour
 // le même patron). <nav-bar> est référencée dans le HTML retourné ici, donc
 // résolue dans une passe de récursion ultérieure par HTML::render.

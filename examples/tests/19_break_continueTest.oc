@@ -93,10 +93,10 @@ class Test_19_break_continue {
         }
         UnitTest::assertEquals(4, n_count)
         
-        var nums:int[] = [10, 20, 30, 40, 50]
+        var nums:array<int> = [10, 20, 30, 40, 50]
         var nums_count:int = 0
         for v in nums {
-            if v == 30 {
+            if v equal 30 {
                 break
             }
             nums_count = nums_count + 1

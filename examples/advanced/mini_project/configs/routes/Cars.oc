@@ -1,5 +1,5 @@
 namespace configs.routes
-// examples/ocara_app_advanced/configs/routes/Cars.oc
+// examples/advanced/mini_projet/configs/routes/Cars.oc
 //
 // Mutation via GET plutôt que POST : HTTPServer::query() décode déjà l'URL
 // (voir runtime/src/httpserver.rs::parse_query), alors qu'aucun parseur

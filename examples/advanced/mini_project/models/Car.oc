@@ -1,4 +1,4 @@
-// examples/ocara_app_advanced/models/Car.oc
+// examples/advanced/mini_projet/models/Car.oc
 // Accès aux données de la table "cars". Aucune règle métier ici (voir
 // services/PricingService.oc pour le recalcul du prix de vente estimé) —
 // ce fichier ne fait que lire/écrire la base.

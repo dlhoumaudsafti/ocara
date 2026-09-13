@@ -3,7 +3,7 @@
 //
 // Illustre :
 //   - if / elseif / else
-//   - Opérateurs de comparaison : == != < <= > >=
+//   - Opérateurs de comparaison : equal, not equal, smaller, smaller or equal, greater, greater or equal
 //   - Opérateurs logiques : and or not
 // ─────────────────────────────────────────────────────────────────────────────
 

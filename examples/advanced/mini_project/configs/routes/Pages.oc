@@ -1,5 +1,5 @@
 namespace configs.routes
-// examples/ocara_app_advanced/configs/routes/Pages.oc — routes de lecture (GET).
+// examples/advanced/mini_projet/configs/routes/Pages.oc — routes de lecture (GET).
 
 import controllers.HomeController
 import controllers.CarController

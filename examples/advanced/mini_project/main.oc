@@ -1,9 +1,9 @@
 namespace .
-// examples/ocara_app_advanced/main.oc
+// examples/advanced/mini_projet/main.oc
 // Point d'entrée : le serveur HTTP tourne sur un thread dédié et la fenêtre
 // Tauri affiche directement son URL (http://localhost:8081) — une vraie
 // page servie par Ocara/SQLite, pas un fichier HTML statique local. Même
-// patron que examples/ocara_app/main.oc.
+// patron que examples/advanced/tauri_httpserver/main.oc.
 
 import ocara.IO
 import ocara.Thread

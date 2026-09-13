@@ -843,6 +843,56 @@ impl<'a> TypeChecker<'a> {
                 // Appel de méthode : Field { object, field } → méthode
                 if let Expr::Field { object, field, span: fspan } = callee.as_ref() {
                     let obj_ty = self.infer_expr(object);
+
+                    // Valeur d'un générique instancié (`List<int>`, ...) : résoudre
+                    // la méthode dans la déclaration `generic`, avec substitution
+                    // des paramètres de type par les arguments concrets de CETTE
+                    // instance (`T` → `int` pour `List<int>`) — jusqu'ici, ce cas
+                    // retombait silencieusement sur `Type::Mixed` sans la moindre
+                    // vérification (voir docs/roadmap.d/langage-generiques.md).
+                    if let Type::Generic { name: generic_name, args: type_args } = &obj_ty {
+                        if let Some(ginfo) = self.symbols.lookup_generic(generic_name) {
+                            if let Some(sig) = ginfo.methods.get(field) {
+                                let expected_min = sig.required_params_count;
+                                let expected_max = sig.params.len();
+                                let args_ok = if sig.has_variadic {
+                                    args.len() >= expected_min
+                                } else {
+                                    args.len() >= expected_min && args.len() <= expected_max
+                                };
+                                if !args_ok {
+                                    self.errors.push(SemaError::WrongArgCount {
+                                        name:     format!("{}::{}", generic_name, field),
+                                        expected: expected_min,
+                                        found:    args.len(),
+                                        span:     span.clone(),
+                                    });
+                                }
+                                for (i, arg) in args.iter().enumerate() {
+                                    let arg_ty = self.infer_expr(arg);
+                                    if let Some((_, param_ty)) = sig.params.get(i) {
+                                        let expected_ty = substitute_type_params(param_ty, &ginfo.type_params, type_args);
+                                        if expected_ty != Type::Mixed && arg_ty != Type::Mixed && !types_compat(&arg_ty, &expected_ty) {
+                                            self.errors.push(SemaError::TypeMismatch {
+                                                expected: type_name(&expected_ty),
+                                                found:    type_name(&arg_ty),
+                                                span:     span.clone(),
+                                            });
+                                        }
+                                    }
+                                }
+                                return substitute_type_params(&sig.ret_ty, &ginfo.type_params, type_args);
+                            }
+                            self.errors.push(SemaError::FieldNotFound {
+                                class: generic_name.clone(),
+                                field: field.clone(),
+                                span:  self.with_runtime_ctx(fspan),
+                            });
+                        }
+                        for a in args { self.infer_expr(a); }
+                        return Type::Mixed;
+                    }
+
                     let cls_name = match type_class_name(&obj_ty) {
                         Some(n) => n,
                         _ => { for a in args { self.infer_expr(a); } return Type::Mixed; }
@@ -851,7 +901,12 @@ impl<'a> TypeChecker<'a> {
                     // Thread` — voir OwnershipClass::Thread et pop_scope().
                     if cls_name == "Thread" && (field == "join" || field == "detach") {
                         if let Expr::Ident(recv_name, _) = object.as_ref() {
-                            self.scopes.mark_thread_finalized(recv_name);
+                            if self.scopes.mark_thread_finalized(recv_name) {
+                                self.errors.push(SemaError::ThreadAlreadyFinalized {
+                                    name: recv_name.clone(),
+                                    span: fspan.clone(),
+                                });
+                            }
                         }
                     }
                     if let Some(info) = self.symbols.lookup_class(&cls_name) {
@@ -1106,24 +1161,41 @@ impl<'a> TypeChecker<'a> {
                     }
                 }
                 
-                // TODO: Pour les génériques, vérifier que type_args correspondent aux type_params
-                // et valider les contraintes (extends, implements)
-                
+                // Arité des arguments de type : entre le nombre de paramètres
+                // sans valeur par défaut et le nombre total de paramètres
+                // déclarés par `generic Foo<T, U=default>` (les paramètres
+                // avec défaut sont optionnels à l'instanciation).
+                if is_generic {
+                    if let Some(generic_info) = self.symbols.lookup_generic(class) {
+                        let expected_max = generic_info.type_params.len();
+                        let expected_min = generic_info.type_params.iter()
+                            .filter(|p| p.default.is_none())
+                            .count();
+                        let found = type_args.len();
+                        if found < expected_min || found > expected_max {
+                            self.errors.push(SemaError::GenericArityMismatch {
+                                name: class.clone(),
+                                expected_min,
+                                expected_max,
+                                found,
+                                span: self.with_runtime_ctx(span),
+                            });
+                        }
+                    }
+                }
+
                 for arg in args { self.infer_expr(arg); }
-                
+
                 // Si c'est un générique avec type_args, retourner Type::Generic
                 if is_generic && !type_args.is_empty() {
-                    Type::Generic { 
-                        name: class.clone(), 
-                        args: type_args.clone() 
+                    Type::Generic {
+                        name: class.clone(),
+                        args: type_args.clone()
                     }
                 } else if is_generic && type_args.is_empty() {
-                    // Générique sans arguments de type - erreur
-                    // TODO: ajouter une erreur spécifique pour cela
-                    self.errors.push(SemaError::NotAClass {
-                        name: class.clone(),
-                        span: self.with_runtime_ctx(span),
-                    });
+                    // Arité déjà signalée ci-dessus si nécessaire (found=0) —
+                    // on retombe sur Mixed pour ne pas propager une cascade
+                    // d'erreurs de type incohérentes en aval.
                     Type::Mixed
                 } else {
                     Type::Named(class.clone())
@@ -1286,6 +1358,43 @@ fn type_class_name(ty: &Type) -> Option<String> {
         // Les variables map héritent automatiquement des méthodes de Map
         Type::Map(_, _)        => Some("Map".into()),
         _                      => None,
+    }
+}
+
+/// Remplace chaque paramètre de type d'un `generic` (`T`, `K`, `V`, ...) par
+/// son type concret pour une instance donnée — ex : `T` → `int` pour
+/// `List<int>`. Un paramètre de type sans argument fourni au-delà de `args`
+/// utilise sa valeur par défaut si elle existe (`generic Cache<K, V=string>`),
+/// sinon `Type::Mixed` (arité déjà signalée par ailleurs si incorrecte — E21).
+/// `Type::Named(n)` où `n` n'est PAS un nom de paramètre de type (une vraie
+/// classe) traverse inchangé.
+fn substitute_type_params(ty: &Type, params: &[TypeParam], args: &[Type]) -> Type {
+    let substituted_named = |n: &str| -> Option<Type> {
+        params.iter().position(|p| p.name == n).map(|i| {
+            args.get(i).cloned()
+                .or_else(|| params[i].default.clone())
+                .unwrap_or(Type::Mixed)
+        })
+    };
+    match ty {
+        Type::Named(n) => substituted_named(n).unwrap_or_else(|| ty.clone()),
+        Type::Array(inner) => Type::Array(Box::new(substitute_type_params(inner, params, args))),
+        Type::Map(k, v) => Type::Map(
+            Box::new(substitute_type_params(k, params, args)),
+            Box::new(substitute_type_params(v, params, args)),
+        ),
+        Type::Union(variants) => Type::Union(
+            variants.iter().map(|v| substitute_type_params(v, params, args)).collect()
+        ),
+        Type::Generic { name, args: inner_args } => Type::Generic {
+            name: name.clone(),
+            args: inner_args.iter().map(|a| substitute_type_params(a, params, args)).collect(),
+        },
+        Type::Function { ret_ty, param_tys } => Type::Function {
+            ret_ty: Box::new(substitute_type_params(ret_ty, params, args)),
+            param_tys: param_tys.iter().map(|p| substitute_type_params(p, params, args)).collect(),
+        },
+        _ => ty.clone(),
     }
 }
 

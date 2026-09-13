@@ -1,5 +1,5 @@
 namespace configs.components
-// examples/ocara_app_advanced/configs/components/SearchMaintenance.oc
+// examples/advanced/mini_projet/configs/components/SearchMaintenance.oc
 // Une ligne d'entretien dans les résultats de recherche — comme
 // <maintenance-row> mais cliquable vers la voiture correspondante, puisque
 // la recherche traverse toutes les voitures à la fois.

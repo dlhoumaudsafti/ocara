@@ -201,7 +201,11 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     module.class_layouts.insert("HTTPServerException".to_string(), exception_layout.clone());
     module.class_layouts.insert("TauriException".to_string(), exception_layout.clone());
     module.class_layouts.insert("SDLException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("SQLiteException".to_string(), exception_layout);
+    module.class_layouts.insert("SQLiteException".to_string(), exception_layout.clone());
+    module.class_layouts.insert("MySQLException".to_string(), exception_layout.clone());
+    module.class_layouts.insert("MariaDBException".to_string(), exception_layout.clone());
+    module.class_layouts.insert("DotEnvException".to_string(), exception_layout.clone());
+    module.class_layouts.insert("YAMLException".to_string(), exception_layout);
 
     // Ajouter les layouts des builtins opaques (pointeur vers structure Rust)
     // Ces classes ont un constructeur _init qui alloue une structure opaque

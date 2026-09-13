@@ -210,6 +210,15 @@ pub unsafe fn throw_sqlite_exception(message: &str, code: i64, source: &str) -> 
         std::hint::unreachable_unchecked()
     }
 }
+/// Lance une MySQLException (également utilisée par l'alias MariaDB)
+pub unsafe fn throw_mysql_exception(message: &str, code: i64, source: &str) -> ! {
+    unsafe {
+        let obj_ptr = alloc_exception(message, code, source);
+        let type_name = alloc_str("MySQLException");
+        __ocara_fail(obj_ptr, type_name);
+        std::hint::unreachable_unchecked()
+    }
+}
 /// Alloue un objet Exception sur le heap
 unsafe fn alloc_exception(message: &str, code: i64, source: &str) -> i64 {
     unsafe {

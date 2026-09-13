@@ -8,7 +8,7 @@ import ocara.Array
 class Test_08_arrays {
     
     public method arrayAccessTest(): int {
-        var numbers:int[] = [10, 20, 30, 40, 50]
+        var numbers:array<int> = [10, 20, 30, 40, 50]
         UnitTest::assertEquals(10, numbers[0])
         UnitTest::assertEquals(30, numbers[2])
         UnitTest::assertEquals(50, numbers[4])
@@ -16,7 +16,7 @@ class Test_08_arrays {
     }
     
     public method arrayIterationTest(): int {
-        var numbers:int[] = [10, 20, 30]
+        var numbers:array<int> = [10, 20, 30]
         var sum:int = 0
         for n in numbers {
             sum = sum + n
@@ -26,14 +26,14 @@ class Test_08_arrays {
     }
     
     public method stringArrayTest(): int {
-        var jours:string[] = ["lundi", "mardi", "mercredi"]
+        var jours:array<string> = ["lundi", "mardi", "mercredi"]
         UnitTest::assertEquals("lundi", jours[0])
         UnitTest::assertEquals("mercredi", jours[2])
         return 0
     }
     
     public method mixedArrayTest(): int {
-        var vals:mixed[] = [42, "hello", true]
+        var vals:array<mixed> = [42, "hello", true]
         UnitTest::assertNotNull(vals[0])
         UnitTest::assertNotNull(vals[1])
         UnitTest::assertNotNull(vals[2])
@@ -41,7 +41,7 @@ class Test_08_arrays {
     }
     
     public method array2DTest(): int {
-        var matrix:int[][] = [[1, 2], [3, 4], [5, 6]]
+        var matrix:array<array<int>> = [[1, 2], [3, 4], [5, 6]]
         UnitTest::assertEquals(1, matrix[0][0])
         UnitTest::assertEquals(4, matrix[1][1])
         UnitTest::assertEquals(6, matrix[2][1])
@@ -50,7 +50,7 @@ class Test_08_arrays {
     
     public method mainTest(): int {
         // Reproduit le comportement de main()
-        var numbers:int[] = [10, 20, 30, 40, 50]
+        var numbers:array<int> = [10, 20, 30, 40, 50]
         UnitTest::assertEquals(10, numbers[0])
         UnitTest::assertEquals(30, numbers[2])
         UnitTest::assertEquals(50, numbers[4])
@@ -61,7 +61,7 @@ class Test_08_arrays {
         }
         UnitTest::assertEquals(5, count)
         
-        var jours:string[] = ["lundi", "mardi", "mercredi", "jeudi", "vendredi"]
+        var jours:array<string> = ["lundi", "mardi", "mercredi", "jeudi", "vendredi"]
         UnitTest::assertEquals("lundi", jours[0])
         UnitTest::assertEquals("vendredi", jours[4])
         
@@ -71,13 +71,13 @@ class Test_08_arrays {
         }
         UnitTest::assertEquals(5, jour_count)
         
-        var vals:mixed[] = [42, "hello", true, 3.14]
+        var vals:array<mixed> = [42, "hello", true, 3.14]
         UnitTest::assertNotNull(vals[0])
         UnitTest::assertNotNull(vals[1])
         UnitTest::assertNotNull(vals[2])
         UnitTest::assertNotNull(vals[3])
         
-        var matrix:int[][] = [
+        var matrix:array<array<int>> = [
             [1, 2, 3],
             [4, 5, 6],
             [7, 8, 9]
@@ -89,7 +89,7 @@ class Test_08_arrays {
         UnitTest::assertNotNull(line1)
         UnitTest::assertNotNull(line2)
         
-        var empty:int[] = []
+        var empty:array<int> = []
         var empty_str:string = Array::join(empty, ", ")
         UnitTest::assertNotNull(empty_str)
         

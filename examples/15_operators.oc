@@ -3,8 +3,8 @@
 //
 // Illustre :
 //   - Arithmétiques : + - * / %
-//   - Comparaison   : == != < <= > >=
-//   - Logiques      : and or !
+//   - Comparaison   : equal, not equal, smaller, smaller or equal, greater, greater or equal
+//   - Logiques      : and or not
 //   - Unaires       : - (négation) not
 //   - Plage         : start..end
 //   - Précédence des opérateurs

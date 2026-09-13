@@ -86,6 +86,13 @@ pub struct OwnedLocalInfo {
     /// Vrai une fois détruite (fin de bloc, ou juste après l'unique usage
     /// d'une `consumed`) — évite un double-appel de libération.
     pub dropped: bool,
+    /// `builder.loop_depth` au moment de la déclaration — voir sa doc dans
+    /// `builder.d/types.rs`. Permet à `drop_consumed_used_in` de détecter
+    /// qu'un usage se trouve dans un corps de boucle plus profond que la
+    /// déclaration (donc répété à l'exécution), et de ne PAS y libérer la
+    /// valeur : `emit_scope_drops`, au retour à la profondeur de boucle de
+    /// déclaration, s'en charge une seule fois.
+    pub declared_loop_depth: usize,
 }
 
 /// Appelé depuis `lower_var` juste après la déclaration d'une `scoped`/
@@ -99,7 +106,7 @@ pub fn register_owned_local(builder: &mut LowerBuilder, name: &str, ty: &Type, k
     if matches!(class, OwnershipClass::Value | OwnershipClass::Resource) {
         builder.owned_locals.insert(
             name.to_string(),
-            OwnedLocalInfo { kind, class, ty: ty.clone(), dropped: false },
+            OwnedLocalInfo { kind, class, ty: ty.clone(), dropped: false, declared_loop_depth: builder.loop_depth },
         );
         // Alimente block_scope_stack pour emit_early_exit_drops (return/
         // break/continue anticipés) — voir sa doc dans builder.d/types.rs.
@@ -171,6 +178,26 @@ fn emit_drop_if_owned(builder: &mut LowerBuilder, name: &str) {
     }
 }
 
+/// Appelé depuis `lower_assign` juste avant de stocker une nouvelle valeur
+/// dans une variable `scoped`/`consumed` déjà déclarée (`s = nouvelleValeur`)
+/// — libère l'ANCIENNE valeur qu'elle contenait, sinon elle fuit (remplacée
+/// sans jamais être libérée : confirmé par reproduction, voir
+/// `docs/roadmap.d/memoire-double-free-et-fuites-scoped.md`). Ne touche pas
+/// `dropped` : la variable reste possédée, la nouvelle valeur qu'elle va
+/// recevoir sera libérée normalement à son propre point de destruction.
+/// Uniquement pour `OwnershipClass::Value` (string/array/map/classe
+/// utilisateur) — une ressource ne peut pas être réaffectée (échappement
+/// refusé par la sema), rien à faire ici pour ce cas.
+pub fn free_before_reassign(builder: &mut LowerBuilder, name: &str) {
+    let Some(info) = builder.owned_locals.get(name).cloned() else { return };
+    if info.class != OwnershipClass::Value || info.dropped {
+        return;
+    }
+    let Some(func) = drop_func_for(builder.module, &info) else { return };
+    let Some((val, _)) = builder.load_local(name) else { return };
+    builder.emit(Inst::Call { dest: None, func, args: vec![val], ret_ty: IrType::Void });
+}
+
 /// Détruit, dans l'ordre inverse de déclaration, toutes les `scoped`/
 /// `consumed` déclarées DIRECTEMENT dans `block` (pas les blocs imbriqués,
 /// qui gèrent les leurs via leur propre appel à `lower_block`) et pas
@@ -228,6 +255,18 @@ pub fn drop_consumed_used_in(builder: &mut LowerBuilder, stmt: &Stmt) {
     let mut found: Vec<String> = Vec::new();
     collect_consumed_reads_stmt(stmt, &builder.owned_locals, &mut found);
     for name in found {
+        // Usage situé dans un corps de boucle plus profond que la
+        // déclaration (donc répété à chaque itération réelle) : ne pas
+        // libérer ici, sous peine de libérer plusieurs fois la même valeur
+        // au fil des itérations (confirmé par reproduction — voir
+        // docs/roadmap.d/memoire-double-free-et-fuites-scoped.md).
+        // `emit_scope_drops` libère correctement une seule fois, quand le
+        // bloc où la variable est déclarée se termine normalement (donc
+        // après la boucle, puisqu'elle la précède).
+        let declared_loop_depth = builder.owned_locals.get(&name).map(|i| i.declared_loop_depth).unwrap_or(0);
+        if builder.loop_depth > declared_loop_depth {
+            continue;
+        }
         emit_drop_if_owned(builder, &name);
     }
 }

@@ -12,17 +12,14 @@ main {
     // Connexion à la base de données
     // Remplacez ces paramètres par vos propres paramètres de connexion
     IO::writeln("Connecting to MySQL database...")
-    var db:MySQL = MySQL::connect("localhost", "root", "password", "test_db")
-    
-    if db equal null {
-        IO::writeln("Failed to connect to database!")
-        result 1
-    }
-    
-    IO::writeln("Connected successfully!")
-    IO::writeln("")
-    
+
     try {
+        // MySQL::connect lève MySQLException (code 101) si la connexion échoue :
+        // elle doit donc, comme le reste des opérations, être appelée dans ce bloc try.
+        var db:MySQL = MySQL::connect("localhost", "root", "password", "test_db")
+        IO::writeln("Connected successfully!")
+        IO::writeln("")
+
         // Créer une table
         IO::writeln("Creating users table...")
         var create_result:int = db.execute("CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255), age INT)")
@@ -98,19 +95,17 @@ main {
         db.execute("DROP TABLE users")
         IO::writeln("Table dropped")
         
+        // Fermer la connexion
+        db.close()
+        IO::writeln("")
+        IO::writeln("Connection closed")
     } on e is MySQLException {
         IO::writeln(`MySQL Error: ${e.message} (code: ${e.code})`)
-        db.close()
         result 1
     } on e {
         IO::writeln(`Error: ${e.message}`)
-        db.close()
         result 1
     }
-    
-    // Fermer la connexion
-    db.close()
-    IO::writeln("")
-    IO::writeln("Connection closed")
+
     IO::writeln("=== Done ===")
 }

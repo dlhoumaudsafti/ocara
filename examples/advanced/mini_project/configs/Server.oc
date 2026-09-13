@@ -1,5 +1,5 @@
 namespace configs
-// examples/ocara_app_advanced/configs/Server.oc
+// examples/advanced/mini_projet/configs/Server.oc
 
 import ocara.HTTPServer
 import ocara.IO

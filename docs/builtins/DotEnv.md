@@ -53,7 +53,7 @@ DESCRIPTION=This is my application
 - Format : `KEY=VALUE`
 - Les guillemets simples et doubles sont automatiquement retirés
 - Les variables sont chargées dans l'environnement système ET dans le stockage interne DotEnv
-- Si le fichier n'existe pas, un warning est affiché mais le programme continue
+- Si le fichier n'existe pas, un warning est affiché sur la sortie d'erreur mais le programme continue — `load()` ne lève jamais d'exception, il n'existe pas de `DotEnvException` déclenchée en pratique aujourd'hui
 
 ## Récupération de variables
 
@@ -276,7 +276,7 @@ DESCRIPTION=This is my application
 - Format : `KEY=VALUE`
 - Les guillemets simples et doubles sont automatiquement retirés
 - Les variables sont chargées dans l'environnement système ET dans le stockage interne DotEnv
-- Si le fichier n'existe pas, un warning est affiché mais le programme continue
+- Si le fichier n'existe pas, un warning est affiché sur la sortie d'erreur mais le programme continue — `load()` ne lève jamais d'exception, il n'existe pas de `DotEnvException` déclenchée en pratique aujourd'hui
 
 ## Récupération de variables
 

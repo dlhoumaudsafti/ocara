@@ -1,4 +1,4 @@
-// examples/ocara_app/main.oc
+// examples/advanced/tauri_httpserver/main.oc
 // Point d'entrée de l'app desktop : le serveur HTTP du site tourne en arrière-plan
 // (sur un thread dédié) et la fenêtre Tauri affiche directement son URL —
 // donc une vraie page servie par Ocara, pas un fichier HTML statique local.
@@ -22,7 +22,7 @@
 // APIController.oc pour la route.
 //
 // Lancer :
-//   ./target/release/ocara examples/ocara_app/main.oc -o /tmp/ocara_app
+//   ./target/release/ocara examples/advanced/tauri_httpserver/main.oc -o /tmp/ocara_app
 //   /tmp/ocara_app
 namespace .
 
@@ -47,7 +47,7 @@ init {
 main {
     // Le serveur tourne sur son propre thread : Tauri::run() doit rester sur
     // le thread principal (contrainte du crate tauri), donc le serveur ne peut
-    // pas être lancé ici en bloquant comme dans ocara_site/main.oc.
+    // pas être lancé ici en bloquant comme dans advanced/httpserver/main.oc.
     //
     // Pas de try/on ici autour de server.start() (contournement volontaire) :
     // un try/on à l'intérieur d'un nameless qui capture une variable externe

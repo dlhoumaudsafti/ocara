@@ -1,5 +1,5 @@
 namespace configs.components
-// examples/ocara_app_advanced/configs/components/StatBadge.oc
+// examples/advanced/mini_projet/configs/components/StatBadge.oc
 
 import ocara.HTMLComponent
 

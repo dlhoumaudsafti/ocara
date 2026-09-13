@@ -70,16 +70,16 @@ Ce dossier contient un script `.oc` par fonctionnalité du langage.
 |---------|---------|
 | [builtins/httpserver_static.oc](builtins/httpserver_static.oc) | Serveur HTTP pour fichiers statiques avec routing avancé |
 
-## Site web complet (`ocara_site/`)
+## Site web complet (`advanced/httpserver/`)
 
 Exemple d'application web complète avec composants HTML, routing et contrôleurs.
 
 | Fichier | Contenu |
 |---------|---------|
-| [ocara_site/main.oc](ocara_site/main.oc) | Point d'entrée du serveur web avec routing |
-| [ocara_site/components.oc](ocara_site/components.oc) | Composants HTML réutilisables (Header, Footer, Card, etc.) |
-| [ocara_site/controllers/](ocara_site/controllers/) | Contrôleurs pour les différentes pages |
-| [ocara_site/htmlserver.sh](ocara_site/htmlserver.sh) | Script de lancement du serveur |
+| [advanced/httpserver/main.oc](advanced/httpserver/main.oc) | Point d'entrée du serveur web avec routing |
+| [advanced/httpserver/components.oc](advanced/httpserver/components.oc) | Composants HTML réutilisables (Header, Footer, Card, etc.) |
+| [advanced/httpserver/controllers/](advanced/httpserver/controllers/) | Contrôleurs pour les différentes pages |
+| [advanced/httpserver/htmlserver.sh](advanced/httpserver/htmlserver.sh) | Script de lancement du serveur |
 
 ## Modules réutilisables (`mods/`)
 

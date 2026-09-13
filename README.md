@@ -19,6 +19,7 @@ Serveur HTTP, composants HTML réutilisables avec slots, génération de pages d
 
 - 🛡️ **Typage statique fort** — détection des erreurs à la compilation
 - ⚡ **Compilation native** — backend Cranelift pour des performances optimales
+- 🧹 **Sans ramasse-miettes (GC)** — par choix de design, jamais ; la libération mémoire est explicite via `scoped`/`consumed` (voir `docs/EBNF.md` §9)
 - 🌐 **Architecture web intégrée** — serveur HTTP, composants HTML avec slots, routing natif
 - 📦 **Bibliothèque standard riche** — HTTP, JSON, Regex, Threads, et plus
 - 🎯 **Orienté objet** — classes, interfaces, héritage, méthodes statiques

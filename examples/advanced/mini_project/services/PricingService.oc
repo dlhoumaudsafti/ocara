@@ -1,4 +1,4 @@
-// examples/ocara_app_advanced/services/PricingService.oc
+// examples/advanced/mini_projet/services/PricingService.oc
 // Règle métier : le prix de vente estimé d'une voiture est toujours
 // recalculé entièrement (prix d'achat + somme des entretiens d'amélioration)
 // plutôt qu'incrémenté à chaque ajout — robuste si un entretien est un jour

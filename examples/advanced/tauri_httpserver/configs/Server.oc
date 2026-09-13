@@ -1,4 +1,4 @@
-// examples/ocara_app/configs/Server.oc
+// examples/advanced/tauri_httpserver/configs/Server.oc
 // Configuration du serveur HTTP du mini site.
 //
 // Server extends HTTPServer : fixe le port (8080), le nombre de workers,
