@@ -75,6 +75,11 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__alloc_class_obj",      params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__object_free",          params: &[clt::I64, clt::I64],              returns: None,               module: None },
     BuiltinDesc { name: "__alloc_fat_ptr",        params: &[],                                returns: Some(clt::I64),    module: None },
+    // Cellule verrouillée pour variables capturées (voir runtime/src/lib.rs
+    // et docs/roadmap.d/memoire-concurrence-threads.md).
+    BuiltinDesc { name: "__alloc_locked_cell",     params: &[],                                returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__locked_cell_get",       params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__locked_cell_set",       params: &[clt::I64, clt::I64],              returns: None,              module: None },
     
     // Conversion string — sans heuristique pointeur
     BuiltinDesc { name: "__str_from_int",         params: &[clt::I64],                        returns: Some(clt::I64),    module: None },

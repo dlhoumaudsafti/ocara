@@ -456,6 +456,28 @@ var n:List = use List()                     // ❌ 1 attendu, 0 fourni
 **Correction :** fournir exactement le nombre d'arguments de type attendu par
 la déclaration `generic`.
 
+### E22 — `Thread` déjà finalisée
+
+```
+fichier.oc:8:6: error: 't' was already '.join()'ed or '.detach()'ed — calling either a second time would use a native handle already reclaimed
+```
+
+`.join()` ou `.detach()` est appelé une seconde fois sur la même `Thread` —
+dans n'importe quelle combinaison (`join` puis `join`, `join` puis `detach`,
+...). Le premier appel a déjà repris et libéré le handle natif côté runtime
+(`runtime/src/thread.rs`) ; un second appel utiliserait ce même pointeur déjà
+invalidé — use-after-free confirmé (abort immédiat à l'exécution avant ce
+diagnostic).
+
+```ocara
+scoped t:Thread = use Thread()
+t.run(nameless(): void { ... })
+t.join()
+t.join()   // ❌ 't' déjà finalisée
+```
+
+**Correction :** appeler `.join()` ou `.detach()` une seule fois par `Thread`.
+
 ---
 
 ## Avertissements sémantiques

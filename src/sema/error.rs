@@ -51,6 +51,10 @@ pub enum SemaError {
     /// arité attendue : entre le nombre de paramètres sans valeur par défaut
     /// et le nombre total de paramètres déclarés.
     GenericArityMismatch { name: String, expected_min: usize, expected_max: usize, found: usize, span: Span },
+    /// `.join()`/`.detach()` appelé une seconde fois sur la même `Thread` —
+    /// use-after-free confirmé côté runtime (le premier appel a déjà repris
+    /// et libéré le handle natif).
+    ThreadAlreadyFinalized { name: String, span: Span },
 }
 
 impl SemaError {
@@ -80,6 +84,7 @@ impl SemaError {
             SemaError::OwnershipNotSupported { span, .. } => span,
             SemaError::StringConcatMismatch { span, .. } => span,
             SemaError::GenericArityMismatch { span, .. } => span,
+            SemaError::ThreadAlreadyFinalized { span, .. } => span,
         }
     }
 
@@ -137,6 +142,8 @@ impl SemaError {
                 } else {
                     format!("generic '{}' expects between {} and {} type argument(s), {} provided", name, expected_min, expected_max, found)
                 },
+            SemaError::ThreadAlreadyFinalized { name, .. } =>
+                format!("'{}' was already '.join()'ed or '.detach()'ed — calling either a second time would use a native handle already reclaimed", name),
         }
     }
 }

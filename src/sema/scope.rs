@@ -199,12 +199,19 @@ impl ScopeStack {
     }
 
     /// Marque une `Thread` comme finalisée (`.join()`/`.detach()` appelé).
-    pub fn mark_thread_finalized(&mut self, name: &str) {
+    /// Retourne `true` si elle l'était déjà — un second appel à `.join()`/
+    /// `.detach()` referait un `Box::from_raw` sur un pointeur déjà repris
+    /// côté runtime (`runtime/src/thread.rs`), un use-after-free confirmé par
+    /// reproduction (abort immédiat) — voir
+    /// `docs/roadmap.d/memoire-double-free-et-fuites-scoped.md`.
+    pub fn mark_thread_finalized(&mut self, name: &str) -> bool {
         for frame in self.frames.iter_mut().rev() {
             if let Some(b) = frame.get_mut(name) {
+                let already = b.thread_finalized;
                 b.thread_finalized = true;
-                return;
+                return already;
             }
         }
+        false
     }
 }

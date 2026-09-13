@@ -110,7 +110,9 @@ pub fn lower_for_in(
 
     // continue → incr_bb, break → merge_bb
     builder.loop_stack.push((incr_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len()));
+    builder.loop_depth += 1;
     lower_block(builder, body);
+    builder.loop_depth -= 1;
     builder.loop_stack.pop();
 
     if !builder.is_terminated() {
@@ -206,7 +208,9 @@ pub fn lower_for_map(
 
     // continue → incr_bb, break → merge_bb
     builder.loop_stack.push((incr_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len()));
+    builder.loop_depth += 1;
     lower_block(builder, body);
+    builder.loop_depth -= 1;
     builder.loop_stack.pop();
 
     if !builder.is_terminated() {

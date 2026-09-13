@@ -2283,6 +2283,78 @@ pub extern "C" fn __alloc_fat_ptr() -> i64 {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Cellule verrouillée pour les variables capturées par une closure/thread
+//
+// Une variable capturée par une `nameless` est "promue sur le tas" (voir
+// `src/lower/expr.d/lower.rs`) : le scope extérieur et la closure partagent
+// alors le même pointeur, potentiellement lu/écrit depuis plusieurs threads
+// à la fois (Thread::run, workers HTTPServer) — sans ces fonctions, un accès
+// concurrent était un comportement non défini (voir
+// docs/roadmap.d/memoire-concurrence-threads.md). Chaque cellule embarque
+// désormais son propre mutex : `__alloc_locked_cell` réserve les octets d'un
+// `pthread_mutex_t` juste AVANT la valeur (même convention "header avant le
+// pointeur retourné" que les tags `TAG_*` du reste du runtime), et
+// `__locked_cell_get`/`__locked_cell_set` remplacent tout accès direct
+// (Load/Store) à une variable capturée dans le lowering.
+//
+// Mutex séparé de celui de `ocara.Mutex` (mutex.rs) : plus petit, à usage
+// interne uniquement (jamais exposé au langage), pas de gestion d'exception.
+
+#[cfg(target_os = "linux")]
+type CapturedCellMutex = [u8; 40];
+#[cfg(target_os = "macos")]
+type CapturedCellMutex = [u8; 64];
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+type CapturedCellMutex = [u8; 64];
+
+unsafe extern "C" {
+    fn pthread_mutex_init(mutex: *mut CapturedCellMutex, attr: *const u8) -> i32;
+    fn pthread_mutex_lock(mutex: *mut CapturedCellMutex) -> i32;
+    fn pthread_mutex_unlock(mutex: *mut CapturedCellMutex) -> i32;
+}
+
+const CAPTURED_CELL_MUTEX_SIZE: usize = std::mem::size_of::<CapturedCellMutex>();
+
+/// Alloue une cellule de capture verrouillée : `[mutex][valeur: i64]`.
+/// Retourne un pointeur vers la valeur (le mutex vit juste avant, à
+/// `retour - CAPTURED_CELL_MUTEX_SIZE`) — jamais libérée (même limite que
+/// `__alloc_obj` pour une closure : voir docs/roadmap.d/memoire-strategie-var.md).
+#[unsafe(no_mangle)]
+pub extern "C" fn __alloc_locked_cell() -> i64 {
+    unsafe {
+        let total = CAPTURED_CELL_MUTEX_SIZE + 8;
+        let layout = Layout::from_size_align(total, 8).unwrap();
+        let raw = alloc_zeroed(layout);
+        assert!(!raw.is_null(), "ocara_runtime: OOM in __alloc_locked_cell");
+        pthread_mutex_init(raw as *mut CapturedCellMutex, std::ptr::null());
+        (raw as i64) + CAPTURED_CELL_MUTEX_SIZE as i64
+    }
+}
+
+/// Lit la valeur d'une cellule de capture sous verrou.
+#[unsafe(no_mangle)]
+pub extern "C" fn __locked_cell_get(cell_ptr: i64) -> i64 {
+    unsafe {
+        let mutex_ptr = (cell_ptr - CAPTURED_CELL_MUTEX_SIZE as i64) as *mut CapturedCellMutex;
+        pthread_mutex_lock(mutex_ptr);
+        let val = *(cell_ptr as *const i64);
+        pthread_mutex_unlock(mutex_ptr);
+        val
+    }
+}
+
+/// Écrit la valeur d'une cellule de capture sous verrou.
+#[unsafe(no_mangle)]
+pub extern "C" fn __locked_cell_set(cell_ptr: i64, val: i64) {
+    unsafe {
+        let mutex_ptr = (cell_ptr - CAPTURED_CELL_MUTEX_SIZE as i64) as *mut CapturedCellMutex;
+        pthread_mutex_lock(mutex_ptr);
+        *(cell_ptr as *mut i64) = val;
+        pthread_mutex_unlock(mutex_ptr);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // try / on / fail — mécanisme setjmp/longjmp
 //
 // On utilise des extern "C" vers setjmp/longjmp de libc (toujours disponibles

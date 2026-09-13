@@ -11,6 +11,18 @@ pub fn lower_block(builder: &mut LowerBuilder, block: &Block) {
     // `continue` anticipé (voir la doc de `block_scope_stack`).
     builder.block_scope_stack.push(Vec::new());
 
+    // `builder.locals` (nom → slot) est une unique table plate, pas une
+    // pile de scopes comme côté sema (`crate::sema::scope::ScopeStack`) :
+    // sans précaution, une variable déclarée dans CE bloc sous un nom déjà
+    // utilisé par un bloc englobant écrase définitivement son mapping pour
+    // le reste de la fonction, y compris après la fin de ce bloc — confirmé
+    // par reproduction (y compris pour un simple `var`, pas seulement
+    // `scoped`/`consumed` : use-after-free une fois la variable interne
+    // libérée, voir docs/roadmap.d/memoire-double-free-et-fuites-scoped.md).
+    // On restaure donc la vue d'avant ce bloc en sortie : les noms externes
+    // masqués retrouvent leur slot d'origine, ceux déclarés ICI disparaissent.
+    let locals_snapshot = builder.locals.clone();
+
     for stmt in &block.stmts {
         if builder.is_terminated() { break; }
         lower_stmt(builder, stmt);
@@ -28,6 +40,21 @@ pub fn lower_block(builder: &mut LowerBuilder, block: &Block) {
     // les refaire ici, `is_terminated()` protège justement contre ça.
     if !builder.is_terminated() {
         emit_scope_drops(builder, block);
+    }
+
+    // Restaure la vue "avant ce bloc" (voir le commentaire au-dessus de
+    // `locals_snapshot`) — indépendant de la terminaison : le code qui suit
+    // ce bloc (bloc frère, code après un if/switch/boucle) a besoin de la
+    // vue correcte, que CE chemin particulier ait terminé ou non.
+    let declared_here: Vec<String> = builder.locals.keys()
+        .filter(|k| !locals_snapshot.contains_key(k.as_str()))
+        .cloned()
+        .collect();
+    for name in declared_here {
+        builder.locals.remove(&name);
+    }
+    for (name, binding) in locals_snapshot {
+        builder.locals.insert(name, binding);
     }
 
     builder.block_scope_stack.pop();

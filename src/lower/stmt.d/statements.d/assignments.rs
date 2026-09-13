@@ -26,6 +26,10 @@ pub fn lower_assign(
                 .map(|(_, ty, _)| ty.clone())
                 .unwrap_or(IrType::I64);
             let val = box_for_any(builder, &target_ty, val_ty, val);
+            // `s = nouvelleValeur` où `s` est `scoped`/`consumed` : libérer
+            // l'ancienne valeur avant de la remplacer, sinon elle fuit (voir
+            // crate::lower::stmt::ownership::free_before_reassign).
+            crate::lower::stmt::ownership::free_before_reassign(builder, name);
             builder.store_local(name, val);
         }
         Expr::Field { object, field, .. } => {

@@ -117,6 +117,11 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
                     ret_ty: IrType::Void,
                 });
 
+                // `result` dans un handler : même sortie anticipée de
+                // fonction qu'un `return` (voir plus haut) — sans ça, les
+                // scoped/consumed encore vivantes fuient (voir
+                // docs/roadmap.d/memoire-double-free-et-fuites-scoped.md).
+                crate::lower::stmt::ownership::emit_early_exit_drops(builder, 0);
                 builder.emit(Inst::Return { value: v });
             } else if builder.func.name == "main" && builder.runtime_exit_bb.is_some() {
                 // Gérer le cas spécial de "result SUCCESS" : SUCCESS est bool mais ERROR est int
@@ -138,17 +143,20 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
 
                     // Sauter au label de sortie anticipée du bloc main
                     if let Some(exit_bb) = builder.runtime_exit_bb.clone() {
+                        crate::lower::stmt::ownership::emit_early_exit_drops(builder, 0);
                         builder.emit(Inst::Jump { target: exit_bb });
                         return; // Ne pas émettre de Return après
                     }
                 }
 
                 // Fallback : émettre return normal si pas de runtime_exit_bb
+                crate::lower::stmt::ownership::emit_early_exit_drops(builder, 0);
                 builder.emit(Inst::Return { value: Some(result_val) });
             } else {
                 // Fallback défensif (error/success/exit, ou contexte inattendu) :
                 // se comporte comme un vrai return de la fonction main() synthétisée.
                 let v = value.as_ref().map(|e| lower_expr(builder, e));
+                crate::lower::stmt::ownership::emit_early_exit_drops(builder, 0);
                 builder.emit(Inst::Return { value: v });
             }
         }

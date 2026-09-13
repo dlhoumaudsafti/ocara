@@ -341,6 +341,26 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                         args:   all_args,
                         ret_ty,
                     });
+                    // Finalisation manuelle d'une ressource `scoped`/`consumed`
+                    // suivie (Mutex::destroy, SQLite/MySQL/MariaDB::close) :
+                    // marquer comme déjà détruite pour que la destruction
+                    // automatique de fin de bloc ne la libère pas une seconde
+                    // fois (double-free confirmé sans cette marque — voir
+                    // docs/roadmap.d/memoire-double-free-et-fuites-scoped.md).
+                    if let Expr::Ident(var_name, _) = object.as_ref() {
+                        let is_manual_finalizer = matches!(
+                            (class_name.as_deref(), field.as_str()),
+                            (Some("Mutex"), "destroy")
+                                | (Some("SQLite"), "close")
+                                | (Some("MySQL"), "close")
+                                | (Some("MariaDB"), "close")
+                        );
+                        if is_manual_finalizer {
+                            if let Some(info) = builder.owned_locals.get_mut(var_name.as_str()) {
+                                info.dropped = true;
+                            }
+                        }
+                    }
                     return dest;
                 }
                 _ => "_unknown".into(),
@@ -1349,21 +1369,30 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     return builder.slot_of_local(cap_name)
                         .unwrap_or_else(|| { let d = builder.new_value(); builder.emit(Inst::Nop); d });
                 }
-                // Variable locale stack → promouvoir au tas
+                // Variable locale stack → promouvoir au tas. Cellule VERROUILLÉE
+                // (`__alloc_locked_cell`, pas `__alloc_obj`) : cette valeur sera
+                // désormais lue/écrite depuis le scope extérieur ET la closure,
+                // potentiellement sur des threads différents (Thread::run,
+                // workers HTTPServer) — voir docs/roadmap.d/memoire-concurrence-threads.md.
                 if let Some((slot, ty, mutable)) = builder.locals.get(cap_name.as_str()).cloned() {
-                    let size = builder.new_value();
-                    builder.emit(Inst::ConstInt { dest: size.clone(), value: 8 });
                     let heap_ptr = builder.new_value();
                     builder.emit(Inst::Call {
                         dest:   Some(heap_ptr.clone()),
-                        func:   "__alloc_obj".into(),
-                        args:   vec![size],
+                        func:   "__alloc_locked_cell".into(),
+                        args:   vec![],
                         ret_ty: IrType::Ptr,
                     });
-                    // Copier la valeur courante (stack → heap)
+                    // Copier la valeur courante (stack → cellule verrouillée) —
+                    // encore mono-thread à ce stade, mais __locked_cell_set reste
+                    // sûr et cohérent avec tous les accès futurs.
                     let cur_val = builder.new_value();
                     builder.emit(Inst::Load { dest: cur_val.clone(), ptr: slot, ty: ty.clone() });
-                    builder.emit(Inst::Store { ptr: heap_ptr.clone(), src: cur_val });
+                    builder.emit(Inst::Call {
+                        dest:   None,
+                        func:   "__locked_cell_set".into(),
+                        args:   vec![heap_ptr.clone(), cur_val],
+                        ret_ty: IrType::Void,
+                    });
                     // Rediriger les futurs accès dans le scope extérieur vers le heap
                     builder.locals.insert(cap_name.clone(), (heap_ptr.clone(), ty, mutable));
                     builder.heap_promoted.insert(cap_name.clone());
