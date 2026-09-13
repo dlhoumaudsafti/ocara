@@ -120,6 +120,18 @@ pub fn lower_func(
         if let crate::parsing::ast::Type::Named(class_name) = &param.ty {
             builder.var_class.insert(param.name.clone(), class_name.clone());
         }
+        // Un paramètre de type générique (`Box<int>`) : même résolution que
+        // pour une variable locale directement initialisée (voir
+        // `lower_var`/`lower_const` dans statements.d/variables.rs) — sans
+        // ça, `var_class` n'a aucune entrée pour ce paramètre et tout appel
+        // de méthode dessus dans le corps de la fonction/méthode retombe sur
+        // le fallback `_method_<nom>` (jamais généré) au lieu de
+        // `Box_int_<nom>` : confirmé par reproduction (voir
+        // docs/roadmap.d/langage-generiques.md).
+        if let crate::parsing::ast::Type::Generic { name: generic_name, args } = &param.ty {
+            let specialized_name = crate::core::monomorph::monomorphized_name(generic_name, args);
+            builder.var_class.insert(param.name.clone(), specialized_name);
+        }
         // Slot alloca qui recevra la valeur du paramètre
         let alloca_slot = builder.declare_local(&param.name, ir_ty.clone(), false);
         // Variable « receiver » distincte : mappée aux block_params Cranelift

@@ -1,6 +1,6 @@
 # Roadmap Ocara
 
-_Dernière mise à jour : 2026-09-13_
+_Dernière mise à jour : 2026-09-14_
 
 Ce document liste ce qu'il reste à faire pour faire d'Ocara un langage solide, avec un focus prioritaire sur la **gestion mémoire** : le compilateur n'a pas de ramasse-miettes (choix assumé et définitif), mais rien aujourd'hui ne garantit l'absence de fuites, de doubles libérations ou de corruptions mémoire silencieuses.
 
@@ -23,7 +23,9 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 - ✅ **6 bugs mémoire distincts corrigés autour de `scoped`/`consumed`, chacun reproduit puis vérifié** : fuite selon le chemin d'exécution (branches d'un if/switch), double-free d'une `consumed` réutilisée en boucle, fuite à la réaffectation, SEGFAULT sur double fermeture manuelle+automatique (Mutex/SQLite confirmés), abort sur double `.join()`/`.detach()` d'une `Thread` (nouveau diagnostic **E22**), et — découverte bien plus large que prévu — un **use-after-free général du shadowing** touchant n'importe quelle variable (pas seulement `scoped`/`consumed`) : un nom réutilisé dans un bloc imbriqué corrompait définitivement la résolution de la variable externe. `Stmt::Result` émet aussi maintenant les mêmes destructions anticipées que `Stmt::Return`.
 - ✅ **`scoped`/`consumed` déclarée directement dans un bloc `main`/`init`/`exit` n'était jamais libérée** — `lower_runtime_main_manual` lowered ces statements à plat (`lower_stmt` direct) sans jamais passer par `lower_block`, court-circuitant tout le mécanisme de libération de fin de bloc (`error`/`success` n'étaient pas concernés : déjà de vrais `Block` lowered via `lower_if`). Corrigé en enveloppant `init`+`main` et `exit` dans un vrai `Block`, lowered via `lower_block` comme n'importe quel bloc normal — `ERROR`/`SUCCESS` (jamais `scoped`/`consumed`) restent seules lowered hors bloc pour survivre à toutes les phases suivantes.
 - ✅ **Synchronisation réelle des variables capturées par une closure/thread** — chaque capture "promue sur le tas" (partagée entre le scope extérieur et une closure, potentiellement sur des threads différents) est désormais protégée par un vrai mutex (`__alloc_locked_cell`/`__locked_cell_get`/`__locked_cell_set`), au lieu d'un accès brut non défini. Limite assumée et choisie explicitement : les opérations composées (`x = x + 1` entre threads) restent sujettes aux pertes de mise à jour classiques (pas d'atomicité, comme un `int` C ordinaire) — seule l'absence de synchronisation (UB, aliasing Rust) est corrigée.
-- ✅ **Typage des accès membres sur une valeur générique** — `numbers.add("texte")` sur un `List<int>` est maintenant rejeté (substitution réelle des paramètres de type par les arguments concrets de l'instance, avant de vérifier arité/types d'arguments/type de retour), au lieu de retomber silencieusement sur `Type::Mixed`. Découverte annexe non corrigée : un champ d'instance assigné via une méthode générique (`self.value = v` dans `Box<T>::set`) produit un résultat runtime incorrect — bug de lowering pré-existant, sans rapport avec ce correctif sema, qui reste ouvert et documente le sous-chantier "générique en paramètre/champ/retour" toujours non traité.
+- ✅ **Typage des accès membres sur une valeur générique** — `numbers.add("texte")` sur un `List<int>` est maintenant rejeté (substitution réelle des paramètres de type par les arguments concrets de l'instance, avant de vérifier arité/types d'arguments/type de retour), au lieu de retomber silencieusement sur `Type::Mixed`.
+- ✅ **Un générique fonctionne maintenant en paramètre de fonction/méthode et en champ de classe** (`var_class` et la résolution de champ chaîné ne reconnaissaient que les variables locales directement initialisées) — confirmé par reproduction (`useBox(b:Box<int>)`/`self.box.get()` renvoyaient `0` au lieu de la vraie valeur), corrigé et vérifié y compris pour un générique auto-référent façon liste chaînée (`Node<T> { property next:Node<T> }`) et pour la libération/le clonage récursifs d'un champ générique (fuite + aliasing corrigés). Découverte annexe du tour précédent (`self.value = v` produisant `1` au lieu de `100`) retestée : ne se reproduit plus, vraisemblablement déjà corrigée par le correctif shadowing général de la même session.
+- ✅ **`implements` sur un `generic` est maintenant vérifié** (E09) — un `generic Bag<T> implements Sized` sans la méthode `size()` compilait sans erreur, quel que soit le nombre d'instanciations ; la vérification couvre maintenant aussi `program.generics`, pas seulement les classes concrètes.
 
 ## Légende
 
@@ -45,10 +47,6 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 - **Combler la faille d'échappement des variables `scoped`/`consumed` passées en argument** — une valeur possédée peut être stockée ailleurs sans être clonée ; corruption mémoire confirmée. *(Dangereuse)* → [détails](roadmap.d/memoire-echappement-argument.md)
 - **Résoudre les blocages provoqués par `raise` traversant un verrou tenu** (SQLite/MySQL, `Mutex`) — un `raise` peut sauter un déverrouillage et bloquer le programme indéfiniment. *(Dangereuse)* → [détails](roadmap.d/memoire-deadlocks-raise.md)
 - **Concevoir une vraie stratégie de gestion mémoire pour `var`** (et pour les environnements de closures) — le mot-clé par défaut du langage ne libère aujourd'hui jamais rien. *(Massive)* → [détails](roadmap.d/memoire-strategie-var.md)
-
-### Langage
-
-- **Faire fonctionner un générique en paramètre, champ de classe ou valeur de retour** (aujourd'hui : seule une variable locale directement initialisée fonctionne correctement — la vérification de type d'un appel de méthode sur une valeur générique, elle, est corrigée, voir "Fait récemment"). *(Structurel)* → [détails](roadmap.d/langage-generiques.md)
 
 ---
 

@@ -44,6 +44,14 @@ pub fn resolve_chained_field_class(builder: &LowerBuilder, object: &Expr, field:
         Type::String     => Some("String".to_string()),
         Type::Array(_)   => Some("Array".to_string()),
         Type::Map(_, _)  => Some("Map".to_string()),
+        // Champ de type générique (`property box:Box<int>`) — même
+        // résolution que pour une variable locale/un paramètre (voir
+        // `lower_var`/le paramètre `Type::Generic` dans `functions.rs`) :
+        // sans ça, un appel de méthode sur un champ générique
+        // (`self.box.get()`, `c.box.get()`) ne trouvait aucune classe et
+        // retombait sur un symbole `_method_<nom>` inexistant (confirmé par
+        // reproduction — voir docs/roadmap.d/langage-generiques.md).
+        Type::Generic { name, args } => Some(crate::core::monomorph::monomorphized_name(&name, &args)),
         _ => None,
     }
 }

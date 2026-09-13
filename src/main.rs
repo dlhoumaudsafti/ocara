@@ -505,6 +505,66 @@ fn main() {
         }
     }
 
+    // ── 4d-bis. Vérification des interfaces implémentées par un `generic` ────
+    // Même vérification que ci-dessus, mais pour `program.generics` : la
+    // monomorphisation (plus bas, `monomorphize(&mut program)`) transforme
+    // chaque instanciation en classe concrète dans `program.classes`, mais
+    // seulement APRÈS ce point — la boucle ci-dessus ne voit donc jamais un
+    // `generic` (même avec un `implements` invalide/incomplet), quel que soit
+    // le nombre de fois où il est instancié. Confirmé par reproduction : voir
+    // docs/roadmap.d/langage-generiques.md.
+    for generic_decl in &program.generics {
+        for iface_name in &generic_decl.implements {
+            let iface_info = match symbols.lookup_interface(iface_name) {
+                Some(info) => info,
+                None => {
+                    diagnostic::print_error(&args.input, generic_decl.span.line, generic_decl.span.col,
+                        &format!("interface '{}' not found", iface_name));
+                    std::process::exit(1);
+                }
+            };
+
+            let generic_info = symbols.lookup_generic(&generic_decl.name)
+                .expect("le generic vient d'être enregistré ci-dessus (4c)");
+
+            for (method_name, iface_sig) in &iface_info.methods {
+                let class_sig = match generic_info.methods.get(method_name) {
+                    Some(sig) => sig,
+                    None => {
+                        diagnostic::print_error(&args.input, generic_decl.span.line, generic_decl.span.col,
+                            &format!("generic '{}' does not implement method '{}' from interface '{}'",
+                                generic_decl.name, method_name, iface_name));
+                        std::process::exit(1);
+                    }
+                };
+
+                if class_sig.params.len() != iface_sig.params.len() {
+                    diagnostic::print_error(&args.input, generic_decl.span.line, generic_decl.span.col,
+                        &format!("method '{}' of generic '{}' does not match interface '{}': expected {} parameter(s), found {}",
+                            method_name, generic_decl.name, iface_name, iface_sig.params.len(), class_sig.params.len()));
+                    std::process::exit(1);
+                }
+                for (i, (_, iface_param_ty)) in iface_sig.params.iter().enumerate() {
+                    let (_, class_param_ty) = &class_sig.params[i];
+                    if !types_compat(class_param_ty, iface_param_ty) {
+                        diagnostic::print_error(&args.input, generic_decl.span.line, generic_decl.span.col,
+                            &format!("method '{}' of generic '{}' does not match interface '{}': parameter {} expected type '{}', found '{}'",
+                                method_name, generic_decl.name, iface_name, i + 1,
+                                type_name(iface_param_ty), type_name(class_param_ty)));
+                        std::process::exit(1);
+                    }
+                }
+                if !types_compat(&class_sig.ret_ty, &iface_sig.ret_ty) {
+                    diagnostic::print_error(&args.input, generic_decl.span.line, generic_decl.span.col,
+                        &format!("method '{}' of generic '{}' does not match interface '{}': expected return type '{}', found '{}'",
+                            method_name, generic_decl.name, iface_name,
+                            type_name(&iface_sig.ret_ty), type_name(&class_sig.ret_ty)));
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
+
     // ── 4d. Expansion des imports runtime ─────────────────────────────────────
     expand_runtime_imports(&mut program, source_dir, &args.input);
 
