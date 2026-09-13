@@ -247,21 +247,26 @@ fn generate_runtime_main(
     }
     
     // Ajouter le bloc exit
+    // Index où commencent (s'ils existent) les statements du bloc exit —
+    // permet à `lower_runtime_main_manual` de les isoler dans leur propre
+    // `Block` (voir sa doc pour pourquoi).
+    let exit_start_index = all_stmts.len();
     if let Some(exit_block) = program.runtime_blocks.iter().find(|b| b.kind == crate::parsing::ast::RuntimeBlockKind::Exit) {
         all_stmts.extend(exit_block.statements.clone());
     }
-    
+
     // Retourner la valeur de ERROR (0 si succès, autre si erreur)
     all_stmts.push(crate::parsing::ast::Stmt::Return {
         value: Some(crate::parsing::ast::Expr::Ident("ERROR".to_string(), Span::new(0, 0))),
         span: Span::new(0, 0),
     });
-    
+
     // Lower manuellement la fonction main pour insérer le label runtime_exit_bb
     lower_runtime_main_manual(
         module,
         all_stmts,
         main_end_index,
+        exit_start_index,
         consts,
         fn_ret_types,
         fn_param_types,
@@ -273,10 +278,27 @@ fn generate_runtime_main(
 }
 
 /// Lower manuel de la fonction main des blocs runtime pour gérer le label runtime_exit_bb
+///
+/// `all_stmts` mélange des statements qui doivent survivre à toute la
+/// fonction (`ERROR`/`SUCCESS`, jamais `scoped`/`consumed`) et des statements
+/// qui appartiennent à un bloc source précis (`init`+`main`, `exit`) — ces
+/// derniers sont enveloppés dans un vrai `Block` et lowered via `lower_block`
+/// (au lieu d'un simple appel direct à `lower_stmt` par statement, comme
+/// avant ce correctif) pour qu'une `scoped`/`consumed` déclarée directement
+/// dedans soit réellement libérée en fin de bloc : sans ça, `lower_stmt` seul
+/// n'alimente jamais `block_scope_stack`, donc ni `emit_scope_drops` (fin de
+/// bloc normale) ni `emit_early_exit_drops` (`result` anticipé) n'ont quoi
+/// que ce soit à parcourir — fuite systématique (confirmé par reproduction,
+/// voir docs/roadmap.d/memoire-runtime-block-jamais-libere.md). Les blocs
+/// `error`/`success` n'ont pas ce problème : ils sont déjà de vrais `Block`
+/// passés en `then_block`/`else_block` d'un `Stmt::If` (voir
+/// `generate_runtime_main`), lowered via `lower_if` → `lower_block` comme
+/// n'importe quel `if` normal.
 fn lower_runtime_main_manual(
     module: &mut IrModule,
     all_stmts: Vec<crate::parsing::ast::Stmt>,
     main_end_index: usize,
+    exit_start_index: usize,
     _consts: &[ConstDecl],
     fn_ret_types: &HashMap<String, IrType>,
     fn_param_types: &HashMap<String, Vec<IrType>>,
@@ -287,7 +309,10 @@ fn lower_runtime_main_manual(
 ) {
     use crate::lower::builder::LowerBuilder;
     use crate::lower::stmt::statements::lower_stmt;
+    use crate::lower::stmt::block::lower_block;
     use crate::ir::inst::Inst;
+    use crate::parsing::ast::Block;
+    use crate::parsing::token::Span;
 
     let mut builder = LowerBuilder::new(module, "main".to_string(), vec![], IrType::I64);
     builder.fn_ret_types = fn_ret_types.clone();
@@ -296,44 +321,61 @@ fn lower_runtime_main_manual(
     builder.fn_variadic_info = fn_variadic_info.clone();
     builder.func_default_args = func_default_args.clone();
     builder.async_funcs = async_funcs.clone();
-    
+
     // Créer le label de sortie anticipée (avant le if ERROR != 0)
     let runtime_exit_label = builder.new_block();
     builder.runtime_exit_bb = Some(runtime_exit_label.clone());
-    
-    // Le split_point est maintenant main_end_index, c'est-à-dire après les blocs init et main
-    let split_point = main_end_index;
-    
-    // Lower tous les statements AVANT le if (ERROR != 0)
-    for stmt in &all_stmts[..split_point] {
-        // Si le bloc est déjà terminé, ne pas lower les statements suivants (dead code)
-        if builder.is_terminated() {
-            break;
-        }
+
+    // `ERROR`/`SUCCESS` (les 2 premiers statements, voir `generate_runtime_main`) :
+    // variables "de fonction" qui doivent rester lisibles/modifiables dans
+    // TOUTES les phases suivantes (if error/success, exit, `return ERROR`
+    // final) — lowered directement, PAS via `lower_block`, qui supprimerait
+    // leur slot de `builder.locals` en sortie de bloc (voir sa doc).
+    const RUNTIME_VARS_COUNT: usize = 2;
+    for stmt in &all_stmts[..RUNTIME_VARS_COUNT] {
         lower_stmt(&mut builder, stmt);
     }
-    
-    
+
+    // init + main : vrai bloc (voir la doc de cette fonction).
+    let init_main_block = Block {
+        stmts: all_stmts[RUNTIME_VARS_COUNT..main_end_index].to_vec(),
+        span: Span::new(0, 0),
+    };
+    lower_block(&mut builder, &init_main_block);
+
     // Basculer vers le label de sortie anticipée
     if !builder.is_terminated() {
         builder.emit(Inst::Jump { target: runtime_exit_label.clone() });
     }
     builder.switch_to(&runtime_exit_label);
-    
+
     // Désactiver runtime_exit_bb pour que les returns suivants ne soient plus transformés
     builder.runtime_exit_bb = None;
-    
-    // Lower le if (ERROR != 0), exit, et return
-    for stmt in &all_stmts[split_point..] {
+
+    // Le if (ERROR != 0) { error } else { success } — déjà un vrai `Stmt::If`
+    // dont les branches sont des `Block` lowered via `lower_if` → `lower_block`,
+    // rien à changer ici.
+    for stmt in &all_stmts[main_end_index..exit_start_index] {
         lower_stmt(&mut builder, stmt);
     }
-    
+
+    // exit : même raisonnement que init+main ci-dessus. `all_stmts.len() - 1`
+    // exclut le `return ERROR` final (toujours le tout dernier statement,
+    // voir `generate_runtime_main`), lowered séparément juste après.
+    let exit_block = Block {
+        stmts: all_stmts[exit_start_index..all_stmts.len() - 1].to_vec(),
+        span: Span::new(0, 0),
+    };
+    lower_block(&mut builder, &exit_block);
+
+    lower_stmt(&mut builder, &all_stmts[all_stmts.len() - 1]);
+
     if !builder.is_terminated() {
         let zero = builder.new_value();
         builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
         builder.emit(Inst::Return { value: Some(zero) });
     }
-    
+
     let func = builder.func;
     module.add_function(func);
 }
