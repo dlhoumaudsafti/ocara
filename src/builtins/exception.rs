@@ -78,6 +78,23 @@ use std::collections::HashMap;
 use crate::parsing::ast::{Type, Visibility};
 use crate::sema::symbols::{ClassInfo, FieldInfo};
 
+/// Toutes les classes d'exception builtin (hors `Exception` elle-même) —
+/// utilisé pour enregistrer `<Nom> → "Exception"` dans `IrModule::class_parents`
+/// (voir `src/lower/builder.d/program.rs`), afin qu'`on e is Exception` attrape
+/// n'importe quelle exception builtin (pas seulement une correspondance
+/// exacte de nom) — voir docs/roadmap.d/langage-exceptions.md. Volontairement
+/// PAS répercuté sur `ClassInfo.extends` (utilisé par le sema pour de vraies
+/// classes utilisateur, avec des attentes différentes — risque de ricochet
+/// non maîtrisé sur le typecheck `extends` si ces classes opaques y entraient).
+pub const BUILTIN_EXCEPTION_NAMES: &[&str] = &[
+    "FileException", "DirectoryException", "IOException", "SystemException",
+    "ArrayException", "MapException", "MathException", "ConvertException",
+    "RegexException", "DateTimeException", "DateException", "TimeException",
+    "ThreadException", "MutexException", "UnitTestException", "HTTPServerException",
+    "SQLiteException", "MySQLException", "MariaDBException", "DotEnvException",
+    "YAMLException", "SDLException", "TauriException",
+];
+
 fn make_exception_class() -> ClassInfo {
     let mut fields = HashMap::new();
     fields.insert("message".to_string(), FieldInfo {

@@ -13,17 +13,31 @@ pub fn lower_raise(builder: &mut LowerBuilder, value: &Expr) {
     // Valeur de l'erreur
     let val = lower_expr(builder, value);
 
-    // Type name : si l'expression est `use ClassName(...)`, on sait statiquement
-    // quel type est levé → on peut filtrer avec `on e is ClassName`.
-    let type_name_val = match value {
-        Expr::New { class, .. } => {
-            let idx = builder.module.intern_string(class);
+    // Type name : si l'expression est `use ClassName(...)`, ou une variable
+    // dont la classe est connue statiquement (`var_class`, ex: `var e = use
+    // FileNotFound(...); raise e`), on sait quel type est levé → on peut
+    // filtrer avec `on e is ClassName`. On encode alors la CHAÎNE D'ANCÊTRES
+    // complète (elle-même incluse), pas juste son propre nom : un filtre sur
+    // une classe PARENTE (`on e is Exception`) doit attraper une sous-classe
+    // (`FileNotFound extends FileException`), pas seulement une égalité
+    // stricte de nom — voir IrModule::ancestor_chain et
+    // docs/roadmap.d/langage-exceptions.md.
+    let known_class: Option<String> = match value {
+        Expr::New { class, .. } => Some(class.clone()),
+        Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
+        _ => None,
+    };
+
+    let type_name_val = match known_class {
+        Some(cls) => {
+            let chain = builder.module.ancestor_chain(&cls);
+            let idx = builder.module.intern_string(&chain);
             let dest = builder.new_value();
             builder.emit(Inst::ConstStr { dest: dest.clone(), idx });
             dest
         }
-        _ => {
-            // Pas de type statique connu (string, mixed, variable…)
+        None => {
+            // Pas de type statique connu (string, mixed, expression quelconque…)
             let dest = builder.new_value();
             builder.emit(Inst::ConstInt { dest: dest.clone(), value: 0 });
             dest

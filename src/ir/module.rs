@@ -83,6 +83,30 @@ impl IrModule {
         i
     }
 
+    /// Chaîne d'ancêtres d'une classe (elle-même incluse en premier), du plus
+    /// spécifique au plus général — ex. `"FileNotFound|FileException|Exception"`
+    /// — jointe par `|` (un nom de classe Ocara ne peut pas contenir ce
+    /// caractère). Utilisée par `raise` (voir `lower_raise`) pour que
+    /// `__ocara_type_matches` (runtime/src/lib.rs) puisse faire correspondre
+    /// un filtre `on e is X` à une SOUS-CLASSE de `X`, pas seulement à `X`
+    /// lui-même — voir docs/roadmap.d/langage-exceptions.md. `class_parents`
+    /// couvre aussi bien les classes utilisateur (`extends`) que les
+    /// exceptions builtin (voir `lower_program`).
+    pub fn ancestor_chain(&self, class_name: &str) -> String {
+        let mut chain = vec![class_name.to_string()];
+        let mut seen: HashSet<&str> = HashSet::new();
+        seen.insert(class_name);
+        let mut current: &str = class_name;
+        while let Some(parent) = self.class_parents.get(current) {
+            if !seen.insert(parent.as_str()) {
+                break; // extends cyclique — garde-fou, ne devrait jamais arriver
+            }
+            chain.push(parent.clone());
+            current = parent.as_str();
+        }
+        chain.join("|")
+    }
+
     pub fn add_function(&mut self, func: IrFunction) {
         self.functions.push(func);
     }

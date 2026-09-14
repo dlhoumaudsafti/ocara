@@ -2600,7 +2600,12 @@ pub extern "C" fn __ocara_fail(val: i64, type_name: i64) {
 
     if !jumped {
         // Aucun try actif : message d'erreur + exit
-        let type_str = unsafe { ptr_to_str(type_name) }.to_string();
+        // `type_name` porte la chaîne d'ancêtres de la classe levée, elle-même
+        // en premier (voir IrModule::ancestor_chain/lower_raise) — n'afficher
+        // que ce premier maillon (le nom réellement levé), pas toute la
+        // chaîne de parents.
+        let type_str = unsafe { ptr_to_str(type_name) }
+            .split('|').next().unwrap_or("").to_string();
         let max_width = 46;
         let char_count = type_str.chars().count();
         
@@ -2633,6 +2638,14 @@ pub extern "C" fn __ocara_fail(val: i64, type_name: i64) {
     }
 }
 
+/// `stored` porte la chaîne d'ancêtres de la classe réellement levée (elle-
+/// même incluse), du plus spécifique au plus général, jointe par `|` (ex.
+/// `"FileNotFound|FileException|Exception"` — voir IrModule::ancestor_chain,
+/// lower_raise). Un filtre sur une classe PARENTE doit attraper une sous-
+/// classe : on cherche `filter` comme un des maillons de la chaîne, pas une
+/// égalité stricte avec la valeur entière de `stored` — voir
+/// docs/roadmap.d/langage-exceptions.md. Reste compatible avec un `stored`
+/// à un seul maillon (pas de `|`) : le split ne renvoie alors que lui-même.
 #[unsafe(no_mangle)]
 pub extern "C" fn __ocara_type_matches(stored: i64, filter: i64) -> i64 {
     if filter == 0 { return 1; } // pas de filtre → accepte tout
@@ -2640,7 +2653,7 @@ pub extern "C" fn __ocara_type_matches(stored: i64, filter: i64) -> i64 {
     unsafe {
         let s = ptr_to_str(stored);
         let f = ptr_to_str(filter);
-        if s == f { 1 } else { 0 }
+        if s.split('|').any(|link| link == f) { 1 } else { 0 }
     }
 }
 

@@ -1,0 +1,154 @@
+import ocara.UnitTest
+import ocara.File
+
+// Vraie hiérarchie d'exceptions : `on e is X` doit attraper une SOUS-CLASSE
+// de X, pas seulement une correspondance exacte de nom (voir
+// docs/roadmap.d/langage-exceptions.md et IrModule::ancestor_chain).
+//
+// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée
+// du fichier pour y appeler les méthodes `*Test` (voir extract_class_name,
+// tools/ocaraunit/src/main.rs) — la classe de test doit donc précéder les
+// classes d'exception auxiliaires ci-dessous, pas l'inverse.
+
+class Test_33_exception_hierarchy {
+
+    // Sous-classe utilisateur attrapée par un filtre sur sa classe parente
+    public method userHierarchyTest(): int {
+        var caught:bool = false
+        try {
+            raise use DerivedError("boom utilisateur", 1)
+        } on e is BaseError {
+            caught = true
+            UnitTest::assertEquals(1, e.code)
+        } on e {
+            caught = false
+        }
+        UnitTest::assertTrue(caught)
+        return 0
+    }
+
+    // Chaîne à 3 niveaux : le grand-parent attrape aussi
+    public method deepChainTest(): int {
+        var caught:bool = false
+        try {
+            raise use Level3("profond")
+        } on e is Level1 {
+            caught = true
+        } on e {
+            caught = false
+        }
+        UnitTest::assertTrue(caught)
+        return 0
+    }
+
+    // Sous-classe utilisateur d'une exception BUILTIN, attrapée via le builtin
+    public method userExtendsBuiltinTest(): int {
+        var caught:bool = false
+        try {
+            raise use MyFileError("fichier manquant", 404)
+        } on e is FileException {
+            caught = true
+            UnitTest::assertEquals(404, e.code)
+        } on e {
+            caught = false
+        }
+        UnitTest::assertTrue(caught)
+        return 0
+    }
+
+    // Une exception BUILTIN réellement levée par le runtime (pas construite à
+    // la main) reste attrapable via la classe de base `Exception`
+    public method builtinRuntimeHierarchyTest(): int {
+        var caught:bool = false
+        try {
+            File::read("/inexistant_xyz_123.txt")
+        } on e is Exception {
+            caught = true
+        } on e {
+            caught = false
+        }
+        UnitTest::assertTrue(caught)
+        return 0
+    }
+
+    // `raise` d'une VARIABLE (pas `use X(...)` inline) : le type statique
+    // reste connu via var_class, la hiérarchie continue de fonctionner
+    public method raiseVariableTest(): int {
+        var caught:bool = false
+        var err:DerivedError = use DerivedError("via variable", 2)
+        try {
+            raise err
+        } on e is BaseError {
+            caught = true
+        } on e {
+            caught = false
+        }
+        UnitTest::assertTrue(caught)
+        return 0
+    }
+
+    // Contrôle négatif : un filtre sans lien de parenté ne doit PAS attraper
+    public method unrelatedFilterTest(): int {
+        var caughtByWrongFilter:bool = false
+        var caughtByCatchAll:bool = false
+        try {
+            raise use DerivedError("ne doit pas matcher", 3)
+        } on e is FileException {
+            caughtByWrongFilter = true
+        } on e {
+            caughtByCatchAll = true
+        }
+        UnitTest::assertFalse(caughtByWrongFilter)
+        UnitTest::assertTrue(caughtByCatchAll)
+        return 0
+    }
+
+    // Le nom exact de la sous-classe elle-même continue de fonctionner
+    public method exactNameStillWorksTest(): int {
+        var caught:bool = false
+        try {
+            raise use DerivedError("exact", 5)
+        } on e is DerivedError {
+            caught = true
+        } on e {
+            caught = false
+        }
+        UnitTest::assertTrue(caught)
+        return 0
+    }
+}
+
+class BaseError {
+    public property message:string
+    public property code:int
+
+    init(message:string, code:int) {
+        self.message = message
+        self.code    = code
+    }
+}
+
+class DerivedError extends BaseError {
+    init(message:string, code:int) {
+        self.message = message
+        self.code    = code
+    }
+}
+
+class Level1 {
+    public property message:string
+    init(message:string) { self.message = message }
+}
+class Level2 extends Level1 {
+    init(message:string) { self.message = message }
+}
+class Level3 extends Level2 {
+    init(message:string) { self.message = message }
+}
+
+class MyFileError extends FileException {
+    init(message:string, code:int) {
+        self.message = message
+        self.code    = code
+    }
+}
