@@ -17,6 +17,12 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     // Stocker le nom du fichier source pour les messages d'erreur
     module.source_file = source_file.to_string();
 
+    // Analyse d'échappement interprocédurale (voir crate::sema::escape) —
+    // nécessaire pour décider si un `var` peut être libéré automatiquement
+    // en fin de bloc (voir lower::stmt::ownership::register_owned_local).
+    module.escaping_params = crate::sema::escape::compute_escaping_params(program);
+    module.class_members   = crate::sema::escape::collect_class_members(&program.classes);
+
     // Enregistre les modules importés (dernier segment du path : "ocara.IO" → "IO")
     for imp in &program.imports {
         if let Some(last) = imp.path.last() {

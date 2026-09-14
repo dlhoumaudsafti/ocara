@@ -1160,7 +1160,13 @@ count = 42      // réaffectation autorisée
 
 `var` déclare une variable **mutable** dont la portée est celle de la fonction. Elle peut être réaffectée à tout moment après sa déclaration.
 
-> **Aucune libération automatique** : contrairement à `scoped`/`consumed` (voir §9.2/9.3), une variable `var` n'est **jamais** libérée par le compilateur — il n'y a pas de ramasse-miettes. Toute valeur allouée sur le tas (`string`, `array`, `map`, instance de classe) stockée dans un `var` reste allouée jusqu'à la fin du programme. Utiliser `scoped`/`consumed` pour toute valeur dont la durée de vie doit rester limitée à un bloc.
+> **Libération automatique conditionnelle** : contrairement à `scoped`/`consumed` (déclaration explicite, voir §9.2/9.3), une valeur allouée sur le tas (`string`, `array`, `map`, instance de classe utilisateur) stockée dans un `var` est libérée automatiquement en fin de bloc **quand le compilateur peut prouver qu'elle ne s'échappe jamais** de sa fonction (analyse d'échappement statique, sans coût à l'exécution) — sinon (dès le moindre doute), elle reste allouée jusqu'à la fin du programme, exactement comme avant. Il n'y a toujours **aucun ramasse-miettes** : c'est une preuve à la compilation, jamais un suivi de références au runtime.
+>
+> **Échappe** (donc jamais libéré automatiquement) : `return`/`result` de la valeur, affectation à un champ (`self.x = v`, `obj.x = v`) ou à un élément de tableau/map, affectation à une autre variable, capture par une closure (`nameless`) ou un `Thread`, `raise` de la valeur, ou passage en argument à un appel dont le paramètre correspondant retient la valeur — ce qui inclut, par prudence, **tout appel dont le compilateur ne peut pas prouver le contraire** (n'importe quel builtin, y compris un appel aussi anodin que `IO::writeln(v)` avec `v` passée directement plutôt que via un template `` `${v}` ``) : seul un appel vers une fonction/méthode/constructeur **utilisateur** connue, prouvée ne pas retenir ce paramètre, est reconnu comme sûr.
+>
+> **N'échappe pas** (donc libérable) : lecture directe, opération arithmétique/concaténation, comparaison, interpolation dans un template string (`` `${v}` ``, qui ne fait que lire la valeur pour la formater), réaffectation de la variable elle-même, ou appel d'une méthode sur elle en tant que **récepteur** (`v.len()`, `v.upper()`...) — muter/lire `v` ne la fait pas s'échapper, seul le fait de la donner en ARGUMENT à un appel qui la retient compte.
+>
+> Restreint aux types `string`/`array`/`map`/instance de classe utilisateur (jamais `Mutex`/`SQLite`/`MySQL`/`MariaDB`/`Thread` : fermer implicitement une ressource serait un changement de comportement bien plus surprenant pour un simple `var` — ces types continuent de nécessiter `scoped`/`consumed` explicite). Utiliser `scoped`/`consumed` reste recommandé pour rendre l'intention explicite et couvrir aussi les cas où l'analyse ne peut pas prouver l'absence d'échappement.
 
 ### 9.2 Variable de bloc (`scoped`)
 
@@ -1199,7 +1205,27 @@ Une sortie anticipée du bloc (`return`, ou `break`/`continue` hors d'une boucle
 
 > **Limite connue** : seul un `raise` qui traverse un `try` englobant (`longjmp`) échappe à cette règle — la valeur fuit (pas de plantage ni de corruption : rien d'autre ne peut aliaser sa mémoire, juste une fuite mémoire/ressource non libérée). Voir `src/lower/stmt.d/statements.d/exceptions.rs`.
 
-> **Limite connue (plus grave)** : la détection d'échappement ne couvre aujourd'hui que l'affectation directe (`var y = x`, `y = x`, `return x`) — **pas** le passage de `x` en argument d'un appel de fonction/constructeur. Si l'appelée stocke cet argument dans une structure qui survit à l'appel (ex. un constructeur qui affecte un paramètre à un champ), la valeur est libérée à la fin du bloc courant alors qu'un pointeur vers elle est toujours utilisé ailleurs — pointeur pendouillant (« dangling pointer »), pas seulement une fuite. Ne pas passer une `scoped`/`consumed` en argument à une fonction qui pourrait la conserver au-delà de l'appel.
+> **Passage en argument** : passer `x` en argument d'un appel est maintenant aussi vérifié (pas seulement l'affectation directe) — voir diagnostic **E26** ci-dessous. `Mutex`/`SQLite`/`MySQL`/`MariaDB`/`Thread` : toujours refusé, quel que soit l'appelé (aucun usage légitime de "prêt" par argument pour une ressource). `string`/`array`/`map`/instance de classe utilisateur : refusé uniquement si l'appelé est une fonction/méthode/constructeur **utilisateur** connue dont ce paramètre précis est prouvé retenu au-delà de l'appel (ex. un constructeur qui affecte le paramètre à un champ) — un appel dont le paramètre ne fait que muter la valeur en place (`Array::push(arr, x)`, `Map::set(m, k, v)`) reste autorisé. Limite assumée : un appel vers un callee non résolu (builtin, ou receveur dont le type n'est pas suivi ici) n'est pas vérifié — comportement inchangé, comme avant ce correctif.
+
+### 9.2.1 Diagnostic E26 — argument qui s'échappe
+
+```
+fichier.oc:9:19: error: 'arr' ('array<int>') is passed as an argument to 'Box::init', which stores it beyond this call — a 'scoped'/'consumed' value cannot be passed where the callee retains it; clone it explicitly first, or pass a fresh value
+```
+
+```ocara
+class Box {
+    public property data:array<int>
+    init(a:array<int>) { self.data = a }   // retient 'a' au-delà de l'appel
+}
+function makeBox(): Box {
+    scoped arr:array<int> = [111, 222, 333]
+    var b:Box = use Box(arr)   // ❌ E26 : 'arr' sera libérée en fin de bloc
+    return b
+}
+```
+
+**Correction :** cloner explicitement avant l'appel (ex. `use Box(arr.slice(0, arr.len()))`, qui retourne un nouveau tableau indépendant), ou déclarer `arr` en `var` si son partage avec `b` est voulu (perd alors la libération automatique de fin de bloc).
 
 ### 9.3 Variable à usage unique (`consumed`)
 

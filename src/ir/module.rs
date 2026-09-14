@@ -41,6 +41,16 @@ pub struct IrModule {
     pub class_map_fields: HashMap<String, HashSet<String>>,
     /// Héritage : class_name → parent_name
     pub class_parents: HashMap<String, String>,
+    /// Paramètres échappants par fonction/méthode/constructeur utilisateur
+    /// (voir `crate::sema::escape`) — calculé une fois dans `lower_program`,
+    /// consulté par `lower::stmt::ownership` pour décider si un `var` peut
+    /// être libéré automatiquement en fin de bloc (voir
+    /// docs/roadmap.d/memoire-strategie-var.md).
+    pub escaping_params: HashMap<crate::sema::escape::CalleeKey, Vec<bool>>,
+    /// `class_name → membres appelables` — vue minimale du programme utilisée
+    /// par `escape::resolve_user_callable` côté lowering (pas d'accès direct
+    /// à `&Program` à cet endroit).
+    pub class_members: crate::sema::escape::ClassMembers,
     /// Types des paramètres du constructeur : class_name → Vec<IrType>
     pub ctor_param_types: HashMap<String, Vec<IrType>>,
     /// Constantes de classes : "ClassName__NAME" → (IrType, Literal)

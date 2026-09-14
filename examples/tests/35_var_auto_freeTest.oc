@@ -1,0 +1,107 @@
+import ocara.UnitTest
+import ocara.Convert
+
+// Stratégie de gestion mémoire pour `var` (voir docs/roadmap.d/memoire-strategie-var.md) :
+// un `var` prouvé ne jamais s'échapper de sa fonction est libéré
+// automatiquement en fin de bloc (comme un `scoped` implicite). Ces tests ne
+// peuvent pas mesurer une fuite directement (pas d'API mémoire exposée),
+// mais vérifient l'absence de corruption/crash — le vrai risque d'un bug
+// dans l'analyse d'échappement (libérer une valeur encore utilisée ailleurs).
+//
+// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée
+// du fichier pour y appeler les méthodes `*Test` (voir extract_class_name,
+// tools/ocaraunit/src/main.rs) — la classe de test doit donc précéder
+// `Holder` ci-dessous, pas l'inverse.
+
+class Test_35_var_auto_free {
+
+    // Un `var` qui ne s'échappe jamais (utilisé uniquement en local) : la
+    // libération automatique répétée ne doit jamais corrompre les valeurs
+    // suivantes ni planter (stress : plusieurs milliers d'allocations/
+    // libérations à la suite).
+    public method nonEscapingVarStressTest(): int {
+        var allCorrect:bool = true
+        var i:int = 0
+        while i smaller 2000 {
+            var tmp:string = "valeur-" + Convert::intToStr(i)
+            var expected:string = "valeur-" + Convert::intToStr(i)
+            if tmp not equal expected {
+                allCorrect = false
+            }
+            i = i + 1
+        }
+        UnitTest::assertTrue(allCorrect)
+        return 0
+    }
+
+    // Un `var` passé au constructeur d'une classe utilisateur qui le
+    // RETIENT (self.s = s) puis stocké dans un tableau qui survit : ne doit
+    // JAMAIS être libéré automatiquement (le bug historique ici était un
+    // double free/use-after-free, pas juste une mauvaise valeur).
+    public method escapesViaConstructorAndArrayTest(): int {
+        var acc:array<Holder> = []
+        var i:int = 0
+        while i smaller 500 {
+            var tmp:string = "marqueur-" + Convert::intToStr(i)
+            var h:Holder = use Holder(tmp)
+            acc.push(h)
+            i = i + 1
+        }
+        var allCorrect:bool = true
+        var j:int = 0
+        while j smaller acc.len() {
+            var expected:string = "marqueur-" + Convert::intToStr(j)
+            var got:Holder = acc.get(j)
+            if got.s not equal expected {
+                allCorrect = false
+            }
+            j = j + 1
+        }
+        UnitTest::assertTrue(allCorrect)
+        return 0
+    }
+
+    // Un `var` capturé par une closure : ne doit jamais être libéré tant que
+    // la closure peut encore être appelée.
+    //
+    // NOTE : la comparaison passe par un bool explicite (`not equal`), pas
+    // `UnitTest::assertEquals` directement sur des strings — cette dernière
+    // compare aujourd'hui les deux i64 bruts (voir `UnitTest_assertEquals`,
+    // runtime/src/lib.rs), pas le CONTENU des strings ; elle ne "marche" que
+    // par coïncidence quand les deux côtés partagent le même pointeur
+    // (littéraux identiques internés, ou ici le même pointeur capturé) —
+    // observation faite en écrivant ce test, hors périmètre de ce chantier
+    // (gestion mémoire de `var`), non corrigée ici.
+    public method capturedByClosureTest(): int {
+        var msg:string = "capture-moi-je-suis-assez-long-pour-le-tas"
+        var results:array<string> = []
+        var f:Function<void()> = nameless(): void {
+            results.push(msg)
+        }
+        f()
+        f()
+        UnitTest::assertEquals(2, results.len())
+        UnitTest::assertTrue(msg equal results.get(0))
+        UnitTest::assertTrue(msg equal results.get(1))
+        return 0
+    }
+
+    // Réaffectation répétée d'un `var` non-échappant : l'ancienne valeur
+    // doit être libérée avant chaque nouvelle affectation, sans corrompre la
+    // valeur courante.
+    public method reassignedInLoopTest(): int {
+        var s:string = "valeur-initiale"
+        var i:int = 0
+        while i smaller 2000 {
+            s = "valeur-boucle-" + Convert::intToStr(i)
+            i = i + 1
+        }
+        UnitTest::assertTrue(s equal "valeur-boucle-1999")
+        return 0
+    }
+}
+
+class Holder {
+    public property s:string
+    init(s:string) { self.s = s }
+}

@@ -94,6 +94,14 @@ pub struct LowerBuilder<'m> {
     /// scoping imbriqué) : une redéclaration du même nom dans un bloc frère
     /// écrase simplement l'entrée précédente, exactement comme `locals`.
     pub owned_locals: HashMap<String, crate::lower::stmt::ownership::OwnedLocalInfo>,
+    /// Noms des `var` (par opposition à `scoped`/`consumed`) de CETTE
+    /// fonction/méthode prouvés ne jamais s'échapper (voir
+    /// `crate::sema::escape::var_never_escapes`) — calculé une fois avant de
+    /// lowered le corps (voir `lower_func`/`lower_class`), consulté par
+    /// `register_owned_local` pour décider si un `var` peut être traité
+    /// comme un `scoped` implicite (libéré en fin de bloc). Voir
+    /// docs/roadmap.d/memoire-strategie-var.md.
+    pub auto_freeable_vars: HashSet<String>,
 }
 
 impl<'m> LowerBuilder<'m> {
@@ -132,6 +140,7 @@ impl<'m> LowerBuilder<'m> {
             func_var_param_count: HashMap::new(),
             runtime_exit_bb: None,
             owned_locals: HashMap::new(),
+            auto_freeable_vars: HashSet::new(),
         }
     }
 
