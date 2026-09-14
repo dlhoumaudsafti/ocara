@@ -29,6 +29,16 @@ pub(crate) const TAG_FUNCTION: i64 = 5;
 /// avant ce tag, libérer une `scoped string` plantait dès qu'elle contenait
 /// un littéral (`munmap_chunk(): invalid pointer`).
 pub(crate) const TAG_STRING_OWNED: i64 = 6;
+/// Objet exception (`Exception`/`FileException`/.../toute classe d'exception
+/// builtin, voir `crate::exception::alloc_exception`) — a longtemps partagé
+/// par erreur la valeur `0x03` avec `TAG_MAP`, ce qui faisait passer `e is
+/// map<K,V>` pour vrai sur n'importe quelle exception (confirmé par
+/// reproduction : `e is map<string, mixed>` sur une `ArrayException` — voir
+/// docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md). Aucune exception
+/// n'est aujourd'hui `scoped`/`consumed` : ce tag ne sert donc pour l'instant
+/// qu'à la narrowing `is` et à `get_value_type` (qui retombe correctement sur
+/// "primitif" pour ce tag, comme pour tout tag non reconnu).
+pub(crate) const TAG_EXCEPTION: i64 = 7;
 
 const PTR_THRESHOLD: i64 = 65536;
 
@@ -62,11 +72,16 @@ pub extern "C" fn __is_float(val: i64) -> i64 {
     if val >= PTR_THRESHOLD && (val & 3) == 1 { 1 } else { 0 }
 }
 
-/// bool : val == 0 ou val == 1.
-/// ⚠ Peut confondre avec les int 0 et 1.
+/// bool : boxé (tag bits 1:0 = 10, voir `__box_bool`) OU val == 0/1 brut.
+/// ⚠ Un bool JAMAIS boxé (val == 0 ou 1) reste indistinguable d'un int 0/1 —
+/// limitation résiduelle, mais un bool logé dans un `mixed` (littéral
+/// `array<mixed>`/`map<string,mixed>`, affectation à une variable `mixed`,
+/// ...) est TOUJOURS boxé par ce compilateur (voir `box_for_any`,
+/// `lower_array_literal`) : ce cas-là est désormais détecté correctement.
 #[unsafe(no_mangle)]
 pub extern "C" fn __is_bool(val: i64) -> i64 {
-    if val == 0 || val == 1 { 1 } else { 0 }
+    if val == 0 || val == 1 { return 1; }
+    if val >= PTR_THRESHOLD && (val & 3) == 2 { 1 } else { 0 }
 }
 
 /// string : tag == TAG_STRING (littéral) ou TAG_STRING_OWNED (tas) dans le

@@ -25,10 +25,14 @@ pub struct LocalBinding {
     /// utilisation, une fois qu'elle a eu lieu (elle est détruite juste
     /// après — toute utilisation suivante est une erreur de compilation).
     pub consumed_used_at: Option<Span>,
-    /// Pour une `scoped`/`consumed Thread` uniquement : vrai dès que
-    /// `.join()` ou `.detach()` a été appelé dessus. Vérifié à la sortie du
-    /// bloc — voir `OwnershipClass::Thread`.
-    pub thread_finalized: bool,
+    /// Pour une `scoped`/`consumed` ressource (`Thread`, `Mutex`, `SQLite`,
+    /// `MySQL`/`MariaDB`) : vrai dès que sa méthode de finalisation manuelle
+    /// (`.join()`/`.detach()` pour `Thread`, `.destroy()`/`.close()` pour les
+    /// autres) a été appelée dessus — voir `mark_resource_finalized`. Pour
+    /// `Thread` spécifiquement, aussi vérifié à la sortie du bloc (voir
+    /// `OwnershipClass::Thread`) : une `Thread` qui l'atteint sans jamais
+    /// avoir été finalisée est E19, pas ce champ.
+    pub resource_finalized: bool,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -145,7 +149,7 @@ impl ScopeStack {
             if !b.is_param
                 && matches!(b.kind, VarKind::Scoped | VarKind::Consumed)
                 && ownership_class(&b.ty) == OwnershipClass::Thread
-                && !b.thread_finalized
+                && !b.resource_finalized
             {
                 unfinalized_threads.push(UnfinalizedThread { name, span: b.span.clone() });
             }
@@ -198,17 +202,20 @@ impl ScopeStack {
         Ok(())
     }
 
-    /// Marque une `Thread` comme finalisée (`.join()`/`.detach()` appelé).
-    /// Retourne `true` si elle l'était déjà — un second appel à `.join()`/
-    /// `.detach()` referait un `Box::from_raw` sur un pointeur déjà repris
-    /// côté runtime (`runtime/src/thread.rs`), un use-after-free confirmé par
-    /// reproduction (abort immédiat) — voir
-    /// `docs/roadmap.d/memoire-double-free-et-fuites-scoped.md`.
-    pub fn mark_thread_finalized(&mut self, name: &str) -> bool {
+    /// Marque une ressource (`Thread`/`Mutex`/`SQLite`/`MySQL`/`MariaDB`)
+    /// comme finalisée manuellement (`.join()`/`.detach()`/`.destroy()`/
+    /// `.close()` selon le type — voir l'appelant). Retourne `true` si elle
+    /// l'était déjà — un second appel referait un `Box::from_raw`/une
+    /// libération sur un pointeur déjà repris côté runtime, un use-after-free
+    /// confirmé par reproduction pour chacun de ces types (abort pour
+    /// `Thread`, SEGFAULT pour `Mutex`) — voir
+    /// `docs/roadmap.d/memoire-double-free-et-fuites-scoped.md` et
+    /// `docs/roadmap.d/memoire-documentation-diagnostics.md`.
+    pub fn mark_resource_finalized(&mut self, name: &str) -> bool {
         for frame in self.frames.iter_mut().rev() {
             if let Some(b) = frame.get_mut(name) {
-                let already = b.thread_finalized;
-                b.thread_finalized = true;
+                let already = b.resource_finalized;
+                b.resource_finalized = true;
                 return already;
             }
         }

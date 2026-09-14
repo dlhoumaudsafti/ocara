@@ -8,6 +8,7 @@
 
 import ocara.IO
 import ocara.Math
+import ocara.Mutex
 
 function main(): int {
     // Warning 1 — variable déclarée mais jamais utilisée
@@ -46,6 +47,27 @@ function main(): int {
     if n equal s {
         IO::writeln("ne devrait pas compiler")
     }
+
+    // Erreur 8 — classe de filtre `on ... is` introuvable (E23)
+    try {
+        raise "boom"
+    } on e is TypoException {
+        IO::writeln("ne devrait jamais être atteint")
+    }
+
+    // Erreur 9 — handler catch-all pas en dernière position (E24)
+    try {
+        raise "boom"
+    } on e {
+        IO::writeln("générique")
+    } on e is IOException {
+        IO::writeln("jamais atteint : le catch-all précédent absorbe tout")
+    }
+
+    // Erreur 10 — ressource déjà finalisée manuellement (E25)
+    scoped m: Mutex = use Mutex()
+    m.destroy()
+    m.destroy()
 
     return 0
 }

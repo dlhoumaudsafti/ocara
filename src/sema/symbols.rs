@@ -37,7 +37,22 @@ impl SymbolTable {
         if let Some(json_class) = crate::builtins::builtin_class("JSON") {
             table.classes.insert("JSON".to_string(), json_class);
         }
-        
+
+        // Enregistrer automatiquement TOUTES les classes d'exception builtin :
+        // elles sont "ambiantes" — jamais besoin d'un `import ocara.XException`
+        // explicite pour les nommer dans `on e is X` (confirmé par l'usage réel
+        // du dépôt : `examples/builtins/sdl.oc`/`sqlite.oc` filtrent sur
+        // `SDLException`/`FileException` après avoir seulement importé
+        // `ocara.SDL`/`ocara.File`, jamais l'exception elle-même). Nécessaire
+        // pour que la vérification du nom de classe d'un `on e is X` (voir
+        // `TypeChecker::check_stmt`, `Stmt::Try`) ne rejette pas à tort ce
+        // pattern déjà répandu.
+        for (name, info) in crate::builtins::all_builtins() {
+            if name == "Exception" || name.ends_with("Exception") {
+                table.classes.entry(name.to_string()).or_insert(info);
+            }
+        }
+
         table
     }
     // Les fonctions de recherche (lookup_*) sont maintenant dans lookups.rs

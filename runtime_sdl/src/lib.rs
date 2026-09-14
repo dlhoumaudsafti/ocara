@@ -608,6 +608,31 @@ pub extern "C" fn SDL_drawTextureScaled(this: i64, texture_id: i64, x: i64, y: i
     });
 }
 
+/// Dessine un SOUS-RECTANGLE (srcX,srcY,srcW,srcH) d'une texture, redimensionné
+/// dans le rectangle destination (x,y,w,h), avec retournement horizontal
+/// optionnel (`flip_h`) — permet à Ocara de dessiner directement depuis une
+/// planche de sprites/tileset (un seul `loadTexture`), sans avoir à découper
+/// chaque frame/tuile en fichier PNG séparé ni à pré-générer une copie
+/// retournée pour chaque frame "gauche" (voir docs/builtins/SDL.md).
+/// `copy_ex` (SDL_RenderTextureRotated) fait le travail : angle 0, pas de
+/// centre de rotation personnalisé (rotation désactivée, seul le flip sert ici).
+#[unsafe(no_mangle)]
+pub extern "C" fn SDL_drawTextureRegion(
+    this: i64, texture_id: i64,
+    src_x: i64, src_y: i64, src_w: i64, src_h: i64,
+    x: i64, y: i64, w: i64, h: i64,
+    flip_h: i64,
+) {
+    with_open_window(this, |win| {
+        let OcaraSdlWindow { canvas, textures, .. } = win;
+        if let Some(tex) = textures.get(&texture_id) {
+            let src = FRect::new(src_x as f32, src_y as f32, src_w as f32, src_h as f32);
+            let dst = FRect::new(x as f32, y as f32, w as f32, h as f32);
+            let _ = canvas.copy_ex(tex, Some(src), Some(dst), 0.0, None, flip_h != 0, false);
+        }
+    });
+}
+
 // ── Palier 2 : fonts/texte (SDL_ttf) ────────────────────────────────────────
 
 /// Charge une police (.ttf/.otf) à une taille donnée et renvoie un handle.

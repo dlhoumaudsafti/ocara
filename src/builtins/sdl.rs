@@ -14,6 +14,7 @@
 //   sdl.isOpen() / close() / getWidth() / getHeight() / getTitle() / setTitle()
 //   sdl.loadTexture(path) → int (handle) / textureWidth/Height(id) → int
 //   sdl.drawTexture(id, x, y) / drawTextureScaled(id, x, y, w, h)
+//   sdl.drawTextureRegion(id, srcX,srcY,srcW,srcH, x,y,w,h, flipH) // sous-rect + flip
 //   sdl.loadFont(path, size) → int (handle) / drawText(id, text, x, y, r,g,b,a)
 // Méthodes statiques :
 //   SDL::ticks() → int
@@ -118,6 +119,21 @@ pub fn sdl_class() -> ClassInfo {
     ));
     methods.insert("drawTextureScaled".to_string(), inst_m(
         vec![ ("textureId", Type::Int), ("x", Type::Int), ("y", Type::Int), ("w", Type::Int), ("h", Type::Int) ],
+        Type::Void,
+    ));
+    // Dessine un SOUS-RECTANGLE (srcX,srcY,srcW,srcH) d'une texture, redimensionné
+    // dans le rectangle destination (x,y,w,h) — permet d'utiliser directement une
+    // planche de sprites/tileset (un seul loadTexture) au lieu de découper chaque
+    // frame/tuile en fichier PNG séparé à la préparation des assets. `flipH`
+    // retourne horizontalement (utile pour une frame de personnage "gauche" sans
+    // dupliquer les fichiers image) sans coût supplémentaire (SDL_RenderTextureRotated).
+    methods.insert("drawTextureRegion".to_string(), inst_m(
+        vec![
+            ("textureId", Type::Int),
+            ("srcX", Type::Int), ("srcY", Type::Int), ("srcW", Type::Int), ("srcH", Type::Int),
+            ("x", Type::Int), ("y", Type::Int), ("w", Type::Int), ("h", Type::Int),
+            ("flipH", Type::Bool),
+        ],
         Type::Void,
     ));
     methods.insert("unloadTexture".to_string(), inst_m(vec![ ("textureId", Type::Int) ], Type::Void));

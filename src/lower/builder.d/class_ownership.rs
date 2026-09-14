@@ -51,6 +51,20 @@ fn classify_field(ty: &Type, field_types: &HashMap<String, Vec<(String, Type)>>)
     match ty {
         Type::String | Type::Array(_) | Type::Map(_, _) => FieldOwnership::Value,
         Type::Named(n) if field_types.contains_key(n) => FieldOwnership::Object(n.clone()),
+        // Champ de type générique (`property box:Box<int>`) : le générique
+        // monomorphisé est une classe utilisateur comme une autre dans
+        // `field_types` (voir `crate::core::monomorph::monomorphize`) — sans
+        // ce cas, `__free_<Classe>`/`__clone_<Classe>` traitaient un tel
+        // champ comme `Plain` (copie brute au clone, jamais libéré),
+        // confirmé par reproduction : voir docs/roadmap.d/langage-generiques.md.
+        Type::Generic { name, args } => {
+            let specialized = crate::core::monomorph::monomorphized_name(name, args);
+            if field_types.contains_key(&specialized) {
+                FieldOwnership::Object(specialized)
+            } else {
+                FieldOwnership::Plain
+            }
+        }
         _ => FieldOwnership::Plain,
     }
 }

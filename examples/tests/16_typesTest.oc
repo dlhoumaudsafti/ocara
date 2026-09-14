@@ -59,12 +59,15 @@ class Test_16_types {
         var ints:array<int> = [1, 2, 3]
         var strs:array<string> = ["a", "b", "c"]
         var bools:array<bool> = [true, false, true]
+        var floats:array<float> = [1.5, 2.5, 3.5]
         var vals:array<mixed> = [1, "deux", 3.0, false]
         var matrix:array<array<int>> = [[1, 2], [3, 4]]
-        
+
         UnitTest::assertEquals(1, ints[0])
         UnitTest::assertEquals("b", strs[1])
         UnitTest::assertTrue(bools[2])
+        UnitTest::assertEquals(true, bools[2])
+        UnitTest::assertEquals(2.5, floats[1])
         UnitTest::assertNotNull(vals[1])
         
         var config:map<string, mixed> = {

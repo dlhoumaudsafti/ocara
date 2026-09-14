@@ -135,7 +135,7 @@ impl<'a> TypeChecker<'a> {
             
             self.scopes.declare(
                 param.name.clone(),
-                LocalBinding { ty: param_ty, mutable: false, span: param.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, thread_finalized: false },
+                LocalBinding { ty: param_ty, mutable: false, span: param.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false },
             );
         }
 
@@ -200,7 +200,7 @@ impl<'a> TypeChecker<'a> {
                         
                         self.scopes.declare(
                             p.name.clone(),
-                            LocalBinding { ty: param_ty, mutable: false, span: p.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, thread_finalized: false },
+                            LocalBinding { ty: param_ty, mutable: false, span: p.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false },
                         );
                     }
                     self.check_block(body);
@@ -278,7 +278,7 @@ impl<'a> TypeChecker<'a> {
                 is_param: false,
                 kind: VarKind::Var,
                 consumed_used_at: None,
-                thread_finalized: false,
+                resource_finalized: false,
             },
         );
         
@@ -292,7 +292,7 @@ impl<'a> TypeChecker<'a> {
                 is_param: false,
                 kind: VarKind::Var,
                 consumed_used_at: None,
-                thread_finalized: false,
+                resource_finalized: false,
             },
         );
         
@@ -389,7 +389,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 if !self.scopes.declare(
                     name.clone(),
-                    LocalBinding { ty: ty.clone(), mutable: *mutable, span: span.clone(), used: false, is_param: false, kind: *kind, consumed_used_at: None, thread_finalized: false },
+                    LocalBinding { ty: ty.clone(), mutable: *mutable, span: span.clone(), used: false, is_param: false, kind: *kind, consumed_used_at: None, resource_finalized: false },
                 ) {
                     self.errors.push(SemaError::DuplicateSymbol {
                         name: name.clone(),
@@ -409,7 +409,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 if !self.scopes.declare(
                     name.clone(),
-                    LocalBinding { ty: ty.clone(), mutable: false, span: span.clone(), used: false, is_param: false, kind: VarKind::Var, consumed_used_at: None, thread_finalized: false },
+                    LocalBinding { ty: ty.clone(), mutable: false, span: span.clone(), used: false, is_param: false, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false },
                 ) {
                     self.errors.push(SemaError::DuplicateSymbol {
                         name: name.clone(),
@@ -473,7 +473,7 @@ impl<'a> TypeChecker<'a> {
                     }
                 };
                 self.scopes.push();
-                self.scopes.declare(var.clone(), LocalBinding { ty: elem_ty, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, thread_finalized: false });
+                self.scopes.declare(var.clone(), LocalBinding { ty: elem_ty, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false });
                 self.check_block(body);
                 { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
             }
@@ -481,8 +481,8 @@ impl<'a> TypeChecker<'a> {
             Stmt::ForMap { key, value, iter, body, span } => {
                 self.infer_expr(iter);
                 self.scopes.push();
-                self.scopes.declare(key.clone(),   LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, thread_finalized: false });
-                self.scopes.declare(value.clone(), LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, thread_finalized: false });
+                self.scopes.declare(key.clone(),   LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false });
+                self.scopes.declare(value.clone(), LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false });
                 self.check_block(body);
                 { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
             }
@@ -571,12 +571,31 @@ impl<'a> TypeChecker<'a> {
 
             Stmt::Try { body, handlers, .. } => {
                 self.check_block(body);
-                for handler in handlers {
+                for (idx, handler) in handlers.iter().enumerate() {
+                    // Un handler catch-all (`on e { }`, sans `is`) filtre déjà
+                    // tout : les handlers suivants, quels qu'ils soient, ne
+                    // seraient jamais atteints (E24) — voir docs/EBNF.md §28.2,
+                    // déjà documenté mais jamais imposé jusqu'ici.
+                    if handler.class_filter.is_none() && idx + 1 < handlers.len() {
+                        self.errors.push(SemaError::CatchAllNotLast { span: handler.span.clone() });
+                    }
+                    // `on e is X` : X doit être une classe connue (utilisateur
+                    // ou exception builtin, toujours enregistrée — voir
+                    // SymbolTable::new) — sinon ce handler est silencieusement
+                    // mort, aucun `raise` ne peut jamais correspondre (E23).
+                    if let Some(class_name) = &handler.class_filter {
+                        if self.symbols.lookup_class(class_name).is_none() {
+                            self.errors.push(SemaError::OnFilterClassNotFound {
+                                name: class_name.clone(),
+                                span: handler.span.clone(),
+                            });
+                        }
+                    }
                     self.scopes.push();
                     // Le binding est de type mixed (type de l'erreur inconnu statiquement)
                     self.scopes.declare(
                         handler.binding.clone(),
-                        LocalBinding { ty: Type::Mixed, mutable: false, span: handler.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, thread_finalized: false },
+                        LocalBinding { ty: Type::Mixed, mutable: false, span: handler.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false },
                     );
                     self.check_block(&handler.body);
                     { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
@@ -901,9 +920,31 @@ impl<'a> TypeChecker<'a> {
                     // Thread` — voir OwnershipClass::Thread et pop_scope().
                     if cls_name == "Thread" && (field == "join" || field == "detach") {
                         if let Expr::Ident(recv_name, _) = object.as_ref() {
-                            if self.scopes.mark_thread_finalized(recv_name) {
+                            if self.scopes.mark_resource_finalized(recv_name) {
                                 self.errors.push(SemaError::ThreadAlreadyFinalized {
                                     name: recv_name.clone(),
+                                    span: fspan.clone(),
+                                });
+                            }
+                        }
+                    }
+                    // `m.destroy()` (Mutex), `db.close()` (SQLite/MySQL/
+                    // MariaDB) : même mécanisme que Thread ci-dessus,
+                    // généralisé (E25) — un second appel referait une
+                    // libération déjà faite côté runtime, SEGFAULT confirmé
+                    // par reproduction pour un double `Mutex::destroy` — voir
+                    // docs/roadmap.d/memoire-documentation-diagnostics.md.
+                    let manual_finalizer = matches!(
+                        (cls_name.as_str(), field.as_str()),
+                        ("Mutex", "destroy") | ("SQLite", "close") | ("MySQL", "close") | ("MariaDB", "close")
+                    );
+                    if manual_finalizer {
+                        if let Expr::Ident(recv_name, _) = object.as_ref() {
+                            if self.scopes.mark_resource_finalized(recv_name) {
+                                self.errors.push(SemaError::ResourceAlreadyFinalized {
+                                    name: recv_name.clone(),
+                                    class_name: cls_name.clone(),
+                                    method: field.clone(),
                                     span: fspan.clone(),
                                 });
                             }
@@ -1287,7 +1328,7 @@ impl<'a> TypeChecker<'a> {
                 for p in params {
                     self.scopes.declare(
                         p.name.clone(),
-                        LocalBinding { ty: p.ty.clone(), mutable: false, span: p.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, thread_finalized: false },
+                        LocalBinding { ty: p.ty.clone(), mutable: false, span: p.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false },
                     );
                 }
                 // Sauvegarder current_ret et le remplacer par le type de retour de la closure

@@ -15,9 +15,12 @@ Vérifié : `make regression` passe de 313 à 318 PASS (0 FAIL) côté ocaraunit
 
 **`mini_project` ET `tauri_httpserver` ouvrent tous les deux une vraie fenêtre Tauri (WebView)** — pas seulement `tauri_httpserver` comme documenté précédemment ici. `mini_project/main.oc` importe aussi `ocara.Tauri` et appelle `ui.run()` en plus de son serveur HTTP/SQLite. Décision prise avec David : ces deux exemples restent **volontairement hors CI** (pas de tentative de test headless via Xvfb) — seul `examples/advanced/httpserver/` (serveur HTTP pur, sans GUI) est couvert.
 
+## `examples/project/tests/mainTest.oc` — corrigé séparément
+
+Le second chemin de chargement redondant de `src/main.rs` (section 4b) responsable de `interface 'Printable' not found` a été supprimé — voir [langage-imports-modules](langage-imports-modules.md) pour le détail du correctif. `mainTest.oc` a aussi dû être corrigé : il s'appuyait sur ce second chemin (bugué) pour rapatrier `Score`/`Student`/`Color` via un simple `import main` (qui, correctement, n'importe QUE le symbole `main`, une fonction — comportement documenté EBNF §4.3 "un fichier = un symbole") ; ajout des `import X from "main"` explicites qui manquaient. `make regression` : 27 PASS/0 FAIL désormais comptabilisés pour ce fichier (0 ERREUR(S) au global, contre 1 avant).
+
 ## Toujours hors périmètre
 
-- **`examples/project/tests/mainTest.oc` (`interface 'Printable' not found`)** : cause différente de celle corrigée ci-dessus — passe par `import main` (ancien format, un seul segment), qui résout au symbole **fonction** `main` du fichier via le second chemin de chargement redondant de `src/main.rs` (section 4b), lequel ne fusionne que classes/functions/consts, jamais interfaces/modules. C'est le bug déjà documenté dans [langage-imports-modules](langage-imports-modules.md) (Moyenne priorité / Structurel) — non traité ici, hors périmètre "Légère".
 - **`examples/generics/`** : toujours absent de toute cible Makefile/CI, toujours cassé par la syntaxe `T[]` obsolète (voir [langage-syntaxe-obsolete](langage-syntaxe-obsolete.md), Basse priorité) — non traité ici.
 - **`mini_project`/`tauri_httpserver`** : hors CI par décision explicite (voir ci-dessus), pas par manque de temps.
 - **Infrastructure CI réelle pour MySQL** : le skip local ne fait qu'éviter un faux échec ; aucun serveur n'est réellement testé ici (pas de Docker disponible dans cet environnement de dev, pas de `mariadb-server` installé). Pour qu'un vrai test MySQL tourne un jour en CI (ex. GitHub Actions), fournir un service MySQL au runner :

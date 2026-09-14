@@ -12,6 +12,9 @@ name       = "ocara_runtime"
 crate-type = ["staticlib", "rlib"]
 
 [dependencies]
+# `libc::pthread_mutex_t` — remplace un tableau d'octets hardcodé par
+# plateforme (jamais vérifié contre la vraie taille ABI, voir mutex.rs).
+libc      = "0.2"
 ureq      = { version = "=2.7.1", features = ["tls"] }
 url       = "2"
 idna      = "0.3"

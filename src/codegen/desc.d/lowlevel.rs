@@ -57,7 +57,17 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__cmp_gt_strict",        params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__cmp_le_strict",        params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__cmp_ge_strict",        params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
-    
+
+    // ── Arithmétique dynamique avec un opérande `mixed` ───────────────────────
+    // Voir lower::expr::lower (Expr::Binary Add/Sub/Mul/Div/Mod) et la doc de
+    // ces fonctions runtime pour le détail du dispatch.
+    BuiltinDesc { name: "__dyn_add",              params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__dyn_sub",              params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__dyn_mul",              params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__dyn_div",              params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__mixed_to_int",         params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__mixed_to_float",       params: &[clt::I64],                        returns: Some(clt::F64),    module: None },
+
     // ── Gestion des erreurs (try/on/fail) — toujours disponibles ─────────────
     BuiltinDesc { name: "__ocara_try_exec",             params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__ocara_try_exec_with_captures", params: &[clt::I64, clt::I64, clt::I64],    returns: Some(clt::I64),    module: None },

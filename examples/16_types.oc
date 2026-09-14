@@ -56,12 +56,14 @@ function main(): int {
     var ints:array<int>       = [1, 2, 3]
     var strs:array<string>    = ["a", "b", "c"]
     var bools:array<bool>     = [true, false, true]
+    var floats:array<float>   = [1.5, 2.5, 3.5]
     var vals:array<mixed>      = [1, "deux", 3.0, false]
     var matrix:array<array<int>>   = [[1, 2], [3, 4]]
 
     IO::writeln(ints[0])
     IO::writeln(strs[1])
     IO::writeln(bools[2])
+    IO::writeln(floats[1])
     IO::writeln(vals[1])
     IO::writeln(Array::join(matrix[1], ", "))
 

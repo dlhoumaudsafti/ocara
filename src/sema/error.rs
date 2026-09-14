@@ -55,6 +55,21 @@ pub enum SemaError {
     /// use-after-free confirmé côté runtime (le premier appel a déjà repris
     /// et libéré le handle natif).
     ThreadAlreadyFinalized { name: String, span: Span },
+    /// `on e is X` où `X` ne correspond à aucune classe connue (ni classe
+    /// utilisateur du programme, ni classe d'exception builtin) — un typo
+    /// rendait jusqu'ici ce handler silencieusement mort (jamais atteint,
+    /// aucune erreur ni avertissement).
+    OnFilterClassNotFound { name: String, span: Span },
+    /// Handler catch-all (`on e { }`, sans `is`) pas en dernière position
+    /// d'une chaîne `try`/`on` — il filtre déjà tout, les handlers suivants
+    /// deviendraient morts (jamais atteints).
+    CatchAllNotLast { span: Span },
+    /// `.destroy()`/`.close()` appelé une seconde fois sur la même ressource
+    /// (`Mutex`/`SQLite`/`MySQL`/`MariaDB`) — généralisation de
+    /// `ThreadAlreadyFinalized` : SEGFAULT confirmé côté runtime sur un
+    /// double `Mutex::destroy` (le premier appel a déjà libéré le handle
+    /// natif).
+    ResourceAlreadyFinalized { name: String, class_name: String, method: String, span: Span },
 }
 
 impl SemaError {
@@ -85,6 +100,9 @@ impl SemaError {
             SemaError::StringConcatMismatch { span, .. } => span,
             SemaError::GenericArityMismatch { span, .. } => span,
             SemaError::ThreadAlreadyFinalized { span, .. } => span,
+            SemaError::OnFilterClassNotFound { span, .. } => span,
+            SemaError::CatchAllNotLast { span } => span,
+            SemaError::ResourceAlreadyFinalized { span, .. } => span,
         }
     }
 
@@ -144,6 +162,12 @@ impl SemaError {
                 },
             SemaError::ThreadAlreadyFinalized { name, .. } =>
                 format!("'{}' was already '.join()'ed or '.detach()'ed — calling either a second time would use a native handle already reclaimed", name),
+            SemaError::OnFilterClassNotFound { name, .. } =>
+                format!("'{}' is not a known class — this 'on e is {}' handler would never match anything", name, name),
+            SemaError::CatchAllNotLast { .. } =>
+                "a catch-all 'on' handler (without 'is') must be the last one in this try/on chain — handlers after it would never be reached".into(),
+            SemaError::ResourceAlreadyFinalized { name, class_name, method, .. } =>
+                format!("'{}' ('{}') was already '.{}()'ed — calling it a second time would use a native handle already reclaimed", name, class_name, method),
         }
     }
 }

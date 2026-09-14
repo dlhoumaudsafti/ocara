@@ -73,7 +73,7 @@ pub fn lower_var(
     
     let _slot = builder.declare_local(name, ir_ty.clone(), mutable);
     let val_ty = expr_ir_type_pub(builder, value);
-    let val = lower_expr(builder, value);
+    let val = lower_literal_or_expr(builder, value, ty);
     // `value` peut être une `scoped`/`consumed` qui s'échappe vers `name`
     // (point d'échappement — voir crate::lower::stmt::ownership).
     let val = crate::lower::stmt::ownership::maybe_clone_escaping(builder, value, val);
@@ -141,7 +141,30 @@ pub fn lower_const(
     
     let _slot = builder.declare_local(name, ir_ty.clone(), false);
     let val_ty = expr_ir_type_pub(builder, value);
-    let val = lower_expr(builder, value);
+    let val = lower_literal_or_expr(builder, value, ty);
     let val = box_for_any(builder, &ir_ty, val_ty, val);
     builder.store_local(name, val);
+}
+
+/// Lower `value` en tenant compte de `ty` (le type DÉCLARÉ de la cible,
+/// `var`/`const`) quand `value` est directement un littéral `array`/`map` —
+/// permet de choisir `LiteralElemKind::Concrete` (aucune conversion d'un
+/// élément `float`/`bool`, stocké brut) plutôt que `Mixed` (boxé) dès que le
+/// type d'élément déclaré n'est pas `mixed`. Repli sur `lower_expr` générique
+/// (qui suppose toujours `Mixed`, le choix sûr par défaut) dans tous les
+/// autres cas — `value` n'est pas directement un littéral, ou son type
+/// déclaré n'a pas de type d'élément concret identifiable ici.
+fn lower_literal_or_expr(builder: &mut LowerBuilder, value: &Expr, ty: &Type) -> crate::ir::inst::Value {
+    use crate::lower::expr::LiteralElemKind;
+    match (value, ty) {
+        (Expr::Array { elements, .. }, Type::Array(inner)) => {
+            let kind = if matches!(inner.as_ref(), Type::Mixed) { LiteralElemKind::Mixed } else { LiteralElemKind::Concrete };
+            crate::lower::expr::lower_array_literal(builder, elements, kind)
+        }
+        (Expr::Map { entries, .. }, Type::Map(_, val_ty)) => {
+            let kind = if matches!(val_ty.as_ref(), Type::Mixed) { LiteralElemKind::Mixed } else { LiteralElemKind::Concrete };
+            crate::lower::expr::lower_map_literal(builder, entries, kind)
+        }
+        _ => lower_expr(builder, value),
+    }
 }

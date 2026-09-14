@@ -146,6 +146,13 @@ pub const SDL_BUILTINS: &[BuiltinDesc] = &[
 		module:  Some("SDL"),
 	},
 	BuiltinDesc {
+		name:    "SDL_drawTextureRegion",
+		// this, textureId, srcX, srcY, srcW, srcH, x, y, w, h, flipH (bool 0/1)
+		params:  &[clt::I64, clt::I64, clt::I64, clt::I64, clt::I64, clt::I64, clt::I64, clt::I64, clt::I64, clt::I64, clt::I64],
+		returns: None,
+		module:  Some("SDL"),
+	},
+	BuiltinDesc {
 		name:    "SDL_unloadTexture",
 		params:  &[clt::I64, clt::I64], // this, textureId
 		returns: None,

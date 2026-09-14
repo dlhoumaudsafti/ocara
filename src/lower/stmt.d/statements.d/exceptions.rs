@@ -13,17 +13,31 @@ pub fn lower_raise(builder: &mut LowerBuilder, value: &Expr) {
     // Valeur de l'erreur
     let val = lower_expr(builder, value);
 
-    // Type name : si l'expression est `use ClassName(...)`, on sait statiquement
-    // quel type est levé → on peut filtrer avec `on e is ClassName`.
-    let type_name_val = match value {
-        Expr::New { class, .. } => {
-            let idx = builder.module.intern_string(class);
+    // Type name : si l'expression est `use ClassName(...)`, ou une variable
+    // dont la classe est connue statiquement (`var_class`, ex: `var e = use
+    // FileNotFound(...); raise e`), on sait quel type est levé → on peut
+    // filtrer avec `on e is ClassName`. On encode alors la CHAÎNE D'ANCÊTRES
+    // complète (elle-même incluse), pas juste son propre nom : un filtre sur
+    // une classe PARENTE (`on e is Exception`) doit attraper une sous-classe
+    // (`FileNotFound extends FileException`), pas seulement une égalité
+    // stricte de nom — voir IrModule::ancestor_chain et
+    // docs/roadmap.d/langage-exceptions.md.
+    let known_class: Option<String> = match value {
+        Expr::New { class, .. } => Some(class.clone()),
+        Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
+        _ => None,
+    };
+
+    let type_name_val = match known_class {
+        Some(cls) => {
+            let chain = builder.module.ancestor_chain(&cls);
+            let idx = builder.module.intern_string(&chain);
             let dest = builder.new_value();
             builder.emit(Inst::ConstStr { dest: dest.clone(), idx });
             dest
         }
-        _ => {
-            // Pas de type statique connu (string, mixed, variable…)
+        None => {
+            // Pas de type statique connu (string, mixed, expression quelconque…)
             let dest = builder.new_value();
             builder.emit(Inst::ConstInt { dest: dest.clone(), value: 0 });
             dest
@@ -67,9 +81,26 @@ pub fn lower_raise(builder: &mut LowerBuilder, value: &Expr) {
 /// `raise` fuit (pas de use-after-free — juste une fuite, voir la doc de
 /// ownership.rs) plutôt que d'être détruite. Le corps est lowered en
 /// fonction séparée (`__try_body_N`) dont la pile disparaît au `longjmp` ;
-/// le handler ne reçoit que `(err_val, err_type)`, aucun moyen d'accéder aux
-/// locals du corps pour les nettoyer sans étendre ce contrat runtime —
+/// le handler ne reçoit que `(err_val, err_type)` (+ éventuellement un
+/// pointeur de captures partagées, voir plus bas), aucun moyen d'accéder aux
+/// locals STACK du corps pour les nettoyer sans étendre ce contrat runtime —
 /// reporté délibérément, voir ownership.rs.
+///
+/// Captures partagées corps/gestionnaire : le corps ET le(s) gestionnaire(s)
+/// sont deux fonctions IR distinctes (voir ci-dessus) — une variable du scope
+/// englobant qu'ils référencent l'un ET/OU l'autre doit être promue en
+/// cellule verrouillée UNIQUE (`__alloc_locked_cell`) partagée par les DEUX,
+/// sans quoi une affectation dans l'un (typiquement le corps, ex :
+/// `textureId = win.loadTexture(...)`) n'est jamais vue par l'autre ni par le
+/// scope appelant après la fin du `try` — confirmé par reproduction visuelle
+/// dans `examples/builtins/sdl.oc` (texture/texte jamais dessinés) puis par
+/// `examples/tests/20_try_failTest.oc` (un `var caught:bool` mis à `true`
+/// dans un handler restait `false` après le `try`). Les captures du corps et
+/// de TOUS les gestionnaires sont donc fusionnées en une seule liste
+/// dédupliquée, portée par un unique tableau de pointeurs (même schéma que
+/// `Expr::Nameless`, voir `src/lower/expr.d/lower.rs`), et le gestionnaire
+/// reçoit ce même pointeur comme 3ᵉ paramètre quand la liste n'est pas vide
+/// (`__ocara_try_exec_with_captures` le lui transmet — voir runtime/src/lib.rs).
 pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]) {
     use crate::lower::expr::captures::collect_captures;
     use crate::ir::inst::Value;
@@ -97,7 +128,25 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
     for (name, (_env_val, _idx, ty)) in builder.captured_vars.iter() {
         capture_scope.entry(name.clone()).or_insert_with(|| (Value(0), ty.clone(), false));
     }
-    let captures = collect_captures(body, &HashSet::new(), &capture_scope);
+
+    // Captures fusionnées du corps ET de tous les gestionnaires (voir la doc
+    // de `lower_try` ci-dessus) : corps et gestionnaire(s) sont des fonctions
+    // IR séparées mais doivent voir EXACTEMENT le même tableau de pointeurs,
+    // sinon une variable modifiée dans l'un n'est jamais visible dans l'autre.
+    // Le binding du handler (`e` dans `on e is X`) est exclu via param_names
+    // pour ne pas le traiter comme une capture s'il masque un nom du scope
+    // englobant.
+    let mut captures = collect_captures(body, &HashSet::new(), &capture_scope);
+    let mut captures_seen: HashSet<String> = captures.iter().map(|(n, _)| n.clone()).collect();
+    for handler in handlers {
+        let handler_params: HashSet<String> = std::iter::once(handler.binding.clone()).collect();
+        let handler_caps = collect_captures(&handler.body, &handler_params, &capture_scope);
+        for (name, ty) in handler_caps {
+            if captures_seen.insert(name.clone()) {
+                captures.push((name, ty));
+            }
+        }
+    }
 
     // ── 1. Corps try ─────────────────────────────────────────────────────────
     // Le body a un type de retour Void : il ne retourne jamais normalement,
@@ -142,14 +191,27 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
             // Mettre à jour le slot du paramètre pour pointer vers cette Value
             bb.func.params[0].slot = captures_ptr.clone();
             
-            // Charger chaque capture : *(captures_ptr + idx*8)
+            // Charger chaque capture : *(captures_ptr + idx*8) — le tableau
+            // contient un POINTEUR VERS UNE CELLULE VERROUILLÉE par capture
+            // (voir la construction du tableau côté appelant, plus bas), PAS
+            // la valeur directement — même schéma qu'une variable capturée
+            // par une closure (`Expr::Nameless`, `src/lower/expr.d/lower.rs`).
+            // Sans ce niveau d'indirection partagé, une affectation à une
+            // variable extérieure À L'INTÉRIEUR du corps try (une fonction
+            // séparée, voir la doc de `lower_try`) ne modifiait qu'une copie
+            // locale au corps try : jamais visible après la fin du `try`,
+            // confirmé par reproduction (SEGFAULT visuel indirect : dans
+            // `examples/builtins/sdl.oc`, `textureId`/`fontId` assignés dans
+            // un `try` redevenaient -1 juste après, empêchant tout dessin de
+            // texture/texte bien que le chargement ait réussi) — voir
+            // docs/roadmap.d/memoire-double-free-et-fuites-scoped.md.
             for (idx, (name, ty)) in captures.iter().enumerate() {
                 let offset_bytes = (idx * 8) as i64;
-                
+
                 // Calculer l'adresse de l'élément : captures_ptr + offset
                 let offset_val = bb.new_value();
                 bb.emit(Inst::ConstInt { dest: offset_val.clone(), value: offset_bytes });
-                
+
                 let elem_addr = bb.new_value();
                 bb.emit(Inst::Add {
                     dest: elem_addr.clone(),
@@ -157,15 +219,18 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
                     rhs: offset_val,
                     ty: IrType::I64,
                 });
-                
-                // Charger la valeur depuis cette adresse
-                let val = bb.new_value();
-                bb.emit(Inst::Load { dest: val.clone(), ptr: elem_addr, ty: ty.clone() });
-                
-                // Créer le local et stocker
-                let alloca_slot = bb.declare_local(name, ty.clone(), false);
-                bb.emit(Inst::Store { ptr: alloca_slot, src: val });
-                
+
+                // Charger le HEAP POINTER (cellule verrouillée) depuis cette
+                // adresse et l'enregistrer DIRECTEMENT comme le "slot" du
+                // local (pas d'Alloca stack ici) — `heap_promoted` fait
+                // passer tous les accès (`load_local`/`store_local`) par
+                // `__locked_cell_get`/`__locked_cell_set`, exactement comme
+                // pour une variable déjà promue par une closure englobante.
+                let heap_ptr = bb.new_value();
+                bb.emit(Inst::Load { dest: heap_ptr.clone(), ptr: elem_addr, ty: IrType::Ptr });
+                bb.locals.insert(name.clone(), (heap_ptr, ty.clone(), true));
+                bb.heap_promoted.insert(name.clone());
+
                 // Si c'est self, mettre à jour var_class pour indiquer la classe
                 if name == "self" {
                     if let Some(cls) = &bb.current_class {
@@ -234,6 +299,45 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
             IrParam { name: "err_val".into(),  ty: IrType::I64, slot: ev_recv },
             IrParam { name: "err_type".into(), ty: IrType::I64, slot: et_recv },
         ];
+
+        // Si captures (fusionnées corps+gestionnaires, voir plus haut) : 3ᵉ
+        // paramètre pointant vers le MÊME tableau que celui reçu par le corps
+        // — même schéma de chargement (pointeur vers cellule verrouillée,
+        // pas la valeur), voir la boucle équivalente pour body_fn ci-dessus.
+        if !captures.is_empty() {
+            let captures_ptr = hb.new_value();
+            hb.func.params.push(IrParam {
+                name: "__captures_ptr".into(),
+                ty:   IrType::Ptr,
+                slot: captures_ptr.clone(),
+            });
+
+            for (idx, (name, ty)) in captures.iter().enumerate() {
+                let offset_bytes = (idx * 8) as i64;
+
+                let offset_val = hb.new_value();
+                hb.emit(Inst::ConstInt { dest: offset_val.clone(), value: offset_bytes });
+
+                let elem_addr = hb.new_value();
+                hb.emit(Inst::Add {
+                    dest: elem_addr.clone(),
+                    lhs: captures_ptr.clone(),
+                    rhs: offset_val,
+                    ty: IrType::I64,
+                });
+
+                let heap_ptr = hb.new_value();
+                hb.emit(Inst::Load { dest: heap_ptr.clone(), ptr: elem_addr, ty: IrType::Ptr });
+                hb.locals.insert(name.clone(), (heap_ptr, ty.clone(), true));
+                hb.heap_promoted.insert(name.clone());
+
+                if name == "self" {
+                    if let Some(cls) = &hb.current_class {
+                        hb.var_class.insert("self".to_string(), cls.clone());
+                    }
+                }
+            }
+        }
 
         let end_bb = hb.new_block();
 
@@ -367,37 +471,74 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
             ret_ty: IrType::Ptr,
         });
         
-        // Stocker chaque capture dans le tableau
+        // Stocker chaque capture dans le tableau — un POINTEUR VERS UNE
+        // CELLULE VERROUILLÉE partagée (jamais la valeur directement),
+        // exactement comme pour la promotion d'une capture de closure
+        // (`Expr::Nameless`, `src/lower/expr.d/lower.rs`) : le corps try (une
+        // fonction séparée) et le scope appelant doivent voir le MÊME
+        // pointeur pour qu'une affectation à l'intérieur du `try` reste
+        // visible après (voir le commentaire équivalent côté chargement,
+        // plus haut, pour le bug que ce mécanisme corrige).
         for (idx, (name, _ty)) in captures.iter().enumerate() {
-            // Charger la valeur : d'abord depuis locals (variable stack normale),
-            // sinon depuis captured_vars (variable capturée par une closure englobante,
-            // vit dans son struct env sur le tas — voir Expr::Nameless dans lower.rs
-            // pour le même schéma de repli locals → captured_vars).
-            let val = if let Some((slot, slot_ty, _)) = builder.locals.get(name).cloned() {
-                let v = builder.new_value();
-                builder.emit(Inst::Load { dest: v.clone(), ptr: slot, ty: slot_ty });
-                v
-            } else if let Some((env_val, cap_idx, cap_ty)) = builder.captured_vars.get(name).cloned() {
-                let v = builder.new_value();
+            let heap_ptr = if builder.heap_promoted.contains(name.as_str()) {
+                // Déjà promue (par ce même try ou une closure englobante) :
+                // son slot EST déjà le pointeur verrouillé, à réutiliser tel
+                // quel — pas de nouvelle cellule.
+                builder.slot_of_local(name).unwrap_or_else(|| {
+                    let d = builder.new_value();
+                    builder.emit(Inst::Nop);
+                    d
+                })
+            } else if let Some((slot, slot_ty, mutable)) = builder.locals.get(name.as_str()).cloned() {
+                // Variable stack ordinaire → promouvoir vers une cellule
+                // verrouillée (`__alloc_locked_cell`, jamais `__alloc_obj`
+                // seul : cette valeur est désormais lue/écrite depuis le
+                // scope appelant ET le corps try, potentiellement après un
+                // `raise`/`longjmp` qui n'a rien à voir avec le thread —
+                // voir docs/roadmap.d/memoire-concurrence-threads.md pour le
+                // même choix déjà fait pour les closures).
+                let heap_ptr = builder.new_value();
+                builder.emit(Inst::Call {
+                    dest:   Some(heap_ptr.clone()),
+                    func:   "__alloc_locked_cell".into(),
+                    args:   vec![],
+                    ret_ty: IrType::Ptr,
+                });
+                let cur_val = builder.new_value();
+                builder.emit(Inst::Load { dest: cur_val.clone(), ptr: slot, ty: slot_ty.clone() });
+                builder.emit(Inst::Call {
+                    dest:   None,
+                    func:   "__locked_cell_set".into(),
+                    args:   vec![heap_ptr.clone(), cur_val],
+                    ret_ty: IrType::Void,
+                });
+                // Rediriger les futurs accès dans le scope appelant vers le tas
+                builder.locals.insert(name.clone(), (heap_ptr.clone(), slot_ty, mutable));
+                builder.heap_promoted.insert(name.clone());
+                heap_ptr
+            } else if let Some((env_val, cap_idx, cap_ty)) = builder.captured_vars.get(name.as_str()).cloned() {
+                // Déjà une capture d'une closure englobante : son slot dans
+                // l'env EST déjà un pointeur verrouillé (voir Expr::Nameless)
+                // — le relire simplement, aucune nouvelle cellule à créer.
+                let ptr = builder.new_value();
                 builder.emit(Inst::GetField {
-                    dest:   v.clone(),
+                    dest:   ptr.clone(),
                     obj:    env_val,
                     field:  format!("__cap_{}", cap_idx),
                     ty:     cap_ty,
                     offset: (cap_idx * 8) as i32,
                 });
-                v
+                ptr
             } else {
-                // Capture non trouvée dans locals ni captured_vars - ne devrait pas arriver
+                // Capture non trouvée nulle part — ne devrait pas arriver
                 let v = builder.new_value();
                 builder.emit(Inst::ConstInt { dest: v.clone(), value: 0 });
                 v
             };
-            
             // Calculer l'adresse de l'élément : array_ptr + idx*8
             let offset = builder.new_value();
             builder.emit(Inst::ConstInt { dest: offset.clone(), value: (idx * 8) as i64 });
-            
+
             let elem_addr = builder.new_value();
             builder.emit(Inst::Add {
                 dest: elem_addr.clone(),
@@ -405,9 +546,9 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
                 rhs: offset,
                 ty: IrType::I64,
             });
-            
-            // Stocker la valeur à cette adresse
-            builder.emit(Inst::Store { ptr: elem_addr, src: val });
+
+            // Stocker le pointeur (pas la valeur) à cette adresse
+            builder.emit(Inst::Store { ptr: elem_addr, src: heap_ptr });
         }
         
         // Appeler __ocara_try_exec_with_captures avec le pointeur vers le tableau

@@ -2552,12 +2552,21 @@ pub extern "C" fn __ocara_try_exec_with_captures(
                 ((*frame_ptr).error_val, (*frame_ptr).error_type)
             };
             stack.depth.set(depth);
+            // Le gestionnaire reçoit ici le MÊME pointeur de captures que le
+            // corps (voir `lower_try` / `src/lower/stmt.d/statements.d/exceptions.rs`) :
+            // corps et gestionnaire sont deux fonctions IR distinctes qui
+            // doivent partager EXACTEMENT le même tableau de cellules
+            // verrouillées pour qu'une variable modifiée dans l'un (le plus
+            // souvent le corps) reste visible dans l'autre et après le try.
+            // `handler_fn` n'a ce 3ᵉ paramètre que si le lowering a détecté
+            // des captures (corps ET/OU gestionnaires) — sinon il garde la
+            // signature à 2 arguments appelée par `__ocara_try_exec`.
             unsafe {
-                let handler: unsafe extern "C" fn(i64, i64) =
+                let handler: unsafe extern "C" fn(i64, i64, *const i64) =
                     std::mem::transmute(handler_fn as usize);
-                handler(ev, et);
+                handler(ev, et, captures_ptr);
             }
-            
+
             // Vérifier si le handler a fait un return explicite
             let (has_returned, return_value) = handler_has_returned();
             if has_returned {
@@ -2591,7 +2600,12 @@ pub extern "C" fn __ocara_fail(val: i64, type_name: i64) {
 
     if !jumped {
         // Aucun try actif : message d'erreur + exit
-        let type_str = unsafe { ptr_to_str(type_name) }.to_string();
+        // `type_name` porte la chaîne d'ancêtres de la classe levée, elle-même
+        // en premier (voir IrModule::ancestor_chain/lower_raise) — n'afficher
+        // que ce premier maillon (le nom réellement levé), pas toute la
+        // chaîne de parents.
+        let type_str = unsafe { ptr_to_str(type_name) }
+            .split('|').next().unwrap_or("").to_string();
         let max_width = 46;
         let char_count = type_str.chars().count();
         
@@ -2624,6 +2638,14 @@ pub extern "C" fn __ocara_fail(val: i64, type_name: i64) {
     }
 }
 
+/// `stored` porte la chaîne d'ancêtres de la classe réellement levée (elle-
+/// même incluse), du plus spécifique au plus général, jointe par `|` (ex.
+/// `"FileNotFound|FileException|Exception"` — voir IrModule::ancestor_chain,
+/// lower_raise). Un filtre sur une classe PARENTE doit attraper une sous-
+/// classe : on cherche `filter` comme un des maillons de la chaîne, pas une
+/// égalité stricte avec la valeur entière de `stored` — voir
+/// docs/roadmap.d/langage-exceptions.md. Reste compatible avec un `stored`
+/// à un seul maillon (pas de `|`) : le split ne renvoie alors que lui-même.
 #[unsafe(no_mangle)]
 pub extern "C" fn __ocara_type_matches(stored: i64, filter: i64) -> i64 {
     if filter == 0 { return 1; } // pas de filtre → accepte tout
@@ -2631,7 +2653,7 @@ pub extern "C" fn __ocara_type_matches(stored: i64, filter: i64) -> i64 {
     unsafe {
         let s = ptr_to_str(stored);
         let f = ptr_to_str(filter);
-        if s == f { 1 } else { 0 }
+        if s.split('|').any(|link| link == f) { 1 } else { 0 }
     }
 }
 
@@ -2882,6 +2904,124 @@ pub extern "C" fn __cmp_ge_strict(lhs: i64, rhs: i64) -> i64 {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Arithmétique dynamique (`+`/`-`/`*`/`/`/`%`) avec un opérande `mixed`
+// ────────────────────────────────────────────────────────────────────────────
+// Comme pour les comparaisons strictes ci-dessus, `mixed` n'est pas taggé au
+// niveau du type IR statique (toujours réduit à `Ptr`, voir `IrType::from_ast`)
+// — mais un `mixed` contenant un `int` est stocké BRUT (jamais boxé,
+// `box_for_any` ne boxe que float/bool), donc numériquement correct tel quel ;
+// un `mixed` contenant un `float`/`bool` est boxé (`__box_float`/`__box_bool`,
+// tag dans les 2 bits bas, voir plus haut) et doit être déballé avant tout
+// calcul. Sans ce dispatch, le lowering traitait soit AUCUN opérande Ptr comme
+// numérique (le cas de `+`, qui supposait systématiquement une concaténation
+// string dès qu'un opérande est `Ptr` — donc aussi pour un `mixed` contenant un
+// entier), soit ne déballait JAMAIS un `mixed` boxé (float/bool) avant `-`/`*`/
+// `/`/`%`, qui opéraient alors sur le bit pattern du pointeur boxé lui-même.
+
+/// Déballe un opérande potentiellement `mixed` en entier — un entier brut (pas
+/// boxé) est déjà correct tel quel ; un float/bool boxé est reconverti ; un
+/// vrai pointeur tas (string/array/map/objet, déjà mal typé dans un contexte
+/// arithmétique) est laissé tel quel (comportement dégradé mais déterministe,
+/// identique au bit brut déjà utilisé avant ce correctif pour ce cas).
+#[inline]
+fn unbox_numeric_i64(val: i64) -> i64 {
+    if is_float_box(val) {
+        unsafe { unbox_float(val) as i64 }
+    } else if is_bool_box(val) {
+        if unsafe { unbox_bool(val) } { 1 } else { 0 }
+    } else {
+        val
+    }
+}
+
+/// Comme `unbox_numeric_i64`, mais pour un contexte flottant — un entier brut
+/// est converti numériquement (jamais un bitcast).
+#[inline]
+fn unbox_numeric_f64(val: i64) -> f64 {
+    if is_float_box(val) {
+        unsafe { unbox_float(val) }
+    } else if is_bool_box(val) {
+        if unsafe { unbox_bool(val) } { 1.0 } else { 0.0 }
+    } else {
+        val as f64
+    }
+}
+
+/// Vrai si `val` est un vrai objet tas (string/array/map/objet/fonction) —
+/// PAS un entier brut, ni un float/bool boxé (voir `get_value_type`, déjà
+/// utilisé par les comparaisons strictes : distingue fiablement, via les tags
+/// réels des allocations, un pointeur tas valide d'un entier qui y ressemble).
+#[inline]
+fn is_heap_object(val: i64) -> bool {
+    get_value_type(val) > 1
+}
+
+/// Déballe un opérande `mixed`/Ptr en entier pour l'utiliser comme opérande
+/// direct de `-`/`*`/`/`/`%` (voir `unbox_numeric_i64`) — le côté à type
+/// statique connu (`int`/`float`/`bool`) d'une expression n'a jamais besoin de
+/// passer par cette fonction, seul un opérande réellement `Ptr` (mixed, ou
+/// littéral string/array/... déjà mal typé dans ce contexte) en a besoin.
+#[unsafe(no_mangle)]
+pub extern "C" fn __mixed_to_int(val: i64) -> i64 {
+    unbox_numeric_i64(val)
+}
+
+/// Comme `__mixed_to_int`, pour un contexte flottant.
+#[unsafe(no_mangle)]
+pub extern "C" fn __mixed_to_float(val: i64) -> f64 {
+    unbox_numeric_f64(val)
+}
+
+/// `+` quand au moins un opérande est `Ptr` (mixed, ou un `string`/`array`/...
+/// réellement connu) : décide DYNAMIQUEMENT, au lieu de supposer
+/// systématiquement une concaténation string comme avant ce correctif — un
+/// `mixed` contenant un nombre doit s'additionner numériquement, pas se
+/// stringifier. Concaténation conservée (comportement historique inchangé)
+/// dès qu'un côté est un vrai objet tas (string/array/map/objet/fonction) ;
+/// sinon, addition numérique réelle (flottante si l'un des deux est un float
+/// boxé, entière sinon). Retourne une valeur "mixed" auto-décrite (pointeur
+/// string, entier brut, ou float boxé) — au même titre que n'importe quelle
+/// autre valeur `mixed` : c'est au consommateur (affectation vers une cible
+/// `int`/`float` concrète via `box_for_any`, ou un opérateur arithmétique
+/// englobant via `__mixed_to_int`/`__mixed_to_float`) de la déballer si besoin.
+#[unsafe(no_mangle)]
+pub extern "C" fn __dyn_add(a: i64, b: i64) -> i64 {
+    if is_heap_object(a) || is_heap_object(b) {
+        return unsafe { alloc_str(&(val_to_string(a) + &val_to_string(b))) };
+    }
+    if is_float_box(a) || is_float_box(b) {
+        return __box_float((unbox_numeric_f64(a) + unbox_numeric_f64(b)).to_bits() as i64);
+    }
+    unbox_numeric_i64(a) + unbox_numeric_i64(b)
+}
+
+/// `-`/`*`/`/` quand au moins un opérande est `Ptr` (mixed — jamais un vrai
+/// `string`/`array`/`map`/objet ici : la sema rejette déjà ces combinaisons
+/// pour un type concrètement connu, voir la doc de `lower::expr::lower`).
+/// Contrairement à `+`, pas de possibilité de concaténation à écarter : la
+/// seule question est entier vs flottant, décidée ICI dynamiquement
+/// (`is_float_box` sur CHAQUE opérande) plutôt que par le type statique de
+/// l'AUTRE opérande — un `mixed` contenant un float combiné à un `int` connu
+/// aurait sinon été silencieusement tronqué en entier (voir
+/// docs/roadmap.d/langage-mixed-arithmetic.md). Retourne, comme `__dyn_add`,
+/// une valeur "mixed" auto-décrite (entier brut ou float boxé).
+macro_rules! dyn_arith_op {
+    ($name:ident, $op:tt) => {
+        #[unsafe(no_mangle)]
+        pub extern "C" fn $name(a: i64, b: i64) -> i64 {
+            if is_float_box(a) || is_float_box(b) {
+                __box_float((unbox_numeric_f64(a) $op unbox_numeric_f64(b)).to_bits() as i64)
+            } else {
+                unbox_numeric_i64(a) $op unbox_numeric_i64(b)
+            }
+        }
+    };
+}
+dyn_arith_op!(__dyn_sub, -);
+dyn_arith_op!(__dyn_mul, *);
+dyn_arith_op!(__dyn_div, /);
+
+// ────────────────────────────────────────────────────────────────────────────
 // ocara.JSON — Sérialisation et désérialisation JSON
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -2948,11 +3088,31 @@ fn value_to_json(val: i64) -> JsonValue {
     if val == 0 {
         return JsonValue::Null;
     }
-    
+
+    // `float`/`bool` boxés (voir `__box_float`/`__box_bool`) : à vérifier
+    // AVANT `get_value_type`, qui les classe tous les deux (avec un `int`
+    // brut) dans le même panier "primitif" (1) sans les distinguer — sans ce
+    // déballage, un float/bool construit par un littéral `array<mixed>`/
+    // `map<string,mixed>` (voir lower_array_literal/lower_map_literal)
+    // ressortait comme un entier correspondant à l'adresse du pointeur boxé
+    // (confirmé par reproduction — voir
+    // docs/roadmap.d/langage-mixed-literal-stringification.md).
+    if is_float_box(val) {
+        let f = unsafe { unbox_float(val) };
+        return serde_json::Number::from_f64(f).map(JsonValue::Number).unwrap_or(JsonValue::Null);
+    }
+    if is_bool_box(val) {
+        return JsonValue::Bool(unsafe { unbox_bool(val) });
+    }
+
     let typ = get_value_type(val);
-    
+
     match typ {
-        1 => {  // Primitif (int ou bool)
+        1 => {  // Primitif : entier brut (float/bool boxés déjà traités ci-dessus).
+            // `val == 1`/`== 0` reste une heuristique imprécise pour un
+            // bool JAMAIS boxé (limitation pré-existante, non résolue ici —
+            // voir __is_bool) ; conservée telle quelle pour ne rien changer
+            // au comportement déjà en place pour ce cas résiduel.
             if val == 1 {  // true
                 JsonValue::Bool(true)
             } else if val == 0 {  // false (mais déjà traité par le test au début)

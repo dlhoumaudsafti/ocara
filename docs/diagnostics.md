@@ -480,6 +480,66 @@ t.join()   // ❌ 't' déjà finalisée
 
 ---
 
+### E23 — Classe de filtre `on ... is` introuvable
+
+```
+fichier.oc:8:7: error: 'TypoException' is not a known class — this 'on e is TypoException' handler would never match anything
+```
+
+`on e is X` où `X` ne correspond à aucune classe connue (ni classe utilisateur du programme, ni classe d'exception builtin — celles-ci sont toutes reconnues sans import explicite). Un typo rendait jusqu'ici ce handler silencieusement mort : aucun `raise` ne peut jamais lui correspondre, sans le moindre avertissement.
+
+```ocara
+try {
+    raise "boom"
+} on e is TypoException {   // ❌ 'TypoException' n'existe pas
+    IO::writeln("jamais atteint")
+}
+```
+
+**Correction :** corriger le nom de la classe, ou déclarer la classe si elle doit être définie par le programme.
+
+---
+
+### E24 — Handler catch-all mal positionné
+
+```
+fichier.oc:9:7: error: a catch-all 'on' handler (without 'is') must be the last one in this try/on chain — handlers after it would never be reached
+```
+
+Un handler `on e { }` (sans `is`, donc catch-all) apparaît avant un autre handler dans la même chaîne `try`/`on` — il filtre déjà tout, rendant les handlers suivants inatteignables (voir docs/EBNF.md §28.2, qui impose cet ordre).
+
+```ocara
+try {
+    File::read("/nope")
+} on e {
+    IO::writeln("générique")
+} on e is FileException {   // ❌ jamais atteint : le catch-all précédent absorbe déjà tout
+    IO::writeln("spécifique")
+}
+```
+
+**Correction :** placer le handler catch-all en dernier dans la chaîne.
+
+---
+
+### E25 — Ressource déjà finalisée manuellement
+
+```
+fichier.oc:9:6: error: 'm' ('Mutex') was already '.destroy()'ed — calling it a second time would use a native handle already reclaimed
+```
+
+`.destroy()` (`Mutex`) ou `.close()` (`SQLite`/`MySQL`/`MariaDB`) est appelé une seconde fois sur la même ressource — généralisation de E22 (`Thread`). Le premier appel a déjà libéré le handle natif côté runtime ; un second appel produit un SEGFAULT confirmé avant ce diagnostic.
+
+```ocara
+scoped m:Mutex = use Mutex()
+m.destroy()
+m.destroy()   // ❌ 'm' déjà finalisée
+```
+
+**Correction :** appeler `.destroy()`/`.close()` une seule fois par ressource.
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.

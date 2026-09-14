@@ -126,6 +126,31 @@ est réutilisable pour tous les `drawTexture`/`drawTextureScaled` suivants,
 frame après frame. La texture reste en mémoire jusqu'à la fin du programme
 (pas de méthode pour la libérer en Palier 2 — voir [Limites](#limites-du-palier-1)).
 
+### Sprite sheets / tilesets : `drawTextureRegion`
+
+`drawTexture`/`drawTextureScaled` dessinent toujours la texture **entière**.
+Pour une planche contenant plusieurs sprites/tuiles (un personnage animé, un
+tileset de décor), `drawTextureRegion` dessine un **sous-rectangle**
+`(srcX, srcY, srcW, srcH)` de la texture, redimensionné dans le rectangle
+destination `(x, y, w, h)` — un seul `loadTexture` pour toute la planche,
+au lieu d'un fichier PNG par frame/tuile :
+
+```ocara
+var sheetId:int = win.loadTexture("character.png")   // planche 4 colonnes x 2 lignes
+
+// Frame 2 de la ligne "marche" (chaque case fait 64x64) :
+win.drawTextureRegion(sheetId, 2 * 64, 0, 64, 64,   // source : case (2, 0)
+                                 400, 300, 64, 64,     // destination à l'écran
+                                 false)                // pas de retournement
+```
+
+`flipH` (dernier paramètre) retourne la texture horizontalement au rendu —
+utile pour un personnage qui regarde à gauche sans dupliquer les images
+(chaque frame "gauche" serait sinon une copie miroir à générer et charger en
+plus). Voir [examples/advanced/game_sdl](../../examples/advanced/game_sdl/)
+pour un exemple complet (personnage animé + décor en parallax, tout dessiné
+depuis deux planches uniques via `drawTextureRegion`).
+
 ## Afficher du texte (Palier 2)
 
 ```ocara
@@ -285,6 +310,7 @@ Convention runtime : `SDL_<méthode>`.
 | `textureWidth(textureId:int)` / `textureHeight(textureId:int)` → `int` | Dimensions natives d'une texture chargée |
 | `drawTexture(textureId:int, x:int, y:int)` → `void` | Dessine une texture à sa taille native |
 | `drawTextureScaled(textureId:int, x:int, y:int, w:int, h:int)` → `void` | Dessine une texture redimensionnée |
+| `drawTextureRegion(textureId:int, srcX:int, srcY:int, srcW:int, srcH:int, x:int, y:int, w:int, h:int, flipH:bool)` → `void` | Dessine un sous-rectangle de la texture (sprite sheet/tileset), redimensionné, avec retournement horizontal optionnel |
 | `loadFont(path:string, size:int)` → `int` | Charge une police (.ttf/.otf) à une taille donnée, retourne un handle |
 | `drawText(fontId:int, text:string, x:int, y:int, r:int, g:int, b:int, a:int)` → `void` | Rend une ligne de texte à la position et couleur données |
 | `isButtonPressed(gamepadId:int, button:string)` → `bool` | État direct d'un bouton de manette |

@@ -71,25 +71,42 @@ pub unsafe extern "C" fn SQLite_execute(self_ptr: i64, query_ptr: i64) {
     unsafe {
         let db = &*(self_ptr as *const OcaraSQLiteDatabase);
         let query = ptr_to_str(query_ptr).to_string();
-        
-        let conn = db.conn.lock().unwrap();
-        
-        match conn.execute(&query, params![]) {
-            Ok(affected) => {
-                *db.affected_rows.lock().unwrap() = affected as i64;
-                
-                // Récupérer le dernier ID inséré si applicable
-                if query.trim().to_uppercase().starts_with("INSERT") {
-                    *db.last_insert_id.lock().unwrap() = conn.last_insert_rowid();
+
+        // Le verrou (`MutexGuard`) est entièrement scopé à cette closure et
+        // se relâche normalement (Drop) à sa sortie, qu'elle réussisse ou
+        // échoue — AVANT tout appel à throw_sqlite_exception, qui saute par
+        // `longjmp` et ne laisserait jamais ce `Drop` s'exécuter s'il restait
+        // à faire à ce moment-là : verrou tenu indéfiniment, deadlock
+        // confirmé par reproduction sur la requête suivante (voir
+        // docs/roadmap.d/memoire-deadlocks-raise.md). Tenter de `drop()`
+        // explicitement le guard dans une branche `Err` en gardant la
+        // connexion nommée pour l'autre se heurte au borrow-checker dès que
+        // la valeur retournée (ici aucune, mais `Statement`/`Rows` dans
+        // query/queryOne) porte la durée de vie de la connexion — cette
+        // closure est la façon la plus simple de garantir l'ordre sans ça.
+        let result: Result<(i64, Option<i64>), String> = (|| {
+            let conn = db.conn.lock().unwrap();
+            match conn.execute(&query, params![]) {
+                Ok(affected) => {
+                    let last_id = if query.trim().to_uppercase().starts_with("INSERT") {
+                        Some(conn.last_insert_rowid())
+                    } else {
+                        None
+                    };
+                    Ok((affected as i64, last_id))
+                }
+                Err(e) => Err(format!("Failed to execute query '{}': {}", query, e)),
+            }
+        })();
+
+        match result {
+            Ok((affected, last_id)) => {
+                *db.affected_rows.lock().unwrap() = affected;
+                if let Some(id) = last_id {
+                    *db.last_insert_id.lock().unwrap() = id;
                 }
             }
-            Err(e) => {
-                throw_sqlite_exception(
-                    &format!("Failed to execute query '{}': {}", query, e),
-                    ERR_EXECUTE,
-                    "SQLite"
-                );
-            }
+            Err(msg) => throw_sqlite_exception(&msg, ERR_EXECUTE, "SQLite"),
         }
     }
 }
@@ -101,70 +118,63 @@ pub unsafe extern "C" fn SQLite_query(self_ptr: i64, query_ptr: i64) -> i64 {
     unsafe {
         let db = &*(self_ptr as *const OcaraSQLiteDatabase);
         let query = ptr_to_str(query_ptr).to_string();
-        
-        let mut conn_guard = db.conn.lock().unwrap();
-        let conn = &mut *conn_guard;
-        
-        let result = conn.prepare(&query);
-        let mut stmt = match result {
-            Ok(s) => s,
-            Err(e) => {
-                throw_sqlite_exception(
-                    &format!("Failed to prepare query '{}': {}", query, e),
-                    ERR_QUERY,
-                    "SQLite"
-                );
+
+        // Voir le commentaire de SQLite_execute : le verrou est entièrement
+        // scopé à cette closure (y compris `stmt`/`rows`, qui en empruntent
+        // la durée de vie) et se relâche normalement à sa sortie, avant tout
+        // throw_sqlite_exception.
+        let result: Result<i64, String> = (|| {
+            let mut conn_guard = db.conn.lock().unwrap();
+            let conn = &mut *conn_guard;
+
+            let mut stmt = conn.prepare(&query)
+                .map_err(|e| format!("Failed to prepare query '{}': {}", query, e))?;
+
+            let column_count = stmt.column_count();
+            let column_names: Vec<String> = (0..column_count)
+                .map(|i| stmt.column_name(i).unwrap().to_string())
+                .collect();
+
+            let mut rows = stmt.query(params![])
+                .map_err(|e| format!("Failed to execute query '{}': {}", query, e))?;
+
+            // Créer un array Ocara pour stocker les résultats
+            let result_array = crate::__array_new();
+
+            while let Ok(Some(row)) = rows.next() {
+                // Créer une map pour cette ligne
+                let row_map = crate::__map_new();
+
+                for (i, col_name) in column_names.iter().enumerate() {
+                    let key = alloc_str(col_name);
+
+                    // Essayer de lire différents types de valeurs
+                    let value = if let Ok(v) = row.get::<_, i64>(i) {
+                        v
+                    } else if let Ok(v) = row.get::<_, f64>(i) {
+                        // Convertir float en i64 (représentation bits)
+                        v.to_bits() as i64
+                    } else if let Ok(v) = row.get::<_, String>(i) {
+                        alloc_str(&v)
+                    } else {
+                        // NULL ou type non supporté → stocker 0
+                        0
+                    };
+
+                    crate::__map_set(row_map, key, value);
+                }
+
+                crate::__array_push(result_array, row_map);
             }
-        };
-        
-        let column_count = stmt.column_count();
-        let column_names: Vec<String> = (0..column_count)
-            .map(|i| stmt.column_name(i).unwrap().to_string())
-            .collect();
-        
-        let rows_result = stmt.query(params![]);
-        let mut rows = match rows_result {
-            Ok(r) => r,
-            Err(e) => {
-                throw_sqlite_exception(
-                    &format!("Failed to execute query '{}': {}", query, e),
-                    ERR_QUERY,
-                    "SQLite"
-                );
-            }
-        };
-        
-        // Créer un array Ocara pour stocker les résultats
-        let result_array = crate::__array_new();
-        
-        while let Ok(Some(row)) = rows.next() {
-            // Créer une map pour cette ligne
-            let row_map = crate::__map_new();
-            
-            for (i, col_name) in column_names.iter().enumerate() {
-                let key = alloc_str(col_name);
-                
-                // Essayer de lire différents types de valeurs
-                let value = if let Ok(v) = row.get::<_, i64>(i) {
-                    v
-                } else if let Ok(v) = row.get::<_, f64>(i) {
-                    // Convertir float en i64 (représentation bits)
-                    v.to_bits() as i64
-                } else if let Ok(v) = row.get::<_, String>(i) {
-                    alloc_str(&v)
-                } else {
-                    // NULL ou type non supporté → stocker 0
-                    0
-                };
-                
-                crate::__map_set(row_map, key, value);
-            }
-            
-            crate::__array_push(result_array, row_map);
+
+            *db.affected_rows.lock().unwrap() = crate::__array_len(result_array);
+            Ok(result_array)
+        })();
+
+        match result {
+            Ok(result_array) => result_array,
+            Err(msg) => throw_sqlite_exception(&msg, ERR_QUERY, "SQLite"),
         }
-        
-        *db.affected_rows.lock().unwrap() = crate::__array_len(result_array);
-        result_array
     }
 }
 
@@ -175,68 +185,58 @@ pub unsafe extern "C" fn SQLite_queryOne(self_ptr: i64, query_ptr: i64) -> i64 {
     unsafe {
         let db = &*(self_ptr as *const OcaraSQLiteDatabase);
         let query = ptr_to_str(query_ptr).to_string();
-        
-        let mut conn_guard = db.conn.lock().unwrap();
-        let conn = &mut *conn_guard;
-        
-        let result = conn.prepare(&query);
-        let mut stmt = match result {
-            Ok(s) => s,
-            Err(e) => {
-                throw_sqlite_exception(
-                    &format!("Failed to prepare query '{}': {}", query, e),
-                    ERR_QUERY,
-                    "SQLite"
-                );
-            }
-        };
-        
-        let column_count = stmt.column_count();
-        let column_names: Vec<String> = (0..column_count)
-            .map(|i| stmt.column_name(i).unwrap().to_string())
-            .collect();
-        
-        let rows_result = stmt.query(params![]);
-        let mut rows = match rows_result {
-            Ok(r) => r,
-            Err(e) => {
-                throw_sqlite_exception(
-                    &format!("Failed to execute query '{}': {}", query, e),
-                    ERR_QUERY,
-                    "SQLite"
-                );
-            }
-        };
-        
-        // Créer une map pour stocker le résultat
-        let row_map = crate::__map_new();
-        
-        let count = if let Ok(Some(row)) = rows.next() {
-            for (i, col_name) in column_names.iter().enumerate() {
-                let key = alloc_str(col_name);
-                
-                // Essayer de lire différents types de valeurs
-                let value = if let Ok(v) = row.get::<_, i64>(i) {
-                    v
-                } else if let Ok(v) = row.get::<_, f64>(i) {
-                    // Convertir float en i64 (représentation bits)
-                    v.to_bits() as i64
-                } else if let Ok(v) = row.get::<_, String>(i) {
-                    alloc_str(&v)
-                } else {
-                    // NULL ou type non supporté → stocker 0
-                    0
-                };
-                
-                crate::__map_set(row_map, key, value);
-            }
-            1
-        } else {
-            0
-        };
-        
-        *db.affected_rows.lock().unwrap() = count;
-        row_map
+
+        // Voir le commentaire de SQLite_execute.
+        let result: Result<i64, String> = (|| {
+            let mut conn_guard = db.conn.lock().unwrap();
+            let conn = &mut *conn_guard;
+
+            let mut stmt = conn.prepare(&query)
+                .map_err(|e| format!("Failed to prepare query '{}': {}", query, e))?;
+
+            let column_count = stmt.column_count();
+            let column_names: Vec<String> = (0..column_count)
+                .map(|i| stmt.column_name(i).unwrap().to_string())
+                .collect();
+
+            let mut rows = stmt.query(params![])
+                .map_err(|e| format!("Failed to execute query '{}': {}", query, e))?;
+
+            // Créer une map pour stocker le résultat
+            let row_map = crate::__map_new();
+
+            let count = if let Ok(Some(row)) = rows.next() {
+                for (i, col_name) in column_names.iter().enumerate() {
+                    let key = alloc_str(col_name);
+
+                    // Essayer de lire différents types de valeurs
+                    let value = if let Ok(v) = row.get::<_, i64>(i) {
+                        v
+                    } else if let Ok(v) = row.get::<_, f64>(i) {
+                        // Convertir float en i64 (représentation bits)
+                        v.to_bits() as i64
+                    } else if let Ok(v) = row.get::<_, String>(i) {
+                        alloc_str(&v)
+                    } else {
+                        // NULL ou type non supporté → stocker 0
+                        0
+                    };
+
+                    crate::__map_set(row_map, key, value);
+                }
+                1
+            } else {
+                0
+            };
+
+            *db.affected_rows.lock().unwrap() = count;
+            Ok(row_map)
+        })();
+
+        match result {
+            Ok(row_map) => row_map,
+            Err(msg) => throw_sqlite_exception(&msg, ERR_QUERY, "SQLite"),
+        }
     }
 }
 

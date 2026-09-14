@@ -81,7 +81,25 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                     return IrType::F64;
                 }
             }
-            if matches!(op, BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod) {
+            // `-`/`*`/`/` : même règle que `+` ci-dessus — propager `Ptr` si
+            // un opérande est `mixed` (voir `__dyn_sub`/`__dyn_mul`/`__dyn_div`
+            // dans lower::expr::lower, qui décident dynamiquement entier vs
+            // flottant plutôt que de figer ça au type statique de l'AUTRE
+            // opérande). `%` reste toujours I64/F64 selon le type statique
+            // connu : `Inst::Mod` n'a de toute façon aucun support flottant
+            // (voir emit_arithmetic), un opérande `mixed` y est simplement
+            // déballé en entier.
+            if matches!(op, BinOp::Sub | BinOp::Mul | BinOp::Div) {
+                let lt = expr_ir_type(builder, left);
+                let rt = expr_ir_type(builder, right);
+                if matches!(lt, IrType::Ptr) || matches!(rt, IrType::Ptr) {
+                    return IrType::Ptr;
+                }
+                if matches!(lt, IrType::F64) || matches!(rt, IrType::F64) {
+                    return IrType::F64;
+                }
+            }
+            if matches!(op, BinOp::Mod) {
                 let lt = expr_ir_type(builder, left);
                 let rt = expr_ir_type(builder, right);
                 if matches!(lt, IrType::F64) || matches!(rt, IrType::F64) {

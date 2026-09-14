@@ -867,7 +867,7 @@ Toutes les allocations heap (string, array, map, objet, fat-pointer) sont préc�
 **Limitations actuelles (v0.1.0) :**
 
 - `is float` fonctionne uniquement quand le type est connu **statiquement** à la compilation. Dans un contexte `mixed` dynamique, seuls les floats explicitement boxés (via `__box_float`) sont détectables.
-- `is bool` peut être confondu avec les `int` 0 et 1.
+- `is bool` reconnaît un bool explicitement boxé (via `__box_bool` — le cas d'un `bool` littéral dans un `array<mixed>`/`map<K,mixed>`, ou affecté à une variable `mixed`) ; un bool jamais boxé reste indistinguable des `int` 0 et 1.
 - `is ClassName` vérifie seulement que la valeur est une instance d'**un** objet (tag `TAG_OBJECT`), sans distinguer les classes entre elles. Pour un narrowing fin par classe, utiliser les patterns dans `on … is ClassName` dans les blocs `try/on`.
 
 ### 6.4 Annotation de type
@@ -1977,7 +1977,7 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
   - `listen()`, `emit()`, `dialog()`, `notify()`, `getTitle()`/`setTitle()`, `getWidth()`/`setWidth()`, `getHeight()`/`setHeight()`, `getUrl()`/`setUrl()`, `open()`/`close()`/`isOpen()`, `focus()`/`hasFocus()`, `minimize()`/`maximize()`/`restore()`/`isMinimized()`/`isMaximized()` — encore simulés (état interne, sans effet sur la fenêtre réelle)
 - **SDL** — Fenêtrage + rendu 2D + entrées + images + texte + manettes + audio via SDL3 (classe d'instance ; Paliers 1-3, voir [SDL.md](builtins/SDL.md)) — entièrement fonctionnel, rien de simulé
   - `pollEvent()`, `setDrawColor()`/`clear()`/`fillRect()`/`drawRect()`/`drawLine()`/`drawPoint()`/`present()`, `isOpen()`/`close()`, `getWidth()`/`getHeight()`/`getTitle()`/`setTitle()`, `SDL::ticks()`/`SDL::delay()` (statiques)
-  - Palier 2 : `loadTexture()`/`textureWidth()`/`textureHeight()`/`drawTexture()`/`drawTextureScaled()` (SDL_image), `loadFont()`/`drawText()` (SDL_ttf)
+  - Palier 2 : `loadTexture()`/`textureWidth()`/`textureHeight()`/`drawTexture()`/`drawTextureScaled()`/`drawTextureRegion()` (SDL_image), `loadFont()`/`drawText()` (SDL_ttf)
   - Palier 3 : `isButtonPressed()`/`getAxis()` (SDL_gamepad, + événements `pollEvent` dédiés), `loadSound()`/`playSound()`/`playMusic()`/`pauseMusic()`/`resumeMusic()`/`stopMusic()`/`setMusicVolume()` (SDL_mixer)
 
 #### Gestion des erreurs
@@ -3223,7 +3223,9 @@ try {
 }
 ```
 
-> Le handler générique (`on e` sans `is`) doit toujours être placé en dernier.
+> Le handler générique (`on e` sans `is`) doit toujours être placé en dernier — **imposé par le compilateur** (sinon les handlers suivants ne seraient jamais atteints, voir diagnostic E24). La classe passée à `is` doit également correspondre à une classe connue (classe du programme ou classe d'exception builtin) — un nom inexistant est rejeté à la compilation (E23) plutôt que de produire un handler silencieusement mort.
+>
+> **Hiérarchie réelle** : un filtre sur une classe **parente** attrape une instance d'une **sous-classe** — `on e is Parent` attrape une instance de `Enfant extends Parent`, transitivement (`extends` sur plusieurs niveaux fonctionne). Vrai aussi pour les ~20 classes d'exception builtin, qui héritent toutes implicitement de `Exception` : `on e is Exception` attrape n'importe laquelle d'entre elles (`FileException`, `SDLException`, ...), qu'elle soit levée par du code Ocara (`raise`) ou par le runtime lui-même (ex. `File::read` sur un fichier inexistant). Le type statiquement connu au moment du `raise` (littéral `use Classe(...)` **ou** variable dont la classe est connue) porte sa chaîne d'ancêtres complète ; un `raise` d'une expression dont le type n'est pas connu statiquement (`mixed`, valeur calculée...) reste, lui, seulement attrapable par un handler générique (`on e` sans `is`).
 
 ### 28.3 `raise`
 

@@ -94,6 +94,8 @@ pub fn builtin_class(name: &str) -> Option<ClassInfo> {
         "DotEnvException" => Some(exception::dotenv_exception_class()),
         "YAML"        => Some(yaml::class()),
         "YAMLException" => Some(exception::yaml_exception_class()),
+        "SDLException" => Some(exception::sdl_exception_class()),
+        "TauriException" => Some(exception::tauri_exception_class()),
         _             => None,
     }
 }
@@ -151,5 +153,7 @@ pub fn all_builtins() -> Vec<(&'static str, ClassInfo)> {
         ("DotEnvException", exception::dotenv_exception_class()),
         ("YAML",        yaml::class()),
         ("YAMLException", exception::yaml_exception_class()),
+        ("SDLException", exception::sdl_exception_class()),
+        ("TauriException", exception::tauri_exception_class()),
     ]
 }
