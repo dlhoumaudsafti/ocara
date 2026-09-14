@@ -8,6 +8,7 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 ## Fait récemment
 
+- ✅ **`free_str` ne recalcule plus une taille de libération potentiellement fausse** — la longueur d'une string possédée était retrouvée en cherchant son premier octet NUL, sous-estimée si la string contient un NUL interne (`\0`, un échappement de chaîne Ocara valide) → `Layout` faux passé à `dealloc` (UB, risque de corruption du tas). `alloc_str` stocke maintenant la vraie longueur dans une case dédiée du header (le tag reste à son offset habituel, invisible du reste du runtime). En réexaminant l'autre fonction citée par ce point (`__object_free`), aucun risque réel : `n_fields` vient d'une seule source relue identiquement à l'allocation et à la libération. `examples/tests/34_string_nul_safetyTest.oc` : stress-test dédié, aucune régression.
 - ✅ **Vraie hiérarchie d'exceptions** — `on e is Parent` attrape maintenant une instance d'une sous-classe (`Enfant extends Parent`, y compris sur plusieurs niveaux), et ça vaut aussi pour les ~19 exceptions builtin (implicitement sous-classes d'`Exception`) : `on e is Exception` attrape n'importe laquelle d'entre elles, qu'elle soit levée par `raise` (littéral `use Classe(...)` ou variable dont la classe est connue statiquement) ou par le runtime lui-même (ex. `File::read` sur un fichier inexistant). Auparavant, `__ocara_type_matches` était une égalité de chaînes stricte, sans aucun parcours de `extends`. Testé sur les deux origines possibles d'un `raise`, une chaîne à 3 niveaux, et un contrôle négatif (`examples/tests/33_exception_hierarchyTest.oc`).
 - ✅ **`ocara.SDL` sait maintenant dessiner un sous-rectangle de texture** (`drawTextureRegion(textureId, srcX,srcY,srcW,srcH, x,y,w,h, flipH)`, avec retournement horizontal optionnel) — jusque-là `drawTexture`/`drawTextureScaled` ne dessinaient qu'une texture entière, obligeant à découper une planche de sprites/tileset en un fichier PNG par frame/tuile pour l'utiliser. `examples/advanced/game_sdl` (mini side-scroller, `Player.oc`/`Level.oc`/`game.oc`) l'utilise pour dessiner tout le jeu depuis deux planches uniques (`assets/sprite.png`/`assets/tileset.png`), sans dupliquer les frames "regarde à gauche". Cet exemple utilise aussi le bloc runtime (`main`/`error`, voir EBNF §5) plutôt que `function main(): int`.
 - ✅ **Cohérence de la remontée d'erreurs des builtins** — `MySQLException` (code 101/102/103) est maintenant réellement levée par `MySQL_connect`/`execute`/`query`/`queryOne` (calqué sur `SQLiteException`), y compris pour `MariaDB`. La documentation `YAML.md`/`DotEnv.md` a été corrigée pour ne plus promettre une exception qui n'est pas levée (comportement volontairement inchangé pour ces deux modules — voir la fiche pour le détail de ce choix).
@@ -64,10 +65,6 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 ---
 
 ## Priorité Moyenne
-
-### Gestion mémoire
-
-- **Recalcul de taille sans header fiable** (`__object_free`/`free_str`) — un objet/une string dont la taille recalculée diverge du layout réel ferait passer un `Layout` faux à `dealloc`, latent mais non déclenché aujourd'hui en pratique. *(Structurel)* → [détails](roadmap.d/memoire-fiabilite-runtime-bas-niveau.md)
 
 ### Langage
 

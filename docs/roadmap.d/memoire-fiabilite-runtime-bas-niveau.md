@@ -1,6 +1,6 @@
 # Fragilités bas niveau du runtime mémoire
 
-Quatre points latents identifiés initialement — deux corrigés, deux évalués et jugés hors de portée d'un correctif ponctuel.
+Quatre points latents identifiés initialement — trois corrigés, un évalué et jugé hors de portée d'un correctif ponctuel.
 
 ## ✅ Tag d'exception confondu avec `TAG_MAP` — corrigé
 
@@ -24,9 +24,25 @@ try {
 
 **Corrigé** : remplacement par `libc::pthread_mutex_t` (nouvelle dépendance `libc` dans `runtime/Cargo.toml`), dont la taille/l'alignement sont garantis corrects pour la cible de compilation réelle. Les 5 fonctions `pthread_mutex_*` appelées à la main sont aussi remplacées par celles de `libc` directement (au lieu de redéclarations manuelles risquant de diverger de la signature réelle). Vérifié : `make regression` (exemple `mutex.oc`, double-`.destroy()` E25) sans régression.
 
-## Non traités — évalués, jugés plus larges qu'un correctif ponctuel
+## ✅ Corrigé — `free_str` ne recalcule plus une taille potentiellement fausse
 
-- **Recalcul de taille sans header fiable** (`__object_free`/`free_str`, `runtime/src/lib.rs`) : une vraie correction demanderait de stocker la taille réelle dans le header de CHAQUE allocation heap (string/array/map/objet/exception/fonction), pas seulement celles concernées par ce point — un changement de format de header impactant à la fois le runtime ET le codegen (`Inst::Alloc`, `src/lower/builder.d/class_ownership.rs` qui calcule `n_fields`), pas un correctif localisé.
+**Des deux fonctions initialement citées ici, une seule portait un risque réel** : `free_str` retrouvait la longueur d'une string en cherchant son premier octet NUL depuis le pointeur — sous-estimation garantie si la string contient un NUL **interne**, ce qui est un cas atteignable (`\0` est un échappement de chaîne Ocara valide, `"a\0b"` compile et alloue normalement). Une longueur sous-estimée passe un `Layout` trop court à `dealloc` : UB (l'API Rust `alloc`/`dealloc` exige que le `Layout` de libération corresponde exactement à celui de l'allocation), potentiellement une corruption du tas.
+
+`__object_free` (le second cas cité), en réexamen, ne portait en réalité **aucun risque de divergence** : `n_fields` provient d'une seule et même source (`module.class_layouts[Classe].len()`, immuable après compilation), relue identiquement au moment de l'allocation (`Inst::Alloc`, `src/codegen/emit.d/instructions.d/memory.rs`) et au moment de la libération (`src/lower/builder.d/class_ownership.rs`) — les deux lectures ne peuvent pas diverger au sein d'un même programme compilé. Laissé tel quel : pas de changement nécessaire, le risque était mal caractérisé au moment où ce point a été noté.
+
+**Corrigé** (`alloc_str`/`free_str`, `runtime/src/lib.rs`) — sans le changement de format de header global initialement envisagé (qui aurait touché `Inst::Alloc` et toutes les autres allocations heap, cf. ancienne version de cette section) : uniquement le layout d'une string possédée gagne une case de 8 octets, AVANT le tag existant (qui reste à l'offset habituel `val - 8`, donc invisible de `read_tag`/`ptr_to_str`/tout le reste du runtime) :
+
+```
+avant : [tag:8][données...][NUL]
+après : [len:8][tag:8][données...][NUL]
+```
+
+`free_str` lit maintenant `len` directement au lieu de le recalculer. Vérifié : régression complète sans changement (le format ne change le comportement OBSERVABLE d'aucun appelant, seul `free_str` lit `len`) ; un test dédié (`examples/tests/34_string_nul_safetyTest.oc`) alloue/libère en boucle des `scoped string` contenant un NUL interne, entrelacées avec d'autres allocations de taille voisine, sans crash. **Non vérifié empiriquement** : que l'ancien code plantait réellement sur ce système (glibc `free()` ne vérifie pas nécessairement la taille annoncée) — `valgrind` (qui l'aurait détecté à coup sûr) n'est pas disponible dans cet environnement ; la correction reste justifiée par le contrat documenté de `std::alloc::{alloc, dealloc}`, indépendamment de la démonstration empirique.
+
+**Volontairement non traité, hors périmètre** : `ptr_to_str` (et donc l'affichage, la comparaison, `String::*`, `JSON::encode`, ...) reste basé sur `CStr::from_ptr`, qui tronque toujours au premier NUL — une string à NUL interne reste donc **affichée/comparée tronquée** partout ailleurs dans le langage. Ce correctif ferme uniquement le risque de corruption mémoire à la libération ; rendre le contenu d'une telle string réellement correct de bout en bout demanderait une représentation de string à longueur explicite (pas seulement NUL-terminée), un changement bien plus large que ce point.
+
+## Non traité — évalué, jugé plus large qu'un correctif ponctuel
+
 - **Détection de type par heuristique sur la valeur d'un entier** (`read_tag`, `runtime/src/typecheck.rs`) : confirmé **bien plus grave** qu'anticipé — pas juste une mauvaise classification, un **SEGFAULT reproductible** sur du code parfaitement ordinaire :
   ```ocara
   var n:mixed = 1000000

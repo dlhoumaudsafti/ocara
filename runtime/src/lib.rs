@@ -136,48 +136,66 @@ pub mod yaml;
 /// point de création d'une string dynamique dans tout le runtime (170+
 /// appels à travers `runtime/src/*.rs`) : ce tag couvre donc uniformément
 /// toute string hors littéral, sans exception à traiter ailleurs.
+///
+/// Layout : `[len: i64 @ raw][tag: i64 @ raw+8][données... @ raw+16][NUL]`.
+/// Le tag reste à l'offset habituel `val - 8` (`read_tag`, `typecheck.rs`,
+/// inchangé) ; `len` (la vraie longueur en octets, en plus du tag) est une
+/// case supplémentaire AVANT le tag, invisible de tout le reste du runtime —
+/// seule `free_str` la lit. Corrige un vrai risque de heap corruption :
+/// `free_str` retrouvait auparavant la longueur en cherchant le premier
+/// octet NUL depuis `val`, alors qu'une string Ocara PEUT légitimement
+/// contenir un NUL en son milieu (`"a\0b"` : `\0` est un échappement de
+/// chaîne valide, voir `src/parsing/lexer.d/scanner.d/readers.rs`) — un tel
+/// octet interne aurait fait recalculer une longueur plus COURTE que
+/// l'allocation réelle, donc un `Layout` faux passé à `dealloc` (voir
+/// docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md). `__object_free`
+/// (n_fields recalculé, `src/lower/builder.d/class_ownership.rs`) reste lui
+/// sans changement : `n_fields` provient d'une SEULE source
+/// (`class_layouts`), relue identiquement à l'allocation et à la
+/// libération dans une même compilation — rien à recalculer de façon
+/// divergente, contrairement au cas des strings.
 /// `pub` (pas `pub(crate)`) : utilisé depuis le crate séparé runtime_tauri.
 pub unsafe fn alloc_str(s: &str) -> i64 {
     let bytes = s.as_bytes();
-    // 8 octets header (tag) + données + null-terminator
-    let total = 8 + bytes.len() + 1;
+    // 8 octets longueur + 8 octets tag + données + null-terminator
+    let total = 16 + bytes.len() + 1;
     let layout = Layout::from_size_align(total, 8).unwrap();
     unsafe {
         let raw = alloc(layout);
         assert!(!raw.is_null(), "ocara_runtime: OOM");
-        // Écrire le tag dans le header
-        *(raw as *mut i64) = TAG_STRING_OWNED;
+        // Longueur réelle des données (hors NUL), lue uniquement par free_str
+        *(raw as *mut i64) = bytes.len() as i64;
+        // Écrire le tag dans le header (offset inchangé : val - 8)
+        *(raw.add(8) as *mut i64) = TAG_STRING_OWNED;
         // Copier les données de la chaîne après le header
-        let data = raw.add(8);
+        let data = raw.add(16);
         std::ptr::copy_nonoverlapping(bytes.as_ptr(), data, bytes.len());
         *data.add(bytes.len()) = 0u8;
-        // Retourner le pointeur APRÈS le header (= pointeur vers les données)
-        (raw as i64) + 8
+        // Retourner le pointeur APRÈS len+tag (= pointeur vers les données) —
+        // inchangé pour tout le reste du runtime (read_tag, ptr_to_str, ...).
+        (raw as i64) + 16
     }
 }
 
 /// Libère une chaîne allouée par `alloc_str` — exact inverse (même layout :
-/// 8 octets de tag + données + NUL, alignement 8). PAS un ramasse-miettes
-/// général : à utiliser uniquement sur des temporaires dont la durée de vie
-/// est connue et courte (ex. valeurs FFI internes à un appel), jamais sur une
-/// valeur Ocara ordinaire potentiellement encore référencée ailleurs — ce
-/// runtime ne fait aucun suivi de références, appeler ceci sur un pointeur
-/// encore utilisé ailleurs est un use-after-free.
+/// 8 octets de longueur + 8 octets de tag + données + NUL, alignement 8).
+/// PAS un ramasse-miettes général : à utiliser uniquement sur des temporaires
+/// dont la durée de vie est connue et courte (ex. valeurs FFI internes à un
+/// appel), jamais sur une valeur Ocara ordinaire potentiellement encore
+/// référencée ailleurs — ce runtime ne fait aucun suivi de références,
+/// appeler ceci sur un pointeur encore utilisé ailleurs est un use-after-free.
 /// `pub` (pas `pub(crate)`) : utilisé depuis le crate séparé runtime_tauri.
 pub unsafe fn free_str(val: i64) {
     if val == 0 {
         return;
     }
     unsafe {
-        let data = val as *const u8;
-        // Retrouve la longueur via le null-terminator (même convention que
-        // ptr_to_str) — le layout original n'est pas stocké ailleurs.
-        let mut len = 0usize;
-        while *data.add(len) != 0 {
-            len += 1;
-        }
-        let raw = (val - 8) as *mut u8;
-        let layout = Layout::from_size_align(8 + len + 1, 8).unwrap();
+        // Longueur réelle stockée à l'allocation (voir alloc_str) — plus
+        // fiable qu'un recalcul par recherche du premier octet NUL, qui
+        // sous-estimerait la taille si la string contient un NUL interne.
+        let len = *((val - 16) as *const i64) as usize;
+        let raw = (val - 16) as *mut u8;
+        let layout = Layout::from_size_align(16 + len + 1, 8).unwrap();
         dealloc(raw, layout);
     }
 }
