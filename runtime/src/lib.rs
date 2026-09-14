@@ -2552,12 +2552,21 @@ pub extern "C" fn __ocara_try_exec_with_captures(
                 ((*frame_ptr).error_val, (*frame_ptr).error_type)
             };
             stack.depth.set(depth);
+            // Le gestionnaire reçoit ici le MÊME pointeur de captures que le
+            // corps (voir `lower_try` / `src/lower/stmt.d/statements.d/exceptions.rs`) :
+            // corps et gestionnaire sont deux fonctions IR distinctes qui
+            // doivent partager EXACTEMENT le même tableau de cellules
+            // verrouillées pour qu'une variable modifiée dans l'un (le plus
+            // souvent le corps) reste visible dans l'autre et après le try.
+            // `handler_fn` n'a ce 3ᵉ paramètre que si le lowering a détecté
+            // des captures (corps ET/OU gestionnaires) — sinon il garde la
+            // signature à 2 arguments appelée par `__ocara_try_exec`.
             unsafe {
-                let handler: unsafe extern "C" fn(i64, i64) =
+                let handler: unsafe extern "C" fn(i64, i64, *const i64) =
                     std::mem::transmute(handler_fn as usize);
-                handler(ev, et);
+                handler(ev, et, captures_ptr);
             }
-            
+
             // Vérifier si le handler a fait un return explicite
             let (has_returned, return_value) = handler_has_returned();
             if has_returned {
