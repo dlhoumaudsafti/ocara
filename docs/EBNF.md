@@ -1977,7 +1977,7 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
   - `listen()`, `emit()`, `dialog()`, `notify()`, `getTitle()`/`setTitle()`, `getWidth()`/`setWidth()`, `getHeight()`/`setHeight()`, `getUrl()`/`setUrl()`, `open()`/`close()`/`isOpen()`, `focus()`/`hasFocus()`, `minimize()`/`maximize()`/`restore()`/`isMinimized()`/`isMaximized()` — encore simulés (état interne, sans effet sur la fenêtre réelle)
 - **SDL** — Fenêtrage + rendu 2D + entrées + images + texte + manettes + audio via SDL3 (classe d'instance ; Paliers 1-3, voir [SDL.md](builtins/SDL.md)) — entièrement fonctionnel, rien de simulé
   - `pollEvent()`, `setDrawColor()`/`clear()`/`fillRect()`/`drawRect()`/`drawLine()`/`drawPoint()`/`present()`, `isOpen()`/`close()`, `getWidth()`/`getHeight()`/`getTitle()`/`setTitle()`, `SDL::ticks()`/`SDL::delay()` (statiques)
-  - Palier 2 : `loadTexture()`/`textureWidth()`/`textureHeight()`/`drawTexture()`/`drawTextureScaled()` (SDL_image), `loadFont()`/`drawText()` (SDL_ttf)
+  - Palier 2 : `loadTexture()`/`textureWidth()`/`textureHeight()`/`drawTexture()`/`drawTextureScaled()`/`drawTextureRegion()` (SDL_image), `loadFont()`/`drawText()` (SDL_ttf)
   - Palier 3 : `isButtonPressed()`/`getAxis()` (SDL_gamepad, + événements `pollEvent` dédiés), `loadSound()`/`playSound()`/`playMusic()`/`pauseMusic()`/`resumeMusic()`/`stopMusic()`/`setMusicVolume()` (SDL_mixer)
 
 #### Gestion des erreurs

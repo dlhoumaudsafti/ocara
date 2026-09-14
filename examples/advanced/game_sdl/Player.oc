@@ -1,0 +1,114 @@
+namespace .
+
+// Le personnage : anime (marche/course), sens de deplacement, dessin.
+//
+// Toutes les frames viennent de LA MEME texture (assets/sprite.png,
+// chargee une seule fois dans init) — pas de fichier par frame : chaque
+// frame est un simple sous-rectangle (x, y, w, h) dessine via
+// `SDL.drawTextureRegion` (voir docs/builtins/SDL.md). Le sens "gauche" ne
+// duplique pas non plus les images : `flipH` retourne la meme frame au
+// rendu (dernier argument de drawTextureRegion).
+//
+// Les rectangles sont mesures une fois pour toutes sur la planche source
+// (colonnes non parfaitement regulieres — poses de course qui debordent
+// legerement d'une case sur l'autre, voir assets/README.md) ; il en resulte
+// qu'un pied/une main d'une pose voisine peut deborder de quelques pixels
+// sur une frame ou deux — limite assumee de ce decoupage "a la volee" plutot
+// que d'une planche dessinee au depart en cases parfaitement isolees.
+
+import ocara.SDL
+
+class Player {
+    public const WALK_SPEED:int = 4
+    public const RUN_SPEED:int  = 8
+    public const ANIM_HOLD:int  = 6   // frames moteur avant l'image suivante
+    public const FRAME_COUNT:int = 6
+    public const GROUND_Y:int     = 725
+
+    public property worldX:int   // position dans le monde (0 = depart, jamais negatif)
+
+    private property spriteSheetId:int
+    private property walkFrames:array<array<int>>   // 8 x [x, y, w, h]
+    private property runFrames:array<array<int>>     // 8 x [x, y, w, h]
+    private property facingRight:bool
+    private property running:bool
+    private property moving:bool
+    private property animFrame:int
+    private property animTimer:int
+
+    init(win:SDL) {
+        self.spriteSheetId = win.loadTexture("examples/advanced/game_sdl/assets/sprite.png")
+
+        self.walkFrames = [
+            [0,    0, 229, 384], [229, 0, 458, 384], [458, 0, 687, 384], [687,  0, 916, 384],
+            [916,  0, 1145, 384], [1145, 0, 1374, 384]
+        ]
+        self.runFrames = [
+            [0,   384, 229, 384], [229, 384, 458, 384], [458, 384, 687, 384], [687,  384, 916, 384],
+            [916, 384, 1145, 384], [1145, 384, 1374, 384]
+        ]
+
+        self.worldX      = 0
+        self.facingRight = true
+        self.running     = false
+        self.moving       = false
+        self.animFrame    = 0
+        self.animTimer    = 0
+    }
+
+    // Avance l'etat du personnage d'une frame moteur selon les touches tenues.
+    public method update(leftHeld:bool, rightHeld:bool, runHeld:bool): void {
+        self.running = runHeld
+        var speed:int = Player::WALK_SPEED
+        if runHeld {
+            speed = Player::RUN_SPEED
+        }
+
+        self.moving = false
+        if leftHeld and not rightHeld {
+            self.moving = true
+            self.facingRight = false
+            self.worldX = self.worldX - speed
+            if self.worldX smaller 0 {
+                self.worldX = 0
+            }
+        }
+        if rightHeld and not leftHeld {
+            self.moving = true
+            self.facingRight = true
+            self.worldX = self.worldX + speed
+        }
+
+        if self.moving {
+            self.animTimer = self.animTimer + 1
+            if self.animTimer greater or equal Player::ANIM_HOLD {
+                self.animTimer = 0
+                self.animFrame = self.animFrame + 1
+                if self.animFrame greater or equal Player::FRAME_COUNT {
+                    self.animFrame = 0
+                }
+            }
+        } else {
+            self.animFrame = 0
+            self.animTimer = 0
+        }
+    }
+
+    // Dessine le personnage centre en (screenX), pieds sur groundY — la
+    // largeur/hauteur variant d'une frame a l'autre, l'ancrage bas-centre
+    // evite tout decalage visible d'une image a l'autre.
+    public method draw(win:SDL, screenX:int): void {
+        var rect:array<int> = self.walkFrames[self.animFrame]
+        if self.running {
+            rect = self.runFrames[self.animFrame]
+        }
+        var w:int = rect[2]/5
+        var h:int = rect[3]/5
+        win.drawTextureRegion(
+            self.spriteSheetId,
+            rect[0], rect[1], rect[2], rect[3],
+            screenX - w / 2, Player::GROUND_Y - rect[3], w, h,
+            not self.facingRight
+        )
+    }
+}

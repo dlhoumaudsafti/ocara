@@ -1,0 +1,94 @@
+// examples/advanced/game_sdl/game.oc
+// Petit jeu de plateforme "side-scroll" en 2D, entierement dessine avec
+// ocara.SDL (voir docs/builtins/SDL.md) — pas de moteur de jeu, juste des
+// textures et une boucle de rendu.
+//
+// Structure : Player.oc (personnage) et Level.oc (decor) portent chacun
+// leur propre etat/logique ; ce fichier ne fait que les assembler dans la
+// boucle de rendu. Voir assets/README.md pour l'origine des textures.
+//
+// Contrôles :
+//   Flèche droite / gauche   → marcher
+//   Maintenir Ctrl + flèche  → courir
+//   Échap ou fermer la fenêtre → quitter
+//
+// À lancer DEPUIS LA RACINE DU REPO (comme examples/builtins/sdl.oc — les
+// textures sont chargées via des chemins relatifs à la racine) :
+//   ./target/release/ocara examples/advanced/game_sdl/game.oc -o /tmp/game_sdl
+//   /tmp/game_sdl
+
+namespace .
+
+import ocara.IO
+import ocara.SDL
+import Player
+import Level
+
+init {
+    IO::writeln("Initialisation du jeu SDL...")
+}
+
+main {
+    try {
+        var win:SDL = use SDL({
+            "title": "Ocara Side-Scroller",
+            "width": 960,
+            "height": 540
+        })
+
+        const CHAR_SCREEN_X:int = 480   // le personnage reste centré à l'écran ;
+                                         // c'est le décor qui défile sous ses pas
+
+        var level:Level   = use Level(win)
+        var player:Player = use Player(win)
+
+        var leftHeld:bool  = false
+        var rightHeld:bool = false
+        var runHeld:bool   = false
+        var running:bool   = true
+
+        while running {
+            // ── Entrées ───────────────────────────────────────────────────
+            var ev:map<string, mixed> = win.pollEvent()
+            while ev["type"] not equal "none" {
+                if ev["type"] equal "quit" {
+                    running = false
+                }
+                if ev["type"] equal "keydown" {
+                    if ev["key"] equal "Escape" { running = false }
+                    if ev["key"] equal "Left" { leftHeld = true }
+                    if ev["key"] equal "Right" { rightHeld = true }
+                    if ev["key"] equal "Left Ctrl" { runHeld = true }
+                    if ev["key"] equal "Right Ctrl" { runHeld = true }
+                }
+                if ev["type"] equal "keyup" {
+                    if ev["key"] equal "Left" { leftHeld = false }
+                    if ev["key"] equal "Right" { rightHeld = false }
+                    if ev["key"] equal "Left Ctrl" { runHeld = false }
+                    if ev["key"] equal "Right Ctrl" { runHeld = false }
+                }
+                ev = win.pollEvent()
+            }
+
+            player.update(leftHeld, rightHeld, runHeld)
+
+            // ── Rendu (arrière-plan → premier plan) ──────────────────────
+            win.setDrawColor(15, 8, 12, 255)
+            win.clear()
+
+            level.draw(win, player.worldX)
+            player.draw(win, CHAR_SCREEN_X)
+
+            win.present()
+            SDL::delay(16)   // ~60 fps
+        }
+
+        win.close()
+    } on e is SDLException {
+        result e.code
+    }
+}
+
+error {
+    IO::writeln(`SDL indisponible ici (pas d'affichage ? machine headless ?) — code ${ERROR}`)
+}
