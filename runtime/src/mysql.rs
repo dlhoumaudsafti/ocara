@@ -92,35 +92,29 @@ pub unsafe extern "C" fn MySQL_execute(db_ptr: i64, query_ptr: i64) -> i64 {
         let db = &*(db_ptr as *const OcaraMySQLDatabase);
         let query = ptr_to_str(query_ptr);
 
-        let pool = db.pool.lock().unwrap();
-        let mut conn = match pool.get_conn() {
-            Ok(c) => c,
-            Err(e) => {
-                throw_mysql_exception(
-                    &format!("Failed to get connection: {}", e),
-                    ERR_EXECUTE,
-                    "MySQL"
-                );
-            }
-        };
+        // Le verrou (`MutexGuard<Pool>`) est entièrement scopé à cette
+        // closure et se relâche normalement (Drop) à sa sortie, qu'elle
+        // réussisse ou échoue — AVANT tout throw_mysql_exception, qui saute
+        // par `longjmp` et ne laisserait jamais ce `Drop` s'exécuter s'il
+        // restait à faire à ce moment-là : verrou tenu indéfiniment,
+        // deadlock (même mécanisme que pour SQLite, voir
+        // docs/roadmap.d/memoire-deadlocks-raise.md).
+        let result: Result<(i64, u64), String> = (|| {
+            let pool = db.pool.lock().unwrap();
+            let mut conn = pool.get_conn()
+                .map_err(|e| format!("Failed to get connection: {}", e))?;
+            conn.query_drop(&query)
+                .map_err(|e| format!("Failed to execute query '{}': {}", query, e))?;
+            Ok((conn.affected_rows() as i64, conn.last_insert_id()))
+        })();
 
-        match conn.query_drop(&query) {
-            Ok(_) => {
-                let affected = conn.affected_rows();
-                let last_id = conn.last_insert_id();
-
-                *db.affected_rows.lock().unwrap() = affected as i64;
+        match result {
+            Ok((affected, last_id)) => {
+                *db.affected_rows.lock().unwrap() = affected;
                 *db.last_insert_id.lock().unwrap() = last_id as i64;
-
-                affected as i64
+                affected
             }
-            Err(e) => {
-                throw_mysql_exception(
-                    &format!("Failed to execute query '{}': {}", query, e),
-                    ERR_EXECUTE,
-                    "MySQL"
-                );
-            }
+            Err(msg) => throw_mysql_exception(&msg, ERR_EXECUTE, "MySQL"),
         }
     }
 }
@@ -137,72 +131,57 @@ pub unsafe extern "C" fn MySQL_query(db_ptr: i64, query_ptr: i64) -> i64 {
         let db = &*(db_ptr as *const OcaraMySQLDatabase);
         let query = ptr_to_str(query_ptr);
 
-        let pool = db.pool.lock().unwrap();
-        let mut conn = match pool.get_conn() {
-            Ok(c) => c,
-            Err(e) => {
-                throw_mysql_exception(
-                    &format!("Failed to get connection: {}", e),
-                    ERR_QUERY,
-                    "MySQL"
-                );
-            }
-        };
+        // Voir le commentaire de MySQL_execute : le verrou est entièrement
+        // scopé à cette closure et se relâche normalement à sa sortie, avant
+        // tout throw_mysql_exception.
+        let result: Result<i64, String> = (|| {
+            let pool = db.pool.lock().unwrap();
+            let mut conn = pool.get_conn()
+                .map_err(|e| format!("Failed to get connection: {}", e))?;
 
-        let result_array = crate::__array_new();
-    
-        match conn.query_iter(&query) {
-            Ok(result) => {
-                for row_result in result {
-                    match row_result {
-                        Ok(row) => {
-                            let row_map = crate::__map_new();
-                            let columns = row.columns();
-                            
-                            for (i, column) in columns.iter().enumerate() {
-                                let col_name = column.name_str();
-                                let key_ptr = alloc_str(col_name.as_ref());
-                                
-                                let value: i64 = match row.get_opt(i) {
-                                    Some(Ok(mysql::Value::NULL)) => 0,
-                                    Some(Ok(mysql::Value::Int(v))) => v,
-                                    Some(Ok(mysql::Value::UInt(v))) => v as i64,
-                                    Some(Ok(mysql::Value::Float(v))) => crate::__box_float((v as f64).to_bits() as i64),
-                                    Some(Ok(mysql::Value::Double(v))) => crate::__box_float(v.to_bits() as i64),
-                                    Some(Ok(mysql::Value::Bytes(ref b))) => {
-                                        if let Ok(s) = std::str::from_utf8(b) {
-                                            alloc_str(s)
-                                        } else {
-                                            0
-                                        }
-                                    }
-                                    _ => 0,
-                                };
-                                
-                                crate::__map_set(row_map, key_ptr, value);
+            let result_array = crate::__array_new();
+
+            let query_result = conn.query_iter(&query)
+                .map_err(|e| format!("Failed to execute query '{}': {}", query, e))?;
+
+            for row_result in query_result {
+                let row = row_result
+                    .map_err(|e| format!("Failed to read row for query '{}': {}", query, e))?;
+                let row_map = crate::__map_new();
+                let columns = row.columns();
+
+                for (i, column) in columns.iter().enumerate() {
+                    let col_name = column.name_str();
+                    let key_ptr = alloc_str(col_name.as_ref());
+
+                    let value: i64 = match row.get_opt(i) {
+                        Some(Ok(mysql::Value::NULL)) => 0,
+                        Some(Ok(mysql::Value::Int(v))) => v,
+                        Some(Ok(mysql::Value::UInt(v))) => v as i64,
+                        Some(Ok(mysql::Value::Float(v))) => crate::__box_float((v as f64).to_bits() as i64),
+                        Some(Ok(mysql::Value::Double(v))) => crate::__box_float(v.to_bits() as i64),
+                        Some(Ok(mysql::Value::Bytes(ref b))) => {
+                            if let Ok(s) = std::str::from_utf8(b) {
+                                alloc_str(s)
+                            } else {
+                                0
                             }
-                            crate::__array_push(result_array, row_map);
                         }
-                        Err(e) => {
-                            throw_mysql_exception(
-                                &format!("Failed to read row for query '{}': {}", query, e),
-                                ERR_QUERY,
-                                "MySQL"
-                            );
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                throw_mysql_exception(
-                    &format!("Failed to execute query '{}': {}", query, e),
-                    ERR_QUERY,
-                    "MySQL"
-                );
-            }
-        }
+                        _ => 0,
+                    };
 
-        result_array
+                    crate::__map_set(row_map, key_ptr, value);
+                }
+                crate::__array_push(result_array, row_map);
+            }
+
+            Ok(result_array)
+        })();
+
+        match result {
+            Ok(result_array) => result_array,
+            Err(msg) => throw_mysql_exception(&msg, ERR_QUERY, "MySQL"),
+        }
     }
 }
 
@@ -218,58 +197,50 @@ pub unsafe extern "C" fn MySQL_queryOne(db_ptr: i64, query_ptr: i64) -> i64 {
         let db = &*(db_ptr as *const OcaraMySQLDatabase);
         let query = ptr_to_str(query_ptr);
 
-        let pool = db.pool.lock().unwrap();
-        let mut conn = match pool.get_conn() {
-            Ok(c) => c,
-            Err(e) => {
-                throw_mysql_exception(
-                    &format!("Failed to get connection: {}", e),
-                    ERR_QUERY,
-                    "MySQL"
-                );
-            }
-        };
-    
-        match conn.query_iter(&query) {
-            Ok(mut result) => {
-                if let Some(Ok(row)) = result.next() {
-                    let row_map = crate::__map_new();
-                    let columns = row.columns();
-                    
-                    for (i, column) in columns.iter().enumerate() {
-                        let col_name = column.name_str();
-                        let key_ptr = alloc_str(col_name.as_ref());
-                        
-                        let value: i64 = match row.get_opt(i) {
-                            Some(Ok(mysql::Value::NULL)) => 0,
-                            Some(Ok(mysql::Value::Int(v))) => v,
-                            Some(Ok(mysql::Value::UInt(v))) => v as i64,
-                            Some(Ok(mysql::Value::Float(v))) => crate::__box_float((v as f64).to_bits() as i64),
-                            Some(Ok(mysql::Value::Double(v))) => crate::__box_float(v.to_bits() as i64),
-                            Some(Ok(mysql::Value::Bytes(ref b))) => {
-                                if let Ok(s) = std::str::from_utf8(b) {
-                                    alloc_str(s)
-                                } else {
-                                    0
-                                }
+        // Voir le commentaire de MySQL_execute.
+        let result: Result<i64, String> = (|| {
+            let pool = db.pool.lock().unwrap();
+            let mut conn = pool.get_conn()
+                .map_err(|e| format!("Failed to get connection: {}", e))?;
+
+            let mut query_result = conn.query_iter(&query)
+                .map_err(|e| format!("Failed to execute query '{}': {}", query, e))?;
+
+            if let Some(Ok(row)) = query_result.next() {
+                let row_map = crate::__map_new();
+                let columns = row.columns();
+
+                for (i, column) in columns.iter().enumerate() {
+                    let col_name = column.name_str();
+                    let key_ptr = alloc_str(col_name.as_ref());
+
+                    let value: i64 = match row.get_opt(i) {
+                        Some(Ok(mysql::Value::NULL)) => 0,
+                        Some(Ok(mysql::Value::Int(v))) => v,
+                        Some(Ok(mysql::Value::UInt(v))) => v as i64,
+                        Some(Ok(mysql::Value::Float(v))) => crate::__box_float((v as f64).to_bits() as i64),
+                        Some(Ok(mysql::Value::Double(v))) => crate::__box_float(v.to_bits() as i64),
+                        Some(Ok(mysql::Value::Bytes(ref b))) => {
+                            if let Ok(s) = std::str::from_utf8(b) {
+                                alloc_str(s)
+                            } else {
+                                0
                             }
-                            _ => 0,
-                        };
-                        
-                        crate::__map_set(row_map, key_ptr, value);
-                    }
-                    row_map
-                } else {
-                    0
+                        }
+                        _ => 0,
+                    };
+
+                    crate::__map_set(row_map, key_ptr, value);
                 }
+                Ok(row_map)
+            } else {
+                Ok(0)
             }
-            Err(e) => {
-                throw_mysql_exception(
-                    &format!("Failed to execute query '{}': {}", query, e),
-                    ERR_QUERY,
-                    "MySQL"
-                );
-            }
+        })();
+
+        match result {
+            Ok(row_map) => row_map,
+            Err(msg) => throw_mysql_exception(&msg, ERR_QUERY, "MySQL"),
         }
     }
 }

@@ -24,25 +24,18 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 use std::alloc::{alloc, dealloc, Layout};
-use std::ptr;
 
-// Types pthread_mutex pour Linux/macOS
-#[cfg(target_os = "linux")]
-type PthreadMutex = [u8; 40];  // sizeof(pthread_mutex_t) sur Linux x86_64
-
-#[cfg(target_os = "macos")]
-type PthreadMutex = [u8; 64];  // sizeof(pthread_mutex_t) sur macOS
-
-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
-type PthreadMutex = [u8; 64];  // fallback
-
-unsafe extern "C" {
-    fn pthread_mutex_init(mutex: *mut PthreadMutex, attr: *const u8) -> i32;
-    fn pthread_mutex_lock(mutex: *mut PthreadMutex) -> i32;
-    fn pthread_mutex_unlock(mutex: *mut PthreadMutex) -> i32;
-    fn pthread_mutex_trylock(mutex: *mut PthreadMutex) -> i32;
-    fn pthread_mutex_destroy(mutex: *mut PthreadMutex) -> i32;
-}
+// `libc::pthread_mutex_t` : taille/alignement garantis corrects pour la cible
+// de compilation réelle (glibc, musl, macOS, BSD...), contrairement à un
+// tableau d'octets hardcodé par plateforme (`[u8;40]` Linux / `[u8;64]`
+// macOS/fallback) jamais vérifié contre la vraie taille ABI — une libc dont
+// `pthread_mutex_t` dépasserait la taille supposée aurait laissé
+// `pthread_mutex_init` écrire hors des bornes de l'allocation (voir
+// docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md). Les fonctions
+// `pthread_mutex_*` de `libc` sont utilisées directement plutôt que
+// redéclarées à la main : garantit que le type du mutex et la signature des
+// fonctions qui l'utilisent proviennent de la même source, jamais désynchronisées.
+type PthreadMutex = libc::pthread_mutex_t;
 
 /// Struct interne stockée sur le tas (pointeur conservé dans le slot Ocara)
 struct OcaraMutex {
@@ -52,7 +45,7 @@ struct OcaraMutex {
 impl Drop for OcaraMutex {
     fn drop(&mut self) {
         unsafe {
-            pthread_mutex_destroy(self.mutex);
+            libc::pthread_mutex_destroy(self.mutex);
             dealloc(self.mutex as *mut u8, Layout::new::<PthreadMutex>());
         }
     }
@@ -76,7 +69,7 @@ unsafe fn mutex_from_slot(self_ptr: i64) -> *mut OcaraMutex {
 pub extern "C" fn Mutex_init(self_ptr: i64) {
     unsafe {
         let mutex_ptr = alloc(Layout::new::<PthreadMutex>()) as *mut PthreadMutex;
-        pthread_mutex_init(mutex_ptr, ptr::null());
+        libc::pthread_mutex_init(mutex_ptr, std::ptr::null());
         
         let m = Box::new(OcaraMutex { mutex: mutex_ptr });
         let raw = Box::into_raw(m) as i64;
@@ -92,7 +85,7 @@ pub extern "C" fn Mutex_init(self_ptr: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn Mutex_lock(self_ptr: i64) {
     let m = unsafe { &*mutex_from_slot(self_ptr) };
-    let result = unsafe { pthread_mutex_lock(m.mutex) };
+    let result = unsafe { libc::pthread_mutex_lock(m.mutex) };
     if result != 0 {
         unsafe {
             crate::exception::throw_mutex_exception(
@@ -109,7 +102,7 @@ pub extern "C" fn Mutex_lock(self_ptr: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn Mutex_unlock(self_ptr: i64) {
     let m = unsafe { &*mutex_from_slot(self_ptr) };
-    let result = unsafe { pthread_mutex_unlock(m.mutex) };
+    let result = unsafe { libc::pthread_mutex_unlock(m.mutex) };
     if result != 0 {
         unsafe {
             crate::exception::throw_mutex_exception(
@@ -126,7 +119,7 @@ pub extern "C" fn Mutex_unlock(self_ptr: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn Mutex_tryLock(self_ptr: i64) -> i64 {
     let m = unsafe { &*mutex_from_slot(self_ptr) };
-    let result = unsafe { pthread_mutex_trylock(m.mutex) };
+    let result = unsafe { libc::pthread_mutex_trylock(m.mutex) };
     if result == 0 {
         1 // succès
     } else {

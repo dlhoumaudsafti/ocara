@@ -29,6 +29,16 @@ pub(crate) const TAG_FUNCTION: i64 = 5;
 /// avant ce tag, libérer une `scoped string` plantait dès qu'elle contenait
 /// un littéral (`munmap_chunk(): invalid pointer`).
 pub(crate) const TAG_STRING_OWNED: i64 = 6;
+/// Objet exception (`Exception`/`FileException`/.../toute classe d'exception
+/// builtin, voir `crate::exception::alloc_exception`) — a longtemps partagé
+/// par erreur la valeur `0x03` avec `TAG_MAP`, ce qui faisait passer `e is
+/// map<K,V>` pour vrai sur n'importe quelle exception (confirmé par
+/// reproduction : `e is map<string, mixed>` sur une `ArrayException` — voir
+/// docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md). Aucune exception
+/// n'est aujourd'hui `scoped`/`consumed` : ce tag ne sert donc pour l'instant
+/// qu'à la narrowing `is` et à `get_value_type` (qui retombe correctement sur
+/// "primitif" pour ce tag, comme pour tout tag non reconnu).
+pub(crate) const TAG_EXCEPTION: i64 = 7;
 
 const PTR_THRESHOLD: i64 = 65536;
 

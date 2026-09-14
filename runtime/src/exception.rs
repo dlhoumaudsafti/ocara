@@ -4,6 +4,7 @@
 
 use std::alloc::{alloc, Layout};
 use crate::{alloc_str, __ocara_fail};
+use crate::typecheck::TAG_EXCEPTION;
 
 /// Structure runtime pour Exception / FileException / DirectoryException / IOException / SystemException / ArrayException / MapException / MathException / ConvertException / RegexException / HTTPServerException
 /// { message: string, code: int, source: string }
@@ -227,8 +228,9 @@ unsafe fn alloc_exception(message: &str, code: i64, source: &str) -> i64 {
         let raw = alloc(layout);
         assert!(!raw.is_null(), "ocara_runtime: OOM (exception)");
         
-        // Tag optionnel (0x03 pour Exception)
-        *(raw as *mut i64) = 0x0000_0000_0000_0003;
+        // Tag dédié aux exceptions — voir TAG_EXCEPTION pour la confusion
+        // avec TAG_MAP que ce tag corrige.
+        *(raw as *mut i64) = TAG_EXCEPTION;
         
         // Objet Exception
         let exc_ptr = raw.add(8) as *mut OcaraException;
