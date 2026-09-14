@@ -867,7 +867,7 @@ Toutes les allocations heap (string, array, map, objet, fat-pointer) sont préc�
 **Limitations actuelles (v0.1.0) :**
 
 - `is float` fonctionne uniquement quand le type est connu **statiquement** à la compilation. Dans un contexte `mixed` dynamique, seuls les floats explicitement boxés (via `__box_float`) sont détectables.
-- `is bool` peut être confondu avec les `int` 0 et 1.
+- `is bool` reconnaît un bool explicitement boxé (via `__box_bool` — le cas d'un `bool` littéral dans un `array<mixed>`/`map<K,mixed>`, ou affecté à une variable `mixed`) ; un bool jamais boxé reste indistinguable des `int` 0 et 1.
 - `is ClassName` vérifie seulement que la valeur est une instance d'**un** objet (tag `TAG_OBJECT`), sans distinguer les classes entre elles. Pour un narrowing fin par classe, utiliser les patterns dans `on … is ClassName` dans les blocs `try/on`.
 
 ### 6.4 Annotation de type
@@ -3223,7 +3223,9 @@ try {
 }
 ```
 
-> Le handler générique (`on e` sans `is`) doit toujours être placé en dernier.
+> Le handler générique (`on e` sans `is`) doit toujours être placé en dernier — **imposé par le compilateur** (sinon les handlers suivants ne seraient jamais atteints, voir diagnostic E24). La classe passée à `is` doit également correspondre à une classe connue (classe du programme ou classe d'exception builtin) — un nom inexistant est rejeté à la compilation (E23) plutôt que de produire un handler silencieusement mort.
+>
+> **Limite connue** : le filtrage par classe est une égalité de nom stricte, sans hiérarchie — une classe qui `extends` une autre n'est **pas** reconnue par un filtre sur la classe parente (`on e is Parent` n'attrape pas une instance de `Enfant extends Parent`). Corriger ça demanderait de faire marcher `extends` dans le filtrage runtime (`__ocara_type_matches`), qui compare aujourd'hui deux noms de type bruts.
 
 ### 28.3 `raise`
 

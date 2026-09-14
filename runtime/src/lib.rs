@@ -3066,11 +3066,31 @@ fn value_to_json(val: i64) -> JsonValue {
     if val == 0 {
         return JsonValue::Null;
     }
-    
+
+    // `float`/`bool` boxés (voir `__box_float`/`__box_bool`) : à vérifier
+    // AVANT `get_value_type`, qui les classe tous les deux (avec un `int`
+    // brut) dans le même panier "primitif" (1) sans les distinguer — sans ce
+    // déballage, un float/bool construit par un littéral `array<mixed>`/
+    // `map<string,mixed>` (voir lower_array_literal/lower_map_literal)
+    // ressortait comme un entier correspondant à l'adresse du pointeur boxé
+    // (confirmé par reproduction — voir
+    // docs/roadmap.d/langage-mixed-literal-stringification.md).
+    if is_float_box(val) {
+        let f = unsafe { unbox_float(val) };
+        return serde_json::Number::from_f64(f).map(JsonValue::Number).unwrap_or(JsonValue::Null);
+    }
+    if is_bool_box(val) {
+        return JsonValue::Bool(unsafe { unbox_bool(val) });
+    }
+
     let typ = get_value_type(val);
-    
+
     match typ {
-        1 => {  // Primitif (int ou bool)
+        1 => {  // Primitif : entier brut (float/bool boxés déjà traités ci-dessus).
+            // `val == 1`/`== 0` reste une heuristique imprécise pour un
+            // bool JAMAIS boxé (limitation pré-existante, non résolue ici —
+            // voir __is_bool) ; conservée telle quelle pour ne rien changer
+            // au comportement déjà en place pour ce cas résiduel.
             if val == 1 {  // true
                 JsonValue::Bool(true)
             } else if val == 0 {  // false (mais déjà traité par le test au début)

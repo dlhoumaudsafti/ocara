@@ -4,6 +4,9 @@
 
 import ocara.UnitTest
 import main
+import Score from "main"
+import Student from "main"
+import Color from "main"
 
 class mainTest {
 

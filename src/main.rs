@@ -90,6 +90,7 @@ fn main() {
         "DateTimeException", "DateException", "TimeException",
         "ThreadException", "MutexException",
         "UnitTestException", "HTTPServerException", "SQLiteException", "MySQLException", "MariaDBException", "DotEnvException", "YAMLException",
+        "SDLException", "TauriException",
     ];
     // Répertoire de base pour la résolution des imports
     let source_dir = args.src_dir.as_ref()
@@ -289,7 +290,23 @@ fn main() {
             // import Circle from "file" → importer seulement Circle
             let requested_name = imp.path.first().cloned().unwrap_or_default();
             let final_name = imp.alias.as_ref().cloned().unwrap_or(requested_name.clone());
-            
+
+            // Rapatrier aussi les constantes de fichier (même logique que
+            // `import *` ci-dessus) : une classe/fonction importée peut
+            // référencer une const de premier niveau de son fichier d'origine
+            // (ex: `Score::is_passing()` lisant `PASS_MARK`, jamais liée à un
+            // symbole précis contrairement à un `implements` — voir le
+            // rapatriement des interfaces ci-dessous). Confirmé par
+            // reproduction (`examples/project/tests/mainTest.oc`) : sans ça,
+            // un import sélectif casse dès que le symbole importé dépend
+            // d'une const de son fichier — voir
+            // docs/roadmap.d/langage-imports-modules.md.
+            for c in &mod_prog.consts {
+                if !program.consts.iter().any(|existing| existing.name == c.name) {
+                    program.consts.push(c.clone());
+                }
+            }
+
             // Ordre de priorité: class → generic → interface → module → function
             
             // Chercher la classe
@@ -373,58 +390,20 @@ fn main() {
         }
     }
 
-    // ── 4b. Chargement et fusion des modules utilisateur (ancien format) ─────
-    for imp in &module_imports {
-        let mut file_path = source_dir.to_path_buf();
-        for segment in &imp.path { file_path.push(segment); }
-        file_path.set_extension("oc");
-
-        let mod_src = match fs::read_to_string(&file_path) {
-            Ok(s) => s,
-            Err(e) => {
-                diagnostic::print_error(&file_path, 0, 0, &format!("reading module '{}': {}", file_path.display(), e));
-                std::process::exit(1);
-            }
-        };
-        let mod_tokens = match Lexer::new(&mod_src).tokenize() {
-            Ok(t) => t,
-            Err(e) => {
-                diagnostic::print_error(&file_path, 0, 0, &format!("{}", e));
-                std::process::exit(1);
-            }
-        };
-        let mut mod_prog = match Parser::new(mod_tokens).parse_program() {
-            Ok(p) => p,
-            Err(e) => {
-                diagnostic::print_error(&file_path, e.span.line, e.span.col, &e.message);
-                std::process::exit(1);
-            }
-        };
-        
-        // Mettre à jour tous les spans du programme importé avec le nom du fichier
-        update_program_spans_with_file(&mut mod_prog, &file_path.to_string_lossy());
-
-        // Renommage via alias : la classe dont le nom = dernier segment → alias
-        if let Some(alias) = &imp.alias {
-            let class_name = imp.path.last().cloned().unwrap_or_default();
-            for cls in &mut mod_prog.classes {
-                if cls.name == class_name {
-                    cls.name = alias.clone();
-                }
-            }
-        }
-
-        // Fusion dans le programme principal
-        program.classes.extend(mod_prog.classes);
-        program.functions.extend(mod_prog.functions);
-        program.consts.extend(mod_prog.consts);
-        // Ajouter les imports du module (ex: ocara.IO) s'ils ne sont pas déjà présents
-        for new_imp in mod_prog.imports {
-            if !program.imports.iter().any(|i| i.path == new_imp.path) {
-                program.imports.push(new_imp);
-            }
-        }
-    }
+    // NOTE : `module_imports` (ancien format `import module.Path`) est déjà
+    // entièrement traité ci-dessus — chaque entrée est convertie en import
+    // virtuel "from" (ligne ~178) et chargée par le chemin récursif unique
+    // au-dessus, qui gère classes/generics/interfaces/modules/functions,
+    // l'alias et la résolution par namespace. Un second chemin, redondant et
+    // incomplet (relecture du même fichier, fusion inconditionnelle de
+    // TOUTES les classes/functions/consts sans regarder ce qui est demandé,
+    // interfaces et modules jamais fusionnés), vivait ici — supprimé : il
+    // masquait silencieusement l'absence d'interfaces transitives dès que le
+    // chemin principal résolvait le symbole demandé comme autre chose qu'une
+    // classe (confirmé par reproduction sur `examples/project/tests/mainTest.oc`,
+    // qui importe la FONCTION `main` d'un fichier définissant aussi des
+    // classes `implements Printable`/`Comparable` — voir
+    // docs/roadmap.d/langage-imports-modules.md).
 
     // ── 4b. Déduplication (modules peuvent introduire des doublons) ───────────
     {

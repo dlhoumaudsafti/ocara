@@ -46,6 +46,64 @@ fn unbox_mixed_operand(builder: &mut LowerBuilder, func: &str, target_ty: &IrTyp
     d
 }
 
+/// Comment traiter un élément `F64`/`Bool` en construisant un littéral
+/// `array`/`map` (voir `lower_array_literal`/`lower_map_literal`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum LiteralElemKind {
+    /// Élément(s) de type `mixed` (ou type de destination inconnu à cet
+    /// endroit — nested/argument/retour, voir les sites d'appel) : un
+    /// consommateur générique (`JSON::encode`, `__dyn_add`, `Map::forEach`,
+    /// `is float`/`is bool`...) doit pouvoir distinguer un `float`/`bool` d'un
+    /// entier au runtime — boxé (`__box_float`/`__box_bool`), jamais stringifié.
+    Mixed,
+    /// Type de destination concret et CONNU (`array<float>`, `map<K,bool>`,
+    /// ...) : aucun consommateur n'a besoin de deviner le type, stocké BRUT
+    /// sans la moindre conversion — exactement comme `int` (qui n'est jamais
+    /// boxé nulle part dans ce compilateur, voir `box_for_any`).
+    Concrete,
+}
+
+/// Construit un littéral `array` : alloue via `__array_new`, pousse chaque
+/// élément. `kind` décide comment un élément `F64`/`Bool` est stocké — voir
+/// `LiteralElemKind`. Avant ce correctif, TOUT élément `F64`/`Bool` était
+/// systématiquement stringifié (`__str_from_float`/`__str_from_bool`),
+/// quel que soit `kind` — un `array<float>` littéral (pas seulement
+/// `array<mixed>`) produisait donc un résultat numériquement faux à la
+/// lecture (`arr[0]` retournait le pointeur de la string, réinterprété comme
+/// bits flottants) : voir docs/roadmap.d/langage-mixed-literal-stringification.md.
+pub fn lower_array_literal(builder: &mut LowerBuilder, elements: &[Expr], kind: LiteralElemKind) -> Value {
+    let arr = builder.new_value();
+    builder.emit(Inst::Call { dest: Some(arr.clone()), func: "__array_new".into(), args: vec![], ret_ty: IrType::Ptr });
+    for elem in elements {
+        let elem_ty = expr_ir_type(builder, elem);
+        let v = lower_expr(builder, elem);
+        let stored = match kind {
+            LiteralElemKind::Mixed    => box_for_dyn_arith(builder, &elem_ty, v),
+            LiteralElemKind::Concrete => v,
+        };
+        builder.emit(Inst::Call { dest: None, func: "__array_push".into(), args: vec![arr.clone(), stored], ret_ty: IrType::Void });
+    }
+    arr
+}
+
+/// Comme `lower_array_literal`, pour un littéral `map` — `kind` s'applique à
+/// la VALEUR de chaque entrée (jamais à la clé, toujours `string`).
+pub fn lower_map_literal(builder: &mut LowerBuilder, entries: &[(Expr, Expr)], kind: LiteralElemKind) -> Value {
+    let map = builder.new_value();
+    builder.emit(Inst::Call { dest: Some(map.clone()), func: "__map_new".into(), args: vec![], ret_ty: IrType::Ptr });
+    for (key, val) in entries {
+        let kv = lower_expr(builder, key);
+        let val_ty = expr_ir_type(builder, val);
+        let vv_raw = lower_expr(builder, val);
+        let vv = match kind {
+            LiteralElemKind::Mixed    => box_for_dyn_arith(builder, &val_ty, vv_raw),
+            LiteralElemKind::Concrete => vv_raw,
+        };
+        builder.emit(Inst::Call { dest: None, func: "__map_set".into(), args: vec![map.clone(), kv, vv], ret_ty: IrType::Void });
+    }
+    map
+}
+
 pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
     match expr {
         // ── Littéraux ────────────────────────────────────────────────────────
@@ -1079,99 +1137,13 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
         }
 
         // ── Tableau littéral ─────────────────────────────────────────────────
-        Expr::Array { elements, .. } => {
-            // Alloue un tableau via __array_new(), pousse chaque élément
-            let arr = builder.new_value();
-            builder.emit(Inst::Call {
-                dest:   Some(arr.clone()),
-                func:   "__array_new".into(),
-                args:   vec![],
-                ret_ty: IrType::Ptr,
-            });
-            for elem in elements {
-                let elem_ty = expr_ir_type(builder, elem);
-                let v = lower_expr(builder, elem);
-                // Convertir F64 et Bool en string pour stockage uniforme dans mixed[]
-                let stored = match elem_ty {
-                    IrType::F64 => {
-                        let s = builder.new_value();
-                        builder.emit(Inst::Call {
-                            dest:   Some(s.clone()),
-                            func:   "__str_from_float".into(),
-                            args:   vec![v],
-                            ret_ty: IrType::Ptr,
-                        });
-                        s
-                    }
-                    IrType::Bool => {
-                        let s = builder.new_value();
-                        builder.emit(Inst::Call {
-                            dest:   Some(s.clone()),
-                            func:   "__str_from_bool".into(),
-                            args:   vec![v],
-                            ret_ty: IrType::Ptr,
-                        });
-                        s
-                    }
-                    _ => v,
-                };
-                builder.emit(Inst::Call {
-                    dest:   None,
-                    func:   "__array_push".into(),
-                    args:   vec![arr.clone(), stored],
-                    ret_ty: IrType::Void,
-                });
-            }
-            arr
-        }
+        // Pas de type de destination connu ici (nested/argument/retour...) —
+        // voir `lower_array_literal`/`LiteralElemKind::Mixed` pour pourquoi
+        // c'est le choix par défaut sûr.
+        Expr::Array { elements, .. } => lower_array_literal(builder, elements, LiteralElemKind::Mixed),
 
         // ── Map littéral ──────────────────────────────────────────────────────
-        Expr::Map { entries, .. } => {
-            // Alloue une map via __map_new(), puis insère chaque entrée
-            let map = builder.new_value();
-            builder.emit(Inst::Call {
-                dest:   Some(map.clone()),
-                func:   "__map_new".into(),
-                args:   vec![],
-                ret_ty: IrType::Ptr,
-            });
-            for (key, val) in entries {
-                let kv = lower_expr(builder, key);
-                // Convertit F64/Bool en string avant stockage (comme pour les arrays)
-                let val_ty = expr_ir_type(builder, val);
-                let vv_raw = lower_expr(builder, val);
-                let vv = match val_ty {
-                    IrType::F64 => {
-                        let s = builder.new_value();
-                        builder.emit(Inst::Call {
-                            dest:   Some(s.clone()),
-                            func:   "__str_from_float".into(),
-                            args:   vec![vv_raw],
-                            ret_ty: IrType::Ptr,
-                        });
-                        s
-                    }
-                    IrType::Bool => {
-                        let s = builder.new_value();
-                        builder.emit(Inst::Call {
-                            dest:   Some(s.clone()),
-                            func:   "__str_from_bool".into(),
-                            args:   vec![vv_raw],
-                            ret_ty: IrType::Ptr,
-                        });
-                        s
-                    }
-                    _ => vv_raw,
-                };
-                builder.emit(Inst::Call {
-                    dest:   None,
-                    func:   "__map_set".into(),
-                    args:   vec![map.clone(), kv, vv],
-                    ret_ty: IrType::Void,
-                });
-            }
-            map
-        }
+        Expr::Map { entries, .. } => lower_map_literal(builder, entries, LiteralElemKind::Mixed),
 
         // ── Accès par index ───────────────────────────────────────────────────
         Expr::Index { object, index, .. } => {

@@ -189,3 +189,11 @@ pub fn dotenv_exception_class() -> ClassInfo {
 pub fn yaml_exception_class() -> ClassInfo {
     make_exception_class()
 }
+
+pub fn sdl_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn tauri_exception_class() -> ClassInfo {
+    make_exception_class()
+}

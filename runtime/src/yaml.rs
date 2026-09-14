@@ -73,9 +73,16 @@ fn value_to_yaml(val: i64) -> YamlValue {
     let typ = get_value_type(val);
 
     match typ {
-        1 => {  // Primitif : int / bool / float boxé (mixed) — voir __box_float
+        1 => {  // Primitif : int / bool / float boxé (mixed) — voir __box_float/__box_bool
+            // Bool BOXÉ (tag bits 1:0 = 10) : à vérifier AVANT le bool brut
+            // ci-dessous — `__unbox_bool` déréférence un pointeur, jamais sûr
+            // à appeler sur un 0/1 brut qui n'est PAS un pointeur boxé.
+            const PTR_THRESHOLD: i64 = 65536;
+            let is_boxed_bool = val >= PTR_THRESHOLD && (val & 3) == 2;
             if crate::typecheck::__is_float(val) != 0 {
                 YamlValue::Number(serde_yaml::Number::from(crate::__unbox_float(val)))
+            } else if is_boxed_bool {
+                YamlValue::Bool(crate::__unbox_bool(val) != 0)
             } else if val == 1 {
                 YamlValue::Bool(true)
             } else if val == 0 {
