@@ -428,11 +428,15 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     
                     // Compléter les arguments avec les valeurs par défaut si nécessaire
                     let completed_args = complete_args_with_defaults(builder, &func_mangled, args);
-                    
+
                     let obj_val = lower_expr(builder, object);
                     let dest = builder.new_value();
                     // Boxer F64/Bool/I64 si le paramètre cible est `mixed`
-                    // (Ptr) — voir `box_arg_for_mixed_param`.
+                    // (Ptr) — voir `box_arg_for_mixed_param`. Basé sur
+                    // `func_mangled` (la méthode CONCRÈTE résolue) : même
+                    // signature qu'un éventuel dispatcher dynamique
+                    // (`call_target` ci-dessous), qui se contente de la
+                    // relayer sans jamais la modifier.
                     let arg_vals: Vec<Value> = completed_args.iter().enumerate().map(|(i, a)| {
                         let raw = lower_expr(builder, a);
                         let arg_ty = expr_ir_type(builder, a);
@@ -443,9 +447,25 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     all_args.extend(arg_vals);
                     // Résoudre le type de retour depuis fn_ret_types
                     let ret_ty = builder.fn_ret_types.get(&func_mangled).cloned().unwrap_or(IrType::Ptr);
+                    // Dispatch dynamique réel (héritage de classe) : un appel
+                    // EXTERNE (jamais `self`/`parent`, qui visent toujours
+                    // l'implémentation exacte de la classe courante/parente)
+                    // sur une classe qui a des sous-classes est redirigé vers
+                    // son dispatcher `__dispatch_Classe_méthode` — sans quoi
+                    // l'appel résoudrait TOUJOURS vers `class_name`, jamais
+                    // vers une éventuelle surcharge du type réel de l'objet
+                    // (voir docs/roadmap.d/langage-interfaces.md).
+                    let is_self_or_parent = matches!(object.as_ref(), Expr::SelfExpr(_) | Expr::ParentExpr(_));
+                    let call_target = if is_self_or_parent {
+                        func_mangled.clone()
+                    } else {
+                        class_name.as_deref()
+                            .and_then(|cls| crate::lower::builder::class_dispatch::class_dispatcher_name(builder.module, cls, field))
+                            .unwrap_or_else(|| func_mangled.clone())
+                    };
                     builder.emit(Inst::Call {
                         dest:   Some(dest.clone()),
-                        func:   func_mangled,
+                        func:   call_target,
                         args:   all_args,
                         ret_ty,
                     });
@@ -1607,6 +1627,27 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     _ => {
                         // Ptr (mixed) → fallback runtime : détecte les floats boxés
                     }
+                }
+            }
+            // Shortcut statique pour `is ClassName`/`is InterfaceName` : un
+            // opérande dont le type STATIQUE est un primitif brut (I64/F64/
+            // Bool, jamais transporté en `Ptr`) ne peut JAMAIS être un objet
+            // — `is_object`/le check de `class_id` réel (voir
+            // `lower_is_check`) n'a alors rien à vérifier, et surtout ne
+            // DOIT PAS être exécuté : `__is_object` (donc `read_tag`)
+            // déréférence sans le savoir n'importe quel entier brut assez
+            // grand pour ressembler à un pointeur heap — SEGFAULT confirmé
+            // par reproduction sur `var n:int = 1000000; n is Shape`, même
+            // classe de bug que docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md
+            // (ici sur un `int` CONCRET, jamais boxé puisque jamais `mixed`).
+            if matches!(ty, Type::Named(_) | Type::Qualified(_)) {
+                let static_ty = expr_ir_type(builder, expr);
+                if matches!(static_ty, IrType::I64 | IrType::F64 | IrType::Bool) {
+                    let val = lower_expr(builder, expr);
+                    let _ = val; // évaluer pour les effets de bord éventuels, résultat ignoré
+                    let dest = builder.new_value();
+                    builder.emit(Inst::ConstBool { dest: dest.clone(), value: false });
+                    return dest;
                 }
             }
             let val = lower_expr(builder, expr);

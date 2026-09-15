@@ -2389,35 +2389,56 @@ pub extern "C" fn __alloc_obj(size: i64) -> i64 {
 }
 
 /// Alloue une instance de classe utilisateur avec tag TAG_OBJECT.
-/// Le pointeur retourné pointe APRÈS le header de 8 octets.
+/// Le pointeur retourné pointe APRÈS le header, qui fait maintenant 16 octets
+/// (au lieu de 8) — un mot supplémentaire est PRÉPENDÉ devant le tag pour y
+/// stocker l'identité de classe (`class_id`, attribué une fois par classe à
+/// la compilation, voir `IrModule::class_ids`) :
+/// ```text
+/// avant : [tag:8][données...]
+/// après : [class_id:8][tag:8][données...]
+/// ```
+/// Le tag reste au même offset relatif (`val - 8`), donc invisible de
+/// `read_tag`/`__is_object`/tout le reste du runtime — seul `class_id` est
+/// nouveau, lu via `*(val - 16)` (voir `Inst::GetField` avec un offset
+/// négatif dans le lowering, pas de fonction runtime dédiée). Support du
+/// polymorphisme réel (`is ClassName`/`is InterfaceName`, dispatch dynamique
+/// d'une méthode appelée via une variable de type parent/interface) — voir
+/// docs/roadmap.d/langage-interfaces.md.
+///
+/// `size == 0` (classe sans aucun champ) reste une allocation VALIDE : même
+/// une classe vide a besoin d'un header pour porter son identité — avant ce
+/// correctif, `size <= 0` retournait `0` (null), ce qui aurait rendu
+/// `self` invalide dans toute méthode d'une classe sans champ dès que le
+/// polymorphisme en dépendrait.
 #[unsafe(no_mangle)]
-pub extern "C" fn __alloc_class_obj(size: i64) -> i64 {
-    if size <= 0 { return 0; }
+pub extern "C" fn __alloc_class_obj(size: i64, class_id: i64) -> i64 {
+    if size < 0 { return 0; }
     unsafe {
-        let total = (size as usize) + 8;
+        let total = (size as usize) + 16;
         let layout = Layout::from_size_align(total, 8).unwrap();
         let raw = alloc_zeroed(layout);
         assert!(!raw.is_null(), "ocara_runtime: OOM in __alloc_class_obj");
-        *(raw as *mut i64) = TAG_OBJECT;
-        (raw as i64) + 8
+        *(raw as *mut i64) = class_id;
+        *(raw.add(8) as *mut i64) = TAG_OBJECT;
+        (raw as i64) + 16
     }
 }
 
 /// Libère une instance de classe utilisateur allouée par `__alloc_class_obj`
-/// (tag `TAG_OBJECT`). `n_fields` doit être EXACTEMENT le nombre de champs
-/// utilisé à l'allocation — connu statiquement par le compilateur pour
-/// chaque classe (`module.class_layouts[Classe].len()`), c'est pourquoi il
-/// est passé en argument plutôt que déduit d'un tag/header : rien ne stocke
-/// la taille ailleurs. Appelée uniquement depuis un `__free_<Classe>`
-/// généré (voir `src/lower/builder.d/class_ownership.rs`), jamais
-/// directement — ce n'est PAS un ramasse-miettes général, mêmes précautions
-/// que `free_str`.
+/// (tag `TAG_OBJECT`, header de 16 octets — voir sa doc). `n_fields` doit
+/// être EXACTEMENT le nombre de champs utilisé à l'allocation — connu
+/// statiquement par le compilateur pour chaque classe
+/// (`module.class_layouts[Classe].len()`), c'est pourquoi il est passé en
+/// argument plutôt que déduit d'un tag/header : rien ne stocke la taille
+/// ailleurs. Appelée uniquement depuis un `__free_<Classe>` généré (voir
+/// `src/lower/builder.d/class_ownership.rs`), jamais directement — ce n'est
+/// PAS un ramasse-miettes général, mêmes précautions que `free_str`.
 #[unsafe(no_mangle)]
 pub extern "C" fn __object_free(ptr: i64, n_fields: i64) {
     if ptr == 0 { return; }
     unsafe {
-        let raw = (ptr - 8) as *mut u8;
-        let size = 8 + (n_fields.max(0) as usize) * 8;
+        let raw = (ptr - 16) as *mut u8;
+        let size = 16 + (n_fields.max(0) as usize) * 8;
         let layout = Layout::from_size_align(size, 8).unwrap();
         dealloc(raw, layout);
     }

@@ -1,0 +1,143 @@
+import ocara.UnitTest
+
+// Polymorphisme réel : une variable typée par une classe PARENTE ou une
+// INTERFACE dispatchait toujours statiquement vers l'implémentation de son
+// type DÉCLARÉ, jamais vers celle du type RÉEL de l'objet (`var s:Shape =
+// use Circle(); s.describe()` appelait `Shape_describe`, jamais
+// `Circle_describe`) — pire, `var s:Shape = use Circle()` était même
+// REJETÉ à la compilation avant ce chantier (aucune affectation polymorphe
+// n'était possible, pas seulement pour les interfaces). `is ClassName`/
+// `is InterfaceName` ne distinguait pas non plus une classe d'une autre
+// (toujours `__is_object` seul). Voir docs/roadmap.d/langage-interfaces.md.
+//
+// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée
+// du fichier (voir 33_exception_hierarchyTest.oc) — la classe de test doit
+// donc précéder les classes/interfaces auxiliaires ci-dessous.
+
+class Test_39_polymorphism {
+
+    // Affectation polymorphe de base + dispatch réel sur une méthode surchargée.
+    public method basicOverrideDispatchTest(): int {
+        var s:Shape = use Circle()
+        UnitTest::assertTrue(s.describe() equal "circle")
+        return 0
+    }
+
+    // Sous-classe qui N'override PAS : hérite normalement (pas de dispatch
+    // nécessaire, mais ne doit rien casser).
+    public method nonOverridingSubclassTest(): int {
+        var s:Shape = use Square()
+        UnitTest::assertTrue(s.describe() equal "shape")
+        return 0
+    }
+
+    // Un objet du type EXACT déclaré (pas une sous-classe) doit continuer à
+    // fonctionner normalement (le dispatcher inclut la classe elle-même).
+    public method exactTypeStillWorksTest(): int {
+        var s:Shape = use Shape()
+        UnitTest::assertTrue(s.describe() equal "shape")
+        return 0
+    }
+
+    // Héritage sur 3 niveaux : la classe intermédiaire n'override rien, la
+    // classe feuille override — le dispatch doit atteindre la feuille depuis
+    // une variable typée par le GRAND-parent.
+    public method threeLevelInheritanceTest(): int {
+        var s:Shape = use FilledCircle()
+        UnitTest::assertTrue(s.describe() equal "filled-circle")
+        return 0
+    }
+
+    // Méthode héritée d'un GRAND-parent, jamais redéclarée par aucune classe
+    // intermédiaire ni par la feuille — doit rester accessible (régression
+    // directe d'un bug découvert pendant ce chantier : la copie de méthode
+    // héritée ne remontait auparavant qu'un seul niveau).
+    public method deepInheritedMethodTest(): int {
+        var s:Shape = use FilledCircle()
+        UnitTest::assertTrue(s.category() equal "generic-shape")
+        return 0
+    }
+
+    // Dispatch avec un argument transmis à travers le dispatcher.
+    public method dispatchWithArgTest(): int {
+        var s:Shape = use Circle()
+        UnitTest::assertEquals(84, s.scale(2))
+        return 0
+    }
+
+    // Interface : affectation + dispatch réel.
+    public method interfaceDispatchTest(): int {
+        var d:Drawable = use Circle()
+        UnitTest::assertTrue(d.draw() equal "circle-draw")
+        return 0
+    }
+
+    // `is ClassName` réel : distingue une classe d'une autre (avant ce
+    // chantier, toujours vrai pour N'IMPORTE QUELLE classe).
+    public method isClassNameTest(): int {
+        var s:Shape = use Circle()
+        UnitTest::assertTrue(s is Circle)
+        UnitTest::assertFalse(s is Square)
+        UnitTest::assertTrue(s is Shape)
+        return 0
+    }
+
+    // `is InterfaceName` réel : distingue une interface implémentée d'une
+    // autre non implémentée (avant ce chantier, identique à `is ClassName`,
+    // toujours vrai pour n'importe quelle classe).
+    public method isInterfaceNameTest(): int {
+        var s:Shape = use Circle()
+        UnitTest::assertTrue(s is Drawable)
+        var sq:Shape = use Square()
+        UnitTest::assertFalse(sq is Drawable)
+        return 0
+    }
+
+    // `is ClassName`/`is InterfaceName` sur une valeur qui n'est PAS un
+    // objet (régression directe d'un SEGFAULT découvert pendant ce
+    // chantier : un grand entier concret vérifié contre un type classe
+    // déréférençait une adresse arbitraire).
+    public method isCheckOnNonObjectTest(): int {
+        var n:int = 1000000
+        UnitTest::assertFalse(n is Shape)
+        UnitTest::assertFalse(n is Drawable)
+        return 0
+    }
+}
+
+class Shape {
+    public method describe(): string {
+        return "shape"
+    }
+    public method category(): string {
+        return "generic-shape"
+    }
+    public method scale(factor:int): int {
+        return factor
+    }
+}
+
+class Circle extends Shape implements Drawable {
+    public method describe(): string {
+        return "circle"
+    }
+    public method scale(factor:int): int {
+        return 42 * factor
+    }
+    public method draw(): string {
+        return "circle-draw"
+    }
+}
+
+class Square extends Shape {
+}
+
+class FilledCircle extends Circle {
+    public method describe(): string {
+        return "filled-circle"
+    }
+}
+
+interface Drawable {
+    method draw(): string
+}

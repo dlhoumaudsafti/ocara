@@ -145,6 +145,43 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         }
     }
 
+    // Identité de classe à l'exécution (voir IrModule::class_ids) : un id
+    // entier unique par classe, attribué dans l'ordre de déclaration — 0 est
+    // réservé (jamais attribué) pour rester un sentinel "aucune classe"
+    // détectable sans ambiguïté.
+    for (i, class) in program.classes.iter().enumerate() {
+        module.class_ids.insert(class.name.clone(), (i + 1) as i64);
+    }
+
+    // Doit être calculé ICI, AVANT le lowering du moindre corps de
+    // fonction/méthode ci-dessous : chaque site d'appel de méthode consulte
+    // `module.classes_with_subclasses` pour décider s'il doit rediriger vers
+    // un dispatcher dynamique (voir `class_dispatch::class_dispatcher_name`,
+    // `src/lower/expr.d/lower.rs`) — les CORPS de ces dispatchers ne sont
+    // générés que bien plus tard (`generate_class_dispatchers`), une fois
+    // les méthodes concrètes lowered, mais l'ENSEMBLE des classes qui EN
+    // auront un doit déjà être connu.
+    super::class_dispatch::compute_classes_with_subclasses(&mut module, program);
+
+    // Candidats d'un `is ClassName`/`is InterfaceName` réel (voir
+    // IrModule::is_check_candidates) — même contrainte d'ordre que
+    // `compute_classes_with_subclasses` ci-dessus : nécessaire AVANT le
+    // lowering du moindre corps, chaque `is` étant vérifié à son site.
+    for class in &program.classes {
+        let mut ids = vec![module.class_ids.get(&class.name).copied().unwrap_or(0)];
+        for descendant in super::class_dispatch::transitive_descendants(&class.name, &program.classes) {
+            ids.push(module.class_ids.get(&descendant).copied().unwrap_or(0));
+        }
+        module.is_check_candidates.insert(class.name.clone(), ids);
+    }
+    for iface in &program.interfaces {
+        let ids: Vec<i64> = program.classes.iter()
+            .filter(|c| c.implements.iter().any(|i| i == &iface.name))
+            .map(|c| module.class_ids.get(&c.name).copied().unwrap_or(0))
+            .collect();
+        module.is_check_candidates.insert(iface.name.clone(), ids);
+    }
+
     // Hiérarchie des exceptions builtin : toutes "héritent" de `Exception`
     // pour le filtrage `on e is X` (voir IrModule::ancestor_chain, lower_raise,
     // et docs/roadmap.d/langage-exceptions.md) — `.entry(...).or_insert` pour
@@ -686,6 +723,13 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
             }
         }
     }
+
+    // Dispatch dynamique réel pour les interfaces ET l'héritage de classe
+    // (voir docs/roadmap.d/langage-interfaces.md) — après toutes les
+    // classes, dont les méthodes concrètes doivent déjà exister pour être
+    // appelées depuis les dispatchers générés ici.
+    super::interfaces::generate_interface_dispatchers(&mut module, program);
+    super::class_dispatch::generate_class_dispatchers(&mut module, program);
 
     // Blocs runtime → fonctions __init__, __main__, etc.
     lower_runtime_blocks(&mut module, program, &program.consts, &fn_ret_types, &fn_param_types, &fn_param_names, &fn_variadic_info, &func_default_args, &async_funcs);

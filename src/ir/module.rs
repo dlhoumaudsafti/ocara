@@ -41,6 +41,33 @@ pub struct IrModule {
     pub class_map_fields: HashMap<String, HashSet<String>>,
     /// Héritage : class_name → parent_name
     pub class_parents: HashMap<String, String>,
+    /// Identité de classe à l'exécution : class_name → id entier unique
+    /// (attribué une fois, à la compilation, dans l'ordre de déclaration —
+    /// voir program.rs). Stocké dans le header de CHAQUE instance
+    /// (`__alloc_class_obj`, `runtime/src/lib.rs`) pour permettre un
+    /// polymorphisme réel : `is ClassName`/`is InterfaceName` et le dispatch
+    /// dynamique d'une méthode appelée via une variable de type parent/
+    /// interface (voir docs/roadmap.d/langage-interfaces.md).
+    pub class_ids: HashMap<String, i64>,
+    /// Classes ayant au moins une sous-classe (directe ou transitive) —
+    /// calculé par `generate_class_dispatchers`. Une méthode d'instance
+    /// appelée sur une variable/champ typé par une classe de cet ensemble
+    /// est redirigée vers son dispatcher dynamique `__dispatch_Classe_
+    /// méthode` (voir `class_dispatch::class_dispatcher_name`) plutôt que
+    /// vers l'implémentation concrète directement — sans dispatch, l'appel
+    /// résoudrait TOUJOURS vers cette classe précise, jamais vers une
+    /// éventuelle surcharge du type réel de l'objet.
+    pub classes_with_subclasses: HashSet<String>,
+    /// Ensemble de `class_id` correspondant à un `is X` réel (voir
+    /// `lower_is_check` dans `src/lower/expr.d/literals.rs`) : pour une
+    /// CLASSE, elle-même et tous ses descendants transitifs ; pour une
+    /// INTERFACE, les classes qui l'implémentent DIRECTEMENT (même règle que
+    /// le diagnostic E09/le dispatch dynamique — pas de transitivité via
+    /// `extends` pour `implements`). `x is Circle` et `x is Drawable`
+    /// compilaient jusqu'ici en code STRICTEMENT IDENTIQUE (`__is_object`
+    /// seul, sans jamais regarder la classe RÉELLE de `x`) — voir
+    /// docs/roadmap.d/langage-interfaces.md.
+    pub is_check_candidates: HashMap<String, Vec<i64>>,
     /// Paramètres échappants par fonction/méthode/constructeur utilisateur
     /// (voir `crate::sema::escape`) — calculé une fois dans `lower_program`,
     /// consulté par `lower::stmt::ownership` pour décider si un `var` peut
