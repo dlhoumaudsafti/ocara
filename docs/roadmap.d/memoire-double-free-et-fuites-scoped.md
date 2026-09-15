@@ -1,44 +1,15 @@
-# Doubles libérations, use-after-free et fuites autour de `scoped`/`consumed`
+# `scoped`/`consumed` : deux points mineurs restants
 
-## ✅ Corrigé (5 bugs distincts, tous reproduits puis vérifiés corrigés)
+Les 6 bugs de double-free/fuite/use-after-free d'origine, `Stmt::Result`, et la libération dans un bloc runtime (`main`/`init`/`exit`) sont tous corrigés — voir git log.
 
-- **Drop dépendant du chemin d'exécution (fuite confirmée par inspection de l'IR)** : `owned_locals` est un état PARTAGÉ pendant tout le lowering d'une fonction — sans précaution, une destruction anticipée (`return`/`break`/`continue`) émise dans une branche d'un `if`/`elseif`/`else`/`switch` marquait la variable "déjà détruite" pour les branches SUIVANTES et pour le code après le if/switch, alors que ces chemins d'exécution sont mutuellement exclusifs et n'ont jamais réellement vu cette destruction. Reproduit : `scoped s = [...]; if cond { return 1 }; return Array::len(s)` — le chemin `cond=false` ne libérait jamais `s` (confirmé sur l'IR généré). **Corrigé** : `lower_if`/`lower_elseif_chain`/`lower_switch` (`src/lower/stmt.d/statements.d/control_flow.rs`) prennent maintenant un instantané de `owned_locals` avant chaque branche et le restaurent après, pour qu'aucune branche n'hérite de l'effet d'une autre.
-- **`consumed` en boucle → double free confirmé par inspection de l'IR** (pas de crash observé sur ce cas précis en pratique, mais UB confirmé : le même pointeur est passé à `__value_free` à répétition, un run différent ou une autre allocation entre-temps aurait pu faire planter le programme). Une `consumed` déclarée AVANT une boucle et utilisée dans son corps voyait son appel de libération émis À L'INTÉRIEUR du corps de boucle, donc répété à chaque itération réelle. **Corrigé** : nouveau champ `OwnedLocalInfo::declared_loop_depth` + `LowerBuilder::loop_depth` (incrémenté/décrémenté par `lower_while`/`lower_for_in`/`lower_for_map` autour de leur corps) — `drop_consumed_used_in` ne libère plus si l'usage est dans une boucle plus profonde que la déclaration ; `emit_scope_drops` s'en charge correctement une seule fois, au retour à la boucle (et un `return` anticipé depuis l'intérieur de la boucle reste correctement couvert par `emit_early_exit_drops`).
-- **Réaffectation d'une `scoped`/`consumed` (`s = nouvelleValeur`) : fuite confirmée par inspection de l'IR** — l'ancienne valeur n'était jamais libérée avant d'être écrasée. **Corrigé** : `free_before_reassign` (`src/lower/stmt.d/ownership.rs`), appelée depuis `lower_assign` avant `store_local`, libère l'ancienne valeur (uniquement `OwnershipClass::Value`, pas les ressources — la sema interdit déjà leur réaffectation). Cas limite `s = s` vérifié sûr (la valeur est déjà clonée par `maybe_clone_escaping` avant que l'ancienne ne soit libérée).
-- **Double fermeture manuelle + `scoped` : SEGFAULT confirmé par reproduction** — `scoped m:Mutex = use Mutex(); m.destroy()` plantait à la fin du bloc (libération automatique d'un pointeur déjà libéré manuellement). **Corrigé** : le lowering d'un appel de méthode reconnu comme finalisateur (`Mutex::destroy`, `SQLite`/`MySQL`/`MariaDB::close`) sur une variable `scoped`/`consumed` suivie marque désormais `dropped = true` juste après l'appel (`src/lower/expr.d/lower.rs`), empêchant la double libération en fin de bloc. Vérifié pour Mutex et SQLite.
-- **`Thread` finalisée deux fois : abort confirmé par reproduction** (`t.join(); t.join()` → panic Rust "failed to join thread: No such process", abort immédiat). **Corrigé différemment des autres** : pas de mécanisme de libération automatique à corriger ici (`Thread` n'est jamais suivie par `owned_locals`, par design), donc rejet à la **compilation** plutôt qu'un correctif runtime — `ScopeStack::mark_thread_finalized` (`src/sema/scope.rs`) retourne maintenant si la thread était déjà finalisée, et `typecheck.rs` lève un nouveau diagnostic **E22** dans ce cas, pour n'importe quelle combinaison `join`/`detach`.
+## Reste à faire : diagnostic mort `SemaError::OwnershipNotSupported`
 
-**Découverte substantiellement plus grave que documenté initialement, corrigée** : le **shadowing** ne fuyait pas seulement une `scoped`/`consumed` — c'était un **use-after-free général touchant n'importe quelle variable, y compris un simple `var`**. `builder.locals` (nom → slot, utilisé pour TOUTE résolution de variable, pas seulement l'ownership) est une unique table plate ; une variable déclarée dans un bloc imbriqué sous un nom déjà utilisé par un bloc englobant écrasait définitivement son mapping pour le reste de la fonction. Reproduit avec un `var` simple : `var s = 100; if true { var s = 999 }; return s` retournait **999** au lieu de 100 (lisant le slot de la variable interne, déjà hors de portée — et pour une `array`/`map`/classe, déjà libérée si elle était `scoped`). **Corrigé** : `lower_block` (`src/lower/stmt.d/block.rs`) prend maintenant un instantané de `builder.locals` en entrée et restaure la vue d'avant le bloc en sortie (noms masqués retrouvent leur slot d'origine, noms déclarés dans le bloc disparaissent) — indépendant de l'ownership, corrige la portée lexicale elle-même.
+Ce diagnostic n'est jamais émis en pratique (`scoped x:int`/`scoped f:SDL` sont acceptés sans avertissement, alors que le variant existe). À trancher : l'activer réellement (implique de valider l'impact sur les exemples existants qui pourraient s'appuyer sur ce silence) ou le retirer si le suivi de possession sur ces types n'a finalement pas de sens à interdire.
 
-Vérifié : `make regression` sans régression après chacun des 6 correctifs ci-dessus (build + suite complète relancés à chaque étape).
+## Reste à faire (mineur, dépend d'un choix de design plus large) : `HTTPRequest`/`HTTPResponse` non typables `scoped`/`consumed`
 
-## Corrigé partiellement : `Stmt::Result`/`Stmt::Raise`
-
-- `Stmt::Result` (les 3 branches : propagation dans un handler, sortie anticipée `main` vers `runtime_exit_bb`, fallback direct) n'émettait aucune destruction anticipée, contrairement à `Stmt::Return`. **Corrigé** dans `src/lower/stmt.d/statements.rs` — les 3 branches appellent maintenant `emit_early_exit_drops(builder, 0)`, exactement comme `Stmt::Return`.
-- `Stmt::Raise` reste **volontairement non traité** (déjà documenté comme limite acceptée avant ce chantier — voir l'en-tête de `src/lower/stmt.d/ownership.rs`) : un `raise` qui traverse un `try` via `longjmp` fuit toujours ce qui est vivant à ce moment. Risque jugé disproportionné par rapport au gain (fuite, jamais corruption) sur un mécanisme déjà fragile — non rouvert ici.
-
-## 🔴 Découverte non corrigée, plus large que prévu : `scoped`/`consumed` ne sont JAMAIS libérées dans un bloc runtime
-
-En vérifiant le correctif `Stmt::Result` ci-dessus, découverte d'un bug séparé et plus large : une variable `scoped`/`consumed` déclarée **directement** dans le corps d'un bloc `main`/`init`/`error`/`success`/`exit` (pas dans un bloc imbriqué comme un `if` à l'intérieur) n'est **jamais** libérée, même en fin de bloc normale (sans rapport avec le correctif `Stmt::Result` lui-même, qui fonctionne correctement partout ailleurs, y compris `result` dans un `if` imbriqué DANS un bloc runtime).
-
-**Cause** : les blocs runtime sont assemblés et lowered par une fonction dédiée, `lower_runtime_main_manual` (`src/lower/builder.d/runtime.rs`), qui appelle `lower_stmt` directement sur chaque statement plutôt que de passer par `lower_block` — elle ne pousse jamais de frame sur `block_scope_stack`. Résultat : `register_owned_local` (appelée normalement) trouve `block_scope_stack` vide, `emit_scope_drops` n'est jamais invoquée pour ce niveau (elle est spécifique à `lower_block`), et `emit_early_exit_drops` n'a rien à parcourir (`block_scope_stack` toujours vide). La variable finit dans `owned_locals` mais sans aucun mécanisme qui la libère jamais.
-
-**Reproduction** :
-```ocara
-main {
-    scoped s:array<int> = [1, 2, 3]
-    IO::writeln("hi")
-}
-```
-→ aucun appel `__array_free` généré, quelle que soit la façon dont le bloc se termine (chute normale ou `result`).
-
-**Non corrigé ici** : nécessiterait de faire pousser/dépiler une frame `block_scope_stack` (et d'appeler l'équivalent d'`emit_scope_drops`) autour du corps de `lower_runtime_main_manual`, une fonction à la structure de contrôle particulière (deux phases séparées par un saut vers `runtime_exit_bb`) qu'il faudrait auditer avec autant de soin que `lower_block` — risque de résultat partiel ou incorrect sans tests ciblés supplémentaires, non pris dans ce chantier déjà large.
-
-## Toujours hors périmètre
-
-- **`HTTPRequest`/`HTTPResponse`** : en pratique, **pas applicable en l'état** — ces handles sont typés `int` (pas un vrai type nommé), donc `scoped x:HTTPRequest` n'existe pas et ne peut pas exister dans le système de types actuel. Les rendre gérables par `scoped`/`consumed` demanderait d'abord d'en faire un vrai type (changement d'API publique des builtins concernés, décision de design à part entière) — hors périmètre d'un correctif de mécanisme interne.
-- **Diagnostic mort `SemaError::OwnershipNotSupported`** : toujours jamais émis en pratique (`scoped x:int`/`scoped f:SDL` acceptés sans avertissement). Non traité — l'activer changerait le comportement accepté de code existant (à valider avec l'impact sur les exemples avant de l'activer, pas fait ici faute de temps dans ce chantier déjà chargé).
+Ces handles sont aujourd'hui de simples `int` (pas un vrai type nommé) — `scoped x:HTTPRequest` n'existe donc pas et ne peut pas exister dans le système de types actuel. Les rendre gérables par `scoped`/`consumed` demanderait d'abord d'en faire un vrai type, un changement d'API publique des builtins concernés à décider séparément.
 
 ## Fichiers clés
 
-`src/lower/stmt.d/ownership.rs`, `src/lower/stmt.d/block.rs`, `src/lower/stmt.d/statements.rs`, `src/lower/stmt.d/statements.d/{control_flow,loops,assignments}.rs`, `src/lower/expr.d/lower.rs`, `src/lower/builder.d/{types,runtime}.rs`, `src/sema/scope.rs`, `src/sema/error.rs`, `src/sema/typecheck.rs`, `docs/diagnostics.md` (E22).
+`src/sema/error.rs` (`OwnershipNotSupported`), `src/lower/stmt.d/ownership.rs`.
