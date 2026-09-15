@@ -29,6 +29,10 @@ pub struct CraneliftEmitter {
     ret_types: HashMap<String, cranelift_codegen::ir::Type>,
     /// Layout des classes : class_name → liste ordonnée (field_name, field_type)
     class_layouts: HashMap<String, Vec<(String, cranelift_codegen::ir::Type)>>,
+    /// Identité de classe à l'exécution : class_name → id entier unique
+    /// (voir `IrModule::class_ids`) — passé à `__alloc_class_obj` pour que
+    /// chaque instance porte son identité réelle dans son header.
+    class_ids: HashMap<String, i64>,
 }
 
 impl CraneliftEmitter {
@@ -57,6 +61,7 @@ impl CraneliftEmitter {
             param_types: HashMap::new(),
             ret_types: HashMap::new(),
             class_layouts: HashMap::new(),
+            class_ids: HashMap::new(),
         })
     }
 
@@ -205,6 +210,7 @@ impl CraneliftEmitter {
         let param_types = self.param_types.clone();
         let ret_types   = self.ret_types.clone();
         let class_layouts = self.class_layouts.clone();
+        let class_ids = self.class_ids.clone();
         let func_ret_ty = ir_func.ret_ty.clone();
         let module = &mut self.module;
 
@@ -226,6 +232,7 @@ impl CraneliftEmitter {
                     &param_types,
                     &ret_types,
                     &class_layouts,
+                    &class_ids,
                     &func_ret_ty,
                 )?;
             }
@@ -252,6 +259,7 @@ impl CraneliftEmitter {
         self.class_layouts = ir.class_layouts.iter()
             .map(|(k, v)| (k.clone(), v.iter().map(|(f, t)| (f.clone(), ir_type_to_cl(t))).collect()))
             .collect();
+        self.class_ids = ir.class_ids.clone();
         self.predeclare_functions(ir)?;
         self.emit_strings(&ir.strings)?;
 

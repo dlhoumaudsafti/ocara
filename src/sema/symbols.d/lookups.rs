@@ -90,6 +90,38 @@ impl SymbolTable {
         }
     }
 
+    /// Vrai si `class_name` "est un(e)" `target` — un `target` CLASSE
+    /// (`class_name` lui-même ou l'un quelconque de ses ancêtres via
+    /// `extends`), ou un `target` INTERFACE implémentée directement par
+    /// `class_name` OU par l'un de ses ancêtres (l'implémentation d'une
+    /// interface n'est PAS elle-même héritée dans `ClassInfo.implements` —
+    /// remonter la chaîne `extends` ici est ce qui rend cette relation
+    /// transitive : un enfant qui n'a pas d'`implements` propre "hérite"
+    /// quand même de l'interface de son parent, cohérent avec le fait qu'il
+    /// hérite aussi de l'implémentation de la méthode, voir
+    /// `lower_class`/"Émettre les méthodes héritées" dans
+    /// `src/lower/builder.d/classes.rs`).
+    ///
+    /// Utilisé pour l'affectation polymorphe réelle (`var s:Shape =
+    /// use Circle()`, `var d:Drawable = use Circle()`) — voir
+    /// `types_compat` et docs/roadmap.d/langage-interfaces.md. `target`
+    /// n'a pas besoin d'exister (retourne simplement `false`, l'appelant a
+    /// déjà vérifié son existence séparément si besoin).
+    pub fn class_matches(&self, class_name: &str, target: &str) -> bool {
+        let mut current = Some(class_name.to_string());
+        while let Some(c) = current {
+            if c == target {
+                return true;
+            }
+            let Some(info) = self.classes.get(&c) else { break };
+            if info.implements.iter().any(|i| i == target) {
+                return true;
+            }
+            current = info.extends.clone();
+        }
+        false
+    }
+
     /// Résoudre un type nommé → vérifie que la classe ou interface existe
     #[allow(dead_code)]
     pub fn type_exists(&self, name: &str) -> bool {

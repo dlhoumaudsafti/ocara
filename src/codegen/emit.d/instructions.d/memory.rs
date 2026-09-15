@@ -15,6 +15,7 @@ pub fn emit_memory(
     module: &mut ObjectModule,
     func_ids: &HashMap<String, FuncId>,
     class_layouts: &HashMap<String, Vec<(String, cranelift_codegen::ir::Type)>>,
+    class_ids: &HashMap<String, i64>,
 ) -> CgResult<bool> {
     macro_rules! def {
         ($v:expr, $val:expr) => {
@@ -76,15 +77,21 @@ pub fn emit_memory(
                 let ptr  = builder.inst_results(call)[0];
                 def!(dest, ptr);
             } else {
-                // Instance de classe utilisateur — TAG_OBJECT
+                // Instance de classe utilisateur — TAG_OBJECT + class_id
+                // (identité réelle à l'exécution, voir IrModule::class_ids
+                // et `__alloc_class_obj` dans runtime/src/lib.rs — nécessaire
+                // pour `is ClassName`/`is InterfaceName` et le dispatch
+                // dynamique, voir docs/roadmap.d/langage-interfaces.md).
                 let n_fields = class_layouts.get(class.as_str()).map(|f| f.len()).unwrap_or(1);
                 let size     = (n_fields as i64) * 8;
                 let size_val = builder.ins().iconst(clt::I64, size);
+                let class_id = class_ids.get(class.as_str()).copied().unwrap_or(0);
+                let class_id_val = builder.ins().iconst(clt::I64, class_id);
                 let alloc_fid = func_ids.get("__alloc_class_obj")
                     .copied()
                     .expect("__alloc_class_obj non déclaré");
                 let fref = module.declare_func_in_func(alloc_fid, builder.func);
-                let call = builder.ins().call(fref, &[size_val]);
+                let call = builder.ins().call(fref, &[size_val, class_id_val]);
                 let ptr  = builder.inst_results(call)[0];
                 def!(dest, ptr);
             }

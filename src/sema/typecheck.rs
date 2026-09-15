@@ -224,7 +224,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 ClassMember::Const { ty, value, span, .. } => {
                     let val_ty = self.infer_expr(value);
-                    if !types_compat(&val_ty, ty) {
+                    if !types_compat(&val_ty, ty, &self.symbols) {
                         self.errors.push(SemaError::TypeMismatch {
                             expected: type_name(ty),
                             found:    type_name(&val_ty),
@@ -370,7 +370,7 @@ impl<'a> TypeChecker<'a> {
                 // `value` peut lui-même être une `scoped`/`consumed` d'un
                 // autre binding (`var y = x`) — c'est un point d'échappement.
                 self.check_escape(value);
-                if !types_compat(&val_ty, ty) {
+                if !types_compat(&val_ty, ty, &self.symbols) {
                     self.errors.push(SemaError::TypeMismatch {
                         expected: type_name(ty),
                         found:    type_name(&val_ty),
@@ -415,7 +415,7 @@ impl<'a> TypeChecker<'a> {
 
             Stmt::Const { name, ty, value, span } => {
                 let val_ty = self.infer_expr(value);
-                if !types_compat(&val_ty, ty) {
+                if !types_compat(&val_ty, ty, &self.symbols) {
                     self.errors.push(SemaError::TypeMismatch {
                         expected: type_name(ty),
                         found:    type_name(&val_ty),
@@ -437,7 +437,7 @@ impl<'a> TypeChecker<'a> {
 
             Stmt::If { condition, then_block, elseif, else_block, span } => {
                 let cond_ty = self.infer_expr(condition);
-                if !types_compat(&cond_ty, &Type::Bool) {
+                if !types_compat(&cond_ty, &Type::Bool, &self.symbols) {
                     self.errors.push(SemaError::TypeMismatch {
                         expected: "bool".into(),
                         found:    type_name(&cond_ty),
@@ -462,7 +462,7 @@ impl<'a> TypeChecker<'a> {
 
             Stmt::While { condition, body, span } => {
                 let cond_ty = self.infer_expr(condition);
-                if !types_compat(&cond_ty, &Type::Bool) {
+                if !types_compat(&cond_ty, &Type::Bool, &self.symbols) {
                     self.errors.push(SemaError::TypeMismatch {
                         expected: "bool".into(),
                         found:    type_name(&cond_ty),
@@ -531,7 +531,7 @@ impl<'a> TypeChecker<'a> {
                         false
                     };
                     
-                    if !is_runtime_return && !types_compat(&ty, &ret_ty) {
+                    if !is_runtime_return && !types_compat(&ty, &ret_ty, &self.symbols) {
                         self.errors.push(SemaError::ReturnTypeMismatch {
                             expected: type_name(&ret_ty),
                             found:    type_name(&ty),
@@ -570,7 +570,7 @@ impl<'a> TypeChecker<'a> {
                         false
                     };
 
-                    if !is_runtime_result && !types_compat(&ty, &ret_ty) {
+                    if !is_runtime_result && !types_compat(&ty, &ret_ty, &self.symbols) {
                         self.errors.push(SemaError::ReturnTypeMismatch {
                             expected: type_name(&ret_ty),
                             found:    type_name(&ty),
@@ -882,7 +882,7 @@ impl<'a> TypeChecker<'a> {
                                 } else {
                                     for (arg, expected_ty) in args.iter().zip(param_tys_clone.iter()) {
                                         let arg_ty = self.infer_expr(arg);
-                                        if !types_compat(&arg_ty, expected_ty) {
+                                        if !types_compat(&arg_ty, expected_ty, &self.symbols) {
                                             self.errors.push(SemaError::TypeMismatch {
                                                 expected: type_name(expected_ty),
                                                 found: type_name(&arg_ty),
@@ -969,7 +969,7 @@ impl<'a> TypeChecker<'a> {
                                     let arg_ty = self.infer_expr(arg);
                                     if let Some((_, param_ty)) = sig.params.get(i) {
                                         let expected_ty = substitute_type_params(param_ty, &ginfo.type_params, type_args);
-                                        if expected_ty != Type::Mixed && arg_ty != Type::Mixed && !types_compat(&arg_ty, &expected_ty) {
+                                        if expected_ty != Type::Mixed && arg_ty != Type::Mixed && !types_compat(&arg_ty, &expected_ty, &self.symbols) {
                                             self.errors.push(SemaError::TypeMismatch {
                                                 expected: type_name(&expected_ty),
                                                 found:    type_name(&arg_ty),
@@ -1330,14 +1330,14 @@ impl<'a> TypeChecker<'a> {
             Expr::Binary { op, left, right, span } => {
                 let lt = self.infer_expr(left);
                 let rt = self.infer_expr(right);
-                binary_result_type(op, &lt, &rt, span, &mut self.errors)
+                binary_result_type(op, &lt, &rt, span, &mut self.errors, &self.symbols)
             }
 
             Expr::Unary { op, operand, span } => {
                 let ty = self.infer_expr(operand);
                 match op {
                     UnaryOp::Not => {
-                        if !types_compat(&ty, &Type::Bool) {
+                        if !types_compat(&ty, &Type::Bool, &self.symbols) {
                             self.errors.push(SemaError::TypeMismatch {
                                 expected: "bool".into(),
                                 found:    type_name(&ty),
@@ -1558,19 +1558,30 @@ pub fn type_name(ty: &Type) -> String {
     }
 }
 
-/// Compatibilité laxiste : `mixed` accepte tout, `null` compatible avec tout type référence
-pub fn types_compat(found: &Type, expected: &Type) -> bool {
+/// Compatibilité laxiste : `mixed` accepte tout, `null` compatible avec tout
+/// type référence.
+///
+/// `symbols` permet de reconnaître une affectation POLYMORPHE réelle entre
+/// deux types nommés (`Type::Named`) : une instance de classe compatible
+/// avec le type déclaré d'une classe PARENTE (`var s:Shape = use Circle()`
+/// où `Circle extends Shape`) ou d'une INTERFACE qu'elle implémente (`var
+/// d:Drawable = use Circle()`) — voir `SymbolTable::class_matches`. Avant ce
+/// mécanisme, `Type::Named(a) vs Type::Named(b)` ne passait que par l'égalité
+/// stricte du catch-all final (`found == expected`), rejetant purement et
+/// simplement TOUTE affectation polymorphe, même la plus basique (héritage
+/// de classe) — voir docs/roadmap.d/langage-interfaces.md.
+pub fn types_compat(found: &Type, expected: &Type, symbols: &SymbolTable) -> bool {
     if matches!(found, Type::Mixed) || matches!(expected, Type::Mixed) {
         return true;
     }
     // Les unions sont vérifiés en premier (avant le cas null)
     // union en position "found" : compatible si l'une des variantes est compatible avec expected
     if let Type::Union(variants) = found {
-        return variants.iter().any(|v| types_compat(v, expected));
+        return variants.iter().any(|v| types_compat(v, expected, symbols));
     }
     // union en position "expected" : compatible si found est compatible avec au moins une variante
     if let Type::Union(variants) = expected {
-        return variants.iter().any(|v| types_compat(found, v));
+        return variants.iter().any(|v| types_compat(found, v, symbols));
     }
     // null est compatible avec tout type référence (string, objet, tableau, map)
     if matches!(found, Type::Null) {
@@ -1579,15 +1590,18 @@ pub fn types_compat(found: &Type, expected: &Type) -> bool {
         );
     }
     match (found, expected) {
-        (Type::Array(f), Type::Array(e)) => types_compat(f, e),
+        (Type::Named(f), Type::Named(e)) => {
+            f == e || symbols.class_matches(f, e)
+        }
+        (Type::Array(f), Type::Array(e)) => types_compat(f, e, symbols),
         (Type::Map(fk, fv), Type::Map(ek, ev)) =>
-            types_compat(fk, ek) && types_compat(fv, ev),
+            types_compat(fk, ek, symbols) && types_compat(fv, ev, symbols),
         (
             Type::Function { ret_ty: f_ret, param_tys: f_params },
             Type::Function { ret_ty: e_ret, param_tys: e_params }
         ) => {
             // Le type de retour doit être compatible
-            if !types_compat(f_ret, e_ret) {
+            if !types_compat(f_ret, e_ret, symbols) {
                 return false;
             }
             // Les paramètres doivent correspondre exactement
@@ -1595,7 +1609,7 @@ pub fn types_compat(found: &Type, expected: &Type) -> bool {
                 return false;
             }
             for (fp, ep) in f_params.iter().zip(e_params.iter()) {
-                if !types_compat(fp, ep) {
+                if !types_compat(fp, ep, symbols) {
                     return false;
                 }
             }
@@ -1611,6 +1625,7 @@ fn binary_result_type(
     rt:     &Type,
     span:   &Span,
     errors: &mut Vec<SemaError>,
+    symbols: &SymbolTable,
 ) -> Type {
     match op {
         BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod => {
@@ -1637,7 +1652,7 @@ fn binary_result_type(
                 });
                 return Type::String;
             }
-            if types_compat(lt, rt) { lt.clone() } else {
+            if types_compat(lt, rt, symbols) { lt.clone() } else {
                 errors.push(SemaError::TypeMismatch {
                     expected: type_name(lt),
                     found:    type_name(rt),
@@ -1647,7 +1662,7 @@ fn binary_result_type(
             }
         }
         BinOp::Equal | BinOp::NotEqual => {
-            if !comparable_types(lt, rt) {
+            if !comparable_types(lt, rt, symbols) {
                 errors.push(SemaError::IncomparableTypes {
                     op:    op_name(op),
                     left:  type_name(lt),
@@ -1693,14 +1708,14 @@ fn is_numeric(t: &Type) -> bool {
 /// malgré des types nominaux différents (widening numérique explicite lors du
 /// lowering). `mixed` ne peut pas être vérifié statiquement — la comparaison
 /// est alors déléguée à un contrôle de type au runtime (voir lower::expr::lower).
-fn comparable_types(lt: &Type, rt: &Type) -> bool {
+fn comparable_types(lt: &Type, rt: &Type, symbols: &SymbolTable) -> bool {
     if matches!(lt, Type::Mixed) || matches!(rt, Type::Mixed) {
         return true;
     }
     if is_numeric(lt) && is_numeric(rt) {
         return true;
     }
-    types_compat(lt, rt) || types_compat(rt, lt)
+    types_compat(lt, rt, symbols) || types_compat(rt, lt, symbols)
 }
 
 /// `smaller` / `greater` / `smaller or equal` / `greater or equal` : un ordre

@@ -465,7 +465,7 @@ fn main() {
                 }
                 for (i, (_, iface_param_ty)) in iface_sig.params.iter().enumerate() {
                     let (_, class_param_ty) = &class_sig.params[i];
-                    if !types_compat(class_param_ty, iface_param_ty) {
+                    if !types_compat(class_param_ty, iface_param_ty, &symbols) {
                         diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
                             &format!("method '{}' of class '{}' does not match interface '{}': parameter {} expected type '{}', found '{}'",
                                 method_name, class_decl.name, iface_name, i + 1,
@@ -473,7 +473,7 @@ fn main() {
                         std::process::exit(1);
                     }
                 }
-                if !types_compat(&class_sig.ret_ty, &iface_sig.ret_ty) {
+                if !types_compat(&class_sig.ret_ty, &iface_sig.ret_ty, &symbols) {
                     diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
                         &format!("method '{}' of class '{}' does not match interface '{}': expected return type '{}', found '{}'",
                             method_name, class_decl.name, iface_name,
@@ -525,7 +525,7 @@ fn main() {
                 }
                 for (i, (_, iface_param_ty)) in iface_sig.params.iter().enumerate() {
                     let (_, class_param_ty) = &class_sig.params[i];
-                    if !types_compat(class_param_ty, iface_param_ty) {
+                    if !types_compat(class_param_ty, iface_param_ty, &symbols) {
                         diagnostic::print_error(&args.input, generic_decl.span.line, generic_decl.span.col,
                             &format!("method '{}' of generic '{}' does not match interface '{}': parameter {} expected type '{}', found '{}'",
                                 method_name, generic_decl.name, iface_name, i + 1,
@@ -533,7 +533,7 @@ fn main() {
                         std::process::exit(1);
                     }
                 }
-                if !types_compat(&class_sig.ret_ty, &iface_sig.ret_ty) {
+                if !types_compat(&class_sig.ret_ty, &iface_sig.ret_ty, &symbols) {
                     diagnostic::print_error(&args.input, generic_decl.span.line, generic_decl.span.col,
                         &format!("method '{}' of generic '{}' does not match interface '{}': expected return type '{}', found '{}'",
                             method_name, generic_decl.name, iface_name,
