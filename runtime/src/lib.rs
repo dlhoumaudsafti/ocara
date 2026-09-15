@@ -1865,38 +1865,35 @@ fn ut_pass(msg: &str) {
 }
 
 unsafe fn ut_val_to_display(val: i64) -> String {
-    // Heuristique simple : si ressemble à un pointeur de chaîne, l'afficher
+    // Ancienne version : réimplémentation ad-hoc du déballage float/bool
+    // boxé, ET FAUSSE (traitait `val` comme encodant directement les bits du
+    // float décalés de 2, alors que le boxing alloue une VRAIE cellule tas
+    // et retourne `ptr | tag` — voir `__box_float`/`unbox_float`). Corrigé en
+    // délégant à `val_to_string`, déjà correcte pour float/bool/int boxés
+    // (voir `is_float_box`/`is_bool_box`/`is_int_box`) — seul l'habillage
+    // entre guillemets d'une vraie string est spécifique à cette fonction.
     if val == 0 {
         return "null".to_string();
     }
-    // Booléen boxé (tag 10 en bits bas) ou float (tag 01) → afficher directement
-    let tag = val & 0b11;
-    if tag == 0b01 {
-        // float boxé
-        let bits = ((val >> 2) << 2) as u64;
-        let f = f64::from_bits(bits);
-        return format!("{}", f);
+    if __is_string(val) != 0 {
+        return format!("\"{}\"", unsafe { ptr_to_str(val) });
     }
-    if tag == 0b10 {
-        // bool boxé
-        return if (val >> 2) != 0 { "true".to_string() } else { "false".to_string() };
-    }
-    // Int ou ptr
-    if val >= 0x10000 {
-        // Probablement une chaîne
-        unsafe {
-            let s = ptr_to_str(val);
-            format!("\"{}\"", s)
-        }
-    } else {
-        format!("{}", val)
-    }
+    val_to_string(val)
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertEquals(expected: i64, actual: i64) {
-    if expected == actual {
-        ut_pass(&format!("assertEquals: {} == {}", expected, actual));
+    // Comparaison RÉELLE (type + valeur, contenu pour une string), pas une
+    // égalité brute de i64 — celle-ci ne "marchait" pour deux strings que
+    // par coïncidence (mêmes pointeurs, ex. deux littéraux internés
+    // identiques), et confondait deux valeurs `mixed` boxées distinctes
+    // représentant le même nombre (deux adresses de cellule différentes) —
+    // découvert et documenté plus tôt dans ce chantier, corrigé ici en
+    // réutilisant `__cmp_eq_strict` (déjà correcte pour tous les cas, voir
+    // sa doc plus bas dans ce fichier).
+    if __cmp_eq_strict(expected, actual) != 0 {
+        ut_pass(&format!("assertEquals: {} == {}",
+            unsafe { ut_val_to_display(expected) }, unsafe { ut_val_to_display(actual) }));
     } else {
         unsafe {
             crate::exception::throw_unittest_exception(
@@ -1910,8 +1907,10 @@ pub extern "C" fn UnitTest_assertEquals(expected: i64, actual: i64) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertNotEquals(expected: i64, actual: i64) {
-    if expected != actual {
-        ut_pass(&format!("assertNotEquals: {} != {}", expected, actual));
+    // Voir le commentaire de `UnitTest_assertEquals` — même correction.
+    if __cmp_eq_strict(expected, actual) == 0 {
+        ut_pass(&format!("assertNotEquals: {} != {}",
+            unsafe { ut_val_to_display(expected) }, unsafe { ut_val_to_display(actual) }));
     } else {
         unsafe {
             crate::exception::throw_unittest_exception(
@@ -1924,7 +1923,14 @@ pub extern "C" fn UnitTest_assertNotEquals(expected: i64, actual: i64) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertTrue(value: i64) {
-    if value != 0 {
+    // Déballer un bool/int/float boxé (voir `unbox_numeric_i64`) avant le
+    // test de vérité : un bool boxé est un pointeur heap, donc TOUJOURS non
+    // nul, qu'il représente `true` OU `false` — sans déballage,
+    // `assertTrue(false)` passerait à tort dès que son argument est un
+    // `mixed` boxé (paramètre déclaré `Type::Mixed`, voir
+    // src/builtins/unittest.rs, et le boxing d'argument d'appel introduit
+    // dans ce chantier — voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md).
+    if unbox_numeric_i64(value) != 0 {
         ut_pass("assertTrue");
     } else {
         unsafe {
@@ -1935,7 +1941,8 @@ pub extern "C" fn UnitTest_assertTrue(value: i64) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertFalse(value: i64) {
-    if value == 0 {
+    // Voir le commentaire de `UnitTest_assertTrue` — même correction.
+    if unbox_numeric_i64(value) == 0 {
         ut_pass("assertFalse");
     } else {
         unsafe {
@@ -1968,7 +1975,12 @@ pub extern "C" fn UnitTest_assertNotNull(value: i64) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertGreater(a: i64, b: i64) {
-    if a > b {
+    // `cmp_primitive` (voir plus bas) déballe un opérande float/bool/int
+    // boxé avant de comparer — une comparaison brute de bits (l'ancien
+    // comportement) donnait un résultat sans rapport avec la valeur réelle
+    // pour un `mixed` boxé (params déclarés `Type::Mixed`, voir
+    // src/builtins/unittest.rs).
+    if cmp_primitive(a, b, |x, y| x > y, |x, y| x > y) {
         ut_pass(&format!("assertGreater: {} > {}", a, b));
     } else {
         unsafe {
@@ -1982,7 +1994,7 @@ pub extern "C" fn UnitTest_assertGreater(a: i64, b: i64) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertLess(a: i64, b: i64) {
-    if a < b {
+    if cmp_primitive(a, b, |x, y| x < y, |x, y| x < y) {
         ut_pass(&format!("assertLess: {} < {}", a, b));
     } else {
         unsafe {
@@ -1996,7 +2008,7 @@ pub extern "C" fn UnitTest_assertLess(a: i64, b: i64) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertGreaterOrEquals(a: i64, b: i64) {
-    if a >= b {
+    if cmp_primitive(a, b, |x, y| x >= y, |x, y| x >= y) {
         ut_pass(&format!("assertGreaterOrEquals: {} >= {}", a, b));
     } else {
         unsafe {
@@ -2010,7 +2022,7 @@ pub extern "C" fn UnitTest_assertGreaterOrEquals(a: i64, b: i64) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertLessOrEquals(a: i64, b: i64) {
-    if a <= b {
+    if cmp_primitive(a, b, |x, y| x <= y, |x, y| x <= y) {
         ut_pass(&format!("assertLessOrEquals: {} <= {}", a, b));
     } else {
         unsafe {
@@ -2040,8 +2052,16 @@ pub extern "C" fn UnitTest_assertContains(haystack: i64, needle: i64) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertEmpty(value: i64) {
+    // Un bool/int/float boxé (voir `is_float_box`/`is_bool_box`/`is_int_box`)
+    // est un pointeur heap dont les bits bas NE SONT PAS ceux d'une vraie
+    // string (voir `is_ptr`) — jamais "vide" au sens de cette assertion,
+    // et `ptr_to_str` sur son adresse (décalée du tag) lirait une zone
+    // mémoire arbitraire (SEGFAULT potentiel, même famille de bug que
+    // docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md).
     let empty = if value == 0 {
         true
+    } else if is_float_box(value) || is_bool_box(value) || is_int_box(value) {
+        false
     } else if value >= 0x10000 {
         unsafe { ptr_to_str(value).is_empty() }
     } else {
@@ -2058,8 +2078,11 @@ pub extern "C" fn UnitTest_assertEmpty(value: i64) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertNotEmpty(value: i64) {
+    // Voir le commentaire de `UnitTest_assertEmpty` — même correction.
     let empty = if value == 0 {
         true
+    } else if is_float_box(value) || is_bool_box(value) || is_int_box(value) {
+        false
     } else if value >= 0x10000 {
         unsafe { ptr_to_str(value).is_empty() }
     } else {

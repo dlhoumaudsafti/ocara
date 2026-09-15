@@ -53,6 +53,16 @@ pub struct IrModule {
     pub class_members: crate::sema::escape::ClassMembers,
     /// Types des paramètres du constructeur : class_name → Vec<IrType>
     pub ctor_param_types: HashMap<String, Vec<IrType>>,
+    /// Types des paramètres des méthodes D'INSTANCE utilisateur (jamais
+    /// statiques, déjà couvertes par `LowerBuilder::fn_param_types`) :
+    /// "Classe_methode" → Vec<IrType> (sans `self`). Utilisé UNIQUEMENT pour
+    /// la décision de boxing `mixed` d'un argument d'appel (voir
+    /// `crate::lower::expr::helpers::param_type_for_call_arg`) — délibérément
+    /// séparé de `fn_param_types`, qui alimente aussi la génération des
+    /// wrappers `__fn_wrap_*` pour les fonctions référençables comme valeur
+    /// (voir program.rs) : un wrapper généré pour une méthode d'instance sans
+    /// tenir compte de `self` serait cassé (appel désaligné).
+    pub method_param_types: HashMap<String, Vec<IrType>>,
     /// Constantes de classes : "ClassName__NAME" → (IrType, Literal)
     pub class_consts: HashMap<String, (IrType, Literal)>,
     /// Compteur pour nommer les closures anonymes (__anon_0, __anon_1, ...)

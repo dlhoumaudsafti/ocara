@@ -431,7 +431,14 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     
                     let obj_val = lower_expr(builder, object);
                     let dest = builder.new_value();
-                    let arg_vals: Vec<Value> = completed_args.iter().map(|a| lower_expr(builder, a)).collect();
+                    // Boxer F64/Bool/I64 si le paramètre cible est `mixed`
+                    // (Ptr) — voir `box_arg_for_mixed_param`.
+                    let arg_vals: Vec<Value> = completed_args.iter().enumerate().map(|(i, a)| {
+                        let raw = lower_expr(builder, a);
+                        let arg_ty = expr_ir_type(builder, a);
+                        let param_ty = param_type_for_call_arg(builder, &func_mangled, i);
+                        box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
+                    }).collect();
                     let mut all_args = vec![obj_val];
                     all_args.extend(arg_vals);
                     // Résoudre le type de retour depuis fn_ret_types
@@ -548,34 +555,13 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 return task;
             }
 
-            // Boxer F64/Bool/I64 si le paramètre cible est `mixed` (Ptr)
-            let param_types = builder.fn_param_types.get(func_name.as_str()).cloned();
+            // Boxer F64/Bool/I64 si le paramètre cible est `mixed` (Ptr) —
+            // voir `box_arg_for_mixed_param`.
             let arg_vals: Vec<Value> = args.iter().enumerate().map(|(i, a)| {
                 let raw = lower_expr(builder, a);
                 let arg_ty = expr_ir_type(builder, a);
-                let param_ty = param_types.as_ref().and_then(|pts| pts.get(i)).cloned();
-                if param_ty == Some(IrType::Ptr) {
-                    match arg_ty {
-                        IrType::F64 => {
-                            let d = builder.new_value();
-                            builder.emit(Inst::Call { dest: Some(d.clone()), func: "__box_float".into(), args: vec![raw], ret_ty: IrType::Ptr });
-                            d
-                        }
-                        IrType::Bool => {
-                            let d = builder.new_value();
-                            builder.emit(Inst::Call { dest: Some(d.clone()), func: "__box_bool".into(), args: vec![raw], ret_ty: IrType::Ptr });
-                            d
-                        }
-                        IrType::I64 => {
-                            let d = builder.new_value();
-                            builder.emit(Inst::Call { dest: Some(d.clone()), func: "__box_int_for_mixed".into(), args: vec![raw], ret_ty: IrType::Ptr });
-                            d
-                        }
-                        _ => raw,
-                    }
-                } else {
-                    raw
-                }
+                let param_ty = param_type_for_call_arg(builder, &func_name, i);
+                box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
             }).collect();
             
             // Si fonction variadic, empaqueter les arguments excédentaires dans un tableau
@@ -811,8 +797,18 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 return dummy;
             }
 
-            let arg_vals: Vec<Value> = args.iter().map(|a| lower_expr(builder, a)).collect();
-            
+            // Boxer F64/Bool/I64 si le paramètre cible est `mixed` (Ptr) —
+            // voir `box_arg_for_mixed_param`. Un appel statique (builtin OU
+            // classe utilisateur) ne boxait jusqu'ici AUCUN argument, quel
+            // que soit le paramètre visé (confirmé faux par reproduction) —
+            // voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md.
+            let arg_vals: Vec<Value> = args.iter().enumerate().map(|(i, a)| {
+                let raw = lower_expr(builder, a);
+                let arg_ty = expr_ir_type(builder, a);
+                let param_ty = param_type_for_call_arg(builder, &func_name, i);
+                box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
+            }).collect();
+
             // Si c'est un appel parent::method(), il faut ajouter self comme premier argument
             // car les méthodes d'instance prennent toujours self en premier paramètre
             let final_args = if class == "<parent>" {
@@ -923,46 +919,8 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             for (i, a) in args.iter().enumerate() {
                 let arg_ty   = expr_ir_type(builder, a);
                 let val      = lower_expr(builder, a);
-                let param_ty = ctor_params.get(i).cloned().unwrap_or(IrType::I64);
-                // Si le paramètre est `mixed` (Ptr) mais la valeur est F64/Bool/I64 → boxer
-                let boxed = if param_ty == IrType::Ptr {
-                    match arg_ty {
-                        IrType::F64 => {
-                            let d = builder.new_value();
-                            builder.emit(Inst::Call {
-                                dest:   Some(d.clone()),
-                                func:   "__box_float".into(),
-                                args:   vec![val],
-                                ret_ty: IrType::Ptr,
-                            });
-                            d
-                        }
-                        IrType::Bool => {
-                            let d = builder.new_value();
-                            builder.emit(Inst::Call {
-                                dest:   Some(d.clone()),
-                                func:   "__box_bool".into(),
-                                args:   vec![val],
-                                ret_ty: IrType::Ptr,
-                            });
-                            d
-                        }
-                        IrType::I64 => {
-                            let d = builder.new_value();
-                            builder.emit(Inst::Call {
-                                dest:   Some(d.clone()),
-                                func:   "__box_int_for_mixed".into(),
-                                args:   vec![val],
-                                ret_ty: IrType::Ptr,
-                            });
-                            d
-                        }
-                        _ => val,
-                    }
-                } else {
-                    val
-                };
-                ctor_args.push(boxed);
+                let param_ty = ctor_params.get(i).cloned();
+                ctor_args.push(box_arg_for_mixed_param(builder, param_ty, &arg_ty, val));
             }
             // Appel du constructeur
             builder.emit(Inst::Call {

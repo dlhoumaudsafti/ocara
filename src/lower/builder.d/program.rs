@@ -118,8 +118,17 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
                         }
                     }
                 } else {
-                    // Méthodes d'instance : collecte des valeurs par défaut (sans self)
-                    // self est géré séparément dans le lowering, donc on ne l'inclut pas ici
+                    // Méthodes d'instance : types de paramètres (sans `self`,
+                    // géré séparément dans le lowering) — dans
+                    // `module.method_param_types`, PAS `fn_param_types` (voir
+                    // sa doc dans `src/ir/module.rs`). Uniquement pour la
+                    // décision de boxing `mixed` d'un argument d'appel.
+                    let param_types: Vec<IrType> = decl.params.iter()
+                        .map(|p| IrType::from_ast(&p.ty))
+                        .collect();
+                    module.method_param_types.insert(mangled.clone(), param_types);
+
+                    // Collecte des valeurs par défaut (sans self)
                     let default_args: Vec<Option<Expr>> = decl.params.iter()
                         .map(|p| p.default_value.clone())
                         .collect();
