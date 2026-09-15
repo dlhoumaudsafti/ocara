@@ -23,7 +23,6 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 ### Langage
 
-- **Convergence structurelle de `expr_ir_type`** — `Array`/`Map` (bug réel corrigé) et `HTTPRequest`/`HTTPResponse` (bug réel corrigé plus tôt) ont chacun eu une divergence statique/sucre distincte ; `String`/`JSON` audités sans divergence trouvée. Les 6 builtins à double forme (`allows_instance_sugar`) ont maintenant des tests de parité (39 assertions, voir la fiche). Reste seulement la convergence de fond : faire résoudre `Expr::StaticCall`/`Expr::Call{Field}` par une seule fonction partagée dans `expr_ir_type`, pour éliminer structurellement ce risque de récidive. *(Structurel — à ne traiter qu'avec de bons tests de non-régression en place, déjà le cas)* → [détails](roadmap.d/qualite-parite-sucre-statique.md)
 - **Ambiguïté `0`/`null` dans un `mixed`** — un entier brut `0` logé dans un `mixed` (jamais boxé, optimisation volontaire de `box_int_if_needed`) est structurellement indiscernable de `null` (les deux valent le bit pattern `0`) : `val_to_string`/`__val_to_str` (et donc tout code générique consommant un `mixed` — logs `UnitTest::assertEquals`, JSON/YAML potentiellement...) affichent "null" pour un entier 0 authentique. Découvert en corrigeant l'affichage `Array::get`/`Map::get` ci-dessous. Nécessite de revoir comment `null` est représenté (actuellement confondu avec l'entier 0) — changement de fond, à ne pas improviser. *(Structurel — touche le boxing/la représentation `mixed`)* → [détails](roadmap.d/langage-array-get-display-bug.md)
 
 ---
@@ -43,6 +42,8 @@ Pas important du tout pour le moment — portage/intégration massifs, aucune ur
 ## Méthode de travail
 
 * On analyse la roadmap et les fichiers `roadmap.d/` associés à la tâche en cours.
+* On analyse les documentations
+    * On garde en tête le workflow, l'EBNF et les documentations lié à notre ticket
 * On effectue les corrections et améliorations demandées.
 * Si changement de syntaxe ou ajout:
     * On mets à jour l'extension vscode dans tools/ si c'est nécessaire
