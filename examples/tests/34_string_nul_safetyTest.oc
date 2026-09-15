@@ -1,15 +1,20 @@
 import ocara.UnitTest
+import ocara.String
 
-// `alloc_str`/`free_str` (runtime/src/lib.rs) stockent maintenant la longueur
-// réelle d'une string dans son header au lieu de la retrouver en cherchant
-// le premier octet NUL depuis le pointeur — une string Ocara PEUT contenir
-// un NUL en son milieu (`\0` est un échappement de chaîne valide), ce qui
+// `alloc_str`/`free_str` (runtime/src/lib.rs) stockent la longueur réelle
+// d'une string dans son header au lieu de la retrouver en cherchant le
+// premier octet NUL depuis le pointeur — une string Ocara PEUT contenir un
+// NUL en son milieu (`\0` est un échappement de chaîne valide), ce qui
 // aurait fait passer un `Layout` trop court à `dealloc` (voir
-// docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md). Pas d'assertion
-// de valeur possible sur une corruption de tas : le test réel est que la
-// boucle ci-dessous (beaucoup d'allocations/libérations de strings à NUL
-// interne, entrelacées avec d'autres allocations de taille voisine) ne
-// plante ni ne corrompt l'allocateur.
+// docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md).
+//
+// `ptr_to_str` (donc l'affichage, la comparaison, `String::*`, `JSON::
+// encode`...) tronquait malgré tout toujours une telle string au premier NUL
+// (`CStr::from_ptr`) — corrigé en donnant aux littéraux (`TAG_STRING`) le
+// MÊME header `[len][tag]` que les strings possédées (`TAG_STRING_OWNED`,
+// déjà le cas), lu directement par `ptr_to_str` au lieu de scanner. Les
+// méthodes ci-dessous vérifient maintenant du contenu réel, pas seulement
+// l'absence de crash.
 
 class Test_34_string_nul_safety {
 
@@ -26,5 +31,28 @@ class Test_34_string_nul_safety {
     private method makeOne(): void {
         scoped s:string = "avant\0apres-un-suffixe-assez-long-pour-la-taille-reelle"
         var bruit:string = "occupe" + "le" + "meme" + "bucket" + "d-allocation"
+    }
+
+    // Un littéral avec un NUL interne n'est plus tronqué : longueur et
+    // égalité de contenu portent sur la string COMPLÈTE, pas seulement sa
+    // portion avant le premier `\0`.
+    public method literalWithEmbeddedNulNotTruncatedTest(): int {
+        var s:string = "a\0b"
+        UnitTest::assertEquals(3, String::len(s))
+        var same:string = "a\0b"
+        UnitTest::assertTrue(s equal same)
+        var different:string = "a\0c"
+        UnitTest::assertFalse(s equal different)
+        return 0
+    }
+
+    // Même vérification pour une string ALLOUÉE SUR LE TAS (concaténation),
+    // pas seulement un littéral `.rodata` — les deux partagent maintenant le
+    // même mécanisme (`ptr_to_str` lit la longueur du header dans les deux cas).
+    public method concatenatedStringWithEmbeddedNulTest(): int {
+        var s:string = "x" + "\0" + "y"
+        UnitTest::assertEquals(3, String::len(s))
+        UnitTest::assertTrue(s equal "x\0y")
+        return 0
     }
 }

@@ -307,14 +307,25 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                         let obj_val = lower_expr(builder, object);
                         let dest = builder.new_value();
                         let func_name = format!("JSON_{}", field);
-                        
+
                         // JSON est maintenant toujours disponible, pas besoin de vérifier l'import
-                        
+
                         let ret_ty = builder.fn_ret_types.get(&func_name).cloned().unwrap_or(IrType::Ptr);
+                        // `.encode()` seul prend un conteneur `array`/`map` en
+                        // receveur (`decode`/`pretty`/`minimize` opèrent sur
+                        // une string JSON) — voir `static_json_leaf_kind`.
+                        let call_args = if field == "encode" {
+                            let leaf_kind = static_json_leaf_kind(builder, object);
+                            let leaf_kind_val = builder.new_value();
+                            builder.emit(Inst::ConstInt { dest: leaf_kind_val.clone(), value: leaf_kind });
+                            vec![obj_val, leaf_kind_val]
+                        } else {
+                            vec![obj_val]
+                        };
                         builder.emit(Inst::Call {
                             dest:   Some(dest.clone()),
                             func:   func_name,
-                            args:   vec![obj_val],
+                            args:   call_args,
                             ret_ty,
                         });
                         return dest;
@@ -860,7 +871,22 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             } else {
                 arg_vals
             };
-            
+
+            // `JSON::encode(data)`/`YAML::encode(data)` : argument supplémentaire
+            // silencieux (jamais vu par l'utilisateur, la signature déclarée du
+            // builtin reste `encode(data)`) portant le type de feuille concret
+            // connu statiquement — voir `static_json_leaf_kind`.
+            let final_args = if (func_name == "JSON_encode" || func_name == "YAML_encode") && args.len() == 1 {
+                let leaf_kind = static_json_leaf_kind(builder, &args[0]);
+                let leaf_kind_val = builder.new_value();
+                builder.emit(Inst::ConstInt { dest: leaf_kind_val.clone(), value: leaf_kind });
+                let mut all_args = final_args;
+                all_args.push(leaf_kind_val);
+                all_args
+            } else {
+                final_args
+            };
+
             // Vérifier si le builtin retourne void
             if is_void_builtin(&func_name) {
                 builder.emit(Inst::Call {

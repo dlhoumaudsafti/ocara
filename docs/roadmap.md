@@ -23,12 +23,7 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 ### Langage
 
-- **`value_to_json`/`value_to_yaml` confondent un entier brut `0`/`1` avec un booléen/null** — pas une simple heuristique à retirer : aucune information de type par élément ne survit à l'exécution pour un conteneur concret (`array<int>`), demande de faire porter le type jusqu'à l'appel d'encodage ou de boxer aussi ces éléments. *(Structurel)* → [détails](roadmap.d/langage-mixed-literal-stringification.md)
 - **Ajout d'une instruction `emit`** (même rôle que `yield` en PHP : suspend/reprend l'exécution en produisant une valeur à la fois) — une fonction qui l'utilise retourne un nouveau type `iterable`. *(Massive)* → [détails](roadmap.d/langage-emit-iterable.md)
-
-### Mémoire / runtime
-
-- **Une string à NUL interne reste tronquée à l'affichage/comparaison** (`ptr_to_str` basé sur `CStr::from_ptr`) — plus de risque de corruption, mais le contenu reste faux. *(Structurel)* → [détails](roadmap.d/memoire-fiabilite-runtime-bas-niveau.md)
 
 ---
 

@@ -241,6 +241,44 @@ pub fn is_void_builtin(func_name: &str) -> bool {
 /// "write_int"   → entiers
 /// "write_float" → flottants (prend f64)
 /// "write_bool"  → booléens
+/// Calcule, à partir du type AST **connu statiquement** de `expr` (un
+/// `array<T>`/`map<K,T>`, y compris imbriqué : `array<array<T>>`...), le
+/// "type de feuille" concret à transmettre à `JSON_encode`/`YAML_encode` —
+/// voir `value_to_json`/`value_to_yaml` (runtime) : `OcaraArray`/`OcaraMap`
+/// ne conservent aucune information de type par élément, donc un conteneur
+/// **concret** (jamais boxé, contrairement à `mixed`) ne peut pas être
+/// interprété sans ambiguïté par ces fonctions (un entier brut `0`/`1` y est
+/// indiscernable de `null`/`false` — confirmé par reproduction, voir
+/// docs/roadmap.d/langage-mixed-literal-stringification.md) à moins de leur
+/// dire, une fois pour toutes à la compilation, quel est ce type de feuille.
+///
+/// Retourne `0` (inconnu — comportement heuristique historique, inchangé)
+/// dès que le type n'est pas résolu statiquement : `expr` n'est pas un
+/// identifiant simple référant à un `array`/`map` connu (`elem_ast_types`,
+/// alimenté pour `var`/`const`/`scoped`/`consumed`/paramètre — voir
+/// `src/lower/stmt.d/statements.d/variables.rs`/`src/lower/builder.d/
+/// functions.rs`), ou la structure contient `mixed` à un niveau quelconque.
+/// Jamais de faux positif possible : au pire, la précision perdue est
+/// exactement celle d'avant ce correctif.
+pub fn static_json_leaf_kind(builder: &LowerBuilder, expr: &Expr) -> i64 {
+    fn leaf_kind_of(ty: &Type) -> i64 {
+        match ty {
+            Type::Array(inner) => leaf_kind_of(inner),
+            Type::Map(_, inner) => leaf_kind_of(inner),
+            Type::Int   => 1,
+            Type::Float => 2,
+            Type::Bool  => 3,
+            _ => 0,
+        }
+    }
+    if let Expr::Ident(name, _) = expr {
+        if let Some(ty) = builder.elem_ast_types.get(name.as_str()) {
+            return leaf_kind_of(ty);
+        }
+    }
+    0
+}
+
 pub fn write_variant(base: &str, ty: &IrType) -> String {
     let suffix = match ty {
         IrType::F64  => "Float",

@@ -40,18 +40,20 @@ pub fn emit_constants(
         }
 
         Inst::ConstStr { dest, idx } => {
-            // Résolution de l'adresse réelle du symbole de données __str_N
-            // Le premier mot (8 octets) est le header TAG_STRING ; les données
-            // commencent à l'offset +8. On retourne l'adresse +8.
+            // Résolution de l'adresse réelle du symbole de données __str_N.
+            // Header de 16 octets : longueur (8) puis TAG_STRING (8) — même
+            // layout qu'`alloc_str` (voir emit_strings) ; les données
+            // commencent à l'offset +16. On retourne l'adresse +16 (le tag
+            // reste donc lisible à `val - 8`, inchangé pour `read_tag`).
             let name = format!("__str_{}", idx);
             let data_id = module
                 .declare_data(&name, Linkage::Local, false, false)
                 .map_err(|e| CodegenError(format!("declare_data({}): {}", name, e)))?;
             let gv  = module.declare_data_in_func(data_id, builder.func);
             let raw = builder.ins().global_value(clt::I64, gv);
-            // Sauter le header de 8 octets pour pointer vers les données
-            let eight = builder.ins().iconst(clt::I64, 8);
-            let ptr   = builder.ins().iadd(raw, eight);
+            // Sauter le header de 16 octets pour pointer vers les données
+            let sixteen = builder.ins().iconst(clt::I64, 16);
+            let ptr     = builder.ins().iadd(raw, sixteen);
             def!(dest, ptr);
         }
 

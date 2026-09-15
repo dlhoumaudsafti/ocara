@@ -28,8 +28,9 @@ pub fn lower_var(
     if let Type::Map(_, val_ty) = ty {
         builder.map_vars.insert(name.to_string());
         builder.elem_types.insert(name.to_string(), IrType::from_ast(val_ty));
+        builder.elem_ast_types.insert(name.to_string(), (**val_ty).clone());
     }
-    
+
     // Si c'est un type de classe, enregistrer le mapping var → classe
     if let Type::Named(class_name) = ty {
         builder.var_class.insert(name.to_string(), class_name.clone());
@@ -117,8 +118,9 @@ pub fn lower_const(
     if let Type::Map(_, val_ty) = ty {
         builder.map_vars.insert(name.to_string());
         builder.elem_types.insert(name.to_string(), IrType::from_ast(val_ty));
+        builder.elem_ast_types.insert(name.to_string(), (**val_ty).clone());
     }
-    
+
     if let Type::Named(class_name) = ty {
         builder.var_class.insert(name.to_string(), class_name.clone());
     }

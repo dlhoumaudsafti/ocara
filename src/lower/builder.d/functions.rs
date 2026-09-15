@@ -108,8 +108,10 @@ pub fn lower_func(
         }
         
         // Marquer les paramètres de type map<> pour Expr::Index → __map_get
-        if let crate::parsing::ast::Type::Map(_, _) = &param.ty {
+        if let crate::parsing::ast::Type::Map(_, val_ty) = &param.ty {
             builder.map_vars.insert(param.name.clone());
+            builder.elem_types.insert(param.name.clone(), IrType::from_ast(val_ty));
+            builder.elem_ast_types.insert(param.name.clone(), (**val_ty).clone());
         }
         // Marquer les paramètres de type Function pour CallIndirect
         if let crate::parsing::ast::Type::Function { ret_ty, .. } = &param.ty {

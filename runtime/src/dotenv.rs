@@ -22,9 +22,7 @@ pub unsafe extern "C" fn DotEnv_load(env_ptr: i64) {
         let filename = if env_ptr == 0 {
             ".env".to_string()
         } else {
-            let env_str = std::ffi::CStr::from_ptr(env_ptr as *const i8)
-                .to_string_lossy()
-                .to_string();
+            let env_str = crate::ptr_to_str(env_ptr).to_string();
             
             if env_str.is_empty() {
                 ".env".to_string()
@@ -96,9 +94,7 @@ pub unsafe extern "C" fn DotEnv_get(key_ptr: i64) -> i64 {
             return 0;
         }
 
-        let key = std::ffi::CStr::from_ptr(key_ptr as *const i8)
-            .to_string_lossy()
-            .to_string();
+        let key = crate::ptr_to_str(key_ptr).to_string();
 
         // D'abord chercher dans notre HashMap
         // (alloc_str, pas CString::into_raw : convention standard de ce runtime

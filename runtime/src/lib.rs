@@ -25,7 +25,6 @@
 use std::alloc::{alloc, alloc_zeroed, dealloc, Layout};
 use crate::typecheck::{TAG_STRING_OWNED, TAG_ARRAY, TAG_MAP, TAG_OBJECT, TAG_FUNCTION,
     __is_function, __is_object, __is_map, __is_array, __is_string, read_tag};
-use std::ffi::CStr;
 use std::io::{self, BufRead};
 use std::process::Command;
 use std::time::Duration;
@@ -200,15 +199,24 @@ pub unsafe fn free_str(val: i64) {
     }
 }
 
-/// Lit un pointeur i64 comme &str (null-terminated UTF-8).
+/// Lit un pointeur i64 comme `&str` — littéral (`TAG_STRING`) ou possédée
+/// (`TAG_STRING_OWNED`), les deux partagent désormais le MÊME layout de
+/// header (`[len: i64][tag: i64][données...][NUL]`, voir `alloc_str`/
+/// `emit_strings` dans le codegen) : la vraie longueur est lue directement
+/// à `val - 16`, plutôt que de tronquer au premier octet NUL (`CStr::
+/// from_ptr`, l'ancien comportement) — une string Ocara PEUT légitimement
+/// contenir un NUL interne (`"a\0b"`, un échappement valide), qui restait
+/// jusqu'ici affiché/comparé tronqué partout dans le langage (voir
+/// docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md).
 /// `pub` (pas `pub(crate)`) : utilisé depuis le crate séparé runtime_tauri.
 pub unsafe fn ptr_to_str<'a>(val: i64) -> &'a str {
     if val == 0 {
         return "";
     }
     unsafe {
-        let cstr = CStr::from_ptr(val as *const i8);
-        cstr.to_str().unwrap_or("")
+        let len = *((val - 16) as *const i64) as usize;
+        let bytes = std::slice::from_raw_parts(val as *const u8, len);
+        std::str::from_utf8(bytes).unwrap_or("")
     }
 }
 
@@ -3296,124 +3304,107 @@ dyn_arith_op!(__dyn_div, /);
 
 use serde_json::{Value as JsonValue, Map as JsonMap};
 
-/// JSON::encode(data) → string
-/// Encode un array ou map en JSON
+/// JSON::encode(data, leaf_kind) → string
+/// Encode un array ou map en JSON. `leaf_kind` (2e paramètre, jamais visible
+/// côté langage Ocara — voir `static_json_leaf_kind` côté lowering) : 0 =
+/// inconnu/`mixed` (comportement heuristique historique de `value_to_json`),
+/// 1/2/3 = int/float/bool — le type de feuille concret d'un conteneur qui ne
+/// boxe jamais ses éléments (`array<int>`, `array<bool>`...), connu de
+/// façon fiable à la compilation, sans quoi un entier brut `0`/`1` est
+/// indiscernable de `null`/`false` (voir `value_to_json`).
 #[unsafe(no_mangle)]
-pub extern "C" fn JSON_encode(data: i64) -> i64 {
-    if data == 0 {
-        return unsafe { alloc_str("null") };
-    }
-    
-    let typ = get_value_type(data);
-    
-    match typ {
-        5 => {  // TAG_ARRAY (valeur = 5 selon get_value_type)
-            encode_array_to_json(data)
-        }
-        6 => {  // TAG_MAP (valeur = 6 selon get_value_type)
-            encode_map_to_json(data)
-        }
-        _ => {
-            // Type non supporté pour encode, retourner une chaîne vide
-            unsafe { alloc_str("") }
-        }
-    }
-}
-
-/// Encode récursivement un array Ocara en JSON
-fn encode_array_to_json(arr: i64) -> i64 {
-    let mut json_arr = Vec::new();
-    let len = __array_len(arr);
-    
-    for i in 0..len {
-        let elem = __array_get(arr, i);
-        let json_val = value_to_json(elem);
-        json_arr.push(json_val);
-    }
-    
-    let json_str = serde_json::to_string(&json_arr).unwrap_or_else(|_| "[]".to_string());
+pub extern "C" fn JSON_encode(data: i64, leaf_kind: i64) -> i64 {
+    let json_val = value_to_json(data, leaf_kind);
+    let json_str = serde_json::to_string(&json_val).unwrap_or_else(|_| "null".to_string());
     unsafe { alloc_str(&json_str) }
 }
 
-/// Encode récursivement une map Ocara en JSON
-fn encode_map_to_json(map: i64) -> i64 {
-    let mut json_obj = JsonMap::new();
-    
-    // Parcourir les clés de la map
-    unsafe {
-        let map_ptr = map as *mut OcaraMap;
-        for (key_str, value) in (*map_ptr).data.iter() {
-            let json_val = value_to_json(*value);
-            json_obj.insert(key_str.clone(), json_val);
-        }
-    }
-    
-    let json_str = serde_json::to_string(&json_obj).unwrap_or_else(|_| "{}".to_string());
-    unsafe { alloc_str(&json_str) }
-}
-
-/// Convertit une valeur Ocara en JsonValue
-fn value_to_json(val: i64) -> JsonValue {
+/// Convertit une valeur Ocara en JsonValue. `leaf_kind` : voir `JSON_encode`
+/// — reste le MÊME à travers toute la récursion (un `array<array<int>>` a
+/// `int` comme feuille à tous les niveaux, garanti par le typage statique
+/// d'Ocara), et ne s'applique QUE lorsque `val` n'est pas lui-même un
+/// pointeur tas réel (string/array/map, détecté de façon fiable par
+/// `get_value_type` indépendamment de `leaf_kind`) — seul le panier
+/// "primitif" (1, jamais un pointeur valide) est concerné par l'ambiguïté
+/// que `leaf_kind` résout.
+fn value_to_json(val: i64, leaf_kind: i64) -> JsonValue {
     if val == 0 {
-        return JsonValue::Null;
+        // `null` uniquement pour `mixed` (leaf_kind == 0, comportement
+        // historique) — pour un type de feuille concret connu, 0 est une
+        // valeur int/float/bool normale, jamais `null`.
+        return match leaf_kind {
+            1 => JsonValue::Number(serde_json::Number::from(0i64)),
+            2 => serde_json::Number::from_f64(0.0).map(JsonValue::Number).unwrap_or(JsonValue::Null),
+            3 => JsonValue::Bool(false),
+            _ => JsonValue::Null,
+        };
     }
 
-    // `float`/`bool` boxés (voir `__box_float`/`__box_bool`) : à vérifier
-    // AVANT `get_value_type`, qui les classe tous les deux (avec un `int`
-    // brut) dans le même panier "primitif" (1) sans les distinguer — sans ce
-    // déballage, un float/bool construit par un littéral `array<mixed>`/
-    // `map<string,mixed>` (voir lower_array_literal/lower_map_literal)
-    // ressortait comme un entier correspondant à l'adresse du pointeur boxé
-    // (confirmé par reproduction — voir
+    // `float`/`bool`/`int` boxés (voir `__box_float`/`__box_bool`/
+    // `box_int_if_needed`) : uniquement pertinent pour `mixed` (leaf_kind ==
+    // 0) — un élément d'un conteneur CONCRET (`array<int>`...) n'est jamais
+    // boxé, cette détection resterait un faux ami sur un tel élément. Sans
+    // ce déballage pour `mixed`, un float/bool construit par un littéral
+    // `array<mixed>`/`map<string,mixed>` (voir lower_array_literal/
+    // lower_map_literal) ressortait comme un entier correspondant à
+    // l'adresse du pointeur boxé (confirmé par reproduction — voir
     // docs/roadmap.d/langage-mixed-literal-stringification.md).
-    if is_float_box(val) {
-        let f = unsafe { unbox_float(val) };
-        return serde_json::Number::from_f64(f).map(JsonValue::Number).unwrap_or(JsonValue::Null);
-    }
-    if is_bool_box(val) {
-        return JsonValue::Bool(unsafe { unbox_bool(val) });
-    }
-    // `int` boxé (voir `box_int_if_needed`) : même raison de le vérifier AVANT
-    // `get_value_type`, qui le classerait aussi "primitif" (1) sans le
-    // distinguer d'un vrai entier brut de même magnitude.
-    if is_int_box(val) {
-        return JsonValue::Number(serde_json::Number::from(unsafe { unbox_int(val) }));
+    if leaf_kind == 0 {
+        if is_float_box(val) {
+            let f = unsafe { unbox_float(val) };
+            return serde_json::Number::from_f64(f).map(JsonValue::Number).unwrap_or(JsonValue::Null);
+        }
+        if is_bool_box(val) {
+            return JsonValue::Bool(unsafe { unbox_bool(val) });
+        }
+        if is_int_box(val) {
+            return JsonValue::Number(serde_json::Number::from(unsafe { unbox_int(val) }));
+        }
     }
 
     let typ = get_value_type(val);
 
     match typ {
-        1 => {  // Primitif : entier brut (float/bool boxés déjà traités ci-dessus).
-            // `val == 1`/`== 0` reste une heuristique imprécise pour un
-            // bool JAMAIS boxé (limitation pré-existante, non résolue ici —
-            // voir __is_bool) ; conservée telle quelle pour ne rien changer
-            // au comportement déjà en place pour ce cas résiduel.
-            if val == 1 {  // true
-                JsonValue::Bool(true)
-            } else if val == 0 {  // false (mais déjà traité par le test au début)
-                JsonValue::Bool(false)
-            } else {
-                JsonValue::Number(serde_json::Number::from(val))
+        1 => {  // Primitif : jamais un pointeur valide — c'est ICI, et
+                // seulement ici, que l'ambiguïté int/bool/null concrète se
+                // pose, résolue directement par `leaf_kind` quand il est
+                // connu (aucune approximation possible, contrairement au cas
+                // `mixed` ci-dessous, hérité tel quel de l'historique).
+            match leaf_kind {
+                1 => JsonValue::Number(serde_json::Number::from(val)),
+                2 => serde_json::Number::from_f64(f64::from_bits(val as u64)).map(JsonValue::Number).unwrap_or(JsonValue::Null),
+                3 => JsonValue::Bool(val != 0),
+                _ => {
+                    // `mixed` : heuristique imprécise pour un bool JAMAIS
+                    // boxé (limitation pré-existante, non résolue ici — voir
+                    // __is_bool) ; conservée telle quelle, comportement
+                    // historique inchangé.
+                    if val == 1 {
+                        JsonValue::Bool(true)
+                    } else {
+                        JsonValue::Number(serde_json::Number::from(val))
+                    }
+                }
             }
         }
         4 => {  // String
             JsonValue::String(unsafe { ptr_to_str(val) }.to_string())
         }
-        5 => {  // Array
+        5 => {  // Array — même leaf_kind à travers toute la récursion.
             let mut json_arr = Vec::new();
             let len = __array_len(val);
             for i in 0..len {
                 let elem = __array_get(val, i);
-                json_arr.push(value_to_json(elem));
+                json_arr.push(value_to_json(elem, leaf_kind));
             }
             JsonValue::Array(json_arr)
         }
-        6 => {  // Map
+        6 => {  // Map — même leaf_kind à travers toute la récursion.
             let mut json_obj = JsonMap::new();
             unsafe {
                 let map_ptr = val as *mut OcaraMap;
                 for (key_str, value) in (*map_ptr).data.iter() {
-                    json_obj.insert(key_str.clone(), value_to_json(*value));
+                    json_obj.insert(key_str.clone(), value_to_json(*value, leaf_kind));
                 }
             }
             JsonValue::Object(json_obj)
