@@ -73,16 +73,24 @@ fn value_to_yaml(val: i64) -> YamlValue {
     let typ = get_value_type(val);
 
     match typ {
-        1 => {  // Primitif : int / bool / float boxé (mixed) — voir __box_float/__box_bool
+        1 => {  // Primitif : int / bool / float boxé (mixed) — voir __box_float/__box_bool/__box_int_for_mixed
             // Bool BOXÉ (tag bits 1:0 = 10) : à vérifier AVANT le bool brut
             // ci-dessous — `__unbox_bool` déréférence un pointeur, jamais sûr
             // à appeler sur un 0/1 brut qui n'est PAS un pointeur boxé.
             const PTR_THRESHOLD: i64 = 65536;
             let is_boxed_bool = val >= PTR_THRESHOLD && (val & 3) == 2;
+            // Int BOXÉ (tag bits 1:0 = 11, voir `box_int_if_needed` dans
+            // lib.rs) : un entier assez grand pour être ambigu avec un
+            // pointeur heap une fois logé dans un `mixed` — à vérifier AVANT
+            // le fallback `YamlValue::Number(val)` ci-dessous, qui prendrait
+            // sinon l'adresse boxée elle-même pour la valeur.
+            let is_boxed_int = val >= PTR_THRESHOLD && (val & 3) == 3;
             if crate::typecheck::__is_float(val) != 0 {
                 YamlValue::Number(serde_yaml::Number::from(crate::__unbox_float(val)))
             } else if is_boxed_bool {
                 YamlValue::Bool(crate::__unbox_bool(val) != 0)
+            } else if is_boxed_int {
+                YamlValue::Number(serde_yaml::Number::from(crate::__unbox_int(val)))
             } else if val == 1 {
                 YamlValue::Bool(true)
             } else if val == 0 {
@@ -150,7 +158,10 @@ fn yaml_to_value(yaml: &YamlValue) -> i64 {
         YamlValue::Bool(b) => if *b { 1 } else { 0 },
         YamlValue::Number(n) => {
             if let Some(i) = n.as_i64() {
-                i
+                // Toujours logé dans un `mixed` (élément d'array/map) : boxer
+                // si besoin, comme n'importe quel autre `int` en transit vers
+                // un `mixed` (voir `box_int_if_needed` dans lib.rs).
+                crate::__box_int_for_mixed(i)
             } else if let Some(f) = n.as_f64() {
                 // Boxé comme un float `mixed` (voir __box_float) : un entier
                 // brut n'aurait pas atteint cette branche (as_i64() aurait

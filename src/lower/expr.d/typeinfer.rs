@@ -38,13 +38,11 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                 return ty.clone();
             }
             if fname.starts_with("String_")
-                || fname.starts_with("IO_read")
                 || fname == "__str_concat"
                 || fname == "Array_join"
                 || fname == "Array_reverse"
                 || fname == "Array_slice"
                 || fname == "Array_sort"
-                || fname.starts_with("Convert_")
                 || fname.starts_with("Map_keys")
                 || fname.starts_with("Map_values")
                 || fname == "System_cwd"
@@ -56,7 +54,26 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
             {
                 IrType::Ptr
             } else {
-                IrType::I64
+                // Filet de sécurité : ni `fn_ret_types` ni la liste ci-dessus
+                // ne connaissent ce nom (souvent un constructeur/factory
+                // builtin oublié de `fn_ret_types`, ex. `SQLite::open`,
+                // absent avant ce correctif — voir program.rs). Retomber sur
+                // `Ptr` (jamais sur `I64`) est le choix sûr : un consommateur
+                // qui traite ensuite cette valeur comme `mixed`
+                // (`box_for_any`/`box_for_dyn_arith`) ne la boxera PAS s'il la
+                // croit déjà `Ptr` — inoffensif pour un vrai pointeur objet
+                // (le cas confirmé par reproduction : `SQLite::open` mal
+                // classé en I64 faisait boxer le pointeur de connexion
+                // lui-même, corrompant `self` et bloquant `db.execute()` dans
+                // une boucle infinie). Un `I64` par défaut aurait l'effet
+                // inverse ET dangereux : n'importe quel pointeur objet
+                // provenant d'un appel non répertorié ici serait boxé comme
+                // un entier. Contrepartie acceptée : un builtin qui retourne
+                // réellement un `int` et n'est PAS répertorié ici ne profite
+                // simplement pas du boxing anti-SEGFAULT pour un `mixed` —
+                // identique au comportement d'avant ce chantier, pas une
+                // régression.
+                IrType::Ptr
             }
         }
         // Opérations binaires : propager Ptr si c'est une concat string
@@ -125,7 +142,16 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                     return ty.clone();
                 }
             }
-            IrType::I64
+            // Filet de sécurité : même raison que pour `Expr::StaticCall`/
+            // `Expr::Call` ci-dessus. `elem_types` peut manquer une entrée
+            // (ex. un paramètre `map<string,mixed>` d'une closure `nameless`,
+            // pas enregistré par le même chemin qu'un paramètre de fonction
+            // top-level) — confirmé faux par reproduction : `attrs["title"]`
+            // (une vraie string) classée I64 se faisait boxer comme un
+            // entier par `box_for_any`, puis affichait l'ADRESSE du pointeur
+            // string comme un nombre une fois déballée (voir
+            // examples/advanced/httpserver/configs/components/Layout.oc).
+            IrType::Ptr
         }
         // Accès champ : utilise class_layouts pour connaître le type
         Expr::Field { object, field, .. } => {
@@ -209,7 +235,16 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                     }
                 }
             }
-            IrType::I64
+            // Filet de sécurité : même raison que pour `Expr::StaticCall`
+            // ci-dessus — `Ptr` (jamais `I64`) est le choix sûr quand la
+            // classe/méthode réelle n'a pas pu être résolue (`var_class` ne
+            // connaît pas le récepteur, ex. objet dans un `mixed`, ou
+            // méthode absente de `fn_ret_types`) : un vrai pointeur objet/
+            // string retourné ici et classé par erreur `I64` serait boxé
+            // comme un entier par `box_for_any` (corruption confirmée par
+            // reproduction : `JSON::encode`/`obj.encode()` d'instance
+            // affichait l'adresse du pointeur au lieu du JSON).
+            IrType::Ptr
         }
         Expr::StaticConst { class, name, .. } => {
             let key = format!("{}__{}", class, name);
@@ -247,6 +282,17 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
             }
         }
         Expr::Nameless { .. } => IrType::Ptr,
+        // Littéraux `array`/`map`, instanciation, `self`/`parent` : toujours
+        // des pointeurs tas — un oubli ici retombait sur le `_ => IrType::I64`
+        // final, resté inoffensif tant que rien n'agissait différemment
+        // selon I64 vs Ptr ; devenu dangereux depuis que `box_for_any`/
+        // `box_for_dyn_arith` boxent RÉELLEMENT un I64 assez grand pour un
+        // `mixed` (voir `box_int_if_needed`) — un pointeur tas (toujours
+        // "assez grand") aurait alors été boxé comme si c'était un entier,
+        // corrompant la valeur (confirmé par reproduction : `var a:array<int>
+        // = [1,2,3]` cassait déjà `Array::len(a)` avant ce correctif).
+        Expr::Array { .. } | Expr::Map { .. } | Expr::New { .. }
+        | Expr::SelfExpr(_) | Expr::ParentExpr(_) => IrType::Ptr,
         _ => IrType::I64,
     }
 }

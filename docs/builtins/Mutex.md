@@ -72,6 +72,47 @@ if m.tryLock() {
 }
 ```
 
+### `m.withLock(f:Function<void>) → void`
+
+Verrouille le mutex, exécute `f()`, puis **déverrouille systématiquement** —
+y compris si `f()` lève une exception (`raise`).
+
+C'est la méthode à préférer à `lock()`/`unlock()` manuels dès que la section
+critique peut lever une exception : avec `lock()`/`unlock()`, un `raise`
+entre les deux appels saute `unlock()` (le mécanisme d'exceptions d'Ocara
+utilise setjmp/longjmp, pas de unwinding avec des destructeurs de scope) et
+laisse le mutex verrouillé **pour toujours** — tout autre thread en attente
+dessus est bloqué définitivement. `withLock` élimine ce risque : le
+déverrouillage a lieu avant que l'exception ne continue sa propagation vers
+l'appelant.
+
+```ocara
+var m:Mutex = use Mutex()
+
+// Cas normal
+m.withLock(nameless(): void {
+    // section critique
+})
+
+// Cas avec exception : le mutex est quand même déverrouillé, et
+// l'exception continue de se propager normalement
+try {
+    m.withLock(nameless(): void {
+        raise use MonException("erreur", 1)
+    })
+} on e is MonException {
+    IO::writeln(`rattrapée : ${e.message}`)
+}
+
+// Preuve que le mutex n'est plus verrouillé :
+m.lock()
+m.unlock()
+```
+
+> **Note** : `withLock` ne remplace pas `lock()`/`unlock()`, qui restent
+> disponibles pour un contrôle manuel plus fin — c'est une méthode
+> additionnelle, pas une dépréciation.
+
 ### `m.destroy() → void`
 
 Libère le mutex (verrou pthread + wrapper). Ce runtime n'a pas de
@@ -166,17 +207,19 @@ function main(): void {
 | `lock` | `() → void` | Verrouille le mutex (bloquant) |
 | `unlock` | `() → void` | Déverrouille le mutex |
 | `tryLock` | `() → bool` | Tente de verrouiller sans bloquer |
+| `withLock` | `(f:Function<void>) → void` | lock + `f()` + unlock garanti, même si `f()` raise |
 | `destroy` | `() → void` | Libère le mutex (usage après = comportement non défini) |
 
 ---
 
 ## Bonnes pratiques
 
-1. **Toujours unlock** : chaque `lock()` doit être suivi d'un `unlock()`.
-2. **Sections critiques courtes** : minimiser le temps passé entre `lock()` et `unlock()`.
-3. **Éviter les deadlocks** : ne jamais verrouiller deux fois le même mutex depuis le même thread.
-4. **Un mutex par ressource** : utiliser un mutex distinct pour chaque donnée partagée indépendante.
-5. **try_lock pour éviter les blocages** : préférer `tryLock()` quand un échec est acceptable.
+1. **Préférer `withLock`** dès que la section critique peut lever une exception : `lock()`/`unlock()` manuels laissent le mutex verrouillé pour toujours si un `raise` saute l'`unlock()`.
+2. **Toujours unlock** : chaque `lock()` manuel doit être suivi d'un `unlock()`.
+3. **Sections critiques courtes** : minimiser le temps passé entre `lock()` et `unlock()`.
+4. **Éviter les deadlocks** : ne jamais verrouiller deux fois le même mutex depuis le même thread.
+5. **Un mutex par ressource** : utiliser un mutex distinct pour chaque donnée partagée indépendante.
+6. **try_lock pour éviter les blocages** : préférer `tryLock()` quand un échec est acceptable.
 
 ---
 
@@ -255,6 +298,9 @@ function safe_access(): void {
 }
 
 // Exemple 4 : Garantir le unlock même en cas d'erreur
+// NOTE : ce pattern manuel (drapeau `locked`) est désormais remplacé
+// avantageusement par `m.withLock(...)`, qui fait la même chose nativement
+// et sans risque d'oubli — voir plus haut « m.withLock ».
 function guaranteed_unlock(): void {
     var m:Mutex = use Mutex()
     var locked:bool = false

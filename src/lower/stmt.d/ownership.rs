@@ -148,9 +148,28 @@ pub fn register_owned_local(builder: &mut LowerBuilder, name: &str, ty: &Type, k
 /// la même fonction pour rester uniformes et gérer récursivement les
 /// éléments imbriqués. Instance de classe utilisateur : `__free_<Classe>`
 /// généré par `crate::lower::builder::class_ownership`.
+/// `true` pour un type d'élément PRIMITIF CONCRET (int/float/bool) — jamais
+/// pour `mixed`, `string`, ou un type composite/nommé. Un élément primitif ne
+/// possède jamais de mémoire propre : recurser dedans (`__value_free`/
+/// `__value_clone` par élément) n'a rien à faire de plus qu'une copie brute,
+/// et est dangereux (voir `drop_func_for`/`clone_func_for`) puisque son bit
+/// pattern brut peut ressembler à un pointeur heap valide.
+fn is_concrete_primitive_elem(ty: &Type) -> bool {
+    matches!(ty, Type::Int | Type::Float | Type::Bool)
+}
+
 fn drop_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<String> {
     match info.class {
         OwnershipClass::Value => match &info.ty {
+            // `array`/`map` à élément primitif concret : jamais de pointeur
+            // heap à inspecter parmi les éléments — variante "shallow" (pas
+            // de parcours récursif) obligatoire, voir sa doc dans
+            // runtime/src/lib.rs. Corrige un SEGFAULT confirmé (`var
+            // floats:array<float> = [1.5, 2.5, 3.5]`, jamais échappé : le
+            // bit pattern brut d'un `float` ressemble parfois à un pointeur
+            // heap valide, `__value_free` par élément le déréférençait).
+            Type::Array(elem) if is_concrete_primitive_elem(elem) => Some("__array_free_shallow".to_string()),
+            Type::Map(_, elem) if is_concrete_primitive_elem(elem) => Some("__map_free_shallow".to_string()),
             Type::String | Type::Array(_) | Type::Map(_, _) => Some("__value_free".to_string()),
             Type::Named(n) if class_ownership::has_generated_destructor(module, n) => {
                 Some(format!("__free_{}", n))
@@ -173,6 +192,9 @@ fn drop_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<String> {
 /// (les ressources ne s'échappent jamais, refusé par la sema).
 fn clone_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<String> {
     match &info.ty {
+        // Voir `drop_func_for` : même raison de choisir la variante "shallow".
+        Type::Array(elem) if is_concrete_primitive_elem(elem) => Some("__array_clone_shallow".to_string()),
+        Type::Map(_, elem) if is_concrete_primitive_elem(elem) => Some("__map_clone_shallow".to_string()),
         Type::String | Type::Array(_) | Type::Map(_, _) => Some("__value_clone".to_string()),
         Type::Named(n) if class_ownership::has_generated_destructor(module, n) => {
             Some(format!("__clone_{}", n))

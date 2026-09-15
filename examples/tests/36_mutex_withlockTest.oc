@@ -1,0 +1,113 @@
+import ocara.UnitTest
+import ocara.Mutex
+
+// `Mutex::withLock` : lock + exécution de la closure + unlock garanti, même
+// si la closure `raise` (voir docs/roadmap.d/memoire-deadlocks-raise.md et
+// docs/builtins/Mutex.md). Avec lock()/unlock() manuels, un raise entre les
+// deux appels saute unlock() (setjmp/longjmp, pas d'unwinding) et laisse le
+// mutex verrouillé pour toujours.
+//
+// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée
+// du fichier (voir 33_exception_hierarchyTest.oc) — la classe de test doit
+// donc précéder MutexWithLockError ci-dessous.
+
+class Test_36_mutex_with_lock {
+
+    // Cas nominal : la closure s'exécute, le mutex est déverrouillé après.
+    public method normalExecutionTest(): int {
+        var m:Mutex = use Mutex()
+        var ran:bool = false
+
+        m.withLock(nameless(): void {
+            ran = true
+        })
+
+        UnitTest::assertTrue(ran)
+        // Preuve que le mutex est bien déverrouillé après un withLock nominal.
+        UnitTest::assertTrue(m.tryLock())
+        m.unlock()
+        m.destroy()
+        return 0
+    }
+
+    // Une exception levée DANS la closure doit être rattrapée normalement
+    // par le try/on englobant l'appel à withLock (elle continue de se
+    // propager, withLock ne l'avale pas).
+    public method exceptionPropagatesTest(): int {
+        var m:Mutex = use Mutex()
+        var caught:bool = false
+        var received_message:string = ""
+        var received_code:int = 0
+
+        try {
+            m.withLock(nameless(): void {
+                raise use MutexWithLockError("boom", 7)
+            })
+        } on e is MutexWithLockError {
+            caught = true
+            received_message = e.message
+            received_code = e.code
+        }
+
+        UnitTest::assertTrue(caught)
+        UnitTest::assertTrue(received_message equal "boom")
+        UnitTest::assertEquals(7, received_code)
+        m.destroy()
+        return 0
+    }
+
+    // Le vrai point du test : après qu'une exception a traversé withLock, le
+    // mutex ne doit PAS rester verrouillé — sinon tout thread en attente
+    // dessus serait bloqué pour toujours (le bug que withLock corrige).
+    public method unlocksEvenWhenClosureRaisesTest(): int {
+        var m:Mutex = use Mutex()
+
+        try {
+            m.withLock(nameless(): void {
+                raise use MutexWithLockError("erreur en section critique", 1)
+            })
+        } on e is MutexWithLockError {
+            // rien à faire, on veut juste dépasser le raise
+        }
+
+        // Si withLock n'avait pas déverrouillé, tryLock() échouerait ici.
+        UnitTest::assertTrue(m.tryLock())
+        m.unlock()
+        m.destroy()
+        return 0
+    }
+
+    // Une exception non rattrapée dans un try qui suit un withLock déjà
+    // consommé doit rester une exception normale (rien de spécifique à
+    // withLock qui l'empêcherait de se propager plus loin qu'un seul niveau).
+    public method rethrowsToOuterTryTest(): int {
+        var m:Mutex = use Mutex()
+        var innerCaught:bool = false
+        var outerCaught:bool = false
+
+        try {
+            try {
+                m.withLock(nameless(): void {
+                    raise use MutexWithLockError("propagation multi-niveaux", 2)
+                })
+            } on e is MutexWithLockError {
+                innerCaught = true
+                raise use MutexWithLockError(e.message, e.code)
+            }
+        } on e is MutexWithLockError {
+            outerCaught = true
+        }
+
+        UnitTest::assertTrue(innerCaught)
+        UnitTest::assertTrue(outerCaught)
+        m.destroy()
+        return 0
+    }
+}
+
+class MutexWithLockError extends Exception {
+    init(message:string, code:int) {
+        self.message = message
+        self.code    = code
+    }
+}

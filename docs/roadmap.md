@@ -1,6 +1,6 @@
 # Roadmap Ocara
 
-_Dernière mise à jour : 2026-09-14_
+_Dernière mise à jour : 2026-09-15_
 
 Ce document liste ce qu'il reste à faire pour faire d'Ocara un langage solide, avec un focus prioritaire sur la **gestion mémoire** : le compilateur n'a pas de ramasse-miettes (choix assumé et définitif), mais rien aujourd'hui ne garantit l'absence de fuites, de doubles libérations ou de corruptions mémoire silencieuses.
 
@@ -8,6 +8,8 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 ## Fait récemment
 
+- ✅ **`read_tag` (narrowing `is`) : le SEGFAULT sur un entier `mixed` ordinaire est corrigé** — `var n:mixed = 1000000; if n is string {...}` déréférençait une adresse arbitraire dès que la valeur était `>= 65536`. Corrigé en étendant le mécanisme de boxing à pointeur tagué déjà utilisé pour `float`/`bool` (2 bits bas de tag, la combinaison `11` était inutilisée) à un troisième cas, l'entier boxé — mais SEULEMENT quand il est assez grand pour être ambigu avec un pointeur heap (un petit entier reste brut, aucun coût d'allocation dans le cas courant). Tous les consommateurs existants de float/bool boxés (affichage, arithmétique `mixed`, comparaisons strictes, `JSON`/`YAML`) étendus symétriquement. **Trois bugs latents plus larges, révélés en cours de route et tous corrigés** : (1) plusieurs formes d'expression (`array`/`map` littéral, instanciation, `self`/`parent`) n'avaient pas de type IR explicite et retombaient sur un défaut désormais dangereux ; (2) plusieurs classes builtin entières (`SQLite`/`MySQL`/`MariaDB`, `Math`, une bonne partie de `Convert`/`IO`/`System`) étaient absentes de la table interne des types de retour, avec des conséquences allant du calcul faux (bit pattern d'un float affiché comme un entier) au blocage total (`SQLite::open` mal classé faisait boucler `db.execute()` à l'infini, self-pointer corrompu) ; (3) la libération/le clonage automatiques d'un `array<T>`/`map<K,T>` à élément primitif concret (jamais `mixed`) inspectaient quand même chaque élément comme un pointeur potentiel — un `var floats:array<float> = [1.5, 2.5, 3.5]` jamais échappé plantait déjà à lui seul, sans aucun `mixed` en jeu. Nouveau test dédié (`examples/tests/37_mixed_large_intTest.oc`, 25 assertions) ; `examples/16_types.oc` (qui plantait déjà avant ce chantier) et plusieurs exemples cassés puis recorrigés en cours de route (`convert`/`math`/`io`/`system`/`json`/`advanced_httpserver`) s'exécutent maintenant intégralement. `make regression` final : 447 PASS / 0 FAIL, aucun SEGFAULT résiduel. Limite assumée, hors périmètre : un appel de méthode (`obj.method(...)`/`Class::method(...)`) ne boxe toujours aucun argument F64/Bool/I64 vers un paramètre `mixed` (contrairement à un appel de fonction libre ou un constructeur) — gap préexistant, découvert ici, pas traité.
+- ✅ **`Mutex::withLock` : les blocages provoqués par `raise` traversant un `Mutex` Ocara tenu sont corrigés** — nouvelle méthode `m.withLock(closure)` qui verrouille, exécute la closure, puis déverrouille systématiquement, y compris si elle `raise` (l'exception continue de se propager normalement une fois le mutex libéré). Réutilise l'infrastructure `setjmp`/`longjmp` déjà en place (`TRY_STACK`), via un nouvel helper `run_closure_catching` factorisé pour rester réutilisable. `lock()`/`unlock()` manuels restent inchangés et toujours exposés au même risque s'ils sont utilisés directement (documenté, pas retiré — même discipline que SQLite/MySQL avant leur propre correctif). Vérifié par 8 nouvelles assertions (`examples/tests/36_mutex_withlockTest.oc`) plus une reproduction multi-thread manuelle ; `make regression` : 422 PASS / 0 FAIL.
 - ✅ **Vraie stratégie de gestion mémoire pour `var`, et faille d'échappement par argument comblée (E26)** — un `var` (string/array/map/instance de classe utilisateur) est désormais libéré automatiquement en fin de bloc quand une analyse d'échappement statique (nouveau module `src/sema/escape.rs`, coût nul à l'exécution) prouve qu'il ne s'échappe jamais **et** qu'il a été initialisé par une allocation fraîche (pas l'alias d'un accesseur comme `.get()` — deux bugs de double free confirmés puis corrigés pendant ce chantier : l'un sur `Array::push`, l'autre sur `Array::get`). La même analyse corrige aussi la faille historique où une `scoped`/`consumed` passée en argument d'un constructeur/méthode qui la retient corrompait la mémoire silencieusement (nouveau diagnostic **E26**). `make regression` sans régression (49 + 414 PASS) ; stress-testé (3 millions d'itérations, mémoire réellement récupérée) et vérifié sans corruption sur plusieurs scénarios d'échappement réel. Limites assumées documentées (toutes du côté sûr) : voir la fiche.
 - ✅ **`free_str` ne recalcule plus une taille de libération potentiellement fausse** — la longueur d'une string possédée était retrouvée en cherchant son premier octet NUL, sous-estimée si la string contient un NUL interne (`\0`, un échappement de chaîne Ocara valide) → `Layout` faux passé à `dealloc` (UB, risque de corruption du tas). `alloc_str` stocke maintenant la vraie longueur dans une case dédiée du header (le tag reste à son offset habituel, invisible du reste du runtime). En réexaminant l'autre fonction citée par ce point (`__object_free`), aucun risque réel : `n_fields` vient d'une seule source relue identiquement à l'allocation et à la libération. `examples/tests/34_string_nul_safetyTest.oc` : stress-test dédié, aucune régression.
 - ✅ **Vraie hiérarchie d'exceptions** — `on e is Parent` attrape maintenant une instance d'une sous-classe (`Enfant extends Parent`, y compris sur plusieurs niveaux), et ça vaut aussi pour les ~19 exceptions builtin (implicitement sous-classes d'`Exception`) : `on e is Exception` attrape n'importe laquelle d'entre elles, qu'elle soit levée par `raise` (littéral `use Classe(...)` ou variable dont la classe est connue statiquement) ou par le runtime lui-même (ex. `File::read` sur un fichier inexistant). Auparavant, `__ocara_type_matches` était une égalité de chaînes stricte, sans aucun parcours de `extends`. Testé sur les deux origines possibles d'un `raise`, une chaîne à 3 niveaux, et un contrôle négatif (`examples/tests/33_exception_hierarchyTest.oc`).
@@ -54,24 +56,22 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 ---
 
-## Priorité Haute
-
-### Gestion mémoire
-
-- **Résoudre les blocages provoqués par `raise` traversant un `Mutex` Ocara tenu** — un `raise` entre `lock()`/`unlock()` saute le déverrouillage et bloque tous les threads en attente indéfiniment (partie SQLite/MySQL/MariaDB déjà corrigée, voir "Fait récemment"). *(Dangereuse)* → [détails](roadmap.d/memoire-deadlocks-raise.md)
-- **`read_tag` (narrowing `is`) : SEGFAULT confirmé sur un entier `mixed` ordinaire** (`var n:mixed = 1000000; if n is string {...}` déréférence une adresse arbitraire) — pas juste une mauvaise classification, un vrai crash sur du code sans rien d'inhabituel. *(Dangereuse)* → [détails](roadmap.d/memoire-fiabilite-runtime-bas-niveau.md)
-
----
-
 ## Priorité Moyenne
 
 ### Langage
 
 - **Donner une existence réelle aux interfaces à l'exécution** (dispatch dynamique, aujourd'hui purement statique). *(Massive)* → [détails](roadmap.d/langage-interfaces.md)
 
+### Gestion mémoire
+
+- **Un appel à une méthode d'instance ou statique (`obj.method(...)`/`Class::method(...)`) ne boxe aucun argument F64/Bool/I64 vers un paramètre `mixed`** (contrairement à un appel de fonction libre ou un constructeur, qui le font) — découvert en creusant la correction du SEGFAULT `read_tag` (voir "Fait récemment"), confirmé par reproduction (`b.show(3.5)` avec `show(v:mixed)` corrompt déjà silencieusement `v`), pas spécifique à `int`. *(Structurel)* → [détails](roadmap.d/memoire-fiabilite-runtime-bas-niveau.md)
+
 ---
 
 ## Priorité Basse
+
+
+## À voir dans le futur
 
 ### Builtins
 

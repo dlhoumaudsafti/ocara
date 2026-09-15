@@ -218,6 +218,7 @@ pub unsafe fn ptr_to_str<'a>(val: i64) -> &'a str {
 //   bits 1:0 = 00  → string ou objet normal (is_ptr)
 //   bits 1:0 = 01  → float boxé  (__box_float)
 //   bits 1:0 = 10  → bool boxé   (__box_bool)
+//   bits 1:0 = 11  → int boxé   (__box_int_for_mixed) — voir plus bas
 
 /// Retourne true si val est un pointeur string/objet (bits bas == 00).
 #[inline]
@@ -235,6 +236,16 @@ fn is_bool_box(val: i64) -> bool {
     val >= 0x10000 && (val & 3) == 2
 }
 
+/// Voir `box_int_if_needed` : un `int` logé dans un `mixed` n'est boxé QUE
+/// s'il est assez grand pour être confondu avec un pointeur heap (au-delà de
+/// ce seuil, un pointeur réel ET un entier ordinaire sont indiscernables sans
+/// boxing — voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md) —
+/// un petit entier reste donc brut, jamais alloué.
+#[inline]
+fn is_int_box(val: i64) -> bool {
+    val >= 0x10000 && (val & 3) == 3
+}
+
 #[inline]
 unsafe fn unbox_float(val: i64) -> f64 {
     unsafe { *((val & !3) as *const f64) }
@@ -243,6 +254,38 @@ unsafe fn unbox_float(val: i64) -> f64 {
 #[inline]
 unsafe fn unbox_bool(val: i64) -> bool {
     unsafe { *((val & !3) as *const i64) != 0 }
+}
+
+#[inline]
+unsafe fn unbox_int(val: i64) -> i64 {
+    unsafe { *((val & !3) as *const i64) }
+}
+
+/// Boxe `n` uniquement s'il est assez grand pour être confondu avec un
+/// pointeur heap valide par `read_tag`/`get_value_type` (`val >= 0x10000`,
+/// le même seuil que `PTR_THRESHOLD` ailleurs dans le runtime) — un petit
+/// entier reste brut (comme avant ce correctif), pas de coût d'allocation
+/// pour le cas de loin le plus fréquent. Un entier NÉGATIF n'est jamais
+/// ambigu avec un pointeur (toujours < 0x10000 en comparaison signée) et
+/// reste donc toujours brut, quelle que soit sa magnitude.
+///
+/// Contrairement à `float`/`bool` (toujours boxés dans un `mixed`, sans
+/// condition), cette fonction est LE point d'entrée unique qui décide, au
+/// runtime, si un `int` donné a besoin d'être boxé — appelée à chaque
+/// endroit qui logeait auparavant un `int` brut dans un `mixed` (affectation,
+/// argument, littéral `array`/`map`, résultat arithmétique dynamique...).
+#[inline]
+fn box_int_if_needed(n: i64) -> i64 {
+    if n < 0x10000 {
+        return n;
+    }
+    unsafe {
+        let layout = Layout::from_size_align(8, 8).unwrap();
+        let ptr = alloc(layout) as *mut i64;
+        assert!(!ptr.is_null(), "ocara_runtime: OOM");
+        *ptr = n;
+        (ptr as i64) | 3
+    }
 }
 
 /// Convertit n'importe quelle valeur i64 (int, float boxé, bool boxé, string ptr) en String.
@@ -255,6 +298,8 @@ fn val_to_string(val: i64) -> String {
         unsafe { unbox_float(val).to_string() }
     } else if is_bool_box(val) {
         unsafe { if unbox_bool(val) { "true".to_string() } else { "false".to_string() } }
+    } else if is_int_box(val) {
+        unsafe { unbox_int(val).to_string() }
     } else if is_ptr(val) {
         unsafe { ptr_to_str(val).to_string() }
     } else {
@@ -444,6 +489,66 @@ pub extern "C" fn __map_clone(ptr: i64) -> i64 {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Variantes "shallow" (sans inspection des éléments) de free/clone — pour un
+// `array<T>`/`map<K,T>` où `T` est un type PRIMITIF CONCRET (int/float/bool),
+// jamais `mixed` : voir `crate::lower::stmt::ownership::drop_func_for`/
+// `clone_func_for`. `__array_free`/`__array_clone` (ci-dessus) appellent
+// `__value_free`/`__value_clone` sur CHAQUE élément, qui inspecte son tag
+// runtime via `read_tag` — sûr pour un élément réellement `mixed` (boxé si
+// besoin, voir `box_int_if_needed`/`__box_float`/`__box_bool`), mais PAS pour
+// un élément primitif brut d'un type concrètement connu : un `float`/`int`
+// brut peut avoir n'importe quel bit pattern, y compris un qui ressemble à un
+// pointeur heap valide (`val >= PTR_THRESHOLD && bits bas alignés`), auquel
+// cas `read_tag` le déréférence — SEGFAULT confirmé par reproduction
+// (`var floats:array<float> = [1.5, 2.5, 3.5]` sans aucun `mixed` en jeu,
+// jamais échappé : plantait à la libération automatique de fin de bloc). Un
+// élément primitif ne possédant jamais de mémoire propre, il n'y a de toute
+// façon rien à libérer/cloner récursivement pour lui.
+#[unsafe(no_mangle)]
+pub extern "C" fn __array_free_shallow(ptr: i64) {
+    if ptr == 0 { return; }
+    unsafe {
+        let arr = array_ref(ptr);
+        std::ptr::drop_in_place(arr as *mut OcaraArray);
+        let size = std::mem::size_of::<OcaraArray>();
+        let layout = Layout::from_size_align(8 + size, 8).unwrap();
+        dealloc((ptr - 8) as *mut u8, layout);
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_free_shallow(ptr: i64) {
+    if ptr == 0 { return; }
+    unsafe {
+        let m = map_ref(ptr);
+        std::ptr::drop_in_place(m as *mut OcaraMap);
+        let size = std::mem::size_of::<OcaraMap>();
+        let layout = Layout::from_size_align(8 + size, 8).unwrap();
+        dealloc((ptr - 8) as *mut u8, layout);
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __array_clone_shallow(ptr: i64) -> i64 {
+    if ptr == 0 { return 0; }
+    unsafe {
+        let new_ptr = new_array();
+        array_ref(new_ptr).data = array_ref(ptr).data.clone();
+        new_ptr
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_clone_shallow(ptr: i64) -> i64 {
+    if ptr == 0 { return 0; }
+    unsafe {
+        let new_ptr = new_map();
+        map_ref(new_ptr).data = map_ref(ptr).data.clone();
+        new_ptr
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // I/O de base — write / read
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -465,7 +570,7 @@ pub extern "C" fn __str_concat(a: i64, b: i64) -> i64 {
 /// Convertit n'importe quelle valeur I64 en string (pour les templates).
 #[unsafe(no_mangle)]
 pub extern "C" fn __val_to_str(val: i64) -> i64 {
-    if is_float_box(val) || is_bool_box(val) {
+    if is_float_box(val) || is_bool_box(val) || is_int_box(val) {
         unsafe { alloc_str(&val_to_string(val)) }
     } else if is_ptr(val) {
         val  // déjà une string
@@ -497,6 +602,16 @@ pub extern "C" fn __box_bool(b: i64) -> i64 {
         *ptr = b;
         (ptr as i64) | 2
     }
+}
+
+/// Point d'entrée appelé depuis le lowering partout où un `int` (connu
+/// statiquement, ou déjà en transit dans une expression "mixed") est logé
+/// dans un `mixed` — voir `box_int_if_needed` (seuls les entiers assez grands
+/// pour être ambigus avec un pointeur heap sont réellement boxés ; retourne
+/// `ptr | 3`, sinon `n` inchangé).
+#[unsafe(no_mangle)]
+pub extern "C" fn __box_int_for_mixed(n: i64) -> i64 {
+    box_int_if_needed(n)
 }
 
 #[unsafe(no_mangle)]
@@ -2597,6 +2712,53 @@ pub extern "C" fn __ocara_try_exec_with_captures(
     })
 }
 
+/// Exécute une closure Ocara (fat pointer déjà déballé en `func_ptr`/`env_ptr`,
+/// signature `fn(env_ptr: i64) -> i64`) sous protection d'une frame try dédiée,
+/// SANS gestionnaire attaché : contrairement à `__ocara_try_exec`, une
+/// exception interceptée ici n'est pas traitée mais renvoyée à l'appelant
+/// Rust (`Err((error_val, error_type))`), qui peut alors faire un nettoyage
+/// (déverrouiller un mutex, fermer une ressource...) avant de relancer
+/// l'exception lui-même via `__ocara_fail` — c'est le mécanisme derrière
+/// `Mutex::withLock` (voir runtime/src/mutex.rs). Un retour normal donne
+/// `Ok(valeur_de_retour_de_la_closure)`.
+pub(crate) fn run_closure_catching(func_ptr: i64, env_ptr: i64) -> Result<i64, (i64, i64)> {
+    TRY_STACK.with(|stack| {
+        let depth = stack.depth.get();
+        if depth >= MAX_TRY_DEPTH {
+            std::process::abort();
+        }
+
+        let frame_ptr: *mut TryFrame = unsafe {
+            let arr = &mut *stack.frames.get();
+            &mut arr[depth]
+        };
+
+        unsafe {
+            (*frame_ptr).error_val  = 0;
+            (*frame_ptr).error_type = 0;
+        }
+
+        stack.depth.set(depth + 1);
+
+        let jmp_env: *mut JmpBuf = unsafe { &mut (*frame_ptr).env };
+        let ret = unsafe { setjmp(jmp_env) };
+
+        if ret == 0 {
+            let closure: unsafe extern "C" fn(i64) -> i64 =
+                unsafe { std::mem::transmute(func_ptr as usize) };
+            let value = unsafe { closure(env_ptr) };
+            stack.depth.set(depth);
+            Ok(value)
+        } else {
+            let (ev, et) = unsafe {
+                ((*frame_ptr).error_val, (*frame_ptr).error_type)
+            };
+            stack.depth.set(depth);
+            Err((ev, et))
+        }
+    })
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn __ocara_fail(val: i64, type_name: i64) {
     let jumped = TRY_STACK.with(|stack| {
@@ -2697,6 +2859,15 @@ pub extern "C" fn __unbox_float(tagged: i64) -> f64 {
 /// Sortie : 0 ou 1 comme i64.
 #[unsafe(no_mangle)]
 pub extern "C" fn __unbox_bool(tagged: i64) -> i64 {
+    let ptr = (tagged & !3) as *const i64;
+    unsafe { *ptr }
+}
+
+/// Déboxe un int précédemment boxé par `__box_int_for_mixed`.
+/// Entrée : `ptr | 3` (tagged heap pointer).
+/// Sortie : la valeur i64 originale.
+#[unsafe(no_mangle)]
+pub extern "C" fn __unbox_int(tagged: i64) -> i64 {
     let ptr = (tagged & !3) as *const i64;
     unsafe { *ptr }
 }
@@ -2803,6 +2974,25 @@ fn get_value_type(val: i64) -> i32 {
     1
 }
 
+/// Compare deux valeurs "primitif" (`get_value_type == 1` : int/float/bool,
+/// brutes ou boxées) — partagé par `__cmp_eq_strict`/`ne`/`lt`/`gt`/`le`/`ge`.
+/// Décide flottant vs entier comme `__dyn_add` (`is_float_box` sur CHAQUE
+/// opérande) : une comparaison purement entière reste une comparaison i64
+/// exacte (jamais de perte de précision en passant par un f64 — significatif
+/// au-delà de 2^53), et un `int`/`bool` boxé est déballé avant de comparer —
+/// comparer l'ADRESSE boxée telle quelle (l'ancien comportement) donnerait un
+/// résultat sans rapport avec la valeur réelle. Corrige au passage, pour
+/// int ET float, la limitation qui existait avant l'introduction du boxing
+/// int (comparaison sur les bits bruts, correcte seulement pour deux int).
+#[inline]
+fn cmp_primitive(lhs: i64, rhs: i64, int_cmp: fn(i64, i64) -> bool, float_cmp: fn(f64, f64) -> bool) -> bool {
+    if is_float_box(lhs) || is_float_box(rhs) {
+        float_cmp(unbox_numeric_f64(lhs), unbox_numeric_f64(rhs))
+    } else {
+        int_cmp(unbox_numeric_i64(lhs), unbox_numeric_i64(rhs))
+    }
+}
+
 /// `equal` : retourne 1 si meme type ET meme valeur, 0 sinon.
 /// N'est appele que lorsque sema n'a pas pu verifier statiquement les types
 /// (au moins un operande `mixed`) ; sinon le compilateur emet une comparaison
@@ -2811,27 +3001,27 @@ fn get_value_type(val: i64) -> i32 {
 pub extern "C" fn __cmp_eq_strict(lhs: i64, rhs: i64) -> i64 {
     let lhs_type = get_value_type(lhs);
     let rhs_type = get_value_type(rhs);
-    
+
     // Types differents -> false
     if lhs_type != rhs_type {
         return 0;
     }
-    
+
     // Null
     if lhs_type == 0 {
         return 1; // null === null
     }
-    
-    // Types primitifs (int/float/bool) : comparaison directe
+
+    // Types primitifs (int/float/bool, bruts ou boxés) : voir cmp_primitive
     if lhs_type == 1 {
-        return if lhs == rhs { 1 } else { 0 };
+        return if cmp_primitive(lhs, rhs, |a, b| a == b, |a, b| a == b) { 1 } else { 0 };
     }
-    
+
     // Strings : comparer le contenu
     if lhs_type == 4 {
         return if unsafe { ptr_to_str(lhs) == ptr_to_str(rhs) } { 1 } else { 0 };
     }
-    
+
     // Autres types heap : comparaison de pointeurs
     if lhs == rhs { 1 } else { 0 }
 }
@@ -2842,13 +3032,7 @@ pub extern "C" fn __cmp_ne_strict(lhs: i64, rhs: i64) -> i64 {
     if __cmp_eq_strict(lhs, rhs) != 0 { 0 } else { 1 }
 }
 
-/// `smaller` : retourne 1 si meme type ET lhs < rhs, 0 sinon.
-/// LIMITATION CONNUE : un `mixed` primitif (int/float/bool) n'est pas tagge —
-/// impossible de distinguer un float d'un int a cette etape (voir get_value_type).
-/// La comparaison se fait donc sur les bits i64 bruts : correcte pour deux int,
-/// non fiable pour deux float (l'ordre des bits IEEE-754 n'est pas celui d'une
-/// comparaison entiere signee). Meme limitation, deja presente, pour
-/// __cmp_gt_strict/__cmp_le_strict/__cmp_ge_strict ci-dessous.
+/// `smaller` : retourne 1 si meme type ET lhs < rhs, 0 sinon. Voir `cmp_primitive`.
 #[unsafe(no_mangle)]
 pub extern "C" fn __cmp_lt_strict(lhs: i64, rhs: i64) -> i64 {
     let lhs_type = get_value_type(lhs);
@@ -2858,13 +3042,12 @@ pub extern "C" fn __cmp_lt_strict(lhs: i64, rhs: i64) -> i64 {
         return 0;
     }
     if lhs_type == 1 {
-        return if lhs < rhs { 1 } else { 0 };
+        return if cmp_primitive(lhs, rhs, |a, b| a < b, |a, b| a < b) { 1 } else { 0 };
     }
     0
 }
 
-/// `greater` : retourne 1 si meme type ET lhs > rhs, 0 sinon. Voir limitation
-/// documentee sur __cmp_lt_strict.
+/// `greater` : retourne 1 si meme type ET lhs > rhs, 0 sinon. Voir `cmp_primitive`.
 #[unsafe(no_mangle)]
 pub extern "C" fn __cmp_gt_strict(lhs: i64, rhs: i64) -> i64 {
     let lhs_type = get_value_type(lhs);
@@ -2874,13 +3057,12 @@ pub extern "C" fn __cmp_gt_strict(lhs: i64, rhs: i64) -> i64 {
         return 0;
     }
     if lhs_type == 1 {
-        return if lhs > rhs { 1 } else { 0 };
+        return if cmp_primitive(lhs, rhs, |a, b| a > b, |a, b| a > b) { 1 } else { 0 };
     }
     0
 }
 
-/// `smaller or equal` : retourne 1 si meme type ET lhs <= rhs, 0 sinon. Voir
-/// limitation documentee sur __cmp_lt_strict.
+/// `smaller or equal` : retourne 1 si meme type ET lhs <= rhs, 0 sinon. Voir `cmp_primitive`.
 #[unsafe(no_mangle)]
 pub extern "C" fn __cmp_le_strict(lhs: i64, rhs: i64) -> i64 {
     let lhs_type = get_value_type(lhs);
@@ -2891,17 +3073,16 @@ pub extern "C" fn __cmp_le_strict(lhs: i64, rhs: i64) -> i64 {
         return 0;
     }
 
-    // Primitifs : comparaison directe (ne distingue pas int/float/bool)
+    // Primitifs (int/float/bool, bruts ou boxés) : voir cmp_primitive
     if lhs_type == 1 {
-        return if lhs <= rhs { 1 } else { 0 };
+        return if cmp_primitive(lhs, rhs, |a, b| a <= b, |a, b| a <= b) { 1 } else { 0 };
     }
 
     // Autres types non comparables
     0
 }
 
-/// `greater or equal` : retourne 1 si meme type ET lhs >= rhs, 0 sinon. Voir
-/// limitation documentee sur __cmp_lt_strict.
+/// `greater or equal` : retourne 1 si meme type ET lhs >= rhs, 0 sinon. Voir `cmp_primitive`.
 #[unsafe(no_mangle)]
 pub extern "C" fn __cmp_ge_strict(lhs: i64, rhs: i64) -> i64 {
     let lhs_type = get_value_type(lhs);
@@ -2912,9 +3093,9 @@ pub extern "C" fn __cmp_ge_strict(lhs: i64, rhs: i64) -> i64 {
         return 0;
     }
 
-    // Primitifs : comparaison directe (ne distingue pas int/float/bool)
+    // Primitifs (int/float/bool, bruts ou boxés) : voir cmp_primitive
     if lhs_type == 1 {
-        return if lhs >= rhs { 1 } else { 0 };
+        return if cmp_primitive(lhs, rhs, |a, b| a >= b, |a, b| a >= b) { 1 } else { 0 };
     }
 
     // Autres types non comparables
@@ -2947,6 +3128,8 @@ fn unbox_numeric_i64(val: i64) -> i64 {
         unsafe { unbox_float(val) as i64 }
     } else if is_bool_box(val) {
         if unsafe { unbox_bool(val) } { 1 } else { 0 }
+    } else if is_int_box(val) {
+        unsafe { unbox_int(val) }
     } else {
         val
     }
@@ -2960,6 +3143,8 @@ fn unbox_numeric_f64(val: i64) -> f64 {
         unsafe { unbox_float(val) }
     } else if is_bool_box(val) {
         if unsafe { unbox_bool(val) } { 1.0 } else { 0.0 }
+    } else if is_int_box(val) {
+        unsafe { unbox_int(val) as f64 }
     } else {
         val as f64
     }
@@ -3010,7 +3195,11 @@ pub extern "C" fn __dyn_add(a: i64, b: i64) -> i64 {
     if is_float_box(a) || is_float_box(b) {
         return __box_float((unbox_numeric_f64(a) + unbox_numeric_f64(b)).to_bits() as i64);
     }
-    unbox_numeric_i64(a) + unbox_numeric_i64(b)
+    // Résultat entier : ce retour EST déjà une valeur "mixed" auto-décrite
+    // (voir la doc ci-dessus) — rien en aval ne le reboxera, donc c'est ICI
+    // qu'il faut garantir l'invariant "un int assez grand pour être ambigu
+    // avec un pointeur heap est boxé" (voir `box_int_if_needed`).
+    box_int_if_needed(unbox_numeric_i64(a) + unbox_numeric_i64(b))
 }
 
 /// `-`/`*`/`/` quand au moins un opérande est `Ptr` (mixed — jamais un vrai
@@ -3030,7 +3219,10 @@ macro_rules! dyn_arith_op {
             if is_float_box(a) || is_float_box(b) {
                 __box_float((unbox_numeric_f64(a) $op unbox_numeric_f64(b)).to_bits() as i64)
             } else {
-                unbox_numeric_i64(a) $op unbox_numeric_i64(b)
+                // Voir le commentaire équivalent dans `__dyn_add` : le résultat
+                // est déjà une valeur "mixed" retournée telle quelle à
+                // l'appelant, donc à reboxer ICI si nécessaire.
+                box_int_if_needed(unbox_numeric_i64(a) $op unbox_numeric_i64(b))
             }
         }
     };
@@ -3122,6 +3314,12 @@ fn value_to_json(val: i64) -> JsonValue {
     if is_bool_box(val) {
         return JsonValue::Bool(unsafe { unbox_bool(val) });
     }
+    // `int` boxé (voir `box_int_if_needed`) : même raison de le vérifier AVANT
+    // `get_value_type`, qui le classerait aussi "primitif" (1) sans le
+    // distinguer d'un vrai entier brut de même magnitude.
+    if is_int_box(val) {
+        return JsonValue::Number(serde_json::Number::from(unsafe { unbox_int(val) }));
+    }
 
     let typ = get_value_type(val);
 
@@ -3188,7 +3386,11 @@ fn json_to_value(json: &JsonValue) -> i64 {
         JsonValue::Bool(b) => if *b { 1 } else { 0 },
         JsonValue::Number(n) => {
             if let Some(i) = n.as_i64() {
-                i
+                // La valeur décodée est toujours logée dans un `mixed`
+                // (élément d'array/map, voir docs `JSON::decode`) — boxer si
+                // besoin, comme n'importe quel autre `int` en transit vers un
+                // `mixed` (voir `box_int_if_needed`).
+                box_int_if_needed(i)
             } else {
                 0
             }

@@ -5,6 +5,7 @@
 //   m.lock()         → void   verrouille le mutex (bloquant)
 //   m.unlock()       → void   déverrouille le mutex
 //   m.tryLock()     → bool   tente de verrouiller (non-bloquant)
+//   m.withLock(f:Function<void>) → void   lock + f() + unlock garanti (même si f() raise)
 //   m.destroy()      → void   libère le mutex (usage après = UB, comme SQLite)
 //
 // Convention runtime : Mutex_<method>
@@ -53,6 +54,14 @@ pub fn class() -> ClassInfo {
     methods.insert("tryLock".into(), instance(
         vec![],
         Type::Bool,
+    ));
+
+    // m.withLock(f:Function<void>) → void — lock, exécute f(), unlock garanti
+    // (y compris si f() raise, contrairement à lock()/unlock() manuels — voir
+    // Mutex_withLock / docs/roadmap.d/memoire-deadlocks-raise.md)
+    methods.insert("withLock".into(), instance(
+        vec![("f", Type::Function { ret_ty: Box::new(Type::Void), param_tys: vec![] })],
+        Type::Void,
     ));
 
     // m.destroy() → void — libère le mutex pthread + son wrapper (voir
