@@ -150,7 +150,7 @@ impl<'a> TypeChecker<'a> {
             
             self.scopes.declare(
                 param.name.clone(),
-                LocalBinding { ty: param_ty, mutable: false, span: param.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false },
+                LocalBinding { ty: param_ty, mutable: false, span: param.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
             );
         }
 
@@ -215,7 +215,7 @@ impl<'a> TypeChecker<'a> {
                         
                         self.scopes.declare(
                             p.name.clone(),
-                            LocalBinding { ty: param_ty, mutable: false, span: p.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false },
+                            LocalBinding { ty: param_ty, mutable: false, span: p.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                         );
                     }
                     self.check_block(body);
@@ -238,6 +238,27 @@ impl<'a> TypeChecker<'a> {
                         self.errors.push(SemaError::MixedInProperty {
                             class: class.name.clone(),
                             field: name.clone(),
+                            span: span.clone(),
+                        });
+                    }
+                    // Un champ de type ressource (Mutex/SQLite/MySQL/MariaDB)
+                    // n'est JAMAIS libéré par `__free_<Classe>` — ni
+                    // aujourd'hui, ni pour aucune classe existante du dépôt
+                    // (voir `class_ownership::classify_field`, portée
+                    // délibérément limitée à `Value`/`Object`, tout le reste
+                    // — dont `Resource` — tombe dans `Plain`, jamais fermé).
+                    // Ce n'est pas un cas non couvert par accident : AUCUN
+                    // mécanisme n'existe pour fermer un tel champ, que
+                    // l'instance porteuse soit libérée automatiquement
+                    // (`scoped`/`consumed`, ou un `var` prouvé non-échappant —
+                    // voir docs/roadmap.d/memoire-strategie-var.md) ou pas —
+                    // rejeté à la déclaration plutôt que de laisser fuir
+                    // silencieusement un handle natif à chaque libération.
+                    if ownership_class(ty) == OwnershipClass::Resource {
+                        self.errors.push(SemaError::ResourceField {
+                            class: class.name.clone(),
+                            field: name.clone(),
+                            ty_name: type_name(ty),
                             span: span.clone(),
                         });
                     }
@@ -293,7 +314,7 @@ impl<'a> TypeChecker<'a> {
                 is_param: false,
                 kind: VarKind::Var,
                 consumed_used_at: None,
-                resource_finalized: false,
+                resource_finalized: false, resource_contained: false,
             },
         );
         
@@ -307,7 +328,7 @@ impl<'a> TypeChecker<'a> {
                 is_param: false,
                 kind: VarKind::Var,
                 consumed_used_at: None,
-                resource_finalized: false,
+                resource_finalized: false, resource_contained: false,
             },
         );
         
@@ -343,21 +364,51 @@ impl<'a> TypeChecker<'a> {
 
     fn check_block(&mut self, block: &Block) {
         self.scopes.push();
-        for stmt in &block.stmts {
+        for (i, stmt) in block.stmts.iter().enumerate() {
             self.check_stmt(stmt);
+            self.check_resource_var_containment(stmt, block, i);
         }
         { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
     }
 
+    /// Juste après avoir déclaré un `var`/`const` d'un type ressource
+    /// (`Mutex`/`SQLite`/`MySQL`/`MariaDB`), détermine s'il ne s'échappe
+    /// jamais du reste de `block` (même analyse que pour la libération
+    /// automatique d'un `var`, voir `crate::sema::escape::var_never_escapes`)
+    /// et, si c'est prouvé, le marque `resource_contained` — condition
+    /// nécessaire (mais pas suffisante : voir `pop_scope`) pour le diagnostic
+    /// `UnclosedResourceVar`. Ne fait rien pour `scoped`/`consumed` (déjà
+    /// finalisées automatiquement en fin de bloc, aucun risque de fuite).
+    fn check_resource_var_containment(&mut self, stmt: &Stmt, block: &Block, i: usize) {
+        let (name, ty) = match stmt {
+            Stmt::Var { name, ty, kind: VarKind::Var, .. } => (name, ty),
+            Stmt::Const { name, ty, .. } => (name, ty),
+            _ => return,
+        };
+        if ownership_class(ty) != OwnershipClass::Resource {
+            return;
+        }
+        if crate::sema::escape::var_never_escapes(
+            &self.class_members, name, block, i, self.current_class.as_deref(), &self.escaping_params,
+        ) {
+            self.scopes.mark_resource_contained(name);
+        }
+    }
+
     /// Convertit ce que `pop_scope` a trouvé en dépilant le scope courant :
-    /// variables inutilisées (warning) et `Thread` `scoped`/`consumed`
-    /// jamais `.join()`/`.detach()` (erreur — voir `OwnershipClass::Thread`).
+    /// variables inutilisées (warning), `Thread` `scoped`/`consumed` jamais
+    /// `.join()`/`.detach()`, et `var`/`const` ressource qui fuient leur
+    /// handle natif (les deux dernières : erreurs — voir
+    /// `OwnershipClass::Thread`/`Resource`).
     fn flush_warnings(&mut self, popped: crate::sema::scope::PoppedScope) {
         for u in popped.unused {
             self.warnings.push(SemaWarning::UnusedVariable { name: u.name, span: u.span });
         }
         for t in popped.unfinalized_threads {
             self.errors.push(SemaError::ThreadNotFinalized { name: t.name, span: t.span });
+        }
+        for r in popped.unclosed_resource_vars {
+            self.errors.push(SemaError::UnclosedResourceVar { name: r.name, ty_name: r.ty_name, span: r.span });
         }
     }
 
@@ -404,7 +455,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 if !self.scopes.declare(
                     name.clone(),
-                    LocalBinding { ty: ty.clone(), mutable: *mutable, span: span.clone(), used: false, is_param: false, kind: *kind, consumed_used_at: None, resource_finalized: false },
+                    LocalBinding { ty: ty.clone(), mutable: *mutable, span: span.clone(), used: false, is_param: false, kind: *kind, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                 ) {
                     self.errors.push(SemaError::DuplicateSymbol {
                         name: name.clone(),
@@ -424,7 +475,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 if !self.scopes.declare(
                     name.clone(),
-                    LocalBinding { ty: ty.clone(), mutable: false, span: span.clone(), used: false, is_param: false, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false },
+                    LocalBinding { ty: ty.clone(), mutable: false, span: span.clone(), used: false, is_param: false, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                 ) {
                     self.errors.push(SemaError::DuplicateSymbol {
                         name: name.clone(),
@@ -488,7 +539,7 @@ impl<'a> TypeChecker<'a> {
                     }
                 };
                 self.scopes.push();
-                self.scopes.declare(var.clone(), LocalBinding { ty: elem_ty, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false });
+                self.scopes.declare(var.clone(), LocalBinding { ty: elem_ty, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
                 self.check_block(body);
                 { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
             }
@@ -496,8 +547,8 @@ impl<'a> TypeChecker<'a> {
             Stmt::ForMap { key, value, iter, body, span } => {
                 self.infer_expr(iter);
                 self.scopes.push();
-                self.scopes.declare(key.clone(),   LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false });
-                self.scopes.declare(value.clone(), LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false });
+                self.scopes.declare(key.clone(),   LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
+                self.scopes.declare(value.clone(), LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
                 self.check_block(body);
                 { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
             }
@@ -610,7 +661,7 @@ impl<'a> TypeChecker<'a> {
                     // Le binding est de type mixed (type de l'erreur inconnu statiquement)
                     self.scopes.declare(
                         handler.binding.clone(),
-                        LocalBinding { ty: Type::Mixed, mutable: false, span: handler.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false },
+                        LocalBinding { ty: Type::Mixed, mutable: false, span: handler.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                     );
                     self.check_block(&handler.body);
                     { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
@@ -1416,7 +1467,7 @@ impl<'a> TypeChecker<'a> {
                 for p in params {
                     self.scopes.declare(
                         p.name.clone(),
-                        LocalBinding { ty: p.ty.clone(), mutable: false, span: p.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false },
+                        LocalBinding { ty: p.ty.clone(), mutable: false, span: p.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                     );
                 }
                 // Sauvegarder current_ret et le remplacer par le type de retour de la closure

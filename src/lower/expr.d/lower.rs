@@ -448,15 +448,32 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     // Résoudre le type de retour depuis fn_ret_types
                     let ret_ty = builder.fn_ret_types.get(&func_mangled).cloned().unwrap_or(IrType::Ptr);
                     // Dispatch dynamique réel (héritage de classe) : un appel
-                    // EXTERNE (jamais `self`/`parent`, qui visent toujours
-                    // l'implémentation exacte de la classe courante/parente)
-                    // sur une classe qui a des sous-classes est redirigé vers
-                    // son dispatcher `__dispatch_Classe_méthode` — sans quoi
+                    // externe (`obj.méthode()`) OU `self.méthode()` sur une
+                    // classe qui a des sous-classes est redirigé vers son
+                    // dispatcher `__dispatch_Classe_méthode` — sans quoi
                     // l'appel résoudrait TOUJOURS vers `class_name`, jamais
                     // vers une éventuelle surcharge du type réel de l'objet
-                    // (voir docs/roadmap.d/langage-interfaces.md).
-                    let is_self_or_parent = matches!(object.as_ref(), Expr::SelfExpr(_) | Expr::ParentExpr(_));
-                    let call_target = if is_self_or_parent {
+                    // (voir docs/roadmap.d/langage-interfaces.md). `self` doit
+                    // se comporter comme n'importe quel appel virtuel (le
+                    // patron "template method" — une méthode de base qui
+                    // appelle `self.hook()` en attendant qu'une sous-classe
+                    // la substitue — l'exige) : `class_name` vaut alors
+                    // `builder.current_class`, exactement le même point
+                    // d'entrée que pour un appel externe sur une variable de
+                    // ce type.
+                    //
+                    // `parent.méthode()` reste TOUJOURS résolu statiquement
+                    // (jamais via le dispatcher) : c'est tout son rôle —
+                    // appeler explicitement l'implémentation du parent,
+                    // volontairement en contournant une éventuelle surcharge
+                    // de la classe courante. Le dispatcher répondrait au
+                    // contraire selon le `class_id` RÉEL de l'objet (qui peut
+                    // être la classe courante elle-même, voire une sous-classe
+                    // encore plus dérivée) — le rediriger dessus romprait la
+                    // sémantique de `parent` et bouclerait à l'infini dans le
+                    // patron classique "override qui rappelle `parent.x()`".
+                    let is_parent = matches!(object.as_ref(), Expr::ParentExpr(_));
+                    let call_target = if is_parent {
                         func_mangled.clone()
                     } else {
                         class_name.as_deref()

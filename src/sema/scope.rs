@@ -33,6 +33,19 @@ pub struct LocalBinding {
     /// `OwnershipClass::Thread`) : une `Thread` qui l'atteint sans jamais
     /// avoir été finalisée est E19, pas ce champ.
     pub resource_finalized: bool,
+    /// Pour un `var`/`const` de type ressource (`Mutex`/`SQLite`/`MySQL`/
+    /// `MariaDB`) seulement : vrai si `crate::sema::escape::var_never_escapes`
+    /// a prouvé, à la déclaration, qu'il ne s'échappe jamais (jamais retourné,
+    /// réaffecté, ou passé en argument) — voir `pop_scope` : un `var`/`const`
+    /// ressource qui remplit CETTE condition ET n'est jamais finalisé
+    /// manuellement (`resource_finalized`) fuit son handle natif pour
+    /// toujours, puisque ni `var` ni `const` ne libèrent jamais rien (à la
+    /// différence de `scoped`/`consumed`, qui finalisent automatiquement en
+    /// fin de bloc — voir `drop_func_for`). `false` par défaut : tant que ça
+    /// n'a pas été prouvé contenu, on suppose prudemment qu'il pourrait
+    /// s'échapper (aucun faux positif possible, voir
+    /// docs/roadmap.d/memoire-documentation-diagnostics.md).
+    pub resource_contained: bool,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -108,12 +121,26 @@ pub struct UnfinalizedThread {
     pub span: Span,
 }
 
-/// Résultat du dépilement d'un scope : à la fois les variables inutilisées
-/// (warning existant) et les `Thread` `scoped`/`consumed` non finalisées
-/// (nouvelle erreur — voir `OwnershipClass::Thread`).
+/// `var`/`const` d'un type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`)
+/// prouvé "contenu" (`resource_contained`, jamais échappé) qui atteint la fin
+/// de son bloc sans jamais avoir été finalisé manuellement — un handle natif
+/// qui fuit pour toujours, puisque `var`/`const` ne libèrent jamais rien
+/// automatiquement (contrairement à `scoped`/`consumed`, voir
+/// `OwnershipClass::Resource`/`drop_func_for`). Retourné par `pop_scope`.
+pub struct UnclosedResourceVar {
+    pub name: String,
+    pub ty_name: String,
+    pub span: Span,
+}
+
+/// Résultat du dépilement d'un scope : les variables inutilisées (warning
+/// existant), les `Thread` `scoped`/`consumed` non finalisées, et les
+/// `var`/`const` ressource qui fuient leur handle natif (les deux dernières :
+/// nouvelles erreurs).
 pub struct PoppedScope {
     pub unused: Vec<UnusedVar>,
     pub unfinalized_threads: Vec<UnfinalizedThread>,
+    pub unclosed_resource_vars: Vec<UnclosedResourceVar>,
 }
 
 /// Pile de scopes lexicaux.
@@ -138,10 +165,11 @@ impl ScopeStack {
     pub fn pop_scope(&mut self) -> PoppedScope {
         let frame = match self.frames.pop() {
             Some(f) => f,
-            None    => return PoppedScope { unused: vec![], unfinalized_threads: vec![] },
+            None    => return PoppedScope { unused: vec![], unfinalized_threads: vec![], unclosed_resource_vars: vec![] },
         };
         let mut unused: Vec<UnusedVar> = Vec::new();
         let mut unfinalized_threads: Vec<UnfinalizedThread> = Vec::new();
+        let mut unclosed_resource_vars: Vec<UnclosedResourceVar> = Vec::new();
         for (name, b) in frame {
             if !b.used && !b.is_param {
                 unused.push(UnusedVar { name: name.clone(), span: b.span.clone() });
@@ -151,13 +179,32 @@ impl ScopeStack {
                 && ownership_class(&b.ty) == OwnershipClass::Thread
                 && !b.resource_finalized
             {
-                unfinalized_threads.push(UnfinalizedThread { name, span: b.span.clone() });
+                unfinalized_threads.push(UnfinalizedThread { name: name.clone(), span: b.span.clone() });
+            }
+            // `var`/`const` (jamais `scoped`/`consumed`, qui finalisent déjà
+            // automatiquement en fin de bloc, voir `drop_func_for`) : un
+            // handle ressource prouvé "contenu" et jamais finalisé
+            // manuellement fuit pour toujours — voir
+            // `LocalBinding::resource_contained`.
+            if !b.is_param
+                && b.kind == VarKind::Var
+                && b.resource_contained
+                && !b.resource_finalized
+            {
+                if let crate::parsing::ast::Type::Named(ty_name) = &b.ty {
+                    if ownership_class(&b.ty) == OwnershipClass::Resource {
+                        unclosed_resource_vars.push(UnclosedResourceVar {
+                            name, ty_name: ty_name.clone(), span: b.span.clone(),
+                        });
+                    }
+                }
             }
         }
         // Tri pour ordre déterministe (ligne, colonne)
         unused.sort_by_key(|u| (u.span.line, u.span.col));
         unfinalized_threads.sort_by_key(|u| (u.span.line, u.span.col));
-        PoppedScope { unused, unfinalized_threads }
+        unclosed_resource_vars.sort_by_key(|u| (u.span.line, u.span.col));
+        PoppedScope { unused, unfinalized_threads, unclosed_resource_vars }
     }
 
     /// Déclare un symbole dans le scope courant.
@@ -220,5 +267,18 @@ impl ScopeStack {
             }
         }
         false
+    }
+
+    /// Marque un `var`/`const` ressource comme prouvé "contenu" — voir
+    /// `LocalBinding::resource_contained`. Cherche uniquement dans le frame
+    /// COURANT (contrairement à `mark_resource_finalized`) : appelé juste
+    /// après la déclaration, donc toujours dans le frame où `name` vient
+    /// d'être inséré.
+    pub fn mark_resource_contained(&mut self, name: &str) {
+        if let Some(frame) = self.frames.last_mut() {
+            if let Some(b) = frame.get_mut(name) {
+                b.resource_contained = true;
+            }
+        }
     }
 }

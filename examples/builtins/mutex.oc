@@ -15,6 +15,7 @@ function main(): int {
     IO::writeln("section critique protégée")
     m.unlock()
     IO::writeln("mutex déverrouillé")
+    m.destroy()
 
     // ── try_lock : tentative sans blocage ─────────────────────────────────
     IO::writeln("=== try_lock ===")
@@ -36,6 +37,7 @@ function main(): int {
         IO::writeln("try_lock : échec (mutex déjà verrouillé)")
     }
     m2.unlock()
+    m2.destroy()
 
     // ── Protection d'une variable partagée entre threads ──────────────────
     IO::writeln("=== protection counter avec Mutex ===")
@@ -82,6 +84,7 @@ function main(): int {
     
     IO::write("counter final (attendu 300) = ")
     IO::writeln(counter)
+    m_counter.destroy()
 
     // ── Comparaison : sans Mutex (data race) ──────────────────────────────
     IO::writeln("=== SANS Mutex (data race) ===")
@@ -153,6 +156,7 @@ function main(): int {
     
     ts1.join()
     ts2.join()
+    m_slow.destroy()
 
     // ── Mutex multiples (attention aux deadlocks) ─────────────────────────
     IO::writeln("=== deux mutex indépendants ===")
@@ -195,6 +199,8 @@ function main(): int {
     IO::writeln(data_a)
     IO::write("data_b = ")
     IO::writeln(data_b)
+    m_a.destroy()
+    m_b.destroy()
 
     // ── withLock : unlock garanti même si la closure raise ────────────────
     IO::writeln("=== withLock ===")

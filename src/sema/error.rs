@@ -37,6 +37,20 @@ pub enum SemaError {
     /// préalable — le compilateur ne peut pas choisir à la place du
     /// développeur entre attendre le thread et le détacher.
     ThreadNotFinalized { name: String, span: Span },
+    /// `var`/`const` d'un type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`)
+    /// prouvé "contenu" (jamais échappé — voir
+    /// `crate::sema::escape::var_never_escapes`) qui atteint la fin de son
+    /// bloc sans jamais avoir été finalisé manuellement (`.destroy()`/
+    /// `.close()`) — `var`/`const` ne libèrent jamais rien automatiquement
+    /// (contrairement à `scoped`/`consumed`), donc ce handle natif fuit pour
+    /// toujours dès que la variable sort de portée.
+    UnclosedResourceVar { name: String, ty_name: String, span: Span },
+    /// `property` d'un type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`) —
+    /// `__free_<Classe>` (voir `class_ownership::classify_field`) ne sait
+    /// libérer que `Value`/une autre classe utilisateur, jamais une
+    /// ressource : ce champ fuirait son handle natif à chaque libération de
+    /// l'instance porteuse (`scoped`/`consumed`, ou un `var` auto-libéré).
+    ResourceField { class: String, field: String, ty_name: String, span: Span },
     /// `string + T` avec `T` différent de `string` (et différent de `mixed`,
     /// qui échappe à cette vérification faute d'information statique, comme
     /// pour `comparable_types`/`orderable_types`). La concaténation `+` est
@@ -100,6 +114,8 @@ impl SemaError {
             SemaError::ConsumedUsedTwice  { span, .. } => span,
             SemaError::ResourceEscape     { span, .. } => span,
             SemaError::ThreadNotFinalized { span, .. } => span,
+            SemaError::UnclosedResourceVar { span, .. } => span,
+            SemaError::ResourceField { span, .. } => span,
             SemaError::StringConcatMismatch { span, .. } => span,
             SemaError::GenericArityMismatch { span, .. } => span,
             SemaError::ThreadAlreadyFinalized { span, .. } => span,
@@ -154,6 +170,10 @@ impl SemaError {
                 format!("'{}' ('{}') cannot escape its 'scoped'/'consumed' block (assignment, return, or argument) — resource handles cannot be cloned or shared, use it locally via its own methods", name, class_name),
             SemaError::ThreadNotFinalized { name, .. } =>
                 format!("'{}' is a 'scoped'/'consumed' Thread that reaches the end of its block without a call to '.join()' or '.detach()' — pick one explicitly", name),
+            SemaError::UnclosedResourceVar { name, ty_name, .. } =>
+                format!("'{}' ('{}') is declared with 'var'/'const', never escapes its block, and is never '.destroy()'ed/'.close()'d — this native handle leaks permanently, since 'var'/'const' never close a resource automatically (unlike 'scoped'/'consumed'); call '.destroy()'/'.close()' explicitly, or declare it 'scoped'/'consumed' if you want the compiler to finalize it for you", name, ty_name),
+            SemaError::ResourceField { class, field, ty_name, .. } =>
+                format!("'{}.{}' ('{}') is a native resource field — it is never closed when a '{}' instance is destroyed (no mechanism exists for this today), so this handle always leaks; manage it outside the class instead, or expose an explicit method the caller must invoke before discarding the instance", class, field, ty_name, class),
             SemaError::StringConcatMismatch { left, right, .. } =>
                 format!("cannot concatenate '{}' and '{}' with '+': string concatenation is strictly typed (only string + string is allowed) — use a template string (`${{...}}`) or convert explicitly (Convert::*ToStr)", left, right),
             SemaError::GenericArityMismatch { name, expected_min, expected_max, found, .. } =>

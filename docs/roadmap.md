@@ -19,18 +19,6 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 ---
 
-## Priorité Haute
-
-### Mémoire
-
-- **Deux diagnostics de fuite mémoire pour `var`** (handle natif jamais fermé, champ de classe non pris en charge) — désormais possibles, plus aucun prérequis manquant. *(Structurel)* → [détails](roadmap.d/memoire-documentation-diagnostics.md)
-
-### Langage
-
-- **`self.méthode()`/`parent.méthode()` ne sont jamais dispatchés dynamiquement**, contrairement à un appel externe (`obj.méthode()`) — casse le patron "template method". *(Structurel)* → [détails](roadmap.d/langage-interfaces.md)
-
----
-
 ## Priorité Moyenne
 
 ### Langage

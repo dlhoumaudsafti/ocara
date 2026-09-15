@@ -69,5 +69,20 @@ function main(): int {
     m.destroy()
     m.destroy()
 
+    // Erreur 11 — fuite d'un handle natif déclaré en `var` (E28) : jamais
+    // échappé, jamais `.destroy()`é.
+    var leaked: Mutex = use Mutex()
+    leaked.lock()
+    leaked.unlock()
+
     return 0
+}
+
+// Erreur 12 — champ de classe d'un type ressource (E29) : jamais fermé par
+// `__free_LeakyCache`, quelle que soit la façon dont une instance est gérée.
+class LeakyCache {
+    private property lock: Mutex
+    init() {
+        self.lock = use Mutex()
+    }
 }

@@ -579,6 +579,41 @@ Une classe ou un `generic` déclare `extends X` où `X` ne correspond à aucune 
 
 ---
 
+### E28 — Fuite d'un handle natif déclaré en `var`/`const`
+
+```
+fichier.oc:4:5: error: 'm' ('Mutex') is declared with 'var'/'const', never escapes its block, and is never '.destroy()'ed/'.close()'d — this native handle leaks permanently, since 'var'/'const' never close a resource automatically (unlike 'scoped'/'consumed'); call '.destroy()'/'.close()' explicitly, or declare it 'scoped'/'consumed' if you want the compiler to finalize it for you
+```
+
+Un `var`/`const` d'un type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`) dont l'analyse d'échappement statique (la même que pour la libération automatique d'un `var`, voir `crate::sema::escape::var_never_escapes`) prouve qu'il ne s'échappe jamais (jamais retourné, réaffecté, ni passé en argument), et qui atteint la fin de son bloc sans avoir été manuellement `.destroy()`/`.close()`. Contrairement à `scoped`/`consumed`, qui finalisent automatiquement une ressource en fin de bloc, `var`/`const` ne le font jamais — ce handle natif (mutex, connexion) fuit alors pour toujours.
+
+Volontairement conservateur : dès que la variable pourrait s'échapper d'une façon quelconque (retour, réaffectation, argument d'un appel), aucune erreur n'est levée — mieux vaut manquer une fuite réelle que rejeter du code légitime.
+
+```ocara
+function main(): int {
+    var m:Mutex = use Mutex()   // ❌ jamais fermé, jamais échappé
+    m.lock()
+    m.unlock()
+    return 0
+}
+```
+
+**Correction :** appeler `.destroy()`/`.close()` explicitement avant la fin du bloc, ou déclarer la variable `scoped`/`consumed` si la fermeture automatique de fin de bloc est voulue.
+
+---
+
+### E29 — Champ de classe d'un type ressource
+
+```
+fichier.oc:5:5: error: 'Cache.lock' ('Mutex') is a native resource field — it is never closed when a 'Cache' instance is destroyed (no mechanism exists for this today), so this handle always leaks; manage it outside the class instead, or expose an explicit method the caller must invoke before discarding the instance
+```
+
+Une `property` d'un type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`) sur une classe utilisateur — `__free_<Classe>` (généré pour `scoped`/`consumed`, et pour un `var` auto-libéré) ne sait libérer/fermer qu'un champ `string`/`array`/`map`/instance de classe utilisateur, jamais une ressource : ce champ fuirait systématiquement son handle natif à chaque libération de l'instance porteuse, quelle que soit la façon dont cette instance est elle-même gérée.
+
+**Correction :** ne pas stocker la ressource directement dans un champ de la classe — la gérer en dehors (ex. l'injecter à chaque appel de méthode plutôt que de la conserver), ou exposer une méthode explicite (`close()`) que l'appelant doit invoquer lui-même avant d'abandonner l'instance.
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.
