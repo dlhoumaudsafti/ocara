@@ -688,6 +688,18 @@ for x in trucLoop() { }  // ✅ toujours valable
 
 ---
 
+### E35 — `emit` dans un `try`, pas encore pris en charge
+
+```
+fichier.oc:1:1: error: 'truc': 'emit' inside a 'try' block is not supported yet — this generator would suspend from inside a separate exception-handling frame, which the current implementation cannot resume correctly; move the 'try' outside the generator, or restructure without 'emit' inside 'try' for now
+```
+
+Un `emit`, à l'intérieur d'un `try`, DANS un générateur — le corps d'un `try` est lowered en fonction séparée (voir `lower_try`) : un `emit` y ferait aujourd'hui un `Return` depuis cette fonction séparée au lieu de suspendre le générateur (miscompilation silencieuse). Rejeté à la compilation en attendant l'implémentation du rejeu des `setjmp`/`TryFrame` à chaque reprise (voir docs/roadmap.d/langage-emit-iterable.md, §4 "Cas A").
+
+**Correction :** déplacer le `try` en dehors du générateur (par exemple dans le code consommateur), ou restructurer sans `emit` à l'intérieur d'un `try` pour l'instant.
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.

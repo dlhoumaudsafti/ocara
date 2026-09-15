@@ -56,8 +56,15 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
         }
         Stmt::Return { value, .. } => {
             // `return x` : `x` peut être une `scoped`/`consumed` qui
-            // s'échappe hors de son bloc (voir crate::lower::stmt::ownership).
+            // s'échappe hors de son bloc (voir crate::lower::stmt::ownership),
+            // ou une consommation scalaire directe d'un `message<T>` (voir
+            // docs/roadmap.d/langage-emit-iterable.md, §2) — dans ce cas
+            // précis (jamais les deux : `value` est toujours `None` pour un
+            // `return` À L'INTÉRIEUR d'un générateur, imposé par la sema).
             let v = value.as_ref().map(|e| {
+                if let Some((mangled, elem_ty)) = crate::lower::builder::message_gen::detect_message_call(builder, e) {
+                    return crate::lower::builder::message_gen::lower_message_scalar(builder, e, &mangled, elem_ty);
+                }
                 let val = lower_expr(builder, e);
                 crate::lower::stmt::ownership::maybe_clone_escaping(builder, e, val)
             });
@@ -66,9 +73,13 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
             // ouverts (v, calculé juste au-dessus, a déjà sa propre copie
             // indépendante si besoin — voir maybe_clone_escaping).
             crate::lower::stmt::ownership::emit_early_exit_drops(builder, 0);
-            // Si on est dans un handler d'exception (__try_handler_*), signaler le return
-            // au runtime pour qu'il soit propagé à la fonction englobante
-            if builder.func.name.starts_with("__try_handler_") {
+            // `return` (toujours sans valeur, imposé par la sema) dans un
+            // générateur (`message<T>`, voir `crate::lower::builder::message_gen`) :
+            // sortie anticipée = épuisé, jamais un vrai retour de fonction —
+            // même sémantique que la fin naturelle du corps.
+            if builder.frame_vars.contains_key(crate::lower::builder::message_gen::STATE_FIELD) {
+                crate::lower::builder::message_gen::emit_generator_exhausted(builder);
+            } else if builder.func.name.starts_with("__try_handler_") {
                 let return_val = v.clone().unwrap_or_else(|| {
                     // Return void → passer 0
                     let zero = builder.new_value();
@@ -170,14 +181,31 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
         }
 
         // ── Générateurs (emit) ───────────────────────────────────────────────
-        // Le lowering réel (transformation en machine à états — voir
-        // docs/roadmap.d/langage-emit-iterable.md) réécrit tout le corps
-        // d'une fonction contenant `emit` AVANT d'atteindre ce dispatcher
-        // générique — `lower_stmt` ne devrait donc jamais rencontrer
-        // `Stmt::Emit` directement une fois ce chantier terminé. Non encore
-        // implémenté (chantier en cours, voir la fiche roadmap).
-        Stmt::Emit { .. } => {
-            todo!("lowering de `emit` (machine à états) — voir docs/roadmap.d/langage-emit-iterable.md")
+        // Uniquement rencontré en lowering d'un corps `message<T>` (voir
+        // `crate::lower::builder::message_gen::lower_message_func`, qui
+        // peuple `builder.frame_vars` AVANT d'appeler `lower_block` — la
+        // sema garantit que `emit` n'apparaît nulle part ailleurs). Stocke la
+        // valeur émise et l'état de reprise dans le frame heap, puis fait un
+        // VRAI `Return` natif (déroule la pile — la reprise suivante est un
+        // nouvel appel natif depuis zéro, voir la doc de `message_gen`) avant
+        // de continuer le lowering dans un nouveau bloc, qui deviendra le
+        // point de reprise correspondant.
+        Stmt::Emit { value, .. } => {
+            let val = lower_expr(builder, value);
+            builder.store_local(crate::lower::builder::message_gen::VALUE_FIELD, val);
+
+            let state_k = builder.message_resume_blocks.len() as i64 + 1;
+            let k_val = builder.new_value();
+            builder.emit(Inst::ConstInt { dest: k_val.clone(), value: state_k });
+            builder.store_local(crate::lower::builder::message_gen::STATE_FIELD, k_val);
+
+            let true_val = builder.new_value();
+            builder.emit(Inst::ConstBool { dest: true_val.clone(), value: true });
+            builder.emit(Inst::Return { value: Some(true_val) });
+
+            let resume_bb = builder.new_block();
+            builder.message_resume_blocks.push(resume_bb.clone());
+            builder.switch_to(&resume_bb);
         }
     }
 }

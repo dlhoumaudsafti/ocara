@@ -2517,6 +2517,22 @@ pub extern "C" fn __alloc_obj(size: i64) -> i64 {
     }
 }
 
+/// Libère un bloc alloué par `__alloc_obj` (même `size`, en octets, que celle
+/// passée à l'allocation — rien ne la mémorise ailleurs, comme pour
+/// `__object_free`). Utilisée pour le frame heap d'un générateur (`emit`/
+/// `message<T>`, voir docs/roadmap.d/langage-emit-iterable.md et
+/// `src/lower/builder.d/message_gen.rs`) : pas de tag/header à sauter (contrairement
+/// à `__object_free`, réservé à `__alloc_class_obj`), le pointeur libéré est
+/// exactement celui retourné par `__alloc_obj`.
+#[unsafe(no_mangle)]
+pub extern "C" fn __free_obj(ptr: i64, size: i64) {
+    if ptr == 0 || size <= 0 { return; }
+    unsafe {
+        let layout = Layout::from_size_align(size as usize, 8).unwrap();
+        dealloc(ptr as *mut u8, layout);
+    }
+}
+
 /// Alloue une instance de classe utilisateur avec tag TAG_OBJECT.
 /// Le pointeur retourné pointe APRÈS le header, qui fait maintenant 16 octets
 /// (au lieu de 8) — un mot supplémentaire est PRÉPENDÉ devant le tag pour y

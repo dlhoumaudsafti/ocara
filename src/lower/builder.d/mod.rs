@@ -9,6 +9,7 @@ pub mod wrappers;
 pub mod class_ownership;
 pub mod interfaces;
 pub mod class_dispatch;
+pub mod message_gen;
 
 // Re-exports publics
 pub use types::LowerBuilder;

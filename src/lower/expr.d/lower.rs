@@ -560,7 +560,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             if WRITE_FUNS.contains(&func_name.as_str()) && args.len() == 1 {
                 let arg_ty  = expr_ir_type(builder, &args[0]);
                 let variant = write_variant(&func_name, &arg_ty);
-                let arg_val = lower_expr(builder, &args[0]);
+                let arg_val = crate::lower::builder::message_gen::lower_arg_or_message(builder, &args[0]);
                 builder.emit(Inst::Call {
                     dest:   None,
                     func:   variant,
@@ -613,9 +613,12 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             }
 
             // Boxer F64/Bool/I64 si le paramètre cible est `mixed` (Ptr) —
-            // voir `box_arg_for_mixed_param`.
+            // voir `box_arg_for_mixed_param`. Un argument peut aussi être une
+            // consommation scalaire directe d'un `message<T>` (générateur,
+            // voir docs/roadmap.d/langage-emit-iterable.md, §2) — gardé par
+            // la sema, voir `check_message_scalar_consumption`.
             let arg_vals: Vec<Value> = args.iter().enumerate().map(|(i, a)| {
-                let raw = lower_expr(builder, a);
+                let raw = crate::lower::builder::message_gen::lower_arg_or_message(builder, a);
                 let arg_ty = expr_ir_type(builder, a);
                 let param_ty = param_type_for_call_arg(builder, &func_name, i);
                 box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
@@ -841,7 +844,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             if IO_WRITE_METHODS.contains(&func_name.as_str()) && args.len() == 1 {
                 let arg_ty  = expr_ir_type(builder, &args[0]);
                 let variant = write_variant(&func_name, &arg_ty);
-                let arg_val = lower_expr(builder, &args[0]);
+                let arg_val = crate::lower::builder::message_gen::lower_arg_or_message(builder, &args[0]);
                 builder.emit(Inst::Call {
                     dest:   None,
                     func:   variant,
@@ -860,7 +863,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // que soit le paramètre visé (confirmé faux par reproduction) —
             // voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md.
             let arg_vals: Vec<Value> = args.iter().enumerate().map(|(i, a)| {
-                let raw = lower_expr(builder, a);
+                let raw = crate::lower::builder::message_gen::lower_arg_or_message(builder, a);
                 let arg_ty = expr_ir_type(builder, a);
                 let param_ty = param_type_for_call_arg(builder, &func_name, i);
                 box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)

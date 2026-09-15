@@ -22,8 +22,9 @@ pub fn lower_assign(
     match target {
         Expr::Ident(name, _) => {
             // Boxing si la variable cible est mixed
-            let target_ty = builder.locals.get(name.as_str())
-                .map(|(_, ty, _)| ty.clone())
+            let target_ty = builder.frame_vars.get(name.as_str())
+                .map(|(_, _, ty)| ty.clone())
+                .or_else(|| builder.locals.get(name.as_str()).map(|(_, ty, _)| ty.clone()))
                 .unwrap_or(IrType::I64);
             let val = box_for_any(builder, &target_ty, val_ty, val);
             // `s = nouvelleValeur` où `s` est `scoped`/`consumed` : libérer

@@ -34,7 +34,14 @@ pub fn lower_class(
                         name: format!("{}_{}", class.name, decl.name),
                         ..decl.clone()
                     };
-                    lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_param_names, fn_variadic_info, func_default_args, Some(&class.name), class.extends.as_deref(), async_funcs);
+                    if super::message_gen::is_message_func(&mangled.ret_ty) {
+                        // Générateur statique (`emit`/`message<T>`) : pas de
+                        // `self`, deux fonctions IR séparées — voir
+                        // `super::message_gen::lower_message_func`.
+                        super::message_gen::lower_message_func(module, &mangled, fn_ret_types, fn_param_types, fn_param_names);
+                    } else {
+                        lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_param_names, fn_variadic_info, func_default_args, Some(&class.name), class.extends.as_deref(), async_funcs);
+                    }
                 } else {
                     // Méthode d'instance : self en premier paramètre
                     let self_param = crate::parsing::ast::Param {
@@ -51,7 +58,15 @@ pub fn lower_class(
                         params: full_params,
                         ..decl.clone()
                     };
-                    lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_param_names, fn_variadic_info, func_default_args, Some(&class.name), class.extends.as_deref(), async_funcs);
+                    if super::message_gen::is_message_func(&mangled.ret_ty) {
+                        // Générateur d'instance : `self` est juste un champ
+                        // de plus dans le frame heap (voir la doc de
+                        // `message_gen`), aucun traitement spécial requis
+                        // au-delà du `self` déjà préfixé aux params ci-dessus.
+                        super::message_gen::lower_message_func(module, &mangled, fn_ret_types, fn_param_types, fn_param_names);
+                    } else {
+                        lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_param_names, fn_variadic_info, func_default_args, Some(&class.name), class.extends.as_deref(), async_funcs);
+                    }
                 }
             }
             ClassMember::Constructor { params, body, span } => {

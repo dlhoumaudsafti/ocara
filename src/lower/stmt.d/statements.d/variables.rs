@@ -158,6 +158,13 @@ pub fn lower_const(
 /// déclaré n'a pas de type d'élément concret identifiable ici.
 fn lower_literal_or_expr(builder: &mut LowerBuilder, value: &Expr, ty: &Type) -> crate::ir::inst::Value {
     use crate::lower::expr::LiteralElemKind;
+    // Consommation scalaire directe d'un `message<T>` (générateur — voir
+    // docs/roadmap.d/langage-emit-iterable.md, §2) : `var x:T = truc()`/
+    // `const x:T = truc()`. Gardé par la sema (au plus un `emit` hors
+    // boucle) — voir `crate::sema::typecheck::check_message_scalar_consumption`.
+    if let Some((mangled, elem_ty)) = crate::lower::builder::message_gen::detect_message_call(builder, value) {
+        return crate::lower::builder::message_gen::lower_message_scalar(builder, value, &mangled, elem_ty);
+    }
     match (value, ty) {
         (Expr::Array { elements, .. }, Type::Array(inner)) => {
             let kind = if matches!(inner.as_ref(), Type::Mixed) { LiteralElemKind::Mixed } else { LiteralElemKind::Concrete };

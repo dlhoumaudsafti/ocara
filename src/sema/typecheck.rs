@@ -145,8 +145,18 @@ impl<'a> TypeChecker<'a> {
         // atteignable — sinon `message<T>` n'a ici aucun sens (voir la même
         // fiche roadmap).
         if let Type::Message(_) = &func.ret_ty {
-            if !crate::sema::message_emit::analyze_emit(&func.body).has_emit {
+            let analysis = crate::sema::message_emit::analyze_emit(&func.body);
+            if !analysis.has_emit {
                 self.errors.push(SemaError::MessageReturnWithoutEmit {
+                    name: func.name.clone(),
+                    span: func.span.clone(),
+                });
+            }
+            // Cas A (emit dans un try) : pas encore pris en charge par le
+            // lowering (Étape 5 du chantier) — voir la doc de
+            // `EmitAnalysis::emit_in_try`.
+            if analysis.emit_in_try {
+                self.errors.push(SemaError::EmitInsideTryNotYetSupported {
                     name: func.name.clone(),
                     span: func.span.clone(),
                 });
@@ -620,6 +630,29 @@ impl<'a> TypeChecker<'a> {
                 }
 
                 let ret_ty = self.current_ret.clone().unwrap_or(Type::Void);
+
+                // `return` dans une fonction/méthode `message<T>` (générateur,
+                // voir docs/roadmap.d/langage-emit-iterable.md) : un
+                // générateur ne "retourne" jamais un `T`, il en `emit` — un
+                // `return <valeur>` ici n'a pas de sens (le forwarding
+                // implicite d'une valeur scalaire vers le consommateur du
+                // message<T> n'est pas ce que fait `return`). Un `return`
+                // SANS valeur reste valable : sortie anticipée du générateur
+                // (plus aucune valeur produite après ce point), symétrique à
+                // ce qu'un `return` sans valeur ferait dans n'importe quelle
+                // fonction void.
+                if let Type::Message(_) = &ret_ty {
+                    if let Some(expr) = value {
+                        let ty = self.infer_expr(expr);
+                        self.errors.push(SemaError::ReturnTypeMismatch {
+                            expected: "void (sortie anticipée d'un générateur — utilisez 'emit' pour produire une valeur)".into(),
+                            found:    type_name(&ty),
+                            span:     span.clone(),
+                        });
+                    }
+                    return;
+                }
+
                 if let Some(expr) = value {
                     let ty = self.infer_expr(expr);
                     // `return x` est un point d'échappement au même titre

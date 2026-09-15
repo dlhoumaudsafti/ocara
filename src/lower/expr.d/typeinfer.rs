@@ -14,7 +14,16 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
         Expr::Literal(Literal::String(_), _) => IrType::Ptr,
         Expr::Literal(Literal::Null, _)      => IrType::Ptr,
         Expr::Ident(name, _) => {
-            if let Some((_, ty, _)) = builder.locals.get(name.as_str()) {
+            // Variable d'un générateur (voir `crate::lower::builder::message_gen`) :
+            // vérifiée EN PREMIER, sinon son vrai type (ex: I64 pour `i`)
+            // resterait invisible ici (elle n'est jamais dans `locals`) et
+            // retomberait à tort sur `Ptr` — confirmé faux par reproduction
+            // (`i smaller 3` dans un `while` imbriqué dans un générateur :
+            // `i` traité comme `Ptr` faisait comparer un entier brut à un
+            // pointeur "mixed" boxé, via `__cmp_lt_strict`).
+            if let Some((_, _, ty)) = builder.frame_vars.get(name.as_str()) {
+                ty.clone()
+            } else if let Some((_, ty, _)) = builder.locals.get(name.as_str()) {
                 ty.clone()
             } else if let Some((_, _, ty)) = builder.captured_vars.get(name.as_str()) {
                 ty.clone()
@@ -24,6 +33,11 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
         }
         // Appels de méthodes String_* et IO_read* retournent des strings
         Expr::StaticCall { class, method, .. } => {
+            // Consommation scalaire directe d'un `message<T>` — voir la
+            // même note dans le bras `Expr::Call` ci-dessus.
+            if let Some((_, elem_ty)) = crate::lower::builder::message_gen::detect_message_call(builder, expr) {
+                return elem_ty;
+            }
             // Résoudre "<parent>" et "<self>" vers les classes appropriées
             let resolved_class = if class == "<parent>" {
                 builder.parent_class.as_deref().unwrap_or(class.as_str())
@@ -174,7 +188,16 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
             IrType::Ptr
         }
         // Exception : fonctions utilisateur dont on connaît le type de retour
-        Expr::Call { callee, .. } => {
+        Expr::Call { .. } => {
+            // Consommation scalaire directe d'un `message<T>` (générateur —
+            // voir docs/roadmap.d/langage-emit-iterable.md) : le type réel
+            // est celui de `T`, pas `IrType::Ptr` (ce que donnerait
+            // `fn_ret_types`, qui réduit `message<T>` à `Ptr` comme tout
+            // pointeur de frame — voir `IrType::from_ast`).
+            if let Some((_, elem_ty)) = crate::lower::builder::message_gen::detect_message_call(builder, expr) {
+                return elem_ty;
+            }
+            let Expr::Call { callee, .. } = expr else { unreachable!() };
             // Appel indirect : variable de type Function<ReturnType>
             if let Expr::Ident(fname, _) = callee.as_ref() {
                 if let Some(ty) = builder.func_ret_types.get(fname.as_str()) {

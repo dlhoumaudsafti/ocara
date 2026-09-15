@@ -109,6 +109,12 @@ pub enum SemaError {
     /// `crate::sema::message_emit`) : seuls `for`/`Array::fromMessage`
     /// restent valables dans ce cas.
     MessageUnsafeScalarConsumption { name: String, span: Span },
+    /// `emit` atteignable à l'intérieur d'un `try`, dans un générateur — Cas
+    /// A de docs/roadmap.d/langage-emit-iterable.md, pas encore pris en
+    /// charge par le lowering actuel (Étape 5 du chantier, pas construite) :
+    /// rejeté en attendant, pour éviter une miscompilation silencieuse (voir
+    /// `crate::sema::message_emit::EmitAnalysis::emit_in_try`).
+    EmitInsideTryNotYetSupported { name: String, span: Span },
 }
 
 impl SemaError {
@@ -149,6 +155,7 @@ impl SemaError {
             SemaError::MessageReturnWithoutEmit { span, .. } => span,
             SemaError::EmitOutsideMessageFunction { span } => span,
             SemaError::MessageUnsafeScalarConsumption { span, .. } => span,
+            SemaError::EmitInsideTryNotYetSupported { span, .. } => span,
         }
     }
 
@@ -228,6 +235,8 @@ impl SemaError {
                 "'emit' is only valid inside a function/method whose declared return type is 'message<T>'".into(),
             SemaError::MessageUnsafeScalarConsumption { name, .. } =>
                 format!("'{}()' returns 'message<T>' with an 'emit' reachable inside a loop — the compiler cannot prove that at most one value is ever produced, so it cannot be consumed directly as a scalar here; use 'for x in {}()' or 'Array::fromMessage({}())' instead", name, name, name),
+            SemaError::EmitInsideTryNotYetSupported { name, .. } =>
+                format!("'{}': 'emit' inside a 'try' block is not supported yet — this generator would suspend from inside a separate exception-handling frame, which the current implementation cannot resume correctly; move the 'try' outside the generator, or restructure without 'emit' inside 'try' for now", name),
         }
     }
 }

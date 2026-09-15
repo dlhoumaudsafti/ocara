@@ -23,15 +23,15 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 ### Langage
 
-- **Instruction `emit`** (même rôle que `yield` en PHP) et type `message<T>` — **conception entièrement actée, parsing et sema construits, reste le lowering**. *(Massive)* → [détails](roadmap.d/langage-emit-iterable.md)
+- **Instruction `emit`** (même rôle que `yield` en PHP) et type `message<T>` — **fonctionnel de bout en bout pour `for`/scalaire direct (fonctions ET méthodes), vérifié sur des programmes réels compilés et exécutés**. *(Massive)* → [détails](roadmap.d/langage-emit-iterable.md)
   1. ✅ Parsing (`emit`, `Type::Message`) — grammaire EBNF pas encore mise à jour (fait à l'étape 7)
   2. ✅ Sema (typage, diagnostics E30–E34, `message<T>` jamais nommable, règle "au plus un `emit` hors boucle" pour la consommation scalaire)
-  3. Lowering — transformation en machine à états
-  4. Lowering — les 3 formes de consommation (`for`, scalaire directe, `Array::fromMessage`) + libération (dont `break`/`return` anticipé)
-  5. Lowering — `emit` dans un `try` (rejeu des `setjmp` à la reprise)
+  3. ✅ Lowering — transformation en machine à états (`<nom>__new`/`<nom>__resume`, frame heap, voir la fiche)
+  4. ✅ Lowering — `for`/scalaire direct (fonctions ET méthodes) ; `Array::fromMessage` reste l'étape 6 ; fuite connue et acceptée : `return`/`raise` anticipé depuis le corps d'un `for` sur générateur (`break` OK)
+  5. Lowering — `emit` dans un `try` — REJETÉ à la compilation en attendant (nouveau diagnostic, évite une miscompilation silencieuse)
   6. Runtime (`Array::fromMessage`)
   7. Documentation (EBNF, workflow-compilation, adding-types)
-  8. Tests de régression
+  8. Tests de régression (fait manuellement jusqu'ici, pas encore de fichier `examples/tests/` dédié)
 
 ---
 
