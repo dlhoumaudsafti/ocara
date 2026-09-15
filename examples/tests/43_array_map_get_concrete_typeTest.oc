@@ -1,0 +1,81 @@
+import ocara.UnitTest
+import ocara.Array
+import ocara.Map
+
+// `Array::get`/`first`/`last`/`pop` et `Map::get`, utilisés DIRECTEMENT comme
+// argument (`assertEquals(0, Array::get(arr, i))`, sans variable intermédiaire
+// typée), sur un conteneur à élément CONCRET (`int`/`float`/`bool`, jamais
+// `mixed`) — `expr_ir_type` retombait sur `Ptr` (correct seulement pour un
+// conteneur `mixed`, déjà boxé), faisant traiter la valeur brute comme un
+// pointeur : la valeur `0` s'affichait "null" via `IO::writeln`, et plus
+// généralement toute décision basée sur le type (boxing, dispatch) était
+// faussée. Découvert en vérifiant `Array::fromMessage`, bug pré-existant sans
+// rapport avec les générateurs — voir docs/roadmap.d/langage-array-get-display-bug.md.
+//
+// Couvre AUSSI la forme sucrée d'instance (`arr.get(i)`, `m.get(k)`), qui
+// souffrait du même bug via un chemin de code séparé dans `expr_ir_type`
+// (`Expr::Call` vs `Expr::StaticCall`) — voir
+// docs/roadmap.d/qualite-parite-sucre-statique.md.
+class Test_43_array_map_get_concrete_type {
+
+    // Élément `int` valant `0` — le cas qui déclenchait "null" avant le correctif.
+    public method arrayGetIntZeroDirectTest(): int {
+        var values:array<int> = [0, 1, 2, 3]
+        UnitTest::assertEquals(0, Array::get(values, 0))
+        UnitTest::assertEquals(1, Array::get(values, 1))
+        UnitTest::assertEquals(2, Array::get(values, 2))
+        UnitTest::assertEquals(3, Array::get(values, 3))
+        return 0
+    }
+
+    // `first()`/`last()`/`pop()` — mêmes méthodes concernées par le correctif.
+    public method arrayFirstLastPopConcreteTest(): int {
+        var values:array<int> = [0, 5, 9]
+        UnitTest::assertEquals(0, Array::first(values))
+        UnitTest::assertEquals(9, Array::last(values))
+        UnitTest::assertEquals(9, Array::pop(values))
+        return 0
+    }
+
+    // Élément `float`/`bool` — mêmes conteneurs concrets, autres types.
+    public method arrayGetFloatBoolDirectTest(): int {
+        var floats:array<float> = [0.0, 1.5]
+        var bools:array<bool> = [false, true]
+        UnitTest::assertEquals(0.0, Array::get(floats, 0))
+        UnitTest::assertEquals(1.5, Array::get(floats, 1))
+        UnitTest::assertFalse(Array::get(bools, 0))
+        UnitTest::assertTrue(Array::get(bools, 1))
+        return 0
+    }
+
+    // `Map::get` sur un `map<string, int>` — même bug, même correctif.
+    public method mapGetIntZeroDirectTest(): int {
+        var m:map<string, int> = {"a": 0, "b": 1}
+        UnitTest::assertEquals(0, Map::get(m, "a"))
+        UnitTest::assertEquals(1, Map::get(m, "b"))
+        return 0
+    }
+
+    // Parité forme statique / sucre d'instance (voir
+    // docs/roadmap.d/qualite-parite-sucre-statique.md) : `arr.get(i)` est un
+    // chemin de code SÉPARÉ de `Array::get(arr, i)` dans `expr_ir_type`
+    // (`Expr::Call` vs `Expr::StaticCall`) — un correctif sur l'un n'est pas
+    // automatiquement répercuté sur l'autre. Découvert : le sucre souffrait
+    // encore du bug "0 affiché null" après le correctif de la forme statique.
+    public method arrayGetSugarDirectTest(): int {
+        var values:array<int> = [0, 1, 2]
+        UnitTest::assertEquals(0, values.get(0))
+        UnitTest::assertEquals(1, values.get(1))
+        UnitTest::assertEquals(0, values.first())
+        UnitTest::assertEquals(2, values.last())
+        return 0
+    }
+
+    // Idem pour `Map::get` en sucre d'instance.
+    public method mapGetSugarDirectTest(): int {
+        var m:map<string, int> = {"a": 0, "b": 1}
+        UnitTest::assertEquals(0, m.get("a"))
+        UnitTest::assertEquals(1, m.get("b"))
+        return 0
+    }
+}

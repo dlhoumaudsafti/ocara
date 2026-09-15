@@ -32,7 +32,7 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
             }
         }
         // Appels de méthodes String_* et IO_read* retournent des strings
-        Expr::StaticCall { class, method, .. } => {
+        Expr::StaticCall { class, method, args, .. } => {
             // Consommation scalaire directe d'un `message<T>` — voir la
             // même note dans le bras `Expr::Call` ci-dessus.
             if let Some((_, elem_ty)) = crate::lower::builder::message_gen::detect_message_call(builder, expr) {
@@ -47,6 +47,26 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                 class.as_str()
             };
             let fname = format!("{}_{}", resolved_class, method);
+            // `Array::get`/`first`/`last`/`pop` (et `Map::get`) sur un
+            // conteneur à élément CONCRET (`int`/`float`/`bool`) :
+            // `fn_ret_types` dit toujours `Ptr` (correct seulement pour un
+            // conteneur `mixed`, dont les éléments sont déjà boxés) —
+            // consulter `elem_types` de l'objet en premier argument, comme
+            // le fait déjà `Expr::Index` pour un accès direct (`arr[i]`),
+            // AVANT de faire confiance à ce `Ptr` générique. Confirmé faux
+            // par reproduction : `IO::writeln(Array::get(arr, i))` sur un
+            // `array<int>` affichait "null" pour l'élément valant `0`
+            // (interprété comme un pointeur nul) — voir
+            // docs/roadmap.d/langage-array-get-display-bug.md.
+            if (resolved_class == "Array" && matches!(method.as_str(), "get" | "first" | "last" | "pop"))
+                || (resolved_class == "Map" && method == "get")
+            {
+                if let Some(Expr::Ident(obj_name, _)) = args.first() {
+                    if let Some(ty) = builder.elem_types.get(obj_name.as_str()) {
+                        return ty.clone();
+                    }
+                }
+            }
             // D'abord consulter fn_ret_types (classes locales et builtins enregistrés)
             if let Some(ty) = builder.fn_ret_types.get(&fname) {
                 return ty.clone();
@@ -251,6 +271,24 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                     }
                     _ => None,
                 };
+                // `arr.get(i)`/`m.get(k)` (sucre d'instance) — même bug et
+                // même correctif que `Array::get(arr, i)`/`Map::get(m, k)`
+                // (voir la même note dans le bras `Expr::StaticCall`
+                // ci-dessus) : `fn_ret_types` dit toujours `Ptr`, faux pour
+                // un conteneur à élément concret. Objet = `object` lui-même
+                // ici (le récepteur), pas `args[0]` comme pour la forme
+                // statique.
+                if let Some(cls) = &class_name {
+                    let is_concrete_get = (cls == "Array" && matches!(field.as_str(), "get" | "first" | "last" | "pop"))
+                        || (cls == "Map" && field == "get");
+                    if is_concrete_get {
+                        if let Expr::Ident(obj_name, _) = object.as_ref() {
+                            if let Some(ty) = builder.elem_types.get(obj_name.as_str()) {
+                                return ty.clone();
+                            }
+                        }
+                    }
+                }
                 if let Some(cls) = class_name {
                     let mangled = format!("{}_{}", cls, field);
                     if let Some(ty) = builder.fn_ret_types.get(&mangled) {

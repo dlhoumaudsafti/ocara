@@ -1,0 +1,76 @@
+import ocara.UnitTest
+import ocara.String
+import ocara.JSON
+import ocara.Array
+
+// Parité forme statique / sucre d'instance (voir
+// docs/roadmap.d/qualite-parite-sucre-statique.md) — découverte : le sucre
+// d'instance a son propre chemin de code dans `expr_ir_type`
+// (`Expr::Call{Field}` vs `Expr::StaticCall`), un correctif sur l'un n'est
+// jamais automatiquement répercuté sur l'autre (confirmé par un vrai bug sur
+// `Array::get`/`Map::get`, voir 43_array_map_get_concrete_typeTest.oc).
+//
+// `String` n'avait ICI AUCUNE couverture de test, ni statique ni sucre —
+// comblé par ce fichier. Vérifié : aucune divergence trouvée pour `String`/
+// `JSON` (contrairement à `Array`/`Map`, leurs méthodes n'ont pas de type
+// d'élément générique `T` à résoudre depuis `elem_types` — pas le même risque
+// structurel).
+class Test_44_string_json_sugar_parity {
+
+    public method stringTrimParityTest(): int {
+        var text:string = "  Hello World  "
+        UnitTest::assertEquals("Hello World", text.trim())
+        UnitTest::assertEquals("Hello World", String::trim(text))
+        return 0
+    }
+
+    public method stringLenParityTest(): int {
+        var text:string = "Hello"
+        UnitTest::assertEquals(5, text.len())
+        UnitTest::assertEquals(5, String::len(text))
+        return 0
+    }
+
+    public method stringUpperLowerParityTest(): int {
+        var text:string = "Hello"
+        UnitTest::assertEquals("HELLO", text.upper())
+        UnitTest::assertEquals("HELLO", String::upper(text))
+        UnitTest::assertEquals("hello", text.lower())
+        UnitTest::assertEquals("hello", String::lower(text))
+        return 0
+    }
+
+    public method stringSplitParityTest(): int {
+        var csv:string = "a,b,c"
+        var partsSugar:array<string> = csv.split(",")
+        var partsStatic:array<string> = String::split(csv, ",")
+        UnitTest::assertEquals(3, Array::len(partsSugar))
+        UnitTest::assertEquals(3, Array::len(partsStatic))
+        UnitTest::assertEquals("a", partsSugar.get(0))
+        UnitTest::assertEquals("a", partsStatic.get(0))
+        return 0
+    }
+
+    public method stringEmptyParityTest(): int {
+        var empty:string = ""
+        var full:string = "x"
+        UnitTest::assertTrue(empty.empty())
+        UnitTest::assertTrue(String::empty(empty))
+        UnitTest::assertFalse(full.empty())
+        UnitTest::assertFalse(String::empty(full))
+        return 0
+    }
+
+    // `JSON::encode`/`.encode()` sur un conteneur CONCRET (`array<float>`/
+    // `array<bool>`) — le cas historique le plus fragile pour ce genre de
+    // parité (voir docs/roadmap.d/langage-mixed-literal-stringification.md).
+    public method jsonEncodeConcreteParityTest(): int {
+        var floats:array<float> = [1.5, 0.0]
+        var bools:array<bool> = [true, false]
+        UnitTest::assertEquals("[1.5,0.0]", JSON::encode(floats))
+        UnitTest::assertEquals("[1.5,0.0]", floats.encode())
+        UnitTest::assertEquals("[true,false]", JSON::encode(bools))
+        UnitTest::assertEquals("[true,false]", bools.encode())
+        return 0
+    }
+}
