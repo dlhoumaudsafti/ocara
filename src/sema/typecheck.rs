@@ -702,7 +702,11 @@ impl<'a> TypeChecker<'a> {
                 });
             }
             OwnershipClass::Unsupported => {
-                // Déjà signalé une fois à la déclaration (OwnershipNotSupported).
+                // Comportement voulu, pas une omission : `scoped`/`consumed`
+                // sur un type non pris en charge par ce chantier (primitif,
+                // Function, union, mixed...) se comporte exactement comme
+                // `var` — aucune vérification d'échappement, voir le
+                // commentaire de `Stmt::Var` plus haut.
             }
         }
     }

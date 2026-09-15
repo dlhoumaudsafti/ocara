@@ -1,10 +1,6 @@
-# `scoped`/`consumed` : deux points mineurs restants
+# `scoped`/`consumed` : un point mineur restant
 
-Les 6 bugs de double-free/fuite/use-after-free d'origine, `Stmt::Result`, et la libération dans un bloc runtime (`main`/`init`/`exit`) sont tous corrigés — voir git log.
-
-## Reste à faire : diagnostic mort `SemaError::OwnershipNotSupported`
-
-Ce diagnostic n'est jamais émis en pratique (`scoped x:int`/`scoped f:SDL` sont acceptés sans avertissement, alors que le variant existe). À trancher : l'activer réellement (implique de valider l'impact sur les exemples existants qui pourraient s'appuyer sur ce silence) ou le retirer si le suivi de possession sur ces types n'a finalement pas de sens à interdire.
+Les 6 bugs de double-free/fuite/use-after-free d'origine, `Stmt::Result`, la libération dans un bloc runtime (`main`/`init`/`exit`), et le diagnostic mort `SemaError::OwnershipNotSupported` (retiré : jamais construit nulle part, et le code documentait déjà explicitement que `scoped`/`consumed` sur un type non pris en charge doit se comporter comme `var`, sans erreur — l'activer aurait cassé cet usage établi) sont tous traités — voir git log.
 
 ## Reste à faire (mineur, dépend d'un choix de design plus large) : `HTTPRequest`/`HTTPResponse` non typables `scoped`/`consumed`
 
@@ -12,4 +8,4 @@ Ces handles sont aujourd'hui de simples `int` (pas un vrai type nommé) — `sco
 
 ## Fichiers clés
 
-`src/sema/error.rs` (`OwnershipNotSupported`), `src/lower/stmt.d/ownership.rs`.
+`src/builtins/httpserver.rs` (ou équivalent), système de types (`src/parsing/ast.d/types.rs`).

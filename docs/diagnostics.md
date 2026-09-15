@@ -566,6 +566,19 @@ Pour une `scoped`/`consumed` de type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaD
 
 ---
 
+### E27 — `extends` vers une classe/generic inconnu
+
+```
+fichier.oc:9:1: error: class 'Foo' extends unknown class 'DoesNotExist'
+fichier.oc:5:1: error: generic 'Bag' extends unknown class/generic 'NoSuchThing'
+```
+
+Une classe ou un `generic` déclare `extends X` où `X` ne correspond à aucune classe (ni, pour un `generic`, à aucun autre `generic`) connue — auparavant accepté silencieusement, sans que l'héritage ne fasse quoi que ce soit d'utile.
+
+**Correction :** corriger le nom du parent, ou retirer la clause `extends` si elle n'était pas voulue.
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.

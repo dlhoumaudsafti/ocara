@@ -37,9 +37,6 @@ pub enum SemaError {
     /// préalable — le compilateur ne peut pas choisir à la place du
     /// développeur entre attendre le thread et le détacher.
     ThreadNotFinalized { name: String, span: Span },
-    /// `scoped`/`consumed` sur un type non pris en charge par ce chantier
-    /// (primitif, SDL/Tauri, instance de classe utilisateur).
-    OwnershipNotSupported { name: String, ty_name: String, span: Span },
     /// `string + T` avec `T` différent de `string` (et différent de `mixed`,
     /// qui échappe à cette vérification faute d'information statique, comme
     /// pour `comparable_types`/`orderable_types`). La concaténation `+` est
@@ -103,7 +100,6 @@ impl SemaError {
             SemaError::ConsumedUsedTwice  { span, .. } => span,
             SemaError::ResourceEscape     { span, .. } => span,
             SemaError::ThreadNotFinalized { span, .. } => span,
-            SemaError::OwnershipNotSupported { span, .. } => span,
             SemaError::StringConcatMismatch { span, .. } => span,
             SemaError::GenericArityMismatch { span, .. } => span,
             SemaError::ThreadAlreadyFinalized { span, .. } => span,
@@ -158,8 +154,6 @@ impl SemaError {
                 format!("'{}' ('{}') cannot escape its 'scoped'/'consumed' block (assignment, return, or argument) — resource handles cannot be cloned or shared, use it locally via its own methods", name, class_name),
             SemaError::ThreadNotFinalized { name, .. } =>
                 format!("'{}' is a 'scoped'/'consumed' Thread that reaches the end of its block without a call to '.join()' or '.detach()' — pick one explicitly", name),
-            SemaError::OwnershipNotSupported { name, ty_name, .. } =>
-                format!("'scoped'/'consumed' is not supported on '{}' for '{}' yet", ty_name, name),
             SemaError::StringConcatMismatch { left, right, .. } =>
                 format!("cannot concatenate '{}' and '{}' with '+': string concatenation is strictly typed (only string + string is allowed) — use a template string (`${{...}}`) or convert explicitly (Convert::*ToStr)", left, right),
             SemaError::GenericArityMismatch { name, expected_min, expected_max, found, .. } =>

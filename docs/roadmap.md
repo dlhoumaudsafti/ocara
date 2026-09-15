@@ -35,15 +35,12 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 ### Langage
 
-- **`extends` sur un `generic` n'est jamais vérifié sémantiquement** — un parent inexistant compile sans erreur. *(Légère)* → [détails](roadmap.d/langage-generiques.md)
-- **`value_to_json`/`value_to_yaml` confondent un entier brut `0`/`1` avec un booléen** — l'heuristique n'a plus lieu d'être maintenant que le boxing des arguments `mixed` est corrigé. *(Simple)* → [détails](roadmap.d/langage-mixed-literal-stringification.md)
-- **`IO::writeln(JSON::encode(x))` affiche un nombre incohérent sans variable intermédiaire** — `expr_ir_type` ne reconnaît pas `JSON_encode`/les méthodes d'instance comme retournant `Ptr`. *(Légère)* → [détails](roadmap.d/langage-mixed-literal-stringification.md)
+- **`value_to_json`/`value_to_yaml` confondent un entier brut `0`/`1` avec un booléen/null** — pas une simple heuristique à retirer : aucune information de type par élément ne survit à l'exécution pour un conteneur concret (`array<int>`), demande de faire porter le type jusqu'à l'appel d'encodage ou de boxer aussi ces éléments. *(Structurel)* → [détails](roadmap.d/langage-mixed-literal-stringification.md)
 - **Ajout d'une instruction `emit`** (même rôle que `yield` en PHP : suspend/reprend l'exécution en produisant une valeur à la fois) — une fonction qui l'utilise retourne un nouveau type `iterable`. *(Massive)* → [détails](roadmap.d/langage-emit-iterable.md)
 
 ### Mémoire / runtime
 
 - **Une string à NUL interne reste tronquée à l'affichage/comparaison** (`ptr_to_str` basé sur `CStr::from_ptr`) — plus de risque de corruption, mais le contenu reste faux. *(Structurel)* → [détails](roadmap.d/memoire-fiabilite-runtime-bas-niveau.md)
-- **Diagnostic mort `SemaError::OwnershipNotSupported`** — jamais émis en pratique, à activer ou retirer. *(Simple)* → [détails](roadmap.d/memoire-double-free-et-fuites-scoped.md)
 
 ---
 
@@ -51,22 +48,18 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 ### Builtins
 
-- **Décider si `YAMLException`/`DotEnvException` doivent un jour être réellement levées**, ou si ces classes orphelines doivent être retirées. *(Légère — décision de design)* → [détails](roadmap.d/builtins-erreurs-incoherentes.md)
 - **`HTTPRequest`/`HTTPResponse` non typables `scoped`/`consumed`** (simples `int` aujourd'hui) — nécessiterait d'en faire un vrai type. *(Structurel)* → [détails](roadmap.d/memoire-double-free-et-fuites-scoped.md)
 
 ### Runtime bas niveau (mineur, non confirmé en pratique)
 
-- **`UnitTest::assertContains` appelle `ptr_to_str` sans garde** sur ses arguments `mixed`. *(Simple)* → [détails](roadmap.d/memoire-fiabilite-runtime-bas-niveau.md)
 - **Libération/clonage "shallow" d'un conteneur imbriqué à deux niveaux** (`array<array<int>>`) reste sur le chemin récursif générique au niveau externe. *(Dangereuse)* → [détails](roadmap.d/memoire-fiabilite-runtime-bas-niveau.md)
 
 ### Build & portabilité
 
-- **Vérifier la contrainte `-j1` documentée pour Cranelift** — le `Makefile` utilise en réalité `-j4` aujourd'hui, à confirmer sur une machine où l'OOM avait été observé. *(Simple)* → [détails](roadmap.d/packaging-build-cargo.md)
-- **Vérifier le round-trip complet "zéro `.a` → binaire fonctionnel"** en une seule commande. *(Simple — vérification)* → [détails](roadmap.d/packaging-build-cargo.md)
+- **Vérifier le round-trip complet "zéro `.a` → binaire fonctionnel"** en une seule commande — tentative abandonnée après plus d'une heure sans sortie visible (recompilation vendored OpenSSL/SQLite, ou blocage — indiscernable sans progression affichée). *(Légère — vérification, prévoir un budget de temps important et un moyen de surveiller la progression réelle)* → [détails](roadmap.d/packaging-build-cargo.md)
 
 ### Qualité / CI
 
-- **`examples/generics/` toujours absent de toute cible Makefile/CI** (la syntaxe y est corrigée, mais rien ne les exécute). *(Simple)* → [détails](roadmap.d/qualite-couverture-tests.md)
 - **Vraie infrastructure CI pour MySQL** (service dans un futur pipeline CI, aucun aujourd'hui). *(Légère — pour plus tard)* → [détails](roadmap.d/qualite-couverture-tests.md)
 
 ---
@@ -85,14 +78,21 @@ Pas important du tout pour le moment — portage/intégration massifs, aucune ur
 
 * On analyse la roadmap et les fichiers `roadmap.d/` associés à la tâche en cours.
 * On effectue les corrections et améliorations demandées.
-* On met à jour la documentation si nécessaire.
+* Si changement de syntaxe ou ajout:
+    * On mets à jour l'extension vscode dans tools/ si c'est nécessaire
+        * On desinstalle l'extension en cours
+        * On recompile la mise à jour sans changer la version
+        * On réinstalle l'extension
+    * On mets à jour ocaracs si c'est nécessaire
+    * On mets à jour ocaraunit si c'est nécessaire
 * On crée un exemple pour les tests de régression si nécessaire.
 * On crée un test unitaire si nécessaire.
+* On lance les test de regression et les tests unitaire.
+* On met à jour la documentation si nécessaire.
 * On met à jour la roadmap.
 * On affiche une liste simple, sans détails, des travaux effectués afin de préparer le commit.
 
 Si, durant les travaux, nous constatons des bugs ou d’autres points à traiter, nous évaluons s’il est possible de les intégrer à la séance en cours. Si ce n’est pas possible, nous ajoutons ces nouvelles tâches à la roadmap.
-
 
 ---
 

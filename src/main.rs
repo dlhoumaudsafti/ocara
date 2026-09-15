@@ -430,6 +430,33 @@ fn main() {
     for decl in &program.generics   { symbols.register_generic(decl); }
     for decl in &program.functions  { symbols.register_function(decl); }
 
+    // ── 4c-bis. Vérification de l'existence du parent `extends` (E27) ────────
+    // Ni une classe ni un `generic` ne vérifiaient que leur `extends`
+    // désignait bien une classe/generic connue — un parent inexistant
+    // compilait silencieusement (confirmé par reproduction : `class Foo
+    // extends DoesNotExist { }` compile et s'exécute sans la moindre
+    // erreur). Un `generic` peut désigner soit une classe concrète, soit un
+    // autre `generic` comme parent (voir `extends_args`, arguments de type
+    // pour `extends Base<T>`) — les deux tables sont donc consultées.
+    for class_decl in &program.classes {
+        if let Some(parent) = &class_decl.extends {
+            if symbols.lookup_class(parent).is_none() {
+                diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
+                    &format!("class '{}' extends unknown class '{}'", class_decl.name, parent));
+                std::process::exit(1);
+            }
+        }
+    }
+    for generic_decl in &program.generics {
+        if let Some(parent) = &generic_decl.extends {
+            if symbols.lookup_class(parent).is_none() && symbols.lookup_generic(parent).is_none() {
+                diagnostic::print_error(&args.input, generic_decl.span.line, generic_decl.span.col,
+                    &format!("generic '{}' extends unknown class/generic '{}'", generic_decl.name, parent));
+                std::process::exit(1);
+            }
+        }
+    }
+
     // ── 4d. Vérification des interfaces implémentées ──────────────────────────
     for class_decl in &program.classes {
         for iface_name in &class_decl.implements {

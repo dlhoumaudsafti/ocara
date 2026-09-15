@@ -2036,6 +2036,21 @@ pub extern "C" fn UnitTest_assertLessOrEquals(a: i64, b: i64) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertContains(haystack: i64, needle: i64) {
+    // Même risque que `UnitTest_assertEmpty`/`assertNotEmpty` (déjà corrigé) :
+    // une valeur boxée (float/bool/int — voir `is_float_box`/`is_bool_box`/
+    // `is_int_box`) est un pointeur heap dont les bits bas ne sont pas ceux
+    // d'une vraie string — `ptr_to_str` dessus lirait une zone mémoire
+    // arbitraire (même famille de SEGFAULT que documentée dans
+    // docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md).
+    if is_float_box(haystack) || is_bool_box(haystack) || is_int_box(haystack)
+        || is_float_box(needle) || is_bool_box(needle) || is_int_box(needle) {
+        unsafe {
+            crate::exception::throw_unittest_exception(
+                "assertContains: haystack/needle is not a string (boxed mixed value)",
+                111
+            );
+        }
+    }
     unsafe {
         let h = ptr_to_str(haystack);
         let n = ptr_to_str(needle);

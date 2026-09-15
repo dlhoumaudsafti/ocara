@@ -1,15 +1,15 @@
-# `mixed` : deux angles morts restants autour du typage dynamique
+# `mixed` : un angle mort restant, plus profond que prévu
 
-Le stockage des littéraux `float`/`bool` dans un `array`/`map` (boxing au lieu de stringification) et le boxing des arguments `float`/`bool`/`int` d'un appel (fonction libre, constructeur, méthode d'instance/statique) sont corrigés — voir git log pour le détail.
+Le stockage des littéraux `float`/`bool` dans un `array`/`map` (boxing au lieu de stringification), le boxing des arguments d'appel, et `IO::writeln(JSON::encode(x))`/`obj.encode()` sans variable intermédiaire (`expr_ir_type` reconnaît maintenant `Ptr` par défaut pour un appel non résolu — vérifié directement : les deux formes affichent maintenant le JSON correct) sont corrigés — voir git log.
 
-## Reste à faire : `value_to_json`/`value_to_yaml` confondent un entier brut `0`/`1` avec un booléen
+## Reste à faire (Structurel, pas Simple comme espéré) : `value_to_json`/`value_to_yaml` confondent un entier brut `0`/`1` avec un booléen/null
 
-`array<int> = [1, 2, 3]` encodé en JSON affiche `[true,2,3]` — l'heuristique (`__is_bool`) traite tout entier brut valant exactement 0/1 comme un booléen. Cette heuristique avait une justification **au moment où elle a été notée** : c'était le seul moyen de détecter, même imparfaitement, un booléen passé en argument `mixed` (jamais boxé à cette époque). **Cette justification ne tient plus** : le boxing des arguments `mixed` est maintenant corrigé (voir ci-dessus) — un vrai booléen transitant par un argument arrive maintenant correctement boxé et taggé. À réévaluer : l'heuristique brute 0/1-vaut-bool peut probablement être retirée maintenant sans rien casser, ce qui corrigerait au passage l'encodage `array<int>`.
+`array<int> = [1, 2, 3]` encodé en JSON affiche `[true,2,3]` — et `array<int> = [0, ...]` affiche même `null` pour l'élément `0` (`value_to_json` traite tout `val == 0` comme null avant même d'atteindre l'heuristique bool). En creusant pour corriger ça maintenant que le boxing des arguments `mixed` est réglé : **ce n'est pas une simple heuristique à retirer**. `OcaraArray`/`OcaraMap` (`runtime/src/lib.rs`) sont de simples `Vec<i64>`/`Vec<(String, i64)>` — aucune information de type par élément ne survit à l'exécution pour un conteneur **concret** (`array<int>`, `array<bool>`), qui ne boxe jamais ses éléments (contrairement à `array<mixed>`, déjà boxé et correctement encodé). `0` (int concret), `null`, et `false` (jamais boxé) partagent donc le même bit pattern à ce point du code, sans aucun moyen de les distinguer une fois qu'on est dans `value_to_json`/`value_to_yaml` — l'ambiguïté ne vient pas d'un oubli de boxing mais d'une vraie absence d'information de type au runtime pour les conteneurs concrets.
 
-## Reste à faire : `IO::writeln(JSON::encode(x))` affiche un nombre incohérent sans variable intermédiaire
-
-`var s:string = JSON::encode(arr); IO::writeln(s)` fonctionne, mais `IO::writeln(JSON::encode(arr))` (appel direct, sans variable intermédiaire) affiche un nombre incohérent au lieu de la string JSON. Cause : `expr_ir_type` ne reconnaît pas `JSON_encode`/les méthodes d'instance (`x.encode()`) comme retournant `Ptr`, contrairement à `String_*`/`Array_join`/etc. déjà listés. Reproduit aussi pour un `array<int>` simple, sans rapport avec `mixed` — chantier séparé, dispatch de type des appels, pas le stockage des littéraux.
+Deux vraies pistes, plus larges qu'un correctif Simple :
+- faire porter l'information de type concret de l'élément jusqu'à l'appel `JSON::encode`/`YAML::encode` (un paramètre supplémentaire, ou une variante de fonction générée par élément concret) ;
+- ou boxer aussi les éléments d'un conteneur concret (perdrait l'optimisation actuelle qui évite le coût de boxing pour `array<int>`/`array<bool>`).
 
 ## Fichiers clés
 
-`runtime/src/lib.rs` (`value_to_json`, `__is_bool`), `runtime/src/yaml.rs` (`value_to_yaml`), `src/lower/expr.d/typeinfer.rs` (`expr_ir_type`).
+`runtime/src/lib.rs` (`value_to_json`, `__is_bool`, `OcaraArray`/`OcaraMap`), `runtime/src/yaml.rs` (`value_to_yaml`).
