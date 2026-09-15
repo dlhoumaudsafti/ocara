@@ -26,6 +26,11 @@ impl IrType {
             Type::Qualified(_)     => IrType::Ptr,
             Type::Array(_)         => IrType::Ptr,
             Type::Map(_, _)        => IrType::Ptr,
+            // Pointeur vers le frame (état + locales) du générateur — voir
+            // docs/roadmap.d/langage-emit-iterable.md. Valable uniquement
+            // comme type de retour d'une fonction contenant `emit` (vérifié
+            // par la sema) : ce cas est donc le seul jamais rencontré ici.
+            Type::Message(_)       => IrType::Ptr,
             Type::Generic { .. }   => IrType::Ptr,  // Générique monomorphisé = objet
             Type::Union(_)         => IrType::Ptr,
             Type::Function { .. }  => IrType::Ptr,

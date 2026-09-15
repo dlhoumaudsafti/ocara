@@ -23,9 +23,9 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 ### Langage
 
-- **Instruction `emit`** (même rôle que `yield` en PHP) et type `message<T>` — **conception entièrement actée, reste tout à construire**. *(Massive)* → [détails](roadmap.d/langage-emit-iterable.md)
-  1. Parsing (`emit`, `Type::Message`, grammaire EBNF)
-  2. Sema (typage, `message<T>` jamais nommable, règle "au plus un `emit` hors boucle" pour la consommation scalaire)
+- **Instruction `emit`** (même rôle que `yield` en PHP) et type `message<T>` — **conception entièrement actée, parsing et sema construits, reste le lowering**. *(Massive)* → [détails](roadmap.d/langage-emit-iterable.md)
+  1. ✅ Parsing (`emit`, `Type::Message`) — grammaire EBNF pas encore mise à jour (fait à l'étape 7)
+  2. ✅ Sema (typage, diagnostics E30–E34, `message<T>` jamais nommable, règle "au plus un `emit` hors boucle" pour la consommation scalaire)
   3. Lowering — transformation en machine à états
   4. Lowering — les 3 formes de consommation (`for`, scalaire directe, `Array::fromMessage`) + libération (dont `break`/`return` anticipé)
   5. Lowering — `emit` dans un `try` (rejeu des `setjmp` à la reprise)

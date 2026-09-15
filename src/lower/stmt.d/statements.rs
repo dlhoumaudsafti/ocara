@@ -168,5 +168,16 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
         Stmt::Try { body, handlers, .. } => {
             lower_try(builder, body, handlers);
         }
+
+        // ── Générateurs (emit) ───────────────────────────────────────────────
+        // Le lowering réel (transformation en machine à états — voir
+        // docs/roadmap.d/langage-emit-iterable.md) réécrit tout le corps
+        // d'une fonction contenant `emit` AVANT d'atteindre ce dispatcher
+        // générique — `lower_stmt` ne devrait donc jamais rencontrer
+        // `Stmt::Emit` directement une fois ce chantier terminé. Non encore
+        // implémenté (chantier en cours, voir la fiche roadmap).
+        Stmt::Emit { .. } => {
+            todo!("lowering de `emit` (machine à états) — voir docs/roadmap.d/langage-emit-iterable.md")
+        }
     }
 }

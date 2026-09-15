@@ -614,6 +614,80 @@ Une `property` d'un type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`) sur une 
 
 ---
 
+### E30 — `message<T>` nommé (`var`/`scoped`/`consumed`)
+
+```
+fichier.oc:5:5: error: 'm': type 'message<T>' cannot be named — it is valid only as the declared return type of a function/method containing 'emit', never in a 'var'/'scoped'/'consumed' declaration
+```
+
+`message<T>` (générateurs, voir `docs/roadmap.d/langage-emit-iterable.md`) n'est jamais nommable : il n'existe que comme résultat anonyme et immédiat d'un appel à une fonction/méthode contenant `emit`.
+
+```ocara
+function truc(): message<int> { emit 1 }
+consumed m:message<int> = truc()   // ❌ E30
+```
+
+**Correction :** consommer le `message<T>` directement (`for x in truc()`, `var x:int = truc()`, `Array::fromMessage(truc())`) sans jamais le nommer lui-même.
+
+---
+
+### E31 — `message<T>` comme type de paramètre
+
+```
+fichier.oc:3:19: error: parameter 'm': type 'message<T>' cannot be used as a parameter type — it is return-type-only
+```
+
+`message<T>` est return-type-only : il ne peut jamais être le type déclaré d'un paramètre de fonction, méthode ou constructeur.
+
+**Correction :** ne pas passer de `message<T>` en paramètre — la fonction qui produit les valeurs doit elle-même contenir les `emit`.
+
+---
+
+### E32 — `message<T>` en retour sans `emit`
+
+```
+fichier.oc:3:1: error: 'noEmit' declares return type 'message<T>' but its body contains no reachable 'emit' — 'message<T>' is only valid as the return type of a function/method that actually emits
+```
+
+Une fonction/méthode déclare `message<T>` en retour mais son corps ne contient aucun `emit` atteignable — `message<T>` n'a de sens que pour une fonction qui émet réellement (pas de transfert/forwarding pris en charge).
+
+**Correction :** ajouter au moins un `emit` au corps, ou changer le type de retour si la fonction n'est pas un générateur.
+
+---
+
+### E33 — `emit` hors d'une fonction `message<T>`
+
+```
+fichier.oc:4:5: error: 'emit' is only valid inside a function/method whose declared return type is 'message<T>'
+```
+
+`emit` est utilisé dans une fonction/méthode dont le type de retour déclaré n'est pas `message<T>`.
+
+**Correction :** déclarer le type de retour de la fonction en `message<T>`, ou retirer le `emit`.
+
+---
+
+### E34 — Consommation scalaire directe d'un `message<T>` multi-émission
+
+```
+fichier.oc:8:5: error: 'trucLoop()' returns 'message<T>' with an 'emit' reachable inside a loop — the compiler cannot prove that at most one value is ever produced, so it cannot be consumed directly as a scalar here; use 'for x in trucLoop()' or 'Array::fromMessage(trucLoop())' instead
+```
+
+`emit` dans une boucle (`while`/`for`) reste du Ocara parfaitement valide, mais désactive la consommation scalaire directe (`var x:T = f()`, argument de fonction) : le compilateur ne peut plus prouver statiquement qu'au plus une valeur est jamais produite. Le branchement simple (`if`/`elseif`/`else`, `switch`) n'est PAS concerné — `if cond { emit 1 } else { emit 2 }` reste consommable directement.
+
+```ocara
+function trucLoop(): message<int> {
+    var i:int = 0
+    while i smaller 3 { emit i; i = i + 1 }
+}
+var v:int = trucLoop()   // ❌ E34
+for x in trucLoop() { }  // ✅ toujours valable
+```
+
+**Correction :** consommer via `for x in ...` ou `Array::fromMessage(...)` plutôt qu'en scalaire direct.
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.

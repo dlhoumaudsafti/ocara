@@ -130,6 +130,29 @@ impl<'a> TypeChecker<'a> {
         let saved_ret = self.current_ret.take();
         self.current_ret = Some(func.ret_ty.clone());
 
+        // `message<T>` (générateurs) est return-type-only : jamais un type
+        // de paramètre (voir docs/roadmap.d/langage-emit-iterable.md).
+        for param in &func.params {
+            if let Type::Message(_) = &param.ty {
+                self.errors.push(SemaError::MessageAsParamType {
+                    name: param.name.clone(),
+                    span: param.span.clone(),
+                });
+            }
+        }
+
+        // `message<T>` en retour ⇒ le corps doit contenir au moins un `emit`
+        // atteignable — sinon `message<T>` n'a ici aucun sens (voir la même
+        // fiche roadmap).
+        if let Type::Message(_) = &func.ret_ty {
+            if !crate::sema::message_emit::analyze_emit(&func.body).has_emit {
+                self.errors.push(SemaError::MessageReturnWithoutEmit {
+                    name: func.name.clone(),
+                    span: func.span.clone(),
+                });
+            }
+        }
+
         for param in &func.params {
             // Warning si variadic<mixed>
             if param.is_variadic {
@@ -140,7 +163,7 @@ impl<'a> TypeChecker<'a> {
                     });
                 }
             }
-            
+
             // Désucrage : variadic<T> → T[] dans le corps de la fonction
             let param_ty = if param.is_variadic {
                 Type::Array(Box::new(param.ty.clone()))
@@ -196,6 +219,14 @@ impl<'a> TypeChecker<'a> {
                     let saved_ret = self.current_ret.take();
                     self.current_ret = Some(Type::Void);
                     for p in params {
+                        // `message<T>` return-type-only (voir check_func) :
+                        // s'applique aussi aux paramètres de constructeur.
+                        if let Type::Message(_) = &p.ty {
+                            self.errors.push(SemaError::MessageAsParamType {
+                                name: p.name.clone(),
+                                span: p.span.clone(),
+                            });
+                        }
                         // Warning si variadic<mixed>
                         if p.is_variadic {
                             if let Type::Mixed = p.ty {
@@ -417,11 +448,24 @@ impl<'a> TypeChecker<'a> {
     fn check_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::Var { name, ty, value, mutable, kind, span } => {
+                let ty_is_message = matches!(ty, Type::Message(_));
+                if ty_is_message {
+                    self.errors.push(SemaError::MessageNotNameable {
+                        name: name.clone(),
+                        span: span.clone(),
+                    });
+                }
                 let val_ty = self.infer_expr(value);
                 // `value` peut lui-même être une `scoped`/`consumed` d'un
                 // autre binding (`var y = x`) — c'est un point d'échappement.
                 self.check_escape(value);
-                if !types_compat(&val_ty, ty, &self.symbols) {
+                self.check_message_scalar_consumption(value, &val_ty, span);
+                // Si `ty` est déjà `message<T>` (rejeté juste au-dessus par
+                // MessageNotNameable), un TypeMismatch ici ne ferait
+                // qu'ajouter du bruit ("expected message<int>, found
+                // message<int>" — `types_compat` déballe TOUJOURS le côté
+                // "found", jamais le côté "expected").
+                if !ty_is_message && !types_compat(&val_ty, ty, &self.symbols) {
                     self.errors.push(SemaError::TypeMismatch {
                         expected: type_name(ty),
                         found:    type_name(&val_ty),
@@ -465,8 +509,16 @@ impl<'a> TypeChecker<'a> {
             }
 
             Stmt::Const { name, ty, value, span } => {
+                let ty_is_message = matches!(ty, Type::Message(_));
+                if ty_is_message {
+                    self.errors.push(SemaError::MessageNotNameable {
+                        name: name.clone(),
+                        span: span.clone(),
+                    });
+                }
                 let val_ty = self.infer_expr(value);
-                if !types_compat(&val_ty, ty, &self.symbols) {
+                self.check_message_scalar_consumption(value, &val_ty, span);
+                if !ty_is_message && !types_compat(&val_ty, ty, &self.symbols) {
                     self.errors.push(SemaError::TypeMismatch {
                         expected: type_name(ty),
                         found:    type_name(&val_ty),
@@ -525,10 +577,16 @@ impl<'a> TypeChecker<'a> {
 
             Stmt::ForIn { var, iter, body, span } => {
                 let iter_ty = self.infer_expr(iter);
-                // L'itérateur doit être un range (int) ou un tableau
+                // L'itérateur doit être un range (int), un tableau, ou un
+                // générateur `message<T>` (voir
+                // docs/roadmap.d/langage-emit-iterable.md — `for` reste
+                // valable quel que soit le nombre d'`emit`, y compris dans
+                // une boucle : pas de restriction ici, contrairement à la
+                // consommation scalaire directe).
                 let elem_ty = match &iter_ty {
-                    Type::Array(inner) => *inner.clone(),
-                    Type::Int          => Type::Int, // range produit des int
+                    Type::Array(inner)   => *inner.clone(),
+                    Type::Message(inner) => *inner.clone(),
+                    Type::Int            => Type::Int, // range produit des int
                     _ => {
                         self.errors.push(SemaError::TypeMismatch {
                             expected: "itérable".into(),
@@ -567,6 +625,7 @@ impl<'a> TypeChecker<'a> {
                     // `return x` est un point d'échappement au même titre
                     // qu'une affectation.
                     self.check_escape(expr);
+                    self.check_message_scalar_consumption(expr, &ty, span);
 
                     // Exception pour les blocs runtime : main peut retourner ERROR (int) ou SUCCESS (bool)
                     // même si son type de retour est void
@@ -672,6 +731,30 @@ impl<'a> TypeChecker<'a> {
                 let _ = self.infer_expr(value);
             }
 
+            // `emit expr` — voir docs/roadmap.d/langage-emit-iterable.md.
+            // N'a de sens que dans une fonction/méthode dont le type de
+            // retour déclaré est `message<T>` : la valeur émise doit alors
+            // être compatible avec `T` (même règle que `return`/`result`).
+            Stmt::Emit { value, span } => {
+                let ty = self.infer_expr(value);
+                match self.current_ret.clone() {
+                    Some(Type::Message(inner)) => {
+                        if !types_compat(&ty, &inner, &self.symbols) {
+                            self.errors.push(SemaError::ReturnTypeMismatch {
+                                expected: type_name(&inner),
+                                found:    type_name(&ty),
+                                span:     span.clone(),
+                            });
+                        }
+                    }
+                    _ => {
+                        self.errors.push(SemaError::EmitOutsideMessageFunction {
+                            span: span.clone(),
+                        });
+                    }
+                }
+            }
+
             Stmt::Assign { target, value, span } => {
                 let val_ty = self.infer_expr(value);
                 // `target = value` : `value` peut être une `scoped`/
@@ -709,6 +792,57 @@ impl<'a> TypeChecker<'a> {
                     }
                 }
             }
+        }
+    }
+
+    // ── `message<T>` : consommation scalaire directe ─────────────────────────
+
+    /// Vérifie la règle "au plus un `emit` atteignable hors boucle" d'un
+    /// `message<T>` consommé directement en scalaire (`var x:T = truc()`,
+    /// `return truc()`...) — voir `crate::sema::message_emit` et
+    /// docs/roadmap.d/langage-emit-iterable.md. `for`/`Array::fromMessage`
+    /// ne passent PAS par ici : ils restent valables dans tous les cas.
+    ///
+    /// `message<T>` n'étant jamais nommable, une valeur de ce type ne peut
+    /// provenir que de l'appel lui-même (`expr`) : pas besoin de suivre un
+    /// alias.
+    fn check_message_scalar_consumption(&mut self, expr: &Expr, val_ty: &Type, span: &Span) {
+        let Type::Message(_) = val_ty else { return };
+
+        let unsafe_call = match expr {
+            Expr::Call { callee, .. } => match callee.as_ref() {
+                Expr::Ident(name, _) => self.symbols.lookup_function(name)
+                    .map(|sig| (name.clone(), sig.message_emit_in_loop)),
+                Expr::Field { object, field, .. } => {
+                    let obj_ty = match object.as_ref() {
+                        Expr::Ident(name, _) => self.scopes.lookup(name).map(|b| b.ty.clone()),
+                        _ => None,
+                    };
+                    obj_ty.and_then(|ty| match ty {
+                        Type::Named(class_name) => self.symbols.lookup_method_in_chain(&class_name, field)
+                            .map(|sig| (field.clone(), sig.message_emit_in_loop)),
+                        _ => None,
+                    })
+                }
+                _ => None,
+            },
+            Expr::StaticCall { class, method, .. } => {
+                let resolved_class = if class == "<self>" {
+                    self.current_class.clone().unwrap_or_default()
+                } else {
+                    class.clone()
+                };
+                self.symbols.lookup_method_in_chain(&resolved_class, method)
+                    .map(|sig| (format!("{}::{}", resolved_class, method), sig.message_emit_in_loop))
+            }
+            _ => None,
+        };
+
+        if let Some((name, true)) = unsafe_call {
+            self.errors.push(SemaError::MessageUnsafeScalarConsumption {
+                name,
+                span: span.clone(),
+            });
         }
     }
 
@@ -997,7 +1131,10 @@ impl<'a> TypeChecker<'a> {
                             None
                         };
                         self.check_argument_escape(args, resolved_key, false);
-                        for arg in args { self.infer_expr(arg); }
+                        for arg in args {
+                            let arg_ty = self.infer_expr(arg);
+                            self.check_message_scalar_consumption(arg, &arg_ty, span);
+                        }
                         return ret;
                     }
 
@@ -1309,7 +1446,10 @@ impl<'a> TypeChecker<'a> {
                     }
                     let resolved_key = crate::sema::escape::resolve_user_callable(&self.class_members, &resolved_class, method);
                     self.check_argument_escape(args, resolved_key.as_deref(), resolved_class == "HTTPRequest");
-                    for arg in args { self.infer_expr(arg); }
+                    for arg in args {
+                        let arg_ty = self.infer_expr(arg);
+                        self.check_message_scalar_consumption(arg, &arg_ty, span);
+                    }
                     // `HTTPRequest::close(req)`/`::closeResponse(res)` — même
                     // mécanisme que `m.destroy()`/`db.close()` ci-dessus
                     // (E25), mais l'argument est ici passé en ARGUMENT
@@ -1656,6 +1796,7 @@ pub fn type_name(ty: &Type) -> String {
         Type::Qualified(parts) => parts.join("."),
         Type::Array(inner)     => format!("{}[]", type_name(inner)),
         Type::Map(k, v)        => format!("map<{},{}>", type_name(k), type_name(v)),
+        Type::Message(inner)   => format!("message<{}>", type_name(inner)),
         Type::Generic { name, args } => {
             let type_args = args.iter().map(type_name).collect::<Vec<_>>().join(", ");
             format!("{}<{}>", name, type_args)
@@ -1698,6 +1839,14 @@ pub fn types_compat(found: &Type, expected: &Type, symbols: &SymbolTable) -> boo
         return matches!(expected,
             Type::String | Type::Named(_) | Type::Array(_) | Type::Map(..) | Type::Null
         );
+    }
+    // `message<T>` consommé en scalaire : compatible avec tout ce que `T`
+    // accepte (voir docs/roadmap.d/langage-emit-iterable.md) — la règle "au
+    // plus un `emit` hors boucle" est vérifiée séparément, PAS ici (voir
+    // `check_message_scalar_consumption`, qui a besoin de l'expression
+    // d'origine et pas seulement des types).
+    if let Type::Message(inner) = found {
+        return types_compat(inner, expected, symbols);
     }
     match (found, expected) {
         (Type::Named(f), Type::Named(e)) => {

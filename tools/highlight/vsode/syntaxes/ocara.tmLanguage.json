@@ -335,7 +335,7 @@
 
     "keyword-control": {
       "name": "keyword.control.ocara",
-      "match": "\\b(if|elseif|else|switch|match|while|for|in|return|result|break|continue|default|try|on|raise)\\b"
+      "match": "\\b(if|elseif|else|switch|match|while|for|in|return|result|break|continue|default|try|on|raise|emit)\\b"
     },
 
     "keyword-declaration": {
@@ -345,12 +345,12 @@
 
     "keyword-other": {
       "name": "keyword.other.ocara",
-      "match": "\\b(as|from|use|nameless|resolve|extends|implements|modules|is|self|parent|namespace)\\b"
+      "match": "\\b(as|from|use|nameless|resolve|extends|implements|modules|self|parent|namespace)\\b"
     },
 
     "type-primitive": {
       "name": "support.type.primitive.ocara",
-      "match": "\\b(int|float|string|bool|mixed|void|map|array|Function|variadic|null)\\b"
+      "match": "\\b(int|float|string|bool|mixed|void|map|array|message|Function|variadic|null)\\b"
     },
 
     "constant-language": {
@@ -388,9 +388,9 @@
     "operator": {
       "patterns": [
         {
-          "comment": "Comparaisons littérales — seule syntaxe valide depuis v0.2.0 (plus de ==, !=, <=, >=, <, >, ===, !==, <==, >== en position de comparaison). 'smaller'/'greater' restent aussi des identifiants ordinaires ailleurs, d'où \\b des deux côtés plutôt qu'une capture des trois mots de 'smaller or equal'/'greater or equal' — le rendu reste correct token par token.",
+          "comment": "Comparaisons littérales",
           "name": "keyword.control.ocara",
-          "match": "\\b(and|or|not|equal|smaller|greater)\\b"
+          "match": "\\b(and|or|not|equal|smaller|greater|is)\\b"
         },
         {
           "name": "keyword.control.ocara",

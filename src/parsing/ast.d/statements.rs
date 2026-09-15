@@ -119,6 +119,14 @@ pub enum Stmt {
         span:  Span,
     },
 
+    /// `emit expr` — générateur (voir docs/roadmap.d/langage-emit-iterable.md).
+    /// N'a de sens que dans le corps d'une fonction/méthode dont le type de
+    /// retour devient alors `message<T>` (`T` = type de `value`).
+    Emit {
+        value: Expr,
+        span:  Span,
+    },
+
     /// Affectation : `target = value`
     /// target peut être Ident, Field ou Index
     Assign {

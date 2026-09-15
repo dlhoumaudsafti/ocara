@@ -50,6 +50,18 @@ impl Parser {
                 Type::Array(Box::new(elem_ty))
             }
 
+            // `message<T>` (générateurs) — parsé comme n'importe quel type,
+            // la restriction "valable uniquement en position de retour,
+            // jamais nommable" est une vérification sémantique (sema), pas
+            // une restriction syntaxique. Voir docs/roadmap.d/langage-emit-iterable.md.
+            TokenKind::TMessage => {
+                self.advance();
+                self.eat(&TokenKind::Lt)?;
+                let elem_ty = self.parse_type()?;
+                self.eat(&TokenKind::Gt)?;
+                Type::Message(Box::new(elem_ty))
+            }
+
             TokenKind::Ident(name) => {
                 self.advance();
                 // `Function<ReturnType(ParamType, ...)>`

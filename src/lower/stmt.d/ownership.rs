@@ -427,6 +427,7 @@ fn collect_consumed_reads_stmt(stmt: &Stmt, owned: &HashMap<String, OwnedLocalIn
         Stmt::Switch { subject, .. } => collect_consumed_reads_expr(subject, owned, out),
         Stmt::Try { .. } => {}
         Stmt::Raise { value, .. } => collect_consumed_reads_expr(value, owned, out),
+        Stmt::Emit { value, .. } => collect_consumed_reads_expr(value, owned, out),
     }
 }
 
@@ -578,6 +579,7 @@ fn walk_nested_blocks_for_vars(
             for h in handlers { collect_var_candidates(module, &h.body, self_class, eligible); }
         }
         Stmt::Var { .. } | Stmt::Const { .. } | Stmt::Expr(_) | Stmt::Return { .. } | Stmt::Result { .. }
-        | Stmt::Break { .. } | Stmt::Continue { .. } | Stmt::Raise { .. } | Stmt::Assign { .. } => {}
+        | Stmt::Break { .. } | Stmt::Continue { .. } | Stmt::Raise { .. } | Stmt::Assign { .. }
+        | Stmt::Emit { .. } => {}
     }
 }

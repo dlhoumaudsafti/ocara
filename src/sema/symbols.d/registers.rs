@@ -112,6 +112,7 @@ impl SymbolTable {
                 has_variadic: has_variadic_param(&decl.params),
                 fixed_params_count: fixed_params_count(&decl.params),
                 required_params_count: required_params_count(&decl.params),
+                message_emit_in_loop: crate::sema::message_emit::analyze_emit(&decl.body).emit_in_loop,
             },
         );
         true
@@ -133,6 +134,9 @@ impl SymbolTable {
                     has_variadic: has_variadic_param(&m.params),
                     fixed_params_count: fixed_params_count(&m.params),
                     required_params_count: required_params_count(&m.params),
+                    // Une interface n'a pas de corps : aucun `emit` n'est
+                    // possible ici, valeur par défaut sûre.
+                    message_emit_in_loop: false,
                 },
             );
         }
@@ -170,6 +174,7 @@ impl SymbolTable {
                         has_variadic: has_variadic_param(&fd.params),
                         fixed_params_count: fixed_params_count(&fd.params),
                         required_params_count: required_params_count(&fd.params),
+                        message_emit_in_loop: crate::sema::message_emit::analyze_emit(&fd.body).emit_in_loop,
                     });
                 }
                 ClassMember::Constructor { .. } => {
@@ -249,6 +254,7 @@ impl SymbolTable {
                         has_variadic: has_variadic_param(&fd.params),
                         fixed_params_count: fixed_params_count(&fd.params),
                         required_params_count: required_params_count(&fd.params),
+                        message_emit_in_loop: crate::sema::message_emit::analyze_emit(&fd.body).emit_in_loop,
                     });
                 }
                 ClassMember::Constructor { .. } => {}
@@ -318,6 +324,7 @@ impl SymbolTable {
                         has_variadic: has_variadic_param(&fd.params),
                         fixed_params_count: fixed_params_count(&fd.params),
                         required_params_count: required_params_count(&fd.params),
+                        message_emit_in_loop: crate::sema::message_emit::analyze_emit(&fd.body).emit_in_loop,
                     });
                 }
                 ClassMember::Constructor { .. } => {}

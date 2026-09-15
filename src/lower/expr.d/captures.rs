@@ -61,6 +61,7 @@ fn walk_stmt_caps(stmt: &Stmt, p: &HashSet<String>, l: &HashMap<String, (Value, 
             for h in handlers { walk_block_caps(&h.body, p, l, caps, seen); }
         }
         Stmt::Raise { value, .. } => walk_expr_caps(value, p, l, caps, seen),
+        Stmt::Emit { value, .. } => walk_expr_caps(value, p, l, caps, seen),
     }
 }
 

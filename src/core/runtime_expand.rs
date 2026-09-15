@@ -23,6 +23,7 @@ pub fn get_stmt_start_line(stmt: &Stmt) -> usize {
         Stmt::Continue { span, .. } => span.line,
         Stmt::Try { span, .. } => span.line,
         Stmt::Raise { span, .. } => span.line,
+        Stmt::Emit { span, .. } => span.line,
     }
 }
 
@@ -30,7 +31,7 @@ pub fn get_stmt_end_line(stmt: &Stmt) -> usize {
     match stmt {
         Stmt::Var { span, .. } | Stmt::Const { span, .. } | Stmt::Assign { span, .. }
         | Stmt::Return { span, .. } | Stmt::Result { span, .. } | Stmt::Break { span, .. }
-        | Stmt::Continue { span, .. } | Stmt::Raise { span, .. } => span.line,
+        | Stmt::Continue { span, .. } | Stmt::Raise { span, .. } | Stmt::Emit { span, .. } => span.line,
         
         Stmt::Expr(e) => e.span().line,
         
@@ -404,6 +405,10 @@ pub fn update_program_spans_with_file(program: &mut ast::Program, file_path: &st
                 }
             }
             Stmt::Raise { value, span } => {
+                update_span(span, file);
+                update_expr_spans(value, file);
+            }
+            Stmt::Emit { value, span } => {
                 update_span(span, file);
                 update_expr_spans(value, file);
             }

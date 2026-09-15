@@ -88,6 +88,27 @@ pub enum SemaError {
     /// garde encore un alias (corruption mémoire silencieuse avant ce
     /// diagnostic, voir docs/roadmap.d/memoire-echappement-argument.md).
     ArgumentEscape { name: String, class_name: String, callee: String, span: Span },
+    /// `var`/`scoped`/`consumed x:message<T>` — `message<T>` (générateurs,
+    /// voir docs/roadmap.d/langage-emit-iterable.md) n'est JAMAIS nommable :
+    /// il n'a de sens que comme type de retour déclaré d'une fonction/méthode
+    /// contenant `emit`, jamais comme type d'un binding.
+    MessageNotNameable { name: String, span: Span },
+    /// `message<T>` utilisé comme type d'un paramètre — return-type-only.
+    MessageAsParamType { name: String, span: Span },
+    /// Fonction/méthode déclarant `message<T>` en retour mais dont le corps
+    /// ne contient aucun `emit` atteignable — `message<T>` n'a de sens que
+    /// pour une fonction qui émet réellement.
+    MessageReturnWithoutEmit { name: String, span: Span },
+    /// `emit` utilisé dans une fonction/méthode dont le type de retour
+    /// déclaré n'est pas `message<T>`.
+    EmitOutsideMessageFunction { span: Span },
+    /// Consommation scalaire directe (`var x:T = f()`, `IO::writeln(f())`...)
+    /// d'un `message<T>` dont au moins un `emit` est atteignable À
+    /// L'INTÉRIEUR d'une boucle — le compilateur ne peut plus prouver
+    /// statiquement qu'au plus une valeur est jamais produite (voir
+    /// `crate::sema::message_emit`) : seuls `for`/`Array::fromMessage`
+    /// restent valables dans ce cas.
+    MessageUnsafeScalarConsumption { name: String, span: Span },
 }
 
 impl SemaError {
@@ -123,6 +144,11 @@ impl SemaError {
             SemaError::CatchAllNotLast { span } => span,
             SemaError::ResourceAlreadyFinalized { span, .. } => span,
             SemaError::ArgumentEscape      { span, .. } => span,
+            SemaError::MessageNotNameable  { span, .. } => span,
+            SemaError::MessageAsParamType  { span, .. } => span,
+            SemaError::MessageReturnWithoutEmit { span, .. } => span,
+            SemaError::EmitOutsideMessageFunction { span } => span,
+            SemaError::MessageUnsafeScalarConsumption { span, .. } => span,
         }
     }
 
@@ -192,6 +218,16 @@ impl SemaError {
                 format!("'{}' ('{}') was already '.{}()'ed — calling it a second time would use a native handle already reclaimed", name, class_name, method),
             SemaError::ArgumentEscape { name, class_name, callee, .. } =>
                 format!("'{}' ('{}') is passed as an argument to '{}', which stores it beyond this call — a 'scoped'/'consumed' value cannot be passed where the callee retains it; clone it explicitly first, or pass a fresh value", name, class_name, callee),
+            SemaError::MessageNotNameable { name, .. } =>
+                format!("'{}': type 'message<T>' cannot be named — it is valid only as the declared return type of a function/method containing 'emit', never in a 'var'/'scoped'/'consumed' declaration", name),
+            SemaError::MessageAsParamType { name, .. } =>
+                format!("parameter '{}': type 'message<T>' cannot be used as a parameter type — it is return-type-only", name),
+            SemaError::MessageReturnWithoutEmit { name, .. } =>
+                format!("'{}' declares return type 'message<T>' but its body contains no reachable 'emit' — 'message<T>' is only valid as the return type of a function/method that actually emits", name),
+            SemaError::EmitOutsideMessageFunction { .. } =>
+                "'emit' is only valid inside a function/method whose declared return type is 'message<T>'".into(),
+            SemaError::MessageUnsafeScalarConsumption { name, .. } =>
+                format!("'{}()' returns 'message<T>' with an 'emit' reachable inside a loop — the compiler cannot prove that at most one value is ever produced, so it cannot be consumed directly as a scalar here; use 'for x in {}()' or 'Array::fromMessage({}())' instead", name, name, name),
         }
     }
 }

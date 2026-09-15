@@ -21,6 +21,12 @@ pub enum Type {
     Array(Box<Type>),
     /// `map<K, V>`
     Map(Box<Type>, Box<Type>),
+    /// `message<T>` — générateur (voir docs/roadmap.d/langage-emit-iterable.md).
+    /// Valable UNIQUEMENT comme type de retour déclaré d'une fonction/méthode
+    /// contenant au moins un `emit` — jamais comme type de paramètre, jamais
+    /// nommable (`var`/`scoped`/`consumed`), jamais un type de premier ordre
+    /// ailleurs. Vérifié par la sema (`src/sema/typecheck.rs`).
+    Message(Box<Type>),
     /// Type générique avec arguments : `List<int>`, `Cache<string, User>`
     Generic {
         name: String,

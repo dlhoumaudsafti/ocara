@@ -605,6 +605,14 @@ impl Parser {
                 self.advance();
                 Ok(Expr::Ident("from".to_string(), span))
             }
+            // "message" reste utilisable comme identifiant ordinaire (ex:
+            // `Exception.message`, `var message:string`, `return message`) —
+            // le mot-clé `message` (type `message<T>`) n'a de sens qu'en
+            // position de type. Voir la même note dans eat_ident (primitives.rs).
+            TokenKind::TMessage => {
+                self.advance();
+                Ok(Expr::Ident("message".to_string(), span))
+            }
 
             _ => Err(ParseError::new(
                 format!("unexpected primary expression: {:?}", self.peek_kind()),

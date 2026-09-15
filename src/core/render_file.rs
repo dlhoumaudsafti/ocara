@@ -226,6 +226,9 @@ fn desugar_stmt(stmt: &mut Stmt, map: &mut ConstMap) -> Result<(), DesugarError>
         Stmt::Raise { value, .. } => {
             desugar_expr(value, map)?;
         }
+        Stmt::Emit { value, .. } => {
+            desugar_expr(value, map)?;
+        }
         Stmt::Assign { target, value, .. } => {
             desugar_expr(value, map)?;
             if let Expr::Ident(name, _) = target {

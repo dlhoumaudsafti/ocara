@@ -95,12 +95,12 @@ Un `raise` déclenché par le code CONSOMMATEUR (pas le générateur lui-même) 
 
 Dans un ordre logique de dépendance :
 
-1. **Parsing** : mot-clé `emit`, nouveau `Stmt::Emit` (`src/parsing/ast.d/statements.rs`), nouveau `Type::Message` valable uniquement en position de retour (`src/parsing/ast.d/types.rs`). Grammaire dans `docs/EBNF.md`.
-2. **Sema — typage et validations** (`src/sema/typecheck.rs`) :
-   - Type de retour `message<T>` inféré/vérifié pour toute fonction/méthode contenant au moins un `emit`.
-   - Rejet de `var`/`scoped`/`consumed message<T>` (jamais nommable).
-   - Rejet de `message<T>` comme type de paramètre ou de retour d'une fonction sans `emit` propre.
-   - Analyse statique "au plus un `emit` atteignable hors boucle" pour autoriser la consommation scalaire directe — nouveau diagnostic si violée.
+1. **✅ Parsing** — `TokenKind::Emit`/`TMessage`, `Stmt::Emit`, `Type::Message(Box<Type>)`, `parse_emit()`, `message<T>` dans `parse_type_base()`. `emit`/`message` restent utilisables comme identifiants ordinaires hors position de mot-clé (`eat_ident()` + primaires d'expression), indispensable pour `ui.emit(...)` (Tauri) et `Exception.message`/`var message:...` (très répandu). Tous les sites de match exhaustif mis à jour (monomorph, render_file, runtime_expand, IrType::from_ast, captures, ownership, escape, typecheck). Grammaire EBNF pas encore mise à jour (fait au §7).
+2. **✅ Sema — typage et validations** (`src/sema/typecheck.rs`, `src/sema/message_emit.rs`, `src/sema/symbols.d/`) :
+   - Nouveaux diagnostics E30–E34 : `message<T>` non nommable (`var`/`scoped`/`consumed`) ; interdit comme type de paramètre (fonctions/méthodes ET constructeurs) ; retour `message<T>` sans `emit` atteignable dans le corps ; `emit` hors d'une fonction `message<T>` ; consommation scalaire directe interdite si `emit` atteignable dans une boucle (`FuncSig.message_emit_in_loop`, calculé une fois à l'enregistrement des symboles via `crate::sema::message_emit::analyze_emit`).
+   - `types_compat` déballe `message<T>` trouvé vers `T` (consommation scalaire — `var`/`const`/`return`/argument de fonction libre ou d'appel statique) ; `Stmt::ForIn` accepte `message<T>` sans aucune restriction (toujours valable, y compris avec `emit` en boucle).
+   - Vérifié manuellement (var/const scalaire, `for`, appel statique type `IO::writeln(...)`, méthode d'instance `obj.truc()`, branchement `if`/`else` autorisé, boucle correctement rejetée) + `make regression` intégral repassé au vert.
+   - Non couvert (accepté comme limite mineure, hors du périmètre discuté) : paramètres de closures (`Expr::Nameless`), `Array::fromMessage` (prévu étape 6 : bypass dédié de cette même restriction).
 3. **Lowering — transformation en machine à états** (`src/lower/`) : identifier les points de suspension (chaque `emit`), calculer les variables locales survivantes (promotion sur le tas, même patron que les captures de closure), régénérer le corps de fonction en structure pilotée par un entier d'état + point d'entrée unique qui reprend au bon endroit.
 4. **Lowering — les 3 formes de consommation** : `for x in truc()`, consommation scalaire directe (déballage automatique en position `T`), `Array::fromMessage`. Génération des appels de libération adaptés à chaque forme (voir §5), y compris `break`/`return` anticipé dans un `for`.
 5. **Lowering — Cas A (`emit` dans un `try`)** : suivi des `try` actifs par point de suspension dans l'état sauvegardé, rejeu des `setjmp`/`TryFrame` nécessaires à chaque reprise (voir §4).

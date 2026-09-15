@@ -99,6 +99,25 @@ impl Parser {
                 self.advance();
                 Ok(("from".to_string(), span))
             }
+            // "emit" est aussi le nom d'une méthode builtin existante
+            // (`ui.emit("event", data)`, ocara.Tauri) — sans cette entrée,
+            // `objet.emit(...)` deviendrait syntaxiquement inatteignable dès
+            // que `emit` devient un mot-clé (générateurs, voir
+            // docs/roadmap.d/langage-emit-iterable.md). Même mécanisme que
+            // "method" ci-dessus.
+            TokenKind::Emit => {
+                self.advance();
+                Ok(("emit".to_string(), span))
+            }
+            // "message" est un nom de champ/variable extrêmement courant
+            // (ex: `Exception.message`, `var message:string`) — le mot-clé
+            // `message` (type `message<T>`, générateurs) n'a de sens qu'en
+            // position de type, jamais en position de nom déclaré. Même
+            // mécanisme que "emit"/"method"/"result" ci-dessus.
+            TokenKind::TMessage => {
+                self.advance();
+                Ok(("message".to_string(), span))
+            }
             other => Err(ParseError::new(
                 format!("expected identifier, found {:?}", other),
                 span,
