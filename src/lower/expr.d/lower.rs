@@ -751,6 +751,18 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 }
             }
             
+            // `Array::fromMessage(message<T>) -> array<T>` (voir §2 de
+            // docs/roadmap.d/langage-emit-iterable.md) : draine TOUS les
+            // `emit` (aucune restriction, contrairement aux autres formes de
+            // consommation) dans un `array<T>` neuf — traité entièrement à
+            // part, jamais un builtin `Array_*` normal (son comportement
+            // dépend du générateur passé en argument, pas d'un appel fixe).
+            if resolved_class == "Array" && method == "fromMessage" && args.len() == 1 {
+                if let Some((mangled, elem_ty)) = crate::lower::builder::message_gen::detect_message_call(builder, &args[0]) {
+                    return crate::lower::builder::message_gen::lower_array_from_message(builder, &args[0], &mangled, elem_ty);
+                }
+            }
+
             let func_name = format!("{}_{}", resolved_class, method);
 
             // Pour les builtins avec paramètres optionnels (surcharges),

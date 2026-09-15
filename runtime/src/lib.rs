@@ -2765,6 +2765,60 @@ fn handler_has_returned() -> (bool, i64) {
     })
 }
 
+/// Pousse un nouveau `TryFrame` sur `TRY_STACK` et retourne un pointeur vers
+/// lui (adresse STABLE — voir la doc de `TryStack`/`frames`, un tableau fixe
+/// thread-local, jamais réalloué) directement utilisable par l'appelant pour
+/// un appel `setjmp` RAW (voir `crate::lower::builder::message_gen` côté
+/// compilateur) : contrairement à `__ocara_try_exec`, aucun `setjmp` n'est
+/// fait ICI — cette fonction ne fait QUE réserver le frame, le `setjmp` doit
+/// être appelé PAR L'APPELANT, directement dans SA PROPRE frame native (voir
+/// la doc de `JmpBuf` plus haut : le frame appelant setjmp doit rester
+/// vivant jusqu'au `longjmp` correspondant). C'est précisément ce qui permet
+/// à un générateur (`emit`/`message<T>`) de rejouer un `try` à chaque
+/// reprise — sa fonction `__resume` est un nouvel appel natif à chaque fois,
+/// donc SA PROPRE frame doit appeler `setjmp` elle-même.
+///
+/// `frame_ptr` (retourné en i64) pointe vers un `TryFrame` : offset 0 =
+/// `env` (JmpBuf, 200 octets — à passer tel quel à `setjmp`), offset 200 =
+/// `error_val`, offset 208 = `error_type` (voir `Inst::GetField` avec ces
+/// offsets bruts dans le lowering, pas de fonction runtime dédiée pour les
+/// lire — même patron que `class_id` dans `__alloc_class_obj`).
+#[unsafe(no_mangle)]
+pub extern "C" fn __ocara_try_enter() -> i64 {
+    TRY_STACK.with(|stack| {
+        let depth = stack.depth.get();
+        if depth >= MAX_TRY_DEPTH {
+            std::process::abort();
+        }
+        let frame_ptr: *mut TryFrame = unsafe {
+            let arr = &mut *stack.frames.get();
+            &mut arr[depth]
+        };
+        unsafe {
+            (*frame_ptr).error_val  = 0;
+            (*frame_ptr).error_type = 0;
+        }
+        stack.depth.set(depth + 1);
+        frame_ptr as i64
+    })
+}
+
+/// Dépile le `TryFrame` le plus récemment poussé par `__ocara_try_enter` —
+/// appelée après une sortie normale du corps `try`, après un handler qui a
+/// fini de traiter l'exception, OU juste avant qu'un `emit` (générateur)
+/// suspende en quittant un `try` encore actif (pour rejouer `__ocara_try_enter`
+/// + `setjmp` à la prochaine reprise). Symétrique de `__ocara_try_enter`,
+/// même discipline LIFO que `__ocara_try_exec`.
+#[unsafe(no_mangle)]
+pub extern "C" fn __ocara_try_exit() {
+    TRY_STACK.with(|stack| {
+        let depth = stack.depth.get();
+        if depth > 0 {
+            stack.depth.set(depth - 1);
+        }
+    });
+}
+
 /// Exécute un bloc try/on. Retourne 0 si le bloc se termine normalement,
 /// ou (1 + return_value) si le handler a fait un return explicite.
 #[unsafe(no_mangle)]

@@ -83,6 +83,17 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__mixed_to_float",       params: &[clt::I64],                        returns: Some(clt::F64),    module: None },
 
     // ── Gestion des erreurs (try/on/fail) — toujours disponibles ─────────────
+    // `emit`/`message<T>` dans un `try` (Cas A, voir
+    // docs/roadmap.d/langage-emit-iterable.md et
+    // src/lower/builder.d/message_gen.rs) : `setjmp` est déclaré ICI pour
+    // être appelable DIRECTEMENT depuis le code généré (pas via un wrapper
+    // Rust — setjmp doit capturer la frame de la fonction __resume
+    // elle-même, seule façon de le rejouer correctement à chaque reprise).
+    // Résolu au lien contre la libc, exactement comme pour
+    // `runtime/src/lib.rs` qui l'utilise déjà en interne.
+    BuiltinDesc { name: "setjmp",                       params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__ocara_try_enter",             params: &[],                                returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__ocara_try_exit",              params: &[],                                returns: None,              module: None },
     BuiltinDesc { name: "__ocara_try_exec",             params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__ocara_try_exec_with_captures", params: &[clt::I64, clt::I64, clt::I64],    returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__ocara_handler_set_return",   params: &[clt::I64],                        returns: None,              module: None },

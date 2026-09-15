@@ -84,11 +84,20 @@ pub struct LowerBuilder<'m> {
     /// pseudo-champs réservés `__state`/`__value`.
     pub frame_vars: HashMap<String, (Value, usize, IrType)>,
     /// Points de reprise d'un générateur, dans l'ordre des `emit` rencontrés
-    /// pendant le lowering du corps (état `k+1` → `message_resume_blocks[k]`)
+    /// pendant le lowering du corps (état `k+1` → `message_resume_blocks[k].0`)
     /// — rempli par `Stmt::Emit`, consulté après coup pour construire le
-    /// prologue de dispatch (bloc 0 de la fonction `__resume`). Vide hors
-    /// lowering d'un générateur.
-    pub message_resume_blocks: Vec<BlockId>,
+    /// prologue de dispatch (bloc 0 de la fonction `__resume`). Le second
+    /// élément est l'instantané de `gen_try_stack` à ce point de suspension
+    /// (Cas A, `try` actifs à rejouer à la reprise — voir
+    /// `crate::lower::builder::message_gen::GenTryCtx`). Vide hors lowering
+    /// d'un générateur.
+    pub message_resume_blocks: Vec<(BlockId, Vec<crate::lower::builder::message_gen::GenTryCtx>)>,
+    /// `try` actuellement ouverts pendant le lowering du corps d'un
+    /// générateur (voir `crate::lower::builder::message_gen::lower_try_in_generator`,
+    /// §4 "Cas A" de docs/roadmap.d/langage-emit-iterable.md) — empilé à
+    /// l'entrée d'un `try`, dépilé à la sortie. Vide hors `try`/hors
+    /// générateur.
+    pub gen_try_stack: Vec<crate::lower::builder::message_gen::GenTryCtx>,
     /// Variables locales déjà promues sur le tas pour le partage avec des closures.
     /// Après promotion, `locals[name]` est un heap pointer (pas une Alloca stack).
     pub heap_promoted: HashSet<String>,
@@ -152,6 +161,7 @@ impl<'m> LowerBuilder<'m> {
             captured_vars: HashMap::new(),
             frame_vars: HashMap::new(),
             message_resume_blocks: Vec::new(),
+            gen_try_stack: Vec::new(),
             heap_promoted: HashSet::new(),
             async_funcs: HashSet::new(),
             async_var_ret: HashMap::new(),

@@ -1,6 +1,6 @@
 # Roadmap Ocara
 
-_Dernière mise à jour : 2026-09-15_
+_Dernière mise à jour : 2026-09-16_
 
 Ce document liste ce qu'il reste à faire pour faire d'Ocara un langage solide, avec un focus prioritaire sur la **gestion mémoire** : le compilateur n'a pas de ramasse-miettes (choix assumé et définitif), mais rien aujourd'hui ne garantit l'absence de fuites, de doubles libérations ou de corruptions mémoire silencieuses.
 
@@ -23,15 +23,7 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 ### Langage
 
-- **Instruction `emit`** (même rôle que `yield` en PHP) et type `message<T>` — **fonctionnel de bout en bout pour `for`/scalaire direct (fonctions ET méthodes), vérifié sur des programmes réels compilés et exécutés**. *(Massive)* → [détails](roadmap.d/langage-emit-iterable.md)
-  1. ✅ Parsing (`emit`, `Type::Message`) — grammaire EBNF pas encore mise à jour (fait à l'étape 7)
-  2. ✅ Sema (typage, diagnostics E30–E34, `message<T>` jamais nommable, règle "au plus un `emit` hors boucle" pour la consommation scalaire)
-  3. ✅ Lowering — transformation en machine à états (`<nom>__new`/`<nom>__resume`, frame heap, voir la fiche)
-  4. ✅ Lowering — `for`/scalaire direct (fonctions ET méthodes) ; `Array::fromMessage` reste l'étape 6 ; fuite connue et acceptée : `return`/`raise` anticipé depuis le corps d'un `for` sur générateur (`break` OK)
-  5. Lowering — `emit` dans un `try` — REJETÉ à la compilation en attendant (nouveau diagnostic, évite une miscompilation silencieuse)
-  6. Runtime (`Array::fromMessage`)
-  7. Documentation (EBNF, workflow-compilation, adding-types)
-  8. Tests de régression (fait manuellement jusqu'ici, pas encore de fichier `examples/tests/` dédié)
+- **`Array::get(arr, i)` affiché comme `null` pour la valeur `0`** quand utilisé directement comme argument (`IO::writeln(Array::get(arr, i))`), sur un `array<T>` à élément concret — découvert en vérifiant `Array::fromMessage` ci-dessus, mais bug pré-existant et sans rapport (reproductible avec un simple littéral). Contournement déjà disponible (variable intermédiaire typée). *(Légère)* → [détails](roadmap.d/langage-array-get-display-bug.md)
 
 ---
 

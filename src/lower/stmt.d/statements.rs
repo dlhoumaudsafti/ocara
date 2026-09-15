@@ -177,7 +177,19 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
             lower_raise(builder, value);
         }
         Stmt::Try { body, handlers, .. } => {
-            lower_try(builder, body, handlers);
+            // Dans un générateur (`emit`/`message<T>`), un `try` doit être
+            // lowered INLINE (Cas A, voir §4 de
+            // docs/roadmap.d/langage-emit-iterable.md et
+            // `crate::lower::builder::message_gen::lower_try_in_generator`) :
+            // le modèle habituel (corps → fonction séparée `__try_body_N`,
+            // voir `lower_try`) ferait d'un `Return` d'`emit` un simple
+            // retour de CETTE fonction séparée, jamais de `__resume` —
+            // miscompilation silencieuse.
+            if builder.frame_vars.contains_key(crate::lower::builder::message_gen::STATE_FIELD) {
+                crate::lower::builder::message_gen::lower_try_in_generator(builder, body, handlers);
+            } else {
+                lower_try(builder, body, handlers);
+            }
         }
 
         // ── Générateurs (emit) ───────────────────────────────────────────────
@@ -199,12 +211,27 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
             builder.emit(Inst::ConstInt { dest: k_val.clone(), value: state_k });
             builder.store_local(crate::lower::builder::message_gen::STATE_FIELD, k_val);
 
+            // Cas A : des `try` sont encore actifs à ce point de suspension
+            // (voir §4 de la fiche roadmap) — dépiler `TRY_STACK` (côté
+            // runtime) AVANT le `Return` natif pour qu'il retrouve exactement
+            // sa profondeur d'avant cet appel `__resume` (invariant
+            // indispensable : la prochaine reprise re-pousse et refait
+            // `setjmp` elle-même, voir le prologue dans `generate_resume_fn`).
+            for _ in 0..builder.gen_try_stack.len() {
+                builder.emit(Inst::Call {
+                    dest: None,
+                    func: "__ocara_try_exit".into(),
+                    args: vec![],
+                    ret_ty: IrType::Void,
+                });
+            }
+
             let true_val = builder.new_value();
             builder.emit(Inst::ConstBool { dest: true_val.clone(), value: true });
             builder.emit(Inst::Return { value: Some(true_val) });
 
             let resume_bb = builder.new_block();
-            builder.message_resume_blocks.push(resume_bb.clone());
+            builder.message_resume_blocks.push((resume_bb.clone(), builder.gen_try_stack.clone()));
             builder.switch_to(&resume_bb);
         }
     }

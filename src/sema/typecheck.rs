@@ -152,15 +152,10 @@ impl<'a> TypeChecker<'a> {
                     span: func.span.clone(),
                 });
             }
-            // Cas A (emit dans un try) : pas encore pris en charge par le
-            // lowering (Étape 5 du chantier) — voir la doc de
-            // `EmitAnalysis::emit_in_try`.
-            if analysis.emit_in_try {
-                self.errors.push(SemaError::EmitInsideTryNotYetSupported {
-                    name: func.name.clone(),
-                    span: func.span.clone(),
-                });
-            }
+            // Cas A (emit dans un try) : désormais pris en charge par le
+            // lowering (voir `crate::lower::builder::message_gen::lower_try_in_generator`
+            // et docs/roadmap.d/langage-emit-iterable.md, §4) — plus de
+            // restriction ici.
         }
 
         for param in &func.params {
@@ -1445,6 +1440,37 @@ impl<'a> TypeChecker<'a> {
                 } else {
                     class.clone()
                 };
+
+                // `Array::fromMessage(message<T>) -> array<T>` (voir §2 de
+                // docs/roadmap.d/langage-emit-iterable.md) : draine TOUS les
+                // `emit`, SANS la restriction "au plus un emit hors boucle"
+                // (contrairement à toute autre consommation scalaire) — son
+                // type de retour dépend dynamiquement de l'argument, jamais
+                // un `FuncSig` fixe comme les autres méthodes `Array::*` —
+                // traité entièrement à part, jamais enregistré dans les
+                // builtins normaux.
+                if resolved_class == "Array" && method == "fromMessage" {
+                    if args.len() != 1 {
+                        self.errors.push(SemaError::WrongArgCount {
+                            name:     "Array::fromMessage".to_string(),
+                            expected: 1,
+                            found:    args.len(),
+                            span:     span.clone(),
+                        });
+                        for a in args { self.infer_expr(a); }
+                        return Type::Array(Box::new(Type::Mixed));
+                    }
+                    let arg_ty = self.infer_expr(&args[0]);
+                    if let Type::Message(inner) = arg_ty {
+                        return Type::Array(inner);
+                    }
+                    self.errors.push(SemaError::TypeMismatch {
+                        expected: "message<T>".into(),
+                        found:    type_name(&arg_ty),
+                        span:     span.clone(),
+                    });
+                    return Type::Array(Box::new(Type::Mixed));
+                }
 
                 // Chercher la méthode dans la chaîne d'héritage
                 if let Some(sig) = self.symbols.lookup_method_in_chain(&resolved_class, method) {

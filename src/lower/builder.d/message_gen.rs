@@ -36,6 +36,27 @@ pub fn is_message_func(ret_ty: &Type) -> bool {
     matches!(ret_ty, Type::Message(_))
 }
 
+/// Un `try` actuellement ouvert pendant le lowering du corps d'un
+/// générateur (voir `lower_try_in_generator`, §4 "Cas A" de la fiche
+/// roadmap) — une entrée par niveau d'imbrication, poussée à l'entrée du
+/// `try`, dépilée à la sortie. Cloné dans chaque entrée de
+/// `LowerBuilder::message_resume_blocks` au moment d'un `emit` : nécessaire
+/// pour rejouer, à la prochaine reprise, exactement les `try` encore actifs
+/// à ce point de suspension (`__ocara_try_enter` + `setjmp` + branchement),
+/// AVANT de sauter au bloc de reprise réel.
+#[derive(Clone)]
+pub struct GenTryCtx {
+    /// Champ frame portant le pointeur `TryFrame` de ce niveau (voir
+    /// `try_frame_field`) — relu par le handler PARTAGÉ (une seule copie
+    /// lowered, référencée par chaque rejeu) pour retrouver `error_val`/
+    /// `error_type`, jamais une valeur SSA brute (invalide d'un rejeu à
+    /// l'autre).
+    pub frame_field: String,
+    /// Bloc du handler INLINE (déjà lowered UNE SEULE FOIS) — la première
+    /// exécution ET chaque rejeu y sautent tous en cas de `setjmp` non nul.
+    pub handler_bb: BlockId,
+}
+
 /// Nom du champ réservé qui porte l'état courant du générateur (I64).
 pub const STATE_FIELD: &str = "__state";
 /// Nom du champ réservé qui porte la dernière valeur émise (type `T`).
@@ -247,7 +268,14 @@ fn generate_resume_fn(
     let mut next_check = builder.new_block();
     builder.emit(Inst::Branch { cond: is_zero, then_bb: start_bb.clone(), else_bb: next_check.clone() });
 
-    for (i, resume_bb) in builder.message_resume_blocks.clone().iter().enumerate() {
+    for (i, (resume_bb, try_ctxs)) in builder.message_resume_blocks.clone().iter().enumerate() {
+        // Cas A : rejoue `__ocara_try_enter`+`setjmp` pour chaque `try`
+        // encore actif à ce point de suspension (voir §4 de la fiche
+        // roadmap), AVANT de sauter au bloc de reprise réel — sinon un
+        // `raise` survenant après la reprise ne serait jamais rattrapé (le
+        // `setjmp` d'origine appartenait à l'appel `__resume` PRÉCÉDENT,
+        // déjà retourné).
+        let reentry_bb = build_reentry_stub(&mut builder, resume_bb, try_ctxs);
         builder.switch_to(&next_check);
         let k = (i + 1) as i64;
         let k_val = builder.new_value();
@@ -255,7 +283,7 @@ fn generate_resume_fn(
         let is_k = builder.new_value();
         builder.emit(Inst::CmpEq { dest: is_k.clone(), lhs: state_val.clone(), rhs: k_val, ty: IrType::I64 });
         let after = builder.new_block();
-        builder.emit(Inst::Branch { cond: is_k, then_bb: resume_bb.clone(), else_bb: after.clone() });
+        builder.emit(Inst::Branch { cond: is_k, then_bb: reentry_bb, else_bb: after.clone() });
         next_check = after;
     }
 
@@ -284,6 +312,161 @@ pub fn emit_generator_exhausted(builder: &mut LowerBuilder) {
 
 fn field_index(fields: &[(String, IrType)], name: &str) -> usize {
     fields.iter().position(|(n, _)| n == name).unwrap_or(0)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cas A : `try { ... emit ... } on e { ... }` DANS un générateur (voir §4 de
+// la fiche roadmap) — `try` est lowered INLINE (jamais en fonction séparée
+// `__try_body_N`/`__try_handler_N` comme `lower_try`), pour que le `Return`
+// natif d'un `emit` sorte bien de `__resume` elle-même. `setjmp` est rejoué
+// à chaque reprise (voir le prologue dans `generate_resume_fn`) — seule
+// façon de rester valable puisque `__resume` est un nouvel appel natif à
+// chaque fois (voir la doc de `__ocara_try_enter`, runtime/src/lib.rs).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Construit, pour un état de reprise donné, la chaîne de blocs qui rejoue
+/// `__ocara_try_enter`+`setjmp` pour chaque `try` encore actif à ce point de
+/// suspension (voir la doc de `LowerBuilder::message_resume_blocks`), puis
+/// saute au bloc de reprise réel `resume_bb`. Chaîne vide (aucun `try`
+/// actif) ⇒ un simple passage direct. Retourne le PREMIER bloc de la
+/// chaîne (celui référencé par le prologue de dispatch).
+fn build_reentry_stub(builder: &mut LowerBuilder, resume_bb: &BlockId, try_ctxs: &[GenTryCtx]) -> BlockId {
+    let entry_bb = builder.new_block();
+    let mut current = entry_bb.clone();
+    for ctx in try_ctxs {
+        builder.switch_to(&current);
+        let frame_ptr = call_try_enter(builder);
+        builder.store_local(&ctx.frame_field, frame_ptr.clone());
+        let jmp_ret = call_raw_setjmp(builder, frame_ptr);
+        let next = builder.new_block();
+        builder.emit(Inst::Branch { cond: jmp_ret, then_bb: ctx.handler_bb.clone(), else_bb: next.clone() });
+        current = next;
+    }
+    builder.switch_to(&current);
+    builder.emit(Inst::Jump { target: resume_bb.clone() });
+    entry_bb
+}
+
+fn call_try_enter(builder: &mut LowerBuilder) -> Value {
+    let dest = builder.new_value();
+    builder.emit(Inst::Call { dest: Some(dest.clone()), func: "__ocara_try_enter".into(), args: vec![], ret_ty: IrType::Ptr });
+    dest
+}
+
+fn call_try_exit(builder: &mut LowerBuilder) {
+    builder.emit(Inst::Call { dest: None, func: "__ocara_try_exit".into(), args: vec![], ret_ty: IrType::Void });
+}
+
+/// Appelle `setjmp` DIRECTEMENT (pas de wrapper Rust — voir la doc de
+/// `BuiltinDesc { name: "setjmp", ... }`, `src/codegen/desc.d/lowlevel.rs`) :
+/// la frame qui doit "rester vivante" pour un `longjmp` ultérieur est celle
+/// de `__resume` elle-même, l'appelante directe ICI.
+fn call_raw_setjmp(builder: &mut LowerBuilder, frame_ptr: Value) -> Value {
+    let dest = builder.new_value();
+    builder.emit(Inst::Call { dest: Some(dest.clone()), func: "setjmp".into(), args: vec![frame_ptr], ret_ty: IrType::I64 });
+    dest
+}
+
+/// Lit `error_val`/`error_type` depuis un pointeur `TryFrame` (offsets
+/// 200/208 — voir la doc de `__ocara_try_enter`, runtime/src/lib.rs : champ
+/// `env` = 25×u64 = 200 octets, puis les deux `i64`).
+fn read_try_error(builder: &mut LowerBuilder, frame_ptr: Value) -> (Value, Value) {
+    let err_val = builder.new_value();
+    builder.emit(Inst::GetField { dest: err_val.clone(), obj: frame_ptr.clone(), field: "error_val".into(), ty: IrType::I64, offset: 200 });
+    let err_type = builder.new_value();
+    builder.emit(Inst::GetField { dest: err_type.clone(), obj: frame_ptr, field: "error_type".into(), ty: IrType::I64, offset: 208 });
+    (err_val, err_type)
+}
+
+/// Lowering INLINE de `try { body } on e [is Foo] { ... } ...` dans le corps
+/// d'un générateur — voir la doc de section ci-dessus. Contrairement à
+/// `lower_try` (fonctions séparées + trampoline C), le corps ET les
+/// gestionnaires sont lowered directement dans les blocs de `__resume`, via
+/// le `lower_block` générique (donc `emit` y fonctionne normalement).
+pub fn lower_try_in_generator(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]) {
+    let depth = builder.gen_try_stack.len();
+    let frame_field = try_frame_field(depth);
+
+    let frame_ptr = call_try_enter(builder);
+    builder.store_local(&frame_field, frame_ptr.clone());
+    let jmp_ret = call_raw_setjmp(builder, frame_ptr);
+
+    let handler_bb = builder.new_block();
+    let body_start_bb = builder.new_block();
+    let after_bb = builder.new_block();
+    // `setjmp` : 0 = chemin normal (corps), non-nul = un `longjmp` est arrivé
+    // ici (voir la doc de `Inst::Branch` : accepte un I64 directement, même
+    // patron que `__ocara_type_matches` dans `lower_try`).
+    builder.emit(Inst::Branch { cond: jmp_ret, then_bb: handler_bb.clone(), else_bb: body_start_bb.clone() });
+
+    // ── Corps du try (chemin normal) ─────────────────────────────────────
+    builder.switch_to(&body_start_bb);
+    builder.gen_try_stack.push(GenTryCtx { frame_field: frame_field.clone(), handler_bb: handler_bb.clone() });
+    crate::lower::stmt::lower_block(builder, body);
+    builder.gen_try_stack.pop();
+    if !builder.is_terminated() {
+        call_try_exit(builder);
+        builder.emit(Inst::Jump { target: after_bb.clone() });
+    }
+
+    // ── Gestionnaire(s) (chemin `longjmp`) — lowered UNE SEULE FOIS, partagé
+    // par la première exécution ET tout rejeu ultérieur (voir le prologue de
+    // `generate_resume_fn`) ────────────────────────────────────────────────
+    builder.switch_to(&handler_bb);
+    call_try_exit(builder);
+    let (frame_for_handler, _) = builder.load_local(&frame_field).unwrap();
+    let (err_val, err_type) = read_try_error(builder, frame_for_handler);
+
+    let mut next_check = builder.new_block();
+    builder.emit(Inst::Jump { target: next_check.clone() });
+
+    for handler in handlers {
+        builder.switch_to(&next_check);
+        let clause_bb = builder.new_block();
+        let after_check = builder.new_block();
+        if let Some(class_filter) = &handler.class_filter {
+            let filter_idx = builder.module.intern_string(class_filter);
+            let filter_val = builder.new_value();
+            builder.emit(Inst::ConstStr { dest: filter_val.clone(), idx: filter_idx });
+            let match_result = builder.new_value();
+            builder.emit(Inst::Call {
+                dest:   Some(match_result.clone()),
+                func:   "__ocara_type_matches".into(),
+                args:   vec![err_type.clone(), filter_val],
+                ret_ty: IrType::I64,
+            });
+            builder.emit(Inst::Branch { cond: match_result, then_bb: clause_bb.clone(), else_bb: after_check.clone() });
+        } else {
+            builder.emit(Inst::Jump { target: clause_bb.clone() });
+        }
+
+        builder.switch_to(&clause_bb);
+        builder.store_local(&handler.binding, err_val.clone());
+        let exception_class = handler.class_filter.clone().unwrap_or_else(|| "Exception".to_string());
+        builder.var_class.insert(handler.binding.clone(), exception_class);
+        crate::lower::stmt::lower_block(builder, &handler.body);
+        if !builder.is_terminated() {
+            builder.emit(Inst::Jump { target: after_bb.clone() });
+        }
+
+        next_check = after_check;
+    }
+
+    // Aucun handler ne correspond (ou liste vide) — re-propager l'erreur :
+    // `__ocara_fail` retrouvera le PROCHAIN `try` actif (celui-ci vient
+    // d'être dépilé ci-dessus), exactement comme le fait `lower_try`.
+    builder.switch_to(&next_check);
+    builder.emit(Inst::Call {
+        dest:   None,
+        func:   "__ocara_fail".into(),
+        args:   vec![err_val, err_type],
+        ret_ty: IrType::Void,
+    });
+    let dead_false = builder.new_value();
+    builder.emit(Inst::ConstBool { dest: dead_false.clone(), value: false });
+    builder.emit(Inst::Return { value: Some(dead_false) });
+
+    builder.switch_to(&after_bb);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -447,13 +630,54 @@ pub fn lower_for_message(
     free_frame(builder, mangled, frame);
 }
 
+/// Nom du champ frame portant le pointeur `TryFrame` courant au niveau
+/// d'imbrication `depth` (0 = try le plus externe) — voir §4 "Cas A" de la
+/// fiche roadmap et `lower_try_in_generator`. Des `try` FRÈRES (jamais
+/// actifs simultanément) au même niveau partagent le même champ, comme
+/// n'importe quel autre local dédupliqué par nom.
+pub fn try_frame_field(depth: usize) -> String {
+    format!("__try_frame_{}", depth)
+}
+
+/// `Array::fromMessage(truc())` (voir §2 de la fiche roadmap) : draine TOUS
+/// les `emit` (aucune restriction, même avec `emit` en boucle) dans un
+/// `array<T>` neuf — mêmes conventions de stockage qu'un littéral `array<T>`
+/// à type concret connu (`LiteralElemKind::Concrete` — voir
+/// `lower_array_literal`) : valeur brute, jamais boxée.
+pub fn lower_array_from_message(builder: &mut LowerBuilder, expr: &Expr, mangled: &str, elem_ty: IrType) -> Value {
+    let args = collect_call_args(builder, expr);
+    let frame = call_new(builder, mangled, args);
+
+    let arr = builder.new_value();
+    builder.emit(Inst::Call { dest: Some(arr.clone()), func: "__array_new".into(), args: vec![], ret_ty: IrType::Ptr });
+
+    let cond_bb  = builder.new_block();
+    let body_bb  = builder.new_block();
+    let after_bb = builder.new_block();
+
+    builder.emit(Inst::Jump { target: cond_bb.clone() });
+    builder.switch_to(&cond_bb);
+    let has_val = call_resume(builder, mangled, frame.clone());
+    builder.emit(Inst::Branch { cond: has_val, then_bb: body_bb.clone(), else_bb: after_bb.clone() });
+
+    builder.switch_to(&body_bb);
+    let val = get_value_field(builder, frame.clone(), elem_ty);
+    builder.emit(Inst::Call { dest: None, func: "__array_push".into(), args: vec![arr.clone(), val], ret_ty: IrType::Void });
+    builder.emit(Inst::Jump { target: cond_bb.clone() });
+
+    builder.switch_to(&after_bb);
+    free_frame(builder, mangled, frame);
+    arr
+}
+
 /// Collecte (nom, type IR), dédupliqué par nom, de toute variable déclarée
-/// n'importe où dans `body` (`var`/`const`/variable de `for`/`for-map`) —
+/// n'importe où dans `body` (`var`/`const`/variable de `for`/`for-map`,
+/// champ `__try_frame_N` par niveau de `try` imbriqué, binding `on e`) —
 /// même ordre de parcours que `crate::sema::message_emit`, mais ne s'en sert
 /// pas directement (celui-ci ne retourne que des booléens).
 fn collect_local_decls(body: &Block) -> Vec<(String, IrType)> {
     let mut out = Vec::new();
-    walk_block(body, &mut out);
+    walk_block(body, 0, &mut out);
     out
 }
 
@@ -463,11 +687,11 @@ fn push_unique(out: &mut Vec<(String, IrType)>, name: String, ty: IrType) {
     }
 }
 
-fn walk_block(block: &Block, out: &mut Vec<(String, IrType)>) {
-    walk_stmts(&block.stmts, out);
+fn walk_block(block: &Block, try_depth: usize, out: &mut Vec<(String, IrType)>) {
+    walk_stmts(&block.stmts, try_depth, out);
 }
 
-fn walk_stmts(stmts: &[Stmt], out: &mut Vec<(String, IrType)>) {
+fn walk_stmts(stmts: &[Stmt], try_depth: usize, out: &mut Vec<(String, IrType)>) {
     for stmt in stmts {
         match stmt {
             Stmt::Var { name, ty, .. } | Stmt::Const { name, ty, .. } => {
@@ -480,26 +704,32 @@ fn walk_stmts(stmts: &[Stmt], out: &mut Vec<(String, IrType)>) {
                 // marginal pour cette première implémentation).
                 let ty = if matches!(iter, Expr::Range { .. }) { IrType::I64 } else { IrType::Ptr };
                 push_unique(out, var.clone(), ty);
-                walk_block(body, out);
+                walk_block(body, try_depth, out);
             }
             Stmt::ForMap { key, value, body, .. } => {
                 push_unique(out, key.clone(), IrType::Ptr);
                 push_unique(out, value.clone(), IrType::I64);
-                walk_block(body, out);
+                walk_block(body, try_depth, out);
             }
             Stmt::If { then_block, elseif, else_block, .. } => {
-                walk_block(then_block, out);
-                for (_, blk) in elseif { walk_block(blk, out); }
-                if let Some(blk) = else_block { walk_block(blk, out); }
+                walk_block(then_block, try_depth, out);
+                for (_, blk) in elseif { walk_block(blk, try_depth, out); }
+                if let Some(blk) = else_block { walk_block(blk, try_depth, out); }
             }
             Stmt::Switch { cases, default, .. } => {
-                for case in cases { walk_block(&case.body, out); }
-                if let Some(blk) = default { walk_block(blk, out); }
+                for case in cases { walk_block(&case.body, try_depth, out); }
+                if let Some(blk) = default { walk_block(blk, try_depth, out); }
             }
-            Stmt::While { body, .. } => walk_block(body, out),
+            Stmt::While { body, .. } => walk_block(body, try_depth, out),
             Stmt::Try { body, handlers, .. } => {
-                walk_block(body, out);
-                for h in handlers { walk_block(&h.body, out); }
+                push_unique(out, try_frame_field(try_depth), IrType::Ptr);
+                walk_block(body, try_depth + 1, out);
+                for h in handlers {
+                    // Même type que le binding `on e` de `lower_try` (I64,
+                    // pas Ptr — cosmétique au niveau du lowering, voir sa doc).
+                    push_unique(out, h.binding.clone(), IrType::I64);
+                    walk_block(&h.body, try_depth, out);
+                }
             }
             Stmt::Expr(_) | Stmt::Return { .. } | Stmt::Result { .. } | Stmt::Break { .. }
             | Stmt::Continue { .. } | Stmt::Raise { .. } | Stmt::Assign { .. } | Stmt::Emit { .. } => {}

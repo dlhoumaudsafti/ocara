@@ -824,6 +824,19 @@ Compiler avec verbose :
 
 ---
 
+## Cas particulier : un type RESTREINT (`message<T>`)
+
+Toutes les étapes ci-dessus supposent un type de "premier ordre" — nommable (`var`/`scoped`/`consumed`), utilisable comme paramètre, comme champ, etc. `message<T>` (générateurs, `emit` — voir `docs/EBNF.md` §28 et docs/roadmap.d/langage-emit-iterable.md) est un contre-exemple utile si un futur type doit être **volontairement restreint** :
+
+- **AST/Parser** : identique au patron `array<T>`/`map<K,V>` (`Type::Message(Box<Type>)`, `TokenKind::TMessage`, parsé dans `parse_type_base`) — rien de spécial ici.
+- **`eat_ident()`/primaires d'expression** (`src/parsing/parser.d/primitives.rs`, `expressions.rs`) : si le nouveau mot-clé risque de collider avec un identifiant très courant (champ, variable, méthode builtin déjà existante), l'ajouter à l'allowlist qui permet de le réutiliser comme identifiant HORS position de type — `message` (à cause de `Exception.message`) et `emit` (à cause de `ui.emit(...)`, Tauri) l'ont tous les deux nécessité. Sans cette étape, réserver un mot très courant comme mot-clé casse silencieusement tout code existant qui l'utilisait comme nom.
+- **Sema — la vraie différence** : au lieu d'une simple vérification de compatibilité (`types_compat`), un type restreint a besoin de règles de VALIDITÉ POSITIONNELLE explicites, absentes du reste du système de types :
+  - Rejet explicite comme type de `var`/`scoped`/`consumed`, de paramètre, de champ — à chaque site de déclaration concerné (`check_func`, `Stmt::Var`/`Const`, params de constructeur...), PAS via un mécanisme générique.
+  - Le type ne peut être valide que dans UN SEUL contexte précis (ici : type de retour déclaré d'une fonction qui contient elle-même la construction associée) — nécessite un petit analyseur dédié (`crate::sema::message_emit::analyze_emit`) plutôt qu'une simple vérification de type.
+  - `types_compat` peut quand même avoir besoin d'un cas spécial pour la CONSOMMATION du type restreint (ici : `Type::Message(inner)` trouvé se déballe vers `inner`) — voir son traitement en tête de la fonction.
+- **Lowering** : un type qui n'est jamais nommable n'a pas besoin de rejoindre `OwnershipClass` ni le système de possession général (`scoped`/`consumed`) — il ne peut structurellement jamais fuir ni être dupliqué. Si sa présence implique une transformation de fonction entière (comme la machine à états de `message_gen.rs`), prévoir une redirection AVANT le lowering normal (`is_message_func`/`lower_message_func` interceptent `lower_func` dans `program.rs`/`classes.rs`), plutôt que d'essayer de faire rentrer la transformation dans le pipeline `lower_stmt`/`lower_expr` générique.
+- **Ordre d'enregistrement** : si la présence du type déclenche une transformation dont d'autres fonctions ont besoin de connaître l'EXISTENCE avant que son propre lowering n'ait eu lieu (ex: un site de consommation lowered avant la fonction qui déclare le générateur), prévoir un pré-passage d'enregistrement séparé (`register_all_message_funcs`), appelé tôt dans `lower_program`, avant tout lowering de corps — même contrainte que `class_dispatch::compute_classes_with_subclasses`.
+
 ## Conclusion
 
 L'ajout d'un nouveau type nécessite :

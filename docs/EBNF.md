@@ -39,9 +39,10 @@
 25. [Switch](#25-switch)
 26. [Match (expression)](#26-match-expression)
 27. [Boucles](#27-boucles)
-28. [Gestion des erreurs](#28-gestion-des-erreurs)
-29. [Résolution des noms](#29-résolution-des-noms)
-30. [Grammaire EBNF complète](#30-grammaire-ebnf-complète)
+28. [Générateurs (emit)](#28-générateurs-emit)
+29. [Gestion des erreurs](#29-gestion-des-erreurs)
+30. [Résolution des noms](#30-résolution-des-noms)
+31. [Grammaire EBNF complète](#31-grammaire-ebnf-complète)
 
 ---
 
@@ -734,6 +735,7 @@ Type ::= "int"
        | FunctionType
        | ArrayType
        | MapType
+       | MessageType
        | GenericType
        | QualifiedType
        | UnionType
@@ -742,6 +744,7 @@ Type ::= "int"
 FunctionType ::= "Function" "<" Type "(" ( Type ( "," Type )* )? ")" ">"
 ArrayType    ::= "array" "<" Type ">"
 MapType      ::= "map" "<" Type "," Type ">"
+MessageType  ::= "message" "<" Type ">"
 GenericType  ::= Identifier "<" TypeArgs ">"
 QualifiedType ::= Identifier ( "." Identifier )+
 UnionType    ::= Type ( "|" Type )+
@@ -760,7 +763,10 @@ repository.User
 List<int>              // générique avec un type
 Cache<string, User>    // générique avec plusieurs types
 Result<int, string>    // générique Result
+message<int>           // générateur (voir §28) — return-type-only
 ```
+
+> **`message<T>` est un cas particulier** : contrairement à tous les autres types de cette liste, il n'est valable **que** comme type de retour déclaré d'une fonction/méthode contenant `emit`, jamais comme type de paramètre ni comme type d'une variable (`var`/`scoped`/`consumed`). Voir [§28 Générateurs (`emit`)](#28-générateurs-emit) pour le détail complet.
 
 ### 6.3 Types union
 
@@ -1486,6 +1492,7 @@ Statement ::= VarDecl
             | ContinueStmt
             | TryStmt
             | RaiseStmt
+            | EmitStmt
             | Expression
 ```
 
@@ -3212,7 +3219,107 @@ for i in 0..10 {
 
 ---
 
-## 28. Gestion des erreurs
+## 28. Générateurs (`emit`)
+
+`emit` joue le même rôle que `yield` en PHP (ou en Python) : il **suspend** l'exécution de la fonction/méthode courante en produisant une valeur à son consommateur, puis **reprend** exactement où il s'était arrêté au prochain élément demandé — sans réexécuter la fonction depuis le début, et sans matérialiser tout le résultat en mémoire d'un coup (contrairement à un `return array<T>`). En interne, le compilateur transforme une fonction/méthode `emit`-contenante en une machine à états (pas de thread ni de coroutine système) — voir docs/roadmap.d/langage-emit-iterable.md pour le détail d'implémentation.
+
+```ebnf
+EmitStmt ::= "emit" Expression
+```
+
+Une fonction/méthode qui contient au moins un `emit` a pour type de retour déclaré `message<T>`, où `T` est le type de la valeur émise :
+
+```ocara
+function compteur(): message<int> {
+    var i:int = 0
+    while i smaller 5 {
+        emit i
+        i = i + 1
+    }
+}
+```
+
+### 28.1 Le type `message<T>`
+
+`message<T>` (voir aussi §6.2) est une étiquette de retour, **jamais un type de premier ordre** :
+
+- Valable **uniquement** comme type de retour déclaré d'une fonction/méthode qui contient elle-même au moins un `emit`. Une fonction qui déclare `message<T>` sans aucun `emit` atteignable dans son corps est rejetée à la compilation, de même qu'un `emit` dans une fonction dont le retour déclaré n'est pas `message<T>`.
+- **Jamais** un type de paramètre, quelle que soit la fonction/méthode/constructeur.
+- **Jamais nommable** : `var`/`scoped`/`consumed msg:message<int> = truc()` sont tous rejetés à la compilation. Un `message<T>` n'existe que comme résultat anonyme et immédiat d'un appel, consommé sur-le-champ (voir §28.2). Il ne peut donc jamais fuir, être réutilisé, passé en argument ailleurs, ni vivre au-delà d'une seule expression.
+- **Jamais transféré/forwardé** : une fonction ne peut pas se contenter de `return` le `message<T>` d'une autre fonction sans elle-même contenir un `emit`.
+
+### 28.2 Consommer un `message<T>`
+
+Trois façons de consommer la valeur d'un `message<T>`, selon le besoin :
+
+**1. `for` — itération complète, sans restriction**
+
+```ocara
+for x in compteur() {
+    IO::writeln(x)
+}
+```
+
+Fonctionne quel que soit le nombre d'`emit` traversés, y compris à l'intérieur d'une boucle du générateur — c'est la forme "naturelle" et la moins restrictive. Un `break` anticipé libère correctement le générateur.
+
+**2. Consommation scalaire directe — dans n'importe quelle position qui attend un `T`**
+
+```ocara
+function unique(): message<int> { emit 42 }
+var value:int = unique()             // affectation
+IO::writeln(unique())                // argument d'appel
+```
+
+Rejetée à la compilation **sauf preuve statique qu'au plus un seul `emit` est jamais atteint**. Règle précise : un `emit` atteignable à l'intérieur d'un corps de boucle (`while`/`for`) disqualifie la consommation scalaire directe ; le branchement simple (`if`/`elseif`/`else`, `switch`) reste autorisé tant que chaque chemin ne traverse qu'un seul `emit`.
+
+```ocara
+function choix(cond:bool): message<int> {
+    if cond { emit 1 } else { emit 2 }
+}
+var v:int = choix(true)   // ✅ OK — au plus un emit jamais atteint
+
+function boucle(): message<int> {
+    var i:int = 0
+    while i smaller 3 { emit i; i = i + 1 }
+}
+var w:int = boucle()      // ❌ rejeté — emit dans une boucle, utiliser `for` ou `Array::fromMessage`
+```
+
+**3. `Array::fromMessage(message<T>) → array<T>` — drainage complet, sans restriction**
+
+```ocara
+function entites(): message<Personne> {
+    emit use Personne("Jean", 30)
+    emit use Personne("Marie", 25)
+}
+var toutes:array<Personne> = Array::fromMessage(entites())
+```
+
+Draine tous les `emit` (exécute la machine à états jusqu'à épuisement) dans un `array<T>` neuf — aucune restriction sur le nombre d'`emit`, y compris à l'intérieur d'une boucle : c'est l'échappatoire pour le cas multi-émissions quand une itération `for` n'est pas adaptée.
+
+### 28.3 Interaction avec `try`/`raise`
+
+Un `emit` **à l'intérieur d'un `try`, dans le générateur lui-même** est pleinement pris en charge :
+
+```ocara
+function truc(): message<int> {
+    try {
+        emit 1
+        emit 2
+    } on e {
+        IO::writeln("erreur attrapée")
+        emit 99
+    }
+}
+```
+
+Le `try`/`on` est traité normalement : un `raise` déclenché à l'intérieur (qu'il soit écrit directement dans le générateur ou levé par une fonction qu'il appelle) est rattrapé par le `on` correspondant, l'imbrication de plusieurs `try` respecte l'ordre habituel (le plus interne rattrape en premier), et un filtre de classe (`on e is X`) qui ne correspond à rien se propage vers un `try` englobant, à l'extérieur du générateur, exactement comme pour un `try`/`raise` ordinaire.
+
+> **Limite connue et acceptée** : un `raise` déclenché par le code **consommateur** (pas le générateur lui-même) pendant qu'un `message<T>` est encore suspendu via `for` abandonne ce générateur sans nettoyage — fuite possible (jamais de corruption mémoire), même famille que la limite déjà acceptée pour un `scoped`/`consumed` traversé par un `raise` (voir §9). De même, un `return` anticipé (sans valeur — seul cas valable dans un générateur) exécuté pendant qu'un `for` le consomme fuit le frame suspendu (`break`, lui, est correctement nettoyé).
+
+---
+
+## 29. Gestion des erreurs
 
 ```ebnf
 TryStmt  ::= "try" Block OnClause+
@@ -3221,7 +3328,7 @@ OnClause ::= "on" Identifier ( "is" Identifier )? Block
 RaiseStmt ::= "raise" Expression
 ```
 
-### 28.1 `try` / `on`
+### 29.1 `try` / `on`
 
 Le bloc `try` exécute du code susceptible de lever une erreur. Chaque clause `on` définit un handler avec un **binding explicite** — le nom après `on` est la variable qui contiendra l'erreur capturée.
 
@@ -3233,7 +3340,7 @@ try {
 }
 ```
 
-### 28.2 Filtrage par classe (`is`)
+### 29.2 Filtrage par classe (`is`)
 
 La variante `on <binding> is <Classe>` filtre les erreurs par type. Plusieurs handlers peuvent être chaînés, du plus spécifique au plus général. Le premier handler dont le type correspond est exécuté.
 
@@ -3253,7 +3360,7 @@ try {
 >
 > **Hiérarchie réelle** : un filtre sur une classe **parente** attrape une instance d'une **sous-classe** — `on e is Parent` attrape une instance de `Enfant extends Parent`, transitivement (`extends` sur plusieurs niveaux fonctionne). Vrai aussi pour les ~20 classes d'exception builtin, qui héritent toutes implicitement de `Exception` : `on e is Exception` attrape n'importe laquelle d'entre elles (`FileException`, `SDLException`, ...), qu'elle soit levée par du code Ocara (`raise`) ou par le runtime lui-même (ex. `File::read` sur un fichier inexistant). Le type statiquement connu au moment du `raise` (littéral `use Classe(...)` **ou** variable dont la classe est connue) porte sa chaîne d'ancêtres complète ; un `raise` d'une expression dont le type n'est pas connu statiquement (`mixed`, valeur calculée...) reste, lui, seulement attrapable par un handler générique (`on e` sans `is`).
 
-### 28.3 `raise`
+### 29.3 `raise`
 
 `raise` lève une erreur. Il accepte n'importe quelle expression : chaîne, template string, ou instance d'une classe d'exception.
 
@@ -3265,7 +3372,7 @@ raise use IOException("Fichier introuvable", 404)
 
 > `raise` interrompt immédiatement l'exécution du bloc courant. En dehors d'un `on`, l'erreur remonte la pile d'appels.
 
-### 28.4 Classe d'exception
+### 29.4 Classe d'exception
 
 Une exception est une **classe ordinaire** — aucune interface ni classe de base requise. Par convention, les classes d'exception ont un champ `message:string`.
 
@@ -3289,7 +3396,7 @@ try {
 
 ---
 
-## 29. Résolution des noms
+## 30. Résolution des noms
 
 L'ordre de résolution strict est le suivant (priorité décroissante) :
 
@@ -3306,7 +3413,7 @@ Un import ne peut jamais écraser un symbole local existant.
 
 ---
 
-## 30. Grammaire EBNF complète
+## 31. Grammaire EBNF complète
 
 > Notation : `*` = zéro ou plus, `+` = un ou plus, `?` = optionnel, `|` = alternative, `( )` = groupement.
 
@@ -3385,6 +3492,7 @@ Type        ::= "int" | "float" | "string" | "bool" | "mixed" | "void"
               | FunctionType
               | ArrayType
               | MapType
+              | MessageType
               | GenericType
               | QualifiedType
               | UnionType
@@ -3392,6 +3500,7 @@ Type        ::= "int" | "float" | "string" | "bool" | "mixed" | "void"
 FunctionType  ::= "Function" "<" Type "(" ( Type ( "," Type )* )? ")" ">"
 ArrayType   ::= "array" "<" Type ">"
 MapType     ::= "map" "<" Type "," Type ">"
+MessageType ::= "message" "<" Type ">"
 GenericType ::= Identifier "<" TypeArgs ">"
 QualifiedType ::= Identifier ( "." Identifier )+
 UnionType   ::= Type ( "|" Type )+
@@ -3413,6 +3522,7 @@ Statement   ::= VarDecl
               | ContinueStmt
               | TryStmt
               | RaiseStmt
+              | EmitStmt
               | Expression
 
 VarDecl      ::= "var" Identifier ":" Type "=" Expression
@@ -3424,6 +3534,7 @@ ContinueStmt ::= "continue"
 TryStmt      ::= "try" Block OnClause+
 OnClause     ::= "on" Identifier ( "is" Identifier )? Block
 RaiseStmt     ::= "raise" Expression
+EmitStmt      ::= "emit" Expression
 
 (* ── Conditions ─────────────────────────────────────────────────── *)
 
