@@ -25,4 +25,4 @@ C'est une fonctionnalité de langage entièrement à construire, pas un correcti
 
 ## Fichiers clés (probables, à confirmer une fois la stratégie choisie)
 
-`src/parsing/` (lexer/parser, nouveau mot-clé + type), `src/parsing/ast.d/statements.rs` (nouveau `Stmt::Emit`), `src/parsing/ast.d/types.rs` (`Type::Iterable`), `src/sema/typecheck.rs` (type de retour d'une fonction contenant `emit`), `src/lower/` (stratégie de suspension choisie), `runtime/src/lib.rs`/`runtime/src/thread.rs` (si stratégie thread OS), `docs/EBNF.md` (nouvelle syntaxe).
+`src/parsing/` (lexer/parser, nouveau mot-clé + type), `src/parsing/ast.d/statements.rs` (nouveau `Stmt::Emit`), `src/parsing/ast.d/types.rs` (`Type::Iterable`), `src/sema/typecheck.rs` (type de retour d'une fonction contenant `emit`), `src/lower/` (stratégie de suspension choisie), `runtime/src/lib.rs`/`runtime/src/thread.rs` (si stratégie thread OS), `docs/EBNF.md` (nouvelle syntaxe), `docs/workflow-compilation` (Comprendre la mécanique et le workflow de compilation), `docs/adding-types` (Ajouter un nouveau type)

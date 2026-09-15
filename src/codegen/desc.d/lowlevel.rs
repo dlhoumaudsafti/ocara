@@ -52,6 +52,13 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__map_free_shallow",    params: &[clt::I64],                         returns: None,               module: None },
     BuiltinDesc { name: "__array_clone_shallow", params: &[clt::I64],                         returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__map_clone_shallow",   params: &[clt::I64],                         returns: Some(clt::I64),    module: None },
+    // Conteneur concret imbriqué sur 2+ niveaux (`array<array<int>>`...) —
+    // voir `crate::lower::stmt::ownership::concrete_elem_shape` : 2e/3e
+    // paramètre = string de "forme" + offset courant.
+    BuiltinDesc { name: "__array_free_concrete",  params: &[clt::I64, clt::I64, clt::I64], returns: None,            module: None },
+    BuiltinDesc { name: "__map_free_concrete",    params: &[clt::I64, clt::I64, clt::I64], returns: None,            module: None },
+    BuiltinDesc { name: "__array_clone_concrete", params: &[clt::I64, clt::I64, clt::I64], returns: Some(clt::I64), module: None },
+    BuiltinDesc { name: "__map_clone_concrete",   params: &[clt::I64, clt::I64, clt::I64], returns: Some(clt::I64), module: None },
 
     // ── Comparaisons avec vérification de type au runtime ─────────────────────
     // Utilisées uniquement quand sema n'a pas pu vérifier statiquement (au

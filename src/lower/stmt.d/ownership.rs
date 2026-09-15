@@ -62,14 +62,9 @@ pub fn maybe_clone_escaping(builder: &mut LowerBuilder, expr: &Expr, val: Value)
     }
     // Type non reconnu (SDL/Tauri/toute classe sans __clone_ généré) :
     // aucun clone à faire — aliasé tel quel, comportement `var` inchangé.
-    let Some(func) = clone_func_for(builder.module, &info) else { return val };
+    let Some(strategy) = clone_func_for(builder.module, &info) else { return val };
     let cloned = builder.new_value();
-    builder.emit(Inst::Call {
-        dest: Some(cloned.clone()),
-        func,
-        args: vec![val],
-        ret_ty: IrType::Ptr,
-    });
+    emit_ownership_call(builder, &strategy, val, Some(cloned.clone()), IrType::Ptr);
     cloned
 }
 
@@ -158,7 +153,52 @@ fn is_concrete_primitive_elem(ty: &Type) -> bool {
     matches!(ty, Type::Int | Type::Float | Type::Bool)
 }
 
-fn drop_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<String> {
+/// Calcule, pour un `array<T>`/`map<K,T>` dont l'élément `T` est lui-même un
+/// `array`/`map` (imbriqué à une profondeur arbitraire), la "forme" de ses
+/// ÉLÉMENTS : une séquence de caractères, un par niveau d'imbrication SOUS
+/// le niveau courant (`'A'` = array, `'M'` = map), une chaîne vide signifiant
+/// "élément terminal, un primitif concret sans mémoire propre". `None` si la
+/// forme n'est PAS entièrement concrète à tous les niveaux (un `string`/
+/// `mixed`/classe apparaît quelque part) — dans ce cas, le conteneur retombe
+/// sur le chemin générique existant (`__value_free`/`__value_clone`),
+/// correct pour un vrai pointeur heap à n'importe quel niveau.
+///
+/// Généralise `is_concrete_primitive_elem` (qui ne regardait qu'un seul
+/// niveau) à une profondeur arbitraire : `array<array<int>>`/`array<array<
+/// array<float>>>` retombaient auparavant sur le chemin générique dès le
+/// PREMIER niveau imbriqué, qui redevient dangereux un niveau plus loin —
+/// même bug que celui corrigé pour le niveau immédiat, seulement plus
+/// profond (voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md et
+/// `__array_free_concrete`/`__map_free_concrete` dans runtime/src/lib.rs).
+fn concrete_elem_shape(container_ty: &Type) -> Option<String> {
+    let elem_ty = match container_ty {
+        Type::Array(inner) => inner.as_ref(),
+        Type::Map(_, inner) => inner.as_ref(),
+        _ => return None,
+    };
+    serialize_concrete_shape(elem_ty)
+}
+
+fn serialize_concrete_shape(ty: &Type) -> Option<String> {
+    match ty {
+        Type::Int | Type::Float | Type::Bool => Some(String::new()),
+        Type::Array(inner) => serialize_concrete_shape(inner).map(|rest| format!("A{}", rest)),
+        Type::Map(_, inner) => serialize_concrete_shape(inner).map(|rest| format!("M{}", rest)),
+        _ => None,
+    }
+}
+
+/// Stratégie de libération/clonage choisie par `drop_func_for`/`clone_func_for`.
+enum OwnershipFunc {
+    /// Appel à un seul argument (`val`) — le cas historique.
+    Simple(String),
+    /// Conteneur concret imbriqué sur 2+ niveaux (voir `concrete_elem_shape`) :
+    /// appel à `(val, shape, 0)`, `shape` étant une string à interner dans le
+    /// module — voir `emit_ownership_call`.
+    ConcreteRecursive(String, String),
+}
+
+fn drop_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<OwnershipFunc> {
     match info.class {
         OwnershipClass::Value => match &info.ty {
             // `array`/`map` à élément primitif concret : jamais de pointeur
@@ -168,19 +208,33 @@ fn drop_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<String> {
             // floats:array<float> = [1.5, 2.5, 3.5]`, jamais échappé : le
             // bit pattern brut d'un `float` ressemble parfois à un pointeur
             // heap valide, `__value_free` par élément le déréférençait).
-            Type::Array(elem) if is_concrete_primitive_elem(elem) => Some("__array_free_shallow".to_string()),
-            Type::Map(_, elem) if is_concrete_primitive_elem(elem) => Some("__map_free_shallow".to_string()),
-            Type::String | Type::Array(_) | Type::Map(_, _) => Some("__value_free".to_string()),
+            Type::Array(elem) if is_concrete_primitive_elem(elem) =>
+                Some(OwnershipFunc::Simple("__array_free_shallow".to_string())),
+            Type::Map(_, elem) if is_concrete_primitive_elem(elem) =>
+                Some(OwnershipFunc::Simple("__map_free_shallow".to_string())),
+            // Élément lui-même array/map, à une profondeur arbitraire — voir
+            // `concrete_elem_shape`/`__array_free_concrete`.
+            Type::Array(_) => match concrete_elem_shape(&info.ty) {
+                Some(shape) => Some(OwnershipFunc::ConcreteRecursive("__array_free_concrete".to_string(), shape)),
+                None => Some(OwnershipFunc::Simple("__value_free".to_string())),
+            },
+            Type::Map(_, _) => match concrete_elem_shape(&info.ty) {
+                Some(shape) => Some(OwnershipFunc::ConcreteRecursive("__map_free_concrete".to_string(), shape)),
+                None => Some(OwnershipFunc::Simple("__value_free".to_string())),
+            },
+            Type::String => Some(OwnershipFunc::Simple("__value_free".to_string())),
             Type::Named(n) if class_ownership::has_generated_destructor(module, n) => {
-                Some(format!("__free_{}", n))
+                Some(OwnershipFunc::Simple(format!("__free_{}", n)))
             }
             _ => None,
         },
         OwnershipClass::Resource => match &info.ty {
-            Type::Named(n) if n == "Mutex"    => Some("Mutex_destroy".to_string()),
-            Type::Named(n) if n == "SQLite"   => Some("SQLite_close".to_string()),
-            Type::Named(n) if n == "MySQL"    => Some("MySQL_close".to_string()),
-            Type::Named(n) if n == "MariaDB"  => Some("MariaDB_close".to_string()),
+            Type::Named(n) if n == "Mutex"       => Some(OwnershipFunc::Simple("Mutex_destroy".to_string())),
+            Type::Named(n) if n == "SQLite"      => Some(OwnershipFunc::Simple("SQLite_close".to_string())),
+            Type::Named(n) if n == "MySQL"       => Some(OwnershipFunc::Simple("MySQL_close".to_string())),
+            Type::Named(n) if n == "MariaDB"     => Some(OwnershipFunc::Simple("MariaDB_close".to_string())),
+            Type::Named(n) if n == "HTTPRequest"  => Some(OwnershipFunc::Simple("HTTPRequest_close".to_string())),
+            Type::Named(n) if n == "HTTPResponse" => Some(OwnershipFunc::Simple("HTTPRequest_closeResponse".to_string())),
             _ => None,
         },
         OwnershipClass::Thread | OwnershipClass::Unsupported => None,
@@ -190,17 +244,47 @@ fn drop_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<String> {
 /// Comme `drop_func_for`, pour le clonage à l'échappement (voir
 /// `maybe_clone_escaping`) — uniquement pertinent pour `OwnershipClass::Value`
 /// (les ressources ne s'échappent jamais, refusé par la sema).
-fn clone_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<String> {
+fn clone_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<OwnershipFunc> {
     match &info.ty {
         // Voir `drop_func_for` : même raison de choisir la variante "shallow".
-        Type::Array(elem) if is_concrete_primitive_elem(elem) => Some("__array_clone_shallow".to_string()),
-        Type::Map(_, elem) if is_concrete_primitive_elem(elem) => Some("__map_clone_shallow".to_string()),
-        Type::String | Type::Array(_) | Type::Map(_, _) => Some("__value_clone".to_string()),
+        Type::Array(elem) if is_concrete_primitive_elem(elem) =>
+            Some(OwnershipFunc::Simple("__array_clone_shallow".to_string())),
+        Type::Map(_, elem) if is_concrete_primitive_elem(elem) =>
+            Some(OwnershipFunc::Simple("__map_clone_shallow".to_string())),
+        Type::Array(_) => match concrete_elem_shape(&info.ty) {
+            Some(shape) => Some(OwnershipFunc::ConcreteRecursive("__array_clone_concrete".to_string(), shape)),
+            None => Some(OwnershipFunc::Simple("__value_clone".to_string())),
+        },
+        Type::Map(_, _) => match concrete_elem_shape(&info.ty) {
+            Some(shape) => Some(OwnershipFunc::ConcreteRecursive("__map_clone_concrete".to_string(), shape)),
+            None => Some(OwnershipFunc::Simple("__value_clone".to_string())),
+        },
+        Type::String => Some(OwnershipFunc::Simple("__value_clone".to_string())),
         Type::Named(n) if class_ownership::has_generated_destructor(module, n) => {
-            Some(format!("__clone_{}", n))
+            Some(OwnershipFunc::Simple(format!("__clone_{}", n)))
         }
         _ => None,
     }
+}
+
+/// Émet l'appel de libération/clonage décrit par `strategy`, avec `val`
+/// comme premier argument — pour `ConcreteRecursive`, complète avec la
+/// string de forme (internée dans le module) et l'offset initial (0), voir
+/// `__array_free_concrete`/`__map_free_concrete`/`__array_clone_concrete`/
+/// `__map_clone_concrete` dans runtime/src/lib.rs.
+fn emit_ownership_call(builder: &mut LowerBuilder, strategy: &OwnershipFunc, val: Value, dest: Option<Value>, ret_ty: IrType) {
+    let (func, args) = match strategy {
+        OwnershipFunc::Simple(name) => (name.clone(), vec![val]),
+        OwnershipFunc::ConcreteRecursive(name, shape) => {
+            let idx = builder.module.intern_string(shape);
+            let shape_val = builder.new_value();
+            builder.emit(Inst::ConstStr { dest: shape_val.clone(), idx });
+            let offset_val = builder.new_value();
+            builder.emit(Inst::ConstInt { dest: offset_val.clone(), value: 0 });
+            (name.clone(), vec![val, shape_val, offset_val])
+        }
+    };
+    builder.emit(Inst::Call { dest, func, args, ret_ty });
 }
 
 /// Détruit `name` si elle est encore possédée (pas déjà détruite) — recharge
@@ -210,9 +294,9 @@ fn emit_drop_if_owned(builder: &mut LowerBuilder, name: &str) {
     if info.dropped {
         return;
     }
-    let Some(func) = drop_func_for(builder.module, &info) else { return };
+    let Some(strategy) = drop_func_for(builder.module, &info) else { return };
     let Some((val, _)) = builder.load_local(name) else { return };
-    builder.emit(Inst::Call { dest: None, func, args: vec![val], ret_ty: IrType::Void });
+    emit_ownership_call(builder, &strategy, val, None, IrType::Void);
     if let Some(entry) = builder.owned_locals.get_mut(name) {
         entry.dropped = true;
     }
@@ -233,9 +317,9 @@ pub fn free_before_reassign(builder: &mut LowerBuilder, name: &str) {
     if info.class != OwnershipClass::Value || info.dropped {
         return;
     }
-    let Some(func) = drop_func_for(builder.module, &info) else { return };
+    let Some(strategy) = drop_func_for(builder.module, &info) else { return };
     let Some((val, _)) = builder.load_local(name) else { return };
-    builder.emit(Inst::Call { dest: None, func, args: vec![val], ret_ty: IrType::Void });
+    emit_ownership_call(builder, &strategy, val, None, IrType::Void);
 }
 
 /// Détruit, dans l'ordre inverse de déclaration, toutes les `scoped`/

@@ -1,18 +1,24 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// ocara.HTTPRequest — classe builtin statique
+// ocara.HTTPRequest / ocara.HTTPResponse — classes builtin
 //
-// Toutes les méthodes sont statiques. Les handles `req` et `res` sont des
-// entiers opaques (pointeurs gérés par le runtime C).
+// Toutes les méthodes (des deux classes) sont déclarées statiques sur
+// `HTTPRequest` — `HTTPResponse` n'existe que comme type NOMMÉ opaque (voir
+// `response_class` plus bas), pour que `scoped`/`consumed res:HTTPResponse`
+// soit exprimable et que le handle soit reconnu comme une vraie ressource
+// (voir `OwnershipClass::Resource`, `src/sema/scope.rs`) — auparavant
+// `int`, ce qui rendait impossible de suivre sa fermeture obligatoire
+// (`close`/`closeResponse`, déjà présents côté runtime, jamais reliés au
+// système de possession). Voir docs/roadmap.d/memoire-double-free-et-fuites-scoped.md.
 //
 // ── Construction & configuration ────────────────────────────────────────────
-//   HTTPRequest::new(url)                 → int   crée une requête
+//   HTTPRequest::new(url)                 → HTTPRequest   crée une requête
 //   HTTPRequest::setMethod(req, method)  → void  "GET" | "POST" | "PUT" | …
 //   HTTPRequest::setHeader(req, k, v)    → void  ajoute un en-tête
 //   HTTPRequest::setBody(req, body)      → void  corps (JSON, form, …)
 //   HTTPRequest::setTimeout(req, ms)     → void  délai en millisecondes
 //
 // ── Exécution ────────────────────────────────────────────────────────────────
-//   HTTPRequest::send(req)                → int   envoie et retourne une réponse
+//   HTTPRequest::send(req)                → HTTPResponse   envoie et retourne une réponse
 //
 // ── Lecture de la réponse ────────────────────────────────────────────────────
 //   HTTPRequest::status(res)              → int            code HTTP (200, 404…)
@@ -24,11 +30,11 @@
 //   HTTPRequest::error(res)               → string         message d'erreur
 //
 // ── Raccourcis ───────────────────────────────────────────────────────────────
-//   HTTPRequest::get(url)                 → int
-//   HTTPRequest::post(url, body)          → int
-//   HTTPRequest::put(url, body)           → int
-//   HTTPRequest::delete(url)              → int
-//   HTTPRequest::patch(url, body)         → int
+//   HTTPRequest::get(url)                 → HTTPResponse
+//   HTTPRequest::post(url, body)          → HTTPResponse
+//   HTTPRequest::put(url, body)           → HTTPResponse
+//   HTTPRequest::delete(url)              → HTTPResponse
+//   HTTPRequest::patch(url, body)         → HTTPResponse
 //
 // Convention runtime : HTTPRequest_<method>
 // ─────────────────────────────────────────────────────────────────────────────
@@ -36,6 +42,9 @@
 use std::collections::HashMap;
 use crate::parsing::ast::Type;
 use crate::sema::symbols::{ClassInfo, FuncSig};
+
+fn req_ty() -> Type { Type::Named("HTTPRequest".to_string()) }
+fn res_ty() -> Type { Type::Named("HTTPResponse".to_string()) }
 
 fn m(params: Vec<(&str, Type)>, ret_ty: Type) -> FuncSig {
     let len = params.len();
@@ -55,130 +64,130 @@ pub fn class() -> ClassInfo {
 
     // ── Construction & configuration ─────────────────────────────────────────
 
-    // HTTPRequest::new(url) → int
+    // HTTPRequest::new(url) → HTTPRequest
     methods.insert("new".into(), m(
         vec![("url", Type::String)],
-        Type::Int,
+        req_ty(),
     ));
 
     // HTTPRequest::setMethod(req, method) → void
     methods.insert("setMethod".into(), m(
-        vec![("req", Type::Int), ("method", Type::String)],
+        vec![("req", req_ty()), ("method", Type::String)],
         Type::Void,
     ));
 
     // HTTPRequest::setHeader(req, name, value) → void
     methods.insert("setHeader".into(), m(
-        vec![("req", Type::Int), ("name", Type::String), ("value", Type::String)],
+        vec![("req", req_ty()), ("name", Type::String), ("value", Type::String)],
         Type::Void,
     ));
 
     // HTTPRequest::setBody(req, body) → void
     methods.insert("setBody".into(), m(
-        vec![("req", Type::Int), ("body", Type::String)],
+        vec![("req", req_ty()), ("body", Type::String)],
         Type::Void,
     ));
 
     // HTTPRequest::setTimeout(req, ms) → void
     methods.insert("setTimeout".into(), m(
-        vec![("req", Type::Int), ("ms", Type::Int)],
+        vec![("req", req_ty()), ("ms", Type::Int)],
         Type::Void,
     ));
 
     // ── Exécution ─────────────────────────────────────────────────────────────
 
-    // HTTPRequest::send(req) → int
+    // HTTPRequest::send(req) → HTTPResponse
     methods.insert("send".into(), m(
-        vec![("req", Type::Int)],
-        Type::Int,
+        vec![("req", req_ty())],
+        res_ty(),
     ));
 
     // ── Lecture de la réponse ─────────────────────────────────────────────────
 
     // HTTPRequest::status(res) → int
     methods.insert("status".into(), m(
-        vec![("res", Type::Int)],
+        vec![("res", res_ty())],
         Type::Int,
     ));
 
     // HTTPRequest::body(res) → string
     methods.insert("body".into(), m(
-        vec![("res", Type::Int)],
+        vec![("res", res_ty())],
         Type::String,
     ));
 
     // HTTPRequest::header(res, name) → string
     methods.insert("header".into(), m(
-        vec![("res", Type::Int), ("name", Type::String)],
+        vec![("res", res_ty()), ("name", Type::String)],
         Type::String,
     ));
 
     // HTTPRequest::headers(res) → map<string, string>
     methods.insert("headers".into(), m(
-        vec![("res", Type::Int)],
+        vec![("res", res_ty())],
         Type::Map(Box::new(Type::String), Box::new(Type::String)),
     ));
 
     // HTTPRequest::ok(res) → bool  (status >= 200 && < 300)
     methods.insert("ok".into(), m(
-        vec![("res", Type::Int)],
+        vec![("res", res_ty())],
         Type::Bool,
     ));
 
     // HTTPRequest::isError(res) → bool  (erreur réseau ou timeout)
     methods.insert("isError".into(), m(
-        vec![("res", Type::Int)],
+        vec![("res", res_ty())],
         Type::Bool,
     ));
 
     // HTTPRequest::error(res) → string  ("" si aucune erreur)
     methods.insert("error".into(), m(
-        vec![("res", Type::Int)],
+        vec![("res", res_ty())],
         Type::String,
     ));
 
     // ── Raccourcis ────────────────────────────────────────────────────────────
 
-    // HTTPRequest::get(url) → int
+    // HTTPRequest::get(url) → HTTPResponse
     methods.insert("get".into(), m(
         vec![("url", Type::String)],
-        Type::Int,
+        res_ty(),
     ));
 
-    // HTTPRequest::post(url, body) → int
+    // HTTPRequest::post(url, body) → HTTPResponse
     methods.insert("post".into(), m(
         vec![("url", Type::String), ("body", Type::String)],
-        Type::Int,
+        res_ty(),
     ));
 
-    // HTTPRequest::put(url, body) → int
+    // HTTPRequest::put(url, body) → HTTPResponse
     methods.insert("put".into(), m(
         vec![("url", Type::String), ("body", Type::String)],
-        Type::Int,
+        res_ty(),
     ));
 
-    // HTTPRequest::delete(url) → int
+    // HTTPRequest::delete(url) → HTTPResponse
     methods.insert("delete".into(), m(
         vec![("url", Type::String)],
-        Type::Int,
+        res_ty(),
     ));
 
-    // HTTPRequest::patch(url, body) → int
+    // HTTPRequest::patch(url, body) → HTTPResponse
     methods.insert("patch".into(), m(
         vec![("url", Type::String), ("body", Type::String)],
-        Type::Int,
+        res_ty(),
     ));
 
     // HTTPRequest::close(req) → void — libère un handle de `new` (Box::from_raw)
     methods.insert("close".into(), m(
-        vec![("req", Type::Int)],
+        vec![("req", req_ty())],
         Type::Void,
     ));
 
     // HTTPRequest::closeResponse(res) → void — libère un handle de `send`/
     // `get`/`post`/`put`/`delete`/`patch` (struct différente, fonction dédiée)
     methods.insert("closeResponse".into(), m(
-        vec![("res", Type::Int)],
+        vec![("res", res_ty())],
         Type::Void,
     ));
 
@@ -187,6 +196,23 @@ pub fn class() -> ClassInfo {
         implements:   vec![],
         fields:       HashMap::new(),
         methods,
+        class_consts: HashMap::new(),
+        is_opaque:    false,
+    }
+}
+
+/// `HTTPResponse` : type nommé opaque sans méthode propre — toutes les
+/// opérations sur une réponse restent des méthodes STATIQUES de
+/// `HTTPRequest` (`status(res)`, `body(res)`...), comme avant. Seul le NOM
+/// existe ici, pour que `scoped`/`consumed res:HTTPResponse` soit une
+/// annotation de type valide et que le handle soit reconnu comme une
+/// ressource (voir `ownership_class`, `src/sema/scope.rs`).
+pub fn response_class() -> ClassInfo {
+    ClassInfo {
+        extends:      None,
+        implements:   vec![],
+        fields:       HashMap::new(),
+        methods:      HashMap::new(),
         class_consts: HashMap::new(),
         is_opaque:    false,
     }

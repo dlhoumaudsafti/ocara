@@ -100,7 +100,7 @@ pub fn ownership_class(ty: &Type) -> OwnershipClass {
     match ty {
         Type::String | Type::Array(_) | Type::Map(_, _) => OwnershipClass::Value,
         Type::Named(n) => match n.as_str() {
-            "Mutex" | "SQLite" | "MySQL" | "MariaDB" => OwnershipClass::Resource,
+            "Mutex" | "SQLite" | "MySQL" | "MariaDB" | "HTTPRequest" | "HTTPResponse" => OwnershipClass::Resource,
             "Thread" => OwnershipClass::Thread,
             _ => OwnershipClass::Value,
         },

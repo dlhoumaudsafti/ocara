@@ -405,7 +405,14 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     }
 
                     let mut func_mangled = if let Some(ref cls) = class_name {
-                        format!("{}_{}", cls, field)
+                        // `HTTPResponse` n'a aucune méthode à elle : toutes
+                        // déclarées sur `HTTPRequest` (voir
+                        // `src/builtins/httprequest.rs` et la même
+                        // redirection côté sema, `typecheck.rs`) — sans
+                        // ceci, `res.status()` manglerait vers
+                        // `HTTPResponse_status`, qui n'existe pas.
+                        let mangle_cls = if cls == "HTTPResponse" { "HTTPRequest" } else { cls.as_str() };
+                        format!("{}_{}", mangle_cls, field)
                     } else {
                         format!("_method_{}", field) // fallback (ne devrait pas arriver)
                     };
@@ -510,6 +517,8 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                                 | (Some("SQLite"), "close")
                                 | (Some("MySQL"), "close")
                                 | (Some("MariaDB"), "close")
+                                | (Some("HTTPRequest"), "close")
+                                | (Some("HTTPResponse"), "closeResponse")
                         );
                         if is_manual_finalizer {
                             if let Some(info) = builder.owned_locals.get_mut(var_name.as_str()) {
@@ -891,10 +900,23 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             if is_void_builtin(&func_name) {
                 builder.emit(Inst::Call {
                     dest:   None,
-                    func:   func_name,
+                    func:   func_name.clone(),
                     args:   final_args,
                     ret_ty: IrType::Void,
                 });
+                // `HTTPRequest::close(req)`/`::closeResponse(res)` : même
+                // marquage que `m.destroy()`/`db.close()` (appel d'instance,
+                // voir plus haut) pour que la libération automatique de fin
+                // de bloc ne libère pas une seconde fois — mais l'argument
+                // est ici passé en ARGUMENT (appel statique), pas en
+                // receveur. Voir docs/roadmap.d/memoire-double-free-et-fuites-scoped.md.
+                if func_name == "HTTPRequest_close" || func_name == "HTTPRequest_closeResponse" {
+                    if let Some(Expr::Ident(var_name, _)) = args.first() {
+                        if let Some(info) = builder.owned_locals.get_mut(var_name.as_str()) {
+                            info.dropped = true;
+                        }
+                    }
+                }
                 // Les fonctions void ne retournent rien, donc on retourne une constante dummy
                 let dummy = builder.new_value();
                 builder.emit(Inst::ConstInt { dest: dummy.clone(), value: 0 });

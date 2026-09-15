@@ -30,6 +30,7 @@ import ocara.IO
 import ocara.Thread
 import ocara.Tauri
 import ocara.HTTPRequest
+import ocara.HTTPResponse
 import configs.Components
 import configs.Server
 import configs.Database
@@ -67,7 +68,7 @@ main {
     var serverReady:bool = false
     var attempts:int = 0
     while not serverReady {
-        scoped res:int = HTTPRequest::get("http://localhost:8080/health")
+        scoped res:HTTPResponse = HTTPRequest::get("http://localhost:8080/health")
         if HTTPRequest::ok(res) {
             serverReady = true
         } else {

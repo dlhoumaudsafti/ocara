@@ -83,7 +83,7 @@ fn main() {
     // Tout autre import doit pointer vers un fichier .oc existant.
     const OCARA_BUILTINS: &[&str] = &[
         "IO", "Math", "String", "Array", "Map", "JSON", "Tauri", "SDL",
-        "Convert", "System", "Regex", "HTTPRequest", "HTTPServer", "SQLite", "MySQL", "MariaDB", "DotEnv", "YAML", "Thread", "Mutex",
+        "Convert", "System", "Regex", "HTTPRequest", "HTTPResponse", "HTTPServer", "SQLite", "MySQL", "MariaDB", "DotEnv", "YAML", "Thread", "Mutex",
         "DateTime", "Date", "Time", "UnitTest", "HTMLComponent", "HTML",
         "File", "Directory", "Exception", "FileException", "DirectoryException", "IOException", "SystemException",
         "ArrayException", "MapException", "MathException", "ConvertException", "RegexException",

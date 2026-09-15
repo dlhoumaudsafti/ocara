@@ -557,6 +557,112 @@ pub extern "C" fn __map_clone_shallow(ptr: i64) -> i64 {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Variantes "concrete" (imbriquées sur 2+ niveaux) de free/clone — pour un
+// `array<T>`/`map<K,T>` CONCRET (jamais `mixed`) dont l'ÉLÉMENT est
+// lui-même un `array`/`map` (`array<array<int>>`, `map<string,array<float>>`,
+// à une profondeur arbitraire), plutôt qu'un primitif directement (couvert
+// par les variantes `_shallow` ci-dessus). Sans ceci, un tel conteneur
+// retombait sur le chemin générique `__value_free`/`__value_clone` dès le
+// premier niveau imbriqué — sûr pour CE niveau (un pointeur array/map réel
+// est toujours détecté correctement par tag), mais qui recreuse ensuite
+// dans les éléments de niveau ENCORE PLUS interne via `__value_free` par
+// élément, retombant sur exactement le même bug qu'`_shallow` corrige déjà
+// (un bit pattern `int`/`float`/`bool` brut peut ressembler à un pointeur
+// heap valide) — un cran plus profond seulement, donc jamais couvert par
+// `_shallow` seul. Voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md.
+//
+// `shape` (une string Ocara) + `offset` : voir
+// `crate::lower::stmt::ownership::concrete_elem_shape` côté compilateur, qui
+// calcule `shape` une seule fois à la compilation à partir du type AST
+// statique (jamais de dispatch par tag runtime sur un élément primitif brut,
+// à AUCUN niveau). `shape[offset]` décrit ce que sont les éléments de CE
+// niveau : `'A'` = array imbriquée, `'M'` = map imbriquée ; `offset` au bout
+// de la chaîne = élément terminal, un primitif concret (retombe sur la
+// variante `_shallow`, qui ne fait plus intervenir `shape` du tout).
+#[unsafe(no_mangle)]
+pub extern "C" fn __array_free_concrete(ptr: i64, shape: i64, offset: i64) {
+    if ptr == 0 { return; }
+    unsafe {
+        let bytes = ptr_to_str(shape).as_bytes();
+        if offset as usize >= bytes.len() {
+            __array_free_shallow(ptr);
+            return;
+        }
+        let elem_is_array = bytes[offset as usize] == b'A';
+        let arr = array_ref(ptr);
+        for &el in &arr.data {
+            if elem_is_array { __array_free_concrete(el, shape, offset + 1); }
+            else             { __map_free_concrete(el, shape, offset + 1); }
+        }
+        std::ptr::drop_in_place(arr as *mut OcaraArray);
+        let size = std::mem::size_of::<OcaraArray>();
+        let layout = Layout::from_size_align(8 + size, 8).unwrap();
+        dealloc((ptr - 8) as *mut u8, layout);
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_free_concrete(ptr: i64, shape: i64, offset: i64) {
+    if ptr == 0 { return; }
+    unsafe {
+        let bytes = ptr_to_str(shape).as_bytes();
+        if offset as usize >= bytes.len() {
+            __map_free_shallow(ptr);
+            return;
+        }
+        let elem_is_array = bytes[offset as usize] == b'A';
+        let m = map_ref(ptr);
+        for &(_, val) in &m.data {
+            if elem_is_array { __array_free_concrete(val, shape, offset + 1); }
+            else             { __map_free_concrete(val, shape, offset + 1); }
+        }
+        std::ptr::drop_in_place(m as *mut OcaraMap);
+        let size = std::mem::size_of::<OcaraMap>();
+        let layout = Layout::from_size_align(8 + size, 8).unwrap();
+        dealloc((ptr - 8) as *mut u8, layout);
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __array_clone_concrete(ptr: i64, shape: i64, offset: i64) -> i64 {
+    if ptr == 0 { return 0; }
+    unsafe {
+        let bytes = ptr_to_str(shape).as_bytes();
+        if offset as usize >= bytes.len() {
+            return __array_clone_shallow(ptr);
+        }
+        let elem_is_array = bytes[offset as usize] == b'A';
+        let cloned: Vec<i64> = array_ref(ptr).data.iter().map(|&el| {
+            if elem_is_array { __array_clone_concrete(el, shape, offset + 1) }
+            else             { __map_clone_concrete(el, shape, offset + 1) }
+        }).collect();
+        let new_ptr = new_array();
+        array_ref(new_ptr).data = cloned;
+        new_ptr
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_clone_concrete(ptr: i64, shape: i64, offset: i64) -> i64 {
+    if ptr == 0 { return 0; }
+    unsafe {
+        let bytes = ptr_to_str(shape).as_bytes();
+        if offset as usize >= bytes.len() {
+            return __map_clone_shallow(ptr);
+        }
+        let elem_is_array = bytes[offset as usize] == b'A';
+        let cloned: Vec<(String, i64)> = map_ref(ptr).data.iter().map(|(k, v)| {
+            let nv = if elem_is_array { __array_clone_concrete(*v, shape, offset + 1) }
+                     else              { __map_clone_concrete(*v, shape, offset + 1) };
+            (k.clone(), nv)
+        }).collect();
+        let new_ptr = new_map();
+        map_ref(new_ptr).data = cloned;
+        new_ptr
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // I/O de base — write / read
 // ─────────────────────────────────────────────────────────────────────────────
 

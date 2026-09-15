@@ -783,7 +783,16 @@ impl<'a> TypeChecker<'a> {
     ///   `Array::push(arr, x)`/`Map::set(m, k, v)` (builtins, jamais résolus
     ///   ici, donc jamais vérifiés) et tout appel dont le callee ne retient
     ///   pas son paramètre.
-    fn check_argument_escape(&mut self, args: &[Expr], resolved_key: Option<&str>) {
+    /// `allow_resource_use` : `true` UNIQUEMENT pour un appel dont TOUS les
+    /// paramètres ressource sont, par construction, seulement "utilisés en
+    /// place" (jamais retenus au-delà de l'appel) — cas de `HTTPRequest::*`,
+    /// dont toutes les méthodes sont STATIQUES avec le handle passé en
+    /// argument (`HTTPRequest::send(req)`), contrairement à `Mutex`/`SQLite`
+    /// (méthodes D'INSTANCE, `m.lock()` — jamais un "argument" au sens de
+    /// cette fonction, donc jamais concernées par ce carve-out). Sans cette
+    /// exception, l'usage normal de `HTTPRequest` serait rejeté à tort comme
+    /// un échappement — voir docs/roadmap.d/memoire-double-free-et-fuites-scoped.md.
+    fn check_argument_escape(&mut self, args: &[Expr], resolved_key: Option<&str>, allow_resource_use: bool) {
         for (i, arg) in args.iter().enumerate() {
             let Expr::Ident(name, use_span) = arg else { continue };
             let Some(b) = self.scopes.lookup(name) else { continue };
@@ -791,13 +800,14 @@ impl<'a> TypeChecker<'a> {
                 continue;
             }
             match ownership_class(&b.ty) {
-                OwnershipClass::Resource | OwnershipClass::Thread => {
+                OwnershipClass::Resource | OwnershipClass::Thread if !allow_resource_use => {
                     self.errors.push(SemaError::ResourceEscape {
                         name: name.clone(),
                         class_name: type_name(&b.ty),
                         span: use_span.clone(),
                     });
                 }
+                OwnershipClass::Resource | OwnershipClass::Thread => {}
                 OwnershipClass::Value => {
                     if let Some(key) = resolved_key {
                         let escapes = self.escaping_params.get(key)
@@ -986,7 +996,7 @@ impl<'a> TypeChecker<'a> {
                         } else {
                             None
                         };
-                        self.check_argument_escape(args, resolved_key);
+                        self.check_argument_escape(args, resolved_key, false);
                         for arg in args { self.infer_expr(arg); }
                         return ret;
                     }
@@ -1070,6 +1080,7 @@ impl<'a> TypeChecker<'a> {
                     let manual_finalizer = matches!(
                         (cls_name.as_str(), field.as_str()),
                         ("Mutex", "destroy") | ("SQLite", "close") | ("MySQL", "close") | ("MariaDB", "close")
+                            | ("HTTPRequest", "close") | ("HTTPResponse", "closeResponse")
                     );
                     if manual_finalizer {
                         if let Expr::Ident(recv_name, _) = object.as_ref() {
@@ -1089,25 +1100,50 @@ impl<'a> TypeChecker<'a> {
                             for a in args { self.infer_expr(a); }
                             return Type::Mixed;
                         }
-                        if let Some(sig) = self.symbols.lookup_method_in_chain(&cls_name, field) {
+                        // `HTTPResponse` n'a aucune méthode À ELLE : toutes
+                        // les opérations sur une réponse (`status`/`body`/...)
+                        // restent déclarées sur `HTTPRequest` (voir
+                        // `src/builtins/httprequest.rs`) — chercher la
+                        // méthode là plutôt que sur `HTTPResponse` lui-même,
+                        // pour que `res.status()` (sucre d'instance)
+                        // fonctionne malgré cette asymétrie. Sans garde-fou
+                        // supplémentaire, ça permettrait aussi `res.send()`/
+                        // `req.status()` (les deux existent bien sur
+                        // `HTTPRequest`, mais avec un PREMIER PARAMÈTRE de
+                        // l'autre type — confondre les deux passerait le
+                        // mauvais pointeur à la fonction runtime, UB) : la
+                        // liste ci-dessous distingue les méthodes "côté req"
+                        // des méthodes "côté res", même check que
+                        // `is_compatible` un peu plus bas pour JSON.
+                        const HTTP_REQUEST_METHODS: &[&str] = &["setMethod", "setHeader", "setBody", "setTimeout", "send", "close"];
+                        const HTTP_RESPONSE_METHODS: &[&str] = &["status", "body", "header", "headers", "ok", "isError", "error", "closeResponse"];
+                        let http_receiver_ok = match cls_name.as_str() {
+                            "HTTPRequest"  => HTTP_REQUEST_METHODS.contains(&field.as_str()),
+                            "HTTPResponse" => HTTP_RESPONSE_METHODS.contains(&field.as_str()),
+                            _ => true,
+                        };
+                        let method_owner: &str = if cls_name == "HTTPResponse" { "HTTPRequest" } else { cls_name.as_str() };
+                        if let Some(sig) = self.symbols.lookup_method_in_chain(method_owner, field).filter(|_| http_receiver_ok) {
                             // Une méthode static ne peut pas être appelée sur une instance
-                            // SAUF pour les classes String, Array, Map et JSON : les méthodes sont statiques mais utilisables
-                            // comme méthodes d'instance sur les variables (ex: a.trim(), arr.len(), m.size(), data.encode())
-                            if sig.is_static && cls_name != "String" && cls_name != "Array" && cls_name != "Map" && cls_name != "JSON" {
+                            // SAUF pour ces classes : les méthodes sont statiques mais utilisables
+                            // comme méthodes d'instance sur les variables (ex: a.trim(), arr.len(), m.size(), data.encode(), req.close(), res.status()).
+                            let allows_instance_sugar = matches!(cls_name.as_str(), "String" | "Array" | "Map" | "JSON" | "HTTPRequest" | "HTTPResponse");
+                            if sig.is_static && !allows_instance_sugar {
                                 self.errors.push(SemaError::StaticOnInstance {
                                     class:  cls_name.clone(),
                                     method: field.clone(),
                                     span:   fspan.clone(),
                                 });
                             }
-                            
-                            // Pour String, Array, Map et JSON, ajuster le comptage des arguments :
+
+                            // Pour ces classes, ajuster le comptage des arguments :
                             // String::trim(s) a 1 paramètre, mais a.trim() n'en fournit 0
                             // Array::len(arr) a 1 paramètre, mais arr.len() n'en fournit 0
                             // Map::size(m) a 1 paramètre, mais m.size() n'en fournit 0
                             // JSON::encode(data) a 1 paramètre, mais data.encode() n'en fournit 0
+                            // HTTPRequest::close(req) a 1 paramètre, mais req.close() n'en fournit 0
                             // car l'objet sera automatiquement passé comme premier argument
-                            let (expected_min, expected_max) = if (cls_name == "String" || cls_name == "Array" || cls_name == "Map" || cls_name == "JSON") && sig.is_static {
+                            let (expected_min, expected_max) = if allows_instance_sugar && sig.is_static {
                                 // Accepter N-1 arguments (le self est ajouté automatiquement)
                                 let min = if sig.required_params_count > 0 {
                                     sig.required_params_count - 1
@@ -1146,7 +1182,7 @@ impl<'a> TypeChecker<'a> {
                             }
                             let ret = sig.ret_ty.clone();
                             let resolved_key = crate::sema::escape::resolve_user_callable(&self.class_members, &cls_name, field);
-                            self.check_argument_escape(args, resolved_key.as_deref());
+                            self.check_argument_escape(args, resolved_key.as_deref(), false);
                             for arg in args { self.infer_expr(arg); }
                             return ret;
                         }
@@ -1272,8 +1308,27 @@ impl<'a> TypeChecker<'a> {
                         });
                     }
                     let resolved_key = crate::sema::escape::resolve_user_callable(&self.class_members, &resolved_class, method);
-                    self.check_argument_escape(args, resolved_key.as_deref());
+                    self.check_argument_escape(args, resolved_key.as_deref(), resolved_class == "HTTPRequest");
                     for arg in args { self.infer_expr(arg); }
+                    // `HTTPRequest::close(req)`/`::closeResponse(res)` — même
+                    // mécanisme que `m.destroy()`/`db.close()` ci-dessus
+                    // (E25), mais l'argument est ici passé en ARGUMENT
+                    // (appel statique), pas en receveur d'un appel d'instance
+                    // — voir docs/roadmap.d/memoire-double-free-et-fuites-scoped.md.
+                    let manual_finalizer_arg = match (resolved_class.as_str(), method.as_str()) {
+                        ("HTTPRequest", "close") | ("HTTPRequest", "closeResponse") => args.first(),
+                        _ => None,
+                    };
+                    if let Some(Expr::Ident(recv_name, _)) = manual_finalizer_arg {
+                        if self.scopes.mark_resource_finalized(recv_name) {
+                            self.errors.push(SemaError::ResourceAlreadyFinalized {
+                                name: recv_name.clone(),
+                                class_name: if method == "close" { "HTTPRequest".to_string() } else { "HTTPResponse".to_string() },
+                                method: method.clone(),
+                                span: span.clone(),
+                            });
+                        }
+                    }
                     return ret;
                 }
                 for arg in args { self.infer_expr(arg); }
@@ -1363,7 +1418,7 @@ impl<'a> TypeChecker<'a> {
                 }
 
                 let resolved_key = crate::sema::escape::resolve_user_callable(&self.class_members, class, "init");
-                self.check_argument_escape(args, resolved_key.as_deref());
+                self.check_argument_escape(args, resolved_key.as_deref(), false);
                 for arg in args { self.infer_expr(arg); }
 
                 // Si c'est un générique avec type_args, retourner Type::Generic

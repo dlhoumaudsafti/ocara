@@ -9,6 +9,7 @@
 import ocara.IO
 import ocara.Math
 import ocara.Mutex
+import ocara.HTTPRequest
 
 function main(): int {
     // Warning 1 — variable déclarée mais jamais utilisée
@@ -75,10 +76,20 @@ function main(): int {
     leaked.lock()
     leaked.unlock()
 
+    // Erreur 12 — ressource déjà finalisée manuellement (E25), pour
+    // HTTPRequest cette fois — via la syntaxe d'instance (sucre statique).
+    scoped req: HTTPRequest = HTTPRequest::new("http://example.com")
+    req.close()
+    req.close()
+
+    // Erreur 13 — fuite d'un handle natif HTTPRequest déclaré en `var` (E28).
+    var leakedReq: HTTPRequest = HTTPRequest::new("http://example.com")
+    leakedReq.setMethod("GET")
+
     return 0
 }
 
-// Erreur 12 — champ de classe d'un type ressource (E29) : jamais fermé par
+// Erreur 14 — champ de classe d'un type ressource (E29) : jamais fermé par
 // `__free_LeakyCache`, quelle que soit la façon dont une instance est gérée.
 class LeakyCache {
     private property lock: Mutex

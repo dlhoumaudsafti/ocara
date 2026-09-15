@@ -27,31 +27,13 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 ---
 
-## Priorité Basse
-
-### Builtins
-
-- **`HTTPRequest`/`HTTPResponse` non typables `scoped`/`consumed`** (simples `int` aujourd'hui) — nécessiterait d'en faire un vrai type. *(Structurel)* → [détails](roadmap.d/memoire-double-free-et-fuites-scoped.md)
-
-### Runtime bas niveau (mineur, non confirmé en pratique)
-
-- **Libération/clonage "shallow" d'un conteneur imbriqué à deux niveaux** (`array<array<int>>`) reste sur le chemin récursif générique au niveau externe. *(Dangereuse)* → [détails](roadmap.d/memoire-fiabilite-runtime-bas-niveau.md)
-
-### Build & portabilité
-
-- **Vérifier le round-trip complet "zéro `.a` → binaire fonctionnel"** en une seule commande — tentative abandonnée après plus d'une heure sans sortie visible (recompilation vendored OpenSSL/SQLite, ou blocage — indiscernable sans progression affichée). *(Légère — vérification, prévoir un budget de temps important et un moyen de surveiller la progression réelle)* → [détails](roadmap.d/packaging-build-cargo.md)
-
-### Qualité / CI
-
-- **Vraie infrastructure CI pour MySQL** (service dans un futur pipeline CI, aucun aujourd'hui). *(Légère — pour plus tard)* → [détails](roadmap.d/qualite-couverture-tests.md)
-
----
-
 ## Priorité Très Basse
 
 Pas important du tout pour le moment — portage/intégration massifs, aucune urgence.
 
+- **Vraie infrastructure CI pour MySQL** (service dans un futur pipeline CI, aucun aujourd'hui). *(Légère — pour plus tard)* → [détails](roadmap.d/qualite-couverture-tests.md)
 - **Finaliser l'intégration Tauri** (aujourd'hui simulation en mémoire pour `listen`/`emit`/`dialog`/`notify`). *(Massive)* → [détails](roadmap.d/builtins-tauri.md)
+- **Vérifier le round-trip complet "zéro `.a` → binaire fonctionnel"** en une seule commande — tentative abandonnée après plus d'une heure sans sortie visible (recompilation vendored OpenSSL/SQLite, ou blocage — indiscernable sans progression affichée). *(Légère — vérification, prévoir un budget de temps important et un moyen de surveiller la progression réelle)* → [détails](roadmap.d/packaging-build-cargo.md)
 - **Étudier un vrai support Windows** pour la compilation du compilateur lui-même. *(Massive)* → [détails](roadmap.d/packaging-windows.md)
 - **Étudier un vrai support Android** pour la compilation du compilateur lui-même. *(Massive)* → [détails](roadmap.d/packaging-android.md)
 

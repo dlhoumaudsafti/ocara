@@ -2,10 +2,11 @@
 
 Classe builtin `ocara.HTTPRequest` — requêtes HTTP/HTTPS avec gestion des en-têtes, codes de statut et corps de réponse.
 
-Toutes les méthodes sont **statiques**. Les handles `req` et `res` sont des valeurs opaques de type `int` gérées par le runtime.
+Toutes les méthodes sont déclarées **statiques**, mais utilisables aussi en **syntaxe d'instance** (`req.send()`, `res.status()`...) — les deux formes appellent exactement la même fonction. `req`/`res` sont des types nommés RÉELS (`HTTPRequest`/`HTTPResponse`), pas de simples `int` : ils peuvent être déclarés `scoped`/`consumed` et sont alors fermés automatiquement en fin de bloc (voir [Libération](#libération) plus bas).
 
 ```ocara
 import ocara.HTTPRequest
+import ocara.HTTPResponse
 // ou
 import ocara.*
 ```
@@ -14,101 +15,101 @@ import ocara.*
 
 ## Construction & configuration
 
-### `HTTPRequest::new(url: string) → int`
-Crée une nouvelle requête HTTP vers `url`. Retourne un handle de requête.  
+### `HTTPRequest::new(url: string) → HTTPRequest`
+Crée une nouvelle requête HTTP vers `url`. Retourne un handle de requête.
 Méthode par défaut : `GET`.
 
 ```ocara
-scoped req:int = HTTPRequest::new("https://api.example.com/resource")
+scoped req:HTTPRequest = HTTPRequest::new("https://api.example.com/resource")
 ```
 
-### `HTTPRequest::setMethod(req: int, method: string) → void`
+### `HTTPRequest::setMethod(req: HTTPRequest, method: string) → void`
 Définit la méthode HTTP : `"GET"`, `"POST"`, `"PUT"`, `"DELETE"`, `"PATCH"`, `"HEAD"`, `"OPTIONS"`.
 
 ```ocara
-HTTPRequest::setMethod(req, "POST")
+req.setMethod("POST")
 ```
 
-### `HTTPRequest::setHeader(req: int, name: string, value: string) → void`
+### `HTTPRequest::setHeader(req: HTTPRequest, name: string, value: string) → void`
 Ajoute ou remplace un en-tête de requête.
 
 ```ocara
-HTTPRequest::setHeader(req, "Content-Type", "application/json")
-HTTPRequest::setHeader(req, "Authorization", "Bearer token")
+req.setHeader("Content-Type", "application/json")
+req.setHeader("Authorization", "Bearer token")
 ```
 
-### `HTTPRequest::setBody(req: int, body: string) → void`
+### `HTTPRequest::setBody(req: HTTPRequest, body: string) → void`
 Définit le corps de la requête (JSON, form-data, texte brut…).
 
 ```ocara
-HTTPRequest::setBody(req, "{\"key\": \"value\"}")
+req.setBody("{\"key\": \"value\"}")
 ```
 
-### `HTTPRequest::setTimeout(req: int, ms: int) → void`
+### `HTTPRequest::setTimeout(req: HTTPRequest, ms: int) → void`
 Délai maximum en millisecondes avant abandon de la connexion.
 
 ```ocara
-HTTPRequest::setTimeout(req, 5000)  // 5 secondes
+req.setTimeout(5000)  // 5 secondes
 ```
 
 ---
 
 ## Exécution
 
-### `HTTPRequest::send(req: int) → int`
+### `HTTPRequest::send(req: HTTPRequest) → HTTPResponse`
 Envoie la requête et retourne un handle de réponse. Bloquant.
 
 ```ocara
-scoped res:int = HTTPRequest::send(req)
+scoped res:HTTPResponse = req.send()
 ```
 
 ---
 
 ## Lecture de la réponse
 
-### `HTTPRequest::status(res: int) → int`
+### `HTTPRequest::status(res: HTTPResponse) → int`
 Code de statut HTTP (`200`, `201`, `404`, `500`…).
 
-### `HTTPRequest::body(res: int) → string`
+### `HTTPRequest::body(res: HTTPResponse) → string`
 Corps brut de la réponse (JSON, HTML, texte…).
 
-### `HTTPRequest::header(res: int, name: string) → string`
+### `HTTPRequest::header(res: HTTPResponse, name: string) → string`
 Valeur d'un en-tête de réponse. Retourne `""` si absent.
 
 ```ocara
-scoped ct:string = HTTPRequest::header(res, "Content-Type")
+scoped ct:string = res.header("Content-Type")
 ```
 
-### `HTTPRequest::headers(res: int) → map<string, string>`
+### `HTTPRequest::headers(res: HTTPResponse) → map<string, string>`
 Tous les en-têtes de réponse sous forme de map.
 
-### `HTTPRequest::ok(res: int) → bool`
+### `HTTPRequest::ok(res: HTTPResponse) → bool`
 `true` si le code de statut est entre `200` et `299` inclus.
 
-### `HTTPRequest::isError(res: int) → bool`
+### `HTTPRequest::isError(res: HTTPResponse) → bool`
 `true` si une erreur réseau ou un timeout s'est produit (indépendamment du code HTTP).
 
-### `HTTPRequest::error(res: int) → string`
+### `HTTPRequest::error(res: HTTPResponse) → string`
 Message d'erreur réseau. Retourne `""` si la connexion a réussi.
 
 ---
 
 ## Raccourcis
 
-Ces méthodes créent, configurent et envoient la requête en une seule étape.
+Ces méthodes créent, configurent et envoient la requête en une seule étape — statiques uniquement (pas de receveur avant l'envoi).
 
 | Méthode | Signature | Description |
 |---|---|---|
-| `get` | `(url: string) → int` | Requête GET |
-| `post` | `(url: string, body: string) → int` | Requête POST |
-| `put` | `(url: string, body: string) → int` | Requête PUT |
-| `delete` | `(url: string) → int` | Requête DELETE |
-| `patch` | `(url: string, body: string) → int` | Requête PATCH |
+| `get` | `(url: string) → HTTPResponse` | Requête GET |
+| `post` | `(url: string, body: string) → HTTPResponse` | Requête POST |
+| `put` | `(url: string, body: string) → HTTPResponse` | Requête PUT |
+| `delete` | `(url: string) → HTTPResponse` | Requête DELETE |
+| `patch` | `(url: string, body: string) → HTTPResponse` | Requête PATCH |
 
 ```ocara
-scoped res:int = HTTPRequest::get("https://api.example.com/users")
-scoped res:int = HTTPRequest::post("https://api.example.com/users", "{\"name\":\"Alice\"}")
-scoped res:int = HTTPRequest::delete("https://api.example.com/users/42")
+scoped res:HTTPResponse = HTTPRequest::get("https://api.example.com/users")
+scoped res2:HTTPResponse = HTTPRequest::post("https://api.example.com/users", "{\"name\":\"Alice\"}")
+scoped res3:HTTPResponse = HTTPRequest::delete("https://api.example.com/users/42")
 ```
 
 ---
@@ -116,30 +117,32 @@ scoped res:int = HTTPRequest::delete("https://api.example.com/users/42")
 ## Libération
 
 Chaque `req` (créé par `new`) et chaque `res` (créé par `send`/`get`/`post`/`put`/
-`delete`/`patch`) occupe une petite allocation native qui **n'est jamais
-libérée automatiquement** — ce runtime n'a pas de ramasse-miettes. Un
-programme qui fait beaucoup de requêtes (boucle, serveur de longue durée...)
-doit libérer chaque handle explicitement après sa dernière utilisation.
+`delete`/`patch`) possède un handle natif — ce runtime n'a pas de ramasse-miettes.
 
-### `HTTPRequest::close(req: int) → void`
-Libère un handle de requête créé par `new`.
+- **`scoped`/`consumed`** : fermé **automatiquement** en fin de bloc si jamais fermé manuellement avant (comme `Mutex`/`SQLite`) — c'est la façon recommandée de les déclarer.
+- **`var`/`const`** : jamais fermé automatiquement ; s'il est prouvé qu'il ne s'échappe jamais et n'est jamais fermé manuellement, le compilateur **rejette** la déclaration (fuite de handle natif garantie — voir diagnostic E28).
 
-### `HTTPRequest::closeResponse(res: int) → void`
-Libère un handle de réponse créé par `send`/`get`/`post`/`put`/`delete`/`patch`.
-Deux fonctions distinctes car `req` et `res` sont deux structures différentes.
+### `HTTPRequest::close(req: HTTPRequest) → void`
+Ferme un handle de requête créé par `new`. Un second appel sur le même handle est rejeté à la compilation (E25).
+
+### `HTTPRequest::closeResponse(res: HTTPResponse) → void`
+Ferme un handle de réponse créé par `send`/`get`/`post`/`put`/`delete`/`patch`.
+Deux fonctions distinctes car `req` et `res` sont deux structures natives différentes.
 
 ```ocara
-scoped req:int = HTTPRequest::new("https://api.example.com/resource")
-HTTPRequest::setMethod(req, "POST")
-scoped res:int = HTTPRequest::send(req)
-IO::writeln(HTTPRequest::body(res))
-HTTPRequest::close(req)
-HTTPRequest::closeResponse(res)
+scoped req:HTTPRequest = HTTPRequest::new("https://api.example.com/resource")
+req.setMethod("POST")
+scoped res:HTTPResponse = req.send()
+IO::writeln(res.body())
+req.close()
+res.closeResponse()
 ```
 
 > **Attention** : comme pour `SQLite::close()`, tout appel sur un handle après
 > sa fermeture est un comportement non défini (mémoire déjà libérée) — fermer
-> uniquement après la dernière lecture.
+> uniquement après la dernière lecture. Une fermeture manuelle suivie d'une
+> seconde fermeture (manuelle ou automatique en fin de `scoped`) est détectée
+> à la compilation, pas besoin de s'en soucier soi-même une fois fermé.
 
 ---
 
@@ -148,60 +151,64 @@ HTTPRequest::closeResponse(res)
 ### GET simple
 ```ocara
 import ocara.HTTPRequest
+import ocara.HTTPResponse
 import ocara.IO
 
-scoped res:int = HTTPRequest::get("https://api.example.com/users")
+scoped res:HTTPResponse = HTTPRequest::get("https://api.example.com/users")
 
-if HTTPRequest::ok(res) {
-    IO::writeln(HTTPRequest::body(res))
+if res.ok() {
+    IO::writeln(res.body())
 } else {
-    IO::writeln(`Erreur HTTP ${HTTPRequest::status(res)}`)
+    IO::writeln(`Erreur HTTP ${res.status()}`)
 }
 ```
 
 ### POST JSON avec en-têtes
 ```ocara
 import ocara.HTTPRequest
+import ocara.HTTPResponse
 import ocara.IO
 
-scoped req:int = HTTPRequest::new("https://api.example.com/users")
-HTTPRequest::setMethod(req, "POST")
-HTTPRequest::setHeader(req, "Content-Type", "application/json")
-HTTPRequest::setHeader(req, "Authorization", "Bearer mon-token")
-HTTPRequest::setBody(req, "{\"name\": \"Alice\", \"age\": 30}")
-HTTPRequest::setTimeout(req, 10000)
+scoped req:HTTPRequest = HTTPRequest::new("https://api.example.com/users")
+req.setMethod("POST")
+req.setHeader("Content-Type", "application/json")
+req.setHeader("Authorization", "Bearer mon-token")
+req.setBody("{\"name\": \"Alice\", \"age\": 30}")
+req.setTimeout(10000)
 
-scoped res:int = HTTPRequest::send(req)
+scoped res:HTTPResponse = req.send()
 
-IO::writeln(`Status : ${HTTPRequest::status(res)}`)
-IO::writeln(HTTPRequest::body(res))
+IO::writeln(`Status : ${res.status()}`)
+IO::writeln(res.body())
 ```
 
 ### Gestion d'erreur réseau
 ```ocara
 import ocara.HTTPRequest
+import ocara.HTTPResponse
 import ocara.IO
 
-scoped res:int = HTTPRequest::get("https://hote-inexistant.local/api")
+scoped res:HTTPResponse = HTTPRequest::get("https://hote-inexistant.local/api")
 
-if HTTPRequest::isError(res) {
-    IO::writeln(`Erreur réseau : ${HTTPRequest::error(res)}`)
+if res.isError() {
+    IO::writeln(`Erreur réseau : ${res.error()}`)
 } else {
-    IO::writeln(`Status : ${HTTPRequest::status(res)}`)
-    IO::writeln(HTTPRequest::body(res))
+    IO::writeln(`Status : ${res.status()}`)
+    IO::writeln(res.body())
 }
 ```
 
 ### Lecture des en-têtes de réponse
 ```ocara
 import ocara.HTTPRequest
+import ocara.HTTPResponse
 import ocara.IO
 
-scoped res:int = HTTPRequest::get("https://api.example.com/info")
-scoped hdrs:map<string, string> = HTTPRequest::headers(res)
+scoped res:HTTPResponse = HTTPRequest::get("https://api.example.com/info")
+scoped hdrs:map<string, string> = res.headers()
 
-IO::writeln(`Content-Type : ${HTTPRequest::header(res, "Content-Type")}`)
-IO::writeln(`X-RateLimit-Remaining : ${HTTPRequest::header(res, "X-RateLimit-Remaining")}`)
+IO::writeln(`Content-Type : ${res.header("Content-Type")}`)
+IO::writeln(`X-RateLimit-Remaining : ${res.header("X-RateLimit-Remaining")}`)
 ```
 
 ---
@@ -226,31 +233,32 @@ IO::writeln(`X-RateLimit-Remaining : ${HTTPRequest::header(res, "X-RateLimit-Rem
 
 ## Symboles runtime
 
-| Méthode Ocara | Symbole C runtime |
-|---|---|
-| `new` | `HTTPRequest_new` |
-| `setMethod` | `HTTPRequest_setMethod` |
-| `setHeader` | `HTTPRequest_setHeader` |
-| `setBody` | `HTTPRequest_setBody` |
-| `setTimeout` | `HTTPRequest_setTimeout` |
-| `send` | `HTTPRequest_send` |
-| `status` | `HTTPRequest_status` |
-| `body` | `HTTPRequest_body` |
-| `header` | `HTTPRequest_header` |
-| `headers` | `HTTPRequest_headers` |
-| `ok` | `HTTPRequest_ok` |
-| `isError` | `HTTPRequest_isError` |
-| `error` | `HTTPRequest_error` |
-| `get` | `HTTPRequest_get` |
-| `post` | `HTTPRequest_post` |
-| `put` | `HTTPRequest_put` |
-| `delete` | `HTTPRequest_delete` |
-| `patch` | `HTTPRequest_patch` |
-| `close` | `HTTPRequest_close` |
-| `closeResponse` | `HTTPRequest_closeResponse` |
+| Méthode Ocara | Symbole C runtime | Receveur (syntaxe d'instance) |
+|---|---|---|
+| `new` | `HTTPRequest_new` | — (statique uniquement) |
+| `setMethod` | `HTTPRequest_setMethod` | `HTTPRequest` |
+| `setHeader` | `HTTPRequest_setHeader` | `HTTPRequest` |
+| `setBody` | `HTTPRequest_setBody` | `HTTPRequest` |
+| `setTimeout` | `HTTPRequest_setTimeout` | `HTTPRequest` |
+| `send` | `HTTPRequest_send` | `HTTPRequest` |
+| `status` | `HTTPRequest_status` | `HTTPResponse` |
+| `body` | `HTTPRequest_body` | `HTTPResponse` |
+| `header` | `HTTPRequest_header` | `HTTPResponse` |
+| `headers` | `HTTPRequest_headers` | `HTTPResponse` |
+| `ok` | `HTTPRequest_ok` | `HTTPResponse` |
+| `isError` | `HTTPRequest_isError` | `HTTPResponse` |
+| `error` | `HTTPRequest_error` | `HTTPResponse` |
+| `get` | `HTTPRequest_get` | — (statique uniquement) |
+| `post` | `HTTPRequest_post` | — (statique uniquement) |
+| `put` | `HTTPRequest_put` | — (statique uniquement) |
+| `delete` | `HTTPRequest_delete` | — (statique uniquement) |
+| `patch` | `HTTPRequest_patch` | — (statique uniquement) |
+| `close` | `HTTPRequest_close` | `HTTPRequest` |
+| `closeResponse` | `HTTPRequest_closeResponse` | `HTTPResponse` |
 
+> `HTTPResponse` est un type nommé opaque sans méthode propre : toutes les méthodes ci-dessus restent déclarées sur `HTTPRequest` — la colonne "Receveur" indique seulement quel type peut les appeler en syntaxe d'instance (`res.status()` cherche `status` du côté `HTTPRequest` pour le compte de `HTTPResponse`, mais `res.send()`/`req.status()` — mélanger les deux — sont rejetés à la compilation).
 
 ## Voir aussi
 
-- [examples/builtins/http.oc](../../examples/builtins/http.oc) — exemple complet exécutable
-- [docs/EBNF.md](../EBNF.md) — grammaire formelle
+- [Mutex](Mutex.md) — même discipline `scoped`/`consumed` + fermeture manuelle pour un handle natif.
+- [SQLite](SQLite.md) — même patron `close()` géré par l'analyse de possession.

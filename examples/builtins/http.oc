@@ -1,71 +1,72 @@
 // examples/builtins/http.oc
-// Démonstration de ocara.HTTPRequest
+// Démonstration de ocara.HTTPRequest / ocara.HTTPResponse
 
 import ocara.HTTPRequest
+import ocara.HTTPResponse
 import ocara.IO
 
 function main(): int {
 
     // ── 1. Requête GET simple (raccourci) ────────────────────────────────────
-    scoped res:int = HTTPRequest::get("http://useragent.fr/")
+    scoped res:HTTPResponse = HTTPRequest::get("http://useragent.fr/")
 
     IO::writeln("=== GET /users ===")
-    IO::writeln(`Status : ${HTTPRequest::status(res)}`)
+    IO::writeln(`Status : ${res.status()}`)
 
-    if HTTPRequest::ok(res) {
-        IO::writeln(HTTPRequest::body(res))
+    if res.ok() {
+        IO::writeln(res.body())
     } else {
-        IO::writeln(`Erreur HTTP : ${HTTPRequest::status(res)}`)
+        IO::writeln(`Erreur HTTP : ${res.status()}`)
     }
-    HTTPRequest::closeResponse(res) // libère res — ce runtime n'a pas de GC, voir docs/builtins/HTTPRequest.md
+    res.closeResponse() // libère res — ce runtime n'a pas de GC, voir docs/builtins/HTTPRequest.md
 
     // ── 2. Requête POST avec en-têtes et corps ───────────────────────────────
-    scoped req:int = HTTPRequest::new("http://useragent.fr/")
-    HTTPRequest::setMethod(req, "POST")
-    HTTPRequest::setHeader(req, "Content-Type", "application/json")
-    HTTPRequest::setHeader(req, "Authorization", "Bearer secret-token")
-    HTTPRequest::setBody(req, "{\"name\": \"Alice\", \"age\": 30}")
-    HTTPRequest::setTimeout(req, 5000)
+    scoped req:HTTPRequest = HTTPRequest::new("http://useragent.fr/")
+    req.setMethod("POST")
+    req.setHeader("Content-Type", "application/json")
+    req.setHeader("Authorization", "Bearer secret-token")
+    req.setBody("{\"name\": \"Alice\", \"age\": 30}")
+    req.setTimeout(5000)
 
-    scoped res2:int = HTTPRequest::send(req)
+    scoped res2:HTTPResponse = req.send()
 
     IO::writeln("=== POST /users ===")
-    IO::writeln(`Status : ${HTTPRequest::status(res2)}`)
-    IO::writeln(`Content-Type reçu : ${HTTPRequest::header(res2, "Content-Type")}`)
+    IO::writeln(`Status : ${res2.status()}`)
+    IO::writeln(`Content-Type reçu : ${res2.header("Content-Type")}`)
 
-    if HTTPRequest::ok(res2) {
-        IO::writeln(HTTPRequest::body(res2))
+    if res2.ok() {
+        IO::writeln(res2.body())
     } else {
-        IO::writeln(`Erreur : ${HTTPRequest::error(res2)}`)
+        IO::writeln(`Erreur : ${res2.error()}`)
     }
-    HTTPRequest::close(req)          // libère req — plus utile une fois envoyée
-    HTTPRequest::closeResponse(res2)
+    req.close()          // libère req — plus utile une fois envoyée
+    res2.closeResponse()
 
     // ── 3. Gestion d'une erreur réseau ───────────────────────────────────────
-    scoped res3:int = HTTPRequest::get("https://hote-inexistant.local/api")
+    scoped res3:HTTPResponse = HTTPRequest::get("https://hote-inexistant.local/api")
 
     IO::writeln("=== Erreur réseau ===")
-    if HTTPRequest::isError(res3) {
-        IO::writeln(`Erreur réseau : ${HTTPRequest::error(res3)}`)
+    if res3.isError() {
+        IO::writeln(`Erreur réseau : ${res3.error()}`)
     } else {
-        IO::writeln(`Status : ${HTTPRequest::status(res3)}`)
+        IO::writeln(`Status : ${res3.status()}`)
     }
-    HTTPRequest::closeResponse(res3)
+    res3.closeResponse()
 
     // ── 4. PUT et DELETE ─────────────────────────────────────────────────────
-    scoped res4:int = HTTPRequest::put("http://useragent.fr/", "{\"name\": \"Bob\"}")
-    IO::writeln(`PUT status : ${HTTPRequest::status(res4)}`)
-    HTTPRequest::closeResponse(res4)
+    scoped res4:HTTPResponse = HTTPRequest::put("http://useragent.fr/", "{\"name\": \"Bob\"}")
+    IO::writeln(`PUT status : ${res4.status()}`)
+    res4.closeResponse()
 
-    scoped res5:int = HTTPRequest::delete("http://useragent.fr/")
-    IO::writeln(`DELETE status : ${HTTPRequest::status(res5)}`)
-    HTTPRequest::closeResponse(res5)
+    scoped res5:HTTPResponse = HTTPRequest::delete("http://useragent.fr/")
+    IO::writeln(`DELETE status : ${res5.status()}`)
+    res5.closeResponse()
 
     // ── 5. Lecture de tous les en-têtes ──────────────────────────────────────
-    scoped res6:int = HTTPRequest::get("http://useragent.fr/")
-    scoped hdrs:map<string, string> = HTTPRequest::headers(res6)
+    scoped res6:HTTPResponse = HTTPRequest::get("http://useragent.fr/")
+    scoped hdrs:map<string, string> = res6.headers()
     IO::writeln("=== En-têtes de réponse ===")
-    HTTPRequest::closeResponse(res6)
+    res6.closeResponse()
 
     return 0
 }
