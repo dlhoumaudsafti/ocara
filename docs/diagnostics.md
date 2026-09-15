@@ -540,6 +540,32 @@ m.destroy()   // ❌ 'm' déjà finalisée
 
 ---
 
+### E26 — Argument `scoped`/`consumed` qui s'échappe
+
+```
+fichier.oc:9:19: error: 'arr' ('array<int>') is passed as an argument to 'Box::init', which stores it beyond this call — a 'scoped'/'consumed' value cannot be passed where the callee retains it; clone it explicitly first, or pass a fresh value
+```
+
+Une `scoped`/`consumed` passée en argument d'un appel (constructeur, méthode) qui la stocke au-delà de l'appel (ex. un constructeur qui affecte le paramètre à un champ) — la source est libérée en fin de bloc alors que l'appelé en garde encore un alias : pointeur pendouillant, corruption mémoire silencieuse avant ce diagnostic (voir docs/roadmap.d/memoire-echappement-argument.md).
+
+```ocara
+class Box {
+    public property data:array<int>
+    init(a:array<int>) { self.data = a }
+}
+function makeBox(): Box {
+    scoped arr:array<int> = [111, 222, 333]
+    var b:Box = use Box(arr)   // ❌ 'arr' sera libérée en fin de bloc
+    return b
+}
+```
+
+Pour une `scoped`/`consumed` de type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`/`Thread`), tout passage en argument est rejeté (`ResourceEscape`, pas de distinction retenu/prêté possible pour une ressource). Pour `string`/`array`/`map`/instance de classe utilisateur, seul un appel vers une fonction/méthode/constructeur **utilisateur** connue dont ce paramètre est prouvé retenu est rejeté — `Array::push(arr, x)`/`Map::set(m, k, v)` (mutation en place) restent autorisés.
+
+**Correction :** cloner explicitement avant l'appel (ex. `arr.slice(0, arr.len())`), ou déclarer la variable en `var` si le partage est voulu.
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.

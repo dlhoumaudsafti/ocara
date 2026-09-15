@@ -14,11 +14,15 @@ use super::literals::{lower_literal, lower_is_check};
 
 /// Convertit un opérande CONNU (I64/F64/Bool/Ptr) vers la représentation
 /// "mixed" attendue par `__dyn_add` (voir sa doc, `runtime/src/lib.rs`) — un
-/// `Ptr` (mixed, ou un vrai string/array/map/objet) ou un `I64` sont déjà
-/// dans cette représentation tels quels (un `int` n'est jamais boxé, voir
-/// `box_for_any`) ; seul un `F64`/`Bool` connu STATIQUEMENT doit être boxé au
-/// préalable — contrairement à la même valeur logée dans un `mixed`, qui,
-/// elle, l'est déjà (`box_for_any` box systématiquement à l'affectation).
+/// `Ptr` (mixed, ou un vrai string/array/map/objet) est déjà dans cette
+/// représentation tel quel ; un `F64`/`Bool` connu STATIQUEMENT doit être
+/// boxé au préalable (comme `box_for_any` le fait à l'affectation) ; un
+/// `I64` doit l'être aussi, mais seulement si assez grand pour être ambigu
+/// avec un pointeur heap — décision prise au runtime par
+/// `__box_int_for_mixed` (voir `box_int_if_needed`), pas ici, pour ne pas
+/// payer une allocation sur le cas courant d'un petit entier. Aussi utilisée
+/// pour boxer un élément `F64`/`Bool`/`I64` d'un littéral `array<mixed>`/
+/// `map<K,mixed>` (voir `lower_array_literal`/`lower_map_literal`).
 fn box_for_dyn_arith(builder: &mut LowerBuilder, ty: &IrType, val: Value) -> Value {
     match ty {
         IrType::F64 => {
@@ -29,6 +33,11 @@ fn box_for_dyn_arith(builder: &mut LowerBuilder, ty: &IrType, val: Value) -> Val
         IrType::Bool => {
             let d = builder.new_value();
             builder.emit(Inst::Call { dest: Some(d.clone()), func: "__box_bool".into(), args: vec![val], ret_ty: IrType::Ptr });
+            d
+        }
+        IrType::I64 => {
+            let d = builder.new_value();
+            builder.emit(Inst::Call { dest: Some(d.clone()), func: "__box_int_for_mixed".into(), args: vec![val], ret_ty: IrType::Ptr });
             d
         }
         _ => val,
@@ -422,7 +431,14 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     
                     let obj_val = lower_expr(builder, object);
                     let dest = builder.new_value();
-                    let arg_vals: Vec<Value> = completed_args.iter().map(|a| lower_expr(builder, a)).collect();
+                    // Boxer F64/Bool/I64 si le paramètre cible est `mixed`
+                    // (Ptr) — voir `box_arg_for_mixed_param`.
+                    let arg_vals: Vec<Value> = completed_args.iter().enumerate().map(|(i, a)| {
+                        let raw = lower_expr(builder, a);
+                        let arg_ty = expr_ir_type(builder, a);
+                        let param_ty = param_type_for_call_arg(builder, &func_mangled, i);
+                        box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
+                    }).collect();
                     let mut all_args = vec![obj_val];
                     all_args.extend(arg_vals);
                     // Résoudre le type de retour depuis fn_ret_types
@@ -539,29 +555,13 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 return task;
             }
 
-            // Boxer F64/Bool si le paramètre cible est `mixed` (Ptr)
-            let param_types = builder.fn_param_types.get(func_name.as_str()).cloned();
+            // Boxer F64/Bool/I64 si le paramètre cible est `mixed` (Ptr) —
+            // voir `box_arg_for_mixed_param`.
             let arg_vals: Vec<Value> = args.iter().enumerate().map(|(i, a)| {
                 let raw = lower_expr(builder, a);
                 let arg_ty = expr_ir_type(builder, a);
-                let param_ty = param_types.as_ref().and_then(|pts| pts.get(i)).cloned();
-                if param_ty == Some(IrType::Ptr) {
-                    match arg_ty {
-                        IrType::F64 => {
-                            let d = builder.new_value();
-                            builder.emit(Inst::Call { dest: Some(d.clone()), func: "__box_float".into(), args: vec![raw], ret_ty: IrType::Ptr });
-                            d
-                        }
-                        IrType::Bool => {
-                            let d = builder.new_value();
-                            builder.emit(Inst::Call { dest: Some(d.clone()), func: "__box_bool".into(), args: vec![raw], ret_ty: IrType::Ptr });
-                            d
-                        }
-                        _ => raw,
-                    }
-                } else {
-                    raw
-                }
+                let param_ty = param_type_for_call_arg(builder, &func_name, i);
+                box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
             }).collect();
             
             // Si fonction variadic, empaqueter les arguments excédentaires dans un tableau
@@ -583,8 +583,8 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                         let arg_expr = &args[fixed_count + idx];
                         let arg_ty = expr_ir_type(builder, arg_expr);
                         
-                        // Boxer uniquement F64 et Bool pour stockage dans mixed[]
-                        // Les int (I64) sont stockés directement comme tagged values
+                        // Boxer F64/Bool/I64 (si assez grand, voir
+                        // `__box_int_for_mixed`) pour stockage dans mixed[]
                         let stored_val = match arg_ty {
                             IrType::F64 => {
                                 let boxed = builder.new_value();
@@ -606,7 +606,17 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                                 });
                                 boxed
                             }
-                            _ => variadic_arg.clone(),  // I64, Ptr, etc. → stockage direct
+                            IrType::I64 => {
+                                let boxed = builder.new_value();
+                                builder.emit(Inst::Call {
+                                    dest:   Some(boxed.clone()),
+                                    func:   "__box_int_for_mixed".into(),
+                                    args:   vec![variadic_arg.clone()],
+                                    ret_ty: IrType::Ptr,
+                                });
+                                boxed
+                            }
+                            _ => variadic_arg.clone(),  // Ptr, etc. → stockage direct
                         };
                         
                         builder.emit(Inst::Call {
@@ -787,8 +797,18 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 return dummy;
             }
 
-            let arg_vals: Vec<Value> = args.iter().map(|a| lower_expr(builder, a)).collect();
-            
+            // Boxer F64/Bool/I64 si le paramètre cible est `mixed` (Ptr) —
+            // voir `box_arg_for_mixed_param`. Un appel statique (builtin OU
+            // classe utilisateur) ne boxait jusqu'ici AUCUN argument, quel
+            // que soit le paramètre visé (confirmé faux par reproduction) —
+            // voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md.
+            let arg_vals: Vec<Value> = args.iter().enumerate().map(|(i, a)| {
+                let raw = lower_expr(builder, a);
+                let arg_ty = expr_ir_type(builder, a);
+                let param_ty = param_type_for_call_arg(builder, &func_name, i);
+                box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
+            }).collect();
+
             // Si c'est un appel parent::method(), il faut ajouter self comme premier argument
             // car les méthodes d'instance prennent toujours self en premier paramètre
             let final_args = if class == "<parent>" {
@@ -899,36 +919,8 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             for (i, a) in args.iter().enumerate() {
                 let arg_ty   = expr_ir_type(builder, a);
                 let val      = lower_expr(builder, a);
-                let param_ty = ctor_params.get(i).cloned().unwrap_or(IrType::I64);
-                // Si le paramètre est `mixed` (Ptr) mais la valeur est F64 ou Bool → boxer
-                let boxed = if param_ty == IrType::Ptr {
-                    match arg_ty {
-                        IrType::F64 => {
-                            let d = builder.new_value();
-                            builder.emit(Inst::Call {
-                                dest:   Some(d.clone()),
-                                func:   "__box_float".into(),
-                                args:   vec![val],
-                                ret_ty: IrType::Ptr,
-                            });
-                            d
-                        }
-                        IrType::Bool => {
-                            let d = builder.new_value();
-                            builder.emit(Inst::Call {
-                                dest:   Some(d.clone()),
-                                func:   "__box_bool".into(),
-                                args:   vec![val],
-                                ret_ty: IrType::Ptr,
-                            });
-                            d
-                        }
-                        _ => val,
-                    }
-                } else {
-                    val
-                };
-                ctor_args.push(boxed);
+                let param_ty = ctor_params.get(i).cloned();
+                ctor_args.push(box_arg_for_mixed_param(builder, param_ty, &arg_ty, val));
             }
             // Appel du constructeur
             builder.emit(Inst::Call {
@@ -997,10 +989,23 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                         BinOp::GreaterOrEqual   => "__cmp_ge_strict",
                         _ => unreachable!(),
                     };
+                    // Un opérande à type CONNU F64/Bool/I64 comparé à un
+                    // `mixed` de l'autre côté doit d'abord rejoindre la même
+                    // représentation "mixed" (voir `box_for_dyn_arith`) — sans
+                    // ça, `__cmp_*_strict`/`get_value_type` reçoit un F64/Bool
+                    // brut (jamais taggé, confondu avec un entier) ou un I64
+                    // assez grand pour être confondu avec un pointeur heap
+                    // (SEGFAULT confirmé par reproduction : `n equal 1000000`
+                    // avec `n:mixed`, voir
+                    // docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md).
+                    // Un opérande déjà Ptr (mixed, ou un vrai string/array/...)
+                    // n'est pas affecté (`box_for_dyn_arith` no-op pour Ptr).
+                    let lv = box_for_dyn_arith(builder, &left_ty, lv_raw);
+                    let rv = box_for_dyn_arith(builder, &right_ty, rv_raw);
                     builder.emit(Inst::Call {
                         dest: Some(dest.clone()),
                         func: func.to_string(),
-                        args: vec![lv_raw, rv_raw],
+                        args: vec![lv, rv],
                         ret_ty: IrType::Bool,
                     });
                     return dest;

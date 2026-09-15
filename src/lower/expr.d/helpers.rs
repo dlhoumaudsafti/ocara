@@ -1,10 +1,109 @@
 /// Helpers pour le lowering des expressions
 
 use std::collections::HashMap;
+use std::sync::OnceLock;
 use crate::parsing::ast::{Expr, Literal, Type};
+use crate::ir::inst::{Inst, Value};
 use crate::ir::types::IrType;
 use crate::lower::builder::LowerBuilder;
 use crate::codegen::runtime::builtins;
+
+/// Types de paramètres (I64/F64/Bool/Ptr) de chaque méthode BUILTIN (statique
+/// OU d'instance), indexé par nom manglé `"Classe_methode"` — construit une
+/// seule fois à partir de `crate::builtins::all_builtins()`.
+///
+/// Utilisé UNIQUEMENT pour la décision de boxing `mixed` des arguments d'un
+/// appel de méthode/statique (voir `box_arg_for_mixed_param` et ses
+/// appelants) — délibérément séparé de `LowerBuilder::fn_param_types`
+/// (réservé au programme utilisateur : fonctions libres + méthodes
+/// statiques) car CETTE table alimente aussi la génération des wrappers
+/// `__fn_wrap_*` pour les fonctions référençables comme valeur (voir
+/// `program.rs`) — y ajouter les ~centaines de méthodes builtin générerait
+/// autant de wrappers jamais utilisés dans chaque programme compilé.
+///
+/// ATTENTION avant d'ajouter un nouveau consommateur de cette table : une
+/// méthode builtin est écrite en Rust et peut lire directement le bit brut
+/// d'un `mixed` plutôt que par les accesseurs "boxing-aware"
+/// (`cmp_primitive`/`unbox_numeric_i64`/...). `UnitTest_assertTrue`/
+/// `assertFalse` en sont un exemple réel, corrigé pour rester compatibles
+/// (voir runtime/src/lib.rs) après une régression confirmée pendant ce
+/// chantier (`make regression` cassé universellement sur `assertTrue`/
+/// `assertFalse`, un bool boxé — donc un pointeur, toujours non nul — brisant
+/// leur test `value != 0`/`== 0`). Si un autre builtin `mixed` regresse après
+/// avoir touché cette table, la même correction (rendre CE builtin
+/// boxing-aware) est la bonne réponse — pas retirer le boxing lui-même,
+/// qui reste nécessaire pour les mêmes raisons que documentées dans
+/// docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md.
+pub fn builtin_method_param_types() -> &'static HashMap<String, Vec<IrType>> {
+    static CACHE: OnceLock<HashMap<String, Vec<IrType>>> = OnceLock::new();
+    CACHE.get_or_init(|| {
+        let mut map = HashMap::new();
+        for (class_name, info) in crate::builtins::all_builtins() {
+            for (method_name, sig) in &info.methods {
+                let mangled = format!("{}_{}", class_name, method_name);
+                let param_types: Vec<IrType> = sig.params.iter()
+                    .map(|(_, ty)| IrType::from_ast(ty))
+                    .collect();
+                map.insert(mangled, param_types);
+            }
+        }
+        map
+    })
+}
+
+/// Type du `i`-ème paramètre (fixe) de `mangled` ("Classe_methode" ou nom de
+/// fonction libre), en cherchant dans l'ordre : `LowerBuilder::fn_param_types`
+/// (fonctions libres + méthodes STATIQUES utilisateur), puis
+/// `IrModule::method_param_types` (méthodes D'INSTANCE utilisateur), puis
+/// `builtin_method_param_types()` (toute méthode builtin, statique ou
+/// d'instance). `None` si `mangled`/`i` reste inconnu (variadic au-delà des
+/// paramètres fixes, méthode non répertoriée...) — le boxing est alors
+/// simplement sauté, comme avant l'introduction de ce mécanisme.
+pub fn param_type_for_call_arg(builder: &LowerBuilder, mangled: &str, i: usize) -> Option<IrType> {
+    if let Some(pts) = builder.fn_param_types.get(mangled) {
+        return pts.get(i).cloned();
+    }
+    if let Some(pts) = builder.module.method_param_types.get(mangled) {
+        return pts.get(i).cloned();
+    }
+    builtin_method_param_types().get(mangled).and_then(|pts| pts.get(i).cloned())
+}
+
+/// Boxe `val` (déjà lowered, de type IR `arg_ty`) si le paramètre cible
+/// (`param_ty`) est `mixed` (`Ptr`) et que `arg_ty` est F64/Bool/I64 connu
+/// statiquement — même logique que `box_for_any`/`box_for_dyn_arith` pour la
+/// direction concret→mixed (voir `src/lower/stmt.d/statements.d/helpers.rs`),
+/// factorisée ici pour les arguments d'appel (fonction libre, méthode
+/// d'instance, appel statique, constructeur) : sans ce boxing, un `float`/
+/// `bool` passé où le paramètre est `mixed` reste indistinguable d'un entier
+/// au runtime, et un `int` assez grand pour ressembler à un pointeur heap
+/// risque le SEGFAULT documenté dans
+/// docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md — confirmé par
+/// reproduction sur un appel de méthode AVANT ce correctif (`b.show(3.5)`
+/// avec `show(v:mixed)` corrompait déjà silencieusement `v`).
+pub fn box_arg_for_mixed_param(builder: &mut LowerBuilder, param_ty: Option<IrType>, arg_ty: &IrType, val: Value) -> Value {
+    if param_ty != Some(IrType::Ptr) {
+        return val;
+    }
+    match arg_ty {
+        IrType::F64 => {
+            let d = builder.new_value();
+            builder.emit(Inst::Call { dest: Some(d.clone()), func: "__box_float".into(), args: vec![val], ret_ty: IrType::Ptr });
+            d
+        }
+        IrType::Bool => {
+            let d = builder.new_value();
+            builder.emit(Inst::Call { dest: Some(d.clone()), func: "__box_bool".into(), args: vec![val], ret_ty: IrType::Ptr });
+            d
+        }
+        IrType::I64 => {
+            let d = builder.new_value();
+            builder.emit(Inst::Call { dest: Some(d.clone()), func: "__box_int_for_mixed".into(), args: vec![val], ret_ty: IrType::Ptr });
+            d
+        }
+        _ => val,
+    }
+}
 
 /// Résout le nom de classe d'un accès de champ CHAÎNÉ (`w.inner` où `inner`
 /// est elle-même une instance de classe/`string`/`array`/`map`) — récursif

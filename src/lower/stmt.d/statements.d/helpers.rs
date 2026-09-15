@@ -40,6 +40,30 @@ pub fn box_for_any(builder: &mut LowerBuilder, target_ty: &IrType, val_ty: IrTyp
             builder.emit(Inst::Call { dest: Some(d.clone()), func: "__box_bool".into(), args: vec![val], ret_ty: IrType::Ptr });
             d
         }
+        // Un `int` connu STATIQUEMENT logé dans un `mixed` : boxer si assez
+        // grand pour être ambigu avec un pointeur heap (voir
+        // `box_int_if_needed`/`__box_int_for_mixed`, runtime/src/lib.rs — la
+        // décision magnitude est prise au runtime, pas ici, pour ne pas
+        // pénaliser le cas courant d'un petit entier). Corrige le SEGFAULT
+        // documenté dans docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md
+        // (`var n:mixed = 1000000; if n is string {...}`).
+        //
+        // ⚠ Ce bras dépend ENTIÈREMENT de la fiabilité de `val_ty` : si
+        // `expr_ir_type` rapporte I64 par erreur pour une expression qui est
+        // en réalité un pointeur objet/tableau (ex. `SQLite::open(...)`,
+        // absent de la table `fn_ret_types`, voir program.rs), ce pointeur
+        // serait boxé comme si c'était un entier — corruption confirmée par
+        // reproduction (`SQLite::open` mal classé → `db.execute()` bloqué
+        // dans une boucle infinie sur le self-pointer corrompu). Voir le
+        // filet de sécurité dans `expr_ir_type` (`Expr::StaticCall`, dernier
+        // bras `else`) : par prudence, il retombe désormais sur `Ptr` (jamais
+        // boxé, comportement identique à avant ce correctif) plutôt que I64
+        // dès qu'il ne peut pas prouver le vrai type de retour.
+        IrType::I64 => {
+            let d = builder.new_value();
+            builder.emit(Inst::Call { dest: Some(d.clone()), func: "__box_int_for_mixed".into(), args: vec![val], ret_ty: IrType::Ptr });
+            d
+        }
         _ => val,
     }
 }

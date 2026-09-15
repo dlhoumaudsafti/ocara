@@ -1,0 +1,30 @@
+import ocara.UnitTest
+
+// `alloc_str`/`free_str` (runtime/src/lib.rs) stockent maintenant la longueur
+// réelle d'une string dans son header au lieu de la retrouver en cherchant
+// le premier octet NUL depuis le pointeur — une string Ocara PEUT contenir
+// un NUL en son milieu (`\0` est un échappement de chaîne valide), ce qui
+// aurait fait passer un `Layout` trop court à `dealloc` (voir
+// docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md). Pas d'assertion
+// de valeur possible sur une corruption de tas : le test réel est que la
+// boucle ci-dessous (beaucoup d'allocations/libérations de strings à NUL
+// interne, entrelacées avec d'autres allocations de taille voisine) ne
+// plante ni ne corrompt l'allocateur.
+
+class Test_34_string_nul_safety {
+
+    public method scopedStringWithEmbeddedNulTest(): int {
+        var i:int = 0
+        while i smaller 500 {
+            self.makeOne()
+            i = i + 1
+        }
+        UnitTest::assertTrue(true)
+        return 0
+    }
+
+    private method makeOne(): void {
+        scoped s:string = "avant\0apres-un-suffixe-assez-long-pour-la-taille-reelle"
+        var bruit:string = "occupe" + "le" + "meme" + "bucket" + "d-allocation"
+    }
+}

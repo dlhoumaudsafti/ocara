@@ -1,0 +1,128 @@
+import ocara.UnitTest
+import ocara.Array
+import ocara.JSON
+
+// Un `mixed` contenant un entier ordinaire >= 65536 était confondu avec un
+// pointeur heap valide par `read_tag`/`get_value_type` (SEGFAULT reproductible
+// sur `var n:mixed = 1000000; if n is string {...}`, voir
+// docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md). Corrigé en boxant
+// (tag bits bas = 11, même mécanisme que float/bool) un tel entier UNIQUEMENT
+// quand il est assez grand pour être ambigu — un petit entier reste brut.
+//
+// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée du
+// fichier (voir 33_exception_hierarchyTest.oc) — pas de classe auxiliaire ici.
+//
+// NOTE assertEquals : `UnitTest::assertEquals` compare par égalité BRUTE de
+// i64 (bug pré-existant, documenté ce même chantier) — comparer directement
+// un `mixed` boxé à un littéral concret via assertEquals donnerait un faux
+// FAIL (adresse boxée vs valeur brute). On utilise `equal`/`assertTrue` (vraie
+// comparaison de valeur, `__cmp_eq_strict`) pour tout ce qui touche un
+// `mixed`, et `assertEquals` seulement pour des petits entiers concrets.
+
+class Test_37_mixed_large_int {
+
+    // Narrowing `is` sur un entier mixed ordinaire, sans crash.
+    public method isNarrowingNoCrashTest(): int {
+        var n:mixed = 1000000
+        UnitTest::assertFalse(n is string)
+        UnitTest::assertFalse(n is array<mixed>)
+        UnitTest::assertTrue(n is int)
+        UnitTest::assertTrue(n equal 1000000)
+        return 0
+    }
+
+    // Un entier mixed qui n'est PAS multiple de 4 (pas dans l'ancienne
+    // condition de crash) doit aussi être boxé et donner un résultat correct
+    // — la magnitude seule décide, pas l'alignement.
+    public method nonAlignedLargeIntTest(): int {
+        var m:mixed = 65537
+        UnitTest::assertTrue(m is int)
+        UnitTest::assertFalse(m is string)
+        UnitTest::assertTrue(m equal 65537)
+        return 0
+    }
+
+    // Un petit entier mixed reste inchangé (jamais boxé).
+    public method smallIntUnaffectedTest(): int {
+        var s:mixed = 42
+        UnitTest::assertTrue(s is int)
+        UnitTest::assertEquals(42, s)
+        return 0
+    }
+
+    // Un entier négatif, même de grande magnitude, n'est jamais ambigu avec
+    // un pointeur (toujours < seuil en comparaison signée) — reste brut, donc
+    // jamais boxé, donc jamais à risque de SEGFAULT. NOTE : `neg is int`
+    // reste `false` ici (limitation pré-existante et distincte de `__is_int`,
+    // qui ne reconnaît qu'un négatif de PETITE magnitude — hors périmètre de
+    // ce correctif, voir runtime/src/typecheck.rs) ; seule l'absence de
+    // SEGFAULT et la valeur correcte via `equal` sont vérifiées ici.
+    public method negativeLargeIntTest(): int {
+        var neg:mixed = 0 - 5000000
+        UnitTest::assertTrue(neg equal (0 - 5000000))
+        return 0
+    }
+
+    // Réaffectation : un mixed qui contient d'abord un grand entier puis une
+    // string, puis de nouveau un grand entier — chaque valeur reste correcte.
+    public method reassignmentRoundtripTest(): int {
+        var v:mixed = 2000000
+        UnitTest::assertTrue(v equal 2000000)
+        v = "texte"
+        UnitTest::assertTrue(v is string)
+        v = 3000000
+        UnitTest::assertTrue(v is int)
+        UnitTest::assertTrue(v equal 3000000)
+        return 0
+    }
+
+    // Arithmétique dynamique (`+`) entre deux mixed contenant de grands
+    // entiers, résultat re-stocké dans un mixed : le résultat doit être
+    // numériquement correct (pas l'adresse d'un pointeur boxé).
+    public method dynAddLargeResultTest(): int {
+        var a:mixed = 100000
+        var b:mixed = 200000
+        var c:mixed = a + b
+        UnitTest::assertTrue(c is int)
+        UnitTest::assertTrue(c equal 300000)
+        return 0
+    }
+
+    // Comparaisons strictes (`smaller`/`greater`) entre deux mixed contenant
+    // de grands entiers — doivent comparer la VALEUR, pas l'adresse boxée.
+    public method strictComparisonTest(): int {
+        var x:mixed = 100000
+        var y:mixed = 200000
+        UnitTest::assertTrue(x smaller y)
+        UnitTest::assertTrue(y greater x)
+        UnitTest::assertFalse(x greater y)
+        return 0
+    }
+
+    // JSON::encode/decode d'un grand entier dans un array<mixed> : round-trip
+    // correct.
+    public method jsonRoundtripTest(): int {
+        var arr:array<mixed> = [1000000, "deux", 3000000]
+        var encoded:string = JSON::encode(arr)
+        var decoded:array<mixed> = JSON::decode(encoded)
+        UnitTest::assertEquals(3, Array::len(decoded))
+        var first:mixed = decoded[0]
+        UnitTest::assertTrue(first equal 1000000)
+        var third:mixed = decoded[2]
+        UnitTest::assertTrue(third equal 3000000)
+        return 0
+    }
+
+    // Régression directe du SEGFAULT rapporté sur `array<float>`/`array<int>`
+    // concrets (pas `mixed`) jamais échappés : la libération automatique de
+    // fin de bloc d'un `var` ne doit plus tenter de déballer chaque élément
+    // comme s'il pouvait être un pointeur tas.
+    public method concretePrimitiveArrayAutoFreeTest(): int {
+        var floats:array<float> = [1.5, 2.5, 3.5]
+        var ints:array<int>     = [1000000, 2000000, 3000000]
+        UnitTest::assertEquals(3, Array::len(floats))
+        UnitTest::assertEquals(3, Array::len(ints))
+        UnitTest::assertEquals(1000000, ints[0])
+        return 0
+    }
+}

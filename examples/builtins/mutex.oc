@@ -1,5 +1,6 @@
 // examples/builtins/mutex.oc
-// Démonstration de ocara.Mutex avec ocara.Thread
+// Démonstration de ocara.Mutex avec ocara.Thread (y compris withLock, qui
+// garantit le unlock même si la section critique raise)
 
 import ocara.Mutex
 import ocara.Thread
@@ -195,6 +196,36 @@ function main(): int {
     IO::write("data_b = ")
     IO::writeln(data_b)
 
+    // ── withLock : unlock garanti même si la closure raise ────────────────
+    IO::writeln("=== withLock ===")
+    var m_wl:Mutex = use Mutex()
+
+    m_wl.withLock(nameless(): void {
+        IO::writeln("section critique via withLock")
+    })
+
+    try {
+        m_wl.withLock(nameless(): void {
+            raise use MutexDemoError("erreur dans la section critique", 1)
+        })
+    } on e is MutexDemoError {
+        IO::writeln(`exception rattrapée : ${e.message}`)
+    }
+
+    // Preuve que withLock a bien déverrouillé malgré le raise ci-dessus :
+    // un lock() manuel doit réussir immédiatement, sans bloquer.
+    m_wl.lock()
+    IO::writeln("mutex re-verrouillé avec succès après l'exception")
+    m_wl.unlock()
+    m_wl.destroy()
+
     IO::writeln("=== tous les tests terminés ===")
     return 0
+}
+
+class MutexDemoError extends Exception {
+    init(message:string, code:int) {
+        self.message = message
+        self.code    = code
+    }
 }

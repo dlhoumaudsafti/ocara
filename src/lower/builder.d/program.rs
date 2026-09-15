@@ -17,6 +17,12 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     // Stocker le nom du fichier source pour les messages d'erreur
     module.source_file = source_file.to_string();
 
+    // Analyse d'échappement interprocédurale (voir crate::sema::escape) —
+    // nécessaire pour décider si un `var` peut être libéré automatiquement
+    // en fin de bloc (voir lower::stmt::ownership::register_owned_local).
+    module.escaping_params = crate::sema::escape::compute_escaping_params(program);
+    module.class_members   = crate::sema::escape::collect_class_members(&program.classes);
+
     // Enregistre les modules importés (dernier segment du path : "ocara.IO" → "IO")
     for imp in &program.imports {
         if let Some(last) = imp.path.last() {
@@ -112,8 +118,17 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
                         }
                     }
                 } else {
-                    // Méthodes d'instance : collecte des valeurs par défaut (sans self)
-                    // self est géré séparément dans le lowering, donc on ne l'inclut pas ici
+                    // Méthodes d'instance : types de paramètres (sans `self`,
+                    // géré séparément dans le lowering) — dans
+                    // `module.method_param_types`, PAS `fn_param_types` (voir
+                    // sa doc dans `src/ir/module.rs`). Uniquement pour la
+                    // décision de boxing `mixed` d'un argument d'appel.
+                    let param_types: Vec<IrType> = decl.params.iter()
+                        .map(|p| IrType::from_ast(&p.ty))
+                        .collect();
+                    module.method_param_types.insert(mangled.clone(), param_types);
+
+                    // Collecte des valeurs par défaut (sans self)
                     let default_args: Vec<Option<Expr>> = decl.params.iter()
                         .map(|p| p.default_value.clone())
                         .collect();
@@ -502,6 +517,100 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     fn_ret_types.insert("SDL_resumeMusic".to_string(), IrType::Void);
     fn_ret_types.insert("SDL_stopMusic".to_string(), IrType::Void);
     fn_ret_types.insert("SDL_setMusicVolume".to_string(), IrType::Void);
+
+    // System:: — méthodes I64/Ptr absentes du raccourci générique existant
+    // (qui ne couvrait que cwd/exec/env, tous Ptr) : `pid`/`passthrough`/
+    // `execCode` retournent I64 — confirmé faux par reproduction
+    // (`System::pid()` interpolé dans un template SEGFAULT dès qu'un PID
+    // assez grand a par hasard les bits bas à 00 et échoue le test `is_ptr`,
+    // voir src/builtins/system.rs).
+    fn_ret_types.insert("System_pid".to_string(), IrType::I64);
+    fn_ret_types.insert("System_passthrough".to_string(), IrType::I64);
+    fn_ret_types.insert("System_execCode".to_string(), IrType::I64);
+    fn_ret_types.insert("System_args".to_string(), IrType::Ptr);
+
+    // IO::read* — chaque méthode explicitement : le raccourci générique
+    // `fname.starts_with("IO_read") => Ptr` (dans `expr_ir_type`) classait à
+    // tort `readInt`/`readFloat`/`readBool` (I64/F64/Bool réels) comme `Ptr`
+    // — confirmé faux par reproduction sur `examples/builtins/io.oc`
+    // (`IO::readFloat()` ressortait comme un entier astronomique, bit
+    // pattern brut du float).
+    fn_ret_types.insert("IO_read".to_string(), IrType::Ptr);
+    fn_ret_types.insert("IO_readln".to_string(), IrType::Ptr);
+    fn_ret_types.insert("IO_readInt".to_string(), IrType::I64);
+    fn_ret_types.insert("IO_readFloat".to_string(), IrType::F64);
+    fn_ret_types.insert("IO_readBool".to_string(), IrType::Bool);
+    fn_ret_types.insert("IO_readArray".to_string(), IrType::Ptr);
+    fn_ret_types.insert("IO_readMap".to_string(), IrType::Ptr);
+
+    // Math:: — absent de cette table jusqu'ici (aucune entrée), retombait
+    // donc entièrement sur le filet de sécurité générique de `expr_ir_type` —
+    // inoffensif pour les méthodes qui retournent I64 (`abs`/`min`/`max`/
+    // `pow`/`clamp`/`random`/`floor`/`ceil`/`round`), mais `sqrt` (F64) en
+    // sortait corrompue (bit pattern brut affiché comme un entier
+    // astronomique, confirmé par reproduction) — voir
+    // src/builtins/math.rs.
+    fn_ret_types.insert("Math_abs".to_string(), IrType::I64);
+    fn_ret_types.insert("Math_min".to_string(), IrType::I64);
+    fn_ret_types.insert("Math_max".to_string(), IrType::I64);
+    fn_ret_types.insert("Math_pow".to_string(), IrType::I64);
+    fn_ret_types.insert("Math_clamp".to_string(), IrType::I64);
+    fn_ret_types.insert("Math_random".to_string(), IrType::I64);
+    fn_ret_types.insert("Math_sqrt".to_string(), IrType::F64);
+    fn_ret_types.insert("Math_floor".to_string(), IrType::I64);
+    fn_ret_types.insert("Math_ceil".to_string(), IrType::I64);
+    fn_ret_types.insert("Math_round".to_string(), IrType::I64);
+
+    // Convert:: — chaque méthode explicitement, par vrai type de retour
+    // (voir src/builtins/convert.rs) : le raccourci générique qui existait
+    // ici auparavant (`fname.starts_with("Convert_") => Ptr`, dans
+    // `expr_ir_type`) classait à tort TOUTES les méthodes `Convert_*` comme
+    // `Ptr`, y compris `strToInt`/`strToFloat`/`strToBool`/`floatToInt`/
+    // `intToBool`/... qui retournent en réalité I64/F64/Bool — inoffensif
+    // tant que rien n'agissait différemment selon le type rapporté, mais
+    // confirmé faux dès que ce chantier a donné un sens réel à I64 vs Ptr
+    // (`examples/builtins/convert.oc` plantait dès le premier appel).
+    fn_ret_types.insert("Convert_strToInt".to_string(), IrType::I64);
+    fn_ret_types.insert("Convert_strToFloat".to_string(), IrType::F64);
+    fn_ret_types.insert("Convert_strToBool".to_string(), IrType::Bool);
+    fn_ret_types.insert("Convert_strToArray".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Convert_strToMap".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Convert_intToStr".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Convert_intToFloat".to_string(), IrType::F64);
+    fn_ret_types.insert("Convert_intToBool".to_string(), IrType::Bool);
+    fn_ret_types.insert("Convert_floatToStr".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Convert_floatToInt".to_string(), IrType::I64);
+    fn_ret_types.insert("Convert_floatToBool".to_string(), IrType::Bool);
+    fn_ret_types.insert("Convert_boolToStr".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Convert_boolToInt".to_string(), IrType::I64);
+    fn_ret_types.insert("Convert_boolToFloat".to_string(), IrType::F64);
+    fn_ret_types.insert("Convert_arrayToStr".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Convert_arrayToMap".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Convert_mapToStr".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Convert_mapKeysToArray".to_string(), IrType::Ptr);
+    fn_ret_types.insert("Convert_mapValuesToArray".to_string(), IrType::Ptr);
+
+    // SQLite/MySQL/MariaDB : constructeurs statiques et méthodes de requête
+    // retournant un objet/tableau/map (Ptr), auparavant absents d'ici —
+    // retombaient donc sur le filet de sécurité générique de `expr_ir_type`
+    // (`Expr::StaticCall`, `src/lower/expr.d/typeinfer.rs`). Les rendre
+    // explicites ici reste la pratique établie pour tout le reste de cette
+    // table, et documente le vrai type au lieu de dépendre du filet.
+    fn_ret_types.insert("SQLite_open".to_string(), IrType::Ptr);
+    fn_ret_types.insert("SQLite_query".to_string(), IrType::Ptr);
+    fn_ret_types.insert("SQLite_queryOne".to_string(), IrType::Ptr);
+    fn_ret_types.insert("SQLite_lastInsertId".to_string(), IrType::I64);
+    fn_ret_types.insert("SQLite_affectedRows".to_string(), IrType::I64);
+    fn_ret_types.insert("SQLite_close".to_string(), IrType::Void);
+    for prefix in ["MySQL", "MariaDB"] {
+        fn_ret_types.insert(format!("{}_connect", prefix), IrType::Ptr);
+        fn_ret_types.insert(format!("{}_execute", prefix), IrType::I64);
+        fn_ret_types.insert(format!("{}_query", prefix), IrType::Ptr);
+        fn_ret_types.insert(format!("{}_queryOne", prefix), IrType::Ptr);
+        fn_ret_types.insert(format!("{}_lastInsertId", prefix), IrType::I64);
+        fn_ret_types.insert(format!("{}_affectedRows", prefix), IrType::I64);
+        fn_ret_types.insert(format!("{}_close", prefix), IrType::Void);
+    }
 
     // Propage les types de retour des méthodes héritées (non surchargées) dans fn_ret_types
     for class in &program.classes {

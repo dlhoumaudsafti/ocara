@@ -1,0 +1,114 @@
+import ocara.UnitTest
+import ocara.Array
+
+// Un appel à une méthode d'instance ou statique (`obj.method(...)`/
+// `Class::method(...)`) ne boxait aucun argument F64/Bool/I64 vers un
+// paramètre `mixed` (contrairement à un appel de fonction libre ou un
+// constructeur, qui le faisaient déjà) — un `float`/`bool` restait alors
+// indistinguable d'un entier au runtime, et un grand entier risquait le même
+// SEGFAULT documenté dans docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md.
+// Découvert en creusant ce chantier (`b.show(3.5)` avec `show(v:mixed)`
+// corrompait déjà silencieusement `v`).
+//
+// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée
+// du fichier (voir 33_exception_hierarchyTest.oc) — la classe de test doit
+// donc précéder Box/StaticBox ci-dessous.
+//
+// NOTE assertEquals : compare par égalité BRUTE de i64 (bug pré-existant,
+// documenté ce même chantier) — on utilise `equal`/`assertTrue` pour toute
+// valeur `mixed`, `assertEquals` seulement pour des petits entiers concrets.
+
+class Test_38_mixed_call_arg_boxing {
+
+    // Méthode D'INSTANCE — float
+    public method instanceMethodFloatTest(): int {
+        var b:Box = use Box(0)
+        UnitTest::assertTrue(b.acceptFloat(3.5))
+        return 0
+    }
+
+    // Méthode D'INSTANCE — bool
+    public method instanceMethodBoolTest(): int {
+        var b:Box = use Box(0)
+        UnitTest::assertTrue(b.acceptBool(true))
+        UnitTest::assertFalse(b.acceptBool(false))
+        return 0
+    }
+
+    // Méthode D'INSTANCE — grand entier (le cas qui plantait potentiellement,
+    // voir memoire-fiabilite-runtime-bas-niveau.md)
+    public method instanceMethodLargeIntTest(): int {
+        var b:Box = use Box(0)
+        UnitTest::assertTrue(b.acceptInt(1000000))
+        return 0
+    }
+
+    // Méthode STATIQUE (classe utilisateur) — float/bool/int
+    public method staticMethodTest(): int {
+        UnitTest::assertTrue(StaticBox::acceptFloat(2.5))
+        UnitTest::assertTrue(StaticBox::acceptBool(true))
+        UnitTest::assertTrue(StaticBox::acceptInt(2000000))
+        return 0
+    }
+
+    // Constructeur — déjà correct avant ce chantier, revérifié après le
+    // refactor qui factorise sa logique de boxing avec les méthodes.
+    public method constructorTest(): int {
+        var b:Box = use Box(7.5)
+        UnitTest::assertTrue(b.storedFloatIsFloat())
+        return 0
+    }
+
+    // Méthode STATIQUE builtin (Array::push, param `mixed`) — déjà vérifiée
+    // manuellement pendant ce chantier, testée ici pour la régression.
+    public method builtinStaticMethodTest(): int {
+        var arr:array<mixed> = []
+        Array::push(arr, 4.5)
+        Array::push(arr, 3000000)
+        var first:mixed = arr[0]
+        var second:mixed = arr[1]
+        UnitTest::assertTrue(first is float)
+        UnitTest::assertTrue(second is int)
+        UnitTest::assertTrue(second equal 3000000)
+        return 0
+    }
+}
+
+class Box {
+    public property stored:map<string, mixed>
+
+    init(v:mixed) {
+        self.stored = {"v": v}
+    }
+
+    public method acceptFloat(v:mixed): bool {
+        return v is float
+    }
+
+    public method acceptBool(v:mixed): bool {
+        return v equal true
+    }
+
+    public method acceptInt(v:mixed): bool {
+        return v is int
+    }
+
+    public method storedFloatIsFloat(): bool {
+        var v:mixed = self.stored["v"]
+        return v is float
+    }
+}
+
+class StaticBox {
+    public static method acceptFloat(v:mixed): bool {
+        return v is float
+    }
+
+    public static method acceptBool(v:mixed): bool {
+        return v equal true
+    }
+
+    public static method acceptInt(v:mixed): bool {
+        return v is int
+    }
+}

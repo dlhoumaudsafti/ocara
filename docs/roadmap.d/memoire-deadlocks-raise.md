@@ -26,10 +26,21 @@ Approche alternative écartée : `drop(guard)` explicite juste avant chaque `thr
 
 Vérifié : la reproduction ci-dessus réussit maintenant (`CREATE TABLE` s'exécute normalement au lieu de bloquer). `make regression` sans régression (exemples `sqlite.oc`/`mysql.oc` — ce dernier `SKIP`é faute de serveur MySQL local disponible dans cet environnement, comme déjà documenté ailleurs ; les deux compilent et suivent la même restructuration).
 
-## `Mutex` Ocara — toujours ouvert
+## ✅ `Mutex` Ocara — corrigé (`Mutex::withLock`)
 
-L'API `lock()`/`unlock()` est manuelle (pas de RAII côté langage, `src/builtins/mutex.rs`). Un `raise` entre les deux saute l'`unlock()` → mutex jamais déverrouillé → tous les threads en attente bloquent indéfiniment. Nécessite un mécanisme structurel (ex. `Mutex::withLock(closure)` qui garantirait le déverrouillage même en cas de `raise`, ou une intégration propre entre `longjmp` et un futur RAII côté langage) — non traité dans cette passe (portée volontairement limitée à SQLite/MySQL/MariaDB, où le correctif est ponctuel et sans changement d'API visible).
+L'API `lock()`/`unlock()` reste manuelle (pas de RAII côté langage) et donc toujours exposée au même risque si elle est utilisée directement — ce n'est pas retouché, par choix : ce sont des primitives bas niveau assumées comme telles (même discipline que `SQLite`/`MySQL` avant leur correctif : documenté, pas retiré).
+
+Correctif additif : une nouvelle méthode `m.withLock(f:Function<void>) → void` (`Mutex_withLock`, `runtime/src/mutex.rs`) verrouille, exécute `f()` sous protection d'une frame try dédiée, puis déverrouille **systématiquement** — y compris si `f()` lève une exception. Le mécanisme réutilise directement l'infrastructure `setjmp`/`longjmp` déjà en place (`TRY_STACK`/`TryFrame`, `runtime/src/lib.rs`) via un nouvel helper interne, `run_closure_catching(func_ptr, env_ptr) -> Result<i64, (error_val, error_type)>` : il pousse sa propre frame et fait le `setjmp`, appelle la closure, et — si un `longjmp` la traverse — renvoie `Err((error_val, error_type))` au lieu d'appeler un handler (contrairement à `__ocara_try_exec`). `Mutex_withLock` déverrouille alors le mutex puis relance la MÊME exception via `__ocara_fail`, qui la fait continuer de se propager normalement (vers le `try/on` appelant s'il y en a un, ou termine le programme sinon) — exactement comme si `withLock` n'existait pas, à la différence près que le mutex n'est jamais laissé verrouillé.
+
+**Vérifié** (voir `examples/builtins/mutex.oc` et `examples/tests/36_mutex_withlockTest.oc`, 8 assertions) :
+- exécution nominale : la closure s'exécute, le mutex est déverrouillé après (prouvé par un `tryLock()` qui réussit juste après) ;
+- exception dans la closure : rattrapée normalement par le `try/on` englobant, avec `message`/`code` intacts ;
+- après une exception dans `withLock`, un `tryLock()` immédiat réussit (preuve directe qu'aucun deadlock ne subsiste) ;
+- propagation à plusieurs niveaux de `try` imbriqués : fonctionne comme un `raise` ordinaire ;
+- reproduction multi-thread manuelle (un thread A fait `raise` à l'intérieur d'un `withLock`, un thread B acquiert ensuite le même mutex sans bloquer) : passe, aucun hang.
+
+`make regression` : 422 PASS / 0 FAIL (était 414 avant l'ajout des 8 assertions du nouveau test), aucune régression.
 
 ## Fichiers clés
 
-`runtime/src/sqlite.rs`, `runtime/src/mysql.rs`, `runtime/src/mutex.rs` (non touché, voir ci-dessus), `src/builtins/mutex.rs` (non touché), `runtime/src/lib.rs` (`__ocara_fail`/`TryStack`).
+`runtime/src/sqlite.rs`, `runtime/src/mysql.rs`, `runtime/src/mutex.rs` (`Mutex_withLock`), `src/builtins/mutex.rs` (déclaration `withLock`), `src/codegen/desc.d/mutex.rs` (`Mutex_withLock` dans `MUTEX_BUILTINS`), `runtime/src/lib.rs` (`__ocara_fail`/`TryStack`/`run_closure_catching`).

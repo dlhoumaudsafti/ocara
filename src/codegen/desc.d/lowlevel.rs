@@ -10,6 +10,7 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__box_float",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__int_to_float",    params: &[clt::I64],                             returns: Some(clt::F64),    module: None },
     BuiltinDesc { name: "__box_bool",        params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__box_int_for_mixed", params: &[clt::I64],                           returns: Some(clt::I64),    module: None },
 
     // ── Type checking runtime (narrowing 'is Type') ───────────────────────────
     BuiltinDesc { name: "__is_null",         params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
@@ -45,6 +46,12 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__map_free",        params: &[clt::I64],                             returns: None,               module: None },
     BuiltinDesc { name: "__array_clone",     params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__map_clone",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    // Variantes "shallow" pour array<T>/map<K,T> à élément primitif concret
+    // (int/float/bool, jamais mixed) — voir runtime/src/lib.rs.
+    BuiltinDesc { name: "__array_free_shallow",  params: &[clt::I64],                         returns: None,               module: None },
+    BuiltinDesc { name: "__map_free_shallow",    params: &[clt::I64],                         returns: None,               module: None },
+    BuiltinDesc { name: "__array_clone_shallow", params: &[clt::I64],                         returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__map_clone_shallow",   params: &[clt::I64],                         returns: Some(clt::I64),    module: None },
 
     // ── Comparaisons avec vérification de type au runtime ─────────────────────
     // Utilisées uniquement quand sema n'a pas pu vérifier statiquement (au
@@ -78,6 +85,7 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__task_resolve",         params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__unbox_float",          params: &[clt::I64],                        returns: Some(clt::F64),    module: None },
     BuiltinDesc { name: "__unbox_bool",           params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__unbox_int",             params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__ocara_unhandled_fail", params: &[clt::I64],                        returns: None,              module: None },
     
     // Allocation d'objet tas (toujours disponible)

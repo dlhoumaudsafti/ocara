@@ -26,6 +26,14 @@ pub struct TypeChecker<'a> {
     /// Mapping var_name → func_name pour les variables qui contiennent un task handle async.
     /// Utilisé par Expr::Resolve pour retrouver le type de retour original.
     async_var_funcs: std::collections::HashMap<String, String>,
+    /// Paramètres échappants par fonction/méthode/constructeur utilisateur
+    /// (voir `crate::sema::escape`) — calculé une fois dans `check_program`,
+    /// consulté par `check_argument_escape` (diagnostic E26/ArgumentEscape).
+    escaping_params: std::collections::HashMap<crate::sema::escape::CalleeKey, Vec<bool>>,
+    /// `class_name → membres appelables` — calculé une fois dans
+    /// `check_program`, utilisé pour résoudre un appel vers une classe
+    /// utilisateur (voir `crate::sema::escape::resolve_user_callable`).
+    class_members: crate::sema::escape::ClassMembers,
 }
 
 impl<'a> TypeChecker<'a> {
@@ -41,6 +49,8 @@ impl<'a> TypeChecker<'a> {
             checked_classes: std::collections::HashSet::new(),
             program: None,
             async_var_funcs: std::collections::HashMap::new(),
+            escaping_params: std::collections::HashMap::new(),
+            class_members: std::collections::HashMap::new(),
         }
     }
     
@@ -59,7 +69,12 @@ impl<'a> TypeChecker<'a> {
     pub fn check_program(&mut self, program: &'a Program) {
         // Stocker la référence au program pour le typecheck lazy
         self.program = Some(program);
-        
+
+        // Analyse d'échappement interprocédurale (voir crate::sema::escape)
+        // — nécessaire pour le diagnostic E26 (ArgumentEscape) ci-dessous.
+        self.escaping_params = crate::sema::escape::compute_escaping_params(program);
+        self.class_members = crate::sema::escape::collect_class_members(&program.classes);
+
         // Enums — vérifier les doublons de variantes
         for en in &program.enums {
             self.check_enum(en);
@@ -692,6 +707,63 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
+    /// Vérifie les arguments d'un appel dont le callee résolu est
+    /// `resolved_key` (`None` si le callee n'a pas pu être résolu vers une
+    /// fonction/méthode/constructeur utilisateur connue — builtin, classe
+    /// inconnue... : comportement inchangé, comme aujourd'hui, aucun de ces
+    /// cas n'est vérifié) — voir `crate::sema::escape` pour la justification
+    /// du traitement différent Resource/Thread vs Value ci-dessous.
+    ///
+    /// - `Resource`/`Thread` : TOUJOURS une erreur (`ResourceEscape`, déjà
+    ///   utilisée pour affectation/`return` — sa formulation mentionnait
+    ///   déjà "argument" sans que ce soit jamais vérifié). Aucun usage
+    ///   légitime de "prêt" via argument n'existe pour ces types (ressources
+    ///   utilisées uniquement via leurs propres méthodes) — contrairement à
+    ///   `Value` ci-dessous, pas besoin de savoir si le callee retient
+    ///   vraiment le paramètre.
+    /// - `Value` (string/array/map/classe utilisateur) : seulement une
+    ///   erreur (`ArgumentEscape`, E26) si `resolved_key` est un callable
+    ///   CONNU dont ce paramètre précis est PROUVÉ échappant (voir
+    ///   `escape::compute_escaping_params`) — préserve le sucre
+    ///   `Array::push(arr, x)`/`Map::set(m, k, v)` (builtins, jamais résolus
+    ///   ici, donc jamais vérifiés) et tout appel dont le callee ne retient
+    ///   pas son paramètre.
+    fn check_argument_escape(&mut self, args: &[Expr], resolved_key: Option<&str>) {
+        for (i, arg) in args.iter().enumerate() {
+            let Expr::Ident(name, use_span) = arg else { continue };
+            let Some(b) = self.scopes.lookup(name) else { continue };
+            if b.kind == VarKind::Var {
+                continue;
+            }
+            match ownership_class(&b.ty) {
+                OwnershipClass::Resource | OwnershipClass::Thread => {
+                    self.errors.push(SemaError::ResourceEscape {
+                        name: name.clone(),
+                        class_name: type_name(&b.ty),
+                        span: use_span.clone(),
+                    });
+                }
+                OwnershipClass::Value => {
+                    if let Some(key) = resolved_key {
+                        let escapes = self.escaping_params.get(key)
+                            .and_then(|v| v.get(i))
+                            .copied()
+                            .unwrap_or(false);
+                        if escapes {
+                            self.errors.push(SemaError::ArgumentEscape {
+                                name: name.clone(),
+                                class_name: type_name(&b.ty),
+                                callee: key.to_string(),
+                                span: use_span.clone(),
+                            });
+                        }
+                    }
+                }
+                OwnershipClass::Unsupported => {}
+            }
+        }
+    }
+
     // ── Inférence de type des expressions ────────────────────────────────────
 
     pub fn infer_expr(&mut self, expr: &Expr) -> Type {
@@ -854,6 +926,12 @@ impl<'a> TypeChecker<'a> {
                         }
                         // Appel async : retourne Type::Int (le task handle opaque)
                         let ret = if sig.is_async { Type::Int } else { sig.ret_ty.clone() };
+                        let resolved_key = if self.escaping_params.contains_key(name) {
+                            Some(name.as_str())
+                        } else {
+                            None
+                        };
+                        self.check_argument_escape(args, resolved_key);
                         for arg in args { self.infer_expr(arg); }
                         return ret;
                     }
@@ -1012,10 +1090,12 @@ impl<'a> TypeChecker<'a> {
                                 });
                             }
                             let ret = sig.ret_ty.clone();
+                            let resolved_key = crate::sema::escape::resolve_user_callable(&self.class_members, &cls_name, field);
+                            self.check_argument_escape(args, resolved_key.as_deref());
                             for arg in args { self.infer_expr(arg); }
                             return ret;
                         }
-                        
+
                         // ── Méthodes JSON sur types primitifs ─────────────────────────────
                         // array/map.encode() → JSON::encode(obj)
                         // string.decode() / string.pretty() / string.minimize() → JSON::<method>(obj)
@@ -1136,6 +1216,8 @@ impl<'a> TypeChecker<'a> {
                             span:     span.clone(),
                         });
                     }
+                    let resolved_key = crate::sema::escape::resolve_user_callable(&self.class_members, &resolved_class, method);
+                    self.check_argument_escape(args, resolved_key.as_deref());
                     for arg in args { self.infer_expr(arg); }
                     return ret;
                 }
@@ -1225,6 +1307,8 @@ impl<'a> TypeChecker<'a> {
                     }
                 }
 
+                let resolved_key = crate::sema::escape::resolve_user_callable(&self.class_members, class, "init");
+                self.check_argument_escape(args, resolved_key.as_deref());
                 for arg in args { self.infer_expr(arg); }
 
                 // Si c'est un générique avec type_args, retourner Type::Generic

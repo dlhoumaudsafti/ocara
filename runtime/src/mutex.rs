@@ -7,6 +7,7 @@
 //   Mutex_lock(self_ptr)         → void   verrouille le mutex (bloquant)
 //   Mutex_unlock(self_ptr)       → void   déverrouille le mutex
 //   Mutex_tryLock(self_ptr)     → i64    tente de verrouiller (non-bloquant, retourne 1 si succès, 0 sinon)
+//   Mutex_withLock(self_ptr, fat_ptr) → void   lock + exécute la closure + unlock garanti (même si elle raise)
 //
 // Représentation mémoire :
 //   Le slot Ocara de 8 octets (alloué par __alloc_obj) stocke un pointeur
@@ -124,6 +125,59 @@ pub extern "C" fn Mutex_tryLock(self_ptr: i64) -> i64 {
         1 // succès
     } else {
         0 // échec (mutex déjà verrouillé ou erreur)
+    }
+}
+
+/// Verrouille le mutex, exécute la closure Ocara fournie (fat pointer
+/// {func_ptr, env_ptr}), puis déverrouille systématiquement — y compris si
+/// la closure lève une exception (`raise`).
+///
+/// Problème résolu (voir docs/roadmap.d/memoire-deadlocks-raise.md) :
+/// avec `lock()`/`unlock()` manuels, un `raise` entre les deux appels saute
+/// `unlock()` (setjmp/longjmp, pas d'unwinding Rust) et laisse le mutex
+/// verrouillé pour toujours — tout autre thread en attente dessus est bloqué
+/// définitivement. `withLock` encadre l'appel à la closure avec
+/// `run_closure_catching` (même mécanisme setjmp/longjmp que
+/// `__ocara_try_exec`, voir runtime/src/lib.rs) : si une exception traverse
+/// la closure, elle est interceptée ICI, le mutex est déverrouillé, PUIS
+/// l'exception est relancée via `__ocara_fail` — elle continue donc de se
+/// propager normalement vers le try/catch appelant (ou termine le programme
+/// s'il n'y en a pas), mais sans jamais laisser le mutex verrouillé.
+#[unsafe(no_mangle)]
+pub extern "C" fn Mutex_withLock(self_ptr: i64, fat_ptr: i64) {
+    let m = unsafe { &*mutex_from_slot(self_ptr) };
+    let lock_result = unsafe { libc::pthread_mutex_lock(m.mutex) };
+    if lock_result != 0 {
+        unsafe {
+            crate::exception::throw_mutex_exception(
+                &format!("Failed to lock mutex: error code {}", lock_result),
+                101
+            );
+        }
+    }
+
+    let func_ptr = unsafe { *(fat_ptr as *const i64) };
+    let env_ptr  = unsafe { *((fat_ptr as *const i64).add(1)) };
+
+    let outcome = crate::run_closure_catching(func_ptr, env_ptr);
+
+    // Déverrouillage inconditionnel — succès ou exception, c'est tout
+    // l'intérêt de withLock() par rapport à lock()/unlock() manuels.
+    let unlock_result = unsafe { libc::pthread_mutex_unlock(m.mutex) };
+
+    if let Err((error_val, error_type)) = outcome {
+        // Relancer l'exception d'origine vers l'appelant, maintenant que le
+        // mutex est déverrouillé.
+        crate::__ocara_fail(error_val, error_type);
+    }
+
+    if unlock_result != 0 {
+        unsafe {
+            crate::exception::throw_mutex_exception(
+                &format!("Failed to unlock mutex: error code {} (not owned by current thread?)", unlock_result),
+                102
+            );
+        }
     }
 }
 

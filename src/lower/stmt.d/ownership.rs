@@ -96,17 +96,35 @@ pub struct OwnedLocalInfo {
 }
 
 /// Appelé depuis `lower_var` juste après la déclaration d'une `scoped`/
-/// `consumed`. Enregistre les métadonnées de propriété si le type est pris
-/// en charge — sinon (Thread, type non supporté) ne fait rien.
+/// `consumed`/`var`. Enregistre les métadonnées de propriété si le type est
+/// pris en charge — sinon (Thread, type non supporté) ne fait rien.
+///
+/// Un `var` (kind normalement jamais libéré) est traité EXACTEMENT comme un
+/// `scoped` implicite — MÊME mécanisme de libération en fin de bloc, aucun
+/// codegen nouveau — quand `builder.auto_freeable_vars` (calculé une fois
+/// par fonction/méthode, voir `compute_auto_freeable_vars` ci-dessous)
+/// contient son nom, c'est-à-dire quand `crate::sema::escape::var_never_escapes`
+/// a prouvé qu'il ne s'échappe jamais. Volontairement restreint à
+/// `OwnershipClass::Value` (jamais `Resource`/`Thread` : fermer
+/// implicitement une connexion DB/un mutex serait un changement de
+/// comportement bien plus surprenant pour un simple `var`) — voir
+/// docs/roadmap.d/memoire-strategie-var.md.
 pub fn register_owned_local(builder: &mut LowerBuilder, name: &str, ty: &Type, kind: VarKind) {
-    if !matches!(kind, VarKind::Scoped | VarKind::Consumed) {
-        return;
-    }
     let class = ownership_class(ty);
+    let effective_kind = match kind {
+        VarKind::Scoped | VarKind::Consumed => kind,
+        VarKind::Var => {
+            if class == OwnershipClass::Value && builder.auto_freeable_vars.contains(name) {
+                VarKind::Scoped
+            } else {
+                return;
+            }
+        }
+    };
     if matches!(class, OwnershipClass::Value | OwnershipClass::Resource) {
         builder.owned_locals.insert(
             name.to_string(),
-            OwnedLocalInfo { kind, class, ty: ty.clone(), dropped: false, declared_loop_depth: builder.loop_depth },
+            OwnedLocalInfo { kind: effective_kind, class, ty: ty.clone(), dropped: false, declared_loop_depth: builder.loop_depth },
         );
         // Alimente block_scope_stack pour emit_early_exit_drops (return/
         // break/continue anticipés) — voir sa doc dans builder.d/types.rs.
@@ -130,9 +148,28 @@ pub fn register_owned_local(builder: &mut LowerBuilder, name: &str, ty: &Type, k
 /// la même fonction pour rester uniformes et gérer récursivement les
 /// éléments imbriqués. Instance de classe utilisateur : `__free_<Classe>`
 /// généré par `crate::lower::builder::class_ownership`.
+/// `true` pour un type d'élément PRIMITIF CONCRET (int/float/bool) — jamais
+/// pour `mixed`, `string`, ou un type composite/nommé. Un élément primitif ne
+/// possède jamais de mémoire propre : recurser dedans (`__value_free`/
+/// `__value_clone` par élément) n'a rien à faire de plus qu'une copie brute,
+/// et est dangereux (voir `drop_func_for`/`clone_func_for`) puisque son bit
+/// pattern brut peut ressembler à un pointeur heap valide.
+fn is_concrete_primitive_elem(ty: &Type) -> bool {
+    matches!(ty, Type::Int | Type::Float | Type::Bool)
+}
+
 fn drop_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<String> {
     match info.class {
         OwnershipClass::Value => match &info.ty {
+            // `array`/`map` à élément primitif concret : jamais de pointeur
+            // heap à inspecter parmi les éléments — variante "shallow" (pas
+            // de parcours récursif) obligatoire, voir sa doc dans
+            // runtime/src/lib.rs. Corrige un SEGFAULT confirmé (`var
+            // floats:array<float> = [1.5, 2.5, 3.5]`, jamais échappé : le
+            // bit pattern brut d'un `float` ressemble parfois à un pointeur
+            // heap valide, `__value_free` par élément le déréférençait).
+            Type::Array(elem) if is_concrete_primitive_elem(elem) => Some("__array_free_shallow".to_string()),
+            Type::Map(_, elem) if is_concrete_primitive_elem(elem) => Some("__map_free_shallow".to_string()),
             Type::String | Type::Array(_) | Type::Map(_, _) => Some("__value_free".to_string()),
             Type::Named(n) if class_ownership::has_generated_destructor(module, n) => {
                 Some(format!("__free_{}", n))
@@ -155,6 +192,9 @@ fn drop_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<String> {
 /// (les ressources ne s'échappent jamais, refusé par la sema).
 fn clone_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<String> {
     match &info.ty {
+        // Voir `drop_func_for` : même raison de choisir la variante "shallow".
+        Type::Array(elem) if is_concrete_primitive_elem(elem) => Some("__array_clone_shallow".to_string()),
+        Type::Map(_, elem) if is_concrete_primitive_elem(elem) => Some("__map_clone_shallow".to_string()),
         Type::String | Type::Array(_) | Type::Map(_, _) => Some("__value_clone".to_string()),
         Type::Named(n) if class_ownership::has_generated_destructor(module, n) => {
             Some(format!("__clone_{}", n))
@@ -204,12 +244,17 @@ pub fn free_before_reassign(builder: &mut LowerBuilder, name: &str) {
 /// encore détruites. Appelé par `lower_block` à la fin d'un bloc qui se
 /// termine normalement (pas de `return`/`raise`/`break`/`continue` déjà émis).
 pub fn emit_scope_drops(builder: &mut LowerBuilder, block: &Block) {
+    // Filtre sur `owned_locals` (pas directement le `kind` AST) : un `var`
+    // prouvé non-échappant y est enregistré exactement comme un `scoped`
+    // (voir `register_owned_local`) — son `kind` AST reste `Var`, seul
+    // `owned_locals` sait qu'il doit être libéré ici.
     let names: Vec<String> = block.stmts.iter().rev().filter_map(|s| {
-        if let Stmt::Var { name, kind: VarKind::Scoped | VarKind::Consumed, .. } = s {
-            Some(name.clone())
-        } else {
-            None
+        if let Stmt::Var { name, .. } = s {
+            if builder.owned_locals.contains_key(name) {
+                return Some(name.clone());
+            }
         }
+        None
     }).collect();
     for name in names {
         emit_drop_if_owned(builder, &name);
@@ -353,5 +398,102 @@ fn collect_consumed_reads_expr(expr: &Expr, owned: &HashMap<String, OwnedLocalIn
         // les types valeur, capturée par valeur au moment de la création
         // de la closure — pas un usage direct ici).
         Expr::Nameless { .. } => {}
+    }
+}
+
+/// Calcule, pour un corps de fonction/méthode/constructeur, l'ensemble des
+/// noms de `var` (jamais `scoped`/`consumed`, déjà explicites) prouvés ne
+/// jamais s'échapper (voir `crate::sema::escape::var_never_escapes`) —
+/// appelé une fois avant de lowered le corps (voir `lower_func`), stocké
+/// dans `builder.auto_freeable_vars`, consulté par `register_owned_local`.
+///
+/// Restreint à `OwnershipClass::Value` (string/array/map/classe utilisateur
+/// avec destructeur généré) : jamais `Resource`/`Thread`/`Unsupported` — un
+/// `var` sur ces types continue de se comporter exactement comme aujourd'hui
+/// (voir docs/roadmap.d/memoire-strategie-var.md).
+pub fn compute_auto_freeable_vars(module: &IrModule, body: &Block, self_class: Option<&str>) -> std::collections::HashSet<String> {
+    let mut eligible = std::collections::HashSet::new();
+    collect_var_candidates(module, body, self_class, &mut eligible);
+    eligible
+}
+
+fn collect_var_candidates(
+    module: &IrModule, block: &Block, self_class: Option<&str>,
+    eligible: &mut std::collections::HashSet<String>,
+) {
+    for (i, stmt) in block.stmts.iter().enumerate() {
+        if let Stmt::Var { name, ty, value, kind: VarKind::Var, .. } = stmt {
+            if ownership_class(ty) == OwnershipClass::Value
+                && is_fresh_allocation(value)
+                && crate::sema::escape::var_never_escapes(&module.class_members, name, block, i, self_class, &module.escaping_params)
+            {
+                eligible.insert(name.clone());
+            }
+        }
+        walk_nested_blocks_for_vars(stmt, module, self_class, eligible);
+    }
+}
+
+/// Un `var` n'est éligible à la libération automatique que si son
+/// initialiseur produit une valeur FRAÎCHEMENT allouée et possédée
+/// UNIQUEMENT par ce `var` — sinon, même si le `var` lui-même ne s'échappe
+/// jamais après coup, sa valeur pourrait déjà être un ALIAS partagé avec
+/// autre chose (ex. `var got:Holder = acc.get(j)` : `got` et `acc[j]`
+/// pointent vers le MÊME objet — libérer `got` en fin de bloc alors que
+/// `acc` le référence encore est un double free confirmé par reproduction).
+///
+/// Formes reconnues comme sûres :
+/// - `use Classe(...)` : toujours une allocation neuve
+///   (`__alloc_class_obj`), quels que soient ses arguments.
+/// - Littéral tableau/map (`[...]`/`{...}`) : toujours une structure neuve
+///   (`__array_new`/`__map_new`) ; un élément qui serait lui-même un alias
+///   taintée est déjà marqué comme échappant par
+///   `crate::sema::escape::walk_expr_for_calls` (transfert de propriété
+///   correctement pris en compte).
+/// - Concaténation `+` : `__str_concat` (runtime/src/lib.rs) alloue
+///   systématiquement une nouvelle string, jamais un des deux opérandes
+///   inchangé.
+/// - Littéral simple (int/float/bool/string/null) : soit non possédable
+///   (primitif), soit un littéral string (`TAG_STRING`, jamais
+///   `TAG_STRING_OWNED`) — le libérer est un no-op garanti (`is_owned_string`).
+///
+/// Tout le reste (n'importe quel appel — `.get()`, `Convert::*`,
+/// `String::*`, accès de champ, accès indexé, `match`...) est exclu par
+/// prudence : on ne peut pas garantir en général qu'un appel ne retourne
+/// pas un pointeur déjà possédé ailleurs.
+fn is_fresh_allocation(value: &Expr) -> bool {
+    match value {
+        Expr::New { .. } | Expr::Array { .. } | Expr::Map { .. } | Expr::Literal(..) => true,
+        Expr::Binary { op: crate::parsing::ast::BinOp::Add, .. } => true,
+        _ => false,
+    }
+}
+
+/// Descend dans les blocs imbriqués d'un statement (if/switch/while/for/try)
+/// pour y trouver D'AUTRES `var` candidats — chacun vérifié par rapport à
+/// SON PROPRE bloc englobant, indépendamment de ceux du bloc parent.
+fn walk_nested_blocks_for_vars(
+    stmt: &Stmt, module: &IrModule, self_class: Option<&str>,
+    eligible: &mut std::collections::HashSet<String>,
+) {
+    match stmt {
+        Stmt::If { then_block, elseif, else_block, .. } => {
+            collect_var_candidates(module, then_block, self_class, eligible);
+            for (_, b) in elseif { collect_var_candidates(module, b, self_class, eligible); }
+            if let Some(b) = else_block { collect_var_candidates(module, b, self_class, eligible); }
+        }
+        Stmt::Switch { cases, default, .. } => {
+            for c in cases { collect_var_candidates(module, &c.body, self_class, eligible); }
+            if let Some(b) = default { collect_var_candidates(module, b, self_class, eligible); }
+        }
+        Stmt::While { body, .. } => collect_var_candidates(module, body, self_class, eligible),
+        Stmt::ForIn { body, .. } => collect_var_candidates(module, body, self_class, eligible),
+        Stmt::ForMap { body, .. } => collect_var_candidates(module, body, self_class, eligible),
+        Stmt::Try { body, handlers, .. } => {
+            collect_var_candidates(module, body, self_class, eligible);
+            for h in handlers { collect_var_candidates(module, &h.body, self_class, eligible); }
+        }
+        Stmt::Var { .. } | Stmt::Const { .. } | Stmt::Expr(_) | Stmt::Return { .. } | Stmt::Result { .. }
+        | Stmt::Break { .. } | Stmt::Continue { .. } | Stmt::Raise { .. } | Stmt::Assign { .. } => {}
     }
 }
