@@ -413,7 +413,58 @@ unsafe fn is_owned_string(val: i64) -> bool {
     unsafe { read_tag(val) == TAG_STRING_OWNED }
 }
 
-/// Libère `val` récursivement si c'est un pointeur heap string/array/map.
+/// Vrai pour une cellule boxée (`box_int_if_needed`/`__box_float`/
+/// `__box_bool` — un `int`/`float`/`bool` logé dans un `mixed`, tag dans les
+/// 2 bits bas : `01`/`10`/`11`). Distinct de `is_owned_string`/`__is_array`/
+/// `__is_map` : ces trois-là passent par `read_tag`, qui retourne `0`
+/// immédiatement pour une telle valeur (`(val & 3) != 0`, voir
+/// `typecheck::read_tag`) — une cellule boxée n'est donc reconnue par AUCUN
+/// des trois, ce qui la rendait invisible à `__value_free`/`__value_clone`
+/// avant l'ajout de ce cas (voir docs/roadmap.d/memoire-boxing-durcissement.md,
+/// « Découverte en écrivant le volet 1 »).
+#[inline]
+fn is_boxed_primitive(val: i64) -> bool {
+    is_float_box(val) || is_bool_box(val) || is_int_box(val)
+}
+
+/// Libère la cellule de 8 octets d'une valeur boxée (`is_boxed_primitive`) —
+/// même layout pour les trois tags (`Layout::from_size_align(8, 8)`, voir
+/// `box_int_if_needed`/`__box_float`/`__box_bool`), donc un seul chemin de
+/// libération suffit pour les trois.
+#[inline]
+unsafe fn free_boxed_primitive(val: i64) {
+    unsafe {
+        let layout = Layout::from_size_align(8, 8).unwrap();
+        dealloc((val & !3) as *mut u8, layout);
+    }
+}
+
+/// Copie profonde d'une cellule boxée : nouvelle allocation de 8 octets,
+/// mêmes bits bruts (correct indifféremment pour un `i64`/`f64`/bool boxé —
+/// une copie bit à bit n'a pas besoin d'interpréter la valeur), même tag.
+/// Sans ceci, `__value_clone` retournait `val` tel quel pour une valeur
+/// boxée (aliasing du même pointeur) — sûr tant que rien ne libère jamais
+/// cette cellule, mais devient un double-free/use-after-free dès que
+/// `__value_free` sait la libérer (voir `free_boxed_primitive` ci-dessus) :
+/// l'original et sa "copie profonde" partageraient la même mémoire, libérer
+/// l'un laisserait l'autre pendant.
+#[inline]
+unsafe fn clone_boxed_primitive(val: i64) -> i64 {
+    unsafe {
+        let tag = val & 3;
+        let bits = *((val & !3) as *const i64);
+        let layout = Layout::from_size_align(8, 8).unwrap();
+        let new_ptr = alloc(layout) as *mut i64;
+        assert!(!new_ptr.is_null(), "ocara_runtime: OOM");
+        *new_ptr = bits;
+        (new_ptr as i64) | tag
+    }
+}
+
+/// Libère `val` récursivement si c'est un pointeur heap string/array/map, ou
+/// la cellule d'une valeur boxée (`int`/`float`/`bool` logé dans un `mixed`,
+/// voir `is_boxed_primitive` — avant ce cas, une telle cellule fuyait
+/// inconditionnellement : aucun des trois cas précédents ne la reconnaît).
 /// No-op sur tout le reste — **y compris une string littérale** (`.rodata`,
 /// tag `TAG_STRING`, pas `TAG_STRING_OWNED`) : c'est ce qui rend cette
 /// fonction sûre comme point d'entrée UNIQUE pour la destruction
@@ -427,21 +478,27 @@ pub extern "C" fn __value_free(val: i64) {
         if is_owned_string(val) { free_str(val); }
         else if __is_array(val) != 0 { __array_free(val); }
         else if __is_map(val)   != 0 { __map_free(val); }
+        else if is_boxed_primitive(val) { free_boxed_primitive(val); }
     }
 }
 
-/// Clone `val` récursivement si c'est un pointeur heap string/array/map.
-/// Retourne `val` tel quel pour tout le reste — ces valeurs n'ont pas de
-/// propriétaire distinct à dupliquer (partagées par nature : primitifs,
-/// objets, fonctions, 0) — **y compris une string littérale** : immuable et
-/// éternelle (vit tout le programme), l'aliaser directement sans copie est
-/// toujours sûr, pas besoin d'allouer un clone inutile. Voir `__value_free`.
+/// Clone `val` récursivement si c'est un pointeur heap string/array/map, ou
+/// copie profonde d'une cellule boxée (voir `clone_boxed_primitive` — une
+/// valeur boxée A une identité tas depuis l'introduction du boxing `mixed`,
+/// contrairement à un primitif brut, qui n'en a jamais eu et n'a donc rien à
+/// dupliquer). Retourne `val` tel quel pour tout le reste — ces valeurs n'ont
+/// pas de propriétaire distinct à dupliquer (int/float/bool BRUTS, jamais
+/// boxés ; objets ; fonctions ; `0`) — **y compris une string littérale** :
+/// immuable et éternelle (vit tout le programme), l'aliaser directement sans
+/// copie est toujours sûr, pas besoin d'allouer un clone inutile. Voir
+/// `__value_free`.
 #[unsafe(no_mangle)]
 pub extern "C" fn __value_clone(val: i64) -> i64 {
     unsafe {
         if is_owned_string(val) { alloc_str(ptr_to_str(val)) }
         else if __is_array(val) != 0 { __array_clone(val) }
         else if __is_map(val)   != 0 { __map_clone(val) }
+        else if is_boxed_primitive(val) { clone_boxed_primitive(val) }
         else { val }
     }
 }
@@ -3693,3 +3750,9 @@ pub extern "C" fn JSON_minimize(json: i64) -> i64 {
         Err(_) => json  // Retourner la string originale en cas d'erreur
     }
 }
+
+/// Tests unitaires du runtime — `runtime/src/tests/`, un fichier par domaine
+/// (voir docs/roadmap.d/qualite-tests-unitaires-critiques.md), pour ne pas
+/// alourdir davantage ce fichier (déjà le plus gros du crate).
+#[cfg(test)]
+mod tests;
