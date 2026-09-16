@@ -145,6 +145,8 @@ pub enum TokenKind {
     Star,    // *
     Slash,   // /
     Percent, // %
+    PlusPlus,   // ++ (incrémentation, préfixe ou suffixe — voir docs/roadmap.d/langage-increment-decrement.md)
+    MinusMinus, // -- (décrémentation, préfixe ou suffixe)
 
     // ── Opérateurs de comparaison symboliques (SUPPRIMÉS du langage) ───────────
     // Depuis Ocara v0.2.0, toute comparaison s'écrit en toutes lettres

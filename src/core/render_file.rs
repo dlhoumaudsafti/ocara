@@ -325,6 +325,7 @@ fn desugar_expr(expr: &mut Expr, map: &mut ConstMap) -> Result<(), DesugarError>
 
         Expr::Resolve { expr: e, .. } => desugar_expr(e, map)?,
         Expr::IsCheck { expr: e, .. } => desugar_expr(e, map)?,
+        Expr::IncDec { target, .. } => desugar_expr(target, map)?,
     }
     Ok(())
 }

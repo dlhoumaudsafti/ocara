@@ -25,6 +25,19 @@ impl Parser {
         self.current().span.clone()
     }
 
+    /// Numéro de ligne du DERNIER token déjà consommé — `None` en tout début
+    /// de flux. Sert uniquement à restreindre le suffixe `++`/`--`
+    /// (`parse_postfix`) à la MÊME ligne que la fin de son opérande : sans
+    /// ça, `use Counter(100)` suivi, sur la ligne SUIVANTE, de `++c.value`
+    /// (nouvelle instruction préfixe) se faisait avaler par le suffixe —
+    /// `(use Counter(100))++` puis `c.value` orphelin — car ce langage,
+    /// sans point-virgule, ne traite pas le saut de ligne comme une
+    /// frontière de token. Même restriction que JS impose à `++`/`--`
+    /// postfixe pour la même raison (ASI, "no LineTerminator here").
+    pub(super) fn previous_line(&self) -> Option<usize> {
+        self.pos.checked_sub(1).map(|i| self.tokens[i].span.line)
+    }
+
     pub(super) fn advance(&mut self) -> &Token {
         let tok = &self.tokens[self.pos];
         if tok.kind != TokenKind::Eof {

@@ -109,6 +109,9 @@ pub enum SemaError {
     /// `crate::sema::message_emit`) : seuls `for`/`Array::fromMessage`
     /// restent valables dans ce cas.
     MessageUnsafeScalarConsumption { name: String, span: Span },
+    /// `i++`/`++i`/`i--`/`--i` (`Expr::IncDec`) sur une cible dont le type
+    /// n'est ni `int` ni `float` — voir docs/roadmap.d/langage-increment-decrement.md.
+    IncDecInvalidType { found: String, span: Span },
 }
 
 impl SemaError {
@@ -149,6 +152,7 @@ impl SemaError {
             SemaError::MessageReturnWithoutEmit { span, .. } => span,
             SemaError::EmitOutsideMessageFunction { span } => span,
             SemaError::MessageUnsafeScalarConsumption { span, .. } => span,
+            SemaError::IncDecInvalidType { span, .. } => span,
         }
     }
 
@@ -228,6 +232,8 @@ impl SemaError {
                 "'emit' is only valid inside a function/method whose declared return type is 'message<T>'".into(),
             SemaError::MessageUnsafeScalarConsumption { name, .. } =>
                 format!("'{}()' returns 'message<T>' with an 'emit' reachable inside a loop — the compiler cannot prove that at most one value is ever produced, so it cannot be consumed directly as a scalar here; use 'for x in {}()' or 'Array::fromMessage({}())' instead", name, name, name),
+            SemaError::IncDecInvalidType { found, .. } =>
+                format!("'++'/'--' require an 'int' or 'float' target, found '{}'", found),
         }
     }
 }

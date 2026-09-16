@@ -9,6 +9,11 @@ use crate::ir::types::IrType;
 use crate::lower::builder::LowerBuilder;
 use crate::lower::expr::lower_expr;
 use statements_impl::*;
+// Re-export public : `lower_incdec` (assignments.rs) doit être appelable
+// depuis `crate::lower::expr.d::lower.rs` (Expr::IncDec, une EXPRESSION,
+// vit dans l'arbre `expr`, pas `stmt`) — `statements_impl` étant un module
+// privé, seul un re-export explicite le rend atteignable de l'extérieur.
+pub use statements_impl::assignments::lower_incdec;
 
 pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
     match stmt {

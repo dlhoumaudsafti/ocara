@@ -198,6 +198,36 @@ pub fn resolve_chained_field_class(builder: &LowerBuilder, object: &Expr, field:
     }
 }
 
+/// Détermine si `object` (le récepteur d'un `Expr::Index`, `object[index]`)
+/// est une `map` plutôt qu'un `array` — nécessaire pour choisir entre
+/// `__map_get`/`__map_set` et `__array_get`/`__array_set` (un `map` interprété
+/// comme `array` corrompt sa structure interne, crash silencieux au premier
+/// accès suivant). Factorisé ici : cette même logique était dupliquée entre
+/// la lecture (`Expr::Index` dans `lower.rs`) et l'écriture (`lower_assign`
+/// dans `assignments.rs`) — un seul point désormais, pour éviter le même
+/// risque de récidive "corrigé sur un chemin, pas l'autre" déjà rencontré
+/// pour `expr_ir_type` (voir docs/roadmap.d/qualite-parite-sucre-statique.md).
+pub fn is_map_target(builder: &LowerBuilder, object: &Expr) -> bool {
+    match object {
+        Expr::Ident(name, _) => builder.map_vars.contains(name.as_str()),
+        Expr::Field { object: inner, field, .. } => {
+            let class_name = match inner.as_ref() {
+                Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
+                Expr::SelfExpr(_)    => builder.current_class.clone(),
+                Expr::Field { object: inner2, field: inner2_field, .. } => {
+                    resolve_chained_field_class(builder, inner2, inner2_field)
+                }
+                _ => None,
+            };
+            class_name
+                .and_then(|cls| builder.module.class_map_fields.get(&cls).cloned())
+                .map(|fields| fields.contains(field.as_str()))
+                .unwrap_or(false)
+        }
+        _ => false,
+    }
+}
+
 /// Complète les arguments avec les valeurs par défaut si nécessaire
 pub fn complete_args_with_defaults(
     builder: &LowerBuilder,

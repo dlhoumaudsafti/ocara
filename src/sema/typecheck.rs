@@ -1659,6 +1659,50 @@ impl<'a> TypeChecker<'a> {
                 }
             }
 
+            // `i++`/`++i`/`i--`/`--i` — voir docs/roadmap.d/langage-increment-decrement.md.
+            // Même règle de FORME de cible que `Stmt::Assign` (ligne ~786 :
+            // Ident/Field/Index uniquement), plus une validation de TYPE
+            // (int/float uniquement) absente de `Stmt::Assign`. Un seul appel
+            // à `infer_expr(target)` (jamais deux) : pour un `Ident`, il fait
+            // déjà le lookup ET `use_binding` (suivi `consumed` — un second
+            // appel compterait une seconde lecture qui n'existe pas) ; pour
+            // `Field`/`Index`, il infère déjà `object`/`index` en interne. La
+            // vérification de mutabilité, elle, n'est PAS faite par une
+            // lecture normale : `self.scopes.lookup` seul (sans passer par
+            // `infer_expr`) reste donc nécessaire en plus, sans doublon.
+            Expr::IncDec { target, span, .. } => {
+                match target.as_ref() {
+                    Expr::Ident(name, _) => {
+                        if let Some(binding) = self.scopes.lookup(name) {
+                            if !binding.mutable {
+                                self.errors.push(SemaError::InvalidAssign {
+                                    name: name.clone(),
+                                    span: span.clone(),
+                                });
+                            }
+                        }
+                        // Absent : `infer_expr(target)` ci-dessous rapporte
+                        // déjà `UndefinedSymbol` — pas la peine de dupliquer.
+                    }
+                    Expr::Field { .. } | Expr::Index { .. } => {}
+                    _ => {
+                        self.errors.push(SemaError::InvalidAssign {
+                            name: "cible invalide".into(),
+                            span: span.clone(),
+                        });
+                        return Type::Int;
+                    }
+                }
+                let target_ty = self.infer_expr(target);
+                if !matches!(target_ty, Type::Int | Type::Float) {
+                    self.errors.push(SemaError::IncDecInvalidType {
+                        found: type_name(&target_ty),
+                        span:  span.clone(),
+                    });
+                }
+                target_ty
+            }
+
             Expr::Array { elements, .. } => {
                 if elements.is_empty() {
                     return Type::Array(Box::new(Type::Mixed));

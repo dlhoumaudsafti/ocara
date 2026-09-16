@@ -99,6 +99,7 @@ fn walk_expr_caps(expr: &Expr, p: &HashSet<String>, l: &HashMap<String, (Value, 
         Expr::Match  { subject, arms, ..} => { walk_expr_caps(subject, p, l, caps, seen); for arm in arms { walk_expr_caps(&arm.body, p, l, caps, seen); } }
         Expr::IsCheck { expr, .. }       => walk_expr_caps(expr, p, l, caps, seen),
         Expr::Resolve { expr, .. }        => walk_expr_caps(expr, p, l, caps, seen),
+        Expr::IncDec { target, .. }      => walk_expr_caps(target, p, l, caps, seen),
         // Ne pas descendre dans les nameless imbriquées (elles ont leurs propres captures)
         Expr::Nameless { .. } | Expr::Literal(..) | Expr::StaticConst { .. } => {}
     }
