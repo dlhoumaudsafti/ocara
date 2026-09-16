@@ -1,9 +1,9 @@
-# Spécification EBNF Ocara v0.1.0
+# Spécification EBNF Ocara v1.0.0
 
 **O**bject **C**ode **A**bstraction **R**untime **A**rchitecture
 
-> Version : **0.1.0**  
-> Date : **2026-04-25**  
+> Version : **1.0.0**  
+> Date : **2026-09-16**  
 > Statut : **Officielle**  
 > Author : **David Lhoumaud**  
 
@@ -805,7 +805,7 @@ function divide(a:int, b:int): int|float {
 
 **Type narrowing (raffinement de type) :**
 
-Ocara v0.1.0 supporte le narrowing via l'opérateur `is` dans les expressions `match` et les conditions, pour **tous les types** :
+Ocara v1.0.0 supporte le narrowing via l'opérateur `is` dans les expressions `match` et les conditions, pour **tous les types** :
 
 ```ocara
 // Narrowing dans match — tous les types supportés
@@ -870,7 +870,7 @@ Toutes les allocations heap (string, array, map, objet, fat-pointer) sont préc�
                         pointeur retourné au code Ocara
 ```
 
-**Limitations actuelles (v0.1.0) :**
+**Limitations actuelles (v1.0.0) :**
 
 - `is float` fonctionne uniquement quand le type est connu **statiquement** à la compilation. Dans un contexte `mixed` dynamique, seuls les floats explicitement boxés (via `__box_float`) sont détectables.
 - `is bool` reconnaît un bool explicitement boxé (via `__box_bool` — le cas d'un `bool` littéral dans un `array<mixed>`/`map<K,mixed>`, ou affecté à une variable `mixed`) ; un bool jamais boxé reste indistinguable des `int` 0 et 1.

@@ -2773,7 +2773,7 @@ dependencies = [
 
 [[package]]
 name = "ocara"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cranelift-codegen",
  "cranelift-frontend",
@@ -2786,7 +2786,7 @@ dependencies = [
 
 [[package]]
 name = "ocara_runtime"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "idna 0.3.0",
  "libc",
@@ -2806,7 +2806,7 @@ dependencies = [
 
 [[package]]
 name = "ocara_runtime_sdl"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "ocara_runtime",
  "once_cell",
@@ -2815,7 +2815,7 @@ dependencies = [
 
 [[package]]
 name = "ocara_runtime_tauri"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "glob",
  "ocara_runtime",
@@ -2828,11 +2828,11 @@ dependencies = [
 
 [[package]]
 name = "ocaracs"
-version = "0.1.0"
+version = "1.0.0"
 
 [[package]]
 name = "ocaraunit"
-version = "0.1.0"
+version = "1.0.0"
 
 [[package]]
 name = "once_cell"

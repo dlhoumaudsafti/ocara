@@ -28,7 +28,7 @@ function main(): int {
   <card title="Bienvenue" body="Ocara est un langage compile natif.">
   <card title="Performance" body="Cranelift codegen, zero GC.">
   <badge label="stable" color="green">
-  <badge label="v0.1.0" color="blue">
+  <badge label="v1.0.0" color="blue">
 </section>`)
 
     IO::writeln(html)

@@ -14,7 +14,7 @@ class APIController {
         HTTPServer::respond(req, 200, 
             JSON::encode({
                 "name": "Ocara Site API",
-                "version": "0.1.0",
+                "version": "1.0.0",
                 "status": "ok"
             })
         )

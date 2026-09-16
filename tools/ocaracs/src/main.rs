@@ -530,7 +530,7 @@ fn check_directory(
 // ─────────────────────────────────────────────────────────────────────────────
 
 fn print_help() {
-    eprintln!("ocaracs — analyseur de style pour Ocara v0.1.0");
+    eprintln!("ocaracs — analyseur de style pour Ocara v1.0.0");
     eprintln!();
     eprintln!("Usage:");
     eprintln!("  ocaracs <fichier.oc>   Analyser un fichier");
