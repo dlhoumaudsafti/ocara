@@ -55,12 +55,18 @@ Map::has(m, "david")    // → false
 ### `Map::get(m, key)` → `mixed`
 
 Retourne la valeur associée à `key`.  
-Si la clé est absente, le comportement dépend du runtime (retourne `0` / chaîne vide par défaut).  
-Toujours vérifier avec `Map::has` avant si la présence n'est pas garantie.
+**Si la clé est absente, lève une `MapException`** (code 101, `KEY_NOT_FOUND` — voir « Gestion d'erreurs » plus bas).  
+Toujours vérifier avec `Map::has` avant si la présence n'est pas garantie, ou entourer l'appel d'un `try`/`on`.
 
 ```ocara
 var m:map = {"prix": 42, "qte": 3}
 scoped p:int = Map::get(m, "prix")   // → 42
+
+if Map::has(m, "remise") {
+    scoped r:int = Map::get(m, "remise")
+} else {
+    IO::writeln("pas de remise")   // clé absente : Map::get lèverait ici
+}
 ```
 
 ---
@@ -360,6 +366,7 @@ Les messages d'exception sont en anglais et incluent la clé recherchée :
 - `Key not found: 123` (pour les clés numériques)
 
 **Notes :**
+- `Map::get()` lève `MapException` (code 101) si la clé est absente — voir sa section dédiée plus haut. C'est la seule méthode `Map` qui lève une exception.
 - `Map::has()` ne lève jamais d'exception (retourne true/false)
 - `Map::set()` ne lève jamais d'exception (crée ou met à jour la clé)
 - `Map::remove()` ne lève jamais d'exception (même si la clé n'existe pas)

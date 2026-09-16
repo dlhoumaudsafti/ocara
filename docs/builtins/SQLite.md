@@ -70,6 +70,8 @@ for row in rows {
 
 Exécute une requête SELECT et retourne une seule ligne (ou une map vide si aucun résultat).
 
+> ⚠️ **Piège** : `MySQL::queryOne`/`MariaDB::queryOne` (voir [MySQL](MySQL.md)) portent le même nom de méthode mais une sémantique **différente** pour représenter "aucun résultat" — ils retournent `null` (type `map<string, mixed>|null`), pas une map vide. Ne pas écrire de code générique sur les deux sans tenir compte de cette différence.
+
 ```ocara
 const user:map<string, mixed> = db.queryOne("SELECT * FROM users WHERE id = 1")
 

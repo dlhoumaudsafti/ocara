@@ -83,6 +83,8 @@ String::trim("\t texte \n")   // → "texte"
 
 Remplace **toutes** les occurrences de la sous-chaîne `from` par `to` dans `s`.
 
+> ⚠️ **Piège** : `Regex::replace` (voir [Regex](Regex.md)) porte le même nom de méthode mais une sémantique **opposée** — il ne remplace que la **première** occurrence (`Regex::replaceAll` est l'équivalent de ce `String::replace`). Ne pas supposer le même comportement en passant de l'un à l'autre.
+
 | Paramètre | Type     | Description              |
 |-----------|----------|--------------------------|
 | `s`       | `string` | Chaîne source            |

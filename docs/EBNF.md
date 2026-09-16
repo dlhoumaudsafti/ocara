@@ -1743,7 +1743,7 @@ Une fonction peut être passée comme valeur en utilisant le type `Function` (vo
 function double(n:int): int { return n * 2 }
 
 // Passer une fonction libre
-function apply(f:Function, n:int): int {
+function apply(f:Function<int(int)>, n:int): int {
     return f(n)
 }
 IO::writeln(apply(double, 5))          // 10
@@ -1752,7 +1752,7 @@ IO::writeln(apply(double, 5))          // 10
 IO::writeln(apply(MathOp::square, 4)) // 16
 
 // Stocker dans une variable
-var op:Function = MathOp::negate
+var op:Function<int(int)> = MathOp::negate
 IO::writeln(op(7))                     // -7
 ```
 
@@ -1767,12 +1767,12 @@ NamelessExpr ::= "nameless" "(" ParamList? ")" ( ":" Type )? Block
 **Syntaxe :**
 
 ```ocara
-var f:Function = nameless(x:int): int {
+var f:Function<int(int)> = nameless(x:int): int {
     return x * 2
 }
 
 // Sans paramètre, sans type de retour explicite (void implicite)
-var g:Function = nameless(): void {
+var g:Function<void()> = nameless(): void {
     IO::writeln("hello")
 }
 ```
@@ -1783,7 +1783,7 @@ Une `nameless` capture automatiquement les variables locales et `self` référen
 
 ```ocara
 var step:int = 5
-var inc:Function = nameless(x:int): int {
+var inc:Function<int(int)> = nameless(x:int): int {
     return x + step        // `step` est capturé
 }
 IO::writeln(inc(10))      // 15
@@ -1796,7 +1796,7 @@ class Counter {
     public property value:int
     init(start:int) { self.value = start }
 
-    public method make_adder(step:int): Function {
+    public method make_adder(step:int): Function<void()> {
         return nameless(): void {
             self.value = self.value + step   // `self` et `step` capturés
         }
@@ -1819,20 +1819,20 @@ class Counter {
 ```ocara
 // Shared cell : mutation extérieure visible dans la closure
 var x:int = 10
-var f:Function = nameless(): int { return x }
+var f:Function<int()> = nameless(): int { return x }
 x = 50
 IO::writeln(f())    // 50  ← la closure lit la valeur actuelle de x
 
 // Mutations dans la closure persistantes d'un appel à l'autre
 var count:int = 0
-var inc:Function = nameless(): int { count = count + 1; return count }
+var inc:Function<int()> = nameless(): int { count = count + 1; return count }
 inc()   // 1
 inc()   // 2
 inc()   // 3
 
 // Objet : le pointeur partagé, mutations de champs visibles partout
 var user:User = use User("David")
-var rename:Function = nameless(): void { user.name = "Bob" }
+var rename:Function<void()> = nameless(): void { user.name = "Bob" }
 rename()
 IO::writeln(user.name)   // "Bob" — l'objet original est muté
 ```
@@ -3011,8 +3011,8 @@ Appel d'une méthode statique ou lecture d'une constante de classe, sans instanc
 var result:int = Math::abs(-5)         // appel statique
 var s:string = String::from(42)
 
-var f:Function = MathOp::square        // référence — pas d'appel
-var g:Function = self::is_positive     // référence depuis l'intérieur
+var f:Function<int(int)> = MathOp::square   // référence — pas d'appel
+var g:Function<bool(int)> = self::is_positive // référence depuis l'intérieur
 
 class Validator {
     public static method is_positive(n:int): bool { return n greater 0 }
@@ -3149,7 +3149,8 @@ while x greater 0 {
 ### 27.2 For (itération simple)
 
 ```ebnf
-ForInStmt ::= "for" Identifier "in" Expression Block
+ForStmt ::= "for" Identifier "in" Expression Block
+          | "for" Identifier "=>" Identifier "in" Expression Block   (* voir §27.3 *)
 ```
 
 ```ocara
@@ -3160,8 +3161,10 @@ for i in 0..5 {
 
 ### 27.3 For (paires clé/valeur)
 
+Seconde alternative de la règle `ForStmt` définie en §27.2 :
+
 ```ebnf
-ForMapStmt ::= "for" Identifier "=>" Identifier "in" Expression Block
+ForStmt ::= "for" Identifier "=>" Identifier "in" Expression Block
 ```
 
 ```ocara
@@ -3430,7 +3433,7 @@ Program     ::= NamespaceDecl?
                 ImportDecl*
                 RuntimeImport*
                 RuntimeBlock*
-                ( ConstDecl | EnumDecl | ClassDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
+                ( ConstDecl | EnumDecl | ClassDecl | GenericDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
 
 (* ── Namespace ───────────────────────────────────────────────────── *)
 
@@ -3464,6 +3467,7 @@ GenericDecl ::= "generic" Identifier "<" TypeParams ">"
                 ( "modules" Identifier ( "," Identifier )* )?
                 ( "implements" Identifier ( "," Identifier )* )?
                 ClassBody
+ModuleDecl  ::= "module" Identifier ClassBody
 InterfaceDecl ::= "interface" Identifier "{" InterfaceMethod* "}"
 FuncDecl    ::= "async"? "function" Identifier "(" ParamList? ")" ":" Type Block
 

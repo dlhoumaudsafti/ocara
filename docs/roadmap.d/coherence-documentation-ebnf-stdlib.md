@@ -1,5 +1,9 @@
 # Cohérence interne de l'EBNF et de la stdlib — la doc grandit par accrétion sans passe de relecture
 
+## ✅ Terminé
+
+Voir §"Ce qui a été fait" plus bas.
+
 ## Constat général
 
 Le noyau du langage est cohérent en pratique (tous les exemples lus utilisent la même syntaxe sans divergence). C'est la **documentation de référence** (`docs/EBNF.md`, `docs/builtins/*.md`) qui accumule des incohérences internes au fil des sections ajoutées une à une, sans passe de convergence finale — aucune ne casse le compilateur, mais chacune érode la confiance qu'on peut accorder à la spec comme source de vérité, ce qui compte pour la stabilité perçue du langage autant que l'absence de bugs runtime.
@@ -17,15 +21,28 @@ Le noyau du langage est cohérent en pratique (tous les exemples lus utilisent l
 2. **`String::replace` vs `Regex::replace` — même nom, sémantique opposée.** `String::replace(s, from, to)` (`docs/builtins/String.md:82-84`) remplace **toutes** les occurrences (exemple vérifié : `"chat noir chat blanc"` → `"chien noir chien blanc"`). `Regex::replace(pattern, s, repl)` (`docs/builtins/Regex.md:60-62`) remplace **uniquement la première** occurrence (exemple vérifié : `"ref-123-abc-456"` → `"ref-NUM-abc-456"`, le second nombre non touché) — `Regex::replaceAll` existe séparément pour l'équivalent de `String::replace`. Un développeur qui connaît `String::replace` et passe à `Regex::replace` en s'attendant au même comportement introduit un bug silencieux.
 3. **`queryOne` — sentinelle d'absence différente entre `SQLite` et `MySQL`.** `db.queryOne(query) → map<string, mixed>` (`docs/builtins/SQLite.md:54`) retourne une **map vide** si aucun résultat (`Map::size(user) > 0` dans l'exemple). `db.queryOne(query) → map<string, mixed>|null` (`docs/builtins/MySQL.md:71`) retourne **`null`** si aucun résultat (`user not equal null` dans l'exemple). Ce sont deux builtins jumeaux (même rôle, même nom de méthode) avec deux conventions différentes pour représenter "pas de résultat" — piège garanti pour quiconque écrit du code générique sur les deux. Accessoirement, l'exemple MySQL lui-même (`docs/builtins/MySQL.md:76`) déclare `const user:map<string, mixed> = db.queryOne(...)` — un type non-nullable pour une méthode dont la signature documentée juste au-dessus est `|null` : l'exemple ne correspond pas à sa propre signature.
 
-## Ce qui est demandé
+## Ce qui a été fait
 
-Pas une réécriture — des corrections ciblées et une règle de discipline pour la suite :
-- Corriger les 4 points EBNF et les 3 points stdlib listés ci-dessus.
-- Ajouter au processus déjà suivi (`docs/roadmap.md` § "Méthode de travail") une étape explicite : après toute modification de l'EBNF, relire §31 ("grammaire complète") pour vérifier qu'elle reste réellement la source unique et à jour — c'est déjà l'intention affichée de cette section, il manque juste la vérification systématique qui l'empêche de dériver.
+Corrections ciblées, aucun changement de comportement du compilateur :
+
+**EBNF (4 points) :**
+1. §31 ("grammaire complète") ré-inclut `GenericDecl` dans la règle `Program`, désormais identique à §2.
+2. `ModuleDecl ::= "module" Identifier ClassBody` rapatriée dans §31 (juste après `GenericDecl`), là où elle manquait.
+3. §27.2/27.3 renommées `ForInStmt`/`ForMapStmt` → `ForStmt` (les deux alternatives d'une seule règle), identique au nom utilisé en §31 et dans `Statement`.
+4. Les 10 exemples utilisant `Function` nu (§14.3, §23) corrigés vers la syntaxe `Function<ReturnType(ParamTypes)>` obligatoire depuis 0.1.0 (vérifié contre `src/parsing/parser.d/types_parsing.rs:68-89` : le parser exige `<` immédiatement après `Function`, aucun chemin de repli).
+
+**Stdlib (3 points) :**
+1. `docs/builtins/Map.md` : la section `Map::get` disait à tort *« le comportement dépend du runtime »* — vérifié contre `runtime/src/lib.rs:1496-1521` (`Map_get`) : lève toujours `MapException` (code 101, `KEY_NOT_FOUND`) si la clé est absente, cohérent avec la table des codes d'erreur du même document. Section réécrite, note explicite ajoutée à la liste "ne lève jamais d'exception" pour que `get` n'y manque plus par omission.
+2. `docs/builtins/String.md`/`docs/builtins/Regex.md` : avertissement croisé ajouté dans les deux sections `replace` (sémantiques opposées — "toutes occurrences" vs "première occurrence seulement" — sous le même nom de méthode). Pas d'unification des deux comportements (changement d'API, hors périmètre "Simple").
+3. `docs/builtins/SQLite.md`/`docs/builtins/MySQL.md` : avertissement croisé ajouté dans les deux sections `queryOne` (map vide vs `null` pour "aucun résultat"). Corrigé au passage le type de l'exemple MySQL (`const user:map<string, mixed>` → `map<string, mixed>|null`, qui ne correspondait pas à sa propre signature documentée juste au-dessus).
+
+**Processus :** nouvelle étape ajoutée à `docs/roadmap.md` § "Méthode de travail" — après toute modification de `docs/EBNF.md`, relire §31 pour vérifier qu'il reste la source unique et à jour.
+
+Vérifié : corrections de texte uniquement, aucun fichier source/runtime touché — `make build`/`make regression` non ré-exécutés pour ce ticket (aucune modification de comportement possible).
 
 ## Priorité / Complexité
 
-**Priorité Basse** — confort et confiance dans la documentation de référence, aucun de ces points ne cause de bug de compilation ou d'exécution. **Complexité : Simple** — corrections de texte ciblées, pas de changement de comportement du compilateur.
+**Terminé.** **Complexité réelle : Simple**, comme estimé — corrections de texte ciblées, pas de changement de comportement du compilateur.
 
 ## Fichiers clés
 

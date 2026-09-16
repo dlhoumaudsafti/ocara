@@ -45,7 +45,7 @@ _Vide pour l'instant — le seul point qui s'y trouvait (`-no-pie` au lien final
 
 Confort ou portée future — n'affecte pas la correction du compilateur ou des binaires produits.
 
-- **Cohérence interne de l'EBNF et de la stdlib** (grammaire "complète" en contradiction avec sa propre section §2, exemples utilisant une syntaxe `Function` documentée comme supprimée, sémantiques divergentes entre builtins jumeaux — `String::replace` vs `Regex::replace`, `queryOne` SQLite vs MySQL). *(Simple)* → [détails](roadmap.d/coherence-documentation-ebnf-stdlib.md)
+_Vide pour l'instant — le seul point qui s'y trouvait (cohérence interne de l'EBNF et de la stdlib) est clos, voir [coherence-documentation-ebnf-stdlib](roadmap.d/coherence-documentation-ebnf-stdlib.md)._
 
 ---
 
@@ -88,6 +88,7 @@ Pas important du tout pour le moment — portage/intégration massifs, aucune ur
 * On crée un test unitaire si nécessaire.
 * On lance les test de regression et les tests unitaire.
 * On met à jour la documentation si nécessaire.
+* Si `docs/EBNF.md` a été modifié : on relit le §31 ("Grammaire EBNF complète") pour vérifier qu'il reste réellement la source unique et à jour — toute règle ajoutée/modifiée ailleurs dans le document doit s'y refléter à l'identique (mêmes noms de règles, mêmes alternatives), sans quoi le §31 dérive silencieusement de sa propre prétention à être la référence canonique (voir [coherence-documentation-ebnf-stdlib](roadmap.d/coherence-documentation-ebnf-stdlib.md)).
 * On met à jour la roadmap.
 * On affiche une liste simple, sans détails, des travaux effectués afin de préparer le commit.
 
