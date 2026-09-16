@@ -61,6 +61,8 @@ scoped mots:array<string> = Regex::findAll("[a-z]+", "hello world foo")
 
 Remplace la **première** occurrence de `pattern` dans `s` par `repl`.
 
+> ⚠️ **Piège** : `String::replace` (voir [String](String.md)) porte le même nom de méthode mais une sémantique **opposée** — il remplace **toutes** les occurrences. Pour l'équivalent ici, utiliser `Regex::replaceAll` ci-dessous, pas `Regex::replace`.
+
 | Paramètre | Type     | Description              |
 |-----------|----------|--------------------------|
 | `pattern` | `string` | Expression régulière     |

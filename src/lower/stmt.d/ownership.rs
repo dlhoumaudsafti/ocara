@@ -149,7 +149,7 @@ pub fn register_owned_local(builder: &mut LowerBuilder, name: &str, ty: &Type, k
 /// `__value_clone` par élément) n'a rien à faire de plus qu'une copie brute,
 /// et est dangereux (voir `drop_func_for`/`clone_func_for`) puisque son bit
 /// pattern brut peut ressembler à un pointeur heap valide.
-fn is_concrete_primitive_elem(ty: &Type) -> bool {
+pub(crate) fn is_concrete_primitive_elem(ty: &Type) -> bool {
     matches!(ty, Type::Int | Type::Float | Type::Bool)
 }
 
@@ -170,7 +170,7 @@ fn is_concrete_primitive_elem(ty: &Type) -> bool {
 /// même bug que celui corrigé pour le niveau immédiat, seulement plus
 /// profond (voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md et
 /// `__array_free_concrete`/`__map_free_concrete` dans runtime/src/lib.rs).
-fn concrete_elem_shape(container_ty: &Type) -> Option<String> {
+pub(crate) fn concrete_elem_shape(container_ty: &Type) -> Option<String> {
     let elem_ty = match container_ty {
         Type::Array(inner) => inner.as_ref(),
         Type::Map(_, inner) => inner.as_ref(),

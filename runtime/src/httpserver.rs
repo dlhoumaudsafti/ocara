@@ -33,8 +33,18 @@
 //   req est un pointeur vers un OcaraHttpContext alloué par le serveur.
 //
 // Note sécurité concurrente :
-//   Les captures partagées entre handlers (heap_promoted) ne sont pas
-//   protégées par un mutex. Des accès concurrents constituent un data race.
+//   L'invocation d'un handler (route ou erreur) est sérialisée par un mutex
+//   propre à chaque serveur (`handler_lock`, voir HTTPServer_run/handle_request) :
+//   deux handlers Ocara ne s'exécutent JAMAIS en même temps, ce qui élimine
+//   par construction le data race sur les captures partagées (heap_promoted)
+//   entre deux exécutions concurrentes du même handler. Voir
+//   docs/roadmap.d/runtime-httpserver-race-condition.md pour la justification
+//   complète (option retenue face à un mutex générique sur `heap_promoted`,
+//   qui pénaliserait aussi `Thread::spawn` et toute closure jamais partagée).
+//   Coût assumé : la logique métier du handler n'est plus parallèle entre
+//   requêtes (avant/après cet appel — lecture de la requête, envoi de la
+//   réponse — reste parallèle). Changement de philosophie assumé par rapport
+//   à `Thread`, qui reste "rapide par défaut, sûr sur demande (Mutex)".
 //
 // Gestion d'erreurs : HTTPServer_run() lève HTTPServerException en cas d'erreur de démarrage.
 //
@@ -44,7 +54,7 @@
 
 use std::{
     collections::HashMap,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 use crate::{alloc_str, ptr_to_str};
@@ -304,11 +314,22 @@ fn try_serve_static_file(req_handle: i64, req_path: &str, root_path: Option<&str
 // Traitement d'une requête
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Exécute un handler Ocara sous la protection de `handler_lock` — voir la
+/// note sécurité concurrente en tête de fichier : sérialise l'invocation
+/// pour qu'aucune capture partagée (heap_promoted) ne soit jamais touchée
+/// par deux handlers en même temps.
+unsafe fn call_handler_locked(handler_lock: &Mutex<()>, h: &SendHandler, req_handle: i64) {
+    let _guard = handler_lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let f: OcaraHandlerFn = unsafe { std::mem::transmute(h.func_ptr as usize) };
+    unsafe { f(h.env_ptr, req_handle) };
+}
+
 fn handle_request(
-    mut request: tiny_http::Request, 
-    routes: &[Route], 
+    mut request: tiny_http::Request,
+    routes: &[Route],
     root_path: Option<&str>,
-    error_handlers: &HashMap<u16, SendHandler>
+    error_handlers: &HashMap<u16, SendHandler>,
+    handler_lock: &Mutex<()>,
 ) {
     // Lire le corps
     let mut body = String::new();
@@ -355,23 +376,21 @@ fn handle_request(
 
     // Appeler le handler ou tenter de servir un fichier statique
     if let Some(h) = handler {
-        let f: OcaraHandlerFn = unsafe { std::mem::transmute(h.func_ptr as usize) };
-        unsafe { f(h.env_ptr, req_handle) };
-    } else if method_str == "GET" {        
+        unsafe { call_handler_locked(handler_lock, &h, req_handle) };
+    } else if method_str == "GET" {
         // Si GET / sans route → essayer /index.html automatiquement
         let serve_path = if path_str == "/" { "/index.html" } else { &path_str };
-        
+
         if try_serve_static_file(req_handle, serve_path, root_path) {
             // Fichier statique servi avec succès
         } else {
             // Aucune route trouvée et pas de fichier statique → 404
             let ctx = unsafe { ctx_ref(req_handle) };
             ctx.resp_status = 404;
-            
+
             // Chercher un handler d'erreur 404 personnalisé
             if let Some(error_h) = error_handlers.get(&404) {
-                let f: OcaraHandlerFn = unsafe { std::mem::transmute(error_h.func_ptr as usize) };
-                unsafe { f(error_h.env_ptr, req_handle) };
+                unsafe { call_handler_locked(handler_lock, error_h, req_handle) };
             } else {
                 ctx.resp_body = format!("404 Not Found: {} {}", method_str, path_str);
             }
@@ -380,11 +399,10 @@ fn handle_request(
         // Méthode non-GET sans route → 404
         let ctx = unsafe { ctx_ref(req_handle) };
         ctx.resp_status = 404;
-        
+
         // Chercher un handler d'erreur 404 personnalisé
         if let Some(error_h) = error_handlers.get(&404) {
-            let f: OcaraHandlerFn = unsafe { std::mem::transmute(error_h.func_ptr as usize) };
-            unsafe { f(error_h.env_ptr, req_handle) };
+            unsafe { call_handler_locked(handler_lock, error_h, req_handle) };
         } else {
             ctx.resp_body = format!("404 Not Found: {} {}", method_str, path_str);
         }
@@ -551,6 +569,9 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
     let routes: Arc<Vec<Route>> = Arc::new(std::mem::take(&mut data.routes));
     let root_path: Arc<Option<String>> = Arc::new(data.root_path.clone());
     let error_handlers: Arc<HashMap<u16, SendHandler>> = Arc::new(std::mem::take(&mut data.error_handlers));
+    // Un seul verrou par serveur, partagé par tous les workers — voir la note
+    // sécurité concurrente en tête de fichier.
+    let handler_lock: Arc<Mutex<()>> = Arc::new(Mutex::new(()));
 
     server_log!("HTTPServer: listening on http://{}\n", addr);
 
@@ -559,10 +580,11 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
         let routes = Arc::clone(&routes);
         let root_path = Arc::clone(&root_path);
         let error_handlers = Arc::clone(&error_handlers);
+        let handler_lock = Arc::clone(&handler_lock);
         std::thread::spawn(move || {
             loop {
                 match server.recv() {
-                    Ok(request) => handle_request(request, &routes, root_path.as_deref(), &error_handlers),
+                    Ok(request) => handle_request(request, &routes, root_path.as_deref(), &error_handlers, &handler_lock),
                     Err(_)      => break,
                 }
             }

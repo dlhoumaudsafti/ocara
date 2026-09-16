@@ -1,0 +1,126 @@
+import ocara.UnitTest
+import ocara.Mutex
+
+// Une fermeture (`nameless`) imbriquée dans une autre fermeture doit pouvoir
+// muter une variable que la fermeture englobante n'a fait QUE capturer (pas
+// déclarée localement) depuis un niveau encore supérieur — voir
+// docs/roadmap.d/langage-nested-closure-recapture.md. Avant le correctif de
+// `src/lower/expr.d/captures.rs::collect_captures` (récursif dans une
+// `Expr::Nameless` imbriquée), l'environnement de la fermeture interne était
+// construit avec un pointeur NUL (aucune capture), et toute mutation à
+// l'intérieur restait sans effet — silencieusement, aucun crash.
+
+class Test_46_nested_closure_recapture {
+
+    // Cas minimal : fermeture passée en argument à une méthode statique,
+    // contenant elle-même une fermeture imbriquée qui mute une variable
+    // capturée par la fermeture englobante depuis la fonction de test.
+    public method nestedNamelessMutatesGrandparentCaptureTest(): int {
+        var counter:int = 0
+        Caller::invoke(nameless(): void {
+            var inner:Function<void()> = nameless(): void {
+                counter = counter + 1
+            }
+            inner()
+        })
+        UnitTest::assertEquals(1, counter)
+        return 0
+    }
+
+    // Cas réel qui a révélé le bug : `m.withLock(nameless(){...})` imbriqué
+    // dans une autre fermeture (le patron recommandé par docs/builtins/
+    // Mutex.md pour toute section critique, y compris à l'intérieur d'un
+    // handler HTTPServer/Thread).
+    public method withLockNestedInAnotherClosureMutatesGrandparentCaptureTest(): int {
+        var counter:int = 0
+        scoped m:Mutex = use Mutex()
+        Caller::invoke(nameless(): void {
+            m.withLock(nameless(): void {
+                counter = counter + 1
+            })
+        })
+        UnitTest::assertEquals(1, counter)
+        return 0
+    }
+
+    // Trois niveaux : la fermeture du milieu ne référence PAS elle-même la
+    // variable (seule la fermeture la plus interne la référence) — vérifie
+    // que la retransmission remonte sur toute la chaîne, pas seulement un
+    // niveau au-dessus du point d'usage réel.
+    public method threeLevelsDeepStillPropagatesCaptureTest(): int {
+        var counter:int = 0
+        Caller::invoke(nameless(): void {
+            Caller::invoke(nameless(): void {
+                var innermost:Function<void()> = nameless(): void {
+                    counter = counter + 1
+                }
+                innermost()
+            })
+        })
+        UnitTest::assertEquals(1, counter)
+        return 0
+    }
+
+    // Non-régression : une fermeture de niveau 2 qui capture un LOCAL (pas
+    // une capture-du-parent) de son niveau 1 fonctionnait déjà avant ce
+    // correctif — doit continuer de fonctionner.
+    public method nestedNamelessMutatesParentLocalTest(): int {
+        var result:int = -1
+        Caller::invoke(nameless(): void {
+            var local1:int = 10
+            var inner:Function<void()> = nameless(): void {
+                local1 = local1 + 1
+            }
+            inner()
+            result = local1
+        })
+        UnitTest::assertEquals(11, result)
+        return 0
+    }
+
+    // Plusieurs mutations successives à travers l'imbrication, pour vérifier
+    // que la cellule heap partagée reste cohérente sur plusieurs appels (pas
+    // seulement une lecture initiale correcte suivie d'une désynchronisation).
+    //
+    // Volontairement AUCUN `if`/`while`/`for` autour des appels ici : créer
+    // une fermeture à l'intérieur d'un bloc conditionnel/boucle puis relire
+    // la variable capturée APRÈS le bloc est un bug distinct, encore non
+    // corrigé (SEGFAULT confirmé même sans aucune imbrication de fermeture)
+    // — voir docs/roadmap.d/langage-closure-promotion-block-scope.md. Ce
+    // test-ci reste au niveau supérieur de la méthode pour n'exercer QUE le
+    // correctif de ce ticket (recapture à travers l'imbrication), pas l'autre
+    // bug non résolu.
+    public method multipleNestedCallsAccumulateCorrectlyTest(): int {
+        var counter:int = 0
+
+        Caller::invoke(nameless(): void {
+            var inner:Function<void()> = nameless(): void { counter = counter + 1 }
+            inner()
+        })
+        Caller::invoke(nameless(): void {
+            var inner:Function<void()> = nameless(): void { counter = counter + 1 }
+            inner()
+        })
+        Caller::invoke(nameless(): void {
+            var inner:Function<void()> = nameless(): void { counter = counter + 1 }
+            inner()
+        })
+        Caller::invoke(nameless(): void {
+            var inner:Function<void()> = nameless(): void { counter = counter + 1 }
+            inner()
+        })
+        Caller::invoke(nameless(): void {
+            var inner:Function<void()> = nameless(): void { counter = counter + 1 }
+            inner()
+        })
+
+        UnitTest::assertEquals(5, counter)
+        return 0
+    }
+}
+
+class Caller {
+    public static method invoke(f:Function<void()>): void {
+        f()
+    }
+}

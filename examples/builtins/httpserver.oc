@@ -12,6 +12,7 @@
 //   curl -X POST -d "bonjour" http://localhost:8080/echo
 //   curl http://localhost:8080/json
 //   curl http://localhost:8080/info
+//   curl http://localhost:8080/hits
 // ─────────────────────────────────────────────────────────────────────────────
 
 import ocara.HTTPServer
@@ -22,6 +23,15 @@ function main(): int {
     const server:HTTPServer = use HTTPServer()
     server.port(8080)
     server.workers(4)
+
+    // État partagé entre handlers — sûr SANS Mutex : l'invocation des
+    // handlers est sérialisée nativement par HTTPServer (voir docs/builtins/
+    // HTTPServer.md, section "Notes de sécurité / concurrence", et
+    // docs/roadmap.d/runtime-httpserver-race-condition.md) — deux requêtes
+    // concurrentes ne peuvent jamais exécuter un handler en même temps.
+    // `var`, pas `scoped` : capturé par le handler, doit survivre à tout le
+    // cycle de vie du serveur.
+    var hitCount:int = 0
 
     // ── Route GET / ──────────────────────────────────────────────────────────
     // Accueil : salue le visiteur avec le paramètre ?name=
@@ -60,6 +70,19 @@ function main(): int {
         var ua:string = HTTPServer::header(req, "user-agent")
         HTTPServer::respondHeader(req, "Content-Type", "text/plain")
         HTTPServer::respond(req, 200, `User-Agent: ${ua}`)
+        return 0
+    })
+
+    // ── Route GET /hits ──────────────────────────────────────────────────────
+    // Compteur de visites partagé entre TOUTES les requêtes concurrentes.
+    // Aucun Mutex nécessaire : HTTPServer sérialise nativement l'invocation
+    // des handlers (voir plus haut) — deux requêtes simultanées sur /hits ne
+    // peuvent jamais lire hitCount en même temps, aucune incrémentation ne
+    // peut se perdre.
+    server.route("/hits", "GET", nameless(req:int): int {
+        hitCount++
+        HTTPServer::respondHeader(req, "Content-Type", "text/plain; charset=utf-8")
+        HTTPServer::respond(req, 200, `${hitCount}`)
         return 0
     })
 

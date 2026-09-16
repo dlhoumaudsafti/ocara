@@ -36,6 +36,30 @@ if ! echo "$resp" | grep -q "bonjour"; then
     FAIL=1
 fi
 
+# GET /hits en vraie concurrence → le compteur ne doit perdre AUCUNE
+# incrémentation, sans Mutex explicite : HTTPServer sérialise nativement
+# l'invocation des handlers (docs/roadmap.d/runtime-httpserver-race-
+# condition.md, option 2). N requêtes lancées simultanément (pas
+# séquentiellement) sur un serveur à 4 workers : sans cette sérialisation,
+# deux requêtes qui liraient hitCount avant que l'une n'ait fini de
+# l'incrémenter perdraient un point.
+N=30
+curl_pids=""
+for i in $(seq 1 "$N"); do
+    curl -s --max-time 5 "http://localhost:$PORT/hits" >/dev/null 2>&1 &
+    curl_pids="$curl_pids $!"
+done
+# `wait` SANS argument attendrait aussi $SRV_PID (le serveur, jamais
+# terminé tant qu'on ne le kill pas) — attendre explicitement seulement les
+# PID des curl lancés ci-dessus.
+wait $curl_pids
+final=$(curl -s --max-time 5 "http://localhost:$PORT/hits")
+expected=$((N + 1))
+if [ "$final" != "$expected" ]; then
+    echo "FAIL: GET /hits concurrent — attendu $expected après $N requêtes simultanées + 1 vérification, reçu $final (incrémentation perdue = race condition)" >&2
+    FAIL=1
+fi
+
 kill "$SRV_PID" 2>/dev/null
 wait "$SRV_PID" 2>/dev/null
 exit $FAIL

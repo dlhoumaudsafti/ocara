@@ -4,6 +4,7 @@
 // Fonctions exportées (convention C) :
 //
 //   MySQL_connect(host, user, password, database) → i64  // pointeur vers OcaraMySQLDatabase
+//   MySQL_withConnect(host, user, password, database, f)  // connect+f(db)+close garanti
 //   MySQL_execute(db_ptr, query)                   → i64  // nombre de lignes affectées
 //   MySQL_query(db_ptr, query)                     → i64  // pointeur vers array de maps
 //   MySQL_queryOne(db_ptr, query)                  → i64  // pointeur vers map ou 0
@@ -75,6 +76,36 @@ pub unsafe extern "C" fn MySQL_connect(
                     "MySQL"
                 );
             }
+        }
+    }
+}
+
+/// MySQL::withConnect(host, user, password, database, f:Function<void(MySQL)>) → void
+/// Connecte, exécute `f(db)`, ferme SYSTÉMATIQUEMENT — y compris si `f()`
+/// lève une exception. Même patron que `SQLite::withOpen`
+/// (`runtime/src/sqlite.rs`) et `Mutex::withLock` (`runtime/src/mutex.rs`) —
+/// voir docs/roadmap.d/exceptions-setjmp-longjmp-dette.md.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn MySQL_withConnect(
+    host_ptr: i64,
+    user_ptr: i64,
+    password_ptr: i64,
+    database_ptr: i64,
+    fat_ptr: i64,
+) {
+    unsafe {
+        let db_ptr = MySQL_connect(host_ptr, user_ptr, password_ptr, database_ptr);
+
+        let func_ptr = *(fat_ptr as *const i64);
+        let env_ptr  = *((fat_ptr as *const i64).add(1));
+
+        let outcome = crate::run_closure_catching_with_arg(func_ptr, env_ptr, db_ptr);
+
+        // Fermeture inconditionnelle — succès ou exception.
+        MySQL_close(db_ptr);
+
+        if let Err((error_val, error_type)) = outcome {
+            crate::__ocara_fail(error_val, error_type);
         }
     }
 }
@@ -293,6 +324,17 @@ pub unsafe extern "C" fn MariaDB_connect(
     database_ptr: i64,
 ) -> i64 {
     unsafe { MySQL_connect(host_ptr, user_ptr, password_ptr, database_ptr) }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn MariaDB_withConnect(
+    host_ptr: i64,
+    user_ptr: i64,
+    password_ptr: i64,
+    database_ptr: i64,
+    fat_ptr: i64,
+) {
+    unsafe { MySQL_withConnect(host_ptr, user_ptr, password_ptr, database_ptr, fat_ptr) }
 }
 
 #[unsafe(no_mangle)]

@@ -330,6 +330,60 @@ server.run()
 
 ## Notes de sécurité / concurrence
 
-- Les handlers s'exécutent en parallèle dans plusieurs threads.  
-- Les closures avec captures partagées (variables `heap_promoted`) ne sont **pas** protégées par un mutex. Des accès concurrents à des données partagées constituent un data race — comportement non défini.  
-- Utiliser `ocara.Thread` + mécanisme de synchronisation externe si un état partagé est nécessaire entre handlers.
+`workers` threads acceptent réellement les connexions en parallèle (voir « Gestion des connexions multiples » ci-dessus) — ce n'est pas une simulation de concurrence. **Mais l'exécution d'un handler (route ou page d'erreur) est sérialisée** : un verrou interne, propre à chaque serveur, garantit qu'un seul handler Ocara s'exécute à la fois, quel que soit le nombre de workers. Deux requêtes simultanées ne peuvent donc **jamais** exécuter le même handler — ou deux handlers différents — en même temps. Ce qui reste parallèle entre requêtes : la lecture de la requête (corps, en-têtes) et l'envoi de la réponse, avant/après l'appel au handler.
+
+Conséquence pratique : **une variable capturée par un handler et partagée uniquement avec d'autres handlers n'a plus besoin d'être protégée par un `Mutex`** — la sérialisation l'empêche par construction.
+
+```ocara
+var hitCount:int = 0
+
+// Sûr par défaut : deux requêtes simultanées sur /hits ne peuvent jamais
+// exécuter ce handler en même temps — aucune incrémentation ne peut se
+// perdre, sans Mutex explicite.
+server.route("/hits", "GET", nameless(req:int): int {
+    hitCount = hitCount + 1
+    HTTPServer::respond(req, 200, `Visites : ${hitCount}`)
+    return 0
+})
+```
+
+**Ce qui reste un vrai risque de data race**, et nécessite toujours `ocara.Mutex` (voir [Mutex](Mutex.md)) : une variable capturée par un handler **ET** touchée en dehors de toute invocation de handler — typiquement par un `ocara.Thread` tournant en tâche de fond, qui n'est pas concerné par le verrou interne de `HTTPServer` (celui-ci ne protège que les appels *dans* `handle_request`, pas le reste du programme) :
+
+```ocara
+import ocara.HTTPServer
+import ocara.Mutex
+import ocara.Thread
+
+function main(): int {
+    const server:HTTPServer = use HTTPServer()
+    var counter:int = 0
+    var lock:Mutex = use Mutex()   // `var`, pas `scoped` : capturée par le handler ET
+                                     // par le thread de fond, doit survivre aux deux
+
+    server.route("/counter", "GET", nameless(req:int): int {
+        var current:int = 0
+        lock.withLock(nameless(): void {
+            current = counter
+        })
+        HTTPServer::respond(req, 200, `Compteur : ${current}`)
+        return 0
+    })
+
+    // Tourne en dehors du verrou interne de HTTPServer : sans Mutex ici,
+    // data race réel avec le handler ci-dessus.
+    var bg:Thread = Thread::spawn(nameless(): void {
+        lock.withLock(nameless(): void {
+            counter = counter + 1
+        })
+    })
+
+    server.run()
+    return 0
+}
+```
+
+`withLock` (plutôt que `lock()`/`unlock()` manuels) garantit le déverrouillage même si le code protégé lève une exception avant d'atteindre `unlock()` — sinon tout appel suivant qui tente de verrouiller reste bloqué indéfiniment (voir [Mutex](Mutex.md), section `withLock`).
+
+**Ce qui N'A JAMAIS besoin de protection** : les données propres à UNE requête (`req`, tout ce que retournent `HTTPServer::path`/`method`/`body`/`header`/`query`) ne sont jamais partagées entre handlers — chaque requête a son propre `OcaraHttpContext`, alloué et libéré pour elle seule.
+
+**Compromis assumé** : sérialiser l'invocation des handlers élimine la race par construction, au prix de perdre le parallélisme réel sur la logique métier elle-même (deux handlers ne tournent plus jamais en même temps, même s'ils ne partagent rien). C'est un choix de philosophie différent de `ocara.Thread`, qui reste "rapide par défaut, sûr sur demande (`Mutex`)" — voir `docs/roadmap.d/runtime-httpserver-race-condition.md` pour la justification complète de ce compromis.

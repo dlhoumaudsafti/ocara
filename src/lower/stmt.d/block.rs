@@ -54,6 +54,22 @@ pub fn lower_block(builder: &mut LowerBuilder, block: &Block) {
         builder.locals.remove(&name);
     }
     for (name, binding) in locals_snapshot {
+        // Une entrée promue au tas PENDANT ce bloc (capture de fermeture —
+        // voir `Expr::Nameless` dans `lower.rs`, qui redirige `locals[name]`
+        // vers sa cellule heap PARTAGÉE avec la fermeture déjà créée) ne
+        // doit PAS être restaurée à sa valeur d'avant le bloc : le code
+        // après ce bloc continuerait de lire/écrire l'ANCIEN slot stack,
+        // jamais vu par la fermeture — confirmé par reproduction (SEGFAULT,
+        // `__locked_cell_get` appelé sur un slot jamais promu à cet endroit,
+        // voir docs/roadmap.d/langage-closure-promotion-block-scope.md).
+        // `heap_promoted` n'est délibérément PAS scopé par bloc (une fois
+        // promu, `name` reste heap-backed pour le reste de la fonction) —
+        // c'est exactement le signal qui distingue une redirection légitime
+        // (à garder) d'un nouveau `var`/`scoped`/`consumed` de même nom qui
+        // masque ce nom (cas normal, à restaurer, ci-dessous).
+        if builder.heap_promoted.contains(name.as_str()) {
+            continue;
+        }
         builder.locals.insert(name, binding);
     }
 

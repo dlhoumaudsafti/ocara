@@ -107,5 +107,38 @@ main {
         result 1
     }
 
+    // ── withConnect : connexion + close garanti même si la closure raise ──
+    // (voir docs/roadmap.d/exceptions-setjmp-longjmp-dette.md) — avec
+    // connect()/close() manuels, un raise entre les deux saute close() et
+    // fuit la connexion pour toujours.
+    IO::writeln("")
+    IO::writeln("=== withConnect ===")
+    try {
+        MySQL::withConnect("localhost", "root", "password", "test_db", nameless(db:MySQL): void {
+            db.execute("CREATE TABLE IF NOT EXISTS withconnect_demo (id INT AUTO_INCREMENT PRIMARY KEY)")
+            IO::writeln("requête exécutée via withConnect")
+        })
+    } on e is MySQLException {
+        IO::writeln(`MySQL Error: ${e.message} (code: ${e.code})`)
+    }
+
+    try {
+        MySQL::withConnect("localhost", "root", "password", "test_db", nameless(db:MySQL): void {
+            db.execute("DROP TABLE IF EXISTS withconnect_demo")
+            raise use MySQLDemoError("erreur simulée dans la closure", 1)
+        })
+    } on e is MySQLDemoError {
+        IO::writeln(`exception rattrapée : ${e.message}`)
+    } on e is MySQLException {
+        IO::writeln(`MySQL Error: ${e.message} (code: ${e.code})`)
+    }
+
     IO::writeln("=== Done ===")
+}
+
+class MySQLDemoError extends Exception {
+    init(message:string, code:int) {
+        self.message = message
+        self.code    = code
+    }
 }

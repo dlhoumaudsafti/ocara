@@ -59,7 +59,7 @@ function main(): int {
 
     ui.emit("backendReady", {
         "status": "ready",
-        "version": "0.1.0"
+        "version": "1.0.0"
     })
 
     ui.notify({

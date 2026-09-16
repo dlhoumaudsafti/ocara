@@ -4,7 +4,7 @@ use crate::parsing::ast::*;
 use crate::ir::types::IrType;
 use crate::ir::inst::Inst;
 use crate::lower::builder::LowerBuilder;
-use crate::lower::expr::lower_expr;
+use crate::lower::expr::{lower_expr, hoist_closure_promotions_before_loop};
 use super::super::super::block::lower_block;
 
 /// Lowering récursif de la chaîne elseif.
@@ -188,6 +188,11 @@ pub fn lower_while(
     condition: &Expr,
     body: &Block,
 ) {
+    // Pré-promotion : voir docs/roadmap.d/langage-closure-promotion-in-loop.md
+    // et la doc de `hoist_closure_promotions_before_loop`. Avant d'entrer
+    // dans la boucle (donc une seule fois, pas à chaque itération).
+    hoist_closure_promotions_before_loop(builder, body);
+
     let cond_bb  = builder.new_block();
     let body_bb  = builder.new_block();
     let merge_bb = builder.new_block();

@@ -742,6 +742,27 @@ function log(args:variadic<mixed>): void {  // ⚠️ warning
 
 ---
 
+### W04 — Ressource `scoped`/`consumed` ouverte au moment d'un `raise` non rattrapé localement
+
+```
+fichier.oc:5:5: warning: 'm' ('Mutex') is a 'scoped'/'consumed' resource still open when a 'raise' later in this block is not locally caught — its 'longjmp' skips this block's normal cleanup, leaking 'm' (or leaving a Mutex locked forever) — finalize it ('.destroy()'/'.close()'/'.join()'/'.detach()') before that 'raise', or wrap the risky code in a local 'try'/'on'
+```
+
+Une `scoped`/`consumed` ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`/`HTTPRequest`/`HTTPResponse`/`Thread`) est encore ouverte (pas finalisée manuellement) quand un `raise` plus loin dans le même bloc n'est protégé par aucun `try` local. Le mécanisme d'exceptions d'Ocara (`setjmp`/`longjmp`) saute par-dessus la finalisation automatique de fin de bloc — la ressource fuit (ou, pour un `Mutex`, reste verrouillée pour toujours) si ce `raise` se déclenche réellement à l'exécution. Voir [§9.2 de l'EBNF](EBNF.md#92-variable-de-bloc-scoped) et `docs/roadmap.d/exceptions-setjmp-longjmp-dette.md`.
+
+```ocara
+scoped m:Mutex = use Mutex()
+m.lock()
+raise use MonException("erreur", 1)   // ⚠️ 'm' ne sera jamais déverrouillé/détruit
+m.unlock()                             // jamais atteint
+```
+
+Volontairement **conservateur** (mêmes principes que E26/E28) : un `raise` à l'intérieur d'un `try` local (même sans vérifier que ses `on` couvrent la classe réellement levée) est considéré rattrapé, jamais signalé ; une finalisation (`.destroy()`/`.close()`/`.join()`/`.detach()`) appelée en ligne droite avant le `raise` supprime l'avertissement. Aucune analyse interprocédurale : seul un `raise` textuel compte, pas un appel vers une fonction qui pourrait elle-même en lever un.
+
+**Correction :** finaliser la ressource avant le code risqué, ou utiliser une variante `withX` qui garantit la finalisation même en cas d'exception — `m.withLock(...)` (voir [Mutex](builtins/Mutex.md)), `SQLite::withOpen(...)` (voir [SQLite](builtins/SQLite.md)), `MySQL::withConnect(...)`/`MariaDB::withConnect(...)` (voir [MySQL](builtins/MySQL.md)) — ou entourer le code à risque d'un `try`/`on` local.
+
+---
+
 ## Utilisation
 
 ### Vérification sans compilation

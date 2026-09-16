@@ -113,6 +113,73 @@ pub fn lower_map_literal(builder: &mut LowerBuilder, entries: &[(Expr, Expr)], k
     map
 }
 
+/// Pré-promeut, AVANT d'entrer dans un corps de boucle (`while`/`for`),
+/// toute variable existante qu'une fermeture créée QUELQUE PART dans `body`
+/// va capturer — appelé par `lower_while`/`lower_for_in`/`lower_for_map`
+/// (`src/lower/stmt.d/statements.d/`) juste avant de lower le corps.
+///
+/// Sans ceci, la promotion normale (déclenchée au premier `Expr::Nameless`
+/// rencontré pendant le lowering, voir plus bas dans ce fichier) atterrit à
+/// l'intérieur du corps de boucle — donc ré-exécutée à CHAQUE itération au
+/// RUNTIME (même si l'AST n'est traversé qu'une fois À LA COMPILATION) :
+/// chaque passage alloue une NOUVELLE cellule heap, réinitialisée depuis le
+/// slot stack d'origine (jamais mis à jour après la toute première
+/// promotion), perdant l'état accumulé des itérations précédentes —
+/// confirmé par reproduction (`ocara --dump`), voir
+/// docs/roadmap.d/langage-closure-promotion-in-loop.md. En pré-promouvant
+/// ICI (dans le bloc prédécesseur de la boucle, exécuté une seule fois), le
+/// chemin "déjà promu, réutiliser" déjà existant (voir `Expr::Nameless`
+/// ci-dessous, `heap_promoted.contains`) s'applique naturellement à chaque
+/// itération : aucune ré-allocation, la même cellule est relue/écrite à
+/// chaque passage.
+///
+/// Volontairement dupliqué (pas factorisé avec la promotion de
+/// `Expr::Nameless` ci-dessous) plutôt que de refactoriser ce code déjà
+/// testé : cette fonction est un AJOUT pur, appelé à un nouvel endroit —
+/// minimise le risque de régresser le chemin existant, déjà validé par
+/// `examples/tests/46_nested_closure_recaptureTest.oc` et
+/// `47_closure_promotion_block_scopeTest.oc`.
+pub fn hoist_closure_promotions_before_loop(builder: &mut LowerBuilder, body: &Block) {
+    let mut capture_scope: std::collections::HashMap<String, (Value, IrType, bool)> = builder.locals.clone();
+    for (name, (_env_val, _idx, ty)) in builder.captured_vars.iter() {
+        capture_scope.entry(name.clone()).or_insert_with(|| (Value(0), ty.clone(), false));
+    }
+    let needed = super::captures::names_captured_by_nested_closures(body, &capture_scope);
+    for (name, _ty) in needed {
+        // Déjà promu (par une fermeture AVANT cette boucle, ou par une
+        // boucle englobante qui a déjà pré-promu ce même nom) — rien à faire.
+        if builder.heap_promoted.contains(name.as_str()) {
+            continue;
+        }
+        // Seules les variables stack RÉELLEMENT existantes (`locals`) sont
+        // promouvables ici — un nom capturé depuis un parent
+        // (`captured_vars`) est déjà heap-backed par construction, jamais
+        // dans ce cas de figure ; un nom introuvable (ne devrait pas
+        // arriver, `names_captured_by_nested_closures` ne renvoie que des
+        // noms trouvés dans `capture_scope`) est ignoré par prudence, comme
+        // le fait déjà la promotion normale de `Expr::Nameless`.
+        if let Some((slot, ty, mutable)) = builder.locals.get(name.as_str()).cloned() {
+            let heap_ptr = builder.new_value();
+            builder.emit(Inst::Call {
+                dest:   Some(heap_ptr.clone()),
+                func:   "__alloc_locked_cell".into(),
+                args:   vec![],
+                ret_ty: IrType::Ptr,
+            });
+            let cur_val = builder.new_value();
+            builder.emit(Inst::Load { dest: cur_val.clone(), ptr: slot, ty: ty.clone() });
+            builder.emit(Inst::Call {
+                dest:   None,
+                func:   "__locked_cell_set".into(),
+                args:   vec![heap_ptr.clone(), cur_val],
+                ret_ty: IrType::Void,
+            });
+            builder.locals.insert(name.clone(), (heap_ptr, ty, mutable));
+            builder.heap_promoted.insert(name);
+        }
+    }
+}
+
 pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
     match expr {
         // ── Littéraux ────────────────────────────────────────────────────────
@@ -454,15 +521,15 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     // `func_mangled` (la méthode CONCRÈTE résolue) : même
                     // signature qu'un éventuel dispatcher dynamique
                     // (`call_target` ci-dessous), qui se contente de la
-                    // relayer sans jamais la modifier. `param_type_for_SUGAR_
-                    // call_arg` (pas `param_type_for_call_arg`) : ici `args`
-                    // ne contient jamais le récepteur (`object`, géré à part
-                    // via `obj_val`) — voir sa doc pour le bug d'off-by-one
-                    // que cette distinction corrige.
+                    // relayer sans jamais la modifier. `CallForm::Sugar` (pas
+                    // `Static`) : ici `args` ne contient jamais le récepteur
+                    // (`object`, géré à part via `obj_val`) — voir la doc de
+                    // `param_type_for_call_arg` pour le bug d'off-by-one que
+                    // cette distinction corrige.
                     let arg_vals: Vec<Value> = completed_args.iter().enumerate().map(|(i, a)| {
                         let raw = lower_expr(builder, a);
                         let arg_ty = expr_ir_type(builder, a);
-                        let param_ty = param_type_for_sugar_call_arg(builder, &func_mangled, i);
+                        let param_ty = param_type_for_call_arg(builder, &func_mangled, i, CallForm::Sugar);
                         box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
                     }).collect();
                     let mut all_args = vec![obj_val];
@@ -624,7 +691,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             let arg_vals: Vec<Value> = args.iter().enumerate().map(|(i, a)| {
                 let raw = crate::lower::builder::message_gen::lower_arg_or_message(builder, a);
                 let arg_ty = expr_ir_type(builder, a);
-                let param_ty = param_type_for_call_arg(builder, &func_name, i);
+                let param_ty = param_type_for_call_arg(builder, &func_name, i, CallForm::Static);
                 box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
             }).collect();
             
@@ -881,7 +948,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             let arg_vals: Vec<Value> = args.iter().enumerate().map(|(i, a)| {
                 let raw = crate::lower::builder::message_gen::lower_arg_or_message(builder, a);
                 let arg_ty = expr_ir_type(builder, a);
-                let param_ty = param_type_for_call_arg(builder, &func_name, i);
+                let param_ty = param_type_for_call_arg(builder, &func_name, i, CallForm::Static);
                 box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
             }).collect();
 

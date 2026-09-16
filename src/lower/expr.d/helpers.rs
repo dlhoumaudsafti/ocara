@@ -51,44 +51,48 @@ pub fn builtin_method_param_types() -> &'static HashMap<String, Vec<IrType>> {
     })
 }
 
-/// Type du `i`-ème paramètre (fixe) de `mangled` ("Classe_methode" ou nom de
-/// fonction libre), en cherchant dans l'ordre : `LowerBuilder::fn_param_types`
-/// (fonctions libres + méthodes STATIQUES utilisateur), puis
-/// `IrModule::method_param_types` (méthodes D'INSTANCE utilisateur), puis
-/// `builtin_method_param_types()` (toute méthode builtin, statique ou
-/// d'instance). `None` si `mangled`/`i` reste inconnu (variadic au-delà des
-/// paramètres fixes, méthode non répertoriée...) — le boxing est alors
-/// simplement sauté, comme avant l'introduction de ce mécanisme.
-pub fn param_type_for_call_arg(builder: &LowerBuilder, mangled: &str, i: usize) -> Option<IrType> {
-    if let Some(pts) = builder.fn_param_types.get(mangled) {
-        return pts.get(i).cloned();
-    }
-    if let Some(pts) = builder.module.method_param_types.get(mangled) {
-        return pts.get(i).cloned();
-    }
-    builtin_method_param_types().get(mangled).and_then(|pts| pts.get(i).cloned())
+/// Forme d'un appel de méthode/fonction — distingue la forme STATIQUE
+/// (`Classe::methode(obj, args...)` ou une fonction libre, où le récepteur
+/// éventuel est le premier argument EXPLICITE) du SUCRE d'instance
+/// (`obj.methode(args...)`, où le récepteur n'apparaît JAMAIS dans `args`).
+/// Seule `builtin_method_param_types()` a besoin de cette distinction (voir
+/// `param_type_for_call_arg`) — `fn_param_types`/`module.method_param_types`
+/// (méthodes utilisateur) ne déclarent jamais de récepteur implicite, `i` s'y
+/// applique identiquement pour les deux formes.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum CallForm {
+    Static,
+    Sugar,
 }
 
-/// Comme `param_type_for_call_arg`, mais pour un argument d'un appel EN
-/// SUCRE d'instance (`obj.methode(args...)`) — où le récepteur (`obj`)
-/// n'apparaît JAMAIS dans `args`/`i`, contrairement à la forme statique
-/// (`Classe::methode(obj, args...)`, où il est le premier argument explicite,
-/// voir l'appelant de `param_type_for_call_arg` pour `Expr::StaticCall`).
+/// Type du `i`-ème paramètre (fixe) de `mangled` ("Classe_methode" ou nom de
+/// fonction libre), pour un appel de forme `form` — SEULE source de vérité
+/// pour les formes statique ET sucre (même patron que
+/// `resolve_method_return_type` dans `typeinfer.rs` pour le type de RETOUR ;
+/// voir docs/roadmap.d/qualite-parite-sucre-statique-param-types.md). Avant
+/// ce regroupement, `param_type_for_call_arg`/`param_type_for_sugar_call_arg`
+/// étaient deux fonctions séparées avec un décalage d'index maintenu à la
+/// main entre les deux — même classe de risque que le SEGFAULT déjà confirmé
+/// (voir plus bas) : un correctif appliqué à l'une n'était jamais
+/// automatiquement répercuté sur l'autre.
 ///
-/// `fn_param_types`/`module.method_param_types` (méthodes utilisateur,
-/// statiques ou d'instance — voir `program.rs`) ne déclarent JAMAIS de
-/// récepteur implicite dans leurs types de paramètres : `i` s'y applique
-/// directement, sans décalage, exactement comme pour `param_type_for_call_arg`.
+/// Cherche dans l'ordre : `LowerBuilder::fn_param_types` (fonctions libres +
+/// méthodes STATIQUES utilisateur), puis `IrModule::method_param_types`
+/// (méthodes D'INSTANCE utilisateur) — `i` s'y applique identiquement pour
+/// les deux formes, aucun récepteur implicite n'y est jamais déclaré — puis
+/// `builtin_method_param_types()` (toute méthode builtin, statique ou
+/// d'instance) : chaque signature y est écrite comme la forme STATIQUE
+/// (`Array::get(arr, idx)`), récepteur INCLUS en position 0 — la même table
+/// sert aux deux formes. Pour `form == CallForm::Sugar`, l'argument explicite
+/// `i` correspond donc à la position `i + 1` de cette table, jamais `i` (le
+/// récepteur n'apparaît jamais dans les arguments explicites du sucre).
 ///
-/// `builtin_method_param_types()` (Array/Map/String/JSON/HTTPRequest/
-/// HTTPResponse — `allows_instance_sugar`) est différent : chaque signature y
-/// est écrite comme la forme STATIQUE (`Array::get(arr, idx)`), récepteur
-/// INCLUS en position 0 — la même table sert aux deux formes. Pour un appel
-/// sucré, l'argument explicite `i` correspond donc à la position `i + 1` de
-/// cette table, jamais `i`.
+/// `None` si `mangled`/`i` reste inconnu (variadic au-delà des paramètres
+/// fixes, méthode non répertoriée...) — le boxing est alors simplement
+/// sauté, comme avant l'introduction de ce mécanisme.
 ///
-/// Bug corrigé par cette distinction : `param_type_for_call_arg` utilisée
-/// telle quelle pour le sucre décalait chaque lookup d'une position pour TOUT
+/// Bug historique que cette distinction corrige : utiliser l'index `i` sans
+/// décalage pour le sucre décalait chaque lookup d'une position pour TOUT
 /// builtin à double forme — invisible tant que la position ainsi confondue
 /// avec la vraie visait aussi `Ptr` (le cas le plus fréquent, `val`/`sep`...),
 /// mais un décalage réel pour `arr.get(idx)` : `idx` (type réel `Int`, jamais
@@ -102,14 +106,18 @@ pub fn param_type_for_call_arg(builder: &LowerBuilder, mangled: &str, i: usize) 
 /// `__array_get` recevait alors un pointeur boxé arbitraire au lieu de
 /// l'entier `0`, hors-borne — retournait `null`, déréférencé ensuite comme un
 /// objet valide.
-pub fn param_type_for_sugar_call_arg(builder: &LowerBuilder, mangled: &str, i: usize) -> Option<IrType> {
+pub fn param_type_for_call_arg(builder: &LowerBuilder, mangled: &str, i: usize, form: CallForm) -> Option<IrType> {
     if let Some(pts) = builder.fn_param_types.get(mangled) {
         return pts.get(i).cloned();
     }
     if let Some(pts) = builder.module.method_param_types.get(mangled) {
         return pts.get(i).cloned();
     }
-    builtin_method_param_types().get(mangled).and_then(|pts| pts.get(i + 1).cloned())
+    let builtin_index = match form {
+        CallForm::Static => i,
+        CallForm::Sugar   => i + 1,
+    };
+    builtin_method_param_types().get(mangled).and_then(|pts| pts.get(builtin_index).cloned())
 }
 
 /// Boxe `val` (déjà lowered, de type IR `arg_ty`) si le paramètre cible

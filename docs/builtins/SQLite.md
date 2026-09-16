@@ -20,6 +20,21 @@ const db:SQLite = SQLite::open("data.db")
 
 **Erreur** : `SQLiteException` (code 101) si impossible d'ouvrir la base.
 
+### `SQLite::withOpen(path: string, f: Function<void(SQLite)>) → void`
+
+Ouvre la base, exécute `f(db)` avec la connexion fraîchement ouverte, puis **ferme systématiquement** la connexion — y compris si `f()` lève une exception. Avec `open()`/`close()` manuels, un `raise` entre les deux appels saute `close()` (le mécanisme d'exceptions d'Ocara est `setjmp`/`longjmp`, sans unwinding) et fuit la connexion pour toujours ; c'est exactement le risque que le diagnostic [W04](../diagnostics.md) signale statiquement pour une ressource `scoped`/`consumed`, et que `withOpen` corrige à la racine pour qui l'utilise.
+
+```ocara
+SQLite::withOpen("data.db", nameless(db:SQLite): void {
+    db.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
+    db.execute("INSERT INTO users (name) VALUES ('Alice')")
+    // db est fermée automatiquement ici, même si une exception est levée
+    // au-dessus de cette ligne.
+})
+```
+
+**Erreur** : `SQLiteException` (code 101) si impossible d'ouvrir la base ; toute exception levée par `f()` continue de se propager normalement à l'appelant, après la fermeture de la connexion.
+
 ## Exécution de requêtes
 
 ### `db.execute(query: string) → void`
@@ -54,6 +69,8 @@ for row in rows {
 ### `db.queryOne(query: string) → map<string, mixed>`
 
 Exécute une requête SELECT et retourne une seule ligne (ou une map vide si aucun résultat).
+
+> ⚠️ **Piège** : `MySQL::queryOne`/`MariaDB::queryOne` (voir [MySQL](MySQL.md)) portent le même nom de méthode mais une sémantique **différente** pour représenter "aucun résultat" — ils retournent `null` (type `map<string, mixed>|null`), pas une map vide. Ne pas écrire de code générique sur les deux sans tenir compte de cette différence.
 
 ```ocara
 const user:map<string, mixed> = db.queryOne("SELECT * FROM users WHERE id = 1")

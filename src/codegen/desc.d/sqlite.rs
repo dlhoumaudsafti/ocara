@@ -5,7 +5,8 @@ use cranelift_codegen::ir::types as clt;
 pub const SQLITE_BUILTINS: &[BuiltinDesc] = &[
     // Méthode statique
     BuiltinDesc { name: "SQLite_open",          params: &[clt::I64],               returns: Some(clt::I64), module: Some("SQLite") },
-    
+    BuiltinDesc { name: "SQLite_withOpen",      params: &[clt::I64, clt::I64],     returns: None,           module: Some("SQLite") },
+
     // Méthodes d'instance
     BuiltinDesc { name: "SQLite_execute",       params: &[clt::I64, clt::I64],     returns: None,           module: Some("SQLite") },
     BuiltinDesc { name: "SQLite_query",         params: &[clt::I64, clt::I64],     returns: Some(clt::I64), module: Some("SQLite") },

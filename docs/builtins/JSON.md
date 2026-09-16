@@ -292,10 +292,10 @@ function handle_api(req:int): int {
 
 ---
 
-## Limitations actuelles (v0.1.0)
+## Limitations actuelles (v1.0.0)
 
-- ⚠️ **Entier 1** : La valeur `1` est parfois interprétée comme booléen `true` dans l'encodage (sera corrigé dans v0.2.0)
-- ❌ **Float** : Les valeurs `float` ne sont pas encore supportées dans l'encodage/décodage (prévu pour v0.2.0)
+- ⚠️ **Entier 1** : La valeur `1` est parfois interprétée comme booléen `true` dans l'encodage (correction prévue dans une prochaine version)
+- ❌ **Float** : Les valeurs `float` ne sont pas encore supportées dans l'encodage/décodage (prévu pour une prochaine version)
 - ❌ **Types custom** : Les objets de classes utilisateur ne peuvent pas être encodés directement (utiliser des maps intermédiaires)
 - ✅ **Performance** : L'implémentation utilise `serde_json` (Rust) pour des performances optimales
 
