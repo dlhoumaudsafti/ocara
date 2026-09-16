@@ -1,6 +1,6 @@
 # Roadmap Ocara
 
-_Dernière mise à jour : 2026-09-16_
+_Dernière mise à jour : 2026-09-16 (le document ne liste plus aucune tâche à Priorité Moyenne ou plus : tout ce qui restait a été traité — voir `git log` et `docs/roadmap.d/` pour l'historique)_
 
 Ce document liste ce qu'il reste à faire pour faire d'Ocara un langage solide, avec un focus prioritaire sur la **gestion mémoire** : le compilateur n'a pas de ramasse-miettes (choix assumé et définitif), mais rien aujourd'hui ne garantit l'absence de fuites, de doubles libérations ou de corruptions mémoire silencieuses.
 
@@ -16,14 +16,6 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 - **Structurel** — demande de repenser une partie de l'architecture existante
 - **Massive** — gros volume de travail ou fonctionnalité entièrement à construire
 - **Dangereuse** — touche une zone sensible du compilateur/runtime où une erreur peut tout casser silencieusement (mémoire, concurrence) ; à traiter avec prudence et de bons tests de non-régression
-
----
-
-## Priorité Moyenne
-
-### Langage
-
-- **Ambiguïté `0`/`null` dans un `mixed`** — un entier brut `0` logé dans un `mixed` (jamais boxé, optimisation volontaire de `box_int_if_needed`) est structurellement indiscernable de `null` (les deux valent le bit pattern `0`) : `val_to_string`/`__val_to_str` (et donc tout code générique consommant un `mixed` — logs `UnitTest::assertEquals`, JSON/YAML potentiellement...) affichent "null" pour un entier 0 authentique. Découvert en corrigeant l'affichage `Array::get`/`Map::get` ci-dessous. Nécessite de revoir comment `null` est représenté (actuellement confondu avec l'entier 0) — changement de fond, à ne pas improviser. *(Structurel — touche le boxing/la représentation `mixed`)* → [détails](roadmap.d/langage-array-get-display-bug.md)
 
 ---
 

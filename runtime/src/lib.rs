@@ -244,11 +244,12 @@ fn is_bool_box(val: i64) -> bool {
     val >= 0x10000 && (val & 3) == 2
 }
 
-/// Voir `box_int_if_needed` : un `int` logé dans un `mixed` n'est boxé QUE
-/// s'il est assez grand pour être confondu avec un pointeur heap (au-delà de
-/// ce seuil, un pointeur réel ET un entier ordinaire sont indiscernables sans
-/// boxing — voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md) —
-/// un petit entier reste donc brut, jamais alloué.
+/// Voir `box_int_if_needed` : un `int` logé dans un `mixed` est boxé s'il est
+/// assez grand pour être confondu avec un pointeur heap (au-delà de ce seuil,
+/// un pointeur réel ET un entier ordinaire sont indiscernables sans boxing —
+/// voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md), OU s'il vaut
+/// `0` (sinon indiscernable de `null`, voir la doc de `box_int_if_needed`) —
+/// tout autre petit entier reste brut, jamais alloué.
 #[inline]
 fn is_int_box(val: i64) -> bool {
     val >= 0x10000 && (val & 3) == 3
@@ -269,13 +270,26 @@ unsafe fn unbox_int(val: i64) -> i64 {
     unsafe { *((val & !3) as *const i64) }
 }
 
-/// Boxe `n` uniquement s'il est assez grand pour être confondu avec un
-/// pointeur heap valide par `read_tag`/`get_value_type` (`val >= 0x10000`,
-/// le même seuil que `PTR_THRESHOLD` ailleurs dans le runtime) — un petit
-/// entier reste brut (comme avant ce correctif), pas de coût d'allocation
-/// pour le cas de loin le plus fréquent. Un entier NÉGATIF n'est jamais
-/// ambigu avec un pointeur (toujours < 0x10000 en comparaison signée) et
-/// reste donc toujours brut, quelle que soit sa magnitude.
+/// Boxe `n` s'il est assez grand pour être confondu avec un pointeur heap
+/// valide par `read_tag`/`get_value_type` (`val >= 0x10000`, le même seuil
+/// que `PTR_THRESHOLD` ailleurs dans le runtime), OU s'il vaut exactement
+/// `0` — un petit entier NON NUL reste brut (comme avant ce correctif), pas
+/// de coût d'allocation pour le cas de loin le plus fréquent. Un entier
+/// NÉGATIF (non nul) n'est jamais ambigu avec un pointeur (toujours <
+/// 0x10000 en comparaison signée) et reste donc toujours brut, quelle que
+/// soit sa magnitude.
+///
+/// Le cas `n == 0` est spécial : `null` est TOUJOURS représenté par le bit
+/// pattern `0` (voir `Expr::Literal(Literal::Null, _)` dans le lowering) —
+/// un entier brut valant `0` logé dans un `mixed` serait donc structurellement
+/// indiscernable de `null`, les deux valant `0`. Boxer spécifiquement `0`
+/// élimine cette ambiguïté : toute décision consultant `get_value_type`/
+/// `is_int_box`/`__is_null`/`__is_int` (déjà correctes pour un entier boxé,
+/// écrites par anticipation de ce cas) traite alors correctement un entier
+/// `0` authentique comme "un entier valant 0", jamais comme `null` — confirmé
+/// faux par reproduction : `Array::get`/`Map::get` sur un élément `0`,
+/// `UnitTest::assertEquals(0, ...)`, affichaient/traitaient la valeur comme
+/// `null` (voir docs/roadmap.d/langage-array-get-display-bug.md).
 ///
 /// Contrairement à `float`/`bool` (toujours boxés dans un `mixed`, sans
 /// condition), cette fonction est LE point d'entrée unique qui décide, au
@@ -284,7 +298,7 @@ unsafe fn unbox_int(val: i64) -> i64 {
 /// argument, littéral `array`/`map`, résultat arithmétique dynamique...).
 #[inline]
 fn box_int_if_needed(n: i64) -> i64 {
-    if n < 0x10000 {
+    if n != 0 && n < 0x10000 {
         return n;
     }
     unsafe {
