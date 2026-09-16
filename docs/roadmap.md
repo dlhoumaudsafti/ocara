@@ -1,6 +1,6 @@
 # Roadmap Ocara
 
-_Dernière mise à jour : 2026-09-16 (le document ne liste plus aucune tâche à Priorité Moyenne ou plus : tout ce qui restait a été traité — voir `git log` et `docs/roadmap.d/` pour l'historique)_
+_Dernière mise à jour : 2026-09-16_
 
 Ce document liste ce qu'il reste à faire pour faire d'Ocara un langage solide, avec un focus prioritaire sur la **gestion mémoire** : le compilateur n'a pas de ramasse-miettes (choix assumé et définitif), mais rien aujourd'hui ne garantit l'absence de fuites, de doubles libérations ou de corruptions mémoire silencieuses.
 
@@ -19,6 +19,14 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 ---
 
+## Priorité Basse
+
+### Langage
+
+- **Opérateurs d'incrémentation/décrémentation (`i++`, `++i`, `i--`, `--i`)** — sémantique complète façon C (expressions à part entière, valeur de retour distincte pré/post), aujourd'hui la seule façon de l'écrire étant `i = i + 1`/`i = i - 1` (aucun opérateur composé n'existe, terrain vierge). Conception détaillée faite : nouveau nœud AST, grammaire préfixe/suffixe, validation sémantique de type et de forme de cible, lowering avec garantie d'unicité d'évaluation des sous-expressions (`arr[calc()]++` ne doit évaluer `calc()` qu'une fois) — voir la fiche pour le plan complet et les risques identifiés (dont un effet de bord mineur sur la double négation `--x` sans espace, vérifié sans impact sur le code existant). *(Structurel)* → [détails](roadmap.d/langage-increment-decrement.md)
+
+---
+
 ## Priorité Très Basse
 
 Pas important du tout pour le moment — portage/intégration massifs, aucune urgence.
@@ -33,9 +41,9 @@ Pas important du tout pour le moment — portage/intégration massifs, aucune ur
 
 ## Méthode de travail
 
-* On analyse la roadmap et les fichiers `roadmap.d/` associés à la tâche en cours.
+* On analyse la roadmap et les fichiers `roadmap.d/` associés à un ticket en cours.
 * On analyse les documentations
-    * On garde en tête le workflow, l'EBNF et les documentations lié à notre ticket
+    * Workflow, l'EBNF et les documentations lié à notre ticket
 * On effectue les corrections et améliorations demandées.
 * Si changement de syntaxe ou ajout:
     * On mets à jour l'extension vscode dans tools/ si c'est nécessaire
@@ -51,7 +59,7 @@ Pas important du tout pour le moment — portage/intégration massifs, aucune ur
 * On met à jour la roadmap.
 * On affiche une liste simple, sans détails, des travaux effectués afin de préparer le commit.
 
-Si, durant les travaux, nous constatons des bugs ou d’autres points à traiter, nous évaluons s’il est possible de les intégrer à la séance en cours. Si ce n’est pas possible, nous ajoutons ces nouvelles tâches à la roadmap.
+Si, durant les travaux, nous constatons des bugs ou d’autres points à traiter, nous évaluons s’il est possible de les intégrer au ticket en cours. Si ce n’est pas possible, nous ajoutons ces nouvelles tâches à la roadmap.
 
 ---
 
