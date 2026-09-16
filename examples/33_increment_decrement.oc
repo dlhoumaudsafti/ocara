@@ -1,0 +1,53 @@
+import ocara.IO
+
+// Opérateurs d'incrémentation/décrémentation — voir
+// docs/roadmap.d/langage-increment-decrement.md. Sémantique complète façon C :
+// `i++`/`i--` (suffixe) valent l'ANCIENNE valeur, `++i`/`--i` (préfixe) valent
+// la NOUVELLE — utilisables comme n'importe quelle expression, pas seulement
+// comme instruction.
+
+class Counter {
+    public property value:int
+    init(start:int) { self.value = start }
+}
+
+function main(): int {
+    // Formes de base sur un int
+    var i:int = 5
+    IO::writeln(i++)  // 5 (ancienne valeur)
+    IO::writeln(i)    // 6
+    IO::writeln(++i)  // 7 (nouvelle valeur)
+    IO::writeln(i--)  // 7
+    IO::writeln(--i)  // 5
+
+    // Sur un float
+    var f:float = 1.5
+    f++
+    IO::writeln(f)    // 2.5
+
+    // Utilisable en position d'expression (pas seulement comme instruction)
+    var acc:int = 0
+    var j:int = 0
+    while j smaller 5 {
+        acc = acc + j++
+    }
+    IO::writeln(acc)  // 0+1+2+3+4 = 10
+
+    // Cible = élément de tableau
+    var arr:array<int> = [10, 20, 30]
+    arr[0]++
+    IO::writeln(arr[0])  // 11
+
+    // Cible = propriété d'objet
+    var c:Counter = use Counter(100)
+    c.value++
+    ++c.value
+    IO::writeln(c.value)  // 102
+
+    // Cible = valeur d'une map
+    var scores:map<string, int> = {"alice": 10}
+    scores["alice"]++
+    IO::writeln(scores["alice"])  // 11
+
+    return 0
+}

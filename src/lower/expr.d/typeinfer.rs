@@ -307,6 +307,9 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                 UnaryOp::Neg => expr_ir_type(builder, operand),
             }
         }
+        // `i++`/`++i`/`i--`/`--i` — même type que la cible (sema a déjà
+        // validé int/float uniquement, voir docs/roadmap.d/langage-increment-decrement.md).
+        Expr::IncDec { target, .. } => expr_ir_type(builder, target),
         Expr::IsCheck { .. } => IrType::Bool,
         Expr::Resolve { expr, .. } => {
             // Retourne le type IR original de la fonction async sous-jacente.

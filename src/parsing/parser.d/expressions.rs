@@ -289,6 +289,18 @@ impl Parser {
                 let expr = self.parse_unary()?;
                 Ok(Expr::Resolve { expr: Box::new(expr), span })
             }
+            // Préfixe `++i`/`--i` — la forme de `target` (Ident/Field/Index)
+            // est validée en sema, pas ici (même patron que `Stmt::Assign`).
+            TokenKind::PlusPlus => {
+                self.advance();
+                let target = self.parse_unary()?;
+                Ok(Expr::IncDec { op: IncDecOp::PreInc, target: Box::new(target), span })
+            }
+            TokenKind::MinusMinus => {
+                self.advance();
+                let target = self.parse_unary()?;
+                Ok(Expr::IncDec { op: IncDecOp::PreDec, target: Box::new(target), span })
+            }
             _ => self.parse_postfix(),
         }
     }
@@ -353,6 +365,21 @@ impl Parser {
                         index:  Box::new(index),
                         span,
                     };
+                }
+
+                // suffixe `expr++`/`expr--` — même remarque que le préfixe :
+                // la forme de `expr` est validée en sema, pas ici. Restreint
+                // à la MÊME ligne que la fin de `expr` (voir `previous_line`)
+                // — sinon `expr` suivi, sur la ligne suivante, d'un `++i`/
+                // `--i` préfixe (nouvelle instruction) se ferait avaler à
+                // tort comme suffixe de CETTE expression.
+                TokenKind::PlusPlus if self.previous_line() == Some(span.line) => {
+                    self.advance();
+                    expr = Expr::IncDec { op: IncDecOp::PostInc, target: Box::new(expr), span };
+                }
+                TokenKind::MinusMinus if self.previous_line() == Some(span.line) => {
+                    self.advance();
+                    expr = Expr::IncDec { op: IncDecOp::PostDec, target: Box::new(expr), span };
                 }
 
                 _ => break,

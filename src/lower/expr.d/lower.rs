@@ -1245,6 +1245,12 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             dest
         }
 
+        // ── Incrémentation/décrémentation : i++, ++i, i--, --i ────────────────
+        // Voir docs/roadmap.d/langage-increment-decrement.md.
+        Expr::IncDec { op, target, .. } => {
+            crate::lower::stmt::statements::lower_incdec(builder, op, target)
+        }
+
         // ── Tableau littéral ─────────────────────────────────────────────────
         // Pas de type de destination connu ici (nested/argument/retour...) —
         // voir `lower_array_literal`/`LiteralElemKind::Mixed` pour pourquoi
@@ -1263,24 +1269,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // — ou, pour `self.champ[clé]`/`obj.champ[clé]`, selon le type déclaré
             // du CHAMP (module.class_map_fields, seule source fiable : class_layouts
             // réduit tout champ à IrType::Ptr, map/array/string indistinguables).
-            let is_map = match object.as_ref() {
-                Expr::Ident(name, _) => builder.map_vars.contains(name.as_str()),
-                Expr::Field { object: inner, field, .. } => {
-                    let class_name = match inner.as_ref() {
-                        Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
-                        Expr::SelfExpr(_)    => builder.current_class.clone(),
-                        Expr::Field { object: inner2, field: inner2_field, .. } => {
-                            resolve_chained_field_class(builder, inner2, inner2_field)
-                        }
-                        _ => None,
-                    };
-                    class_name
-                        .and_then(|cls| builder.module.class_map_fields.get(&cls).cloned())
-                        .map(|fields| fields.contains(field.as_str()))
-                        .unwrap_or(false)
-                }
-                _ => false,
-            };
+            let is_map = is_map_target(builder, object);
             let func = if is_map { "__map_get" } else { "__array_get" };
             builder.emit(Inst::Call {
                 dest:   Some(dest.clone()),

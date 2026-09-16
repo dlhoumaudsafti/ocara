@@ -42,8 +42,20 @@ impl Lexer {
         self.advance();
 
         let kind = match ch {
-            '+' => TokenKind::Plus,
-            '-' => TokenKind::Minus,
+            // + ou ++ (incrémentation — voir docs/roadmap.d/langage-increment-decrement.md)
+            '+' => match self.current() {
+                Some('+') => { self.advance(); TokenKind::PlusPlus }
+                _         => TokenKind::Plus,
+            },
+            // - ou -- (décrémentation) — NOTE : change la lecture de `--x` sans
+            // espace, auparavant une double négation (`Neg(Neg(x))` via la règle
+            // récursive `UnaryExpr ::= "-" UnaryExpr`) ; `- -x` avec espace reste
+            // inchangé (deux tokens `Minus` séparés). Vérifié sans impact sur le
+            // code existant (aucun usage adjacent dans examples/).
+            '-' => match self.current() {
+                Some('-') => { self.advance(); TokenKind::MinusMinus }
+                _         => TokenKind::Minus,
+            },
             '*' => TokenKind::Star,
             '/' => TokenKind::Slash,
             '%' => TokenKind::Percent,

@@ -477,6 +477,11 @@ fn collect_consumed_reads_expr(expr: &Expr, owned: &HashMap<String, OwnedLocalIn
         }
         Expr::IsCheck { expr, .. } => collect_consumed_reads_expr(expr, owned, out),
         Expr::Resolve { expr, .. } => collect_consumed_reads_expr(expr, owned, out),
+        // `i++`/`++i`/`i--`/`--i` — la cible est toujours `int`/`float`
+        // (jamais `scoped`/`consumed`, sema l'a déjà rejeté), mais un `Index`
+        // peut contenir une lecture `consumed` dans son `object`/`index`
+        // (`arr[c.id]++` où `c` est `consumed`) — à descendre comme ailleurs.
+        Expr::IncDec { target, .. } => collect_consumed_reads_expr(target, owned, out),
         // Ne pas descendre dans les nameless imbriquées : une consumed
         // utilisée à l'intérieur d'une closure échapperait de toute façon
         // (interdit par check_escape côté sema pour les ressources ; pour

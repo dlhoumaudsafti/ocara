@@ -1315,12 +1315,13 @@ IsCheckExpr  ::= RangeExpr ( "is" Type )?
 RangeExpr    ::= AdditiveExpr ( ".." AdditiveExpr )?
 AdditiveExpr ::= MultiplicativeExpr ( ( "+" | "-" ) MultiplicativeExpr )*
 MultiplicativeExpr ::= UnaryExpr ( ( "*" | "/" | "%" ) UnaryExpr )*
-UnaryExpr    ::= ( "not" | "-" | "resolve" ) UnaryExpr
+UnaryExpr    ::= ( "not" | "-" | "resolve" | "++" | "--" ) UnaryExpr
                | PostfixExpr
 PostfixExpr  ::= PrimaryExpr PostfixTail*
 PostfixTail  ::= "." Identifier ( "(" ArgList? ")" )?
                | "(" ArgList? ")"
                | "[" Expression "]"
+               | "++" | "--"
 
 PrimaryExpr  ::= Literal
                | "self"
@@ -1347,6 +1348,11 @@ ArgList ::= Expression ( "," Expression )*
 - **Annotation de type postfix** : dans un contexte `match` ou `switch`, l'accès `expr.field:type` est syntaxiquement autorisé ; l'annotation de type est ignorée sémantiquement (hint visuel uniquement).
 - **L'appel de fonction** sans receveur est une `PostfixExpr` dont le `PrimaryExpr` est un `Identifier` suivi de `( ArgList? )`.
 - **Tableau vs map** : `[...]` est toujours un tableau, `{...}` est toujours un map.
+- **Incrémentation/décrémentation (`++`/`--`)** — voir docs/roadmap.d/langage-increment-decrement.md :
+  - Sémantique complète façon C : `i++`/`i--` (suffixe) valent l'ANCIENNE valeur de la cible (elle change quand même) ; `++i`/`--i` (préfixe) valent la NOUVELLE. Ce sont de vraies EXPRESSIONS, utilisables partout où une expression est attendue (`x = i++`, `foo(i++)`, condition...), pas seulement comme instruction.
+  - La cible (`UnaryExpr`/le `PrimaryExpr`/`PostfixExpr` immédiatement précédent) doit être un `Ident`/`Field`/`Index` (mêmes formes qu'une affectation `=`) et de type `int` ou `float` — validé en sémantique, pas par la grammaire elle-même (qui reste permissive, comme pour `Stmt::Assign`).
+  - **Restriction de ligne pour le suffixe** : `expr++`/`expr--` n'est reconnu comme suffixe QUE si `++`/`--` se trouve sur la MÊME ligne que la fin de `expr` — sinon, une instruction qui commence par `++i`/`--i` (préfixe) juste après une instruction précédente se ferait sinon avaler à tort comme suffixe de celle-ci (ce langage n'a pas de point-virgule ; même restriction que JavaScript impose à `++`/`--` postfixe, pour la même raison).
+  - **Effet de bord sur `--`** : `--x` (sans espace) est désormais une décrémentation, plus une double négation (`Neg(Neg(x))`) — `- -x` (avec espace) reste, lui, une double négation, inchangé.
 
 ---
 
@@ -1363,8 +1369,8 @@ Du plus faible au plus fort :
 | 5      | `..`                     | Aucune        | Opérateur de plage |
 | 6      | `+` `-`                  | Gauche        | |
 | 7      | `*` `/` `%`              | Gauche        | |
-| 8      | `not` `-` (unaire)       | Droite        | |
-| 9      | `.` `()` `[]` (postfix)  | Gauche        | |
+| 8      | `not` `-` (unaire) `++` `--` (préfixe) | Droite | `++`/`--` : cible `Ident`/`Field`/`Index` de type `int`/`float` uniquement |
+| 9      | `.` `()` `[]` `++` `--` (postfix) | Gauche | `++`/`--` suffixe : seulement sur la même ligne que la fin de l'opérande |
 
 ### 11.1 Comparaisons
 
@@ -3566,11 +3572,12 @@ IsCheckExpr ::= RangeExpr ( "is" Type )?
 RangeExpr   ::= AdditiveExpr ( ".." AdditiveExpr )?
 AdditiveExpr ::= MultiplicativeExpr ( ( "+" | "-" ) MultiplicativeExpr )*
 MultiplicativeExpr ::= UnaryExpr ( ( "*" | "/" | "%" ) UnaryExpr )*
-UnaryExpr   ::= ( "not" | "-" | "resolve" ) UnaryExpr | PostfixExpr
+UnaryExpr   ::= ( "not" | "-" | "resolve" | "++" | "--" ) UnaryExpr | PostfixExpr
 PostfixExpr ::= PrimaryExpr PostfixTail*
 PostfixTail ::= "." Identifier ( "(" ArgList? ")" )?
               | "(" ArgList? ")"
               | "[" Expression "]"
+              | "++" | "--"
 
 PrimaryExpr ::= Literal
               | "self"

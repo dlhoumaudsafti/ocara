@@ -136,6 +136,16 @@ pub enum Expr {
         ty:   Type,
         span: Span,
     },
+
+    /// Incrémentation/décrémentation, préfixe ou suffixe : `i++`, `++i`,
+    /// `i--`, `--i` — voir docs/roadmap.d/langage-increment-decrement.md.
+    /// `target` doit être un `Ident`/`Field`/`Index` (validé en sema, comme
+    /// pour `Stmt::Assign` — le parser reste générique).
+    IncDec {
+        op:     IncDecOp,
+        target: Box<Expr>,
+        span:   Span,
+    },
 }
 
 impl Expr {
@@ -162,6 +172,7 @@ impl Expr {
             Expr::Nameless { span, .. } => span,
             Expr::Resolve { span, .. } => span,
             Expr::IsCheck { span, .. } => span,
+            Expr::IncDec { span, .. } => span,
         }
     }
 }
@@ -184,4 +195,24 @@ pub enum BinOp {
 pub enum UnaryOp {
     Not,
     Neg,
+}
+
+/// Forme de `Expr::IncDec` — préfixe (`++i`/`--i`, la nouvelle valeur est le
+/// résultat) ou suffixe (`i++`/`i--`, l'ancienne valeur est le résultat).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IncDecOp {
+    PreInc,
+    PreDec,
+    PostInc,
+    PostDec,
+}
+
+impl IncDecOp {
+    pub fn is_increment(self) -> bool {
+        matches!(self, IncDecOp::PreInc | IncDecOp::PostInc)
+    }
+
+    pub fn is_prefix(self) -> bool {
+        matches!(self, IncDecOp::PreInc | IncDecOp::PreDec)
+    }
 }

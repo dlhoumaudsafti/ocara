@@ -330,9 +330,13 @@ pub fn update_program_spans_with_file(program: &mut ast::Program, file_path: &st
             Expr::StaticConst { span, .. } => {
                 update_span(span, file);
             }
+            Expr::IncDec { target, span, .. } => {
+                update_span(span, file);
+                update_expr_spans(target, file);
+            }
         }
     }
-    
+
     // Helper pour mettre à jour les spans dans un statement
     fn update_stmt_spans(stmt: &mut Stmt, file: &str) {
         match stmt {

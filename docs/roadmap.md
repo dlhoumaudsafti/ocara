@@ -19,14 +19,6 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 ---
 
-## Priorité Basse
-
-### Langage
-
-- **Opérateurs d'incrémentation/décrémentation (`i++`, `++i`, `i--`, `--i`)** — sémantique complète façon C (expressions à part entière, valeur de retour distincte pré/post), aujourd'hui la seule façon de l'écrire étant `i = i + 1`/`i = i - 1` (aucun opérateur composé n'existe, terrain vierge). Conception détaillée faite : nouveau nœud AST, grammaire préfixe/suffixe, validation sémantique de type et de forme de cible, lowering avec garantie d'unicité d'évaluation des sous-expressions (`arr[calc()]++` ne doit évaluer `calc()` qu'une fois) — voir la fiche pour le plan complet et les risques identifiés (dont un effet de bord mineur sur la double négation `--x` sans espace, vérifié sans impact sur le code existant). *(Structurel)* → [détails](roadmap.d/langage-increment-decrement.md)
-
----
-
 ## Priorité Très Basse
 
 Pas important du tout pour le moment — portage/intégration massifs, aucune urgence.
