@@ -3,6 +3,9 @@
 //
 // Méthodes statiques :
 //   SQLite::open(path:string) → SQLite         // Ouvre/crée une base de données
+//   SQLite::withOpen(path:string, f:Function<void(SQLite)>) → void
+//     // open + f(db) + close garanti, y compris si f() raise (voir
+//     // docs/roadmap.d/exceptions-setjmp-longjmp-dette.md)
 //
 // Méthodes d'instance :
 //   db.execute(query:string) → void           // Exécute une requête SQL (INSERT, UPDATE, DELETE, CREATE, etc.)
@@ -63,6 +66,21 @@ pub fn class() -> ClassInfo {
     methods.insert("open".into(), static_m(
         vec![("path", Type::String)],
         Type::Named("SQLite".to_string()),
+    ));
+
+    // SQLite::withOpen(path:string, f:Function<void(SQLite)>) → void — open,
+    // exécute f(db), close garanti (y compris si f() raise, contrairement à
+    // open()/close() manuels — voir SQLite_withOpen /
+    // docs/roadmap.d/exceptions-setjmp-longjmp-dette.md)
+    methods.insert("withOpen".into(), static_m(
+        vec![
+            ("path", Type::String),
+            ("f", Type::Function {
+                ret_ty: Box::new(Type::Void),
+                param_tys: vec![Type::Named("SQLite".to_string())],
+            }),
+        ],
+        Type::Void,
     ));
 
     // ── Méthodes d'instance ───────────────────────────────────────────────────

@@ -74,6 +74,17 @@ pub fn lower_nameless_fn(
                 builder.func_vars.insert(param.name.clone());
                 builder.func_ret_types.insert(param.name.clone(), IrType::from_ast(ret_ty));
             }
+            // Un paramètre de type classe (`nameless(db:SQLite): void {...}`,
+            // voir SQLite::withOpen/MySQL::withConnect) doit être enregistré
+            // dans var_class comme n'importe quelle variable de classe —
+            // sinon la résolution d'appel de méthode (db.execute(...), voir
+            // lower.rs) ne trouve pas la classe de `db`, retombe sur le
+            // fallback générique `_method_execute` (qui n'existe pas
+            // réellement) et l'appel devient un no-op silencieux au lieu
+            // d'atteindre SQLite_execute.
+            if let Type::Named(cls) = &param.ty {
+                builder.var_class.insert(param.name.clone(), cls.clone());
+            }
             let slot = builder.declare_local(&param.name, ir_ty.clone(), false);
             let recv = builder.new_value();
             builder.emit(Inst::Store { ptr: slot, src: recv.clone() });

@@ -330,42 +330,51 @@ server.run()
 
 ## Notes de sécurité / concurrence
 
-Les handlers s'exécutent en parallèle dans plusieurs threads (un par `worker`, voir « Gestion des connexions multiples » ci-dessus) — ce n'est pas une simulation de concurrence, deux requêtes simultanées peuvent réellement exécuter le même handler en même temps sur deux cœurs différents.
+`workers` threads acceptent réellement les connexions en parallèle (voir « Gestion des connexions multiples » ci-dessus) — ce n'est pas une simulation de concurrence. **Mais l'exécution d'un handler (route ou page d'erreur) est sérialisée** : un verrou interne, propre à chaque serveur, garantit qu'un seul handler Ocara s'exécute à la fois, quel que soit le nombre de workers. Deux requêtes simultanées ne peuvent donc **jamais** exécuter le même handler — ou deux handlers différents — en même temps. Ce qui reste parallèle entre requêtes : la lecture de la requête (corps, en-têtes) et l'envoi de la réponse, avant/après l'appel au handler.
 
-**Une variable capturée par un handler et partagée avec un autre handler (ou avec le code après `server.run()`) n'est protégée par aucun verrou automatique.** Deux requêtes concurrentes qui lisent-modifient-écrivent la même variable capturée constituent un data race réel — comportement non défini, pas juste un résultat "parfois incorrect". Ce n'est pas spécifique à `HTTPServer` : c'est la même règle que pour `ocara.Thread` (aucun mot-clé du langage ne distingue une capture partagée avec un handler HTTP d'une capture partagée avec un thread) — mais avec `HTTPServer`, le parallélisme est automatique et permanent dès `server.run()`, pas déclenché explicitement comme avec `Thread::spawn`, donc plus facile d'introduire une race sans s'en rendre compte.
-
-**❌ Race condition** — deux requêtes simultanées sur `/hits` peuvent lire la même valeur de `hitCount` avant que l'une ou l'autre ne l'incrémente, perdant une visite :
+Conséquence pratique : **une variable capturée par un handler et partagée uniquement avec d'autres handlers n'a plus besoin d'être protégée par un `Mutex`** — la sérialisation l'empêche par construction.
 
 ```ocara
 var hitCount:int = 0
 
+// Sûr par défaut : deux requêtes simultanées sur /hits ne peuvent jamais
+// exécuter ce handler en même temps — aucune incrémentation ne peut se
+// perdre, sans Mutex explicite.
 server.route("/hits", "GET", nameless(req:int): int {
-    hitCount = hitCount + 1   // lecture-modification-écriture NON atomique
+    hitCount = hitCount + 1
     HTTPServer::respond(req, 200, `Visites : ${hitCount}`)
     return 0
 })
 ```
 
-**✅ Correct** — protéger toute variable partagée entre handlers avec `ocara.Mutex` (voir [Mutex](Mutex.md)), exactement comme on protégerait un compteur partagé entre plusieurs `Thread` :
+**Ce qui reste un vrai risque de data race**, et nécessite toujours `ocara.Mutex` (voir [Mutex](Mutex.md)) : une variable capturée par un handler **ET** touchée en dehors de toute invocation de handler — typiquement par un `ocara.Thread` tournant en tâche de fond, qui n'est pas concerné par le verrou interne de `HTTPServer` (celui-ci ne protège que les appels *dans* `handle_request`, pas le reste du programme) :
 
 ```ocara
 import ocara.HTTPServer
 import ocara.Mutex
+import ocara.Thread
 
 function main(): int {
     const server:HTTPServer = use HTTPServer()
-    var hitCount:int = 0
-    var hitLock:Mutex = use Mutex()   // `var`, pas `scoped` : capturée par le handler,
-                                        // doit survivre à tout le cycle de vie du serveur
+    var counter:int = 0
+    var lock:Mutex = use Mutex()   // `var`, pas `scoped` : capturée par le handler ET
+                                     // par le thread de fond, doit survivre aux deux
 
-    server.route("/hits", "GET", nameless(req:int): int {
+    server.route("/counter", "GET", nameless(req:int): int {
         var current:int = 0
-        hitLock.withLock(nameless(): void {
-            hitCount = hitCount + 1
-            current = hitCount
+        lock.withLock(nameless(): void {
+            current = counter
         })
-        HTTPServer::respond(req, 200, `Visites : ${current}`)
+        HTTPServer::respond(req, 200, `Compteur : ${current}`)
         return 0
+    })
+
+    // Tourne en dehors du verrou interne de HTTPServer : sans Mutex ici,
+    // data race réel avec le handler ci-dessus.
+    var bg:Thread = Thread::spawn(nameless(): void {
+        lock.withLock(nameless(): void {
+            counter = counter + 1
+        })
     })
 
     server.run()
@@ -373,6 +382,8 @@ function main(): int {
 }
 ```
 
-`withLock` (plutôt que `lock()`/`unlock()` manuels) garantit le déverrouillage même si le corps du handler lève une exception avant d'atteindre `unlock()` — sinon tout worker suivant qui tente de verrouiller `hitLock` reste bloqué indéfiniment (voir [Mutex](Mutex.md), section `withLock`).
+`withLock` (plutôt que `lock()`/`unlock()` manuels) garantit le déverrouillage même si le code protégé lève une exception avant d'atteindre `unlock()` — sinon tout appel suivant qui tente de verrouiller reste bloqué indéfiniment (voir [Mutex](Mutex.md), section `withLock`).
 
-**Ce qui N'A PAS besoin de protection** : les données propres à UNE requête (`req`, tout ce que retournent `HTTPServer::path`/`method`/`body`/`header`/`query`) ne sont jamais partagées entre handlers — chaque requête a son propre `OcaraHttpContext`, alloué et libéré pour elle seule. Seule une variable capturée par la closure du handler (déclarée AVANT `server.route(...)`, dans la portée englobante) peut être partagée entre deux exécutions concurrentes du même handler.
+**Ce qui N'A JAMAIS besoin de protection** : les données propres à UNE requête (`req`, tout ce que retournent `HTTPServer::path`/`method`/`body`/`header`/`query`) ne sont jamais partagées entre handlers — chaque requête a son propre `OcaraHttpContext`, alloué et libéré pour elle seule.
+
+**Compromis assumé** : sérialiser l'invocation des handlers élimine la race par construction, au prix de perdre le parallélisme réel sur la logique métier elle-même (deux handlers ne tournent plus jamais en même temps, même s'ils ne partagent rien). C'est un choix de philosophie différent de `ocara.Thread`, qui reste "rapide par défaut, sûr sur demande (`Mutex`)" — voir `docs/roadmap.d/runtime-httpserver-race-condition.md` pour la justification complète de ce compromis.

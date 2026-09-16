@@ -36,11 +36,13 @@ if ! echo "$resp" | grep -q "bonjour"; then
     FAIL=1
 fi
 
-# GET /hits en vraie concurrence → le compteur protégé par Mutex ne doit
-# perdre AUCUNE incrémentation (docs/roadmap.d/runtime-httpserver-race-
-# condition.md). N requêtes lancées simultanément (pas séquentiellement) sur
-# un serveur à 4 workers : sans le Mutex, deux requêtes qui liraient
-# hitCount avant que l'une n'ait fini de l'incrémenter perdraient un point.
+# GET /hits en vraie concurrence → le compteur ne doit perdre AUCUNE
+# incrémentation, sans Mutex explicite : HTTPServer sérialise nativement
+# l'invocation des handlers (docs/roadmap.d/runtime-httpserver-race-
+# condition.md, option 2). N requêtes lancées simultanément (pas
+# séquentiellement) sur un serveur à 4 workers : sans cette sérialisation,
+# deux requêtes qui liraient hitCount avant que l'une n'ait fini de
+# l'incrémenter perdraient un point.
 N=30
 curl_pids=""
 for i in $(seq 1 "$N"); do

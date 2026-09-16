@@ -30,6 +30,21 @@ const db:MySQL = MySQL::connect("localhost", "root", "password", "mydb")
 
 **Erreur** : `MySQLException` (code 101) si impossible de se connecter.
 
+### `MySQL::withConnect(host: string, user: string, password: string, database: string, f: Function<void(MySQL)>) → void`
+
+Connecte, exécute `f(db)` avec la connexion fraîchement établie, puis **ferme systématiquement** la connexion — y compris si `f()` lève une exception. Avec `connect()`/`close()` manuels, un `raise` entre les deux appels saute `close()` (le mécanisme d'exceptions d'Ocara est `setjmp`/`longjmp`, sans unwinding) et fuit la connexion pour toujours ; c'est exactement le risque que le diagnostic [W04](../diagnostics.md) signale statiquement pour une ressource `scoped`/`consumed`, et que `withConnect` corrige à la racine pour qui l'utilise. Disponible également sous `MariaDB::withConnect`.
+
+```ocara
+MySQL::withConnect("localhost", "root", "password", "mydb", nameless(db:MySQL): void {
+    db.execute("CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))")
+    db.execute("INSERT INTO users (name) VALUES ('Alice')")
+    // db est fermée automatiquement ici, même si une exception est levée
+    // au-dessus de cette ligne.
+})
+```
+
+**Erreur** : `MySQLException` (code 101) si impossible de se connecter ; toute exception levée par `f()` continue de se propager normalement à l'appelant, après la fermeture de la connexion.
+
 ## Exécution de requêtes
 
 ### `db.execute(query: string) → int`

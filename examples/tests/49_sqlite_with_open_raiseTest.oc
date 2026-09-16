@@ -1,0 +1,144 @@
+import ocara.UnitTest
+import ocara.SQLite
+import ocara.File
+
+// `SQLite::withOpen` : open + exécution de la closure avec la connexion EN
+// PARAMÈTRE + close garanti, y compris si la closure `raise` (voir
+// docs/roadmap.d/exceptions-setjmp-longjmp-dette.md et docs/builtins/SQLite.md).
+// Avec open()/close() manuels, un raise entre les deux appels saute close()
+// (setjmp/longjmp, pas d'unwinding) et fuit la connexion pour toujours —
+// c'est exactement ce que le diagnostic W04 détecte statiquement, et ce que
+// withOpen corrige à la racine pour qui l'utilise.
+//
+// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée du
+// fichier (voir 33_exception_hierarchyTest.oc) — la classe de test doit donc
+// précéder SqliteWithOpenError ci-dessous.
+
+class Test_49_sqlite_with_open {
+
+    // Cas nominal : la closure reçoit une connexion utilisable.
+    public method normalExecutionTest(): int {
+        const path:string = "test_49_normal.db"
+        if File::exists(path) {
+            File::remove(path)
+        }
+
+        SQLite::withOpen(path, nameless(db:SQLite): void {
+            db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT)")
+            db.execute("INSERT INTO t (name) VALUES ('a')")
+        })
+
+        // La connexion passée à la closure a bien été fermée par withOpen :
+        // une nouvelle connexion sur le même fichier voit les données commises.
+        const db2:SQLite = SQLite::open(path)
+        const rows:array<map<string, mixed>> = db2.query("SELECT * FROM t")
+        UnitTest::assertEquals(1, rows.len())
+        db2.close()
+        File::remove(path)
+        return 0
+    }
+
+    // Une exception levée DANS la closure doit être rattrapée normalement
+    // par le try/on englobant l'appel à withOpen (elle continue de se
+    // propager, withOpen ne l'avale pas).
+    public method exceptionPropagatesTest(): int {
+        const path:string = "test_49_exc.db"
+        if File::exists(path) {
+            File::remove(path)
+        }
+
+        var caught:bool = false
+        var received_message:string = ""
+
+        try {
+            SQLite::withOpen(path, nameless(db:SQLite): void {
+                db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY)")
+                raise use SqliteWithOpenError("boom")
+            })
+        } on e is SqliteWithOpenError {
+            caught = true
+            received_message = e.message
+        }
+
+        UnitTest::assertTrue(caught)
+        UnitTest::assertTrue(received_message equal "boom")
+        File::remove(path)
+        return 0
+    }
+
+    // Le vrai point du test : après qu'une exception a traversé withOpen
+    // pendant qu'une transaction était ouverte (BEGIN sans COMMIT), la
+    // connexion ne doit PAS rester ouverte avec son verrou d'écriture tenu —
+    // sinon toute connexion suivante sur le même fichier échouerait ou
+    // resterait bloquée (le bug que withOpen corrige). Fermer une connexion
+    // SQLite avec une transaction en cours provoque un ROLLBACK automatique :
+    // si withOpen a bien fermé, la ligne id=1 (jamais commise) n'existe pas.
+    public method closesAndRollsBackEvenWhenClosureRaisesTest(): int {
+        const path:string = "test_49_lock.db"
+        if File::exists(path) {
+            File::remove(path)
+        }
+
+        try {
+            SQLite::withOpen(path, nameless(db:SQLite): void {
+                db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY)")
+                db.execute("BEGIN")
+                db.execute("INSERT INTO t (id) VALUES (1)")
+                raise use SqliteWithOpenError("erreur en transaction ouverte")
+            })
+        } on e is SqliteWithOpenError {
+            // rien à faire, on veut juste dépasser le raise
+        }
+
+        // Si withOpen n'avait pas fermé la première connexion, cette seconde
+        // écriture échouerait (verrou toujours tenu) au lieu de réussir.
+        const db2:SQLite = SQLite::open(path)
+        db2.execute("INSERT INTO t (id) VALUES (2)")
+        const rows:array<map<string, mixed>> = db2.query("SELECT * FROM t")
+        db2.close()
+        File::remove(path)
+
+        // Une seule ligne (id=2) : la transaction id=1 a bien été annulée
+        // par la fermeture de la connexion précédente.
+        UnitTest::assertEquals(1, rows.len())
+        return 0
+    }
+
+    // Une exception non rattrapée dans un try qui suit un withOpen déjà
+    // consommé doit rester une exception normale (rien de spécifique à
+    // withOpen qui l'empêcherait de se propager plus loin qu'un seul niveau).
+    public method rethrowsToOuterTryTest(): int {
+        const path:string = "test_49_rethrow.db"
+        if File::exists(path) {
+            File::remove(path)
+        }
+
+        var innerCaught:bool = false
+        var outerCaught:bool = false
+
+        try {
+            try {
+                SQLite::withOpen(path, nameless(db:SQLite): void {
+                    db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY)")
+                    raise use SqliteWithOpenError("propagation multi-niveaux")
+                })
+            } on e is SqliteWithOpenError {
+                innerCaught = true
+                raise use SqliteWithOpenError(e.message)
+            }
+        } on e is SqliteWithOpenError {
+            outerCaught = true
+        }
+
+        UnitTest::assertTrue(innerCaught)
+        UnitTest::assertTrue(outerCaught)
+        File::remove(path)
+        return 0
+    }
+}
+
+class SqliteWithOpenError extends Exception {
+    init(message:string) {
+        self.message = message
+    }
+}

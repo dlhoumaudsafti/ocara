@@ -3073,6 +3073,57 @@ pub(crate) fn run_closure_catching(func_ptr: i64, env_ptr: i64) -> Result<i64, (
     })
 }
 
+/// Comme `run_closure_catching`, mais pour une closure Ocara qui reçoit UN
+/// argument supplémentaire en plus de `env_ptr` (signature `fn(env_ptr: i64,
+/// arg1: i64) -> i64`) — nécessaire pour un patron "ouvrir une ressource,
+/// exécuter la closure AVEC la ressource fraîchement créée en paramètre,
+/// refermer systématiquement" (`SQLite::withOpen`/`MySQL::withConnect`, voir
+/// runtime/src/sqlite.rs/mysql.rs) : contrairement à `Mutex::withLock`, où le
+/// mutex existe déjà et est seulement CAPTURÉ par la closure (`nameless():
+/// void {...}`, zéro paramètre), ici la ressource n'existe pas encore avant
+/// l'appel — elle doit être PASSÉE (`nameless(db:SQLite): void {...}`, un
+/// paramètre) plutôt que capturée. Duplique volontairement la mécanique
+/// `TRY_STACK`/`setjmp` de `run_closure_catching` plutôt que de la
+/// refactoriser : ajout pur à un nouvel endroit, risque minimal sur le
+/// chemin déjà testé (voir docs/roadmap.d/exceptions-setjmp-longjmp-dette.md).
+pub(crate) fn run_closure_catching_with_arg(func_ptr: i64, env_ptr: i64, arg1: i64) -> Result<i64, (i64, i64)> {
+    TRY_STACK.with(|stack| {
+        let depth = stack.depth.get();
+        if depth >= MAX_TRY_DEPTH {
+            std::process::abort();
+        }
+
+        let frame_ptr: *mut TryFrame = unsafe {
+            let arr = &mut *stack.frames.get();
+            &mut arr[depth]
+        };
+
+        unsafe {
+            (*frame_ptr).error_val  = 0;
+            (*frame_ptr).error_type = 0;
+        }
+
+        stack.depth.set(depth + 1);
+
+        let jmp_env: *mut JmpBuf = unsafe { &mut (*frame_ptr).env };
+        let ret = unsafe { setjmp(jmp_env) };
+
+        if ret == 0 {
+            let closure: unsafe extern "C" fn(i64, i64) -> i64 =
+                unsafe { std::mem::transmute(func_ptr as usize) };
+            let value = unsafe { closure(env_ptr, arg1) };
+            stack.depth.set(depth);
+            Ok(value)
+        } else {
+            let (ev, et) = unsafe {
+                ((*frame_ptr).error_val, (*frame_ptr).error_type)
+            };
+            stack.depth.set(depth);
+            Err((ev, et))
+        }
+    })
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn __ocara_fail(val: i64, type_name: i64) {
     let jumped = TRY_STACK.with(|stack| {

@@ -4,6 +4,7 @@
 // Fonctions exportées (convention C) :
 //
 //   SQLite_open(path_ptr)              → i64  // Ouvre/crée une base et retourne un pointeur
+//   SQLite_withOpen(path_ptr, f)       → void // open+f(db)+close garanti (même en cas de raise)
 //   SQLite_execute(self_ptr, query_ptr) → void // Exécute une requête SQL
 //   SQLite_query(self_ptr, query_ptr)  → i64  // Exécute SELECT et retourne array de maps
 //   SQLite_queryOne(self_ptr, query_ptr) → i64  // Exécute SELECT et retourne une map
@@ -60,6 +61,57 @@ pub unsafe extern "C" fn SQLite_open(path_ptr: i64) -> i64 {
                     "SQLite"
                 );
             }
+        }
+    }
+}
+
+/// SQLite::withOpen(path:string, f:Function<void(SQLite)>) → void
+/// Ouvre la base, exécute `f(db)`, ferme SYSTÉMATIQUEMENT — y compris si
+/// `f()` lève une exception. Voir docs/roadmap.d/exceptions-setjmp-longjmp-dette.md :
+/// `SQLite::open(path)` seul laisse `.close()` à la charge du développeur —
+/// un `raise` avant que `.close()` ne soit atteint (setjmp/longjmp, pas
+/// d'unwinding Rust) fuit la connexion pour toujours (voir le diagnostic W04,
+/// `src/sema/resource_raise.rs`). Même patron que `Mutex::withLock`
+/// (`runtime/src/mutex.rs`), étendu pour une closure qui REÇOIT la ressource
+/// en paramètre (`nameless(db:SQLite): void {...}`) plutôt que de la
+/// capturer (la connexion n'existe pas encore avant cet appel) — voir
+/// `run_closure_catching_with_arg`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn SQLite_withOpen(path_ptr: i64, fat_ptr: i64) {
+    unsafe {
+        let path = ptr_to_str(path_ptr).to_string();
+
+        let db_ptr = match Connection::open(&path) {
+            Ok(conn) => {
+                let db = Box::new(OcaraSQLiteDatabase {
+                    conn: Mutex::new(conn),
+                    last_insert_id: Mutex::new(0),
+                    affected_rows: Mutex::new(0),
+                });
+                Box::into_raw(db) as i64
+            }
+            Err(e) => {
+                throw_sqlite_exception(
+                    &format!("Failed to open database '{}': {}", path, e),
+                    ERR_OPEN,
+                    "SQLite"
+                );
+            }
+        };
+
+        let func_ptr = *(fat_ptr as *const i64);
+        let env_ptr  = *((fat_ptr as *const i64).add(1));
+
+        let outcome = crate::run_closure_catching_with_arg(func_ptr, env_ptr, db_ptr);
+
+        // Fermeture inconditionnelle — succès ou exception, c'est tout
+        // l'intérêt de withOpen() par rapport à open()/close() manuels.
+        let _ = Box::from_raw(db_ptr as *mut OcaraSQLiteDatabase);
+
+        if let Err((error_val, error_type)) = outcome {
+            // Relancer l'exception d'origine vers l'appelant, maintenant que
+            // la connexion est fermée.
+            crate::__ocara_fail(error_val, error_type);
         }
     }
 }

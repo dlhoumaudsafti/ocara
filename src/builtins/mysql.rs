@@ -3,6 +3,9 @@
 //
 // Méthodes statiques :
 //   MySQL::connect(host:string, user:string, password:string, database:string) → MySQL
+//   MySQL::withConnect(host, user, password, database, f:Function<void(MySQL)>) → void
+//     // connect + f(db) + close garanti, y compris si f() raise (voir
+//     // docs/roadmap.d/exceptions-setjmp-longjmp-dette.md)
 //
 // Méthodes d'instance :
 //   db.execute(query:string) → int
@@ -64,6 +67,24 @@ pub fn class() -> ClassInfo {
             ("database", Type::String),
         ],
         Type::Named("MySQL".to_string()),
+    ));
+
+    // MySQL::withConnect(host, user, password, database, f:Function<void(MySQL)>) → void
+    // — connect, exécute f(db), close garanti (y compris si f() raise,
+    // contrairement à connect()/close() manuels — voir MySQL_withConnect /
+    // docs/roadmap.d/exceptions-setjmp-longjmp-dette.md)
+    methods.insert("withConnect".into(), static_m(
+        vec![
+            ("host", Type::String),
+            ("user", Type::String),
+            ("password", Type::String),
+            ("database", Type::String),
+            ("f", Type::Function {
+                ret_ty: Box::new(Type::Void),
+                param_tys: vec![Type::Named("MySQL".to_string())],
+            }),
+        ],
+        Type::Void,
     ));
 
     // ── Méthodes d'instance ───────────────────────────────────────────────────

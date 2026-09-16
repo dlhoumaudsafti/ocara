@@ -759,7 +759,7 @@ m.unlock()                             // jamais atteint
 
 Volontairement **conservateur** (mêmes principes que E26/E28) : un `raise` à l'intérieur d'un `try` local (même sans vérifier que ses `on` couvrent la classe réellement levée) est considéré rattrapé, jamais signalé ; une finalisation (`.destroy()`/`.close()`/`.join()`/`.detach()`) appelée en ligne droite avant le `raise` supprime l'avertissement. Aucune analyse interprocédurale : seul un `raise` textuel compte, pas un appel vers une fonction qui pourrait elle-même en lever un.
 
-**Correction :** finaliser la ressource avant le code risqué, ou utiliser `m.withLock(...)` (voir [Mutex](builtins/Mutex.md)) qui garantit le déverrouillage même en cas d'exception, ou entourer le code à risque d'un `try`/`on` local.
+**Correction :** finaliser la ressource avant le code risqué, ou utiliser une variante `withX` qui garantit la finalisation même en cas d'exception — `m.withLock(...)` (voir [Mutex](builtins/Mutex.md)), `SQLite::withOpen(...)` (voir [SQLite](builtins/SQLite.md)), `MySQL::withConnect(...)`/`MariaDB::withConnect(...)` (voir [MySQL](builtins/MySQL.md)) — ou entourer le code à risque d'un `try`/`on` local.
 
 ---
 

@@ -16,7 +16,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import ocara.HTTPServer
-import ocara.Mutex
 import ocara.IO
 
 function main(): int {
@@ -25,12 +24,14 @@ function main(): int {
     server.port(8080)
     server.workers(4)
 
-    // État partagé entre handlers, protégé par Mutex (voir docs/builtins/
-    // HTTPServer.md, section "Notes de sécurité / concurrence") : `var`, pas
-    // `scoped` — capturé par le handler, doit survivre à tout le cycle de
-    // vie du serveur, comme un Mutex partagé entre plusieurs `Thread`.
+    // État partagé entre handlers — sûr SANS Mutex : l'invocation des
+    // handlers est sérialisée nativement par HTTPServer (voir docs/builtins/
+    // HTTPServer.md, section "Notes de sécurité / concurrence", et
+    // docs/roadmap.d/runtime-httpserver-race-condition.md) — deux requêtes
+    // concurrentes ne peuvent jamais exécuter un handler en même temps.
+    // `var`, pas `scoped` : capturé par le handler, doit survivre à tout le
+    // cycle de vie du serveur.
     var hitCount:int = 0
-    var hitLock:Mutex = use Mutex()
 
     // ── Route GET / ──────────────────────────────────────────────────────────
     // Accueil : salue le visiteur avec le paramètre ?name=
@@ -73,20 +74,15 @@ function main(): int {
     })
 
     // ── Route GET /hits ──────────────────────────────────────────────────────
-    // Compteur de visites partagé entre TOUTES les requêtes concurrentes —
-    // protégé par hitLock.withLock pour éviter la race condition documentée
-    // dans docs/roadmap.d/runtime-httpserver-race-condition.md (deux requêtes
-    // simultanées qui liraient hitCount avant que l'une n'ait fini de
-    // l'incrémenter perdraient une visite sans ce verrou), et pour garantir
-    // le déverrouillage même si le corps levait une exception.
+    // Compteur de visites partagé entre TOUTES les requêtes concurrentes.
+    // Aucun Mutex nécessaire : HTTPServer sérialise nativement l'invocation
+    // des handlers (voir plus haut) — deux requêtes simultanées sur /hits ne
+    // peuvent jamais lire hitCount en même temps, aucune incrémentation ne
+    // peut se perdre.
     server.route("/hits", "GET", nameless(req:int): int {
-        var current:int = 0
-        hitLock.withLock(nameless(): void {
-            hitCount++
-            current = hitCount
-        })
+        hitCount++
         HTTPServer::respondHeader(req, "Content-Type", "text/plain; charset=utf-8")
-        HTTPServer::respond(req, 200, `${current}`)
+        HTTPServer::respond(req, 200, `${hitCount}`)
         return 0
     })
 
