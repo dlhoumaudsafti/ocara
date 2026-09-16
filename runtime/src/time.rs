@@ -14,7 +14,6 @@
 //   Time_diffSeconds(t1, t2)    → i64      différence en secondes
 // ─────────────────────────────────────────────────────────────────────────────
 
-use std::ffi::CStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Retourne l'heure actuelle au format HH:MM:SS
@@ -42,7 +41,7 @@ pub extern "C" fn Time_fromTimestamp(ts: i64) -> i64 {
 /// Extrait l'heure d'un time HH:MM:SS (0-23)
 #[unsafe(no_mangle)]
 pub extern "C" fn Time_hour(time: i64) -> i64 {
-    let time_str = unsafe { CStr::from_ptr(time as *const i8) }.to_str().unwrap_or("");
+    let time_str = unsafe { crate::ptr_to_str(time) };
     let parts: Vec<&str> = time_str.split(':').collect();
     if parts.len() < 3 {
         unsafe {
@@ -66,7 +65,7 @@ pub extern "C" fn Time_hour(time: i64) -> i64 {
 /// Extrait les minutes d'un time HH:MM:SS (0-59)
 #[unsafe(no_mangle)]
 pub extern "C" fn Time_minute(time: i64) -> i64 {
-    let time_str = unsafe { CStr::from_ptr(time as *const i8) }.to_str().unwrap_or("");
+    let time_str = unsafe { crate::ptr_to_str(time) };
     let parts: Vec<&str> = time_str.split(':').collect();
     if parts.len() < 3 {
         unsafe {
@@ -90,7 +89,7 @@ pub extern "C" fn Time_minute(time: i64) -> i64 {
 /// Extrait les secondes d'un time HH:MM:SS (0-59)
 #[unsafe(no_mangle)]
 pub extern "C" fn Time_second(time: i64) -> i64 {
-    let time_str = unsafe { CStr::from_ptr(time as *const i8) }.to_str().unwrap_or("");
+    let time_str = unsafe { crate::ptr_to_str(time) };
     let parts: Vec<&str> = time_str.split(':').collect();
     if parts.len() < 3 {
         unsafe {

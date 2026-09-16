@@ -4,6 +4,70 @@ use crate::parsing::ast::*;
 use crate::ir::types::IrType;
 use crate::lower::builder::LowerBuilder;
 
+/// Résout le type de retour IR d'une méthode CONNUE par (classe, méthode) —
+/// partagé par `Expr::StaticCall` (classe donnée directement dans la syntaxe :
+/// `Classe::méthode(...)`) ET `Expr::Call` avec un callee `Expr::Field`
+/// (sucre d'instance : `objet.méthode(...)`, la classe est déduite du
+/// récepteur). SEULE source de vérité pour cette décision : avant ce
+/// regroupement, les deux formes avaient chacune leur propre copie de cette
+/// logique, et un correctif appliqué à l'une n'était jamais automatiquement
+/// répercuté sur l'autre — confirmé par deux bugs réels et distincts
+/// (`Array::get`/`Map::get` sur un conteneur concret, `res.close()`/
+/// `req.status()` mélangeant les deux côtés) — voir
+/// docs/roadmap.d/qualite-parite-sucre-statique.md.
+///
+/// `elem_type_source` : l'expression à consulter dans `builder.elem_types`
+/// pour `Array::get`/`first`/`last`/`pop`/`Map::get` sur un conteneur à
+/// élément CONCRET — l'OBJET pour le sucre (`arr.get(i)` → `arr`), le
+/// PREMIER ARGUMENT pour la forme statique (`Array::get(arr, i)` → `arr`).
+fn resolve_method_return_type(
+    builder: &LowerBuilder,
+    resolved_class: &str,
+    method: &str,
+    elem_type_source: Option<&Expr>,
+) -> IrType {
+    // `Array::get`/`first`/`last`/`pop` (et `Map::get`) sur un conteneur à
+    // élément CONCRET (`int`/`float`/`bool`) : `fn_ret_types` dit toujours
+    // `Ptr` (correct seulement pour un conteneur `mixed`, dont les éléments
+    // sont déjà boxés) — consulter `elem_types`, comme le fait déjà
+    // `Expr::Index` pour un accès direct (`arr[i]`), AVANT de faire confiance
+    // à ce `Ptr` générique. Confirmé faux par reproduction :
+    // `IO::writeln(Array::get(arr, i))`/`arr.get(i)` sur un `array<int>`
+    // affichaient "null" pour l'élément valant `0` (interprété comme un
+    // pointeur nul) — voir docs/roadmap.d/langage-array-get-display-bug.md.
+    let is_concrete_get = (resolved_class == "Array" && matches!(method, "get" | "first" | "last" | "pop"))
+        || (resolved_class == "Map" && method == "get");
+    if is_concrete_get {
+        if let Some(Expr::Ident(obj_name, _)) = elem_type_source {
+            if let Some(ty) = builder.elem_types.get(obj_name.as_str()) {
+                return ty.clone();
+            }
+        }
+    }
+
+    let fname = format!("{}_{}", resolved_class, method);
+    if let Some(ty) = builder.fn_ret_types.get(&fname) {
+        return ty.clone();
+    }
+
+    // Filet de sécurité : `fn_ret_types` ne connaît pas ce nom (souvent un
+    // constructeur/factory builtin oublié, ex. `SQLite::open`, absent avant
+    // un correctif antérieur — voir program.rs). Retomber sur `Ptr` (jamais
+    // sur `I64`) est le choix sûr : un consommateur qui traite ensuite cette
+    // valeur comme `mixed` (`box_for_any`/`box_for_dyn_arith`) ne la boxera
+    // PAS s'il la croit déjà `Ptr` — inoffensif pour un vrai pointeur objet
+    // (le cas confirmé par reproduction : `SQLite::open` mal classé en I64
+    // faisait boxer le pointeur de connexion lui-même, corrompant `self` et
+    // bloquant `db.execute()` dans une boucle infinie). Un `I64` par défaut
+    // aurait l'effet inverse ET dangereux : n'importe quel pointeur objet
+    // provenant d'un appel non répertorié ici serait boxé comme un entier.
+    // Contrepartie acceptée : un builtin qui retourne réellement un `int` et
+    // n'est pas enregistré dans `fn_ret_types` ne profite simplement pas du
+    // boxing anti-SEGFAULT pour un `mixed` — identique au comportement
+    // d'avant ce chantier, pas une régression.
+    IrType::Ptr
+}
+
 /// Détermine le type IR d'une expression sans générer de code.
 /// Utilisé pour le dispatch typé de `write` et la détection de concat string.
 pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
@@ -14,7 +78,16 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
         Expr::Literal(Literal::String(_), _) => IrType::Ptr,
         Expr::Literal(Literal::Null, _)      => IrType::Ptr,
         Expr::Ident(name, _) => {
-            if let Some((_, ty, _)) = builder.locals.get(name.as_str()) {
+            // Variable d'un générateur (voir `crate::lower::builder::message_gen`) :
+            // vérifiée EN PREMIER, sinon son vrai type (ex: I64 pour `i`)
+            // resterait invisible ici (elle n'est jamais dans `locals`) et
+            // retomberait à tort sur `Ptr` — confirmé faux par reproduction
+            // (`i smaller 3` dans un `while` imbriqué dans un générateur :
+            // `i` traité comme `Ptr` faisait comparer un entier brut à un
+            // pointeur "mixed" boxé, via `__cmp_lt_strict`).
+            if let Some((_, _, ty)) = builder.frame_vars.get(name.as_str()) {
+                ty.clone()
+            } else if let Some((_, ty, _)) = builder.locals.get(name.as_str()) {
                 ty.clone()
             } else if let Some((_, _, ty)) = builder.captured_vars.get(name.as_str()) {
                 ty.clone()
@@ -23,7 +96,12 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
             }
         }
         // Appels de méthodes String_* et IO_read* retournent des strings
-        Expr::StaticCall { class, method, .. } => {
+        Expr::StaticCall { class, method, args, .. } => {
+            // Consommation scalaire directe d'un `message<T>` — voir la
+            // même note dans le bras `Expr::Call` ci-dessus.
+            if let Some((_, elem_ty)) = crate::lower::builder::message_gen::detect_message_call(builder, expr) {
+                return elem_ty;
+            }
             // Résoudre "<parent>" et "<self>" vers les classes appropriées
             let resolved_class = if class == "<parent>" {
                 builder.parent_class.as_deref().unwrap_or(class.as_str())
@@ -32,49 +110,7 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
             } else {
                 class.as_str()
             };
-            let fname = format!("{}_{}", resolved_class, method);
-            // D'abord consulter fn_ret_types (classes locales et builtins enregistrés)
-            if let Some(ty) = builder.fn_ret_types.get(&fname) {
-                return ty.clone();
-            }
-            if fname.starts_with("String_")
-                || fname == "__str_concat"
-                || fname == "Array_join"
-                || fname == "Array_reverse"
-                || fname == "Array_slice"
-                || fname == "Array_sort"
-                || fname.starts_with("Map_keys")
-                || fname.starts_with("Map_values")
-                || fname == "System_cwd"
-                || fname == "System_exec"
-                || fname == "System_env"
-                || fname == "HTTPRequest_body"
-                || fname == "HTTPRequest_header"
-                || fname == "HTTPRequest_error"
-            {
-                IrType::Ptr
-            } else {
-                // Filet de sécurité : ni `fn_ret_types` ni la liste ci-dessus
-                // ne connaissent ce nom (souvent un constructeur/factory
-                // builtin oublié de `fn_ret_types`, ex. `SQLite::open`,
-                // absent avant ce correctif — voir program.rs). Retomber sur
-                // `Ptr` (jamais sur `I64`) est le choix sûr : un consommateur
-                // qui traite ensuite cette valeur comme `mixed`
-                // (`box_for_any`/`box_for_dyn_arith`) ne la boxera PAS s'il la
-                // croit déjà `Ptr` — inoffensif pour un vrai pointeur objet
-                // (le cas confirmé par reproduction : `SQLite::open` mal
-                // classé en I64 faisait boxer le pointeur de connexion
-                // lui-même, corrompant `self` et bloquant `db.execute()` dans
-                // une boucle infinie). Un `I64` par défaut aurait l'effet
-                // inverse ET dangereux : n'importe quel pointeur objet
-                // provenant d'un appel non répertorié ici serait boxé comme
-                // un entier. Contrepartie acceptée : un builtin qui retourne
-                // réellement un `int` et n'est PAS répertorié ici ne profite
-                // simplement pas du boxing anti-SEGFAULT pour un `mixed` —
-                // identique au comportement d'avant ce chantier, pas une
-                // régression.
-                IrType::Ptr
-            }
+            resolve_method_return_type(builder, resolved_class, method, args.first())
         }
         // Opérations binaires : propager Ptr si c'est une concat string
         Expr::Binary { op, left, right, .. } => {
@@ -174,7 +210,16 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
             IrType::Ptr
         }
         // Exception : fonctions utilisateur dont on connaît le type de retour
-        Expr::Call { callee, .. } => {
+        Expr::Call { .. } => {
+            // Consommation scalaire directe d'un `message<T>` (générateur —
+            // voir docs/roadmap.d/langage-emit-iterable.md) : le type réel
+            // est celui de `T`, pas `IrType::Ptr` (ce que donnerait
+            // `fn_ret_types`, qui réduit `message<T>` à `Ptr` comme tout
+            // pointeur de frame — voir `IrType::from_ast`).
+            if let Some((_, elem_ty)) = crate::lower::builder::message_gen::detect_message_call(builder, expr) {
+                return elem_ty;
+            }
+            let Expr::Call { callee, .. } = expr else { unreachable!() };
             // Appel indirect : variable de type Function<ReturnType>
             if let Expr::Ident(fname, _) = callee.as_ref() {
                 if let Some(ty) = builder.func_ret_types.get(fname.as_str()) {
@@ -228,11 +273,13 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                     }
                     _ => None,
                 };
-                if let Some(cls) = class_name {
-                    let mangled = format!("{}_{}", cls, field);
-                    if let Some(ty) = builder.fn_ret_types.get(&mangled) {
-                        return ty.clone();
-                    }
+                // Sucre d'instance (`objet.méthode(...)`) : même résolution
+                // que `Expr::StaticCall` (`Classe::méthode(...)`), voir la
+                // doc de `resolve_method_return_type` — objet = `object`
+                // lui-même ici (le récepteur), pas un argument comme pour la
+                // forme statique.
+                if let Some(cls) = &class_name {
+                    return resolve_method_return_type(builder, cls, field, Some(object.as_ref()));
                 }
             }
             // Filet de sécurité : même raison que pour `Expr::StaticCall`

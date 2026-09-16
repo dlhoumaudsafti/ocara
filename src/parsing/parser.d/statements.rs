@@ -49,6 +49,7 @@ impl Parser {
             }
             TokenKind::Try                 => self.parse_try(),
             TokenKind::Raise               => self.parse_raise(),
+            TokenKind::Emit                => self.parse_emit(),
             _ => {
                 let expr = self.parse_expr()?;
                 // Affectation : `target = value`
@@ -249,6 +250,13 @@ impl Parser {
         self.eat(&TokenKind::Raise)?;
         let value = self.parse_expr()?;
         Ok(Stmt::Raise { value, span })
+    }
+
+    fn parse_emit(&mut self) -> ParseResult<Stmt> {
+        let span = self.span();
+        self.eat(&TokenKind::Emit)?;
+        let value = self.parse_expr()?;
+        Ok(Stmt::Emit { value, span })
     }
 
     // ── Littéral isolé (pour patterns) ───────────────────────────────────────

@@ -1,0 +1,73 @@
+import ocara.UnitTest
+import ocara.JSON
+import ocara.YAML
+
+// `JSON::encode`/`YAML::encode` sur un conteneur CONCRET (`array<int>`,
+// `array<bool>`, `array<float>`...) confondaient un entier brut `0`/`1` avec
+// `null`/un booléen, et un `float` brut n'était même pas reconnu du tout
+// (bits bruts affichés comme un entier gigantesque) — `OcaraArray`/
+// `OcaraMap` ne conservent aucune information de type par élément à
+// l'exécution, et un conteneur CONCRET (contrairement à `mixed`) ne boxe
+// jamais ses éléments. Corrigé en calculant, à la compilation, le type de
+// feuille concret connu statiquement (`static_json_leaf_kind`) et en le
+// transmettant à `value_to_json`/`value_to_yaml`, qui n'a alors plus besoin
+// de deviner. Voir docs/roadmap.d/langage-mixed-literal-stringification.md.
+
+class Test_40_json_yaml_concrete_containers {
+
+    public method concreteIntArrayTest(): int {
+        var ints:array<int> = [0, 1, 2, 3]
+        UnitTest::assertTrue(JSON::encode(ints) equal "[0,1,2,3]")
+        return 0
+    }
+
+    public method concreteBoolArrayTest(): int {
+        var bools:array<bool> = [true, false, true]
+        UnitTest::assertTrue(JSON::encode(bools) equal "[true,false,true]")
+        return 0
+    }
+
+    public method concreteFloatArrayTest(): int {
+        var floats:array<float> = [1.5, 2.5, 0.0]
+        UnitTest::assertTrue(JSON::encode(floats) equal "[1.5,2.5,0.0]")
+        return 0
+    }
+
+    // Conteneur imbriqué : le type de feuille reste le même à tous les
+    // niveaux (garanti par le typage statique d'Ocara).
+    public method nestedConcreteArrayTest(): int {
+        var nested:array<array<int>> = [[1, 2], [0, 3]]
+        UnitTest::assertTrue(JSON::encode(nested) equal "[[1,2],[0,3]]")
+        return 0
+    }
+
+    public method concreteMapTest(): int {
+        var m:map<string,int> = {}
+        m["a"] = 0
+        m["b"] = 1
+        UnitTest::assertTrue(JSON::encode(m) equal "{\"a\":0,\"b\":1}")
+        return 0
+    }
+
+    // `.encode()` comme méthode d'instance (pas seulement `JSON::encode`
+    // statique) doit bénéficier de la même correction.
+    public method instanceEncodeMethodTest(): int {
+        var ints:array<int> = [0, 1, 2]
+        UnitTest::assertTrue(ints.encode() equal "[0,1,2]")
+        return 0
+    }
+
+    // Non-régression : un conteneur `mixed` (déjà boxé à l'insertion) doit
+    // continuer à s'encoder correctement, inchangé par ce correctif.
+    public method mixedContainerStillWorksTest(): int {
+        var m:map<string, mixed> = { "name": "Alice", "age": 30, "active": true }
+        UnitTest::assertTrue(JSON::encode(m) equal "{\"active\":true,\"age\":30,\"name\":\"Alice\"}")
+        return 0
+    }
+
+    public method yamlConcreteIntArrayTest(): int {
+        var ints:array<int> = [0, 1, 2]
+        UnitTest::assertTrue(YAML::encode(ints) equal "- 0\n- 1\n- 2\n")
+        return 0
+    }
+}

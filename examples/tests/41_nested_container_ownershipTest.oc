@@ -1,0 +1,82 @@
+import ocara.UnitTest
+
+// Libération/clonage "shallow" d'un array<T>/map<K,T> à élément primitif
+// concret (int/float/bool) ne couvrait que le niveau IMMÉDIAT — un
+// conteneur imbriqué (`array<array<int>>`) retombait dès le premier niveau
+// sur le chemin générique `__value_free`/`__value_clone`, qui redevient
+// dangereux un cran plus profond : un bit pattern `int`/`float` brut peut
+// ressembler à un pointeur heap valide, exactement le même SEGFAULT que
+// celui déjà corrigé pour le niveau immédiat (voir
+// docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md). Corrigé en
+// généralisant la variante "shallow" à une profondeur arbitraire
+// (`concrete_elem_shape`/`__array_free_concrete`/`__map_free_concrete`).
+//
+// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée
+// du fichier (voir 33_exception_hierarchyTest.oc).
+
+class Test_41_nested_container_ownership {
+
+    // `array<array<float>>` : les valeurs choisies ci-dessous dépassent
+    // PTR_THRESHOLD une fois interprétées comme bits bruts — exactement le
+    // cas qui plantait avant ce correctif, un niveau plus profond que ce que
+    // la variante "shallow" d'origine couvrait.
+    public method nestedFloatArrayNoCrashTest(): int {
+        var i:int = 0
+        while i smaller 1000 {
+            self.makeNestedFloat()
+            i = i + 1
+        }
+        UnitTest::assertTrue(true)
+        return 0
+    }
+
+    private method makeNestedFloat(): void {
+        scoped nested:array<array<float>> = [[1.5, 2.5, 123456.789], [3.5, 4.5]]
+    }
+
+    // 3 niveaux d'imbrication (array<array<array<int>>>).
+    public method tripleNestedArrayNoCrashTest(): int {
+        var i:int = 0
+        while i smaller 500 {
+            self.makeTripleNested()
+            i = i + 1
+        }
+        UnitTest::assertTrue(true)
+        return 0
+    }
+
+    private method makeTripleNested(): void {
+        scoped nested:array<array<array<int>>> = [[[100000, 200000], [300000]], [[400000]]]
+    }
+
+    // map<string, array<float>> imbriquée.
+    public method nestedMapNoCrashTest(): int {
+        var i:int = 0
+        while i smaller 500 {
+            self.makeNestedMap()
+            i = i + 1
+        }
+        UnitTest::assertTrue(true)
+        return 0
+    }
+
+    private method makeNestedMap(): void {
+        scoped m:map<string, array<float>> = { "a": [1.5, 2.5], "b": [3.5, 999999.123] }
+    }
+
+    // Clonage à l'échappement : le contenu doit rester exact après la copie
+    // profonde (pas seulement "ne plante pas").
+    public method nestedArrayCloneContentTest(): int {
+        var escaped:array<array<int>> = self.makeAndEscape()
+        UnitTest::assertEquals(10, escaped[0][0])
+        UnitTest::assertEquals(20, escaped[0][1])
+        UnitTest::assertEquals(30, escaped[1][0])
+        UnitTest::assertEquals(999999, escaped[1][1])
+        return 0
+    }
+
+    private method makeAndEscape(): array<array<int>> {
+        scoped nested:array<array<int>> = [[10, 20], [30, 999999]]
+        return nested
+    }
+}

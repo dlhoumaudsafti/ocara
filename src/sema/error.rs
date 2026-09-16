@@ -37,9 +37,20 @@ pub enum SemaError {
     /// préalable — le compilateur ne peut pas choisir à la place du
     /// développeur entre attendre le thread et le détacher.
     ThreadNotFinalized { name: String, span: Span },
-    /// `scoped`/`consumed` sur un type non pris en charge par ce chantier
-    /// (primitif, SDL/Tauri, instance de classe utilisateur).
-    OwnershipNotSupported { name: String, ty_name: String, span: Span },
+    /// `var`/`const` d'un type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`)
+    /// prouvé "contenu" (jamais échappé — voir
+    /// `crate::sema::escape::var_never_escapes`) qui atteint la fin de son
+    /// bloc sans jamais avoir été finalisé manuellement (`.destroy()`/
+    /// `.close()`) — `var`/`const` ne libèrent jamais rien automatiquement
+    /// (contrairement à `scoped`/`consumed`), donc ce handle natif fuit pour
+    /// toujours dès que la variable sort de portée.
+    UnclosedResourceVar { name: String, ty_name: String, span: Span },
+    /// `property` d'un type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`) —
+    /// `__free_<Classe>` (voir `class_ownership::classify_field`) ne sait
+    /// libérer que `Value`/une autre classe utilisateur, jamais une
+    /// ressource : ce champ fuirait son handle natif à chaque libération de
+    /// l'instance porteuse (`scoped`/`consumed`, ou un `var` auto-libéré).
+    ResourceField { class: String, field: String, ty_name: String, span: Span },
     /// `string + T` avec `T` différent de `string` (et différent de `mixed`,
     /// qui échappe à cette vérification faute d'information statique, comme
     /// pour `comparable_types`/`orderable_types`). La concaténation `+` est
@@ -77,6 +88,27 @@ pub enum SemaError {
     /// garde encore un alias (corruption mémoire silencieuse avant ce
     /// diagnostic, voir docs/roadmap.d/memoire-echappement-argument.md).
     ArgumentEscape { name: String, class_name: String, callee: String, span: Span },
+    /// `var`/`scoped`/`consumed x:message<T>` — `message<T>` (générateurs,
+    /// voir docs/roadmap.d/langage-emit-iterable.md) n'est JAMAIS nommable :
+    /// il n'a de sens que comme type de retour déclaré d'une fonction/méthode
+    /// contenant `emit`, jamais comme type d'un binding.
+    MessageNotNameable { name: String, span: Span },
+    /// `message<T>` utilisé comme type d'un paramètre — return-type-only.
+    MessageAsParamType { name: String, span: Span },
+    /// Fonction/méthode déclarant `message<T>` en retour mais dont le corps
+    /// ne contient aucun `emit` atteignable — `message<T>` n'a de sens que
+    /// pour une fonction qui émet réellement.
+    MessageReturnWithoutEmit { name: String, span: Span },
+    /// `emit` utilisé dans une fonction/méthode dont le type de retour
+    /// déclaré n'est pas `message<T>`.
+    EmitOutsideMessageFunction { span: Span },
+    /// Consommation scalaire directe (`var x:T = f()`, `IO::writeln(f())`...)
+    /// d'un `message<T>` dont au moins un `emit` est atteignable À
+    /// L'INTÉRIEUR d'une boucle — le compilateur ne peut plus prouver
+    /// statiquement qu'au plus une valeur est jamais produite (voir
+    /// `crate::sema::message_emit`) : seuls `for`/`Array::fromMessage`
+    /// restent valables dans ce cas.
+    MessageUnsafeScalarConsumption { name: String, span: Span },
 }
 
 impl SemaError {
@@ -103,7 +135,8 @@ impl SemaError {
             SemaError::ConsumedUsedTwice  { span, .. } => span,
             SemaError::ResourceEscape     { span, .. } => span,
             SemaError::ThreadNotFinalized { span, .. } => span,
-            SemaError::OwnershipNotSupported { span, .. } => span,
+            SemaError::UnclosedResourceVar { span, .. } => span,
+            SemaError::ResourceField { span, .. } => span,
             SemaError::StringConcatMismatch { span, .. } => span,
             SemaError::GenericArityMismatch { span, .. } => span,
             SemaError::ThreadAlreadyFinalized { span, .. } => span,
@@ -111,6 +144,11 @@ impl SemaError {
             SemaError::CatchAllNotLast { span } => span,
             SemaError::ResourceAlreadyFinalized { span, .. } => span,
             SemaError::ArgumentEscape      { span, .. } => span,
+            SemaError::MessageNotNameable  { span, .. } => span,
+            SemaError::MessageAsParamType  { span, .. } => span,
+            SemaError::MessageReturnWithoutEmit { span, .. } => span,
+            SemaError::EmitOutsideMessageFunction { span } => span,
+            SemaError::MessageUnsafeScalarConsumption { span, .. } => span,
         }
     }
 
@@ -158,8 +196,10 @@ impl SemaError {
                 format!("'{}' ('{}') cannot escape its 'scoped'/'consumed' block (assignment, return, or argument) — resource handles cannot be cloned or shared, use it locally via its own methods", name, class_name),
             SemaError::ThreadNotFinalized { name, .. } =>
                 format!("'{}' is a 'scoped'/'consumed' Thread that reaches the end of its block without a call to '.join()' or '.detach()' — pick one explicitly", name),
-            SemaError::OwnershipNotSupported { name, ty_name, .. } =>
-                format!("'scoped'/'consumed' is not supported on '{}' for '{}' yet", ty_name, name),
+            SemaError::UnclosedResourceVar { name, ty_name, .. } =>
+                format!("'{}' ('{}') is declared with 'var'/'const', never escapes its block, and is never '.destroy()'ed/'.close()'d — this native handle leaks permanently, since 'var'/'const' never close a resource automatically (unlike 'scoped'/'consumed'); call '.destroy()'/'.close()' explicitly, or declare it 'scoped'/'consumed' if you want the compiler to finalize it for you", name, ty_name),
+            SemaError::ResourceField { class, field, ty_name, .. } =>
+                format!("'{}.{}' ('{}') is a native resource field — it is never closed when a '{}' instance is destroyed (no mechanism exists for this today), so this handle always leaks; manage it outside the class instead, or expose an explicit method the caller must invoke before discarding the instance", class, field, ty_name, class),
             SemaError::StringConcatMismatch { left, right, .. } =>
                 format!("cannot concatenate '{}' and '{}' with '+': string concatenation is strictly typed (only string + string is allowed) — use a template string (`${{...}}`) or convert explicitly (Convert::*ToStr)", left, right),
             SemaError::GenericArityMismatch { name, expected_min, expected_max, found, .. } =>
@@ -178,6 +218,16 @@ impl SemaError {
                 format!("'{}' ('{}') was already '.{}()'ed — calling it a second time would use a native handle already reclaimed", name, class_name, method),
             SemaError::ArgumentEscape { name, class_name, callee, .. } =>
                 format!("'{}' ('{}') is passed as an argument to '{}', which stores it beyond this call — a 'scoped'/'consumed' value cannot be passed where the callee retains it; clone it explicitly first, or pass a fresh value", name, class_name, callee),
+            SemaError::MessageNotNameable { name, .. } =>
+                format!("'{}': type 'message<T>' cannot be named — it is valid only as the declared return type of a function/method containing 'emit', never in a 'var'/'scoped'/'consumed' declaration", name),
+            SemaError::MessageAsParamType { name, .. } =>
+                format!("parameter '{}': type 'message<T>' cannot be used as a parameter type — it is return-type-only", name),
+            SemaError::MessageReturnWithoutEmit { name, .. } =>
+                format!("'{}' declares return type 'message<T>' but its body contains no reachable 'emit' — 'message<T>' is only valid as the return type of a function/method that actually emits", name),
+            SemaError::EmitOutsideMessageFunction { .. } =>
+                "'emit' is only valid inside a function/method whose declared return type is 'message<T>'".into(),
+            SemaError::MessageUnsafeScalarConsumption { name, .. } =>
+                format!("'{}()' returns 'message<T>' with an 'emit' reachable inside a loop — the compiler cannot prove that at most one value is ever produced, so it cannot be consumed directly as a scalar here; use 'for x in {}()' or 'Array::fromMessage({}())' instead", name, name, name),
         }
     }
 }

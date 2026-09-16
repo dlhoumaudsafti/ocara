@@ -25,6 +25,7 @@ fn type_name_for_mangle(ty: &Type) -> String {
         Type::Qualified(parts) => parts.join("_"),
         Type::Array(inner) => format!("array_{}", type_name_for_mangle(inner)),
         Type::Map(k, v) => format!("map_{}_{}", type_name_for_mangle(k), type_name_for_mangle(v)),
+        Type::Message(inner) => format!("message_{}", type_name_for_mangle(inner)),
         Type::Generic { name, args } => {
             let mut s = name.clone();
             for arg in args {
@@ -252,6 +253,9 @@ fn substitute_stmt(stmt: &mut Stmt, type_params: &[String], type_args: &[Type], 
         Stmt::Raise { value, .. } => {
             substitute_expr(value, type_params, type_args, mapping);
         }
+        Stmt::Emit { value, .. } => {
+            substitute_expr(value, type_params, type_args, mapping);
+        }
         Stmt::Assign { target, value, .. } => {
             substitute_expr(target, type_params, type_args, mapping);
             substitute_expr(value, type_params, type_args, mapping);
@@ -357,6 +361,9 @@ fn collect_from_stmt(stmt: &Stmt, instantiations: &mut HashSet<(String, Vec<Type
             collect_from_expr(expr, instantiations);
         }
         Stmt::Raise { value, .. } => {
+            collect_from_expr(value, instantiations);
+        }
+        Stmt::Emit { value, .. } => {
             collect_from_expr(value, instantiations);
         }
         Stmt::Assign { target, value, .. } => {

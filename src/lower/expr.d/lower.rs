@@ -307,14 +307,25 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                         let obj_val = lower_expr(builder, object);
                         let dest = builder.new_value();
                         let func_name = format!("JSON_{}", field);
-                        
+
                         // JSON est maintenant toujours disponible, pas besoin de vérifier l'import
-                        
+
                         let ret_ty = builder.fn_ret_types.get(&func_name).cloned().unwrap_or(IrType::Ptr);
+                        // `.encode()` seul prend un conteneur `array`/`map` en
+                        // receveur (`decode`/`pretty`/`minimize` opèrent sur
+                        // une string JSON) — voir `static_json_leaf_kind`.
+                        let call_args = if field == "encode" {
+                            let leaf_kind = static_json_leaf_kind(builder, object);
+                            let leaf_kind_val = builder.new_value();
+                            builder.emit(Inst::ConstInt { dest: leaf_kind_val.clone(), value: leaf_kind });
+                            vec![obj_val, leaf_kind_val]
+                        } else {
+                            vec![obj_val]
+                        };
                         builder.emit(Inst::Call {
                             dest:   Some(dest.clone()),
                             func:   func_name,
-                            args:   vec![obj_val],
+                            args:   call_args,
                             ret_ty,
                         });
                         return dest;
@@ -394,7 +405,14 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     }
 
                     let mut func_mangled = if let Some(ref cls) = class_name {
-                        format!("{}_{}", cls, field)
+                        // `HTTPResponse` n'a aucune méthode à elle : toutes
+                        // déclarées sur `HTTPRequest` (voir
+                        // `src/builtins/httprequest.rs` et la même
+                        // redirection côté sema, `typecheck.rs`) — sans
+                        // ceci, `res.status()` manglerait vers
+                        // `HTTPResponse_status`, qui n'existe pas.
+                        let mangle_cls = if cls == "HTTPResponse" { "HTTPRequest" } else { cls.as_str() };
+                        format!("{}_{}", mangle_cls, field)
                     } else {
                         format!("_method_{}", field) // fallback (ne devrait pas arriver)
                     };
@@ -436,11 +454,15 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     // `func_mangled` (la méthode CONCRÈTE résolue) : même
                     // signature qu'un éventuel dispatcher dynamique
                     // (`call_target` ci-dessous), qui se contente de la
-                    // relayer sans jamais la modifier.
+                    // relayer sans jamais la modifier. `param_type_for_SUGAR_
+                    // call_arg` (pas `param_type_for_call_arg`) : ici `args`
+                    // ne contient jamais le récepteur (`object`, géré à part
+                    // via `obj_val`) — voir sa doc pour le bug d'off-by-one
+                    // que cette distinction corrige.
                     let arg_vals: Vec<Value> = completed_args.iter().enumerate().map(|(i, a)| {
                         let raw = lower_expr(builder, a);
                         let arg_ty = expr_ir_type(builder, a);
-                        let param_ty = param_type_for_call_arg(builder, &func_mangled, i);
+                        let param_ty = param_type_for_sugar_call_arg(builder, &func_mangled, i);
                         box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
                     }).collect();
                     let mut all_args = vec![obj_val];
@@ -448,15 +470,32 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     // Résoudre le type de retour depuis fn_ret_types
                     let ret_ty = builder.fn_ret_types.get(&func_mangled).cloned().unwrap_or(IrType::Ptr);
                     // Dispatch dynamique réel (héritage de classe) : un appel
-                    // EXTERNE (jamais `self`/`parent`, qui visent toujours
-                    // l'implémentation exacte de la classe courante/parente)
-                    // sur une classe qui a des sous-classes est redirigé vers
-                    // son dispatcher `__dispatch_Classe_méthode` — sans quoi
+                    // externe (`obj.méthode()`) OU `self.méthode()` sur une
+                    // classe qui a des sous-classes est redirigé vers son
+                    // dispatcher `__dispatch_Classe_méthode` — sans quoi
                     // l'appel résoudrait TOUJOURS vers `class_name`, jamais
                     // vers une éventuelle surcharge du type réel de l'objet
-                    // (voir docs/roadmap.d/langage-interfaces.md).
-                    let is_self_or_parent = matches!(object.as_ref(), Expr::SelfExpr(_) | Expr::ParentExpr(_));
-                    let call_target = if is_self_or_parent {
+                    // (voir docs/roadmap.d/langage-interfaces.md). `self` doit
+                    // se comporter comme n'importe quel appel virtuel (le
+                    // patron "template method" — une méthode de base qui
+                    // appelle `self.hook()` en attendant qu'une sous-classe
+                    // la substitue — l'exige) : `class_name` vaut alors
+                    // `builder.current_class`, exactement le même point
+                    // d'entrée que pour un appel externe sur une variable de
+                    // ce type.
+                    //
+                    // `parent.méthode()` reste TOUJOURS résolu statiquement
+                    // (jamais via le dispatcher) : c'est tout son rôle —
+                    // appeler explicitement l'implémentation du parent,
+                    // volontairement en contournant une éventuelle surcharge
+                    // de la classe courante. Le dispatcher répondrait au
+                    // contraire selon le `class_id` RÉEL de l'objet (qui peut
+                    // être la classe courante elle-même, voire une sous-classe
+                    // encore plus dérivée) — le rediriger dessus romprait la
+                    // sémantique de `parent` et bouclerait à l'infini dans le
+                    // patron classique "override qui rappelle `parent.x()`".
+                    let is_parent = matches!(object.as_ref(), Expr::ParentExpr(_));
+                    let call_target = if is_parent {
                         func_mangled.clone()
                     } else {
                         class_name.as_deref()
@@ -482,6 +521,8 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                                 | (Some("SQLite"), "close")
                                 | (Some("MySQL"), "close")
                                 | (Some("MariaDB"), "close")
+                                | (Some("HTTPRequest"), "close")
+                                | (Some("HTTPResponse"), "closeResponse")
                         );
                         if is_manual_finalizer {
                             if let Some(info) = builder.owned_locals.get_mut(var_name.as_str()) {
@@ -523,7 +564,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             if WRITE_FUNS.contains(&func_name.as_str()) && args.len() == 1 {
                 let arg_ty  = expr_ir_type(builder, &args[0]);
                 let variant = write_variant(&func_name, &arg_ty);
-                let arg_val = lower_expr(builder, &args[0]);
+                let arg_val = crate::lower::builder::message_gen::lower_arg_or_message(builder, &args[0]);
                 builder.emit(Inst::Call {
                     dest:   None,
                     func:   variant,
@@ -576,9 +617,12 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             }
 
             // Boxer F64/Bool/I64 si le paramètre cible est `mixed` (Ptr) —
-            // voir `box_arg_for_mixed_param`.
+            // voir `box_arg_for_mixed_param`. Un argument peut aussi être une
+            // consommation scalaire directe d'un `message<T>` (générateur,
+            // voir docs/roadmap.d/langage-emit-iterable.md, §2) — gardé par
+            // la sema, voir `check_message_scalar_consumption`.
             let arg_vals: Vec<Value> = args.iter().enumerate().map(|(i, a)| {
-                let raw = lower_expr(builder, a);
+                let raw = crate::lower::builder::message_gen::lower_arg_or_message(builder, a);
                 let arg_ty = expr_ir_type(builder, a);
                 let param_ty = param_type_for_call_arg(builder, &func_name, i);
                 box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
@@ -711,6 +755,18 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 }
             }
             
+            // `Array::fromMessage(message<T>) -> array<T>` (voir §2 de
+            // docs/roadmap.d/langage-emit-iterable.md) : draine TOUS les
+            // `emit` (aucune restriction, contrairement aux autres formes de
+            // consommation) dans un `array<T>` neuf — traité entièrement à
+            // part, jamais un builtin `Array_*` normal (son comportement
+            // dépend du générateur passé en argument, pas d'un appel fixe).
+            if resolved_class == "Array" && method == "fromMessage" && args.len() == 1 {
+                if let Some((mangled, elem_ty)) = crate::lower::builder::message_gen::detect_message_call(builder, &args[0]) {
+                    return crate::lower::builder::message_gen::lower_array_from_message(builder, &args[0], &mangled, elem_ty);
+                }
+            }
+
             let func_name = format!("{}_{}", resolved_class, method);
 
             // Pour les builtins avec paramètres optionnels (surcharges),
@@ -804,7 +860,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             if IO_WRITE_METHODS.contains(&func_name.as_str()) && args.len() == 1 {
                 let arg_ty  = expr_ir_type(builder, &args[0]);
                 let variant = write_variant(&func_name, &arg_ty);
-                let arg_val = lower_expr(builder, &args[0]);
+                let arg_val = crate::lower::builder::message_gen::lower_arg_or_message(builder, &args[0]);
                 builder.emit(Inst::Call {
                     dest:   None,
                     func:   variant,
@@ -823,7 +879,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // que soit le paramètre visé (confirmé faux par reproduction) —
             // voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md.
             let arg_vals: Vec<Value> = args.iter().enumerate().map(|(i, a)| {
-                let raw = lower_expr(builder, a);
+                let raw = crate::lower::builder::message_gen::lower_arg_or_message(builder, a);
                 let arg_ty = expr_ir_type(builder, a);
                 let param_ty = param_type_for_call_arg(builder, &func_name, i);
                 box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
@@ -843,15 +899,43 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             } else {
                 arg_vals
             };
-            
+
+            // `JSON::encode(data)`/`YAML::encode(data)` : argument supplémentaire
+            // silencieux (jamais vu par l'utilisateur, la signature déclarée du
+            // builtin reste `encode(data)`) portant le type de feuille concret
+            // connu statiquement — voir `static_json_leaf_kind`.
+            let final_args = if (func_name == "JSON_encode" || func_name == "YAML_encode") && args.len() == 1 {
+                let leaf_kind = static_json_leaf_kind(builder, &args[0]);
+                let leaf_kind_val = builder.new_value();
+                builder.emit(Inst::ConstInt { dest: leaf_kind_val.clone(), value: leaf_kind });
+                let mut all_args = final_args;
+                all_args.push(leaf_kind_val);
+                all_args
+            } else {
+                final_args
+            };
+
             // Vérifier si le builtin retourne void
             if is_void_builtin(&func_name) {
                 builder.emit(Inst::Call {
                     dest:   None,
-                    func:   func_name,
+                    func:   func_name.clone(),
                     args:   final_args,
                     ret_ty: IrType::Void,
                 });
+                // `HTTPRequest::close(req)`/`::closeResponse(res)` : même
+                // marquage que `m.destroy()`/`db.close()` (appel d'instance,
+                // voir plus haut) pour que la libération automatique de fin
+                // de bloc ne libère pas une seconde fois — mais l'argument
+                // est ici passé en ARGUMENT (appel statique), pas en
+                // receveur. Voir docs/roadmap.d/memoire-double-free-et-fuites-scoped.md.
+                if func_name == "HTTPRequest_close" || func_name == "HTTPRequest_closeResponse" {
+                    if let Some(Expr::Ident(var_name, _)) = args.first() {
+                        if let Some(info) = builder.owned_locals.get_mut(var_name.as_str()) {
+                            info.dropped = true;
+                        }
+                    }
+                }
                 // Les fonctions void ne retournent rien, donc on retourne une constante dummy
                 let dummy = builder.new_value();
                 builder.emit(Inst::ConstInt { dest: dummy.clone(), value: 0 });

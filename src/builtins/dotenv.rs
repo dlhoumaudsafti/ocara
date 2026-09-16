@@ -30,6 +30,7 @@ fn static_m(params: Vec<(&str, Type)>, ret_ty: Type) -> FuncSig {
         has_variadic: false,
         fixed_params_count: len,
         required_params_count: len,
+        message_emit_in_loop: false,
     }
 }
 
@@ -44,6 +45,7 @@ fn static_m_opt(params: Vec<(&str, Type)>, ret_ty: Type, required: usize) -> Fun
         has_variadic: false,
         fixed_params_count: len,
         required_params_count: required,
+        message_emit_in_loop: false,
     }
 }
 

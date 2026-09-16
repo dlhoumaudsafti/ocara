@@ -69,6 +69,49 @@ pub fn param_type_for_call_arg(builder: &LowerBuilder, mangled: &str, i: usize) 
     builtin_method_param_types().get(mangled).and_then(|pts| pts.get(i).cloned())
 }
 
+/// Comme `param_type_for_call_arg`, mais pour un argument d'un appel EN
+/// SUCRE d'instance (`obj.methode(args...)`) — où le récepteur (`obj`)
+/// n'apparaît JAMAIS dans `args`/`i`, contrairement à la forme statique
+/// (`Classe::methode(obj, args...)`, où il est le premier argument explicite,
+/// voir l'appelant de `param_type_for_call_arg` pour `Expr::StaticCall`).
+///
+/// `fn_param_types`/`module.method_param_types` (méthodes utilisateur,
+/// statiques ou d'instance — voir `program.rs`) ne déclarent JAMAIS de
+/// récepteur implicite dans leurs types de paramètres : `i` s'y applique
+/// directement, sans décalage, exactement comme pour `param_type_for_call_arg`.
+///
+/// `builtin_method_param_types()` (Array/Map/String/JSON/HTTPRequest/
+/// HTTPResponse — `allows_instance_sugar`) est différent : chaque signature y
+/// est écrite comme la forme STATIQUE (`Array::get(arr, idx)`), récepteur
+/// INCLUS en position 0 — la même table sert aux deux formes. Pour un appel
+/// sucré, l'argument explicite `i` correspond donc à la position `i + 1` de
+/// cette table, jamais `i`.
+///
+/// Bug corrigé par cette distinction : `param_type_for_call_arg` utilisée
+/// telle quelle pour le sucre décalait chaque lookup d'une position pour TOUT
+/// builtin à double forme — invisible tant que la position ainsi confondue
+/// avec la vraie visait aussi `Ptr` (le cas le plus fréquent, `val`/`sep`...),
+/// mais un décalage réel pour `arr.get(idx)` : `idx` (type réel `Int`, jamais
+/// à boxer) se voyait attribuer le type du RÉCEPTEUR (`arr`, toujours `Ptr`),
+/// et était donc boxé à tort par `box_arg_for_mixed_param` — sans effet
+/// observable tant que `box_int_if_needed` ne boxait jamais un `int` en
+/// dessous du seuil pointeur (l'index boxé à tort redevenait la valeur brute
+/// une fois déboxé). Confirmé par un SEGFAULT reproductible dès que `0` a dû
+/// devenir boxé lui aussi (voir docs/roadmap.d/langage-array-get-display-bug.md,
+/// section ambiguïté `0`/`null`) : `arr.get(0)` boxait l'index `0`,
+/// `__array_get` recevait alors un pointeur boxé arbitraire au lieu de
+/// l'entier `0`, hors-borne — retournait `null`, déréférencé ensuite comme un
+/// objet valide.
+pub fn param_type_for_sugar_call_arg(builder: &LowerBuilder, mangled: &str, i: usize) -> Option<IrType> {
+    if let Some(pts) = builder.fn_param_types.get(mangled) {
+        return pts.get(i).cloned();
+    }
+    if let Some(pts) = builder.module.method_param_types.get(mangled) {
+        return pts.get(i).cloned();
+    }
+    builtin_method_param_types().get(mangled).and_then(|pts| pts.get(i + 1).cloned())
+}
+
 /// Boxe `val` (déjà lowered, de type IR `arg_ty`) si le paramètre cible
 /// (`param_ty`) est `mixed` (`Ptr`) et que `arg_ty` est F64/Bool/I64 connu
 /// statiquement — même logique que `box_for_any`/`box_for_dyn_arith` pour la
@@ -241,6 +284,44 @@ pub fn is_void_builtin(func_name: &str) -> bool {
 /// "write_int"   → entiers
 /// "write_float" → flottants (prend f64)
 /// "write_bool"  → booléens
+/// Calcule, à partir du type AST **connu statiquement** de `expr` (un
+/// `array<T>`/`map<K,T>`, y compris imbriqué : `array<array<T>>`...), le
+/// "type de feuille" concret à transmettre à `JSON_encode`/`YAML_encode` —
+/// voir `value_to_json`/`value_to_yaml` (runtime) : `OcaraArray`/`OcaraMap`
+/// ne conservent aucune information de type par élément, donc un conteneur
+/// **concret** (jamais boxé, contrairement à `mixed`) ne peut pas être
+/// interprété sans ambiguïté par ces fonctions (un entier brut `0`/`1` y est
+/// indiscernable de `null`/`false` — confirmé par reproduction, voir
+/// docs/roadmap.d/langage-mixed-literal-stringification.md) à moins de leur
+/// dire, une fois pour toutes à la compilation, quel est ce type de feuille.
+///
+/// Retourne `0` (inconnu — comportement heuristique historique, inchangé)
+/// dès que le type n'est pas résolu statiquement : `expr` n'est pas un
+/// identifiant simple référant à un `array`/`map` connu (`elem_ast_types`,
+/// alimenté pour `var`/`const`/`scoped`/`consumed`/paramètre — voir
+/// `src/lower/stmt.d/statements.d/variables.rs`/`src/lower/builder.d/
+/// functions.rs`), ou la structure contient `mixed` à un niveau quelconque.
+/// Jamais de faux positif possible : au pire, la précision perdue est
+/// exactement celle d'avant ce correctif.
+pub fn static_json_leaf_kind(builder: &LowerBuilder, expr: &Expr) -> i64 {
+    fn leaf_kind_of(ty: &Type) -> i64 {
+        match ty {
+            Type::Array(inner) => leaf_kind_of(inner),
+            Type::Map(_, inner) => leaf_kind_of(inner),
+            Type::Int   => 1,
+            Type::Float => 2,
+            Type::Bool  => 3,
+            _ => 0,
+        }
+    }
+    if let Expr::Ident(name, _) = expr {
+        if let Some(ty) = builder.elem_ast_types.get(name.as_str()) {
+            return leaf_kind_of(ty);
+        }
+    }
+    0
+}
+
 pub fn write_variant(base: &str, ty: &IrType) -> String {
     let suffix = match ty {
         IrType::F64  => "Float",

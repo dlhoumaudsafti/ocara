@@ -40,6 +40,10 @@ generic Cache<K, V = string> {
     }
 }
 
+// Classe parente pour la démonstration de la contrainte extends ci-dessous
+class BaseResult {
+}
+
 // Déclaration d'un générique avec contrainte extends
 generic Result<Value, Error = string> extends BaseResult {
     private property value:Value

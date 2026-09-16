@@ -163,6 +163,12 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     // auront un doit déjà être connu.
     super::class_dispatch::compute_classes_with_subclasses(&mut module, program);
 
+    // Générateurs (`emit`/`message<T>`) : même contrainte d'ordre — un site
+    // de consommation peut être lowered AVANT la fonction/méthode qui
+    // déclare le générateur (voir la doc de
+    // `message_gen::register_all_message_funcs`).
+    super::message_gen::register_all_message_funcs(&mut module, program);
+
     // Candidats d'un `is ClassName`/`is InterfaceName` réel (voir
     // IrModule::is_check_candidates) — même contrainte d'ordre que
     // `compute_classes_with_subclasses` ci-dessus : nécessaire AVANT le
@@ -688,6 +694,14 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
 
     // Fonctions libres (les constantes sont inlinées dans chaque fonction)
     for func in &program.functions {
+        // Générateur (`emit`/`message<T>`, voir docs/roadmap.d/langage-emit-iterable.md) :
+        // deux fonctions IR séparées (`<nom>__new`/`<nom>__resume`), pas le
+        // lowering normal d'une fonction — voir
+        // `super::message_gen::lower_message_func`.
+        if super::message_gen::is_message_func(&func.ret_ty) {
+            super::message_gen::lower_message_func(&mut module, func, &fn_ret_types, &fn_param_types, &fn_param_names);
+            continue;
+        }
         lower_func(&mut module, func, &program.consts, &fn_ret_types, &fn_param_types, &fn_param_names, &fn_variadic_info, &func_default_args, None, None, &async_funcs);
         // Générer le wrapper async si la fonction est marquée async
         if func.is_async {

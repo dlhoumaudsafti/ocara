@@ -100,6 +100,7 @@ pub enum TokenKind {
     On,
     Is,
     Raise,
+    Emit, // emit (générateurs, façon `yield` PHP — voir docs/roadmap.d/langage-emit-iterable.md)
     SelfKw, // self
     ParentKw, // parent
     Async,
@@ -121,6 +122,7 @@ pub enum TokenKind {
     TMixed,
     TArray,
     TMap,
+    TMessage, // message<T> (voir docs/roadmap.d/langage-emit-iterable.md)
     TVoid,
 
     // ── Littéraux ─────────────────────────────────────────────────────────────

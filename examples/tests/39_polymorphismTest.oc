@@ -103,6 +103,31 @@ class Test_39_polymorphism {
         UnitTest::assertFalse(n is Drawable)
         return 0
     }
+
+    // `self.méthode()` appelé depuis l'INTÉRIEUR d'un corps de méthode doit
+    // dispatcher dynamiquement (patron "template method" : `Shape::
+    // templateRender()` appelle `self.describe()`, surchargée par `Circle`).
+    // Avant ce chantier, `self` restait résolu statiquement vers la classe
+    // sous laquelle le corps a été lowered (toujours `Shape::describe()`).
+    public method selfDispatchTemplateMethodTest(): int {
+        var s:Shape = use Circle()
+        UnitTest::assertTrue(s.templateRender() equal "render[circle]")
+        return 0
+    }
+
+    // `parent.méthode()` doit rester résolu STATIQUEMENT (jamais vers le
+    // dispatcher) : c'est tout son rôle d'appeler explicitement
+    // l'implémentation du parent, en contournant une éventuelle surcharge.
+    // Rediriger `parent` dynamiquement bouclerait à l'infini dès qu'un
+    // override rappelle `parent.x()` (patron classique).
+    public method parentStaysStaticTest(): int {
+        var c:Circle = use Circle()
+        UnitTest::assertTrue(c.describeViaParent() equal "shape")
+
+        var f:FilledCircle = use FilledCircle()
+        UnitTest::assertTrue(f.describeViaParentChain() equal "filled+circle")
+        return 0
+    }
 }
 
 class Shape {
@@ -114,6 +139,10 @@ class Shape {
     }
     public method scale(factor:int): int {
         return factor
+    }
+    // Template method : appelle self.describe(), surchargeable.
+    public method templateRender(): string {
+        return "render[" + self.describe() + "]"
     }
 }
 
@@ -127,6 +156,12 @@ class Circle extends Shape implements Drawable {
     public method draw(): string {
         return "circle-draw"
     }
+    // Doit toujours renvoyer "shape" (Shape::describe), jamais dispatcher
+    // dynamiquement vers Circle::describe (qui serait une boucle infinie
+    // absurde ici) ni vers une éventuelle sous-classe encore plus dérivée.
+    public method describeViaParent(): string {
+        return parent.describe()
+    }
 }
 
 class Square extends Shape {
@@ -135,6 +170,11 @@ class Square extends Shape {
 class FilledCircle extends Circle {
     public method describe(): string {
         return "filled-circle"
+    }
+    // parent == Circle ici : doit appeler Circle::describe() ("circle"),
+    // jamais rappeler FilledCircle::describe() (boucle infinie).
+    public method describeViaParentChain(): string {
+        return "filled+" + parent.describe()
     }
 }
 

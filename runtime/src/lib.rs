@@ -25,7 +25,6 @@
 use std::alloc::{alloc, alloc_zeroed, dealloc, Layout};
 use crate::typecheck::{TAG_STRING_OWNED, TAG_ARRAY, TAG_MAP, TAG_OBJECT, TAG_FUNCTION,
     __is_function, __is_object, __is_map, __is_array, __is_string, read_tag};
-use std::ffi::CStr;
 use std::io::{self, BufRead};
 use std::process::Command;
 use std::time::Duration;
@@ -200,15 +199,24 @@ pub unsafe fn free_str(val: i64) {
     }
 }
 
-/// Lit un pointeur i64 comme &str (null-terminated UTF-8).
+/// Lit un pointeur i64 comme `&str` — littéral (`TAG_STRING`) ou possédée
+/// (`TAG_STRING_OWNED`), les deux partagent désormais le MÊME layout de
+/// header (`[len: i64][tag: i64][données...][NUL]`, voir `alloc_str`/
+/// `emit_strings` dans le codegen) : la vraie longueur est lue directement
+/// à `val - 16`, plutôt que de tronquer au premier octet NUL (`CStr::
+/// from_ptr`, l'ancien comportement) — une string Ocara PEUT légitimement
+/// contenir un NUL interne (`"a\0b"`, un échappement valide), qui restait
+/// jusqu'ici affiché/comparé tronqué partout dans le langage (voir
+/// docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md).
 /// `pub` (pas `pub(crate)`) : utilisé depuis le crate séparé runtime_tauri.
 pub unsafe fn ptr_to_str<'a>(val: i64) -> &'a str {
     if val == 0 {
         return "";
     }
     unsafe {
-        let cstr = CStr::from_ptr(val as *const i8);
-        cstr.to_str().unwrap_or("")
+        let len = *((val - 16) as *const i64) as usize;
+        let bytes = std::slice::from_raw_parts(val as *const u8, len);
+        std::str::from_utf8(bytes).unwrap_or("")
     }
 }
 
@@ -236,11 +244,12 @@ fn is_bool_box(val: i64) -> bool {
     val >= 0x10000 && (val & 3) == 2
 }
 
-/// Voir `box_int_if_needed` : un `int` logé dans un `mixed` n'est boxé QUE
-/// s'il est assez grand pour être confondu avec un pointeur heap (au-delà de
-/// ce seuil, un pointeur réel ET un entier ordinaire sont indiscernables sans
-/// boxing — voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md) —
-/// un petit entier reste donc brut, jamais alloué.
+/// Voir `box_int_if_needed` : un `int` logé dans un `mixed` est boxé s'il est
+/// assez grand pour être confondu avec un pointeur heap (au-delà de ce seuil,
+/// un pointeur réel ET un entier ordinaire sont indiscernables sans boxing —
+/// voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md), OU s'il vaut
+/// `0` (sinon indiscernable de `null`, voir la doc de `box_int_if_needed`) —
+/// tout autre petit entier reste brut, jamais alloué.
 #[inline]
 fn is_int_box(val: i64) -> bool {
     val >= 0x10000 && (val & 3) == 3
@@ -261,13 +270,26 @@ unsafe fn unbox_int(val: i64) -> i64 {
     unsafe { *((val & !3) as *const i64) }
 }
 
-/// Boxe `n` uniquement s'il est assez grand pour être confondu avec un
-/// pointeur heap valide par `read_tag`/`get_value_type` (`val >= 0x10000`,
-/// le même seuil que `PTR_THRESHOLD` ailleurs dans le runtime) — un petit
-/// entier reste brut (comme avant ce correctif), pas de coût d'allocation
-/// pour le cas de loin le plus fréquent. Un entier NÉGATIF n'est jamais
-/// ambigu avec un pointeur (toujours < 0x10000 en comparaison signée) et
-/// reste donc toujours brut, quelle que soit sa magnitude.
+/// Boxe `n` s'il est assez grand pour être confondu avec un pointeur heap
+/// valide par `read_tag`/`get_value_type` (`val >= 0x10000`, le même seuil
+/// que `PTR_THRESHOLD` ailleurs dans le runtime), OU s'il vaut exactement
+/// `0` — un petit entier NON NUL reste brut (comme avant ce correctif), pas
+/// de coût d'allocation pour le cas de loin le plus fréquent. Un entier
+/// NÉGATIF (non nul) n'est jamais ambigu avec un pointeur (toujours <
+/// 0x10000 en comparaison signée) et reste donc toujours brut, quelle que
+/// soit sa magnitude.
+///
+/// Le cas `n == 0` est spécial : `null` est TOUJOURS représenté par le bit
+/// pattern `0` (voir `Expr::Literal(Literal::Null, _)` dans le lowering) —
+/// un entier brut valant `0` logé dans un `mixed` serait donc structurellement
+/// indiscernable de `null`, les deux valant `0`. Boxer spécifiquement `0`
+/// élimine cette ambiguïté : toute décision consultant `get_value_type`/
+/// `is_int_box`/`__is_null`/`__is_int` (déjà correctes pour un entier boxé,
+/// écrites par anticipation de ce cas) traite alors correctement un entier
+/// `0` authentique comme "un entier valant 0", jamais comme `null` — confirmé
+/// faux par reproduction : `Array::get`/`Map::get` sur un élément `0`,
+/// `UnitTest::assertEquals(0, ...)`, affichaient/traitaient la valeur comme
+/// `null` (voir docs/roadmap.d/langage-array-get-display-bug.md).
 ///
 /// Contrairement à `float`/`bool` (toujours boxés dans un `mixed`, sans
 /// condition), cette fonction est LE point d'entrée unique qui décide, au
@@ -276,7 +298,7 @@ unsafe fn unbox_int(val: i64) -> i64 {
 /// argument, littéral `array`/`map`, résultat arithmétique dynamique...).
 #[inline]
 fn box_int_if_needed(n: i64) -> i64 {
-    if n < 0x10000 {
+    if n != 0 && n < 0x10000 {
         return n;
     }
     unsafe {
@@ -544,6 +566,112 @@ pub extern "C" fn __map_clone_shallow(ptr: i64) -> i64 {
     unsafe {
         let new_ptr = new_map();
         map_ref(new_ptr).data = map_ref(ptr).data.clone();
+        new_ptr
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Variantes "concrete" (imbriquées sur 2+ niveaux) de free/clone — pour un
+// `array<T>`/`map<K,T>` CONCRET (jamais `mixed`) dont l'ÉLÉMENT est
+// lui-même un `array`/`map` (`array<array<int>>`, `map<string,array<float>>`,
+// à une profondeur arbitraire), plutôt qu'un primitif directement (couvert
+// par les variantes `_shallow` ci-dessus). Sans ceci, un tel conteneur
+// retombait sur le chemin générique `__value_free`/`__value_clone` dès le
+// premier niveau imbriqué — sûr pour CE niveau (un pointeur array/map réel
+// est toujours détecté correctement par tag), mais qui recreuse ensuite
+// dans les éléments de niveau ENCORE PLUS interne via `__value_free` par
+// élément, retombant sur exactement le même bug qu'`_shallow` corrige déjà
+// (un bit pattern `int`/`float`/`bool` brut peut ressembler à un pointeur
+// heap valide) — un cran plus profond seulement, donc jamais couvert par
+// `_shallow` seul. Voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md.
+//
+// `shape` (une string Ocara) + `offset` : voir
+// `crate::lower::stmt::ownership::concrete_elem_shape` côté compilateur, qui
+// calcule `shape` une seule fois à la compilation à partir du type AST
+// statique (jamais de dispatch par tag runtime sur un élément primitif brut,
+// à AUCUN niveau). `shape[offset]` décrit ce que sont les éléments de CE
+// niveau : `'A'` = array imbriquée, `'M'` = map imbriquée ; `offset` au bout
+// de la chaîne = élément terminal, un primitif concret (retombe sur la
+// variante `_shallow`, qui ne fait plus intervenir `shape` du tout).
+#[unsafe(no_mangle)]
+pub extern "C" fn __array_free_concrete(ptr: i64, shape: i64, offset: i64) {
+    if ptr == 0 { return; }
+    unsafe {
+        let bytes = ptr_to_str(shape).as_bytes();
+        if offset as usize >= bytes.len() {
+            __array_free_shallow(ptr);
+            return;
+        }
+        let elem_is_array = bytes[offset as usize] == b'A';
+        let arr = array_ref(ptr);
+        for &el in &arr.data {
+            if elem_is_array { __array_free_concrete(el, shape, offset + 1); }
+            else             { __map_free_concrete(el, shape, offset + 1); }
+        }
+        std::ptr::drop_in_place(arr as *mut OcaraArray);
+        let size = std::mem::size_of::<OcaraArray>();
+        let layout = Layout::from_size_align(8 + size, 8).unwrap();
+        dealloc((ptr - 8) as *mut u8, layout);
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_free_concrete(ptr: i64, shape: i64, offset: i64) {
+    if ptr == 0 { return; }
+    unsafe {
+        let bytes = ptr_to_str(shape).as_bytes();
+        if offset as usize >= bytes.len() {
+            __map_free_shallow(ptr);
+            return;
+        }
+        let elem_is_array = bytes[offset as usize] == b'A';
+        let m = map_ref(ptr);
+        for &(_, val) in &m.data {
+            if elem_is_array { __array_free_concrete(val, shape, offset + 1); }
+            else             { __map_free_concrete(val, shape, offset + 1); }
+        }
+        std::ptr::drop_in_place(m as *mut OcaraMap);
+        let size = std::mem::size_of::<OcaraMap>();
+        let layout = Layout::from_size_align(8 + size, 8).unwrap();
+        dealloc((ptr - 8) as *mut u8, layout);
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __array_clone_concrete(ptr: i64, shape: i64, offset: i64) -> i64 {
+    if ptr == 0 { return 0; }
+    unsafe {
+        let bytes = ptr_to_str(shape).as_bytes();
+        if offset as usize >= bytes.len() {
+            return __array_clone_shallow(ptr);
+        }
+        let elem_is_array = bytes[offset as usize] == b'A';
+        let cloned: Vec<i64> = array_ref(ptr).data.iter().map(|&el| {
+            if elem_is_array { __array_clone_concrete(el, shape, offset + 1) }
+            else             { __map_clone_concrete(el, shape, offset + 1) }
+        }).collect();
+        let new_ptr = new_array();
+        array_ref(new_ptr).data = cloned;
+        new_ptr
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_clone_concrete(ptr: i64, shape: i64, offset: i64) -> i64 {
+    if ptr == 0 { return 0; }
+    unsafe {
+        let bytes = ptr_to_str(shape).as_bytes();
+        if offset as usize >= bytes.len() {
+            return __map_clone_shallow(ptr);
+        }
+        let elem_is_array = bytes[offset as usize] == b'A';
+        let cloned: Vec<(String, i64)> = map_ref(ptr).data.iter().map(|(k, v)| {
+            let nv = if elem_is_array { __array_clone_concrete(*v, shape, offset + 1) }
+                     else              { __map_clone_concrete(*v, shape, offset + 1) };
+            (k.clone(), nv)
+        }).collect();
+        let new_ptr = new_map();
+        map_ref(new_ptr).data = cloned;
         new_ptr
     }
 }
@@ -2036,6 +2164,21 @@ pub extern "C" fn UnitTest_assertLessOrEquals(a: i64, b: i64) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertContains(haystack: i64, needle: i64) {
+    // Même risque que `UnitTest_assertEmpty`/`assertNotEmpty` (déjà corrigé) :
+    // une valeur boxée (float/bool/int — voir `is_float_box`/`is_bool_box`/
+    // `is_int_box`) est un pointeur heap dont les bits bas ne sont pas ceux
+    // d'une vraie string — `ptr_to_str` dessus lirait une zone mémoire
+    // arbitraire (même famille de SEGFAULT que documentée dans
+    // docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md).
+    if is_float_box(haystack) || is_bool_box(haystack) || is_int_box(haystack)
+        || is_float_box(needle) || is_bool_box(needle) || is_int_box(needle) {
+        unsafe {
+            crate::exception::throw_unittest_exception(
+                "assertContains: haystack/needle is not a string (boxed mixed value)",
+                111
+            );
+        }
+    }
     unsafe {
         let h = ptr_to_str(haystack);
         let n = ptr_to_str(needle);
@@ -2388,6 +2531,22 @@ pub extern "C" fn __alloc_obj(size: i64) -> i64 {
     }
 }
 
+/// Libère un bloc alloué par `__alloc_obj` (même `size`, en octets, que celle
+/// passée à l'allocation — rien ne la mémorise ailleurs, comme pour
+/// `__object_free`). Utilisée pour le frame heap d'un générateur (`emit`/
+/// `message<T>`, voir docs/roadmap.d/langage-emit-iterable.md et
+/// `src/lower/builder.d/message_gen.rs`) : pas de tag/header à sauter (contrairement
+/// à `__object_free`, réservé à `__alloc_class_obj`), le pointeur libéré est
+/// exactement celui retourné par `__alloc_obj`.
+#[unsafe(no_mangle)]
+pub extern "C" fn __free_obj(ptr: i64, size: i64) {
+    if ptr == 0 || size <= 0 { return; }
+    unsafe {
+        let layout = Layout::from_size_align(size as usize, 8).unwrap();
+        dealloc(ptr as *mut u8, layout);
+    }
+}
+
 /// Alloue une instance de classe utilisateur avec tag TAG_OBJECT.
 /// Le pointeur retourné pointe APRÈS le header, qui fait maintenant 16 octets
 /// (au lieu de 8) — un mot supplémentaire est PRÉPENDÉ devant le tag pour y
@@ -2618,6 +2777,60 @@ fn handler_has_returned() -> (bool, i64) {
         state.return_value.set(0);
         (has_ret, val)
     })
+}
+
+/// Pousse un nouveau `TryFrame` sur `TRY_STACK` et retourne un pointeur vers
+/// lui (adresse STABLE — voir la doc de `TryStack`/`frames`, un tableau fixe
+/// thread-local, jamais réalloué) directement utilisable par l'appelant pour
+/// un appel `setjmp` RAW (voir `crate::lower::builder::message_gen` côté
+/// compilateur) : contrairement à `__ocara_try_exec`, aucun `setjmp` n'est
+/// fait ICI — cette fonction ne fait QUE réserver le frame, le `setjmp` doit
+/// être appelé PAR L'APPELANT, directement dans SA PROPRE frame native (voir
+/// la doc de `JmpBuf` plus haut : le frame appelant setjmp doit rester
+/// vivant jusqu'au `longjmp` correspondant). C'est précisément ce qui permet
+/// à un générateur (`emit`/`message<T>`) de rejouer un `try` à chaque
+/// reprise — sa fonction `__resume` est un nouvel appel natif à chaque fois,
+/// donc SA PROPRE frame doit appeler `setjmp` elle-même.
+///
+/// `frame_ptr` (retourné en i64) pointe vers un `TryFrame` : offset 0 =
+/// `env` (JmpBuf, 200 octets — à passer tel quel à `setjmp`), offset 200 =
+/// `error_val`, offset 208 = `error_type` (voir `Inst::GetField` avec ces
+/// offsets bruts dans le lowering, pas de fonction runtime dédiée pour les
+/// lire — même patron que `class_id` dans `__alloc_class_obj`).
+#[unsafe(no_mangle)]
+pub extern "C" fn __ocara_try_enter() -> i64 {
+    TRY_STACK.with(|stack| {
+        let depth = stack.depth.get();
+        if depth >= MAX_TRY_DEPTH {
+            std::process::abort();
+        }
+        let frame_ptr: *mut TryFrame = unsafe {
+            let arr = &mut *stack.frames.get();
+            &mut arr[depth]
+        };
+        unsafe {
+            (*frame_ptr).error_val  = 0;
+            (*frame_ptr).error_type = 0;
+        }
+        stack.depth.set(depth + 1);
+        frame_ptr as i64
+    })
+}
+
+/// Dépile le `TryFrame` le plus récemment poussé par `__ocara_try_enter` —
+/// appelée après une sortie normale du corps `try`, après un handler qui a
+/// fini de traiter l'exception, OU juste avant qu'un `emit` (générateur)
+/// suspende en quittant un `try` encore actif (pour rejouer `__ocara_try_enter`
+/// + `setjmp` à la prochaine reprise). Symétrique de `__ocara_try_enter`,
+/// même discipline LIFO que `__ocara_try_exec`.
+#[unsafe(no_mangle)]
+pub extern "C" fn __ocara_try_exit() {
+    TRY_STACK.with(|stack| {
+        let depth = stack.depth.get();
+        if depth > 0 {
+            stack.depth.set(depth - 1);
+        }
+    });
 }
 
 /// Exécute un bloc try/on. Retourne 0 si le bloc se termine normalement,
@@ -3281,124 +3494,107 @@ dyn_arith_op!(__dyn_div, /);
 
 use serde_json::{Value as JsonValue, Map as JsonMap};
 
-/// JSON::encode(data) → string
-/// Encode un array ou map en JSON
+/// JSON::encode(data, leaf_kind) → string
+/// Encode un array ou map en JSON. `leaf_kind` (2e paramètre, jamais visible
+/// côté langage Ocara — voir `static_json_leaf_kind` côté lowering) : 0 =
+/// inconnu/`mixed` (comportement heuristique historique de `value_to_json`),
+/// 1/2/3 = int/float/bool — le type de feuille concret d'un conteneur qui ne
+/// boxe jamais ses éléments (`array<int>`, `array<bool>`...), connu de
+/// façon fiable à la compilation, sans quoi un entier brut `0`/`1` est
+/// indiscernable de `null`/`false` (voir `value_to_json`).
 #[unsafe(no_mangle)]
-pub extern "C" fn JSON_encode(data: i64) -> i64 {
-    if data == 0 {
-        return unsafe { alloc_str("null") };
-    }
-    
-    let typ = get_value_type(data);
-    
-    match typ {
-        5 => {  // TAG_ARRAY (valeur = 5 selon get_value_type)
-            encode_array_to_json(data)
-        }
-        6 => {  // TAG_MAP (valeur = 6 selon get_value_type)
-            encode_map_to_json(data)
-        }
-        _ => {
-            // Type non supporté pour encode, retourner une chaîne vide
-            unsafe { alloc_str("") }
-        }
-    }
-}
-
-/// Encode récursivement un array Ocara en JSON
-fn encode_array_to_json(arr: i64) -> i64 {
-    let mut json_arr = Vec::new();
-    let len = __array_len(arr);
-    
-    for i in 0..len {
-        let elem = __array_get(arr, i);
-        let json_val = value_to_json(elem);
-        json_arr.push(json_val);
-    }
-    
-    let json_str = serde_json::to_string(&json_arr).unwrap_or_else(|_| "[]".to_string());
+pub extern "C" fn JSON_encode(data: i64, leaf_kind: i64) -> i64 {
+    let json_val = value_to_json(data, leaf_kind);
+    let json_str = serde_json::to_string(&json_val).unwrap_or_else(|_| "null".to_string());
     unsafe { alloc_str(&json_str) }
 }
 
-/// Encode récursivement une map Ocara en JSON
-fn encode_map_to_json(map: i64) -> i64 {
-    let mut json_obj = JsonMap::new();
-    
-    // Parcourir les clés de la map
-    unsafe {
-        let map_ptr = map as *mut OcaraMap;
-        for (key_str, value) in (*map_ptr).data.iter() {
-            let json_val = value_to_json(*value);
-            json_obj.insert(key_str.clone(), json_val);
-        }
-    }
-    
-    let json_str = serde_json::to_string(&json_obj).unwrap_or_else(|_| "{}".to_string());
-    unsafe { alloc_str(&json_str) }
-}
-
-/// Convertit une valeur Ocara en JsonValue
-fn value_to_json(val: i64) -> JsonValue {
+/// Convertit une valeur Ocara en JsonValue. `leaf_kind` : voir `JSON_encode`
+/// — reste le MÊME à travers toute la récursion (un `array<array<int>>` a
+/// `int` comme feuille à tous les niveaux, garanti par le typage statique
+/// d'Ocara), et ne s'applique QUE lorsque `val` n'est pas lui-même un
+/// pointeur tas réel (string/array/map, détecté de façon fiable par
+/// `get_value_type` indépendamment de `leaf_kind`) — seul le panier
+/// "primitif" (1, jamais un pointeur valide) est concerné par l'ambiguïté
+/// que `leaf_kind` résout.
+fn value_to_json(val: i64, leaf_kind: i64) -> JsonValue {
     if val == 0 {
-        return JsonValue::Null;
+        // `null` uniquement pour `mixed` (leaf_kind == 0, comportement
+        // historique) — pour un type de feuille concret connu, 0 est une
+        // valeur int/float/bool normale, jamais `null`.
+        return match leaf_kind {
+            1 => JsonValue::Number(serde_json::Number::from(0i64)),
+            2 => serde_json::Number::from_f64(0.0).map(JsonValue::Number).unwrap_or(JsonValue::Null),
+            3 => JsonValue::Bool(false),
+            _ => JsonValue::Null,
+        };
     }
 
-    // `float`/`bool` boxés (voir `__box_float`/`__box_bool`) : à vérifier
-    // AVANT `get_value_type`, qui les classe tous les deux (avec un `int`
-    // brut) dans le même panier "primitif" (1) sans les distinguer — sans ce
-    // déballage, un float/bool construit par un littéral `array<mixed>`/
-    // `map<string,mixed>` (voir lower_array_literal/lower_map_literal)
-    // ressortait comme un entier correspondant à l'adresse du pointeur boxé
-    // (confirmé par reproduction — voir
+    // `float`/`bool`/`int` boxés (voir `__box_float`/`__box_bool`/
+    // `box_int_if_needed`) : uniquement pertinent pour `mixed` (leaf_kind ==
+    // 0) — un élément d'un conteneur CONCRET (`array<int>`...) n'est jamais
+    // boxé, cette détection resterait un faux ami sur un tel élément. Sans
+    // ce déballage pour `mixed`, un float/bool construit par un littéral
+    // `array<mixed>`/`map<string,mixed>` (voir lower_array_literal/
+    // lower_map_literal) ressortait comme un entier correspondant à
+    // l'adresse du pointeur boxé (confirmé par reproduction — voir
     // docs/roadmap.d/langage-mixed-literal-stringification.md).
-    if is_float_box(val) {
-        let f = unsafe { unbox_float(val) };
-        return serde_json::Number::from_f64(f).map(JsonValue::Number).unwrap_or(JsonValue::Null);
-    }
-    if is_bool_box(val) {
-        return JsonValue::Bool(unsafe { unbox_bool(val) });
-    }
-    // `int` boxé (voir `box_int_if_needed`) : même raison de le vérifier AVANT
-    // `get_value_type`, qui le classerait aussi "primitif" (1) sans le
-    // distinguer d'un vrai entier brut de même magnitude.
-    if is_int_box(val) {
-        return JsonValue::Number(serde_json::Number::from(unsafe { unbox_int(val) }));
+    if leaf_kind == 0 {
+        if is_float_box(val) {
+            let f = unsafe { unbox_float(val) };
+            return serde_json::Number::from_f64(f).map(JsonValue::Number).unwrap_or(JsonValue::Null);
+        }
+        if is_bool_box(val) {
+            return JsonValue::Bool(unsafe { unbox_bool(val) });
+        }
+        if is_int_box(val) {
+            return JsonValue::Number(serde_json::Number::from(unsafe { unbox_int(val) }));
+        }
     }
 
     let typ = get_value_type(val);
 
     match typ {
-        1 => {  // Primitif : entier brut (float/bool boxés déjà traités ci-dessus).
-            // `val == 1`/`== 0` reste une heuristique imprécise pour un
-            // bool JAMAIS boxé (limitation pré-existante, non résolue ici —
-            // voir __is_bool) ; conservée telle quelle pour ne rien changer
-            // au comportement déjà en place pour ce cas résiduel.
-            if val == 1 {  // true
-                JsonValue::Bool(true)
-            } else if val == 0 {  // false (mais déjà traité par le test au début)
-                JsonValue::Bool(false)
-            } else {
-                JsonValue::Number(serde_json::Number::from(val))
+        1 => {  // Primitif : jamais un pointeur valide — c'est ICI, et
+                // seulement ici, que l'ambiguïté int/bool/null concrète se
+                // pose, résolue directement par `leaf_kind` quand il est
+                // connu (aucune approximation possible, contrairement au cas
+                // `mixed` ci-dessous, hérité tel quel de l'historique).
+            match leaf_kind {
+                1 => JsonValue::Number(serde_json::Number::from(val)),
+                2 => serde_json::Number::from_f64(f64::from_bits(val as u64)).map(JsonValue::Number).unwrap_or(JsonValue::Null),
+                3 => JsonValue::Bool(val != 0),
+                _ => {
+                    // `mixed` : heuristique imprécise pour un bool JAMAIS
+                    // boxé (limitation pré-existante, non résolue ici — voir
+                    // __is_bool) ; conservée telle quelle, comportement
+                    // historique inchangé.
+                    if val == 1 {
+                        JsonValue::Bool(true)
+                    } else {
+                        JsonValue::Number(serde_json::Number::from(val))
+                    }
+                }
             }
         }
         4 => {  // String
             JsonValue::String(unsafe { ptr_to_str(val) }.to_string())
         }
-        5 => {  // Array
+        5 => {  // Array — même leaf_kind à travers toute la récursion.
             let mut json_arr = Vec::new();
             let len = __array_len(val);
             for i in 0..len {
                 let elem = __array_get(val, i);
-                json_arr.push(value_to_json(elem));
+                json_arr.push(value_to_json(elem, leaf_kind));
             }
             JsonValue::Array(json_arr)
         }
-        6 => {  // Map
+        6 => {  // Map — même leaf_kind à travers toute la récursion.
             let mut json_obj = JsonMap::new();
             unsafe {
                 let map_ptr = val as *mut OcaraMap;
                 for (key_str, value) in (*map_ptr).data.iter() {
-                    json_obj.insert(key_str.clone(), value_to_json(*value));
+                    json_obj.insert(key_str.clone(), value_to_json(*value, leaf_kind));
                 }
             }
             JsonValue::Object(json_obj)

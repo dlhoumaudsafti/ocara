@@ -189,6 +189,22 @@ fi
 
 echo ""
 
+# Test examples/generics/main.oc — seul point d'entrée exécutable de
+# examples/generics/ (List.oc n'est qu'une classe générique importée par
+# celui-ci ; test_syntax.oc n'a pas de `main()`, c'est une fixture de
+# coloration syntaxique, pas un programme autonome — voir
+# docs/roadmap.d/qualite-couverture-tests.md).
+echo "══════════════════════════════════════════════"
+echo " Régression examples/generics/main.oc"
+echo "══════════════════════════════════════════════"
+
+if ! run_test "examples/generics/main.oc" "generics/main"; then
+    fail=1
+    failed="$failed generics/main"
+fi
+
+echo ""
+
 # Test examples/advanced/httpserver/main.oc — serveur HTTP pur (pas de GUI),
 # testé via httpserver.sh (démarrage en fond + requêtes + arrêt), même
 # mécanisme que examples/builtins/httpserver.sh. `mini_project` et

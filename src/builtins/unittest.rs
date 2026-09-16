@@ -42,6 +42,7 @@ fn m(params: Vec<(&str, Type)>, ret_ty: Type) -> FuncSig {
         has_variadic: false,
         fixed_params_count: len,
         required_params_count: len,
+        message_emit_in_loop: false,
     }
 }
 
@@ -177,6 +178,7 @@ pub fn class() -> ClassInfo {
         has_variadic: false,
         fixed_params_count: 1,
         required_params_count: 1,
+        message_emit_in_loop: false,
     });
 
     // UnitTest::assertExceptionMessageEquals(message, expected) → void

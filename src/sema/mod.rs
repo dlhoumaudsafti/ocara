@@ -6,6 +6,7 @@
 ///   3. `SemaError`    — erreurs sémantiques rapportées
 pub mod error;
 pub mod escape;
+pub mod message_emit;
 pub mod scope;
 pub mod symbols;
 pub mod typecheck;

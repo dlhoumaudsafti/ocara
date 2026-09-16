@@ -71,6 +71,33 @@ pub struct LowerBuilder<'m> {
     /// Variables capturées par une closure — accès via GetField/SetField sur __env
     /// (env_ptr: Value, index: usize, type: IrType)
     pub captured_vars: HashMap<String, (Value, usize, IrType)>,
+    /// Variables d'un générateur (`emit`/`message<T>`, voir
+    /// `crate::lower::builder::message_gen` et
+    /// docs/roadmap.d/langage-emit-iterable.md) — TOUS les paramètres et
+    /// locales de la fonction-machine-à-états sont promus dans le frame
+    /// heap (`__gen_<nom>`), jamais sur la pile : un `emit` fait un vrai
+    /// `Return` natif (déroule la pile), donc rien de stack-résident ne
+    /// survivrait à une reprise. Accès direct GetField/SetField (PAS de
+    /// double-indirection `__locked_cell_*` comme `captured_vars` : un
+    /// générateur n'est jamais partagé entre threads).
+    /// (frame_ptr: Value, index de champ, type: IrType). Inclut aussi les
+    /// pseudo-champs réservés `__state`/`__value`.
+    pub frame_vars: HashMap<String, (Value, usize, IrType)>,
+    /// Points de reprise d'un générateur, dans l'ordre des `emit` rencontrés
+    /// pendant le lowering du corps (état `k+1` → `message_resume_blocks[k].0`)
+    /// — rempli par `Stmt::Emit`, consulté après coup pour construire le
+    /// prologue de dispatch (bloc 0 de la fonction `__resume`). Le second
+    /// élément est l'instantané de `gen_try_stack` à ce point de suspension
+    /// (Cas A, `try` actifs à rejouer à la reprise — voir
+    /// `crate::lower::builder::message_gen::GenTryCtx`). Vide hors lowering
+    /// d'un générateur.
+    pub message_resume_blocks: Vec<(BlockId, Vec<crate::lower::builder::message_gen::GenTryCtx>)>,
+    /// `try` actuellement ouverts pendant le lowering du corps d'un
+    /// générateur (voir `crate::lower::builder::message_gen::lower_try_in_generator`,
+    /// §4 "Cas A" de docs/roadmap.d/langage-emit-iterable.md) — empilé à
+    /// l'entrée d'un `try`, dépilé à la sortie. Vide hors `try`/hors
+    /// générateur.
+    pub gen_try_stack: Vec<crate::lower::builder::message_gen::GenTryCtx>,
     /// Variables locales déjà promues sur le tas pour le partage avec des closures.
     /// Après promotion, `locals[name]` est un heap pointer (pas une Alloca stack).
     pub heap_promoted: HashSet<String>,
@@ -132,6 +159,9 @@ impl<'m> LowerBuilder<'m> {
             func_vars: HashSet::new(),
             func_ret_types: HashMap::new(),
             captured_vars: HashMap::new(),
+            frame_vars: HashMap::new(),
+            message_resume_blocks: Vec::new(),
+            gen_try_stack: Vec::new(),
             heap_promoted: HashSet::new(),
             async_funcs: HashSet::new(),
             async_var_ret: HashMap::new(),
@@ -169,6 +199,14 @@ impl<'m> LowerBuilder<'m> {
     // ── Déclaration d'une variable locale (avec Alloca) ───────────────────────
 
     pub fn declare_local(&mut self, name: &str, ty: IrType, mutable: bool) -> Value {
+        // Variable d'un générateur : déjà un champ du frame heap (voir
+        // `message_gen`), pas d'Alloca — le nom est simplement déjà résolu
+        // via `frame_vars`, consulté en priorité par `load_local`/
+        // `store_local`. On retourne le pointeur de frame (jamais utilisé
+        // comme un vrai slot par les appelants passés par `store_local`).
+        if let Some((frame, _, _)) = self.frame_vars.get(name) {
+            return frame.clone();
+        }
         let slot = self.new_value();
         self.emit(Inst::Alloca { dest: slot.clone(), ty: ty.clone() });
         self.locals.insert(name.to_string(), (slot.clone(), ty, mutable));
@@ -177,6 +215,9 @@ impl<'m> LowerBuilder<'m> {
 
     /// Retourne le slot (stack ou heap pointer) d'un local sans émettre de Load.
     pub fn slot_of_local(&self, name: &str) -> Option<Value> {
+        if let Some((frame, _, _)) = self.frame_vars.get(name) {
+            return Some(frame.clone());
+        }
         self.locals.get(name).map(|(slot, _, _)| slot.clone())
     }
 
@@ -186,6 +227,18 @@ impl<'m> LowerBuilder<'m> {
     /// (verrouillé — voir la doc de `heap_promoted` et
     /// docs/roadmap.d/memoire-concurrence-threads.md).
     pub fn store_local(&mut self, name: &str, src: Value) {
+        // Variable d'un générateur → accès DIRECT (pas de double-indirection,
+        // voir la doc de `frame_vars`) sur le champ correspondant du frame.
+        if let Some((frame, idx, ty)) = self.frame_vars.get(name).cloned() {
+            self.emit(Inst::SetField {
+                obj:    frame,
+                field:  name.to_string(),
+                src,
+                offset: (idx * 8) as i32,
+            });
+            let _ = ty;
+            return;
+        }
         // Variable capturée → double-indirection via l'env struct (heap pointer)
         if let Some((env_val, idx, _)) = self.captured_vars.get(name).cloned() {
             let ptr = self.new_value();
@@ -227,6 +280,18 @@ impl<'m> LowerBuilder<'m> {
     /// Pour les variables capturées, lit via double-indirection :
     /// GetField(env, idx) → heap_ptr, puis `__locked_cell_get(heap_ptr)`.
     pub fn load_local(&mut self, name: &str) -> Option<(Value, IrType)> {
+        // Variable d'un générateur → accès DIRECT (voir la doc de `frame_vars`)
+        if let Some((frame, idx, ty)) = self.frame_vars.get(name).cloned() {
+            let dest = self.new_value();
+            self.emit(Inst::GetField {
+                dest:   dest.clone(),
+                obj:    frame,
+                field:  name.to_string(),
+                ty:     ty.clone(),
+                offset: (idx * 8) as i32,
+            });
+            return Some((dest, ty));
+        }
         // Variable capturée → double-indirection via l'env struct
         if let Some((env_val, idx, ty)) = self.captured_vars.get(name).cloned() {
             let ptr = self.new_value();

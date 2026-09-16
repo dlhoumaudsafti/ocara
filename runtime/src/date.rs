@@ -15,7 +15,6 @@
 //   Date_diffDays(date1, date2)      → i64      différence en jours
 // ─────────────────────────────────────────────────────────────────────────────
 
-use std::ffi::CStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Retourne la date actuelle au format YYYY-MM-DD
@@ -39,7 +38,7 @@ pub extern "C" fn Date_fromTimestamp(ts: i64) -> i64 {
 /// Extrait l'année d'une date YYYY-MM-DD
 #[unsafe(no_mangle)]
 pub extern "C" fn Date_year(date: i64) -> i64 {
-    let date_str = unsafe { CStr::from_ptr(date as *const i8) }.to_str().unwrap_or("");
+    let date_str = unsafe { crate::ptr_to_str(date) };
     let parts: Vec<&str> = date_str.split('-').collect();
     if parts.len() < 3 {
         unsafe {
@@ -63,7 +62,7 @@ pub extern "C" fn Date_year(date: i64) -> i64 {
 /// Extrait le mois d'une date YYYY-MM-DD (1-12)
 #[unsafe(no_mangle)]
 pub extern "C" fn Date_month(date: i64) -> i64 {
-    let date_str = unsafe { CStr::from_ptr(date as *const i8) }.to_str().unwrap_or("");
+    let date_str = unsafe { crate::ptr_to_str(date) };
     let parts: Vec<&str> = date_str.split('-').collect();
     if parts.len() < 3 {
         unsafe {
@@ -87,7 +86,7 @@ pub extern "C" fn Date_month(date: i64) -> i64 {
 /// Extrait le jour d'une date YYYY-MM-DD (1-31)
 #[unsafe(no_mangle)]
 pub extern "C" fn Date_day(date: i64) -> i64 {
-    let date_str = unsafe { CStr::from_ptr(date as *const i8) }.to_str().unwrap_or("");
+    let date_str = unsafe { crate::ptr_to_str(date) };
     let parts: Vec<&str> = date_str.split('-').collect();
     if parts.len() < 3 {
         unsafe {

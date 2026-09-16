@@ -17,6 +17,12 @@ pub struct FuncSig {
     pub has_variadic: bool,  // true si le dernier paramètre est variadic
     pub fixed_params_count: usize,  // nombre de paramètres fixes (avant variadic)
     pub required_params_count: usize,  // nombre de paramètres obligatoires (sans default_value)
+    /// `true` si `ret_ty` est `message<T>` et qu'au moins un `emit` de ce
+    /// corps est atteignable À L'INTÉRIEUR d'une boucle — dans ce cas, la
+    /// consommation scalaire directe (`var x:T = f()`) est interdite (voir
+    /// `crate::sema::message_emit` et docs/roadmap.d/langage-emit-iterable.md).
+    /// Sans corps disponible (interfaces), vaut `false` par défaut.
+    pub message_emit_in_loop: bool,
 }
 
 /// Descripteur d'un champ de classe

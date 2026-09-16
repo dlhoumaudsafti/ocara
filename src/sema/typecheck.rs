@@ -130,6 +130,34 @@ impl<'a> TypeChecker<'a> {
         let saved_ret = self.current_ret.take();
         self.current_ret = Some(func.ret_ty.clone());
 
+        // `message<T>` (générateurs) est return-type-only : jamais un type
+        // de paramètre (voir docs/roadmap.d/langage-emit-iterable.md).
+        for param in &func.params {
+            if let Type::Message(_) = &param.ty {
+                self.errors.push(SemaError::MessageAsParamType {
+                    name: param.name.clone(),
+                    span: param.span.clone(),
+                });
+            }
+        }
+
+        // `message<T>` en retour ⇒ le corps doit contenir au moins un `emit`
+        // atteignable — sinon `message<T>` n'a ici aucun sens (voir la même
+        // fiche roadmap).
+        if let Type::Message(_) = &func.ret_ty {
+            let analysis = crate::sema::message_emit::analyze_emit(&func.body);
+            if !analysis.has_emit {
+                self.errors.push(SemaError::MessageReturnWithoutEmit {
+                    name: func.name.clone(),
+                    span: func.span.clone(),
+                });
+            }
+            // Cas A (emit dans un try) : désormais pris en charge par le
+            // lowering (voir `crate::lower::builder::message_gen::lower_try_in_generator`
+            // et docs/roadmap.d/langage-emit-iterable.md, §4) — plus de
+            // restriction ici.
+        }
+
         for param in &func.params {
             // Warning si variadic<mixed>
             if param.is_variadic {
@@ -140,7 +168,7 @@ impl<'a> TypeChecker<'a> {
                     });
                 }
             }
-            
+
             // Désucrage : variadic<T> → T[] dans le corps de la fonction
             let param_ty = if param.is_variadic {
                 Type::Array(Box::new(param.ty.clone()))
@@ -150,7 +178,7 @@ impl<'a> TypeChecker<'a> {
             
             self.scopes.declare(
                 param.name.clone(),
-                LocalBinding { ty: param_ty, mutable: false, span: param.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false },
+                LocalBinding { ty: param_ty, mutable: false, span: param.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
             );
         }
 
@@ -196,6 +224,14 @@ impl<'a> TypeChecker<'a> {
                     let saved_ret = self.current_ret.take();
                     self.current_ret = Some(Type::Void);
                     for p in params {
+                        // `message<T>` return-type-only (voir check_func) :
+                        // s'applique aussi aux paramètres de constructeur.
+                        if let Type::Message(_) = &p.ty {
+                            self.errors.push(SemaError::MessageAsParamType {
+                                name: p.name.clone(),
+                                span: p.span.clone(),
+                            });
+                        }
                         // Warning si variadic<mixed>
                         if p.is_variadic {
                             if let Type::Mixed = p.ty {
@@ -215,7 +251,7 @@ impl<'a> TypeChecker<'a> {
                         
                         self.scopes.declare(
                             p.name.clone(),
-                            LocalBinding { ty: param_ty, mutable: false, span: p.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false },
+                            LocalBinding { ty: param_ty, mutable: false, span: p.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                         );
                     }
                     self.check_block(body);
@@ -238,6 +274,27 @@ impl<'a> TypeChecker<'a> {
                         self.errors.push(SemaError::MixedInProperty {
                             class: class.name.clone(),
                             field: name.clone(),
+                            span: span.clone(),
+                        });
+                    }
+                    // Un champ de type ressource (Mutex/SQLite/MySQL/MariaDB)
+                    // n'est JAMAIS libéré par `__free_<Classe>` — ni
+                    // aujourd'hui, ni pour aucune classe existante du dépôt
+                    // (voir `class_ownership::classify_field`, portée
+                    // délibérément limitée à `Value`/`Object`, tout le reste
+                    // — dont `Resource` — tombe dans `Plain`, jamais fermé).
+                    // Ce n'est pas un cas non couvert par accident : AUCUN
+                    // mécanisme n'existe pour fermer un tel champ, que
+                    // l'instance porteuse soit libérée automatiquement
+                    // (`scoped`/`consumed`, ou un `var` prouvé non-échappant —
+                    // voir docs/roadmap.d/memoire-strategie-var.md) ou pas —
+                    // rejeté à la déclaration plutôt que de laisser fuir
+                    // silencieusement un handle natif à chaque libération.
+                    if ownership_class(ty) == OwnershipClass::Resource {
+                        self.errors.push(SemaError::ResourceField {
+                            class: class.name.clone(),
+                            field: name.clone(),
+                            ty_name: type_name(ty),
                             span: span.clone(),
                         });
                     }
@@ -293,7 +350,7 @@ impl<'a> TypeChecker<'a> {
                 is_param: false,
                 kind: VarKind::Var,
                 consumed_used_at: None,
-                resource_finalized: false,
+                resource_finalized: false, resource_contained: false,
             },
         );
         
@@ -307,7 +364,7 @@ impl<'a> TypeChecker<'a> {
                 is_param: false,
                 kind: VarKind::Var,
                 consumed_used_at: None,
-                resource_finalized: false,
+                resource_finalized: false, resource_contained: false,
             },
         );
         
@@ -343,21 +400,51 @@ impl<'a> TypeChecker<'a> {
 
     fn check_block(&mut self, block: &Block) {
         self.scopes.push();
-        for stmt in &block.stmts {
+        for (i, stmt) in block.stmts.iter().enumerate() {
             self.check_stmt(stmt);
+            self.check_resource_var_containment(stmt, block, i);
         }
         { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
     }
 
+    /// Juste après avoir déclaré un `var`/`const` d'un type ressource
+    /// (`Mutex`/`SQLite`/`MySQL`/`MariaDB`), détermine s'il ne s'échappe
+    /// jamais du reste de `block` (même analyse que pour la libération
+    /// automatique d'un `var`, voir `crate::sema::escape::var_never_escapes`)
+    /// et, si c'est prouvé, le marque `resource_contained` — condition
+    /// nécessaire (mais pas suffisante : voir `pop_scope`) pour le diagnostic
+    /// `UnclosedResourceVar`. Ne fait rien pour `scoped`/`consumed` (déjà
+    /// finalisées automatiquement en fin de bloc, aucun risque de fuite).
+    fn check_resource_var_containment(&mut self, stmt: &Stmt, block: &Block, i: usize) {
+        let (name, ty) = match stmt {
+            Stmt::Var { name, ty, kind: VarKind::Var, .. } => (name, ty),
+            Stmt::Const { name, ty, .. } => (name, ty),
+            _ => return,
+        };
+        if ownership_class(ty) != OwnershipClass::Resource {
+            return;
+        }
+        if crate::sema::escape::var_never_escapes(
+            &self.class_members, name, block, i, self.current_class.as_deref(), &self.escaping_params,
+        ) {
+            self.scopes.mark_resource_contained(name);
+        }
+    }
+
     /// Convertit ce que `pop_scope` a trouvé en dépilant le scope courant :
-    /// variables inutilisées (warning) et `Thread` `scoped`/`consumed`
-    /// jamais `.join()`/`.detach()` (erreur — voir `OwnershipClass::Thread`).
+    /// variables inutilisées (warning), `Thread` `scoped`/`consumed` jamais
+    /// `.join()`/`.detach()`, et `var`/`const` ressource qui fuient leur
+    /// handle natif (les deux dernières : erreurs — voir
+    /// `OwnershipClass::Thread`/`Resource`).
     fn flush_warnings(&mut self, popped: crate::sema::scope::PoppedScope) {
         for u in popped.unused {
             self.warnings.push(SemaWarning::UnusedVariable { name: u.name, span: u.span });
         }
         for t in popped.unfinalized_threads {
             self.errors.push(SemaError::ThreadNotFinalized { name: t.name, span: t.span });
+        }
+        for r in popped.unclosed_resource_vars {
+            self.errors.push(SemaError::UnclosedResourceVar { name: r.name, ty_name: r.ty_name, span: r.span });
         }
     }
 
@@ -366,11 +453,24 @@ impl<'a> TypeChecker<'a> {
     fn check_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::Var { name, ty, value, mutable, kind, span } => {
+                let ty_is_message = matches!(ty, Type::Message(_));
+                if ty_is_message {
+                    self.errors.push(SemaError::MessageNotNameable {
+                        name: name.clone(),
+                        span: span.clone(),
+                    });
+                }
                 let val_ty = self.infer_expr(value);
                 // `value` peut lui-même être une `scoped`/`consumed` d'un
                 // autre binding (`var y = x`) — c'est un point d'échappement.
                 self.check_escape(value);
-                if !types_compat(&val_ty, ty, &self.symbols) {
+                self.check_message_scalar_consumption(value, &val_ty, span);
+                // Si `ty` est déjà `message<T>` (rejeté juste au-dessus par
+                // MessageNotNameable), un TypeMismatch ici ne ferait
+                // qu'ajouter du bruit ("expected message<int>, found
+                // message<int>" — `types_compat` déballe TOUJOURS le côté
+                // "found", jamais le côté "expected").
+                if !ty_is_message && !types_compat(&val_ty, ty, &self.symbols) {
                     self.errors.push(SemaError::TypeMismatch {
                         expected: type_name(ty),
                         found:    type_name(&val_ty),
@@ -404,7 +504,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 if !self.scopes.declare(
                     name.clone(),
-                    LocalBinding { ty: ty.clone(), mutable: *mutable, span: span.clone(), used: false, is_param: false, kind: *kind, consumed_used_at: None, resource_finalized: false },
+                    LocalBinding { ty: ty.clone(), mutable: *mutable, span: span.clone(), used: false, is_param: false, kind: *kind, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                 ) {
                     self.errors.push(SemaError::DuplicateSymbol {
                         name: name.clone(),
@@ -414,8 +514,16 @@ impl<'a> TypeChecker<'a> {
             }
 
             Stmt::Const { name, ty, value, span } => {
+                let ty_is_message = matches!(ty, Type::Message(_));
+                if ty_is_message {
+                    self.errors.push(SemaError::MessageNotNameable {
+                        name: name.clone(),
+                        span: span.clone(),
+                    });
+                }
                 let val_ty = self.infer_expr(value);
-                if !types_compat(&val_ty, ty, &self.symbols) {
+                self.check_message_scalar_consumption(value, &val_ty, span);
+                if !ty_is_message && !types_compat(&val_ty, ty, &self.symbols) {
                     self.errors.push(SemaError::TypeMismatch {
                         expected: type_name(ty),
                         found:    type_name(&val_ty),
@@ -424,7 +532,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 if !self.scopes.declare(
                     name.clone(),
-                    LocalBinding { ty: ty.clone(), mutable: false, span: span.clone(), used: false, is_param: false, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false },
+                    LocalBinding { ty: ty.clone(), mutable: false, span: span.clone(), used: false, is_param: false, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                 ) {
                     self.errors.push(SemaError::DuplicateSymbol {
                         name: name.clone(),
@@ -474,10 +582,16 @@ impl<'a> TypeChecker<'a> {
 
             Stmt::ForIn { var, iter, body, span } => {
                 let iter_ty = self.infer_expr(iter);
-                // L'itérateur doit être un range (int) ou un tableau
+                // L'itérateur doit être un range (int), un tableau, ou un
+                // générateur `message<T>` (voir
+                // docs/roadmap.d/langage-emit-iterable.md — `for` reste
+                // valable quel que soit le nombre d'`emit`, y compris dans
+                // une boucle : pas de restriction ici, contrairement à la
+                // consommation scalaire directe).
                 let elem_ty = match &iter_ty {
-                    Type::Array(inner) => *inner.clone(),
-                    Type::Int          => Type::Int, // range produit des int
+                    Type::Array(inner)   => *inner.clone(),
+                    Type::Message(inner) => *inner.clone(),
+                    Type::Int            => Type::Int, // range produit des int
                     _ => {
                         self.errors.push(SemaError::TypeMismatch {
                             expected: "itérable".into(),
@@ -488,7 +602,7 @@ impl<'a> TypeChecker<'a> {
                     }
                 };
                 self.scopes.push();
-                self.scopes.declare(var.clone(), LocalBinding { ty: elem_ty, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false });
+                self.scopes.declare(var.clone(), LocalBinding { ty: elem_ty, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
                 self.check_block(body);
                 { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
             }
@@ -496,8 +610,8 @@ impl<'a> TypeChecker<'a> {
             Stmt::ForMap { key, value, iter, body, span } => {
                 self.infer_expr(iter);
                 self.scopes.push();
-                self.scopes.declare(key.clone(),   LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false });
-                self.scopes.declare(value.clone(), LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false });
+                self.scopes.declare(key.clone(),   LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
+                self.scopes.declare(value.clone(), LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
                 self.check_block(body);
                 { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
             }
@@ -511,11 +625,35 @@ impl<'a> TypeChecker<'a> {
                 }
 
                 let ret_ty = self.current_ret.clone().unwrap_or(Type::Void);
+
+                // `return` dans une fonction/méthode `message<T>` (générateur,
+                // voir docs/roadmap.d/langage-emit-iterable.md) : un
+                // générateur ne "retourne" jamais un `T`, il en `emit` — un
+                // `return <valeur>` ici n'a pas de sens (le forwarding
+                // implicite d'une valeur scalaire vers le consommateur du
+                // message<T> n'est pas ce que fait `return`). Un `return`
+                // SANS valeur reste valable : sortie anticipée du générateur
+                // (plus aucune valeur produite après ce point), symétrique à
+                // ce qu'un `return` sans valeur ferait dans n'importe quelle
+                // fonction void.
+                if let Type::Message(_) = &ret_ty {
+                    if let Some(expr) = value {
+                        let ty = self.infer_expr(expr);
+                        self.errors.push(SemaError::ReturnTypeMismatch {
+                            expected: "void (sortie anticipée d'un générateur — utilisez 'emit' pour produire une valeur)".into(),
+                            found:    type_name(&ty),
+                            span:     span.clone(),
+                        });
+                    }
+                    return;
+                }
+
                 if let Some(expr) = value {
                     let ty = self.infer_expr(expr);
                     // `return x` est un point d'échappement au même titre
                     // qu'une affectation.
                     self.check_escape(expr);
+                    self.check_message_scalar_consumption(expr, &ty, span);
 
                     // Exception pour les blocs runtime : main peut retourner ERROR (int) ou SUCCESS (bool)
                     // même si son type de retour est void
@@ -610,7 +748,7 @@ impl<'a> TypeChecker<'a> {
                     // Le binding est de type mixed (type de l'erreur inconnu statiquement)
                     self.scopes.declare(
                         handler.binding.clone(),
-                        LocalBinding { ty: Type::Mixed, mutable: false, span: handler.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false },
+                        LocalBinding { ty: Type::Mixed, mutable: false, span: handler.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                     );
                     self.check_block(&handler.body);
                     { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
@@ -619,6 +757,30 @@ impl<'a> TypeChecker<'a> {
 
             Stmt::Raise { value, .. } => {
                 let _ = self.infer_expr(value);
+            }
+
+            // `emit expr` — voir docs/roadmap.d/langage-emit-iterable.md.
+            // N'a de sens que dans une fonction/méthode dont le type de
+            // retour déclaré est `message<T>` : la valeur émise doit alors
+            // être compatible avec `T` (même règle que `return`/`result`).
+            Stmt::Emit { value, span } => {
+                let ty = self.infer_expr(value);
+                match self.current_ret.clone() {
+                    Some(Type::Message(inner)) => {
+                        if !types_compat(&ty, &inner, &self.symbols) {
+                            self.errors.push(SemaError::ReturnTypeMismatch {
+                                expected: type_name(&inner),
+                                found:    type_name(&ty),
+                                span:     span.clone(),
+                            });
+                        }
+                    }
+                    _ => {
+                        self.errors.push(SemaError::EmitOutsideMessageFunction {
+                            span: span.clone(),
+                        });
+                    }
+                }
             }
 
             Stmt::Assign { target, value, span } => {
@@ -658,6 +820,57 @@ impl<'a> TypeChecker<'a> {
                     }
                 }
             }
+        }
+    }
+
+    // ── `message<T>` : consommation scalaire directe ─────────────────────────
+
+    /// Vérifie la règle "au plus un `emit` atteignable hors boucle" d'un
+    /// `message<T>` consommé directement en scalaire (`var x:T = truc()`,
+    /// `return truc()`...) — voir `crate::sema::message_emit` et
+    /// docs/roadmap.d/langage-emit-iterable.md. `for`/`Array::fromMessage`
+    /// ne passent PAS par ici : ils restent valables dans tous les cas.
+    ///
+    /// `message<T>` n'étant jamais nommable, une valeur de ce type ne peut
+    /// provenir que de l'appel lui-même (`expr`) : pas besoin de suivre un
+    /// alias.
+    fn check_message_scalar_consumption(&mut self, expr: &Expr, val_ty: &Type, span: &Span) {
+        let Type::Message(_) = val_ty else { return };
+
+        let unsafe_call = match expr {
+            Expr::Call { callee, .. } => match callee.as_ref() {
+                Expr::Ident(name, _) => self.symbols.lookup_function(name)
+                    .map(|sig| (name.clone(), sig.message_emit_in_loop)),
+                Expr::Field { object, field, .. } => {
+                    let obj_ty = match object.as_ref() {
+                        Expr::Ident(name, _) => self.scopes.lookup(name).map(|b| b.ty.clone()),
+                        _ => None,
+                    };
+                    obj_ty.and_then(|ty| match ty {
+                        Type::Named(class_name) => self.symbols.lookup_method_in_chain(&class_name, field)
+                            .map(|sig| (field.clone(), sig.message_emit_in_loop)),
+                        _ => None,
+                    })
+                }
+                _ => None,
+            },
+            Expr::StaticCall { class, method, .. } => {
+                let resolved_class = if class == "<self>" {
+                    self.current_class.clone().unwrap_or_default()
+                } else {
+                    class.clone()
+                };
+                self.symbols.lookup_method_in_chain(&resolved_class, method)
+                    .map(|sig| (format!("{}::{}", resolved_class, method), sig.message_emit_in_loop))
+            }
+            _ => None,
+        };
+
+        if let Some((name, true)) = unsafe_call {
+            self.errors.push(SemaError::MessageUnsafeScalarConsumption {
+                name,
+                span: span.clone(),
+            });
         }
     }
 
@@ -702,7 +915,11 @@ impl<'a> TypeChecker<'a> {
                 });
             }
             OwnershipClass::Unsupported => {
-                // Déjà signalé une fois à la déclaration (OwnershipNotSupported).
+                // Comportement voulu, pas une omission : `scoped`/`consumed`
+                // sur un type non pris en charge par ce chantier (primitif,
+                // Function, union, mixed...) se comporte exactement comme
+                // `var` — aucune vérification d'échappement, voir le
+                // commentaire de `Stmt::Var` plus haut.
             }
         }
     }
@@ -728,7 +945,16 @@ impl<'a> TypeChecker<'a> {
     ///   `Array::push(arr, x)`/`Map::set(m, k, v)` (builtins, jamais résolus
     ///   ici, donc jamais vérifiés) et tout appel dont le callee ne retient
     ///   pas son paramètre.
-    fn check_argument_escape(&mut self, args: &[Expr], resolved_key: Option<&str>) {
+    /// `allow_resource_use` : `true` UNIQUEMENT pour un appel dont TOUS les
+    /// paramètres ressource sont, par construction, seulement "utilisés en
+    /// place" (jamais retenus au-delà de l'appel) — cas de `HTTPRequest::*`,
+    /// dont toutes les méthodes sont STATIQUES avec le handle passé en
+    /// argument (`HTTPRequest::send(req)`), contrairement à `Mutex`/`SQLite`
+    /// (méthodes D'INSTANCE, `m.lock()` — jamais un "argument" au sens de
+    /// cette fonction, donc jamais concernées par ce carve-out). Sans cette
+    /// exception, l'usage normal de `HTTPRequest` serait rejeté à tort comme
+    /// un échappement — voir docs/roadmap.d/memoire-double-free-et-fuites-scoped.md.
+    fn check_argument_escape(&mut self, args: &[Expr], resolved_key: Option<&str>, allow_resource_use: bool) {
         for (i, arg) in args.iter().enumerate() {
             let Expr::Ident(name, use_span) = arg else { continue };
             let Some(b) = self.scopes.lookup(name) else { continue };
@@ -736,13 +962,14 @@ impl<'a> TypeChecker<'a> {
                 continue;
             }
             match ownership_class(&b.ty) {
-                OwnershipClass::Resource | OwnershipClass::Thread => {
+                OwnershipClass::Resource | OwnershipClass::Thread if !allow_resource_use => {
                     self.errors.push(SemaError::ResourceEscape {
                         name: name.clone(),
                         class_name: type_name(&b.ty),
                         span: use_span.clone(),
                     });
                 }
+                OwnershipClass::Resource | OwnershipClass::Thread => {}
                 OwnershipClass::Value => {
                     if let Some(key) = resolved_key {
                         let escapes = self.escaping_params.get(key)
@@ -931,8 +1158,11 @@ impl<'a> TypeChecker<'a> {
                         } else {
                             None
                         };
-                        self.check_argument_escape(args, resolved_key);
-                        for arg in args { self.infer_expr(arg); }
+                        self.check_argument_escape(args, resolved_key, false);
+                        for arg in args {
+                            let arg_ty = self.infer_expr(arg);
+                            self.check_message_scalar_consumption(arg, &arg_ty, span);
+                        }
                         return ret;
                     }
 
@@ -1015,6 +1245,7 @@ impl<'a> TypeChecker<'a> {
                     let manual_finalizer = matches!(
                         (cls_name.as_str(), field.as_str()),
                         ("Mutex", "destroy") | ("SQLite", "close") | ("MySQL", "close") | ("MariaDB", "close")
+                            | ("HTTPRequest", "close") | ("HTTPResponse", "closeResponse")
                     );
                     if manual_finalizer {
                         if let Expr::Ident(recv_name, _) = object.as_ref() {
@@ -1034,25 +1265,50 @@ impl<'a> TypeChecker<'a> {
                             for a in args { self.infer_expr(a); }
                             return Type::Mixed;
                         }
-                        if let Some(sig) = self.symbols.lookup_method_in_chain(&cls_name, field) {
+                        // `HTTPResponse` n'a aucune méthode À ELLE : toutes
+                        // les opérations sur une réponse (`status`/`body`/...)
+                        // restent déclarées sur `HTTPRequest` (voir
+                        // `src/builtins/httprequest.rs`) — chercher la
+                        // méthode là plutôt que sur `HTTPResponse` lui-même,
+                        // pour que `res.status()` (sucre d'instance)
+                        // fonctionne malgré cette asymétrie. Sans garde-fou
+                        // supplémentaire, ça permettrait aussi `res.send()`/
+                        // `req.status()` (les deux existent bien sur
+                        // `HTTPRequest`, mais avec un PREMIER PARAMÈTRE de
+                        // l'autre type — confondre les deux passerait le
+                        // mauvais pointeur à la fonction runtime, UB) : la
+                        // liste ci-dessous distingue les méthodes "côté req"
+                        // des méthodes "côté res", même check que
+                        // `is_compatible` un peu plus bas pour JSON.
+                        const HTTP_REQUEST_METHODS: &[&str] = &["setMethod", "setHeader", "setBody", "setTimeout", "send", "close"];
+                        const HTTP_RESPONSE_METHODS: &[&str] = &["status", "body", "header", "headers", "ok", "isError", "error", "closeResponse"];
+                        let http_receiver_ok = match cls_name.as_str() {
+                            "HTTPRequest"  => HTTP_REQUEST_METHODS.contains(&field.as_str()),
+                            "HTTPResponse" => HTTP_RESPONSE_METHODS.contains(&field.as_str()),
+                            _ => true,
+                        };
+                        let method_owner: &str = if cls_name == "HTTPResponse" { "HTTPRequest" } else { cls_name.as_str() };
+                        if let Some(sig) = self.symbols.lookup_method_in_chain(method_owner, field).filter(|_| http_receiver_ok) {
                             // Une méthode static ne peut pas être appelée sur une instance
-                            // SAUF pour les classes String, Array, Map et JSON : les méthodes sont statiques mais utilisables
-                            // comme méthodes d'instance sur les variables (ex: a.trim(), arr.len(), m.size(), data.encode())
-                            if sig.is_static && cls_name != "String" && cls_name != "Array" && cls_name != "Map" && cls_name != "JSON" {
+                            // SAUF pour ces classes : les méthodes sont statiques mais utilisables
+                            // comme méthodes d'instance sur les variables (ex: a.trim(), arr.len(), m.size(), data.encode(), req.close(), res.status()).
+                            let allows_instance_sugar = matches!(cls_name.as_str(), "String" | "Array" | "Map" | "JSON" | "HTTPRequest" | "HTTPResponse");
+                            if sig.is_static && !allows_instance_sugar {
                                 self.errors.push(SemaError::StaticOnInstance {
                                     class:  cls_name.clone(),
                                     method: field.clone(),
                                     span:   fspan.clone(),
                                 });
                             }
-                            
-                            // Pour String, Array, Map et JSON, ajuster le comptage des arguments :
+
+                            // Pour ces classes, ajuster le comptage des arguments :
                             // String::trim(s) a 1 paramètre, mais a.trim() n'en fournit 0
                             // Array::len(arr) a 1 paramètre, mais arr.len() n'en fournit 0
                             // Map::size(m) a 1 paramètre, mais m.size() n'en fournit 0
                             // JSON::encode(data) a 1 paramètre, mais data.encode() n'en fournit 0
+                            // HTTPRequest::close(req) a 1 paramètre, mais req.close() n'en fournit 0
                             // car l'objet sera automatiquement passé comme premier argument
-                            let (expected_min, expected_max) = if (cls_name == "String" || cls_name == "Array" || cls_name == "Map" || cls_name == "JSON") && sig.is_static {
+                            let (expected_min, expected_max) = if allows_instance_sugar && sig.is_static {
                                 // Accepter N-1 arguments (le self est ajouté automatiquement)
                                 let min = if sig.required_params_count > 0 {
                                     sig.required_params_count - 1
@@ -1091,7 +1347,7 @@ impl<'a> TypeChecker<'a> {
                             }
                             let ret = sig.ret_ty.clone();
                             let resolved_key = crate::sema::escape::resolve_user_callable(&self.class_members, &cls_name, field);
-                            self.check_argument_escape(args, resolved_key.as_deref());
+                            self.check_argument_escape(args, resolved_key.as_deref(), false);
                             for arg in args { self.infer_expr(arg); }
                             return ret;
                         }
@@ -1185,6 +1441,37 @@ impl<'a> TypeChecker<'a> {
                     class.clone()
                 };
 
+                // `Array::fromMessage(message<T>) -> array<T>` (voir §2 de
+                // docs/roadmap.d/langage-emit-iterable.md) : draine TOUS les
+                // `emit`, SANS la restriction "au plus un emit hors boucle"
+                // (contrairement à toute autre consommation scalaire) — son
+                // type de retour dépend dynamiquement de l'argument, jamais
+                // un `FuncSig` fixe comme les autres méthodes `Array::*` —
+                // traité entièrement à part, jamais enregistré dans les
+                // builtins normaux.
+                if resolved_class == "Array" && method == "fromMessage" {
+                    if args.len() != 1 {
+                        self.errors.push(SemaError::WrongArgCount {
+                            name:     "Array::fromMessage".to_string(),
+                            expected: 1,
+                            found:    args.len(),
+                            span:     span.clone(),
+                        });
+                        for a in args { self.infer_expr(a); }
+                        return Type::Array(Box::new(Type::Mixed));
+                    }
+                    let arg_ty = self.infer_expr(&args[0]);
+                    if let Type::Message(inner) = arg_ty {
+                        return Type::Array(inner);
+                    }
+                    self.errors.push(SemaError::TypeMismatch {
+                        expected: "message<T>".into(),
+                        found:    type_name(&arg_ty),
+                        span:     span.clone(),
+                    });
+                    return Type::Array(Box::new(Type::Mixed));
+                }
+
                 // Chercher la méthode dans la chaîne d'héritage
                 if let Some(sig) = self.symbols.lookup_method_in_chain(&resolved_class, method) {
                     // Une méthode non-static ne peut pas être appelée via ::
@@ -1217,8 +1504,30 @@ impl<'a> TypeChecker<'a> {
                         });
                     }
                     let resolved_key = crate::sema::escape::resolve_user_callable(&self.class_members, &resolved_class, method);
-                    self.check_argument_escape(args, resolved_key.as_deref());
-                    for arg in args { self.infer_expr(arg); }
+                    self.check_argument_escape(args, resolved_key.as_deref(), resolved_class == "HTTPRequest");
+                    for arg in args {
+                        let arg_ty = self.infer_expr(arg);
+                        self.check_message_scalar_consumption(arg, &arg_ty, span);
+                    }
+                    // `HTTPRequest::close(req)`/`::closeResponse(res)` — même
+                    // mécanisme que `m.destroy()`/`db.close()` ci-dessus
+                    // (E25), mais l'argument est ici passé en ARGUMENT
+                    // (appel statique), pas en receveur d'un appel d'instance
+                    // — voir docs/roadmap.d/memoire-double-free-et-fuites-scoped.md.
+                    let manual_finalizer_arg = match (resolved_class.as_str(), method.as_str()) {
+                        ("HTTPRequest", "close") | ("HTTPRequest", "closeResponse") => args.first(),
+                        _ => None,
+                    };
+                    if let Some(Expr::Ident(recv_name, _)) = manual_finalizer_arg {
+                        if self.scopes.mark_resource_finalized(recv_name) {
+                            self.errors.push(SemaError::ResourceAlreadyFinalized {
+                                name: recv_name.clone(),
+                                class_name: if method == "close" { "HTTPRequest".to_string() } else { "HTTPResponse".to_string() },
+                                method: method.clone(),
+                                span: span.clone(),
+                            });
+                        }
+                    }
                     return ret;
                 }
                 for arg in args { self.infer_expr(arg); }
@@ -1308,7 +1617,7 @@ impl<'a> TypeChecker<'a> {
                 }
 
                 let resolved_key = crate::sema::escape::resolve_user_callable(&self.class_members, class, "init");
-                self.check_argument_escape(args, resolved_key.as_deref());
+                self.check_argument_escape(args, resolved_key.as_deref(), false);
                 for arg in args { self.infer_expr(arg); }
 
                 // Si c'est un générique avec type_args, retourner Type::Generic
@@ -1412,7 +1721,7 @@ impl<'a> TypeChecker<'a> {
                 for p in params {
                     self.scopes.declare(
                         p.name.clone(),
-                        LocalBinding { ty: p.ty.clone(), mutable: false, span: p.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false },
+                        LocalBinding { ty: p.ty.clone(), mutable: false, span: p.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                     );
                 }
                 // Sauvegarder current_ret et le remplacer par le type de retour de la closure
@@ -1546,6 +1855,7 @@ pub fn type_name(ty: &Type) -> String {
         Type::Qualified(parts) => parts.join("."),
         Type::Array(inner)     => format!("{}[]", type_name(inner)),
         Type::Map(k, v)        => format!("map<{},{}>", type_name(k), type_name(v)),
+        Type::Message(inner)   => format!("message<{}>", type_name(inner)),
         Type::Generic { name, args } => {
             let type_args = args.iter().map(type_name).collect::<Vec<_>>().join(", ");
             format!("{}<{}>", name, type_args)
@@ -1588,6 +1898,14 @@ pub fn types_compat(found: &Type, expected: &Type, symbols: &SymbolTable) -> boo
         return matches!(expected,
             Type::String | Type::Named(_) | Type::Array(_) | Type::Map(..) | Type::Null
         );
+    }
+    // `message<T>` consommé en scalaire : compatible avec tout ce que `T`
+    // accepte (voir docs/roadmap.d/langage-emit-iterable.md) — la règle "au
+    // plus un `emit` hors boucle" est vérifiée séparément, PAS ici (voir
+    // `check_message_scalar_consumption`, qui a besoin de l'expression
+    // d'origine et pas seulement des types).
+    if let Type::Message(inner) = found {
+        return types_compat(inner, expected, symbols);
     }
     match (found, expected) {
         (Type::Named(f), Type::Named(e)) => {

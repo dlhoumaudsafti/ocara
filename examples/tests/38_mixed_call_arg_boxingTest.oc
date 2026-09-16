@@ -72,6 +72,59 @@ class Test_38_mixed_call_arg_boxing {
         UnitTest::assertTrue(second equal 3000000)
         return 0
     }
+
+    // BUG CORRIGÉ (voir docs/roadmap.d/langage-array-get-display-bug.md) :
+    // pour un appel EN SUCRE (`arr.get(idx)`) vers un builtin à double forme
+    // (Array/Map/...), l'argument `idx` recevait le type du RÉCEPTEUR (`arr`,
+    // toujours `mixed`/Ptr dans la table de signatures des builtins, qui
+    // décrit la forme STATIQUE où le récepteur est un argument explicite) au
+    // lieu de son propre type déclaré (`int`) — décalage d'index d'une
+    // position, invisible tant que `box_int_if_needed` ne boxait jamais un
+    // entier en dessous du seuil pointeur. `idx == 0` boxé à tort devenait un
+    // pointeur arbitraire transmis à `__array_get`, hors-borne : `null`
+    // silencieux ici (élément concret), SEGFAULT si le résultat est déréférencé
+    // sans vérification (voir sugarGetIndexZeroOnObjectArrayTest ci-dessous,
+    // reproduction exacte du crash confirmé sur
+    // examples/tests/35_var_auto_freeTest.oc). Corrigé par
+    // `param_type_for_sugar_call_arg` (src/lower/expr.d/helpers.rs).
+    public method sugarGetIndexZeroNotCorruptedTest(): int {
+        var arr:array<int> = [10, 20, 30]
+        var first:int = arr.get(0)
+        UnitTest::assertEquals(10, first)
+        return 0
+    }
+
+    // Même bug, avec la conséquence réellement observée (SEGFAULT) : un objet
+    // récupéré comme `null` par erreur puis son champ lu directement
+    // (`GetField`, sans vérification de nullité).
+    public method sugarGetIndexZeroOnObjectArrayTest(): int {
+        var acc:array<Cell> = []
+        var i:int = 0
+        while i smaller 5 {
+            var c:Cell = use Cell(i)
+            acc.push(c)
+            i = i + 1
+        }
+        var first:Cell = acc.get(0)
+        UnitTest::assertEquals(0, first.n)
+        var last:Cell = acc.get(4)
+        UnitTest::assertEquals(4, last.n)
+        return 0
+    }
+
+    // Même décalage d'index, sur un builtin à 2 arguments explicites
+    // (`arr.slice(from, to)`) : `from == 0` (premier argument sucré) se
+    // voyait attribuer le type du récepteur (position 0 de la signature
+    // statique) au lieu de son propre type (`int`, position 1) — même risque
+    // de corruption que pour `get`.
+    public method sugarSliceFromZeroNotCorruptedTest(): int {
+        var arr:array<int> = [10, 20, 30, 40]
+        var sub:array<int> = arr.slice(0, 2)
+        UnitTest::assertEquals(2, Array::len(sub))
+        UnitTest::assertEquals(10, sub.get(0))
+        UnitTest::assertEquals(20, sub.get(1))
+        return 0
+    }
 }
 
 class Box {
@@ -111,4 +164,12 @@ class StaticBox {
     public static method acceptInt(v:mixed): bool {
         return v is int
     }
+}
+
+// Classe simple à propriété concrète (`int`, jamais `mixed`) — sert
+// uniquement à observer le SEGFAULT (accès de champ sans vérification de
+// nullité) provoqué par l'ancien décalage d'index sur `Array::get` sucré.
+class Cell {
+    public property n:int
+    init(n:int) { self.n = n }
 }

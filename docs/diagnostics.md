@@ -566,6 +566,128 @@ Pour une `scoped`/`consumed` de type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaD
 
 ---
 
+### E27 — `extends` vers une classe/generic inconnu
+
+```
+fichier.oc:9:1: error: class 'Foo' extends unknown class 'DoesNotExist'
+fichier.oc:5:1: error: generic 'Bag' extends unknown class/generic 'NoSuchThing'
+```
+
+Une classe ou un `generic` déclare `extends X` où `X` ne correspond à aucune classe (ni, pour un `generic`, à aucun autre `generic`) connue — auparavant accepté silencieusement, sans que l'héritage ne fasse quoi que ce soit d'utile.
+
+**Correction :** corriger le nom du parent, ou retirer la clause `extends` si elle n'était pas voulue.
+
+---
+
+### E28 — Fuite d'un handle natif déclaré en `var`/`const`
+
+```
+fichier.oc:4:5: error: 'm' ('Mutex') is declared with 'var'/'const', never escapes its block, and is never '.destroy()'ed/'.close()'d — this native handle leaks permanently, since 'var'/'const' never close a resource automatically (unlike 'scoped'/'consumed'); call '.destroy()'/'.close()' explicitly, or declare it 'scoped'/'consumed' if you want the compiler to finalize it for you
+```
+
+Un `var`/`const` d'un type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`) dont l'analyse d'échappement statique (la même que pour la libération automatique d'un `var`, voir `crate::sema::escape::var_never_escapes`) prouve qu'il ne s'échappe jamais (jamais retourné, réaffecté, ni passé en argument), et qui atteint la fin de son bloc sans avoir été manuellement `.destroy()`/`.close()`. Contrairement à `scoped`/`consumed`, qui finalisent automatiquement une ressource en fin de bloc, `var`/`const` ne le font jamais — ce handle natif (mutex, connexion) fuit alors pour toujours.
+
+Volontairement conservateur : dès que la variable pourrait s'échapper d'une façon quelconque (retour, réaffectation, argument d'un appel), aucune erreur n'est levée — mieux vaut manquer une fuite réelle que rejeter du code légitime.
+
+```ocara
+function main(): int {
+    var m:Mutex = use Mutex()   // ❌ jamais fermé, jamais échappé
+    m.lock()
+    m.unlock()
+    return 0
+}
+```
+
+**Correction :** appeler `.destroy()`/`.close()` explicitement avant la fin du bloc, ou déclarer la variable `scoped`/`consumed` si la fermeture automatique de fin de bloc est voulue.
+
+---
+
+### E29 — Champ de classe d'un type ressource
+
+```
+fichier.oc:5:5: error: 'Cache.lock' ('Mutex') is a native resource field — it is never closed when a 'Cache' instance is destroyed (no mechanism exists for this today), so this handle always leaks; manage it outside the class instead, or expose an explicit method the caller must invoke before discarding the instance
+```
+
+Une `property` d'un type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`) sur une classe utilisateur — `__free_<Classe>` (généré pour `scoped`/`consumed`, et pour un `var` auto-libéré) ne sait libérer/fermer qu'un champ `string`/`array`/`map`/instance de classe utilisateur, jamais une ressource : ce champ fuirait systématiquement son handle natif à chaque libération de l'instance porteuse, quelle que soit la façon dont cette instance est elle-même gérée.
+
+**Correction :** ne pas stocker la ressource directement dans un champ de la classe — la gérer en dehors (ex. l'injecter à chaque appel de méthode plutôt que de la conserver), ou exposer une méthode explicite (`close()`) que l'appelant doit invoquer lui-même avant d'abandonner l'instance.
+
+---
+
+### E30 — `message<T>` nommé (`var`/`scoped`/`consumed`)
+
+```
+fichier.oc:5:5: error: 'm': type 'message<T>' cannot be named — it is valid only as the declared return type of a function/method containing 'emit', never in a 'var'/'scoped'/'consumed' declaration
+```
+
+`message<T>` (générateurs, voir `docs/roadmap.d/langage-emit-iterable.md`) n'est jamais nommable : il n'existe que comme résultat anonyme et immédiat d'un appel à une fonction/méthode contenant `emit`.
+
+```ocara
+function truc(): message<int> { emit 1 }
+consumed m:message<int> = truc()   // ❌ E30
+```
+
+**Correction :** consommer le `message<T>` directement (`for x in truc()`, `var x:int = truc()`, `Array::fromMessage(truc())`) sans jamais le nommer lui-même.
+
+---
+
+### E31 — `message<T>` comme type de paramètre
+
+```
+fichier.oc:3:19: error: parameter 'm': type 'message<T>' cannot be used as a parameter type — it is return-type-only
+```
+
+`message<T>` est return-type-only : il ne peut jamais être le type déclaré d'un paramètre de fonction, méthode ou constructeur.
+
+**Correction :** ne pas passer de `message<T>` en paramètre — la fonction qui produit les valeurs doit elle-même contenir les `emit`.
+
+---
+
+### E32 — `message<T>` en retour sans `emit`
+
+```
+fichier.oc:3:1: error: 'noEmit' declares return type 'message<T>' but its body contains no reachable 'emit' — 'message<T>' is only valid as the return type of a function/method that actually emits
+```
+
+Une fonction/méthode déclare `message<T>` en retour mais son corps ne contient aucun `emit` atteignable — `message<T>` n'a de sens que pour une fonction qui émet réellement (pas de transfert/forwarding pris en charge).
+
+**Correction :** ajouter au moins un `emit` au corps, ou changer le type de retour si la fonction n'est pas un générateur.
+
+---
+
+### E33 — `emit` hors d'une fonction `message<T>`
+
+```
+fichier.oc:4:5: error: 'emit' is only valid inside a function/method whose declared return type is 'message<T>'
+```
+
+`emit` est utilisé dans une fonction/méthode dont le type de retour déclaré n'est pas `message<T>`.
+
+**Correction :** déclarer le type de retour de la fonction en `message<T>`, ou retirer le `emit`.
+
+---
+
+### E34 — Consommation scalaire directe d'un `message<T>` multi-émission
+
+```
+fichier.oc:8:5: error: 'trucLoop()' returns 'message<T>' with an 'emit' reachable inside a loop — the compiler cannot prove that at most one value is ever produced, so it cannot be consumed directly as a scalar here; use 'for x in trucLoop()' or 'Array::fromMessage(trucLoop())' instead
+```
+
+`emit` dans une boucle (`while`/`for`) reste du Ocara parfaitement valide, mais désactive la consommation scalaire directe (`var x:T = f()`, argument de fonction) : le compilateur ne peut plus prouver statiquement qu'au plus une valeur est jamais produite. Le branchement simple (`if`/`elseif`/`else`, `switch`) n'est PAS concerné — `if cond { emit 1 } else { emit 2 }` reste consommable directement.
+
+```ocara
+function trucLoop(): message<int> {
+    var i:int = 0
+    while i smaller 3 { emit i; i = i + 1 }
+}
+var v:int = trucLoop()   // ❌ E34
+for x in trucLoop() { }  // ✅ toujours valable
+```
+
+**Correction :** consommer via `for x in ...` ou `Array::fromMessage(...)` plutôt qu'en scalaire direct.
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.

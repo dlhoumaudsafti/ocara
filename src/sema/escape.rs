@@ -299,6 +299,13 @@ fn walk_stmt(
             // l'objet exception) — traitée prudemment comme échappante.
             escaped.extend(taint_of_expr(value, taint));
         }
+        Stmt::Emit { value, .. } => {
+            walk_expr_for_calls(class_members, value, self_class, known, taint, escaped, strict);
+            // Même raisonnement que `return`/`raise` : la valeur émise part
+            // vers le consommateur du générateur, traitée prudemment comme
+            // échappante (voir docs/roadmap.d/langage-emit-iterable.md).
+            escaped.extend(taint_of_expr(value, taint));
+        }
     }
 }
 
@@ -491,6 +498,7 @@ fn collect_ident_refs_stmt(stmt: &Stmt, out: &mut HashSet<String>) {
             for h in handlers { collect_ident_refs(&h.body, out); }
         }
         Stmt::Raise { value, .. } => collect_ident_refs_expr(value, out),
+        Stmt::Emit { value, .. } => collect_ident_refs_expr(value, out),
     }
 }
 

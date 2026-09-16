@@ -13,6 +13,15 @@ pub fn lower_for_in(
     iter: &Expr,
     body: &Block,
 ) {
+    // `for x in truc(...)` où `truc` est un générateur (`emit`/`message<T>`,
+    // voir docs/roadmap.d/langage-emit-iterable.md) : lowering entièrement
+    // différent (machine à états, pas de tableau) — voir
+    // `crate::lower::builder::message_gen::lower_for_message`.
+    if let Some((mangled, elem_ty)) = crate::lower::builder::message_gen::detect_message_call(builder, iter) {
+        crate::lower::builder::message_gen::lower_for_message(builder, var, iter, &mangled, elem_ty, body);
+        return;
+    }
+
     // Lowering : __iter_init(iter), boucle sur __iter_next
     let iter_val  = lower_expr(builder, iter);
     let idx_slot  = builder.declare_local("__for_idx", IrType::I64, true);
@@ -93,8 +102,8 @@ pub fn lower_for_in(
         });
     }
     
-    let elem_slot = builder.declare_local(var, elem_ty.clone(), false);
-    builder.emit(Inst::Store { ptr: elem_slot, src: elem });
+    builder.declare_local(var, elem_ty.clone(), false);
+    builder.store_local(var, elem);
     
     // Si l'itérateur est une variable avec un type d'élément map, enregistrer les métadonnées
     if let Expr::Ident(iter_name, _) = iter {
@@ -192,8 +201,8 @@ pub fn lower_for_map(
         args:   vec![keys_arr.clone(), idx.clone()],
         ret_ty: IrType::Ptr,
     });
-    let key_slot = builder.declare_local(key, IrType::Ptr, false);
-    builder.emit(Inst::Store { ptr: key_slot, src: k.clone() });
+    builder.declare_local(key, IrType::Ptr, false);
+    builder.store_local(key, k.clone());
 
     // Valeur correspondante
     let v = builder.new_value();
@@ -203,8 +212,8 @@ pub fn lower_for_map(
         args:   vec![iter_val.clone(), k],
         ret_ty: IrType::I64,
     });
-    let val_slot = builder.declare_local(value, IrType::I64, false);
-    builder.emit(Inst::Store { ptr: val_slot, src: v });
+    builder.declare_local(value, IrType::I64, false);
+    builder.store_local(value, v);
 
     // continue → incr_bb, break → merge_bb
     builder.loop_stack.push((incr_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len()));

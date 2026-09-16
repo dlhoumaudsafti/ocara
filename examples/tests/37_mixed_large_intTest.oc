@@ -12,12 +12,9 @@ import ocara.JSON
 // NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée du
 // fichier (voir 33_exception_hierarchyTest.oc) — pas de classe auxiliaire ici.
 //
-// NOTE assertEquals : `UnitTest::assertEquals` compare par égalité BRUTE de
-// i64 (bug pré-existant, documenté ce même chantier) — comparer directement
-// un `mixed` boxé à un littéral concret via assertEquals donnerait un faux
-// FAIL (adresse boxée vs valeur brute). On utilise `equal`/`assertTrue` (vraie
-// comparaison de valeur, `__cmp_eq_strict`) pour tout ce qui touche un
-// `mixed`, et `assertEquals` seulement pour des petits entiers concrets.
+// NOTE assertEquals : `UnitTest::assertEquals` utilise désormais une vraie
+// comparaison (type + valeur, `__cmp_eq_strict`), plus une égalité brute de
+// i64 — `assertEquals` fonctionne donc correctement même sur un `mixed` boxé.
 
 class Test_37_mixed_large_int {
 
@@ -123,6 +120,88 @@ class Test_37_mixed_large_int {
         UnitTest::assertEquals(3, Array::len(floats))
         UnitTest::assertEquals(3, Array::len(ints))
         UnitTest::assertEquals(1000000, ints[0])
+        return 0
+    }
+
+    // Ambiguïté `0`/`null` dans un `mixed` (voir
+    // docs/roadmap.d/langage-array-get-display-bug.md) — un entier brut `0`
+    // logé dans un `mixed` était structurellement indiscernable de `null`
+    // (les deux valent le bit pattern `0`), affichant/traitant un entier `0`
+    // authentique comme `null`. Corrigé en boxant spécifiquement `0` (même
+    // mécanisme que pour un grand entier ci-dessus, magnitude mise à part) :
+    // `box_int_if_needed` boxe désormais `n != 0 && n < 0x10000` OU `n == 0`.
+    public method mixedZeroIsIntNotNullTest(): int {
+        var m:mixed = 0
+        UnitTest::assertTrue(m is int)
+        UnitTest::assertFalse(m is null)
+        UnitTest::assertTrue(m equal 0)
+        UnitTest::assertEquals(0, m)
+        return 0
+    }
+
+    // `null` reste `null` — le correctif ne doit pas casser sa propre
+    // détection (seul l'entier `0` change de représentation, pas `null`).
+    public method mixedNullStillNullTest(): int {
+        var n:mixed = null
+        UnitTest::assertTrue(n is null)
+        UnitTest::assertFalse(n is int)
+        return 0
+    }
+
+    // Un `mixed` valant l'entier `0` et un `mixed` valant `null` ont le MÊME
+    // bit pattern brut avant ce correctif — ils doivent rester DISTINCTS
+    // (types différents) pour `equal`, jamais confondus.
+    public method mixedZeroNotEqualNullTest(): int {
+        var zero:mixed = 0
+        var nul:mixed = null
+        UnitTest::assertFalse(zero equal nul)
+        return 0
+    }
+
+    // Réaffectation : un mixed qui contient d'abord `0`, puis `null`, puis de
+    // nouveau `0` — chaque valeur reste correctement distincte.
+    public method mixedZeroNullReassignmentTest(): int {
+        var v:mixed = 0
+        UnitTest::assertTrue(v is int)
+        v = null
+        UnitTest::assertTrue(v is null)
+        v = 0
+        UnitTest::assertTrue(v is int)
+        UnitTest::assertEquals(0, v)
+        return 0
+    }
+
+    // Arithmétique dynamique (`+`) produisant `0` dans un `mixed` (pas juste
+    // affecté directement) : le résultat doit rester un entier `0`, pas `null`.
+    public method dynAddResultZeroTest(): int {
+        var a:mixed = 5
+        var b:mixed = 0 - 5
+        var c:mixed = a + b
+        UnitTest::assertTrue(c is int)
+        UnitTest::assertEquals(0, c)
+        return 0
+    }
+
+    // `array<mixed>` contenant `0` et `null` mélangés : chaque élément garde
+    // son identité propre (pas seulement une variable isolée).
+    public method mixedArrayZeroAndNullTest(): int {
+        var arr:array<mixed> = [0, null, 5]
+        UnitTest::assertEquals(3, Array::len(arr))
+        var first:mixed = Array::get(arr, 0)
+        var second:mixed = Array::get(arr, 1)
+        UnitTest::assertTrue(first is int)
+        UnitTest::assertTrue(second is null)
+        UnitTest::assertEquals(0, first)
+        return 0
+    }
+
+    // `JSON::encode` d'un `array<mixed>` contenant `0` et `null` : les deux
+    // doivent apparaître distinctement dans le JSON produit (`0`, pas `null`,
+    // pour l'entier).
+    public method jsonEncodeZeroVsNullTest(): int {
+        var arr:array<mixed> = [0, null]
+        var encoded:string = JSON::encode(arr)
+        UnitTest::assertEquals("[0,null]", encoded)
         return 0
     }
 }

@@ -71,7 +71,11 @@ pkgconfig-shim:
 # src/codegen/link.rs) : lié seulement pour les programmes qui importent
 # ocara.Tauri, il a donc aussi besoin du shim pkg-config GTK/WebKit à la
 # compilation (il dépend directement du crate `tauri`).
-# -j1 sur ocara : Cranelift est très lourd à compiler en parallèle (SIGKILL OOM)
+# La contrainte -j1 historiquement documentée ici (Cranelift lourd à
+# compiler en parallèle, SIGKILL OOM) ne s'applique plus/pas sur cette
+# machine : -j4 a tourné sans incident sur des dizaines de builds successifs
+# (voir docs/roadmap.d/packaging-build-cargo.md) — repasser à -j1 si l'OOM
+# est un jour de nouveau observé sur une machine à mémoire plus limitée.
 build: pkgconfig-shim
 	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime -j4
 	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime_tauri -j4

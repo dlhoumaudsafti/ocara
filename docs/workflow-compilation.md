@@ -156,6 +156,10 @@ Ocara n'a **aucun ramasse-miettes** : c'est cette phase de lowering qui insère 
 - **E18** : échappement d'une ressource `scoped`/`consumed` (`Mutex`, `SQLite`, `MySQL`, `Thread`, ...) hors de son bloc
 - **E19** : `Thread` non finalisée (`.join()`/`.detach()`) avant la fin du bloc
 
+**e) Générateurs — `emit`/`message<T>` (`builder.d/message_gen.rs`)**
+
+Une fonction/méthode contenant `emit` (voir `docs/EBNF.md` §28) n'est **pas** lowered comme une fonction normale : elle produit DEUX `IrFunction` distinctes — `<nom>__new(params...) -> Ptr` (alloue un frame heap, y stocke les arguments, état initial `0`) et `<nom>__resume(frame:Ptr) -> Bool` (la machine à états elle-même : un prologue lit l'état sauvegardé et saute au bon point de reprise ; un `emit` stocke la valeur émise dans le frame, avance l'état, et fait un vrai `Return` natif — la pile est entièrement redéroulée entre deux reprises, une reprise étant un nouvel appel natif normal, pas un retour dans une pile suspendue). TOUS les paramètres et variables locales sont promus dans ce frame (pas d'analyse de vivacité) ; `LowerBuilder::frame_vars` rend cette promotion transparente pour le reste du lowering de contrôle de flux (`if`/`while`/`switch` fonctionnent sans changement). Un `try`/`on` À L'INTÉRIEUR d'un générateur est lowered INLINE dans `__resume` (jamais en fonctions séparées comme `lower_try`), avec rejeu de `setjmp` à chaque reprise — voir docs/roadmap.d/langage-emit-iterable.md pour le détail complet.
+
 L'IR ressemble à un assembleur virtuel indépendant de la plateforme, avec un nombre illimité de registres.
 
 ### 5️⃣ **Code Generation** (IR → Code Natif)

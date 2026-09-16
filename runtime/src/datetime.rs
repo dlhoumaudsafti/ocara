@@ -15,7 +15,6 @@
 //   DateTime_parse(s)                  → i64      parse ISO 8601 → timestamp
 // ─────────────────────────────────────────────────────────────────────────────
 
-use std::ffi::CStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Retourne le timestamp Unix actuel (secondes depuis 1970-01-01 00:00:00 UTC)
@@ -76,7 +75,7 @@ pub extern "C" fn DateTime_second(ts: i64) -> i64 {
 /// Patterns supportés : %Y (année), %m (mois), %d (jour), %H (heure), %M (minute), %S (seconde)
 #[unsafe(no_mangle)]
 pub extern "C" fn DateTime_format(ts: i64, fmt: i64) -> i64 {
-    let fmt_str = unsafe { CStr::from_ptr(fmt as *const i8) }.to_str().unwrap_or("");
+    let fmt_str = unsafe { crate::ptr_to_str(fmt) };
     let (year, month, day, hour, minute, second) = timestamp_to_parts(ts);
     
     let result = fmt_str
@@ -94,7 +93,7 @@ pub extern "C" fn DateTime_format(ts: i64, fmt: i64) -> i64 {
 /// Format attendu : YYYY-MM-DDTHH:MM:SS ou YYYY-MM-DD HH:MM:SS
 #[unsafe(no_mangle)]
 pub extern "C" fn DateTime_parse(s: i64) -> i64 {
-    let s_str = unsafe { CStr::from_ptr(s as *const i8) }.to_str().unwrap_or("");
+    let s_str = unsafe { crate::ptr_to_str(s) };
     
     // Parser YYYY-MM-DDTHH:MM:SS ou YYYY-MM-DD HH:MM:SS
     let parts: Vec<&str> = s_str.split(&['T', ' '][..]).collect();

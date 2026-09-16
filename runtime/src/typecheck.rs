@@ -58,10 +58,11 @@ pub extern "C" fn __is_null(val: i64) -> i64 {
     if val == 0 { 1 } else { 0 }
 }
 
-/// int : soit un entier brut (val != 0 && val.abs() < PTR_THRESHOLD), soit un
-/// entier boxé (bits 1:0 = 11, voir `__box_int_for_mixed`/`box_int_if_needed`
-/// dans lib.rs — un entier assez grand pour être ambigu avec un pointeur heap
-/// est boxé quand il est logé dans un `mixed`, exactement comme float/bool).
+/// int : soit un entier brut NON NUL (val != 0 && val.abs() < PTR_THRESHOLD),
+/// soit un entier boxé (bits 1:0 = 11, voir `__box_int_for_mixed`/
+/// `box_int_if_needed` dans lib.rs — un entier assez grand pour être ambigu
+/// avec un pointeur heap, OU valant `0` (sinon indiscernable de `null`), est
+/// boxé quand il est logé dans un `mixed`).
 #[unsafe(no_mangle)]
 pub extern "C" fn __is_int(val: i64) -> i64 {
     if val >= PTR_THRESHOLD && (val & 3) == 3 { return 1; }

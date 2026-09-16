@@ -132,12 +132,19 @@ impl CraneliftEmitter {
             let name = format!("__str_{}", i);
             let mut desc = DataDescription::new();
             desc.set_align(8); // align 8 pour garantir bits bas = 000 (invariant boxing)
-            // Header de 8 octets : TAG_STRING = 1 (little-endian i64)
-            // Suivi des données de la chaîne null-terminated.
-            // Le pointeur retourné à Ocara pointe APRÈS ce header.
-            let mut bytes: Vec<u8> = vec![1, 0, 0, 0, 0, 0, 0, 0]; // TAG_STRING
+            // Header de 16 octets : longueur réelle (8 octets) puis
+            // TAG_STRING = 1 (8 octets, little-endian i64) — même layout
+            // qu'`alloc_str` (`[len][tag][données...][NUL]`), pour que
+            // `ptr_to_str` puisse lire la vraie longueur uniformément,
+            // littéral ou non, au lieu de tronquer au premier octet NUL
+            // (un littéral PEUT légitimement contenir un NUL interne,
+            // `"a\0b"` — voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md).
+            // Le pointeur retourné à Ocara pointe APRÈS ce header (le tag
+            // reste donc à l'offset habituel `val - 8`, inchangé).
+            let mut bytes: Vec<u8> = (s.len() as i64).to_le_bytes().to_vec();
+            bytes.extend_from_slice(&1i64.to_le_bytes()); // TAG_STRING
             bytes.extend_from_slice(s.as_bytes());
-            bytes.push(0); // null-terminated
+            bytes.push(0); // null-terminated (conservé pour compat FFI/affichage debug)
             desc.define(bytes.into_boxed_slice());
             let data_id = self.module
                 .declare_data(&name, Linkage::Local, false, false)

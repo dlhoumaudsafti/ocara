@@ -1,10 +1,6 @@
 # Couverture de tests et de CI incomplète
 
-Le bug d'import qui cassait `examples/tests/11_interfacesTest.oc`, la CI pour `examples/advanced/httpserver`, et le skip propre de `builtins/mysql` sans serveur local sont corrigés — voir git log.
-
-## Reste à faire : `examples/generics/` toujours absent de toute cible Makefile/CI
-
-La syntaxe obsolète (`T[]`) y a été corrigée (ces fichiers compilent), mais aucune cible Makefile/CI ne les exécute — `examples/generics/` reste entièrement hors du filet de `make regression`. À ajouter, avec un script dédié si besoin (même format que `httpserver.sh`).
+Le bug d'import qui cassait `examples/tests/11_interfacesTest.oc`, la CI pour `examples/advanced/httpserver`, le skip propre de `builtins/mysql` sans serveur local, et l'ajout d'`examples/generics/main.oc` à `ci/regression.sh` (`List.oc` est une classe importée, pas un point d'entrée ; `test_syntax.oc` reste une fixture de coloration syntaxique sans `main()`, volontairement hors CI) sont corrigés — voir git log.
 
 ## Pour plus tard : vraie infrastructure CI pour MySQL
 

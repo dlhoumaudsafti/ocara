@@ -1,0 +1,296 @@
+import ocara.UnitTest
+import ocara.Array
+import ocara.IO
+
+// Instruction `emit`/type `message<T>` (générateurs, façon `yield` PHP) —
+// voir docs/roadmap.d/langage-emit-iterable.md. Couvre les 2 formes de
+// consommation câblées (`for`, scalaire directe) pour des fonctions ET des
+// méthodes, ainsi que le Cas A (`emit` à l'intérieur d'un `try`, dans le
+// générateur lui-même) : rejeu de `setjmp`/`TryFrame` à chaque reprise,
+// y compris avec des `try` imbriqués et un `raise` déclenché par une
+// fonction appelée depuis l'intérieur du `try`.
+//
+// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée
+// du fichier (voir 33_exception_hierarchyTest.oc) — la classe de test doit
+// donc précéder les classes/fonctions auxiliaires ci-dessous.
+
+class Test_42_emit_generator {
+
+    // `for x in truc()` — consommation complète, aucune restriction.
+    public method forBasicTest(): int {
+        var sum:int = 0
+        for x in twoValues() {
+            sum = sum + x
+        }
+        UnitTest::assertEquals(3, sum)
+        return 0
+    }
+
+    // Consommation scalaire directe : `var v:T = truc()`.
+    public method scalarVarTest(): int {
+        var v:int = singleValue()
+        UnitTest::assertEquals(42, v)
+        return 0
+    }
+
+    // Consommation scalaire directe en position d'ARGUMENT d'un appel.
+    public method scalarAsArgumentTest(): int {
+        UnitTest::assertEquals(42, identity(singleValue()))
+        return 0
+    }
+
+    // Branchement (`if`/`else`) : au plus un `emit` jamais atteint, donc
+    // consommation scalaire directe autorisée pour les DEUX branches.
+    public method branchScalarTest(): int {
+        UnitTest::assertEquals(1, branchValue(true))
+        UnitTest::assertEquals(2, branchValue(false))
+        return 0
+    }
+
+    // `emit` dans une boucle (`while`) : interdit en scalaire direct (voir
+    // 21_errors.oc pour le diagnostic E34), mais parfaitement valable via
+    // `for` — aucune restriction dans ce cas.
+    public method loopForTest(): int {
+        var sum:int = 0
+        var count:int = 0
+        for x in countTo(4) {
+            sum = sum + x
+            count = count + 1
+        }
+        UnitTest::assertEquals(6, sum)     // 0+1+2+3
+        UnitTest::assertEquals(4, count)
+        return 0
+    }
+
+    // `break` anticipé depuis un `for` sur générateur : le frame doit être
+    // libéré normalement (même bloc de fusion que l'épuisement naturel).
+    public method breakEarlyTest(): int {
+        var count:int = 0
+        for x in countTo(100) {
+            count = count + 1
+            if x equal 2 {
+                break
+            }
+        }
+        UnitTest::assertEquals(3, count)   // 0, 1, 2 puis break
+        return 0
+    }
+
+    // Générateur MÉTHODE (d'instance) : mêmes 2 formes de consommation.
+    public method methodGeneratorTest(): int {
+        var g:Gen = use Gen()
+        var first:int = g.produce()
+        UnitTest::assertEquals(10, first)
+
+        var sum:int = 0
+        for x in g.produce() {
+            sum = sum + x
+        }
+        UnitTest::assertEquals(30, sum)    // 10 + 20
+        return 0
+    }
+
+    // Cas A : `emit` dans un `try` qui ne lève jamais — le chemin normal ne
+    // doit rien casser.
+    public method tryNoRaiseTest(): int {
+        var sum:int = 0
+        for x in tryNoRaise() {
+            sum = sum + x
+        }
+        UnitTest::assertEquals(3, sum)
+        return 0
+    }
+
+    // Cas A : un `raise` ENTRE deux `emit`, à l'intérieur du `try` du
+    // générateur lui-même — rattrapé par SON PROPRE handler, qui `emit` à
+    // son tour (la reprise doit continuer correctement après le handler).
+    public method tryRaiseCaughtByOwnHandlerTest(): int {
+        var values:array<int> = []
+        for x in tryRaiseCaught() {
+            Array::push(values, x)
+        }
+        UnitTest::assertEquals(3, Array::len(values))
+        UnitTest::assertEquals(1, Array::get(values, 0))
+        UnitTest::assertEquals(99, Array::get(values, 1))
+        UnitTest::assertEquals(4, Array::get(values, 2))
+        return 0
+    }
+
+    // Cas A : le `raise` est déclenché par une fonction APPELÉE depuis
+    // l'intérieur du `try` (pas un `raise` textuellement dans le générateur)
+    // — doit être rattrapé de la même façon (mécanisme TRY_STACK partagé,
+    // inchangé).
+    public method tryRaiseFromCalledFunctionTest(): int {
+        var values:array<int> = []
+        for x in tryRaiseFromCall() {
+            Array::push(values, x)
+        }
+        UnitTest::assertEquals(2, Array::len(values))
+        UnitTest::assertEquals(1, Array::get(values, 0))
+        UnitTest::assertEquals(77, Array::get(values, 1))
+        return 0
+    }
+
+    // Cas A : `try` IMBRIQUÉS dans le générateur — le `raise` interne doit
+    // être rattrapé par le handler INTERNE, jamais l'externe (sémantique
+    // LIFO normale), et le `try` externe doit rester actif ensuite pour
+    // attraper son propre `raise`.
+    public method tryNestedTest(): int {
+        var values:array<int> = []
+        for x in tryNested() {
+            Array::push(values, x)
+        }
+        UnitTest::assertEquals(5, Array::len(values))
+        UnitTest::assertEquals(1,  Array::get(values, 0))
+        UnitTest::assertEquals(2,  Array::get(values, 1))
+        UnitTest::assertEquals(20, Array::get(values, 2))
+        UnitTest::assertEquals(4,  Array::get(values, 3))
+        UnitTest::assertEquals(40, Array::get(values, 4))
+        return 0
+    }
+
+    // Cas A : le filtre de classe du `on e is X` du générateur ne correspond
+    // pas — l'exception doit se re-propager vers un `try` EXTÉRIEUR au
+    // générateur (celui du code consommateur), pas être avalée.
+    public method tryUnmatchedFilterPropagatesTest(): int {
+        var caughtOutside:bool = false
+        try {
+            for x in tryWrongFilter() {
+                IO::write(x)
+            }
+        } on e {
+            caughtOutside = true
+        }
+        UnitTest::assertTrue(caughtOutside)
+        return 0
+    }
+
+    // `Array::fromMessage(message<T>) -> array<T>` — draine TOUS les `emit`
+    // (même avec `emit` en boucle, aucune restriction), y compris quand le
+    // générateur est un `try`/`on` complet (Cas A).
+    public method fromMessageBasicTest(): int {
+        var values:array<int> = Array::fromMessage(countTo(5))
+        UnitTest::assertEquals(5, Array::len(values))
+        var i:int = 0
+        while i smaller Array::len(values) {
+            var v:int = Array::get(values, i)
+            UnitTest::assertEquals(i, v)
+            i = i + 1
+        }
+        return 0
+    }
+
+    public method fromMessageWithTryTest(): int {
+        var values:array<int> = Array::fromMessage(tryRaiseCaught())
+        UnitTest::assertEquals(3, Array::len(values))
+        var a:int = Array::get(values, 0)
+        var b:int = Array::get(values, 1)
+        var c:int = Array::get(values, 2)
+        UnitTest::assertEquals(1, a)
+        UnitTest::assertEquals(99, b)
+        UnitTest::assertEquals(4, c)
+        return 0
+    }
+}
+
+// ── Fonctions génératrices auxiliaires ───────────────────────────────────
+
+function twoValues(): message<int> {
+    emit 1
+    emit 2
+}
+
+function singleValue(): message<int> {
+    emit 42
+}
+
+function identity(x:int): int {
+    return x
+}
+
+function branchValue(cond:bool): message<int> {
+    if cond {
+        emit 1
+    } else {
+        emit 2
+    }
+}
+
+function countTo(n:int): message<int> {
+    var i:int = 0
+    while i smaller n {
+        emit i
+        i = i + 1
+    }
+}
+
+function tryNoRaise(): message<int> {
+    try {
+        emit 1
+        emit 2
+    } on e {
+        emit -1
+    }
+}
+
+function tryRaiseCaught(): message<int> {
+    try {
+        emit 1
+        raise "boom"
+        emit 2
+    } on e {
+        emit 99
+    }
+    emit 4
+}
+
+function boomHelper(): int {
+    raise "boom depuis fonction appelee"
+    return 0
+}
+
+function tryRaiseFromCall(): message<int> {
+    try {
+        emit 1
+        var x:int = boomHelper()
+        emit x
+    } on e {
+        emit 77
+    }
+}
+
+function tryNested(): message<int> {
+    try {
+        emit 1
+        try {
+            emit 2
+            raise "inner"
+            emit 3
+        } on e {
+            emit 20
+        }
+        emit 4
+        raise "outer"
+        emit 5
+    } on e {
+        emit 40
+    }
+}
+
+function tryWrongFilter(): message<int> {
+    try {
+        emit 1
+        raise "not a file exception"
+    } on e is FileException {
+        emit 999
+    }
+}
+
+// ── Classe auxiliaire : générateur MÉTHODE ───────────────────────────────
+
+class Gen {
+    public method produce(): message<int> {
+        emit 10
+        emit 20
+    }
+}
