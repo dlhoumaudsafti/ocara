@@ -10,3 +10,6 @@ pub mod message_emit;
 pub mod scope;
 pub mod symbols;
 pub mod typecheck;
+
+#[cfg(test)]
+mod tests;

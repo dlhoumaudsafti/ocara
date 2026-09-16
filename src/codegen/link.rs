@@ -124,6 +124,21 @@ pub fn link(
         // programme compilé avec Ocara n'exige plus libssl.so/libcrypto.so/libz.so
         // sur la machine cible. Les passer ici serait non seulement inutile mais
         // ferait échouer le lien sur une machine de build sans libssl-dev/zlib1g-dev.
+        // -no-pie : nécessaire, pas un réglage hérité non reconsidéré (voir
+        // docs/roadmap.d/securite-lien-no-pie.md pour l'audit complet) —
+        // Cranelift (`src/codegen/emit.d/emitter.rs`, `settings::Flags::new`)
+        // n'active jamais `is_pic` (faux par défaut dans cranelift-codegen),
+        // donc le `.o` généré utilise des relocations absolues, pas du code
+        // indépendant de la position. Lier ce `.o` en PIE (sans ce flag)
+        // fonctionne mais produit un binaire `DT_TEXTREL` — confirmé par
+        // essai (`readelf -d` : `TEXTREL`, `ld` avertit "creating DT_TEXTREL
+        // in a PIE") : le chargeur doit alors rendre le segment de code
+        // inscriptible au démarrage pour appliquer les relocations, ce qui
+        // affaiblit la protection W^X que PIE est censé renforcer — un vrai
+        // recul de sécurité différent, pas un gain. Solution correcte pour
+        // un jour avoir un vrai PIE (`is_pic = true` chez Cranelift) : chantier
+        // séparé, plus large qu'un simple flag de lien (affecte tout
+        // l'adressage émis par le codegen) — non entrepris ici.
         .arg("-no-pie")
         .arg("-Wl,--allow-multiple-definition")
         // --gc-sections/--as-needed : élague au lien tout ce qui n'est pas

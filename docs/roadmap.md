@@ -10,7 +10,7 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 Cette roadmap est construite pour qu'on puisse dire que le langage est stable **quand la section "Priorité Haute" ci-dessous est vide** — pas avant. Ce n'est pas un objectif séparé à suivre en plus des tickets : c'est littéralement ce que cette section représente. Volontairement, aucune checklist n'est dupliquée ici (le projet a déjà payé le prix d'une source de vérité dupliquée ailleurs — voir `docs/adding-builtins.md`, la double liste `OCARA_BUILTINS`) : la liste unique à vider est celle de la section "Priorité Haute".
 
-Ce que ça couvre concrètement, une fois les trois points de cette section clos : les zones les plus dangereuses du compilateur (analyse d'échappement, ownership/drops, boxing runtime) ont une couverture de tests Rust unitaires et pas seulement une validation de bout en bout ; le mécanisme d'exceptions ne fait plus fuir silencieusement mémoire/ressources sans qu'au minimum ce soit détecté à la compilation ; et la race condition connue de `HTTPServer` — un pilier de l'argument produit du langage — est traitée. (La représentation `mixed` et la duplication statique/sucre du type des paramètres ont déjà été traitées : voir [memoire-boxing-durcissement](roadmap.d/memoire-boxing-durcissement.md) et [qualite-parite-sucre-statique-param-types](roadmap.d/qualite-parite-sucre-statique-param-types.md), clos.)
+Ce que ça couvre concrètement, une fois les deux points de cette section clos : le mécanisme d'exceptions ne fait plus fuir silencieusement mémoire/ressources sans qu'au minimum ce soit détecté à la compilation ; et la race condition connue de `HTTPServer` — un pilier de l'argument produit du langage — est traitée. (La représentation `mixed`, la duplication statique/sucre du type des paramètres, et la couverture de tests Rust unitaires sur l'analyse d'échappement/ownership/boxing ont déjà été traitées : voir [memoire-boxing-durcissement](roadmap.d/memoire-boxing-durcissement.md), [qualite-parite-sucre-statique-param-types](roadmap.d/qualite-parite-sucre-statique-param-types.md) et [qualite-tests-unitaires-critiques](roadmap.d/qualite-tests-unitaires-critiques.md), clos.)
 
 ## Légende
 
@@ -29,7 +29,6 @@ Ce que ça couvre concrètement, une fois les trois points de cette section clos
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Couvrir de tests Rust unitaires les zones critiques** (analyse d'échappement, ownership/drops, boxing runtime) — aujourd'hui seuls le lexer/parser et le boxing runtime (voir [memoire-boxing-durcissement](roadmap.d/memoire-boxing-durcissement.md)) et la parité sucre/statique des paramètres (voir [qualite-parite-sucre-statique-param-types](roadmap.d/qualite-parite-sucre-statique-param-types.md)) sont couverts — l'analyse d'échappement et l'ownership/drops restent à faire. *(Structurel)* → [détails](roadmap.d/qualite-tests-unitaires-critiques.md)
 - **Dette transversale `setjmp`/`longjmp`** — un `raise` qui traverse un `try` fait fuir mémoire/ressources dans au moins trois sous-systèmes indépendants (`scoped`/`consumed`, générateurs `emit` suspendus, `Mutex`/ressources non finalisées), mitigée au cas par cas plutôt que traitée à la racine. *(Dangereuse)* → [détails](roadmap.d/exceptions-setjmp-longjmp-dette.md)
 - **Corriger la race condition documentée de `HTTPServer`** (captures partagées entre handlers non protégées par mutex, data race confirmé en usage normal sur un builtin central de l'argument produit). *(Structurel)* → [détails](roadmap.d/runtime-httpserver-race-condition.md)
 
@@ -39,7 +38,7 @@ Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnali
 
 À traiter mais non bloquant pour la stabilité du langage.
 
-- **Auditer `-no-pie` au lien final** (ASLR désactivé pour tous les binaires produits par Ocara, sans justification de sécurité documentée). *(Simple)* → [détails](roadmap.d/securite-lien-no-pie.md)
+_Vide pour l'instant — le seul point qui s'y trouvait (`-no-pie` au lien final) est clos, voir [securite-lien-no-pie](roadmap.d/securite-lien-no-pie.md)._
 
 ---
 
