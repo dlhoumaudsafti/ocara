@@ -100,7 +100,37 @@ fn walk_expr_caps(expr: &Expr, p: &HashSet<String>, l: &HashMap<String, (Value, 
         Expr::IsCheck { expr, .. }       => walk_expr_caps(expr, p, l, caps, seen),
         Expr::Resolve { expr, .. }        => walk_expr_caps(expr, p, l, caps, seen),
         Expr::IncDec { target, .. }      => walk_expr_caps(target, p, l, caps, seen),
-        // Ne pas descendre dans les nameless imbriquées (elles ont leurs propres captures)
-        Expr::Nameless { .. } | Expr::Literal(..) | Expr::StaticConst { .. } => {}
+        // Ne pas descendre dans le CORPS d'une nameless imbriquée pour lui
+        // faire porter directement ses propres références (elle a ses
+        // propres captures, résolues indépendamment lors de son propre
+        // lowering) — mais calculer RÉCURSIVEMENT ce dont elle a besoin et
+        // remonter dans NOS PROPRES captures tout nom qu'elle référence et
+        // qui nous est visible (`l`), pour qu'on le retransmette à notre
+        // tour. Sans ceci, une fermeture qui ne référence PAS elle-même une
+        // variable — mais dont une fermeture qu'elle contient en a besoin —
+        // ne la capture jamais : au moment de lower cette fermeture interne,
+        // la variable est absente de `locals`/`captured_vars` de la
+        // fermeture englobante (qui ne l'a jamais elle-même capturée), donc
+        // introuvable à N'IMPORTE QUELLE profondeur au-delà du premier
+        // niveau — confirmé par reproduction (`ocara --dump` : l'env de la
+        // fermeture interne était un `ConstInt 0`/NULL littéral, pas une
+        // structure de capture), voir
+        // docs/roadmap.d/langage-nested-closure-recapture.md. Récursif par
+        // construction (si la fermeture imbriquée contient elle-même une
+        // fermeture encore plus interne, son propre appel à
+        // `collect_captures` applique la même règle) — sûr : `body` d'une
+        // `Expr::Nameless` est toujours strictement plus petit que l'arbre
+        // englobant, aucun risque de cycle.
+        Expr::Nameless { params, body, .. } => {
+            let nested_params: HashSet<String> = params.iter().map(|param| param.name.clone()).collect();
+            let nested_caps = collect_captures(body, &nested_params, l);
+            for (name, ty) in nested_caps {
+                if !p.contains(name.as_str()) && !seen.contains(name.as_str()) {
+                    seen.insert(name.clone());
+                    caps.push((name, ty));
+                }
+            }
+        }
+        Expr::Literal(..) | Expr::StaticConst { .. } => {}
     }
 }
