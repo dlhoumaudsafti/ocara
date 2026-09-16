@@ -2,9 +2,15 @@
 
 _Dernière mise à jour : 2026-09-16_
 
-Ce document liste ce qu'il reste à faire pour faire d'Ocara un langage solide, avec un focus prioritaire sur la **gestion mémoire** : le compilateur n'a pas de ramasse-miettes (choix assumé et définitif), mais rien aujourd'hui ne garantit l'absence de fuites, de doubles libérations ou de corruptions mémoire silencieuses.
+Ce document liste ce qu'il reste à faire pour faire d'Ocara un langage solide. Cette révision fait suite à une analyse complète du projet (doc, code source du compilateur, exemples, runtimes natifs) et **reprioritise délibérément autour de la robustesse, la stabilité et la fiabilité** — avant toute nouvelle fonctionnalité ou tout chantier de portage. Le focus reste, comme avant, la **gestion mémoire** : le compilateur n'a pas de ramasse-miettes (choix assumé et définitif), et l'historique du projet montre plusieurs SEGFAULTs confirmés par reproduction sur la représentation `mixed` — mais la même question de fiabilité se pose aussi sur le mécanisme d'exceptions (`setjmp`/`longjmp`), sur la quasi-absence de tests Rust unitaires en dehors du front-end, et sur au moins une race condition documentée et non corrigée (`HTTPServer`).
 
 Ce fichier ne contient volontairement **aucun détail technique**. Chaque point renvoie vers une fiche dans [`docs/roadmap.d/`](roadmap.d/) pour l'implémentation, les fichiers concernés et les extraits de reproduction. À mettre à jour au fil des avancées : un point traité doit être retiré et sa fiche technique mise à jour ou supprimée. L'historique complet des correctifs déjà faits vit dans `git log`, pas dans ce fichier.
+
+## Définition : « le langage est stable »
+
+Cette roadmap est construite pour qu'on puisse dire que le langage est stable **quand la section "Priorité Haute" ci-dessous est vide** — pas avant. Ce n'est pas un objectif séparé à suivre en plus des tickets : c'est littéralement ce que cette section représente. Volontairement, aucune checklist n'est dupliquée ici (le projet a déjà payé le prix d'une source de vérité dupliquée ailleurs — voir `docs/adding-builtins.md`, la double liste `OCARA_BUILTINS`) : la liste unique à vider est celle de la section "Priorité Haute".
+
+Ce que ça couvre concrètement, une fois les cinq points de cette section clos : plus aucune classe connue de corruption mémoire ne repose uniquement sur des correctifs ponctuels non couverts par des tests systématiques ; les zones les plus dangereuses du compilateur (analyse d'échappement, ownership/drops, boxing runtime) ont une couverture de tests Rust unitaires et pas seulement une validation de bout en bout ; le mécanisme d'exceptions ne fait plus fuir silencieusement mémoire/ressources sans qu'au minimum ce soit détecté à la compilation ; la duplication statique/sucre qui a déjà causé un SEGFAULT en production est éliminée structurellement, pas seulement corrigée au cas trouvé ; et la race condition connue de `HTTPServer` — un pilier de l'argument produit du langage — est traitée.
 
 ## Légende
 
@@ -16,6 +22,34 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 - **Structurel** — demande de repenser une partie de l'architecture existante
 - **Massive** — gros volume de travail ou fonctionnalité entièrement à construire
 - **Dangereuse** — touche une zone sensible du compilateur/runtime où une erreur peut tout casser silencieusement (mémoire, concurrence) ; à traiter avec prudence et de bons tests de non-régression
+
+---
+
+## Priorité Haute
+
+Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
+
+- **Durcir la représentation `mixed`** (boxing par heuristique de bit pattern, cause racine de tous les SEGFAULTs mémoire confirmés à ce jour — chaque cas trouvé a été corrigé individuellement, jamais la classe de bug elle-même). *(Dangereuse)* → [détails](roadmap.d/memoire-boxing-durcissement.md)
+- **Couvrir de tests Rust unitaires les zones critiques** (analyse d'échappement, ownership/drops, boxing runtime) — aujourd'hui 0 test en dehors du lexer/parser, toute validation passe par la compilation-exécution de programmes `.oc` entiers. *(Structurel)* → [détails](roadmap.d/qualite-tests-unitaires-critiques.md)
+- **Dette transversale `setjmp`/`longjmp`** — un `raise` qui traverse un `try` fait fuir mémoire/ressources dans au moins trois sous-systèmes indépendants (`scoped`/`consumed`, générateurs `emit` suspendus, `Mutex`/ressources non finalisées), mitigée au cas par cas plutôt que traitée à la racine. *(Dangereuse)* → [détails](roadmap.d/exceptions-setjmp-longjmp-dette.md)
+- **Finir la parité statique/sucre pour le type des paramètres** (`param_type_for_call_arg` vs `param_type_for_sugar_call_arg`, même classe de bug qu'un SEGFAULT déjà confirmé en production, non unifiée contrairement au type de retour). *(Légère)* → [détails](roadmap.d/qualite-parite-sucre-statique-param-types.md)
+- **Corriger la race condition documentée de `HTTPServer`** (captures partagées entre handlers non protégées par mutex, data race confirmé en usage normal sur un builtin central de l'argument produit). *(Structurel)* → [détails](roadmap.d/runtime-httpserver-race-condition.md)
+
+---
+
+## Priorité Moyenne
+
+À traiter mais non bloquant pour la stabilité du langage.
+
+- **Auditer `-no-pie` au lien final** (ASLR désactivé pour tous les binaires produits par Ocara, sans justification de sécurité documentée). *(Simple)* → [détails](roadmap.d/securite-lien-no-pie.md)
+
+---
+
+## Priorité Basse
+
+Confort ou portée future — n'affecte pas la correction du compilateur ou des binaires produits.
+
+- **Cohérence interne de l'EBNF et de la stdlib** (grammaire "complète" en contradiction avec sa propre section §2, exemples utilisant une syntaxe `Function` documentée comme supprimée, sémantiques divergentes entre builtins jumeaux — `String::replace` vs `Regex::replace`, `queryOne` SQLite vs MySQL). *(Simple)* → [détails](roadmap.d/coherence-documentation-ebnf-stdlib.md)
 
 ---
 
@@ -36,14 +70,24 @@ Pas important du tout pour le moment — portage/intégration massifs, aucune ur
 * On analyse la roadmap et les fichiers `roadmap.d/` associés à un ticket en cours.
 * On analyse les documentations
     * Workflow, l'EBNF et les documentations lié à notre ticket
+* On utilise le Makefile
 * On effectue les corrections et améliorations demandées.
 * Si changement de syntaxe ou ajout:
     * On mets à jour l'extension vscode dans tools/ si c'est nécessaire
+        * On lis le README.md
         * On desinstalle l'extension en cours
         * On recompile la mise à jour sans changer la version
         * On réinstalle l'extension
     * On mets à jour ocaracs si c'est nécessaire
+        * On lis le README.md
+        * On clean
+        * On effectue les modifications
+        * On compile
     * On mets à jour ocaraunit si c'est nécessaire
+        * On lis le README.md
+        * On clean
+        * On effectue les modifications
+        * On compile
 * On crée un exemple pour les tests de régression si nécessaire.
 * On crée un test unitaire si nécessaire.
 * On lance les test de regression et les tests unitaire.
