@@ -4,7 +4,7 @@ use crate::parsing::ast::*;
 use crate::ir::types::IrType;
 use crate::ir::inst::Inst;
 use crate::lower::builder::LowerBuilder;
-use crate::lower::expr::lower_expr;
+use crate::lower::expr::{lower_expr, hoist_closure_promotions_before_loop};
 use super::super::super::block::lower_block;
 
 pub fn lower_for_in(
@@ -21,6 +21,12 @@ pub fn lower_for_in(
         crate::lower::builder::message_gen::lower_for_message(builder, var, iter, &mangled, elem_ty, body);
         return;
     }
+
+    // Pré-promotion : voir docs/roadmap.d/langage-closure-promotion-in-loop.md.
+    // AVANT de déclarer `var` (la variable d'itération elle-même n'existe pas
+    // encore ici, donc jamais concernée par ce pré-scan — seules les
+    // variables déjà existantes AVANT la boucle le sont).
+    hoist_closure_promotions_before_loop(builder, body);
 
     // Lowering : __iter_init(iter), boucle sur __iter_next
     let iter_val  = lower_expr(builder, iter);
@@ -149,6 +155,9 @@ pub fn lower_for_map(
     iter: &Expr,
     body: &Block,
 ) {
+    // Pré-promotion : voir docs/roadmap.d/langage-closure-promotion-in-loop.md.
+    hoist_closure_promotions_before_loop(builder, body);
+
     let iter_val = lower_expr(builder, iter);
 
     // Récupère le tableau des clés

@@ -1,0 +1,97 @@
+import ocara.UnitTest
+
+// Une fermeture créée À L'INTÉRIEUR d'une boucle (`while`/`for`) doit voir
+// l'état ACCUMULÉ des itérations précédentes, pas seulement celui de la
+// dernière — voir docs/roadmap.d/langage-closure-promotion-in-loop.md. Avant
+// le correctif (`hoist_closure_promotions_before_loop`, appelé par
+// `lower_while`/`lower_for_in`/`lower_for_map` avant de lower le corps),
+// la promotion de la variable capturée se ré-exécutait à chaque itération
+// (ré-allocation d'une cellule heap fraîche, toujours réinitialisée depuis
+// le slot stack d'origine jamais mis à jour) : le résultat final ne reflétait
+// que la dernière itération, silencieusement — aucune erreur, aucun crash.
+
+class Test_48_closure_promotion_in_loop {
+
+    // Cas exact du repro original : accumulateur incrémenté par une
+    // fermeture imbriquée dans un `while`.
+    public method whileLoopClosureAccumulatesAcrossIterationsTest(): int {
+        var counter:int = 0
+        var i:int = 0
+        while i smaller 5 {
+            Caller::invoke(nameless(): void {
+                var inner:Function<void()> = nameless(): void {
+                    counter = counter + 1
+                }
+                inner()
+            })
+            i = i + 1
+        }
+        UnitTest::assertEquals(5, counter)
+        return 0
+    }
+
+    // `for x in array` — la fermeture capture à la fois l'accumulateur
+    // (extérieur à la boucle) et `x` (la variable d'itération elle-même).
+    public method forInLoopClosureAccumulatesAcrossIterationsTest(): int {
+        var total:int = 0
+        var items:array<int> = [1, 2, 3, 4, 5]
+        for x in items {
+            Caller::invoke(nameless(): void {
+                total = total + x
+            })
+        }
+        UnitTest::assertEquals(15, total)
+        return 0
+    }
+
+    // `for k => v in map`
+    public method forMapLoopClosureAccumulatesAcrossIterationsTest(): int {
+        var sum:int = 0
+        var m:map<string, int> = {"a": 1, "b": 2, "c": 3}
+        for k => v in m {
+            Caller::invoke(nameless(): void {
+                sum = sum + v
+            })
+        }
+        UnitTest::assertEquals(6, sum)
+        return 0
+    }
+
+    // Non-régression : une boucle SANS AUCUNE fermeture ne doit jamais être
+    // affectée par le pré-scan (pas de promotion superflue, pas de
+    // changement de comportement) — c'est la raison pour laquelle le
+    // pré-scan ignore délibérément les références directes (`i = i + 1`
+    // n'est jamais confondu avec une capture de fermeture).
+    public method plainLoopWithoutClosureIsUnaffectedTest(): int {
+        var plain:int = 0
+        var i:int = 0
+        while i smaller 5 {
+            plain = plain + 1
+            i = i + 1
+        }
+        UnitTest::assertEquals(5, plain)
+        return 0
+    }
+
+    // Boucle imbriquée : une fermeture dans le corps de la boucle INTERNE
+    // doit accumuler correctement sur le nombre total d'itérations internes,
+    // pas seulement une fois par passage de la boucle externe.
+    public method nestedLoopsClosureAccumulatesCorrectlyTest(): int {
+        var counter:int = 0
+        var outer:int = 0
+        while outer smaller 3 {
+            var inner:int = 0
+            while inner smaller 2 {
+                Caller::invoke(nameless(): void { counter = counter + 1 })
+                inner = inner + 1
+            }
+            outer = outer + 1
+        }
+        UnitTest::assertEquals(6, counter)
+        return 0
+    }
+}
+
+class Caller {
+    public static method invoke(f:Function<void()>): void { f() }
+}
