@@ -75,6 +75,10 @@ impl<'a> TypeChecker<'a> {
         self.escaping_params = crate::sema::escape::compute_escaping_params(program);
         self.class_members = crate::sema::escape::collect_class_members(&program.classes);
 
+        // W04 : ressource scoped/consumed encore ouverte au moment d'un
+        // raise non rattrapé localement — voir crate::sema::resource_raise.
+        self.warnings.extend(crate::sema::resource_raise::check_program(program));
+
         // Enums — vérifier les doublons de variantes
         for en in &program.enums {
             self.check_enum(en);

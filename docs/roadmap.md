@@ -29,7 +29,7 @@ Ce que ça couvre concrètement, une fois les deux points de cette section clos 
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Dette transversale `setjmp`/`longjmp`** — un `raise` qui traverse un `try` fait fuir mémoire/ressources dans au moins trois sous-systèmes indépendants (`scoped`/`consumed`, générateurs `emit` suspendus, `Mutex`/ressources non finalisées), mitigée au cas par cas plutôt que traitée à la racine. *(Dangereuse)* → [détails](roadmap.d/exceptions-setjmp-longjmp-dette.md)
+- **Dette transversale `setjmp`/`longjmp`** (un `raise` qui traverse un `try` fait fuir mémoire/ressources, au moins trois sous-systèmes concernés). Nouveau diagnostic W04 fait (`docs/diagnostics.md`) : rend le risque visible à la compilation pour toute `scoped`/`consumed` ressource (Mutex/SQLite/MySQL/MariaDB/Thread) — ne le corrige pas ; décision encore à prendre sur la généralisation du patron `withLock` (déjà fait pour `Mutex`) aux autres types ressource. *(Structurel si retenue)* → [détails](roadmap.d/exceptions-setjmp-longjmp-dette.md)
 - **Race condition de `HTTPServer`** (captures partagées entre handlers non protégées par mutex). Documentation + exemple + test de charge concurrente faits (`docs/builtins/HTTPServer.md`, `examples/builtins/httpserver.oc`/`.sh`) ; décision encore à prendre sur une protection native (sérialiser l'invocation des handlers) vs rester sur le modèle "Mutex explicite" déjà utilisé par `Thread`. *(Structurel)* → [détails](roadmap.d/runtime-httpserver-race-condition.md)
 
 ---

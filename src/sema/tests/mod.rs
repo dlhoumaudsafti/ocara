@@ -2,3 +2,4 @@
 /// docs/roadmap.d/qualite-tests-unitaires-critiques.md).
 
 mod escape;
+mod resource_raise;

@@ -7,6 +7,7 @@
 pub mod error;
 pub mod escape;
 pub mod message_emit;
+pub mod resource_raise;
 pub mod scope;
 pub mod symbols;
 pub mod typecheck;
