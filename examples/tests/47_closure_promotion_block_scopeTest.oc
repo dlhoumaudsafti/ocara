@@ -1,0 +1,95 @@
+import ocara.UnitTest
+
+// Une fermeture créée à l'intérieur d'un bloc `if`/`switch` (passage unique,
+// pas de boucle) doit continuer de partager sa cellule heap avec la variable
+// qu'elle capture même après la sortie du bloc — voir
+// docs/roadmap.d/langage-closure-promotion-block-scope.md. Avant le
+// correctif de `src/lower/stmt.d/block.rs::lower_block`, relire la variable
+// après le bloc provoquait un SEGFAULT (accès à un slot stack jamais promu
+// via `__locked_cell_get`) : la restauration de fin de bloc écrasait
+// aveuglément TOUTE entrée présente avant le bloc, y compris celles
+// légitimement redirigées vers une cellule heap pendant le bloc.
+//
+// Limite connue, NON couverte ici : une fermeture créée À L'INTÉRIEUR d'une
+// boucle (`while`/`for`) reste cassée différemment (la promotion se
+// ré-exécute à chaque itération plutôt qu'une seule fois) — chantier séparé,
+// voir la même fiche, §"Limite connue restante".
+
+class Test_47_closure_promotion_block_scope {
+
+    // Cas exact du SEGFAULT original : fermeture créée dans un `if`,
+    // variable relue après le bloc.
+    public method closureInIfBlockMutatesOuterVariableTest(): int {
+        var counter:int = 0
+        if true {
+            var f:Function<void()> = nameless(): void { counter = counter + 1 }
+            f()
+        }
+        UnitTest::assertEquals(1, counter)
+        return 0
+    }
+
+    // Les deux branches d'un if/else doivent promouvoir correctement.
+    public method closureInElseBranchMutatesOuterVariableTest(): int {
+        var counter:int = 0
+        if false {
+            counter = -1
+        } else {
+            var f:Function<void()> = nameless(): void { counter = counter + 1 }
+            f()
+        }
+        UnitTest::assertEquals(1, counter)
+        return 0
+    }
+
+    // Fermeture imbriquée (voir docs/roadmap.d/langage-nested-closure-
+    // recapture.md) créée elle-même à l'intérieur d'un bloc `if` — les deux
+    // correctifs doivent coopérer correctement.
+    public method nestedClosureInIfBlockMutatesOuterVariableTest(): int {
+        var counter:int = 0
+        if true {
+            Caller::invoke(nameless(): void {
+                var inner:Function<void()> = nameless(): void {
+                    counter = counter + 1
+                }
+                inner()
+            })
+        }
+        UnitTest::assertEquals(1, counter)
+        return 0
+    }
+
+    // Non-régression : une variable déclarée DANS le bloc sous le même nom
+    // qu'une variable externe (masquage, sans aucune promotion) doit
+    // toujours redevenir invisible en sortant du bloc — c'est la raison
+    // d'être originale de la restauration de fin de bloc, qui doit continuer
+    // de fonctionner pour ce cas normal.
+    public method shadowingWithoutPromotionStillRestoresOuterValueTest(): int {
+        var x:int = 1
+        if true {
+            var x:int = 99
+            UnitTest::assertEquals(99, x)
+        }
+        UnitTest::assertEquals(1, x)
+        return 0
+    }
+
+    // Une fermeture créée AVANT un bloc `if` (donc déjà promue en entrant
+    // dans le bloc) doit rester lisible/mutable normalement à l'intérieur du
+    // bloc, et après — ordre inverse du cas principal.
+    public method alreadyPromotedBeforeIfBlockStaysConsistentTest(): int {
+        var counter:int = 0
+        var f:Function<void()> = nameless(): void { counter = counter + 1 }
+        f()
+        if true {
+            f()
+        }
+        f()
+        UnitTest::assertEquals(3, counter)
+        return 0
+    }
+}
+
+class Caller {
+    public static method invoke(f:Function<void()>): void { f() }
+}
