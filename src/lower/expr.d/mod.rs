@@ -8,6 +8,9 @@ pub mod literals;
 pub mod tauri_handler;
 pub mod lower;
 
+#[cfg(test)]
+mod tests;
+
 // Re-exports publics
 pub use lower::lower_expr;
 pub use lower::{lower_array_literal, lower_map_literal, LiteralElemKind};

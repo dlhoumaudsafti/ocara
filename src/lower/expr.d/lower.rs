@@ -454,15 +454,15 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     // `func_mangled` (la méthode CONCRÈTE résolue) : même
                     // signature qu'un éventuel dispatcher dynamique
                     // (`call_target` ci-dessous), qui se contente de la
-                    // relayer sans jamais la modifier. `param_type_for_SUGAR_
-                    // call_arg` (pas `param_type_for_call_arg`) : ici `args`
-                    // ne contient jamais le récepteur (`object`, géré à part
-                    // via `obj_val`) — voir sa doc pour le bug d'off-by-one
-                    // que cette distinction corrige.
+                    // relayer sans jamais la modifier. `CallForm::Sugar` (pas
+                    // `Static`) : ici `args` ne contient jamais le récepteur
+                    // (`object`, géré à part via `obj_val`) — voir la doc de
+                    // `param_type_for_call_arg` pour le bug d'off-by-one que
+                    // cette distinction corrige.
                     let arg_vals: Vec<Value> = completed_args.iter().enumerate().map(|(i, a)| {
                         let raw = lower_expr(builder, a);
                         let arg_ty = expr_ir_type(builder, a);
-                        let param_ty = param_type_for_sugar_call_arg(builder, &func_mangled, i);
+                        let param_ty = param_type_for_call_arg(builder, &func_mangled, i, CallForm::Sugar);
                         box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
                     }).collect();
                     let mut all_args = vec![obj_val];
@@ -624,7 +624,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             let arg_vals: Vec<Value> = args.iter().enumerate().map(|(i, a)| {
                 let raw = crate::lower::builder::message_gen::lower_arg_or_message(builder, a);
                 let arg_ty = expr_ir_type(builder, a);
-                let param_ty = param_type_for_call_arg(builder, &func_name, i);
+                let param_ty = param_type_for_call_arg(builder, &func_name, i, CallForm::Static);
                 box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
             }).collect();
             
@@ -881,7 +881,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             let arg_vals: Vec<Value> = args.iter().enumerate().map(|(i, a)| {
                 let raw = crate::lower::builder::message_gen::lower_arg_or_message(builder, a);
                 let arg_ty = expr_ir_type(builder, a);
-                let param_ty = param_type_for_call_arg(builder, &func_name, i);
+                let param_ty = param_type_for_call_arg(builder, &func_name, i, CallForm::Static);
                 box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
             }).collect();
 

@@ -1,5 +1,9 @@
 # Parité statique/sucre — le volet type des PARAMÈTRES reste non unifié
 
+## ✅ Terminé
+
+`param_type_for_call_arg`/`param_type_for_sugar_call_arg` unifiées en une seule fonction `param_type_for_call_arg(builder, mangled, i, form: CallForm)` (`src/lower/expr.d/helpers.rs`), même patron que `resolve_method_return_type`. Les 3 sites d'appel (`src/lower/expr.d/lower.rs`) mis à jour (`CallForm::Sugar` pour le sucre d'instance, `CallForm::Static` pour l'appel statique et la fonction libre) — aucun changement de comportement, seulement une source de vérité unique pour le décalage d'index. 4 tests unitaires Rust ajoutés (`src/lower/expr.d/tests.rs`, `cargo test -p ocara --bin ocara lower::expr::tests`, 45 passed, 0 warning). `make regression` : 637 PASS, 0 FAIL, 0 ERREUR — inchangé.
+
 ## Constat
 
 `docs/roadmap.d/qualite-parite-sucre-statique.md` (chantier précédent, ✅ terminé) a unifié la résolution du **type de retour** entre forme statique (`Array::get(arr, i)`) et sucre d'instance (`arr.get(i)`) via `resolve_method_return_type` (`src/lower/expr.d/typeinfer.rs`), une seule source de vérité pour les deux formes.
@@ -18,8 +22,8 @@ Appliquer à `param_type_for_call_arg`/`param_type_for_sugar_call_arg` le même 
 
 ## Priorité / Complexité
 
-**Priorité Haute** — même classe de bug qu'un SEGFAULT déjà confirmé en production sur ce projet, avec un chemin de résurgence concret (tout futur builtin à double forme). **Complexité : Légère** — le patron de correction (unifier deux fonctions quasi identiques en une, comme fait pour `resolve_method_return_type`) est déjà connu et éprouvé sur ce projet, contrairement à la plupart des autres points de cette roadmap.
+**✅ Terminé.** Était Priorité Haute (même classe de bug qu'un SEGFAULT déjà confirmé en production, chemin de résurgence concret pour tout futur builtin à double forme) — fermé par unification structurelle plutôt que par un nouveau correctif ponctuel, avec filet de tests dédié.
 
 ## Fichiers clés
 
-`src/lower/expr.d/helpers.rs` (`param_type_for_call_arg`, `param_type_for_sugar_call_arg`, `box_arg_for_mixed_param`), `src/lower/expr.d/typeinfer.rs` (`resolve_method_return_type`, précédent direct à suivre), `src/sema/typecheck.rs` (`allows_instance_sugar`), `docs/roadmap.d/qualite-parite-sucre-statique.md`, `docs/roadmap.d/langage-array-get-display-bug.md`.
+`src/lower/expr.d/helpers.rs` (`param_type_for_call_arg`, `CallForm`, `box_arg_for_mixed_param`), `src/lower/expr.d/lower.rs` (3 sites d'appel), `src/lower/expr.d/tests.rs` (filet de tests, fait), `src/lower/expr.d/typeinfer.rs` (`resolve_method_return_type`, précédent direct suivi), `src/sema/typecheck.rs` (`allows_instance_sugar`), `docs/roadmap.d/qualite-parite-sucre-statique.md`, `docs/roadmap.d/langage-array-get-display-bug.md`.
