@@ -17,7 +17,7 @@ Ce dossier contient un script `.oc` par fonctionnalité du langage.
 | [09_maps.oc](09_maps.oc) | Maps `map<K,V>`, littéraux, accès index, itération |
 | [10_classes.oc](10_classes.oc) | Classes, `property`, constructeur `init`, `self`, visibilité |
 | [11_interfaces.oc](11_interfaces.oc) | Interfaces, `implements`, polymorphisme |
-| [12_inheritance.oc](12_inheritance.oc) | Héritage `extends`, surcharge de méthode |
+| [12_inheritance.oc](12_inheritance.oc) | Héritage `extends`, surcharge de méthode, appel au parent avec `parent::` |
 | [13_instantiation.oc](13_instantiation.oc) | Instanciation avec `use` |
 | [14_static_access.oc](14_static_access.oc) | Accès statique `Class::method()` + `Class::CONST` |
 | [15_operators.oc](15_operators.oc) | Tous les opérateurs et leur précédence |
@@ -37,7 +37,7 @@ Ce dossier contient un script `.oc` par fonctionnalité du langage.
 | [29_async.oc](29_async.oc) | Programmation asynchrone : `async`, `await`, tâches concurrentes |
 | [30_variadic.oc](30_variadic.oc) | Paramètres variadiques : `variadic<T>`, arguments variables |
 | [31_default_params.oc](31_default_params.oc) | Paramètres par défaut : valeurs optionnelles dans les fonctions |
-| [32_strict_operators.oc](32_strict_operators.oc) | Opérateurs stricts : `===`, `!==`, `<==`, `>==`, `equal`, `not equal` |
+| [32_strict_operators.oc](32_strict_operators.oc) | Comparaisons en toutes lettres (`equal`, `not equal`, `smaller`, `greater`...) — depuis v0.2.0, plus aucun opérateur symbolique (`==`, `!=`, `<=`, `>=`, `===`...) |
 
 ## Classes builtins (`builtins/`)
 
@@ -73,6 +73,13 @@ Ce dossier contient un script `.oc` par fonctionnalité du langage.
 ## Site web complet (`advanced/httpserver/`)
 
 Exemple d'application web complète avec composants HTML, routing et contrôleurs.
+
+> **Avant de lire ce code** : `advanced/httpserver/main.oc` (et les 3 autres applications de
+> `advanced/`) structure son point d'entrée avec les blocs de cycle de vie `init`/`main`/`error`/
+> `success`/`exit` (variables magiques `ERROR`/`SUCCESS`, mot-clé `result`) plutôt qu'avec la
+> fonction `function main(): int { ... }` utilisée par tous les exemples numérotés ci-dessus.
+> C'est une syntaxe distincte, jamais introduite dans la série 01-32 — voir
+> [docs/EBNF.md §5 « Blocs runtime »](../docs/EBNF.md#5-blocs-runtime) avant de continuer.
 
 | Fichier | Contenu |
 |---------|---------|

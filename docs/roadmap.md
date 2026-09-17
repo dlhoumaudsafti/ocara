@@ -47,10 +47,9 @@ _Vide — voir « Définition : le langage est stable » ci-dessus pour la liste
 
 Confort ou portée future — n'affecte pas la correction du compilateur ou des binaires produits.
 
-- **La pédagogie (exemples numérotés + EBNF) a pris du retard sur le corpus `advanced/`** — `parent::` (vrai appel au constructeur parent) n'est documenté nulle part et n'est utilisé dans aucun exemple d'héritage de base ; les blocs de cycle de vie `init`/`main`/`error`/`success`/`exit` sont utilisés par les 4 applications `advanced/` mais jamais introduits dans les 33 exemples numérotés ; `examples/README.md` décrit encore les opérateurs stricts symboliques que `32_strict_operators.oc` explique avoir supprimés en v0.2.0. *(Légère)* → [détails](roadmap.d/documentation-pedagogie-en-retard.md)
 - **Réflexion (non tranchée) : remplacer `for x in a..b` par `for x in a to b` (borne incluse) / `for x in a until b` (borne exclue)** — la borne de fin exclue de `..` n'est pas lisible au point d'appel ; à peser contre le coût d'un changement de syntaxe cassant sur tout le corpus existant. *(Structurel si retenu — voir la fiche pour la discussion complète avant tout engagement)* → [détails](roadmap.d/reflexion-syntaxe-for-range.md)
 
-(Deux points qui se trouvaient ici sont clos : l'extension VSCode est alignée sur la version 1.0.0 du langage — voir [outillage-vscode-version-bump](roadmap.d/outillage-vscode-version-bump.md) — et la cohérence interne de l'EBNF et de la stdlib — voir [coherence-documentation-ebnf-stdlib](roadmap.d/coherence-documentation-ebnf-stdlib.md).)
+(Trois points qui se trouvaient ici sont clos : la pédagogie en retard sur le corpus `advanced/` — `parent::` documenté en EBNF §18.1 et démontré dans `12_inheritance.oc`, pointeur ajouté vers EBNF §5 pour les blocs runtime, ligne `32_strict_operators.oc` corrigée, voir [documentation-pedagogie-en-retard](roadmap.d/documentation-pedagogie-en-retard.md) — l'extension VSCode alignée sur la version 1.0.0 du langage, voir [outillage-vscode-version-bump](roadmap.d/outillage-vscode-version-bump.md) — et la cohérence interne de l'EBNF et de la stdlib, voir [coherence-documentation-ebnf-stdlib](roadmap.d/coherence-documentation-ebnf-stdlib.md).)
 
 ---
 
