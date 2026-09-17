@@ -2,7 +2,7 @@
   "name": "ocara-language",
   "displayName": "Ocara Language Support",
   "description": "Syntax highlighting, HTML template embedding and Go-to-Definition for Ocara (.oc) files",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "publisher": "david-lhoumaud",
   "license": "MIT",
   "icon": "logo-min.png",
