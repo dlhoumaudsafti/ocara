@@ -1,0 +1,89 @@
+import ocara.UnitTest
+
+// `object[index1][index2]` (indexation chaînée dont un des niveaux est une
+// map) retournait silencieusement `null`/`0` dès que le récepteur de l'index
+// EXTÉRIEUR était lui-même une expression `Expr::Index` (`arr[0]["name"]`) —
+// voir docs/roadmap.d/langage-index-chaine-sur-map.md. Root cause :
+// `is_map_target` (src/lower/expr.d/helpers.rs, partagée par la lecture
+// ET l'écriture indexées) ne reconnaissait `Expr::Ident`/`Expr::Field` comme
+// cible map, jamais un `Expr::Index` imbriqué — `arr[0]` (lui-même une
+// `map<string,mixed>` réelle) tombait dans le `_ => false` par défaut,
+// dispatchant vers `__array_get` au lieu de `__map_get` sur un pointeur de
+// forme incompatible. Corrigé par `elem_type_after_index`, une résolution
+// RÉCURSIVE du type d'une indexation — supporte donc une profondeur
+// arbitraire (`a[0][1]["x"]["y"]`...), pas seulement deux niveaux.
+class Test_50_chained_index_on_map {
+
+    // Cas exact du repro original.
+    public method depth2ArrayOfMapReadsCorrectFieldTest(): int {
+        var arr:array<map<string, mixed>> = [{"name": "Alice", "age": 30}]
+        UnitTest::assertEquals("Alice", arr[0]["name"])
+        UnitTest::assertEquals(30, arr[0]["age"])
+        return 0
+    }
+
+    // Profondeur 3 : array<array<map<string,mixed>>> — la couche
+    // intermédiaire (array) doit être épluchée correctement avant d'atteindre
+    // la map.
+    public method depth3ArrayOfArrayOfMapTest(): int {
+        var inner:array<map<string, mixed>> = [{"name": "Bob"}]
+        var matrix:array<array<map<string, mixed>>> = [inner, inner]
+        UnitTest::assertEquals("Bob", matrix[0][0]["name"])
+        UnitTest::assertEquals("Bob", matrix[1][0]["name"])
+        return 0
+    }
+
+    // Profondeur 4 — vérifie qu'il n'y a pas de limite de profondeur codée en
+    // dur (la récursion de `elem_type_after_index` doit composer sans borne).
+    public method depth4NestedArraysOfMapTest(): int {
+        var inner:array<map<string, mixed>> = [{"name": "Carol"}]
+        var matrix:array<array<map<string, mixed>>> = [inner]
+        var cube:array<array<array<map<string, mixed>>>> = [matrix, matrix]
+        UnitTest::assertEquals("Carol", cube[1][0][0]["name"])
+        return 0
+    }
+
+    // La même fonction (`is_map_target`) est partagée par la lecture ET
+    // l'écriture indexées (assignments.rs) — vérifie que l'écriture chaînée
+    // fonctionne aussi, pas seulement la lecture.
+    public method chainedIndexAssignmentTest(): int {
+        var arr:array<map<string, mixed>> = [{"name": "Dave"}]
+        arr[0]["name"] = "Dave2"
+        UnitTest::assertEquals("Dave2", arr[0]["name"])
+        return 0
+    }
+
+    // `self.champ[i][clé]` — la résolution passe par `class_field_types`,
+    // pas `elem_ast_types` (réservée aux variables locales/paramètres).
+    public method chainedIndexThroughClassFieldTest(): int {
+        var h:Holder = use Holder()
+        UnitTest::assertEquals("Eve", h.rows[0]["name"])
+        return 0
+    }
+
+    // L'autre sens de nesting : une map dont les VALEURS sont elles-mêmes des
+    // maps (`map<string, map<string, mixed>>`), pas seulement des arrays de
+    // maps.
+    public method mapOfMapChainedIndexTest(): int {
+        var mm:map<string, map<string, mixed>> = {"alice": {"age": 30}}
+        UnitTest::assertEquals(30, mm["alice"]["age"])
+        return 0
+    }
+
+    // Non-régression : une indexation chaînée sur des arrays PURS (aucune
+    // map impliquée) doit continuer à utiliser __array_get comme avant —
+    // `elem_type_after_index`/`is_map_shaped` ne doivent jamais classer un
+    // `array<array<int>>` comme une map.
+    public method chainedIndexOnPureArraysIsUnaffectedTest(): int {
+        var nums:array<array<int>> = [[1, 2, 3], [4, 5, 6]]
+        UnitTest::assertEquals(6, nums[1][2])
+        return 0
+    }
+}
+
+class Holder {
+    public property rows:array<map<string, mixed>>
+    init() {
+        self.rows = [{"name": "Eve"}]
+    }
+}
