@@ -235,12 +235,12 @@ fn is_ptr(val: i64) -> bool {
 }
 
 #[inline]
-fn is_float_box(val: i64) -> bool {
+pub(crate) fn is_float_box(val: i64) -> bool {
     val >= 0x10000 && (val & 3) == 1
 }
 
 #[inline]
-fn is_bool_box(val: i64) -> bool {
+pub(crate) fn is_bool_box(val: i64) -> bool {
     val >= 0x10000 && (val & 3) == 2
 }
 
@@ -251,22 +251,22 @@ fn is_bool_box(val: i64) -> bool {
 /// `0` (sinon indiscernable de `null`, voir la doc de `box_int_if_needed`) —
 /// tout autre petit entier reste brut, jamais alloué.
 #[inline]
-fn is_int_box(val: i64) -> bool {
+pub(crate) fn is_int_box(val: i64) -> bool {
     val >= 0x10000 && (val & 3) == 3
 }
 
 #[inline]
-unsafe fn unbox_float(val: i64) -> f64 {
+pub(crate) unsafe fn unbox_float(val: i64) -> f64 {
     unsafe { *((val & !3) as *const f64) }
 }
 
 #[inline]
-unsafe fn unbox_bool(val: i64) -> bool {
+pub(crate) unsafe fn unbox_bool(val: i64) -> bool {
     unsafe { *((val & !3) as *const i64) != 0 }
 }
 
 #[inline]
-unsafe fn unbox_int(val: i64) -> i64 {
+pub(crate) unsafe fn unbox_int(val: i64) -> i64 {
     unsafe { *((val & !3) as *const i64) }
 }
 
@@ -297,7 +297,7 @@ unsafe fn unbox_int(val: i64) -> i64 {
 /// endroit qui logeait auparavant un `int` brut dans un `mixed` (affectation,
 /// argument, littéral `array`/`map`, résultat arithmétique dynamique...).
 #[inline]
-fn box_int_if_needed(n: i64) -> i64 {
+pub(crate) fn box_int_if_needed(n: i64) -> i64 {
     if n != 0 && n < 0x10000 {
         return n;
     }
@@ -1006,6 +1006,14 @@ pub extern "C" fn __map_get(ptr: i64, key: i64) -> i64 {
         }
         0
     }
+}
+
+/// Copie les paires (clé, valeur `mixed` brute) d'une `map<string, mixed>` —
+/// pour un appelant hors de ce fichier (ex. `sqlite::bind`) qui doit itérer
+/// tout le contenu sans exposer `OcaraMap`/`map_ref` eux-mêmes.
+pub(crate) unsafe fn map_entries(ptr: i64) -> Vec<(String, i64)> {
+    if ptr == 0 { return Vec::new(); }
+    unsafe { map_ref(ptr).data.clone() }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3294,7 +3302,7 @@ const MAX_USERSPACE_ADDR: i64 = 0x800000000000; // 128 TB, limite typique Linux
 ///   6 = map
 ///   7 = object
 ///   8 = function
-fn get_value_type(val: i64) -> i32 {
+pub(crate) fn get_value_type(val: i64) -> i32 {
     if val == 0 {
         return 0; // null
     }

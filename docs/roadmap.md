@@ -37,9 +37,9 @@ _Vide — voir « Définition : le langage est stable » ci-dessus pour la liste
 
 À traiter mais non bloquant pour la stabilité du langage.
 
-- **`SQLite`/`MySQL` n'exposent aucune requête paramétrée** — `execute`/`query`/`queryOne` ne prennent qu'une chaîne SQL brute, donc l'échappement anti-injection retombe entièrement sur le code utilisateur (l'exemple `advanced/mini_project` doit se doter de sa propre classe `SqlSafe` pour ça). *(Structurel — touche le binding C sous-jacent des deux builtins)* → [détails](roadmap.d/stdlib-sqlite-mysql-requetes-parametrees.md)
+- **`MySQL`/`MariaDB` — requêtes paramétrées (placeholders nominatifs `:nom`) + transactions `prepare`/`bind`/`commit`/`rollback`, bloquée par un prérequis architectural** — même fonctionnalité que `SQLite` (close, voir ci-dessous), mais chaque appel `execute`/`query`/`queryOne` pioche aujourd'hui une connexion différente dans le pool (`pool.get_conn()`), donc un `commit()`/`rollback()` naïf ne serait pas réellement transactionnel tant qu'une connexion n'est pas épinglée pour la durée du cycle `prepare→bind→commit`. *(Structurel)* → [détails](roadmap.d/stdlib-mysql-requetes-parametrees-transactions.md)
 
-(Le seul autre point qui se trouvait ici, `-no-pie` au lien final, est clos — voir [securite-lien-no-pie](roadmap.d/securite-lien-no-pie.md) ; sa suite différée est suivie en Priorité Très Basse ci-dessous.)
+(Deux points qui se trouvaient ici sont clos : `SQLite` a maintenant les requêtes paramétrées et les transactions `prepare`/`bind`/`commit`/`rollback` — voir [stdlib-sqlite-requetes-parametrees-transactions](roadmap.d/stdlib-sqlite-requetes-parametrees-transactions.md) — et `-no-pie` au lien final, voir [securite-lien-no-pie](roadmap.d/securite-lien-no-pie.md) ; sa suite différée est suivie en Priorité Très Basse ci-dessous.)
 
 ---
 

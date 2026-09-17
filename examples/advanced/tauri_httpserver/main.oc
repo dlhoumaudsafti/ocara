@@ -40,9 +40,10 @@ import controllers.IPCController
 init {
     IO::writeln("Initialisation de l'app...")
     use Components()
-    Database::migrate()
+    db:Database = use Database()
+    db.migrate()
     const server:Server = use Server()
-    server.routes()
+    server.routes(db)
 }
 
 main {

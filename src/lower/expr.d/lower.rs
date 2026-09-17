@@ -569,6 +569,32 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                             .and_then(|cls| crate::lower::builder::class_dispatch::class_dispatcher_name(builder.module, cls, field))
                             .unwrap_or_else(|| func_mangled.clone())
                     };
+                    // Pour les builtins d'instance avec paramètres optionnels
+                    // (surcharges par arité, ex. SQLite::execute/query/queryOne
+                    // avec placeholder/close optionnels) : même patron que pour
+                    // un appel de fonction libre ou `Class::method()` plus bas
+                    // dans ce fichier, généralisé ici à `obj.méthode()` — pas
+                    // couvert jusqu'ici, `db.execute(query)` était le premier
+                    // cas d'usage réel d'un builtin d'INSTANCE à arité
+                    // variable. Recherche directe d'une variante `_N` (N =
+                    // nombre d'arguments RÉELS, `self` exclu) plutôt que de
+                    // comparer aux comptes de `BuiltinDesc.params` (qui, pour
+                    // une méthode d'instance, inclut `self_ptr` — un off-by-one
+                    // silencieux si on réutilisait tel quel le calcul utilisé
+                    // pour les fonctions libres/statiques, qui n'ont pas ce
+                    // décalage). Seul le cas non-virtuel (`call_target ==
+                    // func_mangled`, pas de dispatcher d'héritage) peut
+                    // correspondre à un builtin enregistré.
+                    let call_target = if call_target == func_mangled {
+                        let suffixed = format!("{}_{}", func_mangled, completed_args.len());
+                        if builtins().iter().any(|b| b.name == suffixed) {
+                            suffixed
+                        } else {
+                            call_target
+                        }
+                    } else {
+                        call_target
+                    };
                     builder.emit(Inst::Call {
                         dest:   Some(dest.clone()),
                         func:   call_target,
