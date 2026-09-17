@@ -76,6 +76,33 @@ main {
         }
         IO::writeln("")
         
+        // Requêtes paramétrées (placeholders nominatifs `:nom`) — jamais de
+        // concaténation de chaîne pour une valeur variable, voir
+        // docs/builtins/MySQL.md, section "Requêtes paramétrées".
+        IO::writeln("Named placeholders (one-shot)...")
+        db.execute("INSERT INTO users (name, age) VALUES (:name, :age)", {"name": "Eve", "age": 22})
+        var eve:map<string, mixed>|null = db.queryOne("SELECT * FROM users WHERE name = :name", {"name": "Eve"})
+        if eve not equal null {
+            IO::writeln(`  Inserted and found: ${eve["name"]} (${eve["age"]} years)`)
+        }
+        IO::writeln("")
+
+        // Transaction : prepare() / bind() / commit() / rollback() — voir
+        // docs/builtins/MySQL.md, section "Transactions". commit() retourne
+        // mixed, auto-détecté : array<map<string,mixed>> pour un SELECT,
+        // int (lignes affectées) sinon.
+        IO::writeln("Stepped transaction (prepare/bind/commit)...")
+        try {
+            db.prepare("UPDATE users SET age = age + 1 WHERE name = :name")
+            db.bind({"name": "Eve"})
+            var affected:mixed = db.commit()
+            IO::writeln(`  Birthday update committed, ${affected} row(s) affected`)
+        } on e is MySQLException {
+            IO::writeln(`  Transaction failed: ${e.message}`)
+            db.rollback()
+        }
+        IO::writeln("")
+
         // Suppression
         IO::writeln("Deleting user Charlie...")
         var delete_result:int = db.execute("DELETE FROM users WHERE name = 'Charlie'")

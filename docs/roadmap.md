@@ -37,9 +37,7 @@ _Vide — voir « Définition : le langage est stable » ci-dessus pour la liste
 
 À traiter mais non bloquant pour la stabilité du langage.
 
-- **`MySQL`/`MariaDB` — requêtes paramétrées (placeholders nominatifs `:nom`) + transactions `prepare`/`bind`/`commit`/`rollback`, bloquée par un prérequis architectural** — même fonctionnalité que `SQLite` (close, voir ci-dessous), mais chaque appel `execute`/`query`/`queryOne` pioche aujourd'hui une connexion différente dans le pool (`pool.get_conn()`), donc un `commit()`/`rollback()` naïf ne serait pas réellement transactionnel tant qu'une connexion n'est pas épinglée pour la durée du cycle `prepare→bind→commit`. *(Structurel)* → [détails](roadmap.d/stdlib-mysql-requetes-parametrees-transactions.md)
-
-(Deux points qui se trouvaient ici sont clos : `SQLite` a maintenant les requêtes paramétrées et les transactions `prepare`/`bind`/`commit`/`rollback` — voir [stdlib-sqlite-requetes-parametrees-transactions](roadmap.d/stdlib-sqlite-requetes-parametrees-transactions.md) — et `-no-pie` au lien final, voir [securite-lien-no-pie](roadmap.d/securite-lien-no-pie.md) ; sa suite différée est suivie en Priorité Très Basse ci-dessous.)
+_Vide pour l'instant — le seul point qui s'y trouvait (`SQLite`/`MySQL`/`MariaDB` : requêtes paramétrées + transactions) est clos, voir [stdlib-sqlite-requetes-parametrees-transactions](roadmap.d/stdlib-sqlite-requetes-parametrees-transactions.md) et [stdlib-mysql-requetes-parametrees-transactions](roadmap.d/stdlib-mysql-requetes-parametrees-transactions.md) — et `-no-pie` au lien final, voir [securite-lien-no-pie](roadmap.d/securite-lien-no-pie.md) ; sa suite différée est suivie en Priorité Très Basse ci-dessous._
 
 ---
 
@@ -47,6 +45,7 @@ _Vide — voir « Définition : le langage est stable » ci-dessus pour la liste
 
 Confort ou portée future — n'affecte pas la correction du compilateur ou des binaires produits.
 
+- **`expr[i][clé]` (indexation chaînée array-puis-map) retourne `null`** au lieu de la vraie valeur — `arr[0]["name"]` échoue silencieusement là où `const first = arr[0]; first["name"]` fonctionne. Trouvé par accident en vérifiant le ticket MySQL (aucun rapport avec MySQL, reproduit à l'identique avec SQLite) — hypothèse de cause déjà posée dans la fiche : `is_map_target` ne reconnaît `Expr::Ident`/`Expr::Field` comme cible map, jamais `Expr::Index` imbriqué. *(Légère à Structurel selon investigation)* → [détails](roadmap.d/langage-index-chaine-sur-map.md)
 - **Réflexion (non tranchée) : remplacer `for x in a..b` par `for x in a to b` (borne incluse) / `for x in a until b` (borne exclue)** — la borne de fin exclue de `..` n'est pas lisible au point d'appel ; à peser contre le coût d'un changement de syntaxe cassant sur tout le corpus existant. *(Structurel si retenu — voir la fiche pour la discussion complète avant tout engagement)* → [détails](roadmap.d/reflexion-syntaxe-for-range.md)
 
 (Trois points qui se trouvaient ici sont clos : la pédagogie en retard sur le corpus `advanced/` — `parent::` documenté en EBNF §18.1 et démontré dans `12_inheritance.oc`, pointeur ajouté vers EBNF §5 pour les blocs runtime, ligne `32_strict_operators.oc` corrigée, voir [documentation-pedagogie-en-retard](roadmap.d/documentation-pedagogie-en-retard.md) — l'extension VSCode alignée sur la version 1.0.0 du langage, voir [outillage-vscode-version-bump](roadmap.d/outillage-vscode-version-bump.md) — et la cohérence interne de l'EBNF et de la stdlib, voir [coherence-documentation-ebnf-stdlib](roadmap.d/coherence-documentation-ebnf-stdlib.md).)
@@ -92,8 +91,9 @@ Pas important du tout pour le moment — portage/intégration massifs, aucune ur
         * On effectue les modifications
         * On compile
 * On crée un exemple pour les tests de régression si nécessaire.
-* On crée un test unitaire si nécessaire.
-* On lance les test de regression et les tests unitaire.
+* On crée un test unitaire si nécessaire. Que ce soit pour le code source rust et les exemples Ocara.
+* On lance les tests unitaire du code source rust d'Ocara
+* On lance les test de regression et les tests unitaire des exemples Ocara
 * On met à jour la documentation si nécessaire.
 * Si `docs/EBNF.md` a été modifié : on relit le §31 ("Grammaire EBNF complète") pour vérifier qu'il reste réellement la source unique et à jour — toute règle ajoutée/modifiée ailleurs dans le document doit s'y refléter à l'identique (mêmes noms de règles, mêmes alternatives), sans quoi le §31 dérive silencieusement de sa propre prétention à être la référence canonique (voir [coherence-documentation-ebnf-stdlib](roadmap.d/coherence-documentation-ebnf-stdlib.md)).
 * On met à jour la roadmap.

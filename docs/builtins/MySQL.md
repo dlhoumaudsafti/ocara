@@ -47,7 +47,7 @@ MySQL::withConnect("localhost", "root", "password", "mydb", nameless(db:MySQL): 
 
 ## Exécution de requêtes
 
-### `db.execute(query: string) → int`
+### `db.execute(query: string, placeholder: map<string, mixed>|null = null, close: bool = false) → int`
 
 Exécute une requête SQL qui ne retourne pas de résultats (INSERT, UPDATE, DELETE, CREATE, etc.).  
 Retourne le nombre de lignes affectées.
@@ -59,14 +59,23 @@ const affected:int = db.execute("UPDATE users SET age = 31 WHERE name = 'Alice'"
 IO::writeln(`${affected} rows updated`)
 ```
 
+`placeholder` bind des valeurs nominatives `:nom` (voir [Requêtes paramétrées](#requêtes-paramétrées-placeholders-nominatifs) ci-dessous) :
+
+```ocara
+db.execute("INSERT INTO users (name, age) VALUES (:name, :age)", {"name": "Alice", "age": 30})
+```
+
+`close:true` ferme la connexion juste après. Comme côté [SQLite](SQLite.md), ceci ferme réellement la connexion à l'exécution mais ne satisfait **pas** l'analyse statique de fuite de ressource (E28, voir [diagnostics.md](../diagnostics.md)) — préférer `.close()` explicite si vous voulez que le compilateur valide qu'aucune connexion ne fuit.
+
 **Erreur** : `MySQLException` (code 102) si la requête échoue.
 
-### `db.query(query: string) → array<map<string, mixed>>`
+### `db.query(query: string, placeholder: map<string, mixed>|null = null) → array<map<string, mixed>>`
 
 Exécute une requête SELECT et retourne un array de maps (une map par ligne).
 
 ```ocara
 const rows:array<map<string, mixed>> = db.query("SELECT * FROM users")
+const adults:array<map<string, mixed>> = db.query("SELECT * FROM users WHERE age >= :min", {"min": 18})
 
 for row in rows {
     const name:string = row["name"]
@@ -83,14 +92,14 @@ for row in rows {
 
 **Erreur** : `MySQLException` (code 103) si la requête échoue.
 
-### `db.queryOne(query: string) → map<string, mixed>|null`
+### `db.queryOne(query: string, placeholder: map<string, mixed>|null = null) → map<string, mixed>|null`
 
 Exécute une requête SELECT et retourne la première ligne, ou `null` si aucun résultat.
 
 > ⚠️ **Piège** : `SQLite::queryOne` (voir [SQLite](SQLite.md)) porte le même nom de méthode mais une sémantique **différente** pour représenter "aucun résultat" — il retourne une **map vide** (vérifier avec `Map::size(...) > 0`), pas `null`. Ne pas écrire de code générique sur les deux sans tenir compte de cette différence.
 
 ```ocara
-const user:map<string, mixed>|null = db.queryOne("SELECT * FROM users WHERE id = 1")
+const user:map<string, mixed>|null = db.queryOne("SELECT * FROM users WHERE id = :id", {"id": 1})
 
 if user not equal null {
     IO::writeln(`User found: ${user["name"]}`)
@@ -100,6 +109,65 @@ if user not equal null {
 ```
 
 **Erreur** : `MySQLException` (code 103) si la requête échoue.
+
+## Requêtes paramétrées (placeholders nominatifs)
+
+Toute valeur variable dans une requête SQL doit être **bindée**, jamais concaténée dans la chaîne — la concaténation directe est une injection SQL potentielle. Comme [SQLite](SQLite.md), `MySQL`/`MariaDB` n'acceptent que des placeholders **nominatifs**, écrits `:nom` dans le SQL, liés depuis une `map<string, mixed>` dont les clés sont les mêmes noms **sans** le `:` :
+
+```ocara
+db.execute("INSERT INTO users (name, age) VALUES (:name, :age)", {"name": "Alice", "age": 30})
+```
+
+Pas de placeholders positionnels (`?`) — même choix que SQLite, voir `examples/32_strict_operators.oc` pour la même philosophie appliquée aux opérateurs de comparaison.
+
+Types de valeurs bindables : `int`, `float`, `bool` (converti en `0`/`1`, MySQL n'a pas de type bool natif), `string`, `null`. Une valeur `array`/`map`/objet/fonction dans la map de placeholders lève `MySQLException` (code 106).
+
+## Transactions — `prepare()` / `bind()` / `commit()` / `rollback()`
+
+Pour une opération qui doit réussir ou échouer **en bloc** (donc annulable via `rollback()`), le flux "stepped" remplace `execute`/`query`/`queryOne` one-shot par quatre étapes explicites — même design que [SQLite](SQLite.md#transactions--prepare--bind--commit--rollback), sur la même connexion à chaque étape :
+
+```ocara
+const db:MySQL = MySQL::connect("localhost", "root", "password", "bank")
+try {
+    db.prepare("UPDATE accounts SET balance = balance - :amount WHERE id = :from")
+    db.bind({"amount": 100, "from": 1})
+    db.commit()
+
+    db.prepare("UPDATE accounts SET balance = balance + :amount WHERE id = :to")
+    db.bind({"amount": 100, "to": 2})
+    var affected:mixed = db.commit()
+    IO::writeln(`transfert effectué, ${affected} ligne(s) affectée(s)`)
+} on e is MySQLException {
+    IO::writeln(`Erreur : ${e.message}`)
+    db.rollback()
+}
+```
+
+### `db.prepare(query: string) → void`
+
+Épingle une connexion dédiée au cycle et valide la requête **immédiatement** côté serveur (`COM_STMT_PREPARE` réel — erreur de syntaxe remontée à cet appel, pas plus tard). Un cycle précédent resté ouvert (`commit()` échoué, `rollback()` jamais appelé) est annulé automatiquement avant de continuer.
+
+**Erreur** : `MySQLException` (code 105) si la requête est syntaxiquement invalide.
+
+### `db.bind(placeholders: map<string, mixed>) → void`
+
+Bind les placeholders nominatifs `:nom` de la requête posée par le dernier `prepare()`. Appeler `bind()` sans `prepare()` préalable lève une exception plutôt que d'échouer silencieusement.
+
+**Erreur** : `MySQLException` (code 106) si aucun `prepare()` n'est en attente, ou si une valeur n'est pas bindable.
+
+### `db.commit(close: bool = false) → mixed`
+
+Exécute la requête posée par `prepare()`/`bind()` à l'intérieur d'une transaction SQL (`START TRANSACTION` ... `COMMIT`), sur la connexion épinglée par `prepare()`. Le type de retour dépend de la requête, **auto-détecté** :
+- `array<map<string, mixed>>` si la requête produit des colonnes (SELECT) ;
+- `int` (nombre de lignes affectées) sinon.
+
+En cas d'échec à n'importe quelle étape, lève `MySQLException` **sans rollback automatique** : `rollback()` doit être appelé explicitement. Appeler `commit()` sans `prepare()` préalable lève aussi une exception.
+
+**Erreur** : `MySQLException` (code 107).
+
+### `db.rollback(close: bool = false) → void`
+
+Annule la transaction laissée ouverte par un `commit()` échoué, et efface l'état `prepare()`/`bind()` en attente. **No-op silencieux** s'il n'y a rien à annuler — peut être appelé sans risque depuis un `on e is MySQLException` sans savoir précisément à quelle étape l'échec a eu lieu.
 
 ## Informations sur les opérations
 
@@ -169,7 +237,7 @@ try {
     IO::writeln(`${affected} rows updated`)
     
     // Recherche d'un utilisateur
-    const alice:map<string, mixed> = db.queryOne("SELECT * FROM users WHERE name = 'Alice'")
+    const alice:map<string, mixed>|null = db.queryOne("SELECT * FROM users WHERE name = 'Alice'")
     if alice not equal null {
         IO::writeln(`Alice's new age: ${alice["age"]}`)
     }
@@ -186,10 +254,51 @@ const db2:MariaDB = MariaDB::connect("localhost", "root", "password", "testdb")
 // ... même API ...
 ```
 
+## Exemple — requêtes paramétrées et transaction
+
+```ocara
+import ocara.MySQL
+import ocara.IO
+
+function main(): int {
+    const db:MySQL = MySQL::connect("localhost", "root", "password", "bank")
+
+    db.execute("CREATE TABLE IF NOT EXISTS accounts (id INT AUTO_INCREMENT PRIMARY KEY, balance INT)")
+
+    // One-shot avec binding nominatif — jamais de concaténation de chaîne
+    db.execute("INSERT IGNORE INTO accounts (id, balance) VALUES (:id, :balance)", {"id": 1, "balance": 500})
+    db.execute("INSERT IGNORE INTO accounts (id, balance) VALUES (:id, :balance)", {"id": 2, "balance": 100})
+
+    // Transaction : virement qui doit réussir ou échouer en bloc
+    try {
+        db.prepare("UPDATE accounts SET balance = balance - :amount WHERE id = :from")
+        db.bind({"amount": 50, "from": 1})
+        db.commit()
+
+        db.prepare("UPDATE accounts SET balance = balance + :amount WHERE id = :to")
+        db.bind({"amount": 50, "to": 2})
+        db.commit()
+
+        IO::writeln("Virement effectué")
+    } on e is MySQLException {
+        IO::writeln(`Virement annulé : ${e.message}`)
+        db.rollback()
+    }
+
+    const accounts:array<map<string, mixed>> = db.query("SELECT * FROM accounts")
+    for a in accounts {
+        IO::writeln(`compte ${a["id"]} : ${a["balance"]}`)
+    }
+
+    db.close()
+    return 0
+}
+```
+
 ## Notes
 
-- La connexion utilise un pool de connexions en interne pour de meilleures performances
+- La connexion utilise un pool de connexions en interne pour de meilleures performances (sauf pendant un cycle `prepare()`/`bind()`/`commit()`/`rollback()`, qui épingle une connexion dédiée le temps de la transaction — voir la section Transactions ci-dessus)
 - Les types MySQL sont convertis automatiquement en types Ocara
 - `NULL` en MySQL devient `null` (0) en Ocara
-- Pour les chaînes avec caractères spéciaux, utilisez des paramètres préparés ou échappez les valeurs
+- Toute valeur variable doit être bindée via le paramètre `placeholder`/`bind()` (voir [Requêtes paramétrées](#requêtes-paramétrées-placeholders-nominatifs)) — jamais concaténée directement dans la chaîne SQL
 - La connexion doit être fermée avec `close()` pour libérer les ressources

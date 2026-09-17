@@ -3784,9 +3784,31 @@
         "static": false
       },
       {
+        "name": "bind",
+        "params": [
+          {
+            "name": "placeholders",
+            "type": "map<string, mixed>"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
         "name": "close",
         "params": [],
         "returns": "void",
+        "static": false
+      },
+      {
+        "name": "commit",
+        "params": [
+          {
+            "name": "close",
+            "type": "bool"
+          }
+        ],
+        "returns": "mixed",
         "static": false
       },
       {
@@ -3818,6 +3840,14 @@
           {
             "name": "query",
             "type": "string"
+          },
+          {
+            "name": "placeholder",
+            "type": "placeholder_type()"
+          },
+          {
+            "name": "close",
+            "type": "bool"
           }
         ],
         "returns": "int",
@@ -3830,11 +3860,26 @@
         "static": false
       },
       {
+        "name": "prepare",
+        "params": [
+          {
+            "name": "query",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
         "name": "query",
         "params": [
           {
             "name": "query",
             "type": "string"
+          },
+          {
+            "name": "placeholder",
+            "type": "placeholder_type()"
           }
         ],
         "returns": "map<string, mixed>[]",
@@ -3846,9 +3891,24 @@
           {
             "name": "query",
             "type": "string"
+          },
+          {
+            "name": "placeholder",
+            "type": "placeholder_type()"
           }
         ],
         "returns": "map<string, mixed>|null",
+        "static": false
+      },
+      {
+        "name": "rollback",
+        "params": [
+          {
+            "name": "close",
+            "type": "bool"
+          }
+        ],
+        "returns": "void",
         "static": false
       },
       {

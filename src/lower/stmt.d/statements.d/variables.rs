@@ -7,6 +7,25 @@ use crate::lower::expr::{lower_expr, expr_ir_type_pub};
 use crate::core::monomorph::monomorphized_name;
 use super::helpers::box_for_any;
 
+/// Retourne le type de valeur d'une `map<K, V>` déclarée, en dépliant un
+/// type union `map<K, V>|null` (ex. `MySQL::queryOne`) — un simple `if let
+/// Type::Map(_, v) = ty` ne matche QUE la forme non-nullable directe. Sans
+/// ce dépliage, une variable `map<string,mixed>|null` n'est jamais ajoutée à
+/// `builder.map_vars`, donc `is_map_target` la voit comme "pas une map", et
+/// `Expr::Index` dispatche silencieusement vers `__array_get` au lieu de
+/// `__map_get` — confirmé par reproduction (`MySQL::queryOne`, seul builtin
+/// du langage à retourner un `map<...>|null`, donc le seul endroit qui
+/// exerçait ce chemin) : `db.queryOne(...)["champ"]` retournait `null` pour
+/// CHAQUE champ après narrowing, alors que la ligne existait bien. Voir
+/// docs/roadmap.d/stdlib-mysql-requetes-parametrees-transactions.md.
+fn map_value_type(ty: &Type) -> Option<&Type> {
+    match ty {
+        Type::Map(_, val_ty) => Some(val_ty),
+        Type::Union(variants) => variants.iter().find_map(map_value_type),
+        _ => None,
+    }
+}
+
 pub fn lower_var(
     builder: &mut LowerBuilder,
     name: &str,
@@ -23,12 +42,13 @@ pub fn lower_var(
         builder.elem_ast_types.insert(name.to_string(), (**inner).clone());
     }
     
-    // Si c'est une map, marquer la variable pour Expr::Index → __map_get
-    // et enregistrer le type des valeurs dans elem_types
-    if let Type::Map(_, val_ty) = ty {
+    // Si c'est une map (ou un union contenant une map, ex. `map<K,V>|null`
+    // — voir `map_value_type`), marquer la variable pour Expr::Index →
+    // __map_get et enregistrer le type des valeurs dans elem_types
+    if let Some(val_ty) = map_value_type(ty) {
         builder.map_vars.insert(name.to_string());
         builder.elem_types.insert(name.to_string(), IrType::from_ast(val_ty));
-        builder.elem_ast_types.insert(name.to_string(), (**val_ty).clone());
+        builder.elem_ast_types.insert(name.to_string(), val_ty.clone());
     }
 
     // Si c'est un type de classe, enregistrer le mapping var → classe
@@ -115,16 +135,16 @@ pub fn lower_const(
         builder.elem_ast_types.insert(name.to_string(), (**inner).clone());
     }
     
-    if let Type::Map(_, val_ty) = ty {
+    if let Some(val_ty) = map_value_type(ty) {
         builder.map_vars.insert(name.to_string());
         builder.elem_types.insert(name.to_string(), IrType::from_ast(val_ty));
-        builder.elem_ast_types.insert(name.to_string(), (**val_ty).clone());
+        builder.elem_ast_types.insert(name.to_string(), val_ty.clone());
     }
 
     if let Type::Named(class_name) = ty {
         builder.var_class.insert(name.to_string(), class_name.clone());
     }
-    
+
     // Si c'est un générique, utiliser le nom monomorphisé
     if let Type::Generic { name: generic_name, args } = ty {
         let specialized_name = monomorphized_name(generic_name, args);
@@ -175,5 +195,53 @@ fn lower_literal_or_expr(builder: &mut LowerBuilder, value: &Expr, ty: &Type) ->
             crate::lower::expr::lower_map_literal(builder, entries, kind)
         }
         _ => lower_expr(builder, value),
+    }
+}
+
+/// Tests unitaires — `map_value_type`
+/// (docs/roadmap.d/stdlib-mysql-requetes-parametrees-transactions.md).
+#[cfg(test)]
+mod tests {
+    use super::map_value_type;
+    use crate::parsing::ast::Type;
+
+    #[test]
+    fn map_value_type_direct_map() {
+        let ty = Type::Map(Box::new(Type::String), Box::new(Type::Int));
+        assert_eq!(map_value_type(&ty), Some(&Type::Int));
+    }
+
+    #[test]
+    fn map_value_type_unwraps_union_with_null() {
+        // Le cas concret qui a révélé le bug : `MySQL::queryOne` est le seul
+        // builtin du langage à retourner `map<string,mixed>|null` — sans ce
+        // dépliage, `const one:map<string,mixed>|null = db.queryOne(...)`
+        // n'était jamais enregistrée dans `builder.map_vars`, donc
+        // `Expr::Index` dispatchait vers `__array_get` au lieu de
+        // `__map_get` : `one["champ"]` retournait `null` pour CHAQUE champ,
+        // même juste après un narrowing `if one not equal null`. Confirmé
+        // par reproduction (`runtime/src/tests/mysql.rs` et test `.oc`
+        // manuel) avant ce correctif.
+        let ty = Type::Union(vec![
+            Type::Map(Box::new(Type::String), Box::new(Type::Mixed)),
+            Type::Null,
+        ]);
+        assert_eq!(map_value_type(&ty), Some(&Type::Mixed));
+    }
+
+    #[test]
+    fn map_value_type_union_order_independent() {
+        // `null` en premier dans l'union doit donner le même résultat —
+        // l'ordre des variantes ne doit jamais changer le comportement.
+        let ty = Type::Union(vec![Type::Null, Type::Map(Box::new(Type::Int), Box::new(Type::Bool))]);
+        assert_eq!(map_value_type(&ty), Some(&Type::Bool));
+    }
+
+    #[test]
+    fn map_value_type_none_for_non_map_types() {
+        assert_eq!(map_value_type(&Type::Int), None);
+        assert_eq!(map_value_type(&Type::String), None);
+        assert_eq!(map_value_type(&Type::Array(Box::new(Type::Int))), None);
+        assert_eq!(map_value_type(&Type::Union(vec![Type::String, Type::Null])), None);
     }
 }
