@@ -81,13 +81,13 @@ max_line_length     = 120
 # R06 — max lignes vides consécutives (0 pour désactiver)
 blank_lines_max     = 2
 
-# R07 — classes en PascalCase
+# R07 — classes/interfaces/modules/generics en PascalCase
 naming_class        = true
 
-# R08 — fonctions en camelCase (première lettre minuscule)
+# R08 — fonctions ET méthodes en camelCase (première lettre minuscule)
 naming_function     = true
 
-# R09 — constantes en UPPER_SNAKE_CASE
+# R09 — constantes (globales ET de classe) en UPPER_SNAKE_CASE
 naming_const        = true
 
 # R10 — espace après '//' dans les commentaires
@@ -95,7 +95,12 @@ comment_spacing     = true
 
 # R11 — le fichier se termine par une newline
 file_ends_newline   = true
+
+# R12 — variables (var/scoped/consumed) et propriétés en snake_case
+naming_variable     = true
 ```
+
+> Les règles R07/R08/R09/R12 implémentent [docs/conventions.md](../../docs/conventions.md), la convention de nommage officielle du projet — s'y référer en cas de doute sur une catégorie non couverte ici.
 
 Si `.ocaracs` est absent, toutes les règles sont activées avec les valeurs par défaut.
 
@@ -177,38 +182,47 @@ Mettre `blank_lines_max = 0` pour désactiver.
 
 ---
 
-### R07 — Nommage des classes (PascalCase)
+### R07 — Nommage des classes/interfaces/modules/generics (PascalCase)
 
-Les classes doivent commencer par une majuscule et n'utiliser que des caractères alphanumériques.
+`class`, `interface`, `module` et `generic` doivent commencer par une majuscule et n'utiliser que des caractères alphanumériques.
 
 ```ocara
-class Point { }          // ✓
-class httpClient { }     // ✗ → HttpClient
-class MY_CLASS { }       // ✗ → MyClass
+class Point { }              // ✓
+class httpClient { }         // ✗ → HttpClient
+interface Drawable { }       // ✓
+interface loggable { }       // ✗ → Loggable
+module Clickable { }         // ✓
+generic Stack<T> { }         // ✓
+generic cache<K, V> { }      // ✗ → Cache
 ```
 
 ---
 
-### R08 — Nommage des fonctions (camelCase)
+### R08 — Nommage des fonctions et méthodes (camelCase)
 
-Les fonctions doivent commencer par une minuscule.
+Les fonctions (`function`) et les méthodes (`method`, avec ou sans visibilité/`static`/`async` devant — une signature de méthode d'interface n'a pas de visibilité) doivent commencer par une minuscule.
 
 ```ocara
-function main(): int { }           // ✓
-function calculateArea(): float { } // ✓
-function MyFunction(): int { }     // ✗ → myFunction
+function main(): int { }              // ✓
+function calculateArea(): float { }   // ✓
+function MyFunction(): int { }        // ✗ → myFunction
+
+public method tryLock(): bool { }         // ✓
+public static method Create(): Foo { }    // ✗ → create
+method draw(): void                       // ✓ (signature d'interface, pas de visibilité)
 ```
 
 ---
 
 ### R09 — Nommage des constantes (UPPER_SNAKE_CASE)
 
-Les constantes déclarées avec `const` doivent être en majuscules.
+Les constantes déclarées avec `const` doivent être en majuscules — qu'il s'agisse d'une constante globale ou d'une constante de classe (`public`/`protected`/`private const`).
 
 ```ocara
-const MAX_RETRIES = 3      // ✓
-const version = "1.0"     // ✗ → VERSION
-const myConst = 42        // ✗ → MY_CONST
+const MAX_RETRIES = 3                  // ✓
+const version = "1.0"                  // ✗ → VERSION
+public const NOT_FOUND:int = 404       // ✓
+private const maxRetry:int = 3         // ✗ → MAX_RETRY
 ```
 
 ---
@@ -228,6 +242,22 @@ Les commentaires doivent avoir un espace après `//`.
 ### R11 — Newline en fin de fichier
 
 Le fichier doit se terminer par un caractère newline (`\n`).
+
+---
+
+### R12 — Nommage des variables et propriétés (snake_case)
+
+`var`, `scoped`, `consumed` et `property` (avec ou sans visibilité devant pour `property`) doivent être en minuscules avec underscores.
+
+```ocara
+var user_count:int = 0            // ✓
+var userCount:int = 0             // ✗ → user_count
+scoped total_price:float = 0.0    // ✓
+private property click_count:int  // ✓
+public  property FirstName:string // ✗ → first_name
+```
+
+> Ne couvre pas les paramètres de fonction/méthode ni les variables de boucle `for`/`for..=>` — `ocaracs` reste un analyseur ligne à ligne, pas un parseur complet ; ces positions demanderaient de suivre une déclaration sur plusieurs lignes ou une syntaxe plus variable que les autres règles.
 
 ---
 
@@ -258,6 +288,7 @@ naming_function     = true
 naming_const        = true
 comment_spacing     = true
 file_ends_newline   = true
+naming_variable     = true
 ```
 
 ### Permissif (style libre)
@@ -275,4 +306,5 @@ naming_function     = false
 naming_const        = false
 comment_spacing     = false
 file_ends_newline   = true
+naming_variable     = false
 ```

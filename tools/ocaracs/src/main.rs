@@ -46,6 +46,8 @@ struct Config {
     comment_spacing:   bool,
     /// R11 — le fichier se termine par une newline
     file_ends_newline: bool,
+    /// R12 — variables (var/scoped/consumed/property) en snake_case
+    naming_variable:   bool,
 }
 
 impl Default for Config {
@@ -62,6 +64,7 @@ impl Default for Config {
             naming_const:      true,
             comment_spacing:   true,
             file_ends_newline: true,
+            naming_variable:   true,
         }
     }
 }
@@ -89,6 +92,7 @@ fn parse_config(content: &str) -> Config {
             "naming_const"        => cfg.naming_const      = val == "true",
             "comment_spacing"     => cfg.comment_spacing   = val == "true",
             "file_ends_newline"   => cfg.file_ends_newline = val == "true",
+            "naming_variable"     => cfg.naming_variable   = val == "true",
             _ => {}
         }
     }
@@ -222,6 +226,22 @@ fn is_upper_snake(s: &str) -> bool {
     !s.is_empty()
         && !s.starts_with('_')
         && s.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+}
+
+fn is_snake_case(s: &str) -> bool {
+    !s.is_empty()
+        && s.chars().next().map(|c| c.is_ascii_lowercase() || c == '_').unwrap_or(false)
+        && s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+}
+
+/// Strippe une visibilité (`public `/`protected `/`private `) en tête de ligne si présente.
+/// Les trois sont optionnelles dans la grammaire (ex. les signatures de méthode d'interface
+/// n'en portent aucune), donc l'absence de correspondance n'est pas une erreur.
+fn strip_visibility(t: &str) -> &str {
+    for vis in ["public ", "protected ", "private "] {
+        if let Some(r) = t.strip_prefix(vis) { return r; }
+    }
+    t
 }
 
 /// Trouve la position du premier '//' hors d'une chaîne "..."
@@ -377,24 +397,34 @@ fn check_file(path: &Path, content: &str, cfg: &Config) -> usize {
             }
         }
 
-        // ── R07 : Nommage des classes (PascalCase) ─────────────────────────
+        // ── R07 : Nommage des classes/interfaces/modules/generics (PascalCase) ──
         if cfg.naming_class && !in_bt {
             let t = line.trim();
-            if t.starts_with("class ") {
-                let rest = t[6..].trim();
+            const KINDS: &[(&str, &str)] = &[
+                ("class ",     "classe"),
+                ("interface ", "interface"),
+                ("module ",    "module"),
+                ("generic ",   "generic"),
+            ];
+            for (kw, label) in KINDS {
+                let Some(rest) = t.strip_prefix(kw) else { continue };
+                let rest = rest.trim();
                 let name = rest.split(|c: char| !c.is_alphanumeric() && c != '_')
                     .next().unwrap_or("");
                 if !name.is_empty() && !is_pascal_case(name) {
                     emit(path, lnum, 1, &format!(
-                        "classe '{}' devrait être en PascalCase", name
+                        "{} '{}' devrait être en PascalCase", label, name
                     ));
                     count += 1;
                 }
+                break; // une seule des 4 formes peut matcher
             }
         }
 
-        // ── R08 : Nommage des fonctions (camelCase / minuscule) ────────────
+        // ── R08 : Nommage des fonctions et méthodes (camelCase / minuscule) ─
         // Une fonction peut être préfixée par "async " (FuncDecl ::= "async"? "function" ...).
+        // Une méthode est ClassMember ::= Visibility? "static"? "async"? "method" Identifier ...
+        // (Visibility absente dans les signatures d'interface, ex. `method draw(): void`.)
         if cfg.naming_function && !in_bt {
             let t = line.trim();
             let after_async = t.strip_prefix("async ").map(str::trim_start).unwrap_or(t);
@@ -409,14 +439,32 @@ fn check_file(path: &Path, content: &str, cfg: &Config) -> usize {
                     ));
                     count += 1;
                 }
+            } else {
+                let rest = strip_visibility(t);
+                let rest = rest.strip_prefix("static ").unwrap_or(rest);
+                let rest = rest.strip_prefix("async ").unwrap_or(rest);
+                if let Some(rest) = rest.strip_prefix("method ") {
+                    let rest = rest.trim();
+                    let name = rest.split(|c: char| c == '(' || c == ':' || c == ' ')
+                        .next().unwrap_or("");
+                    if !name.is_empty() && !starts_lowercase(name) {
+                        emit(path, lnum, 1, &format!(
+                            "méthode '{}' devrait commencer par une minuscule (camelCase)",
+                            name
+                        ));
+                        count += 1;
+                    }
+                }
             }
         }
 
         // ── R09 : Nommage des constantes (UPPER_SNAKE_CASE) ────────────────
+        // Couvre `const` global ET constante de classe (visibilité optionnelle
+        // avant `const`, ex. `public const MAX:int = 100`).
         if cfg.naming_const && !in_bt {
             let t = line.trim();
-            if t.starts_with("const ") {
-                let rest = t[6..].trim();
+            if let Some(rest) = strip_visibility(t).strip_prefix("const ") {
+                let rest = rest.trim();
                 let name = rest.split(|c: char| c == ' ' || c == '=' || c == ':')
                     .next().unwrap_or("");
                 if !name.is_empty() && !is_upper_snake(name) {
@@ -424,6 +472,42 @@ fn check_file(path: &Path, content: &str, cfg: &Config) -> usize {
                         "constante '{}' devrait être en UPPER_SNAKE_CASE", name
                     ));
                     count += 1;
+                }
+            }
+        }
+
+        // ── R12 : Nommage des variables et propriétés (snake_case) ─────────
+        // var / scoped / consumed (jamais précédées d'une visibilité) et
+        // property (visibilité optionnelle avant, ex. `private property x:int`).
+        if cfg.naming_variable && !in_bt {
+            let t = line.trim();
+            let mut matched = false;
+            for kw in ["var ", "scoped ", "consumed "] {
+                if let Some(rest) = t.strip_prefix(kw) {
+                    let rest = rest.trim();
+                    let name = rest.split(|c: char| c == ' ' || c == '=' || c == ':')
+                        .next().unwrap_or("");
+                    if !name.is_empty() && !is_snake_case(name) {
+                        emit(path, lnum, 1, &format!(
+                            "variable '{}' devrait être en snake_case", name
+                        ));
+                        count += 1;
+                    }
+                    matched = true;
+                    break;
+                }
+            }
+            if !matched {
+                if let Some(rest) = strip_visibility(t).strip_prefix("property ") {
+                    let rest = rest.trim();
+                    let name = rest.split(|c: char| c == ' ' || c == '=' || c == ':')
+                        .next().unwrap_or("");
+                    if !name.is_empty() && !is_snake_case(name) {
+                        emit(path, lnum, 1, &format!(
+                            "propriété '{}' devrait être en snake_case", name
+                        ));
+                        count += 1;
+                    }
                 }
             }
         }
