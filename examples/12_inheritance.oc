@@ -6,6 +6,8 @@
 //   - Implémentation d'interface : implements
 //   - Surcharge de méthode dans la sous-classe
 //   - Combinaison extends + implements
+//   - parent:: pour appeler le constructeur/une méthode de la classe parente
+//     (voir docs/EBNF.md §18.1) plutôt que de redupliquer ses champs
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface Loggable {
@@ -40,8 +42,7 @@ class Dog extends Animal implements Loggable {
     private property breed:string
 
     init(name:string, breed:string) {
-        self.name  = name
-        self.sound = "Woof"
+        parent::init(name, "Woof")   // appelle Animal::init — pas de duplication de self.name/self.sound
         self.breed = breed
     }
 
@@ -64,8 +65,7 @@ class Cat extends Animal {
     private property indoor:bool
 
     init(name:string, indoor:bool) {
-        self.name   = name
-        self.sound  = "Meow"
+        parent::init(name, "Meow")   // appelle Animal::init — pas de duplication de self.name/self.sound
         self.indoor = indoor
     }
 

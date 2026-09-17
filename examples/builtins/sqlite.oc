@@ -117,18 +117,51 @@ main {
         const total:int = countResult["total"]
         IO::writeln(`   ✓ Total users: ${total}`)
         IO::writeln("")
-        
+
+        // ── Requêtes paramétrées (placeholders nominatifs `:nom`) ──────────────
+        // Jamais de concaténation de chaîne pour une valeur variable — voir
+        // docs/builtins/SQLite.md, section "Requêtes paramétrées".
+        IO::writeln("10. Named placeholders (one-shot)...")
+        db.execute("INSERT INTO users (name, email, age) VALUES (:name, :email, :age)",
+            {"name": "Eve", "email": "eve@example.com", "age": 22})
+        const eve:map<string, mixed> = db.queryOne("SELECT * FROM users WHERE name = :name", {"name": "Eve"})
+        IO::writeln(`   ✓ Inserted and found: ${eve["name"]} (${eve["age"]} years)`)
+        IO::writeln("")
+
+        // ── Transaction : prepare() / bind() / commit() / rollback() ───────────
+        // Voir docs/builtins/SQLite.md, section "Transactions". commit()
+        // retourne mixed, auto-détecté : array<map<string,mixed>> pour un
+        // SELECT, int (lignes affectées) sinon.
+        IO::writeln("11. Stepped transaction (prepare/bind/commit)...")
+        try {
+            db.prepare("UPDATE users SET age = age + 1 WHERE name = :name")
+            db.bind({"name": "Eve"})
+            var affected:mixed = db.commit()
+            IO::writeln(`   ✓ Birthday update committed, ${affected} row(s) affected`)
+        } on e is SQLiteException {
+            IO::writeln(`   ✗ Transaction failed: ${e.message}`)
+            db.rollback()
+        }
+        IO::writeln("")
+
     } on e is SQLiteException {
         IO::writeln(`✗ SQLite error (code ${e.code}): ${e.message}`)
         result e.code
     }
 }
 
+error {
+    IO::writeln(`Error block executed with ERROR=${ERROR} SUCCESS=${SUCCESS}`)
+}
+
 success {
     IO::writeln(`Success block executed with ERROR=${ERROR} SUCCESS=${SUCCESS}`)
+}
+
+exit {
     try {
         // ── Fermeture ─────────────────────────────────────────────────────────
-        IO::writeln("10. Closing database...")
+        IO::writeln("12. Closing database...")
         db.close()
         IO::writeln("   ✓ Database closed")
         IO::writeln("")

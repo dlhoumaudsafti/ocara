@@ -10,6 +10,7 @@
 |----------|-------------|
 | [compilation-guide.md](compilation-guide.md) | Guide complet de compilation avec le compilateur `ocara` |
 | [EBNF.md](EBNF.md) | Grammaire formelle du langage Ocara (EBNF) |
+| [conventions.md](conventions.md) | Conventions de nommage (variables, constantes, fonctions/méthodes, classes/interfaces/modules/generics) |
 | [workflow-compilation.md](workflow-compilation.md) | Workflow de Compilation Ocara |
 | [diagnostics.md](diagnostics.md) | Messages d'erreur et diagnostics du compilateur |
 

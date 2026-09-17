@@ -1,6 +1,6 @@
 # Roadmap Ocara
 
-_Dernière mise à jour : 2026-09-16_
+_Dernière mise à jour : 2026-09-17_
 
 Ce document liste ce qu'il reste à faire pour faire d'Ocara un langage solide. Cette révision fait suite à une analyse complète du projet (doc, code source du compilateur, exemples, runtimes natifs) et **reprioritise délibérément autour de la robustesse, la stabilité et la fiabilité** — avant toute nouvelle fonctionnalité ou tout chantier de portage. Le focus reste, comme avant, la **gestion mémoire** : le compilateur n'a pas de ramasse-miettes (choix assumé et définitif), et l'historique du projet montre plusieurs SEGFAULTs confirmés par reproduction sur la représentation `mixed` — mais la même question de fiabilité se posait aussi sur le mécanisme d'exceptions (`setjmp`/`longjmp`), sur la quasi-absence de tests Rust unitaires en dehors du front-end, et sur au moins une race condition documentée (`HTTPServer`).
 
@@ -37,7 +37,7 @@ _Vide — voir « Définition : le langage est stable » ci-dessus pour la liste
 
 À traiter mais non bloquant pour la stabilité du langage.
 
-_Vide pour l'instant — le seul point qui s'y trouvait (`-no-pie` au lien final) est clos, voir [securite-lien-no-pie](roadmap.d/securite-lien-no-pie.md)._
+_Vide pour l'instant — le seul point qui s'y trouvait (`SQLite`/`MySQL`/`MariaDB` : requêtes paramétrées + transactions) est clos, voir [stdlib-sqlite-requetes-parametrees-transactions](roadmap.d/stdlib-sqlite-requetes-parametrees-transactions.md) et [stdlib-mysql-requetes-parametrees-transactions](roadmap.d/stdlib-mysql-requetes-parametrees-transactions.md) — et `-no-pie` au lien final, voir [securite-lien-no-pie](roadmap.d/securite-lien-no-pie.md) ; sa suite différée est suivie en Priorité Très Basse ci-dessous._
 
 ---
 
@@ -45,7 +45,10 @@ _Vide pour l'instant — le seul point qui s'y trouvait (`-no-pie` au lien final
 
 Confort ou portée future — n'affecte pas la correction du compilateur ou des binaires produits.
 
-_Vide pour l'instant — le seul point qui s'y trouvait (cohérence interne de l'EBNF et de la stdlib) est clos, voir [coherence-documentation-ebnf-stdlib](roadmap.d/coherence-documentation-ebnf-stdlib.md)._
+- **`expr[i][clé]` (indexation chaînée array-puis-map) retourne `null`** au lieu de la vraie valeur — `arr[0]["name"]` échoue silencieusement là où `const first = arr[0]; first["name"]` fonctionne. Trouvé par accident en vérifiant le ticket MySQL (aucun rapport avec MySQL, reproduit à l'identique avec SQLite) — hypothèse de cause déjà posée dans la fiche : `is_map_target` ne reconnaît `Expr::Ident`/`Expr::Field` comme cible map, jamais `Expr::Index` imbriqué. *(Légère à Structurel selon investigation)* → [détails](roadmap.d/langage-index-chaine-sur-map.md)
+- **Réflexion (non tranchée) : remplacer `for x in a..b` par `for x in a to b` (borne incluse) / `for x in a until b` (borne exclue)** — la borne de fin exclue de `..` n'est pas lisible au point d'appel ; à peser contre le coût d'un changement de syntaxe cassant sur tout le corpus existant. *(Structurel si retenu — voir la fiche pour la discussion complète avant tout engagement)* → [détails](roadmap.d/reflexion-syntaxe-for-range.md)
+
+(Trois points qui se trouvaient ici sont clos : la pédagogie en retard sur le corpus `advanced/` — `parent::` documenté en EBNF §18.1 et démontré dans `12_inheritance.oc`, pointeur ajouté vers EBNF §5 pour les blocs runtime, ligne `32_strict_operators.oc` corrigée, voir [documentation-pedagogie-en-retard](roadmap.d/documentation-pedagogie-en-retard.md) — l'extension VSCode alignée sur la version 1.0.0 du langage, voir [outillage-vscode-version-bump](roadmap.d/outillage-vscode-version-bump.md) — et la cohérence interne de l'EBNF et de la stdlib, voir [coherence-documentation-ebnf-stdlib](roadmap.d/coherence-documentation-ebnf-stdlib.md).)
 
 ---
 
@@ -58,6 +61,9 @@ Pas important du tout pour le moment — portage/intégration massifs, aucune ur
 - **Vérifier le round-trip complet "zéro `.a` → binaire fonctionnel"** en une seule commande — tentative abandonnée après plus d'une heure sans sortie visible (recompilation vendored OpenSSL/SQLite, ou blocage — indiscernable sans progression affichée). *(Légère — vérification, prévoir un budget de temps important et un moyen de surveiller la progression réelle)* → [détails](roadmap.d/packaging-build-cargo.md)
 - **Étudier un vrai support Windows** pour la compilation du compilateur lui-même. *(Massive)* → [détails](roadmap.d/packaging-windows.md)
 - **Étudier un vrai support Android** pour la compilation du compilateur lui-même. *(Massive)* → [détails](roadmap.d/packaging-android.md)
+- **Suite différée de `securite-lien-no-pie` : activer `is_pic` côté Cranelift** pour obtenir un vrai PIE sans `TEXTREL` (donc pouvoir retirer `-no-pie` sans régression de sécurité) — défense en profondeur, pas un bug fonctionnel, déjà explicitement différé par le ticket clos faute de besoin concret. *(Dangereuse — touche l'émission d'adresses dans tout le codegen Cranelift)* → [détails](roadmap.d/securite-pie-cranelift-is-pic.md)
+
+(Le point qui se trouvait ici sur la convention de nommage est clos — décidée dans [docs/conventions.md](conventions.md) et portée par `ocaracs` (règles R07/R08/R09/R12), voir [qualite-convention-nommage-methodes](roadmap.d/qualite-convention-nommage-methodes.md).)
 
 ---
 
@@ -85,8 +91,9 @@ Pas important du tout pour le moment — portage/intégration massifs, aucune ur
         * On effectue les modifications
         * On compile
 * On crée un exemple pour les tests de régression si nécessaire.
-* On crée un test unitaire si nécessaire.
-* On lance les test de regression et les tests unitaire.
+* On crée un test unitaire si nécessaire. Que ce soit pour le code source rust et les exemples Ocara.
+* On lance les tests unitaire du code source rust d'Ocara
+* On lance les test de regression et les tests unitaire des exemples Ocara
 * On met à jour la documentation si nécessaire.
 * Si `docs/EBNF.md` a été modifié : on relit le §31 ("Grammaire EBNF complète") pour vérifier qu'il reste réellement la source unique et à jour — toute règle ajoutée/modifiée ailleurs dans le document doit s'y refléter à l'identique (mêmes noms de règles, mêmes alternatives), sans quoi le §31 dérive silencieusement de sa propre prétention à être la référence canonique (voir [coherence-documentation-ebnf-stdlib](roadmap.d/coherence-documentation-ebnf-stdlib.md)).
 * On met à jour la roadmap.

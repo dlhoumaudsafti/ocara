@@ -33,7 +33,7 @@ class HomeController {
         return Math::random(1, 1000)   // simule un nombre d'articles aléatoire
     }
 
-    public static method handle(req:int): int {
+    public static method handle(req:int, db:Database): int {
         // Lancer les deux chargements en parallèle
         var t_users:int    = self::fetch_user_count()
         var t_articles:int = self::fetch_article_count()
@@ -47,7 +47,7 @@ class HomeController {
 
         // Compteur de visites persistant (SQLite, configs/Database.oc) —
         // incrémenté à chaque chargement de la page.
-        scoped visits:int = Database::recordVisit()
+        scoped visits:int = db.recordVisit()
 
         scoped html:string = HTML::renderFile('templates/home.html')
 

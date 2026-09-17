@@ -55,8 +55,7 @@ class Dog extends Animal implements Loggable {
     private property breed:string
 
     init(name:string, breed:string) {
-        self.name  = name
-        self.sound = "Woof"
+        parent::init(name, "Woof")
         self.breed = breed
     }
 
@@ -73,8 +72,7 @@ class Cat extends Animal {
     private property indoor:bool
 
     init(name:string, indoor:bool) {
-        self.name   = name
-        self.sound  = "Meow"
+        parent::init(name, "Meow")
         self.indoor = indoor
     }
 

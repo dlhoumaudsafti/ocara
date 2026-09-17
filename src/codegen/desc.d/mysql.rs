@@ -17,27 +17,25 @@ pub const MYSQL_BUILTINS: &[BuiltinDesc] = &[
         module: Some("MySQL")
     },
 
-    // Méthodes d'instance
-    BuiltinDesc { 
-        name: "MySQL_execute", 
-        params: &[clt::I64, clt::I64],  // self_ptr, query
-        returns: Some(clt::I64),        // → int (affected rows)
-        module: Some("MySQL") 
-    },
-    BuiltinDesc { 
-        name: "MySQL_query", 
-        params: &[clt::I64, clt::I64],  // self_ptr, query
-        returns: Some(clt::I64),        // → array<map<string, mixed>> (pointeur)
-        module: Some("MySQL") 
-    },
-    BuiltinDesc { 
-        name: "MySQL_queryOne", 
-        params: &[clt::I64, clt::I64],  // self_ptr, query
-        returns: Some(clt::I64),        // → map<string, mixed>|null (pointeur ou 0)
-        module: Some("MySQL") 
-    },
-    BuiltinDesc { 
-        name: "MySQL_lastInsertId", 
+    // Méthodes d'instance — one-shot, arité variable (placeholder/close optionnels)
+    BuiltinDesc { name: "MySQL_execute_1", params: &[clt::I64, clt::I64],                     returns: Some(clt::I64), module: Some("MySQL") },
+    BuiltinDesc { name: "MySQL_execute_2", params: &[clt::I64, clt::I64, clt::I64],           returns: Some(clt::I64), module: Some("MySQL") },
+    BuiltinDesc { name: "MySQL_execute",   params: &[clt::I64, clt::I64, clt::I64, clt::I64], returns: Some(clt::I64), module: Some("MySQL") },
+    BuiltinDesc { name: "MySQL_query_1",   params: &[clt::I64, clt::I64],                     returns: Some(clt::I64), module: Some("MySQL") },
+    BuiltinDesc { name: "MySQL_query",     params: &[clt::I64, clt::I64, clt::I64],           returns: Some(clt::I64), module: Some("MySQL") },
+    BuiltinDesc { name: "MySQL_queryOne_1", params: &[clt::I64, clt::I64],                    returns: Some(clt::I64), module: Some("MySQL") },
+    BuiltinDesc { name: "MySQL_queryOne",  params: &[clt::I64, clt::I64, clt::I64],           returns: Some(clt::I64), module: Some("MySQL") },
+
+    // Méthodes d'instance — stepped/transactionnel
+    BuiltinDesc { name: "MySQL_prepare",    params: &[clt::I64, clt::I64], returns: None,           module: Some("MySQL") },
+    BuiltinDesc { name: "MySQL_bind",       params: &[clt::I64, clt::I64], returns: None,           module: Some("MySQL") },
+    BuiltinDesc { name: "MySQL_commit_0",   params: &[clt::I64],           returns: Some(clt::I64), module: Some("MySQL") },
+    BuiltinDesc { name: "MySQL_commit",     params: &[clt::I64, clt::I64], returns: Some(clt::I64), module: Some("MySQL") },
+    BuiltinDesc { name: "MySQL_rollback_0", params: &[clt::I64],           returns: None,           module: Some("MySQL") },
+    BuiltinDesc { name: "MySQL_rollback",   params: &[clt::I64, clt::I64], returns: None,           module: Some("MySQL") },
+
+    BuiltinDesc {
+        name: "MySQL_lastInsertId",
         params: &[clt::I64],            // self_ptr
         returns: Some(clt::I64),        // → int
         module: Some("MySQL") 
@@ -68,26 +66,23 @@ pub const MYSQL_BUILTINS: &[BuiltinDesc] = &[
         returns: None,
         module: Some("MariaDB")
     },
-    BuiltinDesc { 
-        name: "MariaDB_execute", 
-        params: &[clt::I64, clt::I64],
-        returns: Some(clt::I64),
-        module: Some("MariaDB") 
-    },
-    BuiltinDesc { 
-        name: "MariaDB_query", 
-        params: &[clt::I64, clt::I64],
-        returns: Some(clt::I64),
-        module: Some("MariaDB") 
-    },
-    BuiltinDesc { 
-        name: "MariaDB_queryOne", 
-        params: &[clt::I64, clt::I64],
-        returns: Some(clt::I64),
-        module: Some("MariaDB") 
-    },
-    BuiltinDesc { 
-        name: "MariaDB_lastInsertId", 
+    BuiltinDesc { name: "MariaDB_execute_1", params: &[clt::I64, clt::I64],                     returns: Some(clt::I64), module: Some("MariaDB") },
+    BuiltinDesc { name: "MariaDB_execute_2", params: &[clt::I64, clt::I64, clt::I64],           returns: Some(clt::I64), module: Some("MariaDB") },
+    BuiltinDesc { name: "MariaDB_execute",   params: &[clt::I64, clt::I64, clt::I64, clt::I64], returns: Some(clt::I64), module: Some("MariaDB") },
+    BuiltinDesc { name: "MariaDB_query_1",   params: &[clt::I64, clt::I64],                     returns: Some(clt::I64), module: Some("MariaDB") },
+    BuiltinDesc { name: "MariaDB_query",     params: &[clt::I64, clt::I64, clt::I64],           returns: Some(clt::I64), module: Some("MariaDB") },
+    BuiltinDesc { name: "MariaDB_queryOne_1", params: &[clt::I64, clt::I64],                    returns: Some(clt::I64), module: Some("MariaDB") },
+    BuiltinDesc { name: "MariaDB_queryOne",  params: &[clt::I64, clt::I64, clt::I64],           returns: Some(clt::I64), module: Some("MariaDB") },
+
+    BuiltinDesc { name: "MariaDB_prepare",    params: &[clt::I64, clt::I64], returns: None,           module: Some("MariaDB") },
+    BuiltinDesc { name: "MariaDB_bind",       params: &[clt::I64, clt::I64], returns: None,           module: Some("MariaDB") },
+    BuiltinDesc { name: "MariaDB_commit_0",   params: &[clt::I64],           returns: Some(clt::I64), module: Some("MariaDB") },
+    BuiltinDesc { name: "MariaDB_commit",     params: &[clt::I64, clt::I64], returns: Some(clt::I64), module: Some("MariaDB") },
+    BuiltinDesc { name: "MariaDB_rollback_0", params: &[clt::I64],           returns: None,           module: Some("MariaDB") },
+    BuiltinDesc { name: "MariaDB_rollback",   params: &[clt::I64, clt::I64], returns: None,           module: Some("MariaDB") },
+
+    BuiltinDesc {
+        name: "MariaDB_lastInsertId",
         params: &[clt::I64],
         returns: Some(clt::I64),
         module: Some("MariaDB") 

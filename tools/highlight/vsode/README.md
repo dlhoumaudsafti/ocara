@@ -26,7 +26,7 @@ Coloration syntaxique, autocomplétion et navigation (Go-to-Definition) pour le 
 > Prérequis : VS Code ≥ 1.85
 
 ```bash
-code --install-extension ocara-language-0.1.0.vsix
+code --install-extension ocara-language-1.0.0.vsix
 ```
 
 Rechargez VS Code : `Ctrl+Shift+P` → **Reload Window**.
@@ -56,12 +56,12 @@ npm run compile
 npx vsce package --allow-missing-repository
 ```
 
-Cela génère `ocara-language-0.1.0.vsix` dans le répertoire courant.
+Cela génère `ocara-language-1.0.0.vsix` dans le répertoire courant.
 
 **4. Installer l'extension**
 
 ```bash
-code --install-extension ocara-language-0.1.0.vsix
+code --install-extension ocara-language-1.0.0.vsix
 ```
 
 **5. Recharger VS Code**
@@ -100,11 +100,20 @@ print(f'Removed {len(data)-len(cleaned)} entries')
 "
 ```
 
-Puis relancez `code --install-extension ocara-language-0.1.0.vsix`.
+Puis relancez `code --install-extension ocara-language-1.0.0.vsix`.
 
 ---
 
 ## Mise à jour
+
+```bash
+cd tools/highlight/vsode
+code --uninstall-extension david-lhoumaud.ocara-language
+npm install
+npm run compile
+npx vsce package --allow-missing-repository
+code --install-extension ocara-language-1.0.0.vsix
+```
 
 Après modification de la grammar ou du provider, relancez les étapes 2 à 5.
 

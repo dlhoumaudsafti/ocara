@@ -275,6 +275,17 @@
         "params": [],
         "returns": "void",
         "static": false
+      },
+      {
+        "name": "withLock",
+        "params": [
+          {
+            "name": "f",
+            "type": "Function<void()>"
+          }
+        ],
+        "returns": "void",
+        "static": false
       }
     ],
     "consts": []
@@ -764,6 +775,21 @@
   {
     "name": "Map",
     "methods": [
+      {
+        "name": "forEach",
+        "params": [
+          {
+            "name": "m",
+            "type": "map<mixed, mixed>"
+          },
+          {
+            "name": "callback",
+            "type": "Function<void()>"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
       {
         "name": "get",
         "params": [
@@ -1979,7 +2005,7 @@
         "params": [
           {
             "name": "res",
-            "type": "int"
+            "type": "res_ty()"
           }
         ],
         "returns": "string",
@@ -1990,7 +2016,7 @@
         "params": [
           {
             "name": "req",
-            "type": "int"
+            "type": "req_ty()"
           }
         ],
         "returns": "void",
@@ -2001,7 +2027,7 @@
         "params": [
           {
             "name": "res",
-            "type": "int"
+            "type": "res_ty()"
           }
         ],
         "returns": "void",
@@ -2015,7 +2041,7 @@
             "type": "string"
           }
         ],
-        "returns": "int",
+        "returns": "res_ty()",
         "static": true
       },
       {
@@ -2023,7 +2049,7 @@
         "params": [
           {
             "name": "res",
-            "type": "int"
+            "type": "res_ty()"
           }
         ],
         "returns": "string",
@@ -2037,7 +2063,7 @@
             "type": "string"
           }
         ],
-        "returns": "int",
+        "returns": "res_ty()",
         "static": true
       },
       {
@@ -2045,7 +2071,7 @@
         "params": [
           {
             "name": "res",
-            "type": "int"
+            "type": "res_ty()"
           },
           {
             "name": "name",
@@ -2060,7 +2086,7 @@
         "params": [
           {
             "name": "res",
-            "type": "int"
+            "type": "res_ty()"
           }
         ],
         "returns": "map<string, string>",
@@ -2071,7 +2097,7 @@
         "params": [
           {
             "name": "res",
-            "type": "int"
+            "type": "res_ty()"
           }
         ],
         "returns": "bool",
@@ -2085,7 +2111,7 @@
             "type": "string"
           }
         ],
-        "returns": "int",
+        "returns": "req_ty()",
         "static": true
       },
       {
@@ -2093,7 +2119,7 @@
         "params": [
           {
             "name": "res",
-            "type": "int"
+            "type": "res_ty()"
           }
         ],
         "returns": "bool",
@@ -2111,7 +2137,7 @@
             "type": "string"
           }
         ],
-        "returns": "int",
+        "returns": "res_ty()",
         "static": true
       },
       {
@@ -2126,7 +2152,7 @@
             "type": "string"
           }
         ],
-        "returns": "int",
+        "returns": "res_ty()",
         "static": true
       },
       {
@@ -2141,7 +2167,7 @@
             "type": "string"
           }
         ],
-        "returns": "int",
+        "returns": "res_ty()",
         "static": true
       },
       {
@@ -2149,10 +2175,10 @@
         "params": [
           {
             "name": "req",
-            "type": "int"
+            "type": "req_ty()"
           }
         ],
-        "returns": "int",
+        "returns": "res_ty()",
         "static": true
       },
       {
@@ -2160,7 +2186,7 @@
         "params": [
           {
             "name": "req",
-            "type": "int"
+            "type": "req_ty()"
           },
           {
             "name": "body",
@@ -2175,7 +2201,7 @@
         "params": [
           {
             "name": "req",
-            "type": "int"
+            "type": "req_ty()"
           },
           {
             "name": "name",
@@ -2194,7 +2220,7 @@
         "params": [
           {
             "name": "req",
-            "type": "int"
+            "type": "req_ty()"
           },
           {
             "name": "method",
@@ -2209,7 +2235,7 @@
         "params": [
           {
             "name": "req",
-            "type": "int"
+            "type": "req_ty()"
           },
           {
             "name": "ms",
@@ -2224,7 +2250,7 @@
         "params": [
           {
             "name": "res",
-            "type": "int"
+            "type": "res_ty()"
           }
         ],
         "returns": "int",
@@ -2804,6 +2830,53 @@
           {
             "name": "y",
             "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "drawTextureRegion",
+        "params": [
+          {
+            "name": "textureId",
+            "type": "int"
+          },
+          {
+            "name": "srcX",
+            "type": "int"
+          },
+          {
+            "name": "srcY",
+            "type": "int"
+          },
+          {
+            "name": "srcW",
+            "type": "int"
+          },
+          {
+            "name": "srcH",
+            "type": "int"
+          },
+          {
+            "name": "x",
+            "type": "int"
+          },
+          {
+            "name": "y",
+            "type": "int"
+          },
+          {
+            "name": "w",
+            "type": "int"
+          },
+          {
+            "name": "h",
+            "type": "int"
+          },
+          {
+            "name": "flipH",
+            "type": "bool"
           }
         ],
         "returns": "void",
@@ -3568,9 +3641,31 @@
         "static": false
       },
       {
+        "name": "bind",
+        "params": [
+          {
+            "name": "placeholders",
+            "type": "map<string, mixed>"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
         "name": "close",
         "params": [],
         "returns": "void",
+        "static": false
+      },
+      {
+        "name": "commit",
+        "params": [
+          {
+            "name": "close",
+            "type": "bool"
+          }
+        ],
+        "returns": "mixed",
         "static": false
       },
       {
@@ -3579,6 +3674,14 @@
           {
             "name": "query",
             "type": "string"
+          },
+          {
+            "name": "placeholder",
+            "type": "placeholder_type()"
+          },
+          {
+            "name": "close",
+            "type": "bool"
           }
         ],
         "returns": "void",
@@ -3602,11 +3705,26 @@
         "static": true
       },
       {
+        "name": "prepare",
+        "params": [
+          {
+            "name": "query",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
         "name": "query",
         "params": [
           {
             "name": "query",
             "type": "string"
+          },
+          {
+            "name": "placeholder",
+            "type": "placeholder_type()"
           }
         ],
         "returns": "map<string, mixed>[]",
@@ -3618,10 +3736,40 @@
           {
             "name": "query",
             "type": "string"
+          },
+          {
+            "name": "placeholder",
+            "type": "placeholder_type()"
           }
         ],
         "returns": "map<string, mixed>",
         "static": false
+      },
+      {
+        "name": "rollback",
+        "params": [
+          {
+            "name": "close",
+            "type": "bool"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "withOpen",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          },
+          {
+            "name": "f",
+            "type": "Type::Function{ret_ty:Box::new(Type::Void),param_tys:vec![Type::Named(\"SQLite\".to_string())],}"
+          }
+        ],
+        "returns": "void",
+        "static": true
       }
     ],
     "consts": []
@@ -3636,9 +3784,31 @@
         "static": false
       },
       {
+        "name": "bind",
+        "params": [
+          {
+            "name": "placeholders",
+            "type": "map<string, mixed>"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
         "name": "close",
         "params": [],
         "returns": "void",
+        "static": false
+      },
+      {
+        "name": "commit",
+        "params": [
+          {
+            "name": "close",
+            "type": "bool"
+          }
+        ],
+        "returns": "mixed",
         "static": false
       },
       {
@@ -3670,6 +3840,14 @@
           {
             "name": "query",
             "type": "string"
+          },
+          {
+            "name": "placeholder",
+            "type": "placeholder_type()"
+          },
+          {
+            "name": "close",
+            "type": "bool"
           }
         ],
         "returns": "int",
@@ -3682,11 +3860,26 @@
         "static": false
       },
       {
+        "name": "prepare",
+        "params": [
+          {
+            "name": "query",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
         "name": "query",
         "params": [
           {
             "name": "query",
             "type": "string"
+          },
+          {
+            "name": "placeholder",
+            "type": "placeholder_type()"
           }
         ],
         "returns": "map<string, mixed>[]",
@@ -3698,10 +3891,52 @@
           {
             "name": "query",
             "type": "string"
+          },
+          {
+            "name": "placeholder",
+            "type": "placeholder_type()"
           }
         ],
         "returns": "map<string, mixed>|null",
         "static": false
+      },
+      {
+        "name": "rollback",
+        "params": [
+          {
+            "name": "close",
+            "type": "bool"
+          }
+        ],
+        "returns": "void",
+        "static": false
+      },
+      {
+        "name": "withConnect",
+        "params": [
+          {
+            "name": "host",
+            "type": "string"
+          },
+          {
+            "name": "user",
+            "type": "string"
+          },
+          {
+            "name": "password",
+            "type": "string"
+          },
+          {
+            "name": "database",
+            "type": "string"
+          },
+          {
+            "name": "f",
+            "type": "Type::Function{ret_ty:Box::new(Type::Void),param_tys:vec![Type::Named(\"MySQL\".to_string())],}"
+          }
+        ],
+        "returns": "void",
+        "static": true
       }
     ],
     "consts": []

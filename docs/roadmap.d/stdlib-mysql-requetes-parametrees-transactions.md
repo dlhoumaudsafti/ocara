@@ -1,0 +1,44 @@
+# `MySQL`/`MariaDB` — requêtes paramétrées + transactions prepare/bind/commit/rollback (bloqué par un prérequis architectural)
+
+## ✅ Terminé
+
+Le préalable (connexion épinglée) a été résolu par l'option 1 envisagée ci-dessous : nouveau champ `pinned_conn: Mutex<Option<PooledConn>>` sur `OcaraMySQLDatabase`, posé par `prepare()` (avec annulation automatique — `rollback_pending` — d'un cycle précédent resté ouvert, pour ne jamais rendre une connexion mid-transaction au pool), consommé/relâché par `commit()`/`rollback()`. `execute`/`query`/`queryOne` one-shot restent inchangés côté `pool.get_conn()` par appel. Les 7 méthodes implémentées avec les mêmes signatures que SQLite (`execute`/`query`/`queryOne` avec `placeholder:map<string,mixed>|null = null`, `execute`/`commit`/`rollback` avec `close:bool = false`), plus les 13 wrappers `MariaDB_*` correspondants (alias fin, même patron que l'existant).
+
+**Deux bugs réels trouvés en écrivant les tests — aucun des deux anticipé par le design initial :**
+
+1. **Union `map<K,V>|null` jamais indexable après narrowing — bug du COMPILATEUR, pas du runtime MySQL, mais découvert seulement parce que `MySQL::queryOne` est le seul builtin du langage à retourner ce type.** `src/lower/stmt.d/statements.d/variables.rs` (`lower_var`/`lower_const`) ne reconnaissait `map<K,V>` que sous sa forme directe (`if let Type::Map(...) = ty`), jamais dépliée d'un `Type::Union` — une variable `const one:map<string,mixed>|null = db.queryOne(...)` n'était donc jamais enregistrée dans `builder.map_vars`, et `Expr::Index` dispatchait silencieusement vers `__array_get` au lieu de `__map_get` : `one["champ"]` retournait `null` pour CHAQUE champ, même juste après `if one not equal null`. Corrigé par un helper `map_value_type` qui déplie l'union (`src/lower/stmt.d/statements.d/variables.rs:10-27`), avec 4 tests unitaires Rust dédiés. Ce bug existait dans TOUT le langage (n'importe quel `map<K,V>|null` aurait été affecté), pas seulement MySQL — mais rien d'autre dans la stdlib ne produit ce type.
+2. **Le protocole texte MySQL (`query_iter`/`query_drop`, utilisé par l'ancien chemin sans placeholder) renvoie TOUTE colonne en `Value::Bytes`, y compris les colonnes numériques.** `row_to_map` traitait donc un `INT` lu sans placeholder comme une STRING, pas un `int` — invisible en interpolant dans un template string (`${row["age"]}` affiche `"25"` dans les deux cas), détecté uniquement par une assertion Rust stricte (`assert_eq!(..., 25)`) sur une valeur ENTIÈRE, pas une simple impression. Corrigé en supprimant le chemin texte : `MySQL_execute`/`MySQL_query`/`MySQL_queryOne` passent maintenant TOUJOURS par le protocole binaire (`exec_drop`/`exec_iter`, requête préparée), avec ou sans placeholder. Piège associé trouvé au passage : `mysql_common::Params::from(vec![])` construit un `Params::Named` vide, pas `Params::Empty` — et le crate `mysql` **rejette** `Params::Named` (même vide) contre une requête sans aucun placeholder nommé (`DriverError { Can not pass named parameters to positional query }`). `params_from_binds` distingue maintenant explicitement les deux cas.
+
+Vérifié :
+- `make build` (les 4 crates) + `RUSTFLAGS="-D warnings"` : 0 warning.
+- `make regression` (cache vidé) : 659 PASS / 0 FAIL, 124 compilations réussies / 0 échec — aucune régression, y compris sur le fix compilateur partagé (`variables.rs`, touche potentiellement tout usage de `map<K,V>|null` dans le langage).
+- `cargo test -p ocara` : 67 passed (dont les 4 nouveaux tests `map_value_type`). `cargo test -p ocara_runtime` : 57 passed + 7 `#[ignore]` (nécessitent un serveur — voir ci-dessous).
+- **19 tests unitaires Rust** dans `runtime/src/tests/mysql.rs` : 12 toujours exécutés (`mixed_to_mysql_value`/`read_placeholders`, mêmes cas frontière que côté SQLite + convention "pas de `:` dans les clés de `Params::Named`", vérifiée contre le code source vendored du crate avant d'écrire le code, pas supposée par symétrie avec SQLite) + 7 marqués `#[ignore]` (chemins de succès des vraies fonctions `MySQL_*`, nécessitent un serveur MySQL/MariaDB réel — voir le commentaire de tête de fichier pour la commande Docker utilisée pendant ce ticket). Comme côté SQLite, aucun test direct des chemins d'erreur des fonctions FFI (`throw_mysql_exception` saute par `longjmp`, UB hors du contexte `setjmp` d'un `try` Ocara compilé).
+- Test manuel bout en bout contre un vrai conteneur MariaDB (`docker run mariadb:11`, voir `runtime/src/tests/mysql.rs`) : tous les cas déjà listés côté SQLite, plus la violation `UNIQUE` réelle (code MySQL 1062) correctement traduite en `MySQLException`.
+- `docs/builtins/MySQL.md` mis à jour (nouvelles méthodes, nouveaux codes d'erreur 105/106/107, section Transactions, exemple virement bancaire — compilé et exécuté séparément, résultat vérifié) ; corrigé au passage un type déjà erroné dans l'exemple existant (`const alice:map<string, mixed>` sans le `|null` pourtant requis par la signature documentée juste au-dessus — même défaut que celui déjà corrigé côté doc SQLite/MySQL dans [coherence-documentation-ebnf-stdlib](coherence-documentation-ebnf-stdlib.md), pas retrouvé à l'époque parce que cette section précise n'avait pas été relue).
+- `examples/builtins/mysql.oc` étendu (placeholders nominatifs + transaction) et exécuté en entier contre le conteneur de test.
+- `python3 tools/highlight/vsode/scripts/generate-builtins-data.py` relancé (`MySQL : 12 méthodes (2 statiques, 10 instance)`, identique à SQLite).
+
+## Constat
+
+Même manque que côté SQLite (voir [stdlib-sqlite-requetes-parametrees-transactions](stdlib-sqlite-requetes-parametrees-transactions.md) pour le design complet et l'exemple de référence — ce ticket applique le **même design** : placeholders nominatifs `:nom` uniquement, `execute`/`query`/`queryOne` avec `placeholder:map<string, mixed>|null = null`, plus `prepare`/`bind`/`commit(close:bool=false): mixed`/`rollback(close:bool=false)`).
+
+**Ce ticket est délibérément séparé du ticket SQLite** parce que le risque et le prérequis ne sont pas les mêmes :
+
+`runtime/src/mysql.rs` (`MySQL_execute`, `MySQL_query`, `MySQL_queryOne`) fait `db.pool.lock().unwrap().get_conn()` **à chaque appel** — chaque méthode récupère une connexion différente piochée dans le `Pool`. Un `prepare()`/`bind()`/`commit()` naïf plaqué sur ce modèle ne serait **pas réellement transactionnel** : rien ne garantit que le `BEGIN` (dans `prepare`/premier `bind`) et le `COMMIT` (dans `commit`) s'exécutent sur la même session serveur MySQL — deux connexions différentes du pool n'ont pas de `BEGIN` en commun. C'est un problème d'architecture, pas de détail d'implémentation.
+
+## Ce qui est demandé
+
+**Préalable obligatoire, à faire AVANT toute méthode `prepare`/`bind`/`commit`/`rollback`** : `OcaraMySQLDatabase` doit pouvoir épingler **une** connexion (`PooledConn`) pour la durée d'un cycle `prepare → bind → commit`/`rollback`, plutôt que de repiocher dans le pool à chaque appel. Deux pistes possibles, à trancher à l'implémentation :
+- Un nouveau champ d'état (`Mutex<Option<PooledConn>>`) sur `OcaraMySQLDatabase`, posé par `prepare()`, consommé/relâché par `commit()`/`rollback()` — cohabite avec le `Pool` existant pour `execute`/`query`/`queryOne` one-shot qui n'ont pas besoin de cette garantie.
+- Réévaluer si un `MySQL`/`MariaDB` Ocara doit continuer à représenter un `Pool` entier ou une connexion unique — chaque instance `MySQL` côté Ocara correspond déjà à *une* connexion logique du point de vue de l'utilisateur (un seul `MySQL::connect(...)`), le `Pool` interne est un détail d'implémentation actuel, pas une exigence du langage.
+
+Une fois ce préalable posé, le reste du travail est le même que côté SQLite (7 méthodes, doc, exemples, tests) — voir [stdlib-sqlite-requetes-parametrees-transactions](stdlib-sqlite-requetes-parametrees-transactions.md) point par point, à adapter au crate `mysql` (paramètres nommés : `Params::from(...)` / requêtes préparées via `conn.prep(...)` + `conn.exec(...)`, transactions natives disponibles via `conn.start_transaction(...)` une fois la connexion épinglée).
+
+## Priorité / Complexité
+
+**Terminé.** Était Priorité Moyenne, Complexité Structurel — confirmé, plus deux bugs non anticipés (un dans le compilateur — narrowing d'union `map<K,V>|null` — un dans le protocole MySQL texte vs binaire), tous deux avec tests de non-régression dédiés.
+
+## Fichiers clés
+
+`runtime/src/mysql.rs` (`OcaraMySQLDatabase`, connexion épinglée, `row_to_map`, `params_from_binds`), `runtime/src/tests/mysql.rs` (nouveau, 19 tests) + `runtime/src/tests/mod.rs` (`mod mysql;`), `src/builtins/mysql.rs`, `src/codegen/desc.d/mysql.rs`, `src/lower/stmt.d/statements.d/variables.rs` (`map_value_type` — bug de narrowing d'union, affecte tout `map<K,V>|null`, pas seulement MySQL), `docs/builtins/MySQL.md`, `examples/builtins/mysql.oc`, `tools/highlight/vsode/data/builtins-data.json` (régénéré).

@@ -1325,6 +1325,7 @@ PostfixTail  ::= "." Identifier ( "(" ArgList? ")" )?
 
 PrimaryExpr  ::= Literal
                | "self"
+               | "parent"
                | NewExpr
                | StaticCall
                | StaticConst
@@ -2319,6 +2320,50 @@ class AdminLogger extends ConsoleLogger implements Logger, Auditable {
 }
 ```
 
+### 18.1 Appeler le parent avec `parent::`
+
+Depuis une sous-classe (`extends`), `parent::` appelle une méthode — y compris le constructeur `init` — de la classe parente directement, sans la redéclarer/dupliquer dans la sous-classe.
+
+```ebnf
+StaticCallee ::= Identifier | "self" | "parent"
+```
+
+`parent::` partage la syntaxe `Classe::membre` de `self::` (§23) mais pas sa sémantique : `self::` n'appelle que des méthodes **statiques** de la classe courante, alors que `parent::` appelle une méthode ou un constructeur **d'instance** du parent — l'appel injecte implicitement `self`, exactement comme un appel de méthode classique.
+
+```ocara
+class Animal {
+    protected property name:string
+    protected property sound:string
+
+    init(name:string, sound:string) {
+        self.name  = name
+        self.sound = sound
+    }
+
+    public method speak(): void {
+        IO::writeln(self.name + " dit : " + self.sound)
+    }
+}
+
+class Dog extends Animal {
+    private property breed:string
+
+    init(name:string, breed:string) {
+        parent::init(name, "Woof")   // appelle Animal::init — pas de duplication de self.name/self.sound
+        self.breed = breed
+    }
+
+    public method describe(): void {
+        parent::speak()              // appelle Animal::speak() sur l'instance courante
+        IO::writeln("Race : " + self.breed)
+    }
+}
+```
+
+`parent::CONST` lit de la même façon une constante de classe déclarée sur le parent. `parent` seul (sans `::`), en position d'expression, est aussi valide (`parent.propriete`) — utile pour lire un champ du parent sans passer par une méthode.
+
+> `parent::`/`parent` ne sont valides qu'à l'intérieur d'une classe qui déclare `extends` (l'héritage étant simple — §18 ci-dessus — il n'y a jamais d'ambiguïté sur la classe visée).
+
 ---
 
 ## 19. Modules (mixins)
@@ -2998,12 +3043,12 @@ var cache:Cache<int, User> = use Cache<int, User>()
 ## 23. Accès statique
 
 ```ebnf
-StaticCallee ::= Identifier | "self"
+StaticCallee ::= Identifier | "self" | "parent"
 StaticCall   ::= StaticCallee "::" Identifier "(" ArgList? ")"
 StaticConst  ::= StaticCallee "::" Identifier
 ```
 
-Appel d'une méthode statique ou lecture d'une constante de classe, sans instanciation. `self::` est utilisable uniquement depuis l'intérieur d'une classe pour référencer la classe courante.
+Appel d'une méthode statique ou lecture d'une constante de classe, sans instanciation. `self::` est utilisable uniquement depuis l'intérieur d'une classe pour référencer la classe courante. `parent::` s'utilise de la même façon mais pour appeler le parent d'une classe — voir §18.1, sa sémantique diffère de `self::` malgré la syntaxe partagée (méthode/constructeur **d'instance**, pas seulement statique).
 
 `StaticConst` sans `()` produit une **référence de fonction** (`Function`) lorsque le membre désigné est une méthode statique.
 
@@ -3585,6 +3630,7 @@ PostfixTail ::= "." Identifier ( "(" ArgList? ")" )?
 
 PrimaryExpr ::= Literal
               | "self"
+              | "parent"
               | NewExpr
               | StaticCall
               | StaticConst
@@ -3597,7 +3643,7 @@ PrimaryExpr ::= Literal
 
 NewExpr      ::= "use" Identifier ( "<" TypeArgs ">" )? "(" ArgList? ")"
 NamelessExpr ::= "nameless" "(" ParamList? ")" ( ":" Type )? Block
-StaticCallee ::= Identifier | "self"
+StaticCallee ::= Identifier | "self" | "parent"
 StaticCall  ::= StaticCallee "::" Identifier "(" ArgList? ")"
 StaticConst ::= StaticCallee "::" Identifier
 ArrayLiteral ::= "[" ( Expression ( "," Expression )* ","? )? "]"
