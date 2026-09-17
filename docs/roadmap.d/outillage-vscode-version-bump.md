@@ -1,5 +1,9 @@
 # Extension VSCode restée en 0.1.0 après le passage du langage en 1.0.0
 
+## ✅ Terminé
+
+Version alignée sur celle du langage : `tools/highlight/vsode/package.json` passe à `1.0.0`, `.vsix` régénéré (`ocara-language-1.0.0.vsix`), et toutes les occurrences de la commande d'installation dans `tools/highlight/vsode/README.md` mises à jour (installation, mise à jour, désinstallation/réinstallation) — commit `a514b07`.
+
 ## Constat
 
 Le bump de version du 2026-09-16 (`feat: Version bumpée à 1.0.0 dans les 6 Cargo.toml...`) a délibérément laissé l'extension VSCode de côté — le message de commit le dit explicitement : *« L'extension VSCode (`tools/highlight/vsode/`) volontairement non touchée — versionnée indépendamment par convention du projet »*. `tools/highlight/vsode/package.json:5` affiche toujours `"version": "0.1.0"`, et le `.vsix` pré-compilé livré dans le dépôt est toujours `ocara-language-0.1.0.vsix`.
@@ -15,7 +19,7 @@ Suivre la méthode de travail habituelle du projet pour un changement touchant l
 
 ## Priorité / Complexité
 
-**Priorité Basse** — confort/cohérence de release, aucun impact fonctionnel (l'extension elle-même est à jour). **Complexité Simple** — bump de version + recompilation + republication du `.vsix`, pas de changement de code.
+**Terminé.** Était Priorité Basse, Complexité Simple — confirmé : bump de version + recompilation + republication du `.vsix`, pas de changement de code.
 
 ## Fichiers clés
 
