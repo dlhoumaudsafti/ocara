@@ -32,7 +32,7 @@ import ocara.Tauri
 import ocara.HTTPRequest
 import ocara.HTTPResponse
 import configs.Components
-import configs.Server
+import configs.Server as HTTP
 import configs.Database
 import controllers.IPCController
 
@@ -40,7 +40,7 @@ import controllers.IPCController
 init {
     IO::writeln("Initialisation de l'app...")
     use Database().migrate()
-    const SERVER:Server = use Server()
+    const SERVER:HTTP = use HTTP()
     SERVER.routes()
 }
 

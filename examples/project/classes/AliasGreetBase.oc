@@ -1,0 +1,9 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// classes/AliasGreetBase.oc — voir tests/AliasClassInheritanceTest.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+class AliasGreetBase {
+    public method greet(): string {
+        return "greet from Base"
+    }
+}

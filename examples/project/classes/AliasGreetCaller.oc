@@ -1,0 +1,19 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// classes/AliasGreetCaller.oc — voir tests/AliasClassInheritanceTest.oc
+//
+// Référence `AliasGreetChild` par son VRAI NOM — ce fichier ne voit jamais
+// l'alias déclaré par un autre fichier (`import ... as MyChild`), exactement
+// le scénario qui cassait la résolution de `greet()` (héritée
+// d'`AliasGreetBase`) avant le correctif — voir
+// docs/roadmap.d/langage-alias-classe-utilisateur-heritage-casse.md.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import classes.AliasGreetChild
+
+class AliasGreetCaller {
+    public property result:string
+
+    init(c:AliasGreetChild) {
+        self.result = c.greet()
+    }
+}
