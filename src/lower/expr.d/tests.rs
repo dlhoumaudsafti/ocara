@@ -7,7 +7,7 @@
 #[cfg(test)]
 mod tests {
     use crate::lower::builder::LowerBuilder;
-    use crate::lower::expr::helpers::{param_type_for_call_arg, CallForm, elem_type_after_index, is_map_target};
+    use crate::lower::expr::helpers::{param_type_for_call_arg, CallForm, elem_type_after_index, is_map_target, resolve_chained_field_class};
     use crate::ir::module::IrModule;
     use crate::ir::types::IrType;
     use crate::parsing::ast::{Expr, Type};
@@ -19,6 +19,9 @@ mod tests {
         Expr::Index { object: Box::new(object), index: Box::new(idx), span: span() }
     }
     fn int_lit(n: i64) -> Expr { Expr::Literal(crate::parsing::ast::Literal::Int(n), span()) }
+    fn new_expr(class: &str) -> Expr {
+        Expr::New { class: class.to_string(), type_args: vec![], args: vec![], span: span() }
+    }
 
     /// `Array::get(arr, idx)` — signature réelle déclarée dans
     /// `src/builtins/array.rs` : `[arr: array<mixed> → Ptr, idx: int → I64]`.
@@ -221,5 +224,34 @@ mod tests {
         let lit = int_lit(42);
         assert_eq!(elem_type_after_index(&builder, &lit), None);
         assert!(!is_map_target(&builder, &lit));
+    }
+
+    // ── resolve_chained_field_class avec Expr::New en base (`use Classe(...).*`) ──
+    // `use Classe(...).méthode()`/`.champ` chaîné directement, sans jamais
+    // lier l'instance à une variable, n'était reconnu par AUCUN chemin de
+    // résolution de classe du lowering (`Expr::Ident`/`SelfExpr`/`ParentExpr`/
+    // `Field` seulement) : `resolve_chained_field_class` (et les ~7 autres
+    // points d'entrée équivalents dans lower.rs/typeinfer.rs/helpers.rs/
+    // assignments.rs/message_gen.rs, tous corrigés ensemble) retombait sur
+    // `None`, ou pire, sur le filet de secours "String" pour un appel de
+    // méthode (`lower.rs`) — `func_mangled` valait alors `"String_run"` pour
+    // `use Thread().run(...)`, un symbole qui n'existe pas, et le codegen
+    // (`emit_calls`) ignore silencieusement un appel vers une fonction
+    // inconnue au lieu d'échouer : le thread n'était alors JAMAIS lancé,
+    // sans la moindre erreur de compilation. Confirmé aussi sur une valeur
+    // de retour scalaire (`use Bar().getIt()` valait toujours `0`).
+
+    /// `use Foo().inner.method()` — `inner: Bar`. `resolve_chained_field_class`
+    /// doit reconnaître `use Foo()` comme base de classe `Foo` et résoudre le
+    /// champ `inner` vers `Bar`, exactement comme si `Foo` avait été assignée
+    /// à une variable d'abord.
+    #[test]
+    fn resolve_chained_field_class_recognizes_new_expr_as_base() {
+        let mut module = IrModule::new("test");
+        module.class_field_types.insert("Foo".to_string(), vec![("inner".to_string(), Type::Named("Bar".to_string()))]);
+        let builder = LowerBuilder::new(&mut module, "test_fn".into(), vec![], IrType::Void);
+
+        let result = resolve_chained_field_class(&builder, &new_expr("Foo"), "inner");
+        assert_eq!(result, Some("Bar".to_string()), "use Foo().inner doit résoudre vers la classe Bar");
     }
 }

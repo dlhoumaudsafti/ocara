@@ -198,6 +198,9 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                 Expr::Field { object: inner, field: inner_field, .. } => {
                     super::helpers::resolve_chained_field_class(builder, inner, inner_field)
                 }
+                // `use Classe(...).champ` — voir la doc du même cas dans
+                // `lower.rs` (bloc `Expr::Call`) pour le bug corrigé.
+                Expr::New { class, .. } => Some(class.clone()),
                 _ => None,
             };
             if let Some(cls) = class_name {
@@ -265,12 +268,29 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                             None
                         }
                     }
+                    // `HTTPRequest::get/post/put/delete/patch(...).méthode()`
+                    // chaîné — `Expr::StaticCall` est un nœud AST complet en
+                    // lui-même (args intégrés, jamais enveloppé dans
+                    // `Expr::Call`) : voir la doc du même cas dans `lower.rs`
+                    // (bloc `Expr::Call`, lowering) pour le bug corrigé.
+                    Expr::StaticCall { class: sc_class, method: sc_method, .. }
+                        if sc_class == "HTTPRequest"
+                            && matches!(sc_method.as_str(), "get" | "post" | "put" | "delete" | "patch") =>
+                    {
+                        Some("HTTPResponse".to_string())
+                    }
                     // Accès chaîné : w.inner.methode() où `inner` est
                     // elle-même une instance de classe — voir
                     // resolve_chained_field_class.
                     Expr::Field { object: inner_obj, field: inner_field, .. } => {
                         super::helpers::resolve_chained_field_class(builder, inner_obj, inner_field)
                     }
+                    // `use Classe(...).méthode()` — voir la doc du même cas
+                    // dans `lower.rs` (bloc `Expr::Call`, lowering) pour le
+                    // bug corrigé : sans lui, le type de retour réel de la
+                    // méthode était perdu (filet de sécurité `IrType::Ptr`
+                    // ci-dessous), ce qui aurait pu fausser un boxing en aval.
+                    Expr::New { class, .. } => Some(class.clone()),
                     _ => None,
                 };
                 // Sucre d'instance (`objet.méthode(...)`) : même résolution

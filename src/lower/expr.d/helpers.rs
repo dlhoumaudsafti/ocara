@@ -184,6 +184,9 @@ pub fn resolve_chained_field_class(builder: &LowerBuilder, object: &Expr, field:
         Expr::Field { object: inner, field: inner_field, .. } => {
             resolve_chained_field_class(builder, inner, inner_field)
         }
+        // `use Classe(...).champ.autreChamp` — voir la doc du même cas dans
+        // `lower.rs` (bloc `Expr::Call`) pour le bug corrigé.
+        Expr::New { class, .. } => Some(class.clone()),
         _ => None,
     }?;
     let field_ty = builder.module.class_field_types.get(&base_class)?
@@ -259,6 +262,9 @@ pub fn elem_type_after_index(builder: &LowerBuilder, expr: &Expr) -> Option<Type
                 Expr::Field { object: inner2, field: inner2_field, .. } => {
                     resolve_chained_field_class(builder, inner2, inner2_field)
                 }
+                // `use Classe(...).champ[i]` — voir la doc du même cas dans
+                // `lower.rs` (bloc `Expr::Call`) pour le bug que ça corrige.
+                Expr::New { class, .. } => Some(class.clone()),
                 _ => None,
             }?;
             let field_ty = builder.module.class_field_types.get(&class_name)?
@@ -289,6 +295,9 @@ pub fn is_map_target(builder: &LowerBuilder, object: &Expr) -> bool {
                 Expr::Field { object: inner2, field: inner2_field, .. } => {
                     resolve_chained_field_class(builder, inner2, inner2_field)
                 }
+                // `use Classe(...).champMap[clé]` — voir la doc du même cas
+                // dans `lower.rs` (bloc `Expr::Call`) pour le bug corrigé.
+                Expr::New { class, .. } => Some(class.clone()),
                 _ => None,
             };
             class_name

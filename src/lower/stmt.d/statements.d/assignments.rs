@@ -44,6 +44,9 @@ pub fn lower_assign(
                 Expr::Field { object: inner, field: inner_field, .. } => {
                     resolve_chained_field_class(builder, inner, inner_field)
                 }
+                // `use Classe(...).champ = valeur` — voir la doc du même cas
+                // dans `lower.rs` (bloc `Expr::Call`) pour le bug corrigé.
+                Expr::New { class, .. } => Some(class.clone()),
                 _ => None,
             };
             let offset = class_name.as_deref()
@@ -114,6 +117,7 @@ pub fn lower_incdec(builder: &mut LowerBuilder, op: &IncDecOp, target: &Expr) ->
                 Expr::Field { object: inner, field: inner_field, .. } => {
                     resolve_chained_field_class(builder, inner, inner_field)
                 }
+                Expr::New { class, .. } => Some(class.clone()),
                 _ => None,
             };
             let (offset, ty) = match &class_name {
