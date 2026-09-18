@@ -1,0 +1,8 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// classes/AliasGreetChild.oc — voir tests/AliasClassInheritanceTest.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+import classes.AliasGreetBase
+
+class AliasGreetChild extends AliasGreetBase {
+}

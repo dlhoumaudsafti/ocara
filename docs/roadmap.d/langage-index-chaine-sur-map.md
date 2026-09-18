@@ -1,5 +1,17 @@
 # `expr[i][clé]` (indexation chaînée array-puis-map) retourne `null` au lieu de la vraie valeur
 
+Vérifié :
+- Hypothèse du ticket confirmée : `is_map_target` (`src/lower/expr.d/helpers.rs`) ne gérait que `Expr::Ident`/`Expr::Field` comme objet d'un `Expr::Index`, jamais un `Expr::Index` imbriqué (tombait dans le `_ => false`, dispatchait vers `__array_get` au lieu de `__map_get`).
+- Corrigé par une résolution **récursive** du type d'une indexation chaînée, `elem_type_after_index(builder, expr) -> Option<Type>` (nouvelle fonction, `src/lower/expr.d/helpers.rs`) : pour `Expr::Ident`, lit `builder.elem_ast_types` (inchangé) ; pour `Expr::Field`, résout la classe du récepteur puis lit `module.class_field_types` (inchangé) ; pour `Expr::Index { object, .. }` (le cas manquant), s'appelle récursivement sur `object` puis pèle **une** couche de conteneur (`container_elem_type` : `Type::Array`/`Type::Map`/`Type::Union` dépliés). `is_map_target` route désormais son cas `Expr::Index` par cette fonction — supporte donc une profondeur de chaînage **arbitraire** (`a[0][1]["x"]["y"]`...), pas seulement les deux niveaux du repro original, par composition de la récursion plutôt que par un cas à profondeur fixe.
+- Point 3 de la demande initiale (l'autre sens de nesting, `map<string, map<...>>`, et la profondeur > 2) répondu : couvert par `container_elem_type` (une seule fonction pour les deux sens de nesting, pas un cas séparé par direction) et testé explicitement (voir tests ci-dessous).
+- Fonction partagée par la lecture (`src/lower/expr.d/lower.rs`, `Expr::Index`) ET l'écriture (`src/lower/stmt.d/statements.d/assignments.rs`, deux points d'appel) — un seul correctif couvre les deux chemins, vérifié par `chainedIndexAssignmentTest`.
+- **7 tests unitaires Rust** ajoutés dans `src/lower/expr.d/tests.rs` (partagé avec la fiche jumelle `qualite-parite-sucre-statique-param-types.md`) : non-régression 1 niveau (`Ident` inchangé), profondeur 2 (repro exact), profondeur 3 (deux couches array pelées), profondeur 5 (aucune limite codée en dur), non-régression arrays purs (jamais classés map), union `map<K,V>|null` dépliée, expression inconnue → `None`/`false` sans panic. Un off-by-one dans la construction manuelle du test de profondeur 5 (une couche `Type::Array` de trop autour de la map, `elem_ast_types` représentant déjà un niveau d'indexation consommé) a été trouvé et corrigé pendant l'écriture — bug du test, pas de l'implémentation.
+- **9 assertions** dans un nouvel exemple `examples/tests/50_chained_index_on_mapTest.oc` : profondeur 2/3/4 en lecture, écriture chaînée, chaînage à travers un champ de classe (`self.champ[i][clé]`, via `class_field_types`), map-de-map, non-régression arrays purs.
+- `cargo test -p ocara` : 74 passed (dont les 7 nouveaux). `cargo test -p ocara_runtime` : 57 passed + 7 `#[ignore]` (inchangé, sans rapport avec ce fix).
+- `make build` (les 4 crates) + `RUSTFLAGS="-D warnings"` : 0 warning.
+- `make regression` (cache vidé) : 668 PASS / 0 FAIL, 0 ERREUR(S) — aucune régression (9 PASS de plus qu'avant ce ticket, exactement les 9 nouvelles assertions).
+- `docs/EBNF.md` : non touché — correctif de compilateur pur, aucun changement de syntaxe.
+
 ## Constat
 
 Trouvé par accident en vérifiant le ticket [stdlib-mysql-requetes-parametrees-transactions](stdlib-mysql-requetes-parametrees-transactions.md) — **sans rapport avec MySQL**, reproduit à l'identique avec SQLite (non touché par ce ticket) :
@@ -51,7 +63,7 @@ C'est très probablement le même type de lacune que le bug déjà corrigé dans
 
 ## Priorité / Complexité
 
-**Priorité Basse** — contournement simple et déjà documenté (variable intermédiaire), donc pas bloquant, mais c'est un vrai bug de correction silencieuse (aucune erreur, aucun warning, juste une valeur fausse) sur un pattern de code par ailleurs tout à fait naturel (`rows[0]["champ"]`). **Complexité Légère à Structurel selon ce que révèle le point 1** — probablement une extension ciblée de `is_map_target`, mais à confirmer avant de s'engager.
+**Terminé.** Était Priorité Basse, Complexité Légère à Structurel selon ce que révélerait le point 1 — confirmé Légère : une seule fonction récursive (`elem_type_after_index`) a suffi, sans réécriture profonde, en généralisant le mécanisme existant plutôt qu'en ajoutant un cas spécial à profondeur fixe.
 
 ## Fichiers clés
 

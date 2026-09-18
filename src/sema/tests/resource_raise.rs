@@ -5,6 +5,7 @@
 /// (pas de parsing) — un par cas décrit dans la doc de
 /// `crate::sema::resource_raise`.
 
+use std::collections::HashSet;
 use crate::sema::resource_raise::check_program;
 use crate::sema::error::SemaWarning;
 use crate::parsing::ast::*;
@@ -66,7 +67,7 @@ fn direct_raise_after_resource_in_same_block_warns() {
         scoped_mutex("m"),
         raise_stmt(),
     ]));
-    let warnings = check_program(&program);
+    let warnings = check_program(&program, &HashSet::new());
     assert!(find_leak_warning(&warnings, "m").is_some());
 }
 
@@ -79,7 +80,7 @@ fn finalized_before_raise_does_not_warn() {
         finalize_call("m", "destroy"),
         raise_stmt(),
     ]));
-    let warnings = check_program(&program);
+    let warnings = check_program(&program, &HashSet::new());
     assert!(find_leak_warning(&warnings, "m").is_none());
 }
 
@@ -95,7 +96,7 @@ fn raise_inside_local_try_does_not_warn() {
             span: span(),
         },
     ]));
-    let warnings = check_program(&program);
+    let warnings = check_program(&program, &HashSet::new());
     assert!(find_leak_warning(&warnings, "m").is_none());
 }
 
@@ -113,7 +114,7 @@ fn raise_reachable_through_nested_if_without_try_warns() {
             span: span(),
         },
     ]));
-    let warnings = check_program(&program);
+    let warnings = check_program(&program, &HashSet::new());
     assert!(find_leak_warning(&warnings, "m").is_some());
 }
 
@@ -129,7 +130,7 @@ fn raise_inside_on_handler_warns() {
             span: span(),
         },
     ]));
-    let warnings = check_program(&program);
+    let warnings = check_program(&program, &HashSet::new());
     assert!(find_leak_warning(&warnings, "m").is_some());
 }
 
@@ -138,7 +139,7 @@ fn raise_inside_on_handler_warns() {
 #[test]
 fn raise_without_any_resource_does_not_warn() {
     let program = program_with_main_body(block(vec![raise_stmt()]));
-    let warnings = check_program(&program);
+    let warnings = check_program(&program, &HashSet::new());
     assert!(warnings.is_empty());
 }
 
@@ -158,6 +159,6 @@ fn plain_var_resource_is_not_checked_by_this_warning() {
         },
         raise_stmt(),
     ]));
-    let warnings = check_program(&program);
+    let warnings = check_program(&program, &HashSet::new());
     assert!(find_leak_warning(&warnings, "m").is_none());
 }

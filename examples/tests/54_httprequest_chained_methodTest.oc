@@ -1,0 +1,70 @@
+import ocara.UnitTest
+import ocara.HTTPServer
+import ocara.HTTPRequest
+import ocara.Thread
+
+// `HTTPRequest::get/post/put/delete/patch(...).méthode()` chaîné en une
+// seule expression (sans jamais passer par une variable `scoped`/`consumed`)
+// était cassé — même famille que `use Classe(...).méthode()` (voir
+// docs/roadmap.d/langage-use-chaine-valeur-retour-perdue.md), cause racine
+// différente : `Expr::StaticCall` est un nœud AST complet en lui-même (ses
+// arguments sont intégrés au nœud, jamais enveloppé dans un `Expr::Call`
+// séparé contrairement à un appel de méthode d'instance chaîné) — aucune
+// branche de résolution de classe du récepteur (`src/lower/expr.d/lower.rs`,
+// `typeinfer.rs`) ne reconnaissait `Expr::StaticCall` directement en
+// position de récepteur, donc `class_name` restait `None`, jamais le
+// fallback "String" (atteint seulement si le récepteur n'est pas
+// explicitement `Expr::Call`) : `func_mangled` valait `"_method_ok"` au
+// lieu de `"HTTPRequest_ok"` — symbole inexistant, ignoré silencieusement
+// par le codegen. Résultat concret : `if HTTPRequest::get(url).ok() { }`
+// valait TOUJOURS faux, même contre un serveur qui répond réellement 200 —
+// reproduit dans examples/advanced/tauri_httpserver/main.oc (boucle
+// d'attente du serveur, qui timeoutait alors systématiquement après 5s).
+class Test_54_httprequest_chained_method {
+
+    public method chainedGetOkIsTrueOnSuccessTest(): int {
+        var s:HTTPServer = use HTTPServer()
+        s.port(8196)
+        s.route("/health", "GET", nameless(req:int): int {
+            HTTPServer::respond(req, 200, "ok")
+            return 0
+        })
+        var t:Thread = use Thread()
+        t.run(nameless(): void {
+            s.run()
+        })
+        t.detach()
+        Thread::sleep(300)
+
+        // Le cœur du bug : chaîné directement dans la condition du `if`,
+        // sans jamais assigner le HTTPResponse intermédiaire à une variable.
+        if HTTPRequest::get("http://localhost:8196/health").ok() {
+            UnitTest::assertTrue(true)
+        } else {
+            UnitTest::assertTrue(false)
+        }
+        return 0
+    }
+
+    // Non-régression : le statut lui-même doit aussi être correct, pas
+    // seulement `.ok()` — vérifie que la résolution de classe corrige bien
+    // le VRAI type de retour (HTTPResponse), pas un contournement partiel.
+    public method chainedGetStatusIsCorrectTest(): int {
+        var s:HTTPServer = use HTTPServer()
+        s.port(8195)
+        s.route("/health", "GET", nameless(req:int): int {
+            HTTPServer::respond(req, 200, "ok")
+            return 0
+        })
+        var t:Thread = use Thread()
+        t.run(nameless(): void {
+            s.run()
+        })
+        t.detach()
+        Thread::sleep(300)
+
+        var status:int = HTTPRequest::get("http://localhost:8195/health").status()
+        UnitTest::assertEquals(200, status)
+        return 0
+    }
+}

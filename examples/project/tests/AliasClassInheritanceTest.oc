@@ -1,0 +1,33 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// tests/AliasClassInheritanceTest.oc — voir
+// docs/roadmap.d/langage-alias-classe-utilisateur-heritage-casse.md
+//
+// `import Classe as Alias` (classe UTILISATEUR, pas un builtin `ocara.*`)
+// cassait la résolution de méthode héritée dès qu'un AUTRE fichier
+// référence la même classe par son vrai nom — reproduit dans
+// examples/advanced/tauri_httpserver (`import configs.Server as HTTP`
+// empêchait TOUTE route d'être enregistrée, `server.route(...)` hérité de
+// `HTTPServer` ne se résolvant plus pour un paramètre `server:Server`
+// déclaré dans un autre fichier).
+//
+// Ici : `AliasGreetChild extends AliasGreetBase` (méthode `greet()`
+// héritée). `AliasGreetCaller` (fichier séparé, classes/AliasGreetCaller.oc)
+// référence `AliasGreetChild` par son VRAI NOM, jamais l'alias `MyChild`
+// déclaré CE fichier-ci — avant le correctif, `c.greet()` ne se résolvait
+// plus du tout (symbole mangled inexistant, ignoré silencieusement par le
+// codegen).
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.UnitTest
+import classes.AliasGreetChild as MyChild
+import classes.AliasGreetCaller
+
+class AliasClassInheritanceTest {
+
+    public method aliasedChildStillResolvesInheritedMethodTest(): int {
+        const c:MyChild = use MyChild()
+        const caller:AliasGreetCaller = use AliasGreetCaller(c)
+        UnitTest::assertEquals("greet from Base", caller.result)
+        return 0
+    }
+}

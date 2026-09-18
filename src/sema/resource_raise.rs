@@ -37,39 +37,40 @@ use std::collections::HashSet;
 use crate::parsing::ast::*;
 use crate::parsing::token::Span;
 use crate::sema::error::SemaWarning;
-use crate::sema::scope::{ownership_class, OwnershipClass};
+use crate::sema::scope::{ownership_class_of, OwnershipClass};
 
-pub fn check_program(program: &Program) -> Vec<SemaWarning> {
+pub fn check_program(program: &Program, resource_classes: &HashSet<String>) -> Vec<SemaWarning> {
     let mut warnings = Vec::new();
     for func in &program.functions {
-        scan_block(&func.body, &mut warnings);
+        scan_block(&func.body, resource_classes, &mut warnings);
     }
     for class in &program.classes {
-        scan_members(&class.members, &mut warnings);
+        scan_members(&class.members, resource_classes, &mut warnings);
     }
     for module in &program.modules {
-        scan_members(&module.members, &mut warnings);
+        scan_members(&module.members, resource_classes, &mut warnings);
     }
     warnings
 }
 
-fn scan_members(members: &[ClassMember], warnings: &mut Vec<SemaWarning>) {
+fn scan_members(members: &[ClassMember], resource_classes: &HashSet<String>, warnings: &mut Vec<SemaWarning>) {
     for member in members {
         match member {
-            ClassMember::Constructor { body, .. } => scan_block(body, warnings),
-            ClassMember::Method { decl, .. } => scan_block(&decl.body, warnings),
+            ClassMember::Constructor { body, .. } => scan_block(body, resource_classes, warnings),
+            ClassMember::Method { decl, .. } => scan_block(&decl.body, resource_classes, warnings),
             ClassMember::Field { .. } | ClassMember::Const { .. } => {}
         }
     }
 }
 
 /// Nom de classe (`Type::Named`) pour une ressource "possédable" au sens de
-/// ce diagnostic — `OwnershipClass::Resource` ou `Thread` (même contrainte
-/// de finalisation manuelle, méthodes différentes — voir
-/// `crate::sema::scope::ownership_class`).
-fn resource_class_name(ty: &Type) -> Option<&str> {
+/// ce diagnostic — `OwnershipClass::Resource` (ressource nue OU classe
+/// utilisateur en contenant une, voir `resource_classes`) ou `Thread` (même
+/// contrainte de finalisation manuelle, méthodes différentes — voir
+/// `crate::sema::scope::ownership_class_of`).
+fn resource_class_name<'a>(ty: &'a Type, resource_classes: &HashSet<String>) -> Option<&'a str> {
     if let Type::Named(n) = ty {
-        if matches!(ownership_class(ty), OwnershipClass::Resource | OwnershipClass::Thread) {
+        if matches!(ownership_class_of(ty, resource_classes), OwnershipClass::Resource | OwnershipClass::Thread) {
             return Some(n.as_str());
         }
     }
@@ -84,7 +85,7 @@ fn is_finalizing_method(field: &str) -> bool {
 
 type OpenResource = (String, String, Span);
 
-fn scan_block(block: &Block, warnings: &mut Vec<SemaWarning>) {
+fn scan_block(block: &Block, resource_classes: &HashSet<String>, warnings: &mut Vec<SemaWarning>) {
     // Ressources `scoped`/`consumed` déclarées DIRECTEMENT dans CE bloc, pas
     // encore finalisées en ligne droite ni déjà signalées.
     let mut open: Vec<OpenResource> = Vec::new();
@@ -93,7 +94,7 @@ fn scan_block(block: &Block, warnings: &mut Vec<SemaWarning>) {
     for stmt in &block.stmts {
         match stmt {
             Stmt::Var { name, ty, kind, span, .. } if matches!(kind, VarKind::Scoped | VarKind::Consumed) => {
-                if let Some(class_name) = resource_class_name(ty) {
+                if let Some(class_name) = resource_class_name(ty, resource_classes) {
                     open.push((name.clone(), class_name.to_string(), span.clone()));
                 }
             }
@@ -111,28 +112,28 @@ fn scan_block(block: &Block, warnings: &mut Vec<SemaWarning>) {
                 check_nested(then_block, &open, warnings, &mut warned);
                 for (_, blk) in elseif { check_nested(blk, &open, warnings, &mut warned); }
                 if let Some(blk) = else_block { check_nested(blk, &open, warnings, &mut warned); }
-                scan_block(then_block, warnings);
-                for (_, blk) in elseif { scan_block(blk, warnings); }
-                if let Some(blk) = else_block { scan_block(blk, warnings); }
+                scan_block(then_block, resource_classes, warnings);
+                for (_, blk) in elseif { scan_block(blk, resource_classes, warnings); }
+                if let Some(blk) = else_block { scan_block(blk, resource_classes, warnings); }
             }
             Stmt::While { body, .. } | Stmt::ForIn { body, .. } | Stmt::ForMap { body, .. } => {
                 check_nested(body, &open, warnings, &mut warned);
-                scan_block(body, warnings);
+                scan_block(body, resource_classes, warnings);
             }
             Stmt::Switch { cases, default, .. } => {
-                for c in cases { check_nested(&c.body, &open, warnings, &mut warned); scan_block(&c.body, warnings); }
-                if let Some(d) = default { check_nested(d, &open, warnings, &mut warned); scan_block(d, warnings); }
+                for c in cases { check_nested(&c.body, &open, warnings, &mut warned); scan_block(&c.body, resource_classes, warnings); }
+                if let Some(d) = default { check_nested(d, &open, warnings, &mut warned); scan_block(d, resource_classes, warnings); }
             }
             Stmt::Try { body, handlers, .. } => {
                 // `body` : un `raise` ici est assumé rattrapé localement pour
                 // les ressources du bloc ENGLOBANT (voir la doc de module) —
                 // ne pas vérifier `open` contre son contenu.
-                scan_block(body, warnings);
+                scan_block(body, resource_classes, warnings);
                 // Les HANDLERS, en revanche : plus aucun `try` ne les protège
                 // — un `raise` dedans atteint le bloc englobant normalement.
                 for h in handlers {
                     check_nested(&h.body, &open, warnings, &mut warned);
-                    scan_block(&h.body, warnings);
+                    scan_block(&h.body, resource_classes, warnings);
                 }
             }
             _ => {}

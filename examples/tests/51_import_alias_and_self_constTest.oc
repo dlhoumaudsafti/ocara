@@ -1,0 +1,65 @@
+import ocara.HTTPRequest as Request
+import ocara.HTTPResponse
+import ocara.UnitTest
+
+// `import ocara.X as Y` cassait plusieurs comportements natifs spéciaux de
+// HTTPRequest/HTTPResponse dans le typechecker (voir
+// src/sema/symbols.d/lookups.rs::local_name_for_builtin et
+// src/sema/tests/builtin_alias_resolution.rs pour les tests Rust au niveau
+// sémantique) : `register_import` enregistre une classe builtin SOUS
+// L'ALIAS uniquement, jamais sous son nom canonique — plusieurs comparaisons
+// en dur ("HTTPRequest") dans typecheck.rs ratent donc silencieusement dès
+// qu'un alias est utilisé.
+//   - `Request::ok(res)` était rejeté comme un échappement de ressource
+//     (le carve-out pour les fonctions statiques HTTPRequest::* ne
+//     reconnaissait pas l'alias).
+//   - `res.ok()` (sucre d'instance) échouait avec "field 'ok' not found in
+//     class 'HTTPResponse'" (la redirection HTTPResponse → HTTPRequest pour
+//     trouver les méthodes d'instance cherchait le nom canonique).
+// Reproduit dans examples/advanced/tauri_httpserver/main.oc. Le test cible
+// une connexion refusée (port 1, jamais ouvert) — déterministe et rapide,
+// sans dépendre d'un serveur externe : ce qui était cassé, c'est la
+// COMPILATION de ces deux formes d'appel, pas le résultat réseau lui-même.
+//
+// Deuxième bug, sans rapport, testé dans la même classe (convention
+// ocaraunit : un seul fichier = une seule classe de test) : `self::CONST_NAME`
+// échouait TOUJOURS avec "undefined symbol '<self>::CONST_NAME'" —
+// `Expr::StaticConst` cherchait la constante sous le nom littéral "<self>"
+// au lieu de la classe courante résolue (voir
+// src/sema/tests/self_const_resolution.rs pour les tests Rust). Reproduit
+// dans examples/advanced/tauri_httpserver/configs/Database.oc
+// (`SQLite::open(self::DB_PATH)`).
+class Test_51_import_alias_and_self_const {
+    private const GREETING:string = "bonjour"
+    private property greeting:string
+
+    // Depuis le constructeur — le cas d'usage le plus courant en pratique.
+    init() {
+        self.greeting = self::GREETING
+    }
+
+    public method aliasedStaticCallCompilesAndRunsTest(): int {
+        scoped res:HTTPResponse = Request::get("http://127.0.0.1:1/health")
+        UnitTest::assertFalse(Request::ok(res))
+        UnitTest::assertTrue(Request::isError(res))
+        return 0
+    }
+
+    public method aliasedInstanceSugarCompilesAndRunsTest(): int {
+        scoped res:HTTPResponse = Request::get("http://127.0.0.1:1/health")
+        UnitTest::assertFalse(res.ok())
+        UnitTest::assertTrue(res.isError())
+        return 0
+    }
+
+    public method constructorResolvedConstTest(): int {
+        UnitTest::assertEquals("bonjour", self.greeting)
+        return 0
+    }
+
+    // Depuis une méthode d'instance normale (pas le constructeur).
+    public method instanceMethodResolvedConstTest(): int {
+        UnitTest::assertEquals("bonjour", self::GREETING)
+        return 0
+    }
+}

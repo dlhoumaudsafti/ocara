@@ -14,6 +14,7 @@ use lower::builder::lower_program;
 use sema::symbols::SymbolTable;
 use sema::typecheck::{TypeChecker, type_name, types_compat};
 
+use core::alias_resolve::{compute_aliases, resolve_aliases};
 use core::cli::parse_args;
 use core::monomorph::monomorphize;
 use core::render_file::desugar_render_file;
@@ -77,6 +78,17 @@ fn main() {
         println!("{:#?}", program);
         println!();
     }
+
+    // Résoudre les alias d'import (`import X as Y`) du fichier PRINCIPAL —
+    // voir core::alias_resolve pour la raison (renommer le symbole importé,
+    // ancien comportement, cassait la résolution partout où un AUTRE
+    // fichier référence le même symbole par son vrai nom). Fait ici, avant
+    // toute fusion multi-fichiers, sur les SEULS imports de ce fichier —
+    // chaque fichier importé reçoit le même traitement plus bas, sur ses
+    // propres imports uniquement (un alias n'est jamais visible en dehors
+    // du fichier qui l'a écrit).
+    let main_file_aliases = compute_aliases(&program.imports);
+    resolve_aliases(&mut program, &main_file_aliases);
 
     // ── 4. Vérification des imports non-builtins ──────────────────────────────
     // Les modules `ocara.*` sont builtins (livrés avec le runtime).
@@ -275,9 +287,18 @@ fn main() {
         // Mettre à jour tous les spans du programme importé avec le nom du fichier
         update_program_spans_with_file(&mut mod_prog, &file_path.to_string_lossy());
 
+        // Résoudre les alias d'import (`import X as Y`) écrits DANS ce
+        // fichier lui-même, sur ses propres imports uniquement — voir
+        // core::alias_resolve et le même appel plus haut pour le fichier
+        // principal. Fait avant toute extraction/fusion : les symboles de
+        // `mod_prog` ne portent plus jamais un alias au moment d'être
+        // copiés dans `program`.
+        let mod_file_aliases = compute_aliases(&mod_prog.imports);
+        resolve_aliases(&mut mod_prog, &mod_file_aliases);
+
         // Extraire ce qui est demandé
         let is_wildcard = imp.path.first().map(|s| s == "*").unwrap_or(false);
-        
+
         if is_wildcard {
             // import * from "file" → tout importer
             program.classes.extend(mod_prog.classes);
@@ -289,7 +310,6 @@ fn main() {
         } else {
             // import Circle from "file" → importer seulement Circle
             let requested_name = imp.path.first().cloned().unwrap_or_default();
-            let final_name = imp.alias.as_ref().cloned().unwrap_or(requested_name.clone());
 
             // Rapatrier aussi les constantes de fichier (même logique que
             // `import *` ci-dessus) : une classe/fonction importée peut
@@ -310,8 +330,18 @@ fn main() {
             // Ordre de priorité: class → generic → interface → module → function
             
             // Chercher la classe
-            if let Some(mut cls) = mod_prog.classes.iter().find(|c| c.name == requested_name).cloned() {
-                cls.name = final_name.clone();
+            //
+            // Le symbole GARDE son vrai nom (`requested_name`) même si cet
+            // import est aliasé (`import X as Y`) — voir core::alias_resolve :
+            // le renommer ici casserait la résolution partout où un AUTRE
+            // fichier référence le même symbole par son vrai nom (typage de
+            // paramètre, `extends`...), puisqu'il n'existerait alors plus
+            // sous ce nom nulle part dans le programme fusionné. L'alias
+            // lui-même a déjà été réécrit vers le vrai nom, PARTOUT où le
+            // fichier qui l'a écrit l'utilise, par l'appel à `resolve_aliases`
+            // ci-dessus (fichier principal) / plus haut (fichier importé) —
+            // aucun autre traitement n'est donc nécessaire ici.
+            if let Some(cls) = mod_prog.classes.iter().find(|c| c.name == requested_name).cloned() {
                 // Rapatrier les interfaces implémentées par cette classe, même si
                 // elles n'ont pas été explicitement demandées par l'import : sinon
                 // la vérification E09 échoue plus loin avec "interface not found"
@@ -326,23 +356,19 @@ fn main() {
                 program.classes.push(cls);
             }
             // Chercher le générique
-            else if let Some(mut generic_item) = mod_prog.generics.iter().find(|g| g.name == requested_name).cloned() {
-                generic_item.name = final_name.clone();
+            else if let Some(generic_item) = mod_prog.generics.iter().find(|g| g.name == requested_name).cloned() {
                 program.generics.push(generic_item);
             }
             // Chercher l'interface
-            else if let Some(mut iface) = mod_prog.interfaces.iter().find(|i| i.name == requested_name).cloned() {
-                iface.name = final_name.clone();
+            else if let Some(iface) = mod_prog.interfaces.iter().find(|i| i.name == requested_name).cloned() {
                 program.interfaces.push(iface);
             }
             // Chercher le module
-            else if let Some(mut module) = mod_prog.modules.iter().find(|m| m.name == requested_name).cloned() {
-                module.name = final_name.clone();
+            else if let Some(module) = mod_prog.modules.iter().find(|m| m.name == requested_name).cloned() {
                 program.modules.push(module);
             }
             // Chercher la fonction
-            else if let Some(mut func) = mod_prog.functions.iter().find(|f| f.name == requested_name).cloned() {
-                func.name = final_name.clone();
+            else if let Some(func) = mod_prog.functions.iter().find(|f| f.name == requested_name).cloned() {
                 program.functions.push(func);
             }
             else {

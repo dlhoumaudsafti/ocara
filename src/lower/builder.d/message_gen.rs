@@ -486,6 +486,7 @@ pub fn detect_message_call(builder: &LowerBuilder, expr: &Expr) -> Option<(Strin
                 let class_name = match object.as_ref() {
                     Expr::Ident(n, _)  => builder.var_class.get(n.as_str()).cloned(),
                     Expr::SelfExpr(_)  => builder.current_class.clone(),
+                    Expr::New { class, .. } => Some(class.clone()),
                     _ => None,
                 };
                 class_name.and_then(|cls| {

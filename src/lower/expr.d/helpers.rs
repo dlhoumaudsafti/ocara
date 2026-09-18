@@ -184,6 +184,9 @@ pub fn resolve_chained_field_class(builder: &LowerBuilder, object: &Expr, field:
         Expr::Field { object: inner, field: inner_field, .. } => {
             resolve_chained_field_class(builder, inner, inner_field)
         }
+        // `use Classe(...).champ.autreChamp` — voir la doc du même cas dans
+        // `lower.rs` (bloc `Expr::Call`) pour le bug corrigé.
+        Expr::New { class, .. } => Some(class.clone()),
         _ => None,
     }?;
     let field_ty = builder.module.class_field_types.get(&base_class)?
@@ -202,6 +205,73 @@ pub fn resolve_chained_field_class(builder: &LowerBuilder, object: &Expr, field:
         // retombait sur un symbole `_method_<nom>` inexistant (confirmé par
         // reproduction — voir docs/roadmap.d/langage-generiques.md).
         Type::Generic { name, args } => Some(crate::core::monomorph::monomorphized_name(&name, &args)),
+        _ => None,
+    }
+}
+
+/// Type "élément" d'un conteneur — le type de `x[i]` sachant que `x` est de
+/// type `ty`. Déplie un union (`T[]|null`, `map<K,V>|null`) vers la première
+/// variante `Array`/`Map` trouvée. Sœur de `variables::map_value_type`
+/// (Map uniquement — utilisée là où seule une vraie map doit être
+/// enregistrée, ex. `builder.map_vars`), généralisée ici aux deux formes de
+/// conteneur pour servir de brique à `elem_type_after_index` ci-dessous.
+fn container_elem_type(ty: &Type) -> Option<&Type> {
+    match ty {
+        Type::Array(inner)   => Some(inner),
+        Type::Map(_, val_ty) => Some(val_ty),
+        Type::Union(variants) => variants.iter().find_map(container_elem_type),
+        _ => None,
+    }
+}
+
+fn is_map_shaped(ty: &Type) -> bool {
+    match ty {
+        Type::Map(..) => true,
+        Type::Union(variants) => variants.iter().any(is_map_shaped),
+        _ => false,
+    }
+}
+
+/// Type de `expr[quelque_chose]` — récursif, donc supporte une indexation
+/// chaînée de profondeur ARBITRAIRE (`a[0][1]["x"]["y"]`, etc.), pas
+/// seulement un niveau. Cas de base (`Ident`/`Field`) : le type élément déjà
+/// connu pour une variable/un champ array/map — pas besoin d'une nouvelle
+/// table de types, `elem_ast_types`/`class_field_types` existent déjà pour
+/// ça. Cas récursif (`Index`) : le type de `(object[index])[?]` s'obtient en
+/// épluchant UNE couche de conteneur (`container_elem_type`) sur le type de
+/// `object[index]` lui-même déjà résolu par le même appel récursif — c'est
+/// cette composition qui rend la profondeur illimitée, sans cas particulier
+/// par niveau.
+///
+/// Ne couvre PAS un appel de fonction/méthode indexé directement
+/// (`getRows()[0]["x"]`) — demanderait une table de types de retour AST
+/// (actuellement seul `IrType`, trop grossier, est suivi pour un retour de
+/// fonction) ; hors périmètre du bug rapporté, voir
+/// docs/roadmap.d/langage-index-chaine-sur-map.md.
+pub fn elem_type_after_index(builder: &LowerBuilder, expr: &Expr) -> Option<Type> {
+    match expr {
+        Expr::Ident(name, _) => builder.elem_ast_types.get(name.as_str()).cloned(),
+        Expr::Index { object, .. } => {
+            let one_level = elem_type_after_index(builder, object)?;
+            container_elem_type(&one_level).cloned()
+        }
+        Expr::Field { object, field, .. } => {
+            let class_name = match object.as_ref() {
+                Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
+                Expr::SelfExpr(_)    => builder.current_class.clone(),
+                Expr::Field { object: inner2, field: inner2_field, .. } => {
+                    resolve_chained_field_class(builder, inner2, inner2_field)
+                }
+                // `use Classe(...).champ[i]` — voir la doc du même cas dans
+                // `lower.rs` (bloc `Expr::Call`) pour le bug que ça corrige.
+                Expr::New { class, .. } => Some(class.clone()),
+                _ => None,
+            }?;
+            let field_ty = builder.module.class_field_types.get(&class_name)?
+                .iter().find(|(f, _)| f == field)
+                .map(|(_, ty)| ty.clone())?;
+            container_elem_type(&field_ty).cloned()
+        }
         _ => None,
     }
 }
@@ -225,11 +295,24 @@ pub fn is_map_target(builder: &LowerBuilder, object: &Expr) -> bool {
                 Expr::Field { object: inner2, field: inner2_field, .. } => {
                     resolve_chained_field_class(builder, inner2, inner2_field)
                 }
+                // `use Classe(...).champMap[clé]` — voir la doc du même cas
+                // dans `lower.rs` (bloc `Expr::Call`) pour le bug corrigé.
+                Expr::New { class, .. } => Some(class.clone()),
                 _ => None,
             };
             class_name
                 .and_then(|cls| builder.module.class_map_fields.get(&cls).cloned())
                 .map(|fields| fields.contains(field.as_str()))
+                .unwrap_or(false)
+        }
+        // `object` lui-même est un `Expr::Index` (`arr[0]` comme récepteur
+        // de `arr[0]["name"]`, ou plus profond) — jusqu'ici toujours retombé
+        // sur `_ => false` (donc `__array_get`, silencieusement faux sur une
+        // map), voir docs/roadmap.d/langage-index-chaine-sur-map.md.
+        Expr::Index { object: inner, .. } => {
+            elem_type_after_index(builder, inner)
+                .as_ref()
+                .map(is_map_shaped)
                 .unwrap_or(false)
         }
         _ => false,

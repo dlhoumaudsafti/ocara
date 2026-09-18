@@ -5,7 +5,7 @@ import configs.Server
 import configs.Database
 
 class General {
-    init(server:Server, db:Database) {
-       server.route("/",        "GET", HomeController::handle, db)
+    init(server:Server) {
+       server.route("/",        "GET", HomeController::handle)
     }
 }

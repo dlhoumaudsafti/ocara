@@ -1,0 +1,106 @@
+import ocara.UnitTest
+import ocara.Thread
+import ocara.Mutex
+
+// `use Classe(...).méthode()`/`.champ` chaîné directement (sans jamais lier
+// l'instance à une variable) était cassé : AUCUN des ~9 points de résolution
+// de classe du lowering (`src/lower/expr.d/lower.rs`, `typeinfer.rs`,
+// `helpers.rs`, `src/lower/stmt.d/statements.d/assignments.rs`,
+// `src/lower/builder.d/message_gen.rs`) ne reconnaissait un `Expr::New`
+// directement en récepteur — seuls `Expr::Ident`/`Expr::SelfExpr`/
+// `Expr::ParentExpr`/`Expr::Field` chaîné étaient traités. Conséquences :
+//   - Un appel de méthode (`use Bar().getIt()`) retombait sur le filet de
+//     secours "String" comme nom de classe → `func_mangled` valait
+//     "String_getIt" (symbole inexistant) → le codegen (`emit_calls`)
+//     ignore silencieusement un appel vers une fonction inconnue au lieu
+//     d'échouer → la valeur de retour valait TOUJOURS 0, sans la moindre
+//     erreur de compilation.
+//   - Pour une méthode void comme `Thread::run(...)`, le symptôme était
+//     encore plus grave : `use Thread().run(closure)` ne lançait JAMAIS le
+//     thread (voir threadActuallyRunsWhenChainedTest ci-dessous),
+//     reproduit dans examples/advanced/tauri_httpserver/main.oc.
+// Voir src/lower/expr.d/tests.rs (resolve_chained_field_class_recognizes_new_expr_as_base)
+// pour le test unitaire ciblé, et
+// docs/roadmap.d/langage-use-chaine-valeur-retour-perdue.md pour l'historique.
+class Test_53_use_chained_method {
+
+    public method chainedIntReturnIsCorrectTest(): int {
+        var r:int = use Counter(5).getValue()
+        UnitTest::assertEquals(5, r)
+        return 0
+    }
+
+    public method chainedStringReturnIsCorrectTest(): int {
+        var r:string = use Greeter("Alice").greet()
+        UnitTest::assertEquals("Bonjour Alice", r)
+        return 0
+    }
+
+    // Un appel chaîné sans argument au constructeur — cas exact de
+    // `use Thread().run(...)`/`use HTTP().run()`, pas seulement le cas avec
+    // argument(s).
+    public method chainedCallWithoutConstructorArgsTest(): int {
+        var r:int = use Answer().fortyTwo()
+        UnitTest::assertEquals(42, r)
+        return 0
+    }
+
+    public method chainedFieldReadIsCorrectTest(): int {
+        var r:int = use Counter(7).value
+        UnitTest::assertEquals(7, r)
+        return 0
+    }
+
+    // Le symptôme le plus grave : `use Thread().run(closure)` ne lançait
+    // JAMAIS le thread — vérifié ici avec un vrai thread OS et un `Mutex`
+    // (comme examples/builtins/httpserver.oc) pour éviter le data race sur
+    // le compteur partagé.
+    public method threadActuallyRunsWhenChainedTest(): int {
+        var lock:Mutex = use Mutex()
+        var ran:bool = false
+
+        use Thread().run(nameless(): void {
+            lock.withLock(nameless(): void {
+                ran = true
+            })
+        })
+
+        // Le thread tourne en tâche de fond (jamais join()/detach() explicite
+        // possible sur un `use Thread()` chaîné) — laisser le temps à
+        // l'ordonnanceur de le programmer avant de vérifier.
+        Thread::sleep(300)
+
+        lock.withLock(nameless(): void {
+            UnitTest::assertTrue(ran)
+        })
+        return 0
+    }
+}
+
+class Counter {
+    public property value:int
+    init(v:int) {
+        self.value = v
+    }
+    public method getValue(): int {
+        return self.value
+    }
+}
+
+class Greeter {
+    private property name:string
+    init(name:string) {
+        self.name = name
+    }
+    public method greet(): string {
+        return "Bonjour " + self.name
+    }
+}
+
+class Answer {
+    init() {
+    }
+    public method fortyTwo(): int {
+        return 42
+    }
+}

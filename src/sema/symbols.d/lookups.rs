@@ -60,6 +60,32 @@ impl SymbolTable {
         self.classes.get(class)?.class_consts.get(name)
     }
 
+    /// Résout un nom de classe builtin `ocara.*` CANONIQUE (ex: `"HTTPRequest"`)
+    /// vers le nom LOCAL sous lequel il est réellement enregistré dans ce
+    /// fichier — son alias d'import (`import ocara.HTTPRequest as Request`
+    /// → `"Request"`), ou lui-même si importé sans alias / jamais importé.
+    ///
+    /// `register_import` enregistre une classe builtin sous UNE SEULE clé
+    /// (l'alias s'il y en a un, sinon le nom canonique — jamais les deux à la
+    /// fois, voir `register_import`). Tout code qui compare un nom de classe
+    /// résolu contre un littéral canonique en dur (ex: `resolved_class ==
+    /// "HTTPRequest"`) pour activer un comportement natif spécial (carve-out
+    /// d'échappement de ressource, redirection `HTTPResponse` → `HTTPRequest`
+    /// pour le sucre d'instance...) doit passer par cette résolution, sinon
+    /// la comparaison échoue silencieusement dès que l'import est aliasé —
+    /// bug reproduit avec `import ocara.HTTPRequest as Request` puis
+    /// `Request::ok(res)` / `res.ok()`, qui rejetait `res` comme un
+    /// échappement de ressource ou une méthode introuvable.
+    pub fn local_name_for_builtin(&self, canonical: &str) -> String {
+        for imp in &self.imports {
+            let is_ocara = imp.path.first().map(|s| s == "ocara").unwrap_or(false);
+            if is_ocara && imp.path.last().map(|s| s.as_str()) == Some(canonical) {
+                return imp.alias.clone().unwrap_or_else(|| canonical.to_string());
+            }
+        }
+        canonical.to_string()
+    }
+
     /// Cherche un champ en remontant la chaîne d'héritage
     pub fn lookup_field_in_chain(&self, class_name: &str, field: &str) -> Option<&FieldInfo> {
         let mut current = class_name;

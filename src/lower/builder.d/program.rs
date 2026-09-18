@@ -27,6 +27,15 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     for imp in &program.imports {
         if let Some(last) = imp.path.last() {
             module.imports.push(last.clone());
+            // Alias d'un builtin natif (`import ocara.X as Y`) : mémoriser
+            // Y → X pour que `Expr::StaticCall` puisse mangler vers le vrai
+            // symbole runtime plutôt que vers "Y_method" (voir doc du champ).
+            let is_ocara = imp.path.first().map(|s| s == "ocara").unwrap_or(false);
+            if is_ocara {
+                if let Some(alias) = &imp.alias {
+                    module.import_aliases.insert(alias.clone(), last.clone());
+                }
+            }
         }
     }
 

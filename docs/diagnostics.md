@@ -602,15 +602,17 @@ function main(): int {
 
 ---
 
-### E29 — Champ de classe d'un type ressource
+### E29 — (retiré) Champ de classe d'un type ressource
 
-```
-fichier.oc:5:5: error: 'Cache.lock' ('Mutex') is a native resource field — it is never closed when a 'Cache' instance is destroyed (no mechanism exists for this today), so this handle always leaks; manage it outside the class instead, or expose an explicit method the caller must invoke before discarding the instance
-```
+Historiquement, une `property` d'un type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`/`HTTPRequest`/`HTTPResponse`) sur une classe utilisateur était rejetée d'office (`__free_<Classe>` ne savait libérer qu'un champ `string`/`array`/`map`/instance de classe, jamais une ressource).
 
-Une `property` d'un type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`) sur une classe utilisateur — `__free_<Classe>` (généré pour `scoped`/`consumed`, et pour un `var` auto-libéré) ne sait libérer/fermer qu'un champ `string`/`array`/`map`/instance de classe utilisateur, jamais une ressource : ce champ fuirait systématiquement son handle natif à chaque libération de l'instance porteuse, quelle que soit la façon dont cette instance est elle-même gérée.
+**Ce n'est plus le cas.** `__free_<Classe>` ferme désormais un tel champ automatiquement, via son symbole runtime dédié (`SQLite_close`, `Mutex_destroy`, ...), quand l'instance porteuse est détruite (`scoped`/`consumed`, ou un `var`/`const` prouvé non-échappant). Pour que ça reste sûr, la classe porteuse est alors traitée comme une ressource NATIVE partout où l'échappement est vérifié :
 
-**Correction :** ne pas stocker la ressource directement dans un champ de la classe — la gérer en dehors (ex. l'injecter à chaque appel de méthode plutôt que de la conserver), ou exposer une méthode explicite (`close()`) que l'appelant doit invoquer lui-même avant d'abandonner l'instance.
+- Une `scoped`/`consumed` instance de cette classe ne peut pas s'échapper de son bloc (assignation, `return`, argument) — voir E18 : deux instances vivantes ne peuvent jamais se partager le même handle (`__clone_<Classe>` ne clone jamais un champ ressource).
+- Un `var`/`const` de cette classe doit être fermé manuellement ou prouvé non-échappant, sinon E28 (« fuite permanente ») s'applique — comme pour une ressource nue, sauf qu'une classe composite n'a en général pas de méthode `close()` à elle : `scoped`/`consumed` reste le seul choix pratique.
+- Voir E35 ci-dessous pour l'interdiction de fermer manuellement un tel champ depuis une méthode de la classe.
+
+Cas d'usage typique : `examples/advanced/tauri_httpserver/configs/Database.oc`, une classe `Database` qui garde sa connexion `SQLite` ouverte comme champ d'instance, ouverte dans `init()`. Voir [langage-destructeur-champ-ressource](roadmap.d/langage-destructeur-champ-ressource.md) pour l'historique de cette décision.
 
 ---
 
@@ -685,6 +687,33 @@ for x in trucLoop() { }  // ✅ toujours valable
 ```
 
 **Correction :** consommer via `for x in ...` ou `Array::fromMessage(...)` plutôt qu'en scalaire direct.
+
+---
+
+### E35 — Fermeture manuelle d'un champ ressource possédé par la classe
+
+```
+fichier.oc:12:16: error: 'self.db' ('SQLite') is closed automatically when the 'Database' instance is destroyed — calling '.close()' manually here would close it a second time (undefined behavior); remove this call
+```
+
+Depuis qu'une `property` de type ressource est autorisée sur une classe utilisateur (voir E29 ci-dessus), `__free_<Classe>` ferme ce champ automatiquement à la destruction de l'instance porteuse. Appeler `.close()`/`.destroy()`/`.closeResponse()` manuellement sur `self.<champ>` depuis une méthode de la classe referait donc TOUJOURS cette fermeture une seconde fois — contrairement à E25 (`ResourceAlreadyFinalized`), qui ne détecte qu'un second appel explicite sur une variable locale, ici le PREMIER appel explicite est déjà en trop : aucun suivi n'est possible à travers des appels de méthode arbitraires pour distinguer un usage sûr.
+
+```ocara
+class Database {
+    private property db:SQLite
+
+    init() {
+        self.db = SQLite::open("./app.db")
+    }
+
+    public method migrate(): void {
+        self.db.execute("CREATE TABLE IF NOT EXISTS visits (id INTEGER)")
+        self.db.close()   // ❌ E35 — déjà fermé automatiquement à la destruction de l'instance
+    }
+}
+```
+
+**Correction :** retirer l'appel manuel — la fermeture est déjà prise en charge par le destructeur généré de la classe.
 
 ---
 

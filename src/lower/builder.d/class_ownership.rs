@@ -3,14 +3,23 @@
 /// `scoped`/`consumed MaClasse` (voir docs/EBNF.md §9.2 et le plan "Gestion
 /// de propriété des variables").
 ///
-/// Portée volontairement limitée (cohérent avec le reste du chantier) :
-///   - Seuls les CHAMPS de type `string`/`array<T>`/`map<K,V>` ou une AUTRE
-///     classe utilisateur (elle-même dans `class_field_types`, donc avec
-///     son propre `__free_`/`__clone_` généré) sont libérés/clonés
-///     récursivement. Un champ de type ressource (`Mutex`, `Thread`, ...)
-///     n'est PAS libéré ici — fuite, pas un crash, cohérent avec le fait
-///     que ce chantier ne synthétise de destructeur automatique QUE pour
-///     `scoped`/`consumed` directement sur ces types, pas pour un champ.
+/// Portée :
+///   - Les CHAMPS de type `string`/`array<T>`/`map<K,V>` ou une AUTRE classe
+///     utilisateur (elle-même dans `class_field_types`, donc avec son propre
+///     `__free_`/`__clone_` généré) sont libérés/clonés récursivement.
+///   - Un champ de type ressource native (`Mutex`/`SQLite`/`MySQL`/
+///     `MariaDB`/`HTTPRequest`/`HTTPResponse`) est FERMÉ (pas cloné — voir
+///     `build_clone_function`) via son symbole runtime dédié
+///     (`crate::sema::scope::resource_closer_symbol`) — un tel champ n'est
+///     autorisé à la déclaration QUE parce que la classe porteuse est alors
+///     traitée comme `OwnershipClass::Resource` partout où l'échappement est
+///     vérifié (voir `crate::sema::scope::compute_resource_classes` et son
+///     usage dans `crate::sema::typecheck`) : impossible de l'assigner/
+///     retourner/passer en argument hors de son bloc `scoped`/`consumed`,
+///     donc jamais deux instances vivantes ne peuvent se partager le même
+///     handle natif. `Thread` reste hors périmètre (pas de destructeur
+///     synthétisable, voir E19) — un champ `Thread` continue de tomber dans
+///     `Plain` (jamais fermé), inchangé.
 ///   - Les classes builtin/opaques (Mutex, SDL, Exception, ...) n'ont pas
 ///     d'entrée dans `class_field_types` (voir sa doc) : aucune fonction
 ///     n'est générée pour elles. `has_generated_destructor` est le point de
@@ -25,6 +34,7 @@ use crate::ir::inst::{Inst, Value, BlockId};
 use crate::ir::module::IrModule;
 use crate::ir::types::IrType;
 use crate::parsing::ast::{Program, Type};
+use crate::sema::scope::{ownership_class, resource_closer_symbol, OwnershipClass};
 
 /// Vrai si `class_name` a (ou aura, dans le même passage) un
 /// `__free_<class_name>`/`__clone_<class_name>` généré — c'est-à-dire une
@@ -42,14 +52,21 @@ enum FieldOwnership {
     Value,
     /// Une autre classe utilisateur (a son propre `__free_`/`__clone_`).
     Object(String),
-    /// Primitif, ressource, type non pris en charge — copie brute (clone)
-    /// ou rien (free) : la valeur elle-même n'est pas possédée par ce champ.
+    /// Ressource native (`Mutex`/`SQLite`/`MySQL`/`MariaDB`/`HTTPRequest`/
+    /// `HTTPResponse`) — fermée via son symbole runtime dédié à la
+    /// libération, JAMAIS clonée (voir `build_clone_function`). Le `String`
+    /// est le nom du type (ex. `"SQLite"`), pour retrouver le bon symbole
+    /// via `resource_closer_symbol`.
+    Resource(String),
+    /// Primitif, `Thread`, type non pris en charge — copie brute (clone) ou
+    /// rien (free) : la valeur elle-même n'est pas possédée par ce champ.
     Plain,
 }
 
 fn classify_field(ty: &Type, field_types: &HashMap<String, Vec<(String, Type)>>) -> FieldOwnership {
     match ty {
         Type::String | Type::Array(_) | Type::Map(_, _) => FieldOwnership::Value,
+        Type::Named(n) if ownership_class(ty) == OwnershipClass::Resource => FieldOwnership::Resource(n.clone()),
         Type::Named(n) if field_types.contains_key(n) => FieldOwnership::Object(n.clone()),
         // Champ de type générique (`property box:Box<int>`) : le générique
         // monomorphisé est une classe utilisateur comme une autre dans
@@ -110,6 +127,22 @@ fn build_free_function(module: &IrModule, class_name: &str) -> IrFunction {
                 f.emit(Inst::GetField { dest: v.clone(), obj: obj.clone(), field: fname.clone(), ty: ir_ty, offset });
                 f.emit(Inst::Call { dest: None, func: format!("__free_{}", other_class), args: vec![v], ret_ty: IrType::Void });
             }
+            FieldOwnership::Resource(ty_name) => {
+                // `resource_closer_symbol` ne peut retourner `None` ici :
+                // `classify_field` ne produit `Resource(n)` que pour un `n`
+                // dont `ownership_class` vaut déjà `Resource`, exactement
+                // l'ensemble couvert par `resource_closer_symbol` — les deux
+                // fonctions partagent la même source de vérité
+                // (`crate::sema::scope::ownership_class`). Le symbole
+                // runtime lui-même est null-safe (voir `SQLite_close`/
+                // `Mutex_destroy`, `runtime/src/*.rs`), pas besoin de garde
+                // supplémentaire ici.
+                if let Some(closer) = resource_closer_symbol(&ty_name) {
+                    let v = f.new_value();
+                    f.emit(Inst::GetField { dest: v.clone(), obj: obj.clone(), field: fname.clone(), ty: ir_ty, offset });
+                    f.emit(Inst::Call { dest: None, func: closer.to_string(), args: vec![v], ret_ty: IrType::Void });
+                }
+            }
             FieldOwnership::Plain => {}
         }
     }
@@ -160,8 +193,25 @@ fn build_clone_function(module: &IrModule, class_name: &str) -> IrFunction {
                 f.emit(Inst::Call { dest: Some(cloned.clone()), func: format!("__clone_{}", other_class), args: vec![src], ret_ty: IrType::Ptr });
                 cloned
             }
-            // Primitif/ressource/non pris en charge : copie brute de la
-            // valeur (int/float/bool réels ; un pointeur de ressource est
+            // Un handle de ressource ne peut PAS être dupliqué (rouvrir la
+            // même connexion/le même verrou n'a pas de sens) ni partagé tel
+            // quel (`__free_<Classe>` fermerait le handle sous le nez de
+            // l'autre instance — double-free/use-after-close silencieux).
+            // En pratique, ce cas ne devrait JAMAIS être atteint par un
+            // programme qui compile : la classe porteuse est traitée comme
+            // `OwnershipClass::Resource` (voir `compute_resource_classes`),
+            // donc `check_escape`/`check_argument_escape` rejettent tout
+            // échappement d'une `scoped`/`consumed` de cette classe AVANT
+            // que `__clone_<Classe>` ne soit jamais émis pour elle — garde
+            // défensive seulement : un champ neuf à 0 (jamais assigné) plutôt
+            // qu'un pointeur partagé, si ce code était atteint malgré tout.
+            FieldOwnership::Resource(_) => {
+                let zero = f.new_value();
+                f.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+                zero
+            }
+            // Primitif/`Thread`/non pris en charge : copie brute de la
+            // valeur (int/float/bool réels ; un pointeur `Thread` est
             // partagé tel quel — pas dupliqué, cohérent avec le fait qu'on
             // ne génère pas de destructeur pour ce genre de champ non plus).
             FieldOwnership::Plain => src,

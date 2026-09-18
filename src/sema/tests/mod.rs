@@ -3,3 +3,6 @@
 
 mod escape;
 mod resource_raise;
+mod builtin_alias_resolution;
+mod self_const_resolution;
+mod resource_property_destructor;

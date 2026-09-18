@@ -1,6 +1,6 @@
 use crate::parsing::ast::*;
 use crate::sema::error::{SemaError, SemaWarning};
-use crate::sema::scope::{LocalBinding, ScopeStack, OwnershipClass, ownership_class};
+use crate::sema::scope::{LocalBinding, ScopeStack, OwnershipClass, ownership_class_of};
 use crate::sema::symbols::SymbolTable;
 use crate::parsing::token::Span;
 
@@ -34,6 +34,10 @@ pub struct TypeChecker<'a> {
     /// `check_program`, utilisé pour résoudre un appel vers une classe
     /// utilisateur (voir `crate::sema::escape::resolve_user_callable`).
     class_members: crate::sema::escape::ClassMembers,
+    /// Classes utilisateur contenant (directement ou transitivement) une
+    /// ressource native — calculé une fois dans `check_program`, voir
+    /// `crate::sema::scope::compute_resource_classes`/`ownership_class_of`.
+    resource_classes: std::collections::HashSet<String>,
 }
 
 impl<'a> TypeChecker<'a> {
@@ -51,6 +55,7 @@ impl<'a> TypeChecker<'a> {
             async_var_funcs: std::collections::HashMap::new(),
             escaping_params: std::collections::HashMap::new(),
             class_members: std::collections::HashMap::new(),
+            resource_classes: std::collections::HashSet::new(),
         }
     }
     
@@ -74,10 +79,11 @@ impl<'a> TypeChecker<'a> {
         // — nécessaire pour le diagnostic E26 (ArgumentEscape) ci-dessous.
         self.escaping_params = crate::sema::escape::compute_escaping_params(program);
         self.class_members = crate::sema::escape::collect_class_members(&program.classes);
+        self.resource_classes = crate::sema::scope::compute_resource_classes(&program.classes);
 
         // W04 : ressource scoped/consumed encore ouverte au moment d'un
         // raise non rattrapé localement — voir crate::sema::resource_raise.
-        self.warnings.extend(crate::sema::resource_raise::check_program(program));
+        self.warnings.extend(crate::sema::resource_raise::check_program(program, &self.resource_classes));
 
         // Enums — vérifier les doublons de variantes
         for en in &program.enums {
@@ -187,7 +193,7 @@ impl<'a> TypeChecker<'a> {
         }
 
         self.check_block(&func.body);
-        { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
+        { let _u = self.scopes.pop_scope(&self.resource_classes); self.flush_warnings(_u); }
         self.current_ret = saved_ret;
     }
 
@@ -259,7 +265,7 @@ impl<'a> TypeChecker<'a> {
                         );
                     }
                     self.check_block(body);
-                    { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
+                    { let _u = self.scopes.pop_scope(&self.resource_classes); self.flush_warnings(_u); }
                     self.current_ret = saved_ret;
                 }
                 ClassMember::Const { ty, value, span, .. } => {
@@ -281,27 +287,23 @@ impl<'a> TypeChecker<'a> {
                             span: span.clone(),
                         });
                     }
-                    // Un champ de type ressource (Mutex/SQLite/MySQL/MariaDB)
-                    // n'est JAMAIS libéré par `__free_<Classe>` — ni
-                    // aujourd'hui, ni pour aucune classe existante du dépôt
-                    // (voir `class_ownership::classify_field`, portée
-                    // délibérément limitée à `Value`/`Object`, tout le reste
-                    // — dont `Resource` — tombe dans `Plain`, jamais fermé).
-                    // Ce n'est pas un cas non couvert par accident : AUCUN
-                    // mécanisme n'existe pour fermer un tel champ, que
-                    // l'instance porteuse soit libérée automatiquement
-                    // (`scoped`/`consumed`, ou un `var` prouvé non-échappant —
-                    // voir docs/roadmap.d/memoire-strategie-var.md) ou pas —
-                    // rejeté à la déclaration plutôt que de laisser fuir
-                    // silencieusement un handle natif à chaque libération.
-                    if ownership_class(ty) == OwnershipClass::Resource {
-                        self.errors.push(SemaError::ResourceField {
-                            class: class.name.clone(),
-                            field: name.clone(),
-                            ty_name: type_name(ty),
-                            span: span.clone(),
-                        });
-                    }
+                    // Un champ de type ressource (Mutex/SQLite/MySQL/MariaDB/
+                    // HTTPRequest/HTTPResponse) est autorisé : `__free_<Classe>`
+                    // le ferme désormais via son symbole runtime dédié (voir
+                    // `class_ownership::classify_field`/`FieldOwnership::Resource`).
+                    // La classe porteuse est de ce fait traitée comme
+                    // `OwnershipClass::Resource` PARTOUT où l'échappement est
+                    // vérifié (voir `compute_resource_classes`/
+                    // `ownership_class_of`, calculé une fois dans
+                    // `check_program`) — exactement les mêmes règles qu'une
+                    // ressource nue : ne peut pas s'échapper de son bloc
+                    // `scoped`/`consumed` (E18), et un `var`/`const` doit
+                    // être fermé manuellement ou prouvé non-échappant (E28).
+                    // Sans ça, deux instances pourraient se retrouver à
+                    // partager le même handle natif (`__clone_<Classe>` ne
+                    // clone jamais un champ ressource, voir
+                    // `FieldOwnership::Resource`) et l'une fermerait la
+                    // ressource sous le nez de l'autre.
                 }
             }
         }
@@ -396,7 +398,7 @@ impl<'a> TypeChecker<'a> {
         }
         
         // Pop scope et flush warnings
-        let _u = self.scopes.pop_scope();
+        let _u = self.scopes.pop_scope(&self.resource_classes);
         self.flush_warnings(_u);
     }
 
@@ -408,7 +410,7 @@ impl<'a> TypeChecker<'a> {
             self.check_stmt(stmt);
             self.check_resource_var_containment(stmt, block, i);
         }
-        { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
+        { let _u = self.scopes.pop_scope(&self.resource_classes); self.flush_warnings(_u); }
     }
 
     /// Juste après avoir déclaré un `var`/`const` d'un type ressource
@@ -425,7 +427,7 @@ impl<'a> TypeChecker<'a> {
             Stmt::Const { name, ty, .. } => (name, ty),
             _ => return,
         };
-        if ownership_class(ty) != OwnershipClass::Resource {
+        if ownership_class_of(ty, &self.resource_classes) != OwnershipClass::Resource {
             return;
         }
         if crate::sema::escape::var_never_escapes(
@@ -608,7 +610,7 @@ impl<'a> TypeChecker<'a> {
                 self.scopes.push();
                 self.scopes.declare(var.clone(), LocalBinding { ty: elem_ty, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
                 self.check_block(body);
-                { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
+                { let _u = self.scopes.pop_scope(&self.resource_classes); self.flush_warnings(_u); }
             }
 
             Stmt::ForMap { key, value, iter, body, span } => {
@@ -617,7 +619,7 @@ impl<'a> TypeChecker<'a> {
                 self.scopes.declare(key.clone(),   LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
                 self.scopes.declare(value.clone(), LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
                 self.check_block(body);
-                { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
+                { let _u = self.scopes.pop_scope(&self.resource_classes); self.flush_warnings(_u); }
             }
 
             Stmt::Return { value, span } => {
@@ -755,7 +757,7 @@ impl<'a> TypeChecker<'a> {
                         LocalBinding { ty: Type::Mixed, mutable: false, span: handler.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                     );
                     self.check_block(&handler.body);
-                    { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
+                    { let _u = self.scopes.pop_scope(&self.resource_classes); self.flush_warnings(_u); }
                 }
             }
 
@@ -905,7 +907,7 @@ impl<'a> TypeChecker<'a> {
         if b.kind == VarKind::Var {
             return;
         }
-        match ownership_class(&b.ty) {
+        match ownership_class_of(&b.ty, &self.resource_classes) {
             OwnershipClass::Value => {
                 // OK : clonée automatiquement à l'échappement (chantier
                 // clonage réel) — la source reste possédée et détruite
@@ -965,7 +967,7 @@ impl<'a> TypeChecker<'a> {
             if b.kind == VarKind::Var {
                 continue;
             }
-            match ownership_class(&b.ty) {
+            match ownership_class_of(&b.ty, &self.resource_classes) {
                 OwnershipClass::Resource | OwnershipClass::Thread if !allow_resource_use => {
                     self.errors.push(SemaError::ResourceEscape {
                         name: name.clone(),
@@ -1262,6 +1264,29 @@ impl<'a> TypeChecker<'a> {
                                 });
                             }
                         }
+                        // `self.<champ>.close()`/`.destroy()`/`.closeResponse()` :
+                        // un champ ressource est déjà fermé automatiquement
+                        // par `__free_<Classe>` quand l'instance porteuse est
+                        // détruite (voir `class_ownership::classify_field`) —
+                        // un appel manuel ici referait TOUJOURS cette
+                        // fermeture une seconde fois (à la différence de
+                        // `ResourceAlreadyFinalized` ci-dessus, qui ne détecte
+                        // qu'un second appel EXPLICITE : ici, le premier est
+                        // déjà en trop, aucun suivi inter-méthodes n'étant
+                        // possible pour distinguer un usage sûr).
+                        if let Expr::Field { object: inner, field: field_name, .. } = object.as_ref() {
+                            if matches!(inner.as_ref(), Expr::SelfExpr(_)) {
+                                if let Some(class_name) = self.current_class.clone() {
+                                    self.errors.push(SemaError::ManualCloseOnResourceField {
+                                        class: class_name,
+                                        field: field_name.clone(),
+                                        ty_name: cls_name.clone(),
+                                        method: field.clone(),
+                                        span: fspan.clone(),
+                                    });
+                                }
+                            }
+                        }
                     }
                     if let Some(info) = self.symbols.lookup_class(&cls_name) {
                         // Classe opaque (import non résolu) — accès permissif
@@ -1291,8 +1316,12 @@ impl<'a> TypeChecker<'a> {
                             "HTTPResponse" => HTTP_RESPONSE_METHODS.contains(&field.as_str()),
                             _ => true,
                         };
-                        let method_owner: &str = if cls_name == "HTTPResponse" { "HTTPRequest" } else { cls_name.as_str() };
-                        if let Some(sig) = self.symbols.lookup_method_in_chain(method_owner, field).filter(|_| http_receiver_ok) {
+                        let method_owner: String = if cls_name == "HTTPResponse" {
+                            self.symbols.local_name_for_builtin("HTTPRequest")
+                        } else {
+                            cls_name.clone()
+                        };
+                        if let Some(sig) = self.symbols.lookup_method_in_chain(&method_owner, field).filter(|_| http_receiver_ok) {
                             // Une méthode static ne peut pas être appelée sur une instance
                             // SAUF pour ces classes : les méthodes sont statiques mais utilisables
                             // comme méthodes d'instance sur les variables (ex: a.trim(), arr.len(), m.size(), data.encode(), req.close(), res.status()).
@@ -1508,7 +1537,8 @@ impl<'a> TypeChecker<'a> {
                         });
                     }
                     let resolved_key = crate::sema::escape::resolve_user_callable(&self.class_members, &resolved_class, method);
-                    self.check_argument_escape(args, resolved_key.as_deref(), resolved_class == "HTTPRequest");
+                    let is_http_request_call = resolved_class == self.symbols.local_name_for_builtin("HTTPRequest");
+                    self.check_argument_escape(args, resolved_key.as_deref(), is_http_request_call);
                     for arg in args {
                         let arg_ty = self.infer_expr(arg);
                         self.check_message_scalar_consumption(arg, &arg_ty, span);
@@ -1518,9 +1548,10 @@ impl<'a> TypeChecker<'a> {
                     // (E25), mais l'argument est ici passé en ARGUMENT
                     // (appel statique), pas en receveur d'un appel d'instance
                     // — voir docs/roadmap.d/memoire-double-free-et-fuites-scoped.md.
-                    let manual_finalizer_arg = match (resolved_class.as_str(), method.as_str()) {
-                        ("HTTPRequest", "close") | ("HTTPRequest", "closeResponse") => args.first(),
-                        _ => None,
+                    let manual_finalizer_arg = if is_http_request_call && matches!(method.as_str(), "close" | "closeResponse") {
+                        args.first()
+                    } else {
+                        None
                     };
                     if let Some(Expr::Ident(recv_name, _)) = manual_finalizer_arg {
                         if self.scopes.mark_resource_finalized(recv_name) {
@@ -1539,20 +1570,31 @@ impl<'a> TypeChecker<'a> {
             }
 
             Expr::StaticConst { class, name, span } => {
-                // Classe opaque (import non résolu) — accès permissif
-                if let Some(info) = self.symbols.lookup_class(class) {
-                    if info.is_opaque { return Type::Mixed; }
-                }
-                if let Some((ty, _)) = self.symbols.lookup_class_const(class, name) {
-                    return ty.clone();
-                }
-                // Référence à une méthode statique sans appel : ClassName::myStatic
-                let resolved = if class == "<self>" {
+                // Résoudre "<self>"/"<parent>" vers la classe réelle AVANT
+                // toute recherche — contrairement à Expr::StaticCall
+                // (résolu dès l'entrée, voir plus haut), ce nœud cherchait
+                // jusqu'ici sous le nom littéral "<self>"/"<parent>" (jamais
+                // une classe enregistrée sous ce nom), donc `self::CONST`
+                // échouait TOUJOURS avec "undefined symbol '<self>::CONST'",
+                // y compris depuis l'intérieur du constructeur.
+                let resolved_class = if class == "<self>" {
                     self.current_class.clone().unwrap_or_default()
+                } else if class == "<parent>" {
+                    self.current_class.as_deref()
+                        .and_then(|c| self.symbols.lookup_parent_class(c))
+                        .unwrap_or_default()
                 } else {
                     class.clone()
                 };
-                if let Some(sig) = self.symbols.lookup_method_in_chain(&resolved, name) {
+                // Classe opaque (import non résolu) — accès permissif
+                if let Some(info) = self.symbols.lookup_class(&resolved_class) {
+                    if info.is_opaque { return Type::Mixed; }
+                }
+                if let Some((ty, _)) = self.symbols.lookup_class_const(&resolved_class, name) {
+                    return ty.clone();
+                }
+                // Référence à une méthode statique sans appel : ClassName::myStatic
+                if let Some(sig) = self.symbols.lookup_method_in_chain(&resolved_class, name) {
                     if sig.is_static {
                         // Construire le type Function avec les paramètres
                         let param_tys = sig.params.iter().map(|(_, ty)| ty.clone()).collect();
@@ -1563,7 +1605,7 @@ impl<'a> TypeChecker<'a> {
                     }
                 }
                 self.errors.push(SemaError::UndefinedSymbol {
-                    name: format!("{}::{}", class, name),
+                    name: format!("{}::{}", resolved_class, name),
                     span: span.clone(),
                 });
                 Type::Mixed
@@ -1779,7 +1821,7 @@ impl<'a> TypeChecker<'a> {
                 self.current_ret = Some(closure_ret.clone());
                 self.check_block(body);
                 self.current_ret = saved_ret;
-                { let _u = self.scopes.pop_scope(); self.flush_warnings(_u); }
+                { let _u = self.scopes.pop_scope(&self.resource_classes); self.flush_warnings(_u); }
                 
                 // Construire le type Function avec les paramètres
                 let param_tys = params.iter().map(|p| p.ty.clone()).collect();
