@@ -1,5 +1,5 @@
-use std::collections::HashMap;
-use crate::parsing::ast::{Type, VarKind};
+use std::collections::{HashMap, HashSet};
+use crate::parsing::ast::{ClassDecl, ClassMember, Type, VarKind};
 use crate::parsing::token::Span;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -108,6 +108,91 @@ pub fn ownership_class(ty: &Type) -> OwnershipClass {
     }
 }
 
+/// Calcule l'ensemble des classes utilisateur qui « contiennent » une
+/// ressource native (`Mutex`/`SQLite`/`MySQL`/`MariaDB`/`HTTPRequest`/
+/// `HTTPResponse`), directement (une `property` de ce type) ou
+/// transitivement (une `property` dont la classe est elle-même dans cet
+/// ensemble) — fixpoint jusqu'à stabilisation, `program.classes` étant de
+/// taille finie et chaque itération ajoutant au moins un élément ou
+/// s'arrêtant. `Thread` est délibérément exclu (même périmètre que E29 —
+/// `ownership_class(ty) == OwnershipClass::Resource` — voir sa doc).
+///
+/// Une classe de cet ensemble DOIT être traitée comme
+/// `OwnershipClass::Resource` partout où `ownership_class` est consulté pour
+/// une décision d'échappement/de possession (voir `ownership_class_of`) :
+/// son destructeur ferme désormais un handle natif (voir
+/// `crate::lower::builder::class_ownership`), donc elle hérite des mêmes
+/// règles qu'une ressource nue (E18 : ne peut pas s'échapper de son bloc
+/// `scoped`/`consumed` ; E28 : un `var`/`const` prouvé non-échappant doit
+/// être fermé manuellement, jamais auto-libéré silencieusement). Sans ça,
+/// deux instances pourraient se retrouver à partager le même handle natif
+/// (`__clone_<Classe>` copie un champ ressource tel quel, jamais dupliqué —
+/// voir `FieldOwnership::Resource`) et l'une fermerait la ressource sous le
+/// nez de l'autre : double-free / use-after-close silencieux.
+pub fn compute_resource_classes(classes: &[ClassDecl]) -> HashSet<String> {
+    let mut result: HashSet<String> = HashSet::new();
+    loop {
+        let mut changed = false;
+        for class in classes {
+            if result.contains(&class.name) {
+                continue;
+            }
+            let contains_resource = class.members.iter().any(|m| match m {
+                ClassMember::Field { ty, .. } => match ty {
+                    Type::Named(n) => {
+                        ownership_class(ty) == OwnershipClass::Resource || result.contains(n)
+                    }
+                    _ => false,
+                },
+                _ => false,
+            });
+            if contains_resource {
+                result.insert(class.name.clone());
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    result
+}
+
+/// Comme `ownership_class`, mais en plus conscient des classes utilisateur
+/// qui contiennent (directement ou transitivement) une ressource native
+/// (`resource_classes`, voir `compute_resource_classes`) — celles-ci doivent
+/// être traitées en `OwnershipClass::Resource`, pas `Value`, partout où une
+/// décision d'échappement/de possession est prise. Un `Type::Named` absent
+/// de `resource_classes` retombe sur `ownership_class` normal (classe
+/// utilisateur ordinaire, builtin, ou primitif).
+pub fn ownership_class_of(ty: &Type, resource_classes: &HashSet<String>) -> OwnershipClass {
+    if let Type::Named(n) = ty {
+        if resource_classes.contains(n) {
+            return OwnershipClass::Resource;
+        }
+    }
+    ownership_class(ty)
+}
+
+/// Nom du symbole runtime qui finalise une valeur du type ressource NATIF
+/// nommé (`SQLite_close`, `Mutex_destroy`, ...) — `None` si `ty_name` n'est
+/// pas l'un des types listés dans `ownership_class`. Point de vérité unique,
+/// partagé par `lower::stmt::ownership::drop_func_for` (finalisation d'une
+/// `scoped`/`consumed`/`var` ressource) et `lower::builder::class_ownership`
+/// (finalisation d'un CHAMP ressource dans `__free_<Classe>`) — éviter deux
+/// copies de ce mapping qui pourraient diverger silencieusement.
+pub fn resource_closer_symbol(ty_name: &str) -> Option<&'static str> {
+    match ty_name {
+        "Mutex" => Some("Mutex_destroy"),
+        "SQLite" => Some("SQLite_close"),
+        "MySQL" => Some("MySQL_close"),
+        "MariaDB" => Some("MariaDB_close"),
+        "HTTPRequest" => Some("HTTPRequest_close"),
+        "HTTPResponse" => Some("HTTPRequest_closeResponse"),
+        _ => None,
+    }
+}
+
 /// Variable non utilisée retournée par `pop_scope`.
 pub struct UnusedVar {
     pub name: String,
@@ -162,7 +247,10 @@ impl ScopeStack {
 
     /// Dépile le scope courant et retourne les variables non utilisées ainsi
     /// que les `Thread` `scoped`/`consumed` jamais `.join()`/`.detach()`.
-    pub fn pop_scope(&mut self) -> PoppedScope {
+    /// `resource_classes` (voir `compute_resource_classes`) permet de
+    /// traiter une instance d'une classe utilisateur contenant une ressource
+    /// exactement comme une ressource nue (E28 ci-dessous).
+    pub fn pop_scope(&mut self, resource_classes: &HashSet<String>) -> PoppedScope {
         let frame = match self.frames.pop() {
             Some(f) => f,
             None    => return PoppedScope { unused: vec![], unfinalized_threads: vec![], unclosed_resource_vars: vec![] },
@@ -192,7 +280,7 @@ impl ScopeStack {
                 && !b.resource_finalized
             {
                 if let crate::parsing::ast::Type::Named(ty_name) = &b.ty {
-                    if ownership_class(&b.ty) == OwnershipClass::Resource {
+                    if ownership_class_of(&b.ty, resource_classes) == OwnershipClass::Resource {
                         unclosed_resource_vars.push(UnclosedResourceVar {
                             name, ty_name: ty_name.clone(), span: b.span.clone(),
                         });

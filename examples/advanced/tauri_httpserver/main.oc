@@ -69,8 +69,7 @@ main {
         if HTTPRequest::get("http://localhost:8080/health").ok() {
             serverReady = true
         } else {
-            attempts = attempts + 1
-            if attempts greater 100 {
+            if ++attempts greater 100 {
                 IO::writeln("Le serveur ne répond toujours pas après 5s")
                 result 5
             } else {

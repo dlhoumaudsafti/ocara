@@ -229,12 +229,7 @@ fn drop_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<OwnershipFu
             _ => None,
         },
         OwnershipClass::Resource => match &info.ty {
-            Type::Named(n) if n == "Mutex"       => Some(OwnershipFunc::Simple("Mutex_destroy".to_string())),
-            Type::Named(n) if n == "SQLite"      => Some(OwnershipFunc::Simple("SQLite_close".to_string())),
-            Type::Named(n) if n == "MySQL"       => Some(OwnershipFunc::Simple("MySQL_close".to_string())),
-            Type::Named(n) if n == "MariaDB"     => Some(OwnershipFunc::Simple("MariaDB_close".to_string())),
-            Type::Named(n) if n == "HTTPRequest"  => Some(OwnershipFunc::Simple("HTTPRequest_close".to_string())),
-            Type::Named(n) if n == "HTTPResponse" => Some(OwnershipFunc::Simple("HTTPRequest_closeResponse".to_string())),
+            Type::Named(n) => crate::sema::scope::resource_closer_symbol(n).map(|f| OwnershipFunc::Simple(f.to_string())),
             _ => None,
         },
         OwnershipClass::Thread | OwnershipClass::Unsupported => None,

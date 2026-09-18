@@ -1,36 +1,44 @@
-# Réflexion (non tranchée) : permettre une `property` de type ressource sur une classe utilisateur
+# `property` de type ressource sur une classe utilisateur
 
-## Constat
+## Terminé — option 1 retenue et implémentée (analyse d'échappement étendue)
 
-Aujourd'hui, une `property` de type `Mutex`/`SQLite`/`MySQL`/`MariaDB` sur une classe utilisateur est **rejetée à la compilation** (diagnostic E29, `docs/diagnostics.md` §E29) :
+Voir §"Ce qui a été fait" plus bas.
+
+## Constat (avant correctif)
+
+Une `property` de type `Mutex`/`SQLite`/`MySQL`/`MariaDB`/`HTTPRequest`/`HTTPResponse` sur une classe utilisateur était **rejetée à la compilation** (diagnostic E29, `docs/diagnostics.md` §E29) :
 
 ```
 fichier.oc:5:5: error: 'Cache.lock' ('Mutex') is a native resource field — it is never closed when a 'Cache' instance is destroyed (no mechanism exists for this today), so this handle always leaks; manage it outside the class instead, or expose an explicit method the caller must invoke before discarding the instance
 ```
 
-Raison : `__free_<Classe>` (généré pour une instance `scoped`/`consumed`, ou un `var` dont l'échappement est prouvé impossible — voir `docs/EBNF.md` §9) sait libérer un champ `string`/`array`/`map`/instance de classe utilisateur, jamais fermer une ressource native. Sans mécanisme dédié, ce champ fuirait systématiquement son handle natif à chaque libération de l'instance porteuse.
+Raison : `__free_<Classe>` (généré pour une instance `scoped`/`consumed`, ou un `var` dont l'échappement est prouvé impossible — voir `docs/EBNF.md` §9) ne savait libérer qu'un champ `string`/`array`/`map`/instance de classe utilisateur, jamais fermer une ressource native.
 
-Cas concret rencontré : `examples/advanced/tauri_httpserver/configs/Database.oc` voudrait garder une connexion `SQLite` ouverte comme champ d'instance (`private property db:SQLite`, ouverte une fois dans `init()`, réutilisée par `migrate()`/`recordVisit()`) — pattern d'encapsulation courant (« la classe possède sa ressource »). C'est aujourd'hui rejeté ; le contournement documenté par E29 (gérer la ressource hors de la classe, ou rouvrir une connexion à chaque méthode) fonctionne mais casse l'encapsulation voulue.
+Cas concret qui a motivé cette fiche : `examples/advanced/tauri_httpserver/configs/Database.oc` voulait garder une connexion `SQLite` ouverte comme champ d'instance (`private property db:SQLite`, ouverte une fois dans `init()`, réutilisée par `migrate()`/`recordVisit()`) — pattern d'encapsulation courant (« la classe possède sa ressource »).
 
-## Pourquoi ce n'est pas trivial
+## Ce qui a été fait
 
-Le problème n'est pas seulement "ajouter un appel `.close()` dans `__free_<Classe>`" : il faut d'abord garantir que `__free_<Classe>` sera **effectivement appelée** avant que le handle ne devienne inaccessible, ce qui dépend de comment l'INSTANCE elle-même est possédée — exactement la même question déjà tranchée pour une ressource nue (`scoped`/`consumed` obligatoire, `var`/`const` rejeté si l'échappement ne peut pas être prouvé impossible, voir E28) :
+### Option retenue : réutiliser l'analyse d'échappement existante, étendue aux classes composites
 
-- Une instance `scoped`/`consumed` de la classe : cas facile, même mécanisme de fin de bloc que pour une ressource nue.
-- Une instance `var`/`const` dont l'échappement est prouvé impossible (`var_never_escapes`) : devrait pouvoir bénéficier du même auto-free — mais `var_never_escapes` n'a jamais été audité pour un champ de type ressource CONTENU dans l'objet, seulement pour l'objet lui-même.
-- Une instance qui s'échappe réellement (stockée dans un champ d'une autre classe, retournée, passée en argument retenu...) : aujourd'hui, ce cas resterait un vrai problème ouvert — soit on le rejette (même esprit que E28 pour une ressource nue non prouvée non-échappante), soit on assume la fuite et on documente la limite.
+Des trois pistes envisagées initialement, l'option 1 (« une classe contenant une ressource EST une ressource, partout où `ownership_class` est consultée ») a été retenue — la plus cohérente : elle évite une règle hybride (« résource pour l'échappement, valeur pour l'auto-libération ») difficile à justifier et à vérifier dans tous les coins.
 
-## Pistes (aucune tranchée)
+1. **`crate::sema::scope::compute_resource_classes`** (nouveau) : calcule, par point fixe sur `program.classes`, l'ensemble des classes contenant (directement ou transitivement, via un autre champ de classe) une ressource native. Calculé une fois dans `TypeChecker::check_program`, stocké dans `self.resource_classes`.
+2. **`crate::sema::scope::ownership_class_of(ty, resource_classes)`** (nouveau) : comme `ownership_class`, mais retourne `OwnershipClass::Resource` pour un `Type::Named` présent dans `resource_classes`. Remplace `ownership_class` aux 4 sites de `typecheck.rs` qui décident d'un comportement d'échappement/possession (`check_class` pour l'ancien rejet E29 — supprimé, `check_resource_var_containment`, `check_escape`, `check_argument_escape`) et dans `pop_scope`/`resource_raise::check_program` (W04), désormais tous conscients des classes composites.
+3. **Conséquence directe, sans code supplémentaire** : une instance `scoped`/`consumed` d'une classe-ressource ne peut plus s'échapper de son bloc (E18) — empêche par construction que deux instances partagent le même handle natif via un clonage. Un `var`/`const` non fermé et prouvé non-échappant est rejeté (E28) — une classe composite n'ayant en général pas de méthode `close()` à elle, `scoped`/`consumed` reste en pratique le seul choix.
+4. **`crate::lower::builder::class_ownership`** : `FieldOwnership` gagne une variante `Resource(String)` ; `build_free_function` émet l'appel de fermeture natif (`crate::sema::scope::resource_closer_symbol`, mapping partagé avec `lower::stmt::ownership::drop_func_for` pour éviter deux copies divergentes) ; `build_clone_function` ne clone JAMAIS un champ ressource (mettrait en pratique deux instances face au même handle) — écrit un `0` défensif, chemin qui ne devrait de toute façon jamais être atteint par un programme qui compile, l'échappement étant bloqué en amont.
+5. **Nouveau diagnostic E35 (`SemaError::ManualCloseOnResourceField`)** : un appel manuel `.close()`/`.destroy()`/`.closeResponse()` sur `self.<champ>` est rejeté — `__free_<Classe>` le fermera de toute façon à la destruction de l'instance, un appel en plus serait toujours une double fermeture (pas de suivi inter-méthodes possible pour distinguer un usage sûr, contrairement à E25 qui ne détecte qu'un DEUXIÈME appel explicite dans le même bloc).
 
-1. **Réutiliser l'analyse d'échappement existante** (`var_never_escapes`, `crate::sema::escape`) : autoriser une `property` ressource UNIQUEMENT sur une classe dont CHAQUE site d'instanciation est prouvé non-échappant (`scoped`/`consumed`, ou `var` non-échappant) — sinon rejeter avec un message pointant le site d'échappement précis (comme E28 aujourd'hui). Rejoint le mécanisme déjà en place, mais demande d'étendre `__free_<Classe>` pour émettre `.close()`/`.destroy()` sur les champs ressource, et de faire remonter l'analyse au niveau du champ (pas seulement de la variable).
-2. **Ne rien changer au langage, améliorer seulement la pédagogie** : garder E29 tel quel, mais documenter clairement le patron recommandé (méthode `close()` explicite que l'appelant doit invoquer, comme suggéré par le message d'erreur lui-même) avec un exemple complet dans `docs/EBNF.md`/`docs/diagnostics.md`. Option à coût quasi nul, mais qui n'apporte rien de neuf au langage.
-3. **Détecteur explicite `close()`/`destroy()` généré automatiquement** sur la classe porteuse (une méthode de convention, ex. `__close()`, qui ferme tous les champs ressource déclarés) que le compilateur exige d'appeler avant la fin de vie prouvée de l'instance — proche de l'esprit de `Thread` (`.join()`/`.detach()` obligatoire, E19), mais appliqué à une classe entière plutôt qu'à un type natif unique.
+### Vérifications
 
-## Priorité / Complexité
+- `cargo test -p ocara` : 86 passed (dont 5 nouveaux tests dédiés, `src/sema/tests/resource_property_destructor.rs` : déclaration acceptée, échappement d'un `scoped` toujours rejeté, `var` non-échappant toujours rejeté, fermeture manuelle sur `self.<champ>` rejetée, classe SANS ressource inchangée).
+- `make regression` (cache vidé) : 677 PASS, 0 FAIL, 0 ERREUR — dont un nouvel exemple de bout en bout (`examples/tests/52_class_resource_property_destructorTest.oc`) : trois instances successives d'une classe `Database` (connexion `SQLite` en `property`) sur le même fichier, sans jamais fermer manuellement — si la fermeture automatique ne fonctionnait pas, la connexion suivante resterait bloquée par le verrou d'écriture SQLite (même famille de symptôme que `49_sqlite_with_open_raiseTest.oc`).
+- `make build` : 0 warning.
+- `examples/advanced/tauri_httpserver/configs/Database.oc` compile désormais tel que l'utilisateur l'avait initialement écrit (`private property db:SQLite`, ouverte dans `init()`, jamais fermée manuellement par `migrate()`/`recordVisit()`).
 
-**Priorité Moyenne** — n'affecte aucun programme existant (E29 rejette déjà ce pattern, aucune régression possible), mais bloque un patron d'encapsulation courant (« la classe possède sa ressource ») sans bonne alternative aujourd'hui à part rouvrir la ressource à chaque appel ou casser l'encapsulation.
-**Complexité : Structurel** — touche l'analyse d'échappement, la génération de `__free_<Classe>`, et potentiellement un nouveau diagnostic (site d'échappement d'une instance porteuse de ressource) ; zone sensible (mémoire/ressources natives), à traiter avec les mêmes précautions que E18/E28 (tests Rust dédiés + exemple de régression avant tout merge).
+## Limite connue, documentée mais non bloquante
+
+Le mécanisme couvre les instances `scoped`/`consumed` et `var`/`const` prouvées non-échappantes. Une instance qui s'échappe réellement (retournée, stockée dans un champ d'une autre classe, passée en argument retenu) reste rejetée à la compilation (même traitement que E18 pour une ressource nue) plutôt que silencieusement mal géré — pas de fuite ni de double-fermeture possible, seulement une contrainte d'usage assumée (cohérente avec le reste du langage).
 
 ## Fichiers clés
 
-`docs/diagnostics.md` (§E29), `docs/EBNF.md` (§9.2/9.3, ownership `scoped`/`consumed`/`var`), `src/sema/escape.rs` (`var_never_escapes`, à étendre pour un champ ressource), génération de `__free_<Classe>` (lowering des classes), `examples/advanced/tauri_httpserver/configs/Database.oc` (cas d'usage concret qui a motivé cette fiche).
+`src/sema/scope.rs` (`compute_resource_classes`, `ownership_class_of`, `resource_closer_symbol`), `src/sema/typecheck.rs` (suppression de l'ancien rejet E29, nouveau E35), `src/sema/error.rs`, `src/sema/resource_raise.rs`, `src/lower/builder.d/class_ownership.rs` (`FieldOwnership::Resource`), `src/lower/stmt.d/ownership.rs` (`drop_func_for`, refactoré pour partager `resource_closer_symbol`), `src/sema/tests/resource_property_destructor.rs`, `examples/tests/52_class_resource_property_destructorTest.oc`, `examples/advanced/tauri_httpserver/configs/Database.oc`, `docs/diagnostics.md` (§E29 réécrit, §E35 nouveau).

@@ -28,7 +28,6 @@ class Database {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             visited_at INTEGER
         )`)
-        self.db.close()
     }
 
     // Enregistre une visite et retourne le nombre total de visites enregistrées.
@@ -38,7 +37,6 @@ class Database {
         )
         consumed row:map<string, int> = self.db.queryOne("SELECT COUNT(*) as total FROM visits")
         consumed total:int = row["total"]
-        self.db.close()
         return total
     }
 }

@@ -1,0 +1,88 @@
+import ocara.UnitTest
+import ocara.SQLite
+import ocara.File
+
+// `property` de type ressource native (SQLite/Mutex/MySQL/MariaDB/
+// HTTPRequest/HTTPResponse) sur une classe utilisateur — jusqu'ici rejeté
+// d'office (E29, "this handle always leaks", aucun mécanisme n'existait pour
+// fermer un tel champ). Désormais autorisé : `__free_<Classe>` ferme le
+// champ automatiquement quand l'instance porteuse (scoped/consumed, ou un
+// var prouvé non-échappant) est détruite — voir
+// src/lower/builder.d/class_ownership.rs (FieldOwnership::Resource) et
+// src/sema/tests/resource_property_destructor.rs pour les tests au niveau
+// sémantique. Reproduit dans
+// examples/advanced/tauri_httpserver/configs/Database.oc
+// (`private property db:SQLite`, ouverte dans `init()`, jamais fermée
+// manuellement par ses méthodes).
+//
+// Ce test-ci vérifie le lowering/codegen réel (pas seulement la
+// sémantique) : chaque appel `use Database().xxx()` ouvre sa propre
+// connexion SQLite dans `init()` et la referme via le destructeur généré à
+// la fin du `use` (portée `scoped` implicite) — si la fermeture automatique
+// ne fonctionnait pas, la connexion suivante sur le même fichier resterait
+// bloquée par le verrou d'écriture SQLite jamais relâché (même famille de
+// symptôme que 49_sqlite_with_open_raiseTest.oc).
+class Test_52_class_resource_property_destructor {
+
+    public method classCanOwnAResourcePropertyTest(): int {
+        const path:string = "test_52_visits.db"
+        if File::exists(path) {
+            File::remove(path)
+        }
+
+        scoped setup:Database = use Database(path)
+        setup.migrate()
+
+        // Trois instances SUCCESSIVES, chacune ouvrant/fermant sa propre
+        // connexion SQLite sur le MÊME fichier — seule la fermeture
+        // automatique du champ ressource (à la destruction de l'instance
+        // Database) empêche le verrou d'écriture de s'accumuler d'un appel
+        // à l'autre.
+        //
+        // NOTE : pas de chaînage `use Database(path).recordVisit()` ici —
+        // bug distinct, sans rapport avec ce test, qui perd la valeur de
+        // retour d'une méthode chaînée directement après `use Classe(...)`
+        // (retourne toujours 0) — voir
+        // docs/roadmap.d/langage-use-chaine-valeur-retour-perdue.md.
+        scoped d1:Database = use Database(path)
+        const v1:int = d1.recordVisit()
+        scoped d2:Database = use Database(path)
+        const v2:int = d2.recordVisit()
+        scoped d3:Database = use Database(path)
+        const v3:int = d3.recordVisit()
+
+        UnitTest::assertEquals(1, v1)
+        UnitTest::assertEquals(2, v2)
+        UnitTest::assertEquals(3, v3)
+
+        File::remove(path)
+        return 0
+    }
+}
+
+class Database {
+    private property path:string
+    private property db:SQLite
+
+    init(path:string) {
+        self.path = path
+        self.db = SQLite::open(self.path)
+    }
+
+    public method migrate(): void {
+        self.db.execute(`
+            CREATE TABLE IF NOT EXISTS visits
+            (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                visited_at INTEGER
+            )
+        `)
+    }
+
+    public method recordVisit(): int {
+        self.db.execute("INSERT INTO visits (visited_at) VALUES (0)")
+        consumed row:map<string, int> = self.db.queryOne("SELECT COUNT(*) as total FROM visits")
+        consumed total:int = row["total"]
+        return total
+    }
+}
