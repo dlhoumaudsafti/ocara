@@ -1291,8 +1291,12 @@ impl<'a> TypeChecker<'a> {
                             "HTTPResponse" => HTTP_RESPONSE_METHODS.contains(&field.as_str()),
                             _ => true,
                         };
-                        let method_owner: &str = if cls_name == "HTTPResponse" { "HTTPRequest" } else { cls_name.as_str() };
-                        if let Some(sig) = self.symbols.lookup_method_in_chain(method_owner, field).filter(|_| http_receiver_ok) {
+                        let method_owner: String = if cls_name == "HTTPResponse" {
+                            self.symbols.local_name_for_builtin("HTTPRequest")
+                        } else {
+                            cls_name.clone()
+                        };
+                        if let Some(sig) = self.symbols.lookup_method_in_chain(&method_owner, field).filter(|_| http_receiver_ok) {
                             // Une méthode static ne peut pas être appelée sur une instance
                             // SAUF pour ces classes : les méthodes sont statiques mais utilisables
                             // comme méthodes d'instance sur les variables (ex: a.trim(), arr.len(), m.size(), data.encode(), req.close(), res.status()).
@@ -1508,7 +1512,8 @@ impl<'a> TypeChecker<'a> {
                         });
                     }
                     let resolved_key = crate::sema::escape::resolve_user_callable(&self.class_members, &resolved_class, method);
-                    self.check_argument_escape(args, resolved_key.as_deref(), resolved_class == "HTTPRequest");
+                    let is_http_request_call = resolved_class == self.symbols.local_name_for_builtin("HTTPRequest");
+                    self.check_argument_escape(args, resolved_key.as_deref(), is_http_request_call);
                     for arg in args {
                         let arg_ty = self.infer_expr(arg);
                         self.check_message_scalar_consumption(arg, &arg_ty, span);
@@ -1518,9 +1523,10 @@ impl<'a> TypeChecker<'a> {
                     // (E25), mais l'argument est ici passé en ARGUMENT
                     // (appel statique), pas en receveur d'un appel d'instance
                     // — voir docs/roadmap.d/memoire-double-free-et-fuites-scoped.md.
-                    let manual_finalizer_arg = match (resolved_class.as_str(), method.as_str()) {
-                        ("HTTPRequest", "close") | ("HTTPRequest", "closeResponse") => args.first(),
-                        _ => None,
+                    let manual_finalizer_arg = if is_http_request_call && matches!(method.as_str(), "close" | "closeResponse") {
+                        args.first()
+                    } else {
+                        None
                     };
                     if let Some(Expr::Ident(recv_name, _)) = manual_finalizer_arg {
                         if self.scopes.mark_resource_finalized(recv_name) {
@@ -1539,20 +1545,31 @@ impl<'a> TypeChecker<'a> {
             }
 
             Expr::StaticConst { class, name, span } => {
-                // Classe opaque (import non résolu) — accès permissif
-                if let Some(info) = self.symbols.lookup_class(class) {
-                    if info.is_opaque { return Type::Mixed; }
-                }
-                if let Some((ty, _)) = self.symbols.lookup_class_const(class, name) {
-                    return ty.clone();
-                }
-                // Référence à une méthode statique sans appel : ClassName::myStatic
-                let resolved = if class == "<self>" {
+                // Résoudre "<self>"/"<parent>" vers la classe réelle AVANT
+                // toute recherche — contrairement à Expr::StaticCall
+                // (résolu dès l'entrée, voir plus haut), ce nœud cherchait
+                // jusqu'ici sous le nom littéral "<self>"/"<parent>" (jamais
+                // une classe enregistrée sous ce nom), donc `self::CONST`
+                // échouait TOUJOURS avec "undefined symbol '<self>::CONST'",
+                // y compris depuis l'intérieur du constructeur.
+                let resolved_class = if class == "<self>" {
                     self.current_class.clone().unwrap_or_default()
+                } else if class == "<parent>" {
+                    self.current_class.as_deref()
+                        .and_then(|c| self.symbols.lookup_parent_class(c))
+                        .unwrap_or_default()
                 } else {
                     class.clone()
                 };
-                if let Some(sig) = self.symbols.lookup_method_in_chain(&resolved, name) {
+                // Classe opaque (import non résolu) — accès permissif
+                if let Some(info) = self.symbols.lookup_class(&resolved_class) {
+                    if info.is_opaque { return Type::Mixed; }
+                }
+                if let Some((ty, _)) = self.symbols.lookup_class_const(&resolved_class, name) {
+                    return ty.clone();
+                }
+                // Référence à une méthode statique sans appel : ClassName::myStatic
+                if let Some(sig) = self.symbols.lookup_method_in_chain(&resolved_class, name) {
                     if sig.is_static {
                         // Construire le type Function avec les paramètres
                         let param_tys = sig.params.iter().map(|(_, ty)| ty.clone()).collect();
@@ -1563,7 +1580,7 @@ impl<'a> TypeChecker<'a> {
                     }
                 }
                 self.errors.push(SemaError::UndefinedSymbol {
-                    name: format!("{}::{}", class, name),
+                    name: format!("{}::{}", resolved_class, name),
                     span: span.clone(),
                 });
                 Type::Mixed

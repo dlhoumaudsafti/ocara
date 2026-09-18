@@ -612,6 +612,8 @@ Une `property` d'un type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`) sur une 
 
 **Correction :** ne pas stocker la ressource directement dans un champ de la classe — la gérer en dehors (ex. l'injecter à chaque appel de méthode plutôt que de la conserver), ou exposer une méthode explicite (`close()`) que l'appelant doit invoquer lui-même avant d'abandonner l'instance.
 
+Lever cette restriction est une réflexion ouverte, non tranchée — voir [langage-destructeur-champ-ressource](roadmap.d/langage-destructeur-champ-ressource.md).
+
 ---
 
 ### E30 — `message<T>` nommé (`var`/`scoped`/`consumed`)

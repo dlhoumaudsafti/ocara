@@ -32,18 +32,16 @@ import ocara.Tauri
 import ocara.HTTPRequest
 import ocara.HTTPResponse
 import configs.Components
-import configs.Server
+import configs.Server as HTTP
 import configs.Database
 import controllers.IPCController
 
 
 init {
     IO::writeln("Initialisation de l'app...")
-    use Components()
-    db:Database = use Database()
-    db.migrate()
-    const server:Server = use Server()
-    server.routes(db)
+    use Database().migrate()
+    const SERVER:HTTP = use HTTP()
+    SERVER.routes()
 }
 
 main {
@@ -51,15 +49,14 @@ main {
     // le thread principal (contrainte du crate tauri), donc le serveur ne peut
     // pas être lancé ici en bloquant comme dans advanced/httpserver/main.oc.
     //
-    // Pas de try/on ici autour de server.start() (contournement volontaire) :
+    // Pas de try/on ici autour de SERVER.start() (contournement volontaire) :
     // un try/on à l'intérieur d'un nameless qui capture une variable externe
     // (server) déclenche un bug distinct du compilateur, plus profond (mécanisme
     // setjmp/longjmp), toujours en cours d'investigation. Server::start() a déjà
     // son propre try/on interne (voir configs/Server.oc) qui capture les erreurs
     // de démarrage HTTPServerException.
-    const serverThread:Thread = use Thread()
-    serverThread.run(nameless(): void {
-        server.start()
+    use Thread().run(nameless(): void {
+        SERVER.start()
     })
 
     // Attendre que le serveur réponde réellement (GET /health) avant d'ouvrir la
@@ -69,8 +66,7 @@ main {
     var serverReady:bool = false
     var attempts:int = 0
     while not serverReady {
-        scoped res:HTTPResponse = HTTPRequest::get("http://localhost:8080/health")
-        if HTTPRequest::ok(res) {
+        if HTTPRequest::get("http://localhost:8080/health").ok() {
             serverReady = true
         } else {
             attempts = attempts + 1

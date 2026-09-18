@@ -818,7 +818,20 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             } else {
                 class.as_str()
             };
-            
+
+            // Alias d'un builtin natif ocara (`import ocara.X as Y`) :
+            // remonter vers le nom canonique AVANT tout mangling — voir la
+            // doc de `IrModule::import_aliases`. Sans ceci, `func_name`
+            // ci-dessous vaudrait "Y_method" (aucun symbole runtime connu
+            // sous ce nom), et `emit_calls` (codegen) ignore silencieusement
+            // un appel vers une fonction inconnue au lieu d'échouer — un
+            // résultat FAUX SILENCIEUX, pas un crash.
+            let canonical_builtin;
+            if let Some(canonical) = builder.module.import_aliases.get(resolved_class) {
+                canonical_builtin = canonical.clone();
+                resolved_class = &canonical_builtin;
+            }
+
             // Pour self::method, chercher la méthode dans la chaîne d'héritage
             if class == "<self>" && !resolved_class.is_empty() {
                 let func_name = format!("{}_{}", resolved_class, method);

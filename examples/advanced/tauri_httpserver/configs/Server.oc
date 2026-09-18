@@ -28,9 +28,9 @@ class Server extends HTTPServer {
         self.rootPath("./public/")
     }
 
-    public method routes(db:Database): void {
+    public method routes(): void {
         IO::writeln("Configuration des routes...")
-        use General(self, db)
+        use General(self)
         use Error(self)
         use Infos(self)
         use API(self)

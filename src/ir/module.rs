@@ -19,6 +19,22 @@ pub struct IrModule {
     pub globals:   Vec<IrGlobal>,
     /// Modules importés (ex: ["IO", "Array", "Math"])
     pub imports:   Vec<String>,
+    /// `import ocara.X as Y` → alias local ("Y") → nom builtin canonique
+    /// ("X"), UNIQUEMENT pour les imports `ocara.*` (voir `lower_program`).
+    /// Nécessaire pour mangler correctement un appel statique
+    /// `Y::method(args)` vers le vrai symbole runtime `X_method` — sans
+    /// cette résolution, `resolved_class` dans `Expr::StaticCall` (lower.rs)
+    /// valait l'alias tel quel, produisant un nom mangled qui ne correspond
+    /// à AUCUNE fonction connue ; `emit_calls` (codegen) ignore alors
+    /// silencieusement l'appel inconnu ("résolution runtime" pour un
+    /// dispatch dynamique légitime ailleurs), laissant la variable de
+    /// destination non définie — un bug de résultat FAUX SILENCIEUX, pas un
+    /// crash, confirmé par reproduction sur `Request::isError(res)` avec
+    /// `import ocara.HTTPRequest as Request` (retournait `false` au lieu du
+    /// vrai résultat). Les classes utilisateur ne sont PAS concernées : leur
+    /// alias est déjà résolu vers le nom réel de la classe par un mécanisme
+    /// séparé, bien avant le lowering.
+    pub import_aliases: HashMap<String, String>,
     /// Layout des classes : class_name → liste ordonnée (field_name, field_type)
     pub class_layouts: HashMap<String, Vec<(String, IrType)>>,
     /// Comme `class_layouts`, mais avec le vrai type AST de chaque champ

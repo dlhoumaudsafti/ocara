@@ -1,6 +1,6 @@
 # Roadmap Ocara
 
-_Dernière mise à jour : 2026-09-17_
+_Dernière mise à jour : 2026-09-18_
 
 Ce document liste ce qu'il reste à faire pour faire d'Ocara un langage solide. Cette révision fait suite à une analyse complète du projet (doc, code source du compilateur, exemples, runtimes natifs) et **reprioritise délibérément autour de la robustesse, la stabilité et la fiabilité** — avant toute nouvelle fonctionnalité ou tout chantier de portage. Le focus reste, comme avant, la **gestion mémoire** : le compilateur n'a pas de ramasse-miettes (choix assumé et définitif), et l'historique du projet montre plusieurs SEGFAULTs confirmés par reproduction sur la représentation `mixed` — mais la même question de fiabilité se posait aussi sur le mécanisme d'exceptions (`setjmp`/`longjmp`), sur la quasi-absence de tests Rust unitaires en dehors du front-end, et sur au moins une race condition documentée (`HTTPServer`).
 
@@ -37,7 +37,9 @@ _Vide — voir « Définition : le langage est stable » ci-dessus pour la liste
 
 À traiter mais non bloquant pour la stabilité du langage.
 
-_Vide pour l'instant — le seul point qui s'y trouvait (`SQLite`/`MySQL`/`MariaDB` : requêtes paramétrées + transactions) est clos, voir [stdlib-sqlite-requetes-parametrees-transactions](roadmap.d/stdlib-sqlite-requetes-parametrees-transactions.md) et [stdlib-mysql-requetes-parametrees-transactions](roadmap.d/stdlib-mysql-requetes-parametrees-transactions.md) — et `-no-pie` au lien final, voir [securite-lien-no-pie](roadmap.d/securite-lien-no-pie.md) ; sa suite différée est suivie en Priorité Très Basse ci-dessous._
+- **Réflexion (non tranchée) : permettre une `property` de type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`) sur une classe utilisateur** — aujourd'hui rejeté (E29, « ce handle fuirait toujours ») faute de mécanisme de destructeur de classe ; bloque le patron d'encapsulation « la classe possède sa ressource » (ex. une classe `Database` gardant sa connexion `SQLite` ouverte). *(Structurel — touche l'analyse d'échappement et la génération des destructeurs de classe, voir la fiche pour les pistes non tranchées)* → [détails](roadmap.d/langage-destructeur-champ-ressource.md)
+
+(Le seul autre point qui se trouvait ici est clos : `SQLite`/`MySQL`/`MariaDB` : requêtes paramétrées + transactions, voir [stdlib-sqlite-requetes-parametrees-transactions](roadmap.d/stdlib-sqlite-requetes-parametrees-transactions.md) et [stdlib-mysql-requetes-parametrees-transactions](roadmap.d/stdlib-mysql-requetes-parametrees-transactions.md) — et `-no-pie` au lien final, voir [securite-lien-no-pie](roadmap.d/securite-lien-no-pie.md) ; sa suite différée est suivie en Priorité Très Basse ci-dessous.)
 
 ---
 
@@ -45,7 +47,8 @@ _Vide pour l'instant — le seul point qui s'y trouvait (`SQLite`/`MySQL`/`Maria
 
 Confort ou portée future — n'affecte pas la correction du compilateur ou des binaires produits.
 
-- **Réflexion (non tranchée) : remplacer `for x in a..b` par `for x in a to b` (borne incluse) / `for x in a until b` (borne exclue)** — la borne de fin exclue de `..` n'est pas lisible au point d'appel ; à peser contre le coût d'un changement de syntaxe cassant sur tout le corpus existant. *(Structurel si retenu — voir la fiche pour la discussion complète avant tout engagement)* → [détails](roadmap.d/reflexion-syntaxe-for-range.md)
+- **Réflexion (non tranchée) : remplacer `for x in a..b` par `for x in 1 to 10` (borne incluse) / `for x in 1 until 10` (borne exclue)** — la borne de fin exclue de `..` n'est pas lisible au point d'appel ; à peser contre le coût d'un changement de syntaxe cassant sur tout le corpus existant. *(Structurel si retenu — voir la fiche pour la discussion complète avant tout engagement)* → [détails](roadmap.d/reflexion-syntaxe-for-range.md)
+- **Réflexion (non tranchée) : `for x in myarray when x greater|smaller|(not) equal| literral|var|scoped|consumed|const|property {}` et `for x when x greater|smaller|(not) equal| literral|var|scoped|consumed|const|property {}` et `for x=1 when x greater|smaller|(not) equal| literral|var|scoped|consumed|const|property {}`**
 
 (Quatre points qui se trouvaient ici sont clos : la pédagogie en retard sur le corpus `advanced/` — `parent::` documenté en EBNF §18.1 et démontré dans `12_inheritance.oc`, pointeur ajouté vers EBNF §5 pour les blocs runtime, ligne `32_strict_operators.oc` corrigée, voir [documentation-pedagogie-en-retard](roadmap.d/documentation-pedagogie-en-retard.md) — l'extension VSCode alignée sur la version 1.0.0 du langage, voir [outillage-vscode-version-bump](roadmap.d/outillage-vscode-version-bump.md) — la cohérence interne de l'EBNF et de la stdlib, voir [coherence-documentation-ebnf-stdlib](roadmap.d/coherence-documentation-ebnf-stdlib.md) — et l'indexation chaînée array-puis-map (`arr[0]["name"]` retournait silencieusement `null`), corrigée par une résolution récursive du type d'une indexation supportant une profondeur arbitraire, voir [langage-index-chaine-sur-map](roadmap.d/langage-index-chaine-sur-map.md).)
 

@@ -15,26 +15,30 @@ import ocara.Convert
 
 class Database {
 
-    private const property DB_PATH:string = "./app.db"
-    private const property DB:SQLite
+    private const DB_PATH:string = "./app.db"
+    private property db:SQLite
 
     init() {
-        self::DB = SQLite::open(self::DB_PATH)
+        self.db = SQLite::open(self::DB_PATH)
     }
-
     // Crée la table si nécessaire — appelée une fois dans init{} (voir main.oc),
     // avant que le serveur ne commence à traiter des requêtes.
     public method migrate(): void {
-        db.execute("CREATE TABLE IF NOT EXISTS visits (id INTEGER PRIMARY KEY AUTOINCREMENT, visited_at INTEGER)")
-        db.close()
+        self.db.execute(`CREATE TABLE IF NOT EXISTS visits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            visited_at INTEGER
+        )`)
+        self.db.close()
     }
 
     // Enregistre une visite et retourne le nombre total de visites enregistrées.
     public method recordVisit(): int {
-        db.execute("INSERT INTO visits (visited_at) VALUES (" + Convert::intToStr(DateTime::now()) + ")")
-        const row:map<string, mixed> = db.queryOne("SELECT COUNT(*) as total FROM visits")
-        const total:int = row["total"]
-        db.close()
+        self.db.execute(
+            "INSERT INTO visits (visited_at) VALUES (" + Convert::intToStr(DateTime::now()) + ")"
+        )
+        consumed row:map<string, int> = self.db.queryOne("SELECT COUNT(*) as total FROM visits")
+        consumed total:int = row["total"]
+        self.db.close()
         return total
     }
 }
