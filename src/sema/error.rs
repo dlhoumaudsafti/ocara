@@ -117,6 +117,16 @@ pub enum SemaError {
     /// `i++`/`++i`/`i--`/`--i` (`Expr::IncDec`) sur une cible dont le type
     /// n'est ni `int` ni `float` — voir docs/roadmap.d/langage-increment-decrement.md.
     IncDecInvalidType { found: String, span: Span },
+    /// `expr.méthode(...)` où `expr` est de type `void` — typiquement
+    /// `self.port(8080).workers(4)`, `port()` ne retournant rien à chaîner.
+    /// Avant ce diagnostic, `type_class_name(Type::Void)` retombait sur
+    /// `None` comme pour n'importe quel type non reconnu, silencieusement
+    /// permissif (retourne `Type::Mixed` sans vérifier `field`/`args`) — le
+    /// reste de la chaîne (ici `.workers(4)`) ne mangle alors vers AUCUN
+    /// symbole existant et est ignoré par le codegen, sans la moindre
+    /// erreur de compilation. Voir
+    /// docs/roadmap.d/langage-appel-methode-sur-void-accepte.md.
+    MethodCallOnVoid { method: String, span: Span },
 }
 
 impl SemaError {
@@ -158,6 +168,7 @@ impl SemaError {
             SemaError::EmitOutsideMessageFunction { span } => span,
             SemaError::MessageUnsafeScalarConsumption { span, .. } => span,
             SemaError::IncDecInvalidType { span, .. } => span,
+            SemaError::MethodCallOnVoid { span, .. } => span,
         }
     }
 
@@ -239,6 +250,8 @@ impl SemaError {
                 format!("'{}()' returns 'message<T>' with an 'emit' reachable inside a loop — the compiler cannot prove that at most one value is ever produced, so it cannot be consumed directly as a scalar here; use 'for x in {}()' or 'Array::fromMessage({}())' instead", name, name, name),
             SemaError::IncDecInvalidType { found, .. } =>
                 format!("'++'/'--' require an 'int' or 'float' target, found '{}'", found),
+            SemaError::MethodCallOnVoid { method, .. } =>
+                format!("cannot call '.{}(...)' — the receiver's type is 'void' (likely the return value of a preceding chained call); a method that returns 'void' cannot be chained, since there is nothing to call '.{}(...)' on", method, method),
         }
     }
 }

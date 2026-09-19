@@ -6,3 +6,4 @@ mod resource_raise;
 mod builtin_alias_resolution;
 mod self_const_resolution;
 mod resource_property_destructor;
+mod method_call_on_void;
