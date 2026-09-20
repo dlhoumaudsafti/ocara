@@ -751,24 +751,28 @@ fn main() {
     let needs_sdl = ir_module.imports.iter().any(|m| m == "SDL");
 
     if android_link_requested {
-        // Ni Tauri ni SDL ne sont supportés par la liaison Android — voir la
-        // doc de `link_android`. Rejetés ici plutôt que de produire un `.so`
-        // silencieusement incomplet, la même famille de bug que cette session
-        // a passé son temps à corriger côté codegen (voir
+        // Tauri n'est jamais supporté par la liaison Android — GTK n'a
+        // structurellement aucun équivalent Android (hors périmètre définitif).
+        // SDL, lui, est supporté depuis la vérification du sous-chantier 4
+        // (packaging-android.md) — mais seulement si le runtime SDL Android
+        // correspondant est fourni ; sans lui, produire un `.so` qui référence
+        // des symboles SDL non résolus serait la même famille de bug que
+        // cette session a passé son temps à corriger côté codegen (voir
         // docs/roadmap.d/langage-use-chaine-valeur-retour-perdue.md).
         if needs_tauri {
             diagnostic::print_error(&args.input, 0, 0,
                 "ocara.Tauri n'a aucun équivalent Android (GTK ne tourne pas sur Android) — hors périmètre, voir docs/roadmap.d/packaging-android.md");
             std::process::exit(1);
         }
-        if needs_sdl {
+        if needs_sdl && args.android_runtime_sdl.is_none() {
             diagnostic::print_error(&args.input, 0, 0,
-                "ocara.SDL sur Android n'est pas encore vérifié (sous-chantier 4, packaging-android.md) — liaison refusée plutôt que produire un .so probablement cassé");
+                "ocara.SDL sur Android requiert --android-runtime-sdl (voir `make build-runtime-sdl-android`, docs/roadmap.d/packaging-android.md)");
             std::process::exit(1);
         }
 
         let target = args.target.as_deref().unwrap();
         let runtime_lib = args.android_runtime.as_ref().unwrap();
+        let runtime_sdl_lib = if needs_sdl { args.android_runtime_sdl.as_deref() } else { None };
         let ndk_home = match args.android_ndk.clone()
             .or_else(|| std::env::var_os("ANDROID_NDK_HOME").map(std::path::PathBuf::from))
         {
@@ -780,7 +784,7 @@ fn main() {
             }
         };
 
-        match link_android(&obj_bytes, &obj_path, &args.output, target, &ndk_home, runtime_lib, args.release) {
+        match link_android(&obj_bytes, &obj_path, &args.output, target, &ndk_home, runtime_lib, runtime_sdl_lib, args.release) {
             Ok(()) => {
                 println!("compilation réussie (Android {}) → {}", target, args.output.display());
             }

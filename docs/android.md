@@ -11,7 +11,7 @@
 | Cross-compilation Cranelift (choix de la cible) | ✅ Fait, vérifié |
 | Portage du runtime (`ocara_runtime`) vers Bionic | ✅ Fait, vérifié (ABI `aarch64` uniquement) |
 | Liaison finale en `.so` (clang du NDK) | ✅ Fait, vérifié |
-| Backend Android pour `ocara.SDL` | ❌ Non fait — inconnue non tranchée |
+| Backend Android pour `ocara.SDL` | ✅ Fait, vérifié (formats audio "tracker"/MOD non disponibles) |
 | `ocara.Tauri` sur Android | ❌ Hors périmètre définitif (GTK ne tourne pas sur Android) |
 | Packaging APK / test sur appareil réel | ❌ Non fait |
 
@@ -45,6 +45,16 @@ Produit `target/aarch64-linux-android/release/libocara_runtime.a`. À refaire un
 
 > **Piège connu** : les NDK ≥ r23 (tout-LLVM) ne fournissent plus les wrappers binutils préfixés par triple (`aarch64-linux-android-ranlib`). Si vous adaptez cette cible Make, gardez `RANLIB_aarch64_linux_android` pointé explicitement vers le `llvm-ranlib` du NDK — sinon la compilation d'OpenSSL (vendored) échoue en toute fin de build avec `aarch64-linux-android-ranlib: not found`.
 
+### Si le programme importe `ocara.SDL`
+
+```bash
+make build-runtime-sdl-android
+```
+
+Produit `target/aarch64-linux-android/release/libocara_runtime_sdl.a` (SDL3 + image/ttf/mixer). Plus long (compile SDL3 et ses dépendances C depuis les sources).
+
+> **Pièges connus** (voir [roadmap.d/packaging-android.md](roadmap.d/packaging-android.md) sous-chantier 4 pour le détail complet) : le codec audio "tracker"/MOD de SDL_mixer (`libxmp`) est désactivé pour Android (bug d'édition de liens avec `ld.lld` sur sa variante partagée, puis un second bug CMake/rpkg-config sur sa variante statique — WAV/OGG/MP3/FLAC/Opus restent disponibles) ; un compilateur C++ explicite (`CXX_aarch64_linux_android`) est requis en plus du C (au moins un codec, `gme`, est en C++).
+
 ---
 
 ## 2. Compiler et lier un programme `.oc` en `.so` Android
@@ -61,9 +71,10 @@ ocara main.oc \
 |--------|------|
 | `--target <triple>` | Cible Cranelift (ex: `aarch64-linux-android`) — voir aussi `--no-link` ci-dessous pour n'obtenir qu'un `.o` |
 | `--android-runtime <fichier.a>` | Le `libocara_runtime.a` produit à l'étape 1 |
+| `--android-runtime-sdl <fichier.a>` | Le `libocara_runtime_sdl.a` produit ci-dessus — requis seulement si le programme importe `ocara.SDL` |
 | `--android-ndk <dir>` | Racine du NDK (défaut : `$ANDROID_NDK_HOME`) |
 
-Le `.so` produit dépend dynamiquement de `libc.so`/`libm.so`/`libz.so`/`libdl.so` — toutes fournies par n'importe quel appareil Android — et n'a besoin d'aucune autre bibliothèque partagée à l'exécution (OpenSSL est compilé statiquement).
+Le `.so` produit dépend dynamiquement de `libc.so`/`libm.so`/`libz.so`/`libdl.so` — toutes fournies par n'importe quel appareil Android. **Avec `ocara.SDL`**, il dépend en plus de `libandroid.so`/`liblog.so`/`libGLESv2.so`/`libOpenSLES.so`/`libc++_shared.so` : ces cinq-là sont des bibliothèques système NDK standards, mais `libc++_shared.so` en particulier **doit être copiée dans `jniLibs/<abi>/` de l'APK final**, à côté du `.so` Ocara — ce n'est pas un fichier système garanti présent sur l'appareil comme les autres.
 
 ### Produire uniquement un `.o` (sans lier)
 
@@ -78,8 +89,8 @@ ocara main.oc --target aarch64-linux-android --no-link -o main
 
 | Import | Comportement |
 |--------|--------------|
-| `ocara.Tauri` | Rejeté à la liaison — aucun équivalent Android (GTK) |
-| `ocara.SDL` | Rejeté à la liaison — backend Android non vérifié (sous-chantier 4) |
+| `ocara.Tauri` | Rejeté à la liaison — aucun équivalent Android (GTK), hors périmètre définitif |
+| `ocara.SDL` sans `--android-runtime-sdl` | Rejeté à la liaison — évite un `.so` avec des symboles SDL non résolus |
 
 Ces deux cas sont détectés et refusés explicitement plutôt que de produire un `.so` silencieusement cassé.
 
@@ -112,6 +123,7 @@ Un symbole `w` (weak, ex. `getrandom`, `copy_file_range`) est normal : c'est un 
 
 - **`is_pic` n'est activé que pour une cible croisée** (`--target` explicite) — le chemin de compilation normal (hôte) reste inchangé (`-no-pie`, pas de PIC). Voir [roadmap.d/securite-pie-cranelift-is-pic.md](roadmap.d/securite-pie-cranelift-is-pic.md).
 - **`libz-sys` lie `libz` dynamiquement sur Android**, contrairement à OpenSSL (statique y compris pour Android) — son propre `build.rs` part du principe que tout compilateur Android est livré avec `libz`, ce qui est vrai sur toutes les versions d'Android testées par ce projet en amont.
-- **Aucun test sur appareil ou émulateur réel** — seule l'inspection statique du binaire a été faite.
-- **`ocara.SDL` et `ocara.Tauri`** ne fonctionnent pas sur Android (voir tableau ci-dessus).
-- **Packaging APK** (gabarit Gradle, injection du `.so` dans `jniLibs/`) non fait — voir la stratégie envisagée dans [roadmap.d/packaging-android.md](roadmap.d/packaging-android.md).
+- **`ocara.SDL` sur Android n'a pas les formats audio "tracker"/MOD** (bug d'édition de liens en amont, voir ci-dessus) — WAV/OGG/MP3/FLAC/Opus fonctionnent normalement.
+- **Aucun test sur appareil ou émulateur réel** — seule l'inspection statique du binaire a été faite (architecture ELF, absence de `DT_TEXTREL`, dépendances dynamiques résolues et réellement exportées).
+- **`ocara.Tauri`** ne fonctionne pas et ne fonctionnera jamais sur Android (GTK, voir tableau ci-dessus).
+- **Packaging APK** (gabarit Gradle, injection du/des `.so` dans `jniLibs/`) non fait — voir la stratégie envisagée dans [roadmap.d/packaging-android.md](roadmap.d/packaging-android.md), et les chantiers suivants [webview hybride](roadmap.d/packaging-android-webview-hybrid.md) / [GUI native](roadmap.d/packaging-android-gui-native.md).

@@ -31,6 +31,11 @@ pub struct CliArgs {
     /// propre compilation), le runtime Android n'est PAS embarqué : le binaire
     /// `ocara` reste un binaire hôte ordinaire, buildable sans le NDK.
     pub android_runtime: Option<PathBuf>,
+    /// Chemin vers un `libocara_runtime_sdl.a` pré-compilé pour la cible
+    /// Android visée (produit par `make build-runtime-sdl-android`) — requis
+    /// UNIQUEMENT si le programme importe `ocara.SDL` (voir sous-chantier 4,
+    /// docs/roadmap.d/packaging-android.md).
+    pub android_runtime_sdl: Option<PathBuf>,
     /// Répertoire racine du NDK Android (`$ANDROID_NDK_HOME` si absent) —
     /// requis avec `--android-runtime` pour localiser le clang de croisement.
     pub android_ndk: Option<PathBuf>,
@@ -56,6 +61,9 @@ pub fn print_help() {
     println!("  --android-runtime <fichier.a>");
     println!("                libocara_runtime.a pré-compilé pour la cible --target (Android uniquement).");
     println!("                Active la liaison finale (.so) au lieu d'exiger --no-link.");
+    println!("  --android-runtime-sdl <fichier.a>");
+    println!("                libocara_runtime_sdl.a pré-compilé — requis seulement si le programme");
+    println!("                importe ocara.SDL.");
     println!("  --android-ndk <dir>");
     println!("                Racine du NDK Android (défaut : $ANDROID_NDK_HOME).");
     println!("  -h, --help    Affiche cette aide");
@@ -86,6 +94,7 @@ pub fn parse_args() -> CliArgs {
     let mut src_dir = None;
     let mut target: Option<String> = None;
     let mut android_runtime: Option<PathBuf> = None;
+    let mut android_runtime_sdl: Option<PathBuf> = None;
     let mut android_ndk: Option<PathBuf> = None;
 
     let mut i = 1;
@@ -111,6 +120,10 @@ pub fn parse_args() -> CliArgs {
                 android_runtime = Some(PathBuf::from(&args[i + 1]));
                 i += 1;
             }
+            "--android-runtime-sdl" if i + 1 < args.len() => {
+                android_runtime_sdl = Some(PathBuf::from(&args[i + 1]));
+                i += 1;
+            }
             "--android-ndk" if i + 1 < args.len() => {
                 android_ndk = Some(PathBuf::from(&args[i + 1]));
                 i += 1;
@@ -123,5 +136,5 @@ pub fn parse_args() -> CliArgs {
         }
         i += 1;
     }
-    CliArgs { input, output, dump, check, no_link, release, src_dir, target, android_runtime, android_ndk }
+    CliArgs { input, output, dump, check, no_link, release, src_dir, target, android_runtime, android_runtime_sdl, android_ndk }
 }

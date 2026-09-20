@@ -2811,6 +2811,7 @@ dependencies = [
  "ocara_runtime",
  "once_cell",
  "sdl3",
+ "sdl3-mixer-sys",
 ]
 
 [[package]]

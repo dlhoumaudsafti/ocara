@@ -5,9 +5,9 @@ RED     := \033[0;31m
 RESET   := \033[0m
 
 # Argument optionnel : make regression builtins/io
-_TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android,$(MAKECMDGOALS))
+_TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android,$(MAKECMDGOALS))
 
-.PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression ci lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android $(_TARGET)
+.PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression ci lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android $(_TARGET)
 
 # ── Aide ──────────────────────────────────────────────────────────────────────
 help:
@@ -36,6 +36,8 @@ help:
 	@echo "  uninstall-all           Désinstalle tout (uninstall + uninstall-tools)"
 	@echo "  build-runtime-android   Cross-compile ocara_runtime pour aarch64-linux-android"
 	@echo "                            (nécessite ANDROID_NDK_HOME, voir docs/roadmap.d/packaging-android.md)"
+	@echo "  build-runtime-sdl-android  Cross-compile ocara_runtime_sdl (SDL3) pour aarch64-linux-android"
+	@echo "                            (nécessite ANDROID_NDK_HOME + cmake, sous-chantier 4)"
 	@echo "  clean                   Supprime les artefacts de compilation d'ocara"
 	@echo "  clean-tools             Supprime les artefacts de compilation des outils"
 	@echo "  clean-all               Supprime tous les artefacts (clean + clean-tools)"
@@ -124,6 +126,30 @@ build-runtime-android:
 	RANLIB_aarch64_linux_android="$(ANDROID_RANLIB)" \
 	CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$(ANDROID_CC)" \
 	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime --target aarch64-linux-android -j4
+
+# `ocara_runtime_sdl` (sous-chantier 4, packaging-android.md) : SDL3 + image/
+# ttf/mixer compilés depuis les sources via cmake (feature
+# "build-from-source-static", voir runtime_sdl/Cargo.toml) — `sdl3-sys` gère
+# déjà lui-même les défines cmake spécifiques Android (ANDROID_ABI,
+# CMAKE_SYSTEM_NAME, voir sdl3-sys/build-common.rs) mais ne fournit PAS
+# `CMAKE_TOOLCHAIN_FILE` : sans lui, cmake ignore silencieusement les defines
+# Android et essaie de compiler pour l'hôte. Fourni ici explicitement (la
+# crate `cmake` le lit comme variable d'environnement quand aucun
+# `.define(...)` explicite n'existe déjà, voir cmake-rs/src/lib.rs).
+# CXX_ : au moins un codec de SDL_mixer (ex: "gme", chiptune) est en C++ ; sans
+# CXX explicite, `cc`-rs essaie de deviner `aarch64-linux-android-clang++`
+# (convention binutils absente des NDK ≥ r23, même piège que RANLIB plus haut).
+build-runtime-sdl-android:
+	@if [ -z "$(ANDROID_NDK_HOME)" ]; then \
+	    echo "ANDROID_NDK_HOME non défini (racine du NDK Android requise)"; exit 1; \
+	fi
+	CC_aarch64_linux_android="$(ANDROID_CC)" \
+	CXX_aarch64_linux_android="$(ANDROID_CC)++" \
+	AR_aarch64_linux_android="$(ANDROID_AR)" \
+	RANLIB_aarch64_linux_android="$(ANDROID_RANLIB)" \
+	CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$(ANDROID_CC)" \
+	CMAKE_TOOLCHAIN_FILE="$(ANDROID_NDK_HOME)/build/cmake/android.toolchain.cmake" \
+	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime_sdl --target aarch64-linux-android -j1
 
 # ── Tests unitaires Cargo ─────────────────────────────────────────────────────
 tests:

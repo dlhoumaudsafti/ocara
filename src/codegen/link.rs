@@ -225,20 +225,20 @@ fn android_clang_prefix(triple: &str) -> Result<&'static str, LinkerError> {
 /// pré-compilé pour la même cible (voir `CliArgs::android_runtime` —
 /// contrairement au runtime hôte, PAS embarqué dans le binaire `ocara`).
 ///
-/// Ni Tauri ni SDL ne sont supportés ici : GTK n'a structurellement aucun
-/// équivalent Android (hors périmètre définitif) ; le portage SDL3 vers
-/// Android est le sous-chantier 4, non vérifié — plutôt que de produire un
-/// `.so` silencieusement incomplet (la même famille de bug que cette session
-/// a passé son temps à corriger côté codegen), les deux cas sont rejetés
-/// explicitement en amont, voir `main.rs`.
+/// `runtime_sdl_lib` : `libocara_runtime_sdl.a` optionnel (voir
+/// `CliArgs::android_runtime_sdl`, produit par `make build-runtime-sdl-android`)
+/// — requis si et seulement si le programme importe `ocara.SDL` (voir
+/// `main.rs`, `needs_sdl`). Tauri, lui, n'est jamais supporté ici : GTK n'a
+/// structurellement aucun équivalent Android (hors périmètre définitif).
 pub fn link_android(
-    obj_bytes:   &[u8],
-    obj_path:    &Path,
-    out_path:    &Path,
-    target:      &str,
-    ndk_home:    &Path,
-    runtime_lib: &Path,
-    release:     bool,
+    obj_bytes:      &[u8],
+    obj_path:       &Path,
+    out_path:       &Path,
+    target:         &str,
+    ndk_home:       &Path,
+    runtime_lib:    &Path,
+    runtime_sdl_lib: Option<&Path>,
+    release:        bool,
 ) -> Result<(), LinkerError> {
     // 1. Écriture du fichier objet
     std::fs::write(obj_path, obj_bytes)
@@ -250,6 +250,15 @@ pub fn link_android(
              `make build-runtime-android`, docs/roadmap.d/packaging-android.md)",
             runtime_lib.display()
         )));
+    }
+    if let Some(sdl_lib) = runtime_sdl_lib {
+        if !sdl_lib.exists() {
+            return Err(LinkerError(format!(
+                "runtime SDL Android introuvable: '{}' (voir --android-runtime-sdl, produit par \
+                 `make build-runtime-sdl-android`, docs/roadmap.d/packaging-android.md)",
+                sdl_lib.display()
+            )));
+        }
     }
 
     let clang_prefix = android_clang_prefix(target)?;
@@ -271,10 +280,13 @@ pub fn link_android(
     // le dynamic linker Bionic refuse tout `.so` avec DT_TEXTREL, d'où
     // `is_pic=true` déjà activé côté codegen pour toute cible croisée (voir
     // `CraneliftEmitter::new`).
-    let status = Command::new(&clang_path)
-        .arg(obj_path)
-        .arg(runtime_lib)
-        .arg("-o").arg(out_path)
+    let mut cmd = Command::new(&clang_path);
+    cmd.arg(obj_path)
+        .arg(runtime_lib);
+    if let Some(sdl_lib) = runtime_sdl_lib {
+        cmd.arg(sdl_lib);
+    }
+    let status = cmd.arg("-o").arg(out_path)
         .arg("-shared")
         .arg("-fPIC")
         .arg("-lm")
@@ -290,6 +302,31 @@ pub fn link_android(
         // est absent. Le NDK fournit bien un `libz.so` de liaison (présent
         // sur Android depuis très longtemps), donc ce lien dynamique est sûr.
         .arg("-lz")
+        .args(if runtime_sdl_lib.is_some() {
+            // Bibliothèques système NDK requises par SDL3 (+ image/ttf/mixer)
+            // sur Android — résolues empiriquement (`nm -D --undefined-only`
+            // sur un premier `.so` sans ces flags, voir la vérification dans
+            // docs/roadmap.d/packaging-android.md sous-chantier 4), pas
+            // devinées à l'avance :
+            // -landroid  : AAsset*/AAssetManager* (assets APK), ALooper*,
+            //              ANativeWindow* (surface de rendu), ASensor*
+            //              (accéléromètre/gyroscope) — API NDK "android".
+            // -llog      : __android_log_print/__android_log_write (logs
+            //              système, utilisés par SDL en interne).
+            // -lGLESv2   : rendu OpenGL ES 2 (backend graphique de SDL_render).
+            // -lOpenSLES : slCreateEngine/SL_IID_* (backend audio de SDL_audio).
+            // -lc++      : runtime C++ (__cxa_*, operator new/delete,
+            //              std::terminate) — au moins un codec vendored de
+            //              SDL_mixer (ex: "gme", chiptune) est en C++. Résolu
+            //              par le NDK vers `libc++_shared.so` (voir le script
+            //              de lien `libc++.so` du sysroot) — DOIT être copié
+            //              dans `jniLibs/<abi>/` de l'APK final à côté de ce
+            //              `.so` (bibliothèque partagée, pas embarquée ici ;
+            //              NDK/Google déconseillent explicitement de lier
+            //              libc++ statiquement dans plusieurs `.so` d'un même
+            //              processus — état partagé de la gestion d'exceptions).
+            vec!["-landroid", "-llog", "-lGLESv2", "-lOpenSLES", "-lc++"]
+        } else { vec![] })
         .arg("-Wl,--allow-multiple-definition")
         .arg("-Wl,--gc-sections")
         .arg("-Wl,--as-needed")
