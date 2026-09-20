@@ -27,4 +27,4 @@ C'est un point de départ délibérément plus étroit et plus sûr que le suppo
 
 ## Fichiers clés
 
-[packaging-android](packaging-android.md) (prérequis, déjà fait pour les sous-chantiers 1-3), `examples/advanced/mini_project/` (l'exemple de référence à faire tourner sur Android), `src/codegen/link.rs` (`link_android`, à étendre ou dupliquer pour lier ce pont JNI en plus du runtime), aucun fichier Android/Gradle n'existe encore dans ce dépôt.
+[packaging-android](packaging-android.md) (prérequis, les 4 sous-chantiers sont désormais faits), `examples/advanced/mini_project/` (l'exemple de référence à faire tourner sur Android), `src/codegen/link.rs` (`link_android`, à étendre ou dupliquer pour lier ce pont JNI en plus du runtime), [langage-builtin-ui-hybride](langage-builtin-ui-hybride.md) (généralisation de ce ticket en builtin Ocara à part entière, une fois ce hybride Android fonctionnel), aucun fichier Android/Gradle n'existe encore dans ce dépôt.
