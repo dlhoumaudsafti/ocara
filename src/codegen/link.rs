@@ -184,3 +184,125 @@ pub fn link(
 
     Ok(())
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Liaison croisée Android : fichier objet → bibliothèque partagée (.so)
+// Sous-chantier 2 de docs/roadmap.d/packaging-android.md.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Niveau d'API Android visé par le clang du NDK (`<arch><API>-clang`).
+/// DOIT correspondre au niveau utilisé pour compiler `runtime_lib` (voir
+/// `ANDROID_API` dans le Makefile, cible `build-runtime-android`) — un
+/// décalage ne casse rien à la liaison elle-même (le clang du NDK accepte de
+/// lier des objets visant une API différente de la sienne) mais peut exposer
+/// des symboles libc absents de l'API réellement visée à l'exécution. Valeur
+/// unique ici faute de besoin de la rendre configurable pour l'instant.
+const ANDROID_API_LEVEL: u32 = 24;
+
+/// Résout le nom du clang du NDK pour un triple Android donné. Seuls les
+/// triples effectivement vérifiés par ce chantier (voir packaging-android.md)
+/// sont acceptés — pas de correspondance approximative pour les autres, qui
+/// échoueraient probablement de façon subtile (ex: `armv7-linux-androideabi`
+/// utilise le préfixe clang `armv7a`, pas `armv7`, une des nombreuses
+/// irrégularités de nommage du NDK).
+fn android_clang_prefix(triple: &str) -> Result<&'static str, LinkerError> {
+    match triple {
+        "aarch64-linux-android" => Ok("aarch64-linux-android"),
+        "armv7-linux-androideabi" => Ok("armv7a-linux-androideabi"),
+        "x86_64-linux-android" => Ok("x86_64-linux-android"),
+        "i686-linux-android" => Ok("i686-linux-android"),
+        other => Err(LinkerError(format!(
+            "cible Android non prise en charge pour la liaison: '{}' \
+             (seuls aarch64-linux-android, armv7-linux-androideabi, \
+             x86_64-linux-android, i686-linux-android sont vérifiés)",
+            other
+        ))),
+    }
+}
+
+/// Écrit les bytes objet dans `obj_path` puis lie une bibliothèque partagée
+/// Android (`.so`) avec le clang du NDK, à partir d'un `libocara_runtime.a`
+/// pré-compilé pour la même cible (voir `CliArgs::android_runtime` —
+/// contrairement au runtime hôte, PAS embarqué dans le binaire `ocara`).
+///
+/// Ni Tauri ni SDL ne sont supportés ici : GTK n'a structurellement aucun
+/// équivalent Android (hors périmètre définitif) ; le portage SDL3 vers
+/// Android est le sous-chantier 4, non vérifié — plutôt que de produire un
+/// `.so` silencieusement incomplet (la même famille de bug que cette session
+/// a passé son temps à corriger côté codegen), les deux cas sont rejetés
+/// explicitement en amont, voir `main.rs`.
+pub fn link_android(
+    obj_bytes:   &[u8],
+    obj_path:    &Path,
+    out_path:    &Path,
+    target:      &str,
+    ndk_home:    &Path,
+    runtime_lib: &Path,
+    release:     bool,
+) -> Result<(), LinkerError> {
+    // 1. Écriture du fichier objet
+    std::fs::write(obj_path, obj_bytes)
+        .map_err(|e| LinkerError(format!("écriture objet: {}", e)))?;
+
+    if !runtime_lib.exists() {
+        return Err(LinkerError(format!(
+            "runtime Android introuvable: '{}' (voir --android-runtime, produit par \
+             `make build-runtime-android`, docs/roadmap.d/packaging-android.md)",
+            runtime_lib.display()
+        )));
+    }
+
+    let clang_prefix = android_clang_prefix(target)?;
+    let clang_path = ndk_home
+        .join("toolchains/llvm/prebuilt/linux-x86_64/bin")
+        .join(format!("{}{}-clang", clang_prefix, ANDROID_API_LEVEL));
+    if !clang_path.exists() {
+        return Err(LinkerError(format!(
+            "clang du NDK introuvable: '{}' (--android-ndk / $ANDROID_NDK_HOME pointe-t-il \
+             bien vers la racine d'un NDK installé ?)",
+            clang_path.display()
+        )));
+    }
+
+    // 2. Liaison : objet + runtime → bibliothèque partagée
+    // -shared -fPIC : un `.so` Android, jamais un exécutable autonome — le
+    // code natif est chargé via JNI dans le processus de l'app. Pas de
+    // -no-pie (propre au chemin exécutable hôte, voir `link()` ci-dessus) :
+    // le dynamic linker Bionic refuse tout `.so` avec DT_TEXTREL, d'où
+    // `is_pic=true` déjà activé côté codegen pour toute cible croisée (voir
+    // `CraneliftEmitter::new`).
+    let status = Command::new(&clang_path)
+        .arg(obj_path)
+        .arg(runtime_lib)
+        .arg("-o").arg(out_path)
+        .arg("-shared")
+        .arg("-fPIC")
+        .arg("-lm")
+        // -lz : contrairement à OpenSSL (vendored, vraiment statique y
+        // compris pour Android — vérifié, `libssl`/`libcrypto` n'apparaissent
+        // dans AUCUN NEEDED du .so produit), `libz-sys` (dépendance
+        // transitive d'ureq/mysql via flate2) IGNORE délibérément la feature
+        // "static" sur Android : son build.rs suppose que « tout compilateur
+        // Android est livré avec libz » et émet toujours un lien dynamique
+        // (`cargo:rustc-link-lib=z`) — confirmé en lisant
+        // libz-sys/build.rs et en observant `deflate`/`inflate`/`zlibVersion`
+        // rester UND (non résolus, non "weak") dans le .so tant que ce -lz
+        // est absent. Le NDK fournit bien un `libz.so` de liaison (présent
+        // sur Android depuis très longtemps), donc ce lien dynamique est sûr.
+        .arg("-lz")
+        .arg("-Wl,--allow-multiple-definition")
+        .arg("-Wl,--gc-sections")
+        .arg("-Wl,--as-needed")
+        .args(if release { vec!["-Wl,-s"] } else { vec![] })
+        .status()
+        .map_err(|e| LinkerError(format!("impossible de lancer {}: {}", clang_path.display(), e)))?;
+
+    if !status.success() {
+        return Err(LinkerError(format!(
+            "{} a échoué avec le code: {:?}",
+            clang_path.display(), status.code()
+        )));
+    }
+
+    Ok(())
+}

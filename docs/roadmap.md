@@ -29,7 +29,7 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Appel de méthode chaîné sur un récepteur `int`/`float`/`bool`/`null` accepté silencieusement, résultat faux** — même famille que le chaînage sur `void` (déjà corrigé, E36) mais volontairement laissé hors de ce correctif-là ; `f.getCount().upper()` (`getCount(): int`) compile sans erreur et affiche `null` au lieu d'être rejeté. Mis de côté pour l'instant à la demande de David (priorité donnée à l'étude du support Android, voir Priorité Très Basse ci-dessous) — pas de travail en cours dessus. *(Complexité non évaluée — probablement Légère, même mécanisme que E36)* → [détails](roadmap.d/langage-appel-methode-sur-primitif-accepte.md)
+- **Appel de méthode chaîné sur un récepteur `int`/`float`/`bool`/`null` accepté silencieusement, résultat faux** — même famille que le chaînage sur `void` (déjà corrigé, E36) mais volontairement laissé hors de ce correctif-là ; `f.getCount().upper()` (`getCount(): int`) compile sans erreur et affiche `null` au lieu d'être rejeté. Mis de côté pour l'instant — pas de travail en cours dessus. *(Complexité non évaluée — probablement Légère, même mécanisme que E36)* → [détails](roadmap.d/langage-appel-methode-sur-primitif-accepte.md)
 
 ---
 

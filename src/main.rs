@@ -9,7 +9,7 @@ mod sema;
 use std::fs;
 
 use codegen::emit::CraneliftEmitter;
-use codegen::link::link;
+use codegen::link::{link, link_android};
 use lower::builder::lower_program;
 use sema::symbols::SymbolTable;
 use sema::typecheck::{TypeChecker, type_name, types_compat};
@@ -702,14 +702,18 @@ fn main() {
         .and_then(|s| s.to_str())
         .unwrap_or("ocara_module");
 
-    // La liaison finale (`link.rs`) lie toujours le runtime précompilé pour
-    // l'hôte (`libocara_runtime.a` x86_64 Linux, voir codegen/link.rs) avec le
-    // linker système — une cible croisée produirait un binaire cassé ou
-    // silencieusement faux (sous-chantier 2 de packaging-android.md, pas
-    // encore fait). `--target` est donc restreint à `--no-link` pour l'instant.
-    if args.target.is_some() && !args.no_link {
+    // La liaison finale pour une cible croisée n'est supportée QUE pour
+    // Android, et seulement quand un runtime pré-compilé pour cette cible est
+    // fourni (--android-runtime, sous-chantiers 2/3 de packaging-android.md —
+    // ce runtime n'est PAS embarqué dans `ocara` comme l'est celui de l'hôte,
+    // voir sa doc dans core/cli.rs). Dans tout autre cas (autre cible
+    // croisée, ou Android sans runtime fourni), produire un binaire cassé
+    // serait pire que refuser : `--target` exige alors `--no-link`.
+    let android_link_requested = args.target.as_deref().is_some_and(|t| t.contains("android"))
+        && args.android_runtime.is_some();
+    if args.target.is_some() && !args.no_link && !android_link_requested {
         diagnostic::print_error(&args.input, 0, 0,
-            "--target exige --no-link (la liaison finale pour une cible croisée n'est pas encore supportée, voir docs/roadmap.d/packaging-android.md)");
+            "--target exige --no-link, sauf pour une cible Android avec --android-runtime fourni (voir docs/roadmap.d/packaging-android.md)");
         std::process::exit(1);
     }
 
@@ -745,6 +749,49 @@ fn main() {
     // réellement ocara.Tauri (voir la doc dans src/codegen/link.rs).
     let needs_tauri = ir_module.imports.iter().any(|m| m == "Tauri");
     let needs_sdl = ir_module.imports.iter().any(|m| m == "SDL");
+
+    if android_link_requested {
+        // Ni Tauri ni SDL ne sont supportés par la liaison Android — voir la
+        // doc de `link_android`. Rejetés ici plutôt que de produire un `.so`
+        // silencieusement incomplet, la même famille de bug que cette session
+        // a passé son temps à corriger côté codegen (voir
+        // docs/roadmap.d/langage-use-chaine-valeur-retour-perdue.md).
+        if needs_tauri {
+            diagnostic::print_error(&args.input, 0, 0,
+                "ocara.Tauri n'a aucun équivalent Android (GTK ne tourne pas sur Android) — hors périmètre, voir docs/roadmap.d/packaging-android.md");
+            std::process::exit(1);
+        }
+        if needs_sdl {
+            diagnostic::print_error(&args.input, 0, 0,
+                "ocara.SDL sur Android n'est pas encore vérifié (sous-chantier 4, packaging-android.md) — liaison refusée plutôt que produire un .so probablement cassé");
+            std::process::exit(1);
+        }
+
+        let target = args.target.as_deref().unwrap();
+        let runtime_lib = args.android_runtime.as_ref().unwrap();
+        let ndk_home = match args.android_ndk.clone()
+            .or_else(|| std::env::var_os("ANDROID_NDK_HOME").map(std::path::PathBuf::from))
+        {
+            Some(p) => p,
+            None => {
+                diagnostic::print_error(&args.input, 0, 0,
+                    "--android-ndk ou $ANDROID_NDK_HOME requis pour lier une cible Android");
+                std::process::exit(1);
+            }
+        };
+
+        match link_android(&obj_bytes, &obj_path, &args.output, target, &ndk_home, runtime_lib, args.release) {
+            Ok(()) => {
+                println!("compilation réussie (Android {}) → {}", target, args.output.display());
+            }
+            Err(e) => {
+                diagnostic::print_error(&args.input, 0, 0, &format!("link (android): {}", e));
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+
     match link(&obj_bytes, &obj_path, &args.output, args.release, needs_tauri, needs_sdl) {
         Ok(()) => {
             println!("compilation réussie → {}", args.output.display());

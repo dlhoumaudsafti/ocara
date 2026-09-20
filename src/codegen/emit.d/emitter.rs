@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use cranelift_codegen::ir::{types as clt, AbiParam, Block as CrBlock, InstBuilder, MemFlags,
     Signature, UserFuncName};
 use cranelift_codegen::{Context, settings};
+use cranelift_codegen::settings::Configurable;
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Variable};
 use cranelift_module::{DataDescription, FuncId, Linkage, Module};
 use cranelift_object::{ObjectBuilder, ObjectModule};
@@ -50,7 +51,21 @@ impl CraneliftEmitter {
     /// portable sans extension CPU spécifique, seule option sûre pour une
     /// cible qu'on ne peut pas sonder localement.
     pub fn new(module_name: &str, target: Option<&str>) -> CgResult<Self> {
-        let settings_builder = settings::builder();
+        let mut settings_builder = settings::builder();
+        // `is_pic` : requis pour une cible croisée, dont la seule liaison
+        // finale supportée est un objet PARTAGÉ (.so Android, sous-chantier 2
+        // de packaging-android.md) — un `.so` avec des relocations absolues
+        // (is_pic=false, le réglage historique de ce compilateur, voir l'audit
+        // dans docs/roadmap.d/securite-lien-no-pie.md) produirait un DT_TEXTREL,
+        // qu'un exécutable -no-pie glibc tolère (au prix d'un recul de
+        // sécurité déjà documenté) mais que le dynamic linker Bionic d'Android
+        // REFUSE catégoriquement de charger, sans contournement possible côté
+        // exécutable. Restreint au cas cible-croisée : le chemin hôte
+        // (is_pic=false, exécutable -no-pie) reste inchangé.
+        if target.is_some() {
+            settings_builder.set("is_pic", "true")
+                .map_err(|e| CodegenError(format!("réglage is_pic: {}", e)))?;
+        }
         let flags = settings::Flags::new(settings_builder);
 
         let isa = match target {
