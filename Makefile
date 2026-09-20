@@ -5,9 +5,9 @@ RED     := \033[0;31m
 RESET   := \033[0m
 
 # Argument optionnel : make regression builtins/io
-_TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all,$(MAKECMDGOALS))
+_TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android,$(MAKECMDGOALS))
 
-.PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression ci lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all $(_TARGET)
+.PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression ci lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android $(_TARGET)
 
 # ── Aide ──────────────────────────────────────────────────────────────────────
 help:
@@ -34,6 +34,8 @@ help:
 	@echo "  uninstall               Supprime ocara de /usr/local/bin/"
 	@echo "  uninstall-tools         Supprime les outils de /usr/local/bin/"
 	@echo "  uninstall-all           Désinstalle tout (uninstall + uninstall-tools)"
+	@echo "  build-runtime-android   Cross-compile ocara_runtime pour aarch64-linux-android"
+	@echo "                            (nécessite ANDROID_NDK_HOME, voir docs/roadmap.d/packaging-android.md)"
 	@echo "  clean                   Supprime les artefacts de compilation d'ocara"
 	@echo "  clean-tools             Supprime les artefacts de compilation des outils"
 	@echo "  clean-all               Supprime tous les artefacts (clean + clean-tools)"
@@ -90,6 +92,38 @@ build-dev: pkgconfig-shim
 	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo build -p ocara_runtime_tauri -j4
 	RUSTFLAGS="-D warnings" cargo build -p ocara_runtime_sdl -j4
 	RUSTFLAGS="-D warnings" cargo build -p ocara -j4
+
+# ── Cross-compilation Android (sous-chantier 3, packaging-android.md) ───────
+# `ocara_runtime` seul (pas runtime_tauri : GTK n'a pas d'équivalent Android,
+# hors périmètre ; pas runtime_sdl : sous-chantier 4, backend Android non
+# vérifié pour sdl3-sys). Le clang du NDK sert de compilateur C croisé pour
+# les dépendances C vendorisées (OpenSSL "vendored", SQLite "bundled", zlib
+# "static") — sans lui leurs build.rs invoqueraient le `cc` de l'hôte, qui
+# produit du x86_64, pas de l'AArch64 Bionic. Niveau d'API 24 (Android 7.0,
+# choisi comme plancher raisonnable — aucune contrainte connue plus stricte
+# ici, ajustable si besoin).
+ANDROID_API   := 24
+ANDROID_NDK_CLANG_DIR := $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin
+ANDROID_CC      := $(ANDROID_NDK_CLANG_DIR)/aarch64-linux-android$(ANDROID_API)-clang
+ANDROID_AR      := $(ANDROID_NDK_CLANG_DIR)/llvm-ar
+# NDK ≥ r23 (tout-LLVM) ne fournit plus les wrapper binutils préfixés par le
+# triple (`aarch64-linux-android-ranlib`) — seuls les outils `llvm-*` existent.
+# La crate `cc` (utilisée par openssl-src/libz-sys) essaie `llvm-ranlib` SANS
+# chemin complet (résolu via PATH) avant de retomber sur le nom préfixé
+# inexistant — d'où l'échec observé ("aarch64-linux-android-ranlib: not
+# found") si `llvm-ranlib` n'est pas déjà sur le PATH. Fixé explicitement ici
+# plutôt que d'exiger que l'appelant modifie son PATH.
+ANDROID_RANLIB  := $(ANDROID_NDK_CLANG_DIR)/llvm-ranlib
+
+build-runtime-android:
+	@if [ -z "$(ANDROID_NDK_HOME)" ]; then \
+	    echo "ANDROID_NDK_HOME non défini (racine du NDK Android requise)"; exit 1; \
+	fi
+	CC_aarch64_linux_android="$(ANDROID_CC)" \
+	AR_aarch64_linux_android="$(ANDROID_AR)" \
+	RANLIB_aarch64_linux_android="$(ANDROID_RANLIB)" \
+	CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$(ANDROID_CC)" \
+	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime --target aarch64-linux-android -j4
 
 # ── Tests unitaires Cargo ─────────────────────────────────────────────────────
 tests:

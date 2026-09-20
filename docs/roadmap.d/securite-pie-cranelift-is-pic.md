@@ -19,3 +19,9 @@ Investiguer l'activation de `is_pic = true` dans `settings::Flags::new` (Craneli
 ## Fichiers clés
 
 `src/codegen/emit.d/emitter.rs` (`settings::Flags::new`), `src/codegen/link.rs:127` (`-no-pie`), [securite-lien-no-pie](securite-lien-no-pie.md) (ticket clos, contexte complet de la décision actuelle).
+
+## Élément nouveau (pas un traitement de ce ticket) : `is_pic=true` déjà activé, mais UNIQUEMENT pour la cible croisée Android
+
+[packaging-android](packaging-android.md) (sous-chantier 2) a dû activer `is_pic=true` — par nécessité fonctionnelle, pas pour ce ticket : le dynamic linker Bionic d'Android refuse catégoriquement de charger un `.so` avec `DT_TEXTREL`, contrairement à un exécutable `-no-pie` glibc qui tolère l'équivalent. Restreint au chemin `--target` (cross-compilation) dans `CraneliftEmitter::new` — **le chemin hôte par défaut reste inchangé** (`is_pic=false`, `-no-pie` toujours en place), ce ticket reste donc entier et non traité.
+
+Ce que ça confirme malgré tout, en support pour qui traitera ce ticket un jour : `is_pic=true` fonctionne bien pour le backend AArch64 de Cranelift — vérifié avec `readelf -d` (aucun `DT_TEXTREL`) sur un `.o` seul ET sur un `.so` réellement lié (objet + runtime + libc/libm/libz Android), `make regression` intégral (684+50 PASS) inchangé sur le chemin hôte non affecté. **Ne dit rien** du backend x86_64 (chemin hôte concerné par CE ticket) — l'adressage PIC x86_64 (relatif à `%rip`/GOT) est un mécanisme différent d'AArch64 (relatif à PC déjà, `adrp`/`add`), une vérification dédiée sur ce backend reste entièrement à faire avant de toucher `link.rs:127`.

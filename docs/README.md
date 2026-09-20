@@ -13,6 +13,7 @@
 | [conventions.md](conventions.md) | Conventions de nommage (variables, constantes, fonctions/méthodes, classes/interfaces/modules/generics) |
 | [workflow-compilation.md](workflow-compilation.md) | Workflow de Compilation Ocara |
 | [diagnostics.md](diagnostics.md) | Messages d'erreur et diagnostics du compilateur |
+| [android.md](android.md) | Compilation croisée vers Android (`.so`, NDK) — état actuel et limitations |
 
 ---
 

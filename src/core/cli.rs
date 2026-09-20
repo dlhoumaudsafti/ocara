@@ -15,6 +15,25 @@ pub struct CliArgs {
     pub release: bool,
     /// Répertoire racine pour la résolution des imports (défaut : répertoire du fichier d'entrée)
     pub src_dir: Option<PathBuf>,
+    /// Triple cible Cranelift (ex: "aarch64-linux-android") — quand présent,
+    /// le codegen utilise `isa::lookup(triple)` au lieu de `cranelift_native::builder()`
+    /// (voir docs/roadmap.d/packaging-android.md, sous-chantier 1).
+    ///
+    /// La liaison finale pour une cible croisée n'est supportée QUE pour un
+    /// triple Android quand `--android-runtime` est fourni (sous-chantier 2) —
+    /// dans tout autre cas (autre cible croisée, ou Android sans runtime
+    /// fourni), `--target` exige `--no-link`.
+    pub target: Option<String>,
+    /// Chemin vers un `libocara_runtime.a` pré-compilé pour la cible Android
+    /// visée par `--target` (ex: produit par `make build-runtime-android`,
+    /// voir docs/roadmap.d/packaging-android.md sous-chantier 3). Contrairement
+    /// au runtime de l'hôte (embarqué dans `ocara` via `include_bytes!` à sa
+    /// propre compilation), le runtime Android n'est PAS embarqué : le binaire
+    /// `ocara` reste un binaire hôte ordinaire, buildable sans le NDK.
+    pub android_runtime: Option<PathBuf>,
+    /// Répertoire racine du NDK Android (`$ANDROID_NDK_HOME` si absent) —
+    /// requis avec `--android-runtime` pour localiser le clang de croisement.
+    pub android_ndk: Option<PathBuf>,
 }
 
 pub fn print_help() {
@@ -31,12 +50,22 @@ pub fn print_help() {
     println!("  --check       Analyse sémantique uniquement, sans compilation");
     println!("  --dump        Affiche les tokens et l'AST");
     println!("  --no-link     Produit le fichier .o sans linker");
+    println!("  --target <triple>");
+    println!("                Cible de compilation croisée Cranelift (ex: aarch64-linux-android).");
+    println!("                Sans --android-runtime, exige --no-link (voir docs/roadmap.d/packaging-android.md).");
+    println!("  --android-runtime <fichier.a>");
+    println!("                libocara_runtime.a pré-compilé pour la cible --target (Android uniquement).");
+    println!("                Active la liaison finale (.so) au lieu d'exiger --no-link.");
+    println!("  --android-ndk <dir>");
+    println!("                Racine du NDK Android (défaut : $ANDROID_NDK_HOME).");
     println!("  -h, --help    Affiche cette aide");
     println!();
     println!("Exemples :");
     println!("  ocara main.oc -o ./mon_programme");
     println!("  ocara main.oc --check");
     println!("  ocara tests/mainTest.oc --src .");
+    println!("  ocara main.oc --target aarch64-linux-android --no-link -o out");
+    println!("  ocara main.oc --target aarch64-linux-android --android-runtime libocara_runtime.a -o libmain.so");
 }
 
 pub fn parse_args() -> CliArgs {
@@ -55,6 +84,9 @@ pub fn parse_args() -> CliArgs {
     let mut no_link = false;
     let mut release = false;
     let mut src_dir = None;
+    let mut target: Option<String> = None;
+    let mut android_runtime: Option<PathBuf> = None;
+    let mut android_ndk: Option<PathBuf> = None;
 
     let mut i = 1;
     while i < args.len() {
@@ -71,6 +103,18 @@ pub fn parse_args() -> CliArgs {
                 src_dir = Some(PathBuf::from(&args[i + 1]));
                 i += 1;
             }
+            "--target" if i + 1 < args.len() => {
+                target = Some(args[i + 1].clone());
+                i += 1;
+            }
+            "--android-runtime" if i + 1 < args.len() => {
+                android_runtime = Some(PathBuf::from(&args[i + 1]));
+                i += 1;
+            }
+            "--android-ndk" if i + 1 < args.len() => {
+                android_ndk = Some(PathBuf::from(&args[i + 1]));
+                i += 1;
+            }
             arg => {
                 if !arg.starts_with('-') {
                     input = PathBuf::from(arg);
@@ -79,5 +123,5 @@ pub fn parse_args() -> CliArgs {
         }
         i += 1;
     }
-    CliArgs { input, output, dump, check, no_link, release, src_dir }
+    CliArgs { input, output, dump, check, no_link, release, src_dir, target, android_runtime, android_ndk }
 }

@@ -1226,6 +1226,29 @@ impl<'a> TypeChecker<'a> {
                         return Type::Mixed;
                     }
 
+                    // `expr.méthode(...)` où `expr` (typiquement le résultat
+                    // d'un appel précédent chaîné, ex. `self.port(8080)`) est
+                    // de type `void` — rejeté explicitement, pas juste
+                    // silencieusement permissif comme les autres types sans
+                    // classe associée (`Mixed`, `int`...) : `void` signifie
+                    // ICI "aucune valeur produite", chaîner dessus n'a jamais
+                    // de sens, quel que soit le champ appelé. Voir
+                    // docs/roadmap.d/langage-appel-methode-sur-void-accepte.md
+                    // — sans ce rejet, la suite de la chaîne manglait vers un
+                    // symbole inexistant, ignoré silencieusement par le
+                    // codegen (confirmé par reproduction :
+                    // `self.port(8080).workers(4).rootPath(...)` compilait
+                    // sans erreur, mais `workers`/`rootPath` n'étaient JAMAIS
+                    // appelés).
+                    if matches!(obj_ty, Type::Void) {
+                        self.errors.push(SemaError::MethodCallOnVoid {
+                            method: field.clone(),
+                            span: self.with_runtime_ctx(fspan),
+                        });
+                        for a in args { self.infer_expr(a); }
+                        return Type::Mixed;
+                    }
+
                     let cls_name = match type_class_name(&obj_ty) {
                         Some(n) => n,
                         _ => { for a in args { self.infer_expr(a); } return Type::Mixed; }

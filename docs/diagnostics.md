@@ -717,6 +717,37 @@ class Database {
 
 ---
 
+### E36 — Appel de méthode chaîné sur un récepteur `void`
+
+```
+fichier.oc:8:13: error: cannot call '.workers(...)' — the receiver's type is 'void' (likely the return value of a preceding chained call); a method that returns 'void' cannot be chained, since there is nothing to call '.workers(...)' on
+```
+
+`expr.méthode(...)` où `expr` est elle-même le résultat d'un appel dont le type de retour déclaré est `void` — typiquement `self.port(8080).workers(4)`, `port()` ne retournant rien à chaîner. `void` signifiant ICI « aucune valeur produite », enchaîner un appel dessus n'a jamais de sens, quel que soit le nom de méthode appelé ensuite.
+
+```ocara
+class Server {
+    public method port(p:int): void {
+        // ...
+    }
+    public method workers(n:int): void {
+        // ...
+    }
+}
+
+function main(): int {
+    var s:Server = use Server()
+    s.port(8080).workers(4)   // ❌ E36 — port() retourne void, rien à chaîner
+    return 0
+}
+```
+
+Avant ce diagnostic, un récepteur de type `void` était traité comme n'importe quel autre type sans classe associée (silencieusement permissif, retournait `Type::Mixed` sans vérifier le reste de la chaîne) : `.workers(4)` manglait alors vers un symbole inexistant, ignoré silencieusement par le codegen — `workers()` n'était en réalité JAMAIS appelée, sans la moindre erreur de compilation.
+
+**Correction :** séparer les appels, chacun sur sa propre ligne (`s.port(8080)` puis `s.workers(4)`) — ce n'est PAS une limitation à contourner en faisant retourner `self` depuis `port()`/`workers()` : voir docs/roadmap.d/langage-appel-methode-sur-void-accepte.md pour pourquoi ce style « fluide » n'a pas été retenu pour ce langage.
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.
