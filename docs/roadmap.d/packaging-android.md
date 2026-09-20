@@ -12,14 +12,38 @@ Point concret en notre faveur : **SDL a déjà ce patron tout prêt et éprouvé
 
 ## Sous-chantiers, avec ce qui est vérifié vs ce qui reste à tester
 
-### 1. Cross-compilation Cranelift vers un triplet Android — moins bloquant que prévu, vérifié
+### 1. Cross-compilation Cranelift vers un triplet Android — **Fait, vérifié**
 
-- `src/codegen/emit.d/emitter.rs` appelle aujourd'hui `cranelift_native::builder()`, qui sélectionne TOUJOURS l'architecture de la machine qui compile — aucun mécanisme pour choisir un triplet différent. **Confirmé en lisant le code.**
-- **Vérifié dans le source vendorisé** (`~/.cargo/registry/.../cranelift-codegen-0.105.4/src/isa/mod.rs`) : `cranelift_codegen::isa::lookup(triple)` sélectionne le backend uniquement sur `triple.architecture` (`Aarch64`, `X86_64`...), **indépendamment de l'OS/environnement** — Android n'exige donc aucun traitement spécial côté sélection d'ISA.
-- Le backend AArch64 existe déjà dans `cranelift-codegen` mais est désactivé par défaut : `default = ["std", "unwind", "host-arch", "timing"]` (`Cargo.toml` du crate) n'inclut pas la feature `"arm64"` (qui, elle, existe et gate `isa_builder!(aarch64, (feature = "arm64"), triple)`). L'activer dans le `Cargo.toml` racine d'Ocara suffirait à l'embarquer dans le binaire `ocara` — qui resterait un binaire hôte (x86_64 Linux) émettant du code natif POUR une autre cible, exactement comme les autres outils basés sur Cranelift (ex. wasmtime) le font déjà pour plusieurs cibles depuis un seul binaire.
-- **Vérifié** : `target-lexicon` (dépendance de Cranelift) modélise `Environment::Android`/`Androideabi` en natif (`src/triple.rs`) — `"aarch64-linux-android"`/`"armv7-linux-androideabi"` sont des triplets directement valides.
-- **Vérifié** : `CallConv::triple_default` (`src/isa/call_conv.rs`) résout la convention d'appel via `triple.default_calling_convention()` — pour Android/aarch64 ça retombe sur SystemV, la même convention qu'ARM64 Linux classique (AAPCS64 standard). Aucune bizarrerie d'ABI propre à Android à gérer côté génération de code.
-- **Travail réel restant, concret et borné** : ajouter un flag `--target` (ou équivalent) côté CLI (`src/core/cli.rs`), router `emitter.rs` vers `isa::lookup(triple)` au lieu de `cranelift_native::builder()` quand ce flag est présent, et activer la feature `"arm64"` (et/ou `"x86"` pour les ABI x86/x86_64 de l'émulateur Android) sur la dépendance `cranelift-codegen` du `Cargo.toml` racine.
+**Terminé.** `ocara` reste un binaire hôte (x86_64 Linux) mais peut désormais émettre du code objet natif pour une autre architecture, sans jamais être lui-même recompilé pour cette cible.
+
+Réalisé :
+- Nouveau flag CLI `--target <triple>` (`src/core/cli.rs`), ex. `--target aarch64-linux-android`.
+- `Cargo.toml` racine : la dépendance `cranelift-codegen` déclare désormais `features = ["arm64"]` en plus des features par défaut — le backend AArch64 est embarqué dans le binaire `ocara` (les défauts, via `host-arch`, embarquaient déjà le backend x86 puisque `ocara` lui-même est construit pour x86_64 — voir `cranelift-codegen/build.rs`, qui détecte l'architecture de compilation d'`ocara` via la variable d'env `TARGET` et n'active QUE cette architecture sans la feature `arm64` explicite).
+- `src/codegen/emit.d/emitter.rs`, `CraneliftEmitter::new` prend désormais `target: Option<&str>` : si `Some`, parse le triple (`target_lexicon::Triple::from_str`) et route vers `cranelift_codegen::isa::lookup(triple)` ; si `None`, comportement historique inchangé (`cranelift_native::builder()`). Volontairement, **`cranelift_native::infer_native_flags` n'est PAS appelé pour une cible explicite** — cette fonction sonde les extensions CPU de la machine qui exécute `ocara` (via des `#[cfg(target_arch = ...)]` sur l'architecture de compilation d'`ocara`, pas sur la cible visée), l'appliquer à un ISA différent n'aurait aucun sens ; on se contente des `settings::Flags` par défaut (plancher portable, sans extension CPU spécifique).
+- `src/main.rs` : `--target` sans `--no-link` est explicitement rejeté à la compilation (message clair renvoyant vers ce ticket) — la liaison finale (`link.rs`) reste câblée pour l'hôte (sous-chantier 2, pas fait), une cible croisée sans ce garde-fou produirait un binaire cassé plutôt qu'une erreur nette.
+
+### Vérification
+
+Avec `--target aarch64-linux-android --no-link`, le `.o` produit est inspecté avec `readelf -h`/`file` (pas de NDK nécessaire — cette étape ne fait QUE de la génération de code objet, jamais de liaison) :
+
+```
+$ file hello_android.o
+hello_android.o: ELF 64-bit LSB relocatable, ARM aarch64, version 1 (SYSV), not stripped
+$ readelf -h hello_android.o | grep Machine
+  Machine:                           AArch64
+```
+
+À comparer à la compilation par défaut (même fichier source, sans `--target`) :
+```
+$ file hello_host.o
+hello_host.o: ELF 64-bit LSB relocatable, x86-64, version 1 (SYSV), not stripped
+```
+
+Les symboles (`main`, `__fn_wrap_main`, ...) sont présents et nommés correctement dans le `.o` ARM64 (`objdump -t`). `--target aarch64-unknown-linux-gnu` (ARM64 Linux non-Android) produit le même résultat, confirmant que le chemin de sélection d'ISA ne dépend bien que de l'architecture, pas de l'environnement (Android ou non) — exactement ce que la lecture de `isa/mod.rs` prédisait. Un triple invalide (`--target not-a-real-triple`) échoue proprement avec un message d'erreur, pas un panic.
+
+`make build` : 0 warning. `make tests` : 101 passed, 0 failed (aucun test existant ne dépendait de la signature précédente de `CraneliftEmitter::new`, seul appelant : `src/main.rs`). `make regression` (cache vidé) : 684 + 50 PASS, 0 FAIL, 0 ERREUR — le chemin de compilation par défaut (sans `--target`, l'écrasante majorité des invocations) n'est pas affecté.
+
+**Non couvert par ce sous-chantier** (attendu, scope volontairement restreint à la génération de code objet) : liaison finale pour une cible croisée (sous-chantier 2, `.so` NDK), exécution réelle du code généré sur un appareil/émulateur Android (nécessite le NDK + sous-chantiers 2-4), ABI x86/x86_64 (émulateur Android) — la feature `"x86"` de `cranelift-codegen` n'a pas été activée, seule `"arm64"` a été ajoutée ; à faire de la même façon si un jour nécessaire (même mécanisme, non testé ici faute de besoin immédiat).
 
 ### 2. Lien final vers un `.so` Android — vraie réécriture, pas juste une option en plus
 
@@ -48,8 +72,8 @@ C'est une vraie réécriture de `link()`, pas l'ajout d'un simple flag — mais 
 
 ## Ampleur
 
-Revu à la baisse par rapport au constat initial pour les points 1 et 3 (plomberie contenue, chemins bien connus) ; les points 2 et 4 restent un vrai travail (réécriture de `link.rs` ; inconnue non tranchable sans essai réel pour SDL3/NDK). Le packaging final (gabarit APK + injection du `.so`) devient, lui, le sous-chantier le plus léger si le template Android officiel de SDL est réutilisé tel quel plutôt que reconstruit — voir la section stratégie ci-dessus. Toujours *(Massif)* dans l'ensemble, mais désormais décomposé en 4 sous-chantiers de tailles très inégales plutôt qu'un seul bloc opaque.
+Sous-chantier 1 **fait**. Les points 2 et 4 restent un vrai travail (réécriture de `link.rs` ; inconnue non tranchable sans essai réel pour SDL3/NDK) ; le point 3 (portage runtime vers Bionic) reste probable mais non testé — nécessite le NDK, pas encore installé dans cet environnement. Le packaging final (gabarit APK + injection du `.so`) devient, lui, le sous-chantier le plus léger si le template Android officiel de SDL est réutilisé tel quel plutôt que reconstruit — voir la section stratégie ci-dessus. Toujours *(Massif)* dans l'ensemble : 1 sous-chantier sur 4 fait, les 3 restants nécessitent tous le NDK pour être vérifiés (pas encore demandé/installé).
 
 ## Fichiers clés
 
-`src/codegen/emit.d/emitter.rs` (sélection de cible), `src/codegen/link.rs` (lien final), `src/core/cli.rs` (flag `--target` à ajouter), `Cargo.toml` racine (feature `arm64` de `cranelift-codegen`), `runtime/src/mutex.rs`, `runtime_sdl/` (`Cargo.toml`, dépendance `sdl3`/`sdl3-sys`), `runtime_tauri/`, `Makefile`/`build.rs`.
+`src/codegen/emit.d/emitter.rs` (sélection de cible — **fait**), `src/core/cli.rs` (flag `--target` — **fait**), `Cargo.toml` racine (feature `arm64` de `cranelift-codegen` — **fait**), `src/codegen/link.rs` (lien final — sous-chantier 2, pas fait), `runtime/src/mutex.rs`, `runtime_sdl/` (`Cargo.toml`, dépendance `sdl3`/`sdl3-sys`), `runtime_tauri/`, `Makefile`/`build.rs`.

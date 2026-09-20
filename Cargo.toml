@@ -12,7 +12,13 @@ path = "src/main.rs"
 
 [dependencies]
 # Cranelift — backend JIT/AOT pur Rust (version compatible Rust 1.75)
-cranelift-codegen  = "0.105"
+# La feature "arm64" est ajoutée aux features par défaut (qui donnent déjà le
+# backend x86 de l'hôte via "host-arch", voir cranelift-codegen/build.rs) pour
+# embarquer AUSSI le backend AArch64 dans le binaire `ocara` lui-même — requis
+# pour que `isa::lookup(triple)` (docs/roadmap.d/packaging-android.md,
+# sous-chantier 1) puisse produire du code ARM64 (Android/Linux) sans jamais
+# recompiler `ocara` pour une autre cible.
+cranelift-codegen  = { version = "0.105", features = ["arm64"] }
 cranelift-frontend = "0.105"
 cranelift-module   = "0.105"
 cranelift-object   = "0.105"

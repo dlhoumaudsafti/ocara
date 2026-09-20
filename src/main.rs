@@ -702,7 +702,18 @@ fn main() {
         .and_then(|s| s.to_str())
         .unwrap_or("ocara_module");
 
-    let emitter = match CraneliftEmitter::new(module_name) {
+    // La liaison finale (`link.rs`) lie toujours le runtime précompilé pour
+    // l'hôte (`libocara_runtime.a` x86_64 Linux, voir codegen/link.rs) avec le
+    // linker système — une cible croisée produirait un binaire cassé ou
+    // silencieusement faux (sous-chantier 2 de packaging-android.md, pas
+    // encore fait). `--target` est donc restreint à `--no-link` pour l'instant.
+    if args.target.is_some() && !args.no_link {
+        diagnostic::print_error(&args.input, 0, 0,
+            "--target exige --no-link (la liaison finale pour une cible croisée n'est pas encore supportée, voir docs/roadmap.d/packaging-android.md)");
+        std::process::exit(1);
+    }
+
+    let emitter = match CraneliftEmitter::new(module_name, args.target.as_deref()) {
         Ok(e) => e,
         Err(e) => {
             diagnostic::print_error(&args.input, 0, 0, &format!("codegen init: {}", e));
