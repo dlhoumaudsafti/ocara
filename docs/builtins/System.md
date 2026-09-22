@@ -23,6 +23,7 @@ Système d'exploitation de la machine cible, déterminé à la compilation.
 | `"linux"` | Linux |
 | `"macos"` | macOS |
 | `"windows"` | Windows |
+| `"android"` | Android (`--target aarch64-linux-android`/`x86_64-linux-android`, voir docs/android.md) |
 
 ### `System::ARCH` → `string`
 

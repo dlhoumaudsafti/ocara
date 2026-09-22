@@ -842,9 +842,22 @@ pub extern "C" fn __array_to_str(ptr: i64) -> i64 {
 }
 
 /// Retourne le nom du système d'exploitation cible.
+///
+/// `target_os = "android"` est une valeur DISTINCTE de `"linux"` pour rustc
+/// (même si le triple contient "linux", ex. `aarch64-linux-android`) —
+/// vérifié (`rustc --print cfg --target x86_64-linux-android` ne donne QUE
+/// `target_os="android"`, jamais `"linux"` en plus). Avant cette branche,
+/// un programme Ocara cross-compilé pour Android obtenait "unknown" ici,
+/// découvert en testant `examples/advanced/mini_project/main_android.oc`
+/// dans un émulateur réel (voir docs/roadmap.d/packaging-android-webview-hybrid.md) —
+/// le chemin absolu du fichier SQLite doit différer sur Android (bac à
+/// sable de l'app, voir `configs/Database.oc`), ce qui a rendu ce manque
+/// concret plutôt que théorique.
 #[unsafe(no_mangle)]
 pub extern "C" fn __system_os() -> i64 {
-    let os = if cfg!(target_os = "linux") {
+    let os = if cfg!(target_os = "android") {
+        "android"
+    } else if cfg!(target_os = "linux") {
         "linux"
     } else if cfg!(target_os = "macos") {
         "macos"

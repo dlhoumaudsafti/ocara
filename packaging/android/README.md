@@ -28,6 +28,20 @@ dans `MainActivity.kt`), pas encore une abstraction du compilateur Ocara.
 - `app/src/main/jniLibs/arm64-v8a/` — où placer `libmain.so` (voir ci-dessous).
   **Ignoré par git** (`.gitignore`) : un binaire compilé, jamais une source.
 
+## Exemple réel : `examples/advanced/mini_project`
+
+`examples/advanced/mini_project/main_android.oc` est une variante Android de
+`main.oc` — même application (mêmes `configs/`/`controllers/`/`models/`/
+`services/`/`templates/`, même base SQLite), mais sans `ocara.Tauri` : `main`
+appelle directement `server.start()` (déjà hors du thread UI Android, voir
+le pont JNI). Vérifié bout en bout : compile et répond `HTTP 200` avec le
+vrai HTML rendu (liste de voitures) une fois lancé sur l'hôte ; cross-compilé
+et lié en `.so` pour Android avec la même rigueur que le reste du chantier
+(`DT_TEXTREL` absent, symboles JNI/`main` exportés) ; APK construit avec ce
+`.so` (~67 Mo, contre ~40 Mo pour le squelette avec un serveur vide — c'est
+la vraie application). **Non testé sur un appareil/émulateur réel**, comme le
+reste de ce chantier.
+
 ## Construire un `.so` et le déposer ici
 
 Depuis la racine du dépôt, avec le NDK déjà installé
@@ -41,14 +55,18 @@ NDK=/chemin/vers/android-ndk-rXX
 ANDROID_NDK_HOME="$NDK" make build-runtime-android
 ANDROID_NDK_HOME="$NDK" make build-jni-bridge-android
 
-# 2. Compiler + lier VOTRE programme Ocara (ex: un serveur ocara.HTTPServer
-#    sur le port 8081, voir examples/advanced/mini_project) en .so
-./target/release/ocara mon_serveur.oc \
+# 2. Compiler + lier VOTRE programme Ocara (ex: examples/advanced/mini_project/
+#    main_android.oc, un serveur ocara.HTTPServer réel sur le port 8081) en .so
+#    — lancer depuis le RÉPERTOIRE DU PROGRAMME, pas la racine du dépôt :
+#    HTML::renderFile résout les templates relativement au répertoire courant
+#    à la compilation, pas au fichier source.
+cd examples/advanced/mini_project   # ou le répertoire de votre propre programme
+/chemin/vers/ocara main_android.oc \
   --target aarch64-linux-android \
-  --android-runtime target/aarch64-linux-android/release/libocara_runtime.a \
-  --android-jni-bridge target/aarch64-linux-android/release/libocara_runtime_android_jni.a \
+  --android-runtime /chemin/vers/target/aarch64-linux-android/release/libocara_runtime.a \
+  --android-jni-bridge /chemin/vers/target/aarch64-linux-android/release/libocara_runtime_android_jni.a \
   --android-ndk "$NDK" \
-  -o packaging/android/app/src/main/jniLibs/arm64-v8a/libmain.so
+  -o /chemin/vers/packaging/android/app/src/main/jniLibs/arm64-v8a/libmain.so
 
 # 3. Construire l'APK (depuis packaging/android/)
 cd packaging/android
@@ -61,10 +79,17 @@ cd packaging/android
 - Port du serveur (`8081`) et nom du `.so` (`libmain.so`) codés en dur dans
   `MainActivity.kt`/`OcaraBridge.kt` — aucun besoin connu de les rendre
   configurables pour cette première version.
-- `examples/advanced/mini_project/main.oc` importe `ocara.Tauri` (ouvre une
-  fenêtre desktop) — **incompatible tel quel** avec Android (rejeté par
-  `link_android`). Il faudrait une variante Android de ce point d'entrée qui
-  démarre juste `Server::start()` sans ouvrir de fenêtre Tauri — pas fait ici.
+- **Fichiers statiques non servis** (`self.rootPath("./public/")` dans
+  `configs/Server.oc`, ex. `style.css`) : `ocara.HTTPServer` les lit avec les
+  API fichier standard (`std::fs`), qui ne voient PAS les assets packagés par
+  Gradle (`app/src/main/assets/`, accessibles uniquement via l'API NDK
+  `AAssetManager`, un mécanisme distinct d'un vrai chemin de système de
+  fichiers). Les pages HTML dynamiques (rendues depuis les templates, EUX
+  embarqués en dur dans le binaire à la compilation via le désucrage
+  `HTML::renderFile`, donc déjà présents dans le `.so`) fonctionnent
+  normalement ; seule la feuille de style ne charge pas. Piste : voir
+  [packaging-android-native-features](../../docs/roadmap.d/packaging-android-native-features.md)
+  (domaine "fichiers").
 - Cycle de vie Android (pause/reprise, arrêt propre du serveur natif) non géré.
 - Jamais exécuté sur un appareil/émulateur réel — voir la vérification
   statique complète dans

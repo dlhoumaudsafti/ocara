@@ -13,9 +13,10 @@
 | Liaison finale en `.so` (clang du NDK) | ✅ Fait, vérifié |
 | Backend Android pour `ocara.SDL` | ✅ Fait, vérifié (formats audio "tracker"/MOD non disponibles) |
 | `ocara.Tauri` sur Android | ❌ Hors périmètre définitif (GTK ne tourne pas sur Android) |
-| Packaging APK / test sur appareil réel | ❌ Non fait |
+| Packaging APK / test sur émulateur (x86_64, KVM) | ✅ Fait, vérifié — voir §4 |
+| Test sur appareil physique réel | ❌ Échec reproductible, non résolu — voir §4 et [runtime-android-exit-unsafe](roadmap.d/runtime-android-exit-unsafe.md) |
 
-Tout ce qui est vérifiable **par inspection statique du binaire produit** (architecture ELF correcte, bibliothèque réellement partagée, absence de `DT_TEXTREL`, toutes les dépendances dynamiques déclarées et effectivement fournies par les bibliothèques système du NDK) l'a été. Le comportement réel au chargement sur un appareil/émulateur (JNI, `System.loadLibrary`) n'a **pas** été testé — cet environnement n'a pas d'appareil/émulateur Android disponible.
+Tout ce qui est vérifiable **par inspection statique du binaire produit** (architecture ELF correcte, bibliothèque réellement partagée, absence de `DT_TEXTREL`, toutes les dépendances dynamiques déclarées et effectivement fournies par les bibliothèques système du NDK) l'a été — ET, depuis §4, le comportement réel a aussi été vérifié **sur un vrai émulateur** (chargement JNI, `System.loadLibrary`, exécution du programme Ocara, réponse HTTP réelle). Ce SDK a un émulateur x86_64 avec accélération matérielle KVM (voir §4) — pas juste arm64-v8a en émulation logicielle lente. **Testé aussi sur un appareil physique réel (arm64-v8a) — l'app y plante actuellement**, de façon reproductible et caractérisée (voir §4 et [roadmap.d/runtime-android-exit-unsafe.md](roadmap.d/runtime-android-exit-unsafe.md)), pas juste "jamais essayé".
 
 Historique complet des vérifications et des pièges rencontrés : [roadmap.d/packaging-android.md](roadmap.d/packaging-android.md).
 
@@ -161,6 +162,22 @@ Un symbole `w` (weak, ex. `getrandom`, `copy_file_range`) est normal : c'est un 
 
 Un squelette Android complet (Activity Kotlin + WebView + pont JNI générique) existe dans [packaging/android/](../packaging/android/) — voir son `README.md` pour la marche à suivre complète (compiler le pont JNI avec `make build-jni-bridge-android`, lier un programme Ocara avec `--android-jni-bridge`, construire l'APK avec `./gradlew assembleDebug`). Détails et vérifications complètes : [roadmap.d/packaging-android-webview-hybrid.md](roadmap.d/packaging-android-webview-hybrid.md).
 
+### Tester sur un émulateur
+
+```bash
+make android-simulator packaging/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Vérifie qu'un AVD existe (le crée sinon), qu'un émulateur tourne (le démarre sinon), désinstalle une éventuelle version déjà installée (purge données/cache), installe l'APK et le lance — nécessite `$ANDROID_HOME`. Voir `make help`.
+
+Par défaut : profil `medium_phone`, **x86_64** — pas arm64-v8a — pour avoir l'accélération matérielle KVM (un hôte x86_64 émule arm64 uniquement en traduction logicielle, beaucoup plus lent). Ça veut dire que l'APK testé doit contenir un `.so` **x86_64** (`--target x86_64-linux-android` — supporté nativement par `ocara`, aucune feature Cargo supplémentaire requise, contrairement à `arm64` qui a dû être ajoutée explicitement pour le sous-chantier 1) en plus (ou à la place) de l'arm64-v8a habituel. Les cibles `make build-runtime-android`/`build-jni-bridge-android`/`build-runtime-sdl-android` acceptent toutes `ANDROID_TARGET=x86_64-linux-android` pour ça (défaut : `aarch64-linux-android`).
+
+**Vérifié réellement sur cet émulateur** (`examples/advanced/mini_project/main_android.oc`, voir [roadmap.d/packaging-android-webview-hybrid.md](roadmap.d/packaging-android-webview-hybrid.md)) : chargement JNI, démarrage du serveur, SQLite, rendu HTML — tout fonctionne. Deux bugs réels trouvés et corrigés au passage :
+- `System::OS` ne reconnaissait pas Android (`target_os = "android"` est distinct de `"linux"` pour rustc) et retournait `"unknown"` — corrigé (`runtime/src/lib.rs`), `System::OS` vaut maintenant `"android"`.
+- Un chemin SQLite relatif (`"./app.db"`) ou pointant vers un sous-dossier non créé (`.../files/app.db`) plante l'app au démarrage (`SIGABRT` Bionic, pas juste une exception Ocara propre — voir le ticket pour le détail) : le chemin doit être un chemin absolu vers le bac à sable de l'app QUI EXISTE DÉJÀ (`/data/user/0/<package>/`, sans sous-dossier), pas `Context.getFilesDir()` (jamais appelé ici, donc jamais créé).
+
+**⚠️ Ne fonctionne PAS encore sur un appareil physique réel.** Testé sur un vrai téléphone Android (arm64-v8a) branché en USB (`ANDROID_SERIAL=<serial> make android-simulator <apk>` cible un appareil précis au lieu de gérer un émulateur) : l'app plante de façon reproductible, y compris après un `pm clear` complet. Cause : `__ocara_fail` (le gestionnaire d'exception non rattrapée d'Ocara) appelle `std::process::exit()`, sûr sur desktop mais fatal sur Android (détruit des objets globaux d'ART/`libhwui` jamais conçus pour l'être en cours de vie d'une app). La cause du déclencheur exact (un échec `SQLite::open()`) n'a pas pu être déterminée — aucune visibilité sur les logs du runtime Ocara depuis un `.so` Android. Détails complets : [roadmap.d/runtime-android-exit-unsafe.md](roadmap.d/runtime-android-exit-unsafe.md).
+
 ---
 
 ## Limitations connues
@@ -168,6 +185,6 @@ Un squelette Android complet (Activity Kotlin + WebView + pont JNI générique) 
 - **`is_pic` n'est activé que pour une cible croisée** (`--target` explicite) — le chemin de compilation normal (hôte) reste inchangé (`-no-pie`, pas de PIC). Voir [roadmap.d/securite-pie-cranelift-is-pic.md](roadmap.d/securite-pie-cranelift-is-pic.md).
 - **`libz-sys` lie `libz` dynamiquement sur Android**, contrairement à OpenSSL (statique y compris pour Android) — son propre `build.rs` part du principe que tout compilateur Android est livré avec `libz`, ce qui est vrai sur toutes les versions d'Android testées par ce projet en amont.
 - **`ocara.SDL` sur Android n'a pas les formats audio "tracker"/MOD** (bug d'édition de liens en amont, voir ci-dessus) — WAV/OGG/MP3/FLAC/Opus fonctionnent normalement.
-- **Aucun test sur appareil ou émulateur réel** — seule l'inspection statique du binaire a été faite (architecture ELF, absence de `DT_TEXTREL`, dépendances dynamiques résolues et réellement exportées).
+- **Aucun test sur un appareil physique réel** — seul un émulateur (x86_64, KVM) a été utilisé (voir §4). L'inspection statique du binaire (architecture ELF, absence de `DT_TEXTREL`, dépendances dynamiques résolues et réellement exportées) reste la seule vérification pour l'ABI arm64-v8a (jamais testée en exécution, seul x86_64 l'a été via l'émulateur).
 - **`ocara.Tauri`** ne fonctionne pas et ne fonctionnera jamais sur Android (GTK, voir tableau ci-dessus).
-- **Packaging APK** : un squelette Gradle minimal existe (`packaging/android/`, WebView + pont JNI, voir §4) et produit un APK réel qui embarque un `.so` Ocara — mais reste un squelette de démonstration (port/nom de `.so` codés en dur, pas de cycle de vie Android), pas encore un gabarit générique réutilisable pour n'importe quel programme Ocara. Voir la stratégie envisagée dans [roadmap.d/packaging-android.md](roadmap.d/packaging-android.md), et les chantiers suivants [webview hybride](roadmap.d/packaging-android-webview-hybrid.md) / [GUI native](roadmap.d/packaging-android-gui-native.md).
+- **Packaging APK** : un squelette Gradle minimal existe (`packaging/android/`, WebView + pont JNI, voir §4) et produit un APK réel, testé avec succès sur un émulateur (`examples/advanced/mini_project` fonctionne bout en bout) — mais reste un squelette de démonstration (port/nom de `.so`/package codés en dur, pas de cycle de vie Android), pas encore un gabarit générique réutilisable pour n'importe quel programme Ocara. Voir la stratégie envisagée dans [roadmap.d/packaging-android.md](roadmap.d/packaging-android.md), et les chantiers suivants [webview hybride](roadmap.d/packaging-android-webview-hybrid.md) / [GUI native](roadmap.d/packaging-android-gui-native.md).

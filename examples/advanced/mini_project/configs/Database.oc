@@ -7,10 +7,25 @@ namespace configs
 // même fichier ("./app.db") plutôt que de garder un handle partagé en mémoire.
 
 import ocara.SQLite
+import ocara.System
 
 class Database {
 
     public static method path(): string {
+        if System::OS equal "android" {
+            // Bac à sable de l'app (couplé au nom de package de
+            // packaging/android/, com.ocara.demo — voir sa doc). PAS de
+            // sous-dossier "files/" : contrairement à Context.getFilesDir()
+            // côté Java, qui le crée à la demande, ce chemin est ouvert
+            // directement par SQLite (Rust/C) sans jamais passer par cette
+            // API Android — le sous-dossier n'existe donc jamais tant
+            // qu'aucun code Java ne l'a créé. Vérifié par reproduction sur
+            // un émulateur réel (`adb shell run-as com.ocara.demo ls -la
+            // /data/user/0/com.ocara.demo/` : seuls cache/ et code_cache/
+            // existent) — SQLite ne crée que le FICHIER final, jamais ses
+            // dossiers parents manquants.
+            return "/data/user/0/com.ocara.demo/app.db"
+        }
         return "./app.db"
     }
 
