@@ -199,6 +199,20 @@ pub fn link(
 /// unique ici faute de besoin de la rendre configurable pour l'instant.
 const ANDROID_API_LEVEL: u32 = 24;
 
+/// Symbole exporté par `runtime_android_jni` (voir `runtime_android_jni/src/lib.rs`)
+/// — DOIT correspondre exactement au nom de fonction `#[unsafe(no_mangle)]`
+/// défini là-bas (convention JNI `Java_<package_>_<Classe>_<méthode>`, points
+/// remplacés par des underscores). Utilisé ci-dessous avec `-Wl,-u,` : sans ce
+/// flag, l'éditeur de liens n'a AUCUNE raison d'extraire ce symbole de
+/// `libocara_runtime_android_jni.a` (rien dans le programme Ocara ni dans le
+/// runtime ne l'appelle — seule la JVM le fait, dynamiquement, à l'exécution),
+/// et l'extraction paresseuse habituelle d'un `.a` le laisse alors
+/// silencieusement de côté : confirmé par reproduction, `nm -D` sur le `.so`
+/// produit sans ce flag ne montre AUCUNE trace du symbole, ni dans le binaire
+/// ni dans sa table de symboles dynamiques.
+const ANDROID_JNI_BRIDGE_ENTRY_SYMBOL: &str =
+    "Java_com_ocara_bridge_OcaraBridge_nativeStartServer";
+
 /// Résout le nom du clang du NDK pour un triple Android donné. Seuls les
 /// triples effectivement vérifiés par ce chantier (voir packaging-android.md)
 /// sont acceptés — pas de correspondance approximative pour les autres, qui
@@ -230,6 +244,13 @@ fn android_clang_prefix(triple: &str) -> Result<&'static str, LinkerError> {
 /// — requis si et seulement si le programme importe `ocara.SDL` (voir
 /// `main.rs`, `needs_sdl`). Tauri, lui, n'est jamais supporté ici : GTK n'a
 /// structurellement aucun équivalent Android (hors périmètre définitif).
+///
+/// `jni_bridge_lib` : `libocara_runtime_android_jni.a` optionnel (voir
+/// `CliArgs::android_jni_bridge`, crate `runtime_android_jni`) — indépendant
+/// de tout import Ocara (contrairement à `runtime_sdl_lib`) : c'est un choix
+/// de packaging (« ce `.so` doit être chargeable par une Activity Android via
+/// JNI », voir docs/roadmap.d/packaging-android-webview-hybrid.md), pas une
+/// dépendance du programme compilé.
 pub fn link_android(
     obj_bytes:      &[u8],
     obj_path:       &Path,
@@ -238,6 +259,7 @@ pub fn link_android(
     ndk_home:       &Path,
     runtime_lib:    &Path,
     runtime_sdl_lib: Option<&Path>,
+    jni_bridge_lib: Option<&Path>,
     release:        bool,
 ) -> Result<(), LinkerError> {
     // 1. Écriture du fichier objet
@@ -257,6 +279,16 @@ pub fn link_android(
                 "runtime SDL Android introuvable: '{}' (voir --android-runtime-sdl, produit par \
                  `make build-runtime-sdl-android`, docs/roadmap.d/packaging-android.md)",
                 sdl_lib.display()
+            )));
+        }
+    }
+    if let Some(jni_lib) = jni_bridge_lib {
+        if !jni_lib.exists() {
+            return Err(LinkerError(format!(
+                "pont JNI Android introuvable: '{}' (voir --android-jni-bridge, produit par \
+                 `cargo build --target <triple> -p ocara_runtime_android_jni`, \
+                 docs/roadmap.d/packaging-android-webview-hybrid.md)",
+                jni_lib.display()
             )));
         }
     }
@@ -285,6 +317,12 @@ pub fn link_android(
         .arg(runtime_lib);
     if let Some(sdl_lib) = runtime_sdl_lib {
         cmd.arg(sdl_lib);
+    }
+    if let Some(jni_lib) = jni_bridge_lib {
+        cmd.arg(jni_lib);
+        // -u force l'extraction du membre de l'archive qui définit ce symbole,
+        // même sans référence entrante — voir la doc d'ANDROID_JNI_BRIDGE_ENTRY_SYMBOL.
+        cmd.arg(format!("-Wl,-u,{}", ANDROID_JNI_BRIDGE_ENTRY_SYMBOL));
     }
     let status = cmd.arg("-o").arg(out_path)
         .arg("-shared")

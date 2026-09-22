@@ -5,9 +5,9 @@ RED     := \033[0;31m
 RESET   := \033[0m
 
 # Argument optionnel : make regression builtins/io
-_TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android,$(MAKECMDGOALS))
+_TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android,$(MAKECMDGOALS))
 
-.PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression ci lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android $(_TARGET)
+.PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression ci lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android $(_TARGET)
 
 # ── Aide ──────────────────────────────────────────────────────────────────────
 help:
@@ -38,6 +38,8 @@ help:
 	@echo "                            (nécessite ANDROID_NDK_HOME, voir docs/roadmap.d/packaging-android.md)"
 	@echo "  build-runtime-sdl-android  Cross-compile ocara_runtime_sdl (SDL3) pour aarch64-linux-android"
 	@echo "                            (nécessite ANDROID_NDK_HOME + cmake, sous-chantier 4)"
+	@echo "  build-jni-bridge-android   Cross-compile le pont JNI (runtime_android_jni)"
+	@echo "                            (nécessite ANDROID_NDK_HOME, voir packaging/android/README.md)"
 	@echo "  clean                   Supprime les artefacts de compilation d'ocara"
 	@echo "  clean-tools             Supprime les artefacts de compilation des outils"
 	@echo "  clean-all               Supprime tous les artefacts (clean + clean-tools)"
@@ -126,6 +128,19 @@ build-runtime-android:
 	RANLIB_aarch64_linux_android="$(ANDROID_RANLIB)" \
 	CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$(ANDROID_CC)" \
 	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime --target aarch64-linux-android -j4
+
+# `ocara_runtime_android_jni` (packaging-android-webview-hybrid.md) : pont JNI
+# générique, indépendant de tout import Ocara — voir packaging/android/README.md
+# pour l'usage complet (liaison d'un .so chargeable par une Activity Android).
+build-jni-bridge-android:
+	@if [ -z "$(ANDROID_NDK_HOME)" ]; then \
+	    echo "ANDROID_NDK_HOME non défini (racine du NDK Android requise)"; exit 1; \
+	fi
+	CC_aarch64_linux_android="$(ANDROID_CC)" \
+	AR_aarch64_linux_android="$(ANDROID_AR)" \
+	RANLIB_aarch64_linux_android="$(ANDROID_RANLIB)" \
+	CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$(ANDROID_CC)" \
+	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime_android_jni --target aarch64-linux-android -j4
 
 # `ocara_runtime_sdl` (sous-chantier 4, packaging-android.md) : SDL3 + image/
 # ttf/mixer compilés depuis les sources via cmake (feature

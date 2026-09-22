@@ -784,7 +784,7 @@ fn main() {
             }
         };
 
-        match link_android(&obj_bytes, &obj_path, &args.output, target, &ndk_home, runtime_lib, runtime_sdl_lib, args.release) {
+        match link_android(&obj_bytes, &obj_path, &args.output, target, &ndk_home, runtime_lib, runtime_sdl_lib, args.android_jni_bridge.as_deref(), args.release) {
             Ok(()) => {
                 println!("compilation réussie (Android {}) → {}", target, args.output.display());
             }

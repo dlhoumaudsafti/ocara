@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Autorise le trafic HTTP en clair UNIQUEMENT vers 127.0.0.1 (Android ≥ 9,
+  API 28, bloque le clair par défaut — voir
+  docs/roadmap.d/packaging-android-webview-hybrid.md, point "cleartext HTTP
+  local"). Portée volontairement restreinte à cette seule adresse plutôt que
+  `android:usesCleartextTraffic="true"` global : le serveur Ocara embarqué
+  n'écoute que sur la boucle locale, aucune raison d'autoriser le clair
+  ailleurs.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>
