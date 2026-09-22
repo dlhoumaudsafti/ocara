@@ -1,0 +1,4 @@
+/build
+# .so produit par `ocara` + link_android — reproductible depuis les sources
+# (voir README.md de ce dossier), jamais committé comme un binaire.
+/src/main/jniLibs/

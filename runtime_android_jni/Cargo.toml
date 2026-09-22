@@ -1,0 +1,17 @@
+[package]
+name    = "ocara_runtime_android_jni"
+version = "1.0.0"
+edition = "2024"
+
+[lib]
+name       = "ocara_runtime_android_jni"
+crate-type = ["staticlib"]
+
+[dependencies]
+# `jni-sys` (bindings FFI brutes, sans wrapper "sûr") suffit ici : ce pont ne
+# manipule aucun objet Java (pas de String, pas de callback vers la JVM) — il
+# se contente de démarrer le programme Ocara sur un thread et de revenir
+# immédiatement. La crate `jni` (wrapper haut niveau, avec ses dépendances
+# `combine`/`cesu8` pour la conversion de chaînes) serait inutilement lourde
+# pour ce besoin minimal.
+jni-sys = "0.4"

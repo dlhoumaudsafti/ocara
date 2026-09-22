@@ -2805,12 +2805,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "ocara_runtime_android_jni"
+version = "1.0.0"
+dependencies = [
+ "jni-sys 0.4.1",
+]
+
+[[package]]
 name = "ocara_runtime_sdl"
 version = "1.0.0"
 dependencies = [
  "ocara_runtime",
  "once_cell",
  "sdl3",
+ "sdl3-mixer-sys",
 ]
 
 [[package]]

@@ -5,3 +5,5 @@
 ## Ampleur
 
 Massif : nécessite de brancher réellement ces API sur les événements Tauri sous-jacents (`runtime_tauri/src/lib.rs`, 801 lignes).
+
+Voir aussi [builtins-tauri-webkit-menu-inspecteur](builtins-tauri-webkit-menu-inspecteur.md) — un sous-domaine séparé (menu contextuel/inspecteur WebKit), non couvert par ce ticket-ci mais dans la même zone de code.

@@ -41,3 +41,29 @@ sdl3 = { version = "0.18", default-features = false, features = [
     "unsafe_textures",
 ] }
 once_cell = "1.20"
+# Unifie une feature sur la dépendance TRANSITIVE sdl3-mixer-sys (activée par
+# la feature "mixer" de `sdl3` ci-dessus, jamais listée directement autrement) :
+# désactive entièrement libxmp (codec MOD/tracker vendored de SDL_mixer —
+# formats de musique "tracker" Amiga/DOS, WAV/OGG/MP3/FLAC/Opus restent
+# disponibles). Découvert en cross-compilant pour Android
+# (docs/roadmap.d/packaging-android.md, sous-chantier 4), en DEUX temps :
+# 1. La variante partagée par défaut de libxmp (`SDLMIXER_MOD_XMP_SHARED`, ON
+#    sauf indication contraire) échoue à l'édition de liens avec `ld.lld`
+#    (linker du NDK, plus strict que le `ld` GNU habituel sur les scripts de
+#    version) : le script de version référence `xmp_set_player`/
+#    `xmp_get_player`, absents du binaire réellement compilé pour cette
+#    cible précise.
+# 2. Forcer la variante statique (`no-sdlmixer-mod-xmp-shared`) contourne ce
+#    premier problème mais en révèle un second : le `.pc` généré par CMake
+#    pour la configuration statique contient une expression génératrice CMake
+#    non résolue (`$<TARGET_FILE_BASE_NAME:...>`), que `rpkg-config`
+#    (utilisé par le build.rs de sdl3-mixer-sys) prend alors littéralement
+#    pour un nom de bibliothèque à lier — erreur de compilation Rust
+#    (`renaming of the library ... however this crate contains no
+#    #[link(...)] attributes`).
+# Plutôt que de continuer à contourner des bugs amont de CMake/rpkg-config
+# pour un codec de niche, désactivé entièrement pour Android via
+# `no-sdlmixer-mod-xmp`. Aucun impact sur la compilation hôte (le contenu de
+# cette feature n'est PAS conditionné à la cible — MOD/XMP désactivé aussi sur
+# desktop ; à revoir si le support MOD s'avère un jour nécessaire là).
+sdl3-mixer-sys = { version = "0.6", features = ["no-sdlmixer-mod-xmp"] }
