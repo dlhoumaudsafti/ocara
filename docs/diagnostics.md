@@ -748,6 +748,36 @@ Avant ce diagnostic, un récepteur de type `void` était traité comme n'importe
 
 ---
 
+### E37 — Appel de méthode sur un récepteur sans classe associée (`int`/`float`/`bool`/`null`/`message<T>`/`Function<...>`)
+
+```
+fichier.oc:11:32: error: cannot call '.upper(...)' — the receiver's type is 'int', which has no methods
+```
+
+`expr.méthode(...)` où `expr` est de type `int`, `float`, `bool`, `null`, `message<T>` ou `Function<...>` — aucun de ces types n'a de classe associée, donc aucune méthode ne peut exister dessus. Même mécanisme que E36 (void), généralisé aux types que ce correctif-là avait délibérément laissés de côté.
+
+```ocara
+class Foo {
+    public method getCount(): int {
+        return 42
+    }
+}
+
+function main(): int {
+    var f:Foo = use Foo()
+    var r:string = f.getCount().upper()   // ❌ E37 — getCount() retourne int, .upper() n'existe sur aucun int
+    return 0
+}
+```
+
+Avant ce diagnostic, un récepteur de l'un de ces types était traité comme n'importe quel autre type sans classe associée (silencieusement permissif, retournait `Type::Mixed` sans vérifier `field`/`args`) : `.upper()` manglait vers un symbole inexistant, ignoré silencieusement par le codegen — le programme ci-dessus affichait `null` à l'exécution au lieu d'être rejeté à la compilation.
+
+**Important :** `mixed` n'est **pas** concerné par ce diagnostic — son imprécision (aucune vérification de type) est un choix de langage assumé, documenté par l'avertissement W02 (voir plus bas), pas un oubli comme les types ci-dessus.
+
+**Correction :** ne pas appeler de méthode sur un récepteur de l'un de ces types — s'assurer que la méthode précédente de la chaîne retourne bien une instance de classe (ou `string`/`array`/`map`, qui ont leurs propres méthodes d'instance sucrées) avant de chaîner un appel dessus.
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.

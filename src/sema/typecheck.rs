@@ -1229,10 +1229,11 @@ impl<'a> TypeChecker<'a> {
                     // `expr.méthode(...)` où `expr` (typiquement le résultat
                     // d'un appel précédent chaîné, ex. `self.port(8080)`) est
                     // de type `void` — rejeté explicitement, pas juste
-                    // silencieusement permissif comme les autres types sans
-                    // classe associée (`Mixed`, `int`...) : `void` signifie
-                    // ICI "aucune valeur produite", chaîner dessus n'a jamais
-                    // de sens, quel que soit le champ appelé. Voir
+                    // silencieusement permissif comme `Type::Mixed` (dont
+                    // l'imprécision est un choix de langage assumé) :
+                    // `void` signifie ICI "aucune valeur produite", chaîner
+                    // dessus n'a jamais de sens, quel que soit le champ
+                    // appelé. Voir
                     // docs/roadmap.d/langage-appel-methode-sur-void-accepte.md
                     // — sans ce rejet, la suite de la chaîne manglait vers un
                     // symbole inexistant, ignoré silencieusement par le
@@ -1242,6 +1243,30 @@ impl<'a> TypeChecker<'a> {
                     // appelés).
                     if matches!(obj_ty, Type::Void) {
                         self.errors.push(SemaError::MethodCallOnVoid {
+                            method: field.clone(),
+                            span: self.with_runtime_ctx(fspan),
+                        });
+                        for a in args { self.infer_expr(a); }
+                        return Type::Mixed;
+                    }
+
+                    // Même mécanisme que ci-dessus (E36), généralisé aux
+                    // autres types sans classe associée que ce correctif
+                    // avait délibérément laissés de côté : `int`/`float`/
+                    // `bool`/`null`/`message<T>`/`Function<...>`. Vérifié par
+                    // reproduction (pas supposé) que les deux derniers sont
+                    // bien atteignables ici : un appel de fonction déclarée
+                    // `: message<T>` utilisé directement comme récepteur
+                    // (`gen().foo()`, `gen(): message<int>`), et une variable
+                    // de type `Function<...>` (les fonctions sont des valeurs
+                    // de premier ordre dans ce langage) — les deux
+                    // compilaient sans la moindre erreur avant ce correctif.
+                    // `Type::Mixed` reste volontairement exclu (voir plus
+                    // haut). Voir
+                    // docs/roadmap.d/langage-appel-methode-sur-primitif-accepte.md.
+                    if matches!(obj_ty, Type::Int | Type::Float | Type::Bool | Type::Null | Type::Message(_) | Type::Function { .. }) {
+                        self.errors.push(SemaError::MethodCallOnNonClass {
+                            type_name: type_name(&obj_ty),
                             method: field.clone(),
                             span: self.with_runtime_ctx(fspan),
                         });

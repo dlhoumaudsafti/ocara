@@ -127,6 +127,17 @@ pub enum SemaError {
     /// erreur de compilation. Voir
     /// docs/roadmap.d/langage-appel-methode-sur-void-accepte.md.
     MethodCallOnVoid { method: String, span: Span },
+    /// `expr.méthode(...)` où `expr` est de type `int`/`float`/`bool`/`null`/
+    /// `message<T>`/`Function<...>` — aucun de ces types n'a de classe
+    /// associée, donc aucune méthode. Même mécanisme que `MethodCallOnVoid`
+    /// (E36), généralisé aux types que ce correctif avait délibérément
+    /// laissés de côté : `type_class_name` retombait sur `None` pour eux
+    /// aussi, silencieusement permissif (retourne `Type::Mixed` sans
+    /// vérifier `field`/`args`). `Type::Mixed` n'est PAS concerné : son
+    /// imprécision est un choix de langage assumé (désactive volontairement
+    /// la vérification de types), pas un oubli. Voir
+    /// docs/roadmap.d/langage-appel-methode-sur-primitif-accepte.md.
+    MethodCallOnNonClass { type_name: String, method: String, span: Span },
 }
 
 impl SemaError {
@@ -169,6 +180,7 @@ impl SemaError {
             SemaError::MessageUnsafeScalarConsumption { span, .. } => span,
             SemaError::IncDecInvalidType { span, .. } => span,
             SemaError::MethodCallOnVoid { span, .. } => span,
+            SemaError::MethodCallOnNonClass { span, .. } => span,
         }
     }
 
@@ -252,6 +264,8 @@ impl SemaError {
                 format!("'++'/'--' require an 'int' or 'float' target, found '{}'", found),
             SemaError::MethodCallOnVoid { method, .. } =>
                 format!("cannot call '.{}(...)' — the receiver's type is 'void' (likely the return value of a preceding chained call); a method that returns 'void' cannot be chained, since there is nothing to call '.{}(...)' on", method, method),
+            SemaError::MethodCallOnNonClass { type_name, method, .. } =>
+                format!("cannot call '.{}(...)' — the receiver's type is '{}', which has no methods", method, type_name),
         }
     }
 }
