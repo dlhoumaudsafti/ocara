@@ -184,6 +184,57 @@ Par défaut : profil `medium_phone`, **x86_64** — pas arm64-v8a — pour avoir
 
 ---
 
+## 5. Build de production (APK signé, minifié)
+
+`./gradlew assembleDebug` (§4) produit un APK **debug** : signé avec un keystore auto-généré par Gradle (jamais accepté par le Play Store, ni reconnu comme mise à jour légitime par un appareil ayant déjà l'app installée), non minifié. Un build de **production** utilise `assembleRelease` à la place — signé avec un vrai keystore, réduit par R8 (minification + suppression des ressources inutilisées).
+
+### 5.1 Générer un keystore (une seule fois par projet)
+
+```bash
+keytool -genkeypair -v \
+  -keystore ~/.android-keystores/ocara-release.keystore \
+  -alias ocara \
+  -keyalg RSA -keysize 2048 -validity 10000
+```
+
+`keytool` demande un mot de passe (garde-le) et quelques informations (nom, organisation…). **En dehors du dépôt** (ex: `~/.android-keystores/`, jamais dans `packaging/android/`) — un keystore commité par erreur, même dans un dépôt privé, doit être considéré compromis et régénéré. `-validity 10000` (~27 ans) : le Play Store exige que le certificat de signature reste valide au moins jusqu'en 2033 pour toute nouvelle app.
+
+### 5.2 Définir les variables d'environnement
+
+```bash
+export OCARA_RELEASE_KEYSTORE=~/.android-keystores/ocara-release.keystore
+export OCARA_RELEASE_KEYSTORE_PASSWORD='<mot de passe du keystore>'
+export OCARA_RELEASE_KEY_ALIAS=ocara
+export OCARA_RELEASE_KEY_PASSWORD='<mot de passe de la clé — souvent le même>'
+```
+
+Lues par `app/build.gradle.kts` (`signingConfigs["release"]`) — **jamais écrites en dur dans un fichier commité**. Sans elles, `make android-production` échoue immédiatement avec un message clair plutôt que de laisser Gradle produire un APK non signé silencieusement.
+
+### 5.3 Construire
+
+Depuis `examples/advanced/mini_project/` (le patron s'applique à tout autre programme Ocara packagé de la même façon) :
+
+```bash
+make android-production
+```
+
+Compile le runtime + pont JNI (arm64 et x86_64, comme `make android`), lie le `.so` de l'exemple pour les deux ABI, puis `./gradlew assembleRelease` — signé, minifié (`isMinifyEnabled`/`isShrinkResources`, voir `app/build.gradle.kts`) via les règles de `app/proguard-rules.pro`. APK produit : `packaging/android/app/build/outputs/apk/release/app-release.apk`.
+
+**Piège réel corrigé au passage** : `OcaraBridge.nativeStartServer` est résolu par le pont JNI natif via son nom Java **exact**, figé à la compilation du `.so` (`Java_com_ocara_bridge_OcaraBridge_nativeStartServer`) — sans règle R8 dédiée, la minification aurait pu renommer cette classe/méthode, cassant le chargement du `.so` au premier appel (`UnsatisfiedLinkError`), **uniquement en production** (le debug, jamais minifié, ne l'aurait jamais révélé). `app/proguard-rules.pro` la protège explicitement (`-keep`).
+
+### Vérification
+
+Signature réelle :
+
+```bash
+$ANDROID_HOME/build-tools/<version>/apksigner verify --print-certs \
+  packaging/android/app/build/outputs/apk/release/app-release.apk
+```
+
+**Vérifié réellement** (keystore de test, à ne jamais réutiliser en production) : `assembleRelease` réussit (minification + réduction des ressources incluses), signature confirmée par `apksigner`, taille réduite d'environ 40 % par rapport au debug (~57 Mo contre ~96 Mo pour `examples/advanced/mini_project`, essentiellement les deux `.so` non compressibles). Installé sur un vrai téléphone (désinstallation de la version debug au préalable — signatures différentes, Android refuse une mise à jour qui change de signature) : chargement JNI, serveur HTTP, rendu HTML tous fonctionnels — `curl` répond `HTTP 200` avec le contenu attendu, confirmant que la règle R8 ci-dessus protège bien ce qu'il fallait.
+
+---
+
 ## Limitations connues
 
 - **`is_pic` n'est activé que pour une cible croisée** (`--target` explicite) — le chemin de compilation normal (hôte) reste inchangé (`-no-pie`, pas de PIC). Voir [roadmap.d/securite-pie-cranelift-is-pic.md](roadmap.d/securite-pie-cranelift-is-pic.md).

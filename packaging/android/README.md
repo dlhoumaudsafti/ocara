@@ -106,6 +106,10 @@ cd packaging/android
 # → app/build/outputs/apk/debug/app-debug.apk
 ```
 
+Équivalent condensé pour `examples/advanced/mini_project` : `make android` (les deux ABI, un seul APK) depuis ce répertoire — voir son `Makefile`.
+
+**Production** (APK signé, minifié) : `assembleDebug`/`make android` ci-dessus produisent un APK **debug**, jamais destiné à être distribué. Voir [docs/android.md](../../docs/android.md) §5 pour la procédure complète (génération du keystore, variables d'environnement requises) et `make android-production` (`examples/advanced/mini_project/Makefile`).
+
 ## Fichiers statiques : étape manuelle obligatoire
 
 Tout fichier statique servi par `self.rootPath("./public/")` (`configs/Server.oc`,
