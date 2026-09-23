@@ -106,7 +106,20 @@ pub fn link(
 
     // 3. Liaison : objet + runtime(s) → exécutable
     // --allow-multiple-definition : les symboles du .o (programme) priment sur la .a (runtime)
-    let mut cmd = Command::new("cc");
+    // Pilote de lien : `cc` sur Unix (présent par convention sur toute
+    // distribution Linux/macOS), mais les distributions MinGW-w64/MSYS2
+    // usuelles sur Windows ne fournissent QUE `gcc.exe`, pas systématiquement
+    // un alias `cc.exe` — `#[cfg(windows)]` ici reflète la cible RÉELLE de
+    // CE `ocara` (le binaire tournant, celui qui exécute ce code), pas
+    // l'hôte de compilation d'origine : correct aussi bien pour un `ocara`
+    // natif Windows que pour le même binaire cross-compilé en
+    // `x86_64-pc-windows-gnu` (voir docs/roadmap.d/packaging-windows.md).
+    #[cfg(windows)]
+    let linker_driver = "gcc";
+    #[cfg(not(windows))]
+    let linker_driver = "cc";
+
+    let mut cmd = Command::new(linker_driver);
     cmd.arg(obj_path)
         .arg(&runtime);
     if let Some(rt) = &runtime_tauri {
@@ -117,30 +130,50 @@ pub fn link(
     }
     cmd.arg("-o")
         .arg(out_path)
-        .arg("-lm")
-        // Pas de -lssl/-lcrypto/-lz : OpenSSL (runtime/Cargo.toml, feature
-        // "vendored") et zlib (libz-sys, feature "static") sont compilés depuis
-        // les sources et intégrés statiquement à libocara_runtime.a — aucun
-        // programme compilé avec Ocara n'exige plus libssl.so/libcrypto.so/libz.so
-        // sur la machine cible. Les passer ici serait non seulement inutile mais
-        // ferait échouer le lien sur une machine de build sans libssl-dev/zlib1g-dev.
-        // -no-pie : nécessaire, pas un réglage hérité non reconsidéré (voir
-        // docs/roadmap.d/securite-lien-no-pie.md pour l'audit complet) —
-        // Cranelift (`src/codegen/emit.d/emitter.rs`, `settings::Flags::new`)
-        // n'active jamais `is_pic` (faux par défaut dans cranelift-codegen),
-        // donc le `.o` généré utilise des relocations absolues, pas du code
-        // indépendant de la position. Lier ce `.o` en PIE (sans ce flag)
-        // fonctionne mais produit un binaire `DT_TEXTREL` — confirmé par
-        // essai (`readelf -d` : `TEXTREL`, `ld` avertit "creating DT_TEXTREL
-        // in a PIE") : le chargeur doit alors rendre le segment de code
-        // inscriptible au démarrage pour appliquer les relocations, ce qui
-        // affaiblit la protection W^X que PIE est censé renforcer — un vrai
-        // recul de sécurité différent, pas un gain. Solution correcte pour
-        // un jour avoir un vrai PIE (`is_pic = true` chez Cranelift) : chantier
-        // séparé, plus large qu'un simple flag de lien (affecte tout
-        // l'adressage émis par le codegen) — non entrepris ici.
-        .arg("-no-pie")
-        .arg("-Wl,--allow-multiple-definition")
+        .arg("-lm");
+    // Pas de -lssl/-lcrypto/-lz : OpenSSL (runtime/Cargo.toml, feature
+    // "vendored") et zlib (libz-sys, feature "static") sont compilés depuis
+    // les sources et intégrés statiquement à libocara_runtime.a — aucun
+    // programme compilé avec Ocara n'exige plus libssl.so/libcrypto.so/libz.so
+    // sur la machine cible. Les passer ici serait non seulement inutile mais
+    // ferait échouer le lien sur une machine de build sans libssl-dev/zlib1g-dev.
+    #[cfg(not(windows))]
+    // -no-pie : nécessaire, pas un réglage hérité non reconsidéré (voir
+    // docs/roadmap.d/securite-lien-no-pie.md pour l'audit complet) —
+    // Cranelift (`src/codegen/emit.d/emitter.rs`, `settings::Flags::new`)
+    // n'active jamais `is_pic` (faux par défaut dans cranelift-codegen),
+    // donc le `.o` généré utilise des relocations absolues, pas du code
+    // indépendant de la position. Lier ce `.o` en PIE (sans ce flag)
+    // fonctionne mais produit un binaire `DT_TEXTREL` — confirmé par
+    // essai (`readelf -d` : `TEXTREL`, `ld` avertit "creating DT_TEXTREL
+    // in a PIE") : le chargeur doit alors rendre le segment de code
+    // inscriptible au démarrage pour appliquer les relocations, ce qui
+    // affaiblit la protection W^X que PIE est censé renforcer — un vrai
+    // recul de sécurité différent, pas un gain. Solution correcte pour
+    // un jour avoir un vrai PIE (`is_pic = true` chez Cranelift) : chantier
+    // séparé, plus large qu'un simple flag de lien (affecte tout
+    // l'adressage émis par le codegen) — non entrepris ici.
+    // NON APPLICABLE sur Windows : `-no-pie` est un concept ELF (relocations
+    // absolues vs PIE+TEXTREL) sans équivalent PE direct — l'ASLR d'un .exe
+    // Windows fonctionne différemment (table .reloc), jamais concerné par
+    // cette distinction.
+    cmd.arg("-no-pie");
+    #[cfg(windows)]
+    {
+        // ocara_runtime utilise des sockets (ocara.HTTPServer/HTTPRequest) et
+        // des nombres aléatoires cryptographiques (rand, OpenSSL vendored) —
+        // sur Linux, ces symboles viennent de la libc ; sur Windows, ce sont
+        // des bibliothèques système SÉPARÉES, jamais liées par défaut.
+        // Confirmé par échec de lien réel (pas une supposition) :
+        // WSARecv/WSASend/WSAGetLastError/recv/send/closesocket/freeaddrinfo
+        // non résolus sans `-lws2_32` en liant un simple "Hello World" —
+        // voir docs/roadmap.d/packaging-windows.md.
+        cmd.arg("-lws2_32")
+            .arg("-lbcrypt")
+            .arg("-luserenv")
+            .arg("-lntdll");
+    }
+    cmd.arg("-Wl,--allow-multiple-definition")
         // --gc-sections/--as-needed : élague au lien tout ce qui n'est pas
         // réellement atteignable depuis le programme (rustc émet une section ELF
         // par fonction par défaut). Redondant avec la séparation de crate pour
@@ -164,7 +197,7 @@ pub fn link(
     }
 
     let status = cmd.status()
-        .map_err(|e| LinkerError(format!("impossible de lancer cc: {}", e)))?;
+        .map_err(|e| LinkerError(format!("impossible de lancer {}: {}", linker_driver, e)))?;
 
     // 4. Nettoyage des fichiers temporaires
     let _ = std::fs::remove_file(&runtime);
@@ -177,8 +210,8 @@ pub fn link(
 
     if !status.success() {
         return Err(LinkerError(format!(
-            "cc a échoué avec le code: {:?}",
-            status.code()
+            "{} a échoué avec le code: {:?}",
+            linker_driver, status.code()
         )));
     }
 

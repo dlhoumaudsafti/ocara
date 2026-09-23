@@ -41,8 +41,13 @@ use std::alloc::{alloc, dealloc, Layout};
 // plateforme (jamais un tableau d'octets hardcodé, voir
 // docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md) — aucun changement
 // de sémantique pour `ocara.Mutex` des deux côtés.
+// `pub(crate)` : réutilisé tel quel par `crate::__alloc_locked_cell`/
+// `__locked_cell_get`/`__locked_cell_set` (runtime/src/lib.rs, mutex interne
+// aux cellules de capture de closure, jamais exposé à Ocara) — même besoin
+// exact (verrou manuel multiplateforme), pas de raison d'avoir deux
+// implémentations séparées.
 #[cfg(unix)]
-mod platform {
+pub(crate) mod platform {
     pub type RawMutex = libc::pthread_mutex_t;
 
     #[inline]
@@ -71,7 +76,7 @@ mod platform {
 }
 
 #[cfg(windows)]
-mod platform {
+pub(crate) mod platform {
     pub use windows_sys::Win32::System::Threading::CRITICAL_SECTION as RawMutex;
     use windows_sys::Win32::System::Threading::{
         DeleteCriticalSection, EnterCriticalSection, InitializeCriticalSection,

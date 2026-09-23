@@ -186,8 +186,16 @@ fn main() {
             .expect("impossible de copier libocara_runtime_sdl.a dans OUT_DIR");
     }
 
-    // Recompiler le compilateur si l'un des runtimes change
-    println!("cargo:rerun-if-changed=target/release/libocara_runtime.a");
-    println!("cargo:rerun-if-changed=target/release/libocara_runtime_tauri.a");
-    println!("cargo:rerun-if-changed=target/release/libocara_runtime_sdl.a");
+    // Recompiler le compilateur si l'un des runtimes change — chemin
+    // TARGET-AWARE (voir `target_release_dir`) : un `cargo:rerun-if-changed`
+    // pointant vers `target/release/` en dur ne se déclencherait JAMAIS pour
+    // une modification de `target/<triple>/release/libocara_runtime.a` lors
+    // d'une cross-compilation, laissant `ocara`/`ocara.exe` silencieusement
+    // lié contre un runtime PÉRIMÉ (confirmé par reproduction : `ocara.exe`
+    // gardait un `mtime` antérieur à celui du runtime qui venait pourtant
+    // d'être reconstruit avec un correctif).
+    let release_dir = target_release_dir(&manifest_dir);
+    println!("cargo:rerun-if-changed={}", release_dir.join("libocara_runtime.a").display());
+    println!("cargo:rerun-if-changed={}", release_dir.join("libocara_runtime_tauri.a").display());
+    println!("cargo:rerun-if-changed={}", release_dir.join("libocara_runtime_sdl.a").display());
 }
