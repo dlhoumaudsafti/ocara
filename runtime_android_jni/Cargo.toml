@@ -8,10 +8,15 @@ name       = "ocara_runtime_android_jni"
 crate-type = ["staticlib"]
 
 [dependencies]
-# `jni-sys` (bindings FFI brutes, sans wrapper "sûr") suffit ici : ce pont ne
-# manipule aucun objet Java (pas de String, pas de callback vers la JVM) — il
-# se contente de démarrer le programme Ocara sur un thread et de revenir
-# immédiatement. La crate `jni` (wrapper haut niveau, avec ses dépendances
-# `combine`/`cesu8` pour la conversion de chaînes) serait inutilement lourde
-# pour ce besoin minimal.
-jni-sys = "0.4"
+# `jni` (wrapper sûr), pas `jni-sys` brut : premier essai avec `jni-sys` seul
+# (accès à la main à la table de fonctions JNI, GetStringUTFChars via l'union
+# versionnée `v1_1` générée par jni-sys-macros) — SIGSEGV reproductible sur un
+# vrai appareil (offset de champ probablement mal calculé, jamais élucidé
+# précisément). Remplacé par `jni`, dont la conversion `JString` → `String`
+# est testée par un écosystème entier plutôt que par un accès de structure
+# fait à la main ici. Le coût (dépendances `combine`/`cesu8` en plus) est
+# largement justifié : la correction prime sur la taille du binaire pour du
+# code qui plante sinon silencieusement sur certains appareils seulement.
+jni = "0.21"
+# `libc::chdir` — voir la doc de `Java_..._nativeStartServer` dans src/lib.rs.
+libc = "0.2"

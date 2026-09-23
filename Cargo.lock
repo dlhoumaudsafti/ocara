@@ -2808,7 +2808,8 @@ dependencies = [
 name = "ocara_runtime_android_jni"
 version = "1.0.0"
 dependencies = [
- "jni-sys 0.4.1",
+ "jni",
+ "libc",
 ]
 
 [[package]]

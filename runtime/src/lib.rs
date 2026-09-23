@@ -3200,6 +3200,25 @@ pub extern "C" fn __ocara_fail(val: i64, type_name: i64) {
             display_val
         );
         write_stderr_raw(msg.as_bytes());
+        // `std::process::exit()` déclenche `__cxa_finalize`, qui exécute les
+        // destructeurs de TOUTES les globales C++/Rust du processus — correct
+        // sur desktop (le processus Ocara EST le processus entier), mais fatal
+        // sur Android : le programme Ocara ne tourne que dans un THREAD d'un
+        // processus d'app partagé avec ART et les bibliothèques système déjà
+        // chargées (ex. libhwui), dont les globales (mutex ART, pools de
+        // threads de rendu...) ne sont jamais censées être détruites en cours
+        // de vie d'une app — leur destruction est détectée comme invalide et
+        // transformée en `abort()` fatal par ART/Bionic. Confirmé par
+        // reproduction sur un appareil réel (voir
+        // docs/roadmap.d/runtime-android-exit-unsafe.md) : `art::Mutex::~Mutex()`
+        // et `android::uirenderer::CommonPool::~CommonPool()` observés comme
+        // point de plantage selon quelle bibliothèque système est détruite en
+        // premier. `libc::_exit()` (l'appel système brut, PAS `exit()`) saute
+        // entièrement `__cxa_finalize`/les destructeurs globaux — le
+        // processus termine immédiatement, sans toucher aux internes d'ART.
+        #[cfg(target_os = "android")]
+        unsafe { libc::_exit(1); }
+        #[cfg(not(target_os = "android"))]
         std::process::exit(1);
     }
 }

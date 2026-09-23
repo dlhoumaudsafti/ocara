@@ -3,6 +3,7 @@ package com.ocara.demo
 import android.annotation.SuppressLint
 import android.os.Bundle
 import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -22,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.ocara.bridge.OcaraBridge
 import com.ocara.demo.theme.OcaraUIHybridDemoTheme
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
@@ -38,9 +40,20 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
+    // Fichiers statiques (ex: public/style.css de mini_project) : DOIVENT être
+    // placés à la main dans app/src/main/assets/ avant de construire l'APK
+    // (voir packaging/android/README.md) — Gradle ne sait pas automatiquement
+    // qu'un projet Ocara a un dossier "public/" à embarquer. Un asset Android
+    // n'est PAS un chemin de système de fichiers ordinaire (accessible
+    // seulement via AssetManager, pas std::fs côté Ocara) : on le copie donc
+    // ici, une fois par lancement, vers le répertoire que `nativeStartServer`
+    // fait devenir le répertoire de travail du programme Ocara (voir sa doc).
+    copyAssetsToFilesDir()
+
     // Fire-and-forget : voir la doc de OcaraBridge.nativeStartServer — ne
-    // bloque jamais ce thread (le thread principal/UI).
-    OcaraBridge.nativeStartServer()
+    // bloque jamais ce thread (le thread principal/UI). `filesDir` (PAS un
+    // chemin construit à la main) : voir la doc du paramètre `dataDir`.
+    OcaraBridge.nativeStartServer(filesDir.absolutePath)
 
     enableEdgeToEdge()
     setContent {
@@ -49,6 +62,29 @@ class MainActivity : ComponentActivity() {
           OcaraWebViewScreen()
         }
       }
+    }
+  }
+
+  /**
+   * Copie récursivement `assets/` vers `filesDir/` — pas de mise en cache
+   * "déjà fait" : ces fichiers sont petits (CSS d'un exemple), les recopier à
+   * chaque lancement évite toute confusion de cache pendant le développement
+   * (un `assets/public/style.css` mis à jour est repris au lancement suivant,
+   * pas seulement à la désinstallation).
+   */
+  private fun copyAssetsToFilesDir(assetPath: String = "") {
+    val entries = assets.list(assetPath) ?: return
+    if (entries.isEmpty()) {
+      // Fichier (pas un dossier) : list() sur un fichier renvoie un tableau vide.
+      if (assetPath.isEmpty()) return
+      val dest = File(filesDir, assetPath)
+      dest.parentFile?.mkdirs()
+      assets.open(assetPath).use { input -> dest.outputStream().use { input.copyTo(it) } }
+      return
+    }
+    for (entry in entries) {
+      val childPath = if (assetPath.isEmpty()) entry else "$assetPath/$entry"
+      copyAssetsToFilesDir(childPath)
     }
   }
 }
@@ -98,6 +134,16 @@ private fun OcaraWebViewScreen() {
         factory = { context ->
           WebView(context).apply {
             settings.javaScriptEnabled = true
+            // SANS ceci, Android traite tout clic sur un lien (et toute
+            // navigation déclenchée par la soumission d'un formulaire) comme
+            // une intention à résoudre par le système — qui l'ouvre alors
+            // dans le navigateur par défaut au lieu de rester dans cette
+            // WebView. `WebViewClient()` (même la version de base, sans rien
+            // surcharger) fait rester la navigation DANS la WebView tant que
+            // `shouldOverrideUrlLoading` n'est pas explicitement surchargé
+            // pour dire le contraire — ce qui est exactement ce qu'on veut
+            // ici, toute navigation reste vers le serveur Ocara local.
+            webViewClient = WebViewClient()
             loadUrl(OCARA_SERVER_URL)
           }
         },

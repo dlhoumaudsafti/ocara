@@ -5,27 +5,24 @@ namespace configs
 // Comme dans examples/advanced/tauri_httpserver/configs/Database.oc : pas de propriété
 // static en Ocara, donc chaque appel ouvre/ferme sa propre connexion vers le
 // même fichier ("./app.db") plutôt que de garder un handle partagé en mémoire.
+//
+// Chemin RELATIF volontairement inconditionnel (pas de branche
+// System::OS == "android") : sur Android, runtime_android_jni fait `chdir()`
+// vers le répertoire de données de l'app (Context.getFilesDir()) AVANT de
+// démarrer ce programme — "./app.db" y pointe alors déjà, exactement comme
+// sur desktop où le répertoire de travail est celui depuis lequel on lance
+// le programme. Voir docs/roadmap.d/packaging-android-webview-hybrid.md :
+// un chemin absolu construit à la main ici avait fonctionné sur émulateur
+// mais échouait sur un vrai appareil (SELinux/OEM plus strict que l'API
+// Context.getFilesDir()) — la règle "un chemin relatif = même base que
+// app.db" résout les deux à la fois, sans que ce fichier ait besoin de
+// connaître la moindre spécificité Android.
 
 import ocara.SQLite
-import ocara.System
 
 class Database {
 
     public static method path(): string {
-        if System::OS equal "android" {
-            // Bac à sable de l'app (couplé au nom de package de
-            // packaging/android/, com.ocara.demo — voir sa doc). PAS de
-            // sous-dossier "files/" : contrairement à Context.getFilesDir()
-            // côté Java, qui le crée à la demande, ce chemin est ouvert
-            // directement par SQLite (Rust/C) sans jamais passer par cette
-            // API Android — le sous-dossier n'existe donc jamais tant
-            // qu'aucun code Java ne l'a créé. Vérifié par reproduction sur
-            // un émulateur réel (`adb shell run-as com.ocara.demo ls -la
-            // /data/user/0/com.ocara.demo/` : seuls cache/ et code_cache/
-            // existent) — SQLite ne crée que le FICHIER final, jamais ses
-            // dossiers parents manquants.
-            return "/data/user/0/com.ocara.demo/app.db"
-        }
         return "./app.db"
     }
 

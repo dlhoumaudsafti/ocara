@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 920 210"
+     width="920" height="210">
+  <defs>
+    <linearGradient id="ivory" x1="0" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#FFFDF3"/>
+      <stop offset="0.48" stop-color="#F4EEDB"/>
+      <stop offset="1" stop-color="#FFF8E5"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFE8A0"/>
+      <stop offset="0.5" stop-color="#D9A52F"/>
+      <stop offset="1" stop-color="#F5D16A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Transparent background: intentionally no background rectangle. -->
+
+  <g fill="url(#ivory)"
+     font-family="Didot, 'Bodoni 72', 'Bodoni MT', 'Times New Roman', serif"
+     font-size="174"
+     font-weight="400"
+     letter-spacing="5">
+    <text x="8"   y="168">O</text>
+    <text x="205" y="168">C</text>
+    <text x="400" y="168">A</text>
+    <text x="592" y="168">R</text>
+    <text x="785" y="168">A</text>
+  </g>
+
+  <!-- Four-point gold diamonds centered in each A. -->
+  <path fill="url(#gold)"
+        d="M458 91
+           C461 99 464 105 472 108
+           C464 111 461 117 458 125
+           C455 117 452 111 444 108
+           C452 105 455 99 458 91 Z"/>
+  <path fill="url(#gold)"
+        d="M835 91
+           C838 99 841 105 849 108
+           C841 111 838 117 835 125
+           C832 117 829 111 821 108
+           C829 105 832 99 835 91 Z"/>
+</svg>
