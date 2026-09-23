@@ -12,8 +12,12 @@ class MaintenanceController {
 
     public static method create(req:int): int {
         scoped carIdStr:string    = HTTPServer::query(req, "car_id")
-        scoped type:string        = HTTPServer::query(req, "type")
-        scoped description:string = String::trim(HTTPServer::query(req, "description"))
+        // `const` (pas `scoped`) : Maintenance::create() les bind dans une map
+        // passée à db.bind(), donc les retient au-delà de cet appel — une
+        // valeur `scoped`/`consumed` ne peut pas être passée là où l'appelé la
+        // retient (voir E26, docs/diagnostics.md).
+        const type:string        = HTTPServer::query(req, "type")
+        const description:string = String::trim(HTTPServer::query(req, "description"))
         scoped costStr:string     = HTTPServer::query(req, "cost")
 
         var carId:int   = Convert::strToInt(carIdStr)

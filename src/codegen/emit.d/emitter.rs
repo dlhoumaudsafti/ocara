@@ -34,6 +34,17 @@ pub struct CraneliftEmitter {
     /// (voir `IrModule::class_ids`) — passé à `__alloc_class_obj` pour que
     /// chaque instance porte son identité réelle dans son header.
     class_ids: HashMap<String, i64>,
+    /// Vrai pour toute cible croisée Android (`--target *-linux-android`) —
+    /// voir `predeclare_functions` : les builtins `Tauri_*` y sont définis
+    /// comme des talons locaux no-op plutôt qu'importés depuis
+    /// `libocara_runtime_tauri.a` (GTK n'a structurellement aucun équivalent
+    /// Android, voir docs/roadmap.d/packaging-android.md) — un programme qui
+    /// importe `ocara.Tauri` pour sa branche desktop (ex: `if System::OS
+    /// equal "android" { ... } else { use Tauri(...) }`) reste ainsi
+    /// compilable pour Android tant que ce chemin mort n'est jamais atteint à
+    /// l'exécution ; s'il l'était par erreur, le talon ne fait rien (pas de
+    /// crash, pas de fenêtre — indiscernable d'un no-op).
+    is_android_target: bool,
 }
 
 impl CraneliftEmitter {
@@ -93,6 +104,7 @@ impl CraneliftEmitter {
         .map_err(|e| CodegenError(e.to_string()))?;
 
         let module = ObjectModule::new(obj_builder);
+        let is_android_target = target.is_some_and(|t| t.contains("android"));
 
         Ok(Self {
             module,
@@ -102,6 +114,7 @@ impl CraneliftEmitter {
             ret_types: HashMap::new(),
             class_layouts: HashMap::new(),
             class_ids: HashMap::new(),
+            is_android_target,
         })
     }
 
@@ -118,9 +131,23 @@ impl CraneliftEmitter {
             };
             if !allowed { continue; }
             let sig = builtin_sig(desc, call_conv);
+            // Sur Android, `Tauri_*` (module explicite, ou `Tauri_handler_register`,
+            // toujours prédéclaré même sans import — voir sa doc dans
+            // desc.d/lowlevel.rs) devient un talon LOCAL no-op plutôt qu'un
+            // import résolu par `libocara_runtime_tauri.a`/GTK (voir la doc de
+            // `is_android_target`) : évite le rejet catégorique précédent
+            // ("ocara.Tauri n'a aucun équivalent Android") pour un programme
+            // qui n'appelle Tauri que sur un chemin mort au runtime (`if
+            // System::OS equal "android" { ... }`).
+            let is_tauri_stub = self.is_android_target
+                && (desc.module == Some("Tauri") || desc.name == "Tauri_handler_register");
+            let linkage = if is_tauri_stub { Linkage::Local } else { Linkage::Import };
             let fid = self.module
-                .declare_function(desc.name, Linkage::Import, &sig)
+                .declare_function(desc.name, linkage, &sig)
                 .map_err(|e| CodegenError(e.to_string()))?;
+            if is_tauri_stub {
+                self.define_stub_function(fid, &sig)?;
+            }
             self.func_ids.insert(desc.name.to_string(), fid);
             // Enregistre les types des paramètres pour les bitcasts
             self.param_types.insert(
@@ -149,6 +176,39 @@ impl CraneliftEmitter {
             }
         }
 
+        Ok(())
+    }
+
+    /// Définit un corps de fonction trivial (talon) pour `fid` : renvoie `0`
+    /// (constante du type de retour attendu) si la signature a un retour,
+    /// sinon `return` sans valeur. Utilisé UNIQUEMENT pour les builtins
+    /// `Tauri_*` sur cible Android (voir `is_android_target`) — jamais pour
+    /// une fonction ordinaire du module, qui passe par `emit_function`.
+    fn define_stub_function(&mut self, fid: cranelift_module::FuncId, sig: &Signature) -> CgResult<()> {
+        let mut ctx = Context::new();
+        ctx.func.signature = sig.clone();
+        ctx.func.name = UserFuncName::user(0, fid.as_u32());
+
+        let mut fb_ctx = FunctionBuilderContext::new();
+        let mut builder = FunctionBuilder::new(&mut ctx.func, &mut fb_ctx);
+
+        let entry = builder.create_block();
+        builder.append_block_params_for_function_params(entry);
+        builder.switch_to_block(entry);
+        builder.seal_block(entry);
+
+        if let Some(ret) = sig.returns.first() {
+            let zero = builder.ins().iconst(ret.value_type, 0);
+            builder.ins().return_(&[zero]);
+        } else {
+            builder.ins().return_(&[]);
+        }
+
+        builder.finalize();
+
+        self.module
+            .define_function(fid, &mut ctx)
+            .map_err(|e| CodegenError(format!("define_function (talon Tauri/Android): {:?}", e)))?;
         Ok(())
     }
 

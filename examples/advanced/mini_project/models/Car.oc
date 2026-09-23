@@ -2,12 +2,25 @@
 // Accès aux données de la table "cars". Aucune règle métier ici (voir
 // services/PricingService.oc pour le recalcul du prix de vente estimé) —
 // ce fichier ne fait que lire/écrire la base.
+//
+// Toute valeur variable est bindée via des placeholders nominatifs `:nom`
+// (voir docs/builtins/SQLite.md, "Requêtes paramétrées") — jamais concaténée
+// dans la requête : la concaténation directe est une injection SQL
+// potentielle, ce que faisait la version précédente de ce fichier (via
+// helpers/SqlSafe, un échappement manuel devenu inutile maintenant que
+// ocara.SQLite supporte le binding nativement). Les écritures (create,
+// updateEstimatedPrice) passent par le flux transactionnel `prepare()` /
+// `bind()` / `commit()`, via `SQLite::withOpen` : la connexion est fermée
+// automatiquement même si `commit()` lève (une transaction encore ouverte au
+// moment de `close()` est annulée par SQLite lui-même — voir
+// examples/tests/49_sqlite_with_open_raiseTest.oc) — pas besoin d'un
+// `rollback()`/`close()` manuel dans un `try`/`on`, qui se heurterait de
+// toute façon à E25 (`.close()` appelé une seconde fois, cette vérification
+// n'étant pas sensible aux branches try/on, voir docs/diagnostics.md).
 
 import ocara.SQLite
-import ocara.Convert
 import ocara.DateTime
 import configs.Database
-import helpers.SqlSafe
 
 class Car {
 
@@ -20,39 +33,47 @@ class Car {
 
     public static method find(id:int): map<string, mixed> {
         const db:SQLite = Database::connect()
-        const row:map<string, mixed> = db.queryOne("SELECT * FROM cars WHERE id = " + Convert::intToStr(id))
+        const row:map<string, mixed> = db.queryOne("SELECT * FROM cars WHERE id = :id", {"id": id})
         db.close()
         return row
     }
 
     public static method create(reference:string, brand:string, model:string, purchasePrice:float): int {
-        const db:SQLite = Database::connect()
-        scoped ref:string   = SqlSafe::escape(reference)
-        scoped brd:string   = SqlSafe::escape(brand)
-        scoped mdl:string   = SqlSafe::escape(model)
-        scoped priceStr:string = Convert::floatToStr(purchasePrice)
-        scoped nowStr:string   = Convert::intToStr(DateTime::now())
-        // Le prix de vente estimé démarre égal au prix d'achat : il n'est
-        // ensuite fait évoluer que par les entretiens d'amélioration
-        // (voir services/PricingService.oc).
-        db.execute("INSERT INTO cars (reference, brand, model, purchase_price, estimated_sale_price, created_at) VALUES ('" +
-            ref + "', '" + brd + "', '" + mdl + "', " + priceStr + ", " + priceStr + ", " + nowStr + ")")
-        const id:int = db.lastInsertId()
-        db.close()
+        var id:int = 0
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            // Le prix de vente estimé démarre égal au prix d'achat : il n'est
+            // ensuite fait évoluer que par les entretiens d'amélioration
+            // (voir services/PricingService.oc). Même placeholder `:price`
+            // utilisé deux fois — un nom bindé une fois peut apparaître
+            // plusieurs fois dans la requête.
+            db.prepare("INSERT INTO cars (reference, brand, model, purchase_price, estimated_sale_price, created_at) VALUES (:reference, :brand, :model, :price, :price, :createdAt)")
+            db.bind({
+                "reference": reference,
+                "brand": brand,
+                "model": model,
+                "price": purchasePrice,
+                "createdAt": DateTime::now()
+            })
+            db.commit()
+            id = db.lastInsertId()
+        })
         return id
     }
 
     public static method updateEstimatedPrice(id:int, newPrice:float): void {
-        const db:SQLite = Database::connect()
-        db.execute("UPDATE cars SET estimated_sale_price = " + Convert::floatToStr(newPrice) + " WHERE id = " + Convert::intToStr(id))
-        db.close()
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            db.prepare("UPDATE cars SET estimated_sale_price = :price WHERE id = :id")
+            db.bind({"price": newPrice, "id": id})
+            db.commit()
+        })
     }
 
     public static method search(term:string): array<map<string, mixed>> {
         const db:SQLite = Database::connect()
-        scoped pattern:string = "%" + SqlSafe::escape(term) + "%"
+        scoped pattern:string = "%" + term + "%"
         const rows:array<map<string, mixed>> = db.query(
-            "SELECT * FROM cars WHERE reference LIKE '" + pattern + "' OR brand LIKE '" + pattern + "' OR model LIKE '" + pattern + "' ORDER BY created_at DESC"
+            "SELECT * FROM cars WHERE reference LIKE :pattern OR brand LIKE :pattern OR model LIKE :pattern ORDER BY created_at DESC",
+            {"pattern": pattern}
         )
         db.close()
         return rows

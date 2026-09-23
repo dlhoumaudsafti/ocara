@@ -160,7 +160,15 @@ fn collect_all_rows(stmt: &mut Statement, binds: &[(&str, &dyn ToSql)]) -> Resul
             let value = if let Ok(v) = row.get::<_, i64>(i) {
                 v
             } else if let Ok(v) = row.get::<_, f64>(i) {
-                v.to_bits() as i64
+                // Boxer (pas juste `v.to_bits()`) : une valeur `mixed` distingue
+                // un float d'un entier par un tag dans ses 2 bits bas
+                // (`is_float_box`, voir runtime/src/lib.rs) — la seule
+                // magnitude des bits IEEE-754 n'a aucune raison de porter ce
+                // tag, donc `v.to_bits() as i64` brut se faisait relire comme
+                // un entier énorme au lieu du flottant réel (confirmé par
+                // reproduction : une colonne REAL valant 2000.0 redevenait
+                // 4656510908468559872 après un aller-retour SELECT).
+                crate::__box_float(v.to_bits() as i64)
             } else if let Ok(v) = row.get::<_, String>(i) {
                 unsafe { alloc_str(&v) }
             } else {
@@ -408,7 +416,8 @@ pub unsafe extern "C" fn SQLite_queryOne(self_ptr: i64, query_ptr: i64, placehol
                     let value = if let Ok(v) = row.get::<_, i64>(i) {
                         v
                     } else if let Ok(v) = row.get::<_, f64>(i) {
-                        v.to_bits() as i64
+                        // Voir le commentaire équivalent dans collect_all_rows.
+                        crate::__box_float(v.to_bits() as i64)
                     } else if let Ok(v) = row.get::<_, String>(i) {
                         alloc_str(&v)
                     } else {

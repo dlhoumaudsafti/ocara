@@ -26,6 +26,18 @@ object OcaraBridge {
      * moment où le serveur est réellement prêt, ni son arrêt, ne sont
      * communiqués à l'appelant (voir la doc de
      * packaging-android-webview-hybrid.md, "cycle de vie Android", non résolu).
+     *
+     * @param dataDir `Context.getFilesDir().getAbsolutePath()` — PAS un chemin
+     *   construit à la main : `getFilesDir()` est la seule API qui garantit la
+     *   création réelle du répertoire ET son étiquetage SELinux correct par le
+     *   framework Android (une reproduction sur un vrai appareil a montré
+     *   qu'un chemin "à la main", même dans le bac à sable de l'app, pouvait
+     *   échouer à l'ouverture SQLite là où `getFilesDir()` fonctionne — voir
+     *   docs/roadmap.d/runtime-android-exit-unsafe.md). Le pont fait `chdir()`
+     *   vers ce répertoire avant de démarrer le programme Ocara : tout chemin
+     *   relatif utilisé côté Ocara (`"./app.db"`, `"./public/"`) y pointe
+     *   alors, comme sur desktop où le répertoire de travail est celui depuis
+     *   lequel on lance le programme.
      */
-    external fun nativeStartServer(): Boolean
+    external fun nativeStartServer(dataDir: String): Boolean
 }

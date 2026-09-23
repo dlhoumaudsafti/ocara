@@ -4,10 +4,10 @@ GREEN   := \033[0;32m
 RED     := \033[0;31m
 RESET   := \033[0m
 
-# Argument optionnel : make regression builtins/io
-_TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android,$(MAKECMDGOALS))
+# Argument optionnel : make regression builtins/io ; make android-simulator <apk>
+_TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android android-simulator,$(MAKECMDGOALS))
 
-.PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression ci lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android $(_TARGET)
+.PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression ci lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android android-simulator $(_TARGET)
 
 # ── Aide ──────────────────────────────────────────────────────────────────────
 help:
@@ -40,6 +40,11 @@ help:
 	@echo "                            (nécessite ANDROID_NDK_HOME + cmake, sous-chantier 4)"
 	@echo "  build-jni-bridge-android   Cross-compile le pont JNI (runtime_android_jni)"
 	@echo "                            (nécessite ANDROID_NDK_HOME, voir packaging/android/README.md)"
+	@echo "  android-simulator <apk> Installe et lance un APK sur un émulateur Android"
+	@echo "                            (démarre l'émulateur si besoin, fenêtre visible ;"
+	@echo "                            désinstalle/réinstalle si déjà présent — nécessite"
+	@echo "                            ANDROID_HOME). ANDROID_SERIAL=<serial> pour cibler un"
+	@echo "                            appareil déjà connecté (adb devices) au lieu de l'émulateur."
 	@echo "  clean                   Supprime les artefacts de compilation d'ocara"
 	@echo "  clean-tools             Supprime les artefacts de compilation des outils"
 	@echo "  clean-all               Supprime tous les artefacts (clean + clean-tools)"
@@ -106,9 +111,20 @@ build-dev: pkgconfig-shim
 # produit du x86_64, pas de l'AArch64 Bionic. Niveau d'API 24 (Android 7.0,
 # choisi comme plancher raisonnable — aucune contrainte connue plus stricte
 # ici, ajustable si besoin).
+#
+# ANDROID_TARGET : triple Rust/NDK visé, overridable (`make build-runtime-android
+# ANDROID_TARGET=x86_64-linux-android`) — ex. pour tester dans un émulateur
+# accéléré KVM (voir `android-simulator` plus bas), qui a besoin d'un `.so`
+# x86_64, pas seulement arm64-v8a. Fonctionne tel quel pour `aarch64-linux-android`
+# et `x86_64-linux-android` : sur ces deux triples précis, le préfixe clang du
+# NDK est identique au triple Rust lui-même (ce n'est PAS vrai pour
+# `armv7-linux-androideabi`, qui utilise le préfixe `armv7a-linux-androideabi`
+# — non géré ici, seuls aarch64/x86_64 sont couverts par ces cibles Make).
+ANDROID_TARGET     ?= aarch64-linux-android
+ANDROID_TARGET_ENV := $(subst -,_,$(ANDROID_TARGET))
 ANDROID_API   := 24
 ANDROID_NDK_CLANG_DIR := $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin
-ANDROID_CC      := $(ANDROID_NDK_CLANG_DIR)/aarch64-linux-android$(ANDROID_API)-clang
+ANDROID_CC      := $(ANDROID_NDK_CLANG_DIR)/$(ANDROID_TARGET)$(ANDROID_API)-clang
 ANDROID_AR      := $(ANDROID_NDK_CLANG_DIR)/llvm-ar
 # NDK ≥ r23 (tout-LLVM) ne fournit plus les wrapper binutils préfixés par le
 # triple (`aarch64-linux-android-ranlib`) — seuls les outils `llvm-*` existent.
@@ -123,11 +139,11 @@ build-runtime-android:
 	@if [ -z "$(ANDROID_NDK_HOME)" ]; then \
 	    echo "ANDROID_NDK_HOME non défini (racine du NDK Android requise)"; exit 1; \
 	fi
-	CC_aarch64_linux_android="$(ANDROID_CC)" \
-	AR_aarch64_linux_android="$(ANDROID_AR)" \
-	RANLIB_aarch64_linux_android="$(ANDROID_RANLIB)" \
-	CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$(ANDROID_CC)" \
-	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime --target aarch64-linux-android -j4
+	CC_$(ANDROID_TARGET_ENV)="$(ANDROID_CC)" \
+	AR_$(ANDROID_TARGET_ENV)="$(ANDROID_AR)" \
+	RANLIB_$(ANDROID_TARGET_ENV)="$(ANDROID_RANLIB)" \
+	CARGO_TARGET_$(shell echo $(ANDROID_TARGET_ENV) | tr a-z A-Z)_LINKER="$(ANDROID_CC)" \
+	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime --target $(ANDROID_TARGET) -j4
 
 # `ocara_runtime_android_jni` (packaging-android-webview-hybrid.md) : pont JNI
 # générique, indépendant de tout import Ocara — voir packaging/android/README.md
@@ -136,11 +152,11 @@ build-jni-bridge-android:
 	@if [ -z "$(ANDROID_NDK_HOME)" ]; then \
 	    echo "ANDROID_NDK_HOME non défini (racine du NDK Android requise)"; exit 1; \
 	fi
-	CC_aarch64_linux_android="$(ANDROID_CC)" \
-	AR_aarch64_linux_android="$(ANDROID_AR)" \
-	RANLIB_aarch64_linux_android="$(ANDROID_RANLIB)" \
-	CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$(ANDROID_CC)" \
-	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime_android_jni --target aarch64-linux-android -j4
+	CC_$(ANDROID_TARGET_ENV)="$(ANDROID_CC)" \
+	AR_$(ANDROID_TARGET_ENV)="$(ANDROID_AR)" \
+	RANLIB_$(ANDROID_TARGET_ENV)="$(ANDROID_RANLIB)" \
+	CARGO_TARGET_$(shell echo $(ANDROID_TARGET_ENV) | tr a-z A-Z)_LINKER="$(ANDROID_CC)" \
+	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime_android_jni --target $(ANDROID_TARGET) -j4
 
 # `ocara_runtime_sdl` (sous-chantier 4, packaging-android.md) : SDL3 + image/
 # ttf/mixer compilés depuis les sources via cmake (feature
@@ -158,13 +174,77 @@ build-runtime-sdl-android:
 	@if [ -z "$(ANDROID_NDK_HOME)" ]; then \
 	    echo "ANDROID_NDK_HOME non défini (racine du NDK Android requise)"; exit 1; \
 	fi
-	CC_aarch64_linux_android="$(ANDROID_CC)" \
-	CXX_aarch64_linux_android="$(ANDROID_CC)++" \
-	AR_aarch64_linux_android="$(ANDROID_AR)" \
-	RANLIB_aarch64_linux_android="$(ANDROID_RANLIB)" \
-	CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$(ANDROID_CC)" \
+	CC_$(ANDROID_TARGET_ENV)="$(ANDROID_CC)" \
+	CXX_$(ANDROID_TARGET_ENV)="$(ANDROID_CC)++" \
+	AR_$(ANDROID_TARGET_ENV)="$(ANDROID_AR)" \
+	RANLIB_$(ANDROID_TARGET_ENV)="$(ANDROID_RANLIB)" \
+	CARGO_TARGET_$(shell echo $(ANDROID_TARGET_ENV) | tr a-z A-Z)_LINKER="$(ANDROID_CC)" \
 	CMAKE_TOOLCHAIN_FILE="$(ANDROID_NDK_HOME)/build/cmake/android.toolchain.cmake" \
-	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime_sdl --target aarch64-linux-android -j1
+	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime_sdl --target $(ANDROID_TARGET) -j1
+
+# ── Émulateur Android : installer + lancer un APK pour le tester ────────────
+# `make android-simulator <chemin.apk>` — nécessite $ANDROID_HOME (SDK).
+# 1. Vérifie qu'un AVD existe (le crée sinon, profil `medium_phone` par
+#    défaut — x86_64 + accélération KVM, voir docs/roadmap.d/packaging-android-webview-hybrid.md
+#    pour pourquoi x86_64 plutôt qu'arm64-v8a ici : accélération matérielle
+#    complète sur un hôte x86_64, l'émulation arm64 tournerait en traduction
+#    logicielle pure, beaucoup plus lente).
+# 2. Vérifie qu'un émulateur tourne réellement (`adb devices`, pas seulement
+#    `emulator list` dont la colonne Status ne reflète pas l'état réel) — le
+#    démarre sinon (`emulator start` ne rend la main qu'une fois prêt).
+# 3. Si l'app (même nom de package que l'APK donné) est déjà installée, la
+#    désinstalle d'abord — `adb uninstall` supprime aussi ses données/cache,
+#    pas seulement le paquet, pour repartir d'un état propre à chaque test.
+# 4. Installe l'APK puis lance son Activity de lancement (sans avoir besoin
+#    de connaître son nom exact — `monkey -c android.intent.category.LAUNCHER`
+#    est le mécanisme standard pour ça).
+ANDROID_AVD           ?= medium_phone
+ANDROID_BUILD_TOOLS   := 36.0.0
+
+android-simulator:
+	@if [ -z "$(_TARGET)" ]; then \
+	    echo "Usage: make android-simulator <chemin.apk> [ANDROID_SERIAL=<serial adb>]"; exit 1; \
+	fi
+	@if [ -z "$$ANDROID_HOME" ]; then \
+	    echo "ANDROID_HOME non défini (racine du SDK Android requise)"; exit 1; \
+	fi
+	@APK="$(_TARGET)"; \
+	ADB="$$ANDROID_HOME/platform-tools/adb"; \
+	ANDROID_TOOL="$$ANDROID_HOME/cmdline-tools/latest/bin/android"; \
+	AAPT="$$ANDROID_HOME/build-tools/$(ANDROID_BUILD_TOOLS)/aapt"; \
+	if [ ! -f "$$APK" ]; then echo "APK introuvable: $$APK"; exit 1; fi; \
+	if [ -n "$$ANDROID_SERIAL" ]; then \
+	    echo "== Cible forcée : $$ANDROID_SERIAL (ANDROID_SERIAL) =="; \
+	    SERIAL="$$ANDROID_SERIAL"; \
+	    if ! "$$ADB" devices | grep -q "^$$SERIAL[[:space:]]"; then \
+	        echo "Appareil '$$SERIAL' non vu par adb (branché ? déverrouillé ? débogage USB autorisé ?)"; exit 1; \
+	    fi; \
+	else \
+	    echo "== Vérification de l'AVD '$(ANDROID_AVD)' =="; \
+	    if ! "$$ANDROID_TOOL" emulator list | grep -qx "$(ANDROID_AVD)"; then \
+	        echo "AVD '$(ANDROID_AVD)' introuvable — création (x86_64, accélération KVM)..."; \
+	        "$$ANDROID_TOOL" emulator create $(ANDROID_AVD) || exit 1; \
+	    fi; \
+	    SERIAL=$$("$$ADB" devices | awk '/^emulator-/{print $$1; exit}'); \
+	    if [ -z "$$SERIAL" ]; then \
+	        echo "Aucun émulateur démarré — démarrage de '$(ANDROID_AVD)' (fenêtre visible)..."; \
+	        "$$ANDROID_TOOL" emulator start $(ANDROID_AVD) || exit 1; \
+	        SERIAL=$$("$$ADB" devices | awk '/^emulator-/{print $$1; exit}'); \
+	    fi; \
+	    if [ -z "$$SERIAL" ]; then echo "Impossible de trouver un émulateur démarré"; exit 1; fi; \
+	fi; \
+	echo "Appareil : $$SERIAL"; \
+	PACKAGE=$$("$$AAPT" dump badging "$$APK" | sed -n "s/^package: name='\([^']*\)'.*/\1/p"); \
+	if [ -z "$$PACKAGE" ]; then echo "Impossible de déterminer le nom de package de $$APK"; exit 1; fi; \
+	echo "Package : $$PACKAGE"; \
+	if "$$ADB" -s "$$SERIAL" shell pm list packages | grep -q "package:$$PACKAGE$$"; then \
+	    echo "Déjà installé — désinstallation (purge données/cache)..."; \
+	    "$$ADB" -s "$$SERIAL" uninstall "$$PACKAGE" || true; \
+	fi; \
+	echo "Installation de $$APK..."; \
+	"$$ADB" -s "$$SERIAL" install "$$APK" || exit 1; \
+	echo "Lancement..."; \
+	"$$ADB" -s "$$SERIAL" shell monkey -p "$$PACKAGE" -c android.intent.category.LAUNCHER 1
 
 # ── Tests unitaires Cargo ─────────────────────────────────────────────────────
 tests:

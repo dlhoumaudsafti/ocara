@@ -459,7 +459,7 @@ la déclaration `generic`.
 ### E22 — `Thread` déjà finalisée
 
 ```
-fichier.oc:8:6: error: 't' was already '.join()'ed or '.detach()'ed — calling either a second time would use a native handle already reclaimed
+fichier.oc:8:6: error: 't' was already '.join()' or '.detach()' — calling either a second time would use a native handle already reclaimed
 ```
 
 `.join()` ou `.detach()` est appelé une seconde fois sur la même `Thread` —
@@ -525,7 +525,7 @@ try {
 ### E25 — Ressource déjà finalisée manuellement
 
 ```
-fichier.oc:9:6: error: 'm' ('Mutex') was already '.destroy()'ed — calling it a second time would use a native handle already reclaimed
+fichier.oc:9:6: error: 'm' ('Mutex') was already '.destroy()' — calling it a second time would use a native handle already reclaimed
 ```
 
 `.destroy()` (`Mutex`) ou `.close()` (`SQLite`/`MySQL`/`MariaDB`) est appelé une seconde fois sur la même ressource — généralisation de E22 (`Thread`). Le premier appel a déjà libéré le handle natif côté runtime ; un second appel produit un SEGFAULT confirmé avant ce diagnostic.
@@ -582,7 +582,7 @@ Une classe ou un `generic` déclare `extends X` où `X` ne correspond à aucune 
 ### E28 — Fuite d'un handle natif déclaré en `var`/`const`
 
 ```
-fichier.oc:4:5: error: 'm' ('Mutex') is declared with 'var'/'const', never escapes its block, and is never '.destroy()'ed/'.close()'d — this native handle leaks permanently, since 'var'/'const' never close a resource automatically (unlike 'scoped'/'consumed'); call '.destroy()'/'.close()' explicitly, or declare it 'scoped'/'consumed' if you want the compiler to finalize it for you
+fichier.oc:4:5: error: 'm' ('Mutex') is declared with 'var'/'const', never escapes its block, and is never '.destroy()'/'.close()' — this native handle leaks permanently, since 'var'/'const' never close a resource automatically (unlike 'scoped'/'consumed'); call '.destroy()'/'.close()' explicitly, or declare it 'scoped'/'consumed' if you want the compiler to finalize it for you
 ```
 
 Un `var`/`const` d'un type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`) dont l'analyse d'échappement statique (la même que pour la libération automatique d'un `var`, voir `crate::sema::escape::var_never_escapes`) prouve qu'il ne s'échappe jamais (jamais retourné, réaffecté, ni passé en argument), et qui atteint la fin de son bloc sans avoir été manuellement `.destroy()`/`.close()`. Contrairement à `scoped`/`consumed`, qui finalisent automatiquement une ressource en fin de bloc, `var`/`const` ne le font jamais — ce handle natif (mutex, connexion) fuit alors pour toujours.

@@ -13,3 +13,8 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Un keystore de production ne doit JAMAIS être commité, même par erreur —
+# voir docs/android.md §5 (il doit vivre en dehors du dépôt, ex: ~/.android-keystores/).
+*.keystore
+*.jks

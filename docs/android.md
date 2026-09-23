@@ -13,9 +13,10 @@
 | Liaison finale en `.so` (clang du NDK) | ✅ Fait, vérifié |
 | Backend Android pour `ocara.SDL` | ✅ Fait, vérifié (formats audio "tracker"/MOD non disponibles) |
 | `ocara.Tauri` sur Android | ❌ Hors périmètre définitif (GTK ne tourne pas sur Android) |
-| Packaging APK / test sur appareil réel | ❌ Non fait |
+| Packaging APK / test sur émulateur (x86_64, KVM) | ✅ Fait, vérifié — voir §4 |
+| Test sur appareil physique réel | ✅ Fait, vérifié — crash/fichiers statiques/WebView/rendu HTML tous corrigés (`HTTP 200, 2306 octets`, identique à x86_64) — voir §4 et [runtime-android-aarch64-pic-string-concat](roadmap.d/runtime-android-aarch64-pic-string-concat.md) |
 
-Tout ce qui est vérifiable **par inspection statique du binaire produit** (architecture ELF correcte, bibliothèque réellement partagée, absence de `DT_TEXTREL`, toutes les dépendances dynamiques déclarées et effectivement fournies par les bibliothèques système du NDK) l'a été. Le comportement réel au chargement sur un appareil/émulateur (JNI, `System.loadLibrary`) n'a **pas** été testé — cet environnement n'a pas d'appareil/émulateur Android disponible.
+Tout ce qui est vérifiable **par inspection statique du binaire produit** (architecture ELF correcte, bibliothèque réellement partagée, absence de `DT_TEXTREL`, toutes les dépendances dynamiques déclarées et effectivement fournies par les bibliothèques système du NDK) l'a été — ET, depuis §4, le comportement réel a aussi été vérifié **sur un vrai émulateur** (chargement JNI, `System.loadLibrary`, exécution du programme Ocara, réponse HTTP réelle). Ce SDK a un émulateur x86_64 avec accélération matérielle KVM (voir §4) — pas juste arm64-v8a en émulation logicielle lente. **Testé aussi sur un appareil physique réel (arm64-v8a)** : le crash au démarrage, l'accès aux fichiers statiques, la redirection WebView externe et le rendu HTML corrompu (pointeurs de tas Android tagués, pas un bug de codegen comme d'abord supposé — voir §4 et [roadmap.d/runtime-android-aarch64-pic-string-concat.md](roadmap.d/runtime-android-aarch64-pic-string-concat.md)) sont tous corrigés, pas juste "jamais essayé".
 
 Historique complet des vérifications et des pièges rencontrés : [roadmap.d/packaging-android.md](roadmap.d/packaging-android.md).
 
@@ -161,6 +162,77 @@ Un symbole `w` (weak, ex. `getrandom`, `copy_file_range`) est normal : c'est un 
 
 Un squelette Android complet (Activity Kotlin + WebView + pont JNI générique) existe dans [packaging/android/](../packaging/android/) — voir son `README.md` pour la marche à suivre complète (compiler le pont JNI avec `make build-jni-bridge-android`, lier un programme Ocara avec `--android-jni-bridge`, construire l'APK avec `./gradlew assembleDebug`). Détails et vérifications complètes : [roadmap.d/packaging-android-webview-hybrid.md](roadmap.d/packaging-android-webview-hybrid.md).
 
+### Tester sur un émulateur
+
+```bash
+make android-simulator packaging/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Vérifie qu'un AVD existe (le crée sinon), qu'un émulateur tourne (le démarre sinon), désinstalle une éventuelle version déjà installée (purge données/cache), installe l'APK et le lance — nécessite `$ANDROID_HOME`. Voir `make help`.
+
+Par défaut : profil `medium_phone`, **x86_64** — pas arm64-v8a — pour avoir l'accélération matérielle KVM (un hôte x86_64 émule arm64 uniquement en traduction logicielle, beaucoup plus lent). Ça veut dire que l'APK testé doit contenir un `.so` **x86_64** (`--target x86_64-linux-android` — supporté nativement par `ocara`, aucune feature Cargo supplémentaire requise, contrairement à `arm64` qui a dû être ajoutée explicitement pour le sous-chantier 1) en plus (ou à la place) de l'arm64-v8a habituel. Les cibles `make build-runtime-android`/`build-jni-bridge-android`/`build-runtime-sdl-android` acceptent toutes `ANDROID_TARGET=x86_64-linux-android` pour ça (défaut : `aarch64-linux-android`).
+
+**Vérifié réellement sur cet émulateur** (`examples/advanced/mini_project`, point d'entrée `main.oc` multi-plateforme, voir [roadmap.d/packaging-android-webview-hybrid.md](roadmap.d/packaging-android-webview-hybrid.md)) : chargement JNI, démarrage du serveur, SQLite, rendu HTML — tout fonctionne. Deux bugs réels trouvés et corrigés au passage :
+- `System::OS` ne reconnaissait pas Android (`target_os = "android"` est distinct de `"linux"` pour rustc) et retournait `"unknown"` — corrigé (`runtime/src/lib.rs`), `System::OS` vaut maintenant `"android"`.
+- Un chemin SQLite relatif (`"./app.db"`) plantait l'app au démarrage sur cet émulateur avant que le pont JNI fasse `chdir()` vers un répertoire connu (voir juste en dessous) — désormais résolu de façon générale, plus besoin de chemin spécifique à Android.
+
+**Fonctionne aussi sur un appareil physique réel** (arm64-v8a, testé sur un vrai téléphone Android branché en USB — `ANDROID_SERIAL=<serial> make android-simulator <apk>` cible un appareil précis au lieu de gérer un émulateur). Deux problèmes réels ont d'abord fait planter/mal fonctionner l'app sur ce téléphone (jamais reproduits sur l'émulateur), tous deux corrigés et vérifiés :
+- **Crash au démarrage** (`__ocara_fail`, le gestionnaire d'exception non rattrapée d'Ocara, appelait `std::process::exit()` — sûr sur desktop, fatal sur Android car ça détruit des objets globaux d'ART/`libhwui`) — corrigé (`libc::_exit(1)` sur Android). Son déclencheur, un échec `SQLite::open()`, a lui aussi été résolu à la racine : le pont JNI fait maintenant `chdir()` vers `Context.getFilesDir()` (obtenu côté Kotlin, la seule API garantissant la création réelle du répertoire et son étiquetage SELinux correct) avant de démarrer le programme Ocara — tout chemin relatif (`"./app.db"`, `"./public/"`) pointe alors vers un endroit qui existe déjà et est accessible en écriture, exactement comme sur desktop. Détails complets : [roadmap.d/runtime-android-exit-unsafe.md](roadmap.d/runtime-android-exit-unsafe.md) (clos).
+- **Fichiers statiques (`public/`) et redirection WebView externe** — également corrigés, voir §"Limitations connues" ci-dessous et [roadmap.d/packaging-android-webview-hybrid.md](roadmap.d/packaging-android-webview-hybrid.md).
+
+**Rendu HTML corrompu sur arm64 réel — corrigé.** La page rendue était corrompue (un grand nombre à l'allure d'une adresse mémoire remplaçait une partie du contenu), jamais reproduit sur x86_64 (émulateur ou hôte) ni avec des littéraux. Cause racine réelle : Bionic/Scudo (l'allocateur natif d'Android depuis la version 11) tague l'octet de poids fort des pointeurs de tas, que `ocara_runtime` classait à tort comme un entier brut au lieu d'un pointeur (une première hypothèse de bug de codegen AArch64+PIC était fausse). Corrigé en désactivant ce tagging pour tout le processus (`mallopt` dans le pont JNI) ; vérifié en exécution réelle sur un vrai téléphone (`curl` → `HTTP 200, 2306 octets`, identique à x86_64). Détails complets : [roadmap.d/runtime-android-aarch64-pic-string-concat.md](roadmap.d/runtime-android-aarch64-pic-string-concat.md).
+
+---
+
+## 5. Build de production (APK signé, minifié)
+
+`./gradlew assembleDebug` (§4) produit un APK **debug** : signé avec un keystore auto-généré par Gradle (jamais accepté par le Play Store, ni reconnu comme mise à jour légitime par un appareil ayant déjà l'app installée), non minifié. Un build de **production** utilise `assembleRelease` à la place — signé avec un vrai keystore, réduit par R8 (minification + suppression des ressources inutilisées).
+
+### 5.1 Générer un keystore (une seule fois par projet)
+
+```bash
+keytool -genkeypair -v \
+  -keystore ~/.android-keystores/ocara-release.keystore \
+  -alias ocara \
+  -keyalg RSA -keysize 2048 -validity 10000
+```
+
+`keytool` demande un mot de passe (garde-le) et quelques informations (nom, organisation…). **En dehors du dépôt** (ex: `~/.android-keystores/`, jamais dans `packaging/android/`) — un keystore commité par erreur, même dans un dépôt privé, doit être considéré compromis et régénéré. `-validity 10000` (~27 ans) : le Play Store exige que le certificat de signature reste valide au moins jusqu'en 2033 pour toute nouvelle app.
+
+### 5.2 Définir les variables d'environnement
+
+```bash
+export OCARA_RELEASE_KEYSTORE=~/.android-keystores/ocara-release.keystore
+export OCARA_RELEASE_KEYSTORE_PASSWORD='<mot de passe du keystore>'
+export OCARA_RELEASE_KEY_ALIAS=ocara
+export OCARA_RELEASE_KEY_PASSWORD='<mot de passe de la clé — souvent le même>'
+```
+
+Lues par `app/build.gradle.kts` (`signingConfigs["release"]`) — **jamais écrites en dur dans un fichier commité**. Sans elles, `make android-production` échoue immédiatement avec un message clair plutôt que de laisser Gradle produire un APK non signé silencieusement.
+
+### 5.3 Construire
+
+Depuis `examples/advanced/mini_project/` (le patron s'applique à tout autre programme Ocara packagé de la même façon) :
+
+```bash
+make android-production
+```
+
+Compile le runtime + pont JNI (arm64 et x86_64, comme `make android`), lie le `.so` de l'exemple pour les deux ABI, puis `./gradlew assembleRelease` — signé, minifié (`isMinifyEnabled`/`isShrinkResources`, voir `app/build.gradle.kts`) via les règles de `app/proguard-rules.pro`. APK produit : `packaging/android/app/build/outputs/apk/release/app-release.apk`.
+
+**Piège réel corrigé au passage** : `OcaraBridge.nativeStartServer` est résolu par le pont JNI natif via son nom Java **exact**, figé à la compilation du `.so` (`Java_com_ocara_bridge_OcaraBridge_nativeStartServer`) — sans règle R8 dédiée, la minification aurait pu renommer cette classe/méthode, cassant le chargement du `.so` au premier appel (`UnsatisfiedLinkError`), **uniquement en production** (le debug, jamais minifié, ne l'aurait jamais révélé). `app/proguard-rules.pro` la protège explicitement (`-keep`).
+
+### Vérification
+
+Signature réelle :
+
+```bash
+$ANDROID_HOME/build-tools/<version>/apksigner verify --print-certs \
+  packaging/android/app/build/outputs/apk/release/app-release.apk
+```
+
+**Vérifié réellement** (keystore de test, à ne jamais réutiliser en production) : `assembleRelease` réussit (minification + réduction des ressources incluses), signature confirmée par `apksigner`, taille réduite d'environ 40 % par rapport au debug (~57 Mo contre ~96 Mo pour `examples/advanced/mini_project`, essentiellement les deux `.so` non compressibles). Installé sur un vrai téléphone (désinstallation de la version debug au préalable — signatures différentes, Android refuse une mise à jour qui change de signature) : chargement JNI, serveur HTTP, rendu HTML tous fonctionnels — `curl` répond `HTTP 200` avec le contenu attendu, confirmant que la règle R8 ci-dessus protège bien ce qu'il fallait.
+
 ---
 
 ## Limitations connues
@@ -168,6 +240,7 @@ Un squelette Android complet (Activity Kotlin + WebView + pont JNI générique) 
 - **`is_pic` n'est activé que pour une cible croisée** (`--target` explicite) — le chemin de compilation normal (hôte) reste inchangé (`-no-pie`, pas de PIC). Voir [roadmap.d/securite-pie-cranelift-is-pic.md](roadmap.d/securite-pie-cranelift-is-pic.md).
 - **`libz-sys` lie `libz` dynamiquement sur Android**, contrairement à OpenSSL (statique y compris pour Android) — son propre `build.rs` part du principe que tout compilateur Android est livré avec `libz`, ce qui est vrai sur toutes les versions d'Android testées par ce projet en amont.
 - **`ocara.SDL` sur Android n'a pas les formats audio "tracker"/MOD** (bug d'édition de liens en amont, voir ci-dessus) — WAV/OGG/MP3/FLAC/Opus fonctionnent normalement.
-- **Aucun test sur appareil ou émulateur réel** — seule l'inspection statique du binaire a été faite (architecture ELF, absence de `DT_TEXTREL`, dépendances dynamiques résolues et réellement exportées).
+- **Pointeurs de tas Android tagués (Scudo)** — l'allocateur natif d'Android peut renvoyer des pointeurs dont l'octet de poids fort est non nul (voir [roadmap.d/runtime-android-aarch64-pic-string-concat.md](roadmap.d/runtime-android-aarch64-pic-string-concat.md)) ; corrigé en désactivant ce tagging pour le processus (`mallopt` dans le pont JNI), vérifié en exécution réelle.
+- **`ocara.Tauri` sur une cible Android** ne rejette plus la compilation : compilé en talon local no-op (voir [roadmap.d/packaging-android-webview-hybrid.md](roadmap.d/packaging-android-webview-hybrid.md)) — un simple avertissement est émis à la place, ce qui permet un point d'entrée `.oc` unique partagé entre desktop et Android.
 - **`ocara.Tauri`** ne fonctionne pas et ne fonctionnera jamais sur Android (GTK, voir tableau ci-dessus).
-- **Packaging APK** : un squelette Gradle minimal existe (`packaging/android/`, WebView + pont JNI, voir §4) et produit un APK réel qui embarque un `.so` Ocara — mais reste un squelette de démonstration (port/nom de `.so` codés en dur, pas de cycle de vie Android), pas encore un gabarit générique réutilisable pour n'importe quel programme Ocara. Voir la stratégie envisagée dans [roadmap.d/packaging-android.md](roadmap.d/packaging-android.md), et les chantiers suivants [webview hybride](roadmap.d/packaging-android-webview-hybrid.md) / [GUI native](roadmap.d/packaging-android-gui-native.md).
+- **Packaging APK** : un squelette Gradle minimal existe (`packaging/android/`, WebView + pont JNI, voir §4) et produit un APK réel, testé avec succès sur un émulateur ET sur un appareil physique (`examples/advanced/mini_project` fonctionne bout en bout, à l'exception du bug de rendu ci-dessus) — mais reste un squelette de démonstration (port/nom de `.so`/package codés en dur, pas de cycle de vie Android), pas encore un gabarit générique réutilisable pour n'importe quel programme Ocara. Fichiers statiques (CSS, images…) : à copier manuellement dans `packaging/android/app/src/main/assets/` avant `./gradlew assembleDebug` — Gradle ne le fait pas automatiquement pour un projet Ocara, voir `packaging/android/README.md`. Voir la stratégie envisagée dans [roadmap.d/packaging-android.md](roadmap.d/packaging-android.md), et les chantiers suivants [webview hybride](roadmap.d/packaging-android-webview-hybrid.md) / [GUI native](roadmap.d/packaging-android-gui-native.md).

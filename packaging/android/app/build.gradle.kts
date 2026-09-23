@@ -15,10 +15,36 @@ android {
         versionName = "1.0"
     }
 
+    // Build de production : signé avec un vrai keystore, jamais celui de
+    // debug auto-généré (non installable/impossible à mettre à jour sur un
+    // appareil ayant déjà l'app installée avec une autre signature). Les
+    // secrets viennent UNIQUEMENT de variables d'environnement — jamais en
+    // dur ici (ce fichier est commité) — voir `make android-production`
+    // (examples/advanced/mini_project/Makefile) et docs/android.md pour la
+    // procédure complète (génération du keystore, variables requises).
+    // `storeFile` reste `null` si `OCARA_RELEASE_KEYSTORE` n'est pas défini :
+    // `assembleRelease` échoue alors explicitement (pas de build non signé
+    // silencieux) — voir la vérification faite par `make android-production`
+    // avant même d'invoquer Gradle, pour un message d'erreur plus clair que
+    // celui de Gradle seul.
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("OCARA_RELEASE_KEYSTORE")
+            if (keystorePath != null) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("OCARA_RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("OCARA_RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("OCARA_RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {

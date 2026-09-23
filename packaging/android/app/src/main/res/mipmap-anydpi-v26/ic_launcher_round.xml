@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Voir la note dans ic_launcher.xml (même dossier) : même image de premier
+     plan que la version non-round — l'icône adaptative applique elle-même le
+     masque (cercle/squircle/carré arrondi selon le lanceur), pas besoin d'un
+     second visuel pré-découpé en cercle (ic_launcher_round.webp ne sert plus
+     que de repli légataire API 24/25, comme ic_launcher.webp). -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@drawable/ic_launcher_background" />
-    <foreground android:drawable="@drawable/ic_launcher_foreground" />
-    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
+    <background android:drawable="@android:color/black" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+    <monochrome android:drawable="@mipmap/ic_launcher_foreground" />
 </adaptive-icon>

@@ -1,0 +1,40 @@
+if System::OS equal "android" {
+    // Sur Android, runtime_android_jni appelle déjà main() sur un thread
+    // dédié (différent du thread UI) — pas besoin de sous-thread + sondage
+    // HTTP pour ne pas geler la fenêtre Tauri en l'ouvrant trop tôt.
+    server.start()
+    result 0
+}
+
+const serverThread:Thread = use Thread()
+serverThread.run(nameless(): void {
+    server.start()
+})
+
+IO::writeln("Attente du serveur (GET /)...")
+var serverReady:bool = false
+var attempts:int = 0
+while not serverReady {
+    scoped res:HTTPResponse = HTTPRequest::get("http://localhost:8081/")
+    if HTTPRequest::ok(res) {
+        serverReady = true
+    } else {
+        attempts = attempts + 1
+        if attempts greater 200 {
+            result 5
+        } else {
+            Thread::sleep(50)
+        }
+    }
+}
+IO::writeln("Serveur prêt.")
+
+IO::writeln("Ouverture de la fenêtre vers http://localhost:8081 ...")
+var ui:Tauri = use Tauri({
+    "title":  "Garage Ocara",
+    "width":  1200,
+    "height": 800,
+    "url":    "http://localhost:8081"
+})
+
+ui.run()

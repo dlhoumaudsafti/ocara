@@ -1,0 +1,4 @@
+match ERROR {
+    5 => IO::writeln("Le serveur ne répond toujours pas après 10s")
+    default => IO::writeln(`Erreur inconnue : ${ERROR}`)
+}

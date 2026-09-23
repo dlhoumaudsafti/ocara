@@ -751,8 +751,18 @@ fn main() {
     let needs_sdl = ir_module.imports.iter().any(|m| m == "SDL");
 
     if android_link_requested {
-        // Tauri n'est jamais supporté par la liaison Android — GTK n'a
-        // structurellement aucun équivalent Android (hors périmètre définitif).
+        // Tauri n'a structurellement aucun équivalent Android (GTK ne tourne
+        // pas sur Android) — mais un programme peut légitimement importer
+        // ocara.Tauri pour sa seule branche desktop (`if System::OS equal
+        // "android" { ... } else { use Tauri(...) }`, le patron établi par
+        // examples/advanced/mini_project) : rejeter catégoriquement la
+        // compilation dans ce cas empêchait un point d'entrée unique
+        // multi-plateforme. `CraneliftEmitter::predeclare_functions` (voir
+        // `is_android_target`) compile désormais chaque `Tauri_*` en talon
+        // local no-op sur cette cible — le `.o` produit ne référence donc
+        // JAMAIS `libocara_runtime_tauri.a`/GTK, juste un avertissement pour
+        // que ça reste visible (un appel Tauri atteint par erreur sur Android
+        // ne ferait rien, silencieusement, plutôt que de planter).
         // SDL, lui, est supporté depuis la vérification du sous-chantier 4
         // (packaging-android.md) — mais seulement si le runtime SDL Android
         // correspondant est fourni ; sans lui, produire un `.so` qui référence
@@ -760,9 +770,8 @@ fn main() {
         // cette session a passé son temps à corriger côté codegen (voir
         // docs/roadmap.d/langage-use-chaine-valeur-retour-perdue.md).
         if needs_tauri {
-            diagnostic::print_error(&args.input, 0, 0,
-                "ocara.Tauri n'a aucun équivalent Android (GTK ne tourne pas sur Android) — hors périmètre, voir docs/roadmap.d/packaging-android.md");
-            std::process::exit(1);
+            diagnostic::print_warn(&args.input, 0, 0,
+                "ocara.Tauri est importé mais compilé en talon no-op sur Android (GTK n'a aucun équivalent Android) — tout appel Tauri effectivement atteint au runtime sur cette cible ne fera rien, voir docs/roadmap.d/packaging-android.md");
         }
         if needs_sdl && args.android_runtime_sdl.is_none() {
             diagnostic::print_error(&args.input, 0, 0,

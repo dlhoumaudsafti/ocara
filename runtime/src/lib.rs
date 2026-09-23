@@ -842,9 +842,22 @@ pub extern "C" fn __array_to_str(ptr: i64) -> i64 {
 }
 
 /// Retourne le nom du système d'exploitation cible.
+///
+/// `target_os = "android"` est une valeur DISTINCTE de `"linux"` pour rustc
+/// (même si le triple contient "linux", ex. `aarch64-linux-android`) —
+/// vérifié (`rustc --print cfg --target x86_64-linux-android` ne donne QUE
+/// `target_os="android"`, jamais `"linux"` en plus). Avant cette branche,
+/// un programme Ocara cross-compilé pour Android obtenait "unknown" ici,
+/// découvert en testant `examples/advanced/mini_project/main_android.oc`
+/// dans un émulateur réel (voir docs/roadmap.d/packaging-android-webview-hybrid.md) —
+/// le chemin absolu du fichier SQLite doit différer sur Android (bac à
+/// sable de l'app, voir `configs/Database.oc`), ce qui a rendu ce manque
+/// concret plutôt que théorique.
 #[unsafe(no_mangle)]
 pub extern "C" fn __system_os() -> i64 {
-    let os = if cfg!(target_os = "linux") {
+    let os = if cfg!(target_os = "android") {
+        "android"
+    } else if cfg!(target_os = "linux") {
         "linux"
     } else if cfg!(target_os = "macos") {
         "macos"
@@ -3187,6 +3200,25 @@ pub extern "C" fn __ocara_fail(val: i64, type_name: i64) {
             display_val
         );
         write_stderr_raw(msg.as_bytes());
+        // `std::process::exit()` déclenche `__cxa_finalize`, qui exécute les
+        // destructeurs de TOUTES les globales C++/Rust du processus — correct
+        // sur desktop (le processus Ocara EST le processus entier), mais fatal
+        // sur Android : le programme Ocara ne tourne que dans un THREAD d'un
+        // processus d'app partagé avec ART et les bibliothèques système déjà
+        // chargées (ex. libhwui), dont les globales (mutex ART, pools de
+        // threads de rendu...) ne sont jamais censées être détruites en cours
+        // de vie d'une app — leur destruction est détectée comme invalide et
+        // transformée en `abort()` fatal par ART/Bionic. Confirmé par
+        // reproduction sur un appareil réel (voir
+        // docs/roadmap.d/runtime-android-exit-unsafe.md) : `art::Mutex::~Mutex()`
+        // et `android::uirenderer::CommonPool::~CommonPool()` observés comme
+        // point de plantage selon quelle bibliothèque système est détruite en
+        // premier. `libc::_exit()` (l'appel système brut, PAS `exit()`) saute
+        // entièrement `__cxa_finalize`/les destructeurs globaux — le
+        // processus termine immédiatement, sans toucher aux internes d'ART.
+        #[cfg(target_os = "android")]
+        unsafe { libc::_exit(1); }
+        #[cfg(not(target_os = "android"))]
         std::process::exit(1);
     }
 }

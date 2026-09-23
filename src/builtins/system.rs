@@ -2,7 +2,7 @@
 // ocara.System — classe builtin statique
 //
 // Constantes de classe :
-//   System::OS    → string  "linux" | "macos" | "windows"
+//   System::OS    → string  "linux" | "macos" | "windows" | "android"
 //   System::ARCH  → string  "x86_64" | "aarch64" | …
 //
 // Méthodes statiques :
