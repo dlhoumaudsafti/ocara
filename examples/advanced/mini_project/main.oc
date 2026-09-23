@@ -4,6 +4,16 @@ namespace .
 // Tauri affiche directement son URL (http://localhost:8081) — une vraie
 // page servie par Ocara/SQLite, pas un fichier HTML statique local. Même
 // patron que examples/advanced/tauri_httpserver/main.oc.
+//
+// Multi-plateforme : sur Android, la branche `if System::OS equal "android"`
+// dans core/main.runtime.oc court-circuite Tauri (compilé en talon no-op sur
+// cette cible, voir docs/roadmap.d/packaging-android-webview-hybrid.md) et
+// lance directement le serveur, déjà hors du thread UI grâce au pont JNI.
+//
+// Build (voir le Makefile de ce dossier) :
+//   make desktop     Hôte, fenêtre Tauri
+//   make android     arm64 + x86_64 dans le même APK
+//   make simulator   Installe/lance sur un appareil détecté ou l'émulateur (choix interactif)
 
 import ocara.IO
 import ocara.System

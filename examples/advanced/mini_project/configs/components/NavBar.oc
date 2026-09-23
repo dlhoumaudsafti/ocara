@@ -11,7 +11,7 @@ class NavBar extends HTMLComponent {
             scoped homeCls:string   = match active { "home"   => " active" default => "" }
             scoped searchCls:string = match active { "search" => " active" default => "" }
             return `<nav>
-      <a href="/" class="brand">🚗 Garage Ocara</a>
+      <a href="/" class="brand"><img src="/imgs/logo-min.svg" alt="Logo Ocara"><span class="brand-text">Garage Ocara</span></a>
       <a href="/" class="nav-link${homeCls}">Voitures</a>
       <a href="/recherche" class="nav-link${searchCls}">Recherche</a>
     </nav>`

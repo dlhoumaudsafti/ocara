@@ -2,30 +2,43 @@
 // Accès aux données de la table "maintenances". Le type est stocké tel quel
 // ("maintenance" | "improvement") — c'est services/PricingService.oc qui
 // exploite cette distinction pour le recalcul du prix de vente estimé.
+//
+// Toute valeur variable est bindée via des placeholders nominatifs `:nom`
+// (voir docs/builtins/SQLite.md, "Requêtes paramétrées") — jamais concaténée
+// dans la requête (voir la même note dans models/Car.oc). L'écriture
+// (create) passe par le flux transactionnel `prepare()`/`bind()`/`commit()`,
+// via `SQLite::withOpen` (voir la note détaillée dans models/Car.oc).
 
 import ocara.SQLite
-import ocara.Convert
 import ocara.DateTime
 import configs.Database
-import helpers.SqlSafe
 
 class Maintenance {
 
     public static method forCar(carId:int): array<map<string, mixed>> {
         const db:SQLite = Database::connect()
-        const rows:array<map<string, mixed>> = db.query("SELECT * FROM maintenances WHERE car_id = " + Convert::intToStr(carId) + " ORDER BY created_at DESC")
+        const rows:array<map<string, mixed>> = db.query(
+            "SELECT * FROM maintenances WHERE car_id = :carId ORDER BY created_at DESC",
+            {"carId": carId}
+        )
         db.close()
         return rows
     }
 
     public static method create(carId:int, type:string, description:string, cost:float): int {
-        const db:SQLite = Database::connect()
-        scoped safeType:string = SqlSafe::escape(type)
-        scoped safeDesc:string = SqlSafe::escape(description)
-        db.execute("INSERT INTO maintenances (car_id, type, description, cost, created_at) VALUES (" +
-            Convert::intToStr(carId) + ", '" + safeType + "', '" + safeDesc + "', " + Convert::floatToStr(cost) + ", " + Convert::intToStr(DateTime::now()) + ")")
-        const id:int = db.lastInsertId()
-        db.close()
+        var id:int = 0
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            db.prepare("INSERT INTO maintenances (car_id, type, description, cost, created_at) VALUES (:carId, :type, :description, :cost, :createdAt)")
+            db.bind({
+                "carId": carId,
+                "type": type,
+                "description": description,
+                "cost": cost,
+                "createdAt": DateTime::now()
+            })
+            db.commit()
+            id = db.lastInsertId()
+        })
         return id
     }
 
@@ -33,7 +46,10 @@ class Maintenance {
     // du prix de vente estimé (services/PricingService.oc).
     public static method improvementTotal(carId:int): float {
         const db:SQLite = Database::connect()
-        const row:map<string, mixed> = db.queryOne("SELECT COALESCE(SUM(cost), 0) as total FROM maintenances WHERE car_id = " + Convert::intToStr(carId) + " AND type = 'improvement'")
+        const row:map<string, mixed> = db.queryOne(
+            "SELECT COALESCE(SUM(cost), 0) as total FROM maintenances WHERE car_id = :carId AND type = 'improvement'",
+            {"carId": carId}
+        )
         db.close()
         var total:float = row["total"]
         return total
@@ -43,7 +59,10 @@ class Maintenance {
     // à titre informatif, sans impact sur le prix de vente estimé.
     public static method maintenanceTotal(carId:int): float {
         const db:SQLite = Database::connect()
-        const row:map<string, mixed> = db.queryOne("SELECT COALESCE(SUM(cost), 0) as total FROM maintenances WHERE car_id = " + Convert::intToStr(carId) + " AND type = 'maintenance'")
+        const row:map<string, mixed> = db.queryOne(
+            "SELECT COALESCE(SUM(cost), 0) as total FROM maintenances WHERE car_id = :carId AND type = 'maintenance'",
+            {"carId": carId}
+        )
         db.close()
         var total:float = row["total"]
         return total
@@ -53,11 +72,12 @@ class Maintenance {
     // (jointure) pour permettre un lien direct depuis la page de recherche.
     public static method search(term:string): array<map<string, mixed>> {
         const db:SQLite = Database::connect()
-        scoped pattern:string = "%" + SqlSafe::escape(term) + "%"
+        scoped pattern:string = "%" + term + "%"
         const rows:array<map<string, mixed>> = db.query(
             "SELECT maintenances.*, cars.reference as car_reference FROM maintenances " +
             "JOIN cars ON cars.id = maintenances.car_id " +
-            "WHERE maintenances.description LIKE '" + pattern + "' ORDER BY maintenances.created_at DESC"
+            "WHERE maintenances.description LIKE :pattern ORDER BY maintenances.created_at DESC",
+            {"pattern": pattern}
         )
         db.close()
         return rows

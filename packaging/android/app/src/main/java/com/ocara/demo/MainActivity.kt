@@ -1,14 +1,19 @@
 package com.ocara.demo
 
 import android.annotation.SuppressLint
+import android.graphics.Color
 import android.os.Bundle
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -55,7 +60,18 @@ class MainActivity : ComponentActivity() {
     // chemin construit à la main) : voir la doc du paramètre `dataDir`.
     OcaraBridge.nativeStartServer(filesDir.absolutePath)
 
-    enableEdgeToEdge()
+    // Barre de statut transparente (le contenu edge-to-edge de la WebView —
+    // la nav sticky en haut de public/style.css — passe déjà dessous) MAIS
+    // avec des icônes CLAIRES forcées (`SystemBarStyle.dark`, qui décrit le
+    // contenu SOUS la barre — donc "dark background → icônes claires" — pas
+    // la couleur de la barre elle-même) : sans ça, `enableEdgeToEdge()` sans
+    // argument choisit clair/sombre selon le thème SYSTÈME, qui peut rendre
+    // des icônes sombres illisibles sur l'entête toujours sombre de l'app
+    // (`--brand-dark` dans style.css), quel que soit le thème du téléphone.
+    enableEdgeToEdge(
+      statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+      navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+    )
     setContent {
       OcaraUIHybridDemoTheme {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -128,22 +144,32 @@ private fun OcaraWebViewScreen() {
     }
   }
 
+  // Hauteur réelle de la barre de statut (varie selon l'appareil/l'encoche) —
+  // le contenu est edge-to-edge (voir enableEdgeToEdge dans MainActivity),
+  // donc la WebView ne le sait pas nativement : transmise en CSS px (≈ dp,
+  // le viewport HTML fixe `initial-scale=1.0`, voir configs/components/
+  // Layout.oc) via une variable custom, injectée en JS après chaque
+  // chargement de page (voir OcaraWebViewClient plus bas) plutôt que
+  // calculée côté CSS pur (`env(safe-area-inset-top)` resterait à 0 sans
+  // plomberie WindowInsets supplémentaire côté WebView — plus de code natif
+  // pour un résultat moins direct que cette seule variable).
+  val statusBarHeightDp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
   Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
     if (serverReady) {
       AndroidView(
         factory = { context ->
           WebView(context).apply {
             settings.javaScriptEnabled = true
-            // SANS ceci, Android traite tout clic sur un lien (et toute
+            // SANS WebViewClient (même la version de base, sans rien
+            // surcharger), Android traite tout clic sur un lien (et toute
             // navigation déclenchée par la soumission d'un formulaire) comme
             // une intention à résoudre par le système — qui l'ouvre alors
             // dans le navigateur par défaut au lieu de rester dans cette
-            // WebView. `WebViewClient()` (même la version de base, sans rien
-            // surcharger) fait rester la navigation DANS la WebView tant que
-            // `shouldOverrideUrlLoading` n'est pas explicitement surchargé
-            // pour dire le contraire — ce qui est exactement ce qu'on veut
-            // ici, toute navigation reste vers le serveur Ocara local.
-            webViewClient = WebViewClient()
+            // WebView. `OcaraWebViewClient` (voir plus bas) hérite de ce
+            // comportement (ne surcharge pas `shouldOverrideUrlLoading`) tout
+            // en injectant la hauteur de la barre de statut à chaque page.
+            webViewClient = OcaraWebViewClient(statusBarHeightDp.value)
             loadUrl(OCARA_SERVER_URL)
           }
         },
@@ -152,5 +178,24 @@ private fun OcaraWebViewScreen() {
     } else {
       CircularProgressIndicator()
     }
+  }
+}
+
+/**
+ * `WebViewClient` qui, après CHAQUE chargement de page (pas seulement la
+ * première — la navigation reste dans cette même WebView, voir la doc plus
+ * haut), pose `--android-status-bar-height` sur `<html>` : `public/style.css`
+ * l'utilise (`var(--android-status-bar-height, 0px)`) pour ajouter le padding
+ * manquant en haut de la nav, UNIQUEMENT sur Android — sur desktop/navigateur
+ * classique, cette variable n'existe jamais, la valeur par défaut `0px`
+ * s'applique et le CSS reste inchangé.
+ */
+private class OcaraWebViewClient(private val statusBarHeightDp: Float) : WebViewClient() {
+  override fun onPageFinished(view: WebView, url: String?) {
+    super.onPageFinished(view, url)
+    view.evaluateJavascript(
+      "document.documentElement.style.setProperty('--android-status-bar-height', '${statusBarHeightDp}px')",
+      null,
+    )
   }
 }

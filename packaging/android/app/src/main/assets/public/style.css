@@ -8,8 +8,8 @@
   --border:    #e2e6ea;
   --ink:       #1c2733;
   --ink-soft:  #5b6b7a;
-  --brand:     #0f6e6a;
-  --brand-dark:#0a4f4c;
+  --brand:     #3f3f3f;
+  --brand-dark:#1f1f1f;
   --accent:    #2f7cf6;
   --success:   #1c8f5a;
   --success-bg:#e7f6ee;
@@ -42,18 +42,69 @@ body {
 nav {
   display: flex;
   align-items: center;
-  gap: 20px;
+  flex-wrap: wrap;
+  gap: 12px 20px;
   padding: 16px 24px;
+  /* App Android uniquement (WebView edge-to-edge, la nav passe SOUS la barre
+     de statut — voir MainActivity.kt) : `--android-status-bar-height` est
+     injectée en JS après chargement de la page ; en dehors de cette app
+     (navigateur classique, la variable n'existe jamais), `var(...)` retombe
+     sur `0px` et ce padding-top reste identique à celui des autres côtés. */
+  padding-top: calc(16px + var(--android-status-bar-height, 0px));
   background: var(--brand-dark);
   color: #eef7f6;
+  /* Entête fixe : reste visible en scrollant. `sticky` (pas `fixed`) — la nav
+     garde sa place dans le flux normal (pas besoin d'un padding-top de
+     compensation sur .container, qui devrait sinon être recalculé si la nav
+     passe sur deux lignes en très petit écran, voir `flex-wrap` ci-dessus). */
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  box-shadow: 0 2px 6px rgba(10, 20, 30, 0.18);
 }
 
 nav .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-weight: 700;
   font-size: 1.05rem;
   color: #ffffff;
   text-decoration: none;
   margin-right: auto;
+}
+
+nav .brand>img {
+  width: 48px;
+  height: auto;
+  /* Sans ceci, une image inline garde son alignement par défaut sur la
+     ligne de base du texte (`vertical-align: baseline`) — un logo plus
+     grand que le texte "flotte" alors trop haut par rapport à lui. Ici,
+     superflu une fois `.brand` en flex (`align-items: center` centre déjà
+     l'image et le texte l'un par rapport à l'autre), gardé au cas où ce
+     logo serait réutilisé hors de ce conteneur flex. */
+  vertical-align: middle;
+}
+
+nav .brand>span {
+  color: #cfe9e6;
+  text-decoration: none;
+  font-size: 0.92rem;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+/* .brand-text (le nom "Garage Ocara" à côté du logo) EST un <span>, donc la
+   règle générique `nav .brand>span` ci-dessus s'appliquerait aussi à lui
+   sans ceci (même sélecteur, plus spécifique) — annulé explicitement pour
+   garder l'apparence du texte de marque (blanc, gras, sans padding en
+   pilule) telle que validée, indépendamment de ce que `nav .brand>span`
+   impose par ailleurs. */
+nav .brand > span.brand-text {
+  color: inherit;
+  font-size: inherit;
+  padding: 0;
+  border-radius: 0;
 }
 
 nav .nav-link {
@@ -129,6 +180,11 @@ footer {
 
 .search-bar input {
   flex: 1;
+  /* Un <input> a un `min-width: auto` intrinsèque basé sur sa taille par
+     défaut — sans ce reset, `flex: 1` ne le laisse PAS rétrécir sous cette
+     largeur, poussant le bouton hors du conteneur et provoquant un
+     débordement horizontal de toute la page (confirmé à l'écran en 375px). */
+  min-width: 0;
 }
 
 /* ── Formulaires ──────────────────────────────────────────────────────── */
@@ -314,7 +370,38 @@ button:hover { background: var(--brand-dark); }
 .badge-maintenance { background: var(--amber-bg); color: var(--amber); }
 .badge-improvement { background: var(--success-bg); color: var(--success); }
 
+/* ── Responsive ───────────────────────────────────────────────────────────
+   Trois paliers, du plus large au plus étroit : tablette/petit desktop
+   (≤720px, resserre les espacements), mobile (≤560px, déjà existant plus
+   haut pour .maintenance-row), petit mobile (≤420px, colonnes uniques et
+   cibles tactiles pleine largeur). */
+
+@media (max-width: 720px) {
+  .container { padding: 20px 16px 48px; }
+  nav { padding: 12px 16px; padding-top: calc(12px + var(--android-status-bar-height, 0px)); gap: 8px 16px; }
+  .page-header { gap: 12px; }
+  .search-bar { min-width: 0; flex-basis: 100%; max-width: none; }
+  .card { padding: 18px; }
+}
+
 @media (max-width: 560px) {
   .maintenance-row { grid-template-columns: auto 1fr; row-gap: 6px; }
   .maintenance-date, .maintenance-cost, .maintenance-car { grid-column: 2; text-align: left; }
+}
+
+@media (max-width: 480px) {
+  /* Écran trop étroit pour "Garage Ocara" + les liens sans surcharger la
+     nav — le logo seul (`nav .brand>img`, jamais caché) suffit à identifier
+     la marque. */
+  .brand-text { display: none; }
+}
+
+@media (max-width: 420px) {
+  h1 { font-size: 1.35rem; }
+  nav .brand { font-size: 0.95rem; }
+  nav .nav-link { padding: 5px 8px; font-size: 0.85rem; }
+  .form-grid { grid-template-columns: 1fr; }
+  .form-grid button { width: 100%; }
+  .stats-row, .cars-grid { grid-template-columns: 1fr; }
+  .car-card-header { flex-wrap: wrap; gap: 4px; }
 }

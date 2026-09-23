@@ -1,0 +1,69 @@
+import ocara.UnitTest
+import ocara.SQLite
+import ocara.File
+
+// Une colonne SQLite REAL relue via query()/queryOne() doit revenir comme un
+// float BOXÉ dans la map<string, mixed> (voir __box_float, runtime/src/lib.rs)
+// — pas la magnitude brute des bits IEEE-754 (v.to_bits() as i64 sans passer
+// par __box_float, le bug réel corrigé dans runtime/src/sqlite.rs). Confirmé
+// par reproduction : une valeur 2000.0 revenait comme 4656510908468559872
+// (les bits de 2000.0 réinterprétés comme un entier) avant ce correctif.
+
+class Test_55_sqlite_real_column_boxing {
+
+    public method queryBoxesRealColumnTest(): int {
+        const path:string = "test_55_query.db"
+        if File::exists(path) {
+            File::remove(path)
+        }
+
+        const db:SQLite = SQLite::open(path)
+        db.execute("CREATE TABLE t (price REAL NOT NULL)")
+        db.execute("INSERT INTO t (price) VALUES (2000.0)")
+        const rows:array<map<string, mixed>> = db.query("SELECT price FROM t")
+        db.close()
+        File::remove(path)
+
+        var price:float = rows[0]["price"]
+        UnitTest::assertEquals(2000.0, price)
+        return 0
+    }
+
+    public method queryOneBoxesRealColumnTest(): int {
+        const path:string = "test_55_queryone.db"
+        if File::exists(path) {
+            File::remove(path)
+        }
+
+        const db:SQLite = SQLite::open(path)
+        db.execute("CREATE TABLE t (price REAL NOT NULL)")
+        db.execute("INSERT INTO t (price) VALUES (2000.0)")
+        const row:map<string, mixed> = db.queryOne("SELECT price FROM t")
+        db.close()
+        File::remove(path)
+
+        var price:float = row["price"]
+        UnitTest::assertEquals(2000.0, price)
+        return 0
+    }
+
+    // Non-régression : une colonne INTEGER doit rester un entier ordinaire
+    // (jamais affectée par le correctif, qui ne touche que la branche f64).
+    public method integerColumnStillIntTest(): int {
+        const path:string = "test_55_int.db"
+        if File::exists(path) {
+            File::remove(path)
+        }
+
+        const db:SQLite = SQLite::open(path)
+        db.execute("CREATE TABLE t (qty INTEGER NOT NULL)")
+        db.execute("INSERT INTO t (qty) VALUES (42)")
+        const row:map<string, mixed> = db.queryOne("SELECT qty FROM t")
+        db.close()
+        File::remove(path)
+
+        var qty:int = row["qty"]
+        UnitTest::assertEquals(42, qty)
+        return 0
+    }
+}

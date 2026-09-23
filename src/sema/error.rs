@@ -229,7 +229,7 @@ impl SemaError {
             SemaError::ThreadNotFinalized { name, .. } =>
                 format!("'{}' is a 'scoped'/'consumed' Thread that reaches the end of its block without a call to '.join()' or '.detach()' — pick one explicitly", name),
             SemaError::UnclosedResourceVar { name, ty_name, .. } =>
-                format!("'{}' ('{}') is declared with 'var'/'const', never escapes its block, and is never '.destroy()'ed/'.close()'d — this native handle leaks permanently, since 'var'/'const' never close a resource automatically (unlike 'scoped'/'consumed'); call '.destroy()'/'.close()' explicitly, or declare it 'scoped'/'consumed' if you want the compiler to finalize it for you", name, ty_name),
+                format!("'{}' ('{}') is declared with 'var'/'const', never escapes its block, and is never '.destroy()'/'.close()' — this native handle leaks permanently, since 'var'/'const' never close a resource automatically (unlike 'scoped'/'consumed'); call '.destroy()'/'.close()' explicitly, or declare it 'scoped'/'consumed' if you want the compiler to finalize it for you", name, ty_name),
             SemaError::ManualCloseOnResourceField { class, field, ty_name, method, .. } =>
                 format!("'self.{}' ('{}') is closed automatically when the '{}' instance is destroyed — calling '.{}()' manually here would close it a second time (undefined behavior); remove this call", field, ty_name, class, method),
             SemaError::StringConcatMismatch { left, right, .. } =>
@@ -241,13 +241,13 @@ impl SemaError {
                     format!("generic '{}' expects between {} and {} type argument(s), {} provided", name, expected_min, expected_max, found)
                 },
             SemaError::ThreadAlreadyFinalized { name, .. } =>
-                format!("'{}' was already '.join()'ed or '.detach()'ed — calling either a second time would use a native handle already reclaimed", name),
+                format!("'{}' was already '.join()' or '.detach()' — calling either a second time would use a native handle already reclaimed", name),
             SemaError::OnFilterClassNotFound { name, .. } =>
                 format!("'{}' is not a known class — this 'on e is {}' handler would never match anything", name, name),
             SemaError::CatchAllNotLast { .. } =>
                 "a catch-all 'on' handler (without 'is') must be the last one in this try/on chain — handlers after it would never be reached".into(),
             SemaError::ResourceAlreadyFinalized { name, class_name, method, .. } =>
-                format!("'{}' ('{}') was already '.{}()'ed — calling it a second time would use a native handle already reclaimed", name, class_name, method),
+                format!("'{}' ('{}') was already '.{}()' — calling it a second time would use a native handle already reclaimed", name, class_name, method),
             SemaError::ArgumentEscape { name, class_name, callee, .. } =>
                 format!("'{}' ('{}') is passed as an argument to '{}', which stores it beyond this call — a 'scoped'/'consumed' value cannot be passed where the callee retains it; clone it explicitly first, or pass a fresh value", name, class_name, callee),
             SemaError::MessageNotNameable { name, .. } =>
