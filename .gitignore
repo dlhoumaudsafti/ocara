@@ -36,3 +36,6 @@ ci/ci-report.txt
 docs/copilot-instructions.md
 copilot-instructions.md
 *.o
+
+# exemple mini_project
+examples/advanced/mini_project/Makefile
