@@ -5,9 +5,9 @@ RED     := \033[0;31m
 RESET   := \033[0m
 
 # Argument optionnel : make regression builtins/io ; make android-simulator <apk>
-_TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android android-simulator,$(MAKECMDGOALS))
+_TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android android-simulator build-runtime-windows build-windows,$(MAKECMDGOALS))
 
-.PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression ci lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android android-simulator $(_TARGET)
+.PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression ci lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android android-simulator build-runtime-windows build-windows $(_TARGET)
 
 # ── Aide ──────────────────────────────────────────────────────────────────────
 help:
@@ -45,6 +45,9 @@ help:
 	@echo "                            désinstalle/réinstalle si déjà présent — nécessite"
 	@echo "                            ANDROID_HOME). ANDROID_SERIAL=<serial> pour cibler un"
 	@echo "                            appareil déjà connecté (adb devices) au lieu de l'émulateur."
+	@echo "  build-runtime-windows   Cross-compile ocara_runtime pour x86_64-pc-windows-gnu"
+	@echo "                            (nécessite gcc-mingw-w64-x86-64, voir docs/roadmap.d/packaging-windows.md)"
+	@echo "  build-windows           Cross-compile ocara lui-même (ocara.exe) pour x86_64-pc-windows-gnu"
 	@echo "  clean                   Supprime les artefacts de compilation d'ocara"
 	@echo "  clean-tools             Supprime les artefacts de compilation des outils"
 	@echo "  clean-all               Supprime tous les artefacts (clean + clean-tools)"
@@ -181,6 +184,44 @@ build-runtime-sdl-android:
 	CARGO_TARGET_$(shell echo $(ANDROID_TARGET_ENV) | tr a-z A-Z)_LINKER="$(ANDROID_CC)" \
 	CMAKE_TOOLCHAIN_FILE="$(ANDROID_NDK_HOME)/build/cmake/android.toolchain.cmake" \
 	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime_sdl --target $(ANDROID_TARGET) -j1
+
+# ── Cross-compilation Windows (packaging-windows.md) ─────────────────────────
+# `x86_64-w64-mingw32-gcc` (paquet `gcc-mingw-w64-x86-64`) sert de compilateur
+# C croisé pour les dépendances C vendorisées d'ocara_runtime (OpenSSL
+# "vendored", SQLite "bundled", zlib "static") — sans lui leurs build.rs
+# invoqueraient le `cc` de l'hôte, qui produit du x86_64 Linux (ELF), pas du
+# Windows (PE/COFF). 64 bits UNIQUEMENT (`x86_64-pc-windows-gnu`) — 32 bits
+# (`i686-*`) explicitement hors périmètre, jamais visé par ce projet.
+# `-j4` : même choix que `build` ci-dessus (voir son commentaire) — jamais
+# encore vu d'OOM sur cette cible non plus, repasser à `-j1` si observé.
+WINDOWS_TARGET := x86_64-pc-windows-gnu
+WINDOWS_CC     := x86_64-w64-mingw32-gcc
+WINDOWS_AR     := x86_64-w64-mingw32-ar
+
+build-runtime-windows:
+	@if ! command -v $(WINDOWS_CC) >/dev/null 2>&1; then \
+	    echo "$(WINDOWS_CC) introuvable — installer le paquet gcc-mingw-w64-x86-64 (voir docs/roadmap.d/packaging-windows.md)"; exit 1; \
+	fi
+	CC_x86_64_pc_windows_gnu="$(WINDOWS_CC)" \
+	AR_x86_64_pc_windows_gnu="$(WINDOWS_AR)" \
+	CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER="$(WINDOWS_CC)" \
+	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime --target $(WINDOWS_TARGET) -j4
+
+# `ocara` lui-même cross-compilé pour Windows (contrairement à Android, où
+# seuls des PROGRAMMES Ocara étaient cross-compilés via `--target` sur le
+# `ocara` de l'hôte — jamais le compilateur lui-même) : son propre build.rs
+# embarque `libocara_runtime.a` (voir target_release_dir(), build.rs racine) —
+# `build-runtime-windows` doit donc avoir tourné en premier, sans quoi
+# build.rs le déclenche lui-même automatiquement (mêmes limites que `cargo
+# build -p ocara` seul côté hôte, voir docs/roadmap.d/packaging-build-cargo.md).
+# `ocara_runtime_tauri`/`ocara_runtime_sdl` (GTK/SDL3) ne sont PAS encore
+# vérifiés pour cette cible — non couverts ici, voir packaging-windows.md.
+build-windows: build-runtime-windows
+	CC_x86_64_pc_windows_gnu="$(WINDOWS_CC)" \
+	AR_x86_64_pc_windows_gnu="$(WINDOWS_AR)" \
+	CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER="$(WINDOWS_CC)" \
+	RUSTFLAGS="-D warnings" cargo build --release -p ocara --target $(WINDOWS_TARGET) -j4
+	@echo "ocara.exe : target/$(WINDOWS_TARGET)/release/ocara.exe"
 
 # ── Émulateur Android : installer + lancer un APK pour le tester ────────────
 # `make android-simulator <chemin.apk>` — nécessite $ANDROID_HOME (SDK).
