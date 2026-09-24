@@ -1,0 +1,43 @@
+namespace context.car.infra.controllers
+// examples/advanced/mini_projet/controllers/MaintenanceController.oc
+// Ajout d'un entretien à une voiture, puis recalcul immédiat du prix de
+// vente estimé (services/PricingService.oc) si c'est une amélioration.
+
+import ocara.HTTPServer
+import ocara.Convert
+import ocara.String
+import context.car.infra.db.Maintenance
+import context.car.app.usecase.PricingService
+
+class MaintenanceController {
+
+    public static method create(req:int): int {
+        scoped carIdStr:string    = HTTPServer::query(req, "car_id")
+        // `const` (pas `scoped`) : Maintenance::create() les bind dans une map
+        // passée à db.bind(), donc les retient au-delà de cet appel — une
+        // valeur `scoped`/`consumed` ne peut pas être passée là où l'appelé la
+        // retient (voir E26, docs/diagnostics.md).
+        const type:string        = HTTPServer::query(req, "type")
+        const description:string = String::trim(HTTPServer::query(req, "description"))
+        scoped costStr:string     = HTTPServer::query(req, "cost")
+
+        var carId:int   = Convert::strToInt(carIdStr)
+        var cost:float  = Convert::strToFloat(costStr)
+        scoped idStr:string = Convert::intToStr(carId)
+
+        scoped validType:bool = type equal "maintenance" or type equal "improvement"
+        if String::empty(description) or cost smaller or equal 0.0 or not validType {
+            HTTPServer::respondHeader(req, "Location", "/voitures/detail?id=" + idStr + "&error=invalid_cost")
+            HTTPServer::respond(req, 302, "")
+            return 0
+        }
+
+        Maintenance::create(carId, type, description, cost)
+        // Recalcul complet (pas un simple +=) : voir services/PricingService.oc.
+        PricingService::recalculateEstimatedPrice(carId)
+
+        HTTPServer::respondHeader(req, "Location", "/voitures/detail?id=" + idStr + "&success=maintenance_added")
+        HTTPServer::respond(req, 302, "")
+        return 0
+    }
+}

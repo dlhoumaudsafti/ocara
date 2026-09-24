@@ -1,0 +1,26 @@
+namespace configs.routes
+// examples/advanced/mini_projet/configs/routes/CarRoutes.oc
+//
+// Nommée CarRoutes (pas Car) : context.car.infra.db.Car existe déjà pour ce
+// même contexte — un nom identique aurait collisionné (deux classes "Car"
+// dans le programme fusionné, l'une écrasant silencieusement l'autre au lieu
+// d'une erreur de compilation — bug réel rencontré en testant : la création
+// d'une voiture répondait 302 succès sans jamais rien insérer en base).
+//
+// Mutation via GET plutôt que POST : HTTPServer::query() décode déjà l'URL
+// (voir runtime/src/httpserver.rs::parse_query), alors qu'aucun parseur
+// application/x-www-form-urlencoded n'est fourni pour un corps de requête
+// POST. Le "redirect after action" de CarController::create (302 vers une
+// URL propre) évite le risque habituel de resoumission au rechargement.
+
+import context.car.infra.controllers.CarController
+import context.car.infra.controllers.MaintenanceController
+import configs.Server
+
+class CarRoutes {
+    init(server:Server) {
+        server.route("/voitures/detail", "GET", CarController::show)
+        server.route("/voitures/ajouter", "GET", CarController::create)
+        server.route("/entretiens/ajouter", "GET", MaintenanceController::create)
+    }
+}

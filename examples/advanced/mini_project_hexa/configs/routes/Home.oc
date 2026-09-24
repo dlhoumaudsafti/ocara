@@ -1,0 +1,11 @@
+namespace configs.routes
+// examples/advanced/mini_projet/configs/routes/Home.oc — routes de lecture (GET).
+
+import context.home.infra.controllers.HomeController
+import configs.Server
+
+class Home {
+    init(server:Server) {
+        server.route("/",                "GET", HomeController::index)
+    }
+}

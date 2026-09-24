@@ -1,0 +1,19 @@
+namespace context.home.app.usecase
+
+import context.home.infra.db.CarSummaryRepository
+import context.home.app.dto.DashboardDto
+import context.home.domain.entity.CarSummaryEntity
+
+class DashboardService {
+
+    public static method build(): DashboardDto {
+        const cars:array<CarSummaryEntity> = CarSummaryRepository::all()
+        var totalPurchase:float = 0.0
+        var totalEstimated:float = 0.0
+        for car in cars {
+            totalPurchase = totalPurchase + car.purchasePrice
+            totalEstimated = totalEstimated + car.estimatedPrice
+        }
+        return use DashboardDto(cars, totalPurchase, totalEstimated)
+    }
+}

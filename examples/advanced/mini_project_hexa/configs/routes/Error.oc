@@ -1,0 +1,11 @@
+namespace configs.routes
+// examples/advanced/mini_projet/configs/routes/Error.oc
+
+import context.error.infra.controllers.ErrorController
+import configs.Server
+
+class Error {
+    init(server:Server) {
+        server.routeError(404, ErrorController::handle404)
+    }
+}

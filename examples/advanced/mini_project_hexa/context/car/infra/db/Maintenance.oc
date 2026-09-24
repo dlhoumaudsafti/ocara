@@ -1,0 +1,85 @@
+namespace context.car.infra.db
+// examples/advanced/mini_projet/models/Maintenance.oc
+//
+// Le type est stocké tel quel ("maintenance" | "improvement") — c'est
+// context.car.app.usecase.PricingService qui exploite cette distinction pour
+// le recalcul du prix de vente estimé.
+//
+// `forCar` retourne des MaintenanceEntity (voir
+// context.car.domain.entity.MaintenanceEntity). Pas de `search()` ici : voir
+// context.search.infra.db (même raison que Car.oc).
+
+import ocara.SQLite
+import ocara.DateTime
+import configs.Database
+import context.car.domain.entity.MaintenanceEntity
+
+class Maintenance {
+
+    private static method fromRow(row:map<string, mixed>): MaintenanceEntity {
+        var id:int = row["id"]
+        var carId:int = row["car_id"]
+        var type:string = row["type"]
+        var description:string = row["description"]
+        var cost:float = row["cost"]
+        var createdAt:int = row["created_at"]
+        return use MaintenanceEntity(id, carId, type, description, cost, createdAt)
+    }
+
+    public static method forCar(carId:int): array<MaintenanceEntity> {
+        const db:SQLite = Database::connect()
+        const rows:array<map<string, mixed>> = db.query(
+            "SELECT * FROM maintenances WHERE car_id = :carId ORDER BY created_at DESC",
+            {"carId": carId}
+        )
+        db.close()
+        var items:array<MaintenanceEntity> = []
+        for row in rows {
+            items.push(self::fromRow(row))
+        }
+        return items
+    }
+
+    public static method create(carId:int, type:string, description:string, cost:float): int {
+        var id:int = 0
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            db.prepare("INSERT INTO maintenances (car_id, type, description, cost, created_at) VALUES (:carId, :type, :description, :cost, :createdAt)")
+            db.bind({
+                "carId": carId,
+                "type": type,
+                "description": description,
+                "cost": cost,
+                "createdAt": DateTime::now()
+            })
+            db.commit()
+            id = db.lastInsertId()
+        })
+        return id
+    }
+
+    // Somme des entretiens d'amélioration d'une voiture — base du recalcul
+    // du prix de vente estimé (context.car.app.usecase.PricingService).
+    public static method improvementTotal(carId:int): float {
+        const db:SQLite = Database::connect()
+        const row:map<string, mixed> = db.queryOne(
+            "SELECT COALESCE(SUM(cost), 0) as total FROM maintenances WHERE car_id = :carId AND type = 'improvement'",
+            {"carId": carId}
+        )
+        db.close()
+        var total:float = row["total"]
+        return total
+    }
+
+    // Somme des entretiens de maintenance (hors amélioration) — coût suivi
+    // à titre informatif, sans impact sur le prix de vente estimé.
+    public static method maintenanceTotal(carId:int): float {
+        const db:SQLite = Database::connect()
+        const row:map<string, mixed> = db.queryOne(
+            "SELECT COALESCE(SUM(cost), 0) as total FROM maintenances WHERE car_id = :carId AND type = 'maintenance'",
+            {"carId": carId}
+        )
+        db.close()
+        var total:float = row["total"]
+        return total
+    }
+}

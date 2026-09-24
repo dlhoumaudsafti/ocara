@@ -140,6 +140,53 @@ fn named_params(binds: &[(String, SqlValue)]) -> Vec<(&str, &dyn ToSql)> {
     binds.iter().map(|(k, v)| (k.as_str(), v as &dyn ToSql)).collect()
 }
 
+/// Convertit la colonne `i` de `row` en valeur `mixed` Ocara auto-décrite —
+/// partagée par `collect_all_rows` (`query`/`commit` multi-lignes) ET
+/// `SQLite_queryOne` (ligne unique), qui dupliquaient chacune leur propre
+/// copie de cette logique. Cette duplication avait déjà causé un bug une
+/// première fois pour les colonnes REAL (voir le commentaire historique
+/// "Voir le commentaire équivalent dans collect_all_rows" que ce partage
+/// remplace) — cette fois pour les colonnes INTEGER, jamais corrigées ni
+/// dans `collect_all_rows` ni dans `SQLite_queryOne`.
+///
+/// INVARIANT `mixed` (voir la doc de `mixed_to_sql_value` plus haut) : un
+/// entier logé dans un `mixed` DOIT être boxé (`box_int_if_needed`) dès
+/// qu'il vaut `0` ou dépasse `PTR_THRESHOLD` (0x10000, voir
+/// `runtime/src/lib.rs`) — sinon il devient indiscernable, par ses 2 bits
+/// bas, d'un float/bool/int boxé ou d'un pointeur heap réel (voir
+/// `is_float_box`/`is_bool_box`/`is_int_box`). Avant ce correctif, la valeur
+/// `i64` de `row.get::<_, i64>(i)` était stockée BRUTE, sans jamais passer
+/// par `box_int_if_needed` — tout consommateur `mixed` générique
+/// (`__mixed_to_int`/`unbox_numeric_i64`, appelé dès qu'un résultat de
+/// requête est affecté à un `int` concret) la déballait alors comme si
+/// c'était potentiellement un pointeur boxé, et la DÉRÉFÉRENÇAIT dès que ses
+/// 2 bits bas matchaient un tag (float/bool/int) — SIGSEGV. Confirmé par
+/// reproduction : une colonne INTEGER `created_at` valant `1790255242`
+/// (>= 0x10000, `& 3 == 2` → confondue avec un `bool` boxé par
+/// `is_bool_box`) faisait planter `__mixed_to_int` (`unbox_bool`
+/// déréférençant l'adresse arbitraire `1790255242 & !3`) dès qu'elle était
+/// lue dans un `int` concret après un `db.query()`/`db.queryOne()`. Voir
+/// docs/roadmap.d/stdlib-sqlite-integer-column-boxing.md.
+fn row_column_as_mixed(row: &rusqlite::Row<'_>, i: usize) -> i64 {
+    if let Ok(v) = row.get::<_, i64>(i) {
+        crate::box_int_if_needed(v)
+    } else if let Ok(v) = row.get::<_, f64>(i) {
+        // Boxer (pas juste `v.to_bits()`) : une valeur `mixed` distingue
+        // un float d'un entier par un tag dans ses 2 bits bas
+        // (`is_float_box`, voir runtime/src/lib.rs) — la seule
+        // magnitude des bits IEEE-754 n'a aucune raison de porter ce
+        // tag, donc `v.to_bits() as i64` brut se faisait relire comme
+        // un entier énorme au lieu du flottant réel (confirmé par
+        // reproduction : une colonne REAL valant 2000.0 redevenait
+        // 4656510908468559872 après un aller-retour SELECT).
+        crate::__box_float(v.to_bits() as i64)
+    } else if let Ok(v) = row.get::<_, String>(i) {
+        unsafe { alloc_str(&v) }
+    } else {
+        0
+    }
+}
+
 /// Lit toutes les lignes du `Statement` déjà bindé dans un `array<map<string,
 /// mixed>>` Ocara — factorise la logique déjà utilisée par `query`/`queryOne`
 /// one-shot et par `commit()` quand la requête préparée est un SELECT.
@@ -157,23 +204,7 @@ fn collect_all_rows(stmt: &mut Statement, binds: &[(&str, &dyn ToSql)]) -> Resul
         let row_map = crate::__map_new();
         for (i, col_name) in column_names.iter().enumerate() {
             let key = unsafe { alloc_str(col_name) };
-            let value = if let Ok(v) = row.get::<_, i64>(i) {
-                v
-            } else if let Ok(v) = row.get::<_, f64>(i) {
-                // Boxer (pas juste `v.to_bits()`) : une valeur `mixed` distingue
-                // un float d'un entier par un tag dans ses 2 bits bas
-                // (`is_float_box`, voir runtime/src/lib.rs) — la seule
-                // magnitude des bits IEEE-754 n'a aucune raison de porter ce
-                // tag, donc `v.to_bits() as i64` brut se faisait relire comme
-                // un entier énorme au lieu du flottant réel (confirmé par
-                // reproduction : une colonne REAL valant 2000.0 redevenait
-                // 4656510908468559872 après un aller-retour SELECT).
-                crate::__box_float(v.to_bits() as i64)
-            } else if let Ok(v) = row.get::<_, String>(i) {
-                unsafe { alloc_str(&v) }
-            } else {
-                0
-            };
+            let value = row_column_as_mixed(&row, i);
             crate::__map_set(row_map, key, value);
         }
         crate::__array_push(result_array, row_map);
@@ -413,16 +444,8 @@ pub unsafe extern "C" fn SQLite_queryOne(self_ptr: i64, query_ptr: i64, placehol
             let count = if let Ok(Some(row)) = rows.next() {
                 for (i, col_name) in column_names.iter().enumerate() {
                     let key = alloc_str(col_name);
-                    let value = if let Ok(v) = row.get::<_, i64>(i) {
-                        v
-                    } else if let Ok(v) = row.get::<_, f64>(i) {
-                        // Voir le commentaire équivalent dans collect_all_rows.
-                        crate::__box_float(v.to_bits() as i64)
-                    } else if let Ok(v) = row.get::<_, String>(i) {
-                        alloc_str(&v)
-                    } else {
-                        0
-                    };
+                    // Voir row_column_as_mixed (partagée avec collect_all_rows).
+                    let value = row_column_as_mixed(&row, i);
                     crate::__map_set(row_map, key, value);
                 }
                 1

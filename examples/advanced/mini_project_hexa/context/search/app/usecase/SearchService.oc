@@ -1,0 +1,11 @@
+namespace context.search.app.usecase
+
+import context.search.infra.db.SearchRepository
+import context.search.app.dto.SearchResultsDto
+
+class SearchService {
+
+    public static method run(term:string): SearchResultsDto {
+        return use SearchResultsDto(SearchRepository::cars(term), SearchRepository::maintenances(term))
+    }
+}

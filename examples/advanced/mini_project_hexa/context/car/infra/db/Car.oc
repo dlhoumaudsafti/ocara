@@ -1,0 +1,71 @@
+namespace context.car.infra.db
+// examples/advanced/mini_projet/models/Car.oc
+//
+// Toute valeur variable est bindée via des placeholders nominatifs `:nom`
+// (voir docs/builtins/SQLite.md, "Requêtes paramétrées") — jamais concaténée
+// dans la requête. Les écritures (create, updateEstimatedPrice) passent par
+// le flux transactionnel `prepare()`/`bind()`/`commit()`, via
+// `SQLite::withOpen` : la connexion est fermée automatiquement même si
+// `commit()` lève (voir examples/tests/49_sqlite_with_open_raiseTest.oc).
+//
+// `find` retourne CarEntity|null (jamais une map brute) — voir
+// context.car.domain.entity.CarEntity. Pas de `all()`/`search()` ici : home
+// et search ont leur propre modèle de lecture ET leur propre requête SQL
+// (context.home.infra.db / context.search.infra.db) — aucun contexte ne lit
+// jamais via l'infra d'un autre contexte.
+
+import ocara.SQLite
+import ocara.DateTime
+import configs.Database
+import context.car.domain.entity.CarEntity
+
+class Car {
+
+    private static method fromRow(row:map<string, mixed>): CarEntity {
+        var id:int = row["id"]
+        var reference:string = row["reference"]
+        var brand:string = row["brand"]
+        var model:string = row["model"]
+        var purchasePrice:float = row["purchase_price"]
+        var estimatedPrice:float = row["estimated_sale_price"]
+        return use CarEntity(id, reference, brand, model, purchasePrice, estimatedPrice)
+    }
+
+    public static method find(id:int): CarEntity|null {
+        const db:SQLite = Database::connect()
+        const row:map<string, mixed> = db.queryOne("SELECT * FROM cars WHERE id = :id", {"id": id})
+        db.close()
+        if row.size() equal 0 {
+            return null
+        }
+        return self::fromRow(row)
+    }
+
+    public static method create(reference:string, brand:string, model:string, purchasePrice:float): int {
+        var id:int = 0
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            // Le prix de vente estimé démarre égal au prix d'achat : il n'est
+            // ensuite fait évoluer que par les entretiens d'amélioration
+            // (voir context.car.app.usecase.PricingService).
+            db.prepare("INSERT INTO cars (reference, brand, model, purchase_price, estimated_sale_price, created_at) VALUES (:reference, :brand, :model, :price, :price, :createdAt)")
+            db.bind({
+                "reference": reference,
+                "brand": brand,
+                "model": model,
+                "price": purchasePrice,
+                "createdAt": DateTime::now()
+            })
+            db.commit()
+            id = db.lastInsertId()
+        })
+        return id
+    }
+
+    public static method updateEstimatedPrice(id:int, newPrice:float): void {
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            db.prepare("UPDATE cars SET estimated_sale_price = :price WHERE id = :id")
+            db.bind({"price": newPrice, "id": id})
+            db.commit()
+        })
+    }
+}

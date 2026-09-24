@@ -1,0 +1,24 @@
+namespace context.car.domain.entity
+
+// Modèle de lecture/écriture propre à ce contexte (fiche détail + création).
+// home et search ont leurs propres modèles de lecture (context.home.domain.entity,
+// context.search.domain.entity) — jamais celui-ci, pour ne pas dépendre du
+// domaine d'un autre contexte.
+
+class CarEntity {
+    public property id:int|null
+    public property reference:string
+    public property brand:string
+    public property model:string
+    public property purchasePrice:float
+    public property estimatedPrice:float
+
+    init(id:int|null, reference:string, brand:string, model:string, purchasePrice:float, estimatedPrice:float) {
+        self.id = id
+        self.reference = reference
+        self.brand = brand
+        self.model = model
+        self.purchasePrice = purchasePrice
+        self.estimatedPrice = estimatedPrice
+    }
+}

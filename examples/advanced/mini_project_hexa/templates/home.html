@@ -1,0 +1,40 @@
+<layout title="Voitures" active="home">
+  <div class="page-header">
+    <h1>Flotte de véhicules</h1>
+    <search-bar q="">
+  </div>
+
+  <alert kind="error" message="${errorText}">
+  <alert kind="success" message="${successText}">
+
+  <div class="stats-row">
+    <stat-badge label="Voitures" value="${carCount}">
+    <stat-badge label="Valeur d'achat totale" value="${purchaseText}">
+    <stat-badge label="Valeur estimée totale" value="${estimatedText}">
+    <stat-badge label="Plus-value entretiens" value="${gainText}">
+  </div>
+
+  <section class="card">
+    <h2>Ajouter une voiture</h2>
+    <form method="GET" action="/voitures/ajouter" class="form-grid">
+      <label>Référence
+        <input type="text" name="reference" placeholder="AB-123-CD" required>
+      </label>
+      <label>Marque
+        <input type="text" name="brand" placeholder="Peugeot" required>
+      </label>
+      <label>Modèle
+        <input type="text" name="model" placeholder="308" required>
+      </label>
+      <label>Prix d'achat (€)
+        <input type="number" step="0.01" min="0" name="purchase_price" placeholder="8500" required>
+      </label>
+      <button type="submit">Ajouter la voiture</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>Toutes les voitures</h2>
+    <div class="cars-grid">${carsHtml}</div>
+  </section>
+</layout>

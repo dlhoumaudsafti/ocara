@@ -1,0 +1,19 @@
+namespace context.home.app.dto
+
+import context.home.domain.entity.CarSummaryEntity
+
+class DashboardDto {
+    public property cars:array<CarSummaryEntity>
+    public property totalPurchaseValue:float
+    public property totalEstimatedValue:float
+
+    init (
+        cars:array<CarSummaryEntity>,
+        totalPurchaseValue:float,
+        totalEstimatedValue:float
+    ) {
+        self.cars = cars
+        self.totalPurchaseValue = totalPurchaseValue
+        self.totalEstimatedValue = totalEstimatedValue
+    }
+}

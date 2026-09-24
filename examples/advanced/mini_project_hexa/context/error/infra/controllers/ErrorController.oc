@@ -1,0 +1,23 @@
+// examples/advanced/mini_projet/controllers/ErrorController.oc
+//
+// Pas de `namespace context.error.infra.controllers` ici : `error` est un
+// mot réservé du lexeur (utilisé par `runtime core.error is error` et la
+// gestion d'exceptions `on ... is`), donc invalide comme segment d'une
+// déclaration `namespace` (contrairement à un chemin d'import, plus
+// permissif — voir configs/routes/Error.oc qui importe bien
+// `context.error.infra.controllers.ErrorController`). La résolution des
+// imports ne dépend jamais du namespace déclaré par le fichier CIBLE
+// (seulement de son chemin physique), donc l'absence de namespace ici ne
+// casse rien pour les fichiers qui l'importent.
+
+import ocara.HTML
+import ocara.HTTPServer
+
+class ErrorController {
+    public static method handle404(req:int): int {
+        scoped path:string = HTTPServer::path(req)
+        scoped html:string = HTML::renderFile('templates/404.html')
+        HTTPServer::respond(req, 404, html)
+        return 0
+    }
+}

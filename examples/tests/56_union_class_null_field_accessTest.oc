@@ -1,0 +1,194 @@
+import ocara.UnitTest
+
+// Un accès de champ (`Expr::Field`) sur une variable dont le type DÉCLARÉ est
+// une union contenant une classe (`Classe|null`, le pattern officiellement
+// documenté pour un retour "peut échouer" — voir docs/EBNF.md, `function
+// find(id:int): User|null { ... }`), OU sur la variable d'itération d'un
+// `for x in array<Classe>`, retournait silencieusement TOUJOURS la valeur du
+// PREMIER champ déclaré, quel que soit le champ réellement demandé — même
+// après narrowing (`if x is null { return }`). Voir
+// docs/roadmap.d/langage-union-class-null-field-access.md.
+//
+// Root cause : `var_class` (src/lower/builder.d/types.rs), la table qui
+// permet à `Expr::Field` de résoudre la classe/l'offset d'un champ à partir
+// d'un simple `Expr::Ident`, n'était enregistrée pour un type `Classe|null`
+// QUE dans `lower_var` (src/lower/stmt.d/statements.d/variables.rs) — jamais
+// dans `lower_const` (le cas le plus courant, `const x:Classe|null = ...`),
+// ni dans `lower_for_in`/`lower_for_map` (variable de boucle sur
+// `array<Classe>`/`map<K,Classe>`), ni dans un paramètre de fonction/méthode
+// ou de closure. Sans entrée `var_class`, `Expr::Field` résolvait
+// `class_name = None`, ce qui retombe sur `offset = 0` pour N'IMPORTE QUEL
+// champ (voir `field_offset`, src/lower/expr.d/helpers.rs). Corrigé par un
+// helper partagé, `union_named_class`/`resolved_named_class`
+// (src/parsing/ast.d/types.rs), maintenant appelé par TOUS les sites qui
+// lient un identifiant à un type déclaré/résolu.
+class Test_56_union_class_null_field_access {
+
+    // Cas exact du repro original : `const f:Foo|null = Repo::find()`, une
+    // méthode statique qui retourne réellement une instance (jamais null).
+    public method constUnionReturnReadsCorrectFieldsTest(): int {
+        const f:Foo|null = Repo::find()
+        if f is null {
+            UnitTest::assertTrue(false)
+            return 1
+        }
+        UnitTest::assertEquals(99, f.id)
+        UnitTest::assertEquals("AAA", f.reference)
+        UnitTest::assertEquals("BBB", f.brand)
+        UnitTest::assertEquals("CCC", f.model)
+        return 0
+    }
+
+    // `var` (plutôt que `const`) — non-régression : ce chemin fonctionnait
+    // déjà avant ce correctif, doit continuer à fonctionner après le
+    // partage de `register_var_class`.
+    public method varUnionReturnReadsCorrectFieldsTest(): int {
+        var f:Foo|null = Repo::find()
+        if f is null {
+            UnitTest::assertTrue(false)
+            return 1
+        }
+        UnitTest::assertEquals("AAA", f.reference)
+        UnitTest::assertEquals("BBB", f.brand)
+        return 0
+    }
+
+    // Écriture d'un champ à travers un `const x:Classe|null` narrowed —
+    // même root cause que la lecture (les deux résolvent la classe via
+    // `var_class`, voir src/lower/stmt.d/statements.d/assignments.rs).
+    public method constUnionFieldWriteTest(): int {
+        const f:Foo|null = Repo::find()
+        if f is null {
+            UnitTest::assertTrue(false)
+            return 1
+        }
+        f.reference = "ZZZ"
+        UnitTest::assertEquals(99, f.id)
+        UnitTest::assertEquals("ZZZ", f.reference)
+        UnitTest::assertEquals("BBB", f.brand)
+        UnitTest::assertEquals("CCC", f.model)
+        return 0
+    }
+
+    // Champ d'un champ à travers un narrowing union — vérifie que le
+    // dépliage ne casse pas la résolution chaînée déjà en place
+    // (`resolve_chained_field_class`).
+    public method nestedFieldThroughUnionNarrowingTest(): int {
+        const p:Person|null = PersonRepo::find()
+        if p is null {
+            UnitTest::assertTrue(false)
+            return 1
+        }
+        UnitTest::assertEquals("Alice", p.name)
+        UnitTest::assertEquals("Paris", p.address.city)
+        UnitTest::assertEquals("75000", p.address.zip)
+        return 0
+    }
+
+    // Second trigger, sans aucun union : `for it in items` où
+    // `items:array<Foo>` — la variable de boucle n'avait aucune entrée
+    // `var_class`, même symptôme (toujours le premier champ).
+    public method forInArrayOfClassReadsCorrectFieldsTest(): int {
+        var items:array<Foo> = []
+        items.push(use Foo(1, "AAA", "BBB", "CCC"))
+        items.push(use Foo(2, "DDD", "EEE", "FFF"))
+
+        var ids:array<int> = []
+        var refs:array<string> = []
+        for it in items {
+            ids.push(it.id)
+            refs.push(it.reference)
+        }
+        UnitTest::assertEquals(2, ids.len())
+        UnitTest::assertEquals(1, ids[0])
+        UnitTest::assertEquals(2, ids[1])
+        UnitTest::assertEquals("AAA", refs[0])
+        UnitTest::assertEquals("DDD", refs[1])
+        return 0
+    }
+
+    // Troisième trigger : `for k => v in m` où `m:map<string, Foo>` — la
+    // variable VALEUR n'avait AUCUNE métadonnée de classe, quel que soit le
+    // type de valeur de la map.
+    public method forMapValueClassReadsCorrectFieldsTest(): int {
+        var m:map<string, Foo> = {}
+        m["a"] = use Foo(7, "AAA", "BBB", "CCC")
+
+        for k => v in m {
+            UnitTest::assertEquals("a", k)
+            UnitTest::assertEquals(7, v.id)
+            UnitTest::assertEquals("AAA", v.reference)
+            UnitTest::assertEquals("CCC", v.model)
+        }
+        return 0
+    }
+
+    // Quatrième trigger : un paramètre de fonction typé `Classe|null` (même
+    // pattern que le retour `Classe|null`, appliqué à un paramètre).
+    public method functionParamUnionReadsCorrectFieldsTest(): int {
+        UnitTest::assertEquals("AAA-BBB", describe(use Foo(1, "AAA", "BBB", "CCC")))
+        return 0
+    }
+
+    // Non-régression : une variable de type classe CONCRET (jamais union) ne
+    // doit pas être affectée par ce correctif.
+    public method plainClassConstUnaffectedTest(): int {
+        const f:Foo = use Foo(5, "GGG", "HHH", "III")
+        UnitTest::assertEquals(5, f.id)
+        UnitTest::assertEquals("GGG", f.reference)
+        UnitTest::assertEquals("HHH", f.brand)
+        UnitTest::assertEquals("III", f.model)
+        return 0
+    }
+}
+
+function describe(f:Foo|null): string {
+    if f is null {
+        return "null"
+    }
+    return f.reference + "-" + f.brand
+}
+
+class Foo {
+    public property id:int
+    public property reference:string
+    public property brand:string
+    public property model:string
+
+    init(id:int, reference:string, brand:string, model:string) {
+        self.id = id
+        self.reference = reference
+        self.brand = brand
+        self.model = model
+    }
+}
+
+class Repo {
+    public static method find(): Foo|null {
+        return use Foo(99, "AAA", "BBB", "CCC")
+    }
+}
+
+class Address {
+    public property city:string
+    public property zip:string
+    init(city:string, zip:string) {
+        self.city = city
+        self.zip = zip
+    }
+}
+
+class Person {
+    public property name:string
+    public property address:Address
+    init(name:string, address:Address) {
+        self.name = name
+        self.address = address
+    }
+}
+
+class PersonRepo {
+    public static method find(): Person|null {
+        return use Person("Alice", use Address("Paris", "75000"))
+    }
+}

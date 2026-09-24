@@ -1,0 +1,25 @@
+namespace context.search.domain.entity
+
+// Propre à ce contexte — n'est PAS context.car.domain.entity.CarEntity ni
+// context.home.domain.entity.CarSummaryEntity : chaque contexte a son propre
+// modèle de lecture, même si la forme se ressemble.
+
+class CarSearchResultEntity {
+    public property id:int
+    public property reference:string
+    public property brand:string
+    public property model:string
+    public property purchasePrice:float
+    public property estimatedPrice:float
+    public property maintenanceTotal:float
+
+    init(id:int, reference:string, brand:string, model:string, purchasePrice:float, estimatedPrice:float, maintenanceTotal:float) {
+        self.id = id
+        self.reference = reference
+        self.brand = brand
+        self.model = model
+        self.purchasePrice = purchasePrice
+        self.estimatedPrice = estimatedPrice
+        self.maintenanceTotal = maintenanceTotal
+    }
+}

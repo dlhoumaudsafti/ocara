@@ -1,0 +1,19 @@
+namespace context.car.domain.entity
+
+class MaintenanceEntity {
+    public property id:int|null
+    public property carId:int
+    public property type:string
+    public property description:string
+    public property cost:float
+    public property createdAt:int
+
+    init(id:int|null, carId:int, type:string, description:string, cost:float, createdAt:int) {
+        self.id = id
+        self.carId = carId
+        self.type = type
+        self.description = description
+        self.cost = cost
+        self.createdAt = createdAt
+    }
+}

@@ -1,0 +1,98 @@
+// examples/advanced/mini_projet/controllers/CarController.oc
+// Fiche détail d'une voiture (historique d'entretiens + formulaire d'ajout
+// d'entretien) et création d'une nouvelle voiture.
+//
+// GET plutôt que POST pour la création (voir configs/routes/Car.oc) : le
+// runtime décode déjà la query string (HTTPServer::query) mais n'offre pas
+// de parseur de corps application/x-www-form-urlencoded pour POST.
+namespace context.car.infra.controllers
+
+import ocara.HTML
+import ocara.HTTPServer
+import ocara.Array
+import ocara.Map
+import ocara.Convert
+import ocara.String
+import context.car.domain.entity.CarEntity
+import context.car.domain.entity.MaintenanceEntity
+import context.car.infra.db.Car
+import context.car.infra.db.Maintenance
+import context.car.app.usecase.helpers.Format
+import context.car.app.usecase.helpers.Flash
+
+class CarController {
+
+    public static method show(req:int): int {
+        scoped idParam:string = HTTPServer::query(req, "id")
+        var id:int = Convert::strToInt(idParam)
+        const car:CarEntity|null = Car::find(id)
+
+        if car is null {
+            HTTPServer::respondHeader(req, "Location", "/?error=not_found")
+            HTTPServer::respond(req, 302, "")
+            return 0
+        }
+
+        var reference:string = car.reference
+        var brand:string      = car.brand
+        var model:string      = car.model
+        var purchasePrice:float  = car.purchasePrice
+        var estimatedPrice:float = car.estimatedPrice
+
+        const maintenances:array<MaintenanceEntity> = Maintenance::forCar(id)
+        var maintenanceTotal:float  = Maintenance::maintenanceTotal(id)
+        var improvementTotal:float  = Maintenance::improvementTotal(id)
+
+        var rowsHtml:string = ""
+        for m in maintenances {
+            rowsHtml = rowsHtml + `<maintenance-row type="${m.type}" description="${m.description}" cost="${Format::price(m.cost)}" date="${Format::date(m.createdAt)}">`
+        }
+        if maintenances.len() equal 0 {
+            rowsHtml = `<p class="empty">Aucun entretien enregistré pour cette voiture.</p>`
+        }
+
+        scoped idStr:string = Convert::intToStr(id)
+        scoped purchasePriceText:string  = Format::price(purchasePrice)
+        scoped estimatedPriceText:string = Format::price(estimatedPrice)
+        scoped maintenanceTotalText:string = Format::price(maintenanceTotal)
+        scoped improvementTotalText:string = Format::price(improvementTotal)
+
+        scoped errorCode:string   = HTTPServer::query(req, "error")
+        scoped successCode:string = HTTPServer::query(req, "success")
+        scoped errorText:string   = Flash::message(errorCode)
+        scoped successText:string = Flash::message(successCode)
+
+        scoped html:string = HTML::renderFile('templates/car_detail.html')
+        HTTPServer::respond(req, 200, html)
+        return 0
+    }
+
+    public static method create(req:int): int {
+        // `const` (pas `scoped`) : Car::create() les bind dans une map passée
+        // à db.bind(), donc les retient au-delà de cet appel — une valeur
+        // `scoped`/`consumed` ne peut pas être passée là où l'appelé la
+        // retient (voir E26, docs/diagnostics.md).
+        const reference:string = String::trim(HTTPServer::query(req, "reference"))
+        const brand:string     = String::trim(HTTPServer::query(req, "brand"))
+        const model:string     = String::trim(HTTPServer::query(req, "model"))
+        scoped priceStr:string  = HTTPServer::query(req, "purchase_price")
+        var price:float = Convert::strToFloat(priceStr)
+
+        if String::empty(reference) or String::empty(brand) or String::empty(model) {
+            HTTPServer::respondHeader(req, "Location", "/?error=missing_fields")
+            HTTPServer::respond(req, 302, "")
+            return 0
+        }
+        if price smaller or equal 0.0 {
+            HTTPServer::respondHeader(req, "Location", "/?error=invalid_price")
+            HTTPServer::respond(req, 302, "")
+            return 0
+        }
+
+        Car::create(reference, brand, model, price)
+
+        HTTPServer::respondHeader(req, "Location", "/?success=car_added")
+        HTTPServer::respond(req, 302, "")
+        return 0
+    }
+}

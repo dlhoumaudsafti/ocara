@@ -1,0 +1,51 @@
+// examples/advanced/mini_projet/controllers/SearchController.oc
+// Recherche plein-texte simple (SQL LIKE, voir context.search.infra.db.SearchRepository)
+// à travers les voitures ET les entretiens en une seule requête utilisateur.
+namespace context.search.infra.controllers
+
+import ocara.HTML
+import ocara.HTTPServer
+import ocara.Array
+import ocara.Convert
+import ocara.String
+import context.search.app.usecase.SearchService
+import context.search.app.dto.SearchResultsDto
+import context.search.domain.entity.CarSearchResultEntity
+import context.search.domain.entity.MaintenanceSearchResultEntity
+import context.car.app.usecase.helpers.Format
+
+class SearchController {
+
+    public static method handle(req:int): int {
+        scoped term:string = String::trim(HTTPServer::query(req, "q"))
+
+        var carsHtml:string = ""
+        var maintenancesHtml:string = ""
+
+        if not String::empty(term) {
+            const results:SearchResultsDto = SearchService::run(term)
+            const cars:array<CarSearchResultEntity> = results.cars
+            const maints:array<MaintenanceSearchResultEntity> = results.maintenances
+
+            for car in cars {
+                carsHtml = carsHtml + `<car-card id="${Convert::intToStr(car.id)}" reference="${car.reference}" brand="${car.brand}" model="${car.model}" purchase_price="${Format::price(car.purchasePrice)}" estimated_price="${Format::price(car.estimatedPrice)}" maintenance_total="${Format::price(car.maintenanceTotal)}">`
+            }
+            if Array::len(cars) equal 0 {
+                carsHtml = `<p class="empty">Aucune voiture ne correspond à « ${term} ».</p>`
+            }
+
+            for m in maints {
+                maintenancesHtml = maintenancesHtml + `<search-maintenance car_id="${Convert::intToStr(m.carId)}" car_reference="${m.carReference}" type="${m.type}" description="${m.description}" cost="${Format::price(m.cost)}">`
+            }
+            if Array::len(maints) equal 0 {
+                maintenancesHtml = `<p class="empty">Aucun entretien ne correspond à « ${term} ».</p>`
+            }
+        } else {
+            carsHtml = `<p class="empty">Saisissez un terme ci-dessus pour lancer une recherche.</p>`
+        }
+
+        scoped html:string = HTML::renderFile('templates/search.html')
+        HTTPServer::respond(req, 200, html)
+        return 0
+    }
+}

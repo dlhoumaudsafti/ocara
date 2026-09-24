@@ -85,6 +85,15 @@ pub fn lower_nameless_fn(
             if let Type::Named(cls) = &param.ty {
                 builder.var_class.insert(param.name.clone(), cls.clone());
             }
+            // `Classe|null` — même dépliage que pour un paramètre de
+            // fonction/méthode nommée (voir functions.rs) : sans lui, un
+            // paramètre de closure `Classe|null` n'a aucune entrée
+            // `var_class`, et un accès de champ dessus après narrowing
+            // retombe sur l'offset 0 pour n'importe quel champ. Voir
+            // docs/roadmap.d/langage-union-class-null-field-access.md.
+            if let Some(cls) = union_named_class(&param.ty) {
+                builder.var_class.insert(param.name.clone(), cls);
+            }
             let slot = builder.declare_local(&param.name, ir_ty.clone(), false);
             let recv = builder.new_value();
             builder.emit(Inst::Store { ptr: slot, src: recv.clone() });

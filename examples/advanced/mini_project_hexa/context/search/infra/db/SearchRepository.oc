@@ -1,0 +1,76 @@
+namespace context.search.infra.db
+// Lecture directe des tables "cars"/"maintenances", jamais via
+// context.car.infra.db : requêtes propres à ce contexte (recherche
+// textuelle), même raison que context.home.infra.db.CarSummaryRepository.
+//
+// Toute valeur variable est bindée via des placeholders nominatifs `:nom`
+// (voir docs/builtins/SQLite.md, "Requêtes paramétrées") — jamais concaténée
+// dans la requête.
+
+import ocara.SQLite
+import configs.Database
+import context.search.domain.entity.CarSearchResultEntity
+import context.search.domain.entity.MaintenanceSearchResultEntity
+
+class SearchRepository {
+
+    private static method carFromRow(row:map<string, mixed>): CarSearchResultEntity {
+        var id:int = row["id"]
+        var reference:string = row["reference"]
+        var brand:string = row["brand"]
+        var model:string = row["model"]
+        var purchasePrice:float = row["purchase_price"]
+        var estimatedPrice:float = row["estimated_sale_price"]
+        var maintenanceTotal:float = row["maintenance_total"]
+        return use CarSearchResultEntity(id, reference, brand, model, purchasePrice, estimatedPrice, maintenanceTotal)
+    }
+
+    private static method maintenanceFromRow(row:map<string, mixed>): MaintenanceSearchResultEntity {
+        var carId:int = row["car_id"]
+        var carReference:string = row["car_reference"]
+        var type:string = row["type"]
+        var description:string = row["description"]
+        var cost:float = row["cost"]
+        return use MaintenanceSearchResultEntity(carId, carReference, type, description, cost)
+    }
+
+    // Même total "maintenance" (hors amélioration) que context.home et
+    // context.car — dupliqué volontairement : ce contexte ne dépend jamais
+    // de l'infra d'un autre.
+    public static method cars(term:string): array<CarSearchResultEntity> {
+        const db:SQLite = Database::connect()
+        scoped pattern:string = "%" + term + "%"
+        const rows:array<map<string, mixed>> = db.query(
+            "SELECT cars.*, COALESCE(SUM(CASE WHEN maintenances.type = 'maintenance' THEN maintenances.cost ELSE 0 END), 0) as maintenance_total " +
+            "FROM cars LEFT JOIN maintenances ON maintenances.car_id = cars.id " +
+            "WHERE cars.reference LIKE :pattern OR cars.brand LIKE :pattern OR cars.model LIKE :pattern " +
+            "GROUP BY cars.id ORDER BY cars.created_at DESC",
+            {"pattern": pattern}
+        )
+        db.close()
+        var items:array<CarSearchResultEntity> = []
+        for row in rows {
+            items.push(self::carFromRow(row))
+        }
+        return items
+    }
+
+    // Recherche par description, avec la référence de la voiture associée
+    // (jointure) pour permettre un lien direct depuis la page de recherche.
+    public static method maintenances(term:string): array<MaintenanceSearchResultEntity> {
+        const db:SQLite = Database::connect()
+        scoped pattern:string = "%" + term + "%"
+        const rows:array<map<string, mixed>> = db.query(
+            "SELECT maintenances.*, cars.reference as car_reference FROM maintenances " +
+            "JOIN cars ON cars.id = maintenances.car_id " +
+            "WHERE maintenances.description LIKE :pattern ORDER BY maintenances.created_at DESC",
+            {"pattern": pattern}
+        )
+        db.close()
+        var items:array<MaintenanceSearchResultEntity> = []
+        for row in rows {
+            items.push(self::maintenanceFromRow(row))
+        }
+        return items
+    }
+}

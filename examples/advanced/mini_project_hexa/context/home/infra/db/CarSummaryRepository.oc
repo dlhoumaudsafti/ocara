@@ -1,0 +1,39 @@
+namespace context.home.infra.db
+// Lecture directe des tables "cars"/"maintenances" — jamais via
+// context.car.infra.db.Car : ce contexte n'a que ses propres besoins
+// d'affichage. Le total d'entretiens "maintenance" est déjà agrégé en SQL
+// (même règle que context.car.infra.db.Maintenance::maintenanceTotal :
+// n'inclut PAS les entretiens de type "improvement").
+
+import ocara.SQLite
+import configs.Database
+import context.home.domain.entity.CarSummaryEntity
+
+class CarSummaryRepository {
+
+    private static method fromRow(row:map<string, mixed>): CarSummaryEntity {
+        var id:int = row["id"]
+        var reference:string = row["reference"]
+        var brand:string = row["brand"]
+        var model:string = row["model"]
+        var purchasePrice:float = row["purchase_price"]
+        var estimatedPrice:float = row["estimated_sale_price"]
+        var maintenanceTotal:float = row["maintenance_total"]
+        return use CarSummaryEntity(id, reference, brand, model, purchasePrice, estimatedPrice, maintenanceTotal)
+    }
+
+    public static method all(): array<CarSummaryEntity> {
+        const db:SQLite = Database::connect()
+        const rows:array<map<string, mixed>> = db.query(
+            "SELECT cars.*, COALESCE(SUM(CASE WHEN maintenances.type = 'maintenance' THEN maintenances.cost ELSE 0 END), 0) as maintenance_total " +
+            "FROM cars LEFT JOIN maintenances ON maintenances.car_id = cars.id " +
+            "GROUP BY cars.id ORDER BY cars.created_at DESC"
+        )
+        db.close()
+        var items:array<CarSummaryEntity> = []
+        for row in rows {
+            items.push(self::fromRow(row))
+        }
+        return items
+    }
+}
