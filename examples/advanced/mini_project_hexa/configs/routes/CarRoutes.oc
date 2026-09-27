@@ -7,11 +7,16 @@ namespace configs.routes
 // d'une erreur de compilation — bug réel rencontré en testant : la création
 // d'une voiture répondait 302 succès sans jamais rien insérer en base).
 //
-// Mutation via GET plutôt que POST : req.query() décode déjà l'URL
-// (voir runtime/src/httpserver.rs::parse_query), alors qu'aucun parseur
-// application/x-www-form-urlencoded n'est fourni pour un corps de requête
-// POST. Le "redirect after action" de CarController::create (302 vers une
-// URL propre) évite le risque habituel de resoumission au rechargement.
+// Les mutations passent désormais par POST : req.param() lit aussi bien la
+// query string qu'un corps application/x-www-form-urlencoded (voir
+// runtime/src/httpserver.rs::build_params_buckets) — la contrainte GET
+// historique (aucun parseur de corps disponible) n'existe plus. L'identifiant
+// de la voiture arrive comme un paramètre de CHEMIN typé (`<id:int>`) plutôt
+// que par la query string : le routeur rejette lui-même un id non numérique
+// (la route ne matche simplement pas, 404) avant même d'atteindre le
+// contrôleur — voir docs/roadmap.d/stdlib-httpserver-route-params.md. Le
+// "redirect after action" de CarController::create (302 vers une URL propre)
+// évite le risque habituel de resoumission au rechargement.
 
 import context.car.infra.controllers.CarController
 import context.car.infra.controllers.MaintenanceController
@@ -19,8 +24,8 @@ import configs.Server
 
 class CarRoutes {
     init(server:Server) {
-        server.route("/voitures/detail", "GET", CarController::show)
-        server.route("/voitures/ajouter", "GET", CarController::create)
-        server.route("/entretiens/ajouter", "GET", MaintenanceController::create)
+        server.route("/voitures/<id:int>", "GET", CarController::show)
+        server.route("/voitures/ajouter", "POST", CarController::create)
+        server.route("/voitures/<car_id:int>/entretiens", "POST", MaintenanceController::create)
     }
 }

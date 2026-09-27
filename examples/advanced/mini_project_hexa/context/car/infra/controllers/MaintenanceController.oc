@@ -13,22 +13,25 @@ import context.car.app.usecase.PricingService
 class MaintenanceController {
 
     public static method create(req:HTTPServerRequest): int {
-        scoped carIdStr:string    = req.query("car_id")
+        // `car_id` arrive comme paramètre de CHEMIN déjà typé (`<car_id:int>`,
+        // voir configs/routes/CarRoutes.oc — la route est désormais imbriquée
+        // sous la voiture concernée, /voitures/<car_id:int>/entretiens) : plus
+        // besoin de Convert::strToInt, le routeur l'a déjà validé/parsé.
+        var carId:int = req.param("car_id")
         // `const` (pas `scoped`) : Maintenance::create() les bind dans une map
         // passée à db.bind(), donc les retient au-delà de cet appel — une
         // valeur `scoped`/`consumed` ne peut pas être passée là où l'appelé la
         // retient (voir E26, docs/diagnostics.md).
-        const type:string        = req.query("type")
-        const description:string = String::trim(req.query("description"))
-        scoped costStr:string     = req.query("cost")
+        const type:string        = req.param("type")
+        const description:string = String::trim(req.param("description"))
+        scoped costStr:string     = req.param("cost")
 
-        var carId:int   = Convert::strToInt(carIdStr)
         var cost:float  = Convert::strToFloat(costStr)
         scoped idStr:string = Convert::intToStr(carId)
 
         scoped validType:bool = type equal "maintenance" or type equal "improvement"
         if String::empty(description) or cost smaller or equal 0.0 or not validType {
-            req.respondHeader("Location", "/voitures/detail?id=" + idStr + "&error=invalid_cost")
+            req.respondHeader("Location", "/voitures/" + idStr + "?error=invalid_cost")
             req.respond(302, "")
             return 0
         }
@@ -37,7 +40,7 @@ class MaintenanceController {
         // Recalcul complet (pas un simple +=) : voir services/PricingService.oc.
         PricingService::recalculateEstimatedPrice(carId)
 
-        req.respondHeader("Location", "/voitures/detail?id=" + idStr + "&success=maintenance_added")
+        req.respondHeader("Location", "/voitures/" + idStr + "?success=maintenance_added")
         req.respond(302, "")
         return 0
     }

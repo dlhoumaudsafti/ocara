@@ -31,7 +31,7 @@ server.rootPath("./public") // répertoire pour fichiers statiques (optionnel)
 server.route(path:string, method:string, handler:Function)
 ```
 
-- **`path`** : chemin exact, ex. `"/"`, `"/api/users"`.
+- **`path`** : chemin exact (`"/"`, `"/api/users"`) ou un chemin avec des **paramètres de segment** (voir ci-dessous).
 - **`method`** : méthode HTTP en majuscules, ex. `"GET"`, `"POST"`.
 - **`handler`** : closure ou référence de fonction `nameless(req:HTTPServerRequest): int { … }`.
 
@@ -41,6 +41,34 @@ server.route("/", "GET", nameless(req:HTTPServerRequest): int {
     return 0
 })
 ```
+
+### Paramètres de chemin — `<nom:type>`
+
+Un segment de chemin entre `<` et `>` capture une portion de l'URL, la valide selon le type déclaré, et l'expose côté handler via `req.param(nom)`/`req.params()` (voir « Paramètres unifiés » plus bas — un paramètre de chemin est fusionné dans le bucket `"GET"`, exactement comme un paramètre de query string).
+
+```ocara
+server.route("/voitures/<id:int>", "GET", nameless(req:HTTPServerRequest): int {
+    var id:int = req.param("id")   // déjà un int — parsé/validé par le routeur
+    req.respond(200, `Voiture #${id}`)
+    return 0
+})
+```
+
+Types supportés : `int`, `float`, `bool` (`"true"`/`"false"` uniquement), `string` (accepte n'importe quel texte, décodé URL). Un chemin peut contenir plusieurs paramètres, éventuellement mêlés à des segments littéraux :
+
+```ocara
+server.route("/voitures/<car_id:int>/entretiens", "POST", nameless(req:HTTPServerRequest): int {
+    var carId:int = req.param("car_id")
+    // ...
+    return 0
+})
+```
+
+**Si un segment ne correspond pas au type déclaré, la route entière ne matche PAS** — pas de valeur `0`/vide substituée, pas d'erreur non gérée : la requête retombe simplement sur la route suivante (ou sur une 404 si aucune route ne matche). Concrètement, `GET /voitures/abc` contre une route `/voitures/<id:int>` ne déclenche jamais ce handler ; si une AUTRE route littérale existe pour le même chemin exact (ex. `/voitures/ajouter`), c'est elle qui matche — aucune règle de priorité "route statique avant route dynamique" à connaître : un segment littéral ne matche simplement jamais un paramètre typé qui échouerait à le parser.
+
+Le nombre de segments doit correspondre EXACTEMENT : `/voitures/<id:int>` ne matche pas `/voitures/1/extra`.
+
+> **Compilé une seule fois** — chaque pattern de route (`<...>` compris) est analysé à l'enregistrement (`server.route(...)`), jamais reparsé à chaque requête entrante.
 
 ## Pages d'erreur personnalisées
 
@@ -167,18 +195,23 @@ Retourne TOUJOURS exactement ces 10 clés (méthodes HTTP), chacune une `map<str
 CONNECT, DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT, QUERY, TRACE
 ```
 
-- **`params()["GET"]`** : les paramètres de la query string de l'URL — **toujours peuplé**, quelle que soit la méthode réelle de la requête (une query string peut accompagner un `POST`, un `DELETE`, etc.).
+- **`params()["GET"]`** : les paramètres de la query string de l'URL — **toujours peuplé**, quelle que soit la méthode réelle de la requête (une query string peut accompagner un `POST`, un `DELETE`, etc.) — **plus les paramètres de CHEMIN** (`<nom:type>`, voir « Paramètres de chemin » plus haut), également fusionnés ici.
 - **`params()[<méthode réelle>]`** : les paramètres du corps, peuplés **uniquement si** la méthode réelle de la requête est celle-ci, ET que le corps n'est pas vide, ET que `Content-Type` est reconnu (`urlencoded` ou `multipart`). Si la méthode réelle est `GET` et qu'il y a *aussi* un corps (rare), le corps est fusionné dans le **même** bucket `"GET"` — en cas de collision de clé avec la query string, le corps l'emporte.
 - Tous les autres buckets restent des maps vides.
+
+**Précédence en cas de collision de clé, DEUX règles "plus spécifique l'emporte"** (même bucket `"GET"`, deux sources différentes) :
+1. Un **paramètre de chemin** l'emporte sur une **query string** de même clé (`/voitures/<id:int>` appelée avec `?id=999` : `param("id")` retourne l'`id` du CHEMIN, jamais celui de la query string — le chemin est plus spécifique/intentionnel qu'une query string arbitraire).
+2. Le **corps** (POST/PUT/...) l'emporte sur la **query string** de même clé (voir la règle de `param()` ci-dessous) — un paramètre de chemin n'est en revanche jamais en concurrence avec le corps (chemin et corps vivent dans des buckets différents sauf si la méthode réelle est `GET`, cas où seule la règle 1 s'applique).
 
 ### `param(key:string, method:string|null = null): mixed`
 
 Accesseur pour une seule valeur, avec une règle de précédence pratique :
 
 - **`method` fourni** (insensible à la casse, ex. `"post"`/`"POST"`) : cherche `key` **uniquement** dans le bucket de cette méthode (même structure que `params()`).
-- **`method` omis (`null`, valeur par défaut)** : cherche d'abord dans `"GET"` (query string), puis dans le bucket de la méthode **réelle** de la requête — le corps l'emporte en cas de collision de clé. Si la méthode réelle est `GET`, il n'y a qu'un seul bucket à consulter.
+- **`method` omis (`null`, valeur par défaut)** : cherche d'abord dans `"GET"` (query string ET paramètres de chemin, le chemin l'emportant déjà à ce stade — voir ci-dessus), puis dans le bucket de la méthode **réelle** de la requête — le corps l'emporte en cas de collision de clé. Si la méthode réelle est `GET`, il n'y a qu'un seul bucket à consulter.
 - **Absent** : retourne la représentation `mixed` "rien" habituelle (comme une clé manquante dans n'importe quelle `map<string, mixed>` ailleurs dans le langage).
 - Pour un champ **fichier** uploadé via `multipart/form-data` (voir ci-dessous), la valeur retournée est elle-même une `map<string, mixed>` — narrowez-la explicitement : `var file:map<string,mixed> = req.param("avatar")`.
+- Pour un paramètre de **chemin** (`<id:int>`), la valeur retournée est déjà correctement typée (un `int` réel, pas une chaîne à convertir) — `var id:int = req.param("id")` fonctionne directement, sans `Convert::strToInt`.
 
 ```ocara
 server.route("/search", "GET", nameless(req:HTTPServerRequest): int {

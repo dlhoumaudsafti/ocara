@@ -17,7 +17,7 @@ class CarCard extends HTMLComponent {
             scoped purchasePrice:string   = attrs["purchase_price"]
             scoped estimatedPrice:string  = attrs["estimated_price"]
             scoped maintenanceTotal:string = attrs["maintenance_total"]
-            return `<a class="car-card" href="/voitures/detail?id=${id}">
+            return `<a class="car-card" href="/voitures/${id}">
       <div class="car-card-header">
         <span class="car-reference">${reference}</span>
         <span class="car-model">${brand} ${model}</span>

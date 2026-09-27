@@ -143,4 +143,94 @@ class Test_59_httpserver_request {
         UnitTest::assertEquals("hello world|test.txt|text/plain|16|16|104", res.body())
         return 0
     }
+
+    // Paramètre de chemin (`<id:int>`, voir
+    // docs/roadmap.d/stdlib-httpserver-route-params.md) — lisible à la fois
+    // via `param("id")` (précédence par défaut, bucket "GET") et via
+    // `params()["GET"]["id"]` (accès direct au bucket) : les deux doivent
+    // s'accorder, puisque le paramètre de chemin est fusionné dans CE bucket.
+    public method pathParamReadableViaParamAndParamsTest(): int {
+        var s:HTTPServer = use HTTPServer()
+        s.port(8202)
+        s.route("/voitures/<id:int>", "GET", nameless(req:HTTPServerRequest): int {
+            var idViaParam:int = req.param("id")
+            var params:map<string, map<string, mixed>> = req.params()
+            var getBucket:map<string, mixed> = params["GET"]
+            var idViaParams:int = getBucket["id"]
+            req.respond(200, Convert::intToStr(idViaParam) + "|" + Convert::intToStr(idViaParams))
+            return 0
+        })
+        var t:Thread = use Thread()
+        t.run(nameless(): void { s.run() })
+        t.detach()
+        Thread::sleep(300)
+
+        scoped res:HTTPResponse = HTTPRequest::get("http://localhost:8202/voitures/42")
+        UnitTest::assertEquals(200, res.status())
+        UnitTest::assertEquals("42|42", res.body())
+        return 0
+    }
+
+    // Plusieurs paramètres de chemin dans la même route.
+    public method pathParamMultipleParamsInOnePathTest(): int {
+        var s:HTTPServer = use HTTPServer()
+        s.port(8203)
+        s.route("/voitures/<car_id:int>/entretiens/<id:int>", "GET", nameless(req:HTTPServerRequest): int {
+            var carId:int = req.param("car_id")
+            var id:int    = req.param("id")
+            req.respond(200, Convert::intToStr(carId) + "|" + Convert::intToStr(id))
+            return 0
+        })
+        var t:Thread = use Thread()
+        t.run(nameless(): void { s.run() })
+        t.detach()
+        Thread::sleep(300)
+
+        scoped res:HTTPResponse = HTTPRequest::get("http://localhost:8203/voitures/7/entretiens/99")
+        UnitTest::assertEquals(200, res.status())
+        UnitTest::assertEquals("7|99", res.body())
+        return 0
+    }
+
+    // Un segment qui échoue à parser selon le type déclaré (`<id:int>` contre
+    // "abc") ne matche PAS du tout cette route — repli sur 404, jamais une
+    // valeur bidon/zéro substituée.
+    public method pathParamNonMatchingFallsThroughTo404Test(): int {
+        var s:HTTPServer = use HTTPServer()
+        s.port(8204)
+        s.route("/voitures/<id:int>", "GET", nameless(req:HTTPServerRequest): int {
+            req.respond(200, "should-not-be-called")
+            return 0
+        })
+        var t:Thread = use Thread()
+        t.run(nameless(): void { s.run() })
+        t.detach()
+        Thread::sleep(300)
+
+        scoped res:HTTPResponse = HTTPRequest::get("http://localhost:8204/voitures/abc")
+        UnitTest::assertEquals(404, res.status())
+        return 0
+    }
+
+    // Précédence confirmée par l'utilisateur : un paramètre de CHEMIN
+    // l'emporte sur une query string de même clé (le chemin est plus
+    // spécifique/intentionnel).
+    public method pathParamOverridesQueryStringOnCollisionTest(): int {
+        var s:HTTPServer = use HTTPServer()
+        s.port(8205)
+        s.route("/voitures/<id:int>", "GET", nameless(req:HTTPServerRequest): int {
+            var id:mixed = req.param("id")
+            req.respond(200, "" + id)
+            return 0
+        })
+        var t:Thread = use Thread()
+        t.run(nameless(): void { s.run() })
+        t.detach()
+        Thread::sleep(300)
+
+        scoped res:HTTPResponse = HTTPRequest::get("http://localhost:8205/voitures/1?id=999")
+        UnitTest::assertEquals(200, res.status())
+        UnitTest::assertEquals("1", res.body())
+        return 0
+    }
 }

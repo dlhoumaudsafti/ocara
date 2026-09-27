@@ -16,8 +16,7 @@
 
   <section class="card">
     <h2>Ajouter un entretien</h2>
-    <form method="GET" action="/entretiens/ajouter" class="form-grid">
-      <input type="hidden" name="car_id" value="${idStr}">
+    <form method="POST" action="/voitures/${idStr}/entretiens" class="form-grid">
       <label>Type
         <select name="type">
           <option value="maintenance">Entretien (maintenance)</option>

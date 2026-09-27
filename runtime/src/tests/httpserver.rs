@@ -16,7 +16,7 @@
 use std::collections::HashMap;
 use crate::httpserver::{
     header_lookup, parse_boundary, parse_multipart, build_params_buckets, lookup_param,
-    ParamValue, METHOD_BUCKETS,
+    parse_route_pattern, match_route, ParamValue, METHOD_BUCKETS,
 };
 
 // ── header_lookup ────────────────────────────────────────────────────────────
@@ -192,7 +192,7 @@ fn parse_multipart_part_without_name_is_skipped() {
 #[test]
 fn build_params_buckets_always_has_all_10_buckets() {
     let h = HashMap::new();
-    let buckets = build_params_buckets("", "GET", &h, b"");
+    let buckets = build_params_buckets("", "GET", &h, b"", &HashMap::new());
     assert_eq!(buckets.len(), METHOD_BUCKETS.len());
     for name in METHOD_BUCKETS {
         assert!(buckets.contains_key(name), "bucket manquant : {name}");
@@ -203,7 +203,7 @@ fn build_params_buckets_always_has_all_10_buckets() {
 fn build_params_buckets_query_string_always_in_get_bucket() {
     let h = HashMap::new();
     // Même avec une méthode réelle POST, la query string reste dans "GET".
-    let buckets = build_params_buckets("id=42&name=Alice", "POST", &h, b"");
+    let buckets = build_params_buckets("id=42&name=Alice", "POST", &h, b"", &HashMap::new());
     let get = &buckets["GET"];
     assert!(matches!(get.get("id"), Some(ParamValue::Text(v)) if v == "42"));
     assert!(matches!(get.get("name"), Some(ParamValue::Text(v)) if v == "Alice"));
@@ -212,7 +212,7 @@ fn build_params_buckets_query_string_always_in_get_bucket() {
 #[test]
 fn build_params_buckets_urlencoded_body_in_actual_method_bucket() {
     let h = headers(&[("Content-Type", "application/x-www-form-urlencoded")]);
-    let buckets = build_params_buckets("", "POST", &h, b"name=Bob&age=30");
+    let buckets = build_params_buckets("", "POST", &h, b"name=Bob&age=30", &HashMap::new());
     let post = &buckets["POST"];
     assert!(matches!(post.get("name"), Some(ParamValue::Text(v)) if v == "Bob"));
     assert!(matches!(post.get("age"), Some(ParamValue::Text(v)) if v == "30"));
@@ -227,7 +227,7 @@ fn build_params_buckets_urlencoded_body_in_actual_method_bucket() {
 #[test]
 fn build_params_buckets_get_with_body_merges_into_get_bucket() {
     let h = headers(&[("Content-Type", "application/x-www-form-urlencoded")]);
-    let buckets = build_params_buckets("shared=fromQuery&onlyQuery=q", "GET", &h, b"shared=fromBody&onlyBody=b");
+    let buckets = build_params_buckets("shared=fromQuery&onlyQuery=q", "GET", &h, b"shared=fromBody&onlyBody=b", &HashMap::new());
     let get = &buckets["GET"];
     assert!(matches!(get.get("shared"), Some(ParamValue::Text(v)) if v == "fromBody"), "le corps doit l'emporter sur la query string à clé égale");
     assert!(matches!(get.get("onlyQuery"), Some(ParamValue::Text(v)) if v == "q"));
@@ -237,14 +237,14 @@ fn build_params_buckets_get_with_body_merges_into_get_bucket() {
 #[test]
 fn build_params_buckets_unrecognized_content_type_leaves_body_bucket_empty() {
     let h = headers(&[("Content-Type", "application/json")]);
-    let buckets = build_params_buckets("", "POST", &h, b"{\"a\":1}");
+    let buckets = build_params_buckets("", "POST", &h, b"{\"a\":1}", &HashMap::new());
     assert!(buckets["POST"].is_empty(), "JSON est hors périmètre ici (JSON::decode(req.body()) côté appelant)");
 }
 
 #[test]
 fn build_params_buckets_empty_body_leaves_all_method_buckets_empty() {
     let h = headers(&[("Content-Type", "application/x-www-form-urlencoded")]);
-    let buckets = build_params_buckets("q=1", "POST", &h, b"");
+    let buckets = build_params_buckets("q=1", "POST", &h, b"", &HashMap::new());
     assert!(buckets["POST"].is_empty());
     assert!(matches!(buckets["GET"].get("q"), Some(ParamValue::Text(v)) if v == "1"));
 }
@@ -253,15 +253,15 @@ fn build_params_buckets_empty_body_leaves_all_method_buckets_empty() {
 fn build_params_buckets_multipart_file_field_has_expected_shape() {
     let h = headers(&[("Content-Type", "multipart/form-data; boundary=B")]);
     let body = b"--B\r\nContent-Disposition: form-data; name=\"thefile\"; filename=\"x.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n\xff\xd8\xff\r\n--B--\r\n";
-    let buckets = build_params_buckets("", "POST", &h, body);
+    let buckets = build_params_buckets("", "POST", &h, body, &HashMap::new());
     match buckets["POST"].get("thefile") {
         Some(ParamValue::File { filename, content_type, content }) => {
             assert_eq!(filename, "x.jpg");
             assert_eq!(content_type, "image/jpeg");
             assert_eq!(content, &vec![0xffu8, 0xd8, 0xff]);
         }
-        Some(ParamValue::Text(_)) => panic!("expected a File value, got a Text value"),
         None => panic!("expected a File value, got None"),
+        _ => panic!("expected a File value, got something else"),
     }
 }
 
@@ -269,7 +269,7 @@ fn build_params_buckets_multipart_file_field_has_expected_shape() {
 fn build_params_buckets_multipart_file_field_defaults_content_type_when_absent() {
     let h = headers(&[("Content-Type", "multipart/form-data; boundary=B")]);
     let body = b"--B\r\nContent-Disposition: form-data; name=\"f\"; filename=\"noext\"\r\n\r\ndata\r\n--B--\r\n";
-    let buckets = build_params_buckets("", "POST", &h, body);
+    let buckets = build_params_buckets("", "POST", &h, body, &HashMap::new());
     match buckets["POST"].get("f") {
         Some(ParamValue::File { content_type, .. }) => assert_eq!(content_type, "application/octet-stream"),
         _ => panic!("expected a File value"),
@@ -322,4 +322,129 @@ fn lookup_param_absent_key_is_none() {
         .collect();
     assert!(lookup_param(&buckets, "nope", None, "GET").is_none());
     assert!(lookup_param(&buckets, "nope", Some("POST"), "POST").is_none());
+}
+
+// ── Paramètres de chemin `<nom:type>` — parse_route_pattern/match_route ────
+// docs/roadmap.d/stdlib-httpserver-route-params.md.
+
+/// Non-régression explicitement demandée : une route SANS paramètre doit se
+/// comporter exactement comme avant ce ticket.
+#[test]
+fn match_route_plain_literal_path_unaffected() {
+    let pattern = parse_route_pattern("/about");
+    let params = match_route(&pattern, "/about").expect("route littérale doit matcher");
+    assert!(params.is_empty());
+    assert!(match_route(&pattern, "/about/extra").is_none(), "segment en trop ne doit jamais matcher");
+    assert!(match_route(&pattern, "/other").is_none());
+}
+
+/// Le wildcard `"*"` historique continue de matcher n'importe quel chemin.
+#[test]
+fn match_route_wildcard_matches_anything() {
+    let pattern = parse_route_pattern("*");
+    assert!(match_route(&pattern, "/anything/at/all").unwrap().is_empty());
+    assert!(match_route(&pattern, "/").unwrap().is_empty());
+}
+
+#[test]
+fn match_route_single_int_param_success() {
+    let pattern = parse_route_pattern("/voitures/<id:int>");
+    let params = match_route(&pattern, "/voitures/42").expect("42 est un int valide");
+    assert!(matches!(params.get("id"), Some(ParamValue::Int(42))));
+}
+
+/// Cas exact du ticket : un segment qui échoue à parser selon le type
+/// déclaré fait que la route ENTIÈRE ne matche pas (pas de valeur bidon/zéro
+/// substituée) — aucune règle de priorité séparée n'est nécessaire, un
+/// segment littéral `ajouter` ne matche simplement jamais `<id:int>`.
+#[test]
+fn match_route_int_param_failure_does_not_match_at_all() {
+    let pattern = parse_route_pattern("/voitures/<id:int>");
+    assert!(match_route(&pattern, "/voitures/abc").is_none());
+    assert!(match_route(&pattern, "/voitures/ajouter").is_none());
+}
+
+#[test]
+fn match_route_segment_count_mismatch_never_matches() {
+    let pattern = parse_route_pattern("/voitures/<id:int>");
+    assert!(match_route(&pattern, "/voitures/1/extra").is_none());
+    assert!(match_route(&pattern, "/voitures").is_none());
+}
+
+#[test]
+fn match_route_literal_segment_mismatch_never_matches() {
+    let pattern = parse_route_pattern("/voitures/<id:int>");
+    assert!(match_route(&pattern, "/velos/1").is_none());
+}
+
+#[test]
+fn match_route_string_param_accepts_any_text_and_url_decodes() {
+    let pattern = parse_route_pattern("/users/<name:string>");
+    let params = match_route(&pattern, "/users/jean%20dupont").expect("string accepte tout");
+    assert!(matches!(params.get("name"), Some(ParamValue::Text(v)) if v == "jean dupont"));
+}
+
+#[test]
+fn match_route_float_param_success_and_failure() {
+    let pattern = parse_route_pattern("/price/<amount:float>");
+    let params = match_route(&pattern, "/price/12.5").expect("12.5 est un float valide");
+    assert!(matches!(params.get("amount"), Some(ParamValue::Float(f)) if (*f - 12.5).abs() < f64::EPSILON));
+    assert!(match_route(&pattern, "/price/abc").is_none());
+}
+
+#[test]
+fn match_route_bool_param_success_and_failure() {
+    let pattern = parse_route_pattern("/flag/<enabled:bool>");
+    assert!(matches!(match_route(&pattern, "/flag/true").unwrap().get("enabled"), Some(ParamValue::Bool(true))));
+    assert!(matches!(match_route(&pattern, "/flag/false").unwrap().get("enabled"), Some(ParamValue::Bool(false))));
+    assert!(match_route(&pattern, "/flag/yes").is_none(), "seuls true/false sont acceptés");
+}
+
+/// Plusieurs paramètres dans le même chemin, comme
+/// `/voitures/<car_id:int>/entretiens/<id:int>`.
+#[test]
+fn match_route_multiple_params_in_one_path() {
+    let pattern = parse_route_pattern("/voitures/<car_id:int>/entretiens/<id:int>");
+    let params = match_route(&pattern, "/voitures/7/entretiens/99").expect("les deux segments sont des int valides");
+    assert!(matches!(params.get("car_id"), Some(ParamValue::Int(7))));
+    assert!(matches!(params.get("id"), Some(ParamValue::Int(99))));
+}
+
+/// Un paramètre mélangé avec des segments littéraux, comme le repro du
+/// ticket (`/voitures/<car_id:int>/entretiens`, POST — création imbriquée).
+#[test]
+fn match_route_param_mixed_with_literal_segments() {
+    let pattern = parse_route_pattern("/voitures/<car_id:int>/entretiens");
+    let params = match_route(&pattern, "/voitures/3/entretiens").expect("doit matcher");
+    assert!(matches!(params.get("car_id"), Some(ParamValue::Int(3))));
+    assert!(match_route(&pattern, "/voitures/3/entretiens/extra").is_none());
+    assert!(match_route(&pattern, "/voitures/abc/entretiens").is_none());
+}
+
+/// Intégration bout-en-bout (sans passer par un vrai `tiny_http::Request`) :
+/// un paramètre de chemin doit apparaître dans le bucket "GET" de
+/// `build_params_buckets`, et l'EMPORTER sur une query string de même clé —
+/// règle de précédence confirmée explicitement par l'utilisateur (le chemin
+/// est plus spécifique/intentionnel qu'une query string arbitraire).
+#[test]
+fn build_params_buckets_path_param_overrides_query_string_on_collision() {
+    let h = HashMap::new();
+    let mut path_params = HashMap::new();
+    path_params.insert("id".to_string(), ParamValue::Int(42));
+    path_params.insert("onlyPath".to_string(), ParamValue::Text("fromPath".to_string()));
+
+    let buckets = build_params_buckets("id=999&onlyQuery=q", "GET", &h, b"", &path_params);
+    let get = &buckets["GET"];
+    assert!(matches!(get.get("id"), Some(ParamValue::Int(42))), "le paramètre de chemin doit l'emporter sur la query string");
+    assert!(matches!(get.get("onlyQuery"), Some(ParamValue::Text(v)) if v == "q"));
+    assert!(matches!(get.get("onlyPath"), Some(ParamValue::Text(v)) if v == "fromPath"));
+}
+
+/// Non-régression : aucun paramètre de chemin (route 100% littérale) ne doit
+/// rien changer au comportement déjà couvert par les tests plus haut.
+#[test]
+fn build_params_buckets_no_path_params_is_a_no_op() {
+    let h = HashMap::new();
+    let buckets = build_params_buckets("q=1", "GET", &h, b"", &HashMap::new());
+    assert!(matches!(buckets["GET"].get("q"), Some(ParamValue::Text(v)) if v == "1"));
 }

@@ -119,7 +119,9 @@ unsafe impl Sync for SendHandler {}
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct Route {
-    path:    String,
+    // Compilé UNE SEULE FOIS à l'enregistrement (`HTTPServer_route`), jamais
+    // reparsé par requête — voir `parse_route_pattern`/`match_route`.
+    pattern: RoutePattern,
     method:  String,   // en majuscules
     handler: SendHandler,
 }
@@ -199,15 +201,29 @@ pub(crate) const METHOD_BUCKETS: [&str; 10] = [
     "CONNECT", "DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT", "QUERY", "TRACE",
 ];
 
-/// Valeur d'un paramètre de requête (query string, champ urlencoded, ou champ
-/// multipart) — soit un texte simple, soit un fichier uploadé (multipart avec
-/// `filename`). Convertie en valeur `mixed` Ocara par `param_value_to_mixed`/
+/// Valeur d'un paramètre de requête (query string, champ urlencoded, champ
+/// multipart, OU segment de chemin typé `<nom:type>` — voir
+/// docs/roadmap.d/stdlib-httpserver-route-params.md) — un texte simple, un
+/// fichier uploadé (multipart avec `filename`), ou une valeur DÉJÀ TYPÉE
+/// (`Int`/`Float`/`Bool`) issue d'un paramètre de chemin déjà validé/parsé par
+/// le routeur AVANT que le handler ne s'exécute (voir `parse_path_param_value`).
+/// Convertie en valeur `mixed` Ocara par `param_value_to_mixed`/
 /// `file_to_mixed_map` uniquement au moment de construire la structure Ocara
 /// (map/valeur) demandée — jamais avant, pour ne matérialiser des allocations
-/// Ocara (`alloc_str`, `__map_new`...) que pour les buckets réellement lus.
+/// Ocara (`alloc_str`, `__map_new`, `__box_*`...) que pour les buckets
+/// réellement lus.
+///
+/// `Int`/`Float`/`Bool` existent UNIQUEMENT pour les paramètres de chemin —
+/// une valeur de query string ou de corps (`urlencoded`/`multipart`) est
+/// TOUJOURS `Text` (une valeur HTTP "classique" est toujours une chaîne sur
+/// le fil ; seul un paramètre de chemin porte une annotation de type explicite
+/// dans le pattern de route lui-même, `<id:int>`).
 #[derive(Clone)]
 pub(crate) enum ParamValue {
     Text(String),
+    Int(i64),
+    Float(f64),
+    Bool(bool),
     File {
         filename:     String,
         content_type: String,
@@ -221,6 +237,140 @@ pub(crate) enum ParamValue {
         // `writeBytes`, voir src/builtins/file.rs).
         content: Vec<u8>,
     },
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Paramètres de chemin — `<nom:type>` (docs/roadmap.d/stdlib-httpserver-route-params.md)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Type déclaré d'un segment de chemin paramétré (`<id:int>`). `Str` couvre
+/// à la fois `<nom:string>` et tout type inconnu/non reconnu — dégrade
+/// silencieusement vers une chaîne brute plutôt que de rejeter
+/// l'enregistrement de la route (même philosophie de tolérance que
+/// `url_decode`/`parse_query` ailleurs dans ce fichier : jamais planter sur
+/// une entrée mal formée).
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) enum PathParamType {
+    Int,
+    Float,
+    Bool,
+    Str,
+}
+
+/// Un segment d'un chemin de route, entre deux `/` — soit littéral (comparé
+/// tel quel), soit un paramètre nommé et typé.
+pub(crate) enum PathSegment {
+    Literal(String),
+    Param { name: String, ty: PathParamType },
+}
+
+/// Pattern de route compilé UNE SEULE FOIS à l'enregistrement
+/// (`HTTPServer_route`) — jamais reparsé à chaque requête entrante (voir
+/// `match_route`, appelée par `handle_request`). `Wildcard` préserve le
+/// comportement historique de `path == "*"` (n'importe quel chemin, pour la
+/// méthode déclarée) — un `"*"` littéral ne peut de toute façon jamais
+/// apparaître comme un segment `<nom:type>` valide, aucune ambiguïté entre
+/// les deux formes.
+pub(crate) enum RoutePattern {
+    Wildcard,
+    Segments(Vec<PathSegment>),
+}
+
+/// Parse un segment de chemin (texte entre deux `/`, JAMAIS encore décodé
+/// URL) tel qu'écrit dans `server.route(path, ...)` — `<nom:type>` devient un
+/// paramètre, tout le reste (y compris un `<...>` malformé, ex. sans `:`)
+/// reste un littéral comparé tel quel : ne matchera jamais qu'un segment de
+/// requête identique caractère pour caractère, ce qui inclut trivialement
+/// "jamais", sans jamais paniquer sur une route mal écrite.
+fn parse_path_segment(seg: &str) -> PathSegment {
+    if let Some(inner) = seg.strip_prefix('<').and_then(|s| s.strip_suffix('>')) {
+        if let Some((name, ty_str)) = inner.split_once(':') {
+            let ty = match ty_str {
+                "int"   => PathParamType::Int,
+                "float" => PathParamType::Float,
+                "bool"  => PathParamType::Bool,
+                _       => PathParamType::Str, // "string" ou type inconnu
+            };
+            return PathSegment::Param { name: name.to_string(), ty };
+        }
+    }
+    PathSegment::Literal(seg.to_string())
+}
+
+/// Compile `path` (tel qu'écrit dans `server.route(path, ...)`) en
+/// `RoutePattern` — appelée UNE SEULE FOIS, à l'enregistrement.
+pub(crate) fn parse_route_pattern(path: &str) -> RoutePattern {
+    if path == "*" {
+        return RoutePattern::Wildcard;
+    }
+    RoutePattern::Segments(path.split('/').map(parse_path_segment).collect())
+}
+
+/// Parse la valeur BRUTE d'un segment de requête (`raw`, jamais encore
+/// décodé URL) selon le type déclaré du paramètre — `None` si `raw` ne
+/// correspond pas au type déclaré (ex. `<id:int>` contre le segment
+/// `"abc"`) : signale à `match_route` que CETTE route ne matche pas du tout
+/// (voir sa doc — la route suivante est essayée, jamais de valeur
+/// bidon/zéro substituée).
+///
+/// `<nom:string>` décode l'URL du segment (`url_decode`, déjà utilisée pour
+/// la query string) — un segment de chemin peut légitimement contenir des
+/// caractères encodés (espaces, accents...). Un segment LITTÉRAL du pattern
+/// n'est en revanche jamais décodé avant comparaison (comportement
+/// historique inchangé, un chemin littéral est comparé octet pour octet).
+fn parse_path_param_value(raw: &str, ty: PathParamType) -> Option<ParamValue> {
+    match ty {
+        PathParamType::Int   => raw.parse::<i64>().ok().map(ParamValue::Int),
+        PathParamType::Float => raw.parse::<f64>().ok().map(ParamValue::Float),
+        PathParamType::Bool  => match raw {
+            "true"  => Some(ParamValue::Bool(true)),
+            "false" => Some(ParamValue::Bool(false)),
+            _       => None,
+        },
+        PathParamType::Str => Some(ParamValue::Text(url_decode(raw))),
+    }
+}
+
+/// Tente de faire correspondre `request_path` (le chemin RÉEL d'une requête,
+/// ex. `/voitures/1`) à `pattern` (compilé une fois à l'enregistrement) —
+/// `None` si le nombre de segments diffère, si un segment littéral ne
+/// correspond pas exactement, ou si un segment paramétré échoue à parser
+/// selon son type déclaré (voir `parse_path_param_value`). `Some(params)`
+/// sinon, `params` étant vide pour une route sans paramètre (non-régression :
+/// une route 100% littérale se comporte exactement comme avant ce ticket) ou
+/// pour `Wildcard`.
+///
+/// Aucune règle de priorité "route statique avant route dynamique" séparée :
+/// un segment littéral `ajouter` ne matche simplement JAMAIS un pattern
+/// `<id:int>` (ni `<id:string>` à une position DIFFÉRENTE dans
+/// l'enregistrement) puisque ce sont deux ROUTES distinctes, chacune avec son
+/// propre pattern — l'ordre d'enregistrement (voir `handle_request`, premier
+/// match gagne) suffit.
+pub(crate) fn match_route(pattern: &RoutePattern, request_path: &str) -> Option<HashMap<String, ParamValue>> {
+    match pattern {
+        RoutePattern::Wildcard => Some(HashMap::new()),
+        RoutePattern::Segments(segments) => {
+            let request_segments: Vec<&str> = request_path.split('/').collect();
+            if request_segments.len() != segments.len() {
+                return None;
+            }
+            let mut params = HashMap::new();
+            for (seg, req_seg) in segments.iter().zip(request_segments.iter()) {
+                match seg {
+                    PathSegment::Literal(lit) => {
+                        if lit != req_seg {
+                            return None;
+                        }
+                    }
+                    PathSegment::Param { name, ty } => {
+                        let value = parse_path_param_value(req_seg, *ty)?;
+                        params.insert(name.clone(), value);
+                    }
+                }
+            }
+            Some(params)
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -481,6 +631,7 @@ pub(crate) fn build_params_buckets(
     method: &str,
     headers: &HashMap<String, String>,
     body: &[u8],
+    path_params: &HashMap<String, ParamValue>,
 ) -> HashMap<String, HashMap<String, ParamValue>> {
     let mut buckets: HashMap<String, HashMap<String, ParamValue>> = METHOD_BUCKETS.iter()
         .map(|m| (m.to_string(), HashMap::new()))
@@ -490,6 +641,15 @@ pub(crate) fn build_params_buckets(
     // (une query string peut légitimement accompagner N'IMPORTE QUELLE méthode).
     for (k, v) in parse_query(query_str) {
         buckets.get_mut("GET").unwrap().insert(k, ParamValue::Text(v));
+    }
+
+    // Paramètres de CHEMIN (`<id:int>`, voir `match_route`) : insérés APRÈS
+    // la query string, dans le MÊME bucket "GET" — l'emportent donc sur la
+    // query string à clé égale (voir docs/roadmap.d/stdlib-httpserver-route-params.md,
+    // décision confirmée : un paramètre de chemin est plus spécifique/
+    // intentionnel qu'une query string arbitraire portant le même nom).
+    for (k, v) in path_params {
+        buckets.get_mut("GET").unwrap().insert(k.clone(), v.clone());
     }
 
     if body.is_empty() || !METHOD_BUCKETS.contains(&method) {
@@ -714,15 +874,29 @@ fn handle_request(
         );
     }
 
-    // Chercher une route correspondante
-    let handler = routes.iter().find(|r| {
-        r.method == method && (r.path == path || r.path == "*")
-    }).map(|r| r.handler.clone());
+    // Chercher une route correspondante — premier match gagne, dans l'ordre
+    // d'enregistrement (voir `match_route` : un segment littéral qui ne
+    // matche pas, ou un paramètre qui échoue à parser selon son type déclaré,
+    // fait passer à la route suivante, sans logique de priorité séparée).
+    let mut path_params: HashMap<String, ParamValue> = HashMap::new();
+    let mut handler: Option<SendHandler> = None;
+    for r in routes.iter() {
+        if r.method != method {
+            continue;
+        }
+        if let Some(params) = match_route(&r.pattern, path) {
+            path_params = params;
+            handler = Some(r.handler.clone());
+            break;
+        }
+    }
 
-    // Paramètres GET (query string, toujours) + corps (urlencoded/multipart,
-    // méthode réelle) — calculés une seule fois ici, consultés ensuite par
-    // `param()`/`params()` sans jamais re-parser (voir leur doc).
-    let param_buckets = build_params_buckets(query_str, &method, &headers, &raw_body);
+    // Paramètres GET (query string PUIS paramètres de chemin, qui l'emportent
+    // sur la query string à clé égale — voir `build_params_buckets`) + corps
+    // (urlencoded/multipart, méthode réelle) — calculés une seule fois ici,
+    // consultés ensuite par `param()`/`params()` sans jamais re-parser (voir
+    // leur doc).
+    let param_buckets = build_params_buckets(query_str, &method, &headers, &raw_body, &path_params);
 
     // Construire le contexte de requête
     let path_str   = path.to_string();
@@ -881,7 +1055,13 @@ pub extern "C" fn HTTPServer_rootPath(self_ptr: i64, path_ptr: i64) {
     s.root_path = Some(resolved);
 }
 
-/// Enregistre une route.
+/// Enregistre une route. `path` peut contenir des segments paramétrés et
+/// typés `<nom:type>` (`int`/`float`/`bool`/`string`, ex. `/voitures/<id:int>`
+/// — voir docs/roadmap.d/stdlib-httpserver-route-params.md) : compilé UNE
+/// SEULE FOIS ici en `RoutePattern` (`parse_route_pattern`), jamais reparsé
+/// par requête (voir `match_route`, appelée depuis `handle_request`). Un
+/// paramètre matché est exposé côté Ocara via `req.param(nom)`/`req.params()`
+/// (bucket `"GET"`, où il l'emporte sur une query string de même clé).
 /// `fat_ptr` pointe sur un struct {func_ptr: i64, env_ptr: i64} (fat pointer Ocara).
 #[unsafe(no_mangle)]
 pub extern "C" fn HTTPServer_route(
@@ -896,7 +1076,7 @@ pub extern "C" fn HTTPServer_route(
     let path   = unsafe { ptr_to_str(path_ptr).to_string() };
     let method = unsafe { ptr_to_str(method_ptr).to_string().to_uppercase() };
     s.routes.push(Route {
-        path,
+        pattern: parse_route_pattern(&path),
         method,
         handler: SendHandler { func_ptr, env_ptr },
     });
@@ -1042,6 +1222,15 @@ pub extern "C" fn HTTPServerRequest_query(req: i64, key_ptr: i64) -> i64 {
 unsafe fn param_value_to_mixed(v: &ParamValue) -> i64 {
     match v {
         ParamValue::Text(s) => unsafe { alloc_str(s) },
+        // Un paramètre de CHEMIN typé (`<id:int>` etc., voir `match_route`)
+        // — mêmes primitives de boxing que partout ailleurs dans ce fichier/
+        // ce runtime (jamais un second chemin de boxing inventé pour
+        // l'occasion, voir docs/roadmap.d/stdlib-sqlite-integer-column-boxing.md
+        // pour le bug que ça évite : un `int` non boxé logé dans un `mixed`
+        // est ambigu avec un pointeur dès qu'il dépasse `PTR_THRESHOLD`).
+        ParamValue::Int(n) => crate::box_int_if_needed(*n),
+        ParamValue::Float(f) => crate::__box_float(f.to_bits() as i64),
+        ParamValue::Bool(b) => crate::__box_bool(if *b { 1 } else { 0 }),
         ParamValue::File { filename, content_type, content } => unsafe {
             file_to_mixed_map(filename, content_type, content)
         },

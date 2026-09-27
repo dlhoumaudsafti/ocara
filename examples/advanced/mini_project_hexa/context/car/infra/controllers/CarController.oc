@@ -2,9 +2,9 @@
 // Fiche détail d'une voiture (historique d'entretiens + formulaire d'ajout
 // d'entretien) et création d'une nouvelle voiture.
 //
-// GET plutôt que POST pour la création (voir configs/routes/Car.oc) : le
-// runtime décode déjà la query string (req.query()) mais n'offre pas
-// de parseur de corps application/x-www-form-urlencoded pour POST.
+// La création passe par POST (voir configs/routes/CarRoutes.oc) : req.param()
+// lit indifféremment la query string ET un corps application/x-www-form-urlencoded,
+// plus besoin de forcer GET pour profiter du décodage automatique.
 namespace context.car.infra.controllers
 
 import ocara.HTML
@@ -24,8 +24,14 @@ import context.car.app.usecase.helpers.Flash
 class CarController {
 
     public static method show(req:HTTPServerRequest): int {
-        scoped idParam:string = req.query("id")
-        var id:int = Convert::strToInt(idParam)
+        // `id` arrive comme paramètre de CHEMIN déjà typé (`<id:int>`, voir
+        // configs/routes/CarRoutes.oc) — le routeur l'a déjà validé/parsé
+        // avant même d'appeler ce handler, plus besoin de Convert::strToInt
+        // ni de gérer une chaîne non numérique ici : un id invalide dans
+        // l'URL (ex. /voitures/abc) ne matche simplement plus cette route du
+        // tout (404 générique), au lieu d'être silencieusement traité comme
+        // id=0 puis redirigé vers "not_found" comme avant ce changement.
+        var id:int = req.param("id")
         const car:CarEntity|null = Car::find(id)
 
         if car is null {
@@ -73,10 +79,10 @@ class CarController {
         // à db.bind(), donc les retient au-delà de cet appel — une valeur
         // `scoped`/`consumed` ne peut pas être passée là où l'appelé la
         // retient (voir E26, docs/diagnostics.md).
-        const reference:string = String::trim(req.query("reference"))
-        const brand:string     = String::trim(req.query("brand"))
-        const model:string     = String::trim(req.query("model"))
-        scoped priceStr:string  = req.query("purchase_price")
+        const reference:string = String::trim(req.param("reference"))
+        const brand:string     = String::trim(req.param("brand"))
+        const model:string     = String::trim(req.param("model"))
+        scoped priceStr:string  = req.param("purchase_price")
         var price:float = Convert::strToFloat(priceStr)
 
         if String::empty(reference) or String::empty(brand) or String::empty(model) {
