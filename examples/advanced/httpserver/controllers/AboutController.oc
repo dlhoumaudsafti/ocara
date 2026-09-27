@@ -5,10 +5,11 @@
 
 import ocara.HTML
 import ocara.HTTPServer
+import ocara.HTTPServerRequest
 
 class AboutController {
 
-    public static method handle(req:int): int {
+    public static method handle(req:HTTPServerRequest): int {
         scoped html:string = HTML::renderCached(`<layout title="A propos" active="about">
   <card title="A propos d'Ocara">
     <p>Auteur : David Lhoumaud</p>
@@ -24,7 +25,7 @@ class AboutController {
   </card>
 </layout>`, "page_about")
 
-        HTTPServer::respond(req, 200, html)
+        req.respond(200, html)
         return 0
     }
 }

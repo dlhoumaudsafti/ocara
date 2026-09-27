@@ -15,6 +15,7 @@
 import ocara.HTMLComponent
 import ocara.HTML
 import ocara.HTTPServer
+import ocara.HTTPServerRequest
 import ocara.Convert
 import ocara.Thread
 import ocara.IO
@@ -33,7 +34,7 @@ class HomeController {
         return Math::random(1, 1000)   // simule un nombre d'articles aléatoire
     }
 
-    public static method handle(req:int): int {
+    public static method handle(req:HTTPServerRequest): int {
         // Lancer les deux chargements en parallèle
         var t_users:int    = self::fetch_user_count()
         var t_articles:int = self::fetch_article_count()
@@ -51,7 +52,7 @@ class HomeController {
 
         scoped html:string = HTML::renderFile('templates/home.html')
 
-        HTTPServer::respond(req, 200, html)
+        req.respond(200, html)
         return 0
     }
 }

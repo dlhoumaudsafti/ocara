@@ -2005,7 +2005,7 @@
         "params": [
           {
             "name": "res",
-            "type": "res_ty()"
+            "type": "HTTPResponse"
           }
         ],
         "returns": "string",
@@ -2016,7 +2016,7 @@
         "params": [
           {
             "name": "req",
-            "type": "req_ty()"
+            "type": "HTTPRequest"
           }
         ],
         "returns": "void",
@@ -2027,7 +2027,7 @@
         "params": [
           {
             "name": "res",
-            "type": "res_ty()"
+            "type": "HTTPResponse"
           }
         ],
         "returns": "void",
@@ -2041,7 +2041,7 @@
             "type": "string"
           }
         ],
-        "returns": "res_ty()",
+        "returns": "HTTPResponse",
         "static": true
       },
       {
@@ -2049,7 +2049,7 @@
         "params": [
           {
             "name": "res",
-            "type": "res_ty()"
+            "type": "HTTPResponse"
           }
         ],
         "returns": "string",
@@ -2063,7 +2063,7 @@
             "type": "string"
           }
         ],
-        "returns": "res_ty()",
+        "returns": "HTTPResponse",
         "static": true
       },
       {
@@ -2071,7 +2071,7 @@
         "params": [
           {
             "name": "res",
-            "type": "res_ty()"
+            "type": "HTTPResponse"
           },
           {
             "name": "name",
@@ -2086,7 +2086,7 @@
         "params": [
           {
             "name": "res",
-            "type": "res_ty()"
+            "type": "HTTPResponse"
           }
         ],
         "returns": "map<string, string>",
@@ -2097,7 +2097,7 @@
         "params": [
           {
             "name": "res",
-            "type": "res_ty()"
+            "type": "HTTPResponse"
           }
         ],
         "returns": "bool",
@@ -2111,7 +2111,7 @@
             "type": "string"
           }
         ],
-        "returns": "req_ty()",
+        "returns": "HTTPRequest",
         "static": true
       },
       {
@@ -2119,7 +2119,7 @@
         "params": [
           {
             "name": "res",
-            "type": "res_ty()"
+            "type": "HTTPResponse"
           }
         ],
         "returns": "bool",
@@ -2137,7 +2137,7 @@
             "type": "string"
           }
         ],
-        "returns": "res_ty()",
+        "returns": "HTTPResponse",
         "static": true
       },
       {
@@ -2152,7 +2152,7 @@
             "type": "string"
           }
         ],
-        "returns": "res_ty()",
+        "returns": "HTTPResponse",
         "static": true
       },
       {
@@ -2167,7 +2167,7 @@
             "type": "string"
           }
         ],
-        "returns": "res_ty()",
+        "returns": "HTTPResponse",
         "static": true
       },
       {
@@ -2175,10 +2175,10 @@
         "params": [
           {
             "name": "req",
-            "type": "req_ty()"
+            "type": "HTTPRequest"
           }
         ],
-        "returns": "res_ty()",
+        "returns": "HTTPResponse",
         "static": true
       },
       {
@@ -2186,7 +2186,7 @@
         "params": [
           {
             "name": "req",
-            "type": "req_ty()"
+            "type": "HTTPRequest"
           },
           {
             "name": "body",
@@ -2201,7 +2201,7 @@
         "params": [
           {
             "name": "req",
-            "type": "req_ty()"
+            "type": "HTTPRequest"
           },
           {
             "name": "name",
@@ -2220,7 +2220,7 @@
         "params": [
           {
             "name": "req",
-            "type": "req_ty()"
+            "type": "HTTPRequest"
           },
           {
             "name": "method",
@@ -2235,7 +2235,7 @@
         "params": [
           {
             "name": "req",
-            "type": "req_ty()"
+            "type": "HTTPRequest"
           },
           {
             "name": "ms",
@@ -2250,7 +2250,7 @@
         "params": [
           {
             "name": "res",
-            "type": "res_ty()"
+            "type": "HTTPResponse"
           }
         ],
         "returns": "int",
@@ -2263,32 +2263,6 @@
     "name": "HTTPServer",
     "methods": [
       {
-        "name": "body",
-        "params": [
-          {
-            "name": "req",
-            "type": "int"
-          }
-        ],
-        "returns": "string",
-        "static": true
-      },
-      {
-        "name": "header",
-        "params": [
-          {
-            "name": "req",
-            "type": "int"
-          },
-          {
-            "name": "name",
-            "type": "string"
-          }
-        ],
-        "returns": "string",
-        "static": true
-      },
-      {
         "name": "host",
         "params": [
           {
@@ -2300,28 +2274,6 @@
         "static": false
       },
       {
-        "name": "method",
-        "params": [
-          {
-            "name": "req",
-            "type": "int"
-          }
-        ],
-        "returns": "string",
-        "static": true
-      },
-      {
-        "name": "path",
-        "params": [
-          {
-            "name": "req",
-            "type": "int"
-          }
-        ],
-        "returns": "string",
-        "static": true
-      },
-      {
         "name": "port",
         "params": [
           {
@@ -2331,59 +2283,6 @@
         ],
         "returns": "void",
         "static": false
-      },
-      {
-        "name": "query",
-        "params": [
-          {
-            "name": "req",
-            "type": "int"
-          },
-          {
-            "name": "key",
-            "type": "string"
-          }
-        ],
-        "returns": "string",
-        "static": true
-      },
-      {
-        "name": "respond",
-        "params": [
-          {
-            "name": "req",
-            "type": "int"
-          },
-          {
-            "name": "status",
-            "type": "int"
-          },
-          {
-            "name": "body",
-            "type": "string"
-          }
-        ],
-        "returns": "void",
-        "static": true
-      },
-      {
-        "name": "respondHeader",
-        "params": [
-          {
-            "name": "req",
-            "type": "int"
-          },
-          {
-            "name": "name",
-            "type": "string"
-          },
-          {
-            "name": "value",
-            "type": "string"
-          }
-        ],
-        "returns": "void",
-        "static": true
       },
       {
         "name": "rootPath",
@@ -2446,6 +2345,154 @@
         ],
         "returns": "void",
         "static": false
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "HTTPServerRequest",
+    "methods": [
+      {
+        "name": "body",
+        "params": [
+          {
+            "name": "req",
+            "type": "HTTPServerRequest"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "header",
+        "params": [
+          {
+            "name": "req",
+            "type": "HTTPServerRequest"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "headers",
+        "params": [
+          {
+            "name": "req",
+            "type": "HTTPServerRequest"
+          }
+        ],
+        "returns": "map<string, string|int|float|bool|null>",
+        "static": true
+      },
+      {
+        "name": "method",
+        "params": [
+          {
+            "name": "req",
+            "type": "HTTPServerRequest"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "param",
+        "params": [
+          {
+            "name": "req",
+            "type": "HTTPServerRequest"
+          },
+          {
+            "name": "key",
+            "type": "string"
+          },
+          {
+            "name": "method",
+            "type": "string|null"
+          }
+        ],
+        "returns": "mixed",
+        "static": true
+      },
+      {
+        "name": "params",
+        "params": [
+          {
+            "name": "req",
+            "type": "HTTPServerRequest"
+          }
+        ],
+        "returns": "map<string, map<string, mixed>>",
+        "static": true
+      },
+      {
+        "name": "path",
+        "params": [
+          {
+            "name": "req",
+            "type": "HTTPServerRequest"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "query",
+        "params": [
+          {
+            "name": "req",
+            "type": "HTTPServerRequest"
+          },
+          {
+            "name": "key",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true
+      },
+      {
+        "name": "respond",
+        "params": [
+          {
+            "name": "req",
+            "type": "HTTPServerRequest"
+          },
+          {
+            "name": "status",
+            "type": "int"
+          },
+          {
+            "name": "body",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
+      },
+      {
+        "name": "respondHeader",
+        "params": [
+          {
+            "name": "req",
+            "type": "HTTPServerRequest"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "value",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true
       }
     ],
     "consts": []
@@ -3677,7 +3724,7 @@
           },
           {
             "name": "placeholder",
-            "type": "placeholder_type()"
+            "type": "map<string, mixed>|null"
           },
           {
             "name": "close",
@@ -3724,7 +3771,7 @@
           },
           {
             "name": "placeholder",
-            "type": "placeholder_type()"
+            "type": "map<string, mixed>|null"
           }
         ],
         "returns": "map<string, mixed>[]",
@@ -3739,7 +3786,7 @@
           },
           {
             "name": "placeholder",
-            "type": "placeholder_type()"
+            "type": "map<string, mixed>|null"
           }
         ],
         "returns": "map<string, mixed>",
@@ -3843,7 +3890,7 @@
           },
           {
             "name": "placeholder",
-            "type": "placeholder_type()"
+            "type": "map<string, mixed>|null"
           },
           {
             "name": "close",
@@ -3879,7 +3926,7 @@
           },
           {
             "name": "placeholder",
-            "type": "placeholder_type()"
+            "type": "map<string, mixed>|null"
           }
         ],
         "returns": "map<string, mixed>[]",
@@ -3894,7 +3941,7 @@
           },
           {
             "name": "placeholder",
-            "type": "placeholder_type()"
+            "type": "map<string, mixed>|null"
           }
         ],
         "returns": "map<string, mixed>|null",

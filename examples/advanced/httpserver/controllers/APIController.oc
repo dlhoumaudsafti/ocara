@@ -5,13 +5,14 @@
 // (liste d'utilisateurs) — réponses JSON pures, sans rendu HTML ni cache.
 
 import ocara.HTTPServer
+import ocara.HTTPServerRequest
 import ocara.JSON
 
 class APIController {
 
-    public static method handle(req:int): int {
-        HTTPServer::respondHeader(req, "Content-Type", "application/json; charset=utf-8")
-        HTTPServer::respond(req, 200, 
+    public static method handle(req:HTTPServerRequest): int {
+        req.respondHeader("Content-Type", "application/json; charset=utf-8")
+        req.respond(200, 
             JSON::encode({
                 "name": "Ocara Site API",
                 "version": "1.0.0",
@@ -21,9 +22,9 @@ class APIController {
         return 0
     }
 
-    public static method users(req:int): int {
-        HTTPServer::respondHeader(req, "Content-Type", "application/json; charset=utf-8")
-        HTTPServer::respond(req, 200, 
+    public static method users(req:HTTPServerRequest): int {
+        req.respondHeader("Content-Type", "application/json; charset=utf-8")
+        req.respond(200, 
             JSON::encode([
                 {"id": 1, "name": "Alice"},
                 {"id": 2, "name": "Bob"},

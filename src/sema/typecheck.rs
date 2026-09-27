@@ -1373,7 +1373,7 @@ impl<'a> TypeChecker<'a> {
                             // Une méthode static ne peut pas être appelée sur une instance
                             // SAUF pour ces classes : les méthodes sont statiques mais utilisables
                             // comme méthodes d'instance sur les variables (ex: a.trim(), arr.len(), m.size(), data.encode(), req.close(), res.status()).
-                            let allows_instance_sugar = matches!(cls_name.as_str(), "String" | "Array" | "Map" | "JSON" | "HTTPRequest" | "HTTPResponse");
+                            let allows_instance_sugar = matches!(cls_name.as_str(), "String" | "Array" | "Map" | "JSON" | "HTTPRequest" | "HTTPResponse" | "HTTPServerRequest");
                             if sig.is_static && !allows_instance_sugar {
                                 self.errors.push(SemaError::StaticOnInstance {
                                     class:  cls_name.clone(),

@@ -7,7 +7,7 @@ namespace configs.routes
 // d'une erreur de compilation — bug réel rencontré en testant : la création
 // d'une voiture répondait 302 succès sans jamais rien insérer en base).
 //
-// Mutation via GET plutôt que POST : HTTPServer::query() décode déjà l'URL
+// Mutation via GET plutôt que POST : req.query() décode déjà l'URL
 // (voir runtime/src/httpserver.rs::parse_query), alors qu'aucun parseur
 // application/x-www-form-urlencoded n'est fourni pour un corps de requête
 // POST. Le "redirect after action" de CarController::create (302 vers une

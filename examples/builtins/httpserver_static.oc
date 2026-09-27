@@ -17,6 +17,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import ocara.HTTPServer
+import ocara.HTTPServerRequest
 import ocara.IO
 
 function main(): int {
@@ -30,36 +31,36 @@ function main(): int {
 
     // ── Route API dynamique ──────────────────────────────────────────────────
     // Cette route a la priorité sur les fichiers statiques
-    server.route("/api/status", "GET", nameless(req:int): int {
-        HTTPServer::respondHeader(req, "Content-Type", "application/json")
-        HTTPServer::respond(req, 200, `{"status":"ok","server":"HTTPServer Ocara"}`)
+    server.route("/api/status", "GET", nameless(req:HTTPServerRequest): int {
+        req.respondHeader("Content-Type", "application/json")
+        req.respond(200, `{"status":"ok","server":"HTTPServer Ocara"}`)
         return 0
     })
 
     // ── Route API avec données ───────────────────────────────────────────────
-    server.route("/api/users", "GET", nameless(req:int): int {
-        HTTPServer::respondHeader(req, "Content-Type", "application/json")
+    server.route("/api/users", "GET", nameless(req:HTTPServerRequest): int {
+        req.respondHeader("Content-Type", "application/json")
         var json:string = `{
     "users": [
         {"id": 1, "name": "Alice"},
         {"id": 2, "name": "Bob"}
     ]
 }`
-        HTTPServer::respond(req, 200, json)
+        req.respond(200, json)
         return 0
     })
 
     // ── Route API POST ───────────────────────────────────────────────────────
-    server.route("/api/echo", "POST", nameless(req:int): int {
-        var body:string = HTTPServer::body(req)
-        HTTPServer::respondHeader(req, "Content-Type", "application/json")
-        HTTPServer::respond(req, 200, `{"received":"${body}"}`)
+    server.route("/api/echo", "POST", nameless(req:HTTPServerRequest): int {
+        var body:string = req.body()
+        req.respondHeader("Content-Type", "application/json")
+        req.respond(200, `{"received":"${body}"}`)
         return 0
     })
 
     // ── Route HTML sans Content-Type explicite ───────────────────────────────
     // Content-Type: text/html; charset=utf-8 est ajouté automatiquement
-    server.route("/about", "GET", nameless(req:int): int {
+    server.route("/about", "GET", nameless(req:HTTPServerRequest): int {
         var html:string = `<!DOCTYPE html>
 <html>
     <head><title>À propos</title></head>
@@ -70,13 +71,13 @@ function main(): int {
     </body>
 </html>`
         // Pas besoin de set_resp_header, Content-Type HTML par défaut !
-        HTTPServer::respond(req, 200, html)
+        req.respond(200, html)
         return 0
     })
 
     // ── Page d'erreur 404 personnalisée ──────────────────────────────────────
-    server.routeError(404, nameless(req:int): int {
-        var path:string = HTTPServer::path(req)
+    server.routeError(404, nameless(req:HTTPServerRequest): int {
+        var path:string = req.path()
         var html:string = `<!DOCTYPE html>
 <html>
     <head>
@@ -94,7 +95,7 @@ function main(): int {
     </body>
 </html>`
         // Content-Type HTML par défaut
-        HTTPServer::respond(req, 404, html)
+        req.respond(404, html)
         return 0
     })
 

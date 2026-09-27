@@ -1938,7 +1938,9 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
 - **HTTPRequest** — Client HTTP pour requêtes GET/POST/PUT/DELETE/PATCH
   - `new()`, `setMethod()`, `setHeader()`, `setBody()`, `setTimeout()`, `send()`, `status()`, `body()`, `header()`, `headers()`, `ok()`, `isError()`, `error()`, `get()`, `post()`, `put()`, `delete()`, `patch()`, `close()`, `closeResponse()`
 - **HTTPServer** — Serveur HTTP multi-thread embarqué (classe d'instance)
-  - `port()`, `host()`, `workers()`, `rootPath()`, `route()`, `routeError()`, `run()`, `path()`, `method()`, `body()`, `header()`, `query()`, `respond()`, `respondHeader()`
+  - `port()`, `host()`, `workers()`, `rootPath()`, `route()`, `routeError()`, `run()`
+- **HTTPServerRequest** — Requête reçue par un handler de route `HTTPServer` (classe d'instance, voir `HTTPServer.md`)
+  - `path()`, `method()`, `body()`, `header()`, `headers()`, `query()`, `param()`, `params()`, `respond()`, `respondHeader()`
 
 #### Manipulation de données
 

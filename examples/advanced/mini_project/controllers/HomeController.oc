@@ -10,6 +10,7 @@
 
 import ocara.HTML
 import ocara.HTTPServer
+import ocara.HTTPServerRequest
 import ocara.Array
 import ocara.Convert
 import models.Car
@@ -19,7 +20,7 @@ import helpers.Flash
 
 class HomeController {
 
-    public static method index(req:int): int {
+    public static method index(req:HTTPServerRequest): int {
         const cars:array<map<string, mixed>> = Car::all()
 
         var totalPurchaseValue:float = 0.0
@@ -51,13 +52,13 @@ class HomeController {
         scoped estimatedText:string = Format::price(totalEstimatedValue)
         scoped gainText:string      = Format::price(totalEstimatedValue - totalPurchaseValue)
 
-        scoped errorCode:string   = HTTPServer::query(req, "error")
-        scoped successCode:string = HTTPServer::query(req, "success")
+        scoped errorCode:string   = req.query("error")
+        scoped successCode:string = req.query("success")
         scoped errorText:string   = Flash::message(errorCode)
         scoped successText:string = Flash::message(successCode)
 
         scoped html:string = HTML::renderFile('templates/home.html')
-        HTTPServer::respond(req, 200, html)
+        req.respond(200, html)
         return 0
     }
 }

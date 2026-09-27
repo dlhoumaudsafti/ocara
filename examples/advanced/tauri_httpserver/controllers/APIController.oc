@@ -5,13 +5,14 @@
 // (liste d'utilisateurs) — réponses JSON pures, sans rendu HTML ni cache.
 
 import ocara.HTTPServer
+import ocara.HTTPServerRequest
 import ocara.JSON
 
 class APIController {
 
-    public static method handle(req:int): int {
-        HTTPServer::respondHeader(req, "Content-Type", "application/json; charset=utf-8")
-        HTTPServer::respond(req, 200, 
+    public static method handle(req:HTTPServerRequest): int {
+        req.respondHeader("Content-Type", "application/json; charset=utf-8")
+        req.respond(200, 
             JSON::encode({
                 "name": "Ocara Site API",
                 "version": "1.0.0",
@@ -21,9 +22,9 @@ class APIController {
         return 0
     }
 
-    public static method users(req:int): int {
-        HTTPServer::respondHeader(req, "Content-Type", "application/json; charset=utf-8")
-        HTTPServer::respond(req, 200,
+    public static method users(req:HTTPServerRequest): int {
+        req.respondHeader("Content-Type", "application/json; charset=utf-8")
+        req.respond(200,
             JSON::encode([
                 {"id": 1, "name": "Alice"},
                 {"id": 2, "name": "Bob"},
@@ -35,9 +36,9 @@ class APIController {
 
     // Utilisée par main.oc pour attendre que le serveur soit réellement prêt à
     // répondre avant d'ouvrir la fenêtre Tauri (voir la boucle de health-check).
-    public static method health(req:int): int {
-        HTTPServer::respondHeader(req, "Content-Type", "application/json; charset=utf-8")
-        HTTPServer::respond(req, 200, JSON::encode({"status": "ok"}))
+    public static method health(req:HTTPServerRequest): int {
+        req.respondHeader("Content-Type", "application/json; charset=utf-8")
+        req.respond(200, JSON::encode({"status": "ok"}))
         return 0
     }
 }

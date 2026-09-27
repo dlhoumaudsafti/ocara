@@ -2,12 +2,13 @@
 
 import ocara.HTML
 import ocara.HTTPServer
+import ocara.HTTPServerRequest
 
 class ErrorController {
-    public static method handle404(req:int): int {
-        scoped path:string = HTTPServer::path(req)
+    public static method handle404(req:HTTPServerRequest): int {
+        scoped path:string = req.path()
         scoped html:string = HTML::renderFile('templates/404.html')
-        HTTPServer::respond(req, 404, html)
+        req.respond(404, html)
         return 0
     }
 }

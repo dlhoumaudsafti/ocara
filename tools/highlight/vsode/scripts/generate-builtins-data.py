@@ -30,6 +30,7 @@ CLASSES = [
     ("JSON", "json", "class"),
     ("HTTPRequest", "httprequest", "class"),
     ("HTTPServer", "httpserver", "class"),
+    ("HTTPServerRequest", "httpserver", "request_class"),
     ("Tauri", "tauri", "tauri_class"),
     ("SDL", "sdl", "sdl_class"),
     ("HTML", "html", "class"),
@@ -133,18 +134,70 @@ def simplify_type_text(t, local_vars):
                 "Void": "void", "Mixed": "mixed", "Null": "null"}.get(m.group(1), m.group(1).lower())
     return t  # fallback : expression brute (rare, cas complexes)
 
+def find_matching_brace(s, open_idx):
+    """Comme find_matching_paren, mais pour une accolade `{` — utilisé pour
+    isoler le corps d'UNE fonction précise dans un fichier qui en contient
+    plusieurs (ex: httpserver.rs, qui déclare `class()` ET `request_class()`)."""
+    depth = 0
+    i = open_idx
+    while i < len(s):
+        if s[i] == '{':
+            depth += 1
+        elif s[i] == '}':
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return -1
+
+def function_body(text, fn_name):
+    """Isole le corps `{ ... }` de `pub fn {fn_name}(...) -> ClassInfo { ... }`
+    dans `text` — nécessaire dès qu'un fichier `src/builtins/<mod>.rs` déclare
+    PLUSIEURS classes (ex: `httpserver.rs` : `class()` pour HTTPServer ET
+    `request_class()` pour HTTPServerRequest, comme `httprequest.rs` le fait
+    déjà pour `class()`/`response_class()`) : sans cette délimitation, un scan
+    sur `text` entier confondrait les méthodes des deux classes. Retourne
+    `text` inchangé si `fn_name` n'est pas trouvé (comportement historique —
+    un seul `pub fn class()` par fichier, toujours vrai pour la majorité des
+    modules builtins)."""
+    m = re.search(r'\bfn\s+' + re.escape(fn_name) + r'\s*\([^)]*\)[^{]*\{', text)
+    if not m:
+        return text
+    open_idx = m.end() - 1
+    close_idx = find_matching_brace(text, open_idx)
+    if close_idx == -1:
+        return text
+    return text[open_idx:close_idx + 1]
+
 def parse_file(class_name, mod_name, fn_name):
     path = BUILTINS_DIR / f"{mod_name}.rs"
-    text = path.read_text()
+    full_text = path.read_text()
+    # `methods.insert`/`class_consts.insert` sont cherchés UNIQUEMENT dans le
+    # corps de `fn_name` (voir sa doc) ; les helpers de type (`local_vars`
+    # ci-dessous) restent cherchés dans le FICHIER ENTIER — ce sont des
+    # fonctions/`let` top-level partagées par toutes les classes du fichier
+    # (ex: `req_ty()` utilisée à la fois par `class()` et `request_class()`).
+    text = function_body(full_text, fn_name)
 
     # ── Variables locales de type (ex: let str_arr = Type::Array(...);) ──────
     local_vars = {}
-    for lm in re.finditer(r'^\s*let\s+(\w+)\s*=\s*(Type::[^;]+);', text, re.M):
+    for lm in re.finditer(r'^\s*let\s+(\w+)\s*=\s*(Type::[^;]+);', full_text, re.M):
         local_vars[lm.group(1)] = lm.group(2).strip()
+    # ── Helpers de type sans paramètre (ex: fn req_ty() -> Type { Type::Named(...) })
+    # — même rôle qu'un `let`, mais écrit comme une fonction réutilisable
+    # entre PLUSIEURS `ClassInfo` du même fichier (voir httprequest.rs :
+    # `req_ty()`/`res_ty()` utilisées par `class()` ET implicitement par les
+    # signatures qui prennent un HTTPResponse). Corps à une seule expression
+    # `{ EXPR }` uniquement (largement suffisant en pratique) — un corps plus
+    # complexe retombe sur le fallback "texte brut" de `simplify_type_text`,
+    # comme avant l'ajout de cette résolution.
+    for fm in re.finditer(r'fn\s+(\w+)\s*\(\s*\)\s*->\s*Type\s*\{\s*(Type::[^;]+?);?\s*\}', full_text):
+        local_vars[fm.group(1) + "()"] = fm.group(2).strip()
 
-    # ── Fonctions helper -> is_static fixe ────────────────────────────────────
+    # ── Fonctions helper -> is_static fixe (définies au niveau du FICHIER,
+    # partagées par class()/request_class() — voir la doc de function_body) ──
     helper_static = {}
-    for hm in re.finditer(r'fn\s+(\w+)\s*\(.*?\)\s*->\s*FuncSig\s*\{(.*?)\n\}', text, re.S):
+    for hm in re.finditer(r'fn\s+(\w+)\s*\(.*?\)\s*->\s*FuncSig\s*\{(.*?)\n\}', full_text, re.S):
         body = hm.group(2)
         sm = re.search(r'is_static:\s*(true|false)', body)
         if sm:
