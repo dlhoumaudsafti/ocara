@@ -10,13 +10,13 @@ class CarCard extends HTMLComponent {
     init() {
         parent::init("car-card")
         self.register(nameless(attrs:map<string, mixed>): string {
-            scoped id:string              = attrs["id"]
-            scoped reference:string       = attrs["reference"]
-            scoped brand:string           = attrs["brand"]
-            scoped model:string           = attrs["model"]
-            scoped purchasePrice:string   = attrs["purchase_price"]
-            scoped estimatedPrice:string  = attrs["estimated_price"]
-            scoped maintenanceTotal:string = attrs["maintenance_total"]
+            consumed id:string              = attrs["id"]
+            consumed reference:string       = attrs["reference"]
+            consumed brand:string           = attrs["brand"]
+            consumed model:string           = attrs["model"]
+            consumed purchasePrice:string   = attrs["purchase_price"]
+            consumed estimatedPrice:string  = attrs["estimated_price"]
+            consumed maintenanceTotal:string = attrs["maintenance_total"]
             return `<a class="car-card" href="/voitures/${id}">
       <div class="car-card-header">
         <span class="car-reference">${reference}</span>

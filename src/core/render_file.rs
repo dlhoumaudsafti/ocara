@@ -413,7 +413,14 @@ fn build_template_from_file(path: &Path, span: &Span) -> Result<Expr, String> {
     for part in raw_parts {
         match part {
             TemplatePart::Literal(s) => parts.push(TemplatePartExpr::Literal(s)),
-            TemplatePart::ExprSrc(src) => {
+            // Pas de suivi ligne/colonne dans un fichier .html rendu (voir
+            // split_file_template : position factice, jamais consultée —
+            // aucun diagnostic ne s'appuie dessus ici, parse_expr_src plus
+            // bas ne renvoie que des erreurs `String`). Le champ existe
+            // seulement pour satisfaire le type `TemplatePart::ExprSrc`
+            // désormais commun avec les templates littéraux Ocara (voir
+            // docs/roadmap.d/langage-template-interpolation-span-position.md).
+            TemplatePart::ExprSrc(src, _origin) => {
                 let expr = parse_expr_src(&src)
                     .map_err(|e| format!("{} (in '{}')", e, path.display()))?;
                 parts.push(TemplatePartExpr::Expr(Box::new(expr)));
@@ -463,7 +470,10 @@ fn split_file_template(content: &str) -> Result<Vec<TemplatePart>, String> {
                     }
                 }
             }
-            parts.push(TemplatePart::ExprSrc(expr_src));
+            // Pas de suivi ligne/colonne ici (voir le commentaire dans
+            // build_template_from_file, seul appelant) — position factice,
+            // jamais consultée : parse_expr_src ne renvoie que des `String`.
+            parts.push(TemplatePart::ExprSrc(expr_src, Span::new(1, 1)));
         } else {
             literal.push(chars[i]);
             i += 1;

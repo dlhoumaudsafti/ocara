@@ -1,0 +1,12 @@
+namespace configs
+
+import ocara.YAML
+import ocara.File
+
+class Language {
+    public static method get(context:string, lang:string="en"): map<string, string>|void {
+        if (File::exists(`languages/${lang}/${context}.yaml`)) {
+            return YAML::loadFile(`languages/${lang}/${context}.yaml`)
+        }
+    }
+}

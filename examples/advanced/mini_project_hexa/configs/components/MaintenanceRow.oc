@@ -11,11 +11,11 @@ class MaintenanceRow extends HTMLComponent {
         parent::init("maintenance-row")
         self.register(nameless(attrs:map<string, mixed>): string {
             scoped type:string        = attrs["type"]
-            scoped description:string = attrs["description"]
-            scoped cost:string        = attrs["cost"]
-            scoped date:string        = attrs["date"]
-            scoped badgeCls:string    = match type { "improvement" => "badge-improvement" default => "badge-maintenance" }
-            scoped badgeLabel:string  = match type { "improvement" => "Amélioration"       default => "Entretien" }
+            consumed description:string = attrs["description"]
+            consumed cost:string        = attrs["cost"]
+            consumed date:string        = attrs["date"]
+            consumed badgeCls:string    = match type { "improvement" => "badge-improvement" default => "badge-maintenance" }
+            consumed badgeLabel:string  = match type { "improvement" => "Amélioration"       default => "Entretien" }
             return `<div class="maintenance-row">
       <span class="badge ${badgeCls}">${badgeLabel}</span>
       <span class="maintenance-desc">${description}</span>

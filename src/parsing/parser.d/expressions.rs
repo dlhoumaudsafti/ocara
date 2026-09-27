@@ -414,8 +414,15 @@ impl Parser {
                         crate::parsing::token::TemplatePart::Literal(s) => {
                             parts.push(TemplatePartExpr::Literal(s));
                         }
-                        crate::parsing::token::TemplatePart::ExprSrc(src) => {
-                            // Re-parse l'expression depuis le source brut
+                        crate::parsing::token::TemplatePart::ExprSrc(src, expr_start) => {
+                            // Re-parse l'expression depuis le source brut —
+                            // le sous-lexer/sous-parser ne connaissent que ce
+                            // texte isolé, donc toute position qu'ils
+                            // produisent démarre à (1,1) DE CE TEXTE, jamais
+                            // la vraie position dans le fichier d'origine.
+                            // `shift_expr_spans` corrige ça après coup à
+                            // partir de `expr_start` (voir
+                            // docs/roadmap.d/langage-template-interpolation-span-position.md).
                             let mut sub_lex = crate::parsing::lexer::Lexer::new(&src);
                             let sub_tokens = sub_lex.tokenize().map_err(|e| {
                                 ParseError::new(
@@ -424,7 +431,8 @@ impl Parser {
                                 )
                             })?;
                             let mut sub_parser = Parser::new(sub_tokens);
-                            let expr = sub_parser.parse_expr()?;
+                            let mut expr = sub_parser.parse_expr()?;
+                            crate::parsing::ast::shift_expr_spans(&mut expr, &expr_start);
                             parts.push(TemplatePartExpr::Expr(Box::new(expr)));
                         }
                     }
