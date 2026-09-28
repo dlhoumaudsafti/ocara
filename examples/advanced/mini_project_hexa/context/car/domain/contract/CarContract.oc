@@ -1,0 +1,9 @@
+import context.car.domain.entity.CarEntity
+
+interface CarContract {
+    wiring context.car.infra.db.CarRepository
+    private static method fromRow(row:map<string, mixed>): CarEntity
+    public static method find(id:int): CarEntity|null
+    public static method create(reference:string, brand:string, model:string, purchasePrice:float): int
+    public static method updateEstimatedPrice(id:int, newPrice:float): void
+}

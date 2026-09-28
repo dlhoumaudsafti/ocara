@@ -129,7 +129,7 @@ impl SymbolTable {
                 FuncSig {
                     params:    params_to_vec(&m.params),
                     ret_ty:    m.ret_ty.clone(),
-                    is_static: false,
+                    is_static: m.is_static,
         is_async:  false,
                     has_variadic: has_variadic_param(&m.params),
                     fixed_params_count: fixed_params_count(&m.params),
@@ -140,7 +140,7 @@ impl SymbolTable {
                 },
             );
         }
-        self.interfaces.insert(decl.name.clone(), InterfaceInfo { methods });
+        self.interfaces.insert(decl.name.clone(), InterfaceInfo { methods, wirings: decl.wirings.clone() });
         true
     }
 

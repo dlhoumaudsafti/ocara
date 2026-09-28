@@ -1,0 +1,82 @@
+import ocara.UnitTest
+import Repo from "60_interface_wiring"
+import Repo from "60_interface_wiring" as InMemoryRepo
+import useRepo from "60_interface_wiring"
+
+// `wiring <Classe>` — liaison interface → implémentation à la compilation,
+// voir docs/roadmap.d/langage-interface-wiring.md et
+// examples/60_interface_wiring.oc (interface `Repo`, deux `wiring` :
+// `PostgresRepo` déclaré EN PREMIER, `InMemoryRepo` en second).
+//
+// Root-cause découverte et corrigée PENDANT ce ticket, couverte
+// indirectement ici (toute méthode STATIQUE d'interface, comme
+// `Repo::create()`, passe par le chemin de code concerné) :
+// `src/lower/builder.d/interfaces.rs::generate_interface_dispatchers`
+// générait toujours un dispatcher `self`-based pour CHAQUE méthode
+// d'interface, y compris `static` — une méthode statique n'a pourtant
+// aucun `self` sur lequel dispatcher à l'exécution (sa cible est déjà
+// résolue À LA COMPILATION, par `wiring`/l'alias). Le dispatcher mort
+// (`Repo_create(self)` appelant `PostgresRepo_create(self)`, alors que la
+// vraie méthode statique ne prend AUCUN paramètre) faisait échouer la
+// vérification Cranelift du module ENTIER, même si ce dispatcher n'était
+// jamais appelé par du code utilisateur — confirmé par reproduction avant
+// correctif (`mismatched argument count: got 1, expected 0`). Corrigé en
+// sautant purement et simplement les méthodes `is_static` dans
+// `generate_interface_dispatchers` : un appel statique n'a jamais besoin
+// d'un dispatcher runtime, `wiring`/l'alias ont déjà tout résolu avant le
+// codegen.
+class Test_60_interface_wiring {
+
+    // Nom NU (bare), sans alias : `use Repo()` doit résoudre vers le
+    // PREMIER `wiring` déclaré (`PostgresRepo`), jamais `InMemoryRepo`.
+    public method bareNameConstructionResolvesToFirstWiringTest(): int {
+        var r:Repo = use Repo()
+        UnitTest::assertEquals("postgres:hello", r.save("hello"))
+        return 0
+    }
+
+    // Même règle pour un appel STATIQUE nu : `Repo::create()`.
+    public method bareNameStaticCallResolvesToFirstWiringTest(): int {
+        var r:Repo = Repo::create()
+        UnitTest::assertEquals("postgres:hi", r.save("hi"))
+        return 0
+    }
+
+    // Alias dont le nom simple correspond au SECOND `wiring`
+    // (`import Repo from "60_interface_wiring" as InMemoryRepo`, tout en
+    // haut de ce fichier) : substitution complète, y compris en annotation
+    // de type (`var r:InMemoryRepo`) — comme si ce fichier avait importé
+    // `InMemoryRepo` directement.
+    public method aliasedConstructionResolvesToMatchingWiringTest(): int {
+        var r:InMemoryRepo = use InMemoryRepo()
+        UnitTest::assertEquals("memory:hello", r.save("hello"))
+        return 0
+    }
+
+    // Même alias, en position d'appel STATIQUE. `create()` est déclarée
+    // (contrat de l'interface, voir examples/60_interface_wiring.oc) avec un
+    // type de retour `Repo` — PAS `InMemoryRepo` — donc le résultat est reçu
+    // dans un `var r:Repo` ordinaire ici (un `var r:InMemoryRepo` serait un
+    // vrai désaccord de type, sans rapport avec `wiring` : même une classe
+    // ordinaire implémentant une interface ne peut pas covariant-retourner
+    // un type plus précis que celui déclaré par le contrat). La partie qui
+    // compte pour CE test est que `InMemoryRepo::create()` (nom NON aliasé
+    // ici — c'est le nom réel de la classe, l'alias ne s'applique qu'au nom
+    // "InMemoryRepo" écrit à la place du nom de l'INTERFACE) appelle bien la
+    // bonne implémentation concrète — vérifié via `r.save("hi")` ci-dessous.
+    public method aliasedStaticCallResolvesToMatchingWiringTest(): int {
+        var r:Repo = InMemoryRepo::create()
+        UnitTest::assertEquals("memory:hi", r.save("hi"))
+        return 0
+    }
+
+    // Non-régression : le type `Repo` reste l'interface ABSTRAITE en
+    // position d'annotation ordinaire (paramètre de fonction) — accepte
+    // indifféremment les deux implémentations concrètes, `wiring` ne
+    // remplace JAMAIS cette forme de polymorphisme réel.
+    public method typeAnnotationStaysAbstractAndAcceptsBothImplementationsTest(): int {
+        UnitTest::assertEquals("postgres:poly", useRepo(use PostgresRepo(), "poly"))
+        UnitTest::assertEquals("memory:poly", useRepo(use InMemoryRepo(), "poly"))
+        return 0
+    }
+}

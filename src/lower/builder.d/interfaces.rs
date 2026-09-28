@@ -42,6 +42,27 @@ pub fn generate_interface_dispatchers(module: &mut IrModule, program: &Program) 
             continue;
         }
         for method in &iface.methods {
+            // Une méthode STATIQUE d'interface (`is_static`, voir
+            // `InterfaceMethod::is_static` — nécessaire depuis `wiring`,
+            // docs/roadmap.d/langage-interface-wiring.md, qui a rendu cette
+            // grammaire atteignable pour la première fois : `static` était
+            // jusqu'ici rejeté par le parser dans un corps d'interface) n'a
+            // AUCUN `self` sur lequel dispatcher à l'exécution — un appel
+            // statique (`Classe::method()`) résout DÉJÀ sa cible à la
+            // compilation (nom explicite, ou substitution `wiring`/alias,
+            // voir `core::interface_wiring`), jamais via l'identité de
+            // classe d'une instance. Générer quand même un dispatcher ici
+            // (comme pour une méthode d'instance) produisait une fonction
+            // `Interface_method(self)` qui appelait `Classe_method(self)`
+            // avec un argument `self` que la VRAIE méthode statique
+            // (déclarée sans paramètre `self`) n'attend jamais : Cranelift
+            // rejetait ce module entier à la vérification («mismatched
+            // argument count», confirmé par reproduction) — alors même que
+            // ce dispatcher mort n'est jamais appelé par aucun code
+            // utilisateur, Cranelift vérifie TOUTES les fonctions du module.
+            if method.is_static {
+                continue;
+            }
             generate_one_dispatcher(module, &iface.name, method, &implementers);
         }
     }
@@ -130,4 +151,87 @@ fn generate_one_dispatcher(
     }
 
     module.add_function(f);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lower::builder::program::lower_program;
+    use crate::parsing::lexer::Lexer;
+    use crate::parsing::parser::Parser;
+
+    fn lower(src: &str) -> IrModule {
+        let tokens = Lexer::new(src).tokenize().expect("lex");
+        let program = Parser::new(tokens).parse_program().expect("parse");
+        lower_program(&program, "<test>")
+    }
+
+    /// Régression — voir docs/roadmap.d/langage-interface-wiring.md et
+    /// examples/tests/60_interface_wiringTest.oc : une méthode d'interface
+    /// STATIQUE (`is_static`, atteignable seulement depuis que `wiring` a
+    /// nécessité d'étendre la grammaire d'un corps d'interface pour accepter
+    /// `static`) ne doit JAMAIS recevoir de dispatcher `self`-based —
+    /// `generate_one_dispatcher` suppose TOUJOURS un `self` (voir son
+    /// premier paramètre codé en dur), ce qui produisait un module Cranelift
+    /// qui ne passait plus la vérification (`Interface_method(self)` appelant
+    /// `Classe_method(self)` avec un argument que la vraie méthode statique,
+    /// déclarée SANS paramètre `self`, n'attend jamais) — confirmé par
+    /// reproduction avant correctif : « mismatched argument count: got 1,
+    /// expected 0 ». Aucun dispatcher `Repo_create` ne doit donc être émis.
+    #[test]
+    fn no_dispatcher_is_generated_for_a_static_interface_method() {
+        let module = lower(
+            "interface Repo {\n\
+                 method save(): void\n\
+                 static method create(): Repo\n\
+                 wiring ConcreteRepo\n\
+             }\n\
+             class ConcreteRepo implements Repo {\n\
+                 public static method create(): Repo {\n\
+                     return use ConcreteRepo()\n\
+                 }\n\
+                 public method save(): void {\n\
+                 }\n\
+             }\n",
+        );
+
+        assert!(
+            module.functions.iter().all(|f| f.name != "Repo_create"),
+            "no dispatcher should ever be generated for a static interface method"
+        );
+        // La VRAIE méthode statique, elle, ne doit prendre AUCUN paramètre
+        // (ni `self`, ni quoi que ce soit d'autre — `create()` n'en déclare
+        // aucun) : c'est justement ce désaccord d'arité (dispatcher à 1
+        // param appelant cette fonction à 0 param) qui cassait la
+        // vérification Cranelift avant le correctif.
+        let create_fn = module.functions.iter().find(|f| f.name == "ConcreteRepo_create")
+            .expect("the real static method must still be lowered normally");
+        assert_eq!(create_fn.params.len(), 0, "a static method takes no implicit 'self'");
+    }
+
+    /// Non-régression : une méthode d'interface D'INSTANCE, elle, doit
+    /// toujours recevoir son dispatcher `self`-based réel (mécanisme
+    /// préexistant à ce ticket, voir la doc de module ci-dessus) — `wiring`
+    /// ne doit rien changer à ce chemin pour les méthodes non-statiques.
+    #[test]
+    fn dispatcher_is_still_generated_for_an_instance_interface_method() {
+        let module = lower(
+            "interface Repo {\n\
+                 method save(): void\n\
+                 static method create(): Repo\n\
+                 wiring ConcreteRepo\n\
+             }\n\
+             class ConcreteRepo implements Repo {\n\
+                 public static method create(): Repo {\n\
+                     return use ConcreteRepo()\n\
+                 }\n\
+                 public method save(): void {\n\
+                 }\n\
+             }\n",
+        );
+
+        let save_dispatcher = module.functions.iter().find(|f| f.name == "Repo_save")
+            .expect("an instance interface method must still get a real dispatcher");
+        assert_eq!(save_dispatcher.params.len(), 1, "the dispatcher's only param is 'self'");
+    }
 }

@@ -138,6 +138,17 @@ pub enum SemaError {
     /// la vérification de types), pas un oubli. Voir
     /// docs/roadmap.d/langage-appel-methode-sur-primitif-accepte.md.
     MethodCallOnNonClass { type_name: String, method: String, span: Span },
+    /// `use Interface(...)` (construction) ou `Interface::method()` (appel
+    /// statique) sur une interface qui n'a AUCUN `wiring` déclaré — voir
+    /// docs/roadmap.d/langage-interface-wiring.md. Quand l'interface a au
+    /// moins un `wiring`, `core::interface_wiring::resolve_bare_interface_names`
+    /// réécrit déjà `class` vers la première classe concrète wired AVANT le
+    /// typecheck (voir §4b-bis dans `main.rs`) : si ce nœud désigne encore
+    /// une interface ICI, c'est nécessairement qu'aucun `wiring` n'existe —
+    /// diagnostic dédié, plus parlant que `NotAClass`/un échec silencieux
+    /// (`StaticCall` retombait jusqu'ici sur `Type::Mixed` sans la moindre
+    /// erreur, une interface n'étant jamais cherchée dans `self.classes`).
+    InterfaceNoWiring { name: String, span: Span },
 }
 
 impl SemaError {
@@ -181,6 +192,7 @@ impl SemaError {
             SemaError::IncDecInvalidType { span, .. } => span,
             SemaError::MethodCallOnVoid { span, .. } => span,
             SemaError::MethodCallOnNonClass { span, .. } => span,
+            SemaError::InterfaceNoWiring   { span, .. } => span,
         }
     }
 
@@ -266,6 +278,8 @@ impl SemaError {
                 format!("cannot call '.{}(...)' — the receiver's type is 'void' (likely the return value of a preceding chained call); a method that returns 'void' cannot be chained, since there is nothing to call '.{}(...)' on", method, method),
             SemaError::MethodCallOnNonClass { type_name, method, .. } =>
                 format!("cannot call '.{}(...)' — the receiver's type is '{}', which has no methods", method, type_name),
+            SemaError::InterfaceNoWiring { name, .. } =>
+                format!("interface '{}' cannot be constructed or have a static method called on it directly: it has no 'wiring' declaration — add at least one 'wiring <Class>' inside the interface, or use a concrete implementing class directly", name),
         }
     }
 }

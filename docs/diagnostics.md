@@ -49,6 +49,7 @@ Produites lors de la construction de l'AST.
 | `expected identifier` | Nom attendu mais token différent trouvé |
 | `unexpected token 'X'` | Token inattendu à cette position |
 | `operator 'X' has been removed — use 'Y' instead` | Ancien opérateur de comparaison symbolique (`==`, `!=`, `<`, `<=`, `>`, `>=`, `===`, `!==`, `<==`, `>==`) — voir [§11.1 de l'EBNF](EBNF.md#111-comparaisons) |
+| `unexpected top-level declaration: Wiring` | `wiring` utilisé en dehors d'un corps `interface` (déclaration de premier niveau, ou à l'intérieur d'une classe/fonction) — `wiring` n'est reconnu que par `parse_interface`, voir [§17.1 de l'EBNF](EBNF.md#171-wiring--liaison-interface--implémentation-à-la-compilation) |
 
 ---
 
@@ -775,6 +776,113 @@ Avant ce diagnostic, un récepteur de l'un de ces types était traité comme n'i
 **Important :** `mixed` n'est **pas** concerné par ce diagnostic — son imprécision (aucune vérification de type) est un choix de langage assumé, documenté par l'avertissement W02 (voir plus bas), pas un oubli comme les types ci-dessus.
 
 **Correction :** ne pas appeler de méthode sur un récepteur de l'un de ces types — s'assurer que la méthode précédente de la chaîne retourne bien une instance de classe (ou `string`/`array`/`map`, qui ont leurs propres méthodes d'instance sucrées) avant de chaîner un appel dessus.
+
+---
+
+### E38 — Construction/appel statique sur une interface sans `wiring`
+
+```
+fichier.oc:5:18: error: interface 'Repo' cannot be constructed or have a static method called on it directly: it has no 'wiring' declaration — add at least one 'wiring <Class>' inside the interface, or use a concrete implementing class directly
+```
+
+`use Interface(...)` ou `Interface::méthode(...)` sur le nom **nu** (sans alias) d'une interface qui ne déclare **aucun** `wiring` — voir [§17.1 de l'EBNF](EBNF.md#171-wiring--liaison-interface--implémentation-à-la-compilation) et `docs/roadmap.d/langage-interface-wiring.md`. Une interface reste un contrat abstrait : sans `wiring`, il n'existe aucune classe concrète vers laquelle résoudre la construction/l'appel.
+
+```ocara
+interface Repo {
+    method save(): void
+}
+
+function main(): int {
+    var r:Repo = use Repo()   // ❌ E38 — Repo n'a aucun `wiring`
+    return 0
+}
+```
+
+Avant ce diagnostic, `Interface::méthode()` (appel statique) était silencieusement permissif : `lookup_method_in_chain` ne cherche que dans les classes, jamais dans les interfaces — l'appel retombait sur `Type::Mixed` sans la moindre erreur, un résultat **faux silencieux** plutôt qu'un rejet clair. `use Interface(...)` (construction), lui, était déjà rejeté, mais avec le message générique E07 (« not a class »), moins parlant que ce diagnostic dédié.
+
+**Correction :** ajouter au moins un `wiring <Classe>` dans le corps de l'interface, ou construire/appeler directement une classe concrète qui l'implémente.
+
+---
+
+### E39 — Cible `wiring` introuvable
+
+```
+fichier.oc:3:5: error: interface 'Repo': 'wiring PostgresRepo' target class not found
+```
+
+La classe visée par un `wiring` n'existe nulle part dans le programme (ni comme classe, ni — cas signalé séparément avec un message dédié — comme `generic` nu, ambigu tant qu'il n'est pas instancié).
+
+```ocara
+interface Repo {
+    method save(): void
+    wiring DoesNotExist   // ❌ E39 — aucune classe "DoesNotExist" dans le programme
+}
+```
+
+**Note :** un `wiring` vers une classe **réellement** inexistante (aucun fichier ni symbole nulle part) est le plus souvent intercepté **avant** ce diagnostic, par l'échec standard de chargement d'import (`wiring` agit comme un import implicite, voir §17.1) — même comportement qu'un `import a.b.NomInexistant` ordinaire, pas une régression. Ce diagnostic E39 couvre le cas où le nom résout bien vers **un fichier existant**, mais que ce fichier ne contient aucune **classe** de ce nom (par exemple une fonction du même nom).
+
+**Correction :** corriger le nom de la classe visée par `wiring`, ou créer la classe manquante.
+
+---
+
+### E40 — Cible `wiring` n'implémente pas l'interface
+
+```
+fichier.oc:3:5: error: interface 'Repo': 'wiring PostgresRepo' target class 'PostgresRepo' does not 'implements Repo'
+```
+
+La classe visée par un `wiring` existe bien, mais ne déclare pas `implements <CetteInterface>` — la vérification complète de compatibilité de signature (E09 : arité, staticité, types des paramètres et du retour) ne s'exécute d'ailleurs QUE pour les classes qui `implements` réellement l'interface visée ; sans ce diagnostic, une classe `wiring`-ée mais incompatible ne serait jamais signalée avant de produire un mauvais résultat à l'exécution.
+
+```ocara
+interface Repo {
+    method save(): void
+    wiring PostgresRepo
+}
+
+class PostgresRepo {          // ❌ E40 — ne déclare pas `implements Repo`
+    public method save(): void {
+    }
+}
+```
+
+**Correction :** ajouter `implements Repo` à la classe visée (et s'assurer que sa signature correspond réellement à l'interface, sous peine de E09 ensuite).
+
+---
+
+### E41 — Alias d'import ne correspondant à aucun `wiring`
+
+```
+fichier.oc:1:1: error: alias 'NotAWiringTarget' does not match any `wiring` of interface 'Repo' (available: PostgresRepo, InMemoryRepo)
+```
+
+`import Interface as Alias` où `Interface` déclare au moins un `wiring`, mais `Alias` ne correspond au nom simple (dernier segment du chemin pointé) d'**aucun** de ses `wiring` — voir §17.1 de l'EBNF. Un alias sur une interface `wiring`-ée n'est jamais un simple renommage cosmétique : il doit désigner sans ambiguïté l'une des implémentations concrètes déclarées.
+
+```ocara
+// configs/Repo.oc : interface Repo { wiring PostgresRepo  wiring InMemoryRepo }
+import configs.Repo as NotAWiringTarget   // ❌ E41 — ne correspond à aucun wiring de Repo
+```
+
+**Correction :** utiliser comme alias le nom simple exact d'un des `wiring` déclarés par l'interface (voir la liste "available" dans le message d'erreur), ou importer l'interface sans alias pour résoudre vers le premier `wiring` déclaré.
+
+---
+
+### E42 — Deux `wiring` de la même interface partageant le même nom simple
+
+```
+fichier.oc:1:1: error: interface 'Repo' declares two 'wiring' targets with the same simple name 'PostgresRepo' (3:5 and 4:5) — alias resolution could not tell them apart
+```
+
+Deux `wiring` d'une même interface pointent vers des chemins différents dont le **dernier segment** (nom simple) est identique — la résolution d'alias (`import Interface as X`) ne pourrait alors plus savoir, à partir du seul nom simple `X`, laquelle des deux cibles est visée. Signalé sur la déclaration de l'**interface** elle-même, avec les positions des deux `wiring` en cause.
+
+```ocara
+interface Repo {
+    method save(): void
+    wiring infra.a.PostgresRepo
+    wiring infra.b.PostgresRepo   // ❌ E42 — même nom simple "PostgresRepo" que le wiring précédent
+}
+```
+
+**Correction :** renommer l'une des deux classes concrètes (ou son alias d'import côté fichier source), afin que chaque `wiring` d'une même interface ait un nom simple distinct.
 
 ---
 

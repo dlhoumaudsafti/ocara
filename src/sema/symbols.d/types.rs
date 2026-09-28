@@ -59,6 +59,13 @@ pub struct ModuleInfo {
 #[derive(Debug, Clone)]
 pub struct InterfaceInfo {
     pub methods: HashMap<String, FuncSig>,
+    /// `wiring <chemin>` déclarés par cette interface, dans l'ordre TEXTUEL
+    /// (voir `crate::parsing::ast::WiringDecl` — le premier élément est "le
+    /// premier wiring déclaré", significatif pour la résolution sans alias,
+    /// voir docs/roadmap.d/langage-interface-wiring.md). Stocké ici (pas
+    /// seulement dans l'AST `InterfaceDecl`) pour être consultable partout où
+    /// la table des symboles est déjà passée (sema, résolution bare-name).
+    pub wirings: Vec<crate::parsing::ast::WiringDecl>,
 }
 
 /// Descripteur d'un import

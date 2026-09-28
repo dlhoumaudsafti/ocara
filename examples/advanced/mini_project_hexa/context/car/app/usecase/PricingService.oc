@@ -6,20 +6,20 @@ namespace context.car.app.usecase
 // modifié ou supprimé, pas seulement ajouté.
 
 import context.car.domain.entity.CarEntity
-import context.car.infra.db.Car
-import context.car.infra.db.Maintenance
+import context.car.domain.contract.CarContract
+import context.car.domain.contract.MaintenanceContract
 
 class PricingService {
 
     public static method recalculateEstimatedPrice(carId:int): float {
-        const car:CarEntity|null = Car::find(carId)
+        const car:CarEntity|null = CarContract::find(carId)
         if car is null {
             return 0.0
         }
-        var improvements:float = Maintenance::improvementTotal(carId)
+        var improvements:float = MaintenanceContract::improvementTotal(carId)
         var newEstimated:float = car.purchasePrice + improvements
 
-        Car::updateEstimatedPrice(carId, newEstimated)
+        CarContract::updateEstimatedPrice(carId, newEstimated)
         return newEstimated
     }
 }

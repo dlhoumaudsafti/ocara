@@ -434,16 +434,60 @@ impl Parser {
         self.eat(&TokenKind::LBrace)?;
 
         let mut methods = Vec::new();
+        let mut wirings = Vec::new();
         while !self.check_exact(&TokenKind::RBrace) {
-            methods.push(self.parse_interface_method()?);
+            // `wiring <chemin.pointé>` — répétable, mélangeable librement
+            // avec les signatures de méthode (voir
+            // docs/roadmap.d/langage-interface-wiring.md : aucun ordre
+            // textuel imposé ENTRE les deux catégories, seul l'ordre relatif
+            // des `wiring` ENTRE EUX compte, pour la résolution "premier
+            // wiring déclaré" sans alias).
+            if self.check_exact(&TokenKind::Wiring) {
+                wirings.push(self.parse_wiring_decl()?);
+            } else {
+                methods.push(self.parse_interface_method()?);
+            }
         }
         self.eat(&TokenKind::RBrace)?;
 
-        Ok(InterfaceDecl { name, methods, span })
+        Ok(InterfaceDecl { name, methods, wirings, span })
     }
 
+    /// `wiring context.home.infra.db.CarSummaryRepository` — un chemin
+    /// qualifié pointé, comme `import a.b.C` (voir `parse_import`, format
+    /// "ancien"/namespace) mais sans le mot-clé `import` ni d'alias : le nom
+    /// SIMPLE (dernier segment) sert de nom réel de classe partout où ce
+    /// wiring est résolu (voir `WiringDecl::simple_name`).
+    fn parse_wiring_decl(&mut self) -> ParseResult<WiringDecl> {
+        let span = self.span();
+        self.eat(&TokenKind::Wiring)?;
+        let mut path = vec![self.eat_ident()?.0];
+        while self.check_exact(&TokenKind::Dot) {
+            self.advance();
+            path.push(self.eat_ident()?.0);
+        }
+        Ok(WiringDecl { path, span })
+    }
+
+    /// `[public] [static] method nom(...): Type` — le `public` éventuel est
+    /// purement cosmétique ici (une méthode d'interface est par nature un
+    /// contrat public, voir la doc de `InterfaceMethod::is_static`) ; `static`
+    /// marque un contrat que l'implémentation doit satisfaire par une
+    /// méthode STATIQUE plutôt que d'instance — nécessaire pour `wiring`
+    /// (`Interface::methode()` routé vers la classe wired, voir
+    /// docs/roadmap.d/langage-interface-wiring.md) : sans lui, une interface
+    /// ne pouvait déclarer QUE des contrats d'instance.
     fn parse_interface_method(&mut self) -> ParseResult<InterfaceMethod> {
         let span = self.span();
+        if self.check_exact(&TokenKind::Public) {
+            self.advance();
+        }
+        let is_static = if self.check_exact(&TokenKind::Static) {
+            self.advance();
+            true
+        } else {
+            false
+        };
         self.eat(&TokenKind::Method)?;
         let (name, _) = self.eat_ident()?;
         self.eat(&TokenKind::LParen)?;
@@ -451,6 +495,6 @@ impl Parser {
         self.eat(&TokenKind::RParen)?;
         self.eat(&TokenKind::Colon)?;
         let ret_ty = self.parse_type()?;
-        Ok(InterfaceMethod { name, params, ret_ty, span })
+        Ok(InterfaceMethod { name, params, ret_ty, is_static, span })
     }
 }

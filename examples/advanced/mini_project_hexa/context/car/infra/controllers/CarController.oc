@@ -15,11 +15,11 @@ import ocara.Map
 import ocara.Convert
 import ocara.String
 import context.car.domain.entity.CarEntity
-import context.car.domain.entity.MaintenanceEntity
-import context.car.infra.db.Car
-import context.car.infra.db.Maintenance
+import context.car.domain.contract.CarContract
 import context.car.app.usecase.helpers.Format
 import context.car.app.usecase.helpers.Flash
+import context.car.app.usecase.CarDetailService
+import context.car.app.dto.CarDetailsDTO
 
 class CarController {
 
@@ -32,37 +32,32 @@ class CarController {
         // tout (404 générique), au lieu d'être silencieusement traité comme
         // id=0 puis redirigé vers "not_found" comme avant ce changement.
         var id:int = req.param("id")
-        const car:CarEntity|null = Car::find(id)
-
-        if car is null {
+        const carDetails:CarDetailsDTO|null = CarDetailService::build(id)
+        if carDetails is null {
             req.respondHeader("Location", "/?error=not_found")
             req.respond(302, "")
             return 0
         }
 
-        var reference:string = car.reference
-        var brand:string      = car.brand
-        var model:string      = car.model
-        var purchasePrice:float  = car.purchasePrice
-        var estimatedPrice:float = car.estimatedPrice
-
-        const maintenances:array<MaintenanceEntity> = Maintenance::forCar(id)
-        var maintenanceTotal:float  = Maintenance::maintenanceTotal(id)
-        var improvementTotal:float  = Maintenance::improvementTotal(id)
+        var reference:string = carDetails.Car.reference
+        var brand:string      = carDetails.Car.brand
+        var model:string      = carDetails.Car.model
+        var purchasePrice:float  = carDetails.Car.purchasePrice
+        var estimatedPrice:float = carDetails.Car.estimatedPrice
 
         var rowsHtml:string = ""
-        for m in maintenances {
+        for m in carDetails.maintenances {
             rowsHtml = rowsHtml + `<maintenance-row type="${m.type}" description="${m.description}" cost="${Format::price(m.cost)}" date="${Format::date(m.createdAt)}">`
         }
-        if maintenances.len() equal 0 {
+        if carDetails.maintenances.len() equal 0 {
             rowsHtml = `<p class="empty">Aucun entretien enregistré pour cette voiture.</p>`
         }
 
         scoped idStr:string = Convert::intToStr(id)
         scoped purchasePriceText:string  = Format::price(purchasePrice)
         scoped estimatedPriceText:string = Format::price(estimatedPrice)
-        scoped maintenanceTotalText:string = Format::price(maintenanceTotal)
-        scoped improvementTotalText:string = Format::price(improvementTotal)
+        scoped maintenanceTotalText:string = Format::price(carDetails.maintenanceTotal)
+        scoped improvementTotalText:string = Format::price(carDetails.improvementTotal)
 
         scoped errorCode:string   = req.query("error")
         scoped successCode:string = req.query("success")
@@ -79,13 +74,13 @@ class CarController {
         // à db.bind(), donc les retient au-delà de cet appel — une valeur
         // `scoped`/`consumed` ne peut pas être passée là où l'appelé la
         // retient (voir E26, docs/diagnostics.md).
-        const reference:string = String::trim(req.param("reference"))
-        const brand:string     = String::trim(req.param("brand"))
-        const model:string     = String::trim(req.param("model"))
-        scoped priceStr:string  = req.param("purchase_price")
+        const reference:string = req.param("reference").trim()
+        const brand:string     = req.param("brand").trim()
+        const model:string     = req.param("model").trim()
+        scoped priceStr:string  = req.param("purchase_price").trim()
         var price:float = Convert::strToFloat(priceStr)
 
-        if String::empty(reference) or String::empty(brand) or String::empty(model) {
+        if reference.empty() or brand.empty() or model.empty() {
             req.respondHeader("Location", "/?error=missing_fields")
             req.respond(302, "")
             return 0
@@ -96,7 +91,7 @@ class CarController {
             return 0
         }
 
-        Car::create(reference, brand, model, price)
+        CarContract::create(reference, brand, model, price)
 
         req.respondHeader("Location", "/?success=car_added")
         req.respond(302, "")

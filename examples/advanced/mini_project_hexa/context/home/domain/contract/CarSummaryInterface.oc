@@ -1,0 +1,7 @@
+
+import context.home.domain.entity.CarSummaryEntity
+
+interface CarSummaryInterface {
+    wiring context.home.infra.db.CarSummaryRepository
+    public static method all(): array<CarSummaryEntity>
+}

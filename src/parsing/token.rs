@@ -78,6 +78,7 @@ pub enum TokenKind {
     Module,
     Enum,
     Interface,
+    Wiring,
     Extends,
     Modules,
     Implements,

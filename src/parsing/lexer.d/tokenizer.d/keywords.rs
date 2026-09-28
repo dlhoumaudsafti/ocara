@@ -20,6 +20,7 @@ pub(in crate::parsing::lexer) fn keyword_or_ident(s: &str) -> TokenKind {
         "module"     => TokenKind::Module,
         "enum"       => TokenKind::Enum,
         "interface"  => TokenKind::Interface,
+        "wiring"     => TokenKind::Wiring,
         "extends"    => TokenKind::Extends,
         "modules"    => TokenKind::Modules,
         "implements" => TokenKind::Implements,

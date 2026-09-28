@@ -45,7 +45,7 @@ class HomeController {
         scoped errorText:string   = Flash::message(errorCode)
         scoped successText:string = Flash::message(successCode)
 
-        scoped html:string = HTML::renderFile('templates/home.html')
+        scoped html:string = HTML::renderFile('templates/home/home.html')
         req.respond(200, html)
         return 0
     }

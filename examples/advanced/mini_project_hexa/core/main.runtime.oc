@@ -3,7 +3,7 @@ if System::OS equal "android" {
     // dédié (différent du thread UI) — pas besoin de sous-thread + sondage
     // HTTP pour ne pas geler la fenêtre Tauri en l'ouvrant trop tôt.
     server.start()
-    result 0
+    result SUCCESS
 }
 
 const serverThread:Thread = use Thread()

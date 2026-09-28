@@ -91,6 +91,87 @@ mod tests {
         let p = parse("interface Logger { method log(msg:string): void }");
         assert_eq!(p.interfaces[0].name, "Logger");
         assert_eq!(p.interfaces[0].methods[0].name, "log");
+        assert_eq!(p.interfaces[0].methods[0].is_static, false);
+    }
+
+    // ── Interface : `wiring` (docs/roadmap.d/langage-interface-wiring.md) ────
+
+    /// Un seul `wiring`, chemin pointé — `path` doit contenir chaque segment,
+    /// `simple_name()` le DERNIER (celui qui compte pour la résolution).
+    #[test]
+    fn test_interface_wiring_single() {
+        let p = parse("interface Repo { wiring infra.db.PostgresRepo\n method save(): void }");
+        assert_eq!(p.interfaces[0].wirings.len(), 1);
+        assert_eq!(p.interfaces[0].wirings[0].path, vec!["infra", "db", "PostgresRepo"]);
+        assert_eq!(p.interfaces[0].wirings[0].simple_name(), "PostgresRepo");
+    }
+
+    /// `wiring` est répétable — l'ORDRE textuel de déclaration doit être
+    /// préservé (significatif pour la résolution "nom nu" : premier gagnant).
+    #[test]
+    fn test_interface_wiring_multiple_preserves_order() {
+        let p = parse(
+            "interface Repo {\n\
+                 wiring infra.db.PostgresRepo\n\
+                 wiring infra.mem.InMemoryRepo\n\
+                 method save(): void\n\
+             }",
+        );
+        assert_eq!(p.interfaces[0].wirings.len(), 2);
+        assert_eq!(p.interfaces[0].wirings[0].simple_name(), "PostgresRepo");
+        assert_eq!(p.interfaces[0].wirings[1].simple_name(), "InMemoryRepo");
+    }
+
+    /// Une interface sans aucun `wiring` (cas le plus courant, non-régression) :
+    /// `wirings` doit rester vide, jamais `None`/erreur.
+    #[test]
+    fn test_interface_without_wiring_has_empty_wirings() {
+        let p = parse("interface Logger { method log(msg:string): void }");
+        assert!(p.interfaces[0].wirings.is_empty());
+    }
+
+    /// `wiring` peut être mélangé aux méthodes dans n'importe quel ordre
+    /// d'écriture (le ticket ne contraint pas où, dans le corps, `wiring`
+    /// doit apparaître par rapport aux méthodes).
+    #[test]
+    fn test_interface_wiring_interleaved_with_methods() {
+        let p = parse(
+            "interface Repo {\n\
+                 method save(): void\n\
+                 wiring infra.PostgresRepo\n\
+                 method load(): void\n\
+             }",
+        );
+        assert_eq!(p.interfaces[0].methods.len(), 2);
+        assert_eq!(p.interfaces[0].wirings.len(), 1);
+    }
+
+    /// `public method ...` — `public` est purement cosmétique dans une
+    /// interface (toute méthode d'interface est de toute façon publique par
+    /// nature) : doit parser sans erreur et sans affecter `is_static`.
+    #[test]
+    fn test_interface_method_public_modifier_is_cosmetic() {
+        let p = parse("interface Repo { public method save(): void }");
+        assert_eq!(p.interfaces[0].methods[0].name, "save");
+        assert_eq!(p.interfaces[0].methods[0].is_static, false);
+    }
+
+    /// `public static method ...` — nécessaire pour qu'une interface puisse
+    /// exiger un contrat STATIQUE (voir `wiring`, docs/roadmap.d/langage-interface-wiring.md) :
+    /// `is_static` doit être `true`, `public` reste cosmétique.
+    #[test]
+    fn test_interface_method_static_modifier() {
+        let p = parse("interface Repo { public static method create(): Repo }");
+        assert_eq!(p.interfaces[0].methods[0].name, "create");
+        assert_eq!(p.interfaces[0].methods[0].is_static, true);
+    }
+
+    /// `static method ...` (sans `public`) — les deux modificateurs sont
+    /// indépendants l'un de l'autre.
+    #[test]
+    fn test_interface_method_static_modifier_without_public() {
+        let p = parse("interface Repo { static method create(): Repo }");
+        assert_eq!(p.interfaces[0].methods[0].is_static, true);
     }
 
     // ── Expressions ──────────────────────────────────────────────────────────
