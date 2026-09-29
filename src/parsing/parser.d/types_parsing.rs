@@ -64,6 +64,20 @@ impl Parser {
 
             TokenKind::Ident(name) => {
                 self.advance();
+                // `Resolvable<T>` (handle de tâche `async` typé — voir
+                // docs/roadmap.d/langage-async-non-int-return-type-check.md).
+                // PAS un mot-clé réservé (pas de token dédié comme `TMessage`) :
+                // `Resolvable` reste un identifiant ORDINAIRE, reconnu ici
+                // uniquement quand il est immédiatement suivi de `<` — sinon,
+                // il retombe dans le chemin `Type::Named`/`Type::Generic`
+                // normal (ex: une classe utilisateur qui s'appellerait aussi
+                // "Resolvable" sans arguments de type resterait utilisable).
+                if name == "Resolvable" && self.check_exact(&TokenKind::Lt) {
+                    self.advance(); // '<'
+                    let inner_ty = self.parse_type()?;
+                    self.eat(&TokenKind::Gt)?;
+                    return Ok(Type::Resolvable(Box::new(inner_ty)));
+                }
                 // `Function<ReturnType(ParamType, ...)>`
                 if name == "Function" {
                     self.eat(&TokenKind::Lt)?;

@@ -1,7 +1,7 @@
 use crate::parsing::ast::*;
 use crate::sema::error::{SemaError, SemaWarning};
 use crate::sema::scope::{LocalBinding, ScopeStack, OwnershipClass, ownership_class_of};
-use crate::sema::symbols::SymbolTable;
+use crate::sema::symbols::{SymbolTable, FuncSig};
 use crate::parsing::token::Span;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -23,9 +23,6 @@ pub struct TypeChecker<'a> {
     checked_classes: std::collections::HashSet<String>,
     /// Référence au Program pour accéder aux ClassDecl lors du typecheck lazy
     program: Option<&'a Program>,
-    /// Mapping var_name → func_name pour les variables qui contiennent un task handle async.
-    /// Utilisé par Expr::Resolve pour retrouver le type de retour original.
-    async_var_funcs: std::collections::HashMap<String, String>,
     /// Paramètres échappants par fonction/méthode/constructeur utilisateur
     /// (voir `crate::sema::escape`) — calculé une fois dans `check_program`,
     /// consulté par `check_argument_escape` (diagnostic E26/ArgumentEscape).
@@ -52,7 +49,6 @@ impl<'a> TypeChecker<'a> {
             current_runtime_ctx: None,
             checked_classes: std::collections::HashSet::new(),
             program: None,
-            async_var_funcs: std::collections::HashMap::new(),
             escaping_params: std::collections::HashMap::new(),
             class_members: std::collections::HashMap::new(),
             resource_classes: std::collections::HashSet::new(),
@@ -166,6 +162,22 @@ impl<'a> TypeChecker<'a> {
             // lowering (voir `crate::lower::builder::message_gen::lower_try_in_generator`
             // et docs/roadmap.d/langage-emit-iterable.md, §4) — plus de
             // restriction ici.
+        }
+
+        // `async` déclarant lui-même `Resolvable<T>` en retour : interdit —
+        // un appel à cette fonction/méthode emballerait déjà automatiquement
+        // son type de retour DÉCLARÉ dans `Resolvable<T>` au site d'appel
+        // (voir la résolution de `Expr::Call`/`Expr::StaticCall`/sucre
+        // d'instance plus bas) ; le laisser déclarer `Resolvable<T>` lui-même
+        // produirait un double emballage implicite `Resolvable<Resolvable<T>>`
+        // absurde. Voir docs/roadmap.d/langage-async-non-int-return-type-check.md.
+        if func.is_async {
+            if let Type::Resolvable(_) = &func.ret_ty {
+                self.errors.push(SemaError::AsyncReturnsResolvable {
+                    name: func.name.clone(),
+                    span: func.span.clone(),
+                });
+            }
         }
 
         for param in &func.params {
@@ -498,16 +510,6 @@ impl<'a> TypeChecker<'a> {
                 // d'une ressource tas). Ces cas se comportent exactement
                 // comme `var` : aucune destruction, aucune restriction —
                 // voir `OwnershipClass::Unsupported` et `check_escape`.
-                // Tracker les variables qui stockent un task handle async
-                if let Expr::Call { callee, .. } = value {
-                    if let Expr::Ident(func_name, _) = callee.as_ref() {
-                        if let Some(sig) = self.symbols.lookup_function(func_name) {
-                            if sig.is_async {
-                                self.async_var_funcs.insert(name.clone(), func_name.clone());
-                            }
-                        }
-                    }
-                }
                 if !self.scopes.declare(
                     name.clone(),
                     LocalBinding { ty: ty.clone(), mutable: *mutable, span: span.clone(), used: false, is_param: false, kind: *kind, consumed_used_at: None, resource_finalized: false, resource_contained: false },
@@ -1047,10 +1049,16 @@ impl<'a> TypeChecker<'a> {
                 }
                 // 4. référence à une fonction libre (sans appel)
                 if let Some(sig) = self.symbols.lookup_function(name) {
-                    // Construire le type Function avec les paramètres
+                    // Construire le type Function avec les paramètres. Si
+                    // `sig` est `async`, appeler cette valeur de fonction
+                    // plus tard doit produire `Resolvable<T>` exactement
+                    // comme un appel direct (voir `call_ret_ty`) — sinon
+                    // `var f:Function<...> = someAsyncFunc; resolve f()`
+                    // typerait `f()` sur le type déclaré nu au lieu du
+                    // handle de tâche.
                     let param_tys = sig.params.iter().map(|(_, ty)| ty.clone()).collect();
                     return Type::Function {
-                        ret_ty: Box::new(sig.ret_ty.clone()),
+                        ret_ty: Box::new(call_ret_ty(sig)),
                         param_tys,
                     };
                 }
@@ -1157,8 +1165,8 @@ impl<'a> TypeChecker<'a> {
                                 span:     span.clone(),
                             });
                         }
-                        // Appel async : retourne Type::Int (le task handle opaque)
-                        let ret = if sig.is_async { Type::Int } else { sig.ret_ty.clone() };
+                        // Appel async : retourne Resolvable<T> (T = type de retour déclaré) — voir `call_ret_ty`.
+                        let ret = call_ret_ty(sig);
                         let resolved_key = if self.escaping_params.contains_key(name) {
                             Some(name.as_str())
                         } else {
@@ -1214,7 +1222,14 @@ impl<'a> TypeChecker<'a> {
                                         }
                                     }
                                 }
-                                return substitute_type_params(&sig.ret_ty, &ginfo.type_params, type_args);
+                                // Méthode d'une instance générique `async` : même substitution
+                                // Resolvable<T> qu'un appel direct/statique/instance (voir
+                                // `call_ret_ty`), appliquée APRÈS substitution des paramètres de
+                                // type du générique (le type de retour DÉCLARÉ de la méthode
+                                // async ne peut lui-même jamais être `Resolvable<_>`, vérifié à
+                                // la déclaration — donc pas d'ordre ambigu ici).
+                                let substituted_ret = substitute_type_params(&sig.ret_ty, &ginfo.type_params, type_args);
+                                return if sig.is_async { Type::Resolvable(Box::new(substituted_ret)) } else { substituted_ret };
                             }
                             self.errors.push(SemaError::FieldNotFound {
                                 class: generic_name.clone(),
@@ -1264,7 +1279,15 @@ impl<'a> TypeChecker<'a> {
                     // `Type::Mixed` reste volontairement exclu (voir plus
                     // haut). Voir
                     // docs/roadmap.d/langage-appel-methode-sur-primitif-accepte.md.
-                    if matches!(obj_ty, Type::Int | Type::Float | Type::Bool | Type::Null | Type::Message(_) | Type::Function { .. }) {
+                    // `Resolvable<T>` (voir
+                    // docs/roadmap.d/langage-async-non-int-return-type-check.md)
+                    // n'a délibérément AUCUNE méthode d'instance en v1 (pas de
+                    // `.then()`, pas de combinateurs — seul `resolve` peut en
+                    // extraire `T`) : sans cette entrée, `Resolvable<T>`
+                    // retomberait sur exactement le même `Type::Mixed`
+                    // silencieux que ce correctif a fermé pour les autres
+                    // types sans classe associée.
+                    if matches!(obj_ty, Type::Int | Type::Float | Type::Bool | Type::Null | Type::Message(_) | Type::Function { .. } | Type::Resolvable(_)) {
                         self.errors.push(SemaError::MethodCallOnNonClass {
                             type_name: type_name(&obj_ty),
                             method: field.clone(),
@@ -1426,7 +1449,10 @@ impl<'a> TypeChecker<'a> {
                                     span:     span.clone(),
                                 });
                             }
-                            let ret = sig.ret_ty.clone();
+                            // Sucre d'instance (`objet.methode()`) sur une méthode `async` :
+                            // même substitution Resolvable<T> qu'un appel statique/direct —
+                            // voir `call_ret_ty` et docs/roadmap.d/langage-async-non-int-return-type-check.md.
+                            let ret = call_ret_ty(sig);
                             let resolved_key = crate::sema::escape::resolve_user_callable(&self.class_members, &cls_name, field);
                             self.check_argument_escape(args, resolved_key.as_deref(), false);
                             for arg in args { self.infer_expr(arg); }
@@ -1486,7 +1512,10 @@ impl<'a> TypeChecker<'a> {
                                         });
                                     }
                                     
-                                    let ret = sig.ret_ty.clone();
+                                    // JSON est un builtin, jamais `async` — `call_ret_ty` reste un
+                                    // no-op ici, mais garde une seule source de vérité pour la
+                                    // substitution Resolvable<T> plutôt que deux règles parallèles.
+                                    let ret = call_ret_ty(sig);
                                     for arg in args { self.infer_expr(arg); }
                                     return ret;
                                 }
@@ -1581,7 +1610,10 @@ impl<'a> TypeChecker<'a> {
                             span:   span.clone(),
                         });
                     }
-                    let ret = sig.ret_ty.clone();
+                    // Appel statique (`Classe::methode()`) sur une méthode `async` : même
+                    // substitution Resolvable<T> qu'un appel direct/sucre d'instance — voir
+                    // `call_ret_ty` et docs/roadmap.d/langage-async-non-int-return-type-check.md.
+                    let ret = call_ret_ty(sig);
                     // Vérification du nombre d'arguments avec support variadic et paramètres optionnels
                     let args_ok = if sig.has_variadic {
                         args.len() >= sig.required_params_count
@@ -1662,10 +1694,12 @@ impl<'a> TypeChecker<'a> {
                 // Référence à une méthode statique sans appel : ClassName::myStatic
                 if let Some(sig) = self.symbols.lookup_method_in_chain(&resolved_class, name) {
                     if sig.is_static {
-                        // Construire le type Function avec les paramètres
+                        // Construire le type Function avec les paramètres. Même raison que la
+                        // référence à une fonction libre sans appel (Expr::Ident, plus haut) :
+                        // si `sig` est `async`, appeler cette valeur doit produire `Resolvable<T>`.
                         let param_tys = sig.params.iter().map(|(_, ty)| ty.clone()).collect();
                         return Type::Function {
-                            ret_ty: Box::new(sig.ret_ty.clone()),
+                            ret_ty: Box::new(call_ret_ty(sig)),
                             param_tys,
                         };
                     }
@@ -1921,29 +1955,30 @@ impl<'a> TypeChecker<'a> {
                 Type::Bool
             }
 
-            Expr::Resolve { expr, .. } => {
-                self.infer_expr(expr);
-                // Retrouver le type de retour original de la fonction async
-                let orig_ty: Option<Type> = match expr.as_ref() {
-                    Expr::Ident(var_name, _) => {
-                        self.async_var_funcs
-                            .get(var_name)
-                            .and_then(|fn_name| self.symbols.lookup_function(fn_name))
-                            .map(|sig| sig.ret_ty.clone())
+            // `resolve expr` — règle compositionnelle : le type de `expr` doit
+            // être `Resolvable<T>` (porté par le type lui-même, à n'importe
+            // quelle profondeur d'indirection — variable, champ, tableau,
+            // paramètre, valeur de retour), auquel cas `resolve expr` a le
+            // type `T`. Remplace l'ancien hack `async_var_funcs` (table par
+            // nom de variable, indexée uniquement sur les déclarations
+            // `var`/`scoped`/`consumed` assignant DIRECTEMENT le résultat
+            // d'un appel à une fonction libre async — cassait dès la moindre
+            // indirection, ou pour un appel statique/d'instance). Plus de
+            // repli silencieux sur `Type::Int` : `resolve` sur autre chose
+            // qu'un `Resolvable<T>` est désormais une vraie erreur de type
+            // (E43). Voir docs/roadmap.d/langage-async-non-int-return-type-check.md.
+            Expr::Resolve { expr, span } => {
+                let inner_ty = self.infer_expr(expr);
+                match inner_ty {
+                    Type::Resolvable(inner) => *inner,
+                    other => {
+                        self.errors.push(SemaError::ResolveOnNonResolvable {
+                            found: type_name(&other),
+                            span:  span.clone(),
+                        });
+                        Type::Mixed
                     }
-                    Expr::Call { callee, .. } => {
-                        if let Expr::Ident(fn_name, _) = callee.as_ref() {
-                            self.symbols
-                                .lookup_function(fn_name)
-                                .filter(|sig| sig.is_async)
-                                .map(|sig| sig.ret_ty.clone())
-                        } else {
-                            None
-                        }
-                    }
-                    _ => None,
-                };
-                orig_ty.unwrap_or(Type::Int)
+                }
             }
         }
     }
@@ -1954,6 +1989,24 @@ impl<'a> TypeChecker<'a> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Extrait le nom de classe depuis un type Named, Qualified, ou Union (premier Named trouvé).
+/// Type de retour d'un APPEL résolu vers `sig` : le type déclaré tel quel,
+/// SAUF si `sig` est `async`, auquel cas l'appel retourne un handle de tâche
+/// typé `Resolvable<T>` où `T` est le type de retour DÉCLARÉ (voir
+/// docs/roadmap.d/langage-async-non-int-return-type-check.md). Point de
+/// substitution UNIQUE utilisé par tous les sites de résolution d'appel
+/// (fonction libre, méthode statique, sucre d'instance, méthode générique,
+/// référence de fonction sans appel) — avant ce ticket, cette substitution
+/// n'était appliquée qu'à un seul de ces sites (fonction libre), et
+/// remplaçait le type déclaré par un `Type::Int` nu qui perdait toute
+/// information sur ce que la tâche produit réellement.
+fn call_ret_ty(sig: &FuncSig) -> Type {
+    if sig.is_async {
+        Type::Resolvable(Box::new(sig.ret_ty.clone()))
+    } else {
+        sig.ret_ty.clone()
+    }
+}
+
 fn type_class_name(ty: &Type) -> Option<String> {
     match ty {
         Type::Named(n)         => Some(n.clone()),
@@ -2002,6 +2055,11 @@ fn substitute_type_params(ty: &Type, params: &[TypeParam], args: &[Type]) -> Typ
             ret_ty: Box::new(substitute_type_params(ret_ty, params, args)),
             param_tys: param_tys.iter().map(|p| substitute_type_params(p, params, args)).collect(),
         },
+        // `Resolvable<T>` est un type de premier ordre (paramètre, champ,
+        // élément de tableau/map...) : `T` peut donc lui-même référencer un
+        // paramètre de type du générique englobant (`method process(t: Resolvable<T>)`)
+        // et doit être substitué comme n'importe quel autre wrapper mono-paramètre.
+        Type::Resolvable(inner) => Type::Resolvable(Box::new(substitute_type_params(inner, params, args))),
         _ => ty.clone(),
     }
 }
@@ -2030,6 +2088,7 @@ pub fn type_name(ty: &Type) -> String {
         Type::Array(inner)     => format!("{}[]", type_name(inner)),
         Type::Map(k, v)        => format!("map<{},{}>", type_name(k), type_name(v)),
         Type::Message(inner)   => format!("message<{}>", type_name(inner)),
+        Type::Resolvable(inner) => format!("Resolvable<{}>", type_name(inner)),
         Type::Generic { name, args } => {
             let type_args = args.iter().map(type_name).collect::<Vec<_>>().join(", ");
             format!("{}<{}>", name, type_args)
@@ -2088,6 +2147,13 @@ pub fn types_compat(found: &Type, expected: &Type, symbols: &SymbolTable) -> boo
         (Type::Array(f), Type::Array(e)) => types_compat(f, e, symbols),
         (Type::Map(fk, fv), Type::Map(ek, ev)) =>
             types_compat(fk, ek, symbols) && types_compat(fv, ev, symbols),
+        // `Resolvable<T>` : contrairement à `message<T>` (déballé
+        // automatiquement ci-dessus), PAS d'unwrapping implicite — seul
+        // `resolve` peut en extraire `T` (sinon `var t:string = asyncCall()`
+        // type-checkerait par accident). Les arguments internes restent
+        // comparés via `types_compat` (pas une égalité structurelle stricte),
+        // même règle que `Array<T>`/`Map<K,V>` ci-dessus.
+        (Type::Resolvable(f), Type::Resolvable(e)) => types_compat(f, e, symbols),
         (
             Type::Function { ret_ty: f_ret, param_tys: f_params },
             Type::Function { ret_ty: e_ret, param_tys: e_params }

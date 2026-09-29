@@ -1,0 +1,54 @@
+import ocara.UnitTest
+import Doubler from "65_async_resolvable_return_type"
+
+// docs/roadmap.d/langage-async-non-int-return-type-check.md — le repro exact
+// du ticket : `Doubler::fetch(): string` (appel STATIQUE) et
+// `d.fetchInstance(): string` (appel D'INSTANCE), tous deux `async`. Avant ce
+// correctif, la sema forçait `Type::Int` pour un appel LIBRE mais laissait le
+// type déclaré tel quel pour un appel statique/d'instance — `var t:int =
+// Doubler::fetch()` échouait ("expected 'int', found 'string'") alors même
+// que la valeur RÉELLEMENT produite au runtime était déjà correcte (un
+// handle de tâche). Chaque test vérifie la VALEUR réellement obtenue après
+// `resolve`, pas seulement que ça compile.
+class Test_65_async_resolvable_return_type {
+
+    // Le cas exact du ticket : appel STATIQUE `async` retournant `string`.
+    public method staticAsyncStringReturnTest(): int {
+        var t:Resolvable<string> = Doubler::fetch()
+        var r:string = resolve t
+        UnitTest::assertEquals("hi", r)
+        return 0
+    }
+
+    // Le cas exact du ticket : appel D'INSTANCE `async` retournant `string`.
+    public method instanceAsyncStringReturnTest(): int {
+        var d:Doubler = use Doubler()
+        var t:Resolvable<string> = d.fetchInstance()
+        var r:string = resolve t
+        UnitTest::assertEquals("instance-hi", r)
+        return 0
+    }
+
+    // Retour `float` (ni `int` ni `string`) — vérifie que le déballage
+    // (`__unbox_float`) déclenché par `resolve` reste correct une fois le
+    // type réel porté par `Resolvable<T>` plutôt que par une table par nom
+    // de variable (l'ancien hack `async_var_funcs`, supprimé).
+    public method staticAsyncFloatReturnTest(): int {
+        var t:Resolvable<float> = Doubler::fetchRatio()
+        var r:float = resolve t
+        UnitTest::assertEquals(3.5, r)
+        return 0
+    }
+
+    // `Resolvable<T>` doit rester correctement typé à travers une
+    // indirection (stocké dans une variable, ré-utilisé plusieurs lignes
+    // plus tard) — pas seulement immédiatement après l'appel.
+    public method resolvableSurvivesIndirectionTest(): int {
+        var pending:Resolvable<string> = Doubler::fetch()
+        var other:int = 1 + 1
+        UnitTest::assertEquals(2, other)
+        var value:string = resolve pending
+        UnitTest::assertEquals("hi", value)
+        return 0
+    }
+}

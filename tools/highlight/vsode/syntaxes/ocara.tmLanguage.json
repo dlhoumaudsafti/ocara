@@ -360,7 +360,7 @@
 
     "type-primitive": {
       "name": "support.type.primitive.ocara",
-      "match": "\\b(int|float|string|bool|mixed|void|map|array|message|Function|variadic|null)\\b"
+      "match": "\\b(int|float|string|bool|mixed|void|map|array|message|Resolvable|Function|variadic|null)\\b"
     },
 
     "constant-language": {

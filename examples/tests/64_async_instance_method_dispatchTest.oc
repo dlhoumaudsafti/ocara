@@ -30,16 +30,15 @@ import pickTalker from "64_async_instance_method_dispatch"
 // `resolve`, pas seulement l'absence de crash — un bug de ce mécanisme
 // pourrait tout aussi bien dispatcher vers la mauvaise implémentation.
 //
-// Types de retour tous `int` ici : un bug SÉPARÉ et préexistant
-// (`async`+retour non-`int` casse la vérification de types, statique COMME
-// instance) a été trouvé en marge et documenté à part, délibérément non
-// corrigé ici — voir docs/roadmap.d/langage-async-non-int-return-type-check.md.
+// Types de retour tous `int` ici, désormais représentés par
+// `Resolvable<int>` (le VRAI type de retour déclaré) — voir
+// docs/roadmap.d/langage-async-non-int-return-type-check.md.
 class Test_64_async_instance_method_dispatch {
 
     // Le cas exact du ticket : classe concrète ordinaire.
     public method plainClassAsyncInstanceMethodTest(): int {
         var f:DoublingFetcher = use DoublingFetcher()
-        var t:int = f.fetch(21)
+        var t:Resolvable<int> = f.fetch(21)
         UnitTest::assertEquals(42, resolve t)
         return 0
     }
@@ -48,7 +47,7 @@ class Test_64_async_instance_method_dispatch {
     // dispatch par identité de classe choisit bien Dog, jamais Animal.
     public method subclassOverrideAsyncInstanceMethodTest(): int {
         var a:Animal = use Dog()
-        var t:int = a.soundCode()
+        var t:Resolvable<int> = a.soundCode()
         UnitTest::assertEquals(7, resolve t)
         return 0
     }
@@ -57,7 +56,7 @@ class Test_64_async_instance_method_dispatch {
     // doit continuer à fonctionner normalement.
     public method baseClassAsyncInstanceMethodStillWorksTest(): int {
         var a:Animal = use Animal()
-        var t:int = a.soundCode()
+        var t:Resolvable<int> = a.soundCode()
         UnitTest::assertEquals(0, resolve t)
         return 0
     }
@@ -66,7 +65,7 @@ class Test_64_async_instance_method_dispatch {
     // qui a mené à la découverte de ce bug.
     public method interfaceWiringAsyncInstanceMethodTest(): int {
         var r:Repo = use Repo()
-        var t:int = r.fetchCode()
+        var t:Resolvable<int> = r.fetchCode()
         UnitTest::assertEquals(99, resolve t)
         return 0
     }
@@ -75,7 +74,7 @@ class Test_64_async_instance_method_dispatch {
     // le dispatch fonctionne aussi sans passer par le nom nu `wiring`).
     public method concreteImplementationDirectAsyncInstanceMethodTest(): int {
         var r:Repo = use ConcreteRepo()
-        var t:int = r.fetchCode()
+        var t:Resolvable<int> = r.fetchCode()
         UnitTest::assertEquals(99, resolve t)
         return 0
     }
@@ -88,11 +87,11 @@ class Test_64_async_instance_method_dispatch {
     // figée à la compilation.
     public method runtimeChosenConcreteTypeAsyncInstanceMethodTest(): int {
         var cat:Talker = pickTalker(0)
-        var t1:int = cat.speakCode()
+        var t1:Resolvable<int> = cat.speakCode()
         UnitTest::assertEquals(1, resolve t1)
 
         var robot:Talker = pickTalker(1)
-        var t2:int = robot.speakCode()
+        var t2:Resolvable<int> = robot.speakCode()
         UnitTest::assertEquals(2, resolve t2)
         return 0
     }

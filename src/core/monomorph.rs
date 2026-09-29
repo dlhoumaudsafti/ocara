@@ -26,6 +26,7 @@ fn type_name_for_mangle(ty: &Type) -> String {
         Type::Array(inner) => format!("array_{}", type_name_for_mangle(inner)),
         Type::Map(k, v) => format!("map_{}_{}", type_name_for_mangle(k), type_name_for_mangle(v)),
         Type::Message(inner) => format!("message_{}", type_name_for_mangle(inner)),
+        Type::Resolvable(inner) => format!("resolvable_{}", type_name_for_mangle(inner)),
         Type::Generic { name, args } => {
             let mut s = name.clone();
             for arg in args {
@@ -92,6 +93,11 @@ fn substitute_type(ty: &Type, type_params: &[String], type_args: &[Type]) -> Typ
                     .collect(),
             }
         }
+        // `Resolvable<T>` étant un type de premier ordre (champ/paramètre
+        // d'un `generic Foo<T>`), `T` peut référencer un paramètre de type du
+        // générique monomorphisé — même traitement que les autres wrappers
+        // mono-paramètre ci-dessus.
+        Type::Resolvable(inner) => Type::Resolvable(Box::new(substitute_type(inner, type_params, type_args))),
         _ => ty.clone(),
     }
 }

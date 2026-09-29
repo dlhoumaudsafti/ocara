@@ -737,6 +737,7 @@ Type ::= "int"
        | ArrayType
        | MapType
        | MessageType
+       | ResolvableType
        | GenericType
        | QualifiedType
        | UnionType
@@ -746,6 +747,7 @@ FunctionType ::= "Function" "<" Type "(" ( Type ( "," Type )* )? ")" ">"
 ArrayType    ::= "array" "<" Type ">"
 MapType      ::= "map" "<" Type "," Type ">"
 MessageType  ::= "message" "<" Type ">"
+ResolvableType ::= "Resolvable" "<" Type ">"
 GenericType  ::= Identifier "<" TypeArgs ">"
 QualifiedType ::= Identifier ( "." Identifier )+
 UnionType    ::= Type ( "|" Type )+
@@ -765,9 +767,12 @@ List<int>              // générique avec un type
 Cache<string, User>    // générique avec plusieurs types
 Result<int, string>    // générique Result
 message<int>           // générateur (voir §28) — return-type-only
+Resolvable<string>     // handle de tâche async typé (voir §14.5)
 ```
 
 > **`message<T>` est un cas particulier** : contrairement à tous les autres types de cette liste, il n'est valable **que** comme type de retour déclaré d'une fonction/méthode contenant `emit`, jamais comme type de paramètre ni comme type d'une variable (`var`/`scoped`/`consumed`). Voir [§28 Générateurs (`emit`)](#28-générateurs-emit) pour le détail complet.
+
+> **`Resolvable<T>` est, à l'inverse, un type de premier ordre ordinaire** : utilisable partout où un type l'est normalement (variable, paramètre, propriété de classe, élément de tableau/map). Sa seule restriction : il ne peut jamais être lui-même le type de retour **déclaré** d'une fonction/méthode `async` (pas de `Resolvable<Resolvable<T>>` par double emballage implicite). `Resolvable` n'est pas un mot-clé réservé — c'est un identifiant ordinaire, reconnu comme ce type built-in uniquement lorsqu'il est immédiatement suivi de `<`. Voir [§14.5 Fonctions asynchrones](#145-fonctions-asynchrones-async--resolve) pour le détail complet.
 
 ### 6.3 Types union
 
@@ -1847,12 +1852,13 @@ IO::writeln(user.name)   // "Bob" — l'objet original est muté
 
 ### 14.5 Fonctions asynchrones (`async` / `resolve`)
 
-Une **fonction asynchrone** est déclarée avec le modificateur `async`. Son appel ne bloque pas l'appelant : il retourne immédiatement une **handle de tâche** de type `int`. La valeur finale est récupérée avec l'expression `resolve`.
+Une **fonction/méthode asynchrone** est déclarée avec le modificateur `async` (fonction libre, méthode statique OU méthode d'instance — les trois formes sont prises en charge). Son appel ne bloque pas l'appelant : il retourne immédiatement une **handle de tâche**, typée `Resolvable<T>` où `T` est le type de retour **déclaré** de la fonction/méthode. La valeur finale est récupérée avec l'expression `resolve`, qui déballe `Resolvable<T>` en `T`.
 
 ```ebnf
-FuncDecl    ::= "async"? "function" Identifier "(" ParamList? ")" ":" Type Block
-ClassMember ::= ... | Visibility "static"? "async"? "method" Identifier "(" ParamList? ")" ":" Type Block
-ResolveExpr ::= "resolve" Expression
+FuncDecl       ::= "async"? "function" Identifier "(" ParamList? ")" ":" Type Block
+ClassMember    ::= ... | Visibility "static"? "async"? "method" Identifier "(" ParamList? ")" ":" Type Block
+ResolvableType ::= "Resolvable" "<" Type ">"
+ResolveExpr    ::= "resolve" Expression
 ```
 
 **Syntaxe :**
@@ -1862,11 +1868,27 @@ async function compute(n:int): int {
     return n * n
 }
 
+class Doubler {
+    public static async method fetch(): string {
+        return "hi"
+    }
+    public async method fetchDoubled(n:int): int {
+        return n * 2
+    }
+}
+
 function main(): void {
-    var t1:int = compute(5)    // lance la tâche, retourne un handle int
-    var t2:int = compute(10)
-    var r1:int = resolve t1    // attend la fin de t1, retourne le résultat
+    var t1:Resolvable<int> = compute(5)          // lance la tâche, retourne un handle typé
+    var t2:Resolvable<int> = compute(10)
+    var r1:int = resolve t1                       // attend la fin de t1, retourne le résultat
     var r2:int = resolve t2
+
+    var t3:Resolvable<string> = Doubler::fetch()          // appel STATIQUE
+    var r3:string = resolve t3
+
+    var d:Doubler = use Doubler()
+    var t4:Resolvable<int> = d.fetchDoubled(21)           // appel D'INSTANCE
+    var r4:int = resolve t4
 }
 ```
 
@@ -1876,21 +1898,35 @@ function main(): void {
 var a:int = resolve compute(6)
 ```
 
+**Le type `Resolvable<T>`** (voir aussi [§6.2 Types composites](#62-types-composites)) :
+
+- C'est un type **built-in de premier ordre**, au même titre que `array<T>`/`map<K,V>` — utilisable comme type de variable (`var`/`scoped`/`consumed`), de paramètre, de propriété de classe, ou d'élément de tableau/map. Contrairement à `message<T>`, il n'est **pas** restreint à une position de retour.
+- `T` n'existe qu'au niveau du typechecker : la représentation runtime de `Resolvable<T>` est identique quel que soit `T` — un entier opaque (pointeur vers une `OcaraTask`), exactement comme avant l'introduction de ce type. Aucune vtable, aucun champ, aucune classe backing.
+- **Seule restriction** : `Resolvable<T>` ne peut jamais être lui-même le type de retour **déclaré** d'une fonction/méthode `async` — `async method f(): Resolvable<string>` est un **rejet à la compilation** (empêcherait un double emballage implicite `Resolvable<Resolvable<string>>`).
+- Pas de syntaxe de construction directe (pas de littéral `Resolvable`) : une valeur `Resolvable<T>` ne peut provenir que de l'appel d'une fonction/méthode `async`. Pas de méthode d'instance dessus (pas de `.then()`, pas de combinateurs) — seul `resolve` en extrait la valeur.
+- `Resolvable` n'est **pas** un mot-clé réservé : c'est un identifiant ordinaire, reconnu comme ce type built-in uniquement quand il est immédiatement suivi de `<` en position de type (une classe utilisateur nommée `Resolvable`, sans arguments de type, resterait un `Identifier`/`Type` ordinaire).
+- Casse : `Resolvable<T>` garde le PascalCase (contrairement aux génériques built-in existants, en minuscule — `array<T>`, `map<K,V>`) — exception assumée, car il se comporte comme un type opaque « classe », pas comme un conteneur primitif.
+
+**`resolve expr`** :
+
+- `expr` doit être de type `Resolvable<T>` — sinon **erreur de compilation** (voir [E43](diagnostics.md#e43--resolve-sur-une-expression-qui-nest-pas-resolvablet)), jamais de repli silencieux sur un autre type.
+- Le type de `resolve expr` est alors `T` — une règle purement compositionnelle : `T` est porté par le type de `expr` lui-même, à n'importe quelle profondeur d'indirection (variable, champ, élément de tableau/map, paramètre, valeur de retour d'une autre fonction) — pas seulement pour une variable affectée directement par un appel `async`.
+- Une handle ne peut être résolue qu'une seule fois ; une seconde résolution retourne une valeur par défaut du type `T` (`0`/`0.0`/`false`/`null` selon le cas), sans erreur.
+
 **Modèle d'exécution :**
 
 | Étape | Mécanique interne |
 |-------|------------------|
-| Déclaration `async function f(args): T` | Le compilateur génère un wrapper `__async_wrap_f(env: i64): i64` qui dépack les arguments depuis l'env heap et appelle `f`. |
-| Appel à `f(...)` (dans un contexte non-`resolve`) | Les arguments sont packagés dans un env heap ; `__task_spawn(wrapper_ptr, env_ptr)` est appelé → crée un thread OS et retourne un `int` (pointeur opaque vers une `OcaraTask`). |
-| `resolve expr` | Appel à `__task_resolve(task_ptr)` → joint le thread (`JoinHandle::join`), retourne le résultat sous forme de `int`. |
+| Déclaration `async function f(args): T` (ou méthode statique/d'instance) | Le compilateur génère un wrapper `__async_wrap_f(env: i64): i64` qui dépack les arguments (et `self`, pour une méthode d'instance) depuis l'env heap et appelle `f`. |
+| Appel à `f(...)` (dans un contexte non-`resolve`) | Les arguments sont packagés dans un env heap ; `__task_spawn(wrapper_ptr, env_ptr)` est appelé → crée un thread OS et retourne un `Resolvable<T>` (au niveau machine : un entier opaque, pointeur vers une `OcaraTask`). |
+| `resolve expr` | Appel à `__task_resolve(task_ptr)` → joint le thread (`JoinHandle::join`), retourne le résultat en `T` (déballé — `__unbox_float`/`__unbox_bool` — si `T` est `float`/`bool`, brut sinon). |
 
 **Règles :**
 
-- Le type de retour d'une fonction `async` peut être n'importe quel type Ocara : `int`, `float`, `bool`, `string`, `array<T>`, `map<K,V>`, `Function<T(...)>`, une classe, ou un enum (qui est un `int`).
-- `resolve` retourne le type de retour réel de la fonction `async` sous-jacente.
-- Une handle ne peut être résolue qu'une seule fois ; une seconde résolution retourne `0`.
+- Le type de retour **déclaré** d'une fonction/méthode `async` peut être n'importe quel type Ocara : `int`, `float`, `bool`, `string`, `array<T>`, `map<K,V>`, `Function<T(...)>`, une classe, un enum (qui est un `int`) — mais jamais `Resolvable<U>` lui-même (voir plus haut).
+- Un appel à une fonction/méthode `async` — qu'elle soit une fonction libre, une méthode statique (`Classe::méthode()`) ou une méthode d'instance (`objet.méthode()`) — retourne uniformément `Resolvable<T>`, `T` étant le type déclaré ci-dessus. Les trois formes de résolution de cible (fonction libre, statique, instance, y compris via un dispatcher d'interface après `wiring`) appliquent la même règle, sans cas particulier.
 - `async` et `nameless` ne peuvent pas être combinés.
-- `async` ne modifie pas le type `Function` : une fonction async ne peut pas être passée comme `Function`.
+- Une variable de type `Function<T(...)>` référençant une fonction/méthode `async` a pour type de retour `Resolvable<T>` (pas `T`) : l'appeler produit un handle, exactement comme un appel direct.
 
 ---
 
@@ -3617,6 +3653,7 @@ Type        ::= "int" | "float" | "string" | "bool" | "mixed" | "void"
               | ArrayType
               | MapType
               | MessageType
+              | ResolvableType
               | GenericType
               | QualifiedType
               | UnionType
@@ -3625,6 +3662,7 @@ FunctionType  ::= "Function" "<" Type "(" ( Type ( "," Type )* )? ")" ">"
 ArrayType   ::= "array" "<" Type ">"
 MapType     ::= "map" "<" Type "," Type ">"
 MessageType ::= "message" "<" Type ">"
+ResolvableType ::= "Resolvable" "<" Type ">"
 GenericType ::= Identifier "<" TypeArgs ">"
 QualifiedType ::= Identifier ( "." Identifier )+
 UnionType   ::= Type ( "|" Type )+

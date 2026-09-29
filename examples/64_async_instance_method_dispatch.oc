@@ -6,12 +6,11 @@
 // (`Classe::methode()` statique fonctionnait déjà) — corrigé. Sert de
 // support à examples/tests/64_async_instance_method_dispatchTest.oc.
 //
-// Note : les types de retour utilisés ici sont tous `int` — un bug SÉPARÉ
-// et préexistant (`async method`/`async function` dont le retour déclaré
-// N'EST PAS `int` casse la vérification de types, pour un appel statique
-// COMME d'instance) a été trouvé en marge de ce ticket et documenté à part,
-// délibérément non corrigé ici : voir
-// docs/roadmap.d/langage-async-non-int-return-type-check.md.
+// Note : les types de retour utilisés ici sont tous `int`, désormais
+// représentés par `Resolvable<int>` (le VRAI type de retour déclaré,
+// jamais un `int` nu qui effacerait cette information) — voir
+// docs/roadmap.d/langage-async-non-int-return-type-check.md, qui couvre
+// aussi bien l'appel statique que l'appel d'instance démontrés ici.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import ocara.IO
@@ -65,23 +64,23 @@ function pickTalker(kind:int): Talker {
 
 function main(): int {
     var f:DoublingFetcher = use DoublingFetcher()
-    var t1:int = f.fetch(21)
+    var t1:Resolvable<int> = f.fetch(21)
     IO::writeln(resolve t1)
 
     var a:Animal = use Dog()
-    var t2:int = a.soundCode()
+    var t2:Resolvable<int> = a.soundCode()
     IO::writeln(resolve t2)
 
     var r:Repo = use Repo()
-    var t3:int = r.fetchCode()
+    var t3:Resolvable<int> = r.fetchCode()
     IO::writeln(resolve t3)
 
     var cat:Talker = pickTalker(0)
-    var t4:int = cat.speakCode()
+    var t4:Resolvable<int> = cat.speakCode()
     IO::writeln(resolve t4)
 
     var robot:Talker = pickTalker(1)
-    var t5:int = robot.speakCode()
+    var t5:Resolvable<int> = robot.speakCode()
     IO::writeln(resolve t5)
 
     return 0

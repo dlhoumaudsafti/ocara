@@ -1,0 +1,49 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 65 — `async` retournant un type non-`int` : `Resolvable<T>`
+//
+// Voir docs/roadmap.d/langage-async-non-int-return-type-check.md : un appel à
+// une fonction/méthode `async` retourne un handle de tâche typé
+// `Resolvable<T>`, où `T` est le VRAI type de retour DÉCLARÉ — jamais un
+// `int` nu qui effacerait cette information. Le bug corrigé ici touchait
+// aussi bien l'appel STATIQUE (`Classe::methode()`) que le sucre D'INSTANCE
+// (`objet.methode()`) — reproduit tel quel dans le ticket avec un retour
+// `string` (le cas `int` "marchait" déjà par coïncidence, puisque le type
+// réel et le type du handle étaient alors identiques).
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+
+class Doubler {
+    // Appel STATIQUE (`Doubler::fetch()`).
+    public static async method fetch(): string {
+        return "hi"
+    }
+
+    // Appel D'INSTANCE (`d.fetchInstance()`).
+    public async method fetchInstance(): string {
+        return "instance-hi"
+    }
+
+    // Retour `float` — vérifie que le déballage `resolve` (unboxing) reste
+    // correct pour un type qui n'est ni `int` ni `string`.
+    public static async method fetchRatio(): float {
+        return 3.5
+    }
+}
+
+function main(): int {
+    var t:Resolvable<string> = Doubler::fetch()
+    var r:string = resolve t
+    IO::writeln(r)
+
+    var d:Doubler = use Doubler()
+    var t2:Resolvable<string> = d.fetchInstance()
+    var r2:string = resolve t2
+    IO::writeln(r2)
+
+    var t3:Resolvable<float> = Doubler::fetchRatio()
+    var r3:float = resolve t3
+    IO::writeln(r3)
+
+    return 0
+}

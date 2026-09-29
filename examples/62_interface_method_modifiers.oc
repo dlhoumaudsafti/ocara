@@ -10,12 +10,15 @@
 // pour aucune méthode) ; `static`/`async`, eux, sont vérifiés à la
 // conformité `implements` (E09).
 //
-// `async` D'INSTANCE (`obj.methode()`) est délibérément évité ici : un bug
-// préexistant et SANS RAPPORT avec ce ticket fait segfaulter tout appel
-// `async` via le sucre d'instance, pour N'IMPORTE QUELLE classe — voir
-// docs/roadmap.d/langage-async-instance-method-dispatch-broken.md. `static
-// async` (appelé via `Classe::methode()`) fonctionne correctement
-// aujourd'hui et couvre `async` sans se heurter à ce bug séparé.
+// `async` D'INSTANCE (`obj.methode()`) est démontré séparément dans
+// examples/64_async_instance_method_dispatch.oc (le SIGSEGV historique de ce
+// chemin — docs/roadmap.d/langage-async-instance-method-dispatch-broken.md —
+// est corrigé). Ici, `static async` (appelé via `Classe::methode()`) suffit
+// à couvrir le modificateur `async` sur une interface.
+//
+// Le handle retourné par un appel `async` est typé `Resolvable<T>` (`T` =
+// type de retour DÉCLARÉ), pas un `int` nu — voir
+// docs/roadmap.d/langage-async-non-int-return-type-check.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import ocara.IO
@@ -44,7 +47,7 @@ function main(): int {
 
     IO::writeln(Impl::version())
 
-    var t:int = Impl::fetchDoubled(21)
+    var t:Resolvable<int> = Impl::fetchDoubled(21)
     var r:int = resolve t
     IO::writeln(r)
 

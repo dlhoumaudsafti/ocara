@@ -180,6 +180,7 @@ fn resolve_type(aliases: &HashMap<String, String>, ty: &mut Type) {
             resolve_type(aliases, v);
         }
         Type::Message(inner) => resolve_type(aliases, inner),
+        Type::Resolvable(inner) => resolve_type(aliases, inner),
         Type::Generic { name, args } => {
             resolve_name(aliases, name);
             for a in args {

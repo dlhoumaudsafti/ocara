@@ -4,6 +4,27 @@ use crate::parsing::ast::*;
 use crate::ir::types::IrType;
 use crate::lower::builder::LowerBuilder;
 
+/// Vrai si `mangled_name` (nom de fonction libre, ou `"{Classe}_{méthode}"`
+/// pour une méthode) désigne une cible `async` — voir
+/// docs/roadmap.d/langage-async-non-int-return-type-check.md. Un appel
+/// `async` ne produit JAMAIS sa valeur normalement : `lower_expr` (voir
+/// `crate::lower::expr::lower::lower_expr`, bloc `Expr::Call`/sucre
+/// d'instance) spawn une tâche et renvoie un handle opaque `I64`, quel que
+/// soit le type de retour DÉCLARÉ — `fn_ret_types`/`resolve_method_return_type`
+/// continuent de porter ce type déclaré tel quel (`string`, `float`...),
+/// nécessaire pour `Expr::Resolve` (déballer le VRAI résultat une fois la
+/// tâche terminée), mais AUCUN rapport avec le type de la valeur produite
+/// par l'appel lui-même. Avant ce garde-fou, `expr_ir_type` confondait les
+/// deux dès que le type de retour déclaré n'était pas `int` (`string`,
+/// `float`...) : la valeur (un handle `I64`) se faisait alors classer
+/// `Ptr`/`F64` et boxer comme un `mixed` par `box_for_any`
+/// (`__mixed_to_int`/`__box_float`), corrompant le handle — confirmé
+/// nécessaire par reproduction (`Doubler::fetch(): string` en appel
+/// statique/d'instance).
+fn is_async_call_target(builder: &LowerBuilder, mangled_name: &str) -> bool {
+    builder.async_funcs.contains(mangled_name)
+}
+
 /// Résout le type de retour IR d'une méthode CONNUE par (classe, méthode) —
 /// partagé par `Expr::StaticCall` (classe donnée directement dans la syntaxe :
 /// `Classe::méthode(...)`) ET `Expr::Call` avec un callee `Expr::Field`
@@ -68,6 +89,48 @@ fn resolve_method_return_type(
     IrType::Ptr
 }
 
+/// Type de retour IR DÉCLARÉ (jamais `I64` par défaut pour un handle de
+/// tâche) d'un appel `async` directement opérande de `resolve` — voir
+/// docs/roadmap.d/langage-async-non-int-return-type-check.md. Contrairement
+/// à `expr_ir_type` (qui, via `is_async_call_target`, rapporte `I64` pour CE
+/// MÊME appel — la valeur RÉELLEMENT produite par `lower_expr`, un handle
+/// opaque), `Expr::Resolve` a besoin de l'information INVERSE : le type que
+/// la tâche produira UNE FOIS RÉSOLUE, pour savoir s'il faut déballer un
+/// `float`/`bool` boxé (voir le lowering de `Expr::Resolve`,
+/// `crate::lower::expr::lower::lower_expr`). Utilisé pour les 3 formes
+/// d'appel direct (fonction libre, méthode statique, sucre d'instance) —
+/// `Expr::Ident` (variable déclarée `Resolvable<T>`) reste géré séparément
+/// via `builder.async_var_ret`, alimenté par le type DÉCLARÉ de la variable
+/// (voir `crate::lower::stmt::statements::variables`), pas par cette
+/// fonction.
+pub(crate) fn declared_call_return_ir_type(builder: &LowerBuilder, call_expr: &Expr) -> Option<IrType> {
+    match call_expr {
+        Expr::Call { callee, .. } => match callee.as_ref() {
+            Expr::Ident(fn_name, _) => builder.fn_ret_types.get(fn_name.as_str()).cloned(),
+            Expr::Field { object, field, .. } => {
+                let class_name = match object.as_ref() {
+                    Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
+                    Expr::SelfExpr(_)    => builder.current_class.clone(),
+                    _ => None,
+                };
+                class_name.map(|cls| resolve_method_return_type(builder, &cls, field, Some(object.as_ref())))
+            }
+            _ => None,
+        },
+        Expr::StaticCall { class, method, args, .. } => {
+            let resolved_class = if class == "<parent>" {
+                builder.parent_class.as_deref().unwrap_or(class.as_str())
+            } else if class == "<self>" {
+                builder.current_class.as_deref().unwrap_or(class.as_str())
+            } else {
+                class.as_str()
+            };
+            Some(resolve_method_return_type(builder, resolved_class, method, args.first()))
+        }
+        _ => None,
+    }
+}
+
 /// Détermine le type IR d'une expression sans générer de code.
 /// Utilisé pour le dispatch typé de `write` et la détection de concat string.
 pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
@@ -110,6 +173,15 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
             } else {
                 class.as_str()
             };
+            // Méthode statique `async` (`Classe::méthode()`) — voir
+            // `is_async_call_target` : ne JAMAIS résoudre via
+            // `resolve_method_return_type`/`fn_ret_types` ici, qui continuent
+            // de porter le type de retour DÉCLARÉ (`string`, `float`...),
+            // sans rapport avec la valeur RÉELLEMENT produite par cet appel
+            // (un handle de tâche `I64`, voir `crate::lower::expr::lower`).
+            if is_async_call_target(builder, &format!("{}_{}", resolved_class, method)) {
+                return IrType::I64;
+            }
             resolve_method_return_type(builder, resolved_class, method, args.first())
         }
         // Opérations binaires : propager Ptr si c'est une concat string
@@ -229,8 +301,14 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                     return ty.clone();
                 }
             }
-            // Callee = Ident (fonction libre)
+            // Callee = Ident (fonction libre) — même garde `async` que pour
+            // `Expr::StaticCall` ci-dessus : AVANT de consulter `fn_ret_types`
+            // (qui reflète le type déclaré, jamais le handle de tâche
+            // réellement produit par un appel async).
             if let Expr::Ident(fname, _) = callee.as_ref() {
+                if is_async_call_target(builder, fname.as_str()) {
+                    return IrType::I64;
+                }
                 if let Some(ty) = builder.fn_ret_types.get(fname.as_str()) {
                     return ty.clone();
                 }
@@ -309,6 +387,11 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                 // lui-même ici (le récepteur), pas un argument comme pour la
                 // forme statique.
                 if let Some(cls) = &class_name {
+                    // Même garde `async` que `Expr::StaticCall`/l'appel de
+                    // fonction libre ci-dessus.
+                    if is_async_call_target(builder, &format!("{}_{}", cls, field)) {
+                        return IrType::I64;
+                    }
                     return resolve_method_return_type(builder, cls, field, Some(object.as_ref()));
                 }
             }
@@ -342,23 +425,18 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
         Expr::IncDec { target, .. } => expr_ir_type(builder, target),
         Expr::IsCheck { .. } => IrType::Bool,
         Expr::Resolve { expr, .. } => {
-            // Retourne le type IR original de la fonction async sous-jacente.
+            // Retourne le type IR DÉCLARÉ de la fonction/méthode async
+            // sous-jacente (voir `declared_call_return_ir_type`) — `Ident`
+            // (variable `Resolvable<T>`) reste résolu via `async_var_ret`,
+            // alimenté par le type DÉCLARÉ de la variable, pas par l'appel
+            // qui l'a produite (voir `lower_var`/`lower_const`, couvre toute
+            // profondeur d'indirection, contrairement à l'ancien hack
+            // `async_var_funcs`/`async_var_ret` par nom de fonction).
             match expr.as_ref() {
                 Expr::Ident(var_name, _) => {
                     builder.async_var_ret.get(var_name).cloned().unwrap_or(IrType::I64)
                 }
-                Expr::Call { callee, .. } => {
-                    if let Expr::Ident(fn_name, _) = callee.as_ref() {
-                        if builder.async_funcs.contains(fn_name.as_str()) {
-                            builder.fn_ret_types.get(fn_name.as_str()).cloned().unwrap_or(IrType::I64)
-                        } else {
-                            IrType::I64
-                        }
-                    } else {
-                        IrType::I64
-                    }
-                }
-                _ => IrType::I64,
+                _ => declared_call_return_ir_type(builder, expr).unwrap_or(IrType::I64),
             }
         }
         Expr::Nameless { .. } => IrType::Ptr,

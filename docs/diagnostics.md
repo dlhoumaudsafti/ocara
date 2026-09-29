@@ -886,6 +886,46 @@ interface Repo {
 
 ---
 
+### E43 — `resolve` sur une expression qui n'est pas `Resolvable<T>`
+
+```
+fichier.oc:1:1: error: 'resolve' expects a 'Resolvable<T>' expression (the result of calling an 'async' function/method), found 'string'
+```
+
+`resolve expr` attend que `expr` soit de type `Resolvable<T>` (le handle produit par l'appel d'une fonction/méthode `async` — voir §14.5 de l'EBNF et docs/roadmap.d/langage-async-non-int-return-type-check.md). Avant ce diagnostic, une expression qui n'était pas issue (directement ou par indirection non suivie) d'un appel `async` retombait silencieusement sur `Type::Int` ; `Resolvable<T>` porte maintenant l'information nécessaire dans le type lui-même, donc toute autre expression est désormais une vraie erreur de type.
+
+```ocara
+function main(): int {
+    var s:string = "hello"
+    var r:string = resolve s   // ❌ E43 — 's' n'est pas 'Resolvable<T>'
+    return 0
+}
+```
+
+**Correction :** n'appliquer `resolve` qu'à une expression de type `Resolvable<T>` — le résultat direct ou stocké d'un appel à une fonction/méthode `async`.
+
+---
+
+### E44 — Type de retour déclaré d'une fonction/méthode `async` lui-même `Resolvable<T>`
+
+```
+fichier.oc:1:1: error: 'fetch' is 'async' and declares 'Resolvable<T>' as its own return type — an 'async' function/method already wraps its declared return type in 'Resolvable<T>' automatically at the call site; declare the real return type here instead (e.g. 'string', not 'Resolvable<string>')
+```
+
+Une fonction/méthode `async` emballe déjà automatiquement son type de retour **déclaré** dans `Resolvable<T>` au site d'appel (voir §14.5 de l'EBNF) — déclarer `Resolvable<T>` comme type de retour de la fonction/méthode `async` elle-même produirait un double emballage implicite `Resolvable<Resolvable<T>>` absurde.
+
+```ocara
+class Doubler {
+    public static async method fetch(): Resolvable<string> {   // ❌ E44
+        return "hi"
+    }
+}
+```
+
+**Correction :** déclarer le VRAI type de retour (`string`), jamais `Resolvable<...>` — la substitution vers `Resolvable<T>` est appliquée automatiquement à chaque site d'appel.
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.

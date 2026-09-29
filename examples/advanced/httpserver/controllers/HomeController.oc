@@ -26,8 +26,8 @@ class HomeController {
 
     public static method handle(req:HTTPServerRequest): int {
         // Lancer les deux chargements en parallèle
-        var t_users:int    = self::fetch_user_count()
-        var t_articles:int = self::fetch_article_count()
+        var t_users:Resolvable<int>    = self::fetch_user_count()
+        var t_articles:Resolvable<int> = self::fetch_article_count()
 
         // Attendre les résultats (resolve bloque jusqu'à la fin de chaque tâche)
         var users:int    = resolve t_users

@@ -190,3 +190,73 @@ d'`async_var_funcs`), `src/parsing/ast.d/types.rs` (`Type::Generic` déjà
 disponible, à instancier avec `name: "Resolvable"`), `docs/EBNF.md` (§14.5,
 description du type de retour d'un `async`).
 Mettre à jour tous les fichier d'exemple qui utilise resolve
+
+## Résolution (implémentée)
+
+**Écart avec la proposition initiale ci-dessus** : `Resolvable<T>` a été
+implémenté comme une variante d'enum DÉDIÉE, `Type::Resolvable(Box<Type>)`
+(`src/parsing/ast.d/types.rs`), modelée sur `Type::Message(Box<Type>)` —
+PAS comme une instance de `Type::Generic { name: "Resolvable", args }` comme
+envisagé plus haut. Raison : `Type::Generic` est réservé aux génériques
+UTILISATEUR avec une vraie classe backing (`Cache<K,V>`, monomorphisée en
+classe concrète) ; `Resolvable<T>`, comme `array<T>`/`map<K,V>`/`message<T>`,
+n'a pas de classe backing — c'est un type built-in au niveau du langage.
+Contrairement à `Message<T>` (return-type-only, jamais nommable),
+`Resolvable<T>` est un type de PREMIER ORDRE utilisable partout (variable,
+paramètre, champ, élément de tableau/map) ; sa seule restriction est de ne
+jamais être le type de retour DÉCLARÉ d'une fonction/méthode `async`
+elle-même (E44). `resolve` sur autre chose qu'un `Resolvable<T>` est E43.
+`Resolvable` n'est pas un mot-clé réservé (reconnu seulement quand suivi de
+`<` en position de type).
+
+**Tous les sites de substitution `is_async → Resolvable<T>` couverts** (pas
+seulement les 3 initialement identifiés) : fonction libre (`Expr::Call`),
+méthode statique (`Expr::StaticCall`), sucre d'instance (`Expr::Field` en
+position d'appel), méthode d'un générique instancié, ET référence à une
+fonction/méthode async SANS appel (`Expr::Ident`/`Expr::StaticConst`
+produisant un `Type::Function{ret_ty: Resolvable<T>, ...}`) — un point non
+identifié dans l'analyse initiale.
+
+**Lowering (`src/lower/`)** : contrairement à l'hypothèse initiale (« aucun
+changement de représentation runtime requis »), un correctif a été
+nécessaire dans `src/lower/expr.d/typeinfer.rs`/`lower.rs` et
+`src/lower/stmt.d/statements.d/variables.rs`. Avant Resolvable<T>, la sema
+substituait déjà `Type::Int` pour un appel LIBRE async, ce qui masquait un
+problème : `expr_ir_type` (utilisé par `box_for_any` pour le boxing `mixed`)
+ne savait pas qu'un appel `async` produit toujours un handle `I64`, quel que
+soit son type de retour déclaré — il résolvait le type DÉCLARÉ (`string` →
+`Ptr`, `float` → `F64`). Avec `Resolvable<T>` permettant `T != int` pour un
+appel statique/d'instance, ce mismatch (valeur réelle `I64`, type inféré
+`Ptr`/`F64`) aurait fait boxer le handle brut comme un `mixed` via
+`__mixed_to_int`/`__box_float`, le corrompant. Corrigé en ajoutant une garde
+`is_async_call_target` dans `expr_ir_type` (StaticCall, Call libre, sucre
+d'instance) : un appel vers une cible `async` retourne toujours `IrType::I64`
+au niveau de l'EXPRESSION D'APPEL elle-même. Le hack symétrique côté
+lowering pour `Expr::Resolve` (`async_var_ret`, qui ne suivait que
+`var x = <appel direct à une fonction libre>`) a aussi été généralisé pour
+dériver le type IR de `T` depuis le type DÉCLARÉ `Resolvable<T>` de la
+variable (`register_async_var_ret`), couvrant `const` et toute indirection —
+plus seulement `var` assignée directement. Le handle runtime lui-même reste
+inchangé (toujours un entier opaque, `IrType::I64`) : ce sont les DÉCISIONS
+DE TYPE prises pendant le lowering qui devaient suivre `Resolvable<T>`, pas
+la représentation mémoire.
+
+**Vérifié par exécution réelle** (pas seulement compilation) : repro exact
+du ticket (`Doubler::fetch(): string` statique ET `d.fetchInstance(): string`
+d'instance) + un cas `float` (`Doubler::fetchRatio(): float`) — voir
+`examples/65_async_resolvable_return_type.oc` et son test associé.
+
+**Exemples migrés** : `examples/29_async.oc` (+ Test — tous les types de
+retour : int/float/bool/string/array/Function/object/map/enum),
+`examples/62_interface_method_modifiers.oc` (+ Test),
+`examples/64_async_instance_method_dispatch.oc` (+ Test),
+`examples/advanced/httpserver/controllers/HomeController.oc`,
+`examples/advanced/tauri_httpserver/controllers/HomeController.oc`.
+`mini_project`/`mini_project_hexa` n'utilisent pas `async` — non modifiés.
+
+**Documentation** : `docs/EBNF.md` §6.2 (ajout de `ResolvableType` à la
+grammaire des types) et §14.5 (réécrit), `docs/diagnostics.md` (E43 —
+`resolve` sur non-`Resolvable<T>` ; E44 — retour déclaré `Resolvable<T>`
+d'une fonction/méthode `async`), grammaire TextMate VS Code
+(`tools/highlight/vsode/syntaxes/ocara.tmLanguage.json`, `Resolvable` coloré
+comme type built-in).

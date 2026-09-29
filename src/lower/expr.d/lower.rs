@@ -1869,23 +1869,17 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
         }
 
         Expr::Resolve { expr, .. } => {
-            // Déterminer le type de retour original de la fonction async
+            // Déterminer le type de retour DÉCLARÉ de la fonction/méthode
+            // async sous-jacente — voir `declared_call_return_ir_type` et
+            // `crate::sema::typecheck` (`Type::Resolvable<T>`). `Ident`
+            // (variable `Resolvable<T>`) reste résolu via `async_var_ret`,
+            // alimenté par le type DÉCLARÉ de la variable (couvre toute
+            // profondeur d'indirection — voir `lower_var`/`lower_const`).
             let orig_ty = match expr.as_ref() {
                 Expr::Ident(var_name, _) => {
                     builder.async_var_ret.get(var_name).cloned().unwrap_or(IrType::I64)
                 }
-                Expr::Call { callee, .. } => {
-                    if let Expr::Ident(fn_name, _) = callee.as_ref() {
-                        if builder.async_funcs.contains(fn_name.as_str()) {
-                            builder.fn_ret_types.get(fn_name.as_str()).cloned().unwrap_or(IrType::I64)
-                        } else {
-                            IrType::I64
-                        }
-                    } else {
-                        IrType::I64
-                    }
-                }
-                _ => IrType::I64,
+                _ => super::typeinfer::declared_call_return_ir_type(builder, expr).unwrap_or(IrType::I64),
             };
 
             let task_ptr = lower_expr(builder, expr);
