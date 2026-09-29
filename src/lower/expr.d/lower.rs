@@ -668,6 +668,73 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     } else {
                         call_target
                     };
+                    // Appel D'INSTANCE `async` (`obj.methode()`) — voir
+                    // docs/roadmap.d/langage-async-instance-method-dispatch-broken.md :
+                    // ce chemin n'a JAMAIS empaqueté `self`+args dans un
+                    // environnement heap ni spawné de tâche, contrairement
+                    // aux fonctions libres et aux appels statiques
+                    // (`Classe::methode()`, plus bas dans ce fichier) — il
+                    // appelait TOUJOURS `call_target` directement et de
+                    // façon SYNCHRONE, renvoyant sa vraie valeur de retour
+                    // comme si c'était déjà un task handle (SIGSEGV confirmé
+                    // par reproduction : `resolve` déréférençait ensuite
+                    // cette valeur comme un pointeur de handle).
+                    //
+                    // `call_target` est déjà, à ce stade, la cible RÉELLE
+                    // pour le polymorphisme (`__dispatch_Classe_méthode`
+                    // pour l'héritage de classe, `Interface_méthode` pour
+                    // une interface — voir la résolution `class_dispatcher_name`
+                    // ci-dessus) : `async_funcs` porte une entrée pour CES
+                    // noms de dispatcher aussi (peuplée dans `lower_program`,
+                    // voir la remarque de tête de `generate_async_wrapper`
+                    // appelée sur eux), jamais seulement pour la méthode
+                    // concrète — le dispatcher reste une fonction 100%
+                    // SYNCHRONE (il choisit la bonne implémentation par
+                    // `__class_id` puis l'appelle directement, comme pour
+                    // n'importe quel appel non-async) ; c'est SON PROPRE
+                    // wrapper async (`__async_wrap_<dispatcher>`) qui spawn
+                    // la tâche — aucun second mécanisme de dispatch n'a été
+                    // nécessaire, celui déjà en place pour le chemin
+                    // synchrone (interfaces ET héritage de classe) est
+                    // intégralement réutilisé tel quel.
+                    //
+                    // `all_args` est déjà dans l'ordre exact attendu par le
+                    // wrapper (`self` en premier — voir sa génération dans
+                    // `lower_program`, `param_tys = [Ptr] + params` pour une
+                    // méthode d'instance — puis chaque argument RÉEL déjà
+                    // boxé si besoin), donc directement réutilisable comme
+                    // `arg_vals` l'est pour un appel statique/`parent::`.
+                    if builder.async_funcs.contains(call_target.as_str()) {
+                        let wrapper_name = format!("__async_wrap_{}", call_target);
+                        let n_args = all_args.len();
+                        let env_size = builder.new_value();
+                        builder.emit(Inst::ConstInt { dest: env_size.clone(), value: ((n_args * 8).max(8)) as i64 });
+                        let env_ptr = builder.new_value();
+                        builder.emit(Inst::Call {
+                            dest:   Some(env_ptr.clone()),
+                            func:   "__alloc_obj".into(),
+                            args:   vec![env_size],
+                            ret_ty: IrType::I64,
+                        });
+                        for (i, arg_val) in all_args.iter().enumerate() {
+                            builder.emit(Inst::SetField {
+                                obj:    env_ptr.clone(),
+                                field:  format!("__arg{}", i),
+                                src:    arg_val.clone(),
+                                offset: (i * 8) as i32,
+                            });
+                        }
+                        let func_addr = builder.new_value();
+                        builder.emit(Inst::FuncAddr { dest: func_addr.clone(), func: wrapper_name });
+                        let task = builder.new_value();
+                        builder.emit(Inst::Call {
+                            dest:   Some(task.clone()),
+                            func:   "__task_spawn".into(),
+                            args:   vec![func_addr, env_ptr],
+                            ret_ty: IrType::I64,
+                        });
+                        return task;
+                    }
                     builder.emit(Inst::Call {
                         dest:   Some(dest.clone()),
                         func:   call_target,

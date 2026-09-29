@@ -1,0 +1,99 @@
+import ocara.UnitTest
+import DoublingFetcher from "64_async_instance_method_dispatch"
+import Animal from "64_async_instance_method_dispatch"
+import Dog from "64_async_instance_method_dispatch"
+import Repo from "64_async_instance_method_dispatch"
+import ConcreteRepo from "64_async_instance_method_dispatch"
+import Talker from "64_async_instance_method_dispatch"
+import Cat from "64_async_instance_method_dispatch"
+import Robot from "64_async_instance_method_dispatch"
+import pickTalker from "64_async_instance_method_dispatch"
+
+// docs/roadmap.d/langage-async-instance-method-dispatch-broken.md — appeler
+// une méthode D'INSTANCE `async` via le sucre `obj.methode()` segfaultait
+// (`Classe::methode()` statique fonctionnait déjà) : le site d'appel
+// n'empaquetait jamais `self`+args dans un environnement heap ni ne spawnait
+// de tâche, contrairement aux fonctions libres et aux appels statiques — il
+// appelait TOUJOURS la méthode directement et SYNCHRONEMENT, renvoyant sa
+// vraie valeur comme si c'était déjà un task handle. Confirmé par gdb (crash
+// dans `__task_resolve`) et par `ocara build --dump` (HIR, appel direct vers
+// la fonction synchrone au lieu de `__task_spawn`/`__async_wrap_...`).
+//
+// Corrigé en réutilisant EXACTEMENT le même mécanisme d'empaquetage/spawn
+// déjà en place pour les deux autres formes d'appel — aucun second
+// mécanisme de dispatch : le dispatcher synchrone déjà existant (héritage
+// de classe `__dispatch_Classe_méthode` OU interface `Interface_méthode`)
+// est réutilisé tel quel pour choisir la bonne implémentation par
+// `__class_id`, seul SON PROPRE wrapper async a été généré en plus.
+//
+// Chaque test ci-dessous vérifie la VALEUR réellement retournée après
+// `resolve`, pas seulement l'absence de crash — un bug de ce mécanisme
+// pourrait tout aussi bien dispatcher vers la mauvaise implémentation.
+//
+// Types de retour tous `int` ici : un bug SÉPARÉ et préexistant
+// (`async`+retour non-`int` casse la vérification de types, statique COMME
+// instance) a été trouvé en marge et documenté à part, délibérément non
+// corrigé ici — voir docs/roadmap.d/langage-async-non-int-return-type-check.md.
+class Test_64_async_instance_method_dispatch {
+
+    // Le cas exact du ticket : classe concrète ordinaire.
+    public method plainClassAsyncInstanceMethodTest(): int {
+        var f:DoublingFetcher = use DoublingFetcher()
+        var t:int = f.fetch(21)
+        UnitTest::assertEquals(42, resolve t)
+        return 0
+    }
+
+    // Sous-classe qui surcharge une méthode async héritée — vérifie que le
+    // dispatch par identité de classe choisit bien Dog, jamais Animal.
+    public method subclassOverrideAsyncInstanceMethodTest(): int {
+        var a:Animal = use Dog()
+        var t:int = a.soundCode()
+        UnitTest::assertEquals(7, resolve t)
+        return 0
+    }
+
+    // Une variable typée par la classe de BASE directement (sans override)
+    // doit continuer à fonctionner normalement.
+    public method baseClassAsyncInstanceMethodStillWorksTest(): int {
+        var a:Animal = use Animal()
+        var t:int = a.soundCode()
+        UnitTest::assertEquals(0, resolve t)
+        return 0
+    }
+
+    // Interface `wiring`avec un contrat D'INSTANCE async — le scénario
+    // qui a mené à la découverte de ce bug.
+    public method interfaceWiringAsyncInstanceMethodTest(): int {
+        var r:Repo = use Repo()
+        var t:int = r.fetchCode()
+        UnitTest::assertEquals(99, resolve t)
+        return 0
+    }
+
+    // Même interface, classe concrète appelée directement (non-régression :
+    // le dispatch fonctionne aussi sans passer par le nom nu `wiring`).
+    public method concreteImplementationDirectAsyncInstanceMethodTest(): int {
+        var r:Repo = use ConcreteRepo()
+        var t:int = r.fetchCode()
+        UnitTest::assertEquals(99, resolve t)
+        return 0
+    }
+
+    // Type concret choisi UNIQUEMENT à l'exécution (paramètre de fonction)
+    // derrière un récepteur typé par une interface — le seul cas où un vrai
+    // dispatch par identité de classe est incontournable. Les DEUX branches
+    // sont vérifiées, pour confirmer que le dispatcher partagé choisit bien
+    // la bonne implémentation selon l'instance réelle, pas une résolution
+    // figée à la compilation.
+    public method runtimeChosenConcreteTypeAsyncInstanceMethodTest(): int {
+        var cat:Talker = pickTalker(0)
+        var t1:int = cat.speakCode()
+        UnitTest::assertEquals(1, resolve t1)
+
+        var robot:Talker = pickTalker(1)
+        var t2:int = robot.speakCode()
+        UnitTest::assertEquals(2, resolve t2)
+        return 0
+    }
+}

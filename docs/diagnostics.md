@@ -831,7 +831,7 @@ interface Repo {
 fichier.oc:3:5: error: interface 'Repo': 'wiring PostgresRepo' target class 'PostgresRepo' does not 'implements Repo'
 ```
 
-La classe visée par un `wiring` existe bien, mais ne déclare pas `implements <CetteInterface>` — la vérification complète de compatibilité de signature (E09 : arité, staticité, types des paramètres et du retour) ne s'exécute d'ailleurs QUE pour les classes qui `implements` réellement l'interface visée ; sans ce diagnostic, une classe `wiring`-ée mais incompatible ne serait jamais signalée avant de produire un mauvais résultat à l'exécution.
+La classe visée par un `wiring` existe bien, mais ne déclare pas `implements <CetteInterface>` — la vérification complète de compatibilité de signature (E09 : arité, staticité, types des paramètres et du retour) ne s'exécute d'ailleurs QUE pour les classes qui `implements` réellement l'interface visée ; sans ce diagnostic, une classe `wiring`mais incompatible ne serait jamais signalée avant de produire un mauvais résultat à l'exécution.
 
 ```ocara
 interface Repo {
@@ -855,7 +855,7 @@ class PostgresRepo {          // ❌ E40 — ne déclare pas `implements Repo`
 fichier.oc:1:1: error: alias 'NotAWiringTarget' does not match any `wiring` of interface 'Repo' (available: PostgresRepo, InMemoryRepo)
 ```
 
-`import Interface as Alias` où `Interface` déclare au moins un `wiring`, mais `Alias` ne correspond au nom simple (dernier segment du chemin pointé) d'**aucun** de ses `wiring` — voir §17.1 de l'EBNF. Un alias sur une interface `wiring`-ée n'est jamais un simple renommage cosmétique : il doit désigner sans ambiguïté l'une des implémentations concrètes déclarées.
+`import Interface as Alias` où `Interface` déclare au moins un `wiring`, mais `Alias` ne correspond au nom simple (dernier segment du chemin pointé) d'**aucun** de ses `wiring` — voir §17.1 de l'EBNF. Un alias sur une interface `wiring`n'est jamais un simple renommage cosmétique : il doit désigner sans ambiguïté l'une des implémentations concrètes déclarées.
 
 ```ocara
 // configs/Repo.oc : interface Repo { wiring PostgresRepo  wiring InMemoryRepo }

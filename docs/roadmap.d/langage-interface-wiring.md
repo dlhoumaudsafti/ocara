@@ -79,7 +79,7 @@ SuperCarSummaryRepository::all() // alias = nom simple du 2e wiring
 ### Autres points déjà tranchés (par l'utilisateur)
 
 - Conformité obligatoire (`implements` + compatibilité de signature).
-- Import implicite de chaque classe `wiring`-ée.
+- Import implicite de chaque classe visée par un `wiring`.
 - `wiring` valide uniquement dans une `interface`.
 - Diagnostics obligatoires listés (repris dans `docs/diagnostics.md`, E38-E42).
 - Portée v1 assumée : liaison 100% statique/compile-time, aucun conteneur

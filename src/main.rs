@@ -45,7 +45,7 @@ fn enqueue_wiring_imports(
             continue;
         }
 
-        // Une classe `wiring`-ée qui est DÉJÀ déclarée directement dans le
+        // Une classe `wiring`qui est DÉJÀ déclarée directement dans le
         // fichier qui vient d'être chargé (`local_pool`, typiquement
         // `mod_prog.classes` — l'usage le plus simple de `wiring` colocalise
         // l'interface et sa/ses classe(s) implémentante(s) dans le MÊME
@@ -387,7 +387,7 @@ fn main() {
                 // `local_pool = &mod_prog.classes` : nécessaire même si
                 // `import *` fusionne de toute façon TOUT `mod_prog.classes`
                 // trois lignes plus bas — SANS CE `local_pool` ICI, une classe
-                // `wiring`-ée colocalisée dans ce même fichier ne serait pas
+                // `wiring`colocalisée dans ce même fichier ne serait pas
                 // encore visible dans `program.classes` à CET instant (avant
                 // le `.extend` ci-dessous) et déclencherait à tort une
                 // tentative de fichier séparé. Le doublon temporaire que ce

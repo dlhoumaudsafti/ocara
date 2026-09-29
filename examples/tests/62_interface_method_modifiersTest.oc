@@ -10,8 +10,8 @@ import Impl from "62_interface_method_modifiers"
 // et `src/sema/tests/interface_method_modifiers.rs`, au niveau parser/sema).
 //
 // Ici : bout-en-bout, chacun des 5 mots-clés (`public`/`private`/`protected`/
-// `static`/`async`) est exercé sur une interface RÉELLEMENT `implements`-ée
-// et APPELÉE — pas seulement parsée — voir examples/62_interface_method_modifiers.oc.
+// `static`/`async`) est exercé sur une interface RÉELLEMENT implémentée
+// (`implements`) et APPELÉE — pas seulement parsée — voir examples/62_interface_method_modifiers.oc.
 //
 // `async` est exercé via `static async` (`Impl::fetchDoubled`), jamais via
 // le sucre d'instance (`obj.methode()`) : un bug préexistant et SANS RAPPORT

@@ -104,7 +104,16 @@ pub fn transitive_descendants(class_name: &str, all_classes: &[ClassDecl]) -> Ve
 /// Noms des méthodes D'INSTANCE appelables sur `class_name` (propres ou
 /// héritées en remontant `extends`) — jamais les méthodes statiques (jamais
 /// polymorphes, appelées `Class::method()` sans `self`) ni le constructeur.
-fn callable_instance_method_names(class_name: &str, all_classes: &[ClassDecl]) -> HashSet<String> {
+///
+/// `pub` (au lieu de privé à ce module) depuis
+/// docs/roadmap.d/langage-async-instance-method-dispatch-broken.md :
+/// `program.rs` en a besoin pour repérer quelles méthodes `async` ont un
+/// dispatcher `__dispatch_Classe_méthode`, afin de générer AUSSI son
+/// wrapper async (`__async_wrap___dispatch_Classe_méthode`) — le dispatcher
+/// lui-même reste 100% synchrone (voir `generate_one_class_dispatcher`),
+/// seul son wrapper a besoin d'exister pour que le site d'appel puisse le
+/// spawn comme n'importe quelle autre cible `async_funcs`.
+pub fn callable_instance_method_names(class_name: &str, all_classes: &[ClassDecl]) -> HashSet<String> {
     let mut names = HashSet::new();
     let mut current = Some(class_name.to_string());
     while let Some(c) = current {
@@ -199,9 +208,11 @@ fn generate_one_class_dispatcher(
 
 /// Trouve la déclaration de `method_name` la plus proche de `class_name` en
 /// remontant `extends` dans `all_classes` (PAS seulement les descendants) —
-/// utilisée uniquement pour connaître la signature (params/type de retour),
-/// identique pour tous les candidats.
-fn find_method_decl<'a>(class_name: &str, method_name: &str, all_classes: &'a [ClassDecl]) -> Option<&'a FuncDecl> {
+/// utilisée pour connaître la signature (params/type de retour/`is_async`),
+/// identique pour tous les candidats. `pub` depuis
+/// docs/roadmap.d/langage-async-instance-method-dispatch-broken.md — voir
+/// la doc de `callable_instance_method_names` ci-dessus, même raison.
+pub fn find_method_decl<'a>(class_name: &str, method_name: &str, all_classes: &'a [ClassDecl]) -> Option<&'a FuncDecl> {
     let mut current = all_classes.iter().find(|c| c.name == class_name);
     while let Some(decl) = current {
         for member in &decl.members {

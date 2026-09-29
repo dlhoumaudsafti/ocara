@@ -1,0 +1,88 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 64 — Dispatch d'une méthode D'INSTANCE `async` (`obj.methode()`)
+//
+// Voir docs/roadmap.d/langage-async-instance-method-dispatch-broken.md :
+// `f.fetch(21)` où `fetch` est une méthode `async` D'INSTANCE segfaultait
+// (`Classe::methode()` statique fonctionnait déjà) — corrigé. Sert de
+// support à examples/tests/64_async_instance_method_dispatchTest.oc.
+//
+// Note : les types de retour utilisés ici sont tous `int` — un bug SÉPARÉ
+// et préexistant (`async method`/`async function` dont le retour déclaré
+// N'EST PAS `int` casse la vérification de types, pour un appel statique
+// COMME d'instance) a été trouvé en marge de ce ticket et documenté à part,
+// délibérément non corrigé ici : voir
+// docs/roadmap.d/langage-async-non-int-return-type-check.md.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+
+// Cas 1 — classe concrète ordinaire, aucun héritage ni interface (le cas
+// exact du ticket).
+class DoublingFetcher {
+    public async method fetch(n:int): int {
+        return n * 2
+    }
+}
+
+// Cas 2 — sous-classe qui surcharge une méthode async héritée (dispatch par
+// identité de classe, `__dispatch_Animal_soundCode`).
+class Animal {
+    public async method soundCode(): int { return 0 }
+}
+class Dog extends Animal {
+    public async method soundCode(): int { return 7 }
+}
+
+// Cas 3 — interface `wiring`dont le contrat est une méthode D'INSTANCE
+// async (le scénario qui a mené à la découverte du bug).
+interface Repo {
+    async method fetchCode(): int
+    wiring ConcreteRepo
+}
+class ConcreteRepo implements Repo {
+    public async method fetchCode(): int { return 99 }
+}
+
+// Cas 4 — type concret choisi UNIQUEMENT à l'exécution, derrière un
+// récepteur typé par une interface (`wiring` ne résout jamais ce cas :
+// binding toujours concret et connu à la compilation).
+interface Talker {
+    async method speakCode(): int
+}
+class Cat implements Talker {
+    public async method speakCode(): int { return 1 }
+}
+class Robot implements Talker {
+    public async method speakCode(): int { return 2 }
+}
+function pickTalker(kind:int): Talker {
+    if kind equal 0 {
+        return use Cat()
+    } else {
+        return use Robot()
+    }
+}
+
+function main(): int {
+    var f:DoublingFetcher = use DoublingFetcher()
+    var t1:int = f.fetch(21)
+    IO::writeln(resolve t1)
+
+    var a:Animal = use Dog()
+    var t2:int = a.soundCode()
+    IO::writeln(resolve t2)
+
+    var r:Repo = use Repo()
+    var t3:int = r.fetchCode()
+    IO::writeln(resolve t3)
+
+    var cat:Talker = pickTalker(0)
+    var t4:int = cat.speakCode()
+    IO::writeln(resolve t4)
+
+    var robot:Talker = pickTalker(1)
+    var t5:int = robot.speakCode()
+    IO::writeln(resolve t5)
+
+    return 0
+}

@@ -369,4 +369,175 @@ mod tests {
         );
         assert_eq!(module.func_ret_class.get("computeSum"), None);
     }
+
+    // ── Appel D'INSTANCE `async` (`obj.methode()`) ──────────────────────────────
+    // docs/roadmap.d/langage-async-instance-method-dispatch-broken.md — le site
+    // d'appel du sucre d'instance n'a JAMAIS empaqueté `self`+args dans un
+    // environnement heap ni spawné de tâche, contrairement aux fonctions
+    // libres et aux appels statiques : il appelait TOUJOURS `call_target`
+    // directement et de façon SYNCHRONE, renvoyant sa vraie valeur comme si
+    // c'était déjà un task handle (SIGSEGV confirmé par reproduction+gdb :
+    // `resolve` déréférençait ensuite cette valeur comme un pointeur de
+    // handle). Corrigé en ajoutant le même mécanisme d'empaquetage/spawn déjà
+    // en place pour les deux autres formes d'appel — AUCUN second mécanisme
+    // de dispatch : le dispatcher synchrone déjà existant (héritage de classe
+    // OU interface) est réutilisé tel quel, seul SON PROPRE wrapper async a
+    // besoin d'exister.
+
+    /// Renvoie `true` si `func_name` contient un `Inst::Call` vers `target`.
+    fn calls(module: &IrModule, func_name: &str, target: &str) -> bool {
+        let func = module.functions.iter().find(|f| f.name == func_name)
+            .unwrap_or_else(|| panic!("function '{}' not found", func_name));
+        func.blocks.iter().flat_map(|b| &b.insts)
+            .any(|i| matches!(i, Inst::Call { func, .. } if func == target))
+    }
+
+    /// Renvoie le nom de fonction ciblé par le PREMIER `Inst::FuncAddr` de
+    /// `func_name` — utilisé pour vérifier QUEL wrapper un site d'appel
+    /// spawn réellement (`__task_spawn(func_addr, env_ptr)` prend l'adresse
+    /// du wrapper via `FuncAddr`, jamais son nom littéral dans `Inst::Call`).
+    fn func_addr_target<'a>(module: &'a IrModule, func_name: &str) -> &'a str {
+        let func = module.functions.iter().find(|f| f.name == func_name)
+            .unwrap_or_else(|| panic!("function '{}' not found", func_name));
+        func.blocks.iter().flat_map(|b| &b.insts)
+            .find_map(|i| match i { Inst::FuncAddr { func, .. } => Some(func.as_str()), _ => None })
+            .unwrap_or_else(|| panic!("no FuncAddr found in '{}'", func_name))
+    }
+
+    /// Le cas exact du ticket : une classe concrète ordinaire, aucun
+    /// héritage, aucune interface. `main` doit spawn une tâche
+    /// (`__task_spawn`, via l'adresse de `__async_wrap_DoublingFetcher_fetch`),
+    /// jamais appeler `DoublingFetcher_fetch` directement.
+    #[test]
+    fn async_instance_call_on_plain_class_spawns_a_task() {
+        let module = lower_src(
+            "class DoublingFetcher {\n\
+                 public async method fetch(n:int): int { return n * 2 }\n\
+             }\n\
+             function main(): int {\n\
+                 var f:DoublingFetcher = use DoublingFetcher()\n\
+                 var t:int = f.fetch(21)\n\
+                 return 0\n\
+             }\n",
+        );
+        assert!(calls(&module, "main", "__task_spawn"), "must spawn a task, not call the method directly");
+        assert!(!calls(&module, "main", "DoublingFetcher_fetch"), "must never call the sync method body directly from the call site");
+        assert_eq!(func_addr_target(&module, "main"), "__async_wrap_DoublingFetcher_fetch");
+        // Le wrapper lui-même doit exister et appeler la vraie méthode.
+        assert!(calls(&module, "__async_wrap_DoublingFetcher_fetch", "DoublingFetcher_fetch"));
+    }
+
+    /// Non-régression : une méthode D'INSTANCE non-async doit continuer à
+    /// être appelée directement, jamais spawnée.
+    #[test]
+    fn non_async_instance_call_is_never_spawned() {
+        let module = lower_src(
+            "class Circle {\n\
+                 public method shapeName(): string { return \"circle\" }\n\
+             }\n\
+             function main(): int {\n\
+                 var c:Circle = use Circle()\n\
+                 var s:string = c.shapeName()\n\
+                 return 0\n\
+             }\n",
+        );
+        assert!(calls(&module, "main", "Circle_shapeName"));
+        assert!(!calls(&module, "main", "__task_spawn"));
+    }
+
+    /// Sous-classe qui surcharge une méthode `async` héritée — dispatch par
+    /// identité de classe (`__dispatch_Animal_soundCode`, mécanisme
+    /// préexistant, voir `class_dispatch.rs`), toujours 100% synchrone :
+    /// c'est SON wrapper async à lui qui doit être spawné, et LUI doit
+    /// appeler le dispatcher (qui choisira `Dog_soundCode` à l'exécution).
+    #[test]
+    fn async_instance_call_through_class_hierarchy_dispatcher_spawns_the_dispatchers_wrapper() {
+        let module = lower_src(
+            "class Animal {\n\
+                 public async method soundCode(): int { return 0 }\n\
+             }\n\
+             class Dog extends Animal {\n\
+                 public async method soundCode(): int { return 7 }\n\
+             }\n\
+             function main(): int {\n\
+                 var a:Animal = use Dog()\n\
+                 var t:int = a.soundCode()\n\
+                 return 0\n\
+             }\n",
+        );
+        assert!(calls(&module, "main", "__task_spawn"));
+        assert_eq!(func_addr_target(&module, "main"), "__async_wrap___dispatch_Animal_soundCode");
+        // Le wrapper du dispatcher appelle le dispatcher (synchrone), jamais
+        // directement une implémentation concrète.
+        assert!(calls(&module, "__async_wrap___dispatch_Animal_soundCode", "__dispatch_Animal_soundCode"));
+        // Le dispatcher lui-même reste 100% synchrone et choisit par
+        // `__class_id` — non-régression du mécanisme déjà existant.
+        assert!(calls(&module, "__dispatch_Animal_soundCode", "Dog_soundCode"));
+        assert!(calls(&module, "__dispatch_Animal_soundCode", "Animal_soundCode"));
+    }
+
+    /// Interface `wiring`dont le contrat est une méthode D'INSTANCE
+    /// `async` — le cas qui a mené à la découverte de ce bug (voir le
+    /// ticket). Le dispatcher d'interface (`Repo_fetchCode`, préexistant,
+    /// voir `interfaces.rs`) reste 100% synchrone ; c'est SON wrapper async
+    /// qui doit être spawné.
+    #[test]
+    fn async_instance_call_through_interface_wiring_spawns_the_interface_dispatchers_wrapper() {
+        let module = lower_src(
+            "interface Repo {\n\
+                 async method fetchCode(): int\n\
+                 wiring ConcreteRepo\n\
+             }\n\
+             class ConcreteRepo implements Repo {\n\
+                 public async method fetchCode(): int { return 99 }\n\
+             }\n\
+             function main(): int {\n\
+                 var r:Repo = use Repo()\n\
+                 var t:int = r.fetchCode()\n\
+                 return 0\n\
+             }\n",
+        );
+        assert!(calls(&module, "main", "__task_spawn"));
+        assert_eq!(func_addr_target(&module, "main"), "__async_wrap_Repo_fetchCode");
+        assert!(calls(&module, "__async_wrap_Repo_fetchCode", "Repo_fetchCode"));
+        assert!(calls(&module, "Repo_fetchCode", "ConcreteRepo_fetchCode"));
+    }
+
+    /// Type concret choisi UNIQUEMENT à l'exécution (paramètre de fonction)
+    /// derrière un récepteur typé par une interface — le seul cas où un vrai
+    /// dispatch par identité de classe est incontournable, `wiring` ne
+    /// résolvant jamais ce genre de binding (toujours un type concret connu
+    /// statiquement). Deux implémenteurs, même interface : le dispatcher
+    /// doit connaître les deux, son wrapper async doit être spawné quel que
+    /// soit le récepteur réel.
+    #[test]
+    fn async_instance_call_through_runtime_determined_interface_type_spawns_the_shared_dispatcher_wrapper() {
+        let module = lower_src(
+            "interface Talker {\n\
+                 async method speakCode(): int\n\
+             }\n\
+             class Cat implements Talker {\n\
+                 public async method speakCode(): int { return 1 }\n\
+             }\n\
+             class Robot implements Talker {\n\
+                 public async method speakCode(): int { return 2 }\n\
+             }\n\
+             function pick(kind:int): Talker {\n\
+                 if kind equal 0 {\n\
+                     return use Cat()\n\
+                 } else {\n\
+                     return use Robot()\n\
+                 }\n\
+             }\n\
+             function main(): int {\n\
+                 var choice:Talker = pick(1)\n\
+                 var t:int = choice.speakCode()\n\
+                 return 0\n\
+             }\n",
+        );
+        assert!(calls(&module, "main", "__task_spawn"));
+        assert_eq!(func_addr_target(&module, "main"), "__async_wrap_Talker_speakCode");
+        assert!(calls(&module, "Talker_speakCode", "Cat_speakCode"));
+        assert!(calls(&module, "Talker_speakCode", "Robot_speakCode"));
+    }
 }
