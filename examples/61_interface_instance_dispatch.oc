@@ -1,0 +1,85 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 61 — Dispatch d'instance à travers une interface (polymorphisme)
+//
+// Voir docs/roadmap.d/langage-interface-instance-dispatch-segfault.md :
+// `var s:Shape = uneInstanceConcrete; s.methode()` segfaultait à
+// l'exécution (compilation réussie, crash au premier appel) — corrigé.
+// Sert de support à examples/tests/61_interface_instance_dispatchTest.oc
+// (import "from", convention ocaraunit : un fichier de test = une seule
+// classe, voir examples/11_interfaces.oc pour le même patron).
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+
+interface Shape {
+    method area(): float
+    method shapeName(): string
+}
+
+interface Drawable {
+    method draw(): string
+}
+
+class Circle implements Shape, Drawable {
+    private property r:float
+    init(r:float) { self.r = r }
+    public method area(): float { return 3.14 * self.r * self.r }
+    public method shapeName(): string { return "Circle" }
+    public method draw(): string { return "O" }
+}
+
+class Square implements Shape, Drawable {
+    private property side:float
+    init(side:float) { self.side = side }
+    public method area(): float { return self.side * self.side }
+    public method shapeName(): string { return "Square" }
+    public method draw(): string { return "[]" }
+}
+
+class Triangle implements Shape {
+    private property base:float
+    private property height:float
+    init(base:float, height:float) {
+        self.base = base
+        self.height = height
+    }
+    public method area(): float { return 0.5 * self.base * self.height }
+    public method shapeName(): string { return "Triangle" }
+}
+
+// Type concret choisi UNIQUEMENT à l'exécution (paramètre) — le seul cas où
+// un vrai dispatch par identité de classe est incontournable (contrairement
+// à `wiring`, dont la substitution est toujours résolue à la compilation).
+function pickShape(kind:int): Shape {
+    if kind equal 0 {
+        return use Circle(2.0)
+    } elseif kind equal 1 {
+        return use Square(3.0)
+    } else {
+        return use Triangle(4.0, 5.0)
+    }
+}
+
+function main(): int {
+    var shapes:array<Shape> = [use Circle(2.0), use Square(3.0), use Triangle(4.0, 5.0)]
+    for s in shapes {
+        IO::writeln(`${s.shapeName()}: ${s.area()}`)
+    }
+
+    var d:Drawable = use Circle(1.0)
+    IO::writeln(d.draw())
+
+    // Capturé dans une variable avant l'appel de méthode : chaîner
+    // directement sur le résultat d'une fonction LIBRE (`pickShape(0).shapeName()`)
+    // se heurte à un bug préexistant sans rapport (retourne `null`
+    // silencieusement) — voir la note dans
+    // examples/tests/61_interface_instance_dispatchTest.oc.
+    var picked0:Shape = pickShape(0)
+    var picked1:Shape = pickShape(1)
+    var picked2:Shape = pickShape(2)
+    IO::writeln(picked0.shapeName())
+    IO::writeln(picked1.shapeName())
+    IO::writeln(picked2.shapeName())
+
+    return 0
+}

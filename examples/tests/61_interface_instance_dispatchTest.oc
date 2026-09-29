@@ -1,0 +1,120 @@
+import ocara.UnitTest
+import Shape from "61_interface_instance_dispatch"
+import Drawable from "61_interface_instance_dispatch"
+import Circle from "61_interface_instance_dispatch"
+import Square from "61_interface_instance_dispatch"
+import Triangle from "61_interface_instance_dispatch"
+import pickShape from "61_interface_instance_dispatch"
+
+// SIGSEGV corrigé — voir docs/roadmap.d/langage-interface-instance-dispatch-segfault.md.
+// `var s:UneInterface = uneInstanceConcrete; s.methode()` (polymorphisme
+// d'interface ORDINAIRE, `implements`, rien à voir avec `wiring`) segfaultait
+// à l'exécution — confirmé par backtrace gdb : le crash n'était PAS dans le
+// dispatch dynamique lui-même (`Interface_méthode`, généré par
+// `generate_interface_dispatchers`, `src/lower/builder.d/interfaces.rs` —
+// qui identifiait déjà correctement la bonne classe concrète et calculait la
+// bonne valeur de retour), mais juste APRÈS : `fn_ret_types`
+// (`src/lower/builder.d/program.rs`) n'était peuplée que depuis
+// `program.classes` ("Classe_méthode"), jamais depuis `program.interfaces`
+// ("Interface_méthode") — le SITE D'APPEL de `s.methode()` retombait donc
+// sur le type de retour par défaut `IrType::Ptr`, alors que le dispatcher
+// réellement appelé retourne le VRAI type déclaré (ex. `F64` pour
+// `float`) : désaccord d'ABI Cranelift au retour d'appel (registre entier
+// vs flottant selon le type), valeur garbage silencieusement réinterprétée
+// par l'appelant. Corrigé en peuplant aussi `fn_ret_types`/
+// `module.method_param_types`/`func_default_args`/`fn_variadic_info` depuis
+// `program.interfaces`, à l'identique de ce qui existait déjà pour
+// `program.classes`.
+//
+// Ces tests ne vérifient pas seulement "ne segfault plus" : ils vérifient
+// que le dispatch appelle bien la BONNE implémentation concrète dans chaque
+// cas (plusieurs classes pour une même interface, une classe implémentant
+// plusieurs interfaces, un type concret choisi uniquement à l'exécution) —
+// un bug dans ce mécanisme pourrait tout aussi bien se manifester par
+// "appelle la mauvaise méthode" que par un crash.
+//
+// Classes/interfaces/fonction support dans examples/61_interface_instance_dispatch.oc
+// (convention ocaraunit : un fichier de test = une seule classe).
+class Test_61_interface_instance_dispatch {
+
+    // Le cas exact du ticket : une seule classe, un seul appel.
+    public method singleImplementerInstanceCallTest(): int {
+        const c:Circle = use Circle(2.0)
+        var s:Shape = c
+        UnitTest::assertEquals(12.56, s.area())
+        return 0
+    }
+
+    // Deux classes DIFFÉRENTES implémentant la MÊME interface : chaque
+    // variable interface-typée doit appeler la méthode de SA propre classe
+    // concrète, jamais celle de l'autre (vérifie le branchement par
+    // identité de classe du dispatcher, pas seulement l'absence de crash).
+    public method multipleImplementersDispatchToTheirOwnMethodTest(): int {
+        var circle:Shape = use Circle(2.0)
+        var square:Shape = use Square(3.0)
+        var triangle:Shape = use Triangle(4.0, 5.0)
+
+        UnitTest::assertEquals("Circle", circle.shapeName())
+        UnitTest::assertEquals(12.56, circle.area())
+
+        UnitTest::assertEquals("Square", square.shapeName())
+        UnitTest::assertEquals(9.0, square.area())
+
+        UnitTest::assertEquals("Triangle", triangle.shapeName())
+        UnitTest::assertEquals(10.0, triangle.area())
+        return 0
+    }
+
+    // Un `array<Shape>` mêlant plusieurs classes concrètes — motif de
+    // polymorphisme le plus courant en pratique.
+    public method arrayOfInterfaceTypedElementsDispatchesCorrectlyTest(): int {
+        var shapes:array<Shape> = [use Circle(1.0), use Square(2.0), use Triangle(2.0, 3.0)]
+
+        var total:float = 0.0
+        for s in shapes {
+            total = total + s.area()
+        }
+        // Circle: 3.14 · Square: 4.0 · Triangle: 3.0 → 10.14
+        UnitTest::assertEquals(10.14, total)
+        return 0
+    }
+
+    // Une classe implémentant PLUSIEURS interfaces : chaque interface a son
+    // propre dispatcher, tous deux doivent cibler la même instance
+    // concrète correctement.
+    public method classImplementingMultipleInterfacesTest(): int {
+        var s:Shape = use Circle(2.0)
+        var d:Drawable = use Circle(2.0)
+        UnitTest::assertEquals(12.56, s.area())
+        UnitTest::assertEquals("O", d.draw())
+        return 0
+    }
+
+    // Type concret choisi UNIQUEMENT à l'exécution (via un paramètre de
+    // fonction, `pickShape`) — le compilateur ne peut PAS résoudre la
+    // cible à la compilation ici, contrairement à `wiring`.
+    //
+    // Le résultat de `pickShape(...)` est capturé dans une variable AVANT
+    // d'appeler `.shapeName()`/`.area()` dessus — chaîner l'appel de méthode
+    // directement sur le résultat d'un appel de FONCTION LIBRE
+    // (`pickShape(0).shapeName()`) est un bug préexistant, SANS RAPPORT avec
+    // celui-ci, découvert en écrivant ce test (retourne silencieusement
+    // `null`, sans crash, y compris pour une classe concrète ordinaire sans
+    // la moindre interface en jeu — confirmé par reproduction minimale) :
+    // volontairement contourné ici plutôt que masqué, voir la note dans
+    // docs/roadmap.d/langage-interface-instance-dispatch-segfault.md.
+    public method runtimeChosenConcreteTypeDispatchesCorrectlyTest(): int {
+        var s0:Shape = pickShape(0)
+        var s1:Shape = pickShape(1)
+        var s2:Shape = pickShape(2)
+
+        UnitTest::assertEquals("Circle", s0.shapeName())
+        UnitTest::assertEquals("Square", s1.shapeName())
+        UnitTest::assertEquals("Triangle", s2.shapeName())
+
+        UnitTest::assertEquals(12.56, s0.area())
+        UnitTest::assertEquals(9.0, s1.area())
+        UnitTest::assertEquals(10.0, s2.area())
+        return 0
+    }
+}

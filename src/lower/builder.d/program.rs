@@ -147,6 +147,68 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         }
     }
 
+    // Même collecte que ci-dessus, mais pour les méthodes déclarées par une
+    // `interface` (mangled "Interface_méthode", ex. "Shape_area") — SANS
+    // CELA, un site d'appel `s.méthode()` où `s` est typé par une interface
+    // (polymorphisme classique via `implements`, RIEN À VOIR avec `wiring`)
+    // ne trouvait ni type de paramètre ni type de retour pour la fonction
+    // RÉELLEMENT appelée (le dispatcher `Interface_méthode` généré par
+    // `generate_interface_dispatchers`, voir `interfaces.rs` — un mécanisme
+    // préexistant à `wiring`, déjà correctement branché sur CE chemin
+    // d'appel : `class_dispatcher_name` (héritage de classe) renvoie `None`
+    // pour un nom d'interface, donc `call_target` retombe déjà sur
+    // `func_mangled` = "Interface_méthode" directement). `fn_ret_types` (une
+    // classe ordinaire n'obtenait pas non plus d'entrée pour un défaut
+    // "Ptr" au hasard : `program.classes` ne contenait simplement jamais de
+    // membre nommé "Shape") retombait donc sur son défaut `IrType::Ptr`,
+    // alors que le dispatcher réellement généré (`generate_interface_dispatchers`)
+    // respecte lui le VRAI type de retour déclaré (ex. `F64` pour
+    // `area(): float`) — un désaccord d'ABI Cranelift au site d'appel
+    // (convention d'appel entière vs flottante selon le type), confirmé
+    // SIGSEGV par reproduction minimale (`var s:Shape = c; s.area()`,
+    // aucun `wiring` en jeu) et par backtrace gdb (crash dans
+    // `ocara_runtime::val_to_string`, appelé avec une valeur garbage —
+    // pas dans le dispatch lui-même, qui identifie pourtant la bonne classe
+    // concrète et retourne la bonne valeur F64, simplement mal réinterprétée
+    // au retour de l'appel). Voir docs/roadmap.d/langage-interface-instance-dispatch-segfault.md.
+    for iface in &program.interfaces {
+        for method in &iface.methods {
+            let mangled = format!("{}_{}", iface.name, method.name);
+            fn_ret_types.insert(mangled.clone(), IrType::from_ast(&method.ret_ty));
+
+            if method.is_static {
+                let param_types: Vec<IrType> = method.params.iter()
+                    .map(|p| IrType::from_ast(&p.ty))
+                    .collect();
+                fn_param_types.insert(mangled.clone(), param_types);
+                fn_param_names.insert(mangled.clone(), method.params.iter().map(|p| p.name.clone()).collect());
+
+                let default_args: Vec<Option<Expr>> = method.params.iter()
+                    .map(|p| p.default_value.clone())
+                    .collect();
+                func_default_args.insert(mangled.clone(), default_args);
+
+                if let Some(last_param) = method.params.last() {
+                    if last_param.is_variadic {
+                        let fixed_count = method.params.len() - 1;
+                        let elem_ty = IrType::from_ast(&last_param.ty);
+                        fn_variadic_info.insert(mangled, (fixed_count, elem_ty));
+                    }
+                }
+            } else {
+                let param_types: Vec<IrType> = method.params.iter()
+                    .map(|p| IrType::from_ast(&p.ty))
+                    .collect();
+                module.method_param_types.insert(mangled.clone(), param_types);
+
+                let default_args: Vec<Option<Expr>> = method.params.iter()
+                    .map(|p| p.default_value.clone())
+                    .collect();
+                func_default_args.insert(mangled, default_args);
+            }
+        }
+    }
+
     // Enregistre les parents et construit les layouts (champs parents en premier)
     for class in &program.classes {
         if let Some(parent_name) = &class.extends {

@@ -234,4 +234,159 @@ mod tests {
             .expect("an instance interface method must still get a real dispatcher");
         assert_eq!(save_dispatcher.params.len(), 1, "the dispatcher's only param is 'self'");
     }
+
+    /// Cherche le premier `Inst::Call` vers `func_name` dans TOUS les blocs
+    /// de `func` — utilitaire pour les tests ci-dessous.
+    fn find_call<'a>(func: &'a IrFunction, func_name: &str) -> &'a Inst {
+        func.blocks.iter()
+            .flat_map(|b| &b.insts)
+            .find(|i| matches!(i, Inst::Call { func: f, .. } if f == func_name))
+            .unwrap_or_else(|| panic!("no call to '{}' found in function '{}'", func_name, func.name))
+    }
+
+    /// Régression — voir docs/roadmap.d/langage-interface-instance-dispatch-segfault.md :
+    /// SIGSEGV confirmé (`var s:Shape = c; s.area()`, `c:Circle implements Shape`,
+    /// aucun `wiring` en jeu — polymorphisme d'interface ORDINAIRE). Root
+    /// cause confirmée par backtrace gdb (crash dans `ocara_runtime::val_to_string`,
+    /// PAS dans le dispatcher lui-même) : `fn_ret_types` (`src/lower/builder.d/program.rs`)
+    /// n'était peuplée que depuis `program.classes` ("Classe_méthode"),
+    /// jamais depuis `program.interfaces` ("Interface_méthode") — le SITE
+    /// D'APPEL de `s.area()` (mangled "Shape_area") retombait donc sur le
+    /// défaut `IrType::Ptr` pour le `ret_ty` de son `Inst::Call`, alors que
+    /// le dispatcher RÉELLEMENT généré (`generate_one_dispatcher` ci-dessus)
+    /// respecte le VRAI type déclaré (`F64` pour `area(): float`) —
+    /// désaccord d'ABI Cranelift au retour d'appel (convention entière vs
+    /// flottante), qui produisait une valeur garbage silencieusement
+    /// réinterprétée par l'appelant. Ce test vérifie directement le point
+    /// de désaccord : le `ret_ty` du SITE D'APPEL doit correspondre au
+    /// `ret_ty` RÉEL du dispatcher appelé.
+    #[test]
+    fn call_site_ret_ty_matches_the_real_interface_dispatcher_ret_ty() {
+        let module = lower(
+            "interface Shape {\n\
+                 method area(): float\n\
+             }\n\
+             class Circle implements Shape {\n\
+                 public property r:float\n\
+                 init(r:float) { self.r = r }\n\
+                 public method area(): float { return 3.14 * self.r * self.r }\n\
+             }\n\
+             function main(): int {\n\
+                 const c:Circle = use Circle(2.0)\n\
+                 var s:Shape = c\n\
+                 var a:float = s.area()\n\
+                 return 0\n\
+             }\n",
+        );
+
+        let dispatcher = module.functions.iter().find(|f| f.name == "Shape_area")
+            .expect("the real interface dispatcher must be generated");
+        assert_eq!(dispatcher.ret_ty, IrType::F64, "area(): float must lower to a real F64 dispatcher");
+
+        let main_fn = module.functions.iter().find(|f| f.name == "main").expect("main must exist");
+        let Inst::Call { ret_ty, .. } = find_call(main_fn, "Shape_area") else { unreachable!() };
+        assert_eq!(*ret_ty, IrType::F64, "the call site must agree with the dispatcher's real return type — this exact mismatch (Ptr vs F64) caused the SIGSEGV");
+    }
+
+    /// Plusieurs classes implémentant la MÊME interface : le dispatcher
+    /// doit contenir une branche par implémenteur, chacune appelant la
+    /// bonne méthode concrète — non-régression du mécanisme de branchement
+    /// par `__class_id` déjà en place (voir `generate_one_dispatcher`),
+    /// jamais remis en cause par ce correctif (qui ne touche que la
+    /// PROPAGATION du type de retour au site d'appel, pas le dispatch
+    /// lui-même).
+    #[test]
+    fn dispatcher_branches_cover_every_implementer() {
+        let module = lower(
+            "interface Shape {\n\
+                 method area(): float\n\
+             }\n\
+             class Circle implements Shape {\n\
+                 public method area(): float { return 1.0 }\n\
+             }\n\
+             class Square implements Shape {\n\
+                 public method area(): float { return 2.0 }\n\
+             }\n\
+             class Triangle implements Shape {\n\
+                 public method area(): float { return 3.0 }\n\
+             }\n",
+        );
+
+        let dispatcher = module.functions.iter().find(|f| f.name == "Shape_area")
+            .expect("dispatcher must be generated");
+        let called: Vec<&str> = dispatcher.blocks.iter()
+            .flat_map(|b| &b.insts)
+            .filter_map(|i| match i { Inst::Call { func, .. } => Some(func.as_str()), _ => None })
+            .collect();
+        for expected in ["Circle_area", "Square_area", "Triangle_area"] {
+            assert!(called.contains(&expected), "dispatcher must call '{}', found calls: {:?}", expected, called);
+        }
+    }
+
+    /// Une classe qui `implements` PLUSIEURS interfaces : chaque interface
+    /// doit obtenir son propre dispatcher, tous deux ciblant la même classe
+    /// concrète pour leurs méthodes respectives.
+    #[test]
+    fn class_implementing_multiple_interfaces_gets_a_dispatcher_for_each() {
+        let module = lower(
+            "interface Shape {\n\
+                 method area(): float\n\
+             }\n\
+             interface Drawable {\n\
+                 method draw(): string\n\
+             }\n\
+             class Circle implements Shape, Drawable {\n\
+                 public method area(): float { return 1.0 }\n\
+                 public method draw(): string { return \"O\" }\n\
+             }\n",
+        );
+
+        let shape_dispatcher = module.functions.iter().find(|f| f.name == "Shape_area")
+            .expect("Shape's dispatcher must be generated");
+        assert_eq!(shape_dispatcher.ret_ty, IrType::F64);
+        let drawable_dispatcher = module.functions.iter().find(|f| f.name == "Drawable_draw")
+            .expect("Drawable's dispatcher must be generated");
+        assert_eq!(drawable_dispatcher.ret_ty, IrType::Ptr, "string lowers to Ptr");
+
+        for (dispatcher, callee) in [(shape_dispatcher, "Circle_area"), (drawable_dispatcher, "Circle_draw")] {
+            let calls_circle = dispatcher.blocks.iter().flat_map(|b| &b.insts)
+                .any(|i| matches!(i, Inst::Call { func, .. } if func == callee));
+            assert!(calls_circle, "{}'s dispatcher must call '{}'", dispatcher.name, callee);
+        }
+    }
+
+    /// Une méthode d'interface avec un paramètre `mixed` : le boxing d'un
+    /// argument brut (float/int/bool) au site d'appel dépend de
+    /// `module.method_param_types` (voir `param_type_for_call_arg`,
+    /// `src/lower/expr.d/lower.rs`) — jamais peuplée pour une interface
+    /// avant ce correctif (seulement `program.classes`), ce qui aurait
+    /// laissé un argument scalaire NON boxé passer là où le dispatcher
+    /// (puis la méthode concrète) attend une valeur `mixed` déjà boxée —
+    /// même famille de bug que le boxing `mixed` déjà corrigé ailleurs
+    /// dans ce compilateur (voir docs/roadmap.d/memoire-boxing-durcissement.md).
+    #[test]
+    fn interface_method_param_types_are_known_for_mixed_boxing() {
+        let module = lower(
+            "interface Sink {\n\
+                 method accept(v:mixed): void\n\
+             }\n\
+             class Logger implements Sink {\n\
+                 public method accept(v:mixed): void {\n\
+                 }\n\
+             }\n\
+             function main(): int {\n\
+                 const l:Logger = use Logger()\n\
+                 var s:Sink = l\n\
+                 s.accept(42)\n\
+                 return 0\n\
+             }\n",
+        );
+
+        assert_eq!(
+            module.method_param_types.get("Sink_accept").map(Vec::as_slice),
+            Some([IrType::Ptr].as_slice()),
+            "an interface method's own instance param types must be known (mixed lowers to Ptr), \
+             not just its implementers' — otherwise mixed-boxing at the call site has nothing to check against"
+        );
+    }
 }
