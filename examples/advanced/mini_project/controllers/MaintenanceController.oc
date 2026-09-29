@@ -3,6 +3,7 @@
 // vente estimé (services/PricingService.oc) si c'est une amélioration.
 
 import ocara.HTTPServer
+import ocara.HTTPServerRequest
 import ocara.Convert
 import ocara.String
 import models.Maintenance
@@ -10,15 +11,15 @@ import services.PricingService
 
 class MaintenanceController {
 
-    public static method create(req:int): int {
-        scoped carIdStr:string    = HTTPServer::query(req, "car_id")
+    public static method create(req:HTTPServerRequest): int {
+        scoped carIdStr:string    = req.query("car_id")
         // `const` (pas `scoped`) : Maintenance::create() les bind dans une map
         // passée à db.bind(), donc les retient au-delà de cet appel — une
         // valeur `scoped`/`consumed` ne peut pas être passée là où l'appelé la
         // retient (voir E26, docs/diagnostics.md).
-        const type:string        = HTTPServer::query(req, "type")
-        const description:string = String::trim(HTTPServer::query(req, "description"))
-        scoped costStr:string     = HTTPServer::query(req, "cost")
+        const type:string        = req.query("type")
+        const description:string = String::trim(req.query("description"))
+        scoped costStr:string     = req.query("cost")
 
         var carId:int   = Convert::strToInt(carIdStr)
         var cost:float  = Convert::strToFloat(costStr)
@@ -26,8 +27,8 @@ class MaintenanceController {
 
         scoped validType:bool = type equal "maintenance" or type equal "improvement"
         if String::empty(description) or cost smaller or equal 0.0 or not validType {
-            HTTPServer::respondHeader(req, "Location", "/voitures/detail?id=" + idStr + "&error=invalid_cost")
-            HTTPServer::respond(req, 302, "")
+            req.respondHeader("Location", "/voitures/detail?id=" + idStr + "&error=invalid_cost")
+            req.respond(302, "")
             return 0
         }
 
@@ -35,8 +36,8 @@ class MaintenanceController {
         // Recalcul complet (pas un simple +=) : voir services/PricingService.oc.
         PricingService::recalculateEstimatedPrice(carId)
 
-        HTTPServer::respondHeader(req, "Location", "/voitures/detail?id=" + idStr + "&success=maintenance_added")
-        HTTPServer::respond(req, 302, "")
+        req.respondHeader("Location", "/voitures/detail?id=" + idStr + "&success=maintenance_added")
+        req.respond(302, "")
         return 0
     }
 }

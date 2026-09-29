@@ -29,6 +29,7 @@
     - [15.1 Classes de la bibliothèque standard runtime (namespace ocara)](#151-classes-de-la-bibliothèque-standard-runtime-namespace-ocara)
 16. [Classes](#16-classes)
 17. [Interfaces](#17-interfaces)
+    - [17.1 wiring — liaison interface → implémentation à la compilation](#171-wiring--liaison-interface--implémentation-à-la-compilation)
 18. [Héritage et implémentation](#18-héritage-et-implémentation)
 19. [Modules (mixins)](#19-modules-mixins)
 20. [Génériques (generic)](#20-génériques-generic)
@@ -1121,7 +1122,7 @@ Digit  ::= [0-9]
 ```
 import    from      namespace  as         var        scoped   consumed  property  const
 function  method    class      generic    interface  extends  implements
-module    modules   init       static
+module    modules   init       static     wiring
 public    private   protected
 if        elseif    else       switch     default    match
 while     for       in         return     result     use      break     continue  self  parent
@@ -1938,7 +1939,9 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
 - **HTTPRequest** — Client HTTP pour requêtes GET/POST/PUT/DELETE/PATCH
   - `new()`, `setMethod()`, `setHeader()`, `setBody()`, `setTimeout()`, `send()`, `status()`, `body()`, `header()`, `headers()`, `ok()`, `isError()`, `error()`, `get()`, `post()`, `put()`, `delete()`, `patch()`, `close()`, `closeResponse()`
 - **HTTPServer** — Serveur HTTP multi-thread embarqué (classe d'instance)
-  - `port()`, `host()`, `workers()`, `rootPath()`, `route()`, `routeError()`, `run()`, `path()`, `method()`, `body()`, `header()`, `query()`, `respond()`, `respondHeader()`
+  - `port()`, `host()`, `workers()`, `rootPath()`, `route()`, `routeError()`, `run()`
+- **HTTPServerRequest** — Requête reçue par un handler de route `HTTPServer` (classe d'instance, voir `HTTPServer.md`)
+  - `path()`, `method()`, `body()`, `header()`, `headers()`, `query()`, `param()`, `params()`, `respond()`, `respondHeader()`
 
 #### Manipulation de données
 
@@ -2275,14 +2278,20 @@ class User {
 ## 17. Interfaces
 
 ```ebnf
-InterfaceDecl ::= "interface" Identifier "{" InterfaceMethod* "}"
+InterfaceDecl ::= "interface" Identifier "{" InterfaceMember* "}"
 
-InterfaceMethod ::= "method" Identifier "(" ParamList? ")" ":" Type
+InterfaceMember ::= InterfaceMethod | WiringDecl
+
+InterfaceMethod ::= "public"? "static"? "method" Identifier "(" ParamList? ")" ":" Type
+
+WiringDecl ::= "wiring" Identifier ( "." Identifier )*
 ```
 
 - Une interface déclare uniquement des signatures de méthodes (pas de corps).
 - Pas de champs dans une interface.
 - Une classe implémentant une interface doit fournir toutes ses méthodes.
+- `public` devant une méthode d'interface est purement cosmétique (toute méthode d'interface est publique par nature) ; `static` exige que l'implémentation soit elle-même une méthode **statique** (vérifié par E09, voir docs/diagnostics.md).
+- `wiring <chemin.pointé.vers.Classe>` lie l'interface à une classe concrète qui doit l'`implements` — voir §17.1.
 
 ```ocara
 interface Logger {
@@ -2290,6 +2299,47 @@ interface Logger {
     method error(msg:string): void
 }
 ```
+
+### 17.1 `wiring` — liaison interface → implémentation à la compilation
+
+Voir `docs/roadmap.d/langage-interface-wiring.md` pour la spécification complète (ticket fermé). `wiring` n'est valide qu'à l'intérieur d'un corps `interface`, et y est **répétable** :
+
+```ocara
+interface Repo {
+    method save(msg:string): string
+    static method create(): Repo
+
+    wiring PostgresRepo     // premier déclaré — voir la règle "nom nu" ci-dessous
+    wiring InMemoryRepo
+}
+```
+
+**Règles de résolution (100 % statique — aucun conteneur DI, aucun coût à l'exécution) :**
+
+- Chaque `wiring` agit comme un **import implicite** de la classe visée.
+- La classe visée doit déclarer `implements <CetteInterface>` — sinon erreur de compilation (classe introuvable, ou classe qui n'implémente pas l'interface).
+- **Nom nu, sans alias** (`use Repo()`, `Repo::create()`) : résout vers le **premier** `wiring` déclaré (ordre textuel) — ici `PostgresRepo`.
+- **Import aliasé** dont l'alias correspond au nom simple (dernier segment) d'un des `wiring` (`import Repo as InMemoryRepo`) : l'alias devient un substitut **complet** de cette classe concrète, PARTOUT dans le fichier qui a écrit l'alias — annotation de type, construction, appel statique — comme s'il avait importé cette classe directement sous cet alias. Un alias qui ne correspond à AUCUN `wiring` est une erreur de compilation.
+- Le nom **réel** de l'interface, utilisé comme annotation de type ordinaire (`function f(r:Repo)`), reste le type abstrait — `wiring` ne touche jamais cette position : le polymorphisme réel est intact.
+- Deux `wiring` de la même interface partageant le même nom simple sont une erreur de compilation (signalée sur l'interface elle-même).
+
+```ocara
+class PostgresRepo implements Repo {
+    public static method create(): Repo { return use PostgresRepo() }
+    public method save(msg:string): string { return `postgres:${msg}` }
+}
+class InMemoryRepo implements Repo {
+    public static method create(): Repo { return use InMemoryRepo() }
+    public method save(msg:string): string { return `memory:${msg}` }
+}
+
+function useRepo(r:Repo, msg:string): string { return r.save(msg) }   // type abstrait intact
+
+var a:Repo = use Repo()          // → PostgresRepo (premier wiring)
+var b:Repo = Repo::create()      // → PostgresRepo (premier wiring)
+```
+
+Voir `examples/60_interface_wiring.oc` et `examples/tests/60_interface_wiringTest.oc` pour un exemple exécutable complet (nom nu, alias, polymorphisme via le type abstrait).
 
 ---
 
@@ -3513,7 +3563,7 @@ GenericDecl ::= "generic" Identifier "<" TypeParams ">"
                 ( "implements" Identifier ( "," Identifier )* )?
                 ClassBody
 ModuleDecl  ::= "module" Identifier ClassBody
-InterfaceDecl ::= "interface" Identifier "{" InterfaceMethod* "}"
+InterfaceDecl ::= "interface" Identifier "{" InterfaceMember* "}"
 FuncDecl    ::= "async"? "function" Identifier "(" ParamList? ")" ":" Type Block
 
 (* ── Génériques ─────────────────────────────────────────────────── *)
@@ -3534,7 +3584,9 @@ Visibility  ::= "public" | "private" | "protected"
 
 (* ── Interface ──────────────────────────────────────────────────── *)
 
-InterfaceMethod ::= "method" Identifier "(" ParamList? ")" ":" Type
+InterfaceMember ::= InterfaceMethod | WiringDecl
+InterfaceMethod ::= "public"? "static"? "method" Identifier "(" ParamList? ")" ":" Type
+WiringDecl      ::= "wiring" Identifier ( "." Identifier )*
 
 (* ── Paramètres ─────────────────────────────────────────────────── *)
 

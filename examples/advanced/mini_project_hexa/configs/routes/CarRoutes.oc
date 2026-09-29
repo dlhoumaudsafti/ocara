@@ -1,0 +1,31 @@
+namespace configs.routes
+// examples/advanced/mini_projet/configs/routes/CarRoutes.oc
+//
+// Nommée CarRoutes (pas Car) : context.car.infra.db.Car existe déjà pour ce
+// même contexte — un nom identique aurait collisionné (deux classes "Car"
+// dans le programme fusionné, l'une écrasant silencieusement l'autre au lieu
+// d'une erreur de compilation — bug réel rencontré en testant : la création
+// d'une voiture répondait 302 succès sans jamais rien insérer en base).
+//
+// Les mutations passent désormais par POST : req.param() lit aussi bien la
+// query string qu'un corps application/x-www-form-urlencoded (voir
+// runtime/src/httpserver.rs::build_params_buckets) — la contrainte GET
+// historique (aucun parseur de corps disponible) n'existe plus. L'identifiant
+// de la voiture arrive comme un paramètre de CHEMIN typé (`<id:int>`) plutôt
+// que par la query string : le routeur rejette lui-même un id non numérique
+// (la route ne matche simplement pas, 404) avant même d'atteindre le
+// contrôleur — voir docs/roadmap.d/stdlib-httpserver-route-params.md. Le
+// "redirect after action" de CarController::create (302 vers une URL propre)
+// évite le risque habituel de resoumission au rechargement.
+
+import context.car.infra.controllers.CarController
+import context.car.infra.controllers.MaintenanceController
+import configs.Server
+
+class CarRoutes {
+    init(server:Server) {
+        server.route("/voitures/<id:int>", "GET", CarController::show)
+        server.route("/voitures/ajouter", "POST", CarController::create)
+        server.route("/voitures/<car_id:int>/entretiens", "POST", MaintenanceController::create)
+    }
+}

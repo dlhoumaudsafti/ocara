@@ -1,0 +1,11 @@
+namespace configs.routes
+// examples/advanced/mini_projet/configs/routes/Search.oc — routes de lecture (GET).
+
+import context.search.infra.controllers.SearchController
+import configs.Server
+
+class Search {
+    init(server:Server) {
+        server.route("/recherche",       "GET", SearchController::handle)
+    }
+}

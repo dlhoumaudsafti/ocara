@@ -7,7 +7,7 @@ use crate::lower::builder::LowerBuilder;
 use crate::ir::inst::Value;
 use crate::lower::expr::{lower_expr, expr_ir_type_pub};
 use super::helpers::box_for_any;
-use crate::lower::expr::helpers::{resolve_chained_field_class, is_map_target, field_offset, field_ir_type};
+use crate::lower::expr::helpers::{resolve_chained_field_class, is_map_target, field_offset, field_ir_type, elem_type_after_index};
 
 pub fn lower_assign(
     builder: &mut LowerBuilder,
@@ -71,6 +71,39 @@ pub fn lower_assign(
             // silencieux avant ça). Factorisé dans `is_map_target` (helpers.rs).
             let is_map = is_map_target(builder, object);
             let func = if is_map { "__map_set" } else { "__array_set" };
+            // Boxer `val` si l'ÉLÉMENT du conteneur est `mixed` (ou tout type
+            // qui se représente en `Ptr` auto-décrit — `mixed`/union/objet,
+            // voir IrType::from_ast) — même logique que `box_for_any` déjà
+            // appliquée à l'affectation d'une variable simple (`Expr::Ident`
+            // ci-dessus), jamais appliquée ici avant ce correctif.
+            //
+            // Bug historique corrigé : `m["clé"] = 3.14` où `m:map<string,
+            // mixed>` stockait la valeur F64 BRUTE (jamais boxée par
+            // `__box_float`) dans le slot `mixed` (i64) de la map — un
+            // bit-pattern IEEE-754 réinterprété comme un pointeur par tout
+            // consommateur `mixed` générique (`var c:float = m["clé"]`,
+            // `__mixed_to_float`), déréférencé à une adresse arbitraire :
+            // SIGSEGV. Un `bool`/`int` assez grand pour être ambigu avec un
+            // pointeur logé de la même façon dans un conteneur `mixed`
+            // partageait exactement le même défaut (jamais boxé). Type
+            // élément résolu via `elem_type_after_index` (même résolution
+            // statique — Ident/Field chaîné/Index chaîné — que la lecture,
+            // voir docs/roadmap.d/langage-index-chaine-sur-map.md) ; si le
+            // type élément ne peut pas être résolu statiquement (conteneur
+            // non couvert, ex. `getMap()[clé] = v`), `val` reste inchangé,
+            // comportement identique à avant ce correctif — jamais de
+            // régression sur un cas déjà correct (un conteneur CONCRET, dont
+            // `val` a déjà le bon type IR, n'a de toute façon jamais besoin
+            // de boxing : `box_for_any` est un no-op dès que `val_ty` est
+            // déjà celui attendu). Voir
+            // docs/roadmap.d/langage-mixed-container-indexed-assignment-boxing.md.
+            let val = match elem_type_after_index(builder, object) {
+                Some(elem_ast_ty) => {
+                    let elem_ir_ty = IrType::from_ast(&elem_ast_ty);
+                    box_for_any(builder, &elem_ir_ty, val_ty, val)
+                }
+                None => val,
+            };
             builder.emit(Inst::Call {
                 dest:   None,
                 func:   func.into(),
@@ -177,4 +210,139 @@ fn emit_incdec_step(builder: &mut LowerBuilder, op: &IncDecOp, old_val: Value, t
     };
     builder.emit(inst);
     new_val
+}
+
+/// Tests unitaires — boxing de `val` dans `lower_assign` (`Expr::Index`)
+/// quand l'ÉLÉMENT du conteneur cible est `mixed` (`m["clé"] = 3.14`, où
+/// `m:map<string,mixed>`). Voir
+/// docs/roadmap.d/langage-mixed-container-indexed-assignment-boxing.md :
+/// avant ce correctif, AUCUN boxing n'était appliqué sur ce chemin — un
+/// float/bool/int assigné par indexation dans un conteneur `mixed` stockait
+/// sa représentation IR brute (bits F64 pour un float, notamment) dans le
+/// slot `mixed` (i64) du conteneur, plus tard déréférencée comme un pointeur
+/// par tout consommateur `mixed` générique — SIGSEGV pour un float, valeur
+/// fausse silencieuse pour un `int`/`bool` de petite magnitude.
+///
+/// Ces tests vérifient la DÉCISION DE LOWERING (quel(s) appel(s) de boxing
+/// sont émis avant `__map_set`/`__array_set`), pas l'exécution réelle — même
+/// esprit que `src/lower/expr.d/tests.rs` (inspection de l'état du
+/// `LowerBuilder`/des instructions émises, sans exécuter de programme).
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lower::builder::LowerBuilder;
+    use crate::ir::module::IrModule;
+    use crate::parsing::ast::{Literal, Type};
+    use crate::parsing::token::Span;
+
+    fn span() -> Span { Span::new(0, 0) }
+    fn ident(name: &str) -> Expr { Expr::Ident(name.to_string(), span()) }
+    fn index(object: Expr, idx: Expr) -> Expr {
+        Expr::Index { object: Box::new(object), index: Box::new(idx), span: span() }
+    }
+    fn str_lit(s: &str) -> Expr { Expr::Literal(Literal::String(s.to_string()), span()) }
+    fn float_lit(f: f64) -> Expr { Expr::Literal(Literal::Float(f), span()) }
+    fn bool_lit(b: bool) -> Expr { Expr::Literal(Literal::Bool(b), span()) }
+    fn int_lit(n: i64) -> Expr { Expr::Literal(Literal::Int(n), span()) }
+
+    /// Nombre d'instructions `Call` vers `func_name`, tous blocs confondus
+    /// (ces tests ne créent jamais qu'un seul bloc, mais itérer sur tous
+    /// reste correct/robuste si ça changeait).
+    fn call_count(builder: &LowerBuilder, func_name: &str) -> usize {
+        builder.func.blocks.iter()
+            .flat_map(|b| b.insts.iter())
+            .filter(|inst| matches!(inst, Inst::Call { func, .. } if func == func_name))
+            .count()
+    }
+
+    #[test]
+    fn map_mixed_float_assignment_boxes_before_map_set() {
+        let mut module = IrModule::new("test");
+        let mut builder = LowerBuilder::new(&mut module, "test_fn".into(), vec![], IrType::Void);
+        builder.map_vars.insert("m".to_string());
+        builder.elem_ast_types.insert("m".to_string(), Type::Mixed);
+
+        lower_assign(&mut builder, &index(ident("m"), str_lit("c")), &float_lit(3.14));
+
+        assert_eq!(call_count(&builder, "__box_float"), 1, "un float assigné dans map<string,mixed> doit être boxé");
+        assert_eq!(call_count(&builder, "__map_set"), 1);
+    }
+
+    #[test]
+    fn map_mixed_bool_assignment_boxes_before_map_set() {
+        let mut module = IrModule::new("test");
+        let mut builder = LowerBuilder::new(&mut module, "test_fn".into(), vec![], IrType::Void);
+        builder.map_vars.insert("m".to_string());
+        builder.elem_ast_types.insert("m".to_string(), Type::Mixed);
+
+        lower_assign(&mut builder, &index(ident("m"), str_lit("d")), &bool_lit(true));
+
+        assert_eq!(call_count(&builder, "__box_bool"), 1, "un bool assigné dans map<string,mixed> doit être boxé");
+        assert_eq!(call_count(&builder, "__map_set"), 1);
+    }
+
+    /// Un `int` littéral assigné dans un conteneur `mixed` doit TOUJOURS
+    /// passer par `__box_int_for_mixed` — la décision de magnitude
+    /// (`box_int_if_needed`) est prise au RUNTIME, pas ici (voir la doc de
+    /// `box_for_any`) : même un petit entier émet cet appel, qui décidera
+    /// lui-même de rester brut ou non.
+    #[test]
+    fn map_mixed_int_assignment_boxes_before_map_set() {
+        let mut module = IrModule::new("test");
+        let mut builder = LowerBuilder::new(&mut module, "test_fn".into(), vec![], IrType::Void);
+        builder.map_vars.insert("m".to_string());
+        builder.elem_ast_types.insert("m".to_string(), Type::Mixed);
+
+        lower_assign(&mut builder, &index(ident("m"), str_lit("stamp")), &int_lit(1_790_255_242));
+
+        assert_eq!(call_count(&builder, "__box_int_for_mixed"), 1);
+        assert_eq!(call_count(&builder, "__map_set"), 1);
+    }
+
+    /// Même correctif, conteneur `array<mixed>` plutôt que `map<string,mixed>`
+    /// — `is_map_target` doit rester `false` (route vers `__array_set`), le
+    /// boxing doit s'appliquer identiquement aux deux formes de conteneur.
+    #[test]
+    fn array_mixed_float_assignment_boxes_before_array_set() {
+        let mut module = IrModule::new("test");
+        let mut builder = LowerBuilder::new(&mut module, "test_fn".into(), vec![], IrType::Void);
+        builder.elem_ast_types.insert("arr".to_string(), Type::Mixed);
+
+        lower_assign(&mut builder, &index(ident("arr"), int_lit(0)), &float_lit(2.5));
+
+        assert_eq!(call_count(&builder, "__box_float"), 1);
+        assert_eq!(call_count(&builder, "__array_set"), 1);
+        assert_eq!(call_count(&builder, "__map_set"), 0, "un array ne doit jamais dispatcher vers __map_set");
+    }
+
+    /// Non-régression : un conteneur CONCRET (`array<float>`, jamais
+    /// `mixed`) ne doit JAMAIS boxer — `val` a déjà le bon type IR (F64) pour
+    /// `__array_set`, un boxing ici corromprait le tableau concret.
+    #[test]
+    fn array_concrete_float_assignment_never_boxes() {
+        let mut module = IrModule::new("test");
+        let mut builder = LowerBuilder::new(&mut module, "test_fn".into(), vec![], IrType::Void);
+        builder.elem_ast_types.insert("arr".to_string(), Type::Float);
+
+        lower_assign(&mut builder, &index(ident("arr"), int_lit(0)), &float_lit(2.5));
+
+        assert_eq!(call_count(&builder, "__box_float"), 0, "array<float> concret ne doit jamais boxer");
+        assert_eq!(call_count(&builder, "__array_set"), 1);
+    }
+
+    /// Non-régression : type élément inconnu (`elem_type_after_index`
+    /// retourne `None`, ex. conteneur jamais enregistré dans
+    /// `elem_ast_types`) — comportement identique à avant ce correctif,
+    /// aucun boxing, `val` transmis inchangé.
+    #[test]
+    fn unresolvable_container_element_type_never_boxes() {
+        let mut module = IrModule::new("test");
+        let mut builder = LowerBuilder::new(&mut module, "test_fn".into(), vec![], IrType::Void);
+        // Volontairement AUCUNE entrée dans elem_ast_types pour "unknown".
+
+        lower_assign(&mut builder, &index(ident("unknown"), int_lit(0)), &float_lit(2.5));
+
+        assert_eq!(call_count(&builder, "__box_float"), 0);
+        assert_eq!(call_count(&builder, "__array_set"), 1);
+    }
 }

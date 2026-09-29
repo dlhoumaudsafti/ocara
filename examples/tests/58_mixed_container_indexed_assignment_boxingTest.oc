@@ -1,0 +1,85 @@
+import ocara.UnitTest
+
+// `conteneur[clé] = valeur` (indexation en ÉCRITURE) sur un `map<string,mixed>`/
+// `array<mixed>` ne boxait JAMAIS `valeur` avant d'appeler `__map_set`/
+// `__array_set` — contrairement à une affectation de variable simple
+// (`x = valeur`, qui passe déjà par `box_for_any`). Un `float` littéral stockait
+// donc ses bits IEEE-754 BRUTS dans le slot `mixed` (i64) du conteneur, plus
+// tard déréférencés comme un pointeur par tout consommateur `mixed` générique
+// (`var c:float = m["c"]`, `__mixed_to_float`) — SIGSEGV. Un `bool`, ou un `int`
+// assez grand pour être ambigu avec un pointeur, partageaient exactement le
+// même défaut (jamais boxés). Voir
+// docs/roadmap.d/langage-mixed-container-indexed-assignment-boxing.md.
+class Test_58_mixed_container_indexed_assignment_boxing {
+
+    // Repro exact du ticket : un float assigné dans map<string,mixed> par
+    // indexation faisait planter le PROCESSUS avant ce correctif.
+    public method mapMixedFloatAssignmentDoesNotCrashTest(): int {
+        var m:map<string, mixed> = {}
+        m["c"] = 3.14
+        var c:float = m["c"]
+        UnitTest::assertEquals(3.14, c)
+        return 0
+    }
+
+    // Tous les primitifs dans le même map<string,mixed>, y compris un int
+    // assez grand pour être ambigu avec un pointeur boxé si jamais mal boxé.
+    public method mapMixedAllPrimitivesRoundtripTest(): int {
+        var m:map<string, mixed> = {}
+        m["a"] = "hello"
+        m["b"] = 42
+        m["c"] = 3.14
+        m["d"] = true
+        m["e"] = false
+        m["f"] = 1790255242
+
+        var a:string = m["a"]
+        var b:int = m["b"]
+        var c:float = m["c"]
+        var d:bool = m["d"]
+        var e:bool = m["e"]
+        var f:int = m["f"]
+
+        UnitTest::assertEquals("hello", a)
+        UnitTest::assertEquals(42, b)
+        UnitTest::assertEquals(3.14, c)
+        UnitTest::assertTrue(d)
+        UnitTest::assertFalse(e)
+        UnitTest::assertEquals(1790255242, f)
+        return 0
+    }
+
+    // Même correctif, conteneur array<mixed> plutôt que map<string,mixed>.
+    public method arrayMixedAllPrimitivesRoundtripTest(): int {
+        var arr:array<mixed> = [1, 2, 3]
+        arr[0] = 3.14
+        arr[1] = true
+        arr[2] = 1790255242
+
+        var v0:float = arr[0]
+        var v1:bool = arr[1]
+        var v2:int = arr[2]
+        UnitTest::assertEquals(3.14, v0)
+        UnitTest::assertTrue(v1)
+        UnitTest::assertEquals(1790255242, v2)
+        return 0
+    }
+
+    // Non-régression : un conteneur CONCRET (jamais mixed) continue de
+    // fonctionner sans boxing superflu.
+    public method arrayConcreteFloatAssignmentUnaffectedTest(): int {
+        var arr:array<float> = [1.0, 2.0, 3.0]
+        arr[1] = 9.5
+        UnitTest::assertEquals(9.5, arr[1])
+        return 0
+    }
+
+    // Non-régression : un conteneur map<string,int> concret continue de
+    // fonctionner sans boxing superflu.
+    public method mapConcreteIntAssignmentUnaffectedTest(): int {
+        var m:map<string, int> = {"a": 1}
+        m["a"] = 1790255242
+        UnitTest::assertEquals(1790255242, m["a"])
+        return 0
+    }
+}

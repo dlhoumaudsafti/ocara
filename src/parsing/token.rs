@@ -47,8 +47,12 @@ impl fmt::Display for Span {
 pub enum TemplatePart {
     /// Texte brut entre les interpolations
     Literal(String),
-    /// Source brut de l'expression entre `${` et `}`
-    ExprSrc(String),
+    /// Source brut de l'expression entre `${` et `}`, avec la position réelle
+    /// de son premier caractère dans le fichier source — nécessaire pour
+    /// recaler les spans de l'expression une fois re-parsée en isolation
+    /// (voir `parser.d::expressions::parse_primary`, cas `LitTemplate`, et
+    /// `ast.d::span_shift`).
+    ExprSrc(String, Span),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -74,6 +78,7 @@ pub enum TokenKind {
     Module,
     Enum,
     Interface,
+    Wiring,
     Extends,
     Modules,
     Implements,

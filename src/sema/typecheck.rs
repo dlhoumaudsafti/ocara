@@ -1373,7 +1373,7 @@ impl<'a> TypeChecker<'a> {
                             // Une méthode static ne peut pas être appelée sur une instance
                             // SAUF pour ces classes : les méthodes sont statiques mais utilisables
                             // comme méthodes d'instance sur les variables (ex: a.trim(), arr.len(), m.size(), data.encode(), req.close(), res.status()).
-                            let allows_instance_sugar = matches!(cls_name.as_str(), "String" | "Array" | "Map" | "JSON" | "HTTPRequest" | "HTTPResponse");
+                            let allows_instance_sugar = matches!(cls_name.as_str(), "String" | "Array" | "Map" | "JSON" | "HTTPRequest" | "HTTPResponse" | "HTTPServerRequest");
                             if sig.is_static && !allows_instance_sugar {
                                 self.errors.push(SemaError::StaticOnInstance {
                                     class:  cls_name.clone(),
@@ -1553,6 +1553,24 @@ impl<'a> TypeChecker<'a> {
                     return Type::Array(Box::new(Type::Mixed));
                 }
 
+                // E38 — `Interface::method()` sur une interface sans aucun
+                // `wiring` (voir SemaError::InterfaceNoWiring et la remarque
+                // équivalente dans Expr::New ci-dessous) : `lookup_method_in_chain`
+                // ne cherche que dans `self.classes`, jamais dans les
+                // interfaces — sans ce garde-fou explicite, l'appel retombait
+                // silencieusement sur `Type::Mixed` (aucune erreur) via le
+                // fallthrough en fin de branche.
+                if let Some(iface_info) = self.symbols.lookup_interface(&resolved_class) {
+                    if iface_info.wirings.is_empty() {
+                        self.errors.push(SemaError::InterfaceNoWiring {
+                            name: resolved_class.clone(),
+                            span: span.clone(),
+                        });
+                        for a in args { self.infer_expr(a); }
+                        return Type::Mixed;
+                    }
+                }
+
                 // Chercher la méthode dans la chaîne d'héritage
                 if let Some(sig) = self.symbols.lookup_method_in_chain(&resolved_class, method) {
                     // Une méthode non-static ne peut pas être appelée via ::
@@ -1665,10 +1683,28 @@ impl<'a> TypeChecker<'a> {
                 let is_generic = self.symbols.lookup_generic(class).is_some();
                 
                 if !is_class && !is_generic {
-                    self.errors.push(SemaError::NotAClass {
-                        name: class.clone(),
-                        span: self.with_runtime_ctx(span),
-                    });
+                    // E38 — voir SemaError::InterfaceNoWiring : si `class`
+                    // désigne encore une interface à ce stade (après le
+                    // §4b-bis de main.rs, qui réécrit déjà `class` vers le
+                    // premier `wiring` dès qu'il en existe au moins un), sa
+                    // liste `wirings` (table des symboles) doit être vide —
+                    // vérifiée explicitement plutôt que supposée, pour ne
+                    // jamais masquer une régression future de §4b-bis
+                    // derrière un message d'erreur trompeur.
+                    match self.symbols.lookup_interface(class) {
+                        Some(iface_info) if iface_info.wirings.is_empty() => {
+                            self.errors.push(SemaError::InterfaceNoWiring {
+                                name: class.clone(),
+                                span: self.with_runtime_ctx(span),
+                            });
+                        }
+                        _ => {
+                            self.errors.push(SemaError::NotAClass {
+                                name: class.clone(),
+                                span: self.with_runtime_ctx(span),
+                            });
+                        }
+                    }
                 }
                 
                 // Typecheck lazy de la classe si elle n'a pas déjà été typecheckée

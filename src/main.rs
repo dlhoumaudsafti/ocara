@@ -21,6 +21,60 @@ use core::render_file::desugar_render_file;
 use core::runtime_expand::{expand_runtime_imports, get_stmt_start_line, get_stmt_end_line, update_program_spans_with_file};
 use parsing::{lexer::Lexer, parser::Parser, diagnostic, token};
 
+/// Import implicite de chaque `wiring` d'une interface qui vient d'entrer
+/// dans `program.interfaces` (voir les 3 sites d'appel dans la boucle
+/// principale — miroir du rapatriement déjà existant "classe importée →
+/// ses interfaces implémentées", ici dans l'autre sens : "interface importée
+/// → ses classes wired"). Sans ceci, une classe visée par un `wiring` mais
+/// jamais importée EXPLICITEMENT par aucun fichier consommateur ne serait
+/// jamais chargée dans le programme compilé (voir
+/// docs/roadmap.d/langage-interface-wiring.md, "Import implicite").
+fn enqueue_wiring_imports(
+    iface: &parsing::ast::InterfaceDecl,
+    parent_dir: &std::path::Path,
+    parent_namespace: &Option<String>,
+    imports_to_process: &mut Vec<(parsing::ast::ImportDecl, std::path::PathBuf, Option<String>)>,
+    program_classes: &mut Vec<parsing::ast::ClassDecl>,
+    local_pool: &[parsing::ast::ClassDecl],
+) {
+    for w in &iface.wirings {
+        let target = w.simple_name();
+
+        // Déjà fusionnée dans le programme : rien à faire.
+        if program_classes.iter().any(|c| c.name == target) {
+            continue;
+        }
+
+        // Une classe `wiring`-ée qui est DÉJÀ déclarée directement dans le
+        // fichier qui vient d'être chargé (`local_pool`, typiquement
+        // `mod_prog.classes` — l'usage le plus simple de `wiring` colocalise
+        // l'interface et sa/ses classe(s) implémentante(s) dans le MÊME
+        // fichier, comme les petits exemples illustratifs) n'a besoin
+        // d'AUCUN import de fichier séparé : elle est simplement RAPATRIÉE
+        // directement (clonée) dans `program.classes` ici — un import de
+        // fichier déclenchait sinon TOUJOURS une tentative de charger un
+        // fichier séparé du même nom (`PostgresRepo.oc`), qui n'existe pas
+        // puisque la classe est juste à côté dans le fichier déjà en main —
+        // confirmé par reproduction (`error: reading file
+        // '.../PostgresRepo.oc': No such file or directory`). Un doublon
+        // inoffensif est possible ici si `local_pool` est ENSUITE fusionné
+        // en bloc par l'appelant (import `*`) : nettoyé par le dédoublonnage
+        // de §4b, plus loin dans `main()`.
+        if let Some(local_cls) = local_pool.iter().find(|c| c.name == target) {
+            program_classes.push(local_cls.clone());
+            continue;
+        }
+
+        let virtual_imp = parsing::ast::ImportDecl {
+            path: vec![target.to_string()],
+            alias: None,
+            file_path: Some(w.path.join("/")),
+            span: w.span.clone(),
+        };
+        imports_to_process.push((virtual_imp, parent_dir.to_path_buf(), parent_namespace.clone()));
+    }
+}
+
 fn main() {
     let args = parse_args();
 
@@ -79,6 +133,21 @@ fn main() {
         println!();
     }
 
+    // Répertoire de base pour la résolution des imports — calculé ICI (avant
+    // la résolution des alias du fichier principal, pas après comme avant ce
+    // ticket) car le pré-scan `wiring` ci-dessous en a besoin.
+    let source_dir = args.src_dir.as_ref()
+        .map(|p| p.as_path())
+        .unwrap_or_else(|| args.input.parent().unwrap_or_else(|| std::path::Path::new(".")));
+
+    // Pré-scan de TOUTES les interfaces (avec leurs `wiring`) atteignables
+    // depuis le fichier principal — voir core::interface_wiring pour la
+    // raison (un alias doit connaître les `wiring` d'une interface AVANT que
+    // celle-ci ne soit chargée par la boucle principale, qui ne respecte pas
+    // un ordre de dépendance). Fait une seule fois, avant toute résolution
+    // d'alias — y compris celle du fichier principal juste en dessous.
+    let all_interfaces = core::interface_wiring::collect_all_interfaces(&program, source_dir);
+
     // Résoudre les alias d'import (`import X as Y`) du fichier PRINCIPAL —
     // voir core::alias_resolve pour la raison (renommer le symbole importé,
     // ancien comportement, cassait la résolution partout où un AUTRE
@@ -87,7 +156,7 @@ fn main() {
     // chaque fichier importé reçoit le même traitement plus bas, sur ses
     // propres imports uniquement (un alias n'est jamais visible en dehors
     // du fichier qui l'a écrit).
-    let main_file_aliases = compute_aliases(&program.imports);
+    let main_file_aliases = compute_aliases(&program.imports, &all_interfaces, &args.input);
     resolve_aliases(&mut program, &main_file_aliases);
 
     // ── 4. Vérification des imports non-builtins ──────────────────────────────
@@ -95,7 +164,7 @@ fn main() {
     // Tout autre import doit pointer vers un fichier .oc existant.
     const OCARA_BUILTINS: &[&str] = &[
         "IO", "Math", "String", "Array", "Map", "JSON", "Tauri", "SDL",
-        "Convert", "System", "Regex", "HTTPRequest", "HTTPResponse", "HTTPServer", "SQLite", "MySQL", "MariaDB", "DotEnv", "YAML", "Thread", "Mutex",
+        "Convert", "System", "Regex", "HTTPRequest", "HTTPResponse", "HTTPServer", "HTTPServerRequest", "SQLite", "MySQL", "MariaDB", "DotEnv", "YAML", "Thread", "Mutex",
         "DateTime", "Date", "Time", "UnitTest", "HTMLComponent", "HTML",
         "File", "Directory", "Exception", "FileException", "DirectoryException", "IOException", "SystemException",
         "ArrayException", "MapException", "MathException", "ConvertException", "RegexException",
@@ -104,11 +173,7 @@ fn main() {
         "UnitTestException", "HTTPServerException", "SQLiteException", "MySQLException", "MariaDBException", "DotEnvException", "YAMLException",
         "SDLException", "TauriException",
     ];
-    // Répertoire de base pour la résolution des imports
-    let source_dir = args.src_dir.as_ref()
-        .map(|p| p.as_path())
-        .unwrap_or_else(|| args.input.parent().unwrap_or_else(|| std::path::Path::new(".")));
-    
+
     // Séparer les imports en deux catégories
     let module_imports: Vec<parsing::ast::ImportDecl> = program.imports.iter()
         .filter(|imp| imp.file_path.is_none() && imp.path.first().map(|s| s.as_str()) != Some("ocara"))
@@ -203,7 +268,17 @@ fn main() {
         };
         imports_to_process.push((virtual_imp, source_dir.to_path_buf(), main_namespace.clone()));
     }
-    
+
+    // Import implicite des `wiring` d'une interface déclarée DIRECTEMENT
+    // dans le fichier principal (rare — le cas courant est une interface
+    // importée depuis un autre fichier, déjà couvert aux 3 sites d'appel de
+    // `enqueue_wiring_imports` dans la boucle ci-dessous, mais rien
+    // n'empêche `wiring` d'apparaître dans le fichier passé à `ocara build`
+    // lui-même).
+    for iface in &program.interfaces {
+        enqueue_wiring_imports(iface, source_dir, &main_namespace, &mut imports_to_process, &mut program.classes, &[]);
+    }
+
     while !imports_to_process.is_empty() {
         let (imp, parent_dir, parent_namespace) = imports_to_process.remove(0);
         let file_path_str = imp.file_path.as_ref().unwrap();
@@ -287,13 +362,20 @@ fn main() {
         // Mettre à jour tous les spans du programme importé avec le nom du fichier
         update_program_spans_with_file(&mut mod_prog, &file_path.to_string_lossy());
 
+        // Namespace de CE fichier — remonté ici (avant, calculé seulement
+        // après la fusion plus bas) : nécessaire dès maintenant pour
+        // rapatrier correctement les `wiring` d'une interface qui viendrait
+        // d'être fusionnée depuis ce fichier (voir `enqueue_wiring_imports`
+        // ci-dessous, 3 sites d'appel).
+        let loaded_namespace = mod_prog.namespace.clone();
+
         // Résoudre les alias d'import (`import X as Y`) écrits DANS ce
         // fichier lui-même, sur ses propres imports uniquement — voir
         // core::alias_resolve et le même appel plus haut pour le fichier
         // principal. Fait avant toute extraction/fusion : les symboles de
         // `mod_prog` ne portent plus jamais un alias au moment d'être
         // copiés dans `program`.
-        let mod_file_aliases = compute_aliases(&mod_prog.imports);
+        let mod_file_aliases = compute_aliases(&mod_prog.imports, &all_interfaces, &file_path);
         resolve_aliases(&mut mod_prog, &mod_file_aliases);
 
         // Extraire ce qui est demandé
@@ -301,6 +383,19 @@ fn main() {
 
         if is_wildcard {
             // import * from "file" → tout importer
+            for iface in &mod_prog.interfaces {
+                // `local_pool = &mod_prog.classes` : nécessaire même si
+                // `import *` fusionne de toute façon TOUT `mod_prog.classes`
+                // trois lignes plus bas — SANS CE `local_pool` ICI, une classe
+                // `wiring`-ée colocalisée dans ce même fichier ne serait pas
+                // encore visible dans `program.classes` à CET instant (avant
+                // le `.extend` ci-dessous) et déclencherait à tort une
+                // tentative de fichier séparé. Le doublon temporaire que ce
+                // choix peut produire (classe rapatriée ICI puis refusionnée
+                // par le `.extend`) est inoffensif : nettoyé par le
+                // dédoublonnage §4b plus loin dans `main()`.
+                enqueue_wiring_imports(iface, &current_file_dir, &loaded_namespace, &mut imports_to_process, &mut program.classes, &mod_prog.classes);
+            }
             program.classes.extend(mod_prog.classes);
             program.interfaces.extend(mod_prog.interfaces);
             program.functions.extend(mod_prog.functions);
@@ -349,6 +444,7 @@ fn main() {
                 for iface_name in &cls.implements {
                     if !program.interfaces.iter().any(|i| &i.name == iface_name) {
                         if let Some(iface) = mod_prog.interfaces.iter().find(|i| &i.name == iface_name).cloned() {
+                            enqueue_wiring_imports(&iface, &current_file_dir, &loaded_namespace, &mut imports_to_process, &mut program.classes, &mod_prog.classes);
                             program.interfaces.push(iface);
                         }
                     }
@@ -361,6 +457,7 @@ fn main() {
             }
             // Chercher l'interface
             else if let Some(iface) = mod_prog.interfaces.iter().find(|i| i.name == requested_name).cloned() {
+                enqueue_wiring_imports(&iface, &current_file_dir, &loaded_namespace, &mut imports_to_process, &mut program.classes, &mod_prog.classes);
                 program.interfaces.push(iface);
             }
             // Chercher le module
@@ -377,9 +474,6 @@ fn main() {
                 std::process::exit(1);
             }
         }
-        
-        // Récupérer le namespace du fichier chargé
-        let loaded_namespace = mod_prog.namespace.clone();
         
         // Ajouter les imports du module chargé pour traitement récursif
         for new_imp in mod_prog.imports {
@@ -445,6 +539,15 @@ fn main() {
         program.consts.retain(|c| seen.insert(c.name.clone()));
     }
 
+    // ── 4b-bis. `wiring` : substitution des noms nus (SANS alias) en position
+    // construction/appel statique vers le PREMIER wiring déclaré — voir
+    // core::interface_wiring et docs/roadmap.d/langage-interface-wiring.md.
+    // Tourne APRÈS la fusion complète (tous les `wiring` connus, aucun souci
+    // d'ordre à ce stade, contrairement à la résolution d'alias) et AVANT la
+    // construction de la table des symboles/le typecheck, pour qu'ils voient
+    // directement la classe concrète wired, jamais l'interface elle-même.
+    core::interface_wiring::resolve_bare_interface_names(&mut program, &all_interfaces);
+
     // ── 4c. Construction de la table des symboles ─────────────────────────────
     let mut symbols = SymbolTable::new();
     for decl in &program.imports    { symbols.register_import(decl); }
@@ -509,7 +612,24 @@ fn main() {
                     }
                 };
 
-                // Vérifier la signature : arité, types des paramètres, type de retour
+                // Vérifier la signature : staticité, arité, types des paramètres, type de retour
+                //
+                // `is_static` — nouveau depuis `wiring` (une interface peut
+                // désormais déclarer un contrat STATIQUE, voir
+                // `parse_interface_method`/`InterfaceMethod::is_static`,
+                // docs/roadmap.d/langage-interface-wiring.md) : cette
+                // vérification s'applique à TOUT `implements`, pas seulement
+                // aux classes visées par un `wiring` — une interface qui
+                // exige une méthode statique doit être honorée par une
+                // méthode statique, jamais d'instance, et réciproquement.
+                if class_sig.is_static != iface_sig.is_static {
+                    diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
+                        &format!("method '{}' of class '{}' does not match interface '{}': expected a {} method, found a {} method",
+                            method_name, class_decl.name, iface_name,
+                            if iface_sig.is_static { "static" } else { "instance" },
+                            if class_sig.is_static { "static" } else { "instance" }));
+                    std::process::exit(1);
+                }
                 if class_sig.params.len() != iface_sig.params.len() {
                     diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
                         &format!("method '{}' of class '{}' does not match interface '{}': expected {} parameter(s), found {}",
@@ -570,6 +690,15 @@ fn main() {
                     }
                 };
 
+                // Staticité — même remarque que pour la boucle 4d ci-dessus.
+                if class_sig.is_static != iface_sig.is_static {
+                    diagnostic::print_error(&args.input, generic_decl.span.line, generic_decl.span.col,
+                        &format!("method '{}' of generic '{}' does not match interface '{}': expected a {} method, found a {} method",
+                            method_name, generic_decl.name, iface_name,
+                            if iface_sig.is_static { "static" } else { "instance" },
+                            if class_sig.is_static { "static" } else { "instance" }));
+                    std::process::exit(1);
+                }
                 if class_sig.params.len() != iface_sig.params.len() {
                     diagnostic::print_error(&args.input, generic_decl.span.line, generic_decl.span.col,
                         &format!("method '{}' of generic '{}' does not match interface '{}': expected {} parameter(s), found {}",
@@ -593,6 +722,78 @@ fn main() {
                             type_name(&iface_sig.ret_ty), type_name(&class_sig.ret_ty)));
                     std::process::exit(1);
                 }
+            }
+        }
+    }
+
+    // ── 4d-ter. Vérification des `wiring` déclarés par les interfaces ────────
+    // Voir docs/roadmap.d/langage-interface-wiring.md. La compatibilité de
+    // SIGNATURE (arité, staticité, types de paramètres/retour) entre une
+    // classe wired et l'interface est déjà entièrement couverte par la
+    // boucle 4d ci-dessus dès lors que `implements` mentionne bien cette
+    // interface (E09) — il ne reste donc à vérifier ICI que ce que 4d ne
+    // couvre pas : l'existence de la classe cible, le fait qu'elle déclare
+    // bien `implements` cette interface (sinon 4d ne la voit jamais), et
+    // l'absence de doublon de nom simple entre les `wiring` d'une même
+    // interface (ce qui rendrait la résolution "premier gagnant" ambiguë
+    // pour la substitution d'alias, voir core::alias_resolve).
+    for iface_decl in &program.interfaces {
+        // E42 — deux `wiring` de la même interface partageant le même nom
+        // simple (dernier segment du chemin pointé) : la résolution par
+        // alias (core::alias_resolve::compute_aliases) ne pourrait plus
+        // savoir laquelle des deux cibles un alias `import Interface as X`
+        // désigne réellement. Signalé sur la déclaration de l'INTERFACE
+        // elle-même (et non sur une classe), en pointant les deux `wiring`
+        // en cause.
+        for i in 0..iface_decl.wirings.len() {
+            for j in (i + 1)..iface_decl.wirings.len() {
+                if iface_decl.wirings[i].simple_name() == iface_decl.wirings[j].simple_name() {
+                    diagnostic::print_error(&args.input, iface_decl.span.line, iface_decl.span.col,
+                        &format!("interface '{}' declares two 'wiring' targets with the same simple name '{}' ({}:{} and {}:{}) — alias resolution could not tell them apart",
+                            iface_decl.name, iface_decl.wirings[i].simple_name(),
+                            iface_decl.wirings[i].span.line, iface_decl.wirings[i].span.col,
+                            iface_decl.wirings[j].span.line, iface_decl.wirings[j].span.col));
+                    std::process::exit(1);
+                }
+            }
+        }
+
+        for wiring in &iface_decl.wirings {
+            let target_name = wiring.simple_name();
+
+            // E39 — classe cible introuvable (ni classe, ni generic connu).
+            let target_class = match symbols.lookup_class(target_name) {
+                Some(info) => info,
+                None => {
+                    if symbols.lookup_generic(target_name).is_some() {
+                        // Un `generic` n'est monomorphisé en classe concrète
+                        // qu'après ce point (voir remarque 4d-bis ci-dessus) —
+                        // `wiring` vers un `generic` nu n'a pas de sens (quelle
+                        // instanciation choisir ?), donc explicitement rejeté,
+                        // avec un message dédié plutôt que "introuvable".
+                        diagnostic::print_error(&args.input, wiring.span.line, wiring.span.col,
+                            &format!("interface '{}': 'wiring {}' targets a generic, not a concrete class — wiring a bare generic is ambiguous (which instantiation?)",
+                                iface_decl.name, target_name));
+                        std::process::exit(1);
+                    }
+                    diagnostic::print_error(&args.input, wiring.span.line, wiring.span.col,
+                        &format!("interface '{}': 'wiring {}' target class not found", iface_decl.name, target_name));
+                    std::process::exit(1);
+                }
+            };
+
+            // E40 — la classe cible n'`implements` pas (textuellement) cette
+            // interface. Sans cette vérification, la boucle 4d ne verrait
+            // JAMAIS cette classe (elle n'itère que `class_decl.implements`),
+            // et une classe wired incompatible ne serait donc jamais
+            // signalée avant de produire un mauvais résultat silencieux à
+            // l'exécution (méthode manquante → `Type::Mixed` permissif en
+            // amont, mais aucun symbole réel côté codegen).
+            if !target_class.implements.iter().any(|i| i == &iface_decl.name) {
+                diagnostic::print_error(&args.input, wiring.span.line, wiring.span.col,
+                    &format!("interface '{}': 'wiring {}' target class '{}' does not 'implements {}'",
+                        iface_decl.name, target_name, target_name, iface_decl.name));
+                std::process::exit(1);
             }
         }
     }

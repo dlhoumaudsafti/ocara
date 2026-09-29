@@ -1,0 +1,236 @@
+import ocara.UnitTest
+import ocara.HTTPServer
+import ocara.HTTPServerRequest
+import ocara.HTTPRequest
+import ocara.Thread
+import ocara.Convert
+
+// `HTTPServerRequest` — nouvelle classe remplaçant l'ancien paramètre `req:int`
+// opaque des handlers de route (voir
+// docs/roadmap.d/stdlib-httpserver-request-object.md, désormais clos) et
+// ajoutant le parsing de corps `application/x-www-form-urlencoded` et
+// `multipart/form-data` (voir
+// docs/roadmap.d/stdlib-httpserver-post-body-parsing.md, désormais clos —
+// fondu dans ce même chantier). Ce test exerce le chemin RÉEL bout-en-bout :
+// un vrai `HTTPServer` démarré dans un thread détaché, de vraies requêtes
+// `HTTPRequest` — pas une réimplémentation séparée de la logique de parsing
+// (déjà testée en isolation côté Rust, voir runtime/src/tests/httpserver.rs).
+class Test_59_httpserver_request {
+
+    // `header(name)` insensible à la casse dans les deux sens, `headers()`
+    // reflète la casse D'ORIGINE des clés (seule la RECHERCHE est insensible).
+    public method headerCaseInsensitiveAndHeadersMapTest(): int {
+        var s:HTTPServer = use HTTPServer()
+        s.port(8197)
+        s.route("/headers", "GET", nameless(req:HTTPServerRequest): int {
+            var byLower:string  = req.header("x-custom-header")
+            var byOrig:string   = req.header("X-Custom-Header")
+            var all:map<string, mixed> = req.headers()
+            var fromMap:string  = all["X-Custom-Header"]
+            req.respond(200, byLower + "|" + byOrig + "|" + fromMap)
+            return 0
+        })
+        var t:Thread = use Thread()
+        t.run(nameless(): void { s.run() })
+        t.detach()
+        Thread::sleep(300)
+
+        scoped req:HTTPRequest = HTTPRequest::new("http://localhost:8197/headers")
+        req.setMethod("GET")
+        req.setHeader("X-Custom-Header", "HelloValue")
+        scoped res:HTTPResponse = req.send()
+        UnitTest::assertEquals(200, res.status())
+        UnitTest::assertEquals("HelloValue|HelloValue|HelloValue", res.body())
+        return 0
+    }
+
+    // `query(key)` (historique) et `param(key)` (nouveau) doivent tous deux
+    // lire la query string d'une requête GET.
+    public method getQueryAndParamAgreeTest(): int {
+        var s:HTTPServer = use HTTPServer()
+        s.port(8198)
+        s.route("/getparam", "GET", nameless(req:HTTPServerRequest): int {
+            var viaQuery:string = req.query("id")
+            var viaParam:mixed  = req.param("id")
+            req.respond(200, viaQuery + "|" + viaParam)
+            return 0
+        })
+        var t:Thread = use Thread()
+        t.run(nameless(): void { s.run() })
+        t.detach()
+        Thread::sleep(300)
+
+        scoped res:HTTPResponse = HTTPRequest::get("http://localhost:8198/getparam?id=42")
+        UnitTest::assertEquals(200, res.status())
+        UnitTest::assertEquals("42|42", res.body())
+        return 0
+    }
+
+    // Corps `application/x-www-form-urlencoded` : `param(key)` doit lire le
+    // corps ; en cas de collision de clé entre la query string et le corps,
+    // le corps l'emporte (règle de précédence de `param()`) ; `params()`
+    // garde les deux buckets ("GET"/"POST") séparés et corrects.
+    public method postUrlencodedParamOverridePrecedenceTest(): int {
+        var s:HTTPServer = use HTTPServer()
+        s.port(8199)
+        s.route("/formpost", "POST", nameless(req:HTTPServerRequest): int {
+            var name:mixed     = req.param("name")
+            var overridden:mixed = req.param("shared")
+            var params:map<string, map<string, mixed>> = req.params()
+            var getBucket:map<string, mixed>  = params["GET"]
+            var postBucket:map<string, mixed> = params["POST"]
+            var sharedFromGet:mixed  = getBucket["shared"]
+            var sharedFromPost:mixed = postBucket["shared"]
+            req.respond(200, name + "|" + overridden + "|" + sharedFromGet + "|" + sharedFromPost)
+            return 0
+        })
+        var t:Thread = use Thread()
+        t.run(nameless(): void { s.run() })
+        t.detach()
+        Thread::sleep(300)
+
+        scoped req:HTTPRequest = HTTPRequest::new("http://localhost:8199/formpost?shared=fromQuery")
+        req.setMethod("POST")
+        req.setHeader("Content-Type", "application/x-www-form-urlencoded")
+        req.setBody("name=Alice&shared=fromBody")
+        scoped res:HTTPResponse = req.send()
+        UnitTest::assertEquals(200, res.status())
+        UnitTest::assertEquals("Alice|fromBody|fromQuery|fromBody", res.body())
+        return 0
+    }
+
+    // Corps `multipart/form-data` : un champ texte simple ET un champ fichier
+    // dans la même requête — `param("thefile")` doit retourner une
+    // `map<string,mixed>` avec filename/contentType/size/content.
+    public method postMultipartFieldAndFileTest(): int {
+        var s:HTTPServer = use HTTPServer()
+        s.port(8200)
+        s.route("/upload", "POST", nameless(req:HTTPServerRequest): int {
+            var field1:mixed = req.param("field1")
+            var file:map<string,mixed> = req.param("thefile")
+            var filename:string    = file["filename"]
+            var contentType:string = file["contentType"]
+            var size:int            = file["size"]
+            var content:array<int> = file["content"]
+            var firstByte:int = content[0]
+            req.respond(200, field1 + "|" + filename + "|" + contentType + "|" + Convert::intToStr(size) + "|" + Convert::intToStr(content.len()) + "|" + Convert::intToStr(firstByte))
+            return 0
+        })
+        var t:Thread = use Thread()
+        t.run(nameless(): void { s.run() })
+        t.detach()
+        Thread::sleep(300)
+
+        const boundary:string = "OcaraTestBoundary123"
+        const fileContent:string = "hello-file-bytes"
+        var body:string = "--" + boundary + "\r\n"
+        body = body + "Content-Disposition: form-data; name=\"field1\"\r\n\r\n"
+        body = body + "hello world\r\n"
+        body = body + "--" + boundary + "\r\n"
+        body = body + "Content-Disposition: form-data; name=\"thefile\"; filename=\"test.txt\"\r\n"
+        body = body + "Content-Type: text/plain\r\n\r\n"
+        body = body + fileContent + "\r\n"
+        body = body + "--" + boundary + "--\r\n"
+
+        scoped req:HTTPRequest = HTTPRequest::new("http://localhost:8200/upload")
+        req.setMethod("POST")
+        req.setHeader("Content-Type", "multipart/form-data; boundary=" + boundary)
+        req.setBody(body)
+        scoped res:HTTPResponse = req.send()
+        UnitTest::assertEquals(200, res.status())
+        // "hello world|test.txt|text/plain|16|16|104" — 16 octets dans
+        // "hello-file-bytes", premier octet 'h' = 104.
+        UnitTest::assertEquals("hello world|test.txt|text/plain|16|16|104", res.body())
+        return 0
+    }
+
+    // Paramètre de chemin (`<id:int>`, voir
+    // docs/roadmap.d/stdlib-httpserver-route-params.md) — lisible à la fois
+    // via `param("id")` (précédence par défaut, bucket "GET") et via
+    // `params()["GET"]["id"]` (accès direct au bucket) : les deux doivent
+    // s'accorder, puisque le paramètre de chemin est fusionné dans CE bucket.
+    public method pathParamReadableViaParamAndParamsTest(): int {
+        var s:HTTPServer = use HTTPServer()
+        s.port(8202)
+        s.route("/voitures/<id:int>", "GET", nameless(req:HTTPServerRequest): int {
+            var idViaParam:int = req.param("id")
+            var params:map<string, map<string, mixed>> = req.params()
+            var getBucket:map<string, mixed> = params["GET"]
+            var idViaParams:int = getBucket["id"]
+            req.respond(200, Convert::intToStr(idViaParam) + "|" + Convert::intToStr(idViaParams))
+            return 0
+        })
+        var t:Thread = use Thread()
+        t.run(nameless(): void { s.run() })
+        t.detach()
+        Thread::sleep(300)
+
+        scoped res:HTTPResponse = HTTPRequest::get("http://localhost:8202/voitures/42")
+        UnitTest::assertEquals(200, res.status())
+        UnitTest::assertEquals("42|42", res.body())
+        return 0
+    }
+
+    // Plusieurs paramètres de chemin dans la même route.
+    public method pathParamMultipleParamsInOnePathTest(): int {
+        var s:HTTPServer = use HTTPServer()
+        s.port(8203)
+        s.route("/voitures/<car_id:int>/entretiens/<id:int>", "GET", nameless(req:HTTPServerRequest): int {
+            var carId:int = req.param("car_id")
+            var id:int    = req.param("id")
+            req.respond(200, Convert::intToStr(carId) + "|" + Convert::intToStr(id))
+            return 0
+        })
+        var t:Thread = use Thread()
+        t.run(nameless(): void { s.run() })
+        t.detach()
+        Thread::sleep(300)
+
+        scoped res:HTTPResponse = HTTPRequest::get("http://localhost:8203/voitures/7/entretiens/99")
+        UnitTest::assertEquals(200, res.status())
+        UnitTest::assertEquals("7|99", res.body())
+        return 0
+    }
+
+    // Un segment qui échoue à parser selon le type déclaré (`<id:int>` contre
+    // "abc") ne matche PAS du tout cette route — repli sur 404, jamais une
+    // valeur bidon/zéro substituée.
+    public method pathParamNonMatchingFallsThroughTo404Test(): int {
+        var s:HTTPServer = use HTTPServer()
+        s.port(8204)
+        s.route("/voitures/<id:int>", "GET", nameless(req:HTTPServerRequest): int {
+            req.respond(200, "should-not-be-called")
+            return 0
+        })
+        var t:Thread = use Thread()
+        t.run(nameless(): void { s.run() })
+        t.detach()
+        Thread::sleep(300)
+
+        scoped res:HTTPResponse = HTTPRequest::get("http://localhost:8204/voitures/abc")
+        UnitTest::assertEquals(404, res.status())
+        return 0
+    }
+
+    // Précédence confirmée par l'utilisateur : un paramètre de CHEMIN
+    // l'emporte sur une query string de même clé (le chemin est plus
+    // spécifique/intentionnel).
+    public method pathParamOverridesQueryStringOnCollisionTest(): int {
+        var s:HTTPServer = use HTTPServer()
+        s.port(8205)
+        s.route("/voitures/<id:int>", "GET", nameless(req:HTTPServerRequest): int {
+            var id:mixed = req.param("id")
+            req.respond(200, "" + id)
+            return 0
+        })
+        var t:Thread = use Thread()
+        t.run(nameless(): void { s.run() })
+        t.detach()
+        Thread::sleep(300)
+
+        scoped res:HTTPResponse = HTTPRequest::get("http://localhost:8205/voitures/1?id=999")
+        UnitTest::assertEquals(200, res.status())
+        UnitTest::assertEquals("1", res.body())
+        return 0
+    }
+}

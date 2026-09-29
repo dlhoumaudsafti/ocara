@@ -305,3 +305,163 @@ fn sqlite_prepare_resets_pending_binds_from_previous_cycle() {
 fn is_ptr_for_tests(val: i64) -> bool {
     val >= 0x10000 && (val & 3) == 0
 }
+
+// ── Groupe 3 : boxing des colonnes INTEGER (SIGSEGV corrigé) ───────────────
+// docs/roadmap.d/stdlib-sqlite-integer-column-boxing.md — `collect_all_rows`
+// (query()/commit() SELECT) ET `SQLite_queryOne` stockaient la valeur `i64`
+// brute d'une colonne INTEGER dans le `mixed` de la map résultat, SANS jamais
+// passer par `box_int_if_needed`. Un entier >= PTR_THRESHOLD (0x10000) dont
+// les 2 bits bas valent 1/2/3 devient alors indiscernable d'un float/bool/int
+// BOXÉ (voir `is_float_box`/`is_bool_box`/`is_int_box`, runtime/src/lib.rs) :
+// tout consommateur `mixed` générique (`__mixed_to_int`, appelé par le
+// lowering dès qu'un résultat de requête est affecté à un `int` concret) le
+// déballe alors comme un pointeur et le DÉRÉFÉRENCE — SIGSEGV. Ces tests
+// exercent le vrai chemin FFI (`SQLite_query_1`/`SQLite_queryOne_1` sur une
+// base `:memory:`), PAS une réimplémentation séparée : avant le correctif,
+// certains d'entre eux faisaient planter le PROCESSUS de test lui-même (pas
+// juste échouer une assertion), le signal de régression le plus fort possible
+// pour ce genre de bug.
+//
+// Couvre aussi le point spécifiquement signalé comme jamais testé nulle part
+// dans ce projet avant ce ticket : le chemin MULTI-LIGNES de `db.query()`
+// (`examples/tests/55_sqlite_real_column_boxingTest.oc` et tous les repros
+// ad-hoc précédents n'inséraient jamais plus d'une ligne).
+
+/// Valeur `i64` >= `PTR_THRESHOLD` dont les 2 bits bas sont non-nuls — donc
+/// AMBIGUË avec un pointeur boxé si elle n'est jamais passée par
+/// `box_int_if_needed` avant d'être logée dans un `mixed`. Un vrai timestamp
+/// Unix réaliste (le repro original : une colonne `created_at`).
+const DANGEROUS_INT: i64 = 1_790_255_242; // & 3 == 2 → confondu avec is_bool_box
+
+#[test]
+fn dangerous_int_constant_is_actually_dangerous() {
+    // Précondition du reste de ce groupe : si cette assertion casse un jour
+    // (ex. quelqu'un change PTR_THRESHOLD), les tests suivants doivent être
+    // reconsidérés, pas silencieusement devenir des faux-négatifs.
+    assert!(DANGEROUS_INT >= 0x10000);
+    assert_eq!(DANGEROUS_INT & 3, 2, "précondition : confondu avec is_bool_box si jamais boxé");
+}
+
+#[test]
+fn sqlite_query_boxes_large_integer_column_roundtrips_without_crash() {
+    // Repro exact du ticket : une seule ligne, une colonne INTEGER dangereuse
+    // parmi d'autres colonnes (dont une REAL) — avant le correctif, ce test
+    // faisait planter le processus (SIGSEGV dans __mixed_to_int).
+    unsafe {
+        let db = open_memory_db();
+        crate::sqlite::SQLite_execute_1(db, alloc_str(
+            "CREATE TABLE maintenances (id INTEGER PRIMARY KEY, car_id INTEGER, type TEXT, description TEXT, cost REAL, created_at INTEGER)"
+        ));
+        crate::sqlite::SQLite_execute_1(db, alloc_str(&format!(
+            "INSERT INTO maintenances (car_id, type, description, cost, created_at) VALUES (1, 'improvement', 'Peinture', 500.0, {})",
+            DANGEROUS_INT
+        )));
+
+        let rows = crate::sqlite::SQLite_query_1(db, alloc_str("SELECT * FROM maintenances"));
+        assert_eq!(__array_len(rows), 1);
+        let row = __array_get(rows, 0);
+        let created_at = __map_get(row, alloc_str("created_at"));
+        // Le consommateur générique réel (affectation vers un `int` concret,
+        // voir le lowering) déballe toujours via __mixed_to_int.
+        assert_eq!(__mixed_to_int(created_at), DANGEROUS_INT);
+
+        crate::sqlite::SQLite_close(db);
+    }
+}
+
+#[test]
+fn sqlite_query_one_boxes_large_integer_column_roundtrips_without_crash() {
+    // Même correctif, chemin `queryOne` (copie séparée avant ce ticket).
+    unsafe {
+        let db = open_memory_db();
+        crate::sqlite::SQLite_execute_1(db, alloc_str("CREATE TABLE t (id INTEGER PRIMARY KEY, stamp INTEGER)"));
+        crate::sqlite::SQLite_execute_1(db, alloc_str(&format!(
+            "INSERT INTO t (stamp) VALUES ({})", DANGEROUS_INT
+        )));
+
+        let row = crate::sqlite::SQLite_queryOne_1(db, alloc_str("SELECT * FROM t"));
+        let stamp = __map_get(row, alloc_str("stamp"));
+        assert_eq!(__mixed_to_int(stamp), DANGEROUS_INT);
+
+        crate::sqlite::SQLite_close(db);
+    }
+}
+
+#[test]
+fn sqlite_query_multi_row_with_dangerous_integers_on_every_row() {
+    // Le point explicitement signalé comme jamais couvert : `db.query()` avec
+    // PLUSIEURS lignes. Chaque ligne porte une valeur dangereuse DIFFÉRENTE,
+    // couvrant les 3 tags ambigus (is_float_box/is_bool_box/is_int_box) —
+    // vérifie qu'aucune ligne n'aliase/n'écrase le boxing d'une autre (chaque
+    // `box_int_if_needed` alloue sa PROPRE cellule heap, voir runtime/src/lib.rs).
+    unsafe {
+        let db = open_memory_db();
+        crate::sqlite::SQLite_execute_1(db, alloc_str("CREATE TABLE t (id INTEGER PRIMARY KEY, big INTEGER, cost REAL, label TEXT)"));
+
+        let values: [(i64, f64, &str); 5] = [
+            (100_000, 1.5, "a"),  // & 3 == 0 (jamais ambigu)
+            (100_001, 2.5, "b"),  // & 3 == 1 → is_float_box
+            (100_002, 3.5, "c"),  // & 3 == 2 → is_bool_box
+            (100_003, 4.5, "d"),  // & 3 == 3 → is_int_box
+            (DANGEROUS_INT, 5.5, "e"),
+        ];
+        for (big, cost, label) in values.iter() {
+            crate::sqlite::SQLite_execute_1(db, alloc_str(&format!(
+                "INSERT INTO t (big, cost, label) VALUES ({}, {}, '{}')", big, cost, label
+            )));
+        }
+
+        let rows = crate::sqlite::SQLite_query_1(db, alloc_str("SELECT * FROM t ORDER BY id"));
+        assert_eq!(__array_len(rows), 5);
+        for (idx, (expected_big, expected_cost, expected_label)) in values.iter().enumerate() {
+            let row = __array_get(rows, idx as i64);
+            let big = __map_get(row, alloc_str("big"));
+            let cost = __map_get(row, alloc_str("cost"));
+            let label = __map_get(row, alloc_str("label"));
+            assert_eq!(__mixed_to_int(big), *expected_big, "ligne {idx}: colonne big corrompue");
+            assert_eq!(__mixed_to_float(cost), *expected_cost, "ligne {idx}: colonne cost corrompue");
+            assert_eq!(ptr_to_str(label), *expected_label, "ligne {idx}: colonne label corrompue");
+        }
+
+        crate::sqlite::SQLite_close(db);
+    }
+}
+
+#[test]
+fn sqlite_query_negative_large_integer_stays_raw_and_correct() {
+    // Un entier négatif n'est jamais ambigu avec un pointeur (voir la doc de
+    // `box_int_if_needed`) — reste brut quelle que soit sa magnitude, doit
+    // rester exact après un aller-retour SELECT.
+    unsafe {
+        let db = open_memory_db();
+        crate::sqlite::SQLite_execute_1(db, alloc_str("CREATE TABLE t (id INTEGER PRIMARY KEY, n INTEGER)"));
+        crate::sqlite::SQLite_execute_1(db, alloc_str("INSERT INTO t (n) VALUES (-987654321)"));
+
+        let row = crate::sqlite::SQLite_queryOne_1(db, alloc_str("SELECT * FROM t"));
+        let n = __map_get(row, alloc_str("n"));
+        assert_eq!(__mixed_to_int(n), -987654321);
+
+        crate::sqlite::SQLite_close(db);
+    }
+}
+
+#[test]
+fn sqlite_query_zero_integer_column_is_not_confused_with_null() {
+    // `0` est le second cas spécial de `box_int_if_needed` (voir sa doc) —
+    // un entier `0` authentique doit rester distinguable de `null` après un
+    // aller-retour SELECT, pas seulement les grandes magnitudes.
+    unsafe {
+        let db = open_memory_db();
+        crate::sqlite::SQLite_execute_1(db, alloc_str("CREATE TABLE t (id INTEGER PRIMARY KEY, n INTEGER, missing INTEGER)"));
+        crate::sqlite::SQLite_execute_1(db, alloc_str("INSERT INTO t (n) VALUES (0)"));
+
+        let row = crate::sqlite::SQLite_queryOne_1(db, alloc_str("SELECT * FROM t"));
+        let n = __map_get(row, alloc_str("n"));
+        let missing = __map_get(row, alloc_str("missing"));
+        assert_ne!(n, 0, "0 authentique ne doit jamais être le pointeur nul (donc jamais confondu avec NULL)");
+        assert_eq!(__mixed_to_int(n), 0);
+        assert_eq!(missing, 0, "une colonne NULL reste le pointeur nul (0)");
+
+        crate::sqlite::SQLite_close(db);
+    }
+}

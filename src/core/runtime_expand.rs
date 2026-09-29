@@ -308,8 +308,20 @@ pub fn update_program_spans_with_file(program: &mut ast::Program, file_path: &st
                     update_expr_spans(&mut arm.body, file);
                 }
             }
-            Expr::Template { span, .. } => {
+            Expr::Template { parts, span } => {
                 update_span(span, file);
+                // Les expressions interpolées (`${...}`) ont leur PROPRE
+                // span (voir ast.d::span_shift, qui corrige leur ligne/colonne
+                // juste après le parsing) — sans cette récursion, leur champ
+                // `file` restait toujours `None`, faisant retomber tout
+                // diagnostic les concernant sur le fichier d'entrée passé à
+                // `ocara build` au lieu du fichier réel où vit ce template
+                // (voir docs/roadmap.d/langage-template-interpolation-span-position.md).
+                for part in parts {
+                    if let ast::TemplatePartExpr::Expr(inner) = part {
+                        update_expr_spans(inner, file);
+                    }
+                }
             }
             Expr::Nameless { body, span, .. } => {
                 update_span(span, file);
@@ -516,5 +528,36 @@ pub fn update_program_spans_with_file(program: &mut ast::Program, file_path: &st
                 _ => {}
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parsing::ast::{Expr, Stmt, TemplatePartExpr};
+
+    fn parse(src: &str) -> ast::Program {
+        let tokens = Lexer::new(src).tokenize().expect("lex");
+        Parser::new(tokens).parse_program().expect("parse")
+    }
+
+    #[test]
+    fn template_interpolation_gets_file_stamped() {
+        let mut program = parse(
+            "function f(): string {\n    return `x ${y} z`\n}\n",
+        );
+        update_program_spans_with_file(&mut program, "helper/Alert.oc");
+
+        let func = &program.functions[0];
+        let Stmt::Return { value: Some(expr), .. } = &func.body.stmts[0] else {
+            panic!("expected a return statement");
+        };
+        let Expr::Template { parts, .. } = expr else {
+            panic!("expected Expr::Template");
+        };
+        let TemplatePartExpr::Expr(inner) = &parts[1] else {
+            panic!("expected the interpolated part");
+        };
+        assert_eq!(inner.span().file.as_deref(), Some("helper/Alert.oc"));
     }
 }

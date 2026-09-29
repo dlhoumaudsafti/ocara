@@ -8,6 +8,7 @@
 /// complet — voir `examples/project/tests/AliasClassInheritanceTest.oc` pour
 /// une vérification de bout en bout (compilation + exécution réelle).
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use crate::core::alias_resolve::{compute_aliases, resolve_aliases};
 use crate::parsing::ast::*;
 use crate::parsing::token::Span;
@@ -28,14 +29,42 @@ fn import(path: &[&str], alias: Option<&str>) -> ImportDecl {
     }
 }
 
+/// Chemin factice — `compute_aliases` ne s'en sert que pour situer un
+/// diagnostic (`E41`), jamais lu sur le disque dans les tests ci-dessous
+/// (aucun d'eux ne déclenche cette branche d'erreur, qui appelle
+/// `std::process::exit(1)` et n'est donc volontairement PAS unit-testée ici
+/// — voir docs/roadmap.d/langage-interface-wiring.md, vérifiée manuellement
+/// à la place, comme les autres diagnostics `exit(1)` de ce compilateur).
+fn dummy_file() -> PathBuf { Path::new("<test>").to_path_buf() }
+
+/// Construit une `InterfaceDecl` minimale (sans méthode) portant les
+/// `wiring` donnés, dans l'ORDRE textuel fourni — utilisé pour peupler la
+/// map `all_interfaces` attendue par `compute_aliases`.
+fn iface_with_wirings(name: &str, wiring_targets: &[&str]) -> InterfaceDecl {
+    InterfaceDecl {
+        name: name.to_string(),
+        methods: vec![],
+        wirings: wiring_targets.iter().map(|t| WiringDecl {
+            path: t.split('.').map(str::to_string).collect(),
+            span: span(),
+        }).collect(),
+        span: span(),
+    }
+}
+
+fn all_interfaces(ifaces: &[InterfaceDecl]) -> HashMap<String, InterfaceDecl> {
+    ifaces.iter().map(|i| (i.name.clone(), i.clone())).collect()
+}
+
 // ── compute_aliases ─────────────────────────────────────────────────────────
 
 /// `import configs.Server as HTTP` → alias "HTTP" mappé vers le DERNIER
-/// segment du chemin ("Server"), pas le chemin complet.
+/// segment du chemin ("Server"), pas le chemin complet. Aucune interface
+/// connue sous ce nom : comportement historique (simple renommage cosmétique).
 #[test]
 fn compute_aliases_maps_alias_to_last_path_segment() {
     let imports = vec![import(&["configs", "Server"], Some("HTTP"))];
-    let map = compute_aliases(&imports);
+    let map = compute_aliases(&imports, &HashMap::new(), &dummy_file());
     assert_eq!(map.get("HTTP"), Some(&"Server".to_string()));
     assert_eq!(map.len(), 1);
 }
@@ -44,7 +73,7 @@ fn compute_aliases_maps_alias_to_last_path_segment() {
 #[test]
 fn compute_aliases_ignores_imports_without_alias() {
     let imports = vec![import(&["configs", "Server"], None)];
-    assert!(compute_aliases(&imports).is_empty());
+    assert!(compute_aliases(&imports, &HashMap::new(), &dummy_file()).is_empty());
 }
 
 /// `import X as X` (alias identique au nom réel, cas dégénéré mais possible
@@ -54,7 +83,55 @@ fn compute_aliases_ignores_imports_without_alias() {
 #[test]
 fn compute_aliases_ignores_alias_identical_to_real_name() {
     let imports = vec![import(&["Server"], Some("Server"))];
-    assert!(compute_aliases(&imports).is_empty());
+    assert!(compute_aliases(&imports, &HashMap::new(), &dummy_file()).is_empty());
+}
+
+// ── compute_aliases : interfaces `wiring` (docs/roadmap.d/langage-interface-wiring.md) ──
+
+/// `import Repo as PostgresRepo` où "PostgresRepo" est le nom simple du
+/// PREMIER `wiring` de l'interface "Repo" → l'alias doit résoudre vers la
+/// classe CONCRÈTE, pas vers l'interface elle-même.
+#[test]
+fn compute_aliases_maps_to_wiring_target_when_alias_matches_first_wiring() {
+    let imports = vec![import(&["app", "Repo"], Some("PostgresRepo"))];
+    let ifaces = all_interfaces(&[iface_with_wirings("Repo", &["infra.db.PostgresRepo", "infra.mem.InMemoryRepo"])]);
+    let map = compute_aliases(&imports, &ifaces, &dummy_file());
+    assert_eq!(map.get("PostgresRepo"), Some(&"PostgresRepo".to_string()));
+}
+
+/// Même chose, mais l'alias correspond au SECOND `wiring`, pas le premier —
+/// la résolution "premier wiring" ne s'applique qu'au nom NU (bare-name,
+/// `core::interface_wiring::resolve_bare_interface_names`), jamais à un
+/// alias explicite : un alias doit pouvoir viser N'IMPORTE LEQUEL des
+/// `wiring` déclarés, par son propre nom simple.
+#[test]
+fn compute_aliases_maps_to_wiring_target_when_alias_matches_second_wiring() {
+    let imports = vec![import(&["app", "Repo"], Some("InMemoryRepo"))];
+    let ifaces = all_interfaces(&[iface_with_wirings("Repo", &["infra.db.PostgresRepo", "infra.mem.InMemoryRepo"])]);
+    let map = compute_aliases(&imports, &ifaces, &dummy_file());
+    assert_eq!(map.get("InMemoryRepo"), Some(&"InMemoryRepo".to_string()));
+}
+
+/// Une interface CONNUE mais sans aucun `wiring` : l'alias reste un simple
+/// renommage cosmétique vers le nom réel de l'interface elle-même (aucune
+/// substitution, comportement historique inchangé).
+#[test]
+fn compute_aliases_falls_back_to_real_name_when_interface_has_no_wirings() {
+    let imports = vec![import(&["app", "Logger"], Some("Log"))];
+    let ifaces = all_interfaces(&[iface_with_wirings("Logger", &[])]);
+    let map = compute_aliases(&imports, &ifaces, &dummy_file());
+    assert_eq!(map.get("Log"), Some(&"Logger".to_string()));
+}
+
+/// Un alias vers une classe/generic ordinaire (jamais présente dans
+/// `all_interfaces`, qui n'indexe QUE les interfaces) : comportement
+/// historique inchangé, la map de `wiring` n'entre jamais en jeu.
+#[test]
+fn compute_aliases_ignores_unrelated_symbols_not_in_interfaces_map() {
+    let imports = vec![import(&["models", "User"], Some("Model"))];
+    let ifaces = all_interfaces(&[iface_with_wirings("Repo", &["infra.db.PostgresRepo"])]);
+    let map = compute_aliases(&imports, &ifaces, &dummy_file());
+    assert_eq!(map.get("Model"), Some(&"User".to_string()));
 }
 
 // ── resolve_aliases : types de paramètre / extends / implements ────────────

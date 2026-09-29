@@ -1,5 +1,6 @@
 import ocara.UnitTest
 import ocara.HTTPServer
+import ocara.HTTPServerRequest
 import ocara.HTTPRequest
 import ocara.Thread
 
@@ -25,8 +26,8 @@ class Test_54_httprequest_chained_method {
     public method chainedGetOkIsTrueOnSuccessTest(): int {
         var s:HTTPServer = use HTTPServer()
         s.port(8196)
-        s.route("/health", "GET", nameless(req:int): int {
-            HTTPServer::respond(req, 200, "ok")
+        s.route("/health", "GET", nameless(req:HTTPServerRequest): int {
+            req.respond(200, "ok")
             return 0
         })
         var t:Thread = use Thread()
@@ -52,8 +53,8 @@ class Test_54_httprequest_chained_method {
     public method chainedGetStatusIsCorrectTest(): int {
         var s:HTTPServer = use HTTPServer()
         s.port(8195)
-        s.route("/health", "GET", nameless(req:int): int {
-            HTTPServer::respond(req, 200, "ok")
+        s.route("/health", "GET", nameless(req:HTTPServerRequest): int {
+            req.respond(200, "ok")
             return 0
         })
         var t:Thread = use Thread()

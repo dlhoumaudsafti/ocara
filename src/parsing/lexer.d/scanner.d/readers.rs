@@ -72,6 +72,10 @@ impl Lexer {
                     }
                     self.advance(); // '$'
                     self.advance(); // '{'
+                    // Position réelle du premier caractère de l'expression —
+                    // nécessaire pour recaler ses spans après le re-parsing
+                    // isolé (voir ast.d::span_shift, parser.d::expressions).
+                    let expr_start = self.span();
                     // Lire jusqu'au '}' en comptant les accolades imbriquées
                     let mut expr_src = String::new();
                     let mut depth: usize = 1;
@@ -91,7 +95,7 @@ impl Lexer {
                             Some(c) => { expr_src.push(c); self.advance(); }
                         }
                     }
-                    parts.push(TemplatePart::ExprSrc(expr_src));
+                    parts.push(TemplatePart::ExprSrc(expr_src, expr_start));
                 }
                 Some('\\') => {
                     self.advance();

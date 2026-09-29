@@ -1,0 +1,34 @@
+namespace context.home.domain.entity
+
+// Modèle de lecture propre à ce contexte (tableau de bord) — n'est PAS
+// context.car.domain.entity.CarEntity : ce contexte n'a besoin que d'un
+// résumé déjà agrégé (total d'entretiens inclus) pour l'affichage de chaque
+// carte, jamais d'écrire quoi que ce soit.
+
+class CarSummaryEntity {
+    public property id:int
+    public property reference:string
+    public property brand:string
+    public property model:string
+    public property purchasePrice:float
+    public property estimatedPrice:float
+    public property maintenanceTotal:float
+
+    init(
+        id:int,
+        reference:string,
+        brand:string,
+        model:string,
+        purchasePrice:float,
+        estimatedPrice:float,
+        maintenanceTotal:float
+    ) {
+        self.id = id
+        self.reference = reference
+        self.brand = brand
+        self.model = model
+        self.purchasePrice = purchasePrice
+        self.estimatedPrice = estimatedPrice
+        self.maintenanceTotal = maintenanceTotal
+    }
+}

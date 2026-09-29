@@ -2711,21 +2711,19 @@ pub extern "C" fn __alloc_fat_ptr() -> i64 {
 // `__locked_cell_get`/`__locked_cell_set` remplacent tout accès direct
 // (Load/Store) à une variable capturée dans le lowering.
 //
-// Mutex séparé de celui de `ocara.Mutex` (mutex.rs) : plus petit, à usage
-// interne uniquement (jamais exposé au langage), pas de gestion d'exception.
-
-#[cfg(target_os = "linux")]
-type CapturedCellMutex = [u8; 40];
-#[cfg(target_os = "macos")]
-type CapturedCellMutex = [u8; 64];
-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
-type CapturedCellMutex = [u8; 64];
-
-unsafe extern "C" {
-    fn pthread_mutex_init(mutex: *mut CapturedCellMutex, attr: *const u8) -> i32;
-    fn pthread_mutex_lock(mutex: *mut CapturedCellMutex) -> i32;
-    fn pthread_mutex_unlock(mutex: *mut CapturedCellMutex) -> i32;
-}
+// Mutex séparé de celui de `ocara.Mutex` (mutex.rs) : plus petit (pas de
+// support trylock/destroy, jamais nécessaire ici), à usage interne uniquement
+// (jamais exposé au langage), pas de gestion d'exception. Réutilise le même
+// module `platform` que `ocara.Mutex` (pthread_mutex sur Unix,
+// CRITICAL_SECTION sur Windows, voir mutex.rs) plutôt qu'un tableau d'octets
+// hardcodé par plateforme redéclaré ici séparément — c'était le cas avant
+// (`[u8;40]` Linux / `[u8;64]` macOS/repli), jamais vérifié contre la vraie
+// taille ABI (même risque que documenté dans mutex.rs), et de toute façon
+// jamais correct sur Windows (aucune fonction `pthread_mutex_*` n'y existe,
+// confirmé par échec de lien réel en cross-compilant vers
+// `x86_64-pc-windows-gnu` — voir docs/roadmap.d/packaging-windows.md).
+use crate::mutex::platform as cell_mutex_platform;
+type CapturedCellMutex = cell_mutex_platform::RawMutex;
 
 const CAPTURED_CELL_MUTEX_SIZE: usize = std::mem::size_of::<CapturedCellMutex>();
 
@@ -2740,7 +2738,7 @@ pub extern "C" fn __alloc_locked_cell() -> i64 {
         let layout = Layout::from_size_align(total, 8).unwrap();
         let raw = alloc_zeroed(layout);
         assert!(!raw.is_null(), "ocara_runtime: OOM in __alloc_locked_cell");
-        pthread_mutex_init(raw as *mut CapturedCellMutex, std::ptr::null());
+        cell_mutex_platform::init(raw as *mut CapturedCellMutex);
         (raw as i64) + CAPTURED_CELL_MUTEX_SIZE as i64
     }
 }
@@ -2750,9 +2748,9 @@ pub extern "C" fn __alloc_locked_cell() -> i64 {
 pub extern "C" fn __locked_cell_get(cell_ptr: i64) -> i64 {
     unsafe {
         let mutex_ptr = (cell_ptr - CAPTURED_CELL_MUTEX_SIZE as i64) as *mut CapturedCellMutex;
-        pthread_mutex_lock(mutex_ptr);
+        cell_mutex_platform::lock(mutex_ptr);
         let val = *(cell_ptr as *const i64);
-        pthread_mutex_unlock(mutex_ptr);
+        cell_mutex_platform::unlock(mutex_ptr);
         val
     }
 }
@@ -2762,9 +2760,9 @@ pub extern "C" fn __locked_cell_get(cell_ptr: i64) -> i64 {
 pub extern "C" fn __locked_cell_set(cell_ptr: i64, val: i64) {
     unsafe {
         let mutex_ptr = (cell_ptr - CAPTURED_CELL_MUTEX_SIZE as i64) as *mut CapturedCellMutex;
-        pthread_mutex_lock(mutex_ptr);
+        cell_mutex_platform::lock(mutex_ptr);
         *(cell_ptr as *mut i64) = val;
-        pthread_mutex_unlock(mutex_ptr);
+        cell_mutex_platform::unlock(mutex_ptr);
     }
 }
 

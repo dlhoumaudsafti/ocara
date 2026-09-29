@@ -1,12 +1,17 @@
-# ocara.HTTPServer
+# ocara.HTTPServer / ocara.HTTPServerRequest
 
 Serveur HTTP multi-connexions intégré dans le runtime Ocara. Basé sur `tiny_http`, il accepte plusieurs connexions simultanées via un pool de threads.
+
+`HTTPServer` gère la configuration et le cycle de vie du serveur. Chaque requête reçue par un handler est représentée par un objet **`HTTPServerRequest`** — une classe dédiée (pas un entier opaque comme avant, voir la note historique en bas de page) qui donne accès au chemin, aux en-têtes, au corps, aux paramètres (query string ET corps `urlencoded`/`multipart`), et permet de construire la réponse.
 
 ## Import
 
 ```ocara
 import ocara.HTTPServer
+import ocara.HTTPServerRequest
 ```
+
+`HTTPServerRequest` doit être importé séparément dès qu'un handler l'utilise comme type de paramètre (`nameless(req:HTTPServerRequest): int { ... }`) ou appelle une de ses méthodes.
 
 ## Création & configuration
 
@@ -26,16 +31,44 @@ server.rootPath("./public") // répertoire pour fichiers statiques (optionnel)
 server.route(path:string, method:string, handler:Function)
 ```
 
-- **`path`** : chemin exact, ex. `"/"`, `"/api/users"`.
+- **`path`** : chemin exact (`"/"`, `"/api/users"`) ou un chemin avec des **paramètres de segment** (voir ci-dessous).
 - **`method`** : méthode HTTP en majuscules, ex. `"GET"`, `"POST"`.
-- **`handler`** : closure ou référence de fonction `nameless(req:int): int { … }`.
+- **`handler`** : closure ou référence de fonction `nameless(req:HTTPServerRequest): int { … }`.
 
 ```ocara
-server.route("/", "GET", nameless(req:int): int {
-    HTTPServer::respond(req, 200, "Hello World")
+server.route("/", "GET", nameless(req:HTTPServerRequest): int {
+    req.respond(200, "Hello World")
     return 0
 })
 ```
+
+### Paramètres de chemin — `<nom:type>`
+
+Un segment de chemin entre `<` et `>` capture une portion de l'URL, la valide selon le type déclaré, et l'expose côté handler via `req.param(nom)`/`req.params()` (voir « Paramètres unifiés » plus bas — un paramètre de chemin est fusionné dans le bucket `"GET"`, exactement comme un paramètre de query string).
+
+```ocara
+server.route("/voitures/<id:int>", "GET", nameless(req:HTTPServerRequest): int {
+    var id:int = req.param("id")   // déjà un int — parsé/validé par le routeur
+    req.respond(200, `Voiture #${id}`)
+    return 0
+})
+```
+
+Types supportés : `int`, `float`, `bool` (`"true"`/`"false"` uniquement), `string` (accepte n'importe quel texte, décodé URL). Un chemin peut contenir plusieurs paramètres, éventuellement mêlés à des segments littéraux :
+
+```ocara
+server.route("/voitures/<car_id:int>/entretiens", "POST", nameless(req:HTTPServerRequest): int {
+    var carId:int = req.param("car_id")
+    // ...
+    return 0
+})
+```
+
+**Si un segment ne correspond pas au type déclaré, la route entière ne matche PAS** — pas de valeur `0`/vide substituée, pas d'erreur non gérée : la requête retombe simplement sur la route suivante (ou sur une 404 si aucune route ne matche). Concrètement, `GET /voitures/abc` contre une route `/voitures/<id:int>` ne déclenche jamais ce handler ; si une AUTRE route littérale existe pour le même chemin exact (ex. `/voitures/ajouter`), c'est elle qui matche — aucune règle de priorité "route statique avant route dynamique" à connaître : un segment littéral ne matche simplement jamais un paramètre typé qui échouerait à le parser.
+
+Le nombre de segments doit correspondre EXACTEMENT : `/voitures/<id:int>` ne matche pas `/voitures/1/extra`.
+
+> **Compilé une seule fois** — chaque pattern de route (`<...>` compris) est analysé à l'enregistrement (`server.route(...)`), jamais reparsé à chaque requête entrante.
 
 ## Pages d'erreur personnalisées
 
@@ -49,8 +82,8 @@ server.routeError(code:int, handler:Function)
 - **`handler`** : closure appelée quand ce code d'erreur est déclenché
 
 ```ocara
-server.routeError(404, nameless(req:int): int {
-    var path:string = HTTPServer::path(req)
+server.routeError(404, nameless(req:HTTPServerRequest): int {
+    var path:string = req.path()
     var html:string = `<!DOCTYPE html>
 <html>
     <head><title>404 - Page non trouvée</title></head>
@@ -59,7 +92,7 @@ server.routeError(404, nameless(req:int): int {
         <p>La page ${path} n'existe pas.</p>
     </body>
 </html>`
-    HTTPServer::respond(req, 404, html)
+    req.respond(404, html)
     return 0
 })
 ```
@@ -79,15 +112,15 @@ Vous pouvez le remplacer avec `respondHeader` :
 
 ```ocara
 // Réponse HTML (Content-Type automatique)
-server.route("/page", "GET", nameless(req:int): int {
-    HTTPServer::respond(req, 200, "<h1>Hello</h1>")
+server.route("/page", "GET", nameless(req:HTTPServerRequest): int {
+    req.respond(200, "<h1>Hello</h1>")
     return 0
 })
 
 // Réponse JSON (Content-Type personnalisé)
-server.route("/api", "GET", nameless(req:int): int {
-    HTTPServer::respondHeader(req, "Content-Type", "application/json")
-    HTTPServer::respond(req, 200, `{"status":"ok"}`)
+server.route("/api", "GET", nameless(req:HTTPServerRequest): int {
+    req.respondHeader("Content-Type", "application/json")
+    req.respond(200, `{"status":"ok"}`)
     return 0
 })
 ```
@@ -112,27 +145,123 @@ Cela permet de servir votre page d'accueil sans définir de route pour `/`.
 server.run()   // bloquant — le programme attend indéfiniment
 ```
 
-## Méthodes statiques — lecture de la requête
+## ocara.HTTPServerRequest — lecture de la requête
 
-Ces méthodes sont appelées depuis l'intérieur d'un handler. Le paramètre `req`
-est le handle de requête passé automatiquement au handler.
-
-| Méthode | Signature | Description |
-|---|---|---|
-| `path` | `(req:int) → string` | Chemin de la requête (sans query string) |
-| `method` | `(req:int) → string` | Méthode HTTP (`"GET"`, `"POST"`, …) |
-| `body` | `(req:int) → string` | Corps de la requête |
-| `header` | `(req:int, name:string) → string` | Valeur d'un en-tête (insensible à la casse) |
-| `query` | `(req:int, key:string) → string` | Valeur d'un paramètre query string |
-
-## Méthodes statiques — construction de la réponse
+Ces méthodes s'appellent en sucre d'instance sur l'objet `req` reçu par un handler (`nameless(req:HTTPServerRequest): int { ... }`, ou un paramètre de même type sur une méthode de contrôleur enregistrée comme handler).
 
 | Méthode | Signature | Description |
 |---|---|---|
-| `respond` | `(req:int, status:int, body:string) → void` | Définit le statut et le corps de la réponse |
-| `respondHeader` | `(req:int, name:string, value:string) → void` | Ajoute un en-tête à la réponse |
+| `path` | `() → string` | Chemin de la requête (sans query string) |
+| `method` | `() → string` | Méthode HTTP réelle de la requête (`"GET"`, `"POST"`, …) |
+| `body` | `() → string` | Corps brut de la requête |
+| `header` | `(name:string) → string` | Valeur d'un en-tête — recherche **insensible à la casse** ; chaîne vide si absent |
+| `headers` | `() → map<string, string\|int\|float\|bool\|null>` | Tous les en-têtes, clés dans leur **casse d'origine** (voir note ci-dessous) |
+| `query` | `(key:string) → string` | Valeur d'un paramètre de la query string (historique — voir `param`/`params` ci-dessous pour l'accès unifié incluant le corps) |
+| `param` | `(key:string, method:string\|null = null) → mixed` | Accesseur universel — voir « Paramètres unifiés » |
+| `params` | `() → map<string, map<string, mixed>>` | Tous les paramètres, regroupés par méthode — voir « Paramètres unifiés » |
 
-## Méthodes d'instance — récapitulatif
+> **Note sur `headers()`** : le type de retour déclaré (`string|int|float|bool|null`) est une union par parité de forme avec `params()` — en pratique, un en-tête HTTP est **toujours** une chaîne sur le fil, `headers()` ne retourne donc jamais autre chose qu'une `string`. Contrairement à `header(name)` (recherche insensible à la casse), les **clés** de la map retournée par `headers()` conservent la casse exacte envoyée par le client.
+
+```ocara
+server.route("/echo", "GET", nameless(req:HTTPServerRequest): int {
+    IO::writeln(`Path    : ${req.path()}`)
+    IO::writeln(`Method  : ${req.method()}`)
+    IO::writeln(`UA      : ${req.header("user-agent")}`)   // insensible à la casse
+    req.respond(200, req.body())
+    return 0
+})
+```
+
+## ocara.HTTPServerRequest — construction de la réponse
+
+| Méthode | Signature | Description |
+|---|---|---|
+| `respond` | `(status:int, body:string) → void` | Définit le statut et le corps de la réponse |
+| `respondHeader` | `(name:string, value:string) → void` | Ajoute un en-tête à la réponse |
+
+## Paramètres unifiés — `param()` / `params()`
+
+Au-delà de la query string (`query`/historique), `HTTPServerRequest` parse automatiquement le **corps** de la requête selon son `Content-Type` :
+
+- **`application/x-www-form-urlencoded`** : un formulaire HTML classique (`<form method="POST">` sans `enctype`).
+- **`multipart/form-data`** : un formulaire avec upload de fichier (`<form method="POST" enctype="multipart/form-data">`).
+- **`application/json`** : **hors périmètre de `param`/`params`** — décodez-le vous-même avec `JSON::decode(req.body())`.
+
+### `params(): map<string, map<string, mixed>>`
+
+Retourne TOUJOURS exactement ces 10 clés (méthodes HTTP), chacune une `map<string, mixed>` (vide si non applicable) :
+
+```
+CONNECT, DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT, QUERY, TRACE
+```
+
+- **`params()["GET"]`** : les paramètres de la query string de l'URL — **toujours peuplé**, quelle que soit la méthode réelle de la requête (une query string peut accompagner un `POST`, un `DELETE`, etc.) — **plus les paramètres de CHEMIN** (`<nom:type>`, voir « Paramètres de chemin » plus haut), également fusionnés ici.
+- **`params()[<méthode réelle>]`** : les paramètres du corps, peuplés **uniquement si** la méthode réelle de la requête est celle-ci, ET que le corps n'est pas vide, ET que `Content-Type` est reconnu (`urlencoded` ou `multipart`). Si la méthode réelle est `GET` et qu'il y a *aussi* un corps (rare), le corps est fusionné dans le **même** bucket `"GET"` — en cas de collision de clé avec la query string, le corps l'emporte.
+- Tous les autres buckets restent des maps vides.
+
+**Précédence en cas de collision de clé, DEUX règles "plus spécifique l'emporte"** (même bucket `"GET"`, deux sources différentes) :
+1. Un **paramètre de chemin** l'emporte sur une **query string** de même clé (`/voitures/<id:int>` appelée avec `?id=999` : `param("id")` retourne l'`id` du CHEMIN, jamais celui de la query string — le chemin est plus spécifique/intentionnel qu'une query string arbitraire).
+2. Le **corps** (POST/PUT/...) l'emporte sur la **query string** de même clé (voir la règle de `param()` ci-dessous) — un paramètre de chemin n'est en revanche jamais en concurrence avec le corps (chemin et corps vivent dans des buckets différents sauf si la méthode réelle est `GET`, cas où seule la règle 1 s'applique).
+
+### `param(key:string, method:string|null = null): mixed`
+
+Accesseur pour une seule valeur, avec une règle de précédence pratique :
+
+- **`method` fourni** (insensible à la casse, ex. `"post"`/`"POST"`) : cherche `key` **uniquement** dans le bucket de cette méthode (même structure que `params()`).
+- **`method` omis (`null`, valeur par défaut)** : cherche d'abord dans `"GET"` (query string ET paramètres de chemin, le chemin l'emportant déjà à ce stade — voir ci-dessus), puis dans le bucket de la méthode **réelle** de la requête — le corps l'emporte en cas de collision de clé. Si la méthode réelle est `GET`, il n'y a qu'un seul bucket à consulter.
+- **Absent** : retourne la représentation `mixed` "rien" habituelle (comme une clé manquante dans n'importe quelle `map<string, mixed>` ailleurs dans le langage).
+- Pour un champ **fichier** uploadé via `multipart/form-data` (voir ci-dessous), la valeur retournée est elle-même une `map<string, mixed>` — narrowez-la explicitement : `var file:map<string,mixed> = req.param("avatar")`.
+- Pour un paramètre de **chemin** (`<id:int>`), la valeur retournée est déjà correctement typée (un `int` réel, pas une chaîne à convertir) — `var id:int = req.param("id")` fonctionne directement, sans `Convert::strToInt`.
+
+```ocara
+server.route("/search", "GET", nameless(req:HTTPServerRequest): int {
+    var q:mixed = req.param("q")   // query string
+    req.respond(200, `Recherche : ${q}`)
+    return 0
+})
+
+server.route("/cars", "POST", nameless(req:HTTPServerRequest): int {
+    // Formulaire HTML classique (enctype par défaut = urlencoded)
+    var brand:mixed = req.param("brand")
+    var model:mixed = req.param("model")
+    req.respondHeader("Location", "/cars")
+    req.respond(302, "")
+    return 0
+})
+```
+
+### Upload de fichiers (`multipart/form-data`)
+
+Un champ `<input type="file">` (ou tout part multipart avec `filename`) devient une `map<string, mixed>` avec ces 4 clés :
+
+| Clé | Type | Description |
+|---|---|---|
+| `filename` | `string` | Nom de fichier envoyé par le client |
+| `contentType` | `string` | `Content-Type` déclaré par le part ; `"application/octet-stream"` si absent |
+| `size` | `int` | Taille du contenu en octets |
+| `content` | `array<int>` | Contenu **brut**, un octet par élément (0-255) |
+
+**Pourquoi `array<int>` et pas `string` pour `content`** : une chaîne Ocara n'est fiable que si son contenu est de l'UTF-8 valide (`ptr_to_str` retombe silencieusement sur une chaîne vide sinon) — un fichier binaire réel (image, PDF...) ne l'est presque jamais. `array<int>` est la convention **déjà établie** par ce langage pour du contenu binaire (voir [`File::readBytes`/`writeBytes`](File.md)), réutilisée ici plutôt que d'inventer une troisième convention.
+
+```ocara
+server.route("/upload", "POST", nameless(req:HTTPServerRequest): int {
+    var title:mixed = req.param("title")               // champ texte simple
+    var file:map<string,mixed> = req.param("avatar")    // champ fichier
+
+    var filename:string    = file["filename"]
+    var contentType:string = file["contentType"]
+    var size:int            = file["size"]
+    var content:array<int> = file["content"]
+
+    File::writeBytes("./uploads/" + filename, content)
+    req.respond(200, `Fichier ${filename} (${contentType}, ${size} octets) reçu`)
+    return 0
+})
+```
+
+> **Limitation connue** : plusieurs parts multipart portant le **même** nom de champ (ex. plusieurs fichiers soumis sous `photos[]`) — seul le dernier est conservé, aucune erreur n'est levée. Hors périmètre pour l'instant.
+
+## Méthodes d'instance — récapitulatif (HTTPServer)
 
 | Méthode | Signature | Description |
 |---|---|---|
@@ -148,6 +277,7 @@ est le handle de requête passé automatiquement au handler.
 
 ```ocara
 import ocara.HTTPServer
+import ocara.HTTPServerRequest
 import ocara.IO
 
 function main(): int {
@@ -157,21 +287,21 @@ function main(): int {
     server.workers(8)
 
     // Route GET /
-    server.route("/", "GET", nameless(req:int): int {
-        var name:string = HTTPServer::query(req, "name")
+    server.route("/", "GET", nameless(req:HTTPServerRequest): int {
+        var name:mixed = req.param("name")
         if name equal "" {
             name = "Monde"
         }
-        HTTPServer::respondHeader(req, "Content-Type", "text/plain; charset=utf-8")
-        HTTPServer::respond(req, 200, `Bonjour ${name} !`)
+        req.respondHeader("Content-Type", "text/plain; charset=utf-8")
+        req.respond(200, `Bonjour ${name} !`)
         return 0
     })
 
     // Route POST /echo
-    server.route("/echo", "POST", nameless(req:int): int {
-        var body:string = HTTPServer::body(req)
-        HTTPServer::respondHeader(req, "Content-Type", "application/json")
-        HTTPServer::respond(req, 200, `{"echo":"${body}"}`)
+    server.route("/echo", "POST", nameless(req:HTTPServerRequest): int {
+        var body:string = req.body()
+        req.respondHeader("Content-Type", "application/json")
+        req.respond(200, `{"echo":"${body}"}`)
         return 0
     })
 
@@ -187,10 +317,11 @@ Il est possible de passer une méthode statique ou une fonction libre comme hand
 
 ```ocara
 import ocara.HTTPServer
+import ocara.HTTPServerRequest
 
 class HomeController {
-    public static method home(req:int): int {
-        HTTPServer::respond(req, 200, "Page d'accueil")
+    public static method home(req:HTTPServerRequest): int {
+        req.respond(200, "Page d'accueil")
         return 0
     }
 }
@@ -220,6 +351,7 @@ HTTPServer peut servir des fichiers statiques (HTML, CSS, JS, images, etc.) depu
 
 ```ocara
 import ocara.HTTPServer
+import ocara.HTTPServerRequest
 import ocara.IO
 
 function main(): int {
@@ -228,9 +360,9 @@ function main(): int {
     server.rootPath("./public")
 
     // Route dynamique API
-    server.route("/api/hello", "GET", nameless(req:int): int {
-        HTTPServer::respondHeader(req, "Content-Type", "application/json")
-        HTTPServer::respond(req, 200, `{"message":"Hello API"}`)
+    server.route("/api/hello", "GET", nameless(req:HTTPServerRequest): int {
+        req.respondHeader("Content-Type", "application/json")
+        req.respond(200, `{"message":"Hello API"}`)
         return 0
     })
 
@@ -340,9 +472,9 @@ var hitCount:int = 0
 // Sûr par défaut : deux requêtes simultanées sur /hits ne peuvent jamais
 // exécuter ce handler en même temps — aucune incrémentation ne peut se
 // perdre, sans Mutex explicite.
-server.route("/hits", "GET", nameless(req:int): int {
+server.route("/hits", "GET", nameless(req:HTTPServerRequest): int {
     hitCount = hitCount + 1
-    HTTPServer::respond(req, 200, `Visites : ${hitCount}`)
+    req.respond(200, `Visites : ${hitCount}`)
     return 0
 })
 ```
@@ -351,6 +483,7 @@ server.route("/hits", "GET", nameless(req:int): int {
 
 ```ocara
 import ocara.HTTPServer
+import ocara.HTTPServerRequest
 import ocara.Mutex
 import ocara.Thread
 
@@ -360,12 +493,12 @@ function main(): int {
     var lock:Mutex = use Mutex()   // `var`, pas `scoped` : capturée par le handler ET
                                      // par le thread de fond, doit survivre aux deux
 
-    server.route("/counter", "GET", nameless(req:int): int {
+    server.route("/counter", "GET", nameless(req:HTTPServerRequest): int {
         var current:int = 0
         lock.withLock(nameless(): void {
             current = counter
         })
-        HTTPServer::respond(req, 200, `Compteur : ${current}`)
+        req.respond(200, `Compteur : ${current}`)
         return 0
     })
 
@@ -384,6 +517,10 @@ function main(): int {
 
 `withLock` (plutôt que `lock()`/`unlock()` manuels) garantit le déverrouillage même si le code protégé lève une exception avant d'atteindre `unlock()` — sinon tout appel suivant qui tente de verrouiller reste bloqué indéfiniment (voir [Mutex](Mutex.md), section `withLock`).
 
-**Ce qui N'A JAMAIS besoin de protection** : les données propres à UNE requête (`req`, tout ce que retournent `HTTPServer::path`/`method`/`body`/`header`/`query`) ne sont jamais partagées entre handlers — chaque requête a son propre `OcaraHttpContext`, alloué et libéré pour elle seule.
+**Ce qui N'A JAMAIS besoin de protection** : les données propres à UNE requête (`req`, tout ce que retournent `path`/`method`/`body`/`header`/`headers`/`query`/`param`/`params`) ne sont jamais partagées entre handlers — chaque requête a son propre `HTTPServerRequest`, alloué et libéré pour elle seule.
 
 **Compromis assumé** : sérialiser l'invocation des handlers élimine la race par construction, au prix de perdre le parallélisme réel sur la logique métier elle-même (deux handlers ne tournent plus jamais en même temps, même s'ils ne partagent rien). C'est un choix de philosophie différent de `ocara.Thread`, qui reste "rapide par défaut, sûr sur demande (`Mutex`)" — voir `docs/roadmap.d/runtime-httpserver-race-condition.md` pour la justification complète de ce compromis.
+
+## Note historique
+
+Avant `HTTPServerRequest`, un handler recevait un `req:int` opaque (un pointeur déguisé en entier) et lisait/écrivait la requête via des méthodes **statiques** (`HTTPServer::path(req)`, `HTTPServer::respond(req, ...)`, etc.). Rien dans `req:int` n'indiquait qu'il s'agissait d'une requête HTTP — un appelant pouvait y passer n'importe quel entier sans que le typage ne le retienne. `HTTPServerRequest` est un remplacement **cassant, sans période de coexistence** : `req:int` ne compile plus. Voir `docs/roadmap.d/stdlib-httpserver-request-object.md` (désormais clos) pour l'historique complet de cette décision.

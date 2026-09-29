@@ -5,6 +5,7 @@
 
 import ocara.HTML
 import ocara.HTTPServer
+import ocara.HTTPServerRequest
 import ocara.Array
 import ocara.Convert
 import ocara.String
@@ -14,8 +15,8 @@ import helpers.Format
 
 class SearchController {
 
-    public static method handle(req:int): int {
-        scoped term:string = String::trim(HTTPServer::query(req, "q"))
+    public static method handle(req:HTTPServerRequest): int {
+        scoped term:string = String::trim(req.query("q"))
 
         var carsHtml:string = ""
         var maintenancesHtml:string = ""
@@ -55,7 +56,7 @@ class SearchController {
         }
 
         scoped html:string = HTML::renderFile('templates/search.html')
-        HTTPServer::respond(req, 200, html)
+        req.respond(200, html)
         return 0
     }
 }

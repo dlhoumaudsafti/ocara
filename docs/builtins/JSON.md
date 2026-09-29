@@ -270,11 +270,12 @@ function main(): int {
 
 ```ocara
 import ocara.HTTPServer
+import ocara.HTTPServerRequest
 import ocara.JSON
 
-function handle_api(req:int): int {
+function handle_api(req:HTTPServerRequest): int {
     // Lire le body de la requête et le décoder
-    scoped body:string = HTTPServer::body(req)
+    scoped body:string = req.body()
     var data:mixed = body.decode()
     
     // Traiter les données...
@@ -284,8 +285,8 @@ function handle_api(req:int): int {
     }
     
     // Encoder la réponse et l'envoyer
-    HTTPServer::respondHeader(req, "Content-Type", "application/json")
-    HTTPServer::respond(req, 200, response.encode())
+    req.respondHeader("Content-Type", "application/json")
+    req.respond(200, response.encode())
     return 0
 }
 ```

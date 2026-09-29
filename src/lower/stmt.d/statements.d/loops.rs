@@ -111,14 +111,32 @@ pub fn lower_for_in(
     builder.declare_local(var, elem_ty.clone(), false);
     builder.store_local(var, elem);
     
-    // Si l'itérateur est une variable avec un type d'élément map, enregistrer les métadonnées
+    // Si l'itérateur est une variable dont le type d'élément est connu
+    // statiquement (`elem_ast_types`, alimenté par `lower_var`/`lower_const`
+    // pour toute variable `array<T>` — voir variables.rs), enregistrer les
+    // métadonnées adéquates pour la variable de boucle `var`.
+    //
+    // Bug historique corrigé ici : seul le cas `Type::Map` (élément map,
+    // `array<map<K,V>>`) était géré — `array<Classe>` (ou `array<Classe|null>`)
+    // ne l'était PAS, donc `var` (la variable de boucle) n'avait AUCUNE
+    // entrée `var_class`. Un accès de champ (`Expr::Field`) sur `var` dans le
+    // corps de la boucle (`for it in items { ... it.champ ... }`) résolvait
+    // alors `class_name = None`, ce qui retombe sur `offset = 0` pour
+    // N'IMPORTE QUEL champ — silencieusement, TOUJOURS la valeur du premier
+    // champ déclaré. Même famille de bug, même correctif que
+    // `register_var_class`/`union_named_class` — voir
+    // docs/roadmap.d/langage-union-class-null-field-access.md.
     if let Expr::Ident(iter_name, _) = iter {
-        if let Some(elem_ast_ty) = builder.elem_ast_types.get(iter_name.as_str()) {
-            if let Type::Map(_, val_ty) = elem_ast_ty {
+        if let Some(elem_ast_ty) = builder.elem_ast_types.get(iter_name.as_str()).cloned() {
+            if let Type::Map(_, val_ty) = &elem_ast_ty {
                 // L'élément est un map, enregistrer la variable d'itération comme map
                 builder.map_vars.insert(var.to_string());
                 builder.elem_types.insert(var.to_string(), IrType::from_ast(val_ty));
                 builder.var_class.insert(var.to_string(), "Map".to_string());
+            } else if let Some(class_name) = resolved_named_class(&elem_ast_ty) {
+                // `array<Classe>` (ou `array<Classe|null>`) : la variable de
+                // boucle est une instance de Classe.
+                builder.var_class.insert(var.to_string(), class_name);
             }
         }
     }
@@ -224,6 +242,24 @@ pub fn lower_for_map(
     builder.declare_local(value, IrType::I64, false);
     builder.store_local(value, v);
 
+    // Si l'itérateur est une variable `map<K,V>` dont le type de VALEUR est
+    // connu statiquement (`elem_ast_types`, alimenté par `lower_var`/
+    // `lower_const` pour toute variable map — voir variables.rs), enregistrer
+    // `value` (la variable liée à la valeur courante) comme instance de
+    // Classe si `V` (ou `V` dans `Classe|null`) en est une — même bug/même
+    // correctif que la variable d'itération de `for x in array<Classe>`
+    // ci-dessus (`lower_for_in`), jamais couvert du tout ici avant ce
+    // correctif (`value` n'avait AUCUNE entrée `var_class`, quel que soit le
+    // type de valeur de la map). Voir
+    // docs/roadmap.d/langage-union-class-null-field-access.md.
+    if let Expr::Ident(map_name, _) = iter {
+        if let Some(val_ast_ty) = builder.elem_ast_types.get(map_name.as_str()).cloned() {
+            if let Some(class_name) = resolved_named_class(&val_ast_ty) {
+                builder.var_class.insert(value.to_string(), class_name);
+            }
+        }
+    }
+
     // continue → incr_bb, break → merge_bb
     builder.loop_stack.push((incr_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len()));
     builder.loop_depth += 1;
@@ -266,5 +302,112 @@ pub fn lower_continue(builder: &mut LowerBuilder) {
         // pour reboucler plutôt que sortir complètement.
         crate::lower::stmt::ownership::emit_early_exit_drops(builder, depth);
         builder.emit(Inst::Jump { target: continue_bb });
+    }
+}
+
+/// Tests unitaires — `for x in array<Classe>` / `for k => v in map<K,Classe>`
+/// (docs/roadmap.d/langage-union-class-null-field-access.md) : la variable
+/// de boucle/valeur n'avait AUCUNE entrée `var_class` dès que l'élément
+/// itéré était une classe utilisateur (seul l'élément `map` était géré) —
+/// tout accès de champ sur la variable de boucle résolvait alors
+/// `offset = 0`, silencieusement toujours la valeur du premier champ
+/// déclaré, quel que soit le champ réellement demandé.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ir::module::IrModule;
+    use crate::parsing::token::Span;
+
+    fn span() -> Span { Span::new(0, 0) }
+    fn ident(name: &str) -> Expr { Expr::Ident(name.to_string(), span()) }
+    fn empty_block() -> Block { Block { stmts: vec![], span: span() } }
+
+    /// Cas exact du second repro rapporté : `for it in items` où
+    /// `items:array<Foo>` — `it` doit être enregistrée comme instance de Foo.
+    #[test]
+    fn for_in_array_of_class_registers_var_class() {
+        let mut module = IrModule::new("test");
+        let mut builder = LowerBuilder::new(&mut module, "test_fn".into(), vec![], IrType::Void);
+        builder.elem_ast_types.insert("items".to_string(), Type::Named("Foo".to_string()));
+
+        lower_for_in(&mut builder, "it", &ident("items"), &empty_block());
+
+        assert_eq!(builder.var_class.get("it"), Some(&"Foo".to_string()));
+    }
+
+    /// `array<Foo|null>` — même dépliage que pour un `var`/`const` de type
+    /// union (voir `register_var_class`, variables.rs), via `resolved_named_class`.
+    #[test]
+    fn for_in_array_of_nullable_class_registers_var_class() {
+        let mut module = IrModule::new("test");
+        let mut builder = LowerBuilder::new(&mut module, "test_fn".into(), vec![], IrType::Void);
+        builder.elem_ast_types.insert(
+            "items".to_string(),
+            Type::Union(vec![Type::Named("Foo".to_string()), Type::Null]),
+        );
+
+        lower_for_in(&mut builder, "it", &ident("items"), &empty_block());
+
+        assert_eq!(builder.var_class.get("it"), Some(&"Foo".to_string()));
+    }
+
+    /// Non-régression : le chemin `array<map<K,V>>` déjà géré avant ce
+    /// correctif doit continuer à enregistrer "Map", pas une classe.
+    #[test]
+    fn for_in_array_of_map_still_registers_map_unaffected() {
+        let mut module = IrModule::new("test");
+        let mut builder = LowerBuilder::new(&mut module, "test_fn".into(), vec![], IrType::Void);
+        builder.elem_ast_types.insert(
+            "rows".to_string(),
+            Type::Map(Box::new(Type::String), Box::new(Type::Mixed)),
+        );
+
+        lower_for_in(&mut builder, "row", &ident("rows"), &empty_block());
+
+        assert_eq!(builder.var_class.get("row"), Some(&"Map".to_string()));
+        assert!(builder.map_vars.contains("row"));
+    }
+
+    /// Non-régression : `array<int>` (aucune classe impliquée) ne doit
+    /// produire aucune entrée `var_class`.
+    #[test]
+    fn for_in_array_of_primitive_registers_nothing() {
+        let mut module = IrModule::new("test");
+        let mut builder = LowerBuilder::new(&mut module, "test_fn".into(), vec![], IrType::Void);
+        builder.elem_ast_types.insert("nums".to_string(), Type::Int);
+
+        lower_for_in(&mut builder, "n", &ident("nums"), &empty_block());
+
+        assert_eq!(builder.var_class.get("n"), None);
+    }
+
+    /// `for k => v in m` où `m:map<string, Foo>` — la variable VALEUR doit
+    /// être enregistrée comme instance de Foo (jamais géré du tout avant ce
+    /// correctif : `lower_for_map` n'enregistrait aucune métadonnée de
+    /// classe pour `value`, quel que soit le type de valeur de la map).
+    #[test]
+    fn for_map_value_class_registers_var_class() {
+        let mut module = IrModule::new("test");
+        let mut builder = LowerBuilder::new(&mut module, "test_fn".into(), vec![], IrType::Void);
+        builder.elem_ast_types.insert("m".to_string(), Type::Named("Foo".to_string()));
+
+        lower_for_map(&mut builder, "k", "v", &ident("m"), &empty_block());
+
+        assert_eq!(builder.var_class.get("v"), Some(&"Foo".to_string()));
+    }
+
+    /// `map<string, Foo|null>` — même dépliage union que pour `for x in`.
+    #[test]
+    fn for_map_value_nullable_class_registers_var_class() {
+        let mut module = IrModule::new("test");
+        let mut builder = LowerBuilder::new(&mut module, "test_fn".into(), vec![], IrType::Void);
+        builder.elem_ast_types.insert(
+            "m".to_string(),
+            Type::Union(vec![Type::Named("Foo".to_string()), Type::Null]),
+        );
+
+        lower_for_map(&mut builder, "k", "v", &ident("m"), &empty_block());
+
+        assert_eq!(builder.var_class.get("v"), Some(&"Foo".to_string()));
     }
 }

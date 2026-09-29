@@ -28,21 +28,72 @@
 /// supplémentaire n'est nécessaire en aval (sema/lowering ne voient jamais
 /// l'alias).
 use std::collections::HashMap;
+use std::path::Path;
 use crate::parsing::ast::*;
+use crate::parsing::diagnostic;
 
 /// Construit la table alias → nom réel à partir des SEULES déclarations
 /// d'import d'un fichier donné (`ImportDecl.alias`) — ne jamais mélanger les
 /// imports de deux fichiers différents ici, un alias n'étant visible que
 /// dans le fichier qui l'a écrit.
-pub fn compute_aliases(imports: &[ImportDecl]) -> HashMap<String, String> {
-    imports.iter()
-        .filter_map(|imp| {
-            let alias = imp.alias.as_ref()?;
-            let real = imp.path.last()?;
-            if alias == real { return None; }
-            Some((alias.clone(), real.clone()))
-        })
-        .collect()
+///
+/// `all_interfaces` (pré-scanné AVANT tout appel à cette fonction — voir
+/// `core::interface_wiring::collect_all_interfaces` — nécessaire car
+/// l'interface visée par un alias peut ne pas encore être chargée par la
+/// boucle principale d'imports au moment où CE fichier-ci est traité, la
+/// file `imports_to_process` ne respectant pas un ordre de dépendance) sert
+/// à détecter les alias visant une interface `wiring` (voir
+/// docs/roadmap.d/langage-interface-wiring.md) : un alias qui correspond au
+/// nom simple d'un des `wiring` de cette interface doit résoudre vers la
+/// classe CONCRÈTE visée, pas vers l'interface elle-même — c'est ce qui
+/// permet à `resolve_aliases` (fonction sœur, inchangée) de substituer cet
+/// alias PARTOUT (type, `use`, appel statique) exactement comme s'il
+/// s'agissait d'un import direct de cette classe concrète.
+///
+/// `current_file` sert uniquement à situer le diagnostic si l'alias ne
+/// correspond à AUCUN `wiring` de l'interface importée (erreur de
+/// compilation explicitement demandée par le ticket) — `std::process::exit`
+/// à l'identique des autres erreurs d'import de `src/main.rs`.
+pub fn compute_aliases(
+    imports: &[ImportDecl],
+    all_interfaces: &HashMap<String, InterfaceDecl>,
+    current_file: &Path,
+) -> HashMap<String, String> {
+    let mut aliases = HashMap::new();
+    for imp in imports {
+        let Some(alias) = imp.alias.as_ref() else { continue };
+        let Some(real) = imp.path.last() else { continue };
+        if alias == real {
+            continue;
+        }
+
+        if let Some(iface) = all_interfaces.get(real) {
+            if !iface.wirings.is_empty() {
+                match iface.wirings.iter().find(|w| w.simple_name() == alias) {
+                    Some(w) => {
+                        aliases.insert(alias.clone(), w.simple_name().to_string());
+                    }
+                    None => {
+                        // E41 — alias ne correspondant à aucun `wiring` de
+                        // l'interface importée (voir docs/diagnostics.md).
+                        let available: Vec<&str> = iface.wirings.iter().map(|w| w.simple_name()).collect();
+                        diagnostic::print_error(current_file, imp.span.line, imp.span.col, &format!(
+                            "alias '{}' does not match any `wiring` of interface '{}' (available: {})",
+                            alias, real, available.join(", ")
+                        ));
+                        std::process::exit(1);
+                    }
+                }
+                continue;
+            }
+        }
+
+        // Cas historique (classe/generic/module/fonction, ou interface SANS
+        // aucun `wiring` — reste un simple renommage cosmétique inchangé) :
+        // l'alias résout vers le nom réel importé, comme avant ce ticket.
+        aliases.insert(alias.clone(), real.clone());
+    }
+    aliases
 }
 
 /// Réécrit chaque occurrence d'un alias connu vers son nom réel, dans tout

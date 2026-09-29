@@ -996,7 +996,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // SAUF si la classe est définie localement dans le programme
             const BUILTIN_MODULES: &[&str] = &[
                 "String", "Math", "Array", "Map", "IO", "JSON",
-                "Convert", "System", "Regex", "HTTPRequest", "HTTPServer", "Thread",
+                "Convert", "System", "Regex", "HTTPRequest", "HTTPServer", "HTTPServerRequest", "Thread",
                 "Mutex", "HTML", "HTMLComponent", "UnitTest", "File", "Directory",
                 "Date", "Time", "DateTime",
             ];

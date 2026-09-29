@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// ocara.HTTPServer — serveur HTTP multi-connexions
+// ocara.HTTPServer / ocara.HTTPServerRequest — serveur HTTP multi-connexions
 //
-// Fonctions exportées (convention C) :
+// Fonctions exportées pour `HTTPServer` (convention C) :
 //
 //   HTTPServer_init(self_ptr)                         → void  constructeur
 //   HTTPServer_port(self_ptr, port)               → void
@@ -12,15 +12,36 @@
 //   HTTPServer_routeError(self_ptr, code, fat_ptr) → void  enregistre un handler d'erreur
 //   HTTPServer_run(self_ptr)                          → void  démarre (bloquant)
 //
-// Fonctions statiques (appelées depuis un handler) :
+// Fonctions exportées pour `HTTPServerRequest` (méthodes d'instance, appelées
+// depuis un handler — voir docs/roadmap.d/stdlib-httpserver-request-object.md,
+// désormais clos) :
 //
-//   HTTPServer_path(req)           → i64  chemin (sans query string)
-//   HTTPServer_method(req)         → i64  méthode HTTP en majuscules
-//   HTTPServer_body(req)           → i64  corps de la requête
-//   HTTPServer_header(req, name)   → i64  valeur d'un en-tête (vide si absent)
-//   HTTPServer_query(req, key)     → i64  valeur d'un paramètre query string
-//   HTTPServer_respond(req, status, body) → void  envoie la réponse
-//   HTTPServer_respondHeader(req, name, value) → void  ajoute un en-tête à la réponse
+//   HTTPServerRequest_path(req)           → i64  chemin (sans query string)
+//   HTTPServerRequest_method(req)         → i64  méthode HTTP en majuscules
+//   HTTPServerRequest_body(req)           → i64  corps brut de la requête
+//   HTTPServerRequest_header(req, name)   → i64  valeur d'un en-tête (comparaison INSENSIBLE
+//                                                 à la casse ; vide si absent)
+//   HTTPServerRequest_headers(req)        → i64  map<string,string|int|float|bool|null> — TOUS
+//                                                 les en-têtes, clés dans leur casse d'ORIGINE
+//                                                 (seule la recherche de header() est insensible
+//                                                 à la casse, pas les clés de cette map)
+//   HTTPServerRequest_query(req, key)     → i64  valeur d'un paramètre query string
+//   HTTPServerRequest_param_1(req, key)         → i64 (mixed)  voir param() ci-dessous, method=null
+//   HTTPServerRequest_param(req, key, method)   → i64 (mixed)  accessoir universel — voir
+//                                                 `build_params_buckets`/`lookup_param` pour la
+//                                                 règle de précédence GET/body exacte
+//   HTTPServerRequest_params(req)         → i64  map<string, map<string,mixed>> — 10 clés
+//                                                 (CONNECT/DELETE/GET/HEAD/OPTIONS/PATCH/POST/
+//                                                 PUT/QUERY/TRACE), toujours présentes
+//   HTTPServerRequest_respond(req, status, body) → void  envoie la réponse
+//   HTTPServerRequest_respondHeader(req, name, value) → void  ajoute un en-tête à la réponse
+//
+// Parsing du corps (voir docs/roadmap.d/stdlib-httpserver-post-body-parsing.md,
+// désormais clos, et le nouveau support multipart) : `application/x-www-form-
+// urlencoded` réutilise `parse_query`/`url_decode` (déjà utilisées pour la query
+// string) contre le corps ; `multipart/form-data` est parsé par un mini-parseur
+// écrit à la main (`parse_multipart`) — voir sa doc pour les choix de tolérance
+// (CRLF vs LF) et de représentation des champs fichier.
 //
 // Architecture multi-thread :
 //   Le serveur écoute sur `host:port`. `workers` threads appellent chacun
@@ -28,9 +49,13 @@
 //   Chaque requête est traitée dans le thread qui l'a reçue.
 //
 // Convention handler Ocara :
-//   Le handler est une closure Ocara `nameless(req:int): int { … }`.
+//   Le handler est une closure Ocara `nameless(req:HTTPServerRequest): int { … }`.
 //   La signature compilée est : extern "C" fn(env_ptr: i64, req: i64) -> i64
-//   req est un pointeur vers un OcaraHttpContext alloué par le serveur.
+//   req est un pointeur vers un OcaraHttpContext alloué par le serveur, déguisé
+//   en `HTTPServerRequest` côté Ocara (voir src/builtins/httpserver.rs,
+//   `request_class()`) — AUCUN changement d'ABI par rapport à l'ancien `req:int` :
+//   un paramètre `Type::Named(classe)` se compile déjà comme un seul i64 (même
+//   mécanisme que `nameless(db:SQLite): void`, voir src/lower/expr.d/nameless.rs).
 //
 // Note sécurité concurrente :
 //   L'invocation d'un handler (route ou erreur) est sérialisée par un mutex
@@ -94,7 +119,9 @@ unsafe impl Sync for SendHandler {}
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct Route {
-    path:    String,
+    // Compilé UNE SEULE FOIS à l'enregistrement (`HTTPServer_route`), jamais
+    // reparsé par requête — voir `parse_route_pattern`/`match_route`.
+    pattern: RoutePattern,
     method:  String,   // en majuscules
     handler: SendHandler,
 }
@@ -134,14 +161,216 @@ struct OcaraHttpContext {
     path:    String,
     method:  String,
     body:    String,
+    // Casse D'ORIGINE (wire) préservée — tiny_http ne normalise jamais le nom
+    // d'un champ d'en-tête (vérifié : `h.field.to_string()` reflète exactement
+    // ce que le client a envoyé). Avant ce correctif, ces clés étaient
+    // baissées en minuscules AU STOCKAGE (`.to_lowercase()` dans
+    // `handle_request`) — suffisant pour `header(name)` (recherche déjà
+    // insensible à la casse des deux côtés), mais aurait perdu la casse
+    // d'origine pour `headers()` (nouvelle méthode, doit refléter la casse
+    // TELLE QUE REÇUE). La recherche insensible à la casse se fait maintenant
+    // au moment du LOOKUP (voir `header_lookup`), plus au stockage.
     headers: HashMap<String, String>,
     query:   HashMap<String, String>,
+    // Paramètres GET (query string, toujours peuplé)/body (urlencoded ou
+    // multipart, selon Content-Type) précalculés une seule fois à la
+    // construction du contexte — voir `build_params_buckets`. 10 buckets
+    // toujours présents (CONNECT/DELETE/GET/HEAD/OPTIONS/PATCH/POST/PUT/
+    // QUERY/TRACE), vides sauf "GET" (query string + éventuel corps si la
+    // méthode réelle est GET) et le bucket de la méthode réelle (corps, si
+    // Content-Type reconnu et corps non vide).
+    param_buckets: HashMap<String, HashMap<String, ParamValue>>,
     // Construction de la réponse
     resp_status:  u16,
     resp_body:    String,
     resp_headers: Vec<tiny_http::Header>,
     // Requête tiny_http (consommée lors de l'envoi de la réponse)
     request: Option<tiny_http::Request>,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Paramètres (query string + corps urlencoded/multipart) — HTTPServerRequest
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Les 10 "buckets" toujours présents dans `params()` — liste EXACTE donnée
+/// par la spécification (pas la liste complète des méthodes HTTP existantes :
+/// ex. pas de `LINK`/`UNLINK`, jamais utilisées en pratique par un serveur
+/// applicatif ; `QUERY` y figure bien qu'assez rare, conformément à la liste
+/// demandée).
+pub(crate) const METHOD_BUCKETS: [&str; 10] = [
+    "CONNECT", "DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT", "QUERY", "TRACE",
+];
+
+/// Valeur d'un paramètre de requête (query string, champ urlencoded, champ
+/// multipart, OU segment de chemin typé `<nom:type>` — voir
+/// docs/roadmap.d/stdlib-httpserver-route-params.md) — un texte simple, un
+/// fichier uploadé (multipart avec `filename`), ou une valeur DÉJÀ TYPÉE
+/// (`Int`/`Float`/`Bool`) issue d'un paramètre de chemin déjà validé/parsé par
+/// le routeur AVANT que le handler ne s'exécute (voir `parse_path_param_value`).
+/// Convertie en valeur `mixed` Ocara par `param_value_to_mixed`/
+/// `file_to_mixed_map` uniquement au moment de construire la structure Ocara
+/// (map/valeur) demandée — jamais avant, pour ne matérialiser des allocations
+/// Ocara (`alloc_str`, `__map_new`, `__box_*`...) que pour les buckets
+/// réellement lus.
+///
+/// `Int`/`Float`/`Bool` existent UNIQUEMENT pour les paramètres de chemin —
+/// une valeur de query string ou de corps (`urlencoded`/`multipart`) est
+/// TOUJOURS `Text` (une valeur HTTP "classique" est toujours une chaîne sur
+/// le fil ; seul un paramètre de chemin porte une annotation de type explicite
+/// dans le pattern de route lui-même, `<id:int>`).
+#[derive(Clone)]
+pub(crate) enum ParamValue {
+    Text(String),
+    Int(i64),
+    Float(f64),
+    Bool(bool),
+    File {
+        filename:     String,
+        content_type: String,
+        // Représentation BINAIRE-SÛRE du contenu — voir la doc de
+        // `file_to_mixed_map` pour la justification (`array<int>`, pas
+        // `string` : `ptr_to_str`/`alloc_str` ne garantissent PAS un
+        // aller-retour fidèle pour des octets qui ne sont pas de l'UTF-8
+        // valide, voir runtime/src/lib.rs::ptr_to_str, qui retombe
+        // silencieusement sur `""` en cas d'échec de décodage UTF-8 — même
+        // convention binaire-sûre déjà établie par `File::readBytes`/
+        // `writeBytes`, voir src/builtins/file.rs).
+        content: Vec<u8>,
+    },
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Paramètres de chemin — `<nom:type>` (docs/roadmap.d/stdlib-httpserver-route-params.md)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Type déclaré d'un segment de chemin paramétré (`<id:int>`). `Str` couvre
+/// à la fois `<nom:string>` et tout type inconnu/non reconnu — dégrade
+/// silencieusement vers une chaîne brute plutôt que de rejeter
+/// l'enregistrement de la route (même philosophie de tolérance que
+/// `url_decode`/`parse_query` ailleurs dans ce fichier : jamais planter sur
+/// une entrée mal formée).
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) enum PathParamType {
+    Int,
+    Float,
+    Bool,
+    Str,
+}
+
+/// Un segment d'un chemin de route, entre deux `/` — soit littéral (comparé
+/// tel quel), soit un paramètre nommé et typé.
+pub(crate) enum PathSegment {
+    Literal(String),
+    Param { name: String, ty: PathParamType },
+}
+
+/// Pattern de route compilé UNE SEULE FOIS à l'enregistrement
+/// (`HTTPServer_route`) — jamais reparsé à chaque requête entrante (voir
+/// `match_route`, appelée par `handle_request`). `Wildcard` préserve le
+/// comportement historique de `path == "*"` (n'importe quel chemin, pour la
+/// méthode déclarée) — un `"*"` littéral ne peut de toute façon jamais
+/// apparaître comme un segment `<nom:type>` valide, aucune ambiguïté entre
+/// les deux formes.
+pub(crate) enum RoutePattern {
+    Wildcard,
+    Segments(Vec<PathSegment>),
+}
+
+/// Parse un segment de chemin (texte entre deux `/`, JAMAIS encore décodé
+/// URL) tel qu'écrit dans `server.route(path, ...)` — `<nom:type>` devient un
+/// paramètre, tout le reste (y compris un `<...>` malformé, ex. sans `:`)
+/// reste un littéral comparé tel quel : ne matchera jamais qu'un segment de
+/// requête identique caractère pour caractère, ce qui inclut trivialement
+/// "jamais", sans jamais paniquer sur une route mal écrite.
+fn parse_path_segment(seg: &str) -> PathSegment {
+    if let Some(inner) = seg.strip_prefix('<').and_then(|s| s.strip_suffix('>')) {
+        if let Some((name, ty_str)) = inner.split_once(':') {
+            let ty = match ty_str {
+                "int"   => PathParamType::Int,
+                "float" => PathParamType::Float,
+                "bool"  => PathParamType::Bool,
+                _       => PathParamType::Str, // "string" ou type inconnu
+            };
+            return PathSegment::Param { name: name.to_string(), ty };
+        }
+    }
+    PathSegment::Literal(seg.to_string())
+}
+
+/// Compile `path` (tel qu'écrit dans `server.route(path, ...)`) en
+/// `RoutePattern` — appelée UNE SEULE FOIS, à l'enregistrement.
+pub(crate) fn parse_route_pattern(path: &str) -> RoutePattern {
+    if path == "*" {
+        return RoutePattern::Wildcard;
+    }
+    RoutePattern::Segments(path.split('/').map(parse_path_segment).collect())
+}
+
+/// Parse la valeur BRUTE d'un segment de requête (`raw`, jamais encore
+/// décodé URL) selon le type déclaré du paramètre — `None` si `raw` ne
+/// correspond pas au type déclaré (ex. `<id:int>` contre le segment
+/// `"abc"`) : signale à `match_route` que CETTE route ne matche pas du tout
+/// (voir sa doc — la route suivante est essayée, jamais de valeur
+/// bidon/zéro substituée).
+///
+/// `<nom:string>` décode l'URL du segment (`url_decode`, déjà utilisée pour
+/// la query string) — un segment de chemin peut légitimement contenir des
+/// caractères encodés (espaces, accents...). Un segment LITTÉRAL du pattern
+/// n'est en revanche jamais décodé avant comparaison (comportement
+/// historique inchangé, un chemin littéral est comparé octet pour octet).
+fn parse_path_param_value(raw: &str, ty: PathParamType) -> Option<ParamValue> {
+    match ty {
+        PathParamType::Int   => raw.parse::<i64>().ok().map(ParamValue::Int),
+        PathParamType::Float => raw.parse::<f64>().ok().map(ParamValue::Float),
+        PathParamType::Bool  => match raw {
+            "true"  => Some(ParamValue::Bool(true)),
+            "false" => Some(ParamValue::Bool(false)),
+            _       => None,
+        },
+        PathParamType::Str => Some(ParamValue::Text(url_decode(raw))),
+    }
+}
+
+/// Tente de faire correspondre `request_path` (le chemin RÉEL d'une requête,
+/// ex. `/voitures/1`) à `pattern` (compilé une fois à l'enregistrement) —
+/// `None` si le nombre de segments diffère, si un segment littéral ne
+/// correspond pas exactement, ou si un segment paramétré échoue à parser
+/// selon son type déclaré (voir `parse_path_param_value`). `Some(params)`
+/// sinon, `params` étant vide pour une route sans paramètre (non-régression :
+/// une route 100% littérale se comporte exactement comme avant ce ticket) ou
+/// pour `Wildcard`.
+///
+/// Aucune règle de priorité "route statique avant route dynamique" séparée :
+/// un segment littéral `ajouter` ne matche simplement JAMAIS un pattern
+/// `<id:int>` (ni `<id:string>` à une position DIFFÉRENTE dans
+/// l'enregistrement) puisque ce sont deux ROUTES distinctes, chacune avec son
+/// propre pattern — l'ordre d'enregistrement (voir `handle_request`, premier
+/// match gagne) suffit.
+pub(crate) fn match_route(pattern: &RoutePattern, request_path: &str) -> Option<HashMap<String, ParamValue>> {
+    match pattern {
+        RoutePattern::Wildcard => Some(HashMap::new()),
+        RoutePattern::Segments(segments) => {
+            let request_segments: Vec<&str> = request_path.split('/').collect();
+            if request_segments.len() != segments.len() {
+                return None;
+            }
+            let mut params = HashMap::new();
+            for (seg, req_seg) in segments.iter().zip(request_segments.iter()) {
+                match seg {
+                    PathSegment::Literal(lit) => {
+                        if lit != req_seg {
+                            return None;
+                        }
+                    }
+                    PathSegment::Param { name, ty } => {
+                        let value = parse_path_param_value(req_seg, *ty)?;
+                        params.insert(name.clone(), value);
+                    }
+                }
+            }
+            Some(params)
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -204,6 +433,287 @@ fn url_decode(s: &str) -> String {
         }
     }
     out
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// En-têtes — recherche insensible à la casse (header(name), voir sa doc)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Recherche insensible à la casse dans les en-têtes stockés avec leur casse
+/// D'ORIGINE (voir `OcaraHttpContext.headers`) — une simple itération avec
+/// `eq_ignore_ascii_case` : le nombre d'en-têtes d'une requête HTTP réelle
+/// (quelques dizaines au plus) rend un balayage linéaire largement suffisant,
+/// pas besoin de maintenir un index parallèle en minuscules.
+pub(crate) fn header_lookup<'a>(headers: &'a HashMap<String, String>, name: &str) -> Option<&'a str> {
+    headers.iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case(name))
+        .map(|(_, v)| v.as_str())
+}
+
+fn content_type_of(headers: &HashMap<String, String>) -> Option<&str> {
+    header_lookup(headers, "Content-Type")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Corps de requête — application/x-www-form-urlencoded & multipart/form-data
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Extrait le `boundary` d'un en-tête `Content-Type: multipart/form-data;
+/// boundary=...` — `None` si `content_type` n'est pas `multipart/form-data`
+/// (comparaison insensible à la casse sur le type MIME lui-même, voir RFC
+/// 2045 §5.1 : les types/sous-types MIME ne sont jamais sensibles à la casse,
+/// contrairement à la VALEUR de `boundary`, jamais modifiée ici) ou si aucun
+/// paramètre `boundary=` n'est présent. Gère les deux formes autorisées par
+/// RFC 2046 §5.1.1 : `boundary=xyz` (nue) et `boundary="xyz"` (quotée,
+/// nécessaire dès que la valeur contient des caractères hors du jeu "token"
+/// HTTP, ex. des espaces — courant avec les boundaries générées par les
+/// navigateurs, `----WebKitFormBoundary...`).
+pub(crate) fn parse_boundary(content_type: &str) -> Option<String> {
+    let mut parts = content_type.split(';');
+    let mime = parts.next()?.trim();
+    if !mime.eq_ignore_ascii_case("multipart/form-data") {
+        return None;
+    }
+    for param in parts {
+        let param = param.trim();
+        if let Some(rest) = strip_ci_prefix(param, "boundary=") {
+            let unquoted = rest.trim().trim_matches('"');
+            if !unquoted.is_empty() {
+                return Some(unquoted.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Comme `str::strip_prefix`, mais insensible à la casse sur `prefix` — les
+/// noms d'en-têtes/paramètres HTTP ne sont jamais sensibles à la casse (RFC
+/// 7230 §3.2), contrairement à certaines de leurs VALEURS (ex. `boundary=`
+/// lui-même insensible, mais la valeur qui suit reste prise telle quelle).
+fn strip_ci_prefix<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
+    if s.len() >= prefix.len() && s.as_bytes()[..prefix.len()].eq_ignore_ascii_case(prefix.as_bytes()) {
+        Some(&s[prefix.len()..])
+    } else {
+        None
+    }
+}
+
+/// Recherche la première occurrence de `needle` dans `haystack` — équivalent
+/// minimal de `[u8]::windows().position()` (aucune bibliothèque de recherche
+/// de sous-chaîne binaire n'est déjà une dépendance de ce runtime, voir la
+/// doc de `parse_multipart` sur le choix d'écrire ce parseur à la main).
+fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() || haystack.len() < needle.len() {
+        return None;
+    }
+    haystack.windows(needle.len()).position(|w| w == needle)
+}
+
+/// Un "part" (champ) d'un corps `multipart/form-data`, avant conversion en
+/// `ParamValue` — `filename.is_some()` distingue un champ fichier d'un champ
+/// texte simple (voir RFC 7578 §4.2).
+pub(crate) struct MultipartPart {
+    pub(crate) name:         String,
+    pub(crate) filename:     Option<String>,
+    pub(crate) content_type: Option<String>,
+    pub(crate) body:         Vec<u8>,
+}
+
+/// Parse un corps `multipart/form-data` en une liste de parts — mini-parseur
+/// écrit à la main plutôt qu'une dépendance externe : ce projet n'a AUCUNE
+/// crate de parsing multipart déjà en dépendance (`tiny_http`, `ureq`, `url`,
+/// `regex`, `serde_json`, `rusqlite`, `mysql` — vérifié dans
+/// `runtime/Cargo.toml`, aucune ne fait ça), et `parse_query`/`url_decode`
+/// ci-dessus établissent déjà la convention de ce fichier : écrire son propre
+/// parsing HTTP-adjacent plutôt que d'ajouter une dépendance pour un format
+/// aussi simple à parser soi-même.
+///
+/// Tolérance CRLF/LF : RFC 7578/2046 imposent CRLF avant chaque délimiteur
+/// `--boundary`, mais cette fonction cherche le délimiteur BRUT n'importe où
+/// dans le corps (`find_subslice`, sans exiger un CRLF particulier juste
+/// avant), puis ne retire qu'UNE SEULE terminaison de ligne (`\r\n` ou `\n`)
+/// en tête/queue du contenu capturé — accepte donc aussi bien un corps strict
+/// CRLF qu'un corps LF-seul (client non conforme), même esprit de tolérance
+/// que le reste de ce fichier (`url_decode` ne rejette jamais un `%` mal
+/// formé, `parse_query` ignore silencieusement une paire sans `=`).
+///
+/// Limitation documentée (voir docs/roadmap.d/stdlib-httpserver-request-object.md,
+/// section "Ce qui a été tranché") : plusieurs parts portant le MÊME `name`
+/// (ex. un champ `photos[]` soumis plusieurs fois) — la dernière écrase les
+/// précédentes dans le bucket résultat (comportement `HashMap::insert`
+/// standard), jamais de panique. Hors périmètre d'un premier passage.
+pub(crate) fn parse_multipart(body: &[u8], boundary: &str) -> Vec<MultipartPart> {
+    let delim = format!("--{}", boundary).into_bytes();
+    let mut parts = Vec::new();
+
+    let Some(first) = find_subslice(body, &delim) else { return parts; };
+    let mut pos = first + delim.len();
+
+    loop {
+        // Corps immédiatement après CE délimiteur : soit `--` (délimiteur
+        // final, RFC 2046 §5.1.1), soit le contenu du part jusqu'au PROCHAIN
+        // délimiteur.
+        if body[pos..].starts_with(b"--") {
+            break;
+        }
+        let next_rel = find_subslice(&body[pos..], &delim);
+        let seg_end = match next_rel {
+            Some(off) => pos + off,
+            None => body.len(), // corps mal terminé (pas de délimiteur final) — tolérant, pas une erreur
+        };
+        let mut segment = &body[pos..seg_end];
+        // Une seule terminaison de ligne pelée en tête (après le délimiteur)
+        // et en queue (avant le délimiteur suivant) — voir la doc ci-dessus.
+        if let Some(s) = segment.strip_prefix(b"\r\n".as_slice()) { segment = s; }
+        else if let Some(s) = segment.strip_prefix(b"\n".as_slice()) { segment = s; }
+        if let Some(s) = segment.strip_suffix(b"\r\n".as_slice()) { segment = s; }
+        else if let Some(s) = segment.strip_suffix(b"\n".as_slice()) { segment = s; }
+
+        if let Some(part) = parse_one_multipart_part(segment) {
+            parts.push(part);
+        }
+
+        match next_rel {
+            Some(_) => pos = seg_end + delim.len(),
+            None => break,
+        }
+    }
+
+    parts
+}
+
+/// Parse un seul "part" (déjà délimité par `parse_multipart`) : sépare son
+/// petit bloc d'en-têtes (`Content-Disposition:`/`Content-Type:` optionnel)
+/// du contenu, sur la première ligne vide (`\r\n\r\n` ou `\n\n`, même
+/// tolérance CRLF/LF que `parse_multipart`). `None` si aucun
+/// `Content-Disposition` avec `name=` n'est trouvé (part malformé — ignoré
+/// plutôt que de planter).
+fn parse_one_multipart_part(segment: &[u8]) -> Option<MultipartPart> {
+    let (header_end, sep_len) = find_subslice(segment, b"\r\n\r\n").map(|i| (i, 4))
+        .or_else(|| find_subslice(segment, b"\n\n").map(|i| (i, 2)))?;
+    let header_text = String::from_utf8_lossy(&segment[..header_end]);
+    let body = segment[header_end + sep_len..].to_vec();
+
+    let mut name: Option<String> = None;
+    let mut filename: Option<String> = None;
+    let mut content_type: Option<String> = None;
+
+    for line in header_text.split(['\r', '\n']) {
+        let line = line.trim();
+        if line.is_empty() { continue; }
+        if let Some(rest) = strip_ci_prefix(line, "Content-Disposition:") {
+            for attr in rest.split(';').skip(1) {
+                let attr = attr.trim();
+                if let Some(v) = strip_ci_prefix(attr, "name=") {
+                    name = Some(v.trim().trim_matches('"').to_string());
+                } else if let Some(v) = strip_ci_prefix(attr, "filename=") {
+                    filename = Some(v.trim().trim_matches('"').to_string());
+                }
+            }
+        } else if let Some(rest) = strip_ci_prefix(line, "Content-Type:") {
+            content_type = Some(rest.trim().to_string());
+        }
+    }
+
+    Some(MultipartPart { name: name?, filename, content_type, body })
+}
+
+/// Construit les 10 buckets de `params()` (voir `METHOD_BUCKETS`) à partir de
+/// la query string de l'URL (TOUJOURS dans le bucket "GET", quelle que soit
+/// la méthode réelle) et, si applicable, du corps de la requête (urlencoded
+/// ou multipart) dans le bucket de la méthode RÉELLE — fusionné dans "GET" si
+/// la méthode réelle est justement `GET` (cas rare : une requête GET avec un
+/// corps ET une query string). Calculé UNE SEULE FOIS par requête (voir son
+/// appel dans `handle_request`), consulté ensuite par `param()`/`params()`
+/// sans jamais re-parser.
+pub(crate) fn build_params_buckets(
+    query_str: &str,
+    method: &str,
+    headers: &HashMap<String, String>,
+    body: &[u8],
+    path_params: &HashMap<String, ParamValue>,
+) -> HashMap<String, HashMap<String, ParamValue>> {
+    let mut buckets: HashMap<String, HashMap<String, ParamValue>> = METHOD_BUCKETS.iter()
+        .map(|m| (m.to_string(), HashMap::new()))
+        .collect();
+
+    // Query string : toujours dans "GET", indépendamment de la méthode réelle
+    // (une query string peut légitimement accompagner N'IMPORTE QUELLE méthode).
+    for (k, v) in parse_query(query_str) {
+        buckets.get_mut("GET").unwrap().insert(k, ParamValue::Text(v));
+    }
+
+    // Paramètres de CHEMIN (`<id:int>`, voir `match_route`) : insérés APRÈS
+    // la query string, dans le MÊME bucket "GET" — l'emportent donc sur la
+    // query string à clé égale (voir docs/roadmap.d/stdlib-httpserver-route-params.md,
+    // décision confirmée : un paramètre de chemin est plus spécifique/
+    // intentionnel qu'une query string arbitraire portant le même nom).
+    for (k, v) in path_params {
+        buckets.get_mut("GET").unwrap().insert(k.clone(), v.clone());
+    }
+
+    if body.is_empty() || !METHOD_BUCKETS.contains(&method) {
+        return buckets;
+    }
+    let Some(content_type) = content_type_of(headers) else { return buckets; };
+    let target = method; // "GET" fusionne naturellement (même bucket que la query string)
+
+    let ct_lower = content_type.to_ascii_lowercase();
+    if ct_lower.starts_with("application/x-www-form-urlencoded") {
+        if let Ok(body_str) = std::str::from_utf8(body) {
+            let bucket = buckets.entry(target.to_string()).or_default();
+            for (k, v) in parse_query(body_str) {
+                // Sur GET+corps (cas rare), le corps écrase la query string à
+                // clé égale — dernier appel à `insert` gagnant, cohérent avec
+                // la règle de précédence "le corps l'emporte" de `param()`.
+                bucket.insert(k, ParamValue::Text(v));
+            }
+        }
+    } else if let Some(boundary) = parse_boundary(content_type) {
+        let bucket = buckets.entry(target.to_string()).or_default();
+        for part in parse_multipart(body, &boundary) {
+            let value = match part.filename {
+                Some(filename) => ParamValue::File {
+                    filename,
+                    content_type: part.content_type.unwrap_or_else(|| "application/octet-stream".to_string()),
+                    content: part.body,
+                },
+                None => ParamValue::Text(String::from_utf8_lossy(&part.body).to_string()),
+            };
+            bucket.insert(part.name, value);
+        }
+    }
+    // Content-Type non reconnu (ex. application/json — géré par l'appelant
+    // via JSON::decode(req.body()), explicitement hors périmètre ici) : le
+    // bucket de la méthode réelle reste tel quel (vide, sauf fusion GET
+    // ci-dessus si target == "GET").
+
+    buckets
+}
+
+/// Résout `param(key, method)` — voir la doc complète dans
+/// `HTTPServerRequest_param`/`_param_1` : soit une recherche DIRECTE dans un
+/// bucket précis (`method` donné), soit la fusion GET/méthode réelle avec le
+/// corps prioritaire sur la query string (`method` = `None`, valeur par
+/// défaut Ocara).
+pub(crate) fn lookup_param<'a>(
+    buckets: &'a HashMap<String, HashMap<String, ParamValue>>,
+    key: &str,
+    method: Option<&str>,
+    actual_method: &str,
+) -> Option<&'a ParamValue> {
+    match method {
+        Some(m) => buckets.get(m).and_then(|b| b.get(key)),
+        None => {
+            let from_get = buckets.get("GET").and_then(|b| b.get(key));
+            if actual_method == "GET" {
+                return from_get;
+            }
+            // Le corps (bucket de la méthode réelle) l'emporte sur la query
+            // string en cas de collision — voir la doc de la spécification.
+            buckets.get(actual_method).and_then(|b| b.get(key)).or(from_get)
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -331,9 +841,18 @@ fn handle_request(
     error_handlers: &HashMap<u16, SendHandler>,
     handler_lock: &Mutex<()>,
 ) {
-    // Lire le corps
-    let mut body = String::new();
-    let _ = request.as_reader().read_to_string(&mut body);
+    // Lire le corps en OCTETS BRUTS (pas `read_to_string`) : un corps
+    // `multipart/form-data` contenant un fichier (JPEG, PDF...) n'est PAS de
+    // l'UTF-8 valide — `read_to_string` aurait échoué (silencieusement,
+    // `body` restant vide) dès le premier octet non-UTF-8 rencontré, ce qui
+    // aurait corrompu/tronqué tout upload binaire avant même que
+    // `build_params_buckets`/`parse_multipart` ne le voie. `ctx.body`
+    // (accessible côté Ocara via `body(): string`) reste dérivé en texte via
+    // une conversion LOSSY — comportement inchangé pour un corps texte réel
+    // (JSON, urlencoded...), qui est toujours de l'UTF-8 valide.
+    let mut raw_body: Vec<u8> = Vec::new();
+    let _ = request.as_reader().read_to_end(&mut raw_body);
+    let body = String::from_utf8_lossy(&raw_body).to_string();
 
     // Décomposer l'URL en chemin + query string
     let full_url = request.url().to_string();
@@ -344,19 +863,40 @@ fn handle_request(
 
     let method = request.method().to_string().to_uppercase();
 
-    // Collecter les en-têtes de la requête
+    // Collecter les en-têtes de la requête — casse D'ORIGINE préservée (voir
+    // la doc de `OcaraHttpContext.headers` : nécessaire pour `headers()`,
+    // `header(name)` reste insensible à la casse via `header_lookup`).
     let mut headers: HashMap<String, String> = HashMap::new();
     for h in request.headers() {
         headers.insert(
-            h.field.to_string().to_lowercase(),
+            h.field.to_string(),
             h.value.to_string(),
         );
     }
 
-    // Chercher une route correspondante
-    let handler = routes.iter().find(|r| {
-        r.method == method && (r.path == path || r.path == "*")
-    }).map(|r| r.handler.clone());
+    // Chercher une route correspondante — premier match gagne, dans l'ordre
+    // d'enregistrement (voir `match_route` : un segment littéral qui ne
+    // matche pas, ou un paramètre qui échoue à parser selon son type déclaré,
+    // fait passer à la route suivante, sans logique de priorité séparée).
+    let mut path_params: HashMap<String, ParamValue> = HashMap::new();
+    let mut handler: Option<SendHandler> = None;
+    for r in routes.iter() {
+        if r.method != method {
+            continue;
+        }
+        if let Some(params) = match_route(&r.pattern, path) {
+            path_params = params;
+            handler = Some(r.handler.clone());
+            break;
+        }
+    }
+
+    // Paramètres GET (query string PUIS paramètres de chemin, qui l'emportent
+    // sur la query string à clé égale — voir `build_params_buckets`) + corps
+    // (urlencoded/multipart, méthode réelle) — calculés une seule fois ici,
+    // consultés ensuite par `param()`/`params()` sans jamais re-parser (voir
+    // leur doc).
+    let param_buckets = build_params_buckets(query_str, &method, &headers, &raw_body, &path_params);
 
     // Construire le contexte de requête
     let path_str   = path.to_string();
@@ -367,6 +907,7 @@ fn handle_request(
         body,
         headers,
         query:        parse_query(query_str),
+        param_buckets,
         resp_status:  200,
         resp_body:    String::new(),
         resp_headers: Vec::new(),
@@ -514,7 +1055,13 @@ pub extern "C" fn HTTPServer_rootPath(self_ptr: i64, path_ptr: i64) {
     s.root_path = Some(resolved);
 }
 
-/// Enregistre une route.
+/// Enregistre une route. `path` peut contenir des segments paramétrés et
+/// typés `<nom:type>` (`int`/`float`/`bool`/`string`, ex. `/voitures/<id:int>`
+/// — voir docs/roadmap.d/stdlib-httpserver-route-params.md) : compilé UNE
+/// SEULE FOIS ici en `RoutePattern` (`parse_route_pattern`), jamais reparsé
+/// par requête (voir `match_route`, appelée depuis `handle_request`). Un
+/// paramètre matché est exposé côté Ocara via `req.param(nom)`/`req.params()`
+/// (bucket `"GET"`, où il l'emporte sur une query string de même clé).
 /// `fat_ptr` pointe sur un struct {func_ptr: i64, env_ptr: i64} (fat pointer Ocara).
 #[unsafe(no_mangle)]
 pub extern "C" fn HTTPServer_route(
@@ -529,7 +1076,7 @@ pub extern "C" fn HTTPServer_route(
     let path   = unsafe { ptr_to_str(path_ptr).to_string() };
     let method = unsafe { ptr_to_str(method_ptr).to_string().to_uppercase() };
     s.routes.push(Route {
-        path,
+        pattern: parse_route_pattern(&path),
         method,
         handler: SendHandler { func_ptr, env_ptr },
     });
@@ -596,44 +1143,72 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
     }
 }
 
-// ─── Méthodes statiques — lecture de la requête (appelées depuis un handler) ─
+// ─── HTTPServerRequest — méthodes d'instance, lecture de la requête ──────────
+// (voir docs/roadmap.d/stdlib-httpserver-request-object.md, désormais clos —
+// remplace les anciennes méthodes STATIQUES `HTTPServer::path/method/body/
+// header/query/respond/respondHeader(req, ...)`, cassé volontairement sans
+// période de coexistence, comme demandé : `req:int` ne compile plus.)
 
 /// Retourne le chemin de la requête courante (sans query string).
 #[unsafe(no_mangle)]
-pub extern "C" fn HTTPServer_path(req: i64) -> i64 {
+pub extern "C" fn HTTPServerRequest_path(req: i64) -> i64 {
     let path = unsafe { ctx_ref(req).path.clone() };
     unsafe { alloc_str(&path) }
 }
 
 /// Retourne la méthode HTTP de la requête courante (ex: "GET").
 #[unsafe(no_mangle)]
-pub extern "C" fn HTTPServer_method(req: i64) -> i64 {
+pub extern "C" fn HTTPServerRequest_method(req: i64) -> i64 {
     let method = unsafe { ctx_ref(req).method.clone() };
     unsafe { alloc_str(&method) }
 }
 
-/// Retourne le corps de la requête courante.
+/// Retourne le corps BRUT de la requête courante (conversion lossy si le
+/// corps n'est pas de l'UTF-8 valide — voir `handle_request` ; un corps
+/// multipart contenant un fichier binaire doit être lu via `param()`/
+/// `params()`, pas `body()`).
 #[unsafe(no_mangle)]
-pub extern "C" fn HTTPServer_body(req: i64) -> i64 {
+pub extern "C" fn HTTPServerRequest_body(req: i64) -> i64 {
     let body = unsafe { ctx_ref(req).body.clone() };
     unsafe { alloc_str(&body) }
 }
 
-/// Retourne la valeur d'un en-tête de la requête (clé insensible à la casse).
-/// Retourne une chaîne vide si l'en-tête est absent.
+/// Retourne la valeur d'un en-tête de la requête — recherche INSENSIBLE à la
+/// casse (voir `header_lookup`). Retourne une chaîne vide si l'en-tête est
+/// absent (comportement inchangé par rapport à l'ancien `HTTPServer::header`).
 #[unsafe(no_mangle)]
-pub extern "C" fn HTTPServer_header(req: i64, name_ptr: i64) -> i64 {
-    let name = unsafe { ptr_to_str(name_ptr).to_lowercase() };
-    let val  = unsafe { ctx_ref(req) }.headers.get(&name)
-        .cloned()
-        .unwrap_or_default();
+pub extern "C" fn HTTPServerRequest_header(req: i64, name_ptr: i64) -> i64 {
+    let name = unsafe { ptr_to_str(name_ptr).to_string() };
+    let val  = header_lookup(&unsafe { ctx_ref(req) }.headers, &name)
+        .unwrap_or("")
+        .to_string();
     unsafe { alloc_str(&val) }
 }
 
-/// Retourne la valeur d'un paramètre query string.
-/// Retourne une chaîne vide si le paramètre est absent.
+/// Retourne TOUS les en-têtes de la requête, clés dans leur casse D'ORIGINE
+/// (voir la doc de `OcaraHttpContext.headers`) — contrairement à `header()`,
+/// jamais insensible à la casse ici : c'est la recherche par NOM qui l'est,
+/// pas les clés de cette map. Chaque valeur est une string (les en-têtes HTTP
+/// sont toujours du texte sur le fil) — le type de retour déclaré côté Ocara
+/// (`map<string, string|int|float|bool|null>`) n'est qu'une parité d'API avec
+/// `params()`, jamais réellement peuplé d'autre chose qu'une string ici.
 #[unsafe(no_mangle)]
-pub extern "C" fn HTTPServer_query(req: i64, key_ptr: i64) -> i64 {
+pub extern "C" fn HTTPServerRequest_headers(req: i64) -> i64 {
+    let ctx = unsafe { ctx_ref(req) };
+    let map = crate::__map_new();
+    for (k, v) in &ctx.headers {
+        let key = unsafe { alloc_str(k) };
+        let val = unsafe { alloc_str(v) };
+        crate::__map_set(map, key, val);
+    }
+    map
+}
+
+/// Retourne la valeur d'un paramètre query string. Retourne une chaîne vide
+/// si le paramètre est absent (comportement inchangé — `query()` reste
+/// distinct de `param()`, qui lui suit la convention `mixed`/absent = `0`).
+#[unsafe(no_mangle)]
+pub extern "C" fn HTTPServerRequest_query(req: i64, key_ptr: i64) -> i64 {
     let key = unsafe { ptr_to_str(key_ptr).to_string() };
     let val = unsafe { ctx_ref(req) }.query.get(&key)
         .cloned()
@@ -641,12 +1216,135 @@ pub extern "C" fn HTTPServer_query(req: i64, key_ptr: i64) -> i64 {
     unsafe { alloc_str(&val) }
 }
 
-// ─── Méthodes statiques — construction de la réponse ─────────────────────────
+/// Convertit une `ParamValue` en valeur `mixed` Ocara auto-décrite —
+/// `Text` → string (Ptr, jamais boxée : une string EST déjà `mixed`-shaped) ;
+/// `File` → `map<string,mixed>` construite nativement (voir `file_to_mixed_map`).
+unsafe fn param_value_to_mixed(v: &ParamValue) -> i64 {
+    match v {
+        ParamValue::Text(s) => unsafe { alloc_str(s) },
+        // Un paramètre de CHEMIN typé (`<id:int>` etc., voir `match_route`)
+        // — mêmes primitives de boxing que partout ailleurs dans ce fichier/
+        // ce runtime (jamais un second chemin de boxing inventé pour
+        // l'occasion, voir docs/roadmap.d/stdlib-sqlite-integer-column-boxing.md
+        // pour le bug que ça évite : un `int` non boxé logé dans un `mixed`
+        // est ambigu avec un pointeur dès qu'il dépasse `PTR_THRESHOLD`).
+        ParamValue::Int(n) => crate::box_int_if_needed(*n),
+        ParamValue::Float(f) => crate::__box_float(f.to_bits() as i64),
+        ParamValue::Bool(b) => crate::__box_bool(if *b { 1 } else { 0 }),
+        ParamValue::File { filename, content_type, content } => unsafe {
+            file_to_mixed_map(filename, content_type, content)
+        },
+    }
+}
+
+/// Construit la `map<string,mixed>` d'un champ fichier multipart — clés
+/// `filename:string`, `contentType:string`, `size:int`, `content:array<int>`.
+///
+/// Choix pour `content` (DÉCISION DOCUMENTÉE — voir
+/// docs/roadmap.d/stdlib-httpserver-request-object.md) : `array<int>` (un
+/// octet par élément), PAS `string` malgré la spec initiale qui suggérait
+/// `content:string` — `ptr_to_str` (runtime/src/lib.rs) exige de l'UTF-8
+/// valide et retombe SILENCIEUSEMENT sur `""` sinon (`std::str::from_utf8(...)
+/// .unwrap_or("")`), ce qui aurait corrompu tout upload binaire réel (image,
+/// PDF...) dès sa première lecture côté Ocara. `array<int>` est la convention
+/// binaire-sûre DÉJÀ établie par ce projet pour exactement ce cas
+/// (`File::readBytes`/`writeBytes`, voir src/builtins/file.rs et
+/// runtime/src/file.rs::File_readBytes) — réutilisée ici plutôt que
+/// d'inventer une troisième convention (ex. base64).
+///
+/// `size` est boxé (`box_int_if_needed`) : c'est un `int` logé dans un
+/// `mixed` (la map résultat), et un fichier réel dépasse trivialement
+/// `PTR_THRESHOLD` (0x10000 = 64 Kio) — même invariant, même bug potentiel
+/// (SIGSEGV) que docs/roadmap.d/stdlib-sqlite-integer-column-boxing.md si
+/// omis ici.
+unsafe fn file_to_mixed_map(filename: &str, content_type: &str, content: &[u8]) -> i64 {
+    let map = crate::__map_new();
+    unsafe {
+        crate::__map_set(map, alloc_str("filename"), alloc_str(filename));
+        crate::__map_set(map, alloc_str("contentType"), alloc_str(content_type));
+        crate::__map_set(map, alloc_str("size"), crate::box_int_if_needed(content.len() as i64));
+        let bytes_arr = crate::__array_new();
+        for byte in content {
+            crate::__array_push(bytes_arr, *byte as i64);
+        }
+        crate::__map_set(map, alloc_str("content"), bytes_arr);
+    }
+    map
+}
+
+/// `req.param(key)` — équivalent à `req.param(key, null)`, voir `param()`
+/// complet ci-dessous pour la règle de précédence.
+#[unsafe(no_mangle)]
+pub extern "C" fn HTTPServerRequest_param_1(req: i64, key_ptr: i64) -> i64 {
+    let key = unsafe { ptr_to_str(key_ptr).to_string() };
+    let ctx = unsafe { ctx_ref(req) };
+    match lookup_param(&ctx.param_buckets, &key, None, &ctx.method) {
+        Some(v) => unsafe { param_value_to_mixed(v) },
+        // Absent : même convention que __map_get sur une clé manquante
+        // (runtime/src/lib.rs) — `0`, jamais une valeur inventée.
+        None => 0,
+    }
+}
+
+/// `req.param(key, method = null)` — accessoir universel `mixed`.
+///
+/// - `method` donné (normalisé en MAJUSCULES, comparaison insensible à la
+///   casse — `"post"`/`"POST"` équivalents) : recherche UNIQUEMENT dans le
+///   bucket de cette méthode (voir `params()`/`METHOD_BUCKETS`).
+/// - `method` = `null` (0) : fusionne le bucket "GET" (query string) avec
+///   celui de la méthode RÉELLE de la requête (corps), le corps l'emportant
+///   en cas de collision de clé — si la méthode réelle EST "GET", il n'y a
+///   qu'un seul bucket à consulter (la fusion est un no-op).
+/// - Absent : `0` (même convention que `__map_get` sur une clé manquante).
+#[unsafe(no_mangle)]
+pub extern "C" fn HTTPServerRequest_param(req: i64, key_ptr: i64, method_ptr: i64) -> i64 {
+    let key = unsafe { ptr_to_str(key_ptr).to_string() };
+    let ctx = unsafe { ctx_ref(req) };
+    let method_upper = if method_ptr == 0 {
+        None
+    } else {
+        Some(unsafe { ptr_to_str(method_ptr) }.to_uppercase())
+    };
+    match lookup_param(&ctx.param_buckets, &key, method_upper.as_deref(), &ctx.method) {
+        Some(v) => unsafe { param_value_to_mixed(v) },
+        None => 0,
+    }
+}
+
+/// `req.params(): map<string, map<string, mixed>>` — les 10 buckets toujours
+/// présents (voir `METHOD_BUCKETS`), construits nativement (comme
+/// `collect_all_rows` pour SQLite) plutôt que via une indexation Ocara-level
+/// `m[clé] = valeur` — voir la doc de `ParamValue`/`param_value_to_mixed`
+/// pour le boxing correct de chaque valeur (délibérément PAS construit en
+/// générant du code Ocara `m[k]=v`, qui avait son propre bug de boxing
+/// distinct — voir docs/roadmap.d/langage-mixed-container-indexed-assignment-boxing.md
+/// — cette fonction s'en affranchit entièrement en construisant tout côté
+/// Rust).
+#[unsafe(no_mangle)]
+pub extern "C" fn HTTPServerRequest_params(req: i64) -> i64 {
+    let ctx = unsafe { ctx_ref(req) };
+    let outer = crate::__map_new();
+    for bucket_name in METHOD_BUCKETS {
+        let inner = crate::__map_new();
+        if let Some(bucket) = ctx.param_buckets.get(bucket_name) {
+            for (k, v) in bucket {
+                let key = unsafe { alloc_str(k) };
+                let val = unsafe { param_value_to_mixed(v) };
+                crate::__map_set(inner, key, val);
+            }
+        }
+        let outer_key = unsafe { alloc_str(bucket_name) };
+        crate::__map_set(outer, outer_key, inner);
+    }
+    outer
+}
+
+// ─── HTTPServerRequest — méthodes d'instance, construction de la réponse ─────
 
 /// Définit le statut HTTP et le corps de la réponse.
 /// Peut être appelé plusieurs fois : seul le dernier appel est utilisé.
 #[unsafe(no_mangle)]
-pub extern "C" fn HTTPServer_respond(req: i64, status: i64, body_ptr: i64) {
+pub extern "C" fn HTTPServerRequest_respond(req: i64, status: i64, body_ptr: i64) {
     let body      = unsafe { ptr_to_str(body_ptr).to_string() };
     let ctx       = unsafe { ctx_ref(req) };
     ctx.resp_status = status as u16;
@@ -655,7 +1353,7 @@ pub extern "C" fn HTTPServer_respond(req: i64, status: i64, body_ptr: i64) {
 
 /// Ajoute un en-tête à la réponse (ex: "Content-Type", "text/html").
 #[unsafe(no_mangle)]
-pub extern "C" fn HTTPServer_respondHeader(req: i64, name_ptr: i64, value_ptr: i64) {
+pub extern "C" fn HTTPServerRequest_respondHeader(req: i64, name_ptr: i64, value_ptr: i64) {
     let name  = unsafe { ptr_to_str(name_ptr).to_string() };
     let value = unsafe { ptr_to_str(value_ptr).to_string() };
     let header_str = format!("{}: {}", name, value);

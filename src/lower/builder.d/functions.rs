@@ -134,6 +134,18 @@ pub fn lower_func(
             let specialized_name = crate::core::monomorph::monomorphized_name(generic_name, args);
             builder.var_class.insert(param.name.clone(), specialized_name);
         }
+        // Un paramètre `Classe|null` (le pattern officiellement documenté
+        // pour un retour "peut échouer", ex. `function find(id:int): User|null`,
+        // EBNF.md) doit aussi être enregistré dans var_class — sans ce
+        // dépliage, un accès de champ (`Expr::Field`) sur le paramètre après
+        // narrowing (`if u is null { return }`) ne trouve aucune classe et
+        // retombe sur l'offset 0 pour n'importe quel champ. Même bug/même
+        // correctif que `register_var_class`/`union_named_class`
+        // (src/lower/stmt.d/statements.d/variables.rs) — voir
+        // docs/roadmap.d/langage-union-class-null-field-access.md.
+        if let Some(class_name) = crate::parsing::ast::union_named_class(&param.ty) {
+            builder.var_class.insert(param.name.clone(), class_name);
+        }
         // Slot alloca qui recevra la valeur du paramètre
         let alloca_slot = builder.declare_local(&param.name, ir_ty.clone(), false);
         // Variable « receiver » distincte : mappée aux block_params Cranelift

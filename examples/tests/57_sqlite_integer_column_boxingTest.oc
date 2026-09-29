@@ -1,0 +1,188 @@
+import ocara.UnitTest
+import ocara.SQLite
+import ocara.File
+
+// Une colonne SQLite INTEGER relue via query()/queryOne() était stockée BRUTE
+// (jamais boxée) dans la map<string, mixed> résultat — voir runtime/src/sqlite.rs,
+// `collect_all_rows`/`SQLite_queryOne` (avant ce correctif, `row_column_as_mixed`
+// n'existait pas : chaque site avait sa propre copie de la logique, ni l'une ni
+// l'autre ne passait la valeur `i64` par `box_int_if_needed`). Un entier valant
+// `0` ou dépassant 0x10000 (PTR_THRESHOLD) DOIT être boxé, sinon il devient
+// indiscernable, par ses 2 bits bas, d'un float/bool/int boxé — tout consommateur
+// `mixed` générique (une affectation vers un `int` concret, ici `var x:int =
+// row["col"]`) le déballe alors comme un pointeur et le DÉRÉFÉRENCE : SIGSEGV.
+//
+// Confirmé par reproduction : une colonne `created_at` valant 1790255242 (un
+// timestamp Unix réaliste) faisait planter le PROCESSUS (pas juste un résultat
+// faux) dès qu'elle était lue dans un `int` concret après un db.query(). Le
+// symptôme observé au départ ("crash après 6 conversions dont un float") était
+// une fausse piste : la vraie condition ne dépend ni du nombre de colonnes lues
+// ni de la présence d'un float, uniquement de la magnitude/parité de bits d'UNE
+// valeur entière quelque part dans les données. Voir
+// docs/roadmap.d/stdlib-sqlite-integer-column-boxing.md.
+class Test_57_sqlite_integer_column_boxing {
+
+    // Repro exact du ticket : une seule ligne, colonnes int/text/text/real/int,
+    // dont un entier (`created_at`) assez grand pour être confondu avec un
+    // pointeur boxé s'il n'est pas correctement boxé par le runtime.
+    public method queryLargeIntegerColumnDoesNotCrashTest(): int {
+        const path:string = "test_57_query_large_int.db"
+        if File::exists(path) {
+            File::remove(path)
+        }
+
+        const db:SQLite = SQLite::open(path)
+        db.execute("CREATE TABLE maintenances (id INTEGER PRIMARY KEY, car_id INTEGER, type TEXT, description TEXT, cost REAL, created_at INTEGER)")
+        db.execute("INSERT INTO maintenances (car_id, type, description, cost, created_at) VALUES (1, 'improvement', 'Peinture', 500.0, 1790255242)")
+
+        const rows:array<map<string, mixed>> = db.query("SELECT * FROM maintenances")
+        db.close()
+        File::remove(path)
+
+        UnitTest::assertEquals(1, rows.len())
+        var id:int = rows[0]["id"]
+        var carId:int = rows[0]["car_id"]
+        var mtype:string = rows[0]["type"]
+        var description:string = rows[0]["description"]
+        var cost:float = rows[0]["cost"]
+        var createdAt:int = rows[0]["created_at"]
+        UnitTest::assertEquals(1, id)
+        UnitTest::assertEquals(1, carId)
+        UnitTest::assertEquals("improvement", mtype)
+        UnitTest::assertEquals("Peinture", description)
+        UnitTest::assertEquals(500.0, cost)
+        UnitTest::assertEquals(1790255242, createdAt)
+        return 0
+    }
+
+    // Même colonne dangereuse, chemin queryOne (copie séparée du même bug
+    // avant ce correctif).
+    public method queryOneLargeIntegerColumnDoesNotCrashTest(): int {
+        const path:string = "test_57_queryone_large_int.db"
+        if File::exists(path) {
+            File::remove(path)
+        }
+
+        const db:SQLite = SQLite::open(path)
+        db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, stamp INTEGER)")
+        db.execute("INSERT INTO t (stamp) VALUES (1790255242)")
+        const row:map<string, mixed> = db.queryOne("SELECT * FROM t")
+        db.close()
+        File::remove(path)
+
+        var stamp:int = row["stamp"]
+        UnitTest::assertEquals(1790255242, stamp)
+        return 0
+    }
+
+    // Le point explicitement signalé comme jamais couvert par ce projet avant
+    // ce ticket : `db.query()` avec PLUSIEURS lignes, chacune portant une
+    // valeur entière dangereuse différente (les 3 tags ambigus + un timestamp
+    // réaliste), et au moins une colonne REAL parmi elles.
+    public method multiRowQueryWithDangerousIntegersOnEveryRowTest(): int {
+        const path:string = "test_57_multirow.db"
+        if File::exists(path) {
+            File::remove(path)
+        }
+
+        const db:SQLite = SQLite::open(path)
+        db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, big INTEGER, cost REAL, label TEXT)")
+        db.execute("INSERT INTO t (big, cost, label) VALUES (100000, 1.5, 'a')")
+        db.execute("INSERT INTO t (big, cost, label) VALUES (100001, 2.5, 'b')")
+        db.execute("INSERT INTO t (big, cost, label) VALUES (100002, 3.5, 'c')")
+        db.execute("INSERT INTO t (big, cost, label) VALUES (100003, 4.5, 'd')")
+        db.execute("INSERT INTO t (big, cost, label) VALUES (1790255242, 5.5, 'e')")
+
+        const rows:array<map<string, mixed>> = db.query("SELECT * FROM t ORDER BY id")
+        db.close()
+        File::remove(path)
+
+        UnitTest::assertEquals(5, rows.len())
+        var expectedBig:array<int> = [100000, 100001, 100002, 100003, 1790255242]
+        var expectedCost:array<float> = [1.5, 2.5, 3.5, 4.5, 5.5]
+        var expectedLabel:array<string> = ["a", "b", "c", "d", "e"]
+        var i:int = 0
+        while i smaller rows.len() {
+            var big:int = rows[i]["big"]
+            var cost:float = rows[i]["cost"]
+            var label:string = rows[i]["label"]
+            UnitTest::assertEquals(expectedBig[i], big)
+            UnitTest::assertEquals(expectedCost[i], cost)
+            UnitTest::assertEquals(expectedLabel[i], label)
+            i = i + 1
+        }
+        return 0
+    }
+
+    // Reproduit le tableau réaliste `cars` de l'application ayant révélé le
+    // bug : plusieurs lignes, 2 colonnes REAL, un timestamp entier dangereux
+    // par ligne.
+    public method multiRowQueryWithTwoRealColumnsTest(): int {
+        const path:string = "test_57_cars.db"
+        if File::exists(path) {
+            File::remove(path)
+        }
+
+        const db:SQLite = SQLite::open(path)
+        db.execute("CREATE TABLE cars (id INTEGER PRIMARY KEY, brand TEXT, model TEXT, purchase_price REAL, estimated_sale_price REAL, purchased_at INTEGER, notes TEXT)")
+        db.execute("INSERT INTO cars (brand, model, purchase_price, estimated_sale_price, purchased_at, notes) VALUES ('Peugeot', '308', 12000.5, 14000.75, 1790255242, 'good condition')")
+        db.execute("INSERT INTO cars (brand, model, purchase_price, estimated_sale_price, purchased_at, notes) VALUES ('Renault', 'Clio', 8000.25, 9500.0, 1790255300, 'needs tires')")
+        db.execute("INSERT INTO cars (brand, model, purchase_price, estimated_sale_price, purchased_at, notes) VALUES ('Citroen', 'C3', 7000.0, 7800.0, 1790200000, 'ok')")
+
+        const rows:array<map<string, mixed>> = db.query("SELECT * FROM cars ORDER BY id")
+        db.close()
+        File::remove(path)
+
+        UnitTest::assertEquals(3, rows.len())
+        var purchasePrice:float = rows[0]["purchase_price"]
+        var estimatedSalePrice:float = rows[0]["estimated_sale_price"]
+        var purchasedAt:int = rows[0]["purchased_at"]
+        UnitTest::assertEquals(12000.5, purchasePrice)
+        UnitTest::assertEquals(14000.75, estimatedSalePrice)
+        UnitTest::assertEquals(1790255242, purchasedAt)
+
+        var lastPurchasedAt:int = rows[2]["purchased_at"]
+        UnitTest::assertEquals(1790200000, lastPurchasedAt)
+        return 0
+    }
+
+    // Non-régression : un entier négatif (jamais ambigu avec un pointeur,
+    // quelle que soit sa magnitude) doit rester exact après un aller-retour.
+    public method negativeLargeIntegerStaysCorrectTest(): int {
+        const path:string = "test_57_negative.db"
+        if File::exists(path) {
+            File::remove(path)
+        }
+
+        const db:SQLite = SQLite::open(path)
+        db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, n INTEGER)")
+        db.execute("INSERT INTO t (n) VALUES (-987654321)")
+        const row:map<string, mixed> = db.queryOne("SELECT * FROM t")
+        db.close()
+        File::remove(path)
+
+        var n:int = row["n"]
+        UnitTest::assertEquals(-987654321, n)
+        return 0
+    }
+
+    // Non-régression : un entier `0` authentique (l'autre cas spécial de
+    // box_int_if_needed) reste distinguable de `null` après un aller-retour.
+    public method zeroIntegerColumnNotConfusedWithNullTest(): int {
+        const path:string = "test_57_zero.db"
+        if File::exists(path) {
+            File::remove(path)
+        }
+
+        const db:SQLite = SQLite::open(path)
+        db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, n INTEGER)")
+        db.execute("INSERT INTO t (n) VALUES (0)")
+        const row:map<string, mixed> = db.queryOne("SELECT * FROM t")
+        db.close()
+        File::remove(path)
+
+        var n:int = row["n"]
+        UnitTest::assertEquals(0, n)
+        return 0
+    }
+}

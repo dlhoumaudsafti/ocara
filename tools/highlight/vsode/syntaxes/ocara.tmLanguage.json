@@ -24,6 +24,7 @@
     { "include": "#static-access" },
     { "include": "#generic-instantiation" },
     { "include": "#class-instantiation" },
+    { "include": "#wiring-declaration" },
     { "include": "#storage-modifier" },
     { "include": "#keyword-control" },
     { "include": "#keyword-declaration" },
@@ -328,6 +329,15 @@
       }
     },
 
+    "wiring-declaration": {
+      "comment": "wiring path.to.ClassName — voir docs/roadmap.d/langage-interface-wiring.md",
+      "match": "\\b(wiring)\\s+([A-Za-z_][\\w.]*)\\b",
+      "captures": {
+        "1": { "name": "keyword.other.ocara" },
+        "2": { "name": "entity.name.class.ocara" }
+      }
+    },
+
     "storage-modifier": {
       "name": "storage.modifier.ocara",
       "match": "\\b(public|private|protected|static|async)\\b"
@@ -345,7 +355,7 @@
 
     "keyword-other": {
       "name": "keyword.other.ocara",
-      "match": "\\b(as|from|use|nameless|resolve|extends|implements|modules|self|parent|namespace)\\b"
+      "match": "\\b(as|from|use|nameless|resolve|extends|implements|modules|wiring|self|parent|namespace)\\b"
     },
 
     "type-primitive": {

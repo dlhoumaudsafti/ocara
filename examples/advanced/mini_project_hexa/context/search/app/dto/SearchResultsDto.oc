@@ -1,0 +1,14 @@
+namespace context.search.app.dto
+
+import context.search.domain.entity.CarSearchResultEntity
+import context.search.domain.entity.MaintenanceSearchResultEntity
+
+class SearchResultsDto {
+    public property cars:array<CarSearchResultEntity>
+    public property maintenances:array<MaintenanceSearchResultEntity>
+
+    init(cars:array<CarSearchResultEntity>, maintenances:array<MaintenanceSearchResultEntity>) {
+        self.cars = cars
+        self.maintenances = maintenances
+    }
+}

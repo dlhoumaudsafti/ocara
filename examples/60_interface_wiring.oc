@@ -1,0 +1,72 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 60 — `wiring` (liaison interface → implémentation à la compilation)
+//
+// Voir docs/roadmap.d/langage-interface-wiring.md pour la spécification
+// complète. Illustre :
+//   - `wiring <Classe>` dans un corps d'`interface`, répétable — chaque
+//     cible doit `implements` l'interface qui la déclare.
+//   - Résolution SANS alias (`use Repo()`, `Repo::create()`) : construction
+//     et appel statique sur le nom NU de l'interface résolvent vers le
+//     PREMIER `wiring` déclaré (ordre textuel) — ici `PostgresRepo`.
+//   - Résolution AVEC alias (`import ... as InMemoryRepo`, voir
+//     examples/tests/60_interface_wiringTest.oc) : un alias dont le nom
+//     simple correspond à un AUTRE `wiring` devient un substitut complet de
+//     cette classe concrète — partout, y compris en annotation de type.
+//   - Le type de l'interface reste abstrait dans une annotation de type
+//     ordinaire (`useRepo(r:Repo)` ci-dessous accepte indifféremment les
+//     DEUX implémentations) — 100 % statique, aucun coût/dispatch runtime
+//     ajouté par `wiring` lui-même (la substitution est un pur réécriture
+//     d'AST à la compilation).
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+
+interface Repo {
+    method save(msg:string): string
+    static method create(): Repo
+
+    // Répétable — le PREMIER (`PostgresRepo`) est celui vers lequel un
+    // usage NU (sans alias) de l'interface résout.
+    wiring PostgresRepo
+    wiring InMemoryRepo
+}
+
+class PostgresRepo implements Repo {
+    public static method create(): Repo {
+        return use PostgresRepo()
+    }
+    public method save(msg:string): string {
+        return `postgres:${msg}`
+    }
+}
+
+class InMemoryRepo implements Repo {
+    public static method create(): Repo {
+        return use InMemoryRepo()
+    }
+    public method save(msg:string): string {
+        return `memory:${msg}`
+    }
+}
+
+// Le type `Repo` reste l'interface ABSTRAITE en position d'annotation —
+// accepte n'importe quelle implémentation, `wiring` n'y change rien.
+function useRepo(r:Repo, msg:string): string {
+    return r.save(msg)
+}
+
+function main(): int {
+    // Nom nu, sans alias → premier wiring (PostgresRepo).
+    var viaBareNew:Repo = use Repo()
+    IO::writeln(viaBareNew.save("hello"))       // postgres:hello
+
+    var viaBareStatic:Repo = Repo::create()
+    IO::writeln(viaBareStatic.save("hi"))       // postgres:hi
+
+    // Polymorphisme réel : les deux implémentations concrètes restent
+    // interchangeables via le type abstrait `Repo`.
+    IO::writeln(useRepo(use PostgresRepo(), "poly"))   // postgres:poly
+    IO::writeln(useRepo(use InMemoryRepo(), "poly"))   // memory:poly
+
+    return 0
+}

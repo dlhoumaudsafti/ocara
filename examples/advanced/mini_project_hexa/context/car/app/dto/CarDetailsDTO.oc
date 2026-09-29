@@ -1,0 +1,23 @@
+namespace context.car.app.dto
+
+import context.car.domain.entity.CarEntity
+import context.car.domain.entity.MaintenanceEntity
+
+class CarDetailsDTO {
+    public property Car:CarEntity
+    public property maintenances:array<MaintenanceEntity>
+    public property maintenanceTotal:float
+    public property improvementTotal:float
+
+    init (
+        Car:CarEntity,
+        maintenances:array<MaintenanceEntity>,
+        maintenanceTotal:float,
+        improvementTotal:float
+    ) {
+        self.Car = Car
+        self.maintenances = maintenances
+        self.maintenanceTotal = maintenanceTotal
+        self.improvementTotal = improvementTotal
+    }
+}

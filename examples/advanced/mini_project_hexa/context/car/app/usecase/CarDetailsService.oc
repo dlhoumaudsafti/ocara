@@ -1,0 +1,22 @@
+namespace context.car.app.usecase
+
+import context.car.app.dto.CarDetailsDTO
+import context.car.domain.entity.CarEntity
+import context.car.domain.entity.MaintenanceEntity
+import context.car.domain.contract.CarContract
+import context.car.domain.contract.MaintenanceContract
+
+class CarDetailsService {
+
+    public static method build(carId:int): CarDetailsDTO|null {
+        const car:CarEntity|null = CarContract::find(carId)
+        if car is null {
+            return null
+        }
+        const maintenances:array<MaintenanceEntity> = MaintenanceContract::forCar(carId)
+        var maintenanceTotal:float  = MaintenanceContract::maintenanceTotal(carId)
+        var improvementTotal:float  = MaintenanceContract::improvementTotal(carId)
+
+        return use CarDetailsDTO(car, maintenances, maintenanceTotal, improvementTotal)
+    }
+}

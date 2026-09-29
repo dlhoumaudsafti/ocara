@@ -26,6 +26,60 @@ fn map_value_type(ty: &Type) -> Option<&Type> {
     }
 }
 
+/// Enregistre dans `builder` les métadonnées dérivées du TYPE DÉCLARÉ `ty`
+/// d'une variable `name` qui donnent accès à ses champs/méthodes d'instance
+/// (`var_class`) ou en font une cible d'appel indirect (`func_vars`/
+/// `func_ret_types`) — partagé par `lower_var` ET `lower_const` : les deux
+/// déclarent une variable à partir d'un type écrit et doivent en dériver
+/// EXACTEMENT les mêmes métadonnées (les cas `array<T>`/`map<K,V>` de base,
+/// `elem_types`/`elem_ast_types`/`map_vars`, restent gérés séparément par
+/// chaque appelant, avant cet appel, car ils précèdent aussi le calcul de
+/// `map_value_type` ci-dessus).
+///
+/// Avant cette factorisation, `lower_const` réimplémentait sa propre copie
+/// partielle de ce calcul — sans le cas `Type::Union` (`Classe|null`),
+/// jamais ajouté ici contrairement à `lower_var`. Voir la doc de
+/// `union_named_class` (src/parsing/ast.d/types.rs) pour le bug que ça
+/// causait et docs/roadmap.d/langage-union-class-null-field-access.md pour
+/// la reproduction complète.
+fn register_var_class(builder: &mut LowerBuilder, name: &str, ty: &Type) {
+    // Type de classe utilisateur direct.
+    if let Type::Named(class_name) = ty {
+        builder.var_class.insert(name.to_string(), class_name.clone());
+    }
+
+    // Générique : utiliser le nom monomorphisé (même résolution qu'un
+    // paramètre de fonction, voir functions.rs).
+    if let Type::Generic { name: generic_name, args } = ty {
+        let specialized_name = monomorphized_name(generic_name, args);
+        builder.var_class.insert(name.to_string(), specialized_name);
+    }
+
+    // Les variables string/array/map ont automatiquement accès aux méthodes
+    // de leur classe builtin respective.
+    if let Type::String = ty {
+        builder.var_class.insert(name.to_string(), "String".to_string());
+    }
+    if let Type::Array(_) = ty {
+        builder.var_class.insert(name.to_string(), "Array".to_string());
+    }
+    if let Type::Map(_, _) = ty {
+        builder.var_class.insert(name.to_string(), "Map".to_string());
+    }
+
+    // Variable de type Function → enregistrer pour CallIndirect.
+    if let Type::Function { ret_ty, .. } = ty {
+        builder.func_vars.insert(name.to_string());
+        builder.func_ret_types.insert(name.to_string(), IrType::from_ast(ret_ty));
+    }
+
+    // Union contenant un type nommé (`Classe|null`) : utiliser le premier
+    // `Named` pour l'accès aux champs — voir `union_named_class`.
+    if let Some(class_name) = union_named_class(ty) {
+        builder.var_class.insert(name.to_string(), class_name);
+    }
+}
+
 pub fn lower_var(
     builder: &mut LowerBuilder,
     name: &str,
@@ -51,47 +105,9 @@ pub fn lower_var(
         builder.elem_ast_types.insert(name.to_string(), val_ty.clone());
     }
 
-    // Si c'est un type de classe, enregistrer le mapping var → classe
-    if let Type::Named(class_name) = ty {
-        builder.var_class.insert(name.to_string(), class_name.clone());
-    }
-    
-    // Si c'est un générique, utiliser le nom monomorphisé
-    if let Type::Generic { name: generic_name, args } = ty {
-        let specialized_name = monomorphized_name(generic_name, args);
-        builder.var_class.insert(name.to_string(), specialized_name);
-    }
-    
-    // Les variables string ont automatiquement accès aux méthodes de String
-    if let Type::String = ty {
-        builder.var_class.insert(name.to_string(), "String".to_string());
-    }
-    
-    // Les variables array ont automatiquement accès aux méthodes de Array
-    if let Type::Array(_) = ty {
-        builder.var_class.insert(name.to_string(), "Array".to_string());
-    }
-    
-    // Les variables map ont automatiquement accès aux méthodes de Map
-    if let Type::Map(_, _) = ty {
-        builder.var_class.insert(name.to_string(), "Map".to_string());
-    }
-    
-    // Variable de type Function → enregistrer pour CallIndirect
-    if let Type::Function { ret_ty, .. } = ty {
-        builder.func_vars.insert(name.to_string());
-        builder.func_ret_types.insert(name.to_string(), IrType::from_ast(ret_ty));
-    }
-    
-    // Union contenant un type nommé : utiliser le premier Named pour l'accès aux champs
-    if let Type::Union(variants) = ty {
-        if let Some(class_name) = variants.iter().find_map(|v| {
-            if let Type::Named(n) = v { Some(n.clone()) } else { None }
-        }) {
-            builder.var_class.insert(name.to_string(), class_name);
-        }
-    }
-    
+    // Classe/générique/string/array/map/function/union : voir register_var_class.
+    register_var_class(builder, name, ty);
+
     let _slot = builder.declare_local(name, ir_ty.clone(), mutable);
     let val_ty = expr_ir_type_pub(builder, value);
     let val = lower_literal_or_expr(builder, value, ty);
@@ -141,26 +157,12 @@ pub fn lower_const(
         builder.elem_ast_types.insert(name.to_string(), val_ty.clone());
     }
 
-    if let Type::Named(class_name) = ty {
-        builder.var_class.insert(name.to_string(), class_name.clone());
-    }
+    // Classe/générique/string/array/map/function/union : voir register_var_class.
+    // (Avant ce correctif, `lower_const` réimplémentait une copie PARTIELLE
+    // de ce bloc — sans les cas Map/Function/Union — voir sa doc pour le
+    // bug concret que l'absence du cas Union causait sur `const x:Classe|null`.)
+    register_var_class(builder, name, ty);
 
-    // Si c'est un générique, utiliser le nom monomorphisé
-    if let Type::Generic { name: generic_name, args } = ty {
-        let specialized_name = monomorphized_name(generic_name, args);
-        builder.var_class.insert(name.to_string(), specialized_name);
-    }
-    
-    // Les variables string ont automatiquement accès aux méthodes de String
-    if let Type::String = ty {
-        builder.var_class.insert(name.to_string(), "String".to_string());
-    }
-    
-    // Les variables array ont automatiquement accès aux méthodes de Array
-    if let Type::Array(_) = ty {
-        builder.var_class.insert(name.to_string(), "Array".to_string());
-    }
-    
     let _slot = builder.declare_local(name, ir_ty.clone(), false);
     let val_ty = expr_ir_type_pub(builder, value);
     let val = lower_literal_or_expr(builder, value, ty);
@@ -243,5 +245,108 @@ mod tests {
         assert_eq!(map_value_type(&Type::String), None);
         assert_eq!(map_value_type(&Type::Array(Box::new(Type::Int))), None);
         assert_eq!(map_value_type(&Type::Union(vec![Type::String, Type::Null])), None);
+    }
+}
+
+/// Tests unitaires — `register_var_class`
+/// (docs/roadmap.d/langage-union-class-null-field-access.md) : un `const`/
+/// `var` de type `Classe|null` qui retourne réellement une instance (jamais
+/// `null`) voyait TOUT accès de champ à l'endroit de l'appel (`f.champ`,
+/// même après narrowing `if f is null { return }`) résoudre systématiquement
+/// la valeur du PREMIER champ déclaré, quel que soit le champ demandé —
+/// `var_class` n'avait aucune entrée pour `f`, donc `Expr::Field`
+/// (src/lower/expr.d/lower.rs) retombait sur `offset = 0`.
+#[cfg(test)]
+mod register_var_class_tests {
+    use super::register_var_class;
+    use crate::lower::builder::LowerBuilder;
+    use crate::ir::module::IrModule;
+    use crate::ir::types::IrType;
+    use crate::parsing::ast::Type;
+
+    fn builder(module: &mut IrModule) -> LowerBuilder<'_> {
+        LowerBuilder::new(module, "test_fn".into(), vec![], IrType::Void)
+    }
+
+    /// Cas direct, non-régression : `const x:Foo = ...`/`var x:Foo = ...`
+    /// fonctionnait déjà avant ce correctif — doit continuer à fonctionner.
+    #[test]
+    fn register_var_class_named_class_direct() {
+        let mut module = IrModule::new("test");
+        let mut b = builder(&mut module);
+        register_var_class(&mut b, "x", &Type::Named("Foo".to_string()));
+        assert_eq!(b.var_class.get("x"), Some(&"Foo".to_string()));
+    }
+
+    /// Le cas exact du bug rapporté : `Foo|null`. Avant ce correctif,
+    /// `lower_const` (contrairement à `lower_var`) n'avait aucun cas
+    /// `Type::Union` — cette régression aurait échoué en repassant à l'ancien
+    /// comportement partiel de `lower_const`.
+    #[test]
+    fn register_var_class_union_with_null_registers_named_class() {
+        let mut module = IrModule::new("test");
+        let mut b = builder(&mut module);
+        let ty = Type::Union(vec![Type::Named("Foo".to_string()), Type::Null]);
+        register_var_class(&mut b, "f", &ty);
+        assert_eq!(b.var_class.get("f"), Some(&"Foo".to_string()), "Foo|null doit enregistrer la classe Foo");
+    }
+
+    /// `null|Foo` — l'ordre des variantes ne doit pas changer le résultat
+    /// (même exigence que `map_value_type_union_order_independent`).
+    #[test]
+    fn register_var_class_union_order_independent() {
+        let mut module = IrModule::new("test");
+        let mut b = builder(&mut module);
+        let ty = Type::Union(vec![Type::Null, Type::Named("Foo".to_string())]);
+        register_var_class(&mut b, "f", &ty);
+        assert_eq!(b.var_class.get("f"), Some(&"Foo".to_string()));
+    }
+
+    /// `map<K,V>|null`/`Function|...` ne concernent pas `union_named_class`
+    /// (aucune variante `Named`) — `register_var_class` ne doit alors rien
+    /// enregistrer dans `var_class` pour ce type union (ni planter).
+    #[test]
+    fn register_var_class_union_without_named_variant_registers_nothing() {
+        let mut module = IrModule::new("test");
+        let mut b = builder(&mut module);
+        let ty = Type::Union(vec![Type::Int, Type::Null]);
+        register_var_class(&mut b, "x", &ty);
+        assert_eq!(b.var_class.get("x"), None);
+    }
+
+    #[test]
+    fn register_var_class_string_array_map_builtins() {
+        let mut module = IrModule::new("test");
+        let mut b = builder(&mut module);
+        register_var_class(&mut b, "s", &Type::String);
+        register_var_class(&mut b, "a", &Type::Array(Box::new(Type::Int)));
+        register_var_class(&mut b, "m", &Type::Map(Box::new(Type::String), Box::new(Type::Int)));
+        assert_eq!(b.var_class.get("s"), Some(&"String".to_string()));
+        assert_eq!(b.var_class.get("a"), Some(&"Array".to_string()));
+        assert_eq!(b.var_class.get("m"), Some(&"Map".to_string()));
+    }
+
+    /// Second gap trouvé par la même factorisation : `lower_const` n'avait
+    /// jamais eu le cas `Type::Function` (présent dans `lower_var` depuis le
+    /// début) — `const f:Function<...> = ...` ne pouvait pas être appelée
+    /// par `CallIndirect`.
+    #[test]
+    fn register_var_class_function_registers_func_vars() {
+        let mut module = IrModule::new("test");
+        let mut b = builder(&mut module);
+        let ty = Type::Function { ret_ty: Box::new(Type::Int), param_tys: vec![] };
+        register_var_class(&mut b, "cb", &ty);
+        assert!(b.func_vars.contains("cb"));
+        assert_eq!(b.func_ret_types.get("cb"), Some(&IrType::I64));
+    }
+
+    /// Non-régression : un type primitif ne doit produire AUCUNE entrée.
+    #[test]
+    fn register_var_class_primitive_registers_nothing() {
+        let mut module = IrModule::new("test");
+        let mut b = builder(&mut module);
+        register_var_class(&mut b, "n", &Type::Int);
+        assert_eq!(b.var_class.get("n"), None);
+        assert!(!b.func_vars.contains("n"));
     }
 }
