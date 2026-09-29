@@ -1,0 +1,51 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 63 — Appel chaîné sur le résultat d'une fonction LIBRE
+//
+// Voir docs/roadmap.d/langage-chained-call-on-free-function-result.md :
+// `maFonction(...).methode()` retournait silencieusement `null` (jamais un
+// crash) — corrigé. Sert de support à
+// examples/tests/63_chained_call_on_free_function_resultTest.oc.
+//
+// Non couvert par ce correctif (limitation distincte, documentée à part,
+// voir docs/roadmap.d/langage-chained-call-depth-limit.md) : un appel
+// chaîné à partir de 3 niveaux (`a.b().c().d()`), général et préexistant,
+// sans rapport avec les fonctions libres.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+
+class Circle {
+    public property r:float
+    init(r:float) { self.r = r }
+    public method shapeName(): string { return "circle" }
+    public method area(): float { return 3.14 * self.r * self.r }
+}
+
+function pickCircle(kind:int): Circle {
+    return use Circle(2.0)
+}
+
+function makeNames(): array<string> {
+    return ["alice", "bob", "carol"]
+}
+
+function makeScores(): map<string, int> {
+    return {"alice": 10, "bob": 20}
+}
+
+function greeting(): string {
+    return "hello world"
+}
+
+function main(): int {
+    // Le cas exact du ticket : classe utilisateur, méthode d'instance.
+    IO::writeln(pickCircle(0).shapeName())
+    IO::writeln(pickCircle(0).area())
+
+    // Variantes de "famille de récepteur" différente : array/map/string.
+    IO::writeln(makeNames().len())
+    IO::writeln(makeScores().has("alice"))
+    IO::writeln(greeting().upper())
+
+    return 0
+}

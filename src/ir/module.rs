@@ -126,6 +126,26 @@ pub struct IrModule {
     /// l'imbriqué, produisant deux fonctions au même nom (collision de signature au
     /// codegen). Même patron que `anon_counter` ci-dessus, qui n'a pas ce problème.
     pub try_counter: usize,
+    /// Type de retour CONCRET d'une fonction LIBRE : nom de fonction → nom
+    /// de classe utilisateur (`Type::Named`) OU famille builtin
+    /// `"String"`/`"Array"`/`"Map"` (même convention que
+    /// `resolve_chained_field_class` pour un champ) — voir
+    /// docs/roadmap.d/langage-chained-call-on-free-function-result.md.
+    /// Nécessaire pour résoudre un appel de méthode chaîné directement sur
+    /// le résultat d'une fonction libre (`maFonction(...).methode()`, sans
+    /// jamais passer par une variable nommée) : `fn_ret_types` (sur
+    /// `LowerBuilder`) donne seulement l'`IrType` réduit (`Ptr` pour
+    /// n'importe quel type référence — classe, string, array, map,
+    /// indistinguables), jamais LE nom de classe précis nécessaire pour
+    /// mangler `Classe_methode`. Même famille de bug que
+    /// [langage-use-chaine-valeur-retour-perdue](../../docs/roadmap.d/langage-use-chaine-valeur-retour-perdue.md)
+    /// (`use Classe(...).methode()`) et
+    /// [langage-interface-wiring](../../docs/roadmap.d/langage-interface-wiring.md)'s
+    /// `HTTPRequest::get(...).methode()`, mais pour un TROISIÈME
+    /// déclencheur (appel de fonction libre) jamais couvert par ces
+    /// correctifs — avant, `func_mangled` valait `"_method_<methode>"`, un
+    /// symbole qui n'existe jamais, silencieusement sans effet au codegen.
+    pub func_ret_class: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone)]

@@ -1,0 +1,13 @@
+namespace context.search.domain.contract
+
+import context.search.domain.entity.CarSearchResultEntity
+import context.search.domain.entity.MaintenanceSearchResultEntity
+
+interface SearchContract {
+    wiring context.search.infra.db.SearchRepository
+    private static method carFromRow(row:map<string, mixed>): CarSearchResultEntity
+    private static method maintenanceFromRow(row:map<string, mixed>): MaintenanceSearchResultEntity
+    public static method cars(term:string): array<CarSearchResultEntity>
+    public static method maintenances(term:string): array<MaintenanceSearchResultEntity> 
+
+}

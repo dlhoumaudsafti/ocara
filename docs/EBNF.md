@@ -2282,7 +2282,9 @@ InterfaceDecl ::= "interface" Identifier "{" InterfaceMember* "}"
 
 InterfaceMember ::= InterfaceMethod | WiringDecl
 
-InterfaceMethod ::= "public"? "static"? "method" Identifier "(" ParamList? ")" ":" Type
+InterfaceMethod ::= InterfaceVisibility? "static"? "async"? "method" Identifier "(" ParamList? ")" ":" Type
+
+InterfaceVisibility ::= "public" | "private" | "protected"
 
 WiringDecl ::= "wiring" Identifier ( "." Identifier )*
 ```
@@ -2290,7 +2292,21 @@ WiringDecl ::= "wiring" Identifier ( "." Identifier )*
 - Une interface déclare uniquement des signatures de méthodes (pas de corps).
 - Pas de champs dans une interface.
 - Une classe implémentant une interface doit fournir toutes ses méthodes.
-- `public` devant une méthode d'interface est purement cosmétique (toute méthode d'interface est publique par nature) ; `static` exige que l'implémentation soit elle-même une méthode **statique** (vérifié par E09, voir docs/diagnostics.md).
+- Grammaire symétrique à celle d'une méthode de `class` (§16.3) : visibilité
+  (`public`/`private`/`protected`, au choix), `static`, `async` — les 12
+  combinaisons (3 visibilités × [rien, `static`, `async`, `static async`]),
+  plus la forme historique sans le moindre modificateur, parsent toutes
+  (voir docs/roadmap.d/langage-interface-method-modifiers.md).
+  Contrairement à une `class`, la visibilité reste **optionnelle** ici (une
+  interface n'a jamais eu de notion de visibilité propre) et n'est **jamais
+  vérifiée** à l'implémentation — `FuncSig` (table des symboles) ne porte
+  aucun champ de visibilité pour aucune méthode dans ce compilateur, ni pour
+  une classe ordinaire ni pour `extends` ; l'imposer ici serait une
+  asymétrie nouvelle, pas la symétrie recherchée. `static` et `async`, eux,
+  ont une sémantique directe et sont vérifiés à l'implémentation (E09, voir
+  docs/diagnostics.md) : la classe qui `implements` doit reprendre
+  exactement la même staticité/asynchronicité que l'interface pour chaque
+  méthode.
 - `wiring <chemin.pointé.vers.Classe>` lie l'interface à une classe concrète qui doit l'`implements` — voir §17.1.
 
 ```ocara
@@ -3585,7 +3601,8 @@ Visibility  ::= "public" | "private" | "protected"
 (* ── Interface ──────────────────────────────────────────────────── *)
 
 InterfaceMember ::= InterfaceMethod | WiringDecl
-InterfaceMethod ::= "public"? "static"? "method" Identifier "(" ParamList? ")" ":" Type
+InterfaceMethod ::= InterfaceVisibility? "static"? "async"? "method" Identifier "(" ParamList? ")" ":" Type
+InterfaceVisibility ::= "public" | "private" | "protected"
 WiringDecl      ::= "wiring" Identifier ( "." Identifier )*
 
 (* ── Paramètres ─────────────────────────────────────────────────── *)

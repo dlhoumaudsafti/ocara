@@ -45,7 +45,7 @@ class SearchController {
             carsHtml = `<p class="empty">Saisissez un terme ci-dessus pour lancer une recherche.</p>`
         }
 
-        scoped html:string = HTML::renderFile('templates/search.html')
+        scoped html:string = HTML::renderFile('templates/search/search.html')
         req.respond(200, html)
         return 0
     }

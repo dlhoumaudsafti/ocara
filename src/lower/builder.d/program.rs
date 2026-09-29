@@ -48,6 +48,25 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     let mut fn_ret_types: HashMap<String, IrType> = HashMap::new();
     for func in &program.functions {
         fn_ret_types.insert(func.name.clone(), IrType::from_ast(&func.ret_ty));
+        // Nom de "classe" concret du retour (classe utilisateur OU famille
+        // builtin string/array/map, même convention que
+        // `resolve_chained_field_class` pour un champ) — voir la doc de
+        // `IrModule::func_ret_class` et
+        // docs/roadmap.d/langage-chained-call-on-free-function-result.md.
+        // `array<T>`/`map<K,V>` INCLUS : sans ça, `maFonction().len()` (une
+        // fonction libre retournant un tableau, méthode builtin ensuite
+        // chaînée dessus) échouait exactement de la même façon qu'une
+        // classe utilisateur — confirmé par reproduction.
+        let ret_class_name = match &func.ret_ty {
+            Type::Named(n) => Some(n.clone()),
+            Type::String   => Some("String".to_string()),
+            Type::Array(_) => Some("Array".to_string()),
+            Type::Map(_, _) => Some("Map".to_string()),
+            _ => None,
+        };
+        if let Some(name) = ret_class_name {
+            module.func_ret_class.insert(func.name.clone(), name);
+        }
     }
 
     // Collecte des fonctions marquées async

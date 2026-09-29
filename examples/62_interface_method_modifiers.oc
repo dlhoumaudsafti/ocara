@@ -1,0 +1,52 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 62 — Modificateurs de méthode d'interface (symétrie avec `class`)
+//
+// Voir docs/roadmap.d/langage-interface-method-modifiers.md : les 12
+// combinaisons (3 visibilités `public`/`private`/`protected` × [rien,
+// `static`, `async`, `static async`]) parsent désormais, comme pour une
+// méthode de `class` ordinaire. La visibilité reste purement cosmétique
+// pour une interface (jamais vérifiée, ni à l'implémentation ni à l'appel —
+// `FuncSig` ne porte cette information nulle part dans ce compilateur,
+// pour aucune méthode) ; `static`/`async`, eux, sont vérifiés à la
+// conformité `implements` (E09).
+//
+// `async` D'INSTANCE (`obj.methode()`) est délibérément évité ici : un bug
+// préexistant et SANS RAPPORT avec ce ticket fait segfaulter tout appel
+// `async` via le sucre d'instance, pour N'IMPORTE QUELLE classe — voir
+// docs/roadmap.d/langage-async-instance-method-dispatch-broken.md. `static
+// async` (appelé via `Classe::methode()`) fonctionne correctement
+// aujourd'hui et couvre `async` sans se heurter à ce bug séparé.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+
+interface Modifiers {
+    public method greet(): string
+    private method secretNumber(): int
+    protected method category(): string
+    static method version(): int
+    static async method fetchDoubled(n:int): int
+}
+
+class Impl implements Modifiers {
+    public method greet(): string { return "hello" }
+    private method secretNumber(): int { return 42 }
+    protected method category(): string { return "demo" }
+    public static method version(): int { return 1 }
+    public static async method fetchDoubled(n:int): int { return n * 2 }
+}
+
+function main(): int {
+    var m:Modifiers = use Impl()
+    IO::writeln(m.greet())
+    IO::writeln(m.secretNumber())
+    IO::writeln(m.category())
+
+    IO::writeln(Impl::version())
+
+    var t:int = Impl::fetchDoubled(21)
+    var r:int = resolve t
+    IO::writeln(r)
+
+    return 0
+}

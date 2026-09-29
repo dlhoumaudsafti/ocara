@@ -241,6 +241,16 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                     Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
                     Expr::SelfExpr(_)    => builder.current_class.clone(),
                     Expr::Literal(Literal::String(_), _) => Some("String".to_string()),
+                    // `maFonction(...).methode()` — appel de fonction LIBRE
+                    // chaîné, voir la doc du même cas dans `lower.rs` (bloc
+                    // `Expr::Call`, lowering, `IrModule::func_ret_class`)
+                    // pour le bug corrigé — docs/roadmap.d/langage-chained-call-on-free-function-result.md.
+                    Expr::Call { callee: inner_callee, .. }
+                        if matches!(inner_callee.as_ref(), Expr::Ident(name, _) if builder.module.func_ret_class.contains_key(name)) =>
+                    {
+                        let Expr::Ident(fn_name, _) = inner_callee.as_ref() else { unreachable!() };
+                        builder.module.func_ret_class.get(fn_name.as_str()).cloned()
+                    }
                     // Appel chaîné : obj.method1().method2()
                     Expr::Call { callee: inner_callee, .. } => {
                         if let Expr::Field { object: inner_obj, field: inner_method, .. } = inner_callee.as_ref() {

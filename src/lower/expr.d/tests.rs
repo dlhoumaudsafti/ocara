@@ -254,4 +254,119 @@ mod tests {
         let result = resolve_chained_field_class(&builder, &new_expr("Foo"), "inner");
         assert_eq!(result, Some("Bar".to_string()), "use Foo().inner doit résoudre vers la classe Bar");
     }
+
+    // ── Appel chaîné sur le résultat d'une fonction LIBRE ───────────────────────
+    // docs/roadmap.d/langage-chained-call-on-free-function-result.md — même
+    // famille que le cas `use Classe(...).*` ci-dessus, troisième
+    // déclencheur (`maFonction(...).methode()`), jamais couvert par ce
+    // correctif-là. Root cause confirmée par `ocara build --dump` (HIR) AVANT
+    // correctif : le site d'appel manglait vers `"_method_<methode>"` (sans
+    // préfixe de classe, symbole inexistant) plutôt que `"Circle_shapeName"`.
+    // Pipeline complet (parse → lower_program) utilisé ici plutôt qu'un
+    // `LowerBuilder` nu : le correctif vit dans `lower_expr` lui-même (le
+    // bras `Expr::Field` de `Expr::Call`), pas dans une fonction utilitaire
+    // isolée comme `resolve_chained_field_class` ci-dessus — inspecter le
+    // HIR réellement généré est la façon la plus directe de vérifier le
+    // symptôme observable (le `Inst::Call.func` au site d'appel).
+    use crate::lower::builder::program::lower_program;
+    use crate::ir::inst::Inst;
+    use crate::parsing::lexer::Lexer;
+    use crate::parsing::parser::Parser;
+
+    fn lower_src(src: &str) -> IrModule {
+        let tokens = Lexer::new(src).tokenize().expect("lex");
+        let program = Parser::new(tokens).parse_program().expect("parse");
+        lower_program(&program, "<test>")
+    }
+
+    /// Cherche, parmi TOUS les `Inst::Call` de `func_name`, celui dont la
+    /// cible correspond au SUFFIXE donné (`"_shapeName"`, par exemple) —
+    /// utilisé pour trouver le second appel d'une chaîne (`pickCircle(0).shapeName()`
+    /// émet D'ABORD un appel à `"pickCircle"`, PUIS l'appel de méthode qui
+    /// nous intéresse réellement ici).
+    fn find_call_ending_with<'a>(module: &'a IrModule, func_name: &str, suffix: &str) -> &'a str {
+        let func = module.functions.iter().find(|f| f.name == func_name)
+            .unwrap_or_else(|| panic!("function '{}' not found", func_name));
+        func.blocks.iter().flat_map(|b| &b.insts)
+            .find_map(|i| match i {
+                Inst::Call { func, .. } if func.ends_with(suffix) => Some(func.as_str()),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("no call ending with '{}' found in '{}'", suffix, func_name))
+    }
+
+    /// `IrModule::func_ret_class` doit connaître le nom de classe RÉEL d'une
+    /// fonction libre retournant un type nommé — la donnée qui manquait
+    /// avant le correctif.
+    #[test]
+    fn func_ret_class_knows_user_class_return_type() {
+        let module = lower_src(
+            "class Circle {\n\
+                 public method shapeName(): string { return \"circle\" }\n\
+             }\n\
+             function pickCircle(kind:int): Circle {\n\
+                 return use Circle(2.0)\n\
+             }\n\
+             function main(): int {\n\
+                 return 0\n\
+             }\n",
+        );
+        assert_eq!(module.func_ret_class.get("pickCircle"), Some(&"Circle".to_string()));
+    }
+
+    /// Même chose pour les familles builtin `array`/`map`/`string` — voir la
+    /// remarque de `IrModule::func_ret_class` : sans ce cas, `maFonction().len()`
+    /// (fonction libre retournant un tableau) échouait exactement de la même
+    /// façon qu'une classe utilisateur.
+    #[test]
+    fn func_ret_class_knows_builtin_container_return_types() {
+        let module = lower_src(
+            "function makeNames(): array<string> {\n\
+                 return [\"a\", \"b\"]\n\
+             }\n\
+             function makeLookup(): map<string, int> {\n\
+                 return {\"a\": 1}\n\
+             }\n\
+             function makeGreeting(): string {\n\
+                 return \"hi\"\n\
+             }\n\
+             function main(): int {\n\
+                 return 0\n\
+             }\n",
+        );
+        assert_eq!(module.func_ret_class.get("makeNames"), Some(&"Array".to_string()));
+        assert_eq!(module.func_ret_class.get("makeLookup"), Some(&"Map".to_string()));
+        assert_eq!(module.func_ret_class.get("makeGreeting"), Some(&"String".to_string()));
+    }
+
+    /// Le cas exact du ticket, vérifié au niveau HIR : `pickCircle(0).shapeName()`
+    /// doit mangler vers `"Circle_shapeName"`, jamais `"_method_shapeName"`
+    /// (le symbole inexistant émis avant le correctif).
+    #[test]
+    fn chained_call_on_free_function_result_mangles_to_the_real_class_method() {
+        let module = lower_src(
+            "class Circle {\n\
+                 public method shapeName(): string { return \"circle\" }\n\
+             }\n\
+             function pickCircle(kind:int): Circle {\n\
+                 return use Circle(2.0)\n\
+             }\n\
+             function main(): int {\n\
+                 var s:string = pickCircle(0).shapeName()\n\
+                 return 0\n\
+             }\n",
+        );
+        assert_eq!(find_call_ending_with(&module, "main", "shapeName"), "Circle_shapeName");
+    }
+
+    /// Non-régression : une fonction libre qui NE retourne PAS un type avec
+    /// méthodes (`int`) ne doit jamais apparaître dans `func_ret_class`.
+    #[test]
+    fn func_ret_class_does_not_capture_primitive_return_types() {
+        let module = lower_src(
+            "function computeSum(a:int, b:int): int { return a + b }\n\
+             function main(): int { return 0 }\n",
+        );
+        assert_eq!(module.func_ret_class.get("computeSum"), None);
+    }
 }

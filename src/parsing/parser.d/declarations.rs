@@ -469,20 +469,35 @@ impl Parser {
         Ok(WiringDecl { path, span })
     }
 
-    /// `[public] [static] method nom(...): Type` — le `public` éventuel est
-    /// purement cosmétique ici (une méthode d'interface est par nature un
-    /// contrat public, voir la doc de `InterfaceMethod::is_static`) ; `static`
+    /// `[public|private|protected] [static] [async] method nom(...): Type`
+    /// — grammaire symétrique à `parse_class_member`/`parse_method_decl`
+    /// (voir docs/roadmap.d/langage-interface-method-modifiers.md), avec UNE
+    /// différence assumée : la visibilité reste OPTIONNELLE ici (jamais
+    /// obligatoire comme `parse_visibility` pour une classe), pour ne jamais
+    /// casser la forme historique `method nom(...): Type` sans le moindre
+    /// modificateur, valide avant même `public`/`static` (voir `wiring`).
+    /// Le token de visibilité, quel qu'il soit (`public`/`private`/
+    /// `protected`), est accepté puis jeté — voir la doc de
+    /// `InterfaceMethod` pour la raison (aucune notion de visibilité
+    /// vérifiée nulle part dans ce compilateur, pour aucune méthode). `static`
     /// marque un contrat que l'implémentation doit satisfaire par une
     /// méthode STATIQUE plutôt que d'instance — nécessaire pour `wiring`
     /// (`Interface::methode()` routé vers la classe wired, voir
-    /// docs/roadmap.d/langage-interface-wiring.md) : sans lui, une interface
-    /// ne pouvait déclarer QUE des contrats d'instance.
+    /// docs/roadmap.d/langage-interface-wiring.md). `async` a la même
+    /// sémantique directe qu'une méthode de classe (voir
+    /// `InterfaceMethod::is_async`).
     fn parse_interface_method(&mut self) -> ParseResult<InterfaceMethod> {
         let span = self.span();
-        if self.check_exact(&TokenKind::Public) {
+        if matches!(self.peek_kind(), TokenKind::Public | TokenKind::Private | TokenKind::Protected) {
             self.advance();
         }
         let is_static = if self.check_exact(&TokenKind::Static) {
+            self.advance();
+            true
+        } else {
+            false
+        };
+        let is_async = if self.check_exact(&TokenKind::Async) {
             self.advance();
             true
         } else {
@@ -495,6 +510,6 @@ impl Parser {
         self.eat(&TokenKind::RParen)?;
         self.eat(&TokenKind::Colon)?;
         let ret_ty = self.parse_type()?;
-        Ok(InterfaceMethod { name, params, ret_ty, is_static, span })
+        Ok(InterfaceMethod { name, params, ret_ty, is_static, is_async, span })
     }
 }

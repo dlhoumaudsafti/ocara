@@ -416,6 +416,28 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                         // String littérale : "hello".trim()
                         Expr::Literal(Literal::String(_), _) => Some("String".to_string()),
                         // Appel chainé : arr.sort().reverse() ou text.trim().lower()
+                        //
+                        // `maFonction(...).methode()` — appel d'une fonction
+                        // LIBRE (`Expr::Ident` référençant une fonction
+                        // top-level, jamais une variable) chaîné directement,
+                        // sans jamais passer par une variable nommée. Un
+                        // TROISIÈME déclencheur du même bug de fond que le
+                        // cas `Expr::Field` ci-dessous (appel chaîné sur une
+                        // MÉTHODE) : sans ce cas, `class_name` retombait
+                        // toujours sur `None` ici (`inner_callee` n'est
+                        // JAMAIS `Expr::Field` pour une fonction libre),
+                        // `func_mangled` valait `"_method_<methode>"` — un
+                        // symbole qui n'existe jamais, silencieusement sans
+                        // effet au codegen (`IO::writeln` affichait "null").
+                        // La fonction connaît pourtant déjà son type de
+                        // retour DÉCLARÉ (`function pickCircle(...): Circle`)
+                        // — voir `IrModule::func_ret_class`, peuplé une fois
+                        // dans `lower_program` depuis `program.functions`.
+                        // Voir docs/roadmap.d/langage-chained-call-on-free-function-result.md.
+                        Expr::Call { callee: inner_callee, .. } if matches!(inner_callee.as_ref(), Expr::Ident(name, _) if builder.module.func_ret_class.contains_key(name)) => {
+                            let Expr::Ident(fn_name, _) = inner_callee.as_ref() else { unreachable!() };
+                            builder.module.func_ret_class.get(fn_name.as_str()).cloned()
+                        }
                         Expr::Call { callee: inner_callee, .. } => {
                             if let Expr::Field { object: inner_obj, field: inner_method, .. } = inner_callee.as_ref() {
                                 // Essayer de trouver la classe de l'objet interne

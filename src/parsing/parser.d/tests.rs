@@ -174,6 +174,44 @@ mod tests {
         assert_eq!(p.interfaces[0].methods[0].is_static, true);
     }
 
+    /// docs/roadmap.d/langage-interface-method-modifiers.md — les 12
+    /// combinaisons (3 visibilités × [rien, `static`, `async`, `static async`])
+    /// doivent TOUTES parser (symétrie avec `class`, où les 12 passaient déjà),
+    /// plus la forme historique sans le moindre modificateur. Chacune est
+    /// vérifiée séparément (pas juste "ça parse") : `is_static`/`is_async`
+    /// doivent refléter EXACTEMENT les mots-clés écrits, la visibilité
+    /// n'affectant ni l'un ni l'autre (purement cosmétique, voir la doc de
+    /// `InterfaceMethod`).
+    #[test]
+    fn test_interface_method_all_twelve_modifier_combinations_plus_bare() {
+        let cases: &[(&str, bool, bool)] = &[
+            // (source des modificateurs, is_static attendu, is_async attendu)
+            ("",                          false, false),
+            ("public",                    false, false),
+            ("private",                   false, false),
+            ("protected",                 false, false),
+            ("static",                    true,  false),
+            ("public static",             true,  false),
+            ("private static",            true,  false),
+            ("protected static",          true,  false),
+            ("async",                     false, true),
+            ("public async",              false, true),
+            ("private async",             false, true),
+            ("protected async",           false, true),
+            ("static async",              true,  true),
+            ("public static async",       true,  true),
+            ("private static async",      true,  true),
+            ("protected static async",    true,  true),
+        ];
+        for (modifiers, expected_static, expected_async) in cases {
+            let src = format!("interface I {{ {} method m(): int }}", modifiers);
+            let p = parse(&src);
+            let m = &p.interfaces[0].methods[0];
+            assert_eq!(m.is_static, *expected_static, "modifiers '{}': is_static", modifiers);
+            assert_eq!(m.is_async, *expected_async, "modifiers '{}': is_async", modifiers);
+        }
+    }
+
     // ── Expressions ──────────────────────────────────────────────────────────
 
     #[test]

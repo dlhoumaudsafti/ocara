@@ -630,6 +630,21 @@ fn main() {
                             if class_sig.is_static { "static" } else { "instance" }));
                     std::process::exit(1);
                 }
+                // `is_async` — même famille que `is_static` ci-dessus, voir
+                // docs/roadmap.d/langage-interface-method-modifiers.md :
+                // sémantique directe et sans ambiguïté (contrairement à la
+                // visibilité, volontairement jamais vérifiée nulle part dans
+                // ce compilateur, voir la doc de `InterfaceMethod`) — une
+                // interface qui exige `async method` doit être honorée par
+                // une méthode `async`, et réciproquement.
+                if class_sig.is_async != iface_sig.is_async {
+                    diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
+                        &format!("method '{}' of class '{}' does not match interface '{}': expected an '{}' method, found an '{}' method",
+                            method_name, class_decl.name, iface_name,
+                            if iface_sig.is_async { "async" } else { "non-async" },
+                            if class_sig.is_async { "async" } else { "non-async" }));
+                    std::process::exit(1);
+                }
                 if class_sig.params.len() != iface_sig.params.len() {
                     diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
                         &format!("method '{}' of class '{}' does not match interface '{}': expected {} parameter(s), found {}",
@@ -697,6 +712,15 @@ fn main() {
                             method_name, generic_decl.name, iface_name,
                             if iface_sig.is_static { "static" } else { "instance" },
                             if class_sig.is_static { "static" } else { "instance" }));
+                    std::process::exit(1);
+                }
+                // `is_async` — même remarque que pour la boucle 4d ci-dessus.
+                if class_sig.is_async != iface_sig.is_async {
+                    diagnostic::print_error(&args.input, generic_decl.span.line, generic_decl.span.col,
+                        &format!("method '{}' of generic '{}' does not match interface '{}': expected an '{}' method, found an '{}' method",
+                            method_name, generic_decl.name, iface_name,
+                            if iface_sig.is_async { "async" } else { "non-async" },
+                            if class_sig.is_async { "async" } else { "non-async" }));
                     std::process::exit(1);
                 }
                 if class_sig.params.len() != iface_sig.params.len() {

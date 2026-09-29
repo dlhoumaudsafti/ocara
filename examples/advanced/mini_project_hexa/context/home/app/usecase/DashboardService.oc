@@ -2,12 +2,12 @@ namespace context.home.app.usecase
 
 import context.home.app.dto.DashboardDto
 import context.home.domain.entity.CarSummaryEntity
-import context.home.domain.contract.CarSummaryInterface
+import context.home.domain.contract.CarSummaryContract
 
 class DashboardService {
 
     public static method build(): DashboardDto {
-        const cars:array<CarSummaryEntity> = CarSummaryInterface::all()
+        const cars:array<CarSummaryEntity> = CarSummaryContract::all()
         var totalPurchase:float = 0.0
         var totalEstimated:float = 0.0
         for car in cars {
