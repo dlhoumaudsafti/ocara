@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Déclarations d'un fichier Ocara (classes, generics, interfaces, modules,
+// Déclarations d'un fichier Ocara (classes, structs, generics, interfaces, modules,
 // enums, fonctions libres, et méthodes de chacun) — base de l'index du
 // workspace utilisé par les CodeLens (codelens.ts).
 //
@@ -8,7 +8,7 @@
 // seule ligne, comme partout dans les exemples du dépôt.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type DeclKind = 'class' | 'generic' | 'interface' | 'module' | 'enum' | 'function';
+export type DeclKind = 'class' | 'struct' | 'generic' | 'interface' | 'module' | 'enum' | 'function';
 
 export interface MethodDecl {
     name: string;
@@ -64,7 +64,7 @@ export function maskSource(text: string): string {
     return out;
 }
 
-const TYPE_HEADER_RE = /\b(class|generic|interface|module|enum)\s+([A-Za-z_]\w*)/;
+const TYPE_HEADER_RE = /\b(class|struct|generic|interface|module|enum)\s+([A-Za-z_]\w*)/;
 const FUNCTION_RE = /\bfunction\s+([A-Za-z_]\w*)\s*\(/;
 const METHOD_RE = /\bmethod\s+([A-Za-z_]\w*)\s*\(/;
 

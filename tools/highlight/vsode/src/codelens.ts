@@ -8,6 +8,8 @@ import { esc } from './resolver';
 //
 //   classe/generic : implémentations = sous-classes (extends, transitif),
 //                    overrides = méthodes redéfinies par ces sous-classes ;
+//   struct         : implémentations = structs dérivés (aucune méthode,
+//                    donc aucun override) ;
 //   interface      : implémentations = classes qui l'implémentent (héritage
 //                    compris), overrides = méthodes de l'interface qu'elles
 //                    définissent ;
@@ -106,6 +108,9 @@ export class OcaraCodeLensProvider implements vscode.CodeLensProvider {
                 case 'class':
                 case 'generic':
                     lenses.push(...this.classLenses(document.uri, at, decl, types));
+                    break;
+                case 'struct':
+                    lenses.push(lens(document.uri, at, 'implémentation', descendants(decl.name, types).map(declLocation)));
                     break;
                 case 'interface':
                     lenses.push(...this.interfaceLenses(document.uri, at, decl, types));

@@ -1031,6 +1031,59 @@ Variante émise après l'analyse sémantique, pour un appel nommé dans le corps
 
 ---
 
+### E51 — Champ `private` dans un `struct`
+
+```
+fichier.oc:1:1: error: 'private' is not allowed in struct 'UserDTO' — a struct is a transparent data aggregate with no invariant to protect; use 'protected' (visible to extending structs) or a class
+```
+
+Un `struct` (§16.7 de l'EBNF) est un agrégat de données transparent : `private` sert à protéger un invariant qu'une classe maintient elle-même via ses méthodes, ce qu'un struct (sans méthode) ne fait jamais. Vouloir un champ privé est le signal qu'on veut en réalité une `class`.
+
+```ocara
+struct UserDTO {
+    private token:string   // ❌ E51
+}
+```
+
+**Correction :** retirer `private` (public par défaut), utiliser `protected` pour un champ réservé aux structs dérivés, ou transformer le struct en `class`.
+
+---
+
+### E52 — `extends` entre `struct` et `class`
+
+```
+fichier.oc:1:1: error: struct 'P' cannot extend class 'C' — a struct can only extend another struct
+fichier.oc:1:1: error: class 'C' cannot extend struct 'P' — a struct can only be extended by another struct
+```
+
+Un struct n'étend qu'un struct et n'est étendu que par un struct : une classe dérivée ajouterait des méthodes/un `init` à un agrégat dont le constructeur est généré depuis ses champs, et un struct dérivé d'une classe hériterait de méthodes qu'il ne peut pas déclarer lui-même.
+
+```ocara
+class Base { }
+struct P extends Base { x:int }   // ❌ E52
+```
+
+**Correction :** faire hériter un struct d'un struct, ou transformer les deux en classes.
+
+---
+
+### E53 — Champ hérité redéclaré par un `struct` dérivé
+
+```
+fichier.oc:2:22: error: field 'x' of struct 'Q' is already declared by a parent struct (line 1) — a struct cannot redeclare an inherited field
+```
+
+Le constructeur généré d'un struct dérivé reprend les champs de tous ses parents, puis les siens : un même nom apparaîtrait deux fois parmi ses paramètres (et deux fois dans l'objet).
+
+```ocara
+struct P { x:int }
+struct Q extends P { x:int }   // ❌ E53
+```
+
+**Correction :** renommer le champ du struct dérivé, ou le supprimer (il est déjà hérité).
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.

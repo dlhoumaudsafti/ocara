@@ -1823,6 +1823,19 @@ impl<'a> TypeChecker<'a> {
                     return Type::Mixed;
                 };
                 let args: &[Expr] = &resolved;
+                // Arité du constructeur utilisateur (hérité compris) — sans
+                // ce contrôle, un argument manquant/en trop n'échouait qu'au
+                // codegen (vérificateur Cranelift).
+                if let Some(target) = self.user_method_target(class, "init").filter(|_| !is_opaque) {
+                    if !target.accepts_arg_count(args.len()) {
+                        self.errors.push(SemaError::WrongArgCount {
+                            name:     target.callee.clone(),
+                            expected: target.required_count(),
+                            found:    args.len(),
+                            span:     self.with_runtime_ctx(span),
+                        });
+                    }
+                }
                 let resolved_key = crate::sema::escape::resolve_user_callable(&self.class_members, class, "init");
                 self.check_argument_escape(args, resolved_key.as_deref(), false);
                 for arg in args { self.infer_expr(arg); }

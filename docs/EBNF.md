@@ -81,7 +81,7 @@ Program ::= NamespaceDecl?
             ImportDecl*
             RuntimeImport*
             RuntimeBlock*
-            ( ConstDecl | EnumDecl | ClassDecl | GenericDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
+            ( ConstDecl | EnumDecl | ClassDecl | StructDecl | GenericDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
 ```
 
 **Contraintes d'ordre :**
@@ -1126,7 +1126,7 @@ Digit  ::= [0-9]
 
 ```
 import    from      namespace  as         var        scoped   consumed  property  const
-function  method    class      generic    interface  extends  implements
+function  method    class      struct     generic    interface  extends  implements
 module    modules   init       static     wiring
 public    private   protected
 if        elseif    else       switch     default    match
@@ -2366,6 +2366,54 @@ class User {
     }
 }
 ```
+
+
+### 16.7 Structs (`struct`)
+
+Un `struct` est un **agrégat de données** : même représentation qu'une `class` (allocation sur le tas via `use`, passage par référence, nullable, même gestion mémoire — `var`/`scoped`/`consumed`), mais limité aux **champs** et **constantes**, avec un **constructeur généré** depuis ses champs.
+
+```ebnf
+StructDecl       ::= "struct" Identifier ( "extends" Identifier )? "{" StructMember* "}"
+StructMember     ::= StructVisibility? "property"? Identifier ":" Type ( "=" Expression )?
+                   | StructVisibility? "const" Identifier ":" Type "=" Expression
+StructVisibility ::= "public" | "protected"
+```
+
+```ocara
+struct UserDTO {
+    id:int                                  // champ nu = public, obligatoire
+    name:string = "John"                    // valeur par défaut
+    public property email:string = "john.doe@example.com"
+    protected age:int = 0
+    public const KIND:string = "user"
+}
+
+struct AdminDTO extends UserDTO {
+    level:int = 1
+}
+
+var a:UserDTO  = use UserDTO(1, "David")             // positionnel : id, name, email, age
+var b:UserDTO  = use UserDTO(id: 2)                  // nommé : seul le champ obligatoire
+var c:AdminDTO = use AdminDTO(name: "Root", id: 3)   // champs du parent, puis les siens
+var d:UserDTO|null = null                            // nullable, comme une class
+```
+
+**Règles :**
+
+| Règle | Diagnostic |
+|-------|------------|
+| Un champ sans visibilité est **public** ; `public` et `property` restent acceptés, jamais obligatoires | — |
+| `protected` : visible des structs dérivés | — |
+| `private` est **rejeté** — un struct est un agrégat transparent sans invariant à protéger ; vouloir un champ privé signifie qu'on veut une `class` | E51 |
+| Un struct n'étend qu'un **struct**, et n'est étendu que par un struct | E52 |
+| Un struct dérivé ne peut pas **redéclarer** un champ hérité | E53 |
+| Pas de méthode, d'`init`, de `modules` ni d'`implements` | erreur de parsing |
+
+**Constructeur généré :** un paramètre par champ, dans l'ordre de déclaration, **champs des structs parents d'abord** ; chaque paramètre porte le nom du champ et sa valeur par défaut éventuelle. Il s'appelle donc en positionnel ou avec des arguments nommés (§14.6), un champ sans valeur par défaut étant obligatoire. Un argument manquant ou en trop est rejeté à la compilation (`'UserDTO::init' expects N argument(s), M provided`).
+
+**Choix de conception :** pas de sémantique de valeur (pile, copie à l'affectation) — un `struct` est une variante déclarative de `class`, ce qui garde `use`, `|null`, `extends`, `array<T>`/`map<K,V>` et la gestion mémoire strictement identiques. Pas de wrapper `Struct<T>` : `UserDTO` s'utilise nu comme type, exactement comme une classe. Voir docs/roadmap.d/langage-struct-value-type.md.
+
+> Limite actuelle, commune aux classes : la visibilité `protected` d'un champ n'est pas encore vérifiée à l'accès depuis l'extérieur (voir docs/roadmap.d/langage-field-visibility-unchecked.md).
 
 ---
 
@@ -3652,7 +3700,7 @@ Program     ::= NamespaceDecl?
                 ImportDecl*
                 RuntimeImport*
                 RuntimeBlock*
-                ( ConstDecl | EnumDecl | ClassDecl | GenericDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
+                ( ConstDecl | EnumDecl | ClassDecl | StructDecl | GenericDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
 
 (* ── Namespace ───────────────────────────────────────────────────── *)
 
@@ -3686,6 +3734,7 @@ GenericDecl ::= "generic" Identifier "<" TypeParams ">"
                 ( "modules" Identifier ( "," Identifier )* )?
                 ( "implements" Identifier ( "," Identifier )* )?
                 ClassBody
+StructDecl  ::= "struct" Identifier ( "extends" Identifier )? "{" StructMember* "}"
 ModuleDecl  ::= "module" Identifier ClassBody
 InterfaceDecl ::= "interface" Identifier "{" InterfaceMember* "}"
 FuncDecl    ::= "async"? "function" Identifier "(" ParamList? ")" ":" Type Block
@@ -3705,6 +3754,9 @@ ClassMember ::= Constructor
               | Visibility "const" Identifier ":" Type "=" Expression
 Constructor ::= "init" "(" ParamList? ")" Block
 Visibility  ::= "public" | "private" | "protected"
+StructMember ::= StructVisibility? "property"? Identifier ":" Type ( "=" Expression )?
+               | StructVisibility? "const" Identifier ":" Type "=" Expression
+StructVisibility ::= "public" | "protected"
 
 (* ── Interface ──────────────────────────────────────────────────── *)
 

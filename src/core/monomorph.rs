@@ -559,6 +559,7 @@ pub fn monomorphize(program: &mut ast::Program) {
             implements: generic_decl.implements.clone(),
             members: specialized_members,
             span: generic_decl.span.clone(),
+            is_struct: false,
         };
         
         specialized_classes.push(specialized_class);

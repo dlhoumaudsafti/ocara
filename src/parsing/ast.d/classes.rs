@@ -52,6 +52,10 @@ pub struct ClassDecl {
     pub implements: Vec<String>,
     pub members:    Vec<ClassMember>,
     pub span:       Span,
+    /// Déclaré `struct` (agrégat de données, voir `parser.d/struct_decl.rs`
+    /// et `core::structs`) : même représentation qu'une `class`, champs et
+    /// constantes uniquement, constructeur généré depuis les champs.
+    pub is_struct:  bool,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

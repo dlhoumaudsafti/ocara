@@ -81,7 +81,7 @@ max_line_length     = 120
 # R06 — max lignes vides consécutives (0 pour désactiver)
 blank_lines_max     = 2
 
-# R07 — classes/interfaces/modules/generics en PascalCase
+# R07 — classes/structs/interfaces/modules/generics en PascalCase
 naming_class        = true
 
 # R08 — fonctions ET méthodes en camelCase (première lettre minuscule)
@@ -182,7 +182,7 @@ Mettre `blank_lines_max = 0` pour désactiver.
 
 ---
 
-### R07 — Nommage des classes/interfaces/modules/generics (PascalCase)
+### R07 — Nommage des classes/structs/interfaces/modules/generics (PascalCase)
 
 `class`, `interface`, `module` et `generic` doivent commencer par une majuscule et n'utiliser que des caractères alphanumériques.
 
@@ -257,6 +257,8 @@ private property click_count:int  // ✓
 public  property FirstName:string // ✗ → first_name
 ```
 
+> Ne couvre pas les champs NUS d'un `struct` (`id:int`, sans `property`) — reconnaître cette forme demanderait de savoir qu'on est dans le corps d'un struct ; un champ de struct écrit avec `property` reste couvert.
+>
 > Ne couvre pas les paramètres de fonction/méthode ni les variables de boucle `for`/`for..=>` — `ocaracs` reste un analyseur ligne à ligne, pas un parseur complet ; ces positions demanderaient de suivre une déclaration sur plusieurs lignes ou une syntaxe plus variable que les autres règles.
 
 ---
