@@ -27,15 +27,19 @@ aujourd'hui aucun effet.
 
 Découvert en implémentant `struct` — préexistant, sans rapport.
 
-## À faire
+## Correction
 
-- En sema, sur `objet.champ` (lecture) et `objet.champ = ...` (affectation) :
-  `private` → accessible uniquement depuis la classe déclarante ;
-  `protected` → depuis la classe déclarante et ses descendantes.
-- Nouveau diagnostic dédié.
-- **Risque** : des exemples existants profitent peut-être de ce trou (accès
-  externe à un champ `private`) — lancer la régression complète et migrer
-  ce qui casse avant d'activer le contrôle.
+Nouveau diagnostic **E54** (`SemaError::FieldNotAccessible`,
+`src/sema/field_visibility.rs`), appliqué en lecture (`Expr::Field`, donc
+aussi `++`/`--`) et en affectation (`Stmt::Assign` sur un champ, qui
+n'inférait jusqu'ici que l'objet). La classe déclarante est retrouvée par
+`SymbolTable::lookup_field_owner` ; `protected` s'appuie sur
+`class_matches` (chaîne `extends`). Un champ de module est composé dans la
+classe utilisatrice, qui en est donc la déclarante.
+
+Aucun exemple ne profitait du trou : régression complète et tous les
+projets de `examples/` (advanced, project, from, mods, generics) vérifiés
+sans nouvelle erreur. Tests : `src/sema/tests/field_visibility.rs`.
 
 ## Priorité / Complexité
 

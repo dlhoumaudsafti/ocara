@@ -93,8 +93,8 @@ Mise en œuvre : `src/parsing/parser.d/struct_decl.rs` (parsing + constructeur
 des champs propres), `src/core/structs.rs` (E51-E53, champs hérités),
 `ClassDecl.is_struct`. Documenté dans `docs/EBNF.md` §16.7.
 
-Limite découverte (préexistante, commune aux classes) : la visibilité des
-champs n'est jamais vérifiée à l'accès — voir
+La visibilité `protected` des champs (commune aux classes) est vérifiée à
+l'accès depuis E54 — voir
 [langage-field-visibility-unchecked](langage-field-visibility-unchecked.md).
 
 ## Priorité / Complexité

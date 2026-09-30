@@ -2267,6 +2267,30 @@ Constructor ::= "init" "(" ParamList? ")" Block
 | `private`   | Depuis la classe courante uniquement     |
 | `protected` | Depuis la classe et ses sous-classes     |
 
+Pour un **champ**, la visibilité est vérifiée à la compilation, en lecture comme en affectation (`=`, `++`/`--`) — E54 :
+
+- `private` : uniquement depuis la classe qui **déclare** le champ — y compris sur une autre instance de cette même classe (`other.q` dans une méthode de `Base`), mais jamais depuis une sous-classe ;
+- `protected` : depuis la classe déclarante et toutes ses descendantes (`extends`, transitif — classes comme structs) ;
+- un champ apporté par un **module** (§19) appartient à chaque classe qui l'utilise : ses méthodes y accèdent comme à leurs propres champs.
+
+```ocara
+class Base {
+    protected property p:int
+    private property q:int
+    init() {
+        self.p = 1
+        self.q = 2
+    }
+}
+class Child extends Base {
+    public method readP(): int { return self.p }   // ✅ protected, sous-classe
+    public method readQ(): int { return self.q }   // ❌ E54 — private à Base
+}
+
+var b:Base = use Base()
+b.p = 3        // ❌ E54 — protected
+```
+
 - `property` : champ d'instance d'une classe — **obligatoire** pour les champs. `var`, `scoped` et `consumed` sont **interdits** sur un champ de classe.
 - `const` : constante **statique** de classe, accessible via `Class::NAME`
 
@@ -2403,7 +2427,7 @@ var d:UserDTO|null = null                            // nullable, comme une clas
 | Règle | Diagnostic |
 |-------|------------|
 | Un champ sans visibilité est **public** ; `public` et `property` restent acceptés, jamais obligatoires | — |
-| `protected` : visible des structs dérivés | — |
+| `protected` : visible des structs dérivés uniquement (hors d'eux, lecture et affectation rejetées) | E54 |
 | `private` est **rejeté** — un struct est un agrégat transparent sans invariant à protéger ; vouloir un champ privé signifie qu'on veut une `class` | E51 |
 | Un struct n'étend qu'un **struct**, et n'est étendu que par un struct | E52 |
 | Un struct dérivé ne peut pas **redéclarer** un champ hérité | E53 |
@@ -2412,8 +2436,6 @@ var d:UserDTO|null = null                            // nullable, comme une clas
 **Constructeur généré :** un paramètre par champ, dans l'ordre de déclaration, **champs des structs parents d'abord** ; chaque paramètre porte le nom du champ et sa valeur par défaut éventuelle. Il s'appelle donc en positionnel ou avec des arguments nommés (§14.6), un champ sans valeur par défaut étant obligatoire. Un argument manquant ou en trop est rejeté à la compilation (`'UserDTO::init' expects N argument(s), M provided`).
 
 **Choix de conception :** pas de sémantique de valeur (pile, copie à l'affectation) — un `struct` est une variante déclarative de `class`, ce qui garde `use`, `|null`, `extends`, `array<T>`/`map<K,V>` et la gestion mémoire strictement identiques. Pas de wrapper `Struct<T>` : `UserDTO` s'utilise nu comme type, exactement comme une classe. Voir docs/roadmap.d/langage-struct-value-type.md.
-
-> Limite actuelle, commune aux classes : la visibilité `protected` d'un champ n'est pas encore vérifiée à l'accès depuis l'extérieur (voir docs/roadmap.d/langage-field-visibility-unchecked.md).
 
 ---
 

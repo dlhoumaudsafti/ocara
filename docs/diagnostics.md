@@ -1084,6 +1084,34 @@ struct Q extends P { x:int }   // ❌ E53
 
 ---
 
+### E54 — Champ `private`/`protected` inaccessible
+
+```
+fichier.oc:9:18: error: field 'y' of 'C' is protected — it is only accessible from 'C' and the classes/structs that extend it
+fichier.oc:9:25: error: field 'z' of 'C' is private — it is only accessible from inside 'C' (expose it through a public method)
+```
+
+Un champ `private` n'est accessible que depuis la classe qui le déclare, un champ `protected` que depuis cette classe et ses descendantes (§16.3 de l'EBNF) — en lecture comme en affectation (`=`, `++`/`--`). Jusqu'à ce diagnostic, ces mots-clés étaient silencieusement sans effet : un champ privé se lisait et s'écrivait depuis n'importe où.
+
+```ocara
+class C {
+    protected property y:int
+    private property z:int
+    init() {
+        self.y = 2
+        self.z = 3
+    }
+}
+
+var c:C = use C()
+IO::writeln(`${c.y}`)   // ❌ E54 — protected
+c.z = 4                 // ❌ E54 — private
+```
+
+**Correction :** exposer la donnée via une méthode publique de la classe, ou rendre le champ `public` s'il fait réellement partie de l'interface de la classe.
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.
