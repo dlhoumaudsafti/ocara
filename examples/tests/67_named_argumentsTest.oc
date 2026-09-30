@@ -40,7 +40,7 @@ class Test_67_named_arguments {
     }
 
     public method builtinNamedTest(): int {
-        UnitTest::assertEquals("a-b", String::replace(to: "-", s: "a_b", from: "_"))
+        UnitTest::assertEquals("a-b-c", String::replace(to: "-", s: "a_b_c", from: "_"))
         return 0
     }
 }

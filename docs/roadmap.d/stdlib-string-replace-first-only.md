@@ -17,12 +17,19 @@ Cause : `runtime/src/lib.rs`, `String_replace` appelle
 Découvert en écrivant l'exemple 67 (arguments nommés) — sans rapport avec
 eux, reproduit en appel purement positionnel.
 
-## À trancher
+## Correction
 
-Corriger le runtime (la documentation décrit clairement l'intention, et
-l'avertissement `Regex::replace` n'a de sens que dans ce sens) — vérifier
-d'abord qu'aucun exemple ne dépend du comportement actuel (première
-occurrence seulement), et ajouter un test ocaraunit multi-occurrences.
+`String_replace` utilise désormais `str::replace` (toutes les occurrences),
+comme documenté. Aucun exemple ne dépendait de l'ancien comportement —
+`examples/builtins/string.oc` attendait même déjà `chien noir chien blanc`
+(affichait `chien noir chat blanc`). Cas limite tranché : un `from` vide
+laisse la chaîne inchangée (`str::replace("", to)` insérerait `to` entre
+chaque caractère), documenté dans `docs/builtins/String.md`.
+
+Tests : `runtime/src/tests/string.rs` (lancés par la nouvelle cible
+`make tests-runtime` — `make tests` ne couvre que le crate `ocara`, les
+tests du runtime ne tournaient jusqu'ici jamais via le Makefile), et
+`examples/tests/67_named_argumentsTest.oc` (multi-occurrences).
 
 ## Priorité / Complexité
 

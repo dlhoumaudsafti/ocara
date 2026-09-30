@@ -75,7 +75,7 @@ function main():int {
     IO::writeln(box(right: "]", text: "hi"))
 
     // Builtin : noms de paramètres déclarés dans docs/builtins/String.md.
-    IO::writeln(String::replace(to: "-", s: "a_b", from: "_"))
+    IO::writeln(String::replace(to: "-", s: "a_b_c", from: "_"))
 
     return 0
 }

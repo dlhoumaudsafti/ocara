@@ -5,7 +5,6 @@ import context.home.domain.entity.CarSummaryEntity
 import context.home.domain.contract.CarSummaryContract
 
 class DashboardService {
-
     public static method build(): DashboardDto {
         const cars:array<CarSummaryEntity> = CarSummaryContract::all()
         var totalPurchase:float = 0.0

@@ -99,6 +99,8 @@ String::replace("a-b-c", "-", ".")
 // → "a.b.c"
 ```
 
+Un `from` vide laisse la chaîne inchangée (`String::replace("abc", "", "-")` → `"abc"`).
+
 ---
 
 ### `String::split(s, sep)` → `array<string>`
