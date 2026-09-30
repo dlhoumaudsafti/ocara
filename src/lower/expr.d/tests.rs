@@ -370,6 +370,123 @@ mod tests {
         assert_eq!(module.func_ret_class.get("computeSum"), None);
     }
 
+    // ── Appel chaîné à partir de 3 niveaux (`a.b().c().d()`) ────────────────────
+    // docs/roadmap.d/langage-chained-call-depth-limit.md — toute la famille de
+    // résolution "classe du récepteur d'un appel/accès chaîné" ne recursait
+    // qu'un seul niveau, et supposait en plus, à tort, qu'une méthode
+    // retournant un pointeur retournait la MÊME classe que son récepteur.
+    // `w.getCircle().shapeName()` (2 niveaux) fonctionnait déjà ; ajouter UN
+    // niveau de plus (`.upper()`, 3 niveaux) manglait vers `"_method_upper"`
+    // (symbole inexistant) au lieu de `"String_upper"`. Corrigé par une seule
+    // fonction récursive partagée (`resolve_receiver_class`), qui s'appuie sur
+    // `IrModule::method_ret_class` — absent avant ce correctif : une méthode
+    // de classe ORDINAIRE (contrairement à une méthode d'interface ou une
+    // fonction libre) n'avait AUCUNE entrée retraçant son type de retour réel
+    // en tant que CLASSE.
+
+    /// `IrModule::method_ret_class` doit connaître le nom de classe RÉEL du
+    /// retour d'une méthode d'instance — la donnée qui manquait avant le
+    /// correctif (seules les méthodes d'INTERFACE et les fonctions libres
+    /// avaient un équivalent).
+    #[test]
+    fn method_ret_class_knows_user_class_return_type() {
+        let module = lower_src(
+            "class Circle {\n\
+                 public method shapeName(): string { return \"circle\" }\n\
+             }\n\
+             class Wrapper {\n\
+                 public property inner:Circle\n\
+                 init(c:Circle) { self.inner = c }\n\
+                 public method getCircle(): Circle { return self.inner }\n\
+             }\n\
+             function main(): int { return 0 }\n",
+        );
+        assert_eq!(module.method_ret_class.get("Wrapper_getCircle"), Some(&"Circle".to_string()));
+    }
+
+    /// Non-régression : une méthode qui NE retourne PAS un type avec méthodes
+    /// (`int`) ne doit jamais apparaître dans `method_ret_class`.
+    #[test]
+    fn method_ret_class_does_not_capture_primitive_return_types() {
+        let module = lower_src(
+            "class Counter {\n\
+                 public method value(): int { return 42 }\n\
+             }\n\
+             function main(): int { return 0 }\n",
+        );
+        assert_eq!(module.method_ret_class.get("Counter_value"), None);
+    }
+
+    /// Une méthode héritée (non surchargée) reste résolvable pour le
+    /// chaînage sur une INSTANCE DE LA SOUS-CLASSE — même propagation que
+    /// `fn_ret_types` pour l'héritage (voir `lower_program`).
+    #[test]
+    fn method_ret_class_propagates_through_inheritance() {
+        let module = lower_src(
+            "class Circle {\n\
+                 public method shapeName(): string { return \"circle\" }\n\
+             }\n\
+             class Base {\n\
+                 public method getCircle(): Circle { return use Circle(2.0) }\n\
+             }\n\
+             class Derived extends Base {\n\
+             }\n\
+             function main(): int { return 0 }\n",
+        );
+        assert_eq!(module.method_ret_class.get("Derived_getCircle"), Some(&"Circle".to_string()));
+    }
+
+    /// Le cas EXACT du ticket, vérifié au niveau HIR : `w.getCircle().shapeName().upper()`
+    /// (3 niveaux, DEUX classes différentes enchaînées) doit mangler le
+    /// TROISIÈME appel vers `"String_upper"`, jamais `"_method_upper"` (le
+    /// symbole inexistant émis avant le correctif — l'ancienne heuristique
+    /// supposait à tort que `getCircle()` retournait `Wrapper`, pas `Circle`).
+    #[test]
+    fn chained_method_call_resolves_the_real_class_at_three_levels() {
+        let module = lower_src(
+            "class Circle {\n\
+                 public method shapeName(): string { return \"circle\" }\n\
+             }\n\
+             class Wrapper {\n\
+                 public property inner:Circle\n\
+                 init(c:Circle) { self.inner = c }\n\
+                 public method getCircle(): Circle { return self.inner }\n\
+             }\n\
+             function main(): int {\n\
+                 var w:Wrapper = use Wrapper(use Circle(2.0))\n\
+                 var s:string = w.getCircle().shapeName().upper()\n\
+                 return 0\n\
+             }\n",
+        );
+        assert_eq!(find_call_ending_with(&module, "main", "shapeName"), "Circle_shapeName");
+        assert_eq!(find_call_ending_with(&module, "main", "upper"), "String_upper");
+    }
+
+    /// Profondeur 4 : vérifie que la récursion est vraiment non bornée, pas
+    /// juste étendue à 3 niveaux (`Level1` -> `Level2` -> `Level3` -> `string`
+    /// -> `String::upper`), trois classes utilisateur DIFFÉRENTES enchaînées.
+    #[test]
+    fn chained_method_call_resolves_at_four_levels() {
+        let module = lower_src(
+            "class Level3 {\n\
+                 public method label(): string { return \"deep\" }\n\
+             }\n\
+             class Level2 {\n\
+                 public method next(): Level3 { return use Level3() }\n\
+             }\n\
+             class Level1 {\n\
+                 public method next(): Level2 { return use Level2() }\n\
+             }\n\
+             function main(): int {\n\
+                 var l1:Level1 = use Level1()\n\
+                 var s:string = l1.next().next().label().upper()\n\
+                 return 0\n\
+             }\n",
+        );
+        assert_eq!(find_call_ending_with(&module, "main", "label"), "Level3_label");
+        assert_eq!(find_call_ending_with(&module, "main", "upper"), "String_upper");
+    }
+
     // ── Appel D'INSTANCE `async` (`obj.methode()`) ──────────────────────────────
     // docs/roadmap.d/langage-async-instance-method-dispatch-broken.md — le site
     // d'appel du sucre d'instance n'a JAMAIS empaqueté `self`+args dans un

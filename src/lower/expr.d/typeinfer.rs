@@ -261,20 +261,11 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
             // examples/advanced/httpserver/configs/components/Layout.oc).
             IrType::Ptr
         }
-        // Accès champ : utilise class_layouts pour connaître le type
+        // Accès champ : utilise class_layouts pour connaître le type. Classe
+        // du récepteur résolue par `resolve_receiver_class` — récursif,
+        // profondeur arbitraire (voir docs/roadmap.d/langage-chained-call-depth-limit.md).
         Expr::Field { object, field, .. } => {
-            let class_name = match object.as_ref() {
-                Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
-                Expr::SelfExpr(_)    => builder.current_class.clone(),
-                // Accès chaîné (`a.b.c`) — voir resolve_chained_field_class.
-                Expr::Field { object: inner, field: inner_field, .. } => {
-                    super::helpers::resolve_chained_field_class(builder, inner, inner_field)
-                }
-                // `use Classe(...).champ` — voir la doc du même cas dans
-                // `lower.rs` (bloc `Expr::Call`) pour le bug corrigé.
-                Expr::New { class, .. } => Some(class.clone()),
-                _ => None,
-            };
+            let class_name = super::helpers::resolve_receiver_class(builder, object);
             if let Some(cls) = class_name {
                 if let Some(fields) = builder.module.class_layouts.get(cls.as_str()) {
                     if let Some((_, ty)) = fields.iter().find(|(f, _)| f == field) {
@@ -313,74 +304,16 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                     return ty.clone();
                 }
             }
-            // Callee = méthode obj.method() ou self.method()
+            // Callee = méthode obj.method() ou self.method() — classe du
+            // récepteur résolue par `resolve_receiver_class`, récursif,
+            // profondeur arbitraire (voir
+            // docs/roadmap.d/langage-chained-call-depth-limit.md ; avant ce
+            // correctif, un appel de méthode chaîné comme
+            // `w.getCircle().shapeName()` supposait à tort que
+            // `getCircle()` retournait la même classe que son récepteur
+            // dès que son type IR était `Ptr`).
             if let Expr::Field { object, field, .. } = callee.as_ref() {
-                let class_name = match object.as_ref() {
-                    Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
-                    Expr::SelfExpr(_)    => builder.current_class.clone(),
-                    Expr::Literal(Literal::String(_), _) => Some("String".to_string()),
-                    // `maFonction(...).methode()` — appel de fonction LIBRE
-                    // chaîné, voir la doc du même cas dans `lower.rs` (bloc
-                    // `Expr::Call`, lowering, `IrModule::func_ret_class`)
-                    // pour le bug corrigé — docs/roadmap.d/langage-chained-call-on-free-function-result.md.
-                    Expr::Call { callee: inner_callee, .. }
-                        if matches!(inner_callee.as_ref(), Expr::Ident(name, _) if builder.module.func_ret_class.contains_key(name)) =>
-                    {
-                        let Expr::Ident(fn_name, _) = inner_callee.as_ref() else { unreachable!() };
-                        builder.module.func_ret_class.get(fn_name.as_str()).cloned()
-                    }
-                    // Appel chaîné : obj.method1().method2()
-                    Expr::Call { callee: inner_callee, .. } => {
-                        if let Expr::Field { object: inner_obj, field: inner_method, .. } = inner_callee.as_ref() {
-                            // Essayer de trouver la classe de l'objet interne
-                            if let Expr::Ident(name, _) = inner_obj.as_ref() {
-                                if let Some(cls) = builder.var_class.get(name.as_str()).cloned() {
-                                    let method_name = format!("{}_{}", cls, inner_method);
-                                    // Si la méthode retourne un Ptr, continuer avec la même classe
-                                    if let Some(ret_ty) = builder.fn_ret_types.get(&method_name) {
-                                        if matches!(ret_ty, IrType::Ptr) {
-                                            Some(cls)
-                                        } else {
-                                            None
-                                        }
-                                    } else {
-                                        None
-                                    }
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
-                            }
-                        } else {
-                            None
-                        }
-                    }
-                    // `HTTPRequest::get/post/put/delete/patch(...).méthode()`
-                    // chaîné — `Expr::StaticCall` est un nœud AST complet en
-                    // lui-même (args intégrés, jamais enveloppé dans
-                    // `Expr::Call`) : voir la doc du même cas dans `lower.rs`
-                    // (bloc `Expr::Call`, lowering) pour le bug corrigé.
-                    Expr::StaticCall { class: sc_class, method: sc_method, .. }
-                        if sc_class == "HTTPRequest"
-                            && matches!(sc_method.as_str(), "get" | "post" | "put" | "delete" | "patch") =>
-                    {
-                        Some("HTTPResponse".to_string())
-                    }
-                    // Accès chaîné : w.inner.methode() où `inner` est
-                    // elle-même une instance de classe — voir
-                    // resolve_chained_field_class.
-                    Expr::Field { object: inner_obj, field: inner_field, .. } => {
-                        super::helpers::resolve_chained_field_class(builder, inner_obj, inner_field)
-                    }
-                    // `use Classe(...).méthode()` — voir la doc du même cas
-                    // dans `lower.rs` (bloc `Expr::Call`, lowering) pour le
-                    // bug corrigé : sans lui, le type de retour réel de la
-                    // méthode était perdu (filet de sécurité `IrType::Ptr`
-                    // ci-dessous), ce qui aurait pu fausser un boxing en aval.
-                    Expr::New { class, .. } => Some(class.clone()),
-                    _ => None,
-                };
+                let class_name = super::helpers::resolve_receiver_class(builder, object);
                 // Sucre d'instance (`objet.méthode(...)`) : même résolution
                 // que `Expr::StaticCall` (`Classe::méthode(...)`), voir la
                 // doc de `resolve_method_return_type` — objet = `object`

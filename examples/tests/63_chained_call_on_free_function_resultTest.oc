@@ -22,9 +22,10 @@ import greeting from "63_chained_call_on_free_function_result"
 // `lower_program`, consulté aux mêmes points de résolution que le ticket
 // original (`src/lower/expr.d/lower.rs` et `typeinfer.rs`).
 //
-// Limitation DISTINCTE et préexistante, hors périmètre ici : un appel
-// chaîné à partir de 3 niveaux (`a.b().c().d()`) reste cassé, avec ou sans
-// fonction libre — voir docs/roadmap.d/langage-chained-call-depth-limit.md.
+// Limitation DISTINCTE trouvée en marge (appel chaîné cassé à partir de 3
+// niveaux, `a.b().c().d()`, avec ou sans fonction libre) désormais corrigée
+// aussi — voir examples/tests/66_chained_call_depth_limitTest.oc et
+// docs/roadmap.d/langage-chained-call-depth-limit.md.
 class Test_63_chained_call_on_free_function_result {
 
     // Le cas EXACT du ticket : classe utilisateur, méthode d'instance

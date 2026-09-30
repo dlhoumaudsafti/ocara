@@ -146,6 +146,24 @@ pub struct IrModule {
     /// correctifs — avant, `func_mangled` valait `"_method_<methode>"`, un
     /// symbole qui n'existe jamais, silencieusement sans effet au codegen.
     pub func_ret_class: HashMap<String, String>,
+    /// Comme `func_ret_class`, mais pour une MÉTHODE (statique ou
+    /// d'instance) d'une classe UTILISATEUR : `"Classe_methode"` → nom de
+    /// classe retournée (classe utilisateur, famille builtin
+    /// `"String"`/`"Array"`/`"Map"`, ou nom monomorphisé d'un générique).
+    /// Absent avant ce correctif — `fn_ret_types` (IrType seul) n'était
+    /// JAMAIS peuplé pour une méthode de classe ORDINAIRE (seulement
+    /// fonctions libres, méthodes d'INTERFACE, et builtins), donc résoudre
+    /// la classe d'un appel de méthode chaîné (`w.getCircle().shapeName()`)
+    /// n'avait tout simplement AUCUNE source de vérité — voir
+    /// `crate::lower::expr::helpers::resolve_receiver_class` et
+    /// docs/roadmap.d/langage-chained-call-depth-limit.md. Avant ce
+    /// correctif, la seule heuristique existante (voir l'historique dans
+    /// `lower.rs`/`typeinfer.rs`) supposait à tort qu'une méthode chaînée
+    /// retournant `Ptr` retournait la MÊME classe que son récepteur — faux
+    /// dès que la méthode change de classe (`Wrapper::getCircle(): Circle`),
+    /// silencieusement (mangle vers un symbole qui n'existe pas, ignoré par
+    /// le codegen).
+    pub method_ret_class: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone)]

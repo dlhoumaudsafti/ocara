@@ -6,10 +6,11 @@
 // crash) — corrigé. Sert de support à
 // examples/tests/63_chained_call_on_free_function_resultTest.oc.
 //
-// Non couvert par ce correctif (limitation distincte, documentée à part,
-// voir docs/roadmap.d/langage-chained-call-depth-limit.md) : un appel
-// chaîné à partir de 3 niveaux (`a.b().c().d()`), général et préexistant,
-// sans rapport avec les fonctions libres.
+// La limitation distincte trouvée en marge (appel chaîné cassé à partir de
+// 3 niveaux, `a.b().c().d()`, général et préexistant, sans rapport avec les
+// fonctions libres) est désormais corrigée aussi — voir
+// examples/66_chained_call_depth_limit.oc et
+// docs/roadmap.d/langage-chained-call-depth-limit.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import ocara.IO

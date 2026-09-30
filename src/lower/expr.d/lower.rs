@@ -268,27 +268,9 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
 
         // ── Accès de champ ───────────────────────────────────────────────────
         Expr::Field { object, field, .. } => {
-            // Résoudre la classe de l'objet pour calculer l'offset
-            let class_name = match object.as_ref() {
-                Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
-                Expr::SelfExpr(_)    => builder.current_class.clone(),
-                Expr::ParentExpr(_)  => builder.parent_class.clone(),
-                // Accès chaîné (`a.b.c` où `b` est elle-même une instance de
-                // classe) — voir resolve_chained_field_class pour le bug que
-                // ça corrige.
-                Expr::Field { object: inner, field: inner_field, .. } => {
-                    resolve_chained_field_class(builder, inner, inner_field)
-                }
-                // `use Classe(...).champ` — accès direct à un champ sur une
-                // instance fraîchement construite, jamais liée à une
-                // variable (voir le même cas dans le bloc `Expr::Call`
-                // ci-dessous pour l'explication complète du bug que ça
-                // corrige) — sans lui, `class_name` valait `None`, donc
-                // `offset = 0` pour n'importe quel champ (faux dès que ce
-                // n'est pas le premier champ déclaré).
-                Expr::New { class, .. } => Some(class.clone()),
-                _ => None,
-            };
+            // Résoudre la classe de l'objet pour calculer l'offset — voir
+            // `resolve_receiver_class` (récursif, profondeur arbitraire).
+            let class_name = resolve_receiver_class(builder, object);
             let offset = if let Some(cls) = &class_name {
                 field_offset(&builder.module.class_layouts, cls, field)
             } else {
@@ -407,127 +389,23 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     }
                     
                     // ── Cas normal : résolution de classe ─────────────────────────────
-                    let class_name = match object.as_ref() {
-                        Expr::Ident(var_name, _) => {
-                            builder.var_class.get(var_name.as_str()).cloned()
+                    // Voir `resolve_receiver_class` (récursif, profondeur
+                    // arbitraire — remplace la famille de blocs `match`
+                    // plafonnés à un ou deux niveaux fixes qui existait ici
+                    // avant ce correctif, voir
+                    // docs/roadmap.d/langage-chained-call-depth-limit.md).
+                    // Fallback conservé : si aucune classe n'a pu être
+                    // résolue mais que le type IR de `object` est `Ptr`,
+                    // deviner "String" (choix pragmatique historique — un
+                    // appel de méthode/expression dont le type réel n'est
+                    // pas autrement identifiable, ex. `("a" + b).trim()`).
+                    let class_name = resolve_receiver_class(builder, object).or_else(|| {
+                        if matches!(expr_ir_type(builder, object), IrType::Ptr) {
+                            Some("String".to_string())
+                        } else {
+                            None
                         }
-                        Expr::SelfExpr(_) => builder.current_class.clone(),
-                        Expr::ParentExpr(_) => builder.parent_class.clone(),
-                        // String littérale : "hello".trim()
-                        Expr::Literal(Literal::String(_), _) => Some("String".to_string()),
-                        // Appel chainé : arr.sort().reverse() ou text.trim().lower()
-                        //
-                        // `maFonction(...).methode()` — appel d'une fonction
-                        // LIBRE (`Expr::Ident` référençant une fonction
-                        // top-level, jamais une variable) chaîné directement,
-                        // sans jamais passer par une variable nommée. Un
-                        // TROISIÈME déclencheur du même bug de fond que le
-                        // cas `Expr::Field` ci-dessous (appel chaîné sur une
-                        // MÉTHODE) : sans ce cas, `class_name` retombait
-                        // toujours sur `None` ici (`inner_callee` n'est
-                        // JAMAIS `Expr::Field` pour une fonction libre),
-                        // `func_mangled` valait `"_method_<methode>"` — un
-                        // symbole qui n'existe jamais, silencieusement sans
-                        // effet au codegen (`IO::writeln` affichait "null").
-                        // La fonction connaît pourtant déjà son type de
-                        // retour DÉCLARÉ (`function pickCircle(...): Circle`)
-                        // — voir `IrModule::func_ret_class`, peuplé une fois
-                        // dans `lower_program` depuis `program.functions`.
-                        // Voir docs/roadmap.d/langage-chained-call-on-free-function-result.md.
-                        Expr::Call { callee: inner_callee, .. } if matches!(inner_callee.as_ref(), Expr::Ident(name, _) if builder.module.func_ret_class.contains_key(name)) => {
-                            let Expr::Ident(fn_name, _) = inner_callee.as_ref() else { unreachable!() };
-                            builder.module.func_ret_class.get(fn_name.as_str()).cloned()
-                        }
-                        Expr::Call { callee: inner_callee, .. } => {
-                            if let Expr::Field { object: inner_obj, field: inner_method, .. } = inner_callee.as_ref() {
-                                // Essayer de trouver la classe de l'objet interne
-                                let inner_class = match inner_obj.as_ref() {
-                                    Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
-                                    _ => None,
-                                };
-                                // Si on a trouvé la classe, vérifier le type de retour de la méthode
-                                if let Some(cls) = inner_class {
-                                    let method_name = format!("{}_{}", cls, inner_method);
-                                    // Si la méthode retourne un Ptr et que c'est la même classe, continuer avec elle
-                                    if let Some(ret_ty) = builder.fn_ret_types.get(&method_name) {
-                                        if matches!(ret_ty, IrType::Ptr) {
-                                            Some(cls)
-                                        } else {
-                                            None
-                                        }
-                                    } else {
-                                        None
-                                    }
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
-                            }
-                        }
-                        // `HTTPRequest::get/post/put/delete/patch(...).méthode()`
-                        // chaîné directement, sans jamais passer par une
-                        // variable `scoped` — `Expr::StaticCall` est un nœud
-                        // AST COMPLET EN LUI-MÊME (ses `args` sont intégrés au
-                        // nœud, pas enveloppés dans un `Expr::Call` séparé
-                        // contrairement à ce qu'on pourrait croire — voir
-                        // `parse_postfix`/`parse_primary`) : `object` vaut
-                        // donc ICI directement `Expr::StaticCall`, jamais
-                        // `Expr::Call{callee: Expr::StaticCall}`. Ces
-                        // raccourcis statiques retournent un `HTTPResponse`.
-                        // Sans ce cas, aucune branche de ce `match` ne
-                        // reconnaissait un `Expr::StaticCall` en position de
-                        // récepteur chaîné : `class_name` restait `None`
-                        // (jamais le fallback générique "String" plus bas, qui
-                        // n'est atteint que si `object` n'est PAS explicitement
-                        // `Expr::Call`), donc `func_mangled` valait
-                        // `"_method_<method>"` — un symbole qui n'existe pas,
-                        // ignoré silencieusement par le codegen (même famille
-                        // de bug que `Expr::New` en récepteur direct, voir plus
-                        // bas). Confirmé par reproduction sur
-                        // `HTTPRequest::get(url).ok()` chaîné dans un `if`,
-                        // contre un serveur qui répond bien 200 — `.ok()`
-                        // valait toujours faux.
-                        Expr::StaticCall { class: sc_class, method: sc_method, .. }
-                            if sc_class == "HTTPRequest"
-                                && matches!(sc_method.as_str(), "get" | "post" | "put" | "delete" | "patch") =>
-                        {
-                            Some("HTTPResponse".to_string())
-                        }
-                        // Accès chaîné : w.inner.sum() où `inner` est elle-même
-                        // une instance de classe/string/array/map — DOIT être
-                        // vérifié avant le fallback générique ci-dessous, qui
-                        // devinait "String" à tort pour ce cas (bug historique,
-                        // voir resolve_chained_field_class).
-                        Expr::Field { object: inner_obj, field: inner_field, .. } => {
-                            resolve_chained_field_class(builder, inner_obj, inner_field)
-                        }
-                        // `use Classe(...).méthode()`/`use Classe(...).champ` —
-                        // instanciation chaînée directement en récepteur, sans
-                        // jamais passer par une variable nommée. DOIT être
-                        // vérifié avant le fallback générique ci-dessous : sans
-                        // ce cas, `expr_ir_type` renvoie `IrType::Ptr` pour
-                        // TOUT `Expr::New` (voir sa doc), le fallback devinait
-                        // alors à tort "String" — `func_mangled` valait
-                        // `"String_<method>"`, un symbole qui n'existe jamais,
-                        // et `emit_calls` (codegen) ignore silencieusement un
-                        // appel vers une fonction inconnue au lieu d'échouer :
-                        // confirmé par reproduction sur `use Thread().run(...)`,
-                        // qui compilait sans la moindre erreur mais ne lançait
-                        // JAMAIS le thread (`Thread_run` n'était jamais appelé).
-                        Expr::New { class, .. } => Some(class.clone()),
-                        // Appel de fonction retournant string : func().trim()
-                        _ => {
-                            // Fallback : vérifier si c'est un type string via l'IR
-                            let ir_ty = expr_ir_type(builder, object);
-                            if matches!(ir_ty, IrType::Ptr) {
-                                // Peut être une string, on essaye avec String
-                                Some("String".to_string())
-                            } else {
-                                None
-                            }
-                        }
-                    };
+                    });
                     // Cas spécial : ui.handler(name, Class::method) — génère un trampoline
                     // dédié plutôt que de passer par le dispatch générique ci-dessous
                     // (voir tauri_handler.rs pour le détail du mécanisme).
