@@ -397,7 +397,7 @@ fn check_file(path: &Path, content: &str, cfg: &Config) -> usize {
             }
         }
 
-        // ── R07 : Nommage des classes/interfaces/modules/generics (PascalCase) ──
+        // ── R07 : Nommage des classes/structs/interfaces/modules/generics (PascalCase) ──
         if cfg.naming_class && !in_bt {
             let t = line.trim();
             const KINDS: &[(&str, &str)] = &[
@@ -405,6 +405,7 @@ fn check_file(path: &Path, content: &str, cfg: &Config) -> usize {
                 ("interface ", "interface"),
                 ("module ",    "module"),
                 ("generic ",   "generic"),
+                ("struct ",    "struct"),
             ];
             for (kw, label) in KINDS {
                 let Some(rest) = t.strip_prefix(kw) else { continue };

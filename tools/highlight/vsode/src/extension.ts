@@ -9,7 +9,6 @@ import { findCallSite, resolveCall } from './callsite';
 import {
     esc,
     findVariableType,
-    offsetToPosition,
     parseFileImports,
     parseImports,
     resolveFileImportUri,
@@ -58,8 +57,7 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
         if (!site) { return undefined; }
         const call = await resolveCall(document, position, site);
         const param = call?.params.find(p => p.name === name);
-        if (!call?.source || !param) { return undefined; }
-        return [new vscode.Location(call.source.uri, offsetToPosition(call.source.fileText, param.offset))];
+        return param?.location ? [param.location] : undefined;
     }
 
     provideDefinition(
@@ -358,7 +356,7 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
         const lines = content.split('\n');
         
         // Cherche class, generic, interface, function, module, enum
-        const symbolRe = new RegExp(`\\b(?:generic|class|interface|function|module|enum)\\s+(${esc(symbol)})\\b`);
+        const symbolRe = new RegExp(`\\b(?:generic|class|struct|interface|function|module|enum)\\s+(${esc(symbol)})\\b`);
         
         for (let i = 0; i < lines.length; i++) {
             const m = lines[i].match(symbolRe);
@@ -480,7 +478,7 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
         name: string,
         position: vscode.Position
     ): vscode.Location | undefined {
-        const re = new RegExp(`\\b(?:generic|class|interface|module|enum)\\s+(${esc(name)})\\b`);
+        const re = new RegExp(`\\b(?:generic|class|struct|interface|module|enum)\\s+(${esc(name)})\\b`);
         for (let i = 0; i < document.lineCount; i++) {
             const text = document.lineAt(i).text;
             const m    = text.match(re);

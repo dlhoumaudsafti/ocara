@@ -170,6 +170,10 @@ pub enum SemaError {
     NamedArgVariadic   { callee: String, name: String, span: Span },
     NamedArgMissing    { callee: String, name: String, span: Span },
     NamedArgUnresolved { name: String, span: Span },
+    /// Champ `private`/`protected` lu ou affecté hors de la classe déclarante
+    /// (et, pour `protected`, de ses descendantes) — voir
+    /// `crate::sema::field_visibility` (E54).
+    FieldNotAccessible { class: String, field: String, protected: bool, span: Span },
 }
 
 impl SemaError {
@@ -222,6 +226,7 @@ impl SemaError {
             SemaError::NamedArgVariadic   { span, .. } => span,
             SemaError::NamedArgMissing    { span, .. } => span,
             SemaError::NamedArgUnresolved { span, .. } => span,
+            SemaError::FieldNotAccessible { span, .. } => span,
         }
     }
 
@@ -329,6 +334,12 @@ impl SemaError {
                 format!("missing argument '{}' in this named call to '{}' — it has no default value", name, callee),
             SemaError::NamedArgUnresolved { name, .. } =>
                 format!("named argument '{}' cannot be used here: the parameter names of the called target are not statically known (e.g. a call through a 'Function<...>' value) — pass the arguments positionally", name),
+            SemaError::FieldNotAccessible { class, field, protected, .. } =>
+                if *protected {
+                    format!("field '{}' of '{}' is protected — it is only accessible from '{}' and the classes/structs that extend it", field, class, class)
+                } else {
+                    format!("field '{}' of '{}' is private — it is only accessible from inside '{}' (expose it through a public method)", field, class, class)
+                },
         }
     }
 }

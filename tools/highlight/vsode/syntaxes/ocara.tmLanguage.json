@@ -240,7 +240,7 @@
     },
 
     "class-declaration": {
-      "match": "\\b(class)\\s+([A-Z][\\w]*)\\b",
+      "match": "\\b(class|struct)\\s+([A-Z][\\w]*)\\b",
       "captures": {
         "1": { "name": "keyword.declaration.class.ocara" },
         "2": { "name": "entity.name.class.ocara" }

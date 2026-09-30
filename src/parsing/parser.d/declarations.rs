@@ -167,7 +167,7 @@ impl Parser {
         }
         self.eat(&TokenKind::RBrace)?;
 
-        Ok(ClassDecl { name, extends, modules, implements, members, span })
+        Ok(ClassDecl { name, extends, modules, implements, members, span, is_struct: false })
     }
 
     fn parse_class_member(&mut self) -> ParseResult<ClassMember> {

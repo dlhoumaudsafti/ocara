@@ -74,6 +74,7 @@ pub enum TokenKind {
     Function,
     Method,
     Class,
+    Struct,
     Generic,
     Module,
     Enum,

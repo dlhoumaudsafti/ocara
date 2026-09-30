@@ -5,6 +5,8 @@ import {
     findEnclosingClassName,
     findMethodSignature,
     findFunctionSignature,
+    findStructFields,
+    offsetToPosition,
     CallableSignature,
 } from './resolver';
 
@@ -45,16 +47,15 @@ export interface ParamInfo {
     type: string;
     defaultValue?: string;
     variadic: boolean;
-    /** Position (dans `ResolvedCall.source.fileText`) du nom du paramètre. */
-    offset: number;
+    /** Déclaration du paramètre (absente pour un builtin). */
+    location?: vscode.Location;
 }
 
-/** Cible résolue d'un site d'appel. `source` absent pour un builtin. */
+/** Cible résolue d'un site d'appel. */
 export interface ResolvedCall {
     owner: string;
     params: ParamInfo[];
     returnType: string;
-    source?: CallableSignature;
 }
 
 /** Masque le contenu des chaînes et commentaires (longueur conservée). */
@@ -178,12 +179,21 @@ export async function resolveCall(
         if (!method) { return undefined; }
         return {
             owner: `${builtin.name}::${method.name}`,
-            params: method.params.map(p => ({ name: p.name, type: p.type, variadic: /^variadic\b/.test(p.type), offset: -1 })),
+            params: method.params.map(p => ({ name: p.name, type: p.type, variadic: /^variadic\b/.test(p.type) })),
             returnType: method.returns,
         };
     }
+    // `use Struct(...)` : constructeur généré depuis les champs (hérités d'abord).
+    const fields = site.kind === 'new' && site.receiver ? await findStructFields(document, site.receiver) : undefined;
+    if (fields) {
+        return {
+            owner: `${site.receiver}::init`,
+            params: fields.map(f => ({ name: f.name, type: f.type, defaultValue: f.defaultValue, variadic: false, location: f.location })),
+            returnType: '',
+        };
+    }
     const source = await resolveUserSignature(document, position, site);
-    return source ? { owner: source.owner, params: parseParams(source), returnType: source.returnType, source } : undefined;
+    return source ? { owner: source.owner, params: parseParams(source), returnType: source.returnType } : undefined;
 }
 
 async function resolveUserSignature(
@@ -225,7 +235,7 @@ function parseParams(signature: CallableSignature): ParamInfo[] {
                 type,
                 defaultValue: m[4]?.trim(),
                 variadic: /^variadic\b/.test(type),
-                offset: offset + m[1].length,
+                location: new vscode.Location(signature.uri, offsetToPosition(signature.fileText, offset + m[1].length)),
             });
         }
         offset += part.length + 1;

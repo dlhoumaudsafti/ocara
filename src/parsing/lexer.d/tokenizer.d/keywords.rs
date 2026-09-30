@@ -16,6 +16,7 @@ pub(in crate::parsing::lexer) fn keyword_or_ident(s: &str) -> TokenKind {
         "function"   => TokenKind::Function,
         "method"     => TokenKind::Method,
         "class"      => TokenKind::Class,
+        "struct"     => TokenKind::Struct,
         "generic"    => TokenKind::Generic,
         "module"     => TokenKind::Module,
         "enum"       => TokenKind::Enum,

@@ -69,10 +69,7 @@ class OcaraDefinitionProvider {
         }
         const call = await (0, callsite_1.resolveCall)(document, position, site);
         const param = call?.params.find(p => p.name === name);
-        if (!call?.source || !param) {
-            return undefined;
-        }
-        return [new vscode.Location(call.source.uri, (0, resolver_1.offsetToPosition)(call.source.fileText, param.offset))];
+        return param?.location ? [param.location] : undefined;
     }
     provideDefinition(document, position, _token) {
         const lineText = document.lineAt(position.line).text;
@@ -322,7 +319,7 @@ class OcaraDefinitionProvider {
         const content = fs.readFileSync(absolutePath, 'utf8');
         const lines = content.split('\n');
         // Cherche class, generic, interface, function, module, enum
-        const symbolRe = new RegExp(`\\b(?:generic|class|interface|function|module|enum)\\s+(${(0, resolver_1.esc)(symbol)})\\b`);
+        const symbolRe = new RegExp(`\\b(?:generic|class|struct|interface|function|module|enum)\\s+(${(0, resolver_1.esc)(symbol)})\\b`);
         for (let i = 0; i < lines.length; i++) {
             const m = lines[i].match(symbolRe);
             if (m && m.index !== undefined) {
@@ -425,7 +422,7 @@ class OcaraDefinitionProvider {
     }
     // ─── Déclaration locale d'un type (class / interface / module / enum) ──────
     findTypeDeclaration(document, name, position) {
-        const re = new RegExp(`\\b(?:generic|class|interface|module|enum)\\s+(${(0, resolver_1.esc)(name)})\\b`);
+        const re = new RegExp(`\\b(?:generic|class|struct|interface|module|enum)\\s+(${(0, resolver_1.esc)(name)})\\b`);
         for (let i = 0; i < document.lineCount; i++) {
             const text = document.lineAt(i).text;
             const m = text.match(re);

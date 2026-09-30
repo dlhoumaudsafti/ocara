@@ -111,6 +111,17 @@ impl CallTarget {
     }
 }
 
+impl CallTarget {
+    /// Paramètres sans valeur par défaut (ni omettables).
+    pub fn required_count(&self) -> usize {
+        self.slots.iter().filter(|s| s.default.is_none() && !s.optional).count()
+    }
+
+    pub fn accepts_arg_count(&self, count: usize) -> bool {
+        count >= self.required_count() && (self.variadic.is_some() || count <= self.slots.len())
+    }
+}
+
 pub fn has_named(args: &[Expr]) -> bool {
     args.iter().any(|a| matches!(a, Expr::NamedArg { .. }))
 }

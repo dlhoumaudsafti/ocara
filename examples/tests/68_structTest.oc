@@ -1,0 +1,54 @@
+import ocara.UnitTest
+import ocara.Array
+import UserDTO from "68_struct"
+import AdminDTO from "68_struct"
+import TeamDTO from "68_struct"
+
+// docs/roadmap.d/langage-struct-value-type.md — constructeur généré depuis
+// les champs (défauts compris, arguments nommés), héritage entre structs,
+// struct nullable/imbriqué. Chaque test vérifie les VALEURS réellement
+// stockées dans les champs.
+class Test_68_struct {
+
+    public method positionalWithDefaultsTest(): int {
+        var u:UserDTO = use UserDTO(1, "David")
+        UnitTest::assertEquals(1, u.id)
+        UnitTest::assertEquals("David", u.name)
+        UnitTest::assertEquals("john.doe@example.com", u.email)
+        return 0
+    }
+
+    public method namedMiddleFieldOmittedTest(): int {
+        var u:UserDTO = use UserDTO(email: "eve@example.com", id: 3)
+        UnitTest::assertEquals("John", u.name)
+        UnitTest::assertEquals("eve@example.com", u.email)
+        return 0
+    }
+
+    public method inheritedFieldsFirstTest(): int {
+        var admin:AdminDTO = use AdminDTO(4, "Root", "root@example.com", 9)
+        UnitTest::assertEquals(4, admin.id)
+        UnitTest::assertEquals("Root", admin.name)
+        UnitTest::assertEquals(9, admin.level)
+        var named:AdminDTO = use AdminDTO(id: 5)
+        UnitTest::assertEquals(1, named.level)
+        return 0
+    }
+
+    public method mutableFieldAndConstTest(): int {
+        var u:UserDTO = use UserDTO(id: 6)
+        u.name = "Changed"
+        UnitTest::assertEquals("Changed", u.name)
+        UnitTest::assertEquals("user", UserDTO::KIND)
+        return 0
+    }
+
+    public method nestedStructsTest(): int {
+        var a:UserDTO = use UserDTO(id: 7)
+        var team:TeamDTO = use TeamDTO(label: "core", members: [a])
+        UnitTest::assertEquals("core", team.label)
+        UnitTest::assertEquals(1, Array::len(team.members))
+        UnitTest::assertTrue(team.lead is null)
+        return 0
+    }
+}

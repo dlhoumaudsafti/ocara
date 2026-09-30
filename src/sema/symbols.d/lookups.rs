@@ -86,13 +86,15 @@ impl SymbolTable {
         canonical.to_string()
     }
 
-    /// Cherche un champ en remontant la chaîne d'héritage
-    pub fn lookup_field_in_chain(&self, class_name: &str, field: &str) -> Option<&FieldInfo> {
+    /// Cherche un champ en remontant la chaîne d'héritage — avec le nom de la
+    /// classe qui le DÉCLARE (celle dont dépend sa visibilité
+    /// `private`/`protected`).
+    pub fn lookup_field_owner(&self, class_name: &str, field: &str) -> Option<(&str, &FieldInfo)> {
         let mut current = class_name;
         loop {
-            let info = self.classes.get(current)?;
+            let (owner, info) = self.classes.get_key_value(current)?;
             if let Some(f) = info.fields.get(field) {
-                return Some(f);
+                return Some((owner.as_str(), f));
             }
             match info.extends.as_deref() {
                 Some(parent) => current = parent,

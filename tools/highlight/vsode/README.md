@@ -4,7 +4,7 @@ Coloration syntaxique, autocomplétion et navigation (Go-to-Definition) pour le 
 
 ## Fonctionnalités
 
-- Highlight complet : mots-clés, types, classes, méthodes, imports, chaînes, templates
+- Highlight complet : mots-clés, types, classes, structs, méthodes, imports, chaînes, templates
 - Appels de méthodes (`obj.method()`), accès statiques (`Class::member`), builtins `ocara.*`
 - **Autocomplétion après `.` / `::`** — méthodes et constantes des classes builtin `ocara.*`
   (catalogue généré depuis `src/builtins/*.rs`, voir `data/builtins-data.json`) et des
@@ -21,6 +21,8 @@ Coloration syntaxique, autocomplétion et navigation (Go-to-Definition) pour le 
   - **signature help** (`(` / `,`) : signature complète, valeurs par défaut affichées,
     paramètre actif déterminé par nom pour un argument nommé, par position sinon ;
   - **Ctrl+Click** sur `nom:` → paramètre correspondant dans la déclaration.
+  - `use MonStruct(` : signature du constructeur **généré** depuis les champs du `struct`
+    (champs hérités d'abord, valeurs par défaut affichées), Ctrl+Click sur `nom:` → le champ.
   - Limites : aucune aide pour un appel via une valeur `Function<...>` (les noms de paramètres
     n'y existent pas) ni pour un receveur sans type déclaré ; une valeur ressemblant à un type
     (`p: Point`, `c: CONST`) n'est pas colorée comme argument nommé (indiscernable de `nom:Type`).
@@ -40,6 +42,7 @@ Coloration syntaxique, autocomplétion et navigation (Go-to-Definition) pour le 
   | Déclaration      | CodeLens |
   |------------------|----------|
   | classe / generic | implémentations (sous-classes, transitif) · overrides (méthodes redéfinies par ces sous-classes) |
+  | struct           | implémentations (structs dérivés, transitif) |
   | interface        | implémentations (classes qui l'implémentent, héritage compris) · overrides (méthodes de l'interface qu'elles définissent) |
   | module           | implémentations (classes qui l'utilisent via `modules`) · overrides (méthodes du module qu'elles redéfinissent) |
   | méthode          | d'interface : implémentations · de module : implémentations + overrides · de classe : overrides |

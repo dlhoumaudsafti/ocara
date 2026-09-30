@@ -16,7 +16,7 @@ pub struct TypeChecker<'a> {
     /// Type de retour de la fonction en cours d'analyse
     current_ret:   Option<Type>,
     /// Nom de la classe en cours (pour `self`)
-    current_class: Option<String>,
+    pub(crate) current_class: Option<String>,
     /// Contexte runtime actuel (init, main, error, success, exit)
     current_runtime_ctx: Option<String>,
     /// Classes déjà typecheckées (pour éviter de les typecheck plusieurs fois)
@@ -822,8 +822,13 @@ impl<'a> TypeChecker<'a> {
                             });
                         }
                     }
-                    Expr::Field { object, .. } => {
-                        self.infer_expr(object);
+                    Expr::Field { object, field, span: field_span } => {
+                        let obj_ty = self.infer_expr(object);
+                        if let Some(cls_name) = type_class_name(&obj_ty) {
+                            if let Some((owner, f)) = self.symbols.lookup_field_owner(&cls_name, field) {
+                                self.check_field_visibility(owner, &f.vis, field, field_span);
+                            }
+                        }
                     }
                     Expr::Index { object, index, .. } => {
                         self.infer_expr(object);
@@ -1088,7 +1093,8 @@ impl<'a> TypeChecker<'a> {
                     // Classe opaque (import non résolu) — accès permissif
                     if info.is_opaque { return Type::Mixed; }
                     // Cherche le champ en remontant la chaîne d'héritage
-                    if let Some(f) = self.symbols.lookup_field_in_chain(&cls_name, field) {
+                    if let Some((owner, f)) = self.symbols.lookup_field_owner(&cls_name, field) {
+                        self.check_field_visibility(owner, &f.vis, field, span);
                         return f.ty.clone();
                     }
                     // peut être une méthode sans appel
@@ -1823,6 +1829,19 @@ impl<'a> TypeChecker<'a> {
                     return Type::Mixed;
                 };
                 let args: &[Expr] = &resolved;
+                // Arité du constructeur utilisateur (hérité compris) — sans
+                // ce contrôle, un argument manquant/en trop n'échouait qu'au
+                // codegen (vérificateur Cranelift).
+                if let Some(target) = self.user_method_target(class, "init").filter(|_| !is_opaque) {
+                    if !target.accepts_arg_count(args.len()) {
+                        self.errors.push(SemaError::WrongArgCount {
+                            name:     target.callee.clone(),
+                            expected: target.required_count(),
+                            found:    args.len(),
+                            span:     self.with_runtime_ctx(span),
+                        });
+                    }
+                }
                 let resolved_key = crate::sema::escape::resolve_user_callable(&self.class_members, class, "init");
                 self.check_argument_escape(args, resolved_key.as_deref(), false);
                 for arg in args { self.infer_expr(arg); }

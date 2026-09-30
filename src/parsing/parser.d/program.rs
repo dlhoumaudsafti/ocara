@@ -72,6 +72,9 @@ impl Parser {
                 TokenKind::Class => {
                     program.classes.push(self.parse_class()?);
                 }
+                TokenKind::Struct => {
+                    program.classes.push(self.parse_struct()?);
+                }
                 TokenKind::Generic => {
                     program.generics.push(self.parse_generic()?);
                 }

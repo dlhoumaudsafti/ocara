@@ -184,7 +184,7 @@ export function findVariableType(document: vscode.TextDocument, varName: string)
 
 /** Trouve le nom de la classe/generic englobant une position (scan ascendant, heuristique). */
 export function findEnclosingClassName(document: vscode.TextDocument, position: vscode.Position): string | undefined {
-    const classRe = /\b(?:generic|class)\s+(\w+)/;
+    const classRe = /\b(?:generic|class|struct)\s+(\w+)/;
     for (let i = position.line; i >= 0; i--) {
         const m = document.lineAt(i).text.match(classRe);
         if (m) { return m[1]; }
@@ -212,7 +212,7 @@ export async function resolveClassUri(
         }
     }
     // Classe locale : présente dans le document courant lui-même ?
-    const localRe = new RegExp(`\\b(?:generic|class|interface)\\s+(${esc(className)})\\b`);
+    const localRe = new RegExp(`\\b(?:generic|class|struct|interface)\\s+(${esc(className)})\\b`);
     for (let i = 0; i < document.lineCount; i++) {
         if (localRe.test(document.lineAt(i).text)) { return document.uri; }
     }
@@ -238,6 +238,8 @@ interface ClassBody {
     start: number;
     /** Nom de la classe parente (`extends X`), si présente. */
     extendsName?: string;
+    /** Déclaré `struct` (constructeur généré depuis les champs). */
+    isStruct: boolean;
 }
 
 /**
@@ -248,12 +250,12 @@ interface ClassBody {
  */
 function findClassBody(fileText: string, className: string): ClassBody | undefined {
     const declRe = new RegExp(
-        `\\b(?:generic|class)\\s+${esc(className)}\\b([^{]*)\\{`
+        `\\b(generic|class|struct)\\s+${esc(className)}\\b([^{]*)\\{`
     );
     const m = declRe.exec(fileText);
     if (!m) { return undefined; }
 
-    const header = m[1] || '';
+    const header = m[2] || '';
     const extendsMatch = header.match(/\bextends\s+(\w+)/);
 
     let depth = 1;
@@ -269,6 +271,7 @@ function findClassBody(fileText: string, className: string): ClassBody | undefin
         text: fileText.slice(start, depth === 0 ? i - 1 : i),
         start,
         extendsName: extendsMatch ? extendsMatch[1] : undefined,
+        isStruct: m[1] === 'struct',
     };
 }
 
@@ -418,7 +421,7 @@ export function collectKnownClassNames(document: vscode.TextDocument): string[] 
     for (const imp of parseFileImports(document)) {
         if (imp.symbol !== '*') { names.add(imp.alias || imp.symbol); }
     }
-    const localRe = /\b(?:generic|class|interface)\s+(\w+)/g;
+    const localRe = /\b(?:generic|class|struct|interface)\s+(\w+)/g;
     const text = document.getText();
     let m: RegExpExecArray | null;
     while ((m = localRe.exec(text)) !== null) { names.add(m[1]); }
@@ -538,4 +541,53 @@ export async function findFunctionSignature(
         }
     }
     return undefined;
+}
+
+export interface StructField {
+    name: string;
+    type: string;
+    defaultValue?: string;
+    location: vscode.Location;
+}
+
+/**
+ * Champs d'un `struct`, parents d'abord (ordre du constructeur généré par le
+ * compilateur, voir docs/EBNF.md §16.7) — `undefined` si `className` n'est
+ * pas un struct.
+ */
+export async function findStructFields(
+    document: vscode.TextDocument,
+    className: string,
+    depth: number = 0
+): Promise<StructField[] | undefined> {
+    if (depth > 5) { return undefined; }
+    const uri = await resolveClassUri(document, className);
+    if (!uri) { return undefined; }
+    const fileText = uri.fsPath === document.uri.fsPath ? document.getText() : readFile(uri);
+    if (fileText === undefined) { return undefined; }
+    const body = findClassBody(fileText, className);
+    if (!body || !body.isStruct) { return undefined; }
+
+    let inherited: StructField[] = [];
+    if (body.extendsName && body.extendsName !== className) {
+        const parentDoc = uri.fsPath === document.uri.fsPath ? document : await vscode.workspace.openTextDocument(uri);
+        inherited = (await findStructFields(parentDoc, body.extendsName, depth + 1)) ?? [];
+    }
+
+    const fieldRe = /^(\s*(?:(?:public|protected|private)\s+)?(?:property\s+)?)([A-Za-z_]\w*)\s*:\s*([^=]+?)\s*(?:=\s*(.+?))?\s*$/;
+    const own: StructField[] = [];
+    let lineStart = body.start;
+    for (const line of body.text.split('\n')) {
+        const m = /\bconst\b/.test(line) ? null : line.match(fieldRe);
+        if (m) {
+            own.push({
+                name: m[2],
+                type: m[3].trim(),
+                defaultValue: m[4]?.trim(),
+                location: new vscode.Location(uri, offsetToPosition(fileText, lineStart + m[1].length)),
+            });
+        }
+        lineStart += line.length + 1;
+    }
+    return [...inherited, ...own];
 }

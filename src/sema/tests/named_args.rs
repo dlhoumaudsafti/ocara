@@ -176,3 +176,19 @@ fn named_call_inside_generic_body_is_resolved_syntactically() {
     assert!(matches!(&args[0], Expr::Literal(Literal::String(s), _) if s == "h"));
     assert!(matches!(&args[1], Expr::Literal(Literal::Int(2), _)));
 }
+
+#[test]
+fn constructor_arity_is_checked() {
+    let src = r#"
+        class P {
+            public property a:int
+            init(a:int, b:int = 1) { self.a = a }
+        }
+        function main():int { var p:P = use P()
+            var q:P = use P(1, 2, 3)
+            return 0 }
+    "#;
+    let (errors, _) = check(src);
+    let arity_errors = errors.iter().filter(|e| matches!(e, SemaError::WrongArgCount { name, .. } if name == "P::init")).count();
+    assert_eq!(arity_errors, 2, "{:?}", errors);
+}

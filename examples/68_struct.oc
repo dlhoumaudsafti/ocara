@@ -1,0 +1,75 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 68 — struct (agrégat de données)
+//
+// Voir docs/roadmap.d/langage-struct-value-type.md et docs/EBNF.md §16.7.
+//
+// Illustre :
+//   - champs nus (publics par défaut) ou `[public|protected] property`
+//   - valeur par défaut d'un champ
+//   - constructeur GÉNÉRÉ depuis les champs (aucun `init` à écrire), appelé
+//     en positionnel ou avec des arguments nommés
+//   - `struct` étendant un `struct` : champs du parent d'abord
+//   - struct nullable (`UserDTO|null`), dans un tableau, en champ d'un autre
+//     struct
+//
+// Même représentation qu'une `class` (tas via `use`, passage par
+// référence) ; champs et constantes uniquement — pas de méthode, pas de
+// `private`, et un struct n'étend/n'est étendu que par un struct.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+import ocara.Array
+
+struct UserDTO {
+    id:int
+    name:string = "John"
+    email:string = "john.doe@example.com"
+    public const KIND:string = "user"
+}
+
+struct AdminDTO extends UserDTO {
+    public property level:int = 1
+}
+
+struct TeamDTO {
+    label:string
+    members:array<UserDTO>
+    lead:UserDTO|null = null
+}
+
+function findUser(id:int): UserDTO|null {
+    if id equal 0 {
+        return null
+    }
+    return use UserDTO(id: id)
+}
+
+function main(): int {
+    // Positionnel, avec défauts de fin de liste.
+    var a:UserDTO = use UserDTO(1, "David")
+    IO::writeln(`${a.id} ${a.name} ${a.email}`)
+
+    // Nommé : seul le champ obligatoire, ou un champ au milieu omis.
+    var b:UserDTO = use UserDTO(id: 2)
+    IO::writeln(`${b.id} ${b.name} ${b.email}`)
+    var c:UserDTO = use UserDTO(email: "eve@example.com", id: 3)
+    IO::writeln(`${c.id} ${c.name} ${c.email}`)
+
+    // Héritage : champs du parent, puis les siens.
+    var admin:AdminDTO = use AdminDTO(name: "Root", id: 4, level: 9)
+    IO::writeln(`${admin.id} ${admin.name} ${admin.level}`)
+
+    // Champ mutable, constante.
+    admin.name = "Admin"
+    IO::writeln(`${admin.name} ${UserDTO::KIND}`)
+
+    // Struct dans un struct, tableau de structs, struct nullable.
+    var team:TeamDTO = use TeamDTO(label: "core", members: [a, b], lead: c)
+    IO::writeln(`${team.label} ${Array::len(team.members)}`)
+    var missing:UserDTO|null = findUser(0)
+    if missing is null {
+        IO::writeln("absent")
+    }
+
+    return 0
+}

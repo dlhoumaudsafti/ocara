@@ -548,6 +548,15 @@ fn main() {
     // directement la classe concrète wired, jamais l'interface elle-même.
     core::interface_wiring::resolve_bare_interface_names(&mut program, &all_interfaces);
 
+    // ── 4b-ter. `struct` : vérifications (E51-E53) et constructeur hérité ────
+    // Voir core::structs — après la fusion complète (parent possiblement
+    // importé), avant la table des symboles.
+    if let Err((span, msg)) = core::structs::expand_structs(&mut program) {
+        let file_path = span.file.as_ref().map(std::path::PathBuf::from).unwrap_or_else(|| args.input.clone());
+        diagnostic::print_error(&file_path, span.line, span.col, &msg);
+        std::process::exit(1);
+    }
+
     // ── 4c. Construction de la table des symboles ─────────────────────────────
     let mut symbols = SymbolTable::new();
     for decl in &program.imports    { symbols.register_import(decl); }
