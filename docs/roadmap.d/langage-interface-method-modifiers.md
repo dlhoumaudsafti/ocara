@@ -1,92 +1,129 @@
 # Modificateurs incomplets sur une méthode d'`interface` — seules 2 combinaisons sur 12 acceptées
 
-## Constat (les 12 combinaisons testées une par une, pas supposées)
+Vérifié :
+- **Les 12 combinaisons parsent désormais, plus la forme historique sans le
+  moindre modificateur** (13 formes au total, chacune vérifiée séparément,
+  pas juste "ça compile") — `src/parsing/parser.d/declarations.rs::parse_interface_method`
+  accepte maintenant `[public|private|protected]? static? async? method`,
+  en symétrie avec `parse_class_member`/`parse_method_decl` pour une
+  `class`. La visibilité reste **optionnelle** (contrairement à
+  `parse_visibility` pour une classe, où elle est obligatoire) : la forme
+  historique `method nom(): T` sans aucun modificateur, valide avant même
+  `wiring`, n'a jamais été cassée.
+- **`InterfaceMethod` porte désormais `is_async`** (`src/parsing/ast.d/interfaces.rs`),
+  en miroir de `is_static` déjà présent, et `register_interface` le
+  propage dans `FuncSig` (`src/sema/symbols.d/registers.rs`).
+- **Décision sur la visibilité (la seule nuance ouverte du ticket)** :
+  vérifié que `FuncSig` (table des symboles) ne porte AUCUN champ de
+  visibilité pour QUELQUE méthode que ce soit dans ce compilateur — ni pour
+  une classe ordinaire, ni pour une vérification `extends`. La visibilité
+  n'a donc jamais fait partie d'une comparaison de signature nulle part
+  dans ce langage ; imposer une vérification stricte de visibilité
+  UNIQUEMENT pour `implements` aurait été une asymétrie NOUVELLE avec
+  `class`, à l'opposé de l'objectif explicite de ce ticket (symétrie), et
+  sans le moindre cas d'usage concret sans corps de méthode par défaut dans
+  ce langage. Décision : le token de visibilité est accepté puis jeté
+  (comme `public` l'était déjà avant ce ticket), jamais stocké ni vérifié —
+  documenté explicitement dans `InterfaceMethod`, `docs/EBNF.md` §17 et ce
+  ticket.
+- **`static`/`is_async`, eux, ONT une sémantique directe et sont désormais
+  vérifiés à la conformité `implements`** — extension de la vérification
+  E09 déjà existante pour `is_static` (`src/main.rs`, boucles classe ET
+  generic) : une interface qui exige `async method` doit être honorée par
+  une méthode `async`, réciproquement pour une méthode non-`async`.
+- **Bug préexistant trouvé et corrigé en implémentant cette vérification**
+  (`src/sema/symbols.d/registers.rs`) : `register_class`/`register_module`/
+  `register_generic` codaient TOUS EN DUR `is_async: false` pour une
+  méthode, quelle que soit sa déclaration réelle (`register_function`, pour
+  les fonctions LIBRES, le fait correctement depuis toujours). Sans
+  conséquence observable jusqu'ici — rien ne consultait `FuncSig.is_async`
+  pour une méthode, le codegen `async` de classe utilisant un mécanisme
+  entièrement différent basé sur l'AST (`src/lower/builder.d/program.rs`,
+  `async_funcs`) — mais aurait rendu ma nouvelle vérification de conformité
+  TOUJOURS en échec dès qu'une interface exige `async` (confirmé par
+  reproduction avant correctif : une classe pourtant conforme,
+  `public async method`, était rejetée comme non-conforme). Corrigé en
+  propageant `fd.is_async` au lieu de `false`, pour les 3 sites.
+- **Deuxième bug préexistant découvert EN COURS DE ROUTE, sans rapport avec
+  ce ticket, en essayant d'écrire le test de régression bout-en-bout pour
+  `async`** : appeler une méthode D'INSTANCE `async` via le sucre
+  `obj.methode()` SIGSEGV, pour N'IMPORTE QUELLE classe — confirmé isolé
+  d'abord avec une interface, puis reproduit avec une classe CONCRÈTE
+  ordinaire sans la moindre interface en jeu. Root cause localisée
+  précisément par gdb (crash dans `__task_resolve`, appelé avec une valeur
+  qui n'est pas un vrai task handle) et par `--dump` HIR (le site d'appel
+  émet un appel DIRECT vers la méthode synchrone, jamais vers son wrapper
+  `__async_wrap_.../__task_spawn`) : `src/lower/expr.d/lower.rs`, le bras
+  `Expr::Call { callee: Expr::Field }` (sucre d'instance) ne consulte
+  JAMAIS `builder.async_funcs`, contrairement aux DEUX autres formes
+  d'appel (fonction libre, `Classe::methode()` statique) qui le font déjà
+  correctement — confirmé que `static async method`, appelée via
+  `Classe::methode()`, fonctionne parfaitement. Délibérément NON corrigé
+  ici (hors périmètre — ticket de grammaire, pas de codegen async ;
+  correctif estimé Structurel, pas une simple vérification manquante,
+  voir sa propre fiche) : documenté séparément dans
+  [langage-async-instance-method-dispatch-broken](langage-async-instance-method-dispatch-broken.md),
+  ajouté à `docs/roadmap.md` en Priorité Haute. Le test de régression de ce
+  ticket-ci exerce `async` UNIQUEMENT via `static async` (le seul chemin
+  fonctionnel aujourd'hui), documenté explicitement comme un contournement
+  délibéré, pas un oubli de couverture.
+- **7 nouveaux tests Rust** : `src/parsing/parser.d/tests.rs` (1 test
+  paramétré couvrant les 12 combinaisons + la forme bare, vérifiant
+  `is_static`/`is_async` exacts pour chacune) ; `src/sema/tests/interface_method_modifiers.rs`
+  (nouveau fichier, 6 tests : propagation `is_async` correcte pour
+  interface/classe/generic/module, non-régression sur une méthode
+  non-async). `cargo test --bin ocara --release` : **175 passed, 0 failed**
+  (168 avant ce ticket + 7).
+- **Exemple de régression bout-en-bout** : `examples/62_interface_method_modifiers.oc`
+  (illustratif, une interface avec les 5 mots-clés répartis sur 5 méthodes,
+  implémentée et appelée) et `examples/tests/62_interface_method_modifiersTest.oc`
+  (10 assertions : chacun des 5 modificateurs individuellement, plus un test
+  global). `examples/advanced/mini_project`/`mini_project_hexa`
+  explicitement PAS touchés.
+- `make build` (les 4 crates) + `RUSTFLAGS="-D warnings"` : 0 warning.
+  `./ci/regression.sh` : tous verts. `./ci/unittests.sh examples/project/tests` :
+  50 PASS / 0 FAIL (inchangé). `./ci/unittests.sh examples/tests` :
+  **804 PASS / 0 FAIL, 0 ERREUR(S)** (794 avant ce ticket, +10 nouvelles
+  assertions).
+- `docs/EBNF.md` : §17 (règle `InterfaceMethod`/nouvelle `InterfaceVisibility`,
+  paragraphe expliquant la décision visibilité vs `static`/`async`) et §31
+  (grammaire consolidée) mises à jour en miroir, §31 relue intégralement
+  après coup (convention du projet). `docs/diagnostics.md` : pas de
+  nouveau code E- introduit (la vérification `is_async` réutilise
+  exactement le mécanisme/message E09 déjà existant pour `is_static`,
+  comme demandé) — entrée E09 existante volontairement laissée telle
+  quelle (déjà terse par convention, n'énumère pas tout ce qu'E09 vérifie
+  — arité/types non plus).
 
-Une méthode de **classe** ordinaire accepte déjà `public`/`private`/
-`protected` combinés librement à `static` et `async` :
+## Constat (ticket original)
 
-```ocara
-class Foo {
-    public async method a(): int { return 1 }
-    private static method b(): int { return 2 }
-    protected static async method c(): int { return 3 }
-}
-```
-
-Demande explicite de l'utilisateur : la même liberté doit exister dans le
-corps d'une `interface`, pour les **12 combinaisons** (3 visibilités ×
-[rien, `static`, `async`, `static async`]). Vérifié une par une sur cette
-version du compilateur — seules 2 des 12 passent :
-
-| Modificateurs | Résultat |
-|---|---|
-| `public method` | **OK** |
-| `public static method` | **OK** |
-| `public async method` | échec — `expected Method, found Async` |
-| `public static async method` | échec — `expected Method, found Async` |
-| `protected method` | échec — `expected Method, found Protected` |
-| `protected static method` | échec — `expected Method, found Protected` |
-| `protected async method` | échec — `expected Method, found Protected` |
-| `protected static async method` | échec — `expected Method, found Protected` |
-| `private method` | échec — `expected Method, found Private` |
-| `private static method` | échec — `expected Method, found Private` |
-| `private async method` | échec — `expected Method, found Private` |
-| `private static async method` | échec — `expected Method, found Private` |
-
-Les deux qui passent (`public`, `public static`) ont été ajoutées très
-récemment comme prérequis du chantier [langage-interface-wiring](langage-interface-wiring.md)
-(ses propres exemples utilisaient déjà `public static method`, qui n'était
-pas grammatical avant ce ticket) — jamais pensées comme une grammaire
-complète à l'époque, juste le minimum nécessaire pour `wiring`.
-
-## Portée demandée
-
-Rendre le corps d'une `interface` grammaticalement symétrique à celui d'une
-`class` pour ces modificateurs : les 12 combinaisons du tableau ci-dessus
-doivent toutes parser. C'est prioritairement un travail de **grammaire**
-(symétrie avec ce qui existe déjà pour `class`), pas une nouvelle sémantique
-à concevoir de zéro — voir la note ci-dessous sur `private`/`protected`
-pour la seule nuance qui reste à trancher en l'implémentant, mais elle ne
-doit pas bloquer l'objectif principal (accepter la grammaire).
-
-## Note pour l'implémentation — `private`/`protected` sans corps de méthode
-
-Une interface ne déclare aujourd'hui que des signatures (aucun corps de
-méthode par défaut). `async` a un sens immédiat et sans ambiguïté (cohérent
-avec ce qui existe déjà pour les classes). `private`/`protected` sont moins
-évidents à interpréter tant qu'une interface n'a aucun corps de méthode à
-elle — mais l'utilisateur a explicitement demandé que la grammaire les
-accepte quand même, donc les traiter au minimum comme des annotations
-acceptées et cohérentes avec la déclaration `implements` (voir point
-suivant), sans nécessairement leur inventer une sémantique d'exécution
-avant qu'un besoin concret n'apparaisse (ex. méthodes par défaut, pas
-encore une fonctionnalité de ce langage).
-
-- **Conformité `implements`** : si une interface déclare
-  `protected async method a(): int`, la classe qui `implements` doit-elle
-  IMPÉRATIVEMENT reprendre exactement les mêmes modificateurs sur sa propre
-  méthode (vérification de signature stricte incluant visibilité/`static`/
-  `async`, pas seulement le nom/type de retour/paramètres) ? À vérifier si
-  c'est déjà le comportement actuel pour `public`/`static` ou si c'est un
-  trou de vérification séparé, à combler dans le même chantier si c'en est
-  un.
+Une méthode de **classe** ordinaire acceptait déjà `public`/`private`/
+`protected` combinés librement à `static` et `async` ; seules 2 des 12
+combinaisons équivalentes passaient dans le corps d'une `interface`
+(`public method`, `public static method` — ajoutées comme prérequis du
+chantier `wiring`, jamais pensées comme une grammaire complète). Demande
+explicite de l'utilisateur : symétrie complète avec `class`.
 
 ## Priorité / Complexité
 
-**Priorité Haute** — trou de cohérence du langage (une méthode de classe
-accepte déjà les 12 combinaisons, une méthode d'interface n'en accepte que
-2), demandé explicitement à ce niveau de priorité. Complexité probablement
-Légère : la grammaire équivalente existe déjà et fonctionne pour `class`
-(même mots-clés, même position syntaxique) — il s'agit d'aligner le corps
-de `interface` dessus, pas d'inventer de nouveaux tokens/règles.
+**Terminé.** Complexité confirmée Légère pour la grammaire elle-même (la
+symétrie avec `class` était bien mécanique, comme anticipé) — mais DEUX
+bugs préexistants et sans rapport direct ont été trouvés en implémentant
+la vérification de conformité `is_async` (voir ci-dessus), l'un corrigé
+dans ce même chantier (propagation `is_async` dans `FuncSig` pour les
+méthodes de classe/module/generic — un vrai trou de données, jamais
+consommé jusqu'ici donc jamais dangereux, mais faux), l'autre documenté et
+reporté (dispatch d'instance `async` cassé en général, Structurel, sa
+propre fiche).
 
 ## Fichiers clés
 
-`src/parsing/parser.d/declarations.rs` (grammaire du corps d'une
-`interface` — c'est là que `public`/`static` ont été ajoutés pour
-`wiring` ; comparer avec la grammaire déjà correcte du corps d'une `class`
-pour les 12 combinaisons, probablement dans le même fichier ou un fichier
-voisin), `docs/EBNF.md` (règle de l'interface, à re-synchroniser avec le
-§31 comme d'habitude), `src/sema/` (si la vérification de conformité
-`implements` stricte sur les modificateurs, ci-dessus, est retenue dans ce
-même chantier).
+`src/parsing/ast.d/interfaces.rs` (`InterfaceMethod::is_async`),
+`src/parsing/parser.d/declarations.rs` (`parse_interface_method`),
+`src/sema/symbols.d/registers.rs` (`register_interface` + correctif
+`is_async` pour `register_class`/`register_module`/`register_generic`),
+`src/main.rs` (vérification de conformité `is_async`, boucles 4d/4d-bis),
+`src/parsing/parser.d/tests.rs`, `src/sema/tests/interface_method_modifiers.rs`
+(+ `src/sema/tests/mod.rs`), `docs/EBNF.md` (§17, §31),
+`examples/62_interface_method_modifiers.oc`,
+`examples/tests/62_interface_method_modifiersTest.oc`.

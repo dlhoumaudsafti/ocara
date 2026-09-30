@@ -31,6 +31,15 @@ impl IrType {
             // comme type de retour d'une fonction contenant `emit` (vérifié
             // par la sema) : ce cas est donc le seul jamais rencontré ici.
             Type::Message(_)       => IrType::Ptr,
+            // `Resolvable<T>` (voir
+            // docs/roadmap.d/langage-async-non-int-return-type-check.md) est
+            // un type PUREMENT sémantique : `T` n'existe qu'au niveau du
+            // typechecker, jamais dans la représentation mémoire runtime — le
+            // handle reste exactement ce qu'il est aujourd'hui (l'entier
+            // opaque transportant le pointeur `OcaraTask`), donc `I64` comme
+            // `Type::Int`, jamais `Ptr` (pas de vtable, pas de classe
+            // backing, contrairement à `Type::Generic` ci-dessous).
+            Type::Resolvable(_)    => IrType::I64,
             Type::Generic { .. }   => IrType::Ptr,  // Générique monomorphisé = objet
             Type::Union(_)         => IrType::Ptr,
             Type::Function { .. }  => IrType::Ptr,

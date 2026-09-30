@@ -149,6 +149,20 @@ pub enum SemaError {
     /// (`StaticCall` retombait jusqu'ici sur `Type::Mixed` sans la moindre
     /// erreur, une interface n'étant jamais cherchée dans `self.classes`).
     InterfaceNoWiring { name: String, span: Span },
+    /// `resolve expr` où `expr` n'est PAS de type `Resolvable<T>` — voir
+    /// docs/roadmap.d/langage-async-non-int-return-type-check.md.
+    /// Auparavant, `Expr::Resolve` retombait silencieusement sur `Type::Int`
+    /// dès que le mécanisme `async_var_funcs` (table par nom de variable,
+    /// aujourd'hui supprimée) ne retrouvait pas l'appel async d'origine ;
+    /// `Resolvable<T>` porte maintenant l'information dans le type lui-même,
+    /// donc `resolve` sur autre chose qu'un `Resolvable<T>` est une vraie
+    /// erreur de type, plus un repli silencieux.
+    ResolveOnNonResolvable { found: String, span: Span },
+    /// Type de retour DÉCLARÉ d'une fonction/méthode `async` qui est
+    /// lui-même `Resolvable<T>` — interdit pour empêcher le double emballage
+    /// implicite `Resolvable<Resolvable<T>>` (voir
+    /// docs/roadmap.d/langage-async-non-int-return-type-check.md).
+    AsyncReturnsResolvable { name: String, span: Span },
 }
 
 impl SemaError {
@@ -193,6 +207,8 @@ impl SemaError {
             SemaError::MethodCallOnVoid { span, .. } => span,
             SemaError::MethodCallOnNonClass { span, .. } => span,
             SemaError::InterfaceNoWiring   { span, .. } => span,
+            SemaError::ResolveOnNonResolvable { span, .. } => span,
+            SemaError::AsyncReturnsResolvable { span, .. } => span,
         }
     }
 
@@ -280,6 +296,10 @@ impl SemaError {
                 format!("cannot call '.{}(...)' — the receiver's type is '{}', which has no methods", method, type_name),
             SemaError::InterfaceNoWiring { name, .. } =>
                 format!("interface '{}' cannot be constructed or have a static method called on it directly: it has no 'wiring' declaration — add at least one 'wiring <Class>' inside the interface, or use a concrete implementing class directly", name),
+            SemaError::ResolveOnNonResolvable { found, .. } =>
+                format!("'resolve' expects a 'Resolvable<T>' expression (the result of calling an 'async' function/method), found '{}'", found),
+            SemaError::AsyncReturnsResolvable { name, .. } =>
+                format!("'{}' is 'async' and declares 'Resolvable<T>' as its own return type — an 'async' function/method already wraps its declared return type in 'Resolvable<T>' automatically at the call site; declare the real return type here instead (e.g. 'string', not 'Resolvable<string>')", name),
         }
     }
 }

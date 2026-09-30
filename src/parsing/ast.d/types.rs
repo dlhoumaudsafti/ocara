@@ -27,6 +27,23 @@ pub enum Type {
     /// nommable (`var`/`scoped`/`consumed`), jamais un type de premier ordre
     /// ailleurs. Vérifié par la sema (`src/sema/typecheck.rs`).
     Message(Box<Type>),
+    /// `Resolvable<T>` — handle de tâche `async` typé (voir
+    /// docs/roadmap.d/langage-async-non-int-return-type-check.md). `T` est le
+    /// type de retour DÉCLARÉ réel de la fonction/méthode `async` appelée ;
+    /// `resolve expr` sur une expression de type `Resolvable<T>` a le type
+    /// `T`. Contrairement à `Type::Message`, c'est un type de PREMIER ORDRE
+    /// utilisable partout où un type normal l'est (variable, paramètre,
+    /// propriété, élément de tableau/map) — sa SEULE restriction est de ne
+    /// jamais pouvoir être lui-même le type de retour DÉCLARÉ d'une
+    /// fonction/méthode `async` (pas de `Resolvable<Resolvable<T>>` implicite
+    /// par double emballage, vérifié par la sema). Représentation runtime :
+    /// identique à `Type::Int` (l'entier opaque transportant le pointeur
+    /// `OcaraTask`) — jamais de classe backing, jamais de vtable, voir
+    /// `src/lower/`. Modelé sur `Type::Message` (wrapper built-in
+    /// mono-paramètre), pas sur `Type::Generic` (réservé aux génériques
+    /// UTILISATEUR avec une vraie classe backing) — `Resolvable<T>` n'a pas
+    /// de classe backing, exactement comme `array<T>`/`map<K,V>`.
+    Resolvable(Box<Type>),
     /// Type générique avec arguments : `List<int>`, `Cache<string, User>`
     Generic {
         name: String,

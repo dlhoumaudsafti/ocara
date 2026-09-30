@@ -1,0 +1,55 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 66 — Appel chaîné à partir de 3 niveaux (`a.b().c().d()`)
+//
+// Voir docs/roadmap.d/langage-chained-call-depth-limit.md : toute la famille
+// de résolution "classe du récepteur d'un appel/accès chaîné"
+// (`src/lower/expr.d/lower.rs`, `typeinfer.rs`, `helpers.rs`) ne recursait
+// qu'un seul niveau, et supposait en plus, à tort, qu'une méthode retournant
+// un pointeur retournait la MÊME classe que son récepteur. Général et
+// préexistant, sans rapport avec les fonctions libres ni les interfaces —
+// reproduit ici avec une chaîne de méthodes d'instance PURE.
+//
+// Corrigé par une seule fonction récursive partagée
+// (`resolve_receiver_class`), capable de résoudre la classe d'un récepteur
+// à une profondeur ARBITRAIRE — pas seulement étendue à 3 niveaux.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+
+// Le cas exact du ticket : 3 niveaux, deux classes DIFFÉRENTES enchaînées
+// (`Wrapper::getCircle` change de classe — la vieille heuristique
+// "même classe que le récepteur" échouait précisément là-dessus).
+class Wrapper {
+    public property inner:Circle
+    init(c:Circle) { self.inner = c }
+    public method getCircle(): Circle { return self.inner }
+}
+class Circle {
+    public method shapeName(): string { return "circle" }
+}
+
+// Chaîne à 4 niveaux : vérifie que la récursion est vraiment non bornée,
+// pas juste étendue à 3 (`Level1 -> Level2 -> Level3 -> string -> String::upper`).
+class Level1 {
+    public method next(): Level2 { return use Level2() }
+}
+class Level2 {
+    public method next(): Level3 { return use Level3() }
+}
+class Level3 {
+    public method label(): string { return "deep" }
+}
+
+function main(): int {
+    var w:Wrapper = use Wrapper(use Circle())
+    // 2 niveaux : fonctionnait déjà avant ce correctif.
+    IO::writeln(w.getCircle().shapeName())
+    // 3 niveaux : le repro exact du ticket (affichait "null" avant correctif).
+    IO::writeln(w.getCircle().shapeName().upper())
+
+    // 4 niveaux : récursion non bornée.
+    var l1:Level1 = use Level1()
+    IO::writeln(l1.next().next().label().upper())
+
+    return 0
+}

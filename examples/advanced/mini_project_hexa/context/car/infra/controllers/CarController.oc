@@ -64,7 +64,7 @@ class CarController {
         scoped errorText:string   = Flash::message(errorCode)
         scoped successText:string = Flash::message(successCode)
 
-        scoped html:string = HTML::renderFile('templates/car_detail.html')
+        scoped html:string = HTML::renderFile('templates/car/car_detail.html')
         req.respond(200, html)
         return 0
     }

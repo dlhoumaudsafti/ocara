@@ -59,52 +59,55 @@ async function async_enum(): int {
 }
 
 // ── main ──────────────────────────────────────────────────────────────────────
+// Chaque handle est désormais typé `Resolvable<T>` où `T` est le VRAI type de
+// retour déclaré de la fonction async — plus un `int` nu qui effaçait cette
+// information (voir docs/roadmap.d/langage-async-non-int-return-type-check.md).
 function main(): void {
     IO::writeln("--- int ---")
-    var ti:int = async_int(7)
+    var ti:Resolvable<int> = async_int(7)
     var ri:int = resolve ti
     IO::writeln(Convert::intToStr(ri))
 
     IO::writeln("--- float ---")
-    var tf:int = async_float(4.0)
+    var tf:Resolvable<float> = async_float(4.0)
     var rf:float = resolve tf
     IO::writeln(Convert::floatToStr(rf))
 
     IO::writeln("--- bool ---")
-    var tb:int = async_bool(5)
+    var tb:Resolvable<bool> = async_bool(5)
     var rb:bool = resolve tb
     IO::writeln(Convert::boolToStr(rb))
 
     IO::writeln("--- string ---")
-    var ts:int = async_string("world")
+    var ts:Resolvable<string> = async_string("world")
     var rs:string = resolve ts
     IO::writeln(rs)
 
     IO::writeln("--- array ---")
-    var ta:int = async_array()
+    var ta:Resolvable<array<int>> = async_array()
     var ra:array<int> = resolve ta
     IO::writeln(Convert::intToStr(Array::len(ra)))
     IO::writeln(Convert::intToStr(ra[0]))
 
     IO::writeln("--- Function ---")
-    var tfn:int = async_func(3)
+    var tfn:Resolvable<Function<int(int)>> = async_func(3)
     var rfn:Function<int(int)> = resolve tfn
     var res:int = rfn(7)
     IO::writeln(Convert::intToStr(res))
 
     IO::writeln("--- object ---")
-    var to:int = async_object(3, 4)
+    var to:Resolvable<Point> = async_object(3, 4)
     var ro:Point = resolve to
     IO::writeln(Convert::intToStr(ro.x))
     IO::writeln(Convert::intToStr(ro.y))
 
     IO::writeln("--- map ---")
-    var tm:int = async_map()
+    var tm:Resolvable<map<string, int>> = async_map()
     var rm:map<string, int> = resolve tm
     IO::writeln(Convert::intToStr(rm["a"]))
 
     IO::writeln("--- enum ---")
-    var ten:int = async_enum()
+    var ten:Resolvable<int> = async_enum()
     var ren:int = resolve ten
     IO::writeln(Convert::intToStr(ren))
 }

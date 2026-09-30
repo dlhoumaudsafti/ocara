@@ -80,6 +80,20 @@ fn register_var_class(builder: &mut LowerBuilder, name: &str, ty: &Type) {
     }
 }
 
+/// Enregistre dans `builder.async_var_ret` le type IR de `T` quand `ty` est
+/// `Resolvable<T>` — partagé par `lower_var`/`lower_const` (voir la doc du
+/// site d'appel dans `lower_var`). Remplace l'ancien hack qui inspectait la
+/// FORME de l'expression d'initialisation (uniquement `var x = f()` où `f`
+/// est une fonction libre async) : `async_var_ret` est désormais dérivé du
+/// type DÉCLARÉ de la variable elle-même, qui porte l'information à
+/// n'importe quelle profondeur d'indirection (exactement le principe de
+/// `Type::Resolvable` côté sema — voir `crate::sema::typecheck::Expr::Resolve`).
+fn register_async_var_ret(builder: &mut LowerBuilder, name: &str, ty: &Type) {
+    if let Type::Resolvable(inner) = ty {
+        builder.async_var_ret.insert(name.to_string(), IrType::from_ast(inner));
+    }
+}
+
 pub fn lower_var(
     builder: &mut LowerBuilder,
     name: &str,
@@ -116,18 +130,15 @@ pub fn lower_var(
     let val = crate::lower::stmt::ownership::maybe_clone_escaping(builder, value, val);
     let val = box_for_any(builder, &ir_ty, val_ty, val);
     
-    // Tracker le type de retour original si l'init est un appel async
-    // (nécessaire pour l'unboxing dans Expr::Resolve)
-    if let Expr::Call { callee, .. } = value {
-        if let Expr::Ident(func_name, _) = callee.as_ref() {
-            if builder.async_funcs.contains(func_name.as_str()) {
-                if let Some(orig_ret) = builder.fn_ret_types.get(func_name.as_str()).cloned() {
-                    builder.async_var_ret.insert(name.to_string(), orig_ret);
-                }
-            }
-        }
-    }
-    
+    // Tracker le type IR DÉCLARÉ derrière un handle de tâche `Resolvable<T>`
+    // (nécessaire pour l'unboxing float/bool dans `Expr::Resolve`) — dérivé
+    // du type DÉCLARÉ de `name` lui-même (`Resolvable<T>`), pas de la forme
+    // de `value` : couvre toute profondeur d'indirection (réassignation,
+    // valeur de retour d'une fonction, ...), contrairement à l'ancien hack
+    // qui ne reconnaissait que `var x = <appel direct à une fonction libre
+    // async>`. Voir docs/roadmap.d/langage-async-non-int-return-type-check.md.
+    register_async_var_ret(builder, name, ty);
+
     builder.store_local(name, val);
 
     // Propriété (`scoped`/`consumed`) — voir crate::lower::stmt::ownership.
@@ -167,6 +178,11 @@ pub fn lower_const(
     let val_ty = expr_ir_type_pub(builder, value);
     let val = lower_literal_or_expr(builder, value, ty);
     let val = box_for_any(builder, &ir_ty, val_ty, val);
+    // Voir la doc de `register_async_var_ret`/le site d'appel équivalent
+    // dans `lower_var` — `const t:Resolvable<T> = ...` est tout aussi valide
+    // qu'un `var` (jamais couvert par l'ancien hack, qui ne s'appliquait
+    // qu'à `lower_var`).
+    register_async_var_ret(builder, name, ty);
     builder.store_local(name, val);
 }
 

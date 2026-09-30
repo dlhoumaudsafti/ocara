@@ -156,19 +156,84 @@ pub fn box_arg_for_mixed_param(builder: &mut LowerBuilder, param_ty: Option<IrTy
     }
 }
 
-/// Résout le nom de classe d'un accès de champ CHAÎNÉ (`w.inner` où `inner`
-/// est elle-même une instance de classe/`string`/`array`/`map`) — récursif
-/// pour gérer plus de deux niveaux (`a.b.c.d`).
+/// Résout le nom de classe (utilisateur, ou famille builtin
+/// `"String"`/`"Array"`/`"Map"`, ou nom monomorphisé d'un générique)
+/// PRODUITE par une expression arbitraire utilisée comme RÉCEPTEUR d'un
+/// accès de champ ou d'un appel de méthode plus loin dans une chaîne
+/// (`expr.champ`, `expr.methode(...)`) — récursif, profondeur ARBITRAIRE
+/// (`a.b().c.d().e()...`), pas un nombre de niveaux câblé en dur.
 ///
-/// Bug historique corrigé par cette fonction : chaque site qui résout la
-/// classe d'un `object` pour un accès de champ/appel de méthode
-/// (`Expr::Field`/`Expr::Call` avec callee `Field`) ne savait gérer que
-/// `object` = `Ident`/`SelfExpr`/`ParentExpr`/littéral string — jamais
-/// `object` = un AUTRE `Expr::Field`. `w.inner.sum()` (où `inner:Point`)
-/// tombait alors dans le fallback générique de chaque site ("le type IR
-/// est Ptr, je suppose que c'est une String"), qui devinait la MAUVAISE
-/// classe silencieusement (`String_sum` au lieu de `Point_sum`) — pas
-/// d'erreur de compilation, juste une valeur incorrecte au runtime.
+/// SEULE source de vérité pour cette résolution — avant ce correctif,
+/// `lower.rs`/`typeinfer.rs`/ce fichier contenaient chacun leur PROPRE bloc
+/// `match` quasi-identique pour la même question, plafonné à un ou deux
+/// niveaux fixes : le cas `Expr::Call { callee: Expr::Field { object, .. }
+/// }` (appel de méthode chaîné, `w.getCircle().shapeName()`) ne résolvait
+/// `object` que s'il était lui-même `Expr::Ident` — jamais s'il était
+/// LUI-MÊME un `Expr::Call`/`Expr::Field` imbriqué — et supposait en plus,
+/// à tort, qu'une méthode retournant un pointeur (`IrType::Ptr`) retournait
+/// forcément la MÊME classe que son récepteur (confondait par exemple
+/// `Wrapper::getCircle(): Circle` avec `Wrapper` lui-même). Voir
+/// docs/roadmap.d/langage-chained-call-depth-limit.md — la vraie correction
+/// nécessitait `IrModule::method_ret_class` (absent jusqu'ici : une méthode
+/// de classe ORDINAIRE, contrairement à une méthode d'INTERFACE ou une
+/// fonction libre, n'avait AUCUNE entrée retraçant son type de retour réel
+/// en tant que CLASSE, seulement son `IrType` réduit — `Ptr` pour n'importe
+/// quel type référence, classes toutes indistinguables).
+pub fn resolve_receiver_class(builder: &LowerBuilder, expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Ident(name, _)    => builder.var_class.get(name.as_str()).cloned(),
+        Expr::SelfExpr(_)       => builder.current_class.clone(),
+        Expr::ParentExpr(_)     => builder.parent_class.clone(),
+        Expr::Literal(Literal::String(_), _) => Some("String".to_string()),
+        // `use Classe(...)` directement en position de récepteur, jamais
+        // passé par une variable nommée.
+        Expr::New { class, .. } => Some(class.clone()),
+        // Accès de champ chaîné (`w.inner`, `w.inner.autre`...) — délègue à
+        // `resolve_chained_field_class`, qui résout maintenant SA PROPRE
+        // base via cette même fonction (récursion mutuelle, profondeur
+        // arbitraire des deux côtés).
+        Expr::Field { object, field, .. } => resolve_chained_field_class(builder, object, field),
+        // Appel chaîné : `expr.methode(...)` ou `maFonction(...)` utilisé
+        // comme récepteur.
+        Expr::Call { callee, .. } => match callee.as_ref() {
+            // Fonction LIBRE chaînée (`maFonction(...).methode()`) — voir
+            // `IrModule::func_ret_class` et
+            // docs/roadmap.d/langage-chained-call-on-free-function-result.md.
+            Expr::Ident(fn_name, _) => builder.module.func_ret_class.get(fn_name.as_str()).cloned(),
+            // Méthode chaînée (`objet.methode1().methode2()`, à n'importe
+            // quelle profondeur) : résoudre la classe du récepteur INTERNE
+            // récursivement (`object` peut lui-même être n'importe quelle
+            // forme reconnue par cette fonction), puis chercher le type de
+            // retour RÉEL de cette méthode précise via `method_ret_class` —
+            // jamais supposer qu'elle retourne la même classe que son
+            // récepteur (l'ancienne heuristique, incorrecte).
+            Expr::Field { object, field, .. } => {
+                let base_class = resolve_receiver_class(builder, object)?;
+                let mangled = format!("{}_{}", base_class, field);
+                builder.module.method_ret_class.get(&mangled).cloned()
+            }
+            _ => None,
+        },
+        // `HTTPRequest::get/post/put/delete/patch(...).méthode()` chaîné
+        // directement, sans jamais passer par une variable `scoped` —
+        // `Expr::StaticCall` est un nœud AST complet en lui-même (ses `args`
+        // sont intégrés au nœud, jamais enveloppés dans un `Expr::Call`
+        // séparé) : ces raccourcis statiques retournent un `HTTPResponse`.
+        Expr::StaticCall { class, method, .. }
+            if class == "HTTPRequest"
+                && matches!(method.as_str(), "get" | "post" | "put" | "delete" | "patch") =>
+        {
+            Some("HTTPResponse".to_string())
+        }
+        _ => None,
+    }
+}
+
+/// Résout le nom de classe d'un accès de champ CHAÎNÉ (`w.inner` où `inner`
+/// est elle-même une instance de classe/`string`/`array`/`map`) — délègue à
+/// `resolve_receiver_class` pour la classe de `object` (récursion mutuelle,
+/// profondeur arbitraire), ne garde en propre que la résolution du CHAMP
+/// lui-même sur cette classe.
 ///
 /// Nécessite `IrModule.class_field_types` (vrai `Type` AST par champ — pas
 /// `IrType`, qui réduit classe/string/array/map à `Ptr`, tous
@@ -176,19 +241,7 @@ pub fn box_arg_for_mixed_param(builder: &mut LowerBuilder, param_ty: Option<IrTy
 /// UTILISATEUR (voir sa doc) — un champ d'une classe builtin/opaque
 /// retourne `None` ici, comme avant ce correctif.
 pub fn resolve_chained_field_class(builder: &LowerBuilder, object: &Expr, field: &str) -> Option<String> {
-    let base_class = match object {
-        Expr::Ident(name, _)    => builder.var_class.get(name.as_str()).cloned(),
-        Expr::SelfExpr(_)       => builder.current_class.clone(),
-        Expr::ParentExpr(_)     => builder.parent_class.clone(),
-        Expr::Literal(Literal::String(_), _) => Some("String".to_string()),
-        Expr::Field { object: inner, field: inner_field, .. } => {
-            resolve_chained_field_class(builder, inner, inner_field)
-        }
-        // `use Classe(...).champ.autreChamp` — voir la doc du même cas dans
-        // `lower.rs` (bloc `Expr::Call`) pour le bug corrigé.
-        Expr::New { class, .. } => Some(class.clone()),
-        _ => None,
-    }?;
+    let base_class = resolve_receiver_class(builder, object)?;
     let field_ty = builder.module.class_field_types.get(&base_class)?
         .iter().find(|(f, _)| f == field)
         .map(|(_, ty)| ty.clone())?;
@@ -256,17 +309,7 @@ pub fn elem_type_after_index(builder: &LowerBuilder, expr: &Expr) -> Option<Type
             container_elem_type(&one_level).cloned()
         }
         Expr::Field { object, field, .. } => {
-            let class_name = match object.as_ref() {
-                Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
-                Expr::SelfExpr(_)    => builder.current_class.clone(),
-                Expr::Field { object: inner2, field: inner2_field, .. } => {
-                    resolve_chained_field_class(builder, inner2, inner2_field)
-                }
-                // `use Classe(...).champ[i]` — voir la doc du même cas dans
-                // `lower.rs` (bloc `Expr::Call`) pour le bug que ça corrige.
-                Expr::New { class, .. } => Some(class.clone()),
-                _ => None,
-            }?;
+            let class_name = resolve_receiver_class(builder, object)?;
             let field_ty = builder.module.class_field_types.get(&class_name)?
                 .iter().find(|(f, _)| f == field)
                 .map(|(_, ty)| ty.clone())?;
@@ -289,18 +332,7 @@ pub fn is_map_target(builder: &LowerBuilder, object: &Expr) -> bool {
     match object {
         Expr::Ident(name, _) => builder.map_vars.contains(name.as_str()),
         Expr::Field { object: inner, field, .. } => {
-            let class_name = match inner.as_ref() {
-                Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
-                Expr::SelfExpr(_)    => builder.current_class.clone(),
-                Expr::Field { object: inner2, field: inner2_field, .. } => {
-                    resolve_chained_field_class(builder, inner2, inner2_field)
-                }
-                // `use Classe(...).champMap[clé]` — voir la doc du même cas
-                // dans `lower.rs` (bloc `Expr::Call`) pour le bug corrigé.
-                Expr::New { class, .. } => Some(class.clone()),
-                _ => None,
-            };
-            class_name
+            resolve_receiver_class(builder, inner)
                 .and_then(|cls| builder.module.class_map_fields.get(&cls).cloned())
                 .map(|fields| fields.contains(field.as_str()))
                 .unwrap_or(false)

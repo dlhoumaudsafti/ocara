@@ -831,7 +831,7 @@ interface Repo {
 fichier.oc:3:5: error: interface 'Repo': 'wiring PostgresRepo' target class 'PostgresRepo' does not 'implements Repo'
 ```
 
-La classe visée par un `wiring` existe bien, mais ne déclare pas `implements <CetteInterface>` — la vérification complète de compatibilité de signature (E09 : arité, staticité, types des paramètres et du retour) ne s'exécute d'ailleurs QUE pour les classes qui `implements` réellement l'interface visée ; sans ce diagnostic, une classe `wiring`-ée mais incompatible ne serait jamais signalée avant de produire un mauvais résultat à l'exécution.
+La classe visée par un `wiring` existe bien, mais ne déclare pas `implements <CetteInterface>` — la vérification complète de compatibilité de signature (E09 : arité, staticité, types des paramètres et du retour) ne s'exécute d'ailleurs QUE pour les classes qui `implements` réellement l'interface visée ; sans ce diagnostic, une classe `wiring`mais incompatible ne serait jamais signalée avant de produire un mauvais résultat à l'exécution.
 
 ```ocara
 interface Repo {
@@ -855,7 +855,7 @@ class PostgresRepo {          // ❌ E40 — ne déclare pas `implements Repo`
 fichier.oc:1:1: error: alias 'NotAWiringTarget' does not match any `wiring` of interface 'Repo' (available: PostgresRepo, InMemoryRepo)
 ```
 
-`import Interface as Alias` où `Interface` déclare au moins un `wiring`, mais `Alias` ne correspond au nom simple (dernier segment du chemin pointé) d'**aucun** de ses `wiring` — voir §17.1 de l'EBNF. Un alias sur une interface `wiring`-ée n'est jamais un simple renommage cosmétique : il doit désigner sans ambiguïté l'une des implémentations concrètes déclarées.
+`import Interface as Alias` où `Interface` déclare au moins un `wiring`, mais `Alias` ne correspond au nom simple (dernier segment du chemin pointé) d'**aucun** de ses `wiring` — voir §17.1 de l'EBNF. Un alias sur une interface `wiring`n'est jamais un simple renommage cosmétique : il doit désigner sans ambiguïté l'une des implémentations concrètes déclarées.
 
 ```ocara
 // configs/Repo.oc : interface Repo { wiring PostgresRepo  wiring InMemoryRepo }
@@ -883,6 +883,46 @@ interface Repo {
 ```
 
 **Correction :** renommer l'une des deux classes concrètes (ou son alias d'import côté fichier source), afin que chaque `wiring` d'une même interface ait un nom simple distinct.
+
+---
+
+### E43 — `resolve` sur une expression qui n'est pas `Resolvable<T>`
+
+```
+fichier.oc:1:1: error: 'resolve' expects a 'Resolvable<T>' expression (the result of calling an 'async' function/method), found 'string'
+```
+
+`resolve expr` attend que `expr` soit de type `Resolvable<T>` (le handle produit par l'appel d'une fonction/méthode `async` — voir §14.5 de l'EBNF et docs/roadmap.d/langage-async-non-int-return-type-check.md). Avant ce diagnostic, une expression qui n'était pas issue (directement ou par indirection non suivie) d'un appel `async` retombait silencieusement sur `Type::Int` ; `Resolvable<T>` porte maintenant l'information nécessaire dans le type lui-même, donc toute autre expression est désormais une vraie erreur de type.
+
+```ocara
+function main(): int {
+    var s:string = "hello"
+    var r:string = resolve s   // ❌ E43 — 's' n'est pas 'Resolvable<T>'
+    return 0
+}
+```
+
+**Correction :** n'appliquer `resolve` qu'à une expression de type `Resolvable<T>` — le résultat direct ou stocké d'un appel à une fonction/méthode `async`.
+
+---
+
+### E44 — Type de retour déclaré d'une fonction/méthode `async` lui-même `Resolvable<T>`
+
+```
+fichier.oc:1:1: error: 'fetch' is 'async' and declares 'Resolvable<T>' as its own return type — an 'async' function/method already wraps its declared return type in 'Resolvable<T>' automatically at the call site; declare the real return type here instead (e.g. 'string', not 'Resolvable<string>')
+```
+
+Une fonction/méthode `async` emballe déjà automatiquement son type de retour **déclaré** dans `Resolvable<T>` au site d'appel (voir §14.5 de l'EBNF) — déclarer `Resolvable<T>` comme type de retour de la fonction/méthode `async` elle-même produirait un double emballage implicite `Resolvable<Resolvable<T>>` absurde.
+
+```ocara
+class Doubler {
+    public static async method fetch(): Resolvable<string> {   // ❌ E44
+        return "hi"
+    }
+}
+```
+
+**Correction :** déclarer le VRAI type de retour (`string`), jamais `Resolvable<...>` — la substitution vers `Resolvable<T>` est appliquée automatiquement à chaque site d'appel.
 
 ---
 

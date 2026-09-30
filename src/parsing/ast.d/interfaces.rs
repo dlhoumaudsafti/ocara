@@ -8,6 +8,27 @@ use crate::parsing::token::Span;
 // Méthode d'interface (signature seule)
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Signature d'une méthode d'interface, avec ses modificateurs.
+///
+/// Grammaire symétrique à `ClassMember::Method` depuis
+/// docs/roadmap.d/langage-interface-method-modifiers.md : `public`/
+/// `private`/`protected` (au plus un, optionnel — contrairement à
+/// `parse_visibility` pour une classe, où il est obligatoire) suivi de
+/// `static`/`async` dans n'importe laquelle des 4 combinaisons (rien,
+/// `static` seul, `async` seul, les deux ensemble) — 12 combinaisons au
+/// total, toutes acceptées par `parse_interface_method`.
+///
+/// **Visibilité NON stockée ici, volontairement** : `FuncSig` (table des
+/// symboles) ne porte AUCUN champ de visibilité pour quelque méthode que ce
+/// soit dans ce compilateur (ni pour une classe ordinaire, ni pour
+/// `extends`) — la visibilité n'a jamais fait partie d'une comparaison de
+/// signature nulle part dans ce langage. Rendre la conformité `implements`
+/// plus stricte que `extends` sur ce point précis serait une asymétrie
+/// NOUVELLE, à l'opposé de l'objectif explicite de ce ticket (symétrie avec
+/// `class`) ; sans corps de méthode par défaut dans une interface, il
+/// n'existe de toute façon aucun cas d'usage concret motivant cette
+/// sémantique aujourd'hui. Le token de visibilité est simplement consommé
+/// par `parse_interface_method` puis jeté.
 #[derive(Debug, Clone, PartialEq)]
 pub struct InterfaceMethod {
     pub name:   String,
@@ -17,12 +38,14 @@ pub struct InterfaceMethod {
     /// l'implémentation (`public static method ...`) — nécessaire pour
     /// `wiring` : une interface ne déclarant que des contrats statiques doit
     /// pouvoir router `Interface::method()` vers la classe wired (voir
-    /// docs/roadmap.d/langage-interface-wiring.md). Le modificateur `public`
-    /// éventuel devant `method`/`static method` est accepté mais purement
-    /// cosmétique (une méthode d'interface est par nature un contrat public,
-    /// aucune notion de visibilité n'existe pour elle) — voir
-    /// `parse_interface_method`.
+    /// docs/roadmap.d/langage-interface-wiring.md).
     pub is_static: bool,
+    /// `true` si la méthode est déclarée `async` — sémantique directe
+    /// (aucune ambiguïté, contrairement à la visibilité, voir la doc de
+    /// `InterfaceMethod` ci-dessus) : identique à ce qu'une méthode de
+    /// `class` fait déjà (`ClassMember::Method.decl.is_async`) — vérifié à
+    /// la conformité `implements` comme `is_static`.
+    pub is_async: bool,
     pub span:   Span,
 }
 

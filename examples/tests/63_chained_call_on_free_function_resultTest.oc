@@ -1,0 +1,75 @@
+import ocara.UnitTest
+import Circle from "63_chained_call_on_free_function_result"
+import pickCircle from "63_chained_call_on_free_function_result"
+import makeNames from "63_chained_call_on_free_function_result"
+import makeScores from "63_chained_call_on_free_function_result"
+import greeting from "63_chained_call_on_free_function_result"
+
+// docs/roadmap.d/langage-chained-call-on-free-function-result.md —
+// `maFonction(...).methode()` (appel de méthode chaîné directement sur le
+// résultat d'une fonction LIBRE, sans jamais passer par une variable
+// nommée) retournait silencieusement `null` — même famille que le ticket
+// déjà clos `langage-use-chaine-valeur-retour-perdue.md`
+// (`use Classe(...).methode()`, `HTTPRequest::get(...).methode()`), mais un
+// TROISIÈME déclencheur jamais couvert par ce correctif-là.
+//
+// Root cause confirmée par `ocara build --dump` (HIR) AVANT correctif : le
+// site d'appel manglait vers `"_method_<methode>"` (aucun préfixe de
+// classe, symbole inexistant, ignoré silencieusement par le codegen) au
+// lieu de `"Circle_shapeName"`. Corrigé en ajoutant `IrModule::func_ret_class`
+// (nom de fonction libre → nom de "classe" concret de son retour — classe
+// utilisateur OU famille builtin string/array/map), peuplé une fois dans
+// `lower_program`, consulté aux mêmes points de résolution que le ticket
+// original (`src/lower/expr.d/lower.rs` et `typeinfer.rs`).
+//
+// Limitation DISTINCTE trouvée en marge (appel chaîné cassé à partir de 3
+// niveaux, `a.b().c().d()`, avec ou sans fonction libre) désormais corrigée
+// aussi — voir examples/tests/66_chained_call_depth_limitTest.oc et
+// docs/roadmap.d/langage-chained-call-depth-limit.md.
+class Test_63_chained_call_on_free_function_result {
+
+    // Le cas EXACT du ticket : classe utilisateur, méthode d'instance
+    // retournant une string.
+    public method chainedCallOnUserClassMethodTest(): int {
+        UnitTest::assertEquals("circle", pickCircle(0).shapeName())
+        return 0
+    }
+
+    // Même fonction libre, deuxième méthode (retour `float` cette fois) —
+    // vérifie que le correctif n'est pas accidentellement spécifique à un
+    // seul type de retour de méthode.
+    public method chainedCallOnUserClassSecondMethodTest(): int {
+        UnitTest::assertEquals(12.56, pickCircle(0).area())
+        return 0
+    }
+
+    // Appelé deux fois de suite (deux invocations indépendantes de la
+    // fonction libre, chacune re-résolvant sa propre chaîne) — non-régression
+    // sur la ré-utilisation du même `IrModule::func_ret_class`.
+    public method chainedCallInvokedTwiceIndependentlyTest(): int {
+        UnitTest::assertEquals("circle", pickCircle(1).shapeName())
+        UnitTest::assertEquals("circle", pickCircle(2).shapeName())
+        return 0
+    }
+
+    // Famille de récepteur DIFFÉRENTE : `array<T>` — une fonction libre qui
+    // retourne un tableau, méthode builtin `len()` chaînée directement.
+    public method chainedCallOnArrayReturningFunctionTest(): int {
+        UnitTest::assertEquals(3, makeNames().len())
+        return 0
+    }
+
+    // Famille de récepteur DIFFÉRENTE : `map<K,V>`.
+    public method chainedCallOnMapReturningFunctionTest(): int {
+        UnitTest::assertTrue(makeScores().has("alice"))
+        UnitTest::assertFalse(makeScores().has("carol"))
+        return 0
+    }
+
+    // Famille de récepteur DIFFÉRENTE : `string` (méthode d'instance sucrée
+    // sur un littéral builtin, pas une classe utilisateur).
+    public method chainedCallOnStringReturningFunctionTest(): int {
+        UnitTest::assertEquals("HELLO WORLD", greeting().upper())
+        return 0
+    }
+}

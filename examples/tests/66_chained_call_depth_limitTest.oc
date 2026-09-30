@@ -1,0 +1,44 @@
+import ocara.UnitTest
+import Wrapper from "66_chained_call_depth_limit"
+import Circle from "66_chained_call_depth_limit"
+import Level1 from "66_chained_call_depth_limit"
+import Level2 from "66_chained_call_depth_limit"
+import Level3 from "66_chained_call_depth_limit"
+
+// docs/roadmap.d/langage-chained-call-depth-limit.md — `w.getCircle().shapeName()`
+// (2 niveaux) fonctionnait déjà, mais ajouter UN niveau de plus
+// (`.upper()`, 3 niveaux) affichait "null" : la résolution de la classe du
+// récepteur d'un appel chaîné ne recursait qu'un seul niveau, et supposait
+// en plus, à tort, qu'une méthode retournant un pointeur retournait la MÊME
+// classe que son récepteur (confondait `Wrapper::getCircle(): Circle` avec
+// `Wrapper` lui-même). Corrigé par une fonction récursive partagée
+// (`resolve_receiver_class`), profondeur arbitraire.
+//
+// Chaque test vérifie la VALEUR réellement obtenue, pas seulement l'absence
+// d'erreur de compilation.
+class Test_66_chained_call_depth_limit {
+
+    // 2 niveaux — non-régression : fonctionnait déjà avant ce correctif.
+    public method twoLevelChainStillWorksTest(): int {
+        var w:Wrapper = use Wrapper(use Circle())
+        UnitTest::assertEquals("circle", w.getCircle().shapeName())
+        return 0
+    }
+
+    // Le cas EXACT du ticket : 3 niveaux, deux classes différentes
+    // enchaînées (`Wrapper` -> `Circle` -> `string`).
+    public method threeLevelChainAcrossDifferentClassesTest(): int {
+        var w:Wrapper = use Wrapper(use Circle())
+        UnitTest::assertEquals("CIRCLE", w.getCircle().shapeName().upper())
+        return 0
+    }
+
+    // 4 niveaux — vérifie que la récursion est vraiment non bornée, pas
+    // juste étendue à 3 (`Level1` -> `Level2` -> `Level3` -> `string` ->
+    // `String::upper`).
+    public method fourLevelChainTest(): int {
+        var l1:Level1 = use Level1()
+        UnitTest::assertEquals("DEEP", l1.next().next().label().upper())
+        return 0
+    }
+}

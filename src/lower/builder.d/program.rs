@@ -10,6 +10,30 @@ use super::classes::lower_class;
 use super::runtime::lower_runtime_blocks;
 use super::wrappers::{generate_wrapper, generate_async_wrapper};
 
+/// Nom de "classe" concret d'un type de retour DÉCLARÉ (fonction libre OU
+/// méthode, statique ou d'instance) — classe utilisateur, famille builtin
+/// `"String"`/`"Array"`/`"Map"`, ou nom monomorphisé d'un générique. SEULE
+/// source de vérité pour peupler `IrModule::func_ret_class`/
+/// `IrModule::method_ret_class`, consultée par
+/// `crate::lower::expr::helpers::resolve_receiver_class` pour résoudre un
+/// appel/accès chaîné à une profondeur arbitraire — voir
+/// docs/roadmap.d/langage-chained-call-depth-limit.md. `Type::Generic` inclus
+/// (contrairement à l'ancienne copie de cette logique, propre à
+/// `func_ret_class`, qui ne le gérait pas) : même résolution que pour un
+/// CHAMP de type générique (voir `resolve_chained_field_class`) — un
+/// oubli ici referait la même classe de bug pour une fonction/méthode
+/// retournant un générique plutôt qu'un champ.
+fn concrete_return_class(ty: &Type) -> Option<String> {
+    match ty {
+        Type::Named(n)   => Some(n.clone()),
+        Type::String     => Some("String".to_string()),
+        Type::Array(_)   => Some("Array".to_string()),
+        Type::Map(_, _)  => Some("Map".to_string()),
+        Type::Generic { name, args } => Some(crate::core::monomorph::monomorphized_name(name, args)),
+        _ => None,
+    }
+}
+
 pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     let module_name = "ocara_module".to_string();
     let mut module = IrModule::new(module_name);
@@ -48,6 +72,18 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     let mut fn_ret_types: HashMap<String, IrType> = HashMap::new();
     for func in &program.functions {
         fn_ret_types.insert(func.name.clone(), IrType::from_ast(&func.ret_ty));
+        // Nom de "classe" concret du retour (classe utilisateur OU famille
+        // builtin string/array/map, même convention que
+        // `resolve_chained_field_class` pour un champ) — voir la doc de
+        // `IrModule::func_ret_class` et
+        // docs/roadmap.d/langage-chained-call-on-free-function-result.md.
+        // `array<T>`/`map<K,V>` INCLUS : sans ça, `maFonction().len()` (une
+        // fonction libre retournant un tableau, méthode builtin ensuite
+        // chaînée dessus) échouait exactement de la même façon qu'une
+        // classe utilisateur — confirmé par reproduction.
+        if let Some(name) = concrete_return_class(&func.ret_ty) {
+            module.func_ret_class.insert(func.name.clone(), name);
+        }
     }
 
     // Collecte des fonctions marquées async
@@ -104,7 +140,15 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         for member in &class.members {
             if let ClassMember::Method { decl, is_static, .. } = member {
                 let mangled = format!("{}_{}", class.name, decl.name);
-                
+
+                // Nom de "classe" concret du retour (voir `IrModule::method_ret_class`)
+                // — statique ET d'instance, la seule source de vérité pour résoudre un
+                // appel de méthode chaîné (`w.getCircle().shapeName()`) à une profondeur
+                // arbitraire. Voir docs/roadmap.d/langage-chained-call-depth-limit.md.
+                if let Some(name) = concrete_return_class(&decl.ret_ty) {
+                    module.method_ret_class.insert(mangled.clone(), name);
+                }
+
                 if *is_static {
                     let param_types: Vec<IrType> = decl.params.iter()
                         .map(|p| IrType::from_ast(&p.ty))
@@ -175,6 +219,9 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         for method in &iface.methods {
             let mangled = format!("{}_{}", iface.name, method.name);
             fn_ret_types.insert(mangled.clone(), IrType::from_ast(&method.ret_ty));
+            if let Some(name) = concrete_return_class(&method.ret_ty) {
+                module.method_ret_class.insert(mangled.clone(), name);
+            }
 
             if method.is_static {
                 let param_types: Vec<IrType> = method.params.iter()
@@ -233,6 +280,51 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     // les méthodes concrètes lowered, mais l'ENSEMBLE des classes qui EN
     // auront un doit déjà être connu.
     super::class_dispatch::compute_classes_with_subclasses(&mut module, program);
+
+    // `async_funcs` doit aussi connaître le nom des DISPATCHERS dynamiques
+    // (`__dispatch_Classe_méthode` pour l'héritage, `Interface_méthode` pour
+    // une interface) quand la méthode qu'ils multiplexent est `async` — voir
+    // docs/roadmap.d/langage-async-instance-method-dispatch-broken.md. Le
+    // dispatcher lui-même reste une fonction 100% SYNCHRONE (il choisit la
+    // bonne implémentation concrète par `__class_id` puis l'appelle
+    // directement, exactement comme pour une méthode non-async) : c'est son
+    // PROPRE wrapper async (`__async_wrap_<dispatcher>`, généré plus bas,
+    // une fois `generate_class_dispatchers`/`generate_interface_dispatchers`
+    // passées) qui doit exister pour que le site d'appel (`lower.rs`) puisse
+    // le spawn — sans cette entrée ICI, AVANT le lowering du moindre corps
+    // (même contrainte d'ordre que `classes_with_subclasses` ci-dessus, un
+    // site d'appel peut être lowered avant que le dispatcher n'existe),
+    // `builder.async_funcs.contains(dispatcher_name)` répondrait toujours
+    // `false` pour un appel polymorphe, retombant sur l'appel synchrone
+    // direct cassé (même symptôme que le bug d'origine).
+    for class in &program.classes {
+        if !module.classes_with_subclasses.contains(&class.name) {
+            continue;
+        }
+        for method_name in super::class_dispatch::callable_instance_method_names(&class.name, &program.classes) {
+            if let Some(decl) = super::class_dispatch::find_method_decl(&class.name, &method_name, &program.classes) {
+                if decl.is_async {
+                    async_funcs.insert(format!("__dispatch_{}_{}", class.name, method_name));
+                }
+            }
+        }
+    }
+    for iface in &program.interfaces {
+        let has_implementer = program.classes.iter().any(|c| c.implements.iter().any(|i| i == &iface.name));
+        if !has_implementer {
+            continue;
+        }
+        for method in &iface.methods {
+            // Une méthode STATIQUE n'a jamais de dispatcher (voir
+            // `generate_interface_dispatchers`, qui les saute déjà —
+            // docs/roadmap.d/langage-interface-wiring.md) : un appel
+            // statique async est déjà résolu vers la classe concrète avant
+            // le lowering (`wiring`) ou rejeté (E38), jamais via ce chemin.
+            if method.is_async && !method.is_static {
+                async_funcs.insert(format!("{}_{}", iface.name, method.name));
+            }
+        }
+    }
 
     // Générateurs (`emit`/`message<T>`) : même contrainte d'ordre — un site
     // de consommation peut être lowered AVANT la fonction/méthode qui
@@ -739,7 +831,13 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
                             let child_key  = format!("{}_{}", class.name, decl.name);
                             let parent_key = format!("{}_{}", parent_name, decl.name);
                             if let Some(ty) = fn_ret_types.get(&parent_key).cloned() {
-                                fn_ret_types.insert(child_key, ty);
+                                fn_ret_types.insert(child_key.clone(), ty);
+                            }
+                            // Même propagation pour `method_ret_class` (voir sa doc) :
+                            // une méthode héritée non surchargée doit rester résolvable
+                            // pour le chaînage (`sousClasse.methodeHeritee().autreChose()`).
+                            if let Some(name) = module.method_ret_class.get(&parent_key).cloned() {
+                                module.method_ret_class.insert(child_key, name);
                             }
                         }
                     }
@@ -815,6 +913,51 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     // appelées depuis les dispatchers générés ici.
     super::interfaces::generate_interface_dispatchers(&mut module, program);
     super::class_dispatch::generate_class_dispatchers(&mut module, program);
+
+    // Wrappers async pour les DISPATCHERS dynamiques dont la méthode
+    // multiplexée est `async` — voir la remarque déjà posée plus haut (au
+    // moment de peupler `async_funcs` avec leur nom) et
+    // docs/roadmap.d/langage-async-instance-method-dispatch-broken.md.
+    // Exactement le même patron que les wrappers déjà générés ci-dessus
+    // pour une méthode de classe concrète (`generate_async_wrapper` ne se
+    // soucie jamais de QUI il appelle, seulement de la signature) :
+    // `param_tys` commence par `self` (`Ptr`), le dispatcher lui-même vient
+    // d'être généré juste au-dessus (son CORPS existe déjà à ce point,
+    // contrairement à `async_funcs`, qui devait le savoir bien plus tôt).
+    for class in &program.classes {
+        if !module.classes_with_subclasses.contains(&class.name) {
+            continue;
+        }
+        for method_name in super::class_dispatch::callable_instance_method_names(&class.name, &program.classes) {
+            let Some(decl) = super::class_dispatch::find_method_decl(&class.name, &method_name, &program.classes) else { continue };
+            if !decl.is_async {
+                continue;
+            }
+            let dispatcher_name = format!("__dispatch_{}_{}", class.name, method_name);
+            let mut param_tys = vec![IrType::Ptr];
+            param_tys.extend(decl.params.iter().map(|p| IrType::from_ast(&p.ty)));
+            let ret_ty = IrType::from_ast(&decl.ret_ty);
+            let wrapper_name = format!("__async_wrap_{}", dispatcher_name);
+            generate_async_wrapper(&mut module, &dispatcher_name, &wrapper_name, &param_tys, ret_ty, &fn_ret_types);
+        }
+    }
+    for iface in &program.interfaces {
+        let has_implementer = program.classes.iter().any(|c| c.implements.iter().any(|i| i == &iface.name));
+        if !has_implementer {
+            continue;
+        }
+        for method in &iface.methods {
+            if !method.is_async || method.is_static {
+                continue;
+            }
+            let dispatcher_name = format!("{}_{}", iface.name, method.name);
+            let mut param_tys = vec![IrType::Ptr];
+            param_tys.extend(method.params.iter().map(|p| IrType::from_ast(&p.ty)));
+            let ret_ty = IrType::from_ast(&method.ret_ty);
+            let wrapper_name = format!("__async_wrap_{}", dispatcher_name);
+            generate_async_wrapper(&mut module, &dispatcher_name, &wrapper_name, &param_tys, ret_ty, &fn_ret_types);
+        }
+    }
 
     // Blocs runtime → fonctions __init__, __main__, etc.
     lower_runtime_blocks(&mut module, program, &program.consts, &fn_ret_types, &fn_param_types, &fn_param_names, &fn_variadic_info, &func_default_args, &async_funcs);

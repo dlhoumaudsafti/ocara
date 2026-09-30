@@ -126,6 +126,44 @@ pub struct IrModule {
     /// l'imbriqué, produisant deux fonctions au même nom (collision de signature au
     /// codegen). Même patron que `anon_counter` ci-dessus, qui n'a pas ce problème.
     pub try_counter: usize,
+    /// Type de retour CONCRET d'une fonction LIBRE : nom de fonction → nom
+    /// de classe utilisateur (`Type::Named`) OU famille builtin
+    /// `"String"`/`"Array"`/`"Map"` (même convention que
+    /// `resolve_chained_field_class` pour un champ) — voir
+    /// docs/roadmap.d/langage-chained-call-on-free-function-result.md.
+    /// Nécessaire pour résoudre un appel de méthode chaîné directement sur
+    /// le résultat d'une fonction libre (`maFonction(...).methode()`, sans
+    /// jamais passer par une variable nommée) : `fn_ret_types` (sur
+    /// `LowerBuilder`) donne seulement l'`IrType` réduit (`Ptr` pour
+    /// n'importe quel type référence — classe, string, array, map,
+    /// indistinguables), jamais LE nom de classe précis nécessaire pour
+    /// mangler `Classe_methode`. Même famille de bug que
+    /// [langage-use-chaine-valeur-retour-perdue](../../docs/roadmap.d/langage-use-chaine-valeur-retour-perdue.md)
+    /// (`use Classe(...).methode()`) et
+    /// [langage-interface-wiring](../../docs/roadmap.d/langage-interface-wiring.md)'s
+    /// `HTTPRequest::get(...).methode()`, mais pour un TROISIÈME
+    /// déclencheur (appel de fonction libre) jamais couvert par ces
+    /// correctifs — avant, `func_mangled` valait `"_method_<methode>"`, un
+    /// symbole qui n'existe jamais, silencieusement sans effet au codegen.
+    pub func_ret_class: HashMap<String, String>,
+    /// Comme `func_ret_class`, mais pour une MÉTHODE (statique ou
+    /// d'instance) d'une classe UTILISATEUR : `"Classe_methode"` → nom de
+    /// classe retournée (classe utilisateur, famille builtin
+    /// `"String"`/`"Array"`/`"Map"`, ou nom monomorphisé d'un générique).
+    /// Absent avant ce correctif — `fn_ret_types` (IrType seul) n'était
+    /// JAMAIS peuplé pour une méthode de classe ORDINAIRE (seulement
+    /// fonctions libres, méthodes d'INTERFACE, et builtins), donc résoudre
+    /// la classe d'un appel de méthode chaîné (`w.getCircle().shapeName()`)
+    /// n'avait tout simplement AUCUNE source de vérité — voir
+    /// `crate::lower::expr::helpers::resolve_receiver_class` et
+    /// docs/roadmap.d/langage-chained-call-depth-limit.md. Avant ce
+    /// correctif, la seule heuristique existante (voir l'historique dans
+    /// `lower.rs`/`typeinfer.rs`) supposait à tort qu'une méthode chaînée
+    /// retournant `Ptr` retournait la MÊME classe que son récepteur — faux
+    /// dès que la méthode change de classe (`Wrapper::getCircle(): Circle`),
+    /// silencieusement (mangle vers un symbole qui n'existe pas, ignoré par
+    /// le codegen).
+    pub method_ret_class: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone)]

@@ -254,4 +254,407 @@ mod tests {
         let result = resolve_chained_field_class(&builder, &new_expr("Foo"), "inner");
         assert_eq!(result, Some("Bar".to_string()), "use Foo().inner doit résoudre vers la classe Bar");
     }
+
+    // ── Appel chaîné sur le résultat d'une fonction LIBRE ───────────────────────
+    // docs/roadmap.d/langage-chained-call-on-free-function-result.md — même
+    // famille que le cas `use Classe(...).*` ci-dessus, troisième
+    // déclencheur (`maFonction(...).methode()`), jamais couvert par ce
+    // correctif-là. Root cause confirmée par `ocara build --dump` (HIR) AVANT
+    // correctif : le site d'appel manglait vers `"_method_<methode>"` (sans
+    // préfixe de classe, symbole inexistant) plutôt que `"Circle_shapeName"`.
+    // Pipeline complet (parse → lower_program) utilisé ici plutôt qu'un
+    // `LowerBuilder` nu : le correctif vit dans `lower_expr` lui-même (le
+    // bras `Expr::Field` de `Expr::Call`), pas dans une fonction utilitaire
+    // isolée comme `resolve_chained_field_class` ci-dessus — inspecter le
+    // HIR réellement généré est la façon la plus directe de vérifier le
+    // symptôme observable (le `Inst::Call.func` au site d'appel).
+    use crate::lower::builder::program::lower_program;
+    use crate::ir::inst::Inst;
+    use crate::parsing::lexer::Lexer;
+    use crate::parsing::parser::Parser;
+
+    fn lower_src(src: &str) -> IrModule {
+        let tokens = Lexer::new(src).tokenize().expect("lex");
+        let program = Parser::new(tokens).parse_program().expect("parse");
+        lower_program(&program, "<test>")
+    }
+
+    /// Cherche, parmi TOUS les `Inst::Call` de `func_name`, celui dont la
+    /// cible correspond au SUFFIXE donné (`"_shapeName"`, par exemple) —
+    /// utilisé pour trouver le second appel d'une chaîne (`pickCircle(0).shapeName()`
+    /// émet D'ABORD un appel à `"pickCircle"`, PUIS l'appel de méthode qui
+    /// nous intéresse réellement ici).
+    fn find_call_ending_with<'a>(module: &'a IrModule, func_name: &str, suffix: &str) -> &'a str {
+        let func = module.functions.iter().find(|f| f.name == func_name)
+            .unwrap_or_else(|| panic!("function '{}' not found", func_name));
+        func.blocks.iter().flat_map(|b| &b.insts)
+            .find_map(|i| match i {
+                Inst::Call { func, .. } if func.ends_with(suffix) => Some(func.as_str()),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("no call ending with '{}' found in '{}'", suffix, func_name))
+    }
+
+    /// `IrModule::func_ret_class` doit connaître le nom de classe RÉEL d'une
+    /// fonction libre retournant un type nommé — la donnée qui manquait
+    /// avant le correctif.
+    #[test]
+    fn func_ret_class_knows_user_class_return_type() {
+        let module = lower_src(
+            "class Circle {\n\
+                 public method shapeName(): string { return \"circle\" }\n\
+             }\n\
+             function pickCircle(kind:int): Circle {\n\
+                 return use Circle(2.0)\n\
+             }\n\
+             function main(): int {\n\
+                 return 0\n\
+             }\n",
+        );
+        assert_eq!(module.func_ret_class.get("pickCircle"), Some(&"Circle".to_string()));
+    }
+
+    /// Même chose pour les familles builtin `array`/`map`/`string` — voir la
+    /// remarque de `IrModule::func_ret_class` : sans ce cas, `maFonction().len()`
+    /// (fonction libre retournant un tableau) échouait exactement de la même
+    /// façon qu'une classe utilisateur.
+    #[test]
+    fn func_ret_class_knows_builtin_container_return_types() {
+        let module = lower_src(
+            "function makeNames(): array<string> {\n\
+                 return [\"a\", \"b\"]\n\
+             }\n\
+             function makeLookup(): map<string, int> {\n\
+                 return {\"a\": 1}\n\
+             }\n\
+             function makeGreeting(): string {\n\
+                 return \"hi\"\n\
+             }\n\
+             function main(): int {\n\
+                 return 0\n\
+             }\n",
+        );
+        assert_eq!(module.func_ret_class.get("makeNames"), Some(&"Array".to_string()));
+        assert_eq!(module.func_ret_class.get("makeLookup"), Some(&"Map".to_string()));
+        assert_eq!(module.func_ret_class.get("makeGreeting"), Some(&"String".to_string()));
+    }
+
+    /// Le cas exact du ticket, vérifié au niveau HIR : `pickCircle(0).shapeName()`
+    /// doit mangler vers `"Circle_shapeName"`, jamais `"_method_shapeName"`
+    /// (le symbole inexistant émis avant le correctif).
+    #[test]
+    fn chained_call_on_free_function_result_mangles_to_the_real_class_method() {
+        let module = lower_src(
+            "class Circle {\n\
+                 public method shapeName(): string { return \"circle\" }\n\
+             }\n\
+             function pickCircle(kind:int): Circle {\n\
+                 return use Circle(2.0)\n\
+             }\n\
+             function main(): int {\n\
+                 var s:string = pickCircle(0).shapeName()\n\
+                 return 0\n\
+             }\n",
+        );
+        assert_eq!(find_call_ending_with(&module, "main", "shapeName"), "Circle_shapeName");
+    }
+
+    /// Non-régression : une fonction libre qui NE retourne PAS un type avec
+    /// méthodes (`int`) ne doit jamais apparaître dans `func_ret_class`.
+    #[test]
+    fn func_ret_class_does_not_capture_primitive_return_types() {
+        let module = lower_src(
+            "function computeSum(a:int, b:int): int { return a + b }\n\
+             function main(): int { return 0 }\n",
+        );
+        assert_eq!(module.func_ret_class.get("computeSum"), None);
+    }
+
+    // ── Appel chaîné à partir de 3 niveaux (`a.b().c().d()`) ────────────────────
+    // docs/roadmap.d/langage-chained-call-depth-limit.md — toute la famille de
+    // résolution "classe du récepteur d'un appel/accès chaîné" ne recursait
+    // qu'un seul niveau, et supposait en plus, à tort, qu'une méthode
+    // retournant un pointeur retournait la MÊME classe que son récepteur.
+    // `w.getCircle().shapeName()` (2 niveaux) fonctionnait déjà ; ajouter UN
+    // niveau de plus (`.upper()`, 3 niveaux) manglait vers `"_method_upper"`
+    // (symbole inexistant) au lieu de `"String_upper"`. Corrigé par une seule
+    // fonction récursive partagée (`resolve_receiver_class`), qui s'appuie sur
+    // `IrModule::method_ret_class` — absent avant ce correctif : une méthode
+    // de classe ORDINAIRE (contrairement à une méthode d'interface ou une
+    // fonction libre) n'avait AUCUNE entrée retraçant son type de retour réel
+    // en tant que CLASSE.
+
+    /// `IrModule::method_ret_class` doit connaître le nom de classe RÉEL du
+    /// retour d'une méthode d'instance — la donnée qui manquait avant le
+    /// correctif (seules les méthodes d'INTERFACE et les fonctions libres
+    /// avaient un équivalent).
+    #[test]
+    fn method_ret_class_knows_user_class_return_type() {
+        let module = lower_src(
+            "class Circle {\n\
+                 public method shapeName(): string { return \"circle\" }\n\
+             }\n\
+             class Wrapper {\n\
+                 public property inner:Circle\n\
+                 init(c:Circle) { self.inner = c }\n\
+                 public method getCircle(): Circle { return self.inner }\n\
+             }\n\
+             function main(): int { return 0 }\n",
+        );
+        assert_eq!(module.method_ret_class.get("Wrapper_getCircle"), Some(&"Circle".to_string()));
+    }
+
+    /// Non-régression : une méthode qui NE retourne PAS un type avec méthodes
+    /// (`int`) ne doit jamais apparaître dans `method_ret_class`.
+    #[test]
+    fn method_ret_class_does_not_capture_primitive_return_types() {
+        let module = lower_src(
+            "class Counter {\n\
+                 public method value(): int { return 42 }\n\
+             }\n\
+             function main(): int { return 0 }\n",
+        );
+        assert_eq!(module.method_ret_class.get("Counter_value"), None);
+    }
+
+    /// Une méthode héritée (non surchargée) reste résolvable pour le
+    /// chaînage sur une INSTANCE DE LA SOUS-CLASSE — même propagation que
+    /// `fn_ret_types` pour l'héritage (voir `lower_program`).
+    #[test]
+    fn method_ret_class_propagates_through_inheritance() {
+        let module = lower_src(
+            "class Circle {\n\
+                 public method shapeName(): string { return \"circle\" }\n\
+             }\n\
+             class Base {\n\
+                 public method getCircle(): Circle { return use Circle(2.0) }\n\
+             }\n\
+             class Derived extends Base {\n\
+             }\n\
+             function main(): int { return 0 }\n",
+        );
+        assert_eq!(module.method_ret_class.get("Derived_getCircle"), Some(&"Circle".to_string()));
+    }
+
+    /// Le cas EXACT du ticket, vérifié au niveau HIR : `w.getCircle().shapeName().upper()`
+    /// (3 niveaux, DEUX classes différentes enchaînées) doit mangler le
+    /// TROISIÈME appel vers `"String_upper"`, jamais `"_method_upper"` (le
+    /// symbole inexistant émis avant le correctif — l'ancienne heuristique
+    /// supposait à tort que `getCircle()` retournait `Wrapper`, pas `Circle`).
+    #[test]
+    fn chained_method_call_resolves_the_real_class_at_three_levels() {
+        let module = lower_src(
+            "class Circle {\n\
+                 public method shapeName(): string { return \"circle\" }\n\
+             }\n\
+             class Wrapper {\n\
+                 public property inner:Circle\n\
+                 init(c:Circle) { self.inner = c }\n\
+                 public method getCircle(): Circle { return self.inner }\n\
+             }\n\
+             function main(): int {\n\
+                 var w:Wrapper = use Wrapper(use Circle(2.0))\n\
+                 var s:string = w.getCircle().shapeName().upper()\n\
+                 return 0\n\
+             }\n",
+        );
+        assert_eq!(find_call_ending_with(&module, "main", "shapeName"), "Circle_shapeName");
+        assert_eq!(find_call_ending_with(&module, "main", "upper"), "String_upper");
+    }
+
+    /// Profondeur 4 : vérifie que la récursion est vraiment non bornée, pas
+    /// juste étendue à 3 niveaux (`Level1` -> `Level2` -> `Level3` -> `string`
+    /// -> `String::upper`), trois classes utilisateur DIFFÉRENTES enchaînées.
+    #[test]
+    fn chained_method_call_resolves_at_four_levels() {
+        let module = lower_src(
+            "class Level3 {\n\
+                 public method label(): string { return \"deep\" }\n\
+             }\n\
+             class Level2 {\n\
+                 public method next(): Level3 { return use Level3() }\n\
+             }\n\
+             class Level1 {\n\
+                 public method next(): Level2 { return use Level2() }\n\
+             }\n\
+             function main(): int {\n\
+                 var l1:Level1 = use Level1()\n\
+                 var s:string = l1.next().next().label().upper()\n\
+                 return 0\n\
+             }\n",
+        );
+        assert_eq!(find_call_ending_with(&module, "main", "label"), "Level3_label");
+        assert_eq!(find_call_ending_with(&module, "main", "upper"), "String_upper");
+    }
+
+    // ── Appel D'INSTANCE `async` (`obj.methode()`) ──────────────────────────────
+    // docs/roadmap.d/langage-async-instance-method-dispatch-broken.md — le site
+    // d'appel du sucre d'instance n'a JAMAIS empaqueté `self`+args dans un
+    // environnement heap ni spawné de tâche, contrairement aux fonctions
+    // libres et aux appels statiques : il appelait TOUJOURS `call_target`
+    // directement et de façon SYNCHRONE, renvoyant sa vraie valeur comme si
+    // c'était déjà un task handle (SIGSEGV confirmé par reproduction+gdb :
+    // `resolve` déréférençait ensuite cette valeur comme un pointeur de
+    // handle). Corrigé en ajoutant le même mécanisme d'empaquetage/spawn déjà
+    // en place pour les deux autres formes d'appel — AUCUN second mécanisme
+    // de dispatch : le dispatcher synchrone déjà existant (héritage de classe
+    // OU interface) est réutilisé tel quel, seul SON PROPRE wrapper async a
+    // besoin d'exister.
+
+    /// Renvoie `true` si `func_name` contient un `Inst::Call` vers `target`.
+    fn calls(module: &IrModule, func_name: &str, target: &str) -> bool {
+        let func = module.functions.iter().find(|f| f.name == func_name)
+            .unwrap_or_else(|| panic!("function '{}' not found", func_name));
+        func.blocks.iter().flat_map(|b| &b.insts)
+            .any(|i| matches!(i, Inst::Call { func, .. } if func == target))
+    }
+
+    /// Renvoie le nom de fonction ciblé par le PREMIER `Inst::FuncAddr` de
+    /// `func_name` — utilisé pour vérifier QUEL wrapper un site d'appel
+    /// spawn réellement (`__task_spawn(func_addr, env_ptr)` prend l'adresse
+    /// du wrapper via `FuncAddr`, jamais son nom littéral dans `Inst::Call`).
+    fn func_addr_target<'a>(module: &'a IrModule, func_name: &str) -> &'a str {
+        let func = module.functions.iter().find(|f| f.name == func_name)
+            .unwrap_or_else(|| panic!("function '{}' not found", func_name));
+        func.blocks.iter().flat_map(|b| &b.insts)
+            .find_map(|i| match i { Inst::FuncAddr { func, .. } => Some(func.as_str()), _ => None })
+            .unwrap_or_else(|| panic!("no FuncAddr found in '{}'", func_name))
+    }
+
+    /// Le cas exact du ticket : une classe concrète ordinaire, aucun
+    /// héritage, aucune interface. `main` doit spawn une tâche
+    /// (`__task_spawn`, via l'adresse de `__async_wrap_DoublingFetcher_fetch`),
+    /// jamais appeler `DoublingFetcher_fetch` directement.
+    #[test]
+    fn async_instance_call_on_plain_class_spawns_a_task() {
+        let module = lower_src(
+            "class DoublingFetcher {\n\
+                 public async method fetch(n:int): int { return n * 2 }\n\
+             }\n\
+             function main(): int {\n\
+                 var f:DoublingFetcher = use DoublingFetcher()\n\
+                 var t:int = f.fetch(21)\n\
+                 return 0\n\
+             }\n",
+        );
+        assert!(calls(&module, "main", "__task_spawn"), "must spawn a task, not call the method directly");
+        assert!(!calls(&module, "main", "DoublingFetcher_fetch"), "must never call the sync method body directly from the call site");
+        assert_eq!(func_addr_target(&module, "main"), "__async_wrap_DoublingFetcher_fetch");
+        // Le wrapper lui-même doit exister et appeler la vraie méthode.
+        assert!(calls(&module, "__async_wrap_DoublingFetcher_fetch", "DoublingFetcher_fetch"));
+    }
+
+    /// Non-régression : une méthode D'INSTANCE non-async doit continuer à
+    /// être appelée directement, jamais spawnée.
+    #[test]
+    fn non_async_instance_call_is_never_spawned() {
+        let module = lower_src(
+            "class Circle {\n\
+                 public method shapeName(): string { return \"circle\" }\n\
+             }\n\
+             function main(): int {\n\
+                 var c:Circle = use Circle()\n\
+                 var s:string = c.shapeName()\n\
+                 return 0\n\
+             }\n",
+        );
+        assert!(calls(&module, "main", "Circle_shapeName"));
+        assert!(!calls(&module, "main", "__task_spawn"));
+    }
+
+    /// Sous-classe qui surcharge une méthode `async` héritée — dispatch par
+    /// identité de classe (`__dispatch_Animal_soundCode`, mécanisme
+    /// préexistant, voir `class_dispatch.rs`), toujours 100% synchrone :
+    /// c'est SON wrapper async à lui qui doit être spawné, et LUI doit
+    /// appeler le dispatcher (qui choisira `Dog_soundCode` à l'exécution).
+    #[test]
+    fn async_instance_call_through_class_hierarchy_dispatcher_spawns_the_dispatchers_wrapper() {
+        let module = lower_src(
+            "class Animal {\n\
+                 public async method soundCode(): int { return 0 }\n\
+             }\n\
+             class Dog extends Animal {\n\
+                 public async method soundCode(): int { return 7 }\n\
+             }\n\
+             function main(): int {\n\
+                 var a:Animal = use Dog()\n\
+                 var t:int = a.soundCode()\n\
+                 return 0\n\
+             }\n",
+        );
+        assert!(calls(&module, "main", "__task_spawn"));
+        assert_eq!(func_addr_target(&module, "main"), "__async_wrap___dispatch_Animal_soundCode");
+        // Le wrapper du dispatcher appelle le dispatcher (synchrone), jamais
+        // directement une implémentation concrète.
+        assert!(calls(&module, "__async_wrap___dispatch_Animal_soundCode", "__dispatch_Animal_soundCode"));
+        // Le dispatcher lui-même reste 100% synchrone et choisit par
+        // `__class_id` — non-régression du mécanisme déjà existant.
+        assert!(calls(&module, "__dispatch_Animal_soundCode", "Dog_soundCode"));
+        assert!(calls(&module, "__dispatch_Animal_soundCode", "Animal_soundCode"));
+    }
+
+    /// Interface `wiring`dont le contrat est une méthode D'INSTANCE
+    /// `async` — le cas qui a mené à la découverte de ce bug (voir le
+    /// ticket). Le dispatcher d'interface (`Repo_fetchCode`, préexistant,
+    /// voir `interfaces.rs`) reste 100% synchrone ; c'est SON wrapper async
+    /// qui doit être spawné.
+    #[test]
+    fn async_instance_call_through_interface_wiring_spawns_the_interface_dispatchers_wrapper() {
+        let module = lower_src(
+            "interface Repo {\n\
+                 async method fetchCode(): int\n\
+                 wiring ConcreteRepo\n\
+             }\n\
+             class ConcreteRepo implements Repo {\n\
+                 public async method fetchCode(): int { return 99 }\n\
+             }\n\
+             function main(): int {\n\
+                 var r:Repo = use Repo()\n\
+                 var t:int = r.fetchCode()\n\
+                 return 0\n\
+             }\n",
+        );
+        assert!(calls(&module, "main", "__task_spawn"));
+        assert_eq!(func_addr_target(&module, "main"), "__async_wrap_Repo_fetchCode");
+        assert!(calls(&module, "__async_wrap_Repo_fetchCode", "Repo_fetchCode"));
+        assert!(calls(&module, "Repo_fetchCode", "ConcreteRepo_fetchCode"));
+    }
+
+    /// Type concret choisi UNIQUEMENT à l'exécution (paramètre de fonction)
+    /// derrière un récepteur typé par une interface — le seul cas où un vrai
+    /// dispatch par identité de classe est incontournable, `wiring` ne
+    /// résolvant jamais ce genre de binding (toujours un type concret connu
+    /// statiquement). Deux implémenteurs, même interface : le dispatcher
+    /// doit connaître les deux, son wrapper async doit être spawné quel que
+    /// soit le récepteur réel.
+    #[test]
+    fn async_instance_call_through_runtime_determined_interface_type_spawns_the_shared_dispatcher_wrapper() {
+        let module = lower_src(
+            "interface Talker {\n\
+                 async method speakCode(): int\n\
+             }\n\
+             class Cat implements Talker {\n\
+                 public async method speakCode(): int { return 1 }\n\
+             }\n\
+             class Robot implements Talker {\n\
+                 public async method speakCode(): int { return 2 }\n\
+             }\n\
+             function pick(kind:int): Talker {\n\
+                 if kind equal 0 {\n\
+                     return use Cat()\n\
+                 } else {\n\
+                     return use Robot()\n\
+                 }\n\
+             }\n\
+             function main(): int {\n\
+                 var choice:Talker = pick(1)\n\
+                 var t:int = choice.speakCode()\n\
+                 return 0\n\
+             }\n",
+        );
+        assert!(calls(&module, "main", "__task_spawn"));
+        assert_eq!(func_addr_target(&module, "main"), "__async_wrap_Talker_speakCode");
+        assert!(calls(&module, "Talker_speakCode", "Cat_speakCode"));
+        assert!(calls(&module, "Talker_speakCode", "Robot_speakCode"));
+    }
 }

@@ -268,27 +268,9 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
 
         // ── Accès de champ ───────────────────────────────────────────────────
         Expr::Field { object, field, .. } => {
-            // Résoudre la classe de l'objet pour calculer l'offset
-            let class_name = match object.as_ref() {
-                Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
-                Expr::SelfExpr(_)    => builder.current_class.clone(),
-                Expr::ParentExpr(_)  => builder.parent_class.clone(),
-                // Accès chaîné (`a.b.c` où `b` est elle-même une instance de
-                // classe) — voir resolve_chained_field_class pour le bug que
-                // ça corrige.
-                Expr::Field { object: inner, field: inner_field, .. } => {
-                    resolve_chained_field_class(builder, inner, inner_field)
-                }
-                // `use Classe(...).champ` — accès direct à un champ sur une
-                // instance fraîchement construite, jamais liée à une
-                // variable (voir le même cas dans le bloc `Expr::Call`
-                // ci-dessous pour l'explication complète du bug que ça
-                // corrige) — sans lui, `class_name` valait `None`, donc
-                // `offset = 0` pour n'importe quel champ (faux dès que ce
-                // n'est pas le premier champ déclaré).
-                Expr::New { class, .. } => Some(class.clone()),
-                _ => None,
-            };
+            // Résoudre la classe de l'objet pour calculer l'offset — voir
+            // `resolve_receiver_class` (récursif, profondeur arbitraire).
+            let class_name = resolve_receiver_class(builder, object);
             let offset = if let Some(cls) = &class_name {
                 field_offset(&builder.module.class_layouts, cls, field)
             } else {
@@ -407,105 +389,23 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     }
                     
                     // ── Cas normal : résolution de classe ─────────────────────────────
-                    let class_name = match object.as_ref() {
-                        Expr::Ident(var_name, _) => {
-                            builder.var_class.get(var_name.as_str()).cloned()
+                    // Voir `resolve_receiver_class` (récursif, profondeur
+                    // arbitraire — remplace la famille de blocs `match`
+                    // plafonnés à un ou deux niveaux fixes qui existait ici
+                    // avant ce correctif, voir
+                    // docs/roadmap.d/langage-chained-call-depth-limit.md).
+                    // Fallback conservé : si aucune classe n'a pu être
+                    // résolue mais que le type IR de `object` est `Ptr`,
+                    // deviner "String" (choix pragmatique historique — un
+                    // appel de méthode/expression dont le type réel n'est
+                    // pas autrement identifiable, ex. `("a" + b).trim()`).
+                    let class_name = resolve_receiver_class(builder, object).or_else(|| {
+                        if matches!(expr_ir_type(builder, object), IrType::Ptr) {
+                            Some("String".to_string())
+                        } else {
+                            None
                         }
-                        Expr::SelfExpr(_) => builder.current_class.clone(),
-                        Expr::ParentExpr(_) => builder.parent_class.clone(),
-                        // String littérale : "hello".trim()
-                        Expr::Literal(Literal::String(_), _) => Some("String".to_string()),
-                        // Appel chainé : arr.sort().reverse() ou text.trim().lower()
-                        Expr::Call { callee: inner_callee, .. } => {
-                            if let Expr::Field { object: inner_obj, field: inner_method, .. } = inner_callee.as_ref() {
-                                // Essayer de trouver la classe de l'objet interne
-                                let inner_class = match inner_obj.as_ref() {
-                                    Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
-                                    _ => None,
-                                };
-                                // Si on a trouvé la classe, vérifier le type de retour de la méthode
-                                if let Some(cls) = inner_class {
-                                    let method_name = format!("{}_{}", cls, inner_method);
-                                    // Si la méthode retourne un Ptr et que c'est la même classe, continuer avec elle
-                                    if let Some(ret_ty) = builder.fn_ret_types.get(&method_name) {
-                                        if matches!(ret_ty, IrType::Ptr) {
-                                            Some(cls)
-                                        } else {
-                                            None
-                                        }
-                                    } else {
-                                        None
-                                    }
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
-                            }
-                        }
-                        // `HTTPRequest::get/post/put/delete/patch(...).méthode()`
-                        // chaîné directement, sans jamais passer par une
-                        // variable `scoped` — `Expr::StaticCall` est un nœud
-                        // AST COMPLET EN LUI-MÊME (ses `args` sont intégrés au
-                        // nœud, pas enveloppés dans un `Expr::Call` séparé
-                        // contrairement à ce qu'on pourrait croire — voir
-                        // `parse_postfix`/`parse_primary`) : `object` vaut
-                        // donc ICI directement `Expr::StaticCall`, jamais
-                        // `Expr::Call{callee: Expr::StaticCall}`. Ces
-                        // raccourcis statiques retournent un `HTTPResponse`.
-                        // Sans ce cas, aucune branche de ce `match` ne
-                        // reconnaissait un `Expr::StaticCall` en position de
-                        // récepteur chaîné : `class_name` restait `None`
-                        // (jamais le fallback générique "String" plus bas, qui
-                        // n'est atteint que si `object` n'est PAS explicitement
-                        // `Expr::Call`), donc `func_mangled` valait
-                        // `"_method_<method>"` — un symbole qui n'existe pas,
-                        // ignoré silencieusement par le codegen (même famille
-                        // de bug que `Expr::New` en récepteur direct, voir plus
-                        // bas). Confirmé par reproduction sur
-                        // `HTTPRequest::get(url).ok()` chaîné dans un `if`,
-                        // contre un serveur qui répond bien 200 — `.ok()`
-                        // valait toujours faux.
-                        Expr::StaticCall { class: sc_class, method: sc_method, .. }
-                            if sc_class == "HTTPRequest"
-                                && matches!(sc_method.as_str(), "get" | "post" | "put" | "delete" | "patch") =>
-                        {
-                            Some("HTTPResponse".to_string())
-                        }
-                        // Accès chaîné : w.inner.sum() où `inner` est elle-même
-                        // une instance de classe/string/array/map — DOIT être
-                        // vérifié avant le fallback générique ci-dessous, qui
-                        // devinait "String" à tort pour ce cas (bug historique,
-                        // voir resolve_chained_field_class).
-                        Expr::Field { object: inner_obj, field: inner_field, .. } => {
-                            resolve_chained_field_class(builder, inner_obj, inner_field)
-                        }
-                        // `use Classe(...).méthode()`/`use Classe(...).champ` —
-                        // instanciation chaînée directement en récepteur, sans
-                        // jamais passer par une variable nommée. DOIT être
-                        // vérifié avant le fallback générique ci-dessous : sans
-                        // ce cas, `expr_ir_type` renvoie `IrType::Ptr` pour
-                        // TOUT `Expr::New` (voir sa doc), le fallback devinait
-                        // alors à tort "String" — `func_mangled` valait
-                        // `"String_<method>"`, un symbole qui n'existe jamais,
-                        // et `emit_calls` (codegen) ignore silencieusement un
-                        // appel vers une fonction inconnue au lieu d'échouer :
-                        // confirmé par reproduction sur `use Thread().run(...)`,
-                        // qui compilait sans la moindre erreur mais ne lançait
-                        // JAMAIS le thread (`Thread_run` n'était jamais appelé).
-                        Expr::New { class, .. } => Some(class.clone()),
-                        // Appel de fonction retournant string : func().trim()
-                        _ => {
-                            // Fallback : vérifier si c'est un type string via l'IR
-                            let ir_ty = expr_ir_type(builder, object);
-                            if matches!(ir_ty, IrType::Ptr) {
-                                // Peut être une string, on essaye avec String
-                                Some("String".to_string())
-                            } else {
-                                None
-                            }
-                        }
-                    };
+                    });
                     // Cas spécial : ui.handler(name, Class::method) — génère un trampoline
                     // dédié plutôt que de passer par le dispatch générique ci-dessous
                     // (voir tauri_handler.rs pour le détail du mécanisme).
@@ -646,6 +546,73 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     } else {
                         call_target
                     };
+                    // Appel D'INSTANCE `async` (`obj.methode()`) — voir
+                    // docs/roadmap.d/langage-async-instance-method-dispatch-broken.md :
+                    // ce chemin n'a JAMAIS empaqueté `self`+args dans un
+                    // environnement heap ni spawné de tâche, contrairement
+                    // aux fonctions libres et aux appels statiques
+                    // (`Classe::methode()`, plus bas dans ce fichier) — il
+                    // appelait TOUJOURS `call_target` directement et de
+                    // façon SYNCHRONE, renvoyant sa vraie valeur de retour
+                    // comme si c'était déjà un task handle (SIGSEGV confirmé
+                    // par reproduction : `resolve` déréférençait ensuite
+                    // cette valeur comme un pointeur de handle).
+                    //
+                    // `call_target` est déjà, à ce stade, la cible RÉELLE
+                    // pour le polymorphisme (`__dispatch_Classe_méthode`
+                    // pour l'héritage de classe, `Interface_méthode` pour
+                    // une interface — voir la résolution `class_dispatcher_name`
+                    // ci-dessus) : `async_funcs` porte une entrée pour CES
+                    // noms de dispatcher aussi (peuplée dans `lower_program`,
+                    // voir la remarque de tête de `generate_async_wrapper`
+                    // appelée sur eux), jamais seulement pour la méthode
+                    // concrète — le dispatcher reste une fonction 100%
+                    // SYNCHRONE (il choisit la bonne implémentation par
+                    // `__class_id` puis l'appelle directement, comme pour
+                    // n'importe quel appel non-async) ; c'est SON PROPRE
+                    // wrapper async (`__async_wrap_<dispatcher>`) qui spawn
+                    // la tâche — aucun second mécanisme de dispatch n'a été
+                    // nécessaire, celui déjà en place pour le chemin
+                    // synchrone (interfaces ET héritage de classe) est
+                    // intégralement réutilisé tel quel.
+                    //
+                    // `all_args` est déjà dans l'ordre exact attendu par le
+                    // wrapper (`self` en premier — voir sa génération dans
+                    // `lower_program`, `param_tys = [Ptr] + params` pour une
+                    // méthode d'instance — puis chaque argument RÉEL déjà
+                    // boxé si besoin), donc directement réutilisable comme
+                    // `arg_vals` l'est pour un appel statique/`parent::`.
+                    if builder.async_funcs.contains(call_target.as_str()) {
+                        let wrapper_name = format!("__async_wrap_{}", call_target);
+                        let n_args = all_args.len();
+                        let env_size = builder.new_value();
+                        builder.emit(Inst::ConstInt { dest: env_size.clone(), value: ((n_args * 8).max(8)) as i64 });
+                        let env_ptr = builder.new_value();
+                        builder.emit(Inst::Call {
+                            dest:   Some(env_ptr.clone()),
+                            func:   "__alloc_obj".into(),
+                            args:   vec![env_size],
+                            ret_ty: IrType::I64,
+                        });
+                        for (i, arg_val) in all_args.iter().enumerate() {
+                            builder.emit(Inst::SetField {
+                                obj:    env_ptr.clone(),
+                                field:  format!("__arg{}", i),
+                                src:    arg_val.clone(),
+                                offset: (i * 8) as i32,
+                            });
+                        }
+                        let func_addr = builder.new_value();
+                        builder.emit(Inst::FuncAddr { dest: func_addr.clone(), func: wrapper_name });
+                        let task = builder.new_value();
+                        builder.emit(Inst::Call {
+                            dest:   Some(task.clone()),
+                            func:   "__task_spawn".into(),
+                            args:   vec![func_addr, env_ptr],
+                            ret_ty: IrType::I64,
+                        });
+                        return task;
+                    }
                     builder.emit(Inst::Call {
                         dest:   Some(dest.clone()),
                         func:   call_target,
@@ -1780,23 +1747,17 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
         }
 
         Expr::Resolve { expr, .. } => {
-            // Déterminer le type de retour original de la fonction async
+            // Déterminer le type de retour DÉCLARÉ de la fonction/méthode
+            // async sous-jacente — voir `declared_call_return_ir_type` et
+            // `crate::sema::typecheck` (`Type::Resolvable<T>`). `Ident`
+            // (variable `Resolvable<T>`) reste résolu via `async_var_ret`,
+            // alimenté par le type DÉCLARÉ de la variable (couvre toute
+            // profondeur d'indirection — voir `lower_var`/`lower_const`).
             let orig_ty = match expr.as_ref() {
                 Expr::Ident(var_name, _) => {
                     builder.async_var_ret.get(var_name).cloned().unwrap_or(IrType::I64)
                 }
-                Expr::Call { callee, .. } => {
-                    if let Expr::Ident(fn_name, _) = callee.as_ref() {
-                        if builder.async_funcs.contains(fn_name.as_str()) {
-                            builder.fn_ret_types.get(fn_name.as_str()).cloned().unwrap_or(IrType::I64)
-                        } else {
-                            IrType::I64
-                        }
-                    } else {
-                        IrType::I64
-                    }
-                }
-                _ => IrType::I64,
+                _ => super::typeinfer::declared_call_return_ir_type(builder, expr).unwrap_or(IrType::I64),
             };
 
             let task_ptr = lower_expr(builder, expr);

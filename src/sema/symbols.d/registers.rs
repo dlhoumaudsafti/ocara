@@ -130,7 +130,7 @@ impl SymbolTable {
                     params:    params_to_vec(&m.params),
                     ret_ty:    m.ret_ty.clone(),
                     is_static: m.is_static,
-        is_async:  false,
+                    is_async:  m.is_async,
                     has_variadic: has_variadic_param(&m.params),
                     fixed_params_count: fixed_params_count(&m.params),
                     required_params_count: required_params_count(&m.params),
@@ -170,7 +170,22 @@ impl SymbolTable {
                         params:    params_to_vec(&fd.params),
                         ret_ty:    fd.ret_ty.clone(),
                         is_static: *is_static,
-        is_async:  false,
+                        // Bug préexistant corrigé au passage (jamais consommé
+                        // jusqu'ici, voir docs/roadmap.d/langage-interface-method-modifiers.md) :
+                        // `is_async` d'une méthode de classe/module/generic
+                        // était TOUJOURS codé en dur `false`, quelle que soit
+                        // la déclaration réelle (`register_function`, pour
+                        // les fonctions LIBRES, le fait déjà correctement
+                        // depuis toujours) — sans conséquence tant que rien
+                        // ne consultait `FuncSig.is_async` pour une méthode
+                        // (le codegen `async` de classe utilise un mécanisme
+                        // entièrement différent, `ClassMember::Method.decl.is_async`
+                        // lu directement depuis l'AST, voir
+                        // `src/lower/builder.d/program.rs`) — mais désormais
+                        // faux pour la nouvelle vérification de conformité
+                        // `implements` (`src/main.rs`), qui compare ce champ
+                        // entre une interface et sa classe implémentante.
+                        is_async:  fd.is_async,
                         has_variadic: has_variadic_param(&fd.params),
                         fixed_params_count: fixed_params_count(&fd.params),
                         required_params_count: required_params_count(&fd.params),
@@ -250,7 +265,9 @@ impl SymbolTable {
                         params:    params_to_vec(&fd.params),
                         ret_ty:    fd.ret_ty.clone(),
                         is_static: *is_static,
-        is_async:  false,
+                        // Voir la note équivalente dans `register_module`
+                        // ci-dessus — même correctif, même raison.
+                        is_async:  fd.is_async,
                         has_variadic: has_variadic_param(&fd.params),
                         fixed_params_count: fixed_params_count(&fd.params),
                         required_params_count: required_params_count(&fd.params),
@@ -320,7 +337,9 @@ impl SymbolTable {
                         params:    params_to_vec(&fd.params),
                         ret_ty:    fd.ret_ty.clone(),
                         is_static: *is_static,
-                        is_async:  false,
+                        // Voir la note équivalente dans `register_module` —
+                        // même correctif, même raison.
+                        is_async:  fd.is_async,
                         has_variadic: has_variadic_param(&fd.params),
                         fixed_params_count: fixed_params_count(&fd.params),
                         required_params_count: required_params_count(&fd.params),

@@ -1,0 +1,76 @@
+import ocara.UnitTest
+import Modifiers from "62_interface_method_modifiers"
+import Impl from "62_interface_method_modifiers"
+
+// docs/roadmap.d/langage-interface-method-modifiers.md — les 12 combinaisons
+// de modificateurs (3 visibilités × [rien, `static`, `async`, `static async`])
+// parsent désormais sur une méthode d'interface, comme pour une méthode de
+// `class` ordinaire (déjà couvert exhaustivement par
+// `src/parsing/parser.d/tests.rs::test_interface_method_all_twelve_modifier_combinations_plus_bare`
+// et `src/sema/tests/interface_method_modifiers.rs`, au niveau parser/sema).
+//
+// Ici : bout-en-bout, chacun des 5 mots-clés (`public`/`private`/`protected`/
+// `static`/`async`) est exercé sur une interface RÉELLEMENT implémentée
+// (`implements`) et APPELÉE — pas seulement parsée — voir examples/62_interface_method_modifiers.oc.
+//
+// `async` est exercé via `static async` (`Impl::fetchDoubled`) — `async`
+// D'INSTANCE est couvert séparément par
+// examples/tests/64_async_instance_method_dispatchTest.oc (le SIGSEGV
+// historique de ce chemin — docs/roadmap.d/langage-async-instance-method-dispatch-broken.md —
+// est corrigé). Le handle retourné est typé `Resolvable<int>` (pas un `int`
+// nu) — voir docs/roadmap.d/langage-async-non-int-return-type-check.md.
+class Test_62_interface_method_modifiers {
+
+    // `public` — appelé via le type interface (dispatch d'instance réel).
+    public method publicModifierTest(): int {
+        var m:Modifiers = use Impl()
+        UnitTest::assertEquals("hello", m.greet())
+        return 0
+    }
+
+    // `private` — la visibilité n'est jamais vérifiée pour une interface
+    // (voir la doc de `InterfaceMethod`) : appelable normalement depuis
+    // l'extérieur, comme n'importe quelle autre méthode.
+    public method privateModifierTest(): int {
+        var m:Modifiers = use Impl()
+        UnitTest::assertEquals(42, m.secretNumber())
+        return 0
+    }
+
+    // `protected` — même remarque que `private` ci-dessus.
+    public method protectedModifierTest(): int {
+        var m:Modifiers = use Impl()
+        UnitTest::assertEquals("demo", m.category())
+        return 0
+    }
+
+    // `static` (seul) — appelé via la classe concrète directement.
+    public method staticModifierTest(): int {
+        UnitTest::assertEquals(1, Impl::version())
+        return 0
+    }
+
+    // `static async` — voir la note de tête de fichier.
+    public method staticAsyncModifierTest(): int {
+        var t:Resolvable<int> = Impl::fetchDoubled(21)
+        var r:int = resolve t
+        UnitTest::assertEquals(42, r)
+        return 0
+    }
+
+    // Conformité `implements` : la classe concrète (`Impl`) implémente
+    // effectivement les 5 méthodes avec des modificateurs `static`/`async`
+    // cohérents avec l'interface — sans quoi la compilation aurait déjà
+    // échoué avant d'atteindre ce test (E09).
+    public method allModifiersCompileAndDispatchCorrectlyTest(): int {
+        var m:Modifiers = use Impl()
+        UnitTest::assertEquals("hello", m.greet())
+        UnitTest::assertEquals(42, m.secretNumber())
+        UnitTest::assertEquals("demo", m.category())
+        UnitTest::assertEquals(1, Impl::version())
+        var t:Resolvable<int> = Impl::fetchDoubled(10)
+        var r:int = resolve t
+        UnitTest::assertEquals(20, r)
+        return 0
+    }
+}

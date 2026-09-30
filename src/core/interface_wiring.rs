@@ -180,7 +180,7 @@ pub fn collect_all_interfaces(entry_program: &Program, source_dir: &Path) -> Has
 /// jamais modifiée ici (elle reste rejetée par ailleurs — voir
 /// `SemaError::InterfaceNoWiring` (E38) — au moment du typecheck, pas ici).
 pub fn resolve_bare_interface_names(program: &mut Program, all_interfaces: &HashMap<String, InterfaceDecl>) {
-    // Aucune interface `wiring`-ée : rien à faire, évite de parcourir tout
+    // Aucune interface `wiring`: rien à faire, évite de parcourir tout
     // le programme pour rien (cas de très loin le plus fréquent).
     if all_interfaces.values().all(|i| i.wirings.is_empty()) {
         return;
@@ -308,7 +308,7 @@ fn resolve_expr(expr: &mut Expr, first_wiring: &impl Fn(&str) -> Option<String>)
         Expr::StaticCall { class, args, .. } => {
             // Le seul cas qui compte : le nom nu (jamais aliasé — un alias
             // valide a déjà été résolu vers la classe wired par
-            // core::alias_resolve) d'une interface `wiring`-ée.
+            // core::alias_resolve) d'une interface possédant un `wiring`.
             if let Some(target) = first_wiring(class) {
                 *class = target;
             }
@@ -472,7 +472,7 @@ mod tests {
         assert_eq!(class, "PostgresRepo");
     }
 
-    /// Aucune interface `wiring`-ée dans tout le programme : la passe doit
+    /// Aucune interface `wiring`dans tout le programme : la passe doit
     /// être un no-op total (court-circuit de tête), y compris sur un
     /// programme qui référence des interfaces par ailleurs.
     #[test]
