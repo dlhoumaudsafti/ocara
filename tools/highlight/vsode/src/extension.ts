@@ -1,7 +1,20 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { OcaraCompletionProvider, loadBuiltins } from './completion';
+import { OcaraCompletionProvider } from './completion';
+import { loadBuiltins } from './builtins';
+import { OcaraSignatureHelpProvider } from './signature';
+import { OcaraCodeLensProvider, WorkspaceIndex } from './codelens';
+import { findCallSite, resolveCall } from './callsite';
+import {
+    esc,
+    findVariableType,
+    offsetToPosition,
+    parseFileImports,
+    parseImports,
+    resolveFileImportUri,
+    resolveImportPath,
+} from './resolver';
 
 export function activate(context: vscode.ExtensionContext): void {
     const selector: vscode.DocumentSelector = { language: 'ocara', scheme: 'file' };
@@ -15,37 +28,39 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.languages.registerCompletionItemProvider(selector, new OcaraCompletionProvider(), '.', ':')
     );
+
+    // Signature help (paramètre actif résolu par nom pour un argument nommé).
+    context.subscriptions.push(
+        vscode.languages.registerSignatureHelpProvider(selector, new OcaraSignatureHelpProvider(), '(', ',')
+    );
+
+    // CodeLens implémentations/overrides/références, sur l'index du workspace.
+    const index = new WorkspaceIndex();
+    index.watch(context);
+    void index.build();
+    context.subscriptions.push(
+        vscode.languages.registerCodeLensProvider(selector, new OcaraCodeLensProvider(index))
+    );
 }
 
 export function deactivate(): void {}
 
-// ─── Structures internes ──────────────────────────────────────────────────────
-
-interface ImportEntry {
-    /** Chemin complet : "controllers.HomeController" */
-    importPath: string;
-    /** Alias déclaré (`as Alias`) ou undefined */
-    alias: string | undefined;
-    /** Dernier segment : "HomeController" */
-    lastName: string;
-    /** Numéro de ligne 0-indexé dans le document */
-    line: number;
-}
-
-interface FileImportEntry {
-    /** Symbole importé : "ClassName" ou "*" pour wildcard */
-    symbol: string;
-    /** Chemin du fichier : "file" ou "../file" */
-    filePath: string;
-    /** Alias déclaré (`as Alias`) ou undefined */
-    alias: string | undefined;
-    /** Numéro de ligne 0-indexé dans le document */
-    line: number;
-}
-
 // ─── Provider ────────────────────────────────────────────────────────────────
 
 class OcaraDefinitionProvider implements vscode.DefinitionProvider {
+
+    private async resolveNamedArgument(
+        document: vscode.TextDocument,
+        position: vscode.Position,
+        name: string
+    ): Promise<vscode.Location[] | undefined> {
+        const site = findCallSite(document, position);
+        if (!site) { return undefined; }
+        const call = await resolveCall(document, position, site);
+        const param = call?.params.find(p => p.name === name);
+        if (!call?.source || !param) { return undefined; }
+        return [new vscode.Location(call.source.uri, offsetToPosition(call.source.fileText, param.offset))];
+    }
 
     provideDefinition(
         document: vscode.TextDocument,
@@ -73,7 +88,7 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
         // ── 2b. Ligne d'import namespace : import foo.bar.Baz ─────────────────
         const importLineMatch = lineText.match(/^\s*import\s+([\w.]+)(?:\s+as\s+(\w+))?\s*$/);
         if (importLineMatch) {
-            const loc = this.resolveImportPath(document, importLineMatch[1]);
+            const loc = resolveImportPath(document, importLineMatch[1]);
             return loc ? [loc] : undefined;
         }
 
@@ -81,6 +96,11 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
         const wordRange = document.getWordRangeAtPosition(position, /[A-Za-z_][\w]*/);
         if (!wordRange) { return undefined; }
         const word = document.getText(wordRange);
+
+        // ── 1b. f(nom: ...) — argument nommé → paramètre déclaré ───────────────
+        if (/^\s*:(?!:)/.test(lineText.substring(wordRange.end.character)) && findCallSite(document, wordRange.start)) {
+            return this.resolveNamedArgument(document, wordRange.start, word);
+        }
 
         // ── 2. obj.method() — appel de méthode d'instance ─────────────────────
         // Cherche tous les patterns obj.method() dans la ligne
@@ -127,11 +147,11 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
         memberName: string
     ): Promise<vscode.Location | undefined> {
         // Cherche le fichier de la classe via les imports from d'abord
-        const fileImports = this.parseFileImports(document);
+        const fileImports = parseFileImports(document);
         for (const imp of fileImports) {
             const match = imp.alias === className || (!imp.alias && imp.symbol === className) || imp.symbol === '*';
             if (match) {
-                const targetUri = await this.resolveFileImportUri(document, imp.filePath);
+                const targetUri = await resolveFileImportUri(document, imp.filePath);
                 if (targetUri) {
                     const memberLoc = this.findMemberInFile(targetUri, memberName);
                     if (memberLoc) { return memberLoc; }
@@ -142,13 +162,13 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
         }
 
         // Cherche ensuite via les imports namespace
-        const imports = this.parseImports(document);
+        const imports = parseImports(document);
         let targetFile: string | undefined;
 
         for (const imp of imports) {
             const match = imp.alias === className || (!imp.alias && imp.lastName === className);
             if (match) {
-                const loc = this.resolveImportPath(document, imp.importPath);
+                const loc = resolveImportPath(document, imp.importPath);
                 if (loc) { targetFile = loc.uri.fsPath; break; }
             }
         }
@@ -181,15 +201,15 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
         const varName = segments[segments.length - 1];
         
         // Trouve le type de cette variable dans le document
-        const typeName = this.findVariableType(document, varName);
+        const typeName = findVariableType(document, varName);
         if (!typeName) { return undefined; }
         
         // Cherche le fichier de cette classe via les imports from
-        const fileImports = this.parseFileImports(document);
+        const fileImports = parseFileImports(document);
         for (const imp of fileImports) {
             const match = imp.alias === typeName || (!imp.alias && imp.symbol === typeName) || imp.symbol === '*';
             if (match) {
-                const targetUri = await this.resolveFileImportUri(document, imp.filePath);
+                const targetUri = await resolveFileImportUri(document, imp.filePath);
                 if (targetUri) {
                     const memberLoc = this.findMemberInFile(targetUri, methodName);
                     if (memberLoc) { return memberLoc; }
@@ -198,11 +218,11 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
         }
         
         // Cherche ensuite via les imports namespace
-        const imports = this.parseImports(document);
+        const imports = parseImports(document);
         for (const imp of imports) {
             const match = imp.alias === typeName || (!imp.alias && imp.lastName === typeName);
             if (match) {
-                const loc = this.resolveImportPath(document, imp.importPath);
+                const loc = resolveImportPath(document, imp.importPath);
                 if (loc) {
                     const memberLoc = this.findMemberInFile(loc.uri, methodName);
                     if (memberLoc) { return memberLoc; }
@@ -213,34 +233,6 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
         // Cherche dans le fichier courant (classe locale)
         const memberLoc = this.findMemberInFile(document.uri, methodName);
         if (memberLoc) { return memberLoc; }
-        
-        return undefined;
-    }
-
-    // ─── Trouve le type d'une variable/propriété ──────────────────────────────
-
-    private findVariableType(document: vscode.TextDocument, varName: string): string | undefined {
-        // Cherche les déclarations de propriétés : private/public/property name:Type ou name:Generic<T>
-        const propertyRe = new RegExp(`\\b(?:private|public)?\\s*property\\s+(${esc(varName)})\\s*:\\s*([A-Z]\\w*)(?:<[^>]+>)?`);
-        
-        // Cherche les déclarations de variables : var name:Type ou var name:Generic<T>
-        const varRe = new RegExp(`\\b(?:var|scoped|const)\\s+(${esc(varName)})\\s*:\\s*([A-Z]\\w*)(?:<[^>]+>)?`);
-        
-        for (let i = 0; i < document.lineCount; i++) {
-            const text = document.lineAt(i).text;
-            
-            // Propriété
-            let m = text.match(propertyRe);
-            if (m && m[2]) {
-                return m[2]; // Retourne le type de base (sans les arguments génériques)
-            }
-            
-            // Variable
-            m = text.match(varRe);
-            if (m && m[2]) {
-                return m[2]; // Retourne le type de base (sans les arguments génériques)
-            }
-        }
         
         return undefined;
     }
@@ -264,37 +256,6 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
             }
         }
 
-        return undefined;
-    }
-
-    // ─── Résout l'URI d'un fichier importé avec from ──────────────────────────
-
-    private async resolveFileImportUri(document: vscode.TextDocument, filePath: string): Promise<vscode.Uri | undefined> {
-        const docDir = path.dirname(document.uri.fsPath);
-        let targetPath = filePath.endsWith('.oc') ? filePath : filePath + '.oc';
-        
-        // Si le chemin est relatif explicite (../, ./), on résout directement
-        if (targetPath.startsWith('../') || targetPath.startsWith('./')) {
-            const absolutePath = path.resolve(docDir, targetPath);
-            if (fs.existsSync(absolutePath)) {
-                return vscode.Uri.file(absolutePath);
-            }
-            return undefined;
-        }
-        
-        // Sinon, scanne le workspace pour trouver le fichier
-        const ws = vscode.workspace.getWorkspaceFolder(document.uri);
-        if (!ws) { return undefined; }
-        
-        // Cherche tous les fichiers .oc dans le workspace
-        const pattern = new vscode.RelativePattern(ws, `**/${path.basename(targetPath)}`);
-        const files = await vscode.workspace.findFiles(pattern, '**/node_modules/**');
-        
-        // Retourne le premier fichier trouvé
-        if (files.length > 0) {
-            return files[0];
-        }
-        
         return undefined;
     }
 
@@ -341,72 +302,6 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
         return undefined;
     }
 
-    // ─── Navigation vers un fichier importé ───────────────────────────────────
-
-    /**
-     * Convertit un chemin d'import ("foo.bar.Baz") vers le fichier .oc correspondant.
-     * Les imports `ocara.*` sont des builtins sans fichier navigable.
-     */
-    private resolveImportPath(
-        document: vscode.TextDocument,
-        importPath: string
-    ): vscode.Location | undefined {
-        if (importPath.startsWith('ocara.')) { return undefined; }
-
-        const segments = importPath.split('.');
-        const currentNamespace = this.parseNamespace(document);
-        const docDir = path.dirname(document.uri.fsPath);
-        
-        // Si l'import a un seul segment et qu'on est dans un namespace,
-        // chercher d'abord dans le namespace courant (même dossier)
-        if (segments.length === 1 && currentNamespace) {
-            const namespacedPath = path.join(docDir, segments[0] + '.oc');
-            if (fs.existsSync(namespacedPath)) {
-                return new vscode.Location(vscode.Uri.file(namespacedPath), new vscode.Position(0, 0));
-            }
-        }
-        
-        // Détermine le root de recherche pour les imports multi-segments
-        let searchRoot: string;
-        if (currentNamespace) {
-            const dirName = path.basename(docDir);
-            if (dirName === currentNamespace) {
-                // On est dans un dossier nommé comme le namespace, remonter d'un niveau
-                searchRoot = path.dirname(docDir);
-            } else {
-                searchRoot = docDir;
-            }
-        } else {
-            // Pas de namespace, chercher depuis docDir
-            searchRoot = docDir;
-        }
-
-        const relFile = path.join(...segments) + '.oc';
-        
-        // Chercher depuis searchRoot (parent du namespace ou docDir)
-        let candidate = path.join(searchRoot, relFile);
-        if (fs.existsSync(candidate)) {
-            return new vscode.Location(vscode.Uri.file(candidate), new vscode.Position(0, 0));
-        }
-
-        // Fallback : cherche depuis la racine du workspace
-        const ws = vscode.workspace.getWorkspaceFolder(document.uri);
-        if (ws) {
-            candidate = path.join(ws.uri.fsPath, relFile);
-            if (fs.existsSync(candidate)) {
-                return new vscode.Location(vscode.Uri.file(candidate), new vscode.Position(0, 0));
-            }
-        }
-
-        // Fallback : cherche depuis le répertoire du fichier courant
-        candidate = path.join(docDir, relFile);
-        if (fs.existsSync(candidate)) {
-            return new vscode.Location(vscode.Uri.file(candidate), new vscode.Position(0, 0));
-        }
-
-        return undefined;
-    }
-
     // ─── Navigation vers un fichier importé avec from ─────────────────────────
 
     /**
@@ -450,7 +345,7 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
 
     // ─── Trouve un symbole dans un fichier ────────────────────────────────────
 
-    private findSymbolInFile(absolutePath: string, symbol: string): vscode.Location | undefined {
+    private findSymbolInFile(absolutePath: string, symbol: string): vscode.Location {
         const targetUri = vscode.Uri.file(absolutePath);
         
         // Si wildcard (*), ouvre au début du fichier
@@ -486,8 +381,8 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
         name: string,
         position: vscode.Position
     ): Promise<vscode.Definition | undefined> {
-        const imports = this.parseImports(document);
-        const fileImports = this.parseFileImports(document);
+        const imports = parseImports(document);
+        const fileImports = parseFileImports(document);
 
         // Cherche d'abord dans les imports from (priorité car plus explicite)
         for (const imp of fileImports) {
@@ -508,20 +403,13 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
             }
         }
 
-        // Cherche ensuite une correspondance par alias dans les imports namespace
-        for (const imp of imports) {
-            if (imp.alias === name) {
-                const loc = this.resolveImportPath(document, imp.importPath);
-                if (loc) { return [loc]; }
-            }
-        }
-
-        // Cherche ensuite par nom de dernier segment (sans alias)
-        for (const imp of imports) {
-            if (!imp.alias && imp.lastName === name) {
-                const loc = this.resolveImportPath(document, imp.importPath);
-                if (loc) { return [loc]; }
-            }
+        // Imports namespace : alias d'abord, puis dernier segment (sans alias)
+        // — positionne sur la déclaration elle-même, pas en tête de fichier.
+        const namespaceImport = imports.find(imp => imp.alias === name)
+            ?? imports.find(imp => !imp.alias && imp.lastName === name);
+        if (namespaceImport) {
+            const loc = resolveImportPath(document, namespaceImport.importPath);
+            if (loc) { return [this.findSymbolInFile(loc.uri.fsPath, namespaceImport.lastName)]; }
         }
 
         // Fallback : déclaration locale (class / interface / module / enum)
@@ -606,79 +494,6 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
         return undefined;
     }
 
-    // ─── Parse les imports du document ────────────────────────────────────────
-
-    private parseImports(document: vscode.TextDocument): ImportEntry[] {
-        const entries: ImportEntry[] = [];
-        for (let i = 0; i < document.lineCount; i++) {
-            const text = document.lineAt(i).text;
-            const m    = text.match(/^\s*import\s+([\w.]+)(?:\s+as\s+(\w+))?\s*$/);
-            if (!m) { continue; }
-            const importPath = m[1];
-            const alias      = m[2] as string | undefined;
-            const segs       = importPath.split('.');
-            entries.push({
-                importPath,
-                alias,
-                lastName: segs[segs.length - 1],
-                line: i,
-            });
-        }
-        return entries;
-    }
-
-    // ─── Parse les imports from du document ───────────────────────────────────
-
-    private parseFileImports(document: vscode.TextDocument): FileImportEntry[] {
-        const entries: FileImportEntry[] = [];
-        for (let i = 0; i < document.lineCount; i++) {
-            const text = document.lineAt(i).text;
-            // Match: import Symbol from "file" [as Alias]
-            const m = text.match(/^\s*import\s+([\w*]+)\s+from\s+"([^"]+)"(?:\s+as\s+(\w+))?\s*$/);
-            if (!m) { continue; }
-            const symbol = m[1];
-            const filePath = m[2];
-            const alias = m[3] as string | undefined;
-            entries.push({
-                symbol,
-                filePath,
-                alias,
-                line: i,
-            });
-        }
-        return entries;
-    }
-
-    // ─── Parse le namespace du document ──────────────────────────────────────
-
-    /**
-     * Extrait le namespace déclaré dans le document.
-     * Retourne null pour namespace root (namespace .) ou pas de namespace,
-     * retourne le nom du namespace sinon (ex: "classes").
-     */
-    private parseNamespace(document: vscode.TextDocument): string | null {
-        // Cherche la première ligne non-vide et non-commentaire
-        for (let i = 0; i < Math.min(5, document.lineCount); i++) {
-            const text = document.lineAt(i).text.trim();
-            if (!text || text.startsWith('//')) { continue; }
-            
-            // Match: namespace .
-            if (/^namespace\s+\.\s*$/.test(text)) {
-                return null; // root namespace
-            }
-            
-            // Match: namespace identifier
-            const m = text.match(/^namespace\s+([\w]+)\s*$/);
-            if (m) {
-                return m[1];
-            }
-            
-            // Si on trouve autre chose qu'un namespace, on arrête
-            break;
-        }
-        return null; // pas de namespace déclaré = root
-    }
-
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     /** Trouve la colonne d'un mot dans `text` en partant de `fromIdx`. */
@@ -697,11 +512,4 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
     private isSamePosition(line: number, col: number, position: vscode.Position): boolean {
         return line === position.line && col === position.character;
     }
-}
-
-// ─── Utilitaire ───────────────────────────────────────────────────────────────
-
-/** Échappe les caractères spéciaux pour usage dans une RegExp. */
-function esc(s: string): string {
-    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

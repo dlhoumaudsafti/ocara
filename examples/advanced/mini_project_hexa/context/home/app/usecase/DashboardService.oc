@@ -14,6 +14,10 @@ class DashboardService {
             totalPurchase = totalPurchase + car.purchasePrice
             totalEstimated = totalEstimated + car.estimatedPrice
         }
-        return use DashboardDto(cars, totalPurchase, totalEstimated)
+        return use DashboardDto(
+            cars,
+            totalPurchase,
+            totalEstimated
+        )
     }
 }

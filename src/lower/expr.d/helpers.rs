@@ -225,6 +225,17 @@ pub fn resolve_receiver_class(builder: &LowerBuilder, expr: &Expr) -> Option<Str
         {
             Some("HTTPResponse".to_string())
         }
+        // Méthode statique utilisateur chaînée (`Classe::fabrique(...).methode()`,
+        // `self::`/`parent::` compris) — même table que la méthode d'instance
+        // chaînée ci-dessus.
+        Expr::StaticCall { class, method, .. } => {
+            let owner = match class.as_str() {
+                "<self>"   => builder.current_class.clone()?,
+                "<parent>" => builder.parent_class.clone()?,
+                _          => class.clone(),
+            };
+            builder.module.method_ret_class.get(&format!("{}_{}", owner, method)).cloned()
+        }
         _ => None,
     }
 }

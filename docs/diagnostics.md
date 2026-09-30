@@ -926,6 +926,111 @@ class Doubler {
 
 ---
 
+### E45 — Appel mélangeant arguments positionnels et nommés
+
+```
+fichier.oc:1:1: error: call to 'box' mixes positional and named arguments — a call is either fully positional or fully named
+```
+
+Un appel est soit entièrement positionnel, soit entièrement nommé (voir §14.6 de l'EBNF et docs/roadmap.d/langage-named-arguments.md) — jamais un mélange des deux.
+
+```ocara
+function box(text:string, left:string = "<", right:string = ">"): string { return `${left}${text}${right}` }
+
+box("x", right: "|")          // ❌ E45
+```
+
+**Correction :** tout nommer (`box(text: "x", right: "|")`) ou tout passer en position (`box("x", "<", "|")`).
+
+---
+
+### E46 — Nom d'argument inconnu
+
+```
+fichier.oc:1:1: error: 'String::replace' has no parameter named 'subject' — valid names: s, from, to
+```
+
+Le nom ne correspond à aucun paramètre de la cible résolue ; le message liste les noms valides (paramètres non variadics, dans l'ordre de déclaration). Pour un builtin, ce sont les noms documentés dans `docs/builtins/*.md`.
+
+```ocara
+String::replace(subject: "aXb", search: "X", replace: "-")   // ❌ E46
+```
+
+**Correction :** utiliser l'un des noms listés — `String::replace(s: "aXb", from: "X", to: "-")`.
+
+---
+
+### E47 — Argument nommé fourni deux fois
+
+```
+fichier.oc:1:1: error: argument 'a' is provided twice in this call to 'pair'
+```
+
+```ocara
+function pair(a:int, b:int): int { return a - b }
+
+pair(a: 1, a: 2)   // ❌ E47
+```
+
+**Correction :** ne fournir chaque paramètre qu'une seule fois.
+
+---
+
+### E48 — Paramètre variadic passé par son nom
+
+```
+fichier.oc:1:1: error: parameter 'nums' of 'sum' is variadic and can only be passed positionally
+```
+
+Un paramètre `variadic<T>` reste positionnel uniquement (comme il ne peut pas avoir de valeur par défaut, §14.1) — et un appel ne mélangeant jamais positionnel et nommé (E45), un appel à une fonction variadic dont on veut fournir le variadic est entièrement positionnel.
+
+```ocara
+function sum(label:string, nums:variadic<int>): string { return label }
+
+sum(label: "x", nums: 1)   // ❌ E48
+sum("x", 1, 2, 3)          // ✅
+```
+
+---
+
+### E49 — Paramètre obligatoire absent d'un appel nommé
+
+```
+fichier.oc:1:1: error: missing argument 'a' in this named call to 'pair' — it has no default value
+```
+
+Dans un appel nommé, tout paramètre **sans valeur par défaut** doit être fourni ; seuls les paramètres avec valeur par défaut peuvent être omis (y compris au milieu de la liste). Pour un builtin, un paramètre optionnel ne peut être omis qu'en fin de liste.
+
+```ocara
+pair(b: 2)   // ❌ E49 — 'a' manque
+```
+
+**Correction :** fournir le paramètre manquant (`pair(a: 1, b: 2)`), ou lui donner une valeur par défaut dans la déclaration.
+
+---
+
+### E50 — Argument nommé sur une cible aux noms de paramètres inconnus
+
+```
+fichier.oc:1:1: error: named argument 'a' cannot be used here: the parameter names of the called target are not statically known (e.g. a call through a 'Function<...>' value) — pass the arguments positionally
+```
+
+Les noms de paramètres n'existent pas pour toutes les cibles : une valeur de type `Function<T(...)>` (§14.3) ne référence que les **types** de ses paramètres ; une classe opaque (import non résolu) ou un receveur de type `mixed` n'a pas de signature connue. Limite assumée, pas un oubli.
+
+```ocara
+function pair(a:int, b:int): int { return a - b }
+
+var f:Function<int(int, int)> = pair
+f(a: 1, b: 2)    // ❌ E50
+f(1, 2)          // ✅
+```
+
+Variante émise après l'analyse sémantique, pour un appel nommé dans le corps d'un `generic` (non parcouru par l'analyse sémantique) dont la cible dépend du type d'un receveur autre que `self` : `named argument 'x' cannot be resolved here: this call's target depends on a type not known outside semantic analysis (...)`.
+
+**Correction :** passer les arguments en position.
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.

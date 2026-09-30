@@ -34,33 +34,21 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OcaraCompletionProvider = void 0;
-exports.loadBuiltins = loadBuiltins;
 const vscode = __importStar(require("vscode"));
-const path = __importStar(require("path"));
-const fs = __importStar(require("fs"));
+const builtins_1 = require("./builtins");
 const resolver_1 = require("./resolver");
+const callsite_1 = require("./callsite");
+// ─────────────────────────────────────────────────────────────────────────────
+// Autocomplétion : méthodes/constantes des classes builtin `ocara.*` (données
+// générées depuis src/builtins/*.rs, voir tools/highlight/vsode/data/) et des
+// classes utilisateur (résolues via les imports du document, resolver.ts).
+// ─────────────────────────────────────────────────────────────────────────────
 /** Propriétés communes à toutes les exceptions builtin (voir src/builtins/exception.rs). */
 const EXCEPTION_PROPERTIES = [
     { name: 'message', type: 'string' },
     { name: 'code', type: 'int' },
     { name: 'source', type: 'string' },
 ];
-let builtins = [];
-let builtinsByName = new Map();
-/** Charge le catalogue des builtins (appelé une fois à l'activation). */
-function loadBuiltins(extensionPath) {
-    try {
-        const dataPath = path.join(extensionPath, 'data', 'builtins-data.json');
-        const raw = fs.readFileSync(dataPath, 'utf8');
-        builtins = JSON.parse(raw);
-        builtinsByName = new Map(builtins.map(c => [c.name, c]));
-    }
-    catch (err) {
-        console.error('Ocara: impossible de charger data/builtins-data.json', err);
-        builtins = [];
-        builtinsByName = new Map();
-    }
-}
 class OcaraCompletionProvider {
     async provideCompletionItems(document, position, _token, _context) {
         const linePrefix = document.lineAt(position).text.substring(0, position.character);
@@ -94,11 +82,40 @@ class OcaraCompletionProvider {
         if (useMatch) {
             return this.completeClassNames(document);
         }
+        // ── f(nom: ...) — noms des paramètres de la cible de l'appel ────────
+        if (/(?:^|[(,])\s*\w*$/.test(linePrefix)) {
+            return this.completeArgumentNames(document, position);
+        }
         return undefined;
+    }
+    // ─── f(nom: valeur) ─────────────────────────────────────────────────────
+    /**
+     * Un appel est soit 100 % positionnel, soit 100 % nommé : rien à proposer
+     * dès qu'un argument précédent est positionnel. Variadic et noms déjà
+     * fournis exclus (voir docs/roadmap.d/langage-named-arguments.md).
+     */
+    async completeArgumentNames(document, position) {
+        const site = (0, callsite_1.findCallSite)(document, position);
+        if (!site || site.positionalCount > 0 || site.currentName !== undefined) {
+            return undefined;
+        }
+        const call = await (0, callsite_1.resolveCall)(document, position, site);
+        if (!call) {
+            return undefined;
+        }
+        return (0, callsite_1.remainingNamedParams)(call, site).map((p, i) => {
+            const item = new vscode.CompletionItem(`${p.name}:`, vscode.CompletionItemKind.Property);
+            item.insertText = `${p.name}: `;
+            item.filterText = p.name;
+            item.sortText = String(i).padStart(3, '0');
+            item.detail = (0, callsite_1.paramLabel)(p);
+            item.documentation = new vscode.MarkdownString(`Argument nommé de \`${call.owner}\`${p.defaultValue !== undefined ? ' — optionnel' : ''}`);
+            return item;
+        });
     }
     // ─── ClassName::membre ──────────────────────────────────────────────────
     async completeStatic(document, className) {
-        const builtin = builtinsByName.get(className);
+        const builtin = (0, builtins_1.getBuiltinClass)(className);
         if (builtin) {
             const items = [];
             for (const c of builtin.consts) {
@@ -118,7 +135,7 @@ class OcaraCompletionProvider {
         if (className === 'Exception' || className.endsWith('Exception')) {
             return EXCEPTION_PROPERTIES.map(p => this.exceptionPropertyItem(className, p));
         }
-        const builtin = builtinsByName.get(className);
+        const builtin = (0, builtins_1.getBuiltinClass)(className);
         if (builtin) {
             return builtin.methods.filter(m => !m.static).map(m => this.builtinMethodItem(className, m, false));
         }
@@ -129,7 +146,7 @@ class OcaraCompletionProvider {
     completeClassNames(document) {
         const items = [];
         const seen = new Set();
-        for (const c of builtins) {
+        for (const c of (0, builtins_1.builtinClasses)()) {
             const hasInstanceApi = c.methods.some(m => !m.static);
             if (!hasInstanceApi) {
                 continue;
@@ -146,7 +163,7 @@ class OcaraCompletionProvider {
             }
             // Builtin purement statique (ex: IO, Math, Array) importé par son nom
             // (`import ocara.IO`) : jamais instanciable via `use`, on l'exclut.
-            const builtin = builtinsByName.get(name);
+            const builtin = (0, builtins_1.getBuiltinClass)(name);
             if (builtin && !builtin.methods.some(m => !m.static)) {
                 continue;
             }

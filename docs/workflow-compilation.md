@@ -125,6 +125,10 @@ Phase de vérification et enrichissement :
 - Fonctions appelées avec mauvais arguments
 - Accès à des membres inexistants
 
+**d) Arguments nommés** (`src/sema/named_args.rs`, puis `src/core/named_args.rs`)
+- Chaque appel `f(name: expr, ...)` est résolu contre sa cible (noms de paramètres, valeurs par défaut) en une liste positionnelle complète (diagnostics E45 à E50)
+- Juste après une analyse sans erreur, ces listes remplacent les arguments dans l'AST : la monomorphisation et le lowering ne voient jamais d'argument nommé
+
 Si cette phase réussit, le programme est **sémantiquement correct**.
 
 ### 4️⃣ **Lowering** (AST → IR)

@@ -1,0 +1,81 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 67 — Arguments nommés à l'appel
+//
+// Voir docs/roadmap.d/langage-named-arguments.md et docs/EBNF.md §14.4.
+//
+// Illustre :
+//   - `use Classe(nom: valeur, ...)` dans n'importe quel ordre
+//   - omission d'un paramètre avec valeur par défaut, y compris au MILIEU de
+//     la liste (impossible en positionnel)
+//   - fonction libre, méthode d'instance, méthode statique, méthode héritée,
+//     builtin (`String::replace`)
+//   - positionnel pur toujours valide (y compris `use P(1)` quand `init` a
+//     des paramètres par défaut)
+//
+// Règles : un appel est soit 100 % positionnel, soit 100 % nommé ; un
+// variadic reste positionnel ; un appel via `Function<...>` reste
+// positionnel (les noms de paramètres n'y sont pas connus).
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+import ocara.String
+
+class UserDto {
+    public property id:int
+    public property name:string
+    public property email:string
+    public property role:string
+
+    init(id:int, name:string, email:string = "none", role:string = "user") {
+        self.id = id
+        self.name = name
+        self.email = email
+        self.role = role
+    }
+
+    public method describe(prefix:string = "[", suffix:string = "]"):string {
+        return `${prefix}${self.id}:${self.name}:${self.email}:${self.role}${suffix}`
+    }
+
+    public static method guest(name:string, id:int = 0):UserDto {
+        return use UserDto(id: id, name: name, role: "guest")
+    }
+}
+
+class AdminDto extends UserDto {
+}
+
+function box(text:string, left:string = "<", right:string = ">"):string {
+    return `${left}${text}${right}`
+}
+
+function main():int {
+    // Positionnel pur : inchangé.
+    var a:UserDto = use UserDto(42, "David", "david@example.com")
+    IO::writeln(a.describe())
+
+    // Nommé, dans un ordre différent de la déclaration.
+    var b:UserDto = use UserDto(email: "eve@example.com", name: "Eve", id: 3)
+    IO::writeln(b.describe())
+
+    // `email` (au milieu) omis, `role` fourni : seul le nommé le permet.
+    var c:UserDto = use UserDto(role: "admin", name: "Bob", id: 5)
+    IO::writeln(c.describe(suffix: ")", prefix: "("))
+
+    // Positionnel avec paramètres par défaut de `init` omis.
+    var d:UserDto = use UserDto(7, "Zed")
+    IO::writeln(d.describe(suffix: "}"))
+
+    // Méthode statique, méthode héritée.
+    IO::writeln(UserDto::guest(name: "Anon").describe())
+    var e:AdminDto = use AdminDto(name: "Root", id: 1, role: "admin")
+    IO::writeln(e.describe(prefix: "{"))
+
+    // Fonction libre : `left` (au milieu) laissé à sa valeur par défaut.
+    IO::writeln(box(right: "]", text: "hi"))
+
+    // Builtin : noms de paramètres déclarés dans docs/builtins/String.md.
+    IO::writeln(String::replace(to: "-", s: "a_b", from: "_"))
+
+    return 0
+}

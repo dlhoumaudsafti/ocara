@@ -120,9 +120,9 @@ pub fn shift_expr_spans(expr: &mut Expr, origin: &Span) {
         Expr::StaticConst { span, .. } => {
             shift_span(span, origin);
         }
-        Expr::IncDec { target, span, .. } => {
+        Expr::IncDec { target: inner, span, .. } | Expr::NamedArg { value: inner, span, .. } => {
             shift_span(span, origin);
-            shift_expr_spans(target, origin);
+            shift_expr_spans(inner, origin);
         }
     }
 }

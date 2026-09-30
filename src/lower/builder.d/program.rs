@@ -189,6 +189,14 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
                 }
             }
         }
+        // Constructeur (hérité compris) : complété par `Expr::New` comme
+        // n'importe quel appel (`use P(1)` pour `init(a:int, b:int = 9)`).
+        if let Some((params, _, _)) = super::classes::nearest_constructor(&program.classes, class) {
+            let default_args: Vec<Option<Expr>> = params.iter()
+                .map(|p| p.default_value.clone())
+                .collect();
+            func_default_args.insert(format!("{}_init", class.name), default_args);
+        }
     }
 
     // Même collecte que ci-dessus, mais pour les méthodes déclarées par une
@@ -533,9 +541,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
 
     // Collecte les types de paramètres des constructeurs (pour le boxing mixed)
     for class in &program.classes {
-        if let Some(ctor_params) = class.members.iter().find_map(|m| {
-            if let ClassMember::Constructor { params, .. } = m { Some(params) } else { None }
-        }) {
+        if let Some((ctor_params, _, _)) = super::classes::nearest_constructor(&program.classes, class) {
             let param_types: Vec<IrType> = ctor_params.iter()
                 .map(|p| IrType::from_ast(&p.ty))
                 .collect();

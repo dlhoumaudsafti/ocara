@@ -364,7 +364,7 @@ fn resolve_expr(expr: &mut Expr, first_wiring: &impl Fn(&str) -> Option<String>)
         }
         Expr::Nameless { body, .. } => resolve_block(body, first_wiring),
         Expr::Resolve { expr, .. } | Expr::IsCheck { expr, .. } => resolve_expr(expr, first_wiring),
-        Expr::IncDec { target, .. } => resolve_expr(target, first_wiring),
+        Expr::IncDec { target, .. } | Expr::NamedArg { value: target, .. } => resolve_expr(target, first_wiring),
     }
 }
 

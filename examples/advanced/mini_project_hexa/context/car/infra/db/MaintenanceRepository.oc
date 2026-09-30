@@ -26,7 +26,7 @@ class Maintenance {
         return use MaintenanceEntity(id, carId, type, description, cost, createdAt)
     }
 
-    public static method forCar(carId:int): array<MaintenanceEntity> {
+    public static async method forCar(carId:int): array<MaintenanceEntity> {
         const db:SQLite = Database::connect()
         const rows:array<map<string, mixed>> = db.query(
             "SELECT * FROM maintenances WHERE car_id = :carId ORDER BY created_at DESC",
@@ -59,7 +59,7 @@ class Maintenance {
 
     // Somme des entretiens d'amélioration d'une voiture — base du recalcul
     // du prix de vente estimé (context.car.app.usecase.PricingService).
-    public static method improvementTotal(carId:int): float {
+    public static async method improvementTotal(carId:int): float {
         const db:SQLite = Database::connect()
         const row:map<string, mixed> = db.queryOne(
             "SELECT COALESCE(SUM(cost), 0) as total FROM maintenances WHERE car_id = :carId AND type = 'improvement'",
@@ -72,7 +72,7 @@ class Maintenance {
 
     // Somme des entretiens de maintenance (hors amélioration) — coût suivi
     // à titre informatif, sans impact sur le prix de vente estimé.
-    public static method maintenanceTotal(carId:int): float {
+    public static async method maintenanceTotal(carId:int): float {
         const db:SQLite = Database::connect()
         const row:map<string, mixed> = db.queryOne(
             "SELECT COALESCE(SUM(cost), 0) as total FROM maintenances WHERE car_id = :carId AND type = 'maintenance'",

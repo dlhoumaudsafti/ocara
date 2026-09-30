@@ -146,6 +146,16 @@ pub enum Expr {
         target: Box<Expr>,
         span:   Span,
     },
+
+    /// Argument nommé à l'appel : `name: expr` — n'apparaît QUE comme élément
+    /// direct de `args` d'un `Call`/`StaticCall`/`New`. Résolu en positionnel
+    /// par la sema (`sema::named_args`), puis réécrit dans l'AST avant le
+    /// lowering (`core::named_args`) : le lowering n'en voit jamais.
+    NamedArg {
+        name:  String,
+        value: Box<Expr>,
+        span:  Span,
+    },
 }
 
 impl Expr {
@@ -173,6 +183,7 @@ impl Expr {
             Expr::Resolve { span, .. } => span,
             Expr::IsCheck { span, .. } => span,
             Expr::IncDec { span, .. } => span,
+            Expr::NamedArg { span, .. } => span,
         }
     }
 }

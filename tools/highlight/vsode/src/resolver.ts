@@ -40,16 +40,16 @@ export function esc(s: string): string {
 }
 
 /**
- * Extrait le namespace déclaré dans le document.
- * Retourne null pour namespace root (namespace .) ou pas de namespace,
- * retourne le nom du namespace sinon (ex: "classes").
+ * Extrait le namespace déclaré dans le document : null pour `namespace .`
+ * ou en l'absence de déclaration, sinon le chemin pointé complet (ex:
+ * "classes", "context.search.app.usecase").
  */
 export function parseNamespace(document: vscode.TextDocument): string | null {
     for (let i = 0; i < Math.min(5, document.lineCount); i++) {
         const text = document.lineAt(i).text.trim();
         if (!text || text.startsWith('//')) { continue; }
         if (/^namespace\s+\.\s*$/.test(text)) { return null; }
-        const m = text.match(/^namespace\s+([\w]+)\s*$/);
+        const m = text.match(/^namespace\s+([\w.]+)\s*$/);
         if (m) { return m[1]; }
         break;
     }
@@ -82,8 +82,25 @@ export function parseFileImports(document: vscode.TextDocument): FileImportEntry
 }
 
 /**
+ * Racine du projet déduite du namespace : le dossier du document privé des
+ * segments de son namespace (`context/search/app/usecase` pour
+ * `namespace context.search.app.usecase`), quand ils correspondent.
+ */
+function namespaceRoot(docDir: string, namespace: string | null): string | undefined {
+    if (!namespace) { return undefined; }
+    const segments = namespace.split('.');
+    const dirSegments = docDir.split(path.sep);
+    const tail = dirSegments.slice(-segments.length);
+    if (tail.length !== segments.length || tail.some((seg, i) => seg !== segments[i])) { return undefined; }
+    return dirSegments.slice(0, -segments.length).join(path.sep) || path.sep;
+}
+
+/**
  * Convertit un chemin d'import ("foo.bar.Baz") vers le fichier .oc correspondant.
  * Les imports `ocara.*` sont des builtins sans fichier navigable (undefined).
+ * Ordre : même dossier (import à un segment dans un namespace), racine
+ * déduite du namespace, puis chaque dossier parent jusqu'à la racine du
+ * workspace.
  */
 export function resolveImportPath(
     document: vscode.TextDocument,
@@ -94,42 +111,24 @@ export function resolveImportPath(
     const segments = importPath.split('.');
     const currentNamespace = parseNamespace(document);
     const docDir = path.dirname(document.uri.fsPath);
-
-    if (segments.length === 1 && currentNamespace) {
-        const namespacedPath = path.join(docDir, segments[0] + '.oc');
-        if (fs.existsSync(namespacedPath)) {
-            return new vscode.Location(vscode.Uri.file(namespacedPath), new vscode.Position(0, 0));
-        }
-    }
-
-    let searchRoot: string;
-    if (currentNamespace) {
-        const dirName = path.basename(docDir);
-        searchRoot = dirName === currentNamespace ? path.dirname(docDir) : docDir;
-    } else {
-        searchRoot = docDir;
-    }
-
     const relFile = path.join(...segments) + '.oc';
 
-    let candidate = path.join(searchRoot, relFile);
-    if (fs.existsSync(candidate)) {
-        return new vscode.Location(vscode.Uri.file(candidate), new vscode.Position(0, 0));
+    const roots: string[] = [];
+    if (segments.length === 1 && currentNamespace) { roots.push(docDir); }
+    const nsRoot = namespaceRoot(docDir, currentNamespace);
+    if (nsRoot) { roots.push(nsRoot); }
+    const wsRoot = vscode.workspace.getWorkspaceFolder(document.uri)?.uri.fsPath;
+    for (let dir = docDir; ; dir = path.dirname(dir)) {
+        roots.push(dir);
+        if (dir === wsRoot || path.dirname(dir) === dir) { break; }
     }
 
-    const ws = vscode.workspace.getWorkspaceFolder(document.uri);
-    if (ws) {
-        candidate = path.join(ws.uri.fsPath, relFile);
+    for (const root of roots) {
+        const candidate = path.join(root, relFile);
         if (fs.existsSync(candidate)) {
             return new vscode.Location(vscode.Uri.file(candidate), new vscode.Position(0, 0));
         }
     }
-
-    candidate = path.join(docDir, relFile);
-    if (fs.existsSync(candidate)) {
-        return new vscode.Location(vscode.Uri.file(candidate), new vscode.Position(0, 0));
-    }
-
     return undefined;
 }
 
@@ -235,6 +234,8 @@ export interface ClassMember {
 
 interface ClassBody {
     text: string;
+    /** Position du début de `text` dans le texte du fichier. */
+    start: number;
     /** Nom de la classe parente (`extends X`), si présente. */
     extendsName?: string;
 }
@@ -266,6 +267,7 @@ function findClassBody(fileText: string, className: string): ClassBody | undefin
     }
     return {
         text: fileText.slice(start, depth === 0 ? i - 1 : i),
+        start,
         extendsName: extendsMatch ? extendsMatch[1] : undefined,
     };
 }
@@ -421,4 +423,119 @@ export function collectKnownClassNames(document: vscode.TextDocument): string[] 
     let m: RegExpExecArray | null;
     while ((m = localRe.exec(text)) !== null) { names.add(m[1]); }
     return Array.from(names);
+}
+
+// ─── Signatures (arguments nommés : complétion, signature help, définition) ──
+
+export interface CallableSignature {
+    /** Libellé affiché, ex: "UserDto::init" ou "box". */
+    owner: string;
+    /** Liste de paramètres brute, ex: "id:int, name:string = 'x'". */
+    params: string;
+    returnType: string;
+    uri: vscode.Uri;
+    /** Position (dans le fichier) du premier caractère de `params`. */
+    paramsOffset: number;
+    /** Texte complet du fichier, pour convertir une position en ligne/colonne. */
+    fileText: string;
+}
+
+/** Convertit une position absolue d'un texte en `vscode.Position`. */
+export function offsetToPosition(text: string, offset: number): vscode.Position {
+    let line = 0;
+    let lineStart = 0;
+    for (let i = 0; i < offset; i++) {
+        if (text[i] === '\n') { line++; lineStart = i + 1; }
+    }
+    return new vscode.Position(line, offset - lineStart);
+}
+
+function readFile(uri: vscode.Uri): string | undefined {
+    try {
+        return fs.readFileSync(uri.fsPath, 'utf8');
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * Signature de `className::methodName` (`init` = constructeur), en remontant
+ * la chaîne `extends` comme le compilateur (garde-fou anti-cycle à 5 niveaux).
+ */
+export async function findMethodSignature(
+    document: vscode.TextDocument,
+    className: string,
+    methodName: string,
+    depth: number = 0
+): Promise<CallableSignature | undefined> {
+    if (depth > 5) { return undefined; }
+    const uri = await resolveClassUri(document, className);
+    if (!uri) { return undefined; }
+    const fileText = uri.fsPath === document.uri.fsPath ? document.getText() : readFile(uri);
+    if (fileText === undefined) { return undefined; }
+    const body = findClassBody(fileText, className);
+    if (!body) { return undefined; }
+
+    const sigRe = methodName === 'init'
+        ? /\binit\s*\(([^)]*)\)/
+        : new RegExp(`\\bmethod\\s+${esc(methodName)}\\s*\\(([^)]*)\\)\\s*(?::\\s*([^{]+))?\\{`);
+    const m = sigRe.exec(stripNestedBodies(body.text));
+    if (m) {
+        return {
+            owner: `${className}::${methodName}`,
+            params: m[1],
+            returnType: (m[2] || '').trim(),
+            uri,
+            paramsOffset: body.start + m.index + m[0].indexOf('(') + 1,
+            fileText,
+        };
+    }
+    if (!body.extendsName || body.extendsName === className) { return undefined; }
+    const parentDoc = uri.fsPath === document.uri.fsPath ? document : await vscode.workspace.openTextDocument(uri);
+    return findMethodSignature(parentDoc, body.extendsName, methodName, depth + 1);
+}
+
+/**
+ * Remplace le contenu des corps de méthodes par des espaces (longueur
+ * conservée, pour que les positions restent valides) — une signature
+ * `init(...)`/`method x(...)` n'est cherchée qu'au niveau de la classe.
+ */
+function stripNestedBodies(bodyText: string): string {
+    let result = '';
+    let depth = 0;
+    for (const ch of bodyText) {
+        if (ch === '}') { depth--; }
+        result += depth > 0 && ch !== '\n' ? ' ' : ch;
+        if (ch === '{') { depth++; }
+    }
+    return result;
+}
+
+/** Signature d'une fonction libre : document courant, puis fichiers importés via `from`. */
+export async function findFunctionSignature(
+    document: vscode.TextDocument,
+    name: string
+): Promise<CallableSignature | undefined> {
+    const sigRe = new RegExp(`\\bfunction\\s+${esc(name)}\\s*\\(([^)]*)\\)\\s*(?::\\s*([^{]+))?\\{`);
+    const candidates: { uri: vscode.Uri; text: string }[] = [{ uri: document.uri, text: document.getText() }];
+    for (const imp of parseFileImports(document)) {
+        if (imp.symbol !== name && imp.symbol !== '*') { continue; }
+        const uri = await resolveFileImportUri(document, imp.filePath);
+        const text = uri ? readFile(uri) : undefined;
+        if (uri && text !== undefined) { candidates.push({ uri, text }); }
+    }
+    for (const { uri, text } of candidates) {
+        const m = sigRe.exec(text);
+        if (m) {
+            return {
+                owner: name,
+                params: m[1],
+                returnType: (m[2] || '').trim(),
+                uri,
+                paramsOffset: m.index + m[0].indexOf('(') + 1,
+                fileText: text,
+            };
+        }
+    }
+    return undefined;
 }

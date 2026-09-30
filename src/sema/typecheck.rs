@@ -35,6 +35,12 @@ pub struct TypeChecker<'a> {
     /// ressource native — calculé une fois dans `check_program`, voir
     /// `crate::sema::scope::compute_resource_classes`/`ownership_class_of`.
     resource_classes: std::collections::HashSet<String>,
+    /// Paramètres déclarés de chaque callable utilisateur — calculé une fois
+    /// dans `check_program`, voir `crate::sema::named_args`.
+    pub(crate) callable_params: crate::sema::named_args::CallableParams<'a>,
+    /// Liste positionnelle résolue de chaque appel à arguments nommés, à
+    /// réinjecter dans l'AST avant le lowering (`core::named_args`).
+    pub named_arg_rewrites: std::collections::HashMap<crate::sema::named_args::ArgSiteKey, Vec<Expr>>,
 }
 
 impl<'a> TypeChecker<'a> {
@@ -52,6 +58,8 @@ impl<'a> TypeChecker<'a> {
             escaping_params: std::collections::HashMap::new(),
             class_members: std::collections::HashMap::new(),
             resource_classes: std::collections::HashSet::new(),
+            callable_params: std::collections::HashMap::new(),
+            named_arg_rewrites: std::collections::HashMap::new(),
         }
     }
     
@@ -76,6 +84,7 @@ impl<'a> TypeChecker<'a> {
         self.escaping_params = crate::sema::escape::compute_escaping_params(program);
         self.class_members = crate::sema::escape::collect_class_members(&program.classes);
         self.resource_classes = crate::sema::scope::compute_resource_classes(&program.classes);
+        self.callable_params = crate::sema::named_args::collect_callable_params(program);
 
         // W04 : ressource scoped/consumed encore ouverte au moment d'un
         // raise non rattrapé localement — voir crate::sema::resource_raise.
@@ -1143,6 +1152,10 @@ impl<'a> TypeChecker<'a> {
                 // Résolution : Ident direct → fonction libre
                 if let Expr::Ident(name, _) = callee.as_ref() {
                     if let Some(sig) = self.symbols.lookup_function(name) {
+                        let Some(resolved) = self.resolve_named_call(args, |tc| Some(tc.function_target(name, sig))) else {
+                            return Type::Mixed;
+                        };
+                        let args: &[Expr] = &resolved;
                         // Vérification du nombre d'arguments avec support variadic et paramètres optionnels
                         let args_ok = if sig.has_variadic {
                             // Si variadic : accepte required_params_count ou plus
@@ -1194,6 +1207,12 @@ impl<'a> TypeChecker<'a> {
                     if let Type::Generic { name: generic_name, args: type_args } = &obj_ty {
                         if let Some(ginfo) = self.symbols.lookup_generic(generic_name) {
                             if let Some(sig) = ginfo.methods.get(field) {
+                                let Some(resolved) = self.resolve_named_call(args, |tc| {
+                                    Some(tc.method_target(generic_name, field, sig, false))
+                                }) else {
+                                    return Type::Mixed;
+                                };
+                                let args: &[Expr] = &resolved;
                                 let expected_min = sig.required_params_count;
                                 let expected_max = sig.params.len();
                                 let args_ok = if sig.has_variadic {
@@ -1397,6 +1416,12 @@ impl<'a> TypeChecker<'a> {
                             // SAUF pour ces classes : les méthodes sont statiques mais utilisables
                             // comme méthodes d'instance sur les variables (ex: a.trim(), arr.len(), m.size(), data.encode(), req.close(), res.status()).
                             let allows_instance_sugar = matches!(cls_name.as_str(), "String" | "Array" | "Map" | "JSON" | "HTTPRequest" | "HTTPResponse" | "HTTPServerRequest");
+                            let Some(resolved) = self.resolve_named_call(args, |tc| {
+                                Some(tc.method_target(&method_owner, field, sig, allows_instance_sugar && sig.is_static))
+                            }) else {
+                                return Type::Mixed;
+                            };
+                            let args: &[Expr] = &resolved;
                             if sig.is_static && !allows_instance_sugar {
                                 self.errors.push(SemaError::StaticOnInstance {
                                     class:  cls_name.clone(),
@@ -1602,6 +1627,12 @@ impl<'a> TypeChecker<'a> {
 
                 // Chercher la méthode dans la chaîne d'héritage
                 if let Some(sig) = self.symbols.lookup_method_in_chain(&resolved_class, method) {
+                    let Some(resolved) = self.resolve_named_call(args, |tc| {
+                        Some(tc.method_target(&resolved_class, method, sig, false))
+                    }) else {
+                        return Type::Mixed;
+                    };
+                    let args: &[Expr] = &resolved;
                     // Une méthode non-static ne peut pas être appelée via ::
                     if !sig.is_static {
                         self.errors.push(SemaError::NotStaticMethod {
@@ -1780,6 +1811,18 @@ impl<'a> TypeChecker<'a> {
                     }
                 }
 
+                let is_opaque = self.symbols.lookup_class(class).is_some_and(|info| info.is_opaque);
+                let Some(resolved) = self.resolve_named_call(args, |tc| {
+                    if is_opaque || (!is_class && !is_generic) {
+                        return None;
+                    }
+                    Some(tc.user_method_target(class, "init").unwrap_or_else(|| {
+                        crate::sema::named_args::CallTarget { callee: format!("{}::init", class), slots: Vec::new(), variadic: None }
+                    }))
+                }) else {
+                    return Type::Mixed;
+                };
+                let args: &[Expr] = &resolved;
                 let resolved_key = crate::sema::escape::resolve_user_callable(&self.class_members, class, "init");
                 self.check_argument_escape(args, resolved_key.as_deref(), false);
                 for arg in args { self.infer_expr(arg); }
@@ -1967,6 +2010,14 @@ impl<'a> TypeChecker<'a> {
             // repli silencieux sur `Type::Int` : `resolve` sur autre chose
             // qu'un `Resolvable<T>` est désormais une vraie erreur de type
             // (E43). Voir docs/roadmap.d/langage-async-non-int-return-type-check.md.
+            Expr::NamedArg { name, value, span } => {
+                self.errors.push(SemaError::NamedArgUnresolved {
+                    name: name.clone(),
+                    span: self.with_runtime_ctx(span),
+                });
+                self.infer_expr(value)
+            }
+
             Expr::Resolve { expr, span } => {
                 let inner_ty = self.infer_expr(expr);
                 match inner_ty {

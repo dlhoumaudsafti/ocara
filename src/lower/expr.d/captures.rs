@@ -127,7 +127,7 @@ fn walk_expr_caps(expr: &Expr, p: &HashSet<String>, l: &HashMap<String, (Value, 
         Expr::Match  { subject, arms, ..} => { walk_expr_caps(subject, p, l, caps, seen, count_direct_refs); for arm in arms { walk_expr_caps(&arm.body, p, l, caps, seen, count_direct_refs); } }
         Expr::IsCheck { expr, .. }       => walk_expr_caps(expr, p, l, caps, seen, count_direct_refs),
         Expr::Resolve { expr, .. }        => walk_expr_caps(expr, p, l, caps, seen, count_direct_refs),
-        Expr::IncDec { target, .. }      => walk_expr_caps(target, p, l, caps, seen, count_direct_refs),
+        Expr::IncDec { target, .. } | Expr::NamedArg { value: target, .. }      => walk_expr_caps(target, p, l, caps, seen, count_direct_refs),
         // Ne pas descendre dans le CORPS d'une nameless imbriquée pour lui
         // faire porter directement ses propres références (elle a ses
         // propres captures, résolues indépendamment lors de son propre
