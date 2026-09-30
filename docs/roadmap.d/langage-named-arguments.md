@@ -79,6 +79,46 @@ défaut qu'on voudrait justement laisser à leur valeur par défaut.
   suggestion du nom le plus proche si un mécanisme de ce type existe déjà
   ailleurs dans les diagnostics (sinon simple liste des noms valides).
 
+## Prise en charge dans l'extension VS Code (`tools/highlight/vsode/`)
+
+Fait partie du ticket (pas une suite optionnelle) — sans ça, la
+fonctionnalité est utilisable mais pénible à écrire (il faut connaître les
+noms de paramètres par cœur). État actuel vérifié : l'extension n'enregistre
+qu'un `DefinitionProvider` et un `CompletionItemProvider` (déclencheurs `.`
+et `:`, `src/extension.ts`), aucun `SignatureHelpProvider` ni
+`InlayHintsProvider`. Les noms de paramètres sont déjà extraits (builtins via
+`BuiltinParam` dans `data/`, méthodes utilisateur via `m.params` dans
+`src/resolver.ts`), mais uniquement affichés dans le `detail` d'un item de
+complétion — jamais proposés à l'intérieur des parenthèses d'un appel.
+
+À ajouter :
+
+- **Coloration** (`syntaxes/ocara.tmLanguage.json`) — reconnaître
+  `Identifier ":"` à l'intérieur d'une liste d'arguments d'appel comme nom de
+  paramètre (scope du type `variable.parameter.named-argument.ocara`), sans
+  le confondre avec `::` (appel statique) ni avec l'annotation de type
+  `nom:Type` d'une déclaration (`var`, `Param`).
+- **Complétion des noms de paramètres** — à l'intérieur de `f(`, `obj.m(`,
+  `Classe::m(`, `use Classe(` : proposer `nom: ` pour chaque paramètre de la
+  cible résolue (fonction libre, méthode, `init()` pour `use`), en excluant
+  ceux déjà fournis dans l'appel (par nom ou par position), variadic exclu si
+  la règle « variadic = positionnel uniquement » est retenue. Attention au
+  déclencheur `:` déjà enregistré (pensé pour `::`) : ne pas proposer de
+  complétion de membre statique après un `:` simple de nom d'argument.
+- **Signature help** (nouveau `SignatureHelpProvider`, déclencheurs `(` et
+  `,`) — afficher la signature complète avec le paramètre actif surligné,
+  déterminé par **nom** quand l'argument courant est nommé, par position
+  sinon ; indiquer les valeurs par défaut (`= expr`) pour montrer ce qui peut
+  être omis.
+- **Go-to-definition sur le nom d'argument** — `name:` dans
+  `use UserDto(name: 'David')` → saut vers le paramètre `name` de `init()`
+  (le `DefinitionProvider` existant résout déjà la cible de l'appel).
+- **Appel via `Function<T(...)>`** — aucune complétion de nom (limite du
+  langage, cf. plus haut) : ne rien proposer plutôt que des noms inventés.
+- Procédure habituelle (`docs/roadmap.md` § Méthode de travail) : lire le
+  README de l'extension, désinstaller, recompiler sans changer la version,
+  réinstaller.
+
 ## Remarque annexe (hors périmètre de CE ticket)
 
 La syntaxe de champ `id:int|null`, `name:string = 'John'` (sans
@@ -107,4 +147,6 @@ et à faire cohabiter proprement avec les valeurs par défaut déjà en place.
 `src/parsing/parser.d/expressions.rs` (parsing des appels),
 `src/parsing/ast.d/expressions.rs` (représentation d'un argument, nommé ou
 non), `src/sema/typecheck.rs` (résolution appel → paramètres par nom au lieu
-de la position pure).
+de la position pure), `tools/highlight/vsode/syntaxes/ocara.tmLanguage.json`,
+`tools/highlight/vsode/src/completion.ts`, `tools/highlight/vsode/src/extension.ts`,
+`tools/highlight/vsode/src/resolver.ts` (outillage VS Code).
