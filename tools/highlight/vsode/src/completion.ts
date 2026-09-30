@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
+import { BuiltinConst, BuiltinMethod, builtinClasses, getBuiltinClass } from './builtins';
 import {
     findVariableType,
     findEnclosingClassName,
@@ -8,6 +7,7 @@ import {
     collectKnownClassNames,
     ClassMember,
 } from './resolver';
+import { findCallSite, resolveCall, remainingNamedParams, paramLabel } from './callsite';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Autocomplétion : méthodes/constantes des classes builtin `ocara.*` (données
@@ -15,34 +15,12 @@ import {
 // classes utilisateur (résolues via les imports du document, resolver.ts).
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface BuiltinParam { name: string; type: string; }
-interface BuiltinMethod { name: string; params: BuiltinParam[]; returns: string; static: boolean; }
-interface BuiltinConst { name: string; type: string; }
-interface BuiltinClass { name: string; methods: BuiltinMethod[]; consts: BuiltinConst[]; }
-
 /** Propriétés communes à toutes les exceptions builtin (voir src/builtins/exception.rs). */
 const EXCEPTION_PROPERTIES: { name: string; type: string }[] = [
     { name: 'message', type: 'string' },
     { name: 'code', type: 'int' },
     { name: 'source', type: 'string' },
 ];
-
-let builtins: BuiltinClass[] = [];
-let builtinsByName: Map<string, BuiltinClass> = new Map();
-
-/** Charge le catalogue des builtins (appelé une fois à l'activation). */
-export function loadBuiltins(extensionPath: string): void {
-    try {
-        const dataPath = path.join(extensionPath, 'data', 'builtins-data.json');
-        const raw = fs.readFileSync(dataPath, 'utf8');
-        builtins = JSON.parse(raw) as BuiltinClass[];
-        builtinsByName = new Map(builtins.map(c => [c.name, c]));
-    } catch (err) {
-        console.error('Ocara: impossible de charger data/builtins-data.json', err);
-        builtins = [];
-        builtinsByName = new Map();
-    }
-}
 
 export class OcaraCompletionProvider implements vscode.CompletionItemProvider {
 
@@ -84,13 +62,43 @@ export class OcaraCompletionProvider implements vscode.CompletionItemProvider {
             return this.completeClassNames(document);
         }
 
+        // ── f(nom: ...) — noms des paramètres de la cible de l'appel ────────
+        if (/(?:^|[(,])\s*\w*$/.test(linePrefix)) {
+            return this.completeArgumentNames(document, position);
+        }
+
         return undefined;
+    }
+
+    // ─── f(nom: valeur) ─────────────────────────────────────────────────────
+
+    /**
+     * Un appel est soit 100 % positionnel, soit 100 % nommé : rien à proposer
+     * dès qu'un argument précédent est positionnel. Variadic et noms déjà
+     * fournis exclus (voir docs/roadmap.d/langage-named-arguments.md).
+     */
+    private async completeArgumentNames(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.CompletionItem[] | undefined> {
+        const site = findCallSite(document, position);
+        if (!site || site.positionalCount > 0 || site.currentName !== undefined) { return undefined; }
+        const call = await resolveCall(document, position, site);
+        if (!call) { return undefined; }
+        return remainingNamedParams(call, site).map((p, i) => {
+            const item = new vscode.CompletionItem(`${p.name}:`, vscode.CompletionItemKind.Property);
+            item.insertText = `${p.name}: `;
+            item.filterText = p.name;
+            item.sortText = String(i).padStart(3, '0');
+            item.detail = paramLabel(p);
+            item.documentation = new vscode.MarkdownString(
+                `Argument nommé de \`${call.owner}\`${p.defaultValue !== undefined ? ' — optionnel' : ''}`
+            );
+            return item;
+        });
     }
 
     // ─── ClassName::membre ──────────────────────────────────────────────────
 
     private async completeStatic(document: vscode.TextDocument, className: string): Promise<vscode.CompletionItem[]> {
-        const builtin = builtinsByName.get(className);
+        const builtin = getBuiltinClass(className);
         if (builtin) {
             const items: vscode.CompletionItem[] = [];
             for (const c of builtin.consts) {
@@ -114,7 +122,7 @@ export class OcaraCompletionProvider implements vscode.CompletionItemProvider {
             return EXCEPTION_PROPERTIES.map(p => this.exceptionPropertyItem(className, p));
         }
 
-        const builtin = builtinsByName.get(className);
+        const builtin = getBuiltinClass(className);
         if (builtin) {
             return builtin.methods.filter(m => !m.static).map(m => this.builtinMethodItem(className, m, false));
         }
@@ -129,7 +137,7 @@ export class OcaraCompletionProvider implements vscode.CompletionItemProvider {
         const items: vscode.CompletionItem[] = [];
         const seen = new Set<string>();
 
-        for (const c of builtins) {
+        for (const c of builtinClasses()) {
             const hasInstanceApi = c.methods.some(m => !m.static);
             if (!hasInstanceApi) { continue; } // classes purement statiques : jamais `use X()`
             const item = new vscode.CompletionItem(c.name, vscode.CompletionItemKind.Class);
@@ -143,7 +151,7 @@ export class OcaraCompletionProvider implements vscode.CompletionItemProvider {
             if (seen.has(name)) { continue; }
             // Builtin purement statique (ex: IO, Math, Array) importé par son nom
             // (`import ocara.IO`) : jamais instanciable via `use`, on l'exclut.
-            const builtin = builtinsByName.get(name);
+            const builtin = getBuiltinClass(name);
             if (builtin && !builtin.methods.some(m => !m.static)) { continue; }
             seen.add(name);
             const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Class);

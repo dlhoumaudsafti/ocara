@@ -163,6 +163,13 @@ pub enum SemaError {
     /// implicite `Resolvable<Resolvable<T>>` (voir
     /// docs/roadmap.d/langage-async-non-int-return-type-check.md).
     AsyncReturnsResolvable { name: String, span: Span },
+    /// Arguments nommés — voir `crate::sema::named_args` (E45 à E50).
+    NamedArgMixed      { callee: String, span: Span },
+    NamedArgUnknown    { callee: String, name: String, valid: Vec<String>, span: Span },
+    NamedArgDuplicate  { callee: String, name: String, span: Span },
+    NamedArgVariadic   { callee: String, name: String, span: Span },
+    NamedArgMissing    { callee: String, name: String, span: Span },
+    NamedArgUnresolved { name: String, span: Span },
 }
 
 impl SemaError {
@@ -209,6 +216,12 @@ impl SemaError {
             SemaError::InterfaceNoWiring   { span, .. } => span,
             SemaError::ResolveOnNonResolvable { span, .. } => span,
             SemaError::AsyncReturnsResolvable { span, .. } => span,
+            SemaError::NamedArgMixed      { span, .. } => span,
+            SemaError::NamedArgUnknown    { span, .. } => span,
+            SemaError::NamedArgDuplicate  { span, .. } => span,
+            SemaError::NamedArgVariadic   { span, .. } => span,
+            SemaError::NamedArgMissing    { span, .. } => span,
+            SemaError::NamedArgUnresolved { span, .. } => span,
         }
     }
 
@@ -300,6 +313,22 @@ impl SemaError {
                 format!("'resolve' expects a 'Resolvable<T>' expression (the result of calling an 'async' function/method), found '{}'", found),
             SemaError::AsyncReturnsResolvable { name, .. } =>
                 format!("'{}' is 'async' and declares 'Resolvable<T>' as its own return type — an 'async' function/method already wraps its declared return type in 'Resolvable<T>' automatically at the call site; declare the real return type here instead (e.g. 'string', not 'Resolvable<string>')", name),
+            SemaError::NamedArgMixed { callee, .. } =>
+                format!("call to '{}' mixes positional and named arguments — a call is either fully positional or fully named", callee),
+            SemaError::NamedArgUnknown { callee, name, valid, .. } =>
+                if valid.is_empty() {
+                    format!("'{}' has no parameter named '{}' — it takes no nameable parameter", callee, name)
+                } else {
+                    format!("'{}' has no parameter named '{}' — valid names: {}", callee, name, valid.join(", "))
+                },
+            SemaError::NamedArgDuplicate { callee, name, .. } =>
+                format!("argument '{}' is provided twice in this call to '{}'", name, callee),
+            SemaError::NamedArgVariadic { callee, name, .. } =>
+                format!("parameter '{}' of '{}' is variadic and can only be passed positionally", name, callee),
+            SemaError::NamedArgMissing { callee, name, .. } =>
+                format!("missing argument '{}' in this named call to '{}' — it has no default value", name, callee),
+            SemaError::NamedArgUnresolved { name, .. } =>
+                format!("named argument '{}' cannot be used here: the parameter names of the called target are not statically known (e.g. a call through a 'Function<...>' value) — pass the arguments positionally", name),
         }
     }
 }

@@ -5,3 +5,4 @@ mod boxing;
 mod sqlite;
 mod mysql;
 mod httpserver;
+mod string;

@@ -1195,7 +1195,8 @@ pub extern "C" fn String_replace(s: i64, from: i64, to: i64) -> i64 {
     let src    = unsafe { ptr_to_str(s) };
     let from_s = if is_ptr(from) { unsafe { ptr_to_str(from) } } else { "" };
     let to_s   = if is_ptr(to)   { unsafe { ptr_to_str(to) } }   else { "" };
-    let r = src.replacen(from_s, to_s, 1);
+    // `from` vide : chaîne inchangée (sinon `to` serait inséré entre chaque caractère).
+    let r = if from_s.is_empty() { src.to_string() } else { src.replace(from_s, to_s) };
     unsafe { alloc_str(&r) }
 }
 

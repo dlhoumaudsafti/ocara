@@ -400,7 +400,7 @@ fn walk_expr_for_calls(
         }
         Expr::IsCheck { expr, .. } => walk_expr_for_calls(class_members, expr, self_class, known, taint, escaped, strict),
         Expr::Resolve { expr, .. } => walk_expr_for_calls(class_members, expr, self_class, known, taint, escaped, strict),
-        Expr::IncDec { target, .. } => walk_expr_for_calls(class_members, target, self_class, known, taint, escaped, strict),
+        Expr::IncDec { target, .. } | Expr::NamedArg { value: target, .. } => walk_expr_for_calls(class_members, target, self_class, known, taint, escaped, strict),
         Expr::Nameless { body, .. } => {
             // Une closure peut survivre à l'appel courant (Thread::spawn la
             // stocke pour exécution différée) — toute variable suivie
@@ -529,7 +529,7 @@ fn collect_ident_refs_expr(expr: &Expr, out: &mut HashSet<String>) {
         }
         Expr::IsCheck { expr, .. } => collect_ident_refs_expr(expr, out),
         Expr::Resolve { expr, .. } => collect_ident_refs_expr(expr, out),
-        Expr::IncDec { target, .. } => collect_ident_refs_expr(target, out),
+        Expr::IncDec { target, .. } | Expr::NamedArg { value: target, .. } => collect_ident_refs_expr(target, out),
         // Nameless imbriquée : ne descend pas — ses propres captures sont
         // son affaire, pas celle du corps englobant.
         Expr::Nameless { .. } => {}

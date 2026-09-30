@@ -1143,6 +1143,8 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 .get(class.as_str())
                 .cloned()
                 .unwrap_or_default();
+            let init_func = format!("{}_init", class);
+            let args = complete_args_with_defaults(builder, &init_func, args);
             let mut ctor_args = vec![dest.clone()];
             for (i, a) in args.iter().enumerate() {
                 let arg_ty   = expr_ir_type(builder, a);
@@ -1153,7 +1155,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // Appel du constructeur
             builder.emit(Inst::Call {
                 dest:   None,
-                func:   format!("{}_init", class),
+                func:   init_func,
                 args:   ctor_args,
                 ret_ty: IrType::Void,
             });
@@ -1373,6 +1375,13 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
         // Voir docs/roadmap.d/langage-increment-decrement.md.
         Expr::IncDec { op, target, .. } => {
             crate::lower::stmt::statements::lower_incdec(builder, op, target)
+        }
+
+        // Invariant : `core::named_args::rewrite_named_args` a déjà remplacé
+        // tout argument nommé par sa forme positionnelle (ou arrêté la
+        // compilation) avant le lowering.
+        Expr::NamedArg { name, .. } => {
+            unreachable!("named argument '{}' reached lowering without being resolved", name)
         }
 
         // ── Tableau littéral ─────────────────────────────────────────────────

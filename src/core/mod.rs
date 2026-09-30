@@ -4,5 +4,6 @@ pub mod cli;
 mod tests;
 pub mod interface_wiring;
 pub mod monomorph;
+pub mod named_args;
 pub mod render_file;
 pub mod runtime_expand;

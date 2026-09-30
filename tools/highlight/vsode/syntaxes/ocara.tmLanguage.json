@@ -12,6 +12,7 @@
     { "include": "#string-template" },
     { "include": "#string-double" },
     { "include": "#string-single" },
+    { "include": "#named-argument" },
     { "include": "#generic-declaration" },
     { "include": "#class-declaration" },
     { "include": "#interface-module-enum-declaration" },
@@ -217,6 +218,15 @@
     "string-escape": {
       "name": "constant.character.escape.ocara",
       "match": "\\\\[ntr\"'\\\\0]"
+    },
+
+    "named-argument": {
+      "comment": "f(name: expr) — argument nommé (docs/roadmap.d/langage-named-arguments.md). Après '(' / ',' ou en début de ligne (appel multi-lignes) ; exclu quand le ':' est suivi d'un type (paramètre déclaré 'nom:Type').",
+      "match": "(?:(?<=[(,])|^)\\s*([a-zA-Z_][\\w]*)\\s*(:)(?!:)(?!\\s*(?:int|float|string|bool|mixed|void|array|map|variadic|Function|Resolvable|message)\\b)(?!\\s*[A-Z][\\w]*\\s*(?:[,)=|<{]|$))",
+      "captures": {
+        "1": { "name": "variable.parameter.named-argument.ocara" },
+        "2": { "name": "punctuation.separator.named-argument.ocara" }
+      }
     },
 
     "generic-declaration": {

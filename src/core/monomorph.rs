@@ -182,7 +182,7 @@ fn substitute_expr(expr: &mut Expr, type_params: &[String], type_args: &[Type], 
         Expr::IsCheck { expr: e, .. } => {
             substitute_expr(e, type_params, type_args, mapping);
         }
-        Expr::IncDec { target, .. } => {
+        Expr::IncDec { target, .. } | Expr::NamedArg { value: target, .. } => {
             substitute_expr(target, type_params, type_args, mapping);
         }
     }
@@ -457,7 +457,7 @@ fn collect_from_expr(expr: &Expr, instantiations: &mut HashSet<(String, Vec<Type
         Expr::IsCheck { expr: e, .. } => {
             collect_from_expr(e, instantiations);
         }
-        Expr::IncDec { target, .. } => {
+        Expr::IncDec { target, .. } | Expr::NamedArg { value: target, .. } => {
             collect_from_expr(target, instantiations);
         }
         Expr::Literal(..) | Expr::Ident(..) | Expr::SelfExpr(..) | Expr::ParentExpr(..) | Expr::StaticConst { .. } => {}

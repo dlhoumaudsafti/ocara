@@ -12,12 +12,41 @@ Coloration syntaxique, autocomplétion et navigation (Go-to-Definition) pour le 
 - **Autocomplétion `self.` / `self::` / `parent.`** dans le corps d'une classe
 - **Autocomplétion `e.message` / `e.code` / `e.source`** dans un bloc `on e is XException`
 - **Autocomplétion des noms de classe après `use `** (builtins instanciables + classes utilisateur)
+- **Arguments nommés** (`use UserDto(id: 42, name: 'David')`) :
+  - coloration du nom d'argument (`nom:` dans un appel) ;
+  - autocomplétion des noms de paramètres dans les parenthèses d'un appel (fonction, méthode,
+    `Classe::méthode`, `use Classe(...)` → `init`, méthodes statiques builtin), sans les noms
+    déjà fournis ni le variadic, et jamais après un argument positionnel (un appel est soit
+    100 % positionnel, soit 100 % nommé) ;
+  - **signature help** (`(` / `,`) : signature complète, valeurs par défaut affichées,
+    paramètre actif déterminé par nom pour un argument nommé, par position sinon ;
+  - **Ctrl+Click** sur `nom:` → paramètre correspondant dans la déclaration.
+  - Limites : aucune aide pour un appel via une valeur `Function<...>` (les noms de paramètres
+    n'y existent pas) ni pour un receveur sans type déclaré ; une valeur ressemblant à un type
+    (`p: Point`, `c: CONST`) n'est pas colorée comme argument nommé (indiscernable de `nom:Type`).
 - **Ctrl+Click** sur un `import` → ouvre le fichier `.oc` correspondant
 - **Ctrl+Click** sur `import Circle from "11_interfaces"` → ouvre le fichier et positionne sur la classe `Circle`
 - **Ctrl+Click** sur `self.circle.area()` → navigue vers la méthode `area()` dans la classe importée
 - **Ctrl+Click** sur `ClassName::member` → ouvre le fichier de la classe et positionne le curseur sur la méthode
 - **Ctrl+Click** sur un nom de variable ou fonction → navigue vers la déclaration
 - **Scan automatique du workspace** pour résoudre les imports `from "file"` dans n'importe quel sous-dossier
+- **Namespaces à plusieurs segments** (`namespace context.search.app.usecase`) : un import
+  `context.search.domain.contract.SearchContract` est résolu depuis la racine du projet déduite
+  du namespace (puis depuis chaque dossier parent), et Ctrl+Click positionne sur la déclaration
+  de la classe elle-même
+- **CodeLens** au-dessus de chaque déclaration, calculés sur tout le workspace (index construit à
+  l'activation, mis à jour à chaque modification), cliquables pour lister les emplacements :
+
+  | Déclaration      | CodeLens |
+  |------------------|----------|
+  | classe / generic | implémentations (sous-classes, transitif) · overrides (méthodes redéfinies par ces sous-classes) |
+  | interface        | implémentations (classes qui l'implémentent, héritage compris) · overrides (méthodes de l'interface qu'elles définissent) |
+  | module           | implémentations (classes qui l'utilisent via `modules`) · overrides (méthodes du module qu'elles redéfinissent) |
+  | méthode          | d'interface : implémentations · de module : implémentations + overrides · de classe : overrides |
+  | fonction / enum  | références |
+
+  Résolution par nom, sans suivre les imports : deux classes homonymes de contextes différents
+  sont confondues.
 
 ---
 

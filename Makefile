@@ -5,7 +5,7 @@ RED     := \033[0;31m
 RESET   := \033[0m
 
 # Argument optionnel : make regression builtins/io ; make android-simulator <apk>
-_TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android android-simulator build-runtime-windows build-windows,$(MAKECMDGOALS))
+_TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests tests-runtime regression lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android android-simulator build-runtime-windows build-windows,$(MAKECMDGOALS))
 
 .PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests regression ci lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android android-simulator build-runtime-windows build-windows $(_TARGET)
 
@@ -20,6 +20,7 @@ help:
 	@echo "  build-all               Compile tout : ocara + outils (release)"
 	@echo "  build-all-dev           Compile tout en mode debug"
 	@echo "  test                    Lance les tests unitaires Cargo (cargo test)"
+	@echo "  tests-runtime           Lance les tests unitaires du runtime (ocara_runtime)"
 	@echo "  regression              Lance la régression complète (tous les exemples)"
 	@echo "  regression <chemin>     Lance uniquement examples/<chemin>.oc"
 	@echo "                            ex: make regression builtins/io"
@@ -290,6 +291,11 @@ android-simulator:
 # ── Tests unitaires Cargo ─────────────────────────────────────────────────────
 tests:
 	RUSTFLAGS="-D warnings" cargo test
+
+# `cargo test` à la racine ne couvre que le crate `ocara` : le runtime
+# (runtime/src/tests/) a ses propres tests, lancés séparément.
+tests-runtime: pkgconfig-shim
+	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo test -p ocara_runtime -j4
 
 # ── Régression ────────────────────────────────────────────────────────────────
 regression:

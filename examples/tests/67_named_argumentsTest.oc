@@ -1,0 +1,46 @@
+import ocara.UnitTest
+import ocara.String
+import UserDto from "67_named_arguments"
+import AdminDto from "67_named_arguments"
+
+// docs/roadmap.d/langage-named-arguments.md — chaque test vérifie la VALEUR
+// réellement obtenue (ordre de résolution par nom + valeurs par défaut
+// comblant les trous), pas seulement l'absence d'erreur de compilation.
+class Test_67_named_arguments {
+
+    public method positionalStillWorksTest(): int {
+        var u:UserDto = use UserDto(42, "David", "d@x.io")
+        UnitTest::assertEquals("[42:David:d@x.io:user]", u.describe())
+        return 0
+    }
+
+    public method namedInAnyOrderTest(): int {
+        var u:UserDto = use UserDto(email: "e@x.io", name: "Eve", id: 3)
+        UnitTest::assertEquals("[3:Eve:e@x.io:user]", u.describe())
+        return 0
+    }
+
+    public method middleDefaultSkippedTest(): int {
+        var u:UserDto = use UserDto(role: "admin", name: "Bob", id: 5)
+        UnitTest::assertEquals("(5:Bob:none:admin)", u.describe(suffix: ")", prefix: "("))
+        return 0
+    }
+
+    public method positionalInitDefaultsTest(): int {
+        var u:UserDto = use UserDto(7, "Zed")
+        UnitTest::assertEquals("[7:Zed:none:user]", u.describe())
+        return 0
+    }
+
+    public method staticAndInheritedTest(): int {
+        UnitTest::assertEquals("[0:Anon:none:guest]", UserDto::guest(name: "Anon").describe())
+        var admin:AdminDto = use AdminDto(name: "Root", id: 1, role: "admin")
+        UnitTest::assertEquals("{1:Root:none:admin]", admin.describe(prefix: "{"))
+        return 0
+    }
+
+    public method builtinNamedTest(): int {
+        UnitTest::assertEquals("a-b-c", String::replace(to: "-", s: "a_b_c", from: "_"))
+        return 0
+    }
+}

@@ -10,3 +10,4 @@ mod method_call_on_void;
 mod method_call_on_non_class;
 mod interface_wiring;
 mod interface_method_modifiers;
+mod named_args;

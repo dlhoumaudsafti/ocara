@@ -1346,7 +1346,10 @@ NewExpr      ::= "use" Identifier ( "<" TypeArgs ">" )? "(" ArgList? ")"
 
 NamelessExpr ::= "nameless" "(" ParamList? ")" ( ":" Type )? Block
 
-ArgList ::= Expression ( "," Expression )*
+ArgList        ::= PositionalArgs | NamedArgs
+PositionalArgs ::= Expression ( "," Expression )* ","?
+NamedArgs      ::= NamedArg ( "," NamedArg )* ","?
+NamedArg       ::= Identifier ":" Expression
 ```
 
 ### 10.1 Notes importantes
@@ -1354,6 +1357,7 @@ ArgList ::= Expression ( "," Expression )*
 - **Priorité du `..`** : l'opérateur de plage a une précédence inférieure à l'addition — `0..n+1` est `0 .. (n+1)`.
 - **Annotation de type postfix** : dans un contexte `match` ou `switch`, l'accès `expr.field:type` est syntaxiquement autorisé ; l'annotation de type est ignorée sémantiquement (hint visuel uniquement).
 - **L'appel de fonction** sans receveur est une `PostfixExpr` dont le `PrimaryExpr` est un `Identifier` suivi de `( ArgList? )`.
+- **Arguments nommés** (`f(name: expr)`) : un appel est soit entièrement positionnel, soit entièrement nommé — jamais un mélange (voir §14.6).
 - **Tableau vs map** : `[...]` est toujours un tableau, `{...}` est toujours un map.
 - **Incrémentation/décrémentation (`++`/`--`)** — voir docs/roadmap.d/langage-increment-decrement.md :
   - Sémantique complète façon C : `i++`/`i--` (suffixe) valent l'ANCIENNE valeur de la cible (elle change quand même) ; `++i`/`--i` (préfixe) valent la NOUVELLE. Ce sont de vraies EXPRESSIONS, utilisables partout où une expression est attendue (`x = i++`, `foo(i++)`, condition...), pas seulement comme instruction.
@@ -1624,6 +1628,8 @@ function config(opts:map<string, int> = {}): void { }
 **Restrictions :**
 
 - Un paramètre **variadic** ne peut pas avoir de valeur par défaut.
+- S'applique aussi aux paramètres du constructeur `init` : `use P(1)` pour `init(a:int, b:int = 9)`.
+- Les arguments nommés (§14.6) permettent d'omettre un paramètre optionnel qui n'est pas le dernier.
 - Les valeurs par défaut sont évaluées **à chaque appel** de la fonction.
 - Pour les types mutables (arrays, maps, objets), une nouvelle instance est créée à chaque appel.
 
@@ -1927,6 +1933,58 @@ var a:int = resolve compute(6)
 - Un appel à une fonction/méthode `async` — qu'elle soit une fonction libre, une méthode statique (`Classe::méthode()`) ou une méthode d'instance (`objet.méthode()`) — retourne uniformément `Resolvable<T>`, `T` étant le type déclaré ci-dessus. Les trois formes de résolution de cible (fonction libre, statique, instance, y compris via un dispatcher d'interface après `wiring`) appliquent la même règle, sans cas particulier.
 - `async` et `nameless` ne peuvent pas être combinés.
 - Une variable de type `Function<T(...)>` référençant une fonction/méthode `async` a pour type de retour `Resolvable<T>` (pas `T`) : l'appeler produit un handle, exactement comme un appel direct.
+
+---
+
+### 14.6 Arguments nommés
+
+Tout appel dont les noms de paramètres sont connus statiquement — fonction libre, méthode d'instance ou statique (`self::`/`parent::` compris), méthode héritée, constructeur via `use Classe(...)`, méthode d'un `generic`, méthode statique builtin — accepte des arguments **nommés**, dans n'importe quel ordre, résolus par nom de paramètre :
+
+```ocara
+class UserDto {
+    public property id:int
+    public property name:string
+    public property email:string
+    public property role:string
+
+    init(id:int, name:string, email:string = "none", role:string = "user") {
+        self.id = id
+        self.name = name
+        self.email = email
+        self.role = role
+    }
+}
+
+var a:UserDto = use UserDto(42, "David", "david@example.com")          // positionnel
+var b:UserDto = use UserDto(email: "eve@example.com", name: "Eve", id: 3) // nommé, ordre libre
+var c:UserDto = use UserDto(role: "admin", name: "Bob", id: 5)          // `email` (au milieu) omis
+
+String::replace(to: "-", s: "a_b", from: "_")                           // builtin
+```
+
+Grammaire : voir `ArgList`/`NamedArg` (§10 et §31).
+
+**Règles :**
+
+| Règle | Diagnostic |
+|-------|------------|
+| Un appel est soit **100 % positionnel**, soit **100 % nommé** — jamais un mélange | E45 |
+| Un nom doit désigner un paramètre de la cible (le message liste les noms valides) | E46 |
+| Un paramètre ne peut être fourni qu'**une seule fois** | E47 |
+| Un paramètre **variadic** reste positionnel uniquement (comme il ne peut pas avoir de valeur par défaut) | E48 |
+| Tout paramètre **sans valeur par défaut** doit être fourni | E49 |
+| La cible doit avoir des noms de paramètres connus statiquement | E50 |
+
+**Valeurs par défaut :** tout paramètre omis prend sa valeur par défaut, y compris au **milieu** de la liste — c'est ce que les arguments nommés apportent par rapport au positionnel, où atteindre un paramètre optionnel impose de fournir tous ceux qui le précèdent (voir §14.1).
+
+**Limites assumées :**
+
+- **Appel via une valeur `Function<T(...)>`** (§14.3) : ce type ne référence que les TYPES des paramètres, jamais leurs noms — un appel nommé y est rejeté (E50), il reste positionnel.
+- **Le nom d'un paramètre fait partie du contrat public** de la fonction/méthode/constructeur : le renommer casse tout site d'appel qui l'utilise par son nom (même conséquence qu'en PHP 8).
+- **Builtins** : les noms sont ceux documentés dans `docs/builtins/*.md` (ex. `String::replace(s, from, to)`). Un paramètre optionnel d'un builtin ne peut être omis qu'en fin de liste (aucune valeur par défaut à insérer à sa place).
+- **Corps d'un `generic`** : non parcouru par l'analyse sémantique — seuls les appels dont la cible ne dépend d'aucun type y sont résolus (fonction libre, `Classe::m(...)`, `self::m(...)`, `self.m(...)`, `use X(...)`) ; un appel nommé sur un autre receveur y est une erreur explicite.
+
+**Mise en œuvre :** l'analyse sémantique réordonne chaque appel nommé en liste positionnelle complète (valeurs par défaut insérées), puis cette liste remplace les arguments dans l'AST avant le lowering (`src/sema/named_args.rs`, `src/core/named_args.rs`) — le code généré est identique à celui d'un appel positionnel équivalent.
 
 ---
 
@@ -2465,6 +2523,20 @@ class Dog extends Animal {
 `parent::CONST` lit de la même façon une constante de classe déclarée sur le parent. `parent` seul (sans `::`), en position d'expression, est aussi valide (`parent.propriete`) — utile pour lire un champ du parent sans passer par une méthode.
 
 > `parent::`/`parent` ne sont valides qu'à l'intérieur d'une classe qui déclare `extends` (l'héritage étant simple — §18 ci-dessus — il n'y a jamais d'ambiguïté sur la classe visée).
+
+### 18.2 Constructeur hérité
+
+Une sous-classe qui ne déclare **aucun** `init` hérite de celui de l'ancêtre le plus proche qui en déclare un : `use Enfant(...)` l'appelle avec les mêmes paramètres (noms, types, valeurs par défaut — arguments nommés compris, §14.6), et initialise ainsi les champs hérités.
+
+```ocara
+class UserDto {
+    public property name:string
+    init(name:string, role:string = "user") { self.name = name }
+}
+class AdminDto extends UserDto { }          // aucun init propre
+
+var admin:AdminDto = use AdminDto("Root")   // appelle le init de UserDto
+```
 
 ---
 
@@ -3756,7 +3828,10 @@ StaticConst ::= StaticCallee "::" Identifier
 ArrayLiteral ::= "[" ( Expression ( "," Expression )* ","? )? "]"
 MapLiteral   ::= "{" MapEntry ( "," MapEntry )* ","? "}"
 MapEntry     ::= Expression ":" Expression
-ArgList     ::= Expression ( "," Expression )*
+ArgList        ::= PositionalArgs | NamedArgs
+PositionalArgs ::= Expression ( "," Expression )* ","?
+NamedArgs      ::= NamedArg ( "," NamedArg )* ","?
+NamedArg       ::= Identifier ":" Expression
 
 (* ── Match expression ───────────────────────────────────────────── *)
 

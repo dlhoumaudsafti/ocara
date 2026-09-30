@@ -289,7 +289,7 @@ fn resolve_expr(aliases: &HashMap<String, String>, expr: &mut Expr) {
             resolve_expr(aliases, expr);
             resolve_type(aliases, ty);
         }
-        Expr::IncDec { target, .. } => resolve_expr(aliases, target),
+        Expr::IncDec { target, .. } | Expr::NamedArg { value: target, .. } => resolve_expr(aliases, target),
     }
 }
 

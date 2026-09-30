@@ -711,12 +711,25 @@ impl Parser {
         if self.check_exact(&TokenKind::RParen) {
             return Ok(args);
         }
-        args.push(self.parse_expr()?);
+        args.push(self.parse_arg()?);
         while self.check_exact(&TokenKind::Comma) {
             self.advance();
             if self.check_exact(&TokenKind::RParen) { break; }
-            args.push(self.parse_expr()?);
+            args.push(self.parse_arg()?);
         }
         Ok(args)
+    }
+
+    /// `Identifier ":" Expression` (argument nommé) ou `Expression` nue — un
+    /// `ident` suivi d'un `:` simple n'a aucun autre sens en tête d'argument.
+    fn parse_arg(&mut self) -> ParseResult<Expr> {
+        let next_is_colon = self.peek_ahead(1).is_some_and(|t| t.kind == TokenKind::Colon);
+        if next_is_colon {
+            let (name, span) = self.eat_ident()?;
+            self.eat(&TokenKind::Colon)?;
+            let value = self.parse_expr()?;
+            return Ok(Expr::NamedArg { name, value: Box::new(value), span });
+        }
+        self.parse_expr()
     }
 }

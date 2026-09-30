@@ -4,8 +4,10 @@ import context.search.domain.contract.SearchContract
 import context.search.app.dto.SearchResultsDto
 
 class SearchService {
-
     public static method run(term:string): SearchResultsDto {
-        return use SearchResultsDto(SearchContract::cars(term), SearchContract::maintenances(term))
+        return use SearchResultsDto(
+            cars: SearchContract::cars(term),
+            maintenances: SearchContract::maintenances(term)
+        )
     }
 }

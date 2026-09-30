@@ -69,26 +69,8 @@ pub fn lower_class(
                     }
                 }
             }
-            ClassMember::Constructor { params, body, span } => {
-                let self_param = crate::parsing::ast::Param {
-                    name: "self".into(),
-                    ty:   Type::Mixed,
-                    is_variadic: false,
-                    default_value: None,
-                    span: span.clone(),
-                };
-                let mut full_params = vec![self_param];
-                full_params.extend(params.clone());
-                let init_func = FuncDecl {
-                    name:     format!("{}_init", class.name),
-                    params:   full_params,
-                    ret_ty:   Type::Void,
-                    body:     body.clone(),
-                    is_async: false,
-                    span:     span.clone(),
-                };
-                lower_func(module, &init_func, consts, fn_ret_types, fn_param_types, fn_param_names, fn_variadic_info, func_default_args, Some(&class.name), class.extends.as_deref(), async_funcs);
-            }
+            // Émis une seule fois plus bas, hérité compris (voir `nearest_constructor`).
+            ClassMember::Constructor { .. } => {}
             ClassMember::Const { name, value, .. } => {
                 use crate::ir::module::IrGlobal;
                 let bytes = match value {
@@ -160,6 +142,27 @@ pub fn lower_class(
     // plus proche n'est jamais réémise depuis un ancêtre plus lointain
     // (priorité à la redéclaration la plus proche, sémantique normale de
     // l'héritage).
+    if let Some((params, body, span)) = nearest_constructor(all_classes, class) {
+        let self_param = crate::parsing::ast::Param {
+            name: "self".into(),
+            ty:   Type::Mixed,
+            is_variadic: false,
+            default_value: None,
+            span: span.clone(),
+        };
+        let mut full_params = vec![self_param];
+        full_params.extend(params.iter().cloned());
+        let init_func = FuncDecl {
+            name:     format!("{}_init", class.name),
+            params:   full_params,
+            ret_ty:   Type::Void,
+            body:     body.clone(),
+            is_async: false,
+            span:     span.clone(),
+        };
+        lower_func(module, &init_func, consts, fn_ret_types, fn_param_types, fn_param_names, fn_variadic_info, func_default_args, Some(&class.name), class.extends.as_deref(), async_funcs);
+    }
+
     let mut already_emitted = own_methods.clone();
     let mut current_parent = class.extends.clone();
     while let Some(parent_name) = current_parent {
@@ -188,5 +191,24 @@ pub fn lower_class(
             }
         }
         current_parent = parent.extends.clone();
+    }
+}
+
+/// Constructeur effectif de `class` : le sien, sinon celui de l'ancêtre le
+/// plus proche qui en déclare un — une sous-classe sans `init` propre hérite
+/// de celui de son parent (`use Enfant(...)` appelle `Enfant_init`, qui doit
+/// donc exister et initialiser les champs hérités).
+pub fn nearest_constructor<'c>(all_classes: &'c [ClassDecl], class: &'c ClassDecl) -> Option<(&'c [Param], &'c Block, &'c crate::parsing::token::Span)> {
+    let mut current = class;
+    loop {
+        let own = current.members.iter().find_map(|m| match m {
+            ClassMember::Constructor { params, body, span } => Some((params.as_slice(), body, span)),
+            _ => None,
+        });
+        if own.is_some() {
+            return own;
+        }
+        let parent = current.extends.as_ref()?;
+        current = all_classes.iter().find(|c| &c.name == parent)?;
     }
 }
