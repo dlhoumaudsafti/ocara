@@ -66,20 +66,31 @@
   acceptent cette extension, ex. résolution des imports et découverte de
   fichiers par ocaracs qui filtre sur `.oc`).
 
-## Pistes d'implémentation
+## Décisions et mise en œuvre
 
-- `contributes.configuration` : `ocara.ocaracsPath` (défaut `ocaracs`),
-  `ocara.compilerPath` (défaut `ocara`), éventuellement
-  `ocara.lint.enable`/`ocara.lint.onType`.
-- Analyse : `onDidOpenTextDocument`/`onDidChangeActiveTextEditor`/
-  `onDidSaveTextDocument` → `child_process.execFile`, parsing des lignes,
-  `vscode.languages.createDiagnosticCollection('ocaracs')` avec
-  `DiagnosticSeverity.Warning` (surlignage jaune + survol natifs).
-- Menus : `contributes.commands` + `contributes.menus` (`editor/context`
-  et `explorer/context`, `when: resourceExtname =~ /\.(oc|ocara)$/`).
-  Compilation : `window.showInputBox` pour le nom du binaire.
-  Dump : `workspace.openTextDocument({ content, language })`.
-- Documenter les nouveaux réglages dans `tools/highlight/vsode/README.md`.
+- **`.ocaracs`** : règle actuelle d'ocaracs conservée — le plus proche en
+  remontant depuis le dossier du script, sinon ses valeurs par défaut.
+  Aucun changement d'ocaracs.
+- **Dump** : `--dump` inchangé ; l'extension compile vers un dossier
+  temporaire supprimé aussitôt (binaire ET `.o`), seul le texte est ouvert
+  dans un document sans fichier.
+- **`.ocara`** : abandonné — `.oc` uniquement.
+
+Fichiers (`tools/highlight/vsode/src/`) : `toolrunner.ts` (commande
+configurable, découpe avec guillemets, variables `${workspaceFolder}`/
+`${fileDirname}`, repli sur `<workspace>/target/release/<outil>` pour un
+réglage laissé par défaut et absent du PATH ; parsing
+`fichier:ligne:col: warning|error: message`), `lint.ts` (diagnostics
+avertissement sur la ligne entière + décoration de fond jaune, à
+l'ouverture/l'affichage/l'enregistrement ; avertissements des fichiers
+importés filtrés), `compile.ts` (commandes `ocara.compile`/`ocara.dump`,
+prompt du nom de binaire, erreurs → panneau Problèmes + sortie « Ocara »).
+`package.json` : réglages `ocara.compilerPath`/`ocara.ocaracsPath`/
+`ocara.lint.enable`, menus `editor/context`/`explorer/context`/palette.
+
+Limite : ocaracs lit le fichier sur disque — analyse de la dernière version
+enregistrée (relancée à chaque enregistrement), pas des modifications en
+cours de frappe.
 
 ## Priorité / Complexité
 

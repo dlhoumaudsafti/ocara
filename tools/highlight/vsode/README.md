@@ -55,6 +55,30 @@ Coloration syntaxique, autocomplétion et navigation (Go-to-Definition) pour le 
   Résolution par nom, sans suivre les imports : deux classes homonymes de contextes différents
   sont confondues.
 
+- **Analyse de style `ocaracs` automatique** à l'affichage, à l'ouverture et à l'enregistrement
+  d'un fichier `.oc` : chaque ligne concernée est surlignée en jaune, le message s'affiche au
+  survol (et dans le panneau Problèmes). Règles : le `.ocaracs` le plus proche en remontant
+  depuis le dossier du script, sinon les valeurs par défaut d'ocaracs. ocaracs lisant le fichier
+  sur disque, l'analyse porte sur la dernière version enregistrée.
+- **Clic droit → « Compiler le script »** (éditeur ou arborescence, aussi dans la palette
+  `Ocara: Compiler le script`) : demande le nom du binaire, créé dans le dossier du script
+  (le compilateur y laisse aussi `<nom>.o`). Erreurs dans le panneau Problèmes et la sortie
+  « Ocara ».
+- **Clic droit → « Afficher le dump »** : tokens, AST et IR (`ocara --dump`) dans un éditeur
+  sans fichier — le binaire que `--dump` produit malgré tout est compilé dans un dossier
+  temporaire supprimé aussitôt.
+
+## Réglages
+
+| Réglage | Défaut | Rôle |
+|---------|--------|------|
+| `ocara.compilerPath` | `ocara` | Chemin du compilateur ou commande pour le lancer — arguments et guillemets acceptés, variables `${workspaceFolder}`/`${fileDirname}` (ex. `"${workspaceFolder}/target/release/ocara"`). |
+| `ocara.ocaracsPath` | `ocaracs` | Chemin d'ocaracs ou commande pour le lancer (mêmes règles). |
+| `ocara.lint.enable` | `true` | Active l'analyse ocaracs automatique. |
+
+Laissé à sa valeur par défaut et absent du PATH, un outil est cherché dans
+`<workspace>/target/release/` (dépôt du compilateur ouvert dans VS Code).
+
 ---
 
 ## Installation du `.vsix` pré-compilé

@@ -42,6 +42,8 @@ const completion_1 = require("./completion");
 const builtins_1 = require("./builtins");
 const signature_1 = require("./signature");
 const codelens_1 = require("./codelens");
+const lint_1 = require("./lint");
+const compile_1 = require("./compile");
 const callsite_1 = require("./callsite");
 const resolver_1 = require("./resolver");
 function activate(context) {
@@ -58,6 +60,9 @@ function activate(context) {
     index.watch(context);
     void index.build();
     context.subscriptions.push(vscode.languages.registerCodeLensProvider(selector, new codelens_1.OcaraCodeLensProvider(index)));
+    // Analyse ocaracs automatique + commandes Compiler / Afficher le dump.
+    context.subscriptions.push(new lint_1.OcaracsLinter());
+    new compile_1.OcaraCompiler().register(context);
 }
 function deactivate() { }
 // ─── Provider ────────────────────────────────────────────────────────────────

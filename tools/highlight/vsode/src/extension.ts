@@ -5,6 +5,8 @@ import { OcaraCompletionProvider } from './completion';
 import { loadBuiltins } from './builtins';
 import { OcaraSignatureHelpProvider } from './signature';
 import { OcaraCodeLensProvider, WorkspaceIndex } from './codelens';
+import { OcaracsLinter } from './lint';
+import { OcaraCompiler } from './compile';
 import { findCallSite, resolveCall } from './callsite';
 import {
     esc,
@@ -40,6 +42,10 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.languages.registerCodeLensProvider(selector, new OcaraCodeLensProvider(index))
     );
+
+    // Analyse ocaracs automatique + commandes Compiler / Afficher le dump.
+    context.subscriptions.push(new OcaracsLinter());
+    new OcaraCompiler().register(context);
 }
 
 export function deactivate(): void {}
