@@ -15,7 +15,14 @@ pub fn lower_assign(
     value: &Expr,
 ) {
     let val_ty = expr_ir_type_pub(builder, value);
-    let val = lower_expr(builder, value);
+    // Littéral `array`/`map` affecté : typé par le type déclaré de la cible
+    // (`self.counts = {"a": 0}` pour `map<string,int>`), comme pour `var`/
+    // `return` — sinon ses scalaires étaient boxés alors que la cible les
+    // relit bruts (`free(): invalid pointer` à la libération).
+    let val = match declared_container_type(builder, target) {
+        Some(ty) => super::variables::lower_literal_or_expr(builder, value, &ty),
+        None => lower_expr(builder, value),
+    };
     // `target = value` : `value` peut être une `scoped`/`consumed` qui
     // s'échappe vers `target` (voir crate::lower::stmt::ownership).
     let val = crate::lower::stmt::ownership::maybe_clone_escaping(builder, value, val);
@@ -344,5 +351,29 @@ mod tests {
 
         assert_eq!(call_count(&builder, "__box_float"), 0);
         assert_eq!(call_count(&builder, "__array_set"), 1);
+    }
+}
+
+/// Type conteneur (`array<T>`/`map<K,V>`) déclaré de la cible d'une
+/// affectation, quand il est connu : variable locale (`elem_ast_types`/
+/// `map_vars`), champ (`class_field_types`), élément indexé.
+fn declared_container_type(builder: &LowerBuilder, target: &Expr) -> Option<Type> {
+    match target {
+        Expr::Ident(name, _) => {
+            let elem = builder.elem_ast_types.get(name.as_str())?.clone();
+            Some(if builder.map_vars.contains(name.as_str()) {
+                Type::Map(Box::new(Type::String), Box::new(elem))
+            } else {
+                Type::Array(Box::new(elem))
+            })
+        }
+        Expr::Field { object, field, .. } => {
+            let class_name = crate::lower::expr::helpers::resolve_receiver_class(builder, object)?;
+            builder.module.class_field_types.get(&class_name)?
+                .iter().find(|(f, _)| f == field)
+                .map(|(_, ty)| ty.clone())
+        }
+        Expr::Index { object, .. } => elem_type_after_index(builder, object),
+        _ => None,
     }
 }

@@ -164,6 +164,13 @@ pub struct IrModule {
     /// silencieusement (mangle vers un symbole qui n'existe pas, ignoré par
     /// le codegen).
     pub method_ret_class: HashMap<String, String>,
+    /// Type de retour DÉCLARÉ (AST complet, pas seulement sa classe) de
+    /// chaque fonction libre (`"nom"`), méthode utilisateur et méthode
+    /// builtin (`"Classe_methode"`) — type d'élément d'un résultat d'appel
+    /// indexé directement (`make()[1][1]` pour `array<array<int>>`), sans
+    /// lequel un scalaire brut était pris pour un pointeur (voir
+    /// `crate::lower::expr::helpers::elem_type_after_index`).
+    pub call_ret_types: HashMap<String, Type>,
 }
 
 #[derive(Debug, Clone)]

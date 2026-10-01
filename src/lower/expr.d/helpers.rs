@@ -307,11 +307,9 @@ fn is_map_shaped(ty: &Type) -> bool {
 /// cette composition qui rend la profondeur illimitée, sans cas particulier
 /// par niveau.
 ///
-/// Ne couvre PAS un appel de fonction/méthode indexé directement
-/// (`getRows()[0]["x"]`) — demanderait une table de types de retour AST
-/// (actuellement seul `IrType`, trop grossier, est suivi pour un retour de
-/// fonction) ; hors périmètre du bug rapporté, voir
-/// docs/roadmap.d/langage-index-chaine-sur-map.md.
+/// Cas de base supplémentaire (`Call`/`StaticCall`) : résultat d'appel
+/// indexé directement (`getRows()[0]["x"]`, `make()[1][1]`), via le type de
+/// retour AST déclaré (`IrModule::call_ret_types`).
 pub fn elem_type_after_index(builder: &LowerBuilder, expr: &Expr) -> Option<Type> {
     match expr {
         Expr::Ident(name, _) => builder.elem_ast_types.get(name.as_str()).cloned(),
@@ -326,8 +324,33 @@ pub fn elem_type_after_index(builder: &LowerBuilder, expr: &Expr) -> Option<Type
                 .map(|(_, ty)| ty.clone())?;
             container_elem_type(&field_ty).cloned()
         }
+        Expr::Call { .. } | Expr::StaticCall { .. } => {
+            container_elem_type(&call_ret_type(builder, expr)?).cloned()
+        }
         _ => None,
     }
+}
+
+/// Type de retour déclaré d'un appel (fonction libre, méthode chaînée,
+/// méthode statique — builtin compris), voir `IrModule::call_ret_types`.
+fn call_ret_type(builder: &LowerBuilder, expr: &Expr) -> Option<Type> {
+    let key = match expr {
+        Expr::Call { callee, .. } => match callee.as_ref() {
+            Expr::Ident(name, _) => name.clone(),
+            Expr::Field { object, field, .. } => format!("{}_{}", resolve_receiver_class(builder, object)?, field),
+            _ => return None,
+        },
+        Expr::StaticCall { class, method, .. } => {
+            let owner = match class.as_str() {
+                "<self>"   => builder.current_class.clone()?,
+                "<parent>" => builder.parent_class.clone()?,
+                _          => class.clone(),
+            };
+            format!("{}_{}", owner, method)
+        }
+        _ => return None,
+    };
+    builder.module.call_ret_types.get(&key).cloned()
 }
 
 /// Détermine si `object` (le récepteur d'un `Expr::Index`, `object[index]`)
@@ -500,4 +523,23 @@ pub fn write_variant(base: &str, ty: &IrType) -> String {
         _            => "",   // Ptr / Mixed → write directement
     };
     format!("{}{}", base, suffix)
+}
+
+/// Élément lu (`__array_get`, valeur brute) dans le tableau d'un paramètre
+/// variadic, déballé vers son type d'élément déclaré — le site d'appel boxe
+/// chaque argument variadic (`float`/`bool` toujours, `int` s'il est ambigu
+/// avec un pointeur, voir le packing variadic de `lower.rs`), contrairement à
+/// un tableau ordinaire dont les éléments scalaires restent bruts. Sans ce
+/// déballage, `not f`/`if f` testaient le pointeur de la cellule boxée. Voir
+/// docs/roadmap.d/langage-variadic-bool-not.md.
+pub fn unbox_variadic_elem(builder: &mut LowerBuilder, elem_ty: &IrType, raw: Value) -> Value {
+    let func = match elem_ty {
+        IrType::F64  => "__mixed_to_float",
+        IrType::Bool => "__unbox_bool",
+        IrType::I64  => "__mixed_to_int",
+        _ => return raw,
+    };
+    let dest = builder.new_value();
+    builder.emit(Inst::Call { dest: Some(dest.clone()), func: func.into(), args: vec![raw], ret_ty: elem_ty.clone() });
+    dest
 }

@@ -1113,6 +1113,27 @@ c.z = 4                 // ❌ E54 — private
 
 ---
 
+### E55 — Valeur de constante de classe non évaluable à la compilation
+
+```
+fichier.oc:2:11: error: value of class constant 'U::X' must be known at compile time — a literal, possibly negated or combined with +, -, *, /, % (e.g. '-273', '60 * 1000'); use a static method for a computed value
+```
+
+Une constante de classe est inlinée à chacun de ses usages (§16.4 de l'EBNF) : sa valeur doit être calculable à la compilation. Jusqu'à ce diagnostic, toute valeur autre qu'un littéral nu — y compris un simple `-273` — était silencieusement fausse (`T::ZERO` valait le nom du symbole `T__ZERO`, voir docs/roadmap.d/langage-negative-class-const.md). Sont acceptés : littéraux, `-x`, `not x`, et `+ - * / %` entre littéraux (concaténation `+` entre chaînes) ; une division par zéro ou un débordement entier est rejeté.
+
+```ocara
+function f(): int { return 1 }
+
+class U {
+    public const OK:int = -60 * 1000   // ✅ -60000
+    public const X:int = f()           // ❌ E55
+}
+```
+
+**Correction :** écrire la valeur littérale, ou exposer la valeur calculée via une méthode statique (`public static method x(): int { return f() }`).
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.

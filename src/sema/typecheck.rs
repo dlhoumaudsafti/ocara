@@ -289,7 +289,16 @@ impl<'a> TypeChecker<'a> {
                     { let _u = self.scopes.pop_scope(&self.resource_classes); self.flush_warnings(_u); }
                     self.current_ret = saved_ret;
                 }
-                ClassMember::Const { ty, value, span, .. } => {
+                ClassMember::Const { name, ty, value, span, .. } => {
+                    // Inlinée/émise en globale : sa valeur doit être connue
+                    // à la compilation (voir `Expr::const_literal`).
+                    if value.const_literal().is_none() {
+                        self.errors.push(SemaError::ClassConstNotConstant {
+                            class: class.name.clone(),
+                            name:  name.clone(),
+                            span:  span.clone(),
+                        });
+                    }
                     let val_ty = self.infer_expr(value);
                     if !types_compat(&val_ty, ty, &self.symbols) {
                         self.errors.push(SemaError::TypeMismatch {

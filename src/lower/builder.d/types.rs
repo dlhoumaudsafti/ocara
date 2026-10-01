@@ -36,6 +36,10 @@ pub struct LowerBuilder<'m> {
     pub var_class: HashMap<String, String>,
     /// Classe courante (Some(name) si on est dans une méthode/constructeur)
     pub current_class: Option<String>,
+    /// Type de retour DÉCLARÉ (AST) de la fonction en cours — type de
+    /// destination d'un littéral `array`/`map` retourné (voir
+    /// `lower_literal_or_expr`). `None` hors d'une fonction utilisateur.
+    pub ret_ast_ty: Option<Type>,
     /// Classe parent (Some(name) si current_class extends une autre classe)
     pub parent_class: Option<String>,
     /// Pile de boucles : (continue_bb, break_bb, block_scope_depth) —
@@ -152,6 +156,7 @@ impl<'m> LowerBuilder<'m> {
             map_vars: HashSet::new(),
             var_class: HashMap::new(),
             current_class: None,
+            ret_ast_ty: None,
             parent_class: None,
             loop_stack: Vec::new(),
             loop_depth: 0,

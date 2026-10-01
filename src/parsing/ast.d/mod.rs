@@ -15,3 +15,4 @@ pub mod imports;
 pub mod runtime;
 pub mod program;
 pub mod span_shift;
+pub mod const_fold;

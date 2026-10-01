@@ -20,12 +20,14 @@ retombe sur l'adresse/le nom du symbole `T__ZERO`.
 Échec de `examples/tests/23_static_methodTest.oc` (`Temperature::is_valid(0)`,
 `ABSOLUTE_ZERO = -273`) **masqué jusqu'ici** par ocaraunit.
 
-## Piste
+## Correction
 
-Évaluer à la compilation les expressions constantes simples (au minimum
-`-<littéral>`) pour les constantes de classe, comme pour les constantes
-globales si celles-ci le font déjà ; sinon, rejeter explicitement en sema
-toute valeur de constante non évaluable plutôt que produire un symbole vide.
+`Expr::const_literal` (`src/parsing/ast.d/const_fold.rs`) évalue à la
+compilation littéraux, `-x`, `not x` et `+ - * / %` entre littéraux ; utilisé
+pour l'inlining (`module.class_consts`) et la globale émise. Toute autre
+valeur est désormais rejetée en sema (E55, `docs/diagnostics.md`) au lieu de
+produire un symbole vide. Tests unitaires dans `const_fold.rs`, plus
+`23_static_methodTest` et `70_typed_container_literalsTest`.
 
 ## Priorité / Complexité
 

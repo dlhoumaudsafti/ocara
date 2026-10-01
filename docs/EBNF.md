@@ -2335,6 +2335,16 @@ IO::writeln(Config::MAX_RETRY)  // 3
 
 Elles ne peuvent pas être modifiées. Les règles de visibilité s'appliquent normalement.
 
+Leur valeur doit être **connue à la compilation** (elle est inlinée à chaque usage) : un littéral, éventuellement négatif (`-273`) ou combiné avec `+`, `-`, `*`, `/`, `%` et `not` entre littéraux (`60 * 1000`, `"v" + "1"`). Toute autre expression (appel, variable, autre constante) est rejetée (E55) — utiliser une méthode statique pour une valeur calculée.
+
+```ocara
+class Limits {
+    public const ABSOLUTE_ZERO:int = -273      // ✅
+    public const TIMEOUT_MS:int = 60 * 1000    // ✅ évalué à la compilation : 60000
+    public const NOW:int = Time::now()         // ❌ E55
+}
+```
+
 ### 16.5 Méthodes statiques
 
 Une méthode préfixée par `static` appartient à la classe et non à une instance. Elle s'appelle via `::` sans créer d'objet.

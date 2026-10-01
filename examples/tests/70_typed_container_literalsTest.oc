@@ -1,0 +1,117 @@
+import ocara.UnitTest
+
+// Littéraux `array`/`map` typés par leur destination, à toute profondeur —
+// voir docs/roadmap.d/memoire-nested-array-zero-json.md. Un scalaire d'un
+// conteneur à type d'élément concret est stocké BRUT : chaque chemin qui
+// construit (var, return, affectation de champ), relit (indexation chaînée,
+// boucle) ou libère/clone (destructeur de classe) un tel conteneur doit le
+// savoir. Valeurs choisies au-dessus de PTR_THRESHOLD (65536) : un scalaire
+// brut pris pour un pointeur y plantait au lieu de seulement s'afficher faux.
+//
+// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée.
+class Test_70_typed_container_literals {
+
+    public method nestedVarLiteralTest(): int {
+        var nested:array<array<int>> = [[1, 2], [0, 999999]]
+        UnitTest::assertEquals(0, nested[1][0])
+        UnitTest::assertEquals(999999, nested[1][1])
+        var inner:array<int> = nested[1]
+        UnitTest::assertEquals(0, inner[0])
+        return 0
+    }
+
+    public method nestedFloatAndBoolTest(): int {
+        var floats:array<array<float>> = [[0.0, 1.5]]
+        UnitTest::assertEquals(1.5, floats[0][1])
+        var bools:array<array<bool>> = [[false, true]]
+        UnitTest::assertFalse(bools[0][0])
+        UnitTest::assertTrue(bools[0][1])
+        return 0
+    }
+
+    public method loopOverNestedTest(): int {
+        var nested:array<array<int>> = [[5], [0], [999999]]
+        var total:int = 0
+        for row in nested {
+            total = total + row[0]
+        }
+        UnitTest::assertEquals(1000004, total)
+        return 0
+    }
+
+    public method returnedLiteralTest(): int {
+        UnitTest::assertEquals(999999, self.makeGrid()[1][1])
+        var row:array<int> = self.makeGrid()[1]
+        UnitTest::assertEquals(999999, row[1])
+        return 0
+    }
+
+    public method classFieldsFreeAndCloneTest(): int {
+        var kept:Holder = self.makeHolder()
+        UnitTest::assertEquals(999999, kept.at(1, 1))
+        UnitTest::assertEquals(1, kept.bump("urgent"))
+        UnitTest::assertEquals(2, kept.bump("urgent"))
+        return 0
+    }
+
+    public method variadicBoolTest(): int {
+        UnitTest::assertTrue(all_true(true, true))
+        UnitTest::assertFalse(all_true(true, false))
+        UnitTest::assertFalse(first_flag(false))
+        return 0
+    }
+
+    public method negativeClassConstTest(): int {
+        UnitTest::assertEquals(-273, Holder::ZERO)
+        UnitTest::assertEquals(60000, Holder::TIMEOUT)
+        UnitTest::assertTrue(0 greater or equal Holder::ZERO)
+        return 0
+    }
+
+    private method makeGrid(): array<array<int>> {
+        return [[1, 2], [3, 999999]]
+    }
+
+    private method makeHolder(): Holder {
+        scoped h:Holder = use Holder()
+        return h
+    }
+
+}
+
+class Holder {
+    public const ZERO:int = -273
+    public const TIMEOUT:int = 60 * 1000
+    private property grid:array<array<int>>
+    private property counts:map<string, int>
+
+    init() {
+        self.grid = [[0, 1], [2, 999999]]
+        self.counts = {"urgent": 0, "normal": 0}
+    }
+
+    public method at(i:int, j:int): int {
+        return self.grid[i][j]
+    }
+
+    public method bump(label:string): int {
+        var current:int = self.counts[label]
+        self.counts[label] = current + 1
+        return self.counts[label]
+    }
+}
+
+// Fonctions libres : un variadic sur une MÉTHODE d'instance n'est pas encore
+// empaqueté (voir docs/roadmap.d/langage-variadic-element-kinds.md).
+function all_true(flags:variadic<bool>): bool {
+    for f in flags {
+        if not f {
+            return false
+        }
+    }
+    return true
+}
+
+function first_flag(flags:variadic<bool>): bool {
+    return flags[0]
+}

@@ -187,15 +187,12 @@ pub fn lower_const(
 }
 
 /// Lower `value` en tenant compte de `ty` (le type DÉCLARÉ de la cible,
-/// `var`/`const`) quand `value` est directement un littéral `array`/`map` —
-/// permet de choisir `LiteralElemKind::Concrete` (aucune conversion d'un
-/// élément `float`/`bool`, stocké brut) plutôt que `Mixed` (boxé) dès que le
-/// type d'élément déclaré n'est pas `mixed`. Repli sur `lower_expr` générique
-/// (qui suppose toujours `Mixed`, le choix sûr par défaut) dans tous les
-/// autres cas — `value` n'est pas directement un littéral, ou son type
-/// déclaré n'a pas de type d'élément concret identifiable ici.
-fn lower_literal_or_expr(builder: &mut LowerBuilder, value: &Expr, ty: &Type) -> crate::ir::inst::Value {
-    use crate::lower::expr::LiteralElemKind;
+/// `var`/`const`, ou type de retour d'un `return`) quand `value` est directement un littéral `array`/`map` —
+/// son type d'élément (récursivement, littéraux imbriqués compris) décide du
+/// stockage brut ou boxé de chaque élément (voir `lower_array_literal`).
+/// Repli sur `lower_expr` générique (`mixed`, le choix sûr par défaut) dans
+/// tous les autres cas.
+pub fn lower_literal_or_expr(builder: &mut LowerBuilder, value: &Expr, ty: &Type) -> crate::ir::inst::Value {
     // Consommation scalaire directe d'un `message<T>` (générateur — voir
     // docs/roadmap.d/langage-emit-iterable.md, §2) : `var x:T = truc()`/
     // `const x:T = truc()`. Gardé par la sema (au plus un `emit` hors
@@ -204,14 +201,8 @@ fn lower_literal_or_expr(builder: &mut LowerBuilder, value: &Expr, ty: &Type) ->
         return crate::lower::builder::message_gen::lower_message_scalar(builder, value, &mangled, elem_ty);
     }
     match (value, ty) {
-        (Expr::Array { elements, .. }, Type::Array(inner)) => {
-            let kind = if matches!(inner.as_ref(), Type::Mixed) { LiteralElemKind::Mixed } else { LiteralElemKind::Concrete };
-            crate::lower::expr::lower_array_literal(builder, elements, kind)
-        }
-        (Expr::Map { entries, .. }, Type::Map(_, val_ty)) => {
-            let kind = if matches!(val_ty.as_ref(), Type::Mixed) { LiteralElemKind::Mixed } else { LiteralElemKind::Concrete };
-            crate::lower::expr::lower_map_literal(builder, entries, kind)
-        }
+        (Expr::Array { elements, .. }, Type::Array(inner)) => crate::lower::expr::lower_array_literal(builder, elements, inner),
+        (Expr::Map { entries, .. }, Type::Map(_, val_ty)) => crate::lower::expr::lower_map_literal(builder, entries, val_ty),
         _ => lower_expr(builder, value),
     }
 }

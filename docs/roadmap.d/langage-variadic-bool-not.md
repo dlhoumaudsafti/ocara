@@ -21,10 +21,21 @@ pointeur de la cellule boxée (toujours « vrai »), pas à la valeur.
 Échec de `examples/tests/30_variadicTest.oc` (`variadicBoolTest`)
 **masqué jusqu'ici** par ocaraunit.
 
+## Correction
+
+Le site d'appel boxe chaque argument variadic (`float`/`bool` toujours,
+`int` s'il est ambigu avec un pointeur), mais la boucle lisait l'élément
+brut — un commentaire l'assumait (« les float/bool nécessiteraient unboxing
+mais pour l'instant on les laisse »). `lower_func` enregistre maintenant le
+type d'élément d'un paramètre variadic, et `unbox_variadic_elem`
+(`src/lower/expr.d/helpers.rs`) déballe l'élément à la lecture, dans une
+boucle comme sur une indexation (`flags[0]`). Les variadics `int`/`float`/
+`string` restent corrects (vérifié). Autres défauts variadics découverts au
+passage, distincts : voir [langage-variadic-element-kinds](langage-variadic-element-kinds.md).
+
 ## Priorité / Complexité
 
-**Haute** (résultat silencieusement faux) — **Légère** (déballage de la
-variable de boucle selon le type élément déclaré).
+**Haute** (résultat silencieusement faux) — **Légère**.
 
 ## Fichiers clés
 

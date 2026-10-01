@@ -55,62 +55,50 @@ fn unbox_mixed_operand(builder: &mut LowerBuilder, func: &str, target_ty: &IrTyp
     d
 }
 
-/// Comment traiter un élément `F64`/`Bool` en construisant un littéral
-/// `array`/`map` (voir `lower_array_literal`/`lower_map_literal`).
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum LiteralElemKind {
-    /// Élément(s) de type `mixed` (ou type de destination inconnu à cet
-    /// endroit — nested/argument/retour, voir les sites d'appel) : un
-    /// consommateur générique (`JSON::encode`, `__dyn_add`, `Map::forEach`,
-    /// `is float`/`is bool`...) doit pouvoir distinguer un `float`/`bool` d'un
-    /// entier au runtime — boxé (`__box_float`/`__box_bool`), jamais stringifié.
-    Mixed,
-    /// Type de destination concret et CONNU (`array<float>`, `map<K,bool>`,
-    /// ...) : aucun consommateur n'a besoin de deviner le type, stocké BRUT
-    /// sans la moindre conversion — exactement comme `int` (qui n'est jamais
-    /// boxé nulle part dans ce compilateur, voir `box_for_any`).
-    Concrete,
-}
-
-/// Construit un littéral `array` : alloue via `__array_new`, pousse chaque
-/// élément. `kind` décide comment un élément `F64`/`Bool` est stocké — voir
-/// `LiteralElemKind`. Avant ce correctif, TOUT élément `F64`/`Bool` était
-/// systématiquement stringifié (`__str_from_float`/`__str_from_bool`),
-/// quel que soit `kind` — un `array<float>` littéral (pas seulement
-/// `array<mixed>`) produisait donc un résultat numériquement faux à la
-/// lecture (`arr[0]` retournait le pointeur de la string, réinterprété comme
-/// bits flottants) : voir docs/roadmap.d/langage-mixed-literal-stringification.md.
-pub fn lower_array_literal(builder: &mut LowerBuilder, elements: &[Expr], kind: LiteralElemKind) -> Value {
+/// Construit un littéral `array` dont le type d'élément de DESTINATION est
+/// `elem_ty` — `Type::Mixed` quand il est inconnu à cet endroit (littéral
+/// passé en argument, retourné, ...). Un élément `F64`/`Bool`/`I64` est
+/// boxé si et seulement si `elem_ty` est `mixed` (un consommateur générique
+/// — `JSON::encode`, `__dyn_add`, `is float`... — doit alors pouvoir le
+/// distinguer au runtime) ; avec un type concret, stocké BRUT. Récursif : un
+/// littéral imbriqué (`[[1, 2], [0, 3]]` pour `array<array<int>>`) reçoit
+/// le type d'élément interne — avant ce correctif, il était toujours
+/// construit en `mixed` (boxé) alors que la variable le relisait brut :
+/// `0`/`float` ressortaient comme l'adresse de leur cellule (voir
+/// docs/roadmap.d/memoire-nested-array-zero-json.md).
+pub fn lower_array_literal(builder: &mut LowerBuilder, elements: &[Expr], elem_ty: &Type) -> Value {
     let arr = builder.new_value();
     builder.emit(Inst::Call { dest: Some(arr.clone()), func: "__array_new".into(), args: vec![], ret_ty: IrType::Ptr });
     for elem in elements {
-        let elem_ty = expr_ir_type(builder, elem);
-        let v = lower_expr(builder, elem);
-        let stored = match kind {
-            LiteralElemKind::Mixed    => box_for_dyn_arith(builder, &elem_ty, v),
-            LiteralElemKind::Concrete => v,
-        };
+        let stored = lower_literal_element(builder, elem, elem_ty);
         builder.emit(Inst::Call { dest: None, func: "__array_push".into(), args: vec![arr.clone(), stored], ret_ty: IrType::Void });
     }
     arr
 }
 
-/// Comme `lower_array_literal`, pour un littéral `map` — `kind` s'applique à
-/// la VALEUR de chaque entrée (jamais à la clé, toujours `string`).
-pub fn lower_map_literal(builder: &mut LowerBuilder, entries: &[(Expr, Expr)], kind: LiteralElemKind) -> Value {
+/// Comme `lower_array_literal`, pour un littéral `map` — `val_ty` s'applique
+/// à la VALEUR de chaque entrée (jamais à la clé, toujours `string`).
+pub fn lower_map_literal(builder: &mut LowerBuilder, entries: &[(Expr, Expr)], val_ty: &Type) -> Value {
     let map = builder.new_value();
     builder.emit(Inst::Call { dest: Some(map.clone()), func: "__map_new".into(), args: vec![], ret_ty: IrType::Ptr });
     for (key, val) in entries {
         let kv = lower_expr(builder, key);
-        let val_ty = expr_ir_type(builder, val);
-        let vv_raw = lower_expr(builder, val);
-        let vv = match kind {
-            LiteralElemKind::Mixed    => box_for_dyn_arith(builder, &val_ty, vv_raw),
-            LiteralElemKind::Concrete => vv_raw,
-        };
+        let vv = lower_literal_element(builder, val, val_ty);
         builder.emit(Inst::Call { dest: None, func: "__map_set".into(), args: vec![map.clone(), kv, vv], ret_ty: IrType::Void });
     }
     map
+}
+
+fn lower_literal_element(builder: &mut LowerBuilder, elem: &Expr, elem_ty: &Type) -> Value {
+    match (elem, elem_ty) {
+        (Expr::Array { elements, .. }, Type::Array(inner)) => lower_array_literal(builder, elements, inner),
+        (Expr::Map { entries, .. }, Type::Map(_, inner)) => lower_map_literal(builder, entries, inner),
+        _ => {
+            let ir_ty = expr_ir_type(builder, elem);
+            let v = lower_expr(builder, elem);
+            if matches!(elem_ty, Type::Mixed) { box_for_dyn_arith(builder, &ir_ty, v) } else { v }
+        }
+    }
 }
 
 /// Pré-promeut, AVANT d'entrer dans un corps de boucle (`while`/`for`),
@@ -1385,13 +1373,12 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
         }
 
         // ── Tableau littéral ─────────────────────────────────────────────────
-        // Pas de type de destination connu ici (nested/argument/retour...) —
-        // voir `lower_array_literal`/`LiteralElemKind::Mixed` pour pourquoi
-        // c'est le choix par défaut sûr.
-        Expr::Array { elements, .. } => lower_array_literal(builder, elements, LiteralElemKind::Mixed),
+        // Pas de type de destination connu ici (argument/retour...) — `mixed`,
+        // le choix par défaut sûr (voir `lower_array_literal`).
+        Expr::Array { elements, .. } => lower_array_literal(builder, elements, &Type::Mixed),
 
         // ── Map littéral ──────────────────────────────────────────────────────
-        Expr::Map { entries, .. } => lower_map_literal(builder, entries, LiteralElemKind::Mixed),
+        Expr::Map { entries, .. } => lower_map_literal(builder, entries, &Type::Mixed),
 
         // ── Accès par index ───────────────────────────────────────────────────
         Expr::Index { object, index, .. } => {
@@ -1410,6 +1397,15 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 args:   vec![obj_val, idx_val],
                 ret_ty: IrType::Ptr,
             });
+            // `flags[0]` sur un paramètre variadic : élément boxé, à déballer
+            // vers le type que `expr_ir_type` lui attribue (`elem_types`).
+            if let Expr::Ident(name, _) = object.as_ref() {
+                if builder.variadic_params.contains(name.as_str()) {
+                    if let Some(elem_ty) = builder.elem_types.get(name.as_str()).cloned() {
+                        return unbox_variadic_elem(builder, &elem_ty, dest);
+                    }
+                }
+            }
             dest
         }
 

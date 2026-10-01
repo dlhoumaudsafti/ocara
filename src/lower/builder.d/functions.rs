@@ -56,6 +56,7 @@ pub fn lower_func(
     let ret_ty = IrType::from_ast(&func.ret_ty);
 
     let mut builder = LowerBuilder::new(module, func.name.clone(), ir_params.clone(), ret_ty);
+    builder.ret_ast_ty = Some(func.ret_ty.clone());
     // Si on est dans une méthode/constructeur de classe, enregistrer la classe courante
     if let Some(cls) = class_name {
         builder.current_class = Some(cls.to_string());
@@ -99,8 +100,17 @@ pub fn lower_func(
             builder.variadic_params.insert(param.name.clone());
         }
         
-        // Si le paramètre est un tableau (y compris variadic désucré en T[]),
-        // enregistrer le type d'élément pour les boucles for
+        // Paramètre variadic : `param.ty` EST le type d'élément (`variadic<bool>`
+        // → `bool`), jamais un `Type::Array` — sans cette entrée, `for f in
+        // flags` laissait `f` boxé (`not f`/`if f` testaient le pointeur de la
+        // cellule, toujours « vrai »). Voir docs/roadmap.d/langage-variadic-bool-not.md.
+        if param.is_variadic {
+            builder.elem_types.insert(param.name.clone(), IrType::from_ast(&param.ty));
+            builder.elem_ast_types.insert(param.name.clone(), param.ty.clone());
+        }
+
+        // Si le paramètre est un tableau, enregistrer le type d'élément pour
+        // les boucles for
         if let crate::parsing::ast::Type::Array(inner) = &param.ty {
             let elem_ty = IrType::from_ast(inner);
             builder.elem_types.insert(param.name.clone(), elem_ty);
