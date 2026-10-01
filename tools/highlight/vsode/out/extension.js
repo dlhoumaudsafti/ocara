@@ -46,6 +46,7 @@ const lint_1 = require("./lint");
 const compile_1 = require("./compile");
 const runtimecontext_1 = require("./runtimecontext");
 const hover_1 = require("./hover");
+const docs_1 = require("./docs");
 const callsite_1 = require("./callsite");
 const resolver_1 = require("./resolver");
 function activate(context) {
@@ -62,6 +63,8 @@ function activate(context) {
     index.watch(context);
     void index.build();
     context.subscriptions.push(vscode.languages.registerCodeLensProvider(selector, new codelens_1.OcaraCodeLensProvider(index)));
+    // Documentation embarquée (copie de docs/, ouverte en aperçu depuis le survol).
+    (0, docs_1.registerDocs)(context);
     // Documentation au survol (builtins, sucre d'instance, déclarations utilisateur).
     context.subscriptions.push(vscode.languages.registerHoverProvider(selector, new hover_1.OcaraHoverProvider()));
     // Analyse ocaracs automatique + commandes Compiler / Afficher le dump.

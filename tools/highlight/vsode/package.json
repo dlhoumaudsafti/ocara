@@ -71,6 +71,11 @@
         "command": "ocara.dump",
         "title": "Afficher le dump",
         "category": "Ocara"
+      },
+      {
+        "command": "ocara.openDoc",
+        "title": "Ouvrir la documentation Ocara",
+        "category": "Ocara"
       }
     ],
     "menus": {
@@ -106,14 +111,18 @@
         {
           "command": "ocara.dump",
           "when": "editorLangId == ocara"
+        },
+        {
+          "command": "ocara.openDoc",
+          "when": "false"
         }
       ]
     }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
+    "compile": "node scripts/copy-docs.js && tsc -p ./",
+    "watch": "node scripts/copy-docs.js && tsc -watch -p ./",
     "package": "vsce package"
   },
   "devDependencies": {

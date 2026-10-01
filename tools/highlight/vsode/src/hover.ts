@@ -2,6 +2,9 @@ import * as vscode from 'vscode';
 import { BuiltinMethod, getBuiltinClass } from './builtins';
 import { findPrimitiveType, instanceMethodsFor } from './primitives';
 import { runtimeContext } from './runtimecontext';
+import { docLink, ebnfHeading, rewriteDocLinks, trustedMarkdown } from './docs';
+import { CONTEXTUAL_KEYWORDS, KEYWORDS } from './keywords';
+import { maskSource } from './declarations';
 import {
     CallableSignature,
     findBuiltinAncestor,
@@ -36,6 +39,9 @@ export class OcaraHoverProvider implements vscode.HoverProvider {
         const after = line.substring(range.end.character);
         const isCall = /^\s*\(/.test(after);
 
+        const keyword = keywordDoc(document, position, word, before, after);
+        if (keyword) { return this.hoverFor(range, keyword); }
+
         const staticMatch = before.match(/([A-Za-z_]\w*)::$/);
         if (staticMatch) {
             const owner = staticMatch[1] === 'self' || staticMatch[1] === 'parent'
@@ -61,8 +67,7 @@ export class OcaraHoverProvider implements vscode.HoverProvider {
 
     private hoverFor(range: vscode.Range, markdown: string | undefined): vscode.Hover | undefined {
         if (!markdown) { return undefined; }
-        const md = new vscode.MarkdownString(markdown);
-        return new vscode.Hover(md, range);
+        return new vscode.Hover(trustedMarkdown(markdown), range);
     }
 
     /** `receiver.word` : variable typée, `self`/`parent`, primitif (sucre). */
@@ -108,7 +113,10 @@ export class OcaraHoverProvider implements vscode.HoverProvider {
     /** Classe/struct/interface... : en-tête, commentaire, et constructeur généré d'un struct. */
     private async typeDoc(document: vscode.TextDocument, name: string): Promise<string | undefined> {
         const builtin = getBuiltinClass(name);
-        if (builtin) { return codeBlock(`ocara.${name}`) + `\n\nClasse builtin — ${builtin.methods.length} méthode(s), voir \`docs/builtins/${name}.md\`.`; }
+        if (builtin) {
+            return codeBlock(`ocara.${name}`) + `\n\nClasse builtin — ${builtin.methods.length} méthode(s).\n\n` +
+                docLink(`📖 docs/builtins/${name}.md`, `builtins/${name}.md`);
+        }
         const decl = await findTypeDeclaration(document, name);
         if (!decl) { return undefined; }
         const parts = [codeBlock(decl.header)];
@@ -130,7 +138,35 @@ export class OcaraHoverProvider implements vscode.HoverProvider {
 export function builtinDoc(owner: string, m: BuiltinMethod, sep: string): string {
     const params = m.params.map(p => `${p.name}:${p.type}`).join(', ');
     const head = codeBlock(`${owner}${sep}${m.name}(${params}): ${m.returns}`);
-    return [head, m.doc ?? `_Méthode builtin \`ocara.${owner}\` — pas de description dans docs/builtins/${owner}.md._`].join('\n\n');
+    const file = m.docFile ?? `${owner}.md`;
+    const link = docLink(`📖 docs/builtins/${file}`, `builtins/${file}`, m.docHeading);
+    const body = m.doc ? rewriteDocLinks(m.doc, 'builtins') : `_Méthode builtin \`ocara.${owner}\` — pas encore de description dans la documentation._`;
+    return [head, body, link].join('\n\n');
+}
+
+/**
+ * Mot-clé sous le curseur (hors chaîne/commentaire) : résumé + lien vers sa
+ * section de l'EBNF. Un mot-clé aussi utilisable comme identifiant
+ * (`result`, `message`, `init`...) n'est documenté qu'en position de
+ * mot-clé : début d'instruction ou après un modificateur, `map`/`array`
+ * suivis de `<`, `default` suivi de `=>`.
+ */
+function keywordDoc(document: vscode.TextDocument, position: vscode.Position, word: string, before: string, after: string): string | undefined {
+    const kw = Object.prototype.hasOwnProperty.call(KEYWORDS, word) ? KEYWORDS[word] : undefined;
+    if (!kw || /[.:]$/.test(before) || /^\s*:(?!:)/.test(after)) { return undefined; }
+    if (CONTEXTUAL_KEYWORDS.has(word)) {
+        const asKeyword =
+            (/^\s*$/.test(before) || /\b(?:public|private|protected|static|async|is)\s+$/.test(before)) && !/^\s*[.=:]/.test(after)
+            || ((word === 'map' || word === 'array') && /^\s*</.test(after))
+            || (word === 'default' && /^\s*=>/.test(after));
+        if (!asKeyword) { return undefined; }
+    }
+    const offset = document.offsetAt(position);
+    const masked = maskSource(document.getText());
+    if (masked[offset] === ' ' && document.getText()[offset] !== ' ') { return undefined; }
+    const heading = ebnfHeading(kw.section);
+    const link = heading ? docLink(`📖 EBNF §${heading.replace(/`/g, '')}`, 'EBNF.md', heading) : '';
+    return [codeBlock(word), kw.summary, link].filter(Boolean).join('\n\n');
 }
 
 function userCallableDoc(sig: CallableSignature, label: string): string {

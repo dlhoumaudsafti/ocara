@@ -289,7 +289,7 @@ def extract_docs():
                         break
                     body.append(nxt)
                 text = (title.strip() + "\n\n" + "\n".join(body).strip()).strip()
-                docs.setdefault(key, text[:DOC_MAX_CHARS])
+                docs.setdefault(key, (text[:DOC_MAX_CHARS], md.name, title.strip()))
                 continue
             tm = TABLE_ROW_RE.match(line)
             if tm:
@@ -303,7 +303,7 @@ def extract_docs():
                     nm = TABLE_NAME_RE.match(code.strip())
                     if nm:
                         key = (method_class(nm.group(1), nm.group(2), current), nm.group(3))
-                        table_docs.setdefault(key, first + " — " + " — ".join(cells))
+                        table_docs.setdefault(key, (first + " — " + " — ".join(cells), md.name, None))
     for key, text in table_docs.items():
         docs.setdefault(key, text)
     return docs
@@ -322,7 +322,7 @@ def example_doc(class_name, method_name):
                 in_code = not in_code
                 continue
             if in_code and call.search(line):
-                return "Exemple (docs/builtins/" + md.name + ") :\n\n```ocara\n" + line.strip() + "\n```"
+                return ("Exemple :\n\n```ocara\n" + line.strip() + "\n```", md.name, None)
     return None
 
 def main():
@@ -336,7 +336,11 @@ def main():
         for m in c["methods"]:
             doc = docs.get((c["name"], m["name"])) or example_doc(c["name"], m["name"])
             if doc:
-                m["doc"] = doc
+                # `docFile` (dans docs/builtins/) et `docHeading` (titre de la
+                # section, pour ouvrir l'aperçu dessus) : lien du survol.
+                m["doc"], m["docFile"], heading = doc
+                if heading:
+                    m["docHeading"] = heading
                 documented += 1
 
     total_methods = sum(len(c["methods"]) for c in catalog)

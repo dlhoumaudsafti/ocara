@@ -9,6 +9,7 @@ import { OcaracsLinter } from './lint';
 import { OcaraCompiler } from './compile';
 import { runtimeContext } from './runtimecontext';
 import { OcaraHoverProvider } from './hover';
+import { registerDocs } from './docs';
 import { findCallSite, resolveCall } from './callsite';
 import {
     esc,
@@ -44,6 +45,9 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.languages.registerCodeLensProvider(selector, new OcaraCodeLensProvider(index))
     );
+
+    // Documentation embarquée (copie de docs/, ouverte en aperçu depuis le survol).
+    registerDocs(context);
 
     // Documentation au survol (builtins, sucre d'instance, déclarations utilisateur).
     context.subscriptions.push(vscode.languages.registerHoverProvider(selector, new OcaraHoverProvider()));

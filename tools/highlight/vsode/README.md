@@ -17,6 +17,14 @@ Coloration syntaxique, autocomplétion et navigation (Go-to-Definition) pour le 
     doc de la méthode réellement appelée ;
   - fonctions, méthodes, classes, structs (constructeur généré), interfaces... de votre code — signature et
     commentaires `//` placés juste au-dessus de la déclaration
+- **Documentation embarquée** : `docs/EBNF.md` et `docs/builtins/*.md` du dépôt sont copiés dans
+  l'extension à chaque compilation (`scripts/copy-docs.js`, lancé par `npm run compile` — la copie
+  précédente est supprimée d'abord ; dossier `docs/` de l'extension ignoré par git, ne jamais l'éditer).
+  Le lien « 📖 » d'une popup de survol ouvre le fichier en **aperçu** Markdown dans un nouvel onglet,
+  sur la section concernée
+- **Survol des mots-clés** (`scoped`, `wiring`, `struct`, `match`, `try`/`on`...) : résumé et lien vers
+  leur section de l'EBNF ; les mots-clés aussi utilisables comme noms (`result`, `message`, `init`...)
+  ne sont documentés qu'en position de mot-clé
 - **Autocomplétion avec paramètres** : toute méthode/fonction complétée insère ses paramètres comme champs
   à remplir portant leurs noms d'origine (`replace(s, from, to)`, `Tab` pour passer au suivant) ; fonctions
   libres du programme (fichier, fichiers importés, fichiers runtime du même programme) proposées avec leur doc
