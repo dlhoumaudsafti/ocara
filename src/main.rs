@@ -905,8 +905,8 @@ fn main() {
     }
 
     // ── 4e-bis. Arguments nommés → positionnels (voir core::named_args) ──────
-    let named_arg_rewrites = std::mem::take(&mut checker.named_arg_rewrites);
-    if let Err((span, msg)) = core::named_args::rewrite_named_args(&mut program, &named_arg_rewrites) {
+    let rewrites = std::mem::take(&mut checker.rewrites);
+    if let Err((span, msg)) = core::named_args::rewrite_program(&mut program, &rewrites) {
         let file_path = span.file.as_ref().map(std::path::PathBuf::from).unwrap_or_else(|| args.input.clone());
         diagnostic::print_error(&file_path, span.line, span.col, &msg);
         std::process::exit(1);

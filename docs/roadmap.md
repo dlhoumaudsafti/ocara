@@ -29,9 +29,12 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
+- **Bug : `0` dans un tableau imbriqué encodé en JSON ressort comme une valeur mémoire brute** (`[[1,2],[0,3]]` → `[[1,2],[837928771,3]]`) — boxing de `0` probablement absent dans un littéral imbriqué. Échec de `40_json_yaml_concrete_containersTest` jusqu'ici masqué par ocaraunit. *(Dangereuse)* → [détails](roadmap.d/memoire-nested-array-zero-json.md)
+- **Bug : constante de classe négative** (`public const ZERO:int = -273`) — `T::ZERO` vaut le nom du symbole `T__ZERO` : `-273` n'est pas un `Expr::Literal`, ni inliné ni émis. Échec de `23_static_methodTest` jusqu'ici masqué. *(Simple)* → [détails](roadmap.d/langage-negative-class-const.md)
+- **Bug : `not f` faux sur un élément de `variadic<bool>` parcouru par `for`** (`all_true(true)` → `false`) — bool boxé traité comme bool brut. Échec de `30_variadicTest` jusqu'ici masqué. *(Légère)* → [détails](roadmap.d/langage-variadic-bool-not.md)
 - **Nouvelle classe builtin `HTTPServerSession`** (variables de session par utilisateur `set`/`get`/`has`, variables globales `setGlobal`/`getGlobal`/`hasGlobal`) — plusieurs points à trancher avant d'implémenter (identification par cookie, aucun support cookie aujourd'hui ; concurrence). *(Structurel au minimum — voir la fiche)* → [détails](roadmap.d/stdlib-httpserver-session.md)
 - **Initialiseur inline sur une `property`** (`property nom:Type = expr`, évalué avant le corps de `init()`) — aujourd'hui impossible (vérifié : échoue au parsing), oblige à toujours écrire l'affectation à la main dans `init()` même pour une valeur indépendante de tout paramètre. *(Structurel — grammaire, sema, interaction avec l'héritage et l'analyse de ressources)* → [détails](roadmap.d/langage-property-initializer.md)
-- **Méthodes d'instance manquantes pour `Convert`** (`a.toInt()` au lieu de `Convert::strToInt(a)`, pour les 19 méthodes de la classe) — vérifié : aucune n'a d'équivalent d'instance aujourd'hui, et le mécanisme de sucre existant (`allows_instance_sugar`) ne suffit pas (il permet le même nom en instance, pas un renommage par méthode). *(Structurel — nouveau mécanisme de correspondance par nom, méthodes d'instance à introduire sur des primitifs qui n'en ont jamais eu)* → [détails](roadmap.d/stdlib-convert-instance-methods.md)
+- **Corps des `generic` jamais vérifiés par l'analyse sémantique** — `check_program` ignore `program.generics` et la monomorphisation tourne après la sema : aucune erreur de type/arité/symbole n'est détectée dans une méthode de `generic`. Les arguments nommés y sont résolus par un repli syntaxique limité. *(Structurel)* → [détails](roadmap.d/sema-generic-bodies-unchecked.md)
 
 ---
 
@@ -39,9 +42,7 @@ Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnali
 
 À traiter mais non bloquant pour la stabilité du langage.
 
-- **Corps des `generic` jamais vérifiés par l'analyse sémantique** — `check_program` ignore `program.generics` et la monomorphisation tourne après la sema : aucune erreur de type/arité/symbole n'est détectée dans une méthode de `generic`. Les arguments nommés y sont résolus par un repli syntaxique limité. *(Structurel)* → [détails](roadmap.d/sema-generic-bodies-unchecked.md)
 - **Architecture hexagonale stricte par défaut** — déclaration `architecture hexagonal` avec alias configurables pour `domain`/`application`/`infrastructure`; `architecture permissive` désactive uniquement les contrôles architecturaux. Vérification compile-time de la direction des imports entre couches et contextes, des racines `shared` et des cibles de `wiring`. *(Structurelle — classification des fichiers/namespace, résolution des imports et intégration aux règles existantes de `wiring`)* → [détails](roadmap.d/langage-mode-hexa.md)
-- **Enums enrichis** — syntaxe `case`, backing type typé déclaré (`enum Status: string { case Pending = 'pending' }`), méthodes d'instance avec `self` référençant le cas courant et pattern `self::Case`/motifs multiples par bras dans un `match`. Vérifié : l'enum actuel est un pur groupe de constantes `int` (`EnumVariant.value: Option<i64>` câblé en dur, pas de méthodes, pas d'instanciation), et `match` ne supporte ni motif « cas d'enum » ni plusieurs motifs séparés par une virgule dans un même bras. *(Massive — nouveau système d'enum quasi complet + extension du pattern matching, plusieurs points à trancher avant d'implémenter)* → [détails](roadmap.d/langage-enum-cases-backing-methods.md)
 
 ---
 
@@ -51,6 +52,7 @@ Confort ou portée future — n'affecte pas la correction du compilateur ou des 
 
 - **Réflexion (non tranchée) : remplacer `for x in a..b` par `for x in 1 to 10` (borne incluse) / `for x in 1 until 10` (borne exclue)** — la borne de fin exclue de `..` n'est pas lisible au point d'appel ; à peser contre le coût d'un changement de syntaxe cassant sur tout le corpus existant. *(Structurel si retenu — voir la fiche pour la discussion complète avant tout engagement)* → [détails](roadmap.d/reflexion-syntaxe-for-range.md)
 - **Réflexion (non tranchée) : `for x in myarray when x greater|smaller|(not) equal| literral|var|scoped|consumed|const|property {}` et `for x when x greater|smaller|(not) equal| y {}` et `for x=1 when x greater|smaller|(not) y {}`**
+- **Enums enrichis** — syntaxe `case`, backing type typé déclaré (`enum Status: string { case Pending = 'pending' }`), méthodes d'instance avec `self` référençant le cas courant et pattern `self::Case`/motifs multiples par bras dans un `match`. Vérifié : l'enum actuel est un pur groupe de constantes `int` (`EnumVariant.value: Option<i64>` câblé en dur, pas de méthodes, pas d'instanciation), et `match` ne supporte ni motif « cas d'enum » ni plusieurs motifs séparés par une virgule dans un même bras. *(Massive — nouveau système d'enum quasi complet + extension du pattern matching, plusieurs points à trancher avant d'implémenter)* → [détails](roadmap.d/langage-enum-cases-backing-methods.md)
 
 ---
 

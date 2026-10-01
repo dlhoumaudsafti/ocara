@@ -1,7 +1,9 @@
 # `ocara.Convert` — Classe builtin
 
 > Classe de conversion entre types primitifs et structures de données.  
-> Toutes les méthodes sont **statiques** : elles s'appellent via `Convert::<méthode>(args)`.
+> Toutes les méthodes sont **statiques** : elles s'appellent via `Convert::<méthode>(args)` —
+> ou, plus court, comme **méthodes d'instance** sur la valeur à convertir (`s.toInt()`, voir
+> [Méthodes d'instance](#méthodes-dinstance)).
 
 ---
 
@@ -11,6 +13,39 @@
 import ocara.Convert        // importe uniquement Convert
 import ocara.*              // importe toutes les classes builtins
 ```
+
+---
+
+## Méthodes d'instance
+
+Chaque conversion s'écrit aussi directement sur la valeur à convertir : le préfixe de type
+source (porté par le receveur) disparaît du nom. **Aucun `import ocara.Convert` n'est
+nécessaire** pour cette forme.
+
+```ocara
+var port:int = "8080".toInt()                    // ≡ Convert::strToInt("8080")
+var label:string = port.toStr()                  // ≡ Convert::intToStr(port)
+var csv:string = [1, 2, 3].toStr(",")            // ≡ Convert::arrayToStr([1, 2, 3], ",")
+var parts:array<string> = csv.toArray(sep: ",")  // arguments nommés : noms sans le receveur
+```
+
+| Receveur | Méthode d'instance | Équivalent statique |
+|----------|--------------------|---------------------|
+| `string` | `s.toInt()` / `s.toFloat()` / `s.toBool()` | `strToInt(s)` / `strToFloat(s)` / `strToBool(s)` |
+| `string` | `s.toArray(sep)` / `s.toMap(sep, kv)` | `strToArray(s, sep)` / `strToMap(s, sep, kv)` |
+| `int` | `n.toStr()` / `n.toFloat()` / `n.toBool()` | `intToStr(n)` / `intToFloat(n)` / `intToBool(n)` |
+| `float` | `f.toStr()` / `f.toInt()` / `f.toBool()` | `floatToStr(f)` / `floatToInt(f)` / `floatToBool(f)` |
+| `bool` | `b.toStr()` / `b.toInt()` / `b.toFloat()` | `boolToStr(b)` / `boolToInt(b)` / `boolToFloat(b)` |
+| `array<T>` | `arr.toStr(sep)` / `arr.toMap(kv)` | `arrayToStr(arr, sep)` / `arrayToMap(arr, kv)` |
+| `map<K,V>` | `m.toStr(sep, kv)` | `mapToStr(m, sep, kv)` |
+
+`mapKeysToArray(m)`/`mapValuesToArray(m)` n'ont pas de forme d'instance propre : `m.keys()`/
+`m.values()` (classe [`Map`](Map.md)) font exactement la même chose.
+
+Ce sont les **seules** méthodes d'instance de `int`, `float` et `bool`. La correspondance se
+fait sur le type **statique** du receveur : un receveur `mixed` ou d'un type union n'y a pas
+accès (passer par la forme statique). Le résultat se chaîne normalement :
+`"41".toInt().toStr()`, `"a,b".toArray(",").len()`, `"k=v".toMap(";", "=")["k"]`.
 
 ---
 

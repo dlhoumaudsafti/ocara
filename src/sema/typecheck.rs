@@ -38,9 +38,9 @@ pub struct TypeChecker<'a> {
     /// Paramètres déclarés de chaque callable utilisateur — calculé une fois
     /// dans `check_program`, voir `crate::sema::named_args`.
     pub(crate) callable_params: crate::sema::named_args::CallableParams<'a>,
-    /// Liste positionnelle résolue de chaque appel à arguments nommés, à
-    /// réinjecter dans l'AST avant le lowering (`core::named_args`).
-    pub named_arg_rewrites: std::collections::HashMap<crate::sema::named_args::ArgSiteKey, Vec<Expr>>,
+    /// Réécritures de l'AST (arguments nommés, sucre `Convert`) à appliquer
+    /// avant le lowering (`core::named_args`).
+    pub rewrites: crate::sema::named_args::AstRewrites,
 }
 
 impl<'a> TypeChecker<'a> {
@@ -59,7 +59,7 @@ impl<'a> TypeChecker<'a> {
             class_members: std::collections::HashMap::new(),
             resource_classes: std::collections::HashSet::new(),
             callable_params: std::collections::HashMap::new(),
-            named_arg_rewrites: std::collections::HashMap::new(),
+            rewrites: crate::sema::named_args::AstRewrites::default(),
         }
     }
     
@@ -1204,6 +1204,12 @@ impl<'a> TypeChecker<'a> {
                 if let Expr::Field { object, field, span: fspan } = callee.as_ref() {
                     let obj_ty = self.infer_expr(object);
 
+                    // `s.toInt()`, `n.toStr()`... → `Convert::strToInt(s)`...
+                    // (voir `crate::sema::convert_sugar`).
+                    if let Some(ret) = self.resolve_convert_sugar(object, &obj_ty, field, args, span) {
+                        return ret;
+                    }
+
                     // Valeur d'un générique instancié (`List<int>`, ...) : résoudre
                     // la méthode dans la déclaration `generic`, avec substitution
                     // des paramètres de type par les arguments concrets de CETTE
@@ -1316,6 +1322,7 @@ impl<'a> TypeChecker<'a> {
                         self.errors.push(SemaError::MethodCallOnNonClass {
                             type_name: type_name(&obj_ty),
                             method: field.clone(),
+                            available: crate::sema::convert_sugar::conversion_methods_for(&obj_ty),
                             span: self.with_runtime_ctx(fspan),
                         });
                         for a in args { self.infer_expr(a); }

@@ -38,6 +38,7 @@ const vscode = __importStar(require("vscode"));
 const builtins_1 = require("./builtins");
 const resolver_1 = require("./resolver");
 const callsite_1 = require("./callsite");
+const primitives_1 = require("./primitives");
 // ─────────────────────────────────────────────────────────────────────────────
 // Autocomplétion : méthodes/constantes des classes builtin `ocara.*` (données
 // générées depuis src/builtins/*.rs, voir tools/highlight/vsode/data/) et des
@@ -73,7 +74,9 @@ class OcaraCompletionProvider {
                 className = (0, resolver_1.findVariableType)(document, varName);
             }
             if (!className) {
-                return undefined;
+                // Type primitif : conversions (`s.toInt()`) et sucre String/Array/Map.
+                const primitive = (0, primitives_1.findPrimitiveType)(document, varName);
+                return primitive ? (0, primitives_1.instanceMethodsFor)(primitive).map(m => this.primitiveMethodItem(varName, m)) : undefined;
             }
             return this.completeInstance(document, className);
         }
@@ -182,6 +185,14 @@ class OcaraCompletionProvider {
         item.detail = `${className}${sep}${m.name}(${paramsStr}): ${m.returns}`;
         item.insertText = new vscode.SnippetString(m.params.length > 0 ? `${m.name}($1)` : `${m.name}()`);
         item.documentation = new vscode.MarkdownString(`\`${item.detail}\`\n\nMéthode builtin — \`ocara.${className}\``);
+        return item;
+    }
+    primitiveMethodItem(receiver, m) {
+        const item = new vscode.CompletionItem(m.name, vscode.CompletionItemKind.Method);
+        const paramsStr = m.params.map(p => `${p.name}:${p.type}`).join(', ');
+        item.detail = `${receiver}.${m.name}(${paramsStr}): ${m.returns}`;
+        item.insertText = new vscode.SnippetString(m.params.length > 0 ? `${m.name}($1)` : `${m.name}()`);
+        item.documentation = new vscode.MarkdownString(`\`${item.detail}\`\n\nÉquivalent de \`${m.target}(${receiver}${m.params.length > 0 ? ', ' + m.params.map(p => p.name).join(', ') : ''})\``);
         return item;
     }
     builtinConstItem(className, c, isStatic) {

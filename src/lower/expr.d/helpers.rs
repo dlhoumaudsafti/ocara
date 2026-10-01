@@ -342,6 +342,12 @@ pub fn elem_type_after_index(builder: &LowerBuilder, expr: &Expr) -> Option<Type
 pub fn is_map_target(builder: &LowerBuilder, object: &Expr) -> bool {
     match object {
         Expr::Ident(name, _) => builder.map_vars.contains(name.as_str()),
+        // Résultat d'appel indexé directement (`Convert::strToMap(s, ";", "=")["k"]`,
+        // `getConfig()["k"]`) : classe de retour déclarée, builtin compris
+        // (voir `method_ret_class`/`func_ret_class`).
+        Expr::Call { .. } | Expr::StaticCall { .. } => {
+            resolve_receiver_class(builder, object).as_deref() == Some("Map")
+        }
         Expr::Field { object: inner, field, .. } => {
             resolve_receiver_class(builder, inner)
                 .and_then(|cls| builder.module.class_map_fields.get(&cls).cloned())

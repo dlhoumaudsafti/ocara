@@ -1,0 +1,48 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 69 — Méthodes d'instance de conversion (`s.toInt()`, `n.toStr()`...)
+//
+// Voir docs/roadmap.d/stdlib-convert-instance-methods.md et
+// docs/builtins/Convert.md.
+//
+// Chaque méthode est un raccourci pour la méthode statique de `Convert` de
+// même rôle, préfixe de type source retiré (porté par le receveur) :
+// `s.toInt()` ≡ `Convert::strToInt(s)`. Aucun `import ocara.Convert` requis.
+// `m.keys()`/`m.values()` (classe `Map`) couvrent déjà
+// `Convert::mapKeysToArray`/`mapValuesToArray`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+
+function main(): int {
+    // string → int / float / bool / array / map
+    var raw:string = "41"
+    var n:int = raw.toInt() + 1
+    IO::writeln(`${n} ${"3.5".toFloat()} ${"true".toBool()}`)
+    var parts:array<string> = "a,b,c".toArray(",")
+    IO::writeln(`${parts.len()} ${parts[2]}`)
+    var conf:map<string, string> = "host=localhost;port=8080".toMap(";", "=")
+    IO::writeln(conf["port"])
+
+    // int / float / bool → les deux autres types scalaires, et string
+    var count:int = 7
+    IO::writeln(count.toStr() + " " + `${count.toFloat()} ${count.toBool()}`)
+    var price:float = 2.75
+    IO::writeln(price.toStr() + " " + `${price.toInt()} ${price.toBool()}`)
+    var flag:bool = true
+    IO::writeln(flag.toStr() + " " + `${flag.toInt()} ${flag.toFloat()}`)
+
+    // array / map → string, array → map
+    var ids:array<int> = [1, 2, 3]
+    IO::writeln(ids.toStr("-"))
+    IO::writeln(`${["a=1", "b=2"].toMap("=").size()}`)
+    IO::writeln(conf.toStr("&", ":"))
+
+    // Chaînage, et résultat d'une conversion utilisé comme receveur.
+    IO::writeln(raw.toInt().toStr().toInt().toStr())
+    IO::writeln(`${"x,y".toArray(",").len()}`)
+
+    // Arguments nommés : noms des paramètres de la méthode `Convert` (sans le receveur).
+    IO::writeln(ids.toStr(sep: "+"))
+
+    return 0
+}

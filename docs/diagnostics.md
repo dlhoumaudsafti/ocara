@@ -752,10 +752,11 @@ Avant ce diagnostic, un récepteur de type `void` était traité comme n'importe
 ### E37 — Appel de méthode sur un récepteur sans classe associée (`int`/`float`/`bool`/`null`/`message<T>`/`Function<...>`)
 
 ```
-fichier.oc:11:32: error: cannot call '.upper(...)' — the receiver's type is 'int', which has no methods
+fichier.oc:11:32: error: cannot call '.upper(...)' — the receiver's type is 'int', whose only methods are the conversions: toFloat(), toBool(), toStr()
+fichier.oc:11:32: error: cannot call '.foo(...)' — the receiver's type is 'null', which has no methods
 ```
 
-`expr.méthode(...)` où `expr` est de type `int`, `float`, `bool`, `null`, `message<T>` ou `Function<...>` — aucun de ces types n'a de classe associée, donc aucune méthode ne peut exister dessus. Même mécanisme que E36 (void), généralisé aux types que ce correctif-là avait délibérément laissés de côté.
+`expr.méthode(...)` où `expr` est de type `int`, `float`, `bool`, `null`, `message<T>` ou `Function<...>` — aucun de ces types n'a de classe associée. `int`/`float`/`bool` n'ont pour seules méthodes que les conversions de `Convert` (`n.toStr()`, `f.toInt()`... — voir docs/builtins/Convert.md), listées dans le message ; les autres types n'en ont aucune. Même mécanisme que E36 (void), généralisé aux types que ce correctif-là avait délibérément laissés de côté.
 
 ```ocara
 class Foo {
@@ -775,7 +776,7 @@ Avant ce diagnostic, un récepteur de l'un de ces types était traité comme n'i
 
 **Important :** `mixed` n'est **pas** concerné par ce diagnostic — son imprécision (aucune vérification de type) est un choix de langage assumé, documenté par l'avertissement W02 (voir plus bas), pas un oubli comme les types ci-dessus.
 
-**Correction :** ne pas appeler de méthode sur un récepteur de l'un de ces types — s'assurer que la méthode précédente de la chaîne retourne bien une instance de classe (ou `string`/`array`/`map`, qui ont leurs propres méthodes d'instance sucrées) avant de chaîner un appel dessus.
+**Correction :** ne pas appeler de méthode (hors conversions listées) sur un récepteur de l'un de ces types — s'assurer que la méthode précédente de la chaîne retourne bien une instance de classe (ou `string`/`array`/`map`, qui ont leurs propres méthodes d'instance sucrées) avant de chaîner un appel dessus.
 
 ---
 

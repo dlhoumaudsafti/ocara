@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { getBuiltinClass } from './builtins';
+import { findPrimitiveType, instanceMethodsFor } from './primitives';
 import {
     findVariableType,
     findEnclosingClassName,
@@ -181,6 +182,16 @@ export async function resolveCall(
             owner: `${builtin.name}::${method.name}`,
             params: method.params.map(p => ({ name: p.name, type: p.type, variadic: /^variadic\b/.test(p.type) })),
             returnType: method.returns,
+        };
+    }
+    // Receveur de type primitif (`s.toArray(`, `arr.join(`) : conversions et sucre builtin.
+    const primitive = site.kind === 'instance' && site.receiver ? findPrimitiveType(document, site.receiver) : undefined;
+    const primitiveMethod = primitive ? instanceMethodsFor(primitive).find(m => m.name === site.name) : undefined;
+    if (primitiveMethod) {
+        return {
+            owner: `${site.receiver}.${primitiveMethod.name}`,
+            params: primitiveMethod.params.map(p => ({ name: p.name, type: p.type, variadic: /^variadic\b/.test(p.type) })),
+            returnType: primitiveMethod.returns,
         };
     }
     // `use Struct(...)` : constructeur généré depuis les champs (hérités d'abord).

@@ -5,6 +5,7 @@
 ///   2. `TypeChecker`  — vérifie les types de chaque expression / statement
 ///   3. `SemaError`    — erreurs sémantiques rapportées
 pub mod error;
+pub mod convert_sugar;
 pub mod escape;
 pub mod field_visibility;
 pub mod message_emit;

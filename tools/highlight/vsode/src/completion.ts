@@ -8,6 +8,7 @@ import {
     ClassMember,
 } from './resolver';
 import { findCallSite, resolveCall, remainingNamedParams, paramLabel } from './callsite';
+import { findPrimitiveType, instanceMethodsFor, InstanceMethod } from './primitives';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Autocomplétion : méthodes/constantes des classes builtin `ocara.*` (données
@@ -52,7 +53,11 @@ export class OcaraCompletionProvider implements vscode.CompletionItemProvider {
             } else {
                 className = findVariableType(document, varName);
             }
-            if (!className) { return undefined; }
+            if (!className) {
+                // Type primitif : conversions (`s.toInt()`) et sucre String/Array/Map.
+                const primitive = findPrimitiveType(document, varName);
+                return primitive ? instanceMethodsFor(primitive).map(m => this.primitiveMethodItem(varName, m)) : undefined;
+            }
             return this.completeInstance(document, className);
         }
 
@@ -171,6 +176,15 @@ export class OcaraCompletionProvider implements vscode.CompletionItemProvider {
         item.detail = `${className}${sep}${m.name}(${paramsStr}): ${m.returns}`;
         item.insertText = new vscode.SnippetString(m.params.length > 0 ? `${m.name}($1)` : `${m.name}()`);
         item.documentation = new vscode.MarkdownString(`\`${item.detail}\`\n\nMéthode builtin — \`ocara.${className}\``);
+        return item;
+    }
+
+    private primitiveMethodItem(receiver: string, m: InstanceMethod): vscode.CompletionItem {
+        const item = new vscode.CompletionItem(m.name, vscode.CompletionItemKind.Method);
+        const paramsStr = m.params.map(p => `${p.name}:${p.type}`).join(', ');
+        item.detail = `${receiver}.${m.name}(${paramsStr}): ${m.returns}`;
+        item.insertText = new vscode.SnippetString(m.params.length > 0 ? `${m.name}($1)` : `${m.name}()`);
+        item.documentation = new vscode.MarkdownString(`\`${item.detail}\`\n\nÉquivalent de \`${m.target}(${receiver}${m.params.length > 0 ? ', ' + m.params.map(p => p.name).join(', ') : ''})\``);
         return item;
     }
 

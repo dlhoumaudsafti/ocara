@@ -558,7 +558,7 @@ async function findFunctionSignature(document, name) {
 }
 /**
  * Champs d'un `struct`, parents d'abord (ordre du constructeur généré par le
- * compilateur, voir docs/EBNF.md §16.6) — `undefined` si `className` n'est
+ * compilateur, voir docs/EBNF.md §16.7) — `undefined` si `className` n'est
  * pas un struct.
  */
 async function findStructFields(document, className, depth = 0) {

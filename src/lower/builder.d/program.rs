@@ -199,6 +199,17 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         }
     }
 
+    // Méthodes des classes builtin (`Convert::strToArray(s, ",").len()`,
+    // `HTML::...`) : même table, sans jamais écraser une classe utilisateur
+    // homonyme déjà enregistrée ci-dessus.
+    for (class_name, info) in crate::builtins::all_builtins() {
+        for (method_name, sig) in &info.methods {
+            if let Some(name) = concrete_return_class(&sig.ret_ty) {
+                module.method_ret_class.entry(format!("{}_{}", class_name, method_name)).or_insert(name);
+            }
+        }
+    }
+
     // Même collecte que ci-dessus, mais pour les méthodes déclarées par une
     // `interface` (mangled "Interface_méthode", ex. "Shape_area") — SANS
     // CELA, un site d'appel `s.méthode()` où `s` est typé par une interface

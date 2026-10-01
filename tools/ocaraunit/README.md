@@ -58,7 +58,7 @@ ocaraunit --coverage src/
 # Supprimer le cache uniquement
 ocaraunit --clear
 
-# Purger le cache puis lancer les tests (utile après changement du compilateur)
+# Purger le cache puis lancer les tests
 ocaraunit --clear examples/tests/MyTest.oc
 
 # Combinaison complète : --clear + --src + --coverage
@@ -87,7 +87,20 @@ ocaraunit --clear
 ocaraunit --clear tests/
 ```
 
-Le cache est invalidé automatiquement si le fichier source change. Utilisez `--clear` après une mise à jour du compilateur pour forcer la recompilation.
+Le cache est invalidé automatiquement si le fichier de test change, si le compilateur `ocara`
+change (il embarque le runtime), ou si n'importe quel fichier `.oc` du projet change (classes
+importées par les tests) — empreinte calculée une fois par exécution, sur les métadonnées
+(chemin, taille, date de modification). `--clear` reste disponible pour repartir de zéro.
+
+---
+
+## Échecs d'exécution
+
+Un `assert*` en échec lève une `UnitTestException` qui arrête le binaire de test : les
+assertions déjà passées du fichier sont affichées, puis une **ERREUR d'exécution** avec le
+message de l'exception (`Message: assertEquals: expected "v" but got null`). Les assertions
+suivantes du même fichier ne sont pas exécutées. Toute fin anormale du binaire est signalée
+(code de sortie non nul), même après des assertions réussies.
 
 ---
 

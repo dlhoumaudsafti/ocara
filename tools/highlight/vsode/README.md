@@ -10,6 +10,10 @@ Coloration syntaxique, autocomplétion et navigation (Go-to-Definition) pour le 
   (catalogue généré depuis `src/builtins/*.rs`, voir `data/builtins-data.json`) et des
   classes utilisateur (propres et héritées via `extends`, résolues à travers les imports)
 - **Autocomplétion `self.` / `self::` / `parent.`** dans le corps d'une classe
+- **Autocomplétion sur une variable de type primitif** (`string`, `int`, `float`, `bool`, `array<T>`,
+  `map<K,V>`) : conversions (`s.toInt()`, `n.toStr()`, `arr.toStr(sep)`... ≡ `Convert::*`, voir
+  `docs/builtins/Convert.md`) et méthodes `String`/`Array`/`Map` utilisables en instance (`s.trim()`),
+  avec signature help
 - **Autocomplétion `e.message` / `e.code` / `e.source`** dans un bloc `on e is XException`
 - **Autocomplétion des noms de classe après `use `** (builtins instanciables + classes utilisateur)
 - **Arguments nommés** (`use UserDto(id: 42, name: 'David')`) :

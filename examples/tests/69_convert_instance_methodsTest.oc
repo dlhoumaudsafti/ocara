@@ -1,0 +1,50 @@
+import ocara.UnitTest
+import ocara.Convert
+
+// docs/roadmap.d/stdlib-convert-instance-methods.md — chaque forme
+// d'instance doit produire EXACTEMENT la même valeur que la méthode statique
+// `Convert` qu'elle remplace.
+class Test_69_convert_instance_methods {
+
+    public method stringConversionsTest(): int {
+        var s:string = "12"
+        UnitTest::assertEquals(Convert::strToInt(s), s.toInt())
+        UnitTest::assertEquals(Convert::strToFloat("3.5"), "3.5".toFloat())
+        UnitTest::assertEquals(Convert::strToBool("true"), "true".toBool())
+        UnitTest::assertEquals(3, "a,b,c".toArray(",").len())
+        UnitTest::assertEquals("v", "k=v".toMap(";", "=")["k"])
+        return 0
+    }
+
+    public method scalarConversionsTest(): int {
+        var i:int = 7
+        var f:float = -1.5
+        var b:bool = false
+        UnitTest::assertEquals(Convert::intToStr(i), i.toStr())
+        UnitTest::assertEquals(Convert::intToFloat(i), i.toFloat())
+        UnitTest::assertEquals(Convert::intToBool(i), i.toBool())
+        UnitTest::assertEquals(Convert::floatToStr(f), f.toStr())
+        UnitTest::assertEquals(Convert::floatToInt(f), f.toInt())
+        UnitTest::assertEquals(Convert::floatToBool(f), f.toBool())
+        UnitTest::assertEquals(Convert::boolToStr(b), b.toStr())
+        UnitTest::assertEquals(Convert::boolToInt(b), b.toInt())
+        UnitTest::assertEquals(Convert::boolToFloat(b), b.toFloat())
+        return 0
+    }
+
+    public method containerConversionsTest(): int {
+        var arr:array<string> = ["a=1", "b=2"]
+        var m:map<string, string> = "k=v;x=y".toMap(";", "=")
+        UnitTest::assertEquals(Convert::arrayToStr(arr, ","), arr.toStr(","))
+        UnitTest::assertEquals(2, arr.toMap("=").size())
+        UnitTest::assertEquals(Convert::mapToStr(m, "&", ":"), m.toStr("&", ":"))
+        return 0
+    }
+
+    public method chainingTest(): int {
+        UnitTest::assertEquals("41", "41".toInt().toStr())
+        UnitTest::assertEquals(2, Convert::strToArray("x,y", ",").len())
+        UnitTest::assertEquals("1+2", [1, 2].toStr(sep: "+"))
+        return 0
+    }
+}

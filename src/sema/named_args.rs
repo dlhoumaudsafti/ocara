@@ -31,6 +31,18 @@ pub fn site_key(span: &Span) -> ArgSiteKey {
     (span.file.clone(), span.line, span.col)
 }
 
+/// Réécritures de l'AST décidées par la sema, appliquées après elle par
+/// `core::named_args::rewrite_program`.
+#[derive(Default)]
+pub struct AstRewrites {
+    /// Liste positionnelle résolue de chaque appel à arguments nommés (clé :
+    /// span de son premier argument).
+    pub args:  HashMap<ArgSiteKey, Vec<Expr>>,
+    /// Appel remplacé par une autre expression (clé : span de l'appel) —
+    /// sucre d'instance `Convert`, voir `crate::sema::convert_sugar`.
+    pub calls: HashMap<ArgSiteKey, Expr>,
+}
+
 /// Paramètres déclarés par callable utilisateur : `"fonction"`,
 /// `"Classe::méthode"`, `"Classe::init"` (constructeur) — source des noms ET
 /// des valeurs par défaut (`FuncSig` ne porte pas ces dernières).
@@ -201,7 +213,7 @@ impl<'a> TypeChecker<'a> {
         };
         match reorder(args, &target) {
             Ok(positional) => {
-                self.named_arg_rewrites.insert(site_key(args[0].span()), positional.clone());
+                self.rewrites.args.insert(site_key(args[0].span()), positional.clone());
                 Some(Cow::Owned(positional))
             }
             Err(error) => {

@@ -1,8 +1,10 @@
-/// Réinjection dans l'AST des appels à arguments nommés résolus par la sema
-/// (voir `crate::sema::named_args`) : chaque liste `args` commençant par un
-/// `Expr::NamedArg` est remplacée par sa forme positionnelle. Tourne juste
-/// après une sema sans erreur, avant la monomorphisation et le lowering —
-/// qui ne voient donc jamais d'argument nommé.
+/// Réinjection dans l'AST des réécritures décidées par la sema
+/// (`AstRewrites`) : chaque liste `args` commençant par un `Expr::NamedArg`
+/// est remplacée par sa forme positionnelle (voir `crate::sema::named_args`),
+/// et chaque appel de sucre `Convert` (`s.toInt()`) par l'appel statique
+/// correspondant (voir `crate::sema::convert_sugar`). Tourne juste après une
+/// sema sans erreur, avant la monomorphisation et le lowering — qui ne voient
+/// donc jamais ni argument nommé ni sucre `Convert`.
 ///
 /// Code jamais parcouru par la sema (corps d'un `generic`) : la cible est
 /// alors résolue syntaxiquement quand elle ne dépend d'aucun type (fonction
@@ -11,17 +13,17 @@
 /// lowering.
 
 use std::collections::HashMap;
-use crate::parsing::ast::{Block, ClassMember, Expr, Param, Program, Stmt, TemplatePartExpr};
+use crate::parsing::ast::{Block, ClassMember, Expr, ImportDecl, Param, Program, Stmt, TemplatePartExpr};
 use crate::parsing::token::Span;
-use crate::sema::named_args::{collect_callable_params, reorder, site_key, ArgSiteKey, CallTarget};
+use crate::sema::named_args::{collect_callable_params, reorder, site_key, AstRewrites, CallTarget};
 
 /// Position et message de la première erreur rencontrée.
 pub type NamedArgError = (Span, String);
 
-pub fn rewrite_named_args(
-    program: &mut Program,
-    rewrites: &HashMap<ArgSiteKey, Vec<Expr>>,
-) -> Result<(), NamedArgError> {
+pub fn rewrite_program(program: &mut Program, rewrites: &AstRewrites) -> Result<(), NamedArgError> {
+    if !rewrites.calls.is_empty() {
+        ensure_builtin_import(program, "Convert");
+    }
     let targets: HashMap<String, CallTarget> = collect_callable_params(program)
         .into_iter()
         .map(|(key, params)| (key.clone(), CallTarget::from_params(key, params)))
@@ -54,7 +56,7 @@ pub fn rewrite_named_args(
 }
 
 struct Rewriter<'r> {
-    rewrites: &'r HashMap<ArgSiteKey, Vec<Expr>>,
+    rewrites: &'r AstRewrites,
     targets:  &'r HashMap<String, CallTarget>,
     /// Classe/générique/module dont on parcourt les membres (`self`).
     owner:    Option<String>,
@@ -129,7 +131,7 @@ impl Rewriter<'_> {
     /// la seule syntaxe de l'appel (repli hors sema, voir doc de module).
     fn args(&self, args: &mut Vec<Expr>, target_key: Option<String>) -> Result<(), NamedArgError> {
         if let Some(Expr::NamedArg { name, span, .. }) = args.first() {
-            let positional = match self.rewrites.get(&site_key(span)) {
+            let positional = match self.rewrites.args.get(&site_key(span)) {
                 Some(positional) => positional.clone(),
                 None => match target_key.as_ref().and_then(|k| self.targets.get(k)) {
                     Some(target) => reorder(args, target).map_err(|e| (e.span().clone(), e.message()))?,
@@ -146,6 +148,11 @@ impl Rewriter<'_> {
     }
 
     fn expr(&self, expr: &mut Expr) -> Result<(), NamedArgError> {
+        if let Expr::Call { span, .. } = expr {
+            if let Some(replacement) = self.rewrites.calls.get(&site_key(span)) {
+                *expr = replacement.clone();
+            }
+        }
         match expr {
             Expr::Literal(..) | Expr::Ident(..) | Expr::SelfExpr(_) | Expr::ParentExpr(_) | Expr::StaticConst { .. } => Ok(()),
             Expr::Call { callee, args, .. } => {
@@ -196,4 +203,19 @@ impl Rewriter<'_> {
 
 fn unresolved_message(name: &str) -> String {
     format!("named argument '{}' cannot be resolved here: this call's target depends on a type not known outside semantic analysis (e.g. an instance method called inside a 'generic' body) — pass the arguments positionally", name)
+}
+
+/// Ajoute `import ocara.<name>` s'il manque — le codegen ne déclare les
+/// fonctions runtime d'un builtin que si son module est importé.
+fn ensure_builtin_import(program: &mut Program, name: &str) {
+    let imported = program.imports.iter()
+        .any(|imp| imp.path.first().is_some_and(|s| s == "ocara") && imp.path.last().is_some_and(|s| s == name));
+    if !imported {
+        program.imports.push(ImportDecl {
+            path:      vec!["ocara".to_string(), name.to_string()],
+            file_path: None,
+            alias:     None,
+            span:      Span::new(0, 0),
+        });
+    }
 }

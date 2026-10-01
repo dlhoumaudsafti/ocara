@@ -1358,6 +1358,7 @@ NamedArg       ::= Identifier ":" Expression
 - **Annotation de type postfix** : dans un contexte `match` ou `switch`, l'accès `expr.field:type` est syntaxiquement autorisé ; l'annotation de type est ignorée sémantiquement (hint visuel uniquement).
 - **L'appel de fonction** sans receveur est une `PostfixExpr` dont le `PrimaryExpr` est un `Identifier` suivi de `( ArgList? )`.
 - **Arguments nommés** (`f(name: expr)`) : un appel est soit entièrement positionnel, soit entièrement nommé — jamais un mélange (voir §14.6).
+- **Méthodes d'instance des types primitifs** : `string`/`array<T>`/`map<K,V>` ont les méthodes de `String`/`Array`/`Map` en instance (`s.trim()` ≡ `String::trim(s)`), et ces types ainsi que `int`/`float`/`bool` ont les conversions de `Convert` sous un nom sans préfixe de type source (`s.toInt()` ≡ `Convert::strToInt(s)`, `n.toStr()`, `arr.toStr(sep)`... — liste complète dans `docs/builtins/Convert.md`). Résolu sur le type **statique** du receveur (pas sur `mixed`) ; ce sont les seules méthodes de `int`/`float`/`bool`.
 - **Tableau vs map** : `[...]` est toujours un tableau, `{...}` est toujours un map.
 - **Incrémentation/décrémentation (`++`/`--`)** — voir docs/roadmap.d/langage-increment-decrement.md :
   - Sémantique complète façon C : `i++`/`i--` (suffixe) valent l'ANCIENNE valeur de la cible (elle change quand même) ; `++i`/`--i` (préfixe) valent la NOUVELLE. Ce sont de vraies EXPRESSIONS, utilisables partout où une expression est attendue (`x = i++`, `foo(i++)`, condition...), pas seulement comme instruction.
