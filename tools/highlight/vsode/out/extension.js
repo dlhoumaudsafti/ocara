@@ -44,6 +44,7 @@ const signature_1 = require("./signature");
 const codelens_1 = require("./codelens");
 const lint_1 = require("./lint");
 const compile_1 = require("./compile");
+const runtimecontext_1 = require("./runtimecontext");
 const callsite_1 = require("./callsite");
 const resolver_1 = require("./resolver");
 function activate(context) {
@@ -90,6 +91,19 @@ class OcaraDefinitionProvider {
             const symbol = importFromMatch[1];
             const filePath = importFromMatch[2];
             return this.resolveFileImport(document, symbol, filePath);
+        }
+        // ── 2a-bis. `wiring chemin.vers.Classe` (interface) → la classe ciblée ─
+        // Même résolution qu'un import namespace, puis positionnement sur la
+        // déclaration ; classe déclarée dans le fichier courant sinon.
+        const wiringMatch = lineText.match(/^\s*wiring\s+([\w.]+)\s*$/);
+        if (wiringMatch) {
+            const target = wiringMatch[1];
+            const className = target.split('.').pop();
+            const loc = (0, resolver_1.resolveImportPath)(document, target);
+            if (loc) {
+                return [this.findSymbolInFile(loc.uri.fsPath, className)];
+            }
+            return this.findTypeDeclaration(document, className, position);
         }
         // ── 2b. Ligne d'import namespace : import foo.bar.Baz ─────────────────
         const importLineMatch = lineText.match(/^\s*import\s+([\w.]+)(?:\s+as\s+(\w+))?\s*$/);
@@ -189,45 +203,50 @@ class OcaraDefinitionProvider {
         // Extrait le nom de la variable/propriété (dernier segment)
         const segments = objectPath.split('.');
         const varName = segments[segments.length - 1];
-        // Trouve le type de cette variable dans le document
-        const typeName = (0, resolver_1.findVariableType)(document, varName);
+        // Fichier runtime : la variable et l'import de sa classe peuvent vivre
+        // dans un autre fichier du même programme (voir runtimecontext.ts).
+        const typeName = (0, resolver_1.findVariableType)(document, varName)
+            ?? (await this.inRuntimeContext(document, doc => (0, resolver_1.findVariableType)(doc, varName)));
         if (!typeName) {
             return undefined;
         }
-        // Cherche le fichier de cette classe via les imports from
-        const fileImports = (0, resolver_1.parseFileImports)(document);
-        for (const imp of fileImports) {
+        return (await this.findMemberViaImports(document, typeName, methodName))
+            ?? (await this.inRuntimeContext(document, doc => this.findMemberViaImports(doc, typeName, methodName)));
+    }
+    /** Premier résultat de `lookup` sur les documents du contexte runtime de `document`. */
+    async inRuntimeContext(document, lookup) {
+        for (const doc of await (0, runtimecontext_1.runtimeContext)(document)) {
+            const found = await lookup(doc);
+            if (found !== undefined) {
+                return found;
+            }
+        }
+        return undefined;
+    }
+    /** Méthode `methodName` de la classe `typeName`, résolue via les imports de `document` (ou localement). */
+    async findMemberViaImports(document, typeName, methodName) {
+        for (const imp of (0, resolver_1.parseFileImports)(document)) {
             const match = imp.alias === typeName || (!imp.alias && imp.symbol === typeName) || imp.symbol === '*';
             if (match) {
                 const targetUri = await (0, resolver_1.resolveFileImportUri)(document, imp.filePath);
-                if (targetUri) {
-                    const memberLoc = this.findMemberInFile(targetUri, methodName);
-                    if (memberLoc) {
-                        return memberLoc;
-                    }
+                const memberLoc = targetUri ? this.findMemberInFile(targetUri, methodName) : undefined;
+                if (memberLoc) {
+                    return memberLoc;
                 }
             }
         }
-        // Cherche ensuite via les imports namespace
-        const imports = (0, resolver_1.parseImports)(document);
-        for (const imp of imports) {
+        for (const imp of (0, resolver_1.parseImports)(document)) {
             const match = imp.alias === typeName || (!imp.alias && imp.lastName === typeName);
             if (match) {
                 const loc = (0, resolver_1.resolveImportPath)(document, imp.importPath);
-                if (loc) {
-                    const memberLoc = this.findMemberInFile(loc.uri, methodName);
-                    if (memberLoc) {
-                        return memberLoc;
-                    }
+                const memberLoc = loc ? this.findMemberInFile(loc.uri, methodName) : undefined;
+                if (memberLoc) {
+                    return memberLoc;
                 }
             }
         }
-        // Cherche dans le fichier courant (classe locale)
-        const memberLoc = this.findMemberInFile(document.uri, methodName);
-        if (memberLoc) {
-            return memberLoc;
-        }
-        return undefined;
+        // Classe locale (déclarée dans ce document)
+        return this.findMemberInFile(document.uri, methodName);
     }
     // ─── Trouve un membre (méthode/fonction) dans un fichier ──────────────────
     findMemberInFile(uri, memberName) {

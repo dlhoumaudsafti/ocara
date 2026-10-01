@@ -34,6 +34,10 @@ Coloration syntaxique, autocomplétion et navigation (Go-to-Definition) pour le 
 - **Ctrl+Click** sur `import Circle from "11_interfaces"` → ouvre le fichier et positionne sur la classe `Circle`
 - **Ctrl+Click** sur `self.circle.area()` → navigue vers la méthode `area()` dans la classe importée
 - **Ctrl+Click** sur `ClassName::member` → ouvre le fichier de la classe et positionne le curseur sur la méthode
+- **Ctrl+Click** sur `wiring chemin.vers.Classe` (dans une interface) → ouvre le fichier et positionne sur la classe ciblée
+- **Fichiers runtime** (`runtime core.main is main`) : les blocs runtime d'un programme partageant leur portée,
+  Ctrl+Click et autocomplétion sur `server.start()` retrouvent la variable déclarée dans un AUTRE fichier
+  runtime du même programme (ex. `core/init.runtime.oc`) et la classe importée par le fichier principal
 - **Ctrl+Click** sur un nom de variable ou fonction → navigue vers la déclaration
 - **Scan automatique du workspace** pour résoudre les imports `from "file"` dans n'importe quel sous-dossier
 - **Namespaces à plusieurs segments** (`namespace context.search.app.usecase`) : un import
@@ -51,6 +55,12 @@ Coloration syntaxique, autocomplétion et navigation (Go-to-Definition) pour le 
   | module           | implémentations (classes qui l'utilisent via `modules`) · overrides (méthodes du module qu'elles redéfinissent) |
   | méthode          | d'interface : implémentations · de module : implémentations + overrides · de classe : overrides |
   | fonction / enum  | références |
+
+  Plus, sur chaque classe/struct/generic/interface/module, ses **références** (usages de son nom
+  hors imports : types, `use X(`, `X::`, `extends`, `wiring`) et, sur chaque méthode, ses
+  références : `Classe::m` — appel ou référence sans appel, ex.
+  `server.route("/voitures/<id:int>", "GET", CarController::show)` —, `self::m`/`parent::m` dans
+  son propre fichier, et `.m(` pour une méthode d'instance (par nom).
 
   Résolution par nom, sans suivre les imports : deux classes homonymes de contextes différents
   sont confondues.

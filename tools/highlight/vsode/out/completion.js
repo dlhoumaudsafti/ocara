@@ -39,6 +39,7 @@ const builtins_1 = require("./builtins");
 const resolver_1 = require("./resolver");
 const callsite_1 = require("./callsite");
 const primitives_1 = require("./primitives");
+const runtimecontext_1 = require("./runtimecontext");
 // ─────────────────────────────────────────────────────────────────────────────
 // Autocomplétion : méthodes/constantes des classes builtin `ocara.*` (données
 // générées depuis src/builtins/*.rs, voir tools/highlight/vsode/data/) et des
@@ -72,6 +73,15 @@ class OcaraCompletionProvider {
             }
             else {
                 className = (0, resolver_1.findVariableType)(document, varName);
+            }
+            // Fichier runtime : variable déclarée dans un autre fichier du
+            // même programme (voir runtimecontext.ts).
+            const context = className ? [] : await (0, runtimecontext_1.runtimeContext)(document);
+            for (const doc of context) {
+                className = (0, resolver_1.findVariableType)(doc, varName);
+                if (className) {
+                    break;
+                }
             }
             if (!className) {
                 // Type primitif : conversions (`s.toInt()`) et sucre String/Array/Map.
@@ -142,7 +152,14 @@ class OcaraCompletionProvider {
         if (builtin) {
             return builtin.methods.filter(m => !m.static).map(m => this.builtinMethodItem(className, m, false));
         }
-        const members = await (0, resolver_1.findClassMembers)(document, className);
+        let members = await (0, resolver_1.findClassMembers)(document, className);
+        // Classe importée par le programme dont ce fichier est un runtime.
+        for (const doc of members.length === 0 ? await (0, runtimecontext_1.runtimeContext)(document) : []) {
+            members = await (0, resolver_1.findClassMembers)(doc, className);
+            if (members.length > 0) {
+                break;
+            }
+        }
         return members.filter(m => !m.isStatic).map(m => this.memberItem(className, m));
     }
     // ─── use ClassName(...) ─────────────────────────────────────────────────

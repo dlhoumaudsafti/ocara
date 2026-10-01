@@ -14,6 +14,7 @@ export interface MethodDecl {
     name: string;
     line: number;
     col: number;
+    isStatic: boolean;
 }
 
 export interface Declaration {
@@ -101,7 +102,12 @@ export function parseDeclarations(text: string): Declaration[] {
         } else if (owner && lineDepth === owner.depth + 1) {
             const method = line.match(METHOD_RE);
             if (method && method.index !== undefined) {
-                owner.decl.methods.push({ name: method[1], line: lineNo, col: line.indexOf(method[1], method.index + 6) });
+                owner.decl.methods.push({
+                    name: method[1],
+                    line: lineNo,
+                    col: line.indexOf(method[1], method.index + 6),
+                    isStatic: /\bstatic\b/.test(line.substring(0, method.index)),
+                });
             }
         } else if (!owner) {
             const fn = line.match(FUNCTION_RE);

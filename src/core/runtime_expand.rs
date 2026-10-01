@@ -471,9 +471,23 @@ pub fn update_program_spans_with_file(program: &mut ast::Program, file_path: &st
         }
     }
     
-    // Mettre à jour les interfaces
+    // Mettre à jour les interfaces (et leurs `wiring` : une erreur sur une
+    // cible de `wiring` doit pointer le fichier de l'interface, pas le
+    // fichier d'entrée de la compilation)
     for iface in &mut program.interfaces {
         update_span(&mut iface.span, file_path);
+        for method in &mut iface.methods {
+            update_span(&mut method.span, file_path);
+        }
+        for wiring in &mut iface.wirings {
+            update_span(&mut wiring.span, file_path);
+        }
+    }
+
+    // Mettre à jour les imports (réenfilés tels quels pour être chargés à
+    // leur tour : une erreur de résolution doit pointer CE fichier)
+    for imp in &mut program.imports {
+        update_span(&mut imp.span, file_path);
     }
     
     // Mettre à jour les constantes

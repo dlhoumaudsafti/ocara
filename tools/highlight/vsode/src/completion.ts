@@ -9,6 +9,7 @@ import {
 } from './resolver';
 import { findCallSite, resolveCall, remainingNamedParams, paramLabel } from './callsite';
 import { findPrimitiveType, instanceMethodsFor, InstanceMethod } from './primitives';
+import { runtimeContext } from './runtimecontext';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Autocomplétion : méthodes/constantes des classes builtin `ocara.*` (données
@@ -52,6 +53,13 @@ export class OcaraCompletionProvider implements vscode.CompletionItemProvider {
                 className = findEnclosingClassName(document, position);
             } else {
                 className = findVariableType(document, varName);
+            }
+            // Fichier runtime : variable déclarée dans un autre fichier du
+            // même programme (voir runtimecontext.ts).
+            const context = className ? [] : await runtimeContext(document);
+            for (const doc of context) {
+                className = findVariableType(doc, varName);
+                if (className) { break; }
             }
             if (!className) {
                 // Type primitif : conversions (`s.toInt()`) et sucre String/Array/Map.
@@ -132,7 +140,12 @@ export class OcaraCompletionProvider implements vscode.CompletionItemProvider {
             return builtin.methods.filter(m => !m.static).map(m => this.builtinMethodItem(className, m, false));
         }
 
-        const members = await findClassMembers(document, className);
+        let members = await findClassMembers(document, className);
+        // Classe importée par le programme dont ce fichier est un runtime.
+        for (const doc of members.length === 0 ? await runtimeContext(document) : []) {
+            members = await findClassMembers(doc, className);
+            if (members.length > 0) { break; }
+        }
         return members.filter(m => !m.isStatic).map(m => this.memberItem(className, m));
     }
 

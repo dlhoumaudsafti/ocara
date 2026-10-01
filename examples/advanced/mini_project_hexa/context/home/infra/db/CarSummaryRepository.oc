@@ -8,8 +8,9 @@ namespace context.home.infra.db
 import ocara.SQLite
 import configs.Database
 import context.home.domain.entity.CarSummaryEntity
+import context.home.domain.contract.CarSummaryContract
 
-class CarSummaryRepository {
+class CarSummaryRepository implements CarSummaryContract {
 
     private static method fromRow(row:map<string, mixed>): CarSummaryEntity {
         var id:int = row["id"]
@@ -24,11 +25,19 @@ class CarSummaryRepository {
 
     public static method all(): array<CarSummaryEntity> {
         const db:SQLite = Database::connect()
-        const rows:array<map<string, mixed>> = db.query(
-            "SELECT cars.*, COALESCE(SUM(CASE WHEN maintenances.type = 'maintenance' THEN maintenances.cost ELSE 0 END), 0) as maintenance_total " +
-            "FROM cars LEFT JOIN maintenances ON maintenances.car_id = cars.id " +
-            "GROUP BY cars.id ORDER BY cars.created_at DESC"
-        )
+        const rows:array<map<string, mixed>> = db.query(`
+            SELECT 
+                cars.*, 
+                COALESCE(
+                    SUM(
+                        CASE WHEN maintenances.type = 'maintenance' THEN
+                            maintenances.cost 
+                        ELSE 0 END
+                    ),
+                0) as maintenance_total
+            FROM cars LEFT JOIN maintenances ON maintenances.car_id = cars.id
+            GROUP BY cars.id ORDER BY cars.created_at DESC
+        `)
         db.close()
         var items:array<CarSummaryEntity> = []
         for row in rows {

@@ -12,7 +12,7 @@ class Alert extends HTMLComponent {
         parent::init("alert")
         self.register(nameless(attrs:map<string, mixed>): string {
             consumed kind:string    = attrs["kind"]
-            consumed message:string = attrs["message"]
+            scoped message:string = attrs["message"]
             if String::empty(message) {
                 return ""
             }

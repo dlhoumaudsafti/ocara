@@ -18,7 +18,7 @@ import context.car.domain.entity.CarEntity
 import context.car.domain.contract.CarContract
 import context.car.app.usecase.helpers.Format
 import context.car.app.usecase.helpers.Flash
-import context.car.app.usecase.CarDetailService
+import context.car.app.usecase.CarDetailsService
 import context.car.app.dto.CarDetailsDTO
 
 class CarController {
@@ -32,7 +32,7 @@ class CarController {
         // tout (404 générique), au lieu d'être silencieusement traité comme
         // id=0 puis redirigé vers "not_found" comme avant ce changement.
         var id:int = req.param("id")
-        const carDetails:CarDetailsDTO|null = CarDetailService::build(id)
+        const carDetails:CarDetailsDTO|null = CarDetailsService::build(id)
         if carDetails is null {
             req.respondHeader("Location", "/?error=not_found")
             req.respond(302, "")

@@ -13,8 +13,9 @@ import ocara.SQLite
 import ocara.DateTime
 import configs.Database
 import context.car.domain.entity.MaintenanceEntity
+import context.car.domain.contract.MaintenanceContract
 
-class Maintenance {
+class MaintenanceRepository implements MaintenanceContract {
 
     private static method fromRow(row:map<string, mixed>): MaintenanceEntity {
         var id:int = row["id"]
@@ -43,7 +44,10 @@ class Maintenance {
     public static method create(carId:int, type:string, description:string, cost:float): int {
         var id:int = 0
         SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
-            db.prepare("INSERT INTO maintenances (car_id, type, description, cost, created_at) VALUES (:carId, :type, :description, :cost, :createdAt)")
+            db.prepare(`INSERT INTO maintenances
+                (car_id, type, description, cost, created_at)
+                VALUES (:carId, :type, :description, :cost, :createdAt)
+            `)
             db.bind({
                 "carId": carId,
                 "type": type,
