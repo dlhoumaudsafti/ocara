@@ -41,6 +41,7 @@ Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnali
 
 À traiter mais non bloquant pour la stabilité du langage.
 
+- **Serveur de langage (LSP) adossé au compilateur** — `ocara --lsp` (ou d'abord `ocara --check --json`) réutilisant parseur/sema pour la navigation, le survol, la complétion, les références et les diagnostics en direct ; l'extension VS Code, aujourd'hui entièrement à base de regex (résolution par nom, types non suivis, sémantique recodée en TypeScript), deviendrait un client léger. Points à trancher : protocole, sema tolérante aux erreurs (plus de `process::exit`), spans en plages, dépendances LSP. *(Structurel)* → [détails](roadmap.d/tooling-language-server.md)
 - **Architecture hexagonale stricte par défaut** — déclaration `architecture hexagonal` avec alias configurables pour `domain`/`application`/`infrastructure`; `architecture permissive` désactive uniquement les contrôles architecturaux. Vérification compile-time de la direction des imports entre couches et contextes, des racines `shared` et des cibles de `wiring`. *(Structurelle — classification des fichiers/namespace, résolution des imports et intégration aux règles existantes de `wiring`)* → [détails](roadmap.d/langage-mode-hexa.md)
 
 ---
