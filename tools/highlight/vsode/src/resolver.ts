@@ -591,3 +591,71 @@ export async function findStructFields(
     }
     return [...inherited, ...own];
 }
+
+// ─── Documentation des déclarations utilisateur ──────────────────────────────
+
+/**
+ * Commentaires `//` placés immédiatement au-dessus de la ligne contenant
+ * `offset` (sans ligne vide entre eux et la déclaration), sans les `//` —
+ * documentation d'une fonction/méthode/classe utilisateur au survol.
+ */
+export function leadingComment(fileText: string, offset: number): string {
+    const lines = fileText.substring(0, offset).split('\n');
+    lines.pop(); // ligne de la déclaration elle-même
+    const comment: string[] = [];
+    for (let i = lines.length - 1; i >= 0; i--) {
+        const m = lines[i].match(/^\s*\/\/\s?(.*)$/);
+        if (!m) { break; }
+        comment.unshift(m[1]);
+    }
+    return comment.join('\n').trim();
+}
+
+export interface TypeDeclaration {
+    kind: string;
+    name: string;
+    header: string;
+    uri: vscode.Uri;
+    position: vscode.Position;
+    comment: string;
+}
+
+/** Déclaration (`class`/`struct`/`generic`/`interface`/`module`/`enum`) de `name`. */
+export async function findTypeDeclaration(document: vscode.TextDocument, name: string): Promise<TypeDeclaration | undefined> {
+    const uri = await resolveClassUri(document, name) ?? document.uri;
+    const fileText = uri.fsPath === document.uri.fsPath ? document.getText() : readFile(uri);
+    if (fileText === undefined) { return undefined; }
+    const m = new RegExp(`\\b(class|struct|generic|interface|module|enum)\\s+${esc(name)}\\b([^{\\n]*)`).exec(fileText);
+    if (!m) { return undefined; }
+    return {
+        kind: m[1],
+        name,
+        header: `${m[1]} ${name}${m[2].trimEnd()}`,
+        uri,
+        position: offsetToPosition(fileText, m.index),
+        comment: leadingComment(fileText, m.index),
+    };
+}
+
+/**
+ * Premier ancêtre BUILTIN (`class Server extends HTTPServer`) d'une classe
+ * utilisateur — ses méthodes sont héritées sans être redéclarées dans le
+ * fichier de la classe. `isBuiltin` évite une dépendance circulaire vers
+ * le catalogue des builtins.
+ */
+export async function findBuiltinAncestor(
+    document: vscode.TextDocument,
+    className: string,
+    isBuiltin: (name: string) => boolean,
+    depth: number = 0
+): Promise<string | undefined> {
+    if (depth > 5) { return undefined; }
+    const uri = await resolveClassUri(document, className);
+    if (!uri) { return undefined; }
+    const fileText = uri.fsPath === document.uri.fsPath ? document.getText() : readFile(uri);
+    const parent = fileText !== undefined ? findClassBody(fileText, className)?.extendsName : undefined;
+    if (!parent || parent === className) { return undefined; }
+    if (isBuiltin(parent)) { return parent; }
+    const parentDoc = uri.fsPath === document.uri.fsPath ? document : await vscode.workspace.openTextDocument(uri);
+    return findBuiltinAncestor(parentDoc, parent, isBuiltin, depth + 1);
+}

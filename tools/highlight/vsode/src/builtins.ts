@@ -7,7 +7,7 @@ import * as fs from 'fs';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface BuiltinParam { name: string; type: string; }
-export interface BuiltinMethod { name: string; params: BuiltinParam[]; returns: string; static: boolean; }
+export interface BuiltinMethod { name: string; params: BuiltinParam[]; returns: string; static: boolean; /** Documentation markdown extraite de docs/builtins/*.md (voir scripts/generate-builtins-data.py). */ doc?: string; }
 export interface BuiltinConst { name: string; type: string; }
 export interface BuiltinClass { name: string; methods: BuiltinMethod[]; consts: BuiltinConst[]; }
 

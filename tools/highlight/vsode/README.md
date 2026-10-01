@@ -7,8 +7,19 @@ Coloration syntaxique, autocomplétion et navigation (Go-to-Definition) pour le 
 - Highlight complet : mots-clés, types, classes, structs, méthodes, imports, chaînes, templates
 - Appels de méthodes (`obj.method()`), accès statiques (`Class::member`), builtins `ocara.*`
 - **Autocomplétion après `.` / `::`** — méthodes et constantes des classes builtin `ocara.*`
-  (catalogue généré depuis `src/builtins/*.rs`, voir `data/builtins-data.json`) et des
+  (catalogue généré depuis `src/builtins/*.rs` et `docs/builtins/*.md` par `scripts/generate-builtins-data.py`, voir `data/builtins-data.json` — à relancer après tout ajout/changement de builtin ou de sa doc) et des
   classes utilisateur (propres et héritées via `extends`, résolues à travers les imports)
+- **Documentation au survol** :
+  - méthodes builtin, statiques (`String::trim`) ou d'instance (`server.route`, y compris héritées par une
+    classe utilisateur `extends HTTPServer`) — signature + documentation extraite de `docs/builtins/*.md`
+    (section ou ligne de tableau de la méthode, à défaut sa première ligne d'exemple) ;
+  - méthodes « sucrées » sur une valeur (`s.trim()` ≡ `String::trim(s)`, `s.toInt()` ≡ `Convert::strToInt(s)`) —
+    doc de la méthode réellement appelée ;
+  - fonctions, méthodes, classes, structs (constructeur généré), interfaces... de votre code — signature et
+    commentaires `//` placés juste au-dessus de la déclaration
+- **Autocomplétion avec paramètres** : toute méthode/fonction complétée insère ses paramètres comme champs
+  à remplir portant leurs noms d'origine (`replace(s, from, to)`, `Tab` pour passer au suivant) ; fonctions
+  libres du programme (fichier, fichiers importés, fichiers runtime du même programme) proposées avec leur doc
 - **Autocomplétion `self.` / `self::` / `parent.`** dans le corps d'une classe
 - **Autocomplétion sur une variable de type primitif** (`string`, `int`, `float`, `bool`, `array<T>`,
   `map<K,V>`) : conversions (`s.toInt()`, `n.toStr()`, `arr.toStr(sep)`... ≡ `Convert::*`, voir

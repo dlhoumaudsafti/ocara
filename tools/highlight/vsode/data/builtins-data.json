@@ -6,7 +6,8 @@
         "name": "read",
         "params": [],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`IO::read()` → `string`\n\nLit une ligne depuis stdin et la retourne sans le `\\n` final.  \nÉquivalent à la fonction globale `read()`.\n\n```ocara\nIO::write(\"Votre nom : \")\nscoped nom:string = IO::read()\nIO::writeln(`Bonjour ${nom} !`)\n```"
       },
       {
         "name": "readArray",
@@ -17,25 +18,29 @@
           }
         ],
         "returns": "string[]",
-        "static": true
+        "static": true,
+        "doc": "`IO::readArray(sep)` → `array<string>`\n\nLit une ligne depuis stdin et la découpe selon le séparateur `sep`.  \nRetourne un `array<string>`.\n\n| Paramètre | Type     | Description    |\n|-----------|----------|----------------|\n| `sep`     | `string` | Séparateur     |\n\n```ocara\n// Saisie : \"rust,ocara,cranelift\"\nscoped tags:array<string> = IO::readArray(\",\")\n// → [\"rust\", \"ocara\", \"cranelift\"]\n\n// Saisie : \"10 20 30\"\nscoped nums:array<string> = IO::readArray(\" \")\n// → [\"10\", \"20\", \"30\"]\n```"
       },
       {
         "name": "readBool",
         "params": [],
         "returns": "bool",
-        "static": true
+        "static": true,
+        "doc": "`IO::readBool()` → `bool`\n\nLit une ligne depuis stdin et la convertit en `bool`.  \nRetourne `true` si la saisie est `\"true\"` ou `\"1\"` (insensible à la casse), `false` sinon.\n\n```ocara\nIO::write(\"Continuer ? (true/false) : \")\nscoped rep:bool = IO::readBool()\nif rep {\n    IO::writeln(\"Poursuite...\")\n}\n```"
       },
       {
         "name": "readFloat",
         "params": [],
         "returns": "float",
-        "static": true
+        "static": true,
+        "doc": "`IO::readFloat()` → `float`\n\nLit une ligne depuis stdin et la convertit en `float`.  \nSi la saisie n'est pas un décimal valide, retourne `0.0`.\n\n```ocara\nIO::write(\"Entrez un décimal : \")\nscoped f:float = IO::readFloat()\nIO::writeln(`Valeur : ${f}`)\n```"
       },
       {
         "name": "readInt",
         "params": [],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`IO::readInt()` → `int`\n\nLit une ligne depuis stdin et la convertit en `int`.  \nSi la saisie n'est pas un entier valide, retourne `0`.\n\n```ocara\nIO::write(\"Entrez un entier : \")\nscoped n:int = IO::readInt()\nIO::writeln(`Le double : ${n * 2}`)\n```"
       },
       {
         "name": "readMap",
@@ -50,13 +55,15 @@
           }
         ],
         "returns": "map<string, string>",
-        "static": true
+        "static": true,
+        "doc": "`IO::readMap(sep, kv)` → `map<string, string>`\n\nLit une ligne depuis stdin et construit une map clé/valeur.  \n- `sep` : séparateur entre les paires  \n- `kv`  : séparateur entre la clé et la valeur au sein d'une paire\n\n| Paramètre | Type     | Description                    |\n|-----------|----------|--------------------------------|\n| `sep`     | `string` | Séparateur entre les paires    |\n| `kv`      | `string` | Séparateur clé/valeur          |\n\n```ocara\n// Saisie : \"lang=fr,theme=dark,limit=50\"\nscoped cfg:map<string, string> = IO::readMap(\",\", \"=\")\nMap::get(cfg, \"lang\")    // → \"fr\"\nMap::get(cfg, \"theme\")   // → \"dark\"\n\n// Saisie : \"x:10 y:20 z:30\"\nscoped pts:map<string, string> = IO::readMap(\" \", \":\")\nMap::get(pts, \"x\")   // → \"10\"\n```"
       },
       {
         "name": "readln",
         "params": [],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`IO::readln()` → `string`\n\nAlias de `IO::read()`. Comportement identique.\n\n```ocara\nscoped ligne:string = IO::readln()\n```"
       },
       {
         "name": "write",
@@ -67,7 +74,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`IO::write(val)` → `void`\n\nAffiche `val` sur stdout **sans** saut de ligne final.  \nAccepte tous les types primitifs (`int`, `float`, `bool`, `string`).\n\n```ocara\nIO::write(\"Ocara IO — \")\nIO::write(42)\n// affiche: Ocara IO — 42  (sur la même ligne)\n```\n\n**Texte multiligne :** les chaînes `\"...\"` n'acceptent pas les vraies nouvelles lignes.\nUtiliser `\\n` ou une chaîne template (backticks) :\n\n```ocara\n// Avec \\n dans une chaîne simple\nIO::write(\"Bonjour David\\nComment vas tu ?\\n\")\n\n// Avec une chaîne template multiligne (recommandé)\nIO::write(`Bonjour David\nComment vas tu ?\n`)\n\n// Template avec interpolation et multiligne\nscoped nom:string = \"David\"\nIO::write(`Bonjour ${nom}\nComment vas tu ?\n`)\n```"
       },
       {
         "name": "writeln",
@@ -78,7 +86,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`IO::writeln(val)` → `void`\n\nAffiche `val` sur stdout **suivi d'un saut de ligne**.  \nÉquivalent à la fonction globale `write()`.\n\n```ocara\nIO::writeln(\"Bonjour Ocara\")   // Bonjour Ocara\\n\nIO::writeln(42)                 // 42\\n\nIO::writeln(true)               // true\\n\n```"
       }
     ],
     "consts": []
@@ -90,13 +99,15 @@
         "name": "args",
         "params": [],
         "returns": "string[]",
-        "static": true
+        "static": true,
+        "doc": "`System::args() → array<string>`\n\nRetourne les arguments passés à la ligne de commande (équivalent de `argv` en C, `argv[0]` inclus).\n\n```ocara\nscoped argv:array<string> = System::args()\n```"
       },
       {
         "name": "cwd",
         "params": [],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`System::cwd() → string`\n\nRetourne le chemin absolu du répertoire de travail courant.\n\n```ocara\nIO::writeln(System::cwd())   // ex. \"/home/alice/projet\"\n```"
       },
       {
         "name": "env",
@@ -107,7 +118,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`System::env(name: string) → string`\n\nRetourne la valeur de la variable d'environnement `name`. Retourne `\"\"` si elle est absente.\n\n```ocara\nscoped home:string = System::env(\"HOME\")\nscoped path:string = System::env(\"PATH\")\n```"
       },
       {
         "name": "exec",
@@ -118,7 +130,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`System::exec(cmd: string) → string`\n\nExécute `cmd` via le shell (`/bin/sh -c` sous Unix) et retourne la sortie standard complète sous forme de chaîne. La sortie d'erreur n'est pas capturée.\n\n```ocara\nscoped out:string = System::exec(\"uname -r\")\nIO::writeln(out)   // ex. \"6.8.0-57-generic\"\n```"
       },
       {
         "name": "execCode",
@@ -129,7 +142,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`System::execCode(cmd: string) → int`\n\nExécute `cmd` et retourne **uniquement le code de sortie**. Stdout et stderr ne sont pas capturés.\n\n```ocara\nscoped ok:int = System::execCode(\"test -f /etc/hostname\")\nif ok equal 0 {\n    IO::writeln(\"fichier présent\")\n}\n```"
       },
       {
         "name": "exit",
@@ -140,7 +154,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`System::exit(code: int) → void`\n\nTermine immédiatement le processus avec le code de sortie `code`. N'exécute pas les destructeurs ni les fonctions `defer`.\n\n```ocara\nif erreur {\n    IO::writeln(\"Erreur fatale\")\n    System::exit(1)\n}\n```"
       },
       {
         "name": "passthrough",
@@ -151,13 +166,15 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`System::passthrough(cmd: string) → int`\n\nExécute `cmd` en héritant des descripteurs `stdin`, `stdout` et `stderr` du processus courant. L'affichage s'effectue directement dans le terminal. Retourne le code de sortie.\n\n```ocara\nscoped code:int = System::passthrough(\"ls -lh\")\nIO::writeln(`code : ${code}`)\n```"
       },
       {
         "name": "pid",
         "params": [],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`System::pid() → int`\n\nRetourne le PID (identifiant de processus) du processus courant.\n\n```ocara\nIO::writeln(`PID : ${System::pid()}`)\n```"
       },
       {
         "name": "setEnv",
@@ -172,7 +189,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`System::setEnv(name: string, value: string) → void`\n\nDéfinit ou remplace la variable d'environnement `name` avec la valeur `value`. Visible par les processus enfants lancés après cet appel.\n\n```ocara\nSystem::setEnv(\"APP_ENV\", \"production\")\nSystem::setEnv(\"LOG_LEVEL\", \"debug\")\n```"
       },
       {
         "name": "sleep",
@@ -183,7 +201,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`System::sleep(ms: int) → void`\n\nSuspend l'exécution du processus pendant `ms` millisecondes.\n\n```ocara\nSystem::sleep(500)   // pause de 500 ms\n```"
       }
     ],
     "consts": [
@@ -204,25 +223,29 @@
         "name": "currentId",
         "params": [],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Thread::currentId() → int`\n\nRetourne l'ID du thread courant. Retourne `0` pour le thread principal.\n\n```ocara\nIO::writeln(Thread::currentId())   // 0 dans main, 1..n dans les threads créés\n```"
       },
       {
         "name": "detach",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`t.detach() → void`\n\nDétache le thread (`fire-and-forget`). Après `detach()`, `join()` n'a plus d'effet. Le thread continue à s'exécuter en arrière-plan jusqu'à sa fin naturelle.\n\n```ocara\nt.detach()\n// t se termine indépendamment du programme principal\n```"
       },
       {
         "name": "id",
         "params": [],
         "returns": "int",
-        "static": false
+        "static": false,
+        "doc": "`t.id() → int`\n\nRetourne l'identifiant unique du thread (entier incrémental, `1` pour le premier thread créé).\n\n```ocara\nIO::writeln(t.id())   // 1, 2, 3, …\n```"
       },
       {
         "name": "join",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`t.join() → void`\n\nBloque le thread courant jusqu'à ce que le thread `t` se termine. Sans effet si le thread n'a pas été lancé ou a déjà été joint.\n\n```ocara\nt.join()\n```"
       },
       {
         "name": "run",
@@ -233,7 +256,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`t.run(f: Function) → void`\n\nLance la closure `f` dans un thread OS séparé. La closure ne doit pas accepter de paramètres.\n\nLes variables capturées par la closure sont partagées via le mécanisme **shared cell** (heap promotion) — les mutations sont visibles depuis les deux côtés.\n\n> **Attention** : les accès concurrents non synchronisés à des variables partagées constituent un *data race*. Utiliser `ocara.Mutex` pour la synchronisation thread-safe. Voir [Mutex](Mutex.md).\n\n```ocara\nvar t:Thread = use Thread()\nt.run(nameless(): void {\n    IO::writeln(\"hello depuis le thread\")\n})\nt.join()\n```"
       },
       {
         "name": "sleep",
@@ -244,7 +268,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`Thread::sleep(ms: int) → void`\n\nSuspend le **thread courant** pendant `ms` millisecondes.\n\n```ocara\nThread::sleep(500)   // pause 500 ms\n```"
       }
     ],
     "consts": []
@@ -256,25 +281,29 @@
         "name": "destroy",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`m.destroy() → void`\n\nLibère le mutex (verrou pthread + wrapper). Ce runtime n'a pas de\nramasse-miettes — un mutex créé dans une boucle (un par item, par requête...)\ndoit être libéré explicitement, sinon il fuit indéfiniment.\n\n```ocara\nvar m:Mutex = use Mutex()\nm.lock()\n// section critique\nm.unlock()\nm.destroy()\n```\n\n> **Attention** : comme pour `SQLite::close()`, tout appel (`lock`/`unlock`/\n> `tryLock`/`destroy`) sur un mutex après `destroy()` est un comportement non\n> défini (mémoire déjà libérée) — appeler `destroy()` uniquement en dernier."
       },
       {
         "name": "lock",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`m.lock() → void`\n\nVerrouille le mutex. Si le mutex est déjà verrouillé par un autre thread, le thread courant est bloqué jusqu'à ce que le mutex soit disponible.\n\n**Attention** : si le même thread tente de verrouiller deux fois le même mutex, cela provoque un **deadlock** (blocage permanent).\n\n```ocara\nvar m:Mutex = use Mutex()\nm.lock()\n// section critique — un seul thread à la fois\nm.unlock()\n```"
       },
       {
         "name": "tryLock",
         "params": [],
         "returns": "bool",
-        "static": false
+        "static": false,
+        "doc": "`m.tryLock() → bool`\n\nTente de verrouiller le mutex **sans bloquer**. Retourne `true` si le verrou a été acquis, `false` si le mutex était déjà verrouillé.\n\nSi `tryLock()` retourne `true`, un appel à `unlock()` est requis plus tard.\n\n```ocara\nif m.tryLock() {\n    // verrou acquis\n    // section critique\n    m.unlock()\n} else {\n    // mutex déjà verrouillé, faire autre chose\n}\n```"
       },
       {
         "name": "unlock",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`m.unlock() → void`\n\nDéverrouille le mutex, permettant à d'autres threads d'acquérir le verrou.\n\n**Règles importantes** :\n- `unlock()` doit être appelé par le **même thread** qui a appelé `lock()`.\n- Appeler `unlock()` sans `lock()` préalable est un comportement non défini.\n- Toujours veiller à appeler `unlock()` après `lock()`, même en cas d'erreur.\n\n```ocara\nm.lock()\n// opérations protégées\nm.unlock()\n```"
       },
       {
         "name": "withLock",
@@ -285,7 +314,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`m.withLock(f:Function<void>) → void`\n\nVerrouille le mutex, exécute `f()`, puis **déverrouille systématiquement** —\ny compris si `f()` lève une exception (`raise`).\n\nC'est la méthode à préférer à `lock()`/`unlock()` manuels dès que la section\ncritique peut lever une exception : avec `lock()`/`unlock()`, un `raise`\nentre les deux appels saute `unlock()` (le mécanisme d'exceptions d'Ocara\nutilise setjmp/longjmp, pas de unwinding avec des destructeurs de scope) et\nlaisse le mutex verrouillé **pour toujours** — tout autre thread en attente\ndessus est bloqué définitivement. `withLock` élimine ce risque : le\ndéverrouillage a lieu avant que l'exception ne continue sa propagation vers\nl'appelant.\n\n```ocara\nvar m:Mutex = use Mutex()\n\n// Cas normal\nm.withLock(nameless(): void {\n    // section critique\n})\n\n// Cas avec exception : le mutex est quand même déverrouillé, et\n// l'exception continue de se propager normalement\ntry {\n    m.withLock(nameless(): void {\n        raise use MonException(\"erreur\", 1)\n    })\n} on e is MonException {\n    IO::writeln(`rattrapée : ${e.message}`)\n}\n\n// Preuve que le mutex n'est plus verrouillé :\nm.lock()\nm.unlock()\n```\n\n> **Note** : `withLock` ne remplace pas `lock()`/`unlock()`, qui restent\n> disponibles pour un contrôle manuel plus fin — c'est une méthode\n> additionnelle, pas une dépréciation."
       }
     ],
     "consts": []
@@ -302,7 +332,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Math::abs(n)` → `int`\n\nRetourne la valeur absolue de l'entier `n`.\n\n```ocara\nMath::abs(-42)   // → 42\nMath::abs(7)     // → 7\nMath::abs(0)     // → 0\n```"
       },
       {
         "name": "ceil",
@@ -313,7 +344,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Math::ceil(n)` → `int`\n\nArrondit `n` à l'entier supérieur.\n\n```ocara\nMath::ceil(3.1)    // → 4\nMath::ceil(-1.9)   // → -1\n```"
       },
       {
         "name": "clamp",
@@ -332,7 +364,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Math::clamp(n, lo, hi)` → `int`\n\nBorne la valeur `n` dans l'intervalle `[lo, hi]`.  \nÉquivalent à `Math::max(lo, Math::min(n, hi))`.\n\n| Paramètre | Type  | Description       |\n|-----------|-------|-------------------|\n| `n`       | `int` | Valeur à borner   |\n| `lo`      | `int` | Borne inférieure  |\n| `hi`      | `int` | Borne supérieure  |\n\n```ocara\nMath::clamp(150, 0, 100)   // → 100  (au-dessus)\nMath::clamp(-5,  0, 100)   // → 0    (en-dessous)\nMath::clamp(42,  0, 100)   // → 42   (dans la plage)\n```"
       },
       {
         "name": "floor",
@@ -343,7 +376,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Math::floor(n)` → `int`\n\nArrondit `n` à l'entier inférieur.\n\n```ocara\nMath::floor(3.9)    // → 3\nMath::floor(-1.1)   // → -2\n```"
       },
       {
         "name": "max",
@@ -358,7 +392,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Math::max(a, b)` → `int`\n\nRetourne le plus grand des deux entiers.\n\n```ocara\nMath::max(10, 3)    // → 10\nMath::max(-5, -1)   // → -1\n```"
       },
       {
         "name": "min",
@@ -373,7 +408,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Math::min(a, b)` → `int`\n\nRetourne le plus petit des deux entiers.\n\n```ocara\nMath::min(10, 3)    // → 3\nMath::min(-5, -1)   // → -5\n```"
       },
       {
         "name": "pow",
@@ -388,7 +424,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Math::pow(base, exp)` → `int`\n\nCalcule `base` élevé à la puissance `exp` (entiers positifs).\n\n| Paramètre | Type  | Description    |\n|-----------|-------|----------------|\n| `base`    | `int` | Base           |\n| `exp`     | `int` | Exposant ≥ 0   |\n\n```ocara\nMath::pow(2, 10)   // → 1024\nMath::pow(3, 4)    // → 81\nMath::pow(5, 0)    // → 1\n```"
       },
       {
         "name": "random",
@@ -403,7 +440,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Math::random(min, max)` → `int`\n\nRetourne un entier aléatoire dans l'intervalle `[min, max]` (bornes incluses).\n\n| Paramètre | Type  | Description       |\n|-----------|-------|-------------------|\n| `min`     | `int` | Borne inférieure  |\n| `max`     | `int` | Borne supérieure  |\n\n```ocara\nMath::random(1, 6)      // → un entier entre 1 et 6 (lancer de dé)\nMath::random(0, 100)    // → un entier entre 0 et 100\n```\n\n**Erreur** : lève une `MathException` (code 103, `INVALID_RANGE`) si `min > max`."
       },
       {
         "name": "round",
@@ -414,7 +452,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Math::round(n)` → `int`\n\nArrondit `n` à l'entier le plus proche (0.5 → supérieur).\n\n```ocara\nMath::round(3.4)   // → 3\nMath::round(3.5)   // → 4\nMath::round(-2.5)  // → -2\n```"
       },
       {
         "name": "sqrt",
@@ -425,7 +464,8 @@
           }
         ],
         "returns": "float",
-        "static": true
+        "static": true,
+        "doc": "`Math::sqrt(n)` → `float`\n\nRetourne la racine carrée de `n` (float).\n\n```ocara\nMath::sqrt(16.0)   // → 4.0\nMath::sqrt(2.0)    // → 1.4142135623730951\nMath::sqrt(0.0)    // → 0.0\n```"
       }
     ],
     "consts": [
@@ -467,7 +507,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`String::between(s, start, end)` → `string`\n\nExtrait la sous-chaîne de `s` comprise **entre** la première occurrence de `start`\net la première occurrence de `end` qui la suit.  \nRetourne une chaîne vide si `start` ou `end` est introuvable.\n\n| Paramètre | Type     | Description          |\n|-----------|----------|----------------------|\n| `s`       | `string` | Chaîne source        |\n| `start`   | `string` | Délimiteur d'ouverture |\n| `end`     | `string` | Délimiteur de fermeture |\n\n```ocara\nString::between(\"version:[1.0]fin\", \"[\", \"]\")   // → \"1.0\"\nString::between(\"<b>texte</b>\", \"<b>\", \"</b>\")   // → \"texte\"\n```"
       },
       {
         "name": "capitalize",
@@ -478,7 +519,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`String::capitalize(s)` → `string`\n\nMet la première lettre de `s` en majuscule, laisse le reste intact.\n\n```ocara\nString::capitalize(\"bonjour monde\")   // → \"Bonjour monde\"\nString::capitalize(\"ocara\")           // → \"Ocara\"\n```"
       },
       {
         "name": "empty",
@@ -489,7 +531,8 @@
           }
         ],
         "returns": "bool",
-        "static": true
+        "static": true,
+        "doc": "`String::empty(s)` → `bool`\n\nRetourne `true` si `s` est vide ou ne contient que des espaces.  \nÉquivalent à `String::len(String::trim(s)) equal 0`.\n\n```ocara\nString::empty(\"\")        // → true\nString::empty(\"   \")     // → true\nString::empty(\"a\")       // → false\nString::empty(\" a \")     // → false\n```"
       },
       {
         "name": "explode",
@@ -504,7 +547,8 @@
           }
         ],
         "returns": "string[]",
-        "static": true
+        "static": true,
+        "doc": "`String::explode(s, sep)` → `array<string>`\n\nAlias de [`String::split`](#stringsplits-sep--string). Comportement identique.\n\n```ocara\nscoped parts:array<string> = String::explode(\"x|y|z\", \"|\")\n// → [\"x\", \"y\", \"z\"]\n```"
       },
       {
         "name": "len",
@@ -515,7 +559,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`String::len(s)` → `int`\n\nRetourne le nombre de caractères de la chaîne `s`.\n\n```ocara\nString::len(\"Ocara\")   // → 5\nString::len(\"\")        // → 0\n```"
       },
       {
         "name": "lower",
@@ -526,7 +571,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`String::lower(s)` → `string`\n\nConvertit tous les caractères de `s` en minuscules.\n\n```ocara\nString::lower(\"OCARA\")   // → \"ocara\"\nString::lower(\"Bonjour\") // → \"bonjour\"\n```"
       },
       {
         "name": "replace",
@@ -545,7 +591,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`String::replace(s, from, to)` → `string`\n\nRemplace **toutes** les occurrences de la sous-chaîne `from` par `to` dans `s`.\n\n> ⚠️ **Piège** : `Regex::replace` (voir [Regex](Regex.md)) porte le même nom de méthode mais une sémantique **opposée** — il ne remplace que la **première** occurrence (`Regex::replaceAll` est l'équivalent de ce `String::replace`). Ne pas supposer le même comportement en passant de l'un à l'autre.\n\n| Paramètre | Type     | Description              |\n|-----------|----------|--------------------------|\n| `s`       | `string` | Chaîne source            |\n| `from`    | `string` | Sous-chaîne à remplacer  |\n| `to`      | `string` | Chaîne de remplacement   |\n\n```ocara\nString::replace(\"chat noir chat blanc\", \"chat\", \"chien\")\n// → \"chien noir chien blanc\"\n\nString::replace(\"a-b-c\", \"-\", \".\")\n// → \"a.b.c\"\n```\n\nUn `from` vide laisse la chaîne inchangée (`String::replace(\"abc\", \"\", \"-\")` → `\"abc\"`)."
       },
       {
         "name": "split",
@@ -560,7 +607,8 @@
           }
         ],
         "returns": "string[]",
-        "static": true
+        "static": true,
+        "doc": "`String::split(s, sep)` → `array<string>`\n\nDécoupe `s` en un tableau de sous-chaînes, en utilisant `sep` comme séparateur.  \nVoir aussi [`String::explode`](#stringexplodes-sep--string) — fonctionnellement identique.\n\n| Paramètre | Type     | Description   |\n|-----------|----------|---------------|\n| `s`       | `string` | Chaîne source |\n| `sep`     | `string` | Séparateur    |\n\n```ocara\nscoped mots:array<string> = String::split(\"alice,bob,charlie\", \",\")\n// → [\"alice\", \"bob\", \"charlie\"]\n\nscoped lignes:array<string> = String::split(\"a\\nb\\nc\", \"\\n\")\n// → [\"a\", \"b\", \"c\"]\n```"
       },
       {
         "name": "trim",
@@ -571,7 +619,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`String::trim(s)` → `string`\n\nSupprime les espaces (et tabulations) en début et en fin de chaîne.\n\n```ocara\nString::trim(\"  bonjour  \")   // → \"bonjour\"\nString::trim(\"\\t texte \\n\")   // → \"texte\"\n```"
       },
       {
         "name": "upper",
@@ -582,7 +631,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`String::upper(s)` → `string`\n\nConvertit tous les caractères de `s` en majuscules.\n\n```ocara\nString::upper(\"ocara\")   // → \"OCARA\"\nString::upper(\"Bonjour\") // → \"BONJOUR\"\n```"
       }
     ],
     "consts": []
@@ -603,7 +653,8 @@
           }
         ],
         "returns": "bool",
-        "static": true
+        "static": true,
+        "doc": "`Array::contains(arr, val)` → `bool`\n\nRetourne `true` si `val` est présent dans le tableau (comparaison stricte).\n\n```ocara\nvar t:array<int> = [1, 2, 3]\nArray::contains(t, 2)    // → true\nArray::contains(t, 99)   // → false\n```"
       },
       {
         "name": "first",
@@ -614,7 +665,8 @@
           }
         ],
         "returns": "mixed",
-        "static": true
+        "static": true,
+        "doc": "`Array::first(arr)` → `mixed`\n\nRetourne le premier élément sans modifier le tableau.\n\n```ocara\nArray::first([10, 20, 30])   // → 10\n```"
       },
       {
         "name": "get",
@@ -629,7 +681,8 @@
           }
         ],
         "returns": "mixed",
-        "static": true
+        "static": true,
+        "doc": "Exemple (docs/builtins/Convert.md) :\n\n```ocara\nscoped debug:bool = Convert::strToBool(Map::get(cfg, \"debug\"))\n```"
       },
       {
         "name": "indexOf",
@@ -644,7 +697,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Array::indexOf(arr, val)` → `int`\n\nRetourne l'index (0-basé) de la première occurrence de `val`, ou `-1` si absent.\n\n```ocara\nvar t:array<string> = [\"a\", \"b\", \"c\"]\nArray::indexOf(t, \"b\")    // → 1\nArray::indexOf(t, \"z\")    // → -1\n```"
       },
       {
         "name": "join",
@@ -659,7 +713,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`Array::join(arr, sep)` → `string`\n\nConcatène tous les éléments du tableau en une chaîne, séparés par `sep`.\n\n```ocara\nArray::join([\"a\", \"b\", \"c\"], \", \")     // → \"a, b, c\"\nArray::join([1, 2, 3], \" | \")          // → \"1 | 2 | 3\"\nArray::join([\"seul\"], \"-\")             // → \"seul\"\n```"
       },
       {
         "name": "last",
@@ -670,7 +725,8 @@
           }
         ],
         "returns": "mixed",
-        "static": true
+        "static": true,
+        "doc": "`Array::last(arr)` → `mixed`\n\nRetourne le dernier élément sans modifier le tableau.\n\n```ocara\nArray::last([10, 20, 30])   // → 30\n```"
       },
       {
         "name": "len",
@@ -681,7 +737,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Array::len(arr)` → `int`\n\nRetourne le nombre d'éléments du tableau.\n\n```ocara\nvar n:array<int> = [1, 2, 3]\nArray::len(n)   // → 3\nArray::len([])  // → 0\n```"
       },
       {
         "name": "pop",
@@ -692,7 +749,8 @@
           }
         ],
         "returns": "mixed",
-        "static": true
+        "static": true,
+        "doc": "`Array::pop(arr)` → `mixed`\n\nRetire et retourne le **dernier** élément du tableau. Modifie le tableau en place.\n\n```ocara\nvar t:array<int> = [1, 2, 3]\nscoped v:int = Array::pop(t)   // → 3\n// t est maintenant [1, 2]\n```"
       },
       {
         "name": "push",
@@ -707,7 +765,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`Array::push(arr, val)` → `void`\n\nAjoute `val` à la **fin** du tableau. Modifie le tableau en place.\n\n```ocara\nvar t:array<int> = [1, 2]\nArray::push(t, 3)\n// t est maintenant [1, 2, 3]\n```"
       },
       {
         "name": "reverse",
@@ -718,7 +777,8 @@
           }
         ],
         "returns": "mixed[]",
-        "static": true
+        "static": true,
+        "doc": "`Array::reverse(arr)` → `array<mixed>`\n\nRetourne un **nouvel** array contenant les éléments dans l'ordre inverse.  \nLe tableau original n'est pas modifié.\n\n```ocara\nscoped inv:array<int> = Array::reverse([1, 2, 3])\n// → [3, 2, 1]\n```"
       },
       {
         "name": "set",
@@ -737,7 +797,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "Exemple (docs/builtins/Map.md) :\n\n```ocara\nMap::set(m, \"b\", 2)    // insère  → {\"a\": 1, \"b\": 2}\n```"
       },
       {
         "name": "slice",
@@ -756,7 +817,8 @@
           }
         ],
         "returns": "mixed[]",
-        "static": true
+        "static": true,
+        "doc": "`Array::slice(arr, from, to)` → `array<mixed>`\n\nRetourne un **nouvel** array contenant les éléments de l'index `from` (inclus) à `to` (exclu).  \nIndices 0-basés.\n\n| Paramètre | Type  | Description               |\n|-----------|-------|---------------------------|\n| `arr`     | `array<T>` | Tableau source            |\n| `from`    | `int` | Index de début (inclus)   |\n| `to`      | `int` | Index de fin (exclu)      |\n\n```ocara\nvar t:array<int> = [10, 20, 30, 40, 50]\nArray::slice(t, 1, 4)   // → [20, 30, 40]\nArray::slice(t, 0, 2)   // → [10, 20]\n```\n\nExtraire les N derniers éléments :\n```ocara\nscoped tail:array<int> = Array::slice(t, Array::len(t) - 2, Array::len(t))\n// → [40, 50]\n```"
       },
       {
         "name": "sort",
@@ -767,7 +829,8 @@
           }
         ],
         "returns": "mixed[]",
-        "static": true
+        "static": true,
+        "doc": "`Array::sort(arr)` → `array<mixed>`\n\nRetourne un **nouvel** array trié en ordre naturel (numérique pour les `array<int>`, lexicographique pour les `array<string>`).  \nLe tableau original n'est pas modifié.\n\n```ocara\nscoped t:array<int>    = Array::sort([30, 10, 50, 20])\n// → [10, 20, 30, 50]\n\nscoped s:array<string> = Array::sort([\"banane\", \"pomme\", \"abricot\"])\n// → [\"abricot\", \"banane\", \"pomme\"]\n```"
       }
     ],
     "consts": []
@@ -788,7 +851,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`Map::forEach(m, callback)` → `void`\n\nAppelle `callback` pour chaque entrée de la map, avec la clé et la valeur.\n\n**Paramètres** :\n- `m` : la map à parcourir\n- `callback` : `nameless(key:mixed, value:mixed): void` — appelé une fois par entrée\n\n```ocara\nconst scores:map<string, mixed> = {\"Alice\": 95, \"Bob\": 82}\n\nMap::forEach(scores, nameless(key:mixed, value:mixed): void {\n    IO::writeln(`${key} : ${value}`)\n})\n// Alice : 95\n// Bob : 82\n```\n\nLe callback peut capturer et modifier des variables du scope englobant (comme toute closure `nameless`) :\n\n```ocara\nvar lines:array<string> = []\nMap::forEach(scores, nameless(key:mixed, value:mixed): void {\n    Array::push(lines, key + \" -> \" + value)\n})\n```\n\n> **Limite connue** : `value` est typé `mixed` (comme `Map::get`). Le concaténer à une `string` (`+` ou template) fonctionne, mais une **opération arithmétique** directe (`total + value`) sur une valeur `mixed` produit aujourd'hui un résultat incorrect, y compris après un narrowing `if value is int { ... }` — bug de compilateur indépendant de `forEach` (voir `docs/roadmap.d/langage-mixed-arithmetic.md`). En attendant, convertir explicitement via une string (`Convert::strToInt(\\`${value}\\`)`) plutôt qu'une addition directe."
       },
       {
         "name": "get",
@@ -803,7 +867,8 @@
           }
         ],
         "returns": "mixed",
-        "static": true
+        "static": true,
+        "doc": "`Map::get(m, key)` → `mixed`\n\nRetourne la valeur associée à `key`.  \n**Si la clé est absente, lève une `MapException`** (code 101, `KEY_NOT_FOUND` — voir « Gestion d'erreurs » plus bas).  \nToujours vérifier avec `Map::has` avant si la présence n'est pas garantie, ou entourer l'appel d'un `try`/`on`.\n\n```ocara\nvar m:map = {\"prix\": 42, \"qte\": 3}\nscoped p:int = Map::get(m, \"prix\")   // → 42\n\nif Map::has(m, \"remise\") {\n    scoped r:int = Map::get(m, \"remise\")\n} else {\n    IO::writeln(\"pas de remise\")   // clé absente : Map::get lèverait ici\n}\n```"
       },
       {
         "name": "has",
@@ -818,7 +883,8 @@
           }
         ],
         "returns": "bool",
-        "static": true
+        "static": true,
+        "doc": "`Map::has(m, key)` → `bool`\n\nRetourne `true` si la clé `key` existe dans la map.\n\n```ocara\nvar m:map = {\"alice\": 95, \"bob\": 72}\nMap::has(m, \"alice\")    // → true\nMap::has(m, \"david\")    // → false\n```"
       },
       {
         "name": "isEmpty",
@@ -829,7 +895,8 @@
           }
         ],
         "returns": "bool",
-        "static": true
+        "static": true,
+        "doc": "`Map::isEmpty(m)` → `bool`\n\nRetourne `true` si la map ne contient aucune entrée.\n\n```ocara\nMap::isEmpty({})              // → true\nMap::isEmpty({\"x\": 1})       // → false\n```"
       },
       {
         "name": "keys",
@@ -840,7 +907,8 @@
           }
         ],
         "returns": "mixed[]",
-        "static": true
+        "static": true,
+        "doc": "`Map::keys(m)` → `array<mixed>`\n\nRetourne un tableau contenant toutes les clés de la map.  \nL'ordre n'est pas garanti.\n\n```ocara\nvar m:map = {\"x\": 10, \"y\": 20, \"z\": 30}\nscoped cles:array<string> = Map::keys(m)\n// → [\"x\", \"y\", \"z\"] (ordre quelconque)\n```"
       },
       {
         "name": "merge",
@@ -855,7 +923,8 @@
           }
         ],
         "returns": "map<mixed, mixed>",
-        "static": true
+        "static": true,
+        "doc": "`Map::merge(a, b)` → `map`\n\nRetourne une **nouvelle** map contenant toutes les entrées de `a` et `b`.  \nEn cas de clé commune, la valeur de `b` **écrase** celle de `a`.\n\n```ocara\nvar base:map = {\"timeout\": 30, \"retry\": 3}\nvar extra:map = {\"timeout\": 60, \"debug\": 1}\n\nscoped config:map = Map::merge(base, extra)\nMap::get(config, \"timeout\")   // → 60  (écrasé par extra)\nMap::get(config, \"retry\")     // → 3   (conservé de base)\nMap::get(config, \"debug\")     // → 1   (ajouté depuis extra)\n```"
       },
       {
         "name": "remove",
@@ -870,7 +939,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`Map::remove(m, key)` → `void`\n\nSupprime l'entrée associée à `key`. Sans effet si la clé est absente.  \nModifie la map en place.\n\n```ocara\nvar m:map = {\"a\": 1, \"b\": 2}\nMap::remove(m, \"a\")\n// m est maintenant {\"b\": 2}\n```"
       },
       {
         "name": "set",
@@ -889,7 +959,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`Map::set(m, key, val)` → `void`\n\nInsère ou **met à jour** l'entrée `key` → `val` dans la map.  \nModifie la map en place.\n\n```ocara\nvar m:map = {\"a\": 1}\nMap::set(m, \"b\", 2)    // insère  → {\"a\": 1, \"b\": 2}\nMap::set(m, \"a\", 99)   // mise à jour → {\"a\": 99, \"b\": 2}\n```"
       },
       {
         "name": "size",
@@ -900,7 +971,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Map::size(m)` → `int`\n\nRetourne le nombre d'entrées de la map.\n\n```ocara\nvar m:map = {\"a\": 1, \"b\": 2, \"c\": 3}\nMap::size(m)    // → 3\nMap::size({})   // → 0\n```"
       },
       {
         "name": "values",
@@ -911,7 +983,8 @@
           }
         ],
         "returns": "mixed[]",
-        "static": true
+        "static": true,
+        "doc": "`Map::values(m)` → `array<mixed>`\n\nRetourne un tableau contenant toutes les valeurs de la map.  \nL'ordre correspond à celui de `Map::keys`.\n\n```ocara\nvar m:map = {\"x\": 10, \"y\": 20}\nscoped vals:array<int> = Map::values(m)\n// → [10, 20]\n```"
       }
     ],
     "consts": []
@@ -932,7 +1005,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Regex::count(pattern, s)` → `int`\n\nRetourne le nombre de correspondances non-chevauchantes de `pattern` dans `s`.\n\n```ocara\nRegex::count(\"[aeiou]\", \"bonjour monde\")              // → 4\nRegex::count(\"\\\\d+\",   \"2 chats et 3 chiens et 1\")   // → 3\nRegex::count(\"[0-9]+\", \"aucun chiffre\")               // → 0\n```"
       },
       {
         "name": "extract",
@@ -951,7 +1025,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`Regex::extract(pattern, s, group)` → `string`\n\nRetourne le contenu du groupe de capture numéroté `group` (1-indexé) de la première correspondance.  \nRetourne une chaîne vide si le groupe n'existe pas ou si aucune correspondance.\n\n| Paramètre | Type     | Description                       |\n|-----------|----------|-----------------------------------|\n| `pattern` | `string` | Expression régulière avec groupes |\n| `s`       | `string` | Chaîne source                     |\n| `group`   | `int`    | Numéro de groupe (commence à 1)   |\n\n```ocara\nscoped date:string = \"2026-04-25\"\nRegex::extract(\"(\\\\d{4})-(\\\\d{2})-(\\\\d{2})\", date, 1)   // → \"2026\"\nRegex::extract(\"(\\\\d{4})-(\\\\d{2})-(\\\\d{2})\", date, 2)   // → \"04\"\nRegex::extract(\"(\\\\d{4})-(\\\\d{2})-(\\\\d{2})\", date, 3)   // → \"25\"\n\nRegex::extract(\"([^@]+)@(.+)\", \"user@example.com\", 1)   // → \"user\"\nRegex::extract(\"([^@]+)@(.+)\", \"user@example.com\", 2)   // → \"example.com\"\n```"
       },
       {
         "name": "find",
@@ -966,7 +1041,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`Regex::find(pattern, s)` → `string`\n\nRetourne la **première** sous-chaîne correspondant à `pattern`.  \nRetourne une chaîne vide si aucune correspondance.\n\n```ocara\nRegex::find(\"[0-9]+\",      \"prix: 42 euros\")     // → \"42\"\nRegex::find(\"[A-Z][a-z]+\", \"Bonjour Alice\")       // → \"Bonjour\"\nRegex::find(\"[0-9]+\",      \"aucun chiffre ici\")   // → \"\"\n```"
       },
       {
         "name": "findAll",
@@ -981,7 +1057,8 @@
           }
         ],
         "returns": "string[]",
-        "static": true
+        "static": true,
+        "doc": "`Regex::findAll(pattern, s)` → `array<string>`\n\nRetourne **toutes** les sous-chaînes correspondant à `pattern` sous forme de tableau.\n\n```ocara\nscoped nums:array<string> = Regex::findAll(\"[0-9]+\", \"a1 b22 c333\")\n// → [\"1\", \"22\", \"333\"]\n\nscoped mots:array<string> = Regex::findAll(\"[a-z]+\", \"hello world foo\")\n// → [\"hello\", \"world\", \"foo\"]\n```"
       },
       {
         "name": "replace",
@@ -1000,7 +1077,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`Regex::replace(pattern, s, repl)` → `string`\n\nRemplace la **première** occurrence de `pattern` dans `s` par `repl`.\n\n> ⚠️ **Piège** : `String::replace` (voir [String](String.md)) porte le même nom de méthode mais une sémantique **opposée** — il remplace **toutes** les occurrences. Pour l'équivalent ici, utiliser `Regex::replaceAll` ci-dessous, pas `Regex::replace`.\n\n| Paramètre | Type     | Description              |\n|-----------|----------|--------------------------|\n| `pattern` | `string` | Expression régulière     |\n| `s`       | `string` | Chaîne source            |\n| `repl`    | `string` | Chaîne de remplacement   |\n\n```ocara\nRegex::replace(\"[0-9]+\", \"ref-123-abc-456\", \"NUM\")\n// → \"ref-NUM-abc-456\"\n```"
       },
       {
         "name": "replaceAll",
@@ -1019,7 +1097,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`Regex::replaceAll(pattern, s, repl)` → `string`\n\nRemplace **toutes** les occurrences de `pattern` dans `s` par `repl`.\n\n```ocara\nRegex::replaceAll(\"[0-9]+\", \"ref-123-abc-456\", \"NUM\")\n// → \"ref-NUM-abc-NUM\"\n\nRegex::replaceAll(\"\\\\s+\", \"  espaces   multiples  \", \" \")\n// → \" espaces multiples \"\n```"
       },
       {
         "name": "split",
@@ -1034,7 +1113,8 @@
           }
         ],
         "returns": "string[]",
-        "static": true
+        "static": true,
+        "doc": "`Regex::split(pattern, s)` → `array<string>`\n\nDécoupe `s` en utilisant `pattern` comme séparateur.\n\n```ocara\nRegex::split(\"[,;|]+\", \"a,b;;c|d\")\n// → [\"a\", \"b\", \"c\", \"d\"]\n\nRegex::split(\"\\\\s+\", \"un  deux   trois\")\n// → [\"un\", \"deux\", \"trois\"]\n```"
       },
       {
         "name": "test",
@@ -1049,7 +1129,8 @@
           }
         ],
         "returns": "bool",
-        "static": true
+        "static": true,
+        "doc": "`Regex::test(pattern, s)` → `bool`\n\nRetourne `true` si `s` contient au moins une correspondance avec `pattern`.  \nPour un match complet, ancrer avec `^` et `$`.\n\n```ocara\nRegex::test(\"[0-9]+\",    \"abc123\")   // → true\nRegex::test(\"^[0-9]+$\", \"abc123\")   // → false  (lettres présentes)\nRegex::test(\"^[a-z]+$\", \"hello\")    // → true\n```"
       }
     ],
     "consts": []
@@ -1070,7 +1151,8 @@
           }
         ],
         "returns": "map<string, string>",
-        "static": true
+        "static": true,
+        "doc": "`Convert::arrayToMap(arr, kv)` → `map<string, string>`\n\nChaque élément du tableau doit être de la forme `\"clé<kv>valeur\"`.\n\n```ocara\nvar pairs:array<string> = [\"lang=fr\", \"theme=dark\", \"debug=1\"]\nscoped m:map<string, string> = Convert::arrayToMap(pairs, \"=\")\n// → {\"lang\": \"fr\", \"theme\": \"dark\", \"debug\": \"1\"}\n```"
       },
       {
         "name": "arrayToStr",
@@ -1085,7 +1167,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`Convert::arrayToStr(arr, sep)` → `string`\n\nJoint les éléments du tableau en une chaîne séparée par `sep`.  \nÉquivalent à `Array::join`.\n\n```ocara\nvar t:array<string> = [\"rust\", \"ocara\", \"web\"]\nConvert::arrayToStr(t, \", \")   // → \"rust, ocara, web\"\nConvert::arrayToStr(t, \" | \")  // → \"rust | ocara | web\"\n```"
       },
       {
         "name": "boolToFloat",
@@ -1096,7 +1179,8 @@
           }
         ],
         "returns": "float",
-        "static": true
+        "static": true,
+        "doc": "`Convert::boolToFloat(b)` → `float`\n\n```ocara\nConvert::boolToFloat(true)    // → 1.0\nConvert::boolToFloat(false)   // → 0.0\n```"
       },
       {
         "name": "boolToInt",
@@ -1107,7 +1191,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Convert::boolToInt(b)` → `int`\n\n```ocara\nConvert::boolToInt(true)    // → 1\nConvert::boolToInt(false)   // → 0\n```"
       },
       {
         "name": "boolToStr",
@@ -1118,7 +1203,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`Convert::boolToStr(b)` → `string`\n\n```ocara\nConvert::boolToStr(true)    // → \"true\"\nConvert::boolToStr(false)   // → \"false\"\n```"
       },
       {
         "name": "floatToBool",
@@ -1129,7 +1215,8 @@
           }
         ],
         "returns": "bool",
-        "static": true
+        "static": true,
+        "doc": "`Convert::floatToBool(f)` → `bool`\n\nRetourne `false` si `f equal 0.0`, `true` sinon.\n\n```ocara\nConvert::floatToBool(0.0)    // → false\nConvert::floatToBool(1.5)    // → true\n```"
       },
       {
         "name": "floatToInt",
@@ -1140,7 +1227,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Convert::floatToInt(f)` → `int`\n\nTroncature vers zéro (pas d'arrondi).\n\n```ocara\nConvert::floatToInt(9.99)    // → 9\nConvert::floatToInt(-3.7)    // → -3\n```"
       },
       {
         "name": "floatToStr",
@@ -1151,7 +1239,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`Convert::floatToStr(f)` → `string`\n\n```ocara\nConvert::floatToStr(3.14)   // → \"3.14\"\n```"
       },
       {
         "name": "intToBool",
@@ -1162,7 +1251,8 @@
           }
         ],
         "returns": "bool",
-        "static": true
+        "static": true,
+        "doc": "`Convert::intToBool(n)` → `bool`\n\nRetourne `false` si `n equal 0`, `true` sinon.\n\n```ocara\nConvert::intToBool(0)    // → false\nConvert::intToBool(1)    // → true\nConvert::intToBool(-3)   // → true\n```"
       },
       {
         "name": "intToFloat",
@@ -1173,7 +1263,8 @@
           }
         ],
         "returns": "float",
-        "static": true
+        "static": true,
+        "doc": "`Convert::intToFloat(n)` → `float`\n\n```ocara\nConvert::intToFloat(7)   // → 7.0\n```"
       },
       {
         "name": "intToStr",
@@ -1184,7 +1275,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`Convert::intToStr(n)` → `string`\n\n```ocara\nConvert::intToStr(42)    // → \"42\"\nConvert::intToStr(-7)    // → \"-7\"\n```"
       },
       {
         "name": "mapKeysToArray",
@@ -1195,7 +1287,8 @@
           }
         ],
         "returns": "string[]",
-        "static": true
+        "static": true,
+        "doc": "`Convert::mapKeysToArray(m)` → `array<string>`\n\nRetourne un tableau de toutes les clés. Équivalent à `Map::keys`.\n\n```ocara\nscoped cles:array<string> = Convert::mapKeysToArray(m)\n// → [\"lang\", \"theme\"]\n```"
       },
       {
         "name": "mapToStr",
@@ -1214,7 +1307,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`Convert::mapToStr(m, sep, kv)` → `string`\n\nSérialise la map en chaîne. Inverse de `strToMap`.\n\n```ocara\nvar m:map<string, string> = {\"lang\": \"fr\", \"theme\": \"dark\"}\nConvert::mapToStr(m, \",\", \"=\")   // → \"lang=fr,theme=dark\"\n```"
       },
       {
         "name": "mapValuesToArray",
@@ -1225,7 +1319,8 @@
           }
         ],
         "returns": "mixed[]",
-        "static": true
+        "static": true,
+        "doc": "`Convert::mapValuesToArray(m)` → `array<mixed>`\n\nRetourne un tableau de toutes les valeurs. Équivalent à `Map::values`.\n\n```ocara\nscoped vals:array<mixed> = Convert::mapValuesToArray(m)\n// → [\"fr\", \"dark\"]\n```"
       },
       {
         "name": "strToArray",
@@ -1240,7 +1335,8 @@
           }
         ],
         "returns": "string[]",
-        "static": true
+        "static": true,
+        "doc": "`Convert::strToArray(s, sep)` → `array<string>`\n\nDécoupe `s` selon le séparateur `sep` et retourne un `array<string>`.\n\n```ocara\nConvert::strToArray(\"rust,ocara,web\", \",\")   // → [\"rust\", \"ocara\", \"web\"]\nConvert::strToArray(\"10 20 30\", \" \")          // → [\"10\", \"20\", \"30\"]\n```"
       },
       {
         "name": "strToBool",
@@ -1251,7 +1347,8 @@
           }
         ],
         "returns": "bool",
-        "static": true
+        "static": true,
+        "doc": "`Convert::strToBool(s)` → `bool`\n\nRetourne `true` si `s` vaut `\"true\"` ou `\"1\"` (insensible à la casse), `false` sinon.\n\n```ocara\nConvert::strToBool(\"true\")    // → true\nConvert::strToBool(\"1\")       // → true\nConvert::strToBool(\"false\")   // → false\nConvert::strToBool(\"0\")       // → false\n```"
       },
       {
         "name": "strToFloat",
@@ -1262,7 +1359,8 @@
           }
         ],
         "returns": "float",
-        "static": true
+        "static": true,
+        "doc": "`Convert::strToFloat(s)` → `float`\n\nConvertit la chaîne `s` en décimal. Retourne `0.0` si la conversion échoue.\n\n```ocara\nConvert::strToFloat(\"3.14\")   // → 3.14\nConvert::strToFloat(\"42\")     // → 42.0\nConvert::strToFloat(\"abc\")    // → 0.0\n```"
       },
       {
         "name": "strToInt",
@@ -1273,7 +1371,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Convert::strToInt(s)` → `int`\n\nConvertit la chaîne `s` en entier. Retourne `0` si la conversion échoue.\n\n```ocara\nConvert::strToInt(\"42\")     // → 42\nConvert::strToInt(\"-7\")     // → -7\nConvert::strToInt(\"abc\")    // → 0\n```"
       },
       {
         "name": "strToMap",
@@ -1292,7 +1391,8 @@
           }
         ],
         "returns": "map<string, string>",
-        "static": true
+        "static": true,
+        "doc": "`Convert::strToMap(s, sep, kv)` → `map<string, string>`\n\nParse `s` en map clé/valeur.  \n- `sep` : séparateur entre les paires  \n- `kv`  : séparateur clé/valeur au sein d'une paire\n\n```ocara\nscoped m:map<string, string> = Convert::strToMap(\"lang=fr,theme=dark\", \",\", \"=\")\n// → {\"lang\": \"fr\", \"theme\": \"dark\"}\n\nscoped m2:map<string, string> = Convert::strToMap(\"x:10 y:20\", \" \", \":\")\n// → {\"x\": \"10\", \"y\": \"20\"}\n```"
       }
     ],
     "consts": []
@@ -1309,7 +1409,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`DateTime::day(ts:int) → int`\n\nExtrait le jour du mois d'un timestamp (1-31).\n\n```ocara\nvar d:int = DateTime::day(ts)\n```"
       },
       {
         "name": "format",
@@ -1324,7 +1425,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`DateTime::format(ts:int, fmt:string) → string`\n\nFormate un timestamp selon un pattern personnalisé.\n\n**Patterns supportés** :\n- `%Y` — année sur 4 chiffres (ex: `2024`)\n- `%m` — mois sur 2 chiffres (ex: `04`)\n- `%d` — jour sur 2 chiffres (ex: `27`)\n- `%H` — heure sur 2 chiffres (ex: `18`)\n- `%M` — minutes sur 2 chiffres (ex: `30`)\n- `%S` — secondes sur 2 chiffres (ex: `45`)\n\n```ocara\nvar ts:int = DateTime::now()\nvar formatted:string = DateTime::format(ts, \"%d/%m/%Y %H:%M:%S\")\nIO::write(formatted)  // \"27/04/2024 18:30:45\"\n```"
       },
       {
         "name": "fromTimestamp",
@@ -1335,7 +1437,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`DateTime::fromTimestamp(ts:int) → string`\n\nConvertit un timestamp en chaîne au format ISO 8601 : `YYYY-MM-DDTHH:MM:SS`.\n\n```ocara\nvar ts:int = 1714233600\nvar dt:string = DateTime::fromTimestamp(ts)\nIO::write(dt)  // \"2024-04-27T18:00:00\"\n```"
       },
       {
         "name": "hour",
@@ -1346,7 +1449,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`DateTime::hour(ts:int) → int`\n\nExtrait l'heure d'un timestamp (0-23).\n\n```ocara\nvar h:int = DateTime::hour(ts)\n```"
       },
       {
         "name": "minute",
@@ -1357,7 +1461,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`DateTime::minute(ts:int) → int`\n\nExtrait les minutes d'un timestamp (0-59).\n\n```ocara\nvar min:int = DateTime::minute(ts)\n```"
       },
       {
         "name": "month",
@@ -1368,13 +1473,15 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`DateTime::month(ts:int) → int`\n\nExtrait le mois d'un timestamp (1-12).\n\n```ocara\nvar m:int = DateTime::month(ts)  // 1 = janvier, 12 = décembre\n```"
       },
       {
         "name": "now",
         "params": [],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`DateTime::now() → int`\n\nRetourne le timestamp Unix actuel (secondes depuis l'epoch).\n\n```ocara\nvar ts:int = DateTime::now()\nIO::write(ts)  // exemple: 1714233600\n```"
       },
       {
         "name": "parse",
@@ -1385,7 +1492,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`DateTime::parse(s:string) → int`\n\nParse une chaîne au format ISO 8601 et retourne le timestamp correspondant.\n\nFormats acceptés :\n- `YYYY-MM-DDTHH:MM:SS` (ISO 8601 standard)\n- `YYYY-MM-DD HH:MM:SS` (avec espace)\n\nRetourne `0` en cas d'erreur de parsing.\n\n```ocara\nvar ts:int = DateTime::parse(\"2024-04-27T18:00:00\")\nIO::write(ts)  // 1714233600\n```"
       },
       {
         "name": "second",
@@ -1396,7 +1504,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`DateTime::second(ts:int) → int`\n\nExtrait les secondes d'un timestamp (0-59).\n\n```ocara\nvar s:int = DateTime::second(ts)\n```"
       },
       {
         "name": "year",
@@ -1407,7 +1516,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`DateTime::year(ts:int) → int`\n\nExtrait l'année d'un timestamp.\n\n```ocara\nvar ts:int = DateTime::now()\nvar y:int = DateTime::year(ts)\nIO::write(y)  // exemple: 2024\n```"
       }
     ],
     "consts": []
@@ -1428,7 +1538,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`Date::addDays(date:string, days:int) → string`\n\nAjoute un nombre de jours (positif ou négatif) à une date.\n\n```ocara\nvar d1:string = Date::addDays(\"2024-04-27\", 10)\nIO::write(d1)  // \"2024-05-07\"\n\nvar d2:string = Date::addDays(\"2024-04-27\", -10)\nIO::write(d2)  // \"2024-04-17\"\n```"
       },
       {
         "name": "day",
@@ -1439,7 +1550,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Date::day(date:string) → int`\n\nExtrait le jour du mois d'une date (1-31).\n\n```ocara\nvar d:int = Date::day(\"2024-04-27\")  // 27\n```"
       },
       {
         "name": "dayOfWeek",
@@ -1450,7 +1562,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Date::dayOfWeek(date:string) → int`\n\nRetourne le jour de la semaine (0 = lundi, 6 = dimanche).\n\n```ocara\nvar dow:int = Date::dayOfWeek(\"2024-04-27\")\nif dow equal 0 {\n    IO::write(\"Lundi\")\n} else if dow equal 6 {\n    IO::write(\"Dimanche\")\n}\n```\n\n**Correspondance** :\n- `0` = lundi\n- `1` = mardi\n- `2` = mercredi\n- `3` = jeudi\n- `4` = vendredi\n- `5` = samedi\n- `6` = dimanche"
       },
       {
         "name": "daysInMonth",
@@ -1465,7 +1578,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Date::daysInMonth(year:int, month:int) → int`\n\nRetourne le nombre de jours dans un mois donné (prend en compte les années bissextiles).\n\n```ocara\nvar days:int = Date::daysInMonth(2024, 2)\nIO::write(days)  // 29 (février 2024, année bissextile)\n\ndays = Date::daysInMonth(2023, 2)\nIO::write(days)  // 28 (février 2023, année normale)\n```"
       },
       {
         "name": "diffDays",
@@ -1480,7 +1594,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Date::diffDays(date1:string, date2:string) → int`\n\nCalcule la différence en jours entre deux dates (date1 - date2).\n\n```ocara\nvar diff:int = Date::diffDays(\"2024-05-07\", \"2024-04-27\")\nIO::write(diff)  // 10\n\ndiff = Date::diffDays(\"2024-04-27\", \"2024-05-07\")\nIO::write(diff)  // -10\n```"
       },
       {
         "name": "fromTimestamp",
@@ -1491,7 +1606,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`Date::fromTimestamp(ts:int) → string`\n\nConvertit un timestamp Unix en date au format `YYYY-MM-DD`.\n\n```ocara\nvar ts:int = 1714233600\nvar date:string = Date::fromTimestamp(ts)\nIO::write(date)  // \"2024-04-27\"\n```"
       },
       {
         "name": "isLeapYear",
@@ -1502,7 +1618,8 @@
           }
         ],
         "returns": "bool",
-        "static": true
+        "static": true,
+        "doc": "`Date::isLeapYear(year:int) → bool`\n\nRetourne `true` si l'année est bissextile, `false` sinon.\n\nUne année est bissextile si :\n- Elle est divisible par 4 **et** non divisible par 100, **ou**\n- Elle est divisible par 400\n\n```ocara\nif Date::isLeapYear(2024) {\n    IO::write(\"2024 est bissextile\")  // true\n}\nif Date::isLeapYear(2100) {\n    IO::write(\"2100 est bissextile\")  // false (divisible par 100 mais pas par 400)\n}\n```"
       },
       {
         "name": "month",
@@ -1513,13 +1630,15 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Date::month(date:string) → int`\n\nExtrait le mois d'une date (1-12).\n\n```ocara\nvar m:int = Date::month(\"2024-04-27\")  // 4 (avril)\n```"
       },
       {
         "name": "today",
         "params": [],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`Date::today() → string`\n\nRetourne la date actuelle au format `YYYY-MM-DD`.\n\n```ocara\nvar d:string = Date::today()\nIO::write(d)  // \"2024-04-27\"\n```"
       },
       {
         "name": "year",
@@ -1530,7 +1649,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Date::year(date:string) → int`\n\nExtrait l'année d'une date `YYYY-MM-DD`.\n\n```ocara\nvar y:int = Date::year(\"2024-04-27\")\nIO::write(y)  // 2024\n```"
       }
     ],
     "consts": []
@@ -1551,7 +1671,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`Time::addSeconds(time:string, s:int) → string`\n\nAjoute un nombre de secondes (positif ou négatif) à un time.\n\nLe résultat reste dans l'intervalle 00:00:00 - 23:59:59 (modulo 24h).\n\n```ocara\nvar t1:string = Time::addSeconds(\"18:30:00\", 3600)\nIO::write(t1)  // \"19:30:00\" (+1h)\n\nvar t2:string = Time::addSeconds(\"23:30:00\", 3600)\nIO::write(t2)  // \"00:30:00\" (déborde sur le jour suivant)\n\nvar t3:string = Time::addSeconds(\"02:00:00\", -7200)\nIO::write(t3)  // \"00:00:00\" (-2h)\n```"
       },
       {
         "name": "diffSeconds",
@@ -1566,7 +1687,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Time::diffSeconds(t1:string, t2:string) → int`\n\nCalcule la différence en secondes entre deux times (t1 - t2).\n\n```ocara\nvar diff:int = Time::diffSeconds(\"19:30:00\", \"18:30:00\")\nIO::write(diff)  // 3600 (1h)\n\ndiff = Time::diffSeconds(\"18:30:00\", \"19:30:00\")\nIO::write(diff)  // -3600\n```"
       },
       {
         "name": "fromSeconds",
@@ -1577,7 +1699,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`Time::fromSeconds(seconds:int) → string`\n\nConvertit un nombre de secondes depuis minuit en format `HH:MM:SS`.\n\nLes valeurs >= 86400 (24h) sont automatiquement ramenées dans la journée (modulo 86400).\n\n```ocara\nvar t1:string = Time::fromSeconds(3661)\nIO::write(t1)  // \"01:01:01\" (1h + 1min + 1s)\n\nvar t2:string = Time::fromSeconds(90000)\nIO::write(t2)  // \"01:00:00\" (90000 % 86400 = 3600)\n```"
       },
       {
         "name": "fromTimestamp",
@@ -1588,7 +1711,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`Time::fromTimestamp(ts:int) → string`\n\nExtrait l'heure d'un timestamp Unix au format `HH:MM:SS`.\n\n```ocara\nvar ts:int = 1714233600\nvar time:string = Time::fromTimestamp(ts)\nIO::write(time)  // \"18:00:00\"\n```"
       },
       {
         "name": "hour",
@@ -1599,7 +1723,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Time::hour(time:string) → int`\n\nExtrait l'heure d'un time `HH:MM:SS` (0-23).\n\n```ocara\nvar h:int = Time::hour(\"18:30:45\")\nIO::write(h)  // 18\n```"
       },
       {
         "name": "minute",
@@ -1610,13 +1735,15 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Time::minute(time:string) → int`\n\nExtrait les minutes d'un time (0-59).\n\n```ocara\nvar m:int = Time::minute(\"18:30:45\")\nIO::write(m)  // 30\n```"
       },
       {
         "name": "now",
         "params": [],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`Time::now() → string`\n\nRetourne l'heure actuelle au format `HH:MM:SS`.\n\n```ocara\nvar t:string = Time::now()\nIO::write(t)  // \"18:30:45\"\n```"
       },
       {
         "name": "second",
@@ -1627,7 +1754,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Time::second(time:string) → int`\n\nExtrait les secondes d'un time (0-59).\n\n```ocara\nvar s:int = Time::second(\"18:30:45\")\nIO::write(s)  // 45\n```"
       },
       {
         "name": "toSeconds",
@@ -1638,7 +1766,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Time::toSeconds(time:string) → int`\n\nConvertit un time `HH:MM:SS` en nombre de secondes depuis minuit.\n\n```ocara\nvar s:int = Time::toSeconds(\"18:30:45\")\nIO::write(s)  // 66645 (18*3600 + 30*60 + 45)\n```"
       }
     ],
     "consts": []
@@ -1659,7 +1788,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`File::append(path: string, content: string) → void`\n\nAjoute du contenu à la fin d'un fichier (crée si n'existe pas).\n\n```ocara\nFile::append(\"/var/log/app.log\", `[${DateTime::now()}] Nouvelle entrée\\n`)\n```\n\n**Erreur** : `fail` en cas d'erreur d'écriture."
       },
       {
         "name": "copy",
@@ -1674,7 +1804,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`File::copy(src: string, dst: string) → void`\n\nCopie un fichier.\n\n```ocara\nFile::copy(\"/tmp/original.txt\", \"/tmp/copie.txt\")\n```\n\n**Erreur** : `fail` si la source n'existe pas ou si l'écriture échoue."
       },
       {
         "name": "exists",
@@ -1685,7 +1816,8 @@
           }
         ],
         "returns": "bool",
-        "static": true
+        "static": true,
+        "doc": "`File::exists(path: string) → bool`\n\nTeste si un fichier existe.\n\n```ocara\nif File::exists(\"/tmp/config.json\") {\n    var config:string = File::read(\"/tmp/config.json\")\n}\n```"
       },
       {
         "name": "extension",
@@ -1696,7 +1828,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`File::extension(path: string) → string`\n\nRetourne l'extension du fichier sans le point.\n\n```ocara\nvar ext:string = File::extension(\"/tmp/document.pdf\")  // \"pdf\"\nvar ext2:string = File::extension(\"/tmp/README\")       // \"\"\n```"
       },
       {
         "name": "infos",
@@ -1707,7 +1840,8 @@
           }
         ],
         "returns": "map<string, mixed>",
-        "static": true
+        "static": true,
+        "doc": "`File::infos(path: string) → map<string, mixed>`\n\nRetourne les métadonnées complètes d'un fichier.\n\n```ocara\nvar infos:map<string, mixed> = File::infos(\"/tmp/data.txt\")\n\nIO::writeln(`Taille: ${infos[\"size\"]} octets`)\nIO::writeln(`Modifié: ${infos[\"modified\"]}`)  // Timestamp Unix\nIO::writeln(`Extension: ${infos[\"extension\"]}`)\n```\n\n**Clés du map** :\n- `size` : `int` - Taille en octets\n- `modified` : `int` - Timestamp de dernière modification (Unix epoch)\n- `created` : `int` - Timestamp de création (Unix epoch)\n- `is_file` : `bool` - Toujours `true` pour un fichier\n- `is_dir` : `bool` - Toujours `false` pour un fichier\n- `extension` : `string` - Extension sans le point\n\n**Erreur** : `fail` si le fichier n'existe pas."
       },
       {
         "name": "move",
@@ -1722,7 +1856,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`File::move(src: string, dst: string) → void`\n\nDéplace ou renomme un fichier.\n\n```ocara\nFile::move(\"/tmp/old.txt\", \"/tmp/new.txt\")\n```\n\n**Erreur** : `fail` si la source n'existe pas ou si l'opération échoue."
       },
       {
         "name": "read",
@@ -1733,7 +1868,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`File::read(path: string) → string`\n\nLit le contenu d'un fichier en UTF-8.\n\n```ocara\nvar content:string = File::read(\"/tmp/data.txt\")\nIO::writeln(content)\n```\n\n**Erreur** : `fail` si le fichier n'existe pas ou n'est pas lisible."
       },
       {
         "name": "readBytes",
@@ -1744,7 +1880,8 @@
           }
         ],
         "returns": "int[]",
-        "static": true
+        "static": true,
+        "doc": "`File::readBytes(path: string) → array<int>`\n\nLit le contenu d'un fichier en binaire (array d'octets).\n\n```ocara\nvar bytes:array<int> = File::readBytes(\"/tmp/image.png\")\nIO::writeln(`Taille: ${Array::len(bytes)} octets`)\n```\n\n**Erreur** : `fail` si le fichier n'existe pas ou n'est pas lisible."
       },
       {
         "name": "remove",
@@ -1755,7 +1892,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`File::remove(path: string) → void`\n\nSupprime un fichier.\n\n```ocara\nFile::remove(\"/tmp/temp.txt\")\n```\n\n**Erreur** : `fail` si le fichier n'existe pas ou ne peut pas être supprimé."
       },
       {
         "name": "size",
@@ -1766,7 +1904,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`File::size(path: string) → int`\n\nRetourne la taille d'un fichier en octets.\n\n```ocara\nvar size:int = File::size(\"/tmp/data.bin\")\nIO::writeln(`Taille: ${size} octets`)\n```\n\n**Erreur** : `fail` si le fichier n'existe pas."
       },
       {
         "name": "write",
@@ -1781,7 +1920,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`File::write(path: string, content: string) → void`\n\nÉcrit du contenu texte dans un fichier (écrase si existe).\n\n```ocara\nFile::write(\"/tmp/output.txt\", \"Hello, World!\")\n```\n\n**Erreur** : `fail` en cas d'erreur d'écriture (permissions, disque plein, etc.)."
       },
       {
         "name": "writeBytes",
@@ -1796,7 +1936,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`File::writeBytes(path: string, data: array<int>) → void`\n\nÉcrit des données binaires dans un fichier.\n\n```ocara\nvar data:array<int> = [0x89, 0x50, 0x4E, 0x47]  // Signature PNG\nFile::writeBytes(\"/tmp/test.png\", data)\n```\n\n**Erreur** : `fail` en cas d'erreur d'écriture."
       }
     ],
     "consts": []
@@ -1817,7 +1958,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`Directory::copy(src: string, dst: string) → void`\n\nCopie un répertoire et tout son contenu (récursif).\n\n```ocara\nDirectory::copy(\"/tmp/project\", \"/tmp/backup\")\n```\n\n**Erreur** : `fail` si la source n'existe pas ou si l'écriture échoue."
       },
       {
         "name": "count",
@@ -1828,7 +1970,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`Directory::count(path: string) → int`\n\nCompte le nombre d'entrées dans un répertoire.\n\n```ocara\nvar count:int = Directory::count(\"/tmp\")\nIO::writeln(`Nombre d'entrées: ${count}`)\n```\n\n**Erreur** : `fail` si le répertoire n'existe pas ou n'est pas accessible."
       },
       {
         "name": "create",
@@ -1839,7 +1982,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`Directory::create(path: string) → void`\n\nCrée un répertoire (le parent doit exister).\n\n```ocara\nDirectory::create(\"/tmp/data\")\n```\n\n**Erreur** : `fail` si le parent n'existe pas ou si le répertoire existe déjà."
       },
       {
         "name": "createRecursive",
@@ -1850,7 +1994,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`Directory::createRecursive(path: string) → void`\n\nCrée un répertoire et tous ses parents (équivalent `mkdir -p`).\n\n```ocara\nDirectory::createRecursive(\"/tmp/project/src/utils\")\n```\n\n**Erreur** : `fail` en cas d'erreur de permissions."
       },
       {
         "name": "exists",
@@ -1861,7 +2006,8 @@
           }
         ],
         "returns": "bool",
-        "static": true
+        "static": true,
+        "doc": "`Directory::exists(path: string) → bool`\n\nTeste si un répertoire existe.\n\n```ocara\nif !Directory::exists(\"/var/log/myapp\") {\n    Directory::create(\"/var/log/myapp\")\n}\n```"
       },
       {
         "name": "infos",
@@ -1872,7 +2018,8 @@
           }
         ],
         "returns": "map<string, mixed>",
-        "static": true
+        "static": true,
+        "doc": "`Directory::infos(path: string) → map<string, mixed>`\n\nRetourne les métadonnées d'un répertoire.\n\n```ocara\nvar infos:map<string, mixed> = Directory::infos(\"/tmp/data\")\n\nIO::writeln(`Modifié: ${infos[\"modified\"]}`)\nIO::writeln(`Nombre d'entrées: ${infos[\"count\"]}`)\n```\n\n**Clés du map** :\n- `modified` : `int` - Timestamp de dernière modification (Unix epoch)\n- `created` : `int` - Timestamp de création (Unix epoch)\n- `is_dir` : `bool` - Toujours `true` pour un répertoire\n- `count` : `int` - Nombre d'entrées dans le répertoire\n\n**Erreur** : `fail` si le répertoire n'existe pas."
       },
       {
         "name": "list",
@@ -1883,7 +2030,8 @@
           }
         ],
         "returns": "string[]",
-        "static": true
+        "static": true,
+        "doc": "`Directory::list(path: string) → array<string>`\n\nListe tous les fichiers et répertoires d'un répertoire.\n\n```ocara\nvar entries:array<string> = Directory::list(\"/tmp\")\n\nfor entry in entries {\n    IO::writeln(entry)\n}\n```\n\n**Erreur** : `fail` si le répertoire n'existe pas ou n'est pas accessible."
       },
       {
         "name": "listDirs",
@@ -1894,7 +2042,8 @@
           }
         ],
         "returns": "string[]",
-        "static": true
+        "static": true,
+        "doc": "`Directory::listDirs(path: string) → array<string>`\n\nListe uniquement les sous-répertoires d'un répertoire.\n\n```ocara\nvar dirs:array<string> = Directory::listDirs(\"/tmp\")\n\nfor dir in dirs {\n    IO::writeln(`Répertoire: ${dir}`)\n}\n```\n\n**Erreur** : `fail` si le répertoire n'existe pas ou n'est pas accessible."
       },
       {
         "name": "listFiles",
@@ -1905,7 +2054,8 @@
           }
         ],
         "returns": "string[]",
-        "static": true
+        "static": true,
+        "doc": "`Directory::listFiles(path: string) → array<string>`\n\nListe uniquement les fichiers d'un répertoire.\n\n```ocara\nvar files:array<string> = Directory::listFiles(\"/tmp\")\n\nfor file in files {\n    IO::writeln(`Fichier: ${file}`)\n}\n```\n\n**Erreur** : `fail` si le répertoire n'existe pas ou n'est pas accessible."
       },
       {
         "name": "move",
@@ -1920,7 +2070,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`Directory::move(src: string, dst: string) → void`\n\nDéplace ou renomme un répertoire.\n\n```ocara\nDirectory::move(\"/tmp/old_name\", \"/tmp/new_name\")\n```\n\n**Erreur** : `fail` si la source n'existe pas ou si l'opération échoue."
       },
       {
         "name": "remove",
@@ -1931,7 +2082,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`Directory::remove(path: string) → void`\n\nSupprime un répertoire vide.\n\n```ocara\nDirectory::remove(\"/tmp/empty\")\n```\n\n**Erreur** : `fail` si le répertoire n'est pas vide ou n'existe pas."
       },
       {
         "name": "removeRecursive",
@@ -1942,7 +2094,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`Directory::removeRecursive(path: string) → void`\n\nSupprime un répertoire et tout son contenu (équivalent `rm -rf`).\n\n```ocara\nDirectory::removeRecursive(\"/tmp/old_project\")\n```\n\n**Erreur** : `fail` en cas d'erreur de permissions."
       }
     ],
     "consts": []
@@ -1959,7 +2112,8 @@
           }
         ],
         "returns": "mixed",
-        "static": true
+        "static": true,
+        "doc": "`JSON::decode(json)` → `mixed`\n\nDécode une string JSON en structure Ocara (array ou map).\n\n| Paramètre | Type | Description |\n|-----------|------|-------------|\n| `json` | `string` | String JSON à décoder |\n\n```ocara\nimport ocara.JSON\n\nscoped json_str:string = `{\"name\":\"Bob\",\"age\":25}`\nvar data:mixed = JSON::decode(json_str)\n\n// data est une map<string, mixed>\n// Accès aux valeurs\nvar m:map<string, mixed> = data\nIO::writeln(m[\"name\"])  // → Bob\nIO::writeln(m[\"age\"])   // → 25\n\n// Décoder un tableau\nscoped arr_json:string = `[10, 20, 30]`\nvar arr:mixed = JSON::decode(arr_json)\n// arr est un array<mixed> (array)\n```\n\n**Méthode d'instance sur string :**\n\n```ocara\nimport ocara.JSON\n\nscoped json:string = `{\"status\":\"ok\",\"code\":200}`\nvar result:mixed = json.decode()  // ✅ Appel direct sur la string\nIO::writeln(result)\n```\n\n**Règles :**\n- Retourne `null` (0) si le JSON est invalide\n- Les objets JSON deviennent des `map<string, mixed>`\n- Les tableaux JSON deviennent des `array<mixed>`\n- Les nombres JSON deviennent des `int`\n- Les booléens et `null` JSON sont préservés"
       },
       {
         "name": "encode",
@@ -1970,7 +2124,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`JSON::encode(data)` → `string`\n\nEncode un array ou une map en JSON.\n\n| Paramètre | Type | Description |\n|-----------|------|-------------|\n| `data` | `array` ou `map` | Données à encoder en JSON |\n\n```ocara\nimport ocara.JSON\n\nvar users:map<string, mixed> = {\n    \"name\": \"Alice\",\n    \"age\": 30,\n    \"active\": true\n}\n\nscoped json:string = JSON::encode(users)\nIO::writeln(json)\n// → {\"name\":\"Alice\",\"age\":30,\"active\":true}\n\n// Avec un tableau\nvar items:array<mixed> = [1, 2, \"hello\", true]\nscoped arr_json:string = JSON::encode(items)\nIO::writeln(arr_json)\n// → [1,2,\"hello\",true]\n```\n\n**Méthode d'instance sur array/map :**\n\n```ocara\nimport ocara.JSON\n\nvar config:map<string, int> = {\"port\": 8080, \"timeout\": 5000}\nscoped json:string = config.encode()  // ✅ Appel direct sur la map\nIO::writeln(json)\n// → {\"port\":8080,\"timeout\":5000}\n\nvar numbers:array<int> = [1, 2, 3, 4, 5]\nscoped arr:string = numbers.encode()  // ✅ Appel direct sur l'array\nIO::writeln(arr)\n// → [1,2,3,4,5]\n```\n\n**Règles :**\n- Supporte les types : `int`, `string`, `bool`, `null`, arrays imbriqués, maps imbriquées\n- Les clés de map sont toujours converties en strings\n- Les valeurs `float` ne sont pas encore supportées (seront ajoutées dans v0.2.0)"
       },
       {
         "name": "minimize",
@@ -1981,7 +2136,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`JSON::minimize(json)` → `string`\n\nMinifie un JSON en supprimant les espaces et retours à la ligne.\n\n| Paramètre | Type | Description |\n|-----------|------|-------------|\n| `json` | `string` | String JSON à minifier |\n\n```ocara\nimport ocara.JSON\n\nscoped formatted:string = `{\n  \"name\": \"Alice\",\n  \"age\": 30\n}`\n\nscoped mini:string = JSON::minimize(formatted)\nIO::writeln(mini)\n// → {\"name\":\"Alice\",\"age\":30}\n```\n\n**Méthode d'instance sur string :**\n\n```ocara\nimport ocara.JSON\n\nscoped json:string = `{\n  \"status\": \"ok\",\n  \"data\": [1, 2, 3]\n}`\n\nscoped compact:string = json.minimize()  // ✅ Appel direct\nIO::writeln(compact)\n// → {\"status\":\"ok\",\"data\":[1,2,3]}\n```\n\n**Règles :**\n- Supprime tous les espaces et retours à la ligne non nécessaires\n- Retourne la string originale si le JSON est invalide\n- Utile pour réduire la taille des données transmises"
       },
       {
         "name": "pretty",
@@ -1992,7 +2148,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`JSON::pretty(json)` → `string`\n\nFormatte un JSON avec indentation pour améliorer la lisibilité.\n\n| Paramètre | Type | Description |\n|-----------|------|-------------|\n| `json` | `string` | String JSON à formatter |\n\n```ocara\nimport ocara.JSON\n\nscoped compact:string = `{\"name\":\"Alice\",\"age\":30,\"tags\":[\"dev\",\"admin\"]}`\nscoped pretty:string = JSON::pretty(compact)\nIO::writeln(pretty)\n// → {\n//     \"name\": \"Alice\",\n//     \"age\": 30,\n//     \"tags\": [\n//       \"dev\",\n//       \"admin\"\n//     ]\n//   }\n```\n\n**Méthode d'instance sur string :**\n\n```ocara\nimport ocara.JSON\n\nscoped json:string = `{\"x\":1,\"y\":2}`\nscoped formatted:string = json.pretty()  // ✅ Appel direct\nIO::writeln(formatted)\n```\n\n**Règles :**\n- Utilise une indentation de 2 espaces\n- Retourne la string originale si le JSON est invalide\n- Idéal pour le debugging et les logs"
       }
     ],
     "consts": []
@@ -2009,7 +2166,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`HTTPRequest::body(res: HTTPResponse) → string`\n\nCorps brut de la réponse (JSON, HTML, texte…)."
       },
       {
         "name": "close",
@@ -2020,7 +2178,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`HTTPRequest::close(req: HTTPRequest) → void`\n\nFerme un handle de requête créé par `new`. Un second appel sur le même handle est rejeté à la compilation (E25)."
       },
       {
         "name": "closeResponse",
@@ -2031,7 +2190,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`HTTPRequest::closeResponse(res: HTTPResponse) → void`\n\nFerme un handle de réponse créé par `send`/`get`/`post`/`put`/`delete`/`patch`.\nDeux fonctions distinctes car `req` et `res` sont deux structures natives différentes.\n\n```ocara\nscoped req:HTTPRequest = HTTPRequest::new(\"https://api.example.com/resource\")\nreq.setMethod(\"POST\")\nscoped res:HTTPResponse = req.send()\nIO::writeln(res.body())\nreq.close()\nres.closeResponse()\n```\n\n> **Attention** : comme pour `SQLite::close()`, tout appel sur un handle après\n> sa fermeture est un comportement non défini (mémoire déjà libérée) — fermer\n> uniquement après la dernière lecture. Une fermeture manuelle suivie d'une\n> seconde fermeture (manuelle ou automatique en fin de `scoped`) est détectée\n> à la compilation, pas besoin de s'en soucier soi-même une fois fermé."
       },
       {
         "name": "delete",
@@ -2042,7 +2202,8 @@
           }
         ],
         "returns": "HTTPResponse",
-        "static": true
+        "static": true,
+        "doc": "`delete` — `(url: string) → HTTPResponse` — Requête DELETE"
       },
       {
         "name": "error",
@@ -2053,7 +2214,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`HTTPRequest::error(res: HTTPResponse) → string`\n\nMessage d'erreur réseau. Retourne `\"\"` si la connexion a réussi."
       },
       {
         "name": "get",
@@ -2064,7 +2226,8 @@
           }
         ],
         "returns": "HTTPResponse",
-        "static": true
+        "static": true,
+        "doc": "`get` — `(url: string) → HTTPResponse` — Requête GET"
       },
       {
         "name": "header",
@@ -2079,7 +2242,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`HTTPRequest::header(res: HTTPResponse, name: string) → string`\n\nValeur d'un en-tête de réponse. Retourne `\"\"` si absent.\n\n```ocara\nscoped ct:string = res.header(\"Content-Type\")\n```"
       },
       {
         "name": "headers",
@@ -2090,7 +2254,8 @@
           }
         ],
         "returns": "map<string, string>",
-        "static": true
+        "static": true,
+        "doc": "`HTTPRequest::headers(res: HTTPResponse) → map<string, string>`\n\nTous les en-têtes de réponse sous forme de map."
       },
       {
         "name": "isError",
@@ -2101,7 +2266,8 @@
           }
         ],
         "returns": "bool",
-        "static": true
+        "static": true,
+        "doc": "`HTTPRequest::isError(res: HTTPResponse) → bool`\n\n`true` si une erreur réseau ou un timeout s'est produit (indépendamment du code HTTP)."
       },
       {
         "name": "new",
@@ -2112,7 +2278,8 @@
           }
         ],
         "returns": "HTTPRequest",
-        "static": true
+        "static": true,
+        "doc": "`HTTPRequest::new(url: string) → HTTPRequest`\n\nCrée une nouvelle requête HTTP vers `url`. Retourne un handle de requête.\nMéthode par défaut : `GET`.\n\n```ocara\nscoped req:HTTPRequest = HTTPRequest::new(\"https://api.example.com/resource\")\n```"
       },
       {
         "name": "ok",
@@ -2123,7 +2290,8 @@
           }
         ],
         "returns": "bool",
-        "static": true
+        "static": true,
+        "doc": "`HTTPRequest::ok(res: HTTPResponse) → bool`\n\n`true` si le code de statut est entre `200` et `299` inclus."
       },
       {
         "name": "patch",
@@ -2138,7 +2306,8 @@
           }
         ],
         "returns": "HTTPResponse",
-        "static": true
+        "static": true,
+        "doc": "`patch` — `(url: string, body: string) → HTTPResponse` — Requête PATCH"
       },
       {
         "name": "post",
@@ -2153,7 +2322,8 @@
           }
         ],
         "returns": "HTTPResponse",
-        "static": true
+        "static": true,
+        "doc": "`post` — `(url: string, body: string) → HTTPResponse` — Requête POST"
       },
       {
         "name": "put",
@@ -2168,7 +2338,8 @@
           }
         ],
         "returns": "HTTPResponse",
-        "static": true
+        "static": true,
+        "doc": "`put` — `(url: string, body: string) → HTTPResponse` — Requête PUT"
       },
       {
         "name": "send",
@@ -2179,7 +2350,8 @@
           }
         ],
         "returns": "HTTPResponse",
-        "static": true
+        "static": true,
+        "doc": "`HTTPRequest::send(req: HTTPRequest) → HTTPResponse`\n\nEnvoie la requête et retourne un handle de réponse. Bloquant.\n\n```ocara\nscoped res:HTTPResponse = req.send()\n```"
       },
       {
         "name": "setBody",
@@ -2194,7 +2366,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`HTTPRequest::setBody(req: HTTPRequest, body: string) → void`\n\nDéfinit le corps de la requête (JSON, form-data, texte brut…).\n\n```ocara\nreq.setBody(\"{\\\"key\\\": \\\"value\\\"}\")\n```"
       },
       {
         "name": "setHeader",
@@ -2213,7 +2386,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`HTTPRequest::setHeader(req: HTTPRequest, name: string, value: string) → void`\n\nAjoute ou remplace un en-tête de requête.\n\n```ocara\nreq.setHeader(\"Content-Type\", \"application/json\")\nreq.setHeader(\"Authorization\", \"Bearer token\")\n```"
       },
       {
         "name": "setMethod",
@@ -2228,7 +2402,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`HTTPRequest::setMethod(req: HTTPRequest, method: string) → void`\n\nDéfinit la méthode HTTP : `\"GET\"`, `\"POST\"`, `\"PUT\"`, `\"DELETE\"`, `\"PATCH\"`, `\"HEAD\"`, `\"OPTIONS\"`.\n\n```ocara\nreq.setMethod(\"POST\")\n```"
       },
       {
         "name": "setTimeout",
@@ -2243,7 +2418,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`HTTPRequest::setTimeout(req: HTTPRequest, ms: int) → void`\n\nDélai maximum en millisecondes avant abandon de la connexion.\n\n```ocara\nreq.setTimeout(5000)  // 5 secondes\n```"
       },
       {
         "name": "status",
@@ -2254,7 +2430,8 @@
           }
         ],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`HTTPRequest::status(res: HTTPResponse) → int`\n\nCode de statut HTTP (`200`, `201`, `404`, `500`…)."
       }
     ],
     "consts": []
@@ -2271,7 +2448,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "Exemple (docs/builtins/HTTPServer.md) :\n\n```ocara\nserver.host(\"0.0.0.0\")       // interface réseau (défaut : \"0.0.0.0\")\n```"
       },
       {
         "name": "port",
@@ -2282,7 +2460,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "Exemple (docs/builtins/HTTPServer.md) :\n\n```ocara\nserver.port(8080)            // port d'écoute (défaut : 8080)\n```"
       },
       {
         "name": "rootPath",
@@ -2293,7 +2472,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "Exemple (docs/builtins/HTTPServer.md) :\n\n```ocara\nserver.rootPath(\"./public\") // répertoire pour fichiers statiques (optionnel)\n```"
       },
       {
         "name": "route",
@@ -2312,7 +2492,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "Exemple (docs/builtins/HTTPServer.md) :\n\n```ocara\nserver.route(path:string, method:string, handler:Function)\n```"
       },
       {
         "name": "routeError",
@@ -2327,13 +2508,15 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "Exemple (docs/builtins/HTTPServer.md) :\n\n```ocara\nserver.routeError(code:int, handler:Function)\n```"
       },
       {
         "name": "run",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "Exemple (docs/builtins/HTTPServer.md) :\n\n```ocara\nserver.run()   // bloquant — le programme attend indéfiniment\n```"
       },
       {
         "name": "workers",
@@ -2344,7 +2527,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "Exemple (docs/builtins/HTTPServer.md) :\n\n```ocara\nserver.workers(32)           // threads workers (défaut : 4)\n```"
       }
     ],
     "consts": []
@@ -2361,7 +2545,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`body` — `() → string` — Corps brut de la requête"
       },
       {
         "name": "header",
@@ -2376,7 +2561,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`header` — `(name:string) → string` — Valeur d'un en-tête — recherche **insensible à la casse** ; chaîne vide si absent"
       },
       {
         "name": "headers",
@@ -2387,7 +2573,8 @@
           }
         ],
         "returns": "map<string, string|int|float|bool|null>",
-        "static": true
+        "static": true,
+        "doc": "`headers` — `() → map<string, string\\ — int\\ — float\\ — bool\\ — null>` — Tous les en-têtes, clés dans leur **casse d'origine** (voir note ci-dessous)"
       },
       {
         "name": "method",
@@ -2398,7 +2585,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`method` — `() → string` — Méthode HTTP réelle de la requête (`\"GET\"`, `\"POST\"`, …)"
       },
       {
         "name": "param",
@@ -2417,7 +2605,8 @@
           }
         ],
         "returns": "mixed",
-        "static": true
+        "static": true,
+        "doc": "Paramètres unifiés — `param()` / `params()`\n\nAu-delà de la query string (`query`/historique), `HTTPServerRequest` parse automatiquement le **corps** de la requête selon son `Content-Type` :\n\n- **`application/x-www-form-urlencoded`** : un formulaire HTML classique (`<form method=\"POST\">` sans `enctype`).\n- **`multipart/form-data`** : un formulaire avec upload de fichier (`<form method=\"POST\" enctype=\"multipart/form-data\">`).\n- **`application/json`** : **hors périmètre de `param`/`params`** — décodez-le vous-même avec `JSON::decode(req.body())`.\n\n### `params(): map<string, map<string, mixed>>`\n\nRetourne TOUJOURS exactement ces 10 clés (méthodes HTTP), chacune une `map<string, mixed>` (vide si non applicable) :\n\n```\nCONNECT, DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT, QUERY, TRACE\n```\n\n- **`params()[\"GET\"]`** : les paramètres de la query string de l'URL — **toujours peuplé**, quelle que soit la méthode réelle de la requête (une query string peut accompagner un `POST`, un `DELETE`, etc.) — **plus les paramètres de CHEMIN** (`<nom:type>`, voir « Paramètres de chemin » plus haut), également fusionnés ici.\n- **`params()[<méthode réelle>]`** : les paramètres du corps, peuplés **uniquement si** la méthode réelle de la requête est celle-ci, ET que le corps n'est pas vide, ET que `Content-Type` est reconnu (`urlencoded` ou `multipart`). Si la méthode réelle est `GET` et qu'il y a *aussi* un corps (rare), le corps est fusionné dans le **même** bucket `\"GET\"` — en cas de collision de cl"
       },
       {
         "name": "params",
@@ -2428,7 +2617,8 @@
           }
         ],
         "returns": "map<string, map<string, mixed>>",
-        "static": true
+        "static": true,
+        "doc": "`params(): map<string, map<string, mixed>>`\n\nRetourne TOUJOURS exactement ces 10 clés (méthodes HTTP), chacune une `map<string, mixed>` (vide si non applicable) :\n\n```\nCONNECT, DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT, QUERY, TRACE\n```\n\n- **`params()[\"GET\"]`** : les paramètres de la query string de l'URL — **toujours peuplé**, quelle que soit la méthode réelle de la requête (une query string peut accompagner un `POST`, un `DELETE`, etc.) — **plus les paramètres de CHEMIN** (`<nom:type>`, voir « Paramètres de chemin » plus haut), également fusionnés ici.\n- **`params()[<méthode réelle>]`** : les paramètres du corps, peuplés **uniquement si** la méthode réelle de la requête est celle-ci, ET que le corps n'est pas vide, ET que `Content-Type` est reconnu (`urlencoded` ou `multipart`). Si la méthode réelle est `GET` et qu'il y a *aussi* un corps (rare), le corps est fusionné dans le **même** bucket `\"GET\"` — en cas de collision de clé avec la query string, le corps l'emporte.\n- Tous les autres buckets restent des maps vides.\n\n**Précédence en cas de collision de clé, DEUX règles \"plus spécifique l'emporte\"** (même bucket `\"GET\"`, deux sources différentes) :\n1. Un **paramètre de chemin** l'emporte sur une **query string** de même clé (`/voitures/<id:int>` appelée avec `?id=999` : `param(\"id\")` retourne l'`id` du CHEMIN, jamais celui de la query string — le chemin est plus spécifique/intentionnel qu'une query string arbitraire).\n2. Le **corps** (POST/PUT/...) l'emporte sur la **qu"
       },
       {
         "name": "path",
@@ -2439,7 +2629,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`path` — `() → string` — Chemin de la requête (sans query string)"
       },
       {
         "name": "query",
@@ -2454,7 +2645,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`query` — `(key:string) → string` — Valeur d'un paramètre de la query string (historique — voir `param`/`params` ci-dessous pour l'accès unifié incluant le corps)"
       },
       {
         "name": "respond",
@@ -2473,7 +2665,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`respond` — `(status:int, body:string) → void` — Définit le statut et le corps de la réponse"
       },
       {
         "name": "respondHeader",
@@ -2492,7 +2685,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`respondHeader` — `(name:string, value:string) → void` — Ajoute un en-tête à la réponse"
       }
     ],
     "consts": []
@@ -2515,7 +2709,8 @@
         "name": "close",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`open()` / `close()` / `isOpen()` → `bool` — État simulé, ne ferme/rouvre pas la vraie fenêtre"
       },
       {
         "name": "dialog",
@@ -2526,7 +2721,8 @@
           }
         ],
         "returns": "string",
-        "static": false
+        "static": false,
+        "doc": "`dialog(options:map<string,mixed>)` → `string` — Ne montre aucune boîte de dialogue — retourne toujours `\"ok\"`"
       },
       {
         "name": "emit",
@@ -2541,37 +2737,43 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`emit(event:string, data:mixed)` → `void` — N'émet rien vers la vraie page — trace uniquement sur stdout"
       },
       {
         "name": "focus",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`focus()` / `hasFocus()` → `bool` — État simulé"
       },
       {
         "name": "getHeight",
         "params": [],
         "returns": "int",
-        "static": false
+        "static": false,
+        "doc": "`getHeight()` / `setHeight(height:int)` — Idem pour la hauteur"
       },
       {
         "name": "getTitle",
         "params": [],
         "returns": "string",
-        "static": false
+        "static": false,
+        "doc": "`getTitle()` / `setTitle(title:string)` — Lit/modifie un titre en mémoire, pas celui de la fenêtre réelle"
       },
       {
         "name": "getUrl",
         "params": [],
         "returns": "string",
-        "static": false
+        "static": false,
+        "doc": "`getUrl()` / `setUrl(url:string)` — Idem pour l'URL"
       },
       {
         "name": "getWidth",
         "params": [],
         "returns": "int",
-        "static": false
+        "static": false,
+        "doc": "`getWidth()` / `setWidth(width:int)` — Idem pour la largeur"
       },
       {
         "name": "handler",
@@ -2586,7 +2788,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`handler(name:string, method:mixed)` → `void` — Enregistre `method` (référence de méthode statique, ex. `Classe::methode`) comme commande IPC nommée `name`"
       },
       {
         "name": "handlers",
@@ -2597,31 +2800,36 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`handlers(map:mixed)` → `void` — Enregistre plusieurs commandes en une fois (`{\"nom\": Classe::methode, ...}`) — même registre anti-doublon que `handler`"
       },
       {
         "name": "hasFocus",
         "params": [],
         "returns": "bool",
-        "static": false
+        "static": false,
+        "doc": "`focus()` / `hasFocus()` → `bool` — État simulé"
       },
       {
         "name": "isMaximized",
         "params": [],
         "returns": "bool",
-        "static": false
+        "static": false,
+        "doc": "`isMinimized()` / `isMaximized()` → `bool` — État simulé"
       },
       {
         "name": "isMinimized",
         "params": [],
         "returns": "bool",
-        "static": false
+        "static": false,
+        "doc": "`isMinimized()` / `isMaximized()` → `bool` — État simulé"
       },
       {
         "name": "isOpen",
         "params": [],
         "returns": "bool",
-        "static": false
+        "static": false,
+        "doc": "`open()` / `close()` / `isOpen()` → `bool` — État simulé, ne ferme/rouvre pas la vraie fenêtre"
       },
       {
         "name": "listen",
@@ -2636,19 +2844,22 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`listen(event:string, callback:Function<void(string)>)` → `void` — Enregistre un callback pour un événement nommé (jamais déclenché par un vrai événement JS)"
       },
       {
         "name": "maximize",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`minimize()` / `maximize()` / `restore()` — État simulé"
       },
       {
         "name": "minimize",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`minimize()` / `maximize()` / `restore()` — État simulé"
       },
       {
         "name": "notify",
@@ -2659,25 +2870,29 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`notify(options:map<string,mixed>)` → `void` — N'envoie aucune notification système — trace uniquement sur stdout"
       },
       {
         "name": "open",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`open()` / `close()` / `isOpen()` → `bool` — État simulé, ne ferme/rouvre pas la vraie fenêtre"
       },
       {
         "name": "restore",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`minimize()` / `maximize()` / `restore()` — État simulé"
       },
       {
         "name": "run",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`run()` → `void` — Ouvre la vraie fenêtre (bloquant, thread principal requis)"
       },
       {
         "name": "setHeight",
@@ -2688,7 +2903,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`getHeight()` / `setHeight(height:int)` — Idem pour la hauteur"
       },
       {
         "name": "setTitle",
@@ -2699,7 +2915,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`getTitle()` / `setTitle(title:string)` — Lit/modifie un titre en mémoire, pas celui de la fenêtre réelle"
       },
       {
         "name": "setUrl",
@@ -2710,7 +2927,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`getUrl()` / `setUrl(url:string)` — Idem pour l'URL"
       },
       {
         "name": "setWidth",
@@ -2721,7 +2939,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`getWidth()` / `setWidth(width:int)` — Idem pour la largeur"
       }
     ],
     "consts": []
@@ -2744,13 +2963,15 @@
         "name": "clear",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`clear()` → `void` — Remplit toute la fenêtre avec la couleur courante"
       },
       {
         "name": "close",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`close()` → `void` — Marque la fenêtre comme fermée côté Ocara (voir note plus bas)"
       },
       {
         "name": "delay",
@@ -2761,7 +2982,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`SDL::delay(ms:int)` (statique) — Pause bloquante — utile pour limiter le framerate"
       },
       {
         "name": "drawLine",
@@ -2784,7 +3006,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`drawLine(x1:int, y1:int, x2:int, y2:int)` → `void` — Ligne"
       },
       {
         "name": "drawPoint",
@@ -2799,7 +3022,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`drawPoint(x:int, y:int)` → `void` — Point"
       },
       {
         "name": "drawRect",
@@ -2822,7 +3046,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`drawRect(x:int, y:int, w:int, h:int)` → `void` — Contour de rectangle"
       },
       {
         "name": "drawText",
@@ -2861,7 +3086,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`drawText(fontId:int, text:string, x:int, y:int, r:int, g:int, b:int, a:int)` → `void` — Rend une ligne de texte à la position et couleur données"
       },
       {
         "name": "drawTexture",
@@ -2880,7 +3106,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`drawTexture(textureId:int, x:int, y:int)` → `void` — Dessine une texture à sa taille native"
       },
       {
         "name": "drawTextureRegion",
@@ -2927,7 +3154,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`drawTextureRegion(textureId:int, srcX:int, srcY:int, srcW:int, srcH:int, x:int, y:int, w:int, h:int, flipH:bool)` → `void` — Dessine un sous-rectangle de la texture (sprite sheet/tileset), redimensionné, avec retournement horizontal optionnel"
       },
       {
         "name": "drawTextureScaled",
@@ -2954,7 +3182,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`drawTextureScaled(textureId:int, x:int, y:int, w:int, h:int)` → `void` — Dessine une texture redimensionnée"
       },
       {
         "name": "fillRect",
@@ -2977,7 +3206,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`fillRect(x:int, y:int, w:int, h:int)` → `void` — Rectangle plein"
       },
       {
         "name": "getAxis",
@@ -2992,25 +3222,29 @@
           }
         ],
         "returns": "int",
-        "static": false
+        "static": false,
+        "doc": "`getAxis(gamepadId:int, axis:string)` → `int` — État direct d'un axe de manette (`-32768..32767`)"
       },
       {
         "name": "getHeight",
         "params": [],
         "returns": "int",
-        "static": false
+        "static": false,
+        "doc": "`getWidth()` / `getHeight()` → `int` — Taille courante (requête live, pas de cache)"
       },
       {
         "name": "getTitle",
         "params": [],
         "returns": "string",
-        "static": false
+        "static": false,
+        "doc": "`getTitle()` / `setTitle(title:string)` — Titre de la fenêtre"
       },
       {
         "name": "getWidth",
         "params": [],
         "returns": "int",
-        "static": false
+        "static": false,
+        "doc": "`getWidth()` / `getHeight()` → `int` — Taille courante (requête live, pas de cache)"
       },
       {
         "name": "isButtonPressed",
@@ -3025,13 +3259,15 @@
           }
         ],
         "returns": "bool",
-        "static": false
+        "static": false,
+        "doc": "`isButtonPressed(gamepadId:int, button:string)` → `bool` — État direct d'un bouton de manette"
       },
       {
         "name": "isOpen",
         "params": [],
         "returns": "bool",
-        "static": false
+        "static": false,
+        "doc": "`isOpen()` → `bool` — `false` après `close()`"
       },
       {
         "name": "loadFont",
@@ -3046,7 +3282,8 @@
           }
         ],
         "returns": "int",
-        "static": false
+        "static": false,
+        "doc": "`loadFont(path:string, size:int)` → `int` — Charge une police (.ttf/.otf) à une taille donnée, retourne un handle"
       },
       {
         "name": "loadSound",
@@ -3057,7 +3294,8 @@
           }
         ],
         "returns": "int",
-        "static": false
+        "static": false,
+        "doc": "`loadSound(path:string)` → `int` — Charge un son (WAV/OGG/MP3), retourne un handle"
       },
       {
         "name": "loadTexture",
@@ -3068,13 +3306,15 @@
           }
         ],
         "returns": "int",
-        "static": false
+        "static": false,
+        "doc": "`loadTexture(path:string)` → `int` — Charge une image (PNG/JPEG), retourne un handle"
       },
       {
         "name": "pauseMusic",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`pauseMusic()` / `resumeMusic()` / `stopMusic()` → `void` — Contrôle de la piste musicale en cours"
       },
       {
         "name": "playMusic",
@@ -3089,7 +3329,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`playMusic(path:string, loop:bool)` → `void` — Charge et joue une musique en remplaçant la piste en cours"
       },
       {
         "name": "playSound",
@@ -3100,25 +3341,29 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`playSound(soundId:int)` → `void` — Joue un son (superposable)"
       },
       {
         "name": "pollEvent",
         "params": [],
         "returns": "map<string, mixed>",
-        "static": false
+        "static": false,
+        "doc": "`pollEvent()` → `map<string,mixed>` — Dépile un événement (`{\"type\":\"none\"}` si la file est vide)"
       },
       {
         "name": "present",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`present()` → `void` — Affiche la frame dessinée depuis le dernier `present()`"
       },
       {
         "name": "resumeMusic",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`pauseMusic()` / `resumeMusic()` / `stopMusic()` → `void` — Contrôle de la piste musicale en cours"
       },
       {
         "name": "setDrawColor",
@@ -3141,7 +3386,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`setDrawColor(r:int, g:int, b:int, a:int)` → `void` — Fixe la couleur de dessin courante (0-255 par canal)"
       },
       {
         "name": "setMusicVolume",
@@ -3152,7 +3398,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`setMusicVolume(volume:int)` → `void` — Volume de la musique (0-100)"
       },
       {
         "name": "setTitle",
@@ -3163,13 +3410,15 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`getTitle()` / `setTitle(title:string)` — Titre de la fenêtre"
       },
       {
         "name": "stopMusic",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`pauseMusic()` / `resumeMusic()` / `stopMusic()` → `void` — Contrôle de la piste musicale en cours"
       },
       {
         "name": "textureHeight",
@@ -3180,7 +3429,8 @@
           }
         ],
         "returns": "int",
-        "static": false
+        "static": false,
+        "doc": "`textureWidth(textureId:int)` / `textureHeight(textureId:int)` → `int` — Dimensions natives d'une texture chargée"
       },
       {
         "name": "textureWidth",
@@ -3191,13 +3441,15 @@
           }
         ],
         "returns": "int",
-        "static": false
+        "static": false,
+        "doc": "`textureWidth(textureId:int)` / `textureHeight(textureId:int)` → `int` — Dimensions natives d'une texture chargée"
       },
       {
         "name": "ticks",
         "params": [],
         "returns": "int",
-        "static": true
+        "static": true,
+        "doc": "`SDL::ticks()` → `int` (statique) — Millisecondes écoulées depuis l'initialisation SDL"
       },
       {
         "name": "unloadFont",
@@ -3242,7 +3494,8 @@
         "name": "cacheClear",
         "params": [],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`HTML::cacheClear()` → `void`\n\nPurge toutes les entrées du cache de rendu.\n\n```ocara\nHTML::cacheClear()  // le cache est vide, tous les prochains render_cached re-parseront\n```"
       },
       {
         "name": "cacheDelete",
@@ -3253,7 +3506,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`HTML::cacheDelete(cache_key)` → `void`\n\nSupprime une entrée du cache par sa clé. Sans effet si la clé n'existe pas.\n\n| Paramètre   | Type     | Description                        |\n|-------------|----------|------------------------------------||\n| `cache_key` | `string` | Clé du rendu à supprimer du cache  |\n\n```ocara\nHTML::renderCached(`<badge label=\"stable\" color=\"green\">`, \"my_badge\")\nHTML::cacheDelete(\"my_badge\")  // entrée supprimée\n// prochain render_cached avec \"my_badge\" re-parsera le template\n```"
       },
       {
         "name": "escape",
@@ -3264,7 +3518,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`HTML::escape(s)` → `string`\n\nÉchappe les caractères HTML spéciaux dans une chaîne. Utile pour prévenir les injections XSS.\n\n| Paramètre | Type     | Description         |\n|-----------|----------|---------------------|\n| `s`       | `string` | Chaîne à échapper   |\n\n| Caractère | Entité HTML |\n|-----------|-------------|\n| `&`       | `&amp;`     |\n| `<`       | `&lt;`      |\n| `>`       | `&gt;`      |\n| `\"`       | `&quot;`    |\n| `'`       | `&#39;`     |\n\n```ocara\nscoped raw:string = \"<script>alert(\\\"xss\\\")</script>\"\nscoped safe:string = HTML::escape(raw)\nIO::writeln(safe)\n// → &lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;\n```"
       },
       {
         "name": "render",
@@ -3275,7 +3530,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`HTML::render(template)` → `string`\n\nParse un template HTML et remplace les balises custom enregistrées par leur HTML généré.\n\n| Paramètre  | Type     | Description                                 |\n|------------|----------|---------------------------------------------|\n| `template` | `string` | Template HTML pouvant contenir des composants personnalisés |\n\n```ocara\nvar html:string = HTML::render(`<section>\n  <card title=\"Bienvenue\" body=\"Ocara est un langage compilé natif.\">\n  <badge label=\"stable\" color=\"green\">\n</section>`)\nIO::writeln(html)\n// → <section>\n//     <div class=\"card\"><h2>Bienvenue</h2><p>Ocara est un langage compilé natif.</p></div>\n//     <span class=\"badge\" style=\"background:green\">stable</span>\n//   </section>\n```\n\n**Comportement :**\n\n- Les balises HTML5 standard (`div`, `span`, `p`, `section`, `h1`…) sont conservées telles quelles.\n- Les balises correspondant à un composant enregistré via `HTMLComponent::register` sont remplacées par le HTML généré par leur handler.\n- Le rendu est **récursif** : si le HTML produit par un composant contient lui-même des balises custom, elles sont également résolues.\n- La profondeur de récursion est limitée à **20 niveaux** pour éviter les boucles infinies.\n- Les commentaires HTML `<!-- ... -->` sont préservés sans traitement.\n\n**Attributs passés au handler :**\n\nChaque attribut de la balise est parsé et transmis dans un `map<string, mixed>` :\n\n| Syntaxe d'attribut        | Type Ocara résultant | Exemple                     "
       },
       {
         "name": "renderCached",
@@ -3290,7 +3546,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`HTML::renderCached(template, cache_key)` → `string`\n\nIdentique à `HTML::render`, mais met le résultat en cache sous la clé `cache_key`. Les appels suivants avec la même clé retournent immédiatement le résultat mis en cache sans re-parser le template.\n\n| Paramètre   | Type     | Description                                      |\n|-------------|----------|--------------------------------------------------|\n| `template`  | `string` | Template HTML pouvant contenir des composants    |\n| `cache_key` | `string` | Clé unique identifiant ce rendu dans le cache    |\n\n```ocara\nscoped tpl:string = `<badge label=\"stable\" color=\"green\">`\n\n// Premier appel : parse et met en cache sous \"badge_stable\"\nscoped r1:string = HTML::renderCached(tpl, \"badge_stable\")\n\n// Second appel : retourne directement depuis le cache\nscoped r2:string = HTML::renderCached(tpl, \"badge_stable\")\n```\n\n**Règles :**\n\n- Le cache est global et persiste pour toute la durée du programme.\n- ⚠️ Si deux templates **différents** utilisent la même clé, le second template ne sera jamais rendu — c'est le résultat du premier qui sera retourné. Utiliser des clés uniques par template.\n- Utiliser des clés descriptives et uniques par template.\n- ⚠️ Ne pas utiliser `render_cached` pour des templates dont le rendu dépend de données dynamiques qui changent entre les appels."
       }
     ],
     "consts": []
@@ -3307,7 +3564,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`c.register(handler)` → `void`\n\nEnregistre le handler du composant. Le handler est une closure `nameless` qui reçoit les attributs de la balise et retourne une chaîne HTML.\n\n| Paramètre | Type                        | Description                                  |\n|-----------|-----------------------------|----------------------------------------------|\n| `handler` | `Function<string>`          | Closure `nameless(attrs:map<string,mixed>): string` |\n\n```ocara\nvar card:HTMLComponent = use HTMLComponent(\"card\")\ncard.register(nameless(attrs:map<string, mixed>): string {\n    scoped title:string = attrs[\"title\"]\n    scoped body:string  = attrs[\"body\"]\n    return `<div class=\"card\"><h2>${title}</h2><p>${body}</p></div>`\n})\n```\n\n**Règles :**\n\n- Un seul handler par composant. Appeler `register` deux fois sur le même composant remplace le handler précédent.\n- Le handler doit retourner un `string` contenant du HTML valide.\n- Le handler peut lui-même retourner des balises custom — elles seront résolues récursivement par `HTML::render`.\n- Les composants sont stockés dans un registre global : un composant enregistré dans `main` est disponible dans tous les handlers."
       },
       {
         "name": "tag",
@@ -3329,7 +3587,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`HTMLComponent::unregister(name: string)` → `void`\n\nRetire un composant du registre global par son nom (la balise `name` n'est\nalors plus reconnue par `HTML::render`). Nom inconnu : sans effet.\n\n```ocara\nHTMLComponent::unregister(\"badge\")\n```\n\nLe registre est global et persiste normalement pour toute la durée du\nprogramme — pour l'usage habituel (un petit nombre de composants enregistrés\nune fois au démarrage), `unregister` n'est généralement pas nécessaire. Utile\nsurtout pour un enregistrement dynamique (composants créés/détruits en cours\nde route)."
       }
     ],
     "consts": []
@@ -3372,7 +3631,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertContains(haystack, needle)`\n\nVérifie que la chaîne `haystack` contient `needle`.\n\n```ocara\nUnitTest::assertContains(\"bonjour monde\", \"monde\")\n```"
       },
       {
         "name": "assertEmpty",
@@ -3383,7 +3643,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertEmpty(value)`\n\nVérifie que la valeur est vide (chaîne vide ou nulle).\n\n```ocara\nUnitTest::assertEmpty(errors)\n```"
       },
       {
         "name": "assertEnum",
@@ -3409,7 +3670,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertEquals(expected, actual)`\n\nVérifie que `expected` est égal à `actual`.\n\n```ocara\nUnitTest::assertEquals(42, result)\nUnitTest::assertEquals(\"bonjour\", message)\n```"
       },
       {
         "name": "assertExceptionCodeEquals",
@@ -3510,7 +3772,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertFalse(value)`\n\nVérifie que `value` est fausse (nulle ou zéro).\n\n```ocara\nUnitTest::assertFalse(list.isEmpty())\n```"
       },
       {
         "name": "assertFunction",
@@ -3536,7 +3799,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertGreater(a, b)`\n\nVérifie que `a greater b`.\n\n```ocara\nUnitTest::assertGreater(score, 50)\n```"
       },
       {
         "name": "assertGreaterOrEquals",
@@ -3551,7 +3815,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertGreaterOrEquals(a, b)`\n\nVérifie que `a greater or equal b`.\n\n```ocara\nUnitTest::assertGreaterOrEquals(score, 60)\n```"
       },
       {
         "name": "assertLess",
@@ -3566,7 +3831,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertLess(a, b)`\n\nVérifie que `a smaller b`.\n\n```ocara\nUnitTest::assertLess(errors, 1)\n```"
       },
       {
         "name": "assertLessOrEquals",
@@ -3581,7 +3847,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertLessOrEquals(a, b)`\n\nVérifie que `a smaller or equal b`.\n\n```ocara\nUnitTest::assertLessOrEquals(retries, 3)\n```"
       },
       {
         "name": "assertMap",
@@ -3603,7 +3870,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertNotEmpty(value)`\n\nVérifie que la valeur est non vide.\n\n```ocara\nUnitTest::assertNotEmpty(results)\n```"
       },
       {
         "name": "assertNotEquals",
@@ -3618,7 +3886,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertNotEquals(expected, actual)`\n\nVérifie que `expected` est différent de `actual`.\n\n```ocara\nUnitTest::assertNotEquals(0, count)\n```"
       },
       {
         "name": "assertNotNull",
@@ -3629,7 +3898,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertNotNull(value)`\n\nVérifie que `value` est non nulle.\n\n```ocara\nUnitTest::assertNotNull(user)\n```"
       },
       {
         "name": "assertNull",
@@ -3640,7 +3910,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertNull(value)`\n\nVérifie que `value` est nulle (0).\n\n```ocara\nUnitTest::assertNull(result)\n```"
       },
       {
         "name": "assertTrue",
@@ -3651,7 +3922,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertTrue(value)`\n\nVérifie que `value` est vraie (non nulle).\n\n```ocara\nUnitTest::assertTrue(user.isActive())\nUnitTest::assertTrue(list.contains(\"alice\"))\n```"
       },
       {
         "name": "fail",
@@ -3662,7 +3934,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::fail(message)`\n\nForce un échec avec un message personnalisé.\n\n```ocara\nUnitTest::fail(\"cette branche ne devrait jamais être atteinte\")\n```"
       },
       {
         "name": "pass",
@@ -3673,7 +3946,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::pass(message)`\n\nForce un succès avec un message personnalisé.\n\n```ocara\nUnitTest::pass(\"cas non applicable sur cette plateforme\")\n```"
       }
     ],
     "consts": []
@@ -3685,7 +3959,8 @@
         "name": "affectedRows",
         "params": [],
         "returns": "int",
-        "static": false
+        "static": false,
+        "doc": "`db.affectedRows() → int`\n\nRetourne le nombre de lignes affectées par la dernière requête.\n\n```ocara\ndb.execute(\"UPDATE users SET age = 32 WHERE name = 'Alice'\")\nconst affected:int = db.affectedRows()\nIO::writeln(`${affected} rows updated`)\n\nconst rows:array<map<string, mixed>> = db.query(\"SELECT * FROM users\")\nconst count:int = db.affectedRows()\nIO::writeln(`${count} rows returned`)\n```"
       },
       {
         "name": "bind",
@@ -3696,13 +3971,15 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`db.bind(placeholders: map<string, mixed>) → void`\n\nBind les placeholders nominatifs `:nom` de la requête posée par le dernier `prepare()`. Doit suivre un `prepare()` sans `commit()`/`rollback()` entre les deux — appeler `bind()` sans `prepare()` préalable lève une exception plutôt que d'échouer silencieusement.\n\n**Erreur** : `SQLiteException` (code 106) si aucun `prepare()` n'est en attente, ou si une valeur de placeholder n'est pas bindable."
       },
       {
         "name": "close",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`db.close() → void`\n\nFerme la connexion à la base de données.\n\n```ocara\ndb.close()\n```\n\n**Note** : La connexion est automatiquement fermée quand l'objet est détruit, mais il est recommandé d'appeler `close()` explicitement."
       },
       {
         "name": "commit",
@@ -3713,7 +3990,8 @@
           }
         ],
         "returns": "mixed",
-        "static": false
+        "static": false,
+        "doc": "`db.commit(close: bool = false) → mixed`\n\nExécute la requête posée par `prepare()`/`bind()` à l'intérieur d'une transaction SQL (`BEGIN` ... `COMMIT`). Le type de retour dépend de la requête, **auto-détecté** :\n- `array<map<string, mixed>>` si la requête produit des colonnes (SELECT) ;\n- `int` (nombre de lignes affectées) sinon (INSERT/UPDATE/DELETE/CREATE...).\n\n```ocara\ndb.prepare(\"SELECT * FROM users WHERE age > :min\")\ndb.bind({\"min\": 18})\nvar result:mixed = db.commit()\nvar rows:array<map<string, mixed>> = result   // narrower explicite, mixed désactive le typage statique\n```\n\nEn cas d'échec à n'importe quelle étape (BEGIN, exécution, COMMIT), lève `SQLiteException` **sans rollback automatique** : la transaction reste ouverte, `rollback()` doit être appelé explicitement pour l'annuler (voir l'exemple de flux ci-dessus). Appeler `commit()` sans `prepare()` préalable lève aussi une exception.\n\n**Erreur** : `SQLiteException` (code 107)."
       },
       {
         "name": "execute",
@@ -3732,13 +4010,15 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`db.execute(query: string, placeholder: map<string, mixed>|null = null, close: bool = false) → void`\n\nExécute une requête SQL qui ne retourne pas de résultats (INSERT, UPDATE, DELETE, CREATE, etc.).\n\n```ocara\ndb.execute(\"CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, age INTEGER)\")\ndb.execute(\"INSERT INTO users (name, age) VALUES ('Alice', 30)\")\ndb.execute(\"UPDATE users SET age = 31 WHERE name = 'Alice'\")\ndb.execute(\"DELETE FROM users WHERE id = 1\")\n```\n\n`placeholder` bind des valeurs nominatives `:nom` (voir [Requêtes paramétrées](#requêtes-paramétrées-placeholders-nominatifs) ci-dessous) — pas de requête préparée nécessaire pour un simple binding one-shot :\n\n```ocara\ndb.execute(\"INSERT INTO users (name, age) VALUES (:name, :age)\", {\"name\": \"Alice\", \"age\": 30})\n```\n\n`close:true` ferme la connexion juste après (pratique pour un appel unique en fin de fonction) :\n\n```ocara\ndb.execute(\"VACUUM\", null, true)\n```\n\n> ⚠️ L'analyse statique de fuite de ressource (diagnostic E28, voir [diagnostics.md](../diagnostics.md)) ne reconnaît que l'appel explicite `.close()` — passer `close:true` ferme réellement la connexion à l'exécution, mais **ne satisfait pas** ce diagnostic. Préférer `.close()` explicite si vous voulez que le compilateur valide qu'aucune connexion ne fuit.\n\n**Erreur** : `SQLiteException` (code 102) si la requête échoue."
       },
       {
         "name": "lastInsertId",
         "params": [],
         "returns": "int",
-        "static": false
+        "static": false,
+        "doc": "`db.lastInsertId() → int`\n\nRetourne l'ID de la dernière insertion (rowid).\n\n```ocara\ndb.execute(\"INSERT INTO users (name, age) VALUES ('Bob', 25)\")\nconst id:int = db.lastInsertId()\nIO::writeln(`New user ID: ${id}`)\n```"
       },
       {
         "name": "open",
@@ -3749,7 +4029,8 @@
           }
         ],
         "returns": "SQLite",
-        "static": true
+        "static": true,
+        "doc": "`SQLite::open(path: string) → SQLite`\n\nOuvre ou crée une base de données SQLite.\n\n```ocara\nconst db:SQLite = SQLite::open(\"data.db\")\n```\n\n**Erreur** : `SQLiteException` (code 101) si impossible d'ouvrir la base."
       },
       {
         "name": "prepare",
@@ -3760,7 +4041,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "Transactions — `prepare()` / `bind()` / `commit()` / `rollback()`\n\nPour une opération qui doit réussir ou échouer **en bloc** (donc annulable via `rollback()`), le flux \"stepped\" remplace `execute`/`query`/`queryOne` one-shot par quatre étapes explicites sur la même connexion :\n\n```ocara\nconst db:SQLite = SQLite::open(\"data.db\")\ntry {\n    db.prepare(\"UPDATE accounts SET balance = balance - :amount WHERE id = :from\")\n    db.bind({\"amount\": 100, \"from\": 1})\n    db.commit()\n\n    db.prepare(\"UPDATE accounts SET balance = balance + :amount WHERE id = :to\")\n    db.bind({\"amount\": 100, \"to\": 2})\n    var affected:mixed = db.commit()\n    IO::writeln(`transfert effectué, ${affected} ligne(s) affectée(s)`)\n} on e is SQLiteException {\n    IO::writeln(`Erreur : ${e.message}`)\n    db.rollback()\n}\n```\n\n### `db.prepare(query: string) → void`\n\nValide la requête **immédiatement** (erreur de syntaxe remontée à cet appel, pas plus tard) et la mémorise pour `bind()`/`commit()`. N'exécute rien.\n\n**Erreur** : `SQLiteException` (code 105) si la requête est syntaxiquement invalide.\n\n### `db.bind(placeholders: map<string, mixed>) → void`\n\nBind les placeholders nominatifs `:nom` de la requête posée par le dernier `prepare()`. Doit suivre un `prepare()` sans `commit()`/`rollback()` entre les deux — appeler `bind()` sans `prepare()` préalable lève une exception plutôt que d'échouer silencieusement.\n\n**Erreur** : `SQLiteException` (code 106) si aucun `prepare()` n'est en attente, ou si une valeur de place"
       },
       {
         "name": "query",
@@ -3775,7 +4057,8 @@
           }
         ],
         "returns": "map<string, mixed>[]",
-        "static": false
+        "static": false,
+        "doc": "`db.query(query: string, placeholder: map<string, mixed>|null = null) → array<map<string, mixed>>`\n\nExécute une requête SELECT et retourne un array de maps (une map par ligne).\n\n```ocara\nconst rows:array<map<string, mixed>> = db.query(\"SELECT * FROM users\")\nconst adults:array<map<string, mixed>> = db.query(\"SELECT * FROM users WHERE age >= :min\", {\"min\": 18})\n\nfor row in rows {\n    const name:string = row[\"name\"]\n    const age:int = row[\"age\"]\n    IO::writeln(`${name} has ${age} years`)\n}\n```\n\n**Erreur** : `SQLiteException` (code 103) si la requête échoue."
       },
       {
         "name": "queryOne",
@@ -3790,7 +4073,8 @@
           }
         ],
         "returns": "map<string, mixed>",
-        "static": false
+        "static": false,
+        "doc": "`db.queryOne(query: string, placeholder: map<string, mixed>|null = null) → map<string, mixed>`\n\nExécute une requête SELECT et retourne une seule ligne (ou une map vide si aucun résultat).\n\n> ⚠️ **Piège** : `MySQL::queryOne`/`MariaDB::queryOne` (voir [MySQL](MySQL.md)) portent le même nom de méthode mais une sémantique **différente** pour représenter \"aucun résultat\" — ils retournent `null` (type `map<string, mixed>|null`), pas une map vide. Ne pas écrire de code générique sur les deux sans tenir compte de cette différence.\n\n```ocara\nconst user:map<string, mixed> = db.queryOne(\"SELECT * FROM users WHERE id = :id\", {\"id\": 1})\n\nif Map::size(user) > 0 {\n    IO::writeln(`User found: ${user[\"name\"]}`)\n} else {\n    IO::writeln(\"User not found\")\n}\n```\n\n**Erreur** : `SQLiteException` (code 103) si la requête échoue."
       },
       {
         "name": "rollback",
@@ -3801,7 +4085,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`db.rollback(close: bool = false) → void`\n\nAnnule la transaction laissée ouverte par un `commit()` échoué, et efface l'état `prepare()`/`bind()` en attente. **No-op silencieux** s'il n'y a rien à annuler — peut être appelé sans risque depuis un `on e is SQLiteException` sans savoir précisément à quelle étape l'échec a eu lieu. Un échec du `ROLLBACK` lui-même (rare) est absorbé silencieusement plutôt que de lever une nouvelle exception qui masquerait celle d'origine.\n\nComme `commit()`, `close:bool = false` — fermeture de la connexion optionnelle, jamais implicite (voir l'avertissement sur E28 dans la section `execute()` ci-dessus : ceci vaut aussi pour `commit`/`rollback`)."
       },
       {
         "name": "withOpen",
@@ -3816,7 +4101,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`SQLite::withOpen(path: string, f: Function<void(SQLite)>) → void`\n\nOuvre la base, exécute `f(db)` avec la connexion fraîchement ouverte, puis **ferme systématiquement** la connexion — y compris si `f()` lève une exception. Avec `open()`/`close()` manuels, un `raise` entre les deux appels saute `close()` (le mécanisme d'exceptions d'Ocara est `setjmp`/`longjmp`, sans unwinding) et fuit la connexion pour toujours ; c'est exactement le risque que le diagnostic [W04](../diagnostics.md) signale statiquement pour une ressource `scoped`/`consumed`, et que `withOpen` corrige à la racine pour qui l'utilise.\n\n```ocara\nSQLite::withOpen(\"data.db\", nameless(db:SQLite): void {\n    db.execute(\"CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)\")\n    db.execute(\"INSERT INTO users (name) VALUES ('Alice')\")\n    // db est fermée automatiquement ici, même si une exception est levée\n    // au-dessus de cette ligne.\n})\n```\n\n**Erreur** : `SQLiteException` (code 101) si impossible d'ouvrir la base ; toute exception levée par `f()` continue de se propager normalement à l'appelant, après la fermeture de la connexion."
       }
     ],
     "consts": []
@@ -3828,7 +4114,8 @@
         "name": "affectedRows",
         "params": [],
         "returns": "int",
-        "static": false
+        "static": false,
+        "doc": "`db.affectedRows() → int`\n\nRetourne le nombre de lignes affectées par la dernière requête `execute()`.\n\n```ocara\nconst affected:int = db.execute(\"UPDATE users SET age = 32 WHERE name = 'Alice'\")\nIO::writeln(`${affected} rows updated`)\n```"
       },
       {
         "name": "bind",
@@ -3839,13 +4126,15 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`db.bind(placeholders: map<string, mixed>) → void`\n\nBind les placeholders nominatifs `:nom` de la requête posée par le dernier `prepare()`. Appeler `bind()` sans `prepare()` préalable lève une exception plutôt que d'échouer silencieusement.\n\n**Erreur** : `MySQLException` (code 106) si aucun `prepare()` n'est en attente, ou si une valeur n'est pas bindable."
       },
       {
         "name": "close",
         "params": [],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`db.close() → void`\n\nFerme la connexion à la base de données.\n\n```ocara\ndb.close()\n```"
       },
       {
         "name": "commit",
@@ -3856,7 +4145,8 @@
           }
         ],
         "returns": "mixed",
-        "static": false
+        "static": false,
+        "doc": "`db.commit(close: bool = false) → mixed`\n\nExécute la requête posée par `prepare()`/`bind()` à l'intérieur d'une transaction SQL (`START TRANSACTION` ... `COMMIT`), sur la connexion épinglée par `prepare()`. Le type de retour dépend de la requête, **auto-détecté** :\n- `array<map<string, mixed>>` si la requête produit des colonnes (SELECT) ;\n- `int` (nombre de lignes affectées) sinon.\n\nEn cas d'échec à n'importe quelle étape, lève `MySQLException` **sans rollback automatique** : `rollback()` doit être appelé explicitement. Appeler `commit()` sans `prepare()` préalable lève aussi une exception.\n\n**Erreur** : `MySQLException` (code 107)."
       },
       {
         "name": "connect",
@@ -3879,7 +4169,8 @@
           }
         ],
         "returns": "MySQL",
-        "static": true
+        "static": true,
+        "doc": "`MySQL::connect(host: string, user: string, password: string, database: string) → MySQL`\n\nÉtablit une connexion à un serveur MySQL.\n\n```ocara\nconst db:MySQL = MySQL::connect(\"localhost\", \"root\", \"password\", \"mydb\")\n```\n\n**Paramètres** :\n- `host` : adresse du serveur MySQL (ex: `\"localhost\"`, `\"127.0.0.1\"`)\n- `user` : nom d'utilisateur\n- `password` : mot de passe\n- `database` : nom de la base de données\n\n**Erreur** : `MySQLException` (code 101) si impossible de se connecter."
       },
       {
         "name": "execute",
@@ -3898,13 +4189,15 @@
           }
         ],
         "returns": "int",
-        "static": false
+        "static": false,
+        "doc": "`db.execute(query: string, placeholder: map<string, mixed>|null = null, close: bool = false) → int`\n\nExécute une requête SQL qui ne retourne pas de résultats (INSERT, UPDATE, DELETE, CREATE, etc.).  \nRetourne le nombre de lignes affectées.\n\n```ocara\ndb.execute(\"CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(100), age INT)\")\ndb.execute(\"INSERT INTO users (name, age) VALUES ('Alice', 30)\")\nconst affected:int = db.execute(\"UPDATE users SET age = 31 WHERE name = 'Alice'\")\nIO::writeln(`${affected} rows updated`)\n```\n\n`placeholder` bind des valeurs nominatives `:nom` (voir [Requêtes paramétrées](#requêtes-paramétrées-placeholders-nominatifs) ci-dessous) :\n\n```ocara\ndb.execute(\"INSERT INTO users (name, age) VALUES (:name, :age)\", {\"name\": \"Alice\", \"age\": 30})\n```\n\n`close:true` ferme la connexion juste après. Comme côté [SQLite](SQLite.md), ceci ferme réellement la connexion à l'exécution mais ne satisfait **pas** l'analyse statique de fuite de ressource (E28, voir [diagnostics.md](../diagnostics.md)) — préférer `.close()` explicite si vous voulez que le compilateur valide qu'aucune connexion ne fuit.\n\n**Erreur** : `MySQLException` (code 102) si la requête échoue."
       },
       {
         "name": "lastInsertId",
         "params": [],
         "returns": "int",
-        "static": false
+        "static": false,
+        "doc": "`db.lastInsertId() → int`\n\nRetourne l'ID de la dernière insertion (AUTO_INCREMENT).\n\n```ocara\ndb.execute(\"INSERT INTO users (name, age) VALUES ('Bob', 25)\")\nconst id:int = db.lastInsertId()\nIO::writeln(`New user ID: ${id}`)\n```"
       },
       {
         "name": "prepare",
@@ -3915,7 +4208,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "Transactions — `prepare()` / `bind()` / `commit()` / `rollback()`\n\nPour une opération qui doit réussir ou échouer **en bloc** (donc annulable via `rollback()`), le flux \"stepped\" remplace `execute`/`query`/`queryOne` one-shot par quatre étapes explicites — même design que [SQLite](SQLite.md#transactions--prepare--bind--commit--rollback), sur la même connexion à chaque étape :\n\n```ocara\nconst db:MySQL = MySQL::connect(\"localhost\", \"root\", \"password\", \"bank\")\ntry {\n    db.prepare(\"UPDATE accounts SET balance = balance - :amount WHERE id = :from\")\n    db.bind({\"amount\": 100, \"from\": 1})\n    db.commit()\n\n    db.prepare(\"UPDATE accounts SET balance = balance + :amount WHERE id = :to\")\n    db.bind({\"amount\": 100, \"to\": 2})\n    var affected:mixed = db.commit()\n    IO::writeln(`transfert effectué, ${affected} ligne(s) affectée(s)`)\n} on e is MySQLException {\n    IO::writeln(`Erreur : ${e.message}`)\n    db.rollback()\n}\n```\n\n### `db.prepare(query: string) → void`\n\nÉpingle une connexion dédiée au cycle et valide la requête **immédiatement** côté serveur (`COM_STMT_PREPARE` réel — erreur de syntaxe remontée à cet appel, pas plus tard). Un cycle précédent resté ouvert (`commit()` échoué, `rollback()` jamais appelé) est annulé automatiquement avant de continuer.\n\n**Erreur** : `MySQLException` (code 105) si la requête est syntaxiquement invalide.\n\n### `db.bind(placeholders: map<string, mixed>) → void`\n\nBind les placeholders nominatifs `:nom` de la requête posée par le dernier `prepare()`. A"
       },
       {
         "name": "query",
@@ -3930,7 +4224,8 @@
           }
         ],
         "returns": "map<string, mixed>[]",
-        "static": false
+        "static": false,
+        "doc": "`db.query(query: string, placeholder: map<string, mixed>|null = null) → array<map<string, mixed>>`\n\nExécute une requête SELECT et retourne un array de maps (une map par ligne).\n\n```ocara\nconst rows:array<map<string, mixed>> = db.query(\"SELECT * FROM users\")\nconst adults:array<map<string, mixed>> = db.query(\"SELECT * FROM users WHERE age >= :min\", {\"min\": 18})\n\nfor row in rows {\n    const name:string = row[\"name\"]\n    const age:int = row[\"age\"]\n    IO::writeln(`${name} has ${age} years`)\n}\n```\n\n**Types de colonnes** :\n- `INT`, `BIGINT` → `int` (i64)\n- `FLOAT`, `DOUBLE` → `float` (f64)\n- `VARCHAR`, `TEXT` → `string`\n- `NULL` → `null` (0)\n\n**Erreur** : `MySQLException` (code 103) si la requête échoue."
       },
       {
         "name": "queryOne",
@@ -3945,7 +4240,8 @@
           }
         ],
         "returns": "map<string, mixed>|null",
-        "static": false
+        "static": false,
+        "doc": "`db.queryOne(query: string, placeholder: map<string, mixed>|null = null) → map<string, mixed>|null`\n\nExécute une requête SELECT et retourne la première ligne, ou `null` si aucun résultat.\n\n> ⚠️ **Piège** : `SQLite::queryOne` (voir [SQLite](SQLite.md)) porte le même nom de méthode mais une sémantique **différente** pour représenter \"aucun résultat\" — il retourne une **map vide** (vérifier avec `Map::size(...) > 0`), pas `null`. Ne pas écrire de code générique sur les deux sans tenir compte de cette différence.\n\n```ocara\nconst user:map<string, mixed>|null = db.queryOne(\"SELECT * FROM users WHERE id = :id\", {\"id\": 1})\n\nif user not equal null {\n    IO::writeln(`User found: ${user[\"name\"]}`)\n} else {\n    IO::writeln(\"User not found\")\n}\n```\n\n**Erreur** : `MySQLException` (code 103) si la requête échoue."
       },
       {
         "name": "rollback",
@@ -3956,7 +4252,8 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`db.rollback(close: bool = false) → void`\n\nAnnule la transaction laissée ouverte par un `commit()` échoué, et efface l'état `prepare()`/`bind()` en attente. **No-op silencieux** s'il n'y a rien à annuler — peut être appelé sans risque depuis un `on e is MySQLException` sans savoir précisément à quelle étape l'échec a eu lieu."
       },
       {
         "name": "withConnect",
@@ -3983,7 +4280,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`MySQL::withConnect(host: string, user: string, password: string, database: string, f: Function<void(MySQL)>) → void`\n\nConnecte, exécute `f(db)` avec la connexion fraîchement établie, puis **ferme systématiquement** la connexion — y compris si `f()` lève une exception. Avec `connect()`/`close()` manuels, un `raise` entre les deux appels saute `close()` (le mécanisme d'exceptions d'Ocara est `setjmp`/`longjmp`, sans unwinding) et fuit la connexion pour toujours ; c'est exactement le risque que le diagnostic [W04](../diagnostics.md) signale statiquement pour une ressource `scoped`/`consumed`, et que `withConnect` corrige à la racine pour qui l'utilise. Disponible également sous `MariaDB::withConnect`.\n\n```ocara\nMySQL::withConnect(\"localhost\", \"root\", \"password\", \"mydb\", nameless(db:MySQL): void {\n    db.execute(\"CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))\")\n    db.execute(\"INSERT INTO users (name) VALUES ('Alice')\")\n    // db est fermée automatiquement ici, même si une exception est levée\n    // au-dessus de cette ligne.\n})\n```\n\n**Erreur** : `MySQLException` (code 101) si impossible de se connecter ; toute exception levée par `f()` continue de se propager normalement à l'appelant, après la fermeture de la connexion."
       }
     ],
     "consts": []
@@ -4000,7 +4298,8 @@
           }
         ],
         "returns": "string|null",
-        "static": true
+        "static": true,
+        "doc": "`DotEnv::get(key: string) → string|null`\n\nRécupère la valeur d'une variable d'environnement.\n\n**Retour** :\n- La valeur si la variable existe\n- `null` si la variable n'existe pas\n\n```ocara\nconst appName:string = DotEnv::get(\"APP_NAME\")\n\nif appName not equal null {\n    IO::writeln(`Application: ${appName}`)\n} else {\n    IO::writeln(\"APP_NAME non définie\")\n}\n```\n\n**Ordre de recherche** :\n1. Variables chargées depuis les fichiers `.env` (via `DotEnv::load()`)\n2. Variables d'environnement système"
       },
       {
         "name": "load",
@@ -4011,7 +4310,8 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`DotEnv::load(env: string) → void`\n\nCharge un fichier `.env` dans l'environnement de l'application.\n\n**Paramètres** :\n- `env` : extension du fichier à charger\n  - Si vide ou `null` : charge `.env`\n  - Si `\"prod\"` : charge `.env.prod`\n  - Si `\"dev\"` : charge `.env.dev`\n  - etc.\n\n```ocara\n// Charge .env\nDotEnv::load(\"\")\n\n// Charge .env.prod\nDotEnv::load(\"prod\")\n\n// Charge .env.dev\nDotEnv::load(\"dev\")\n```\n\n**Format du fichier .env** :\n```bash"
       }
     ],
     "consts": []
@@ -4028,7 +4328,8 @@
           }
         ],
         "returns": "mixed",
-        "static": true
+        "static": true,
+        "doc": "`YAML::decode(yaml: string) → mixed`\n\nDécode une string YAML en structure Ocara (array ou map).\n\n**Paramètres** :\n- `yaml` : string YAML à décoder\n\n**Retour** : `mixed` (sera un array ou une map selon le YAML)\n\n```ocara\nconst yamlStr:string = \"name: Bob\\nage: 25\\ncity: Paris\\n\"\n\nconst data:map<string, mixed> = YAML::decode(yamlStr)\nIO::writeln(`Nom: ${data[\"name\"]}`)      // Bob\nIO::writeln(`Age: ${data[\"age\"]}`)       // 25\nIO::writeln(`Ville: ${data[\"city\"]}`)    // Paris\n```\n\n**Décoder un array** :\n```ocara\nconst yamlArray:string = \"- apple\\n- banana\\n- orange\\n\"\n\nconst fruits:array<string> = YAML::decode(yamlArray)\nfor fruit in fruits {\n    IO::writeln(fruit)\n}\n```"
       },
       {
         "name": "encode",
@@ -4039,7 +4340,8 @@
           }
         ],
         "returns": "string",
-        "static": true
+        "static": true,
+        "doc": "`YAML::encode(data: mixed) → string`\n\nEncode un array ou une map en YAML.\n\n**Paramètres** :\n- `data` : données à encoder (array ou map)\n\n**Retour** : string YAML\n\n```ocara\nconst user:map<string, mixed> = {}\nuser[\"name\"] = \"Alice\"\nuser[\"age\"] = 30\nuser[\"active\"] = true\n\nconst yaml:string = YAML::encode(user)\nIO::write(yaml)\n```\n\n**Sortie** :\n```yaml\nname: Alice\nage: 30\nactive: true\n```\n\n**Avec un array** :\n```ocara\nconst colors:array<string> = []\ncolors[0] = \"red\"\ncolors[1] = \"green\"\ncolors[2] = \"blue\"\n\nconst yaml:string = YAML::encode(colors)\nIO::write(yaml)\n```\n\n**Sortie** :\n```yaml\n- red\n- green\n- blue\n```"
       },
       {
         "name": "parse",
@@ -4050,7 +4352,8 @@
           }
         ],
         "returns": "mixed",
-        "static": true
+        "static": true,
+        "doc": "`YAML::parse(yaml: string) → mixed`\n\nAlias de `YAML::decode()`. Comportement identique.\n\n```ocara\nconst data:mixed = YAML::parse(yamlStr)  // Identique à decode()\n```"
       }
     ],
     "consts": []

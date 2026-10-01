@@ -8,6 +8,7 @@ import { OcaraCodeLensProvider, WorkspaceIndex } from './codelens';
 import { OcaracsLinter } from './lint';
 import { OcaraCompiler } from './compile';
 import { runtimeContext } from './runtimecontext';
+import { OcaraHoverProvider } from './hover';
 import { findCallSite, resolveCall } from './callsite';
 import {
     esc,
@@ -43,6 +44,9 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.languages.registerCodeLensProvider(selector, new OcaraCodeLensProvider(index))
     );
+
+    // Documentation au survol (builtins, sucre d'instance, déclarations utilisateur).
+    context.subscriptions.push(vscode.languages.registerHoverProvider(selector, new OcaraHoverProvider()));
 
     // Analyse ocaracs automatique + commandes Compiler / Afficher le dump.
     context.subscriptions.push(new OcaracsLinter());
