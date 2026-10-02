@@ -177,6 +177,9 @@ pub enum SemaError {
     /// Valeur d'une constante de classe non évaluable à la compilation
     /// (appel, variable...) — voir `Expr::const_literal` (E55).
     ClassConstNotConstant { class: String, name: String, span: Span },
+    /// Champ appelé comme une méthode (`e.message()` au lieu de
+    /// `e.message`) — E57.
+    FieldCalledAsMethod { class: String, field: String, span: Span },
 }
 
 impl SemaError {
@@ -231,6 +234,7 @@ impl SemaError {
             SemaError::NamedArgUnresolved { span, .. } => span,
             SemaError::FieldNotAccessible { span, .. } => span,
             SemaError::ClassConstNotConstant { span, .. } => span,
+            SemaError::FieldCalledAsMethod { span, .. } => span,
         }
     }
 
@@ -348,6 +352,8 @@ impl SemaError {
                 } else {
                     format!("field '{}' of '{}' is private — it is only accessible from inside '{}' (expose it through a public method)", field, class, class)
                 },
+            SemaError::FieldCalledAsMethod { class, field, .. } =>
+                format!("'{}' is a field of '{}', not a method — write '.{}' without parentheses", field, class, field),
             SemaError::ClassConstNotConstant { class, name, .. } =>
                 format!("value of class constant '{}::{}' must be known at compile time — a literal, possibly negated or combined with +, -, *, /, % (e.g. '-273', '60 * 1000'); use a static method for a computed value", class, name),
         }

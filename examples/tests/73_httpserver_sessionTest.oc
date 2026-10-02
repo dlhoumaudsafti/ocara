@@ -1,0 +1,117 @@
+import ocara.UnitTest
+import ocara.HTTPServer
+import ocara.HTTPServerRequest
+import ocara.HTTPServerSession
+import ocara.HTTPRequest
+import ocara.Thread
+import ocara.Convert
+
+// `HTTPServerSession` — session par visiteur (cookie OCARASESSID) et état
+// global partagé, sur un vrai serveur démarré dans un thread détaché.
+class Test_73_httpserver_session {
+
+    public method sessionSurvivesRequestsWithCookieTest(): int {
+        var s:HTTPServer = use HTTPServer()
+        s.port(8206)
+        s.route("/login", "GET", nameless(req:HTTPServerRequest): int {
+            var sess:HTTPServerSession = req.session()
+            var cart:array<int> = [0, 1, 70000]
+            sess.set("user", "ada")
+            sess.set("cart", cart)
+            sess.set("nothing", null)
+            req.respond(200, sess.id())
+            return 0
+        })
+        s.route("/me", "GET", nameless(req:HTTPServerRequest): int {
+            var sess:HTTPServerSession = req.session()
+            if not sess.has("user") {
+                req.respond(401, "anonymous")
+                return 0
+            }
+            var user:string = sess.get("user")
+            var cart:array<int> = sess.get("cart")
+            var total:int = cart[0] + cart[1] + cart[2]
+            var flags:string = Convert::boolToStr(sess.has("nothing")) + "," + Convert::boolToStr(sess.has("missing"))
+            req.respond(200, user + "|" + Convert::intToStr(total) + "|" + flags + "|" + req.cookie("OCARASESSID"))
+            return 0
+        })
+        s.route("/logout", "GET", nameless(req:HTTPServerRequest): int {
+            req.session().destroy()
+            req.respond(200, "bye")
+            return 0
+        })
+        var t:Thread = use Thread()
+        t.run(nameless(): void { s.run() })
+        t.detach()
+        Thread::sleep(300)
+
+        scoped login:HTTPResponse = HTTPRequest::get("http://localhost:8206/login")
+        var id:string = login.body()
+        UnitTest::assertEquals(32, id.len())
+        UnitTest::assertEquals("OCARASESSID=" + id + "; Path=/; HttpOnly; SameSite=Lax", login.header("Set-Cookie"))
+
+        scoped me:HTTPRequest = HTTPRequest::new("http://localhost:8206/me")
+        me.setHeader("Cookie", "theme=dark; OCARASESSID=" + id)
+        scoped meRes:HTTPResponse = me.send()
+        UnitTest::assertEquals(200, meRes.status())
+        UnitTest::assertEquals("ada|70001|true,false|" + id, meRes.body())
+
+        scoped anon:HTTPResponse = HTTPRequest::get("http://localhost:8206/me")
+        UnitTest::assertEquals(401, anon.status())
+
+        scoped forged:HTTPRequest = HTTPRequest::new("http://localhost:8206/me")
+        forged.setHeader("Cookie", "OCARASESSID=attacker-chosen")
+        scoped forgedRes:HTTPResponse = forged.send()
+        UnitTest::assertEquals(401, forgedRes.status())
+
+        scoped logout:HTTPRequest = HTTPRequest::new("http://localhost:8206/logout")
+        logout.setHeader("Cookie", "OCARASESSID=" + id)
+        scoped logoutRes:HTTPResponse = logout.send()
+        UnitTest::assertEquals("OCARASESSID=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0", logoutRes.header("Set-Cookie"))
+
+        scoped after:HTTPRequest = HTTPRequest::new("http://localhost:8206/me")
+        after.setHeader("Cookie", "OCARASESSID=" + id)
+        scoped afterRes:HTTPResponse = after.send()
+        UnitTest::assertEquals(401, afterRes.status())
+        return 0
+    }
+
+    public method globalStateIsSharedTest(): int {
+        var s:HTTPServer = use HTTPServer()
+        s.port(8207)
+        s.route("/hit", "GET", nameless(req:HTTPServerRequest): int {
+            var hits:int = 0
+            if HTTPServerSession::hasGlobal("hits") {
+                hits = HTTPServerSession::getGlobal("hits")
+            }
+            HTTPServerSession::setGlobal("hits", hits + 1)
+            req.respond(200, Convert::intToStr(hits + 1))
+            return 0
+        })
+        var t:Thread = use Thread()
+        t.run(nameless(): void { s.run() })
+        t.detach()
+        Thread::sleep(300)
+
+        scoped first:HTTPResponse = HTTPRequest::get("http://localhost:8207/hit")
+        scoped second:HTTPResponse = HTTPRequest::get("http://localhost:8207/hit")
+        UnitTest::assertEquals("1", first.body())
+        UnitTest::assertEquals("2", second.body())
+        UnitTest::assertEquals(2, HTTPServerSession::getGlobal("hits"))
+        UnitTest::assertEquals("", first.header("Set-Cookie"))
+        HTTPServerSession::removeGlobal("hits")
+        UnitTest::assertFalse(HTTPServerSession::hasGlobal("hits"))
+        return 0
+    }
+
+    public method globalsKeepDeepCopiesTest(): int {
+        var scores:map<string, int> = {"ada": 0, "bob": 70000}
+        HTTPServerSession::setGlobal("scores", scores)
+        scores["ada"] = 5
+        var copy:map<string, int> = HTTPServerSession::getGlobal("scores")
+        UnitTest::assertEquals(0, copy["ada"])
+        UnitTest::assertEquals(70000, copy["bob"])
+        UnitTest::assertNull(HTTPServerSession::getGlobal("absent"))
+        return 0
+    }
+}

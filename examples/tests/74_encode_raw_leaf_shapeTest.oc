@@ -1,0 +1,31 @@
+import ocara.UnitTest
+import ocara.JSON
+import ocara.YAML
+
+// Feuilles brutes d'un conteneur concret ressemblant à un pointeur aligné
+// (70000 = 8 × 8750) : `JSON::encode`/`YAML::encode` les lisaient comme un
+// tag (SIGSEGV). La forme `kind | depth << 8` (static_leaf_shape) les
+// convertit sans lecture de tag.
+class Test_74_encode_raw_leaf_shape {
+
+    public method jsonEncodeLargeIntArrayTest(): int {
+        var a:array<int> = [70000, 0, 1]
+        UnitTest::assertEquals("[70000,0,1]", JSON::encode(a))
+        UnitTest::assertEquals("[70000,0,1]", a.encode())
+        return 0
+    }
+
+    public method jsonEncodeNestedLargeIntTest(): int {
+        var grid:array<array<int>> = [[70000, 0], [1, 2]]
+        var byKey:map<string, int> = {"big": 70000}
+        UnitTest::assertEquals("[[70000,0],[1,2]]", JSON::encode(grid))
+        UnitTest::assertEquals("{\"big\":70000}", JSON::encode(byKey))
+        return 0
+    }
+
+    public method yamlEncodeLargeIntArrayTest(): int {
+        var a:array<int> = [70000, 0]
+        UnitTest::assertEquals("- 70000\n- 0\n", YAML::encode(a))
+        return 0
+    }
+}

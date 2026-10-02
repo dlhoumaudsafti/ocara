@@ -86,6 +86,9 @@ run_test() {
         httpserver_static)
             examples/builtins/httpserver_static.sh "$TMP"
             ;;
+        httpserver_session)
+            examples/builtins/httpserver_session.sh "$TMP"
+            ;;
         advanced_httpserver)
             examples/advanced/httpserver/httpserver.sh "$TMP"
             ;;

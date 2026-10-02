@@ -1,4 +1,4 @@
-# ocara.HTTPServer / ocara.HTTPServerRequest
+# ocara.HTTPServer / ocara.HTTPServerRequest / ocara.HTTPServerSession
 
 Serveur HTTP multi-connexions intégré dans le runtime Ocara. Basé sur `tiny_http`, il accepte plusieurs connexions simultanées via un pool de threads.
 
@@ -9,9 +9,10 @@ Serveur HTTP multi-connexions intégré dans le runtime Ocara. Basé sur `tiny_h
 ```ocara
 import ocara.HTTPServer
 import ocara.HTTPServerRequest
+import ocara.HTTPServerSession   // sessions / état global (optionnel)
 ```
 
-`HTTPServerRequest` doit être importé séparément dès qu'un handler l'utilise comme type de paramètre (`nameless(req:HTTPServerRequest): int { ... }`) ou appelle une de ses méthodes.
+`HTTPServerRequest` doit être importé séparément dès qu'un handler l'utilise comme type de paramètre (`nameless(req:HTTPServerRequest): int { ... }`) ou appelle une de ses méthodes. De même pour `HTTPServerSession` (voir « Sessions et état global »).
 
 ## Création & configuration
 
@@ -159,6 +160,8 @@ Ces méthodes s'appellent en sucre d'instance sur l'objet `req` reçu par un han
 | `query` | `(key:string) → string` | Valeur d'un paramètre de la query string (historique — voir `param`/`params` ci-dessous pour l'accès unifié incluant le corps) |
 | `param` | `(key:string, method:string\|null = null) → mixed` | Accesseur universel — voir « Paramètres unifiés » |
 | `params` | `() → map<string, map<string, mixed>>` | Tous les paramètres, regroupés par méthode — voir « Paramètres unifiés » |
+| `cookie` | `(name:string) → string` | Valeur d'un cookie du header `Cookie` ; chaîne vide si absent |
+| `session` | `() → HTTPServerSession` | Session du visiteur, créée au besoin — voir « Sessions et état global » |
 
 > **Note sur `headers()`** : le type de retour déclaré (`string|int|float|bool|null`) est une union par parité de forme avec `params()` — en pratique, un en-tête HTTP est **toujours** une chaîne sur le fil, `headers()` ne retourne donc jamais autre chose qu'une `string`. Contrairement à `header(name)` (recherche insensible à la casse), les **clés** de la map retournée par `headers()` conservent la casse exacte envoyée par le client.
 
@@ -260,6 +263,81 @@ server.route("/upload", "POST", nameless(req:HTTPServerRequest): int {
 ```
 
 > **Limitation connue** : plusieurs parts multipart portant le **même** nom de champ (ex. plusieurs fichiers soumis sous `photos[]`) — seul le dernier est conservé, aucune erreur n'est levée. Hors périmètre pour l'instant.
+
+## ocara.HTTPServerSession — sessions et état global
+
+### Session du visiteur
+
+`req.session()` retourne la session du visiteur courant. Elle est identifiée par le cookie **`OCARASESSID`** (128 bits aléatoires, `Path=/; HttpOnly; SameSite=Lax`), posé automatiquement dans la réponse à la première utilisation. Les requêtes suivantes qui renvoient ce cookie retrouvent les mêmes données.
+
+| Méthode | Signature | Description |
+|---|---|---|
+| `id` | `() → string` | Identifiant de la session (32 caractères hexadécimaux) |
+| `set` | `(key:string, value:mixed) → void` | Enregistre une valeur pour ce visiteur |
+| `get` | `(key:string) → mixed` | Valeur enregistrée ; `null` si la clé est absente |
+| `has` | `(key:string) → bool` | Vrai si la clé a été posée, même avec la valeur `null` |
+| `remove` | `(key:string) → void` | Retire une clé |
+| `destroy` | `() → void` | Supprime la session et expire le cookie (déconnexion) |
+
+```ocara
+server.route("/login", "POST", nameless(req:HTTPServerRequest): int {
+    var sess:HTTPServerSession = req.session()
+    sess.set("user", req.param("name"))
+    req.respond(200, "Bienvenue")
+    return 0
+})
+
+server.route("/me", "GET", nameless(req:HTTPServerRequest): int {
+    var sess:HTTPServerSession = req.session()
+    if not sess.has("user") {
+        req.respond(401, "Non connecté")
+        return 0
+    }
+    var user:string = sess.get("user")
+    req.respond(200, `Bonjour ${user}`)
+    return 0
+})
+
+server.route("/logout", "GET", nameless(req:HTTPServerRequest): int {
+    req.session().destroy()
+    req.respond(200, "Au revoir")
+    return 0
+})
+```
+
+Un identifiant envoyé par le client mais inconnu du serveur (session détruite, serveur redémarré, valeur forgée) n'est jamais adopté. Une nouvelle session est créée à la place, ce qui protège contre la fixation de session.
+
+### État global
+
+Méthodes **statiques**. Elles gèrent un magasin clé/valeur unique, partagé par toutes les requêtes et tous les visiteurs (cache applicatif, compteur…) :
+
+| Méthode | Signature | Description |
+|---|---|---|
+| `setGlobal` | `(key:string, value:mixed) → void` | Enregistre une valeur globale |
+| `getGlobal` | `(key:string) → mixed` | Valeur globale ; `null` si absente |
+| `hasGlobal` | `(key:string) → bool` | Vrai si la clé a été posée |
+| `removeGlobal` | `(key:string) → void` | Retire une clé globale |
+
+```ocara
+server.route("/hits", "GET", nameless(req:HTTPServerRequest): int {
+    var hits:int = 0
+    if HTTPServerSession::hasGlobal("hits") {
+        hits = HTTPServerSession::getGlobal("hits")
+    }
+    HTTPServerSession::setGlobal("hits", hits + 1)
+    req.respond(200, `Visites : ${hits + 1}`)
+    return 0
+})
+```
+
+### Valeurs stockées
+
+- **Copie profonde** : `set`/`setGlobal` copient la valeur (scalaires, `string`, `array`, `map`, imbriqués), et chaque `get`/`getGlobal` en renvoie une copie neuve. Modifier la variable d'origine après `set` ne change donc pas la valeur stockée, et la valeur survit à la fin du handler.
+- Un conteneur concret (`array<int>`, `map<string, float>`…) est restitué avec la même représentation : `var cart:array<int> = sess.get("cart")`.
+- **Objets et fonctions refusés** : `HTTPServerException`, code `102`.
+- **Concurrence** : sessions et état global sont protégés par un verrou interne. Ils sont donc sûrs aussi depuis un `ocara.Thread` en dehors des handlers.
+- **Durée de vie** : en mémoire, par processus. Aucune persistance entre redémarrages et **aucune expiration automatique** : une session vit jusqu'à `destroy()` ou l'arrêt du serveur.
+- Le handle `HTTPServerSession` n'est valide que pendant l'exécution du handler, comme `req`. Ne le conservez pas au-delà.
 
 ## Méthodes d'instance — récapitulatif (HTTPServer)
 

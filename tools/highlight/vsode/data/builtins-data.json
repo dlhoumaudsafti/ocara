@@ -917,8 +917,8 @@
         ],
         "returns": "void",
         "static": true,
-        "doc": "Exemple :\n\n```ocara\nMap::set(m, \"b\", 2)    // insère  → {\"a\": 1, \"b\": 2}\n```",
-        "docFile": "Map.md"
+        "doc": "Exemple :\n\n```ocara\nsess.set(\"user\", req.param(\"name\"))\n```",
+        "docFile": "HTTPServer.md"
       },
       {
         "name": "slice",
@@ -2904,6 +2904,23 @@
         "docFile": "HTTPServer.md"
       },
       {
+        "name": "cookie",
+        "params": [
+          {
+            "name": "req",
+            "type": "HTTPServerRequest"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true,
+        "doc": "`cookie` — `(name:string) → string` — Valeur d'un cookie du header `Cookie` ; chaîne vide si absent",
+        "docFile": "HTTPServer.md"
+      },
+      {
         "name": "header",
         "params": [
           {
@@ -3052,6 +3069,144 @@
         "returns": "void",
         "static": true,
         "doc": "`respondHeader` — `(name:string, value:string) → void` — Ajoute un en-tête à la réponse",
+        "docFile": "HTTPServer.md"
+      },
+      {
+        "name": "session",
+        "params": [
+          {
+            "name": "req",
+            "type": "HTTPServerRequest"
+          }
+        ],
+        "returns": "HTTPServerSession",
+        "static": true,
+        "doc": "`session` — `() → HTTPServerSession` — Session du visiteur, créée au besoin — voir « Sessions et état global »",
+        "docFile": "HTTPServer.md"
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "HTTPServerSession",
+    "methods": [
+      {
+        "name": "destroy",
+        "params": [
+          {
+            "name": "session",
+            "type": "HTTPServerSession"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`destroy` — `() → void` — Supprime la session et expire le cookie (déconnexion)",
+        "docFile": "HTTPServer.md"
+      },
+      {
+        "name": "get",
+        "params": [
+          {
+            "name": "session",
+            "type": "HTTPServerSession"
+          }
+        ],
+        "returns": "mixed",
+        "static": true,
+        "doc": "`get` — `(key:string) → mixed` — Valeur enregistrée ; `null` si la clé est absente",
+        "docFile": "HTTPServer.md"
+      },
+      {
+        "name": "getGlobal",
+        "params": [],
+        "returns": "mixed",
+        "static": true,
+        "doc": "`getGlobal` — `(key:string) → mixed` — Valeur globale ; `null` si absente",
+        "docFile": "HTTPServer.md"
+      },
+      {
+        "name": "has",
+        "params": [
+          {
+            "name": "session",
+            "type": "HTTPServerSession"
+          }
+        ],
+        "returns": "bool",
+        "static": true,
+        "doc": "`has` — `(key:string) → bool` — Vrai si la clé a été posée, même avec la valeur `null`",
+        "docFile": "HTTPServer.md"
+      },
+      {
+        "name": "hasGlobal",
+        "params": [],
+        "returns": "bool",
+        "static": true,
+        "doc": "`hasGlobal` — `(key:string) → bool` — Vrai si la clé a été posée",
+        "docFile": "HTTPServer.md"
+      },
+      {
+        "name": "id",
+        "params": [
+          {
+            "name": "session",
+            "type": "HTTPServerSession"
+          }
+        ],
+        "returns": "string",
+        "static": true,
+        "doc": "`id` — `() → string` — Identifiant de la session (32 caractères hexadécimaux)",
+        "docFile": "HTTPServer.md"
+      },
+      {
+        "name": "remove",
+        "params": [
+          {
+            "name": "session",
+            "type": "HTTPServerSession"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`remove` — `(key:string) → void` — Retire une clé",
+        "docFile": "HTTPServer.md"
+      },
+      {
+        "name": "removeGlobal",
+        "params": [],
+        "returns": "void",
+        "static": true,
+        "doc": "`removeGlobal` — `(key:string) → void` — Retire une clé globale",
+        "docFile": "HTTPServer.md"
+      },
+      {
+        "name": "set",
+        "params": [
+          {
+            "name": "session",
+            "type": "HTTPServerSession"
+          },
+          {
+            "name": "value",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`set` — `(key:string, value:mixed) → void` — Enregistre une valeur pour ce visiteur",
+        "docFile": "HTTPServer.md"
+      },
+      {
+        "name": "setGlobal",
+        "params": [
+          {
+            "name": "value",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`setGlobal` — `(key:string, value:mixed) → void` — Enregistre une valeur globale",
         "docFile": "HTTPServer.md"
       }
     ],

@@ -174,26 +174,11 @@ export async function resolveCall(
     position: vscode.Position,
     site: CallSite
 ): Promise<ResolvedCall | undefined> {
-    const builtin = site.kind === 'static' && site.receiver ? getBuiltinClass(site.receiver) : undefined;
-    if (builtin) {
-        const method = builtin.methods.find(m => m.static && m.name === site.name);
-        if (!method) { return undefined; }
-        return {
-            owner: `${builtin.name}::${method.name}`,
-            params: method.params.map(p => ({ name: p.name, type: p.type, variadic: /^variadic\b/.test(p.type) })),
-            returnType: method.returns,
-        };
+    if (site.kind === 'static' && site.receiver && getBuiltinClass(site.receiver)) {
+        return resolveBuiltinStatic(site.receiver, site.name);
     }
-    // Receveur de type primitif (`s.toArray(`, `arr.join(`) : conversions et sucre builtin.
-    const primitive = site.kind === 'instance' && site.receiver ? findPrimitiveType(document, site.receiver) : undefined;
-    const primitiveMethod = primitive ? instanceMethodsFor(primitive).find(m => m.name === site.name) : undefined;
-    if (primitiveMethod) {
-        return {
-            owner: `${site.receiver}.${primitiveMethod.name}`,
-            params: primitiveMethod.params.map(p => ({ name: p.name, type: p.type, variadic: /^variadic\b/.test(p.type) })),
-            returnType: primitiveMethod.returns,
-        };
-    }
+    const builtinInstance = resolveBuiltinInstance(document, site);
+    if (builtinInstance) { return builtinInstance; }
     // `use Struct(...)` : constructeur généré depuis les champs (hérités d'abord).
     const fields = site.kind === 'new' && site.receiver ? await findStructFields(document, site.receiver) : undefined;
     if (fields) {
@@ -205,6 +190,30 @@ export async function resolveCall(
     }
     const source = await resolveUserSignature(document, position, site);
     return source ? { owner: source.owner, params: parseParams(source), returnType: source.returnType } : undefined;
+}
+
+function builtinCall(owner: string, method: { params: { name: string; type: string }[]; returns: string }): ResolvedCall {
+    return {
+        owner,
+        params: method.params.map(p => ({ name: p.name, type: p.type, variadic: /^variadic\b/.test(p.type) })),
+        returnType: method.returns,
+    };
+}
+
+function resolveBuiltinStatic(className: string, name: string): ResolvedCall | undefined {
+    const method = getBuiltinClass(className)?.methods.find(m => m.static && m.name === name);
+    return method ? builtinCall(`${className}::${method.name}`, method) : undefined;
+}
+
+/** Receveur de type primitif (`s.toArray(`, `arr.join(`) ou variable de type builtin (`sess.set(`). */
+function resolveBuiltinInstance(document: vscode.TextDocument, site: CallSite): ResolvedCall | undefined {
+    if (site.kind !== 'instance' || !site.receiver) { return undefined; }
+    const primitive = findPrimitiveType(document, site.receiver);
+    const primitiveMethod = primitive ? instanceMethodsFor(primitive).find(m => m.name === site.name) : undefined;
+    if (primitiveMethod) { return builtinCall(`${site.receiver}.${primitiveMethod.name}`, primitiveMethod); }
+    const typeName = findVariableType(document, site.receiver);
+    const method = typeName ? getBuiltinClass(typeName)?.methods.find(m => !m.static && m.name === site.name) : undefined;
+    return method ? builtinCall(`${typeName}.${method.name}`, method) : undefined;
 }
 
 async function resolveUserSignature(

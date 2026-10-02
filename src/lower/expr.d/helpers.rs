@@ -479,7 +479,8 @@ pub fn is_void_builtin(func_name: &str) -> bool {
 /// "write_bool"  → booléens
 /// Calcule, à partir du type AST **connu statiquement** de `expr` (un
 /// `array<T>`/`map<K,T>`, y compris imbriqué : `array<array<T>>`...), le
-/// "type de feuille" concret à transmettre à `JSON_encode`/`YAML_encode` —
+/// "type de feuille" concret à transmettre à `JSON_encode`/`YAML_encode`/
+/// `HTTPServerSession_set`/`_setGlobal` —
 /// voir `value_to_json`/`value_to_yaml` (runtime) : `OcaraArray`/`OcaraMap`
 /// ne conservent aucune information de type par élément, donc un conteneur
 /// **concret** (jamais boxé, contrairement à `mixed`) ne peut pas être
@@ -496,23 +497,37 @@ pub fn is_void_builtin(func_name: &str) -> bool {
 /// functions.rs`), ou la structure contient `mixed` à un niveau quelconque.
 /// Jamais de faux positif possible : au pire, la précision perdue est
 /// exactement celle d'avant ce correctif.
-pub fn static_json_leaf_kind(builder: &LowerBuilder, expr: &Expr) -> i64 {
-    fn leaf_kind_of(ty: &Type) -> i64 {
+///
+/// Encodage `kind | depth << 8` : la profondeur des feuilles est nécessaire,
+/// un entier brut (`70000`) pouvant ressembler à un pointeur aligné — seule
+/// sa position dans la structure le distingue d'un conteneur imbriqué.
+pub fn static_leaf_shape(builder: &LowerBuilder, expr: &Expr) -> i64 {
+    fn shape(ty: &Type, depth: i64) -> i64 {
         match ty {
-            Type::Array(inner) => leaf_kind_of(inner),
-            Type::Map(_, inner) => leaf_kind_of(inner),
-            Type::Int   => 1,
-            Type::Float => 2,
-            Type::Bool  => 3,
+            Type::Array(inner) | Type::Map(_, inner) => shape(inner, depth + 1),
+            Type::Int   => 1 | depth << 8,
+            Type::Float => 2 | depth << 8,
+            Type::Bool  => 3 | depth << 8,
             _ => 0,
         }
     }
-    if let Expr::Ident(name, _) = expr {
-        if let Some(ty) = builder.elem_ast_types.get(name.as_str()) {
-            return leaf_kind_of(ty);
-        }
+    match expr {
+        Expr::Ident(name, _) => builder.elem_ast_types.get(name.as_str()).map_or(0, |elem| shape(elem, 1)),
+        _ => 0,
     }
-    0
+}
+
+/// Builtins recevant la forme de leur dernier argument (`static_leaf_shape`)
+/// en argument caché supplémentaire.
+pub fn push_hidden_leaf_shape(builder: &mut LowerBuilder, func: &str, args: &[Expr], mut lowered: Vec<Value>) -> Vec<Value> {
+    if !matches!(func, "HTTPServerSession_set" | "HTTPServerSession_setGlobal") {
+        return lowered;
+    }
+    let shape = args.last().map_or(0, |value| static_leaf_shape(builder, value));
+    let shape_val = builder.new_value();
+    builder.emit(Inst::ConstInt { dest: shape_val.clone(), value: shape });
+    lowered.push(shape_val);
+    lowered
 }
 
 pub fn write_variant(base: &str, ty: &IrType) -> String {

@@ -108,6 +108,7 @@ pub mod httprequest;
 pub mod thread;
 pub mod mutex;
 pub mod httpserver;
+pub mod httpsession;
 pub mod datetime;
 pub mod date;
 pub mod time;
@@ -3648,7 +3649,7 @@ use serde_json::{Value as JsonValue, Map as JsonMap};
 
 /// JSON::encode(data, leaf_kind) → string
 /// Encode un array ou map en JSON. `leaf_kind` (2e paramètre, jamais visible
-/// côté langage Ocara — voir `static_json_leaf_kind` côté lowering) : 0 =
+/// côté langage Ocara — voir `static_leaf_shape` côté lowering) : 0 =
 /// inconnu/`mixed` (comportement heuristique historique de `value_to_json`),
 /// 1/2/3 = int/float/bool — le type de feuille concret d'un conteneur qui ne
 /// boxe jamais ses éléments (`array<int>`, `array<bool>`...), connu de
@@ -3669,7 +3670,15 @@ pub extern "C" fn JSON_encode(data: i64, leaf_kind: i64) -> i64 {
 /// `get_value_type` indépendamment de `leaf_kind`) — seul le panier
 /// "primitif" (1, jamais un pointeur valide) est concerné par l'ambiguïté
 /// que `leaf_kind` résout.
-fn value_to_json(val: i64, leaf_kind: i64) -> JsonValue {
+fn value_to_json(val: i64, shape: i64) -> JsonValue {
+    // `shape` = `kind | depth << 8` (voir `static_leaf_shape`) : une feuille
+    // brute d'un conteneur concret est convertie SANS lecture de tag — un
+    // entier comme 70000 ressemble à un pointeur aligné (SIGSEGV sinon).
+    let (leaf_kind, depth) = (shape & 0xff, shape >> 8);
+    if leaf_kind != 0 && depth == 0 {
+        return raw_leaf_to_json(val, leaf_kind);
+    }
+    let child = if leaf_kind == 0 { 0 } else { leaf_kind | (depth - 1) << 8 };
     if val == 0 {
         // `null` uniquement pour `mixed` (leaf_kind == 0, comportement
         // historique) — pour un type de feuille concret connu, 0 est une
@@ -3737,7 +3746,7 @@ fn value_to_json(val: i64, leaf_kind: i64) -> JsonValue {
             let len = __array_len(val);
             for i in 0..len {
                 let elem = __array_get(val, i);
-                json_arr.push(value_to_json(elem, leaf_kind));
+                json_arr.push(value_to_json(elem, child));
             }
             JsonValue::Array(json_arr)
         }
@@ -3746,12 +3755,20 @@ fn value_to_json(val: i64, leaf_kind: i64) -> JsonValue {
             unsafe {
                 let map_ptr = val as *mut OcaraMap;
                 for (key_str, value) in (*map_ptr).data.iter() {
-                    json_obj.insert(key_str.clone(), value_to_json(*value, leaf_kind));
+                    json_obj.insert(key_str.clone(), value_to_json(*value, child));
                 }
             }
             JsonValue::Object(json_obj)
         }
         _ => JsonValue::Null
+    }
+}
+
+fn raw_leaf_to_json(val: i64, leaf_kind: i64) -> JsonValue {
+    match leaf_kind {
+        2 => serde_json::Number::from_f64(f64::from_bits(val as u64)).map(JsonValue::Number).unwrap_or(JsonValue::Null),
+        3 => JsonValue::Bool(val != 0),
+        _ => JsonValue::Number(serde_json::Number::from(val)),
     }
 }
 

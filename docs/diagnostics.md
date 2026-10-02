@@ -1153,6 +1153,27 @@ class A {
 
 ---
 
+### E57 — Champ appelé comme une méthode
+
+```
+fichier.oc:12:31: error: 'message' is a field of 'Exception', not a method — write '.message' without parentheses
+```
+
+Un champ (`property`, ou `message`/`code`/`source` d'une exception) est appelé avec des parenthèses. Jusqu'à ce diagnostic, sur la variable d'un handler `on e is X`, `e.message()` comme `e.nothing()` compilaient sans erreur et valaient `null` à l'exécution : la variable était typée `mixed`. Elle est désormais typée `X`, et une méthode inexistante y est signalée comme sur toute instance (`field 'nothing' not found in class 'Exception'`).
+
+```ocara
+try {
+    raise use Exception("boom", 3)
+} on e is Exception {
+    IO::writeln(e.message())   // ❌ E57
+    IO::writeln(e.message)     // ✅
+}
+```
+
+**Correction :** retirer les parenthèses (`e.message`).
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.

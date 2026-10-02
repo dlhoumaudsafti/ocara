@@ -9,7 +9,7 @@ use crate::{__map_new, __map_set};
 
 /// YAML::encode(data, leaf_kind) → string
 /// Encode un array ou map en YAML. `leaf_kind` (2e paramètre, jamais visible
-/// côté langage Ocara — voir `static_json_leaf_kind` côté lowering, réutilisé
+/// côté langage Ocara — voir `static_leaf_shape` côté lowering, réutilisé
 /// tel quel pour YAML) : 0 = inconnu/`mixed` (comportement heuristique
 /// historique), 1/2/3 = int/float/bool — le type de feuille concret d'un
 /// conteneur qui ne boxe jamais ses éléments (`array<int>`...), sans quoi un
@@ -28,7 +28,18 @@ pub unsafe extern "C" fn YAML_encode(data: i64, leaf_kind: i64) -> i64 {
 /// `value_to_json` dans lib.rs) et ne s'applique QUE lorsque `val` n'est pas
 /// lui-même un pointeur tas réel (seul le panier "primitif", jamais un
 /// pointeur valide, est concerné par l'ambiguïté que `leaf_kind` résout).
-fn value_to_yaml(val: i64, leaf_kind: i64) -> YamlValue {
+fn value_to_yaml(val: i64, shape: i64) -> YamlValue {
+    // `shape` = `kind | depth << 8` : feuille brute convertie sans lecture de
+    // tag (voir `value_to_json`).
+    let (leaf_kind, depth) = (shape & 0xff, shape >> 8);
+    if leaf_kind != 0 && depth == 0 {
+        return match leaf_kind {
+            2 => YamlValue::Number(serde_yaml::Number::from(f64::from_bits(val as u64))),
+            3 => YamlValue::Bool(val != 0),
+            _ => YamlValue::Number(serde_yaml::Number::from(val)),
+        };
+    }
+    let child = if leaf_kind == 0 { 0 } else { leaf_kind | (depth - 1) << 8 };
     if val == 0 {
         // `null` uniquement pour `mixed` (leaf_kind == 0) — pour un type de
         // feuille concret connu, 0 est une valeur int/float/bool normale.
@@ -86,7 +97,7 @@ fn value_to_yaml(val: i64, leaf_kind: i64) -> YamlValue {
             let len = __array_len(val);
             for i in 0..len {
                 let elem = __array_get(val, i);
-                yaml_arr.push(value_to_yaml(elem, leaf_kind));
+                yaml_arr.push(value_to_yaml(elem, child));
             }
             YamlValue::Sequence(yaml_arr)
         }
@@ -95,7 +106,7 @@ fn value_to_yaml(val: i64, leaf_kind: i64) -> YamlValue {
             unsafe {
                 let map_ptr = val as *mut OcaraMap;
                 for (key_str, value) in (*map_ptr).data.iter() {
-                    yaml_obj.insert(YamlValue::String(key_str.clone()), value_to_yaml(*value, leaf_kind));
+                    yaml_obj.insert(YamlValue::String(key_str.clone()), value_to_yaml(*value, child));
                 }
             }
             YamlValue::Mapping(yaml_obj)

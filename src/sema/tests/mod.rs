@@ -14,3 +14,4 @@ mod named_args;
 mod field_visibility;
 mod convert_sugar;
 mod generic_check;
+mod exception_binding;

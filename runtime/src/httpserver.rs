@@ -156,7 +156,7 @@ impl OcaraHttpServer {
 // OcaraHttpContext — contexte par requête
 // ─────────────────────────────────────────────────────────────────────────────
 
-struct OcaraHttpContext {
+pub(crate) struct OcaraHttpContext {
     // Données de la requête (lues une fois, mises en cache)
     path:    String,
     method:  String,
@@ -170,7 +170,7 @@ struct OcaraHttpContext {
     // d'origine pour `headers()` (nouvelle méthode, doit refléter la casse
     // TELLE QUE REÇUE). La recherche insensible à la casse se fait maintenant
     // au moment du LOOKUP (voir `header_lookup`), plus au stockage.
-    headers: HashMap<String, String>,
+    pub(crate) headers: HashMap<String, String>,
     query:   HashMap<String, String>,
     // Paramètres GET (query string, toujours peuplé)/body (urlencoded ou
     // multipart, selon Content-Type) précalculés une seule fois à la
@@ -183,7 +183,9 @@ struct OcaraHttpContext {
     // Construction de la réponse
     resp_status:  u16,
     resp_body:    String,
-    resp_headers: Vec<tiny_http::Header>,
+    pub(crate) resp_headers: Vec<tiny_http::Header>,
+    // Session ouverte par `req.session()` (voir runtime/src/httpsession.rs)
+    pub(crate) session_id: Option<String>,
     // Requête tiny_http (consommée lors de l'envoi de la réponse)
     request: Option<tiny_http::Request>,
 }
@@ -387,7 +389,7 @@ unsafe fn server_from_slot(self_ptr: i64) -> &'static mut OcaraHttpServer {
 }
 
 #[inline]
-unsafe fn ctx_ref(req: i64) -> &'static mut OcaraHttpContext {
+pub(crate) unsafe fn ctx_ref(req: i64) -> &'static mut OcaraHttpContext {
     unsafe {
         &mut *(req as *mut OcaraHttpContext)
     }
@@ -911,6 +913,7 @@ fn handle_request(
         resp_status:  200,
         resp_body:    String::new(),
         resp_headers: Vec::new(),
+        session_id:   None,
         request:      Some(request),
     });
     let req_handle = Box::into_raw(ctx) as i64;
