@@ -1,0 +1,70 @@
+import ocara.UnitTest
+
+// docs/roadmap.d/langage-property-initializer.md — `property nom:T = expr`
+// évalué avant le corps de `init()`, dans l'ordre de déclaration ; `init()`
+// écrit ou absent ; constructeur hérité conservé.
+//
+// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée.
+class Test_72_property_initializer {
+
+    public method initializerBeforeInitBodyTest(): int {
+        var s:Service = use Service("svc")
+        UnitTest::assertEquals("rows", s.loadedAtInit)
+        UnitTest::assertEquals(6, s.retries)
+        UnitTest::assertEquals("svc", s.label)
+        return 0
+    }
+
+    public method initOverridesInitializerTest(): int {
+        var s:Service = use Service("x")
+        UnitTest::assertEquals(99, s.overridden)
+        return 0
+    }
+
+    public method withoutInitTest(): int {
+        var n:NoInit = use NoInit()
+        UnitTest::assertEquals(42, n.count)
+        UnitTest::assertEquals("b", n.names[1])
+        return 0
+    }
+
+    public method inheritedConstructorKeptTest(): int {
+        var c:Child = use Child(5)
+        UnitTest::assertEquals("base", c.kind)
+        UnitTest::assertEquals(5, c.id)
+        UnitTest::assertEquals(7, c.extra)
+        return 0
+    }
+}
+
+class Repo {
+    public method all(): string { return "rows" }
+}
+
+class Service {
+    public property repo:Repo = use Repo()
+    public property retries:int = 3 * 2
+    public property overridden:int = 1
+    public property label:string
+    public property loadedAtInit:string
+    init(label:string) {
+        self.label = label
+        self.loadedAtInit = self.repo.all()
+        self.overridden = 99
+    }
+}
+
+class NoInit {
+    public property count:int = 42
+    public property names:array<string> = ["a", "b"]
+}
+
+class Base {
+    public property kind:string = "base"
+    public property id:int
+    init(id:int) { self.id = id }
+}
+
+class Child extends Base {
+    public property extra:int = 7
+}

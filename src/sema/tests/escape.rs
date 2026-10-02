@@ -49,7 +49,7 @@ fn param_assigned_to_field_escapes() {
             span: span(),
         }],
         span: span(),
-        is_struct: false,
+        is_struct: false, implicit_init: false,
     });
 
     let result = compute_escaping_params(&program);

@@ -69,30 +69,31 @@ faisant foi, à la manière des champs de classe JS/TS) explicitement différé
 à une itération future si un besoin réel apparaît — pas trainé dès le
 départ pour garder ce premier chantier simple.
 
-## Ce qu'il faut encore vérifier/trancher en implémentant
+## Mise en œuvre
 
-- **Interaction avec l'héritage** : si une classe parente a des `property`
-  avec initialiseur et qu'une classe fille appelle `parent::init()`, les
-  initialiseurs du parent doivent s'exécuter comme partie de
-  `parent::init()` (avant le corps du `init()` du parent), puis ceux de la
-  fille avant le corps du `init()` de la fille — comportement standard dans
-  la plupart des langages OO, mais à vérifier explicitement contre le
-  mécanisme d'héritage actuel d'Ocara (`extends`/`parent::init()`).
-- **Analyse d'échappement/ressource** : un initialiseur qui construit une
-  ressource native (ex. `property db:SQLite = SQLite::open(...)`) doit
-  passer par la même analyse que si l'affectation avait été écrite dans
-  `init()` — vérifier que le point d'assignation "virtuel" (avant le corps
-  de `init()`) est bien vu par `src/sema/scope.rs`/`src/sema/escape.rs`
-  (mêmes vérifications que pour une `property` de type ressource, voir
-  [langage-destructeur-champ-ressource](langage-destructeur-champ-ressource.md),
-  déjà clos).
-- **`init()` devient-il optionnel ?** Question probablement hors périmètre
-  de CE ticket mais adjacente : si toutes les `property` d'une classe ont un
-  initialiseur et qu'aucune logique de constructeur supplémentaire n'est
-  nécessaire, faut-il pouvoir omettre `init()` entièrement ? Aujourd'hui
-  `init()` semble obligatoire (présent dans tous les exemples existants,
-  même vide `init() {}`) — à confirmer, et à traiter comme un ticket séparé
-  si retenu plutôt que d'élargir la portée de celui-ci.
+**Désucrage au parsing** (`src/parsing/parser.d/property_init.rs`) : chaque
+initialiseur devient `self.nom = expr` en tête du corps de `init()`, dans
+l'ordre de déclaration ; un `init()` sans paramètre est synthétisé s'il
+n'existe pas (`ClassDecl.implicit_init`). Toute la suite (alias, `wiring`,
+sema, analyse des ressources/de l'échappement, lowering) voit une
+affectation ordinaire — aucun traitement spécial ailleurs.
+
+- **Héritage** : un `init()` synthétisé dans une classe dont un ancêtre a un
+  constructeur reçoit ses paramètres et commence par `parent::init(...)`
+  (`core::property_init`, après la fusion des imports) — le parent est
+  construit d'abord. Un `init()` écrit doit, comme avant, appeler
+  `parent::init(...)` lui-même.
+- **`self`/`parent` interdits** (E56, au parsing, closures comprises) ;
+  initialiseur sur une `property` de `module` refusé.
+- **Type** : découvert en route — la sema ne vérifiait JAMAIS le type d'une
+  valeur affectée à un champ (`self.x = "texte"` pour `x:int` passait,
+  initialiseur ou non) ; c'est désormais un `TypeMismatch`. Aucun exemple
+  existant n'en dépendait.
+- **`init()` optionnel** : l'était déjà (une classe sans `init` s'instancie).
+
+Tests : `src/core/tests_property_init.rs`,
+`examples/tests/72_property_initializerTest.oc`. Documenté dans
+`docs/EBNF.md` §16.3 (+ §31), `docs/diagnostics.md` (E56).
 
 ## Priorité / Complexité
 

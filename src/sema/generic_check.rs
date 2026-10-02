@@ -35,6 +35,7 @@ impl<'a> TypeChecker<'a> {
             members: module.members.clone(),
             span: module.span.clone(),
             is_struct: false,
+            implicit_init: false,
         };
         self.check_class(&as_class);
     }

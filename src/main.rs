@@ -566,6 +566,10 @@ fn main() {
     // directement la classe concrète wired, jamais l'interface elle-même.
     core::interface_wiring::resolve_bare_interface_names(&mut program, &all_interfaces);
 
+    // ── 4b-ter. Initialiseurs de `property` : `init()` implicite d'une classe
+    // héritant d'un constructeur (voir core::property_init).
+    core::property_init::complete_implicit_inits(&mut program);
+
     // ── 4b-ter. `struct` : vérifications (E51-E53) et constructeur hérité ────
     // Voir core::structs — après la fusion complète (parent possiblement
     // importé), avant la table des symboles.

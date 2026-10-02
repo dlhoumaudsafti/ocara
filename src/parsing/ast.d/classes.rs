@@ -56,6 +56,10 @@ pub struct ClassDecl {
     /// et `core::structs`) : même représentation qu'une `class`, champs et
     /// constantes uniquement, constructeur généré depuis les champs.
     pub is_struct:  bool,
+    /// `init()` synthétisé par le parser pour porter des initialiseurs de
+    /// `property` (aucun `init` écrit) — complété par `core::property_init`
+    /// quand un ancêtre a un constructeur (paramètres + `parent::init(...)`).
+    pub implicit_init: bool,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

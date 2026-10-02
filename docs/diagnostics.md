@@ -1134,6 +1134,25 @@ class U {
 
 ---
 
+### E56 — Initialiseur de `property` utilisant `self`/`parent`
+
+```
+fichier.oc:3:26: error: initializer of property 'y' cannot use 'self' or 'parent' — it is evaluated before init(), independently of the other properties; assign it in init() instead
+```
+
+Un initialiseur de `property` (§16.3 de l'EBNF) est évalué avant le corps de `init()`, indépendamment des autres properties : il ne peut pas référencer l'instance (`self.x`, `self::m()`, `parent::...`), y compris dans une fonction anonyme. Émis au parsing. Variante : une `property` de `module` ne peut pas avoir d'initialiseur (`module 'M': property 'x' cannot have an initializer`), un module n'ayant pas de constructeur propre.
+
+```ocara
+class A {
+    public property x:int = 1
+    public property y:int = self.x + 1   // ❌ E56
+}
+```
+
+**Correction :** affecter la valeur dans `init()` (`self.y = self.x + 1`).
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.

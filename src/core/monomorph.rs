@@ -547,6 +547,7 @@ pub fn erased_generic_class(generic_decl: &GenericDecl) -> ClassDecl {
         members: specialize_members(generic_decl, &type_args, &HashMap::new()),
         span: generic_decl.span.clone(),
         is_struct: false,
+            implicit_init: false,
     }
 }
 
@@ -584,6 +585,7 @@ pub fn monomorphize(program: &mut ast::Program) {
             members: specialized_members,
             span: generic_decl.span.clone(),
             is_struct: false,
+            implicit_init: false,
         };
         
         specialized_classes.push(specialized_class);

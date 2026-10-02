@@ -2229,7 +2229,7 @@ ClassBody  ::= "{" ClassMember* "}"
 
 ClassMember ::= Constructor
               | Visibility "static"? "method" Identifier "(" ParamList? ")" ":" Type Block
-              | Visibility "property" Identifier ":" Type
+              | Visibility "property" Identifier ":" Type ( "=" Expression )?
               | Visibility "const" Identifier ":" Type "=" Expression
 
 Constructor ::= "init" "(" ParamList? ")" Block
@@ -2309,6 +2309,21 @@ b.p = 3        // ❌ E54 — protected
 
 - `property` : champ d'instance d'une classe — **obligatoire** pour les champs. `var`, `scoped` et `consumed` sont **interdits** sur un champ de classe.
 - `const` : constante **statique** de classe, accessible via `Class::NAME`
+
+**Initialiseur de `property`** : `public property nom:Type = expr` — la valeur est évaluée et affectée **avant le corps de `init()`**, dans l'ordre de déclaration (une affectation dans `init()` l'emporte donc, puisqu'elle vient après). Sans `init()` écrit, un constructeur est généré pour porter les initialiseurs ; si la classe hérite d'un constructeur (`extends`), ce constructeur généré reprend ses paramètres et appelle d'abord `parent::init(...)`. Une classe qui écrit son propre `init()` doit, comme avant, appeler `parent::init(...)` elle-même pour que les initialiseurs du parent s'exécutent.
+
+```ocara
+class ExempleService {
+    public property repository:CarRepository = use CarRepository()
+    public property os:string = System::OS
+    public property retries:int = 3 * 2
+    init() {
+        self.repository.all()          // déjà initialisé
+    }
+}
+```
+
+Règles : la valeur est vérifiée contre le type déclaré du champ ; elle ne peut pas utiliser `self` ni `parent` (E56 — aucun ordre d'initialisation entre properties à définir, assigner dans `init()` si besoin) ; un `module` (§19) ne peut pas en porter (il n'a pas de constructeur propre). Pour un `struct` (§16.7), `champ:Type = expr` est la valeur par défaut du paramètre correspondant de son constructeur généré.
 
 > **Initialisation implicite des `property`** : tout champ non assigné dans `init` est automatiquement mis à zéro par le runtime (`alloc_zeroed`).
 > - Type référence (`string`, classe, tableau, map) → `null` (pointeur nul)
@@ -3811,7 +3826,7 @@ TypeArgs    ::= Type ( "," Type )*
 ClassBody   ::= "{" ClassMember* "}"
 ClassMember ::= Constructor
               | Visibility "static"? "async"? "method" Identifier "(" ParamList? ")" ":" Type Block
-              | Visibility "property" Identifier ":" Type
+              | Visibility "property" Identifier ":" Type ( "=" Expression )?
               | Visibility "const" Identifier ":" Type "=" Expression
 Constructor ::= "init" "(" ParamList? ")" Block
 Visibility  ::= "public" | "private" | "protected"

@@ -4,9 +4,12 @@ pub mod cli;
 mod tests;
 #[cfg(test)]
 mod tests_structs;
+#[cfg(test)]
+mod tests_property_init;
 pub mod interface_wiring;
 pub mod monomorph;
 pub mod named_args;
 pub mod structs;
+pub mod property_init;
 pub mod render_file;
 pub mod runtime_expand;

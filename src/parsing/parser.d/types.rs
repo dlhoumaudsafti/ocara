@@ -1,5 +1,6 @@
 /// Types de base du parser
 
+use crate::parsing::ast::Expr;
 use crate::parsing::token::{Span, Token};
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -35,10 +36,13 @@ pub type ParseResult<T> = Result<T, ParseError>;
 pub struct Parser {
     pub(super) tokens: Vec<Token>,
     pub(super) pos:    usize,
+    /// Initialiseurs `property nom:T = expr` du corps en cours de lecture —
+    /// voir `property_init.rs`.
+    pub(super) property_initializers: Vec<(String, Expr, Span)>,
 }
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, pos: 0 }
+        Self { tokens, pos: 0, property_initializers: Vec::new() }
     }
 }

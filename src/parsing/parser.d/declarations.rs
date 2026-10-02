@@ -166,8 +166,9 @@ impl Parser {
             members.push(self.parse_class_member()?);
         }
         self.eat(&TokenKind::RBrace)?;
+        let implicit_init = self.inject_property_initializers(&mut members, &span);
 
-        Ok(ClassDecl { name, extends, modules, implements, members, span, is_struct: false })
+        Ok(ClassDecl { name, extends, modules, implements, members, span, is_struct: false, implicit_init })
     }
 
     fn parse_class_member(&mut self) -> ParseResult<ClassMember> {
@@ -245,9 +246,14 @@ impl Parser {
                 self.span(),
             )),
         };
-        let (name, _) = self.eat_ident()?;
+        let (name, name_span) = self.eat_ident()?;
         self.eat(&TokenKind::Colon)?;
         let ty = self.parse_type()?;
+        if self.check_exact(&TokenKind::Eq) {
+            self.advance();
+            let value = self.parse_property_initializer(&name)?;
+            self.property_initializers.push((name.clone(), value, name_span));
+        }
         Ok(ClassMember::Field { vis, mutable: true, name, ty, span })
     }
 
@@ -353,6 +359,7 @@ impl Parser {
             members.push(self.parse_class_member()?);
         }
         self.eat(&TokenKind::RBrace)?;
+        self.inject_property_initializers(&mut members, &span);
 
         Ok(GenericDecl { 
             name, 
@@ -379,6 +386,12 @@ impl Parser {
             members.push(self.parse_class_member()?);
         }
         self.eat(&TokenKind::RBrace)?;
+        if let Some((field, _, field_span)) = self.property_initializers.drain(..).next() {
+            return Err(ParseError::new(
+                format!("module '{}': property '{}' cannot have an initializer — a module has no constructor of its own; initialize it in the init() of the classes using the module", name, field),
+                field_span,
+            ));
+        }
 
         Ok(ModuleDecl { name, members, span })
     }

@@ -30,7 +30,6 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
 - **Nouvelle classe builtin `HTTPServerSession`** (variables de session par utilisateur `set`/`get`/`has`, variables globales `setGlobal`/`getGlobal`/`hasGlobal`) — plusieurs points à trancher avant d'implémenter (identification par cookie, aucun support cookie aujourd'hui ; concurrence). *(Structurel au minimum — voir la fiche)* → [détails](roadmap.d/stdlib-httpserver-session.md)
-- **Initialiseur inline sur une `property`** (`property nom:Type = expr`, évalué avant le corps de `init()`) — aujourd'hui impossible (vérifié : échoue au parsing), oblige à toujours écrire l'affectation à la main dans `init()` même pour une valeur indépendante de tout paramètre. *(Structurel — grammaire, sema, interaction avec l'héritage et l'analyse de ressources)* → [détails](roadmap.d/langage-property-initializer.md)
 
 ---
 

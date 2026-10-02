@@ -150,7 +150,7 @@ fn resolve_aliases_leaves_unrelated_type_names_untouched() {
             span: span(),
         }],
         span: span(),
-        is_struct: false,
+        is_struct: false, implicit_init: false,
     });
     resolve_aliases(&mut program, &aliases(&[("HTTP", "Server")]));
     let ClassMember::Constructor { params, .. } = &program.classes[0].members[0] else { panic!() };
@@ -163,7 +163,7 @@ fn resolve_aliases_rewrites_extends() {
     let mut program = Program::new();
     program.classes.push(ClassDecl {
         name: "Child".into(), extends: Some("MyChild".into()), modules: vec![], implements: vec![],
-        members: vec![], span: span(), is_struct: false,
+        members: vec![], span: span(), is_struct: false, implicit_init: false,
     });
     resolve_aliases(&mut program, &aliases(&[("MyChild", "RealChild")]));
     assert_eq!(program.classes[0].extends, Some("RealChild".into()));
@@ -175,7 +175,7 @@ fn resolve_aliases_rewrites_implements() {
     let mut program = Program::new();
     program.classes.push(ClassDecl {
         name: "Foo".into(), extends: None, modules: vec![], implements: vec!["MyIface".into()],
-        members: vec![], span: span(), is_struct: false,
+        members: vec![], span: span(), is_struct: false, implicit_init: false,
     });
     resolve_aliases(&mut program, &aliases(&[("MyIface", "RealIface")]));
     assert_eq!(program.classes[0].implements, vec!["RealIface".to_string()]);
@@ -278,7 +278,7 @@ fn resolve_aliases_is_noop_with_empty_alias_table() {
     let mut program = Program::new();
     program.classes.push(ClassDecl {
         name: "Foo".into(), extends: Some("Bar".into()), modules: vec![], implements: vec![],
-        members: vec![], span: span(), is_struct: false,
+        members: vec![], span: span(), is_struct: false, implicit_init: false,
     });
     let before = program.clone();
     resolve_aliases(&mut program, &HashMap::new());

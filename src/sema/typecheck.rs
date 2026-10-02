@@ -850,6 +850,16 @@ impl<'a> TypeChecker<'a> {
                         if let Some(cls_name) = type_class_name(&obj_ty) {
                             if let Some((owner, f)) = self.symbols.lookup_field_owner(&cls_name, field) {
                                 self.check_field_visibility(owner, &f.vis, field, field_span);
+                                // Type de la valeur affectée (initialiseur de `property`
+                                // compris, désucré en `self.x = expr`) — jamais vérifié
+                                // jusqu'ici pour un champ.
+                                if !types_compat(&val_ty, &f.ty, &self.symbols) {
+                                    self.errors.push(SemaError::TypeMismatch {
+                                        expected: type_name(&f.ty),
+                                        found:    type_name(&val_ty),
+                                        span:     span.clone(),
+                                    });
+                                }
                             }
                         }
                     }
