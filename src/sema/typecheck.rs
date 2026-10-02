@@ -17,6 +17,11 @@ pub struct TypeChecker<'a> {
     current_ret:   Option<Type>,
     /// Nom de la classe en cours (pour `self`)
     pub(crate) current_class: Option<String>,
+    /// Generic en cours de vérification (nom, nombre de paramètres de type) —
+    /// voir `crate::sema::generic_check` : ses paramètres de type y valent
+    /// `mixed`, sans que les diagnostics propres à `mixed` (E14/E15/W02/W03)
+    /// ne s'appliquent.
+    pub(crate) current_generic: Option<(String, usize)>,
     /// Contexte runtime actuel (init, main, error, success, exit)
     current_runtime_ctx: Option<String>,
     /// Classes déjà typecheckées (pour éviter de les typecheck plusieurs fois)
@@ -52,6 +57,7 @@ impl<'a> TypeChecker<'a> {
             scopes:   ScopeStack::default(),
             current_ret:   None,
             current_class: None,
+            current_generic: None,
             current_runtime_ctx: None,
             checked_classes: std::collections::HashSet::new(),
             program: None,
@@ -112,6 +118,14 @@ impl<'a> TypeChecker<'a> {
         // Classes (celles qui n'ont pas été typecheckées via les runtime blocks)
         for class in &program.classes {
             self.check_class(class);
+        }
+        // Corps des `generic` et des `module`, une fois chacun (voir
+        // `crate::sema::generic_check`).
+        for generic in &program.generics {
+            self.check_generic(generic);
+        }
+        for module in &program.modules {
+            self.check_module(module);
         }
     }
 
@@ -192,7 +206,7 @@ impl<'a> TypeChecker<'a> {
         for param in &func.params {
             // Warning si variadic<mixed>
             if param.is_variadic {
-                if let Type::Mixed = param.ty {
+                if matches!(param.ty, Type::Mixed) && self.current_generic.is_none() {
                     self.warnings.push(SemaWarning::VariadicMixed {
                         name: param.name.clone(),
                         span: param.span.clone(),
@@ -220,7 +234,7 @@ impl<'a> TypeChecker<'a> {
 
     // ── Classe ───────────────────────────────────────────────────────────────
 
-    fn check_class(&mut self, class: &ClassDecl) {
+    pub(crate) fn check_class(&mut self, class: &ClassDecl) {
         // Ne pas typecheck deux fois la même classe
         if self.checked_classes.contains(&class.name) {
             return;
@@ -239,7 +253,7 @@ impl<'a> TypeChecker<'a> {
             match member {
                 ClassMember::Method { decl, .. } => {
                     // Vérifier le type de retour mixed
-                    if let Type::Mixed = decl.ret_ty {
+                    if matches!(decl.ret_ty, Type::Mixed) && self.current_generic.is_none() {
                         self.errors.push(SemaError::MixedInReturnType {
                             name: format!("{}::{}", class.name, decl.name),
                             span: decl.span.clone(),
@@ -265,7 +279,7 @@ impl<'a> TypeChecker<'a> {
                         }
                         // Warning si variadic<mixed>
                         if p.is_variadic {
-                            if let Type::Mixed = p.ty {
+                            if matches!(p.ty, Type::Mixed) && self.current_generic.is_none() {
                                 self.warnings.push(SemaWarning::VariadicMixed {
                                     name: p.name.clone(),
                                     span: p.span.clone(),
@@ -310,7 +324,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 ClassMember::Field { name, ty, span, .. } => {
                     // Vérifier que les property ne sont pas de type mixed
-                    if let Type::Mixed = ty {
+                    if matches!(ty, Type::Mixed) && self.current_generic.is_none() {
                         self.errors.push(SemaError::MixedInProperty {
                             class: class.name.clone(),
                             field: name.clone(),
@@ -514,7 +528,7 @@ impl<'a> TypeChecker<'a> {
                     });
                 }
                 // Warning si le type est mixed
-                if let Type::Mixed = ty {
+                if matches!(ty, Type::Mixed) && self.current_generic.is_none() {
                     self.warnings.push(SemaWarning::MixedLocalVariable {
                         name: name.clone(),
                         span: span.clone(),
@@ -1029,7 +1043,11 @@ impl<'a> TypeChecker<'a> {
             Expr::Literal(lit, _) => literal_type(lit),
 
             Expr::SelfExpr(_) => {
-                if let Some(cls) = &self.current_class {
+                // Corps d'un `generic` (voir `check_generic`) : `self` est une
+                // instance du generic, ses méthodes résolues avec `T` permissif.
+                if let Some((name, arity)) = self.current_generic.as_ref().filter(|(n, _)| self.current_class.as_ref() == Some(n)) {
+                    Type::Generic { name: name.clone(), args: vec![Type::Mixed; *arity] }
+                } else if let Some(cls) = &self.current_class {
                     Type::Named(cls.clone())
                 } else {
                     Type::Mixed

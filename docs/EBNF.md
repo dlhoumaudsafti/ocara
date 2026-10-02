@@ -1999,7 +1999,6 @@ Grammaire : voir `ArgList`/`NamedArg` (§10 et §31).
 - **Appel via une valeur `Function<T(...)>`** (§14.3) : ce type ne référence que les TYPES des paramètres, jamais leurs noms — un appel nommé y est rejeté (E50), il reste positionnel.
 - **Le nom d'un paramètre fait partie du contrat public** de la fonction/méthode/constructeur : le renommer casse tout site d'appel qui l'utilise par son nom (même conséquence qu'en PHP 8).
 - **Builtins** : les noms sont ceux documentés dans `docs/builtins/*.md` (ex. `String::replace(s, from, to)`). Un paramètre optionnel d'un builtin ne peut être omis qu'en fin de liste (aucune valeur par défaut à insérer à sa place).
-- **Corps d'un `generic`** : non parcouru par l'analyse sémantique — seuls les appels dont la cible ne dépend d'aucun type y sont résolus (fonction libre, `Classe::m(...)`, `self::m(...)`, `self.m(...)`, `use X(...)`) ; un appel nommé sur un autre receveur y est une erreur explicite.
 
 **Mise en œuvre :** l'analyse sémantique réordonne chaque appel nommé en liste positionnelle complète (valeurs par défaut insérées), puis cette liste remplace les arguments dans l'AST avant le lowering (`src/sema/named_args.rs`, `src/core/named_args.rs`) — le code généré est identique à celui d'un appel positionnel équivalent.
 
@@ -3028,6 +3027,19 @@ NewExpr ::= "use" Identifier ( "<" TypeArgs ">" )? "(" ArgList? ")"
 - L'ordre des types doit correspondre à l'ordre des paramètres
 
 ### 20.6 Monomorphisation
+
+**Vérification du corps** : chaque `generic` est vérifié par l'analyse sémantique **une fois**, qu'il soit instancié ou non, ses paramètres de type étant traités comme des types libres. Tout ce qui ne dépend pas de `T` est contrôlé comme dans une classe ordinaire (symboles inconnus, arité des appels, types concrets, visibilité, arguments nommés, `self.méthode(...)`) ; une opération sur une valeur de type `T` est acceptée — sa validité dépend de l'instanciation. Une erreur est signalée une seule fois, à sa position dans le generic. Même vérification pour le corps d'un `module` (§19), dont les accès à des membres de la classe utilisatrice (`self.x`) restent permissifs.
+
+```ocara
+generic Box<T> {
+    private property item:T
+    public method describe(): string {
+        var n:int = "texte"     // ❌ erreur — même si Box n'est jamais instancié
+        return self.item        // ✅ accepté : `item` est de type T
+    }
+}
+```
+
 
 Le compilateur génère une version spécialisée du générique pour **chaque combinaison de types concrets** utilisée dans le programme. Ce processus s'appelle la **monomorphisation**.
 

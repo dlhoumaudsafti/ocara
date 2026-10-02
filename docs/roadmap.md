@@ -31,7 +31,6 @@ Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnali
 
 - **Nouvelle classe builtin `HTTPServerSession`** (variables de session par utilisateur `set`/`get`/`has`, variables globales `setGlobal`/`getGlobal`/`hasGlobal`) — plusieurs points à trancher avant d'implémenter (identification par cookie, aucun support cookie aujourd'hui ; concurrence). *(Structurel au minimum — voir la fiche)* → [détails](roadmap.d/stdlib-httpserver-session.md)
 - **Initialiseur inline sur une `property`** (`property nom:Type = expr`, évalué avant le corps de `init()`) — aujourd'hui impossible (vérifié : échoue au parsing), oblige à toujours écrire l'affectation à la main dans `init()` même pour une valeur indépendante de tout paramètre. *(Structurel — grammaire, sema, interaction avec l'héritage et l'analyse de ressources)* → [détails](roadmap.d/langage-property-initializer.md)
-- **Corps des `generic` jamais vérifiés par l'analyse sémantique** — `check_program` ignore `program.generics` et la monomorphisation tourne après la sema : aucune erreur de type/arité/symbole n'est détectée dans une méthode de `generic`. Les arguments nommés y sont résolus par un repli syntaxique limité. *(Structurel)* → [détails](roadmap.d/sema-generic-bodies-unchecked.md)
 
 ---
 

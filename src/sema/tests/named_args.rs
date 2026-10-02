@@ -157,7 +157,7 @@ fn call_through_function_value_rejects_named_arguments() {
 }
 
 #[test]
-fn named_call_inside_generic_body_is_resolved_syntactically() {
+fn named_call_inside_generic_body_is_resolved_by_sema() {
     let src = r#"
         function tag(label:string, level:int = 1):string { return label }
         generic Holder<T> {

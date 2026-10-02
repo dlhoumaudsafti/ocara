@@ -1026,7 +1026,7 @@ f(a: 1, b: 2)    // ❌ E50
 f(1, 2)          // ✅
 ```
 
-Variante émise après l'analyse sémantique, pour un appel nommé dans le corps d'un `generic` (non parcouru par l'analyse sémantique) dont la cible dépend du type d'un receveur autre que `self` : `named argument 'x' cannot be resolved here: this call's target depends on a type not known outside semantic analysis (...)`.
+Dans le corps d'un `generic`, un appel nommé sur une valeur de type `T` (paramètre de type, inconnu tant que le generic n'est pas instancié) relève aussi de ce diagnostic : passer les arguments en position.
 
 **Correction :** passer les arguments en position.
 

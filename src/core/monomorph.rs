@@ -1,4 +1,4 @@
-use crate::parsing::ast::{self, ClassDecl, ClassMember, Expr, FuncDecl, Stmt, Type};
+use crate::parsing::ast::{self, ClassDecl, ClassMember, Expr, FuncDecl, GenericDecl, Stmt, Type};
 use std::collections::{HashMap, HashSet};
 
 /// Génère un nom unique pour une classe monomorphisée
@@ -464,6 +464,92 @@ fn collect_from_expr(expr: &Expr, instantiations: &mut HashSet<(String, Vec<Type
     }
 }
 
+/// Membres de `generic_decl` avec ses paramètres de type remplacés par
+/// `type_args` (types des champs/paramètres/retours, et corps des méthodes).
+fn specialize_members(generic_decl: &GenericDecl, type_args: &[Type], mapping: &HashMap<(String, Vec<Type>), String>) -> Vec<ClassMember> {
+    // Extraire les noms des paramètres de type
+    let type_param_names: Vec<String> = generic_decl.type_params.iter().map(|tp| tp.name.clone()).collect();
+    
+    let mut specialized_members: Vec<ClassMember> = Vec::new();
+    
+    for member in &generic_decl.members {
+        let specialized_member = match member {
+            ClassMember::Field { vis, mutable, name, ty, span } => {
+                ClassMember::Field {
+                    vis: vis.clone(),
+                    mutable: *mutable,
+                    name: name.clone(),
+                    ty: substitute_type(ty, &type_param_names, type_args),
+                    span: span.clone(),
+                }
+            }
+            ClassMember::Method { vis, is_static, decl, span } => {
+                let mut specialized_decl = decl.clone();
+                // Substituer les types dans les paramètres
+                for param in &mut specialized_decl.params {
+                    param.ty = substitute_type(&param.ty, &type_param_names, type_args);
+                }
+                // Substituer le type de retour
+                specialized_decl.ret_ty = substitute_type(&specialized_decl.ret_ty, &type_param_names, type_args);
+                // Substituer dans le corps
+                for stmt in &mut specialized_decl.body.stmts {
+                    substitute_stmt(stmt, &type_param_names, type_args, mapping);
+                }
+                ClassMember::Method {
+                    vis: vis.clone(),
+                    is_static: *is_static,
+                    decl: specialized_decl,
+                    span: span.clone(),
+                }
+            }
+            ClassMember::Constructor { params, body, span } => {
+                let mut specialized_params = params.clone();
+                for param in &mut specialized_params {
+                    param.ty = substitute_type(&param.ty, &type_param_names, type_args);
+                }
+                let mut specialized_body = body.clone();
+                for stmt in &mut specialized_body.stmts {
+                    substitute_stmt(stmt, &type_param_names, type_args, mapping);
+                }
+                ClassMember::Constructor {
+                    params: specialized_params,
+                    body: specialized_body,
+                    span: span.clone(),
+                }
+            }
+            ClassMember::Const { vis, name, ty, value, span } => {
+                ClassMember::Const {
+                    vis: vis.clone(),
+                    name: name.clone(),
+                    ty: substitute_type(ty, &type_param_names, type_args),
+                    value: value.clone(),
+                    span: span.clone(),
+                }
+            }
+        };
+        specialized_members.push(specialized_member);
+    }
+    specialized_members
+}
+
+/// Classe « effacée » d'un `generic` : ses paramètres de type remplacés par
+/// `mixed` (permissif), même nom que le generic — permet à l'analyse
+/// sémantique de vérifier son corps UNE fois, instancié ou non, sans rien
+/// supposer de `T` (voir `TypeChecker::check_generic`,
+/// docs/roadmap.d/sema-generic-bodies-unchecked.md).
+pub fn erased_generic_class(generic_decl: &GenericDecl) -> ClassDecl {
+    let type_args = vec![Type::Mixed; generic_decl.type_params.len()];
+    ClassDecl {
+        name: generic_decl.name.clone(),
+        extends: generic_decl.extends.clone(),
+        modules: generic_decl.modules.clone(),
+        implements: generic_decl.implements.clone(),
+        members: specialize_members(generic_decl, &type_args, &HashMap::new()),
+        span: generic_decl.span.clone(),
+        is_struct: false,
+    }
+}
+
 /// Monomorphise les génériques : génère des classes spécialisées
 pub fn monomorphize(program: &mut ast::Program) {
     // 1. Collecter tous les usages de génériques
@@ -488,70 +574,8 @@ pub fn monomorphize(program: &mut ast::Program) {
         let specialized_name = monomorphized_name(generic_name, type_args);
         mapping.insert((generic_name.clone(), type_args.clone()), specialized_name.clone());
         
-        // Extraire les noms des paramètres de type
-        let type_param_names: Vec<String> = generic_decl.type_params.iter().map(|tp| tp.name.clone()).collect();
-        
-        // Créer une ClassDecl spécialisée
-        let mut specialized_members: Vec<ClassMember> = Vec::new();
-        
-        for member in &generic_decl.members {
-            let specialized_member = match member {
-                ClassMember::Field { vis, mutable, name, ty, span } => {
-                    ClassMember::Field {
-                        vis: vis.clone(),
-                        mutable: *mutable,
-                        name: name.clone(),
-                        ty: substitute_type(ty, &type_param_names, type_args),
-                        span: span.clone(),
-                    }
-                }
-                ClassMember::Method { vis, is_static, decl, span } => {
-                    let mut specialized_decl = decl.clone();
-                    // Substituer les types dans les paramètres
-                    for param in &mut specialized_decl.params {
-                        param.ty = substitute_type(&param.ty, &type_param_names, type_args);
-                    }
-                    // Substituer le type de retour
-                    specialized_decl.ret_ty = substitute_type(&specialized_decl.ret_ty, &type_param_names, type_args);
-                    // Substituer dans le corps
-                    for stmt in &mut specialized_decl.body.stmts {
-                        substitute_stmt(stmt, &type_param_names, type_args, &mapping);
-                    }
-                    ClassMember::Method {
-                        vis: vis.clone(),
-                        is_static: *is_static,
-                        decl: specialized_decl,
-                        span: span.clone(),
-                    }
-                }
-                ClassMember::Constructor { params, body, span } => {
-                    let mut specialized_params = params.clone();
-                    for param in &mut specialized_params {
-                        param.ty = substitute_type(&param.ty, &type_param_names, type_args);
-                    }
-                    let mut specialized_body = body.clone();
-                    for stmt in &mut specialized_body.stmts {
-                        substitute_stmt(stmt, &type_param_names, type_args, &mapping);
-                    }
-                    ClassMember::Constructor {
-                        params: specialized_params,
-                        body: specialized_body,
-                        span: span.clone(),
-                    }
-                }
-                ClassMember::Const { vis, name, ty, value, span } => {
-                    ClassMember::Const {
-                        vis: vis.clone(),
-                        name: name.clone(),
-                        ty: substitute_type(ty, &type_param_names, type_args),
-                        value: value.clone(),
-                        span: span.clone(),
-                    }
-                }
-            };
-            specialized_members.push(specialized_member);
-        }
-        
+        let specialized_members = specialize_members(generic_decl, type_args, &mapping);
+
         let specialized_class = ClassDecl {
             name: specialized_name,
             extends: generic_decl.extends.clone(),
