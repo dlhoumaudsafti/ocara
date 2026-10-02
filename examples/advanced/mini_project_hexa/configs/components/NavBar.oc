@@ -6,14 +6,17 @@ import ocara.HTMLComponent
 class NavBar extends HTMLComponent {
     init() {
         parent::init("nav-bar")
-        self.register(nameless(attrs:map<string, mixed>): string {
+        self.register(nameless(attrs:map<string, string>): string {
             scoped active:string    = attrs["active"]
-            consumed homeCls:string   = match active { "home"   => " active" default => "" }
-            consumed searchCls:string = match active { "search" => " active" default => "" }
+            consumed home_cls:string   = match active { "home"   => " active" default => "" }
+            consumed search_cls:string = match active { "search" => " active" default => "" }
             return `<nav>
-      <a href="/" class="brand"><img src="/imgs/logo-min.svg" alt="Logo Ocara"><span class="brand-text">Garage Ocara</span></a>
-      <a href="/" class="nav-link${homeCls}">Voitures</a>
-      <a href="/recherche" class="nav-link${searchCls}">Recherche</a>
+      <a href="/" class="brand">
+        <img src="/imgs/logo-min.svg" alt="Logo Ocara">
+        <span class="brand-text">Garage Ocara</span>
+      </a>
+      <a href="/" class="nav-link${home_cls}">Voitures</a>
+      <a href="/recherche" class="nav-link${search_cls}">Recherche</a>
     </nav>`
         })
     }

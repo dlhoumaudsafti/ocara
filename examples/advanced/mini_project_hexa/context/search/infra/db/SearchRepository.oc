@@ -20,19 +20,19 @@ class SearchRepository implements SearchContract {
         var reference:string = row["reference"]
         var brand:string = row["brand"]
         var model:string = row["model"]
-        var purchasePrice:float = row["purchase_price"]
-        var estimatedPrice:float = row["estimated_sale_price"]
-        var maintenanceTotal:float = row["maintenance_total"]
-        return use CarSearchResultEntity(id, reference, brand, model, purchasePrice, estimatedPrice, maintenanceTotal)
+        var purchase_price:float = row["purchase_price"]
+        var estimated_price:float = row["estimated_sale_price"]
+        var maintenance_total:float = row["maintenance_total"]
+        return use CarSearchResultEntity(id, reference, brand, model, purchase_price, estimated_price, maintenance_total)
     }
 
     private static method maintenanceFromRow(row:map<string, mixed>): MaintenanceSearchResultEntity {
-        var carId:int = row["car_id"]
-        var carReference:string = row["car_reference"]
+        var car_id:int = row["car_id"]
+        var car_reference:string = row["car_reference"]
         var type:string = row["type"]
         var description:string = row["description"]
         var cost:float = row["cost"]
-        return use MaintenanceSearchResultEntity(carId, carReference, type, description, cost)
+        return use MaintenanceSearchResultEntity(car_id, car_reference, type, description, cost)
     }
 
     // Même total "maintenance" (hors amélioration) que context.home et

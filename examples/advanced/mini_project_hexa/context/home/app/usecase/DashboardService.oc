@@ -7,16 +7,16 @@ import context.home.domain.contract.CarSummaryContract
 class DashboardService {
     public static method build(): DashboardDto {
         const cars:array<CarSummaryEntity> = CarSummaryContract::all()
-        var totalPurchase:float = 0.0
-        var totalEstimated:float = 0.0
+        var total_purchase:float = 0.0
+        var total_estimated:float = 0.0
         for car in cars {
-            totalPurchase = totalPurchase + car.purchasePrice
-            totalEstimated = totalEstimated + car.estimatedPrice
+            total_purchase = total_purchase + car.purchasePrice
+            total_estimated = total_estimated + car.estimatedPrice
         }
         return use DashboardDto(
             cars,
-            totalPurchase,
-            totalEstimated
+            total_purchase,
+            total_estimated
         )
     }
 }

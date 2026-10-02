@@ -13,18 +13,18 @@ class CarDetailsService {
         if car is null {
             return null
         }
-        consumed maintenancesResolable:Resolvable<array<MaintenanceEntity>> = MaintenanceContract::forCar(carId)
-        consumed maintenanceTotalResolable:Resolvable<float> = MaintenanceContract::maintenanceTotal(carId)
-        consumed improvementTotalResolable:Resolvable<float> = MaintenanceContract::improvementTotal(carId)
-        const maintenances:array<MaintenanceEntity> = resolve maintenancesResolable
-        const maintenanceTotal:float = resolve maintenanceTotalResolable
-        const improvementTotal:float = resolve improvementTotalResolable
+        consumed maintenances_resolable:Resolvable<array<MaintenanceEntity>> = MaintenanceContract::forCar(carId)
+        consumed maintenance_total_resolable:Resolvable<float> = MaintenanceContract::maintenanceTotal(carId)
+        consumed improvement_total_resolable:Resolvable<float> = MaintenanceContract::improvementTotal(carId)
+        const maintenances:array<MaintenanceEntity> = resolve maintenances_resolable
+        const maintenance_total:float = resolve maintenance_total_resolable
+        const improvement_total:float = resolve improvement_total_resolable
 
         return use CarDetailsDTO(
             car,
             maintenances,
-            maintenanceTotal,
-            improvementTotal
+            maintenance_total,
+            improvement_total
         )
     }
 }

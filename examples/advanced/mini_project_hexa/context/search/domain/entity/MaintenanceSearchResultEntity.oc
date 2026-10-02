@@ -1,15 +1,15 @@
 namespace context.search.domain.entity
 
 class MaintenanceSearchResultEntity {
-    public property carId:int
-    public property carReference:string
+    public property car_id:int
+    public property car_reference:string
     public property type:string
     public property description:string
     public property cost:float
 
-    init(carId:int, carReference:string, type:string, description:string, cost:float) {
-        self.carId = carId
-        self.carReference = carReference
+    init(car_id:int, car_reference:string, type:string, description:string, cost:float) {
+        self.car_id = car_id
+        self.car_reference = car_reference
         self.type = type
         self.description = description
         self.cost = cost

@@ -9,17 +9,25 @@ class CarSearchResultEntity {
     public property reference:string
     public property brand:string
     public property model:string
-    public property purchasePrice:float
-    public property estimatedPrice:float
-    public property maintenanceTotal:float
+    public property purchase_price:float
+    public property estimated_price:float
+    public property maintenance_total:float
 
-    init(id:int, reference:string, brand:string, model:string, purchasePrice:float, estimatedPrice:float, maintenanceTotal:float) {
+    init(
+        id:int,
+        reference:string,
+        brand:string,
+        model:string,
+        purchase_price:float,
+        estimated_price:float,
+        maintenance_total:float
+    ) {
         self.id = id
         self.reference = reference
         self.brand = brand
         self.model = model
-        self.purchasePrice = purchasePrice
-        self.estimatedPrice = estimatedPrice
-        self.maintenanceTotal = maintenanceTotal
+        self.purchase_price = purchase_price
+        self.estimated_price = estimated_price
+        self.maintenance_total = maintenance_total
     }
 }

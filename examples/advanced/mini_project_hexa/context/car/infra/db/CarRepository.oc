@@ -27,9 +27,9 @@ class CarRepository implements CarContract {
         var reference:string = row["reference"]
         var brand:string = row["brand"]
         var model:string = row["model"]
-        var purchasePrice:float = row["purchase_price"]
-        var estimatedPrice:float = row["estimated_sale_price"]
-        return use CarEntity(id, reference, brand, model, purchasePrice, estimatedPrice)
+        var purchase_price:float = row["purchase_price"]
+        var estimated_price:float = row["estimated_sale_price"]
+        return use CarEntity(id, reference, brand, model, purchase_price, estimated_price)
     }
 
     public static method find(id:int): CarEntity|null {
@@ -42,18 +42,21 @@ class CarRepository implements CarContract {
         return self::fromRow(row)
     }
 
-    public static method create(reference:string, brand:string, model:string, purchasePrice:float): int {
+    public static method create(reference:string, brand:string, model:string, purchase_price:float): int {
         var id:int = 0
         SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
             // Le prix de vente estimé démarre égal au prix d'achat : il n'est
             // ensuite fait évoluer que par les entretiens d'amélioration
             // (voir context.car.app.usecase.PricingService).
-            db.prepare("INSERT INTO cars (reference, brand, model, purchase_price, estimated_sale_price, created_at) VALUES (:reference, :brand, :model, :price, :price, :createdAt)")
+            db.prepare(`INSERT INTO cars 
+                (reference, brand, model, purchase_price, estimated_sale_price, created_at)
+                VALUES (:reference, :brand, :model, :price, :price, :createdAt)
+            `)
             db.bind({
                 "reference": reference,
                 "brand": brand,
                 "model": model,
-                "price": purchasePrice,
+                "price": purchase_price,
                 "createdAt": DateTime::now()
             })
             db.commit()

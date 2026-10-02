@@ -8,7 +8,7 @@ import ocara.HTMLComponent
 class SearchBar extends HTMLComponent {
     init() {
         parent::init("search-bar")
-        self.register(nameless(attrs:map<string, mixed>): string {
+        self.register(nameless(attrs:map<string, string>): string {
             consumed q:string = attrs["q"]
             return `<form class="search-bar" method="GET" action="/recherche">
       <input type="text" name="q" placeholder="Rechercher une référence, une marque, un entretien..." value="${q}">
