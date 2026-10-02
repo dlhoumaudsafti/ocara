@@ -260,6 +260,63 @@ pub fn request_class() -> ClassInfo {
         Type::Void,
     ));
 
+    // req.cookie(name:string) → string — "" si absent.
+    methods.insert("cookie".into(), static_m(
+        vec![("req", req_ty()), ("name", Type::String)],
+        Type::String,
+    ));
+
+    // req.session() → HTTPServerSession — voir session_class().
+    methods.insert("session".into(), static_m(
+        vec![("req", req_ty())],
+        session_ty(),
+    ));
+
+    ClassInfo {
+        extends:      None,
+        implements:   vec![],
+        fields:       HashMap::new(),
+        methods,
+        class_consts: HashMap::new(),
+        is_opaque:    false,
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ocara.HTTPServerSession — état côté serveur (runtime/src/httpsession.rs)
+//
+// Session du visiteur, obtenue par `req.session()` (cookie OCARASESSID) —
+// méthodes statiques utilisables en sucre d'instance, comme HTTPServerRequest :
+//   sess.id()                          → string
+//   sess.set(key:string, value:mixed)  → void
+//   sess.get(key:string)               → mixed   (null si absent)
+//   sess.has(key:string)               → bool
+//   sess.remove(key:string)            → void
+//   sess.destroy()                     → void
+//
+// État global partagé par toutes les requêtes (statiques) :
+//   HTTPServerSession::setGlobal(key, value) / getGlobal(key) /
+//   hasGlobal(key) / removeGlobal(key)
+// ─────────────────────────────────────────────────────────────────────────────
+
+fn session_ty() -> Type { Type::Named("HTTPServerSession".to_string()) }
+
+pub fn session_class() -> ClassInfo {
+    let mut methods: HashMap<String, FuncSig> = HashMap::new();
+    let key = || ("key", Type::String);
+
+    methods.insert("id".into(), static_m(vec![("session", session_ty())], Type::String));
+    methods.insert("set".into(), static_m(vec![("session", session_ty()), key(), ("value", Type::Mixed)], Type::Void));
+    methods.insert("get".into(), static_m(vec![("session", session_ty()), key()], Type::Mixed));
+    methods.insert("has".into(), static_m(vec![("session", session_ty()), key()], Type::Bool));
+    methods.insert("remove".into(), static_m(vec![("session", session_ty()), key()], Type::Void));
+    methods.insert("destroy".into(), static_m(vec![("session", session_ty())], Type::Void));
+
+    methods.insert("setGlobal".into(), static_m(vec![key(), ("value", Type::Mixed)], Type::Void));
+    methods.insert("getGlobal".into(), static_m(vec![key()], Type::Mixed));
+    methods.insert("hasGlobal".into(), static_m(vec![key()], Type::Bool));
+    methods.insert("removeGlobal".into(), static_m(vec![key()], Type::Void));
+
     ClassInfo {
         extends:      None,
         implements:   vec![],

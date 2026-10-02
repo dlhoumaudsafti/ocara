@@ -403,9 +403,9 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                         let ret_ty = builder.fn_ret_types.get(&func_name).cloned().unwrap_or(IrType::Ptr);
                         // `.encode()` seul prend un conteneur `array`/`map` en
                         // receveur (`decode`/`pretty`/`minimize` opèrent sur
-                        // une string JSON) — voir `static_json_leaf_kind`.
+                        // une string JSON) — voir `static_leaf_shape`.
                         let call_args = if field == "encode" {
-                            let leaf_kind = static_json_leaf_kind(builder, object);
+                            let leaf_kind = static_leaf_shape(builder, object);
                             let leaf_kind_val = builder.new_value();
                             builder.emit(Inst::ConstInt { dest: leaf_kind_val.clone(), value: leaf_kind });
                             vec![obj_val, leaf_kind_val]
@@ -529,6 +529,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     };
                     let mut all_args = vec![obj_val];
                     all_args.extend(arg_vals);
+                    let all_args = push_hidden_leaf_shape(builder, &func_mangled, &completed_args, all_args);
                     // Résoudre le type de retour depuis fn_ret_types
                     let ret_ty = builder.fn_ret_types.get(&func_mangled).cloned().unwrap_or(IrType::Ptr);
                     // Dispatch dynamique réel (héritage de classe) : un appel
@@ -940,7 +941,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // SAUF si la classe est définie localement dans le programme
             const BUILTIN_MODULES: &[&str] = &[
                 "String", "Math", "Array", "Map", "IO", "JSON",
-                "Convert", "System", "Regex", "HTTPRequest", "HTTPServer", "HTTPServerRequest", "Thread",
+                "Convert", "System", "Regex", "HTTPRequest", "HTTPServer", "HTTPServerRequest", "HTTPServerSession", "Thread",
                 "Mutex", "HTML", "HTMLComponent", "UnitTest", "File", "Directory",
                 "Date", "Time", "DateTime",
             ];
@@ -1007,9 +1008,9 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // `JSON::encode(data)`/`YAML::encode(data)` : argument supplémentaire
             // silencieux (jamais vu par l'utilisateur, la signature déclarée du
             // builtin reste `encode(data)`) portant le type de feuille concret
-            // connu statiquement — voir `static_json_leaf_kind`.
+            // connu statiquement — voir `static_leaf_shape`.
             let final_args = if (func_name == "JSON_encode" || func_name == "YAML_encode") && args.len() == 1 {
-                let leaf_kind = static_json_leaf_kind(builder, &args[0]);
+                let leaf_kind = static_leaf_shape(builder, &args[0]);
                 let leaf_kind_val = builder.new_value();
                 builder.emit(Inst::ConstInt { dest: leaf_kind_val.clone(), value: leaf_kind });
                 let mut all_args = final_args;
@@ -1018,6 +1019,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             } else {
                 final_args
             };
+            let final_args = push_hidden_leaf_shape(builder, &func_name, args, final_args);
 
             // Vérifier si le builtin retourne void
             if is_void_builtin(&func_name) {

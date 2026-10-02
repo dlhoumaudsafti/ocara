@@ -21,10 +21,36 @@ export function loadBuiltins(extensionPath: string): void {
         const raw = fs.readFileSync(dataPath, 'utf8');
         builtins = JSON.parse(raw) as BuiltinClass[];
         builtinsByName = new Map(builtins.map(c => [c.name, c]));
+        addInstanceSugar();
     } catch (err) {
         console.error('Ocara: impossible de charger data/builtins-data.json', err);
         builtins = [];
         builtinsByName = new Map();
+    }
+}
+
+/** Classes dont les méthodes statiques à récepteur s'appellent en sucre
+ * d'instance (`req.path()` ≡ `HTTPServerRequest::path(req)`), comme
+ * `allows_instance_sugar` dans src/sema/typecheck.rs. */
+const INSTANCE_SUGAR_CLASSES = new Set(['HTTPRequest', 'HTTPResponse', 'HTTPServerRequest', 'HTTPServerSession']);
+
+/** Ajoute à la classe du récepteur une copie d'instance (récepteur retiré)
+ * de chaque méthode statique dont le premier paramètre est ce récepteur. */
+function addInstanceSugar(): void {
+    for (const cls of [...builtins]) {
+        for (const m of cls.methods) {
+            const receiver = m.static ? m.params[0]?.type : undefined;
+            if (!receiver || !INSTANCE_SUGAR_CLASSES.has(receiver)) { continue; }
+            let target = builtinsByName.get(receiver);
+            if (!target) {
+                target = { name: receiver, methods: [], consts: [] };
+                builtins.push(target);
+                builtinsByName.set(receiver, target);
+            }
+            if (!target.methods.some(x => !x.static && x.name === m.name)) {
+                target.methods.push({ ...m, static: false, params: m.params.slice(1) });
+            }
+        }
     }
 }
 

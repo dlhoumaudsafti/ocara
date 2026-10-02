@@ -1,6 +1,6 @@
 # Roadmap Ocara
 
-_Dernière mise à jour : 2026-09-29_
+_Dernière mise à jour : 2026-10-02_
 
 Ce document liste ce qu'il reste à faire pour faire d'Ocara un langage solide. Cette révision fait suite à une analyse complète du projet (doc, code source du compilateur, exemples, runtimes natifs) et **reprioritise délibérément autour de la robustesse, la stabilité et la fiabilité** — avant toute nouvelle fonctionnalité ou tout chantier de portage. Le focus reste, comme avant, la **gestion mémoire** : le compilateur n'a pas de ramasse-miettes (choix assumé et définitif), et l'historique du projet montre plusieurs SEGFAULTs confirmés par reproduction sur la représentation `mixed` — mais la même question de fiabilité se posait aussi sur le mécanisme d'exceptions (`setjmp`/`longjmp`), sur la quasi-absence de tests Rust unitaires en dehors du front-end, et sur au moins une race condition documentée (`HTTPServer`).
 
@@ -29,7 +29,7 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Nouvelle classe builtin `HTTPServerSession`** (variables de session par utilisateur `set`/`get`/`has`, variables globales `setGlobal`/`getGlobal`/`hasGlobal`) — plusieurs points à trancher avant d'implémenter (identification par cookie, aucun support cookie aujourd'hui ; concurrence). *(Structurel au minimum — voir la fiche)* → [détails](roadmap.d/stdlib-httpserver-session.md)
+- **Appel de méthode inexistante sur une variable d'exception accepté en silence** — `e.message()` (au lieu du champ `e.message`) ou `e.nothing()` dans un `on e is Exception` compilent et valent `null` à l'exécution, sans diagnostic ; sur une classe utilisateur, la même erreur est bien signalée. *(Simple)* → [détails](roadmap.d/sema-exception-unknown-method-call.md)
 
 ---
 

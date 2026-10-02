@@ -1,61 +1,61 @@
-# Nouvelle classe builtin `HTTPServerSession`
+# Classe builtin `HTTPServerSession` — implémentée
 
-## Proposition
+Sessions par visiteur et état global partagé pour `ocara.HTTPServer`.
+Documentation utilisateur : `docs/builtins/HTTPServer.md`, section
+« ocara.HTTPServerSession — sessions et état global ».
 
-Une classe builtin pour l'état côté serveur, complément naturel de
-`HTTPServerRequest` (voir [stdlib-httpserver-request-object](stdlib-httpserver-request-object.md)) :
+## Ce qui a été tranché
 
-- **Session par utilisateur** : `set(key:string, value:mixed)` /
-  `get(key:string): mixed` / `has(key:string): bool` — des données attachées
-  à UN visiteur précis, qui doivent survivre entre plusieurs requêtes de ce
-  même visiteur (ex. un panier, un utilisateur connecté). `has()` permet de
-  savoir si une clé existe/a déjà été initialisée sans avoir à interpréter
-  une éventuelle valeur `null` légitime comme "absente" (`get()` sur une clé
-  jamais posée et `get()` sur une clé explicitement mise à `null` seraient
-  sinon indistinguables).
-- **État global** : `setGlobal(key:string, value:mixed)` /
-  `getGlobal(key:string): mixed` / `hasGlobal(key:string): bool` — un
-  magasin clé/valeur unique, partagé par TOUTES les sessions/requêtes (ex.
-  un cache applicatif, un compteur global), sans notion d'utilisateur — même
-  distinction `hasGlobal()`/`getGlobal()` que ci-dessus.
+- **Obtention** : `req.session(): HTTPServerSession` (méthode de
+  `HTTPServerRequest`). Le handle est le contexte de la requête lui-même :
+  aucune allocation, valide pendant le handler seulement, comme `req`.
+  Méthodes : `id`, `set`, `get`, `has`, `remove`, `destroy`. Elles sont
+  déclarées statiques avec le récepteur en premier paramètre et s'appellent en
+  sucre d'instance (`allows_instance_sugar`), comme `HTTPServerRequest`.
+- **État global** : méthodes statiques `HTTPServerSession::setGlobal`,
+  `getGlobal`, `hasGlobal` et `removeGlobal`.
+- **Cookies** : `req.cookie(name): string` lit le header `Cookie`. La session
+  utilise le cookie `OCARASESSID` (128 bits de `rand::thread_rng`, en
+  hexadécimal), posé avec `Path=/; HttpOnly; SameSite=Lax` à la première
+  utilisation de la session. Un identifiant inconnu du serveur n'est jamais
+  adopté : une nouvelle session est créée, ce qui empêche la fixation de
+  session. `destroy()` supprime la session et expire le cookie (`Max-Age=0`).
+  L'écriture de cookies arbitraires reste possible via
+  `respondHeader("Set-Cookie", …)`.
+- **Stockage** : en mémoire, par processus, derrière un `Mutex` unique
+  (`once_cell::Lazy`). Il est donc sûr aussi depuis un `ocara.Thread`, hors du
+  verrou des handlers.
+- **Copie profonde** (contrainte « pas de GC ») : la valeur Ocara passée à
+  `set` peut être libérée en fin de handler. Elle est donc copiée dans une
+  enum Rust `Stored`, et chaque `get` en rematérialise une copie neuve.
+  Objets et fonctions sont refusés (`HTTPServerException` 102).
+- **Conteneurs concrets** : `set`/`setGlobal` reçoivent un argument caché, la
+  forme `kind | depth << 8` (`static_leaf_shape`). Les feuilles brutes d'un
+  `array<int>` sont ainsi lues sans tag et restituées brutes
+  (`var cart:array<int> = sess.get("cart")`).
+- **Expiration** : aucune en v1, limitation documentée. Une session vit
+  jusqu'à `destroy()` ou l'arrêt du processus.
 
-## Ce qu'il faut trancher avant d'implémenter
+## Bug corrigé en passant
 
-- **Comment obtenir une instance liée à la requête courante ?** Le nom
-  `HTTPServerSession` suggère une classe séparée de `HTTPServerRequest`,
-  mais `set`/`get` (scope session) doivent forcément savoir DE QUELLE
-  session il s'agit — probablement `req.session(): HTTPServerSession` (une
-  nouvelle méthode sur `HTTPServerRequest`, dans l'esprit de ce qui existe
-  déjà) plutôt que des méthodes statiques sans contexte. À l'inverse,
-  `setGlobal`/`getGlobal` n'ont besoin d'aucune session — probablement
-  statiques (`HTTPServerSession::setGlobal(...)`), à trancher.
-- **Identification de session** : le mécanisme standard est un cookie
-  (identifiant de session généré à la première visite, renvoyé au client,
-  relu à chaque requête suivante). Aucun support cookie n'existe aujourd'hui
-  dans `ocara.HTTPServer`/`HTTPServerRequest` (ni lecture du header `Cookie`,
-  ni écriture de `Set-Cookie`) — prérequis probable de ce ticket, pas
-  seulement une conséquence.
-- **Stockage** : en mémoire, par processus (comme les autres simulations déjà
-  en place dans ce projet, ex. Tauri `listen`/`emit`, voir
-  [builtins-tauri](builtins-tauri.md)) — pas de persistance entre redémarrages
-  pour une première version. Une session store qui ne grandit jamais ne se
-  vide jamais est un vrai souci à terme (expiration/nettoyage) — probablement
-  hors périmètre d'une v1, mais à documenter comme limitation connue plutôt
-  que découvert plus tard.
-- **Concurrence** : `HTTPServer` a déjà un historique de race condition
-  (voir [runtime-httpserver-race-condition](runtime-httpserver-race-condition.md),
-  clos) — un magasin partagé entre threads/workers a besoin d'une
-  synchronisation correcte (probablement un `Mutex` interne, même famille que
-  `ocara.Mutex` déjà utilisé ailleurs dans ce runtime), à concevoir dès le
-  départ plutôt qu'à corriger après coup.
+`JSON::encode`/`YAML::encode` d'un conteneur concret contenant un entier
+ressemblant à un pointeur aligné (`[70000]`) faisaient un SIGSEGV :
+`get_value_type` lisait un tag à `val - 8`. Ils utilisent désormais la même
+forme `kind | depth << 8` (`value_to_json`, `value_to_yaml`). Test :
+`examples/tests/74_encode_raw_leaf_shapeTest.oc`.
 
-## Priorité / Complexité
+## Limites restantes
 
-Complexité non évaluée précisément avant d'avoir tranché les points
-ci-dessus — probablement **Structurel** au minimum à cause du prérequis
-cookie (rien n'existe aujourd'hui) et de la synchronisation concurrente.
+- Pas d'expiration ni de nettoyage des sessions inactives.
+- Pas de persistance entre redémarrages.
+- Pas d'attribut `Secure` sur le cookie : le serveur ne gère pas TLS lui-même.
 
 ## Fichiers clés
 
-`runtime/src/httpserver.rs`, `src/builtins/httpserver.rs`,
-`src/codegen/desc.d/httpserver.rs`, `docs/builtins/HTTPServer.md`.
+`runtime/src/httpsession.rs`, `runtime/src/httpserver.rs`
+(`OcaraHttpContext.session_id`), `runtime/src/tests/httpsession.rs`,
+`src/builtins/httpserver.rs` (`session_class`),
+`src/codegen/desc.d/httpserver.rs`, `src/lower/expr.d/helpers.rs`
+(`static_leaf_shape`, `push_hidden_leaf_shape`),
+`examples/tests/73_httpserver_sessionTest.oc`,
+`examples/builtins/httpserver_session.oc` et `.sh`.

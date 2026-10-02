@@ -1465,7 +1465,7 @@ impl<'a> TypeChecker<'a> {
                             // Une méthode static ne peut pas être appelée sur une instance
                             // SAUF pour ces classes : les méthodes sont statiques mais utilisables
                             // comme méthodes d'instance sur les variables (ex: a.trim(), arr.len(), m.size(), data.encode(), req.close(), res.status()).
-                            let allows_instance_sugar = matches!(cls_name.as_str(), "String" | "Array" | "Map" | "JSON" | "HTTPRequest" | "HTTPResponse" | "HTTPServerRequest");
+                            let allows_instance_sugar = matches!(cls_name.as_str(), "String" | "Array" | "Map" | "JSON" | "HTTPRequest" | "HTTPResponse" | "HTTPServerRequest" | "HTTPServerSession");
                             let Some(resolved) = self.resolve_named_call(args, |tc| {
                                 Some(tc.method_target(&method_owner, field, sig, allows_instance_sugar && sig.is_static))
                             }) else {

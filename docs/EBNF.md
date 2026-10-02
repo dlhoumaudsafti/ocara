@@ -2051,7 +2051,9 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
 - **HTTPServer** — Serveur HTTP multi-thread embarqué (classe d'instance)
   - `port()`, `host()`, `workers()`, `rootPath()`, `route()`, `routeError()`, `run()`
 - **HTTPServerRequest** — Requête reçue par un handler de route `HTTPServer` (classe d'instance, voir `HTTPServer.md`)
-  - `path()`, `method()`, `body()`, `header()`, `headers()`, `query()`, `param()`, `params()`, `respond()`, `respondHeader()`
+  - `path()`, `method()`, `body()`, `header()`, `headers()`, `query()`, `param()`, `params()`, `respond()`, `respondHeader()`, `cookie()`, `session()`
+- **HTTPServerSession** — Session du visiteur (`req.session()`, cookie `OCARASESSID`) et état global partagé (`HTTPServerSession::setGlobal`…), voir `HTTPServer.md`
+  - `id()`, `set()`, `get()`, `has()`, `remove()`, `destroy()`, `setGlobal()`, `getGlobal()`, `hasGlobal()`, `removeGlobal()`
 
 #### Manipulation de données
 
@@ -2157,7 +2159,7 @@ Les classes d'exception permettent une gestion fine des erreurs avec `try/on`. T
 - **SQLiteException** — Erreurs de requête/connexion SQLite
 - **MySQLException** — Erreurs de requête/connexion MySQL/MariaDB
 - **DotEnvException** — Erreurs de chargement de fichier `.env`
-- **HTTPServerException** — Erreurs de démarrage du serveur HTTP (ex : port déjà utilisé)
+- **HTTPServerException** — Erreurs du serveur HTTP : démarrage (101, ex : port déjà utilisé), valeur non stockable en session (102)
 - **TauriException** — Erreurs d'enregistrement de handler IPC (`ui.handler`/`ui.handlers` avec un nom de commande déjà enregistré)
 - **SDLException** — Erreurs SDL (fenêtre déjà ouverte, échec d'initialisation, appel depuis le mauvais thread) (3 codes d'erreur)
 

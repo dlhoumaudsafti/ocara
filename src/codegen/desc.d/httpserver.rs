@@ -30,4 +30,19 @@ pub const HTTPSERVER_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "HTTPServerRequest_params",     params: &[clt::I64],                            returns: Some(clt::I64), module: Some("HTTPServerRequest") },
     BuiltinDesc { name: "HTTPServerRequest_respond",       params: &[clt::I64, clt::I64, clt::I64],        returns: None,           module: Some("HTTPServerRequest") },
     BuiltinDesc { name: "HTTPServerRequest_respondHeader", params: &[clt::I64, clt::I64, clt::I64],        returns: None,           module: Some("HTTPServerRequest") },
+    BuiltinDesc { name: "HTTPServerRequest_cookie",     params: &[clt::I64, clt::I64],                  returns: Some(clt::I64), module: Some("HTTPServerRequest") },
+    BuiltinDesc { name: "HTTPServerRequest_session",    params: &[clt::I64],                            returns: Some(clt::I64), module: Some("HTTPServerRequest") },
+    // ── HTTPServerSession (runtime/src/httpsession.rs) — `set`/`setGlobal`
+    // reçoivent en dernier argument caché la forme de la valeur, voir
+    // `static_leaf_shape` (src/lower/expr.d/helpers.rs).
+    BuiltinDesc { name: "HTTPServerSession_id",           params: &[clt::I64],                               returns: Some(clt::I64), module: Some("HTTPServerSession") },
+    BuiltinDesc { name: "HTTPServerSession_set",          params: &[clt::I64, clt::I64, clt::I64, clt::I64], returns: None,           module: Some("HTTPServerSession") },
+    BuiltinDesc { name: "HTTPServerSession_get",          params: &[clt::I64, clt::I64],                     returns: Some(clt::I64), module: Some("HTTPServerSession") },
+    BuiltinDesc { name: "HTTPServerSession_has",          params: &[clt::I64, clt::I64],                     returns: Some(clt::I64), module: Some("HTTPServerSession") },
+    BuiltinDesc { name: "HTTPServerSession_remove",       params: &[clt::I64, clt::I64],                     returns: None,           module: Some("HTTPServerSession") },
+    BuiltinDesc { name: "HTTPServerSession_destroy",      params: &[clt::I64],                               returns: None,           module: Some("HTTPServerSession") },
+    BuiltinDesc { name: "HTTPServerSession_setGlobal",    params: &[clt::I64, clt::I64, clt::I64],           returns: None,           module: Some("HTTPServerSession") },
+    BuiltinDesc { name: "HTTPServerSession_getGlobal",    params: &[clt::I64],                               returns: Some(clt::I64), module: Some("HTTPServerSession") },
+    BuiltinDesc { name: "HTTPServerSession_hasGlobal",    params: &[clt::I64],                               returns: Some(clt::I64), module: Some("HTTPServerSession") },
+    BuiltinDesc { name: "HTTPServerSession_removeGlobal", params: &[clt::I64],                               returns: None,           module: Some("HTTPServerSession") },
 ];

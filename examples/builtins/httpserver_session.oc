@@ -1,0 +1,42 @@
+import ocara.HTTPServer
+import ocara.HTTPServerRequest
+import ocara.HTTPServerSession
+
+// Sessions par visiteur (cookie OCARASESSID) et état global partagé.
+// Testé par httpserver_session.sh (curl avec cookie jar).
+function main(): int {
+    var server:HTTPServer = use HTTPServer()
+    server.port(8208)
+
+    server.route("/login/<name:string>", "GET", nameless(req:HTTPServerRequest): int {
+        var sess:HTTPServerSession = req.session()
+        sess.set("user", req.param("name"))
+        req.respond(200, "logged in")
+        return 0
+    })
+
+    server.route("/me", "GET", nameless(req:HTTPServerRequest): int {
+        var sess:HTTPServerSession = req.session()
+        var visits:int = 0
+        if HTTPServerSession::hasGlobal("visits") {
+            visits = HTTPServerSession::getGlobal("visits")
+        }
+        HTTPServerSession::setGlobal("visits", visits + 1)
+        if not sess.has("user") {
+            req.respond(401, "anonymous")
+            return 0
+        }
+        var user:string = sess.get("user")
+        req.respond(200, `user=${user} visits=${visits + 1}`)
+        return 0
+    })
+
+    server.route("/logout", "GET", nameless(req:HTTPServerRequest): int {
+        req.session().destroy()
+        req.respond(200, "logged out")
+        return 0
+    })
+
+    server.run()
+    return 0
+}
