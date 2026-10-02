@@ -67,10 +67,11 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
             // précis (jamais les deux : `value` est toujours `None` pour un
             // `return` À L'INTÉRIEUR d'un générateur, imposé par la sema).
             let v = value.as_ref().map(|e| {
-                if let Some((mangled, elem_ty)) = crate::lower::builder::message_gen::detect_message_call(builder, e) {
-                    return crate::lower::builder::message_gen::lower_message_scalar(builder, e, &mangled, elem_ty);
-                }
-                let val = lower_expr(builder, e);
+                // Littéral retourné : typé par le type de retour déclaré
+                // (`return [[0, 3]]` pour `array<array<int>>`), consommation
+                // scalaire d'un `message<T>` comprise.
+                let ret_ty = builder.ret_ast_ty.clone().unwrap_or(Type::Mixed);
+                let val = lower_literal_or_expr(builder, e, &ret_ty);
                 crate::lower::stmt::ownership::maybe_clone_escaping(builder, e, val)
             });
             // Sortie anticipée de la fonction : détruit toutes les

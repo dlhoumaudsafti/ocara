@@ -29,6 +29,13 @@ use parsing::{lexer::Lexer, parser::Parser, diagnostic, token};
 /// jamais importée EXPLICITEMENT par aucun fichier consommateur ne serait
 /// jamais chargée dans le programme compilé (voir
 /// docs/roadmap.d/langage-interface-wiring.md, "Import implicite").
+/// Fichier à citer dans un diagnostic : celui du span s'il est connu
+/// (déclaration/import venant d'un fichier importé, voir
+/// `update_program_spans_with_file`), sinon le fichier d'entrée.
+fn span_file(input: &std::path::Path, span: &parsing::token::Span) -> std::path::PathBuf {
+    span.file.as_ref().map(std::path::PathBuf::from).unwrap_or_else(|| input.to_path_buf())
+}
+
 fn enqueue_wiring_imports(
     iface: &parsing::ast::InterfaceDecl,
     parent_dir: &std::path::Path,
@@ -122,7 +129,7 @@ fn main() {
     let mut program = match Parser::new(tokens).parse_program() {
         Ok(p) => p,
         Err(e) => {
-            diagnostic::print_error(&args.input, e.span.line, e.span.col, &e.message);
+            diagnostic::print_error(&span_file(&args.input, &e.span), e.span.line, e.span.col, &e.message);
             std::process::exit(1);
         }
     };
@@ -192,7 +199,7 @@ fn main() {
             let last = imp.path.last().map(|s| s.as_str()).unwrap_or("");
             if last != "*" && !OCARA_BUILTINS.contains(&last) {
                 let name = imp.path.join(".");
-                diagnostic::print_error(&args.input, imp.span.line, imp.span.col,
+                diagnostic::print_error(&span_file(&args.input, &imp.span), imp.span.line, imp.span.col,
                     &format!("unknown builtin module: `{}` (available modules: {})", name, OCARA_BUILTINS.join(", ")));
                 std::process::exit(1);
             }
@@ -210,7 +217,7 @@ fn main() {
             }
             
             if !file_path.exists() {
-                diagnostic::print_error(&args.input, imp.span.line, imp.span.col,
+                diagnostic::print_error(&span_file(&args.input, &imp.span), imp.span.line, imp.span.col,
                     &format!("file not found: `{}` (expected file: {})", file_path_str, file_path.display()));
                 std::process::exit(1);
             }
@@ -225,7 +232,7 @@ fn main() {
         file_path.set_extension("oc");
         if !file_path.exists() {
             let name = imp.path.join(".");
-            diagnostic::print_error(&args.input, imp.span.line, imp.span.col,
+            diagnostic::print_error(&span_file(&args.input, &imp.span), imp.span.line, imp.span.col,
                 &format!("module not found: `{}` (expected file: {})", name, file_path.display()));
             std::process::exit(1);
         }
@@ -469,8 +476,19 @@ fn main() {
                 program.functions.push(func);
             }
             else {
-                diagnostic::print_error(&args.input, imp.span.line, imp.span.col,
-                    &format!("'{}' not found in file '{}'", requested_name, file_path_str));
+                let declared: Vec<&str> = mod_prog.classes.iter().map(|c| c.name.as_str())
+                    .chain(mod_prog.generics.iter().map(|g| g.name.as_str()))
+                    .chain(mod_prog.interfaces.iter().map(|i| i.name.as_str()))
+                    .chain(mod_prog.modules.iter().map(|m| m.name.as_str()))
+                    .chain(mod_prog.functions.iter().map(|f| f.name.as_str()))
+                    .collect();
+                let hint = if declared.is_empty() {
+                    "it declares nothing importable".to_string()
+                } else {
+                    format!("it declares: {}", declared.join(", "))
+                };
+                diagnostic::print_error(&span_file(&args.input, &imp.span), imp.span.line, imp.span.col,
+                    &format!("'{}' not found in file '{}' — {}", requested_name, file_path.display(), hint));
                 std::process::exit(1);
             }
         }
@@ -548,6 +566,10 @@ fn main() {
     // directement la classe concrète wired, jamais l'interface elle-même.
     core::interface_wiring::resolve_bare_interface_names(&mut program, &all_interfaces);
 
+    // ── 4b-ter. Initialiseurs de `property` : `init()` implicite d'une classe
+    // héritant d'un constructeur (voir core::property_init).
+    core::property_init::complete_implicit_inits(&mut program);
+
     // ── 4b-ter. `struct` : vérifications (E51-E53) et constructeur hérité ────
     // Voir core::structs — après la fusion complète (parent possiblement
     // importé), avant la table des symboles.
@@ -579,7 +601,7 @@ fn main() {
     for class_decl in &program.classes {
         if let Some(parent) = &class_decl.extends {
             if symbols.lookup_class(parent).is_none() {
-                diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
+                diagnostic::print_error(&span_file(&args.input, &class_decl.span), class_decl.span.line, class_decl.span.col,
                     &format!("class '{}' extends unknown class '{}'", class_decl.name, parent));
                 std::process::exit(1);
             }
@@ -588,7 +610,7 @@ fn main() {
     for generic_decl in &program.generics {
         if let Some(parent) = &generic_decl.extends {
             if symbols.lookup_class(parent).is_none() && symbols.lookup_generic(parent).is_none() {
-                diagnostic::print_error(&args.input, generic_decl.span.line, generic_decl.span.col,
+                diagnostic::print_error(&span_file(&args.input, &generic_decl.span), generic_decl.span.line, generic_decl.span.col,
                     &format!("generic '{}' extends unknown class/generic '{}'", generic_decl.name, parent));
                 std::process::exit(1);
             }
@@ -602,7 +624,7 @@ fn main() {
             let iface_info = match symbols.lookup_interface(iface_name) {
                 Some(info) => info,
                 None => {
-                    diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
+                    diagnostic::print_error(&span_file(&args.input, &class_decl.span), class_decl.span.line, class_decl.span.col,
                         &format!("interface '{}' not found", iface_name));
                     std::process::exit(1);
                 }
@@ -614,7 +636,7 @@ fn main() {
                 let class_sig = match symbols.lookup_method_in_chain(&class_decl.name, method_name) {
                     Some(sig) => sig,
                     None => {
-                        diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
+                        diagnostic::print_error(&span_file(&args.input, &class_decl.span), class_decl.span.line, class_decl.span.col,
                             &format!("class '{}' does not implement method '{}' from interface '{}'",
                                 class_decl.name, method_name, iface_name));
                         std::process::exit(1);
@@ -632,7 +654,7 @@ fn main() {
                 // exige une méthode statique doit être honorée par une
                 // méthode statique, jamais d'instance, et réciproquement.
                 if class_sig.is_static != iface_sig.is_static {
-                    diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
+                    diagnostic::print_error(&span_file(&args.input, &class_decl.span), class_decl.span.line, class_decl.span.col,
                         &format!("method '{}' of class '{}' does not match interface '{}': expected a {} method, found a {} method",
                             method_name, class_decl.name, iface_name,
                             if iface_sig.is_static { "static" } else { "instance" },
@@ -647,7 +669,7 @@ fn main() {
                 // interface qui exige `async method` doit être honorée par
                 // une méthode `async`, et réciproquement.
                 if class_sig.is_async != iface_sig.is_async {
-                    diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
+                    diagnostic::print_error(&span_file(&args.input, &class_decl.span), class_decl.span.line, class_decl.span.col,
                         &format!("method '{}' of class '{}' does not match interface '{}': expected an '{}' method, found an '{}' method",
                             method_name, class_decl.name, iface_name,
                             if iface_sig.is_async { "async" } else { "non-async" },
@@ -655,7 +677,7 @@ fn main() {
                     std::process::exit(1);
                 }
                 if class_sig.params.len() != iface_sig.params.len() {
-                    diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
+                    diagnostic::print_error(&span_file(&args.input, &class_decl.span), class_decl.span.line, class_decl.span.col,
                         &format!("method '{}' of class '{}' does not match interface '{}': expected {} parameter(s), found {}",
                             method_name, class_decl.name, iface_name, iface_sig.params.len(), class_sig.params.len()));
                     std::process::exit(1);
@@ -663,7 +685,7 @@ fn main() {
                 for (i, (_, iface_param_ty)) in iface_sig.params.iter().enumerate() {
                     let (_, class_param_ty) = &class_sig.params[i];
                     if !types_compat(class_param_ty, iface_param_ty, &symbols) {
-                        diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
+                        diagnostic::print_error(&span_file(&args.input, &class_decl.span), class_decl.span.line, class_decl.span.col,
                             &format!("method '{}' of class '{}' does not match interface '{}': parameter {} expected type '{}', found '{}'",
                                 method_name, class_decl.name, iface_name, i + 1,
                                 type_name(iface_param_ty), type_name(class_param_ty)));
@@ -671,7 +693,7 @@ fn main() {
                     }
                 }
                 if !types_compat(&class_sig.ret_ty, &iface_sig.ret_ty, &symbols) {
-                    diagnostic::print_error(&args.input, class_decl.span.line, class_decl.span.col,
+                    diagnostic::print_error(&span_file(&args.input, &class_decl.span), class_decl.span.line, class_decl.span.col,
                         &format!("method '{}' of class '{}' does not match interface '{}': expected return type '{}', found '{}'",
                             method_name, class_decl.name, iface_name,
                             type_name(&iface_sig.ret_ty), type_name(&class_sig.ret_ty)));
@@ -694,7 +716,7 @@ fn main() {
             let iface_info = match symbols.lookup_interface(iface_name) {
                 Some(info) => info,
                 None => {
-                    diagnostic::print_error(&args.input, generic_decl.span.line, generic_decl.span.col,
+                    diagnostic::print_error(&span_file(&args.input, &generic_decl.span), generic_decl.span.line, generic_decl.span.col,
                         &format!("interface '{}' not found", iface_name));
                     std::process::exit(1);
                 }
@@ -707,7 +729,7 @@ fn main() {
                 let class_sig = match generic_info.methods.get(method_name) {
                     Some(sig) => sig,
                     None => {
-                        diagnostic::print_error(&args.input, generic_decl.span.line, generic_decl.span.col,
+                        diagnostic::print_error(&span_file(&args.input, &generic_decl.span), generic_decl.span.line, generic_decl.span.col,
                             &format!("generic '{}' does not implement method '{}' from interface '{}'",
                                 generic_decl.name, method_name, iface_name));
                         std::process::exit(1);
@@ -716,7 +738,7 @@ fn main() {
 
                 // Staticité — même remarque que pour la boucle 4d ci-dessus.
                 if class_sig.is_static != iface_sig.is_static {
-                    diagnostic::print_error(&args.input, generic_decl.span.line, generic_decl.span.col,
+                    diagnostic::print_error(&span_file(&args.input, &generic_decl.span), generic_decl.span.line, generic_decl.span.col,
                         &format!("method '{}' of generic '{}' does not match interface '{}': expected a {} method, found a {} method",
                             method_name, generic_decl.name, iface_name,
                             if iface_sig.is_static { "static" } else { "instance" },
@@ -725,7 +747,7 @@ fn main() {
                 }
                 // `is_async` — même remarque que pour la boucle 4d ci-dessus.
                 if class_sig.is_async != iface_sig.is_async {
-                    diagnostic::print_error(&args.input, generic_decl.span.line, generic_decl.span.col,
+                    diagnostic::print_error(&span_file(&args.input, &generic_decl.span), generic_decl.span.line, generic_decl.span.col,
                         &format!("method '{}' of generic '{}' does not match interface '{}': expected an '{}' method, found an '{}' method",
                             method_name, generic_decl.name, iface_name,
                             if iface_sig.is_async { "async" } else { "non-async" },
@@ -733,7 +755,7 @@ fn main() {
                     std::process::exit(1);
                 }
                 if class_sig.params.len() != iface_sig.params.len() {
-                    diagnostic::print_error(&args.input, generic_decl.span.line, generic_decl.span.col,
+                    diagnostic::print_error(&span_file(&args.input, &generic_decl.span), generic_decl.span.line, generic_decl.span.col,
                         &format!("method '{}' of generic '{}' does not match interface '{}': expected {} parameter(s), found {}",
                             method_name, generic_decl.name, iface_name, iface_sig.params.len(), class_sig.params.len()));
                     std::process::exit(1);
@@ -741,7 +763,7 @@ fn main() {
                 for (i, (_, iface_param_ty)) in iface_sig.params.iter().enumerate() {
                     let (_, class_param_ty) = &class_sig.params[i];
                     if !types_compat(class_param_ty, iface_param_ty, &symbols) {
-                        diagnostic::print_error(&args.input, generic_decl.span.line, generic_decl.span.col,
+                        diagnostic::print_error(&span_file(&args.input, &generic_decl.span), generic_decl.span.line, generic_decl.span.col,
                             &format!("method '{}' of generic '{}' does not match interface '{}': parameter {} expected type '{}', found '{}'",
                                 method_name, generic_decl.name, iface_name, i + 1,
                                 type_name(iface_param_ty), type_name(class_param_ty)));
@@ -749,7 +771,7 @@ fn main() {
                     }
                 }
                 if !types_compat(&class_sig.ret_ty, &iface_sig.ret_ty, &symbols) {
-                    diagnostic::print_error(&args.input, generic_decl.span.line, generic_decl.span.col,
+                    diagnostic::print_error(&span_file(&args.input, &generic_decl.span), generic_decl.span.line, generic_decl.span.col,
                         &format!("method '{}' of generic '{}' does not match interface '{}': expected return type '{}', found '{}'",
                             method_name, generic_decl.name, iface_name,
                             type_name(&iface_sig.ret_ty), type_name(&class_sig.ret_ty)));
@@ -781,7 +803,7 @@ fn main() {
         for i in 0..iface_decl.wirings.len() {
             for j in (i + 1)..iface_decl.wirings.len() {
                 if iface_decl.wirings[i].simple_name() == iface_decl.wirings[j].simple_name() {
-                    diagnostic::print_error(&args.input, iface_decl.span.line, iface_decl.span.col,
+                    diagnostic::print_error(&span_file(&args.input, &iface_decl.span), iface_decl.span.line, iface_decl.span.col,
                         &format!("interface '{}' declares two 'wiring' targets with the same simple name '{}' ({}:{} and {}:{}) — alias resolution could not tell them apart",
                             iface_decl.name, iface_decl.wirings[i].simple_name(),
                             iface_decl.wirings[i].span.line, iface_decl.wirings[i].span.col,
@@ -804,12 +826,12 @@ fn main() {
                         // `wiring` vers un `generic` nu n'a pas de sens (quelle
                         // instanciation choisir ?), donc explicitement rejeté,
                         // avec un message dédié plutôt que "introuvable".
-                        diagnostic::print_error(&args.input, wiring.span.line, wiring.span.col,
+                        diagnostic::print_error(&span_file(&args.input, &wiring.span), wiring.span.line, wiring.span.col,
                             &format!("interface '{}': 'wiring {}' targets a generic, not a concrete class — wiring a bare generic is ambiguous (which instantiation?)",
                                 iface_decl.name, target_name));
                         std::process::exit(1);
                     }
-                    diagnostic::print_error(&args.input, wiring.span.line, wiring.span.col,
+                    diagnostic::print_error(&span_file(&args.input, &wiring.span), wiring.span.line, wiring.span.col,
                         &format!("interface '{}': 'wiring {}' target class not found", iface_decl.name, target_name));
                     std::process::exit(1);
                 }
@@ -823,7 +845,7 @@ fn main() {
             // l'exécution (méthode manquante → `Type::Mixed` permissif en
             // amont, mais aucun symbole réel côté codegen).
             if !target_class.implements.iter().any(|i| i == &iface_decl.name) {
-                diagnostic::print_error(&args.input, wiring.span.line, wiring.span.col,
+                diagnostic::print_error(&span_file(&args.input, &wiring.span), wiring.span.line, wiring.span.col,
                     &format!("interface '{}': 'wiring {}' target class '{}' does not 'implements {}'",
                         iface_decl.name, target_name, target_name, iface_decl.name));
                 std::process::exit(1);
@@ -840,7 +862,7 @@ fn main() {
     // template, pour que l'analyse sémantique (dont la détection des
     // variables "unused") voie les mêmes expressions qu'un littéral backtick.
     if let Err((span, msg)) = desugar_render_file(&mut program) {
-        diagnostic::print_error(&args.input, span.line, span.col, &msg);
+        diagnostic::print_error(&span_file(&args.input, &span), span.line, span.col, &msg);
         std::process::exit(1);
     }
 
@@ -905,8 +927,8 @@ fn main() {
     }
 
     // ── 4e-bis. Arguments nommés → positionnels (voir core::named_args) ──────
-    let named_arg_rewrites = std::mem::take(&mut checker.named_arg_rewrites);
-    if let Err((span, msg)) = core::named_args::rewrite_named_args(&mut program, &named_arg_rewrites) {
+    let rewrites = std::mem::take(&mut checker.rewrites);
+    if let Err((span, msg)) = core::named_args::rewrite_program(&mut program, &rewrites) {
         let file_path = span.file.as_ref().map(std::path::PathBuf::from).unwrap_or_else(|| args.input.clone());
         diagnostic::print_error(&file_path, span.line, span.col, &msg);
         std::process::exit(1);

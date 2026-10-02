@@ -254,3 +254,19 @@ unsafe fn alloc_exception(message: &str, code: i64, source: &str) -> i64 {
         (raw as i64) + 8
     }
 }
+
+/// Message d'une valeur levée par `raise`, pour le bandeau d'exception non
+/// rattrapée : exception builtin (`message`), ou chaîne levée telle quelle.
+/// `None` pour toute autre valeur (instance d'une classe utilisateur...).
+pub(crate) unsafe fn raised_value_message(val: i64) -> Option<String> {
+    unsafe {
+        if crate::typecheck::read_tag(val) == TAG_EXCEPTION {
+            let exc = &*(val as *const OcaraException);
+            return (exc.message != 0).then(|| crate::ptr_to_str(exc.message).to_string());
+        }
+        if crate::typecheck::__is_string(val) != 0 {
+            return Some(crate::ptr_to_str(val).to_string());
+        }
+        None
+    }
+}

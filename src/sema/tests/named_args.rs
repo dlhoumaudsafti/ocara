@@ -3,7 +3,7 @@
 ///
 /// Repose sur un vrai pipeline lex → parse → symboles → typecheck →
 /// réécriture (`core::named_args`), comme `method_call_on_void.rs`.
-use crate::core::named_args::rewrite_named_args;
+use crate::core::named_args::rewrite_program;
 use crate::parsing::ast::{Expr, Literal, Program, Stmt};
 use crate::parsing::{lexer::Lexer, parser::Parser};
 use crate::sema::error::SemaError;
@@ -27,9 +27,9 @@ fn check(src: &str) -> (Vec<SemaError>, Program) {
     let mut checker = TypeChecker::new(&symbols);
     checker.check_program(&program);
     let errors = std::mem::take(&mut checker.errors);
-    let rewrites = std::mem::take(&mut checker.named_arg_rewrites);
+    let rewrites = std::mem::take(&mut checker.rewrites);
     if errors.is_empty() {
-        rewrite_named_args(&mut program, &rewrites).expect("rewrite ok");
+        rewrite_program(&mut program, &rewrites).expect("rewrite ok");
     }
     (errors, program)
 }
@@ -157,7 +157,7 @@ fn call_through_function_value_rejects_named_arguments() {
 }
 
 #[test]
-fn named_call_inside_generic_body_is_resolved_syntactically() {
+fn named_call_inside_generic_body_is_resolved_by_sema() {
     let src = r#"
         function tag(label:string, level:int = 1):string { return label }
         generic Holder<T> {

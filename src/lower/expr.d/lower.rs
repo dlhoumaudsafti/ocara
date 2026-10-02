@@ -55,62 +55,95 @@ fn unbox_mixed_operand(builder: &mut LowerBuilder, func: &str, target_ty: &IrTyp
     d
 }
 
-/// Comment traiter un élément `F64`/`Bool` en construisant un littéral
-/// `array`/`map` (voir `lower_array_literal`/`lower_map_literal`).
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum LiteralElemKind {
-    /// Élément(s) de type `mixed` (ou type de destination inconnu à cet
-    /// endroit — nested/argument/retour, voir les sites d'appel) : un
-    /// consommateur générique (`JSON::encode`, `__dyn_add`, `Map::forEach`,
-    /// `is float`/`is bool`...) doit pouvoir distinguer un `float`/`bool` d'un
-    /// entier au runtime — boxé (`__box_float`/`__box_bool`), jamais stringifié.
-    Mixed,
-    /// Type de destination concret et CONNU (`array<float>`, `map<K,bool>`,
-    /// ...) : aucun consommateur n'a besoin de deviner le type, stocké BRUT
-    /// sans la moindre conversion — exactement comme `int` (qui n'est jamais
-    /// boxé nulle part dans ce compilateur, voir `box_for_any`).
-    Concrete,
+/// Arguments d'un appel à une cible variadic (`fixed_count` paramètres fixes,
+/// puis `variadic<T>` d'élément IR `elem_ty`) : les arguments excédentaires
+/// sont empaquetés dans un tableau, stocké exactement comme un `array<T>`
+/// (scalaire BRUT pour un type d'élément concret — `int`/`float`/`bool` —,
+/// boxé pour un `mixed`/union, voir `lower_array_literal`) : un `variadic<T>`
+/// EST un `array<T>` dans le corps de la fonction.
+///
+/// Transmission : un unique argument excédentaire qui est déjà un tableau du
+/// même type d'élément (`sum_int(nums)` depuis une fonction
+/// `default_sum(nums:variadic<int>)`) est passé tel quel au lieu d'être
+/// réemballé dans un tableau d'un élément — pour un élément pointeur
+/// (`variadic<array<T>>`, `variadic<mixed>`), seulement s'il est lui-même un
+/// paramètre variadic (un tableau seul y est sinon un élément). Voir
+/// docs/roadmap.d/langage-variadic-element-kinds.md.
+fn pack_variadic_args(builder: &mut LowerBuilder, args: &[Expr], arg_vals: Vec<Value>, fixed_count: usize, elem_ty: &IrType) -> Vec<Value> {
+    if arg_vals.len() < fixed_count {
+        return arg_vals;
+    }
+    let mut final_args = arg_vals[..fixed_count].to_vec();
+    if arg_vals.len() == fixed_count + 1 && is_forwardable_variadic(builder, &args[fixed_count], elem_ty) {
+        final_args.push(arg_vals[fixed_count].clone());
+        return final_args;
+    }
+    let arr = builder.new_value();
+    builder.emit(Inst::Call { dest: Some(arr.clone()), func: "__array_new".into(), args: vec![], ret_ty: IrType::Ptr });
+    let concrete = matches!(elem_ty, IrType::I64 | IrType::F64 | IrType::Bool);
+    for (arg_expr, val) in args[fixed_count..].iter().zip(arg_vals[fixed_count..].iter()) {
+        let stored = if concrete {
+            val.clone()
+        } else {
+            let arg_ty = expr_ir_type(builder, arg_expr);
+            box_for_dyn_arith(builder, &arg_ty, val.clone())
+        };
+        builder.emit(Inst::Call { dest: None, func: "__array_push".into(), args: vec![arr.clone(), stored], ret_ty: IrType::Void });
+    }
+    final_args.push(arr);
+    final_args
 }
 
-/// Construit un littéral `array` : alloue via `__array_new`, pousse chaque
-/// élément. `kind` décide comment un élément `F64`/`Bool` est stocké — voir
-/// `LiteralElemKind`. Avant ce correctif, TOUT élément `F64`/`Bool` était
-/// systématiquement stringifié (`__str_from_float`/`__str_from_bool`),
-/// quel que soit `kind` — un `array<float>` littéral (pas seulement
-/// `array<mixed>`) produisait donc un résultat numériquement faux à la
-/// lecture (`arr[0]` retournait le pointeur de la string, réinterprété comme
-/// bits flottants) : voir docs/roadmap.d/langage-mixed-literal-stringification.md.
-pub fn lower_array_literal(builder: &mut LowerBuilder, elements: &[Expr], kind: LiteralElemKind) -> Value {
+fn is_forwardable_variadic(builder: &LowerBuilder, arg: &Expr, elem_ty: &IrType) -> bool {
+    let Expr::Ident(name, _) = arg else { return false };
+    let same_elem = builder.elem_types.get(name.as_str()) == Some(elem_ty) && !builder.map_vars.contains(name.as_str());
+    same_elem && (*elem_ty != IrType::Ptr || builder.variadic_params.contains(name.as_str()))
+}
+
+/// Construit un littéral `array` dont le type d'élément de DESTINATION est
+/// `elem_ty` — `Type::Mixed` quand il est inconnu à cet endroit (littéral
+/// passé en argument, retourné, ...). Un élément `F64`/`Bool`/`I64` est
+/// boxé si et seulement si `elem_ty` est `mixed` (un consommateur générique
+/// — `JSON::encode`, `__dyn_add`, `is float`... — doit alors pouvoir le
+/// distinguer au runtime) ; avec un type concret, stocké BRUT. Récursif : un
+/// littéral imbriqué (`[[1, 2], [0, 3]]` pour `array<array<int>>`) reçoit
+/// le type d'élément interne — avant ce correctif, il était toujours
+/// construit en `mixed` (boxé) alors que la variable le relisait brut :
+/// `0`/`float` ressortaient comme l'adresse de leur cellule (voir
+/// docs/roadmap.d/memoire-nested-array-zero-json.md).
+pub fn lower_array_literal(builder: &mut LowerBuilder, elements: &[Expr], elem_ty: &Type) -> Value {
     let arr = builder.new_value();
     builder.emit(Inst::Call { dest: Some(arr.clone()), func: "__array_new".into(), args: vec![], ret_ty: IrType::Ptr });
     for elem in elements {
-        let elem_ty = expr_ir_type(builder, elem);
-        let v = lower_expr(builder, elem);
-        let stored = match kind {
-            LiteralElemKind::Mixed    => box_for_dyn_arith(builder, &elem_ty, v),
-            LiteralElemKind::Concrete => v,
-        };
+        let stored = lower_literal_element(builder, elem, elem_ty);
         builder.emit(Inst::Call { dest: None, func: "__array_push".into(), args: vec![arr.clone(), stored], ret_ty: IrType::Void });
     }
     arr
 }
 
-/// Comme `lower_array_literal`, pour un littéral `map` — `kind` s'applique à
-/// la VALEUR de chaque entrée (jamais à la clé, toujours `string`).
-pub fn lower_map_literal(builder: &mut LowerBuilder, entries: &[(Expr, Expr)], kind: LiteralElemKind) -> Value {
+/// Comme `lower_array_literal`, pour un littéral `map` — `val_ty` s'applique
+/// à la VALEUR de chaque entrée (jamais à la clé, toujours `string`).
+pub fn lower_map_literal(builder: &mut LowerBuilder, entries: &[(Expr, Expr)], val_ty: &Type) -> Value {
     let map = builder.new_value();
     builder.emit(Inst::Call { dest: Some(map.clone()), func: "__map_new".into(), args: vec![], ret_ty: IrType::Ptr });
     for (key, val) in entries {
         let kv = lower_expr(builder, key);
-        let val_ty = expr_ir_type(builder, val);
-        let vv_raw = lower_expr(builder, val);
-        let vv = match kind {
-            LiteralElemKind::Mixed    => box_for_dyn_arith(builder, &val_ty, vv_raw),
-            LiteralElemKind::Concrete => vv_raw,
-        };
+        let vv = lower_literal_element(builder, val, val_ty);
         builder.emit(Inst::Call { dest: None, func: "__map_set".into(), args: vec![map.clone(), kv, vv], ret_ty: IrType::Void });
     }
     map
+}
+
+fn lower_literal_element(builder: &mut LowerBuilder, elem: &Expr, elem_ty: &Type) -> Value {
+    match (elem, elem_ty) {
+        (Expr::Array { elements, .. }, Type::Array(inner)) => lower_array_literal(builder, elements, inner),
+        (Expr::Map { entries, .. }, Type::Map(_, inner)) => lower_map_literal(builder, entries, inner),
+        _ => {
+            let ir_ty = expr_ir_type(builder, elem);
+            let v = lower_expr(builder, elem);
+            if matches!(elem_ty, Type::Mixed) { box_for_dyn_arith(builder, &ir_ty, v) } else { v }
+        }
+    }
 }
 
 /// Pré-promeut, AVANT d'entrer dans un corps de boucle (`while`/`for`),
@@ -479,10 +512,21 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     // cette distinction corrige.
                     let arg_vals: Vec<Value> = completed_args.iter().enumerate().map(|(i, a)| {
                         let raw = lower_expr(builder, a);
+                        // `i + 1` : le receveur (`object`) est l'argument 0 de la
+                        // forme statique équivalente (`Array::push(arr, v)`).
+                        if stores_raw_into_container(builder, &func_mangled, object, i + 1) {
+                            return raw;
+                        }
                         let arg_ty = expr_ir_type(builder, a);
                         let param_ty = param_type_for_call_arg(builder, &func_mangled, i, CallForm::Sugar);
                         box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
                     }).collect();
+                    // Méthode d'instance variadic : même empaquetage qu'un appel de
+                    // fonction (jusqu'ici jamais fait — échec de codegen).
+                    let arg_vals = match builder.fn_variadic_info.get(func_mangled.as_str()).cloned() {
+                        Some((fixed_count, elem_ty)) => pack_variadic_args(builder, &completed_args, arg_vals, fixed_count, &elem_ty),
+                        None => arg_vals,
+                    };
                     let mut all_args = vec![obj_val];
                     all_args.extend(arg_vals);
                     // Résoudre le type de retour depuis fn_ret_types
@@ -739,79 +783,12 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
             }).collect();
             
-            // Si fonction variadic, empaqueter les arguments excédentaires dans un tableau
-            let final_args = if let Some(&(fixed_count, ref _elem_ty)) = builder.fn_variadic_info.get(func_name.as_str()) {
-                if arg_vals.len() >= fixed_count {
-                    let mut final_args = arg_vals[..fixed_count].to_vec();
-                    
-                    // Créer le tableau variadic
-                    let arr = builder.new_value();
-                    builder.emit(Inst::Call {
-                        dest:   Some(arr.clone()),
-                        func:   "__array_new".into(),
-                        args:   vec![],
-                        ret_ty: IrType::Ptr,
-                    });
-                    
-                    // Pousser chaque argument variadic dans le tableau (avec boxing si nécessaire)
-                    for (idx, variadic_arg) in arg_vals[fixed_count..].iter().enumerate() {
-                        let arg_expr = &args[fixed_count + idx];
-                        let arg_ty = expr_ir_type(builder, arg_expr);
-                        
-                        // Boxer F64/Bool/I64 (si assez grand, voir
-                        // `__box_int_for_mixed`) pour stockage dans mixed[]
-                        let stored_val = match arg_ty {
-                            IrType::F64 => {
-                                let boxed = builder.new_value();
-                                builder.emit(Inst::Call {
-                                    dest:   Some(boxed.clone()),
-                                    func:   "__box_float".into(),
-                                    args:   vec![variadic_arg.clone()],
-                                    ret_ty: IrType::Ptr,
-                                });
-                                boxed
-                            }
-                            IrType::Bool => {
-                                let boxed = builder.new_value();
-                                builder.emit(Inst::Call {
-                                    dest:   Some(boxed.clone()),
-                                    func:   "__box_bool".into(),
-                                    args:   vec![variadic_arg.clone()],
-                                    ret_ty: IrType::Ptr,
-                                });
-                                boxed
-                            }
-                            IrType::I64 => {
-                                let boxed = builder.new_value();
-                                builder.emit(Inst::Call {
-                                    dest:   Some(boxed.clone()),
-                                    func:   "__box_int_for_mixed".into(),
-                                    args:   vec![variadic_arg.clone()],
-                                    ret_ty: IrType::Ptr,
-                                });
-                                boxed
-                            }
-                            _ => variadic_arg.clone(),  // Ptr, etc. → stockage direct
-                        };
-                        
-                        builder.emit(Inst::Call {
-                            dest:   None,
-                            func:   "__array_push".into(),
-                            args:   vec![arr.clone(), stored_val],
-                            ret_ty: IrType::Void,
-                        });
-                    }
-                    
-                    // Ajouter le tableau comme dernier argument
-                    final_args.push(arr);
-                    final_args
-                } else {
-                    arg_vals
-                }
-            } else {
-                arg_vals
+            // Fonction variadic : arguments excédentaires empaquetés (voir `pack_variadic_args`).
+            let final_args = match builder.fn_variadic_info.get(func_name.as_str()).cloned() {
+                Some((fixed_count, elem_ty)) => pack_variadic_args(builder, args, arg_vals, fixed_count, &elem_ty),
+                None => arg_vals,
             };
-            
+
             let dest = builder.new_value();
             builder.emit(Inst::Call {
                 dest:   Some(dest.clone()),
@@ -1004,6 +981,9 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md.
             let arg_vals: Vec<Value> = args.iter().enumerate().map(|(i, a)| {
                 let raw = crate::lower::builder::message_gen::lower_arg_or_message(builder, a);
+                if args.first().is_some_and(|recv| stores_raw_into_container(builder, &func_name, recv, i)) {
+                    return raw;
+                }
                 let arg_ty = expr_ir_type(builder, a);
                 let param_ty = param_type_for_call_arg(builder, &func_name, i, CallForm::Static);
                 box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
@@ -1385,13 +1365,12 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
         }
 
         // ── Tableau littéral ─────────────────────────────────────────────────
-        // Pas de type de destination connu ici (nested/argument/retour...) —
-        // voir `lower_array_literal`/`LiteralElemKind::Mixed` pour pourquoi
-        // c'est le choix par défaut sûr.
-        Expr::Array { elements, .. } => lower_array_literal(builder, elements, LiteralElemKind::Mixed),
+        // Pas de type de destination connu ici (argument/retour...) — `mixed`,
+        // le choix par défaut sûr (voir `lower_array_literal`).
+        Expr::Array { elements, .. } => lower_array_literal(builder, elements, &Type::Mixed),
 
         // ── Map littéral ──────────────────────────────────────────────────────
-        Expr::Map { entries, .. } => lower_map_literal(builder, entries, LiteralElemKind::Mixed),
+        Expr::Map { entries, .. } => lower_map_literal(builder, entries, &Type::Mixed),
 
         // ── Accès par index ───────────────────────────────────────────────────
         Expr::Index { object, index, .. } => {

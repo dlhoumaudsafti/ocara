@@ -7,9 +7,32 @@ Coloration syntaxique, autocomplétion et navigation (Go-to-Definition) pour le 
 - Highlight complet : mots-clés, types, classes, structs, méthodes, imports, chaînes, templates
 - Appels de méthodes (`obj.method()`), accès statiques (`Class::member`), builtins `ocara.*`
 - **Autocomplétion après `.` / `::`** — méthodes et constantes des classes builtin `ocara.*`
-  (catalogue généré depuis `src/builtins/*.rs`, voir `data/builtins-data.json`) et des
+  (catalogue généré depuis `src/builtins/*.rs` et `docs/builtins/*.md` par `scripts/generate-builtins-data.py`, voir `data/builtins-data.json` — à relancer après tout ajout/changement de builtin ou de sa doc) et des
   classes utilisateur (propres et héritées via `extends`, résolues à travers les imports)
+- **Documentation au survol** :
+  - méthodes builtin, statiques (`String::trim`) ou d'instance (`server.route`, y compris héritées par une
+    classe utilisateur `extends HTTPServer`) — signature + documentation extraite de `docs/builtins/*.md`
+    (section ou ligne de tableau de la méthode, à défaut sa première ligne d'exemple) ;
+  - méthodes « sucrées » sur une valeur (`s.trim()` ≡ `String::trim(s)`, `s.toInt()` ≡ `Convert::strToInt(s)`) —
+    doc de la méthode réellement appelée ;
+  - fonctions, méthodes, classes, structs (constructeur généré), interfaces... de votre code — signature et
+    commentaires `//` placés juste au-dessus de la déclaration
+- **Documentation embarquée** : `docs/EBNF.md` et `docs/builtins/*.md` du dépôt sont copiés dans
+  l'extension à chaque compilation (`scripts/copy-docs.js`, lancé par `npm run compile` — la copie
+  précédente est supprimée d'abord ; dossier `docs/` de l'extension ignoré par git, ne jamais l'éditer).
+  Le lien « 📖 » d'une popup de survol ouvre le fichier en **aperçu** Markdown dans un nouvel onglet,
+  sur la section concernée
+- **Survol des mots-clés** (`scoped`, `wiring`, `struct`, `match`, `try`/`on`...) : résumé et lien vers
+  leur section de l'EBNF ; les mots-clés aussi utilisables comme noms (`result`, `message`, `init`...)
+  ne sont documentés qu'en position de mot-clé
+- **Autocomplétion avec paramètres** : toute méthode/fonction complétée insère ses paramètres comme champs
+  à remplir portant leurs noms d'origine (`replace(s, from, to)`, `Tab` pour passer au suivant) ; fonctions
+  libres du programme (fichier, fichiers importés, fichiers runtime du même programme) proposées avec leur doc
 - **Autocomplétion `self.` / `self::` / `parent.`** dans le corps d'une classe
+- **Autocomplétion sur une variable de type primitif** (`string`, `int`, `float`, `bool`, `array<T>`,
+  `map<K,V>`) : conversions (`s.toInt()`, `n.toStr()`, `arr.toStr(sep)`... ≡ `Convert::*`, voir
+  `docs/builtins/Convert.md`) et méthodes `String`/`Array`/`Map` utilisables en instance (`s.trim()`),
+  avec signature help
 - **Autocomplétion `e.message` / `e.code` / `e.source`** dans un bloc `on e is XException`
 - **Autocomplétion des noms de classe après `use `** (builtins instanciables + classes utilisateur)
 - **Arguments nommés** (`use UserDto(id: 42, name: 'David')`) :
@@ -30,6 +53,10 @@ Coloration syntaxique, autocomplétion et navigation (Go-to-Definition) pour le 
 - **Ctrl+Click** sur `import Circle from "11_interfaces"` → ouvre le fichier et positionne sur la classe `Circle`
 - **Ctrl+Click** sur `self.circle.area()` → navigue vers la méthode `area()` dans la classe importée
 - **Ctrl+Click** sur `ClassName::member` → ouvre le fichier de la classe et positionne le curseur sur la méthode
+- **Ctrl+Click** sur `wiring chemin.vers.Classe` (dans une interface) → ouvre le fichier et positionne sur la classe ciblée
+- **Fichiers runtime** (`runtime core.main is main`) : les blocs runtime d'un programme partageant leur portée,
+  Ctrl+Click et autocomplétion sur `server.start()` retrouvent la variable déclarée dans un AUTRE fichier
+  runtime du même programme (ex. `core/init.runtime.oc`) et la classe importée par le fichier principal
 - **Ctrl+Click** sur un nom de variable ou fonction → navigue vers la déclaration
 - **Scan automatique du workspace** pour résoudre les imports `from "file"` dans n'importe quel sous-dossier
 - **Namespaces à plusieurs segments** (`namespace context.search.app.usecase`) : un import
@@ -48,8 +75,38 @@ Coloration syntaxique, autocomplétion et navigation (Go-to-Definition) pour le 
   | méthode          | d'interface : implémentations · de module : implémentations + overrides · de classe : overrides |
   | fonction / enum  | références |
 
+  Plus, sur chaque classe/struct/generic/interface/module, ses **références** (usages de son nom
+  hors imports : types, `use X(`, `X::`, `extends`, `wiring`) et, sur chaque méthode, ses
+  références : `Classe::m` — appel ou référence sans appel, ex.
+  `server.route("/voitures/<id:int>", "GET", CarController::show)` —, `self::m`/`parent::m` dans
+  son propre fichier, et `.m(` pour une méthode d'instance (par nom).
+
   Résolution par nom, sans suivre les imports : deux classes homonymes de contextes différents
   sont confondues.
+
+- **Analyse de style `ocaracs` automatique** à l'affichage, à l'ouverture et à l'enregistrement
+  d'un fichier `.oc` : chaque ligne concernée est surlignée en jaune, le message s'affiche au
+  survol (et dans le panneau Problèmes). Règles : le `.ocaracs` le plus proche en remontant
+  depuis le dossier du script, sinon les valeurs par défaut d'ocaracs. ocaracs lisant le fichier
+  sur disque, l'analyse porte sur la dernière version enregistrée.
+- **Clic droit → « Compiler le script »** (éditeur ou arborescence, aussi dans la palette
+  `Ocara: Compiler le script`) : demande le nom du binaire, créé dans le dossier du script
+  (le compilateur y laisse aussi `<nom>.o`). Erreurs dans le panneau Problèmes et la sortie
+  « Ocara ».
+- **Clic droit → « Afficher le dump »** : tokens, AST et IR (`ocara --dump`) dans un éditeur
+  sans fichier — le binaire que `--dump` produit malgré tout est compilé dans un dossier
+  temporaire supprimé aussitôt.
+
+## Réglages
+
+| Réglage | Défaut | Rôle |
+|---------|--------|------|
+| `ocara.compilerPath` | `ocara` | Chemin du compilateur ou commande pour le lancer — arguments et guillemets acceptés, variables `${workspaceFolder}`/`${fileDirname}` (ex. `"${workspaceFolder}/target/release/ocara"`). |
+| `ocara.ocaracsPath` | `ocaracs` | Chemin d'ocaracs ou commande pour le lancer (mêmes règles). |
+| `ocara.lint.enable` | `true` | Active l'analyse ocaracs automatique. |
+
+Laissé à sa valeur par défaut et absent du PATH, un outil est cherché dans
+`<workspace>/target/release/` (dépôt du compilateur ouvert dans VS Code).
 
 ---
 

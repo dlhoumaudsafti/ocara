@@ -137,7 +137,7 @@ pub enum SemaError {
     /// imprécision est un choix de langage assumé (désactive volontairement
     /// la vérification de types), pas un oubli. Voir
     /// docs/roadmap.d/langage-appel-methode-sur-primitif-accepte.md.
-    MethodCallOnNonClass { type_name: String, method: String, span: Span },
+    MethodCallOnNonClass { type_name: String, method: String, available: Vec<String>, span: Span },
     /// `use Interface(...)` (construction) ou `Interface::method()` (appel
     /// statique) sur une interface qui n'a AUCUN `wiring` déclaré — voir
     /// docs/roadmap.d/langage-interface-wiring.md. Quand l'interface a au
@@ -174,6 +174,9 @@ pub enum SemaError {
     /// (et, pour `protected`, de ses descendantes) — voir
     /// `crate::sema::field_visibility` (E54).
     FieldNotAccessible { class: String, field: String, protected: bool, span: Span },
+    /// Valeur d'une constante de classe non évaluable à la compilation
+    /// (appel, variable...) — voir `Expr::const_literal` (E55).
+    ClassConstNotConstant { class: String, name: String, span: Span },
 }
 
 impl SemaError {
@@ -227,6 +230,7 @@ impl SemaError {
             SemaError::NamedArgMissing    { span, .. } => span,
             SemaError::NamedArgUnresolved { span, .. } => span,
             SemaError::FieldNotAccessible { span, .. } => span,
+            SemaError::ClassConstNotConstant { span, .. } => span,
         }
     }
 
@@ -310,8 +314,12 @@ impl SemaError {
                 format!("'++'/'--' require an 'int' or 'float' target, found '{}'", found),
             SemaError::MethodCallOnVoid { method, .. } =>
                 format!("cannot call '.{}(...)' — the receiver's type is 'void' (likely the return value of a preceding chained call); a method that returns 'void' cannot be chained, since there is nothing to call '.{}(...)' on", method, method),
-            SemaError::MethodCallOnNonClass { type_name, method, .. } =>
-                format!("cannot call '.{}(...)' — the receiver's type is '{}', which has no methods", method, type_name),
+            SemaError::MethodCallOnNonClass { type_name, method, available, .. } =>
+                if available.is_empty() {
+                    format!("cannot call '.{}(...)' — the receiver's type is '{}', which has no methods", method, type_name)
+                } else {
+                    format!("cannot call '.{}(...)' — the receiver's type is '{}', whose only methods are the conversions: {}", method, type_name, available.join(", "))
+                },
             SemaError::InterfaceNoWiring { name, .. } =>
                 format!("interface '{}' cannot be constructed or have a static method called on it directly: it has no 'wiring' declaration — add at least one 'wiring <Class>' inside the interface, or use a concrete implementing class directly", name),
             SemaError::ResolveOnNonResolvable { found, .. } =>
@@ -340,6 +348,8 @@ impl SemaError {
                 } else {
                     format!("field '{}' of '{}' is private — it is only accessible from inside '{}' (expose it through a public method)", field, class, class)
                 },
+            SemaError::ClassConstNotConstant { class, name, .. } =>
+                format!("value of class constant '{}::{}' must be known at compile time — a literal, possibly negated or combined with +, -, *, /, % (e.g. '-273', '60 * 1000'); use a static method for a computed value", class, name),
         }
     }
 }

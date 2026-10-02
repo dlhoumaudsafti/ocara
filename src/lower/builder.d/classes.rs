@@ -73,11 +73,11 @@ pub fn lower_class(
             ClassMember::Constructor { .. } => {}
             ClassMember::Const { name, value, .. } => {
                 use crate::ir::module::IrGlobal;
-                let bytes = match value {
-                    Expr::Literal(Literal::Int(n), _)    => n.to_le_bytes().to_vec(),
-                    Expr::Literal(Literal::Float(f), _)  => f.to_le_bytes().to_vec(),
-                    Expr::Literal(Literal::Bool(b), _)   => vec![*b as u8],
-                    Expr::Literal(Literal::String(s), _) => s.as_bytes().to_vec(),
+                let bytes = match value.const_literal() {
+                    Some(Literal::Int(n))    => n.to_le_bytes().to_vec(),
+                    Some(Literal::Float(f))  => f.to_le_bytes().to_vec(),
+                    Some(Literal::Bool(b))   => vec![b as u8],
+                    Some(Literal::String(s)) => s.as_bytes().to_vec(),
                     _ => vec![],
                 };
                 module.add_global(IrGlobal {

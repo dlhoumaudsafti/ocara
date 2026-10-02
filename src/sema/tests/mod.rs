@@ -12,3 +12,5 @@ mod interface_wiring;
 mod interface_method_modifiers;
 mod named_args;
 mod field_visibility;
+mod convert_sugar;
+mod generic_check;

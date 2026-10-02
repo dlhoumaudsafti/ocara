@@ -1,0 +1,112 @@
+import ocara.UnitTest
+import ocara.Array
+
+// docs/roadmap.d/langage-variadic-element-kinds.md et
+// docs/roadmap.d/memoire-array-push-large-int-boxed.md — valeurs choisies
+// au-dessus de PTR_THRESHOLD (65536) : un scalaire boxé relu brut (ou
+// l'inverse) y donnait une adresse au lieu de la valeur.
+//
+// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée.
+class Test_71_variadic_forwarding_and_push {
+
+    public method forwardVariadicTest(): int {
+        UnitTest::assertEquals(30, forward_sum(10, 20))
+        UnitTest::assertEquals(0, forward_sum())
+        UnitTest::assertEquals(9000000001, forward_sum(9000000000, 1))
+        return 0
+    }
+
+    public method variadicOfArraysTest(): int {
+        var a:array<int> = [1, 2, 3]
+        var b:array<int> = [4, 5]
+        UnitTest::assertEquals(5, total_len(a, b))
+        return 0
+    }
+
+    public method variadicOfFunctionsTest(): int {
+        UnitTest::assertEquals(30, apply_all(5, double_it, triple_it))
+        return 0
+    }
+
+    public method variadicInstanceMethodTest(): int {
+        var c:Counter = use Counter()
+        UnitTest::assertEquals(6, c.add(1, 2, 3))
+        UnitTest::assertEquals(0, c.add())
+        return 0
+    }
+
+    public method pushLargeIntTest(): int {
+        var arr:array<int> = [1]
+        Array::push(arr, 7777777)
+        arr.push(6666666)
+        Array::set(arr, 0, 9999999)
+        UnitTest::assertEquals(9999999, arr[0])
+        UnitTest::assertEquals(7777777, arr[1])
+        UnitTest::assertEquals(6666666, arr[2])
+        return 0
+    }
+
+    public method pushFloatBoolAndMapTest(): int {
+        var floats:array<float> = [0.5]
+        floats.push(2.25)
+        UnitTest::assertEquals(2.75, floats[0] + floats[1])
+        var flags:array<bool> = [true]
+        flags.push(false)
+        UnitTest::assertFalse(flags[1])
+        var m:map<string, int> = {"a": 1}
+        m.set("b", 8888888)
+        UnitTest::assertEquals(8888888, m["b"])
+        return 0
+    }
+
+    public method pushIntoMixedStillBoxedTest(): int {
+        var mix:array<mixed> = [1]
+        mix.push(7777777)
+        mix.push(1.5)
+        UnitTest::assertEquals(7777777, mix[1])
+        UnitTest::assertEquals(1.5, mix[2])
+        return 0
+    }
+}
+
+class Counter {
+    public method add(values:variadic<int>): int {
+        var total:int = 0
+        for v in values {
+            total = total + v
+        }
+        return total
+    }
+}
+
+function sum_all(nums:variadic<int>): int {
+    var total:int = 0
+    for n in nums {
+        total = total + n
+    }
+    return total
+}
+
+// Transmission d'un variadic à un autre : `nums` est passé tel quel.
+function forward_sum(nums:variadic<int>): int {
+    return sum_all(nums)
+}
+
+function total_len(arrays:variadic<array<int>>): int {
+    var count:int = 0
+    for arr in arrays {
+        count = count + Array::len(arr)
+    }
+    return count
+}
+
+function apply_all(val:int, funcs:variadic<Function<int(int)>>): int {
+    var result:int = val
+    for f in funcs {
+        result = f(result)
+    }
+    return result
+}
+
+function double_it(x:int): int { return x * 2 }
+function triple_it(x:int): int { return x * 3 }

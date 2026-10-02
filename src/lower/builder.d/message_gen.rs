@@ -643,8 +643,8 @@ pub fn try_frame_field(depth: usize) -> String {
 /// `Array::fromMessage(truc())` (voir §2 de la fiche roadmap) : draine TOUS
 /// les `emit` (aucune restriction, même avec `emit` en boucle) dans un
 /// `array<T>` neuf — mêmes conventions de stockage qu'un littéral `array<T>`
-/// à type concret connu (`LiteralElemKind::Concrete` — voir
-/// `lower_array_literal`) : valeur brute, jamais boxée.
+/// à type d'élément concret connu (voir `lower_array_literal`) : valeur
+/// brute, jamais boxée.
 pub fn lower_array_from_message(builder: &mut LowerBuilder, expr: &Expr, mangled: &str, elem_ty: IrType) -> Value {
     let args = collect_call_args(builder, expr);
     let frame = call_new(builder, mangled, args);

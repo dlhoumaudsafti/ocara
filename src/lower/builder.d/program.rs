@@ -84,6 +84,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         if let Some(name) = concrete_return_class(&func.ret_ty) {
             module.func_ret_class.insert(func.name.clone(), name);
         }
+        module.call_ret_types.insert(func.name.clone(), func.ret_ty.clone());
     }
 
     // Collecte des fonctions marquées async
@@ -148,6 +149,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
                 if let Some(name) = concrete_return_class(&decl.ret_ty) {
                     module.method_ret_class.insert(mangled.clone(), name);
                 }
+                module.call_ret_types.insert(mangled.clone(), decl.ret_ty.clone());
 
                 if *is_static {
                     let param_types: Vec<IrType> = decl.params.iter()
@@ -181,6 +183,14 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
                         .collect();
                     module.method_param_types.insert(mangled.clone(), param_types);
 
+                    // Méthode d'instance variadic (sans `self`, ajouté à part
+                    // au site d'appel) — voir `pack_variadic_args`.
+                    if let Some(last_param) = decl.params.last() {
+                        if last_param.is_variadic {
+                            fn_variadic_info.insert(mangled.clone(), (decl.params.len() - 1, IrType::from_ast(&last_param.ty)));
+                        }
+                    }
+
                     // Collecte des valeurs par défaut (sans self)
                     let default_args: Vec<Option<Expr>> = decl.params.iter()
                         .map(|p| p.default_value.clone())
@@ -196,6 +206,19 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
                 .map(|p| p.default_value.clone())
                 .collect();
             func_default_args.insert(format!("{}_init", class.name), default_args);
+        }
+    }
+
+    // Méthodes des classes builtin (`Convert::strToArray(s, ",").len()`,
+    // `HTML::...`) : même table, sans jamais écraser une classe utilisateur
+    // homonyme déjà enregistrée ci-dessus.
+    for (class_name, info) in crate::builtins::all_builtins() {
+        for (method_name, sig) in &info.methods {
+            let mangled = format!("{}_{}", class_name, method_name);
+            if let Some(name) = concrete_return_class(&sig.ret_ty) {
+                module.method_ret_class.entry(mangled.clone()).or_insert(name);
+            }
+            module.call_ret_types.entry(mangled).or_insert_with(|| sig.ret_ty.clone());
         }
     }
 
@@ -553,9 +576,9 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     for class in &program.classes {
         for member in &class.members {
             if let ClassMember::Const { name, ty, value, .. } = member {
-                if let Expr::Literal(lit, _) = value {
+                if let Some(lit) = value.const_literal() {
                     let key = format!("{}__{}", class.name, name);
-                    module.class_consts.insert(key, (IrType::from_ast(ty), lit.clone()));
+                    module.class_consts.insert(key, (IrType::from_ast(ty), lit));
                 }
             }
         }

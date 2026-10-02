@@ -39,3 +39,5 @@ copilot-instructions.md
 
 # exemple mini_project
 examples/advanced/mini_project/Makefile
+# Copie de docs/ faite à la compilation de l'extension VS Code (scripts/copy-docs.js)
+tools/highlight/vsode/docs/

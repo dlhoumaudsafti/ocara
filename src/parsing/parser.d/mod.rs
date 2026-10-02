@@ -7,6 +7,7 @@ mod imports;
 mod types_parsing;
 mod declarations;
 pub(crate) mod struct_decl;
+mod property_init;
 mod statements;
 mod expressions;
 mod runtime;

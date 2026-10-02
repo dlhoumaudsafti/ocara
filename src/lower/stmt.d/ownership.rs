@@ -198,35 +198,49 @@ enum OwnershipFunc {
     ConcreteRecursive(String, String),
 }
 
+/// Fonction runtime de libération (`clone == false`) ou de clonage d'une
+/// valeur `string`/`array<T>`/`map<K,V>` de type DÉCLARÉ `ty` — source
+/// unique pour les variables possédées (`scoped`/`consumed`) ET les champs
+/// de classe (`__free_<Classe>`/`__clone_<Classe>`, voir `class_ownership`).
+/// Un conteneur à éléments scalaires concrets les stocke BRUTS (voir
+/// `lower_array_literal`) : jamais le chemin générique `__value_free`/
+/// `__value_clone`, qui suivrait un `int`/`float` brut comme un pointeur
+/// (SEGFAULT confirmé — `var floats:array<float>`, puis un champ
+/// `array<int>` contenant `999999`). `Some(forme)` : variante récursive
+/// concrète, appelée `(val, forme, 0)` (voir `concrete_elem_shape`).
+pub(crate) fn value_ownership_symbol(ty: &Type, clone: bool) -> Option<(&'static str, Option<String>)> {
+    let pick = |free: &'static str, cloned: &'static str| if clone { cloned } else { free };
+    let generic = pick("__value_free", "__value_clone");
+    Some(match ty {
+        Type::Array(elem) if is_concrete_primitive_elem(elem) => (pick("__array_free_shallow", "__array_clone_shallow"), None),
+        Type::Map(_, elem) if is_concrete_primitive_elem(elem) => (pick("__map_free_shallow", "__map_clone_shallow"), None),
+        Type::Array(_) => match concrete_elem_shape(ty) {
+            Some(shape) => (pick("__array_free_concrete", "__array_clone_concrete"), Some(shape)),
+            None => (generic, None),
+        },
+        Type::Map(_, _) => match concrete_elem_shape(ty) {
+            Some(shape) => (pick("__map_free_concrete", "__map_clone_concrete"), Some(shape)),
+            None => (generic, None),
+        },
+        Type::String => (generic, None),
+        _ => return None,
+    })
+}
+
+fn value_strategy(ty: &Type, clone: bool) -> Option<OwnershipFunc> {
+    value_ownership_symbol(ty, clone).map(|(func, shape)| match shape {
+        Some(shape) => OwnershipFunc::ConcreteRecursive(func.to_string(), shape),
+        None => OwnershipFunc::Simple(func.to_string()),
+    })
+}
+
 fn drop_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<OwnershipFunc> {
     match info.class {
         OwnershipClass::Value => match &info.ty {
-            // `array`/`map` à élément primitif concret : jamais de pointeur
-            // heap à inspecter parmi les éléments — variante "shallow" (pas
-            // de parcours récursif) obligatoire, voir sa doc dans
-            // runtime/src/lib.rs. Corrige un SEGFAULT confirmé (`var
-            // floats:array<float> = [1.5, 2.5, 3.5]`, jamais échappé : le
-            // bit pattern brut d'un `float` ressemble parfois à un pointeur
-            // heap valide, `__value_free` par élément le déréférençait).
-            Type::Array(elem) if is_concrete_primitive_elem(elem) =>
-                Some(OwnershipFunc::Simple("__array_free_shallow".to_string())),
-            Type::Map(_, elem) if is_concrete_primitive_elem(elem) =>
-                Some(OwnershipFunc::Simple("__map_free_shallow".to_string())),
-            // Élément lui-même array/map, à une profondeur arbitraire — voir
-            // `concrete_elem_shape`/`__array_free_concrete`.
-            Type::Array(_) => match concrete_elem_shape(&info.ty) {
-                Some(shape) => Some(OwnershipFunc::ConcreteRecursive("__array_free_concrete".to_string(), shape)),
-                None => Some(OwnershipFunc::Simple("__value_free".to_string())),
-            },
-            Type::Map(_, _) => match concrete_elem_shape(&info.ty) {
-                Some(shape) => Some(OwnershipFunc::ConcreteRecursive("__map_free_concrete".to_string(), shape)),
-                None => Some(OwnershipFunc::Simple("__value_free".to_string())),
-            },
-            Type::String => Some(OwnershipFunc::Simple("__value_free".to_string())),
             Type::Named(n) if class_ownership::has_generated_destructor(module, n) => {
                 Some(OwnershipFunc::Simple(format!("__free_{}", n)))
             }
-            _ => None,
+            ty => value_strategy(ty, false),
         },
         OwnershipClass::Resource => match &info.ty {
             Type::Named(n) => crate::sema::scope::resource_closer_symbol(n).map(|f| OwnershipFunc::Simple(f.to_string())),
@@ -241,24 +255,10 @@ fn drop_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<OwnershipFu
 /// (les ressources ne s'échappent jamais, refusé par la sema).
 fn clone_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<OwnershipFunc> {
     match &info.ty {
-        // Voir `drop_func_for` : même raison de choisir la variante "shallow".
-        Type::Array(elem) if is_concrete_primitive_elem(elem) =>
-            Some(OwnershipFunc::Simple("__array_clone_shallow".to_string())),
-        Type::Map(_, elem) if is_concrete_primitive_elem(elem) =>
-            Some(OwnershipFunc::Simple("__map_clone_shallow".to_string())),
-        Type::Array(_) => match concrete_elem_shape(&info.ty) {
-            Some(shape) => Some(OwnershipFunc::ConcreteRecursive("__array_clone_concrete".to_string(), shape)),
-            None => Some(OwnershipFunc::Simple("__value_clone".to_string())),
-        },
-        Type::Map(_, _) => match concrete_elem_shape(&info.ty) {
-            Some(shape) => Some(OwnershipFunc::ConcreteRecursive("__map_clone_concrete".to_string(), shape)),
-            None => Some(OwnershipFunc::Simple("__value_clone".to_string())),
-        },
-        Type::String => Some(OwnershipFunc::Simple("__value_clone".to_string())),
         Type::Named(n) if class_ownership::has_generated_destructor(module, n) => {
             Some(OwnershipFunc::Simple(format!("__clone_{}", n)))
         }
-        _ => None,
+        ty => value_strategy(ty, true),
     }
 }
 

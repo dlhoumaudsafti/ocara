@@ -30,8 +30,6 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
 - **Nouvelle classe builtin `HTTPServerSession`** (variables de session par utilisateur `set`/`get`/`has`, variables globales `setGlobal`/`getGlobal`/`hasGlobal`) — plusieurs points à trancher avant d'implémenter (identification par cookie, aucun support cookie aujourd'hui ; concurrence). *(Structurel au minimum — voir la fiche)* → [détails](roadmap.d/stdlib-httpserver-session.md)
-- **Initialiseur inline sur une `property`** (`property nom:Type = expr`, évalué avant le corps de `init()`) — aujourd'hui impossible (vérifié : échoue au parsing), oblige à toujours écrire l'affectation à la main dans `init()` même pour une valeur indépendante de tout paramètre. *(Structurel — grammaire, sema, interaction avec l'héritage et l'analyse de ressources)* → [détails](roadmap.d/langage-property-initializer.md)
-- **Méthodes d'instance manquantes pour `Convert`** (`a.toInt()` au lieu de `Convert::strToInt(a)`, pour les 19 méthodes de la classe) — vérifié : aucune n'a d'équivalent d'instance aujourd'hui, et le mécanisme de sucre existant (`allows_instance_sugar`) ne suffit pas (il permet le même nom en instance, pas un renommage par méthode). *(Structurel — nouveau mécanisme de correspondance par nom, méthodes d'instance à introduire sur des primitifs qui n'en ont jamais eu)* → [détails](roadmap.d/stdlib-convert-instance-methods.md)
 
 ---
 
@@ -39,9 +37,8 @@ Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnali
 
 À traiter mais non bloquant pour la stabilité du langage.
 
-- **Corps des `generic` jamais vérifiés par l'analyse sémantique** — `check_program` ignore `program.generics` et la monomorphisation tourne après la sema : aucune erreur de type/arité/symbole n'est détectée dans une méthode de `generic`. Les arguments nommés y sont résolus par un repli syntaxique limité. *(Structurel)* → [détails](roadmap.d/sema-generic-bodies-unchecked.md)
+- **Serveur de langage (LSP) adossé au compilateur** — `ocara --lsp` (ou d'abord `ocara --check --json`) réutilisant parseur/sema pour la navigation, le survol, la complétion, les références et les diagnostics en direct ; l'extension VS Code, aujourd'hui entièrement à base de regex (résolution par nom, types non suivis, sémantique recodée en TypeScript), deviendrait un client léger. Points à trancher : protocole, sema tolérante aux erreurs (plus de `process::exit`), spans en plages, dépendances LSP. *(Structurel)* → [détails](roadmap.d/tooling-language-server.md)
 - **Architecture hexagonale stricte par défaut** — déclaration `architecture hexagonal` avec alias configurables pour `domain`/`application`/`infrastructure`; `architecture permissive` désactive uniquement les contrôles architecturaux. Vérification compile-time de la direction des imports entre couches et contextes, des racines `shared` et des cibles de `wiring`. *(Structurelle — classification des fichiers/namespace, résolution des imports et intégration aux règles existantes de `wiring`)* → [détails](roadmap.d/langage-mode-hexa.md)
-- **Enums enrichis** — syntaxe `case`, backing type typé déclaré (`enum Status: string { case Pending = 'pending' }`), méthodes d'instance avec `self` référençant le cas courant et pattern `self::Case`/motifs multiples par bras dans un `match`. Vérifié : l'enum actuel est un pur groupe de constantes `int` (`EnumVariant.value: Option<i64>` câblé en dur, pas de méthodes, pas d'instanciation), et `match` ne supporte ni motif « cas d'enum » ni plusieurs motifs séparés par une virgule dans un même bras. *(Massive — nouveau système d'enum quasi complet + extension du pattern matching, plusieurs points à trancher avant d'implémenter)* → [détails](roadmap.d/langage-enum-cases-backing-methods.md)
 
 ---
 
@@ -51,6 +48,7 @@ Confort ou portée future — n'affecte pas la correction du compilateur ou des 
 
 - **Réflexion (non tranchée) : remplacer `for x in a..b` par `for x in 1 to 10` (borne incluse) / `for x in 1 until 10` (borne exclue)** — la borne de fin exclue de `..` n'est pas lisible au point d'appel ; à peser contre le coût d'un changement de syntaxe cassant sur tout le corpus existant. *(Structurel si retenu — voir la fiche pour la discussion complète avant tout engagement)* → [détails](roadmap.d/reflexion-syntaxe-for-range.md)
 - **Réflexion (non tranchée) : `for x in myarray when x greater|smaller|(not) equal| literral|var|scoped|consumed|const|property {}` et `for x when x greater|smaller|(not) equal| y {}` et `for x=1 when x greater|smaller|(not) y {}`**
+- **Enums enrichis** — syntaxe `case`, backing type typé déclaré (`enum Status: string { case Pending = 'pending' }`), méthodes d'instance avec `self` référençant le cas courant et pattern `self::Case`/motifs multiples par bras dans un `match`. Vérifié : l'enum actuel est un pur groupe de constantes `int` (`EnumVariant.value: Option<i64>` câblé en dur, pas de méthodes, pas d'instanciation), et `match` ne supporte ni motif « cas d'enum » ni plusieurs motifs séparés par une virgule dans un même bras. *(Massive — nouveau système d'enum quasi complet + extension du pattern matching, plusieurs points à trancher avant d'implémenter)* → [détails](roadmap.d/langage-enum-cases-backing-methods.md)
 
 ---
 

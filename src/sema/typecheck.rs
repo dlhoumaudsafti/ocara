@@ -17,6 +17,11 @@ pub struct TypeChecker<'a> {
     current_ret:   Option<Type>,
     /// Nom de la classe en cours (pour `self`)
     pub(crate) current_class: Option<String>,
+    /// Generic en cours de vérification (nom, nombre de paramètres de type) —
+    /// voir `crate::sema::generic_check` : ses paramètres de type y valent
+    /// `mixed`, sans que les diagnostics propres à `mixed` (E14/E15/W02/W03)
+    /// ne s'appliquent.
+    pub(crate) current_generic: Option<(String, usize)>,
     /// Contexte runtime actuel (init, main, error, success, exit)
     current_runtime_ctx: Option<String>,
     /// Classes déjà typecheckées (pour éviter de les typecheck plusieurs fois)
@@ -38,9 +43,9 @@ pub struct TypeChecker<'a> {
     /// Paramètres déclarés de chaque callable utilisateur — calculé une fois
     /// dans `check_program`, voir `crate::sema::named_args`.
     pub(crate) callable_params: crate::sema::named_args::CallableParams<'a>,
-    /// Liste positionnelle résolue de chaque appel à arguments nommés, à
-    /// réinjecter dans l'AST avant le lowering (`core::named_args`).
-    pub named_arg_rewrites: std::collections::HashMap<crate::sema::named_args::ArgSiteKey, Vec<Expr>>,
+    /// Réécritures de l'AST (arguments nommés, sucre `Convert`) à appliquer
+    /// avant le lowering (`core::named_args`).
+    pub rewrites: crate::sema::named_args::AstRewrites,
 }
 
 impl<'a> TypeChecker<'a> {
@@ -52,6 +57,7 @@ impl<'a> TypeChecker<'a> {
             scopes:   ScopeStack::default(),
             current_ret:   None,
             current_class: None,
+            current_generic: None,
             current_runtime_ctx: None,
             checked_classes: std::collections::HashSet::new(),
             program: None,
@@ -59,7 +65,7 @@ impl<'a> TypeChecker<'a> {
             class_members: std::collections::HashMap::new(),
             resource_classes: std::collections::HashSet::new(),
             callable_params: std::collections::HashMap::new(),
-            named_arg_rewrites: std::collections::HashMap::new(),
+            rewrites: crate::sema::named_args::AstRewrites::default(),
         }
     }
     
@@ -112,6 +118,14 @@ impl<'a> TypeChecker<'a> {
         // Classes (celles qui n'ont pas été typecheckées via les runtime blocks)
         for class in &program.classes {
             self.check_class(class);
+        }
+        // Corps des `generic` et des `module`, une fois chacun (voir
+        // `crate::sema::generic_check`).
+        for generic in &program.generics {
+            self.check_generic(generic);
+        }
+        for module in &program.modules {
+            self.check_module(module);
         }
     }
 
@@ -192,7 +206,7 @@ impl<'a> TypeChecker<'a> {
         for param in &func.params {
             // Warning si variadic<mixed>
             if param.is_variadic {
-                if let Type::Mixed = param.ty {
+                if matches!(param.ty, Type::Mixed) && self.current_generic.is_none() {
                     self.warnings.push(SemaWarning::VariadicMixed {
                         name: param.name.clone(),
                         span: param.span.clone(),
@@ -220,7 +234,7 @@ impl<'a> TypeChecker<'a> {
 
     // ── Classe ───────────────────────────────────────────────────────────────
 
-    fn check_class(&mut self, class: &ClassDecl) {
+    pub(crate) fn check_class(&mut self, class: &ClassDecl) {
         // Ne pas typecheck deux fois la même classe
         if self.checked_classes.contains(&class.name) {
             return;
@@ -239,7 +253,7 @@ impl<'a> TypeChecker<'a> {
             match member {
                 ClassMember::Method { decl, .. } => {
                     // Vérifier le type de retour mixed
-                    if let Type::Mixed = decl.ret_ty {
+                    if matches!(decl.ret_ty, Type::Mixed) && self.current_generic.is_none() {
                         self.errors.push(SemaError::MixedInReturnType {
                             name: format!("{}::{}", class.name, decl.name),
                             span: decl.span.clone(),
@@ -265,7 +279,7 @@ impl<'a> TypeChecker<'a> {
                         }
                         // Warning si variadic<mixed>
                         if p.is_variadic {
-                            if let Type::Mixed = p.ty {
+                            if matches!(p.ty, Type::Mixed) && self.current_generic.is_none() {
                                 self.warnings.push(SemaWarning::VariadicMixed {
                                     name: p.name.clone(),
                                     span: p.span.clone(),
@@ -289,7 +303,16 @@ impl<'a> TypeChecker<'a> {
                     { let _u = self.scopes.pop_scope(&self.resource_classes); self.flush_warnings(_u); }
                     self.current_ret = saved_ret;
                 }
-                ClassMember::Const { ty, value, span, .. } => {
+                ClassMember::Const { name, ty, value, span, .. } => {
+                    // Inlinée/émise en globale : sa valeur doit être connue
+                    // à la compilation (voir `Expr::const_literal`).
+                    if value.const_literal().is_none() {
+                        self.errors.push(SemaError::ClassConstNotConstant {
+                            class: class.name.clone(),
+                            name:  name.clone(),
+                            span:  span.clone(),
+                        });
+                    }
                     let val_ty = self.infer_expr(value);
                     if !types_compat(&val_ty, ty, &self.symbols) {
                         self.errors.push(SemaError::TypeMismatch {
@@ -301,7 +324,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 ClassMember::Field { name, ty, span, .. } => {
                     // Vérifier que les property ne sont pas de type mixed
-                    if let Type::Mixed = ty {
+                    if matches!(ty, Type::Mixed) && self.current_generic.is_none() {
                         self.errors.push(SemaError::MixedInProperty {
                             class: class.name.clone(),
                             field: name.clone(),
@@ -505,7 +528,7 @@ impl<'a> TypeChecker<'a> {
                     });
                 }
                 // Warning si le type est mixed
-                if let Type::Mixed = ty {
+                if matches!(ty, Type::Mixed) && self.current_generic.is_none() {
                     self.warnings.push(SemaWarning::MixedLocalVariable {
                         name: name.clone(),
                         span: span.clone(),
@@ -827,6 +850,16 @@ impl<'a> TypeChecker<'a> {
                         if let Some(cls_name) = type_class_name(&obj_ty) {
                             if let Some((owner, f)) = self.symbols.lookup_field_owner(&cls_name, field) {
                                 self.check_field_visibility(owner, &f.vis, field, field_span);
+                                // Type de la valeur affectée (initialiseur de `property`
+                                // compris, désucré en `self.x = expr`) — jamais vérifié
+                                // jusqu'ici pour un champ.
+                                if !types_compat(&val_ty, &f.ty, &self.symbols) {
+                                    self.errors.push(SemaError::TypeMismatch {
+                                        expected: type_name(&f.ty),
+                                        found:    type_name(&val_ty),
+                                        span:     span.clone(),
+                                    });
+                                }
                             }
                         }
                     }
@@ -1020,7 +1053,11 @@ impl<'a> TypeChecker<'a> {
             Expr::Literal(lit, _) => literal_type(lit),
 
             Expr::SelfExpr(_) => {
-                if let Some(cls) = &self.current_class {
+                // Corps d'un `generic` (voir `check_generic`) : `self` est une
+                // instance du generic, ses méthodes résolues avec `T` permissif.
+                if let Some((name, arity)) = self.current_generic.as_ref().filter(|(n, _)| self.current_class.as_ref() == Some(n)) {
+                    Type::Generic { name: name.clone(), args: vec![Type::Mixed; *arity] }
+                } else if let Some(cls) = &self.current_class {
                     Type::Named(cls.clone())
                 } else {
                     Type::Mixed
@@ -1204,6 +1241,12 @@ impl<'a> TypeChecker<'a> {
                 if let Expr::Field { object, field, span: fspan } = callee.as_ref() {
                     let obj_ty = self.infer_expr(object);
 
+                    // `s.toInt()`, `n.toStr()`... → `Convert::strToInt(s)`...
+                    // (voir `crate::sema::convert_sugar`).
+                    if let Some(ret) = self.resolve_convert_sugar(object, &obj_ty, field, args, span) {
+                        return ret;
+                    }
+
                     // Valeur d'un générique instancié (`List<int>`, ...) : résoudre
                     // la méthode dans la déclaration `generic`, avec substitution
                     // des paramètres de type par les arguments concrets de CETTE
@@ -1316,6 +1359,7 @@ impl<'a> TypeChecker<'a> {
                         self.errors.push(SemaError::MethodCallOnNonClass {
                             type_name: type_name(&obj_ty),
                             method: field.clone(),
+                            available: crate::sema::convert_sugar::conversion_methods_for(&obj_ty),
                             span: self.with_runtime_ctx(fspan),
                         });
                         for a in args { self.infer_expr(a); }

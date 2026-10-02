@@ -244,14 +244,108 @@ def parse_file(class_name, mod_name, fn_name):
         "consts": sorted(consts, key=lambda c: c["name"]),
     }
 
+DOCS_DIR = ROOT / "docs/builtins"
+DOC_MAX_CHARS = 1500
+HEADING_RE = re.compile(r'^(#{1,4})\s+(.*)$')
+# `Classe::methode(`, `objet.methode(` ou `methode(` entre backticks
+HEADING_METHOD_RE = re.compile(r'`(?:([A-Za-z_]\w*)(::|\.))?([A-Za-z_]\w*)\s*\(')
+TABLE_ROW_RE = re.compile(r'^\|([^|]*`[^|]*)\|(.*)\|\s*$')
+TABLE_NAME_RE = re.compile(r'^(?:([A-Za-z_]\w*)(::|\.))?([A-Za-z_]\w*)\s*(?:\(|$)')
+
+CODE_CALL_RE = r'(?:\.|::){}\s*\('
+
+def method_class(owner, sep, current):
+    """`Classe::m` désigne Classe ; `objet.m`/`m` la classe documentée en cours."""
+    return owner if owner and sep == '::' and owner[0].isupper() else current
+
+def extract_docs():
+    """Documentation markdown par (classe, méthode), depuis docs/builtins/*.md.
+
+    Deux formes reconnues : une section dont le titre contient un appel entre
+    backticks (corps = jusqu'au titre suivant de niveau <= ou un `---`), et
+    une ligne de tableau dont la première cellule est un nom de méthode (corps
+    = cellules suivantes). Un titre `ocara.Nom` change la classe en cours
+    (ex. HTTPServer.md documente aussi HTTPServerRequest). Le premier texte
+    trouvé pour une méthode l'emporte (titres avant tableaux)."""
+    docs, table_docs = {}, {}
+    for md in sorted(DOCS_DIR.glob("*.md")):
+        current = md.stem
+        lines = md.read_text(encoding="utf-8").split("\n")
+        for i, line in enumerate(lines):
+            hm = HEADING_RE.match(line)
+            if hm:
+                level, title = len(hm.group(1)), hm.group(2)
+                switch = re.search(r'ocara\.([A-Z]\w*)', title)
+                if switch and level <= 2:
+                    current = switch.group(1)
+                mm = HEADING_METHOD_RE.search(title)
+                if not mm:
+                    continue
+                key = (method_class(mm.group(1), mm.group(2), current), mm.group(3))
+                body = []
+                for nxt in lines[i + 1:]:
+                    nh = HEADING_RE.match(nxt)
+                    if (nh and len(nh.group(1)) <= level) or nxt.strip() == '---':
+                        break
+                    body.append(nxt)
+                text = (title.strip() + "\n\n" + "\n".join(body).strip()).strip()
+                docs.setdefault(key, (text[:DOC_MAX_CHARS], md.name, title.strip()))
+                continue
+            tm = TABLE_ROW_RE.match(line)
+            if tm:
+                # Première cellule : un ou plusieurs noms entre backticks
+                # (`getTitle()` / `setTitle(title:string)`).
+                first = tm.group(1).strip()
+                cells = [c.strip() for c in tm.group(2).split("|") if c.strip()]
+                if not cells:
+                    continue
+                for code in re.findall(r'`([^`]+)`', first):
+                    nm = TABLE_NAME_RE.match(code.strip())
+                    if nm:
+                        key = (method_class(nm.group(1), nm.group(2), current), nm.group(3))
+                        table_docs.setdefault(key, (first + " — " + " — ".join(cells), md.name, None))
+    for key, text in table_docs.items():
+        docs.setdefault(key, text)
+    return docs
+
+def example_doc(class_name, method_name):
+    """Repli pour une méthode sans section ni ligne de tableau : première ligne
+    d'exemple de code qui l'appelle (avec son commentaire), dans la doc de sa
+    classe d'abord — `server.workers(32)  // threads workers (défaut : 4)`."""
+    own = DOCS_DIR / f"{class_name}.md"
+    candidates = ([own] if own.exists() else []) + [f for f in sorted(DOCS_DIR.glob("*.md")) if f != own]
+    call = re.compile(CODE_CALL_RE.format(re.escape(method_name)))
+    for md in candidates:
+        in_code = False
+        for line in md.read_text(encoding="utf-8").split("\n"):
+            if line.strip().startswith("```"):
+                in_code = not in_code
+                continue
+            if in_code and call.search(line):
+                return ("Exemple :\n\n```ocara\n" + line.strip() + "\n```", md.name, None)
+    return None
+
 def main():
     catalog = []
     for class_name, mod_name, fn_name in CLASSES:
         catalog.append(parse_file(class_name, mod_name, fn_name))
 
+    docs = extract_docs()
+    documented = 0
+    for c in catalog:
+        for m in c["methods"]:
+            doc = docs.get((c["name"], m["name"])) or example_doc(c["name"], m["name"])
+            if doc:
+                # `docFile` (dans docs/builtins/) et `docHeading` (titre de la
+                # section, pour ouvrir l'aperçu dessus) : lien du survol.
+                m["doc"], m["docFile"], heading = doc
+                if heading:
+                    m["docHeading"] = heading
+                documented += 1
+
     total_methods = sum(len(c["methods"]) for c in catalog)
     total_consts = sum(len(c["consts"]) for c in catalog)
-    print(f"{len(catalog)} classes, {total_methods} méthodes, {total_consts} constantes")
+    print(f"{len(catalog)} classes, {total_methods} méthodes ({documented} documentées), {total_consts} constantes")
     for c in catalog:
         static_n = sum(1 for m in c["methods"] if m["static"])
         inst_n = len(c["methods"]) - static_n

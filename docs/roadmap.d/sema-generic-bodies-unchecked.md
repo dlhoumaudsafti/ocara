@@ -17,13 +17,28 @@ résolution syntaxique dans `core::named_args` (fonction libre,
 nommé sur un autre receveur y reste une erreur explicite (voir E50 dans
 `docs/diagnostics.md`).
 
-## Piste
+## Décision et correction
 
-Typechecker chaque `generic` avec ses paramètres de type liés à des types
-abstraits (ou vérifier les classes monomorphisées, en déplaçant la
-monomorphisation avant la sema) — à trancher, les deux ont des implications
-sur les messages d'erreur (position dans le `generic` vs dans
-l'instanciation).
+**Retenu (David)** : vérification UNE fois par generic, `T` permissif (et
+non par instanciation monomorphisée — un generic jamais instancié serait
+resté non vérifié, et une erreur répétée par instanciation).
+
+- `core::monomorph::erased_generic_class` : classe « effacée » du generic,
+  paramètres de type remplacés par `mixed` — construite par le même code de
+  substitution que la monomorphisation (`specialize_members`, factorisé) ;
+- `sema::generic_check::check_generic` : vérifie cette classe ;
+  `current_generic` suspend les diagnostics propres à `mixed` (E14/E15/
+  W02/W03 — un `T` n'est pas un `mixed` écrit par le développeur) et type
+  `self` comme une instance du generic (`self.m(...)` résolu sur ses
+  méthodes, arguments nommés compris) ;
+- **même défaut découvert sur les `module` (mixins)**, jamais vérifiés non
+  plus — `check_module` les vérifie une fois comme une classe (accès
+  `self.x` à la classe utilisatrice permissifs) ;
+- tout le code passant désormais par la sema, le repli syntaxique des
+  arguments nommés de `core::named_args` est supprimé.
+
+Tests : `src/sema/tests/generic_check.rs`. Documenté dans `docs/EBNF.md`
+§20.6. Aucun exemple existant ne contenait d'erreur ainsi révélée.
 
 ## Priorité / Complexité
 

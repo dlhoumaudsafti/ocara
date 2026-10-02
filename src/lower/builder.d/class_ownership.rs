@@ -48,7 +48,8 @@ pub fn has_generated_destructor(module: &IrModule, class_name: &str) -> bool {
 /// Ce qu'il faut faire d'un champ lors de la libération/du clonage de
 /// l'objet qui le porte.
 enum FieldOwnership {
-    /// `string`/`array<T>`/`map<K,V>` — via `__value_free`/`__value_clone`.
+    /// `string`/`array<T>`/`map<K,V>` — symbole choisi selon le type déclaré
+    /// (voir `crate::lower::stmt::ownership::value_ownership_symbol`).
     Value,
     /// Une autre classe utilisateur (a son propre `__free_`/`__clone_`).
     Object(String),
@@ -100,8 +101,24 @@ pub fn generate_class_ownership_functions(module: &mut IrModule, program: &Progr
     }
 }
 
+/// Appel de libération/clonage d'un champ `string`/`array`/`map` de type
+/// `ty` sur la valeur `v` — `dest` pour un clonage.
+fn emit_value_ownership_call(module: &mut IrModule, f: &mut IrFunction, ty: &Type, clone: bool, v: Value, dest: Option<Value>) {
+    let Some((func, shape)) = crate::lower::stmt::ownership::value_ownership_symbol(ty, clone) else { return };
+    let mut args = vec![v];
+    if let Some(shape) = shape {
+        let shape_val = f.new_value();
+        f.emit(Inst::ConstStr { dest: shape_val.clone(), idx: module.intern_string(&shape) });
+        let offset_val = f.new_value();
+        f.emit(Inst::ConstInt { dest: offset_val.clone(), value: 0 });
+        args.extend([shape_val, offset_val]);
+    }
+    let ret_ty = if clone { IrType::Ptr } else { IrType::Void };
+    f.emit(Inst::Call { dest, func: func.to_string(), args, ret_ty });
+}
+
 /// `fn __free_<Classe>(obj: i64) -> void`
-fn build_free_function(module: &IrModule, class_name: &str) -> IrFunction {
+fn build_free_function(module: &mut IrModule, class_name: &str) -> IrFunction {
     let name = format!("__free_{}", class_name);
     let mut f = IrFunction::new(name, vec![], IrType::Void);
     let obj = f.new_value();
@@ -120,7 +137,7 @@ fn build_free_function(module: &IrModule, class_name: &str) -> IrFunction {
             FieldOwnership::Value => {
                 let v = f.new_value();
                 f.emit(Inst::GetField { dest: v.clone(), obj: obj.clone(), field: fname.clone(), ty: ir_ty, offset });
-                f.emit(Inst::Call { dest: None, func: "__value_free".into(), args: vec![v], ret_ty: IrType::Void });
+                emit_value_ownership_call(module, &mut f, fty, false, v, None);
             }
             FieldOwnership::Object(other_class) => {
                 let v = f.new_value();
@@ -160,7 +177,7 @@ fn build_free_function(module: &IrModule, class_name: &str) -> IrFunction {
 }
 
 /// `fn __clone_<Classe>(obj: i64) -> i64`
-fn build_clone_function(module: &IrModule, class_name: &str) -> IrFunction {
+fn build_clone_function(module: &mut IrModule, class_name: &str) -> IrFunction {
     let name = format!("__clone_{}", class_name);
     let mut f = IrFunction::new(name, vec![], IrType::Ptr);
     let obj = f.new_value();
@@ -185,7 +202,7 @@ fn build_clone_function(module: &IrModule, class_name: &str) -> IrFunction {
         let to_store = match classify_field(fty, &module.class_field_types) {
             FieldOwnership::Value => {
                 let cloned = f.new_value();
-                f.emit(Inst::Call { dest: Some(cloned.clone()), func: "__value_clone".into(), args: vec![src], ret_ty: IrType::Ptr });
+                emit_value_ownership_call(module, &mut f, fty, true, src, Some(cloned.clone()));
                 cloned
             }
             FieldOwnership::Object(other_class) => {

@@ -5,6 +5,11 @@ import { OcaraCompletionProvider } from './completion';
 import { loadBuiltins } from './builtins';
 import { OcaraSignatureHelpProvider } from './signature';
 import { OcaraCodeLensProvider, WorkspaceIndex } from './codelens';
+import { OcaracsLinter } from './lint';
+import { OcaraCompiler } from './compile';
+import { runtimeContext } from './runtimecontext';
+import { OcaraHoverProvider } from './hover';
+import { registerDocs } from './docs';
 import { findCallSite, resolveCall } from './callsite';
 import {
     esc,
@@ -40,6 +45,16 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.languages.registerCodeLensProvider(selector, new OcaraCodeLensProvider(index))
     );
+
+    // Documentation embarquée (copie de docs/, ouverte en aperçu depuis le survol).
+    registerDocs(context);
+
+    // Documentation au survol (builtins, sucre d'instance, déclarations utilisateur).
+    context.subscriptions.push(vscode.languages.registerHoverProvider(selector, new OcaraHoverProvider()));
+
+    // Analyse ocaracs automatique + commandes Compiler / Afficher le dump.
+    context.subscriptions.push(new OcaracsLinter());
+    new OcaraCompiler().register(context);
 }
 
 export function deactivate(): void {}
@@ -81,6 +96,18 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
             const symbol = importFromMatch[1];
             const filePath = importFromMatch[2];
             return this.resolveFileImport(document, symbol, filePath);
+        }
+
+        // ── 2a-bis. `wiring chemin.vers.Classe` (interface) → la classe ciblée ─
+        // Même résolution qu'un import namespace, puis positionnement sur la
+        // déclaration ; classe déclarée dans le fichier courant sinon.
+        const wiringMatch = lineText.match(/^\s*wiring\s+([\w.]+)\s*$/);
+        if (wiringMatch) {
+            const target = wiringMatch[1];
+            const className = target.split('.').pop()!;
+            const loc = resolveImportPath(document, target);
+            if (loc) { return [this.findSymbolInFile(loc.uri.fsPath, className)]; }
+            return this.findTypeDeclaration(document, className, position);
         }
 
         // ── 2b. Ligne d'import namespace : import foo.bar.Baz ─────────────────
@@ -197,42 +224,53 @@ class OcaraDefinitionProvider implements vscode.DefinitionProvider {
         // Extrait le nom de la variable/propriété (dernier segment)
         const segments = objectPath.split('.');
         const varName = segments[segments.length - 1];
-        
-        // Trouve le type de cette variable dans le document
-        const typeName = findVariableType(document, varName);
+
+        // Fichier runtime : la variable et l'import de sa classe peuvent vivre
+        // dans un autre fichier du même programme (voir runtimecontext.ts).
+        const typeName = findVariableType(document, varName)
+            ?? (await this.inRuntimeContext(document, doc => findVariableType(doc, varName)));
         if (!typeName) { return undefined; }
-        
-        // Cherche le fichier de cette classe via les imports from
-        const fileImports = parseFileImports(document);
-        for (const imp of fileImports) {
+
+        return (await this.findMemberViaImports(document, typeName, methodName))
+            ?? (await this.inRuntimeContext(document, doc => this.findMemberViaImports(doc, typeName, methodName)));
+    }
+
+    /** Premier résultat de `lookup` sur les documents du contexte runtime de `document`. */
+    private async inRuntimeContext<T>(
+        document: vscode.TextDocument,
+        lookup: (doc: vscode.TextDocument) => T | undefined | Promise<T | undefined>
+    ): Promise<T | undefined> {
+        for (const doc of await runtimeContext(document)) {
+            const found = await lookup(doc);
+            if (found !== undefined) { return found; }
+        }
+        return undefined;
+    }
+
+    /** Méthode `methodName` de la classe `typeName`, résolue via les imports de `document` (ou localement). */
+    private async findMemberViaImports(
+        document: vscode.TextDocument,
+        typeName: string,
+        methodName: string
+    ): Promise<vscode.Location | undefined> {
+        for (const imp of parseFileImports(document)) {
             const match = imp.alias === typeName || (!imp.alias && imp.symbol === typeName) || imp.symbol === '*';
             if (match) {
                 const targetUri = await resolveFileImportUri(document, imp.filePath);
-                if (targetUri) {
-                    const memberLoc = this.findMemberInFile(targetUri, methodName);
-                    if (memberLoc) { return memberLoc; }
-                }
+                const memberLoc = targetUri ? this.findMemberInFile(targetUri, methodName) : undefined;
+                if (memberLoc) { return memberLoc; }
             }
         }
-        
-        // Cherche ensuite via les imports namespace
-        const imports = parseImports(document);
-        for (const imp of imports) {
+        for (const imp of parseImports(document)) {
             const match = imp.alias === typeName || (!imp.alias && imp.lastName === typeName);
             if (match) {
                 const loc = resolveImportPath(document, imp.importPath);
-                if (loc) {
-                    const memberLoc = this.findMemberInFile(loc.uri, methodName);
-                    if (memberLoc) { return memberLoc; }
-                }
+                const memberLoc = loc ? this.findMemberInFile(loc.uri, methodName) : undefined;
+                if (memberLoc) { return memberLoc; }
             }
         }
-        
-        // Cherche dans le fichier courant (classe locale)
-        const memberLoc = this.findMemberInFile(document.uri, methodName);
-        if (memberLoc) { return memberLoc; }
-        
-        return undefined;
+        // Classe locale (déclarée dans ce document)
+        return this.findMemberInFile(document.uri, methodName);
     }
 
     // ─── Trouve un membre (méthode/fonction) dans un fichier ──────────────────

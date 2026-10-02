@@ -752,10 +752,11 @@ Avant ce diagnostic, un récepteur de type `void` était traité comme n'importe
 ### E37 — Appel de méthode sur un récepteur sans classe associée (`int`/`float`/`bool`/`null`/`message<T>`/`Function<...>`)
 
 ```
-fichier.oc:11:32: error: cannot call '.upper(...)' — the receiver's type is 'int', which has no methods
+fichier.oc:11:32: error: cannot call '.upper(...)' — the receiver's type is 'int', whose only methods are the conversions: toFloat(), toBool(), toStr()
+fichier.oc:11:32: error: cannot call '.foo(...)' — the receiver's type is 'null', which has no methods
 ```
 
-`expr.méthode(...)` où `expr` est de type `int`, `float`, `bool`, `null`, `message<T>` ou `Function<...>` — aucun de ces types n'a de classe associée, donc aucune méthode ne peut exister dessus. Même mécanisme que E36 (void), généralisé aux types que ce correctif-là avait délibérément laissés de côté.
+`expr.méthode(...)` où `expr` est de type `int`, `float`, `bool`, `null`, `message<T>` ou `Function<...>` — aucun de ces types n'a de classe associée. `int`/`float`/`bool` n'ont pour seules méthodes que les conversions de `Convert` (`n.toStr()`, `f.toInt()`... — voir docs/builtins/Convert.md), listées dans le message ; les autres types n'en ont aucune. Même mécanisme que E36 (void), généralisé aux types que ce correctif-là avait délibérément laissés de côté.
 
 ```ocara
 class Foo {
@@ -775,7 +776,7 @@ Avant ce diagnostic, un récepteur de l'un de ces types était traité comme n'i
 
 **Important :** `mixed` n'est **pas** concerné par ce diagnostic — son imprécision (aucune vérification de type) est un choix de langage assumé, documenté par l'avertissement W02 (voir plus bas), pas un oubli comme les types ci-dessus.
 
-**Correction :** ne pas appeler de méthode sur un récepteur de l'un de ces types — s'assurer que la méthode précédente de la chaîne retourne bien une instance de classe (ou `string`/`array`/`map`, qui ont leurs propres méthodes d'instance sucrées) avant de chaîner un appel dessus.
+**Correction :** ne pas appeler de méthode (hors conversions listées) sur un récepteur de l'un de ces types — s'assurer que la méthode précédente de la chaîne retourne bien une instance de classe (ou `string`/`array`/`map`, qui ont leurs propres méthodes d'instance sucrées) avant de chaîner un appel dessus.
 
 ---
 
@@ -1025,7 +1026,7 @@ f(a: 1, b: 2)    // ❌ E50
 f(1, 2)          // ✅
 ```
 
-Variante émise après l'analyse sémantique, pour un appel nommé dans le corps d'un `generic` (non parcouru par l'analyse sémantique) dont la cible dépend du type d'un receveur autre que `self` : `named argument 'x' cannot be resolved here: this call's target depends on a type not known outside semantic analysis (...)`.
+Dans le corps d'un `generic`, un appel nommé sur une valeur de type `T` (paramètre de type, inconnu tant que le generic n'est pas instancié) relève aussi de ce diagnostic : passer les arguments en position.
 
 **Correction :** passer les arguments en position.
 
@@ -1109,6 +1110,46 @@ c.z = 4                 // ❌ E54 — private
 ```
 
 **Correction :** exposer la donnée via une méthode publique de la classe, ou rendre le champ `public` s'il fait réellement partie de l'interface de la classe.
+
+---
+
+### E55 — Valeur de constante de classe non évaluable à la compilation
+
+```
+fichier.oc:2:11: error: value of class constant 'U::X' must be known at compile time — a literal, possibly negated or combined with +, -, *, /, % (e.g. '-273', '60 * 1000'); use a static method for a computed value
+```
+
+Une constante de classe est inlinée à chacun de ses usages (§16.4 de l'EBNF) : sa valeur doit être calculable à la compilation. Jusqu'à ce diagnostic, toute valeur autre qu'un littéral nu — y compris un simple `-273` — était silencieusement fausse (`T::ZERO` valait le nom du symbole `T__ZERO`, voir docs/roadmap.d/langage-negative-class-const.md). Sont acceptés : littéraux, `-x`, `not x`, et `+ - * / %` entre littéraux (concaténation `+` entre chaînes) ; une division par zéro ou un débordement entier est rejeté.
+
+```ocara
+function f(): int { return 1 }
+
+class U {
+    public const OK:int = -60 * 1000   // ✅ -60000
+    public const X:int = f()           // ❌ E55
+}
+```
+
+**Correction :** écrire la valeur littérale, ou exposer la valeur calculée via une méthode statique (`public static method x(): int { return f() }`).
+
+---
+
+### E56 — Initialiseur de `property` utilisant `self`/`parent`
+
+```
+fichier.oc:3:26: error: initializer of property 'y' cannot use 'self' or 'parent' — it is evaluated before init(), independently of the other properties; assign it in init() instead
+```
+
+Un initialiseur de `property` (§16.3 de l'EBNF) est évalué avant le corps de `init()`, indépendamment des autres properties : il ne peut pas référencer l'instance (`self.x`, `self::m()`, `parent::...`), y compris dans une fonction anonyme. Émis au parsing. Variante : une `property` de `module` ne peut pas avoir d'initialiseur (`module 'M': property 'x' cannot have an initializer`), un module n'ayant pas de constructeur propre.
+
+```ocara
+class A {
+    public property x:int = 1
+    public property y:int = self.x + 1   // ❌ E56
+}
+```
+
+**Correction :** affecter la valeur dans `init()` (`self.y = self.x + 1`).
 
 ---
 

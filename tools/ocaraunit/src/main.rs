@@ -273,12 +273,41 @@ impl TestResult {
 // Exécution d'un test
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Calcule un hash rapide du contenu d'un fichier pour le cache.
-fn hash_file_content(path: &Path) -> Option<u64> {
+/// Clé de cache d'un fichier de test : son contenu + `fingerprint` (voir
+/// `build_fingerprint`).
+fn hash_file_content(path: &Path, fingerprint: u64) -> Option<u64> {
     let content = fs::read(path).ok()?;
     let mut hasher = DefaultHasher::new();
     content.hash(&mut hasher);
+    fingerprint.hash(&mut hasher);
     Some(hasher.finish())
+}
+
+/// Empreinte de tout ce dont dépend un binaire de test en dehors de son
+/// propre fichier : le compilateur (qui embarque le runtime) et chaque `.oc`
+/// du projet (classes importées par le test) — métadonnées seulement
+/// (chemin, taille, date de modification), calculée une fois par exécution.
+/// Sans elle, un binaire mis en cache survivait à toute modification du
+/// compilateur, du runtime ou d'un fichier importé, et les tests tournaient
+/// silencieusement sur un ancien binaire.
+fn build_fingerprint(ocara: &Path, project_root: &Path) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    hash_metadata(ocara, &mut hasher);
+    let files = collect_oc_files(project_root, &[], project_root);
+    for file in files.iter().filter(|f| !f.to_string_lossy().contains("__ocaraunit__")) {
+        file.hash(&mut hasher);
+        hash_metadata(file, &mut hasher);
+    }
+    hasher.finish()
+}
+
+fn hash_metadata(path: &Path, hasher: &mut DefaultHasher) {
+    if let Ok(meta) = fs::metadata(path) {
+        meta.len().hash(hasher);
+        if let Ok(modified) = meta.modified() {
+            modified.hash(hasher);
+        }
+    }
 }
 
 fn find_ocara_bin() -> PathBuf {
@@ -329,21 +358,23 @@ fn find_ocara_bin() -> PathBuf {
 /// 1. Lit le fichier source et extrait tous les noms de tests (*Test)
 /// 2. Génère une fonction main() qui appelle tous les tests
 /// 3. Compile avec `ocara --src <project_root>` pour résoudre les imports
-/// 4. Met en cache le binaire (hash du fichier source)
+/// 4. Met en cache le binaire (hash du fichier source + empreinte du
+///    compilateur et du projet, voir `build_fingerprint`)
 /// 5. Exécute le binaire et parse la sortie (lignes PASS/FAIL)
 ///
-/// Le cache (`.ocaraunit_cache/`) évite de recompiler si le fichier n'a pas changé.
-/// Utilisez `--clear` pour forcer la recompilation après une mise à jour du compilateur.
+/// Le cache (`.ocaraunit_cache/`) évite de recompiler si ni le test, ni le
+/// compilateur, ni aucun `.oc` du projet n'a changé.
 fn run_test_file(
     ocara: &Path,
     src: &Path,
     cache_dir: &Path,
     project_root: &Path,
+    fingerprint: u64,
 ) -> (Vec<TestResult>, Option<String>) {
     let stem = src.file_stem().unwrap_or_default().to_string_lossy();
     
     // Calculer le hash du fichier source pour le cache
-    let source_hash = match hash_file_content(src) {
+    let source_hash = match hash_file_content(src, fingerprint) {
         Some(h) => h,
         None => return (vec![], Some("impossible de lire le fichier source".to_string())),
     };
@@ -420,10 +451,15 @@ fn run_test_file(
 
     // On regroupe sous un TestResult unique par fichier (pas d'isolation par fonction)
     let _name = stem.to_string();
-    let error = if !run_out.status.success() && all_asserts.is_empty() {
+    // Un `assert*` en échec lève une `UnitTestException` (jamais de ligne
+    // `FAIL` sur stdout) qui termine le binaire en erreur : tout échec
+    // d'exécution doit être signalé, même après des assertions réussies —
+    // sinon l'échec et toutes les assertions suivantes du fichier
+    // disparaissaient silencieusement derrière un « 0 FAIL ».
+    let error = if !run_out.status.success() {
         let stderr = String::from_utf8_lossy(&run_out.stderr).to_string();
-        // Afficher les 10 premières lignes d'erreur
-        let error_lines: Vec<&str> = stderr.lines().take(10).collect();
+        // Bandeau d'exception non rattrapée (11 lignes) + sa ligne `Message:`.
+        let error_lines: Vec<&str> = stderr.lines().take(20).collect();
         Some(error_lines.join("\n"))
     } else {
         None
@@ -735,6 +771,7 @@ fn main() {
     let cfg = load_config(&config_root);
 
     let ocara = find_ocara_bin();
+    let fingerprint = build_fingerprint(&ocara, &project_root);
 
     // Répertoire de cache pour les binaires compilés
     let cache_dir = config_root.join(".ocaraunit_cache");
@@ -782,7 +819,7 @@ fn main() {
         println!();
         println!("{}{}{}:", c.bold, rel, c.reset);
 
-        let (results, compile_err) = run_test_file(&ocara, tf, &cache_dir, &project_root);
+        let (results, compile_err) = run_test_file(&ocara, tf, &cache_dir, &project_root, fingerprint);
 
         if let Some(err) = compile_err {
             println!("  {}ERREUR compilation :{}", c.red, c.reset);
@@ -795,20 +832,10 @@ fn main() {
         }
 
         for res in &results {
-            if let Some(ref err) = res.error {
-                println!("  {}ERREUR exécution :{}", c.red, c.reset);
-                for line in err.lines() {
-                    println!("  {}", line);
-                }
-                total_errors += 1;
-                has_failure = true;
-                continue;
-            }
-            
             total_compile_time_ms += res.compile_time_ms;
             total_run_time_ms += res.run_time_ms;
 
-            if res.asserts.is_empty() {
+            if res.asserts.is_empty() && res.error.is_none() {
                 println!("  {}(aucune assertion){}", c.dim, c.reset);
                 continue;
             }
@@ -834,6 +861,17 @@ fn main() {
                 format!(" {}(cached, run: {}ms){}", c.dim, res.run_time_ms, c.reset)
             };
             println!("  {}{} PASS  {} FAIL{}{}", col, p, f, c.reset, time_info);
+
+            // Après les assertions déjà passées : l'exécution s'est arrêtée là
+            // (assertion en échec ou exception), la suite du fichier n'a pas tourné.
+            if let Some(ref err) = res.error {
+                println!("  {}ERREUR exécution :{}", c.red, c.reset);
+                for line in err.lines() {
+                    println!("  {}", line);
+                }
+                total_errors += 1;
+                has_failure = true;
+            }
         }
     }
 

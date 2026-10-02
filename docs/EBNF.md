@@ -1358,6 +1358,7 @@ NamedArg       ::= Identifier ":" Expression
 - **Annotation de type postfix** : dans un contexte `match` ou `switch`, l'accès `expr.field:type` est syntaxiquement autorisé ; l'annotation de type est ignorée sémantiquement (hint visuel uniquement).
 - **L'appel de fonction** sans receveur est une `PostfixExpr` dont le `PrimaryExpr` est un `Identifier` suivi de `( ArgList? )`.
 - **Arguments nommés** (`f(name: expr)`) : un appel est soit entièrement positionnel, soit entièrement nommé — jamais un mélange (voir §14.6).
+- **Méthodes d'instance des types primitifs** : `string`/`array<T>`/`map<K,V>` ont les méthodes de `String`/`Array`/`Map` en instance (`s.trim()` ≡ `String::trim(s)`), et ces types ainsi que `int`/`float`/`bool` ont les conversions de `Convert` sous un nom sans préfixe de type source (`s.toInt()` ≡ `Convert::strToInt(s)`, `n.toStr()`, `arr.toStr(sep)`... — liste complète dans `docs/builtins/Convert.md`). Résolu sur le type **statique** du receveur (pas sur `mixed`) ; ce sont les seules méthodes de `int`/`float`/`bool`.
 - **Tableau vs map** : `[...]` est toujours un tableau, `{...}` est toujours un map.
 - **Incrémentation/décrémentation (`++`/`--`)** — voir docs/roadmap.d/langage-increment-decrement.md :
   - Sémantique complète façon C : `i++`/`i--` (suffixe) valent l'ANCIENNE valeur de la cible (elle change quand même) ; `++i`/`--i` (préfixe) valent la NOUVELLE. Ce sont de vraies EXPRESSIONS, utilisables partout où une expression est attendue (`x = i++`, `foo(i++)`, condition...), pas seulement comme instruction.
@@ -1748,6 +1749,22 @@ var __variadic_arr = [1, 2, 3]
 sum(__variadic_arr)
 ```
 
+**Dans le corps de la fonction**, un paramètre `variadic<T>` est un `array<T>` ordinaire (même représentation, mêmes méthodes : `nums.len()`, `for n in nums`, `nums[0]`), y compris pour une méthode d'instance ou statique.
+
+**Transmettre un variadic à un autre** : passé SEUL à la place d'un `variadic<T>` du même type d'élément, le tableau est transmis tel quel (pas réemballé dans un tableau d'un élément) :
+
+```ocara
+function sum(nums:variadic<int>): int { ... }
+
+function default_sum(nums:variadic<int>): int {
+    return sum(nums)              // sum reçoit [10, 20] → 30
+}
+
+default_sum(10, 20)               // 30
+```
+
+Pour un élément lui-même tableau/`mixed` (`variadic<array<T>>`, `variadic<mixed>`), seul un paramètre variadic est ainsi transmis — un tableau quelconque passé seul y reste UN élément.
+
 ### 14.3 Fonctions de première classe
 
 Une fonction peut être passée comme valeur en utilisant le type `Function` (voir §4.5).
@@ -1982,7 +1999,6 @@ Grammaire : voir `ArgList`/`NamedArg` (§10 et §31).
 - **Appel via une valeur `Function<T(...)>`** (§14.3) : ce type ne référence que les TYPES des paramètres, jamais leurs noms — un appel nommé y est rejeté (E50), il reste positionnel.
 - **Le nom d'un paramètre fait partie du contrat public** de la fonction/méthode/constructeur : le renommer casse tout site d'appel qui l'utilise par son nom (même conséquence qu'en PHP 8).
 - **Builtins** : les noms sont ceux documentés dans `docs/builtins/*.md` (ex. `String::replace(s, from, to)`). Un paramètre optionnel d'un builtin ne peut être omis qu'en fin de liste (aucune valeur par défaut à insérer à sa place).
-- **Corps d'un `generic`** : non parcouru par l'analyse sémantique — seuls les appels dont la cible ne dépend d'aucun type y sont résolus (fonction libre, `Classe::m(...)`, `self::m(...)`, `self.m(...)`, `use X(...)`) ; un appel nommé sur un autre receveur y est une erreur explicite.
 
 **Mise en œuvre :** l'analyse sémantique réordonne chaque appel nommé en liste positionnelle complète (valeurs par défaut insérées), puis cette liste remplace les arguments dans l'AST avant le lowering (`src/sema/named_args.rs`, `src/core/named_args.rs`) — le code généré est identique à celui d'un appel positionnel équivalent.
 
@@ -2213,7 +2229,7 @@ ClassBody  ::= "{" ClassMember* "}"
 
 ClassMember ::= Constructor
               | Visibility "static"? "method" Identifier "(" ParamList? ")" ":" Type Block
-              | Visibility "property" Identifier ":" Type
+              | Visibility "property" Identifier ":" Type ( "=" Expression )?
               | Visibility "const" Identifier ":" Type "=" Expression
 
 Constructor ::= "init" "(" ParamList? ")" Block
@@ -2294,6 +2310,21 @@ b.p = 3        // ❌ E54 — protected
 - `property` : champ d'instance d'une classe — **obligatoire** pour les champs. `var`, `scoped` et `consumed` sont **interdits** sur un champ de classe.
 - `const` : constante **statique** de classe, accessible via `Class::NAME`
 
+**Initialiseur de `property`** : `public property nom:Type = expr` — la valeur est évaluée et affectée **avant le corps de `init()`**, dans l'ordre de déclaration (une affectation dans `init()` l'emporte donc, puisqu'elle vient après). Sans `init()` écrit, un constructeur est généré pour porter les initialiseurs ; si la classe hérite d'un constructeur (`extends`), ce constructeur généré reprend ses paramètres et appelle d'abord `parent::init(...)`. Une classe qui écrit son propre `init()` doit, comme avant, appeler `parent::init(...)` elle-même pour que les initialiseurs du parent s'exécutent.
+
+```ocara
+class ExempleService {
+    public property repository:CarRepository = use CarRepository()
+    public property os:string = System::OS
+    public property retries:int = 3 * 2
+    init() {
+        self.repository.all()          // déjà initialisé
+    }
+}
+```
+
+Règles : la valeur est vérifiée contre le type déclaré du champ ; elle ne peut pas utiliser `self` ni `parent` (E56 — aucun ordre d'initialisation entre properties à définir, assigner dans `init()` si besoin) ; un `module` (§19) ne peut pas en porter (il n'a pas de constructeur propre). Pour un `struct` (§16.7), `champ:Type = expr` est la valeur par défaut du paramètre correspondant de son constructeur généré.
+
 > **Initialisation implicite des `property`** : tout champ non assigné dans `init` est automatiquement mis à zéro par le runtime (`alloc_zeroed`).
 > - Type référence (`string`, classe, tableau, map) → `null` (pointeur nul)
 > - Type primitif (`int`, `float`) → `0`
@@ -2333,6 +2364,16 @@ IO::writeln(Config::MAX_RETRY)  // 3
 ```
 
 Elles ne peuvent pas être modifiées. Les règles de visibilité s'appliquent normalement.
+
+Leur valeur doit être **connue à la compilation** (elle est inlinée à chaque usage) : un littéral, éventuellement négatif (`-273`) ou combiné avec `+`, `-`, `*`, `/`, `%` et `not` entre littéraux (`60 * 1000`, `"v" + "1"`). Toute autre expression (appel, variable, autre constante) est rejetée (E55) — utiliser une méthode statique pour une valeur calculée.
+
+```ocara
+class Limits {
+    public const ABSOLUTE_ZERO:int = -273      // ✅
+    public const TIMEOUT_MS:int = 60 * 1000    // ✅ évalué à la compilation : 60000
+    public const NOW:int = Time::now()         // ❌ E55
+}
+```
 
 ### 16.5 Méthodes statiques
 
@@ -3001,6 +3042,19 @@ NewExpr ::= "use" Identifier ( "<" TypeArgs ">" )? "(" ArgList? ")"
 - L'ordre des types doit correspondre à l'ordre des paramètres
 
 ### 20.6 Monomorphisation
+
+**Vérification du corps** : chaque `generic` est vérifié par l'analyse sémantique **une fois**, qu'il soit instancié ou non, ses paramètres de type étant traités comme des types libres. Tout ce qui ne dépend pas de `T` est contrôlé comme dans une classe ordinaire (symboles inconnus, arité des appels, types concrets, visibilité, arguments nommés, `self.méthode(...)`) ; une opération sur une valeur de type `T` est acceptée — sa validité dépend de l'instanciation. Une erreur est signalée une seule fois, à sa position dans le generic. Même vérification pour le corps d'un `module` (§19), dont les accès à des membres de la classe utilisatrice (`self.x`) restent permissifs.
+
+```ocara
+generic Box<T> {
+    private property item:T
+    public method describe(): string {
+        var n:int = "texte"     // ❌ erreur — même si Box n'est jamais instancié
+        return self.item        // ✅ accepté : `item` est de type T
+    }
+}
+```
+
 
 Le compilateur génère une version spécialisée du générique pour **chaque combinaison de types concrets** utilisée dans le programme. Ce processus s'appelle la **monomorphisation**.
 
@@ -3772,7 +3826,7 @@ TypeArgs    ::= Type ( "," Type )*
 ClassBody   ::= "{" ClassMember* "}"
 ClassMember ::= Constructor
               | Visibility "static"? "async"? "method" Identifier "(" ParamList? ")" ":" Type Block
-              | Visibility "property" Identifier ":" Type
+              | Visibility "property" Identifier ":" Type ( "=" Expression )?
               | Visibility "const" Identifier ":" Type "=" Expression
 Constructor ::= "init" "(" ParamList? ")" Block
 Visibility  ::= "public" | "private" | "protected"

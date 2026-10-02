@@ -1,7 +1,7 @@
 {
   "name": "ocara-language",
   "displayName": "Ocara Language Support",
-  "description": "Syntax highlighting, HTML template embedding and Go-to-Definition for Ocara (.oc) files",
+  "description": "Syntax highlighting, completion, Go-to-Definition, ocaracs linting and compile/dump commands for Ocara (.oc) files",
   "version": "1.0.0",
   "publisher": "david-lhoumaud",
   "license": "MIT",
@@ -40,12 +40,89 @@
           "source.ocara.embedded": "ocara"
         }
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Ocara",
+      "properties": {
+        "ocara.compilerPath": {
+          "type": "string",
+          "default": "ocara",
+          "markdownDescription": "Chemin du compilateur `ocara` ou commande pour le lancer (arguments et guillemets acceptés, variables `${workspaceFolder}` et `${fileDirname}`). Laissé à `ocara` et absent du PATH : `<workspace>/target/release/ocara` s'il existe."
+        },
+        "ocara.ocaracsPath": {
+          "type": "string",
+          "default": "ocaracs",
+          "markdownDescription": "Chemin de l'analyseur de style `ocaracs` ou commande pour le lancer (mêmes règles que `ocara.compilerPath`)."
+        },
+        "ocara.lint.enable": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Analyse `ocaracs` automatique à l'affichage, l'ouverture et l'enregistrement d'un fichier `.oc` (règles : `.ocaracs` le plus proche du script, sinon valeurs par défaut d'ocaracs)."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "ocara.compile",
+        "title": "Compiler le script",
+        "category": "Ocara"
+      },
+      {
+        "command": "ocara.dump",
+        "title": "Afficher le dump",
+        "category": "Ocara"
+      },
+      {
+        "command": "ocara.openDoc",
+        "title": "Ouvrir la documentation Ocara",
+        "category": "Ocara"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "ocara.compile",
+          "when": "resourceExtname == .oc",
+          "group": "ocara@1"
+        },
+        {
+          "command": "ocara.dump",
+          "when": "resourceExtname == .oc",
+          "group": "ocara@2"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "ocara.compile",
+          "when": "resourceExtname == .oc",
+          "group": "ocara@1"
+        },
+        {
+          "command": "ocara.dump",
+          "when": "resourceExtname == .oc",
+          "group": "ocara@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "ocara.compile",
+          "when": "editorLangId == ocara"
+        },
+        {
+          "command": "ocara.dump",
+          "when": "editorLangId == ocara"
+        },
+        {
+          "command": "ocara.openDoc",
+          "when": "false"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
+    "compile": "node scripts/copy-docs.js && tsc -p ./",
+    "watch": "node scripts/copy-docs.js && tsc -watch -p ./",
     "package": "vsce package"
   },
   "devDependencies": {

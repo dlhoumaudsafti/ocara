@@ -59,36 +59,44 @@ l'exemple donné par l'utilisateur (`strToInt` → `toInt`). Les deux méthodes
 déjà QUELLE partie de la map extraire, pas juste une conversion de type
 brute) — nommage proposé, pas encore tranché explicitement par l'utilisateur.
 
-## Ce qu'il faut trancher avant d'implémenter
+## Décisions et mise en œuvre
 
-- **Le tableau ci-dessus est une proposition, pas une décision actée** —
-  en particulier `keysToArray`/`valuesToArray` (vs. un nom plus court comme
-  `.keys()`/`.values()`, déjà un vocabulaire courant pour les maps dans
-  d'autres langages).
-- **Mécanisme d'implémentation** : `allows_instance_sugar` (liste de
-  classes) ne suffit pas — il faut une table de correspondance
-  `(type receveur, nom d'instance) → nom de méthode statique réelle`,
-  vérifiée au même endroit (`src/sema/typecheck.rs`, résolution d'un appel
-  `Expr::Field`/`Expr::Call` sur un récepteur de type primitif/`array`/`map`)
-  mais avec une logique de lookup différente de celle qui existe déjà pour
-  les 7 classes actuelles.
-- **`int`/`float`/`bool`/`array`/`map` n'ont aujourd'hui AUCUNE méthode
-  d'instance** (contrairement à `string`, qui en a déjà via `String`) —
-  ajouter des méthodes d'instance à des types primitifs qui n'en ont jamais
-  eu est un changement plus large que d'étendre une classe qui en a déjà
-  (`String`) : vérifier qu'aucune limitation actuelle du compilateur
-  n'empêche spécifiquement `int`/`float`/`bool` d'avoir des méthodes
-  d'instance (repère utile : la classe `Array`/`Map` ont déjà des méthodes
-  d'instance aujourd'hui pour leurs propres méthodes, `String` aussi — donc
-  le mécanisme des méthodes d'instance sur un type non-classe-utilisateur
-  existe déjà en général, juste jamais exercé encore pour `int`/`float`/
-  `bool` spécifiquement).
-- **Nom de la classe `Convert`** : question posée par l'utilisateur,
-  réponse déjà donnée en discussion — garder `Convert`, ne pas renommer en
-  `Cast` (qui évoquerait une réinterprétation directe sans logique de
-  parsing, alors que `Convert::strToInt("abc") → 0` est une vraie décision
-  de repli, pas une réinterprétation binaire). Ce ticket ne touche donc pas
-  au nom de la classe, seulement à l'ajout de méthodes d'instance.
+- **Tableau ci-dessus retenu**, sauf `keysToArray`/`valuesToArray` : pas
+  d'alias, `m.keys()`/`m.values()` (classe `Map`) font déjà exactement la
+  même chose (`Convert_mapKeysToArray` appelle `Map_keys`) — 17 méthodes.
+- **Mécanisme** : `src/sema/convert_sugar.rs` — table
+  `(type receveur, nom d'instance) → méthode Convert`, consultée par la sema
+  (seule à connaître le vrai type : `string`/`array`/`map` sont tous des
+  pointeurs au niveau IR) au début de la résolution d'un appel de méthode.
+  L'appel est réécrit en `Convert::<méthode>(receveur, args...)`
+  (`AstRewrites::calls`, appliqué par `core::named_args::rewrite_program`,
+  qui ajoute aussi l'import `ocara.Convert` s'il manque) — le lowering ne
+  voit qu'un appel statique ordinaire. Arguments nommés supportés (noms de
+  la méthode `Convert`, receveur exclu).
+- E37 (`MethodCallOnNonClass`) liste désormais les conversions disponibles
+  sur `int`/`float`/`bool` au lieu d'affirmer « which has no methods ».
+
+Corrigés au passage (préexistants, reproduits en forme statique) :
+- appel de méthode chaîné sur le résultat d'un appel statique BUILTIN
+  (`Convert::arrayToMap(arr, "=").size()` → `null`) : `method_ret_class`
+  couvre maintenant aussi les méthodes builtin ;
+- indexation directe du résultat d'un appel (`Convert::strToMap(...)["k"]`,
+  `getConfig()["k"]` → `null`, lu comme un tableau) : `is_map_target`
+  reconnaît un appel dont la classe de retour est `Map`.
+
+**ocaraunit masquait des échecs** (découvert en écrivant le test 69) : un
+`assert*` en échec lève une exception qui termine le binaire, et ocaraunit
+ne signalait un échec d'exécution que si AUCUNE assertion n'avait réussi
+avant — tout échec en cours de fichier disparaissait derrière « 0 FAIL »,
+avec le reste du fichier. De plus, son cache n'était indexé que sur le
+contenu du fichier de test : un changement du compilateur, du runtime ou
+d'un fichier importé réutilisait l'ancien binaire. Les deux sont corrigés
+(`tools/ocaraunit/src/main.rs`), et le bandeau d'exception non rattrapée du
+runtime affiche désormais le message de l'exception. Cela a révélé trois
+bugs préexistants, ajoutés à la roadmap :
+[memoire-nested-array-zero-json](memoire-nested-array-zero-json.md),
+[langage-negative-class-const](langage-negative-class-const.md),
+[langage-variadic-bool-not](langage-variadic-bool-not.md).
 
 ## Priorité / Complexité
 

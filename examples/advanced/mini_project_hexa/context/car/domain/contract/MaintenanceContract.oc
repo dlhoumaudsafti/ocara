@@ -3,8 +3,7 @@ import context.car.domain.entity.MaintenanceEntity
 interface MaintenanceContract {
     wiring context.car.infra.db.MaintenanceRepository
     private static method fromRow(row:map<string, mixed>): MaintenanceEntity
-    public static method find(id:int): MaintenanceEntity|null
-    public static method create(carId:int, description:string, cost:float): int
+    public static method create(carId:int, type:string, description:string, cost:float): int
     public static async method forCar(carId:int): array<MaintenanceEntity>
     public static async method maintenanceTotal(carId:int): float
     public static async method improvementTotal(carId:int): float

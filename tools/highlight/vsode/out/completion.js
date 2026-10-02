@@ -38,6 +38,10 @@ const vscode = __importStar(require("vscode"));
 const builtins_1 = require("./builtins");
 const resolver_1 = require("./resolver");
 const callsite_1 = require("./callsite");
+const primitives_1 = require("./primitives");
+const runtimecontext_1 = require("./runtimecontext");
+const hover_1 = require("./hover");
+const resolver_2 = require("./resolver");
 // ─────────────────────────────────────────────────────────────────────────────
 // Autocomplétion : méthodes/constantes des classes builtin `ocara.*` (données
 // générées depuis src/builtins/*.rs, voir tools/highlight/vsode/data/) et des
@@ -72,8 +76,19 @@ class OcaraCompletionProvider {
             else {
                 className = (0, resolver_1.findVariableType)(document, varName);
             }
+            // Fichier runtime : variable déclarée dans un autre fichier du
+            // même programme (voir runtimecontext.ts).
+            const context = className ? [] : await (0, runtimecontext_1.runtimeContext)(document);
+            for (const doc of context) {
+                className = (0, resolver_1.findVariableType)(doc, varName);
+                if (className) {
+                    break;
+                }
+            }
             if (!className) {
-                return undefined;
+                // Type primitif : conversions (`s.toInt()`) et sucre String/Array/Map.
+                const primitive = (0, primitives_1.findPrimitiveType)(document, varName);
+                return primitive ? (0, primitives_1.instanceMethodsFor)(primitive).map(m => this.primitiveMethodItem(varName, m)) : undefined;
             }
             return this.completeInstance(document, className);
         }
@@ -84,9 +99,34 @@ class OcaraCompletionProvider {
         }
         // ── f(nom: ...) — noms des paramètres de la cible de l'appel ────────
         if (/(?:^|[(,])\s*\w*$/.test(linePrefix)) {
-            return this.completeArgumentNames(document, position);
+            const named = await this.completeArgumentNames(document, position);
+            if (named) {
+                return named;
+            }
+        }
+        // ── Identifiant nu : fonctions libres du programme ──────────────────
+        if (/(?:^|[^.:\w])[a-z_]\w*$/.test(linePrefix)) {
+            return this.completeFunctions(document);
         }
         return undefined;
+    }
+    // ─── fonctions libres ───────────────────────────────────────────────────
+    /** Fonctions du document, de son contexte runtime et des fichiers importés. */
+    async completeFunctions(document) {
+        const items = [];
+        const seen = new Set();
+        for (const f of await collectFunctions(document)) {
+            if (seen.has(f.name)) {
+                continue;
+            }
+            seen.add(f.name);
+            const item = new vscode.CompletionItem(f.name, vscode.CompletionItemKind.Function);
+            item.detail = `function ${f.name}(${f.params}): ${f.returnType}`;
+            item.insertText = callSnippet(f.name, paramNames(f.params));
+            item.documentation = new vscode.MarkdownString('```ocara\n' + item.detail + '\n```' + (f.comment ? `\n\n${f.comment}` : ''));
+            items.push(item);
+        }
+        return items;
     }
     // ─── f(nom: valeur) ─────────────────────────────────────────────────────
     /**
@@ -139,8 +179,24 @@ class OcaraCompletionProvider {
         if (builtin) {
             return builtin.methods.filter(m => !m.static).map(m => this.builtinMethodItem(className, m, false));
         }
-        const members = await (0, resolver_1.findClassMembers)(document, className);
-        return members.filter(m => !m.isStatic).map(m => this.memberItem(className, m));
+        let members = await (0, resolver_1.findClassMembers)(document, className);
+        // Classe importée par le programme dont ce fichier est un runtime.
+        for (const doc of members.length === 0 ? await (0, runtimecontext_1.runtimeContext)(document) : []) {
+            members = await (0, resolver_1.findClassMembers)(doc, className);
+            if (members.length > 0) {
+                break;
+            }
+        }
+        const items = members.filter(m => !m.isStatic).map(m => this.memberItem(className, m));
+        // Méthodes héritées d'un parent builtin (`class Server extends HTTPServer`).
+        const ancestor = await (0, resolver_2.findBuiltinAncestor)(document, className, name => (0, builtins_1.getBuiltinClass)(name) !== undefined);
+        const own = new Set(members.map(m => m.name));
+        for (const m of ancestor ? (0, builtins_1.getBuiltinClass)(ancestor).methods : []) {
+            if (!m.static && !own.has(m.name)) {
+                items.push(this.builtinMethodItem(ancestor, m, false));
+            }
+        }
+        return items;
     }
     // ─── use ClassName(...) ─────────────────────────────────────────────────
     completeClassNames(document) {
@@ -180,8 +236,19 @@ class OcaraCompletionProvider {
         const paramsStr = m.params.map(p => `${p.name}:${p.type}`).join(', ');
         const sep = isStatic ? '::' : '.';
         item.detail = `${className}${sep}${m.name}(${paramsStr}): ${m.returns}`;
-        item.insertText = new vscode.SnippetString(m.params.length > 0 ? `${m.name}($1)` : `${m.name}()`);
-        item.documentation = new vscode.MarkdownString(`\`${item.detail}\`\n\nMéthode builtin — \`ocara.${className}\``);
+        item.insertText = callSnippet(m.name, m.params.map(p => p.name));
+        item.documentation = new vscode.MarkdownString((0, hover_1.builtinDoc)(className, m, sep));
+        return item;
+    }
+    primitiveMethodItem(receiver, m) {
+        const item = new vscode.CompletionItem(m.name, vscode.CompletionItemKind.Method);
+        const paramsStr = m.params.map(p => `${p.name}:${p.type}`).join(', ');
+        item.detail = `${receiver}.${m.name}(${paramsStr}): ${m.returns}`;
+        item.insertText = callSnippet(m.name, m.params.map(p => p.name));
+        const [cls, method] = m.target.split('::');
+        const target = (0, builtins_1.getBuiltinClass)(cls)?.methods.find(x => x.name === method);
+        item.documentation = new vscode.MarkdownString(`\`${item.detail}\`\n\nÉquivalent de \`${m.target}(${receiver}${m.params.length > 0 ? ', ' + m.params.map(p => p.name).join(', ') : ''})\`` +
+            (target?.doc ? `\n\n${target.doc}` : ''));
         return item;
     }
     builtinConstItem(className, c, isStatic) {
@@ -201,7 +268,7 @@ class OcaraCompletionProvider {
         if (m.kind === 'method') {
             const item = new vscode.CompletionItem(m.name, vscode.CompletionItemKind.Method);
             item.detail = `${className}${sep}${m.name}(${m.params}): ${m.returnType || 'void'}`;
-            item.insertText = new vscode.SnippetString(m.params.trim().length > 0 ? `${m.name}($1)` : `${m.name}()`);
+            item.insertText = callSnippet(m.name, paramNames(m.params));
             item.documentation = new vscode.MarkdownString(`\`${item.detail}\`\n\n${m.visibility}${m.isStatic ? ' static' : ''} method — classe \`${className}\``);
             return item;
         }
@@ -213,4 +280,42 @@ class OcaraCompletionProvider {
     }
 }
 exports.OcaraCompletionProvider = OcaraCompletionProvider;
+/** Appel avec un champ à remplir par paramètre, nommé comme le paramètre. */
+function callSnippet(name, params) {
+    const escape = (t) => t.replace(/[$}\\]/g, '\\$&');
+    const fields = params.map((p, i) => `\${${i + 1}:${escape(p)}}`);
+    return new vscode.SnippetString(`${name}(${fields.join(', ')})`);
+}
+/** Noms des paramètres d'une liste brute (`a:int, b:string = "x"`), variadic compris. */
+function paramNames(params) {
+    return params.split(',')
+        .map(p => p.trim().match(/^([A-Za-z_]\w*)\s*:/)?.[1])
+        .filter((n) => !!n);
+}
+const FUNCTION_DECL_RE = /\bfunction\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*:\s*([^{]+)\{/g;
+async function collectFunctions(document) {
+    const texts = [document.getText()];
+    for (const doc of await (0, runtimecontext_1.runtimeContext)(document)) {
+        texts.push(doc.getText());
+    }
+    for (const imp of (0, resolver_2.parseFileImports)(document)) {
+        const uri = await (0, resolver_2.resolveFileImportUri)(document, imp.filePath);
+        if (uri) {
+            texts.push((await vscode.workspace.openTextDocument(uri)).getText());
+        }
+    }
+    for (const imp of (0, resolver_2.parseImports)(document)) {
+        const loc = (0, resolver_2.resolveImportPath)(document, imp.importPath);
+        if (loc) {
+            texts.push((await vscode.workspace.openTextDocument(loc.uri)).getText());
+        }
+    }
+    const functions = [];
+    for (const text of texts) {
+        for (const m of text.matchAll(FUNCTION_DECL_RE)) {
+            functions.push({ name: m[1], params: m[2].replace(/\s+/g, ' ').trim(), returnType: m[3].trim(), comment: (0, resolver_2.leadingComment)(text, m.index) });
+        }
+    }
+    return functions;
+}
 //# sourceMappingURL=completion.js.map

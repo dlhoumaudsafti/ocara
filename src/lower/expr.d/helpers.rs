@@ -307,11 +307,9 @@ fn is_map_shaped(ty: &Type) -> bool {
 /// cette composition qui rend la profondeur illimitée, sans cas particulier
 /// par niveau.
 ///
-/// Ne couvre PAS un appel de fonction/méthode indexé directement
-/// (`getRows()[0]["x"]`) — demanderait une table de types de retour AST
-/// (actuellement seul `IrType`, trop grossier, est suivi pour un retour de
-/// fonction) ; hors périmètre du bug rapporté, voir
-/// docs/roadmap.d/langage-index-chaine-sur-map.md.
+/// Cas de base supplémentaire (`Call`/`StaticCall`) : résultat d'appel
+/// indexé directement (`getRows()[0]["x"]`, `make()[1][1]`), via le type de
+/// retour AST déclaré (`IrModule::call_ret_types`).
 pub fn elem_type_after_index(builder: &LowerBuilder, expr: &Expr) -> Option<Type> {
     match expr {
         Expr::Ident(name, _) => builder.elem_ast_types.get(name.as_str()).cloned(),
@@ -326,8 +324,33 @@ pub fn elem_type_after_index(builder: &LowerBuilder, expr: &Expr) -> Option<Type
                 .map(|(_, ty)| ty.clone())?;
             container_elem_type(&field_ty).cloned()
         }
+        Expr::Call { .. } | Expr::StaticCall { .. } => {
+            container_elem_type(&call_ret_type(builder, expr)?).cloned()
+        }
         _ => None,
     }
+}
+
+/// Type de retour déclaré d'un appel (fonction libre, méthode chaînée,
+/// méthode statique — builtin compris), voir `IrModule::call_ret_types`.
+fn call_ret_type(builder: &LowerBuilder, expr: &Expr) -> Option<Type> {
+    let key = match expr {
+        Expr::Call { callee, .. } => match callee.as_ref() {
+            Expr::Ident(name, _) => name.clone(),
+            Expr::Field { object, field, .. } => format!("{}_{}", resolve_receiver_class(builder, object)?, field),
+            _ => return None,
+        },
+        Expr::StaticCall { class, method, .. } => {
+            let owner = match class.as_str() {
+                "<self>"   => builder.current_class.clone()?,
+                "<parent>" => builder.parent_class.clone()?,
+                _          => class.clone(),
+            };
+            format!("{}_{}", owner, method)
+        }
+        _ => return None,
+    };
+    builder.module.call_ret_types.get(&key).cloned()
 }
 
 /// Détermine si `object` (le récepteur d'un `Expr::Index`, `object[index]`)
@@ -342,6 +365,12 @@ pub fn elem_type_after_index(builder: &LowerBuilder, expr: &Expr) -> Option<Type
 pub fn is_map_target(builder: &LowerBuilder, object: &Expr) -> bool {
     match object {
         Expr::Ident(name, _) => builder.map_vars.contains(name.as_str()),
+        // Résultat d'appel indexé directement (`Convert::strToMap(s, ";", "=")["k"]`,
+        // `getConfig()["k"]`) : classe de retour déclarée, builtin compris
+        // (voir `method_ret_class`/`func_ret_class`).
+        Expr::Call { .. } | Expr::StaticCall { .. } => {
+            resolve_receiver_class(builder, object).as_deref() == Some("Map")
+        }
         Expr::Field { object: inner, field, .. } => {
             resolve_receiver_class(builder, inner)
                 .and_then(|cls| builder.module.class_map_fields.get(&cls).cloned())
@@ -494,4 +523,22 @@ pub fn write_variant(base: &str, ty: &IrType) -> String {
         _            => "",   // Ptr / Mixed → write directement
     };
     format!("{}{}", base, suffix)
+}
+
+/// Vrai si l'argument `arg_index` (forme statique, receveur = argument 0) de
+/// l'appel builtin `func` est la VALEUR stockée dans le conteneur `receiver`
+/// (`Array::push(arr, v)`, `Array::set(arr, i, v)`, `Map::set(m, k, v)`) et
+/// que ce conteneur a un type d'élément concret (`int`/`float`/`bool`) : la
+/// valeur doit alors être stockée BRUTE, comme dans un littéral typé (voir
+/// `lower_array_literal`) — le paramètre `mixed` du builtin la faisait boxer,
+/// et un grand entier était ensuite relu comme l'adresse de sa cellule (voir
+/// docs/roadmap.d/memoire-array-push-large-int-boxed.md).
+pub fn stores_raw_into_container(builder: &LowerBuilder, func: &str, receiver: &Expr, arg_index: usize) -> bool {
+    let value_index = match func {
+        "Array_push" => 1,
+        "Array_set" | "Map_set" => 2,
+        _ => return false,
+    };
+    arg_index == value_index
+        && matches!(elem_type_after_index(builder, receiver), Some(Type::Int | Type::Float | Type::Bool))
 }

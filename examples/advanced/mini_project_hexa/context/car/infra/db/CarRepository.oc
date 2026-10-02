@@ -18,8 +18,9 @@ import ocara.SQLite
 import ocara.DateTime
 import configs.Database
 import context.car.domain.entity.CarEntity
+import context.car.domain.contract.CarContract
 
-class Car {
+class CarRepository implements CarContract {
 
     private static method fromRow(row:map<string, mixed>): CarEntity {
         var id:int = row["id"]

@@ -3199,6 +3199,11 @@ pub extern "C" fn __ocara_fail(val: i64, type_name: i64) {
             display_val
         );
         write_stderr_raw(msg.as_bytes());
+        // Le message réel de l'exception (ex. l'assertion `UnitTest` en échec,
+        // remontée telle quelle par ocaraunit) — jamais affiché jusqu'ici.
+        if let Some(message) = unsafe { crate::exception::raised_value_message(val) } {
+            write_stderr_raw(format!("\x1b[31mMessage: {}\x1b[0m\n", message).as_bytes());
+        }
         // `std::process::exit()` déclenche `__cxa_finalize`, qui exécute les
         // destructeurs de TOUTES les globales C++/Rust du processus — correct
         // sur desktop (le processus Ocara EST le processus entier), mais fatal

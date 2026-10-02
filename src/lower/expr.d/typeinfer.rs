@@ -250,6 +250,14 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                     return ty.clone();
                 }
             }
+            // Indexation chaînée (`a[1][1]`, `self.grid[i][j]`) : type
+            // d'élément déclaré, à n'importe quelle profondeur — un `int`
+            // brut d'un `array<array<int>>` classé `Ptr` était pris pour un
+            // pointeur (SEGFAULT à l'interpolation, voir
+            // docs/roadmap.d/memoire-nested-array-zero-json.md).
+            if let Some(elem_ty) = super::helpers::elem_type_after_index(builder, object) {
+                return IrType::from_ast(&elem_ty);
+            }
             // Filet de sécurité : même raison que pour `Expr::StaticCall`/
             // `Expr::Call` ci-dessus. `elem_types` peut manquer une entrée
             // (ex. un paramètre `map<string,mixed>` d'une closure `nameless`,
