@@ -1913,6 +1913,15 @@ impl<'a> TypeChecker<'a> {
             Expr::Binary { op, left, right, span } => {
                 let lt = self.infer_expr(left);
                 let rt = self.infer_expr(right);
+                // `s -= e` sur une string : suppression de toutes les occurrences.
+                if *op == BinOp::Remove && matches!(lt, Type::String) {
+                    if !types_compat(&rt, &Type::String, &self.symbols) {
+                        self.errors.push(SemaError::TypeMismatch { expected: "string".into(), found: type_name(&rt), span: span.clone() });
+                    }
+                    self.rewrites.string_removals.insert(crate::sema::named_args::site_key(span));
+                    return Type::String;
+                }
+                let op = if *op == BinOp::Remove { &BinOp::Sub } else { op };
                 binary_result_type(op, &lt, &rt, span, &mut self.errors, &self.symbols)
             }
 
@@ -2304,7 +2313,7 @@ fn binary_result_type(
     symbols: &SymbolTable,
 ) -> Type {
     match op {
-        BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod => {
+        BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod | BinOp::Remove => {
             // Concaténation `+` : strictement string + string → string.
             // Mélanger un string avec un autre type est une erreur de
             // compilation (E20) — seul un template string ou une conversion
@@ -2327,6 +2336,12 @@ fn binary_result_type(
                     span:  span.clone(),
                 });
                 return Type::String;
+            }
+            {
+                if let Some(bad) = [lt, rt].into_iter().find(|t| matches!(t, Type::String | Type::Bool | Type::Array(_) | Type::Map(..))) {
+                    errors.push(SemaError::ArithmeticOnNonNumeric { op: arith_symbol(op).into(), operand: type_name(bad), span: span.clone() });
+                    return lt.clone();
+                }
             }
             if types_compat(lt, rt, symbols) { lt.clone() } else {
                 errors.push(SemaError::TypeMismatch {
@@ -2360,6 +2375,16 @@ fn binary_result_type(
             Type::Bool
         }
         BinOp::And | BinOp::Or => Type::Bool,
+    }
+}
+
+fn arith_symbol(op: &BinOp) -> &'static str {
+    match op {
+        BinOp::Add => "+",
+        BinOp::Sub | BinOp::Remove => "-",
+        BinOp::Mul => "*",
+        BinOp::Div => "/",
+        _ => "%",
     }
 }
 

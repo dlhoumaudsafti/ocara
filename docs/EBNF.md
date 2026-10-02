@@ -1511,8 +1511,36 @@ Statement ::= VarDecl
             | TryStmt
             | RaiseStmt
             | EmitStmt
+            | AssignStmt
             | Expression
+
+AssignStmt ::= Target ( "=" | "+=" | "-=" | "*=" | "/=" | "%=" ) Expression
+Target     ::= Identifier | PostfixExpr "." Identifier | PostfixExpr "[" Expression "]"
 ```
+
+### 12.1 Affectations composées
+
+`x op= e` équivaut à `x = x op e` : mêmes règles de type que l'opérateur et que l'affectation simple. Cible : variable, champ ou élément indexé (`n += 1`, `self.total *= 2`, `m["k"] -= 1`, `a[i + 1] %= 3`). Ce sont des **instructions**, pas des expressions (`var y:int = (x += 1)` est refusé, comme `x = e`).
+
+| Opérateur | `int` / `float` / `mixed` | `string` |
+|---|---|---|
+| `+=` | addition | concaténation (`s += " le monde"`) |
+| `-=` | soustraction | suppression de **toutes** les occurrences (`"a-b-c" -= "-"` → `"abc"`) |
+| `*=`, `/=`, `%=` | multiplication, division, modulo | refusé (E59) |
+
+```ocara
+var n:int = 10
+n += 5          // 15
+n %= 4          // 3
+
+var s:string = "salut"
+s += " le monde"      // "salut le monde"
+s -= " le monde"      // "salut"
+```
+
+> **Types** : ceux de `x op e`. `float += int` est donc refusé, comme `float + int` : écrire `f += 1.0`. Les opérateurs arithmétiques (`-`, `*`, `/`, `%`, et `+` hors concaténation de chaînes) sont refusés sur `string`, `bool`, `array` et `map` (E59) : `"ab" - "b"` n'est pas une suppression, seul `-=` l'est.
+>
+> **Cible sans appel** : la cible est relue pour calculer la nouvelle valeur. Elle ne peut donc contenir aucun appel (`a[next()] += 1`, `obj.get().total += 1` → E58), qui serait sinon évalué deux fois : le stocker d'abord dans une variable.
 
 ---
 
@@ -3889,7 +3917,11 @@ Statement   ::= VarDecl
               | TryStmt
               | RaiseStmt
               | EmitStmt
+              | AssignStmt
               | Expression
+
+AssignStmt   ::= Target ( "=" | "+=" | "-=" | "*=" | "/=" | "%=" ) Expression
+Target       ::= Identifier | PostfixExpr "." Identifier | PostfixExpr "[" Expression "]"
 
 VarDecl      ::= "var" Identifier ":" Type "=" Expression
 ScopedDecl   ::= "scoped" Identifier ":" Type "=" Expression

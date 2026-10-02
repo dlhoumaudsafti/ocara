@@ -3,6 +3,7 @@
 use crate::parsing::ast::*;
 use crate::parsing::token::TokenKind;
 use super::types::{Parser, ParseError, ParseResult};
+use super::compound_assign::compound_op;
 
 impl Parser {
     pub(super) fn parse_block(&mut self) -> ParseResult<Block> {
@@ -58,6 +59,9 @@ impl Parser {
                     self.advance();
                     let value = self.parse_expr()?;
                     return Ok(Stmt::Assign { target: expr, value, span });
+                }
+                if let Some(op) = compound_op(self.peek_kind()) {
+                    return self.parse_compound_assign(expr, op);
                 }
                 Ok(Stmt::Expr(expr))
             }

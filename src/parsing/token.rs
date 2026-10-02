@@ -153,6 +153,12 @@ pub enum TokenKind {
     Percent, // %
     PlusPlus,   // ++ (incrémentation, préfixe ou suffixe — voir docs/roadmap.d/langage-increment-decrement.md)
     MinusMinus, // -- (décrémentation, préfixe ou suffixe)
+    // Affectations composées (`x += n`…) — voir parser.d/compound_assign.rs.
+    PlusEq,     // +=
+    MinusEq,    // -=
+    StarEq,     // *=
+    SlashEq,    // /=
+    PercentEq,  // %=
 
     // ── Opérateurs de comparaison symboliques (SUPPRIMÉS du langage) ───────────
     // Depuis Ocara v0.2.0, toute comparaison s'écrit en toutes lettres

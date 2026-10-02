@@ -41,6 +41,9 @@ pub struct AstRewrites {
     /// Appel remplacé par une autre expression (clé : span de l'appel) —
     /// sucre d'instance `Convert`, voir `crate::sema::convert_sugar`.
     pub calls: HashMap<ArgSiteKey, Expr>,
+    /// `s -= e` sur une `string` (clé : span de l'opérateur) : réécrit en
+    /// `String::replace(s, e, "")` — voir parser.d/compound_assign.rs.
+    pub string_removals: std::collections::HashSet<ArgSiteKey>,
 }
 
 /// Paramètres déclarés par callable utilisateur : `"fonction"`,

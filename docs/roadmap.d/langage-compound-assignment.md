@@ -1,57 +1,42 @@
-# Opérateurs d'affectation composés `+=`, `-=`, `*=`, `/=`, `%=`
+# Opérateurs d'affectation composés `+=`, `-=`, `*=`, `/=`, `%=` — implémenté
 
-## Constat
+Documentation utilisateur : `docs/EBNF.md` §12.1, diagnostics E58 et E59.
 
-Aucun opérateur composé n'existe aujourd'hui : ni token dans le lexer, ni
-règle dans `docs/EBNF.md`. Il faut écrire `total = total + n`.
+## Ce qui a été tranché
 
-## Proposition
+- **Instruction seulement**, comme `x = e` (pas une expression).
+- **Réécriture au parsing** en `x = x op e` (`Stmt::Assign`,
+  `src/parsing/parser.d/compound_assign.rs`) : toutes les passes et le
+  lowering réutilisent l'affectation existante (ownership, boxing `mixed`,
+  champs, index).
+- **Cibles** : variable, champ, élément indexé. Une cible qui contient un
+  appel (`a[next()] += 1`) est refusée au parsing (**E58**), puisqu'elle
+  serait évaluée deux fois.
+- **Types** : ceux de `x op e`. `float += int` est donc refusé, comme
+  `float + int`.
+- **`-=` sur `string`** : `-=` produit `BinOp::Remove`. Sur une `string`, la
+  sema note le site (`AstRewrites::string_removals`), et la passe post-sema
+  (`core::named_args`) le réécrit en `String::replace(s, e, "")`, en ajoutant
+  `import ocara.String` au besoin. Ailleurs, `Remove` devient `Sub`. Pas
+  d'opérateur `-` binaire entre chaînes.
 
-| Opérateur | `int` / `float` | `string` |
-|---|---|---|
-| `x += n` | addition | concaténation : `s += " le monde"` |
-| `x -= n` | soustraction | suppression de **toutes** les occurrences : `"salut le monde" -= " le monde"` → `"salut"` |
-| `x *= n` | multiplication | — (erreur de typage) |
-| `x /= n` | division | — |
-| `x %= n` | modulo | — |
+## Bug corrigé en passant (E59)
 
-```ocara
-var n:int = 10
-n += 5      // 15
-n %= 4      // 3
+`-`, `*`, `/`, `%` (et `+` hors concaténation) acceptaient des `string`,
+`bool`, `array` et `map` dès que les deux types étaient compatibles :
+`"ab" - "b"` compilait et valait `-24` (différence des adresses). Ces
+opérandes sont désormais refusés (**E59**). Aucun impact sur le corpus.
 
-var s:string = "salut"
-s += " le monde"      // "salut le monde"
-s -= " le monde"      // "salut"
-```
+## Limite
 
-## Points à trancher
+`x -= e` dans le corps d'un `generic` instancié avec `T = string` reste une
+soustraction : le corps est vérifié une seule fois avec `T` permissif.
 
-- **Sucre ou instruction propre** : réécrire `x op= e` en `x = x op e` au
-  parsing (simple, mais `obj.f()[i] += 1` évaluerait la cible deux fois), ou
-  évaluer la cible une seule fois au lowering.
-- **Cibles admises** : variable seulement, ou aussi champ (`self.total += n`)
-  et index (`m["k"] += 1`, `a[i] *= 2`) ?
-- **`-=` sur string** : n'a pas d'équivalent `-` binaire entre chaînes.
-  `s -= x` vaudrait `s = String::replace(s, x, "")`. Faut-il aussi un
-  opérateur `-` (`s - x`) pour la cohérence, ou garder `-=` seul ?
-- **Types mixtes** : `int += float` interdit (comme `int = float`), ou
-  promotion ? `float %= n` (`fmod`) ? `/=` sur `int` : division entière,
-  comme `/` ?
-- **`mixed`** : autorisé via les opérations dynamiques existantes
-  (`__dyn_add`…), ou refusé ?
-- **Immutables** : `const`, paramètre, champ non mutable → même erreur que
-  l'affectation simple (`SemaError::InvalidAssign`).
+## Fichiers clés
 
-## À mettre à jour
-
-Lexer (5 tokens), parseur (instruction d'affectation), sema (typage par
-opérateur), lowering, `docs/EBNF.md` (affectation, §31), `docs/diagnostics.md`
-si un nouveau code est créé, coloration VS Code
-(`tools/highlight/vsode/syntaxes`), et R03 d'ocaracs (`decl_assign_pos`
-ignore déjà `==`/`<=`/`>=`, à étendre à `+=`…).
-
-## Priorité / Complexité
-
-Moyenne — **Légère** (sucre syntaxique) à **Structurel** si la cible ne doit
-être évaluée qu'une fois.
+`src/parsing/token.rs`, `lexer.d/tokenizer.d/next_token.rs`,
+`parser.d/compound_assign.rs`, `parser.d/statements.rs`,
+`ast.d/expressions.rs` (`BinOp::Remove`), `src/sema/typecheck.rs`,
+`src/sema/error.rs`, `src/sema/named_args.rs`, `src/core/named_args.rs`.
+Tests : `src/sema/tests/compound_assign.rs`,
+`examples/tests/76_compound_assignmentTest.oc`.

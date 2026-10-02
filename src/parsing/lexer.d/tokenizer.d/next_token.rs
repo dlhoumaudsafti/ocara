@@ -45,6 +45,7 @@ impl Lexer {
             // + ou ++ (incrémentation — voir docs/roadmap.d/langage-increment-decrement.md)
             '+' => match self.current() {
                 Some('+') => { self.advance(); TokenKind::PlusPlus }
+                Some('=') => { self.advance(); TokenKind::PlusEq }
                 _         => TokenKind::Plus,
             },
             // - ou -- (décrémentation) — NOTE : change la lecture de `--x` sans
@@ -54,8 +55,12 @@ impl Lexer {
             // code existant (aucun usage adjacent dans examples/).
             '-' => match self.current() {
                 Some('-') => { self.advance(); TokenKind::MinusMinus }
+                Some('=') => { self.advance(); TokenKind::MinusEq }
                 _         => TokenKind::Minus,
             },
+            '*' if self.current() == Some('=') => { self.advance(); TokenKind::StarEq }
+            '/' if self.current() == Some('=') => { self.advance(); TokenKind::SlashEq }
+            '%' if self.current() == Some('=') => { self.advance(); TokenKind::PercentEq }
             '*' => TokenKind::Star,
             '/' => TokenKind::Slash,
             '%' => TokenKind::Percent,
