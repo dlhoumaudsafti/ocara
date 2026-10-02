@@ -11,6 +11,10 @@
 //   fichier.oc:LIGNE:COL: warning: message
 // ─────────────────────────────────────────────────────────────────────────────
 
+mod config;
+mod naming;
+mod scope;
+
 use std::{
     collections::HashSet,
     fs,
@@ -18,110 +22,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Configuration
-// ─────────────────────────────────────────────────────────────────────────────
-
-#[derive(Debug)]
-struct Config {
-    /// R01 — cohérence de l'indentation (première ligne indentée = référence)
-    indent:            bool,
-    /// R02 — pas d'espaces ou tabulations sur les lignes vides
-    empty_line_ws:     bool,
-    /// R03 — espaces autour de '=' dans var / scoped / const
-    spacing_assign:    bool,
-    /// R04 — pas d'espaces ou tabulations en fin de ligne
-    trailing_ws:       bool,
-    /// R05 — longueur max d'une ligne (0 = désactivé)
-    max_line_length:   usize,
-    /// R06 — max lignes vides consécutives (0 = désactivé)
-    blank_lines_max:   usize,
-    /// R07 — classes en PascalCase
-    naming_class:      bool,
-    /// R08 — fonctions en camelCase (première lettre minuscule)
-    naming_function:   bool,
-    /// R09 — constantes en UPPER_SNAKE_CASE
-    naming_const:      bool,
-    /// R10 — espace après '//' dans les commentaires
-    comment_spacing:   bool,
-    /// R11 — le fichier se termine par une newline
-    file_ends_newline: bool,
-    /// R12 — variables (var/scoped/consumed/property) en snake_case
-    naming_variable:   bool,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Config {
-            indent:            true,
-            empty_line_ws:     true,
-            spacing_assign:    true,
-            trailing_ws:       true,
-            max_line_length:   120,
-            blank_lines_max:   2,
-            naming_class:      true,
-            naming_function:   true,
-            naming_const:      true,
-            comment_spacing:   true,
-            file_ends_newline: true,
-            naming_variable:   true,
-        }
-    }
-}
-
-fn parse_config(content: &str) -> Config {
-    let mut cfg = Config::default();
-    let mut in_rules = false;
-    for raw in content.lines() {
-        let line = raw.trim();
-        if line == "[rules]"        { in_rules = true;  continue; }
-        if line.starts_with('[')    { in_rules = false; continue; }
-        if !in_rules || line.starts_with('#') || line.is_empty() { continue; }
-        let mut parts = line.splitn(2, '=');
-        let key = parts.next().unwrap_or("").trim();
-        let val = parts.next().unwrap_or("").split('#').next().unwrap_or("").trim();
-        match key {
-            "indentation"         => cfg.indent            = val == "true",
-            "empty_lines"         => cfg.empty_line_ws     = val == "true",
-            "spacing_assign"      => cfg.spacing_assign    = val == "true",
-            "trailing_whitespace" => cfg.trailing_ws       = val == "true",
-            "max_line_length"     => cfg.max_line_length   = val.parse().unwrap_or(120),
-            "blank_lines_max"     => cfg.blank_lines_max   = val.parse().unwrap_or(2),
-            "naming_class"        => cfg.naming_class      = val == "true",
-            "naming_function"     => cfg.naming_function   = val == "true",
-            "naming_const"        => cfg.naming_const      = val == "true",
-            "comment_spacing"     => cfg.comment_spacing   = val == "true",
-            "file_ends_newline"   => cfg.file_ends_newline = val == "true",
-            "naming_variable"     => cfg.naming_variable   = val == "true",
-            _ => {}
-        }
-    }
-    cfg
-}
-
-fn load_config(root: &Path) -> Config {
-    match fs::read_to_string(root.join(".ocaracs")) {
-        Ok(c)  => parse_config(&c),
-        Err(_) => Config::default(),
-    }
-}
-
-fn find_project_root(path: &Path) -> PathBuf {
-    let dir = if path.is_dir() {
-        path.to_path_buf()
-    } else {
-        path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| PathBuf::from("."))
-    };
-    let abs = dir.canonicalize().unwrap_or_else(|_| dir.clone());
-    let mut cur = abs;
-    loop {
-        if cur.join(".ocaracs").exists() { return cur; }
-        match cur.parent() {
-            Some(p) => cur = p.to_path_buf(),
-            None    => return dir,
-        }
-    }
-}
+use config::{find_project_root, load_config, Config, IndentType};
+use naming::Style;
+use scope::{is_callable_decl, BodyTracker};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Diagnostics
@@ -212,26 +115,33 @@ fn extract_user_imports(content: &str, file_dir: &Path) -> Vec<PathBuf> {
 // Helpers nommage
 // ─────────────────────────────────────────────────────────────────────────────
 
-fn is_pascal_case(s: &str) -> bool {
-    !s.is_empty()
-        && s.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
-        && s.chars().all(|c| c.is_alphanumeric())
+/// Avertissement si `name` ne suit pas `style`, avec le nom converti.
+fn naming_issue(label: &str, name: &str, style: Style) -> Option<String> {
+    (!name.is_empty() && !style.matches(name)).then(|| format!(
+        "{} '{}' devrait être en {} → {}", label, name, style.label(), style.convert(name)
+    ))
 }
 
-fn starts_lowercase(s: &str) -> bool {
-    s.chars().next().map(|c| c.is_lowercase()).unwrap_or(false)
+/// Premier identifiant de `rest` (avant ` `, `=`, `:`, `(`, `<`…).
+fn leading_name(rest: &str) -> &str {
+    rest.trim().split(|c: char| !c.is_alphanumeric() && c != '_').next().unwrap_or("")
 }
 
-fn is_upper_snake(s: &str) -> bool {
-    !s.is_empty()
-        && !s.starts_with('_')
-        && s.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
-}
-
-fn is_snake_case(s: &str) -> bool {
-    !s.is_empty()
-        && s.chars().next().map(|c| c.is_ascii_lowercase() || c == '_').unwrap_or(false)
-        && s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+/// Problème d'indentation de `lead` : type attendu (`tabs`) et largeur
+/// d'un niveau (`gap`, 0 = non vérifiée).
+fn indent_issue(lead: &str, tabs: bool, gap: usize) -> Option<String> {
+    let use_tabs = lead.contains('\t');
+    if use_tabs != tabs {
+        return Some(format!(
+            "indentation incohérente : {} attendu(s), {} trouvé(s)",
+            if tabs { "tabulations" } else { "espaces" },
+            if use_tabs { "tabulations" } else { "espaces" },
+        ));
+    }
+    (gap > 0 && lead.len() % gap != 0).then(|| format!(
+        "indentation incohérente : multiple de {} {} attendu",
+        gap, if tabs { "tabulation(s)" } else { "espace(s)" }
+    ))
 }
 
 /// Strippe une visibilité (`public `/`protected `/`private `) en tête de ligne si présente.
@@ -269,17 +179,30 @@ fn check_file(path: &Path, content: &str, cfg: &Config) -> usize {
     let lines: Vec<&str> = content.lines().collect();
     let bt = backtick_flags(&lines);
 
-    // Détecter l'unité d'indentation : première ligne indentée hors backtick
-    let indent_unit: Option<String> = if cfg.indent {
-        lines.iter().enumerate()
-            .filter(|(i, l)| !bt.get(*i).copied().unwrap_or(false) && !l.is_empty())
-            .find_map(|(_, l)| {
-                let lead: String = l.chars().take_while(|c| *c == ' ' || *c == '\t').collect();
-                if lead.is_empty() { None } else { Some(lead) }
-            })
-    } else {
+    // R01/R19/R20 : type et largeur attendus — imposés par la configuration,
+    // sinon déduits de la première ligne indentée hors backtick.
+    let inferred: Option<String> = lines.iter().enumerate()
+        .filter(|(i, l)| !bt.get(*i).copied().unwrap_or(false) && !l.is_empty())
+        .find_map(|(_, l)| {
+            let lead: String = l.chars().take_while(|c| *c == ' ' || *c == '\t').collect();
+            if lead.is_empty() { None } else { Some(lead) }
+        });
+    let indent_rule: Option<(bool, usize)> = if !cfg.indent {
         None
+    } else {
+        let tabs = match cfg.indent_type {
+            IndentType::Tab   => Some(true),
+            IndentType::Space => Some(false),
+            IndentType::Auto  => inferred.as_ref().map(|u| u.contains('\t')),
+        };
+        tabs.map(|tabs| {
+            let inferred_gap = inferred.as_ref()
+                .filter(|u| !tabs && !u.contains('\t'))
+                .map_or(0, |u| u.len());
+            (tabs, if cfg.indent_gap > 0 { cfg.indent_gap } else { inferred_gap })
+        })
     };
+    let mut bodies = BodyTracker::for_file(&path.to_string_lossy());
 
     let mut count  = 0usize;
     let mut blanks = 0usize;
@@ -288,34 +211,16 @@ fn check_file(path: &Path, content: &str, cfg: &Config) -> usize {
         let lnum      = i + 1;
         let in_bt     = bt.get(i).copied().unwrap_or(false);
 
-        // ── R01 : Cohérence de l'indentation ─────────────────────────────
-        if cfg.indent {
-            if let Some(ref unit) = indent_unit {
-                if !in_bt && !line.is_empty() {
-                    let lead: String = line.chars()
-                        .take_while(|c| *c == ' ' || *c == '\t')
-                        .collect();
-                    if !lead.is_empty() {
-                        let use_tabs  = lead.contains('\t');
-                        let unit_tabs = unit.contains('\t');
-                        if use_tabs != unit_tabs {
-                            emit(path, lnum, 1, &format!(
-                                "indentation incohérente : {} attendu(s), {} trouvé(s)",
-                                if unit_tabs { "tabulations" } else { "espaces" },
-                                if use_tabs  { "tabulations" } else { "espaces" },
-                            ));
-                            count += 1;
-                        } else if !use_tabs {
-                            let unit_len = unit.len();
-                            if lead.len() % unit_len != 0 {
-                                emit(path, lnum, 1, &format!(
-                                    "indentation incohérente : multiple de {} espace(s) attendu",
-                                    unit_len
-                                ));
-                                count += 1;
-                            }
-                        }
-                    }
+        let in_body = bodies.in_body();
+        bodies.advance(line);
+
+        // ── R01 : Cohérence de l'indentation (type R19, largeur R20) ─────
+        if let Some((tabs, gap)) = indent_rule {
+            if !in_bt && !line.is_empty() {
+                let lead: String = line.chars().take_while(|c| *c == ' ' || *c == '\t').collect();
+                if let Some(msg) = (!lead.is_empty()).then(|| indent_issue(&lead, tabs, gap)).flatten() {
+                    emit(path, lnum, 1, &msg);
+                    count += 1;
                 }
             }
         }
@@ -397,7 +302,7 @@ fn check_file(path: &Path, content: &str, cfg: &Config) -> usize {
             }
         }
 
-        // ── R07 : Nommage des classes/structs/interfaces/modules/generics (PascalCase) ──
+        // ── R07/R18 : classes/structs/interfaces/modules/generics ───────
         if cfg.naming_class && !in_bt {
             let t = line.trim();
             const KINDS: &[(&str, &str)] = &[
@@ -407,109 +312,57 @@ fn check_file(path: &Path, content: &str, cfg: &Config) -> usize {
                 ("generic ",   "generic"),
                 ("struct ",    "struct"),
             ];
-            for (kw, label) in KINDS {
-                let Some(rest) = t.strip_prefix(kw) else { continue };
-                let rest = rest.trim();
-                let name = rest.split(|c: char| !c.is_alphanumeric() && c != '_')
-                    .next().unwrap_or("");
-                if !name.is_empty() && !is_pascal_case(name) {
-                    emit(path, lnum, 1, &format!(
-                        "{} '{}' devrait être en PascalCase", label, name
-                    ));
-                    count += 1;
-                }
-                break; // une seule des 4 formes peut matcher
-            }
-        }
-
-        // ── R08 : Nommage des fonctions et méthodes (camelCase / minuscule) ─
-        // Une fonction peut être préfixée par "async " (FuncDecl ::= "async"? "function" ...).
-        // Une méthode est ClassMember ::= Visibility? "static"? "async"? "method" Identifier ...
-        // (Visibility absente dans les signatures d'interface, ex. `method draw(): void`.)
-        if cfg.naming_function && !in_bt {
-            let t = line.trim();
-            let after_async = t.strip_prefix("async ").map(str::trim_start).unwrap_or(t);
-            if let Some(rest) = after_async.strip_prefix("function ") {
-                let rest = rest.trim();
-                let name = rest.split(|c: char| c == '(' || c == ':' || c == ' ')
-                    .next().unwrap_or("");
-                if !name.is_empty() && !starts_lowercase(name) {
-                    emit(path, lnum, 1, &format!(
-                        "fonction '{}' devrait commencer par une minuscule (camelCase)",
-                        name
-                    ));
-                    count += 1;
-                }
-            } else {
-                let rest = strip_visibility(t);
-                let rest = rest.strip_prefix("static ").unwrap_or(rest);
-                let rest = rest.strip_prefix("async ").unwrap_or(rest);
-                if let Some(rest) = rest.strip_prefix("method ") {
-                    let rest = rest.trim();
-                    let name = rest.split(|c: char| c == '(' || c == ':' || c == ' ')
-                        .next().unwrap_or("");
-                    if !name.is_empty() && !starts_lowercase(name) {
-                        emit(path, lnum, 1, &format!(
-                            "méthode '{}' devrait commencer par une minuscule (camelCase)",
-                            name
-                        ));
-                        count += 1;
-                    }
-                }
-            }
-        }
-
-        // ── R09 : Nommage des constantes (UPPER_SNAKE_CASE) ────────────────
-        // Couvre `const` global ET constante de classe (visibilité optionnelle
-        // avant `const`, ex. `public const MAX:int = 100`).
-        if cfg.naming_const && !in_bt {
-            let t = line.trim();
-            if let Some(rest) = strip_visibility(t).strip_prefix("const ") {
-                let rest = rest.trim();
-                let name = rest.split(|c: char| c == ' ' || c == '=' || c == ':')
-                    .next().unwrap_or("");
-                if !name.is_empty() && !is_upper_snake(name) {
-                    emit(path, lnum, 1, &format!(
-                        "constante '{}' devrait être en UPPER_SNAKE_CASE", name
-                    ));
+            if let Some((kw, label)) = KINDS.iter().find(|(kw, _)| t.starts_with(kw)) {
+                if let Some(msg) = naming_issue(label, leading_name(&t[kw.len()..]), cfg.class_style) {
+                    emit(path, lnum, 1, &msg);
                     count += 1;
                 }
             }
         }
 
-        // ── R12 : Nommage des variables et propriétés (snake_case) ─────────
-        // var / scoped / consumed (jamais précédées d'une visibilité) et
-        // property (visibilité optionnelle avant, ex. `private property x:int`).
+        // ── R08/R17 : fonctions et méthodes ─────────────────────────────
+        // FuncDecl ::= "async"? "function" … ; ClassMember ::= Visibility?
+        // "static"? "async"? "method" … (visibilité absente en interface).
+        if cfg.naming_function && !in_bt && is_callable_decl(line.trim()) {
+            let t = strip_visibility(line.trim());
+            let t = t.strip_prefix("static ").unwrap_or(t);
+            let t = t.strip_prefix("async ").unwrap_or(t);
+            let (label, rest) = match t.strip_prefix("function ") {
+                Some(rest) => ("fonction", rest),
+                None => ("méthode", t.strip_prefix("method ").unwrap_or("")),
+            };
+            if let Some(msg) = naming_issue(label, leading_name(rest), cfg.function_style) {
+                emit(path, lnum, 1, &msg);
+                count += 1;
+            }
+        }
+
+        // ── R09/R15 : constantes globales et de classe ; R13/R14 : const
+        // locales (corps de fonction/méthode/nameless), style des variables
+        // par défaut, non vérifiées si naming_const_embed = false.
+        if !in_bt {
+            if let Some(rest) = strip_visibility(line.trim()).strip_prefix("const ") {
+                let rule = if in_body {
+                    cfg.naming_const_embed.then(|| ("constante locale", cfg.embed_style()))
+                } else {
+                    cfg.naming_const.then_some(("constante", cfg.const_style))
+                };
+                if let Some(msg) = rule.and_then(|(label, style)| naming_issue(label, leading_name(rest), style)) {
+                    emit(path, lnum, 1, &msg);
+                    count += 1;
+                }
+            }
+        }
+
+        // ── R12/R16 : variables (var/scoped/consumed) et propriétés ──────
         if cfg.naming_variable && !in_bt {
             let t = line.trim();
-            let mut matched = false;
-            for kw in ["var ", "scoped ", "consumed "] {
-                if let Some(rest) = t.strip_prefix(kw) {
-                    let rest = rest.trim();
-                    let name = rest.split(|c: char| c == ' ' || c == '=' || c == ':')
-                        .next().unwrap_or("");
-                    if !name.is_empty() && !is_snake_case(name) {
-                        emit(path, lnum, 1, &format!(
-                            "variable '{}' devrait être en snake_case", name
-                        ));
-                        count += 1;
-                    }
-                    matched = true;
-                    break;
-                }
-            }
-            if !matched {
-                if let Some(rest) = strip_visibility(t).strip_prefix("property ") {
-                    let rest = rest.trim();
-                    let name = rest.split(|c: char| c == ' ' || c == '=' || c == ':')
-                        .next().unwrap_or("");
-                    if !name.is_empty() && !is_snake_case(name) {
-                        emit(path, lnum, 1, &format!(
-                            "propriété '{}' devrait être en snake_case", name
-                        ));
-                        count += 1;
-                    }
-                }
+            let declared = ["var ", "scoped ", "consumed "].iter()
+                .find_map(|kw| t.strip_prefix(kw).map(|rest| ("variable", rest)))
+                .or_else(|| strip_visibility(t).strip_prefix("property ").map(|rest| ("propriété", rest)));
+            if let Some(msg) = declared.and_then(|(label, rest)| naming_issue(label, leading_name(rest), cfg.var_style)) {
+                emit(path, lnum, 1, &msg);
+                count += 1;
             }
         }
 

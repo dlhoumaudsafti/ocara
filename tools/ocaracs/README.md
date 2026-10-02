@@ -81,13 +81,13 @@ max_line_length     = 120
 # R06 — max lignes vides consécutives (0 pour désactiver)
 blank_lines_max     = 2
 
-# R07 — classes/structs/interfaces/modules/generics en PascalCase
+# R07 — classes/structs/interfaces/modules/generics (style : R18)
 naming_class        = true
 
-# R08 — fonctions ET méthodes en camelCase (première lettre minuscule)
+# R08 — fonctions ET méthodes (style : R17)
 naming_function     = true
 
-# R09 — constantes (globales ET de classe) en UPPER_SNAKE_CASE
+# R09 — constantes globales ET de classe (style : R15)
 naming_const        = true
 
 # R10 — espace après '//' dans les commentaires
@@ -96,11 +96,32 @@ comment_spacing     = true
 # R11 — le fichier se termine par une newline
 file_ends_newline   = true
 
-# R12 — variables (var/scoped/consumed) et propriétés en snake_case
+# R12 — variables (var/scoped/consumed) et propriétés (style : R16)
 naming_variable     = true
+
+# R13 — const déclarées dans une fonction, une méthode, un bloc runtime ou
+# une closure : vérifiées avec leur propre style (R14) ; false = non vérifiées
+naming_const_embed  = true
+
+# R14 — style des const locales (par défaut : celui des variables, R16)
+# naming_const_embed_is = snake_case
+
+# R15 à R18 — styles : snake_case | camelCase | PascalCase | UPPER_SNAKE_CASE | UPPERCASE
+naming_const_is     = UPPER_SNAKE_CASE
+naming_var_is       = snake_case
+naming_function_is  = camelCase
+naming_class_is     = PascalCase
+
+# R19 — type d'indentation : auto (déduit de la 1re ligne indentée) | space | tab
+indentation_type    = auto
+
+# R20 — largeur d'un niveau d'indentation (0 = déduite de la 1re ligne indentée)
+indentation_gap     = 0
 ```
 
-> Les règles R07/R08/R09/R12 implémentent [docs/conventions.md](../../docs/conventions.md), la convention de nommage officielle du projet — s'y référer en cas de doute sur une catégorie non couverte ici.
+Une valeur invalide (`naming_var_is = kebab`) est signalée au chargement et la valeur par défaut est conservée.
+
+> Les valeurs par défaut des règles R07/R08/R09/R12 implémentent [docs/conventions.md](../../docs/conventions.md), la convention de nommage officielle du projet — s'y référer en cas de doute sur une catégorie non couverte ici.
 
 Si `.ocaracs` est absent, toutes les règles sont activées avec les valeurs par défaut.
 
@@ -110,8 +131,9 @@ Si `.ocaracs` est absent, toutes les règles sont activées avec les valeurs par
 
 ### R01 — Cohérence de l'indentation
 
-La première ligne indentée du fichier détermine l'unité d'indentation globale.  
+Par défaut (`indentation_type = auto`, `indentation_gap = 0`), la première ligne indentée du fichier détermine l'unité d'indentation globale.  
 Toutes les autres lignes indentées doivent utiliser un multiple de cette unité.
+R19 (`indentation_type = space|tab`) impose le type, et R20 (`indentation_gap = N`) impose la largeur d'un niveau : N espaces, ou N tabulations.
 
 ```ocara
 // Première ligne indentée = 4 espaces → unité = 4
@@ -184,7 +206,7 @@ Mettre `blank_lines_max = 0` pour désactiver.
 
 ### R07 — Nommage des classes/structs/interfaces/modules/generics (PascalCase)
 
-`class`, `interface`, `module` et `generic` doivent commencer par une majuscule et n'utiliser que des caractères alphanumériques.
+`class`, `struct`, `interface`, `module` et `generic` doivent commencer par une majuscule et n'utiliser que des caractères alphanumériques. Style modifiable par R18 (`naming_class_is`).
 
 ```ocara
 class Point { }              // ✓
@@ -200,12 +222,13 @@ generic cache<K, V> { }      // ✗ → Cache
 
 ### R08 — Nommage des fonctions et méthodes (camelCase)
 
-Les fonctions (`function`) et les méthodes (`method`, avec ou sans visibilité/`static`/`async` devant — une signature de méthode d'interface n'a pas de visibilité) doivent commencer par une minuscule.
+Les fonctions (`function`) et les méthodes (`method`, avec ou sans visibilité/`static`/`async` devant — une signature de méthode d'interface n'a pas de visibilité) doivent être en camelCase : première lettre minuscule, alphanumérique uniquement, **sans `_`**. Style modifiable par R17 (`naming_function_is`).
 
 ```ocara
 function main(): int { }              // ✓
 function calculateArea(): float { }   // ✓
 function MyFunction(): int { }        // ✗ → myFunction
+function is_adult(): bool { }         // ✗ → isAdult
 
 public method tryLock(): bool { }         // ✓
 public static method Create(): Foo { }    // ✗ → create
@@ -216,7 +239,7 @@ method draw(): void                       // ✓ (signature d'interface, pas de 
 
 ### R09 — Nommage des constantes (UPPER_SNAKE_CASE)
 
-Les constantes déclarées avec `const` doivent être en majuscules — qu'il s'agisse d'une constante globale ou d'une constante de classe (`public`/`protected`/`private const`).
+Les constantes globales et les constantes de classe (`public`/`protected`/`private const`) doivent être en majuscules. Style modifiable par R15 (`naming_const_is`). Une `const` déclarée dans un corps relève de R13.
 
 ```ocara
 const MAX_RETRIES = 3                  // ✓
@@ -224,6 +247,35 @@ const version = "1.0"                  // ✗ → VERSION
 public const NOT_FOUND:int = 404       // ✓
 private const maxRetry:int = 3         // ✗ → MAX_RETRY
 ```
+
+---
+
+### R13/R14 — Constantes locales
+
+Une `const` déclarée dans un corps est vérifiée avec le style R14 (`naming_const_embed_is`), par défaut celui des variables (R16, `snake_case`). Sont des corps : une fonction, une méthode, un constructeur `init(...)`, une closure `nameless`, un bloc runtime (`init { }`, `main { }`, `error`/`success`/`exit`), ou un fichier runtime entier (`*.runtime.oc`, `*.run.oc`, `*.rt.oc`). Avec `naming_const_embed = false`, ces constantes ne sont plus vérifiées.
+
+```ocara
+const MAX_RETRY = 3                       // R09 → UPPER_SNAKE_CASE
+
+function main(): int {
+    const db:SQLite = SQLite::open("x.db")   // ✓ R14 → snake_case
+    const userCount:int = 0                  // ✗ → user_count
+    return 0
+}
+```
+
+---
+
+### R15 à R18 — Styles de nommage
+
+Valeurs possibles : `snake_case`, `camelCase` (sans `_`), `PascalCase`, `UPPER_SNAKE_CASE`, `UPPERCASE` (sans `_`). Chaque avertissement propose le nom converti (`→ userCount`).
+
+| Règle | Clé | Défaut | Appliquée par |
+|---|---|---|---|
+| R15 | `naming_const_is` | `UPPER_SNAKE_CASE` | R09 |
+| R16 | `naming_var_is` | `snake_case` | R12 (et R14 par défaut) |
+| R17 | `naming_function_is` | `camelCase` | R08 |
+| R18 | `naming_class_is` | `PascalCase` | R07 |
 
 ---
 
@@ -247,7 +299,7 @@ Le fichier doit se terminer par un caractère newline (`\n`).
 
 ### R12 — Nommage des variables et propriétés (snake_case)
 
-`var`, `scoped`, `consumed` et `property` (avec ou sans visibilité devant pour `property`) doivent être en minuscules avec underscores.
+`var`, `scoped`, `consumed` et `property` (avec ou sans visibilité devant pour `property`) doivent être en minuscules avec underscores. Style modifiable par R16 (`naming_var_is`).
 
 ```ocara
 var user_count:int = 0            // ✓
@@ -266,7 +318,7 @@ public  property FirstName:string // ✗ → first_name
 ## Intégration Makefile
 
 ```bash
-make lint           # analyse tous les fichiers de examples/
+make lint-examples  # analyse tous les fichiers de examples/
 make build-tools    # compile ocaracs uniquement
 make install-tools  # installe ocaracs dans /usr/local/bin/
 ```
@@ -291,6 +343,9 @@ naming_const        = true
 comment_spacing     = true
 file_ends_newline   = true
 naming_variable     = true
+naming_const_embed  = true
+indentation_type    = space
+indentation_gap     = 4
 ```
 
 ### Permissif (style libre)

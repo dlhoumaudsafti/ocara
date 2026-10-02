@@ -9,11 +9,12 @@
 | Catégorie | Convention | Exemple |
 |---|---|---|
 | Variable (locale, paramètre, propriété de classe) | `snake_case` | `var user_count:int`, `private property click_count:int` |
-| Constante (`const`, y compris constante de classe) | `MAJUSCULES_SOUS_TIRET` | `const MAX_SCORE:int = 100`, `public const NOT_FOUND:int = 404` |
+| Constante globale ou de classe | `MAJUSCULES_SOUS_TIRET` | `const MAX_SCORE:int = 100`, `public const NOT_FOUND:int = 404` |
+| Constante locale (`const` dans une fonction, une méthode, un bloc runtime) | comme une variable : `snake_case` | `const db:SQLite = SQLite::open(path)` |
 | Fonction / méthode | `camelCase` | `function computeTotal(...)`, `public method tryLock(): bool` |
 | Classe / interface / module / generic | `PascalCase` | `class HttpStatus`, `interface Drawable`, `module Clickable`, `generic Stack<T>` |
 
-Ces quatre règles couvrent tout identifiant déclaré en Ocara. En cas de doute sur une catégorie non listée ici, se rapprocher de la catégorie la plus proche par rôle (ex. un paramètre de closure `nameless` est une variable → `snake_case`) plutôt que d'introduire un cinquième style.
+Ces règles couvrent tout identifiant déclaré en Ocara. En cas de doute sur une catégorie non listée ici, se rapprocher de la catégorie la plus proche par rôle (ex. un paramètre de closure `nameless` est une variable → `snake_case`) plutôt que d'introduire un cinquième style.
 
 ---
 
@@ -37,7 +38,7 @@ class Car {
 
 ### Constantes — `MAJUSCULES_SOUS_TIRET`
 
-S'applique à `const` (global ou local) et aux constantes de classe (`public`/`protected`/`private const`). C'est déjà la convention majoritairement suivie dans le corpus existant (`Math::PI`, `HttpStatus::NOT_FOUND`, `Color::RED`) — ce document la rend officielle plutôt que simplement dominante.
+S'applique à `const` global et aux constantes de classe (`public`/`protected`/`private const`). Une `const` locale (dans une fonction, une méthode, un constructeur, une closure, un bloc runtime ou un fichier runtime) se lit comme une variable locale et suit donc `snake_case` (`const db:SQLite = …`) — règle R13/R14 d'ocaracs. C'est déjà la convention majoritairement suivie dans le corpus existant (`Math::PI`, `HttpStatus::NOT_FOUND`, `Color::RED`) — ce document la rend officielle plutôt que simplement dominante.
 
 ```ocara
 const MAX_RETRY:int = 3
