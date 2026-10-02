@@ -41,7 +41,7 @@ s -= " le monde"      // "salut"
 - **`mixed`** : autorisé via les opérations dynamiques existantes
   (`__dyn_add`…), ou refusé ?
 - **Immutables** : `const`, paramètre, champ non mutable → même erreur que
-  l'affectation simple (E… `InvalidAssign`).
+  l'affectation simple (`SemaError::InvalidAssign`).
 
 ## À mettre à jour
 
