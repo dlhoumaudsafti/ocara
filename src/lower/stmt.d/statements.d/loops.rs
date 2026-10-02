@@ -78,35 +78,17 @@ pub fn lower_for_in(
 
     builder.switch_to(&body_bb);
     // Charge l'élément courant
-    let mut elem = builder.new_value();
+    let elem = builder.new_value();
     
-    // Pour les paramètres variadic, le tableau IR est Ptr (mixed[]) donc on doit traiter
-    // différemment : récupérer comme I64 puis caster/unboxer si nécessaire
-    let is_variadic = if let Expr::Ident(name, _) = iter {
-        builder.variadic_params.contains(name.as_str())
-    } else {
-        false
-    };
-    
-    if is_variadic {
-        let raw = builder.new_value();
-        builder.emit(Inst::Call {
-            dest:   Some(raw.clone()),
-            func:   "__array_get".into(),
-            args:   vec![iter_val.clone(), idx.clone()],
-            ret_ty: IrType::I64,
-        });
-        elem = crate::lower::expr::helpers::unbox_variadic_elem(builder, &elem_ty, raw);
-    } else {
-        // Tableau normal : utiliser le type d'élément
-        builder.emit(Inst::Call {
-            dest:   Some(elem.clone()),
-            func:   "__array_get".into(),
-            args:   vec![iter_val.clone(), idx.clone()],
-            ret_ty: elem_ty.clone(),
-        });
-    }
-    
+    // Paramètre variadic compris : stocké comme un `array<T>` ordinaire (voir
+    // `pack_variadic_args`), lu avec le type d'élément déclaré.
+    builder.emit(Inst::Call {
+        dest:   Some(elem.clone()),
+        func:   "__array_get".into(),
+        args:   vec![iter_val.clone(), idx.clone()],
+        ret_ty: elem_ty.clone(),
+    });
+
     builder.declare_local(var, elem_ty.clone(), false);
     builder.store_local(var, elem);
     
@@ -133,6 +115,11 @@ pub fn lower_for_in(
                 builder.elem_types.insert(var.to_string(), IrType::from_ast(val_ty));
                 builder.elem_ast_types.insert(var.to_string(), (**val_ty).clone());
                 builder.var_class.insert(var.to_string(), "Map".to_string());
+            } else if let Type::Function { ret_ty, .. } = &elem_ast_ty {
+                // `variadic<Function<...>>`/`array<Function<...>>` : la variable
+                // de boucle est appelable (`f(x)`), comme un paramètre Function.
+                builder.func_vars.insert(var.to_string());
+                builder.func_ret_types.insert(var.to_string(), IrType::from_ast(ret_ty));
             } else if let Type::Array(inner) = &elem_ast_ty {
                 // `array<array<T>>` : la variable de boucle est un `array<T>`
                 // dont les éléments scalaires sont BRUTS (voir
@@ -141,6 +128,7 @@ pub fn lower_for_in(
                 // pointeur).
                 builder.elem_types.insert(var.to_string(), IrType::from_ast(inner));
                 builder.elem_ast_types.insert(var.to_string(), (**inner).clone());
+                builder.var_class.insert(var.to_string(), "Array".to_string());
             } else if let Some(class_name) = resolved_named_class(&elem_ast_ty) {
                 // `array<Classe>` (ou `array<Classe|null>`) : la variable de
                 // boucle est une instance de Classe.

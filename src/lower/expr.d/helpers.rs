@@ -525,21 +525,20 @@ pub fn write_variant(base: &str, ty: &IrType) -> String {
     format!("{}{}", base, suffix)
 }
 
-/// Élément lu (`__array_get`, valeur brute) dans le tableau d'un paramètre
-/// variadic, déballé vers son type d'élément déclaré — le site d'appel boxe
-/// chaque argument variadic (`float`/`bool` toujours, `int` s'il est ambigu
-/// avec un pointeur, voir le packing variadic de `lower.rs`), contrairement à
-/// un tableau ordinaire dont les éléments scalaires restent bruts. Sans ce
-/// déballage, `not f`/`if f` testaient le pointeur de la cellule boxée. Voir
-/// docs/roadmap.d/langage-variadic-bool-not.md.
-pub fn unbox_variadic_elem(builder: &mut LowerBuilder, elem_ty: &IrType, raw: Value) -> Value {
-    let func = match elem_ty {
-        IrType::F64  => "__mixed_to_float",
-        IrType::Bool => "__unbox_bool",
-        IrType::I64  => "__mixed_to_int",
-        _ => return raw,
+/// Vrai si l'argument `arg_index` (forme statique, receveur = argument 0) de
+/// l'appel builtin `func` est la VALEUR stockée dans le conteneur `receiver`
+/// (`Array::push(arr, v)`, `Array::set(arr, i, v)`, `Map::set(m, k, v)`) et
+/// que ce conteneur a un type d'élément concret (`int`/`float`/`bool`) : la
+/// valeur doit alors être stockée BRUTE, comme dans un littéral typé (voir
+/// `lower_array_literal`) — le paramètre `mixed` du builtin la faisait boxer,
+/// et un grand entier était ensuite relu comme l'adresse de sa cellule (voir
+/// docs/roadmap.d/memoire-array-push-large-int-boxed.md).
+pub fn stores_raw_into_container(builder: &LowerBuilder, func: &str, receiver: &Expr, arg_index: usize) -> bool {
+    let value_index = match func {
+        "Array_push" => 1,
+        "Array_set" | "Map_set" => 2,
+        _ => return false,
     };
-    let dest = builder.new_value();
-    builder.emit(Inst::Call { dest: Some(dest.clone()), func: func.into(), args: vec![raw], ret_ty: elem_ty.clone() });
-    dest
+    arg_index == value_index
+        && matches!(elem_type_after_index(builder, receiver), Some(Type::Int | Type::Float | Type::Bool))
 }

@@ -1749,6 +1749,22 @@ var __variadic_arr = [1, 2, 3]
 sum(__variadic_arr)
 ```
 
+**Dans le corps de la fonction**, un paramètre `variadic<T>` est un `array<T>` ordinaire (même représentation, mêmes méthodes : `nums.len()`, `for n in nums`, `nums[0]`), y compris pour une méthode d'instance ou statique.
+
+**Transmettre un variadic à un autre** : passé SEUL à la place d'un `variadic<T>` du même type d'élément, le tableau est transmis tel quel (pas réemballé dans un tableau d'un élément) :
+
+```ocara
+function sum(nums:variadic<int>): int { ... }
+
+function default_sum(nums:variadic<int>): int {
+    return sum(nums)              // sum reçoit [10, 20] → 30
+}
+
+default_sum(10, 20)               // 30
+```
+
+Pour un élément lui-même tableau/`mixed` (`variadic<array<T>>`, `variadic<mixed>`), seul un paramètre variadic est ainsi transmis — un tableau quelconque passé seul y reste UN élément.
+
 ### 14.3 Fonctions de première classe
 
 Une fonction peut être passée comme valeur en utilisant le type `Function` (voir §4.5).

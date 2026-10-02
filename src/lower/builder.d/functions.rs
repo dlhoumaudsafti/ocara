@@ -110,15 +110,17 @@ pub fn lower_func(
         }
 
         // Si le paramètre est un tableau, enregistrer le type d'élément pour
-        // les boucles for
-        if let crate::parsing::ast::Type::Array(inner) = &param.ty {
+        // les boucles for — jamais pour un variadic, dont `param.ty` est le
+        // type d'ÉLÉMENT (`variadic<array<int>>` : `ty` = `array<int>`, les
+        // éléments sont des tableaux, pas des `int`), déjà enregistré plus haut.
+        if let (false, crate::parsing::ast::Type::Array(inner)) = (param.is_variadic, &param.ty) {
             let elem_ty = IrType::from_ast(inner);
             builder.elem_types.insert(param.name.clone(), elem_ty);
             builder.elem_ast_types.insert(param.name.clone(), (**inner).clone());
         }
         
         // Marquer les paramètres de type map<> pour Expr::Index → __map_get
-        if let crate::parsing::ast::Type::Map(_, val_ty) = &param.ty {
+        if let (false, crate::parsing::ast::Type::Map(_, val_ty)) = (param.is_variadic, &param.ty) {
             builder.map_vars.insert(param.name.clone());
             builder.elem_types.insert(param.name.clone(), IrType::from_ast(val_ty));
             builder.elem_ast_types.insert(param.name.clone(), (**val_ty).clone());

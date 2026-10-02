@@ -15,11 +15,14 @@ Le second paramètre de `Array::push` est `mixed` : l'argument est boxé
 famille pour `Array::set`, `Map::set` sur un conteneur concret, et
 `float`/`bool` (toujours boxés) — à vérifier un par un.
 
-## Piste
+## Correction
 
-Au site d'appel d'une méthode `Array`/`Map` qui écrit un élément, ne pas
-boxer quand le type d'élément déclaré du receveur est concret (`elem_types`
-connu, non `mixed`).
+`stores_raw_into_container` (`src/lower/expr.d/helpers.rs`) : l'argument
+VALEUR de `Array::push`/`Array::set`/`Map::set` (formes statique et sucrée
+`arr.push(v)`) est passé brut quand le conteneur a un type d'élément
+concret (`int`/`float`/`bool`, receveur variable, champ ou élément indexé —
+`elem_type_after_index`) ; un conteneur `mixed` continue de boxer. Tests :
+`examples/tests/71_variadic_forwarding_and_pushTest.oc`.
 
 ## Priorité / Complexité
 

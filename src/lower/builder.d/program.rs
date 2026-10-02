@@ -183,6 +183,14 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
                         .collect();
                     module.method_param_types.insert(mangled.clone(), param_types);
 
+                    // Méthode d'instance variadic (sans `self`, ajouté à part
+                    // au site d'appel) — voir `pack_variadic_args`.
+                    if let Some(last_param) = decl.params.last() {
+                        if last_param.is_variadic {
+                            fn_variadic_info.insert(mangled.clone(), (decl.params.len() - 1, IrType::from_ast(&last_param.ty)));
+                        }
+                    }
+
                     // Collecte des valeurs par défaut (sans self)
                     let default_args: Vec<Option<Expr>> = decl.params.iter()
                         .map(|p| p.default_value.clone())
