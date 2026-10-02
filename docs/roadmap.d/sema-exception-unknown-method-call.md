@@ -1,48 +1,28 @@
-# Appel de méthode inexistante sur une variable d'exception accepté en silence
+# Appel de méthode inexistante sur une variable d'exception — corrigé
 
 ## Constat
 
-Reproduction (trouvée en écrivant le test de `HTTPServerSession`) :
+Dans un handler `on e is Exception`, `e.message()` (au lieu du champ
+`e.message`) et `e.nothing()` compilaient sans diagnostic et valaient `null`
+à l'exécution. Cause : le binding du handler était déclaré `mixed`
+(`Stmt::Try` dans `src/sema/typecheck.rs`), et un appel de méthode sur un
+`mixed` est permissif.
 
-```ocara
-import ocara.IO
-import ocara.Exception
+## Correctif
 
-function main(): int {
-    try {
-        raise use Exception("boom", 3)
-    } on e is Exception {
-        IO::writeln("msg=" + e.message())   // affiche "msg=null"
-        IO::writeln("nope=" + e.nothing())  // affiche "nope=null"
-    }
-    return 0
-}
-```
+- `on e is X` : `e` est typé `Type::Named(X)` quand `X` est une classe connue
+  (le filtre le garantit). Le handler générique `on e` garde `mixed`.
+- Nouveau diagnostic **E57** (`SemaError::FieldCalledAsMethod`) quand le nom
+  appelé est un champ de la classe ou d'un ancêtre (`lookup_field_owner`) :
+  « 'message' is a field of 'Exception', not a method — write '.message'
+  without parentheses ». Une méthode réellement inexistante reste signalée
+  par `FieldNotFound`. E57 s'applique aussi aux classes utilisateur.
+- Documentation : `docs/diagnostics.md` (E57), `docs/EBNF.md` §29.2 (type du
+  binding).
 
-Les deux appels compilent sans aucun diagnostic et valent `null`.
-`message`/`code`/`source` sont des **champs** des exceptions builtin
-(`src/builtins/exception.rs`, `make_exception_class`), pas des méthodes ; la
-forme correcte est `e.message`. Sur une classe utilisateur, la même erreur est
-rejetée (`error: field 'x' not found in class 'A'`).
-
-Effet : une faute de frappe dans un gestionnaire d'erreur passe inaperçue et
-masque le message de l'exception, exactement là où on en a besoin.
-
-## À faire
-
-- Dans `src/sema/typecheck.rs` (appel de méthode sur un receveur de type
-  classe builtin), signaler une méthode introuvable sur une classe
-  d'exception, comme pour une classe utilisateur. Message suggéré quand le
-  nom est un champ : « `message` est un champ, pas une méthode : écrire
-  `e.message` ».
-- Vérifier le même chemin pour les autres classes builtin dont les méthodes
-  manquantes retombent sur `mixed`.
-- Test sema dans `src/sema/tests/`.
-
-## Priorité / Complexité
-
-Haute (erreur silencieuse) — **Simple**.
+Aucune régression sur le corpus (952 + 50 tests ocaraunit, 75 exemples).
 
 ## Fichiers clés
 
-`src/sema/typecheck.rs`, `src/builtins/exception.rs`.
+`src/sema/typecheck.rs`, `src/sema/error.rs`,
+`src/sema/tests/exception_binding.rs`.

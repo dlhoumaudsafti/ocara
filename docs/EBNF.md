@@ -3713,6 +3713,8 @@ try {
 > Le handler générique (`on e` sans `is`) doit toujours être placé en dernier — **imposé par le compilateur** (sinon les handlers suivants ne seraient jamais atteints, voir diagnostic E24). La classe passée à `is` doit également correspondre à une classe connue (classe du programme ou classe d'exception builtin) — un nom inexistant est rejeté à la compilation (E23) plutôt que de produire un handler silencieusement mort.
 >
 > **Hiérarchie réelle** : un filtre sur une classe **parente** attrape une instance d'une **sous-classe** — `on e is Parent` attrape une instance de `Enfant extends Parent`, transitivement (`extends` sur plusieurs niveaux fonctionne). Vrai aussi pour les ~20 classes d'exception builtin, qui héritent toutes implicitement de `Exception` : `on e is Exception` attrape n'importe laquelle d'entre elles (`FileException`, `SDLException`, ...), qu'elle soit levée par du code Ocara (`raise`) ou par le runtime lui-même (ex. `File::read` sur un fichier inexistant). Le type statiquement connu au moment du `raise` (littéral `use Classe(...)` **ou** variable dont la classe est connue) porte sa chaîne d'ancêtres complète ; un `raise` d'une expression dont le type n'est pas connu statiquement (`mixed`, valeur calculée...) reste, lui, seulement attrapable par un handler générique (`on e` sans `is`).
+>
+> **Type du binding** : dans `on e is X`, `e` est typé `X` — ses champs (`e.message`, `e.code`, `e.source` pour une exception builtin) et ses méthodes sont vérifiés à la compilation ; un champ appelé comme une méthode (`e.message()`) est rejeté (E57), une méthode inexistante aussi. Dans le handler générique `on e`, `e` reste `mixed`.
 
 ### 29.3 `raise`
 

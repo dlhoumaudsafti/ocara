@@ -785,10 +785,14 @@ impl<'a> TypeChecker<'a> {
                         }
                     }
                     self.scopes.push();
-                    // Le binding est de type mixed (type de l'erreur inconnu statiquement)
+                    // `on e is X` : `e` est un `X` (le filtre le garantit) ;
+                    // catch-all `on e` : type de l'erreur inconnu, `mixed`.
+                    let binding_ty = handler.class_filter.as_ref()
+                        .filter(|c| self.symbols.lookup_class(c).is_some())
+                        .map_or(Type::Mixed, |c| Type::Named(c.clone()));
                     self.scopes.declare(
                         handler.binding.clone(),
-                        LocalBinding { ty: Type::Mixed, mutable: false, span: handler.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
+                        LocalBinding { ty: binding_ty, mutable: false, span: handler.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                     );
                     self.check_block(&handler.body);
                     { let _u = self.scopes.pop_scope(&self.resource_classes); self.flush_warnings(_u); }
@@ -1598,10 +1602,10 @@ impl<'a> TypeChecker<'a> {
                         }
                         
                         let _ = info;
-                        self.errors.push(SemaError::FieldNotFound {
-                            class: cls_name,
-                            field: field.clone(),
-                            span:  self.with_runtime_ctx(fspan),
+                        let span = self.with_runtime_ctx(fspan);
+                        self.errors.push(match self.symbols.lookup_field_owner(&cls_name, field) {
+                            Some(_) => SemaError::FieldCalledAsMethod { class: cls_name, field: field.clone(), span },
+                            None => SemaError::FieldNotFound { class: cls_name, field: field.clone(), span },
                         });
                     }
                 }
