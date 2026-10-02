@@ -1,39 +1,34 @@
-# VS Code : « Compiler et lancer » et « Fixer la mise en forme »
+# VS Code : « Compiler et lancer » et « Fixer la mise en forme » — implémenté
 
-## Proposition
+Documentation utilisateur : `tools/highlight/vsode/README.md`.
 
-Deux nouvelles entrées du menu clic droit, dans l'éditeur et dans
-l'arborescence, comme « Compiler le script » et « Afficher le dump » (voir
-`tools/highlight/vsode/src/compile.ts`) :
+## Ce qui a été tranché
 
-- **Compiler et lancer** : compile le script (compilateur `ocara.compilerPath`)
-  puis exécute le binaire **depuis le dossier du script**, dans un terminal
-  intégré pour que l'entrée clavier (`IO::read`) et les programmes longs
-  (serveur HTTP) fonctionnent.
-- **Fixer la mise en forme** : lance `ocaracs --fix` (`ocara.ocaracsPath`) sur
-  le fichier, ou sur le dossier depuis l'arborescence, puis relance l'analyse
-  (`lint.ts`). Le document ouvert doit être enregistré avant et rechargé
-  après.
+- **Compiler et lancer** (`ocara.compileAndRun`, `src/compile.ts`) : le nom du
+  binaire est demandé, comme pour « Compiler le script » ; il est créé et
+  conservé à côté du script. Le binaire est exécuté depuis le dossier du
+  script dans un terminal intégré « Ocara » **unique**, partagé par tous les
+  lancements. Le programme précédent y est arrêté (Ctrl+C) avant la relance.
+- **Fixer la mise en forme** (`ocara.fixStyle`, `src/fix.ts`) : sur un script
+  (éditeur, arborescence) ou un dossier (arborescence). Les scripts modifiés
+  sont d'abord enregistrés, puis `ocaracs --fix --dry-run` est lancé. La
+  confirmation, qui liste les renommages, n'est demandée **que si** des
+  identifiants doivent être renommés. Ensuite :
+  - les onglets des fichiers renommés sont rouverts sous leur nouveau nom ;
+  - l'analyse est relancée (`OcaracsLinter.relint`) ;
+  - le compte rendu va dans le canal « Ocara », désormais partagé
+    (`ocaraOutput`, `src/toolrunner.ts`).
+- **ocaracs** : nouvelle option `--fix --dry-run`, qui affiche le plan sans
+  rien écrire. Corrigé au passage : `ocaracs --fix x.oc` (sans dossier)
+  échouait à lire le dossier racine, car le parent du chemin était vide.
 
-## Points à trancher
+## Non vérifié
 
-- **Binaire de « Compiler et lancer »** : temporaire, supprimé à la fin comme
-  pour le dump, ou nommé et conservé à côté du script (demande du nom comme
-  « Compiler le script ») ?
-- **Terminal** : un terminal « Ocara » réutilisé à chaque lancement, ou un
-  nouveau à chaque fois ? Que faire si le programme précédent tourne encore
-  (serveur) ?
-- **Confirmation avant `--fix`** : `--fix` renomme dans tout le projet et peut
-  renommer des fichiers. Faut-il une confirmation, ou au moins l'annonce des
-  fichiers modifiés (sortie d'ocaracs dans le canal « Ocara ») ?
-- **Fichiers renommés par `--fix`** : rouvrir l'onglet sous son nouveau nom.
+Le comportement dans VS Code lui-même (menus, terminal, boîte de
+confirmation) n'a pas été testé automatiquement : l'extension compile, est
+réinstallée, et ocaracs `--dry-run`/`--fix` est vérifié en ligne de commande.
 
-## À mettre à jour
+## Bug trouvé
 
-`tools/highlight/vsode/src/compile.ts` (ou un nouveau `run.ts`), `lint.ts`,
-`package.json` (commandes, menus `editor/context` et `explorer/context`),
-README de l'extension.
-
-## Priorité / Complexité
-
-Moyenne — **Légère**.
+Arguments de `use Classe(...)` ignorés pour une classe sans `init` → voir
+[sema-use-args-without-init](sema-use-args-without-init.md).

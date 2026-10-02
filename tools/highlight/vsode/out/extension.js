@@ -44,6 +44,7 @@ const signature_1 = require("./signature");
 const codelens_1 = require("./codelens");
 const lint_1 = require("./lint");
 const compile_1 = require("./compile");
+const fix_1 = require("./fix");
 const runtimecontext_1 = require("./runtimecontext");
 const hover_1 = require("./hover");
 const docs_1 = require("./docs");
@@ -67,9 +68,12 @@ function activate(context) {
     (0, docs_1.registerDocs)(context);
     // Documentation au survol (builtins, sucre d'instance, déclarations utilisateur).
     context.subscriptions.push(vscode.languages.registerHoverProvider(selector, new hover_1.OcaraHoverProvider()));
-    // Analyse ocaracs automatique + commandes Compiler / Afficher le dump.
-    context.subscriptions.push(new lint_1.OcaracsLinter());
+    // Analyse ocaracs automatique + commandes Compiler / Compiler et lancer /
+    // Afficher le dump / Fixer la mise en forme.
+    const linter = new lint_1.OcaracsLinter();
+    context.subscriptions.push(linter);
     new compile_1.OcaraCompiler().register(context);
+    (0, fix_1.registerFix)(context, linter);
 }
 function deactivate() { }
 // ─── Provider ────────────────────────────────────────────────────────────────

@@ -39,6 +39,8 @@ ocaracs --fix examples/
 
 Corrige les fichiers sur place, puis les réanalyse : seuls les avertissements restants sont affichés. **Faites un commit avant** pour pouvoir relire et annuler les changements (`git diff`).
 
+`ocaracs --fix --dry-run <cible>` affiche ce que `--fix` ferait (fichiers à modifier, renommages, renommages ignorés), sans rien écrire — c'est ce qu'utilise l'extension VS Code pour demander confirmation avant un renommage.
+
 | Règle | Correction |
 |---|---|
 | R01 | Indentation recalculée d'après les `{ }`, `( )`, `[ ]` (plusieurs ouvrants sur une même ligne ne comptent qu'un niveau), au type et à la largeur de R19/R20 (sinon déduits de la première ligne indentée, sinon 4 espaces). Une ligne de continuation (`.chain()`, opérateur en tête, ou ligne précédente terminée par `=`, `+`, `&&`…) prend un niveau de plus. |

@@ -148,8 +148,9 @@ fn check_all(files: &[PathBuf], cfg: &Config) -> usize {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Renomme dans TOUT le projet (`root`), met en forme les fichiers analysés,
-/// puis retourne ces fichiers (chemins après renommage éventuel).
-fn fix_all(analyzed: &[PathBuf], root: &Path, cfg: &Config) -> Vec<PathBuf> {
+/// puis retourne ces fichiers (chemins après renommage éventuel). Avec
+/// `dry_run`, rien n'est écrit : seul le compte rendu est affiché.
+fn fix_all(analyzed: &[PathBuf], root: &Path, cfg: &Config, dry_run: bool) -> Vec<PathBuf> {
     let (mut project, mut seen) = (Vec::new(), HashSet::new());
     collect_dir(root, false, &mut project, &mut seen);
     project.extend(analyzed.iter().filter(|f| seen.insert((*f).clone())).cloned());
@@ -169,12 +170,14 @@ fn fix_all(analyzed: &[PathBuf], root: &Path, cfg: &Config) -> Vec<PathBuf> {
         let fixed = if is_analyzed { fix::fix_layout(&renamed, cfg) } else { renamed };
         let dest = plan.moved_path(path).unwrap_or_else(|| path.clone());
         if fixed != *content || dest != *path {
-            if let Err(e) = fs::write(&dest, &fixed) {
+            if dry_run {
+                eprintln!("ocaracs: fichier à modifier : {}", display_path(path).display());
+            } else if let Err(e) = fs::write(&dest, &fixed) {
                 eprintln!("ocaracs: impossible d'écrire '{}': {}", dest.display(), e);
                 continue;
             }
             if dest != *path {
-                let _ = fs::remove_file(path);
+                if !dry_run { let _ = fs::remove_file(path); }
                 eprintln!("ocaracs: fichier renommé : {} → {}", display_path(path).display(), display_path(&dest).display());
             }
             modified += 1;
@@ -183,7 +186,8 @@ fn fix_all(analyzed: &[PathBuf], root: &Path, cfg: &Config) -> Vec<PathBuf> {
     }
     for (old, new) in plan.renames() { eprintln!("ocaracs: renommé : {} → {}", old, new); }
     for line in &plan.skipped { eprintln!("ocaracs: {}", line); }
-    eprintln!("ocaracs --fix : {} fichier(s) modifié(s), {} identifiant(s) renommé(s) ({} occurrence(s)).", modified, plan.renames().len(), replaced);
+    let verb = if dry_run { "à modifier" } else { "modifié(s)" };
+    eprintln!("ocaracs --fix : {} fichier(s) {}, {} identifiant(s) renommé(s) ({} occurrence(s)).", modified, verb, plan.renames().len(), replaced);
     result
 }
 
@@ -198,6 +202,7 @@ fn print_help() {
     eprintln!("  ocaracs <fichier.oc>         Analyser un fichier (et ses imports)");
     eprintln!("  ocaracs <dossier>            Analyser tous les .oc d'un dossier");
     eprintln!("  ocaracs --fix <cible>        Corriger ce qui peut l'être, puis analyser");
+    eprintln!("  ocaracs --fix --dry-run <c>  Afficher ce que --fix ferait, sans rien écrire");
     eprintln!();
     eprintln!("--fix corrige : indentation, lignes vides, espaces autour de '=' et en fin");
     eprintln!("de ligne, espace après '//', newline finale, nommage (déclaration et usages");
@@ -220,6 +225,7 @@ fn main() {
         std::process::exit(0);
     }
     let fix_mode = args.iter().any(|a| a == "--fix");
+    let dry_run  = args.iter().any(|a| a == "--dry-run");
     let targets: Vec<&String> = args.iter().filter(|a| !a.starts_with("--")).collect();
     let [target] = targets.as_slice() else {
         print_help();
@@ -235,8 +241,12 @@ fn main() {
     let project_root = find_project_root(&target);
     let config       = load_config(&project_root);
     let mut files    = analyzed_files(&target);
+    if fix_mode && dry_run {
+        fix_all(&files, &project_root, &config, true);
+        return;
+    }
     if fix_mode {
-        files = fix_all(&files, &project_root, &config);
+        files = fix_all(&files, &project_root, &config, false);
     }
     let total = check_all(&files, &config);
 

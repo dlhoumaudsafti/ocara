@@ -93,9 +93,19 @@ Coloration syntaxique, autocomplétion et navigation (Go-to-Definition) pour le 
   `Ocara: Compiler le script`) : demande le nom du binaire, créé dans le dossier du script
   (le compilateur y laisse aussi `<nom>.o`). Erreurs dans le panneau Problèmes et la sortie
   « Ocara ».
+- **Clic droit → « Compiler et lancer »** : demande le nom du binaire comme « Compiler le
+  script », puis l'exécute **depuis le dossier du script** dans le terminal intégré « Ocara »
+  (entrée clavier et programmes longs, comme un serveur, fonctionnent). Un seul terminal
+  « Ocara » sert à tous les lancements : le programme précédent y est arrêté (Ctrl+C) avant.
 - **Clic droit → « Afficher le dump »** : tokens, AST et IR (`ocara --dump`) dans un éditeur
   sans fichier — le binaire que `--dump` produit malgré tout est compilé dans un dossier
   temporaire supprimé aussitôt.
+- **Clic droit → « Fixer la mise en forme »** (sur un script, ou sur un dossier dans
+  l'arborescence) : `ocaracs --fix` (indentation, espaces, lignes vides, newline finale,
+  nommage). Les scripts modifiés sont d'abord enregistrés. Si des identifiants doivent être
+  renommés (déclaration et usages dans tout le projet), une confirmation liste ces renommages.
+  Un fichier renommé avec sa classe est rouvert sous son nouveau nom, l'analyse est relancée,
+  et le compte rendu complet est dans la sortie « Ocara ».
 
 ## Réglages
 
