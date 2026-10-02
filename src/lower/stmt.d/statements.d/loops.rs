@@ -227,15 +227,21 @@ pub fn lower_for_map(
     builder.declare_local(key, IrType::Ptr, false);
     builder.store_local(key, k.clone());
 
-    // Valeur correspondante
+    // Valeur correspondante, lue au type de valeur déclaré de la map (comme
+    // l'élément de `for x in array<T>`) — `I64` en dur affichait l'adresse
+    // d'une `string`/d'un `mixed` boxé (`${capitale}` → `4464680`).
+    let val_ty = match iter {
+        Expr::Ident(name, _) => builder.elem_types.get(name.as_str()).cloned().unwrap_or(IrType::Ptr),
+        _ => IrType::Ptr,
+    };
     let v = builder.new_value();
     builder.emit(Inst::Call {
         dest:   Some(v.clone()),
         func:   "__map_get".into(),
         args:   vec![iter_val.clone(), k],
-        ret_ty: IrType::I64,
+        ret_ty: val_ty.clone(),
     });
-    builder.declare_local(value, IrType::I64, false);
+    builder.declare_local(value, val_ty, false);
     builder.store_local(value, v);
 
     // Si l'itérateur est une variable `map<K,V>` dont le type de VALEUR est
