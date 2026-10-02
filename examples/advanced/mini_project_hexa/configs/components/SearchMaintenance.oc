@@ -9,18 +9,24 @@ import ocara.HTMLComponent
 class SearchMaintenance extends HTMLComponent {
     init() {
         parent::init("search-maintenance")
-        self.register(nameless(attrs:map<string, mixed>): string {
-            consumed carId:string       = attrs["car_id"]
-            consumed carReference:string = attrs["car_reference"]
+        self.register(nameless(attrs:map<string, string>): string {
+            consumed car_id:string       = attrs["car_id"]
+            consumed car_reference:string = attrs["car_reference"]
             scoped type:string        = attrs["type"]
             consumed description:string = attrs["description"]
             consumed cost:string        = attrs["cost"]
-            consumed badgeCls:string    = match type { "improvement" => "badge-improvement" default => "badge-maintenance" }
-            consumed badgeLabel:string  = match type { "improvement" => "Amélioration"       default => "Entretien" }
-            return `<a class="maintenance-row search-result" href="/voitures/${carId}">
-      <span class="badge ${badgeCls}">${badgeLabel}</span>
+            consumed badge_cls:string    = match type {
+                "improvement" => "badge-improvement"
+                default => "badge-maintenance"
+            }
+            consumed badge_label:string  = match type {
+                "improvement" => "Amélioration"
+                default => "Entretien"
+            }
+            return `<a class="maintenance-row search-result" href="/voitures/${car_id}">
+      <span class="badge ${badge_cls}">${badge_label}</span>
       <span class="maintenance-desc">${description}</span>
-      <span class="maintenance-car">${carReference}</span>
+      <span class="maintenance-car">${car_reference}</span>
       <span class="maintenance-cost">${cost}</span>
     </a>`
         })

@@ -20,8 +20,8 @@ class SearchController {
     public static method handle(req:HTTPServerRequest): int {
         scoped term:string = String::trim(req.query("q"))
 
-        var carsHtml:string = ""
-        var maintenancesHtml:string = ""
+        var cars_html:string = ""
+        var maintenances_html:string = ""
 
         if not String::empty(term) {
             const results:SearchResultsDto = SearchService::run(term)
@@ -29,20 +29,33 @@ class SearchController {
             const maints:array<MaintenanceSearchResultEntity> = results.maintenances
 
             for car in cars {
-                carsHtml = carsHtml + `<car-card id="${Convert::intToStr(car.id)}" reference="${car.reference}" brand="${car.brand}" model="${car.model}" purchase_price="${Format::price(car.purchasePrice)}" estimated_price="${Format::price(car.estimatedPrice)}" maintenance_total="${Format::price(car.maintenanceTotal)}">`
+                cars_html += `<car-card
+                    id="${Convert::intToStr(car.id)}"
+                    reference="${car.reference}"
+                    brand="${car.brand}"
+                    model="${car.model}" 
+                    purchase_price="${Format::price(car.purchase_price)}" 
+                    estimated_price="${Format::price(car.estimated_price)}"
+                    maintenance_total="${Format::price(car.maintenance_total)}"
+                >`
             }
             if Array::len(cars) equal 0 {
-                carsHtml = `<p class="empty">Aucune voiture ne correspond à « ${term} ».</p>`
+                cars_html = `<p class="empty">Aucune voiture ne correspond à « ${term} ».</p>`
             }
 
             for m in maints {
-                maintenancesHtml = maintenancesHtml + `<search-maintenance car_id="${Convert::intToStr(m.carId)}" car_reference="${m.carReference}" type="${m.type}" description="${m.description}" cost="${Format::price(m.cost)}">`
+                maintenances_html += `<search-maintenance
+                    car_id="${Convert::intToStr(m.car_id)}"
+                    car_reference="${m.car_reference}"
+                    type="${m.type}" description="${m.description}"
+                    cost="${Format::price(m.cost)}"
+                >`
             }
             if Array::len(maints) equal 0 {
-                maintenancesHtml = `<p class="empty">Aucun entretien ne correspond à « ${term} ».</p>`
+                maintenances_html = `<p class="empty">Aucun entretien ne correspond à « ${term} ».</p>`
             }
         } else {
-            carsHtml = `<p class="empty">Saisissez un terme ci-dessus pour lancer une recherche.</p>`
+            cars_html = `<p class="empty">Saisissez un terme ci-dessus pour lancer une recherche.</p>`
         }
 
         scoped html:string = HTML::renderFile('templates/search/search.html')

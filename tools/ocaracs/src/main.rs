@@ -2,8 +2,8 @@
 // ocaracs — analyseur de style pour Ocara
 //
 // Usage :
-//   ocaracs <fichier.oc>
-//   ocaracs <dossier>
+//   ocaracs [--fix] <fichier.oc>
+//   ocaracs [--fix] <dossier>
 //
 // Configuration : fichier .ocaracs à la racine du projet (TOML simplifié).
 //
@@ -11,73 +11,25 @@
 //   fichier.oc:LIGNE:COL: warning: message
 // ─────────────────────────────────────────────────────────────────────────────
 
+mod check;
 mod config;
+mod decls;
+mod fix;
 mod naming;
+mod rename;
 mod scope;
+mod text;
 
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fs,
-    io::IsTerminal,
     path::{Path, PathBuf},
 };
 
-use config::{find_project_root, load_config, Config, IndentType};
-use naming::Style;
-use scope::{is_callable_decl, BodyTracker};
+use config::{find_project_root, load_config, Config};
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Diagnostics
-// ─────────────────────────────────────────────────────────────────────────────
-
-const YELLOW: &str = "\x1b[33m";
-const BOLD:   &str = "\x1b[1m";
-const RESET:  &str = "\x1b[0m";
-
-fn use_color() -> bool {
-    std::env::var("NO_COLOR").is_err() && std::io::stderr().is_terminal()
-}
-
-fn emit(path: &Path, line: usize, col: usize, msg: &str) {
-    let c   = use_color();
-    let loc = format!("{}:{}:{}", path.display(), line, col);
-    let loc_s = if c { format!("{}{}{}", BOLD,   loc,       RESET) } else { loc };
-    let kw    = if c { format!("{}warning{}", YELLOW, RESET)       } else { "warning".into() };
-    eprintln!("{}: {}: {}", loc_s, kw, msg);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Détection des lignes entièrement à l'intérieur d'une chaîne backtick
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Retourne pour chaque ligne si elle est ENTIÈREMENT à l'intérieur
-/// d'une chaîne backtick multiligne (ni la ligne d'ouverture ni de fermeture).
-fn backtick_flags(lines: &[&str]) -> Vec<bool> {
-    let mut result  = vec![false; lines.len()];
-    let mut in_bt   = false;
-    for (i, line) in lines.iter().enumerate() {
-        let was_in_bt = in_bt;
-        let mut in_str = false;
-        let chars: Vec<char> = line.chars().collect();
-        let mut j = 0;
-        while j < chars.len() {
-            let ch      = chars[j];
-            let escaped = j > 0 && chars[j - 1] == '\\';
-            match ch {
-                '"' if !in_bt  && !escaped => in_str = !in_str,
-                '`' if !in_str && !escaped => in_bt  = !in_bt,
-                _ => {}
-            }
-            j += 1;
-        }
-        // La ligne est "dans le backtick" ssi elle était ouverte en début ET en fin de ligne
-        result[i] = was_in_bt && in_bt;
-    }
-    result
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Extraction des imports utilisateur
+// Fichiers analysés : un fichier et ses imports utilisateur, ou un dossier
 // ─────────────────────────────────────────────────────────────────────────────
 
 const OCARA_BUILTINS: &[&str] = &[
@@ -111,356 +63,132 @@ fn extract_user_imports(content: &str, file_dir: &Path) -> Vec<PathBuf> {
     out
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers nommage
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Avertissement si `name` ne suit pas `style`, avec le nom converti.
-fn naming_issue(label: &str, name: &str, style: Style) -> Option<String> {
-    (!name.is_empty() && !style.matches(name)).then(|| format!(
-        "{} '{}' devrait être en {} → {}", label, name, style.label(), style.convert(name)
-    ))
-}
-
-/// Premier identifiant de `rest` (avant ` `, `=`, `:`, `(`, `<`…).
-fn leading_name(rest: &str) -> &str {
-    rest.trim().split(|c: char| !c.is_alphanumeric() && c != '_').next().unwrap_or("")
-}
-
-/// Problème d'indentation de `lead` : type attendu (`tabs`) et largeur
-/// d'un niveau (`gap`, 0 = non vérifiée).
-fn indent_issue(lead: &str, tabs: bool, gap: usize) -> Option<String> {
-    let use_tabs = lead.contains('\t');
-    if use_tabs != tabs {
-        return Some(format!(
-            "indentation incohérente : {} attendu(s), {} trouvé(s)",
-            if tabs { "tabulations" } else { "espaces" },
-            if use_tabs { "tabulations" } else { "espaces" },
-        ));
-    }
-    (gap > 0 && lead.len() % gap != 0).then(|| format!(
-        "indentation incohérente : multiple de {} {} attendu",
-        gap, if tabs { "tabulation(s)" } else { "espace(s)" }
-    ))
-}
-
-/// Strippe une visibilité (`public `/`protected `/`private `) en tête de ligne si présente.
-/// Les trois sont optionnelles dans la grammaire (ex. les signatures de méthode d'interface
-/// n'en portent aucune), donc l'absence de correspondance n'est pas une erreur.
-fn strip_visibility(t: &str) -> &str {
-    for vis in ["public ", "protected ", "private "] {
-        if let Some(r) = t.strip_prefix(vis) { return r; }
-    }
-    t
-}
-
-/// Trouve la position du premier '//' hors d'une chaîne "..."
-fn find_comment_pos(line: &str) -> Option<usize> {
-    let bytes  = line.as_bytes();
-    let mut in_str = false;
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'"' && (i == 0 || bytes[i - 1] != b'\\') {
-            in_str = !in_str;
-        }
-        if !in_str && i + 1 < bytes.len() && bytes[i] == b'/' && bytes[i + 1] == b'/' {
-            return Some(i);
-        }
-        i += 1;
-    }
-    None
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Analyse d'un fichier
-// ─────────────────────────────────────────────────────────────────────────────
-
-fn check_file(path: &Path, content: &str, cfg: &Config) -> usize {
-    let lines: Vec<&str> = content.lines().collect();
-    let bt = backtick_flags(&lines);
-
-    // R01/R19/R20 : type et largeur attendus — imposés par la configuration,
-    // sinon déduits de la première ligne indentée hors backtick.
-    let inferred: Option<String> = lines.iter().enumerate()
-        .filter(|(i, l)| !bt.get(*i).copied().unwrap_or(false) && !l.is_empty())
-        .find_map(|(_, l)| {
-            let lead: String = l.chars().take_while(|c| *c == ' ' || *c == '\t').collect();
-            if lead.is_empty() { None } else { Some(lead) }
-        });
-    let indent_rule: Option<(bool, usize)> = if !cfg.indent {
-        None
-    } else {
-        let tabs = match cfg.indent_type {
-            IndentType::Tab   => Some(true),
-            IndentType::Space => Some(false),
-            IndentType::Auto  => inferred.as_ref().map(|u| u.contains('\t')),
-        };
-        tabs.map(|tabs| {
-            let inferred_gap = inferred.as_ref()
-                .filter(|u| !tabs && !u.contains('\t'))
-                .map_or(0, |u| u.len());
-            (tabs, if cfg.indent_gap > 0 { cfg.indent_gap } else { inferred_gap })
-        })
+/// Ajoute `path` (canonique) et, récursivement, ses imports utilisateur.
+fn collect_with_imports(path: &Path, out: &mut Vec<PathBuf>, seen: &mut HashSet<PathBuf>) {
+    // Un import inexistant est ignoré silencieusement (import de démonstration).
+    let Ok(canonical) = path.canonicalize() else { return };
+    if !seen.insert(canonical.clone()) { return; }
+    let Ok(content) = fs::read_to_string(&canonical) else {
+        eprintln!("ocaracs: impossible de lire '{}'", path.display());
+        return;
     };
-    let mut bodies = BodyTracker::for_file(&path.to_string_lossy());
-
-    let mut count  = 0usize;
-    let mut blanks = 0usize;
-
-    for (i, line) in lines.iter().enumerate() {
-        let lnum      = i + 1;
-        let in_bt     = bt.get(i).copied().unwrap_or(false);
-
-        let in_body = bodies.in_body();
-        bodies.advance(line);
-
-        // ── R01 : Cohérence de l'indentation (type R19, largeur R20) ─────
-        if let Some((tabs, gap)) = indent_rule {
-            if !in_bt && !line.is_empty() {
-                let lead: String = line.chars().take_while(|c| *c == ' ' || *c == '\t').collect();
-                if let Some(msg) = (!lead.is_empty()).then(|| indent_issue(&lead, tabs, gap)).flatten() {
-                    emit(path, lnum, 1, &msg);
-                    count += 1;
-                }
-            }
-        }
-
-        // ── R02 : Ligne vide sans whitespace ──────────────────────────────
-        if cfg.empty_line_ws && !in_bt {
-            if !line.is_empty() && line.chars().all(|c| c == ' ' || c == '\t') {
-                emit(path, lnum, 1, "ligne vide contient des espaces ou tabulations");
-                count += 1;
-            }
-        }
-
-        // ── R03 : Espaces autour de '=' dans les déclarations ─────────────
-        if cfg.spacing_assign && !in_bt {
-            let trimmed = line.trim();
-            if trimmed.starts_with("var ")
-                || trimmed.starts_with("scoped ")
-                || trimmed.starts_with("const ")
-            {
-                let bytes = line.as_bytes();
-                for j in 0..bytes.len() {
-                    if bytes[j] != b'=' { continue; }
-                    let prev = if j > 0              { bytes[j - 1] } else { 0 };
-                    let next = if j + 1 < bytes.len(){ bytes[j + 1] } else { 0 };
-                    // Ignorer ==  !=  <=  >=  =>
-                    if next == b'=' || prev == b'!' || prev == b'<'
-                        || prev == b'>' || prev == b'=' || next == b'>'
-                    {
-                        continue;
-                    }
-                    if prev != b' ' && prev != b'\t' {
-                        emit(path, lnum, j + 1, "espace manquant avant '='");
-                        count += 1;
-                    }
-                    if next != b' ' && next != b'\t' && next != b'\n' && next != 0 {
-                        emit(path, lnum, j + 2, "espace manquant après '='");
-                        count += 1;
-                    }
-                    break; // premier '=' de la déclaration uniquement
-                }
-            }
-        }
-
-        // ── R04 : Pas de whitespace en fin de ligne ────────────────────────
-        if cfg.trailing_ws && !in_bt && !line.is_empty() {
-            let trimmed_r = line.trim_end();
-            if trimmed_r.len() < line.len() {
-                emit(path, lnum, trimmed_r.len() + 1,
-                    "espace(s) ou tabulation(s) en fin de ligne");
-                count += 1;
-            }
-        }
-
-        // ── R05 : Longueur de ligne ────────────────────────────────────────
-        if cfg.max_line_length > 0 {
-            let len = line.chars().count();
-            if len > cfg.max_line_length {
-                emit(path, lnum, cfg.max_line_length + 1, &format!(
-                    "ligne trop longue : {} caractères (max {})",
-                    len, cfg.max_line_length
-                ));
-                count += 1;
-            }
-        }
-
-        // ── R06 : Lignes vides consécutives ───────────────────────────────
-        if cfg.blank_lines_max > 0 {
-            if line.trim().is_empty() {
-                blanks += 1;
-                if blanks > cfg.blank_lines_max {
-                    emit(path, lnum, 1, &format!(
-                        "trop de lignes vides consécutives (max {})",
-                        cfg.blank_lines_max
-                    ));
-                    count += 1;
-                }
-            } else {
-                blanks = 0;
-            }
-        }
-
-        // ── R07/R18 : classes/structs/interfaces/modules/generics ───────
-        if cfg.naming_class && !in_bt {
-            let t = line.trim();
-            const KINDS: &[(&str, &str)] = &[
-                ("class ",     "classe"),
-                ("interface ", "interface"),
-                ("module ",    "module"),
-                ("generic ",   "generic"),
-                ("struct ",    "struct"),
-            ];
-            if let Some((kw, label)) = KINDS.iter().find(|(kw, _)| t.starts_with(kw)) {
-                if let Some(msg) = naming_issue(label, leading_name(&t[kw.len()..]), cfg.class_style) {
-                    emit(path, lnum, 1, &msg);
-                    count += 1;
-                }
-            }
-        }
-
-        // ── R08/R17 : fonctions et méthodes ─────────────────────────────
-        // FuncDecl ::= "async"? "function" … ; ClassMember ::= Visibility?
-        // "static"? "async"? "method" … (visibilité absente en interface).
-        if cfg.naming_function && !in_bt && is_callable_decl(line.trim()) {
-            let t = strip_visibility(line.trim());
-            let t = t.strip_prefix("static ").unwrap_or(t);
-            let t = t.strip_prefix("async ").unwrap_or(t);
-            let (label, rest) = match t.strip_prefix("function ") {
-                Some(rest) => ("fonction", rest),
-                None => ("méthode", t.strip_prefix("method ").unwrap_or("")),
-            };
-            if let Some(msg) = naming_issue(label, leading_name(rest), cfg.function_style) {
-                emit(path, lnum, 1, &msg);
-                count += 1;
-            }
-        }
-
-        // ── R09/R15 : constantes globales et de classe ; R13/R14 : const
-        // locales (corps de fonction/méthode/nameless), style des variables
-        // par défaut, non vérifiées si naming_const_embed = false.
-        if !in_bt {
-            if let Some(rest) = strip_visibility(line.trim()).strip_prefix("const ") {
-                let rule = if in_body {
-                    cfg.naming_const_embed.then(|| ("constante locale", cfg.embed_style()))
-                } else {
-                    cfg.naming_const.then_some(("constante", cfg.const_style))
-                };
-                if let Some(msg) = rule.and_then(|(label, style)| naming_issue(label, leading_name(rest), style)) {
-                    emit(path, lnum, 1, &msg);
-                    count += 1;
-                }
-            }
-        }
-
-        // ── R12/R16 : variables (var/scoped/consumed) et propriétés ──────
-        if cfg.naming_variable && !in_bt {
-            let t = line.trim();
-            let declared = ["var ", "scoped ", "consumed "].iter()
-                .find_map(|kw| t.strip_prefix(kw).map(|rest| ("variable", rest)))
-                .or_else(|| strip_visibility(t).strip_prefix("property ").map(|rest| ("propriété", rest)));
-            if let Some(msg) = declared.and_then(|(label, rest)| naming_issue(label, leading_name(rest), cfg.var_style)) {
-                emit(path, lnum, 1, &msg);
-                count += 1;
-            }
-        }
-
-        // ── R10 : Espace après '//' ────────────────────────────────────────
-        if cfg.comment_spacing && !in_bt {
-            if let Some(pos) = find_comment_pos(line) {
-                let after = &line[pos + 2..];
-                if !after.is_empty() && !after.starts_with(' ') && !after.starts_with('/') {
-                    emit(path, lnum, pos + 1,
-                        "espace manquant après '//' dans le commentaire");
-                    count += 1;
-                }
-            }
-        }
-    }
-
-    // ── R11 : Fichier se termine par une newline ──────────────────────────────
-    if cfg.file_ends_newline && !content.ends_with('\n') {
-        emit(
-            path,
-            lines.len(),
-            lines.last().map(|l| l.len()).unwrap_or(0) + 1,
-            "le fichier ne se termine pas par une newline",
-        );
-        count += 1;
-    }
-
-    count
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Traversée des fichiers + suivi des imports
-// ─────────────────────────────────────────────────────────────────────────────
-
-fn check_with_imports(
-    path:    &Path,
-    cfg:     &Config,
-    visited: &mut HashSet<PathBuf>,
-    total:   &mut usize,
-) {
-    // Si le fichier n'existe pas, on ignore silencieusement (import de démonstration)
-    if !path.exists() { return; }
-
-    let canonical = match path.canonicalize() {
-        Ok(p)  => p,
-        Err(_) => return,
-    };
-    if !visited.insert(canonical.clone()) { return; }
-
-    let content = match fs::read_to_string(&canonical) {
-        Ok(c)  => c,
-        Err(e) => {
-            eprintln!("ocaracs: impossible de lire '{}': {}", path.display(), e);
-            return;
-        }
-    };
-
-    // Affichage en chemin relatif au cwd si possible
-    let display_path = std::env::current_dir()
-        .ok()
-        .and_then(|cwd| canonical.strip_prefix(&cwd).ok().map(|p| p.to_path_buf()))
-        .unwrap_or_else(|| path.to_path_buf());
-
-    *total += check_file(&display_path, &content, cfg);
-
-    // Suivre les imports utilisateur
+    out.push(canonical.clone());
     let file_dir = canonical.parent().unwrap_or(Path::new("."));
     for imp in extract_user_imports(&content, file_dir) {
-        check_with_imports(&imp, cfg, visited, total);
+        collect_with_imports(&imp, out, seen);
     }
 }
 
-fn check_directory(
-    dir:     &Path,
-    cfg:     &Config,
-    visited: &mut HashSet<PathBuf>,
-    total:   &mut usize,
-) {
+/// Fichiers parcourus sous un dossier : dossiers cachés et `target/` exclus.
+fn dir_entries(dir: &Path) -> Vec<PathBuf> {
     let mut entries: Vec<PathBuf> = match fs::read_dir(dir) {
         Ok(e)  => e.filter_map(|e| e.ok().map(|e| e.path())).collect(),
         Err(e) => {
             eprintln!("ocaracs: impossible de lire '{}': {}", dir.display(), e);
-            return;
+            return Vec::new();
         }
     };
+    entries.retain(|p| {
+        let name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        !p.is_dir() || (!name.starts_with('.') && name != "target" && name != "node_modules")
+    });
     entries.sort();
-    for path in entries {
+    entries
+}
+
+/// Mots des fichiers texte non `.oc` sous `dir` (templates, scripts…),
+/// pour ne jamais renommer un nom qu'ils référencent.
+fn collect_external_words(dir: &Path, out: &mut HashMap<String, PathBuf>) {
+    const MAX_SIZE: u64 = 2 * 1024 * 1024;
+    for path in dir_entries(dir) {
         if path.is_dir() {
-            // Ignorer les dossiers cachés et target/
-            let name = path.file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_default();
-            if name.starts_with('.') || name == "target" { continue; }
-            check_directory(&path, cfg, visited, total);
-        } else if path.extension().map(|e| e == "oc").unwrap_or(false) {
-            check_with_imports(&path, cfg, visited, total);
+            collect_external_words(&path, out);
+        } else if path.extension().is_none_or(|e| e != "oc") && fs::metadata(&path).is_ok_and(|m| m.len() <= MAX_SIZE) {
+            if let Ok(content) = fs::read_to_string(&path) {
+                rename::external_words(&display_path(&path), &content, out);
+            }
         }
     }
+}
+
+/// Tous les `.oc` sous `dir` ; avec `follow_imports`, les imports de chacun en plus.
+fn collect_dir(dir: &Path, follow_imports: bool, out: &mut Vec<PathBuf>, seen: &mut HashSet<PathBuf>) {
+    for path in dir_entries(dir) {
+        if path.is_dir() {
+            collect_dir(&path, follow_imports, out, seen);
+        } else if path.extension().is_some_and(|e| e == "oc") {
+            if follow_imports {
+                collect_with_imports(&path, out, seen);
+            } else if let Ok(canonical) = path.canonicalize() {
+                if seen.insert(canonical.clone()) { out.push(canonical); }
+            }
+        }
+    }
+}
+
+fn analyzed_files(target: &Path) -> Vec<PathBuf> {
+    let (mut out, mut seen) = (Vec::new(), HashSet::new());
+    if target.is_dir() { collect_dir(target, true, &mut out, &mut seen); } else { collect_with_imports(target, &mut out, &mut seen); }
+    out
+}
+
+/// Chemin affiché : relatif au dossier courant si possible.
+fn display_path(path: &Path) -> PathBuf {
+    std::env::current_dir().ok()
+        .and_then(|cwd| path.strip_prefix(&cwd).ok().map(Path::to_path_buf))
+        .unwrap_or_else(|| path.to_path_buf())
+}
+
+fn check_all(files: &[PathBuf], cfg: &Config) -> usize {
+    files.iter().filter_map(|f| fs::read_to_string(f).ok().map(|c| check::check_file(&display_path(f), &c, cfg))).sum()
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// --fix
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Renomme dans TOUT le projet (`root`), met en forme les fichiers analysés,
+/// puis retourne ces fichiers (chemins après renommage éventuel). Avec
+/// `dry_run`, rien n'est écrit : seul le compte rendu est affiché.
+fn fix_all(analyzed: &[PathBuf], root: &Path, cfg: &Config, dry_run: bool) -> Vec<PathBuf> {
+    let (mut project, mut seen) = (Vec::new(), HashSet::new());
+    collect_dir(root, false, &mut project, &mut seen);
+    project.extend(analyzed.iter().filter(|f| seen.insert((*f).clone())).cloned());
+    let contents: Vec<(PathBuf, String)> = project.iter()
+        .filter_map(|p| fs::read_to_string(p).ok().map(|c| (p.clone(), c)))
+        .collect();
+    let mut external = HashMap::new();
+    collect_external_words(root, &mut external);
+    let plan = rename::plan(&contents, &external, cfg);
+
+    let (mut modified, mut replaced) = (0usize, 0usize);
+    let mut result = Vec::new();
+    for (path, content) in &contents {
+        let (renamed, n) = if plan.is_empty() { (content.clone(), 0) } else { rename::apply(content, &plan) };
+        replaced += n;
+        let is_analyzed = analyzed.contains(path);
+        let fixed = if is_analyzed { fix::fix_layout(&renamed, cfg) } else { renamed };
+        let dest = plan.moved_path(path).unwrap_or_else(|| path.clone());
+        if fixed != *content || dest != *path {
+            if dry_run {
+                eprintln!("ocaracs: fichier à modifier : {}", display_path(path).display());
+            } else if let Err(e) = fs::write(&dest, &fixed) {
+                eprintln!("ocaracs: impossible d'écrire '{}': {}", dest.display(), e);
+                continue;
+            }
+            if dest != *path {
+                if !dry_run { let _ = fs::remove_file(path); }
+                eprintln!("ocaracs: fichier renommé : {} → {}", display_path(path).display(), display_path(&dest).display());
+            }
+            modified += 1;
+        }
+        if is_analyzed { result.push(dest); }
+    }
+    for (old, new) in plan.renames() { eprintln!("ocaracs: renommé : {} → {}", old, new); }
+    for line in &plan.skipped { eprintln!("ocaracs: {}", line); }
+    let verb = if dry_run { "à modifier" } else { "modifié(s)" };
+    eprintln!("ocaracs --fix : {} fichier(s) {}, {} identifiant(s) renommé(s) ({} occurrence(s)).", modified, verb, plan.renames().len(), replaced);
+    result
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -471,12 +199,18 @@ fn print_help() {
     eprintln!("ocaracs — analyseur de style pour Ocara v1.0.0");
     eprintln!();
     eprintln!("Usage:");
-    eprintln!("  ocaracs <fichier.oc>   Analyser un fichier");
-    eprintln!("  ocaracs <dossier>      Analyser tous les .oc d'un dossier");
+    eprintln!("  ocaracs <fichier.oc>         Analyser un fichier (et ses imports)");
+    eprintln!("  ocaracs <dossier>            Analyser tous les .oc d'un dossier");
+    eprintln!("  ocaracs --fix <cible>        Corriger ce qui peut l'être, puis analyser");
+    eprintln!("  ocaracs --fix --dry-run <c>  Afficher ce que --fix ferait, sans rien écrire");
+    eprintln!();
+    eprintln!("--fix corrige : indentation, lignes vides, espaces autour de '=' et en fin");
+    eprintln!("de ligne, espace après '//', newline finale, nommage (déclaration et usages");
+    eprintln!("dans tout le projet). Les lignes trop longues restent à corriger à la main.");
     eprintln!();
     eprintln!("Configuration:");
     eprintln!("  Fichier .ocaracs à la racine du projet (détecté automatiquement).");
-    eprintln!("  Voir docs/tools/ocaracs.md pour la liste des règles et options.");
+    eprintln!("  Voir tools/ocaracs/README.md pour la liste des règles et options.");
     eprintln!();
     eprintln!("Codes de sortie:");
     eprintln!("  0  Aucun avertissement");
@@ -485,19 +219,20 @@ fn print_help() {
 }
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
-
-    if args.len() < 2 {
-        print_help();
-        std::process::exit(2);
-    }
-
-    if args[1] == "--help" || args[1] == "-h" {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.iter().any(|a| a == "--help" || a == "-h") {
         print_help();
         std::process::exit(0);
     }
+    let fix_mode = args.iter().any(|a| a == "--fix");
+    let dry_run  = args.iter().any(|a| a == "--dry-run");
+    let targets: Vec<&String> = args.iter().filter(|a| !a.starts_with("--")).collect();
+    let [target] = targets.as_slice() else {
+        print_help();
+        std::process::exit(2);
+    };
 
-    let target = PathBuf::from(&args[1]);
+    let target = PathBuf::from(target);
     if !target.exists() {
         eprintln!("ocaracs: cible introuvable : {}", target.display());
         std::process::exit(2);
@@ -505,14 +240,15 @@ fn main() {
 
     let project_root = find_project_root(&target);
     let config       = load_config(&project_root);
-    let mut visited  = HashSet::new();
-    let mut total    = 0usize;
-
-    if target.is_dir() {
-        check_directory(&target, &config, &mut visited, &mut total);
-    } else {
-        check_with_imports(&target, &config, &mut visited, &mut total);
+    let mut files    = analyzed_files(&target);
+    if fix_mode && dry_run {
+        fix_all(&files, &project_root, &config, true);
+        return;
     }
+    if fix_mode {
+        files = fix_all(&files, &project_root, &config, false);
+    }
+    let total = check_all(&files, &config);
 
     if total > 0 {
         eprintln!();

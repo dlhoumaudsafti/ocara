@@ -16,11 +16,11 @@ class PricingService {
         if car is null {
             return 0.0
         }
-        var improvementsResolvable:Resolvable<float> = MaintenanceContract::improvementTotal(carId)
-        var improvements:float = resolve improvementsResolvable
-        var newEstimated:float = car.purchasePrice + improvements
+        consumed improvements_resolvable:Resolvable<float> = MaintenanceContract::improvementTotal(carId)
+        var improvements:float = resolve improvements_resolvable
+        var new_estimated:float = car.purchasePrice + improvements
 
-        CarContract::updateEstimatedPrice(carId, newEstimated)
-        return newEstimated
+        CarContract::updateEstimatedPrice(carId, new_estimated)
+        return new_estimated
     }
 }

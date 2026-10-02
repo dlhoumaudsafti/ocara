@@ -68,8 +68,18 @@
         "category": "Ocara"
       },
       {
+        "command": "ocara.compileAndRun",
+        "title": "Compiler et lancer",
+        "category": "Ocara"
+      },
+      {
         "command": "ocara.dump",
         "title": "Afficher le dump",
+        "category": "Ocara"
+      },
+      {
+        "command": "ocara.fixStyle",
+        "title": "Fixer la mise en forme",
         "category": "Ocara"
       },
       {
@@ -86,9 +96,19 @@
           "group": "ocara@1"
         },
         {
-          "command": "ocara.dump",
+          "command": "ocara.compileAndRun",
           "when": "resourceExtname == .oc",
           "group": "ocara@2"
+        },
+        {
+          "command": "ocara.dump",
+          "when": "resourceExtname == .oc",
+          "group": "ocara@3"
+        },
+        {
+          "command": "ocara.fixStyle",
+          "when": "resourceExtname == .oc",
+          "group": "ocara@4"
         }
       ],
       "explorer/context": [
@@ -98,9 +118,19 @@
           "group": "ocara@1"
         },
         {
-          "command": "ocara.dump",
+          "command": "ocara.compileAndRun",
           "when": "resourceExtname == .oc",
           "group": "ocara@2"
+        },
+        {
+          "command": "ocara.dump",
+          "when": "resourceExtname == .oc",
+          "group": "ocara@3"
+        },
+        {
+          "command": "ocara.fixStyle",
+          "when": "resourceExtname == .oc || explorerResourceIsFolder",
+          "group": "ocara@4"
         }
       ],
       "commandPalette": [
@@ -109,7 +139,15 @@
           "when": "editorLangId == ocara"
         },
         {
+          "command": "ocara.compileAndRun",
+          "when": "editorLangId == ocara"
+        },
+        {
           "command": "ocara.dump",
+          "when": "editorLangId == ocara"
+        },
+        {
+          "command": "ocara.fixStyle",
           "when": "editorLangId == ocara"
         },
         {

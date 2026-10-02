@@ -7,6 +7,7 @@ import { OcaraSignatureHelpProvider } from './signature';
 import { OcaraCodeLensProvider, WorkspaceIndex } from './codelens';
 import { OcaracsLinter } from './lint';
 import { OcaraCompiler } from './compile';
+import { registerFix } from './fix';
 import { runtimeContext } from './runtimecontext';
 import { OcaraHoverProvider } from './hover';
 import { registerDocs } from './docs';
@@ -52,9 +53,12 @@ export function activate(context: vscode.ExtensionContext): void {
     // Documentation au survol (builtins, sucre d'instance, déclarations utilisateur).
     context.subscriptions.push(vscode.languages.registerHoverProvider(selector, new OcaraHoverProvider()));
 
-    // Analyse ocaracs automatique + commandes Compiler / Afficher le dump.
-    context.subscriptions.push(new OcaracsLinter());
+    // Analyse ocaracs automatique + commandes Compiler / Compiler et lancer /
+    // Afficher le dump / Fixer la mise en forme.
+    const linter = new OcaracsLinter();
+    context.subscriptions.push(linter);
     new OcaraCompiler().register(context);
+    registerFix(context, linter);
 }
 
 export function deactivate(): void {}

@@ -1,0 +1,84 @@
+import ocara.UnitTest
+
+// Affectations composées `+=`, `-=`, `*=`, `/=`, `%=` (int/float/mixed) ;
+// sur string, `+=` concatène et `-=` supprime toutes les occurrences.
+class Test_76_compound_assignment {
+
+    public method intOperatorsTest(): int {
+        var n:int = 10
+        n += 5
+        UnitTest::assertEquals(15, n)
+        n -= 3
+        UnitTest::assertEquals(12, n)
+        n *= 4
+        UnitTest::assertEquals(48, n)
+        n /= 6
+        UnitTest::assertEquals(8, n)
+        n %= 5
+        UnitTest::assertEquals(3, n)
+        return 0
+    }
+
+    public method floatOperatorsTest(): int {
+        var f:float = 1.5
+        f += 1.0
+        f *= 2.0
+        f -= 0.5
+        f /= 2.0
+        UnitTest::assertEquals(2.25, f)
+        return 0
+    }
+
+    public method stringConcatAndRemoveTest(): int {
+        var s:string = "salut"
+        s += " le monde"
+        UnitTest::assertEquals("salut le monde", s)
+        s -= " le monde"
+        UnitTest::assertEquals("salut", s)
+        var t:string = "a-b-c-"
+        t -= "-"
+        UnitTest::assertEquals("abc", t)
+        t -= "absent"
+        UnitTest::assertEquals("abc", t)
+        return 0
+    }
+
+    public method indexAndFieldTargetsTest(): int {
+        var a:array<int> = [1, 2, 3]
+        var i:int = 1
+        a[i] += 10
+        a[i + 1] *= 7
+        UnitTest::assertEquals(12, a[1])
+        UnitTest::assertEquals(21, a[2])
+        var m:map<string, int> = {"k": 70000}
+        m["k"] += 1
+        UnitTest::assertEquals(70001, m["k"])
+        var c:Counter = use Counter()
+        c.bump(4)
+        c.total -= 1
+        UnitTest::assertEquals(9, c.total)
+        UnitTest::assertEquals("n+", c.label)
+        return 0
+    }
+
+    public method mixedOperatorsTest(): int {
+        var x:int|float = 7
+        x += 3
+        UnitTest::assertEquals(10, x)
+        return 0
+    }
+}
+
+class Counter {
+    public property total:int
+    public property label:string
+    init() {
+        self.total = 1
+        self.label = "n"
+    }
+    public method bump(n:int): void {
+        self.total += n
+        self.total *= 2
+        self.label += "+"
+    }
+}

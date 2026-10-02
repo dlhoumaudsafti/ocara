@@ -26,24 +26,32 @@ class HomeController {
         const dashboard:DashboardDto = DashboardService::build()
         const cars:array<CarSummaryEntity> = dashboard.cars
 
-        var carsHtml:string = ""
+        var cars_html:string = ""
         for car in cars {
-            carsHtml = carsHtml + `<car-card id="${Convert::intToStr(car.id)}" reference="${car.reference}" brand="${car.brand}" model="${car.model}" purchase_price="${Format::price(car.purchasePrice)}" estimated_price="${Format::price(car.estimatedPrice)}" maintenance_total="${Format::price(car.maintenanceTotal)}">`
+            cars_html += `<car-card 
+                id="${Convert::intToStr(car.id)}"
+                reference="${car.reference}"
+                brand="${car.brand}"
+                model="${car.model}"
+                purchase_price="${Format::price(car.purchasePrice)}"
+                estimated_price="${Format::price(car.estimatedPrice)}"
+                maintenance_total="${Format::price(car.maintenanceTotal)}"
+            >`
         }
 
         if Array::len(cars) equal 0 {
-            carsHtml = `<p class="empty">Aucune voiture pour le moment — ajoutez la première ci-dessus.</p>`
+            cars_html = `<p class="empty">Aucune voiture pour le moment — ajoutez la première ci-dessus.</p>`
         }
 
-        scoped carCount:string    = Convert::intToStr(Array::len(cars))
-        scoped purchaseText:string  = Format::price(dashboard.totalPurchaseValue)
-        scoped estimatedText:string = Format::price(dashboard.totalEstimatedValue)
-        scoped gainText:string      = Format::price(dashboard.totalEstimatedValue - dashboard.totalPurchaseValue)
+        scoped car_count:string    = Convert::intToStr(Array::len(cars))
+        scoped purchase_text:string  = Format::price(dashboard.total_purchase_value)
+        scoped estimated_text:string = Format::price(dashboard.total_estimated_value)
+        scoped gain_text:string      = Format::price(dashboard.total_estimated_value - dashboard.total_purchase_value)
 
-        scoped errorCode:string   = req.query("error")
-        scoped successCode:string = req.query("success")
-        scoped errorText:string   = Flash::message(errorCode)
-        scoped successText:string = Flash::message(successCode)
+        scoped error_code:string   = req.query("error")
+        scoped success_code:string = req.query("success")
+        scoped error_text:string   = Flash::message(error_code)
+        scoped success_text:string = Flash::message(success_code)
 
         scoped html:string = HTML::renderFile('templates/home/home.html')
         req.respond(200, html)

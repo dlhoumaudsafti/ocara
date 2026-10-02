@@ -166,7 +166,8 @@ pub fn find_project_root(path: &Path) -> PathBuf {
     let dir = if path.is_dir() {
         path.to_path_buf()
     } else {
-        path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| PathBuf::from("."))
+        // `x.oc` (sans dossier) : parent vide, à remplacer par le dossier courant.
+        path.parent().filter(|p| !p.as_os_str().is_empty()).map(Path::to_path_buf).unwrap_or_else(|| PathBuf::from("."))
     };
     let abs = dir.canonicalize().unwrap_or_else(|_| dir.clone());
     let mut cur = abs;

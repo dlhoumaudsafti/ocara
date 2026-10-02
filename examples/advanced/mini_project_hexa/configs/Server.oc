@@ -9,7 +9,6 @@ import routes.Search
 import routes.Error
 
 class Server extends HTTPServer {
-
     init() {
         IO::writeln("Configuration du serveur...")
         parent::init()

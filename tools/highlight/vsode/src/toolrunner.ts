@@ -59,6 +59,14 @@ function isOnPath(name: string): boolean {
     return (process.env.PATH ?? '').split(path.delimiter).some(dir => dir && fs.existsSync(path.join(dir, name)));
 }
 
+let output: vscode.OutputChannel | undefined;
+
+/** Canal de sortie « Ocara », partagé par la compilation et `--fix`. */
+export function ocaraOutput(): vscode.OutputChannel {
+    output ??= vscode.window.createOutputChannel('Ocara');
+    return output;
+}
+
 /** Lance l'outil configuré par `setting` avec `args`, depuis `cwd`. */
 export function runTool(setting: string, defaultName: string, args: string[], cwd: string, document?: vscode.Uri): Promise<ToolResult> {
     const [program, ...baseArgs] = resolveCommand(setting, defaultName, document);

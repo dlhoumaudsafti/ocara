@@ -9,6 +9,7 @@ mod declarations;
 pub(crate) mod struct_decl;
 mod property_init;
 mod statements;
+mod compound_assign;
 mod expressions;
 mod runtime;
 

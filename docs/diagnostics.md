@@ -1174,6 +1174,43 @@ try {
 
 ---
 
+### E58 — Cible d'affectation composée contenant un appel
+
+```
+fichier.oc:4:11: error: the target of '+=' cannot contain a call — it would be evaluated twice; store the call result in a variable first
+```
+
+`x op= e` est réécrit en `x = x op e` (§12.1 de l'EBNF) : la cible est lue puis écrite. Un appel dans la cible serait donc exécuté deux fois. Émis au parsing.
+
+```ocara
+a[next()] += 1          // ❌ E58
+var i:int = next()
+a[i] += 1               // ✅
+```
+
+**Correction :** stocker le résultat de l'appel dans une variable, puis l'utiliser comme index ou objet.
+
+---
+
+### E59 — Opérateur arithmétique sur un opérande non numérique
+
+```
+fichier.oc:4:25: error: operator '-' cannot be applied to 'string' — only int, float and mixed support it ('+' also concatenates strings, '-=' removes occurrences from a string)
+```
+
+`-`, `*`, `/`, `%` (et leurs formes `-=`, `*=`, `/=`, `%=`) n'acceptent que des `int`, `float` ou `mixed`. `+` accepte aussi deux `string` (concaténation). Jusqu'à ce diagnostic, `"ab" - "b"` compilait et soustrayait les adresses des deux chaînes (`-24`), et `true + true` ou `[1] - [1]` passaient de même. Seule exception : `s -= e` sur une `string` supprime toutes les occurrences de `e`.
+
+```ocara
+var s:string = "ab" - "b"   // ❌ E59
+var t:string = "ab"
+t -= "b"                    // ✅ "a"
+t *= 2                      // ❌ E59
+```
+
+**Correction :** pour une chaîne, utiliser `-=` ou `String::replace(s, x, "")`. Pour un autre type, convertir d'abord la valeur en nombre.
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.

@@ -2,25 +2,35 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { parseToolMessages, runTool, toDiagnostic, ToolResult } from './toolrunner';
+import { ocaraOutput, parseToolMessages, runTool, toDiagnostic, ToolResult } from './toolrunner';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Commandes « Compiler le script » et « Afficher le dump » (menu clic droit
-// de l'éditeur et de l'arborescence, palette de commandes) — compilateur
-// configurable (`ocara.compilerPath`). Voir
-// docs/roadmap.d/tooling-vscode-lint-compile-dump.md.
+// Commandes « Compiler le script », « Compiler et lancer » et « Afficher le
+// dump » (menu clic droit de l'éditeur et de l'arborescence, palette de
+// commandes) — compilateur configurable (`ocara.compilerPath`). Voir
+// docs/roadmap.d/tooling-vscode-lint-compile-dump.md et
+// docs/roadmap.d/tooling-vscode-run-and-fix.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SOURCE = 'ocara';
 
+/** Argument shell entre apostrophes (`'` échappé). */
+function shellQuote(value: string): string {
+    return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
 export class OcaraCompiler implements vscode.Disposable {
-    private readonly output = vscode.window.createOutputChannel('Ocara');
+    private readonly output = ocaraOutput();
     private readonly diagnostics = vscode.languages.createDiagnosticCollection(SOURCE);
+    /** Terminal « Ocara » unique, partagé par tous les lancements. */
+    private terminal: vscode.Terminal | undefined;
 
     register(context: vscode.ExtensionContext): void {
         context.subscriptions.push(
             this,
             vscode.commands.registerCommand('ocara.compile', (uri?: vscode.Uri) => this.compile(uri)),
+            vscode.commands.registerCommand('ocara.compileAndRun', (uri?: vscode.Uri) => this.compileAndRun(uri)),
+            vscode.window.onDidCloseTerminal(t => { if (t === this.terminal) { this.terminal = undefined; } }),
             vscode.commands.registerCommand('ocara.dump', (uri?: vscode.Uri) => this.dump(uri)),
         );
     }
@@ -38,25 +48,47 @@ export class OcaraCompiler implements vscode.Disposable {
         return target;
     }
 
-    private async compile(uri?: vscode.Uri): Promise<void> {
-        const file = await this.targetFile(uri);
-        if (!file) { return; }
+    /** Nom du binaire (créé dans le dossier du script) ; `undefined` si annulé. */
+    private async askBinary(file: vscode.Uri, title: string): Promise<string | undefined> {
         const dir = path.dirname(file.fsPath);
         const name = await vscode.window.showInputBox({
-            title: 'Compiler le script Ocara',
+            title,
             prompt: `Nom du binaire (créé dans ${dir})`,
             value: path.basename(file.fsPath, '.oc'),
             validateInput: v => (v.trim() === '' || /[\\/]/.test(v) ? 'Nom de fichier simple attendu (sans dossier)' : undefined),
         });
-        if (name === undefined) { return; }
-        const binary = path.join(dir, name.trim());
+        return name === undefined ? undefined : path.join(dir, name.trim());
+    }
 
+    /** Compile `file` en `binary` ; `true` si succès. */
+    private async build(file: vscode.Uri, binary: string): Promise<boolean> {
         const result = await vscode.window.withProgress(
             { location: vscode.ProgressLocation.Notification, title: `Ocara : compilation de ${path.basename(file.fsPath)}…` },
-            () => runTool('compilerPath', 'ocara', [file.fsPath, '-o', binary], dir, file),
+            () => runTool('compilerPath', 'ocara', [file.fsPath, '-o', binary], path.dirname(file.fsPath), file),
         );
-        if (!this.report(file, result, `compilation de ${file.fsPath}`)) { return; }
+        return this.report(file, result, `compilation de ${file.fsPath}`);
+    }
+
+    private async compile(uri?: vscode.Uri): Promise<void> {
+        const file = await this.targetFile(uri);
+        const binary = file && await this.askBinary(file, 'Compiler le script Ocara');
+        if (!file || !binary || !await this.build(file, binary)) { return; }
         vscode.window.showInformationMessage(`Ocara : binaire créé — ${binary}`);
+    }
+
+    /** Compile puis lance le binaire depuis le dossier du script, dans le
+     *  terminal « Ocara » (le programme précédent y est d'abord arrêté). */
+    private async compileAndRun(uri?: vscode.Uri): Promise<void> {
+        const file = await this.targetFile(uri);
+        const binary = file && await this.askBinary(file, 'Compiler et lancer le script Ocara');
+        if (!file || !binary || !await this.build(file, binary)) { return; }
+        if (this.terminal) {
+            this.terminal.sendText('\x03', false);
+        } else {
+            this.terminal = vscode.window.createTerminal({ name: 'Ocara' });
+        }
+        this.terminal.show(true);
+        this.terminal.sendText(`cd ${shellQuote(path.dirname(file.fsPath))} && ${shellQuote(binary)}`);
     }
 
     private async dump(uri?: vscode.Uri): Promise<void> {
@@ -111,7 +143,6 @@ export class OcaraCompiler implements vscode.Disposable {
     }
 
     dispose(): void {
-        this.output.dispose();
         this.diagnostics.dispose();
     }
 }

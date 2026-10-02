@@ -6,18 +6,18 @@ if System::OS equal "android" {
     result SUCCESS
 }
 
-const serverThread:Thread = use Thread()
-serverThread.run(nameless(): void {
+const server_thread:Thread = use Thread()
+server_thread.run(nameless(): void {
     server.start()
 })
 
 IO::writeln("Attente du serveur (GET /)...")
-var serverReady:bool = false
+var server_ready:bool = false
 var attempts:int = 0
-while not serverReady {
+while not server_ready {
     scoped res:HTTPResponse = HTTPRequest::get("http://localhost:8081/")
     if HTTPRequest::ok(res) {
-        serverReady = true
+        server_ready = true
     } else {
         attempts = attempts + 1
         if attempts greater 200 {

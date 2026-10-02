@@ -10,7 +10,7 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 Cette roadmap est construite pour qu'on puisse dire que le langage est stable **quand la section "Priorité Haute" ci-dessous est vide** — pas avant. Ce n'est pas un objectif séparé à suivre en plus des tickets : c'est littéralement ce que cette section représente. Volontairement, aucune checklist n'est dupliquée ici (le projet a déjà payé le prix d'une source de vérité dupliquée ailleurs — voir `docs/adding-builtins.md`, la double liste `OCARA_BUILTINS`) : la liste unique à vider est celle de la section "Priorité Haute".
 
-**La section "Priorité Haute" est actuellement vide** — au sens de cette définition, le langage est « stable ». Les sections Moyenne/Basse/Très Basse ci-dessous restent à traiter mais ne bloquent pas cette définition — voir la Légende.
+**La section "Priorité Haute" a de nouveau des points ouverts** (voir ci-dessous) — au sens de cette définition, le langage n'est momentanément pas « stable ». Les sections Moyenne/Basse/Très Basse ci-dessous restent à traiter mais ne bloquent pas cette définition — voir la Légende.
 
 ## Légende
 
@@ -29,7 +29,7 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-_Aucun point ouvert._
+- **Arguments de `use Classe(...)` ignorés en silence pour une classe sans `init`** — `use C("x")` sur `class C { public property name:string }` compile, l'argument est perdu et `c.name` vaut `null`. Il faudrait une erreur d'arité (comme pour un `struct`, dont le constructeur est vérifié), ou un vrai constructeur par champs. *(Simple à Légère, selon le choix)* → [détails](roadmap.d/sema-use-args-without-init.md)
 
 ---
 
@@ -37,6 +37,7 @@ _Aucun point ouvert._
 
 À traiter mais non bloquant pour la stabilité du langage.
 
+- **Boucle sur map `for k has v in m`** à la place de `for k => v in m` (`=>` n'est pas explicite, et sert déjà aux bras de `match`). À trancher : `has` mot-clé seulement dans le `for` (sinon `m.has(k)` casse), coexistence ou remplacement cassant de `=>` (19 boucles dans le corpus). *(Légère)* → [détails](roadmap.d/langage-for-has-map-loop.md)
 - **Serveur de langage (LSP) adossé au compilateur** — `ocara --lsp` (ou d'abord `ocara --check --json`) réutilisant parseur/sema pour la navigation, le survol, la complétion, les références et les diagnostics en direct ; l'extension VS Code, aujourd'hui entièrement à base de regex (résolution par nom, types non suivis, sémantique recodée en TypeScript), deviendrait un client léger. Points à trancher : protocole, sema tolérante aux erreurs (plus de `process::exit`), spans en plages, dépendances LSP. *(Structurel)* → [détails](roadmap.d/tooling-language-server.md)
 - **Architecture hexagonale stricte par défaut** — déclaration `architecture hexagonal` avec alias configurables pour `domain`/`application`/`infrastructure`; `architecture permissive` désactive uniquement les contrôles architecturaux. Vérification compile-time de la direction des imports entre couches et contextes, des racines `shared` et des cibles de `wiring`. *(Structurelle — classification des fichiers/namespace, résolution des imports et intégration aux règles existantes de `wiring`)* → [détails](roadmap.d/langage-mode-hexa.md)
 

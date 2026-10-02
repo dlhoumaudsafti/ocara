@@ -9,7 +9,7 @@ import ocara.HTMLComponent
 class Layout extends HTMLComponent {
     init() {
         parent::init("layout")
-        self.register(nameless(attrs:map<string, mixed>): string {
+        self.register(nameless(attrs:map<string, string>): string {
             consumed title:string   = attrs["title"]
             consumed active:string  = attrs["active"]
             consumed content:string = attrs["__slot__"]

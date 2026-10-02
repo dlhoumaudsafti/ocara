@@ -45,6 +45,11 @@ export class OcaracsLinter implements vscode.Disposable {
         this.lintVisible();
     }
 
+    /** Relance l'analyse des éditeurs visibles (après `ocaracs --fix`). */
+    relint(): void {
+        this.lintVisible();
+    }
+
     private lintVisible(): void {
         for (const editor of vscode.window.visibleTextEditors) { this.lint(editor.document); }
     }

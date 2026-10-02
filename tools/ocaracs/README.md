@@ -30,6 +30,47 @@ ocaracs main.oc      # analyse main.oc + tous ses imports utilisateur (hors bibl
 
 ---
 
+## Correction automatique — `--fix`
+
+```bash
+ocaracs --fix main.oc
+ocaracs --fix examples/
+```
+
+Corrige les fichiers sur place, puis les réanalyse : seuls les avertissements restants sont affichés. **Faites un commit avant** pour pouvoir relire et annuler les changements (`git diff`).
+
+`ocaracs --fix --dry-run <cible>` affiche ce que `--fix` ferait (fichiers à modifier, renommages, renommages ignorés), sans rien écrire — c'est ce qu'utilise l'extension VS Code pour demander confirmation avant un renommage.
+
+| Règle | Correction |
+|---|---|
+| R01 | Indentation recalculée d'après les `{ }`, `( )`, `[ ]` (plusieurs ouvrants sur une même ligne ne comptent qu'un niveau), au type et à la largeur de R19/R20 (sinon déduits de la première ligne indentée, sinon 4 espaces). Une ligne de continuation (`.chain()`, opérateur en tête, ou ligne précédente terminée par `=`, `+`, `&&`…) prend un niveau de plus. |
+| R02 | Espaces des lignes vides retirés |
+| R03 | Espace ajouté avant/après le `=` d'une déclaration |
+| R04 | Espaces de fin de ligne retirés |
+| R06 | Lignes vides en trop supprimées |
+| R10 | Espace ajouté après `//` |
+| R11 | Newline ajoutée en fin de fichier |
+| R07/R08/R09/R12/R13 | Déclaration renommée au style attendu (`is_adult` → `isAdult`), **avec tous ses usages dans tout le projet** |
+| R05 | **Non corrigée** : une ligne trop longue reste à reformuler à la main |
+
+Le contenu des chaînes backtick multilignes n'est jamais modifié.
+
+### Renommage
+
+- **Portée** : tous les `.oc` sous la racine du projet, c'est-à-dire le dossier du `.ocaracs` le plus proche, sinon le dossier analysé. Placez un `.ocaracs` à la racine du projet : sans lui, `ocaracs --fix sous/dossier/x.oc` ne voit pas les fichiers des dossiers parents qui importent `x.oc`.
+- **Remplacement** : l'identifiant est remplacé dans le code et dans les `${…}` des backticks, jamais dans une chaîne ni un commentaire. Une méthode, une propriété ou une constante de classe est aussi renommée après `.`/`::` ; une variable ou une fonction ne l'est pas, pour ne jamais toucher un appel de builtin (`s.isEmpty()`).
+- **Imports** : seul le dernier segment est renommé (`import lib.car_model` → `import lib.CarModel`), et le fichier `car_model.oc` devient `CarModel.oc`.
+- **Renommage ignoré**, et signalé (`ocaracs: 'x' non renommé en 'y' : …`) quand :
+  - le nouveau nom est déjà utilisé dans le projet ;
+  - le nouveau nom est un mot réservé ;
+  - le même nom est attendu sous deux styles différents (une méthode `x` et une constante `x`) ;
+  - le nom apparaît dans un fichier non `.oc` du projet (template HTML `${nom}`, script…) ;
+  - c'est une méthode de test ocaraunit qui perdrait son suffixe `Test`.
+
+Recompilez après `--fix` : le renommage repose sur les noms, pas sur une analyse sémantique complète.
+
+---
+
 ## Format de sortie
 
 Même convention que le compilateur `ocara` (GCC / clang) — chaque ligne est cliquable dans VS Code :

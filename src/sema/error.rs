@@ -180,6 +180,9 @@ pub enum SemaError {
     /// Champ appelé comme une méthode (`e.message()` au lieu de
     /// `e.message`) — E57.
     FieldCalledAsMethod { class: String, field: String, span: Span },
+    /// Opérateur arithmétique sur un opérande non numérique (`bool`, `array`,
+    /// `map`, et `string` hors `+` entre chaînes et `string -= string`) — E59.
+    ArithmeticOnNonNumeric { op: String, operand: String, span: Span },
 }
 
 impl SemaError {
@@ -235,6 +238,7 @@ impl SemaError {
             SemaError::FieldNotAccessible { span, .. } => span,
             SemaError::ClassConstNotConstant { span, .. } => span,
             SemaError::FieldCalledAsMethod { span, .. } => span,
+            SemaError::ArithmeticOnNonNumeric { span, .. } => span,
         }
     }
 
@@ -352,6 +356,8 @@ impl SemaError {
                 } else {
                     format!("field '{}' of '{}' is private — it is only accessible from inside '{}' (expose it through a public method)", field, class, class)
                 },
+            SemaError::ArithmeticOnNonNumeric { op, operand, .. } =>
+                format!("operator '{}' cannot be applied to '{}' — only int, float and mixed support it ('+' also concatenates strings, '-=' removes occurrences from a string)", op, operand),
             SemaError::FieldCalledAsMethod { class, field, .. } =>
                 format!("'{}' is a field of '{}', not a method — write '.{}' without parentheses", field, class, field),
             SemaError::ClassConstNotConstant { class, name, .. } =>

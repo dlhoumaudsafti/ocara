@@ -10,7 +10,7 @@
 /// compris, voir `crate::sema::generic_check`) : un argument nommé sans
 /// résolution enregistrée est une erreur plutôt que passé au lowering.
 
-use crate::parsing::ast::{Block, ClassMember, Expr, ImportDecl, Param, Program, Stmt, TemplatePartExpr};
+use crate::parsing::ast::{BinOp, Block, ClassMember, Expr, ImportDecl, Literal, Param, Program, Stmt, TemplatePartExpr};
 use crate::parsing::token::Span;
 use crate::sema::named_args::{site_key, AstRewrites};
 
@@ -20,6 +20,9 @@ pub type NamedArgError = (Span, String);
 pub fn rewrite_program(program: &mut Program, rewrites: &AstRewrites) -> Result<(), NamedArgError> {
     if !rewrites.calls.is_empty() {
         ensure_builtin_import(program, "Convert");
+    }
+    if !rewrites.string_removals.is_empty() {
+        ensure_builtin_import(program, "String");
     }
     let free = Rewriter { rewrites };
     for f in &mut program.functions {
@@ -128,6 +131,15 @@ impl Rewriter<'_> {
         if let Expr::Call { span, .. } = expr {
             if let Some(replacement) = self.rewrites.calls.get(&site_key(span)) {
                 *expr = replacement.clone();
+            }
+        }
+        // `x -= e` : `String::replace(x, e, "")` sur une string, `x - e` sinon.
+        if let Expr::Binary { op: op @ BinOp::Remove, left, right, span } = expr {
+            if self.rewrites.string_removals.contains(&site_key(span)) {
+                let args = vec![(**left).clone(), (**right).clone(), Expr::Literal(Literal::String(String::new()), span.clone())];
+                *expr = Expr::StaticCall { class: "String".into(), method: "replace".into(), args, span: span.clone() };
+            } else {
+                *op = BinOp::Sub;
             }
         }
         match expr {

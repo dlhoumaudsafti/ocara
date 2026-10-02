@@ -195,6 +195,10 @@ impl Expr {
 #[derive(Debug, Clone, PartialEq)]
 pub enum BinOp {
     Add, Sub, Mul, Div, Mod,
+    /// Produit uniquement par `x -= e` : soustraction, ou suppression de
+    /// toutes les occurrences de `e` si `x` est une `string`. Résolu par la
+    /// sema puis réécrit (`Sub` ou `String::replace`) avant le lowering.
+    Remove,
     // Comparaisons : toujours typées à la compilation (voir sema::typecheck).
     // Un seul mot-clé par opérateur — `equal`/`smaller`/`greater`/
     // `smaller or equal`/`greater or equal`/`not equal` — aucun symbole.

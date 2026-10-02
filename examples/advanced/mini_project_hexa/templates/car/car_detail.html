@@ -1,22 +1,22 @@
 <layout title="${reference}" active="home">
   <a class="back-link" href="/">&larr; Retour à la flotte</a>
 
-  <alert kind="error" message="${errorText}">
-  <alert kind="success" message="${successText}">
+  <alert kind="error" message="${error_text}">
+  <alert kind="success" message="${success_text}">
 
   <section class="card car-detail-header">
     <h1>${reference} <span class="car-model-inline">${brand} ${model}</span></h1>
     <div class="stats-row">
-      <stat-badge label="Prix d'achat" value="${purchasePriceText}">
-      <stat-badge label="Vente estimée" value="${estimatedPriceText}">
-      <stat-badge label="Coût entretiens" value="${maintenanceTotalText}">
-      <stat-badge label="Coût améliorations" value="${improvementTotalText}">
+      <stat-badge label="Prix d'achat" value="${purchase_price_text}">
+      <stat-badge label="Vente estimée" value="${estimated_price_text}">
+      <stat-badge label="Coût entretiens" value="${maintenance_total_text}">
+      <stat-badge label="Coût améliorations" value="${improvement_total_text}">
     </div>
   </section>
 
   <section class="card">
     <h2>Ajouter un entretien</h2>
-    <form method="POST" action="/voitures/${idStr}/entretiens" class="form-grid">
+    <form method="POST" action="/voitures/${id_str}/entretiens" class="form-grid">
       <label>Type
         <select name="type">
           <option value="maintenance">Entretien (maintenance)</option>
@@ -35,6 +35,6 @@
 
   <section class="card">
     <h2>Historique des entretiens</h2>
-    <div class="maintenance-list">${rowsHtml}</div>
+    <div class="maintenance-list">${rows_html}</div>
   </section>
 </layout>

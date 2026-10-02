@@ -9,15 +9,21 @@ import ocara.HTMLComponent
 class MaintenanceRow extends HTMLComponent {
     init() {
         parent::init("maintenance-row")
-        self.register(nameless(attrs:map<string, mixed>): string {
+        self.register(nameless(attrs:map<string, string>): string {
             scoped type:string        = attrs["type"]
             consumed description:string = attrs["description"]
             consumed cost:string        = attrs["cost"]
             consumed date:string        = attrs["date"]
-            consumed badgeCls:string    = match type { "improvement" => "badge-improvement" default => "badge-maintenance" }
-            consumed badgeLabel:string  = match type { "improvement" => "Amélioration"       default => "Entretien" }
+            consumed badge_cls:string    = match type {
+                "improvement" => "badge-improvement"
+                default => "badge-maintenance"
+            }
+            consumed badge_label:string  = match type {
+                "improvement" => "Amélioration"
+                default => "Entretien"
+            }
             return `<div class="maintenance-row">
-      <span class="badge ${badgeCls}">${badgeLabel}</span>
+      <span class="badge ${badge_cls}">${badge_label}</span>
       <span class="maintenance-desc">${description}</span>
       <span class="maintenance-date">${date}</span>
       <span class="maintenance-cost">${cost}</span>

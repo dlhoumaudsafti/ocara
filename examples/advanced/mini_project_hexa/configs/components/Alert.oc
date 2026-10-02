@@ -1,7 +1,7 @@
 namespace configs.components
 // examples/advanced/mini_projet/configs/components/Alert.oc
 // Message flash (succès/erreur). Ne rend rien si le message est vide, pour
-// pouvoir toujours poser <alert kind="error" message="${errorText}"> dans un
+// pouvoir toujours poser <alert kind="error" message="${error_text}"> dans un
 // template sans avoir à tester la présence du message côté controller.
 
 import ocara.HTMLComponent
@@ -10,7 +10,7 @@ import ocara.String
 class Alert extends HTMLComponent {
     init() {
         parent::init("alert")
-        self.register(nameless(attrs:map<string, mixed>): string {
+        self.register(nameless(attrs:map<string, string>): string {
             consumed kind:string    = attrs["kind"]
             scoped message:string = attrs["message"]
             if String::empty(message) {

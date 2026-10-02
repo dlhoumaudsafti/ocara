@@ -19,19 +19,19 @@ class MaintenanceRepository implements MaintenanceContract {
 
     private static method fromRow(row:map<string, mixed>): MaintenanceEntity {
         var id:int = row["id"]
-        var carId:int = row["car_id"]
+        var car_id:int = row["car_id"]
         var type:string = row["type"]
         var description:string = row["description"]
         var cost:float = row["cost"]
-        var createdAt:int = row["created_at"]
-        return use MaintenanceEntity(id, carId, type, description, cost, createdAt)
+        var created_at:int = row["created_at"]
+        return use MaintenanceEntity(id, car_id, type, description, cost, created_at)
     }
 
-    public static async method forCar(carId:int): array<MaintenanceEntity> {
+    public static async method forCar(car_id:int): array<MaintenanceEntity> {
         const db:SQLite = Database::connect()
         const rows:array<map<string, mixed>> = db.query(
             "SELECT * FROM maintenances WHERE car_id = :carId ORDER BY created_at DESC",
-            {"carId": carId}
+            {"carId": car_id}
         )
         db.close()
         var items:array<MaintenanceEntity> = []
@@ -41,7 +41,7 @@ class MaintenanceRepository implements MaintenanceContract {
         return items
     }
 
-    public static method create(carId:int, type:string, description:string, cost:float): int {
+    public static method create(car_id:int, type:string, description:string, cost:float): int {
         var id:int = 0
         SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
             db.prepare(`INSERT INTO maintenances
@@ -49,7 +49,7 @@ class MaintenanceRepository implements MaintenanceContract {
                 VALUES (:carId, :type, :description, :cost, :createdAt)
             `)
             db.bind({
-                "carId": carId,
+                "carId": car_id,
                 "type": type,
                 "description": description,
                 "cost": cost,
@@ -63,11 +63,11 @@ class MaintenanceRepository implements MaintenanceContract {
 
     // Somme des entretiens d'amélioration d'une voiture — base du recalcul
     // du prix de vente estimé (context.car.app.usecase.PricingService).
-    public static async method improvementTotal(carId:int): float {
+    public static async method improvementTotal(car_id:int): float {
         const db:SQLite = Database::connect()
         const row:map<string, mixed> = db.queryOne(
             "SELECT COALESCE(SUM(cost), 0) as total FROM maintenances WHERE car_id = :carId AND type = 'improvement'",
-            {"carId": carId}
+            {"carId": car_id}
         )
         db.close()
         var total:float = row["total"]
@@ -76,11 +76,11 @@ class MaintenanceRepository implements MaintenanceContract {
 
     // Somme des entretiens de maintenance (hors amélioration) — coût suivi
     // à titre informatif, sans impact sur le prix de vente estimé.
-    public static async method maintenanceTotal(carId:int): float {
+    public static async method maintenanceTotal(car_id:int): float {
         const db:SQLite = Database::connect()
         const row:map<string, mixed> = db.queryOne(
             "SELECT COALESCE(SUM(cost), 0) as total FROM maintenances WHERE car_id = :carId AND type = 'maintenance'",
-            {"carId": carId}
+            {"carId": car_id}
         )
         db.close()
         var total:float = row["total"]

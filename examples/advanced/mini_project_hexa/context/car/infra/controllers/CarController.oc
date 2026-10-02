@@ -32,37 +32,42 @@ class CarController {
         // tout (404 générique), au lieu d'être silencieusement traité comme
         // id=0 puis redirigé vers "not_found" comme avant ce changement.
         var id:int = req.param("id")
-        const carDetails:CarDetailsDTO|null = CarDetailsService::build(id)
-        if carDetails is null {
+        const car_details:CarDetailsDTO|null = CarDetailsService::build(id)
+        if car_details is null {
             req.respondHeader("Location", "/?error=not_found")
             req.respond(302, "")
             return 0
         }
 
-        var reference:string = carDetails.Car.reference
-        var brand:string      = carDetails.Car.brand
-        var model:string      = carDetails.Car.model
-        var purchasePrice:float  = carDetails.Car.purchasePrice
-        var estimatedPrice:float = carDetails.Car.estimatedPrice
+        var reference:string = car_details.Car.reference
+        var brand:string      = car_details.Car.brand
+        var model:string      = car_details.Car.model
+        var purchase_price:float  = car_details.Car.purchasePrice
+        var estimated_price:float = car_details.Car.estimatedPrice
 
-        var rowsHtml:string = ""
-        for m in carDetails.maintenances {
-            rowsHtml = rowsHtml + `<maintenance-row type="${m.type}" description="${m.description}" cost="${Format::price(m.cost)}" date="${Format::date(m.createdAt)}">`
+        var rows_html:string = ""
+        for m in car_details.maintenances {
+            rows_html += `<maintenance-row 
+                type="${m.type}"
+                description="${m.description}"
+                cost="${Format::price(m.cost)}"
+                date="${Format::date(m.createdAt)}"
+            >`
         }
-        if carDetails.maintenances.len() equal 0 {
-            rowsHtml = `<p class="empty">Aucun entretien enregistré pour cette voiture.</p>`
+        if car_details.maintenances.len() equal 0 {
+            rows_html = `<p class="empty">Aucun entretien enregistré pour cette voiture.</p>`
         }
 
-        scoped idStr:string = Convert::intToStr(id)
-        scoped purchasePriceText:string  = Format::price(purchasePrice)
-        scoped estimatedPriceText:string = Format::price(estimatedPrice)
-        scoped maintenanceTotalText:string = Format::price(carDetails.maintenanceTotal)
-        scoped improvementTotalText:string = Format::price(carDetails.improvementTotal)
+        scoped id_str:string = Convert::intToStr(id)
+        scoped purchase_price_text:string  = Format::price(purchase_price)
+        scoped estimated_price_text:string = Format::price(estimated_price)
+        scoped maintenance_total_text:string = Format::price(car_details.maintenanceTotal)
+        scoped improvement_total_text:string = Format::price(car_details.improvementTotal)
 
-        scoped errorCode:string   = req.query("error")
-        scoped successCode:string = req.query("success")
-        scoped errorText:string   = Flash::message(errorCode)
-        scoped successText:string = Flash::message(successCode)
+        scoped error_code:string   = req.query("error")
+        scoped success_code:string = req.query("success")
+        scoped error_text:string   = Flash::message(error_code)
+        scoped success_text:string = Flash::message(success_code)
 
         scoped html:string = HTML::renderFile('templates/car/car_detail.html')
         req.respond(200, html)
@@ -77,8 +82,8 @@ class CarController {
         const reference:string = req.param("reference").trim()
         const brand:string     = req.param("brand").trim()
         const model:string     = req.param("model").trim()
-        scoped priceStr:string  = req.param("purchase_price").trim()
-        var price:float = Convert::strToFloat(priceStr)
+        scoped price_str:string  = req.param("purchase_price").trim()
+        var price:float = Convert::strToFloat(price_str)
 
         if reference.empty() or brand.empty() or model.empty() {
             req.respondHeader("Location", "/?error=missing_fields")
