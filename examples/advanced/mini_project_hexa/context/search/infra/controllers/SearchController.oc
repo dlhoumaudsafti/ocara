@@ -13,7 +13,7 @@ import context.search.app.usecase.SearchService
 import context.search.app.dto.SearchResultsDto
 import context.search.domain.entity.CarSearchResultEntity
 import context.search.domain.entity.MaintenanceSearchResultEntity
-import context.car.app.usecase.helpers.Format
+import context.search.app.usecase.helpers.Format
 
 class SearchController {
 
@@ -33,8 +33,8 @@ class SearchController {
                     id="${Convert::intToStr(car.id)}"
                     reference="${car.reference}"
                     brand="${car.brand}"
-                    model="${car.model}" 
-                    purchase_price="${Format::price(car.purchase_price)}" 
+                    model="${car.model}"
+                    purchase_price="${Format::price(car.purchase_price)}"
                     estimated_price="${Format::price(car.estimated_price)}"
                     maintenance_total="${Format::price(car.maintenance_total)}"
                 >`

@@ -37,17 +37,53 @@ stable à 1,9 Mo pour 20 000 comme pour 200 000 appels.
 de classe builtin dans `var_class`. Ils passent maintenant par
 `register_var_class`, comme une variable locale (`functions.rs`).
 
+## Étape 2 — cas restants couverts
+
+Preuve statique sur tout le programme (`src/lower/stmt.d/object_facts.rs`,
+point fixe en deux phases) avec un parcours commun
+(`object_owners.rs`, `Scan`) :
+
+- **Conteneur issu d'un appel** (`scoped items = all()`) : `fresh_containers`,
+  fonctions qui ne retournent que des conteneurs neufs (littéral d'objets
+  neufs, appel d'une telle fonction, conteneur local propriétaire retourné).
+- **Conteneur passé en argument** (`fill(items)`) : `preserving_params`,
+  paramètres dont l'appelé ne garde rien et n'insère que des objets neufs ;
+  un tel appel est un simple prêt.
+- **Champs `array<Classe>`/`map<K, Classe>`** : `owning_fields`, champ (par
+  nom) dont toutes les valeurs entrantes sont neuves :
+  - littéral, appel qui retourne un conteneur neuf ;
+  - conteneur local **déplacé**, une seule fois et sinon seulement rempli par
+    `push` ;
+  - paramètre dont **tous** les sites d'appel passent un conteneur neuf.
+    Les appels `obj.m(...)`/`parent::m(...)` sont rapprochés par nom de
+    méthode ; une fonction référencée comme valeur ne reçoit jamais de
+    transfert.
+
+  Tous les accès du programme à ce nom de champ doivent par ailleurs être des
+  lectures, sans élément conservé. `__free_<Classe>` libère alors ses objets
+  (`__array_free_objects`), `__clone_<Classe>` les clone.
+
+**Use-after-free corrigé au passage** : `__free_<Classe>` libérait toujours le
+tableau d'un champ conteneur d'objets, même partagé (`use Bag(ys)`, puis
+`ys[0]` relu après la libération de l'objet : SIGSEGV). Un champ non
+propriétaire n'est plus libéré ni dupliqué par l'objet.
+
+Mesures (20 000 puis 200 000 appels) : `scoped items = all()`,
+`fill(items)` et `scoped bag = use Bag(all())` stables à ≈ 1,95 Mo.
+
 ## Reste ouvert (fuite, jamais de double libération)
 
-- Conteneur initialisé par un appel (`scoped items = repo.all()`) : on ne
-  sait pas si l'appelé a gardé des références à ses objets.
-- Conteneur passé en argument : l'appelé peut y insérer des objets partagés.
-- Champs `array<Classe>`/`map<K, Classe>` d'une classe : `__free_<Classe>`
-  libère le tableau, pas ses objets.
+- Valeur obtenue par `resolve` d'un appel `async` (`CarDetailsDTO.maintenances`
+  dans `mini_project_hexa` : `forCar` est `async`).
+- Analyse des champs par NOM : un seul accès douteux à un champ `items` de
+  n'importe quelle classe disqualifie tous les champs `items`. Un champ
+  disqualifié n'est plus libéré du tout, alors qu'il l'était, au risque d'un
+  use-after-free.
+- Conteneur déplacé vers un champ puis relu localement : refusé par
+  prudence, l'ordre des usages n'étant pas suivi.
 
-Pistes : propager « retourne un conteneur neuf d'objets neufs » comme
-`fresh_returns`, et appliquer la même preuve aux champs (constructeur et
-méthodes de la classe).
+Tests : `examples/tests/81_object_ownership_transfersTest.oc`, tests
+unitaires de `object_facts.rs`.
 
 Tests : `examples/tests/80_scoped_object_containersTest.oc`, tests
 unitaires de `object_owners.rs`.

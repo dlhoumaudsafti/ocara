@@ -1,209 +1,347 @@
-/// Conteneurs propriétaires de leurs objets : un `array<Classe>`/`map<K,
-/// Classe>` libéré (`scoped`/`consumed`/`var` automatique) ne libère ses
-/// instances (`__array_free_objects`) que si CHAQUE objet qui y entre est
-/// NEUF — personne d'autre ne peut le référencer, la libération ne peut donc
-/// pas laisser de référence pendante. Sinon seule la structure est libérée.
+/// Propriété des objets d'un conteneur (`array<Classe>`/`map<K, Classe>`) :
+/// un conteneur libéré ne libère ses instances (`__array_free_objects`) que
+/// si CHAQUE objet qui y entre est NEUF et qu'aucun n'en ressort — personne
+/// d'autre ne peut alors les référencer. Sinon seule la structure est
+/// libérée.
 ///
-/// Neuf : `use Classe(...)`, appel d'une fonction/méthode qui ne retourne que
-/// des objets neufs (`compute_fresh_returns`, point fixe), ou variable locale
-/// initialisée ainsi et conservée nulle part ailleurs.
+/// Un même parcours (`Scan`) sert, corps par corps :
+/// - aux conteneurs locaux (`object_owners`) ;
+/// - aux faits du programme (`object_facts`) : fonctions qui retournent des
+///   objets neufs ou un conteneur neuf, paramètres qui préservent la
+///   propriété, champs propriétaires de leurs objets.
 ///
-/// Disqualifie un conteneur : initialiseur non littéral (`= repo.all()`),
-/// élément non neuf (`items.push(self.item)`), réaffectation, passage en
-/// argument (l'appelé pourrait y insérer), toute méthode autre que `push`/
-/// `len`, ou capture par une closure. L'extraction d'un élément conservé est
-/// déjà traitée par `element_escape` (libération de surface).
+/// Neuf : `use Classe(...)`, appel d'une fonction qui ne retourne que des
+/// objets neufs, variable locale initialisée ainsi et référencée une seule
+/// fois. Conteneur neuf : littéral d'objets neufs, appel d'une fonction qui
+/// retourne un conteneur neuf, conteneur local propriétaire déplacé.
+///
+/// Disqualifie un candidat : élément non neuf, réaffectation, passage à un
+/// paramètre qui ne préserve pas la propriété, méthode autre que `push`/
+/// `len`, capture par une closure, conservation du conteneur ou d'un de ses
+/// éléments (hors copie de chaîne/scalaire).
 use std::collections::{HashMap, HashSet};
 
-use crate::parsing::ast::{Block, Expr, Param, Stmt, TemplatePartExpr, Type};
+use crate::parsing::ast::{Block, Expr, Param, Stmt, TemplatePartExpr, Type, VarKind};
+use super::object_ast::{collect_returns, count_refs_block, for_each_block};
+pub use super::object_ast::{is_object_container, object_elem_class};
 
-/// Contexte : appelés qui ne retournent que des objets neufs, classe courante.
+/// Faits du programme (voir `object_facts`) et contexte du corps analysé.
 pub struct FreshCtx<'a> {
-    pub fresh_returns: &'a HashSet<String>,
-    pub current_class: Option<&'a str>,
+    pub fresh_returns:    &'a HashSet<String>,
+    pub fresh_containers: &'a HashSet<String>,
+    /// `"Classe_methode"` → le paramètre `i` préserve-t-il la propriété ?
+    pub preserving:       &'a HashMap<String, Vec<bool>>,
+    /// Types des paramètres des appelés (un scalaire passé est copié).
+    pub param_types:      &'a HashMap<String, Vec<Type>>,
+    pub current_class:    Option<&'a str>,
 }
 
-/// Point fixe : fonctions/méthodes (clé `"fonction"`/`"Classe_methode"`)
-/// dont toutes les valeurs retournées sont des objets neufs.
-pub fn compute_fresh_returns(callables: &[(String, Option<&str>, &[Param], &Block, Option<Type>)]) -> HashSet<String> {
-    let mut fresh: HashSet<String> = callables.iter()
-        .filter(|(_, _, _, _, ret)| matches!(ret, Some(Type::Named(_))))
-        .map(|(key, ..)| key.clone())
-        .collect();
-    loop {
-        let next: HashSet<String> = callables.iter()
-            .filter(|(key, class, _, body, _)| {
-                fresh.contains(key) && {
-                    let ctx = FreshCtx { fresh_returns: &fresh, current_class: *class };
-                    returns_only_fresh(body, &ctx)
-                }
-            })
-            .map(|(key, ..)| key.clone())
-            .collect();
-        if next == fresh { return fresh; }
-        fresh = next;
-    }
-}
-
-fn returns_only_fresh(body: &Block, ctx: &FreshCtx) -> bool {
-    let mut scan = Scan::with_refs(ctx, body);
+/// Conteneurs locaux propriétaires de leurs objets dans `body`.
+pub fn object_owners(body: &Block, ctx: &FreshCtx) -> HashSet<String> {
+    let no_fields = HashSet::new();
+    let mut scan = Scan::new(ctx, body, &[], &no_fields);
     scan.block(body);
+    scan.finish();
+    scan.owners()
+}
+
+/// Résultat d'un parcours, pour `object_facts`.
+pub struct BodyFacts {
+    /// Toutes les valeurs retournées sont des objets neufs.
+    pub returns_fresh_object:    bool,
+    /// Toutes les valeurs retournées sont des conteneurs neufs.
+    pub returns_fresh_container: bool,
+    /// Paramètres conteneurs qui préservent la propriété (`None` : pas un conteneur d'objets).
+    pub preserving_params:       Vec<Option<bool>>,
+    /// Champs (par nom) disqualifiés dans ce corps.
+    pub disqualified_fields:     HashSet<String>,
+    /// `self.champ = param` : (champ, indice du paramètre).
+    pub field_from_param:        Vec<(String, usize)>,
+    /// Appels : (clé de l'appelé, ou `".methode"` si le receveur est inconnu ;
+    /// pour chaque argument, est-ce un conteneur neuf ?).
+    pub calls:                   Vec<(String, Vec<bool>)>,
+    /// Fonctions/méthodes référencées comme valeur (appelables indirectement).
+    pub value_refs:              HashSet<String>,
+}
+
+pub fn body_facts(body: &Block, params: &[Param], ctx: &FreshCtx, watched_fields: &HashSet<String>) -> BodyFacts {
+    let mut scan = Scan::new(ctx, body, params, watched_fields);
+    scan.allow_return = true;
+    scan.block(body);
+    scan.finish();
     let mut returns = Vec::new();
     collect_returns(body, &mut returns);
-    !returns.is_empty() && returns.iter().all(|e| scan.is_fresh(e, true))
-}
-
-fn collect_returns<'b>(block: &'b Block, out: &mut Vec<&'b Expr>) {
-    for stmt in &block.stmts {
-        match stmt {
-            Stmt::Return { value: Some(v), .. } => out.push(v),
-            Stmt::Return { value: None, .. } => out.push(&NULL_EXPR),
-            _ => for_each_block(stmt, &mut |b| collect_returns(b, out)),
-        }
+    let returns_fresh_object = !returns.is_empty() && returns.iter().all(|e| scan.is_fresh(e));
+    let returns_fresh_container = !returns.is_empty() && returns.iter().all(|e| scan.returns_fresh_container(e));
+    let preserving_params = params.iter()
+        .map(|p| is_object_container(&p.ty).then(|| !scan.disqualified.contains(&p.name) && !scan.returned.contains(&p.name)))
+        .collect();
+    BodyFacts {
+        returns_fresh_object,
+        returns_fresh_container,
+        preserving_params,
+        disqualified_fields: scan.disqualified.iter().filter_map(|n| n.strip_prefix('#').map(str::to_string)).collect(),
+        field_from_param: scan.field_from_param,
+        calls: scan.calls,
+        value_refs: scan.value_refs,
     }
-}
-
-static NULL_EXPR: Expr = Expr::Literal(crate::parsing::ast::Literal::Null, crate::parsing::token::Span { line: 0, col: 0, file: None, runtime_ctx: None });
-
-fn for_each_block<'b>(stmt: &'b Stmt, f: &mut dyn FnMut(&'b Block)) {
-    match stmt {
-        Stmt::If { then_block, elseif, else_block, .. } => {
-            f(then_block);
-            elseif.iter().for_each(|(_, b)| f(b));
-            if let Some(b) = else_block { f(b); }
-        }
-        Stmt::Switch { cases, default, .. } => {
-            cases.iter().for_each(|c| f(&c.body));
-            if let Some(b) = default { f(b); }
-        }
-        Stmt::While { body, .. } | Stmt::ForIn { body, .. } | Stmt::ForMap { body, .. } => f(body),
-        Stmt::Try { body, handlers, .. } => {
-            f(body);
-            handlers.iter().for_each(|h| f(&h.body));
-        }
-        _ => {}
-    }
-}
-
-/// Conteneurs propriétaires de leurs objets dans `body`.
-pub fn object_owners(body: &Block, ctx: &FreshCtx) -> HashSet<String> {
-    let mut scan = Scan::with_refs(ctx, body);
-    scan.block(body);
-    scan.candidates.difference(&scan.disqualified).cloned().collect()
 }
 
 struct Scan<'a> {
     ctx: &'a FreshCtx<'a>,
-    /// Variable locale → initialiseur neuf (objet) ?
-    fresh_vars: HashMap<String, bool>,
-    /// Nombre de positions où une variable est conservée (push, argument…).
-    kept_uses: HashMap<String, usize>,
-    /// Nombre total de références à chaque identifiant dans le corps.
-    refs: HashMap<String, usize>,
+    /// Variable locale (objet) initialisée par un objet neuf.
+    fresh_vars: HashSet<String>,
+    var_kinds:  HashMap<String, VarKind>,
+    var_types:  HashMap<String, Type>,
+    params:     Vec<String>,
+    /// Champs suivis (conteneurs d'objets du programme), désignés `#champ`.
+    watched:    &'a HashSet<String>,
+    refs:       HashMap<String, usize>,
+    /// Variable de boucle → candidat parcouru.
+    aliases:    HashMap<String, String>,
     candidates: HashSet<String>,
     disqualified: HashSet<String>,
+    returned:   HashSet<String>,
+    allow_return: bool,
+    /// Conteneurs locaux déplacés (vers un champ, un argument de transfert) :
+    /// neufs seulement s'ils restent propriétaires jusqu'au bout.
+    moved:      Vec<(String, Option<usize>)>,
+    field_from_param: Vec<(String, usize)>,
+    calls:      Vec<(String, Vec<bool>)>,
+    value_refs: HashSet<String>,
+    /// Références d'un conteneur dues à `push` (voir `finish`).
+    push_refs:  HashMap<String, usize>,
 }
 
 impl<'a> Scan<'a> {
-    fn new(ctx: &'a FreshCtx<'a>) -> Self {
-        Scan { ctx, fresh_vars: HashMap::new(), kept_uses: HashMap::new(), refs: HashMap::new(), candidates: HashSet::new(), disqualified: HashSet::new() }
-    }
-
-    fn with_refs(ctx: &'a FreshCtx<'a>, body: &Block) -> Self {
-        let mut scan = Scan::new(ctx);
-        count_refs_block(body, &mut scan.refs);
+    fn new(ctx: &'a FreshCtx<'a>, body: &Block, params: &[Param], watched: &'a HashSet<String>) -> Self {
+        let mut refs = HashMap::new();
+        count_refs_block(body, &mut refs);
+        let mut scan = Scan {
+            ctx, fresh_vars: HashSet::new(), var_kinds: HashMap::new(),
+            var_types: params.iter().map(|p| (p.name.clone(), p.ty.clone())).collect(),
+            params: params.iter().map(|p| p.name.clone()).collect(),
+            watched, refs, aliases: HashMap::new(), candidates: HashSet::new(), disqualified: HashSet::new(),
+            returned: HashSet::new(), allow_return: false, moved: Vec::new(), field_from_param: Vec::new(), calls: Vec::new(),
+            value_refs: HashSet::new(), push_refs: HashMap::new(),
+        };
+        for p in params.iter().filter(|p| is_object_container(&p.ty)) {
+            scan.candidates.insert(p.name.clone());
+        }
+        for f in watched {
+            scan.candidates.insert(format!("#{}", f));
+        }
         scan
     }
 
-    fn callee_fresh(&self, expr: &Expr) -> bool {
-        let key = match expr {
-            Expr::Call { callee, .. } => match callee.as_ref() {
-                Expr::Ident(name, _) => name.clone(),
-                Expr::Field { object, field, .. } if matches!(object.as_ref(), Expr::SelfExpr(_)) => match self.ctx.current_class {
-                    Some(c) => format!("{}_{}", c, field),
-                    None => return false,
-                },
-                _ => return false,
-            },
-            Expr::StaticCall { class, method, .. } => match (class.as_str(), self.ctx.current_class) {
-                ("<self>", Some(c)) => format!("{}_{}", c, method),
-                ("<self>" | "<parent>", _) => return false,
-                (c, _) => format!("{}_{}", c, method),
-            },
-            _ => return false,
-        };
-        self.ctx.fresh_returns.contains(&key)
+    fn owners(&self) -> HashSet<String> {
+        self.candidates.iter()
+            .filter(|c| !c.starts_with('#') && !self.params.contains(c) && !self.disqualified.contains(*c))
+            .cloned()
+            .collect()
     }
 
-    /// Objet neuf. `single_use` : une variable neuve ne doit être conservée
-    /// qu'à cet endroit.
-    fn is_fresh(&self, expr: &Expr, single_use: bool) -> bool {
+    /// Un conteneur local déplacé est disqualifié comme propriétaire local
+    /// (il ne doit plus être libéré ici) ; s'il n'était pas propriétaire,
+    /// la destination est disqualifiée à son tour.
+    fn finish(&mut self) {
+        let moved = std::mem::take(&mut self.moved);
+        for (var, call_arg) in &moved {
+            // Déplacé une seule fois, et sinon seulement rempli (`push`) :
+            // aucune autre référence ne survit au transfert.
+            let refs = self.refs.get(var).copied().unwrap_or(0);
+            let pushes = self.push_refs.get(var).copied().unwrap_or(0);
+            let owner = self.candidates.contains(var) && !self.disqualified.contains(var)
+                && matches!(self.var_kinds.get(var), Some(VarKind::Var))
+                && refs == pushes + 1;
+            if let Some(i) = call_arg {
+                if let Some((_, args)) = self.calls.get_mut(*i) {
+                    for a in args.iter_mut() { *a = *a && owner; }
+                }
+            }
+        }
+        for (var, _) in moved {
+            self.disqualified.insert(var);
+        }
+    }
+
+    /// Candidat désigné par `expr` : variable/paramètre candidat, champ suivi.
+    fn cand_of(&self, expr: &Expr) -> Option<String> {
+        match expr {
+            Expr::Ident(name, _) if self.candidates.contains(name) => Some(name.clone()),
+            Expr::Field { field, .. } if self.watched.contains(field) => Some(format!("#{}", field)),
+            _ => None,
+        }
+    }
+
+    /// Candidat dont `expr` est un ÉLÉMENT (index, variable de boucle, champ d'un élément).
+    fn element_root(&self, expr: &Expr) -> Option<String> {
+        match expr {
+            Expr::Ident(name, _) => self.aliases.get(name).cloned(),
+            Expr::Index { object, .. } => self.cand_of(object).or_else(|| self.element_root(object)),
+            Expr::Field { object, field, .. } if !self.watched.contains(field) => self.element_root(object),
+            _ => None,
+        }
+    }
+
+    fn callee_key(&self, expr: &Expr) -> Option<String> {
+        match expr {
+            Expr::Call { callee, .. } => match callee.as_ref() {
+                Expr::Ident(name, _) => Some(name.clone()),
+                Expr::Field { object, field, .. } if matches!(object.as_ref(), Expr::SelfExpr(_)) => {
+                    Some(format!("{}_{}", self.ctx.current_class?, field))
+                }
+                Expr::Field { field, .. } => Some(format!(".{}", field)),
+                _ => None,
+            },
+            Expr::StaticCall { class, method, .. } => match class.as_str() {
+                "<self>" => Some(format!("{}_{}", self.ctx.current_class?, method)),
+                "<parent>" => Some(format!(".{}", method)),
+                c => Some(format!("{}_{}", c, method)),
+            },
+            Expr::New { class, .. } => Some(format!("{}_init", class)),
+            _ => None,
+        }
+    }
+
+    fn is_fresh(&self, expr: &Expr) -> bool {
         match expr {
             Expr::New { .. } | Expr::Literal(crate::parsing::ast::Literal::Null, _) => true,
-            Expr::Call { .. } | Expr::StaticCall { .. } => self.callee_fresh(expr),
-            // Une variable neuve n'est « neuve » que si cette insertion est sa
-            // SEULE référence : lue ailleurs, elle survivrait au conteneur.
-            Expr::Ident(name, _) => self.fresh_vars.get(name).copied().unwrap_or(false)
-                && self.refs.get(name).copied().unwrap_or(0) <= 1
-                && (!single_use || self.kept_uses.get(name).copied().unwrap_or(0) <= 1),
+            Expr::Call { .. } | Expr::StaticCall { .. } => self.callee_key(expr).is_some_and(|k| self.ctx.fresh_returns.contains(&k)),
+            Expr::Ident(name, _) => self.fresh_vars.contains(name) && self.refs.get(name).copied().unwrap_or(0) <= 1,
             _ => false,
         }
     }
 
-    fn note_kept(&mut self, expr: &Expr) {
-        if let Expr::Ident(name, _) = expr {
-            *self.kept_uses.entry(name.clone()).or_default() += 1;
+    /// Conteneur neuf (hors conteneur local déplacé, traité par `finish`).
+    fn is_fresh_container_value(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Array { elements, .. } => elements.iter().all(|e| self.is_fresh(e)),
+            Expr::Map { entries, .. } => entries.iter().all(|(_, v)| self.is_fresh(v)),
+            Expr::Call { .. } | Expr::StaticCall { .. } => self.callee_key(expr).is_some_and(|k| self.ctx.fresh_containers.contains(&k)),
+            _ => false,
         }
     }
 
+    fn returns_fresh_container(&self, expr: &Expr) -> bool {
+        self.is_fresh_container_value(expr) || matches!(expr, Expr::Ident(n, _)
+            if self.returned.contains(n) && !self.disqualified.contains(n) && !self.params.contains(n))
+    }
+
     fn insertion(&mut self, container: &str, value: &Expr) {
-        if !self.is_fresh(value, false) {
+        if !self.is_fresh(value) {
             self.disqualified.insert(container.to_string());
         }
-        self.note_kept(value);
+        self.expr(value);
+    }
+
+    /// Valeur conservée vers une cible de type `target` (inconnu : `None`).
+    fn kept(&mut self, expr: &Expr, target: Option<&Type>) {
+        if let Some(c) = self.cand_of(expr) {
+            self.disqualified.insert(c);
+        } else if let Some(root) = self.element_root(expr) {
+            if !target.is_some_and(crate::lower::stmt::element_escape::copies_into) {
+                self.disqualified.insert(root);
+            }
+        }
+        match expr {
+            Expr::Match { subject, arms, .. } => {
+                self.expr(subject);
+                arms.iter().for_each(|arm| self.kept(&arm.body, None));
+            }
+            Expr::Array { elements, .. } => elements.iter().for_each(|e| self.kept(e, None)),
+            Expr::Map { entries, .. } => entries.iter().for_each(|(k, v)| { self.expr(k); self.kept(v, None); }),
+            _ => self.expr(expr),
+        }
     }
 
     fn block(&mut self, block: &Block) {
         block.stmts.iter().for_each(|s| self.stmt(s));
     }
 
-    fn stmt(&mut self, stmt: &Stmt) {
-        match stmt {
-            Stmt::Var { name, ty, value, .. } | Stmt::Const { name, ty, value, .. } => {
-                if is_object_container(ty) {
-                    match value {
-                        Expr::Array { elements, .. } => {
-                            self.candidates.insert(name.clone());
-                            elements.iter().for_each(|e| self.insertion(name, e));
-                        }
-                        Expr::Map { entries, .. } => {
-                            self.candidates.insert(name.clone());
-                            entries.iter().for_each(|(_, v)| self.insertion(name, v));
-                        }
-                        _ => { self.disqualified.insert(name.clone()); }
-                    }
-                } else {
-                    let fresh = matches!(ty, Type::Named(_)) && self.is_fresh(value, false);
-                    self.fresh_vars.insert(name.clone(), fresh);
+    fn declare(&mut self, name: &str, ty: &Type, kind: VarKind, value: &Expr) {
+        self.var_types.insert(name.to_string(), ty.clone());
+        self.var_kinds.insert(name.to_string(), kind);
+        if is_object_container(ty) {
+            match value {
+                Expr::Array { elements, .. } => {
+                    self.candidates.insert(name.to_string());
+                    elements.iter().for_each(|e| self.insertion(name, e));
+                }
+                Expr::Map { entries, .. } => {
+                    self.candidates.insert(name.to_string());
+                    entries.iter().for_each(|(k, v)| { self.expr(k); self.insertion(name, v); });
+                }
+                _ if self.is_fresh_container_value(value) => {
+                    self.candidates.insert(name.to_string());
                     self.expr(value);
                 }
+                _ => self.kept(value, Some(ty)),
             }
-            Stmt::Assign { target, value, .. } => {
-                match target {
-                    Expr::Index { object, .. } => match object.as_ref() {
-                        Expr::Ident(c, _) if self.candidates.contains(c) => self.insertion(c, value),
-                        _ => self.expr(target),
-                    },
-                    Expr::Ident(name, _) => {
-                        self.disqualified.insert(name.clone());
-                        self.fresh_vars.insert(name.clone(), false);
-                    }
-                    _ => self.expr(target),
+        } else {
+            if matches!(ty, Type::Named(_)) && self.is_fresh(value) {
+                self.fresh_vars.insert(name.to_string());
+            }
+            self.kept(value, Some(ty));
+        }
+    }
+
+    fn assign(&mut self, target: &Expr, value: &Expr) {
+        if let Expr::Index { object, index, .. } = target {
+            if let Some(c) = self.cand_of(object) {
+                self.expr(index);
+                return self.insertion(&c, value);
+            }
+        }
+        if let Some(c) = self.cand_of(target) {
+            if c.starts_with('#') {
+                self.field_assign(&c, value);
+                return;
+            }
+            self.disqualified.insert(c);
+        }
+        if let Expr::Ident(name, _) = target { self.fresh_vars.remove(name); }
+        self.expr(target);
+        let ty = match target { Expr::Ident(n, _) => self.var_types.get(n).cloned(), _ => None };
+        self.kept(value, ty.as_ref());
+    }
+
+    /// `x.champ = valeur` d'un champ suivi.
+    fn field_assign(&mut self, field_key: &str, value: &Expr) {
+        let field = field_key.trim_start_matches('#').to_string();
+        if self.is_fresh_container_value(value) {
+            return self.expr(value);
+        }
+        if let Expr::Ident(name, _) = value {
+            if let Some(i) = self.params.iter().position(|p| p == name) {
+                // Conservé par le champ : ce paramètre ne préserve plus la propriété.
+                self.disqualified.insert(name.clone());
+                self.field_from_param.push((field, i));
+                return;
+            }
+            if self.candidates.contains(name) {
+                self.moved.push((name.clone(), None));
+                if !matches!(self.var_kinds.get(name), Some(VarKind::Var)) {
+                    self.disqualified.insert(field_key.to_string());
                 }
-                self.kept(value);
+                return;
             }
+        }
+        self.disqualified.insert(field_key.to_string());
+        self.kept(value, None);
+    }
+
+    fn stmt(&mut self, stmt: &Stmt) {
+        match stmt {
+            Stmt::Var { name, ty, value, kind, .. } => self.declare(name, ty, *kind, value),
+            Stmt::Const { name, ty, value, .. } => self.declare(name, ty, VarKind::Var, value),
+            Stmt::Assign { target, value, .. } => self.assign(target, value),
             Stmt::Expr(e) => self.expr(e),
-            Stmt::Return { value: Some(v), .. } | Stmt::Result { value: Some(v), .. } | Stmt::Raise { value: v, .. } | Stmt::Emit { value: v, .. } => self.kept(v),
+            Stmt::Return { value: Some(v), .. } | Stmt::Result { value: Some(v), .. } => match self.cand_of(v) {
+                Some(c) if self.allow_return && !c.starts_with('#') => { self.returned.insert(c); }
+                _ => self.kept(v, None),
+            },
+            Stmt::Raise { value: v, .. } | Stmt::Emit { value: v, .. } => self.kept(v, None),
             Stmt::If { condition, .. } | Stmt::While { condition, .. } => {
                 self.expr(condition);
                 for_each_block(stmt, &mut |b| self.block(b));
@@ -212,76 +350,87 @@ impl<'a> Scan<'a> {
                 self.expr(subject);
                 for_each_block(stmt, &mut |b| self.block(b));
             }
-            Stmt::ForIn { iter, .. } | Stmt::ForMap { iter, .. } => {
-                self.read(iter);
-                for_each_block(stmt, &mut |b| self.block(b));
-            }
+            Stmt::ForIn { var, iter, .. } => self.loop_over(&[var], iter, stmt),
+            Stmt::ForMap { key, value, iter, .. } => self.loop_over(&[key, value], iter, stmt),
             Stmt::Try { .. } => for_each_block(stmt, &mut |b| self.block(b)),
             Stmt::Return { .. } | Stmt::Result { .. } | Stmt::Break { .. } | Stmt::Continue { .. } => {}
         }
     }
 
-    /// Valeur conservée (retournée, affectée…) : un conteneur candidat qui
-    /// s'en va ainsi est cloné par `maybe_clone_escaping`, mais ses objets
-    /// le seraient aussi — disqualifié par prudence.
-    fn kept(&mut self, expr: &Expr) {
-        self.note_kept(expr);
-        if let Expr::Ident(name, _) = expr {
-            self.disqualified.insert(name.clone());
+    fn loop_over(&mut self, vars: &[&String], iter: &Expr, stmt: &Stmt) {
+        match self.cand_of(iter).or_else(|| self.element_root(iter)) {
+            Some(root) => vars.iter().for_each(|v| { self.aliases.insert((*v).clone(), root.clone()); }),
+            None => self.expr(iter),
         }
-        self.expr(expr);
+        for_each_block(stmt, &mut |b| self.block(b));
     }
 
-    /// Lecture du conteneur (itération, index) : sans effet sur sa propriété.
-    fn read(&mut self, expr: &Expr) {
-        if !matches!(expr, Expr::Ident(..)) { self.expr(expr); }
-    }
-
-    fn call_args(&mut self, args: &[Expr]) {
-        for a in args {
-            self.note_kept(a);
-            if let Expr::Ident(name, _) = a { self.disqualified.insert(name.clone()); }
-            self.expr(a);
+    fn call(&mut self, call: &Expr, args: &[Expr]) {
+        if let Expr::StaticCall { class, method, .. } = call {
+            if crate::sema::escape::is_pure_builtin(class, method) {
+                return args.iter().for_each(|a| self.expr(a));
+            }
         }
+        let key = self.callee_key(call);
+        let preserving = key.as_ref().and_then(|k| self.ctx.preserving.get(k)).cloned().unwrap_or_default();
+        let types = key.as_ref().and_then(|k| self.ctx.param_types.get(k)).cloned().unwrap_or_default();
+        let mut fresh_args = Vec::new();
+        let call_index = self.calls.len();
+        for (i, arg) in args.iter().enumerate() {
+            fresh_args.push(self.is_fresh_container_value(arg));
+            match self.cand_of(arg) {
+                // Paramètre qui préserve la propriété : simple prêt.
+                Some(_) if preserving.get(i).copied().unwrap_or(false) => {}
+                // Sinon, peut-être un transfert (`use Dto(items)`) d'un
+                // conteneur local, résolu par `finish`.
+                Some(c) if !c.starts_with('#') && !self.params.contains(&c) => {
+                    fresh_args[i] = true;
+                    self.moved.push((c, Some(call_index)));
+                }
+                _ => self.kept(arg, types.get(i)),
+            }
+        }
+        if let Some(k) = key { self.calls.push((k, fresh_args)); }
     }
 
     fn expr(&mut self, expr: &Expr) {
         match expr {
-            Expr::Call { callee, args, .. } => match callee.as_ref() {
-                Expr::Field { object, field, .. } if matches!(object.as_ref(), Expr::Ident(c, _) if self.candidates.contains(c)) => {
-                    let Expr::Ident(c, _) = object.as_ref() else { unreachable!() };
-                    match (field.as_str(), args.as_slice()) {
-                        ("push", [value]) => { let c = c.clone(); self.insertion(&c, value); self.expr(value); }
-                        ("len", []) => {}
-                        _ => { self.disqualified.insert(c.clone()); self.call_args(args); }
+            Expr::Call { callee, args, .. } => {
+                if let Expr::Field { object, field, .. } = callee.as_ref() {
+                    if let Some(c) = self.cand_of(object) {
+                        match (field.as_str(), args.as_slice()) {
+                            ("push", [value]) => {
+                                *self.push_refs.entry(c.clone()).or_default() += 1;
+                                return self.insertion(&c, value);
+                            }
+                            ("len", []) => return,
+                            _ => { self.disqualified.insert(c); }
+                        }
+                    } else {
+                        self.read(object);
                     }
+                } else if !matches!(callee.as_ref(), Expr::Ident(..)) {
+                    self.expr(callee);
                 }
-                _ => {
-                    if let Expr::Field { object, .. } = callee.as_ref() { self.read(object); } else { self.expr(callee); }
-                    self.call_args(args);
-                }
-            },
-            Expr::StaticCall { class, method, args, .. } => {
-                if let (true, [Expr::Ident(c, _), value]) = (class == "Array" && method == "push", args.as_slice()) {
-                    if self.candidates.contains(c) {
-                        let c = c.clone();
-                        self.insertion(&c, value);
-                        self.expr(value);
-                        return;
-                    }
-                }
-                if crate::sema::escape::is_pure_builtin(class, method) {
-                    args.iter().for_each(|a| self.expr(a));
-                } else {
-                    self.call_args(args);
-                }
+                self.call(expr, args);
             }
-            Expr::New { args, .. } => self.call_args(args),
-            Expr::Array { elements, .. } => elements.iter().for_each(|e| self.kept(e)),
-            Expr::Map { entries, .. } => entries.iter().for_each(|(k, v)| { self.expr(k); self.kept(v); }),
-            Expr::NamedArg { value, .. } => self.kept(value),
+            Expr::StaticCall { class, method, args, .. } => {
+                if class == "Array" && method == "push" && args.len() == 2 {
+                    if let Some(c) = self.cand_of(&args[0]) {
+                        return self.insertion(&c, &args[1]);
+                    }
+                }
+                self.call(expr, args);
+            }
+            Expr::New { args, .. } => self.call(expr, args),
+            Expr::Array { elements, .. } => elements.iter().for_each(|e| self.kept(e, None)),
+            Expr::Map { entries, .. } => entries.iter().for_each(|(k, v)| { self.expr(k); self.kept(v, None); }),
+            Expr::NamedArg { value, .. } => self.kept(value, None),
             Expr::Index { object, index, .. } => { self.read(object); self.expr(index); }
-            Expr::Field { object, .. } => self.read(object),
+            Expr::Field { object, field, .. } => {
+                self.value_refs.insert(format!(".{}", field));
+                self.read(object);
+            }
             Expr::Unary { operand: e, .. } | Expr::Resolve { expr: e, .. } | Expr::IsCheck { expr: e, .. } | Expr::IncDec { target: e, .. } => self.expr(e),
             Expr::Binary { left: a, right: b, .. } | Expr::Range { start: a, end: b, .. } => { self.expr(a); self.expr(b); }
             Expr::Template { parts, .. } => parts.iter().for_each(|p| {
@@ -289,117 +438,34 @@ impl<'a> Scan<'a> {
             }),
             Expr::Match { subject, arms, .. } => {
                 self.expr(subject);
-                arms.iter().for_each(|arm| self.kept(&arm.body));
+                arms.iter().for_each(|arm| self.kept(&arm.body, None));
             }
             Expr::Nameless { body, .. } => {
                 let mut refs = HashSet::new();
                 crate::sema::escape::collect_ident_refs(body, &mut refs);
                 for name in refs {
+                    if let Some(root) = self.aliases.get(&name).cloned() { self.disqualified.insert(root); }
                     self.disqualified.insert(name.clone());
-                    *self.kept_uses.entry(name).or_default() += 2;
+                    self.fresh_vars.remove(&name);
+                }
+                // Un champ suivi manipulé dans une closure : prudence.
+                let mut inner = HashMap::new();
+                count_refs_block(body, &mut inner);
+                for key in inner.keys().filter(|k| k.starts_with('#') && self.watched.contains(&k[1..])) {
+                    self.disqualified.insert(key.clone());
                 }
             }
-            Expr::Literal(..) | Expr::Ident(..) | Expr::SelfExpr(_) | Expr::ParentExpr(_) | Expr::StaticConst { .. } => {}
+            // Hors position d'appel : une fonction peut être passée comme valeur.
+            Expr::Ident(name, _) => { self.value_refs.insert(name.clone()); }
+            Expr::StaticConst { class, name, .. } => { self.value_refs.insert(format!("{}_{}", class, name)); }
+            Expr::Literal(..) | Expr::SelfExpr(_) | Expr::ParentExpr(_) => {}
         }
     }
-}
 
-fn count_refs_block(block: &Block, refs: &mut HashMap<String, usize>) {
-    for stmt in &block.stmts {
-        match stmt {
-            Stmt::Var { value, .. } | Stmt::Const { value, .. } | Stmt::Expr(value) | Stmt::Raise { value, .. } | Stmt::Emit { value, .. } => count_refs(value, refs),
-            Stmt::Assign { target, value, .. } => { count_refs(target, refs); count_refs(value, refs); }
-            Stmt::Return { value: Some(v), .. } | Stmt::Result { value: Some(v), .. } => count_refs(v, refs),
-            Stmt::If { condition: c, .. } | Stmt::While { condition: c, .. } | Stmt::Switch { subject: c, .. } => count_refs(c, refs),
-            Stmt::ForIn { iter, .. } | Stmt::ForMap { iter, .. } => count_refs(iter, refs),
-            _ => {}
+    /// Lecture (itération, index, champ) : sans effet sur la propriété.
+    fn read(&mut self, expr: &Expr) {
+        if self.cand_of(expr).is_none() && !matches!(expr, Expr::Ident(..)) {
+            self.expr(expr);
         }
-        for_each_block(stmt, &mut |b| count_refs_block(b, refs));
-    }
-}
-
-fn count_refs(expr: &Expr, refs: &mut HashMap<String, usize>) {
-    match expr {
-        Expr::Ident(name, _) => *refs.entry(name.clone()).or_default() += 1,
-        Expr::Call { callee, args, .. } => { count_refs(callee, refs); args.iter().for_each(|a| count_refs(a, refs)); }
-        Expr::StaticCall { args, .. } | Expr::New { args, .. } | Expr::Array { elements: args, .. } => args.iter().for_each(|a| count_refs(a, refs)),
-        Expr::Map { entries, .. } => entries.iter().for_each(|(k, v)| { count_refs(k, refs); count_refs(v, refs); }),
-        Expr::Field { object: e, .. } | Expr::Unary { operand: e, .. } | Expr::Resolve { expr: e, .. }
-        | Expr::IsCheck { expr: e, .. } | Expr::IncDec { target: e, .. } | Expr::NamedArg { value: e, .. } => count_refs(e, refs),
-        Expr::Binary { left: a, right: b, .. } | Expr::Index { object: a, index: b, .. } | Expr::Range { start: a, end: b, .. } => {
-            count_refs(a, refs);
-            count_refs(b, refs);
-        }
-        Expr::Template { parts, .. } => parts.iter().for_each(|p| if let TemplatePartExpr::Expr(e) = p { count_refs(e, refs) }),
-        Expr::Match { subject, arms, .. } => { count_refs(subject, refs); arms.iter().for_each(|a| count_refs(&a.body, refs)); }
-        Expr::Nameless { body, .. } => {
-            let mut inner = HashSet::new();
-            crate::sema::escape::collect_ident_refs(body, &mut inner);
-            inner.into_iter().for_each(|n| *refs.entry(n).or_default() += 2);
-        }
-        Expr::Literal(..) | Expr::SelfExpr(_) | Expr::ParentExpr(_) | Expr::StaticConst { .. } => {}
-    }
-}
-
-/// `array<Classe>` ou `map<K, Classe>` (classe utilisateur).
-pub fn object_elem_class(ty: &Type) -> Option<&str> {
-    match ty {
-        Type::Array(inner) | Type::Map(_, inner) => match inner.as_ref() {
-            Type::Named(n) => Some(n.as_str()),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
-fn is_object_container(ty: &Type) -> bool {
-    object_elem_class(ty).is_some()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{compute_fresh_returns, object_owners, FreshCtx};
-    use crate::parsing::{lexer::Lexer, parser::Parser};
-    use std::collections::HashSet;
-
-    fn owners(src: &str) -> Vec<String> {
-        let program = Parser::new(Lexer::new(src).tokenize().unwrap()).parse_program().unwrap();
-        let callables: Vec<_> = program.functions.iter()
-            .map(|f| (f.name.clone(), None, f.params.as_slice(), &f.body, Some(f.ret_ty.clone())))
-            .collect();
-        let fresh = compute_fresh_returns(&callables);
-        let main = program.functions.iter().find(|f| f.name == "main").unwrap();
-        let mut out: Vec<String> = object_owners(&main.body, &FreshCtx { fresh_returns: &fresh, current_class: None }).into_iter().collect();
-        out.sort();
-        out
-    }
-
-    const ITEM: &str = "class Item {\n    init() { }\n}\nfunction build(): Item {\n    return use Item()\n}\nfunction pick(xs:array<Item>): Item {\n    return xs[0]\n}\n";
-
-    #[test]
-    fn fresh_insertions_make_an_owner() {
-        let src = format!("{}function main(): int {{\n    scoped a:array<Item> = [use Item()]\n    a.push(build())\n    var it:Item = use Item()\n    a.push(it)\n    for x in a {{ IO::writeln(\"x\") }}\n    return a.len()\n}}\n", ITEM);
-        assert_eq!(owners(&src), vec!["a"]);
-    }
-
-    #[test]
-    fn shared_or_unknown_insertions_disqualify() {
-        let shared = format!("{}function main(): int {{\n    var it:Item = use Item()\n    scoped a:array<Item> = []\n    a.push(it)\n    IO::writeln(it.name)\n    return 0\n}}\n", ITEM);
-        assert!(owners(&shared).is_empty());
-        let unknown = format!("{}function main(): int {{\n    var src:array<Item> = []\n    scoped a:array<Item> = []\n    a.push(pick(src))\n    return 0\n}}\n", ITEM);
-        assert!(owners(&unknown).is_empty());
-        let passed = format!("{}function main(): int {{\n    scoped a:array<Item> = []\n    fill(a)\n    return 0\n}}\n", ITEM);
-        assert!(owners(&passed).is_empty());
-    }
-
-    #[test]
-    fn fresh_returns_fixpoint() {
-        let src = format!("{}function main(): int {{ return 0 }}\n", ITEM);
-        let program = Parser::new(Lexer::new(&src).tokenize().unwrap()).parse_program().unwrap();
-        let callables: Vec<_> = program.functions.iter()
-            .map(|f| (f.name.clone(), None, f.params.as_slice(), &f.body, Some(f.ret_ty.clone())))
-            .collect();
-        let fresh = compute_fresh_returns(&callables);
-        assert_eq!(fresh, HashSet::from(["build".to_string()]));
     }
 }

@@ -107,6 +107,12 @@ pub struct IrModule {
     /// Fonctions/méthodes qui ne retournent que des objets neufs (voir
     /// `lower::stmt::object_owners::compute_fresh_returns`).
     pub fresh_returns: std::collections::HashSet<String>,
+    /// … qui ne retournent que des conteneurs neufs d'objets neufs.
+    pub fresh_containers: std::collections::HashSet<String>,
+    /// Paramètres conteneurs qui préservent la propriété de leurs objets.
+    pub preserving_params: HashMap<String, Vec<bool>>,
+    /// Champs (par nom) propriétaires de leurs objets (`object_facts`).
+    pub owning_fields: std::collections::HashSet<String>,
     /// Types des paramètres des méthodes D'INSTANCE utilisateur (jamais
     /// statiques, déjà couvertes par `LowerBuilder::fn_param_types`) :
     /// "Classe_methode" → Vec<IrType> (sans `self`). Utilisé UNIQUEMENT pour

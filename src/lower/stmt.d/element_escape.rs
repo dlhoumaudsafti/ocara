@@ -90,7 +90,11 @@ pub fn prepare_body(builder: &mut crate::lower::builder::LowerBuilder, body: &Bl
     builder.loop_aliases = res.loop_aliases;
     builder.var_alias_roots = res.var_alias_roots;
     let owners = {
-        let ctx = crate::lower::stmt::object_owners::FreshCtx { fresh_returns: &builder.module.fresh_returns, current_class: class.as_deref() };
+        let module = &*builder.module;
+        let ctx = crate::lower::stmt::object_owners::FreshCtx {
+            fresh_returns: &module.fresh_returns, fresh_containers: &module.fresh_containers,
+            preserving: &module.preserving_params, param_types: &module.param_ast_types, current_class: class.as_deref(),
+        };
         crate::lower::stmt::object_owners::object_owners(body, &ctx)
     };
     builder.object_owners = owners;

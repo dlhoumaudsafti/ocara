@@ -527,6 +527,42 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         module.class_field_types.insert(class.name.clone(), fields);
     }
 
+    // Types AST des paramètres (littéral passé en argument, voir `lower_call_arg`).
+    for func in &program.functions {
+        module.param_ast_types.insert(func.name.clone(), func.params.iter().map(|p| p.ty.clone()).collect());
+    }
+    for class in &program.classes {
+        for member in &class.members {
+            if let ClassMember::Method { decl, .. } = member {
+                module.param_ast_types.insert(format!("{}_{}", class.name, decl.name), decl.params.iter().map(|p| p.ty.clone()).collect());
+            }
+        }
+        if let Some((ctor_params, _, _)) = super::classes::nearest_constructor(&program.classes, class) {
+            module.param_ast_types.insert(format!("{}_init", class.name), ctor_params.iter().map(|p| p.ty.clone()).collect());
+        }
+    }
+
+    // Paramètres conservés par chaque appelé (voir `element_escape`).
+    let mut callables: Vec<(String, Option<&str>, &[Param], &Block, Option<Type>)> = program.functions.iter()
+        .map(|f| (f.name.clone(), None, f.params.as_slice(), &f.body, Some(f.ret_ty.clone())))
+        .collect();
+    for class in &program.classes {
+        for member in &class.members {
+            if let ClassMember::Method { decl, .. } = member {
+                callables.push((format!("{}_{}", class.name, decl.name), Some(class.name.as_str()), decl.params.as_slice(), &decl.body, Some(decl.ret_ty.clone())));
+            }
+        }
+        if let Some((ctor_params, ctor_body, _)) = super::classes::nearest_constructor(&program.classes, class) {
+            callables.push((format!("{}_init", class.name), Some(class.name.as_str()), ctor_params, ctor_body, None));
+        }
+    }
+    module.param_keeps = crate::lower::stmt::element_escape::compute_param_keeps(&callables, &module.param_ast_types, &module.class_field_types);
+    let facts = crate::lower::stmt::object_facts::compute(&callables, &module.param_ast_types, &module.param_keeps, &module.class_field_types);
+    module.fresh_returns = facts.fresh_returns;
+    module.fresh_containers = facts.fresh_containers;
+    module.preserving_params = facts.preserving;
+    module.owning_fields = facts.owning_fields;
+
     // Génère __free_<Classe>/__clone_<Classe> pour chaque classe utilisateur
     // (scoped/consumed MaClasse — voir src/lower/builder.d/class_ownership.rs).
     // Doit tourner APRÈS class_field_types ci-dessus (toutes les classes,
@@ -562,37 +598,6 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         module.class_map_fields.insert(class.name.clone(), map_fields);
     }
 
-    // Types AST des paramètres (littéral passé en argument, voir `lower_call_arg`).
-    for func in &program.functions {
-        module.param_ast_types.insert(func.name.clone(), func.params.iter().map(|p| p.ty.clone()).collect());
-    }
-    for class in &program.classes {
-        for member in &class.members {
-            if let ClassMember::Method { decl, .. } = member {
-                module.param_ast_types.insert(format!("{}_{}", class.name, decl.name), decl.params.iter().map(|p| p.ty.clone()).collect());
-            }
-        }
-        if let Some((ctor_params, _, _)) = super::classes::nearest_constructor(&program.classes, class) {
-            module.param_ast_types.insert(format!("{}_init", class.name), ctor_params.iter().map(|p| p.ty.clone()).collect());
-        }
-    }
-
-    // Paramètres conservés par chaque appelé (voir `element_escape`).
-    let mut callables: Vec<(String, Option<&str>, &[Param], &Block, Option<Type>)> = program.functions.iter()
-        .map(|f| (f.name.clone(), None, f.params.as_slice(), &f.body, Some(f.ret_ty.clone())))
-        .collect();
-    for class in &program.classes {
-        for member in &class.members {
-            if let ClassMember::Method { decl, .. } = member {
-                callables.push((format!("{}_{}", class.name, decl.name), Some(class.name.as_str()), decl.params.as_slice(), &decl.body, Some(decl.ret_ty.clone())));
-            }
-        }
-        if let Some((ctor_params, ctor_body, _)) = super::classes::nearest_constructor(&program.classes, class) {
-            callables.push((format!("{}_init", class.name), Some(class.name.as_str()), ctor_params, ctor_body, None));
-        }
-    }
-    module.param_keeps = crate::lower::stmt::element_escape::compute_param_keeps(&callables, &module.param_ast_types, &module.class_field_types);
-    module.fresh_returns = crate::lower::stmt::object_owners::compute_fresh_returns(&callables);
 
     // Collecte les types de paramètres des constructeurs (pour le boxing mixed)
     for class in &program.classes {

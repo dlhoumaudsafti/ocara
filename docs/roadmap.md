@@ -29,7 +29,7 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Fuite : objets non libérés quand leur propriété n'est pas prouvée** — un conteneur `scoped`/`consumed` d'objets ne libère désormais ses instances que si chacune y entre neuve. Restent non libérés (fuite, jamais de double libération) : conteneur initialisé par un appel (`scoped items:array<Item> = repo.all()`), conteneur passé en argument, élément non prouvé neuf, et les champs `array<Classe>`/`map<K, Classe>` d'une classe (`__free_<Classe>` ne libère pas leurs objets). *(Structurel — Dangereuse : gestion mémoire)* → [détails](roadmap.d/memoire-scoped-object-elements-leak.md)
+- **Fuite : propriété des objets non prouvée (cas restants)** — conteneurs issus d'un appel, passés en argument et champs `array<Classe>` sont maintenant couverts (preuve statique sur tout le programme). Restent non libérés, jamais libérés deux fois : valeur obtenue par `resolve` d'un appel `async` (cas de `CarDetailsDTO.maintenances` dans `mini_project_hexa`), champ disqualifié par un seul accès douteux n'importe où (analyse par nom de champ, toutes classes confondues) — un tel champ n'est plus libéré du tout par `__free_<Classe>` (il l'était, au risque d'un use-after-free) —, et conteneur déplacé puis relu. *(Structurel — Dangereuse : gestion mémoire)* → [détails](roadmap.d/memoire-scoped-object-elements-leak.md)
 
 ---
 

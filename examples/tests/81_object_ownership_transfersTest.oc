@@ -1,0 +1,67 @@
+import ocara.UnitTest
+
+// Propriété des objets étendue : conteneur `scoped` initialisé par un appel
+// qui retourne un conteneur neuf, conteneur passé à une fonction qui ne fait
+// qu'y insérer des objets neufs, champ `array<Classe>` alimenté par un
+// conteneur neuf. Un conteneur transféré à DEUX objets (partagé) n'est
+// libéré par aucun d'eux : il reste lisible.
+class Test_81_object_ownership_transfers {
+
+    public method containerFromCallTest(): int {
+        scoped items:array<TransferItem> = self.all()
+        UnitTest::assertEquals(2, items.len())
+        UnitTest::assertEquals("a!", items[0].name)
+        return 0
+    }
+
+    public method containerFilledByCalleeTest(): int {
+        scoped items:array<TransferItem> = []
+        self.fill(items)
+        UnitTest::assertEquals("c!", items[0].name)
+        return 0
+    }
+
+    public method owningFieldTest(): int {
+        scoped bag:TransferBag = use TransferBag(self.all())
+        UnitTest::assertEquals(2, bag.count())
+        return 0
+    }
+
+    public method sharedTransferSurvivesTest(): int {
+        var ys:array<TransferItem> = [use TransferItem("y")]
+        if true {
+            scoped b1:TransferBag = use TransferBag(ys)
+            scoped b2:TransferBag = use TransferBag(ys)
+        }
+        UnitTest::assertEquals("y!", ys[0].name)
+        return 0
+    }
+
+    private method all(): array<TransferItem> {
+        var xs:array<TransferItem> = []
+        xs.push(use TransferItem("a"))
+        xs.push(use TransferItem("b"))
+        return xs
+    }
+
+    private method fill(xs:array<TransferItem>): void {
+        xs.push(use TransferItem("c"))
+    }
+}
+
+class TransferItem {
+    public property name:string
+    init(name:string) {
+        self.name = name + "!"
+    }
+}
+
+class TransferBag {
+    public property items:array<TransferItem>
+    init(items:array<TransferItem>) {
+        self.items = items
+    }
+    public method count(): int {
+        return self.items.len()
+    }
+}
