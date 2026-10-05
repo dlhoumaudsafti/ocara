@@ -56,6 +56,7 @@ pub struct Program<'a> {
     pub field_types: &'a HashMap<String, Vec<(String, Type)>>,
     pub field_decl:  &'a HashMap<String, String>,
     pub parents:     &'a HashMap<String, String>,
+    pub ret_types:   &'a HashMap<String, Type>,
 }
 
 pub fn compute(prog: &Program) -> ObjectFacts {
@@ -100,7 +101,7 @@ fn step(facts: &ObjectFacts, prog: &Program) -> ObjectFacts {
         let ctx = FreshCtx {
             fresh_returns: &facts.fresh_returns, fresh_containers: &facts.fresh_containers,
             preserving: &facts.preserving, param_types, field_types: prog.field_types,
-            field_decl: prog.field_decl, current_class: *class,
+            field_decl: prog.field_decl, ret_types: prog.ret_types, current_class: *class,
             parent_class: class.and_then(|c| prog.parents.get(c)).map(String::as_str),
         };
         let bf = body_facts(body, params, &ctx, &facts.owning_fields);
@@ -146,6 +147,10 @@ mod tests {
     use std::collections::HashMap;
 
     fn facts(src: &str) -> super::ObjectFacts {
+        facts_with(src, &HashMap::new())
+    }
+
+    fn facts_with(src: &str, ret_types: &HashMap<String, crate::parsing::ast::Type>) -> super::ObjectFacts {
         let program = Parser::new(Lexer::new(src).tokenize().unwrap()).parse_program().unwrap();
         let mut callables: Vec<super::Callable> = program.functions.iter()
             .map(|f| (f.name.clone(), None, f.params.as_slice(), &f.body, Some(f.ret_ty.clone())))
@@ -167,7 +172,7 @@ mod tests {
         for (k, _, params, _, _) in &callables { param_types.insert(k.clone(), params.iter().map(|p| p.ty.clone()).collect()); }
         let field_decl = super::field_declarations(&field_types, &HashMap::new());
         let keeps = HashMap::new();
-        compute(&super::Program { callables: &callables, param_types: &param_types, param_keeps: &keeps, field_types: &field_types, field_decl: &field_decl, parents: &HashMap::new() })
+        compute(&super::Program { callables: &callables, param_types: &param_types, param_keeps: &keeps, field_types: &field_types, field_decl: &field_decl, parents: &HashMap::new(), ret_types })
     }
 
     const ITEM: &str = "class Item {\n    init() { }\n}\n";
@@ -199,7 +204,24 @@ mod tests {
     fn moves_inside_loops_or_followed_by_reads_are_refused() {
         assert!(owns("    var ys:array<Item> = [use Item()]\n    var n:int = ys.len()\n    var b:Bag = use Bag(ys)"));
         assert!(!owns("    var ys:array<Item> = [use Item()]\n    var i:int = 0\n    while i smaller 2 {\n        var b:Bag = use Bag(ys)\n        i = i + 1\n    }"));
-        assert!(!owns("    var ys:array<Item> = [use Item()]\n    var b:Bag = use Bag(ys)\n    var n:int = ys.len()"));
+        assert!(!owns("    var ys:array<Item> = [use Item()]\n    var b:Bag = use Bag(ys)\n    var all:array<Bag> = [b]\n    var n:int = ys.len()"));
+    }
+
+    #[test]
+    fn reads_after_transfer_while_the_holder_lives() {
+        assert!(owns("    var ys:array<Item> = [use Item()]\n    var b:Bag = use Bag(ys)\n    var n:int = ys.len()"));
+        assert!(!owns("    var ys:array<Item> = [use Item()]\n    if true {\n        scoped b:Bag = use Bag(ys)\n    }\n    var n:int = ys.len()"));
+        assert!(!owns("    var ys:array<Item> = [use Item()]\n    consumed b:Bag = use Bag(ys)\n    var n:int = ys.len()"));
+    }
+
+    #[test]
+    fn read_only_alias_and_call_receivers() {
+        let src = format!("{}{}class Other {{\n    public property items:array<Item>\n    init() {{\n        self.items = []\n    }}\n}}\nfunction getBag(): Bag {{\n    return use Bag([use Item()])\n}}\nfunction getOther(): Other {{\n    return use Other()\n}}\nfunction main(): int {{\n    var b:Bag = getBag()\n    const list:array<Item> = b.items\n    for it in list {{ IO::writeln(\"x\") }}\n    var n:int = Array::len(list) + getBag().items.len()\n    var kept:Item = getOther().items[0]\n    return 0\n}}\n", ITEM, BAG);
+        let program = Parser::new(Lexer::new(&src).tokenize().unwrap()).parse_program().unwrap();
+        let ret_types: HashMap<String, crate::parsing::ast::Type> = program.functions.iter().map(|f| (f.name.clone(), f.ret_ty.clone())).collect();
+        let f = facts_with(&src, &ret_types);
+        assert!(f.owning_fields.contains("Bag.items"));
+        assert!(!f.owning_fields.contains("Other.items"));
     }
 
     #[test]

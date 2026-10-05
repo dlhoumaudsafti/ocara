@@ -95,26 +95,42 @@ pub fn is_object_container(ty: &Type) -> bool {
     object_elem_class(ty).is_some()
 }
 
-/// Positions (ligne, colonne) de chaque identifiant référencé dans `block`
-/// (corps des closures exclus, comme `Scan`).
-pub(crate) fn ident_positions_block(block: &Block, out: &mut HashMap<String, Vec<(usize, usize)>>) {
-    for stmt in &block.stmts {
-        match stmt {
-            Stmt::Var { value, .. } | Stmt::Const { value, .. } | Stmt::Expr(value) | Stmt::Raise { value, .. } | Stmt::Emit { value, .. } => ident_positions(value, out),
-            Stmt::Assign { target, value, .. } => { ident_positions(target, out); ident_positions(value, out); }
-            Stmt::Return { value: Some(v), .. } | Stmt::Result { value: Some(v), .. } => ident_positions(v, out),
-            Stmt::If { condition: c, .. } | Stmt::While { condition: c, .. } | Stmt::Switch { subject: c, .. } => ident_positions(c, out),
-            Stmt::ForIn { iter, .. } | Stmt::ForMap { iter, .. } => ident_positions(iter, out),
-            _ => {}
-        }
-        for_each_block(stmt, &mut |b| ident_positions_block(b, out));
-    }
+/// Position d'une référence : (ligne, colonne) et chemin des blocs qui la
+/// contiennent (identifiants attribués en profondeur d'abord, dans le même
+/// ordre que `Scan::block`).
+pub(crate) type RefPos = ((usize, usize), Vec<usize>);
+
+/// Positions de chaque identifiant référencé dans `body` (corps des
+/// closures exclus, comme `Scan`).
+pub(crate) fn ident_positions(body: &Block) -> HashMap<String, Vec<RefPos>> {
+    let mut out = HashMap::new();
+    let mut next = 0;
+    positions_block(body, &mut Vec::new(), &mut next, &mut out);
+    out
 }
 
-fn ident_positions(expr: &Expr, out: &mut HashMap<String, Vec<(usize, usize)>>) {
-    let mut each = |e: &Expr| ident_positions(e, out);
+fn positions_block(block: &Block, path: &mut Vec<usize>, next: &mut usize, out: &mut HashMap<String, Vec<RefPos>>) {
+    path.push(*next);
+    *next += 1;
+    for stmt in &block.stmts {
+        let mut record = |e: &Expr| positions_expr(e, path, out);
+        match stmt {
+            Stmt::Var { value, .. } | Stmt::Const { value, .. } | Stmt::Expr(value) | Stmt::Raise { value, .. } | Stmt::Emit { value, .. } => record(value),
+            Stmt::Assign { target, value, .. } => { record(target); record(value); }
+            Stmt::Return { value: Some(v), .. } | Stmt::Result { value: Some(v), .. } => record(v),
+            Stmt::If { condition: c, .. } | Stmt::While { condition: c, .. } | Stmt::Switch { subject: c, .. } => record(c),
+            Stmt::ForIn { iter, .. } | Stmt::ForMap { iter, .. } => record(iter),
+            _ => {}
+        }
+        for_each_block(stmt, &mut |b| positions_block(b, path, next, out));
+    }
+    path.pop();
+}
+
+fn positions_expr(expr: &Expr, path: &[usize], out: &mut HashMap<String, Vec<RefPos>>) {
+    let mut each = |e: &Expr| positions_expr(e, path, out);
     match expr {
-        Expr::Ident(name, span) => out.entry(name.clone()).or_default().push((span.line, span.col)),
+        Expr::Ident(name, span) => out.entry(name.clone()).or_default().push(((span.line, span.col), path.to_vec())),
         Expr::Call { callee, args, .. } => { each(callee); args.iter().for_each(each); }
         Expr::StaticCall { args, .. } | Expr::New { args, .. } | Expr::Array { elements: args, .. } => args.iter().for_each(each),
         Expr::Map { entries, .. } => entries.iter().for_each(|(k, v)| { each(k); each(v); }),

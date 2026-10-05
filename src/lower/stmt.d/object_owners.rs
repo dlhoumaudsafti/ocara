@@ -38,6 +38,9 @@ pub struct FreshCtx<'a> {
     /// `"Classe.champ"` → `"ClasseDéclarante.champ"` : un champ hérité est
     /// le même stockage que celui du parent.
     pub field_decl:       &'a HashMap<String, String>,
+    /// Types de retour déclarés (`"fonction"`, `"Classe_methode"`) : classe
+    /// d'un receveur `f().champ`.
+    pub ret_types:        &'a HashMap<String, Type>,
     pub current_class:    Option<&'a str>,
     /// Classe parente de `current_class` (`parent::m(...)`).
     pub parent_class:     Option<&'a str>,
@@ -103,6 +106,9 @@ struct Move {
     pos:     (usize, usize),
     /// Vers un champ de `self`, qui survit à la méthode.
     to_self: bool,
+    /// Variable porteuse initialisée par l'appel de transfert, et blocs ouverts.
+    holder:  Option<String>,
+    path:    Vec<usize>,
     in_loop: bool,
     /// Champ de destination (déplacement vers un champ) : disqualifié si le
     /// conteneur n'était pas propriétaire.
@@ -132,8 +138,18 @@ struct Scan<'a> {
     /// Profondeur de boucle courante, et à la déclaration de chaque variable.
     loop_depth: usize,
     var_loop_depth: HashMap<String, usize>,
-    /// Positions (ligne, colonne) des références à chaque variable.
-    positions:  HashMap<String, Vec<(usize, usize)>>,
+    /// Positions des références à chaque variable (voir `RefPos`).
+    positions:  HashMap<String, Vec<super::object_ast::RefPos>>,
+    /// Chemin des blocs ouverts, numérotés comme `object_ast::ident_positions`.
+    block_path: Vec<usize>,
+    next_block: usize,
+    /// Alias d'un conteneur suivi (`const cars = dto.cars`) : même conteneur.
+    container_aliases: HashMap<String, String>,
+    /// Variables conservées quelque part, ou réaffectées.
+    kept_vars:  HashSet<String>,
+    reassigned: HashSet<String>,
+    /// Déclaration en cours dont la valeur est un appel (porteur d'un transfert).
+    pending_holder: Option<String>,
     /// `x:Resolvable<…>` initialisé par un appel qui retourne un conteneur
     /// (resp. un objet) neuf : `resolve x` l'est aussi.
     fresh_task_containers: HashSet<String>,
@@ -149,8 +165,7 @@ impl<'a> Scan<'a> {
     fn new(ctx: &'a FreshCtx<'a>, body: &Block, params: &[Param], watched: &'a HashSet<String>) -> Self {
         let mut refs = HashMap::new();
         count_refs_block(body, &mut refs);
-        let mut positions = HashMap::new();
-        super::object_ast::ident_positions_block(body, &mut positions);
+        let positions = super::object_ast::ident_positions(body);
         let mut scan = Scan {
             ctx, fresh_vars: HashSet::new(), var_kinds: HashMap::new(),
             var_types: params.iter().map(|p| (p.name.clone(), p.ty.clone())).collect(),
@@ -159,6 +174,8 @@ impl<'a> Scan<'a> {
             returned: HashSet::new(), allow_return: false, moved: Vec::new(), field_from_param: Vec::new(), calls: Vec::new(),
             value_refs: HashSet::new(), push_refs: HashMap::new(),
             loop_depth: 0, var_loop_depth: HashMap::new(), positions,
+            block_path: Vec::new(), next_block: 0, container_aliases: HashMap::new(),
+            kept_vars: HashSet::new(), reassigned: HashSet::new(), pending_holder: None,
             fresh_task_containers: HashSet::new(), fresh_task_objects: HashSet::new(),
         };
         for p in params.iter().filter(|p| is_object_container(&p.ty)) {
@@ -187,10 +204,20 @@ impl<'a> Scan<'a> {
         let moved = std::mem::take(&mut self.moved);
         for m in &moved {
             let moves = moved.iter().filter(|o| o.var == m.var).count();
-            let later_refs = self.positions.get(&m.var).is_some_and(|ps| ps.iter().any(|p| *p > m.pos));
+            let later: Vec<&Vec<usize>> = self.positions.get(&m.var)
+                .map(|ps| ps.iter().filter(|(p, _)| *p > m.pos).map(|(_, path)| path).collect())
+                .unwrap_or_default();
+            // Relu après le transfert : le porteur doit vivre au moins
+            // jusqu'aux lectures — champ de `self`, ou variable porteuse jamais
+            // conservée ni réaffectée, lectures dans son bloc de déclaration.
+            let holder_outlives = m.holder.as_ref().is_some_and(|h| {
+                !self.kept_vars.contains(h) && !self.reassigned.contains(h)
+                    && !matches!(self.var_kinds.get(h), Some(VarKind::Consumed))
+                    && later.iter().all(|path| path.starts_with(&m.path))
+            });
             let owner = self.candidates.contains(&m.var) && !self.disqualified.contains(&m.var)
                 && matches!(self.var_kinds.get(&m.var), Some(VarKind::Var))
-                && moves == 1 && !m.in_loop && (m.to_self || !later_refs);
+                && moves == 1 && !m.in_loop && (m.to_self || later.is_empty() || holder_outlives);
             if let Some(i) = m.call {
                 if let Some((_, args)) = self.calls.get_mut(i) {
                     for a in args.iter_mut() { *a = *a && owner; }
@@ -215,7 +242,7 @@ impl<'a> Scan<'a> {
 
     fn new_move(&self, var: &str, call: Option<usize>, pos: (usize, usize), to_self: bool) -> Move {
         let in_loop = self.loop_depth > self.var_loop_depth.get(var).copied().unwrap_or(0);
-        Move { var: var.to_string(), call, pos, to_self, in_loop, field: None }
+        Move { var: var.to_string(), call, pos, to_self, in_loop, field: None, holder: None, path: self.block_path.clone() }
     }
 
     /// Type statique d'une expression, quand les déclarations le donnent.
@@ -231,6 +258,18 @@ impl<'a> Scan<'a> {
             Expr::Index { object, .. } => match self.static_type(object)? {
                 Type::Array(inner) | Type::Map(_, inner) => Some(*inner),
                 _ => None,
+            },
+            Expr::Call { callee, .. } => match callee.as_ref() {
+                Expr::Field { object, field, .. } if !matches!(object.as_ref(), Expr::SelfExpr(_)) => {
+                    let class = self.static_class(object)?;
+                    self.ctx.ret_types.get(&format!("{}_{}", class, field)).cloned()
+                }
+                _ => self.callee_key(expr).and_then(|k| self.ctx.ret_types.get(&k)).cloned(),
+            },
+            Expr::StaticCall { .. } => self.callee_key(expr).and_then(|k| self.ctx.ret_types.get(&k)).cloned(),
+            Expr::Resolve { expr: task, .. } => match self.static_type(task)? {
+                Type::Resolvable(inner) => Some(*inner),
+                other => Some(other),
             },
             _ => None,
         }
@@ -265,6 +304,7 @@ impl<'a> Scan<'a> {
     fn cand_of(&self, expr: &Expr) -> Option<String> {
         match expr {
             Expr::Ident(name, _) if self.candidates.contains(name) => Some(name.clone()),
+            Expr::Ident(name, _) => self.container_aliases.get(name).cloned(),
             Expr::Field { object, field, .. } => self.field_key(object, field),
             _ => None,
         }
@@ -337,6 +377,7 @@ impl<'a> Scan<'a> {
     }
 
     fn insertion(&mut self, container: &str, value: &Expr) {
+        if let Expr::Ident(name, _) = value { self.kept_vars.insert(name.clone()); }
         if !self.is_fresh(value) {
             self.disqualified.insert(container.to_string());
         }
@@ -345,6 +386,7 @@ impl<'a> Scan<'a> {
 
     /// Valeur conservée vers une cible de type `target` (inconnu : `None`).
     fn kept(&mut self, expr: &Expr, target: Option<&Type>) {
+        if let Expr::Ident(name, _) = expr { self.kept_vars.insert(name.clone()); }
         if let Some(c) = self.cand_of(expr) {
             self.disqualified.insert(c);
         } else if let Some(root) = self.element_root(expr) {
@@ -364,7 +406,10 @@ impl<'a> Scan<'a> {
     }
 
     fn block(&mut self, block: &Block) {
+        self.block_path.push(self.next_block);
+        self.next_block += 1;
         block.stmts.iter().for_each(|s| self.stmt(s));
+        self.block_path.pop();
     }
 
     fn declare(&mut self, name: &str, ty: &Type, kind: VarKind, value: &Expr) {
@@ -392,13 +437,23 @@ impl<'a> Scan<'a> {
                     self.candidates.insert(name.to_string());
                     self.expr(value);
                 }
+                // `var`/`const x = <conteneur suivi>` : alias, seuls ses
+                // usages conservés comptent (`for c in x`, `Array::len(x)` non).
+                _ if matches!(kind, VarKind::Var) && self.cand_of(value).is_some() => {
+                    let root = self.cand_of(value).unwrap_or_default();
+                    self.container_aliases.insert(name.to_string(), root);
+                }
                 _ => self.kept(value, Some(ty)),
             }
         } else {
+            if matches!(value, Expr::New { .. } | Expr::Call { .. } | Expr::StaticCall { .. }) && !matches!(kind, VarKind::Consumed) {
+                self.pending_holder = Some(name.to_string());
+            }
             if matches!(ty, Type::Named(_)) && self.is_fresh(value) {
                 self.fresh_vars.insert(name.to_string());
             }
             self.kept(value, Some(ty));
+            self.pending_holder = None;
         }
     }
 
@@ -417,7 +472,11 @@ impl<'a> Scan<'a> {
             }
             self.disqualified.insert(c);
         }
-        if let Expr::Ident(name, _) = target { self.fresh_vars.remove(name); }
+        if let Expr::Ident(name, _) = target {
+            self.fresh_vars.remove(name);
+            self.reassigned.insert(name.clone());
+            self.container_aliases.remove(name);
+        }
         self.expr(target);
         let ty = match target { Expr::Ident(n, _) => self.var_types.get(n).cloned(), _ => None };
         self.kept(value, ty.as_ref());
@@ -507,6 +566,7 @@ impl<'a> Scan<'a> {
                 return args.iter().for_each(|a| self.expr(a));
             }
         }
+        let holder = self.pending_holder.take();
         let key = self.callee_key(call);
         let preserving = key.as_ref().and_then(|k| self.ctx.preserving.get(k)).cloned().unwrap_or_default();
         let types = key.as_ref().and_then(|k| self.ctx.param_types.get(k)).cloned().unwrap_or_default();
@@ -522,7 +582,8 @@ impl<'a> Scan<'a> {
                 Some(c) if !c.starts_with('#') && !self.params.contains(&c) => {
                     fresh_args[i] = true;
                     let pos = match arg { Expr::Ident(_, span) => (span.line, span.col), _ => (0, 0) };
-                    let m = self.new_move(&c, Some(call_index), pos, false);
+                    let mut m = self.new_move(&c, Some(call_index), pos, false);
+                    m.holder = holder.clone();
                     self.moved.push(m);
                 }
                 _ => self.kept(arg, types.get(i)),

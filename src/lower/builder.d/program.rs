@@ -564,6 +564,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     let facts = crate::lower::stmt::object_facts::compute(&crate::lower::stmt::object_facts::Program {
         callables: &callables, param_types: &module.param_ast_types, param_keeps: &module.param_keeps,
         field_types: &module.class_field_types, field_decl: &module.field_decl, parents: &parents,
+        ret_types: &module.call_ret_types,
     });
     module.fresh_returns = facts.fresh_returns;
     module.fresh_containers = facts.fresh_containers;

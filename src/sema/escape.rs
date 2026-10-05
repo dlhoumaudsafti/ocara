@@ -427,7 +427,11 @@ pub fn is_pure_builtin(class: &str, method: &str) -> bool {
     match class {
         "IO" => matches!(method, "write" | "writeln"),
         "Convert" | "Math" | "String" => true,
+        "UnitTest" => method.starts_with("assert"),
         "JSON" => matches!(method, "encode" | "pretty" | "minimize"),
+        // Lectures : jamais un élément rendu (≠ `first`/`last`/`get`/`pop`).
+        "Array" => matches!(method, "len" | "contains" | "indexOf" | "join"),
+        "Map" => matches!(method, "size" | "has" | "isEmpty"),
         _ => false,
     }
 }

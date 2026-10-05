@@ -95,17 +95,32 @@ Mesures (20 000 puis 200 000 appels) : `scoped items = all()`,
   désormais ce champ. Avant, il restait propriétaire : `self.items = xs` puis
   `return xs[0]`, et l'objet retourné était libéré avec le porteur.
 
-## Reste ouvert (fuite, jamais de double libération)
+## Étape 4 — receveurs, alias, porteurs
 
-- Accès `f().champ` / receveur au type inconnu : repli par nom de champ.
-- Conteneur relu après un déplacement vers un autre objet que `self` : le
-  porteur peut être libéré avant la lecture (bloc imbriqué, `consumed`).
-  L'accepter demande de suivre la durée de vie du porteur.
-- Champ réellement partagé ou dont un élément est conservé : ni ses objets
-  ni lui-même ne sont libérés par le porteur (`DashboardDto.cars`,
-  `SearchResultsDto.*` dans `mini_project_hexa`).
-- Les DTO de `mini_project_hexa` sont des `const`, donc jamais libérés de
-  toute façon (gestion mémoire des `var`/`const`, chantier séparé).
+- **Receveur résultat d'appel** (`f().items`, `obj.m().items`) : type de
+  retour déclaré (`IrModule::call_ret_types`) ; `resolve t` : type intérieur
+  du `Resolvable`.
+- **Alias local** (`const cars = dashboard.cars`) : même conteneur, seuls ses
+  usages conservés comptent. `DashboardDto.cars` et `SearchResultsDto.*`
+  (`mini_project_hexa`) sont maintenant propriétaires.
+- **Lectures pures** : `Array::len`/`contains`/`indexOf`/`join`,
+  `Map::size`/`has`/`isEmpty`, `UnitTest::assert*` ne conservent rien
+  (`crate::sema::escape::is_pure_builtin`, aussi utilisé pour la libération
+  automatique des `var`).
+- **Relecture après transfert** : permise si le transfert initialise une
+  variable porteuse (`var`/`scoped`, pas `consumed`) jamais conservée ni
+  réaffectée, et si toutes les lectures suivantes sont dans le bloc de sa
+  déclaration (chemins de blocs : `object_ast::ident_positions`).
+
+## Reste ouvert — à trancher
+
+- **Conteneur réellement partagé** : transféré à deux porteurs, ou relu hors
+  du bloc de son porteur. Sans comptage de références (exclu : pas de GC),
+  aucun porteur ne peut le libérer seul, d'où une fuite. Options :
+  - **erreur de compilation** : un conteneur d'objets n'a qu'un porteur, il
+    faut écrire une copie explicite sinon ;
+  - **avertissement** à la compilation, le comportement restant inchangé.
+- Receveur de type `mixed` : repli prudent par nom de champ.
 
 Tests : `examples/tests/81_object_ownership_transfersTest.oc`,
 `examples/tests/82_object_ownership_precisionTest.oc`, tests unitaires de

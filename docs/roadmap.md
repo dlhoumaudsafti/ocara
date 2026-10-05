@@ -29,7 +29,7 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Fuite : propriété des objets non prouvée (derniers cas)** — `resolve` d'un appel `async`, champs identifiés par leur classe et déplacement après lecture sont couverts. Restent non libérés (jamais libérés deux fois) : accès à un champ via un receveur au type inconnu (résultat d'appel : repli prudent par nom de champ), conteneur relu après un déplacement vers un autre objet que `self`, et objets d'un champ réellement partagé ou extrait (ex. `DashboardDto.cars` et `SearchResultsDto.*` dans `mini_project_hexa`). *(Structurel — Dangereuse : gestion mémoire)* → [détails](roadmap.d/memoire-scoped-object-elements-leak.md)
+- **Fuite : conteneur d'objets réellement partagé (à trancher)** — la preuve statique couvre désormais les receveurs résultats d'appel, les alias locaux en lecture et la relecture après transfert tant que le porteur vit. Restent non libérés (jamais libérés deux fois) : un conteneur transféré à **deux** porteurs (`use Bag(ys)` deux fois), ou relu hors du bloc de son porteur — sans comptage de références (exclu : pas de GC), personne ne peut le libérer. À trancher : en faire une **erreur de compilation** (discipline de propriété : un conteneur d'objets n'a qu'un porteur, copie explicite sinon), ou un avertissement. Repli par nom de champ seulement pour un receveur de type `mixed`. *(Structurel — Dangereuse : gestion mémoire)* → [détails](roadmap.d/memoire-scoped-object-elements-leak.md)
 
 ---
 

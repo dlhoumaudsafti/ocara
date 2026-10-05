@@ -94,7 +94,8 @@ pub fn prepare_body(builder: &mut crate::lower::builder::LowerBuilder, body: &Bl
         let ctx = crate::lower::stmt::object_owners::FreshCtx {
             fresh_returns: &module.fresh_returns, fresh_containers: &module.fresh_containers,
             preserving: &module.preserving_params, param_types: &module.param_ast_types,
-            field_types: &module.class_field_types, field_decl: &module.field_decl, current_class: class.as_deref(),
+            field_types: &module.class_field_types, field_decl: &module.field_decl, ret_types: &module.call_ret_types,
+            current_class: class.as_deref(),
             parent_class: builder.parent_class.as_deref(),
         };
         crate::lower::stmt::object_owners::object_owners(body, &ctx)
