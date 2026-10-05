@@ -1889,6 +1889,12 @@ impl<'a> TypeChecker<'a> {
                             span:     self.with_runtime_ctx(span),
                         });
                     }
+                } else if is_class && !is_opaque && !args.is_empty() && self.is_user_class(class) {
+                    self.errors.push(SemaError::ArgsWithoutConstructor {
+                        class: class.clone(),
+                        found: args.len(),
+                        span:  self.with_runtime_ctx(span),
+                    });
                 }
                 let resolved_key = crate::sema::escape::resolve_user_callable(&self.class_members, class, "init");
                 self.check_argument_escape(args, resolved_key.as_deref(), false);
@@ -2375,6 +2381,15 @@ fn binary_result_type(
             Type::Bool
         }
         BinOp::And | BinOp::Or => Type::Bool,
+    }
+}
+
+impl TypeChecker<'_> {
+    /// Classe déclarée dans le programme — un ancêtre builtin ne lui transmet
+    /// jamais les arguments de `use` (il faut un `init` qui appelle
+    /// `parent::init(...)`).
+    fn is_user_class(&self, class: &str) -> bool {
+        self.program.is_some_and(|p| p.classes.iter().any(|c| c.name == class))
     }
 }
 

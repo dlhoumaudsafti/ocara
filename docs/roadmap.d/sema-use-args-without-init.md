@@ -1,41 +1,31 @@
-# Arguments de `use Classe(...)` ignorés pour une classe sans `init`
+# Arguments de `use Classe(...)` ignorés pour une classe sans `init` — corrigé
 
 ## Constat
 
-Trouvé en testant `ocaracs --fix` :
+`use C("x")` sur `class C { public property name:string }` compilait : les
+arguments étaient perdus et `c.name` valait `null`. Même chose pour une
+classe qui étend un builtin sans déclarer d'`init` (`class MyErr extends
+Exception {}` puis `use MyErr("boom", 2)`) : le constructeur du builtin ne
+reçoit jamais les arguments.
 
-```ocara
-class CarModel {
-    public property name:string
-}
+## Correctif
 
-function main(): int {
-    var c:CarModel = use CarModel("x")   // compile sans erreur
-    IO::writeln(c.name)                  // affiche "null"
-    return 0
-}
-```
+Erreur **E60** (`SemaError::ArgsWithoutConstructor`, `Expr::New` dans
+`src/sema/typecheck.rs`). Elle est émise quand la classe est déclarée dans le
+programme, qu'aucun `init` n'existe dans sa chaîne d'ancêtres du programme,
+et que des arguments sont passés. Restent acceptés :
+- `use C()` ;
+- une classe qui hérite d'un `init` utilisateur ;
+- une classe dont l'`init` est généré (initialiseurs de `property`, `struct`) :
+  son arité est vérifiée par le contrôle existant (`WrongArgCount`) ;
+- un builtin construit directement (`use Exception("boom", 3)`).
 
-La classe n'a pas de constructeur. `use CarModel("x")` est pourtant accepté,
-et l'argument est silencieusement perdu. Pour un `struct`, le constructeur
-généré à partir des champs est bien vérifié (arité). Pour une classe avec
-`init`, l'arité aussi.
+L'option « constructeur par champs implicite » n'a pas été retenue : c'est
+déjà le rôle de `struct`.
 
-## À trancher
+Aucune régression sur le corpus. Tests : `src/sema/tests/use_without_init.rs`.
 
-- **Erreur d'arité** (`'CarModel' has no init() — use CarModel() without
-  arguments`), le plus simple et cohérent avec une classe sans constructeur.
-- Ou **constructeur par champs implicite**, comme un `struct`. Cela
-  rapprocherait encore `class` et `struct` (voir
-  [langage-struct-value-type](langage-struct-value-type.md)), mais l'ordre des
-  `property` deviendrait une API publique.
+## Bug trouvé
 
-## Priorité / Complexité
-
-Haute (erreur silencieuse) — **Simple** pour l'erreur d'arité.
-
-## Fichiers clés
-
-`src/sema/typecheck.rs` (`Expr::New`), `src/core/structs.rs` (vérification
-d'arité déjà faite pour les `struct`), `src/core/property_init.rs` (`init`
-synthétisé pour les initialiseurs de `property`).
+`parent::init(...)` sans effet pour un parent builtin d'exception → voir
+[sema-builtin-parent-init-noop](sema-builtin-parent-init-noop.md).

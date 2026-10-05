@@ -1211,6 +1211,33 @@ t *= 2                      // ❌ E59
 
 ---
 
+### E60 — Arguments passés à une classe sans `init`
+
+```
+fichier.oc:24:15: error: 'C' has no init() — 'use C()' takes no arguments, 1 provided (declare init(...) that receives them and sets the fields, e.g. self.message = message for an exception, or use a struct for a constructor from its fields)
+```
+
+`use C(args)` sur une classe du programme qui ne déclare pas `init`, et n'en hérite d'aucun ancêtre du programme. Jusqu'à ce diagnostic, les arguments étaient silencieusement perdus (`c.name` valait `null`). Vrai aussi pour une classe qui étend un builtin (`class MyErr extends Exception {}` puis `use MyErr("boom", 2)`) : le constructeur du builtin ne reçoit pas les arguments.
+
+```ocara
+class C {
+    public property name:string
+}
+var c:C = use C("x")      // ❌ E60
+
+class MyErr extends Exception {
+    init(message:string, code:int) {
+        self.message = message
+        self.code    = code
+    }
+}
+var e:MyErr = use MyErr("boom", 2)   // ✅
+```
+
+**Correction :** déclarer un `init(...)` qui reçoit les arguments et affecte les champs, ou utiliser un `struct`, dont le constructeur est généré à partir des champs.
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.

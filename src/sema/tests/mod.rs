@@ -16,3 +16,4 @@ mod convert_sugar;
 mod generic_check;
 mod exception_binding;
 mod compound_assign;
+mod use_without_init;

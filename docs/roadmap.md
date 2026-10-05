@@ -29,7 +29,7 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Arguments de `use Classe(...)` ignorés en silence pour une classe sans `init`** — `use C("x")` sur `class C { public property name:string }` compile, l'argument est perdu et `c.name` vaut `null`. Il faudrait une erreur d'arité (comme pour un `struct`, dont le constructeur est vérifié), ou un vrai constructeur par champs. *(Simple à Légère, selon le choix)* → [détails](roadmap.d/sema-use-args-without-init.md)
+- **`parent::init(...)` sans effet pour un parent builtin d'exception** — dans `class MyErr extends Exception { init(message:string, code:int) { parent::init(message, code) } }`, l'appel compile mais n'affecte rien : `err.message` vaut `null`. Le corpus contourne en écrivant `self.message = message`. Il faut soit un vrai appel au constructeur builtin, soit une erreur de compilation. *(Simple à Légère)* → [détails](roadmap.d/sema-builtin-parent-init-noop.md)
 
 ---
 

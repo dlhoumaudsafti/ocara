@@ -183,6 +183,9 @@ pub enum SemaError {
     /// Opérateur arithmétique sur un opérande non numérique (`bool`, `array`,
     /// `map`, et `string` hors `+` entre chaînes et `string -= string`) — E59.
     ArithmeticOnNonNumeric { op: String, operand: String, span: Span },
+    /// `use C(args)` sur une classe utilisateur sans `init` (ni hérité d'un
+    /// ancêtre utilisateur) — les arguments seraient perdus (E60).
+    ArgsWithoutConstructor { class: String, found: usize, span: Span },
 }
 
 impl SemaError {
@@ -239,6 +242,7 @@ impl SemaError {
             SemaError::ClassConstNotConstant { span, .. } => span,
             SemaError::FieldCalledAsMethod { span, .. } => span,
             SemaError::ArithmeticOnNonNumeric { span, .. } => span,
+            SemaError::ArgsWithoutConstructor { span, .. } => span,
         }
     }
 
@@ -356,6 +360,8 @@ impl SemaError {
                 } else {
                     format!("field '{}' of '{}' is private — it is only accessible from inside '{}' (expose it through a public method)", field, class, class)
                 },
+            SemaError::ArgsWithoutConstructor { class, found, .. } =>
+                format!("'{}' has no init() — 'use {}()' takes no arguments, {} provided (declare init(...) that receives them and sets the fields, e.g. self.message = message for an exception, or use a struct for a constructor from its fields)", class, class, found),
             SemaError::ArithmeticOnNonNumeric { op, operand, .. } =>
                 format!("operator '{}' cannot be applied to '{}' — only int, float and mixed support it ('+' also concatenates strings, '-=' removes occurrences from a string)", op, operand),
             SemaError::FieldCalledAsMethod { class, field, .. } =>
