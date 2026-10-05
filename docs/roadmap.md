@@ -29,15 +29,13 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-_Aucun point ouvert._
+- **Éléments conservés d'un conteneur `scoped`/`consumed` : copie plutôt que fuite** — depuis le correctif du use-after-free (`for row in rows { items.push(build(row)) }`), un tel conteneur n'est libéré qu'en surface et ses éléments fuient. Copier l'élément au moment où il est conservé rétablirait la libération profonde ; l'analyse est aussi prudente par nom sur toute la fonction. *(Structurel — Dangereuse : gestion mémoire)* → [détails](roadmap.d/langage-hexa-car-details-bugs.md)
 
 ---
 
 ## Priorité Moyenne
 
 À traiter mais non bloquant pour la stabilité du langage.
-
-- **Éléments conservés d'un conteneur `scoped`/`consumed` : copie plutôt que fuite** — depuis le correctif du use-after-free (`for row in rows { items.push(build(row)) }`), un tel conteneur n'est libéré qu'en surface et ses éléments fuient. Copier l'élément au moment où il est conservé rétablirait la libération profonde ; l'analyse est aussi prudente par nom sur toute la fonction. *(Structurel — Dangereuse : gestion mémoire)* → [détails](roadmap.d/langage-hexa-car-details-bugs.md)
 - **Serveur de langage (LSP) adossé au compilateur** — `ocara --lsp` (ou d'abord `ocara --check --json`) réutilisant parseur/sema pour la navigation, le survol, la complétion, les références et les diagnostics en direct ; l'extension VS Code, aujourd'hui entièrement à base de regex (résolution par nom, types non suivis, sémantique recodée en TypeScript), deviendrait un client léger. Points à trancher : protocole, sema tolérante aux erreurs (plus de `process::exit`), spans en plages, dépendances LSP. *(Structurel)* → [détails](roadmap.d/tooling-language-server.md)
 - **Architecture hexagonale stricte par défaut** — déclaration `architecture hexagonal` avec alias configurables pour `domain`/`application`/`infrastructure`; `architecture permissive` désactive uniquement les contrôles architecturaux. Vérification compile-time de la direction des imports entre couches et contextes, des racines `shared` et des cibles de `wiring`. *(Structurelle — classification des fichiers/namespace, résolution des imports et intégration aux règles existantes de `wiring`)* → [détails](roadmap.d/langage-mode-hexa.md)
 
