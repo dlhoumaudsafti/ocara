@@ -247,7 +247,7 @@ fn generate_resume_fn(
 
     let start_bb = builder.new_block();
     builder.switch_to(&start_bb);
-    builder.element_escapes = crate::lower::stmt::element_escape::compute_element_escapes(&func.body);
+    crate::lower::stmt::element_escape::prepare_body(&mut builder, &func.body, &func.params, false);
     crate::lower::stmt::lower_block(&mut builder, &func.body);
 
     // Fin naturelle du corps (pas de `return`/`emit` terminal) : générateur épuisé.

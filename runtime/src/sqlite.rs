@@ -205,7 +205,7 @@ fn collect_all_rows(stmt: &mut Statement, binds: &[(&str, &dyn ToSql)]) -> Resul
         for (i, col_name) in column_names.iter().enumerate() {
             let key = unsafe { alloc_str(col_name) };
             let value = row_column_as_mixed(&row, i);
-            crate::__map_set(row_map, key, value);
+            crate::map_set_owned_key(row_map, key, value);
         }
         crate::__array_push(result_array, row_map);
     }
@@ -446,7 +446,7 @@ pub unsafe extern "C" fn SQLite_queryOne(self_ptr: i64, query_ptr: i64, placehol
                     let key = alloc_str(col_name);
                     // Voir row_column_as_mixed (partagée avec collect_all_rows).
                     let value = row_column_as_mixed(&row, i);
-                    crate::__map_set(row_map, key, value);
+                    crate::map_set_owned_key(row_map, key, value);
                 }
                 1
             } else {

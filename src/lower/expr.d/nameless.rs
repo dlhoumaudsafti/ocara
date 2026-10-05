@@ -189,6 +189,7 @@ pub fn lower_nameless_fn(
             }
         }
 
+        crate::lower::stmt::element_escape::prepare_body(&mut builder, body, params, false);
         crate::lower::stmt::lower_block(&mut builder, body);
 
         // Toujours retourner I64(0) en fallthrough (convention uniforme CallIndirect)

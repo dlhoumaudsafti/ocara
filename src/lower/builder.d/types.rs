@@ -136,6 +136,10 @@ pub struct LowerBuilder<'m> {
     /// Conteneurs dont des éléments sont conservés au-delà d'eux — libérés
     /// en surface seulement (voir `stmt::element_escape`).
     pub element_escapes: HashSet<String>,
+    /// Variables de boucle parcourant un conteneur (valeurs dérivées).
+    pub loop_aliases: HashSet<String>,
+    /// Voir `element_escape::ElementEscapes::var_alias_roots`.
+    pub var_alias_roots: HashSet<String>,
 }
 
 impl<'m> LowerBuilder<'m> {
@@ -180,6 +184,8 @@ impl<'m> LowerBuilder<'m> {
             owned_locals: HashMap::new(),
             auto_freeable_vars: HashSet::new(),
             element_escapes: HashSet::new(),
+            loop_aliases: HashSet::new(),
+            var_alias_roots: HashSet::new(),
         }
     }
 

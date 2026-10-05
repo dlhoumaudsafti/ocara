@@ -101,6 +101,9 @@ pub struct IrModule {
     /// un littéral `[...]`/`{...}` passé en argument est construit au type
     /// du paramètre (voir `lower_call_arg`).
     pub param_ast_types: HashMap<String, Vec<Type>>,
+    /// Même clé → le paramètre `i` est-il conservé par l'appelé (lui ou une
+    /// partie) ? Voir `lower::stmt::element_escape::compute_param_keeps`.
+    pub param_keeps: HashMap<String, Vec<bool>>,
     /// Types des paramètres des méthodes D'INSTANCE utilisateur (jamais
     /// statiques, déjà couvertes par `LowerBuilder::fn_param_types`) :
     /// "Classe_methode" → Vec<IrType> (sans `self`). Utilisé UNIQUEMENT pour

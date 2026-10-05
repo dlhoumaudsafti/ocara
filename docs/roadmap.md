@@ -29,7 +29,7 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Éléments conservés d'un conteneur `scoped`/`consumed` : copie plutôt que fuite** — depuis le correctif du use-after-free (`for row in rows { items.push(build(row)) }`), un tel conteneur n'est libéré qu'en surface et ses éléments fuient. Copier l'élément au moment où il est conservé rétablirait la libération profonde ; l'analyse est aussi prudente par nom sur toute la fonction. *(Structurel — Dangereuse : gestion mémoire)* → [détails](roadmap.d/langage-hexa-car-details-bugs.md)
+- **Fuite : objets d'un conteneur `scoped`/`consumed` jamais libérés** — `scoped items:array<Item>` (ou un `array`/`map` de classes libéré automatiquement) ne libère que le tableau : `__value_free` ignore les instances (`TAG_OBJECT`), faute de connaître leur destructeur `__free_<Classe>`. Mesuré : ~120 o par objet et par appel. À trancher : registre `class_id` → destructeur/clone au démarrage, et le partage d'un objet entre conteneurs (double libération). *(Structurel — Dangereuse : gestion mémoire)* → [détails](roadmap.d/memoire-scoped-object-elements-leak.md)
 
 ---
 

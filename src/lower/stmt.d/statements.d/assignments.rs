@@ -26,6 +26,10 @@ pub fn lower_assign(
     // `target = value` : `value` peut être une `scoped`/`consumed` qui
     // s'échappe vers `target` (voir crate::lower::stmt::ownership).
     let val = crate::lower::stmt::ownership::maybe_clone_escaping(builder, value, val);
+    let val = match kept_target_type(builder, target) {
+        Some(ty) => crate::lower::expr::helpers::dup_kept_leaf(builder, &ty, value, val),
+        None => val,
+    };
 
     match target {
         Expr::Ident(name, _) => {
@@ -351,6 +355,24 @@ mod tests {
 
         assert_eq!(call_count(&builder, "__box_float"), 0);
         assert_eq!(call_count(&builder, "__array_set"), 1);
+    }
+}
+
+/// Type de la cible d'une affectation pour la copie d'une chaîne dérivée
+/// (mêmes règles que `element_escape::Walker::assign_target_type`) :
+/// variable libérée, `self.champ`, élément d'un conteneur typé.
+fn kept_target_type(builder: &LowerBuilder, target: &Expr) -> Option<Type> {
+    match target {
+        Expr::Ident(name, _) => builder.owned_locals.get(name.as_str()).map(|info| info.ty.clone()),
+        Expr::Field { object, field, .. } if matches!(object.as_ref(), Expr::SelfExpr(_)) => {
+            builder.module.class_field_types.get(builder.current_class.as_deref()?)?
+                .iter().find(|(f, _)| f == field).map(|(_, t)| t.clone())
+        }
+        Expr::Index { object, .. } => match declared_container_type(builder, object)? {
+            Type::Array(inner) | Type::Map(_, inner) => Some(*inner),
+            _ => None,
+        },
+        _ => None,
     }
 }
 

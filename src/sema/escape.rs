@@ -350,7 +350,9 @@ fn walk_expr_for_calls(
         }
         Expr::StaticCall { class, method, args, .. } => {
             let resolved = resolve_user_callable(class_members, class, method);
-            check_call_args(args, resolved.as_deref(), known, taint, escaped, strict);
+            if resolved.is_some() || !is_pure_builtin(class, method) {
+                check_call_args(args, resolved.as_deref(), known, taint, escaped, strict);
+            }
             for a in args { walk_expr_for_calls(class_members, a, self_class, known, taint, escaped, strict); }
         }
         Expr::New { class, args, .. } => {
@@ -419,6 +421,17 @@ fn walk_expr_for_calls(
     }
 }
 
+/// Builtin qui ne conserve jamais ses arguments (lecture seule, résultat
+/// neuf) — un argument passé ne s'y échappe pas.
+pub fn is_pure_builtin(class: &str, method: &str) -> bool {
+    match class {
+        "IO" => matches!(method, "write" | "writeln"),
+        "Convert" | "Math" | "String" => true,
+        "JSON" => matches!(method, "encode" | "pretty" | "minimize"),
+        _ => false,
+    }
+}
+
 /// Vérifie chaque argument d'un appel dont le callee a été résolu vers
 /// `resolved` (`None` = builtin/inconnu).
 ///
@@ -464,7 +477,7 @@ fn check_call_args(
 /// Collecte tous les identifiants référencés n'importe où dans `block`
 /// (utilisé uniquement pour détecter une capture de closure — volontairement
 /// grossier : toute mention, lecture ou affectation, compte).
-fn collect_ident_refs(block: &Block, out: &mut HashSet<String>) {
+pub(crate) fn collect_ident_refs(block: &Block, out: &mut HashSet<String>) {
     for stmt in &block.stmts {
         collect_ident_refs_stmt(stmt, out);
     }

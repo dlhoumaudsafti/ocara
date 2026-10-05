@@ -406,6 +406,11 @@ pub fn drop_consumed_used_in(builder: &mut LowerBuilder, stmt: &Stmt) {
         if builder.loop_depth > declared_loop_depth {
             continue;
         }
+        // Un élément désigné par une `var` vit jusqu'à la fin du bloc :
+        // libération reportée à `emit_scope_drops`.
+        if builder.var_alias_roots.contains(&name) {
+            continue;
+        }
         emit_drop_if_owned(builder, &name);
     }
 }
@@ -511,26 +516,39 @@ fn collect_consumed_reads_expr(expr: &Expr, owned: &HashMap<String, OwnedLocalIn
 /// avec destructeur généré) : jamais `Resource`/`Thread`/`Unsupported` — un
 /// `var` sur ces types continue de se comporter exactement comme aujourd'hui
 /// (voir docs/roadmap.d/memoire-strategie-var.md).
-pub fn compute_auto_freeable_vars(module: &IrModule, body: &Block, self_class: Option<&str>) -> std::collections::HashSet<String> {
+pub fn compute_auto_freeable_vars(
+    module: &IrModule, body: &Block, self_class: Option<&str>, loop_aliases: &std::collections::HashSet<String>,
+) -> std::collections::HashSet<String> {
     let mut eligible = std::collections::HashSet::new();
-    collect_var_candidates(module, body, self_class, &mut eligible);
+    collect_var_candidates(module, body, self_class, loop_aliases, &mut eligible);
     eligible
+}
+
+/// `var s:string = <valeur dérivée>` : le lowering y stocke une COPIE
+/// (`dup_kept_leaf`), possédée par `s` seule.
+fn is_copied_string(ty: &Type, value: &Expr, loop_aliases: &std::collections::HashSet<String>) -> bool {
+    matches!(ty, Type::String) && match value {
+        Expr::Index { .. } | Expr::Field { .. } => true,
+        Expr::Ident(name, _) => loop_aliases.contains(name),
+        _ => false,
+    }
 }
 
 fn collect_var_candidates(
     module: &IrModule, block: &Block, self_class: Option<&str>,
+    loop_aliases: &std::collections::HashSet<String>,
     eligible: &mut std::collections::HashSet<String>,
 ) {
     for (i, stmt) in block.stmts.iter().enumerate() {
         if let Stmt::Var { name, ty, value, kind: VarKind::Var, .. } = stmt {
             if ownership_class(ty) == OwnershipClass::Value
-                && is_fresh_allocation(value)
+                && (is_fresh_allocation(value) || is_copied_string(ty, value, loop_aliases))
                 && crate::sema::escape::var_never_escapes(&module.class_members, name, block, i, self_class, &module.escaping_params)
             {
                 eligible.insert(name.clone());
             }
         }
-        walk_nested_blocks_for_vars(stmt, module, self_class, eligible);
+        walk_nested_blocks_for_vars(stmt, module, self_class, loop_aliases, eligible);
     }
 }
 
@@ -574,24 +592,25 @@ fn is_fresh_allocation(value: &Expr) -> bool {
 /// SON PROPRE bloc englobant, indépendamment de ceux du bloc parent.
 fn walk_nested_blocks_for_vars(
     stmt: &Stmt, module: &IrModule, self_class: Option<&str>,
+    loop_aliases: &std::collections::HashSet<String>,
     eligible: &mut std::collections::HashSet<String>,
 ) {
     match stmt {
         Stmt::If { then_block, elseif, else_block, .. } => {
-            collect_var_candidates(module, then_block, self_class, eligible);
-            for (_, b) in elseif { collect_var_candidates(module, b, self_class, eligible); }
-            if let Some(b) = else_block { collect_var_candidates(module, b, self_class, eligible); }
+            collect_var_candidates(module, then_block, self_class, loop_aliases, eligible);
+            for (_, b) in elseif { collect_var_candidates(module, b, self_class, loop_aliases, eligible); }
+            if let Some(b) = else_block { collect_var_candidates(module, b, self_class, loop_aliases, eligible); }
         }
         Stmt::Switch { cases, default, .. } => {
-            for c in cases { collect_var_candidates(module, &c.body, self_class, eligible); }
-            if let Some(b) = default { collect_var_candidates(module, b, self_class, eligible); }
+            for c in cases { collect_var_candidates(module, &c.body, self_class, loop_aliases, eligible); }
+            if let Some(b) = default { collect_var_candidates(module, b, self_class, loop_aliases, eligible); }
         }
-        Stmt::While { body, .. } => collect_var_candidates(module, body, self_class, eligible),
-        Stmt::ForIn { body, .. } => collect_var_candidates(module, body, self_class, eligible),
-        Stmt::ForMap { body, .. } => collect_var_candidates(module, body, self_class, eligible),
+        Stmt::While { body, .. } => collect_var_candidates(module, body, self_class, loop_aliases, eligible),
+        Stmt::ForIn { body, .. } => collect_var_candidates(module, body, self_class, loop_aliases, eligible),
+        Stmt::ForMap { body, .. } => collect_var_candidates(module, body, self_class, loop_aliases, eligible),
         Stmt::Try { body, handlers, .. } => {
-            collect_var_candidates(module, body, self_class, eligible);
-            for h in handlers { collect_var_candidates(module, &h.body, self_class, eligible); }
+            collect_var_candidates(module, body, self_class, loop_aliases, eligible);
+            for h in handlers { collect_var_candidates(module, &h.body, self_class, loop_aliases, eligible); }
         }
         Stmt::Var { .. } | Stmt::Const { .. } | Stmt::Expr(_) | Stmt::Return { .. } | Stmt::Result { .. }
         | Stmt::Break { .. } | Stmt::Continue { .. } | Stmt::Raise { .. } | Stmt::Assign { .. }

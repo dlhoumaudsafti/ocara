@@ -42,6 +42,7 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     // crate::lower::stmt::ownership.
     BuiltinDesc { name: "__value_free",      params: &[clt::I64],                             returns: None,               module: None },
     BuiltinDesc { name: "__value_clone",     params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__value_dup_leaf",  params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__array_free",      params: &[clt::I64],                             returns: None,               module: None },
     BuiltinDesc { name: "__map_free",        params: &[clt::I64],                             returns: None,               module: None },
     BuiltinDesc { name: "__array_clone",     params: &[clt::I64],                             returns: Some(clt::I64),    module: None },

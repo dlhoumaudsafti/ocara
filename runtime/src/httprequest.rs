@@ -22,7 +22,7 @@
 //   HTTPRequest::patch(url, body)                → res:int
 // ─────────────────────────────────────────────────────────────────────────────
 
-use crate::{alloc_str, ptr_to_str, new_map, __map_set};
+use crate::{alloc_str, ptr_to_str, new_map};
 
 // ─── Structures ──────────────────────────────────────────────────────────────
 
@@ -219,7 +219,7 @@ pub extern "C" fn HTTPRequest_headers(res: i64) -> i64 {
     for (k, v) in &r.headers {
         let kp = unsafe { alloc_str(k) };
         let vp = unsafe { alloc_str(v) };
-        __map_set(map_ptr, kp, vp);
+        crate::map_set_owned_key(map_ptr, kp, vp);
     }
     map_ptr
 }

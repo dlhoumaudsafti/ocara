@@ -1211,6 +1211,8 @@ x = x + 10   // valide
 | Instance de classe **utilisateur** (`class Foo { ... }`) | Réellement libérée, récursivement pour chaque champ `string`/`array`/`map`/instance d'une autre classe utilisateur (champs hérités via `extends` inclus) — un champ `Mutex`/`Thread`/... ou d'un type non pris en charge n'est pas libéré (fuite, pas un crash). Échappement : copie profonde (même logique récursive), pas d'interdiction. |
 | Tout le reste (`int`/`float`/`bool`, `SDL`/`Tauri`, classes builtin non listées ci-dessus) | Se comporte exactement comme `var` — aucune destruction. |
 
+> **Valeur extraite d'un conteneur** : une chaîne lue dans un conteneur (`rows[0]["name"]`, champ, variable de boucle) puis conservée — déclaration `string`, affectation à une cible `string`, argument d'un paramètre `string` que l'appelé conserve, élément de littéral — est une **copie** : le conteneur peut être libéré sans la rendre invalide. Les chaînes étant immuables, la copie est invisible. Un élément composite (`array`, `map`, objet) conservé reste un alias : le conteneur n'est alors libéré qu'en surface, ses éléments restent valides.
+
 > **`scoped` est interdit sur un champ de classe** : un champ vit aussi longtemps que l'objet, pas le temps d'un bloc. Utiliser `property` pour les champs de classe.
 
 Une sortie anticipée du bloc (`return`, ou `break`/`continue` hors d'une boucle) détruit elle aussi correctement toutes les `scoped`/`consumed` encore vivantes dans les blocs qu'elle traverse — pas seulement une fin de bloc normale.

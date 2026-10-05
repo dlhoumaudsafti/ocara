@@ -178,7 +178,7 @@ fn row_to_map(row: &mysql::Row) -> i64 {
             }
             _ => 0,
         };
-        crate::__map_set(row_map, key_ptr, value);
+        crate::map_set_owned_key(row_map, key_ptr, value);
     }
     row_map
 }

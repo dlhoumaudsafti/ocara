@@ -27,7 +27,7 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use crate::{alloc_str, ptr_to_str, new_map, __map_set};
+use crate::{alloc_str, ptr_to_str, new_map};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Registre global des composants
@@ -150,7 +150,7 @@ unsafe fn attr_to_ocara(val: AttrVal) -> i64 {
                 for (k, v) in entries {
                     let kp = alloc_str(&k);
                     let vp = alloc_str(&v);
-                    __map_set(m, kp, vp);
+                    crate::map_set_owned_key(m, kp, vp);
                 }
                 m
             }
@@ -266,7 +266,7 @@ unsafe fn parse_attrs_to_ocara_map(attrs_bytes: &[u8]) -> i64 {
             };
             let key_ptr = alloc_str(&name);
             let val_ptr = attr_to_ocara(val);
-            __map_set(map, key_ptr, val_ptr);
+            crate::map_set_owned_key(map, key_ptr, val_ptr);
         }
         map
     }
@@ -540,12 +540,12 @@ fn render_recursive(template: &str, depth: u32) -> String {
                 // Slot par défaut : contenu hors <slot name=...>
                 let k = alloc_str("__slot__");
                 let v = alloc_str(default_slot);
-                __map_set(attrs_ptr, k, v);
+                crate::map_set_owned_key(attrs_ptr, k, v);
                 // Slots nommés : attrs["__slot_<name>__"]
                 for (name, content) in named_slots {
                     let k = alloc_str(&format!("__slot_{}__", name));
                     let v = alloc_str(content);
-                    __map_set(attrs_ptr, k, v);
+                    crate::map_set_owned_key(attrs_ptr, k, v);
                 }
             }
             let entry = ComponentEntry { func_ptr, env_ptr };

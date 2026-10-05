@@ -173,10 +173,7 @@ pub fn lower_func(
     // en fin de bloc (voir crate::sema::escape::var_never_escapes et
     // docs/roadmap.d/memoire-strategie-var.md) — avant de lowered le corps,
     // consulté par `register_owned_local` (lower_var → ownership.rs).
-    builder.auto_freeable_vars = crate::lower::stmt::ownership::compute_auto_freeable_vars(
-        builder.module, &func.body, class_name,
-    );
-    builder.element_escapes = crate::lower::stmt::element_escape::compute_element_escapes(&func.body);
+    crate::lower::stmt::element_escape::prepare_body(&mut builder, &func.body, &func.params, true);
 
     // Body
     crate::lower::stmt::lower_block(&mut builder, &func.body);

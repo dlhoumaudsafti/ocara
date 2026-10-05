@@ -504,6 +504,20 @@ pub extern "C" fn __value_clone(val: i64) -> i64 {
     }
 }
 
+/// Copie d'une valeur FEUILLE extraite d'un conteneur puis conservée
+/// (`var n:string = row["name"]`) : string possédée ou primitif boxé copiés,
+/// tout le reste (littéral, entier brut, array, map, objet) rendu tel quel.
+/// La valeur conservée ne dépend plus du conteneur, qui peut être libéré en
+/// profondeur — voir src/lower/stmt.d/element_escape.rs.
+#[unsafe(no_mangle)]
+pub extern "C" fn __value_dup_leaf(val: i64) -> i64 {
+    unsafe {
+        if is_owned_string(val) { alloc_str(ptr_to_str(val)) }
+        else if is_boxed_primitive(val) { clone_boxed_primitive(val) }
+        else { val }
+    }
+}
+
 /// Libère un array et récursivement chacun de ses éléments tas.
 #[unsafe(no_mangle)]
 pub extern "C" fn __array_free(ptr: i64) {
@@ -993,6 +1007,17 @@ pub extern "C" fn __map_new() -> i64 {
     new_map()
 }
 
+/// `__map_set` pour une clé allouée par le runtime uniquement pour
+/// l'insertion (`alloc_str(nom)`) : la map en garde une copie, la clé est
+/// libérée — sans quoi chaque ligne SQLite/MySQL, chaque objet JSON/YAML,
+/// chaque en-tête… fuyait une chaîne par clé.
+pub fn map_set_owned_key(ptr: i64, key: i64, val: i64) {
+    __map_set(ptr, key, val);
+    unsafe {
+        if is_owned_string(key) { __value_free(key); }
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn __map_set(ptr: i64, key: i64, val: i64) {
     if ptr == 0 { return; }
@@ -1141,7 +1166,7 @@ pub extern "C" fn IO_readMap(sep: i64, kv: i64) -> i64 {
     for part in src.split(sep_s.as_str()) {
         if let Some(pos) = part.find(kv_s.as_str()) {
             let v = unsafe { alloc_str(&part[pos + kv_s.len()..]) };
-            unsafe { __map_set(ptr, alloc_str(&part[..pos]), v); }
+            unsafe { map_set_owned_key(ptr, alloc_str(&part[..pos]), v); }
         }
     }
     ptr
@@ -1588,14 +1613,14 @@ pub extern "C" fn Map_merge(a: i64, b: i64) -> i64 {
     if a != 0 {
         unsafe {
             for (k, v) in &map_ref(a).data {
-                __map_set(new_ptr, alloc_str(k), *v);
+                map_set_owned_key(new_ptr, alloc_str(k), *v);
             }
         }
     }
     if b != 0 {
         unsafe {
             for (k, v) in &map_ref(b).data {
-                __map_set(new_ptr, alloc_str(k), *v);
+                map_set_owned_key(new_ptr, alloc_str(k), *v);
             }
         }
     }
@@ -1694,7 +1719,7 @@ pub extern "C" fn Convert_strToMap(s: i64, sep: i64, kv: i64) -> i64 {
     for part in src.split(sep_s.as_str()) {
         if let Some(pos) = part.find(kv_s.as_str()) {
             let v_str = unsafe { alloc_str(&part[pos + kv_s.len()..]) };
-            unsafe { __map_set(ptr, alloc_str(&part[..pos]), v_str); }
+            unsafe { map_set_owned_key(ptr, alloc_str(&part[..pos]), v_str); }
         }
     }
     ptr
@@ -1762,7 +1787,7 @@ pub extern "C" fn Convert_arrayToMap(ptr: i64, kv: i64) -> i64 {
                 let s = ptr_to_str(elem).to_string();
                 if let Some(pos) = s.find(kv_s.as_str()) {
                     let v = alloc_str(&s[pos + kv_s.len()..]);
-                    __map_set(map_ptr, alloc_str(&s[..pos]), v);
+                    map_set_owned_key(map_ptr, alloc_str(&s[..pos]), v);
                 }
             }
         }
@@ -3818,7 +3843,7 @@ fn json_to_value(json: &JsonValue) -> i64 {
             for (key, value) in obj {
                 let key_str = unsafe { alloc_str(key) };
                 let ocara_val = json_to_value(value);
-                __map_set(ocara_map, key_str, ocara_val);
+                map_set_owned_key(ocara_map, key_str, ocara_val);
             }
             ocara_map
         }

@@ -21,7 +21,7 @@ use std::thread::ThreadId;
 
 use once_cell::sync::Lazy;
 
-use ocara_runtime::{__map_get, __map_new, __map_set, alloc_str, ptr_to_str};
+use ocara_runtime::{__map_get, __map_new, alloc_str, map_set_owned_key, ptr_to_str};
 
 use sdl3::event::{Event, WindowEvent};
 use sdl3::gamepad::{Axis, Button, Gamepad};
@@ -143,7 +143,7 @@ fn build_map(pairs: &[(&str, MixedVal)]) -> i64 {
             MixedVal::Str(s) => unsafe { alloc_str(s) },
             MixedVal::Int(n) => *n,
         };
-        __map_set(m, key_ptr, val);
+        map_set_owned_key(m, key_ptr, val);
     }
     m
 }

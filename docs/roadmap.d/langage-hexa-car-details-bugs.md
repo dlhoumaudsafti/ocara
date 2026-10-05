@@ -37,16 +37,50 @@ dans l'entité. À la fin de la méthode, `rows` était libéré en profondeur :
 les chaînes de l'entité devenaient pendantes (description vide, puis SIGSEGV
 sur une reproduction minimale).
 
-**Correctif** : `src/lower/stmt.d/element_escape.rs`. Un conteneur dont un
-élément est conservé (initialiseur, affectation, `return`, argument d'appel,
-littéral — via un index, un champ ou une variable de boucle qui le parcourt)
-n'est libéré qu'en surface (`__array_free_shallow`/`__map_free_shallow`) :
-ses éléments fuient, jamais de use-after-free. Une lecture transitoire
-(template, comparaison) garde la libération profonde.
+**Correctif** (`src/lower/stmt.d/element_escape.rs`), sans fuite :
+- **Copie** : une chaîne DÉRIVÉE (index, champ, variable de boucle) conservée
+  vers une cible `string` est copiée (`__value_dup_leaf`, runtime) :
+  - déclaration `var s:string = row["name"]` ;
+  - affectation à une variable libérée, à `self.champ`, ou à un élément d'un
+    conteneur de `string` ;
+  - argument d'un paramètre `string` que l'appelé conserve ;
+  - élément de littéral.
 
-**Limite** : prudent par nom sur tout le corps de la fonction, et toute
-extraction conservée fait passer le conteneur en libération de surface
-(fuite des éléments plutôt que copie).
+  Les chaînes sont immuables : la copie est invisible. Une copie non conservée
+  est libérée en fin de bloc (`var` libéré automatiquement :
+  `is_copied_string`, `ownership.rs`).
+- **Ce que l'appelé conserve** : `IrModule::param_keeps` (point fixe sur
+  tout le programme). `fromRow(row)` ne conserve que des copies : passer `row`
+  ne compte pas comme conservation.
+- **Alias local** : `var first:map<…> = rows[0]` est traité comme une
+  variable de boucle (alias). Une `consumed` aliasée n'est libérée qu'en fin
+  de bloc (`var_alias_roots`).
+- **Builtins purs** (`IO::writeln`, `Convert::*`, `Math::*`, `String::*`,
+  `JSON::encode`…, `crate::sema::escape::is_pure_builtin`) : ne conservent
+  rien.
+- **Libération de surface** seulement en dernier recours, pour un élément
+  composite (tableau, map, objet) réellement conservé, ou retourné : pas de
+  copie au `return`, sinon une méthode d'accès copierait à chaque appel.
+
+Vérifié par mesure mémoire (20 000 puis 200 000 appels, stable à ≈ 2 Mo) et
+dans l'IR : `forCar` libère `rows` en profondeur (`__value_free`), `fromRow`
+copie les chaînes.
+
+### Fuite corrigée au passage : clés de map
+
+`__map_set` recopie la clé dans la map ; toutes les clés allouées par le
+runtime pour l'insertion (`alloc_str(nom)`) fuyaient. Cela concernait
+`JSON::decode`, `YAML`, chaque ligne SQLite/MySQL, les en-têtes
+HTTP, `HTMLComponent`, `File`/`Directory`, `Map::clone`…
+**Correctif** : `map_set_owned_key` (`runtime/src/lib.rs`) insère puis libère la
+clé ; utilisé par tous ces appels (pas par `Map_set`, dont la clé appartient
+au programme). Mesure : `JSON::decode` d'un objet passait de 2 Mo à 40 Mo
+pour 200 000 appels, il reste stable à 2 Mo.
+
+### Reste ouvert
+
+Objets d'un conteneur `scoped` jamais libérés →
+[memoire-scoped-object-elements-leak](memoire-scoped-object-elements-leak.md).
 
 ## 5. Littéral passé en argument construit en `array<mixed>`
 

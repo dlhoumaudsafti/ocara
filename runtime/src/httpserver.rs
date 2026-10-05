@@ -1202,7 +1202,7 @@ pub extern "C" fn HTTPServerRequest_headers(req: i64) -> i64 {
     for (k, v) in &ctx.headers {
         let key = unsafe { alloc_str(k) };
         let val = unsafe { alloc_str(v) };
-        crate::__map_set(map, key, val);
+        crate::map_set_owned_key(map, key, val);
     }
     map
 }
@@ -1263,14 +1263,14 @@ unsafe fn param_value_to_mixed(v: &ParamValue) -> i64 {
 unsafe fn file_to_mixed_map(filename: &str, content_type: &str, content: &[u8]) -> i64 {
     let map = crate::__map_new();
     unsafe {
-        crate::__map_set(map, alloc_str("filename"), alloc_str(filename));
-        crate::__map_set(map, alloc_str("contentType"), alloc_str(content_type));
-        crate::__map_set(map, alloc_str("size"), crate::box_int_if_needed(content.len() as i64));
+        crate::map_set_owned_key(map, alloc_str("filename"), alloc_str(filename));
+        crate::map_set_owned_key(map, alloc_str("contentType"), alloc_str(content_type));
+        crate::map_set_owned_key(map, alloc_str("size"), crate::box_int_if_needed(content.len() as i64));
         let bytes_arr = crate::__array_new();
         for byte in content {
             crate::__array_push(bytes_arr, *byte as i64);
         }
-        crate::__map_set(map, alloc_str("content"), bytes_arr);
+        crate::map_set_owned_key(map, alloc_str("content"), bytes_arr);
     }
     map
 }
@@ -1333,11 +1333,11 @@ pub extern "C" fn HTTPServerRequest_params(req: i64) -> i64 {
             for (k, v) in bucket {
                 let key = unsafe { alloc_str(k) };
                 let val = unsafe { param_value_to_mixed(v) };
-                crate::__map_set(inner, key, val);
+                crate::map_set_owned_key(inner, key, val);
             }
         }
         let outer_key = unsafe { alloc_str(bucket_name) };
-        crate::__map_set(outer, outer_key, inner);
+        crate::map_set_owned_key(outer, outer_key, inner);
     }
     outer
 }

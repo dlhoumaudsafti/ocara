@@ -577,6 +577,22 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         }
     }
 
+    // Paramètres conservés par chaque appelé (voir `element_escape`).
+    let mut callables: Vec<(String, Option<&str>, &[Param], &Block, Option<Type>)> = program.functions.iter()
+        .map(|f| (f.name.clone(), None, f.params.as_slice(), &f.body, Some(f.ret_ty.clone())))
+        .collect();
+    for class in &program.classes {
+        for member in &class.members {
+            if let ClassMember::Method { decl, .. } = member {
+                callables.push((format!("{}_{}", class.name, decl.name), Some(class.name.as_str()), decl.params.as_slice(), &decl.body, Some(decl.ret_ty.clone())));
+            }
+        }
+        if let Some((ctor_params, ctor_body, _)) = super::classes::nearest_constructor(&program.classes, class) {
+            callables.push((format!("{}_init", class.name), Some(class.name.as_str()), ctor_params, ctor_body, None));
+        }
+    }
+    module.param_keeps = crate::lower::stmt::element_escape::compute_param_keeps(&callables, &module.param_ast_types, &module.class_field_types);
+
     // Collecte les types de paramètres des constructeurs (pour le boxing mixed)
     for class in &program.classes {
         if let Some((ctor_params, _, _)) = super::classes::nearest_constructor(&program.classes, class) {

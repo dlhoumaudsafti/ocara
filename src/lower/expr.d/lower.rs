@@ -153,7 +153,15 @@ fn lower_call_arg(builder: &mut LowerBuilder, callee: &str, idx: usize, arg: &Ex
     match (arg, param) {
         (Expr::Array { elements, .. }, Some(Type::Array(inner))) => lower_array_literal(builder, elements, &inner),
         (Expr::Map { entries, .. }, Some(Type::Map(_, val))) => lower_map_literal(builder, entries, &val),
-        _ => crate::lower::builder::message_gen::lower_arg_or_message(builder, arg),
+        (_, param) => {
+            let val = crate::lower::builder::message_gen::lower_arg_or_message(builder, arg);
+            // Chaîne dérivée passée à un paramètre que l'appelé conserve : copie.
+            let kept = builder.module.param_keeps.get(callee).and_then(|k| k.get(idx)).copied().unwrap_or(false);
+            match param.filter(|_| kept) {
+                Some(ty) => dup_kept_leaf(builder, &ty, arg, val),
+                None => val,
+            }
+        }
     }
 }
 
@@ -187,6 +195,7 @@ fn lower_literal_element(builder: &mut LowerBuilder, elem: &Expr, elem_ty: &Type
         _ => {
             let ir_ty = expr_ir_type(builder, elem);
             let v = lower_expr(builder, elem);
+            let v = dup_kept_leaf(builder, elem_ty, elem, v);
             if matches!(elem_ty, Type::Mixed) { box_for_dyn_arith(builder, &ir_ty, v) } else { v }
         }
     }

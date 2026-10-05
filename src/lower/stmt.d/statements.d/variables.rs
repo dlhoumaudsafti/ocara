@@ -128,6 +128,7 @@ pub fn lower_var(
     // `value` peut être une `scoped`/`consumed` qui s'échappe vers `name`
     // (point d'échappement — voir crate::lower::stmt::ownership).
     let val = crate::lower::stmt::ownership::maybe_clone_escaping(builder, value, val);
+    let val = crate::lower::expr::helpers::dup_kept_leaf(builder, ty, value, val);
     let val = box_for_any(builder, &ir_ty, val_ty, val);
     
     // Tracker le type IR DÉCLARÉ derrière un handle de tâche `Resolvable<T>`

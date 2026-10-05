@@ -190,7 +190,7 @@ pub(crate) fn materialize(s: &Stored, raw: bool) -> i64 {
         Stored::Map(pairs) => {
             let map = crate::__map_new();
             for (k, v) in pairs {
-                crate::__map_set(map, unsafe { alloc_str(k) }, materialize(v, raw));
+                crate::map_set_owned_key(map, unsafe { alloc_str(k) }, materialize(v, raw));
             }
             map
         }

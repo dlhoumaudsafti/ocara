@@ -547,6 +547,27 @@ pub fn emit_pattern_eq(builder: &mut LowerBuilder, subject: Value, pattern: Valu
     test
 }
 
+/// Valeur DÉRIVÉE d'un conteneur : index, champ, variable de boucle.
+pub fn is_derived_value(builder: &LowerBuilder, expr: &Expr) -> bool {
+    match expr {
+        Expr::Index { .. } | Expr::Field { .. } => true,
+        Expr::Ident(name, _) => builder.loop_aliases.contains(name.as_str()),
+        _ => false,
+    }
+}
+
+/// Chaîne dérivée conservée vers une cible `string` : copie possédée par la
+/// cible, le conteneur reste libérable en profondeur (voir
+/// `crate::lower::stmt::element_escape`).
+pub fn dup_kept_leaf(builder: &mut LowerBuilder, target: &Type, expr: &Expr, val: Value) -> Value {
+    if !matches!(target, Type::String) || !is_derived_value(builder, expr) {
+        return val;
+    }
+    let dest = builder.new_value();
+    builder.emit(Inst::Call { dest: Some(dest.clone()), func: "__value_dup_leaf".into(), args: vec![val], ret_ty: IrType::Ptr });
+    dest
+}
+
 pub fn write_variant(base: &str, ty: &IrType) -> String {
     let suffix = match ty {
         IrType::F64  => "Float",
