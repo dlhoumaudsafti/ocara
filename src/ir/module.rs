@@ -96,6 +96,11 @@ pub struct IrModule {
     pub class_members: crate::sema::escape::ClassMembers,
     /// Types des paramètres du constructeur : class_name → Vec<IrType>
     pub ctor_param_types: HashMap<String, Vec<IrType>>,
+    /// Types AST déclarés des paramètres des fonctions, méthodes
+    /// (`"Classe_methode"`) et constructeurs (`"Classe_init"`) utilisateur —
+    /// un littéral `[...]`/`{...}` passé en argument est construit au type
+    /// du paramètre (voir `lower_call_arg`).
+    pub param_ast_types: HashMap<String, Vec<Type>>,
     /// Types des paramètres des méthodes D'INSTANCE utilisateur (jamais
     /// statiques, déjà couvertes par `LowerBuilder::fn_param_types`) :
     /// "Classe_methode" → Vec<IrType> (sans `self`). Utilisé UNIQUEMENT pour

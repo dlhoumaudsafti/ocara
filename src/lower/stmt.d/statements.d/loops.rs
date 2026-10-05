@@ -5,6 +5,7 @@ use crate::ir::types::IrType;
 use crate::ir::inst::Inst;
 use crate::lower::builder::LowerBuilder;
 use crate::lower::expr::{lower_expr, hoist_closure_promotions_before_loop};
+use crate::lower::expr::helpers::elem_type_after_index;
 use super::super::super::block::lower_block;
 
 pub fn lower_for_in(
@@ -36,12 +37,15 @@ pub fn lower_for_in(
     builder.emit(Inst::Store { ptr: idx_slot.clone(), src: zero });
 
     // Type de l'élément : I64 pour les plages entières, Ptr pour les tableaux
+    // Type AST de l'élément : variable, mais aussi champ (`obj.items`),
+    // appel ou index — voir `elem_type_after_index`.
+    let elem_ast = elem_type_after_index(builder, iter);
     let elem_ty = match iter {
         Expr::Range { .. } => IrType::I64,
         Expr::Ident(name, _) => {
             builder.elem_types.get(name.as_str()).cloned().unwrap_or(IrType::Ptr)
         }
-        _ => IrType::Ptr,
+        _ => elem_ast.as_ref().map_or(IrType::Ptr, IrType::from_ast),
     };
 
     // Longueur du tableau
@@ -107,8 +111,10 @@ pub fn lower_for_in(
     // champ déclaré. Même famille de bug, même correctif que
     // `register_var_class`/`union_named_class` — voir
     // docs/roadmap.d/langage-union-class-null-field-access.md.
-    if let Expr::Ident(iter_name, _) = iter {
-        if let Some(elem_ast_ty) = builder.elem_ast_types.get(iter_name.as_str()).cloned() {
+    // Variable, mais aussi champ/appel/index : `for m in dto.maintenances`
+    // lisait sinon chaque `m.champ` à l'offset 0 (toujours `id`).
+    {
+        if let Some(elem_ast_ty) = elem_ast {
             if let Type::Map(_, val_ty) = &elem_ast_ty {
                 // L'élément est un map, enregistrer la variable d'itération comme map
                 builder.map_vars.insert(var.to_string());
@@ -230,9 +236,10 @@ pub fn lower_for_map(
     // Valeur correspondante, lue au type de valeur déclaré de la map (comme
     // l'élément de `for x in array<T>`) — `I64` en dur affichait l'adresse
     // d'une `string`/d'un `mixed` boxé (`${capitale}` → `4464680`).
+    let val_ast = elem_type_after_index(builder, iter);
     let val_ty = match iter {
         Expr::Ident(name, _) => builder.elem_types.get(name.as_str()).cloned().unwrap_or(IrType::Ptr),
-        _ => IrType::Ptr,
+        _ => val_ast.as_ref().map_or(IrType::Ptr, IrType::from_ast),
     };
     let v = builder.new_value();
     builder.emit(Inst::Call {
@@ -254,12 +261,8 @@ pub fn lower_for_map(
     // correctif (`value` n'avait AUCUNE entrée `var_class`, quel que soit le
     // type de valeur de la map). Voir
     // docs/roadmap.d/langage-union-class-null-field-access.md.
-    if let Expr::Ident(map_name, _) = iter {
-        if let Some(val_ast_ty) = builder.elem_ast_types.get(map_name.as_str()).cloned() {
-            if let Some(class_name) = resolved_named_class(&val_ast_ty) {
-                builder.var_class.insert(value.to_string(), class_name);
-            }
-        }
+    if let Some(class_name) = val_ast.as_ref().and_then(resolved_named_class) {
+        builder.var_class.insert(value.to_string(), class_name);
     }
 
     // continue → incr_bb, break → merge_bb

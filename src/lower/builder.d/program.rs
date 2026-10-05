@@ -562,6 +562,21 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         module.class_map_fields.insert(class.name.clone(), map_fields);
     }
 
+    // Types AST des paramètres (littéral passé en argument, voir `lower_call_arg`).
+    for func in &program.functions {
+        module.param_ast_types.insert(func.name.clone(), func.params.iter().map(|p| p.ty.clone()).collect());
+    }
+    for class in &program.classes {
+        for member in &class.members {
+            if let ClassMember::Method { decl, .. } = member {
+                module.param_ast_types.insert(format!("{}_{}", class.name, decl.name), decl.params.iter().map(|p| p.ty.clone()).collect());
+            }
+        }
+        if let Some((ctor_params, _, _)) = super::classes::nearest_constructor(&program.classes, class) {
+            module.param_ast_types.insert(format!("{}_init", class.name), ctor_params.iter().map(|p| p.ty.clone()).collect());
+        }
+    }
+
     // Collecte les types de paramètres des constructeurs (pour le boxing mixed)
     for class in &program.classes {
         if let Some((ctor_params, _, _)) = super::classes::nearest_constructor(&program.classes, class) {

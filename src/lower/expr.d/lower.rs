@@ -145,6 +145,18 @@ fn lower_builtin_exception_init(builder: &mut LowerBuilder, obj: Value, layout_c
     set(builder, "source", source);
 }
 
+/// Argument d'appel : un littéral `[...]`/`{...}` est construit au type
+/// déclaré du paramètre `idx` de `callee` — sinon `array<mixed>`, dont les
+/// scalaires boxés étaient relus bruts par un paramètre `array<float>`.
+fn lower_call_arg(builder: &mut LowerBuilder, callee: &str, idx: usize, arg: &Expr) -> Value {
+    let param = builder.module.param_ast_types.get(callee).and_then(|p| p.get(idx)).cloned();
+    match (arg, param) {
+        (Expr::Array { elements, .. }, Some(Type::Array(inner))) => lower_array_literal(builder, elements, &inner),
+        (Expr::Map { entries, .. }, Some(Type::Map(_, val))) => lower_map_literal(builder, entries, &val),
+        _ => crate::lower::builder::message_gen::lower_arg_or_message(builder, arg),
+    }
+}
+
 pub fn lower_array_literal(builder: &mut LowerBuilder, elements: &[Expr], elem_ty: &Type) -> Value {
     let arr = builder.new_value();
     builder.emit(Inst::Call { dest: Some(arr.clone()), func: "__array_new".into(), args: vec![], ret_ty: IrType::Ptr });
@@ -545,7 +557,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     // `param_type_for_call_arg` pour le bug d'off-by-one que
                     // cette distinction corrige.
                     let arg_vals: Vec<Value> = completed_args.iter().enumerate().map(|(i, a)| {
-                        let raw = lower_expr(builder, a);
+                        let raw = lower_call_arg(builder, &func_mangled, i, a);
                         // `i + 1` : le receveur (`object`) est l'argument 0 de la
                         // forme statique équivalente (`Array::push(arr, v)`).
                         if stores_raw_into_container(builder, &func_mangled, object, i + 1) {
@@ -812,7 +824,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // voir docs/roadmap.d/langage-emit-iterable.md, §2) — gardé par
             // la sema, voir `check_message_scalar_consumption`.
             let arg_vals: Vec<Value> = args.iter().enumerate().map(|(i, a)| {
-                let raw = crate::lower::builder::message_gen::lower_arg_or_message(builder, a);
+                let raw = lower_call_arg(builder, &func_name, i, a);
                 let arg_ty = expr_ir_type(builder, a);
                 let param_ty = param_type_for_call_arg(builder, &func_name, i, CallForm::Static);
                 box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
@@ -1025,7 +1037,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // que soit le paramètre visé (confirmé faux par reproduction) —
             // voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md.
             let arg_vals: Vec<Value> = args.iter().enumerate().map(|(i, a)| {
-                let raw = crate::lower::builder::message_gen::lower_arg_or_message(builder, a);
+                let raw = lower_call_arg(builder, &func_name, i, a);
                 if args.first().is_some_and(|recv| stores_raw_into_container(builder, &func_name, recv, i)) {
                     return raw;
                 }
@@ -1178,7 +1190,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             let mut ctor_args = vec![dest.clone()];
             for (i, a) in args.iter().enumerate() {
                 let arg_ty   = expr_ir_type(builder, a);
-                let val      = lower_expr(builder, a);
+                let val      = lower_call_arg(builder, &init_func, i, a);
                 let param_ty = ctor_params.get(i).cloned();
                 ctor_args.push(box_arg_for_mixed_param(builder, param_ty, &arg_ty, val));
             }
@@ -1474,13 +1486,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                         MatchPattern::Literal(lit) => {
                             // Pattern littéral : comparaison directe
                             let pat_val = lower_literal(builder, lit);
-                            let test = builder.new_value();
-                            builder.emit(Inst::CmpEq {
-                                dest: test.clone(),
-                                lhs:  subj.clone(),
-                                rhs:  pat_val,
-                                ty:   IrType::I64,
-                            });
+                            let test = emit_pattern_eq(builder, subj.clone(), pat_val, lit);
                             let next_bb = builder.new_block();
                             builder.emit(Inst::Branch {
                                 cond:    test,

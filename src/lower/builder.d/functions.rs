@@ -176,6 +176,7 @@ pub fn lower_func(
     builder.auto_freeable_vars = crate::lower::stmt::ownership::compute_auto_freeable_vars(
         builder.module, &func.body, class_name,
     );
+    builder.element_escapes = crate::lower::stmt::element_escape::compute_element_escapes(&func.body);
 
     // Body
     crate::lower::stmt::lower_block(&mut builder, &func.body);

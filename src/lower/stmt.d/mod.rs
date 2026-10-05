@@ -3,6 +3,7 @@
 pub mod block;
 pub mod statements;
 pub mod ownership;
+pub mod element_escape;
 
 #[cfg(test)]
 mod tests;

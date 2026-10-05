@@ -88,6 +88,9 @@ pub struct OwnedLocalInfo {
     /// valeur : `emit_scope_drops`, au retour à la profondeur de boucle de
     /// déclaration, s'en charge une seule fois.
     pub declared_loop_depth: usize,
+    /// Des éléments sont conservés au-delà du conteneur
+    /// (`element_escape`) : seule sa structure est libérée.
+    pub shallow: bool,
 }
 
 /// Appelé depuis `lower_var` juste après la déclaration d'une `scoped`/
@@ -119,7 +122,10 @@ pub fn register_owned_local(builder: &mut LowerBuilder, name: &str, ty: &Type, k
     if matches!(class, OwnershipClass::Value | OwnershipClass::Resource) {
         builder.owned_locals.insert(
             name.to_string(),
-            OwnedLocalInfo { kind: effective_kind, class, ty: ty.clone(), dropped: false, declared_loop_depth: builder.loop_depth },
+            OwnedLocalInfo {
+                kind: effective_kind, class, ty: ty.clone(), dropped: false,
+                declared_loop_depth: builder.loop_depth, shallow: builder.element_escapes.contains(name),
+            },
         );
         // Alimente block_scope_stack pour emit_early_exit_drops (return/
         // break/continue anticipés) — voir sa doc dans builder.d/types.rs.
@@ -235,6 +241,15 @@ fn value_strategy(ty: &Type, clone: bool) -> Option<OwnershipFunc> {
 }
 
 fn drop_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<OwnershipFunc> {
+    if info.shallow && info.class == OwnershipClass::Value {
+        return match &info.ty {
+            Type::Array(_) => Some(OwnershipFunc::Simple("__array_free_shallow".into())),
+            Type::Map(..) => Some(OwnershipFunc::Simple("__map_free_shallow".into())),
+            // Instance dont un champ est conservé : jamais libérée (fuite sûre).
+            Type::Named(_) => None,
+            ty => value_strategy(ty, false),
+        };
+    }
     match info.class {
         OwnershipClass::Value => match &info.ty {
             Type::Named(n) if class_ownership::has_generated_destructor(module, n) => {

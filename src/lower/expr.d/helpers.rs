@@ -193,6 +193,9 @@ pub fn resolve_receiver_class(builder: &LowerBuilder, expr: &Expr) -> Option<Str
         // base via cette même fonction (récursion mutuelle, profondeur
         // arbitraire des deux côtés).
         Expr::Field { object, field, .. } => resolve_chained_field_class(builder, object, field),
+        // Élément indexé (`items[0].nom`) : classe du type d'élément —
+        // sinon chaque champ était lu à l'offset 0.
+        Expr::Index { object, .. } => elem_type_after_index(builder, object).as_ref().and_then(crate::parsing::ast::resolved_named_class),
         // Appel chaîné : `expr.methode(...)` ou `maFonction(...)` utilisé
         // comme récepteur.
         Expr::Call { callee, .. } => match callee.as_ref() {
@@ -528,6 +531,20 @@ pub fn push_hidden_leaf_shape(builder: &mut LowerBuilder, func: &str, args: &[Ex
     builder.emit(Inst::ConstInt { dest: shape_val.clone(), value: shape });
     lowered.push(shape_val);
     lowered
+}
+
+/// Test `subject == motif` d'un bras de `match`/`case` de `switch` : une
+/// chaîne se compare par VALEUR (`__cmp_eq_strict`) — une comparaison
+/// d'adresses ne reconnaissait que le même littéral, jamais une chaîne
+/// construite à l'exécution (lue en base, concaténée…).
+pub fn emit_pattern_eq(builder: &mut LowerBuilder, subject: Value, pattern: Value, lit: &Literal) -> Value {
+    let test = builder.new_value();
+    if matches!(lit, Literal::String(_)) {
+        builder.emit(Inst::Call { dest: Some(test.clone()), func: "__cmp_eq_strict".into(), args: vec![subject, pattern], ret_ty: IrType::Bool });
+    } else {
+        builder.emit(Inst::CmpEq { dest: test.clone(), lhs: subject, rhs: pattern, ty: IrType::I64 });
+    }
+    test
 }
 
 pub fn write_variant(base: &str, ty: &IrType) -> String {

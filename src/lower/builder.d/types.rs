@@ -133,6 +133,9 @@ pub struct LowerBuilder<'m> {
     /// comme un `scoped` implicite (libéré en fin de bloc). Voir
     /// docs/roadmap.d/memoire-strategie-var.md.
     pub auto_freeable_vars: HashSet<String>,
+    /// Conteneurs dont des éléments sont conservés au-delà d'eux — libérés
+    /// en surface seulement (voir `stmt::element_escape`).
+    pub element_escapes: HashSet<String>,
 }
 
 impl<'m> LowerBuilder<'m> {
@@ -176,6 +179,7 @@ impl<'m> LowerBuilder<'m> {
             runtime_exit_bb: None,
             owned_locals: HashMap::new(),
             auto_freeable_vars: HashSet::new(),
+            element_escapes: HashSet::new(),
         }
     }
 

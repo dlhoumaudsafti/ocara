@@ -1,7 +1,6 @@
 /// Lowering des structures de contrôle (if/switch/while)
 
 use crate::parsing::ast::*;
-use crate::ir::types::IrType;
 use crate::ir::inst::Inst;
 use crate::lower::builder::LowerBuilder;
 use crate::lower::expr::{lower_expr, hoist_closure_promotions_before_loop};
@@ -149,13 +148,7 @@ pub fn lower_switch(
             builder,
             &Expr::Literal(case.pattern.clone(), case.span.clone()),
         );
-        let test = builder.new_value();
-        builder.emit(Inst::CmpEq {
-            dest: test.clone(),
-            lhs:  subj.clone(),
-            rhs:  pat_val,
-            ty:   IrType::I64,
-        });
+        let test = crate::lower::expr::helpers::emit_pattern_eq(builder, subj.clone(), pat_val, &case.pattern);
         builder.emit(Inst::Branch {
             cond:    test,
             then_bb: body_bb.clone(),
