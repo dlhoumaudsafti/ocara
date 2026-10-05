@@ -14,6 +14,7 @@ use statements_impl::*;
 // vit dans l'arbre `expr`, pas `stmt`) — `statements_impl` étant un module
 // privé, seul un re-export explicite le rend atteignable de l'extérieur.
 pub use statements_impl::assignments::lower_incdec;
+pub(crate) use statements_impl::variables::register_var_class;
 
 pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
     match stmt {

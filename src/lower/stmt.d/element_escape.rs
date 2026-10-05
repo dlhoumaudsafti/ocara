@@ -89,6 +89,11 @@ pub fn prepare_body(builder: &mut crate::lower::builder::LowerBuilder, body: &Bl
     builder.element_escapes = res.shallow;
     builder.loop_aliases = res.loop_aliases;
     builder.var_alias_roots = res.var_alias_roots;
+    let owners = {
+        let ctx = crate::lower::stmt::object_owners::FreshCtx { fresh_returns: &builder.module.fresh_returns, current_class: class.as_deref() };
+        crate::lower::stmt::object_owners::object_owners(body, &ctx)
+    };
+    builder.object_owners = owners;
 }
 
 /// Point fixe : pour chaque fonction/méthode/constructeur, les paramètres

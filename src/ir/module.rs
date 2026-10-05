@@ -104,6 +104,9 @@ pub struct IrModule {
     /// Même clé → le paramètre `i` est-il conservé par l'appelé (lui ou une
     /// partie) ? Voir `lower::stmt::element_escape::compute_param_keeps`.
     pub param_keeps: HashMap<String, Vec<bool>>,
+    /// Fonctions/méthodes qui ne retournent que des objets neufs (voir
+    /// `lower::stmt::object_owners::compute_fresh_returns`).
+    pub fresh_returns: std::collections::HashSet<String>,
     /// Types des paramètres des méthodes D'INSTANCE utilisateur (jamais
     /// statiques, déjà couvertes par `LowerBuilder::fn_param_types`) :
     /// "Classe_methode" → Vec<IrType> (sans `self`). Utilisé UNIQUEMENT pour

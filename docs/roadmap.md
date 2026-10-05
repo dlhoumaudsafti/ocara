@@ -29,7 +29,7 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Fuite : objets d'un conteneur `scoped`/`consumed` jamais libérés** — `scoped items:array<Item>` (ou un `array`/`map` de classes libéré automatiquement) ne libère que le tableau : `__value_free` ignore les instances (`TAG_OBJECT`), faute de connaître leur destructeur `__free_<Classe>`. Mesuré : ~120 o par objet et par appel. À trancher : registre `class_id` → destructeur/clone au démarrage, et le partage d'un objet entre conteneurs (double libération). *(Structurel — Dangereuse : gestion mémoire)* → [détails](roadmap.d/memoire-scoped-object-elements-leak.md)
+- **Fuite : objets non libérés quand leur propriété n'est pas prouvée** — un conteneur `scoped`/`consumed` d'objets ne libère désormais ses instances que si chacune y entre neuve. Restent non libérés (fuite, jamais de double libération) : conteneur initialisé par un appel (`scoped items:array<Item> = repo.all()`), conteneur passé en argument, élément non prouvé neuf, et les champs `array<Classe>`/`map<K, Classe>` d'une classe (`__free_<Classe>` ne libère pas leurs objets). *(Structurel — Dangereuse : gestion mémoire)* → [détails](roadmap.d/memoire-scoped-object-elements-leak.md)
 
 ---
 

@@ -91,6 +91,9 @@ pub struct OwnedLocalInfo {
     /// Des éléments sont conservés au-delà du conteneur
     /// (`element_escape`) : seule sa structure est libérée.
     pub shallow: bool,
+    /// Conteneur propriétaire de ses objets : classe des éléments
+    /// (`object_owners`) — libérés/clonés avec `__free_`/`__clone_<Classe>`.
+    pub object_class: Option<String>,
 }
 
 /// Appelé depuis `lower_var` juste après la déclaration d'une `scoped`/
@@ -125,6 +128,9 @@ pub fn register_owned_local(builder: &mut LowerBuilder, name: &str, ty: &Type, k
             OwnedLocalInfo {
                 kind: effective_kind, class, ty: ty.clone(), dropped: false,
                 declared_loop_depth: builder.loop_depth, shallow: builder.element_escapes.contains(name),
+                object_class: crate::lower::stmt::object_owners::object_elem_class(ty)
+                    .filter(|c| builder.object_owners.contains(name) && class_ownership::has_generated_destructor(builder.module, c))
+                    .map(str::to_string),
             },
         );
         // Alimente block_scope_stack pour emit_early_exit_drops (return/
@@ -198,6 +204,8 @@ fn serialize_concrete_shape(ty: &Type) -> Option<String> {
 enum OwnershipFunc {
     /// Appel à un seul argument (`val`) — le cas historique.
     Simple(String),
+    /// Conteneur d'objets : appel à `(val, adresse de element_fn)`.
+    Objects(String, String),
     /// Conteneur concret imbriqué sur 2+ niveaux (voir `concrete_elem_shape`) :
     /// appel à `(val, shape, 0)`, `shape` étant une string à interner dans le
     /// module — voir `emit_ownership_call`.
@@ -240,7 +248,18 @@ fn value_strategy(ty: &Type, clone: bool) -> Option<OwnershipFunc> {
     })
 }
 
+/// `__array_*_objects`/`__map_*_objects` d'un conteneur propriétaire de ses objets.
+fn objects_strategy(info: &OwnedLocalInfo, clone: bool) -> Option<OwnershipFunc> {
+    let class = info.object_class.as_ref().filter(|_| !info.shallow)?;
+    let kind = if matches!(info.ty, Type::Map(..)) { "map" } else { "array" };
+    let (op, elem) = if clone { ("clone", "__clone_") } else { ("free", "__free_") };
+    Some(OwnershipFunc::Objects(format!("__{}_{}_objects", kind, op), format!("{}{}", elem, class)))
+}
+
 fn drop_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<OwnershipFunc> {
+    if let Some(strategy) = objects_strategy(info, false) {
+        return Some(strategy);
+    }
     if info.shallow && info.class == OwnershipClass::Value {
         return match &info.ty {
             Type::Array(_) => Some(OwnershipFunc::Simple("__array_free_shallow".into())),
@@ -269,6 +288,9 @@ fn drop_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<OwnershipFu
 /// `maybe_clone_escaping`) — uniquement pertinent pour `OwnershipClass::Value`
 /// (les ressources ne s'échappent jamais, refusé par la sema).
 fn clone_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<OwnershipFunc> {
+    if let Some(strategy) = objects_strategy(info, true) {
+        return Some(strategy);
+    }
     match &info.ty {
         Type::Named(n) if class_ownership::has_generated_destructor(module, n) => {
             Some(OwnershipFunc::Simple(format!("__clone_{}", n)))
@@ -285,6 +307,11 @@ fn clone_func_for(module: &IrModule, info: &OwnedLocalInfo) -> Option<OwnershipF
 fn emit_ownership_call(builder: &mut LowerBuilder, strategy: &OwnershipFunc, val: Value, dest: Option<Value>, ret_ty: IrType) {
     let (func, args) = match strategy {
         OwnershipFunc::Simple(name) => (name.clone(), vec![val]),
+        OwnershipFunc::Objects(name, elem_fn) => {
+            let addr = builder.new_value();
+            builder.emit(Inst::FuncAddr { dest: addr.clone(), func: elem_fn.clone() });
+            (name.clone(), vec![val, addr])
+        }
         OwnershipFunc::ConcreteRecursive(name, shape) => {
             let idx = builder.module.intern_string(shape);
             let shape_val = builder.new_value();

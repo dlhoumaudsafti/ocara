@@ -643,6 +643,62 @@ pub extern "C" fn __map_clone_shallow(ptr: i64) -> i64 {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Conteneurs d'instances de classe (`array<Item>`, `map<K, Item>`) : le
+// runtime ne connaît pas `__free_<Classe>`/`__clone_<Classe>` (générés par le
+// compilateur) — le lowering passe leur adresse. Voir
+// docs/roadmap.d/memoire-scoped-object-elements-leak.md.
+// ─────────────────────────────────────────────────────────────────────────────
+
+type ObjectFreeFn = unsafe extern "C" fn(i64);
+type ObjectCloneFn = unsafe extern "C" fn(i64) -> i64;
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __array_free_objects(ptr: i64, free_fn: i64) {
+    if ptr == 0 { return; }
+    unsafe {
+        let free: ObjectFreeFn = std::mem::transmute(free_fn as usize);
+        for &el in &array_ref(ptr).data {
+            if el != 0 { free(el); }
+        }
+    }
+    __array_free_shallow(ptr);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_free_objects(ptr: i64, free_fn: i64) {
+    if ptr == 0 { return; }
+    unsafe {
+        let free: ObjectFreeFn = std::mem::transmute(free_fn as usize);
+        for &(_, el) in &map_ref(ptr).data {
+            if el != 0 { free(el); }
+        }
+    }
+    __map_free_shallow(ptr);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __array_clone_objects(ptr: i64, clone_fn: i64) -> i64 {
+    if ptr == 0 { return 0; }
+    unsafe {
+        let clone: ObjectCloneFn = std::mem::transmute(clone_fn as usize);
+        let new_ptr = new_array();
+        array_ref(new_ptr).data = array_ref(ptr).data.iter().map(|&el| if el == 0 { 0 } else { clone(el) }).collect();
+        new_ptr
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_clone_objects(ptr: i64, clone_fn: i64) -> i64 {
+    if ptr == 0 { return 0; }
+    unsafe {
+        let clone: ObjectCloneFn = std::mem::transmute(clone_fn as usize);
+        let new_ptr = new_map();
+        map_ref(new_ptr).data = map_ref(ptr).data.iter().map(|(k, el)| (k.clone(), if *el == 0 { 0 } else { clone(*el) })).collect();
+        new_ptr
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Variantes "concrete" (imbriquées sur 2+ niveaux) de free/clone — pour un
 // `array<T>`/`map<K,T>` CONCRET (jamais `mixed`) dont l'ÉLÉMENT est
 // lui-même un `array`/`map` (`array<array<int>>`, `map<string,array<float>>`,

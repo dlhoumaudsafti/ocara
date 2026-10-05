@@ -140,6 +140,8 @@ pub struct LowerBuilder<'m> {
     pub loop_aliases: HashSet<String>,
     /// Voir `element_escape::ElementEscapes::var_alias_roots`.
     pub var_alias_roots: HashSet<String>,
+    /// Conteneurs d'objets propriétaires de leurs instances (`object_owners`).
+    pub object_owners: HashSet<String>,
 }
 
 impl<'m> LowerBuilder<'m> {
@@ -186,6 +188,7 @@ impl<'m> LowerBuilder<'m> {
             element_escapes: HashSet::new(),
             loop_aliases: HashSet::new(),
             var_alias_roots: HashSet::new(),
+            object_owners: HashSet::new(),
         }
     }
 

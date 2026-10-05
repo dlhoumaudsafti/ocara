@@ -43,6 +43,11 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__value_free",      params: &[clt::I64],                             returns: None,               module: None },
     BuiltinDesc { name: "__value_clone",     params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__value_dup_leaf",  params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
+    // Conteneurs d'objets : (conteneur, adresse de __free_/__clone_<Classe>).
+    BuiltinDesc { name: "__array_free_objects",  params: &[clt::I64, clt::I64],               returns: None,              module: None },
+    BuiltinDesc { name: "__map_free_objects",    params: &[clt::I64, clt::I64],               returns: None,              module: None },
+    BuiltinDesc { name: "__array_clone_objects", params: &[clt::I64, clt::I64],               returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__map_clone_objects",   params: &[clt::I64, clt::I64],               returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__array_free",      params: &[clt::I64],                             returns: None,               module: None },
     BuiltinDesc { name: "__map_free",        params: &[clt::I64],                             returns: None,               module: None },
     BuiltinDesc { name: "__array_clone",     params: &[clt::I64],                             returns: Some(clt::I64),    module: None },

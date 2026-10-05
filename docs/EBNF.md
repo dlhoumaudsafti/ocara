@@ -1212,6 +1212,8 @@ x = x + 10   // valide
 | Tout le reste (`int`/`float`/`bool`, `SDL`/`Tauri`, classes builtin non listées ci-dessus) | Se comporte exactement comme `var` — aucune destruction. |
 
 > **Valeur extraite d'un conteneur** : une chaîne lue dans un conteneur (`rows[0]["name"]`, champ, variable de boucle) puis conservée — déclaration `string`, affectation à une cible `string`, argument d'un paramètre `string` que l'appelé conserve, élément de littéral — est une **copie** : le conteneur peut être libéré sans la rendre invalide. Les chaînes étant immuables, la copie est invisible. Un élément composite (`array`, `map`, objet) conservé reste un alias : le conteneur n'est alors libéré qu'en surface, ses éléments restent valides.
+>
+> **Conteneur d'objets** (`array<Classe>`, `map<K, Classe>`) : ses instances sont libérées avec lui (destructeur de la classe) quand chacune y est entrée **neuve** — `use Classe(...)`, ou résultat d'une fonction qui ne retourne que des objets neufs. Un objet qui peut être référencé ailleurs (variable relue, champ, paramètre) n'est jamais libéré par le conteneur.
 
 > **`scoped` est interdit sur un champ de classe** : un champ vit aussi longtemps que l'objet, pas le temps d'un bloc. Utiliser `property` pour les champs de classe.
 

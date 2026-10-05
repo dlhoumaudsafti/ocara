@@ -130,10 +130,11 @@ pub fn lower_func(
             builder.func_vars.insert(param.name.clone());
             builder.func_ret_types.insert(param.name.clone(), IrType::from_ast(ret_ty));
         }
-        // Enregistrer les paramètres de type Named (classes) dans var_class
-        if let crate::parsing::ast::Type::Named(class_name) = &param.ty {
-            builder.var_class.insert(param.name.clone(), class_name.clone());
-        }
+        // Classe du paramètre — même résolution qu'une variable locale
+        // (classe, générique, union `Classe|null`, et `String`/`Array`/`Map`
+        // pour les builtins : sans ça, `xs.push(...)` sur un paramètre
+        // `array<T>` était compilé en `String_push`, SIGSEGV).
+        crate::lower::stmt::statements::register_var_class(&mut builder, &param.name, &param.ty);
         // Un paramètre de type générique (`Box<int>`) : même résolution que
         // pour une variable locale directement initialisée (voir
         // `lower_var`/`lower_const` dans statements.d/variables.rs) — sans

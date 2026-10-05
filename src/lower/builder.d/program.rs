@@ -592,6 +592,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         }
     }
     module.param_keeps = crate::lower::stmt::element_escape::compute_param_keeps(&callables, &module.param_ast_types, &module.class_field_types);
+    module.fresh_returns = crate::lower::stmt::object_owners::compute_fresh_returns(&callables);
 
     // Collecte les types de paramètres des constructeurs (pour le boxing mixed)
     for class in &program.classes {
