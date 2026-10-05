@@ -557,7 +557,14 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         }
     }
     module.param_keeps = crate::lower::stmt::element_escape::compute_param_keeps(&callables, &module.param_ast_types, &module.class_field_types);
-    let facts = crate::lower::stmt::object_facts::compute(&callables, &module.param_ast_types, &module.param_keeps, &module.class_field_types);
+    let parents: HashMap<String, String> = program.classes.iter()
+        .filter_map(|c| c.extends.clone().map(|p| (c.name.clone(), p)))
+        .collect();
+    module.field_decl = crate::lower::stmt::object_facts::field_declarations(&module.class_field_types, &parents);
+    let facts = crate::lower::stmt::object_facts::compute(&crate::lower::stmt::object_facts::Program {
+        callables: &callables, param_types: &module.param_ast_types, param_keeps: &module.param_keeps,
+        field_types: &module.class_field_types, field_decl: &module.field_decl, parents: &parents,
+    });
     module.fresh_returns = facts.fresh_returns;
     module.fresh_containers = facts.fresh_containers;
     module.preserving_params = facts.preserving;

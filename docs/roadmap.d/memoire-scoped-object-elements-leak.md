@@ -71,19 +71,45 @@ propriétaire n'est plus libéré ni dupliqué par l'objet.
 Mesures (20 000 puis 200 000 appels) : `scoped items = all()`,
 `fill(items)` et `scoped bag = use Bag(all())` stables à ≈ 1,95 Mo.
 
+## Étape 3 — précision
+
+- **`resolve` d'un appel `async`** : une variable `Resolvable<…>` initialisée
+  par un appel qui retourne un conteneur (ou un objet) neuf, et résolue une
+  seule fois, donne une valeur neuve. `CarDetailsDTO.maintenances` (via
+  `MaintenanceContract::forCar`) est maintenant propriétaire.
+- **Champs par classe** : clé `ClasseDéclarante.champ` (`IrModule::field_decl`,
+  champs hérités ramenés au déclarant). La classe du receveur est déduite des
+  types déclarés (variable, paramètre, `self`, champ, élément indexé, variable
+  de boucle) ; seul un receveur au type inconnu retombe sur le nom du champ.
+- **`parent::m(...)`** résolu vers la vraie classe parente ; un site
+  rapproché par nom (`obj.m(...)`) qui passe plus d'arguments que la méthode
+  n'a de paramètres est écarté.
+- **Déplacements** : unique, hors boucle (un déplacement dans une boucle plus
+  profonde que la déclaration du conteneur partagerait le même conteneur
+  entre plusieurs objets — double libération, désormais refusé), et :
+  - lectures **avant** le déplacement permises ;
+  - après le déplacement, seulement vers un champ de `self`, qui survit à la
+    méthode.
+
+  Un déplacement vers un champ d'un conteneur non propriétaire disqualifie
+  désormais ce champ. Avant, il restait propriétaire : `self.items = xs` puis
+  `return xs[0]`, et l'objet retourné était libéré avec le porteur.
+
 ## Reste ouvert (fuite, jamais de double libération)
 
-- Valeur obtenue par `resolve` d'un appel `async` (`CarDetailsDTO.maintenances`
-  dans `mini_project_hexa` : `forCar` est `async`).
-- Analyse des champs par NOM : un seul accès douteux à un champ `items` de
-  n'importe quelle classe disqualifie tous les champs `items`. Un champ
-  disqualifié n'est plus libéré du tout, alors qu'il l'était, au risque d'un
-  use-after-free.
-- Conteneur déplacé vers un champ puis relu localement : refusé par
-  prudence, l'ordre des usages n'étant pas suivi.
+- Accès `f().champ` / receveur au type inconnu : repli par nom de champ.
+- Conteneur relu après un déplacement vers un autre objet que `self` : le
+  porteur peut être libéré avant la lecture (bloc imbriqué, `consumed`).
+  L'accepter demande de suivre la durée de vie du porteur.
+- Champ réellement partagé ou dont un élément est conservé : ni ses objets
+  ni lui-même ne sont libérés par le porteur (`DashboardDto.cars`,
+  `SearchResultsDto.*` dans `mini_project_hexa`).
+- Les DTO de `mini_project_hexa` sont des `const`, donc jamais libérés de
+  toute façon (gestion mémoire des `var`/`const`, chantier séparé).
 
-Tests : `examples/tests/81_object_ownership_transfersTest.oc`, tests
-unitaires de `object_facts.rs`.
+Tests : `examples/tests/81_object_ownership_transfersTest.oc`,
+`examples/tests/82_object_ownership_precisionTest.oc`, tests unitaires de
+`object_facts.rs`.
 
 Tests : `examples/tests/80_scoped_object_containersTest.oc`, tests
 unitaires de `object_owners.rs`.

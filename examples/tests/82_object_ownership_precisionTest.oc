@@ -1,0 +1,85 @@
+import ocara.UnitTest
+
+// Propriété des objets : `resolve` d'un appel `async`, champs de même nom
+// dans deux classes distingués par leur classe, conteneur lu PUIS déplacé,
+// conteneur déplacé vers `self` puis relu, déplacement dans une boucle
+// refusé (le conteneur reste lisible : jamais de double libération).
+class Test_82_object_ownership_precision {
+
+    public method resolvedAsyncContainerTest(): int {
+        consumed task:Resolvable<array<PrecisionItem>> = self.load()
+        const items:array<PrecisionItem> = resolve task
+        scoped box:PrecisionBox = use PrecisionBox(items)
+        UnitTest::assertEquals(2, box.count())
+        return 0
+    }
+
+    public method readThenMoveTest(): int {
+        var ys:array<PrecisionItem> = [use PrecisionItem("y")]
+        var n:int = ys.len()
+        scoped box:PrecisionBox = use PrecisionBox(ys)
+        UnitTest::assertEquals(1, n)
+        UnitTest::assertEquals(1, box.count())
+        return 0
+    }
+
+    public method moveToSelfThenReadTest(): int {
+        scoped keeper:PrecisionKeeper = use PrecisionKeeper()
+        UnitTest::assertEquals("k!", keeper.adopt())
+        return 0
+    }
+
+    public method moveInLoopKeepsContainerTest(): int {
+        var zs:array<PrecisionItem> = [use PrecisionItem("z")]
+        var i:int = 0
+        while i smaller 2 {
+            scoped other:PrecisionOther = use PrecisionOther(zs)
+            i = i + 1
+        }
+        UnitTest::assertEquals("z!", zs[0].name)
+        return 0
+    }
+
+    private async method load(): array<PrecisionItem> {
+        var xs:array<PrecisionItem> = []
+        xs.push(use PrecisionItem("a"))
+        xs.push(use PrecisionItem("b"))
+        return xs
+    }
+}
+
+class PrecisionItem {
+    public property name:string
+    init(name:string) {
+        self.name = name + "!"
+    }
+}
+
+class PrecisionBox {
+    public property items:array<PrecisionItem>
+    init(items:array<PrecisionItem>) {
+        self.items = items
+    }
+    public method count(): int {
+        return self.items.len()
+    }
+}
+
+class PrecisionOther {
+    public property items:array<PrecisionItem>
+    init(items:array<PrecisionItem>) {
+        self.items = items
+    }
+}
+
+class PrecisionKeeper {
+    public property items:array<PrecisionItem>
+    init() {
+        self.items = []
+    }
+    public method adopt(): string {
+        var xs:array<PrecisionItem> = [use PrecisionItem("k")]
+        self.items = xs
+        return xs[0].name
+    }
+}

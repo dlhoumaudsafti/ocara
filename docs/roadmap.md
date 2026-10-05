@@ -29,7 +29,7 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Fuite : propriété des objets non prouvée (cas restants)** — conteneurs issus d'un appel, passés en argument et champs `array<Classe>` sont maintenant couverts (preuve statique sur tout le programme). Restent non libérés, jamais libérés deux fois : valeur obtenue par `resolve` d'un appel `async` (cas de `CarDetailsDTO.maintenances` dans `mini_project_hexa`), champ disqualifié par un seul accès douteux n'importe où (analyse par nom de champ, toutes classes confondues) — un tel champ n'est plus libéré du tout par `__free_<Classe>` (il l'était, au risque d'un use-after-free) —, et conteneur déplacé puis relu. *(Structurel — Dangereuse : gestion mémoire)* → [détails](roadmap.d/memoire-scoped-object-elements-leak.md)
+- **Fuite : propriété des objets non prouvée (derniers cas)** — `resolve` d'un appel `async`, champs identifiés par leur classe et déplacement après lecture sont couverts. Restent non libérés (jamais libérés deux fois) : accès à un champ via un receveur au type inconnu (résultat d'appel : repli prudent par nom de champ), conteneur relu après un déplacement vers un autre objet que `self`, et objets d'un champ réellement partagé ou extrait (ex. `DashboardDto.cars` et `SearchResultsDto.*` dans `mini_project_hexa`). *(Structurel — Dangereuse : gestion mémoire)* → [détails](roadmap.d/memoire-scoped-object-elements-leak.md)
 
 ---
 

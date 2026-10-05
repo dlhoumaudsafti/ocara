@@ -104,12 +104,17 @@ pub fn generate_class_ownership_functions(module: &mut IrModule, program: &Progr
 /// Champ `array<Classe>`/`map<K, Classe>` propriétaire de ses objets
 /// (`IrModule::owning_fields`, voir `lower::stmt::object_facts`) : ses
 /// instances sont libérées/clonées avec lui.
-fn emit_objects_ownership_call(module: &IrModule, f: &mut IrFunction, fname: &str, ty: &Type, clone: bool, v: &Value, dest: &Option<Value>) -> bool {
+/// Le champ `fname` de `class_name` possède-t-il ses objets ?
+fn owns_objects(module: &IrModule, class_name: &str, fname: &str) -> bool {
+    module.field_decl.get(&format!("{}.{}", class_name, fname)).is_some_and(|k| module.owning_fields.contains(k))
+}
+
+fn emit_objects_ownership_call(module: &IrModule, f: &mut IrFunction, owner: &str, fname: &str, ty: &Type, clone: bool, v: &Value, dest: &Option<Value>) -> bool {
     let Some(class) = crate::lower::stmt::object_owners::object_elem_class(ty) else { return false };
     if !module.class_field_types.contains_key(class) {
         return false;
     }
-    if !module.owning_fields.contains(fname) {
+    if !owns_objects(module, owner, fname) {
         return false;
     }
     let kind = if matches!(ty, Type::Map(..)) { "map" } else { "array" };
@@ -125,15 +130,15 @@ fn emit_objects_ownership_call(module: &IrModule, f: &mut IrFunction, fname: &st
 /// prouvée) : ni libéré ni dupliqué, l'objet n'en est pas le seul détenteur
 /// (`use Bag(ys)` puis `ys` relu après la libération de l'objet était un
 /// use-after-free).
-fn is_shared_object_field(module: &IrModule, fname: &str, ty: &Type) -> bool {
+fn is_shared_object_field(module: &IrModule, owner: &str, fname: &str, ty: &Type) -> bool {
     crate::lower::stmt::object_owners::object_elem_class(ty).is_some_and(|c| module.class_field_types.contains_key(c))
-        && !module.owning_fields.contains(fname)
+        && !owns_objects(module, owner, fname)
 }
 
 /// Appel de libération/clonage d'un champ `string`/`array`/`map` de type
 /// `ty` sur la valeur `v` — `dest` pour un clonage.
-fn emit_value_ownership_call(module: &mut IrModule, f: &mut IrFunction, fname: &str, ty: &Type, clone: bool, v: Value, dest: Option<Value>) {
-    if emit_objects_ownership_call(module, f, fname, ty, clone, &v, &dest) {
+fn emit_value_ownership_call(module: &mut IrModule, f: &mut IrFunction, owner: &str, fname: &str, ty: &Type, clone: bool, v: Value, dest: Option<Value>) {
+    if emit_objects_ownership_call(module, f, owner, fname, ty, clone, &v, &dest) {
         return;
     }
     let Some((func, shape)) = crate::lower::stmt::ownership::value_ownership_symbol(ty, clone) else { return };
@@ -166,11 +171,11 @@ fn build_free_function(module: &mut IrModule, class_name: &str) -> IrFunction {
         let offset = (idx * 8) as i32;
         let ir_ty = field_ir_layout.get(idx).map(|(_, t)| t.clone()).unwrap_or(IrType::Ptr);
         match classify_field(fty, &module.class_field_types) {
-            FieldOwnership::Value if is_shared_object_field(module, fname, fty) => {}
+            FieldOwnership::Value if is_shared_object_field(module, class_name, fname, fty) => {}
             FieldOwnership::Value => {
                 let v = f.new_value();
                 f.emit(Inst::GetField { dest: v.clone(), obj: obj.clone(), field: fname.clone(), ty: ir_ty, offset });
-                emit_value_ownership_call(module, &mut f, fname, fty, false, v, None);
+                emit_value_ownership_call(module, &mut f, class_name, fname, fty, false, v, None);
             }
             FieldOwnership::Object(other_class) => {
                 let v = f.new_value();
@@ -233,10 +238,10 @@ fn build_clone_function(module: &mut IrModule, class_name: &str) -> IrFunction {
         let src = f.new_value();
         f.emit(Inst::GetField { dest: src.clone(), obj: obj.clone(), field: fname.clone(), ty: ir_ty.clone(), offset });
         let to_store = match classify_field(fty, &module.class_field_types) {
-            FieldOwnership::Value if is_shared_object_field(module, fname, fty) => src,
+            FieldOwnership::Value if is_shared_object_field(module, class_name, fname, fty) => src,
             FieldOwnership::Value => {
                 let cloned = f.new_value();
-                emit_value_ownership_call(module, &mut f, fname, fty, true, src, Some(cloned.clone()));
+                emit_value_ownership_call(module, &mut f, class_name, fname, fty, true, src, Some(cloned.clone()));
                 cloned
             }
             FieldOwnership::Object(other_class) => {

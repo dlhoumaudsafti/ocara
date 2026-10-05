@@ -17,11 +17,11 @@ class Format {
         scoped cents:int    = Math::round(amount * 100.0)
         scoped whole:int    = cents / 100
         scoped rem:int      = cents % 100
-        scoped rem_str:string = Convert::intToStr(rem)
+        scoped rem_str:string = rem.toStr()
         if rem smaller 10 {
             rem_str = "0" + rem_str
         }
-        return Convert::intToStr(whole) + "," + rem_str + " €"
+        return whole.toStr() + "," + rem_str + " €"
     }
 
     public static method date(timestamp:int): string {

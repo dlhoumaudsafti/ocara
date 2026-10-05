@@ -111,8 +111,10 @@ pub struct IrModule {
     pub fresh_containers: std::collections::HashSet<String>,
     /// Paramètres conteneurs qui préservent la propriété de leurs objets.
     pub preserving_params: HashMap<String, Vec<bool>>,
-    /// Champs (par nom) propriétaires de leurs objets (`object_facts`).
+    /// Champs (`ClasseDéclarante.champ`) propriétaires de leurs objets (`object_facts`).
     pub owning_fields: std::collections::HashSet<String>,
+    /// `"Classe.champ"` → `"ClasseDéclarante.champ"` (champs hérités).
+    pub field_decl: HashMap<String, String>,
     /// Types des paramètres des méthodes D'INSTANCE utilisateur (jamais
     /// statiques, déjà couvertes par `LowerBuilder::fn_param_types`) :
     /// "Classe_methode" → Vec<IrType> (sans `self`). Utilisé UNIQUEMENT pour

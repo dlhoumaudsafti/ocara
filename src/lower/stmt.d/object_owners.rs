@@ -33,7 +33,14 @@ pub struct FreshCtx<'a> {
     pub preserving:       &'a HashMap<String, Vec<bool>>,
     /// Types des paramètres des appelés (un scalaire passé est copié).
     pub param_types:      &'a HashMap<String, Vec<Type>>,
+    /// Champs par classe (hérités compris) : type d'un accès `x.champ`.
+    pub field_types:      &'a HashMap<String, Vec<(String, Type)>>,
+    /// `"Classe.champ"` → `"ClasseDéclarante.champ"` : un champ hérité est
+    /// le même stockage que celui du parent.
+    pub field_decl:       &'a HashMap<String, String>,
     pub current_class:    Option<&'a str>,
+    /// Classe parente de `current_class` (`parent::m(...)`).
+    pub parent_class:     Option<&'a str>,
 }
 
 /// Conteneurs locaux propriétaires de leurs objets dans `body`.
@@ -53,7 +60,7 @@ pub struct BodyFacts {
     pub returns_fresh_container: bool,
     /// Paramètres conteneurs qui préservent la propriété (`None` : pas un conteneur d'objets).
     pub preserving_params:       Vec<Option<bool>>,
-    /// Champs (par nom) disqualifiés dans ce corps.
+    /// Champs (`ClasseDéclarante.champ`) disqualifiés dans ce corps.
     pub disqualified_fields:     HashSet<String>,
     /// `self.champ = param` : (champ, indice du paramètre).
     pub field_from_param:        Vec<(String, usize)>,
@@ -87,6 +94,21 @@ pub fn body_facts(body: &Block, params: &[Param], ctx: &FreshCtx, watched_fields
     }
 }
 
+/// Déplacement d'un conteneur local (voir `Scan::finish`).
+struct Move {
+    var:     String,
+    /// Indice de l'appel dans `calls` (transfert en argument).
+    call:    Option<usize>,
+    /// Position de la référence déplacée.
+    pos:     (usize, usize),
+    /// Vers un champ de `self`, qui survit à la méthode.
+    to_self: bool,
+    in_loop: bool,
+    /// Champ de destination (déplacement vers un champ) : disqualifié si le
+    /// conteneur n'était pas propriétaire.
+    field:   Option<String>,
+}
+
 struct Scan<'a> {
     ctx: &'a FreshCtx<'a>,
     /// Variable locale (objet) initialisée par un objet neuf.
@@ -94,7 +116,8 @@ struct Scan<'a> {
     var_kinds:  HashMap<String, VarKind>,
     var_types:  HashMap<String, Type>,
     params:     Vec<String>,
-    /// Champs suivis (conteneurs d'objets du programme), désignés `#champ`.
+    /// Champs suivis (`ClasseDéclarante.champ`), candidats `#Classe.champ` ;
+    /// `#?champ` désigne un accès dont la classe du receveur est inconnue.
     watched:    &'a HashSet<String>,
     refs:       HashMap<String, usize>,
     /// Variable de boucle → candidat parcouru.
@@ -105,7 +128,16 @@ struct Scan<'a> {
     allow_return: bool,
     /// Conteneurs locaux déplacés (vers un champ, un argument de transfert) :
     /// neufs seulement s'ils restent propriétaires jusqu'au bout.
-    moved:      Vec<(String, Option<usize>)>,
+    moved:      Vec<Move>,
+    /// Profondeur de boucle courante, et à la déclaration de chaque variable.
+    loop_depth: usize,
+    var_loop_depth: HashMap<String, usize>,
+    /// Positions (ligne, colonne) des références à chaque variable.
+    positions:  HashMap<String, Vec<(usize, usize)>>,
+    /// `x:Resolvable<…>` initialisé par un appel qui retourne un conteneur
+    /// (resp. un objet) neuf : `resolve x` l'est aussi.
+    fresh_task_containers: HashSet<String>,
+    fresh_task_objects: HashSet<String>,
     field_from_param: Vec<(String, usize)>,
     calls:      Vec<(String, Vec<bool>)>,
     value_refs: HashSet<String>,
@@ -117,6 +149,8 @@ impl<'a> Scan<'a> {
     fn new(ctx: &'a FreshCtx<'a>, body: &Block, params: &[Param], watched: &'a HashSet<String>) -> Self {
         let mut refs = HashMap::new();
         count_refs_block(body, &mut refs);
+        let mut positions = HashMap::new();
+        super::object_ast::ident_positions_block(body, &mut positions);
         let mut scan = Scan {
             ctx, fresh_vars: HashSet::new(), var_kinds: HashMap::new(),
             var_types: params.iter().map(|p| (p.name.clone(), p.ty.clone())).collect(),
@@ -124,6 +158,8 @@ impl<'a> Scan<'a> {
             watched, refs, aliases: HashMap::new(), candidates: HashSet::new(), disqualified: HashSet::new(),
             returned: HashSet::new(), allow_return: false, moved: Vec::new(), field_from_param: Vec::new(), calls: Vec::new(),
             value_refs: HashSet::new(), push_refs: HashMap::new(),
+            loop_depth: 0, var_loop_depth: HashMap::new(), positions,
+            fresh_task_containers: HashSet::new(), fresh_task_objects: HashSet::new(),
         };
         for p in params.iter().filter(|p| is_object_container(&p.ty)) {
             scan.candidates.insert(p.name.clone());
@@ -144,24 +180,84 @@ impl<'a> Scan<'a> {
     /// Un conteneur local déplacé est disqualifié comme propriétaire local
     /// (il ne doit plus être libéré ici) ; s'il n'était pas propriétaire,
     /// la destination est disqualifiée à son tour.
+    /// Un déplacement transfère la propriété s'il est unique, hors boucle,
+    /// et qu'aucune référence au conteneur ne le suit — sauf vers un champ de
+    /// `self`, qui survit à la méthode (le conteneur reste alors lisible).
     fn finish(&mut self) {
         let moved = std::mem::take(&mut self.moved);
-        for (var, call_arg) in &moved {
-            // Déplacé une seule fois, et sinon seulement rempli (`push`) :
-            // aucune autre référence ne survit au transfert.
-            let refs = self.refs.get(var).copied().unwrap_or(0);
-            let pushes = self.push_refs.get(var).copied().unwrap_or(0);
-            let owner = self.candidates.contains(var) && !self.disqualified.contains(var)
-                && matches!(self.var_kinds.get(var), Some(VarKind::Var))
-                && refs == pushes + 1;
-            if let Some(i) = call_arg {
-                if let Some((_, args)) = self.calls.get_mut(*i) {
+        for m in &moved {
+            let moves = moved.iter().filter(|o| o.var == m.var).count();
+            let later_refs = self.positions.get(&m.var).is_some_and(|ps| ps.iter().any(|p| *p > m.pos));
+            let owner = self.candidates.contains(&m.var) && !self.disqualified.contains(&m.var)
+                && matches!(self.var_kinds.get(&m.var), Some(VarKind::Var))
+                && moves == 1 && !m.in_loop && (m.to_self || !later_refs);
+            if let Some(i) = m.call {
+                if let Some((_, args)) = self.calls.get_mut(i) {
                     for a in args.iter_mut() { *a = *a && owner; }
                 }
             }
+            if let (false, Some(field)) = (owner, &m.field) {
+                self.disqualified.insert(field.clone());
+            }
         }
-        for (var, _) in moved {
-            self.disqualified.insert(var);
+        for m in moved {
+            self.disqualified.insert(m.var);
+        }
+        // `#?champ` : receveur inconnu, tous les champs de ce nom.
+        let ambiguous: Vec<String> = self.disqualified.iter().filter_map(|k| k.strip_prefix("#?").map(str::to_string)).collect();
+        for name in ambiguous {
+            let suffix = format!(".{}", name);
+            for w in self.watched.iter().filter(|w| w.ends_with(&suffix)) {
+                self.disqualified.insert(format!("#{}", w));
+            }
+        }
+    }
+
+    fn new_move(&self, var: &str, call: Option<usize>, pos: (usize, usize), to_self: bool) -> Move {
+        let in_loop = self.loop_depth > self.var_loop_depth.get(var).copied().unwrap_or(0);
+        Move { var: var.to_string(), call, pos, to_self, in_loop, field: None }
+    }
+
+    /// Type statique d'une expression, quand les déclarations le donnent.
+    fn static_type(&self, expr: &Expr) -> Option<Type> {
+        match expr {
+            Expr::Ident(name, _) => self.var_types.get(name).cloned(),
+            Expr::SelfExpr(_) => self.ctx.current_class.map(|c| Type::Named(c.to_string())),
+            Expr::New { class, .. } => Some(Type::Named(class.clone())),
+            Expr::Field { object, field, .. } => {
+                let class = self.static_class(object)?;
+                self.ctx.field_types.get(&class)?.iter().find(|(f, _)| f == field).map(|(_, t)| t.clone())
+            }
+            Expr::Index { object, .. } => match self.static_type(object)? {
+                Type::Array(inner) | Type::Map(_, inner) => Some(*inner),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn static_class(&self, expr: &Expr) -> Option<String> {
+        let ty = self.static_type(expr)?;
+        match &ty {
+            Type::Named(n) => Some(n.clone()),
+            _ => crate::parsing::ast::union_named_class(&ty),
+        }
+    }
+
+    /// Clé du champ suivi désigné par `object.field` : `#Déclarant.champ`,
+    /// `#?champ` si la classe du receveur est inconnue, `None` si aucun champ
+    /// suivi ne porte ce nom.
+    fn field_key(&self, object: &Expr, field: &str) -> Option<String> {
+        let suffix = format!(".{}", field);
+        if !self.watched.iter().any(|w| w.ends_with(&suffix)) {
+            return None;
+        }
+        match self.static_class(object) {
+            Some(class) => {
+                let decl = self.ctx.field_decl.get(&format!("{}.{}", class, field))?;
+                self.watched.contains(decl).then(|| format!("#{}", decl))
+            }
+            None => Some(format!("#?{}", field)),
         }
     }
 
@@ -169,7 +265,7 @@ impl<'a> Scan<'a> {
     fn cand_of(&self, expr: &Expr) -> Option<String> {
         match expr {
             Expr::Ident(name, _) if self.candidates.contains(name) => Some(name.clone()),
-            Expr::Field { field, .. } if self.watched.contains(field) => Some(format!("#{}", field)),
+            Expr::Field { object, field, .. } => self.field_key(object, field),
             _ => None,
         }
     }
@@ -179,7 +275,7 @@ impl<'a> Scan<'a> {
         match expr {
             Expr::Ident(name, _) => self.aliases.get(name).cloned(),
             Expr::Index { object, .. } => self.cand_of(object).or_else(|| self.element_root(object)),
-            Expr::Field { object, field, .. } if !self.watched.contains(field) => self.element_root(object),
+            Expr::Field { object, field, .. } if self.field_key(object, field).is_none() => self.element_root(object),
             _ => None,
         }
     }
@@ -196,7 +292,10 @@ impl<'a> Scan<'a> {
             },
             Expr::StaticCall { class, method, .. } => match class.as_str() {
                 "<self>" => Some(format!("{}_{}", self.ctx.current_class?, method)),
-                "<parent>" => Some(format!(".{}", method)),
+                "<parent>" => Some(match self.ctx.parent_class {
+                    Some(parent) => format!("{}_{}", parent, method),
+                    None => format!(".{}", method),
+                }),
                 c => Some(format!("{}_{}", c, method)),
             },
             Expr::New { class, .. } => Some(format!("{}_init", class)),
@@ -209,6 +308,10 @@ impl<'a> Scan<'a> {
             Expr::New { .. } | Expr::Literal(crate::parsing::ast::Literal::Null, _) => true,
             Expr::Call { .. } | Expr::StaticCall { .. } => self.callee_key(expr).is_some_and(|k| self.ctx.fresh_returns.contains(&k)),
             Expr::Ident(name, _) => self.fresh_vars.contains(name) && self.refs.get(name).copied().unwrap_or(0) <= 1,
+            Expr::Resolve { expr: task, .. } => match task.as_ref() {
+                Expr::Ident(name, _) => self.fresh_task_objects.contains(name) && self.refs.get(name).copied().unwrap_or(0) <= 1,
+                other => self.is_fresh(other),
+            },
             _ => false,
         }
     }
@@ -219,6 +322,11 @@ impl<'a> Scan<'a> {
             Expr::Array { elements, .. } => elements.iter().all(|e| self.is_fresh(e)),
             Expr::Map { entries, .. } => entries.iter().all(|(_, v)| self.is_fresh(v)),
             Expr::Call { .. } | Expr::StaticCall { .. } => self.callee_key(expr).is_some_and(|k| self.ctx.fresh_containers.contains(&k)),
+            // `resolve t` d'un appel `async` qui retourne un conteneur neuf.
+            Expr::Resolve { expr: task, .. } => match task.as_ref() {
+                Expr::Ident(name, _) => self.fresh_task_containers.contains(name) && self.refs.get(name).copied().unwrap_or(0) <= 1,
+                other => self.is_fresh_container_value(other),
+            },
             _ => false,
         }
     }
@@ -262,6 +370,14 @@ impl<'a> Scan<'a> {
     fn declare(&mut self, name: &str, ty: &Type, kind: VarKind, value: &Expr) {
         self.var_types.insert(name.to_string(), ty.clone());
         self.var_kinds.insert(name.to_string(), kind);
+        self.var_loop_depth.insert(name.to_string(), self.loop_depth);
+        if let Type::Resolvable(inner) = ty {
+            if is_object_container(inner) && self.is_fresh_container_value(value) {
+                self.fresh_task_containers.insert(name.to_string());
+            } else if matches!(inner.as_ref(), Type::Named(_)) && self.is_fresh(value) {
+                self.fresh_task_objects.insert(name.to_string());
+            }
+        }
         if is_object_container(ty) {
             match value {
                 Expr::Array { elements, .. } => {
@@ -295,7 +411,8 @@ impl<'a> Scan<'a> {
         }
         if let Some(c) = self.cand_of(target) {
             if c.starts_with('#') {
-                self.field_assign(&c, value);
+                let to_self = matches!(target, Expr::Field { object, .. } if matches!(object.as_ref(), Expr::SelfExpr(_)));
+                self.field_assign(&c, to_self, value);
                 return;
             }
             self.disqualified.insert(c);
@@ -307,7 +424,11 @@ impl<'a> Scan<'a> {
     }
 
     /// `x.champ = valeur` d'un champ suivi.
-    fn field_assign(&mut self, field_key: &str, value: &Expr) {
+    fn field_assign(&mut self, field_key: &str, to_self: bool, value: &Expr) {
+        if field_key.starts_with("#?") {
+            self.disqualified.insert(field_key.to_string());
+            return self.kept(value, None);
+        }
         let field = field_key.trim_start_matches('#').to_string();
         if self.is_fresh_container_value(value) {
             return self.expr(value);
@@ -320,7 +441,10 @@ impl<'a> Scan<'a> {
                 return;
             }
             if self.candidates.contains(name) {
-                self.moved.push((name.clone(), None));
+                let Expr::Ident(_, span) = value else { unreachable!() };
+                let mut m = self.new_move(name, None, (span.line, span.col), to_self);
+                m.field = Some(field_key.to_string());
+                self.moved.push(m);
                 if !matches!(self.var_kinds.get(name), Some(VarKind::Var)) {
                     self.disqualified.insert(field_key.to_string());
                 }
@@ -342,9 +466,15 @@ impl<'a> Scan<'a> {
                 _ => self.kept(v, None),
             },
             Stmt::Raise { value: v, .. } | Stmt::Emit { value: v, .. } => self.kept(v, None),
-            Stmt::If { condition, .. } | Stmt::While { condition, .. } => {
+            Stmt::If { condition, .. } => {
                 self.expr(condition);
                 for_each_block(stmt, &mut |b| self.block(b));
+            }
+            Stmt::While { condition, .. } => {
+                self.expr(condition);
+                self.loop_depth += 1;
+                for_each_block(stmt, &mut |b| self.block(b));
+                self.loop_depth -= 1;
             }
             Stmt::Switch { subject, .. } => {
                 self.expr(subject);
@@ -362,7 +492,13 @@ impl<'a> Scan<'a> {
             Some(root) => vars.iter().for_each(|v| { self.aliases.insert((*v).clone(), root.clone()); }),
             None => self.expr(iter),
         }
+        // Type d'élément connu : la variable de boucle a une classe statique.
+        if let Some(Type::Array(inner) | Type::Map(_, inner)) = self.static_type(iter) {
+            if let Some(v) = vars.last() { self.var_types.insert((*v).clone(), *inner); }
+        }
+        self.loop_depth += 1;
         for_each_block(stmt, &mut |b| self.block(b));
+        self.loop_depth -= 1;
     }
 
     fn call(&mut self, call: &Expr, args: &[Expr]) {
@@ -385,7 +521,9 @@ impl<'a> Scan<'a> {
                 // conteneur local, résolu par `finish`.
                 Some(c) if !c.starts_with('#') && !self.params.contains(&c) => {
                     fresh_args[i] = true;
-                    self.moved.push((c, Some(call_index)));
+                    let pos = match arg { Expr::Ident(_, span) => (span.line, span.col), _ => (0, 0) };
+                    let m = self.new_move(&c, Some(call_index), pos, false);
+                    self.moved.push(m);
                 }
                 _ => self.kept(arg, types.get(i)),
             }
@@ -451,8 +589,11 @@ impl<'a> Scan<'a> {
                 // Un champ suivi manipulé dans une closure : prudence.
                 let mut inner = HashMap::new();
                 count_refs_block(body, &mut inner);
-                for key in inner.keys().filter(|k| k.starts_with('#') && self.watched.contains(&k[1..])) {
-                    self.disqualified.insert(key.clone());
+                for name in inner.keys().filter_map(|k| k.strip_prefix('#')) {
+                    let suffix = format!(".{}", name);
+                    if self.watched.iter().any(|w| w.ends_with(&suffix)) {
+                        self.disqualified.insert(format!("#?{}", name));
+                    }
                 }
             }
             // Hors position d'appel : une fonction peut être passée comme valeur.

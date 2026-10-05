@@ -94,3 +94,35 @@ pub fn object_elem_class(ty: &Type) -> Option<&str> {
 pub fn is_object_container(ty: &Type) -> bool {
     object_elem_class(ty).is_some()
 }
+
+/// Positions (ligne, colonne) de chaque identifiant référencé dans `block`
+/// (corps des closures exclus, comme `Scan`).
+pub(crate) fn ident_positions_block(block: &Block, out: &mut HashMap<String, Vec<(usize, usize)>>) {
+    for stmt in &block.stmts {
+        match stmt {
+            Stmt::Var { value, .. } | Stmt::Const { value, .. } | Stmt::Expr(value) | Stmt::Raise { value, .. } | Stmt::Emit { value, .. } => ident_positions(value, out),
+            Stmt::Assign { target, value, .. } => { ident_positions(target, out); ident_positions(value, out); }
+            Stmt::Return { value: Some(v), .. } | Stmt::Result { value: Some(v), .. } => ident_positions(v, out),
+            Stmt::If { condition: c, .. } | Stmt::While { condition: c, .. } | Stmt::Switch { subject: c, .. } => ident_positions(c, out),
+            Stmt::ForIn { iter, .. } | Stmt::ForMap { iter, .. } => ident_positions(iter, out),
+            _ => {}
+        }
+        for_each_block(stmt, &mut |b| ident_positions_block(b, out));
+    }
+}
+
+fn ident_positions(expr: &Expr, out: &mut HashMap<String, Vec<(usize, usize)>>) {
+    let mut each = |e: &Expr| ident_positions(e, out);
+    match expr {
+        Expr::Ident(name, span) => out.entry(name.clone()).or_default().push((span.line, span.col)),
+        Expr::Call { callee, args, .. } => { each(callee); args.iter().for_each(each); }
+        Expr::StaticCall { args, .. } | Expr::New { args, .. } | Expr::Array { elements: args, .. } => args.iter().for_each(each),
+        Expr::Map { entries, .. } => entries.iter().for_each(|(k, v)| { each(k); each(v); }),
+        Expr::Field { object: e, .. } | Expr::Unary { operand: e, .. } | Expr::Resolve { expr: e, .. }
+        | Expr::IsCheck { expr: e, .. } | Expr::IncDec { target: e, .. } | Expr::NamedArg { value: e, .. } => each(e),
+        Expr::Binary { left: a, right: b, .. } | Expr::Index { object: a, index: b, .. } | Expr::Range { start: a, end: b, .. } => { each(a); each(b); }
+        Expr::Template { parts, .. } => parts.iter().for_each(|p| if let TemplatePartExpr::Expr(e) = p { each(e) }),
+        Expr::Match { subject, arms, .. } => { each(subject); arms.iter().for_each(|a| each(&a.body)); }
+        Expr::Nameless { .. } | Expr::Literal(..) | Expr::SelfExpr(_) | Expr::ParentExpr(_) | Expr::StaticConst { .. } => {}
+    }
+}
