@@ -377,10 +377,12 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
             // Bloc du gestionnaire
             hb.switch_to(&handler_bb);
 
-            // Lie le binding à err_val
+            // Lie le binding à err_val — `Ptr` (objet, ou `mixed` pour `on e`
+            // sans filtre) : en `I64`, `${e}` d'une chaîne levée affichait
+            // son adresse.
             let ev = hb.new_value();
             hb.emit(Inst::Load { dest: ev.clone(), ptr: ev_slot.clone(), ty: IrType::I64 });
-            let e_slot = hb.declare_local(&handler.binding, IrType::I64, false);
+            let e_slot = hb.declare_local(&handler.binding, IrType::Ptr, false);
             hb.emit(Inst::Store { ptr: e_slot, src: ev });
 
             // Associer le binding à la classe pour l'accès aux champs

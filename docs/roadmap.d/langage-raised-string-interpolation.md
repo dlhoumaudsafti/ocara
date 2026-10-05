@@ -1,31 +1,28 @@
-# `${e}` d'une chaîne levée affiche une adresse
+# `${e}` d'une chaîne levée affichait une adresse — corrigé
 
 ## Constat
-
-Trouvé en corrigeant [sema-builtin-parent-init-noop](sema-builtin-parent-init-noop.md) :
 
 ```ocara
 try {
     raise "texte"
 } on e {
-    IO::writeln(`${e}`)    // affiche "4481120", attendu "texte"
+    IO::writeln(`${e}`)    // affichait "4481120"
 }
 ```
 
-Le handler générique `on e` type `e` en `mixed`. La valeur levée est une
-chaîne littérale (`.rodata`, `TAG_STRING`), mais l'interpolation d'un `mixed`
-l'affiche comme un entier. À comparer avec `${v}` sur un `mixed` construit
-autrement (littéral de map, `JSON::decode`), qui affiche correctement les
-chaînes : il faut voir si la valeur transmise par `__ocara_fail` au handler
-garde bien son tag, ou si elle est stockée sous une forme non taggée.
+## Cause
 
-`EBNF.md` §29.2 montre justement ce cas (`raise \`inconnu : ${e}\``).
+Le lowering de `try`/`on` (`lower_try`,
+`src/lower/stmt.d/statements.d/exceptions.rs`) déclarait la variable du
+handler en `IrType::I64`. Le commentaire de la variante pour générateurs
+(`message_gen.rs`) jugeait ce choix « cosmétique ». Or l'interpolation choisit
+son formatage selon le type IR : en `I64`, la chaîne levée était affichée
+comme un entier, c'est-à-dire son adresse.
 
-## Priorité / Complexité
+## Correctif
 
-Haute (sortie fausse silencieuse) — **Simple à Légère**.
+Variable du handler déclarée `IrType::Ptr` (objet, ou `mixed` pour `on e`
+sans filtre), dans `lower_try` et dans `lower_try_in_generator`. Les accès aux
+champs (`e.message`) sont inchangés.
 
-## Fichiers clés
-
-`src/lower/stmt.d/` (lowering de `try`/`on`), `runtime/src/exception.rs`
-(`__ocara_fail`), lowering des templates (`Expr::Template`).
+Test : `examples/tests/78_raised_string_interpolationTest.oc`.

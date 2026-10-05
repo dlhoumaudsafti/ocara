@@ -39,11 +39,11 @@ class CarController {
             return 0
         }
 
-        var reference:string = car_details.Car.reference
-        var brand:string      = car_details.Car.brand
-        var model:string      = car_details.Car.model
-        var purchase_price:float  = car_details.Car.purchasePrice
-        var estimated_price:float = car_details.Car.estimatedPrice
+        var reference:string = car_details.car.reference
+        var brand:string      = car_details.car.brand
+        var model:string      = car_details.car.model
+        var purchase_price:float  = car_details.car.purchase_price
+        var estimated_price:float = car_details.car.estimated_price
 
         var rows_html:string = ""
         for m in car_details.maintenances {
@@ -51,7 +51,7 @@ class CarController {
                 type="${m.type}"
                 description="${m.description}"
                 cost="${Format::price(m.cost)}"
-                date="${Format::date(m.createdAt)}"
+                date="${Format::date(m.created_at)}"
             >`
         }
         if car_details.maintenances.len() equal 0 {
@@ -61,8 +61,8 @@ class CarController {
         scoped id_str:string = Convert::intToStr(id)
         scoped purchase_price_text:string  = Format::price(purchase_price)
         scoped estimated_price_text:string = Format::price(estimated_price)
-        scoped maintenance_total_text:string = Format::price(car_details.maintenanceTotal)
-        scoped improvement_total_text:string = Format::price(car_details.improvementTotal)
+        scoped maintenance_total_text:string = Format::price(car_details.maintenance_total)
+        scoped improvement_total_text:string = Format::price(car_details.improvement_total)
 
         scoped error_code:string   = req.query("error")
         scoped success_code:string = req.query("success")

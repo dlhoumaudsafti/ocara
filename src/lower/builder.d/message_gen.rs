@@ -726,9 +726,8 @@ fn walk_stmts(stmts: &[Stmt], try_depth: usize, out: &mut Vec<(String, IrType)>)
                 push_unique(out, try_frame_field(try_depth), IrType::Ptr);
                 walk_block(body, try_depth + 1, out);
                 for h in handlers {
-                    // Même type que le binding `on e` de `lower_try` (I64,
-                    // pas Ptr — cosmétique au niveau du lowering, voir sa doc).
-                    push_unique(out, h.binding.clone(), IrType::I64);
+                    // Même type que le binding `on e` de `lower_try`.
+                    push_unique(out, h.binding.clone(), IrType::Ptr);
                     walk_block(&h.body, try_depth, out);
                 }
             }

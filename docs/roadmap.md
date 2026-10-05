@@ -10,7 +10,7 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 Cette roadmap est construite pour qu'on puisse dire que le langage est stable **quand la section "Priorité Haute" ci-dessous est vide** — pas avant. Ce n'est pas un objectif séparé à suivre en plus des tickets : c'est littéralement ce que cette section représente. Volontairement, aucune checklist n'est dupliquée ici (le projet a déjà payé le prix d'une source de vérité dupliquée ailleurs — voir `docs/adding-builtins.md`, la double liste `OCARA_BUILTINS`) : la liste unique à vider est celle de la section "Priorité Haute".
 
-**La section "Priorité Haute" a de nouveau des points ouverts** (voir ci-dessous) — au sens de cette définition, le langage n'est momentanément pas « stable ». Les sections Moyenne/Basse/Très Basse ci-dessous restent à traiter mais ne bloquent pas cette définition — voir la Légende.
+**La section "Priorité Haute" est actuellement vide** — au sens de cette définition, le langage est « stable ». Les sections Moyenne/Basse/Très Basse ci-dessous restent à traiter mais ne bloquent pas cette définition — voir la Légende.
 
 ## Légende
 
@@ -29,7 +29,7 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **`${e}` d'une chaîne levée (`raise "texte"`) affiche une adresse** — dans `try { raise "texte" } on e { IO::writeln(`${e}`) }`, la sortie est un nombre (`4481120`) au lieu de `texte` : `e` est `mixed`, et l'interpolation ne reconnaît pas la chaîne. *(Simple à Légère)* → [détails](roadmap.d/langage-raised-string-interpolation.md)
+_Aucun point ouvert._
 
 ---
 
