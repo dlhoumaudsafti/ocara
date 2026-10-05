@@ -95,6 +95,13 @@ pub const BUILTIN_EXCEPTION_NAMES: &[&str] = &[
     "YAMLException", "SDLException", "TauriException",
 ];
 
+/// `Exception` ou l'une des exceptions builtin — constructeur
+/// `(message:string, code:int = 0)`, sans fonction runtime : les champs sont
+/// écrits directement par le lowering (`lower_builtin_exception_init`).
+pub fn is_builtin_exception(name: &str) -> bool {
+    name == "Exception" || BUILTIN_EXCEPTION_NAMES.contains(&name)
+}
+
 fn make_exception_class() -> ClassInfo {
     let mut fields = HashMap::new();
     fields.insert("message".to_string(), FieldInfo {

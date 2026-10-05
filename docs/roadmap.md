@@ -29,7 +29,7 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **`parent::init(...)` sans effet pour un parent builtin d'exception** — dans `class MyErr extends Exception { init(message:string, code:int) { parent::init(message, code) } }`, l'appel compile mais n'affecte rien : `err.message` vaut `null`. Le corpus contourne en écrivant `self.message = message`. Il faut soit un vrai appel au constructeur builtin, soit une erreur de compilation. *(Simple à Légère)* → [détails](roadmap.d/sema-builtin-parent-init-noop.md)
+- **`${e}` d'une chaîne levée (`raise "texte"`) affiche une adresse** — dans `try { raise "texte" } on e { IO::writeln(`${e}`) }`, la sortie est un nombre (`4481120`) au lieu de `texte` : `e` est `mixed`, et l'interpolation ne reconnaît pas la chaîne. *(Simple à Légère)* → [détails](roadmap.d/langage-raised-string-interpolation.md)
 
 ---
 

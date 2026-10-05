@@ -29,8 +29,11 @@ class MaintenanceRepository implements MaintenanceContract {
 
     public static async method forCar(car_id:int): array<MaintenanceEntity> {
         const db:SQLite = Database::connect()
-        const rows:array<map<string, mixed>> = db.query(
-            "SELECT * FROM maintenances WHERE car_id = :carId ORDER BY created_at DESC",
+        consumed rows:array<map<string, mixed>> = db.query(
+            `SELECT *
+            FROM maintenances
+            WHERE car_id = :carId
+            ORDER BY created_at DESC`,
             {"carId": car_id}
         )
         db.close()
@@ -65,8 +68,10 @@ class MaintenanceRepository implements MaintenanceContract {
     // du prix de vente estimé (context.car.app.usecase.PricingService).
     public static async method improvementTotal(car_id:int): float {
         const db:SQLite = Database::connect()
-        const row:map<string, mixed> = db.queryOne(
-            "SELECT COALESCE(SUM(cost), 0) as total FROM maintenances WHERE car_id = :carId AND type = 'improvement'",
+        consumed row:map<string, mixed> = db.queryOne(
+            `SELECT COALESCE(SUM(cost), 0) as total
+            FROM maintenances
+            WHERE car_id = :carId AND type = 'improvement'`,
             {"carId": car_id}
         )
         db.close()
@@ -78,8 +83,10 @@ class MaintenanceRepository implements MaintenanceContract {
     // à titre informatif, sans impact sur le prix de vente estimé.
     public static async method maintenanceTotal(car_id:int): float {
         const db:SQLite = Database::connect()
-        const row:map<string, mixed> = db.queryOne(
-            "SELECT COALESCE(SUM(cost), 0) as total FROM maintenances WHERE car_id = :carId AND type = 'maintenance'",
+        consumed row:map<string, mixed> = db.queryOne(
+            `SELECT COALESCE(SUM(cost), 0) as total
+            FROM maintenances
+            WHERE car_id = :carId AND type = 'maintenance'`,
             {"carId": car_id}
         )
         db.close()

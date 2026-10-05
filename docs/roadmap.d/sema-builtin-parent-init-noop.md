@@ -1,39 +1,41 @@
-# `parent::init(...)` sans effet pour un parent builtin d'exception
+# Constructeur des exceptions builtin sans effet — corrigé
 
 ## Constat
 
-Trouvé en corrigeant [sema-use-args-without-init](sema-use-args-without-init.md) :
+`parent::init(message, code)` dans une sous-classe d'`Exception` compilait
+mais n'affectait rien (`err.message` valait `null`). En creusant, le bug était
+plus large : `use Exception("boom", 3)` et `raise use FileException("x", 2)`
+donnaient eux aussi `message = null` et `code = 0`. Ces appels produisaient
+un `Exception_init` qui n'existe nulle part, et le codegen ignore sans rien
+dire un appel vers une fonction inconnue. Le corpus contournait le problème
+en écrivant `self.message = message`.
 
-```ocara
-class MyErr extends Exception {
-    init(message:string, code:int) {
-        parent::init(message, code)   // compile, n'affecte rien
-    }
-}
+## Correctif
 
-try {
-    raise use MyErr("boom", 2)
-} on err is MyErr {
-    IO::writeln(err.message)          // affiche "null"
-}
-```
+- **Constructeur `(message:string, code:int = 0)`** pour `Exception` et toutes
+  les exceptions builtin (`is_builtin_exception`,
+  `src/builtins/exception.rs`).
+- **Lowering** (`lower_builtin_exception_init`, `src/lower/expr.d/lower.rs`) :
+  pas de fonction runtime, les champs `message`, `code` et `source` (`""`)
+  sont écrits directement aux offsets de la disposition. Ce chemin sert à
+  `use XException(...)` et à `parent::init(...)` d'une sous-classe, qui
+  écrit dans `self`.
+- **Sema** (`check_builtin_exception_ctor`, `src/sema/typecheck.rs`) : arité
+  1 ou 2 et types `string`/`int` vérifiés. Auparavant, aucun contrôle n'était
+  fait.
+- Le message d'E60 recommande désormais `parent::init(message, code)`.
 
-Toutes les sous-classes d'exception du corpus contournent le problème en
-écrivant `self.message = message` et `self.code = code`
-(`examples/tests/36_mutex_withlockTest.oc`…). À l'inverse, `parent::init("x")`
-fonctionne pour `HTMLComponent` (`examples/advanced/httpserver/configs/components/`).
+Tests : `examples/tests/77_builtin_exception_constructorTest.oc`,
+`src/sema/tests/use_without_init.rs`. Doc : `docs/EBNF.md` §29.4.
 
-## À trancher
+## Limite connue
 
-- **Appel réel** du constructeur des exceptions builtin (`message`, `code`,
-  `source`), comme pour `HTMLComponent`.
-- Ou **erreur de compilation**, qui renvoie vers `self.message = …`.
+`var e:Exception = use FileException(...)` reste refusé (« expected type
+'Exception', found 'FileException' ») : les exceptions builtin n'ont pas
+`Exception` comme parent pour la sema (voir `BUILTIN_EXCEPTION_NAMES`), seul
+`on e is Exception` les attrape. C'était déjà le cas avant ce correctif.
 
-## Priorité / Complexité
+## Bug trouvé
 
-Haute (erreur silencieuse) — **Simple à Légère**.
-
-## Fichiers clés
-
-`src/lower/expr.d/lower.rs` (appel `parent::init`, `class == "<parent>"`),
-`src/builtins/exception.rs`, `runtime/src/exception.rs`.
+`${e}` d'une chaîne levée → voir
+[langage-raised-string-interpolation](langage-raised-string-interpolation.md).

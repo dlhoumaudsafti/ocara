@@ -18,7 +18,7 @@ class PricingService {
         }
         consumed improvements_resolvable:Resolvable<float> = MaintenanceContract::improvementTotal(carId)
         var improvements:float = resolve improvements_resolvable
-        var new_estimated:float = car.purchasePrice + improvements
+        var new_estimated:float = car.purchase_price + improvements
 
         CarContract::updateEstimatedPrice(carId, new_estimated)
         return new_estimated

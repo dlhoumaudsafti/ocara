@@ -3780,6 +3780,20 @@ try {
 }
 ```
 
+**Exceptions builtin** (`Exception`, `FileException`, `IOException`…, voir `import ocara.Exception`) : champs `message:string`, `code:int`, `source:string`, constructeur `(message:string, code:int = 0)`. Une classe qui en hérite transmet ses arguments avec `parent::init(...)` — sans `init`, `use` refuse les arguments (E60).
+
+```ocara
+raise use FileException("disque plein", 28)   // e.message = "disque plein", e.code = 28
+
+class AppError extends Exception {
+    init(message:string, code:int) {
+        parent::init(message, code)
+    }
+}
+```
+
+> `source` vaut `""` pour une exception construite par le programme ; le runtime y place le module d'origine (`"HTTPServer"`…) pour une exception qu'il lève lui-même.
+
 ---
 
 ## 30. Résolution des noms

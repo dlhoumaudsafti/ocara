@@ -111,6 +111,40 @@ fn is_forwardable_variadic(builder: &LowerBuilder, arg: &Expr, elem_ty: &IrType)
 /// construit en `mixed` (boxé) alors que la variable le relisait brut :
 /// `0`/`float` ressortaient comme l'adresse de leur cellule (voir
 /// docs/roadmap.d/memoire-nested-array-zero-json.md).
+/// Constructeur d'une exception builtin (`use XException(message, code)`,
+/// ou `parent::init(message, code)` d'une sous-classe) : aucune fonction
+/// runtime, les champs `message`/`code`/`source` sont écrits directement aux
+/// offsets de la disposition de `layout_class`.
+fn lower_builtin_exception_init(builder: &mut LowerBuilder, obj: Value, layout_class: &str, args: &[Expr]) {
+    let set = |builder: &mut LowerBuilder, field: &str, src: Value| {
+        let offset = field_offset(&builder.module.class_layouts, layout_class, field);
+        builder.emit(Inst::SetField { obj: obj.clone(), field: field.into(), src, offset });
+    };
+    let message = match args.first() {
+        Some(a) => lower_expr(builder, a),
+        None => {
+            let v = builder.new_value();
+            let idx = builder.module.intern_string("");
+            builder.emit(Inst::ConstStr { dest: v.clone(), idx });
+            v
+        }
+    };
+    set(builder, "message", message);
+    let code = match args.get(1) {
+        Some(a) => lower_expr(builder, a),
+        None => {
+            let v = builder.new_value();
+            builder.emit(Inst::ConstInt { dest: v.clone(), value: 0 });
+            v
+        }
+    };
+    set(builder, "code", code);
+    let source = builder.new_value();
+    let idx = builder.module.intern_string("");
+    builder.emit(Inst::ConstStr { dest: source.clone(), idx });
+    set(builder, "source", source);
+}
+
 pub fn lower_array_literal(builder: &mut LowerBuilder, elements: &[Expr], elem_ty: &Type) -> Value {
     let arr = builder.new_value();
     builder.emit(Inst::Call { dest: Some(arr.clone()), func: "__array_new".into(), args: vec![], ret_ty: IrType::Ptr });
@@ -828,6 +862,16 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 resolved_class = &canonical_builtin;
             }
 
+            // `parent::init(message, code)` d'une sous-classe d'exception builtin.
+            if class == "<parent>" && method == "init" && crate::builtins::exception::is_builtin_exception(resolved_class) {
+                if let (Some((self_val, _)), Some(current)) = (builder.load_local("self"), builder.current_class.clone()) {
+                    lower_builtin_exception_init(builder, self_val, &current, args);
+                }
+                let dummy = builder.new_value();
+                builder.emit(Inst::ConstInt { dest: dummy.clone(), value: 0 });
+                return dummy;
+            }
+
             // Pour self::method, chercher la méthode dans la chaîne d'héritage
             if class == "<self>" && !resolved_class.is_empty() {
                 let func_name = format!("{}_{}", resolved_class, method);
@@ -1120,6 +1164,10 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
         Expr::New { class, args, .. } => {
             let dest = builder.new_value();
             builder.emit(Inst::Alloc { dest: dest.clone(), class: class.clone() });
+            if crate::builtins::exception::is_builtin_exception(class) {
+                lower_builtin_exception_init(builder, dest.clone(), class, args);
+                return dest;
+            }
             // Récupère les types de params du constructeur pour boxer F64/Bool → mixed (Ptr)
             let ctor_params = builder.module.ctor_param_types
                 .get(class.as_str())

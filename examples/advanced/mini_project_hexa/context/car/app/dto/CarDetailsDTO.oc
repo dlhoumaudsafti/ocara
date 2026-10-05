@@ -4,8 +4,8 @@ import context.car.domain.entity.CarEntity
 import context.car.domain.entity.MaintenanceEntity
 
 struct CarDetailsDTO {
-    public property Car:CarEntity
+    public property car:CarEntity
     public property maintenances:array<MaintenanceEntity>
-    public property maintenanceTotal:float
-    public property improvementTotal:float
+    public property maintenance_total:float
+    public property improvement_total:float
 }

@@ -1630,6 +1630,15 @@ impl<'a> TypeChecker<'a> {
                     class.clone()
                 };
 
+                // `parent::init(message, code)` d'une sous-classe d'exception builtin.
+                if class == "<parent>" && method == "init" {
+                    let parent = self.current_class.as_deref().and_then(|c| self.symbols.lookup_parent_class(c));
+                    if let Some(parent) = parent.filter(|p| crate::builtins::exception::is_builtin_exception(p)) {
+                        self.check_builtin_exception_ctor(&parent, args, span);
+                        return Type::Void;
+                    }
+                }
+
                 // `Array::fromMessage(message<T>) -> array<T>` (voir §2 de
                 // docs/roadmap.d/langage-emit-iterable.md) : draine TOUS les
                 // `emit`, SANS la restriction "au plus un emit hors boucle"
@@ -1865,6 +1874,10 @@ impl<'a> TypeChecker<'a> {
                     }
                 }
 
+                if crate::builtins::exception::is_builtin_exception(class) {
+                    self.check_builtin_exception_ctor(class, args, span);
+                    return Type::Named(class.clone());
+                }
                 let is_opaque = self.symbols.lookup_class(class).is_some_and(|info| info.is_opaque);
                 let Some(resolved) = self.resolve_named_call(args, |tc| {
                     if is_opaque || (!is_class && !is_generic) {
@@ -2385,6 +2398,22 @@ fn binary_result_type(
 }
 
 impl TypeChecker<'_> {
+    /// Constructeur d'une exception builtin : `(message:string, code:int = 0)`.
+    fn check_builtin_exception_ctor(&mut self, class: &str, args: &[Expr], span: &Span) {
+        if args.is_empty() || args.len() > 2 {
+            self.errors.push(SemaError::WrongArgCount {
+                name: format!("{}::init", class), expected: 1, found: args.len(), span: self.with_runtime_ctx(span),
+            });
+        }
+        for (arg, expected) in args.iter().zip([Type::String, Type::Int]) {
+            let found = self.infer_expr(arg);
+            if !types_compat(&found, &expected, &self.symbols) {
+                self.errors.push(SemaError::TypeMismatch { expected: type_name(&expected), found: type_name(&found), span: arg.span().clone() });
+            }
+        }
+        for arg in args.iter().skip(2) { self.infer_expr(arg); }
+    }
+
     /// Classe déclarée dans le programme — un ancêtre builtin ne lui transmet
     /// jamais les arguments de `use` (il faut un `init` qui appelle
     /// `parent::init(...)`).

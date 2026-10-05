@@ -361,7 +361,7 @@ impl SemaError {
                     format!("field '{}' of '{}' is private — it is only accessible from inside '{}' (expose it through a public method)", field, class, class)
                 },
             SemaError::ArgsWithoutConstructor { class, found, .. } =>
-                format!("'{}' has no init() — 'use {}()' takes no arguments, {} provided (declare init(...) that receives them and sets the fields, e.g. self.message = message for an exception, or use a struct for a constructor from its fields)", class, class, found),
+                format!("'{}' has no init() — 'use {}()' takes no arguments, {} provided (declare init(...) that receives them — for an exception: init(message:string, code:int) {{ parent::init(message, code) }} — or use a struct for a constructor from its fields)", class, class, found),
             SemaError::ArithmeticOnNonNumeric { op, operand, .. } =>
                 format!("operator '{}' cannot be applied to '{}' — only int, float and mixed support it ('+' also concatenates strings, '-=' removes occurrences from a string)", op, operand),
             SemaError::FieldCalledAsMethod { class, field, .. } =>

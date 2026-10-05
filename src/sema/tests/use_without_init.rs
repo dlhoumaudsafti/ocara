@@ -59,6 +59,14 @@ fn arguments_without_init_are_rejected() {
 }
 
 #[test]
+fn builtin_exception_constructor_is_checked() {
+    let errs = errors(r#"var a:Exception = use Exception()
+            var b:Exception = use Exception(3)"#);
+    assert!(errs.iter().any(|e| matches!(e, SemaError::WrongArgCount { .. })), "{:?}", errs);
+    assert!(errs.iter().any(|e| matches!(e, SemaError::TypeMismatch { .. })), "{:?}", errs);
+}
+
+#[test]
 fn no_arguments_and_inherited_init_are_accepted() {
     let errs = errors(r#"var c:C = use C()
             var f:F = use F("ok")
