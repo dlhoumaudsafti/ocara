@@ -271,7 +271,7 @@ function main(): int {
     try {
         var counts:map<string, int> = count_by_extension("/tmp/data")
         
-        for ext => count in counts {
+        for ext has count in counts {
             IO::writeln(`${ext}: ${count} fichier(s)`)
         }
     } on e is DirectoryException {

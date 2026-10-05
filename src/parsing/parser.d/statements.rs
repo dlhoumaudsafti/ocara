@@ -165,8 +165,16 @@ impl Parser {
 
         let first = self.eat_ident()?.0;
 
-        // `for k => v in expr`
+        // `for k has v in expr` — `has` n'est un mot-clé qu'à cette position
+        // (identifiant ordinaire ailleurs : `m.has(k)`). L'ancienne forme
+        // `for k => v` est refusée avec un message de migration.
         if self.check_exact(&TokenKind::Arrow) {
+            return Err(ParseError::new(
+                "'for k => v in m' is no longer supported — write 'for k has v in m'".to_string(),
+                self.span(),
+            ));
+        }
+        if matches!(self.peek_kind(), TokenKind::Ident(w) if w == "has") {
             self.advance();
             let val = self.eat_ident()?.0;
             self.eat(&TokenKind::In)?;

@@ -90,7 +90,7 @@ class Test_07_loops {
             "Carol": 78
         }
         var entry_count:int = 0
-        for nom => points in scores {
+        for nom has points in scores {
             entry_count = entry_count + 1
         }
         UnitTest::assertEquals(3, entry_count)

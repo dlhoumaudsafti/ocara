@@ -307,7 +307,7 @@ pub fn lower_continue(builder: &mut LowerBuilder) {
     }
 }
 
-/// Tests unitaires — `for x in array<Classe>` / `for k => v in map<K,Classe>`
+/// Tests unitaires — `for x in array<Classe>` / `for k has v in map<K,Classe>`
 /// (docs/roadmap.d/langage-union-class-null-field-access.md) : la variable
 /// de boucle/valeur n'avait AUCUNE entrée `var_class` dès que l'élément
 /// itéré était une classe utilisateur (seul l'élément `map` était géré) —
@@ -383,7 +383,7 @@ mod tests {
         assert_eq!(builder.var_class.get("n"), None);
     }
 
-    /// `for k => v in m` où `m:map<string, Foo>` — la variable VALEUR doit
+    /// `for k has v in m` où `m:map<string, Foo>` — la variable VALEUR doit
     /// être enregistrée comme instance de Foo (jamais géré du tout avant ce
     /// correctif : `lower_for_map` n'enregistrait aucune métadonnée de
     /// classe pour `value`, quel que soit le type de valeur de la map).

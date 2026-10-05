@@ -3523,7 +3523,7 @@ while x greater 0 {
 
 ```ebnf
 ForStmt ::= "for" Identifier "in" Expression Block
-          | "for" Identifier "=>" Identifier "in" Expression Block   (* voir §27.3 *)
+          | "for" Identifier "has" Identifier "in" Expression Block   (* voir §27.3 *)
 ```
 
 ```ocara
@@ -3537,14 +3537,16 @@ for i in 0..5 {
 Seconde alternative de la règle `ForStmt` définie en §27.2 :
 
 ```ebnf
-ForStmt ::= "for" Identifier "=>" Identifier "in" Expression Block
+ForStmt ::= "for" Identifier "has" Identifier "in" Expression Block
 ```
 
 ```ocara
-for key => value in profile {
+for key has value in profile {
     IO::writeln(key + " = " + value)
 }
 ```
+
+> `has` n'est un mot-clé qu'à cette position : ailleurs c'est un identifiant ordinaire (`m.has(k)`, `sess.has("user")`). L'ancienne forme `for k => v in m` est refusée à la compilation (« 'for k => v in m' is no longer supported — write 'for k has v in m' ») ; `=>` reste réservé aux bras de `match`.
 
 ### 27.4 Opérateur de plage
 
@@ -3948,7 +3950,7 @@ SwitchCase  ::= Literal Block
 (* ── Boucles ────────────────────────────────────────────────────── *)
 
 ForStmt     ::= "for" Identifier "in" Expression Block
-              | "for" Identifier "=>" Identifier "in" Expression Block
+              | "for" Identifier "has" Identifier "in" Expression Block
 WhileStmt   ::= "while" Expression Block
 
 (* ── Expressions (hiérarchie de précédence) ─────────────────────── *)

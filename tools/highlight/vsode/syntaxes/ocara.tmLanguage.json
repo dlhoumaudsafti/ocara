@@ -354,8 +354,20 @@
     },
 
     "keyword-control": {
-      "name": "keyword.control.ocara",
-      "match": "\\b(if|elseif|else|switch|match|while|for|in|return|result|break|continue|default|try|on|raise|emit)\\b"
+      "patterns": [
+        {
+          "comment": "`has` n'est un mot-clé que dans `for k has v in m` (identifiant ailleurs : m.has(k)).",
+          "match": "\\b(for)\\s+([a-zA-Z_][\\w]*)\\s+(has)\\b",
+          "captures": {
+            "1": { "name": "keyword.control.ocara" },
+            "3": { "name": "keyword.control.ocara" }
+          }
+        },
+        {
+          "name": "keyword.control.ocara",
+          "match": "\\b(if|elseif|else|switch|match|while|for|in|return|result|break|continue|default|try|on|raise|emit)\\b"
+        }
+      ]
     },
 
     "keyword-declaration": {

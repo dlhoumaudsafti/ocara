@@ -5,7 +5,7 @@
 //   - while : boucle conditionnelle
 //   - for i in range : itération sur une plage d'entiers
 //   - for i in array : itération sur un tableau
-//   - for key => val in map : itération clé/valeur
+//   - for key has val in map : itération clé/valeur
 //   - Opérateur de plage : start..end (end exclus)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -47,7 +47,7 @@ function main(): int {
         "Bob":   82,
         "Carol": 78
     }
-    for nom => points in scores {
+    for nom has points in scores {
         IO::writeln(nom)
         IO::writeln(points)
     }

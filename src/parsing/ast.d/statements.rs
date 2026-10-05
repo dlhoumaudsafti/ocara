@@ -78,7 +78,7 @@ pub enum Stmt {
         span: Span,
     },
 
-    /// `for k => v in expr { }`
+    /// `for k has v in expr { }`
     ForMap {
         key:   String,
         value: String,

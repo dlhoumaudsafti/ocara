@@ -1,4 +1,4 @@
-# `for k => v in map` : valeur lue en `int` — corrigé
+# `for k has v in map` : valeur lue en `int` — corrigé
 
 Trouvé en vérifiant `ocaracs --fix` : dans `for pays => capitale in
 capitales` (`map<string, string>`), `${capitale}` et
