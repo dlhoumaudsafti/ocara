@@ -1,0 +1,29 @@
+import ocara.UnitTest
+
+// `on e` (sans filtre) reçoit une valeur `mixed` : `${e}` d'une chaîne levée
+// doit afficher la chaîne, pas son adresse.
+class Test_78_raised_string_interpolation {
+
+    public method literalStringTest(): int {
+        var seen:string = ""
+        try {
+            raise "texte"
+        } on e {
+            seen = `${e}`
+        }
+        UnitTest::assertEquals("texte", seen)
+        return 0
+    }
+
+    public method templateStringTest(): int {
+        var n:int = 3
+        var seen:string = ""
+        try {
+            raise `erreur ${n}`
+        } on e {
+            seen = `attrapé : ${e}`
+        }
+        UnitTest::assertEquals("attrapé : erreur 3", seen)
+        return 0
+    }
+}

@@ -24,9 +24,9 @@ export const KEYWORDS: Record<string, KeywordDoc> = {
     exit:       { section: '5.3', summary: "Bloc runtime exécuté à la fin du programme, dans tous les cas." },
     result:     { section: '5.5', summary: "Dans un bloc runtime : fixe le code de résultat du programme (`result SUCCESS`, `result 5`) — `return` y est interdit." },
     // Variables
-    var:        { section: '9.1', summary: "Variable mutable. Ne libère jamais rien automatiquement (pas de GC)." },
-    scoped:     { section: '9.2', summary: "Variable libérée automatiquement (ressource fermée) à la fin de son bloc ; ne peut pas s'échapper du bloc." },
-    consumed:   { section: '9.3', summary: "Variable à usage unique, détruite après sa première utilisation." },
+    var:        { section: '9.1', summary: "Variable mutable. Sa valeur est comptée : libérée quand plus rien ne la référence." },
+    scoped:     { section: '9.2', summary: "Variable de bloc : rend sa référence (ferme sa ressource) à la fin du bloc ; une ressource ne peut pas s'échapper du bloc." },
+    consumed:   { section: '9.3', summary: "Variable à usage unique : rend sa référence (ferme sa ressource) juste après sa première utilisation." },
     const:      { section: '9.4', summary: "Constante (globale, locale ou de classe) ; valeur de constante de classe connue à la compilation." },
     // Types
     int:        { section: '6.1', summary: "Entier signé 64 bits." },
@@ -78,8 +78,9 @@ export const KEYWORDS: Record<string, KeywordDoc> = {
     default:    { section: '25', summary: "Cas par défaut d'un `switch`/`match`." },
     match:      { section: '26', summary: "Expression de filtrage, un bras par ligne : `1 => ...`, `is string => ...`, `default => ...`." },
     while:      { section: '27.1', summary: "Boucle tant que la condition est vraie." },
-    for:        { section: '27.2', summary: "Boucle d'itération : `for x in tableau`, `for k => v in map`, `for i in 0..n`." },
+    for:        { section: '27.2', summary: "Boucle d'itération : `for x in tableau`, `for k has v in map`, `for i in 0..n`." },
     in:         { section: '27.2', summary: "Dans un `for` : la collection parcourue." },
+    has:        { section: '27.3', summary: "Dans `for k has v in m` : sépare la clé de la valeur d'une map." },
     break:      { section: '27.5', summary: "Sort de la boucle courante." },
     continue:   { section: '27.6', summary: "Passe à l'itération suivante de la boucle courante." },
     // Exceptions
@@ -101,4 +102,4 @@ export const KEYWORDS: Record<string, KeywordDoc> = {
  * paramètre, méthode : `var result:int`, `e.message`, `method(...)` de
  * HTTPServer...) — documentés au survol seulement hors de ces positions.
  */
-export const CONTEXTUAL_KEYWORDS = new Set(['result', 'from', 'message', 'main', 'error', 'success', 'exit', 'init', 'method', 'emit', 'default', 'map', 'array']);
+export const CONTEXTUAL_KEYWORDS = new Set(['result', 'from', 'message', 'main', 'error', 'success', 'exit', 'init', 'method', 'emit', 'default', 'map', 'array', 'has']);

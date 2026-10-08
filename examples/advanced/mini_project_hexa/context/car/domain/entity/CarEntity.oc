@@ -10,15 +10,15 @@ class CarEntity {
     public property reference:string
     public property brand:string
     public property model:string
-    public property purchasePrice:float
-    public property estimatedPrice:float
+    public property purchase_price:float
+    public property estimated_price:float
 
-    init(id:int|null, reference:string, brand:string, model:string, purchasePrice:float, estimatedPrice:float) {
+    init(id:int|null, reference:string, brand:string, model:string, purchase_price:float, estimated_price:float) {
         self.id = id
         self.reference = reference
         self.brand = brand
         self.model = model
-        self.purchasePrice = purchasePrice
-        self.estimatedPrice = estimatedPrice
+        self.purchase_price = purchase_price
+        self.estimated_price = estimated_price
     }
 }

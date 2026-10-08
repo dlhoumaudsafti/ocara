@@ -11,7 +11,7 @@ pub fn lower_nameless_fn(
     module:        &mut crate::ir::module::IrModule,
     anon_name:     &str,
     params:        &[Param],
-    _ret_ty:        IrType,  // ignoré — toutes les closures retournent I64 (convention uniforme)
+    ret_ast_ty:    Option<Type>,  // type déclaré ; l'ABI retourne toujours I64
     body:          &Block,
     captures:      &[(String, IrType)],
     fn_ret_types:  &HashMap<String, IrType>,
@@ -59,6 +59,7 @@ pub fn lower_nameless_fn(
         builder.current_class  = current_class.clone();
         builder.var_class      = var_class.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         builder.func_vars      = func_vars.clone();
+        builder.ret_ast_ty     = ret_ast_ty;
 
         // Setup params (alloca + receiver)
         let mut updated_params: Vec<IrParam> = Vec::new();
@@ -73,6 +74,7 @@ pub fn lower_nameless_fn(
             if let Type::Function { ret_ty, .. }  = &param.ty  {
                 builder.func_vars.insert(param.name.clone());
                 builder.func_ret_types.insert(param.name.clone(), IrType::from_ast(ret_ty));
+                builder.func_ret_ast.insert(param.name.clone(), (**ret_ty).clone());
             }
             // Un paramètre de type classe (`nameless(db:SQLite): void {...}`,
             // voir SQLite::withOpen/MySQL::withConnect) doit être enregistré
@@ -189,7 +191,10 @@ pub fn lower_nameless_fn(
             }
         }
 
+        crate::lower::stmt::rc::begin_unwind(&mut builder);
+        crate::lower::stmt::rc::begin_function(&mut builder, params);
         crate::lower::stmt::lower_block(&mut builder, body);
+        crate::lower::stmt::rc::end_function(&mut builder);
 
         // Toujours retourner I64(0) en fallthrough (convention uniforme CallIndirect)
         if !builder.is_terminated() {
@@ -197,6 +202,7 @@ pub fn lower_nameless_fn(
             builder.emit(Inst::ConstInt { dest: z.clone(), value: 0 });
             builder.emit(Inst::Return { value: Some(z) });
         }
+        crate::lower::stmt::rc::finish_unwind(&mut builder);
 
         builder.func
     };

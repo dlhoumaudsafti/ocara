@@ -1,0 +1,54 @@
+import ocara.UnitTest
+import ocara.Exception
+import ocara.FileException
+
+// Constructeur des exceptions builtin `(message:string, code:int = 0)` :
+// `use Exception(...)`, `raise use FileException(...)` et `parent::init(...)`
+// d'une sous-classe remplissent `message`/`code` (valaient `null`/`0`).
+class Test_77_builtin_exception_constructor {
+
+    public method directConstructionTest(): int {
+        var e:Exception = use Exception("boom", 3)
+        UnitTest::assertEquals("boom", e.message)
+        UnitTest::assertEquals(3, e.code)
+        UnitTest::assertEquals("", e.source)
+        var f:FileException = use FileException("absent")
+        UnitTest::assertEquals("absent", f.message)
+        UnitTest::assertEquals(0, f.code)
+        return 0
+    }
+
+    public method raisedBuiltinExceptionTest(): int {
+        var message:string = ""
+        var code:int = 0
+        try {
+            raise use FileException("disque plein", 28)
+        } on e is FileException {
+            message = e.message
+            code = e.code
+        }
+        UnitTest::assertEquals("disque plein", message)
+        UnitTest::assertEquals(28, code)
+        return 0
+    }
+
+    public method parentInitTest(): int {
+        var message:string = ""
+        var code:int = 0
+        try {
+            raise use ParentInitError("via parent", 7)
+        } on e is ParentInitError {
+            message = e.message
+            code = e.code
+        }
+        UnitTest::assertEquals("via parent", message)
+        UnitTest::assertEquals(7, code)
+        return 0
+    }
+}
+
+class ParentInitError extends Exception {
+    init(message:string, code:int) {
+        parent::init(message, code)
+    }
+}

@@ -376,10 +376,10 @@ fichier.oc:9:25: error: 'm' ('Mutex') cannot escape its 'scoped'/'consumed' bloc
 
 Une `scoped`/`consumed` de type `Mutex`/`SQLite`/`MySQL`/`MariaDB`/`Thread`
 est affectée à une variable, un champ, ou retournée — donc destinée à
-survivre à son propre bloc. Contrairement à un `array`/`map` `scoped`/
-`consumed` (silencieusement cloné dans ce cas), un handle de ressource ne
-peut pas être dupliqué : deux « clones » d'un même `Mutex` ne protégeraient
-plus la même section critique.
+survivre à son propre bloc. Contrairement à une valeur (`string`/
+`array`/`map`/objet), qui peut sortir de son bloc en étant partagée
+(comptage de références), un handle de ressource est fermé à la fin du bloc :
+le laisser sortir le rendrait inutilisable.
 
 ```ocara
 scoped m:Mutex = use Mutex()
@@ -541,29 +541,9 @@ m.destroy()   // ❌ 'm' déjà finalisée
 
 ---
 
-### E26 — Argument `scoped`/`consumed` qui s'échappe
+### E26 — Argument `scoped`/`consumed` qui s'échappe *(retiré)*
 
-```
-fichier.oc:9:19: error: 'arr' ('array<int>') is passed as an argument to 'Box::init', which stores it beyond this call — a 'scoped'/'consumed' value cannot be passed where the callee retains it; clone it explicitly first, or pass a fresh value
-```
-
-Une `scoped`/`consumed` passée en argument d'un appel (constructeur, méthode) qui la stocke au-delà de l'appel (ex. un constructeur qui affecte le paramètre à un champ) — la source est libérée en fin de bloc alors que l'appelé en garde encore un alias : pointeur pendouillant, corruption mémoire silencieuse avant ce diagnostic (voir docs/roadmap.d/memoire-echappement-argument.md).
-
-```ocara
-class Box {
-    public property data:array<int>
-    init(a:array<int>) { self.data = a }
-}
-function makeBox(): Box {
-    scoped arr:array<int> = [111, 222, 333]
-    var b:Box = use Box(arr)   // ❌ 'arr' sera libérée en fin de bloc
-    return b
-}
-```
-
-Pour une `scoped`/`consumed` de type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`/`Thread`), tout passage en argument est rejeté (`ResourceEscape`, pas de distinction retenu/prêté possible pour une ressource). Pour `string`/`array`/`map`/instance de classe utilisateur, seul un appel vers une fonction/méthode/constructeur **utilisateur** connue dont ce paramètre est prouvé retenu est rejeté — `Array::push(arr, x)`/`Map::set(m, k, v)` (mutation en place) restent autorisés.
-
-**Correction :** cloner explicitement avant l'appel (ex. `arr.slice(0, arr.len())`), ou déclarer la variable en `var` si le partage est voulu.
+Ce diagnostic n'existe plus pour les valeurs (`string`, `array`, `map`, instance de classe) : elles sont comptées (voir [§9 de l'EBNF](EBNF.md#9-variables-et-constantes)). Passer une `scoped`/`consumed` à un appelé qui la conserve est sûr, l'appelé détient sa propre référence. Une ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`/`Thread`) passée en argument reste refusée (`ResourceEscape`).
 
 ---
 
@@ -586,7 +566,7 @@ Une classe ou un `generic` déclare `extends X` où `X` ne correspond à aucune 
 fichier.oc:4:5: error: 'm' ('Mutex') is declared with 'var'/'const', never escapes its block, and is never '.destroy()'/'.close()' — this native handle leaks permanently, since 'var'/'const' never close a resource automatically (unlike 'scoped'/'consumed'); call '.destroy()'/'.close()' explicitly, or declare it 'scoped'/'consumed' if you want the compiler to finalize it for you
 ```
 
-Un `var`/`const` d'un type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`) dont l'analyse d'échappement statique (la même que pour la libération automatique d'un `var`, voir `crate::sema::escape::var_never_escapes`) prouve qu'il ne s'échappe jamais (jamais retourné, réaffecté, ni passé en argument), et qui atteint la fin de son bloc sans avoir été manuellement `.destroy()`/`.close()`. Contrairement à `scoped`/`consumed`, qui finalisent automatiquement une ressource en fin de bloc, `var`/`const` ne le font jamais — ce handle natif (mutex, connexion) fuit alors pour toujours.
+Un `var`/`const` d'un type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`) dont l'analyse d'échappement statique (`crate::sema::escape::var_never_escapes`) prouve qu'il ne s'échappe jamais (jamais retourné, réaffecté, ni passé en argument), et qui atteint la fin de son bloc sans avoir été manuellement `.destroy()`/`.close()`. Contrairement à `scoped`/`consumed`, qui finalisent automatiquement une ressource en fin de bloc, `var`/`const` ne le font jamais — ce handle natif (mutex, connexion) fuit alors pour toujours.
 
 Volontairement conservateur : dès que la variable pourrait s'échapper d'une façon quelconque (retour, réaffectation, argument d'un appel), aucune erreur n'est levée — mieux vaut manquer une fuite réelle que rejeter du code légitime.
 
@@ -1211,6 +1191,32 @@ t *= 2                      // ❌ E59
 
 ---
 
+### E60 — Arguments passés à une classe sans `init`
+
+```
+fichier.oc:24:15: error: 'C' has no init() — 'use C()' takes no arguments, 1 provided (declare init(...) that receives them — for an exception: init(message:string, code:int) { parent::init(message, code) } — or use a struct for a constructor from its fields)
+```
+
+`use C(args)` sur une classe du programme qui ne déclare pas `init`, et n'en hérite d'aucun ancêtre du programme. Jusqu'à ce diagnostic, les arguments étaient silencieusement perdus (`c.name` valait `null`). Vrai aussi pour une classe qui étend un builtin (`class MyErr extends Exception {}` puis `use MyErr("boom", 2)`) : le constructeur du builtin n'est jamais appelé implicitement, il faut un `init` qui appelle `parent::init(...)`.
+
+```ocara
+class C {
+    public property name:string
+}
+var c:C = use C("x")      // ❌ E60
+
+class MyErr extends Exception {
+    init(message:string, code:int) {
+        parent::init(message, code)
+    }
+}
+var e:MyErr = use MyErr("boom", 2)   // ✅
+```
+
+**Correction :** déclarer un `init(...)` qui reçoit les arguments et affecte les champs, ou utiliser un `struct`, dont le constructeur est généré à partir des champs.
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.
@@ -1280,7 +1286,7 @@ raise use MonException("erreur", 1)   // ⚠️ 'm' ne sera jamais déverrouill�
 m.unlock()                             // jamais atteint
 ```
 
-Volontairement **conservateur** (mêmes principes que E26/E28) : un `raise` à l'intérieur d'un `try` local (même sans vérifier que ses `on` couvrent la classe réellement levée) est considéré rattrapé, jamais signalé ; une finalisation (`.destroy()`/`.close()`/`.join()`/`.detach()`) appelée en ligne droite avant le `raise` supprime l'avertissement. Aucune analyse interprocédurale : seul un `raise` textuel compte, pas un appel vers une fonction qui pourrait elle-même en lever un.
+Volontairement **conservateur** (mêmes principes que E28) : un `raise` à l'intérieur d'un `try` local (même sans vérifier que ses `on` couvrent la classe réellement levée) est considéré rattrapé, jamais signalé ; une finalisation (`.destroy()`/`.close()`/`.join()`/`.detach()`) appelée en ligne droite avant le `raise` supprime l'avertissement. Aucune analyse interprocédurale : seul un `raise` textuel compte, pas un appel vers une fonction qui pourrait elle-même en lever un.
 
 **Correction :** finaliser la ressource avant le code risqué, ou utiliser une variante `withX` qui garantit la finalisation même en cas d'exception — `m.withLock(...)` (voir [Mutex](builtins/Mutex.md)), `SQLite::withOpen(...)` (voir [SQLite](builtins/SQLite.md)), `MySQL::withConnect(...)`/`MariaDB::withConnect(...)` (voir [MySQL](builtins/MySQL.md)) — ou entourer le code à risque d'un `try`/`on` local.
 
@@ -1354,3 +1360,23 @@ try {
 |------|--------------|
 | `0` | Succès — aucune erreur de compilation |
 | `1` | Erreur(s) de compilation — analyse ou codegen échouée |
+
+---
+
+### E61 — Valeur de constante globale non évaluable à la compilation
+
+```
+fichier.oc:6:1: error: value of global constant 'G' must be known at compile time — a literal, possibly negated or combined with +, -, *, /, % (e.g. '-273', '60 * 1000'); use a function for a computed value
+```
+
+Une constante globale est réévaluée à l'entrée de chaque fonction : sa valeur doit être calculable à la compilation, comme une constante de classe (E55). Une valeur issue d'un appel bouclait jusqu'au débordement de pile quand la fonction appelée lisait elle-même ses constantes globales (SIGSEGV confirmé). Sont acceptés : littéraux, `-x`, `not x`, et `+ - * / %` entre littéraux (concaténation `+` entre chaînes).
+
+```ocara
+function tick(): int { return 7 }
+
+const OK:int = 60 * 1000   // ✅
+const G:int = tick()       // ❌ E61
+```
+
+**Correction :** écrire la valeur littérale, ou exposer la valeur calculée par une fonction (`function g(): int { return tick() }`).
+

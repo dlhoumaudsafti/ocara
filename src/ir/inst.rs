@@ -62,6 +62,9 @@ pub enum Inst {
 
     // ── Variables locales (pile) ───────────────────────────────────────────────
     Alloca  { dest: Value, ty: IrType },              // alloue un slot
+    /// Tableau de `words` mots contigus sur la pile (locales comptées d'une
+    /// fonction, voir `lower::stmt::rc`).
+    AllocaWords { dest: Value, words: u32 },
     Store   { ptr: Value, src: Value },               // écrit dans un slot
     Load    { dest: Value, ptr: Value, ty: IrType },  // lit depuis un slot
 

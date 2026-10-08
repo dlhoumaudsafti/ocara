@@ -48,7 +48,7 @@ run_test() {
             echo -e "${RED}FAIL [check devait échouer] $name${RESET}"
             return 1
         else
-            echo -e "${GREEN}OK   $name${RESET}"
+            echo -e "${GREEN}OK [check a échoué] $name${RESET}"
             return 0
         fi
     fi

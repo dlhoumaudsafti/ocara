@@ -39,6 +39,19 @@ pub(crate) const TAG_STRING_OWNED: i64 = 6;
 /// qu'à la narrowing `is` et à `get_value_type` (qui retombe correctement sur
 /// "primitif" pour ce tag, comme pour tout tag non reconnu).
 pub(crate) const TAG_EXCEPTION: i64 = 7;
+/// Cellule d'une variable capturée par une closure ou un `try` (voir
+/// `crate::__alloc_locked_cell`) — comptée, jamais une valeur du langage.
+pub(crate) const TAG_CELL: i64 = 8;
+/// Environnement d'une closure (`crate::__alloc_env`) : ses premiers champs
+/// sont les cellules capturées.
+pub(crate) const TAG_ENV: i64 = 9;
+/// Frame d'un générateur (`crate::__alloc_gen`) : compté, détruit par la
+/// fonction `<générateur>__drop` rangée dans `aux`.
+pub(crate) const TAG_GEN: i64 = 10;
+/// Handle natif rendu comme valeur Ocara (connexion, requête, tâche…, voir
+/// `crate::rc::handle_new`) : jamais compté, mais son en-tête garantit que
+/// `read_tag` ne lit jamais la mémoire d'un bloc étranger.
+pub(crate) const TAG_HANDLE: i64 = 11;
 
 const PTR_THRESHOLD: i64 = 65536;
 

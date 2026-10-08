@@ -38,7 +38,7 @@ class Test_09_maps {
         }
         
         var sum:int = 0
-        for k => v in data {
+        for k has v in data {
             sum = sum + v
         }
         UnitTest::assertEquals(3, sum)
@@ -56,7 +56,7 @@ class Test_09_maps {
         UnitTest::assertEquals(25, ages["Bob"])
         
         var age_count:int = 0
-        for nom => age in ages {
+        for nom has age in ages {
             age_count = age_count + 1
         }
         UnitTest::assertEquals(3, age_count)

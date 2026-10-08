@@ -58,7 +58,7 @@
 | Orienté objet              | Classes, interfaces, héritage simple                |
 | Modulaire                  | Un fichier = un module, imports qualifiés           |
 | Simple à parser            | Grammaire non-ambiguë, syntaxe régulière            |
-| Sans dépendances runtime   | **Aucun ramasse-miettes (GC)** — jamais, par choix de design définitif — pas de runtime externe |
+| Sans dépendances runtime   | **Aucun ramasse-miettes traçant (GC)** — libération déterministe par comptage de références atomique, plus un détecteur de cycles — pas de runtime externe |
 
 **Inspirations** :
 
@@ -1170,15 +1170,9 @@ var count:int = 0
 count = 42      // réaffectation autorisée
 ```
 
-`var` déclare une variable **mutable** dont la portée est celle de la fonction. Elle peut être réaffectée à tout moment après sa déclaration.
+`var` déclare une variable **mutable**, visible du point de sa déclaration à la fin du bloc `{ }` qui la contient (une `var` déclarée dans un `if` n'existe plus après lui ; une déclaration de même nom dans un bloc imbriqué masque l'extérieure jusqu'à la fin de ce bloc). Elle peut être réaffectée à tout moment. Voir aussi [variables.md](variables.md) pour le cycle de vie complet de `var`/`const`/`scoped`/`consumed`.
 
-> **Libération automatique conditionnelle** : contrairement à `scoped`/`consumed` (déclaration explicite, voir §9.2/9.3), une valeur allouée sur le tas (`string`, `array`, `map`, instance de classe utilisateur) stockée dans un `var` est libérée automatiquement en fin de bloc **quand le compilateur peut prouver qu'elle ne s'échappe jamais** de sa fonction (analyse d'échappement statique, sans coût à l'exécution) — sinon (dès le moindre doute), elle reste allouée jusqu'à la fin du programme, exactement comme avant. Il n'y a toujours **aucun ramasse-miettes** : c'est une preuve à la compilation, jamais un suivi de références au runtime.
->
-> **Échappe** (donc jamais libéré automatiquement) : `return`/`result` de la valeur, affectation à un champ (`self.x = v`, `obj.x = v`) ou à un élément de tableau/map, affectation à une autre variable, capture par une closure (`nameless`) ou un `Thread`, `raise` de la valeur, ou passage en argument à un appel dont le paramètre correspondant retient la valeur — ce qui inclut, par prudence, **tout appel dont le compilateur ne peut pas prouver le contraire** (n'importe quel builtin, y compris un appel aussi anodin que `IO::writeln(v)` avec `v` passée directement plutôt que via un template `` `${v}` ``) : seul un appel vers une fonction/méthode/constructeur **utilisateur** connue, prouvée ne pas retenir ce paramètre, est reconnu comme sûr.
->
-> **N'échappe pas** (donc libérable) : lecture directe, opération arithmétique/concaténation, comparaison, interpolation dans un template string (`` `${v}` ``, qui ne fait que lire la valeur pour la formater), réaffectation de la variable elle-même, ou appel d'une méthode sur elle en tant que **récepteur** (`v.len()`, `v.upper()`...) — muter/lire `v` ne la fait pas s'échapper, seul le fait de la donner en ARGUMENT à un appel qui la retient compte.
->
-> Restreint aux types `string`/`array`/`map`/instance de classe utilisateur (jamais `Mutex`/`SQLite`/`MySQL`/`MariaDB`/`Thread` : fermer implicitement une ressource serait un changement de comportement bien plus surprenant pour un simple `var` — ces types continuent de nécessiter `scoped`/`consumed` explicite). Utiliser `scoped`/`consumed` reste recommandé pour rendre l'intention explicite et couvrir aussi les cas où l'analyse ne peut pas prouver l'absence d'échappement.
+> **Gestion mémoire** : toute valeur allouée sur le tas (`string`, `array`, `map`, instance de classe, closure) est **comptée**. Chaque variable, champ, élément de conteneur ou capture qui la référence en détient une référence ; elle est libérée dès que plus rien ne la référence (fin du bloc de la dernière variable, écrasement, retrait du conteneur…). Affecter une valeur à une autre variable (`var y = x`) la **partage** — pas de copie. Les comptes sont atomiques (sûrs entre threads). Les références circulaires (un parent qui référence son enfant et réciproquement) sont rattrapées par un détecteur de cycles, qui s'exécute quand les autres threads sont bloqués dans un appel du runtime (attente d'une requête HTTP, `join`, `sleep`, verrou…). Ce n'est pas un ramasse-miettes : rien ne parcourt le tas pour le nettoyer, la libération a lieu au moment précis où la dernière référence disparaît.
 
 ### 9.2 Variable de bloc (`scoped`)
 
@@ -1201,43 +1195,31 @@ x = 2   // valide — scoped est mutable
 x = x + 10   // valide
 ```
 
-**Destruction réelle à la fermeture du bloc** — uniquement pour les types possédables pris en charge à ce jour :
+**À la fermeture du bloc** :
 
 | Type de `scoped` | À la fermeture du bloc |
 |---|---|
-| `string`, `array<T>`, `map<K,V>` | Réellement libérée — récursivement pour `array`/`map` dont les éléments sont eux-mêmes `string`/`array`/`map`. Si sa valeur a été affectée à une variable qui survit au bloc (`var y = x`, `y = x`, `return x`), cette variable reçoit une **copie profonde indépendante** au moment de l'affectation — la détruire ensuite ne l'affecte donc jamais. Pour `string` précisément : un littéral (`"foo"`) n'est ni libéré ni cloné (aliasé directement, toujours sûr — immuable et figé dans le binaire pour toute la durée du programme) ; seule une string réellement allouée sur le tas (concaténation, `String::*`, lecture de fichier...) l'est. |
-| `Mutex`, `SQLite`, `MySQL`, `MariaDB` | La ressource native est réellement libérée (`.destroy()`/`.close()` implicite). **Ne peut pas s'échapper du bloc** (affectation, `return`) — erreur de compilation, un handle de ressource ne peut être ni cloné ni partagé. |
+| `string`, `array<T>`, `map<K,V>`, instance de classe, closure | La variable rend sa référence. La valeur est libérée si plus rien d'autre ne la référence ; si elle a été partagée (`var y = x`, `return x`, champ, conteneur, argument conservé par l'appelé), elle reste vivante tant que ce partage existe. Un littéral (`"foo"`) n'est jamais libéré (figé dans le binaire). |
+| `Mutex`, `SQLite`, `MySQL`, `MariaDB` | La ressource native est réellement fermée (`.destroy()`/`.close()` implicite). **Ne peut pas s'échapper du bloc** (affectation, `return`, argument) — erreur de compilation, un handle de ressource ne peut être ni copié ni partagé. |
 | `Thread` | Doit avoir été explicitement `.join()` ou `.detach()` avant la fin du bloc — sinon erreur de compilation (le compilateur ne choisit pas à la place du développeur entre attendre le thread et le détacher). Même interdiction d'échappement que ci-dessus. |
-| Instance de classe **utilisateur** (`class Foo { ... }`) | Réellement libérée, récursivement pour chaque champ `string`/`array`/`map`/instance d'une autre classe utilisateur (champs hérités via `extends` inclus) — un champ `Mutex`/`Thread`/... ou d'un type non pris en charge n'est pas libéré (fuite, pas un crash). Échappement : copie profonde (même logique récursive), pas d'interdiction. |
-| Tout le reste (`int`/`float`/`bool`, `SDL`/`Tauri`, classes builtin non listées ci-dessus) | Se comporte exactement comme `var` — aucune destruction. |
+| Tout le reste (`int`/`float`/`bool`, classes builtin non listées ci-dessus) | Se comporte exactement comme `var`. |
+
+```ocara
+function f(): array<string> {
+    scoped noms:array<string> = ["a", "b"]
+    var copie:array<string> = noms   // même tableau, deux références
+    noms.push("c")
+    return copie                     // ["a", "b", "c"] : noms rend sa référence, copie garde le tableau
+}
+```
+
+Pour obtenir une copie indépendante, l'écrire explicitement (`noms.slice(0, noms.len())`).
 
 > **`scoped` est interdit sur un champ de classe** : un champ vit aussi longtemps que l'objet, pas le temps d'un bloc. Utiliser `property` pour les champs de classe.
 
-Une sortie anticipée du bloc (`return`, ou `break`/`continue` hors d'une boucle) détruit elle aussi correctement toutes les `scoped`/`consumed` encore vivantes dans les blocs qu'elle traverse — pas seulement une fin de bloc normale.
+Une sortie anticipée du bloc (`return`, `break`, `continue`) rend elle aussi les références et ferme les ressources de tous les blocs qu'elle traverse.
 
-> **Limite connue** : seul un `raise` qui traverse un `try` englobant (`longjmp`) échappe à cette règle — la valeur fuit (pas de plantage ni de corruption : rien d'autre ne peut aliaser sa mémoire, juste une fuite mémoire/ressource non libérée). Voir `src/lower/stmt.d/statements.d/exceptions.rs`.
-
-> **Passage en argument** : passer `x` en argument d'un appel est maintenant aussi vérifié (pas seulement l'affectation directe) — voir diagnostic **E26** ci-dessous. `Mutex`/`SQLite`/`MySQL`/`MariaDB`/`Thread` : toujours refusé, quel que soit l'appelé (aucun usage légitime de "prêt" par argument pour une ressource). `string`/`array`/`map`/instance de classe utilisateur : refusé uniquement si l'appelé est une fonction/méthode/constructeur **utilisateur** connue dont ce paramètre précis est prouvé retenu au-delà de l'appel (ex. un constructeur qui affecte le paramètre à un champ) — un appel dont le paramètre ne fait que muter la valeur en place (`Array::push(arr, x)`, `Map::set(m, k, v)`) reste autorisé. Limite assumée : un appel vers un callee non résolu (builtin, ou receveur dont le type n'est pas suivi ici) n'est pas vérifié — comportement inchangé, comme avant ce correctif.
-
-### 9.2.1 Diagnostic E26 — argument qui s'échappe
-
-```
-fichier.oc:9:19: error: 'arr' ('array<int>') is passed as an argument to 'Box::init', which stores it beyond this call — a 'scoped'/'consumed' value cannot be passed where the callee retains it; clone it explicitly first, or pass a fresh value
-```
-
-```ocara
-class Box {
-    public property data:array<int>
-    init(a:array<int>) { self.data = a }   // retient 'a' au-delà de l'appel
-}
-function makeBox(): Box {
-    scoped arr:array<int> = [111, 222, 333]
-    var b:Box = use Box(arr)   // ❌ E26 : 'arr' sera libérée en fin de bloc
-    return b
-}
-```
-
-**Correction :** cloner explicitement avant l'appel (ex. `use Box(arr.slice(0, arr.len()))`, qui retourne un nouveau tableau indépendant), ou déclarer `arr` en `var` si son partage avec `b` est voulu (perd alors la libération automatique de fin de bloc).
+> Un `raise` rend aussi les références (variables et valeurs temporaires) de toutes les fonctions qu'il traverse jusqu'au `try` qui le rattrape. Une ressource `scoped`/`consumed` traversée par un `raise` est fermée de la même façon.
 
 ### 9.3 Variable à usage unique (`consumed`)
 
@@ -1252,15 +1234,15 @@ function loadOnce(): int {
 }
 ```
 
-`consumed` déclare une variable **mutable**, possédée dès sa déclaration, détruite **juste après sa toute première utilisation** (même règle de destruction par type que `scoped`, voir le tableau ci-dessus — uniquement `string`/`array`/`map`/`Mutex`/`SQLite`/`MySQL`/`MariaDB`/`Thread` ; les autres types se comportent comme `var`). Réutiliser la variable après cette première utilisation est une **erreur de compilation** :
+`consumed` déclare une variable **mutable** qui rend sa référence (ou ferme sa ressource) **juste après l'instruction de sa toute première utilisation** (même règle par type que `scoped`, voir le tableau ci-dessus). Si cette utilisation a conservé la valeur ailleurs (champ, conteneur, autre variable, `return`), la valeur reste vivante par cette autre référence. Une utilisation dans une boucle plus profonde que la déclaration est répétée : la référence est alors rendue en fin de bloc. Réutiliser la variable après cette première utilisation est une **erreur de compilation** :
 
 ```ocara
 consumed x:array<int> = [1, 2, 3]
-IO::writeln(Array::len(x))   // OK — 1ʳᵉ (et unique) utilisation, x détruit juste après
+IO::writeln(Array::len(x))   // OK — 1ʳᵉ (et unique) utilisation, x rendu juste après
 IO::writeln(Array::len(x))   // ❌ erreur : 'x' déjà utilisée à la ligne précédente
 ```
 
-Si elle n'est jamais utilisée, elle est tout de même détruite à la fin du bloc (comme `scoped`) — pas de fuite silencieuse — avec un avertissement "variable non utilisée", cohérent avec `var`/`scoped`.
+Si elle n'est jamais utilisée, elle est tout de même rendue à la fin du bloc (comme `scoped`) — pas de fuite silencieuse — avec un avertissement "variable non utilisée", cohérent avec `var`/`scoped`.
 
 > **`consumed` est interdit sur un champ de classe**, pour la même raison que `scoped`.
 
@@ -1276,8 +1258,17 @@ const APP_NAME:string = "Ocara"
 ```
 
 Les constantes globales sont définies **au niveau du module** (hors de toute fonction).  
-Leur valeur doit être un littéral ou une expression constante évaluable à la compilation.  
+Leur valeur doit être évaluable à la compilation : un littéral, éventuellement négé ou combiné par `+ - * / %` (concaténation `+` entre chaînes) — sinon erreur **E61**.  
 Elles sont accessibles depuis n'importe quelle fonction ou méthode du module.
+
+**Constante locale** : `const` à l'intérieur d'une fonction déclare une variable **non réaffectable** (erreur E10 sinon), de même portée de bloc que `var` ; sa valeur peut être n'importe quelle expression, évaluée à la déclaration :
+
+```ocara
+function main(): int {
+    const total:int = compute()   // non réaffectable, portée du bloc
+    return total
+}
+```
 
 ### 9.5 Constante de classe (`class const`)
 
@@ -3523,7 +3514,7 @@ while x greater 0 {
 
 ```ebnf
 ForStmt ::= "for" Identifier "in" Expression Block
-          | "for" Identifier "=>" Identifier "in" Expression Block   (* voir §27.3 *)
+          | "for" Identifier "has" Identifier "in" Expression Block   (* voir §27.3 *)
 ```
 
 ```ocara
@@ -3537,14 +3528,16 @@ for i in 0..5 {
 Seconde alternative de la règle `ForStmt` définie en §27.2 :
 
 ```ebnf
-ForStmt ::= "for" Identifier "=>" Identifier "in" Expression Block
+ForStmt ::= "for" Identifier "has" Identifier "in" Expression Block
 ```
 
 ```ocara
-for key => value in profile {
+for key has value in profile {
     IO::writeln(key + " = " + value)
 }
 ```
+
+> `has` n'est un mot-clé qu'à cette position : ailleurs c'est un identifiant ordinaire (`m.has(k)`, `sess.has("user")`). L'ancienne forme `for k => v in m` est refusée à la compilation (« 'for k => v in m' is no longer supported — write 'for k has v in m' ») ; `=>` reste réservé aux bras de `match`.
 
 ### 27.4 Opérateur de plage
 
@@ -3697,7 +3690,7 @@ function truc(): message<int> {
 
 Le `try`/`on` est traité normalement : un `raise` déclenché à l'intérieur (qu'il soit écrit directement dans le générateur ou levé par une fonction qu'il appelle) est rattrapé par le `on` correspondant, l'imbrication de plusieurs `try` respecte l'ordre habituel (le plus interne rattrape en premier), et un filtre de classe (`on e is X`) qui ne correspond à rien se propage vers un `try` englobant, à l'extérieur du générateur, exactement comme pour un `try`/`raise` ordinaire.
 
-> **Limite connue et acceptée** : un `raise` déclenché par le code **consommateur** (pas le générateur lui-même) pendant qu'un `message<T>` est encore suspendu via `for` abandonne ce générateur sans nettoyage — fuite possible (jamais de corruption mémoire), même famille que la limite déjà acceptée pour un `scoped`/`consumed` traversé par un `raise` (voir §9). De même, un `return` anticipé (sans valeur — seul cas valable dans un générateur) exécuté pendant qu'un `for` le consomme fuit le frame suspendu (`break`, lui, est correctement nettoyé).
+> Un générateur abandonné par son consommateur (`break`, `return`, ou `raise` depuis le corps du `for`) est détruit proprement : ses variables et la dernière valeur émise sont rendues.
 
 ---
 
@@ -3777,6 +3770,20 @@ try {
     IO::writeln(`[${e.code}] ${e.message}`)
 }
 ```
+
+**Exceptions builtin** (`Exception`, `FileException`, `IOException`…, voir `import ocara.Exception`) : champs `message:string`, `code:int`, `source:string`, constructeur `(message:string, code:int = 0)`. Une classe qui en hérite transmet ses arguments avec `parent::init(...)` — sans `init`, `use` refuse les arguments (E60).
+
+```ocara
+raise use FileException("disque plein", 28)   // e.message = "disque plein", e.code = 28
+
+class AppError extends Exception {
+    init(message:string, code:int) {
+        parent::init(message, code)
+    }
+}
+```
+
+> `source` vaut `""` pour une exception construite par le programme ; le runtime y place le module d'origine (`"HTTPServer"`…) pour une exception qu'il lève lui-même.
 
 ---
 
@@ -3948,7 +3955,7 @@ SwitchCase  ::= Literal Block
 (* ── Boucles ────────────────────────────────────────────────────── *)
 
 ForStmt     ::= "for" Identifier "in" Expression Block
-              | "for" Identifier "=>" Identifier "in" Expression Block
+              | "for" Identifier "has" Identifier "in" Expression Block
 WhileStmt   ::= "while" Expression Block
 
 (* ── Expressions (hiérarchie de précédence) ─────────────────────── *)

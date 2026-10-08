@@ -106,6 +106,8 @@ décalage après re-parsing), `src/parsing/ast.d/span_shift.rs` (nouveau),
 `src/parsing/ast.d/mod.rs` + `src/parsing/ast.rs` (déclaration/export du
 nouveau module), `src/core/runtime_expand.rs` (récursion manquante +
 test), `src/core/render_file.rs` (adapté au nouveau type `ExprSrc` — les
-templates de fichier `.html` n'ont pas de suivi ligne/colonne, position
-factice documentée en commentaire, aucun diagnostic n'en dépend dans ce
-chemin).
+templates de fichier `.html` n'ont pas de suivi ligne/colonne). Depuis le
+2026-10-08, les expressions d'un gabarit `HTML::renderFile` sont décalées
+sur l'appel (`shift_expr_spans`, qui reprend aussi le fichier de
+l'origine) : un diagnostic de la sema pointe la ligne de l'appel dans son
+fichier `.oc`, et non plus `fichier.oc:1:1`.

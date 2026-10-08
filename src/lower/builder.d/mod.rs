@@ -6,7 +6,7 @@ pub mod runtime;
 pub mod functions;
 pub mod classes;
 pub mod wrappers;
-pub mod class_ownership;
+pub mod rc_layout;
 pub mod interfaces;
 pub mod class_dispatch;
 pub mod message_gen;

@@ -107,14 +107,14 @@ class Test_56_union_class_null_field_access {
         return 0
     }
 
-    // Troisième trigger : `for k => v in m` où `m:map<string, Foo>` — la
+    // Troisième trigger : `for k has v in m` où `m:map<string, Foo>` — la
     // variable VALEUR n'avait AUCUNE métadonnée de classe, quel que soit le
     // type de valeur de la map.
     public method forMapValueClassReadsCorrectFieldsTest(): int {
         var m:map<string, Foo> = {}
         m["a"] = use Foo(7, "AAA", "BBB", "CCC")
 
-        for k => v in m {
+        for k has v in m {
             UnitTest::assertEquals("a", k)
             UnitTest::assertEquals(7, v.id)
             UnitTest::assertEquals("AAA", v.reference)

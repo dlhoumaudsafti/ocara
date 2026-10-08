@@ -33,7 +33,7 @@ pub struct CraneliftEmitter {
     /// Identité de classe à l'exécution : class_name → id entier unique
     /// (voir `IrModule::class_ids`) — passé à `__alloc_class_obj` pour que
     /// chaque instance porte son identité réelle dans son header.
-    class_ids: HashMap<String, i64>,
+    class_ids: HashMap<String, (i64, Option<u32>)>,
     /// Vrai pour toute cible croisée Android (`--target *-linux-android`) —
     /// voir `predeclare_functions` : les builtins `Tauri_*` y sont définis
     /// comme des talons locaux no-op plutôt qu'importés depuis
@@ -366,7 +366,9 @@ impl CraneliftEmitter {
         self.class_layouts = ir.class_layouts.iter()
             .map(|(k, v)| (k.clone(), v.iter().map(|(f, t)| (f.clone(), ir_type_to_cl(t))).collect()))
             .collect();
-        self.class_ids = ir.class_ids.clone();
+        self.class_ids = ir.class_layouts.keys()
+            .map(|c| (c.clone(), (ir.class_ids.get(c).copied().unwrap_or(0), ir.class_masks.get(c).copied())))
+            .collect();
         self.predeclare_functions(ir)?;
         self.emit_strings(&ir.strings)?;
 

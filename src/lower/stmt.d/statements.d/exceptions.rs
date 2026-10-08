@@ -9,9 +9,17 @@ use crate::lower::expr::lower_expr;
 use super::super::super::block::lower_block;
 
 /// Lowering de `raise expr`
+/// La valeur levée est transférée (+1) à la frame `try`, qui la relâche
+/// après le gestionnaire ; un scalaire est boxé (le gestionnaire la reçoit
+/// en `mixed`). Les temporaires et locales de la fonction sont rendus avant
+/// le `longjmp` ; ceux des frames intermédiaires jusqu'au `try` fuient.
 pub fn lower_raise(builder: &mut LowerBuilder, value: &Expr) {
-    // Valeur de l'erreur
-    let val = lower_expr(builder, value);
+    let val_ty = crate::lower::expr::expr_ir_type_pub(builder, value);
+    let raw = lower_expr(builder, value);
+    let val = super::helpers::box_for_any(builder, &IrType::Ptr, val_ty, raw.clone());
+    if val == raw {
+        crate::lower::stmt::rc::take(builder, &val);
+    }
 
     // Type name : si l'expression est `use ClassName(...)`, ou une variable
     // dont la classe est connue statiquement (`var_class`, ex: `var e = use
@@ -44,6 +52,9 @@ pub fn lower_raise(builder: &mut LowerBuilder, value: &Expr) {
         }
     };
 
+    // `__ocara_fail` sort par `longjmp` : rendre maintenant ce qu'une sortie
+    // de fonction rendrait (temporaires, locales), la valeur levée étant prise.
+    crate::lower::stmt::rc::release_all(builder);
     builder.emit(Inst::Call {
         dest:   None,
         func:   "__ocara_fail".into(),
@@ -171,6 +182,7 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
             body_ret_ty.clone(),
         );
         bb.fn_ret_types    = builder.fn_ret_types.clone();
+        bb.rc_counted_locals = builder.rc_counted_locals.clone();
         bb.fn_param_types  = builder.fn_param_types.clone();
         bb.fn_param_names  = builder.fn_param_names.clone();
         bb.fn_variadic_info = builder.fn_variadic_info.clone();
@@ -240,6 +252,7 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
             }
         }
 
+        crate::lower::stmt::rc::begin_unwind(&mut bb);
         lower_block(&mut bb, body);
         
         if !bb.is_terminated() {
@@ -253,6 +266,7 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
             };
             bb.emit(Inst::Return { value: ret_val });
         }
+        crate::lower::stmt::rc::finish_unwind(&mut bb);
         bb.func   // move func out, drops bb, releases module reborrow
     };
     builder.module.add_function(body_fn);
@@ -270,6 +284,8 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
             handler_ret_ty,
         );
         hb.fn_ret_types    = builder.fn_ret_types.clone();
+        hb.ret_ast_ty      = builder.ret_ast_ty.clone();
+        hb.rc_counted_locals = builder.rc_counted_locals.clone();
         hb.fn_param_types  = builder.fn_param_types.clone();
         hb.fn_param_names  = builder.fn_param_names.clone();
         hb.fn_variadic_info = builder.fn_variadic_info.clone();
@@ -341,6 +357,7 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
 
         let end_bb = hb.new_block();
 
+        crate::lower::stmt::rc::begin_unwind(&mut hb);
         for handler in handlers {
             let handler_bb = hb.new_block();
             let next_bb    = hb.new_block();
@@ -377,10 +394,12 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
             // Bloc du gestionnaire
             hb.switch_to(&handler_bb);
 
-            // Lie le binding à err_val
+            // Lie le binding à err_val — `Ptr` (objet, ou `mixed` pour `on e`
+            // sans filtre) : en `I64`, `${e}` d'une chaîne levée affichait
+            // son adresse.
             let ev = hb.new_value();
             hb.emit(Inst::Load { dest: ev.clone(), ptr: ev_slot.clone(), ty: IrType::I64 });
-            let e_slot = hb.declare_local(&handler.binding, IrType::I64, false);
+            let e_slot = hb.declare_local(&handler.binding, IrType::Ptr, false);
             hb.emit(Inst::Store { ptr: e_slot, src: ev });
 
             // Associer le binding à la classe pour l'accès aux champs
@@ -431,6 +450,7 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
         };
         hb.emit(Inst::Return { value: ret_val });
 
+        crate::lower::stmt::rc::finish_unwind(&mut hb);
         hb.func   // move func out, drops hb, releases module reborrow
     };
     builder.module.add_function(handler_fn);
@@ -497,21 +517,7 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
                 // `raise`/`longjmp` qui n'a rien à voir avec le thread —
                 // voir docs/roadmap.d/memoire-concurrence-threads.md pour le
                 // même choix déjà fait pour les closures).
-                let heap_ptr = builder.new_value();
-                builder.emit(Inst::Call {
-                    dest:   Some(heap_ptr.clone()),
-                    func:   "__alloc_locked_cell".into(),
-                    args:   vec![],
-                    ret_ty: IrType::Ptr,
-                });
-                let cur_val = builder.new_value();
-                builder.emit(Inst::Load { dest: cur_val.clone(), ptr: slot, ty: slot_ty.clone() });
-                builder.emit(Inst::Call {
-                    dest:   None,
-                    func:   "__locked_cell_set".into(),
-                    args:   vec![heap_ptr.clone(), cur_val],
-                    ret_ty: IrType::Void,
-                });
+                let heap_ptr = crate::lower::stmt::rc::promote_to_cell(builder, name, slot, &slot_ty);
                 // Rediriger les futurs accès dans le scope appelant vers le tas
                 builder.locals.insert(name.clone(), (heap_ptr.clone(), slot_ty, mutable));
                 builder.heap_promoted.insert(name.clone());
@@ -555,9 +561,14 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
         builder.emit(Inst::Call {
             dest:   Some(try_result.clone()),
             func:   "__ocara_try_exec_with_captures".into(),
-            args:   vec![body_addr, handler_addr, array_ptr],
+            args:   vec![body_addr, handler_addr, array_ptr.clone()],
             ret_ty: IrType::I64,
         });
+        // Le tableau des captures ne survit pas au `try` (les cellules
+        // restent tenues par leurs variables).
+        let array_bytes = builder.new_value();
+        builder.emit(Inst::ConstInt { dest: array_bytes.clone(), value: (captures.len() * 8) as i64 });
+        builder.emit(Inst::Call { dest: None, func: "__free_obj".into(), args: vec![array_ptr, array_bytes], ret_ty: IrType::Void });
     }
     
     // Vérifier si le handler a fait un return (try_result != 0)

@@ -1,0 +1,81 @@
+import ocara.UnitTest
+
+// Conteneur d'objets `scoped` : ses instances ne sont libérées que si
+// chacune y est entrée neuve. Un objet encore référencé ailleurs (variable
+// relue, champ, élément extrait et retourné) survit au conteneur.
+// `xs.push(...)` sur un paramètre `array<Classe>` était compilé en
+// `String_push` (SIGSEGV).
+class Test_80_scoped_object_containers {
+
+    public method sharedObjectSurvivesContainerTest(): int {
+        var shared:OwnedItem = use OwnedItem("shared")
+        if true {
+            scoped box:array<OwnedItem> = []
+            box.push(shared)
+        }
+        UnitTest::assertEquals("shared", shared.name)
+        var h:OwnedHolder = use OwnedHolder(use OwnedItem("kept"))
+        UnitTest::assertEquals(1, h.fill())
+        UnitTest::assertEquals("kept", h.keep.name)
+        return 0
+    }
+
+    public method extractedElementSurvivesTest(): int {
+        var it:OwnedItem = self.first()
+        UnitTest::assertEquals("a!", it.name)
+        return 0
+    }
+
+    public method pushOnArrayParameterTest(): int {
+        var xs:array<OwnedItem> = []
+        self.fillAll(xs)
+        UnitTest::assertEquals(1, xs.len())
+        UnitTest::assertEquals("in", xs[0].name)
+        return 0
+    }
+
+    public method ownedObjectsInLoopTest(): int {
+        var seen:string = ""
+        var i:int = 0
+        while i smaller 3 {
+            scoped owned:map<string, OwnedItem> = {"x": self.build("m")}
+            seen = seen + owned["x"].name
+            i = i + 1
+        }
+        UnitTest::assertEquals("m!m!m!", seen)
+        return 0
+    }
+
+    private method build(n:string): OwnedItem {
+        return use OwnedItem(n + "!")
+    }
+
+    private method first(): OwnedItem {
+        scoped items:array<OwnedItem> = [self.build("a"), self.build("b")]
+        var it:OwnedItem = items[0]
+        return it
+    }
+
+    private method fillAll(xs:array<OwnedItem>): void {
+        xs.push(use OwnedItem("in"))
+    }
+}
+
+class OwnedItem {
+    public property name:string
+    init(name:string) {
+        self.name = name
+    }
+}
+
+class OwnedHolder {
+    public property keep:OwnedItem
+    init(it:OwnedItem) {
+        self.keep = it
+    }
+    public method fill(): int {
+        scoped tmp:array<OwnedItem> = []
+        tmp.push(self.keep)
+        return tmp.len()
+    }
+}

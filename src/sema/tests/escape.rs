@@ -28,8 +28,7 @@ fn block(stmts: Vec<Stmt>) -> Block {
     Block { stmts, span: span() }
 }
 
-/// Constructeur `Box::init(a)` dont le corps fait `self.data = a` — le
-/// scénario exact documenté comme diagnostic E26 dans docs/EBNF.md §9.2.1.
+/// Constructeur `Box::init(a)` dont le corps fait `self.data = a`.
 /// Le paramètre affecté à un champ doit être détecté comme échappant.
 #[test]
 fn param_assigned_to_field_escapes() {
@@ -83,7 +82,7 @@ fn param_used_only_as_method_receiver_does_not_escape() {
 
 /// `pushInto(arr, x) { Array::push(arr, x) }` — `Array` n'est pas une classe
 /// utilisateur (absente de `class_members`), le callee reste donc non résolu.
-/// `compute_escaping_params` (consommé par le diagnostic E26, MODE NON
+/// `compute_escaping_params` (MODE NON
 /// STRICT — voir l'en-tête de doc de `escape.rs`) ignore alors purement et
 /// simplement cet appel : ni `arr` ni `x` ne sont marqués échappants, même si
 /// `Array::push` retient réellement son 2ᵉ argument en réalité. Imprécision

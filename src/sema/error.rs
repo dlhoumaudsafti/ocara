@@ -86,13 +86,6 @@ pub enum SemaError {
     /// double `Mutex::destroy` (le premier appel a déjà libéré le handle
     /// natif).
     ResourceAlreadyFinalized { name: String, class_name: String, method: String, span: Span },
-    /// `scoped`/`consumed` passée en argument à un constructeur/méthode
-    /// UTILISATEUR connu dont ce paramètre est prouvé "retenu" au-delà de
-    /// l'appel (stocké dans un champ, retourné, capturé par une closure...)
-    /// — la source serait libérée en fin de bloc pendant que le callee en
-    /// garde encore un alias (corruption mémoire silencieuse avant ce
-    /// diagnostic, voir docs/roadmap.d/memoire-echappement-argument.md).
-    ArgumentEscape { name: String, class_name: String, callee: String, span: Span },
     /// `var`/`scoped`/`consumed x:message<T>` — `message<T>` (générateurs,
     /// voir docs/roadmap.d/langage-emit-iterable.md) n'est JAMAIS nommable :
     /// il n'a de sens que comme type de retour déclaré d'une fonction/méthode
@@ -177,12 +170,18 @@ pub enum SemaError {
     /// Valeur d'une constante de classe non évaluable à la compilation
     /// (appel, variable...) — voir `Expr::const_literal` (E55).
     ClassConstNotConstant { class: String, name: String, span: Span },
+    /// Valeur d'une constante globale non évaluable à la compilation (E61) :
+    /// elle est réévaluée à l'entrée de chaque fonction, un appel y bouclerait.
+    GlobalConstNotConstant { name: String, span: Span },
     /// Champ appelé comme une méthode (`e.message()` au lieu de
     /// `e.message`) — E57.
     FieldCalledAsMethod { class: String, field: String, span: Span },
     /// Opérateur arithmétique sur un opérande non numérique (`bool`, `array`,
     /// `map`, et `string` hors `+` entre chaînes et `string -= string`) — E59.
     ArithmeticOnNonNumeric { op: String, operand: String, span: Span },
+    /// `use C(args)` sur une classe utilisateur sans `init` (ni hérité d'un
+    /// ancêtre utilisateur) — les arguments seraient perdus (E60).
+    ArgsWithoutConstructor { class: String, found: usize, span: Span },
 }
 
 impl SemaError {
@@ -217,7 +216,6 @@ impl SemaError {
             SemaError::OnFilterClassNotFound { span, .. } => span,
             SemaError::CatchAllNotLast { span } => span,
             SemaError::ResourceAlreadyFinalized { span, .. } => span,
-            SemaError::ArgumentEscape      { span, .. } => span,
             SemaError::MessageNotNameable  { span, .. } => span,
             SemaError::MessageAsParamType  { span, .. } => span,
             SemaError::MessageReturnWithoutEmit { span, .. } => span,
@@ -237,8 +235,10 @@ impl SemaError {
             SemaError::NamedArgUnresolved { span, .. } => span,
             SemaError::FieldNotAccessible { span, .. } => span,
             SemaError::ClassConstNotConstant { span, .. } => span,
+            SemaError::GlobalConstNotConstant { span, .. } => span,
             SemaError::FieldCalledAsMethod { span, .. } => span,
             SemaError::ArithmeticOnNonNumeric { span, .. } => span,
+            SemaError::ArgsWithoutConstructor { span, .. } => span,
         }
     }
 
@@ -306,8 +306,6 @@ impl SemaError {
                 "a catch-all 'on' handler (without 'is') must be the last one in this try/on chain — handlers after it would never be reached".into(),
             SemaError::ResourceAlreadyFinalized { name, class_name, method, .. } =>
                 format!("'{}' ('{}') was already '.{}()' — calling it a second time would use a native handle already reclaimed", name, class_name, method),
-            SemaError::ArgumentEscape { name, class_name, callee, .. } =>
-                format!("'{}' ('{}') is passed as an argument to '{}', which stores it beyond this call — a 'scoped'/'consumed' value cannot be passed where the callee retains it; clone it explicitly first, or pass a fresh value", name, class_name, callee),
             SemaError::MessageNotNameable { name, .. } =>
                 format!("'{}': type 'message<T>' cannot be named — it is valid only as the declared return type of a function/method containing 'emit', never in a 'var'/'scoped'/'consumed' declaration", name),
             SemaError::MessageAsParamType { name, .. } =>
@@ -356,12 +354,16 @@ impl SemaError {
                 } else {
                     format!("field '{}' of '{}' is private — it is only accessible from inside '{}' (expose it through a public method)", field, class, class)
                 },
+            SemaError::ArgsWithoutConstructor { class, found, .. } =>
+                format!("'{}' has no init() — 'use {}()' takes no arguments, {} provided (declare init(...) that receives them — for an exception: init(message:string, code:int) {{ parent::init(message, code) }} — or use a struct for a constructor from its fields)", class, class, found),
             SemaError::ArithmeticOnNonNumeric { op, operand, .. } =>
                 format!("operator '{}' cannot be applied to '{}' — only int, float and mixed support it ('+' also concatenates strings, '-=' removes occurrences from a string)", op, operand),
             SemaError::FieldCalledAsMethod { class, field, .. } =>
                 format!("'{}' is a field of '{}', not a method — write '.{}' without parentheses", field, class, field),
             SemaError::ClassConstNotConstant { class, name, .. } =>
                 format!("value of class constant '{}::{}' must be known at compile time — a literal, possibly negated or combined with +, -, *, /, % (e.g. '-273', '60 * 1000'); use a static method for a computed value", class, name),
+            SemaError::GlobalConstNotConstant { name, .. } =>
+                format!("value of global constant '{}' must be known at compile time — a literal, possibly negated or combined with +, -, *, /, % (e.g. '-273', '60 * 1000'); use a function for a computed value", name),
         }
     }
 }

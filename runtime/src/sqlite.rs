@@ -205,9 +205,9 @@ fn collect_all_rows(stmt: &mut Statement, binds: &[(&str, &dyn ToSql)]) -> Resul
         for (i, col_name) in column_names.iter().enumerate() {
             let key = unsafe { alloc_str(col_name) };
             let value = row_column_as_mixed(&row, i);
-            crate::__map_set(row_map, key, value);
+            crate::map_set_owned_key(row_map, key, value);
         }
-        crate::__array_push(result_array, row_map);
+        crate::array_push_owned(result_array, row_map);
     }
     Ok(result_array)
 }
@@ -233,7 +233,7 @@ pub unsafe extern "C" fn SQLite_open(path_ptr: i64) -> i64 {
                     pending_binds: Mutex::new(None),
                     tx_open: Mutex::new(false),
                 });
-                Box::into_raw(db) as i64
+                crate::rc::handle_new(*db)
             }
             Err(e) => {
                 throw_sqlite_exception(
@@ -272,7 +272,7 @@ pub unsafe extern "C" fn SQLite_withOpen(path_ptr: i64, fat_ptr: i64) {
                     pending_binds: Mutex::new(None),
                     tx_open: Mutex::new(false),
                 });
-                Box::into_raw(db) as i64
+                crate::rc::handle_new(*db)
             }
             Err(e) => {
                 throw_sqlite_exception(
@@ -290,7 +290,7 @@ pub unsafe extern "C" fn SQLite_withOpen(path_ptr: i64, fat_ptr: i64) {
 
         // Fermeture inconditionnelle — succès ou exception, c'est tout
         // l'intérêt de withOpen() par rapport à open()/close() manuels.
-        let _ = Box::from_raw(db_ptr as *mut OcaraSQLiteDatabase);
+        let _ = crate::rc::handle_take::<OcaraSQLiteDatabase>(db_ptr);
 
         if let Err((error_val, error_type)) = outcome {
             // Relancer l'exception d'origine vers l'appelant, maintenant que
@@ -446,7 +446,7 @@ pub unsafe extern "C" fn SQLite_queryOne(self_ptr: i64, query_ptr: i64, placehol
                     let key = alloc_str(col_name);
                     // Voir row_column_as_mixed (partagée avec collect_all_rows).
                     let value = row_column_as_mixed(&row, i);
-                    crate::__map_set(row_map, key, value);
+                    crate::map_set_owned_key(row_map, key, value);
                 }
                 1
             } else {
@@ -668,7 +668,7 @@ pub unsafe extern "C" fn SQLite_close(self_ptr: i64) {
         }
 
         // Récupérer et détruire la Box
-        let _ = Box::from_raw(self_ptr as *mut OcaraSQLiteDatabase);
+        let _ = crate::rc::handle_take::<OcaraSQLiteDatabase>(self_ptr);
         // Le drop automatique de Box fermera la connexion
     }
 }

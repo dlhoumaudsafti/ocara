@@ -1,0 +1,89 @@
+import ocara.UnitTest
+import ocara.JSON
+
+// Trois bugs trouvés sur la page « détail voiture » de mini_project_hexa :
+// - `for m in dto.items` (boucle sur un CHAMP) lisait chaque `m.champ` à
+//   l'offset 0 (toujours le premier champ) ;
+// - `match`/`switch` comparaient une chaîne par adresse : une chaîne
+//   construite à l'exécution tombait toujours dans `default` ;
+// - les éléments extraits d'un conteneur `consumed`/`scoped` puis conservés
+//   étaient libérés avec lui (chaîne vide, puis SIGSEGV).
+class Test_79_field_loop_match_and_kept_elements {
+
+    public method loopOverFieldTest(): int {
+        var d:LoopDto = use LoopDto([use LoopItem(1, "improvement", 2.5)], [1.5])
+        var seen:string = ""
+        var total:float = 0.0
+        for m in d.items {
+            seen = `${m.id} ${m.type}`
+            total = m.cost
+        }
+        for p in d.prices {
+            total = total + p
+        }
+        UnitTest::assertEquals("1 improvement", seen)
+        UnitTest::assertEquals(4.0, total)
+        return 0
+    }
+
+    public method matchOnRuntimeStringTest(): int {
+        var t:string = "improve" + "ment"
+        var label:string = match t {
+            "improvement" => "Amélioration"
+            default => "Entretien"
+        }
+        var via_switch:string = ""
+        switch t {
+            "improvement" { via_switch = "oui" }
+            default { via_switch = "non" }
+        }
+        UnitTest::assertEquals("Amélioration", label)
+        UnitTest::assertEquals("oui", via_switch)
+        return 0
+    }
+
+    public method keptElementsSurviveContainerTest(): int {
+        var items:array<LoopItem> = self.load()
+        UnitTest::assertEquals("alpha", items[0].type)
+        UnitTest::assertEquals("beta", items[1].type)
+        UnitTest::assertEquals("gamma", self.first())
+        return 0
+    }
+
+    private method load(): array<LoopItem> {
+        consumed rows:array<map<string, mixed>> = JSON::decode(`[{"name":"alpha"},{"name":"beta"}]`)
+        var items:array<LoopItem> = []
+        for row in rows {
+            items.push(self.fromRow(row))
+        }
+        return items
+    }
+
+    private method fromRow(row:map<string, mixed>): LoopItem {
+        var name:string = row["name"]
+        return use LoopItem(0, name, 0.0)
+    }
+
+    private method first(): string {
+        consumed rows:array<map<string, mixed>> = JSON::decode(`[{"name":"gamma"}]`)
+        var row:map<string, mixed> = rows[0]
+        var name:string = row["name"]
+        return name
+    }
+}
+
+class LoopItem {
+    public property id:int
+    public property type:string
+    public property cost:float
+    init(id:int, type:string, cost:float) {
+        self.id = id
+        self.type = type
+        self.cost = cost
+    }
+}
+
+struct LoopDto {
+    items:array<LoopItem>
+    prices:array<float>
+}

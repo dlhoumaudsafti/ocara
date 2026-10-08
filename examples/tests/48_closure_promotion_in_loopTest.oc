@@ -44,11 +44,11 @@ class Test_48_closure_promotion_in_loop {
         return 0
     }
 
-    // `for k => v in map`
+    // `for k has v in map`
     public method forMapLoopClosureAccumulatesAcrossIterationsTest(): int {
         var sum:int = 0
         var m:map<string, int> = {"a": 1, "b": 2, "c": 3}
-        for k => v in m {
+        for k has v in m {
             Caller::invoke(nameless(): void {
                 sum = sum + v
             })

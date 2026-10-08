@@ -53,7 +53,11 @@ pub fn lower_func(
             slot: Value(i as u32),
         }
     }).collect();
-    let ret_ty = IrType::from_ast(&func.ret_ty);
+    // `main(): void` retourne quand même un code de sortie : 0.
+    let ret_ty = match IrType::from_ast(&func.ret_ty) {
+        IrType::Void if func.name == "main" => IrType::I64,
+        ty => ty,
+    };
 
     let mut builder = LowerBuilder::new(module, func.name.clone(), ir_params.clone(), ret_ty);
     builder.ret_ast_ty = Some(func.ret_ty.clone());
@@ -129,11 +133,13 @@ pub fn lower_func(
         if let crate::parsing::ast::Type::Function { ret_ty, .. } = &param.ty {
             builder.func_vars.insert(param.name.clone());
             builder.func_ret_types.insert(param.name.clone(), IrType::from_ast(ret_ty));
+            builder.func_ret_ast.insert(param.name.clone(), (**ret_ty).clone());
         }
-        // Enregistrer les paramètres de type Named (classes) dans var_class
-        if let crate::parsing::ast::Type::Named(class_name) = &param.ty {
-            builder.var_class.insert(param.name.clone(), class_name.clone());
-        }
+        // Classe du paramètre — même résolution qu'une variable locale
+        // (classe, générique, union `Classe|null`, et `String`/`Array`/`Map`
+        // pour les builtins : sans ça, `xs.push(...)` sur un paramètre
+        // `array<T>` était compilé en `String_push`, SIGSEGV).
+        crate::lower::stmt::statements::register_var_class(&mut builder, &param.name, &param.ty);
         // Un paramètre de type générique (`Box<int>`) : même résolution que
         // pour une variable locale directement initialisée (voir
         // `lower_var`/`lower_const` dans statements.d/variables.rs) — sans
@@ -169,16 +175,11 @@ pub fn lower_func(
     }).collect();
     builder.func.params = updated_params;
 
-    // Calcule quels `var` de CE corps peuvent être libérés automatiquement
-    // en fin de bloc (voir crate::sema::escape::var_never_escapes et
-    // docs/roadmap.d/memoire-strategie-var.md) — avant de lowered le corps,
-    // consulté par `register_owned_local` (lower_var → ownership.rs).
-    builder.auto_freeable_vars = crate::lower::stmt::ownership::compute_auto_freeable_vars(
-        builder.module, &func.body, class_name,
-    );
-
     // Body
+    crate::lower::stmt::rc::begin_unwind(&mut builder);
+    crate::lower::stmt::rc::begin_function(&mut builder, &func.params);
     crate::lower::stmt::lower_block(&mut builder, &func.body);
+    crate::lower::stmt::rc::end_function(&mut builder);
 
     // Return implicite si le bloc courant n'est pas terminé
     if !builder.is_terminated() {
@@ -193,6 +194,7 @@ pub fn lower_func(
         };
         builder.emit(Inst::Return { value: ret_val });
     }
+    crate::lower::stmt::rc::finish_unwind(&mut builder);
 
     let ir_func = builder.func;
     module.add_function(ir_func);

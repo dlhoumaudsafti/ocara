@@ -41,12 +41,6 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     // Stocker le nom du fichier source pour les messages d'erreur
     module.source_file = source_file.to_string();
 
-    // Analyse d'échappement interprocédurale (voir crate::sema::escape) —
-    // nécessaire pour décider si un `var` peut être libéré automatiquement
-    // en fin de bloc (voir lower::stmt::ownership::register_owned_local).
-    module.escaping_params = crate::sema::escape::compute_escaping_params(program);
-    module.class_members   = crate::sema::escape::collect_class_members(&program.classes);
-
     // Enregistre les modules importés (dernier segment du path : "ocara.IO" → "IO")
     for imp in &program.imports {
         if let Some(last) = imp.path.last() {
@@ -475,6 +469,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     module.class_layouts.insert("Thread".to_string(), opaque_layout.clone());
     module.class_layouts.insert("Mutex".to_string(), opaque_layout.clone());
     module.class_layouts.insert("HTMLComponent".to_string(), opaque_layout);
+    super::rc_layout::compute_rc_objects(&mut module, program);
     
     // Construire les layouts des classes utilisateur (APRÈS les builtins)
     for class in &program.classes {
@@ -527,15 +522,20 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         module.class_field_types.insert(class.name.clone(), fields);
     }
 
-    // Génère __free_<Classe>/__clone_<Classe> pour chaque classe utilisateur
-    // (scoped/consumed MaClasse — voir src/lower/builder.d/class_ownership.rs).
-    // Doit tourner APRÈS class_field_types ci-dessus (toutes les classes,
-    // pas seulement celle en cours) : une classe peut référencer une autre
-    // classe pas encore traitée dans cette boucle — sans risque, la
-    // résolution des appels __free_X/__clone_X entre fonctions du module se
-    // fait par nom au codegen (deux passes : déclaration puis définition),
-    // pas par ordre d'ajout à `module.functions`.
-    super::class_ownership::generate_class_ownership_functions(&mut module, program);
+    // Types AST des paramètres (littéral passé en argument, voir `lower_call_arg`).
+    for func in &program.functions {
+        module.param_ast_types.insert(func.name.clone(), func.params.iter().map(|p| p.ty.clone()).collect());
+    }
+    for class in &program.classes {
+        for member in &class.members {
+            if let ClassMember::Method { decl, .. } = member {
+                module.param_ast_types.insert(format!("{}_{}", class.name, decl.name), decl.params.iter().map(|p| p.ty.clone()).collect());
+            }
+        }
+        if let Some((ctor_params, _, _)) = super::classes::nearest_constructor(&program.classes, class) {
+            module.param_ast_types.insert(format!("{}_init", class.name), ctor_params.iter().map(|p| p.ty.clone()).collect());
+        }
+    }
 
     // Champs de type map<K,V> par classe (hérités inclus) — voir la doc du champ
     // module.class_map_fields (ir/module.rs) : indispensable pour que
@@ -561,6 +561,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         let map_fields = collect_map_fields(&program.classes, &class.name);
         module.class_map_fields.insert(class.name.clone(), map_fields);
     }
+
 
     // Collecte les types de paramètres des constructeurs (pour le boxing mixed)
     for class in &program.classes {
@@ -991,5 +992,6 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     // Blocs runtime → fonctions __init__, __main__, etc.
     lower_runtime_blocks(&mut module, program, &program.consts, &fn_ret_types, &fn_param_types, &fn_param_names, &fn_variadic_info, &func_default_args, &async_funcs);
 
+    super::rc_layout::compute_class_masks(&mut module);
     module
 }

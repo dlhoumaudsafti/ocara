@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use once_cell::sync::Lazy;
 
-use ocara_runtime::{alloc_str, ptr_to_str, free_str, __map_get};
+use ocara_runtime::{alloc_str, ptr_to_str, free_str};
 
 /// Codes d'erreur TauriException (voir docs/builtins/Tauri.md)
 const ERR_TAURI_DUPLICATE_HANDLER: i64 = 101;
@@ -58,8 +58,7 @@ static TAURI_WINDOWS: Lazy<Mutex<HashMap<i64, Arc<Mutex<OcaraTauriWindow>>>>> = 
 /// Lit une clé string d'une map d'options (`__map_get` + décodage du pointeur
 /// string), ou renvoie `default` si la clé est absente (valeur brute nulle).
 unsafe fn map_get_str(options_ptr: i64, key: &str, default: &str) -> String {
-    let key_ptr = unsafe { alloc_str(key) };
-    let val = __map_get(options_ptr, key_ptr);
+    let val = ocara_runtime::map_lookup(options_ptr, key);
     if val == 0 {
         default.to_string()
     } else {
@@ -69,8 +68,7 @@ unsafe fn map_get_str(options_ptr: i64, key: &str, default: &str) -> String {
 
 /// Lit une clé int d'une map d'options, ou renvoie `default` si absente (0).
 unsafe fn map_get_int(options_ptr: i64, key: &str, default: i64) -> i64 {
-    let key_ptr = unsafe { alloc_str(key) };
-    let val = __map_get(options_ptr, key_ptr);
+    let val = ocara_runtime::map_lookup(options_ptr, key);
     if val == 0 { default } else { val }
 }
 
@@ -105,6 +103,7 @@ pub extern "C" fn Tauri_init(this: i64, options_ptr: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn Tauri_listen(this: i64, event_ptr: i64, callback_ptr: i64) {
     let event = unsafe { ptr_to_str(event_ptr).to_string() };
+    ocara_runtime::rc::__rc_retain(callback_ptr);
     let map = TAURI_WINDOWS.lock().unwrap();
     if let Some(win) = map.get(&this) {
         win.lock().unwrap().event_callbacks.insert(event, callback_ptr);
@@ -739,6 +738,9 @@ pub extern "C" fn Tauri_run(this: i64) {
 
         match lookup_handler(this, &command) {
             Some(trampoline_addr) => {
+                // Le thread de la boucle d'événements est garé (voir plus bas) :
+                // il compte comme en cours le temps du handler Ocara.
+                let _running = ocara_runtime::rc::enter();
                 let args_ptr = unsafe { alloc_str(&args_json) };
                 let result_ptr = unsafe {
                     let f: unsafe extern "C" fn(i64) -> i64 = std::mem::transmute(trampoline_addr as usize);
@@ -785,12 +787,16 @@ pub extern "C" fn Tauri_run(this: i64) {
         Ok(())
     };
 
+    // Garé pendant toute la boucle d'événements : les autres threads (serveur
+    // HTTP) peuvent collecter leurs cycles ; un handler Ocara se recompte.
+    let parked = ocara_runtime::rc::park();
     if let Err(e) = tauri::Builder::<tauri::Wry>::new()
         .invoke_handler(invoke_handler)
         .setup(setup)
         .run(context) {
         eprintln!("[Tauri_run] erreur au lancement : {e}");
     }
+    drop(parked);
 
     // run() ne retourne qu'une fois la fenêtre réelle définitivement fermée
     // (ou si son lancement a échoué) — l'entrée simulée de TAURI_WINDOWS peut

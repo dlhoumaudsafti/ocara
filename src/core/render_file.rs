@@ -402,7 +402,7 @@ fn resolve_template_path(raw: &str) -> PathBuf {
 
 /// Lit le fichier et construit un `Expr::Template` identique à ce que
 /// produirait un littéral `` `...` `` contenant le même texte.
-fn build_template_from_file(path: &Path, span: &Span) -> Result<Expr, String> {
+pub(crate) fn build_template_from_file(path: &Path, span: &Span) -> Result<Expr, String> {
     let content = std::fs::read_to_string(path)
         .map_err(|e| format!("cannot read template file '{}': {}", path.display(), e))?;
 
@@ -413,16 +413,13 @@ fn build_template_from_file(path: &Path, span: &Span) -> Result<Expr, String> {
     for part in raw_parts {
         match part {
             TemplatePart::Literal(s) => parts.push(TemplatePartExpr::Literal(s)),
-            // Pas de suivi ligne/colonne dans un fichier .html rendu (voir
-            // split_file_template : position factice, jamais consultée —
-            // aucun diagnostic ne s'appuie dessus ici, parse_expr_src plus
-            // bas ne renvoie que des erreurs `String`). Le champ existe
-            // seulement pour satisfaire le type `TemplatePart::ExprSrc`
-            // désormais commun avec les templates littéraux Ocara (voir
-            // docs/roadmap.d/langage-template-interpolation-span-position.md).
+            // Les spans de l'expression re-parsée sont relatifs à son texte :
+            // ramenés sur l'appel `renderFile` (ligne, fichier source), où la
+            // sema rapporte ses diagnostics.
             TemplatePart::ExprSrc(src, _origin) => {
-                let expr = parse_expr_src(&src)
+                let mut expr = parse_expr_src(&src)
                     .map_err(|e| format!("{} (in '{}')", e, path.display()))?;
+                crate::parsing::ast::shift_expr_spans(&mut expr, span);
                 parts.push(TemplatePartExpr::Expr(Box::new(expr)));
             }
         }

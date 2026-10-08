@@ -75,9 +75,9 @@ pub unsafe extern "C" fn File_readBytes(path_ptr: i64) -> i64 {
         match fs::read(&path) {
             Ok(bytes) => {
                 // Créer un array Ocara d'entiers
-                let arr_ptr = crate::__array_new();
+                let arr_ptr = crate::rc::__rc_mark_raw(crate::__array_new());
                 for byte in bytes {
-                    crate::__array_push(arr_ptr, byte as i64);
+                    crate::array_push_owned(arr_ptr, byte as i64);
                 }
                 arr_ptr
             }
@@ -274,7 +274,7 @@ pub unsafe extern "C" fn File_infos(path_ptr: i64) -> i64 {
                 
                 // size: int
                 let size_key = alloc_str("size");
-                crate::__map_set(map_ptr, size_key, meta.len() as i64);
+                crate::map_set_owned_key(map_ptr, size_key, meta.len() as i64);
                 
                 // modified: string (timestamp)
                 if let Ok(modified) = meta.modified() {
@@ -282,7 +282,7 @@ pub unsafe extern "C" fn File_infos(path_ptr: i64) -> i64 {
                         let timestamp = duration.as_secs();
                         let mod_key = alloc_str("modified");
                         let mod_val = alloc_str(&timestamp.to_string());
-                        crate::__map_set(map_ptr, mod_key, mod_val);
+                        crate::map_set_owned_key(map_ptr, mod_key, mod_val);
                     }
                 }
                 
@@ -292,27 +292,27 @@ pub unsafe extern "C" fn File_infos(path_ptr: i64) -> i64 {
                         let timestamp = duration.as_secs();
                         let cre_key = alloc_str("created");
                         let cre_val = alloc_str(&timestamp.to_string());
-                        crate::__map_set(map_ptr, cre_key, cre_val);
+                        crate::map_set_owned_key(map_ptr, cre_key, cre_val);
                     }
                 }
                 
                 // is_file: bool
                 let is_file_key = alloc_str("is_file");
-                crate::__map_set(map_ptr, is_file_key, meta.is_file() as i64);
+                crate::map_set_owned_key(map_ptr, is_file_key, meta.is_file() as i64);
                 
                 // is_dir: bool
                 let is_dir_key = alloc_str("is_dir");
-                crate::__map_set(map_ptr, is_dir_key, meta.is_dir() as i64);
+                crate::map_set_owned_key(map_ptr, is_dir_key, meta.is_dir() as i64);
                 
                 // extension: string
                 if let Some(ext) = p.extension() {
                     let ext_key = alloc_str("extension");
                     let ext_val = alloc_str(ext.to_str().unwrap_or(""));
-                    crate::__map_set(map_ptr, ext_key, ext_val);
+                    crate::map_set_owned_key(map_ptr, ext_key, ext_val);
                 } else {
                     let ext_key = alloc_str("extension");
                     let ext_val = alloc_str("");
-                    crate::__map_set(map_ptr, ext_key, ext_val);
+                    crate::map_set_owned_key(map_ptr, ext_key, ext_val);
                 }
                 
                 map_ptr

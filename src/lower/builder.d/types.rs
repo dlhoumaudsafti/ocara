@@ -125,14 +125,43 @@ pub struct LowerBuilder<'m> {
     /// scoping imbriqué) : une redéclaration du même nom dans un bloc frère
     /// écrase simplement l'entrée précédente, exactement comme `locals`.
     pub owned_locals: HashMap<String, crate::lower::stmt::ownership::OwnedLocalInfo>,
-    /// Noms des `var` (par opposition à `scoped`/`consumed`) de CETTE
-    /// fonction/méthode prouvés ne jamais s'échapper (voir
-    /// `crate::sema::escape::var_never_escapes`) — calculé une fois avant de
-    /// lowered le corps (voir `lower_func`/`lower_class`), consulté par
-    /// `register_owned_local` pour décider si un `var` peut être traité
-    /// comme un `scoped` implicite (libéré en fin de bloc). Voir
-    /// docs/roadmap.d/memoire-strategie-var.md.
-    pub auto_freeable_vars: HashSet<String>,
+    /// Temporaires possédés de chaque statement ouvert (voir `stmt::rc`).
+    pub rc_temps: Vec<Vec<Value>>,
+    /// Locales de chaque portée ouverte (nom, valeur comptée), parallèle à
+    /// `block_scope_stack` : relâchées en sortie, cellule comprise si promue.
+    pub rc_scopes: Vec<Vec<crate::lower::stmt::rc::RcLocal>>,
+    /// Base du tableau de déroulement des locales comptées (voir
+    /// `stmt::rc::begin_unwind`) et nombre de mots utilisés.
+    pub rc_unwind_base: Option<Value>,
+    pub rc_unwind_words: u32,
+    /// Mot de déroulement de chaque temporaire possédé en cours.
+    pub rc_temp_words: HashMap<Value, Value>,
+    /// Locales visibles dont le type est compté.
+    pub rc_counted_locals: HashSet<String>,
+    /// Profondeur de `rc_temps` à l'entrée de chaque boucle ouverte.
+    pub rc_loop_temps: Vec<usize>,
+    /// Corps d'un générateur (`__resume`) : ses locales vivent dans le frame
+    /// (remises à zéro une fois relâchées), ses temporaires dans des champs
+    /// cachés du frame (une valeur SSA ne survit pas à un `emit`).
+    pub rc_generator: bool,
+    /// Générateur : champ caché de chaque temporaire possédé.
+    pub rc_temp_fields: HashMap<Value, String>,
+    /// Parallèle à `rc_temps` : champs cachés pris par chaque statement,
+    /// rendus à `gen_free_temp_fields` à sa fin.
+    pub rc_temp_field_frames: Vec<Vec<String>>,
+    pub gen_free_temp_fields: Vec<String>,
+    /// Champs cachés ajoutés au frame pendant le lowering (nom, compté).
+    pub gen_spills: Vec<(String, bool)>,
+    /// Champ nommé d'origine d'une locale déplacée dans un champ caché.
+    pub gen_named_fields: HashMap<String, (Value, usize, IrType)>,
+    /// `consumed` comptées pas encore relâchées → profondeur de boucle de
+    /// leur déclaration.
+    pub rc_consumed: HashMap<String, usize>,
+    /// Variables `Resolvable<T>` → `T` (possession du résultat de `resolve`).
+    pub resolvable_types: HashMap<String, Type>,
+    /// Variables `Function<T(...)>` → `T` (possession du résultat d'un appel
+    /// indirect).
+    pub func_ret_ast: HashMap<String, Type>,
 }
 
 impl<'m> LowerBuilder<'m> {
@@ -175,7 +204,22 @@ impl<'m> LowerBuilder<'m> {
             func_var_param_count: HashMap::new(),
             runtime_exit_bb: None,
             owned_locals: HashMap::new(),
-            auto_freeable_vars: HashSet::new(),
+            rc_temps: Vec::new(),
+            rc_scopes: Vec::new(),
+            rc_unwind_base: None,
+            rc_unwind_words: 0,
+            rc_temp_words: HashMap::new(),
+            rc_counted_locals: HashSet::new(),
+            rc_loop_temps: Vec::new(),
+            rc_generator: false,
+            rc_temp_fields: HashMap::new(),
+            rc_temp_field_frames: Vec::new(),
+            gen_free_temp_fields: Vec::new(),
+            gen_spills: Vec::new(),
+            gen_named_fields: HashMap::new(),
+            rc_consumed: HashMap::new(),
+            resolvable_types: HashMap::new(),
+            func_ret_ast: HashMap::new(),
         }
     }
 
@@ -209,7 +253,15 @@ impl<'m> LowerBuilder<'m> {
         // via `frame_vars`, consulté en priorité par `load_local`/
         // `store_local`. On retourne le pointeur de frame (jamais utilisé
         // comme un vrai slot par les appelants passés par `store_local`).
-        if let Some((frame, _, _)) = self.frame_vars.get(name) {
+        // Le layout du frame devine le type des variables de boucle : la
+        // déclaration donne le vrai (valeur `string` de `for k has v in m`).
+        // Une déclaration précédente comptée avait déplacé le nom dans son
+        // champ caché (`rc::declare`) : celle-ci repart du champ nommé.
+        if let Some(original) = self.gen_named_fields.get(name).cloned() {
+            self.frame_vars.insert(name.to_string(), original);
+        }
+        if let Some((frame, _, field_ty)) = self.frame_vars.get_mut(name) {
+            *field_ty = ty;
             return frame.clone();
         }
         let slot = self.new_value();

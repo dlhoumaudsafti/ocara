@@ -2,24 +2,11 @@
 /// méthode/constructeur UTILISATEUR — voir docs/roadmap.d/memoire-strategie-var.md
 /// et docs/roadmap.d/memoire-echappement-argument.md.
 ///
-/// Sert deux besoins aux exigences de sûreté différentes :
-///   - `sema::typecheck` (diagnostic E26, ArgumentEscape) : rater un
-///     échappement réel n'est pas pire qu'aujourd'hui (rien n'est vérifié du
-///     tout sur un argument actuellement) — un résultat "au mieux", imprécis
-///     sur des constructions non modélisées ici (ex. une valeur qui
-///     s'échappe seulement à travers une branche de `match` non triviale),
-///     est une amélioration nette, jamais une régression.
-///   - `lower::stmt::ownership` (libération automatique d'un `var`, via
-///     `var_never_escapes`) : rater un échappement réel y serait un
-///     USE-AFTER-FREE NOUVEAU (aujourd'hui `var` ne libère jamais rien, donc
-///     jamais de UAF côté `var`) — ce consommateur n'utilise ce module QUE
-///     pour savoir si un appel à une fonction/méthode/constructeur
-///     UTILISATEUR *connu* est *prouvé* sûr ; un appel non résolu (builtin,
-///     ou callee qu'on ne sait pas résoudre) doit TOUJOURS être traité comme
-///     échappant de ce côté-là, jamais l'inverse — cette prudence-là est
-///     imposée par construction : `check_call_args` traite un callee non
-///     résolu comme échappant pour CHAQUE argument, pas seulement absent de
-///     vérification (voir sa doc).
+/// Sert à `sema::typecheck` (`check_resource_var_containment`) : une
+/// ressource déclarée en `var` est confinée si elle ne s'échappe jamais
+/// (`var_never_escapes`, mode strict : un appel non résolu — builtin —
+/// est traité comme retenant son argument). `compute_escaping_params`
+/// (mode non strict) fournit ce que chaque appelé utilisateur retient.
 ///
 /// Modélise explicitement : `return`/`result`, `raise`, affectation à un
 /// champ (`self.x = p` ou `obj.x = p`) ou à un élément de tableau/map
@@ -169,9 +156,7 @@ pub fn trace_escapes_in_body(
         taint.insert(name.clone(), std::iter::once(i).collect());
     }
     let mut escaped: HashSet<usize> = HashSet::new();
-    // Non strict : voir la doc de module — un appel non résolu (builtin) est
-    // simplement ignoré, comme aujourd'hui (E26 : rater un échappement n'est
-    // pas pire qu'avant, où rien n'était vérifié du tout).
+    // Non strict : un appel non résolu (builtin) est ignoré.
     walk_block(class_members, body, self_class, known, &mut taint, &mut escaped, false);
     escaped
 }
@@ -201,7 +186,7 @@ pub fn var_never_escapes(
     // `Array::push(arr, x)`) doit être traité comme retenant son argument —
     // rater ça libérerait `x` alors qu'il est en réalité stocké dans `arr`
     // (confirmé par reproduction : double free/use-after-free). Voir la doc
-    // de module — asymétrie assumée avec le mode non strict utilisé pour E26.
+    // de module — asymétrie assumée avec le mode non strict.
     for stmt in &block.stmts[decl_index + 1..] {
         walk_stmt(class_members, stmt, self_class, known, &mut taint, &mut escaped, true);
     }
@@ -350,7 +335,9 @@ fn walk_expr_for_calls(
         }
         Expr::StaticCall { class, method, args, .. } => {
             let resolved = resolve_user_callable(class_members, class, method);
-            check_call_args(args, resolved.as_deref(), known, taint, escaped, strict);
+            if resolved.is_some() || !is_pure_builtin(class, method) {
+                check_call_args(args, resolved.as_deref(), known, taint, escaped, strict);
+            }
             for a in args { walk_expr_for_calls(class_members, a, self_class, known, taint, escaped, strict); }
         }
         Expr::New { class, args, .. } => {
@@ -419,13 +406,27 @@ fn walk_expr_for_calls(
     }
 }
 
+/// Builtin qui ne conserve jamais ses arguments (lecture seule, résultat
+/// neuf) — un argument passé ne s'y échappe pas.
+pub fn is_pure_builtin(class: &str, method: &str) -> bool {
+    match class {
+        "IO" => matches!(method, "write" | "writeln"),
+        "Convert" | "Math" | "String" => true,
+        "UnitTest" => method.starts_with("assert"),
+        "JSON" => matches!(method, "encode" | "pretty" | "minimize"),
+        // Lectures : jamais un élément rendu (≠ `first`/`last`/`get`/`pop`).
+        "Array" => matches!(method, "len" | "contains" | "indexOf" | "join"),
+        "Map" => matches!(method, "size" | "has" | "isEmpty"),
+        _ => false,
+    }
+}
+
 /// Vérifie chaque argument d'un appel dont le callee a été résolu vers
 /// `resolved` (`None` = builtin/inconnu).
 ///
 /// `strict` distingue les deux consommateurs de ce module (voir sa doc
-/// d'en-tête) : en mode non strict (E26/diagnostic), un callee non résolu
-/// n'est jamais vérifié — comportement inchangé, rater un échappement n'est
-/// pas pire qu'avant. En mode strict (libération auto d'un `var`), un callee
+/// d'en-tête) : en mode non strict, un callee non résolu n'est jamais
+/// vérifié. En mode strict (libération auto d'un `var`), un callee
 /// non résolu (builtin — ex. `Array::push(arr, x)`, qui RETIENT bel et bien
 /// son 2ᵉ argument dans `arr`) est traité comme retenant TOUS ses arguments
 /// — confirmé nécessaire par reproduction (sans ça : double free/use-after-
@@ -464,7 +465,7 @@ fn check_call_args(
 /// Collecte tous les identifiants référencés n'importe où dans `block`
 /// (utilisé uniquement pour détecter une capture de closure — volontairement
 /// grossier : toute mention, lecture ou affectation, compte).
-fn collect_ident_refs(block: &Block, out: &mut HashSet<String>) {
+pub(crate) fn collect_ident_refs(block: &Block, out: &mut HashSet<String>) {
     for stmt in &block.stmts {
         collect_ident_refs_stmt(stmt, out);
     }

@@ -1,0 +1,272 @@
+# Comptage de références atomique + détecteur de cycles
+
+Décision (2026-10-05) : toute valeur tas d'Ocara est comptée. Les comptes sont
+atomiques partout, et un détecteur de cycles rattrape les références
+circulaires. Ce n'est pas un GC (pas de ramasse-miettes traçant à la Go/Java) :
+la libération reste déterministe, au moment où le compte tombe à zéro.
+
+Le comptage remplace la preuve statique de propriété : `element_escape`,
+`object_owners`, `object_facts`, la libération automatique des `var` et le
+clonage à l'échappement. Il supprime la fuite du conteneur d'objets réellement
+partagé (voir [memoire-scoped-object-elements-leak.md](memoire-scoped-object-elements-leak.md)).
+
+## En-tête uniforme
+
+```
+[rc: i64 @ val-24][aux: i64 @ val-16][tag: i64 @ val-8][données @ val]
+```
+
+| Valeur | `aux` | Remarque |
+|---|---|---|
+| string possédée (`TAG_STRING_OWNED`) | longueur | littéral `.rodata` (`TAG_STRING`) : jamais compté |
+| array / map | drapeaux (bit 0 : éléments bruts) | `array<int>`, `map<K,float>`… |
+| objet (`TAG_OBJECT`) | `class_id` (inchangé, lu à `-16` par le dispatch) | champs décrits par le registre de classes |
+| closure (`TAG_FUNCTION`) | 0 | `{func, env}` |
+| env de closure (`TAG_ENV`) | nombre de captures | captures = cellules comptées |
+| exception (`TAG_EXCEPTION`) | 0 | `message`, `source` |
+| primitif boxé | — | cellule `[rc][bits]`, `val = (cellule+8) | tag` |
+
+Le mot `rc` porte le compte (bits 0–47), la couleur du détecteur
+(bits 48–55) et le drapeau « dans le tampon des racines » (bit 56).
+
+## Primitives runtime
+
+- `__rc_retain(v)` / `__rc_release(v)` : sans effet sur `0`, un entier brut,
+  un littéral. `release` à zéro libère récursivement :
+  - éléments d'un array/map, sauf s'ils sont bruts ;
+  - champs tas d'un objet, d'après le registre `__rc_register_class(id, n, masque)` ;
+  - env et captures d'une closure.
+- Le drapeau « éléments bruts » est posé par le compilateur à la création d'un
+  conteneur à éléments `int`/`float`/`bool`, et par le runtime pour les
+  conteneurs qu'il crée. Il empêche de suivre un entier comme un pointeur.
+
+## Convention d'appel
+
+- Un argument est **emprunté** : l'appelé ne libère pas ce qu'il reçoit, et
+  le retient s'il le stocke.
+- Une valeur retournée appartient à l'appelant (+1). Un getter runtime
+  (`__array_get`, `__map_get`, `first`…) retient l'élément qu'il rend.
+- Un stockage (variable, champ, élément, capture) possède une référence :
+  il retient une valeur empruntée et relâche l'ancienne valeur.
+- Une sortie de portée (fin de bloc, `return`, `break`, `continue`) relâche
+  les locales. Un temporaire non stocké est relâché après l'instruction.
+
+## Détecteur de cycles
+
+Collecte synchrone par suppression d'essai (Bacon–Rajan). Un `release` qui
+laisse un conteneur, un objet ou une closure à un compte non nul l'ajoute au
+tampon des racines. La collecte (marquage gris, balayage, ramassage des
+blancs) se déclenche :
+
+- quand le tampon dépasse un seuil ;
+- seulement si aucun thread Ocara secondaire ne tourne (`Thread::run`,
+  workers HTTPServer, `async`) : marquer pendant qu'un autre thread modifie
+  des comptes serait faux ;
+- à la sortie du programme.
+
+## Limites connues
+
+- `raise` traverse les frames par `longjmp` : les locales des frames sautées
+  ne sont pas relâchées (fuite, jamais de libération prématurée).
+
+## Phases
+
+1. **Runtime** : en-tête, `__rc_retain`/`__rc_release`, drapeau brut,
+   registre de classes, détecteur de cycles, tests runtime. Aucun changement
+   de comportement.
+2. **Compilateur** : enregistrement des classes au démarrage, drapeau brut
+   posé à la création des conteneurs.
+3. **Runtime + compilateur ensemble** :
+   - getters qui retiennent, stockages qui retiennent et relâchent ;
+   - émission des `retain`/`release` dans le lowering ;
+   - suppression de la preuve statique ;
+   - `scoped` = relâché en fin de portée, `consumed` = déplacement.
+4. **Closures, cellules, exceptions, threads, handlers HTTP** : comptés.
+5. **Cycles** : déclenchement, compteur de threads actifs, tests de cycles
+   (parent ↔ enfant, auto-référence).
+6. **Docs** : `docs/EBNF.md` (section mémoire), mesures de fuite, pages hexa.
+
+## État d'avancement (2026-10-08)
+
+**Phases 1 à 3 faites** :
+
+- Runtime : `runtime/src/rc.rs` (en-tête, `__rc_retain`/`__rc_release`,
+  détecteur de cycles, `ThreadGuard` sur `Thread::run`, `async` et workers
+  HTTP). Insertions qui retiennent, écrasements et `Map::remove` qui
+  relâchent, copies (`reverse`, `slice`, `sort`, `values`, `merge`) qui
+  retiennent, insertions internes de valeurs neuves transférées
+  (`array_push_owned`, `map_set_owned_key`), passages d'argument tel quel
+  retenus. `__range`, octets de fichier/HTTP, sessions : conteneurs bruts.
+- Objets : `[desc][rc][class_id][tag]`, `desc` = masque littéral des champs
+  tas (`src/lower/builder.d/rc_layout.rs`).
+- Lowering : `src/lower/stmt.d/rc.rs` (temporaires par instruction,
+  portées, paramètres, boucles, conditions, bras de `match`, `return`,
+  stockages hors locales). `consumed` relâchée après son premier usage.
+- Preuve statique supprimée (`element_escape`, `object_owners`,
+  `object_facts`, `class_ownership`, libération auto des `var`, clonage à
+  l'échappement, fonctions runtime `__value_free`/`_clone`/`_shallow`/
+  `_concrete`/`_objects`). `ownership.rs` ne ferme plus que les ressources.
+- Sémantique (option A, choisie le 2026-10-08) : `var y = x` partage la
+  valeur ; `scoped`/`consumed` rendent leur référence. Diagnostic E26 retiré.
+
+Mesures (20 000 puis 200 000 appels, boucle `while`) : conteneur partagé
+par deux porteurs, `match`, boucle de concaténation, objets : stables
+(≈ 2 à 3 Mo).
+
+Tests : `examples/tests/84_refcountTest.oc`, `runtime/src/tests/rc.rs`.
+
+## Phase 4 — closures, exceptions, runtime (2026-10-08)
+
+- **Cellules et envs comptés** : `__alloc_locked_cell(compté)` →
+  `[en-tête TAG_CELL][valeur][mutex]`, `__alloc_env(n_caps, n_champs)` →
+  `[en-tête TAG_ENV][captures…][défauts…]`. Une closure a son env pour
+  enfant, l'env ses cellules, une cellule sa valeur (si comptée). Une locale
+  promue rend sa cellule en fin de portée (`rc::promote_to_cell`, portées
+  `(nom, compté)`), l'env retient chaque cellule. `self` capturé est retenu
+  par sa cellule. Tableau des captures d'un `try` libéré après l'appel.
+- **Runtime** : `Thread::run` retient sa closure jusqu'à la fin du thread ;
+  routes HTTP, composants HTML, écouteurs Tauri la retiennent.
+  `call_component` relâche attributs et résultat ; lectures `IO` relâchent la
+  chaîne lue ; `map_lookup` (SDL/Tauri) sans allocation de clé.
+- **`async`** : résultat de `resolve` possédé (type `T` du `Resolvable<T>`),
+  boîte `float`/`bool` relâchée après déballage, env d'arguments libéré par
+  le wrapper. `__free_obj` déclaré (les frames de générateur n'étaient
+  jamais libérés : l'appel était ignoré au codegen).
+- **Exceptions** : `raise` transfère sa valeur (scalaire boxé) à la frame
+  `try`, qui la relâche avec son nom de type après le gestionnaire ; les
+  temporaires et locales de la fonction qui lève sont rendus avant le
+  `longjmp`. Masque d'une classe qui étend une exception builtin :
+  `message`/`source` comptés.
+- **Appels indirects** : résultat d'un appel via une variable `Function<T(...)>`
+  possédé (`func_ret_ast`).
+- **Racines mortes** : un objet relâché vers un compte non nul entre dans
+  le tampon des racines ; mort ensuite, il y restait jusqu'à une collecte,
+  qui n'a jamais lieu tant qu'un thread secondaire tourne (serveur HTTP) —
+  c'était l'essentiel de la fuite du serveur. Avec des threads actifs, le
+  tampon plein est balayé (`sweep_dead_roots` : compte nul et noir = mort,
+  libérable sans risque) au lieu d'être collecté.
+
+Mesures : serveur `mini_project_hexa` stable à ≈ 9,4 Mo sur 12 000 requêtes
+(`/voitures/1`, `/recherche`) ; closures, exceptions levées/rattrapées,
+`consumed` dans un gabarit `renderFile` : stables (20 000 puis 200 000
+itérations).
+
+## Phase 5 — générateurs et déroulement par `raise` (2026-10-08)
+
+- **Générateurs** : les locales vivent dans le frame (remises à zéro une
+  fois rendues), les temporaires d'un statement traversé par un `emit` ne
+  sont jamais rendus (périmés à la reprise, `rc_temps_emit`), la valeur
+  émise appartient au frame. Le frame est un bloc compté
+  (`__alloc_gen(taille, <gén>__drop)`, `TAG_GEN`) : `<gén>__drop` rend ses
+  champs comptés puis le libère. Le `for` consommateur le tient comme
+  temporaire (rendu par `break`, `return`, fin d'instruction, déroulement) ;
+  `fromMessage` et la consommation scalaire le rendent aussitôt (la valeur
+  scalaire est retenue avant). Gestionnaire `on` d'un `try` interne : valeur
+  levée rendue par le binding.
+- **Déroulement** : chaque fonction (fonction, méthode, closure, corps et
+  gestionnaire de `try`) range ses locales comptées et ses temporaires
+  possédés dans un tableau de mots sur sa pile (`Inst::AllocaWords`,
+  `rc::begin_unwind`/`finish_unwind`), enregistré à l'entrée
+  (`__rc_unwind_push`) et retiré avant chaque `Return`. Chaque frame `try`
+  mémorise la profondeur ; `__ocara_fail` rend, avant le `longjmp`, les mots
+  des fonctions sautées (`rc::unwind_to`). Un mot est remis à zéro quand sa
+  valeur est rendue ou transférée ; une locale promue y range sa cellule.
+  Coût mesuré : ≈ 20 ns par appel d'une fonction à locales comptées.
+- Codegen : un appel à une fonction interne `__*` non déclarée est
+  désormais une erreur (deux appels, `__free_obj` et `__rc_unwind_*`,
+  disparaissaient silencieusement).
+
+Mesures (20 000 puis 200 000 itérations) : `raise` traversant trois
+fonctions avec locales, closures et temporaires, générateurs (`for`,
+`break`, `return`, `fromMessage`, scalaire, `try` interne) : stables ;
+serveur `mini_project_hexa` stable à ≈ 9,5 Mo sur 16 000 requêtes.
+
+## Phase 6 — threads, ressources, handles (2026-10-08)
+
+- **Cycles en multi-thread** : `RUNNING` compte les threads qui exécutent
+  du code Ocara (le principal compris). Un appel bloquant du runtime gare
+  le thread (`rc::park`) : `recv` des workers HTTP, attente du verrou des
+  handlers, `join` (threads, workers, tâches `async`), `sleep`, verrou de
+  `Mutex`, lecture clavier. La collecte complète a lieu quand le thread qui
+  la lance est le seul en cours ; un thread qui se réveille attend la fin
+  d'une collecte. Sinon, balayage des racines mortes seulement.
+- **Ressources et `raise`** : chaque ressource `scoped`/`consumed` est
+  enregistrée (`__rc_resource_push(slot, fermeture)`) et retirée à sa
+  fermeture (`ownership::mark_finalized`, fermeture explicite comprise) ;
+  `__ocara_fail` ferme celles des frames sautées avant de rendre leurs
+  valeurs. Une sortie de fonction ferme les ressources avant de rendre les
+  références (`rc::release_all`, `release_loop_exit`).
+- **Handles natifs** : les structures Rust rendues comme valeurs Ocara
+  (connexions SQLite/MySQL, requêtes et réponses HTTP, contexte de requête
+  serveur, tâches `async`) sont logées dans un bloc `TAG_HANDLE`
+  (`rc::handle_new`/`handle_take`) : `rc::kind` ne lit plus jamais la
+  mémoire d'un bloc étranger, quel que soit l'allocateur.
+- **Objets builtin opaques comptés** (`use Mutex()`, `use Thread()`,
+  `use HTTPServer()`, `use HTMLComponent()`) : leur bloc n'était jamais
+  libéré.
+- **Champs ressource finalisés avec l'objet** : le masque de classe porte
+  une lettre par champ ressource (`S` SQLite, `Y` MySQL, `B` MariaDB,
+  `Q` HTTPRequest, `P` HTTPResponse, `X` Mutex, `T` Thread) ;
+  `rc::finalize_object` ferme ces champs avant de rendre les autres, à la
+  libération comme dans le détecteur de cycles. `Mutex_destroy`,
+  `Thread_join` et `Thread_detach` mettent le champ à zéro (après le join) :
+  une fermeture manuelle suivie de la finalisation reste sans effet.
+- **E61** : une `const` globale doit être évaluable à la compilation ; une
+  `const G = f()` était réévaluée à chaque entrée de fonction (récursion
+  infinie si `f` lisait `G`).
+
+Mesures : cycles créés dans un thread pendant que le principal attend
+(`join`), ressources `scoped` (`Mutex`, SQLite) traversées par un `raise` :
+stables ; serveur `mini_project_hexa` stable à ≈ 9,9 Mo sur 12 000 requêtes.
+
+## Phase 7 — générateurs : temporaires et boucles `for` (2026-10-08)
+
+Une valeur SSA (ou un slot de pile) ne survit pas à un `emit`, qui fait un
+vrai retour natif de `__resume`. Ce qui doit traverser un `emit` vit
+désormais dans des champs cachés du frame (`message_gen::spill_field`),
+ajoutés au layout pendant le lowering de `__resume` ; `__new` (taille) et
+`__drop` (champs comptés) sont générés après.
+
+- **Temporaires** : chacun a un champ caché compté, relu pour être rendu en
+  fin de statement, remis à zéro, puis réutilisé par les statements
+  suivants. Le marquage « statement traversé par un `emit` » (temporaires
+  jamais rendus) est supprimé.
+- **Boucles `for`** (`for x in`, `for k has v in`, `for x in générateur()`)
+  : tableau parcouru, tableau des clés, longueur, frame du générateur
+  consommé et index vivent dans des champs cachés non comptés. Un `for` qui
+  faisait un `emit` plantait à la deuxième reprise (défaut préexistant).
+- **Locales comptées** : chaque déclaration comptée est déplacée dans son
+  propre champ caché (comme le mot de déroulement d'une fonction normale),
+  qui ne porte jamais qu'une valeur comptée ou zéro. `__drop` ne devine
+  plus les locales comptées par leur nom : une locale `int` et une locale
+  `string` du même nom ne peuvent plus faire relâcher un entier.
+- **Type des variables de boucle** : la déclaration donne le type réel du
+  champ (`for k has v in map<string, string>` lisait `v` comme un entier).
+
+Mesures (20 000 puis 200 000 itérations) : `for` sur le résultat d'un appel,
+sur une map, sur une plage, générateur imbriqué, `return` et `try` dans la
+boucle, consommateur qui sort par `break`, `Array::fromMessage` : stables.
+
+## Phase 8 — boucles d'événements Tauri/SDL (2026-10-08)
+
+La collecte complète des cycles exige que le thread qui la lance soit le
+seul en cours. Le thread principal d'une application Tauri ou SDL ne se
+garait jamais : les cycles des autres threads (serveur HTTP de
+`tauri_httpserver`, `mini_project_hexa`) n'étaient jamais rendus.
+
+- `rc::park()` (public) et nouveau `rc::enter()` : compte le thread courant
+  le temps d'un appel vers du code Ocara depuis un thread garé ou étranger.
+- `runtime_tauri` : `Tauri_run` est garé pendant toute la boucle
+  d'événements ; l'appel d'un handler Ocara (`window.ocara.invoke`) se
+  recompte avec `rc::enter()`.
+- `runtime_sdl` : la boucle de jeu est écrite en Ocara ; ses attentes
+  (`SDL_present`, synchronisation verticale, et `SDL::delay`) sont garées.
+
+Mesures : un thread qui crée 20 000 puis 200 000 cycles pendant une boucle
+SDL `present`/`delay` : 92 → 127 Mo avant, 88,8 → 90,1 Mo après. Application
+`tauri_httpserver`, fenêtre ouverte : plateau à ≈ 164 Mo (3 000 puis 6 000
+requêtes).
+
+## Reste à faire
+
+Rien de connu à ce jour.

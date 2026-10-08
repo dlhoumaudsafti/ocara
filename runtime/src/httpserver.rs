@@ -831,7 +831,10 @@ fn try_serve_static_file(req_handle: i64, req_path: &str, root_path: Option<&str
 /// pour qu'aucune capture partagée (heap_promoted) ne soit jamais touchée
 /// par deux handlers en même temps.
 unsafe fn call_handler_locked(handler_lock: &Mutex<()>, h: &SendHandler, req_handle: i64) {
-    let _guard = handler_lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _guard = {
+        let _parked = crate::rc::park();
+        handler_lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    };
     let f: OcaraHandlerFn = unsafe { std::mem::transmute(h.func_ptr as usize) };
     unsafe { f(h.env_ptr, req_handle) };
 }
@@ -916,7 +919,7 @@ fn handle_request(
         session_id:   None,
         request:      Some(request),
     });
-    let req_handle = Box::into_raw(ctx) as i64;
+    let req_handle = crate::rc::handle_new(*ctx);
 
     // Appeler le handler ou tenter de servir un fichier statique
     if let Some(h) = handler {
@@ -979,7 +982,7 @@ fn handle_request(
     }
 
     // Libérer le contexte
-    drop(unsafe { Box::from_raw(req_handle as *mut OcaraHttpContext) });
+    drop(unsafe { crate::rc::handle_take::<OcaraHttpContext>(req_handle) });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1074,6 +1077,7 @@ pub extern "C" fn HTTPServer_route(
     fat_ptr: i64,
 ) {
     let s          = unsafe { server_from_slot(self_ptr) };
+    crate::rc::__rc_retain(fat_ptr);
     let func_ptr   = unsafe { *(fat_ptr as *const i64) };
     let env_ptr    = unsafe { *((fat_ptr as *const i64).add(1)) };
     let path   = unsafe { ptr_to_str(path_ptr).to_string() };
@@ -1094,6 +1098,7 @@ pub extern "C" fn HTTPServer_routeError(
     fat_ptr: i64,
 ) {
     let s        = unsafe { server_from_slot(self_ptr) };
+    crate::rc::__rc_retain(fat_ptr);
     let func_ptr = unsafe { *(fat_ptr as *const i64) };
     let env_ptr  = unsafe { *((fat_ptr as *const i64).add(1)) };
     s.error_handlers.insert(code as u16, SendHandler { func_ptr, env_ptr });
@@ -1131,9 +1136,12 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
         let root_path = Arc::clone(&root_path);
         let error_handlers = Arc::clone(&error_handlers);
         let handler_lock = Arc::clone(&handler_lock);
+        let guard = crate::rc::ThreadGuard::new();
         std::thread::spawn(move || {
+            let _guard = guard;
             loop {
-                match server.recv() {
+                let next = { let _parked = crate::rc::park(); server.recv() };
+                match next {
                     Ok(request) => handle_request(request, &routes, root_path.as_deref(), &error_handlers, &handler_lock),
                     Err(_)      => break,
                 }
@@ -1141,6 +1149,7 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
         })
     }).collect();
 
+    let _parked = crate::rc::park();
     for h in handles {
         let _ = h.join();
     }
@@ -1202,7 +1211,7 @@ pub extern "C" fn HTTPServerRequest_headers(req: i64) -> i64 {
     for (k, v) in &ctx.headers {
         let key = unsafe { alloc_str(k) };
         let val = unsafe { alloc_str(v) };
-        crate::__map_set(map, key, val);
+        crate::map_set_owned_key(map, key, val);
     }
     map
 }
@@ -1263,14 +1272,14 @@ unsafe fn param_value_to_mixed(v: &ParamValue) -> i64 {
 unsafe fn file_to_mixed_map(filename: &str, content_type: &str, content: &[u8]) -> i64 {
     let map = crate::__map_new();
     unsafe {
-        crate::__map_set(map, alloc_str("filename"), alloc_str(filename));
-        crate::__map_set(map, alloc_str("contentType"), alloc_str(content_type));
-        crate::__map_set(map, alloc_str("size"), crate::box_int_if_needed(content.len() as i64));
-        let bytes_arr = crate::__array_new();
+        crate::map_set_owned_key(map, alloc_str("filename"), alloc_str(filename));
+        crate::map_set_owned_key(map, alloc_str("contentType"), alloc_str(content_type));
+        crate::map_set_owned_key(map, alloc_str("size"), crate::box_int_if_needed(content.len() as i64));
+        let bytes_arr = crate::rc::__rc_mark_raw(crate::__array_new());
         for byte in content {
-            crate::__array_push(bytes_arr, *byte as i64);
+            crate::array_push_owned(bytes_arr, *byte as i64);
         }
-        crate::__map_set(map, alloc_str("content"), bytes_arr);
+        crate::map_set_owned_key(map, alloc_str("content"), bytes_arr);
     }
     map
 }
@@ -1333,11 +1342,11 @@ pub extern "C" fn HTTPServerRequest_params(req: i64) -> i64 {
             for (k, v) in bucket {
                 let key = unsafe { alloc_str(k) };
                 let val = unsafe { param_value_to_mixed(v) };
-                crate::__map_set(inner, key, val);
+                crate::map_set_owned_key(inner, key, val);
             }
         }
         let outer_key = unsafe { alloc_str(bucket_name) };
-        crate::__map_set(outer, outer_key, inner);
+        crate::map_set_owned_key(outer, outer_key, inner);
     }
     outer
 }

@@ -23,7 +23,17 @@ use super::literals::{lower_literal, lower_is_check};
 /// payer une allocation sur le cas courant d'un petit entier. Aussi utilisée
 /// pour boxer un élément `F64`/`Bool`/`I64` d'un littéral `array<mixed>`/
 /// `map<K,mixed>` (voir `lower_array_literal`/`lower_map_literal`).
+/// Boxe un opérande scalaire en valeur `mixed` ; la cellule créée est un
+/// temporaire possédé.
 fn box_for_dyn_arith(builder: &mut LowerBuilder, ty: &IrType, val: Value) -> Value {
+    let boxed = box_scalar_for_dyn(builder, ty, val.clone());
+    if boxed != val {
+        crate::lower::stmt::rc::track(builder, &boxed);
+    }
+    boxed
+}
+
+fn box_scalar_for_dyn(builder: &mut LowerBuilder, ty: &IrType, val: Value) -> Value {
     match ty {
         IrType::F64 => {
             let d = builder.new_value();
@@ -80,7 +90,12 @@ fn pack_variadic_args(builder: &mut LowerBuilder, args: &[Expr], arg_vals: Vec<V
     }
     let arr = builder.new_value();
     builder.emit(Inst::Call { dest: Some(arr.clone()), func: "__array_new".into(), args: vec![], ret_ty: IrType::Ptr });
+    crate::lower::stmt::rc::track(builder, &arr);
     let concrete = matches!(elem_ty, IrType::I64 | IrType::F64 | IrType::Bool);
+    if concrete {
+        let marked = builder.new_value();
+        builder.emit(Inst::Call { dest: Some(marked), func: "__rc_mark_raw".into(), args: vec![arr.clone()], ret_ty: IrType::Ptr });
+    }
     for (arg_expr, val) in args[fixed_count..].iter().zip(arg_vals[fixed_count..].iter()) {
         let stored = if concrete {
             val.clone()
@@ -111,9 +126,58 @@ fn is_forwardable_variadic(builder: &LowerBuilder, arg: &Expr, elem_ty: &IrType)
 /// construit en `mixed` (boxé) alors que la variable le relisait brut :
 /// `0`/`float` ressortaient comme l'adresse de leur cellule (voir
 /// docs/roadmap.d/memoire-nested-array-zero-json.md).
+/// Constructeur d'une exception builtin (`use XException(message, code)`,
+/// ou `parent::init(message, code)` d'une sous-classe) : aucune fonction
+/// runtime, les champs `message`/`code`/`source` sont écrits directement aux
+/// offsets de la disposition de `layout_class`.
+fn lower_builtin_exception_init(builder: &mut LowerBuilder, obj: Value, layout_class: &str, args: &[Expr]) {
+    let set = |builder: &mut LowerBuilder, field: &str, src: Value| {
+        let offset = field_offset(&builder.module.class_layouts, layout_class, field);
+        builder.emit(Inst::SetField { obj: obj.clone(), field: field.into(), src, offset });
+    };
+    let message = match args.first() {
+        Some(a) => lower_expr(builder, a),
+        None => {
+            let v = builder.new_value();
+            let idx = builder.module.intern_string("");
+            builder.emit(Inst::ConstStr { dest: v.clone(), idx });
+            v
+        }
+    };
+    crate::lower::stmt::rc::take(builder, &message);
+    set(builder, "message", message);
+    let code = match args.get(1) {
+        Some(a) => lower_expr(builder, a),
+        None => {
+            let v = builder.new_value();
+            builder.emit(Inst::ConstInt { dest: v.clone(), value: 0 });
+            v
+        }
+    };
+    set(builder, "code", code);
+    let source = builder.new_value();
+    let idx = builder.module.intern_string("");
+    builder.emit(Inst::ConstStr { dest: source.clone(), idx });
+    set(builder, "source", source);
+}
+
+/// Argument d'appel : un littéral `[...]`/`{...}` est construit au type
+/// déclaré du paramètre `idx` de `callee` — sinon `array<mixed>`, dont les
+/// scalaires boxés étaient relus bruts par un paramètre `array<float>`.
+fn lower_call_arg(builder: &mut LowerBuilder, callee: &str, idx: usize, arg: &Expr) -> Value {
+    let param = builder.module.param_ast_types.get(callee).and_then(|p| p.get(idx)).cloned();
+    match (arg, param) {
+        (Expr::Array { elements, .. }, Some(Type::Array(inner))) => lower_array_literal(builder, elements, &inner),
+        (Expr::Map { entries, .. }, Some(Type::Map(_, val))) => lower_map_literal(builder, entries, &val),
+        _ => crate::lower::builder::message_gen::lower_arg_or_message(builder, arg),
+    }
+}
+
 pub fn lower_array_literal(builder: &mut LowerBuilder, elements: &[Expr], elem_ty: &Type) -> Value {
     let arr = builder.new_value();
     builder.emit(Inst::Call { dest: Some(arr.clone()), func: "__array_new".into(), args: vec![], ret_ty: IrType::Ptr });
+    crate::lower::stmt::rc::track(builder, &arr);
+    crate::lower::stmt::rc::mark_raw_if_primitive(builder, &Type::Array(Box::new(elem_ty.clone())), &arr);
     for elem in elements {
         let stored = lower_literal_element(builder, elem, elem_ty);
         builder.emit(Inst::Call { dest: None, func: "__array_push".into(), args: vec![arr.clone(), stored], ret_ty: IrType::Void });
@@ -126,6 +190,8 @@ pub fn lower_array_literal(builder: &mut LowerBuilder, elements: &[Expr], elem_t
 pub fn lower_map_literal(builder: &mut LowerBuilder, entries: &[(Expr, Expr)], val_ty: &Type) -> Value {
     let map = builder.new_value();
     builder.emit(Inst::Call { dest: Some(map.clone()), func: "__map_new".into(), args: vec![], ret_ty: IrType::Ptr });
+    crate::lower::stmt::rc::track(builder, &map);
+    crate::lower::stmt::rc::mark_raw_if_primitive(builder, &Type::Map(Box::new(Type::String), Box::new(val_ty.clone())), &map);
     for (key, val) in entries {
         let kv = lower_expr(builder, key);
         let vv = lower_literal_element(builder, val, val_ty);
@@ -192,28 +258,38 @@ pub fn hoist_closure_promotions_before_loop(builder: &mut LowerBuilder, body: &B
         // noms trouvés dans `capture_scope`) est ignoré par prudence, comme
         // le fait déjà la promotion normale de `Expr::Nameless`.
         if let Some((slot, ty, mutable)) = builder.locals.get(name.as_str()).cloned() {
-            let heap_ptr = builder.new_value();
-            builder.emit(Inst::Call {
-                dest:   Some(heap_ptr.clone()),
-                func:   "__alloc_locked_cell".into(),
-                args:   vec![],
-                ret_ty: IrType::Ptr,
-            });
-            let cur_val = builder.new_value();
-            builder.emit(Inst::Load { dest: cur_val.clone(), ptr: slot, ty: ty.clone() });
-            builder.emit(Inst::Call {
-                dest:   None,
-                func:   "__locked_cell_set".into(),
-                args:   vec![heap_ptr.clone(), cur_val],
-                ret_ty: IrType::Void,
-            });
+            let heap_ptr = crate::lower::stmt::rc::promote_to_cell(builder, &name, slot, &ty);
             builder.locals.insert(name.clone(), (heap_ptr, ty, mutable));
             builder.heap_promoted.insert(name);
         }
     }
 }
 
+/// Bras de `match` : ses temporaires sont relâchés dans le bras (le bloc
+/// de fusion ne les voit pas). Si un bras produit une valeur possédée, tous
+/// rendent une valeur possédée (bras emprunté retenu).
+fn lower_match_arm(builder: &mut LowerBuilder, body: &Expr, owned: bool) -> Value {
+    crate::lower::stmt::rc::begin_temps(builder);
+    let v = lower_expr(builder, body);
+    if owned && !crate::lower::stmt::rc::claim(builder, &v) {
+        crate::lower::stmt::rc::retain(builder, &v);
+    }
+    crate::lower::stmt::rc::end_temps(builder);
+    v
+}
+
+/// Lowering d'une expression ; une valeur possédée (+1) est enregistrée
+/// comme temporaire du statement courant (voir `crate::lower::stmt::rc`).
 pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
+    let owned = crate::lower::stmt::rc::produces_owned(builder, expr);
+    let v = lower_expr_value(builder, expr);
+    if owned {
+        crate::lower::stmt::rc::track(builder, &v);
+    }
+    v
+}
+
+fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
     match expr {
         // ── Littéraux ────────────────────────────────────────────────────────
         Expr::Literal(Literal::Int(n), _) => {
@@ -511,7 +587,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     // `param_type_for_call_arg` pour le bug d'off-by-one que
                     // cette distinction corrige.
                     let arg_vals: Vec<Value> = completed_args.iter().enumerate().map(|(i, a)| {
-                        let raw = lower_expr(builder, a);
+                        let raw = lower_call_arg(builder, &func_mangled, i, a);
                         // `i + 1` : le receveur (`object`) est l'argument 0 de la
                         // forme statique équivalente (`Array::push(arr, v)`).
                         if stores_raw_into_container(builder, &func_mangled, object, i + 1) {
@@ -639,6 +715,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                             args:   vec![env_size],
                             ret_ty: IrType::I64,
                         });
+                        crate::lower::stmt::rc::keep_task_args(builder, &call_target, &all_args);
                         for (i, arg_val) in all_args.iter().enumerate() {
                             builder.emit(Inst::SetField {
                                 obj:    env_ptr.clone(),
@@ -681,9 +758,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                                 | (Some("HTTPResponse"), "closeResponse")
                         );
                         if is_manual_finalizer {
-                            if let Some(info) = builder.owned_locals.get_mut(var_name.as_str()) {
-                                info.dropped = true;
-                            }
+                            crate::lower::stmt::ownership::mark_finalized(builder, var_name);
                         }
                     }
                     return dest;
@@ -750,6 +825,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     ret_ty: IrType::I64,
                 });
                 // Stocker chaque arg dans env[i*8]
+                crate::lower::stmt::rc::keep_task_args(builder, &func_name, &arg_vals);
                 for (i, arg_val) in arg_vals.iter().enumerate() {
                     builder.emit(Inst::SetField {
                         obj:    env_ptr.clone(),
@@ -778,7 +854,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // voir docs/roadmap.d/langage-emit-iterable.md, §2) — gardé par
             // la sema, voir `check_message_scalar_consumption`.
             let arg_vals: Vec<Value> = args.iter().enumerate().map(|(i, a)| {
-                let raw = crate::lower::builder::message_gen::lower_arg_or_message(builder, a);
+                let raw = lower_call_arg(builder, &func_name, i, a);
                 let arg_ty = expr_ir_type(builder, a);
                 let param_ty = param_type_for_call_arg(builder, &func_name, i, CallForm::Static);
                 box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
@@ -826,6 +902,16 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             if let Some(canonical) = builder.module.import_aliases.get(resolved_class) {
                 canonical_builtin = canonical.clone();
                 resolved_class = &canonical_builtin;
+            }
+
+            // `parent::init(message, code)` d'une sous-classe d'exception builtin.
+            if class == "<parent>" && method == "init" && crate::builtins::exception::is_builtin_exception(resolved_class) {
+                if let (Some((self_val, _)), Some(current)) = (builder.load_local("self"), builder.current_class.clone()) {
+                    lower_builtin_exception_init(builder, self_val, &current, args);
+                }
+                let dummy = builder.new_value();
+                builder.emit(Inst::ConstInt { dest: dummy.clone(), value: 0 });
+                return dummy;
             }
 
             // Pour self::method, chercher la méthode dans la chaîne d'héritage
@@ -915,6 +1001,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     ret_ty: IrType::I64,
                 });
                 // Stocker chaque arg dans env[i*8]
+                crate::lower::stmt::rc::keep_task_args(builder, &func_name, &arg_vals);
                 for (i, arg_val) in arg_vals.iter().enumerate() {
                     builder.emit(Inst::SetField {
                         obj:    env_ptr.clone(),
@@ -981,7 +1068,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // que soit le paramètre visé (confirmé faux par reproduction) —
             // voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md.
             let arg_vals: Vec<Value> = args.iter().enumerate().map(|(i, a)| {
-                let raw = crate::lower::builder::message_gen::lower_arg_or_message(builder, a);
+                let raw = lower_call_arg(builder, &func_name, i, a);
                 if args.first().is_some_and(|recv| stores_raw_into_container(builder, &func_name, recv, i)) {
                     return raw;
                 }
@@ -1037,9 +1124,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 // receveur. Voir docs/roadmap.d/memoire-double-free-et-fuites-scoped.md.
                 if func_name == "HTTPRequest_close" || func_name == "HTTPRequest_closeResponse" {
                     if let Some(Expr::Ident(var_name, _)) = args.first() {
-                        if let Some(info) = builder.owned_locals.get_mut(var_name.as_str()) {
-                            info.dropped = true;
-                        }
+                        crate::lower::stmt::ownership::mark_finalized(builder, var_name);
                     }
                 }
                 // Les fonctions void ne retournent rien, donc on retourne une constante dummy
@@ -1120,6 +1205,10 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
         Expr::New { class, args, .. } => {
             let dest = builder.new_value();
             builder.emit(Inst::Alloc { dest: dest.clone(), class: class.clone() });
+            if crate::builtins::exception::is_builtin_exception(class) {
+                lower_builtin_exception_init(builder, dest.clone(), class, args);
+                return dest;
+            }
             // Récupère les types de params du constructeur pour boxer F64/Bool → mixed (Ptr)
             let ctor_params = builder.module.ctor_param_types
                 .get(class.as_str())
@@ -1130,7 +1219,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             let mut ctor_args = vec![dest.clone()];
             for (i, a) in args.iter().enumerate() {
                 let arg_ty   = expr_ir_type(builder, a);
-                let val      = lower_expr(builder, a);
+                let val      = lower_call_arg(builder, &init_func, i, a);
                 let param_ty = ctor_params.get(i).cloned();
                 ctor_args.push(box_arg_for_mixed_param(builder, param_ty, &arg_ty, val));
             }
@@ -1411,6 +1500,10 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
 
         // ── Match expression ──────────────────────────────────────────────────
         Expr::Match { subject, arms, .. } => {
+            let owned = arms.iter().any(|arm| {
+                matches!(arm.body, Expr::Array { .. } | Expr::Map { .. })
+                    || crate::lower::stmt::rc::produces_owned(builder, &arm.body)
+            });
             let subj = lower_expr(builder, subject);
             let result_slot = builder.new_value();
             builder.emit(Inst::Alloca { dest: result_slot.clone(), ty: IrType::Ptr });
@@ -1426,13 +1519,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                         MatchPattern::Literal(lit) => {
                             // Pattern littéral : comparaison directe
                             let pat_val = lower_literal(builder, lit);
-                            let test = builder.new_value();
-                            builder.emit(Inst::CmpEq {
-                                dest: test.clone(),
-                                lhs:  subj.clone(),
-                                rhs:  pat_val,
-                                ty:   IrType::I64,
-                            });
+                            let test = emit_pattern_eq(builder, subj.clone(), pat_val, lit);
                             let next_bb = builder.new_block();
                             builder.emit(Inst::Branch {
                                 cond:    test,
@@ -1440,7 +1527,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                                 else_bb: next_bb.clone(),
                             });
                             builder.switch_to(&arm_bb);
-                            let arm_val = lower_expr(builder, &arm.body);
+                            let arm_val = lower_match_arm(builder, &arm.body, owned);
                             builder.emit(Inst::Store { ptr: result_slot.clone(), src: arm_val.clone() });
                             if !builder.is_terminated() {
                                 builder.emit(Inst::Jump { target: merge_bb.clone() });
@@ -1458,7 +1545,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                                 else_bb: next_bb.clone(),
                             });
                             builder.switch_to(&arm_bb);
-                            let arm_val = lower_expr(builder, &arm.body);
+                            let arm_val = lower_match_arm(builder, &arm.body, owned);
                             builder.emit(Inst::Store { ptr: result_slot.clone(), src: arm_val.clone() });
                             if !builder.is_terminated() {
                                 builder.emit(Inst::Jump { target: merge_bb.clone() });
@@ -1471,7 +1558,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     // default
                     builder.emit(Inst::Jump { target: arm_bb.clone() });
                     builder.switch_to(&arm_bb);
-                    let arm_val = lower_expr(builder, &arm.body);
+                    let arm_val = lower_match_arm(builder, &arm.body, owned);
                     builder.emit(Inst::Store { ptr: result_slot.clone(), src: arm_val.clone() });
                     if !builder.is_terminated() {
                         builder.emit(Inst::Jump { target: merge_bb.clone() });
@@ -1486,12 +1573,16 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
 
             let dest = builder.new_value();
             builder.emit(Inst::Load { dest: dest.clone(), ptr: result_slot, ty: IrType::Ptr });
+            if owned {
+                crate::lower::stmt::rc::track(builder, &dest);
+            }
             dest
         }
 
         // ── Chaîne template `${expr}` ─────────────────────────────────────
         Expr::Template { parts, .. } => {
             // Dérouler en concaténations successives via __str_concat
+            let mut concatenated = false;
             let mut acc = {
                 let idx = builder.module.intern_string("");
                 let d = builder.new_value();
@@ -1522,7 +1613,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     builder.emit(Inst::Call {
                         dest:   Some(d.clone()),
                         func:   "__array_to_str".into(),
-                        args:   vec![raw_val],
+                        args:   vec![raw_val.clone()],
                         ret_ty: IrType::Ptr,
                     });
                     d
@@ -1533,7 +1624,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                         builder.emit(Inst::Call {
                             dest:   Some(as_f64.clone()),
                             func:   "__str_from_float".into(),
-                            args:   vec![raw_val],
+                            args:   vec![raw_val.clone()],
                             ret_ty: IrType::Ptr,
                         });
                         as_f64
@@ -1543,7 +1634,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                         builder.emit(Inst::Call {
                             dest:   Some(as_str.clone()),
                             func:   "__str_from_bool".into(),
-                            args:   vec![raw_val],
+                            args:   vec![raw_val.clone()],
                             ret_ty: IrType::Ptr,
                         });
                         as_str
@@ -1554,21 +1645,28 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                         builder.emit(Inst::Call {
                             dest:   Some(as_str.clone()),
                             func:   "__str_from_int".into(),
-                            args:   vec![raw_val],
+                            args:   vec![raw_val.clone()],
                             ret_ty: IrType::Ptr,
                         });
                         as_str
                     }
-                    _ => raw_val, // Ptr : déjà une string
+                    _ => raw_val.clone(), // Ptr : déjà une string
                 }};
+                if str_val != raw_val {
+                    crate::lower::stmt::rc::track(builder, &str_val);
+                }
 
                 let dest = builder.new_value();
                 builder.emit(Inst::Call {
                     dest:   Some(dest.clone()),
                     func:   "__str_concat".into(),
-                    args:   vec![acc, str_val],
+                    args:   vec![acc.clone(), str_val],
                     ret_ty: IrType::Ptr,
                 });
+                if concatenated {
+                    crate::lower::stmt::rc::track(builder, &acc);
+                }
+                concatenated = true;
                 acc = dest;
             }
             acc
@@ -1576,10 +1674,6 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
 
         // ── Fonction anonyme (closure) ─────────────────────────────────────
         Expr::Nameless { params, ret_ty, body, .. } => {
-            let actual_ret_ty = ret_ty.as_ref()
-                .map(|t| IrType::from_ast(t))
-                .unwrap_or(IrType::Ptr);
-
             // Analyser les captures. Fusionner locals + captured_vars : une closure
             // imbriquée dans une autre closure référence des variables que la closure
             // englobante a déjà capturées (vivent dans captured_vars, pas locals) —
@@ -1630,24 +1724,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 // potentiellement sur des threads différents (Thread::run,
                 // workers HTTPServer) — voir docs/roadmap.d/memoire-concurrence-threads.md.
                 if let Some((slot, ty, mutable)) = builder.locals.get(cap_name.as_str()).cloned() {
-                    let heap_ptr = builder.new_value();
-                    builder.emit(Inst::Call {
-                        dest:   Some(heap_ptr.clone()),
-                        func:   "__alloc_locked_cell".into(),
-                        args:   vec![],
-                        ret_ty: IrType::Ptr,
-                    });
-                    // Copier la valeur courante (stack → cellule verrouillée) —
-                    // encore mono-thread à ce stade, mais __locked_cell_set reste
-                    // sûr et cohérent avec tous les accès futurs.
-                    let cur_val = builder.new_value();
-                    builder.emit(Inst::Load { dest: cur_val.clone(), ptr: slot, ty: ty.clone() });
-                    builder.emit(Inst::Call {
-                        dest:   None,
-                        func:   "__locked_cell_set".into(),
-                        args:   vec![heap_ptr.clone(), cur_val],
-                        ret_ty: IrType::Void,
-                    });
+                    let heap_ptr = crate::lower::stmt::rc::promote_to_cell(builder, cap_name, slot, &ty);
                     // Rediriger les futurs accès dans le scope extérieur vers le heap
                     builder.locals.insert(cap_name.clone(), (heap_ptr.clone(), ty, mutable));
                     builder.heap_promoted.insert(cap_name.clone());
@@ -1675,7 +1752,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 builder.module,
                 &anon_name,
                 params,
-                actual_ret_ty.clone(),
+                ret_ty.clone(),
                 body,
                 &captures,
                 &fn_ret_types_clone,
@@ -1697,8 +1774,9 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 let env = builder.new_value();
                 builder.emit(Inst::Alloc { dest: env.clone(), class: env_class });
                 
-                // Stocker les captures
+                // Stocker les captures : l'env retient chaque cellule
                 for (i, _) in captures.iter().enumerate() {
+                    crate::lower::stmt::rc::retain(builder, &capture_vals[i]);
                     builder.emit(Inst::SetField {
                         obj:    env.clone(),
                         field:  format!("__cap_{}", i),
@@ -1713,6 +1791,7 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     for (i, param) in params.iter().enumerate() {
                         if let Some(ref default_expr) = param.default_value {
                             let default_val = lower_expr(builder, default_expr);
+                            crate::lower::stmt::rc::keep(builder, &default_val, false);
                             builder.emit(Inst::SetField {
                                 obj:    env.clone(),
                                 field:  format!("__default_{}", i),
@@ -1766,9 +1845,10 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     builder.emit(Inst::Call {
                         dest:   Some(unboxed.clone()),
                         func:   "__unbox_float".into(),
-                        args:   vec![raw],
+                        args:   vec![raw.clone()],
                         ret_ty: IrType::F64,
                     });
+                    crate::lower::stmt::rc::release(builder, &raw);
                     unboxed
                 }
                 IrType::Bool => {
@@ -1776,9 +1856,10 @@ pub fn lower_expr(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     builder.emit(Inst::Call {
                         dest:   Some(unboxed.clone()),
                         func:   "__unbox_bool".into(),
-                        args:   vec![raw],
+                        args:   vec![raw.clone()],
                         ret_ty: IrType::Bool,
                     });
+                    crate::lower::stmt::rc::release(builder, &raw);
                     unboxed
                 }
                 // I64, Ptr (string, array, map, Function, object) : le i64 EST la valeur

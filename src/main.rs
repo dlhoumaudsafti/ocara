@@ -905,8 +905,17 @@ fn main() {
                 .unwrap_or_else(|| args.input.clone());
             
             // Utiliser le contexte runtime du span s'il existe, sinon chercher dans runtime_ranges
+            // `runtime_ranges` : lignes du fichier PRINCIPAL — jamais appliquées
+            // à un fichier importé (sinon `main.ERROR` sur une erreur de
+            // contrôleur dont la ligne tombe dans la plage du bloc `main`).
+            let in_main_file = file_opt.as_ref().is_none_or(|f| {
+                let f = std::path::Path::new(f);
+                f == args.input || f.canonicalize().ok() == args.input.canonicalize().ok()
+            });
             let runtime_ctx = if runtime_ctx_opt.is_some() {
                 runtime_ctx_opt.as_deref()
+            } else if !in_main_file {
+                None
             } else {
                 // Fallback : chercher dans runtime_ranges (pour les erreurs sans contexte)
                 runtime_ranges.iter()

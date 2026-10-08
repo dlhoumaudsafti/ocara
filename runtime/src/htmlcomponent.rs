@@ -27,7 +27,7 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use crate::{alloc_str, ptr_to_str, new_map, __map_set};
+use crate::{alloc_str, ptr_to_str, new_map};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Registre global des composants
@@ -108,6 +108,7 @@ pub extern "C" fn HTMLComponent_tag(self_ptr: i64, name_ptr: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn HTMLComponent_register(self_ptr: i64, fat_ptr: i64) {
     let comp     = unsafe { component_from_slot(self_ptr) };
+    crate::rc::__rc_retain(fat_ptr);
     let func_ptr = unsafe { *(fat_ptr as *const i64) };
     let env_ptr  = unsafe { *((fat_ptr as *const i64).add(1)) };
     with_registry(|reg| {
@@ -150,7 +151,7 @@ unsafe fn attr_to_ocara(val: AttrVal) -> i64 {
                 for (k, v) in entries {
                     let kp = alloc_str(&k);
                     let vp = alloc_str(&v);
-                    __map_set(m, kp, vp);
+                    crate::map_set_owned_key(m, kp, vp);
                 }
                 m
             }
@@ -266,7 +267,7 @@ unsafe fn parse_attrs_to_ocara_map(attrs_bytes: &[u8]) -> i64 {
             };
             let key_ptr = alloc_str(&name);
             let val_ptr = attr_to_ocara(val);
-            __map_set(map, key_ptr, val_ptr);
+            crate::map_set_owned_key(map, key_ptr, val_ptr);
         }
         map
     }
@@ -283,11 +284,10 @@ unsafe fn call_component(entry: &ComponentEntry, attrs_ptr: i64) -> String {
         type HandlerFn = unsafe extern "C" fn(i64, i64) -> i64;
         let f: HandlerFn = std::mem::transmute(entry.func_ptr as usize);
         let result_ptr = f(entry.env_ptr, attrs_ptr);
-        if result_ptr == 0 {
-            String::new()
-        } else {
-            ptr_to_str(result_ptr).to_string()
-        }
+        crate::rc::release(attrs_ptr);
+        let html = ptr_to_str(result_ptr).to_string();
+        crate::rc::release(result_ptr);
+        html
     }
 }
 
@@ -540,12 +540,12 @@ fn render_recursive(template: &str, depth: u32) -> String {
                 // Slot par défaut : contenu hors <slot name=...>
                 let k = alloc_str("__slot__");
                 let v = alloc_str(default_slot);
-                __map_set(attrs_ptr, k, v);
+                crate::map_set_owned_key(attrs_ptr, k, v);
                 // Slots nommés : attrs["__slot_<name>__"]
                 for (name, content) in named_slots {
                     let k = alloc_str(&format!("__slot_{}__", name));
                     let v = alloc_str(content);
-                    __map_set(attrs_ptr, k, v);
+                    crate::map_set_owned_key(attrs_ptr, k, v);
                 }
             }
             let entry = ComponentEntry { func_ptr, env_ptr };

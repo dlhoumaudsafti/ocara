@@ -109,7 +109,7 @@ pub fn union_named_class(ty: &Type) -> Option<String> {
 /// classe utilisateur ? Combine le cas direct (`Type::Named`) et
 /// `union_named_class` (le cas union) — les deux formes sous lesquelles un
 /// site de binding (variable de boucle `for x in array<T>`, valeur d'un
-/// `for k => v in map<K,V>`...) peut avoir besoin de la même réponse : "quelle
+/// `for k has v in map<K,V>`...) peut avoir besoin de la même réponse : "quelle
 /// classe dois-je enregistrer dans `var_class` pour ce type élément ?".
 pub fn resolved_named_class(ty: &Type) -> Option<String> {
     match ty {

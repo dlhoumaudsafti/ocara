@@ -32,7 +32,7 @@
 ///     frontière.
 /// Aucune analyse interprocédurale : seul un `raise` TEXTUEL compte, pas un
 /// appel vers une fonction qui pourrait elle-même lever une exception —
-/// cohérent avec le mode non strict de `crate::sema::escape` (E26).
+/// cohérent avec le mode non strict de `crate::sema::escape`.
 use std::collections::HashSet;
 use crate::parsing::ast::*;
 use crate::parsing::token::Span;

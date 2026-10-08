@@ -1,0 +1,56 @@
+import ocara.UnitTest
+import ocara.Array
+
+// Propriété des objets : conteneur relu après son transfert tant que le
+// porteur vit (même bloc), alias local d'un champ seulement lu
+// (`const list = bag.items`, `Array::len`), receveur résultat d'appel
+// (`self.makeBag().items`) identifié par sa classe.
+class Test_83_object_ownership_aliases {
+
+    public method readAfterTransferTest(): int {
+        var ys:array<AliasItem> = [use AliasItem("a"), use AliasItem("b")]
+        scoped bag:AliasBag = use AliasBag(ys)
+        UnitTest::assertEquals(2, ys.len())
+        UnitTest::assertEquals("a!", ys[0].name)
+        UnitTest::assertEquals(2, bag.count())
+        return 0
+    }
+
+    public method readOnlyAliasTest(): int {
+        scoped bag:AliasBag = self.makeBag()
+        const list:array<AliasItem> = bag.items
+        var names:string = ""
+        for it in list {
+            names = names + it.name
+        }
+        UnitTest::assertEquals("m!", names)
+        UnitTest::assertEquals(1, Array::len(list))
+        return 0
+    }
+
+    public method callReceiverTest(): int {
+        UnitTest::assertEquals(1, self.makeBag().items.len())
+        return 0
+    }
+
+    private method makeBag(): AliasBag {
+        return use AliasBag([use AliasItem("m")])
+    }
+}
+
+class AliasItem {
+    public property name:string
+    init(name:string) {
+        self.name = name + "!"
+    }
+}
+
+class AliasBag {
+    public property items:array<AliasItem>
+    init(items:array<AliasItem>) {
+        self.items = items
+    }
+    public method count(): int {
+        return self.items.len()
+    }
+}

@@ -7,3 +7,4 @@ mod mysql;
 mod httpserver;
 mod httpsession;
 mod string;
+mod rc;

@@ -13,7 +13,6 @@
 // n'a pas de parent, donc pas de suffixe `|Exception`.
 // ─────────────────────────────────────────────────────────────────────────────
 
-use std::alloc::{alloc, Layout};
 use crate::{alloc_str, __ocara_fail};
 use crate::typecheck::TAG_EXCEPTION;
 
@@ -231,27 +230,28 @@ pub unsafe fn throw_mysql_exception(message: &str, code: i64, source: &str) -> !
         std::hint::unreachable_unchecked()
     }
 }
+/// Chaînes portées par une exception (comptage de références).
+pub(crate) unsafe fn exception_children(val: i64) -> [i64; 2] {
+    unsafe {
+        let exc = &*(val as *const OcaraException);
+        [exc.message, exc.source]
+    }
+}
+
+pub(crate) unsafe fn free_exception_block(val: i64) {
+    unsafe { crate::rc::free_block(val, std::mem::size_of::<OcaraException>()) }
+}
+
 /// Alloue un objet Exception sur le heap
 unsafe fn alloc_exception(message: &str, code: i64, source: &str) -> i64 {
     unsafe {
-        let size = std::mem::size_of::<OcaraException>();
-        let layout = Layout::from_size_align(8 + size, 8).unwrap();
-        let raw = alloc(layout);
-        assert!(!raw.is_null(), "ocara_runtime: OOM (exception)");
-        
-        // Tag dédié aux exceptions — voir TAG_EXCEPTION pour la confusion
-        // avec TAG_MAP que ce tag corrige.
-        *(raw as *mut i64) = TAG_EXCEPTION;
-        
-        // Objet Exception
-        let exc_ptr = raw.add(8) as *mut OcaraException;
-        std::ptr::write(exc_ptr, OcaraException {
+        let val = crate::rc::alloc_block(std::mem::size_of::<OcaraException>(), 0, TAG_EXCEPTION, false);
+        std::ptr::write(val as *mut OcaraException, OcaraException {
             message: alloc_str(message),
             code,
             source: alloc_str(source),
         });
-        
-        (raw as i64) + 8
+        val
     }
 }
 

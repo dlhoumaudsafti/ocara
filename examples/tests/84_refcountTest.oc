@@ -1,0 +1,192 @@
+import ocara.UnitTest
+
+// Comptage de références (docs/roadmap.d/memoire-refcount.md) : une valeur
+// partagée par plusieurs porteurs reste vivante tant qu'un porteur la
+// référence, quel que soit l'ordre de leur disparition.
+class Test_84_refcount {
+
+    public method containerSharedByTwoHoldersTest(): int {
+        var ys:array<RcItem> = [use RcItem("y")]
+        var b1:RcBag = use RcBag(ys)
+        var b2:RcBag = use RcBag(ys)
+        UnitTest::assertEquals("y", b1.items[0].name)
+        UnitTest::assertEquals("y", b2.items[0].name)
+        return 0
+    }
+
+    public method holderOutlivesInnerScopeTest(): int {
+        var keep:RcBag = use RcBag([])
+        if true {
+            var ys:array<RcItem> = [use RcItem("inner")]
+            keep = use RcBag(ys)
+        }
+        UnitTest::assertEquals("inner", keep.items[0].name)
+        return 0
+    }
+
+    public method sharedInnerArrayTest(): int {
+        var inner:array<string> = ["a", "b"]
+        var matrix:array<array<string>> = [inner, inner]
+        UnitTest::assertEquals("b", matrix[1][1])
+        return 0
+    }
+
+    public method reassignedStringInLoopTest(): int {
+        var s:string = ""
+        for i in 0..100 {
+            s = s + "x"
+        }
+        UnitTest::assertEquals(100, s.len())
+        return 0
+    }
+
+    public method loopBodyLocalPushedTest(): int {
+        var out:array<string> = []
+        for w in ["a", "b"] {
+            var t:string = w
+            t = t + "!"
+            out.push(t)
+        }
+        UnitTest::assertEquals("a!", out[0])
+        UnitTest::assertEquals("b!", out[1])
+        return 0
+    }
+
+    public method returnedLocalSurvivesTest(): int {
+        UnitTest::assertEquals("hello world", self.greet("world"))
+        return 0
+    }
+
+    public method matchOwnedArmsTest(): int {
+        var n:int = 2
+        var label:string = match n {
+            1 => "one" + "!"
+            2 => "two" + "!"
+            default => "many"
+        }
+        UnitTest::assertEquals("two!", label)
+        return 0
+    }
+
+    public method closureCapturesStringTest(): int {
+        var prefix:string = "pre" + "fix"
+        var f:Function<string(string)> = nameless(x:string): string {
+            return prefix + x
+        }
+        UnitTest::assertEquals("prefix-1", f("-1"))
+        return 0
+    }
+
+    public method fieldOverwriteTest(): int {
+        var item:RcItem = use RcItem("old")
+        var kept:string = item.name
+        item.name = "new"
+        UnitTest::assertEquals("old", kept)
+        UnitTest::assertEquals("new", item.name)
+        return 0
+    }
+
+    public method mapRemoveKeepsExtractedValueTest(): int {
+        var m:map<string, RcItem> = {"k": use RcItem("v")}
+        var it:RcItem = m["k"]
+        m.remove("k")
+        UnitTest::assertEquals("v", it.name)
+        return 0
+    }
+
+    public method scopedPassedToRetainingConstructorTest(): int {
+        var bag:RcBag = use RcBag([])
+        if true {
+            scoped ys:array<RcItem> = [use RcItem("kept")]
+            bag = use RcBag(ys)
+        }
+        UnitTest::assertEquals("kept", bag.items[0].name)
+        return 0
+    }
+
+    public method scopedEscapeSharesTheValueTest(): int {
+        UnitTest::assertEquals(3, self.shared().len())
+        return 0
+    }
+
+    public method consumedKeptByItsOnlyUseTest(): int {
+        var bag:RcBag = use RcBag([])
+        consumed ys:array<RcItem> = [use RcItem("once")]
+        bag = use RcBag(ys)
+        UnitTest::assertEquals("once", bag.items[0].name)
+        return 0
+    }
+
+    public method consumedReadOnceTest(): int {
+        consumed s:string = "con" + "sumed"
+        UnitTest::assertEquals(8, s.len())
+        return 0
+    }
+
+    private method shared(): array<string> {
+        scoped noms:array<string> = ["a", "b"]
+        var copie:array<string> = noms
+        noms.push("c")
+        return copie
+    }
+
+    public method closureResultOwnedByCallerTest(): int {
+        var prefix:string = "p" + "x"
+        var f:Function<string(string)> = nameless(x:string): string {
+            return prefix + x
+        }
+        var r:string = f("1") + f("2")
+        UnitTest::assertEquals("px1px2", r)
+        return 0
+    }
+
+    public method raisedObjectMessageTest(): int {
+        var seen:string = ""
+        try {
+            raise use RcError("boom" + "!", 3)
+        } on e is RcError {
+            seen = e.message
+        }
+        UnitTest::assertEquals("boom!", seen)
+        return 0
+    }
+
+    public method resolvedListSurvivesTest(): int {
+        consumed task:Resolvable<array<RcItem>> = RcRepo::all()
+        const items:array<RcItem> = resolve task
+        UnitTest::assertEquals("async", items[0].name)
+        return 0
+    }
+
+    private method greet(who:string): string {
+        var msg:string = "hello " + who
+        return msg
+    }
+}
+
+class RcItem {
+    public property name:string
+    init(name:string) {
+        self.name = name
+    }
+}
+
+class RcBag {
+    public property items:array<RcItem>
+    init(items:array<RcItem>) {
+        self.items = items
+    }
+}
+
+class RcError extends Exception {
+    init(message:string, code:int) {
+        parent::init(message, code)
+    }
+}
+
+class RcRepo {
+    public static async method all(): array<RcItem> {
+        var items:array<RcItem> = [use RcItem("async")]
+        return items
+    }
+}

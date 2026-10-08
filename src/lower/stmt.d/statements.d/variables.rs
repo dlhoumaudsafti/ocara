@@ -42,7 +42,7 @@ fn map_value_type(ty: &Type) -> Option<&Type> {
 /// `union_named_class` (src/parsing/ast.d/types.rs) pour le bug que ça
 /// causait et docs/roadmap.d/langage-union-class-null-field-access.md pour
 /// la reproduction complète.
-fn register_var_class(builder: &mut LowerBuilder, name: &str, ty: &Type) {
+pub(crate) fn register_var_class(builder: &mut LowerBuilder, name: &str, ty: &Type) {
     // Type de classe utilisateur direct.
     if let Type::Named(class_name) = ty {
         builder.var_class.insert(name.to_string(), class_name.clone());
@@ -71,6 +71,7 @@ fn register_var_class(builder: &mut LowerBuilder, name: &str, ty: &Type) {
     if let Type::Function { ret_ty, .. } = ty {
         builder.func_vars.insert(name.to_string());
         builder.func_ret_types.insert(name.to_string(), IrType::from_ast(ret_ty));
+        builder.func_ret_ast.insert(name.to_string(), (**ret_ty).clone());
     }
 
     // Union contenant un type nommé (`Classe|null`) : utiliser le premier
@@ -91,6 +92,7 @@ fn register_var_class(builder: &mut LowerBuilder, name: &str, ty: &Type) {
 fn register_async_var_ret(builder: &mut LowerBuilder, name: &str, ty: &Type) {
     if let Type::Resolvable(inner) = ty {
         builder.async_var_ret.insert(name.to_string(), IrType::from_ast(inner));
+        builder.resolvable_types.insert(name.to_string(), (**inner).clone());
     }
 }
 
@@ -125,10 +127,7 @@ pub fn lower_var(
     let _slot = builder.declare_local(name, ir_ty.clone(), mutable);
     let val_ty = expr_ir_type_pub(builder, value);
     let val = lower_literal_or_expr(builder, value, ty);
-    // `value` peut être une `scoped`/`consumed` qui s'échappe vers `name`
-    // (point d'échappement — voir crate::lower::stmt::ownership).
-    let val = crate::lower::stmt::ownership::maybe_clone_escaping(builder, value, val);
-    let val = box_for_any(builder, &ir_ty, val_ty, val);
+    let val = store_value(builder, ty, &ir_ty, val_ty, val);
     
     // Tracker le type IR DÉCLARÉ derrière un handle de tâche `Resolvable<T>`
     // (nécessaire pour l'unboxing float/bool dans `Expr::Resolve`) — dérivé
@@ -140,6 +139,10 @@ pub fn lower_var(
     register_async_var_ret(builder, name, ty);
 
     builder.store_local(name, val);
+    declare_if_counted(builder, name, ty);
+    if kind == VarKind::Consumed && crate::lower::stmt::rc::counted(builder, ty) {
+        crate::lower::stmt::rc::declare_consumed(builder, name);
+    }
 
     // Propriété (`scoped`/`consumed`) — voir crate::lower::stmt::ownership.
     // Après `store_local` : le clonage éventuel à l'échappement (chantier
@@ -177,13 +180,36 @@ pub fn lower_const(
     let _slot = builder.declare_local(name, ir_ty.clone(), false);
     let val_ty = expr_ir_type_pub(builder, value);
     let val = lower_literal_or_expr(builder, value, ty);
-    let val = box_for_any(builder, &ir_ty, val_ty, val);
+    let val = store_value(builder, ty, &ir_ty, val_ty, val);
     // Voir la doc de `register_async_var_ret`/le site d'appel équivalent
     // dans `lower_var` — `const t:Resolvable<T> = ...` est tout aussi valide
     // qu'un `var` (jamais couvert par l'ancien hack, qui ne s'appliquait
     // qu'à `lower_var`).
     register_async_var_ret(builder, name, ty);
     builder.store_local(name, val);
+    declare_if_counted(builder, name, ty);
+}
+
+/// Valeur rangée dans une locale de type déclaré `ty` : convertie (boxing
+/// `mixed`), puis prise par la locale si le type est compté — une cellule
+/// boxée à l'instant est déjà possédée.
+pub(crate) fn store_value(builder: &mut LowerBuilder, ty: &Type, ir_ty: &IrType, val_ty: IrType, val: crate::ir::inst::Value) -> crate::ir::inst::Value {
+    let converted = box_for_any(builder, ir_ty, val_ty, val.clone());
+    if crate::lower::stmt::rc::counted(builder, ty) {
+        if converted == val {
+            crate::lower::stmt::rc::take(builder, &converted);
+        }
+        crate::lower::stmt::rc::mark_raw_if_primitive(builder, ty, &converted);
+    }
+    converted
+}
+
+fn declare_if_counted(builder: &mut LowerBuilder, name: &str, ty: &Type) {
+    if crate::lower::stmt::rc::counted(builder, ty) {
+        crate::lower::stmt::rc::declare(builder, name);
+    } else {
+        crate::lower::stmt::rc::declare_plain(builder, name);
+    }
 }
 
 /// Lower `value` en tenant compte de `ty` (le type DÉCLARÉ de la cible,

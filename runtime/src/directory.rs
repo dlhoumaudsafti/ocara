@@ -127,7 +127,7 @@ pub unsafe extern "C" fn Directory_list(path_ptr: i64) -> i64 {
                     if let Ok(entry) = entry {
                         if let Some(name) = entry.file_name().to_str() {
                             let name_ptr = alloc_str(name);
-                            crate::__array_push(arr_ptr, name_ptr);
+                            crate::array_push_owned(arr_ptr, name_ptr);
                         }
                     }
                 }
@@ -159,7 +159,7 @@ pub unsafe extern "C" fn Directory_listFiles(path_ptr: i64) -> i64 {
                             if meta.is_file() {
                                 if let Some(name) = entry.file_name().to_str() {
                                     let name_ptr = alloc_str(name);
-                                    crate::__array_push(arr_ptr, name_ptr);
+                                    crate::array_push_owned(arr_ptr, name_ptr);
                                 }
                             }
                         }
@@ -193,7 +193,7 @@ pub unsafe extern "C" fn Directory_listDirs(path_ptr: i64) -> i64 {
                             if meta.is_dir() {
                                 if let Some(name) = entry.file_name().to_str() {
                                     let name_ptr = alloc_str(name);
-                                    crate::__array_push(arr_ptr, name_ptr);
+                                    crate::array_push_owned(arr_ptr, name_ptr);
                                 }
                             }
                         }
@@ -315,7 +315,7 @@ pub unsafe extern "C" fn Directory_infos(path_ptr: i64) -> i64 {
                         let timestamp = duration.as_secs();
                         let mod_key = alloc_str("modified");
                         let mod_val = alloc_str(&timestamp.to_string());
-                        crate::__map_set(map_ptr, mod_key, mod_val);
+                        crate::map_set_owned_key(map_ptr, mod_key, mod_val);
                     }
                 }
                 
@@ -325,19 +325,19 @@ pub unsafe extern "C" fn Directory_infos(path_ptr: i64) -> i64 {
                         let timestamp = duration.as_secs();
                         let cre_key = alloc_str("created");
                         let cre_val = alloc_str(&timestamp.to_string());
-                        crate::__map_set(map_ptr, cre_key, cre_val);
+                        crate::map_set_owned_key(map_ptr, cre_key, cre_val);
                     }
                 }
                 
                 // is_dir: bool
                 let is_dir_key = alloc_str("is_dir");
-                crate::__map_set(map_ptr, is_dir_key, meta.is_dir() as i64);
+                crate::map_set_owned_key(map_ptr, is_dir_key, meta.is_dir() as i64);
                 
                 // count: int (nombre d'entrées)
                 if let Ok(entries) = fs::read_dir(&path) {
                     let count = entries.count() as i64;
                     let count_key = alloc_str("count");
-                    crate::__map_set(map_ptr, count_key, count);
+                    crate::map_set_owned_key(map_ptr, count_key, count);
                 }
                 
                 map_ptr

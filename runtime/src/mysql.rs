@@ -178,7 +178,7 @@ fn row_to_map(row: &mysql::Row) -> i64 {
             }
             _ => 0,
         };
-        crate::__map_set(row_map, key_ptr, value);
+        crate::map_set_owned_key(row_map, key_ptr, value);
     }
     row_map
 }
@@ -227,7 +227,7 @@ pub unsafe extern "C" fn MySQL_connect(
                     tx_open: Mutex::new(false),
                     pinned_conn: Mutex::new(None),
                 });
-                Box::into_raw(db) as i64
+                crate::rc::handle_new(*db)
             }
             Err(e) => {
                 throw_mysql_exception(
@@ -380,7 +380,7 @@ pub unsafe extern "C" fn MySQL_query(db_ptr: i64, query_ptr: i64, placeholder_pt
             for row_result in query_result {
                 let row = row_result
                     .map_err(|e| format!("Failed to read row for query '{}': {}", query, e))?;
-                crate::__array_push(result_array, row_to_map(&row));
+                crate::array_push_owned(result_array, row_to_map(&row));
             }
 
             Ok(result_array)
@@ -585,7 +585,7 @@ pub unsafe extern "C" fn MySQL_commit(db_ptr: i64, close: i64) -> i64 {
                 for row_result in query_result {
                     let row = row_result
                         .map_err(|e| format!("Failed to read row for query '{}': {}", query, e))?;
-                    crate::__array_push(result_array, row_to_map(&row));
+                    crate::array_push_owned(result_array, row_to_map(&row));
                 }
                 Ok(result_array)
             } else {
@@ -681,7 +681,7 @@ pub unsafe extern "C" fn MySQL_close(db_ptr: i64) {
         }
         // Le pool (et la connexion épinglée éventuelle) sera automatiquement
         // fermé quand la structure est drop.
-        let _ = Box::from_raw(db_ptr as *mut OcaraMySQLDatabase);
+        let _ = crate::rc::handle_take::<OcaraMySQLDatabase>(db_ptr);
     }
 }
 

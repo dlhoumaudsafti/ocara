@@ -10,7 +10,7 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 Cette roadmap est construite pour qu'on puisse dire que le langage est stable **quand la section "Priorité Haute" ci-dessous est vide** — pas avant. Ce n'est pas un objectif séparé à suivre en plus des tickets : c'est littéralement ce que cette section représente. Volontairement, aucune checklist n'est dupliquée ici (le projet a déjà payé le prix d'une source de vérité dupliquée ailleurs — voir `docs/adding-builtins.md`, la double liste `OCARA_BUILTINS`) : la liste unique à vider est celle de la section "Priorité Haute".
 
-**La section "Priorité Haute" a de nouveau des points ouverts** (voir ci-dessous) — au sens de cette définition, le langage n'est momentanément pas « stable ». Les sections Moyenne/Basse/Très Basse ci-dessous restent à traiter mais ne bloquent pas cette définition — voir la Légende.
+**La section "Priorité Haute" est actuellement vide** — au sens de cette définition, le langage est « stable ». Les sections Moyenne/Basse/Très Basse ci-dessous restent à traiter mais ne bloquent pas cette définition — voir la Légende.
 
 ## Légende
 
@@ -29,17 +29,15 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Arguments de `use Classe(...)` ignorés en silence pour une classe sans `init`** — `use C("x")` sur `class C { public property name:string }` compile, l'argument est perdu et `c.name` vaut `null`. Il faudrait une erreur d'arité (comme pour un `struct`, dont le constructeur est vérifié), ou un vrai constructeur par champs. *(Simple à Légère, selon le choix)* → [détails](roadmap.d/sema-use-args-without-init.md)
 
 ---
 
 ## Priorité Moyenne
 
 À traiter mais non bloquant pour la stabilité du langage.
-
-- **Boucle sur map `for k has v in m`** à la place de `for k => v in m` (`=>` n'est pas explicite, et sert déjà aux bras de `match`). À trancher : `has` mot-clé seulement dans le `for` (sinon `m.has(k)` casse), coexistence ou remplacement cassant de `=>` (19 boucles dans le corpus). *(Légère)* → [détails](roadmap.d/langage-for-has-map-loop.md)
 - **Serveur de langage (LSP) adossé au compilateur** — `ocara --lsp` (ou d'abord `ocara --check --json`) réutilisant parseur/sema pour la navigation, le survol, la complétion, les références et les diagnostics en direct ; l'extension VS Code, aujourd'hui entièrement à base de regex (résolution par nom, types non suivis, sémantique recodée en TypeScript), deviendrait un client léger. Points à trancher : protocole, sema tolérante aux erreurs (plus de `process::exit`), spans en plages, dépendances LSP. *(Structurel)* → [détails](roadmap.d/tooling-language-server.md)
 - **Architecture hexagonale stricte par défaut** — déclaration `architecture hexagonal` avec alias configurables pour `domain`/`application`/`infrastructure`; `architecture permissive` désactive uniquement les contrôles architecturaux. Vérification compile-time de la direction des imports entre couches et contextes, des racines `shared` et des cibles de `wiring`. *(Structurelle — classification des fichiers/namespace, résolution des imports et intégration aux règles existantes de `wiring`)* → [détails](roadmap.d/langage-mode-hexa.md)
+- **Réflexion : déclarations conditionnelles `when`** — conditionner un import (`when System::OS is not 'android'` puis `import ocara.Tauri` : module ni importé ni lié sur Android, le code qui l'utilise doit porter une clause compatible), une classe, interface, struct, générique, enum, module, fonction, méthode, propriété ou variable à des constantes fixées par le compilateur (`when System::OS is not 'windows'`, `when System::BUILD is 'release'`) ; opérateurs `is`, `is not`, `is greater`, `is smaller`, `is greater or equal`, `is smaller or equal` ; plusieurs `when` = `and` ; la variante est choisie à la compilation, toutes les variantes sont vérifiées. Signatures libres par variante, sema exécutée par combinaison de constantes (option A). Conditions sur des valeurs d'exécution (sessions HTTP) écartées. *(Structurel si retenu — évaluation à la compilation, sélection avant la sema)* → [détails](roadmap.d/reflexion-declarations-conditionnelles-when.md)
 
 ---
 
@@ -49,6 +47,8 @@ Confort ou portée future — n'affecte pas la correction du compilateur ou des 
 
 - **Réflexion (non tranchée) : remplacer `for x in a..b` par `for x in 1 to 10` (borne incluse) / `for x in 1 until 10` (borne exclue)** — la borne de fin exclue de `..` n'est pas lisible au point d'appel ; à peser contre le coût d'un changement de syntaxe cassant sur tout le corpus existant. *(Structurel si retenu — voir la fiche pour la discussion complète avant tout engagement)* → [détails](roadmap.d/reflexion-syntaxe-for-range.md)
 - **Réflexion (non tranchée) : `for x in myarray when x greater|smaller|(not) equal| literral|var|scoped|consumed|const|property {}` et `for x when x greater|smaller|(not) equal| y {}` et `for x=1 when x greater|smaller|(not) y {}`**
+- **Réflexion (non tranchée) : `consumed` à usages multiples** — garder `consumed` (rendu au premier usage) et permettre N usages : forme « incrément » (`consumed+1` = 2 usages) ou « total » (`consumed<2>`/`consumed{2}`/`consumed[2]`), à trancher, ainsi que ce qui compte comme un usage (lecture ou instruction). *(Moyenne si retenue — parseur, compteur d'usages en sema, libération au N-ième usage)* → [détails](roadmap.d/reflexion-consumed-usages-multiples.md)
+- **Grammaire Tree-sitter `tree-sitter-ocara/`** — `grammar.js`, `queries/highlights.scm` et corpus de tests dérivés de l'EBNF, pour colorer le code Ocara (fichiers `.oc` et blocs ```` ```ocara ```` des Markdown). Couvre directement Neovim, Helix, Zed, Emacs ; GitHub (Linguist, grammaires TextMate), GitLab (Rouge) et VS Code (TextMate) ne lisent pas Tree-sitter : pour eux, ajout d'Ocara à Linguist (seuil d'usage public) et lexer Rouge en amont, `.gitattributes` en attendant. *(Moyenne — grammaire et requêtes ; dépôt en amont hors de notre contrôle)* → [détails](roadmap.d/tooling-tree-sitter.md)
 - **Enums enrichis** — syntaxe `case`, backing type typé déclaré (`enum Status: string { case Pending = 'pending' }`), méthodes d'instance avec `self` référençant le cas courant et pattern `self::Case`/motifs multiples par bras dans un `match`. Vérifié : l'enum actuel est un pur groupe de constantes `int` (`EnumVariant.value: Option<i64>` câblé en dur, pas de méthodes, pas d'instanciation), et `match` ne supporte ni motif « cas d'enum » ni plusieurs motifs séparés par une virgule dans un même bras. *(Massive — nouveau système d'enum quasi complet + extension du pattern matching, plusieurs points à trancher avant d'implémenter)* → [détails](roadmap.d/langage-enum-cases-backing-methods.md)
 
 ---

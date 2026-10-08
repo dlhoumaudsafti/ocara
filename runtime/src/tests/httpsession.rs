@@ -35,7 +35,7 @@ fn mixed_scalars_round_trip() {
 
 #[test]
 fn concrete_int_array_keeps_raw_leaves() {
-    let arr = __array_new();
+    let arr = crate::rc::__rc_mark_raw(__array_new());
     for n in [0i64, 1, 70000] { __array_push(arr, n); }
     let stored = capture(arr, 1 | 1 << 8).unwrap();
     assert_eq!(stored, Stored::Array(vec![Stored::Int(0), Stored::Int(1), Stored::Int(70000)]));

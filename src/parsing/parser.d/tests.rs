@@ -16,6 +16,21 @@ mod tests {
         Parser::new(tokens).parse_expr().expect("parse error")
     }
 
+    // ── for k has v in m ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_for_has_map_loop() {
+        let p = parse("function f(m:map<string, int>): void {\n    for k has v in m {\n        var has:bool = m.has(k)\n    }\n}\n");
+        assert!(matches!(&p.functions[0].body.stmts[0], Stmt::ForMap { key, value, .. } if key == "k" && value == "v"));
+    }
+
+    #[test]
+    fn test_for_arrow_map_loop_is_rejected() {
+        let tokens = Lexer::new("function f(m:map<string, int>): void {\n    for k => v in m { }\n}\n").tokenize().expect("lex error");
+        let err = Parser::new(tokens).parse_program().expect_err("ancienne forme acceptée");
+        assert!(format!("{:?}", err).contains("for k has v in m"), "{:?}", err);
+    }
+
     // ── Import ───────────────────────────────────────────────────────────────
 
     #[test]

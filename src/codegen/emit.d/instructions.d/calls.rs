@@ -6,7 +6,7 @@ use cranelift_frontend::{FunctionBuilder, Variable};
 use cranelift_module::{FuncId, Module};
 use cranelift_object::ObjectModule;
 use crate::ir::inst::Inst;
-use super::super::error::CgResult;
+use super::super::error::{CodegenError, CgResult};
 
 pub fn emit_calls(
     builder: &mut FunctionBuilder,
@@ -61,8 +61,12 @@ pub fn emit_calls(
                         def!(d, final_val);
                     }
                 }
+            } else if func.starts_with("__") {
+                // Fonction interne du runtime sans descripteur : bug du
+                // compilateur, jamais à ignorer (l'appel disparaîtrait).
+                return Err(CodegenError(format!("fonction interne non déclarée : {}", func)));
             }
-            // Si la fonction n'est pas connue, on ignore (runtime résolution)
+            // Autre fonction inconnue : ignorée (module non importé)
         }
 
         Inst::CallIndirect { dest, callee, args, .. } => {

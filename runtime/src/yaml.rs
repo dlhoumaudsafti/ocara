@@ -4,8 +4,8 @@
 
 use serde_yaml::{Value as YamlValue, Mapping as YamlMap};
 use crate::{alloc_str, ptr_to_str, get_value_type, OcaraMap};
-use crate::{__array_new, __array_len, __array_get, __array_push};
-use crate::{__map_new, __map_set};
+use crate::{__array_new, __array_len, __array_get};
+use crate::__map_new;
 
 /// YAML::encode(data, leaf_kind) → string
 /// Encode un array ou map en YAML. `leaf_kind` (2e paramètre, jamais visible
@@ -166,7 +166,7 @@ fn yaml_to_value(yaml: &YamlValue) -> i64 {
             let ocara_arr = __array_new();
             for elem in arr {
                 let ocara_val = yaml_to_value(elem);
-                __array_push(ocara_arr, ocara_val);
+                crate::array_push_owned(ocara_arr, ocara_val);
             }
             ocara_arr
         }
@@ -179,7 +179,7 @@ fn yaml_to_value(yaml: &YamlValue) -> i64 {
                     _ => unsafe { alloc_str("") },
                 };
                 let ocara_val = yaml_to_value(value);
-                __map_set(ocara_map, key_str, ocara_val);
+                crate::map_set_owned_key(ocara_map, key_str, ocara_val);
             }
             ocara_map
         }

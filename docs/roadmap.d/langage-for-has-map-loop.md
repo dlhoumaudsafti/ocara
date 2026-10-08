@@ -1,40 +1,26 @@
-# Boucle sur map : `for k has v in m` à la place de `for k => v in m`
+# Boucle sur map : `for k has v in m` — implémenté (remplacement cassant)
 
-## Constat
+Documentation utilisateur : `docs/EBNF.md` §27.3 et §31.
 
-La boucle sur une map s'écrit aujourd'hui `for cle => valeur in m { }`.
-`=>` est un symbole, pas un mot, ce qui va contre l'intention d'Ocara d'une
-syntaxe explicite. Il sert déjà, avec un autre sens, dans les bras de
-`match` (`100 => "parfait"`).
+## Ce qui a été tranché
 
-## Proposition
+- **Remplacement cassant** : `for k => v in m` ne compile plus. Message :
+  « 'for k => v in m' is no longer supported — write 'for k has v in m' ».
+  `=>` reste réservé aux bras de `match`.
+- **`has` mot-clé contextuel** : reconnu seulement entre la variable de boucle
+  et `in` (`parse_for`, `src/parsing/parser.d/statements.rs`). Ailleurs, c'est
+  un identifiant ordinaire : `m.has(k)`, `sess.has("user")`, ou même
+  `var has:bool`.
+- **Corpus migré** : toutes les boucles des exemples et des tests (8 fichiers
+  `.oc`), `docs/EBNF.md`, `docs/builtins/Directory.md` et les commentaires du
+  compilateur. Les fiches de roadmap déjà closes gardent l'ancienne forme,
+  comme trace historique.
+- **VS Code** : `has` est coloré comme mot-clé seulement dans `for k has v`,
+  et son survol renvoie vers EBNF §27.3 (mot-clé contextuel, pas de survol sur
+  `m.has(...)`).
 
-```ocara
-for pays has capitale in capitales {
-    IO::writeln(`${pays} → ${capitale}`)
-}
-```
+## Fichiers clés
 
-## Points à trancher
-
-- **`has` mot-clé contextuel** : `has` est aujourd'hui un identifiant
-  ordinaire, utilisé comme nom de méthode builtin (`m.has(k)`,
-  `sess.has("user")`, `HTTPServerSession::hasGlobal`). Il ne doit devenir
-  réservé qu'entre la variable de boucle et `in`, sinon ces appels cassent.
-- **Sort de `=>`** : coexistence (avec un avertissement de dépréciation), ou
-  remplacement cassant (`for k => v` ne compile plus, comme l'ancien
-  `req:int` de `HTTPServer`) ? 19 boucles du corpus utilisent `=>` (dont
-  `examples/07_loops.oc`, `examples/09_maps.oc`, `examples/tests/07_loopsTest.oc`).
-- **Migration** : `ocaracs --fix` pourrait réécrire `for a => b in` en
-  `for a has b in`, avec une règle de style dédiée tant que les deux formes
-  coexistent.
-
-## À mettre à jour
-
-Parseur (`Stmt::ForMap`), `docs/EBNF.md` (boucles, §31), corpus d'exemples
-et tests, coloration et mots-clés VS Code (`syntaxes`, `src/keywords.ts`),
-extension et ocaracs (`scope.rs` ne dépend pas de `=>`, à vérifier).
-
-## Priorité / Complexité
-
-Moyenne — **Légère**.
+`src/parsing/parser.d/statements.rs`, `src/parsing/parser.d/tests.rs`,
+`tools/highlight/vsode/syntaxes/ocara.tmLanguage.json`,
+`tools/highlight/vsode/src/keywords.ts`.

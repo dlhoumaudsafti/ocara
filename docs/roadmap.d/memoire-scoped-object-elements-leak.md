@@ -1,0 +1,135 @@
+# Objets d'un conteneur `scoped`/`consumed` — corrigé (cas prouvés)
+
+> **Remplacé par le comptage de références** (2026-10-08) : la preuve statique décrite ici a été supprimée — voir [memoire-refcount.md](memoire-refcount.md). Fiche gardée pour l'historique.
+
+## Constat
+
+`scoped items:array<Item>` ne libérait que le tableau : `__value_free` ignore
+les instances (`TAG_OBJECT`), faute de connaître `__free_<Classe>`. Mesuré :
+mémoire maximale de 2,1 Mo pour 20 000 appels, 24,5 Mo pour 200 000.
+
+## Correctif
+
+- **Runtime** : `__array_free_objects`/`__map_free_objects` et
+  `__array_clone_objects`/`__map_clone_objects` (`runtime/src/lib.rs`)
+  reçoivent l'adresse de `__free_<Classe>`/`__clone_<Classe>`
+  (`Inst::FuncAddr`). Pas de registre global : le type d'élément est connu
+  statiquement.
+- **Propriété prouvée** (`src/lower/stmt.d/object_owners.rs`) : un conteneur
+  libère ses objets seulement si CHAQUE objet qui y entre est neuf :
+  - `use Classe(...)` ;
+  - appel d'une fonction ou méthode qui ne retourne que des objets neufs
+    (`compute_fresh_returns`, point fixe, `IrModule::fresh_returns`) ;
+  - variable initialisée ainsi et référencée nulle part ailleurs.
+
+  Sont disqualifiés : un initialiseur non littéral, la réaffectation, le
+  passage en argument, toute méthode autre que `push`/`len`, et la capture
+  par une closure. Un élément extrait et conservé fait déjà passer le
+  conteneur en libération de surface (`element_escape`).
+- **Ownership** (`ownership.rs`) : `OwnedLocalInfo.object_class` →
+  `OwnershipFunc::Objects`.
+
+Mesure : `repo()` (`push(fromRow(row))` dans un `scoped array<Item>`) reste
+stable à 1,9 Mo pour 20 000 comme pour 200 000 appels.
+
+## Bug corrigé au passage
+
+`xs.push(...)` sur un **paramètre** `array<Classe>` était compilé en
+`String_push` (SIGSEGV) : les paramètres `string`/`array`/`map` n'avaient pas
+de classe builtin dans `var_class`. Ils passent maintenant par
+`register_var_class`, comme une variable locale (`functions.rs`).
+
+## Étape 2 — cas restants couverts
+
+Preuve statique sur tout le programme (`src/lower/stmt.d/object_facts.rs`,
+point fixe en deux phases) avec un parcours commun
+(`object_owners.rs`, `Scan`) :
+
+- **Conteneur issu d'un appel** (`scoped items = all()`) : `fresh_containers`,
+  fonctions qui ne retournent que des conteneurs neufs (littéral d'objets
+  neufs, appel d'une telle fonction, conteneur local propriétaire retourné).
+- **Conteneur passé en argument** (`fill(items)`) : `preserving_params`,
+  paramètres dont l'appelé ne garde rien et n'insère que des objets neufs ;
+  un tel appel est un simple prêt.
+- **Champs `array<Classe>`/`map<K, Classe>`** : `owning_fields`, champ (par
+  nom) dont toutes les valeurs entrantes sont neuves :
+  - littéral, appel qui retourne un conteneur neuf ;
+  - conteneur local **déplacé**, une seule fois et sinon seulement rempli par
+    `push` ;
+  - paramètre dont **tous** les sites d'appel passent un conteneur neuf.
+    Les appels `obj.m(...)`/`parent::m(...)` sont rapprochés par nom de
+    méthode ; une fonction référencée comme valeur ne reçoit jamais de
+    transfert.
+
+  Tous les accès du programme à ce nom de champ doivent par ailleurs être des
+  lectures, sans élément conservé. `__free_<Classe>` libère alors ses objets
+  (`__array_free_objects`), `__clone_<Classe>` les clone.
+
+**Use-after-free corrigé au passage** : `__free_<Classe>` libérait toujours le
+tableau d'un champ conteneur d'objets, même partagé (`use Bag(ys)`, puis
+`ys[0]` relu après la libération de l'objet : SIGSEGV). Un champ non
+propriétaire n'est plus libéré ni dupliqué par l'objet.
+
+Mesures (20 000 puis 200 000 appels) : `scoped items = all()`,
+`fill(items)` et `scoped bag = use Bag(all())` stables à ≈ 1,95 Mo.
+
+## Étape 3 — précision
+
+- **`resolve` d'un appel `async`** : une variable `Resolvable<…>` initialisée
+  par un appel qui retourne un conteneur (ou un objet) neuf, et résolue une
+  seule fois, donne une valeur neuve. `CarDetailsDTO.maintenances` (via
+  `MaintenanceContract::forCar`) est maintenant propriétaire.
+- **Champs par classe** : clé `ClasseDéclarante.champ` (`IrModule::field_decl`,
+  champs hérités ramenés au déclarant). La classe du receveur est déduite des
+  types déclarés (variable, paramètre, `self`, champ, élément indexé, variable
+  de boucle) ; seul un receveur au type inconnu retombe sur le nom du champ.
+- **`parent::m(...)`** résolu vers la vraie classe parente ; un site
+  rapproché par nom (`obj.m(...)`) qui passe plus d'arguments que la méthode
+  n'a de paramètres est écarté.
+- **Déplacements** : unique, hors boucle (un déplacement dans une boucle plus
+  profonde que la déclaration du conteneur partagerait le même conteneur
+  entre plusieurs objets — double libération, désormais refusé), et :
+  - lectures **avant** le déplacement permises ;
+  - après le déplacement, seulement vers un champ de `self`, qui survit à la
+    méthode.
+
+  Un déplacement vers un champ d'un conteneur non propriétaire disqualifie
+  désormais ce champ. Avant, il restait propriétaire : `self.items = xs` puis
+  `return xs[0]`, et l'objet retourné était libéré avec le porteur.
+
+## Étape 4 — receveurs, alias, porteurs
+
+- **Receveur résultat d'appel** (`f().items`, `obj.m().items`) : type de
+  retour déclaré (`IrModule::call_ret_types`) ; `resolve t` : type intérieur
+  du `Resolvable`.
+- **Alias local** (`const cars = dashboard.cars`) : même conteneur, seuls ses
+  usages conservés comptent. `DashboardDto.cars` et `SearchResultsDto.*`
+  (`mini_project_hexa`) sont maintenant propriétaires.
+- **Lectures pures** : `Array::len`/`contains`/`indexOf`/`join`,
+  `Map::size`/`has`/`isEmpty`, `UnitTest::assert*` ne conservent rien
+  (`crate::sema::escape::is_pure_builtin`, aussi utilisé pour la libération
+  automatique des `var`).
+- **Relecture après transfert** : permise si le transfert initialise une
+  variable porteuse (`var`/`scoped`, pas `consumed`) jamais conservée ni
+  réaffectée, et si toutes les lectures suivantes sont dans le bloc de sa
+  déclaration (chemins de blocs : `object_ast::ident_positions`).
+
+## Reste ouvert
+
+Conteneur réellement partagé (deux porteurs, relu hors du bloc du porteur) :
+tranché le 2026-10-05 en faveur du comptage de références, qui remplace
+cette preuve statique — voir [memoire-refcount.md](memoire-refcount.md).
+
+Tests : `examples/tests/81_object_ownership_transfersTest.oc`,
+`examples/tests/82_object_ownership_precisionTest.oc`, tests unitaires de
+`object_facts.rs`.
+
+Tests : `examples/tests/80_scoped_object_containersTest.oc`, tests
+unitaires de `object_owners.rs`.
+
+## Fichiers clés
+
+`runtime/src/lib.rs`, `src/codegen/desc.d/lowlevel.rs`,
+`src/lower/stmt.d/object_owners.rs`, `src/lower/stmt.d/ownership.rs`,
+`src/lower/stmt.d/element_escape.rs` (`prepare_body`),
+`src/lower/builder.d/program.rs`, `src/lower/builder.d/functions.rs`.

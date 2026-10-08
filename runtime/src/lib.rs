@@ -22,9 +22,9 @@
 
 #![allow(clippy::missing_safety_doc)]
 
-use std::alloc::{alloc, alloc_zeroed, dealloc, Layout};
-use crate::typecheck::{TAG_STRING_OWNED, TAG_ARRAY, TAG_MAP, TAG_OBJECT, TAG_FUNCTION,
-    __is_function, __is_object, __is_map, __is_array, __is_string, read_tag};
+use std::alloc::{alloc_zeroed, dealloc, Layout};
+use crate::typecheck::{TAG_STRING_OWNED, TAG_ARRAY, TAG_MAP, TAG_FUNCTION,
+    __is_function, __is_object, __is_map, __is_array, __is_string};
 use std::io::{self, BufRead};
 use std::process::Command;
 use std::time::Duration;
@@ -121,6 +121,7 @@ pub mod sqlite;
 pub mod mysql;
 pub mod dotenv;
 pub mod yaml;
+pub mod rc;
 // Tauri vit dans le crate séparé runtime_tauri (voir sa doc) : pas de `mod tauri`
 // ici, pour que ce code (et sa dépendance GTK/WebKit) n'existe dans le binaire
 // final QUE pour les programmes qui importent réellement ocara.Tauri.
@@ -157,23 +158,12 @@ pub mod yaml;
 /// `pub` (pas `pub(crate)`) : utilisé depuis le crate séparé runtime_tauri.
 pub unsafe fn alloc_str(s: &str) -> i64 {
     let bytes = s.as_bytes();
-    // 8 octets longueur + 8 octets tag + données + null-terminator
-    let total = 16 + bytes.len() + 1;
-    let layout = Layout::from_size_align(total, 8).unwrap();
     unsafe {
-        let raw = alloc(layout);
-        assert!(!raw.is_null(), "ocara_runtime: OOM");
-        // Longueur réelle des données (hors NUL), lue uniquement par free_str
-        *(raw as *mut i64) = bytes.len() as i64;
-        // Écrire le tag dans le header (offset inchangé : val - 8)
-        *(raw.add(8) as *mut i64) = TAG_STRING_OWNED;
-        // Copier les données de la chaîne après le header
-        let data = raw.add(16);
+        let val = rc::alloc_block(bytes.len() + 1, bytes.len() as i64, TAG_STRING_OWNED, false);
+        let data = val as *mut u8;
         std::ptr::copy_nonoverlapping(bytes.as_ptr(), data, bytes.len());
         *data.add(bytes.len()) = 0u8;
-        // Retourner le pointeur APRÈS len+tag (= pointeur vers les données) —
-        // inchangé pour tout le reste du runtime (read_tag, ptr_to_str, ...).
-        (raw as i64) + 16
+        val
     }
 }
 
@@ -194,9 +184,7 @@ pub unsafe fn free_str(val: i64) {
         // fiable qu'un recalcul par recherche du premier octet NUL, qui
         // sous-estimerait la taille si la string contient un NUL interne.
         let len = *((val - 16) as *const i64) as usize;
-        let raw = (val - 16) as *mut u8;
-        let layout = Layout::from_size_align(16 + len + 1, 8).unwrap();
-        dealloc(raw, layout);
+        rc::free_block(val, len + 1);
     }
 }
 
@@ -302,13 +290,7 @@ pub(crate) fn box_int_if_needed(n: i64) -> i64 {
     if n != 0 && n < 0x10000 {
         return n;
     }
-    unsafe {
-        let layout = Layout::from_size_align(8, 8).unwrap();
-        let ptr = alloc(layout) as *mut i64;
-        assert!(!ptr.is_null(), "ocara_runtime: OOM");
-        *ptr = n;
-        (ptr as i64) | 3
-    }
+    unsafe { rc::alloc_box(n, 3) }
 }
 
 /// Convertit n'importe quelle valeur i64 (int, float boxé, bool boxé, string ptr) en String.
@@ -352,14 +334,9 @@ struct OcaraMap {
 
 fn new_array() -> i64 {
     unsafe {
-        let size = std::mem::size_of::<OcaraArray>();
-        let layout = Layout::from_size_align(8 + size, 8).unwrap();
-        let raw = alloc(layout);
-        assert!(!raw.is_null(), "ocara_runtime: OOM (array)");
-        *(raw as *mut i64) = TAG_ARRAY;
-        let arr_ptr = raw.add(8) as *mut OcaraArray;
-        std::ptr::write(arr_ptr, OcaraArray { data: Vec::new() });
-        (raw as i64) + 8
+        let val = rc::alloc_block(std::mem::size_of::<OcaraArray>(), 0, TAG_ARRAY, false);
+        std::ptr::write(val as *mut OcaraArray, OcaraArray { data: Vec::new() });
+        val
     }
 }
 
@@ -368,22 +345,76 @@ pub extern "C" fn __array_new() -> i64 {
     new_array()
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn __array_push(ptr: i64, val: i64) {
+/// Vrai pour un conteneur à éléments `int`/`float`/`bool` bruts (voir
+/// `rc::FLAG_RAW`) : ses éléments ne sont jamais comptés.
+pub(crate) fn is_raw_container(ptr: i64) -> bool {
+    unsafe { rc::aux(ptr) & rc::FLAG_RAW != 0 }
+}
+
+/// Retient un élément qui entre dans le conteneur `ptr` (argument emprunté).
+fn retain_elem(ptr: i64, val: i64) {
+    if !is_raw_container(ptr) { unsafe { rc::retain(val) } }
+}
+
+/// Relâche un élément qui sort du conteneur `ptr`.
+fn release_elem(ptr: i64, val: i64) {
+    if !is_raw_container(ptr) { unsafe { rc::release(val) } }
+}
+
+/// Copie les éléments `vals` de `src` dans un nouveau tableau : chacun est
+/// retenu, le drapeau « éléments bruts » est propagé.
+fn array_sharing(src: i64, vals: Vec<i64>) -> i64 {
+    let dst = new_array();
+    if is_raw_container(src) {
+        rc::__rc_mark_raw(dst);
+    } else {
+        for &v in &vals { unsafe { rc::retain(v) } }
+    }
+    unsafe { array_ref(dst).data = vals; }
+    dst
+}
+
+/// Insertion interne d'une valeur déjà possédée (fraîchement allouée par le
+/// runtime) : transférée au tableau, sans retenue.
+pub(crate) fn array_push_owned(ptr: i64, val: i64) {
     if ptr == 0 { return; }
     unsafe { array_ref(ptr).data.push(val); }
 }
 
+#[unsafe(no_mangle)]
+pub extern "C" fn __array_push(ptr: i64, val: i64) {
+    if ptr == 0 { return; }
+    retain_elem(ptr, val);
+    array_push_owned(ptr, val);
+}
+
 pub(crate) fn new_map() -> i64 {
     unsafe {
-        let size = std::mem::size_of::<OcaraMap>();
-        let layout = Layout::from_size_align(8 + size, 8).unwrap();
-        let raw = alloc(layout);
-        assert!(!raw.is_null(), "ocara_runtime: OOM (map)");
-        *(raw as *mut i64) = TAG_MAP;
-        let map_ptr = raw.add(8) as *mut OcaraMap;
-        std::ptr::write(map_ptr, OcaraMap { data: Vec::new() });
-        (raw as i64) + 8
+        let val = rc::alloc_block(std::mem::size_of::<OcaraMap>(), 0, TAG_MAP, false);
+        std::ptr::write(val as *mut OcaraMap, OcaraMap { data: Vec::new() });
+        val
+    }
+}
+
+pub(crate) unsafe fn array_data(ptr: i64) -> Vec<i64> {
+    unsafe { array_ref(ptr).data.clone() }
+}
+
+pub(crate) unsafe fn map_values(ptr: i64) -> Vec<i64> {
+    unsafe { map_ref(ptr).data.iter().map(|(_, v)| *v).collect() }
+}
+
+pub(crate) unsafe fn drop_array_block(ptr: i64) {
+    unsafe {
+        std::ptr::drop_in_place(ptr as *mut OcaraArray);
+        rc::free_block(ptr, std::mem::size_of::<OcaraArray>());
+    }
+}
+
+pub(crate) unsafe fn drop_map_block(ptr: i64) {
+    unsafe {
+        std::ptr::drop_in_place(ptr as *mut OcaraMap);
+        rc::free_block(ptr, std::mem::size_of::<OcaraMap>());
     }
 }
 
@@ -393,345 +424,6 @@ unsafe fn array_ref(ptr: i64) -> &'static mut OcaraArray {
 
 unsafe fn map_ref(ptr: i64) -> &'static mut OcaraMap {
     unsafe { &mut *(ptr as *mut OcaraMap) }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Libération / clonage récursifs — `scoped`/`consumed` (voir docs/EBNF.md et
-// le plan "Gestion de propriété des variables"). Portée : string/array/map
-// uniquement — un élément TAG_OBJECT/TAG_FUNCTION imbriqué n'est ni libéré
-// ni cloné ici (hors périmètre de ce chantier, voir OwnershipClass::Unsupported
-// côté sema : ces types ne peuvent pas être `scoped`/`consumed` eux-mêmes,
-// mais peuvent apparaître comme élément d'un array/map `scoped`/`consumed`).
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Vrai uniquement pour une string ALLOUÉE SUR LE TAS (`TAG_STRING_OWNED`,
-/// posée par `alloc_str`) — pas pour un littéral `.rodata` (`TAG_STRING`).
-/// Contrairement à `__is_string` (qui répond vrai pour les deux, une
-/// question de TYPE), c'est une question de LIBÉRABILITÉ : seul un
-/// `dealloc` sur une adresse réellement `alloc()` est valide.
-#[inline]
-unsafe fn is_owned_string(val: i64) -> bool {
-    unsafe { read_tag(val) == TAG_STRING_OWNED }
-}
-
-/// Vrai pour une cellule boxée (`box_int_if_needed`/`__box_float`/
-/// `__box_bool` — un `int`/`float`/`bool` logé dans un `mixed`, tag dans les
-/// 2 bits bas : `01`/`10`/`11`). Distinct de `is_owned_string`/`__is_array`/
-/// `__is_map` : ces trois-là passent par `read_tag`, qui retourne `0`
-/// immédiatement pour une telle valeur (`(val & 3) != 0`, voir
-/// `typecheck::read_tag`) — une cellule boxée n'est donc reconnue par AUCUN
-/// des trois, ce qui la rendait invisible à `__value_free`/`__value_clone`
-/// avant l'ajout de ce cas (voir docs/roadmap.d/memoire-boxing-durcissement.md,
-/// « Découverte en écrivant le volet 1 »).
-#[inline]
-fn is_boxed_primitive(val: i64) -> bool {
-    is_float_box(val) || is_bool_box(val) || is_int_box(val)
-}
-
-/// Libère la cellule de 8 octets d'une valeur boxée (`is_boxed_primitive`) —
-/// même layout pour les trois tags (`Layout::from_size_align(8, 8)`, voir
-/// `box_int_if_needed`/`__box_float`/`__box_bool`), donc un seul chemin de
-/// libération suffit pour les trois.
-#[inline]
-unsafe fn free_boxed_primitive(val: i64) {
-    unsafe {
-        let layout = Layout::from_size_align(8, 8).unwrap();
-        dealloc((val & !3) as *mut u8, layout);
-    }
-}
-
-/// Copie profonde d'une cellule boxée : nouvelle allocation de 8 octets,
-/// mêmes bits bruts (correct indifféremment pour un `i64`/`f64`/bool boxé —
-/// une copie bit à bit n'a pas besoin d'interpréter la valeur), même tag.
-/// Sans ceci, `__value_clone` retournait `val` tel quel pour une valeur
-/// boxée (aliasing du même pointeur) — sûr tant que rien ne libère jamais
-/// cette cellule, mais devient un double-free/use-after-free dès que
-/// `__value_free` sait la libérer (voir `free_boxed_primitive` ci-dessus) :
-/// l'original et sa "copie profonde" partageraient la même mémoire, libérer
-/// l'un laisserait l'autre pendant.
-#[inline]
-unsafe fn clone_boxed_primitive(val: i64) -> i64 {
-    unsafe {
-        let tag = val & 3;
-        let bits = *((val & !3) as *const i64);
-        let layout = Layout::from_size_align(8, 8).unwrap();
-        let new_ptr = alloc(layout) as *mut i64;
-        assert!(!new_ptr.is_null(), "ocara_runtime: OOM");
-        *new_ptr = bits;
-        (new_ptr as i64) | tag
-    }
-}
-
-/// Libère `val` récursivement si c'est un pointeur heap string/array/map, ou
-/// la cellule d'une valeur boxée (`int`/`float`/`bool` logé dans un `mixed`,
-/// voir `is_boxed_primitive` — avant ce cas, une telle cellule fuyait
-/// inconditionnellement : aucun des trois cas précédents ne la reconnaît).
-/// No-op sur tout le reste — **y compris une string littérale** (`.rodata`,
-/// tag `TAG_STRING`, pas `TAG_STRING_OWNED`) : c'est ce qui rend cette
-/// fonction sûre comme point d'entrée UNIQUE pour la destruction
-/// `scoped`/`consumed` (voir `crate::lower::stmt::ownership` côté
-/// compilateur) — le type statique AST ne suffit pas à savoir si une valeur
-/// `string` donnée est réellement possédée (tas) ou seulement empruntée
-/// (littéral figé dans le binaire) ; seul le tag runtime le sait.
-#[unsafe(no_mangle)]
-pub extern "C" fn __value_free(val: i64) {
-    unsafe {
-        if is_owned_string(val) { free_str(val); }
-        else if __is_array(val) != 0 { __array_free(val); }
-        else if __is_map(val)   != 0 { __map_free(val); }
-        else if is_boxed_primitive(val) { free_boxed_primitive(val); }
-    }
-}
-
-/// Clone `val` récursivement si c'est un pointeur heap string/array/map, ou
-/// copie profonde d'une cellule boxée (voir `clone_boxed_primitive` — une
-/// valeur boxée A une identité tas depuis l'introduction du boxing `mixed`,
-/// contrairement à un primitif brut, qui n'en a jamais eu et n'a donc rien à
-/// dupliquer). Retourne `val` tel quel pour tout le reste — ces valeurs n'ont
-/// pas de propriétaire distinct à dupliquer (int/float/bool BRUTS, jamais
-/// boxés ; objets ; fonctions ; `0`) — **y compris une string littérale** :
-/// immuable et éternelle (vit tout le programme), l'aliaser directement sans
-/// copie est toujours sûr, pas besoin d'allouer un clone inutile. Voir
-/// `__value_free`.
-#[unsafe(no_mangle)]
-pub extern "C" fn __value_clone(val: i64) -> i64 {
-    unsafe {
-        if is_owned_string(val) { alloc_str(ptr_to_str(val)) }
-        else if __is_array(val) != 0 { __array_clone(val) }
-        else if __is_map(val)   != 0 { __map_clone(val) }
-        else if is_boxed_primitive(val) { clone_boxed_primitive(val) }
-        else { val }
-    }
-}
-
-/// Libère un array et récursivement chacun de ses éléments tas.
-#[unsafe(no_mangle)]
-pub extern "C" fn __array_free(ptr: i64) {
-    if ptr == 0 { return; }
-    unsafe {
-        let arr = array_ref(ptr);
-        for &el in &arr.data {
-            __value_free(el);
-        }
-        std::ptr::drop_in_place(arr as *mut OcaraArray);
-        let size = std::mem::size_of::<OcaraArray>();
-        let layout = Layout::from_size_align(8 + size, 8).unwrap();
-        dealloc((ptr - 8) as *mut u8, layout);
-    }
-}
-
-/// Libère une map et récursivement chacune de ses valeurs tas (les clés
-/// sont des `String` Rust natifs, libérées avec la map elle-même).
-#[unsafe(no_mangle)]
-pub extern "C" fn __map_free(ptr: i64) {
-    if ptr == 0 { return; }
-    unsafe {
-        let m = map_ref(ptr);
-        for &(_, val) in &m.data {
-            __value_free(val);
-        }
-        std::ptr::drop_in_place(m as *mut OcaraMap);
-        let size = std::mem::size_of::<OcaraMap>();
-        let layout = Layout::from_size_align(8 + size, 8).unwrap();
-        dealloc((ptr - 8) as *mut u8, layout);
-    }
-}
-
-/// Copie profonde d'un array : nouvel array indépendant, chaque élément tas
-/// (string/array/map imbriqué) cloné récursivement — aucune mémoire
-/// partagée avec la source.
-#[unsafe(no_mangle)]
-pub extern "C" fn __array_clone(ptr: i64) -> i64 {
-    if ptr == 0 { return 0; }
-    unsafe {
-        let cloned: Vec<i64> = array_ref(ptr).data.iter()
-            .map(|&el| __value_clone(el))
-            .collect();
-        let new_ptr = new_array();
-        array_ref(new_ptr).data = cloned;
-        new_ptr
-    }
-}
-
-/// Copie profonde d'une map : nouvelle map indépendante, clés dupliquées
-/// (déjà des `String` Rust natifs) et valeurs tas clonées récursivement.
-#[unsafe(no_mangle)]
-pub extern "C" fn __map_clone(ptr: i64) -> i64 {
-    if ptr == 0 { return 0; }
-    unsafe {
-        let cloned: Vec<(String, i64)> = map_ref(ptr).data.iter()
-            .map(|(k, v)| (k.clone(), __value_clone(*v)))
-            .collect();
-        let new_ptr = new_map();
-        map_ref(new_ptr).data = cloned;
-        new_ptr
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Variantes "shallow" (sans inspection des éléments) de free/clone — pour un
-// `array<T>`/`map<K,T>` où `T` est un type PRIMITIF CONCRET (int/float/bool),
-// jamais `mixed` : voir `crate::lower::stmt::ownership::drop_func_for`/
-// `clone_func_for`. `__array_free`/`__array_clone` (ci-dessus) appellent
-// `__value_free`/`__value_clone` sur CHAQUE élément, qui inspecte son tag
-// runtime via `read_tag` — sûr pour un élément réellement `mixed` (boxé si
-// besoin, voir `box_int_if_needed`/`__box_float`/`__box_bool`), mais PAS pour
-// un élément primitif brut d'un type concrètement connu : un `float`/`int`
-// brut peut avoir n'importe quel bit pattern, y compris un qui ressemble à un
-// pointeur heap valide (`val >= PTR_THRESHOLD && bits bas alignés`), auquel
-// cas `read_tag` le déréférence — SEGFAULT confirmé par reproduction
-// (`var floats:array<float> = [1.5, 2.5, 3.5]` sans aucun `mixed` en jeu,
-// jamais échappé : plantait à la libération automatique de fin de bloc). Un
-// élément primitif ne possédant jamais de mémoire propre, il n'y a de toute
-// façon rien à libérer/cloner récursivement pour lui.
-#[unsafe(no_mangle)]
-pub extern "C" fn __array_free_shallow(ptr: i64) {
-    if ptr == 0 { return; }
-    unsafe {
-        let arr = array_ref(ptr);
-        std::ptr::drop_in_place(arr as *mut OcaraArray);
-        let size = std::mem::size_of::<OcaraArray>();
-        let layout = Layout::from_size_align(8 + size, 8).unwrap();
-        dealloc((ptr - 8) as *mut u8, layout);
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn __map_free_shallow(ptr: i64) {
-    if ptr == 0 { return; }
-    unsafe {
-        let m = map_ref(ptr);
-        std::ptr::drop_in_place(m as *mut OcaraMap);
-        let size = std::mem::size_of::<OcaraMap>();
-        let layout = Layout::from_size_align(8 + size, 8).unwrap();
-        dealloc((ptr - 8) as *mut u8, layout);
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn __array_clone_shallow(ptr: i64) -> i64 {
-    if ptr == 0 { return 0; }
-    unsafe {
-        let new_ptr = new_array();
-        array_ref(new_ptr).data = array_ref(ptr).data.clone();
-        new_ptr
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn __map_clone_shallow(ptr: i64) -> i64 {
-    if ptr == 0 { return 0; }
-    unsafe {
-        let new_ptr = new_map();
-        map_ref(new_ptr).data = map_ref(ptr).data.clone();
-        new_ptr
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Variantes "concrete" (imbriquées sur 2+ niveaux) de free/clone — pour un
-// `array<T>`/`map<K,T>` CONCRET (jamais `mixed`) dont l'ÉLÉMENT est
-// lui-même un `array`/`map` (`array<array<int>>`, `map<string,array<float>>`,
-// à une profondeur arbitraire), plutôt qu'un primitif directement (couvert
-// par les variantes `_shallow` ci-dessus). Sans ceci, un tel conteneur
-// retombait sur le chemin générique `__value_free`/`__value_clone` dès le
-// premier niveau imbriqué — sûr pour CE niveau (un pointeur array/map réel
-// est toujours détecté correctement par tag), mais qui recreuse ensuite
-// dans les éléments de niveau ENCORE PLUS interne via `__value_free` par
-// élément, retombant sur exactement le même bug qu'`_shallow` corrige déjà
-// (un bit pattern `int`/`float`/`bool` brut peut ressembler à un pointeur
-// heap valide) — un cran plus profond seulement, donc jamais couvert par
-// `_shallow` seul. Voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md.
-//
-// `shape` (une string Ocara) + `offset` : voir
-// `crate::lower::stmt::ownership::concrete_elem_shape` côté compilateur, qui
-// calcule `shape` une seule fois à la compilation à partir du type AST
-// statique (jamais de dispatch par tag runtime sur un élément primitif brut,
-// à AUCUN niveau). `shape[offset]` décrit ce que sont les éléments de CE
-// niveau : `'A'` = array imbriquée, `'M'` = map imbriquée ; `offset` au bout
-// de la chaîne = élément terminal, un primitif concret (retombe sur la
-// variante `_shallow`, qui ne fait plus intervenir `shape` du tout).
-#[unsafe(no_mangle)]
-pub extern "C" fn __array_free_concrete(ptr: i64, shape: i64, offset: i64) {
-    if ptr == 0 { return; }
-    unsafe {
-        let bytes = ptr_to_str(shape).as_bytes();
-        if offset as usize >= bytes.len() {
-            __array_free_shallow(ptr);
-            return;
-        }
-        let elem_is_array = bytes[offset as usize] == b'A';
-        let arr = array_ref(ptr);
-        for &el in &arr.data {
-            if elem_is_array { __array_free_concrete(el, shape, offset + 1); }
-            else             { __map_free_concrete(el, shape, offset + 1); }
-        }
-        std::ptr::drop_in_place(arr as *mut OcaraArray);
-        let size = std::mem::size_of::<OcaraArray>();
-        let layout = Layout::from_size_align(8 + size, 8).unwrap();
-        dealloc((ptr - 8) as *mut u8, layout);
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn __map_free_concrete(ptr: i64, shape: i64, offset: i64) {
-    if ptr == 0 { return; }
-    unsafe {
-        let bytes = ptr_to_str(shape).as_bytes();
-        if offset as usize >= bytes.len() {
-            __map_free_shallow(ptr);
-            return;
-        }
-        let elem_is_array = bytes[offset as usize] == b'A';
-        let m = map_ref(ptr);
-        for &(_, val) in &m.data {
-            if elem_is_array { __array_free_concrete(val, shape, offset + 1); }
-            else             { __map_free_concrete(val, shape, offset + 1); }
-        }
-        std::ptr::drop_in_place(m as *mut OcaraMap);
-        let size = std::mem::size_of::<OcaraMap>();
-        let layout = Layout::from_size_align(8 + size, 8).unwrap();
-        dealloc((ptr - 8) as *mut u8, layout);
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn __array_clone_concrete(ptr: i64, shape: i64, offset: i64) -> i64 {
-    if ptr == 0 { return 0; }
-    unsafe {
-        let bytes = ptr_to_str(shape).as_bytes();
-        if offset as usize >= bytes.len() {
-            return __array_clone_shallow(ptr);
-        }
-        let elem_is_array = bytes[offset as usize] == b'A';
-        let cloned: Vec<i64> = array_ref(ptr).data.iter().map(|&el| {
-            if elem_is_array { __array_clone_concrete(el, shape, offset + 1) }
-            else             { __map_clone_concrete(el, shape, offset + 1) }
-        }).collect();
-        let new_ptr = new_array();
-        array_ref(new_ptr).data = cloned;
-        new_ptr
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn __map_clone_concrete(ptr: i64, shape: i64, offset: i64) -> i64 {
-    if ptr == 0 { return 0; }
-    unsafe {
-        let bytes = ptr_to_str(shape).as_bytes();
-        if offset as usize >= bytes.len() {
-            return __map_clone_shallow(ptr);
-        }
-        let elem_is_array = bytes[offset as usize] == b'A';
-        let cloned: Vec<(String, i64)> = map_ref(ptr).data.iter().map(|(k, v)| {
-            let nv = if elem_is_array { __array_clone_concrete(*v, shape, offset + 1) }
-                     else              { __map_clone_concrete(*v, shape, offset + 1) };
-            (k.clone(), nv)
-        }).collect();
-        let new_ptr = new_map();
-        map_ref(new_ptr).data = cloned;
-        new_ptr
-    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -754,12 +446,19 @@ pub extern "C" fn __str_concat(a: i64, b: i64) -> i64 {
 }
 
 /// Convertit n'importe quelle valeur I64 en string (pour les templates).
+/// Retourne un argument emprunté tel quel : retenu, comme toute valeur
+/// retournée par un builtin (+1).
+fn __rc_passthrough(val: i64) -> i64 {
+    unsafe { rc::retain(val) }
+    val
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn __val_to_str(val: i64) -> i64 {
     if is_float_box(val) || is_bool_box(val) || is_int_box(val) {
         unsafe { alloc_str(&val_to_string(val)) }
     } else if is_ptr(val) {
-        val  // déjà une string
+        __rc_passthrough(val)
     } else {
         unsafe { alloc_str(&val.to_string()) }
     }
@@ -768,26 +467,13 @@ pub extern "C" fn __val_to_str(val: i64) -> i64 {
 /// Boxe un float (bits i64) dans une cellule heap ; retourne `ptr | 1`.
 #[unsafe(no_mangle)]
 pub extern "C" fn __box_float(bits: i64) -> i64 {
-    let f = f64::from_bits(bits as u64);
-    unsafe {
-        let layout = Layout::from_size_align(8, 8).unwrap();
-        let ptr = alloc(layout) as *mut f64;
-        assert!(!ptr.is_null(), "ocara_runtime: OOM");
-        *ptr = f;
-        (ptr as i64) | 1
-    }
+    unsafe { rc::alloc_box(bits, 1) }
 }
 
 /// Boxe un bool (0/1) dans une cellule heap ; retourne `ptr | 2`.
 #[unsafe(no_mangle)]
 pub extern "C" fn __box_bool(b: i64) -> i64 {
-    unsafe {
-        let layout = Layout::from_size_align(8, 8).unwrap();
-        let ptr = alloc(layout) as *mut i64;
-        assert!(!ptr.is_null(), "ocara_runtime: OOM");
-        *ptr = b;
-        (ptr as i64) | 2
-    }
+    unsafe { rc::alloc_box(b, 2) }
 }
 
 /// Point d'entrée appelé depuis le lowering partout où un `int` (connu
@@ -906,7 +592,8 @@ pub extern "C" fn write_bool(b: i64) {
 /// Lève une IOException en cas d'erreur de lecture.
 fn read() -> i64 {
     let mut line = String::new();
-    match io::stdin().lock().read_line(&mut line) {
+    let outcome = { let _parked = rc::park(); io::stdin().lock().read_line(&mut line) };
+    match outcome {
         Ok(_) => {
             if line.ends_with('\n') { line.pop(); }
             if line.ends_with('\r') { line.pop(); }
@@ -934,7 +621,7 @@ pub extern "C" fn ocara_read() -> i64 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn __range(lo: i64, hi: i64) -> i64 {
-    let ptr = new_array();
+    let ptr = rc::__rc_mark_raw(new_array());
     unsafe {
         let arr = array_ref(ptr);
         for i in lo..hi {
@@ -969,7 +656,9 @@ pub extern "C" fn __array_set(ptr: i64, idx: i64, val: i64) {
         while arr.data.len() <= i {
             arr.data.push(0);
         }
-        arr.data[i] = val;
+        retain_elem(ptr, val);
+        let old = std::mem::replace(&mut arr.data[i], val);
+        release_elem(ptr, old);
     }
 }
 
@@ -993,21 +682,42 @@ pub extern "C" fn __map_new() -> i64 {
     new_map()
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn __map_set(ptr: i64, key: i64, val: i64) {
+/// Insertion interne d'une clé ET d'une valeur allouées par le runtime pour
+/// l'occasion : la valeur est transférée à la map (sans retenue), la clé,
+/// dont la map garde une copie, est relâchée — sans quoi chaque ligne
+/// SQLite/MySQL, chaque objet JSON/YAML, chaque en-tête… fuyait.
+pub fn map_set_owned_key(ptr: i64, key: i64, val: i64) {
+    map_put(ptr, key, val);
+    unsafe { rc::release(key) }
+}
+
+/// Range `val` sous `key` sans le retenir ; l'ancienne valeur est relâchée.
+fn map_put(ptr: i64, key: i64, val: i64) {
     if ptr == 0 { return; }
     unsafe {
         let k = key_to_string(key);
         let m = map_ref(ptr);
-        // Met à jour si la clé existe déjà
-        for entry in &mut m.data {
-            if entry.0 == k {
-                entry.1 = val;
-                return;
-            }
+        if let Some(entry) = m.data.iter_mut().find(|e| e.0 == k) {
+            let old = std::mem::replace(&mut entry.1, val);
+            release_elem(ptr, old);
+            return;
         }
         m.data.push((k, val));
     }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_set(ptr: i64, key: i64, val: i64) {
+    if ptr == 0 { return; }
+    retain_elem(ptr, val);
+    map_put(ptr, key, val);
+}
+
+/// Valeur (empruntée) sous la clé `key`, sans allouer de chaîne Ocara pour
+/// la clé ; `0` si absente. `pub` : utilisé par runtime_sdl/runtime_tauri.
+pub fn map_lookup(ptr: i64, key: &str) -> i64 {
+    if ptr == 0 { return 0; }
+    unsafe { map_ref(ptr).data.iter().find(|e| e.0 == key).map_or(0, |e| e.1) }
 }
 
 #[unsafe(no_mangle)]
@@ -1092,56 +802,52 @@ pub extern "C" fn IO_readln() -> i64 {
     read()
 }
 
+/// Ligne lue copiée en `String` ; la chaîne Ocara intermédiaire est relâchée.
+fn read_text() -> Option<String> {
+    let s = read();
+    if s == 0 { return None; }
+    let text = unsafe { ptr_to_str(s).to_string() };
+    unsafe { rc::release(s) }
+    Some(text)
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn IO_readInt() -> i64 {
-    let s = read();
-    if s == 0 { return 0; }
-    unsafe { ptr_to_str(s).trim().parse::<i64>().unwrap_or(0) }
+    read_text().map_or(0, |t| t.trim().parse::<i64>().unwrap_or(0))
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn IO_readFloat() -> f64 {
-    let s = read();
-    if s == 0 { return 0.0; }
-    unsafe { ptr_to_str(s).trim().parse::<f64>().unwrap_or(0.0) }
+    read_text().map_or(0.0, |t| t.trim().parse::<f64>().unwrap_or(0.0))
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn IO_readBool() -> i64 {
-    let s = read();
-    if s == 0 { return 0; }
-    let t = unsafe { ptr_to_str(s).trim().to_lowercase() };
+    let t = read_text().unwrap_or_default().trim().to_lowercase();
     if t == "true" || t == "1" { 1 } else { 0 }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn IO_readArray(sep: i64) -> i64 {
-    let s = read();
-    if s == 0 { return new_array(); }
+    let Some(src) = read_text() else { return new_array() };
     let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep).to_string() } } else { " ".to_string() };
-    let src = unsafe { ptr_to_str(s).to_string() };
     let ptr = new_array();
-    unsafe {
-        let arr = array_ref(ptr);
-        for part in src.split(sep_s.as_str()) {
-            arr.data.push(alloc_str(part));
-        }
+    for part in src.split(sep_s.as_str()) {
+        array_push_owned(ptr, unsafe { alloc_str(part) });
     }
     ptr
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn IO_readMap(sep: i64, kv: i64) -> i64 {
-    let s = read();
-    if s == 0 { return new_map(); }
+    let Some(src) = read_text() else { return new_map() };
     let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep).to_string() } } else { " ".to_string() };
     let kv_s  = if is_ptr(kv)  { unsafe { ptr_to_str(kv).to_string() }  } else { "=".to_string() };
-    let src = unsafe { ptr_to_str(s).to_string() };
     let ptr = new_map();
     for part in src.split(sep_s.as_str()) {
         if let Some(pos) = part.find(kv_s.as_str()) {
             let v = unsafe { alloc_str(&part[pos + kv_s.len()..]) };
-            unsafe { __map_set(ptr, alloc_str(&part[..pos]), v); }
+            unsafe { map_set_owned_key(ptr, alloc_str(&part[..pos]), v); }
         }
     }
     ptr
@@ -1159,21 +865,21 @@ pub extern "C" fn String_len(s: i64) -> i64 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn String_upper(s: i64) -> i64 {
-    if !is_ptr(s) { return s; }
+    if !is_ptr(s) { return __rc_passthrough(s); }
     let r = unsafe { ptr_to_str(s) }.to_uppercase();
     unsafe { alloc_str(&r) }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn String_lower(s: i64) -> i64 {
-    if !is_ptr(s) { return s; }
+    if !is_ptr(s) { return __rc_passthrough(s); }
     let r = unsafe { ptr_to_str(s) }.to_lowercase();
     unsafe { alloc_str(&r) }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn String_capitalize(s: i64) -> i64 {
-    if !is_ptr(s) { return s; }
+    if !is_ptr(s) { return __rc_passthrough(s); }
     let src = unsafe { ptr_to_str(s) };
     let mut chars = src.chars();
     let r = match chars.next() {
@@ -1185,14 +891,14 @@ pub extern "C" fn String_capitalize(s: i64) -> i64 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn String_trim(s: i64) -> i64 {
-    if !is_ptr(s) { return s; }
+    if !is_ptr(s) { return __rc_passthrough(s); }
     let r = unsafe { ptr_to_str(s) }.trim().to_string();
     unsafe { alloc_str(&r) }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn String_replace(s: i64, from: i64, to: i64) -> i64 {
-    if !is_ptr(s) { return s; }
+    if !is_ptr(s) { return __rc_passthrough(s); }
     let src    = unsafe { ptr_to_str(s) };
     let from_s = if is_ptr(from) { unsafe { ptr_to_str(from) } } else { "" };
     let to_s   = if is_ptr(to)   { unsafe { ptr_to_str(to) } }   else { "" };
@@ -1223,7 +929,7 @@ pub extern "C" fn String_explode(s: i64, sep: i64) -> i64 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn String_between(s: i64, start: i64, end: i64) -> i64 {
-    if !is_ptr(s) { return s; }
+    if !is_ptr(s) { return __rc_passthrough(s); }
     let src     = unsafe { ptr_to_str(s) };
     let start_s = if is_ptr(start) { unsafe { ptr_to_str(start) } } else { "" };
     let end_s   = if is_ptr(end)   { unsafe { ptr_to_str(end) } }   else { "" };
@@ -1342,8 +1048,7 @@ pub extern "C" fn Array_len(ptr: i64) -> i64 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn Array_push(ptr: i64, val: i64) {
-    if ptr == 0 { return; }
-    unsafe { array_ref(ptr).data.push(val); }
+    __array_push(ptr, val)
 }
 
 #[unsafe(no_mangle)]
@@ -1435,27 +1140,20 @@ pub extern "C" fn Array_indexOf(ptr: i64, val: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn Array_reverse(ptr: i64) -> i64 {
     if ptr == 0 { return new_array(); }
-    let new_ptr = new_array();
-    unsafe {
-        let src = array_ref(ptr).data.clone();
-        let dst = array_ref(new_ptr);
-        dst.data = src.into_iter().rev().collect();
-    }
-    new_ptr
+    let vals = unsafe { array_ref(ptr).data.iter().rev().copied().collect() };
+    array_sharing(ptr, vals)
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn Array_slice(ptr: i64, from: i64, to: i64) -> i64 {
     if ptr == 0 { return new_array(); }
-    let new_ptr = new_array();
-    unsafe {
+    let vals = unsafe {
         let src = &array_ref(ptr).data;
         let lo = (from as usize).min(src.len());
         let hi = (to as usize).min(src.len());
-        let dst = array_ref(new_ptr);
-        dst.data = src[lo..hi].to_vec();
-    }
-    new_ptr
+        src[lo..hi].to_vec()
+    };
+    array_sharing(ptr, vals)
 }
 
 #[unsafe(no_mangle)]
@@ -1472,13 +1170,9 @@ pub extern "C" fn Array_join(ptr: i64, sep: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn Array_sort(ptr: i64) -> i64 {
     if ptr == 0 { return new_array(); }
-    let new_ptr = new_array();
-    unsafe {
-        let mut data = array_ref(ptr).data.clone();
-        data.sort();
-        array_ref(new_ptr).data = data;
-    }
-    new_ptr
+    let mut vals = unsafe { array_ref(ptr).data.clone() };
+    vals.sort();
+    array_sharing(ptr, vals)
 }
 
 #[unsafe(no_mangle)]
@@ -1553,7 +1247,10 @@ pub extern "C" fn Map_remove(ptr: i64, key: i64) {
     if ptr == 0 { return; }
     unsafe {
         let k = key_to_string(key);
-        map_ref(ptr).data.retain(|e| e.0 != k);
+        let m = map_ref(ptr);
+        let removed: Vec<i64> = m.data.iter().filter(|e| e.0 == k).map(|e| e.1).collect();
+        m.data.retain(|e| e.0 != k);
+        for v in removed { release_elem(ptr, v) }
     }
 }
 
@@ -1574,12 +1271,8 @@ pub extern "C" fn Map_keys(ptr: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn Map_values(ptr: i64) -> i64 {
     if ptr == 0 { return new_array(); }
-    let arr_ptr = new_array();
-    unsafe {
-        let vals: Vec<i64> = map_ref(ptr).data.iter().map(|(_, v)| *v).collect();
-        array_ref(arr_ptr).data = vals;
-    }
-    arr_ptr
+    let vals = unsafe { map_values(ptr) };
+    array_sharing(ptr, vals)
 }
 
 #[unsafe(no_mangle)]
@@ -1588,14 +1281,16 @@ pub extern "C" fn Map_merge(a: i64, b: i64) -> i64 {
     if a != 0 {
         unsafe {
             for (k, v) in &map_ref(a).data {
-                __map_set(new_ptr, alloc_str(k), *v);
+                retain_elem(a, *v);
+                map_set_owned_key(new_ptr, alloc_str(k), *v);
             }
         }
     }
     if b != 0 {
         unsafe {
             for (k, v) in &map_ref(b).data {
-                __map_set(new_ptr, alloc_str(k), *v);
+                retain_elem(b, *v);
+                map_set_owned_key(new_ptr, alloc_str(k), *v);
             }
         }
     }
@@ -1623,10 +1318,13 @@ pub extern "C" fn Map_forEach(ptr: i64, callback: i64) {
     // (Map::set/remove) pendant l'itération, ce qui invaliderait une référence
     // directe vers `data`.
     let entries: Vec<(String, i64)> = unsafe { map_ref(ptr).data.clone() };
-    for (k, v) in entries {
-        let key_ptr = unsafe { alloc_str(&k) };
-        f(env_ptr, key_ptr, v);
+    for (_, v) in &entries { retain_elem(ptr, *v) }
+    for (k, v) in &entries {
+        let key_ptr = unsafe { alloc_str(k) };
+        f(env_ptr, key_ptr, *v);
+        unsafe { rc::release(key_ptr) }
     }
+    for (_, v) in &entries { release_elem(ptr, *v) }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1694,7 +1392,7 @@ pub extern "C" fn Convert_strToMap(s: i64, sep: i64, kv: i64) -> i64 {
     for part in src.split(sep_s.as_str()) {
         if let Some(pos) = part.find(kv_s.as_str()) {
             let v_str = unsafe { alloc_str(&part[pos + kv_s.len()..]) };
-            unsafe { __map_set(ptr, alloc_str(&part[..pos]), v_str); }
+            unsafe { map_set_owned_key(ptr, alloc_str(&part[..pos]), v_str); }
         }
     }
     ptr
@@ -1762,7 +1460,7 @@ pub extern "C" fn Convert_arrayToMap(ptr: i64, kv: i64) -> i64 {
                 let s = ptr_to_str(elem).to_string();
                 if let Some(pos) = s.find(kv_s.as_str()) {
                     let v = alloc_str(&s[pos + kv_s.len()..]);
-                    __map_set(map_ptr, alloc_str(&s[..pos]), v);
+                    map_set_owned_key(map_ptr, alloc_str(&s[..pos]), v);
                 }
             }
         }
@@ -1910,6 +1608,7 @@ pub extern "C" fn System_cwd() -> i64 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn System_sleep(ms: i64) {
+    let _parked = rc::park();
     std::thread::sleep(Duration::from_millis(ms as u64));
 }
 
@@ -1987,7 +1686,7 @@ pub extern "C" fn Regex_findAll(pattern: i64, text: i64) -> i64 {
         let arr = new_array();
         for m in re.find_iter(s) {
             let ms = alloc_str(m.as_str());
-            __array_push(arr, ms);
+            array_push_owned(arr, ms);
         }
         arr
     }
@@ -2023,7 +1722,7 @@ pub extern "C" fn Regex_split(pattern: i64, text: i64) -> i64 {
         let arr = new_array();
         for part in re.split(s) {
             let ps = alloc_str(part);
-            __array_push(arr, ps);
+            array_push_owned(arr, ps);
         }
         arr
     }
@@ -2426,6 +2125,7 @@ extern "C" fn __assert_raises_body() {
 
 #[unsafe(no_mangle)]
 extern "C" fn __assert_raises_handler(error_val: i64, error_type: i64) {
+    unsafe { rc::retain(error_val) }
     ASSERT_RAISES_EXCEPTION.with(|e| e.set(error_val));
     ASSERT_RAISES_EXCEPTION_TYPE.with(|t| t.set(error_type));
 }
@@ -2627,60 +2327,18 @@ pub extern "C" fn __free_obj(ptr: i64, size: i64) {
     }
 }
 
-/// Alloue une instance de classe utilisateur avec tag TAG_OBJECT.
-/// Le pointeur retourné pointe APRÈS le header, qui fait maintenant 16 octets
-/// (au lieu de 8) — un mot supplémentaire est PRÉPENDÉ devant le tag pour y
-/// stocker l'identité de classe (`class_id`, attribué une fois par classe à
-/// la compilation, voir `IrModule::class_ids`) :
-/// ```text
-/// avant : [tag:8][données...]
-/// après : [class_id:8][tag:8][données...]
-/// ```
-/// Le tag reste au même offset relatif (`val - 8`), donc invisible de
-/// `read_tag`/`__is_object`/tout le reste du runtime — seul `class_id` est
-/// nouveau, lu via `*(val - 16)` (voir `Inst::GetField` avec un offset
-/// négatif dans le lowering, pas de fonction runtime dédiée). Support du
-/// polymorphisme réel (`is ClassName`/`is InterfaceName`, dispatch dynamique
-/// d'une méthode appelée via une variable de type parent/interface) — voir
-/// docs/roadmap.d/langage-interfaces.md.
+/// Layout : `[desc][rc][class_id][TAG_OBJECT][champs...]`. `class_id` reste
+/// à `val - 16` (lu par `is Classe` et le dispatch) ; `desc` est le masque
+/// des champs tas de la classe, une chaîne littérale `'0'`/`'1'` (un
+/// caractère par champ) qui donne aussi la taille à libérer — voir
+/// `crate::rc::alloc_object`.
 ///
-/// `size == 0` (classe sans aucun champ) reste une allocation VALIDE : même
-/// une classe vide a besoin d'un header pour porter son identité — avant ce
-/// correctif, `size <= 0` retournait `0` (null), ce qui aurait rendu
-/// `self` invalide dans toute méthode d'une classe sans champ dès que le
-/// polymorphisme en dépendrait.
+/// `size == 0` (classe sans aucun champ) reste une allocation valide : une
+/// classe vide a besoin d'un en-tête pour porter son identité.
 #[unsafe(no_mangle)]
-pub extern "C" fn __alloc_class_obj(size: i64, class_id: i64) -> i64 {
+pub extern "C" fn __alloc_class_obj(size: i64, class_id: i64, desc: i64) -> i64 {
     if size < 0 { return 0; }
-    unsafe {
-        let total = (size as usize) + 16;
-        let layout = Layout::from_size_align(total, 8).unwrap();
-        let raw = alloc_zeroed(layout);
-        assert!(!raw.is_null(), "ocara_runtime: OOM in __alloc_class_obj");
-        *(raw as *mut i64) = class_id;
-        *(raw.add(8) as *mut i64) = TAG_OBJECT;
-        (raw as i64) + 16
-    }
-}
-
-/// Libère une instance de classe utilisateur allouée par `__alloc_class_obj`
-/// (tag `TAG_OBJECT`, header de 16 octets — voir sa doc). `n_fields` doit
-/// être EXACTEMENT le nombre de champs utilisé à l'allocation — connu
-/// statiquement par le compilateur pour chaque classe
-/// (`module.class_layouts[Classe].len()`), c'est pourquoi il est passé en
-/// argument plutôt que déduit d'un tag/header : rien ne stocke la taille
-/// ailleurs. Appelée uniquement depuis un `__free_<Classe>` généré (voir
-/// `src/lower/builder.d/class_ownership.rs`), jamais directement — ce n'est
-/// PAS un ramasse-miettes général, mêmes précautions que `free_str`.
-#[unsafe(no_mangle)]
-pub extern "C" fn __object_free(ptr: i64, n_fields: i64) {
-    if ptr == 0 { return; }
-    unsafe {
-        let raw = (ptr - 16) as *mut u8;
-        let size = 16 + (n_fields.max(0) as usize) * 8;
-        let layout = Layout::from_size_align(size, 8).unwrap();
-        dealloc(raw, layout);
-    }
+    unsafe { rc::alloc_object(size as usize, class_id, desc) }
 }
 
 /// Alloue un fat pointer (Function) avec tag TAG_FUNCTION.
@@ -2688,14 +2346,7 @@ pub extern "C" fn __object_free(ptr: i64, n_fields: i64) {
 /// Le pointeur retourné pointe APRÈS le header de 8 octets.
 #[unsafe(no_mangle)]
 pub extern "C" fn __alloc_fat_ptr() -> i64 {
-    unsafe {
-        let total = 8 + 16; // header + func_ptr + env_ptr
-        let layout = Layout::from_size_align(total, 8).unwrap();
-        let raw = alloc_zeroed(layout);
-        assert!(!raw.is_null(), "ocara_runtime: OOM in __alloc_fat_ptr");
-        *(raw as *mut i64) = TAG_FUNCTION;
-        (raw as i64) + 8
-    }
+    unsafe { rc::alloc_block(16, 0, TAG_FUNCTION, true) }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2729,19 +2380,29 @@ type CapturedCellMutex = cell_mutex_platform::RawMutex;
 
 const CAPTURED_CELL_MUTEX_SIZE: usize = std::mem::size_of::<CapturedCellMutex>();
 
-/// Alloue une cellule de capture verrouillée : `[mutex][valeur: i64]`.
-/// Retourne un pointeur vers la valeur (le mutex vit juste avant, à
-/// `retour - CAPTURED_CELL_MUTEX_SIZE`) — jamais libérée (même limite que
-/// `__alloc_obj` pour une closure : voir docs/roadmap.d/memoire-strategie-var.md).
+/// Alloue une cellule de capture verrouillée, comptée :
+/// `[en-tête TAG_CELL][valeur: i64][mutex]`, pointeur sur la valeur.
+/// `counted != 0` : la valeur est une référence comptée, relâchée avec la
+/// cellule (voir `crate::rc`).
 #[unsafe(no_mangle)]
-pub extern "C" fn __alloc_locked_cell() -> i64 {
+pub extern "C" fn __alloc_locked_cell(counted: i64) -> i64 {
     unsafe {
-        let total = CAPTURED_CELL_MUTEX_SIZE + 8;
-        let layout = Layout::from_size_align(total, 8).unwrap();
-        let raw = alloc_zeroed(layout);
-        assert!(!raw.is_null(), "ocara_runtime: OOM in __alloc_locked_cell");
-        cell_mutex_platform::init(raw as *mut CapturedCellMutex);
-        (raw as i64) + CAPTURED_CELL_MUTEX_SIZE as i64
+        let cell = rc::alloc_block(8 + CAPTURED_CELL_MUTEX_SIZE, (counted != 0) as i64, crate::typecheck::TAG_CELL, true);
+        cell_mutex_platform::init(cell_mutex(cell));
+        cell
+    }
+}
+
+pub(crate) const CELL_PAYLOAD: usize = 8 + CAPTURED_CELL_MUTEX_SIZE;
+
+fn cell_mutex(cell_ptr: i64) -> *mut CapturedCellMutex {
+    (cell_ptr + 8) as *mut CapturedCellMutex
+}
+
+pub(crate) unsafe fn free_cell(cell_ptr: i64) {
+    unsafe {
+        cell_mutex_platform::destroy(cell_mutex(cell_ptr));
+        rc::free_block(cell_ptr, CELL_PAYLOAD);
     }
 }
 
@@ -2749,10 +2410,9 @@ pub extern "C" fn __alloc_locked_cell() -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn __locked_cell_get(cell_ptr: i64) -> i64 {
     unsafe {
-        let mutex_ptr = (cell_ptr - CAPTURED_CELL_MUTEX_SIZE as i64) as *mut CapturedCellMutex;
-        cell_mutex_platform::lock(mutex_ptr);
+        cell_mutex_platform::lock(cell_mutex(cell_ptr));
         let val = *(cell_ptr as *const i64);
-        cell_mutex_platform::unlock(mutex_ptr);
+        cell_mutex_platform::unlock(cell_mutex(cell_ptr));
         val
     }
 }
@@ -2761,11 +2421,32 @@ pub extern "C" fn __locked_cell_get(cell_ptr: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn __locked_cell_set(cell_ptr: i64, val: i64) {
     unsafe {
-        let mutex_ptr = (cell_ptr - CAPTURED_CELL_MUTEX_SIZE as i64) as *mut CapturedCellMutex;
-        cell_mutex_platform::lock(mutex_ptr);
+        cell_mutex_platform::lock(cell_mutex(cell_ptr));
         *(cell_ptr as *mut i64) = val;
-        cell_mutex_platform::unlock(mutex_ptr);
+        cell_mutex_platform::unlock(cell_mutex(cell_ptr));
     }
+}
+
+/// Frame d'un générateur : bloc compté de `size` octets, détruit par
+/// `drop_fn` (`<générateur>__drop`, qui rend ses champs comptés puis appelle
+/// `__free_gen`).
+#[unsafe(no_mangle)]
+pub extern "C" fn __alloc_gen(size: i64, drop_fn: i64) -> i64 {
+    unsafe { rc::alloc_block(size.max(8) as usize, drop_fn, crate::typecheck::TAG_GEN, true) }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __free_gen(frame: i64, size: i64) {
+    unsafe { rc::free_block(frame, size.max(8) as usize) }
+}
+
+/// Environnement d'une closure : `n_fields` champs dont les `n_caps`
+/// premiers sont des cellules capturées (comptées), les suivants des valeurs
+/// par défaut de paramètres.
+#[unsafe(no_mangle)]
+pub extern "C" fn __alloc_env(n_caps: i64, n_fields: i64) -> i64 {
+    let n_fields = n_fields.max(1);
+    unsafe { rc::alloc_block(n_fields as usize * 8, n_caps | (n_fields << 32), crate::typecheck::TAG_ENV, true) }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2798,6 +2479,10 @@ struct TryFrame {
     env:        JmpBuf,
     error_val:  i64,
     error_type: i64,
+    /// Profondeur de la pile de déroulement (`rc::unwind_depth`) à l'entrée.
+    unwind:     usize,
+    /// Nombre de ressources ouvertes (`rc::resource_depth`) à l'entrée.
+    resources:  usize,
 }
 
 const MAX_TRY_DEPTH: usize = 64;
@@ -2889,6 +2574,8 @@ pub extern "C" fn __ocara_try_enter() -> i64 {
         unsafe {
             (*frame_ptr).error_val  = 0;
             (*frame_ptr).error_type = 0;
+            (*frame_ptr).unwind = rc::unwind_depth();
+            (*frame_ptr).resources = rc::resource_depth();
         }
         stack.depth.set(depth + 1);
         frame_ptr as i64
@@ -2931,6 +2618,8 @@ pub extern "C" fn __ocara_try_exec(body_fn: i64, handler_fn: i64) -> i64 {
         unsafe {
             (*frame_ptr).error_val  = 0;
             (*frame_ptr).error_type = 0;
+            (*frame_ptr).unwind = rc::unwind_depth();
+            (*frame_ptr).resources = rc::resource_depth();
         }
 
         // Pousser la nouvelle profondeur
@@ -2963,6 +2652,7 @@ pub extern "C" fn __ocara_try_exec(body_fn: i64, handler_fn: i64) -> i64 {
                     std::mem::transmute(handler_fn as usize);
                 handler(ev, et);
             }
+            release_raised(ev, et);
             
             // Vérifier si le handler a fait un return explicite
             let (has_returned, return_value) = handler_has_returned();
@@ -2974,6 +2664,17 @@ pub extern "C" fn __ocara_try_exec(body_fn: i64, handler_fn: i64) -> i64 {
             }
         }
     })
+}
+
+/// La valeur levée et son nom de type appartiennent à la frame `try` (`raise`
+/// les transfère, voir `lower_raise`) : relâchés une fois le gestionnaire
+/// revenu. Un gestionnaire qui relève sort par `longjmp` et transfère la
+/// même référence plus haut.
+fn release_raised(ev: i64, et: i64) {
+    unsafe {
+        rc::release(ev);
+        rc::release(et);
+    }
 }
 
 /// Version dynamique avec pointeur vers tableau de captures.
@@ -2999,6 +2700,8 @@ pub extern "C" fn __ocara_try_exec_with_captures(
         unsafe {
             (*frame_ptr).error_val  = 0;
             (*frame_ptr).error_type = 0;
+            (*frame_ptr).unwind = rc::unwind_depth();
+            (*frame_ptr).resources = rc::resource_depth();
         }
 
         stack.depth.set(depth + 1);
@@ -3034,6 +2737,7 @@ pub extern "C" fn __ocara_try_exec_with_captures(
                     std::mem::transmute(handler_fn as usize);
                 handler(ev, et, captures_ptr);
             }
+            release_raised(ev, et);
 
             // Vérifier si le handler a fait un return explicite
             let (has_returned, return_value) = handler_has_returned();
@@ -3071,6 +2775,8 @@ pub(crate) fn run_closure_catching(func_ptr: i64, env_ptr: i64) -> Result<i64, (
         unsafe {
             (*frame_ptr).error_val  = 0;
             (*frame_ptr).error_type = 0;
+            (*frame_ptr).unwind = rc::unwind_depth();
+            (*frame_ptr).resources = rc::resource_depth();
         }
 
         stack.depth.set(depth + 1);
@@ -3122,6 +2828,8 @@ pub(crate) fn run_closure_catching_with_arg(func_ptr: i64, env_ptr: i64, arg1: i
         unsafe {
             (*frame_ptr).error_val  = 0;
             (*frame_ptr).error_type = 0;
+            (*frame_ptr).unwind = rc::unwind_depth();
+            (*frame_ptr).resources = rc::resource_depth();
         }
 
         stack.depth.set(depth + 1);
@@ -3159,6 +2867,8 @@ pub extern "C" fn __ocara_fail(val: i64, type_name: i64) {
         unsafe {
             (*frame_ptr).error_val  = val;
             (*frame_ptr).error_type = type_name;
+            rc::close_resources_to((*frame_ptr).resources);
+            rc::unwind_to((*frame_ptr).unwind);
             let env_ptr: *mut JmpBuf = &mut (*frame_ptr).env;
             longjmp(env_ptr, 1);
         }
@@ -3284,12 +2994,13 @@ pub extern "C" fn __unbox_int(tagged: i64) -> i64 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn __task_spawn(func: i64, env: i64) -> i64 {
+    let guard = rc::ThreadGuard::new();
     let handle = std::thread::spawn(move || unsafe {
+        let _guard = guard;
         let f: extern "C" fn(i64) -> i64 = std::mem::transmute(func as usize);
         f(env)
     });
-    let task = Box::new(OcaraTask { handle: Some(handle) });
-    Box::into_raw(task) as i64
+    rc::handle_new(OcaraTask { handle: Some(handle) })
 }
 
 // `resolve expr` : attend le thread et libère le wrapper OcaraTask (jusqu'ici
@@ -3305,8 +3016,9 @@ pub extern "C" fn __task_resolve(task_ptr: i64) -> i64 {
     if task_ptr == 0 {
         return 0;
     }
-    let mut task = unsafe { Box::from_raw(task_ptr as *mut OcaraTask) };
+    let mut task = unsafe { rc::handle_take::<OcaraTask>(task_ptr) };
     if let Some(handle) = task.handle.take() {
+        let _parked = rc::park();
         handle.join().unwrap_or(0)
     } else {
         0
@@ -3809,7 +3521,7 @@ fn json_to_value(json: &JsonValue) -> i64 {
             let ocara_arr = __array_new();
             for elem in arr {
                 let ocara_val = json_to_value(elem);
-                __array_push(ocara_arr, ocara_val);
+                array_push_owned(ocara_arr, ocara_val);
             }
             ocara_arr
         }
@@ -3818,7 +3530,7 @@ fn json_to_value(json: &JsonValue) -> i64 {
             for (key, value) in obj {
                 let key_str = unsafe { alloc_str(key) };
                 let ocara_val = json_to_value(value);
-                __map_set(ocara_map, key_str, ocara_val);
+                map_set_owned_key(ocara_map, key_str, ocara_val);
             }
             ocara_map
         }
@@ -3840,7 +3552,7 @@ pub extern "C" fn JSON_pretty(json: i64) -> i64 {
             let pretty = serde_json::to_string_pretty(&value).unwrap_or_else(|_| json_str.to_string());
             unsafe { alloc_str(&pretty) }
         }
-        Err(_) => json  // Retourner la string originale en cas d'erreur
+        Err(_) => __rc_passthrough(json)
     }
 }
 
@@ -3859,7 +3571,7 @@ pub extern "C" fn JSON_minimize(json: i64) -> i64 {
             let minimized = serde_json::to_string(&value).unwrap_or_else(|_| json_str.to_string());
             unsafe { alloc_str(&minimized) }
         }
-        Err(_) => json  // Retourner la string originale en cas d'erreur
+        Err(_) => __rc_passthrough(json)
     }
 }
 

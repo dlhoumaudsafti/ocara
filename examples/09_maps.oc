@@ -5,7 +5,7 @@
 //   - Déclaration map<K, V>
 //   - Littéral avec la syntaxe { clé: valeur, ... }
 //   - Accès par clé : map["clé"]
-//   - Itération for key => val in map
+//   - Itération for key has val in map
 // ─────────────────────────────────────────────────────────────────────────────
 
 import ocara.IO
@@ -24,7 +24,7 @@ function main(): int {
     IO::writeln(ages["Alice"])    // 30
     IO::writeln(ages["Bob"])      // 25
 
-    for nom => age in ages {
+    for nom has age in ages {
         IO::writeln(`${nom} a ${age} ans`)
     }
 
@@ -38,7 +38,7 @@ function main(): int {
     IO::writeln(capitales["France"])      // Paris
     IO::writeln(capitales["Espagne"])     // Madrid
 
-    for pays => capitale in capitales {
+    for pays has capitale in capitales {
         IO::writeln(`${pays} → ${capitale}`)
     }
 
@@ -55,7 +55,7 @@ function main(): int {
     IO::writeln(profil["actif"])  // true
     IO::writeln(profil["score"])  // 9.8
 
-    for cle => valeur in profil {
+    for cle has valeur in profil {
         IO::writeln(`${cle} = ${valeur}`)
     }
 

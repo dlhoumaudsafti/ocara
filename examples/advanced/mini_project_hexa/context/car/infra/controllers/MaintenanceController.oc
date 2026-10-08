@@ -18,10 +18,6 @@ class MaintenanceController {
         // sous la voiture concernée, /voitures/<car_id:int>/entretiens) : plus
         // besoin de Convert::strToInt, le routeur l'a déjà validé/parsé.
         var car_id:int = req.param("car_id")
-        // `const` (pas `scoped`) : Maintenance::create() les bind dans une map
-        // passée à db.bind(), donc les retient au-delà de cet appel — une
-        // valeur `scoped`/`consumed` ne peut pas être passée là où l'appelé la
-        // retient (voir E26, docs/diagnostics.md).
         const type:string        = req.param("type")
         const description:string = String::trim(req.param("description"))
         scoped cost_str:string     = req.param("cost")

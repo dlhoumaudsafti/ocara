@@ -30,7 +30,7 @@ pub fn emit_inst(
     param_types: &HashMap<String, Vec<cranelift_codegen::ir::Type>>,
     ret_types:   &HashMap<String, cranelift_codegen::ir::Type>,
     class_layouts: &HashMap<String, Vec<(String, cranelift_codegen::ir::Type)>>,
-    class_ids: &HashMap<String, i64>,
+    class_ids: &HashMap<String, (i64, Option<u32>)>,
     func_ret_ty: &IrType,
 ) -> CgResult<()> {
     // Essayer chaque catégorie d'instructions dans l'ordre

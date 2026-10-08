@@ -139,7 +139,7 @@ class Student extends Score {
     public method print(): void {
         IO::writeln("Étudiant [" + self.student_id + "] " + self.name)
         IO::writeln(`  Score global : ${self.value}/${Score::MAX}`)
-        for course=>grade in self.course_grades {
+        for course has grade in self.course_grades {
             IO::writeln(`  ${course} → ${grade}/20`)
         }
     }
@@ -321,10 +321,10 @@ function main(): int {
     var config:map<string,string> = {'lang': 'fr', 'theme': 'dark'}
 
     // Itération clé=>valeur
-    for student=>grade in grades {
+    for student has grade in grades {
         IO::writeln(`  ${student} → ${grade}/20`)
     }
-    for key=>val in config {
+    for key has val in config {
         IO::writeln("  config." + key + " = " + val)
     }
 

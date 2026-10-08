@@ -2,9 +2,11 @@
 
 use crate::parsing::ast::*;
 use crate::ir::types::IrType;
-use crate::ir::inst::Inst;
+use crate::ir::inst::{Inst, Value};
 use crate::lower::builder::LowerBuilder;
+use crate::lower::builder::message_gen::{keep_across_emit, reload};
 use crate::lower::expr::{lower_expr, hoist_closure_promotions_before_loop};
+use crate::lower::expr::helpers::elem_type_after_index;
 use super::super::super::block::lower_block;
 
 pub fn lower_for_in(
@@ -30,18 +32,18 @@ pub fn lower_for_in(
 
     // Lowering : __iter_init(iter), boucle sur __iter_next
     let iter_val  = lower_expr(builder, iter);
-    let idx_slot  = builder.declare_local("__for_idx", IrType::I64, true);
-    let zero = builder.new_value();
-    builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
-    builder.emit(Inst::Store { ptr: idx_slot.clone(), src: zero });
+    let idx = LoopIndex::new(builder, "__for_idx");
 
     // Type de l'élément : I64 pour les plages entières, Ptr pour les tableaux
+    // Type AST de l'élément : variable, mais aussi champ (`obj.items`),
+    // appel ou index — voir `elem_type_after_index`.
+    let elem_ast = elem_type_after_index(builder, iter);
     let elem_ty = match iter {
         Expr::Range { .. } => IrType::I64,
         Expr::Ident(name, _) => {
             builder.elem_types.get(name.as_str()).cloned().unwrap_or(IrType::Ptr)
         }
-        _ => IrType::Ptr,
+        _ => elem_ast.as_ref().map_or(IrType::Ptr, IrType::from_ast),
     };
 
     // Longueur du tableau
@@ -52,6 +54,8 @@ pub fn lower_for_in(
         args:   vec![iter_val.clone()],
         ret_ty: IrType::I64,
     });
+    let kept_iter = keep_across_emit(builder, &iter_val, IrType::Ptr);
+    let kept_len = keep_across_emit(builder, &len_val, IrType::I64);
 
     let cond_bb  = builder.new_block();
     let body_bb  = builder.new_block();
@@ -61,13 +65,14 @@ pub fn lower_for_in(
     builder.emit(Inst::Jump { target: cond_bb.clone() });
     builder.switch_to(&cond_bb);
 
-    let idx = builder.new_value();
-    builder.emit(Inst::Load { dest: idx.clone(), ptr: idx_slot.clone(), ty: IrType::I64 });
+    let iter_val = reload(builder, &kept_iter, &iter_val);
+    let len_val = reload(builder, &kept_len, &len_val);
+    let idx_val = idx.load(builder);
     let cond = builder.new_value();
     builder.emit(Inst::CmpLt {
         dest: cond.clone(),
-        lhs:  idx.clone(),
-        rhs:  len_val.clone(),
+        lhs:  idx_val.clone(),
+        rhs:  len_val,
         ty:   IrType::I64,
     });
     builder.emit(Inst::Branch {
@@ -85,12 +90,15 @@ pub fn lower_for_in(
     builder.emit(Inst::Call {
         dest:   Some(elem.clone()),
         func:   "__array_get".into(),
-        args:   vec![iter_val.clone(), idx.clone()],
+        args:   vec![iter_val, idx_val],
         ret_ty: elem_ty.clone(),
     });
 
+    let counted_snapshot = builder.rc_counted_locals.clone();
+    crate::lower::stmt::rc::begin_iteration(builder);
     builder.declare_local(var, elem_ty.clone(), false);
-    builder.store_local(var, elem);
+    builder.store_local(var, elem.clone());
+    crate::lower::stmt::rc::bind_loop_var(builder, var, elem_ast.as_ref(), &elem);
     
     // Si l'itérateur est une variable dont le type d'élément est connu
     // statiquement (`elem_ast_types`, alimenté par `lower_var`/`lower_const`
@@ -107,8 +115,10 @@ pub fn lower_for_in(
     // champ déclaré. Même famille de bug, même correctif que
     // `register_var_class`/`union_named_class` — voir
     // docs/roadmap.d/langage-union-class-null-field-access.md.
-    if let Expr::Ident(iter_name, _) = iter {
-        if let Some(elem_ast_ty) = builder.elem_ast_types.get(iter_name.as_str()).cloned() {
+    // Variable, mais aussi champ/appel/index : `for m in dto.maintenances`
+    // lisait sinon chaque `m.champ` à l'offset 0 (toujours `id`).
+    {
+        if let Some(elem_ast_ty) = elem_ast {
             if let Type::Map(_, val_ty) = &elem_ast_ty {
                 // L'élément est un map, enregistrer la variable d'itération comme map
                 builder.map_vars.insert(var.to_string());
@@ -120,6 +130,7 @@ pub fn lower_for_in(
                 // de boucle est appelable (`f(x)`), comme un paramètre Function.
                 builder.func_vars.insert(var.to_string());
                 builder.func_ret_types.insert(var.to_string(), IrType::from_ast(ret_ty));
+                builder.func_ret_ast.insert(var.to_string(), (**ret_ty).clone());
             } else if let Type::Array(inner) = &elem_ast_ty {
                 // `array<array<T>>` : la variable de boucle est un `array<T>`
                 // dont les éléments scalaires sont BRUTS (voir
@@ -138,28 +149,70 @@ pub fn lower_for_in(
     }
 
     // continue → incr_bb, break → merge_bb
-    builder.loop_stack.push((incr_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len()));
+    builder.loop_stack.push((incr_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len() - 1));
+    crate::lower::stmt::rc::enter_loop(builder);
     builder.loop_depth += 1;
     lower_block(builder, body);
     builder.loop_depth -= 1;
+    crate::lower::stmt::rc::exit_loop(builder);
     builder.loop_stack.pop();
+    crate::lower::stmt::rc::end_iteration(builder);
+    builder.rc_counted_locals = counted_snapshot;
 
     if !builder.is_terminated() {
         builder.emit(Inst::Jump { target: incr_bb.clone() });
     }
 
-    // Bloc incrément
     builder.switch_to(&incr_bb);
-    let one = builder.new_value();
-    builder.emit(Inst::ConstInt { dest: one.clone(), value: 1 });
-    let idx2 = builder.new_value();
-    builder.emit(Inst::Load { dest: idx2.clone(), ptr: idx_slot.clone(), ty: IrType::I64 });
-    let next_idx = builder.new_value();
-    builder.emit(Inst::Add { dest: next_idx.clone(), lhs: idx2, rhs: one, ty: IrType::I64 });
-    builder.emit(Inst::Store { ptr: idx_slot, src: next_idx });
+    idx.increment(builder);
     builder.emit(Inst::Jump { target: cond_bb.clone() });
 
     builder.switch_to(&merge_bb);
+}
+
+/// Index d'une boucle `for` : un slot de pile, ou dans un générateur un
+/// champ caché du frame (la pile ne survit pas à un `emit` du corps).
+enum LoopIndex {
+    Slot(Value),
+    Field(String),
+}
+
+impl LoopIndex {
+    fn new(builder: &mut LowerBuilder, name: &str) -> Self {
+        let zero = builder.new_value();
+        builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+        if builder.rc_generator {
+            let field = crate::lower::builder::message_gen::spill_field(builder, IrType::I64, false);
+            builder.store_local(&field, zero);
+            return LoopIndex::Field(field);
+        }
+        let slot = builder.declare_local(name, IrType::I64, true);
+        builder.emit(Inst::Store { ptr: slot.clone(), src: zero });
+        LoopIndex::Slot(slot)
+    }
+
+    fn load(&self, builder: &mut LowerBuilder) -> Value {
+        match self {
+            LoopIndex::Field(field) => builder.load_local(field).map(|(v, _)| v).expect("champ du frame"),
+            LoopIndex::Slot(slot) => {
+                let v = builder.new_value();
+                builder.emit(Inst::Load { dest: v.clone(), ptr: slot.clone(), ty: IrType::I64 });
+                v
+            }
+        }
+    }
+
+    fn increment(&self, builder: &mut LowerBuilder) {
+        let cur = self.load(builder);
+        let one = builder.new_value();
+        builder.emit(Inst::ConstInt { dest: one.clone(), value: 1 });
+        let next = builder.new_value();
+        builder.emit(Inst::Add { dest: next.clone(), lhs: cur, rhs: one, ty: IrType::I64 });
+        match self {
+            LoopIndex::Field(field) => builder.store_local(field, next),
+            LoopIndex::Slot(slot) => builder.emit(Inst::Store { ptr: slot.clone(), src: next }),
+        }
+    }
 }
 
 pub fn lower_for_map(
@@ -182,6 +235,7 @@ pub fn lower_for_map(
         args:   vec![iter_val.clone()],
         ret_ty: IrType::Ptr,
     });
+    crate::lower::stmt::rc::track(builder, &keys_arr);
 
     // Longueur
     let len_val = builder.new_value();
@@ -191,12 +245,11 @@ pub fn lower_for_map(
         args:   vec![keys_arr.clone()],
         ret_ty: IrType::I64,
     });
+    let kept_iter = keep_across_emit(builder, &iter_val, IrType::Ptr);
+    let kept_keys = keep_across_emit(builder, &keys_arr, IrType::Ptr);
+    let kept_len = keep_across_emit(builder, &len_val, IrType::I64);
 
-    // Index
-    let idx_slot = builder.declare_local("__map_idx", IrType::I64, true);
-    let zero = builder.new_value();
-    builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
-    builder.emit(Inst::Store { ptr: idx_slot.clone(), src: zero });
+    let idx = LoopIndex::new(builder, "__map_idx");
 
     let cond_bb  = builder.new_block();
     let body_bb  = builder.new_block();
@@ -206,11 +259,13 @@ pub fn lower_for_map(
     builder.emit(Inst::Jump { target: cond_bb.clone() });
     builder.switch_to(&cond_bb);
 
-    let idx = builder.new_value();
-    builder.emit(Inst::Load { dest: idx.clone(), ptr: idx_slot.clone(), ty: IrType::I64 });
+    let iter_val = reload(builder, &kept_iter, &iter_val);
+    let keys_arr = reload(builder, &kept_keys, &keys_arr);
+    let len_val = reload(builder, &kept_len, &len_val);
+    let idx_val = idx.load(builder);
     let cond = builder.new_value();
     builder.emit(Inst::CmpLt {
-        dest: cond.clone(), lhs: idx.clone(), rhs: len_val.clone(), ty: IrType::I64,
+        dest: cond.clone(), lhs: idx_val.clone(), rhs: len_val, ty: IrType::I64,
     });
     builder.emit(Inst::Branch { cond, then_bb: body_bb.clone(), else_bb: merge_bb.clone() });
 
@@ -221,18 +276,22 @@ pub fn lower_for_map(
     builder.emit(Inst::Call {
         dest:   Some(k.clone()),
         func:   "__array_get".into(),
-        args:   vec![keys_arr.clone(), idx.clone()],
+        args:   vec![keys_arr, idx_val],
         ret_ty: IrType::Ptr,
     });
+    let counted_snapshot = builder.rc_counted_locals.clone();
+    crate::lower::stmt::rc::begin_iteration(builder);
     builder.declare_local(key, IrType::Ptr, false);
     builder.store_local(key, k.clone());
+    crate::lower::stmt::rc::bind_loop_var(builder, key, Some(&Type::String), &k);
 
     // Valeur correspondante, lue au type de valeur déclaré de la map (comme
     // l'élément de `for x in array<T>`) — `I64` en dur affichait l'adresse
     // d'une `string`/d'un `mixed` boxé (`${capitale}` → `4464680`).
+    let val_ast = elem_type_after_index(builder, iter);
     let val_ty = match iter {
         Expr::Ident(name, _) => builder.elem_types.get(name.as_str()).cloned().unwrap_or(IrType::Ptr),
-        _ => IrType::Ptr,
+        _ => val_ast.as_ref().map_or(IrType::Ptr, IrType::from_ast),
     };
     let v = builder.new_value();
     builder.emit(Inst::Call {
@@ -242,7 +301,8 @@ pub fn lower_for_map(
         ret_ty: val_ty.clone(),
     });
     builder.declare_local(value, val_ty, false);
-    builder.store_local(value, v);
+    builder.store_local(value, v.clone());
+    crate::lower::stmt::rc::bind_loop_var(builder, value, val_ast.as_ref(), &v);
 
     // Si l'itérateur est une variable `map<K,V>` dont le type de VALEUR est
     // connu statiquement (`elem_ast_types`, alimenté par `lower_var`/
@@ -254,34 +314,27 @@ pub fn lower_for_map(
     // correctif (`value` n'avait AUCUNE entrée `var_class`, quel que soit le
     // type de valeur de la map). Voir
     // docs/roadmap.d/langage-union-class-null-field-access.md.
-    if let Expr::Ident(map_name, _) = iter {
-        if let Some(val_ast_ty) = builder.elem_ast_types.get(map_name.as_str()).cloned() {
-            if let Some(class_name) = resolved_named_class(&val_ast_ty) {
-                builder.var_class.insert(value.to_string(), class_name);
-            }
-        }
+    if let Some(class_name) = val_ast.as_ref().and_then(resolved_named_class) {
+        builder.var_class.insert(value.to_string(), class_name);
     }
 
     // continue → incr_bb, break → merge_bb
-    builder.loop_stack.push((incr_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len()));
+    builder.loop_stack.push((incr_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len() - 1));
+    crate::lower::stmt::rc::enter_loop(builder);
     builder.loop_depth += 1;
     lower_block(builder, body);
     builder.loop_depth -= 1;
+    crate::lower::stmt::rc::exit_loop(builder);
     builder.loop_stack.pop();
+    crate::lower::stmt::rc::end_iteration(builder);
+    builder.rc_counted_locals = counted_snapshot;
 
     if !builder.is_terminated() {
         builder.emit(Inst::Jump { target: incr_bb.clone() });
     }
 
-    // Bloc incrément
     builder.switch_to(&incr_bb);
-    let one = builder.new_value();
-    builder.emit(Inst::ConstInt { dest: one.clone(), value: 1 });
-    let idx2 = builder.new_value();
-    builder.emit(Inst::Load { dest: idx2.clone(), ptr: idx_slot.clone(), ty: IrType::I64 });
-    let next_idx = builder.new_value();
-    builder.emit(Inst::Add { dest: next_idx.clone(), lhs: idx2, rhs: one, ty: IrType::I64 });
-    builder.emit(Inst::Store { ptr: idx_slot, src: next_idx });
+    idx.increment(builder);
     builder.emit(Inst::Jump { target: cond_bb.clone() });
 
     builder.switch_to(&merge_bb);
@@ -292,7 +345,7 @@ pub fn lower_break(builder: &mut LowerBuilder) {
         // Détruit les scoped/consumed encore vivantes entre ici et l'entrée
         // de la boucle (corps de boucle inclus) avant de sauter dehors —
         // voir crate::lower::stmt::ownership::emit_early_exit_drops.
-        crate::lower::stmt::ownership::emit_early_exit_drops(builder, depth);
+        crate::lower::stmt::rc::release_loop_exit(builder, depth);
         builder.emit(Inst::Jump { target: break_bb });
     }
 }
@@ -302,12 +355,12 @@ pub fn lower_continue(builder: &mut LowerBuilder) {
         // Même destruction que `break` : `continue` quitte aussi le corps
         // de boucle actuellement ouvert (et tout ce qu'il contient), juste
         // pour reboucler plutôt que sortir complètement.
-        crate::lower::stmt::ownership::emit_early_exit_drops(builder, depth);
+        crate::lower::stmt::rc::release_loop_exit(builder, depth);
         builder.emit(Inst::Jump { target: continue_bb });
     }
 }
 
-/// Tests unitaires — `for x in array<Classe>` / `for k => v in map<K,Classe>`
+/// Tests unitaires — `for x in array<Classe>` / `for k has v in map<K,Classe>`
 /// (docs/roadmap.d/langage-union-class-null-field-access.md) : la variable
 /// de boucle/valeur n'avait AUCUNE entrée `var_class` dès que l'élément
 /// itéré était une classe utilisateur (seul l'élément `map` était géré) —
@@ -383,7 +436,7 @@ mod tests {
         assert_eq!(builder.var_class.get("n"), None);
     }
 
-    /// `for k => v in m` où `m:map<string, Foo>` — la variable VALEUR doit
+    /// `for k has v in m` où `m:map<string, Foo>` — la variable VALEUR doit
     /// être enregistrée comme instance de Foo (jamais géré du tout avant ce
     /// correctif : `lower_for_map` n'enregistrait aucune métadonnée de
     /// classe pour `value`, quel que soit le type de valeur de la map).
