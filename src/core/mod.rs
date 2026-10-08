@@ -6,6 +6,8 @@ mod tests;
 mod tests_structs;
 #[cfg(test)]
 mod tests_property_init;
+#[cfg(test)]
+mod tests_render_file;
 pub mod interface_wiring;
 pub mod monomorph;
 pub mod named_args;

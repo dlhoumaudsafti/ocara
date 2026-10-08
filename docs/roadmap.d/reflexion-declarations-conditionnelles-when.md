@@ -4,7 +4,7 @@ Statut : **non tranché** — idée proposée le 2026-10-08.
 
 ## Idée
 
-Conditionner une déclaration (classe, interface, struct, générique, enum,
+Conditionner une déclaration (import, classe, interface, struct, générique, enum,
 module, fonction, méthode, propriété, variable) à une condition connue à
 la compilation. Plusieurs variantes d'une même déclaration peuvent
 coexister : une seule est retenue pour un build donné.
