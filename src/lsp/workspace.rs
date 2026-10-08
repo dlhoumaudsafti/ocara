@@ -32,6 +32,10 @@ impl Workspace {
         self.analyses.remove(path);
     }
 
+    pub fn roots(&self) -> &[PathBuf] {
+        &self.roots
+    }
+
     pub fn open_paths(&self) -> Vec<PathBuf> {
         self.texts.keys().cloned().collect()
     }
@@ -47,12 +51,34 @@ impl Workspace {
 
     /// Analyse `path` comme fichier d'entrée, imports résolus depuis la racine
     /// du projet ; les gabarits `renderFile` sont lus depuis cette racine.
+    /// Une erreur avant la sema (syntaxe en cours de frappe) garde le dernier
+    /// programme vérifié : survol et définition restent disponibles.
     pub fn analyze(&mut self, path: &Path) -> &Analysis {
-        let root = self.project_root(path);
-        let _ = std::env::set_current_dir(&root);
-        let analysis = analyze(&AnalyzeOptions { input: path, src_dir: Some(&root), dump: false, index: true });
+        let mut analysis = self.run(path);
+        if analysis.checked.is_none() {
+            analysis.checked = self.analyses.remove(path).and_then(|previous| previous.checked);
+        }
         self.analyses.insert(path.to_path_buf(), analysis);
         &self.analyses[path]
+    }
+
+    /// Analyse ponctuelle de `path` avec le texte `text` (complétion), sans
+    /// toucher à la dernière analyse du document.
+    pub fn analyze_text(&self, path: &Path, text: String) -> Analysis {
+        source::set_override(path, text);
+        let analysis = self.run(path);
+        match self.texts.get(path) {
+            Some(current) => source::set_override(path, current.clone()),
+            None => source::clear_override(path),
+        }
+        analysis
+    }
+
+    /// Analyse de `path` avec le texte courant des documents ouverts.
+    pub fn run(&self, path: &Path) -> Analysis {
+        let root = self.project_root(path);
+        let _ = std::env::set_current_dir(&root);
+        analyze(&AnalyzeOptions { input: path, src_dir: Some(&root), dump: false, index: true })
     }
 
     /// Premier dossier contenant un `main.oc` en remontant depuis le fichier,

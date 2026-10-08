@@ -1,94 +1,37 @@
 # Ocara Language — Extension VS Code
 
-Coloration syntaxique, autocomplétion et navigation (Go-to-Definition) pour le langage **Ocara** (`.oc`).
+Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics en direct, autocomplétion, survol, navigation, références et CodeLens pour le langage **Ocara** (`.oc`).
 
 ## Fonctionnalités
 
+- **Coloration syntaxique** complète (grammaire TextMate `syntaxes/ocara.tmLanguage.json`) : mots-clés,
+  types, classes, structs, méthodes, imports, chaînes, templates, noms d'arguments nommés.
 - **Serveur de langage du compilateur** (`ocara --lsp`, lancé avec le compilateur du réglage
-  `ocara.compilerPath`) : erreurs et avertissements du compilateur **pendant la frappe** (y compris ceux
-  d'un fichier importé, signalés en tête du document) ; **Go-to-Definition** exact (variables,
-  paramètres, fonctions, méthodes héritées, champs, constantes, classes, lignes `import`/`runtime`/`wiring`,
-  argument nommé → paramètre) ; **survol** : type réel d'une variable, signature et commentaires `//` d'une
-  déclaration, documentation des méthodes builtin ; **symboles du document** (plan, `Ctrl+Shift+O`)
-- Highlight complet : mots-clés, types, classes, structs, méthodes, imports, chaînes, templates
-- Appels de méthodes (`obj.method()`), accès statiques (`Class::member`), builtins `ocara.*`
-- **Autocomplétion après `.` / `::`** — méthodes et constantes des classes builtin `ocara.*`
-  (catalogue généré depuis `src/builtins/*.rs` et `docs/builtins/*.md` par `scripts/generate-builtins-data.py`, voir `data/builtins-data.json` — à relancer après tout ajout/changement de builtin ou de sa doc) et des
-  classes utilisateur (propres et héritées via `extends`, résolues à travers les imports)
-- **Documentation au survol** :
-  - méthodes builtin, statiques (`String::trim`) ou d'instance (`server.route`, y compris héritées par une
-    classe utilisateur `extends HTTPServer`) — signature + documentation extraite de `docs/builtins/*.md`
-    (section ou ligne de tableau de la méthode, à défaut sa première ligne d'exemple) ;
-  - méthodes « sucrées » sur une valeur (`s.trim()` ≡ `String::trim(s)`) — doc de la méthode réellement
-    appelée (pas encore les conversions `s.toInt()` ≡ `Convert::strToInt(s)`) ;
-  - fonctions, méthodes, classes, structs (constructeur généré), interfaces... de votre code — signature et
-    commentaires `//` placés juste au-dessus de la déclaration
+  `ocara.compilerPath`) — toute la sémantique vient du compilateur lui-même, aucune heuristique :
+  - **erreurs et avertissements pendant la frappe**, y compris ceux d'un fichier importé (signalés en
+    tête du document, avec un lien) ;
+  - **survol** : type réel d'une variable, signature et commentaires `//` d'une déclaration,
+    documentation des méthodes builtin (extraite de `docs/builtins/*.md`), méthode réellement appelée
+    par le sucre d'instance (`s.trim()`, `s.toInt()`), mots-clés (résumé et lien vers leur section de
+    l'EBNF) ;
+  - **Go-to-Definition** (Ctrl+Clic) : variables, paramètres, fonctions, méthodes (héritées comprises),
+    champs, constantes, classes, lignes `import` / `runtime` / `wiring`, argument nommé → paramètre ;
+  - **autocomplétion** sur le type réel du receveur (`a.`, `self.`, `a.b().`, `A::`) : membres hérités,
+    builtins, sucre `String`/`Array`/`Map` et conversions `Convert` sur un primitif, propriétés
+    `message`/`code`/`source` d'une exception, noms visibles, classes après `use`, noms des paramètres
+    restants dans un appel nommé — chaque appel complété insère ses paramètres comme champs à remplir ;
+  - **aide à la signature**, paramètre actif par position ou par nom ;
+  - **références** (Maj+F12) et **CodeLens** au-dessus des déclarations (implémentations, overrides,
+    références), sur tout l'espace de travail : un appel via une sous-classe ou une interface compte pour
+    la méthode déclarante ;
+  - **symboles du document** (plan, `Ctrl+Shift+O`).
 - **Documentation embarquée** : `docs/EBNF.md` et `docs/builtins/*.md` du dépôt sont copiés dans
-  l'extension à chaque compilation (`scripts/copy-docs.js`, lancé par `npm run compile` — la copie
-  précédente est supprimée d'abord ; dossier `docs/` de l'extension ignoré par git, ne jamais l'éditer).
-  Le lien « 📖 » d'une popup de survol ouvre le fichier en **aperçu** Markdown dans un nouvel onglet,
-  sur la section concernée
-- **Survol des mots-clés** (`scoped`, `wiring`, `struct`, `match`, `try`/`on`...) : résumé et lien vers
-  leur section de l'EBNF ; les mots-clés aussi utilisables comme noms (`result`, `message`, `init`...)
-  ne sont documentés qu'en position de mot-clé
-- **Autocomplétion avec paramètres** : toute méthode/fonction complétée insère ses paramètres comme champs
-  à remplir portant leurs noms d'origine (`replace(s, from, to)`, `Tab` pour passer au suivant) ; fonctions
-  libres du programme (fichier, fichiers importés, fichiers runtime du même programme) proposées avec leur doc
-- **Autocomplétion `self.` / `self::` / `parent.`** dans le corps d'une classe
-- **Autocomplétion sur une variable de type primitif** (`string`, `int`, `float`, `bool`, `array<T>`,
-  `map<K,V>`) : conversions (`s.toInt()`, `n.toStr()`, `arr.toStr(sep)`... ≡ `Convert::*`, voir
-  `docs/builtins/Convert.md`) et méthodes `String`/`Array`/`Map` utilisables en instance (`s.trim()`),
-  avec signature help
-- **Autocomplétion `e.message` / `e.code` / `e.source`** dans un bloc `on e is XException`
-- **Autocomplétion des noms de classe après `use `** (builtins instanciables + classes utilisateur)
-- **Arguments nommés** (`use UserDto(id: 42, name: 'David')`) :
-  - coloration du nom d'argument (`nom:` dans un appel) ;
-  - autocomplétion des noms de paramètres dans les parenthèses d'un appel (fonction, méthode,
-    `Classe::méthode`, `use Classe(...)` → `init`, méthodes statiques builtin), sans les noms
-    déjà fournis ni le variadic, et jamais après un argument positionnel (un appel est soit
-    100 % positionnel, soit 100 % nommé) ;
-  - **signature help** (`(` / `,`) : signature complète, valeurs par défaut affichées,
-    paramètre actif déterminé par nom pour un argument nommé, par position sinon ;
-  - **Ctrl+Click** sur `nom:` → paramètre correspondant dans la déclaration.
-  - `use MonStruct(` : signature du constructeur **généré** depuis les champs du `struct`
-    (champs hérités d'abord, valeurs par défaut affichées), Ctrl+Click sur `nom:` → le champ.
-  - Limites : aucune aide pour un appel via une valeur `Function<...>` (les noms de paramètres
-    n'y existent pas) ni pour un receveur sans type déclaré ; une valeur ressemblant à un type
-    (`p: Point`, `c: CONST`) n'est pas colorée comme argument nommé (indiscernable de `nom:Type`).
-- **Ctrl+Click** sur un `import` → ouvre le fichier `.oc` correspondant
-- **Ctrl+Click** sur `import Circle from "11_interfaces"` → ouvre le fichier et positionne sur la classe `Circle`
-- **Ctrl+Click** sur `self.circle.area()` → navigue vers la méthode `area()` dans la classe importée
-- **Ctrl+Click** sur `ClassName::member` → ouvre le fichier de la classe et positionne le curseur sur la méthode
-- **Ctrl+Click** sur `wiring chemin.vers.Classe` (dans une interface) → ouvre le fichier et positionne sur la classe ciblée
-- **Fichiers runtime** (`runtime core.main is main`) : les blocs runtime d'un programme partageant leur portée,
-  Ctrl+Click et autocomplétion sur `server.start()` retrouvent la variable déclarée dans un AUTRE fichier
-  runtime du même programme (ex. `core/init.runtime.oc`) et la classe importée par le fichier principal
-- **Ctrl+Click** sur un nom de variable ou fonction → navigue vers la déclaration
-- **Scan automatique du workspace** pour résoudre les imports `from "file"` dans n'importe quel sous-dossier
-- **Namespaces à plusieurs segments** (`namespace context.search.app.usecase`) : un import
-  `context.search.domain.contract.SearchContract` est résolu depuis la racine du projet déduite
-  du namespace (puis depuis chaque dossier parent), et Ctrl+Click positionne sur la déclaration
-  de la classe elle-même
-- **CodeLens** au-dessus de chaque déclaration, calculés sur tout le workspace (index construit à
-  l'activation, mis à jour à chaque modification), cliquables pour lister les emplacements :
-
-  | Déclaration      | CodeLens |
-  |------------------|----------|
-  | classe / generic | implémentations (sous-classes, transitif) · overrides (méthodes redéfinies par ces sous-classes) |
-  | struct           | implémentations (structs dérivés, transitif) |
-  | interface        | implémentations (classes qui l'implémentent, héritage compris) · overrides (méthodes de l'interface qu'elles définissent) |
-  | module           | implémentations (classes qui l'utilisent via `modules`) · overrides (méthodes du module qu'elles redéfinissent) |
-  | méthode          | d'interface : implémentations · de module : implémentations + overrides · de classe : overrides |
-  | fonction / enum  | références |
-
-  Plus, sur chaque classe/struct/generic/interface/module, ses **références** (usages de son nom
-  hors imports : types, `use X(`, `X::`, `extends`, `wiring`) et, sur chaque méthode, ses
-  références : `Classe::m` — appel ou référence sans appel, ex.
-  `server.route("/voitures/<id:int>", "GET", CarController::show)` —, `self::m`/`parent::m` dans
-  son propre fichier, et `.m(` pour une méthode d'instance (par nom).
-
-  Résolution par nom, sans suivre les imports : deux classes homonymes de contextes différents
-  sont confondues.
+  l'extension à chaque compilation (`scripts/copy-docs.js`, lancé par `npm run compile` ; dossier
+  `docs/` de l'extension ignoré par git, ne jamais l'éditer). Le lien « 📖 » d'une popup de survol ouvre
+  le fichier en **aperçu** Markdown, sur la section concernée.
+- Catalogue des builtins (`data/builtins-data.json`, généré depuis `src/builtins/*.rs` et
+  `docs/builtins/*.md` par `scripts/generate-builtins-data.py` — à relancer après tout ajout/changement de
+  builtin ou de sa doc) : embarqué dans le compilateur pour le survol et la complétion.
 
 - **Analyse de style `ocaracs` automatique** à l'affichage, à l'ouverture et à l'enregistrement
   d'un fichier `.oc` : chaque ligne concernée est surlignée en jaune, le message s'affiche au

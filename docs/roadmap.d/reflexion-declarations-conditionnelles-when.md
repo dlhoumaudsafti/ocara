@@ -5,7 +5,8 @@ Statut : **non tranché** — idée proposée le 2026-10-08.
 ## Idée
 
 Conditionner une déclaration (import, classe, interface, struct, générique, enum,
-module, fonction, méthode, propriété, variable, runtime) à une condition connue à
+module, fonction, méthode, propriété, variable, runtime, return) ou une instruction d'un
+corps de fonction/méthode à une condition connue à
 la compilation. Plusieurs variantes d'une même déclaration peuvent
 coexister : une seule est retenue pour un build donné.
 
@@ -48,15 +49,23 @@ class Bidule {
     public property ret:int = 1
     when System::OS is 'android'
     public property ret:int = 2
+    when default
+    public property ret:string = "3"
 
     when System::BUILD is 'debug'
     public method truc(): map<int, string> {
+        when System::OS is 'linux' or System::OS is 'android'
         return {self.ret: 'debuggage ' + System::OS}
+        when default
+        return {self.ret.toInt(): 'debuggage ' + System::OS}
     }
 
     when System::BUILD is 'release'
     public method truc(): int {
+        when System::OS is 'linux' or System::OS is 'android'
         return self.ret
+        when default
+        return self.ret.toInt()
     }
 }
 ```
@@ -126,6 +135,15 @@ Conséquences :
 - `when default` est réservé aux déclarations qui ont d'autres variantes ;
   seul, il est sans effet (avertissement).
 
+### Instructions conditionnelles
+
+Dans un corps de fonction ou de méthode, une clause `when` conditionne
+l'**instruction qui suit** (exemple `truc()` ci-dessus). Les instructions
+conditionnées **consécutives** forment un groupe de variantes, sélectionné
+avec la même règle de priorité que les déclarations (première clause vraie,
+`when default` en dernier). Une instruction sans clause termine le groupe :
+au sein d'un corps, le « sinon » s'écrit donc toujours `when default`.
+
 ### Placement de la clause (convention, 2026-10-08)
 
 Par convention, une clause `when` est **collée** à la variante qu'elle
@@ -172,14 +190,15 @@ function openWindow(): void {
 
 ## Points à trancher
 
-- **Mot-clé** : `when` (se lit comme une phrase, préféré) ou `tag` (évoque
-  une étiquette plutôt qu'une condition).
+- **Mot-clé** : `when` (se lit comme une phrase, préféré)
 - **Opérateurs** : `is`/`is not` propres à `when`, ou les comparaisons du
   langage (`equal`/`not equal`). `is` existe déjà pour le test de type
   (`x is string`) : à vérifier qu'il n'y a pas d'ambiguïté de lecture.
   - **is** à une lecture intuitive et explicite dans la ligné de (`x is string`) donc pas d'ambiguité
   - liste des condition disponible: 
     - `is`, `is not`, `is greater`, `is smaller` , `is greater or equal`, `is smaller or equal`
+  - combinaison sur une même ligne : `and`, `or` (ex. `when System::OS is 'linux' or System::OS is 'android'`) ;
+    priorité usuelle (`and` avant `or`), parenthèses autorisées
 - **Plusieurs `when`** sur une déclaration : conjonction est équivalent à
   `and`
 - **Constantes de build disponibles** : `System::OS`, `System::BUILD`, cible
@@ -210,7 +229,7 @@ function openWindow(): void {
 
 Une condition d'usage doit se repérer au premier regard : le mot-clé `when`
 et ses opérateurs (`is`, `is not`, `is greater`, `is smaller`,
-`is greater or equal`, `is smaller or equal`, `and`) partagent **une même
+`is greater or equal`, `is smaller or equal`, `and`, `or`, `default`) partagent **une même
 couleur**, distincte de toutes les autres couleurs du code.
 
 Mise en œuvre prévue dans l'extension VS Code

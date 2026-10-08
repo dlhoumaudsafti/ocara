@@ -13,7 +13,7 @@ pub struct Decl {
 
 pub fn find(program: &Program, target: &Target) -> Option<Decl> {
     match target {
-        Target::Local { .. } => None,
+        Target::Local { .. } | Target::Completion(_) => None,
         Target::Const(name) => program.consts.iter().find(|c| &c.name == name)
             .map(|c| decl(name, &c.span, format!("const {}:{}", name, display_type(&c.ty)))),
         Target::Function(name) => program.functions.iter().find(|f| &f.name == name)
@@ -28,7 +28,7 @@ pub fn find(program: &Program, target: &Target) -> Option<Decl> {
                 Some((span.clone(), format!("use {}({})", owner, params_list(params))))
             }
             _ => None,
-        }).map(|(span, sig)| decl(name, &span, sig)),
+        }).map(|(span, sig)| decl(name, &span, sig)).or_else(|| interface_method(program, class, name)),
         Target::Field { class, name } => find_member(program, class, |owner, m| match m {
             ClassMember::Field { name: n, ty, span, .. } if n == name => Some((span.clone(), format!("{}.{}:{}", owner, name, display_type(ty)))),
             _ => None,
@@ -79,9 +79,18 @@ fn find_type(program: &Program, name: &str) -> Option<Decl> {
     program.modules.iter().find(|m| m.name == name).map(|m| decl(name, &m.span, format!("module {}", name)))
 }
 
+/// Méthode déclarée par l'interface `iface` (appel sur une valeur typée par
+/// l'interface).
+fn interface_method(program: &Program, iface: &str, name: &str) -> Option<Decl> {
+    let m = program.interfaces.iter().find(|i| i.name == iface)?.methods.iter().find(|m| m.name == name)?;
+    let sep = if m.is_static { "::" } else { "." };
+    let ret = format!(": {}", display_type(&m.ret_ty));
+    Some(decl(name, &m.span, format!("{}{}{}({}){}", iface, sep, name, params_list(&m.params), ret)))
+}
+
 /// Membre de `class` ou d'un de ses parents (classe, generic ou module) ;
 /// `pick` reçoit la classe qui le déclare.
-fn find_member<T>(program: &Program, class: &str, pick: impl Fn(&str, &ClassMember) -> Option<T>) -> Option<T> {
+pub fn find_member<T>(program: &Program, class: &str, pick: impl Fn(&str, &ClassMember) -> Option<T>) -> Option<T> {
     let mut current = Some(class.to_string());
     let mut seen = 0;
     while let Some(name) = current.take() {
@@ -104,17 +113,19 @@ fn find_member<T>(program: &Program, class: &str, pick: impl Fn(&str, &ClassMemb
     None
 }
 
-fn function_signature(prefix: &str, f: &FuncDecl) -> String {
+pub fn function_signature(prefix: &str, f: &FuncDecl) -> String {
     let ret = if matches!(f.ret_ty, Type::Void) { String::from(": void") } else { format!(": {}", display_type(&f.ret_ty)) };
     format!("{}{}{}({}){}", if f.is_async { "async " } else { "" }, prefix, f.name, params_list(&f.params), ret)
 }
 
 fn params_list(params: &[Param]) -> String {
-    params.iter().map(|p| {
-        let variadic = if p.is_variadic { "variadic " } else { "" };
-        let default = if p.default_value.is_some() { " = …" } else { "" };
-        format!("{}{}:{}{}", variadic, p.name, display_type(&p.ty), default)
-    }).collect::<Vec<_>>().join(", ")
+    params.iter().map(param_label).collect::<Vec<_>>().join(", ")
+}
+
+pub fn param_label(p: &Param) -> String {
+    let variadic = if p.is_variadic { "variadic " } else { "" };
+    let default = if p.default_value.is_some() { " = …" } else { "" };
+    format!("{}{}:{}{}", variadic, p.name, display_type(&p.ty), default)
 }
 
 /// Type tel qu'on l'écrit en Ocara (`array<T>`, `map<K, V>`).

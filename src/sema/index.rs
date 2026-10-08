@@ -19,7 +19,22 @@ pub enum Target {
     ClassConst { class: String, name: String },
     /// Argument nommé : paramètre `name` de `callee` (`f` ou `Classe::m`).
     Param { callee: String, name: String },
+    /// Marqueur de complétion (`COMPLETION_MARKER`) : membres du type de la
+    /// référence (`a.`), membres statiques (`A::`), ou noms visibles.
+    Completion(Completion),
 }
+
+#[derive(Debug, Clone)]
+pub enum Completion {
+    Member,
+    Static,
+    /// Variables locales et paramètres visibles, du plus proche au plus loin.
+    Scope(Vec<(String, Type)>),
+}
+
+/// Identifiant inséré par le serveur de langage à la place du nom en cours
+/// de frappe, pour que le texte se parse et que la sema type son contexte.
+pub const COMPLETION_MARKER: &str = "__ocara_cursor";
 
 #[derive(Debug, Clone)]
 pub struct Reference {

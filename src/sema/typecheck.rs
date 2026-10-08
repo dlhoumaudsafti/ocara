@@ -3,7 +3,7 @@ use crate::sema::error::{SemaError, SemaWarning};
 use crate::sema::scope::{LocalBinding, ScopeStack, OwnershipClass, ownership_class_of};
 use crate::sema::symbols::{SymbolTable, FuncSig};
 use crate::parsing::token::Span;
-use crate::sema::index::Target;
+use crate::sema::index::{Completion, Target, COMPLETION_MARKER};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TypeChecker
@@ -1065,6 +1065,11 @@ impl<'a> TypeChecker<'a> {
             }
 
             Expr::Ident(name, span) => {
+                if name == COMPLETION_MARKER {
+                    let names = self.scopes.visible();
+                    self.record(span, name, Target::Completion(Completion::Scope(names)), &Type::Mixed);
+                    return Type::Mixed;
+                }
                 // 1. variable locale
                 if let Some(b) = self.scopes.lookup(name) {
                     let ty = b.ty.clone();
@@ -1117,6 +1122,10 @@ impl<'a> TypeChecker<'a> {
 
             Expr::Field { object, field, span } => {
                 let obj_ty = self.infer_expr(object);
+                if field == COMPLETION_MARKER {
+                    self.record(span, field, Target::Completion(Completion::Member), &obj_ty);
+                    return Type::Mixed;
+                }
                 let cls_name = match type_class_name(&obj_ty) {
                     Some(n) => n,
                     None    => return Type::Mixed,
@@ -1768,6 +1777,10 @@ impl<'a> TypeChecker<'a> {
                 } else {
                     class.clone()
                 };
+                if name == COMPLETION_MARKER {
+                    self.record(span, name, Target::Completion(Completion::Static), &Type::Named(resolved_class.clone()));
+                    return Type::Mixed;
+                }
                 // Classe opaque (import non résolu) — accès permissif
                 if let Some(info) = self.symbols.lookup_class(&resolved_class) {
                     if info.is_opaque { return Type::Mixed; }

@@ -306,6 +306,22 @@ impl ScopeStack {
         true
     }
 
+    /// Noms visibles et leur type, du scope le plus interne au plus externe.
+    pub fn visible(&self) -> Vec<(String, crate::parsing::ast::Type)> {
+        let mut seen = std::collections::HashSet::new();
+        let mut out = Vec::new();
+        for frame in self.frames.iter().rev() {
+            let mut names: Vec<_> = frame.iter().collect();
+            names.sort_by_key(|(_, b)| (b.span.line, b.span.col));
+            for (name, b) in names.into_iter().rev() {
+                if seen.insert(name.clone()) {
+                    out.push((name.clone(), b.ty.clone()));
+                }
+            }
+        }
+        out
+    }
+
     /// Recherche en remontant la pile.
     pub fn lookup(&self, name: &str) -> Option<&LocalBinding> {
         for frame in self.frames.iter().rev() {

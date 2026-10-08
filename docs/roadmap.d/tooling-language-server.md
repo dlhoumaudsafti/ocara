@@ -87,26 +87,54 @@ plus que relayer les requêtes :
   fournisseur de définition à regex d'`extension.ts` est supprimé, le survol
   TypeScript ne documente plus que les mots-clés.
 
+## Étape 2 — faite (2026-10-09)
+
+- **Complétion** : le serveur analyse une copie du document où le nom en
+  cours de frappe est remplacé par un marqueur (`__ocara_cursor`) et les
+  parenthèses ouvertes refermées (`lsp/callsite.rs`) ; la sema rapporte au
+  marqueur le **type réel** du receveur (`a.`, chaîne d'appels, `self`,
+  retour de méthode) ou les noms visibles. Membres hérités (classe
+  utilisateur ou builtin), membres statiques et constantes (`A::`),
+  sucre `String`/`Array`/`Map` et conversions `Convert` sur un primitif,
+  propriétés des exceptions, variables/fonctions/constantes/classes
+  visibles, classes après `use`, noms des paramètres restants dans un appel
+  nommé. Chaque appel complété insère ses paramètres comme champs.
+- **Aide à la signature** : cible de l'appel résolue par la sema ;
+  paramètre actif par position ou par nom.
+- **Références et CodeLens** (`lsp/project.rs`, `lsp/navigation.rs`) :
+  index de l'espace de travail construit à la première demande (chaque
+  projet depuis son `main.oc`, chaque fichier non importé seul — ~1 s pour
+  les 313 fichiers du dépôt), réanalysé entrée par entrée quand un document
+  change. Références groupées par déclaration (un appel via une
+  sous-classe ou une interface compte pour la méthode déclarante) ;
+  implémentations et overrides calculés sur le programme fusionné de
+  chaque entrée (classes homonymes de projets différents distinctes).
+- **Mots-clés** : documentation au survol servie par le serveur (table
+  `lsp/keywords.rs`, titres relus dans l'EBNF embarqué).
+- **Sucre `Convert`** (`s.toInt()`) indexé : survol de la méthode réellement
+  appelée.
+- Pendant une erreur de syntaxe, survol et définition utilisent le dernier
+  programme vérifié du document.
+- **Extension** : plus aucune heuristique de résolution — `completion.ts`,
+  `signature.ts`, `callsite.ts`, `runtimecontext.ts`, `primitives.ts`,
+  `builtins.ts`, `codelens.ts`, `declarations.ts`, `resolver.ts`,
+  `hover.ts` et `keywords.ts` supprimés. Restent : client LSP, commandes
+  (compiler, lancer, dump, documentation), ocaracs.
+
 ## Étapes suivantes
 
-1. **Complétion et signature help** depuis le serveur (types inférés,
-   membres de la classe réelle du receveur) — retire `completion.ts`,
-   `signature.ts`, puis `resolver.ts`, `callsite.ts`, `runtimecontext.ts`,
-   `primitives.ts`.
-2. **Références et CodeLens** (`textDocument/references`,
-   `textDocument/codeLens`) sur l'index de tous les fichiers du projet —
-   retire `codelens.ts`.
-3. **Documentation des mots-clés** servie par le serveur (dernier survol
-   côté client), pour que l'extension JetBrains l'ait aussi.
-4. **Tolérance aux erreurs** : aujourd'hui, une erreur de syntaxe ou
-   d'import arrête l'analyse avant la sema (diagnostics seuls, ni survol ni
-   définition dans ce document) ; reprise du parseur sur erreur.
-5. **Positions** : les spans ne portent qu'un point de départ, le serveur
-   retrouve le nom dans la ligne ; plages exactes dans l'AST pour le
-   renommage.
-6. Limites connues : pas de survol sur une variable jamais utilisée (elle
-   est connue par ses utilisations) ; sucre `Convert` (`s.toInt()`) non
-   indexé ; colonnes comptées en caractères, pas en unités UTF-16.
+1. **Positions de type dans l'AST** : les annotations (`var x:Dog`,
+   `extends Animal`, paramètres, retours) n'ont pas de span — les
+   références d'une classe ne comptent que ses usages en expression
+   (`use Dog()`, `Dog::…`), et le survol/la définition n'y fonctionnent pas.
+2. **Tolérance aux erreurs** : reprise du parseur sur erreur (aujourd'hui,
+   le dernier programme vérifié sert de repli ; la complétion exige que le
+   reste du document se parse).
+3. **Plages exactes dans l'AST** (le serveur retrouve le nom dans la ligne),
+   puis **renommage** (`textDocument/rename`).
+4. Limites connues : pas de survol sur une variable jamais utilisée ;
+   colonnes comptées en caractères, pas en unités UTF-16 ; un fichier créé
+   hors de l'éditeur n'entre dans l'index qu'à son ouverture.
 
 ## En attendant (gains rapides sur l'extension actuelle)
 

@@ -21,7 +21,7 @@ pub fn to_url(path: &Path) -> Url {
     Url::from_file_path(path).unwrap_or_else(|_| Url::parse("file:///").unwrap())
 }
 
-fn span_path(span: &Span, entry: &Path) -> PathBuf {
+pub fn span_path(span: &Span, entry: &Path) -> PathBuf {
     span.file.as_ref().map(|f| PathBuf::from(f).canonicalize().unwrap_or_else(|_| PathBuf::from(f))).unwrap_or_else(|| entry.to_path_buf())
 }
 
@@ -76,7 +76,7 @@ fn word_at(text: &str, span: &Span) -> String {
 
 // ── Référence sous le curseur ───────────────────────────────────────────────
 
-fn reference_at<'a>(ws: &Workspace, analysis: &'a Analysis, path: &Path, pos: &Position) -> Option<(&'a Reference, Range)> {
+pub fn reference_at<'a>(ws: &Workspace, analysis: &'a Analysis, path: &Path, pos: &Position) -> Option<(&'a Reference, Range)> {
     let checked = analysis.checked.as_ref()?;
     let text = ws.text(path)?;
     let here = |span: &Span| span_path(span, path) == path;
@@ -94,12 +94,35 @@ fn reference_at<'a>(ws: &Workspace, analysis: &'a Analysis, path: &Path, pos: &P
 
 pub fn hover(ws: &Workspace, path: &Path, pos: &Position) -> Option<Hover> {
     let analysis = ws.analysis(path)?;
-    let (reference, range) = reference_at(ws, analysis, path, pos)?;
+    let Some((reference, range)) = reference_at(ws, analysis, path, pos) else {
+        return keyword_hover(ws, path, pos);
+    };
     let program = &analysis.checked.as_ref()?.program;
     let markdown = hover_markdown(ws, program, reference, path)?;
     Some(Hover {
         contents: HoverContents::Markup(MarkupContent { kind: MarkupKind::Markdown, value: markdown }),
         range: Some(range),
+    })
+}
+
+/// Mot-clé sous le curseur, hors chaîne et commentaire.
+fn keyword_hover(ws: &Workspace, path: &Path, pos: &Position) -> Option<Hover> {
+    let text = ws.text(path)?;
+    let line: Vec<char> = text.lines().nth(pos.line as usize)?.chars().collect();
+    let at = (pos.character as usize).min(line.len());
+    let is_word = |c: &char| c.is_alphanumeric() || *c == '_';
+    let start = (0..at).rev().take_while(|&i| is_word(&line[i])).last().unwrap_or(at);
+    let end = (at..line.len()).find(|&i| !is_word(&line[i])).unwrap_or(line.len());
+    if start == end || !super::callsite::is_code_at(&text, pos) {
+        return None;
+    }
+    let word: String = line[start..end].iter().collect();
+    let before: String = line[..start].iter().collect();
+    let after: String = line[end..].iter().collect();
+    let markdown = super::keywords::doc(&word, &before, &after)?;
+    Some(Hover {
+        contents: HoverContents::Markup(MarkupContent { kind: MarkupKind::Markdown, value: markdown }),
+        range: Some(Range::new(Position::new(pos.line, start as u32), Position::new(pos.line, end as u32))),
     })
 }
 
@@ -129,7 +152,7 @@ fn builtin_method(program: &Program, class: &str, name: &str) -> Option<String> 
     let mut current = Some(class.to_string());
     while let Some(owner) = current.take() {
         if let Some(m) = builtin_docs::method(&owner, name) {
-            let mut parts = vec![code(&m.signature)];
+            let mut parts = vec![code(&m.signature(&owner))];
             parts.extend(m.doc.clone());
             if owner != class {
                 parts.push(format!("_Hérité de `{}` par `{}`._", owner, class));
@@ -221,7 +244,7 @@ fn location_of(ws: &Workspace, file: &Path, span: &Span, name: &str) -> Option<L
     Some(Location::new(to_url(file), name_range(&text, span, name)))
 }
 
-fn parse_document(ws: &Workspace, path: &Path) -> Option<Program> {
+pub fn parse_document(ws: &Workspace, path: &Path) -> Option<Program> {
     let text = ws.text(path)?;
     let tokens = crate::parsing::lexer::Lexer::new(&text).tokenize().ok()?;
     crate::parsing::parser::Parser::new(tokens).parse_program().ok()
