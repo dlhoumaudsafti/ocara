@@ -216,7 +216,6 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
         Stmt::Emit { value, .. } => {
             let val = lower_expr(builder, value);
             crate::lower::builder::message_gen::store_emitted(builder, val);
-            crate::lower::stmt::rc::mark_emit(builder);
 
             let state_k = builder.message_resume_blocks.len() as i64 + 1;
             let k_val = builder.new_value();

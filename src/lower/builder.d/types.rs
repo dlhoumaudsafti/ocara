@@ -141,11 +141,19 @@ pub struct LowerBuilder<'m> {
     /// Profondeur de `rc_temps` à l'entrée de chaque boucle ouverte.
     pub rc_loop_temps: Vec<usize>,
     /// Corps d'un générateur (`__resume`) : ses locales vivent dans le frame
-    /// (remises à zéro une fois relâchées), et les temporaires d'un statement
-    /// traversé par un `emit` ne sont jamais relâchés (périmés à la reprise).
+    /// (remises à zéro une fois relâchées), ses temporaires dans des champs
+    /// cachés du frame (une valeur SSA ne survit pas à un `emit`).
     pub rc_generator: bool,
-    /// Parallèle à `rc_temps` : statement traversé par un `emit`.
-    pub rc_temps_emit: Vec<bool>,
+    /// Générateur : champ caché de chaque temporaire possédé.
+    pub rc_temp_fields: HashMap<Value, String>,
+    /// Parallèle à `rc_temps` : champs cachés pris par chaque statement,
+    /// rendus à `gen_free_temp_fields` à sa fin.
+    pub rc_temp_field_frames: Vec<Vec<String>>,
+    pub gen_free_temp_fields: Vec<String>,
+    /// Champs cachés ajoutés au frame pendant le lowering (nom, compté).
+    pub gen_spills: Vec<(String, bool)>,
+    /// Champ nommé d'origine d'une locale déplacée dans un champ caché.
+    pub gen_named_fields: HashMap<String, (Value, usize, IrType)>,
     /// `consumed` comptées pas encore relâchées → profondeur de boucle de
     /// leur déclaration.
     pub rc_consumed: HashMap<String, usize>,
@@ -204,7 +212,11 @@ impl<'m> LowerBuilder<'m> {
             rc_counted_locals: HashSet::new(),
             rc_loop_temps: Vec::new(),
             rc_generator: false,
-            rc_temps_emit: Vec::new(),
+            rc_temp_fields: HashMap::new(),
+            rc_temp_field_frames: Vec::new(),
+            gen_free_temp_fields: Vec::new(),
+            gen_spills: Vec::new(),
+            gen_named_fields: HashMap::new(),
             rc_consumed: HashMap::new(),
             resolvable_types: HashMap::new(),
             func_ret_ast: HashMap::new(),
@@ -241,7 +253,15 @@ impl<'m> LowerBuilder<'m> {
         // via `frame_vars`, consulté en priorité par `load_local`/
         // `store_local`. On retourne le pointeur de frame (jamais utilisé
         // comme un vrai slot par les appelants passés par `store_local`).
-        if let Some((frame, _, _)) = self.frame_vars.get(name) {
+        // Le layout du frame devine le type des variables de boucle : la
+        // déclaration donne le vrai (valeur `string` de `for k has v in m`).
+        // Une déclaration précédente comptée avait déplacé le nom dans son
+        // champ caché (`rc::declare`) : celle-ci repart du champ nommé.
+        if let Some(original) = self.gen_named_fields.get(name).cloned() {
+            self.frame_vars.insert(name.to_string(), original);
+        }
+        if let Some((frame, _, field_ty)) = self.frame_vars.get_mut(name) {
+            *field_ty = ty;
             return frame.clone();
         }
         let slot = self.new_value();

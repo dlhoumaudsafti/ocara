@@ -29,14 +29,13 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Fuite : temporaires d'une instruction de générateur traversée par un `emit`** — le comptage de références couvre désormais les cycles en multi-thread (threads garés dans les appels bloquants), les ressources fermées par un `raise`, et les handles natifs (bloc `TAG_HANDLE`, plus de dépendance à glibc). Reste : dans un générateur, une valeur temporaire d'une instruction qui contient un `emit` (ex. le tableau de `for x in f() { emit x }`) n'est jamais rendue, faute de survivre à la reprise ; à ranger dans des champs du frame. *(Structurel — Dangereuse : gestion mémoire)* → [détails](roadmap.d/memoire-refcount.md)
+- **Diagnostic mal placé dans un gabarit `HTML::renderFile`** — une erreur levée dans une interpolation du fichier (ex. `'name' is 'consumed' and was already used` pour `${name} ${name}`) est rapportée en `fichier.oc:1:1` au lieu de la ligne de l'appel `renderFile` (ou de la ligne dans le gabarit) : les sous-expressions re-parsées par `src/core/render_file.rs` portent des spans relatifs au gabarit. *(Légère — propager le span de l'appel)*
 
 ---
 
 ## Priorité Moyenne
 
 À traiter mais non bloquant pour la stabilité du langage.
-- **Diagnostic mal placé dans un gabarit `HTML::renderFile`** — une erreur levée dans une interpolation du fichier (ex. `'name' is 'consumed' and was already used` pour `${name} ${name}`) est rapportée en `fichier.oc:1:1` au lieu de la ligne de l'appel `renderFile` (ou de la ligne dans le gabarit) : les sous-expressions re-parsées par `src/core/render_file.rs` portent des spans relatifs au gabarit. *(Légère — propager le span de l'appel)*
 - **Serveur de langage (LSP) adossé au compilateur** — `ocara --lsp` (ou d'abord `ocara --check --json`) réutilisant parseur/sema pour la navigation, le survol, la complétion, les références et les diagnostics en direct ; l'extension VS Code, aujourd'hui entièrement à base de regex (résolution par nom, types non suivis, sémantique recodée en TypeScript), deviendrait un client léger. Points à trancher : protocole, sema tolérante aux erreurs (plus de `process::exit`), spans en plages, dépendances LSP. *(Structurel)* → [détails](roadmap.d/tooling-language-server.md)
 - **Architecture hexagonale stricte par défaut** — déclaration `architecture hexagonal` avec alias configurables pour `domain`/`application`/`infrastructure`; `architecture permissive` désactive uniquement les contrôles architecturaux. Vérification compile-time de la direction des imports entre couches et contextes, des racines `shared` et des cibles de `wiring`. *(Structurelle — classification des fichiers/namespace, résolution des imports et intégration aux règles existantes de `wiring`)* → [détails](roadmap.d/langage-mode-hexa.md)
 

@@ -1,6 +1,7 @@
 import ocara.UnitTest
 import ocara.Array
 import ocara.IO
+import ocara.Convert
 
 // Instruction `emit`/type `message<T>` (générateurs, façon `yield` PHP) —
 // voir docs/roadmap.d/langage-emit-iterable.md. Couvre les 2 formes de
@@ -191,6 +192,42 @@ class Test_42_emit_generator {
         UnitTest::assertEquals(4, c)
         return 0
     }
+
+    // `for` dans le générateur, sur un tableau, une map, une plage et un
+    // autre générateur : son état (tableau, longueur, index) survit à
+    // chaque `emit` (plantait à la deuxième reprise).
+    public method forInsideGeneratorTest(): int {
+        var out:string = ""
+        for s in wordsGen(3) {
+            out = out + s
+        }
+        UnitTest::assertEquals("w0!w1!w2!", out)
+        var pairs:string = ""
+        for p in pairsGen() {
+            pairs = pairs + p + ";"
+        }
+        UnitTest::assertEquals("a=x;b=y;", pairs)
+        var sum:int = 0
+        for x in rangeGen(4) {
+            sum = sum + x
+        }
+        UnitTest::assertEquals(12, sum)
+        var nested:array<string> = Array::fromMessage(nestedGen(2))
+        UnitTest::assertEquals(4, Array::len(nested))
+        return 0
+    }
+
+    // Consommateur qui sort tôt : le générateur est abandonné au milieu de
+    // son `for`, ses temporaires et locales comptés sont rendus par `__drop`.
+    public method abandonedForInsideGeneratorTest(): int {
+        var first:string = ""
+        for s in wordsGen(5) {
+            first = s
+            break
+        }
+        UnitTest::assertEquals("w0!", first)
+        return 0
+    }
 }
 
 // ── Fonctions génératrices auxiliaires ───────────────────────────────────
@@ -202,6 +239,44 @@ function twoValues(): message<int> {
 
 function singleValue(): message<int> {
     emit 42
+}
+
+function words(n:int): array<string> {
+    var out:array<string> = []
+    var i:int = 0
+    while i smaller n {
+        out.push("w" + Convert::intToStr(i))
+        i = i + 1
+    }
+    return out
+}
+
+function wordsGen(n:int): message<string> {
+    for w in words(n) {
+        var marked:string = w + "!"
+        emit marked
+    }
+}
+
+function pairsGen(): message<string> {
+    var m:map<string, string> = {"a": "x", "b": "y"}
+    for k has v in m {
+        emit k + "=" + v
+    }
+}
+
+function rangeGen(n:int): message<int> {
+    for i in 0..n {
+        emit i * 2
+    }
+}
+
+function nestedGen(n:int): message<string> {
+    for w in wordsGen(n) {
+        for c in words(2) {
+            emit w + c
+        }
+    }
 }
 
 function identity(x:int): int {

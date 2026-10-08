@@ -54,37 +54,39 @@ pub fn mark_raw_if_primitive(builder: &mut LowerBuilder, ty: &Type, v: &Value) {
 
 pub fn begin_temps(builder: &mut LowerBuilder) {
     builder.rc_temps.push(Vec::new());
-    builder.rc_temps_emit.push(false);
-}
-
-/// Un `emit` suspend le générateur : les temporaires des statements ouverts
-/// ne seront plus valides à la reprise.
-pub fn mark_emit(builder: &mut LowerBuilder) {
-    builder.rc_temps_emit.iter_mut().for_each(|crossed| *crossed = true);
-}
-
-fn crossed_emit(builder: &LowerBuilder, depth: usize) -> bool {
-    builder.rc_temps_emit.get(depth).copied().unwrap_or(false)
+    builder.rc_temp_field_frames.push(Vec::new());
 }
 
 /// Fin du statement : relâche ses temporaires (si le chemin courant continue).
 pub fn end_temps(builder: &mut LowerBuilder) {
-    let crossed = builder.rc_temps_emit.pop().unwrap_or(false);
     let frame = builder.rc_temps.pop().unwrap_or_default();
-    if !builder.is_terminated() && !crossed {
+    if !builder.is_terminated() {
         for v in frame.iter().rev() {
             release_temp(builder, v);
         }
     }
+    let fields = builder.rc_temp_field_frames.pop().unwrap_or_default();
+    builder.gen_free_temp_fields.extend(fields);
 }
 
-/// Relâche un temporaire et remet son mot de déroulement à zéro.
+/// Relâche un temporaire et remet son mot de déroulement à zéro. Dans un
+/// générateur, la valeur est relue dans son champ : un `emit` a pu
+/// interrompre le statement depuis sa création.
 fn release_temp(builder: &mut LowerBuilder, v: &Value) {
-    release(builder, v);
+    if let Some(field) = builder.rc_temp_fields.get(v).cloned() {
+        let Some((cur, _)) = builder.load_local(&field) else { return };
+        release(builder, &cur);
+    } else {
+        release(builder, v);
+    }
     clear_temp_word(builder, v);
 }
 
 fn clear_temp_word(builder: &mut LowerBuilder, v: &Value) {
+    if let Some(field) = builder.rc_temp_fields.get(v).cloned() {
+        clear_local(builder, &field);
+        return;
+    }
     let Some(word) = builder.rc_temp_words.get(v).cloned() else { return };
     let zero = builder.new_value();
     builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
@@ -94,20 +96,37 @@ fn clear_temp_word(builder: &mut LowerBuilder, v: &Value) {
 /// Relâche tout de suite les temporaires du statement courant (condition
 /// d'un `if`/`while`, évaluée dans un bloc qui ne domine pas la suite).
 pub fn flush_temps(builder: &mut LowerBuilder) {
-    if builder.rc_temps_emit.last().copied().unwrap_or(false) {
-        return;
-    }
     let frame = builder.rc_temps.last_mut().map(std::mem::take).unwrap_or_default();
     for v in frame.iter().rev() {
         release_temp(builder, v);
     }
 }
 
+/// Champ caché du frame d'un générateur pour un temporaire, réutilisé par
+/// les statements suivants (il est remis à zéro avant d'être rendu).
+fn temp_field(builder: &mut LowerBuilder) -> String {
+    let field = match builder.gen_free_temp_fields.pop() {
+        Some(field) => field,
+        None => crate::lower::builder::message_gen::spill_field(builder, IrType::Ptr, true),
+    };
+    if let Some(frame) = builder.rc_temp_field_frames.last_mut() {
+        frame.push(field.clone());
+    }
+    field
+}
+
 /// Temporaire possédé du statement courant ; rangé dans un mot de
-/// déroulement pour qu'un `raise` traversant le rende.
+/// déroulement pour qu'un `raise` traversant le rende (dans un champ du
+/// frame pour un générateur).
 pub fn track(builder: &mut LowerBuilder, v: &Value) {
     let Some(frame) = builder.rc_temps.last_mut() else { return };
     frame.push(v.clone());
+    if builder.rc_generator {
+        let field = temp_field(builder);
+        builder.store_local(&field, v.clone());
+        builder.rc_temp_fields.insert(v.clone(), field);
+        return;
+    }
     let Some(base) = builder.rc_unwind_base.clone() else { return };
     let word = new_word(builder, &base);
     builder.emit(Inst::Store { ptr: word.clone(), src: v.clone() });
@@ -156,9 +175,8 @@ pub fn keep_task_args(builder: &mut LowerBuilder, callee: &str, vals: &[Value]) 
 /// Relâche (sans les retirer) les temporaires des statements ouverts à
 /// partir de la profondeur `depth` — sortie anticipée.
 pub fn release_temps_from(builder: &mut LowerBuilder, depth: usize) {
-    let pending: Vec<Value> = builder.rc_temps.iter().enumerate().skip(depth).rev()
-        .filter(|(i, _)| !crossed_emit(builder, *i))
-        .flat_map(|(_, f)| f.iter().rev().cloned())
+    let pending: Vec<Value> = builder.rc_temps.iter().skip(depth).rev()
+        .flat_map(|f| f.iter().rev().cloned())
         .collect();
     for v in &pending {
         release_temp(builder, v);
@@ -169,12 +187,14 @@ pub fn release_temps_from(builder: &mut LowerBuilder, depth: usize) {
 
 /// Locale d'une portée ouverte. `word` : son mot dans le tableau de
 /// déroulement de la fonction (voir `begin_unwind`), remis à zéro quand la
-/// locale est rendue.
+/// locale est rendue. `field` : dans un générateur, son champ caché du
+/// frame (voir `declare`).
 #[derive(Clone)]
 pub struct RcLocal {
     pub name: String,
     pub counted: bool,
     pub word: Option<Value>,
+    pub field: Option<String>,
 }
 
 pub fn begin_scope(builder: &mut LowerBuilder) {
@@ -207,10 +227,11 @@ fn release_local(builder: &mut LowerBuilder, local: &RcLocal) {
             release(builder, &cell);
         }
     } else if local.counted {
-        let Some((v, _)) = builder.load_local(&local.name) else { return };
+        let name = local.field.as_deref().unwrap_or(&local.name);
+        let Some((v, _)) = builder.load_local(name) else { return };
         release(builder, &v);
         if builder.rc_generator {
-            clear_local(builder, &local.name);
+            clear_local(builder, name);
         }
     } else {
         return;
@@ -258,16 +279,34 @@ pub fn release_consumed_used_in(builder: &mut LowerBuilder, stmt: &crate::parsin
 pub fn declare(builder: &mut LowerBuilder, name: &str) {
     builder.rc_counted_locals.insert(name.to_string());
     let word = bind_word(builder, name);
+    let field = bind_field(builder, name);
     if let Some(frame) = builder.rc_scopes.last_mut() {
-        frame.push(RcLocal { name: name.to_string(), counted: true, word });
+        frame.push(RcLocal { name: name.to_string(), counted: true, word, field });
     }
+}
+
+/// Générateur : déplace la locale comptée `name` dans un champ caché du
+/// frame qui ne porte qu'elle — `__drop` peut le relâcher sans risque, quel
+/// que soit le type d'une autre locale du même nom (voir `declare_local`).
+fn bind_field(builder: &mut LowerBuilder, name: &str) -> Option<String> {
+    if !builder.rc_generator || !builder.frame_vars.contains_key(name) {
+        return None;
+    }
+    let (cur, ty) = builder.load_local(name)?;
+    let field = crate::lower::builder::message_gen::spill_field(builder, ty, true);
+    builder.store_local(&field, cur);
+    let named = builder.frame_vars[&field].clone();
+    if let Some(original) = builder.frame_vars.insert(name.to_string(), named) {
+        builder.gen_named_fields.entry(name.to_string()).or_insert(original);
+    }
+    Some(field)
 }
 
 /// Locale non comptée : seule sa cellule, si elle est promue, est rendue.
 pub fn declare_plain(builder: &mut LowerBuilder, name: &str) {
     builder.rc_counted_locals.remove(name);
     if let Some(frame) = builder.rc_scopes.last_mut() {
-        frame.push(RcLocal { name: name.to_string(), counted: false, word: None });
+        frame.push(RcLocal { name: name.to_string(), counted: false, word: None, field: None });
     }
 }
 

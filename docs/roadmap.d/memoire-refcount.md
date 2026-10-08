@@ -219,12 +219,36 @@ Mesures : cycles créés dans un thread pendant que le principal attend
 (`join`), ressources `scoped` (`Mutex`, SQLite) traversées par un `raise` :
 stables ; serveur `mini_project_hexa` stable à ≈ 9,9 Mo sur 12 000 requêtes.
 
+## Phase 7 — générateurs : temporaires et boucles `for` (2026-10-08)
+
+Une valeur SSA (ou un slot de pile) ne survit pas à un `emit`, qui fait un
+vrai retour natif de `__resume`. Ce qui doit traverser un `emit` vit
+désormais dans des champs cachés du frame (`message_gen::spill_field`),
+ajoutés au layout pendant le lowering de `__resume` ; `__new` (taille) et
+`__drop` (champs comptés) sont générés après.
+
+- **Temporaires** : chacun a un champ caché compté, relu pour être rendu en
+  fin de statement, remis à zéro, puis réutilisé par les statements
+  suivants. Le marquage « statement traversé par un `emit` » (temporaires
+  jamais rendus) est supprimé.
+- **Boucles `for`** (`for x in`, `for k has v in`, `for x in générateur()`)
+  : tableau parcouru, tableau des clés, longueur, frame du générateur
+  consommé et index vivent dans des champs cachés non comptés. Un `for` qui
+  faisait un `emit` plantait à la deuxième reprise (défaut préexistant).
+- **Locales comptées** : chaque déclaration comptée est déplacée dans son
+  propre champ caché (comme le mot de déroulement d'une fonction normale),
+  qui ne porte jamais qu'une valeur comptée ou zéro. `__drop` ne devine
+  plus les locales comptées par leur nom : une locale `int` et une locale
+  `string` du même nom ne peuvent plus faire relâcher un entier.
+- **Type des variables de boucle** : la déclaration donne le type réel du
+  champ (`for k has v in map<string, string>` lisait `v` comme un entier).
+
+Mesures (20 000 puis 200 000 itérations) : `for` sur le résultat d'un appel,
+sur une map, sur une plage, générateur imbriqué, `return` et `try` dans la
+boucle, consommateur qui sort par `break`, `Array::fromMessage` : stables.
+
 ## Reste à faire
 
-- **Générateurs** : les temporaires d'une instruction traversée par un
-  `emit` (ex. `for x in f() { emit x }`, le tableau rendu par `f()`) ne sont
-  jamais rendus — une valeur SSA ne survit pas à une reprise ; il faudrait
-  les ranger dans des champs du frame.
 - Un thread bloqué hors du runtime Ocara (boucle d'événements Tauri/SDL)
   compte comme en cours : il empêche la collecte des cycles des autres
   threads pendant ce temps.

@@ -2,8 +2,9 @@
 
 use crate::parsing::ast::*;
 use crate::ir::types::IrType;
-use crate::ir::inst::Inst;
+use crate::ir::inst::{Inst, Value};
 use crate::lower::builder::LowerBuilder;
+use crate::lower::builder::message_gen::{keep_across_emit, reload};
 use crate::lower::expr::{lower_expr, hoist_closure_promotions_before_loop};
 use crate::lower::expr::helpers::elem_type_after_index;
 use super::super::super::block::lower_block;
@@ -31,10 +32,7 @@ pub fn lower_for_in(
 
     // Lowering : __iter_init(iter), boucle sur __iter_next
     let iter_val  = lower_expr(builder, iter);
-    let idx_slot  = builder.declare_local("__for_idx", IrType::I64, true);
-    let zero = builder.new_value();
-    builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
-    builder.emit(Inst::Store { ptr: idx_slot.clone(), src: zero });
+    let idx = LoopIndex::new(builder, "__for_idx");
 
     // Type de l'élément : I64 pour les plages entières, Ptr pour les tableaux
     // Type AST de l'élément : variable, mais aussi champ (`obj.items`),
@@ -56,6 +54,8 @@ pub fn lower_for_in(
         args:   vec![iter_val.clone()],
         ret_ty: IrType::I64,
     });
+    let kept_iter = keep_across_emit(builder, &iter_val, IrType::Ptr);
+    let kept_len = keep_across_emit(builder, &len_val, IrType::I64);
 
     let cond_bb  = builder.new_block();
     let body_bb  = builder.new_block();
@@ -65,13 +65,14 @@ pub fn lower_for_in(
     builder.emit(Inst::Jump { target: cond_bb.clone() });
     builder.switch_to(&cond_bb);
 
-    let idx = builder.new_value();
-    builder.emit(Inst::Load { dest: idx.clone(), ptr: idx_slot.clone(), ty: IrType::I64 });
+    let iter_val = reload(builder, &kept_iter, &iter_val);
+    let len_val = reload(builder, &kept_len, &len_val);
+    let idx_val = idx.load(builder);
     let cond = builder.new_value();
     builder.emit(Inst::CmpLt {
         dest: cond.clone(),
-        lhs:  idx.clone(),
-        rhs:  len_val.clone(),
+        lhs:  idx_val.clone(),
+        rhs:  len_val,
         ty:   IrType::I64,
     });
     builder.emit(Inst::Branch {
@@ -89,7 +90,7 @@ pub fn lower_for_in(
     builder.emit(Inst::Call {
         dest:   Some(elem.clone()),
         func:   "__array_get".into(),
-        args:   vec![iter_val.clone(), idx.clone()],
+        args:   vec![iter_val, idx_val],
         ret_ty: elem_ty.clone(),
     });
 
@@ -162,18 +163,56 @@ pub fn lower_for_in(
         builder.emit(Inst::Jump { target: incr_bb.clone() });
     }
 
-    // Bloc incrément
     builder.switch_to(&incr_bb);
-    let one = builder.new_value();
-    builder.emit(Inst::ConstInt { dest: one.clone(), value: 1 });
-    let idx2 = builder.new_value();
-    builder.emit(Inst::Load { dest: idx2.clone(), ptr: idx_slot.clone(), ty: IrType::I64 });
-    let next_idx = builder.new_value();
-    builder.emit(Inst::Add { dest: next_idx.clone(), lhs: idx2, rhs: one, ty: IrType::I64 });
-    builder.emit(Inst::Store { ptr: idx_slot, src: next_idx });
+    idx.increment(builder);
     builder.emit(Inst::Jump { target: cond_bb.clone() });
 
     builder.switch_to(&merge_bb);
+}
+
+/// Index d'une boucle `for` : un slot de pile, ou dans un générateur un
+/// champ caché du frame (la pile ne survit pas à un `emit` du corps).
+enum LoopIndex {
+    Slot(Value),
+    Field(String),
+}
+
+impl LoopIndex {
+    fn new(builder: &mut LowerBuilder, name: &str) -> Self {
+        let zero = builder.new_value();
+        builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+        if builder.rc_generator {
+            let field = crate::lower::builder::message_gen::spill_field(builder, IrType::I64, false);
+            builder.store_local(&field, zero);
+            return LoopIndex::Field(field);
+        }
+        let slot = builder.declare_local(name, IrType::I64, true);
+        builder.emit(Inst::Store { ptr: slot.clone(), src: zero });
+        LoopIndex::Slot(slot)
+    }
+
+    fn load(&self, builder: &mut LowerBuilder) -> Value {
+        match self {
+            LoopIndex::Field(field) => builder.load_local(field).map(|(v, _)| v).expect("champ du frame"),
+            LoopIndex::Slot(slot) => {
+                let v = builder.new_value();
+                builder.emit(Inst::Load { dest: v.clone(), ptr: slot.clone(), ty: IrType::I64 });
+                v
+            }
+        }
+    }
+
+    fn increment(&self, builder: &mut LowerBuilder) {
+        let cur = self.load(builder);
+        let one = builder.new_value();
+        builder.emit(Inst::ConstInt { dest: one.clone(), value: 1 });
+        let next = builder.new_value();
+        builder.emit(Inst::Add { dest: next.clone(), lhs: cur, rhs: one, ty: IrType::I64 });
+        match self {
+            LoopIndex::Field(field) => builder.store_local(field, next),
+            LoopIndex::Slot(slot) => builder.emit(Inst::Store { ptr: slot.clone(), src: next }),
+        }
+    }
 }
 
 pub fn lower_for_map(
@@ -206,12 +245,11 @@ pub fn lower_for_map(
         args:   vec![keys_arr.clone()],
         ret_ty: IrType::I64,
     });
+    let kept_iter = keep_across_emit(builder, &iter_val, IrType::Ptr);
+    let kept_keys = keep_across_emit(builder, &keys_arr, IrType::Ptr);
+    let kept_len = keep_across_emit(builder, &len_val, IrType::I64);
 
-    // Index
-    let idx_slot = builder.declare_local("__map_idx", IrType::I64, true);
-    let zero = builder.new_value();
-    builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
-    builder.emit(Inst::Store { ptr: idx_slot.clone(), src: zero });
+    let idx = LoopIndex::new(builder, "__map_idx");
 
     let cond_bb  = builder.new_block();
     let body_bb  = builder.new_block();
@@ -221,11 +259,13 @@ pub fn lower_for_map(
     builder.emit(Inst::Jump { target: cond_bb.clone() });
     builder.switch_to(&cond_bb);
 
-    let idx = builder.new_value();
-    builder.emit(Inst::Load { dest: idx.clone(), ptr: idx_slot.clone(), ty: IrType::I64 });
+    let iter_val = reload(builder, &kept_iter, &iter_val);
+    let keys_arr = reload(builder, &kept_keys, &keys_arr);
+    let len_val = reload(builder, &kept_len, &len_val);
+    let idx_val = idx.load(builder);
     let cond = builder.new_value();
     builder.emit(Inst::CmpLt {
-        dest: cond.clone(), lhs: idx.clone(), rhs: len_val.clone(), ty: IrType::I64,
+        dest: cond.clone(), lhs: idx_val.clone(), rhs: len_val, ty: IrType::I64,
     });
     builder.emit(Inst::Branch { cond, then_bb: body_bb.clone(), else_bb: merge_bb.clone() });
 
@@ -236,7 +276,7 @@ pub fn lower_for_map(
     builder.emit(Inst::Call {
         dest:   Some(k.clone()),
         func:   "__array_get".into(),
-        args:   vec![keys_arr.clone(), idx.clone()],
+        args:   vec![keys_arr, idx_val],
         ret_ty: IrType::Ptr,
     });
     let counted_snapshot = builder.rc_counted_locals.clone();
@@ -293,15 +333,8 @@ pub fn lower_for_map(
         builder.emit(Inst::Jump { target: incr_bb.clone() });
     }
 
-    // Bloc incrément
     builder.switch_to(&incr_bb);
-    let one = builder.new_value();
-    builder.emit(Inst::ConstInt { dest: one.clone(), value: 1 });
-    let idx2 = builder.new_value();
-    builder.emit(Inst::Load { dest: idx2.clone(), ptr: idx_slot.clone(), ty: IrType::I64 });
-    let next_idx = builder.new_value();
-    builder.emit(Inst::Add { dest: next_idx.clone(), lhs: idx2, rhs: one, ty: IrType::I64 });
-    builder.emit(Inst::Store { ptr: idx_slot, src: next_idx });
+    idx.increment(builder);
     builder.emit(Inst::Jump { target: cond_bb.clone() });
 
     builder.switch_to(&merge_bb);

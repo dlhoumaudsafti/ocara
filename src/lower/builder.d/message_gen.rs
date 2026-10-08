@@ -161,15 +161,51 @@ pub fn lower_message_func(
 ) {
     if !is_message_func(&func.ret_ty) { return; }
     let frame_class = frame_class_name(&func.name);
-    let fields = module.class_layouts.get(&frame_class).cloned()
+    let mut fields = module.class_layouts.get(&frame_class).cloned()
         .unwrap_or_else(|| {
             register_message_func(module, func);
             module.class_layouts.get(&frame_class).cloned().unwrap_or_default()
         });
 
+    // `__resume` d'abord : il ajoute au frame ses champs cachés, dont
+    // `__new` (taille) et `__drop` (champs comptés) ont besoin.
+    let spills = generate_resume_fn(module, func, &fields, fn_ret_types, fn_param_types, fn_param_names);
+    fields.extend(spills.iter().map(|(name, ty, _)| (name.clone(), ty.clone())));
+    module.class_layouts.insert(frame_class.clone(), fields.clone());
+    let counted_spills: HashSet<String> = spills.into_iter().filter(|(_, _, c)| *c).map(|(n, _, _)| n).collect();
     generate_new_fn(module, func, &frame_class, &fields);
-    generate_resume_fn(module, func, &fields, fn_ret_types, fn_param_types, fn_param_names);
-    generate_drop_fn(module, func, &fields);
+    generate_drop_fn(module, func, &fields, &counted_spills);
+}
+
+/// Champ caché ajouté au frame du générateur en cours de lowering : une
+/// valeur qui doit survivre à un `emit` (temporaire, état d'une boucle).
+/// `counted` : rendu par `__drop` si le générateur est abandonné.
+pub fn spill_field(builder: &mut LowerBuilder, ty: IrType, counted: bool) -> String {
+    let frame = builder.frame_vars[STATE_FIELD].0.clone();
+    let idx = builder.frame_vars.len();
+    let name = format!("__spill_{}", idx);
+    builder.frame_vars.insert(name.clone(), (frame, idx, ty));
+    builder.gen_spills.push((name.clone(), counted));
+    name
+}
+
+/// Valeur relue à chaque tour d'une boucle de générateur, dont le corps peut
+/// contenir un `emit` : rangée dans un champ caché (non compté). `None`
+/// hors générateur, la valeur SSA reste valide.
+pub fn keep_across_emit(builder: &mut LowerBuilder, v: &Value, ty: IrType) -> Option<String> {
+    if !builder.rc_generator {
+        return None;
+    }
+    let field = spill_field(builder, ty, false);
+    builder.store_local(&field, v.clone());
+    Some(field)
+}
+
+pub fn reload(builder: &mut LowerBuilder, kept: &Option<String>, v: &Value) -> Value {
+    match kept {
+        Some(field) => builder.load_local(field).map(|(v, _)| v).unwrap_or_else(|| v.clone()),
+        None => v.clone(),
+    }
 }
 
 /// `<nom>__new(params...) -> Ptr` : alloue le frame, y stocke chaque
@@ -232,7 +268,7 @@ fn generate_resume_fn(
     fn_ret_types: &HashMap<String, IrType>,
     fn_param_types: &HashMap<String, Vec<IrType>>,
     fn_param_names: &HashMap<String, Vec<String>>,
-) {
+) -> Vec<(String, IrType, bool)> {
     let ir_params = vec![IrParam { name: "__frame".into(), ty: IrType::Ptr, slot: Value(0) }];
     let mut builder = LowerBuilder::new(module, resume_func_name(&func.name), ir_params, IrType::Bool);
     builder.rc_generator = true;
@@ -312,8 +348,12 @@ fn generate_resume_fn(
     builder.emit(Inst::ConstBool { dest: false_val.clone(), value: false });
     builder.emit(Inst::Return { value: Some(false_val) });
 
+    let spills = builder.gen_spills.iter()
+        .map(|(name, counted)| (name.clone(), builder.frame_vars[name].2.clone(), *counted))
+        .collect();
     let ir_func = builder.func;
     module.add_function(ir_func);
+    spills
 }
 
 /// Séquence "générateur épuisé" : `__state = STATE_DONE; return false`.
@@ -459,6 +499,7 @@ pub fn lower_try_in_generator(builder: &mut LowerBuilder, body: &Block, handlers
         }
 
         builder.switch_to(&clause_bb);
+        builder.declare_local(&handler.binding, IrType::Ptr, false);
         builder.store_local(&handler.binding, err_val.clone());
         let exception_class = handler.class_filter.clone().unwrap_or_else(|| "Exception".to_string());
         builder.var_class.insert(handler.binding.clone(), exception_class);
@@ -605,8 +646,9 @@ pub fn store_emitted(builder: &mut LowerBuilder, val: Value) {
 /// `<nom>__drop(frame)` : rend les champs comptés encore tenus par le frame
 /// (paramètres, locales vivantes au point de suspension, valeur émise), puis
 /// le libère — générateur épuisé ou abandonné par son consommateur.
-fn generate_drop_fn(module: &mut IrModule, func: &FuncDecl, fields: &[(String, IrType)]) {
-    let counted = counted_frame_fields(module, func);
+fn generate_drop_fn(module: &mut IrModule, func: &FuncDecl, fields: &[(String, IrType)], counted_spills: &HashSet<String>) {
+    let mut counted = counted_frame_fields(module, func);
+    counted.extend(counted_spills.iter().cloned());
     let ir_params = vec![IrParam { name: "__frame".into(), ty: IrType::Ptr, slot: Value(0) }];
     let mut builder = LowerBuilder::new(module, drop_func_name(&func.name), ir_params, IrType::Void);
     let frame = builder.new_value();
@@ -627,8 +669,9 @@ fn generate_drop_fn(module: &mut IrModule, func: &FuncDecl, fields: &[(String, I
     module.add_function(ir_func);
 }
 
-/// Champs du frame dont la valeur est comptée : paramètres et locales
-/// déclarées de type compté, valeur émise si `T` l'est.
+/// Champs du frame dont la valeur est comptée : paramètres, valeur émise si
+/// `T` l'est. Les locales et temporaires comptés ont leur champ caché
+/// (`counted_spills`).
 fn counted_frame_fields(module: &IrModule, func: &FuncDecl) -> HashSet<String> {
     let is_counted = |ty: &Type| crate::lower::builder::rc_layout::is_counted(ty, &module.rc_objects);
     let mut out: HashSet<String> = func.params.iter().filter(|p| is_counted(&p.ty)).map(|p| p.name.clone()).collect();
@@ -637,33 +680,7 @@ fn counted_frame_fields(module: &IrModule, func: &FuncDecl) -> HashSet<String> {
             out.insert(VALUE_FIELD.to_string());
         }
     }
-    collect_counted_decls(&func.body.stmts, &is_counted, &mut out);
     out
-}
-
-fn collect_counted_decls(stmts: &[Stmt], is_counted: &dyn Fn(&Type) -> bool, out: &mut HashSet<String>) {
-    for stmt in stmts {
-        match stmt {
-            Stmt::Var { name, ty, .. } | Stmt::Const { name, ty, .. } if is_counted(ty) => { out.insert(name.clone()); }
-            Stmt::If { then_block, elseif, else_block, .. } => {
-                collect_counted_decls(&then_block.stmts, is_counted, out);
-                for (_, b) in elseif { collect_counted_decls(&b.stmts, is_counted, out); }
-                if let Some(b) = else_block { collect_counted_decls(&b.stmts, is_counted, out); }
-            }
-            Stmt::Switch { cases, default, .. } => {
-                for c in cases { collect_counted_decls(&c.body.stmts, is_counted, out); }
-                if let Some(b) = default { collect_counted_decls(&b.stmts, is_counted, out); }
-            }
-            Stmt::While { body, .. } | Stmt::ForIn { body, .. } | Stmt::ForMap { body, .. } => {
-                collect_counted_decls(&body.stmts, is_counted, out);
-            }
-            Stmt::Try { body, handlers, .. } => {
-                collect_counted_decls(&body.stmts, is_counted, out);
-                for h in handlers { collect_counted_decls(&h.body.stmts, is_counted, out); }
-            }
-            _ => {}
-        }
-    }
 }
 
 /// Lowering d'un argument d'appel qui peut être une consommation scalaire
@@ -716,6 +733,7 @@ pub fn lower_for_message(
     let args = collect_call_args(builder, expr);
     let frame = call_new(builder, mangled, args);
     crate::lower::stmt::rc::track(builder, &frame);
+    let kept = keep_across_emit(builder, &frame, IrType::Ptr);
 
     let cond_bb  = builder.new_block();
     let body_bb  = builder.new_block();
@@ -723,6 +741,7 @@ pub fn lower_for_message(
 
     builder.emit(Inst::Jump { target: cond_bb.clone() });
     builder.switch_to(&cond_bb);
+    let frame = reload(builder, &kept, &frame);
     let has_val = call_resume(builder, mangled, frame.clone());
     builder.emit(Inst::Branch { cond: has_val, then_bb: body_bb.clone(), else_bb: merge_bb.clone() });
 
