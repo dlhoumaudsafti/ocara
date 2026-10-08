@@ -64,6 +64,31 @@ class Bidule {
 Lecture : « quand l'OS n'est pas Windows et que le build est release,
 j'utilise la méthode en dessous ».
 
+### Imports conditionnels
+
+Un `import` se conditionne comme n'importe quelle autre déclaration :
+
+```ocara
+import ocara.System
+
+when System::OS is not 'android'
+import ocara.Tauri
+
+when System::OS is not 'android'
+function openWindow(): void {
+    var ui:Tauri = use Tauri({"title": "App", "url": "http://localhost:8080"})
+    ui.run()
+}
+```
+
+- Sur Android, `ocara.Tauri` n'est pas importé : ses symboles n'existent pas
+  et son runtime (`runtime_tauri`) n'est pas lié.
+- Conséquence de l'option A : tout code qui utilise un module importé sous
+  `when` doit porter une clause compatible ; sinon la sema le signale
+  (symbole inconnu) dans la variante où l'import est écarté.
+- La sélection des imports a lieu dans la même passe que les autres
+  variantes, avant la résolution des imports.
+
 ## Points à trancher
 
 - **Mot-clé** : `when` (se lit comme une phrase, préféré) ou `tag` (évoque
