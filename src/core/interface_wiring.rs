@@ -143,7 +143,7 @@ pub fn collect_all_interfaces(entry_program: &Program, source_dir: &Path) -> Has
         let mod_prog = if let Some(p) = cache.get(&canonical) {
             p.clone()
         } else {
-            let Ok(src) = std::fs::read_to_string(&file_path) else { continue };
+            let Ok(src) = crate::core::source::read(&file_path) else { continue };
             let Ok(tokens) = Lexer::new(&src).tokenize() else { continue };
             let Ok(parsed) = Parser::new(tokens).parse_program() else { continue };
             cache.insert(canonical.clone(), parsed.clone());

@@ -4,6 +4,12 @@ Coloration syntaxique, autocomplétion et navigation (Go-to-Definition) pour le 
 
 ## Fonctionnalités
 
+- **Serveur de langage du compilateur** (`ocara --lsp`, lancé avec le compilateur du réglage
+  `ocara.compilerPath`) : erreurs et avertissements du compilateur **pendant la frappe** (y compris ceux
+  d'un fichier importé, signalés en tête du document) ; **Go-to-Definition** exact (variables,
+  paramètres, fonctions, méthodes héritées, champs, constantes, classes, lignes `import`/`runtime`/`wiring`,
+  argument nommé → paramètre) ; **survol** : type réel d'une variable, signature et commentaires `//` d'une
+  déclaration, documentation des méthodes builtin ; **symboles du document** (plan, `Ctrl+Shift+O`)
 - Highlight complet : mots-clés, types, classes, structs, méthodes, imports, chaînes, templates
 - Appels de méthodes (`obj.method()`), accès statiques (`Class::member`), builtins `ocara.*`
 - **Autocomplétion après `.` / `::`** — méthodes et constantes des classes builtin `ocara.*`
@@ -13,8 +19,8 @@ Coloration syntaxique, autocomplétion et navigation (Go-to-Definition) pour le 
   - méthodes builtin, statiques (`String::trim`) ou d'instance (`server.route`, y compris héritées par une
     classe utilisateur `extends HTTPServer`) — signature + documentation extraite de `docs/builtins/*.md`
     (section ou ligne de tableau de la méthode, à défaut sa première ligne d'exemple) ;
-  - méthodes « sucrées » sur une valeur (`s.trim()` ≡ `String::trim(s)`, `s.toInt()` ≡ `Convert::strToInt(s)`) —
-    doc de la méthode réellement appelée ;
+  - méthodes « sucrées » sur une valeur (`s.trim()` ≡ `String::trim(s)`) — doc de la méthode réellement
+    appelée (pas encore les conversions `s.toInt()` ≡ `Convert::strToInt(s)`) ;
   - fonctions, méthodes, classes, structs (constructeur généré), interfaces... de votre code — signature et
     commentaires `//` placés juste au-dessus de la déclaration
 - **Documentation embarquée** : `docs/EBNF.md` et `docs/builtins/*.md` du dépôt sont copiés dans

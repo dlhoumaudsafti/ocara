@@ -16,7 +16,7 @@
 
 use std::borrow::Cow;
 use std::collections::HashMap;
-use crate::parsing::ast::{ClassMember, Expr, Param, Program};
+use crate::parsing::ast::{ClassMember, Expr, Param, Program, Type};
 use crate::parsing::token::Span;
 use crate::sema::error::SemaError;
 use crate::sema::symbols::FuncSig;
@@ -214,6 +214,12 @@ impl<'a> TypeChecker<'a> {
         let Some(target) = target(self) else {
             return Some(Cow::Borrowed(args));
         };
+        for arg in args {
+            if let Expr::NamedArg { name, span, .. } = arg {
+                let param = crate::sema::index::Target::Param { callee: target.callee.clone(), name: name.clone() };
+                self.record(span, name, param, &Type::Mixed);
+            }
+        }
         match reorder(args, &target) {
             Ok(positional) => {
                 self.rewrites.args.insert(site_key(args[0].span()), positional.clone());

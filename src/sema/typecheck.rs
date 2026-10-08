@@ -3,6 +3,7 @@ use crate::sema::error::{SemaError, SemaWarning};
 use crate::sema::scope::{LocalBinding, ScopeStack, OwnershipClass, ownership_class_of};
 use crate::sema::symbols::{SymbolTable, FuncSig};
 use crate::parsing::token::Span;
+use crate::sema::index::Target;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TypeChecker
@@ -46,6 +47,8 @@ pub struct TypeChecker<'a> {
     /// Réécritures de l'AST (arguments nommés, sucre `Convert`) à appliquer
     /// avant le lowering (`core::named_args`).
     pub rewrites: crate::sema::named_args::AstRewrites,
+    /// Références résolues, pour le serveur de langage (voir `sema::index`).
+    pub index: Option<Vec<crate::sema::index::Reference>>,
 }
 
 impl<'a> TypeChecker<'a> {
@@ -66,6 +69,7 @@ impl<'a> TypeChecker<'a> {
             resource_classes: std::collections::HashSet::new(),
             callable_params: std::collections::HashMap::new(),
             rewrites: crate::sema::named_args::AstRewrites::default(),
+            index: None,
         }
     }
     
@@ -1064,6 +1068,8 @@ impl<'a> TypeChecker<'a> {
                 // 1. variable locale
                 if let Some(b) = self.scopes.lookup(name) {
                     let ty = b.ty.clone();
+                    let decl = b.span.clone();
+                    self.record(span, name, Target::Local { decl }, &ty);
                     if let Err(first_use) = self.scopes.use_binding(name, span) {
                         self.errors.push(SemaError::ConsumedUsedTwice {
                             name: name.clone(),
@@ -1075,11 +1081,15 @@ impl<'a> TypeChecker<'a> {
                 }
                 // 2. constante globale
                 if let Some(ty) = self.symbols.lookup_const(name) {
-                    return ty.clone();
+                    let ty = ty.clone();
+                    self.record(span, name, Target::Const(name.clone()), &ty);
+                    return ty;
                 }
                 // 3. nom de classe (utilisé comme type)
                 if self.symbols.lookup_class(name).is_some() {
-                    return Type::Named(name.clone());
+                    let ty = Type::Named(name.clone());
+                    self.record(span, name, Target::Class(name.clone()), &ty);
+                    return ty;
                 }
                 // 4. référence à une fonction libre (sans appel)
                 if let Some(sig) = self.symbols.lookup_function(name) {
@@ -1091,10 +1101,12 @@ impl<'a> TypeChecker<'a> {
                     // typerait `f()` sur le type déclaré nu au lieu du
                     // handle de tâche.
                     let param_tys = sig.params.iter().map(|(_, ty)| ty.clone()).collect();
-                    return Type::Function {
+                    let ty = Type::Function {
                         ret_ty: Box::new(call_ret_ty(sig)),
                         param_tys,
                     };
+                    self.record(span, name, Target::Function(name.clone()), &ty);
+                    return ty;
                 }
                 self.errors.push(SemaError::UndefinedSymbol {
                     name: name.clone(),
@@ -1115,10 +1127,13 @@ impl<'a> TypeChecker<'a> {
                     // Cherche le champ en remontant la chaîne d'héritage
                     if let Some((owner, f)) = self.symbols.lookup_field_owner(&cls_name, field) {
                         self.check_field_visibility(owner, &f.vis, field, span);
-                        return f.ty.clone();
+                        let ty = f.ty.clone();
+                        self.record(span, field, Target::Field { class: owner.to_string(), name: field.clone() }, &ty);
+                        return ty;
                     }
                     // peut être une méthode sans appel
                     if self.symbols.lookup_method_in_chain(&cls_name, field).is_some() {
+                        self.record(span, field, Target::Method { class: cls_name.clone(), name: field.clone() }, &Type::Mixed);
                         return Type::Mixed;
                     }
                     let _ = info;
@@ -1176,8 +1191,9 @@ impl<'a> TypeChecker<'a> {
                     }
                 }
                 // Résolution : Ident direct → fonction libre
-                if let Expr::Ident(name, _) = callee.as_ref() {
+                if let Expr::Ident(name, name_span) = callee.as_ref() {
                     if let Some(sig) = self.symbols.lookup_function(name) {
+                        self.record(name_span, name, Target::Function(name.clone()), &call_ret_ty(sig));
                         let Some(resolved) = self.resolve_named_call(args, |tc| Some(tc.function_target(name, sig))) else {
                             return Type::Mixed;
                         };
@@ -1440,6 +1456,7 @@ impl<'a> TypeChecker<'a> {
                             cls_name.clone()
                         };
                         if let Some(sig) = self.symbols.lookup_method_in_chain(&method_owner, field).filter(|_| http_receiver_ok) {
+                            self.record(fspan, field, Target::Method { class: method_owner.clone(), name: field.clone() }, &call_ret_ty(sig));
                             // Une méthode static ne peut pas être appelée sur une instance
                             // SAUF pour ces classes : les méthodes sont statiques mais utilisables
                             // comme méthodes d'instance sur les variables (ex: a.trim(), arr.len(), m.size(), data.encode(), req.close(), res.status()).
@@ -1663,6 +1680,7 @@ impl<'a> TypeChecker<'a> {
 
                 // Chercher la méthode dans la chaîne d'héritage
                 if let Some(sig) = self.symbols.lookup_method_in_chain(&resolved_class, method) {
+                    self.record(span, method, Target::Method { class: resolved_class.clone(), name: method.clone() }, &call_ret_ty(sig));
                     let Some(resolved) = self.resolve_named_call(args, |tc| {
                         Some(tc.method_target(&resolved_class, method, sig, false))
                     }) else {
@@ -1755,7 +1773,9 @@ impl<'a> TypeChecker<'a> {
                     if info.is_opaque { return Type::Mixed; }
                 }
                 if let Some((ty, _)) = self.symbols.lookup_class_const(&resolved_class, name) {
-                    return ty.clone();
+                    let ty = ty.clone();
+                    self.record(span, name, Target::ClassConst { class: resolved_class.clone(), name: name.clone() }, &ty);
+                    return ty;
                 }
                 // Référence à une méthode statique sans appel : ClassName::myStatic
                 if let Some(sig) = self.symbols.lookup_method_in_chain(&resolved_class, name) {
@@ -1780,6 +1800,7 @@ impl<'a> TypeChecker<'a> {
             Expr::New { class, type_args, args, span } => {
                 // Vérifier si c'est une classe ou un générique
                 let is_class = self.symbols.lookup_class(class).is_some();
+                self.record(span, class, Target::Class(class.clone()), &Type::Named(class.clone()));
                 let is_generic = self.symbols.lookup_generic(class).is_some();
                 
                 if !is_class && !is_generic {

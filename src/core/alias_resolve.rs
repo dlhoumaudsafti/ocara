@@ -30,7 +30,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 use crate::parsing::ast::*;
-use crate::parsing::diagnostic;
+use crate::core::diagnostics::Diagnostic;
 
 /// Construit la table alias → nom réel à partir des SEULES déclarations
 /// d'import d'un fichier donné (`ImportDecl.alias`) — ne jamais mélanger les
@@ -52,13 +52,12 @@ use crate::parsing::diagnostic;
 ///
 /// `current_file` sert uniquement à situer le diagnostic si l'alias ne
 /// correspond à AUCUN `wiring` de l'interface importée (erreur de
-/// compilation explicitement demandée par le ticket) — `std::process::exit`
-/// à l'identique des autres erreurs d'import de `src/main.rs`.
+/// compilation explicitement demandée par le ticket, E41).
 pub fn compute_aliases(
     imports: &[ImportDecl],
     all_interfaces: &HashMap<String, InterfaceDecl>,
     current_file: &Path,
-) -> HashMap<String, String> {
+) -> Result<HashMap<String, String>, Diagnostic> {
     let mut aliases = HashMap::new();
     for imp in imports {
         let Some(alias) = imp.alias.as_ref() else { continue };
@@ -77,11 +76,10 @@ pub fn compute_aliases(
                         // E41 — alias ne correspondant à aucun `wiring` de
                         // l'interface importée (voir docs/diagnostics.md).
                         let available: Vec<&str> = iface.wirings.iter().map(|w| w.simple_name()).collect();
-                        diagnostic::print_error(current_file, imp.span.line, imp.span.col, &format!(
+                        return Err(Diagnostic::error(current_file, imp.span.line, imp.span.col, format!(
                             "alias '{}' does not match any `wiring` of interface '{}' (available: {})",
                             alias, real, available.join(", ")
-                        ));
-                        std::process::exit(1);
+                        )));
                     }
                 }
                 continue;
@@ -93,7 +91,7 @@ pub fn compute_aliases(
         // l'alias résout vers le nom réel importé, comme avant ce ticket.
         aliases.insert(alias.clone(), real.clone());
     }
-    aliases
+    Ok(aliases)
 }
 
 /// Réécrit chaque occurrence d'un alias connu vers son nom réel, dans tout

@@ -1,5 +1,8 @@
 pub mod alias_resolve;
+#[path = "analysis.d/mod.rs"]
+pub mod analysis;
 pub mod cli;
+pub mod diagnostics;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
@@ -15,3 +18,4 @@ pub mod structs;
 pub mod property_init;
 pub mod render_file;
 pub mod runtime_expand;
+pub mod source;

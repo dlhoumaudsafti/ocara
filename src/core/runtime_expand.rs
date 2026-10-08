@@ -1,6 +1,6 @@
-use crate::parsing::{ast::{self, Stmt}, diagnostic, lexer::Lexer, parser::Parser, token};
+use crate::core::diagnostics::Diagnostic;
+use crate::parsing::{ast::{self, Stmt}, lexer::Lexer, parser::Parser, token};
 use std::collections::HashMap;
-use std::fs;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers pour extraire les numéros de ligne des statements (pour contexte runtime)
@@ -85,7 +85,7 @@ pub fn get_stmt_end_line(stmt: &Stmt) -> usize {
 // Expansion des runtime imports
 // ─────────────────────────────────────────────────────────────────────────────
 
-pub fn expand_runtime_imports(program: &mut ast::Program, source_dir: &std::path::Path, input_file: &std::path::Path) {
+pub fn expand_runtime_imports(program: &mut ast::Program, source_dir: &std::path::Path, input_file: &std::path::Path) -> Result<(), Diagnostic> {
     // Map: RuntimeBlockKind -> Vec<statements>
     let mut blocks_map: HashMap<ast::RuntimeBlockKind, Vec<ast::Stmt>> = HashMap::new();
     
@@ -125,20 +125,18 @@ pub fn expand_runtime_imports(program: &mut ast::Program, source_dir: &std::path
                         }
                     }
                     Err(e) => {
-                        diagnostic::print_error(input_file, rt_import.span.line, rt_import.span.col, &e);
-                        std::process::exit(1);
+                        return Err(Diagnostic::error(input_file, rt_import.span.line, rt_import.span.col, e));
                     }
                 }
             }
             None => {
                 let path_str = rt_import.path.join(".");
-                diagnostic::print_error(
+                return Err(Diagnostic::error(
                     input_file,
                     rt_import.span.line,
                     rt_import.span.col,
-                    &format!("runtime file not found: `{}` (tried .runtime.oc, .run.oc, .rt.oc, .oc)", path_str)
-                );
-                std::process::exit(1);
+                    format!("runtime file not found: `{}` (tried .runtime.oc, .run.oc, .rt.oc, .oc)", path_str),
+                ));
             }
         }
     }
@@ -156,10 +154,11 @@ pub fn expand_runtime_imports(program: &mut ast::Program, source_dir: &std::path
             }
         })
         .collect();
+    Ok(())
 }
 
 /// Résout le chemin d'un fichier runtime : essaie .runtime.oc, .run.oc, .rt.oc, .oc
-fn resolve_runtime_file(source_dir: &std::path::Path, path: &[String]) -> Option<std::path::PathBuf> {
+pub fn resolve_runtime_file(source_dir: &std::path::Path, path: &[String]) -> Option<std::path::PathBuf> {
     let path_str = path.join("/");
     let extensions = ["runtime.oc", "run.oc", "rt.oc", "oc"];
     
@@ -180,7 +179,7 @@ fn load_runtime_file(
     _main_file: &std::path::Path,
 ) -> Result<Vec<ast::RuntimeBlock>, String> {
     // Lire le fichier
-    let source = fs::read_to_string(file_path)
+    let source = crate::core::source::read(file_path)
         .map_err(|e| format!("cannot read '{}': {}", file_path.display(), e))?;
     
     // Si kind est spécifié (ex: runtime config is init),

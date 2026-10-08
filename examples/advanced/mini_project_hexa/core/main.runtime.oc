@@ -21,7 +21,7 @@ while not server_ready {
     } else {
         attempts = attempts + 1
         if attempts greater 200 {
-            result 5
+            result ERROR
         } else {
             Thread::sleep(50)
         }

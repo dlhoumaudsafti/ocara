@@ -9,6 +9,7 @@ pub mod convert_sugar;
 pub mod escape;
 pub mod field_visibility;
 pub mod generic_check;
+pub mod index;
 pub mod message_emit;
 pub mod named_args;
 pub mod resource_raise;

@@ -43,7 +43,7 @@ function substituteVariables(value: string, document?: vscode.Uri): string {
  * nu, ex. `ocara`) et introuvable dans le PATH : repli sur
  * `<workspace>/target/release/<outil>` s'il existe (dépôt du compilateur).
  */
-function resolveCommand(setting: string, defaultName: string, document?: vscode.Uri): string[] {
+export function resolveCommand(setting: string, defaultName: string, document?: vscode.Uri): string[] {
     const configured = vscode.workspace.getConfiguration('ocara').get<string>(setting, defaultName).trim() || defaultName;
     const parts = splitCommand(substituteVariables(configured, document));
     if (parts.length === 1 && parts[0] === defaultName && !isOnPath(defaultName)) {

@@ -50,23 +50,63 @@ plus que relayer les requêtes :
   `callsite.ts`, `runtimecontext.ts`, de la logique de résolution de
   `extension.ts`.
 
-## Points à trancher
+## Choix tranchés (2026-10-08)
 
-- **Protocole** : LSP complet dès le départ, ou `--check --json` d'abord
-  (plus simple, appel ponctuel par fichier) ?
-- **Analyse incrémentale / tolérance aux erreurs** : la sema s'arrête
-  aujourd'hui à la première erreur bloquante de certaines phases (imports,
-  `process::exit` dans `src/main.rs`) — un serveur de langage doit
-  continuer sur un fichier partiellement invalide (texte en cours de
-  frappe). Demande de remonter des erreurs au lieu de quitter le processus.
-- **Positions** : les spans des nœuds AST ne couvrent souvent qu'un point de
-  départ (ligne/colonne), pas une plage — à étendre pour des surlignages et
-  des renommages précis.
-- **Dépendances** : implémentation LSP maison (JSON-RPC sur stdio) ou crate
-  dédiée (`tower-lsp`, `lsp-server`) — impact sur le temps de build et la
-  règle « jamais `cargo` direct, toujours via le Makefile ».
-- **ocaracs** : intégré au serveur (diagnostics de style sur le texte en
-  cours) ou laissé en outil séparé.
+- **Protocole** : LSP complet (`ocara --lsp`), livré par étapes — pas de
+  format `--check --json` intermédiaire.
+- **Dépendances** : crates `lsp-server` + `lsp-types` (celles de
+  rust-analyzer, synchrones) et `serde_json`.
+- **Extension** : client léger ; chaque fonctionnalité prise en charge par le
+  serveur remplace son équivalent TypeScript.
+- **ocaracs** : reste un outil séparé, appelé par l'extension.
+
+## Étape 1 — faite (2026-10-08)
+
+- **Analyse partagée** (`src/core/analysis.d/`) : lecture, parsing,
+  imports, vérifications de structure, désucrages et sema sortis de
+  `main.rs`. Plus aucun `process::exit` sur ce chemin : chaque erreur est un
+  `core::diagnostics::Diagnostic`, affiché par le CLI à l'identique,
+  publié par le serveur. `compute_aliases` et `expand_runtime_imports`
+  retournent leur erreur.
+- **Texte non enregistré** : `core::source` lit les fichiers `.oc` (entrée,
+  imports, pré-scan des interfaces, runtime imports) avec le texte des
+  documents ouverts à la place du disque.
+- **Index des références** (`sema::index`) : la sema note, si on le lui
+  demande, chaque nom résolu (variable locale avec sa déclaration,
+  constante, classe, fonction, méthode, champ, constante de classe,
+  argument nommé → paramètre) et son type.
+- **Serveur** (`src/lsp/`) : diagnostics en direct à chaque frappe (10 ms
+  sur `mini_project_hexa`), erreurs d'un fichier importé rapportées en tête
+  du document avec un lien ; survol (type d'une variable, signature et
+  commentaires `//` d'une déclaration, documentation des méthodes builtin
+  depuis `docs/builtins/*.md` via `builtins-data.json`, méthode héritée
+  d'un builtin) ; définition (noms, lignes `import`, `runtime`, `wiring`,
+  argument nommé) ; symboles du document. Racine des imports : premier
+  dossier contenant un `main.oc` en remontant depuis le fichier.
+- **Extension** : client `vscode-languageclient` (`lspclient.ts`) ; le
+  fournisseur de définition à regex d'`extension.ts` est supprimé, le survol
+  TypeScript ne documente plus que les mots-clés.
+
+## Étapes suivantes
+
+1. **Complétion et signature help** depuis le serveur (types inférés,
+   membres de la classe réelle du receveur) — retire `completion.ts`,
+   `signature.ts`, puis `resolver.ts`, `callsite.ts`, `runtimecontext.ts`,
+   `primitives.ts`.
+2. **Références et CodeLens** (`textDocument/references`,
+   `textDocument/codeLens`) sur l'index de tous les fichiers du projet —
+   retire `codelens.ts`.
+3. **Documentation des mots-clés** servie par le serveur (dernier survol
+   côté client), pour que l'extension JetBrains l'ait aussi.
+4. **Tolérance aux erreurs** : aujourd'hui, une erreur de syntaxe ou
+   d'import arrête l'analyse avant la sema (diagnostics seuls, ni survol ni
+   définition dans ce document) ; reprise du parseur sur erreur.
+5. **Positions** : les spans ne portent qu'un point de départ, le serveur
+   retrouve le nom dans la ligne ; plages exactes dans l'AST pour le
+   renommage.
+6. Limites connues : pas de survol sur une variable jamais utilisée (elle
+   est connue par ses utilisations) ; sucre `Convert` (`s.toInt()`) non
+   indexé ; colonnes comptées en caractères, pas en unités UTF-16.
 
 ## En attendant (gains rapides sur l'extension actuelle)
 
