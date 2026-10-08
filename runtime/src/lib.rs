@@ -712,6 +712,13 @@ pub extern "C" fn __map_set(ptr: i64, key: i64, val: i64) {
     map_put(ptr, key, val);
 }
 
+/// Valeur (empruntée) sous la clé `key`, sans allouer de chaîne Ocara pour
+/// la clé ; `0` si absente. `pub` : utilisé par runtime_sdl/runtime_tauri.
+pub fn map_lookup(ptr: i64, key: &str) -> i64 {
+    if ptr == 0 { return 0; }
+    unsafe { map_ref(ptr).data.iter().find(|e| e.0 == key).map_or(0, |e| e.1) }
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn __map_get(ptr: i64, key: i64) -> i64 {
     if ptr == 0 { return 0; }
@@ -794,51 +801,47 @@ pub extern "C" fn IO_readln() -> i64 {
     read()
 }
 
+/// Ligne lue copiée en `String` ; la chaîne Ocara intermédiaire est relâchée.
+fn read_text() -> Option<String> {
+    let s = read();
+    if s == 0 { return None; }
+    let text = unsafe { ptr_to_str(s).to_string() };
+    unsafe { rc::release(s) }
+    Some(text)
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn IO_readInt() -> i64 {
-    let s = read();
-    if s == 0 { return 0; }
-    unsafe { ptr_to_str(s).trim().parse::<i64>().unwrap_or(0) }
+    read_text().map_or(0, |t| t.trim().parse::<i64>().unwrap_or(0))
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn IO_readFloat() -> f64 {
-    let s = read();
-    if s == 0 { return 0.0; }
-    unsafe { ptr_to_str(s).trim().parse::<f64>().unwrap_or(0.0) }
+    read_text().map_or(0.0, |t| t.trim().parse::<f64>().unwrap_or(0.0))
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn IO_readBool() -> i64 {
-    let s = read();
-    if s == 0 { return 0; }
-    let t = unsafe { ptr_to_str(s).trim().to_lowercase() };
+    let t = read_text().unwrap_or_default().trim().to_lowercase();
     if t == "true" || t == "1" { 1 } else { 0 }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn IO_readArray(sep: i64) -> i64 {
-    let s = read();
-    if s == 0 { return new_array(); }
+    let Some(src) = read_text() else { return new_array() };
     let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep).to_string() } } else { " ".to_string() };
-    let src = unsafe { ptr_to_str(s).to_string() };
     let ptr = new_array();
-    unsafe {
-        let arr = array_ref(ptr);
-        for part in src.split(sep_s.as_str()) {
-            arr.data.push(alloc_str(part));
-        }
+    for part in src.split(sep_s.as_str()) {
+        array_push_owned(ptr, unsafe { alloc_str(part) });
     }
     ptr
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn IO_readMap(sep: i64, kv: i64) -> i64 {
-    let s = read();
-    if s == 0 { return new_map(); }
+    let Some(src) = read_text() else { return new_map() };
     let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep).to_string() } } else { " ".to_string() };
     let kv_s  = if is_ptr(kv)  { unsafe { ptr_to_str(kv).to_string() }  } else { "=".to_string() };
-    let src = unsafe { ptr_to_str(s).to_string() };
     let ptr = new_map();
     for part in src.split(sep_s.as_str()) {
         if let Some(pos) = part.find(kv_s.as_str()) {
@@ -2120,6 +2123,7 @@ extern "C" fn __assert_raises_body() {
 
 #[unsafe(no_mangle)]
 extern "C" fn __assert_raises_handler(error_val: i64, error_type: i64) {
+    unsafe { rc::retain(error_val) }
     ASSERT_RAISES_EXCEPTION.with(|e| e.set(error_val));
     ASSERT_RAISES_EXCEPTION_TYPE.with(|t| t.set(error_type));
 }
@@ -2374,19 +2378,29 @@ type CapturedCellMutex = cell_mutex_platform::RawMutex;
 
 const CAPTURED_CELL_MUTEX_SIZE: usize = std::mem::size_of::<CapturedCellMutex>();
 
-/// Alloue une cellule de capture verrouillée : `[mutex][valeur: i64]`.
-/// Retourne un pointeur vers la valeur (le mutex vit juste avant, à
-/// `retour - CAPTURED_CELL_MUTEX_SIZE`) — jamais libérée (même limite que
-/// `__alloc_obj` pour une closure : voir docs/roadmap.d/memoire-strategie-var.md).
+/// Alloue une cellule de capture verrouillée, comptée :
+/// `[en-tête TAG_CELL][valeur: i64][mutex]`, pointeur sur la valeur.
+/// `counted != 0` : la valeur est une référence comptée, relâchée avec la
+/// cellule (voir `crate::rc`).
 #[unsafe(no_mangle)]
-pub extern "C" fn __alloc_locked_cell() -> i64 {
+pub extern "C" fn __alloc_locked_cell(counted: i64) -> i64 {
     unsafe {
-        let total = CAPTURED_CELL_MUTEX_SIZE + 8;
-        let layout = Layout::from_size_align(total, 8).unwrap();
-        let raw = alloc_zeroed(layout);
-        assert!(!raw.is_null(), "ocara_runtime: OOM in __alloc_locked_cell");
-        cell_mutex_platform::init(raw as *mut CapturedCellMutex);
-        (raw as i64) + CAPTURED_CELL_MUTEX_SIZE as i64
+        let cell = rc::alloc_block(8 + CAPTURED_CELL_MUTEX_SIZE, (counted != 0) as i64, crate::typecheck::TAG_CELL, true);
+        cell_mutex_platform::init(cell_mutex(cell));
+        cell
+    }
+}
+
+pub(crate) const CELL_PAYLOAD: usize = 8 + CAPTURED_CELL_MUTEX_SIZE;
+
+fn cell_mutex(cell_ptr: i64) -> *mut CapturedCellMutex {
+    (cell_ptr + 8) as *mut CapturedCellMutex
+}
+
+pub(crate) unsafe fn free_cell(cell_ptr: i64) {
+    unsafe {
+        cell_mutex_platform::destroy(cell_mutex(cell_ptr));
+        rc::free_block(cell_ptr, CELL_PAYLOAD);
     }
 }
 
@@ -2394,10 +2408,9 @@ pub extern "C" fn __alloc_locked_cell() -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn __locked_cell_get(cell_ptr: i64) -> i64 {
     unsafe {
-        let mutex_ptr = (cell_ptr - CAPTURED_CELL_MUTEX_SIZE as i64) as *mut CapturedCellMutex;
-        cell_mutex_platform::lock(mutex_ptr);
+        cell_mutex_platform::lock(cell_mutex(cell_ptr));
         let val = *(cell_ptr as *const i64);
-        cell_mutex_platform::unlock(mutex_ptr);
+        cell_mutex_platform::unlock(cell_mutex(cell_ptr));
         val
     }
 }
@@ -2406,11 +2419,19 @@ pub extern "C" fn __locked_cell_get(cell_ptr: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn __locked_cell_set(cell_ptr: i64, val: i64) {
     unsafe {
-        let mutex_ptr = (cell_ptr - CAPTURED_CELL_MUTEX_SIZE as i64) as *mut CapturedCellMutex;
-        cell_mutex_platform::lock(mutex_ptr);
+        cell_mutex_platform::lock(cell_mutex(cell_ptr));
         *(cell_ptr as *mut i64) = val;
-        cell_mutex_platform::unlock(mutex_ptr);
+        cell_mutex_platform::unlock(cell_mutex(cell_ptr));
     }
+}
+
+/// Environnement d'une closure : `n_fields` champs dont les `n_caps`
+/// premiers sont des cellules capturées (comptées), les suivants des valeurs
+/// par défaut de paramètres.
+#[unsafe(no_mangle)]
+pub extern "C" fn __alloc_env(n_caps: i64, n_fields: i64) -> i64 {
+    let n_fields = n_fields.max(1);
+    unsafe { rc::alloc_block(n_fields as usize * 8, n_caps | (n_fields << 32), crate::typecheck::TAG_ENV, true) }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2608,6 +2629,7 @@ pub extern "C" fn __ocara_try_exec(body_fn: i64, handler_fn: i64) -> i64 {
                     std::mem::transmute(handler_fn as usize);
                 handler(ev, et);
             }
+            release_raised(ev, et);
             
             // Vérifier si le handler a fait un return explicite
             let (has_returned, return_value) = handler_has_returned();
@@ -2619,6 +2641,17 @@ pub extern "C" fn __ocara_try_exec(body_fn: i64, handler_fn: i64) -> i64 {
             }
         }
     })
+}
+
+/// La valeur levée et son nom de type appartiennent à la frame `try` (`raise`
+/// les transfère, voir `lower_raise`) : relâchés une fois le gestionnaire
+/// revenu. Un gestionnaire qui relève sort par `longjmp` et transfère la
+/// même référence plus haut.
+fn release_raised(ev: i64, et: i64) {
+    unsafe {
+        rc::release(ev);
+        rc::release(et);
+    }
 }
 
 /// Version dynamique avec pointeur vers tableau de captures.
@@ -2679,6 +2712,7 @@ pub extern "C" fn __ocara_try_exec_with_captures(
                     std::mem::transmute(handler_fn as usize);
                 handler(ev, et, captures_ptr);
             }
+            release_raised(ev, et);
 
             // Vérifier si le handler a fait un return explicite
             let (has_returned, return_value) = handler_has_returned();

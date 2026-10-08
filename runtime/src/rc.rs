@@ -8,7 +8,7 @@ use std::alloc::{alloc, alloc_zeroed, dealloc, Layout};
 use std::sync::atomic::{fence, AtomicBool, AtomicI64, AtomicUsize, Ordering};
 use std::sync::Mutex;
 
-use crate::typecheck::{read_tag, TAG_ARRAY, TAG_EXCEPTION, TAG_FUNCTION, TAG_MAP, TAG_OBJECT, TAG_STRING_OWNED};
+use crate::typecheck::{read_tag, TAG_ARRAY, TAG_CELL, TAG_ENV, TAG_EXCEPTION, TAG_FUNCTION, TAG_MAP, TAG_OBJECT, TAG_STRING_OWNED};
 
 pub(crate) const HEADER: usize = 24;
 pub(crate) const FLAG_RAW: i64 = 1;
@@ -23,10 +23,13 @@ const ROOTS_THRESHOLD: usize = 10_000;
 enum Color { Black = 0, Gray = 1, White = 2, Purple = 3 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Kind { String, Array, Map, Object, Function, Exception, Boxed }
+enum Kind { String, Array, Map, Object, Function, Exception, Boxed, Cell, Env }
 
 static ROOTS: Mutex<Vec<i64>> = Mutex::new(Vec::new());
 static COLLECTING: AtomicBool = AtomicBool::new(false);
+/// Taille du tampon des racines qui déclenche une collecte : relevée quand
+/// beaucoup de racines restent vivantes, pour ne pas rebalayer sans cesse.
+static ROOTS_LIMIT: AtomicUsize = AtomicUsize::new(ROOTS_THRESHOLD);
 
 /// Threads Ocara secondaires en cours : la collecte des cycles n'a lieu
 /// que lorsqu'il n'y en a aucun.
@@ -148,6 +151,8 @@ unsafe fn kind(val: i64) -> Option<Kind> {
         TAG_OBJECT => Some(Kind::Object),
         TAG_FUNCTION => Some(Kind::Function),
         TAG_EXCEPTION => Some(Kind::Exception),
+        TAG_CELL => Some(Kind::Cell),
+        TAG_ENV => Some(Kind::Env),
         _ => None,
     }
 }
@@ -158,7 +163,7 @@ unsafe fn word<'a>(val: i64, k: Kind) -> &'a AtomicI64 {
 }
 
 fn can_cycle(k: Kind) -> bool {
-    matches!(k, Kind::Array | Kind::Map | Kind::Object | Kind::Function)
+    matches!(k, Kind::Array | Kind::Map | Kind::Object | Kind::Function | Kind::Cell | Kind::Env)
 }
 
 fn count_of(w: &AtomicI64) -> i64 {
@@ -202,6 +207,13 @@ unsafe fn for_each_child(val: i64, k: Kind, f: &mut dyn FnMut(i64)) {
             Kind::Exception => {
                 for v in crate::exception::exception_children(val) { f(v) }
             }
+            Kind::Function => f(*((val + 8) as *const i64)),
+            Kind::Cell if aux(val) & 1 != 0 => f(*(val as *const i64)),
+            Kind::Env => {
+                for i in 0..(aux(val) & COUNT_MASK) {
+                    f(*((val + 8 * i) as *const i64))
+                }
+            }
             _ => {}
         }
     }
@@ -218,6 +230,8 @@ unsafe fn dealloc_block(val: i64, k: Kind) {
             Kind::Function => free_block(val, 16),
             Kind::Exception => crate::exception::free_exception_block(val),
             Kind::Boxed => free_box(val),
+            Kind::Cell => crate::free_cell(val),
+            Kind::Env => free_block(val, (aux(val) >> 32) as usize * 8),
         }
     }
 }
@@ -279,17 +293,24 @@ fn possible_root(val: i64, w: &AtomicI64) {
     let full = {
         let mut roots = ROOTS.lock().unwrap_or_else(|e| e.into_inner());
         roots.push(val);
-        roots.len() >= ROOTS_THRESHOLD
+        roots.len() >= ROOTS_LIMIT.load(Ordering::Acquire)
     };
     if full {
         collect_cycles();
     }
 }
 
-/// Collecte synchrone des cycles : sans effet si un thread Ocara secondaire
-/// tourne, ou si une collecte est déjà en cours.
+/// Collecte synchrone des cycles, ou seulement le balayage des racines
+/// mortes si un thread Ocara secondaire tourne (marquer pendant qu'un autre
+/// thread modifie des comptes serait faux). Sans effet si une collecte est
+/// déjà en cours.
 pub(crate) fn collect_cycles() {
-    if ACTIVE_THREADS.load(Ordering::Acquire) != 0 || COLLECTING.swap(true, Ordering::AcqRel) {
+    if COLLECTING.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    if ACTIVE_THREADS.load(Ordering::Acquire) != 0 {
+        sweep_dead_roots();
+        COLLECTING.store(false, Ordering::Release);
         return;
     }
     let roots = std::mem::take(&mut *ROOTS.lock().unwrap_or_else(|e| e.into_inner()));
@@ -318,7 +339,29 @@ pub(crate) fn collect_cycles() {
             collect_white(s, k);
         }
     }
+    ROOTS_LIMIT.store(ROOTS_THRESHOLD, Ordering::Release);
     COLLECTING.store(false, Ordering::Release);
+}
+
+/// Libère les racines mortes : compte à zéro et couleur noire, posée par
+/// `destroy` une fois ses enfants relâchés — plus rien ne peut les atteindre,
+/// même depuis un autre thread. Les racines vivantes restent en attente.
+fn sweep_dead_roots() {
+    let roots = std::mem::take(&mut *ROOTS.lock().unwrap_or_else(|e| e.into_inner()));
+    let mut alive = Vec::with_capacity(roots.len());
+    unsafe {
+        for s in roots {
+            let Some(k) = kind(s) else { continue };
+            let w = word(s, k);
+            if count_of(w) == 0 && color_of(w) == Color::Black {
+                dealloc_block(s, k);
+            } else {
+                alive.push(s);
+            }
+        }
+    }
+    ROOTS_LIMIT.store((alive.len() * 2).max(ROOTS_THRESHOLD), Ordering::Release);
+    ROOTS.lock().unwrap_or_else(|e| e.into_inner()).extend(alive);
 }
 
 unsafe fn cyclic_children(val: i64, k: Kind) -> Vec<(i64, Kind)> {

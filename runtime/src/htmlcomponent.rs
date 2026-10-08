@@ -108,6 +108,7 @@ pub extern "C" fn HTMLComponent_tag(self_ptr: i64, name_ptr: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn HTMLComponent_register(self_ptr: i64, fat_ptr: i64) {
     let comp     = unsafe { component_from_slot(self_ptr) };
+    crate::rc::__rc_retain(fat_ptr);
     let func_ptr = unsafe { *(fat_ptr as *const i64) };
     let env_ptr  = unsafe { *((fat_ptr as *const i64).add(1)) };
     with_registry(|reg| {
@@ -283,11 +284,10 @@ unsafe fn call_component(entry: &ComponentEntry, attrs_ptr: i64) -> String {
         type HandlerFn = unsafe extern "C" fn(i64, i64) -> i64;
         let f: HandlerFn = std::mem::transmute(entry.func_ptr as usize);
         let result_ptr = f(entry.env_ptr, attrs_ptr);
-        if result_ptr == 0 {
-            String::new()
-        } else {
-            ptr_to_str(result_ptr).to_string()
-        }
+        crate::rc::release(attrs_ptr);
+        let html = ptr_to_str(result_ptr).to_string();
+        crate::rc::release(result_ptr);
+        html
     }
 }
 

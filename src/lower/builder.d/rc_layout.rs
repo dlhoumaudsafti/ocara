@@ -40,16 +40,19 @@ fn mask_for(module: &IrModule, class: &str, objects: &HashSet<String>) -> String
     let layout = &module.class_layouts[class];
     let types = module.class_field_types.get(class);
     layout.iter().map(|(field, _)| {
-        let counted = match types {
-            Some(types) => types.iter().find(|(f, _)| f == field).is_some_and(|(_, ty)| is_counted(ty, objects)),
+        let declared = types.and_then(|types| types.iter().find(|(f, _)| f == field));
+        let counted = match declared {
+            Some((_, ty)) => is_counted(ty, objects),
             None => is_builtin_exception_string(module, class, field),
         };
         if counted { '1' } else { '0' }
     }).collect()
 }
 
+/// Champ `message`/`source` d'une exception builtin, ou hérité d'elle par
+/// une classe utilisateur (la disposition commence par celle d'`Exception`).
 fn is_builtin_exception_string(module: &IrModule, class: &str, field: &str) -> bool {
-    module.class_layouts.get("Exception").is_some_and(|l| l == &module.class_layouts[class])
+    module.class_layouts.get("Exception").is_some_and(|l| module.class_layouts[class].starts_with(l))
         && matches!(field, "message" | "source")
 }
 

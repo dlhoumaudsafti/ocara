@@ -127,8 +127,9 @@ pub struct LowerBuilder<'m> {
     pub owned_locals: HashMap<String, crate::lower::stmt::ownership::OwnedLocalInfo>,
     /// Temporaires possédés de chaque statement ouvert (voir `stmt::rc`).
     pub rc_temps: Vec<Vec<Value>>,
-    /// Locales comptées de chaque portée ouverte, parallèle à `block_scope_stack`.
-    pub rc_scopes: Vec<Vec<String>>,
+    /// Locales de chaque portée ouverte (nom, valeur comptée), parallèle à
+    /// `block_scope_stack` : relâchées en sortie, cellule comprise si promue.
+    pub rc_scopes: Vec<Vec<(String, bool)>>,
     /// Locales visibles dont le type est compté.
     pub rc_counted_locals: HashSet<String>,
     /// Profondeur de `rc_temps` à l'entrée de chaque boucle ouverte.
@@ -138,6 +139,11 @@ pub struct LowerBuilder<'m> {
     /// `consumed` comptées pas encore relâchées → profondeur de boucle de
     /// leur déclaration.
     pub rc_consumed: HashMap<String, usize>,
+    /// Variables `Resolvable<T>` → `T` (possession du résultat de `resolve`).
+    pub resolvable_types: HashMap<String, Type>,
+    /// Variables `Function<T(...)>` → `T` (possession du résultat d'un appel
+    /// indirect).
+    pub func_ret_ast: HashMap<String, Type>,
 }
 
 impl<'m> LowerBuilder<'m> {
@@ -186,6 +192,8 @@ impl<'m> LowerBuilder<'m> {
             rc_loop_temps: Vec::new(),
             rc_no_release: false,
             rc_consumed: HashMap::new(),
+            resolvable_types: HashMap::new(),
+            func_ret_ast: HashMap::new(),
         }
     }
 

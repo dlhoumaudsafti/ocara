@@ -74,6 +74,7 @@ pub fn lower_nameless_fn(
             if let Type::Function { ret_ty, .. }  = &param.ty  {
                 builder.func_vars.insert(param.name.clone());
                 builder.func_ret_types.insert(param.name.clone(), IrType::from_ast(ret_ty));
+                builder.func_ret_ast.insert(param.name.clone(), (**ret_ty).clone());
             }
             // Un paramètre de type classe (`nameless(db:SQLite): void {...}`,
             // voir SQLite::withOpen/MySQL::withConnect) doit être enregistré

@@ -39,6 +39,12 @@ pub(crate) const TAG_STRING_OWNED: i64 = 6;
 /// qu'à la narrowing `is` et à `get_value_type` (qui retombe correctement sur
 /// "primitif" pour ce tag, comme pour tout tag non reconnu).
 pub(crate) const TAG_EXCEPTION: i64 = 7;
+/// Cellule d'une variable capturée par une closure ou un `try` (voir
+/// `crate::__alloc_locked_cell`) — comptée, jamais une valeur du langage.
+pub(crate) const TAG_CELL: i64 = 8;
+/// Environnement d'une closure (`crate::__alloc_env`) : ses premiers champs
+/// sont les cellules capturées.
+pub(crate) const TAG_ENV: i64 = 9;
 
 const PTR_THRESHOLD: i64 = 65536;
 

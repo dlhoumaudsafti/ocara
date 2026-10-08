@@ -129,6 +129,7 @@ pub fn lower_for_in(
                 // de boucle est appelable (`f(x)`), comme un paramètre Function.
                 builder.func_vars.insert(var.to_string());
                 builder.func_ret_types.insert(var.to_string(), IrType::from_ast(ret_ty));
+                builder.func_ret_ast.insert(var.to_string(), (**ret_ty).clone());
             } else if let Type::Array(inner) = &elem_ast_ty {
                 // `array<array<T>>` : la variable de boucle est un `array<T>`
                 // dont les éléments scalaires sont BRUTS (voir

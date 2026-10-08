@@ -9,9 +9,17 @@ use crate::lower::expr::lower_expr;
 use super::super::super::block::lower_block;
 
 /// Lowering de `raise expr`
+/// La valeur levée est transférée (+1) à la frame `try`, qui la relâche
+/// après le gestionnaire ; un scalaire est boxé (le gestionnaire la reçoit
+/// en `mixed`). Les temporaires et locales de la fonction sont rendus avant
+/// le `longjmp` ; ceux des frames intermédiaires jusqu'au `try` fuient.
 pub fn lower_raise(builder: &mut LowerBuilder, value: &Expr) {
-    // Valeur de l'erreur
-    let val = lower_expr(builder, value);
+    let val_ty = crate::lower::expr::expr_ir_type_pub(builder, value);
+    let raw = lower_expr(builder, value);
+    let val = super::helpers::box_for_any(builder, &IrType::Ptr, val_ty, raw.clone());
+    if val == raw {
+        crate::lower::stmt::rc::take(builder, &val);
+    }
 
     // Type name : si l'expression est `use ClassName(...)`, ou une variable
     // dont la classe est connue statiquement (`var_class`, ex: `var e = use
@@ -44,6 +52,9 @@ pub fn lower_raise(builder: &mut LowerBuilder, value: &Expr) {
         }
     };
 
+    // `__ocara_fail` sort par `longjmp` : rendre maintenant ce qu'une sortie
+    // de fonction rendrait (temporaires, locales), la valeur levée étant prise.
+    crate::lower::stmt::rc::release_all(builder);
     builder.emit(Inst::Call {
         dest:   None,
         func:   "__ocara_fail".into(),
@@ -502,21 +513,7 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
                 // `raise`/`longjmp` qui n'a rien à voir avec le thread —
                 // voir docs/roadmap.d/memoire-concurrence-threads.md pour le
                 // même choix déjà fait pour les closures).
-                let heap_ptr = builder.new_value();
-                builder.emit(Inst::Call {
-                    dest:   Some(heap_ptr.clone()),
-                    func:   "__alloc_locked_cell".into(),
-                    args:   vec![],
-                    ret_ty: IrType::Ptr,
-                });
-                let cur_val = builder.new_value();
-                builder.emit(Inst::Load { dest: cur_val.clone(), ptr: slot, ty: slot_ty.clone() });
-                builder.emit(Inst::Call {
-                    dest:   None,
-                    func:   "__locked_cell_set".into(),
-                    args:   vec![heap_ptr.clone(), cur_val],
-                    ret_ty: IrType::Void,
-                });
+                let heap_ptr = crate::lower::stmt::rc::promote_to_cell(builder, name, slot, &slot_ty);
                 // Rediriger les futurs accès dans le scope appelant vers le tas
                 builder.locals.insert(name.clone(), (heap_ptr.clone(), slot_ty, mutable));
                 builder.heap_promoted.insert(name.clone());
@@ -560,9 +557,14 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
         builder.emit(Inst::Call {
             dest:   Some(try_result.clone()),
             func:   "__ocara_try_exec_with_captures".into(),
-            args:   vec![body_addr, handler_addr, array_ptr],
+            args:   vec![body_addr, handler_addr, array_ptr.clone()],
             ret_ty: IrType::I64,
         });
+        // Le tableau des captures ne survit pas au `try` (les cellules
+        // restent tenues par leurs variables).
+        let array_bytes = builder.new_value();
+        builder.emit(Inst::ConstInt { dest: array_bytes.clone(), value: (captures.len() * 8) as i64 });
+        builder.emit(Inst::Call { dest: None, func: "__free_obj".into(), args: vec![array_ptr, array_bytes], ret_ty: IrType::Void });
     }
     
     // Vérifier si le handler a fait un return (try_result != 0)

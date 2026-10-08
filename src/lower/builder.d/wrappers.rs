@@ -81,6 +81,14 @@ pub fn generate_wrapper(
     module.add_function(ir_func);
 }
 
+/// Libère l'env d'arguments d'une tâche (`__alloc_obj`, `max(n * 8, 8)`
+/// octets) une fois l'appel fait.
+fn free_task_env(builder: &mut LowerBuilder, env: Value, n_args: usize) {
+    let size = builder.new_value();
+    builder.emit(Inst::ConstInt { dest: size.clone(), value: (n_args * 8).max(8) as i64 });
+    builder.emit(Inst::Call { dest: None, func: "__free_obj".into(), args: vec![env, size], ret_ty: IrType::Void });
+}
+
 /// Génère un wrapper async `__async_wrap_FUNCNAME(env: i64) -> i64`
 /// Lit les arguments depuis l'env heap (env[0], env[8], ...) et appelle la fonction réelle.
 pub fn generate_async_wrapper(
@@ -152,6 +160,7 @@ pub fn generate_async_wrapper(
                 }
                 boxed
             };
+            free_task_env(&mut builder, env_val, param_tys.len());
             builder.emit(Inst::Return { value: Some(final_val) });
         } else {
             builder.emit(Inst::Call {
@@ -160,6 +169,7 @@ pub fn generate_async_wrapper(
                 args:   call_args,
                 ret_ty: IrType::Void,
             });
+            free_task_env(&mut builder, env_val, param_tys.len());
             let zero = builder.new_value();
             builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
             builder.emit(Inst::Return { value: Some(zero) });

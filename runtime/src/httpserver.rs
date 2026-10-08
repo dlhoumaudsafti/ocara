@@ -1074,6 +1074,7 @@ pub extern "C" fn HTTPServer_route(
     fat_ptr: i64,
 ) {
     let s          = unsafe { server_from_slot(self_ptr) };
+    crate::rc::__rc_retain(fat_ptr);
     let func_ptr   = unsafe { *(fat_ptr as *const i64) };
     let env_ptr    = unsafe { *((fat_ptr as *const i64).add(1)) };
     let path   = unsafe { ptr_to_str(path_ptr).to_string() };
@@ -1094,6 +1095,7 @@ pub extern "C" fn HTTPServer_routeError(
     fat_ptr: i64,
 ) {
     let s        = unsafe { server_from_slot(self_ptr) };
+    crate::rc::__rc_retain(fat_ptr);
     let func_ptr = unsafe { *(fat_ptr as *const i64) };
     let env_ptr  = unsafe { *((fat_ptr as *const i64).add(1)) };
     s.error_handlers.insert(code as u16, SendHandler { func_ptr, env_ptr });

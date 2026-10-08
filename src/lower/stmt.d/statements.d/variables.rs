@@ -71,6 +71,7 @@ pub(crate) fn register_var_class(builder: &mut LowerBuilder, name: &str, ty: &Ty
     if let Type::Function { ret_ty, .. } = ty {
         builder.func_vars.insert(name.to_string());
         builder.func_ret_types.insert(name.to_string(), IrType::from_ast(ret_ty));
+        builder.func_ret_ast.insert(name.to_string(), (**ret_ty).clone());
     }
 
     // Union contenant un type nommé (`Classe|null`) : utiliser le premier
@@ -91,6 +92,7 @@ pub(crate) fn register_var_class(builder: &mut LowerBuilder, name: &str, ty: &Ty
 fn register_async_var_ret(builder: &mut LowerBuilder, name: &str, ty: &Type) {
     if let Type::Resolvable(inner) = ty {
         builder.async_var_ret.insert(name.to_string(), IrType::from_ast(inner));
+        builder.resolvable_types.insert(name.to_string(), (**inner).clone());
     }
 }
 
@@ -206,7 +208,7 @@ fn declare_if_counted(builder: &mut LowerBuilder, name: &str, ty: &Type) {
     if crate::lower::stmt::rc::counted(builder, ty) {
         crate::lower::stmt::rc::declare(builder, name);
     } else {
-        builder.rc_counted_locals.remove(name);
+        crate::lower::stmt::rc::declare_plain(builder, name);
     }
 }
 

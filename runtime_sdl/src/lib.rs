@@ -21,7 +21,7 @@ use std::thread::ThreadId;
 
 use once_cell::sync::Lazy;
 
-use ocara_runtime::{__map_get, __map_new, alloc_str, map_set_owned_key, ptr_to_str};
+use ocara_runtime::{__map_new, alloc_str, map_set_owned_key, ptr_to_str};
 
 use sdl3::event::{Event, WindowEvent};
 use sdl3::gamepad::{Axis, Button, Gamepad};
@@ -110,8 +110,7 @@ static SDL_ACTIVE: AtomicBool = AtomicBool::new(false);
 /// Lit une clé string d'une map d'options (`__map_get` + décodage du pointeur
 /// string), ou renvoie `default` si la clé est absente.
 unsafe fn map_get_str(options_ptr: i64, key: &str, default: &str) -> String {
-    let key_ptr = unsafe { alloc_str(key) };
-    let val = __map_get(options_ptr, key_ptr);
+    let val = ocara_runtime::map_lookup(options_ptr, key);
     if val == 0 {
         default.to_string()
     } else {
@@ -121,8 +120,7 @@ unsafe fn map_get_str(options_ptr: i64, key: &str, default: &str) -> String {
 
 /// Lit une clé int d'une map d'options, ou renvoie `default` si absente.
 unsafe fn map_get_int(options_ptr: i64, key: &str, default: i64) -> i64 {
-    let key_ptr = unsafe { alloc_str(key) };
-    let val = __map_get(options_ptr, key_ptr);
+    let val = ocara_runtime::map_lookup(options_ptr, key);
     if val == 0 { default } else { val }
 }
 

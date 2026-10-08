@@ -94,6 +94,7 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__ocara_unhandled_fail", params: &[clt::I64],                        returns: None,              module: None },
     
     // Allocation d'objet tas (toujours disponible)
+    BuiltinDesc { name: "__free_obj",             params: &[clt::I64, clt::I64],              returns: None,               module: None },
     BuiltinDesc { name: "__alloc_obj",            params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__rc_retain",            params: &[clt::I64],                                 returns: None,               module: None },
     BuiltinDesc { name: "__rc_release",           params: &[clt::I64],                                 returns: None,               module: None },
@@ -103,7 +104,8 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__alloc_fat_ptr",        params: &[],                                returns: Some(clt::I64),    module: None },
     // Cellule verrouillée pour variables capturées (voir runtime/src/lib.rs
     // et docs/roadmap.d/memoire-concurrence-threads.md).
-    BuiltinDesc { name: "__alloc_locked_cell",     params: &[],                                returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__alloc_env",             params: &[clt::I64, clt::I64],                     returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__alloc_locked_cell",     params: &[clt::I64],                              returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__locked_cell_get",       params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__locked_cell_set",       params: &[clt::I64, clt::I64],              returns: None,              module: None },
     

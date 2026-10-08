@@ -143,19 +143,27 @@ pub fn begin_scope(builder: &mut LowerBuilder) {
 pub fn end_scope(builder: &mut LowerBuilder) {
     let frame = builder.rc_scopes.pop().unwrap_or_default();
     if !builder.is_terminated() {
-        let names: Vec<String> = frame.into_iter().rev().collect();
-        release_locals(builder, &names);
+        let locals: Vec<(String, bool)> = frame.into_iter().rev().collect();
+        release_locals(builder, &locals);
     }
 }
 
-/// Relâche les locales `names`, dans cet ordre.
-fn release_locals(builder: &mut LowerBuilder, names: &[String]) {
-    for name in names {
-        if builder.heap_promoted.contains(name) || builder.captured_vars.contains_key(name) {
+/// Relâche les locales `locals`, dans cet ordre : une locale promue rend sa
+/// cellule (qui relâche la valeur quand plus aucune closure ne la tient),
+/// une locale comptée sa valeur.
+fn release_locals(builder: &mut LowerBuilder, locals: &[(String, bool)]) {
+    for (name, counted) in locals {
+        if builder.captured_vars.contains_key(name) {
             continue;
         }
-        if let Some((v, _)) = builder.load_local(name) {
-            release(builder, &v);
+        if builder.heap_promoted.contains(name) {
+            if let Some((cell, _, _)) = builder.locals.get(name).cloned() {
+                release(builder, &cell);
+            }
+        } else if *counted {
+            if let Some((v, _)) = builder.load_local(name) {
+                release(builder, &v);
+            }
         }
     }
 }
@@ -177,8 +185,8 @@ pub fn release_consumed_used_in(builder: &mut LowerBuilder, stmt: &crate::parsin
             continue;
         }
         builder.rc_consumed.remove(&name);
-        let Some(frame) = builder.rc_scopes.iter_mut().rev().find(|f| f.contains(&name)) else { continue };
-        frame.retain(|n| *n != name);
+        let Some(frame) = builder.rc_scopes.iter_mut().rev().find(|f| f.iter().any(|(n, _)| *n == name)) else { continue };
+        frame.retain(|(n, _)| *n != name);
         if let Some((v, _)) = builder.load_local(&name) {
             release(builder, &v);
         }
@@ -189,7 +197,15 @@ pub fn release_consumed_used_in(builder: &mut LowerBuilder, stmt: &crate::parsin
 pub fn declare(builder: &mut LowerBuilder, name: &str) {
     builder.rc_counted_locals.insert(name.to_string());
     if let Some(frame) = builder.rc_scopes.last_mut() {
-        frame.push(name.to_string());
+        frame.push((name.to_string(), true));
+    }
+}
+
+/// Locale non comptée : seule sa cellule, si elle est promue, est rendue.
+pub fn declare_plain(builder: &mut LowerBuilder, name: &str) {
+    builder.rc_counted_locals.remove(name);
+    if let Some(frame) = builder.rc_scopes.last_mut() {
+        frame.push((name.to_string(), false));
     }
 }
 
@@ -200,8 +216,8 @@ pub fn is_counted_local(builder: &LowerBuilder, name: &str) -> bool {
 
 /// Relâche les locales des portées ouvertes à partir de `depth`.
 pub fn release_scopes_from(builder: &mut LowerBuilder, depth: usize) {
-    let names: Vec<String> = builder.rc_scopes.iter().skip(depth).rev().flat_map(|f| f.iter().rev().cloned()).collect();
-    release_locals(builder, &names);
+    let locals: Vec<(String, bool)> = builder.rc_scopes.iter().skip(depth).rev().flat_map(|f| f.iter().rev().cloned()).collect();
+    release_locals(builder, &locals);
 }
 
 /// Sortie de la fonction : temporaires et locales de toutes les portées.
@@ -222,6 +238,27 @@ pub fn assign_local(builder: &mut LowerBuilder, name: &str, val: Value, fresh: b
     }
 }
 
+// ── Cellules de capture ─────────────────────────────────────────────────────
+
+/// Promeut la locale `name` (slot `slot`) dans une cellule comptée partagée
+/// avec les closures/`try` qui la capturent : la référence du slot passe à
+/// la cellule (`self`, emprunté, y est retenu). La cellule est rendue en fin
+/// de portée de la locale (`release_locals`).
+pub fn promote_to_cell(builder: &mut LowerBuilder, name: &str, slot: Value, ty: &IrType) -> Value {
+    let counted = builder.rc_counted_locals.contains(name) || name == "self";
+    let flag = builder.new_value();
+    builder.emit(Inst::ConstInt { dest: flag.clone(), value: counted as i64 });
+    let cell = builder.new_value();
+    builder.emit(Inst::Call { dest: Some(cell.clone()), func: "__alloc_locked_cell".into(), args: vec![flag], ret_ty: IrType::Ptr });
+    let cur = builder.new_value();
+    builder.emit(Inst::Load { dest: cur.clone(), ptr: slot, ty: ty.clone() });
+    if name == "self" {
+        retain(builder, &cur);
+    }
+    builder.emit(Inst::Call { dest: None, func: "__locked_cell_set".into(), args: vec![cell.clone(), cur], ret_ty: IrType::Void });
+    cell
+}
+
 // ── Fonctions ───────────────────────────────────────────────────────────────
 
 /// Portée de la fonction : chaque paramètre compté (emprunté à l'appelant)
@@ -229,9 +266,13 @@ pub fn assign_local(builder: &mut LowerBuilder, name: &str, val: Value, fresh: b
 pub fn begin_function(builder: &mut LowerBuilder, params: &[crate::parsing::ast::Param]) {
     builder.block_scope_stack.push(Vec::new());
     begin_scope(builder);
+    if builder.locals.contains_key("self") {
+        declare_plain(builder, "self");
+    }
     for param in params {
         let ty = if param.is_variadic { Type::Array(Box::new(param.ty.clone())) } else { param.ty.clone() };
         if !counted(builder, &ty) {
+            declare_plain(builder, &param.name);
             continue;
         }
         if let Some((v, _)) = builder.load_local(&param.name) {
@@ -284,7 +325,7 @@ pub fn bind_loop_var(builder: &mut LowerBuilder, name: &str, ty: Option<&Type>, 
         retain(builder, val);
         declare(builder, name);
     } else {
-        builder.rc_counted_locals.remove(name);
+        declare_plain(builder, name);
     }
 }
 
@@ -297,6 +338,7 @@ pub fn produces_owned(builder: &LowerBuilder, expr: &Expr) -> bool {
         Expr::Call { .. } | Expr::StaticCall { .. } => call_owned(builder, expr),
         Expr::New { class, .. } => builder.module.rc_objects.contains(class),
         Expr::Template { .. } | Expr::Nameless { .. } | Expr::Range { .. } => true,
+        Expr::Resolve { expr: task, .. } => resolved_type(builder, task).is_some_and(|ty| counted(builder, &ty)),
         Expr::Binary { op: BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod, .. } => {
             crate::lower::expr::expr_ir_type_pub(builder, expr) == IrType::Ptr
         }
@@ -310,7 +352,23 @@ pub fn produces_owned(builder: &LowerBuilder, expr: &Expr) -> bool {
     }
 }
 
+/// Type `T` produit par `resolve task` : variable `Resolvable<T>` ou appel
+/// direct d'une fonction `async` qui retourne `T`.
+fn resolved_type(builder: &LowerBuilder, task: &Expr) -> Option<Type> {
+    match task {
+        Expr::Ident(name, _) => builder.resolvable_types.get(name).cloned(),
+        _ => builder.module.call_ret_types.get(&crate::lower::expr::helpers::call_key(builder, task)?).cloned(),
+    }
+}
+
 fn call_owned(builder: &LowerBuilder, expr: &Expr) -> bool {
+    if let Expr::Call { callee, .. } = expr {
+        if let Expr::Ident(name, _) = callee.as_ref() {
+            if builder.func_vars.contains(name.as_str()) {
+                return builder.func_ret_ast.get(name).is_some_and(|ty| counted(builder, ty));
+            }
+        }
+    }
     let Some(key) = crate::lower::expr::helpers::call_key(builder, expr) else { return false };
     if builder.async_funcs.contains(&key) || is_async_call(builder, expr) {
         return false;

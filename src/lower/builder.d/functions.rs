@@ -133,6 +133,7 @@ pub fn lower_func(
         if let crate::parsing::ast::Type::Function { ret_ty, .. } = &param.ty {
             builder.func_vars.insert(param.name.clone());
             builder.func_ret_types.insert(param.name.clone(), IrType::from_ast(ret_ty));
+            builder.func_ret_ast.insert(param.name.clone(), (**ret_ty).clone());
         }
         // Classe du paramètre — même résolution qu'une variable locale
         // (classe, générique, union `Classe|null`, et `String`/`Array`/`Map`

@@ -258,21 +258,7 @@ pub fn hoist_closure_promotions_before_loop(builder: &mut LowerBuilder, body: &B
         // noms trouvés dans `capture_scope`) est ignoré par prudence, comme
         // le fait déjà la promotion normale de `Expr::Nameless`.
         if let Some((slot, ty, mutable)) = builder.locals.get(name.as_str()).cloned() {
-            let heap_ptr = builder.new_value();
-            builder.emit(Inst::Call {
-                dest:   Some(heap_ptr.clone()),
-                func:   "__alloc_locked_cell".into(),
-                args:   vec![],
-                ret_ty: IrType::Ptr,
-            });
-            let cur_val = builder.new_value();
-            builder.emit(Inst::Load { dest: cur_val.clone(), ptr: slot, ty: ty.clone() });
-            builder.emit(Inst::Call {
-                dest:   None,
-                func:   "__locked_cell_set".into(),
-                args:   vec![heap_ptr.clone(), cur_val],
-                ret_ty: IrType::Void,
-            });
+            let heap_ptr = crate::lower::stmt::rc::promote_to_cell(builder, &name, slot, &ty);
             builder.locals.insert(name.clone(), (heap_ptr, ty, mutable));
             builder.heap_promoted.insert(name);
         }
@@ -1742,24 +1728,7 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 // potentiellement sur des threads différents (Thread::run,
                 // workers HTTPServer) — voir docs/roadmap.d/memoire-concurrence-threads.md.
                 if let Some((slot, ty, mutable)) = builder.locals.get(cap_name.as_str()).cloned() {
-                    let heap_ptr = builder.new_value();
-                    builder.emit(Inst::Call {
-                        dest:   Some(heap_ptr.clone()),
-                        func:   "__alloc_locked_cell".into(),
-                        args:   vec![],
-                        ret_ty: IrType::Ptr,
-                    });
-                    // Copier la valeur courante (stack → cellule verrouillée) —
-                    // encore mono-thread à ce stade, mais __locked_cell_set reste
-                    // sûr et cohérent avec tous les accès futurs.
-                    let cur_val = builder.new_value();
-                    builder.emit(Inst::Load { dest: cur_val.clone(), ptr: slot, ty: ty.clone() });
-                    builder.emit(Inst::Call {
-                        dest:   None,
-                        func:   "__locked_cell_set".into(),
-                        args:   vec![heap_ptr.clone(), cur_val],
-                        ret_ty: IrType::Void,
-                    });
+                    let heap_ptr = crate::lower::stmt::rc::promote_to_cell(builder, cap_name, slot, &ty);
                     // Rediriger les futurs accès dans le scope extérieur vers le heap
                     builder.locals.insert(cap_name.clone(), (heap_ptr.clone(), ty, mutable));
                     builder.heap_promoted.insert(cap_name.clone());
@@ -1809,8 +1778,9 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 let env = builder.new_value();
                 builder.emit(Inst::Alloc { dest: env.clone(), class: env_class });
                 
-                // Stocker les captures
+                // Stocker les captures : l'env retient chaque cellule
                 for (i, _) in captures.iter().enumerate() {
+                    crate::lower::stmt::rc::retain(builder, &capture_vals[i]);
                     builder.emit(Inst::SetField {
                         obj:    env.clone(),
                         field:  format!("__cap_{}", i),
@@ -1879,9 +1849,10 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     builder.emit(Inst::Call {
                         dest:   Some(unboxed.clone()),
                         func:   "__unbox_float".into(),
-                        args:   vec![raw],
+                        args:   vec![raw.clone()],
                         ret_ty: IrType::F64,
                     });
+                    crate::lower::stmt::rc::release(builder, &raw);
                     unboxed
                 }
                 IrType::Bool => {
@@ -1889,9 +1860,10 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     builder.emit(Inst::Call {
                         dest:   Some(unboxed.clone()),
                         func:   "__unbox_bool".into(),
-                        args:   vec![raw],
+                        args:   vec![raw.clone()],
                         ret_ty: IrType::Bool,
                     });
+                    crate::lower::stmt::rc::release(builder, &raw);
                     unboxed
                 }
                 // I64, Ptr (string, array, map, Function, object) : le i64 EST la valeur

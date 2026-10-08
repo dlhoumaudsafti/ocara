@@ -65,6 +65,20 @@ pub fn emit_memory(
                 let call = builder.ins().call(fref, &[]);
                 let ptr  = builder.inst_results(call)[0];
                 def!(dest, ptr);
+            } else if class.starts_with("__env_") {
+                // Env de closure : bloc compté dont les champs `__cap_*`
+                // (en tête) sont des cellules — voir `__alloc_env`.
+                let fields = class_layouts.get(class.as_str()).map(|f| f.as_slice()).unwrap_or(&[]);
+                let n_caps = fields.iter().filter(|(name, _)| name.starts_with("__cap_")).count() as i64;
+                let caps_val = builder.ins().iconst(clt::I64, n_caps);
+                let fields_val = builder.ins().iconst(clt::I64, fields.len() as i64);
+                let alloc_fid = func_ids.get("__alloc_env")
+                    .copied()
+                    .expect("__alloc_env non déclaré");
+                let fref = module.declare_func_in_func(alloc_fid, builder.func);
+                let call = builder.ins().call(fref, &[caps_val, fields_val]);
+                let ptr  = builder.inst_results(call)[0];
+                def!(dest, ptr);
             } else if class.starts_with("__") {
                 // Allocations internes (closure envs, etc.) — sans tag
                 let n_fields = class_layouts.get(class.as_str()).map(|f| f.len()).unwrap_or(1);

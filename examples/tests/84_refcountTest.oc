@@ -130,6 +130,34 @@ class Test_84_refcount {
         return copie
     }
 
+    public method closureResultOwnedByCallerTest(): int {
+        var prefix:string = "p" + "x"
+        var f:Function<string(string)> = nameless(x:string): string {
+            return prefix + x
+        }
+        var r:string = f("1") + f("2")
+        UnitTest::assertEquals("px1px2", r)
+        return 0
+    }
+
+    public method raisedObjectMessageTest(): int {
+        var seen:string = ""
+        try {
+            raise use RcError("boom" + "!", 3)
+        } on e is RcError {
+            seen = e.message
+        }
+        UnitTest::assertEquals("boom!", seen)
+        return 0
+    }
+
+    public method resolvedListSurvivesTest(): int {
+        consumed task:Resolvable<array<RcItem>> = RcRepo::all()
+        const items:array<RcItem> = resolve task
+        UnitTest::assertEquals("async", items[0].name)
+        return 0
+    }
+
     private method greet(who:string): string {
         var msg:string = "hello " + who
         return msg
@@ -147,5 +175,18 @@ class RcBag {
     public property items:array<RcItem>
     init(items:array<RcItem>) {
         self.items = items
+    }
+}
+
+class RcError extends Exception {
+    init(message:string, code:int) {
+        parent::init(message, code)
+    }
+}
+
+class RcRepo {
+    public static async method all(): array<RcItem> {
+        var items:array<RcItem> = [use RcItem("async")]
+        return items
     }
 }

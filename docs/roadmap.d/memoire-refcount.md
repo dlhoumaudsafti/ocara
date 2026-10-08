@@ -115,19 +115,51 @@ par deux porteurs, `match`, boucle de concaténation, objets : stables
 
 Tests : `examples/tests/84_refcountTest.oc`, `runtime/src/tests/rc.rs`.
 
+## Phase 4 — closures, exceptions, runtime (2026-10-08)
+
+- **Cellules et envs comptés** : `__alloc_locked_cell(compté)` →
+  `[en-tête TAG_CELL][valeur][mutex]`, `__alloc_env(n_caps, n_champs)` →
+  `[en-tête TAG_ENV][captures…][défauts…]`. Une closure a son env pour
+  enfant, l'env ses cellules, une cellule sa valeur (si comptée). Une locale
+  promue rend sa cellule en fin de portée (`rc::promote_to_cell`, portées
+  `(nom, compté)`), l'env retient chaque cellule. `self` capturé est retenu
+  par sa cellule. Tableau des captures d'un `try` libéré après l'appel.
+- **Runtime** : `Thread::run` retient sa closure jusqu'à la fin du thread ;
+  routes HTTP, composants HTML, écouteurs Tauri la retiennent.
+  `call_component` relâche attributs et résultat ; lectures `IO` relâchent la
+  chaîne lue ; `map_lookup` (SDL/Tauri) sans allocation de clé.
+- **`async`** : résultat de `resolve` possédé (type `T` du `Resolvable<T>`),
+  boîte `float`/`bool` relâchée après déballage, env d'arguments libéré par
+  le wrapper. `__free_obj` déclaré (les frames de générateur n'étaient
+  jamais libérés : l'appel était ignoré au codegen).
+- **Exceptions** : `raise` transfère sa valeur (scalaire boxé) à la frame
+  `try`, qui la relâche avec son nom de type après le gestionnaire ; les
+  temporaires et locales de la fonction qui lève sont rendus avant le
+  `longjmp`. Masque d'une classe qui étend une exception builtin :
+  `message`/`source` comptés.
+- **Appels indirects** : résultat d'un appel via une variable `Function<T(...)>`
+  possédé (`func_ret_ast`).
+- **Racines mortes** : un objet relâché vers un compte non nul entre dans
+  le tampon des racines ; mort ensuite, il y restait jusqu'à une collecte,
+  qui n'a jamais lieu tant qu'un thread secondaire tourne (serveur HTTP) —
+  c'était l'essentiel de la fuite du serveur. Avec des threads actifs, le
+  tampon plein est balayé (`sweep_dead_roots` : compte nul et noir = mort,
+  libérable sans risque) au lieu d'être collecté.
+
+Mesures : serveur `mini_project_hexa` stable à ≈ 9,4 Mo sur 12 000 requêtes
+(`/voitures/1`, `/recherche`) ; closures, exceptions levées/rattrapées,
+`consumed` dans un gabarit `renderFile` : stables (20 000 puis 200 000
+itérations).
+
 ## Reste à faire
 
-- **Phase 4 — cellules et closures comptées** : une variable capturée
-  (closure, corps et gestionnaires de `try`) vit dans une cellule jamais
-  libérée, sa valeur n'est jamais relâchée en fin de portée ; envs de
-  closure, valeurs par défaut, envs `async` jamais libérés. Serveur
-  `mini_project_hexa` : ≈ 15 Ko perdus par requête (≈ 45 Ko avant le
-  comptage).
-- Générateurs : aucune libération (`rc_no_release`).
-- Fuites runtime relevées par l'audit : `IO_readInt`/`Float`/`Bool`/
-  `Array`/`Map` (chaîne lue), `call_component` (attributs et résultat),
-  `throw_*` (`type_name`), `map_get_*` SDL/Tauri.
+- **Générateurs** : aucune libération (`rc_no_release`). Une valeur SSA ne
+  survit pas à une reprise après `emit` : relâcher les temporaires et
+  locales demande de les ranger dans le frame.
+- **`raise`** : les temporaires et locales des frames sautées entre la
+  fonction qui lève et le `try` fuient.
 - Valeurs non taguées rendues comme valeurs Ocara (`HTTPRequest_*`,
   `SQLite_open`, `MySQL_connect`…) : jamais comptées par leur type, mais un
   tel handle rangé dans un `mixed` n'est ignoré par `rc::kind` que grâce à
   l'en-tête de bloc de glibc — à revoir pour Android/Windows.
+- Cycles : collectés seulement quand aucun thread secondaire ne tourne.
