@@ -119,6 +119,8 @@ pub struct IrModule {
     /// `nom__resume` plutôt que par un appel normal — voir
     /// `src/lower/builder.d/message_gen.rs`.
     pub message_funcs: HashMap<String, IrType>,
+    /// Type AST de l'élément émis par chaque générateur (`message<T>` → `T`).
+    pub message_elems: HashMap<String, Type>,
     /// Compteur pour nommer les fonctions try/handler (__try_body_0, __try_handler_0, ...).
     /// Doit être un compteur dédié, PAS `functions.len()` : un `try` imbriqué dans le
     /// corps d'un autre `try` est lowered (et ajoute ses propres fonctions au module)

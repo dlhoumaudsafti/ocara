@@ -252,6 +252,7 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
             }
         }
 
+        crate::lower::stmt::rc::begin_unwind(&mut bb);
         lower_block(&mut bb, body);
         
         if !bb.is_terminated() {
@@ -265,6 +266,7 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
             };
             bb.emit(Inst::Return { value: ret_val });
         }
+        crate::lower::stmt::rc::finish_unwind(&mut bb);
         bb.func   // move func out, drops bb, releases module reborrow
     };
     builder.module.add_function(body_fn);
@@ -355,6 +357,7 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
 
         let end_bb = hb.new_block();
 
+        crate::lower::stmt::rc::begin_unwind(&mut hb);
         for handler in handlers {
             let handler_bb = hb.new_block();
             let next_bb    = hb.new_block();
@@ -447,6 +450,7 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
         };
         hb.emit(Inst::Return { value: ret_val });
 
+        crate::lower::stmt::rc::finish_unwind(&mut hb);
         hb.func   // move func out, drops hb, releases module reborrow
     };
     builder.module.add_function(handler_fn);

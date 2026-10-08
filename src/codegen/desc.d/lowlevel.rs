@@ -99,11 +99,15 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__rc_retain",            params: &[clt::I64],                                 returns: None,               module: None },
     BuiltinDesc { name: "__rc_release",           params: &[clt::I64],                                 returns: None,               module: None },
     BuiltinDesc { name: "__rc_mark_raw",          params: &[clt::I64],                                 returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__rc_unwind_push",       params: &[clt::I64, clt::I64],                     returns: None,               module: None },
+    BuiltinDesc { name: "__rc_unwind_pop",        params: &[],                                         returns: None,               module: None },
     BuiltinDesc { name: "__rc_collect_cycles",    params: &[],                                         returns: None,               module: None },
     BuiltinDesc { name: "__alloc_class_obj",      params: &[clt::I64, clt::I64, clt::I64],            returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__alloc_fat_ptr",        params: &[],                                returns: Some(clt::I64),    module: None },
     // Cellule verrouillée pour variables capturées (voir runtime/src/lib.rs
     // et docs/roadmap.d/memoire-concurrence-threads.md).
+    BuiltinDesc { name: "__alloc_gen",             params: &[clt::I64, clt::I64],                     returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__free_gen",              params: &[clt::I64, clt::I64],                     returns: None,               module: None },
     BuiltinDesc { name: "__alloc_env",             params: &[clt::I64, clt::I64],                     returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__alloc_locked_cell",     params: &[clt::I64],                              returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__locked_cell_get",       params: &[clt::I64],                        returns: Some(clt::I64),    module: None },

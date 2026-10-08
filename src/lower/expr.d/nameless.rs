@@ -191,6 +191,7 @@ pub fn lower_nameless_fn(
             }
         }
 
+        crate::lower::stmt::rc::begin_unwind(&mut builder);
         crate::lower::stmt::rc::begin_function(&mut builder, params);
         crate::lower::stmt::lower_block(&mut builder, body);
         crate::lower::stmt::rc::end_function(&mut builder);
@@ -201,6 +202,7 @@ pub fn lower_nameless_fn(
             builder.emit(Inst::ConstInt { dest: z.clone(), value: 0 });
             builder.emit(Inst::Return { value: Some(z) });
         }
+        crate::lower::stmt::rc::finish_unwind(&mut builder);
 
         builder.func
     };

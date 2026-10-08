@@ -129,13 +129,23 @@ pub struct LowerBuilder<'m> {
     pub rc_temps: Vec<Vec<Value>>,
     /// Locales de chaque portée ouverte (nom, valeur comptée), parallèle à
     /// `block_scope_stack` : relâchées en sortie, cellule comprise si promue.
-    pub rc_scopes: Vec<Vec<(String, bool)>>,
+    pub rc_scopes: Vec<Vec<crate::lower::stmt::rc::RcLocal>>,
+    /// Base du tableau de déroulement des locales comptées (voir
+    /// `stmt::rc::begin_unwind`) et nombre de mots utilisés.
+    pub rc_unwind_base: Option<Value>,
+    pub rc_unwind_words: u32,
+    /// Mot de déroulement de chaque temporaire possédé en cours.
+    pub rc_temp_words: HashMap<Value, Value>,
     /// Locales visibles dont le type est compté.
     pub rc_counted_locals: HashSet<String>,
     /// Profondeur de `rc_temps` à l'entrée de chaque boucle ouverte.
     pub rc_loop_temps: Vec<usize>,
-    /// Générateur : aucune libération émise (fuite sûre).
-    pub rc_no_release: bool,
+    /// Corps d'un générateur (`__resume`) : ses locales vivent dans le frame
+    /// (remises à zéro une fois relâchées), et les temporaires d'un statement
+    /// traversé par un `emit` ne sont jamais relâchés (périmés à la reprise).
+    pub rc_generator: bool,
+    /// Parallèle à `rc_temps` : statement traversé par un `emit`.
+    pub rc_temps_emit: Vec<bool>,
     /// `consumed` comptées pas encore relâchées → profondeur de boucle de
     /// leur déclaration.
     pub rc_consumed: HashMap<String, usize>,
@@ -188,9 +198,13 @@ impl<'m> LowerBuilder<'m> {
             owned_locals: HashMap::new(),
             rc_temps: Vec::new(),
             rc_scopes: Vec::new(),
+            rc_unwind_base: None,
+            rc_unwind_words: 0,
+            rc_temp_words: HashMap::new(),
             rc_counted_locals: HashSet::new(),
             rc_loop_temps: Vec::new(),
-            rc_no_release: false,
+            rc_generator: false,
+            rc_temps_emit: Vec::new(),
             rc_consumed: HashMap::new(),
             resolvable_types: HashMap::new(),
             func_ret_ast: HashMap::new(),

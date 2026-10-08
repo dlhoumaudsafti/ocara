@@ -1219,7 +1219,7 @@ Pour obtenir une copie indépendante, l'écrire explicitement (`noms.slice(0, no
 
 Une sortie anticipée du bloc (`return`, `break`, `continue`) rend elle aussi les références et ferme les ressources de tous les blocs qu'elle traverse.
 
-> **Limite connue** : un `raise` qui traverse un `try` englobant (`longjmp`) saute ces libérations — la valeur fuit, jamais de libération prématurée. Voir `src/lower/stmt.d/statements.d/exceptions.rs`.
+> Un `raise` rend aussi les références (variables et valeurs temporaires) de toutes les fonctions qu'il traverse jusqu'au `try` qui le rattrape. **Limite connue** : une ressource `scoped`/`consumed` traversée par un `raise` n'est pas fermée (elle reste ouverte, sans corruption).
 
 ### 9.3 Variable à usage unique (`consumed`)
 
@@ -3681,7 +3681,7 @@ function truc(): message<int> {
 
 Le `try`/`on` est traité normalement : un `raise` déclenché à l'intérieur (qu'il soit écrit directement dans le générateur ou levé par une fonction qu'il appelle) est rattrapé par le `on` correspondant, l'imbrication de plusieurs `try` respecte l'ordre habituel (le plus interne rattrape en premier), et un filtre de classe (`on e is X`) qui ne correspond à rien se propage vers un `try` englobant, à l'extérieur du générateur, exactement comme pour un `try`/`raise` ordinaire.
 
-> **Limite connue et acceptée** : un `raise` déclenché par le code **consommateur** (pas le générateur lui-même) pendant qu'un `message<T>` est encore suspendu via `for` abandonne ce générateur sans nettoyage — fuite possible (jamais de corruption mémoire), même famille que la limite déjà acceptée pour un `scoped`/`consumed` traversé par un `raise` (voir §9). De même, un `return` anticipé (sans valeur — seul cas valable dans un générateur) exécuté pendant qu'un `for` le consomme fuit le frame suspendu (`break`, lui, est correctement nettoyé).
+> Un générateur abandonné par son consommateur (`break`, `return`, ou `raise` depuis le corps du `for`) est détruit proprement : ses variables et la dernière valeur émise sont rendues.
 
 ---
 

@@ -45,6 +45,9 @@ pub(crate) const TAG_CELL: i64 = 8;
 /// Environnement d'une closure (`crate::__alloc_env`) : ses premiers champs
 /// sont les cellules capturées.
 pub(crate) const TAG_ENV: i64 = 9;
+/// Frame d'un générateur (`crate::__alloc_gen`) : compté, détruit par la
+/// fonction `<générateur>__drop` rangée dans `aux`.
+pub(crate) const TAG_GEN: i64 = 10;
 
 const PTR_THRESHOLD: i64 = 65536;
 

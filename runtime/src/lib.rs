@@ -2425,6 +2425,19 @@ pub extern "C" fn __locked_cell_set(cell_ptr: i64, val: i64) {
     }
 }
 
+/// Frame d'un générateur : bloc compté de `size` octets, détruit par
+/// `drop_fn` (`<générateur>__drop`, qui rend ses champs comptés puis appelle
+/// `__free_gen`).
+#[unsafe(no_mangle)]
+pub extern "C" fn __alloc_gen(size: i64, drop_fn: i64) -> i64 {
+    unsafe { rc::alloc_block(size.max(8) as usize, drop_fn, crate::typecheck::TAG_GEN, true) }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __free_gen(frame: i64, size: i64) {
+    unsafe { rc::free_block(frame, size.max(8) as usize) }
+}
+
 /// Environnement d'une closure : `n_fields` champs dont les `n_caps`
 /// premiers sont des cellules capturées (comptées), les suivants des valeurs
 /// par défaut de paramètres.
@@ -2464,6 +2477,8 @@ struct TryFrame {
     env:        JmpBuf,
     error_val:  i64,
     error_type: i64,
+    /// Profondeur de la pile de déroulement (`rc::unwind_depth`) à l'entrée.
+    unwind:     usize,
 }
 
 const MAX_TRY_DEPTH: usize = 64;
@@ -2555,6 +2570,7 @@ pub extern "C" fn __ocara_try_enter() -> i64 {
         unsafe {
             (*frame_ptr).error_val  = 0;
             (*frame_ptr).error_type = 0;
+            (*frame_ptr).unwind = rc::unwind_depth();
         }
         stack.depth.set(depth + 1);
         frame_ptr as i64
@@ -2597,6 +2613,7 @@ pub extern "C" fn __ocara_try_exec(body_fn: i64, handler_fn: i64) -> i64 {
         unsafe {
             (*frame_ptr).error_val  = 0;
             (*frame_ptr).error_type = 0;
+            (*frame_ptr).unwind = rc::unwind_depth();
         }
 
         // Pousser la nouvelle profondeur
@@ -2677,6 +2694,7 @@ pub extern "C" fn __ocara_try_exec_with_captures(
         unsafe {
             (*frame_ptr).error_val  = 0;
             (*frame_ptr).error_type = 0;
+            (*frame_ptr).unwind = rc::unwind_depth();
         }
 
         stack.depth.set(depth + 1);
@@ -2750,6 +2768,7 @@ pub(crate) fn run_closure_catching(func_ptr: i64, env_ptr: i64) -> Result<i64, (
         unsafe {
             (*frame_ptr).error_val  = 0;
             (*frame_ptr).error_type = 0;
+            (*frame_ptr).unwind = rc::unwind_depth();
         }
 
         stack.depth.set(depth + 1);
@@ -2801,6 +2820,7 @@ pub(crate) fn run_closure_catching_with_arg(func_ptr: i64, env_ptr: i64, arg1: i
         unsafe {
             (*frame_ptr).error_val  = 0;
             (*frame_ptr).error_type = 0;
+            (*frame_ptr).unwind = rc::unwind_depth();
         }
 
         stack.depth.set(depth + 1);
@@ -2838,6 +2858,7 @@ pub extern "C" fn __ocara_fail(val: i64, type_name: i64) {
         unsafe {
             (*frame_ptr).error_val  = val;
             (*frame_ptr).error_type = type_name;
+            rc::unwind_to((*frame_ptr).unwind);
             let env_ptr: *mut JmpBuf = &mut (*frame_ptr).env;
             longjmp(env_ptr, 1);
         }

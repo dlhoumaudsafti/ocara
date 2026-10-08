@@ -189,3 +189,26 @@ fn long_chain_is_released_without_recursion() {
     }
     __rc_release(head);
 }
+
+#[test]
+fn unwind_releases_registered_locals_above_depth() {
+    let _g = serial();
+    let kept = owned("kept");
+    let dropped = owned("dropped");
+    let mut outer = [0i64];
+    let mut inner = [0i64, 0i64];
+    let depth = crate::rc::unwind_depth();
+    __rc_unwind_push(outer.as_mut_ptr() as i64, 1);
+    outer[0] = kept;
+    __rc_unwind_push(inner.as_mut_ptr() as i64, 2);
+    inner[0] = dropped;
+    __rc_retain(dropped);
+    crate::rc::unwind_to(depth + 1);
+    assert_eq!(__rc_count(dropped), 1, "la locale de la frame sautée est rendue");
+    assert_eq!(inner[0], 0);
+    assert_eq!(outer[0], kept, "la frame du `try` n'est pas touchée");
+    assert_eq!(__rc_count(kept), 1);
+    __rc_unwind_pop();
+    __rc_release(kept);
+    __rc_release(dropped);
+}

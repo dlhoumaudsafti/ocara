@@ -151,15 +151,46 @@ Mesures : serveur `mini_project_hexa` stable à ≈ 9,4 Mo sur 12 000 requêtes
 `consumed` dans un gabarit `renderFile` : stables (20 000 puis 200 000
 itérations).
 
+## Phase 5 — générateurs et déroulement par `raise` (2026-10-08)
+
+- **Générateurs** : les locales vivent dans le frame (remises à zéro une
+  fois rendues), les temporaires d'un statement traversé par un `emit` ne
+  sont jamais rendus (périmés à la reprise, `rc_temps_emit`), la valeur
+  émise appartient au frame. Le frame est un bloc compté
+  (`__alloc_gen(taille, <gén>__drop)`, `TAG_GEN`) : `<gén>__drop` rend ses
+  champs comptés puis le libère. Le `for` consommateur le tient comme
+  temporaire (rendu par `break`, `return`, fin d'instruction, déroulement) ;
+  `fromMessage` et la consommation scalaire le rendent aussitôt (la valeur
+  scalaire est retenue avant). Gestionnaire `on` d'un `try` interne : valeur
+  levée rendue par le binding.
+- **Déroulement** : chaque fonction (fonction, méthode, closure, corps et
+  gestionnaire de `try`) range ses locales comptées et ses temporaires
+  possédés dans un tableau de mots sur sa pile (`Inst::AllocaWords`,
+  `rc::begin_unwind`/`finish_unwind`), enregistré à l'entrée
+  (`__rc_unwind_push`) et retiré avant chaque `Return`. Chaque frame `try`
+  mémorise la profondeur ; `__ocara_fail` rend, avant le `longjmp`, les mots
+  des fonctions sautées (`rc::unwind_to`). Un mot est remis à zéro quand sa
+  valeur est rendue ou transférée ; une locale promue y range sa cellule.
+  Coût mesuré : ≈ 20 ns par appel d'une fonction à locales comptées.
+- Codegen : un appel à une fonction interne `__*` non déclarée est
+  désormais une erreur (deux appels, `__free_obj` et `__rc_unwind_*`,
+  disparaissaient silencieusement).
+
+Mesures (20 000 puis 200 000 itérations) : `raise` traversant trois
+fonctions avec locales, closures et temporaires, générateurs (`for`,
+`break`, `return`, `fromMessage`, scalaire, `try` interne) : stables ;
+serveur `mini_project_hexa` stable à ≈ 9,5 Mo sur 16 000 requêtes.
+
 ## Reste à faire
 
-- **Générateurs** : aucune libération (`rc_no_release`). Une valeur SSA ne
-  survit pas à une reprise après `emit` : relâcher les temporaires et
-  locales demande de les ranger dans le frame.
-- **`raise`** : les temporaires et locales des frames sautées entre la
-  fonction qui lève et le `try` fuient.
+- **Cycles en programme multi-thread** : la collecte n'a lieu que quand
+  aucun thread secondaire ne tourne ; un serveur HTTP (workers permanents)
+  ne collecte donc jamais un cycle (seules les racines mortes sont
+  balayées). Piste : collecte concurrente (Bacon–Rajan concurrent) ou
+  points d'arrêt des workers.
+- **Ressources traversées par un `raise`** : une ressource `scoped`/
+  `consumed` (connexion, mutex…) n'est pas fermée par le déroulement.
 - Valeurs non taguées rendues comme valeurs Ocara (`HTTPRequest_*`,
   `SQLite_open`, `MySQL_connect`…) : jamais comptées par leur type, mais un
   tel handle rangé dans un `mixed` n'est ignoré par `rc::kind` que grâce à
   l'en-tête de bloc de glibc — à revoir pour Android/Windows.
-- Cycles : collectés seulement quand aucun thread secondaire ne tourne.

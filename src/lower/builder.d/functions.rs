@@ -176,6 +176,7 @@ pub fn lower_func(
     builder.func.params = updated_params;
 
     // Body
+    crate::lower::stmt::rc::begin_unwind(&mut builder);
     crate::lower::stmt::rc::begin_function(&mut builder, &func.params);
     crate::lower::stmt::lower_block(&mut builder, &func.body);
     crate::lower::stmt::rc::end_function(&mut builder);
@@ -193,6 +194,7 @@ pub fn lower_func(
         };
         builder.emit(Inst::Return { value: ret_val });
     }
+    crate::lower::stmt::rc::finish_unwind(&mut builder);
 
     let ir_func = builder.func;
     module.add_function(ir_func);

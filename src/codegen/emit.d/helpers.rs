@@ -53,6 +53,7 @@ pub fn visit_values<F: FnMut(&Value)>(inst: &Inst, mut f: F) {
         Inst::Or         { dest, lhs, rhs } => { v!(dest); v!(lhs); v!(rhs); }
         Inst::Not        { dest, src }      => { v!(dest); v!(src); }
         Inst::Alloca     { dest, .. }       => { v!(dest); }
+        Inst::AllocaWords { dest, .. }      => { v!(dest); }
         Inst::Store      { ptr, src }       => { v!(ptr); v!(src); }
         Inst::Load       { dest, ptr, .. }  => { v!(dest); v!(ptr); }
         Inst::Call       { dest, args, .. } => {

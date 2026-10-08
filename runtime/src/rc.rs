@@ -8,7 +8,7 @@ use std::alloc::{alloc, alloc_zeroed, dealloc, Layout};
 use std::sync::atomic::{fence, AtomicBool, AtomicI64, AtomicUsize, Ordering};
 use std::sync::Mutex;
 
-use crate::typecheck::{read_tag, TAG_ARRAY, TAG_CELL, TAG_ENV, TAG_EXCEPTION, TAG_FUNCTION, TAG_MAP, TAG_OBJECT, TAG_STRING_OWNED};
+use crate::typecheck::{read_tag, TAG_ARRAY, TAG_CELL, TAG_ENV, TAG_EXCEPTION, TAG_FUNCTION, TAG_GEN, TAG_MAP, TAG_OBJECT, TAG_STRING_OWNED};
 
 pub(crate) const HEADER: usize = 24;
 pub(crate) const FLAG_RAW: i64 = 1;
@@ -23,7 +23,7 @@ const ROOTS_THRESHOLD: usize = 10_000;
 enum Color { Black = 0, Gray = 1, White = 2, Purple = 3 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Kind { String, Array, Map, Object, Function, Exception, Boxed, Cell, Env }
+enum Kind { String, Array, Map, Object, Function, Exception, Boxed, Cell, Env, Generator }
 
 static ROOTS: Mutex<Vec<i64>> = Mutex::new(Vec::new());
 static COLLECTING: AtomicBool = AtomicBool::new(false);
@@ -153,6 +153,7 @@ unsafe fn kind(val: i64) -> Option<Kind> {
         TAG_EXCEPTION => Some(Kind::Exception),
         TAG_CELL => Some(Kind::Cell),
         TAG_ENV => Some(Kind::Env),
+        TAG_GEN => Some(Kind::Generator),
         _ => None,
     }
 }
@@ -232,6 +233,10 @@ unsafe fn dealloc_block(val: i64, k: Kind) {
             Kind::Boxed => free_box(val),
             Kind::Cell => crate::free_cell(val),
             Kind::Env => free_block(val, (aux(val) >> 32) as usize * 8),
+            Kind::Generator => {
+                let drop: unsafe extern "C" fn(i64) = std::mem::transmute(aux(val) as usize);
+                drop(val);
+            }
         }
     }
 }
@@ -447,6 +452,49 @@ unsafe fn collect_white(val: i64, k: Kind) {
         }
         for (x, xk) in garbage {
             dealloc_block(x, xk);
+        }
+    }
+}
+
+// ── Déroulement par `raise` ───────────────────────────────────────────────────
+//
+// Une fonction qui a des locales comptées les range dans un tableau de mots
+// sur sa pile, enregistré ici à son entrée et retiré à sa sortie. Un `raise`
+// saute par `longjmp` jusqu'au `try` : avant le saut (les frames sont encore
+// vivantes), `unwind_to` rend les locales des fonctions sautées.
+
+thread_local! {
+    static UNWIND: std::cell::UnsafeCell<Vec<(i64, i64)>> = const { std::cell::UnsafeCell::new(Vec::new()) };
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __rc_unwind_push(base: i64, words: i64) {
+    unsafe { std::ptr::write_bytes(base as *mut i64, 0, words.max(0) as usize) }
+    UNWIND.with(|u| unsafe { (*u.get()).push((base, words)) });
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __rc_unwind_pop() {
+    UNWIND.with(|u| unsafe { (*u.get()).pop() });
+}
+
+pub(crate) fn unwind_depth() -> usize {
+    UNWIND.with(|u| unsafe { (*u.get()).len() })
+}
+
+/// Rend les locales des fonctions enregistrées au-dessus de `depth`.
+pub(crate) fn unwind_to(depth: usize) {
+    loop {
+        let Some((base, words)) = UNWIND.with(|u| unsafe {
+            let records = &mut *u.get();
+            if records.len() > depth { records.pop() } else { None }
+        }) else { break };
+        for i in 0..words.max(0) {
+            let word = (base + 8 * i) as *mut i64;
+            unsafe {
+                let val = std::mem::replace(&mut *word, 0);
+                release(val);
+            }
         }
     }
 }

@@ -39,6 +39,14 @@ pub fn emit_memory(
             def!(dest, addr);
         }
 
+        Inst::AllocaWords { dest, words } => {
+            let slot = builder.create_sized_stack_slot(StackSlotData::new(
+                StackSlotKind::ExplicitSlot, (*words).max(1) * 8,
+            ));
+            let addr = builder.ins().stack_addr(clt::I64, slot, 0);
+            def!(dest, addr);
+        }
+
         Inst::Store { ptr, src } => {
             let p = use_var!(ptr);
             let s = use_var!(src);

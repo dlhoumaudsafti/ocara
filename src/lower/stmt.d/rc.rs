@@ -35,9 +35,7 @@ pub fn retain(builder: &mut LowerBuilder, v: &Value) {
 }
 
 pub fn release(builder: &mut LowerBuilder, v: &Value) {
-    if !builder.rc_no_release {
-        emit_call(builder, "__rc_release", v);
-    }
+    emit_call(builder, "__rc_release", v);
 }
 
 /// `array<int|float|bool>`/`map<K, int|float|bool>` : éléments bruts.
@@ -56,42 +54,72 @@ pub fn mark_raw_if_primitive(builder: &mut LowerBuilder, ty: &Type, v: &Value) {
 
 pub fn begin_temps(builder: &mut LowerBuilder) {
     builder.rc_temps.push(Vec::new());
+    builder.rc_temps_emit.push(false);
+}
+
+/// Un `emit` suspend le générateur : les temporaires des statements ouverts
+/// ne seront plus valides à la reprise.
+pub fn mark_emit(builder: &mut LowerBuilder) {
+    builder.rc_temps_emit.iter_mut().for_each(|crossed| *crossed = true);
+}
+
+fn crossed_emit(builder: &LowerBuilder, depth: usize) -> bool {
+    builder.rc_temps_emit.get(depth).copied().unwrap_or(false)
 }
 
 /// Fin du statement : relâche ses temporaires (si le chemin courant continue).
 pub fn end_temps(builder: &mut LowerBuilder) {
+    let crossed = builder.rc_temps_emit.pop().unwrap_or(false);
     let frame = builder.rc_temps.pop().unwrap_or_default();
-    if !builder.is_terminated() {
+    if !builder.is_terminated() && !crossed {
         for v in frame.iter().rev() {
-            release(builder, v);
+            release_temp(builder, v);
         }
     }
+}
+
+/// Relâche un temporaire et remet son mot de déroulement à zéro.
+fn release_temp(builder: &mut LowerBuilder, v: &Value) {
+    release(builder, v);
+    clear_temp_word(builder, v);
+}
+
+fn clear_temp_word(builder: &mut LowerBuilder, v: &Value) {
+    let Some(word) = builder.rc_temp_words.get(v).cloned() else { return };
+    let zero = builder.new_value();
+    builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+    builder.emit(Inst::Store { ptr: word, src: zero });
 }
 
 /// Relâche tout de suite les temporaires du statement courant (condition
 /// d'un `if`/`while`, évaluée dans un bloc qui ne domine pas la suite).
 pub fn flush_temps(builder: &mut LowerBuilder) {
+    if builder.rc_temps_emit.last().copied().unwrap_or(false) {
+        return;
+    }
     let frame = builder.rc_temps.last_mut().map(std::mem::take).unwrap_or_default();
     for v in frame.iter().rev() {
-        release(builder, v);
+        release_temp(builder, v);
     }
 }
 
+/// Temporaire possédé du statement courant ; rangé dans un mot de
+/// déroulement pour qu'un `raise` traversant le rende.
 pub fn track(builder: &mut LowerBuilder, v: &Value) {
-    if let Some(frame) = builder.rc_temps.last_mut() {
-        frame.push(v.clone());
-    }
+    let Some(frame) = builder.rc_temps.last_mut() else { return };
+    frame.push(v.clone());
+    let Some(base) = builder.rc_unwind_base.clone() else { return };
+    let word = new_word(builder, &base);
+    builder.emit(Inst::Store { ptr: word.clone(), src: v.clone() });
+    builder.rc_temp_words.insert(v.clone(), word);
 }
 
 /// Retire `v` des temporaires : vrai s'il était possédé.
 pub fn claim(builder: &mut LowerBuilder, v: &Value) -> bool {
-    for frame in builder.rc_temps.iter_mut().rev() {
-        if let Some(i) = frame.iter().position(|t| t == v) {
-            frame.remove(i);
-            return true;
-        }
-    }
-    false
+    let Some(frame) = builder.rc_temps.iter_mut().rev().find(|f| f.contains(v)) else { return false };
+    frame.retain(|t| t != v);
+    clear_temp_word(builder, v);
+    true
 }
 
 /// Un stockage compté prend `v` : la référence d'un temporaire possédé est
@@ -128,13 +156,26 @@ pub fn keep_task_args(builder: &mut LowerBuilder, callee: &str, vals: &[Value]) 
 /// Relâche (sans les retirer) les temporaires des statements ouverts à
 /// partir de la profondeur `depth` — sortie anticipée.
 pub fn release_temps_from(builder: &mut LowerBuilder, depth: usize) {
-    let pending: Vec<Value> = builder.rc_temps.iter().skip(depth).rev().flat_map(|f| f.iter().rev().cloned()).collect();
+    let pending: Vec<Value> = builder.rc_temps.iter().enumerate().skip(depth).rev()
+        .filter(|(i, _)| !crossed_emit(builder, *i))
+        .flat_map(|(_, f)| f.iter().rev().cloned())
+        .collect();
     for v in &pending {
-        release(builder, v);
+        release_temp(builder, v);
     }
 }
 
 // ── Locales ─────────────────────────────────────────────────────────────────
+
+/// Locale d'une portée ouverte. `word` : son mot dans le tableau de
+/// déroulement de la fonction (voir `begin_unwind`), remis à zéro quand la
+/// locale est rendue.
+#[derive(Clone)]
+pub struct RcLocal {
+    pub name: String,
+    pub counted: bool,
+    pub word: Option<Value>,
+}
 
 pub fn begin_scope(builder: &mut LowerBuilder) {
     builder.rc_scopes.push(Vec::new());
@@ -143,7 +184,7 @@ pub fn begin_scope(builder: &mut LowerBuilder) {
 pub fn end_scope(builder: &mut LowerBuilder) {
     let frame = builder.rc_scopes.pop().unwrap_or_default();
     if !builder.is_terminated() {
-        let locals: Vec<(String, bool)> = frame.into_iter().rev().collect();
+        let locals: Vec<RcLocal> = frame.into_iter().rev().collect();
         release_locals(builder, &locals);
     }
 }
@@ -151,21 +192,42 @@ pub fn end_scope(builder: &mut LowerBuilder) {
 /// Relâche les locales `locals`, dans cet ordre : une locale promue rend sa
 /// cellule (qui relâche la valeur quand plus aucune closure ne la tient),
 /// une locale comptée sa valeur.
-fn release_locals(builder: &mut LowerBuilder, locals: &[(String, bool)]) {
-    for (name, counted) in locals {
-        if builder.captured_vars.contains_key(name) {
-            continue;
-        }
-        if builder.heap_promoted.contains(name) {
-            if let Some((cell, _, _)) = builder.locals.get(name).cloned() {
-                release(builder, &cell);
-            }
-        } else if *counted {
-            if let Some((v, _)) = builder.load_local(name) {
-                release(builder, &v);
-            }
-        }
+fn release_locals(builder: &mut LowerBuilder, locals: &[RcLocal]) {
+    for local in locals {
+        release_local(builder, local);
     }
+}
+
+fn release_local(builder: &mut LowerBuilder, local: &RcLocal) {
+    if builder.captured_vars.contains_key(&local.name) {
+        return;
+    }
+    if builder.heap_promoted.contains(&local.name) {
+        if let Some((cell, _, _)) = builder.locals.get(&local.name).cloned() {
+            release(builder, &cell);
+        }
+    } else if local.counted {
+        let Some((v, _)) = builder.load_local(&local.name) else { return };
+        release(builder, &v);
+        if builder.rc_generator {
+            clear_local(builder, &local.name);
+        }
+    } else {
+        return;
+    }
+    if let Some(word) = &local.word {
+        let zero = builder.new_value();
+        builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+        builder.emit(Inst::Store { ptr: word.clone(), src: zero });
+    }
+}
+
+/// Champ du frame d'un générateur remis à zéro une fois relâché : la
+/// destruction du frame (`__drop`) ne le relâchera pas une seconde fois.
+fn clear_local(builder: &mut LowerBuilder, name: &str) {
+    let zero = builder.new_value();
+    builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+    builder.store_local(name, zero);
 }
 
 /// `consumed` comptée : relâchée juste après le statement de son premier
@@ -185,19 +247,19 @@ pub fn release_consumed_used_in(builder: &mut LowerBuilder, stmt: &crate::parsin
             continue;
         }
         builder.rc_consumed.remove(&name);
-        let Some(frame) = builder.rc_scopes.iter_mut().rev().find(|f| f.iter().any(|(n, _)| *n == name)) else { continue };
-        frame.retain(|(n, _)| *n != name);
-        if let Some((v, _)) = builder.load_local(&name) {
-            release(builder, &v);
-        }
+        let Some(frame) = builder.rc_scopes.iter_mut().rev().find(|f| f.iter().any(|l| l.name == name)) else { continue };
+        let Some(i) = frame.iter().position(|l| l.name == name) else { continue };
+        let local = frame.remove(i);
+        release_local(builder, &local);
     }
 }
 
 /// Locale comptée : relâchée à la fin de la portée courante.
 pub fn declare(builder: &mut LowerBuilder, name: &str) {
     builder.rc_counted_locals.insert(name.to_string());
+    let word = bind_word(builder, name);
     if let Some(frame) = builder.rc_scopes.last_mut() {
-        frame.push((name.to_string(), true));
+        frame.push(RcLocal { name: name.to_string(), counted: true, word });
     }
 }
 
@@ -205,7 +267,7 @@ pub fn declare(builder: &mut LowerBuilder, name: &str) {
 pub fn declare_plain(builder: &mut LowerBuilder, name: &str) {
     builder.rc_counted_locals.remove(name);
     if let Some(frame) = builder.rc_scopes.last_mut() {
-        frame.push((name.to_string(), false));
+        frame.push(RcLocal { name: name.to_string(), counted: false, word: None });
     }
 }
 
@@ -216,7 +278,7 @@ pub fn is_counted_local(builder: &LowerBuilder, name: &str) -> bool {
 
 /// Relâche les locales des portées ouvertes à partir de `depth`.
 pub fn release_scopes_from(builder: &mut LowerBuilder, depth: usize) {
-    let locals: Vec<(String, bool)> = builder.rc_scopes.iter().skip(depth).rev().flat_map(|f| f.iter().rev().cloned()).collect();
+    let locals: Vec<RcLocal> = builder.rc_scopes.iter().skip(depth).rev().flat_map(|f| f.iter().rev().cloned()).collect();
     release_locals(builder, &locals);
 }
 
@@ -238,6 +300,85 @@ pub fn assign_local(builder: &mut LowerBuilder, name: &str, val: Value, fresh: b
     }
 }
 
+// ── Déroulement par `raise` ─────────────────────────────────────────────────
+
+/// Les locales comptées de la fonction vivront dans un tableau de mots sur
+/// sa pile, enregistré auprès du runtime (`__rc_unwind_push`) : un `raise`
+/// qui traverse la fonction les rend avant son `longjmp`. Le tableau n'est
+/// matérialisé qu'à la fin (`finish_unwind`), s'il sert.
+pub fn begin_unwind(builder: &mut LowerBuilder) {
+    builder.rc_unwind_base = Some(builder.new_value());
+    builder.rc_unwind_words = 0;
+}
+
+/// Déplace la locale `name` dans un nouveau mot du tableau de déroulement.
+fn bind_word(builder: &mut LowerBuilder, name: &str) -> Option<Value> {
+    let base = builder.rc_unwind_base.clone()?;
+    if builder.frame_vars.contains_key(name) || builder.heap_promoted.contains(name) {
+        return None;
+    }
+    let (slot, ty, mutable) = builder.locals.get(name).cloned()?;
+    let word = new_word(builder, &base);
+    let cur = builder.new_value();
+    builder.emit(Inst::Load { dest: cur.clone(), ptr: slot, ty: ty.clone() });
+    builder.emit(Inst::Store { ptr: word.clone(), src: cur });
+    builder.locals.insert(name.to_string(), (word.clone(), ty, mutable));
+    Some(word)
+}
+
+fn new_word(builder: &mut LowerBuilder, base: &Value) -> Value {
+    let offset = builder.new_value();
+    builder.emit(Inst::ConstInt { dest: offset.clone(), value: builder.rc_unwind_words as i64 * 8 });
+    builder.rc_unwind_words += 1;
+    let word = builder.new_value();
+    builder.emit(Inst::Add { dest: word.clone(), lhs: base.clone(), rhs: offset, ty: IrType::I64 });
+    word
+}
+
+/// Mot de déroulement d'une locale promue : il porte désormais la cellule.
+fn word_for_cell(builder: &mut LowerBuilder, name: &str, cell: &Value) {
+    let Some(base) = builder.rc_unwind_base.clone() else { return };
+    let Some(pos) = builder.rc_scopes.iter().rposition(|f| f.iter().any(|l| l.name == name)) else { return };
+    let existing = builder.rc_scopes[pos].iter().rev().find(|l| l.name == name).and_then(|l| l.word.clone());
+    let word = match existing {
+        Some(word) => word,
+        None => new_word(builder, &base),
+    };
+    builder.emit(Inst::Store { ptr: word.clone(), src: cell.clone() });
+    if let Some(local) = builder.rc_scopes[pos].iter_mut().rev().find(|l| l.name == name) {
+        local.word = Some(word);
+    }
+}
+
+/// Matérialise le tableau de déroulement s'il sert : alloué et enregistré
+/// en tête de fonction, retiré avant chaque `Return`.
+pub fn finish_unwind(builder: &mut LowerBuilder) {
+    let Some(base) = builder.rc_unwind_base.take() else { return };
+    let words = builder.rc_unwind_words;
+    if words == 0 {
+        return;
+    }
+    let count = builder.new_value();
+    let prologue = vec![
+        Inst::AllocaWords { dest: base.clone(), words },
+        Inst::ConstInt { dest: count.clone(), value: words as i64 },
+        Inst::Call { dest: None, func: "__rc_unwind_push".into(), args: vec![base, count], ret_ty: IrType::Void },
+    ];
+    for block in builder.func.blocks.iter_mut() {
+        let mut insts = Vec::with_capacity(block.insts.len() + 1);
+        for inst in block.insts.drain(..) {
+            if matches!(inst, Inst::Return { .. }) {
+                insts.push(Inst::Call { dest: None, func: "__rc_unwind_pop".into(), args: vec![], ret_ty: IrType::Void });
+            }
+            insts.push(inst);
+        }
+        block.insts = insts;
+    }
+    if let Some(entry) = builder.func.blocks.first_mut() {
+        entry.insts.splice(0..0, prologue);
+    }
+}
+
 // ── Cellules de capture ─────────────────────────────────────────────────────
 
 /// Promeut la locale `name` (slot `slot`) dans une cellule comptée partagée
@@ -256,6 +397,7 @@ pub fn promote_to_cell(builder: &mut LowerBuilder, name: &str, slot: Value, ty: 
         retain(builder, &cur);
     }
     builder.emit(Inst::Call { dest: None, func: "__locked_cell_set".into(), args: vec![cell.clone(), cur], ret_ty: IrType::Void });
+    word_for_cell(builder, name, &cell);
     cell
 }
 
