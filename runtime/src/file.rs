@@ -75,9 +75,9 @@ pub unsafe extern "C" fn File_readBytes(path_ptr: i64) -> i64 {
         match fs::read(&path) {
             Ok(bytes) => {
                 // Créer un array Ocara d'entiers
-                let arr_ptr = crate::__array_new();
+                let arr_ptr = crate::rc::__rc_mark_raw(crate::__array_new());
                 for byte in bytes {
-                    crate::__array_push(arr_ptr, byte as i64);
+                    crate::array_push_owned(arr_ptr, byte as i64);
                 }
                 arr_ptr
             }

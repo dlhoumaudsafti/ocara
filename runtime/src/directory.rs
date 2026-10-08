@@ -127,7 +127,7 @@ pub unsafe extern "C" fn Directory_list(path_ptr: i64) -> i64 {
                     if let Ok(entry) = entry {
                         if let Some(name) = entry.file_name().to_str() {
                             let name_ptr = alloc_str(name);
-                            crate::__array_push(arr_ptr, name_ptr);
+                            crate::array_push_owned(arr_ptr, name_ptr);
                         }
                     }
                 }
@@ -159,7 +159,7 @@ pub unsafe extern "C" fn Directory_listFiles(path_ptr: i64) -> i64 {
                             if meta.is_file() {
                                 if let Some(name) = entry.file_name().to_str() {
                                     let name_ptr = alloc_str(name);
-                                    crate::__array_push(arr_ptr, name_ptr);
+                                    crate::array_push_owned(arr_ptr, name_ptr);
                                 }
                             }
                         }
@@ -193,7 +193,7 @@ pub unsafe extern "C" fn Directory_listDirs(path_ptr: i64) -> i64 {
                             if meta.is_dir() {
                                 if let Some(name) = entry.file_name().to_str() {
                                     let name_ptr = alloc_str(name);
-                                    crate::__array_push(arr_ptr, name_ptr);
+                                    crate::array_push_owned(arr_ptr, name_ptr);
                                 }
                             }
                         }

@@ -31,6 +31,7 @@ fn lower_elseif_chain(
 
     let (cond_expr, then_blk) = &elseif[0];
     let cond_val = lower_expr(builder, cond_expr);
+    crate::lower::stmt::rc::flush_temps(builder);
     let then_bb  = builder.new_block();
     let next_bb  = builder.new_block();
 
@@ -84,6 +85,7 @@ pub fn lower_if(
     else_block: &Option<Block>,
 ) {
     let cond_val = lower_expr(builder, condition);
+    crate::lower::stmt::rc::flush_temps(builder);
     let then_bb  = builder.new_block();
     let else_bb  = builder.new_block();
     let merge_bb = builder.new_block();
@@ -194,6 +196,7 @@ pub fn lower_while(
     builder.switch_to(&cond_bb);
 
     let cond_val = lower_expr(builder, condition);
+    crate::lower::stmt::rc::flush_temps(builder);
     builder.emit(Inst::Branch {
         cond:    cond_val,
         then_bb: body_bb.clone(),
@@ -203,9 +206,11 @@ pub fn lower_while(
     builder.switch_to(&body_bb);
     // continue → cond_bb (réévalue la condition), break → merge_bb
     builder.loop_stack.push((cond_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len()));
+    crate::lower::stmt::rc::enter_loop(builder);
     builder.loop_depth += 1;
     lower_block(builder, body);
     builder.loop_depth -= 1;
+    crate::lower::stmt::rc::exit_loop(builder);
     builder.loop_stack.pop();
     if !builder.is_terminated() {
         builder.emit(Inst::Jump { target: cond_bb.clone() });

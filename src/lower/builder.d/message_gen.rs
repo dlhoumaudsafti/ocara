@@ -182,6 +182,7 @@ fn generate_new_fn(
         .map(|(i, p)| IrParam { name: p.name.clone(), ty: IrType::from_ast(&p.ty), slot: Value(i as u32) })
         .collect();
     let mut builder = LowerBuilder::new(module, new_func_name(&func.name), ir_params, IrType::Ptr);
+    builder.rc_no_release = true;
 
     // Setup params (même patron receiver que `lower_func`) : chaque
     // paramètre atterrit dans un Alloca stack ordinaire ICI (cette fonction
@@ -206,6 +207,8 @@ fn generate_new_fn(
 
     for p in &func.params {
         let (val, _ty) = builder.load_local(&p.name).expect("paramètre déclaré juste au-dessus");
+        let counted = crate::lower::stmt::rc::counted(&builder, &p.ty);
+        crate::lower::stmt::rc::keep(&mut builder, &val, counted);
         let off = field_index(fields, &p.name) as i32 * 8;
         builder.emit(Inst::SetField { obj: frame.clone(), field: p.name.clone(), src: val, offset: off });
     }
@@ -226,6 +229,7 @@ fn generate_resume_fn(
 ) {
     let ir_params = vec![IrParam { name: "__frame".into(), ty: IrType::Ptr, slot: Value(0) }];
     let mut builder = LowerBuilder::new(module, resume_func_name(&func.name), ir_params, IrType::Bool);
+    builder.rc_no_release = true;
     builder.fn_ret_types   = fn_ret_types.clone();
     builder.fn_param_types = fn_param_types.clone();
     builder.fn_param_names = fn_param_names.clone();
@@ -247,7 +251,6 @@ fn generate_resume_fn(
 
     let start_bb = builder.new_block();
     builder.switch_to(&start_bb);
-    crate::lower::stmt::element_escape::prepare_body(&mut builder, &func.body, &func.params, false);
     crate::lower::stmt::lower_block(&mut builder, &func.body);
 
     // Fin naturelle du corps (pas de `return`/`emit` terminal) : générateur épuisé.
@@ -619,9 +622,11 @@ pub fn lower_for_message(
     builder.store_local(var, val);
 
     builder.loop_stack.push((cond_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len()));
+    crate::lower::stmt::rc::enter_loop(builder);
     builder.loop_depth += 1;
     crate::lower::stmt::lower_block(builder, body);
     builder.loop_depth -= 1;
+    crate::lower::stmt::rc::exit_loop(builder);
     builder.loop_stack.pop();
 
     if !builder.is_terminated() {
@@ -652,6 +657,10 @@ pub fn lower_array_from_message(builder: &mut LowerBuilder, expr: &Expr, mangled
 
     let arr = builder.new_value();
     builder.emit(Inst::Call { dest: Some(arr.clone()), func: "__array_new".into(), args: vec![], ret_ty: IrType::Ptr });
+    if matches!(elem_ty, IrType::I64 | IrType::F64 | IrType::Bool) {
+        let marked = builder.new_value();
+        builder.emit(Inst::Call { dest: Some(marked), func: "__rc_mark_raw".into(), args: vec![arr.clone()], ret_ty: IrType::Ptr });
+    }
 
     let cond_bb  = builder.new_block();
     let body_bb  = builder.new_block();

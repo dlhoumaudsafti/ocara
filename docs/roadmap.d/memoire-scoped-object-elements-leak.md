@@ -1,5 +1,7 @@
 # Objets d'un conteneur `scoped`/`consumed` — corrigé (cas prouvés)
 
+> **Remplacé par le comptage de références** (2026-10-08) : la preuve statique décrite ici a été supprimée — voir [memoire-refcount.md](memoire-refcount.md). Fiche gardée pour l'historique.
+
 ## Constat
 
 `scoped items:array<Item>` ne libérait que le tableau : `__value_free` ignore
@@ -112,15 +114,11 @@ Mesures (20 000 puis 200 000 appels) : `scoped items = all()`,
   réaffectée, et si toutes les lectures suivantes sont dans le bloc de sa
   déclaration (chemins de blocs : `object_ast::ident_positions`).
 
-## Reste ouvert — à trancher
+## Reste ouvert
 
-- **Conteneur réellement partagé** : transféré à deux porteurs, ou relu hors
-  du bloc de son porteur. Sans comptage de références (exclu : pas de GC),
-  aucun porteur ne peut le libérer seul, d'où une fuite. Options :
-  - **erreur de compilation** : un conteneur d'objets n'a qu'un porteur, il
-    faut écrire une copie explicite sinon ;
-  - **avertissement** à la compilation, le comportement restant inchangé.
-- Receveur de type `mixed` : repli prudent par nom de champ.
+Conteneur réellement partagé (deux porteurs, relu hors du bloc du porteur) :
+tranché le 2026-10-05 en faveur du comptage de références, qui remplace
+cette preuve statique — voir [memoire-refcount.md](memoire-refcount.md).
 
 Tests : `examples/tests/81_object_ownership_transfersTest.oc`,
 `examples/tests/82_object_ownership_precisionTest.oc`, tests unitaires de

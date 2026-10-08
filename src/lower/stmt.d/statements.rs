@@ -71,10 +71,16 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
                 // Littéral retourné : typé par le type de retour déclaré
                 // (`return [[0, 3]]` pour `array<array<int>>`), consommation
                 // scalaire d'un `message<T>` comprise.
-                let ret_ty = builder.ret_ast_ty.clone().unwrap_or(Type::Mixed);
+                let declared = builder.ret_ast_ty.clone();
+                let ret_ty = declared.clone().unwrap_or(Type::Mixed);
+                let val_ty = crate::lower::expr::expr_ir_type_pub(builder, e);
                 let val = lower_literal_or_expr(builder, e, &ret_ty);
-                crate::lower::stmt::ownership::maybe_clone_escaping(builder, e, val)
+                match declared {
+                    Some(ty) => returned_value(builder, &ty, val_ty, val),
+                    None => val,
+                }
             });
+            crate::lower::stmt::rc::release_all(builder);
             // Sortie anticipée de la fonction : détruit toutes les
             // scoped/consumed encore vivantes dans les blocs actuellement
             // ouverts (v, calculé juste au-dessus, a déjà sa propre copie
@@ -105,6 +111,11 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
                 // Fonction normale : vrai return.
                 // (`return` est rejeté par la sema à l'intérieur d'un bloc runtime —
                 // voir Stmt::Result pour le sucre ERROR/jump propre aux blocs runtime.)
+                let v = v.or_else(|| (builder.func.ret_ty != IrType::Void).then(|| {
+                    let zero = builder.new_value();
+                    builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+                    zero
+                }));
                 builder.emit(Inst::Return { value: v });
             }
         }
@@ -122,6 +133,7 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
             // handler (comportement historique, préservé à l'identique).
             if builder.func.name.starts_with("__try_handler_") {
                 let v = value.as_ref().map(|e| lower_expr(builder, e));
+                crate::lower::stmt::rc::release_all(builder);
                 let return_val = v.clone().unwrap_or_else(|| {
                     let zero = builder.new_value();
                     builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
@@ -161,6 +173,7 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
 
                     // Sauter au label de sortie anticipée du bloc main
                     if let Some(exit_bb) = builder.runtime_exit_bb.clone() {
+                        crate::lower::stmt::rc::release_all(builder);
                         crate::lower::stmt::ownership::emit_early_exit_drops(builder, 0);
                         builder.emit(Inst::Jump { target: exit_bb });
                         return; // Ne pas émettre de Return après
@@ -168,12 +181,14 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
                 }
 
                 // Fallback : émettre return normal si pas de runtime_exit_bb
+                crate::lower::stmt::rc::release_all(builder);
                 crate::lower::stmt::ownership::emit_early_exit_drops(builder, 0);
                 builder.emit(Inst::Return { value: Some(result_val) });
             } else {
                 // Fallback défensif (error/success/exit, ou contexte inattendu) :
                 // se comporte comme un vrai return de la fonction main() synthétisée.
                 let v = value.as_ref().map(|e| lower_expr(builder, e));
+                crate::lower::stmt::rc::release_all(builder);
                 crate::lower::stmt::ownership::emit_early_exit_drops(builder, 0);
                 builder.emit(Inst::Return { value: v });
             }
@@ -242,4 +257,17 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
             builder.switch_to(&resume_bb);
         }
     }
+}
+
+/// Valeur retournée : boxée si la fonction retourne `mixed`, puis possédée
+/// par l'appelant (+1) si son type est compté.
+fn returned_value(builder: &mut LowerBuilder, ret_ty: &Type, val_ty: IrType, val: crate::ir::inst::Value) -> crate::ir::inst::Value {
+    let boxed = match ret_ty {
+        Type::Mixed => statements_impl::helpers::box_for_any(builder, &IrType::Ptr, val_ty, val.clone()),
+        _ => val.clone(),
+    };
+    if boxed == val && crate::lower::stmt::rc::counted(builder, ret_ty) {
+        crate::lower::stmt::rc::take(builder, &boxed);
+    }
+    boxed
 }

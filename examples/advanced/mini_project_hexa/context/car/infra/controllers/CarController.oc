@@ -75,10 +75,6 @@ class CarController {
     }
 
     public static method create(req:HTTPServerRequest): int {
-        // `const` (pas `scoped`) : Car::create() les bind dans une map passée
-        // à db.bind(), donc les retient au-delà de cet appel — une valeur
-        // `scoped`/`consumed` ne peut pas être passée là où l'appelé la
-        // retient (voir E26, docs/diagnostics.md).
         const reference:string = req.param("reference").trim()
         const brand:string     = req.param("brand").trim()
         const model:string     = req.param("model").trim()

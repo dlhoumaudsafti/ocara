@@ -172,6 +172,11 @@ fn capture_map(val: i64, each: impl Fn(i64) -> Result<Stored, &'static str>) -> 
 }
 
 /// Copie Rust → valeur Ocara neuve ; `raw` : feuilles non boxées (conteneur concret).
+/// Feuille scalaire : brute dans un conteneur à éléments concrets.
+fn is_scalar(s: &Stored) -> bool {
+    matches!(s, Stored::Int(_) | Stored::Float(_) | Stored::Bool(_))
+}
+
 pub(crate) fn materialize(s: &Stored, raw: bool) -> i64 {
     match s {
         Stored::Null => 0,
@@ -184,11 +189,13 @@ pub(crate) fn materialize(s: &Stored, raw: bool) -> i64 {
         Stored::Str(text) => unsafe { alloc_str(text) },
         Stored::Array(items) => {
             let arr = crate::__array_new();
-            items.iter().for_each(|item| crate::__array_push(arr, materialize(item, raw)));
+            if raw && items.iter().any(is_scalar) { crate::rc::__rc_mark_raw(arr); }
+            items.iter().for_each(|item| crate::array_push_owned(arr, materialize(item, raw)));
             arr
         }
         Stored::Map(pairs) => {
             let map = crate::__map_new();
+            if raw && pairs.iter().any(|(_, v)| is_scalar(v)) { crate::rc::__rc_mark_raw(map); }
             for (k, v) in pairs {
                 crate::map_set_owned_key(map, unsafe { alloc_str(k) }, materialize(v, raw));
             }

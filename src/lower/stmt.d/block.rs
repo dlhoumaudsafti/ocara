@@ -10,6 +10,8 @@ pub fn lower_block(builder: &mut LowerBuilder, block: &Block) {
     // consultée par `emit_early_exit_drops` sur un `return`/`break`/
     // `continue` anticipé (voir la doc de `block_scope_stack`).
     builder.block_scope_stack.push(Vec::new());
+    super::rc::begin_scope(builder);
+    let counted_snapshot = builder.rc_counted_locals.clone();
 
     // `builder.locals` (nom → slot) est une unique table plate, pas une
     // pile de scopes comme côté sema (`crate::sema::scope::ScopeStack`) :
@@ -25,11 +27,14 @@ pub fn lower_block(builder: &mut LowerBuilder, block: &Block) {
 
     for stmt in &block.stmts {
         if builder.is_terminated() { break; }
+        super::rc::begin_temps(builder);
         lower_stmt(builder, stmt);
+        super::rc::end_temps(builder);
         // `consumed` : détruite juste après son unique usage permis, s'il
         // se trouve dans ce statement (voir crate::lower::stmt::ownership).
         if !builder.is_terminated() {
             drop_consumed_used_in(builder, stmt);
+            super::rc::release_consumed_used_in(builder, stmt);
         }
     }
     // `scoped`, et `consumed` jamais utilisée : détruites en fin de bloc —
@@ -41,6 +46,8 @@ pub fn lower_block(builder: &mut LowerBuilder, block: &Block) {
     if !builder.is_terminated() {
         emit_scope_drops(builder, block);
     }
+    super::rc::end_scope(builder);
+    builder.rc_counted_locals = counted_snapshot;
 
     // Restaure la vue "avant ce bloc" (voir le commentaire au-dessus de
     // `locals_snapshot`) — indépendant de la terminaison : le code qui suit

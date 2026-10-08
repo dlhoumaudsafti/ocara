@@ -171,6 +171,7 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
             body_ret_ty.clone(),
         );
         bb.fn_ret_types    = builder.fn_ret_types.clone();
+        bb.rc_counted_locals = builder.rc_counted_locals.clone();
         bb.fn_param_types  = builder.fn_param_types.clone();
         bb.fn_param_names  = builder.fn_param_names.clone();
         bb.fn_variadic_info = builder.fn_variadic_info.clone();
@@ -270,6 +271,8 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
             handler_ret_ty,
         );
         hb.fn_ret_types    = builder.fn_ret_types.clone();
+        hb.ret_ast_ty      = builder.ret_ast_ty.clone();
+        hb.rc_counted_locals = builder.rc_counted_locals.clone();
         hb.fn_param_types  = builder.fn_param_types.clone();
         hb.fn_param_names  = builder.fn_param_names.clone();
         hb.fn_variadic_info = builder.fn_variadic_info.clone();

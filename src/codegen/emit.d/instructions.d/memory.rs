@@ -7,6 +7,7 @@ use cranelift_module::{FuncId, Module};
 use cranelift_object::ObjectModule;
 use crate::ir::inst::Inst;
 use super::super::error::CgResult;
+use super::constants::string_address;
 
 pub fn emit_memory(
     builder: &mut FunctionBuilder,
@@ -15,7 +16,7 @@ pub fn emit_memory(
     module: &mut ObjectModule,
     func_ids: &HashMap<String, FuncId>,
     class_layouts: &HashMap<String, Vec<(String, cranelift_codegen::ir::Type)>>,
-    class_ids: &HashMap<String, i64>,
+    class_ids: &HashMap<String, (i64, Option<u32>)>,
 ) -> CgResult<bool> {
     macro_rules! def {
         ($v:expr, $val:expr) => {
@@ -85,13 +86,17 @@ pub fn emit_memory(
                 let n_fields = class_layouts.get(class.as_str()).map(|f| f.len()).unwrap_or(1);
                 let size     = (n_fields as i64) * 8;
                 let size_val = builder.ins().iconst(clt::I64, size);
-                let class_id = class_ids.get(class.as_str()).copied().unwrap_or(0);
+                let (class_id, mask) = class_ids.get(class.as_str()).copied().unwrap_or((0, None));
                 let class_id_val = builder.ins().iconst(clt::I64, class_id);
+                let desc_val = match mask {
+                    Some(idx) => string_address(builder, module, idx)?,
+                    None => builder.ins().iconst(clt::I64, 0),
+                };
                 let alloc_fid = func_ids.get("__alloc_class_obj")
                     .copied()
                     .expect("__alloc_class_obj non déclaré");
                 let fref = module.declare_func_in_func(alloc_fid, builder.func);
-                let call = builder.ins().call(fref, &[size_val, class_id_val]);
+                let call = builder.ins().call(fref, &[size_val, class_id_val, desc_val]);
                 let ptr  = builder.inst_results(call)[0];
                 def!(dest, ptr);
             }

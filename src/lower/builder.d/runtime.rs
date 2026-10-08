@@ -341,7 +341,6 @@ fn lower_runtime_main_manual(
         stmts: all_stmts[RUNTIME_VARS_COUNT..main_end_index].to_vec(),
         span: Span::new(0, 0),
     };
-    crate::lower::stmt::element_escape::prepare_body(&mut builder, &init_main_block, &[], false);
     lower_block(&mut builder, &init_main_block);
 
     // Basculer vers le label de sortie anticipée
@@ -367,7 +366,6 @@ fn lower_runtime_main_manual(
         stmts: all_stmts[exit_start_index..all_stmts.len() - 1].to_vec(),
         span: Span::new(0, 0),
     };
-    crate::lower::stmt::element_escape::prepare_body(&mut builder, &exit_block, &[], false);
     lower_block(&mut builder, &exit_block);
 
     lower_stmt(&mut builder, &all_stmts[all_stmts.len() - 1]);

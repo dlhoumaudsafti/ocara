@@ -41,12 +41,6 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     // Stocker le nom du fichier source pour les messages d'erreur
     module.source_file = source_file.to_string();
 
-    // Analyse d'échappement interprocédurale (voir crate::sema::escape) —
-    // nécessaire pour décider si un `var` peut être libéré automatiquement
-    // en fin de bloc (voir lower::stmt::ownership::register_owned_local).
-    module.escaping_params = crate::sema::escape::compute_escaping_params(program);
-    module.class_members   = crate::sema::escape::collect_class_members(&program.classes);
-
     // Enregistre les modules importés (dernier segment du path : "ocara.IO" → "IO")
     for imp in &program.imports {
         if let Some(last) = imp.path.last() {
@@ -467,6 +461,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     module.class_layouts.insert("MariaDBException".to_string(), exception_layout.clone());
     module.class_layouts.insert("DotEnvException".to_string(), exception_layout.clone());
     module.class_layouts.insert("YAMLException".to_string(), exception_layout);
+    super::rc_layout::compute_rc_objects(&mut module, program);
 
     // Ajouter les layouts des builtins opaques (pointeur vers structure Rust)
     // Ces classes ont un constructeur _init qui alloue une structure opaque
@@ -541,45 +536,6 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
             module.param_ast_types.insert(format!("{}_init", class.name), ctor_params.iter().map(|p| p.ty.clone()).collect());
         }
     }
-
-    // Paramètres conservés par chaque appelé (voir `element_escape`).
-    let mut callables: Vec<(String, Option<&str>, &[Param], &Block, Option<Type>)> = program.functions.iter()
-        .map(|f| (f.name.clone(), None, f.params.as_slice(), &f.body, Some(f.ret_ty.clone())))
-        .collect();
-    for class in &program.classes {
-        for member in &class.members {
-            if let ClassMember::Method { decl, .. } = member {
-                callables.push((format!("{}_{}", class.name, decl.name), Some(class.name.as_str()), decl.params.as_slice(), &decl.body, Some(decl.ret_ty.clone())));
-            }
-        }
-        if let Some((ctor_params, ctor_body, _)) = super::classes::nearest_constructor(&program.classes, class) {
-            callables.push((format!("{}_init", class.name), Some(class.name.as_str()), ctor_params, ctor_body, None));
-        }
-    }
-    module.param_keeps = crate::lower::stmt::element_escape::compute_param_keeps(&callables, &module.param_ast_types, &module.class_field_types);
-    let parents: HashMap<String, String> = program.classes.iter()
-        .filter_map(|c| c.extends.clone().map(|p| (c.name.clone(), p)))
-        .collect();
-    module.field_decl = crate::lower::stmt::object_facts::field_declarations(&module.class_field_types, &parents);
-    let facts = crate::lower::stmt::object_facts::compute(&crate::lower::stmt::object_facts::Program {
-        callables: &callables, param_types: &module.param_ast_types, param_keeps: &module.param_keeps,
-        field_types: &module.class_field_types, field_decl: &module.field_decl, parents: &parents,
-        ret_types: &module.call_ret_types,
-    });
-    module.fresh_returns = facts.fresh_returns;
-    module.fresh_containers = facts.fresh_containers;
-    module.preserving_params = facts.preserving;
-    module.owning_fields = facts.owning_fields;
-
-    // Génère __free_<Classe>/__clone_<Classe> pour chaque classe utilisateur
-    // (scoped/consumed MaClasse — voir src/lower/builder.d/class_ownership.rs).
-    // Doit tourner APRÈS class_field_types ci-dessus (toutes les classes,
-    // pas seulement celle en cours) : une classe peut référencer une autre
-    // classe pas encore traitée dans cette boucle — sans risque, la
-    // résolution des appels __free_X/__clone_X entre fonctions du module se
-    // fait par nom au codegen (deux passes : déclaration puis définition),
-    // pas par ordre d'ajout à `module.functions`.
-    super::class_ownership::generate_class_ownership_functions(&mut module, program);
 
     // Champs de type map<K,V> par classe (hérités inclus) — voir la doc du champ
     // module.class_map_fields (ir/module.rs) : indispensable pour que
@@ -1036,5 +992,6 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     // Blocs runtime → fonctions __init__, __main__, etc.
     lower_runtime_blocks(&mut module, program, &program.consts, &fn_ret_types, &fn_param_types, &fn_param_names, &fn_variadic_info, &func_default_args, &async_funcs);
 
+    super::rc_layout::compute_class_masks(&mut module);
     module
 }

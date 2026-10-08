@@ -380,7 +380,7 @@ pub unsafe extern "C" fn MySQL_query(db_ptr: i64, query_ptr: i64, placeholder_pt
             for row_result in query_result {
                 let row = row_result
                     .map_err(|e| format!("Failed to read row for query '{}': {}", query, e))?;
-                crate::__array_push(result_array, row_to_map(&row));
+                crate::array_push_owned(result_array, row_to_map(&row));
             }
 
             Ok(result_array)
@@ -585,7 +585,7 @@ pub unsafe extern "C" fn MySQL_commit(db_ptr: i64, close: i64) -> i64 {
                 for row_result in query_result {
                     let row = row_result
                         .map_err(|e| format!("Failed to read row for query '{}': {}", query, e))?;
-                    crate::__array_push(result_array, row_to_map(&row));
+                    crate::array_push_owned(result_array, row_to_map(&row));
                 }
                 Ok(result_array)
             } else {

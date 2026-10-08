@@ -11,7 +11,7 @@ pub fn lower_nameless_fn(
     module:        &mut crate::ir::module::IrModule,
     anon_name:     &str,
     params:        &[Param],
-    _ret_ty:        IrType,  // ignoré — toutes les closures retournent I64 (convention uniforme)
+    ret_ast_ty:    Option<Type>,  // type déclaré ; l'ABI retourne toujours I64
     body:          &Block,
     captures:      &[(String, IrType)],
     fn_ret_types:  &HashMap<String, IrType>,
@@ -59,6 +59,7 @@ pub fn lower_nameless_fn(
         builder.current_class  = current_class.clone();
         builder.var_class      = var_class.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         builder.func_vars      = func_vars.clone();
+        builder.ret_ast_ty     = ret_ast_ty;
 
         // Setup params (alloca + receiver)
         let mut updated_params: Vec<IrParam> = Vec::new();
@@ -189,8 +190,9 @@ pub fn lower_nameless_fn(
             }
         }
 
-        crate::lower::stmt::element_escape::prepare_body(&mut builder, body, params, false);
+        crate::lower::stmt::rc::begin_function(&mut builder, params);
         crate::lower::stmt::lower_block(&mut builder, body);
+        crate::lower::stmt::rc::end_function(&mut builder);
 
         // Toujours retourner I64(0) en fallthrough (convention uniforme CallIndirect)
         if !builder.is_terminated() {

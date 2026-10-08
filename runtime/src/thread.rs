@@ -90,8 +90,10 @@ pub extern "C" fn Thread_run(self_ptr: i64, fat_ptr: i64) {
     let env_ptr  = unsafe { *((fat_ptr as *const i64).add(1)) };
 
     let sc = SendClosure { func_ptr, env_ptr, thread_id: t.id };
+    let guard = crate::rc::ThreadGuard::new();
 
     let handle = match std::thread::Builder::new().spawn(move || {
+        let _guard = guard;
         // Initialiser l'ID du thread courant pour ce thread
         CURRENT_THREAD_ID.with(|c| c.set(sc.thread_id));
         let f: OcaraClosureFn = unsafe { std::mem::transmute(sc.func_ptr as usize) };

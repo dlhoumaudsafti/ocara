@@ -40,31 +40,12 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     // Point d'entrée unique utilisé par le lowering pour toute `scoped`/
     // `consumed` de type valeur (string/array/map) — voir
     // crate::lower::stmt::ownership.
-    BuiltinDesc { name: "__value_free",      params: &[clt::I64],                             returns: None,               module: None },
-    BuiltinDesc { name: "__value_clone",     params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__value_dup_leaf",  params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
     // Conteneurs d'objets : (conteneur, adresse de __free_/__clone_<Classe>).
-    BuiltinDesc { name: "__array_free_objects",  params: &[clt::I64, clt::I64],               returns: None,              module: None },
-    BuiltinDesc { name: "__map_free_objects",    params: &[clt::I64, clt::I64],               returns: None,              module: None },
-    BuiltinDesc { name: "__array_clone_objects", params: &[clt::I64, clt::I64],               returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__map_clone_objects",   params: &[clt::I64, clt::I64],               returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__array_free",      params: &[clt::I64],                             returns: None,               module: None },
-    BuiltinDesc { name: "__map_free",        params: &[clt::I64],                             returns: None,               module: None },
-    BuiltinDesc { name: "__array_clone",     params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__map_clone",       params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
     // Variantes "shallow" pour array<T>/map<K,T> à élément primitif concret
     // (int/float/bool, jamais mixed) — voir runtime/src/lib.rs.
-    BuiltinDesc { name: "__array_free_shallow",  params: &[clt::I64],                         returns: None,               module: None },
-    BuiltinDesc { name: "__map_free_shallow",    params: &[clt::I64],                         returns: None,               module: None },
-    BuiltinDesc { name: "__array_clone_shallow", params: &[clt::I64],                         returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__map_clone_shallow",   params: &[clt::I64],                         returns: Some(clt::I64),    module: None },
     // Conteneur concret imbriqué sur 2+ niveaux (`array<array<int>>`...) —
     // voir `crate::lower::stmt::ownership::concrete_elem_shape` : 2e/3e
     // paramètre = string de "forme" + offset courant.
-    BuiltinDesc { name: "__array_free_concrete",  params: &[clt::I64, clt::I64, clt::I64], returns: None,            module: None },
-    BuiltinDesc { name: "__map_free_concrete",    params: &[clt::I64, clt::I64, clt::I64], returns: None,            module: None },
-    BuiltinDesc { name: "__array_clone_concrete", params: &[clt::I64, clt::I64, clt::I64], returns: Some(clt::I64), module: None },
-    BuiltinDesc { name: "__map_clone_concrete",   params: &[clt::I64, clt::I64, clt::I64], returns: Some(clt::I64), module: None },
 
     // ── Comparaisons avec vérification de type au runtime ─────────────────────
     // Utilisées uniquement quand sema n'a pas pu vérifier statiquement (au
@@ -114,8 +95,11 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     
     // Allocation d'objet tas (toujours disponible)
     BuiltinDesc { name: "__alloc_obj",            params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__alloc_class_obj",      params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__object_free",          params: &[clt::I64, clt::I64],              returns: None,               module: None },
+    BuiltinDesc { name: "__rc_retain",            params: &[clt::I64],                                 returns: None,               module: None },
+    BuiltinDesc { name: "__rc_release",           params: &[clt::I64],                                 returns: None,               module: None },
+    BuiltinDesc { name: "__rc_mark_raw",          params: &[clt::I64],                                 returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__rc_collect_cycles",    params: &[],                                         returns: None,               module: None },
+    BuiltinDesc { name: "__alloc_class_obj",      params: &[clt::I64, clt::I64, clt::I64],            returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__alloc_fat_ptr",        params: &[],                                returns: Some(clt::I64),    module: None },
     // Cellule verrouillée pour variables capturées (voir runtime/src/lib.rs
     // et docs/roadmap.d/memoire-concurrence-threads.md).

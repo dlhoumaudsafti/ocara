@@ -30,7 +30,7 @@ pub struct TypeChecker<'a> {
     program: Option<&'a Program>,
     /// Paramètres échappants par fonction/méthode/constructeur utilisateur
     /// (voir `crate::sema::escape`) — calculé une fois dans `check_program`,
-    /// consulté par `check_argument_escape` (diagnostic E26/ArgumentEscape).
+    /// consulté pour savoir si une ressource `var` reste confinée.
     escaping_params: std::collections::HashMap<crate::sema::escape::CalleeKey, Vec<bool>>,
     /// `class_name → membres appelables` — calculé une fois dans
     /// `check_program`, utilisé pour résoudre un appel vers une classe
@@ -86,7 +86,7 @@ impl<'a> TypeChecker<'a> {
         self.program = Some(program);
 
         // Analyse d'échappement interprocédurale (voir crate::sema::escape)
-        // — nécessaire pour le diagnostic E26 (ArgumentEscape) ci-dessous.
+        // — confinement des ressources `var` (`check_resource_var_containment`).
         self.escaping_params = crate::sema::escape::compute_escaping_params(program);
         self.class_members = crate::sema::escape::collect_class_members(&program.classes);
         self.resource_classes = crate::sema::scope::compute_resource_classes(&program.classes);
@@ -962,9 +962,8 @@ impl<'a> TypeChecker<'a> {
         }
         match ownership_class_of(&b.ty, &self.resource_classes) {
             OwnershipClass::Value => {
-                // OK : clonée automatiquement à l'échappement (chantier
-                // clonage réel) — la source reste possédée et détruite
-                // normalement à son propre point de destruction.
+                // OK : valeur comptée, partagée à l'échappement (voir
+                // docs/roadmap.d/memoire-refcount.md).
             }
             OwnershipClass::Resource | OwnershipClass::Thread => {
                 self.errors.push(SemaError::ResourceEscape {
@@ -983,27 +982,11 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
-    /// Vérifie les arguments d'un appel dont le callee résolu est
-    /// `resolved_key` (`None` si le callee n'a pas pu être résolu vers une
-    /// fonction/méthode/constructeur utilisateur connue — builtin, classe
-    /// inconnue... : comportement inchangé, comme aujourd'hui, aucun de ces
-    /// cas n'est vérifié) — voir `crate::sema::escape` pour la justification
-    /// du traitement différent Resource/Thread vs Value ci-dessous.
+    /// Une ressource (`Resource`/`Thread`) `scoped`/`consumed` passée en
+    /// argument est toujours une erreur (`ResourceEscape`) : elle n'a aucun
+    /// usage légitime de « prêt » via argument. Une valeur comptée peut être
+    /// passée librement (voir docs/roadmap.d/memoire-refcount.md).
     ///
-    /// - `Resource`/`Thread` : TOUJOURS une erreur (`ResourceEscape`, déjà
-    ///   utilisée pour affectation/`return` — sa formulation mentionnait
-    ///   déjà "argument" sans que ce soit jamais vérifié). Aucun usage
-    ///   légitime de "prêt" via argument n'existe pour ces types (ressources
-    ///   utilisées uniquement via leurs propres méthodes) — contrairement à
-    ///   `Value` ci-dessous, pas besoin de savoir si le callee retient
-    ///   vraiment le paramètre.
-    /// - `Value` (string/array/map/classe utilisateur) : seulement une
-    ///   erreur (`ArgumentEscape`, E26) si `resolved_key` est un callable
-    ///   CONNU dont ce paramètre précis est PROUVÉ échappant (voir
-    ///   `escape::compute_escaping_params`) — préserve le sucre
-    ///   `Array::push(arr, x)`/`Map::set(m, k, v)` (builtins, jamais résolus
-    ///   ici, donc jamais vérifiés) et tout appel dont le callee ne retient
-    ///   pas son paramètre.
     /// `allow_resource_use` : `true` UNIQUEMENT pour un appel dont TOUS les
     /// paramètres ressource sont, par construction, seulement "utilisés en
     /// place" (jamais retenus au-delà de l'appel) — cas de `HTTPRequest::*`,
@@ -1013,8 +996,8 @@ impl<'a> TypeChecker<'a> {
     /// cette fonction, donc jamais concernées par ce carve-out). Sans cette
     /// exception, l'usage normal de `HTTPRequest` serait rejeté à tort comme
     /// un échappement — voir docs/roadmap.d/memoire-double-free-et-fuites-scoped.md.
-    fn check_argument_escape(&mut self, args: &[Expr], resolved_key: Option<&str>, allow_resource_use: bool) {
-        for (i, arg) in args.iter().enumerate() {
+    fn check_argument_escape(&mut self, args: &[Expr], allow_resource_use: bool) {
+        for arg in args {
             let Expr::Ident(name, use_span) = arg else { continue };
             let Some(b) = self.scopes.lookup(name) else { continue };
             if b.kind == VarKind::Var {
@@ -1028,24 +1011,8 @@ impl<'a> TypeChecker<'a> {
                         span: use_span.clone(),
                     });
                 }
-                OwnershipClass::Resource | OwnershipClass::Thread => {}
-                OwnershipClass::Value => {
-                    if let Some(key) = resolved_key {
-                        let escapes = self.escaping_params.get(key)
-                            .and_then(|v| v.get(i))
-                            .copied()
-                            .unwrap_or(false);
-                        if escapes {
-                            self.errors.push(SemaError::ArgumentEscape {
-                                name: name.clone(),
-                                class_name: type_name(&b.ty),
-                                callee: key.to_string(),
-                                span: use_span.clone(),
-                            });
-                        }
-                    }
-                }
-                OwnershipClass::Unsupported => {}
+                OwnershipClass::Resource | OwnershipClass::Thread
+                | OwnershipClass::Value | OwnershipClass::Unsupported => {}
             }
         }
     }
@@ -1227,12 +1194,7 @@ impl<'a> TypeChecker<'a> {
                         }
                         // Appel async : retourne Resolvable<T> (T = type de retour déclaré) — voir `call_ret_ty`.
                         let ret = call_ret_ty(sig);
-                        let resolved_key = if self.escaping_params.contains_key(name) {
-                            Some(name.as_str())
-                        } else {
-                            None
-                        };
-                        self.check_argument_escape(args, resolved_key, false);
+                        self.check_argument_escape(args, false);
                         for arg in args {
                             let arg_ty = self.infer_expr(arg);
                             self.check_message_scalar_consumption(arg, &arg_ty, span);
@@ -1532,8 +1494,7 @@ impl<'a> TypeChecker<'a> {
                             // même substitution Resolvable<T> qu'un appel statique/direct —
                             // voir `call_ret_ty` et docs/roadmap.d/langage-async-non-int-return-type-check.md.
                             let ret = call_ret_ty(sig);
-                            let resolved_key = crate::sema::escape::resolve_user_callable(&self.class_members, &cls_name, field);
-                            self.check_argument_escape(args, resolved_key.as_deref(), false);
+                            self.check_argument_escape(args, false);
                             for arg in args { self.infer_expr(arg); }
                             return ret;
                         }
@@ -1728,9 +1689,8 @@ impl<'a> TypeChecker<'a> {
                             span:     span.clone(),
                         });
                     }
-                    let resolved_key = crate::sema::escape::resolve_user_callable(&self.class_members, &resolved_class, method);
                     let is_http_request_call = resolved_class == self.symbols.local_name_for_builtin("HTTPRequest");
-                    self.check_argument_escape(args, resolved_key.as_deref(), is_http_request_call);
+                    self.check_argument_escape(args, is_http_request_call);
                     for arg in args {
                         let arg_ty = self.infer_expr(arg);
                         self.check_message_scalar_consumption(arg, &arg_ty, span);
@@ -1909,8 +1869,7 @@ impl<'a> TypeChecker<'a> {
                         span:  self.with_runtime_ctx(span),
                     });
                 }
-                let resolved_key = crate::sema::escape::resolve_user_callable(&self.class_members, class, "init");
-                self.check_argument_escape(args, resolved_key.as_deref(), false);
+                self.check_argument_escape(args, false);
                 for arg in args { self.infer_expr(arg); }
 
                 // Si c'est un générique avec type_args, retourner Type::Generic

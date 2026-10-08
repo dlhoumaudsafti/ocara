@@ -207,7 +207,7 @@ fn collect_all_rows(stmt: &mut Statement, binds: &[(&str, &dyn ToSql)]) -> Resul
             let value = row_column_as_mixed(&row, i);
             crate::map_set_owned_key(row_map, key, value);
         }
-        crate::__array_push(result_array, row_map);
+        crate::array_push_owned(result_array, row_map);
     }
     Ok(result_array)
 }

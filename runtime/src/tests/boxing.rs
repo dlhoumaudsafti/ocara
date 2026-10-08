@@ -113,72 +113,39 @@ fn null_is_never_confused_with_a_boxed_value() {
     assert!(!is_int_box(0) && !is_float_box(0) && !is_bool_box(0) && !is_ptr(0));
 }
 
-// ── Groupe 2 : conteneurs imbriqués — profondeur 5, free/clone `_concrete` ──
+// ── Groupe 2 : conteneurs imbriqués — feuilles brutes « en forme de pointeur » ──
 
-/// Construit un `array<array<array<array<array<int>>>>>` (profondeur 5) où
-/// la feuille est un entier BRUT choisi pour "ressembler" à un pointeur
-/// heap valide (aligné sur 8, >= PTR_THRESHOLD) — si le chemin `_concrete`
-/// régressait vers le chemin générique (`__value_free`/`__value_clone` par
-/// élément), une telle feuille serait déréférencée par `read_tag` et
-/// planterait le process (même famille que le SEGFAULT historique sur
-/// `array<float>`, voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md).
+/// `array<array<array<array<array<int>>>>>` (profondeur 5) dont la feuille
+/// est un entier BRUT aligné et >= PTR_THRESHOLD : le tableau qui la porte
+/// est marqué « éléments bruts » (`rc::FLAG_RAW`), sa libération ne doit
+/// jamais la suivre comme un pointeur (SEGFAULT historique sur `array<float>`,
+/// voir docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md).
 fn build_nested_int_array(depth: usize, pointer_shaped_leaf: i64) -> i64 {
-    let mut current = new_array();
-    unsafe { array_ref(current).data.push(pointer_shaped_leaf); }
+    let mut current = crate::rc::__rc_mark_raw(new_array());
+    array_push_owned(current, pointer_shaped_leaf);
     for _ in 1..depth {
         let outer = new_array();
-        unsafe { array_ref(outer).data.push(current); }
+        array_push_owned(outer, current);
         current = outer;
     }
     current
 }
 
 #[test]
-fn free_concrete_depth_5_does_not_dereference_pointer_shaped_leaves() {
-    let leaf = 1_048_576i64; // 0x100000 : aligné sur 8, >= PTR_THRESHOLD
-    let arr = build_nested_int_array(5, leaf);
-    let shape = unsafe { alloc_str("AAAA") }; // 4 niveaux sous le top-level, profondeur totale 5
-    __array_free_concrete(arr, shape, 0);
-    unsafe { free_str(shape); }
-    // Ne pas planter ici EST le test.
+fn release_depth_5_does_not_dereference_pointer_shaped_leaves() {
+    let arr = build_nested_int_array(5, 1_048_576);
+    crate::rc::__rc_release(arr);
 }
 
 #[test]
-fn clone_concrete_depth_5_preserves_values_and_is_independent() {
-    let leaf = 2_097_152i64; // 0x200000 : aligné, également pointer-shaped
-    let arr = build_nested_int_array(5, leaf);
-    let shape = unsafe { alloc_str("AAAA") };
-
-    let cloned = __array_clone_concrete(arr, shape, 0);
-    assert_ne!(cloned, arr, "le clone doit être un array indépendant, pas le même pointeur");
-
-    // Redescend les 4 niveaux intermédiaires du clone pour vérifier que la
-    // feuille a survécu intacte à la copie profonde.
-    let mut level = cloned;
-    for _ in 0..4 {
-        level = unsafe { array_ref(level).data[0] };
-    }
-    assert_eq!(unsafe { array_ref(level).data[0] }, leaf);
-
-    __array_free_concrete(arr, shape, 0);
-    __array_free_concrete(cloned, shape, 0);
-    unsafe { free_str(shape); }
-}
-
-#[test]
-fn free_concrete_mixed_array_of_maps_of_arrays() {
-    // array<map<string, array<int>>> — exerce le branchement 'A'/'M' de
-    // concrete_elem_shape dans les deux sens, pas seulement des arrays imbriqués.
-    let inner_arr = new_array();
-    unsafe { array_ref(inner_arr).data.push(999_999); }
+fn release_array_of_maps_of_raw_arrays() {
+    let inner_arr = crate::rc::__rc_mark_raw(new_array());
+    array_push_owned(inner_arr, 999_999);
     let inner_map = new_map();
-    unsafe { map_ref(inner_map).data.push(("k".to_string(), inner_arr)); }
+    unsafe { map_set_owned_key(inner_map, alloc_str("k"), inner_arr); }
     let top = new_array();
-    unsafe { array_ref(top).data.push(inner_map); }
-
-    let shape = unsafe { alloc_str("MA") }; // niveau 1 = map, niveau 2 = array
-    __array_free_concrete(top, shape, 0);
-    unsafe { free_str(shape); }
+    array_push_owned(top, inner_map);
+    crate::rc::__rc_release(top);
 }
 
 // ── Groupe 3 : comparaisons strictes — 6 comparateurs × 4 tags ──
@@ -248,8 +215,8 @@ fn heap_object_eq_strict_is_pointer_identity_not_structural() {
     }
     assert_eq!(__cmp_eq_strict(a, b), 0);
     assert_eq!(__cmp_eq_strict(a, a), 1);
-    __array_free(a);
-    __array_free(b);
+    crate::rc::__rc_release(a);
+    crate::rc::__rc_release(b);
 }
 
 #[test]
@@ -296,59 +263,22 @@ fn nul_only_string_is_not_empty() {
     unsafe { free_str(ptr); }
 }
 
-// ── Groupe 5 : __value_free/__value_clone sur une cellule boxée ──
-// (docs/roadmap.d/memoire-boxing-durcissement.md, « Découverte en
-// écrivant le volet 1 » — avant ce correctif, __value_free ne libérait
-// jamais une cellule boxée, et __value_clone en retournait un ALIAS,
-// pas une copie : combiner les deux aurait donné un double-free/UAF.)
+// ── Groupe 5 : cellules boxées comptées ──
 
 #[test]
-fn value_free_frees_a_boxed_primitive_without_crashing() {
-    // Ne pas planter ici EST le test : avant ce correctif, __value_free
-    // ne reconnaissait aucune des trois cellules boxées (elles fuyaient
-    // silencieusement, pas de crash observable — ce test garantit
-    // seulement que le nouveau chemin de libération est correct).
-    __value_free(box_int_if_needed(1_000_000));
-    __value_free(__box_float(3.5f64.to_bits() as i64));
-    __value_free(__box_bool(1));
+fn releasing_boxed_primitives_frees_them_without_crashing() {
+    crate::rc::__rc_release(box_int_if_needed(1_000_000));
+    crate::rc::__rc_release(__box_float(3.5f64.to_bits() as i64));
+    crate::rc::__rc_release(__box_bool(1));
 }
 
 #[test]
-fn value_clone_of_boxed_primitive_is_an_independent_cell() {
-    let original = box_int_if_needed(424_242);
-    let cloned = __value_clone(original);
-
-    assert_ne!(original, cloned, "un clone doit être une allocation distincte, pas un alias du même pointeur");
-    assert_eq!(unsafe { unbox_int(cloned) }, 424_242, "la valeur doit survivre à la copie profonde");
-
-    // Propriété de sécurité critique : libérer l'ORIGINAL ne doit rien
-    // faire au CLONE. Avant ce correctif, __value_clone retournait le
-    // même pointeur (alias) : ce test aurait alors provoqué un
-    // use-after-free/double-free sur `cloned` juste après.
-    __value_free(original);
-    assert_eq!(unsafe { unbox_int(cloned) }, 424_242, "le clone doit rester lisible après libération de l'original");
-    __value_free(cloned);
-}
-
-#[test]
-fn array_clone_then_free_original_leaves_boxed_element_in_clone_intact() {
-    // Reproduction fidèle du scénario documenté en docs/EBNF.md §9.2 :
-    // une `scoped array<mixed>` qui s'échappe (`var y = x`) reçoit une
-    // "copie profonde indépendante" ; la détruire ensuite (fin de bloc)
-    // ne doit jamais affecter la copie. Avant ce correctif, un élément
-    // boxé de l'array n'était pas réellement dupliqué par __array_clone
-    // (qui délègue à __value_clone par élément) : les deux arrays
-    // auraient partagé la même cellule boxée.
+fn shared_boxed_element_survives_its_first_container() {
     let original = new_array();
-    unsafe { array_ref(original).data.push(box_int_if_needed(7_000_000)); }
-
-    let cloned = __array_clone(original);
-    assert_ne!(cloned, original);
-
-    __array_free(original);
-
-    let elem = unsafe { array_ref(cloned).data[0] };
-    assert_eq!(unsafe { unbox_int(elem) }, 7_000_000, "l'élément boxé du clone doit rester valide après libération de l'array original");
-
-    __array_free(cloned);
+    __array_push(original, box_int_if_needed(7_000_000));
+    let copy = Array_slice(original, 0, 1);
+    crate::rc::__rc_release(original);
+    let elem = unsafe { array_ref(copy).data[0] };
+    assert_eq!(unsafe { unbox_int(elem) }, 7_000_000, "l'élément partagé doit rester valide");
+    crate::rc::__rc_release(copy);
 }

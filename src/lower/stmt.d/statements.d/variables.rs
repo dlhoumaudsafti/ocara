@@ -125,11 +125,7 @@ pub fn lower_var(
     let _slot = builder.declare_local(name, ir_ty.clone(), mutable);
     let val_ty = expr_ir_type_pub(builder, value);
     let val = lower_literal_or_expr(builder, value, ty);
-    // `value` peut être une `scoped`/`consumed` qui s'échappe vers `name`
-    // (point d'échappement — voir crate::lower::stmt::ownership).
-    let val = crate::lower::stmt::ownership::maybe_clone_escaping(builder, value, val);
-    let val = crate::lower::expr::helpers::dup_kept_leaf(builder, ty, value, val);
-    let val = box_for_any(builder, &ir_ty, val_ty, val);
+    let val = store_value(builder, ty, &ir_ty, val_ty, val);
     
     // Tracker le type IR DÉCLARÉ derrière un handle de tâche `Resolvable<T>`
     // (nécessaire pour l'unboxing float/bool dans `Expr::Resolve`) — dérivé
@@ -141,6 +137,10 @@ pub fn lower_var(
     register_async_var_ret(builder, name, ty);
 
     builder.store_local(name, val);
+    declare_if_counted(builder, name, ty);
+    if kind == VarKind::Consumed && crate::lower::stmt::rc::counted(builder, ty) {
+        crate::lower::stmt::rc::declare_consumed(builder, name);
+    }
 
     // Propriété (`scoped`/`consumed`) — voir crate::lower::stmt::ownership.
     // Après `store_local` : le clonage éventuel à l'échappement (chantier
@@ -178,13 +178,36 @@ pub fn lower_const(
     let _slot = builder.declare_local(name, ir_ty.clone(), false);
     let val_ty = expr_ir_type_pub(builder, value);
     let val = lower_literal_or_expr(builder, value, ty);
-    let val = box_for_any(builder, &ir_ty, val_ty, val);
+    let val = store_value(builder, ty, &ir_ty, val_ty, val);
     // Voir la doc de `register_async_var_ret`/le site d'appel équivalent
     // dans `lower_var` — `const t:Resolvable<T> = ...` est tout aussi valide
     // qu'un `var` (jamais couvert par l'ancien hack, qui ne s'appliquait
     // qu'à `lower_var`).
     register_async_var_ret(builder, name, ty);
     builder.store_local(name, val);
+    declare_if_counted(builder, name, ty);
+}
+
+/// Valeur rangée dans une locale de type déclaré `ty` : convertie (boxing
+/// `mixed`), puis prise par la locale si le type est compté — une cellule
+/// boxée à l'instant est déjà possédée.
+pub(crate) fn store_value(builder: &mut LowerBuilder, ty: &Type, ir_ty: &IrType, val_ty: IrType, val: crate::ir::inst::Value) -> crate::ir::inst::Value {
+    let converted = box_for_any(builder, ir_ty, val_ty, val.clone());
+    if crate::lower::stmt::rc::counted(builder, ty) {
+        if converted == val {
+            crate::lower::stmt::rc::take(builder, &converted);
+        }
+        crate::lower::stmt::rc::mark_raw_if_primitive(builder, ty, &converted);
+    }
+    converted
+}
+
+fn declare_if_counted(builder: &mut LowerBuilder, name: &str, ty: &Type) {
+    if crate::lower::stmt::rc::counted(builder, ty) {
+        crate::lower::stmt::rc::declare(builder, name);
+    } else {
+        builder.rc_counted_locals.remove(name);
+    }
 }
 
 /// Lower `value` en tenant compte de `ty` (le type DÉCLARÉ de la cible,

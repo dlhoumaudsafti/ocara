@@ -541,29 +541,9 @@ m.destroy()   // ❌ 'm' déjà finalisée
 
 ---
 
-### E26 — Argument `scoped`/`consumed` qui s'échappe
+### E26 — Argument `scoped`/`consumed` qui s'échappe *(retiré)*
 
-```
-fichier.oc:9:19: error: 'arr' ('array<int>') is passed as an argument to 'Box::init', which stores it beyond this call — a 'scoped'/'consumed' value cannot be passed where the callee retains it; clone it explicitly first, or pass a fresh value
-```
-
-Une `scoped`/`consumed` passée en argument d'un appel (constructeur, méthode) qui la stocke au-delà de l'appel (ex. un constructeur qui affecte le paramètre à un champ) — la source est libérée en fin de bloc alors que l'appelé en garde encore un alias : pointeur pendouillant, corruption mémoire silencieuse avant ce diagnostic (voir docs/roadmap.d/memoire-echappement-argument.md).
-
-```ocara
-class Box {
-    public property data:array<int>
-    init(a:array<int>) { self.data = a }
-}
-function makeBox(): Box {
-    scoped arr:array<int> = [111, 222, 333]
-    var b:Box = use Box(arr)   // ❌ 'arr' sera libérée en fin de bloc
-    return b
-}
-```
-
-Pour une `scoped`/`consumed` de type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`/`Thread`), tout passage en argument est rejeté (`ResourceEscape`, pas de distinction retenu/prêté possible pour une ressource). Pour `string`/`array`/`map`/instance de classe utilisateur, seul un appel vers une fonction/méthode/constructeur **utilisateur** connue dont ce paramètre est prouvé retenu est rejeté — `Array::push(arr, x)`/`Map::set(m, k, v)` (mutation en place) restent autorisés.
-
-**Correction :** cloner explicitement avant l'appel (ex. `arr.slice(0, arr.len())`), ou déclarer la variable en `var` si le partage est voulu.
+Ce diagnostic n'existe plus pour les valeurs (`string`, `array`, `map`, instance de classe) : elles sont comptées (voir [§9 de l'EBNF](EBNF.md#9-variables-et-constantes)). Passer une `scoped`/`consumed` à un appelé qui la conserve est sûr, l'appelé détient sa propre référence. Une ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`/`Thread`) passée en argument reste refusée (`ResourceEscape`).
 
 ---
 
@@ -586,7 +566,7 @@ Une classe ou un `generic` déclare `extends X` où `X` ne correspond à aucune 
 fichier.oc:4:5: error: 'm' ('Mutex') is declared with 'var'/'const', never escapes its block, and is never '.destroy()'/'.close()' — this native handle leaks permanently, since 'var'/'const' never close a resource automatically (unlike 'scoped'/'consumed'); call '.destroy()'/'.close()' explicitly, or declare it 'scoped'/'consumed' if you want the compiler to finalize it for you
 ```
 
-Un `var`/`const` d'un type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`) dont l'analyse d'échappement statique (la même que pour la libération automatique d'un `var`, voir `crate::sema::escape::var_never_escapes`) prouve qu'il ne s'échappe jamais (jamais retourné, réaffecté, ni passé en argument), et qui atteint la fin de son bloc sans avoir été manuellement `.destroy()`/`.close()`. Contrairement à `scoped`/`consumed`, qui finalisent automatiquement une ressource en fin de bloc, `var`/`const` ne le font jamais — ce handle natif (mutex, connexion) fuit alors pour toujours.
+Un `var`/`const` d'un type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`) dont l'analyse d'échappement statique (`crate::sema::escape::var_never_escapes`) prouve qu'il ne s'échappe jamais (jamais retourné, réaffecté, ni passé en argument), et qui atteint la fin de son bloc sans avoir été manuellement `.destroy()`/`.close()`. Contrairement à `scoped`/`consumed`, qui finalisent automatiquement une ressource en fin de bloc, `var`/`const` ne le font jamais — ce handle natif (mutex, connexion) fuit alors pour toujours.
 
 Volontairement conservateur : dès que la variable pourrait s'échapper d'une façon quelconque (retour, réaffectation, argument d'un appel), aucune erreur n'est levée — mieux vaut manquer une fuite réelle que rejeter du code légitime.
 
@@ -1306,7 +1286,7 @@ raise use MonException("erreur", 1)   // ⚠️ 'm' ne sera jamais déverrouill�
 m.unlock()                             // jamais atteint
 ```
 
-Volontairement **conservateur** (mêmes principes que E26/E28) : un `raise` à l'intérieur d'un `try` local (même sans vérifier que ses `on` couvrent la classe réellement levée) est considéré rattrapé, jamais signalé ; une finalisation (`.destroy()`/`.close()`/`.join()`/`.detach()`) appelée en ligne droite avant le `raise` supprime l'avertissement. Aucune analyse interprocédurale : seul un `raise` textuel compte, pas un appel vers une fonction qui pourrait elle-même en lever un.
+Volontairement **conservateur** (mêmes principes que E28) : un `raise` à l'intérieur d'un `try` local (même sans vérifier que ses `on` couvrent la classe réellement levée) est considéré rattrapé, jamais signalé ; une finalisation (`.destroy()`/`.close()`/`.join()`/`.detach()`) appelée en ligne droite avant le `raise` supprime l'avertissement. Aucune analyse interprocédurale : seul un `raise` textuel compte, pas un appel vers une fonction qui pourrait elle-même en lever un.
 
 **Correction :** finaliser la ressource avant le code risqué, ou utiliser une variante `withX` qui garantit la finalisation même en cas d'exception — `m.withLock(...)` (voir [Mutex](builtins/Mutex.md)), `SQLite::withOpen(...)` (voir [SQLite](builtins/SQLite.md)), `MySQL::withConnect(...)`/`MariaDB::withConnect(...)` (voir [MySQL](builtins/MySQL.md)) — ou entourer le code à risque d'un `try`/`on` local.
 

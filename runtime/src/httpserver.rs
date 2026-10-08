@@ -1131,7 +1131,9 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
         let root_path = Arc::clone(&root_path);
         let error_handlers = Arc::clone(&error_handlers);
         let handler_lock = Arc::clone(&handler_lock);
+        let guard = crate::rc::ThreadGuard::new();
         std::thread::spawn(move || {
+            let _guard = guard;
             loop {
                 match server.recv() {
                     Ok(request) => handle_request(request, &routes, root_path.as_deref(), &error_handlers, &handler_lock),
@@ -1266,9 +1268,9 @@ unsafe fn file_to_mixed_map(filename: &str, content_type: &str, content: &[u8]) 
         crate::map_set_owned_key(map, alloc_str("filename"), alloc_str(filename));
         crate::map_set_owned_key(map, alloc_str("contentType"), alloc_str(content_type));
         crate::map_set_owned_key(map, alloc_str("size"), crate::box_int_if_needed(content.len() as i64));
-        let bytes_arr = crate::__array_new();
+        let bytes_arr = crate::rc::__rc_mark_raw(crate::__array_new());
         for byte in content {
-            crate::__array_push(bytes_arr, *byte as i64);
+            crate::array_push_owned(bytes_arr, *byte as i64);
         }
         crate::map_set_owned_key(map, alloc_str("content"), bytes_arr);
     }

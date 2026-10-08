@@ -53,7 +53,11 @@ pub fn lower_func(
             slot: Value(i as u32),
         }
     }).collect();
-    let ret_ty = IrType::from_ast(&func.ret_ty);
+    // `main(): void` retourne quand même un code de sortie : 0.
+    let ret_ty = match IrType::from_ast(&func.ret_ty) {
+        IrType::Void if func.name == "main" => IrType::I64,
+        ty => ty,
+    };
 
     let mut builder = LowerBuilder::new(module, func.name.clone(), ir_params.clone(), ret_ty);
     builder.ret_ast_ty = Some(func.ret_ty.clone());
@@ -170,14 +174,10 @@ pub fn lower_func(
     }).collect();
     builder.func.params = updated_params;
 
-    // Calcule quels `var` de CE corps peuvent être libérés automatiquement
-    // en fin de bloc (voir crate::sema::escape::var_never_escapes et
-    // docs/roadmap.d/memoire-strategie-var.md) — avant de lowered le corps,
-    // consulté par `register_owned_local` (lower_var → ownership.rs).
-    crate::lower::stmt::element_escape::prepare_body(&mut builder, &func.body, &func.params, true);
-
     // Body
+    crate::lower::stmt::rc::begin_function(&mut builder, &func.params);
     crate::lower::stmt::lower_block(&mut builder, &func.body);
+    crate::lower::stmt::rc::end_function(&mut builder);
 
     // Return implicite si le bloc courant n'est pas terminé
     if !builder.is_terminated() {

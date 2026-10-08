@@ -29,7 +29,7 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Fuite : conteneur d'objets réellement partagé (à trancher)** — la preuve statique couvre désormais les receveurs résultats d'appel, les alias locaux en lecture et la relecture après transfert tant que le porteur vit. Restent non libérés (jamais libérés deux fois) : un conteneur transféré à **deux** porteurs (`use Bag(ys)` deux fois), ou relu hors du bloc de son porteur — sans comptage de références (exclu : pas de GC), personne ne peut le libérer. À trancher : en faire une **erreur de compilation** (discipline de propriété : un conteneur d'objets n'a qu'un porteur, copie explicite sinon), ou un avertissement. Repli par nom de champ seulement pour un receveur de type `mixed`. *(Structurel — Dangereuse : gestion mémoire)* → [détails](roadmap.d/memoire-scoped-object-elements-leak.md)
+- **Fuite : cellules de variables capturées et closures jamais libérées** — le comptage de références est en place (phases 1 à 3 : runtime, descripteurs de classe, lowering, `consumed` relâchée après son premier usage). Reste la phase 4 : une variable capturée par une closure ou un `try` vit dans une cellule jamais libérée, les envs de closure et `async` aussi. Le serveur `mini_project_hexa` perd encore ≈ 15 Ko par requête (≈ 45 Ko avant). Restent aussi les générateurs et quelques fuites runtime (lectures `IO`, composants HTML, `throw_*`). *(Structurel — Dangereuse : gestion mémoire)* → [détails](roadmap.d/memoire-refcount.md)
 
 ---
 

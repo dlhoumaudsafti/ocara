@@ -93,8 +93,11 @@ pub fn lower_for_in(
         ret_ty: elem_ty.clone(),
     });
 
+    let counted_snapshot = builder.rc_counted_locals.clone();
+    crate::lower::stmt::rc::begin_iteration(builder);
     builder.declare_local(var, elem_ty.clone(), false);
-    builder.store_local(var, elem);
+    builder.store_local(var, elem.clone());
+    crate::lower::stmt::rc::bind_loop_var(builder, var, elem_ast.as_ref(), &elem);
     
     // Si l'itérateur est une variable dont le type d'élément est connu
     // statiquement (`elem_ast_types`, alimenté par `lower_var`/`lower_const`
@@ -144,11 +147,15 @@ pub fn lower_for_in(
     }
 
     // continue → incr_bb, break → merge_bb
-    builder.loop_stack.push((incr_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len()));
+    builder.loop_stack.push((incr_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len() - 1));
+    crate::lower::stmt::rc::enter_loop(builder);
     builder.loop_depth += 1;
     lower_block(builder, body);
     builder.loop_depth -= 1;
+    crate::lower::stmt::rc::exit_loop(builder);
     builder.loop_stack.pop();
+    crate::lower::stmt::rc::end_iteration(builder);
+    builder.rc_counted_locals = counted_snapshot;
 
     if !builder.is_terminated() {
         builder.emit(Inst::Jump { target: incr_bb.clone() });
@@ -188,6 +195,7 @@ pub fn lower_for_map(
         args:   vec![iter_val.clone()],
         ret_ty: IrType::Ptr,
     });
+    crate::lower::stmt::rc::track(builder, &keys_arr);
 
     // Longueur
     let len_val = builder.new_value();
@@ -230,8 +238,11 @@ pub fn lower_for_map(
         args:   vec![keys_arr.clone(), idx.clone()],
         ret_ty: IrType::Ptr,
     });
+    let counted_snapshot = builder.rc_counted_locals.clone();
+    crate::lower::stmt::rc::begin_iteration(builder);
     builder.declare_local(key, IrType::Ptr, false);
     builder.store_local(key, k.clone());
+    crate::lower::stmt::rc::bind_loop_var(builder, key, Some(&Type::String), &k);
 
     // Valeur correspondante, lue au type de valeur déclaré de la map (comme
     // l'élément de `for x in array<T>`) — `I64` en dur affichait l'adresse
@@ -249,7 +260,8 @@ pub fn lower_for_map(
         ret_ty: val_ty.clone(),
     });
     builder.declare_local(value, val_ty, false);
-    builder.store_local(value, v);
+    builder.store_local(value, v.clone());
+    crate::lower::stmt::rc::bind_loop_var(builder, value, val_ast.as_ref(), &v);
 
     // Si l'itérateur est une variable `map<K,V>` dont le type de VALEUR est
     // connu statiquement (`elem_ast_types`, alimenté par `lower_var`/
@@ -266,11 +278,15 @@ pub fn lower_for_map(
     }
 
     // continue → incr_bb, break → merge_bb
-    builder.loop_stack.push((incr_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len()));
+    builder.loop_stack.push((incr_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len() - 1));
+    crate::lower::stmt::rc::enter_loop(builder);
     builder.loop_depth += 1;
     lower_block(builder, body);
     builder.loop_depth -= 1;
+    crate::lower::stmt::rc::exit_loop(builder);
     builder.loop_stack.pop();
+    crate::lower::stmt::rc::end_iteration(builder);
+    builder.rc_counted_locals = counted_snapshot;
 
     if !builder.is_terminated() {
         builder.emit(Inst::Jump { target: incr_bb.clone() });
@@ -295,6 +311,7 @@ pub fn lower_break(builder: &mut LowerBuilder) {
         // Détruit les scoped/consumed encore vivantes entre ici et l'entrée
         // de la boucle (corps de boucle inclus) avant de sauter dehors —
         // voir crate::lower::stmt::ownership::emit_early_exit_drops.
+        crate::lower::stmt::rc::release_loop_exit(builder, depth);
         crate::lower::stmt::ownership::emit_early_exit_drops(builder, depth);
         builder.emit(Inst::Jump { target: break_bb });
     }
@@ -305,6 +322,7 @@ pub fn lower_continue(builder: &mut LowerBuilder) {
         // Même destruction que `break` : `continue` quitte aussi le corps
         // de boucle actuellement ouvert (et tout ce qu'il contient), juste
         // pour reboucler plutôt que sortir complètement.
+        crate::lower::stmt::rc::release_loop_exit(builder, depth);
         crate::lower::stmt::ownership::emit_early_exit_drops(builder, depth);
         builder.emit(Inst::Jump { target: continue_bb });
     }

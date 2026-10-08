@@ -23,13 +23,6 @@ pub fn lower_assign(
         Some(ty) => super::variables::lower_literal_or_expr(builder, value, &ty),
         None => lower_expr(builder, value),
     };
-    // `target = value` : `value` peut être une `scoped`/`consumed` qui
-    // s'échappe vers `target` (voir crate::lower::stmt::ownership).
-    let val = crate::lower::stmt::ownership::maybe_clone_escaping(builder, value, val);
-    let val = match kept_target_type(builder, target) {
-        Some(ty) => crate::lower::expr::helpers::dup_kept_leaf(builder, &ty, value, val),
-        None => val,
-    };
 
     match target {
         Expr::Ident(name, _) => {
@@ -37,13 +30,14 @@ pub fn lower_assign(
             let target_ty = builder.frame_vars.get(name.as_str())
                 .map(|(_, _, ty)| ty.clone())
                 .or_else(|| builder.locals.get(name.as_str()).map(|(_, ty, _)| ty.clone()))
+                .or_else(|| builder.captured_vars.get(name.as_str()).map(|(_, _, ty)| ty.clone()))
                 .unwrap_or(IrType::I64);
-            let val = box_for_any(builder, &target_ty, val_ty, val);
-            // `s = nouvelleValeur` où `s` est `scoped`/`consumed` : libérer
-            // l'ancienne valeur avant de la remplacer, sinon elle fuit (voir
-            // crate::lower::stmt::ownership::free_before_reassign).
-            crate::lower::stmt::ownership::free_before_reassign(builder, name);
-            builder.store_local(name, val);
+            let boxed = box_for_any(builder, &target_ty, val_ty, val.clone());
+            if crate::lower::stmt::rc::is_counted_local(builder, name) {
+                crate::lower::stmt::rc::assign_local(builder, name, boxed.clone(), boxed != val);
+            } else {
+                builder.store_local(name, boxed);
+            }
         }
         Expr::Field { object, field, .. } => {
             // Calculer l'offset du champ
@@ -64,12 +58,36 @@ pub fn lower_assign(
                 .map(|cls| field_offset(&builder.module.class_layouts, cls, field))
                 .unwrap_or(0);
             let obj_val = lower_expr(builder, object);
+            let field_ty = class_name.as_deref().and_then(|cls| declared_field_type(builder, cls, field));
+            let counted = field_ty.as_ref().is_some_and(|ty| crate::lower::stmt::rc::counted(builder, ty));
+            let (val, fresh) = match &field_ty {
+                Some(Type::Mixed) => {
+                    let boxed = box_for_any(builder, &IrType::Ptr, val_ty, val.clone());
+                    let fresh = boxed != val;
+                    (boxed, fresh)
+                }
+                _ => (val, false),
+            };
+            let old = counted.then(|| {
+                let old = builder.new_value();
+                builder.emit(Inst::GetField { dest: old.clone(), obj: obj_val.clone(), field: field.clone(), ty: IrType::Ptr, offset });
+                if !fresh {
+                    crate::lower::stmt::rc::take(builder, &val);
+                }
+                if let Some(ty) = &field_ty {
+                    crate::lower::stmt::rc::mark_raw_if_primitive(builder, ty, &val);
+                }
+                old
+            });
             builder.emit(Inst::SetField {
                 obj:   obj_val,
                 field: field.clone(),
                 src:   val,
                 offset,
             });
+            if let Some(old) = old {
+                crate::lower::stmt::rc::release(builder, &old);
+            }
         }
         Expr::Index { object, index, .. } => {
             let obj_val = lower_expr(builder, object);
@@ -358,24 +376,6 @@ mod tests {
     }
 }
 
-/// Type de la cible d'une affectation pour la copie d'une chaîne dérivée
-/// (mêmes règles que `element_escape::Walker::assign_target_type`) :
-/// variable libérée, `self.champ`, élément d'un conteneur typé.
-fn kept_target_type(builder: &LowerBuilder, target: &Expr) -> Option<Type> {
-    match target {
-        Expr::Ident(name, _) => builder.owned_locals.get(name.as_str()).map(|info| info.ty.clone()),
-        Expr::Field { object, field, .. } if matches!(object.as_ref(), Expr::SelfExpr(_)) => {
-            builder.module.class_field_types.get(builder.current_class.as_deref()?)?
-                .iter().find(|(f, _)| f == field).map(|(_, t)| t.clone())
-        }
-        Expr::Index { object, .. } => match declared_container_type(builder, object)? {
-            Type::Array(inner) | Type::Map(_, inner) => Some(*inner),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
 /// Type conteneur (`array<T>`/`map<K,V>`) déclaré de la cible d'une
 /// affectation, quand il est connu : variable locale (`elem_ast_types`/
 /// `map_vars`), champ (`class_field_types`), élément indexé.
@@ -398,4 +398,11 @@ fn declared_container_type(builder: &LowerBuilder, target: &Expr) -> Option<Type
         Expr::Index { object, .. } => elem_type_after_index(builder, object),
         _ => None,
     }
+}
+
+/// Type déclaré du champ `field` de `class` (champs hérités compris).
+fn declared_field_type(builder: &LowerBuilder, class: &str, field: &str) -> Option<Type> {
+    builder.module.class_field_types.get(class)?
+        .iter().find(|(f, _)| f == field)
+        .map(|(_, ty)| ty.clone())
 }

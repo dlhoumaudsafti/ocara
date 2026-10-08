@@ -86,13 +86,6 @@ pub enum SemaError {
     /// double `Mutex::destroy` (le premier appel a déjà libéré le handle
     /// natif).
     ResourceAlreadyFinalized { name: String, class_name: String, method: String, span: Span },
-    /// `scoped`/`consumed` passée en argument à un constructeur/méthode
-    /// UTILISATEUR connu dont ce paramètre est prouvé "retenu" au-delà de
-    /// l'appel (stocké dans un champ, retourné, capturé par une closure...)
-    /// — la source serait libérée en fin de bloc pendant que le callee en
-    /// garde encore un alias (corruption mémoire silencieuse avant ce
-    /// diagnostic, voir docs/roadmap.d/memoire-echappement-argument.md).
-    ArgumentEscape { name: String, class_name: String, callee: String, span: Span },
     /// `var`/`scoped`/`consumed x:message<T>` — `message<T>` (générateurs,
     /// voir docs/roadmap.d/langage-emit-iterable.md) n'est JAMAIS nommable :
     /// il n'a de sens que comme type de retour déclaré d'une fonction/méthode
@@ -220,7 +213,6 @@ impl SemaError {
             SemaError::OnFilterClassNotFound { span, .. } => span,
             SemaError::CatchAllNotLast { span } => span,
             SemaError::ResourceAlreadyFinalized { span, .. } => span,
-            SemaError::ArgumentEscape      { span, .. } => span,
             SemaError::MessageNotNameable  { span, .. } => span,
             SemaError::MessageAsParamType  { span, .. } => span,
             SemaError::MessageReturnWithoutEmit { span, .. } => span,
@@ -310,8 +302,6 @@ impl SemaError {
                 "a catch-all 'on' handler (without 'is') must be the last one in this try/on chain — handlers after it would never be reached".into(),
             SemaError::ResourceAlreadyFinalized { name, class_name, method, .. } =>
                 format!("'{}' ('{}') was already '.{}()' — calling it a second time would use a native handle already reclaimed", name, class_name, method),
-            SemaError::ArgumentEscape { name, class_name, callee, .. } =>
-                format!("'{}' ('{}') is passed as an argument to '{}', which stores it beyond this call — a 'scoped'/'consumed' value cannot be passed where the callee retains it; clone it explicitly first, or pass a fresh value", name, class_name, callee),
             SemaError::MessageNotNameable { name, .. } =>
                 format!("'{}': type 'message<T>' cannot be named — it is valid only as the declared return type of a function/method containing 'emit', never in a 'var'/'scoped'/'consumed' declaration", name),
             SemaError::MessageAsParamType { name, .. } =>

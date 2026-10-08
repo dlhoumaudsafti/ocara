@@ -125,23 +125,19 @@ pub struct LowerBuilder<'m> {
     /// scoping imbriqué) : une redéclaration du même nom dans un bloc frère
     /// écrase simplement l'entrée précédente, exactement comme `locals`.
     pub owned_locals: HashMap<String, crate::lower::stmt::ownership::OwnedLocalInfo>,
-    /// Noms des `var` (par opposition à `scoped`/`consumed`) de CETTE
-    /// fonction/méthode prouvés ne jamais s'échapper (voir
-    /// `crate::sema::escape::var_never_escapes`) — calculé une fois avant de
-    /// lowered le corps (voir `lower_func`/`lower_class`), consulté par
-    /// `register_owned_local` pour décider si un `var` peut être traité
-    /// comme un `scoped` implicite (libéré en fin de bloc). Voir
-    /// docs/roadmap.d/memoire-strategie-var.md.
-    pub auto_freeable_vars: HashSet<String>,
-    /// Conteneurs dont des éléments sont conservés au-delà d'eux — libérés
-    /// en surface seulement (voir `stmt::element_escape`).
-    pub element_escapes: HashSet<String>,
-    /// Variables de boucle parcourant un conteneur (valeurs dérivées).
-    pub loop_aliases: HashSet<String>,
-    /// Voir `element_escape::ElementEscapes::var_alias_roots`.
-    pub var_alias_roots: HashSet<String>,
-    /// Conteneurs d'objets propriétaires de leurs instances (`object_owners`).
-    pub object_owners: HashSet<String>,
+    /// Temporaires possédés de chaque statement ouvert (voir `stmt::rc`).
+    pub rc_temps: Vec<Vec<Value>>,
+    /// Locales comptées de chaque portée ouverte, parallèle à `block_scope_stack`.
+    pub rc_scopes: Vec<Vec<String>>,
+    /// Locales visibles dont le type est compté.
+    pub rc_counted_locals: HashSet<String>,
+    /// Profondeur de `rc_temps` à l'entrée de chaque boucle ouverte.
+    pub rc_loop_temps: Vec<usize>,
+    /// Générateur : aucune libération émise (fuite sûre).
+    pub rc_no_release: bool,
+    /// `consumed` comptées pas encore relâchées → profondeur de boucle de
+    /// leur déclaration.
+    pub rc_consumed: HashMap<String, usize>,
 }
 
 impl<'m> LowerBuilder<'m> {
@@ -184,11 +180,12 @@ impl<'m> LowerBuilder<'m> {
             func_var_param_count: HashMap::new(),
             runtime_exit_bb: None,
             owned_locals: HashMap::new(),
-            auto_freeable_vars: HashSet::new(),
-            element_escapes: HashSet::new(),
-            loop_aliases: HashSet::new(),
-            var_alias_roots: HashSet::new(),
-            object_owners: HashSet::new(),
+            rc_temps: Vec::new(),
+            rc_scopes: Vec::new(),
+            rc_counted_locals: HashSet::new(),
+            rc_loop_temps: Vec::new(),
+            rc_no_release: false,
+            rc_consumed: HashMap::new(),
         }
     }
 

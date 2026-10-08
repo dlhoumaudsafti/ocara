@@ -153,9 +153,9 @@ Transformation de l'AST haut-niveau vers une représentation plus bas-niveau :
 - `while` → blocs avec `Jump` arrière
 - `return` → instruction `Return`
 
-**d) Gestion mémoire — insertion des libérations (`stmt.d/ownership.rs`, `builder.d/class_ownership.rs`)**
+**d) Gestion mémoire — comptage de références (`stmt.d/rc.rs`, `stmt.d/ownership.rs`, `builder.d/rc_layout.rs`)**
 
-Ocara n'a **aucun ramasse-miettes** : c'est cette phase de lowering qui insère les appels runtime de libération (`__value_free`, `__array_free`, `__map_free`, `__object_free`, `.destroy()`/`.close()` implicite) pour toute variable déclarée `scoped` ou `consumed` (voir `docs/EBNF.md` §9.2/9.3). Une variable `var` (le mot-clé par défaut) ne déclenche aucune libération. C'est également ici que sont vérifiées les règles associées, remontées comme diagnostics sémantiques dès la phase 3️⃣ :
+Ocara n'a **aucun ramasse-miettes traçant** : chaque valeur tas porte un compteur atomique (`runtime/src/rc.rs`). Cette phase de lowering insère les `__rc_retain`/`__rc_release` : une valeur possédée (résultat d'appel, `use`, littéral de conteneur, concaténation) est un temporaire relâché en fin d'instruction sauf si un stockage la récupère ; une lecture empruntée est retenue par le stockage qui la garde ; les locales comptées sont relâchées en sortie de portée (`return`/`break`/`continue` compris), une `consumed` juste après son premier usage. `ownership.rs` ferme les ressources `scoped`/`consumed` (`.destroy()`/`.close()` implicite). `rc_layout.rs` calcule, par classe, le masque des champs tas rangé dans l'en-tête de chaque instance. Voir `docs/EBNF.md` §9 et docs/roadmap.d/memoire-refcount.md. Règles associées, remontées comme diagnostics sémantiques dès la phase 3️⃣ :
 - **E17** : réutilisation d'une `consumed` après sa première utilisation
 - **E18** : échappement d'une ressource `scoped`/`consumed` (`Mutex`, `SQLite`, `MySQL`, `Thread`, ...) hors de son bloc
 - **E19** : `Thread` non finalisée (`.join()`/`.detach()`) avant la fin du bloc

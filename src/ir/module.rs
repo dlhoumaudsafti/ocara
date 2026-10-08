@@ -65,6 +65,12 @@ pub struct IrModule {
     /// dynamique d'une méthode appelée via une variable de type parent/
     /// interface (voir docs/roadmap.d/langage-interfaces.md).
     pub class_ids: HashMap<String, i64>,
+    /// Masque des champs tas de chaque classe (index de chaîne internée),
+    /// rangé dans l'en-tête des instances — voir `builder::rc_layout`.
+    pub class_masks: HashMap<String, u32>,
+    /// Classes dont les instances sont comptées (classes et interfaces du
+    /// programme, exceptions builtin) — voir `builder::rc_layout`.
+    pub rc_objects: HashSet<String>,
     /// Classes ayant au moins une sous-classe (directe ou transitive) —
     /// calculé par `generate_class_dispatchers`. Une méthode d'instance
     /// appelée sur une variable/champ typé par une classe de cet ensemble
@@ -84,16 +90,6 @@ pub struct IrModule {
     /// seul, sans jamais regarder la classe RÉELLE de `x`) — voir
     /// docs/roadmap.d/langage-interfaces.md.
     pub is_check_candidates: HashMap<String, Vec<i64>>,
-    /// Paramètres échappants par fonction/méthode/constructeur utilisateur
-    /// (voir `crate::sema::escape`) — calculé une fois dans `lower_program`,
-    /// consulté par `lower::stmt::ownership` pour décider si un `var` peut
-    /// être libéré automatiquement en fin de bloc (voir
-    /// docs/roadmap.d/memoire-strategie-var.md).
-    pub escaping_params: HashMap<crate::sema::escape::CalleeKey, Vec<bool>>,
-    /// `class_name → membres appelables` — vue minimale du programme utilisée
-    /// par `escape::resolve_user_callable` côté lowering (pas d'accès direct
-    /// à `&Program` à cet endroit).
-    pub class_members: crate::sema::escape::ClassMembers,
     /// Types des paramètres du constructeur : class_name → Vec<IrType>
     pub ctor_param_types: HashMap<String, Vec<IrType>>,
     /// Types AST déclarés des paramètres des fonctions, méthodes
@@ -101,20 +97,6 @@ pub struct IrModule {
     /// un littéral `[...]`/`{...}` passé en argument est construit au type
     /// du paramètre (voir `lower_call_arg`).
     pub param_ast_types: HashMap<String, Vec<Type>>,
-    /// Même clé → le paramètre `i` est-il conservé par l'appelé (lui ou une
-    /// partie) ? Voir `lower::stmt::element_escape::compute_param_keeps`.
-    pub param_keeps: HashMap<String, Vec<bool>>,
-    /// Fonctions/méthodes qui ne retournent que des objets neufs (voir
-    /// `lower::stmt::object_owners::compute_fresh_returns`).
-    pub fresh_returns: std::collections::HashSet<String>,
-    /// … qui ne retournent que des conteneurs neufs d'objets neufs.
-    pub fresh_containers: std::collections::HashSet<String>,
-    /// Paramètres conteneurs qui préservent la propriété de leurs objets.
-    pub preserving_params: HashMap<String, Vec<bool>>,
-    /// Champs (`ClasseDéclarante.champ`) propriétaires de leurs objets (`object_facts`).
-    pub owning_fields: std::collections::HashSet<String>,
-    /// `"Classe.champ"` → `"ClasseDéclarante.champ"` (champs hérités).
-    pub field_decl: HashMap<String, String>,
     /// Types des paramètres des méthodes D'INSTANCE utilisateur (jamais
     /// statiques, déjà couvertes par `LowerBuilder::fn_param_types`) :
     /// "Classe_methode" → Vec<IrType> (sans `self`). Utilisé UNIQUEMENT pour
