@@ -54,27 +54,47 @@ impl Drop for ThreadGuard {
     }
 }
 
-/// Gare le thread courant le temps d'un appel bloquant ; au réveil, il
-/// attend la fin d'une collecte en cours avant de reprendre.
-pub(crate) struct Parked;
+/// Gare le thread courant le temps d'un appel bloquant (boucle d'événements
+/// Tauri, attente SDL comprises) ; au réveil, il attend la fin d'une
+/// collecte en cours avant de reprendre.
+pub struct Parked;
 
-pub(crate) fn park() -> Parked {
+pub fn park() -> Parked {
     RUNNING.fetch_sub(1, Ordering::SeqCst);
     Parked
 }
 
 impl Drop for Parked {
     fn drop(&mut self) {
-        loop {
-            RUNNING.fetch_add(1, Ordering::SeqCst);
-            if !COLLECTING.load(Ordering::SeqCst) {
-                return;
-            }
-            RUNNING.fetch_sub(1, Ordering::SeqCst);
-            while COLLECTING.load(Ordering::SeqCst) {
-                std::thread::yield_now();
-            }
+        resume();
+    }
+}
+
+fn resume() {
+    loop {
+        RUNNING.fetch_add(1, Ordering::SeqCst);
+        if !COLLECTING.load(Ordering::SeqCst) {
+            return;
         }
+        RUNNING.fetch_sub(1, Ordering::SeqCst);
+        while COLLECTING.load(Ordering::SeqCst) {
+            std::thread::yield_now();
+        }
+    }
+}
+
+/// Compte le thread courant le temps d'un appel vers du code Ocara depuis un
+/// thread garé ou étranger (handler appelé par la boucle d'événements).
+pub struct Entered;
+
+pub fn enter() -> Entered {
+    resume();
+    Entered
+}
+
+impl Drop for Entered {
+    fn drop(&mut self) {
+        RUNNING.fetch_sub(1, Ordering::SeqCst);
     }
 }
 

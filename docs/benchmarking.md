@@ -128,7 +128,8 @@ faire au moins quelques millions d'opérations pour dépasser le bruit.
   semble monter alors qu'elle sera rendue au lot suivant.
 - **Threads** : la collecte des cycles a lieu quand les autres threads sont
   bloqués dans un appel du runtime (attente d'une requête HTTP, `join`,
-  `sleep`, verrou). Un thread qui calcule sans jamais se bloquer la retarde.
+  `sleep`, verrou, boucle d'événements Tauri, `present`/`delay` SDL). Un
+  thread qui calcule sans jamais se bloquer la retarde.
 - **SQLite** garde un cache de pages par connexion : ouvrir une base dans
   la boucle mesure aussi ce cache. Comparer à taille égale de données.
 - **Compiler en dehors de la mesure** : `/usr/bin/time` doit porter sur le

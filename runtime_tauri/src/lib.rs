@@ -738,6 +738,9 @@ pub extern "C" fn Tauri_run(this: i64) {
 
         match lookup_handler(this, &command) {
             Some(trampoline_addr) => {
+                // Le thread de la boucle d'événements est garé (voir plus bas) :
+                // il compte comme en cours le temps du handler Ocara.
+                let _running = ocara_runtime::rc::enter();
                 let args_ptr = unsafe { alloc_str(&args_json) };
                 let result_ptr = unsafe {
                     let f: unsafe extern "C" fn(i64) -> i64 = std::mem::transmute(trampoline_addr as usize);
@@ -784,12 +787,16 @@ pub extern "C" fn Tauri_run(this: i64) {
         Ok(())
     };
 
+    // Garé pendant toute la boucle d'événements : les autres threads (serveur
+    // HTTP) peuvent collecter leurs cycles ; un handler Ocara se recompte.
+    let parked = ocara_runtime::rc::park();
     if let Err(e) = tauri::Builder::<tauri::Wry>::new()
         .invoke_handler(invoke_handler)
         .setup(setup)
         .run(context) {
         eprintln!("[Tauri_run] erreur au lancement : {e}");
     }
+    drop(parked);
 
     // run() ne retourne qu'une fois la fenêtre réelle définitivement fermée
     // (ou si son lancement a échoué) — l'entrée simulée de TAURI_WINDOWS peut

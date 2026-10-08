@@ -422,7 +422,10 @@ pub extern "C" fn SDL_drawPoint(this: i64, x: i64, y: i64) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn SDL_present(this: i64) {
+    // Attente de la synchronisation verticale : thread garé, les autres
+    // threads peuvent collecter leurs cycles.
     with_open_window(this, |win| {
+        let _parked = ocara_runtime::rc::park();
         let _ = win.canvas.present();
     });
 }
@@ -755,6 +758,7 @@ pub extern "C" fn SDL_ticks() -> i64 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn SDL_delay(ms: i64) {
+    let _parked = ocara_runtime::rc::park();
     sdl3::timer::delay(ms.max(0) as u32);
 }
 

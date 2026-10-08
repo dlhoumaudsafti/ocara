@@ -247,8 +247,26 @@ Mesures (20 000 puis 200 000 itérations) : `for` sur le résultat d'un appel,
 sur une map, sur une plage, générateur imbriqué, `return` et `try` dans la
 boucle, consommateur qui sort par `break`, `Array::fromMessage` : stables.
 
+## Phase 8 — boucles d'événements Tauri/SDL (2026-10-08)
+
+La collecte complète des cycles exige que le thread qui la lance soit le
+seul en cours. Le thread principal d'une application Tauri ou SDL ne se
+garait jamais : les cycles des autres threads (serveur HTTP de
+`tauri_httpserver`, `mini_project_hexa`) n'étaient jamais rendus.
+
+- `rc::park()` (public) et nouveau `rc::enter()` : compte le thread courant
+  le temps d'un appel vers du code Ocara depuis un thread garé ou étranger.
+- `runtime_tauri` : `Tauri_run` est garé pendant toute la boucle
+  d'événements ; l'appel d'un handler Ocara (`window.ocara.invoke`) se
+  recompte avec `rc::enter()`.
+- `runtime_sdl` : la boucle de jeu est écrite en Ocara ; ses attentes
+  (`SDL_present`, synchronisation verticale, et `SDL::delay`) sont garées.
+
+Mesures : un thread qui crée 20 000 puis 200 000 cycles pendant une boucle
+SDL `present`/`delay` : 92 → 127 Mo avant, 88,8 → 90,1 Mo après. Application
+`tauri_httpserver`, fenêtre ouverte : plateau à ≈ 164 Mo (3 000 puis 6 000
+requêtes).
+
 ## Reste à faire
 
-- Un thread bloqué hors du runtime Ocara (boucle d'événements Tauri/SDL)
-  compte comme en cours : il empêche la collecte des cycles des autres
-  threads pendant ce temps.
+Rien de connu à ce jour.
