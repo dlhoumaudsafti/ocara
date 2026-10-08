@@ -31,23 +31,50 @@ static COLLECTING: AtomicBool = AtomicBool::new(false);
 /// beaucoup de racines restent vivantes, pour ne pas rebalayer sans cesse.
 static ROOTS_LIMIT: AtomicUsize = AtomicUsize::new(ROOTS_THRESHOLD);
 
-/// Threads Ocara secondaires en cours : la collecte des cycles n'a lieu
-/// que lorsqu'il n'y en a aucun.
-pub(crate) static ACTIVE_THREADS: AtomicUsize = AtomicUsize::new(0);
+/// Threads Ocara en train d'exécuter du code, le thread principal compris.
+/// Un thread bloqué dans un appel du runtime (`recv`, `join`, `sleep`,
+/// attente d'un verrou…) est « garé » (`park`) : il ne touche à aucun
+/// compte. La collecte des cycles a lieu quand le thread qui la lance est le
+/// seul en cours.
+static RUNNING: AtomicUsize = AtomicUsize::new(1);
 
 /// Compte un thread Ocara secondaire pendant toute sa durée de vie.
 pub(crate) struct ThreadGuard;
 
 impl ThreadGuard {
     pub(crate) fn new() -> Self {
-        ACTIVE_THREADS.fetch_add(1, Ordering::AcqRel);
+        RUNNING.fetch_add(1, Ordering::SeqCst);
         ThreadGuard
     }
 }
 
 impl Drop for ThreadGuard {
     fn drop(&mut self) {
-        ACTIVE_THREADS.fetch_sub(1, Ordering::AcqRel);
+        RUNNING.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+/// Gare le thread courant le temps d'un appel bloquant ; au réveil, il
+/// attend la fin d'une collecte en cours avant de reprendre.
+pub(crate) struct Parked;
+
+pub(crate) fn park() -> Parked {
+    RUNNING.fetch_sub(1, Ordering::SeqCst);
+    Parked
+}
+
+impl Drop for Parked {
+    fn drop(&mut self) {
+        loop {
+            RUNNING.fetch_add(1, Ordering::SeqCst);
+            if !COLLECTING.load(Ordering::SeqCst) {
+                return;
+            }
+            RUNNING.fetch_sub(1, Ordering::SeqCst);
+            while COLLECTING.load(Ordering::SeqCst) {
+                std::thread::yield_now();
+            }
+        }
     }
 }
 
@@ -111,6 +138,31 @@ unsafe fn object_mask<'a>(val: i64) -> &'a [u8] {
 
 /// Sans descripteur, la taille de l'instance est inconnue : elle n'est
 /// jamais libérée.
+/// Finalisations d'un objet, une seule fois avant sa libération : un champ
+/// marqué d'une lettre est un handle de ressource fermé avec l'objet (puis
+/// remis à zéro) ; `X`/`T` ferment l'objet builtin opaque lui-même
+/// (`Mutex`, `Thread` jamais attendu, détaché).
+unsafe fn finalize_object(val: i64) {
+    unsafe {
+        for (i, &kind) in object_mask(val).iter().enumerate() {
+            let field = (val + 8 * i as i64) as *mut i64;
+            match kind {
+                b'0' | b'1' => continue,
+                b'X' => crate::mutex::Mutex_destroy(val),
+                b'T' => crate::thread::Thread_detach(val),
+                _ if *field == 0 => continue,
+                b'S' => crate::sqlite::SQLite_close(*field),
+                b'Y' => crate::mysql::MySQL_close(*field),
+                b'B' => crate::mysql::MariaDB_close(*field),
+                b'Q' => crate::httprequest::HTTPRequest_close(*field),
+                b'P' => crate::httprequest::HTTPRequest_closeResponse(*field),
+                _ => continue,
+            }
+            *field = 0;
+        }
+    }
+}
+
 pub(crate) unsafe fn free_object(val: i64) {
     unsafe {
         if object_desc(val) == 0 {
@@ -118,6 +170,27 @@ pub(crate) unsafe fn free_object(val: i64) {
         }
         let size = object_mask(val).len() * 8;
         dealloc((val - 8 - HEADER as i64) as *mut u8, object_layout(size));
+    }
+}
+
+/// Handle natif (`TAG_HANDLE`, non compté) contenant `value` ; remplace
+/// `Box::into_raw` pour toute structure Rust rendue comme valeur Ocara.
+pub(crate) fn handle_new<T>(value: T) -> i64 {
+    assert!(std::mem::align_of::<T>() <= 8, "ocara_runtime: handle trop aligné");
+    let size = std::mem::size_of::<T>();
+    unsafe {
+        let ptr = alloc_block(size.max(8), size as i64, crate::typecheck::TAG_HANDLE, false);
+        std::ptr::write(ptr as *mut T, value);
+        ptr
+    }
+}
+
+/// Reprend la structure d'un handle et libère son bloc (remplace `Box::from_raw`).
+pub(crate) unsafe fn handle_take<T>(ptr: i64) -> T {
+    unsafe {
+        let value = std::ptr::read(ptr as *const T);
+        free_block(ptr, std::mem::size_of::<T>().max(8));
+        value
     }
 }
 
@@ -269,6 +342,9 @@ unsafe fn destroy(val: i64, k: Kind) {
     unsafe {
         let mut stack = vec![(val, k)];
         while let Some((x, xk)) = stack.pop() {
+            if xk == Kind::Object {
+                finalize_object(x);
+            }
             for_each_child(x, xk, &mut |t| {
                 let Some(tk) = kind(t) else { return };
                 let tw = word(t, tk);
@@ -305,17 +381,18 @@ fn possible_root(val: i64, w: &AtomicI64) {
     }
 }
 
-/// Collecte synchrone des cycles, ou seulement le balayage des racines
-/// mortes si un thread Ocara secondaire tourne (marquer pendant qu'un autre
+/// Collecte synchrone des cycles quand le thread courant est le seul en
+/// cours (les autres sont garés et ne peuvent reprendre qu'après) ; sinon
+/// seulement le balayage des racines mortes (marquer pendant qu'un autre
 /// thread modifie des comptes serait faux). Sans effet si une collecte est
 /// déjà en cours.
 pub(crate) fn collect_cycles() {
-    if COLLECTING.swap(true, Ordering::AcqRel) {
+    if COLLECTING.swap(true, Ordering::SeqCst) {
         return;
     }
-    if ACTIVE_THREADS.load(Ordering::Acquire) != 0 {
+    if RUNNING.load(Ordering::SeqCst) != 1 {
         sweep_dead_roots();
-        COLLECTING.store(false, Ordering::Release);
+        COLLECTING.store(false, Ordering::SeqCst);
         return;
     }
     let roots = std::mem::take(&mut *ROOTS.lock().unwrap_or_else(|e| e.into_inner()));
@@ -345,7 +422,7 @@ pub(crate) fn collect_cycles() {
         }
     }
     ROOTS_LIMIT.store(ROOTS_THRESHOLD, Ordering::Release);
-    COLLECTING.store(false, Ordering::Release);
+    COLLECTING.store(false, Ordering::SeqCst);
 }
 
 /// Libère les racines mortes : compte à zéro et couleur noire, posée par
@@ -443,6 +520,9 @@ unsafe fn collect_white(val: i64, k: Kind) {
                 continue;
             }
             set_color(xw, Color::Black);
+            if xk == Kind::Object {
+                finalize_object(x);
+            }
             for_each_child(x, xk, &mut |t| match kind(t) {
                 Some(tk) if can_cycle(tk) => stack.push((t, tk)),
                 Some(_) => release(t),
@@ -494,6 +574,53 @@ pub(crate) fn unwind_to(depth: usize) {
             unsafe {
                 let val = std::mem::replace(&mut *word, 0);
                 release(val);
+            }
+        }
+    }
+}
+
+// ── Ressources ouvertes ─────────────────────────────────────────────────────
+//
+// Ressource `scoped`/`consumed` ouverte : (slot de la variable, fonction de
+// fermeture). Retirée à sa fermeture normale ; un `raise` ferme celles des
+// frames qu'il saute (`close_resources_to`).
+
+thread_local! {
+    static RESOURCES: std::cell::UnsafeCell<Vec<(i64, i64)>> = const { std::cell::UnsafeCell::new(Vec::new()) };
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __rc_resource_push(slot: i64, closer: i64) {
+    RESOURCES.with(|r| unsafe { (*r.get()).push((slot, closer)) });
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __rc_resource_pop(slot: i64) {
+    RESOURCES.with(|r| unsafe {
+        let open = &mut *r.get();
+        if let Some(i) = open.iter().rposition(|(s, _)| *s == slot) {
+            open.remove(i);
+        }
+    });
+}
+
+pub(crate) fn resource_depth() -> usize {
+    RESOURCES.with(|r| unsafe { (*r.get()).len() })
+}
+
+/// Ferme les ressources ouvertes au-dessus de `depth`, de la plus récente à
+/// la plus ancienne.
+pub(crate) fn close_resources_to(depth: usize) {
+    loop {
+        let Some((slot, closer)) = RESOURCES.with(|r| unsafe {
+            let open = &mut *r.get();
+            if open.len() > depth { open.pop() } else { None }
+        }) else { break };
+        unsafe {
+            let handle = *(slot as *const i64);
+            if handle != 0 {
+                let close: unsafe extern "C" fn(i64) = std::mem::transmute(closer as usize);
+                close(handle);
             }
         }
     }

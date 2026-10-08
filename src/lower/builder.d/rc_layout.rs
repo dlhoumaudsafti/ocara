@@ -22,12 +22,14 @@ pub(crate) fn is_counted(ty: &Type, objects: &HashSet<String>) -> bool {
 }
 
 /// Classes dont les valeurs sont des instances munies d'un en-tête : classes
-/// et interfaces du programme, exceptions builtin. Les autres classes
-/// builtin peuvent être des pointeurs Rust nus : jamais comptées.
+/// et interfaces du programme, exceptions builtin, classes builtin opaques
+/// créées par `use` (`Mutex`, `Thread`, `HTTPServer`…, un champ
+/// `__opaque_ptr`). Les handles natifs rendus par le runtime portent
+/// `TAG_HANDLE`, ignoré par le comptage.
 pub fn compute_rc_objects(module: &mut IrModule, program: &Program) {
     let exception = module.class_layouts.get("Exception").cloned();
     let exceptions: Vec<String> = module.class_layouts.iter()
-        .filter(|(_, layout)| Some(*layout) == exception.as_ref())
+        .filter(|(_, layout)| Some(*layout) == exception.as_ref() || is_opaque(layout))
         .map(|(name, _)| name.clone())
         .collect();
     module.rc_objects = program.classes.iter().map(|c| c.name.clone())
@@ -36,17 +38,48 @@ pub fn compute_rc_objects(module: &mut IrModule, program: &Program) {
         .collect();
 }
 
+fn is_opaque(layout: &[(String, crate::ir::types::IrType)]) -> bool {
+    matches!(layout, [(field, _)] if field == "__opaque_ptr")
+}
+
+/// Un caractère par champ : `1` valeur comptée, `0` rien à faire, une
+/// lettre pour un handle de ressource fermé avec l'objet (voir
+/// `rc::finalize_object`). Les classes builtin opaques qui se ferment
+/// elles-mêmes : `X` (`Mutex`), `T` (`Thread`).
 fn mask_for(module: &IrModule, class: &str, objects: &HashSet<String>) -> String {
+    match class {
+        "Mutex" => return "X".into(),
+        "Thread" => return "T".into(),
+        _ => {}
+    }
     let layout = &module.class_layouts[class];
     let types = module.class_field_types.get(class);
     layout.iter().map(|(field, _)| {
         let declared = types.and_then(|types| types.iter().find(|(f, _)| f == field));
-        let counted = match declared {
-            Some((_, ty)) => is_counted(ty, objects),
-            None => is_builtin_exception_string(module, class, field),
-        };
-        if counted { '1' } else { '0' }
+        match declared {
+            Some((_, ty)) if is_counted(ty, objects) => '1',
+            Some((_, ty)) => resource_letter(ty).unwrap_or('0'),
+            None if is_builtin_exception_string(module, class, field) => '1',
+            None => '0',
+        }
     }).collect()
+}
+
+/// Lettre de fermeture d'un champ handle de ressource (`T` ou `T|null`).
+fn resource_letter(ty: &Type) -> Option<char> {
+    let name = match ty {
+        Type::Named(n) => n.as_str(),
+        Type::Union(members) => members.iter().find_map(|m| match m { Type::Named(n) => Some(n.as_str()), _ => None })?,
+        _ => return None,
+    };
+    match name {
+        "SQLite" => Some('S'),
+        "MySQL" => Some('Y'),
+        "MariaDB" => Some('B'),
+        "HTTPRequest" => Some('Q'),
+        "HTTPResponse" => Some('P'),
+        _ => None,
+    }
 }
 
 /// Champ `message`/`source` d'une exception builtin, ou hérité d'elle par

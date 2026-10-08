@@ -1170,9 +1170,9 @@ var count:int = 0
 count = 42      // réaffectation autorisée
 ```
 
-`var` déclare une variable **mutable** dont la portée est celle de la fonction. Elle peut être réaffectée à tout moment après sa déclaration.
+`var` déclare une variable **mutable**, visible du point de sa déclaration à la fin du bloc `{ }` qui la contient (une `var` déclarée dans un `if` n'existe plus après lui ; une déclaration de même nom dans un bloc imbriqué masque l'extérieure jusqu'à la fin de ce bloc). Elle peut être réaffectée à tout moment. Voir aussi [variables.md](variables.md) pour le cycle de vie complet de `var`/`const`/`scoped`/`consumed`.
 
-> **Gestion mémoire** : toute valeur allouée sur le tas (`string`, `array`, `map`, instance de classe, closure) est **comptée**. Chaque variable, champ, élément de conteneur ou capture qui la référence en détient une référence ; elle est libérée dès que plus rien ne la référence (fin du bloc de la dernière variable, écrasement, retrait du conteneur…). Affecter une valeur à une autre variable (`var y = x`) la **partage** — pas de copie. Les comptes sont atomiques (sûrs entre threads). Les références circulaires (un parent qui référence son enfant et réciproquement) sont rattrapées par un détecteur de cycles, qui s'exécute quand aucun thread secondaire ne tourne. Ce n'est pas un ramasse-miettes : rien ne parcourt le tas pour le nettoyer, la libération a lieu au moment précis où la dernière référence disparaît.
+> **Gestion mémoire** : toute valeur allouée sur le tas (`string`, `array`, `map`, instance de classe, closure) est **comptée**. Chaque variable, champ, élément de conteneur ou capture qui la référence en détient une référence ; elle est libérée dès que plus rien ne la référence (fin du bloc de la dernière variable, écrasement, retrait du conteneur…). Affecter une valeur à une autre variable (`var y = x`) la **partage** — pas de copie. Les comptes sont atomiques (sûrs entre threads). Les références circulaires (un parent qui référence son enfant et réciproquement) sont rattrapées par un détecteur de cycles, qui s'exécute quand les autres threads sont bloqués dans un appel du runtime (attente d'une requête HTTP, `join`, `sleep`, verrou…). Ce n'est pas un ramasse-miettes : rien ne parcourt le tas pour le nettoyer, la libération a lieu au moment précis où la dernière référence disparaît.
 
 ### 9.2 Variable de bloc (`scoped`)
 
@@ -1219,7 +1219,7 @@ Pour obtenir une copie indépendante, l'écrire explicitement (`noms.slice(0, no
 
 Une sortie anticipée du bloc (`return`, `break`, `continue`) rend elle aussi les références et ferme les ressources de tous les blocs qu'elle traverse.
 
-> Un `raise` rend aussi les références (variables et valeurs temporaires) de toutes les fonctions qu'il traverse jusqu'au `try` qui le rattrape. **Limite connue** : une ressource `scoped`/`consumed` traversée par un `raise` n'est pas fermée (elle reste ouverte, sans corruption).
+> Un `raise` rend aussi les références (variables et valeurs temporaires) de toutes les fonctions qu'il traverse jusqu'au `try` qui le rattrape. Une ressource `scoped`/`consumed` traversée par un `raise` est fermée de la même façon.
 
 ### 9.3 Variable à usage unique (`consumed`)
 
@@ -1258,8 +1258,17 @@ const APP_NAME:string = "Ocara"
 ```
 
 Les constantes globales sont définies **au niveau du module** (hors de toute fonction).  
-Leur valeur doit être un littéral ou une expression constante évaluable à la compilation.  
+Leur valeur doit être évaluable à la compilation : un littéral, éventuellement négé ou combiné par `+ - * / %` (concaténation `+` entre chaînes) — sinon erreur **E61**.  
 Elles sont accessibles depuis n'importe quelle fonction ou méthode du module.
+
+**Constante locale** : `const` à l'intérieur d'une fonction déclare une variable **non réaffectable** (erreur E10 sinon), de même portée de bloc que `var` ; sa valeur peut être n'importe quelle expression, évaluée à la déclaration :
+
+```ocara
+function main(): int {
+    const total:int = compute()   // non réaffectable, portée du bloc
+    return total
+}
+```
 
 ### 9.5 Constante de classe (`class const`)
 

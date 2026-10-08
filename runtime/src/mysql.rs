@@ -227,7 +227,7 @@ pub unsafe extern "C" fn MySQL_connect(
                     tx_open: Mutex::new(false),
                     pinned_conn: Mutex::new(None),
                 });
-                Box::into_raw(db) as i64
+                crate::rc::handle_new(*db)
             }
             Err(e) => {
                 throw_mysql_exception(
@@ -681,7 +681,7 @@ pub unsafe extern "C" fn MySQL_close(db_ptr: i64) {
         }
         // Le pool (et la connexion épinglée éventuelle) sera automatiquement
         // fermé quand la structure est drop.
-        let _ = Box::from_raw(db_ptr as *mut OcaraMySQLDatabase);
+        let _ = crate::rc::handle_take::<OcaraMySQLDatabase>(db_ptr);
     }
 }
 

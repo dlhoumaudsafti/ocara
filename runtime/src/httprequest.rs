@@ -53,11 +53,11 @@ fn res_ref(ptr: i64) -> &'static OcaraHttpResponse {
 }
 
 fn alloc_req(req: OcaraHttpRequest) -> i64 {
-    Box::into_raw(Box::new(req)) as i64
+    crate::rc::handle_new(req)
 }
 
 fn alloc_res(res: OcaraHttpResponse) -> i64 {
-    Box::into_raw(Box::new(res)) as i64
+    crate::rc::handle_new(res)
 }
 
 // ─── Exécution de la requête ─────────────────────────────────────────────────
@@ -288,16 +288,16 @@ pub extern "C" fn HTTPRequest_patch(url: i64, body: i64) -> i64 {
 // (OcaraHttpResponse) ne sont jamais libérés ailleurs — deux fonctions
 // distinctes (pas une seule "close" générique) car ce sont deux structs
 // différentes ; caster l'une vers le mauvais type serait UB. Même patron que
-// SQLite_close (Box::from_raw puis laisser tomber, le Drop fait le reste).
+// SQLite_close (handle_take puis laisser tomber, le Drop fait le reste).
 
 #[unsafe(no_mangle)]
 pub extern "C" fn HTTPRequest_close(req: i64) {
     if req == 0 { return; }
-    unsafe { let _ = Box::from_raw(req as *mut OcaraHttpRequest); }
+    unsafe { let _ = crate::rc::handle_take::<OcaraHttpRequest>(req); }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn HTTPRequest_closeResponse(res: i64) {
     if res == 0 { return; }
-    unsafe { let _ = Box::from_raw(res as *mut OcaraHttpResponse); }
+    unsafe { let _ = crate::rc::handle_take::<OcaraHttpResponse>(res); }
 }

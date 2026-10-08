@@ -181,16 +181,50 @@ fonctions avec locales, closures et temporaires, générateurs (`for`,
 `break`, `return`, `fromMessage`, scalaire, `try` interne) : stables ;
 serveur `mini_project_hexa` stable à ≈ 9,5 Mo sur 16 000 requêtes.
 
+## Phase 6 — threads, ressources, handles (2026-10-08)
+
+- **Cycles en multi-thread** : `RUNNING` compte les threads qui exécutent
+  du code Ocara (le principal compris). Un appel bloquant du runtime gare
+  le thread (`rc::park`) : `recv` des workers HTTP, attente du verrou des
+  handlers, `join` (threads, workers, tâches `async`), `sleep`, verrou de
+  `Mutex`, lecture clavier. La collecte complète a lieu quand le thread qui
+  la lance est le seul en cours ; un thread qui se réveille attend la fin
+  d'une collecte. Sinon, balayage des racines mortes seulement.
+- **Ressources et `raise`** : chaque ressource `scoped`/`consumed` est
+  enregistrée (`__rc_resource_push(slot, fermeture)`) et retirée à sa
+  fermeture (`ownership::mark_finalized`, fermeture explicite comprise) ;
+  `__ocara_fail` ferme celles des frames sautées avant de rendre leurs
+  valeurs. Une sortie de fonction ferme les ressources avant de rendre les
+  références (`rc::release_all`, `release_loop_exit`).
+- **Handles natifs** : les structures Rust rendues comme valeurs Ocara
+  (connexions SQLite/MySQL, requêtes et réponses HTTP, contexte de requête
+  serveur, tâches `async`) sont logées dans un bloc `TAG_HANDLE`
+  (`rc::handle_new`/`handle_take`) : `rc::kind` ne lit plus jamais la
+  mémoire d'un bloc étranger, quel que soit l'allocateur.
+- **Objets builtin opaques comptés** (`use Mutex()`, `use Thread()`,
+  `use HTTPServer()`, `use HTMLComponent()`) : leur bloc n'était jamais
+  libéré.
+- **Champs ressource finalisés avec l'objet** : le masque de classe porte
+  une lettre par champ ressource (`S` SQLite, `Y` MySQL, `B` MariaDB,
+  `Q` HTTPRequest, `P` HTTPResponse, `X` Mutex, `T` Thread) ;
+  `rc::finalize_object` ferme ces champs avant de rendre les autres, à la
+  libération comme dans le détecteur de cycles. `Mutex_destroy`,
+  `Thread_join` et `Thread_detach` mettent le champ à zéro (après le join) :
+  une fermeture manuelle suivie de la finalisation reste sans effet.
+- **E61** : une `const` globale doit être évaluable à la compilation ; une
+  `const G = f()` était réévaluée à chaque entrée de fonction (récursion
+  infinie si `f` lisait `G`).
+
+Mesures : cycles créés dans un thread pendant que le principal attend
+(`join`), ressources `scoped` (`Mutex`, SQLite) traversées par un `raise` :
+stables ; serveur `mini_project_hexa` stable à ≈ 9,9 Mo sur 12 000 requêtes.
+
 ## Reste à faire
 
-- **Cycles en programme multi-thread** : la collecte n'a lieu que quand
-  aucun thread secondaire ne tourne ; un serveur HTTP (workers permanents)
-  ne collecte donc jamais un cycle (seules les racines mortes sont
-  balayées). Piste : collecte concurrente (Bacon–Rajan concurrent) ou
-  points d'arrêt des workers.
-- **Ressources traversées par un `raise`** : une ressource `scoped`/
-  `consumed` (connexion, mutex…) n'est pas fermée par le déroulement.
-- Valeurs non taguées rendues comme valeurs Ocara (`HTTPRequest_*`,
-  `SQLite_open`, `MySQL_connect`…) : jamais comptées par leur type, mais un
-  tel handle rangé dans un `mixed` n'est ignoré par `rc::kind` que grâce à
-  l'en-tête de bloc de glibc — à revoir pour Android/Windows.
+- **Générateurs** : les temporaires d'une instruction traversée par un
+  `emit` (ex. `for x in f() { emit x }`, le tableau rendu par `f()`) ne sont
+  jamais rendus — une valeur SSA ne survit pas à une reprise ; il faudrait
+  les ranger dans des champs du frame.
+- Un thread bloqué hors du runtime Ocara (boucle d'événements Tauri/SDL)
+  compte comme en cours : il empêche la collecte des cycles des autres
+  threads pendant ce temps.

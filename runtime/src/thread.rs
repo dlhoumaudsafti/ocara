@@ -141,15 +141,19 @@ pub extern "C" fn Thread_join(self_ptr: i64) {
         if ptr.is_null() {
             return;
         }
-        let mut t = Box::from_raw(ptr);
-        if let Some(h) = t.handle.take() {
-            if let Err(_) = h.join() {
-                drop(t); // avant le throw — voir la note ci-dessus
-                crate::exception::throw_thread_exception(
-                    "Thread panicked during execution",
-                    102
-                );
-            }
+        let handle = (*ptr).handle.take();
+        let joined = handle.map(|h| { let _parked = crate::rc::park(); h.join() });
+        // Le thread est terminé : le wrapper peut être repris et le slot vidé
+        // (un `join`/`detach` ultérieur, ou la finalisation de l'objet, n'y
+        // touchera plus).
+        *(self_ptr as *mut i64) = 0;
+        let t = Box::from_raw(ptr);
+        if let Some(Err(_)) = joined {
+            drop(t); // avant le throw — voir la note ci-dessus
+            crate::exception::throw_thread_exception(
+                "Thread panicked during execution",
+                102
+            );
         }
         // chemin normal : `t` est droppé ici en sortant du bloc
     }
@@ -166,6 +170,7 @@ pub extern "C" fn Thread_detach(self_ptr: i64) {
         }
         // Dropping le JoinHandle (via le Drop implicite de OcaraThread ici)
         // détache le thread — Box::from_raw libère aussi le wrapper.
+        *(self_ptr as *mut i64) = 0;
         let _ = Box::from_raw(ptr);
     }
 }
@@ -180,6 +185,7 @@ pub extern "C" fn Thread_id(self_ptr: i64) -> i64 {
 /// Pause le thread courant pendant `ms` millisecondes.
 #[unsafe(no_mangle)]
 pub extern "C" fn Thread_sleep(ms: i64) {
+    let _parked = crate::rc::park();
     std::thread::sleep(std::time::Duration::from_millis(ms as u64));
 }
 

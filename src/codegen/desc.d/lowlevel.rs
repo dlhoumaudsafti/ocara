@@ -101,6 +101,8 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__rc_mark_raw",          params: &[clt::I64],                                 returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__rc_unwind_push",       params: &[clt::I64, clt::I64],                     returns: None,               module: None },
     BuiltinDesc { name: "__rc_unwind_pop",        params: &[],                                         returns: None,               module: None },
+    BuiltinDesc { name: "__rc_resource_push",     params: &[clt::I64, clt::I64],                     returns: None,               module: None },
+    BuiltinDesc { name: "__rc_resource_pop",      params: &[clt::I64],                                 returns: None,               module: None },
     BuiltinDesc { name: "__rc_collect_cycles",    params: &[],                                         returns: None,               module: None },
     BuiltinDesc { name: "__alloc_class_obj",      params: &[clt::I64, clt::I64, clt::I64],            returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__alloc_fat_ptr",        params: &[],                                returns: Some(clt::I64),    module: None },

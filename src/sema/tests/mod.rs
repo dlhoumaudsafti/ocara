@@ -17,3 +17,4 @@ mod generic_check;
 mod exception_binding;
 mod compound_assign;
 mod use_without_init;
+mod global_const;

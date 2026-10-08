@@ -282,8 +282,10 @@ pub fn release_scopes_from(builder: &mut LowerBuilder, depth: usize) {
     release_locals(builder, &locals);
 }
 
-/// Sortie de la fonction : temporaires et locales de toutes les portées.
+/// Sortie de la fonction : ressources fermées d'abord (leur objet doit
+/// encore être vivant), puis temporaires et locales de toutes les portées.
 pub fn release_all(builder: &mut LowerBuilder) {
+    crate::lower::stmt::ownership::emit_early_exit_drops(builder, 0);
     release_temps_from(builder, 0);
     release_scopes_from(builder, 0);
 }
@@ -444,6 +446,7 @@ pub fn exit_loop(builder: &mut LowerBuilder) {
 /// `break`/`continue` : temporaires du corps et locales des portées
 /// ouvertes depuis `scope_depth`.
 pub fn release_loop_exit(builder: &mut LowerBuilder, scope_depth: usize) {
+    crate::lower::stmt::ownership::emit_early_exit_drops(builder, scope_depth);
     let temps_depth = builder.rc_loop_temps.last().copied().unwrap_or(builder.rc_temps.len());
     release_temps_from(builder, temps_depth);
     release_scopes_from(builder, scope_depth);

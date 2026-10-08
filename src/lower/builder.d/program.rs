@@ -461,7 +461,6 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     module.class_layouts.insert("MariaDBException".to_string(), exception_layout.clone());
     module.class_layouts.insert("DotEnvException".to_string(), exception_layout.clone());
     module.class_layouts.insert("YAMLException".to_string(), exception_layout);
-    super::rc_layout::compute_rc_objects(&mut module, program);
 
     // Ajouter les layouts des builtins opaques (pointeur vers structure Rust)
     // Ces classes ont un constructeur _init qui alloue une structure opaque
@@ -470,6 +469,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     module.class_layouts.insert("Thread".to_string(), opaque_layout.clone());
     module.class_layouts.insert("Mutex".to_string(), opaque_layout.clone());
     module.class_layouts.insert("HTMLComponent".to_string(), opaque_layout);
+    super::rc_layout::compute_rc_objects(&mut module, program);
     
     // Construire les layouts des classes utilisateur (APRÈS les builtins)
     for class in &program.classes {

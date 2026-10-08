@@ -48,6 +48,10 @@ pub(crate) const TAG_ENV: i64 = 9;
 /// Frame d'un générateur (`crate::__alloc_gen`) : compté, détruit par la
 /// fonction `<générateur>__drop` rangée dans `aux`.
 pub(crate) const TAG_GEN: i64 = 10;
+/// Handle natif rendu comme valeur Ocara (connexion, requête, tâche…, voir
+/// `crate::rc::handle_new`) : jamais compté, mais son en-tête garantit que
+/// `read_tag` ne lit jamais la mémoire d'un bloc étranger.
+pub(crate) const TAG_HANDLE: i64 = 11;
 
 const PTR_THRESHOLD: i64 = 65536;
 

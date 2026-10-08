@@ -29,7 +29,7 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Fuite : cycles jamais collectés dans un programme multi-thread, ressources non fermées par un `raise`** — le comptage de références couvre désormais tout (closures, `try`, `async`, générateurs, déroulement complet d'un `raise` à travers les fonctions sautées ; serveur `mini_project_hexa` stable). Restent : la collecte des cycles n'a lieu que quand aucun thread secondaire ne tourne (un serveur HTTP ne collecte donc jamais un cycle) ; une ressource `scoped`/`consumed` traversée par un `raise` n'est pas fermée ; un pointeur Rust nu rangé dans un `mixed` n'est ignoré que grâce à l'en-tête de bloc de glibc (Android/Windows à vérifier). *(Structurel — Dangereuse : gestion mémoire)* → [détails](roadmap.d/memoire-refcount.md)
+- **Fuite : temporaires d'une instruction de générateur traversée par un `emit`** — le comptage de références couvre désormais les cycles en multi-thread (threads garés dans les appels bloquants), les ressources fermées par un `raise`, et les handles natifs (bloc `TAG_HANDLE`, plus de dépendance à glibc). Reste : dans un générateur, une valeur temporaire d'une instruction qui contient un `emit` (ex. le tableau de `for x in f() { emit x }`) n'est jamais rendue, faute de survivre à la reprise ; à ranger dans des champs du frame. *(Structurel — Dangereuse : gestion mémoire)* → [détails](roadmap.d/memoire-refcount.md)
 
 ---
 

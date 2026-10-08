@@ -80,12 +80,9 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
                     None => val,
                 }
             });
+            // Sortie anticipée de la fonction : ressources fermées puis
+            // références rendues (la valeur retournée est déjà prise).
             crate::lower::stmt::rc::release_all(builder);
-            // Sortie anticipée de la fonction : détruit toutes les
-            // scoped/consumed encore vivantes dans les blocs actuellement
-            // ouverts (v, calculé juste au-dessus, a déjà sa propre copie
-            // indépendante si besoin — voir maybe_clone_escaping).
-            crate::lower::stmt::ownership::emit_early_exit_drops(builder, 0);
             // `return` (toujours sans valeur, imposé par la sema) dans un
             // générateur (`message<T>`, voir `crate::lower::builder::message_gen`) :
             // sortie anticipée = épuisé, jamais un vrai retour de fonction —
@@ -147,11 +144,6 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
                     ret_ty: IrType::Void,
                 });
 
-                // `result` dans un handler : même sortie anticipée de
-                // fonction qu'un `return` (voir plus haut) — sans ça, les
-                // scoped/consumed encore vivantes fuient (voir
-                // docs/roadmap.d/memoire-double-free-et-fuites-scoped.md).
-                crate::lower::stmt::ownership::emit_early_exit_drops(builder, 0);
                 builder.emit(Inst::Return { value: v });
             } else if builder.func.name == "main" && builder.runtime_exit_bb.is_some() {
                 // Gérer le cas spécial de "result SUCCESS" : SUCCESS est bool mais ERROR est int
@@ -174,7 +166,6 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
                     // Sauter au label de sortie anticipée du bloc main
                     if let Some(exit_bb) = builder.runtime_exit_bb.clone() {
                         crate::lower::stmt::rc::release_all(builder);
-                        crate::lower::stmt::ownership::emit_early_exit_drops(builder, 0);
                         builder.emit(Inst::Jump { target: exit_bb });
                         return; // Ne pas émettre de Return après
                     }
@@ -182,14 +173,12 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
 
                 // Fallback : émettre return normal si pas de runtime_exit_bb
                 crate::lower::stmt::rc::release_all(builder);
-                crate::lower::stmt::ownership::emit_early_exit_drops(builder, 0);
                 builder.emit(Inst::Return { value: Some(result_val) });
             } else {
                 // Fallback défensif (error/success/exit, ou contexte inattendu) :
                 // se comporte comme un vrai return de la fonction main() synthétisée.
                 let v = value.as_ref().map(|e| lower_expr(builder, e));
                 crate::lower::stmt::rc::release_all(builder);
-                crate::lower::stmt::ownership::emit_early_exit_drops(builder, 0);
                 builder.emit(Inst::Return { value: v });
             }
         }

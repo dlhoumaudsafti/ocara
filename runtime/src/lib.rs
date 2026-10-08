@@ -592,7 +592,8 @@ pub extern "C" fn write_bool(b: i64) {
 /// Lève une IOException en cas d'erreur de lecture.
 fn read() -> i64 {
     let mut line = String::new();
-    match io::stdin().lock().read_line(&mut line) {
+    let outcome = { let _parked = rc::park(); io::stdin().lock().read_line(&mut line) };
+    match outcome {
         Ok(_) => {
             if line.ends_with('\n') { line.pop(); }
             if line.ends_with('\r') { line.pop(); }
@@ -1607,6 +1608,7 @@ pub extern "C" fn System_cwd() -> i64 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn System_sleep(ms: i64) {
+    let _parked = rc::park();
     std::thread::sleep(Duration::from_millis(ms as u64));
 }
 
@@ -2479,6 +2481,8 @@ struct TryFrame {
     error_type: i64,
     /// Profondeur de la pile de déroulement (`rc::unwind_depth`) à l'entrée.
     unwind:     usize,
+    /// Nombre de ressources ouvertes (`rc::resource_depth`) à l'entrée.
+    resources:  usize,
 }
 
 const MAX_TRY_DEPTH: usize = 64;
@@ -2571,6 +2575,7 @@ pub extern "C" fn __ocara_try_enter() -> i64 {
             (*frame_ptr).error_val  = 0;
             (*frame_ptr).error_type = 0;
             (*frame_ptr).unwind = rc::unwind_depth();
+            (*frame_ptr).resources = rc::resource_depth();
         }
         stack.depth.set(depth + 1);
         frame_ptr as i64
@@ -2614,6 +2619,7 @@ pub extern "C" fn __ocara_try_exec(body_fn: i64, handler_fn: i64) -> i64 {
             (*frame_ptr).error_val  = 0;
             (*frame_ptr).error_type = 0;
             (*frame_ptr).unwind = rc::unwind_depth();
+            (*frame_ptr).resources = rc::resource_depth();
         }
 
         // Pousser la nouvelle profondeur
@@ -2695,6 +2701,7 @@ pub extern "C" fn __ocara_try_exec_with_captures(
             (*frame_ptr).error_val  = 0;
             (*frame_ptr).error_type = 0;
             (*frame_ptr).unwind = rc::unwind_depth();
+            (*frame_ptr).resources = rc::resource_depth();
         }
 
         stack.depth.set(depth + 1);
@@ -2769,6 +2776,7 @@ pub(crate) fn run_closure_catching(func_ptr: i64, env_ptr: i64) -> Result<i64, (
             (*frame_ptr).error_val  = 0;
             (*frame_ptr).error_type = 0;
             (*frame_ptr).unwind = rc::unwind_depth();
+            (*frame_ptr).resources = rc::resource_depth();
         }
 
         stack.depth.set(depth + 1);
@@ -2821,6 +2829,7 @@ pub(crate) fn run_closure_catching_with_arg(func_ptr: i64, env_ptr: i64, arg1: i
             (*frame_ptr).error_val  = 0;
             (*frame_ptr).error_type = 0;
             (*frame_ptr).unwind = rc::unwind_depth();
+            (*frame_ptr).resources = rc::resource_depth();
         }
 
         stack.depth.set(depth + 1);
@@ -2858,6 +2867,7 @@ pub extern "C" fn __ocara_fail(val: i64, type_name: i64) {
         unsafe {
             (*frame_ptr).error_val  = val;
             (*frame_ptr).error_type = type_name;
+            rc::close_resources_to((*frame_ptr).resources);
             rc::unwind_to((*frame_ptr).unwind);
             let env_ptr: *mut JmpBuf = &mut (*frame_ptr).env;
             longjmp(env_ptr, 1);
@@ -2990,8 +3000,7 @@ pub extern "C" fn __task_spawn(func: i64, env: i64) -> i64 {
         let f: extern "C" fn(i64) -> i64 = std::mem::transmute(func as usize);
         f(env)
     });
-    let task = Box::new(OcaraTask { handle: Some(handle) });
-    Box::into_raw(task) as i64
+    rc::handle_new(OcaraTask { handle: Some(handle) })
 }
 
 // `resolve expr` : attend le thread et libère le wrapper OcaraTask (jusqu'ici
@@ -3007,8 +3016,9 @@ pub extern "C" fn __task_resolve(task_ptr: i64) -> i64 {
     if task_ptr == 0 {
         return 0;
     }
-    let mut task = unsafe { Box::from_raw(task_ptr as *mut OcaraTask) };
+    let mut task = unsafe { rc::handle_take::<OcaraTask>(task_ptr) };
     if let Some(handle) = task.handle.take() {
+        let _parked = rc::park();
         handle.join().unwrap_or(0)
     } else {
         0

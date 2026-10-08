@@ -831,7 +831,10 @@ fn try_serve_static_file(req_handle: i64, req_path: &str, root_path: Option<&str
 /// pour qu'aucune capture partagée (heap_promoted) ne soit jamais touchée
 /// par deux handlers en même temps.
 unsafe fn call_handler_locked(handler_lock: &Mutex<()>, h: &SendHandler, req_handle: i64) {
-    let _guard = handler_lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _guard = {
+        let _parked = crate::rc::park();
+        handler_lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    };
     let f: OcaraHandlerFn = unsafe { std::mem::transmute(h.func_ptr as usize) };
     unsafe { f(h.env_ptr, req_handle) };
 }
@@ -916,7 +919,7 @@ fn handle_request(
         session_id:   None,
         request:      Some(request),
     });
-    let req_handle = Box::into_raw(ctx) as i64;
+    let req_handle = crate::rc::handle_new(*ctx);
 
     // Appeler le handler ou tenter de servir un fichier statique
     if let Some(h) = handler {
@@ -979,7 +982,7 @@ fn handle_request(
     }
 
     // Libérer le contexte
-    drop(unsafe { Box::from_raw(req_handle as *mut OcaraHttpContext) });
+    drop(unsafe { crate::rc::handle_take::<OcaraHttpContext>(req_handle) });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1137,7 +1140,8 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
         std::thread::spawn(move || {
             let _guard = guard;
             loop {
-                match server.recv() {
+                let next = { let _parked = crate::rc::park(); server.recv() };
+                match next {
                     Ok(request) => handle_request(request, &routes, root_path.as_deref(), &error_handlers, &handler_lock),
                     Err(_)      => break,
                 }
@@ -1145,6 +1149,7 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
         })
     }).collect();
 
+    let _parked = crate::rc::park();
     for h in handles {
         let _ = h.join();
     }

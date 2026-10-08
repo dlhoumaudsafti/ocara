@@ -10,10 +10,16 @@
 |----------|-------------|
 | [compilation-guide.md](compilation-guide.md) | Guide complet de compilation avec le compilateur `ocara` |
 | [EBNF.md](EBNF.md) | Grammaire formelle du langage Ocara (EBNF) |
+| [variables.md](variables.md) | Cycle de vie des variables et constantes (`var`, `const`, `scoped`, `consumed`, constantes de classe) : déclaration, usage, contraintes, libération |
 | [conventions.md](conventions.md) | Conventions de nommage (variables, constantes, fonctions/méthodes, classes/interfaces/modules/generics) |
 | [workflow-compilation.md](workflow-compilation.md) | Workflow de Compilation Ocara |
 | [diagnostics.md](diagnostics.md) | Messages d'erreur et diagnostics du compilateur |
+| [benchmarking.md](benchmarking.md) | Mesurer la mémoire (fuites) et le temps d'exécution d'un programme |
 | [android.md](android.md) | Compilation croisée vers Android (`.so`, NDK) — état actuel et limitations |
+| [windows.md](windows.md) | Compilation pour Windows |
+| [adding-builtins.md](adding-builtins.md) | Ajouter une classe builtin au runtime et au compilateur |
+| [adding-types.md](adding-types.md) | Ajouter un type au langage |
+| [roadmap.md](roadmap.md) | Travaux restants, par priorité (fiches détaillées dans `roadmap.d/`) |
 
 ---
 
@@ -80,6 +86,7 @@ Documentation détaillée des classes intégrées au runtime Ocara :
 
 | Builtin | Description |
 |---------|-------------|
+| [SDL.md](builtins/SDL.md) | Fenêtre, rendu 2D et événements (SDL2) |
 | [Tauri.md](builtins/Tauri.md) | ⚠️ **Partiellement fonctionnel** — fenêtre desktop native (Tauri v2) et appel de code Ocara depuis le JS de la page (`ui.handler`/`ui.handlers`) opérationnels ; événements/dialogues/notifications encore simulés |
 
 ---
@@ -100,9 +107,13 @@ Documentation des outils de développement Ocara :
 
 Voir le dossier [../examples/](../examples/) pour des exemples complets :
 
-- **examples/01-25** : Exemples de base (variables, fonctions, classes, etc.)
+- **examples/01-69** : Un script par fonctionnalité du langage
 - **examples/builtins/** : Démonstrations de chaque classe builtin
+- **examples/advanced/** : Applications complètes (serveur web, Tauri, architecture hexagonale, jeu SDL)
 - **examples/project/** : Projet multi-fichiers complet avec tests
+- **examples/tests/** : Tests unitaires du langage (`make regression`)
+
+Le détail est dans [../examples/README.md](../examples/README.md).
 
 ---
 

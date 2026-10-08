@@ -4,8 +4,8 @@
 ///
 /// `return`/`break`/`continue` anticipés ferment aussi les ressources des
 /// blocs qu'ils traversent (`emit_early_exit_drops`, `block_scope_stack`).
-/// Limite : un `raise` qui traverse un `try` par `longjmp` saute ces
-/// fermetures.
+/// Chaque ressource ouverte est enregistrée auprès du runtime
+/// (`__rc_resource_push`) : un `raise` ferme celles des frames qu'il saute.
 use std::collections::HashMap;
 
 use crate::ir::inst::Inst;
@@ -26,6 +26,8 @@ pub struct OwnedLocalInfo {
     /// boucle plus profonde ne ferme pas la ressource (elle serait fermée à
     /// chaque itération), `emit_scope_drops` s'en charge.
     pub declared_loop_depth: usize,
+    /// Slot enregistré pour la fermeture par déroulement (`raise`).
+    pub unwind_slot: Option<crate::ir::inst::Value>,
 }
 
 /// Appelé par `lower_var` : enregistre une ressource `scoped`/`consumed`.
@@ -36,12 +38,35 @@ pub fn register_owned_local(builder: &mut LowerBuilder, name: &str, ty: &Type, k
     if ownership_class(ty) != OwnershipClass::Resource {
         return;
     }
-    builder.owned_locals.insert(
-        name.to_string(),
-        OwnedLocalInfo { kind, ty: ty.clone(), dropped: false, declared_loop_depth: builder.loop_depth },
-    );
+    let mut info = OwnedLocalInfo { kind, ty: ty.clone(), dropped: false, declared_loop_depth: builder.loop_depth, unwind_slot: None };
+    info.unwind_slot = register_unwind(builder, name, &info);
+    builder.owned_locals.insert(name.to_string(), info);
     if let Some(frame) = builder.block_scope_stack.last_mut() {
         frame.push(name.to_string());
+    }
+}
+
+/// Enregistre la ressource (slot, fonction de fermeture) pour qu'un `raise`
+/// qui traverse la fonction la ferme.
+fn register_unwind(builder: &mut LowerBuilder, name: &str, info: &OwnedLocalInfo) -> Option<crate::ir::inst::Value> {
+    if builder.rc_generator || builder.frame_vars.contains_key(name) || builder.heap_promoted.contains(name) {
+        return None;
+    }
+    let closer = closer_for(info)?;
+    let (slot, _, _) = builder.locals.get(name).cloned()?;
+    let addr = builder.new_value();
+    builder.emit(Inst::FuncAddr { dest: addr.clone(), func: closer });
+    builder.emit(Inst::Call { dest: None, func: "__rc_resource_push".into(), args: vec![slot.clone(), addr], ret_ty: IrType::Void });
+    Some(slot)
+}
+
+/// La ressource `name` est fermée (fin de portée ou fermeture explicite) :
+/// plus de fermeture automatique, ni par le bloc, ni par un `raise`.
+pub fn mark_finalized(builder: &mut LowerBuilder, name: &str) {
+    let Some(info) = builder.owned_locals.get_mut(name) else { return };
+    info.dropped = true;
+    if let Some(slot) = info.unwind_slot.clone() {
+        builder.emit(Inst::Call { dest: None, func: "__rc_resource_pop".into(), args: vec![slot], ret_ty: IrType::Void });
     }
 }
 
@@ -62,9 +87,7 @@ fn emit_drop_if_owned(builder: &mut LowerBuilder, name: &str) {
     let Some(func) = closer_for(&info) else { return };
     let Some((val, _)) = builder.load_local(name) else { return };
     builder.emit(Inst::Call { dest: None, func, args: vec![val], ret_ty: IrType::Void });
-    if let Some(entry) = builder.owned_locals.get_mut(name) {
-        entry.dropped = true;
-    }
+    mark_finalized(builder, name);
 }
 
 /// Détruit, dans l'ordre inverse de déclaration, toutes les `scoped`/

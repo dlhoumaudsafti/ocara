@@ -170,6 +170,9 @@ pub enum SemaError {
     /// Valeur d'une constante de classe non évaluable à la compilation
     /// (appel, variable...) — voir `Expr::const_literal` (E55).
     ClassConstNotConstant { class: String, name: String, span: Span },
+    /// Valeur d'une constante globale non évaluable à la compilation (E61) :
+    /// elle est réévaluée à l'entrée de chaque fonction, un appel y bouclerait.
+    GlobalConstNotConstant { name: String, span: Span },
     /// Champ appelé comme une méthode (`e.message()` au lieu de
     /// `e.message`) — E57.
     FieldCalledAsMethod { class: String, field: String, span: Span },
@@ -232,6 +235,7 @@ impl SemaError {
             SemaError::NamedArgUnresolved { span, .. } => span,
             SemaError::FieldNotAccessible { span, .. } => span,
             SemaError::ClassConstNotConstant { span, .. } => span,
+            SemaError::GlobalConstNotConstant { span, .. } => span,
             SemaError::FieldCalledAsMethod { span, .. } => span,
             SemaError::ArithmeticOnNonNumeric { span, .. } => span,
             SemaError::ArgsWithoutConstructor { span, .. } => span,
@@ -358,6 +362,8 @@ impl SemaError {
                 format!("'{}' is a field of '{}', not a method — write '.{}' without parentheses", field, class, field),
             SemaError::ClassConstNotConstant { class, name, .. } =>
                 format!("value of class constant '{}::{}' must be known at compile time — a literal, possibly negated or combined with +, -, *, /, % (e.g. '-273', '60 * 1000'); use a static method for a computed value", class, name),
+            SemaError::GlobalConstNotConstant { name, .. } =>
+                format!("value of global constant '{}' must be known at compile time — a literal, possibly negated or combined with +, -, *, /, % (e.g. '-273', '60 * 1000'); use a function for a computed value", name),
         }
     }
 }

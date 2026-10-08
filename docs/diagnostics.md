@@ -376,10 +376,10 @@ fichier.oc:9:25: error: 'm' ('Mutex') cannot escape its 'scoped'/'consumed' bloc
 
 Une `scoped`/`consumed` de type `Mutex`/`SQLite`/`MySQL`/`MariaDB`/`Thread`
 est affectée à une variable, un champ, ou retournée — donc destinée à
-survivre à son propre bloc. Contrairement à un `array`/`map` `scoped`/
-`consumed` (silencieusement cloné dans ce cas), un handle de ressource ne
-peut pas être dupliqué : deux « clones » d'un même `Mutex` ne protégeraient
-plus la même section critique.
+survivre à son propre bloc. Contrairement à une valeur (`string`/
+`array`/`map`/objet), qui peut sortir de son bloc en étant partagée
+(comptage de références), un handle de ressource est fermé à la fin du bloc :
+le laisser sortir le rendrait inutilisable.
 
 ```ocara
 scoped m:Mutex = use Mutex()
@@ -1360,3 +1360,23 @@ try {
 |------|--------------|
 | `0` | Succès — aucune erreur de compilation |
 | `1` | Erreur(s) de compilation — analyse ou codegen échouée |
+
+---
+
+### E61 — Valeur de constante globale non évaluable à la compilation
+
+```
+fichier.oc:6:1: error: value of global constant 'G' must be known at compile time — a literal, possibly negated or combined with +, -, *, /, % (e.g. '-273', '60 * 1000'); use a function for a computed value
+```
+
+Une constante globale est réévaluée à l'entrée de chaque fonction : sa valeur doit être calculable à la compilation, comme une constante de classe (E55). Une valeur issue d'un appel bouclait jusqu'au débordement de pile quand la fonction appelée lisait elle-même ses constantes globales (SIGSEGV confirmé). Sont acceptés : littéraux, `-x`, `not x`, et `+ - * / %` entre littéraux (concaténation `+` entre chaînes).
+
+```ocara
+function tick(): int { return 7 }
+
+const OK:int = 60 * 1000   // ✅
+const G:int = tick()       // ❌ E61
+```
+
+**Correction :** écrire la valeur littérale, ou exposer la valeur calculée par une fonction (`function g(): int { return tick() }`).
+

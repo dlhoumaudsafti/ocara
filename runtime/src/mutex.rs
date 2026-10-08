@@ -166,7 +166,7 @@ pub extern "C" fn Mutex_init(self_ptr: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn Mutex_lock(self_ptr: i64) {
     let m = unsafe { &*mutex_from_slot(self_ptr) };
-    let result = unsafe { platform::lock(m.mutex) };
+    let result = { let _parked = crate::rc::park(); unsafe { platform::lock(m.mutex) } };
     if result != 0 {
         unsafe {
             crate::exception::throw_mutex_exception(
@@ -225,7 +225,7 @@ pub extern "C" fn Mutex_tryLock(self_ptr: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn Mutex_withLock(self_ptr: i64, fat_ptr: i64) {
     let m = unsafe { &*mutex_from_slot(self_ptr) };
-    let lock_result = unsafe { platform::lock(m.mutex) };
+    let lock_result = { let _parked = crate::rc::park(); unsafe { platform::lock(m.mutex) } };
     if lock_result != 0 {
         unsafe {
             crate::exception::throw_mutex_exception(
@@ -273,6 +273,7 @@ pub extern "C" fn Mutex_destroy(self_ptr: i64) {
         if ptr.is_null() {
             return;
         }
+        *(self_ptr as *mut i64) = 0;
         let _ = Box::from_raw(ptr);
     }
 }

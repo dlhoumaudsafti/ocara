@@ -97,6 +97,9 @@ impl<'a> TypeChecker<'a> {
         self.warnings.extend(crate::sema::resource_raise::check_program(program, &self.resource_classes));
 
         // Enums — vérifier les doublons de variantes
+        for c in &program.consts {
+            self.check_global_const(c);
+        }
         for en in &program.enums {
             self.check_enum(en);
         }
@@ -130,6 +133,15 @@ impl<'a> TypeChecker<'a> {
     }
 
     // ── Enum ─────────────────────────────────────────────────────────────────
+
+    /// Constante globale : réévaluée à l'entrée de chaque fonction, sa
+    /// valeur doit être connue à la compilation (E61), comme une constante
+    /// de classe (E55).
+    fn check_global_const(&mut self, c: &crate::parsing::ast::ConstDecl) {
+        if c.value.const_literal().is_none() {
+            self.errors.push(SemaError::GlobalConstNotConstant { name: c.name.clone(), span: c.span.clone() });
+        }
+    }
 
     fn check_enum(&mut self, en: &crate::parsing::ast::EnumDecl) {
         let mut seen = std::collections::HashSet::new();

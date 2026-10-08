@@ -758,9 +758,7 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                                 | (Some("HTTPResponse"), "closeResponse")
                         );
                         if is_manual_finalizer {
-                            if let Some(info) = builder.owned_locals.get_mut(var_name.as_str()) {
-                                info.dropped = true;
-                            }
+                            crate::lower::stmt::ownership::mark_finalized(builder, var_name);
                         }
                     }
                     return dest;
@@ -1126,9 +1124,7 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 // receveur. Voir docs/roadmap.d/memoire-double-free-et-fuites-scoped.md.
                 if func_name == "HTTPRequest_close" || func_name == "HTTPRequest_closeResponse" {
                     if let Some(Expr::Ident(var_name, _)) = args.first() {
-                        if let Some(info) = builder.owned_locals.get_mut(var_name.as_str()) {
-                            info.dropped = true;
-                        }
+                        crate::lower::stmt::ownership::mark_finalized(builder, var_name);
                     }
                 }
                 // Les fonctions void ne retournent rien, donc on retourne une constante dummy

@@ -313,7 +313,6 @@ pub fn lower_break(builder: &mut LowerBuilder) {
         // de la boucle (corps de boucle inclus) avant de sauter dehors —
         // voir crate::lower::stmt::ownership::emit_early_exit_drops.
         crate::lower::stmt::rc::release_loop_exit(builder, depth);
-        crate::lower::stmt::ownership::emit_early_exit_drops(builder, depth);
         builder.emit(Inst::Jump { target: break_bb });
     }
 }
@@ -324,7 +323,6 @@ pub fn lower_continue(builder: &mut LowerBuilder) {
         // de boucle actuellement ouvert (et tout ce qu'il contient), juste
         // pour reboucler plutôt que sortir complètement.
         crate::lower::stmt::rc::release_loop_exit(builder, depth);
-        crate::lower::stmt::ownership::emit_early_exit_drops(builder, depth);
         builder.emit(Inst::Jump { target: continue_bb });
     }
 }
