@@ -300,7 +300,15 @@ pub fn code_lenses(ws: &Workspace, index: &ProjectIndex, path: &Path) -> Vec<Cod
         for (m, m_span) in &methods {
             let loc = at(m_span, m);
             lenses.push(lens(&loc, "implémentation", overrides(&implementers, &[(m.clone(), m_span.clone())])));
-            lenses.push(lens(&loc, "référence", refs(m_span)));
+            // Appels écrits `Interface::m(...)` : résolus vers la classe
+            // `wiring`, donc comptés sur toute la famille de la méthode.
+            let mut family_refs = refs(m_span);
+            for (key, _) in method_family(index, path, &loc) {
+                for r in index.references(&key) {
+                    if !family_refs.contains(&r) { family_refs.push(r); }
+                }
+            }
+            lenses.push(lens(&loc, "référence", family_refs));
         }
     }
 

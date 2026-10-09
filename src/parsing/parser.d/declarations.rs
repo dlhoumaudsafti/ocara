@@ -486,10 +486,16 @@ impl Parser {
     fn parse_wiring_decl(&mut self) -> ParseResult<WiringDecl> {
         let span = self.span();
         self.eat(&TokenKind::Wiring)?;
-        let mut path = vec![self.eat_ident()?.0];
+        let (first, mut last_span) = self.eat_ident()?;
+        let mut path = vec![first];
         while self.check_exact(&TokenKind::Dot) {
             self.advance();
-            path.push(self.eat_ident()?.0);
+            let (segment, segment_span) = self.eat_ident()?;
+            path.push(segment);
+            last_span = segment_span;
+        }
+        if let Some(target) = path.last() {
+            self.type_refs.push((target.clone(), last_span));
         }
         Ok(WiringDecl { path, span })
     }

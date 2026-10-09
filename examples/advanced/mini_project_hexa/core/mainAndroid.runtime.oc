@@ -1,0 +1,5 @@
+// Sur Android, runtime_android_jni appelle déjà main() sur un thread
+// dédié (différent du thread UI) — pas besoin de sous-thread + sondage
+// HTTP pour ne pas geler la fenêtre Tauri en l'ouvrant trop tôt.
+server.start()
+result SUCCESS

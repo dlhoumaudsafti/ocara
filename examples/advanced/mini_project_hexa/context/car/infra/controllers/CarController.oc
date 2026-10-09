@@ -42,8 +42,6 @@ class CarController {
         var reference:string = car_details.car.reference
         var brand:string      = car_details.car.brand
         var model:string      = car_details.car.model
-        var purchase_price:float  = car_details.car.purchase_price
-        var estimated_price:float = car_details.car.estimated_price
 
         var rows_html:string = ""
         for m in car_details.maintenances {
@@ -58,18 +56,16 @@ class CarController {
             rows_html = `<p class="empty">Aucun entretien enregistré pour cette voiture.</p>`
         }
 
-        scoped id_str:string = Convert::intToStr(id)
-        scoped purchase_price_text:string  = Format::price(purchase_price)
-        scoped estimated_price_text:string = Format::price(estimated_price)
-        scoped maintenance_total_text:string = Format::price(car_details.maintenance_total)
-        scoped improvement_total_text:string = Format::price(car_details.improvement_total)
+        consumed id_str:string = id.toStr()
+        consumed purchase_price_text:string  = Format::price(car_details.car.purchase_price)
+        consumed estimated_price_text:string = Format::price(car_details.car.estimated_price)
+        consumed maintenance_total_text:string = Format::price(car_details.maintenance_total)
+        consumed improvement_total_text:string = Format::price(car_details.improvement_total)
 
-        scoped error_code:string   = req.query("error")
-        scoped success_code:string = req.query("success")
-        scoped error_text:string   = Flash::message(error_code)
-        scoped success_text:string = Flash::message(success_code)
+        consumed error_text:string   = Flash::message(req.query("error"))
+        consumed success_text:string = Flash::message(req.query("success"))
 
-        scoped html:string = HTML::renderFile('templates/car/car_detail.html')
+        consumed html:string = HTML::renderFile('templates/car/car_detail.html')
         req.respond(200, html)
         return 0
     }

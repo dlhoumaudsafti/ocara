@@ -378,4 +378,11 @@ mod tests {
         assert_eq!(errors.len(), 1);
         assert_eq!(program.functions.len(), 1);
     }
+
+    #[test]
+    fn type_refs_record_static_access_and_wiring_target() {
+        let program = parse("interface Repo {\n    wiring app.db.SqlRepo\n}\n\nfunction main(): int {\n    return Repo::count()\n}\n");
+        let refs: Vec<(&str, usize, usize)> = program.type_refs.iter().map(|(n, s)| (n.as_str(), s.line, s.col)).collect();
+        assert_eq!(refs, vec![("SqlRepo", 2, 19), ("Repo", 6, 12)]);
+    }
 }

@@ -10,8 +10,6 @@ namespace context.home.infra.controllers
 import ocara.HTML
 import ocara.HTTPServer
 import ocara.HTTPServerRequest
-import ocara.Array
-import ocara.Convert
 import context.home.app.usecase.DashboardService
 import context.home.app.dto.DashboardDto
 import context.home.domain.entity.CarSummaryEntity
@@ -29,7 +27,7 @@ class HomeController {
         var cars_html:string = ""
         for car in cars {
             cars_html += `<car-card 
-                id="${Convert::intToStr(car.id)}"
+                id="${car.id.toStr()}"
                 reference="${car.reference}"
                 brand="${car.brand}"
                 model="${car.model}"
@@ -39,21 +37,19 @@ class HomeController {
             >`
         }
 
-        if Array::len(cars) equal 0 {
+        if cars.len() equal 0 {
             cars_html = `<p class="empty">Aucune voiture pour le moment — ajoutez la première ci-dessus.</p>`
         }
 
-        scoped car_count:string    = Convert::intToStr(Array::len(cars))
-        scoped purchase_text:string  = Format::price(dashboard.total_purchase_value)
-        scoped estimated_text:string = Format::price(dashboard.total_estimated_value)
-        scoped gain_text:string      = Format::price(dashboard.total_estimated_value - dashboard.total_purchase_value)
+        consumed car_count:string    = cars.len().toStr()
+        consumed purchase_text:string  = Format::price(dashboard.total_purchase_value)
+        consumed estimated_text:string = Format::price(dashboard.total_estimated_value)
+        consumed gain_text:string      = Format::price(dashboard.total_estimated_value - dashboard.total_purchase_value)
 
-        scoped error_code:string   = req.query("error")
-        scoped success_code:string = req.query("success")
-        scoped error_text:string   = Flash::message(error_code)
-        scoped success_text:string = Flash::message(success_code)
+        consumed error_text:string   = Flash::message(req.query("error"))
+        consumed success_text:string = Flash::message(req.query("success"))
 
-        scoped html:string = HTML::renderFile('templates/home/home.html')
+        consumed html:string = HTML::renderFile('templates/home/home.html')
         req.respond(200, html)
         return 0
     }

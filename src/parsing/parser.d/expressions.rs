@@ -592,6 +592,8 @@ impl Parser {
                 // Accès statique : `Class::method(...)` ou `Class::NAME`
                 if self.check_exact(&TokenKind::ColonColon) {
                     self.advance();
+                    // Classe telle qu'écrite (avant toute substitution `wiring`).
+                    self.type_refs.push((name.clone(), span.clone()));
                     let (member, _) = self.eat_ident()?;
                     if self.check_exact(&TokenKind::LParen) {
                         // Appel de méthode statique

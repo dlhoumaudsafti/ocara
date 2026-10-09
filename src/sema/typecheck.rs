@@ -1820,6 +1820,7 @@ impl<'a> TypeChecker<'a> {
                 // Référence à une méthode statique sans appel : ClassName::myStatic
                 if let Some(sig) = self.symbols.lookup_method_in_chain(&resolved_class, name) {
                     if sig.is_static {
+                            self.record(span, name, Target::Method { class: resolved_class.clone(), name: name.clone() }, &call_ret_ty(sig));
                         // Construire le type Function avec les paramètres. Même raison que la
                         // référence à une fonction libre sans appel (Expr::Ident, plus haut) :
                         // si `sig` est `async`, appeler cette valeur doit produire `Resolvable<T>`.

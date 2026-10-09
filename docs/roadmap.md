@@ -29,6 +29,8 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
+- **Classes homonymes de namespaces différents : une seule est compilée** — trois `Format` dans `mini_project_hexa` (contextes `home`, `car`, `search`, corps différents) : la fusion des imports garde la première chargée et tout le programme l'utilise, sans diagnostic. Court terme : erreur sur deux déclarations différentes du même nom ; à terme : identité qualifiée par namespace. *(Légère pour le diagnostic, Structurel pour les namespaces)* → [détails](roadmap.d/langage-classes-homonymes-fusionnees.md)
+
 
 
 ---

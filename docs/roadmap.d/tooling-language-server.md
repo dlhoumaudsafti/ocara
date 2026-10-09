@@ -176,6 +176,24 @@ plus que relayer les requêtes :
   d'entrée que si ce sont des erreurs (un avertissement reste dans son
   fichier).
 
+## Passe sur les CodeLens (2026-10-09)
+
+Audit sur les projets d'exemple (CodeLens « 0 référence » comparés aux
+occurrences dans le texte) :
+
+- Référence de méthode sans appel (`server.route("/", "GET",
+  HomeController::index)`) : indexée — elle manquait.
+- La classe écrite dans `Classe::membre` est notée par le parseur
+  (`type_refs`), avant toute substitution `wiring` : `CarContract::create`
+  compte pour l'interface `CarContract`, et le renommage d'une classe met
+  à jour ses appels statiques.
+- La cible d'un `wiring a.b.Classe` compte comme une référence de la classe.
+- Méthode d'interface : ses références incluent les appels de toute sa
+  famille (un appel `Interface::m()` est résolu vers la classe `wiring`).
+- Reste : classes homonymes de namespaces différents — une seule est
+  compilée (voir [langage-classes-homonymes-fusionnees.md](langage-classes-homonymes-fusionnees.md)),
+  les autres affichent donc 0 référence.
+
 ## Étapes suivantes
 
 1. Limites connues : pas de survol sur une variable jamais utilisée ni sur
