@@ -161,6 +161,21 @@ plus que relayer les requêtes :
   par la sema (voir
   [sema-appel-via-interface-non-verifie.md](sema-appel-via-interface-non-verifie.md)).
 
+## Fichiers runtime (2026-10-09)
+
+- Un fichier runtime (`runtime core.main is main`) est analysé à travers le
+  `main.oc` du projet qui l'importe : seul, son contenu n'est pas un
+  programme (`unexpected top-level declaration`).
+- Compilateur : son contenu est enveloppé dans le bloc au niveau des
+  jetons (`runtime_expand::wrap_in_block`) au lieu de réécrire le texte —
+  chaque instruction garde sa ligne et sa colonne, et est rattachée à son
+  fichier. Une erreur y était rapportée dans `main.oc`, à une ligne fausse
+  (commentaires déplacés), par le CLI comme par le serveur ; le préfixe de
+  bloc (`main.ERROR`) est calculé par fichier.
+- Les diagnostics d'un fichier importé ne remontent en tête du document
+  d'entrée que si ce sont des erreurs (un avertissement reste dans son
+  fichier).
+
 ## Étapes suivantes
 
 1. Limites connues : pas de survol sur une variable jamais utilisée ni sur

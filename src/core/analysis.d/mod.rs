@@ -86,6 +86,9 @@ fn analyze_program(opts: &AnalyzeOptions) -> Result<Analysis, Diagnostic> {
     checks::check_wirings(&program, &symbols, input)?;
 
     crate::core::runtime_expand::expand_runtime_imports(&mut program, source_dir, input)?;
+    // Chaque position connaît son fichier (déclarations importées et
+    // instructions des fichiers runtime l'ont déjà).
+    crate::core::runtime_expand::update_program_spans_with_file(&mut program, &input.to_string_lossy());
     // Le gabarit est lu à la compilation et réécrit en littéral avant la
     // sema, qui voit les mêmes expressions qu'un template backtick.
     crate::core::render_file::desugar_render_file(&mut program)

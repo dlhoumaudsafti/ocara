@@ -1431,11 +1431,32 @@ impl<'a> TypeChecker<'a> {
                             }
                         }
                     }
-                    // Valeur typée par une interface : la méthode n'est pas
-                    // vérifiée ici (retour `mixed`), seule la référence est
-                    // indexée pour le serveur de langage.
-                    if self.symbols.lookup_interface(&cls_name).is_some_and(|i| i.methods.contains_key(field)) {
-                        self.record(fspan, field, Target::Method { class: cls_name.clone(), name: field.clone() }, &Type::Mixed);
+                    // Valeur typée par une interface : même vérification qu'un
+                    // appel sur une classe (voir docs/roadmap.d/
+                    // sema-appel-via-interface-non-verifie.md) — l'appel était
+                    // typé `mixed` sans contrôle.
+                    if let Some(sig) = self.symbols.lookup_interface(&cls_name).and_then(|i| i.methods.get(field)) {
+                        self.record(fspan, field, Target::Method { class: cls_name.clone(), name: field.clone() }, &call_ret_ty(sig));
+                        let Some(resolved) = self.resolve_named_call(args, |tc| Some(tc.method_target(&cls_name, field, sig, false))) else {
+                            return Type::Mixed;
+                        };
+                        let args: &[Expr] = &resolved;
+                        if sig.is_static {
+                            self.errors.push(SemaError::StaticOnInstance { class: cls_name.clone(), method: field.clone(), span: fspan.clone() });
+                        }
+                        let args_ok = args.len() >= sig.required_params_count && (sig.has_variadic || args.len() <= sig.params.len());
+                        if !args_ok {
+                            self.errors.push(SemaError::WrongArgCount {
+                                name:     format!("{}::{}", cls_name, field),
+                                expected: sig.required_params_count,
+                                found:    args.len(),
+                                span:     span.clone(),
+                            });
+                        }
+                        let ret = call_ret_ty(sig);
+                        self.check_argument_escape(args, false);
+                        for arg in args { self.infer_expr(arg); }
+                        return ret;
                     }
                     if let Some(info) = self.symbols.lookup_class(&cls_name) {
                         // Classe opaque (import non résolu) — accès permissif

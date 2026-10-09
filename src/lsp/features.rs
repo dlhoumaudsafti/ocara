@@ -27,13 +27,19 @@ pub fn span_path(span: &Span, entry: &Path) -> PathBuf {
 
 // ── Diagnostics ─────────────────────────────────────────────────────────────
 
-/// Diagnostics du document `path` : les siens, et ceux d'un fichier importé
-/// rapportés en tête du document (le programme ne compile pas à cause d'eux).
+/// Diagnostics du document `path` : les siens, et les erreurs d'un fichier
+/// importé rapportées en tête du document quand il est le point d'entrée (le
+/// programme ne compile pas à cause d'elles ; les avertissements restent
+/// dans leur fichier).
 pub fn diagnostics(ws: &Workspace, path: &Path, analysis: &Analysis) -> Vec<lsp_types::Diagnostic> {
     let text = ws.text(path).unwrap_or_default();
-    analysis.diagnostics.iter().map(|d| {
+    let is_entry = ws.entry_for(path, &ws.project_root(path)) == path;
+    analysis.diagnostics.iter().filter_map(|d| {
         let own = d.file.canonicalize().unwrap_or_else(|_| d.file.clone()) == path;
-        if own {
+        if !own && !(is_entry && d.is_error()) {
+            return None;
+        }
+        Some(if own {
             let span = Span::new(d.line.max(1), d.col.max(1));
             let mut range = name_range(&text, &span, &word_at(&text, &span));
             if range.start == range.end {
@@ -48,7 +54,7 @@ pub fn diagnostics(ws: &Workspace, path: &Path, analysis: &Analysis) -> Vec<lsp_
             };
             let message = format!("{}:{}:{}: {}", other.display(), d.line, d.col, d.message);
             to_lsp(d, Range::new(Position::new(0, 0), Position::new(0, 1)), message, Some(vec![related]))
-        }
+        })
     }).collect()
 }
 

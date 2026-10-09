@@ -7,23 +7,17 @@ use std::collections::HashMap;
 // ─────────────────────────────────────────────────────────────────────────────
 
 pub fn get_stmt_start_line(stmt: &Stmt) -> usize {
+    get_stmt_span(stmt).line
+}
+
+pub fn get_stmt_span(stmt: &Stmt) -> &token::Span {
     match stmt {
-        Stmt::Var { span, .. } => span.line,
-        Stmt::Const { span, .. } => span.line,
-        Stmt::Assign { span, .. } => span.line,
-        Stmt::Expr(e) => e.span().line,
-        Stmt::If { span, .. } => span.line,
-        Stmt::While { span, .. } => span.line,
-        Stmt::ForIn { span, .. } => span.line,
-        Stmt::ForMap { span, .. } => span.line,
-        Stmt::Switch { span, .. } => span.line,
-        Stmt::Return { span, .. } => span.line,
-        Stmt::Result { span, .. } => span.line,
-        Stmt::Break { span, .. } => span.line,
-        Stmt::Continue { span, .. } => span.line,
-        Stmt::Try { span, .. } => span.line,
-        Stmt::Raise { span, .. } => span.line,
-        Stmt::Emit { span, .. } => span.line,
+        Stmt::Expr(e) => e.span(),
+        Stmt::Var { span, .. } | Stmt::Const { span, .. } | Stmt::Assign { span, .. }
+        | Stmt::If { span, .. } | Stmt::While { span, .. } | Stmt::ForIn { span, .. }
+        | Stmt::ForMap { span, .. } | Stmt::Switch { span, .. } | Stmt::Return { span, .. }
+        | Stmt::Result { span, .. } | Stmt::Break { span, .. } | Stmt::Continue { span, .. }
+        | Stmt::Try { span, .. } | Stmt::Raise { span, .. } | Stmt::Emit { span, .. } => span,
     }
 }
 
@@ -172,65 +166,63 @@ pub fn resolve_runtime_file(source_dir: &std::path::Path, path: &[String]) -> Op
     None
 }
 
-/// Charge et parse un fichier runtime, retourne tous les blocs définis
+/// Charge et parse un fichier runtime, retourne tous les blocs définis.
+/// `runtime X is <bloc>` : le contenu du fichier devient le bloc ; il est
+/// enveloppé au niveau des jetons, donc chaque instruction garde sa ligne et
+/// sa colonne dans le fichier, auquel elle est rattachée (diagnostics).
 fn load_runtime_file(
     file_path: &std::path::Path,
     rt_import: &ast::RuntimeImport,
     _main_file: &std::path::Path,
 ) -> Result<Vec<ast::RuntimeBlock>, String> {
-    // Lire le fichier
     let source = crate::core::source::read(file_path)
         .map_err(|e| format!("cannot read '{}': {}", file_path.display(), e))?;
-    
-    // Si kind est spécifié (ex: runtime config is init),
-    // le contenu du fichier devient directement le contenu du bloc spécifié
-    let source_to_parse = if let Some(target_kind) = rt_import.kind {
-        // Séparer les imports du reste du code
-        let mut imports = String::new();
-        let mut body = String::new();
-        
-        for line in source.lines() {
-            let trimmed = line.trim();
-            if trimmed.starts_with("import ") || trimmed.starts_with("namespace ") || trimmed.starts_with("//") || trimmed.is_empty() {
-                imports.push_str(line);
-                imports.push('\n');
-            } else {
-                body.push_str(line);
-                body.push('\n');
-            }
-        }
-        
-        // Wrapper le corps dans un bloc runtime fictif
-        format!("{}\n{} {{\n{}\n}}", imports, target_kind.as_str(), body)
-    } else {
-        // Sinon, parser le fichier tel quel (qui doit contenir des blocs déclarés)
-        source
-    };
-    
-    // Lexer
-    let tokens = Lexer::new(&source_to_parse).tokenize()
+    let tokens = Lexer::new(&source).tokenize()
         .map_err(|e| format!("lexing error in '{}': {:?}", file_path.display(), e))?;
-    
-    // Parser
-    let runtime_program = Parser::new(tokens).parse_program()
-        .map_err(|e| format!("parse error in '{}' at {}:{}: {}", 
+    let tokens = match rt_import.kind {
+        Some(kind) => wrap_in_block(tokens, kind),
+        None => tokens,
+    };
+    let mut runtime_program = Parser::new(tokens).parse_program()
+        .map_err(|e| format!("parse error in '{}' at {}:{}: {}",
             file_path.display(), e.span.line, e.span.col, e.message))?;
-    
-    // Si kind est spécifié, retourner le bloc créé
+    update_program_spans_with_file(&mut runtime_program, &file_path.to_string_lossy());
+
     if let Some(target_kind) = rt_import.kind {
-        // Le bloc doit exister car on l'a créé nous-même
-        for block in &runtime_program.runtime_blocks {
-            if block.kind == target_kind {
-                return Ok(vec![block.clone()]);
-            }
-        }
-        return Err(format!(
-            "internal error: failed to parse wrapped runtime block '{}'",
-            target_kind.as_str()
-        ));
+        return runtime_program.runtime_blocks.into_iter()
+            .find(|b| b.kind == target_kind)
+            .map(|b| vec![b])
+            .ok_or_else(|| format!("internal error: failed to parse wrapped runtime block '{}'", target_kind.as_str()));
     }
-    
     Ok(runtime_program.runtime_blocks)
+}
+
+/// `<imports> <corps>` → `<imports> <bloc> { <corps> }` : jetons du bloc
+/// insérés après les lignes `import`/`namespace` de tête, avec la position
+/// du jeton qui les suit (aucune position du fichier ne change).
+fn wrap_in_block(mut tokens: Vec<token::Token>, kind: ast::RuntimeBlockKind) -> Vec<token::Token> {
+    use token::{Token, TokenKind};
+    let mut start = 0;
+    while matches!(tokens[start].kind, TokenKind::Import | TokenKind::Namespace) {
+        let line = tokens[start].span.line;
+        while tokens[start].kind != TokenKind::Eof && tokens[start].span.line == line {
+            start += 1;
+        }
+    }
+    let keyword = match kind {
+        ast::RuntimeBlockKind::Init => TokenKind::Init,
+        ast::RuntimeBlockKind::Main => TokenKind::Main,
+        ast::RuntimeBlockKind::Error => TokenKind::Error,
+        ast::RuntimeBlockKind::Success => TokenKind::Success,
+        ast::RuntimeBlockKind::Exit => TokenKind::Exit,
+    };
+    let at = tokens[start].span.clone();
+    let end = tokens.len() - 1;
+    let eof = tokens[end].span.clone();
+    tokens.insert(end, Token::new(TokenKind::RBrace, "}", eof));
+    tokens.insert(start, Token::new(TokenKind::LBrace, "{", at.clone()));
+    tokens.insert(start, Token::new(keyword, kind.as_str(), at));
+    tokens
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -240,9 +232,18 @@ fn load_runtime_file(
 pub fn update_program_spans_with_file(program: &mut ast::Program, file_path: &str) {
     use crate::parsing::ast::Expr;
     
-    // Helper pour mettre à jour un Span
+    // Un span déjà rattaché à un fichier (instruction d'un fichier runtime,
+    // déclaration importée) le garde.
     fn update_span(span: &mut token::Span, file: &str) {
-        span.file = Some(file.to_string());
+        if span.file.is_none() {
+            span.file = Some(file.to_string());
+        }
+    }
+
+    fn update_params(params: &mut [ast::Param], file: &str) {
+        for p in params {
+            update_span(&mut p.span, file);
+        }
     }
     
     // Helper pour mettre à jour les spans dans une expression
@@ -442,13 +443,15 @@ pub fn update_program_spans_with_file(program: &mut ast::Program, file_path: &st
                 ast::ClassMember::Method { span, decl, .. } => {
                     update_span(span, file_path);
                     update_span(&mut decl.span, file_path);
+                    update_params(&mut decl.params, file_path);
                     // Mettre à jour le body de la méthode
                     for stmt in &mut decl.body.stmts {
                         update_stmt_spans(stmt, file_path);
                     }
                 }
-                ast::ClassMember::Constructor { span, body, .. } => {
+                ast::ClassMember::Constructor { span, body, params } => {
                     update_span(span, file_path);
+                    update_params(params, file_path);
                     // Mettre à jour le body du constructeur
                     for stmt in &mut body.stmts {
                         update_stmt_spans(stmt, file_path);
@@ -462,9 +465,18 @@ pub fn update_program_spans_with_file(program: &mut ast::Program, file_path: &st
         }
     }
     
+    // Mettre à jour les blocs runtime
+    for block in &mut program.runtime_blocks {
+        update_span(&mut block.span, file_path);
+        for stmt in &mut block.statements {
+            update_stmt_spans(stmt, file_path);
+        }
+    }
+
     // Mettre à jour les fonctions
     for func in &mut program.functions {
         update_span(&mut func.span, file_path);
+        update_params(&mut func.params, file_path);
         for stmt in &mut func.body.stmts {
             update_stmt_spans(stmt, file_path);
         }
@@ -504,12 +516,14 @@ pub fn update_program_spans_with_file(program: &mut ast::Program, file_path: &st
                 ast::ClassMember::Method { span, decl, .. } => {
                     update_span(span, file_path);
                     update_span(&mut decl.span, file_path);
+                    update_params(&mut decl.params, file_path);
                     for stmt in &mut decl.body.stmts {
                         update_stmt_spans(stmt, file_path);
                     }
                 }
-                ast::ClassMember::Constructor { span, body, .. } => {
+                ast::ClassMember::Constructor { span, body, params } => {
                     update_span(span, file_path);
+                    update_params(params, file_path);
                     for stmt in &mut body.stmts {
                         update_stmt_spans(stmt, file_path);
                     }
@@ -530,6 +544,7 @@ pub fn update_program_spans_with_file(program: &mut ast::Program, file_path: &st
                 ast::ClassMember::Method { span, decl, .. } => {
                     update_span(span, file_path);
                     update_span(&mut decl.span, file_path);
+                    update_params(&mut decl.params, file_path);
                     for stmt in &mut decl.body.stmts {
                         update_stmt_spans(stmt, file_path);
                     }

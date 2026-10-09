@@ -29,12 +29,13 @@ pub fn run(program: &Program, symbols: &SymbolTable, input: &Path, index: bool) 
     items.extend(checker.warnings.iter().map(|w| (w.span().clone(), Severity::Warning, w.message())));
     items.sort_by_key(|(span, _, _)| (span.line, span.col));
 
-    let ranges = runtime_ranges(program);
+    let ranges = runtime_ranges(program, input);
     let diagnostics = items.into_iter().map(|(span, severity, message)| {
         let file = span.file.as_ref().map(PathBuf::from).unwrap_or_else(|| input.to_path_buf());
         let runtime_ctx = span.runtime_ctx.clone().or_else(|| {
-            // Plages du fichier PRINCIPAL : jamais appliquées à un fichier importé.
-            in_file(&file, input).then(|| ranges.iter().find(|(r, _)| r.contains(&span.line)).map(|(_, k)| k.to_string())).flatten()
+            ranges.iter()
+                .find(|(f, r, _)| same_file(f, &file) && r.contains(&span.line))
+                .map(|(_, _, k)| k.to_string())
         });
         Diagnostic { file, line: span.line, col: span.col, message, severity, runtime_ctx }
     }).collect();
@@ -46,15 +47,28 @@ pub fn run(program: &Program, symbols: &SymbolTable, input: &Path, index: bool) 
     }
 }
 
-fn in_file(file: &Path, input: &Path) -> bool {
-    file == input || file.canonicalize().ok() == input.canonicalize().ok()
+fn same_file(a: &Path, b: &Path) -> bool {
+    a == b || a.canonicalize().ok() == b.canonicalize().ok()
 }
 
-/// Lignes de chaque bloc runtime du fichier principal.
-fn runtime_ranges(program: &Program) -> Vec<(std::ops::Range<usize>, &str)> {
-    program.runtime_blocks.iter().filter_map(|block| {
-        let (first, last) = (block.statements.first()?, block.statements.last()?);
-        let (start, end) = (get_stmt_start_line(first), get_stmt_end_line(last));
-        (start > 0 && end > 0).then(|| (start..end + 1, block.kind.as_str()))
-    }).collect()
+/// Lignes de chaque bloc runtime, dans son fichier (le principal, ou le
+/// fichier runtime importé dont il vient).
+fn runtime_ranges<'a>(program: &'a Program, input: &Path) -> Vec<(PathBuf, std::ops::Range<usize>, &'a str)> {
+    let mut out = Vec::new();
+    for block in &program.runtime_blocks {
+        // Un bloc fusionne les instructions de plusieurs fichiers : une plage
+        // par suite d'instructions consécutives d'un même fichier.
+        let mut groups: Vec<(PathBuf, usize, usize)> = Vec::new();
+        for stmt in &block.statements {
+            let file = crate::core::runtime_expand::get_stmt_span(stmt).file.as_ref().map(PathBuf::from).unwrap_or_else(|| input.to_path_buf());
+            let (start, end) = (get_stmt_start_line(stmt), get_stmt_end_line(stmt));
+            if start == 0 || end == 0 { continue; }
+            match groups.last_mut() {
+                Some((f, _, e)) if *f == file => *e = (*e).max(end),
+                _ => groups.push((file, start, end)),
+            }
+        }
+        out.extend(groups.into_iter().map(|(f, s, e)| (f, s..e + 1, block.kind.as_str())));
+    }
+    out
 }

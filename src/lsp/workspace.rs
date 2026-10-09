@@ -78,7 +78,22 @@ impl Workspace {
     pub fn run(&self, path: &Path) -> Analysis {
         let root = self.project_root(path);
         let _ = std::env::set_current_dir(&root);
-        analyze(&AnalyzeOptions { input: path, src_dir: Some(&root), dump: false, index: true, tolerant: true })
+        let input = self.entry_for(path, &root);
+        analyze(&AnalyzeOptions { input: &input, src_dir: Some(&root), dump: false, index: true, tolerant: true })
+    }
+
+    /// Fichier d'entrée de l'analyse de `path` : le `main.oc` du projet pour
+    /// un fichier runtime qu'il importe (`runtime core.main is main` — seul,
+    /// son contenu n'est pas un programme), `path` lui-même sinon.
+    pub fn entry_for(&self, path: &Path, root: &Path) -> PathBuf {
+        let main = root.join("main.oc");
+        let imports_it = self.text(&main)
+            .and_then(|text| super::project::parse(&text))
+            .is_some_and(|program| program.runtime_imports.iter().any(|rt| {
+                crate::core::runtime_expand::resolve_runtime_file(root, &rt.path)
+                    .is_some_and(|f| f.canonicalize().unwrap_or(f) == path)
+            }));
+        if imports_it { main.canonicalize().unwrap_or(main) } else { path.to_path_buf() }
     }
 
     /// Premier dossier contenant un `main.oc` en remontant depuis le fichier,

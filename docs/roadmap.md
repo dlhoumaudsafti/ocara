@@ -29,7 +29,6 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Appel de méthode sur une valeur typée par une interface non vérifié** — `s.speak()` avec `s:Speaker` : arguments jamais comparés aux paramètres, appel typé `mixed` ; `var n:int = s.speak()` (retour `string`) passe sans erreur, alors que le même appel via la classe est refusé. *(Légère — une branche de typecheck.rs ; vérifier les exemples existants)* → [détails](roadmap.d/sema-appel-via-interface-non-verifie.md)
 
 
 ---

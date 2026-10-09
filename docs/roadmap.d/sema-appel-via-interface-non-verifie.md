@@ -1,6 +1,6 @@
 # Appel de méthode sur une valeur typée par une interface : non vérifié
 
-Statut : **à faire** — constaté le 2026-10-09 (serveur de langage).
+Statut : **corrigé** (2026-10-09) — constaté via le serveur de langage.
 
 ## Constat
 
@@ -30,16 +30,14 @@ Conséquences : une valeur `string` rangée dans un `int` sans diagnostic
 (affichage de l'adresse, calculs faux), arité et types des arguments jamais
 vérifiés à travers une interface.
 
-## À faire
+## Correction
 
-- Résoudre la méthode dans l'interface (`lookup_interface(...).methods`),
-  vérifier arité et types des arguments, typer l'appel avec son retour
-  (`call_ret_ty`, `async` compris), arguments nommés via `resolve_named_call`.
-- Vérifier l'effet sur les exemples et tests existants (des programmes
-  aujourd'hui acceptés peuvent devenir refusés, à juste titre).
-- Le serveur de langage indexe déjà ces appels (références, renommage).
+`typecheck.rs` : un appel sur une valeur typée par une interface est
+vérifié comme un appel sur une classe — méthode cherchée dans l'interface,
+arguments nommés (`resolve_named_call`), arité (`WrongArgCount`),
+méthode `static` appelée sur une instance (`StaticOnInstance`), type de
+retour (`call_ret_ty`, `async` compris). Aucun exemple ni test existant
+n'était concerné. Tests : `src/sema/tests/interface_call.rs`.
 
-## Priorité / Complexité
-
-**Haute** (sûreté du typage) — **Légère** (une branche de la sema, plus les
-tests).
+Reste commun aux deux chemins (classe et interface) : le **type** de chaque
+argument n'est pas comparé à celui du paramètre, seule l'arité l'est.
