@@ -76,7 +76,7 @@ fn word_at(text: &str, span: &Span) -> String {
 
 // ── Référence sous le curseur ───────────────────────────────────────────────
 
-pub fn reference_at<'a>(ws: &Workspace, analysis: &'a Analysis, path: &Path, pos: &Position) -> Option<(&'a Reference, Range)> {
+pub fn reference_at(ws: &Workspace, analysis: &Analysis, path: &Path, pos: &Position) -> Option<(Reference, Range)> {
     let checked = analysis.checked.as_ref()?;
     let text = ws.text(path)?;
     let here = |span: &Span| span_path(span, path) == path;
@@ -85,9 +85,27 @@ pub fn reference_at<'a>(ws: &Workspace, analysis: &'a Analysis, path: &Path, pos
         .map(|r| (r, name_range(&text, &r.span, &r.name)))
         .find(|(_, range)| contains(range, pos));
     // Curseur sur la déclaration d'une variable : connue par ses utilisations.
-    direct.or_else(|| checked.references.iter()
+    let declared = || checked.references.iter()
         .filter_map(|r| match &r.target { Target::Local { decl } if here(decl) => Some((r, name_range(&text, decl, &r.name))), _ => None })
-        .find(|(_, range)| contains(range, pos)))
+        .find(|(_, range)| contains(range, pos));
+    if let Some((r, range)) = direct.or_else(declared) {
+        return Some((r.clone(), range));
+    }
+    type_reference_at(&parse_document(ws, path)?, &text, pos)
+}
+
+/// Nom de type écrit dans le document (`var x:Dog`, `extends Animal`…) :
+/// référence à la classe qu'il désigne.
+fn type_reference_at(own: &Program, text: &str, pos: &Position) -> Option<(Reference, Range)> {
+    own.type_refs.iter()
+        .map(|(name, span)| (name, span, name_range(text, span, name)))
+        .find(|(_, _, range)| contains(range, pos))
+        .map(|(name, span, range)| (Reference {
+            span: span.clone(),
+            name: name.clone(),
+            target: Target::Class(name.clone()),
+            ty: crate::parsing::ast::Type::Named(name.clone()),
+        }, range))
 }
 
 // ── Survol ──────────────────────────────────────────────────────────────────
@@ -98,7 +116,7 @@ pub fn hover(ws: &Workspace, path: &Path, pos: &Position) -> Option<Hover> {
         return keyword_hover(ws, path, pos);
     };
     let program = &analysis.checked.as_ref()?.program;
-    let markdown = hover_markdown(ws, program, reference, path)?;
+    let markdown = hover_markdown(ws, program, &reference, path)?;
     Some(Hover {
         contents: HoverContents::Markup(MarkupContent { kind: MarkupKind::Markdown, value: markdown }),
         range: Some(range),

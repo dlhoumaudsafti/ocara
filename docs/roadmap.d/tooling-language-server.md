@@ -121,18 +121,32 @@ plus que relayer les requêtes :
   `hover.ts` et `keywords.ts` supprimés. Restent : client LSP, commandes
   (compiler, lancer, dump, documentation), ocaracs.
 
+## Étape 3 — faite (2026-10-09)
+
+- **Noms de type** : le parseur note chaque nom de type écrit dans un
+  fichier (annotations `var x:Dog`, paramètres, retours, `extends`,
+  `implements`, `modules`, filtres `on e is X`, `x is X`) avec sa position,
+  dans `Program::type_refs` (liste à part : `Type` reste sans span). Survol,
+  définition et références d'une classe les couvrent, ainsi que ses
+  CodeLens.
+- **Renommage** (`textDocument/rename`) : déclaration et toutes ses
+  références dans l'espace de travail (variables, paramètres et arguments
+  nommés, champs, méthodes, constantes, classes, fonctions). Pour une
+  déclaration de premier niveau, les lignes `import a.b.Nom`,
+  `import Nom from "…/Nom"` et `wiring a.b.Nom` suivent, et le fichier qui
+  porte son nom est renommé avec elle. Refusé : nom invalide ou mot-clé,
+  builtin, méthode d'une chaîne de redéfinition (parent, sous-classe ou
+  interface — renommer un seul maillon casserait le polymorphisme).
+
 ## Étapes suivantes
 
-1. **Positions de type dans l'AST** : les annotations (`var x:Dog`,
-   `extends Animal`, paramètres, retours) n'ont pas de span — les
-   références d'une classe ne comptent que ses usages en expression
-   (`use Dog()`, `Dog::…`), et le survol/la définition n'y fonctionnent pas.
-2. **Tolérance aux erreurs** : reprise du parseur sur erreur (aujourd'hui,
-   le dernier programme vérifié sert de repli ; la complétion exige que le
-   reste du document se parse).
-3. **Plages exactes dans l'AST** (le serveur retrouve le nom dans la ligne),
-   puis **renommage** (`textDocument/rename`).
-4. Limites connues : pas de survol sur une variable jamais utilisée ;
+1. **Reprise du parseur sur erreur** : aujourd'hui, une erreur de syntaxe
+   arrête l'analyse (le dernier programme vérifié sert de repli pour le
+   survol et la définition ; la complétion exige que le reste du document
+   se parse).
+2. Renommage d'une chaîne de redéfinition (toutes les méthodes liées
+   ensemble).
+3. Limites connues : pas de survol sur une variable jamais utilisée ;
    colonnes comptées en caractères, pas en unités UTF-16 ; un fichier créé
    hors de l'éditeur n'entre dans l'index qu'à son ouverture.
 

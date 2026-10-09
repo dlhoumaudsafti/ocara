@@ -21,7 +21,7 @@ use lsp_types::notification::{
     DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, DidSaveTextDocument, Notification as _,
     PublishDiagnostics,
 };
-use lsp_types::request::{CodeLensRequest, Completion, DocumentSymbolRequest, GotoDefinition, HoverRequest, References, Request as _, SignatureHelpRequest};
+use lsp_types::request::{CodeLensRequest, Completion, DocumentSymbolRequest, GotoDefinition, HoverRequest, References, Rename, Request as _, SignatureHelpRequest};
 use lsp_types::{
     DocumentSymbolResponse, GotoDefinitionResponse, InitializeParams, OneOf, PublishDiagnosticsParams,
     ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
@@ -48,6 +48,7 @@ pub fn run() {
             ..Default::default()
         }),
         references_provider: Some(OneOf::Left(true)),
+        rename_provider: Some(OneOf::Left(true)),
         code_lens_provider: Some(lsp_types::CodeLensOptions { resolve_provider: Some(false) }),
         signature_help_provider: Some(lsp_types::SignatureHelpOptions {
             trigger_characters: Some(vec!["(".into(), ",".into()]),
@@ -95,6 +96,20 @@ fn handle_request(ws: &Workspace, index: &mut project::ProjectIndex, req: Reques
                 Some(navigation::references(ws, index, &to_path(&pos.text_document.uri)?, &pos.position, p.context.include_declaration))
             })
             .map(|l| serde_json::to_value(l).unwrap_or(Value::Null)),
+        Rename::METHOD => {
+            let Ok(p) = serde_json::from_value::<lsp_types::RenameParams>(req.params) else {
+                return Response::new_err(req.id, lsp_server::ErrorCode::InvalidParams as i32, "paramètres invalides".into());
+            };
+            index.ensure(ws);
+            let pos = p.text_document_position;
+            let Some(path) = to_path(&pos.text_document.uri) else {
+                return Response::new_err(req.id, lsp_server::ErrorCode::InvalidParams as i32, "document inconnu".into());
+            };
+            match navigation::rename(ws, index, &path, &pos.position, &p.new_name) {
+                Ok(edit) => Some(serde_json::to_value(edit).unwrap_or(Value::Null)),
+                Err(message) => return Response::new_err(req.id, lsp_server::ErrorCode::RequestFailed as i32, message),
+            }
+        }
         CodeLensRequest::METHOD => serde_json::from_value::<lsp_types::CodeLensParams>(req.params)
             .ok()
             .and_then(|p| {

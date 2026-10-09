@@ -135,7 +135,7 @@ impl Parser {
 
         let extends = if self.check_exact(&TokenKind::Extends) {
             self.advance();
-            Some(self.eat_ident()?.0)
+            Some(self.eat_type_name()?)
         } else {
             None
         };
@@ -143,20 +143,20 @@ impl Parser {
         let mut modules = Vec::new();
         if self.check_exact(&TokenKind::Modules) {
             self.advance();
-            modules.push(self.eat_ident()?.0);
+            modules.push(self.eat_type_name()?);
             while self.check_exact(&TokenKind::Comma) {
                 self.advance();
-                modules.push(self.eat_ident()?.0);
+                modules.push(self.eat_type_name()?);
             }
         }
 
         let mut implements = Vec::new();
         if self.check_exact(&TokenKind::Implements) {
             self.advance();
-            implements.push(self.eat_ident()?.0);
+            implements.push(self.eat_type_name()?);
             while self.check_exact(&TokenKind::Comma) {
                 self.advance();
-                implements.push(self.eat_ident()?.0);
+                implements.push(self.eat_type_name()?);
             }
         }
 
@@ -316,7 +316,7 @@ impl Parser {
         let mut extends_args = Vec::new();
         if self.check_exact(&TokenKind::Extends) {
             self.advance();
-            extends = Some(self.eat_ident()?.0);
+            extends = Some(self.eat_type_name()?);
             
             // Arguments de type optionnels pour extends
             if self.check_exact(&TokenKind::Lt) {
@@ -334,10 +334,10 @@ impl Parser {
         let mut modules = Vec::new();
         if self.check_exact(&TokenKind::Modules) {
             self.advance();
-            modules.push(self.eat_ident()?.0);
+            modules.push(self.eat_type_name()?);
             while self.check_exact(&TokenKind::Comma) {
                 self.advance();
-                modules.push(self.eat_ident()?.0);
+                modules.push(self.eat_type_name()?);
             }
         }
 
@@ -345,10 +345,10 @@ impl Parser {
         let mut implements = Vec::new();
         if self.check_exact(&TokenKind::Implements) {
             self.advance();
-            implements.push(self.eat_ident()?.0);
+            implements.push(self.eat_type_name()?);
             while self.check_exact(&TokenKind::Comma) {
                 self.advance();
-                implements.push(self.eat_ident()?.0);
+                implements.push(self.eat_type_name()?);
             }
         }
 

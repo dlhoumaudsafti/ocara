@@ -25,6 +25,10 @@ pub struct Program {
     pub generics:   Vec<GenericDecl>,
     pub interfaces: Vec<InterfaceDecl>,
     pub functions:  Vec<FuncDecl>,
+    /// Noms de type écrits dans CE fichier (annotations, `extends`,
+    /// `implements`, `modules`, filtres `is`) et leur position — pour le
+    /// serveur de langage ; jamais fusionnés depuis les imports.
+    pub type_refs:  Vec<(String, crate::parsing::token::Span)>,
 }
 
 impl Program {
@@ -41,6 +45,7 @@ impl Program {
             generics:   Vec::new(),
             interfaces: Vec::new(),
             functions:  Vec::new(),
+            type_refs:  Vec::new(),
         }
     }
 }

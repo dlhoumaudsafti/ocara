@@ -3,7 +3,12 @@
 
 use std::path::Path;
 
-use lsp_types::{CodeLens, Command, Location, Position};
+use std::collections::HashMap;
+
+use lsp_types::{
+    CodeLens, Command, DocumentChangeOperation, DocumentChanges, Location, OneOf, OptionalVersionedTextDocumentIdentifier,
+    Position, RenameFile, ResourceOp, TextDocumentEdit, TextEdit, Url, WorkspaceEdit,
+};
 use serde_json::json;
 
 use super::decls;
@@ -72,6 +77,169 @@ fn declarations(program: &Program) -> Vec<(String, Span)> {
     out.extend(program.enums.iter().map(|e| (e.name.clone(), e.span.clone())));
     out.extend(program.functions.iter().map(|f| (f.name.clone(), f.span.clone())));
     out.extend(program.consts.iter().map(|c| (c.name.clone(), c.span.clone())));
+    out
+}
+
+// ── Renommage ───────────────────────────────────────────────────────────────
+
+/// Renomme la déclaration au curseur et toutes ses références. Refusé pour
+/// un builtin, un nom invalide, ou une méthode d'une chaîne de redéfinition
+/// (renommer un seul maillon casserait le polymorphisme).
+pub fn rename(ws: &Workspace, index: &ProjectIndex, path: &Path, pos: &Position, new_name: &str) -> Result<WorkspaceEdit, String> {
+    if !is_identifier(new_name) {
+        return Err(format!("« {} » n'est pas un nom valide", new_name));
+    }
+    let (key, declaration) = key_at(ws, path, pos).ok_or("rien à renommer ici")?;
+    let declaration = declaration.ok_or("déclaration introuvable (builtin ?)")?;
+    if let Some(reason) = override_conflict(ws, index, path, &declaration) {
+        return Err(reason);
+    }
+    let old_name = name_at(ws, &declaration).ok_or("déclaration introuvable")?;
+    let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
+    let mut add = |loc: Location| {
+        let edits = changes.entry(loc.uri).or_default();
+        if !edits.iter().any(|e| e.range == loc.range) {
+            edits.push(TextEdit::new(loc.range, new_name.to_string()));
+        }
+    };
+    let mut locations = index.references(&key);
+    locations.push(declaration.clone());
+    let top_level = is_top_level(ws, &key.0, &declaration, &old_name);
+    // Fichier qui porte le nom de la déclaration : renommé avec elle (un
+    // import par namespace désigne le fichier).
+    let renamed_file = top_level
+        .then(|| key.0.clone())
+        .filter(|f| f.file_stem().is_some_and(|stem| *stem == *old_name))
+        .map(|f| (f.clone(), f.with_file_name(format!("{}.oc", new_name))));
+    if top_level {
+        locations.extend(import_locations(ws, index, &old_name, renamed_file.is_some()));
+    }
+    for loc in locations {
+        add(loc);
+    }
+
+    let Some((from, to)) = renamed_file else {
+        return Ok(WorkspaceEdit { changes: Some(changes), ..Default::default() });
+    };
+    if to.exists() {
+        return Err(format!("le fichier {} existe déjà", to.display()));
+    }
+    let mut operations: Vec<DocumentChangeOperation> = changes.into_iter().map(|(uri, edits)| {
+        DocumentChangeOperation::Edit(TextDocumentEdit {
+            text_document: OptionalVersionedTextDocumentIdentifier { uri, version: None },
+            edits: edits.into_iter().map(OneOf::Left).collect(),
+        })
+    }).collect();
+    operations.push(DocumentChangeOperation::Op(ResourceOp::Rename(RenameFile {
+        old_uri: to_url(&from), new_uri: to_url(&to), options: None, annotation_id: None,
+    })));
+    Ok(WorkspaceEdit { document_changes: Some(DocumentChanges::Operations(operations)), ..Default::default() })
+}
+
+fn name_at(ws: &Workspace, loc: &Location) -> Option<String> {
+    let path = loc.uri.to_file_path().ok()?;
+    let text = ws.text(&path)?;
+    let line = text.lines().nth(loc.range.start.line as usize)?;
+    Some(line.chars().skip(loc.range.start.character as usize).take((loc.range.end.character - loc.range.start.character) as usize).collect())
+}
+
+/// Classe, interface, generic, module, enum ou fonction de premier niveau.
+fn is_top_level(ws: &Workspace, file: &Path, declaration: &Location, name: &str) -> bool {
+    let (Some(text), Some(own)) = (ws.text(file), ws.text(file).as_deref().and_then(super::project::parse)) else { return false };
+    let spans = own.classes.iter().map(|c| (&c.name, &c.span))
+        .chain(own.interfaces.iter().map(|i| (&i.name, &i.span)))
+        .chain(own.generics.iter().map(|g| (&g.name, &g.span)))
+        .chain(own.modules.iter().map(|m| (&m.name, &m.span)))
+        .chain(own.enums.iter().map(|e| (&e.name, &e.span)))
+        .chain(own.functions.iter().map(|f| (&f.name, &f.span)));
+    spans.into_iter().any(|(n, span)| n == name && name_range(&text, span, n) == declaration.range)
+}
+
+/// Lignes `import a.b.Nom`, `import Nom from "…/Nom"` et `wiring a.b.Nom` de
+/// l'espace de travail ; le chemin d'un fichier renommé est mis à jour aussi.
+fn import_locations(ws: &Workspace, index: &ProjectIndex, name: &str, file_renamed: bool) -> Vec<Location> {
+    let mut out = Vec::new();
+    for file in index.files() {
+        let Some(text) = ws.text(&file) else { continue };
+        let Some(own) = super::project::parse(&text) else { continue };
+        let mut on_line = |span: &Span, occurrences: usize| {
+            let mut from = span.clone();
+            for _ in 0..occurrences {
+                let range = name_range(&text, &from, name);
+                if range.start == range.end { break; }
+                out.push(Location::new(to_url(&file), range));
+                from.col = range.end.character as usize + 2;
+            }
+        };
+        for imp in &own.imports {
+            if imp.path.first().is_some_and(|p| p == "ocara") { continue; }
+            match &imp.file_path {
+                None if imp.path.last().is_some_and(|l| l == name) => on_line(&imp.span, 1),
+                Some(path) if imp.path.first().is_some_and(|p| p == name) => {
+                    let in_path = file_renamed && path.trim_end_matches(".oc").rsplit('/').next() == Some(name);
+                    on_line(&imp.span, if in_path { 2 } else { 1 });
+                }
+                _ => {}
+            }
+        }
+        for w in own.interfaces.iter().flat_map(|i| &i.wirings) {
+            if w.path.last().is_some_and(|l| l == name) {
+                on_line(&w.span, 1);
+            }
+        }
+    }
+    out
+}
+
+fn is_identifier(name: &str) -> bool {
+    use crate::parsing::token::TokenKind;
+    let Ok(tokens) = crate::parsing::lexer::Lexer::new(name).tokenize() else { return false };
+    matches!(tokens.as_slice(), [t, _] if matches!(t.kind, TokenKind::Ident(_)))
+}
+
+/// Méthode déclarée aussi par un parent, un descendant ou une interface
+/// implémentée, ou méthode d'interface déjà implémentée.
+fn override_conflict(ws: &Workspace, index: &ProjectIndex, path: &Path, declaration: &Location) -> Option<String> {
+    let refuse = |name: &str| Some(format!("la méthode « {} » fait partie d'une chaîne de redéfinition (classe parente, sous-classe ou interface) : renommage non pris en charge", name));
+    for types in index.types_for(path) {
+        let Some((owner, method)) = types.iter().find_map(|t| {
+            t.methods.iter().find(|(_, loc)| loc == declaration).map(|(m, _)| (t, m.clone()))
+        }) else { continue };
+        let declares = |t: &TypeDecl| t.methods.iter().any(|(m, _)| *m == method);
+        if ancestors(owner, &types).into_iter().any(declares) || descendants(&owner.name, &types).iter().any(declares) {
+            return refuse(&method);
+        }
+        let program = ws.analysis(path).and_then(|a| a.checked.as_ref()).map(|c| &c.program);
+        let in_interface = program.is_some_and(|p| p.interfaces.iter()
+            .any(|i| owner.implements.contains(&i.name) && i.methods.iter().any(|m| m.name == method)));
+        if in_interface {
+            return refuse(&method);
+        }
+    }
+    let program = &ws.analysis(path)?.checked.as_ref()?.program;
+    let text = ws.text(path)?;
+    for iface in &program.interfaces {
+        for m in &iface.methods {
+            let here = super::features::span_path(&m.span, path) == path
+                && name_range(&text, &m.span, &m.name) == declaration.range;
+            let implemented = program.classes.iter().any(|c| c.implements.contains(&iface.name));
+            if here && implemented {
+                return refuse(&m.name);
+            }
+        }
+    }
+    None
+}
+
+fn ancestors<'a>(t: &TypeDecl, types: &'a [TypeDecl]) -> Vec<&'a TypeDecl> {
+    let mut out: Vec<&TypeDecl> = Vec::new();
+    let mut current = t.extends.clone();
+    while let Some(name) = current.take() {
+        let Some(parent) = types.iter().find(|p| p.name == name) else { break };
+        if out.iter().any(|o| o.key == parent.key) { break; }
+        out.push(parent);
+        current = parent.extends.clone();
+    }
     out
 }
 

@@ -339,4 +339,19 @@ mod tests {
         let expr = parse_expr(r#"user["name"]"#);
         assert!(matches!(expr, Expr::Index { .. }));
     }
+
+    // ── Noms de type et leur position (serveur de langage) ──────────────────
+
+    #[test]
+    fn type_refs_record_annotations_and_class_headers() {
+        let program = parse("class Dog extends Animal implements Pet {\n    public method feed(food:Food): array<Bowl> {\n        return []\n    }\n}\n");
+        let refs: Vec<(&str, usize, usize)> = program.type_refs.iter().map(|(n, s)| (n.as_str(), s.line, s.col)).collect();
+        assert_eq!(refs, vec![("Animal", 1, 19), ("Pet", 1, 37), ("Food", 2, 29), ("Bowl", 2, 42)]);
+    }
+
+    #[test]
+    fn type_refs_record_exception_filter() {
+        let program = parse("function main(): int {\n    try {\n        return 0\n    } on e is FileException {\n        return 1\n    }\n}\n");
+        assert!(program.type_refs.iter().any(|(n, s)| n == "FileException" && s.line == 4));
+    }
 }

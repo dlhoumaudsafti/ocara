@@ -237,8 +237,7 @@ impl Parser {
             // filtre optionnel : `is ClassName`
             let class_filter = if self.check_exact(&TokenKind::Is) {
                 self.advance(); // consomme `is`
-                let (class_name, _) = self.eat_ident()?;
-                Some(class_name)
+                Some(self.eat_type_name()?)
             } else {
                 None
             };

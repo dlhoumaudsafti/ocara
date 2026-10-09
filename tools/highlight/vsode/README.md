@@ -24,7 +24,12 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
   - **références** (Maj+F12) et **CodeLens** au-dessus des déclarations (implémentations, overrides,
     références), sur tout l'espace de travail : un appel via une sous-classe ou une interface compte pour
     la méthode déclarante ;
-  - **symboles du document** (plan, `Ctrl+Shift+O`).
+  - **symboles du document** (plan, `Ctrl+Shift+O`) ;
+  - **renommage** (F2) d'une variable, d'un paramètre, d'un champ, d'une méthode, d'une classe ou d'une
+    fonction dans tout l'espace de travail — imports mis à jour et fichier renommé avec sa classe ;
+    refusé pour une méthode redéfinie (parent, sous-classe ou interface).
+- Les noms de type (`var x:Dog`, `extends Animal`, paramètres, `on e is FileException`) ont survol,
+  définition et références comme les autres noms.
 - **Documentation embarquée** : `docs/EBNF.md` et `docs/builtins/*.md` du dépôt sont copiés dans
   l'extension à chaque compilation (`scripts/copy-docs.js`, lancé par `npm run compile` ; dossier
   `docs/` de l'extension ignoré par git, ne jamais l'éditer). Le lien « 📖 » d'une popup de survol ouvre

@@ -124,7 +124,25 @@ impl ProjectIndex {
         }
         let types = type_decls(program, entry, &mut text_of);
         files.extend(types.iter().map(|t| t.key.0.clone()));
+
+        // Noms de type écrits dans chaque fichier (annotations, `extends`…).
+        for file in &files {
+            let text = text_of(file);
+            let Some(own) = parse(&text) else { continue };
+            for (name, span) in &own.type_refs {
+                let Some(d) = decls::find(program, &Target::Class(name.clone())) else { continue };
+                references.push((decl_key(entry, &d.span), Location::new(to_url(file), name_range(&text, span, name))));
+            }
+        }
         self.entries.insert(entry.to_path_buf(), Entry { files, references, types });
+    }
+
+    /// Tous les fichiers couverts par l'index.
+    pub fn files(&self) -> Vec<PathBuf> {
+        let mut out: Vec<PathBuf> = self.entries.values().flat_map(|e| e.files.iter().cloned()).collect();
+        out.sort();
+        out.dedup();
+        out
     }
 
     pub fn references(&self, key: &DeclKey) -> Vec<Location> {
@@ -172,6 +190,11 @@ fn type_decls(program: &Program, entry: &Path, text_of: &mut dyn FnMut(&Path) ->
         });
     }
     out
+}
+
+pub fn parse(text: &str) -> Option<Program> {
+    let tokens = crate::parsing::lexer::Lexer::new(text).tokenize().ok()?;
+    crate::parsing::parser::Parser::new(tokens).parse_program().ok()
 }
 
 fn collect_sources(dir: &Path, out: &mut Vec<PathBuf>) {

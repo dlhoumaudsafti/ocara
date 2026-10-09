@@ -63,6 +63,7 @@ impl Parser {
             }
 
             TokenKind::Ident(name) => {
+                let name_span = self.span();
                 self.advance();
                 // `Resolvable<T>` (handle de tâche `async` typé — voir
                 // docs/roadmap.d/langage-async-non-int-return-type-check.md).
@@ -121,10 +122,12 @@ impl Parser {
                         args.push(self.parse_type()?);
                     }
                     self.eat(&TokenKind::Gt)?; // '>'
+                    self.type_refs.push((name.clone(), name_span));
                     Type::Generic { name, args }
                 } 
                 // Type nommé simple
                 else {
+                    self.type_refs.push((name.clone(), name_span));
                     Type::Named(name)
                 }
             }

@@ -97,6 +97,7 @@ impl Parser {
             }
         }
 
+        program.type_refs = std::mem::take(&mut self.type_refs);
         Ok(program)
     }
 }

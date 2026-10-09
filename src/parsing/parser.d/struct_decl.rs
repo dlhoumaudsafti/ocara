@@ -19,7 +19,7 @@ impl Parser {
 
         let extends = if self.check_exact(&TokenKind::Extends) {
             self.advance();
-            Some(self.eat_ident()?.0)
+            Some(self.eat_type_name()?)
         } else {
             None
         };
