@@ -9,7 +9,8 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
 - **Serveur de langage du compilateur** (`ocara --lsp`, lancé avec le compilateur du réglage
   `ocara.compilerPath`) — toute la sémantique vient du compilateur lui-même, aucune heuristique :
   - **erreurs et avertissements pendant la frappe**, y compris ceux d'un fichier importé (signalés en
-    tête du document, avec un lien) ;
+    tête du document, avec un lien) ; une erreur de syntaxe n'empêche pas le reste du document de
+    fonctionner (toutes les erreurs de syntaxe sont signalées, survol et complétion continuent) ;
   - **survol** : type réel d'une variable, signature et commentaires `//` d'une déclaration,
     documentation des méthodes builtin (extraite de `docs/builtins/*.md`), méthode réellement appelée
     par le sucre d'instance (`s.trim()`, `s.toInt()`), mots-clés (résumé et lien vers leur section de
@@ -26,8 +27,8 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     la méthode déclarante ;
   - **symboles du document** (plan, `Ctrl+Shift+O`) ;
   - **renommage** (F2) d'une variable, d'un paramètre, d'un champ, d'une méthode, d'une classe ou d'une
-    fonction dans tout l'espace de travail — imports mis à jour et fichier renommé avec sa classe ;
-    refusé pour une méthode redéfinie (parent, sous-classe ou interface).
+    fonction dans tout l'espace de travail — imports mis à jour et fichier renommé avec sa classe ; une
+    méthode redéfinie est renommée avec toute sa chaîne (parents, sous-classes, interfaces).
 - Les noms de type (`var x:Dog`, `extends Animal`, paramètres, `on e is FileException`) ont survol,
   définition et références comme les autres noms.
 - **Documentation embarquée** : `docs/EBNF.md` et `docs/builtins/*.md` du dépôt sont copiés dans

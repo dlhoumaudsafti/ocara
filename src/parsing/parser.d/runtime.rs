@@ -68,7 +68,11 @@ impl Parser {
         self.eat(&TokenKind::LBrace)?;
         let mut statements = Vec::new();
         while !self.check_exact(&TokenKind::RBrace) && !self.check_exact(&TokenKind::Eof) {
-            statements.push(self.parse_stmt()?);
+            let start = self.pos;
+            match self.parse_stmt() {
+                Ok(stmt) => statements.push(stmt),
+                Err(e) => self.recover_stmt(e, start)?,
+            }
         }
         self.eat(&TokenKind::RBrace)?;
 

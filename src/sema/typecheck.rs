@@ -1431,6 +1431,12 @@ impl<'a> TypeChecker<'a> {
                             }
                         }
                     }
+                    // Valeur typée par une interface : la méthode n'est pas
+                    // vérifiée ici (retour `mixed`), seule la référence est
+                    // indexée pour le serveur de langage.
+                    if self.symbols.lookup_interface(&cls_name).is_some_and(|i| i.methods.contains_key(field)) {
+                        self.record(fspan, field, Target::Method { class: cls_name.clone(), name: field.clone() }, &Type::Mixed);
+                    }
                     if let Some(info) = self.symbols.lookup_class(&cls_name) {
                         // Classe opaque (import non résolu) — accès permissif
                         if info.is_opaque {

@@ -129,17 +129,18 @@ fn arg_name(arg: &str) -> Option<String> {
     (!name.is_empty() && rest.starts_with(':') && !rest.starts_with("::")).then_some(name)
 }
 
-/// Texte où l'identifiant en cours de frappe au curseur est remplacé par le
-/// marqueur, et où les délimiteurs ouverts avant lui et jamais refermés
+/// Texte où l'identifiant sous le curseur (avant et après lui) est remplacé
+/// par le marqueur, et où les délimiteurs ouverts avant lui et jamais refermés
 /// ensuite sont refermés en fin de ligne.
 pub fn patched_text(text: &str, pos: &Position) -> String {
     let chars: Vec<char> = text.chars().collect();
     let cursor = offset(text, pos);
     let start = (0..cursor).rev().take_while(|&i| is_ident(chars[i])).last().unwrap_or(cursor);
 
+    let end = (cursor..chars.len()).find(|&i| !is_ident(chars[i])).unwrap_or(chars.len());
     let mut open = frames_until(&chars, start);
     let mut depth = Vec::new();
-    for &c in &chars[cursor..] {
+    for &c in &chars[end..] {
         match c {
             '(' | '[' | '{' => depth.push(c),
             ')' | ']' | '}' => if depth.pop().is_none() { open.pop(); },
@@ -148,10 +149,10 @@ pub fn patched_text(text: &str, pos: &Position) -> String {
     }
     let closers: String = open.iter().rev().map(|f| closer(f.open)).collect();
 
-    let line_end = chars[cursor..].iter().position(|c| *c == '\n').map_or(chars.len(), |i| cursor + i);
+    let line_end = chars[end..].iter().position(|c| *c == '\n').map_or(chars.len(), |i| end + i);
     let mut out: String = chars[..start].iter().collect();
     out.push_str(COMPLETION_MARKER);
-    out.extend(&chars[cursor..line_end]);
+    out.extend(&chars[end..line_end]);
     out.push_str(&closers);
     out.extend(&chars[line_end..]);
     out

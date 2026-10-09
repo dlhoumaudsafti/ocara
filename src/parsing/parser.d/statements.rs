@@ -11,7 +11,11 @@ impl Parser {
         self.eat(&TokenKind::LBrace)?;
         let mut stmts = Vec::new();
         while !self.check_exact(&TokenKind::RBrace) {
-            stmts.push(self.parse_stmt()?);
+            let start = self.pos;
+            match self.parse_stmt() {
+                Ok(stmt) => stmts.push(stmt),
+                Err(e) => self.recover_stmt(e, start)?,
+            }
         }
         self.eat(&TokenKind::RBrace)?;
         Ok(Block { stmts, span })

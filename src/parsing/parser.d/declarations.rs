@@ -163,7 +163,11 @@ impl Parser {
         self.eat(&TokenKind::LBrace)?;
         let mut members = Vec::new();
         while !self.check_exact(&TokenKind::RBrace) {
-            members.push(self.parse_class_member()?);
+            let start = self.pos;
+            match self.parse_class_member() {
+                Ok(member) => members.push(member),
+                Err(e) => self.recover_member(e, start)?,
+            }
         }
         self.eat(&TokenKind::RBrace)?;
         let implicit_init = self.inject_property_initializers(&mut members, &span);
@@ -356,7 +360,11 @@ impl Parser {
         self.eat(&TokenKind::LBrace)?;
         let mut members = Vec::new();
         while !self.check_exact(&TokenKind::RBrace) {
-            members.push(self.parse_class_member()?);
+            let start = self.pos;
+            match self.parse_class_member() {
+                Ok(member) => members.push(member),
+                Err(e) => self.recover_member(e, start)?,
+            }
         }
         self.eat(&TokenKind::RBrace)?;
         self.inject_property_initializers(&mut members, &span);
@@ -383,7 +391,11 @@ impl Parser {
         self.eat(&TokenKind::LBrace)?;
         let mut members = Vec::new();
         while !self.check_exact(&TokenKind::RBrace) {
-            members.push(self.parse_class_member()?);
+            let start = self.pos;
+            match self.parse_class_member() {
+                Ok(member) => members.push(member),
+                Err(e) => self.recover_member(e, start)?,
+            }
         }
         self.eat(&TokenKind::RBrace)?;
         if let Some((field, _, field_span)) = self.property_initializers.drain(..).next() {

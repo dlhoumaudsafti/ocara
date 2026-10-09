@@ -31,6 +31,7 @@ fn main() {
         src_dir: args.src_dir.as_deref(),
         dump: args.dump,
         index: false,
+        tolerant: false,
     });
     for d in &analysis.diagnostics {
         d.print();

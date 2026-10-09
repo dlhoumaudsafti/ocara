@@ -7,7 +7,10 @@ use crate::parsing::ast::Program;
 use crate::parsing::error::LexError;
 use crate::parsing::{lexer::Lexer, parser::Parser, token};
 
-pub fn parse_entry(input: &Path, dump: bool) -> Result<Program, Diagnostic> {
+/// Programme du fichier d'entrée. En mode `tolerant`, les erreurs de syntaxe
+/// sont toutes rapportées avec le programme partiel ; sinon la première
+/// arrête l'analyse.
+pub fn parse_entry(input: &Path, dump: bool, tolerant: bool) -> Result<(Program, Vec<Diagnostic>), Diagnostic> {
     let source = crate::core::source::read(input)
         .map_err(|e| Diagnostic::error(input, 0, 0, format!("cannot read '{}': {}", input.display(), e)))?;
 
@@ -36,13 +39,18 @@ pub fn parse_entry(input: &Path, dump: bool) -> Result<Program, Diagnostic> {
         println!();
     }
 
-    let program = Parser::new(tokens).parse_program()
-        .map_err(|e| Diagnostic::error(&span_file(input, &e.span), e.span.line, e.span.col, e.message))?;
+    let to_diagnostic = |e: crate::parsing::parser::types::ParseError| Diagnostic::error(&span_file(input, &e.span), e.span.line, e.span.col, e.message);
+    let (program, syntax) = if tolerant {
+        let (program, errors) = Parser::new(tokens).parse_program_recovering();
+        (program, errors.into_iter().map(to_diagnostic).collect())
+    } else {
+        (Parser::new(tokens).parse_program().map_err(to_diagnostic)?, Vec::new())
+    };
 
     if dump {
         println!("=== AST ===");
         println!("{:#?}", program);
         println!();
     }
-    Ok(program)
+    Ok((program, syntax))
 }

@@ -138,17 +138,37 @@ plus que relayer les requêtes :
   builtin, méthode d'une chaîne de redéfinition (parent, sous-classe ou
   interface — renommer un seul maillon casserait le polymorphisme).
 
+## Étape 4 — faite (2026-10-09)
+
+- **Reprise du parseur sur erreur** (`parser.d/recovery.rs`, mode tolérant
+  `parse_program_recovering`, utilisé par le serveur seulement) : une
+  erreur est notée et le parseur reprend à l'instruction suivante (nouvelle
+  ligne au même niveau d'accolades, ou fin du bloc), au membre suivant, ou
+  à la déclaration suivante. Le serveur publie toutes les erreurs de
+  syntaxe et analyse le programme partiel (les erreurs de la sema sur un
+  programme amputé ne sont pas publiées) : survol, définition et
+  complétion fonctionnent malgré une autre ligne cassée. Le CLI s'arrête
+  toujours à la première erreur, sortie inchangée.
+- **Complétion au milieu d'un mot** : le texte patché remplace tout le mot
+  sous le curseur.
+- **Renommage d'une chaîne de redéfinition** : une méthode redéfinie est
+  renommée avec toutes les méthodes liées — ancêtres et interfaces qui la
+  déclarent, puis leurs sous-classes et classes d'implémentation qui la
+  redéclarent — et tous leurs appels ; deux classes sœurs sans ancêtre
+  commun déclarant la méthode restent indépendantes.
+- **Appels via une interface indexés** (`s.speak()` avec `s:Speaker`) ; au
+  passage, constat d'un trou de typage : ces appels ne sont pas vérifiés
+  par la sema (voir
+  [sema-appel-via-interface-non-verifie.md](sema-appel-via-interface-non-verifie.md)).
+
 ## Étapes suivantes
 
-1. **Reprise du parseur sur erreur** : aujourd'hui, une erreur de syntaxe
-   arrête l'analyse (le dernier programme vérifié sert de repli pour le
-   survol et la définition ; la complétion exige que le reste du document
-   se parse).
-2. Renommage d'une chaîne de redéfinition (toutes les méthodes liées
-   ensemble).
-3. Limites connues : pas de survol sur une variable jamais utilisée ;
-   colonnes comptées en caractères, pas en unités UTF-16 ; un fichier créé
-   hors de l'éditeur n'entre dans l'index qu'à son ouverture.
+1. Limites connues : pas de survol sur une variable jamais utilisée ni sur
+   le nom d'une déclaration ; colonnes comptées en caractères, pas en
+   unités UTF-16 ; un fichier créé hors de l'éditeur n'entre dans l'index
+   qu'à son ouverture ; un fichier importé en erreur de syntaxe arrête
+   l'analyse de son projet (seul le fichier d'entrée est tolérant).
+2. Client JetBrains (voir [tooling-jetbrains-plugin.md](tooling-jetbrains-plugin.md)).
 
 ## En attendant (gains rapides sur l'extension actuelle)
 

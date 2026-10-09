@@ -354,4 +354,28 @@ mod tests {
         let program = parse("function main(): int {\n    try {\n        return 0\n    } on e is FileException {\n        return 1\n    }\n}\n");
         assert!(program.type_refs.iter().any(|(n, s)| n == "FileException" && s.line == 4));
     }
+
+    // ── Reprise sur erreur (mode tolérant) ──────────────────────────────────
+
+    fn parse_recovering(src: &str) -> (Program, Vec<crate::parsing::parser::types::ParseError>) {
+        let tokens = Lexer::new(src).tokenize().expect("lex error");
+        Parser::new(tokens).parse_program_recovering()
+    }
+
+    #[test]
+    fn recovery_skips_broken_statement_and_keeps_following_code() {
+        let (program, errors) = parse_recovering("function main(): int {\n    var a:int = 1\n    a.\n    return a\n}\n\nfunction helper(n:int): int {\n    return n\n}\n");
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].span.line, 4);
+        let names: Vec<&str> = program.functions.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, vec!["main", "helper"]);
+        assert_eq!(program.functions[0].body.stmts.len(), 2);
+    }
+
+    #[test]
+    fn recovery_skips_broken_declaration() {
+        let (program, errors) = parse_recovering("class Broken extends {\n}\n\nfunction ok(): int {\n    return 1\n}\n");
+        assert_eq!(errors.len(), 1);
+        assert_eq!(program.functions.len(), 1);
+    }
 }

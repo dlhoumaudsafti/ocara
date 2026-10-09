@@ -78,7 +78,7 @@ impl Workspace {
     pub fn run(&self, path: &Path) -> Analysis {
         let root = self.project_root(path);
         let _ = std::env::set_current_dir(&root);
-        analyze(&AnalyzeOptions { input: path, src_dir: Some(&root), dump: false, index: true })
+        analyze(&AnalyzeOptions { input: path, src_dir: Some(&root), dump: false, index: true, tolerant: true })
     }
 
     /// Premier dossier contenant un `main.oc` en remontant depuis le fichier,

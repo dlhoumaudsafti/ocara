@@ -26,6 +26,9 @@ pub struct AnalyzeOptions<'a> {
     pub dump: bool,
     /// Collecte l'index des références (serveur de langage).
     pub index: bool,
+    /// Reprise sur erreur de syntaxe : analyse du programme partiel, seules
+    /// les erreurs de syntaxe sont rapportées (serveur de langage).
+    pub tolerant: bool,
 }
 
 /// Programme fusionné et vérifié par la sema (même avec des erreurs).
@@ -59,7 +62,7 @@ pub fn analyze(opts: &AnalyzeOptions) -> Analysis {
 
 fn analyze_program(opts: &AnalyzeOptions) -> Result<Analysis, Diagnostic> {
     let input = opts.input;
-    let mut program = front::parse_entry(input, opts.dump)?;
+    let (mut program, syntax) = front::parse_entry(input, opts.dump, opts.tolerant)?;
     let source_dir = opts.src_dir
         .unwrap_or_else(|| input.parent().unwrap_or_else(|| Path::new(".")));
 
@@ -89,7 +92,9 @@ fn analyze_program(opts: &AnalyzeOptions) -> Result<Analysis, Diagnostic> {
         .map_err(|(span, msg)| Diagnostic::at(input, &span, msg))?;
 
     let out = sema::run(&program, &symbols, input, opts.index);
-    let mut diagnostics = out.diagnostics;
+    // Sur un programme amputé par des erreurs de syntaxe, les erreurs de la
+    // sema seraient du bruit : seules les premières sont rapportées.
+    let mut diagnostics = if syntax.is_empty() { out.diagnostics } else { syntax };
     if !diagnostics.iter().any(Diagnostic::is_error) {
         if let Err((span, msg)) = crate::core::named_args::rewrite_program(&mut program, &out.rewrites) {
             diagnostics.push(Diagnostic::at(input, &span, msg));

@@ -82,18 +82,15 @@ fn declarations(program: &Program) -> Vec<(String, Span)> {
 
 // ── Renommage ───────────────────────────────────────────────────────────────
 
-/// Renomme la déclaration au curseur et toutes ses références. Refusé pour
-/// un builtin, un nom invalide, ou une méthode d'une chaîne de redéfinition
-/// (renommer un seul maillon casserait le polymorphisme).
+/// Renomme la déclaration au curseur et toutes ses références ; une méthode
+/// redéfinie l'est avec toute sa chaîne (parents, sous-classes, interfaces).
+/// Refusé pour un builtin ou un nom invalide.
 pub fn rename(ws: &Workspace, index: &ProjectIndex, path: &Path, pos: &Position, new_name: &str) -> Result<WorkspaceEdit, String> {
     if !is_identifier(new_name) {
         return Err(format!("« {} » n'est pas un nom valide", new_name));
     }
     let (key, declaration) = key_at(ws, path, pos).ok_or("rien à renommer ici")?;
     let declaration = declaration.ok_or("déclaration introuvable (builtin ?)")?;
-    if let Some(reason) = override_conflict(ws, index, path, &declaration) {
-        return Err(reason);
-    }
     let old_name = name_at(ws, &declaration).ok_or("déclaration introuvable")?;
     let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
     let mut add = |loc: Location| {
@@ -102,8 +99,14 @@ pub fn rename(ws: &Workspace, index: &ProjectIndex, path: &Path, pos: &Position,
             edits.push(TextEdit::new(loc.range, new_name.to_string()));
         }
     };
-    let mut locations = index.references(&key);
-    locations.push(declaration.clone());
+    // Méthode d'une chaîne de redéfinition : toutes les méthodes liées
+    // (parents, sous-classes, interfaces) sont renommées ensemble.
+    let family = method_family(index, path, &declaration);
+    let mut locations = Vec::new();
+    for (k, loc) in family.iter().cloned().chain(std::iter::once((key.clone(), declaration.clone()))) {
+        locations.extend(index.references(&k));
+        locations.push(loc);
+    }
     let top_level = is_top_level(ws, &key.0, &declaration, &old_name);
     // Fichier qui porte le nom de la déclaration : renommé avec elle (un
     // import par namespace désigne le fichier).
@@ -197,48 +200,64 @@ fn is_identifier(name: &str) -> bool {
     matches!(tokens.as_slice(), [t, _] if matches!(t.kind, TokenKind::Ident(_)))
 }
 
-/// Méthode déclarée aussi par un parent, un descendant ou une interface
-/// implémentée, ou méthode d'interface déjà implémentée.
-fn override_conflict(ws: &Workspace, index: &ProjectIndex, path: &Path, declaration: &Location) -> Option<String> {
-    let refuse = |name: &str| Some(format!("la méthode « {} » fait partie d'une chaîne de redéfinition (classe parente, sous-classe ou interface) : renommage non pris en charge", name));
+/// Méthodes liées à la méthode déclarée en `declaration` par redéfinition :
+/// ancêtres et interfaces qui la déclarent, puis leurs sous-classes et
+/// classes d'implémentation qui la redéclarent (clé et emplacement du nom).
+fn method_family(index: &ProjectIndex, path: &Path, declaration: &Location) -> Vec<(DeclKey, Location)> {
+    let mut family: Vec<(DeclKey, Location)> = Vec::new();
     for types in index.types_for(path) {
         let Some((owner, method)) = types.iter().find_map(|t| {
-            t.methods.iter().find(|(_, loc)| loc == declaration).map(|(m, _)| (t, m.clone()))
+            t.methods.iter().find(|(_, loc, _)| loc == declaration).map(|(m, _, _)| (t, m.clone()))
         }) else { continue };
-        let declares = |t: &TypeDecl| t.methods.iter().any(|(m, _)| *m == method);
-        if ancestors(owner, &types).into_iter().any(declares) || descendants(&owner.name, &types).iter().any(declares) {
-            return refuse(&method);
+        let declares = |t: &TypeDecl| t.methods.iter().any(|(m, _, _)| *m == method);
+        let mut seeds: Vec<&TypeDecl> = vec![owner];
+        seeds.extend(supertypes(owner, &types).into_iter().filter(|t| declares(t)));
+        let mut members: Vec<&TypeDecl> = seeds.clone();
+        for seed in &seeds {
+            for t in subtypes(seed, &types) {
+                if declares(t) && !members.iter().any(|m| m.key == t.key) {
+                    members.push(t);
+                }
+            }
         }
-        let program = ws.analysis(path).and_then(|a| a.checked.as_ref()).map(|c| &c.program);
-        let in_interface = program.is_some_and(|p| p.interfaces.iter()
-            .any(|i| owner.implements.contains(&i.name) && i.methods.iter().any(|m| m.name == method)));
-        if in_interface {
-            return refuse(&method);
-        }
-    }
-    let program = &ws.analysis(path)?.checked.as_ref()?.program;
-    let text = ws.text(path)?;
-    for iface in &program.interfaces {
-        for m in &iface.methods {
-            let here = super::features::span_path(&m.span, path) == path
-                && name_range(&text, &m.span, &m.name) == declaration.range;
-            let implemented = program.classes.iter().any(|c| c.implements.contains(&iface.name));
-            if here && implemented {
-                return refuse(&m.name);
+        for t in members {
+            for (m, loc, key) in &t.methods {
+                if *m == method && !family.iter().any(|(k, _)| k == key) {
+                    family.push((key.clone(), loc.clone()));
+                }
             }
         }
     }
-    None
+    family
 }
 
-fn ancestors<'a>(t: &TypeDecl, types: &'a [TypeDecl]) -> Vec<&'a TypeDecl> {
+/// Ancêtres (`extends`) et interfaces implémentées, transitivement.
+fn supertypes<'a>(t: &TypeDecl, types: &'a [TypeDecl]) -> Vec<&'a TypeDecl> {
     let mut out: Vec<&TypeDecl> = Vec::new();
-    let mut current = t.extends.clone();
-    while let Some(name) = current.take() {
-        let Some(parent) = types.iter().find(|p| p.name == name) else { break };
-        if out.iter().any(|o| o.key == parent.key) { break; }
-        out.push(parent);
-        current = parent.extends.clone();
+    let mut queue: Vec<String> = t.extends.iter().chain(&t.implements).cloned().collect();
+    while let Some(name) = queue.pop() {
+        for found in types.iter().filter(|x| x.name == name) {
+            if !out.iter().any(|o| o.key == found.key) {
+                out.push(found);
+                queue.extend(found.extends.iter().chain(&found.implements).cloned());
+            }
+        }
+    }
+    out
+}
+
+/// Sous-classes et, pour une interface, classes d'implémentation et leurs
+/// sous-classes, transitivement.
+fn subtypes<'a>(t: &TypeDecl, types: &'a [TypeDecl]) -> Vec<&'a TypeDecl> {
+    let mut out: Vec<&TypeDecl> = Vec::new();
+    let mut queue = vec![t.name.clone()];
+    while let Some(name) = queue.pop() {
+        for found in types.iter().filter(|x| x.extends.as_deref() == Some(name.as_str()) || x.implements.contains(&name)) {
+            if !out.iter().any(|o| o.key == found.key) {
+                out.push(found);
+                queue.push(found.name.clone());
+            }
+        }
     }
     out
 }
@@ -332,7 +351,7 @@ fn method_names(members: &[ClassMember]) -> Vec<(String, Span)> {
 /// Méthodes des types `among` qui portent le nom d'une des `methods`.
 fn overrides(among: &[TypeDecl], methods: &[(String, Span)]) -> Vec<Location> {
     among.iter()
-        .flat_map(|t| t.methods.iter().filter(|(n, _)| methods.iter().any(|(m, _)| m == n)).map(|(_, loc)| loc.clone()))
+        .flat_map(|t| t.methods.iter().filter(|(n, _, _)| methods.iter().any(|(m, _)| m == n)).map(|(_, loc, _)| loc.clone()))
         .collect()
 }
 

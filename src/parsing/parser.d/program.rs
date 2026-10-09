@@ -49,55 +49,68 @@ impl Parser {
         }
 
         while !self.check_exact(&TokenKind::Eof) {
-            match self.peek_kind().clone() {
-                TokenKind::Import => {
-                    program.imports.push(self.parse_import()?);
-                }
-                TokenKind::Runtime => {
-                    program.runtime_imports.push(self.parse_runtime_import()?);
-                }
-                TokenKind::Init | TokenKind::Main | TokenKind::Error 
-                | TokenKind::Success | TokenKind::Exit => {
-                    program.runtime_blocks.push(self.parse_runtime_block()?);
-                }
-                TokenKind::Const => {
-                    program.consts.push(self.parse_const_decl()?);
-                }
-                TokenKind::Module => {
-                    program.modules.push(self.parse_module()?);
-                }
-                TokenKind::Enum => {
-                    program.enums.push(self.parse_enum()?);
-                }
-                TokenKind::Class => {
-                    program.classes.push(self.parse_class()?);
-                }
-                TokenKind::Struct => {
-                    program.classes.push(self.parse_struct()?);
-                }
-                TokenKind::Generic => {
-                    program.generics.push(self.parse_generic()?);
-                }
-                TokenKind::Interface => {
-                    program.interfaces.push(self.parse_interface()?);
-                }
-                TokenKind::Function => {
-                    program.functions.push(self.parse_func()?);
-                }
-                TokenKind::Async => {
-                    // `async function ...` au niveau du module
-                    program.functions.push(self.parse_func()?);
-                }
-                other => {
-                    return Err(ParseError::new(
-                        format!("unexpected top-level declaration: {:?}", other),
-                        self.span(),
-                    ))
+            let start = self.pos;
+            if let Err(e) = self.parse_top_level(&mut program) {
+                if let Err(e) = self.recover_top(e, start) {
+                    if !self.recover { return Err(e); }
+                    self.errors.push(e);
+                    break;
                 }
             }
         }
 
         program.type_refs = std::mem::take(&mut self.type_refs);
         Ok(program)
+    }
+
+    fn parse_top_level(&mut self, program: &mut Program) -> ParseResult<()> {
+        match self.peek_kind().clone() {
+            TokenKind::Import => {
+                program.imports.push(self.parse_import()?);
+            }
+            TokenKind::Runtime => {
+                program.runtime_imports.push(self.parse_runtime_import()?);
+            }
+            TokenKind::Init | TokenKind::Main | TokenKind::Error 
+            | TokenKind::Success | TokenKind::Exit => {
+                program.runtime_blocks.push(self.parse_runtime_block()?);
+            }
+            TokenKind::Const => {
+                program.consts.push(self.parse_const_decl()?);
+            }
+            TokenKind::Module => {
+                program.modules.push(self.parse_module()?);
+            }
+            TokenKind::Enum => {
+                program.enums.push(self.parse_enum()?);
+            }
+            TokenKind::Class => {
+                program.classes.push(self.parse_class()?);
+            }
+            TokenKind::Struct => {
+                program.classes.push(self.parse_struct()?);
+            }
+            TokenKind::Generic => {
+                program.generics.push(self.parse_generic()?);
+            }
+            TokenKind::Interface => {
+                program.interfaces.push(self.parse_interface()?);
+            }
+            TokenKind::Function => {
+                program.functions.push(self.parse_func()?);
+            }
+            TokenKind::Async => {
+                // `async function ...` au niveau du module
+                program.functions.push(self.parse_func()?);
+            }
+            other => {
+                return Err(ParseError::new(
+                    format!("unexpected top-level declaration: {:?}", other),
+                    self.span(),
+                ))
+            }
+        }
+
+        Ok(())
     }
 }

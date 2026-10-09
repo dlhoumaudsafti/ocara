@@ -33,8 +33,8 @@ pub struct TypeDecl {
     pub extends: Option<String>,
     pub implements: Vec<String>,
     pub modules: Vec<String>,
-    /// Méthodes déclarées (nom, emplacement).
-    pub methods: Vec<(String, Location)>,
+    /// Méthodes déclarées (nom, emplacement du nom, clé de la déclaration).
+    pub methods: Vec<(String, Location, DeclKey)>,
 }
 
 struct Entry {
@@ -169,9 +169,12 @@ fn type_decls(program: &Program, entry: &Path, text_of: &mut dyn FnMut(&Path) ->
         let file = span_path(span, entry);
         Location::new(to_url(&file), name_range(&text_of(&file), span, name))
     };
-    let methods_of = |members: &[ClassMember], location: &mut dyn FnMut(&Span, &str) -> Location| -> Vec<(String, Location)> {
+    let method = |name: &str, span: &Span, location: &mut dyn FnMut(&Span, &str) -> Location| {
+        (name.to_string(), location(span, name), decl_key(entry, span))
+    };
+    let methods_of = |members: &[ClassMember], location: &mut dyn FnMut(&Span, &str) -> Location| -> Vec<(String, Location, DeclKey)> {
         members.iter().filter_map(|m| match m {
-            ClassMember::Method { decl, .. } => Some((decl.name.clone(), location(&decl.span, &decl.name))),
+            ClassMember::Method { decl, .. } => Some(method(&decl.name, &decl.span, location)),
             _ => None,
         }).collect()
     };
@@ -187,6 +190,13 @@ fn type_decls(program: &Program, entry: &Path, text_of: &mut dyn FnMut(&Path) ->
         out.push(TypeDecl {
             name: g.name.clone(), key: decl_key(entry, &g.span), location: location(&g.span, &g.name),
             extends: g.extends.clone(), implements: g.implements.clone(), modules: g.modules.clone(), methods,
+        });
+    }
+    for i in &program.interfaces {
+        let methods = i.methods.iter().map(|m| (m.name.clone(), location(&m.span, &m.name), decl_key(entry, &m.span))).collect();
+        out.push(TypeDecl {
+            name: i.name.clone(), key: decl_key(entry, &i.span), location: location(&i.span, &i.name),
+            extends: None, implements: Vec::new(), modules: Vec::new(), methods,
         });
     }
     out

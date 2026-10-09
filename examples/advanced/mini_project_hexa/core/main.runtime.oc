@@ -30,11 +30,9 @@ while not server_ready {
 IO::writeln("Serveur prêt.")
 
 IO::writeln("Ouverture de la fenêtre vers http://localhost:8081 ...")
-var ui:Tauri = use Tauri({
+use Tauri({
     "title":  "Garage Ocara",
     "width":  1200,
     "height": 800,
     "url":    "http://localhost:8081"
-})
-
-ui.run()
+}).run()
