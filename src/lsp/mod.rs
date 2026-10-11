@@ -15,6 +15,8 @@ mod position;
 mod project;
 mod semantic;
 mod signature;
+mod workflow;
+mod workflow_code;
 mod workspace;
 
 use std::path::{Path, PathBuf};
@@ -175,6 +177,10 @@ fn handle_request(ws: &Workspace, index: &mut project::ProjectIndex, req: Reques
                 signature::signature_help(ws, &to_path(&pos.text_document.uri)?, &pos.position)
             })
             .map(|h| serde_json::to_value(h).unwrap_or(Value::Null)),
+        workflow::METHOD => serde_json::from_value::<lsp_types::TextDocumentIdentifier>(req.params.get("textDocument").cloned().unwrap_or(Value::Null))
+            .ok()
+            .and_then(|d| to_path(&d.uri))
+            .map(|path| workflow::workflow(ws, &path)),
         _ => return Response::new_err(req.id, lsp_server::ErrorCode::MethodNotFound as i32, format!("méthode non prise en charge : {}", req.method)),
     };
     // Noms internes des types homonymes (`Format__ns__…`) jamais montrés.

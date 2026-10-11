@@ -79,6 +79,11 @@ function buildSettings(): { os?: string; arch?: string; build: string } {
     return { os: pick('os'), arch: pick('arch'), build: config.get<string>('build', 'debug') };
 }
 
+/** Client du serveur de langage (requêtes propres : `ocara/workflow`). */
+export function languageClient(): LanguageClient | undefined {
+    return client;
+}
+
 export function stopLanguageServer(): Thenable<void> | undefined {
     return client?.stop();
 }

@@ -54,7 +54,11 @@ fn main() {
 
     // ── 5. Lowering AST → Ocara HIR ────────────────────────────────────────────
     let source_file = args.input.to_string_lossy().to_string();
-    let ir_module = lower_program(&program, &source_file);
+    let mut ir_module = lower_program(&program, &source_file);
+    if args.profile {
+        let classes: Vec<String> = program.classes.iter().map(|c| c.name.clone()).collect();
+        ir::profile::instrument(&mut ir_module, &classes);
+    }
 
     if args.dump {
         println!("=== HIR ({} fonctions) ===", ir_module.functions.len());

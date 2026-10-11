@@ -7,3 +7,4 @@ pub mod types;
 pub mod inst;
 pub mod func;
 pub mod module;
+pub mod profile;

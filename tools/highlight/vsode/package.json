@@ -13,7 +13,9 @@
     "Programming Languages"
   ],
   "activationEvents": [
-    "onLanguage:ocara"
+    "onLanguage:ocara",
+    "onView:ocara.workflow",
+    "onView:ocara.benchmark"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -126,6 +128,31 @@
           ],
           "default": "debug",
           "markdownDescription": "Valeur de `System::BUILD` pour l'éditeur (mêmes effets que `ocara.os`). Les commandes de compilation gardent leur propre mode (Debug/Release)."
+        },
+        "ocara.benchmark.runs": {
+          "type": "integer",
+          "default": 5,
+          "minimum": 1,
+          "markdownDescription": "Nombre d'exécutions de « Mesurer temps et mémoire » (temps moyen, min, max ; pic mémoire le plus haut)."
+        },
+        "ocara.benchmark.timeout": {
+          "type": "integer",
+          "default": 30,
+          "minimum": 1,
+          "markdownDescription": "Délai maximal d'une exécution mesurée, en secondes (un serveur qui ne s'arrête pas est interrompu)."
+        },
+        "ocara.benchmark.leakSizes": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "default": [
+            20000,
+            200000
+          ],
+          "minItems": 2,
+          "maxItems": 2,
+          "markdownDescription": "Valeurs du marqueur `__N__` pour la détection de fuite : le pic mémoire est comparé entre les deux (voir docs/benchmarking.md)."
         }
       }
     },
@@ -164,6 +191,36 @@
         "command": "ocara.openDoc",
         "title": "Ouvrir la documentation Ocara",
         "category": "Ocara"
+      },
+      {
+        "command": "ocara.workflow.refresh",
+        "title": "Rafraîchir",
+        "category": "Ocara",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "ocara.bench.run",
+        "title": "Mesurer temps et mémoire",
+        "category": "Ocara",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "ocara.bench.leak",
+        "title": "Détecter une fuite (__N__)",
+        "category": "Ocara",
+        "icon": "$(debug-alt)"
+      },
+      {
+        "command": "ocara.bench.profile",
+        "title": "Profiler par fonction",
+        "category": "Ocara",
+        "icon": "$(flame)"
+      },
+      {
+        "command": "ocara.bench.clear",
+        "title": "Effacer l'historique de benchmark",
+        "category": "Ocara",
+        "icon": "$(clear-all)"
       }
     ],
     "menus": {
@@ -259,6 +316,37 @@
         {
           "command": "ocara.openDoc",
           "when": "false"
+        },
+        {
+          "command": "ocara.workflow.refresh",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "ocara.workflow.refresh",
+          "when": "view == ocara.workflow",
+          "group": "navigation"
+        },
+        {
+          "command": "ocara.bench.run",
+          "when": "view == ocara.benchmark",
+          "group": "navigation@1"
+        },
+        {
+          "command": "ocara.bench.leak",
+          "when": "view == ocara.benchmark",
+          "group": "navigation@2"
+        },
+        {
+          "command": "ocara.bench.profile",
+          "when": "view == ocara.benchmark",
+          "group": "navigation@3"
+        },
+        {
+          "command": "ocara.bench.clear",
+          "when": "view == ocara.benchmark",
+          "group": "navigation@4"
         }
       ]
     },
@@ -301,6 +389,39 @@
             "keyword.control.directive.when.ocara"
           ]
         }
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "ocara",
+          "title": "Ocara",
+          "icon": "logo-min-white.png"
+        }
+      ]
+    },
+    "views": {
+      "ocara": [
+        {
+          "id": "ocara.workflow",
+          "name": "Workflow",
+          "contextualTitle": "Ocara"
+        },
+        {
+          "id": "ocara.benchmark",
+          "name": "Benchmark",
+          "contextualTitle": "Ocara"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "ocara.workflow",
+        "contents": "Ouvrez un script Ocara (.oc) : ses imports, sa structure, ses appels et ses variantes `when` s'affichent ici."
+      },
+      {
+        "view": "ocara.benchmark",
+        "contents": "Ouvrez un script Ocara (.oc) pour mesurer son temps d'exécution, son pic mémoire, détecter une fuite ou le profiler par fonction."
       }
     ]
   },

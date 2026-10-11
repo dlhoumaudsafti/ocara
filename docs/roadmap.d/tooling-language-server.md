@@ -243,6 +243,17 @@ L'extension applique `source.addMissingImports` à l'enregistrement
 (`onWillSaveTextDocument`), sauf si `ocara.autoImport.enable` est désactivé.
 Un nom introuvable n'est pas importé.
 
+## Encart Workflow (2026-10-11)
+
+Requête propre `ocara/workflow` (`src/lsp/workflow.rs`,
+`src/lsp/workflow_code.rs`) pour l'encart de la barre latérale, en partant
+du script affiché : imports résolus récursivement (runtimes compris,
+doublons signalés), structure (types, membres, variables locales typées par
+la sema), graphe d'appels (références de fonctions et méthodes rattachées à
+la fonction qui les contient, corps délimités par leurs accolades) et
+variantes `when` (`Analysis::variants`, statut pour la configuration de
+l'éditeur).
+
 ## Étapes suivantes
 
 - Client JetBrains (voir [tooling-jetbrains-plugin.md](tooling-jetbrains-plugin.md)).

@@ -45,8 +45,8 @@ pub struct Analysis {
     pub diagnostics: Vec<Diagnostic>,
     /// `None` si une étape avant la sema a échoué.
     pub checked: Option<Checked>,
-    /// Variantes `when` écartées pour la configuration de build courante.
-    pub inactive: Vec<variants::InactiveRange>,
+    /// Variantes `when` et leur statut pour la configuration de build courante.
+    pub variants: Vec<variants::VariantRange>,
 }
 
 impl Analysis {
@@ -55,7 +55,7 @@ impl Analysis {
     }
 
     fn fatal(diagnostic: Diagnostic) -> Self {
-        Self { diagnostics: vec![diagnostic], checked: None, inactive: Vec::new() }
+        Self { diagnostics: vec![diagnostic], checked: None, variants: Vec::new() }
     }
 }
 
@@ -126,7 +126,7 @@ fn analyze_program(opts: &AnalyzeOptions) -> Result<Analysis, Diagnostic> {
     Ok(Analysis {
         diagnostics,
         checked: Some(Checked { program, homonyms, references: out.references }),
-        inactive: Vec::new(),
+        variants: Vec::new(),
     })
 }
 

@@ -39,6 +39,15 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     `ocara.os`/`ocara.arch`/`ocara.build`) est estompée ; les diagnostics des autres configurations
     sont signalés avec leur combinaison (`[System::OS = 'windows']`) ; `when` et ses opérateurs
     ont une couleur dédiée, quel que soit le thème.
+- **Barre latérale Ocara** (icône du logo dans la barre d'activité) :
+  - **Workflow**, en partant du script affiché : arbre des **imports** (récursif, runtimes compris,
+    doublons signalés), **structure** (classes, structs, interfaces, enums, fonctions, membres et
+    variables locales avec leur type réel), **graphe d'appels** (fonctions et méthodes appelées,
+    dépliable niveau par niveau, récursion signalée) et **variantes `when`** (retenue ou écartée pour
+    la configuration de l'éditeur). Un clic ouvre la déclaration ;
+  - **Benchmark** : temps et pic mémoire sur plusieurs exécutions (build Release), détection de fuite
+    (marqueur `__N__`), profil par fonction (`ocara --profile`) et historique comparé par script
+    (voir docs/benchmarking.md).
 - Les noms de type (`var x:Dog`, `extends Animal`, paramètres, `on e is FileException`) ont survol,
   définition et références comme les autres noms.
 - **Documentation embarquée** : `docs/EBNF.md` et `docs/builtins/*.md` du dépôt sont copiés dans
@@ -79,6 +88,9 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
 | `ocara.compilerPath` | `ocara` | Chemin du compilateur ou commande pour le lancer — arguments et guillemets acceptés, variables `${workspaceFolder}`/`${fileDirname}` (ex. `"${workspaceFolder}/target/release/ocara"`). |
 | `ocara.ocaracsPath` | `ocaracs` | Chemin d'ocaracs ou commande pour le lancer (mêmes règles). |
 | `ocara.lint.enable` | `true` | Active l'analyse ocaracs automatique. |
+| `ocara.benchmark.runs` | `5` | Nombre d'exécutions de « Mesurer temps et mémoire ». |
+| `ocara.benchmark.timeout` | `30` | Délai maximal d'une exécution mesurée (secondes). |
+| `ocara.benchmark.leakSizes` | `[20000, 200000]` | Valeurs de `__N__` comparées par la détection de fuite. |
 | `ocara.autoImport.enable` | `true` | Ajoute les imports manquants à l'enregistrement (le correctif rapide reste disponible sinon). |
 | `ocara.os` | `system` | `System::OS` de l'éditeur pour les clauses `when` : `system` (machine), `linux`, `windows`, `macos`, `android`, ou `other` (valeur de `ocara.osOther`). Variante retenue, variantes écartées estompées. Ne change pas la cible des commandes de compilation. |
 | `ocara.osOther` | `""` | Valeur personnalisée de `System::OS` (avec `ocara.os` = `other`). |

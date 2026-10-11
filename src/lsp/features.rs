@@ -50,7 +50,8 @@ fn inactive_variants(text: &str, path: &Path, analysis: &Analysis) -> Vec<lsp_ty
     let config = crate::parsing::build::current();
     let names = config.values.keys().cloned().collect();
     let lines: Vec<&str> = text.lines().collect();
-    analysis.inactive.iter()
+    analysis.variants.iter()
+        .filter(|r| !r.retained)
         .filter(|r| r.file.canonicalize().unwrap_or_else(|_| r.file.clone()) == path)
         .filter_map(|r| {
             let last = lines.get(r.end_line.checked_sub(1)?)?;

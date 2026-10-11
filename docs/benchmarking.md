@@ -117,6 +117,45 @@ Exécuter chaque mesure plusieurs fois et garder la meilleure : le temps d'un
 programme court varie d'une exécution à l'autre. Un micro-benchmark doit
 faire au moins quelques millions d'opérations pour dépasser le bruit.
 
+## Profiler par fonction : `--profile`
+
+`ocara programme.oc --profile -o programme` encadre chaque fonction et
+méthode d'une mesure de temps (`src/ir/profile.rs`, `runtime/src/profile.rs`).
+À la sortie du programme, une ligne par fonction, temps propre décroissant :
+
+```
+── profil (appels, total ns, propre ns, fonction) ──
+57313	6641619	6641619	Calc.fib
+1	6675235	23231	main
+1	10385	8854	work
+```
+
+- **total** : temps passé dans la fonction et ses appelées (appel externe
+  seulement pour une fonction récursive) ; **propre** : sans les appelées.
+- `OCARA_PROFILE_OUT=fichier.tsv ./programme` écrit le rapport dans un
+  fichier au lieu de stderr.
+- La mesure coûte quelques dizaines de nanosecondes par appel : comparer
+  les fonctions entre elles, pas le temps absolu à un build sans `--profile`.
+- Un programme interrompu (serveur arrêté par un signal) n'écrit pas de
+  rapport.
+
+## Dans VS Code : encart « Benchmark »
+
+La barre latérale Ocara (icône du logo) a un encart « Benchmark » pour le
+script affiché :
+
+- **Mesurer temps et mémoire** : build Release, `ocara.benchmark.runs`
+  exécutions (5 par défaut), temps moyen/min/max et pic mémoire ;
+- **Détecter une fuite (`__N__`)** : la méthode ci-dessus, avec les deux
+  valeurs de `ocara.benchmark.leakSizes` ; verdict stable ou fuite probable
+  (croissance du pic de plus de 1 Mo et de 10 %) ;
+- **Profiler par fonction** : build `--profile`, tableau par fonction ;
+- **Historique** : mesures conservées par script, avec l'écart à la mesure
+  précédente du même genre (▲ plus lent/plus gros, ▼ mieux).
+
+Chaque exécution est limitée à `ocara.benchmark.timeout` secondes (30 par
+défaut). Le pic mémoire demande `/usr/bin/time`.
+
 ## Pièges
 
 - **`for i in 0..N` alloue un tableau de N entiers** (8 octets par

@@ -122,6 +122,7 @@ pub mod mysql;
 pub mod dotenv;
 pub mod yaml;
 pub mod rc;
+pub mod profile;
 // Tauri vit dans le crate séparé runtime_tauri (voir sa doc) : pas de `mod tauri`
 // ici, pour que ce code (et sa dépendance GTK/WebKit) n'existe dans le binaire
 // final QUE pour les programmes qui importent réellement ocara.Tauri.

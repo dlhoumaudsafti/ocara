@@ -12,12 +12,14 @@ use crate::parsing::build::{self, BuildConfig, SelectionLog, DOMAINS};
 
 use super::Analysis;
 
-/// Lignes d'une variante écartée (clause comprise), 1-based.
+/// Lignes d'une variante `when` (clause comprise, 1-based) et son statut
+/// pour la configuration courante.
 #[derive(Debug, Clone)]
-pub struct InactiveRange {
+pub struct VariantRange {
     pub file: PathBuf,
     pub start_line: usize,
     pub end_line: usize,
+    pub retained: bool,
 }
 
 /// Au-delà, les combinaisons suivantes ne sont pas analysées.
@@ -28,10 +30,16 @@ pub fn analyze_all(once: impl Fn() -> Analysis) -> Analysis {
     build::take_log();
     let mut main = once();
     let mut log = build::take_log();
-    main.inactive = log.variants.iter()
-        .filter(|v| !v.retained)
-        .map(|v| InactiveRange { file: PathBuf::from(&v.file), start_line: v.span.line, end_line: v.end_line })
-        .collect();
+    // Un fichier peut être lu plusieurs fois (imports, homonymes) : une
+    // entrée par variante.
+    let mut ranges: Vec<VariantRange> = Vec::new();
+    for v in &log.variants {
+        let file = PathBuf::from(&v.file);
+        if !ranges.iter().any(|r| r.file == file && r.start_line == v.span.line) {
+            ranges.push(VariantRange { file, start_line: v.span.line, end_line: v.end_line, retained: v.retained });
+        }
+    }
+    main.variants = ranges;
     if log.variants.is_empty() && log.warnings.is_empty() {
         return main;
     }
