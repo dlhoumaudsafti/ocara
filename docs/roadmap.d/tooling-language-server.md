@@ -212,11 +212,19 @@ occurrences dans le texte) :
   un fichier importé en erreur de syntaxe est analysé partiellement, ses
   erreurs remontent en tête du document d'entrée.
 
+## Liens vers les fichiers (2026-10-11)
+
+`textDocument/documentLink` (`src/lsp/links.rs`) : une chaîne littérale
+`'…'`/`"…"` qui désigne un fichier existant s'ouvre au Ctrl+clic —
+`HTML::renderFile('templates/…')`, `renderFileCached`, `File::read`,
+`SQLite::open("./app.db")`, ou tout appel utilisateur recevant un chemin.
+Résolution comme à l'exécution : racine du projet (dossier du `main.oc`),
+puis dossier du fichier. Ignorés : commentaires, gabarits backtick, chaînes
+interpolées (`${…}`), chemins inexistants ou désignant un dossier.
+
 ## Étapes suivantes
 
 - Client JetBrains (voir [tooling-jetbrains-plugin.md](tooling-jetbrains-plugin.md)).
-- Fonctions libres homonymes de namespaces différents (seuls les types sont
-  distingués, voir [langage-classes-homonymes-fusionnees.md](langage-classes-homonymes-fusionnees.md)).
 
 ## En attendant (gains rapides sur l'extension actuelle)
 

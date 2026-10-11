@@ -8,6 +8,7 @@ mod completion;
 mod decls;
 mod features;
 mod keywords;
+mod links;
 mod navigation;
 mod position;
 mod project;
@@ -21,7 +22,7 @@ use lsp_types::notification::{
     DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument, DidOpenTextDocument, DidSaveTextDocument, Notification as _,
     PublishDiagnostics,
 };
-use lsp_types::request::{CodeLensRequest, Completion, DocumentSymbolRequest, GotoDefinition, HoverRequest, References, Rename, Request as _, SignatureHelpRequest};
+use lsp_types::request::{CodeLensRequest, Completion, DocumentLinkRequest, DocumentSymbolRequest, GotoDefinition, HoverRequest, References, Rename, Request as _, SignatureHelpRequest};
 use lsp_types::{
     DocumentSymbolResponse, GotoDefinitionResponse, InitializeParams, OneOf, PublishDiagnosticsParams,
     ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
@@ -50,6 +51,7 @@ pub fn run() {
         references_provider: Some(OneOf::Left(true)),
         rename_provider: Some(OneOf::Left(true)),
         code_lens_provider: Some(lsp_types::CodeLensOptions { resolve_provider: Some(false) }),
+        document_link_provider: Some(lsp_types::DocumentLinkOptions { resolve_provider: Some(false), work_done_progress_options: Default::default() }),
         signature_help_provider: Some(lsp_types::SignatureHelpOptions {
             trigger_characters: Some(vec!["(".into(), ",".into()]),
             ..Default::default()
@@ -131,6 +133,10 @@ fn handle_request(ws: &Workspace, index: &mut project::ProjectIndex, req: Reques
                 features::definition(ws, &to_path(&pos.text_document.uri)?, &pos.position)
             })
             .map(|l| serde_json::to_value(GotoDefinitionResponse::Scalar(l)).unwrap_or(Value::Null)),
+        DocumentLinkRequest::METHOD => serde_json::from_value::<lsp_types::DocumentLinkParams>(req.params)
+            .ok()
+            .and_then(|p| to_path(&p.text_document.uri))
+            .map(|path| serde_json::to_value(links::document_links(ws, &path)).unwrap_or(Value::Null)),
         DocumentSymbolRequest::METHOD => serde_json::from_value::<lsp_types::DocumentSymbolParams>(req.params)
             .ok()
             .and_then(|p| to_path(&p.text_document.uri))
