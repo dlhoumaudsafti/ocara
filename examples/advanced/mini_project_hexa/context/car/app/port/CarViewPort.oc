@@ -1,17 +1,8 @@
-namespace context.car.domain.contract
+namespace context.car.app.port
 
-import context.car.domain.entity.CarEntity
-import context.car.domain.entity.MaintenanceEntity
+import context.car.app.dto.CarDetailsDTO
 
-interface CarViewContract {
+interface CarViewPort {
     wiring context.car.infra.view.CarView
-    public static method show(
-        id:int,
-        car:CarEntity,
-        maintenances:array<MaintenanceEntity>,
-        maintenance_total:float,
-        improvement_total:float,
-        error_text:string,
-        success_text:string
-    ): string
+    public static method show(id:int, details:CarDetailsDTO, error_code:string, success_code:string): string
 }

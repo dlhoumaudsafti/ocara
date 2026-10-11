@@ -1,0 +1,8 @@
+namespace context.home.app.port
+
+import context.home.app.dto.DashboardDto
+
+interface HomeViewPort {
+    wiring context.home.infra.view.HomeView
+    public static method show(dashboard:DashboardDto, error_code:string, success_code:string): string
+}

@@ -1,0 +1,16 @@
+namespace context.car.infra.view
+
+import context.car.domain.entity.CarEntity
+
+// Données de templates/car/car_detail.html, déjà formatées pour l'affichage.
+struct CarViewModel {
+    public property id:string
+    public property car:CarEntity
+    public property purchase_price:string
+    public property estimated_price:string
+    public property maintenance_total:string
+    public property improvement_total:string
+    public property rows_html:string
+    public property error_text:string
+    public property success_text:string
+}

@@ -1,14 +1,13 @@
 // examples/advanced/mini_projet/controllers/HomeController.oc
 // Page d'accueil : tableau de bord de la flotte + formulaire d'ajout de
 // voiture + grille des voitures existantes. Le rendu HTML est délégué à la
-// vue (HomeViewContract → context/home/infra/view/HomeView.oc).
+// vue (HomeViewPort → context/home/infra/view/HomeView.oc).
 namespace context.home.infra.controllers
 
 import ocara.HTTPServerRequest
 import context.home.app.usecase.DashboardService
 import context.home.app.dto.DashboardDto
-import context.home.domain.contract.HomeViewContract
-import context.home.app.usecase.helpers.Flash
+import context.home.app.port.HomeViewPort
 import configs.Language
 
 class HomeController {
@@ -17,15 +16,7 @@ class HomeController {
         const lang:map<string, string> = Language::get("home", req.param("lang"))
         const dashboard:DashboardDto = DashboardService::build()
 
-        req.respond(200,
-            HomeViewContract::show(
-                cars:dashboard.cars,
-                total_purchase_value:dashboard.total_purchase_value,
-                total_estimated_value:dashboard.total_estimated_value,
-                error_text:Flash::message(req.query("error")),
-                success_text:Flash::message(req.query("success"))
-            )
-        )
+        req.respond(200, HomeViewPort::show(dashboard, req.query("error"), req.query("success")))
         return 0
     }
 }

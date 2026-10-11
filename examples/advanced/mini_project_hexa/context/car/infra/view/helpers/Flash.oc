@@ -1,4 +1,4 @@
-namespace context.car.app.usecase.helpers
+namespace context.car.infra.view.helpers
 // examples/advanced/mini_projet/helpers/Flash.oc
 // Messages "flash" transmis d'une redirection à l'autre via un simple code
 // court dans la query string (?error=... / ?success=...), traduit ici en

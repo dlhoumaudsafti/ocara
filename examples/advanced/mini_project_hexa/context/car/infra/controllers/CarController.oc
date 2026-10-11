@@ -7,7 +7,6 @@
 // plus besoin de forcer GET pour profiter du décodage automatique.
 namespace context.car.infra.controllers
 
-import ocara.HTML
 import ocara.HTTPServer
 import ocara.HTTPServerRequest
 import ocara.Array
@@ -16,9 +15,7 @@ import ocara.Convert
 import ocara.String
 import context.car.domain.entity.CarEntity
 import context.car.domain.contract.CarContract
-import context.car.domain.contract.CarViewContract
-import context.car.app.usecase.helpers.Format
-import context.car.app.usecase.helpers.Flash
+import context.car.app.port.CarViewPort
 import context.car.app.usecase.CarDetailsService
 import context.car.app.dto.CarDetailsDTO
 
@@ -39,17 +36,7 @@ class CarController {
             return 0
         }
 
-        req.respond(200,
-            CarViewContract::show(
-                id:id,
-                car:car_details.car,
-                maintenances:car_details.maintenances,
-                maintenance_total:car_details.maintenance_total,
-                improvement_total:car_details.improvement_total,
-                error_text:Flash::message(req.query("error")),
-                success_text:Flash::message(req.query("success"))
-            )
-        )
+        req.respond(200, CarViewPort::show(id, car_details, req.query("error"), req.query("success")))
         return 0
     }
 

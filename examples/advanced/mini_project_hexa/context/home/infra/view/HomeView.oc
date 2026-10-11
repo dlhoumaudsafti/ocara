@@ -1,29 +1,17 @@
 namespace context.home.infra.view
 
 import ocara.HTML
-import context.home.domain.entity.CarSummaryEntity
-import context.home.domain.contract.HomeViewContract
-import context.home.app.usecase.helpers.Format
+import context.home.app.dto.DashboardDto
+import context.home.app.port.HomeViewPort
+import context.home.infra.view.HomeViewModel
+import context.home.infra.view.helpers.Format
+import context.home.infra.view.helpers.Flash
 
-class HomeView implements HomeViewContract {
-    public static method show(
-        cars:array<CarSummaryEntity>,
-        total_purchase_value:float,
-        total_estimated_value:float,
-        error_text:string,
-        success_text:string
-    ): string {
-        const home:map<string, string> = {
-            "cars_html": "",
-            "car_count": cars.len().toStr(),
-            "purchase_text": Format::price(total_purchase_value),
-            "estimated_text": Format::price(total_estimated_value),
-            "gain_text": Format::price(total_estimated_value - total_purchase_value),
-            "error_text": error_text,
-            "success_text": success_text
-        }
-        for car in cars {
-            home['cars_html'] += `<car-card
+class HomeView implements HomeViewPort {
+    public static method show(dashboard:DashboardDto, error_code:string, success_code:string): string {
+        var cars_html:string = ""
+        for car in dashboard.cars {
+            cars_html += `<car-card
                 id="${car.id.toStr()}"
                 reference="${car.reference}"
                 brand="${car.brand}"
@@ -33,9 +21,18 @@ class HomeView implements HomeViewContract {
                 maintenance_total="${Format::price(car.maintenanceTotal)}"
             >`
         }
-        if cars.len() equal 0 {
-            home['cars_html'] = `<p class="empty">Aucune voiture pour le moment — ajoutez la première ci-dessus.</p>`
+        if dashboard.cars.len() equal 0 {
+            cars_html = `<p class="empty">Aucune voiture pour le moment — ajoutez la première ci-dessus.</p>`
         }
+        const home:HomeViewModel = use HomeViewModel(
+            car_count:dashboard.cars.len().toStr(),
+            purchase_price:Format::price(dashboard.total_purchase_value),
+            estimated_price:Format::price(dashboard.total_estimated_value),
+            profit:Format::price(dashboard.total_estimated_value - dashboard.total_purchase_value),
+            cars_html:cars_html,
+            error_text:Flash::message(error_code),
+            success_text:Flash::message(success_code)
+        )
         return HTML::renderFile('templates/home/home.html')
     }
 }

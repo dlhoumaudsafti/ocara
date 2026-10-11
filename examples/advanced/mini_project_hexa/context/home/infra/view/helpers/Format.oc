@@ -1,6 +1,6 @@
-namespace context.home.app.usecase.helpers
+namespace context.home.infra.view.helpers
 // examples/advanced/mini_projet/helpers/Format.oc
-// Formatage d'affichage (prix, dates) partagé par tous les controllers.
+// Formatage d'affichage (prix, dates) partagé par les vues.
 //
 // Convert::floatToStr ne garantit pas 2 décimales (5800.5 -> "5800.5",
 // 1234.0 -> "1234", voir docs/builtins/Convert.md) : Format::price()
