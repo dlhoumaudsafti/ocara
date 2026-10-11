@@ -30,7 +30,7 @@ export function activate(context: vscode.ExtensionContext): void {
     new ControlsProvider().register(context);
     const workflow = new WorkflowProvider(context.extensionUri);
     workflow.register(context);
-    new GraphProvider().register(context, workflow.onData);
+    new GraphProvider(context.extensionUri).register(context, workflow.onData);
     new BenchmarkProvider(context.workspaceState).register(context);
 }
 

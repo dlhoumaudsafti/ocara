@@ -255,6 +255,12 @@ variantes `when` (`Analysis::variants`, statut pour la configuration de
 l'éditeur). Tout nœud situé dans une variante écartée porte `inactive`
 (estompé dans l'arbre et le graphe d'appels de l'extension).
 
+Graphe d'appels (`src/lsp/workflow_calls.rs`) : fonctions, méthodes,
+constructeurs (`use X(…)` indexé comme appel de `X::init`), signatures
+d'interface et blocs runtime (fichier runtime entier ou bloc du fichier
+d'entrée), avec propriétaire, genre, paramètres et type de retour ; un
+`main.oc` sans fonction part de ses blocs runtime.
+
 ## Étapes suivantes
 
 - Client JetBrains (voir [tooling-jetbrains-plugin.md](tooling-jetbrains-plugin.md)).

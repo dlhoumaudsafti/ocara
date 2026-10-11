@@ -1955,6 +1955,10 @@ impl<'a> TypeChecker<'a> {
                     return Type::Mixed;
                 };
                 let args: &[Expr] = &resolved;
+                // Appel du constructeur indexé (graphe d'appels, références).
+                if !is_opaque && self.user_method_target(class, "init").is_some() {
+                    self.record(span, "init", Target::Method { class: class.clone(), name: "init".into() }, &Type::Named(class.clone()));
+                }
                 // Arité du constructeur utilisateur (hérité compris) — sans
                 // ce contrôle, un argument manquant/en trop n'échouait qu'au
                 // codegen (vérificateur Cranelift).

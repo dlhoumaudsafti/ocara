@@ -26,7 +26,7 @@ pub fn workflow(ws: &Workspace, path: &Path) -> Value {
     let mut seen = HashSet::from([path.to_path_buf()]);
     let inactive = Inactive::of(ws, path);
     let mut structure = Value::from(super::workflow_code::structure(ws, path, &text));
-    let mut calls = super::workflow_code::calls(ws, path);
+    let mut calls = super::workflow_calls::calls(ws, path);
     inactive.mark(&mut structure);
     if let Some(nodes) = calls.get_mut("nodes") {
         inactive.mark(nodes);

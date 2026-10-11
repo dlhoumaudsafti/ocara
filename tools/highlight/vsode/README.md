@@ -49,10 +49,14 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     dépliable niveau par niveau, récursion signalée) et **variantes `when`** (retenue ou écartée pour
     la configuration de l'éditeur). Un clic ouvre la déclaration ; les imports, déclarations, membres,
     variables et appels d'une variante `when` écartée sont estompés ;
-  - **Graphe d'appels** interactif : fonctions et méthodes atteignables depuis le script (disposition
-    par forces, molette = zoom, glisser = déplacer le fond ou un nœud, survol = voisins mis en avant,
-    clic = ouvrir la déclaration ; fonctions du script, des autres fichiers et variantes écartées
-    distinguées) ;
+  - **Graphe d'appels** interactif, à partir du script affiché (pour un `main.oc` : ses blocs runtime,
+    fichiers runtime compris) : une boîte par type — class, struct, interface, module, generic,
+    fonctions d'un fichier, bloc runtime — de couleur propre, listant les méthodes utilisées avec leurs
+    paramètres et leur type de retour ; colonnes par niveau d'appel, ordonnées pour limiter les
+    croisements. Liens **souples** (courbes) ou **droits** (en angle) ; molette = zoom, glisser = déplacer
+    le fond ou une boîte, survol = appels mis en avant, clic = ouvrir la déclaration ; variantes `when`
+    écartées estompées. **Exporter** en Markdown (`.md`, graphe Mermaid) ou en image (`.png`), ou
+    **copier** le Markdown dans le presse-papiers ;
   - **Benchmark** : temps et pic mémoire sur plusieurs exécutions (build Release), détection de fuite
     (marqueur `__N__`), profil par fonction (`ocara --profile`) et historique comparé par script
     (voir docs/benchmarking.md).

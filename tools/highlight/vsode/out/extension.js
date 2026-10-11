@@ -29,7 +29,7 @@ function activate(context) {
     new controls_1.ControlsProvider().register(context);
     const workflow = new workflow_1.WorkflowProvider(context.extensionUri);
     workflow.register(context);
-    new graph_1.GraphProvider().register(context, workflow.onData);
+    new graph_1.GraphProvider(context.extensionUri).register(context, workflow.onData);
     new benchmark_1.BenchmarkProvider(context.workspaceState).register(context);
 }
 function deactivate() {

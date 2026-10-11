@@ -16,6 +16,7 @@ mod project;
 mod semantic;
 mod signature;
 mod workflow;
+mod workflow_calls;
 mod workflow_code;
 mod workspace;
 

@@ -20,7 +20,20 @@ interface WfNode {
     inactive?: boolean;
 }
 
-interface CallNode { label: string; file: string; line: number; callees: string[]; inactive?: boolean }
+interface CallNode {
+    label: string;
+    file: string;
+    line: number;
+    callees: string[];
+    inactive?: boolean;
+    /** Type propriétaire (`runtime main` pour un bloc runtime), genre, signature. */
+    owner?: string | null;
+    kind?: string;
+    name?: string;
+    params?: string;
+    ret?: string;
+    static?: boolean;
+}
 
 export interface Workflow {
     file: string;
