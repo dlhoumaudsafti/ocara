@@ -55,6 +55,26 @@ pub fn decl_assign_pos(line: &str) -> Option<usize> {
     })
 }
 
+/// Lignes vides (numéro, indice) qui suivent une ligne `when …` avant la
+/// déclaration qu'elle conditionne.
+pub fn detached_when_blanks(lines: &[&str], states: &[crate::text::LineState]) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    for (i, line) in lines.iter().enumerate() {
+        let t = line.trim_start();
+        if states[i].starts_in_bt || !(t == "when" || t.starts_with("when ")) {
+            continue;
+        }
+        let mut j = i + 1;
+        while j < lines.len() && lines[j].trim().is_empty() && !states[j].inside_bt() {
+            j += 1;
+        }
+        if j < lines.len() {
+            out.extend((i + 1..j).map(|k| (k + 1, k)));
+        }
+    }
+    out
+}
+
 pub fn check_file(path: &Path, content: &str, cfg: &Config) -> usize {
     let lines: Vec<&str> = content.lines().collect();
     let states = line_states(&lines);
@@ -123,6 +143,13 @@ pub fn check_file(path: &Path, content: &str, cfg: &Config) -> usize {
                     warn(lnum, pos + 1, "espace manquant après '//' dans le commentaire");
                 }
             }
+        }
+    }
+
+    // ── R21 : clause `when` séparée de sa déclaration par des lignes vides ───
+    if cfg.when_attached {
+        for (line, _) in detached_when_blanks(&lines, &states) {
+            warn(line, 1, "ligne vide entre une clause 'when' et sa déclaration (convention : clause collée)");
         }
     }
 

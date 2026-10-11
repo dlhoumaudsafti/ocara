@@ -3,6 +3,7 @@
 use crate::parsing::ast::*;
 use crate::parsing::token::TokenKind;
 use super::types::{Parser, ParseError, ParseResult};
+use super::when::Variant;
 
 impl Parser {
     // ── Paramètres ───────────────────────────────────────────────────────────
@@ -161,21 +162,14 @@ impl Parser {
         }
 
         self.eat(&TokenKind::LBrace)?;
-        let mut members = Vec::new();
-        while !self.check_exact(&TokenKind::RBrace) {
-            let start = self.pos;
-            match self.parse_class_member() {
-                Ok(member) => members.push(member),
-                Err(e) => self.recover_member(e, start)?,
-            }
-        }
+        let mut members = self.parse_members()?;
         self.eat(&TokenKind::RBrace)?;
         let implicit_init = self.inject_property_initializers(&mut members, &span);
 
         Ok(ClassDecl { name, extends, modules, implements, members, span, is_struct: false, implicit_init })
     }
 
-    fn parse_class_member(&mut self) -> ParseResult<ClassMember> {
+    pub(super) fn parse_class_member(&mut self) -> ParseResult<ClassMember> {
         let span = self.span();
 
         // Constructeur : `init(...) { }`
@@ -358,14 +352,7 @@ impl Parser {
 
         // Membres (comme une classe)
         self.eat(&TokenKind::LBrace)?;
-        let mut members = Vec::new();
-        while !self.check_exact(&TokenKind::RBrace) {
-            let start = self.pos;
-            match self.parse_class_member() {
-                Ok(member) => members.push(member),
-                Err(e) => self.recover_member(e, start)?,
-            }
-        }
+        let mut members = self.parse_members()?;
         self.eat(&TokenKind::RBrace)?;
         self.inject_property_initializers(&mut members, &span);
 
@@ -389,14 +376,7 @@ impl Parser {
         let (name, _) = self.eat_ident()?;
 
         self.eat(&TokenKind::LBrace)?;
-        let mut members = Vec::new();
-        while !self.check_exact(&TokenKind::RBrace) {
-            let start = self.pos;
-            match self.parse_class_member() {
-                Ok(member) => members.push(member),
-                Err(e) => self.recover_member(e, start)?,
-            }
-        }
+        let members = self.parse_members()?;
         self.eat(&TokenKind::RBrace)?;
         if let Some((field, _, field_span)) = self.property_initializers.drain(..).next() {
             return Err(ParseError::new(
@@ -458,22 +438,36 @@ impl Parser {
         let (name, _) = self.eat_ident()?;
         self.eat(&TokenKind::LBrace)?;
 
-        let mut methods = Vec::new();
-        let mut wirings = Vec::new();
+        let mut entries = Vec::new();
         while !self.check_exact(&TokenKind::RBrace) {
+            let clause = self.parse_when_clause()?;
+            let vspan = self.span();
             // `wiring <chemin.pointé>` — répétable, mélangeable librement
             // avec les signatures de méthode (voir
             // docs/roadmap.d/langage-interface-wiring.md : aucun ordre
             // textuel imposé ENTRE les deux catégories, seul l'ordre relatif
             // des `wiring` ENTRE EUX compte, pour la résolution "premier
             // wiring déclaré" sans alias).
-            if self.check_exact(&TokenKind::Wiring) {
-                wirings.push(self.parse_wiring_decl()?);
+            let entry = if self.check_exact(&TokenKind::Wiring) {
+                let wiring = self.parse_wiring_decl()?;
+                (format!("wiring:{}", wiring.path.join(".")), Err(wiring))
             } else {
-                methods.push(self.parse_interface_method()?);
-            }
+                let method = self.parse_interface_method()?;
+                (format!("method:{}", method.name), Ok(method))
+            };
+            entries.push((Variant { key: entry.0, clause, span: vspan, end_line: self.end_line() }, entry.1));
         }
         self.eat(&TokenKind::RBrace)?;
+        let (variants, items): (Vec<Variant>, Vec<_>) = entries.into_iter().unzip();
+        let keep = self.select_or_note(&variants)?;
+        let (mut methods, mut wirings) = (Vec::new(), Vec::new());
+        for (item, keep) in items.into_iter().zip(keep) {
+            match item {
+                Ok(method) if keep => methods.push(method),
+                Err(wiring) if keep => wirings.push(wiring),
+                _ => {}
+            }
+        }
 
         Ok(InterfaceDecl { name, methods, wirings, span })
     }

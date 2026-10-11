@@ -1,4 +1,5 @@
 pub mod ast;
+pub mod build;
 pub mod diagnostic;
 pub mod error;
 #[path = "lexer.d/mod.rs"]

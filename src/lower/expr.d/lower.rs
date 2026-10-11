@@ -1171,6 +1171,11 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     }
                     Literal::Null => builder.emit(Inst::ConstInt { dest: dest.clone(), value: 0 }),
                 }
+            } else if class == "System" && name == "BUILD" {
+                // Mode du build (`--release`), fixé à la compilation.
+                let build = crate::parsing::build::current().get("BUILD").unwrap_or("debug").to_string();
+                let idx = builder.module.intern_string(&build);
+                builder.emit(Inst::ConstStr { dest: dest.clone(), idx });
             } else if class == "System" && (name == "OS" || name == "ARCH") {
                 // Constantes de plateforme — déterminées à la compilation du runtime
                 let func_name = if name == "OS" { "__system_os" } else { "__system_arch" };

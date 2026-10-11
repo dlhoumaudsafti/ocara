@@ -183,7 +183,7 @@ fn load_runtime_file(
         Some(kind) => wrap_in_block(tokens, kind),
         None => tokens,
     };
-    let mut runtime_program = Parser::new(tokens).parse_program()
+    let mut runtime_program = crate::parsing::build::parsing_file(&file_path.to_string_lossy(), || Parser::new(tokens).parse_program())
         .map_err(|e| format!("parse error in '{}' at {}:{}: {}",
             file_path.display(), e.span.line, e.span.col, e.message))?;
     update_program_spans_with_file(&mut runtime_program, &file_path.to_string_lossy());

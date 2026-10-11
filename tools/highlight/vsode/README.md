@@ -29,6 +29,10 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
   - **renommage** (F2) d'une variable, d'un paramètre, d'un champ, d'une méthode, d'une classe ou d'une
     fonction dans tout l'espace de travail — imports mis à jour et fichier renommé avec sa classe ; une
     méthode redéfinie est renommée avec toute sa chaîne (parents, sous-classes, interfaces).
+  - **variantes `when`** : la variante écartée pour la configuration de l'éditeur (réglages
+    `ocara.os`/`ocara.arch`/`ocara.build`) est estompée ; les diagnostics des autres configurations
+    sont signalés avec leur combinaison (`[System::OS = 'windows']`) ; `when` et ses opérateurs
+    ont une couleur dédiée, quel que soit le thème.
 - Les noms de type (`var x:Dog`, `extends Animal`, paramètres, `on e is FileException`) ont survol,
   définition et références comme les autres noms.
 - **Documentation embarquée** : `docs/EBNF.md` et `docs/builtins/*.md` du dépôt sont copiés dans
@@ -44,12 +48,12 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
   survol (et dans le panneau Problèmes). Règles : le `.ocaracs` le plus proche en remontant
   depuis le dossier du script, sinon les valeurs par défaut d'ocaracs. ocaracs lisant le fichier
   sur disque, l'analyse porte sur la dernière version enregistrée.
-- **Clic droit → « Compiler le script »** (éditeur ou arborescence, aussi dans la palette
-  `Ocara: Compiler le script`) : demande le nom du binaire, créé dans le dossier du script
-  (le compilateur y laisse aussi `<nom>.o`). Erreurs dans le panneau Problèmes et la sortie
-  « Ocara ».
-- **Clic droit → « Compiler et lancer »** : demande le nom du binaire comme « Compiler le
-  script », puis l'exécute **depuis le dossier du script** dans le terminal intégré « Ocara »
+- **Clic droit → « Compiler (Debug) » / « Compiler (Release) »** (éditeur ou arborescence,
+  aussi dans la palette) : demande le nom du binaire, créé dans le dossier du script (le
+  compilateur y laisse aussi `<nom>.o`) ; Release compile avec `--release` (`System::BUILD`
+  vaut `release`). Erreurs dans le panneau Problèmes et la sortie « Ocara ».
+- **Clic droit → « Compiler et lancer (Debug) » / « (Release) »** : demande le nom du binaire
+  comme « Compiler », puis l'exécute **depuis le dossier du script** dans le terminal intégré « Ocara »
   (entrée clavier et programmes longs, comme un serveur, fonctionnent). Un seul terminal
   « Ocara » sert à tous les lancements : le programme précédent y est arrêté (Ctrl+C) avant.
 - **Clic droit → « Afficher le dump »** : tokens, AST et IR (`ocara --dump`) dans un éditeur
@@ -69,6 +73,11 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
 | `ocara.compilerPath` | `ocara` | Chemin du compilateur ou commande pour le lancer — arguments et guillemets acceptés, variables `${workspaceFolder}`/`${fileDirname}` (ex. `"${workspaceFolder}/target/release/ocara"`). |
 | `ocara.ocaracsPath` | `ocaracs` | Chemin d'ocaracs ou commande pour le lancer (mêmes règles). |
 | `ocara.lint.enable` | `true` | Active l'analyse ocaracs automatique. |
+| `ocara.os` | `system` | `System::OS` de l'éditeur pour les clauses `when` : `system` (machine), `linux`, `windows`, `macos`, `android`, ou `other` (valeur de `ocara.osOther`). Variante retenue, variantes écartées estompées. Ne change pas la cible des commandes de compilation. |
+| `ocara.osOther` | `""` | Valeur personnalisée de `System::OS` (avec `ocara.os` = `other`). |
+| `ocara.arch` | `system` | `System::ARCH` de l'éditeur : `system`, `x86_64`, `aarch64`, `arm`, ou `other` (valeur de `ocara.archOther`). |
+| `ocara.archOther` | `""` | Valeur personnalisée de `System::ARCH` (avec `ocara.arch` = `other`). |
+| `ocara.build` | `debug` | `System::BUILD` de l'éditeur : `debug` ou `release`. Les commandes de compilation gardent leur propre mode (Debug/Release). |
 
 Laissé à sa valeur par défaut et absent du PATH, un outil est cherché dans
 `<workspace>/target/release/` (dépôt du compilateur ouvert dans VS Code).

@@ -58,18 +58,91 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Analyse `ocaracs` automatique à l'affichage, l'ouverture et l'enregistrement d'un fichier `.oc` (règles : `.ocaracs` le plus proche du script, sinon valeurs par défaut d'ocaracs)."
+        },
+        "ocara.os": {
+          "type": "string",
+          "enum": [
+            "system",
+            "linux",
+            "windows",
+            "macos",
+            "android",
+            "other"
+          ],
+          "enumDescriptions": [
+            "Système de la machine (défaut)",
+            "Linux",
+            "Windows",
+            "macOS",
+            "Android",
+            "Valeur personnalisée : réglage « ocara.osOther »"
+          ],
+          "default": "system",
+          "markdownDescription": "Valeur de `System::OS` pour l'éditeur : variante `when` retenue, variantes écartées estompées et diagnostics de cette configuration. Ne change pas la cible des commandes de compilation (machine hôte)."
+        },
+        "ocara.osOther": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Valeur personnalisée de `System::OS` quand `ocara.os` vaut `other`."
+        },
+        "ocara.arch": {
+          "type": "string",
+          "enum": [
+            "system",
+            "x86_64",
+            "aarch64",
+            "arm",
+            "other"
+          ],
+          "enumDescriptions": [
+            "Architecture de la machine (défaut)",
+            "Intel / AMD 64 bits",
+            "ARM 64 bits",
+            "ARM 32 bits",
+            "Valeur personnalisée : réglage « ocara.archOther »"
+          ],
+          "default": "system",
+          "markdownDescription": "Valeur de `System::ARCH` pour l'éditeur (mêmes effets que `ocara.os`)."
+        },
+        "ocara.archOther": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Valeur personnalisée de `System::ARCH` quand `ocara.arch` vaut `other`."
+        },
+        "ocara.build": {
+          "type": "string",
+          "enum": [
+            "debug",
+            "release"
+          ],
+          "enumDescriptions": [
+            "Mode debug (défaut)",
+            "Mode release (`--release`)"
+          ],
+          "default": "debug",
+          "markdownDescription": "Valeur de `System::BUILD` pour l'éditeur (mêmes effets que `ocara.os`). Les commandes de compilation gardent leur propre mode (Debug/Release)."
         }
       }
     },
     "commands": [
       {
         "command": "ocara.compile",
-        "title": "Compiler le script",
+        "title": "Compiler (Debug)",
+        "category": "Ocara"
+      },
+      {
+        "command": "ocara.compileRelease",
+        "title": "Compiler (Release)",
         "category": "Ocara"
       },
       {
         "command": "ocara.compileAndRun",
-        "title": "Compiler et lancer",
+        "title": "Compiler et lancer (Debug)",
+        "category": "Ocara"
+      },
+      {
+        "command": "ocara.compileAndRunRelease",
+        "title": "Compiler et lancer (Release)",
         "category": "Ocara"
       },
       {
@@ -96,19 +169,29 @@
           "group": "ocara@1"
         },
         {
-          "command": "ocara.compileAndRun",
+          "command": "ocara.compileRelease",
           "when": "resourceExtname == .oc",
           "group": "ocara@2"
         },
         {
-          "command": "ocara.dump",
+          "command": "ocara.compileAndRun",
           "when": "resourceExtname == .oc",
           "group": "ocara@3"
         },
         {
-          "command": "ocara.fixStyle",
+          "command": "ocara.compileAndRunRelease",
           "when": "resourceExtname == .oc",
           "group": "ocara@4"
+        },
+        {
+          "command": "ocara.dump",
+          "when": "resourceExtname == .oc",
+          "group": "ocara@5"
+        },
+        {
+          "command": "ocara.fixStyle",
+          "when": "resourceExtname == .oc",
+          "group": "ocara@6"
         }
       ],
       "explorer/context": [
@@ -118,19 +201,29 @@
           "group": "ocara@1"
         },
         {
-          "command": "ocara.compileAndRun",
+          "command": "ocara.compileRelease",
           "when": "resourceExtname == .oc",
           "group": "ocara@2"
         },
         {
-          "command": "ocara.dump",
+          "command": "ocara.compileAndRun",
           "when": "resourceExtname == .oc",
           "group": "ocara@3"
         },
         {
+          "command": "ocara.compileAndRunRelease",
+          "when": "resourceExtname == .oc",
+          "group": "ocara@4"
+        },
+        {
+          "command": "ocara.dump",
+          "when": "resourceExtname == .oc",
+          "group": "ocara@5"
+        },
+        {
           "command": "ocara.fixStyle",
           "when": "resourceExtname == .oc || explorerResourceIsFolder",
-          "group": "ocara@4"
+          "group": "ocara@6"
         }
       ],
       "commandPalette": [
@@ -139,7 +232,15 @@
           "when": "editorLangId == ocara"
         },
         {
+          "command": "ocara.compileRelease",
+          "when": "editorLangId == ocara"
+        },
+        {
           "command": "ocara.compileAndRun",
+          "when": "editorLangId == ocara"
+        },
+        {
+          "command": "ocara.compileAndRunRelease",
           "when": "editorLangId == ocara"
         },
         {
@@ -155,7 +256,37 @@
           "when": "false"
         }
       ]
-    }
+    },
+    "configurationDefaults": {
+      "editor.tokenColorCustomizations": {
+        "textMateRules": [
+          {
+            "scope": "keyword.control.directive.when.ocara",
+            "settings": {
+              "foreground": "#FF4FD8",
+              "fontStyle": "bold"
+            }
+          }
+        ]
+      }
+    },
+    "semanticTokenTypes": [
+      {
+        "id": "ocaraWhen",
+        "superType": "keyword",
+        "description": "Clause `when` et ses opérateurs"
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "ocara",
+        "scopes": {
+          "ocaraWhen": [
+            "keyword.control.directive.when.ocara"
+          ]
+        }
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

@@ -5,6 +5,7 @@
   "fileTypes": ["oc"],
   "patterns": [
     { "include": "#comments" },
+    { "include": "#when-clause" },
     { "include": "#namespace" },
     { "include": "#import" },
     { "include": "#runtime-import" },
@@ -56,6 +57,24 @@
             "0": { "name": "punctuation.definition.comment.end.ocara" }
           }
         }
+      ]
+    },
+
+    "when-clause": {
+      "comment": "Clause `when` (déclaration conditionnelle, docs/EBNF.md §32) : mot-clé et opérateurs dans une même couleur dédiée (configurationDefaults)",
+      "name": "meta.condition.when.ocara",
+      "begin": "^\\s*(when)\\b",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.directive.when.ocara" }
+      },
+      "end": "(?=//)|$",
+      "patterns": [
+        { "match": "\\b(default|is|not|greater|smaller|or|equal|and)\\b", "name": "keyword.control.directive.when.ocara" },
+        { "include": "#static-access" },
+        { "include": "#string-single" },
+        { "include": "#string-double" },
+        { "include": "#number" },
+        { "include": "#punctuation" }
       ]
     },
 

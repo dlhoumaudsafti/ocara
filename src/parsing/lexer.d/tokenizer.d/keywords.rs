@@ -54,6 +54,7 @@ pub(in crate::parsing::lexer) fn keyword_or_ident(s: &str) -> TokenKind {
         "async"      => TokenKind::Async,
         "resolve"    => TokenKind::Resolve,
         "variadic"   => TokenKind::Variadic,
+        "when"       => TokenKind::When,
         "runtime"    => TokenKind::Runtime,
         "main"       => TokenKind::Main,
         "error"      => TokenKind::Error,

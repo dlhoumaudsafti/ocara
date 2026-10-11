@@ -132,7 +132,7 @@ fn parse_module_recovering(file_path: &Path) -> Result<(Program, Vec<Diagnostic>
         .map_err(|e| Diagnostic::error(file_path, 0, 0, format!("reading file '{}': {}", file_path.display(), e)))?;
     let tokens = Lexer::new(&src).tokenize()
         .map_err(|e| Diagnostic::error(file_path, 0, 0, format!("{}", e)))?;
-    let (program, errors) = Parser::new(tokens).parse_program_recovering();
+    let (program, errors) = crate::parsing::build::parsing_file(&file_path.to_string_lossy(), || Parser::new(tokens).parse_program_recovering());
     let syntax = errors.into_iter().map(|e| Diagnostic::error(file_path, e.span.line, e.span.col, e.message)).collect();
     Ok((program, syntax))
 }
@@ -142,7 +142,7 @@ pub(super) fn parse_module(file_path: &Path) -> Result<Program, Diagnostic> {
         .map_err(|e| Diagnostic::error(file_path, 0, 0, format!("reading file '{}': {}", file_path.display(), e)))?;
     let tokens = Lexer::new(&src).tokenize()
         .map_err(|e| Diagnostic::error(file_path, 0, 0, format!("{}", e)))?;
-    Parser::new(tokens).parse_program()
+    crate::parsing::build::parsing_file(&file_path.to_string_lossy(), || Parser::new(tokens).parse_program())
         .map_err(|e| Diagnostic::error(file_path, e.span.line, e.span.col, e.message))
 }
 

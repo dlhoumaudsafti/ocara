@@ -12,6 +12,7 @@ mod links;
 mod navigation;
 mod position;
 mod project;
+mod semantic;
 mod signature;
 mod workspace;
 
@@ -19,10 +20,10 @@ use std::path::{Path, PathBuf};
 
 use lsp_server::{Connection, Message, Notification, Request, Response};
 use lsp_types::notification::{
-    DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument, DidOpenTextDocument, DidSaveTextDocument, Notification as _,
+    DidChangeConfiguration, DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument, DidOpenTextDocument, DidSaveTextDocument, Notification as _,
     PublishDiagnostics,
 };
-use lsp_types::request::{CodeLensRequest, Completion, DocumentLinkRequest, DocumentSymbolRequest, GotoDefinition, HoverRequest, References, Rename, Request as _, SignatureHelpRequest};
+use lsp_types::request::{CodeLensRequest, Completion, DocumentLinkRequest, DocumentSymbolRequest, GotoDefinition, HoverRequest, References, Rename, Request as _, SemanticTokensFullRequest, SignatureHelpRequest};
 use lsp_types::{
     DocumentSymbolResponse, GotoDefinitionResponse, InitializeParams, OneOf, PublishDiagnosticsParams,
     ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
@@ -51,6 +52,11 @@ pub fn run() {
         references_provider: Some(OneOf::Left(true)),
         rename_provider: Some(OneOf::Left(true)),
         code_lens_provider: Some(lsp_types::CodeLensOptions { resolve_provider: Some(false) }),
+        semantic_tokens_provider: Some(lsp_types::SemanticTokensServerCapabilities::SemanticTokensOptions(lsp_types::SemanticTokensOptions {
+            legend: semantic::legend(),
+            full: Some(lsp_types::SemanticTokensFullOptions::Bool(true)),
+            ..Default::default()
+        })),
         document_link_provider: Some(lsp_types::DocumentLinkOptions { resolve_provider: Some(false), work_done_progress_options: Default::default() }),
         signature_help_provider: Some(lsp_types::SignatureHelpOptions {
             trigger_characters: Some(vec!["(".into(), ",".into()]),
@@ -60,6 +66,7 @@ pub fn run() {
     };
     let Ok(init) = connection.initialize(serde_json::to_value(capabilities).unwrap_or(Value::Null)) else { return };
     let params: InitializeParams = serde_json::from_value(init).unwrap_or_default();
+    apply_build_settings(params.initialization_options.as_ref());
     let roots = params.workspace_folders.unwrap_or_default().iter()
         .filter_map(|f| to_path(&f.uri))
         .collect();
@@ -133,6 +140,10 @@ fn handle_request(ws: &Workspace, index: &mut project::ProjectIndex, req: Reques
                 features::definition(ws, &to_path(&pos.text_document.uri)?, &pos.position)
             })
             .map(|l| serde_json::to_value(GotoDefinitionResponse::Scalar(l)).unwrap_or(Value::Null)),
+        SemanticTokensFullRequest::METHOD => serde_json::from_value::<lsp_types::SemanticTokensParams>(req.params)
+            .ok()
+            .and_then(|p| ws.text(&to_path(&p.text_document.uri)?))
+            .map(|text| serde_json::to_value(lsp_types::SemanticTokensResult::Tokens(semantic::tokens(&text))).unwrap_or(Value::Null)),
         DocumentLinkRequest::METHOD => serde_json::from_value::<lsp_types::DocumentLinkParams>(req.params)
             .ok()
             .and_then(|p| to_path(&p.text_document.uri))
@@ -202,6 +213,15 @@ fn handle_notification(connection: &Connection, ws: &mut Workspace, index: &mut 
                 refresh(connection, ws, &path);
             }
         }
+        // Réglages `ocara.os`/`ocara.arch`/`ocara.build` : nouvelle configuration active,
+        // documents ouverts réanalysés (variantes `when` estompées).
+        DidChangeConfiguration::METHOD => {
+            let Ok(p) = serde_json::from_value::<lsp_types::DidChangeConfigurationParams>(note.params) else { return };
+            apply_build_settings(Some(&p.settings));
+            for path in ws.open_paths() {
+                refresh(connection, ws, &path);
+            }
+        }
         DidCloseTextDocument::METHOD => {
             let Ok(p) = serde_json::from_value::<lsp_types::DidCloseTextDocumentParams>(note.params) else { return };
             let Some(path) = to_path(&p.text_document.uri) else { return };
@@ -210,6 +230,18 @@ fn handle_notification(connection: &Connection, ws: &mut Workspace, index: &mut 
         }
         _ => {}
     }
+}
+
+/// Configuration active de l'éditeur : `{ "os": …, "arch": …, "build": … }`
+/// (absents : valeurs de l'hôte, mode debug).
+fn apply_build_settings(settings: Option<&Value>) {
+    let mut config = crate::parsing::build::BuildConfig::for_target(None, false);
+    for (key, name) in [("os", "OS"), ("arch", "ARCH"), ("build", "BUILD")] {
+        if let Some(value) = settings.and_then(|s| s.get(key)).and_then(Value::as_str).filter(|v| !v.is_empty()) {
+            config.values.insert(name.to_string(), value.to_string());
+        }
+    }
+    crate::parsing::build::set_current(config);
 }
 
 fn refresh(connection: &Connection, ws: &mut Workspace, path: &Path) {

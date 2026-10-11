@@ -33,11 +33,17 @@ Architecture CPU.
 |---|---|
 | `"x86_64"` | Intel / AMD 64 bits |
 | `"aarch64"` | ARM 64 bits |
-| `"x86"` | Intel / AMD 32 bits |
+| `"arm"` | ARM 32 bits |
+
+### `System::BUILD` → `string`
+
+Mode du build, fixé à la compilation : `"release"` avec `--release`, `"debug"` sinon.
 
 ```ocara
-IO::writeln(`OS : ${System::OS}, ARCH : ${System::ARCH}`)
+IO::writeln(`OS : ${System::OS}, ARCH : ${System::ARCH}, BUILD : ${System::BUILD}`)
 ```
+
+Ces trois constantes sont aussi celles des clauses `when` (déclarations conditionnelles, `docs/EBNF.md` §32) : `when System::OS is not 'android'` conditionne la déclaration qui suit à la cible du build.
 
 ---
 

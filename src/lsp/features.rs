@@ -41,6 +41,31 @@ pub fn diagnostics(ws: &Workspace, path: &Path, analysis: &Analysis) -> Vec<lsp_
             }
             to_lsp(d, range, d.message.clone())
         })
+        .chain(inactive_variants(&text, path, analysis))
+        .collect()
+}
+
+/// Variantes `when` écartées pour la configuration active : estompées.
+fn inactive_variants(text: &str, path: &Path, analysis: &Analysis) -> Vec<lsp_types::Diagnostic> {
+    let config = crate::parsing::build::current();
+    let names = config.values.keys().cloned().collect();
+    let lines: Vec<&str> = text.lines().collect();
+    analysis.inactive.iter()
+        .filter(|r| r.file.canonicalize().unwrap_or_else(|_| r.file.clone()) == path)
+        .filter_map(|r| {
+            let last = lines.get(r.end_line.checked_sub(1)?)?;
+            Some(lsp_types::Diagnostic {
+                range: Range::new(
+                    lsp_types::Position::new(r.start_line.saturating_sub(1) as u32, 0),
+                    lsp_types::Position::new((r.end_line - 1) as u32, super::position::utf16_col(last, last.chars().count()) as u32),
+                ),
+                severity: Some(DiagnosticSeverity::HINT),
+                source: Some("ocara".into()),
+                message: format!("variante 'when' inactive pour la configuration de l'éditeur ({})", config.describe(&names)),
+                tags: Some(vec![lsp_types::DiagnosticTag::UNNECESSARY]),
+                ..Default::default()
+            })
+        })
         .collect()
 }
 

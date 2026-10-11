@@ -38,6 +38,7 @@ const KEYWORDS: &[(&str, &str, &str)] = &[
     ("async", "14.5", "Fonction/méthode asynchrone : son appel retourne un `Resolvable<T>`."),
     ("resolve", "14.5", "Attend la fin d'une tâche `async` et retourne son résultat `T`."),
     ("return", "12", "Retourne une valeur depuis une fonction/méthode (interdit dans un bloc runtime : `result`)."),
+    ("when", "32", "Déclaration ou instruction conditionnelle : n'existe que si la condition sur `System::OS`/`ARCH`/`BUILD` est vraie pour la cible (`when default` = « sinon »)."),
     ("emit", "28", "Émet une valeur depuis un générateur (fonction retournant `message<T>`)."),
     ("message", "28.1", "Type `message<T>` : retour d'un générateur (contient `emit`), consommé par `for x in gen()`."),
     ("class", "16", "Déclare une classe (instances sur le tas via `use`)."),

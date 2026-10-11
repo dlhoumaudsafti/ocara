@@ -40,12 +40,14 @@ pub fn parse_entry(input: &Path, dump: bool, tolerant: bool) -> Result<(Program,
     }
 
     let to_diagnostic = |e: crate::parsing::parser::types::ParseError| Diagnostic::error(&span_file(input, &e.span), e.span.line, e.span.col, e.message);
-    let (program, syntax) = if tolerant {
-        let (program, errors) = Parser::new(tokens).parse_program_recovering();
-        (program, errors.into_iter().map(to_diagnostic).collect())
-    } else {
-        (Parser::new(tokens).parse_program().map_err(to_diagnostic)?, Vec::new())
-    };
+    let (program, syntax) = crate::parsing::build::parsing_file(&input.to_string_lossy(), || {
+        if tolerant {
+            let (program, errors) = Parser::new(tokens).parse_program_recovering();
+            Ok((program, errors.into_iter().map(to_diagnostic).collect()))
+        } else {
+            Ok((Parser::new(tokens).parse_program().map_err(to_diagnostic)?, Vec::new()))
+        }
+    })?;
 
     if dump {
         println!("=== AST ===");
