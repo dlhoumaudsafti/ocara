@@ -44,6 +44,7 @@
 29. [Gestion des erreurs](#29-gestion-des-erreurs)
 30. [Résolution des noms](#30-résolution-des-noms)
 31. [Grammaire EBNF complète](#31-grammaire-ebnf-complète)
+32. [Déclarations conditionnelles (when)](#32-déclarations-conditionnelles-when)
 
 ---
 
@@ -3839,6 +3840,10 @@ Program     ::= NamespaceDecl?
                 RuntimeBlock*
                 ( ConstDecl | EnumDecl | ClassDecl | StructDecl | GenericDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
 
+(* Toute déclaration de premier niveau, tout membre (classe, generic,
+   module, struct, interface) et toute instruction peut être précédé de
+   clauses `when` (§32) : WhenClause* Déclaration. *)
+
 (* ── Namespace ───────────────────────────────────────────────────── *)
 
 NamespaceDecl ::= "namespace" ( "." | Identifier )
@@ -4054,3 +4059,86 @@ Digit       ::= [0-9]
 
 LineComment ::= "//" [^\n]* "\n"
 ```
+
+---
+
+## 32. Déclarations conditionnelles (`when`)
+
+Une déclaration (import, runtime, constante, classe, struct, generic,
+interface, enum, module, fonction, méthode, propriété, constante de classe,
+signature ou `wiring` d'interface) ou une instruction précédée de clauses
+`when` n'existe que si la condition est vraie pour la cible du build. La
+condition ne porte que sur des constantes fixées par le compilateur :
+
+| Constante       | Valeurs                                       | Source                       |
+|-----------------|-----------------------------------------------|------------------------------|
+| `System::OS`    | `linux`, `windows`, `macos`, `android`        | `--target` (hôte sinon)      |
+| `System::ARCH`  | `x86_64`, `aarch64`, `arm`                    | `--target` (hôte sinon)      |
+| `System::BUILD` | `debug`, `release`                            | `--release`                  |
+
+```ebnf
+WhenClause  ::= "when" ( "default" | WhenCond )
+WhenCond    ::= WhenAnd ( "or" WhenAnd )*
+WhenAnd     ::= WhenAtom ( "and" WhenAtom )*
+WhenAtom    ::= "(" WhenCond ")" | WhenOperand WhenOp WhenOperand
+WhenOperand ::= "System" "::" ( "OS" | "ARCH" | "BUILD" ) | StringLiteral | Integer
+WhenOp      ::= "is" ( "not" | ( "greater" | "smaller" ) ( "or" "equal" )? )?
+```
+
+```ocara
+import ocara.System
+
+when System::OS is not 'android'
+import ocara.Tauri
+
+when System::OS is 'windows'
+function home(): string { return 'C:\\Users' }
+
+when System::OS is 'linux'
+function home(): string { return '/home' }
+
+when default
+function home(): string { return '/' }
+```
+
+**Sélection des variantes.** Les variantes d'une même déclaration (même
+genre et même nom ; même bloc cible pour `runtime … is <bloc>`) sont
+examinées dans l'ordre du source :
+
+- la première variante dont la clause est vraie est retenue, les autres
+  sont retirées avant toute vérification ;
+- une variante sans clause, ou `when default`, est le « sinon » : retenue
+  seulement si aucune clause n'est vraie, quelle que soit sa place ;
+- deux « sinon » pour une même déclaration : erreur ;
+- aucune variante retenue : la déclaration n'existe pas pour cette cible,
+  sans diagnostic ; seul son usage par du code compilé est en erreur
+  (symbole inconnu) — ce code porte alors une clause compatible ;
+- plusieurs lignes `when` se combinent en `and` ; `and` est prioritaire
+  sur `or`, les parenthèses sont permises ;
+- `is greater`, `is smaller`… comparent numériquement deux entiers,
+  lexicographiquement sinon.
+
+**Instructions.** Dans un corps, des instructions conditionnées
+consécutives forment un groupe de variantes, choisi par la même règle ;
+une instruction sans clause ou un `when default` termine le groupe.
+
+```ocara
+when System::BUILD is 'debug'
+IO::writeln("niveau : " + p.level())
+when default
+IO::writeln("niveau : " + p.level().toStr())
+```
+
+**Vérification.** Les signatures peuvent différer d'une variante à l'autre.
+Le programme est analysé pour la cible du build, puis pour chaque autre
+combinaison des valeurs comparées par les clauses (plus une valeur non
+citée) : toute variante est vérifiée, et un diagnostic qui ne concerne
+qu'une autre combinaison l'indique (`[System::OS = 'windows']`). Une
+variante retenue par aucune combinaison est signalée par un avertissement,
+de même qu'un `when default` sans autre variante.
+
+**Convention.** La clause est collée à sa déclaration ; une ligne blanche
+entre les deux est acceptée par le compilateur.
+
+`when` est un mot-clé réservé. `System::BUILD` est aussi lisible dans le
+code (`"debug"` ou `"release"`, fixé à la compilation).

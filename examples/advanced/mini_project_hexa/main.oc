@@ -15,17 +15,24 @@ namespace .
 //   make android     arm64 + x86_64 dans le même APK
 //   make simulator   Installe/lance sur un appareil détecté ou l'émulateur (choix interactif)
 
-import ocara.IO
-import ocara.System
+when System::OS is not 'android'
 import ocara.Thread
+
+when System::OS is not 'android'
 import ocara.Tauri
+
+import ocara.IO
 import ocara.HTTPRequest
 import ocara.HTTPResponse
+
 import configs.Components
 import configs.Server
 import configs.Database
 
 runtime core.init is init
+when System::OS is 'android'
+runtime core.mainAndroid is main
+when default
 runtime core.main is main
 runtime core.error is error
 runtime core.exit is exit

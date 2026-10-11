@@ -1,6 +1,7 @@
 # Réflexion : déclarations conditionnelles `when`
 
-Statut : **non tranché** — idée proposée le 2026-10-08.
+Statut : **implémenté le 2026-10-11** (idée proposée le 2026-10-08) — reste le grisage des variantes écartées dans l'éditeur (voir « Reste à faire »).
+Référence du langage : [docs/EBNF.md §32](../EBNF.md#32-déclarations-conditionnelles-when).
 
 ## Idée
 
@@ -141,8 +142,9 @@ Dans un corps de fonction ou de méthode, une clause `when` conditionne
 l'**instruction qui suit** (exemple `truc()` ci-dessus). Les instructions
 conditionnées **consécutives** forment un groupe de variantes, sélectionné
 avec la même règle de priorité que les déclarations (première clause vraie,
-`when default` en dernier). Une instruction sans clause termine le groupe :
-au sein d'un corps, le « sinon » s'écrit donc toujours `when default`.
+`when default` en dernier). Une instruction sans clause ou un `when default`
+termine le groupe : au sein d'un corps, le « sinon » s'écrit donc toujours
+`when default`, en dernier.
 
 ### Placement de la clause (convention, 2026-10-08)
 
@@ -248,13 +250,40 @@ Mise en œuvre prévue dans l'extension VS Code
 - avec le futur serveur LSP : un type de jeton sémantique dédié, même
   couleur, et grisage de la variante écartée pour la configuration active.
 
-## Mise en œuvre si retenue
+## Mise en œuvre (2026-10-11)
 
-- Parseur : clauses `when` (et `when default`) en tête de déclaration, y compris `import` et `runtime` ; lignes blanches tolérées entre la clause et la déclaration.
-- ocaracs : règle « clause `when` séparée de sa déclaration par une ligne blanche » (avertissement ; corrigeable par `ocaracs --fix`).
-- Passe de sélection avant la sema : regroupe les variantes de chaque
-  déclaration, évalue leurs clauses dans l'ordre du source avec les
-  constantes de build, retient la première vraie (sinon la variante sans
-  clause ou `when default`), retire les autres ; signale les « sinon » en
-  double et les variantes jamais retenues ; une déclaration sans variante
-  retenue est simplement retirée (aucun diagnostic).
+- **Mot-clé** : `when` est réservé (`TokenKind::When`) ; la variable `when`
+  de `examples/advanced/tauri_httpserver` a été renommée.
+- **Constantes** (`src/parsing/build.rs`) : `System::OS`, `System::ARCH`
+  (tirés de `--target`, hôte sinon) et `System::BUILD` (`--release`). La
+  configuration courante est fixée par le CLI avant l'analyse.
+  `System::BUILD` est aussi lisible dans le code (littéral à la compilation).
+- **Sélection au parsing** (`src/parsing/parser.d/when.rs`) : les clauses
+  sont lues avant chaque déclaration de premier niveau, membre (classe,
+  generic, module, struct, interface — signatures et `wiring`) et
+  instruction ; les variantes d'un conteneur (clé genre + nom) sont choisies
+  à sa fermeture, la variante écartée disparaît avant toute autre passe
+  (imports, runtime, sema). L'initialiseur d'une `property` écartée l'est
+  avec elle. Dans un corps, un `when default` clôt le groupe d'instructions.
+- **Vérification de toutes les variantes** (`src/core/analysis.d/variants.rs`) :
+  l'analyse est rejouée pour chaque combinaison des valeurs comparées par
+  les clauses (plus la valeur de la cible et une valeur non citée, 32
+  combinaisons au plus) ; un diagnostic propre à une autre combinaison porte
+  sa description (`[System::OS = 'windows']`). Le CLI échoue sur ces erreurs
+  aussi. Avertissements : variante jamais retenue, `when default` seul.
+  Sans clause `when`, une seule analyse comme avant.
+- **Serveur de langage** : diagnostics de toutes les combinaisons, références
+  fusionnées ; l'index du projet garde toutes les variantes (définition,
+  CodeLens) ; survol du mot-clé `when`.
+- **ocaracs** : règle R21 (`when_attached`), corrigée par `--fix`.
+- **Coloration** : règle TextMate `meta.condition.when.ocara`, scope
+  `keyword.control.directive.when.ocara` pour `when` et ses opérateurs,
+  couleur imposée par `configurationDefaults` (`#FF4FD8`, gras).
+- **Exemple** : `examples/70_when.oc` ; tests `src/parsing/parser.d/tests_when.rs`.
+
+## Reste à faire
+
+- Grisage de la variante écartée pour la configuration active et jeton
+  sémantique dédié (serveur de langage) : il faut l'étendue de chaque
+  déclaration (seule la position de sa clause est connue) et un réglage de
+  la configuration active de l'éditeur (aujourd'hui : hôte, debug).

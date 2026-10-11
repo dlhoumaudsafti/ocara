@@ -1,10 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// `--fix` : mise en forme d'un fichier (R01, R02, R03, R04, R06, R10, R11).
+// `--fix` : mise en forme d'un fichier (R01, R02, R03, R04, R06, R10, R11, R21).
 // Le contenu des chaînes backtick multilignes n'est jamais modifié. R05
 // (ligne trop longue) n'est pas corrigeable automatiquement.
 // ─────────────────────────────────────────────────────────────────────────────
 
-use crate::check::decl_assign_pos;
+use crate::check::{decl_assign_pos, detached_when_blanks};
 use crate::config::Config;
 use crate::text::{comment_pos, indent_rule, leading_ws, line_states, scan_code, LineState};
 
@@ -19,7 +19,16 @@ pub fn fix_layout(content: &str, cfg: &Config) -> String {
         let unit = indent_unit(&lines, &states, cfg);
         out = reindent(&as_str, &states, &unit);
     }
+    // R21 : lignes vides entre une clause `when` et sa déclaration retirées.
+    let detached: Vec<usize> = if cfg.when_attached {
+        detached_when_blanks(&lines, &states).into_iter().map(|(_, i)| i).collect()
+    } else {
+        Vec::new()
+    };
+    let kept = |i: &usize| !detached.contains(i);
+    out = out.into_iter().enumerate().filter(|(i, _)| kept(i)).map(|(_, l)| l).collect();
     if cfg.blank_lines_max > 0 {
+        let states: Vec<LineState> = states.iter().enumerate().filter(|(i, _)| kept(i)).map(|(_, s)| *s).collect();
         out = collapse_blank_lines(out, &states, cfg.blank_lines_max);
     }
     let mut result = out.join("\n");
@@ -156,6 +165,12 @@ mod tests {
     fn backtick_content_is_untouched() {
         let src = "function f(): string {\nvar h:string = `<div>   \n   {  }   \n</div>`  \nreturn h\n}\n";
         assert_eq!(fix(src), "function f(): string {\n    var h:string = `<div>   \n   {  }   \n</div>`\n    return h\n}\n");
+    }
+
+    #[test]
+    fn when_clause_is_glued_to_its_declaration() {
+        let src = "when System::OS is 'linux'\n\n\nfunction f(): int { return 1 }\n\nwhen default\nfunction f(): int { return 2 }\n";
+        assert_eq!(fix(src), "when System::OS is 'linux'\nfunction f(): int { return 1 }\n\nwhen default\nfunction f(): int { return 2 }\n");
     }
 
     #[test]

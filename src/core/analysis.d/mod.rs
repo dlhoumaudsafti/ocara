@@ -8,6 +8,7 @@ mod front;
 pub mod homonyms;
 mod imports;
 mod sema;
+mod variants;
 
 pub use imports::{resolve_import_path, OCARA_BUILTINS};
 
@@ -56,7 +57,13 @@ impl Analysis {
     }
 }
 
+/// Analyse pour la configuration de build courante (`parsing::build`) ;
+/// les variantes `when` des autres configurations sont aussi vérifiées.
 pub fn analyze(opts: &AnalyzeOptions) -> Analysis {
+    variants::analyze_all(|| analyze_once(opts))
+}
+
+fn analyze_once(opts: &AnalyzeOptions) -> Analysis {
     let mut analysis = match analyze_program(opts) {
         Ok(analysis) => analysis,
         Err(diagnostic) => Analysis::fatal(diagnostic),

@@ -58,6 +58,8 @@ pub struct Config {
     pub indent_type:       IndentType,
     /// R20 — largeur d'un niveau (0 : déduite de la 1re ligne indentée)
     pub indent_gap:        usize,
+    /// R21 — clause `when` collée à sa déclaration (aucune ligne vide)
+    pub when_attached:     bool,
 }
 
 impl Default for Config {
@@ -83,6 +85,7 @@ impl Default for Config {
             class_style:        Style::Pascal,
             indent_type:        IndentType::Auto,
             indent_gap:         0,
+            when_attached:      true,
         }
     }
 }
@@ -145,6 +148,7 @@ pub fn parse_config(content: &str) -> Config {
                 "tab"   => cfg.indent_type = IndentType::Tab,
                 _ => invalid(key, val, "auto|space|tab"),
             },
+            "when_attached"        => cfg.when_attached      = val == "true",
             "indentation_gap"      => match val.parse() {
                 Ok(n) => cfg.indent_gap = n,
                 Err(_) => invalid(key, val, "un entier, 0 = auto"),

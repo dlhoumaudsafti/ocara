@@ -9,14 +9,7 @@ impl Parser {
     pub(super) fn parse_block(&mut self) -> ParseResult<Block> {
         let span = self.span();
         self.eat(&TokenKind::LBrace)?;
-        let mut stmts = Vec::new();
-        while !self.check_exact(&TokenKind::RBrace) {
-            let start = self.pos;
-            match self.parse_stmt() {
-                Ok(stmt) => stmts.push(stmt),
-                Err(e) => self.recover_stmt(e, start)?,
-            }
-        }
+        let stmts = self.parse_stmts()?;
         self.eat(&TokenKind::RBrace)?;
         Ok(Block { stmts, span })
     }

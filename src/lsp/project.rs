@@ -206,9 +206,11 @@ fn type_decls(program: &Program, entry: &Path, text_of: &mut dyn FnMut(&Path) ->
     out
 }
 
+/// Toutes les variantes `when` sont gardées : l'index voit chacune.
 pub fn parse(text: &str) -> Option<Program> {
     let tokens = crate::parsing::lexer::Lexer::new(text).tokenize().ok()?;
-    crate::parsing::parser::Parser::new(tokens).parse_program().ok()
+    let keep_all = crate::parsing::build::BuildConfig::keep_all();
+    crate::parsing::build::with_config(keep_all, || crate::parsing::parser::Parser::new(tokens).parse_program().ok())
 }
 
 fn collect_sources(dir: &Path, out: &mut Vec<PathBuf>) {

@@ -155,6 +155,19 @@
           "when": "false"
         }
       ]
+    },
+    "configurationDefaults": {
+      "editor.tokenColorCustomizations": {
+        "textMateRules": [
+          {
+            "scope": "keyword.control.directive.when.ocara",
+            "settings": {
+              "foreground": "#FF4FD8",
+              "fontStyle": "bold"
+            }
+          }
+        ]
+      }
     }
   },
   "scripts": {

@@ -15,8 +15,8 @@ class IPCController {
     // window.ocara.invoke("greet", [name]) — voir HomeController.oc.
     public static method greet(name:string): string {
         var ts:int      = DateTime::now()
-        var when:string = DateTime::fromTimestamp(ts)
-        return "Bonjour " + name + " ! Ici Ocara, il est " + when + " côté serveur."
+        var moment:string = DateTime::fromTimestamp(ts)
+        return "Bonjour " + name + " ! Ici Ocara, il est " + moment + " côté serveur."
     }
 
     // Appelée sans argument : window.ocara.invoke("serverTime", []).

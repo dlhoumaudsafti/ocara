@@ -13,8 +13,11 @@ mod compound_assign;
 mod expressions;
 mod runtime;
 mod recovery;
+mod when;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_when;
 
 pub use types::Parser;

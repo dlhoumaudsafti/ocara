@@ -1,11 +1,3 @@
-if System::OS equal "android" {
-    // Sur Android, runtime_android_jni appelle déjà main() sur un thread
-    // dédié (différent du thread UI) — pas besoin de sous-thread + sondage
-    // HTTP pour ne pas geler la fenêtre Tauri en l'ouvrant trop tôt.
-    server.start()
-    result SUCCESS
-}
-
 const server_thread:Thread = use Thread()
 server_thread.run(nameless(): void {
     server.start()

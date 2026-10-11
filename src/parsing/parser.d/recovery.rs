@@ -76,7 +76,8 @@ impl Parser {
     fn at_member_start(&self) -> bool {
         matches!(self.peek_kind(),
             TokenKind::Public | TokenKind::Private | TokenKind::Protected | TokenKind::Static
-            | TokenKind::Method | TokenKind::Property | TokenKind::Init | TokenKind::Const | TokenKind::Async)
+            | TokenKind::Method | TokenKind::Property | TokenKind::Init | TokenKind::Const | TokenKind::Async
+            | TokenKind::When)
     }
 
     fn at_top_level_start(&self) -> bool {
@@ -84,6 +85,6 @@ impl Parser {
             TokenKind::Import | TokenKind::Runtime | TokenKind::Init | TokenKind::Main | TokenKind::Error
             | TokenKind::Success | TokenKind::Exit | TokenKind::Const | TokenKind::Module | TokenKind::Enum
             | TokenKind::Class | TokenKind::Struct | TokenKind::Generic | TokenKind::Interface
-            | TokenKind::Function | TokenKind::Async)
+            | TokenKind::Function | TokenKind::Async | TokenKind::When)
     }
 }

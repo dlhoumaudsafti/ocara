@@ -105,6 +105,7 @@ pub fn class() -> ClassInfo {
     let mut class_consts: HashMap<String, (Type, Visibility)> = HashMap::new();
     class_consts.insert("OS".into(),   (Type::String, Visibility::Public));
     class_consts.insert("ARCH".into(), (Type::String, Visibility::Public));
+    class_consts.insert("BUILD".into(), (Type::String, Visibility::Public));
 
     ClassInfo {
         extends:      None,

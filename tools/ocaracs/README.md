@@ -50,6 +50,7 @@ Corrige les fichiers sur place, puis les réanalyse : seuls les avertissements r
 | R06 | Lignes vides en trop supprimées |
 | R10 | Espace ajouté après `//` |
 | R11 | Newline ajoutée en fin de fichier |
+| R21 | Lignes vides entre une clause `when` et sa déclaration retirées |
 | R07/R08/R09/R12/R13 | Déclaration renommée au style attendu (`is_adult` → `isAdult`), **avec tous ses usages dans tout le projet** |
 | R05 | **Non corrigée** : une ligne trop longue reste à reformuler à la main |
 
@@ -158,6 +159,9 @@ indentation_type    = auto
 
 # R20 — largeur d'un niveau d'indentation (0 = déduite de la 1re ligne indentée)
 indentation_gap     = 0
+
+# R21 — clause `when` collée à sa déclaration (aucune ligne vide entre les deux)
+when_attached       = true
 ```
 
 Une valeur invalide (`naming_var_is = kebab`) est signalée au chargement et la valeur par défaut est conservée.
@@ -353,6 +357,19 @@ public  property FirstName:string // ✗ → first_name
 > Ne couvre pas les champs NUS d'un `struct` (`id:int`, sans `property`) — reconnaître cette forme demanderait de savoir qu'on est dans le corps d'un struct ; un champ de struct écrit avec `property` reste couvert.
 >
 > Ne couvre pas les paramètres de fonction/méthode ni les variables de boucle `for`/`for..=>` — `ocaracs` reste un analyseur ligne à ligne, pas un parseur complet ; ces positions demanderaient de suivre une déclaration sur plusieurs lignes ou une syntaxe plus variable que les autres règles.
+
+### R21 — Clause `when` collée à sa déclaration
+
+Une clause `when` (voir `docs/EBNF.md` §32) se colle à la déclaration ou à l'instruction qu'elle conditionne. Le compilateur accepte des lignes vides entre les deux ; `ocaracs` les signale, et `--fix` les retire.
+
+```ocara
+when System::OS is 'linux'        // ✓
+function home(): string { return '/home' }
+
+when System::OS is 'windows'      // ✗ ligne vide signalée
+
+function home(): string { return 'C:\\Users' }
+```
 
 ---
 

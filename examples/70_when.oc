@@ -1,0 +1,60 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 70 — déclarations conditionnelles `when`
+//
+// Voir docs/roadmap.d/reflexion-declarations-conditionnelles-when.md et
+// docs/EBNF.md §32.
+//
+// Illustre :
+//   - variantes d'une fonction, d'une propriété, d'une méthode choisies à la
+//     compilation selon System::OS / System::ARCH / System::BUILD
+//   - la première clause vraie l'emporte, `when default` sert de « sinon »
+//   - plusieurs lignes `when` = `and` ; `and`, `or`, parenthèses
+//   - instructions conditionnelles dans un corps
+//   - signatures différentes selon la variante (chaque combinaison est
+//     vérifiée à la compilation)
+// ─────────────────────────────────────────────────────────────────────────────
+
+import ocara.IO
+import ocara.System
+
+when System::OS is 'windows'
+function separator(): string { return "\\" }
+
+when default
+function separator(): string { return "/" }
+
+class Platform {
+    when System::OS is 'linux' or System::OS is 'android'
+    public property family:string = "unix"
+    when System::OS is 'macos'
+    public property family:string = "darwin"
+    when default
+    public property family:string = "autre"
+
+    when System::BUILD is 'debug'
+    public method level(): string {
+        return "debug"
+    }
+
+    when System::BUILD is 'release'
+    public method level(): int {
+        return 3
+    }
+}
+
+main {
+    var p:Platform = use Platform()
+    IO::writeln("séparateur : " + separator())
+    IO::writeln("famille : " + p.family)
+
+    when System::BUILD is 'debug'
+    IO::writeln("niveau : " + p.level())
+    when default
+    IO::writeln("niveau : " + p.level().toStr())
+
+    when System::OS is not 'windows'
+    when (System::ARCH is 'x86_64' or System::ARCH is 'aarch64')
+    IO::writeln("cible 64 bits hors Windows")
+
+    IO::writeln("build : " + System::BUILD)
+}

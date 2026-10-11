@@ -112,6 +112,7 @@ pub enum TokenKind {
     Async,
     Resolve,
     Variadic,
+    When, // when (déclaration/instruction conditionnelle, voir parser.d/when.rs)
 
     // ── Blocs runtime ─────────────────────────────────────────────────────────
     Runtime,

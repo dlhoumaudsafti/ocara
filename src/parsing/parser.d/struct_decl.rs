@@ -10,6 +10,7 @@
 use crate::parsing::ast::*;
 use crate::parsing::token::{Span, TokenKind};
 use super::types::{Parser, ParseError, ParseResult};
+use super::when::Variant;
 
 impl Parser {
     pub(super) fn parse_struct(&mut self) -> ParseResult<ClassDecl> {
@@ -31,10 +32,26 @@ impl Parser {
         }
 
         self.eat(&TokenKind::LBrace)?;
+        let mut entries = Vec::new();
+        while !self.check_exact(&TokenKind::RBrace) {
+            let clause = self.parse_when_clause()?;
+            let vspan = self.span();
+            let member = self.parse_struct_member(&name)?;
+            let key = match &member {
+                StructMember::Field { param, .. } => format!("prop:{}", param.name),
+                StructMember::Const(ClassMember::Const { name, .. }) => format!("const:{}", name),
+                StructMember::Const(_) => String::new(),
+            };
+            entries.push((Variant { key, clause, span: vspan }, member));
+        }
+        self.eat(&TokenKind::RBrace)?;
+        let (variants, items): (Vec<Variant>, Vec<StructMember>) = entries.into_iter().unzip();
+        let keep = self.select_or_note(&variants)?;
         let mut members = Vec::new();
         let mut params = Vec::new();
-        while !self.check_exact(&TokenKind::RBrace) {
-            match self.parse_struct_member(&name)? {
+        for (item, keep) in items.into_iter().zip(keep) {
+            match item {
+                _ if !keep => {}
                 StructMember::Field { member, param } => {
                     members.push(member);
                     params.push(param);
@@ -42,7 +59,6 @@ impl Parser {
                 StructMember::Const(member) => members.push(member),
             }
         }
-        self.eat(&TokenKind::RBrace)?;
 
         let body = Block {
             stmts: params.iter().map(|p| assign_self_field(&p.name, &p.span)).collect(),
