@@ -1093,6 +1093,24 @@ var config:map<string, string> = {
 - Les clés peuvent être de n'importe quel type.
 - Un tableau vide s'écrit `[]` et est distinct d'un map vide `{}`.
 
+**Type par clé.** Quand une variable `map` est initialisée par un littéral dont
+les clés sont des chaînes, chaque clé garde le type de sa valeur : la lecture
+`m['clé']` a ce type précis (pas l'union `V`), et une affectation
+`m['clé'] = v` doit lui correspondre.
+
+```ocara
+const details:map<string, CarEntity|string> = {
+    "car": car,
+    "rows_html": ""
+}
+details['rows_html'] += `<li>…</li>`   // string : concaténation acceptée
+var c:CarEntity = details['car']       // CarEntity
+details['rows_html'] = car             // erreur : string attendu
+```
+
+Une clé absente du littéral (ou calculée), une valeur `null`/`mixed`, ou une
+map réaffectée en entier retombent sur le type déclaré `V`.
+
 ### 7.4 Accès par index
 
 ```ebnf

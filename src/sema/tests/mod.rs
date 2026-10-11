@@ -19,3 +19,4 @@ mod compound_assign;
 mod use_without_init;
 mod global_const;
 mod interface_call;
+mod map_keys;

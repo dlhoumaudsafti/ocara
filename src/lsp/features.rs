@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use lsp_types::{
-    DiagnosticRelatedInformation, DiagnosticSeverity, DocumentSymbol, Hover, HoverContents, Location,
+    DiagnosticSeverity, DocumentSymbol, Hover, HoverContents, Location,
     MarkupContent, MarkupKind, Position, Range, SymbolKind, Url,
 };
 
@@ -27,38 +27,24 @@ pub fn span_path(span: &Span, entry: &Path) -> PathBuf {
 
 // ── Diagnostics ─────────────────────────────────────────────────────────────
 
-/// Diagnostics du document `path` : les siens, et les erreurs d'un fichier
-/// importé rapportées en tête du document quand il est le point d'entrée (le
-/// programme ne compile pas à cause d'elles ; les avertissements restent
-/// dans leur fichier).
+/// Diagnostics du document `path` : seulement les siens (ceux d'un fichier
+/// importé apparaissent dans ce fichier quand il est analysé).
 pub fn diagnostics(ws: &Workspace, path: &Path, analysis: &Analysis) -> Vec<lsp_types::Diagnostic> {
     let text = ws.text(path).unwrap_or_default();
-    let is_entry = ws.entry_for(path, &ws.project_root(path)) == path;
-    analysis.diagnostics.iter().filter_map(|d| {
-        let own = d.file.canonicalize().unwrap_or_else(|_| d.file.clone()) == path;
-        if !own && !(is_entry && d.is_error()) {
-            return None;
-        }
-        Some(if own {
+    analysis.diagnostics.iter()
+        .filter(|d| d.file.canonicalize().unwrap_or_else(|_| d.file.clone()) == path)
+        .map(|d| {
             let span = Span::new(d.line.max(1), d.col.max(1));
             let mut range = name_range(&text, &span, &word_at(&text, &span));
             if range.start == range.end {
                 range.end.character += 1;
             }
-            to_lsp(d, range, d.message.clone(), None)
-        } else {
-            let other = d.file.canonicalize().unwrap_or_else(|_| d.file.clone());
-            let related = DiagnosticRelatedInformation {
-                location: Location::new(to_url(&other), point(d.line.saturating_sub(1), d.col.saturating_sub(1))),
-                message: d.message.clone(),
-            };
-            let message = format!("{}:{}:{}: {}", other.display(), d.line, d.col, d.message);
-            to_lsp(d, Range::new(Position::new(0, 0), Position::new(0, 1)), message, Some(vec![related]))
+            to_lsp(d, range, d.message.clone())
         })
-    }).collect()
+        .collect()
 }
 
-fn to_lsp(d: &Diagnostic, range: Range, message: String, related: Option<Vec<DiagnosticRelatedInformation>>) -> lsp_types::Diagnostic {
+fn to_lsp(d: &Diagnostic, range: Range, message: String) -> lsp_types::Diagnostic {
     let message = match &d.runtime_ctx {
         Some(ctx) => format!("[{}] {}", ctx, message),
         None => message,
@@ -68,7 +54,6 @@ fn to_lsp(d: &Diagnostic, range: Range, message: String, related: Option<Vec<Dia
         severity: Some(match d.severity { Severity::Error => DiagnosticSeverity::ERROR, Severity::Warning => DiagnosticSeverity::WARNING }),
         source: Some("ocara".into()),
         message,
-        related_information: related,
         ..Default::default()
     }
 }

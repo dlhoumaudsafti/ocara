@@ -49,6 +49,9 @@ pub struct TypeChecker<'a> {
     pub rewrites: crate::sema::named_args::AstRewrites,
     /// Références résolues, pour le serveur de langage (voir `sema::index`).
     pub index: Option<Vec<crate::sema::index::Reference>>,
+    /// Type par clé des maps initialisées par un littéral (voir `sema::map_keys`).
+    pub(crate) map_keys: std::collections::HashMap<String, std::collections::HashMap<String, Type>>,
+    pub(crate) last_map_literal: Option<std::collections::HashMap<String, Type>>,
 }
 
 impl<'a> TypeChecker<'a> {
@@ -70,6 +73,8 @@ impl<'a> TypeChecker<'a> {
             callable_params: std::collections::HashMap::new(),
             rewrites: crate::sema::named_args::AstRewrites::default(),
             index: None,
+            map_keys: std::collections::HashMap::new(),
+            last_map_literal: None,
         }
     }
     
@@ -526,7 +531,9 @@ impl<'a> TypeChecker<'a> {
                         span: span.clone(),
                     });
                 }
+                self.last_map_literal = None;
                 let val_ty = self.infer_expr(value);
+                self.bind_map_keys(name, ty, value);
                 // `value` peut lui-même être une `scoped`/`consumed` d'un
                 // autre binding (`var y = x`) — c'est un point d'échappement.
                 self.check_escape(value);
@@ -577,7 +584,9 @@ impl<'a> TypeChecker<'a> {
                         span: span.clone(),
                     });
                 }
+                self.last_map_literal = None;
                 let val_ty = self.infer_expr(value);
+                self.bind_map_keys(name, ty, value);
                 self.check_message_scalar_consumption(value, &val_ty, span);
                 if !ty_is_message && !types_compat(&val_ty, ty, &self.symbols) {
                     self.errors.push(SemaError::TypeMismatch {
@@ -845,6 +854,10 @@ impl<'a> TypeChecker<'a> {
 
             Stmt::Assign { target, value, span } => {
                 let val_ty = self.infer_expr(value);
+                // Map réaffectée en entier : ses types par clé ne valent plus.
+                if let Expr::Ident(name, _) = target {
+                    self.forget_map_keys(name);
+                }
                 // `target = value` : `value` peut être une `scoped`/
                 // `consumed` qui s'échappe vers `target`.
                 self.check_escape(value);
@@ -886,6 +899,16 @@ impl<'a> TypeChecker<'a> {
                     Expr::Index { object, index, .. } => {
                         self.infer_expr(object);
                         self.infer_expr(index);
+                        // Clé d'une map à type par clé : la valeur doit lui correspondre.
+                        if let Some(key_ty) = self.map_key_type(object, index) {
+                            if !types_compat(&val_ty, &key_ty, &self.symbols) {
+                                self.errors.push(SemaError::TypeMismatch {
+                                    expected: type_name(&key_ty),
+                                    found:    type_name(&val_ty),
+                                    span:     span.clone(),
+                                });
+                            }
+                        }
                     }
                     _ => {
                         self.errors.push(SemaError::InvalidAssign {
@@ -2075,17 +2098,22 @@ impl<'a> TypeChecker<'a> {
                     return Type::Map(Box::new(Type::Mixed), Box::new(Type::Mixed));
                 }
                 let key_ty = self.infer_expr(&entries[0].0);
-                let val_ty = self.infer_expr(&entries[0].1);
+                let mut value_types = vec![self.infer_expr(&entries[0].1)];
                 for (k, v) in &entries[1..] {
                     self.infer_expr(k);
-                    self.infer_expr(v);
+                    value_types.push(self.infer_expr(v));
                 }
+                let val_ty = value_types[0].clone();
+                self.note_literal_keys(entries, value_types);
                 Type::Map(Box::new(key_ty), Box::new(val_ty))
             }
 
             Expr::Index { object, index, .. } => {
                 let obj_ty = self.infer_expr(object);
                 self.infer_expr(index);
+                if let Some(ty) = self.map_key_type(object, index) {
+                    return ty;
+                }
                 match &obj_ty {
                     Type::Array(inner) => *inner.clone(),
                     Type::Map(_, val)  => *val.clone(),

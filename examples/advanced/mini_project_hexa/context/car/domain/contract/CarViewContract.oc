@@ -13,5 +13,5 @@ interface CarViewContract {
         improvement_total:float,
         error_text:string,
         success_text:string
-    ): string 
+    ): string
 }
