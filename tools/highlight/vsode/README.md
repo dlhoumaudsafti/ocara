@@ -40,11 +40,19 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     sont signalés avec leur combinaison (`[System::OS = 'windows']`) ; `when` et ses opérateurs
     ont une couleur dédiée, quel que soit le thème.
 - **Barre latérale Ocara** (icône du logo dans la barre d'activité) :
+  - **Configuration** (en-tête fixe) : OS, ARCH (valeur personnalisée possible) et BUILD de l'éditeur
+    (réglages `ocara.os`/`ocara.arch`/`ocara.build`), boutons **Compiler**, **Lancer** (Debug ou Release
+    selon BUILD), **Fixer**, **Dump**, et accès aux paramètres de l'extension ;
   - **Workflow**, en partant du script affiché : arbre des **imports** (récursif, runtimes compris,
     doublons signalés), **structure** (classes, structs, interfaces, enums, fonctions, membres et
     variables locales avec leur type réel), **graphe d'appels** (fonctions et méthodes appelées,
     dépliable niveau par niveau, récursion signalée) et **variantes `when`** (retenue ou écartée pour
-    la configuration de l'éditeur). Un clic ouvre la déclaration ;
+    la configuration de l'éditeur). Un clic ouvre la déclaration ; les imports, déclarations, membres,
+    variables et appels d'une variante `when` écartée sont estompés ;
+  - **Graphe d'appels** interactif : fonctions et méthodes atteignables depuis le script (disposition
+    par forces, molette = zoom, glisser = déplacer le fond ou un nœud, survol = voisins mis en avant,
+    clic = ouvrir la déclaration ; fonctions du script, des autres fichiers et variantes écartées
+    distinguées) ;
   - **Benchmark** : temps et pic mémoire sur plusieurs exécutions (build Release), détection de fuite
     (marqueur `__N__`), profil par fonction (`ocara --profile`) et historique comparé par script
     (voir docs/benchmarking.md).

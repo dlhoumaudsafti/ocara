@@ -6,6 +6,8 @@ import { registerDocs } from './docs';
 import { startLanguageServer, stopLanguageServer } from './lspclient';
 import { WorkflowProvider } from './workflow';
 import { BenchmarkProvider } from './benchmark';
+import { ControlsProvider } from './controls';
+import { GraphProvider } from './graph';
 
 export function activate(context: vscode.ExtensionContext): void {
     // Serveur de langage du compilateur : diagnostics en direct, définition,
@@ -23,8 +25,12 @@ export function activate(context: vscode.ExtensionContext): void {
     new OcaraCompiler().register(context);
     registerFix(context, linter);
 
-    // Barre latérale Ocara : encarts Workflow et Benchmark du script affiché.
-    new WorkflowProvider(context.extensionUri).register(context);
+    // Barre latérale Ocara : configuration et commandes, workflow, graphe
+    // d'appels et benchmark du script affiché.
+    new ControlsProvider().register(context);
+    const workflow = new WorkflowProvider(context.extensionUri);
+    workflow.register(context);
+    new GraphProvider().register(context, workflow.onData);
     new BenchmarkProvider(context.workspaceState).register(context);
 }
 

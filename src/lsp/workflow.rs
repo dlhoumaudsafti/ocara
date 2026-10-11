@@ -2,7 +2,8 @@
 //! partant du script affiché : arbre des imports (runtimes compris),
 //! structure (types, membres, variables), graphe d'appels et variantes
 //! `when`. Chaque nœud : `label`, `description`, `kind` (icône), `file` et
-//! `line` (1-based) pour l'ouvrir, `children`.
+//! `line` (1-based) pour l'ouvrir, `children`, et `inactive` quand il est
+//! déclaré dans une variante `when` écartée pour la configuration active.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -23,13 +24,53 @@ pub fn workflow(ws: &Workspace, path: &Path) -> Value {
     let text = ws.text(path).unwrap_or_default();
     let root = ws.project_root(path);
     let mut seen = HashSet::from([path.to_path_buf()]);
+    let inactive = Inactive::of(ws, path);
+    let mut structure = Value::from(super::workflow_code::structure(ws, path, &text));
+    let mut calls = super::workflow_code::calls(ws, path);
+    inactive.mark(&mut structure);
+    if let Some(nodes) = calls.get_mut("nodes") {
+        inactive.mark(nodes);
+    }
     json!({
         "file": path,
-        "imports": imports_of(ws, path, &root, &mut seen, 0),
-        "structure": super::workflow_code::structure(ws, path, &text),
-        "calls": super::workflow_code::calls(ws, path),
+        "imports": imports_of(ws, path, &root, &mut seen, &inactive, 0),
+        "structure": structure,
+        "calls": calls,
         "variants": variants(ws, path, &text),
     })
+}
+
+/// Lignes des variantes `when` écartées pour la configuration active.
+struct Inactive(Vec<(PathBuf, usize, usize)>);
+
+impl Inactive {
+    fn of(ws: &Workspace, path: &Path) -> Self {
+        let ranges = ws.analysis(path).map(|a| a.variants.iter()
+            .filter(|v| !v.retained)
+            .map(|v| (v.file.canonicalize().unwrap_or_else(|_| v.file.clone()), v.start_line, v.end_line))
+            .collect()).unwrap_or_default();
+        Self(ranges)
+    }
+
+    fn contains(&self, file: &Path, line: usize) -> bool {
+        self.0.iter().any(|(f, start, end)| f == file && (*start..=*end).contains(&line))
+    }
+
+    /// Nœuds (et leurs enfants) situés dans une variante écartée.
+    fn mark(&self, value: &mut Value) {
+        match value {
+            Value::Array(items) => items.iter_mut().for_each(|v| self.mark(v)),
+            Value::Object(map) => {
+                let file = map.get("file").and_then(Value::as_str).map(PathBuf::from);
+                let line = map.get("line").and_then(Value::as_u64).unwrap_or(0) as usize;
+                if file.is_some_and(|f| self.contains(&f, line)) {
+                    map.insert("inactive".into(), Value::Bool(true));
+                }
+                map.values_mut().for_each(|v| self.mark(v));
+            }
+            _ => {}
+        }
+    }
 }
 
 pub fn node(label: impl Into<String>, description: impl Into<String>, kind: &str, file: Option<&Path>, line: usize, children: Vec<Value>) -> Value {
@@ -37,34 +78,44 @@ pub fn node(label: impl Into<String>, description: impl Into<String>, kind: &str
 }
 
 /// Imports de `file` (builtins, fichiers du projet récursivement, runtimes).
-fn imports_of(ws: &Workspace, file: &Path, root: &Path, seen: &mut HashSet<PathBuf>, depth: usize) -> Vec<Value> {
+fn imports_of(ws: &Workspace, file: &Path, root: &Path, seen: &mut HashSet<PathBuf>, inactive: &Inactive, depth: usize) -> Vec<Value> {
     let Some(program) = ws.text(file).and_then(|t| project::parse(&t)) else { return Vec::new() };
     let dir = file.parent().unwrap_or(root).to_path_buf();
     let mut out = Vec::new();
     for imp in &program.imports {
         let written = imp.path.join(".");
-        if imp.path.first().is_some_and(|p| p == "ocara") {
-            out.push(node(written, "builtin", "builtin", None, 0, Vec::new()));
-            continue;
-        }
-        let (label, target) = match &imp.file_path {
-            Some(fp) => (format!("{} from \"{}\"", written, fp), resolve_import_path(fp, &dir, &program.namespace, root)),
-            None => (written, resolve_import_path(&imp.path.join("/"), root, &program.namespace, root)),
+        let mut item = if imp.path.first().is_some_and(|p| p == "ocara") {
+            node(written, "builtin", "builtin", None, 0, Vec::new())
+        } else {
+            let (label, target) = match &imp.file_path {
+                Some(fp) => (format!("{} from \"{}\"", written, fp), resolve_import_path(fp, &dir, &program.namespace, root)),
+                None => (written, resolve_import_path(&imp.path.join("/"), root, &program.namespace, root)),
+            };
+            file_node(ws, label, "import", &target, root, seen, inactive, depth)
         };
-        out.push(file_node(ws, label, "import", &target, root, seen, depth));
+        // Import écarté par sa clause `when` : estompé dans l'encart.
+        if inactive.contains(file, imp.span.line) {
+            item["inactive"] = Value::Bool(true);
+        }
+        out.push(item);
     }
     for rt in &program.runtime_imports {
         let kind = rt.kind.map(|k| format!(" is {}", k.as_str())).unwrap_or_default();
         let label = format!("runtime {}{}", rt.path.join("."), kind);
-        match resolve_runtime_file(root, &rt.path) {
-            Some(target) => out.push(file_node(ws, label, "runtime", &target, root, seen, depth)),
-            None => out.push(node(label, "introuvable", "missing", None, 0, Vec::new())),
+        let mut item = match resolve_runtime_file(root, &rt.path) {
+            Some(target) => file_node(ws, label, "runtime", &target, root, seen, inactive, depth),
+            None => node(label, "introuvable", "missing", None, 0, Vec::new()),
+        };
+        if inactive.contains(file, rt.span.line) {
+            item["inactive"] = Value::Bool(true);
         }
+        out.push(item);
     }
     out
 }
 
-fn file_node(ws: &Workspace, label: String, kind: &str, target: &Path, root: &Path, seen: &mut HashSet<PathBuf>, depth: usize) -> Value {
+#[allow(clippy::too_many_arguments)]
+fn file_node(ws: &Workspace, label: String, kind: &str, target: &Path, root: &Path, seen: &mut HashSet<PathBuf>, inactive: &Inactive, depth: usize) -> Value {
     let Ok(target) = target.canonicalize() else {
         return node(label, "introuvable", "missing", None, 0, Vec::new());
     };
@@ -72,7 +123,7 @@ fn file_node(ws: &Workspace, label: String, kind: &str, target: &Path, root: &Pa
     if !seen.insert(target.clone()) {
         return node(label, format!("{} — déjà listé", shown), kind, Some(&target), 1, Vec::new());
     }
-    let children = if depth < MAX_DEPTH { imports_of(ws, &target, root, seen, depth + 1) } else { Vec::new() };
+    let children = if depth < MAX_DEPTH { imports_of(ws, &target, root, seen, inactive, depth + 1) } else { Vec::new() };
     node(label, shown, kind, Some(&target), 1, children)
 }
 

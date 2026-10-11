@@ -16,11 +16,13 @@ interface WfNode {
     file: string | null;
     line: number;
     children: WfNode[];
+    /** Déclaré dans une variante `when` écartée pour la configuration active. */
+    inactive?: boolean;
 }
 
-interface CallNode { label: string; file: string; line: number; callees: string[] }
+interface CallNode { label: string; file: string; line: number; callees: string[]; inactive?: boolean }
 
-interface Workflow {
+export interface Workflow {
     file: string;
     imports: WfNode[];
     structure: WfNode[];
@@ -43,9 +45,22 @@ const ICONS: Record<string, string> = {
     active: 'pass', inactive: 'circle-slash',
 };
 
+/** Libellés estompés : nœuds des variantes `when` écartées (décoration). */
+const INACTIVE = vscode.Uri.parse('ocara-workflow:/inactive');
+
+class InactiveDecorations implements vscode.FileDecorationProvider {
+    provideFileDecoration(uri: vscode.Uri): vscode.FileDecoration | undefined {
+        if (uri.scheme !== INACTIVE.scheme) { return undefined; }
+        return { color: new vscode.ThemeColor('disabledForeground'), tooltip: 'Variante when écartée pour la configuration active' };
+    }
+}
+
 export class WorkflowProvider implements vscode.TreeDataProvider<Item> {
     private readonly changed = new vscode.EventEmitter<void>();
     readonly onDidChangeTreeData = this.changed.event;
+    private readonly loaded = new vscode.EventEmitter<Workflow>();
+    /** Données reçues du serveur (graphe d'appels). */
+    readonly onData = this.loaded.event;
     private data: Workflow | undefined;
     private timer: NodeJS.Timeout | undefined;
 
@@ -56,7 +71,11 @@ export class WorkflowProvider implements vscode.TreeDataProvider<Item> {
         const schedule = (): void => this.schedule();
         context.subscriptions.push(
             view,
+            vscode.window.registerFileDecorationProvider(new InactiveDecorations()),
             vscode.commands.registerCommand('ocara.workflow.refresh', () => this.refresh()),
+            vscode.workspace.onDidChangeConfiguration(e => {
+                if (['ocara.os', 'ocara.osOther', 'ocara.arch', 'ocara.archOther', 'ocara.build'].some(s => e.affectsConfiguration(s))) { schedule(); }
+            }),
             vscode.window.onDidChangeActiveTextEditor(schedule),
             vscode.workspace.onDidSaveTextDocument(schedule),
             vscode.languages.onDidChangeDiagnostics(e => {
@@ -83,6 +102,7 @@ export class WorkflowProvider implements vscode.TreeDataProvider<Item> {
             return;
         }
         this.changed.fire();
+        this.loaded.fire(this.data);
     }
 
     getChildren(item?: Item): Item[] {
@@ -139,9 +159,10 @@ export class WorkflowProvider implements vscode.TreeDataProvider<Item> {
             const recursive = item.ancestors.includes(item.key);
             const leaf = recursive || !node?.callees.length;
             const t = new vscode.TreeItem(node?.label ?? item.key, leaf ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Collapsed);
-            t.iconPath = new vscode.ThemeIcon(recursive ? 'sync' : 'symbol-method');
+            t.iconPath = new vscode.ThemeIcon(recursive ? 'sync' : 'symbol-method', node?.inactive ? new vscode.ThemeColor('disabledForeground') : undefined);
             t.description = recursive ? 'récursif' : node ? `${path.basename(node.file)}:${node.line}` : '';
             if (node) { t.command = openCommand(node.file, node.line); }
+            if (node?.inactive) { dim(t); }
             return t;
         }
         const node = item.node;
@@ -152,8 +173,16 @@ export class WorkflowProvider implements vscode.TreeDataProvider<Item> {
         const color = node.kind === 'active' ? new vscode.ThemeColor('testing.iconPassed') : node.kind === 'missing' ? new vscode.ThemeColor('problemsWarningIcon.foreground') : undefined;
         t.iconPath = new vscode.ThemeIcon(ICONS[node.kind] ?? 'circle-small', color);
         if (node.file) { t.command = openCommand(node.file, node.line); }
+        if (node.inactive || node.kind === 'inactive') { dim(t); }
         return t;
     }
+}
+
+/** Nœud d'une variante `when` écartée : libellé et icône estompés. */
+function dim(t: vscode.TreeItem): void {
+    t.resourceUri = INACTIVE;
+    if (t.iconPath instanceof vscode.ThemeIcon) { t.iconPath = new vscode.ThemeIcon(t.iconPath.id, new vscode.ThemeColor('disabledForeground')); }
+    t.tooltip = `${t.tooltip ?? t.label} — variante when écartée pour la configuration active`;
 }
 
 function openCommand(file: string, line: number): vscode.Command {

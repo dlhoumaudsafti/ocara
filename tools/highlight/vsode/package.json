@@ -14,7 +14,9 @@
   ],
   "activationEvents": [
     "onLanguage:ocara",
+    "onView:ocara.controls",
     "onView:ocara.workflow",
+    "onView:ocara.graph",
     "onView:ocara.benchmark"
   ],
   "main": "./out/extension.js",
@@ -403,8 +405,20 @@
     "views": {
       "ocara": [
         {
+          "type": "webview",
+          "id": "ocara.controls",
+          "name": "Configuration",
+          "contextualTitle": "Ocara"
+        },
+        {
           "id": "ocara.workflow",
           "name": "Workflow",
+          "contextualTitle": "Ocara"
+        },
+        {
+          "type": "webview",
+          "id": "ocara.graph",
+          "name": "Graphe d'appels",
           "contextualTitle": "Ocara"
         },
         {

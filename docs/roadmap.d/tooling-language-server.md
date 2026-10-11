@@ -252,7 +252,8 @@ doublons signalés), structure (types, membres, variables locales typées par
 la sema), graphe d'appels (références de fonctions et méthodes rattachées à
 la fonction qui les contient, corps délimités par leurs accolades) et
 variantes `when` (`Analysis::variants`, statut pour la configuration de
-l'éditeur).
+l'éditeur). Tout nœud situé dans une variante écartée porte `inactive`
+(estompé dans l'arbre et le graphe d'appels de l'extension).
 
 ## Étapes suivantes
 
