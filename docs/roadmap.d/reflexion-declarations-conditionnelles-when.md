@@ -278,7 +278,9 @@ Mise en œuvre prévue dans l'extension VS Code
 - **ocaracs** : règle R21 (`when_attached`), corrigée par `--fix`.
 - **Coloration** : règle TextMate `meta.condition.when.ocara`, scope
   `keyword.control.directive.when.ocara` pour `when` et ses opérateurs,
-  couleur imposée par `configurationDefaults` (`#FF4FD8`, gras).
+  couleur imposée par `configurationDefaults` : jaune `#FFCC00` (gras) sur
+  thème sombre, jaune orangé foncé `#A86500` sur un thème clair (thèmes
+  dont le nom contient « Light », clé `[*Light*]`).
 - **Exemple** : `examples/70_when.oc` ; tests `src/parsing/parser.d/tests_when.rs`.
 
 ## Éditeur : variantes écartées et configuration active (2026-10-11)

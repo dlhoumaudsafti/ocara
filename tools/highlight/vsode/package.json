@@ -263,11 +263,22 @@
           {
             "scope": "keyword.control.directive.when.ocara",
             "settings": {
-              "foreground": "#FF4FD8",
+              "foreground": "#FFCC00",
               "fontStyle": "bold"
             }
           }
-        ]
+        ],
+        "[*Light*]": {
+          "textMateRules": [
+            {
+              "scope": "keyword.control.directive.when.ocara",
+              "settings": {
+                "foreground": "#A86500",
+                "fontStyle": "bold"
+              }
+            }
+          ]
+        }
       }
     },
     "semanticTokenTypes": [
