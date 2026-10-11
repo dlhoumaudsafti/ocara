@@ -103,7 +103,7 @@ impl Parser {
                 ))
             }
         };
-        Ok((Variant { key: item.key(), clause, span }, item))
+        Ok((Variant { key: item.key(), clause, span, end_line: self.end_line() }, item))
     }
 
     /// Sélection des variantes ; en mode tolérant, une erreur est notée et

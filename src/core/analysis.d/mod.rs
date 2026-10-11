@@ -8,7 +8,7 @@ mod front;
 pub mod homonyms;
 mod imports;
 mod sema;
-mod variants;
+pub mod variants;
 
 pub use imports::{resolve_import_path, OCARA_BUILTINS};
 
@@ -45,6 +45,8 @@ pub struct Analysis {
     pub diagnostics: Vec<Diagnostic>,
     /// `None` si une étape avant la sema a échoué.
     pub checked: Option<Checked>,
+    /// Variantes `when` écartées pour la configuration de build courante.
+    pub inactive: Vec<variants::InactiveRange>,
 }
 
 impl Analysis {
@@ -53,7 +55,7 @@ impl Analysis {
     }
 
     fn fatal(diagnostic: Diagnostic) -> Self {
-        Self { diagnostics: vec![diagnostic], checked: None }
+        Self { diagnostics: vec![diagnostic], checked: None, inactive: Vec::new() }
     }
 }
 
@@ -124,6 +126,7 @@ fn analyze_program(opts: &AnalyzeOptions) -> Result<Analysis, Diagnostic> {
     Ok(Analysis {
         diagnostics,
         checked: Some(Checked { program, homonyms, references: out.references }),
+        inactive: Vec::new(),
     })
 }
 

@@ -5,9 +5,9 @@ import * as os from 'os';
 import { ocaraOutput, parseToolMessages, runTool, toDiagnostic, ToolResult } from './toolrunner';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Commandes « Compiler le script », « Compiler et lancer » et « Afficher le
-// dump » (menu clic droit de l'éditeur et de l'arborescence, palette de
-// commandes) — compilateur configurable (`ocara.compilerPath`). Voir
+// Commandes « Compiler (Debug/Release) », « Compiler et lancer
+// (Debug/Release) » et « Afficher le dump » (menu clic droit de l'éditeur et
+// de l'arborescence, palette de commandes ; Release = `--release`) — compilateur configurable (`ocara.compilerPath`). Voir
 // docs/roadmap.d/tooling-vscode-lint-compile-dump.md et
 // docs/roadmap.d/tooling-vscode-run-and-fix.md.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -28,8 +28,10 @@ export class OcaraCompiler implements vscode.Disposable {
     register(context: vscode.ExtensionContext): void {
         context.subscriptions.push(
             this,
-            vscode.commands.registerCommand('ocara.compile', (uri?: vscode.Uri) => this.compile(uri)),
-            vscode.commands.registerCommand('ocara.compileAndRun', (uri?: vscode.Uri) => this.compileAndRun(uri)),
+            vscode.commands.registerCommand('ocara.compile', (uri?: vscode.Uri) => this.compile(uri, false)),
+            vscode.commands.registerCommand('ocara.compileRelease', (uri?: vscode.Uri) => this.compile(uri, true)),
+            vscode.commands.registerCommand('ocara.compileAndRun', (uri?: vscode.Uri) => this.compileAndRun(uri, false)),
+            vscode.commands.registerCommand('ocara.compileAndRunRelease', (uri?: vscode.Uri) => this.compileAndRun(uri, true)),
             vscode.window.onDidCloseTerminal(t => { if (t === this.terminal) { this.terminal = undefined; } }),
             vscode.commands.registerCommand('ocara.dump', (uri?: vscode.Uri) => this.dump(uri)),
         );
@@ -60,28 +62,30 @@ export class OcaraCompiler implements vscode.Disposable {
         return name === undefined ? undefined : path.join(dir, name.trim());
     }
 
-    /** Compile `file` en `binary` ; `true` si succès. */
-    private async build(file: vscode.Uri, binary: string): Promise<boolean> {
+    /** Compile `file` en `binary` (`--release` si `release`) ; `true` si succès. */
+    private async build(file: vscode.Uri, binary: string, release: boolean): Promise<boolean> {
+        const args = [file.fsPath, '-o', binary, ...(release ? ['--release'] : [])];
+        const mode = release ? 'Release' : 'Debug';
         const result = await vscode.window.withProgress(
-            { location: vscode.ProgressLocation.Notification, title: `Ocara : compilation de ${path.basename(file.fsPath)}…` },
-            () => runTool('compilerPath', 'ocara', [file.fsPath, '-o', binary], path.dirname(file.fsPath), file),
+            { location: vscode.ProgressLocation.Notification, title: `Ocara : compilation (${mode}) de ${path.basename(file.fsPath)}…` },
+            () => runTool('compilerPath', 'ocara', args, path.dirname(file.fsPath), file),
         );
         return this.report(file, result, `compilation de ${file.fsPath}`);
     }
 
-    private async compile(uri?: vscode.Uri): Promise<void> {
+    private async compile(uri: vscode.Uri | undefined, release: boolean): Promise<void> {
         const file = await this.targetFile(uri);
-        const binary = file && await this.askBinary(file, 'Compiler le script Ocara');
-        if (!file || !binary || !await this.build(file, binary)) { return; }
+        const binary = file && await this.askBinary(file, `Compiler le script Ocara (${release ? 'Release' : 'Debug'})`);
+        if (!file || !binary || !await this.build(file, binary, release)) { return; }
         vscode.window.showInformationMessage(`Ocara : binaire créé — ${binary}`);
     }
 
     /** Compile puis lance le binaire depuis le dossier du script, dans le
      *  terminal « Ocara » (le programme précédent y est d'abord arrêté). */
-    private async compileAndRun(uri?: vscode.Uri): Promise<void> {
+    private async compileAndRun(uri: vscode.Uri | undefined, release: boolean): Promise<void> {
         const file = await this.targetFile(uri);
-        const binary = file && await this.askBinary(file, 'Compiler et lancer le script Ocara');
-        if (!file || !binary || !await this.build(file, binary)) { return; }
+        const binary = file && await this.askBinary(file, `Compiler et lancer le script Ocara (${release ? 'Release' : 'Debug'})`);
+        if (!file || !binary || !await this.build(file, binary, release)) { return; }
         if (this.terminal) {
             this.terminal.sendText('\x03', false);
         } else {

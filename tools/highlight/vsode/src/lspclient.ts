@@ -16,6 +16,7 @@ export async function startLanguageServer(context: vscode.ExtensionContext): Pro
     const serverOptions: ServerOptions = { command, args: [...args, '--lsp'] };
     const clientOptions: LanguageClientOptions = {
         documentSelector: [{ language: 'ocara', scheme: 'file' }],
+        initializationOptions: buildSettings(),
         // Fichiers `.oc` créés, modifiés ou supprimés hors de l'éditeur.
         synchronize: { fileEvents: vscode.workspace.createFileSystemWatcher('**/*.oc') },
         middleware: {
@@ -26,7 +27,15 @@ export async function startLanguageServer(context: vscode.ExtensionContext): Pro
         },
     };
     client = new LanguageClient('ocara', 'Ocara (serveur de langage)', serverOptions, clientOptions);
-    context.subscriptions.push(client, vscode.commands.registerCommand('ocara.showReferences', showReferences));
+    context.subscriptions.push(
+        client,
+        vscode.commands.registerCommand('ocara.showReferences', showReferences),
+        vscode.workspace.onDidChangeConfiguration(e => {
+            if (client && ['ocara.os', 'ocara.osOther', 'ocara.arch', 'ocara.archOther'].some(s => e.affectsConfiguration(s))) {
+                void client.sendNotification('workspace/didChangeConfiguration', { settings: buildSettings() });
+            }
+        }),
+    );
     try {
         await client.start();
     } catch (err) {
@@ -40,6 +49,18 @@ function showReferences(uri: string, position: unknown, locations: unknown[]): T
     const p2c = client.protocol2CodeConverter;
     return vscode.commands.executeCommand('editor.action.showReferences',
         p2c.asUri(uri), p2c.asPosition(position as never), locations.map(l => p2c.asLocation(l as never)));
+}
+
+/** Configuration active de l'éditeur pour les clauses `when` : `system`
+ *  (absent) = valeur de la machine, `other` = valeur personnalisée. */
+function buildSettings(): { os?: string; arch?: string } {
+    const config = vscode.workspace.getConfiguration('ocara');
+    const pick = (key: string): string | undefined => {
+        const value = config.get<string>(key, 'system');
+        if (value === 'system') { return undefined; }
+        return value === 'other' ? (config.get<string>(`${key}Other`, '').trim() || undefined) : value;
+    };
+    return { os: pick('os'), arch: pick('arch') };
 }
 
 export function stopLanguageServer(): Thenable<void> | undefined {

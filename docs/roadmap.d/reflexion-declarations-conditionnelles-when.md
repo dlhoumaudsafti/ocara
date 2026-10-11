@@ -1,6 +1,6 @@
 # Réflexion : déclarations conditionnelles `when`
 
-Statut : **implémenté le 2026-10-11** (idée proposée le 2026-10-08) — reste le grisage des variantes écartées dans l'éditeur (voir « Reste à faire »).
+Statut : **implémenté le 2026-10-11** (idée proposée le 2026-10-08), éditeur compris.
 Référence du langage : [docs/EBNF.md §32](../EBNF.md#32-déclarations-conditionnelles-when).
 
 ## Idée
@@ -281,9 +281,22 @@ Mise en œuvre prévue dans l'extension VS Code
   couleur imposée par `configurationDefaults` (`#FF4FD8`, gras).
 - **Exemple** : `examples/70_when.oc` ; tests `src/parsing/parser.d/tests_when.rs`.
 
-## Reste à faire
+## Éditeur : variantes écartées et configuration active (2026-10-11)
 
-- Grisage de la variante écartée pour la configuration active et jeton
-  sémantique dédié (serveur de langage) : il faut l'étendue de chaque
-  déclaration (seule la position de sa clause est connue) et un réglage de
-  la configuration active de l'éditeur (aujourd'hui : hôte, debug).
+- **Configuration de l'éditeur** : réglages `ocara.os` (`system`, `linux`,
+  `windows`, `macos`, `android`, `other` + `ocara.osOther`) et `ocara.arch`
+  (`system`, `x86_64`, `aarch64`, `arm`, `other` + `ocara.archOther`), mode
+  debug. Transmis au serveur à l'initialisation puis à chaque changement
+  (`workspace/didChangeConfiguration`) : documents ouverts réanalysés. Ils ne
+  changent pas la cible des commandes de compilation (machine hôte).
+- **Variantes écartées estompées** : le parseur note la dernière ligne de
+  chaque variante ; celles écartées pour la configuration active
+  (`Analysis::inactive`) sont publiées en indications `Unnecessary`, de la
+  clause à la fin de la déclaration (variante sans clause comprise).
+- **Jeton sémantique** `ocaraWhen` (`src/lsp/semantic.rs`) pour `when` et ses
+  opérateurs sur la ligne de la clause, associé par l'extension au scope
+  TextMate de la clause (`semanticTokenScopes`) : même couleur.
+- **Commandes** : « Compiler (Debug) », « Compiler (Release) », « Compiler et
+  lancer (Debug) », « Compiler et lancer (Release) » (Release = `--release`).
+
+Plus rien en attente sur cette fiche.

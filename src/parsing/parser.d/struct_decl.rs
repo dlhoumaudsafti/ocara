@@ -42,7 +42,7 @@ impl Parser {
                 StructMember::Const(ClassMember::Const { name, .. }) => format!("const:{}", name),
                 StructMember::Const(_) => String::new(),
             };
-            entries.push((Variant { key, clause, span: vspan }, member));
+            entries.push((Variant { key, clause, span: vspan, end_line: self.end_line() }, member));
         }
         self.eat(&TokenKind::RBrace)?;
         let (variants, items): (Vec<Variant>, Vec<StructMember>) = entries.into_iter().unzip();

@@ -17,7 +17,7 @@ Fonctionnalités à couvrir (inventaire de l'extension VS Code) :
 | Diagnostics, définition, références, survol documenté, complétion (paramètres nommés), signature help, symboles du document | heuristiques TypeScript, à remplacer par le serveur de langage | `ocara --lsp` |
 | CodeLens (références) | `codelens.ts` | LSP (`textDocument/codeLens`) ou inlay équivalent |
 | Analyse ocaracs et « Fixer la mise en forme » | `lint.ts`, `fix.ts` | outil externe `ocaracs`, ou serveur de langage |
-| Commandes « Compiler le script », « Compiler et lancer », « Afficher le dump » | `compile.ts`, `toolrunner.ts` | actions de menu + configuration d'exécution |
+| Commandes « Compiler (Debug/Release) », « Compiler et lancer (Debug/Release) », « Afficher le dump » ; réglages `ocara.os`/`ocara.arch` (configuration `when` de l'éditeur) | `compile.ts`, `toolrunner.ts` | actions de menu + configuration d'exécution |
 | « Ouvrir la documentation Ocara » | `docs.ts` | action de menu |
 | Réglages `compilerPath`, `ocaracsPath`, `lint.enable` | `package.json` | page de réglages du plugin |
 

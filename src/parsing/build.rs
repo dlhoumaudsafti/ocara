@@ -69,7 +69,9 @@ fn target_os(triple: &str) -> String {
 #[derive(Debug, Clone)]
 pub struct VariantNote {
     pub file: String,
+    /// Clause `when` (ou déclaration d'une variante sans clause).
     pub span: Span,
+    pub end_line: usize,
     pub retained: bool,
 }
 
@@ -127,9 +129,9 @@ pub(crate) fn note_used(name: &str, value: Option<&str>) {
     });
 }
 
-pub(crate) fn note_variant(span: &Span, retained: bool) {
+pub(crate) fn note_variant(span: &Span, end_line: usize, retained: bool) {
     let Some(file) = FILE.with(|c| c.borrow().clone()) else { return };
-    LOG.with(|l| l.borrow_mut().variants.push(VariantNote { file, span: span.clone(), retained }));
+    LOG.with(|l| l.borrow_mut().variants.push(VariantNote { file, span: span.clone(), end_line: end_line.max(span.line), retained }));
 }
 
 pub(crate) fn note_warning(span: &Span, message: String) {

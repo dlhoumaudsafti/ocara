@@ -455,7 +455,7 @@ impl Parser {
                 let method = self.parse_interface_method()?;
                 (format!("method:{}", method.name), Ok(method))
             };
-            entries.push((Variant { key: entry.0, clause, span: vspan }, entry.1));
+            entries.push((Variant { key: entry.0, clause, span: vspan, end_line: self.end_line() }, entry.1));
         }
         self.eat(&TokenKind::RBrace)?;
         let (variants, items): (Vec<Variant>, Vec<_>) = entries.into_iter().unzip();

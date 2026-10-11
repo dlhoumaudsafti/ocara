@@ -12,6 +12,14 @@ use crate::parsing::build::{self, BuildConfig, SelectionLog, DOMAINS};
 
 use super::Analysis;
 
+/// Lignes d'une variante écartée (clause comprise), 1-based.
+#[derive(Debug, Clone)]
+pub struct InactiveRange {
+    pub file: PathBuf,
+    pub start_line: usize,
+    pub end_line: usize,
+}
+
 /// Au-delà, les combinaisons suivantes ne sont pas analysées.
 const MAX_COMBINATIONS: usize = 32;
 
@@ -20,6 +28,10 @@ pub fn analyze_all(once: impl Fn() -> Analysis) -> Analysis {
     build::take_log();
     let mut main = once();
     let mut log = build::take_log();
+    main.inactive = log.variants.iter()
+        .filter(|v| !v.retained)
+        .map(|v| InactiveRange { file: PathBuf::from(&v.file), start_line: v.span.line, end_line: v.end_line })
+        .collect();
     if log.variants.is_empty() && log.warnings.is_empty() {
         return main;
     }

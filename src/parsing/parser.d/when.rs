@@ -40,6 +40,8 @@ pub(super) struct Variant {
     pub clause: Clause,
     /// Position de la déclaration (diagnostic d'une variante sans clause).
     pub span: Span,
+    /// Dernière ligne de la déclaration (grisage d'une variante écartée).
+    pub end_line: usize,
 }
 
 impl Parser {
@@ -177,7 +179,7 @@ impl Parser {
             ClassMember::Method { decl, .. } => format!("method:{}", decl.name),
             ClassMember::Constructor { .. } => "init".to_string(),
         };
-        Ok((Variant { key, clause, span }, member))
+        Ok((Variant { key, clause, span, end_line: self.end_line() }, member))
     }
 
     /// Instructions jusqu'à `}` : une suite d'instructions conditionnées
@@ -201,7 +203,7 @@ impl Parser {
                     }
                     // `when default` (le « sinon ») clôt aussi le groupe.
                     in_group = matches!(clause, Clause::Cond(..));
-                    entries.push((Variant { key: format!("stmt:{}", group), clause, span }, stmt));
+                    entries.push((Variant { key: format!("stmt:{}", group), clause, span, end_line: self.end_line() }, stmt));
                 }
                 Err(e) => self.recover_stmt(e, start)?,
             }
@@ -209,6 +211,10 @@ impl Parser {
         let (variants, stmts): (Vec<Variant>, Vec<Stmt>) = entries.into_iter().unzip();
         let keep = self.select_or_note(&variants)?;
         Ok(stmts.into_iter().zip(keep).filter(|(_, k)| *k).map(|(s, _)| s).collect())
+    }
+
+    pub(super) fn end_line(&self) -> usize {
+        self.previous_line().unwrap_or(0)
     }
 
     /// Variantes retenues parmi `variants` (même ordre) ; groupes de même
@@ -251,10 +257,11 @@ impl Parser {
             for &j in &group {
                 let retained = winner == Some(j);
                 keep[j] = retained || !config.select;
-                match &variants[j].clause {
-                    Clause::Cond(_, span) | Clause::Default(span) => build::note_variant(span, retained),
-                    Clause::None => {}
-                }
+                let start = match &variants[j].clause {
+                    Clause::Cond(_, span) | Clause::Default(span) => span,
+                    Clause::None => &variants[j].span,
+                };
+                build::note_variant(start, variants[j].end_line, retained);
             }
         }
         Ok(keep)
