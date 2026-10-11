@@ -1,6 +1,7 @@
-//! Types homonymes de fichiers différents (`Format` du contexte `home` et
-//! `Format` du contexte `car`) : chacun reçoit un nom interne unique tiré de
-//! son namespace, et chaque fichier voit celui qu'il déclare ou importe.
+//! Types et fonctions libres homonymes de fichiers différents (`Format` du
+//! contexte `home` et `Format` du contexte `car`) : chacun reçoit un nom
+//! interne unique tiré de son namespace, et chaque fichier voit celui qu'il
+//! déclare ou importe.
 //! Les noms sont réécrits par fichier avant la fusion des imports (voir
 //! docs/roadmap.d/langage-classes-homonymes-fusionnees.md) ; seuls les noms
 //! réellement en collision sont touchés.
@@ -34,12 +35,23 @@ fn key(path: &Path) -> PathBuf {
     path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
 }
 
-fn type_names(program: &Program) -> Vec<String> {
+/// Clé d'une fonction libre dans les tables (un nom de type et un nom de
+/// fonction identiques restent distincts) ; `resolve_aliases` réécrit les
+/// identifiants qui désignent une telle clé.
+pub const FN_KEY: &str = "fn:";
+
+pub fn fn_key(name: &str) -> String {
+    format!("{}{}", FN_KEY, name)
+}
+
+/// Types et fonctions libres déclarés (`main`, point d'entrée, exclu).
+fn declared_names(program: &Program) -> Vec<String> {
     program.classes.iter().map(|c| c.name.clone())
         .chain(program.generics.iter().map(|g| g.name.clone()))
         .chain(program.interfaces.iter().map(|i| i.name.clone()))
         .chain(program.modules.iter().map(|m| m.name.clone()))
         .chain(program.enums.iter().map(|e| e.name.clone()))
+        .chain(program.functions.iter().filter(|f| f.name != "main").map(|f| fn_key(&f.name)))
         .collect()
 }
 
@@ -72,7 +84,7 @@ impl Homonyms {
                     }
                 }
             }
-            files.push((path, FileInfo { namespace: program.namespace.clone(), declared: type_names(&program), imports }));
+            files.push((path, FileInfo { namespace: program.namespace.clone(), declared: declared_names(&program), imports }));
         }
 
         let mut declaring: HashMap<&str, Vec<&Path>> = HashMap::new();
@@ -89,7 +101,8 @@ impl Homonyms {
         for (name, paths) in declaring.iter().filter(|(_, p)| p.len() > 1) {
             for path in paths {
                 let info = &files.iter().find(|(p, _)| p == path).unwrap().1;
-                let base = format!("{}{}{}", name, NS_MARK, qualifier(info.namespace.as_deref(), path, source_dir));
+                let written = name.strip_prefix(FN_KEY).unwrap_or(name);
+                let base = format!("{}{}{}", written, NS_MARK, qualifier(info.namespace.as_deref(), path, source_dir));
                 let mut unique = base.clone();
                 let mut n = 2;
                 while !used.insert(unique.clone()) {
@@ -108,7 +121,7 @@ impl Homonyms {
             let mut view = HashMap::new();
             for (symbol, target) in &info.imports {
                 let names: Vec<String> = match symbol {
-                    Some(s) => vec![s.clone()],
+                    Some(s) => vec![s.clone(), fn_key(s)],
                     None => files.iter().find(|(p, _)| p == target).map(|(_, i)| i.declared.clone()).unwrap_or_default(),
                 };
                 for name in names {
@@ -148,11 +161,17 @@ impl Homonyms {
         program.interfaces.iter_mut().for_each(|i| rename(&mut i.name));
         program.modules.iter_mut().for_each(|m| rename(&mut m.name));
         program.enums.iter_mut().for_each(|e| rename(&mut e.name));
+        for f in &mut program.functions {
+            if let Some(int) = own.get(&fn_key(&f.name)) {
+                f.name = int.clone();
+            }
+        }
     }
 
     /// Nom interne d'un symbole déclaré par `path` (import sélectif).
     pub fn internal(&self, path: &Path, name: &str) -> Option<String> {
-        self.declared.get(&key(path))?.get(name).cloned()
+        let own = self.declared.get(&key(path))?;
+        own.get(name).or_else(|| own.get(&fn_key(name))).cloned()
     }
 
     /// Nom écrit → nom interne, vu depuis `path` (serveur de langage).

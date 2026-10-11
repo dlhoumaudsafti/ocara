@@ -59,8 +59,18 @@ références comprises). Tests : `src/core/tests_homonyms.rs`.
   (codes de sortie séparés par `;`) : les trois scripts s'exécutent et la
   cible échoue si l'un d'eux échoue.
 
+## Fonctions libres (2026-10-11)
+
+Le même mécanisme couvre les fonctions libres : deux fichiers qui déclarent
+chacun `function label()` ont chacun la leur, et chaque fichier appelle celle
+qu'il importe (`import label from "util"`), appel ou valeur (`var f = label`).
+Les fonctions passent par une clé `fn:` dans les tables, et `resolve_aliases`
+réécrit les identifiants qui désignent une fonction homonyme. `main`, le point
+d'entrée, n'est jamais renommé. Test : `src/core/tests_homonyms.rs`.
+
 ## Limites
 
-- Fonctions libres homonymes : non couvertes (seuls les types le sont).
-- Un fichier qui utilise un type homonyme sans l'importer (visibilité
-  globale) voit le premier chargé, comme avant.
+- Un fichier qui utilise un type ou une fonction homonyme sans l'importer
+  (visibilité globale) voit le premier chargé, comme avant.
+- Dans un fichier qui voit une fonction homonyme, une variable locale du
+  même nom serait renommée avec elle.

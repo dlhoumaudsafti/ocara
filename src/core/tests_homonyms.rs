@@ -49,3 +49,36 @@ fn internal_names_are_hidden_in_messages() {
     assert_eq!(homonyms::display("undefined symbol 'Format__ns__context_car::date'"), "undefined symbol 'Format::date'");
     assert_eq!(homonyms::display("aucun nom interne"), "aucun nom interne");
 }
+
+#[test]
+fn homonymous_functions_resolve_per_importing_file() {
+    let dir = std::env::temp_dir().join(format!("ocara_homonym_fns_{}", std::process::id()));
+    let util = |ns: &str| format!("namespace {}\n\nfunction label(): string {{\n    return \"{}\"\n}}\n", ns, ns);
+    write(&dir, "a/util.oc", &util("a"));
+    write(&dir, "b/util.oc", &util("b"));
+    let user = |ns: &str, class: &str| format!("namespace {}\n\nimport label from \"util\"\n\nclass {} {{\n    public static method run(): string {{\n        return label()\n    }}\n}}\n", ns, class);
+    write(&dir, "a/UseA.oc", &user("a", "UseA"));
+    write(&dir, "b/UseB.oc", &user("b", "UseB"));
+    write(&dir, "main.oc", "import ocara.IO\nimport a.UseA\nimport b.UseB\n\nfunction main(): int {\n    IO::writeln(UseA::run() + UseB::run())\n    return 0\n}\n");
+
+    let input = dir.join("main.oc");
+    let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&dir), dump: false, index: false, tolerant: false });
+    std::fs::remove_dir_all(&dir).ok();
+
+    assert!(!analysis.has_errors(), "{:?}", analysis.diagnostics);
+    let program = &analysis.checked.unwrap().program;
+    let called = |class: &str| {
+        let c = program.classes.iter().find(|c| c.name == class).unwrap();
+        let body = c.members.iter().find_map(|m| match m { ClassMember::Method { decl, .. } => Some(&decl.body), _ => None }).unwrap();
+        match &body.stmts[0] {
+            Stmt::Return { value: Some(Expr::Call { callee, .. }), .. } => match callee.as_ref() {
+                Expr::Ident(name, _) => name.clone(),
+                other => panic!("appel de fonction attendu, trouvé {:?}", other),
+            },
+            other => panic!("return label() attendu, trouvé {:?}", other),
+        }
+    };
+    assert_eq!(called("UseA"), "label__ns__a");
+    assert_eq!(called("UseB"), "label__ns__b");
+    assert!(program.functions.iter().any(|f| f.name == "main"));
+}

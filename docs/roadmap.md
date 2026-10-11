@@ -29,7 +29,6 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Fonctions libres homonymes de namespaces différents : une seule est compilée** — même défaut que celui corrigé pour les types : deux fichiers qui déclarent chacun `function helper()` → la fusion des imports garde la première chargée, sans diagnostic. Étendre `core/analysis.d/homonyms.rs` aux fonctions (réécriture des appels par fichier). *(Légère — le mécanisme existe pour les types)* → [détails](roadmap.d/langage-classes-homonymes-fusionnees.md)
 
 
 ---

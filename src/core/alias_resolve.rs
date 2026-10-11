@@ -206,7 +206,14 @@ fn resolve_type(aliases: &HashMap<String, String>, ty: &mut Type) {
 
 fn resolve_expr(aliases: &HashMap<String, String>, expr: &mut Expr) {
     match expr {
-        Expr::Literal(..) | Expr::Ident(..) | Expr::SelfExpr(_) | Expr::ParentExpr(_) => {}
+        Expr::Literal(..) | Expr::SelfExpr(_) | Expr::ParentExpr(_) => {}
+        // Fonction libre homonyme (appel ou valeur) : clé `fn:` (voir
+        // core::analysis::homonyms) ; un nom de type n'est jamais réécrit ici.
+        Expr::Ident(name, _) => {
+            if let Some(real) = aliases.get(&crate::core::analysis::homonyms::fn_key(name)) {
+                *name = real.clone();
+            }
+        }
         Expr::Field { object, .. } => resolve_expr(aliases, object),
         Expr::Call { callee, args, .. } => {
             resolve_expr(aliases, callee);
