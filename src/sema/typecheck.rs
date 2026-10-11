@@ -13,7 +13,7 @@ pub struct TypeChecker<'a> {
     pub symbols:   &'a SymbolTable,
     pub errors:    Vec<SemaError>,
     pub warnings:  Vec<SemaWarning>,
-    scopes:        ScopeStack,
+    pub(crate) scopes: ScopeStack,
     /// Type de retour de la fonction en cours d'analyse
     current_ret:   Option<Type>,
     /// Nom de la classe en cours (pour `self`)
@@ -237,7 +237,7 @@ impl<'a> TypeChecker<'a> {
                 param.ty.clone()
             };
             
-            self.scopes.declare(
+            self.declare_local(
                 param.name.clone(),
                 LocalBinding { ty: param_ty, mutable: false, span: param.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
             );
@@ -310,7 +310,7 @@ impl<'a> TypeChecker<'a> {
                             p.ty.clone()
                         };
                         
-                        self.scopes.declare(
+                        self.declare_local(
                             p.name.clone(),
                             LocalBinding { ty: param_ty, mutable: false, span: p.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                         );
@@ -558,7 +558,7 @@ impl<'a> TypeChecker<'a> {
                 // d'une ressource tas). Ces cas se comportent exactement
                 // comme `var` : aucune destruction, aucune restriction —
                 // voir `OwnershipClass::Unsupported` et `check_escape`.
-                if !self.scopes.declare(
+                if !self.declare_local(
                     name.clone(),
                     LocalBinding { ty: ty.clone(), mutable: *mutable, span: span.clone(), used: false, is_param: false, kind: *kind, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                 ) {
@@ -586,7 +586,7 @@ impl<'a> TypeChecker<'a> {
                         span:     span.clone(),
                     });
                 }
-                if !self.scopes.declare(
+                if !self.declare_local(
                     name.clone(),
                     LocalBinding { ty: ty.clone(), mutable: false, span: span.clone(), used: false, is_param: false, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                 ) {
@@ -658,7 +658,7 @@ impl<'a> TypeChecker<'a> {
                     }
                 };
                 self.scopes.push();
-                self.scopes.declare(var.clone(), LocalBinding { ty: elem_ty, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
+                self.declare_local(var.clone(), LocalBinding { ty: elem_ty, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
                 self.check_block(body);
                 { let _u = self.scopes.pop_scope(&self.resource_classes); self.flush_warnings(_u); }
             }
@@ -666,8 +666,8 @@ impl<'a> TypeChecker<'a> {
             Stmt::ForMap { key, value, iter, body, span } => {
                 self.infer_expr(iter);
                 self.scopes.push();
-                self.scopes.declare(key.clone(),   LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
-                self.scopes.declare(value.clone(), LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
+                self.declare_local(key.clone(),   LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
+                self.declare_local(value.clone(), LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
                 self.check_block(body);
                 { let _u = self.scopes.pop_scope(&self.resource_classes); self.flush_warnings(_u); }
             }
@@ -806,7 +806,7 @@ impl<'a> TypeChecker<'a> {
                     let binding_ty = handler.class_filter.as_ref()
                         .filter(|c| self.symbols.lookup_class(c).is_some())
                         .map_or(Type::Mixed, |c| Type::Named(c.clone()));
-                    self.scopes.declare(
+                    self.declare_local(
                         handler.binding.clone(),
                         LocalBinding { ty: binding_ty, mutable: false, span: handler.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                     );
@@ -1783,6 +1783,14 @@ impl<'a> TypeChecker<'a> {
                     }
                     return ret;
                 }
+                // Classe connue sans cette méthode : l'appel était abandonné
+                // en silence à la compilation (valeur `null` à l'exécution).
+                if self.symbols.lookup_class(&resolved_class).is_some_and(|info| !info.is_opaque) {
+                    self.errors.push(SemaError::UndefinedSymbol {
+                        name: format!("{}::{}", resolved_class, method),
+                        span: span.clone(),
+                    });
+                }
                 for arg in args { self.infer_expr(arg); }
                 Type::Mixed
             }
@@ -2098,7 +2106,7 @@ impl<'a> TypeChecker<'a> {
                 // Ouvre un scope pour les paramètres de la closure
                 self.scopes.push();
                 for p in params {
-                    self.scopes.declare(
+                    self.declare_local(
                         p.name.clone(),
                         LocalBinding { ty: p.ty.clone(), mutable: false, span: p.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                     );

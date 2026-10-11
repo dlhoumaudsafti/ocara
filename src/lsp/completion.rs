@@ -29,7 +29,8 @@ const INSTANCE_SUGAR_CLASSES: &[&str] = &["HTTPRequest", "HTTPResponse", "HTTPSe
 
 pub fn completion(ws: &Workspace, path: &Path, pos: &Position) -> Vec<CompletionItem> {
     let Some(text) = ws.text(path) else { return Vec::new() };
-    let line: String = text.lines().nth(pos.line as usize).unwrap_or("").chars().take(pos.character as usize).collect();
+    let full = text.lines().nth(pos.line as usize).unwrap_or("");
+    let line: String = full.chars().take(super::position::char_col(full, pos.character)).collect();
     if is_after_use(&line) {
         return class_items(ws.analysis(path).and_then(|a| a.checked.as_ref()).map(|c| &c.program));
     }

@@ -1,22 +1,25 @@
-<layout title="${reference}" active="home">
+<layout title="${car_details['car'].reference}" active="home">
   <a class="back-link" href="/">&larr; Retour à la flotte</a>
 
   <alert kind="error" message="${error_text}">
   <alert kind="success" message="${success_text}">
 
   <section class="card car-detail-header">
-    <h1>${reference} <span class="car-model-inline">${brand} ${model}</span></h1>
+    <h1>${car_details['car'].reference} <span class="car-model-inline">${car_details['car'].brand} ${car_details['car'].model}</span></h1>
     <div class="stats-row">
-      <stat-badge label="Prix d'achat" value="${purchase_price_text}">
-      <stat-badge label="Vente estimée" value="${estimated_price_text}">
-      <stat-badge label="Coût entretiens" value="${maintenance_total_text}">
-      <stat-badge label="Coût améliorations" value="${improvement_total_text}">
+      <stat-badge label="Prix d'achat" value="${car_details['purchase_price']}">
+      <stat-badge label="Vente estimée" value="${car_details['estimated_price']}">
+      <stat-badge label="Coût entretiens" value="${car_details['maintenance_total']}">
+      <stat-badge label="Coût améliorations" value="${car_details['improvement_total']}">
     </div>
+    <form method="DELETE" action="/voitures/${car_details['id']}/supprimer" class="delete-form">
+      <button type="submit" class="delete-button">Supprimer la voiture</button>
+    </form>
   </section>
 
   <section class="card">
     <h2>Ajouter un entretien</h2>
-    <form method="POST" action="/voitures/${id_str}/entretiens" class="form-grid">
+    <form method="POST" action="/voitures/${car_details['id']}/entretiens" class="form-grid">
       <label>Type
         <select name="type">
           <option value="maintenance">Entretien (maintenance)</option>
@@ -35,6 +38,6 @@
 
   <section class="card">
     <h2>Historique des entretiens</h2>
-    <div class="maintenance-list">${rows_html}</div>
+    <div class="maintenance-list">${car_details['rows_html']}</div>
   </section>
 </layout>

@@ -1,7 +1,7 @@
 # Classes homonymes de namespaces différents : une seule est compilée
 
-Statut : **à faire** — constaté le 2026-10-09 (CodeLens du serveur de
-langage sur `mini_project_hexa`).
+Statut : **corrigé** (2026-10-09) — constaté via les CodeLens du serveur de
+langage sur `mini_project_hexa`.
 
 ## Constat
 
@@ -26,16 +26,41 @@ de l'autre) ; le contrôleur du contexte `car`, qui importe
 contexte `home`. Ici le résultat est le même, mais rien ne le garantit :
 une différence de comportement passerait inaperçue, sans diagnostic.
 
-## Pistes
+## Correction — identité par namespace
 
-1. **Court terme** : erreur de compilation quand deux déclarations
-   *différentes* portent le même nom simple dans un même programme (en
-   indiquant les deux fichiers), au lieu d'en ignorer une silencieusement.
-2. **Structurel** : identité qualifiée par namespace
-   (`context.car…Format`), résolution de chaque usage selon les imports
-   du fichier qui l'écrit, mangling des symboles avec le namespace.
+`src/core/analysis.d/homonyms.rs`, avant la fusion des imports :
 
-## Priorité / Complexité
+- un pré-passage parcourt le graphe des imports depuis le fichier d'entrée
+  (mêmes règles de résolution que `load_imports`) et relève les types
+  déclarés par chaque fichier (classes, generics, interfaces, modules,
+  enums) ;
+- un nom déclaré par plusieurs fichiers reçoit dans chacun un nom interne
+  unique tiré de son namespace (`Format__ns__context_car_app_usecase_helpers`) ;
+- chaque fichier voit ses propres déclarations et celles qu'il importe :
+  ses références sont réécrites avec `resolve_aliases`, sa déclaration est
+  renommée, un import sélectif demande le nom interne ;
+- seuls les noms en collision sont touchés ; les messages d'erreur et le
+  serveur de langage réaffichent le nom écrit (`homonyms::display`).
 
-**Haute** (comportement silencieusement différent de ce qu'on lit) —
-**Légère** pour la piste 1, **Structurelle** pour la piste 2.
+Vérifié : deux `Helper` (namespaces `a` et `b`) renvoyant des valeurs
+différentes — chaque fichier exécute le sien. Dans `mini_project_hexa`,
+chaque contrôleur utilise le `Format` de son contexte (définition et
+références comprises). Tests : `src/core/tests_homonyms.rs`.
+
+## Trouvé au passage
+
+- Un appel statique vers une méthode inexistante d'une classe connue
+  (`String::to_upper(s)`, `YAML::loadFile(...)`) compilait sans erreur et
+  l'appel était abandonné (`null` à l'exécution) : c'est désormais l'erreur
+  E01 `undefined symbol 'Classe::m'`. `examples/23_static_method.oc`
+  appelait `String::slice`/`String::to_upper`, inexistants (corrigé avec
+  `String::capitalize`).
+- `make regression` renvoyait 0 même quand `ci/regression.sh` échouait
+  (codes de sortie séparés par `;`) : les trois scripts s'exécutent et la
+  cible échoue si l'un d'eux échoue.
+
+## Limites
+
+- Fonctions libres homonymes : non couvertes (seuls les types le sont).
+- Un fichier qui utilise un type homonyme sans l'importer (visibilité
+  globale) voit le premier chargé, comme avant.

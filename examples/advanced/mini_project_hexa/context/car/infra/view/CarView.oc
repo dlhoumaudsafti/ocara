@@ -1,0 +1,41 @@
+namespace context.car.infra.view
+
+import ocara.HTML
+import context.car.domain.entity.CarEntity
+import context.car.domain.entity.MaintenanceEntity
+import context.car.domain.contract.CarViewContract
+
+class CarView implements CarViewContract {
+    public static method show(
+        id:int,
+        car:CarEntity,
+        maintenances:array<MaintenanceEntity>,
+        maintenance_total:float,
+        improvement_total:float,
+        error_text:string,
+        success_text:string
+    ): string {
+        const car_details:map<string, CarEntity|Array<MaintenanceEntity>|float|string> = {
+            "id": id.toStr(),
+            "car": car,
+            "rows_html": "",
+            "purchase_price": Format::price(car.purchase_price),
+            "estimated_price": Format::price(car.estimated_price),
+            "maintenance_total": Format::price(maintenance_total),
+            "improvement_total": Format::price(improvement_total),
+            "error_text": error_text,
+            "success_text": success_text
+        }
+        for m in maintenances {
+            car_details['rows_html'] += `<maintenance-row 
+                type="${m.type}"
+                description="${m.description}"
+                cost="${Format::price(m.cost)}"
+                date="${Format::date(m.created_at)}">`
+        }
+        if maintenances.len() equal 0 {
+            car_details['rows_html'] = `<p class="empty">Aucun entretien enregistré pour cette voiture.</p>`
+        }
+        return HTML::renderFile('templates/car/car_detail.html')
+    }
+}

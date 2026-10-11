@@ -26,6 +26,7 @@ class CarRoutes {
     init(server:Server) {
         server.route("/voitures/<id:int>", "GET", CarController::show)
         server.route("/voitures/ajouter", "POST", CarController::create)
+        server.route("/voitures/<id:int>/supprimer", "DELETE", CarController::delete)
         server.route("/voitures/<car_id:int>/entretiens", "POST", MaintenanceController::create)
     }
 }

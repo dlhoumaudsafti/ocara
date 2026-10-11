@@ -306,9 +306,11 @@ regression:
 	@if [ -n "$(_TARGET)" ]; then \
 	    ./ci/regression.sh $(_TARGET); \
 	else \
-	    ./ci/regression.sh; \
-	    ./ci/unittests.sh examples/project/tests; \
-	    ./ci/unittests.sh examples/tests; \
+	    status=0; \
+	    ./ci/regression.sh || status=1; \
+	    ./ci/unittests.sh examples/project/tests || status=1; \
+	    ./ci/unittests.sh examples/tests || status=1; \
+	    exit $$status; \
 	fi
 
 # ── CI Pipeline ───────────────────────────────────────────────────────────────

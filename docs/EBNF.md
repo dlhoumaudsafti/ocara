@@ -205,6 +205,9 @@ Le chemin dans le littéral de chaîne est relatif au fichier courant. L'extensi
 - Deux imports peuvent pointer vers le même type sous des alias différents.
 - Un symbole importé sans alias est accessible par son nom simple **seulement si** aucun symbole local ne le masque.
 - Un symbole local masque toujours un import (voir §22).
+- Deux types de **namespaces différents** peuvent porter le même nom
+  (`context.car…Format` et `context.home…Format`) : ce sont deux types
+  distincts, et chaque fichier utilise celui qu'il déclare ou importe.
 
 ### 4.3 Quand utiliser chaque format
 

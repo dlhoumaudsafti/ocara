@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 
 use lsp_server::{Connection, Message, Notification, Request, Response};
 use lsp_types::notification::{
-    DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, DidSaveTextDocument, Notification as _,
+    DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument, DidOpenTextDocument, DidSaveTextDocument, Notification as _,
     PublishDiagnostics,
 };
 use lsp_types::request::{CodeLensRequest, Completion, DocumentSymbolRequest, GotoDefinition, HoverRequest, References, Rename, Request as _, SignatureHelpRequest};
@@ -151,6 +151,11 @@ fn handle_request(ws: &Workspace, index: &mut project::ProjectIndex, req: Reques
             .map(|h| serde_json::to_value(h).unwrap_or(Value::Null)),
         _ => return Response::new_err(req.id, lsp_server::ErrorCode::MethodNotFound as i32, format!("méthode non prise en charge : {}", req.method)),
     };
+    // Noms internes des types homonymes (`Format__ns__…`) jamais montrés.
+    let result = result.map(|v| {
+        let text = crate::core::analysis::homonyms::display(&v.to_string());
+        serde_json::from_str(&text).unwrap_or(v)
+    });
     Response::new_ok(req.id, result.unwrap_or(Value::Null))
 }
 
@@ -174,6 +179,19 @@ fn handle_notification(connection: &Connection, ws: &mut Workspace, index: &mut 
         DidSaveTextDocument::METHOD => {
             // Un fichier enregistré peut changer l'analyse des autres
             // documents ouverts qui l'importent.
+            for path in ws.open_paths() {
+                refresh(connection, ws, &path);
+            }
+        }
+        // Fichier `.oc` créé, modifié ou supprimé hors de l'éditeur : index
+        // mis à jour, documents ouverts réanalysés (ils peuvent l'importer).
+        DidChangeWatchedFiles::METHOD => {
+            let Ok(p) = serde_json::from_value::<lsp_types::DidChangeWatchedFilesParams>(note.params) else { return };
+            for change in &p.changes {
+                if let Ok(path) = change.uri.to_file_path() {
+                    index.invalidate(&path.canonicalize().unwrap_or(path));
+                }
+            }
             for path in ws.open_paths() {
                 refresh(connection, ws, &path);
             }

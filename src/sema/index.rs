@@ -52,4 +52,13 @@ impl<'a> crate::sema::typecheck::TypeChecker<'a> {
             index.push(Reference { span: span.clone(), name: name.to_string(), target, ty: ty.clone() });
         }
     }
+
+    /// Déclare une variable locale (paramètre, `var`, variable de boucle…) et
+    /// l'indexe à sa déclaration : survol même si elle n'est jamais utilisée.
+    pub(crate) fn declare_local(&mut self, name: String, binding: crate::sema::scope::LocalBinding) -> bool {
+        let decl = binding.span.clone();
+        let ty = binding.ty.clone();
+        self.record(&decl, &name, Target::Local { decl: decl.clone() }, &ty);
+        self.scopes.declare(name, binding)
+    }
 }

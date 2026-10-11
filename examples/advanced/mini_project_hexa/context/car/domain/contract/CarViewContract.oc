@@ -1,0 +1,17 @@
+namespace context.car.domain.contract
+
+import context.car.domain.entity.CarEntity
+import context.car.domain.entity.MaintenanceEntity
+
+interface CarViewContract {
+    wiring context.car.infra.view.CarView
+    public static method show(
+        id:int,
+        car:CarEntity,
+        maintenances:array<MaintenanceEntity>,
+        maintenance_total:float,
+        improvement_total:float,
+        error_text:string,
+        success_text:string
+    ): string 
+}

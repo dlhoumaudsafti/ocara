@@ -111,6 +111,8 @@ impl ProjectIndex {
         for r in &checked.references {
             let key = match &r.target {
                 Target::Completion(_) => continue,
+                // Une déclaration n'est pas sa propre référence.
+                Target::Local { decl } if decl.line == r.span.line && decl.col == r.span.col => continue,
                 Target::Local { decl } => decl_key(entry, decl),
                 target => match decls::find(program, target) {
                     Some(d) => decl_key(entry, &d.span),
@@ -129,8 +131,10 @@ impl ProjectIndex {
         for file in &files {
             let text = text_of(file);
             let Some(own) = parse(&text) else { continue };
+            let view = checked.homonyms.view(file);
             for (name, span) in &own.type_refs {
-                let Some(d) = decls::find(program, &Target::Class(name.clone())) else { continue };
+                let class = view.and_then(|v| v.get(name)).unwrap_or(name);
+                let Some(d) = decls::find(program, &Target::Class(class.clone())) else { continue };
                 references.push((decl_key(entry, &d.span), Location::new(to_url(file), name_range(&text, span, name))));
             }
         }

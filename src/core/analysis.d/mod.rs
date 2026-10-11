@@ -5,6 +5,7 @@
 
 mod checks;
 mod front;
+pub mod homonyms;
 mod imports;
 mod sema;
 
@@ -34,6 +35,8 @@ pub struct AnalyzeOptions<'a> {
 /// Programme fusionné et vérifié par la sema (même avec des erreurs).
 pub struct Checked {
     pub program: Program,
+    /// Noms internes des types homonymes (nom écrit → nom interne, par fichier).
+    pub homonyms: homonyms::Homonyms,
     pub references: Vec<Reference>,
 }
 
@@ -54,15 +57,20 @@ impl Analysis {
 }
 
 pub fn analyze(opts: &AnalyzeOptions) -> Analysis {
-    match analyze_program(opts) {
+    let mut analysis = match analyze_program(opts) {
         Ok(analysis) => analysis,
         Err(diagnostic) => Analysis::fatal(diagnostic),
+    };
+    // Messages : noms internes des types homonymes réduits au nom écrit.
+    for d in &mut analysis.diagnostics {
+        d.message = homonyms::display(&d.message);
     }
+    analysis
 }
 
 fn analyze_program(opts: &AnalyzeOptions) -> Result<Analysis, Diagnostic> {
     let input = opts.input;
-    let (mut program, syntax) = front::parse_entry(input, opts.dump, opts.tolerant)?;
+    let (mut program, mut syntax) = front::parse_entry(input, opts.dump, opts.tolerant)?;
     let source_dir = opts.src_dir
         .unwrap_or_else(|| input.parent().unwrap_or_else(|| Path::new(".")));
 
@@ -71,9 +79,12 @@ fn analyze_program(opts: &AnalyzeOptions) -> Result<Analysis, Diagnostic> {
     let all_interfaces = crate::core::interface_wiring::collect_all_interfaces(&program, source_dir);
     let aliases = compute_aliases(&program.imports, &all_interfaces, input)?;
     resolve_aliases(&mut program, &aliases);
+    // Types homonymes de fichiers différents : un nom interne chacun.
+    let homonyms = homonyms::Homonyms::scan(&program, input, source_dir);
+    homonyms.apply(&mut program, input);
 
     imports::check_imports(&program, source_dir, input)?;
-    imports::load_imports(&mut program, source_dir, input, &all_interfaces)?;
+    syntax.extend(imports::load_imports(&mut program, source_dir, input, &all_interfaces, &homonyms, opts.tolerant)?);
 
     crate::core::interface_wiring::resolve_bare_interface_names(&mut program, &all_interfaces);
     crate::core::property_init::complete_implicit_inits(&mut program);
@@ -105,7 +116,7 @@ fn analyze_program(opts: &AnalyzeOptions) -> Result<Analysis, Diagnostic> {
     }
     Ok(Analysis {
         diagnostics,
-        checked: Some(Checked { program, references: out.references }),
+        checked: Some(Checked { program, homonyms, references: out.references }),
     })
 }
 

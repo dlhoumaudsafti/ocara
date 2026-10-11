@@ -66,9 +66,7 @@ class StringCheck {
     }
 
     public static method starts_with_upper(s:string): bool {
-        var first:string = String::slice(s, 0, 1)
-        var up:string    = String::to_upper(first)
-        return first equal up and self::has_content(s)
+        return s equal String::capitalize(s) and self::has_content(s)
     }
 
     public static method is_valid_name(s:string): bool {

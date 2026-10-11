@@ -22,9 +22,26 @@ pub fn name_range(text: &str, span: &Span, name: &str) -> Range {
             && chars.get(i + target.len()).is_none_or(|c| !is_ident(*c))
     });
     match found {
-        Some(i) => Range::new(pos(line_idx, i), pos(line_idx, i + target.len())),
+        Some(i) => Range::new(pos(line_idx, utf16_col(line, i)), pos(line_idx, utf16_col(line, i + target.len()))),
         None => point(line_idx, start_col),
     }
+}
+
+/// Colonne en unités UTF-16 (celles du protocole) du caractère `char_col`.
+pub fn utf16_col(line: &str, char_col: usize) -> usize {
+    line.chars().take(char_col).map(char::len_utf16).sum()
+}
+
+/// Indice de caractère d'une colonne en unités UTF-16.
+pub fn char_col(line: &str, utf16: u32) -> usize {
+    let mut units = 0;
+    for (i, c) in line.chars().enumerate() {
+        if units >= utf16 as usize {
+            return i;
+        }
+        units += c.len_utf16();
+    }
+    line.chars().count()
 }
 
 pub fn point(line: usize, col: usize) -> Range {

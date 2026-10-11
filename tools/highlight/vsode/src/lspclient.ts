@@ -16,6 +16,8 @@ export async function startLanguageServer(context: vscode.ExtensionContext): Pro
     const serverOptions: ServerOptions = { command, args: [...args, '--lsp'] };
     const clientOptions: LanguageClientOptions = {
         documentSelector: [{ language: 'ocara', scheme: 'file' }],
+        // Fichiers `.oc` créés, modifiés ou supprimés hors de l'éditeur.
+        synchronize: { fileEvents: vscode.workspace.createFileSystemWatcher('**/*.oc') },
         middleware: {
             provideHover: async (document, position, token, next) => {
                 const hover = await next(document, position, token);

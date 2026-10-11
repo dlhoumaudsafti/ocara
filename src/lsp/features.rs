@@ -97,7 +97,56 @@ pub fn reference_at(ws: &Workspace, analysis: &Analysis, path: &Path, pos: &Posi
     if let Some((r, range)) = direct.or_else(declared) {
         return Some((r.clone(), range));
     }
-    type_reference_at(&parse_document(ws, path)?, &text, pos)
+    let own = parse_document(ws, path)?;
+    let view = checked.homonyms.view(path);
+    let internal = |name: &str| view.and_then(|v| v.get(name)).cloned().unwrap_or_else(|| name.to_string());
+    if let Some((mut r, range)) = type_reference_at(&own, &text, pos) {
+        // Type homonyme : le nom écrit désigne celui que ce fichier voit.
+        r.target = Target::Class(internal(&r.name));
+        return Some((r, range));
+    }
+    declaration_at(&own, &text, pos, &internal)
+}
+
+/// Nom déclaré sous le curseur (classe, méthode, champ, fonction…) :
+/// référence à cette déclaration.
+fn declaration_at(own: &Program, text: &str, pos: &Position, internal: &dyn Fn(&str) -> String) -> Option<(Reference, Range)> {
+    let mut decls: Vec<(String, Span, Target)> = Vec::new();
+    let members = |owner: &str, list: &[ClassMember], decls: &mut Vec<(String, Span, Target)>| {
+        let class = internal(owner);
+        for m in list {
+            match m {
+                ClassMember::Method { decl, .. } => decls.push((decl.name.clone(), decl.span.clone(), Target::Method { class: class.clone(), name: decl.name.clone() })),
+                ClassMember::Field { name, span, .. } => decls.push((name.clone(), span.clone(), Target::Field { class: class.clone(), name: name.clone() })),
+                ClassMember::Const { name, span, .. } => decls.push((name.clone(), span.clone(), Target::ClassConst { class: class.clone(), name: name.clone() })),
+                ClassMember::Constructor { .. } => {}
+            }
+        }
+    };
+    for c in &own.classes {
+        decls.push((c.name.clone(), c.span.clone(), Target::Class(internal(&c.name))));
+        members(&c.name, &c.members, &mut decls);
+    }
+    for g in &own.generics {
+        decls.push((g.name.clone(), g.span.clone(), Target::Class(internal(&g.name))));
+        members(&g.name, &g.members, &mut decls);
+    }
+    for m in &own.modules {
+        decls.push((m.name.clone(), m.span.clone(), Target::Class(internal(&m.name))));
+        members(&m.name, &m.members, &mut decls);
+    }
+    for i in &own.interfaces {
+        let class = internal(&i.name);
+        decls.push((i.name.clone(), i.span.clone(), Target::Class(class.clone())));
+        decls.extend(i.methods.iter().map(|m| (m.name.clone(), m.span.clone(), Target::Method { class: class.clone(), name: m.name.clone() })));
+    }
+    decls.extend(own.enums.iter().map(|e| (e.name.clone(), e.span.clone(), Target::Class(internal(&e.name)))));
+    decls.extend(own.functions.iter().map(|f| (f.name.clone(), f.span.clone(), Target::Function(f.name.clone()))));
+    decls.extend(own.consts.iter().map(|c| (c.name.clone(), c.span.clone(), Target::Const(c.name.clone()))));
+    decls.into_iter()
+        .map(|(name, span, target)| (name_range(text, &span, &name), name, span, target))
+        .find(|(range, ..)| contains(range, pos))
+        .map(|(range, name, span, target)| (Reference { span, name, target, ty: crate::parsing::ast::Type::Mixed }, range))
 }
 
 /// Nom de type écrit dans le document (`var x:Dog`, `extends Animal`…) :
@@ -132,8 +181,9 @@ pub fn hover(ws: &Workspace, path: &Path, pos: &Position) -> Option<Hover> {
 /// Mot-clé sous le curseur, hors chaîne et commentaire.
 fn keyword_hover(ws: &Workspace, path: &Path, pos: &Position) -> Option<Hover> {
     let text = ws.text(path)?;
-    let line: Vec<char> = text.lines().nth(pos.line as usize)?.chars().collect();
-    let at = (pos.character as usize).min(line.len());
+    let line_text = text.lines().nth(pos.line as usize)?;
+    let line: Vec<char> = line_text.chars().collect();
+    let at = super::position::char_col(line_text, pos.character);
     let is_word = |c: &char| c.is_alphanumeric() || *c == '_';
     let start = (0..at).rev().take_while(|&i| is_word(&line[i])).last().unwrap_or(at);
     let end = (at..line.len()).find(|&i| !is_word(&line[i])).unwrap_or(line.len());
@@ -146,7 +196,10 @@ fn keyword_hover(ws: &Workspace, path: &Path, pos: &Position) -> Option<Hover> {
     let markdown = super::keywords::doc(&word, &before, &after)?;
     Some(Hover {
         contents: HoverContents::Markup(MarkupContent { kind: MarkupKind::Markdown, value: markdown }),
-        range: Some(Range::new(Position::new(pos.line, start as u32), Position::new(pos.line, end as u32))),
+        range: Some(Range::new(
+            Position::new(pos.line, super::position::utf16_col(line_text, start) as u32),
+            Position::new(pos.line, super::position::utf16_col(line_text, end) as u32),
+        )),
     })
 }
 

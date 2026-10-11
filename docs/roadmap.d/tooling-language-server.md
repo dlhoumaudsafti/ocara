@@ -194,14 +194,29 @@ occurrences dans le texte) :
   compilée (voir [langage-classes-homonymes-fusionnees.md](langage-classes-homonymes-fusionnees.md)),
   les autres affichent donc 0 référence.
 
+## Étape 5 — limites levées (2026-10-11)
+
+- **Survol des déclarations** : la sema indexe chaque variable à sa
+  déclaration (`declare_local` : paramètres, `var`/`const`, variables de
+  boucle, binding `on e`) — survol d'une variable jamais utilisée ; le
+  serveur reconnaît le nom d'une classe, méthode, champ, constante,
+  fonction, interface, module ou enum sous le curseur. Une déclaration ne
+  compte pas comme sa propre référence.
+- **Colonnes UTF-16** (unité du protocole) : conversion aux frontières du
+  serveur (`position::utf16_col`/`char_col`) — positions justes après un
+  caractère hors du plan de base (emoji).
+- **Fichiers modifiés hors de l'éditeur** : le client surveille les `.oc`
+  (`workspace/didChangeWatchedFiles`) ; l'index est mis à jour et les
+  documents ouverts réanalysés.
+- **Reprise sur erreur dans les fichiers importés** : en mode tolérant,
+  un fichier importé en erreur de syntaxe est analysé partiellement, ses
+  erreurs remontent en tête du document d'entrée.
+
 ## Étapes suivantes
 
-1. Limites connues : pas de survol sur une variable jamais utilisée ni sur
-   le nom d'une déclaration ; colonnes comptées en caractères, pas en
-   unités UTF-16 ; un fichier créé hors de l'éditeur n'entre dans l'index
-   qu'à son ouverture ; un fichier importé en erreur de syntaxe arrête
-   l'analyse de son projet (seul le fichier d'entrée est tolérant).
-2. Client JetBrains (voir [tooling-jetbrains-plugin.md](tooling-jetbrains-plugin.md)).
+- Client JetBrains (voir [tooling-jetbrains-plugin.md](tooling-jetbrains-plugin.md)).
+- Fonctions libres homonymes de namespaces différents (seuls les types sont
+  distingués, voir [langage-classes-homonymes-fusionnees.md](langage-classes-homonymes-fusionnees.md)).
 
 ## En attendant (gains rapides sur l'extension actuelle)
 

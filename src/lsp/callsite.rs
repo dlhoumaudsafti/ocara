@@ -31,7 +31,7 @@ pub fn offset(text: &str, pos: &Position) -> usize {
     let mut offset = 0;
     for (i, line) in text.split('\n').enumerate() {
         if i == pos.line as usize {
-            return offset + (pos.character as usize).min(line.chars().count());
+            return offset + super::position::char_col(line, pos.character);
         }
         offset += line.chars().count() + 1;
     }
@@ -41,7 +41,7 @@ pub fn offset(text: &str, pos: &Position) -> usize {
 fn position(chars: &[char], index: usize) -> Position {
     let before = &chars[..index];
     let line = before.iter().filter(|c| **c == '\n').count();
-    let col = before.iter().rev().take_while(|c| **c != '\n').count();
+    let col: usize = before.iter().rev().take_while(|c| **c != '\n').map(|c| c.len_utf16()).sum();
     Position::new(line as u32, col as u32)
 }
 

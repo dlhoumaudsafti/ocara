@@ -13,7 +13,7 @@ use serde_json::json;
 
 use super::decls;
 use super::features::{parse_document, reference_at, to_url};
-use super::position::{contains, name_range};
+use super::position::{char_col, contains, name_range};
 use super::project::{decl_key, start_of, DeclKey, ProjectIndex, TypeDecl};
 use super::workspace::Workspace;
 use crate::parsing::ast::{ClassMember, Program};
@@ -143,7 +143,8 @@ fn name_at(ws: &Workspace, loc: &Location) -> Option<String> {
     let path = loc.uri.to_file_path().ok()?;
     let text = ws.text(&path)?;
     let line = text.lines().nth(loc.range.start.line as usize)?;
-    Some(line.chars().skip(loc.range.start.character as usize).take((loc.range.end.character - loc.range.start.character) as usize).collect())
+    let (start, end) = (char_col(line, loc.range.start.character), char_col(line, loc.range.end.character));
+    Some(line.chars().skip(start).take(end - start).collect())
 }
 
 /// Classe, interface, generic, module, enum ou fonction de premier niveau.
@@ -171,7 +172,8 @@ fn import_locations(ws: &Workspace, index: &ProjectIndex, name: &str, file_renam
                 let range = name_range(&text, &from, name);
                 if range.start == range.end { break; }
                 out.push(Location::new(to_url(&file), range));
-                from.col = range.end.character as usize + 2;
+                let line = text.lines().nth(range.end.line as usize).unwrap_or("");
+                from.col = char_col(line, range.end.character) + 2;
             }
         };
         for imp in &own.imports {

@@ -97,7 +97,7 @@ pub fn check_imports(program: &Program, source_dir: &Path, input: &Path) -> Resu
 }
 
 /// Import namespace (`import a.b.C`) → import virtuel `C` depuis `a/b/C`.
-fn virtual_from(imp: &ImportDecl) -> ImportDecl {
+pub(super) fn virtual_from(imp: &ImportDecl) -> ImportDecl {
     ImportDecl {
         path: vec![imp.path.last().cloned().unwrap_or_default()],
         alias: imp.alias.clone(),
@@ -125,7 +125,19 @@ pub fn resolve_import_path(file_path_str: &str, parent_dir: &Path, parent_namesp
     source_dir.join(clean_path).with_extension("oc")
 }
 
-fn parse_module(file_path: &Path) -> Result<Program, Diagnostic> {
+/// Fichier importé analysé en mode tolérant : programme partiel et erreurs
+/// de syntaxe (le lexing reste bloquant).
+fn parse_module_recovering(file_path: &Path) -> Result<(Program, Vec<Diagnostic>), Diagnostic> {
+    let src = crate::core::source::read(file_path)
+        .map_err(|e| Diagnostic::error(file_path, 0, 0, format!("reading file '{}': {}", file_path.display(), e)))?;
+    let tokens = Lexer::new(&src).tokenize()
+        .map_err(|e| Diagnostic::error(file_path, 0, 0, format!("{}", e)))?;
+    let (program, errors) = Parser::new(tokens).parse_program_recovering();
+    let syntax = errors.into_iter().map(|e| Diagnostic::error(file_path, e.span.line, e.span.col, e.message)).collect();
+    Ok((program, syntax))
+}
+
+pub(super) fn parse_module(file_path: &Path) -> Result<Program, Diagnostic> {
     let src = crate::core::source::read(file_path)
         .map_err(|e| Diagnostic::error(file_path, 0, 0, format!("reading file '{}': {}", file_path.display(), e)))?;
     let tokens = Lexer::new(&src).tokenize()
@@ -143,7 +155,10 @@ pub fn load_imports(
     source_dir: &Path,
     input: &Path,
     all_interfaces: &HashMap<String, InterfaceDecl>,
-) -> Result<(), Diagnostic> {
+    homonyms: &super::homonyms::Homonyms,
+    tolerant: bool,
+) -> Result<Vec<Diagnostic>, Diagnostic> {
+    let mut syntax = Vec::new();
     let mut processed: HashSet<(PathBuf, String)> = HashSet::new();
     let mut parsed_files_cache: HashMap<PathBuf, Program> = HashMap::new();
     let mut imports_to_process: Pending = Vec::new();
@@ -175,7 +190,13 @@ pub fn load_imports(
         let mut mod_prog = match parsed_files_cache.get(&canonical_path) {
             Some(cached) => cached.clone(),
             None => {
-                let parsed = parse_module(&file_path)?;
+                let parsed = if tolerant {
+                    let (parsed, errors) = parse_module_recovering(&file_path)?;
+                    syntax.extend(errors);
+                    parsed
+                } else {
+                    parse_module(&file_path)?
+                };
                 parsed_files_cache.insert(canonical_path.clone(), parsed.clone());
                 parsed
             }
@@ -188,6 +209,7 @@ pub fn load_imports(
         // core::alias_resolve) : les symboles fusionnés gardent leur vrai nom.
         let mod_file_aliases = compute_aliases(&mod_prog.imports, all_interfaces, &file_path)?;
         resolve_aliases(&mut mod_prog, &mod_file_aliases);
+        homonyms.apply(&mut mod_prog, &file_path);
 
         if is_wildcard {
             for iface in &mod_prog.interfaces {
@@ -200,6 +222,11 @@ pub fn load_imports(
             program.modules.extend(mod_prog.modules);
             program.generics.extend(mod_prog.generics);
         } else {
+            // Symbole homonyme : demandé sous son nom interne dans ce fichier.
+            let mut imp = imp;
+            if let Some(int) = imp.path.first().and_then(|n| homonyms.internal(&canonical_path, n)) {
+                imp.path[0] = int;
+            }
             merge_requested(program, &mod_prog, &imp, &file_path, &current_file_dir, &loaded_namespace, &mut imports_to_process, input)?;
         }
 
@@ -222,7 +249,7 @@ pub fn load_imports(
     }
 
     dedup(program);
-    Ok(())
+    Ok(syntax)
 }
 
 /// Import sélectif : le symbole demandé (classe → generic → interface →
