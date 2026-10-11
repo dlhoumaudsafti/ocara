@@ -1,8 +1,8 @@
 <layout title="${car_details['car'].reference}" active="home">
   <a class="back-link" href="/">&larr; Retour à la flotte</a>
 
-  <alert kind="error" message="${error_text}">
-  <alert kind="success" message="${success_text}">
+  <alert kind="error" message="${car_details['error_text']}">
+  <alert kind="success" message="${car_details['success_text']}">
 
   <section class="card car-detail-header">
     <h1>${car_details['car'].reference} <span class="car-model-inline">${car_details['car'].brand} ${car_details['car'].model}</span></h1>

@@ -1,0 +1,41 @@
+namespace context.home.infra.view
+
+import ocara.HTML
+import context.home.domain.entity.CarSummaryEntity
+import context.home.domain.contract.HomeViewContract
+import context.home.app.usecase.helpers.Format
+
+class HomeView implements HomeViewContract {
+    public static method show(
+        cars:array<CarSummaryEntity>,
+        total_purchase_value:float,
+        total_estimated_value:float,
+        error_text:string,
+        success_text:string
+    ): string {
+        const home:map<string, string> = {
+            "cars_html": "",
+            "car_count": cars.len().toStr(),
+            "purchase_text": Format::price(total_purchase_value),
+            "estimated_text": Format::price(total_estimated_value),
+            "gain_text": Format::price(total_estimated_value - total_purchase_value),
+            "error_text": error_text,
+            "success_text": success_text
+        }
+        for car in cars {
+            home['cars_html'] += `<car-card
+                id="${car.id.toStr()}"
+                reference="${car.reference}"
+                brand="${car.brand}"
+                model="${car.model}"
+                purchase_price="${Format::price(car.purchasePrice)}"
+                estimated_price="${Format::price(car.estimatedPrice)}"
+                maintenance_total="${Format::price(car.maintenanceTotal)}"
+            >`
+        }
+        if cars.len() equal 0 {
+            home['cars_html'] = `<p class="empty">Aucune voiture pour le moment — ajoutez la première ci-dessus.</p>`
+        }
+        return HTML::renderFile('templates/home/home.html')
+    }
+}
