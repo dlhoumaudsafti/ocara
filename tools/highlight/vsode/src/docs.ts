@@ -50,13 +50,6 @@ export function docLink(label: string, relPath: string, heading?: string): strin
     return `[${label}](command:${OPEN_DOC_COMMAND}?${args})`;
 }
 
-/** Markdown du survol autorisé à déclencher `ocara.openDoc` (et rien d'autre). */
-export function trustedMarkdown(text: string): vscode.MarkdownString {
-    const md = new vscode.MarkdownString(text);
-    md.isTrusted = { enabledCommands: [OPEN_DOC_COMMAND] };
-    return md;
-}
-
 /**
  * Liens relatifs d'un extrait de `docs/builtins/<fichier>` (`[Regex](Regex.md)`,
  * `[EBNF](../EBNF.md#...)`) → liens `ocara.openDoc` vers la copie embarquée ;
@@ -69,20 +62,4 @@ export function rewriteDocLinks(markdown: string, fromDir: 'builtins' | ''): str
         const known = rel === 'EBNF.md' || /^builtins\/[^/]+\.md$/.test(rel);
         return known ? docLink(label, rel) : label;
     });
-}
-
-let ebnfHeadings: string[] | undefined;
-
-/** Titre de la section `number` de l'EBNF embarqué (`"9.2"` → `"9.2 Variable de bloc (\`scoped\`)"`). */
-export function ebnfHeading(number: string): string | undefined {
-    if (!ebnfHeadings) {
-        try {
-            const text = fs.readFileSync(path.join(docsRoot, 'EBNF.md'), 'utf8');
-            ebnfHeadings = text.split('\n').filter(l => /^#{2,4}\s/.test(l)).map(l => l.replace(/^#+\s+/, '').trim());
-        } catch {
-            ebnfHeadings = [];
-        }
-    }
-    const prefix = new RegExp(`^${number.replace(/\./g, '\\.')}\\.?\\s`);
-    return ebnfHeadings.find(h => prefix.test(h));
 }

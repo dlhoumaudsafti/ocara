@@ -21,7 +21,7 @@ use super::expressions::Expr;
 use super::statements::Stmt;
 use crate::parsing::token::Span;
 
-fn shift_span(span: &mut Span, origin: &Span) {
+pub fn shift_span(span: &mut Span, origin: &Span) {
     if span.file.is_none() {
         span.file = origin.file.clone();
         span.runtime_ctx = origin.runtime_ctx.clone();

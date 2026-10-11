@@ -72,4 +72,12 @@ class CarRepository implements CarContract {
             db.commit()
         })
     }
+
+    public static method delete(id:int): void {
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            db.prepare("DELETE FROM cars WHERE id = :id")
+            db.bind({"id": id})
+            db.commit()
+        })
+    }
 }

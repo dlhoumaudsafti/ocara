@@ -39,10 +39,16 @@ pub struct Parser {
     /// Initialiseurs `property nom:T = expr` du corps en cours de lecture —
     /// voir `property_init.rs`.
     pub(super) property_initializers: Vec<(String, Expr, Span)>,
+    /// Noms de type lus (annotations, `extends`, `implements`, `modules`,
+    /// filtres `is`), avec leur position — voir `Program::type_refs`.
+    pub(super) type_refs: Vec<(String, Span)>,
+    /// Mode tolérant (`parse_program_recovering`) et erreurs déjà notées.
+    pub(super) recover: bool,
+    pub(super) errors: Vec<ParseError>,
 }
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, pos: 0, property_initializers: Vec::new() }
+        Self { tokens, pos: 0, property_initializers: Vec::new(), type_refs: Vec::new(), recover: false, errors: Vec::new() }
     }
 }

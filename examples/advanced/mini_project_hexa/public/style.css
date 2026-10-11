@@ -196,6 +196,11 @@ footer {
   align-items: end;
 }
 
+.delete-form {
+  margin-top: 16px;
+  text-align: right;
+}
+
 label {
   display: flex;
   flex-direction: column;
@@ -234,6 +239,15 @@ button {
 }
 
 button:hover { background: var(--brand-dark); }
+
+button.primary { background: var(--accent); }
+button.primary:hover { background: #1e5fc4; }
+button.danger { background: var(--danger); }
+button.danger:hover { background: #a12f2f; }
+button.warning { background: var(--amber); }
+button.warning:hover { background: #8c5f1a; }
+button.success { background: var(--success); }
+button.success:hover { background: #166c46; }
 
 /* ── Alertes flash ────────────────────────────────────────────────────── */
 

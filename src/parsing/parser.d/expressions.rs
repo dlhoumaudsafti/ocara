@@ -433,6 +433,11 @@ impl Parser {
                             let mut sub_parser = Parser::new(sub_tokens);
                             let mut expr = sub_parser.parse_expr()?;
                             crate::parsing::ast::shift_expr_spans(&mut expr, &expr_start);
+                            // Noms de type de l'interpolation (`${Format::price(x)}`).
+                            for (name, mut name_span) in std::mem::take(&mut sub_parser.type_refs) {
+                                crate::parsing::ast::shift_span(&mut name_span, &expr_start);
+                                self.type_refs.push((name, name_span));
+                            }
                             parts.push(TemplatePartExpr::Expr(Box::new(expr)));
                         }
                     }
@@ -592,6 +597,8 @@ impl Parser {
                 // Accès statique : `Class::method(...)` ou `Class::NAME`
                 if self.check_exact(&TokenKind::ColonColon) {
                     self.advance();
+                    // Classe telle qu'écrite (avant toute substitution `wiring`).
+                    self.type_refs.push((name.clone(), span.clone()));
                     let (member, _) = self.eat_ident()?;
                     if self.check_exact(&TokenKind::LParen) {
                         // Appel de méthode statique

@@ -64,7 +64,7 @@ fn all_interfaces(ifaces: &[InterfaceDecl]) -> HashMap<String, InterfaceDecl> {
 #[test]
 fn compute_aliases_maps_alias_to_last_path_segment() {
     let imports = vec![import(&["configs", "Server"], Some("HTTP"))];
-    let map = compute_aliases(&imports, &HashMap::new(), &dummy_file());
+    let map = compute_aliases(&imports, &HashMap::new(), &dummy_file()).unwrap();
     assert_eq!(map.get("HTTP"), Some(&"Server".to_string()));
     assert_eq!(map.len(), 1);
 }
@@ -73,7 +73,7 @@ fn compute_aliases_maps_alias_to_last_path_segment() {
 #[test]
 fn compute_aliases_ignores_imports_without_alias() {
     let imports = vec![import(&["configs", "Server"], None)];
-    assert!(compute_aliases(&imports, &HashMap::new(), &dummy_file()).is_empty());
+    assert!(compute_aliases(&imports, &HashMap::new(), &dummy_file()).unwrap().is_empty());
 }
 
 /// `import X as X` (alias identique au nom réel, cas dégénéré mais possible
@@ -83,7 +83,7 @@ fn compute_aliases_ignores_imports_without_alias() {
 #[test]
 fn compute_aliases_ignores_alias_identical_to_real_name() {
     let imports = vec![import(&["Server"], Some("Server"))];
-    assert!(compute_aliases(&imports, &HashMap::new(), &dummy_file()).is_empty());
+    assert!(compute_aliases(&imports, &HashMap::new(), &dummy_file()).unwrap().is_empty());
 }
 
 // ── compute_aliases : interfaces `wiring` (docs/roadmap.d/langage-interface-wiring.md) ──
@@ -95,7 +95,7 @@ fn compute_aliases_ignores_alias_identical_to_real_name() {
 fn compute_aliases_maps_to_wiring_target_when_alias_matches_first_wiring() {
     let imports = vec![import(&["app", "Repo"], Some("PostgresRepo"))];
     let ifaces = all_interfaces(&[iface_with_wirings("Repo", &["infra.db.PostgresRepo", "infra.mem.InMemoryRepo"])]);
-    let map = compute_aliases(&imports, &ifaces, &dummy_file());
+    let map = compute_aliases(&imports, &ifaces, &dummy_file()).unwrap();
     assert_eq!(map.get("PostgresRepo"), Some(&"PostgresRepo".to_string()));
 }
 
@@ -108,7 +108,7 @@ fn compute_aliases_maps_to_wiring_target_when_alias_matches_first_wiring() {
 fn compute_aliases_maps_to_wiring_target_when_alias_matches_second_wiring() {
     let imports = vec![import(&["app", "Repo"], Some("InMemoryRepo"))];
     let ifaces = all_interfaces(&[iface_with_wirings("Repo", &["infra.db.PostgresRepo", "infra.mem.InMemoryRepo"])]);
-    let map = compute_aliases(&imports, &ifaces, &dummy_file());
+    let map = compute_aliases(&imports, &ifaces, &dummy_file()).unwrap();
     assert_eq!(map.get("InMemoryRepo"), Some(&"InMemoryRepo".to_string()));
 }
 
@@ -119,7 +119,7 @@ fn compute_aliases_maps_to_wiring_target_when_alias_matches_second_wiring() {
 fn compute_aliases_falls_back_to_real_name_when_interface_has_no_wirings() {
     let imports = vec![import(&["app", "Logger"], Some("Log"))];
     let ifaces = all_interfaces(&[iface_with_wirings("Logger", &[])]);
-    let map = compute_aliases(&imports, &ifaces, &dummy_file());
+    let map = compute_aliases(&imports, &ifaces, &dummy_file()).unwrap();
     assert_eq!(map.get("Log"), Some(&"Logger".to_string()));
 }
 
@@ -130,7 +130,7 @@ fn compute_aliases_falls_back_to_real_name_when_interface_has_no_wirings() {
 fn compute_aliases_ignores_unrelated_symbols_not_in_interfaces_map() {
     let imports = vec![import(&["models", "User"], Some("Model"))];
     let ifaces = all_interfaces(&[iface_with_wirings("Repo", &["infra.db.PostgresRepo"])]);
-    let map = compute_aliases(&imports, &ifaces, &dummy_file());
+    let map = compute_aliases(&imports, &ifaces, &dummy_file()).unwrap();
     assert_eq!(map.get("Model"), Some(&"User".to_string()));
 }
 

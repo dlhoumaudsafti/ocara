@@ -50,23 +50,181 @@ plus que relayer les requêtes :
   `callsite.ts`, `runtimecontext.ts`, de la logique de résolution de
   `extension.ts`.
 
-## Points à trancher
+## Choix tranchés (2026-10-08)
 
-- **Protocole** : LSP complet dès le départ, ou `--check --json` d'abord
-  (plus simple, appel ponctuel par fichier) ?
-- **Analyse incrémentale / tolérance aux erreurs** : la sema s'arrête
-  aujourd'hui à la première erreur bloquante de certaines phases (imports,
-  `process::exit` dans `src/main.rs`) — un serveur de langage doit
-  continuer sur un fichier partiellement invalide (texte en cours de
-  frappe). Demande de remonter des erreurs au lieu de quitter le processus.
-- **Positions** : les spans des nœuds AST ne couvrent souvent qu'un point de
-  départ (ligne/colonne), pas une plage — à étendre pour des surlignages et
-  des renommages précis.
-- **Dépendances** : implémentation LSP maison (JSON-RPC sur stdio) ou crate
-  dédiée (`tower-lsp`, `lsp-server`) — impact sur le temps de build et la
-  règle « jamais `cargo` direct, toujours via le Makefile ».
-- **ocaracs** : intégré au serveur (diagnostics de style sur le texte en
-  cours) ou laissé en outil séparé.
+- **Protocole** : LSP complet (`ocara --lsp`), livré par étapes — pas de
+  format `--check --json` intermédiaire.
+- **Dépendances** : crates `lsp-server` + `lsp-types` (celles de
+  rust-analyzer, synchrones) et `serde_json`.
+- **Extension** : client léger ; chaque fonctionnalité prise en charge par le
+  serveur remplace son équivalent TypeScript.
+- **ocaracs** : reste un outil séparé, appelé par l'extension.
+
+## Étape 1 — faite (2026-10-08)
+
+- **Analyse partagée** (`src/core/analysis.d/`) : lecture, parsing,
+  imports, vérifications de structure, désucrages et sema sortis de
+  `main.rs`. Plus aucun `process::exit` sur ce chemin : chaque erreur est un
+  `core::diagnostics::Diagnostic`, affiché par le CLI à l'identique,
+  publié par le serveur. `compute_aliases` et `expand_runtime_imports`
+  retournent leur erreur.
+- **Texte non enregistré** : `core::source` lit les fichiers `.oc` (entrée,
+  imports, pré-scan des interfaces, runtime imports) avec le texte des
+  documents ouverts à la place du disque.
+- **Index des références** (`sema::index`) : la sema note, si on le lui
+  demande, chaque nom résolu (variable locale avec sa déclaration,
+  constante, classe, fonction, méthode, champ, constante de classe,
+  argument nommé → paramètre) et son type.
+- **Serveur** (`src/lsp/`) : diagnostics en direct à chaque frappe (10 ms
+  sur `mini_project_hexa`), erreurs d'un fichier importé rapportées en tête
+  du document avec un lien ; survol (type d'une variable, signature et
+  commentaires `//` d'une déclaration, documentation des méthodes builtin
+  depuis `docs/builtins/*.md` via `builtins-data.json`, méthode héritée
+  d'un builtin) ; définition (noms, lignes `import`, `runtime`, `wiring`,
+  argument nommé) ; symboles du document. Racine des imports : premier
+  dossier contenant un `main.oc` en remontant depuis le fichier.
+- **Extension** : client `vscode-languageclient` (`lspclient.ts`) ; le
+  fournisseur de définition à regex d'`extension.ts` est supprimé, le survol
+  TypeScript ne documente plus que les mots-clés.
+
+## Étape 2 — faite (2026-10-09)
+
+- **Complétion** : le serveur analyse une copie du document où le nom en
+  cours de frappe est remplacé par un marqueur (`__ocara_cursor`) et les
+  parenthèses ouvertes refermées (`lsp/callsite.rs`) ; la sema rapporte au
+  marqueur le **type réel** du receveur (`a.`, chaîne d'appels, `self`,
+  retour de méthode) ou les noms visibles. Membres hérités (classe
+  utilisateur ou builtin), membres statiques et constantes (`A::`),
+  sucre `String`/`Array`/`Map` et conversions `Convert` sur un primitif,
+  propriétés des exceptions, variables/fonctions/constantes/classes
+  visibles, classes après `use`, noms des paramètres restants dans un appel
+  nommé. Chaque appel complété insère ses paramètres comme champs.
+- **Aide à la signature** : cible de l'appel résolue par la sema ;
+  paramètre actif par position ou par nom.
+- **Références et CodeLens** (`lsp/project.rs`, `lsp/navigation.rs`) :
+  index de l'espace de travail construit à la première demande (chaque
+  projet depuis son `main.oc`, chaque fichier non importé seul — ~1 s pour
+  les 313 fichiers du dépôt), réanalysé entrée par entrée quand un document
+  change. Références groupées par déclaration (un appel via une
+  sous-classe ou une interface compte pour la méthode déclarante) ;
+  implémentations et overrides calculés sur le programme fusionné de
+  chaque entrée (classes homonymes de projets différents distinctes).
+- **Mots-clés** : documentation au survol servie par le serveur (table
+  `lsp/keywords.rs`, titres relus dans l'EBNF embarqué).
+- **Sucre `Convert`** (`s.toInt()`) indexé : survol de la méthode réellement
+  appelée.
+- Pendant une erreur de syntaxe, survol et définition utilisent le dernier
+  programme vérifié du document.
+- **Extension** : plus aucune heuristique de résolution — `completion.ts`,
+  `signature.ts`, `callsite.ts`, `runtimecontext.ts`, `primitives.ts`,
+  `builtins.ts`, `codelens.ts`, `declarations.ts`, `resolver.ts`,
+  `hover.ts` et `keywords.ts` supprimés. Restent : client LSP, commandes
+  (compiler, lancer, dump, documentation), ocaracs.
+
+## Étape 3 — faite (2026-10-09)
+
+- **Noms de type** : le parseur note chaque nom de type écrit dans un
+  fichier (annotations `var x:Dog`, paramètres, retours, `extends`,
+  `implements`, `modules`, filtres `on e is X`, `x is X`) avec sa position,
+  dans `Program::type_refs` (liste à part : `Type` reste sans span). Survol,
+  définition et références d'une classe les couvrent, ainsi que ses
+  CodeLens.
+- **Renommage** (`textDocument/rename`) : déclaration et toutes ses
+  références dans l'espace de travail (variables, paramètres et arguments
+  nommés, champs, méthodes, constantes, classes, fonctions). Pour une
+  déclaration de premier niveau, les lignes `import a.b.Nom`,
+  `import Nom from "…/Nom"` et `wiring a.b.Nom` suivent, et le fichier qui
+  porte son nom est renommé avec elle. Refusé : nom invalide ou mot-clé,
+  builtin, méthode d'une chaîne de redéfinition (parent, sous-classe ou
+  interface — renommer un seul maillon casserait le polymorphisme).
+
+## Étape 4 — faite (2026-10-09)
+
+- **Reprise du parseur sur erreur** (`parser.d/recovery.rs`, mode tolérant
+  `parse_program_recovering`, utilisé par le serveur seulement) : une
+  erreur est notée et le parseur reprend à l'instruction suivante (nouvelle
+  ligne au même niveau d'accolades, ou fin du bloc), au membre suivant, ou
+  à la déclaration suivante. Le serveur publie toutes les erreurs de
+  syntaxe et analyse le programme partiel (les erreurs de la sema sur un
+  programme amputé ne sont pas publiées) : survol, définition et
+  complétion fonctionnent malgré une autre ligne cassée. Le CLI s'arrête
+  toujours à la première erreur, sortie inchangée.
+- **Complétion au milieu d'un mot** : le texte patché remplace tout le mot
+  sous le curseur.
+- **Renommage d'une chaîne de redéfinition** : une méthode redéfinie est
+  renommée avec toutes les méthodes liées — ancêtres et interfaces qui la
+  déclarent, puis leurs sous-classes et classes d'implémentation qui la
+  redéclarent — et tous leurs appels ; deux classes sœurs sans ancêtre
+  commun déclarant la méthode restent indépendantes.
+- **Appels via une interface indexés** (`s.speak()` avec `s:Speaker`) ; au
+  passage, constat d'un trou de typage : ces appels ne sont pas vérifiés
+  par la sema (voir
+  [sema-appel-via-interface-non-verifie.md](sema-appel-via-interface-non-verifie.md)).
+
+## Fichiers runtime (2026-10-09)
+
+- Un fichier runtime (`runtime core.main is main`) est analysé à travers le
+  `main.oc` du projet qui l'importe : seul, son contenu n'est pas un
+  programme (`unexpected top-level declaration`).
+- Compilateur : son contenu est enveloppé dans le bloc au niveau des
+  jetons (`runtime_expand::wrap_in_block`) au lieu de réécrire le texte —
+  chaque instruction garde sa ligne et sa colonne, et est rattachée à son
+  fichier. Une erreur y était rapportée dans `main.oc`, à une ligne fausse
+  (commentaires déplacés), par le CLI comme par le serveur ; le préfixe de
+  bloc (`main.ERROR`) est calculé par fichier.
+- Les diagnostics d'un fichier importé ne remontent en tête du document
+  d'entrée que si ce sont des erreurs (un avertissement reste dans son
+  fichier).
+
+## Passe sur les CodeLens (2026-10-09)
+
+Audit sur les projets d'exemple (CodeLens « 0 référence » comparés aux
+occurrences dans le texte) :
+
+- Référence de méthode sans appel (`server.route("/", "GET",
+  HomeController::index)`) : indexée — elle manquait.
+- La classe écrite dans `Classe::membre` est notée par le parseur
+  (`type_refs`), avant toute substitution `wiring` : `CarContract::create`
+  compte pour l'interface `CarContract`, et le renommage d'une classe met
+  à jour ses appels statiques.
+- La cible d'un `wiring a.b.Classe` compte comme une référence de la classe.
+- Méthode d'interface : ses références incluent les appels de toute sa
+  famille (un appel `Interface::m()` est résolu vers la classe `wiring`).
+- Reste : classes homonymes de namespaces différents — une seule est
+  compilée (voir [langage-classes-homonymes-fusionnees.md](langage-classes-homonymes-fusionnees.md)),
+  les autres affichent donc 0 référence.
+
+## Étape 5 — limites levées (2026-10-11)
+
+- **Survol des déclarations** : la sema indexe chaque variable à sa
+  déclaration (`declare_local` : paramètres, `var`/`const`, variables de
+  boucle, binding `on e`) — survol d'une variable jamais utilisée ; le
+  serveur reconnaît le nom d'une classe, méthode, champ, constante,
+  fonction, interface, module ou enum sous le curseur. Une déclaration ne
+  compte pas comme sa propre référence.
+- **Colonnes UTF-16** (unité du protocole) : conversion aux frontières du
+  serveur (`position::utf16_col`/`char_col`) — positions justes après un
+  caractère hors du plan de base (emoji).
+- **Fichiers modifiés hors de l'éditeur** : le client surveille les `.oc`
+  (`workspace/didChangeWatchedFiles`) ; l'index est mis à jour et les
+  documents ouverts réanalysés.
+- **Reprise sur erreur dans les fichiers importés** : en mode tolérant,
+  un fichier importé en erreur de syntaxe est analysé partiellement, ses
+  erreurs remontent en tête du document d'entrée.
+
+## Liens vers les fichiers (2026-10-11)
+
+`textDocument/documentLink` (`src/lsp/links.rs`) : une chaîne littérale
+`'…'`/`"…"` qui désigne un fichier existant s'ouvre au Ctrl+clic —
+`HTML::renderFile('templates/…')`, `renderFileCached`, `File::read`,
+`SQLite::open("./app.db")`, ou tout appel utilisateur recevant un chemin.
+Résolution comme à l'exécution : racine du projet (dossier du `main.oc`),
+puis dossier du fichier. Ignorés : commentaires, gabarits backtick, chaînes
+interpolées (`${…}`), chemins inexistants ou désignant un dossier.
+
+## Étapes suivantes
+
+- Client JetBrains (voir [tooling-jetbrains-plugin.md](tooling-jetbrains-plugin.md)).
 
 ## En attendant (gains rapides sur l'extension actuelle)
 

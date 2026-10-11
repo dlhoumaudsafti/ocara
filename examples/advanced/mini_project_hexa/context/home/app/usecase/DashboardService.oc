@@ -10,8 +10,8 @@ class DashboardService {
         var total_purchase:float = 0.0
         var total_estimated:float = 0.0
         for car in cars {
-            total_purchase = total_purchase + car.purchasePrice
-            total_estimated = total_estimated + car.estimatedPrice
+            total_purchase += car.purchasePrice
+            total_estimated += car.estimatedPrice
         }
         return use DashboardDto(
             cars,

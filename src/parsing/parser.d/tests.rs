@@ -339,4 +339,50 @@ mod tests {
         let expr = parse_expr(r#"user["name"]"#);
         assert!(matches!(expr, Expr::Index { .. }));
     }
+
+    // ── Noms de type et leur position (serveur de langage) ──────────────────
+
+    #[test]
+    fn type_refs_record_annotations_and_class_headers() {
+        let program = parse("class Dog extends Animal implements Pet {\n    public method feed(food:Food): array<Bowl> {\n        return []\n    }\n}\n");
+        let refs: Vec<(&str, usize, usize)> = program.type_refs.iter().map(|(n, s)| (n.as_str(), s.line, s.col)).collect();
+        assert_eq!(refs, vec![("Animal", 1, 19), ("Pet", 1, 37), ("Food", 2, 29), ("Bowl", 2, 42)]);
+    }
+
+    #[test]
+    fn type_refs_record_exception_filter() {
+        let program = parse("function main(): int {\n    try {\n        return 0\n    } on e is FileException {\n        return 1\n    }\n}\n");
+        assert!(program.type_refs.iter().any(|(n, s)| n == "FileException" && s.line == 4));
+    }
+
+    // ── Reprise sur erreur (mode tolérant) ──────────────────────────────────
+
+    fn parse_recovering(src: &str) -> (Program, Vec<crate::parsing::parser::types::ParseError>) {
+        let tokens = Lexer::new(src).tokenize().expect("lex error");
+        Parser::new(tokens).parse_program_recovering()
+    }
+
+    #[test]
+    fn recovery_skips_broken_statement_and_keeps_following_code() {
+        let (program, errors) = parse_recovering("function main(): int {\n    var a:int = 1\n    a.\n    return a\n}\n\nfunction helper(n:int): int {\n    return n\n}\n");
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].span.line, 4);
+        let names: Vec<&str> = program.functions.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, vec!["main", "helper"]);
+        assert_eq!(program.functions[0].body.stmts.len(), 2);
+    }
+
+    #[test]
+    fn recovery_skips_broken_declaration() {
+        let (program, errors) = parse_recovering("class Broken extends {\n}\n\nfunction ok(): int {\n    return 1\n}\n");
+        assert_eq!(errors.len(), 1);
+        assert_eq!(program.functions.len(), 1);
+    }
+
+    #[test]
+    fn type_refs_record_static_access_and_wiring_target() {
+        let program = parse("interface Repo {\n    wiring app.db.SqlRepo\n}\n\nfunction main(): int {\n    return Repo::count()\n}\n");
+        let refs: Vec<(&str, usize, usize)> = program.type_refs.iter().map(|(n, s)| (n.as_str(), s.line, s.col)).collect();
+        assert_eq!(refs, vec![("SqlRepo", 2, 19), ("Repo", 6, 12)]);
+    }
 }

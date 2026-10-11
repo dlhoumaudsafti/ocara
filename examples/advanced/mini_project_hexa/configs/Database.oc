@@ -44,10 +44,11 @@ class Database {
         db.execute(`CREATE TABLE IF NOT EXISTS maintenances (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             car_id INTEGER NOT NULL,
-            type TEXT NOT NULL,
+            type char(20) NOT NULL,
             description TEXT NOT NULL,
             cost REAL NOT NULL,
-            created_at INTEGER NOT NULL
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY(car_id) REFERENCES cars(id) ON DELETE CASCADE
         )`)
         db.close()
     }

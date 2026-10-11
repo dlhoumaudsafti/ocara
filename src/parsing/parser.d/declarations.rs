@@ -135,7 +135,7 @@ impl Parser {
 
         let extends = if self.check_exact(&TokenKind::Extends) {
             self.advance();
-            Some(self.eat_ident()?.0)
+            Some(self.eat_type_name()?)
         } else {
             None
         };
@@ -143,27 +143,31 @@ impl Parser {
         let mut modules = Vec::new();
         if self.check_exact(&TokenKind::Modules) {
             self.advance();
-            modules.push(self.eat_ident()?.0);
+            modules.push(self.eat_type_name()?);
             while self.check_exact(&TokenKind::Comma) {
                 self.advance();
-                modules.push(self.eat_ident()?.0);
+                modules.push(self.eat_type_name()?);
             }
         }
 
         let mut implements = Vec::new();
         if self.check_exact(&TokenKind::Implements) {
             self.advance();
-            implements.push(self.eat_ident()?.0);
+            implements.push(self.eat_type_name()?);
             while self.check_exact(&TokenKind::Comma) {
                 self.advance();
-                implements.push(self.eat_ident()?.0);
+                implements.push(self.eat_type_name()?);
             }
         }
 
         self.eat(&TokenKind::LBrace)?;
         let mut members = Vec::new();
         while !self.check_exact(&TokenKind::RBrace) {
-            members.push(self.parse_class_member()?);
+            let start = self.pos;
+            match self.parse_class_member() {
+                Ok(member) => members.push(member),
+                Err(e) => self.recover_member(e, start)?,
+            }
         }
         self.eat(&TokenKind::RBrace)?;
         let implicit_init = self.inject_property_initializers(&mut members, &span);
@@ -316,7 +320,7 @@ impl Parser {
         let mut extends_args = Vec::new();
         if self.check_exact(&TokenKind::Extends) {
             self.advance();
-            extends = Some(self.eat_ident()?.0);
+            extends = Some(self.eat_type_name()?);
             
             // Arguments de type optionnels pour extends
             if self.check_exact(&TokenKind::Lt) {
@@ -334,10 +338,10 @@ impl Parser {
         let mut modules = Vec::new();
         if self.check_exact(&TokenKind::Modules) {
             self.advance();
-            modules.push(self.eat_ident()?.0);
+            modules.push(self.eat_type_name()?);
             while self.check_exact(&TokenKind::Comma) {
                 self.advance();
-                modules.push(self.eat_ident()?.0);
+                modules.push(self.eat_type_name()?);
             }
         }
 
@@ -345,10 +349,10 @@ impl Parser {
         let mut implements = Vec::new();
         if self.check_exact(&TokenKind::Implements) {
             self.advance();
-            implements.push(self.eat_ident()?.0);
+            implements.push(self.eat_type_name()?);
             while self.check_exact(&TokenKind::Comma) {
                 self.advance();
-                implements.push(self.eat_ident()?.0);
+                implements.push(self.eat_type_name()?);
             }
         }
 
@@ -356,7 +360,11 @@ impl Parser {
         self.eat(&TokenKind::LBrace)?;
         let mut members = Vec::new();
         while !self.check_exact(&TokenKind::RBrace) {
-            members.push(self.parse_class_member()?);
+            let start = self.pos;
+            match self.parse_class_member() {
+                Ok(member) => members.push(member),
+                Err(e) => self.recover_member(e, start)?,
+            }
         }
         self.eat(&TokenKind::RBrace)?;
         self.inject_property_initializers(&mut members, &span);
@@ -383,7 +391,11 @@ impl Parser {
         self.eat(&TokenKind::LBrace)?;
         let mut members = Vec::new();
         while !self.check_exact(&TokenKind::RBrace) {
-            members.push(self.parse_class_member()?);
+            let start = self.pos;
+            match self.parse_class_member() {
+                Ok(member) => members.push(member),
+                Err(e) => self.recover_member(e, start)?,
+            }
         }
         self.eat(&TokenKind::RBrace)?;
         if let Some((field, _, field_span)) = self.property_initializers.drain(..).next() {
@@ -474,10 +486,16 @@ impl Parser {
     fn parse_wiring_decl(&mut self) -> ParseResult<WiringDecl> {
         let span = self.span();
         self.eat(&TokenKind::Wiring)?;
-        let mut path = vec![self.eat_ident()?.0];
+        let (first, mut last_span) = self.eat_ident()?;
+        let mut path = vec![first];
         while self.check_exact(&TokenKind::Dot) {
             self.advance();
-            path.push(self.eat_ident()?.0);
+            let (segment, segment_span) = self.eat_ident()?;
+            path.push(segment);
+            last_span = segment_span;
+        }
+        if let Some(target) = path.last() {
+            self.type_refs.push((target.clone(), last_span));
         }
         Ok(WiringDecl { path, span })
     }

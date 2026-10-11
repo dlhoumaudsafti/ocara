@@ -4,14 +4,14 @@
     <search-bar q="">
   </div>
 
-  <alert kind="error" message="${error_text}">
-  <alert kind="success" message="${success_text}">
+  <alert kind="error" message="${home.error_text}">
+  <alert kind="success" message="${home.success_text}">
 
   <div class="stats-row">
-    <stat-badge label="Voitures" value="${car_count}">
-    <stat-badge label="Valeur d'achat totale" value="${purchase_text}">
-    <stat-badge label="Valeur estimée totale" value="${estimated_text}">
-    <stat-badge label="Plus-value entretiens" value="${gain_text}">
+    <stat-badge label="Voitures" value="${home.car_count}">
+    <stat-badge label="Valeur d'achat totale" value="${home.purchase_price}">
+    <stat-badge label="Valeur estimée totale" value="${home.estimated_price}">
+    <stat-badge label="Plus-value entretiens" value="${home.profit}">
   </div>
 
   <section class="card">
@@ -35,6 +35,6 @@
 
   <section>
     <h2>Toutes les voitures</h2>
-    <div class="cars-grid">${cars_html}</div>
+    <div class="cars-grid">${home.cars_html}</div>
   </section>
 </layout>

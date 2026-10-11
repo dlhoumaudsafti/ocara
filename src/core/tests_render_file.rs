@@ -11,8 +11,8 @@ fn call_span() -> Span {
     span
 }
 
-fn template_from(content: &str) -> Expr {
-    let dir = std::env::temp_dir().join(format!("ocara_render_file_{}", std::process::id()));
+fn template_from(name: &str, content: &str) -> Expr {
+    let dir = std::env::temp_dir().join(format!("ocara_render_file_{}_{}", std::process::id(), name));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("page.html");
     std::fs::write(&path, content).unwrap();
@@ -31,7 +31,7 @@ fn interpolated_spans(expr: &Expr) -> Vec<Span> {
 
 #[test]
 fn interpolations_point_to_render_file_call() {
-    let expr = template_from("<p>${name}</p>\n<p>${other}</p>\n");
+    let expr = template_from("calls", "<p>${name}</p>\n<p>${other}</p>\n");
     let spans = interpolated_spans(&expr);
     assert_eq!(spans.len(), 2);
     for span in spans {
@@ -43,7 +43,7 @@ fn interpolations_point_to_render_file_call() {
 
 #[test]
 fn nested_expression_keeps_call_line_and_file() {
-    let expr = template_from("${a + b}");
+    let expr = template_from("nested", "${a + b}");
     let Expr::Template { parts, .. } = &expr else { panic!("template attendu") };
     let Some(TemplatePartExpr::Expr(e)) = parts.first() else { panic!("interpolation attendue") };
     let Expr::Binary { right, .. } = e.as_ref() else { panic!("binaire attendu") };

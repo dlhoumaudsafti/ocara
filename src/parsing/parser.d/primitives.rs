@@ -61,6 +61,14 @@ impl Parser {
         }
     }
 
+    /// Nom de type (`extends X`, `implements I`, `on e is E`…), noté dans
+    /// `type_refs` avec sa position.
+    pub(super) fn eat_type_name(&mut self) -> ParseResult<String> {
+        let (name, span) = self.eat_ident()?;
+        self.type_refs.push((name.clone(), span));
+        Ok(name)
+    }
+
     pub(super) fn eat_ident(&mut self) -> ParseResult<(String, Span)> {
         let span = self.span();
         match self.peek_kind().clone() {

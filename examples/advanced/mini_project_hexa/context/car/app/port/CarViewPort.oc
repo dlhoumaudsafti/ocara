@@ -1,0 +1,8 @@
+namespace context.car.app.port
+
+import context.car.app.dto.CarDetailsDTO
+
+interface CarViewPort {
+    wiring context.car.infra.view.CarView
+    public static method show(id:int, details:CarDetailsDTO, error_code:string, success_code:string): string
+}

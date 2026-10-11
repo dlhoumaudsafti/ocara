@@ -63,10 +63,12 @@ Produites lors de l'analyse de types et de symboles (`--check` ou compilation).
 fichier.oc:5:10: error: undefined symbol 'foo'
 ```
 
-Variable, fonction ou classe utilisée sans avoir été déclarée.
+Variable, fonction ou classe utilisée sans avoir été déclarée — ou méthode
+appelée sur une classe qui ne la déclare pas (`undefined symbol 'Classe::m'`).
 
 ```ocara
 var x:int = foo          // 'foo' n'existe pas
+String::to_upper(s)      // String n'a pas de méthode to_upper (c'est upper)
 ```
 
 **Correction :** déclarer `foo` avant utilisation, ou corriger le nom.

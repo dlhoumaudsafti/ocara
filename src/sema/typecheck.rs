@@ -3,6 +3,7 @@ use crate::sema::error::{SemaError, SemaWarning};
 use crate::sema::scope::{LocalBinding, ScopeStack, OwnershipClass, ownership_class_of};
 use crate::sema::symbols::{SymbolTable, FuncSig};
 use crate::parsing::token::Span;
+use crate::sema::index::{Completion, Target, COMPLETION_MARKER};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TypeChecker
@@ -12,7 +13,7 @@ pub struct TypeChecker<'a> {
     pub symbols:   &'a SymbolTable,
     pub errors:    Vec<SemaError>,
     pub warnings:  Vec<SemaWarning>,
-    scopes:        ScopeStack,
+    pub(crate) scopes: ScopeStack,
     /// Type de retour de la fonction en cours d'analyse
     current_ret:   Option<Type>,
     /// Nom de la classe en cours (pour `self`)
@@ -46,6 +47,11 @@ pub struct TypeChecker<'a> {
     /// Réécritures de l'AST (arguments nommés, sucre `Convert`) à appliquer
     /// avant le lowering (`core::named_args`).
     pub rewrites: crate::sema::named_args::AstRewrites,
+    /// Références résolues, pour le serveur de langage (voir `sema::index`).
+    pub index: Option<Vec<crate::sema::index::Reference>>,
+    /// Type par clé des maps initialisées par un littéral (voir `sema::map_keys`).
+    pub(crate) map_keys: std::collections::HashMap<String, std::collections::HashMap<String, Type>>,
+    pub(crate) last_map_literal: Option<std::collections::HashMap<String, Type>>,
 }
 
 impl<'a> TypeChecker<'a> {
@@ -66,6 +72,9 @@ impl<'a> TypeChecker<'a> {
             resource_classes: std::collections::HashSet::new(),
             callable_params: std::collections::HashMap::new(),
             rewrites: crate::sema::named_args::AstRewrites::default(),
+            index: None,
+            map_keys: std::collections::HashMap::new(),
+            last_map_literal: None,
         }
     }
     
@@ -233,7 +242,7 @@ impl<'a> TypeChecker<'a> {
                 param.ty.clone()
             };
             
-            self.scopes.declare(
+            self.declare_local(
                 param.name.clone(),
                 LocalBinding { ty: param_ty, mutable: false, span: param.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
             );
@@ -306,7 +315,7 @@ impl<'a> TypeChecker<'a> {
                             p.ty.clone()
                         };
                         
-                        self.scopes.declare(
+                        self.declare_local(
                             p.name.clone(),
                             LocalBinding { ty: param_ty, mutable: false, span: p.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                         );
@@ -522,7 +531,9 @@ impl<'a> TypeChecker<'a> {
                         span: span.clone(),
                     });
                 }
+                self.last_map_literal = None;
                 let val_ty = self.infer_expr(value);
+                self.bind_map_keys(name, ty, value);
                 // `value` peut lui-même être une `scoped`/`consumed` d'un
                 // autre binding (`var y = x`) — c'est un point d'échappement.
                 self.check_escape(value);
@@ -554,7 +565,7 @@ impl<'a> TypeChecker<'a> {
                 // d'une ressource tas). Ces cas se comportent exactement
                 // comme `var` : aucune destruction, aucune restriction —
                 // voir `OwnershipClass::Unsupported` et `check_escape`.
-                if !self.scopes.declare(
+                if !self.declare_local(
                     name.clone(),
                     LocalBinding { ty: ty.clone(), mutable: *mutable, span: span.clone(), used: false, is_param: false, kind: *kind, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                 ) {
@@ -573,7 +584,9 @@ impl<'a> TypeChecker<'a> {
                         span: span.clone(),
                     });
                 }
+                self.last_map_literal = None;
                 let val_ty = self.infer_expr(value);
+                self.bind_map_keys(name, ty, value);
                 self.check_message_scalar_consumption(value, &val_ty, span);
                 if !ty_is_message && !types_compat(&val_ty, ty, &self.symbols) {
                     self.errors.push(SemaError::TypeMismatch {
@@ -582,7 +595,7 @@ impl<'a> TypeChecker<'a> {
                         span:     span.clone(),
                     });
                 }
-                if !self.scopes.declare(
+                if !self.declare_local(
                     name.clone(),
                     LocalBinding { ty: ty.clone(), mutable: false, span: span.clone(), used: false, is_param: false, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                 ) {
@@ -654,7 +667,7 @@ impl<'a> TypeChecker<'a> {
                     }
                 };
                 self.scopes.push();
-                self.scopes.declare(var.clone(), LocalBinding { ty: elem_ty, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
+                self.declare_local(var.clone(), LocalBinding { ty: elem_ty, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
                 self.check_block(body);
                 { let _u = self.scopes.pop_scope(&self.resource_classes); self.flush_warnings(_u); }
             }
@@ -662,8 +675,8 @@ impl<'a> TypeChecker<'a> {
             Stmt::ForMap { key, value, iter, body, span } => {
                 self.infer_expr(iter);
                 self.scopes.push();
-                self.scopes.declare(key.clone(),   LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
-                self.scopes.declare(value.clone(), LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
+                self.declare_local(key.clone(),   LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
+                self.declare_local(value.clone(), LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
                 self.check_block(body);
                 { let _u = self.scopes.pop_scope(&self.resource_classes); self.flush_warnings(_u); }
             }
@@ -802,7 +815,7 @@ impl<'a> TypeChecker<'a> {
                     let binding_ty = handler.class_filter.as_ref()
                         .filter(|c| self.symbols.lookup_class(c).is_some())
                         .map_or(Type::Mixed, |c| Type::Named(c.clone()));
-                    self.scopes.declare(
+                    self.declare_local(
                         handler.binding.clone(),
                         LocalBinding { ty: binding_ty, mutable: false, span: handler.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                     );
@@ -841,6 +854,10 @@ impl<'a> TypeChecker<'a> {
 
             Stmt::Assign { target, value, span } => {
                 let val_ty = self.infer_expr(value);
+                // Map réaffectée en entier : ses types par clé ne valent plus.
+                if let Expr::Ident(name, _) = target {
+                    self.forget_map_keys(name);
+                }
                 // `target = value` : `value` peut être une `scoped`/
                 // `consumed` qui s'échappe vers `target`.
                 self.check_escape(value);
@@ -882,6 +899,16 @@ impl<'a> TypeChecker<'a> {
                     Expr::Index { object, index, .. } => {
                         self.infer_expr(object);
                         self.infer_expr(index);
+                        // Clé d'une map à type par clé : la valeur doit lui correspondre.
+                        if let Some(key_ty) = self.map_key_type(object, index) {
+                            if !types_compat(&val_ty, &key_ty, &self.symbols) {
+                                self.errors.push(SemaError::TypeMismatch {
+                                    expected: type_name(&key_ty),
+                                    found:    type_name(&val_ty),
+                                    span:     span.clone(),
+                                });
+                            }
+                        }
                     }
                     _ => {
                         self.errors.push(SemaError::InvalidAssign {
@@ -1061,9 +1088,16 @@ impl<'a> TypeChecker<'a> {
             }
 
             Expr::Ident(name, span) => {
+                if name == COMPLETION_MARKER {
+                    let names = self.scopes.visible();
+                    self.record(span, name, Target::Completion(Completion::Scope(names)), &Type::Mixed);
+                    return Type::Mixed;
+                }
                 // 1. variable locale
                 if let Some(b) = self.scopes.lookup(name) {
                     let ty = b.ty.clone();
+                    let decl = b.span.clone();
+                    self.record(span, name, Target::Local { decl }, &ty);
                     if let Err(first_use) = self.scopes.use_binding(name, span) {
                         self.errors.push(SemaError::ConsumedUsedTwice {
                             name: name.clone(),
@@ -1075,11 +1109,15 @@ impl<'a> TypeChecker<'a> {
                 }
                 // 2. constante globale
                 if let Some(ty) = self.symbols.lookup_const(name) {
-                    return ty.clone();
+                    let ty = ty.clone();
+                    self.record(span, name, Target::Const(name.clone()), &ty);
+                    return ty;
                 }
                 // 3. nom de classe (utilisé comme type)
                 if self.symbols.lookup_class(name).is_some() {
-                    return Type::Named(name.clone());
+                    let ty = Type::Named(name.clone());
+                    self.record(span, name, Target::Class(name.clone()), &ty);
+                    return ty;
                 }
                 // 4. référence à une fonction libre (sans appel)
                 if let Some(sig) = self.symbols.lookup_function(name) {
@@ -1091,10 +1129,12 @@ impl<'a> TypeChecker<'a> {
                     // typerait `f()` sur le type déclaré nu au lieu du
                     // handle de tâche.
                     let param_tys = sig.params.iter().map(|(_, ty)| ty.clone()).collect();
-                    return Type::Function {
+                    let ty = Type::Function {
                         ret_ty: Box::new(call_ret_ty(sig)),
                         param_tys,
                     };
+                    self.record(span, name, Target::Function(name.clone()), &ty);
+                    return ty;
                 }
                 self.errors.push(SemaError::UndefinedSymbol {
                     name: name.clone(),
@@ -1105,6 +1145,10 @@ impl<'a> TypeChecker<'a> {
 
             Expr::Field { object, field, span } => {
                 let obj_ty = self.infer_expr(object);
+                if field == COMPLETION_MARKER {
+                    self.record(span, field, Target::Completion(Completion::Member), &obj_ty);
+                    return Type::Mixed;
+                }
                 let cls_name = match type_class_name(&obj_ty) {
                     Some(n) => n,
                     None    => return Type::Mixed,
@@ -1115,10 +1159,13 @@ impl<'a> TypeChecker<'a> {
                     // Cherche le champ en remontant la chaîne d'héritage
                     if let Some((owner, f)) = self.symbols.lookup_field_owner(&cls_name, field) {
                         self.check_field_visibility(owner, &f.vis, field, span);
-                        return f.ty.clone();
+                        let ty = f.ty.clone();
+                        self.record(span, field, Target::Field { class: owner.to_string(), name: field.clone() }, &ty);
+                        return ty;
                     }
                     // peut être une méthode sans appel
                     if self.symbols.lookup_method_in_chain(&cls_name, field).is_some() {
+                        self.record(span, field, Target::Method { class: cls_name.clone(), name: field.clone() }, &Type::Mixed);
                         return Type::Mixed;
                     }
                     let _ = info;
@@ -1176,8 +1223,9 @@ impl<'a> TypeChecker<'a> {
                     }
                 }
                 // Résolution : Ident direct → fonction libre
-                if let Expr::Ident(name, _) = callee.as_ref() {
+                if let Expr::Ident(name, name_span) = callee.as_ref() {
                     if let Some(sig) = self.symbols.lookup_function(name) {
+                        self.record(name_span, name, Target::Function(name.clone()), &call_ret_ty(sig));
                         let Some(resolved) = self.resolve_named_call(args, |tc| Some(tc.function_target(name, sig))) else {
                             return Type::Mixed;
                         };
@@ -1406,6 +1454,33 @@ impl<'a> TypeChecker<'a> {
                             }
                         }
                     }
+                    // Valeur typée par une interface : même vérification qu'un
+                    // appel sur une classe (voir docs/roadmap.d/
+                    // sema-appel-via-interface-non-verifie.md) — l'appel était
+                    // typé `mixed` sans contrôle.
+                    if let Some(sig) = self.symbols.lookup_interface(&cls_name).and_then(|i| i.methods.get(field)) {
+                        self.record(fspan, field, Target::Method { class: cls_name.clone(), name: field.clone() }, &call_ret_ty(sig));
+                        let Some(resolved) = self.resolve_named_call(args, |tc| Some(tc.method_target(&cls_name, field, sig, false))) else {
+                            return Type::Mixed;
+                        };
+                        let args: &[Expr] = &resolved;
+                        if sig.is_static {
+                            self.errors.push(SemaError::StaticOnInstance { class: cls_name.clone(), method: field.clone(), span: fspan.clone() });
+                        }
+                        let args_ok = args.len() >= sig.required_params_count && (sig.has_variadic || args.len() <= sig.params.len());
+                        if !args_ok {
+                            self.errors.push(SemaError::WrongArgCount {
+                                name:     format!("{}::{}", cls_name, field),
+                                expected: sig.required_params_count,
+                                found:    args.len(),
+                                span:     span.clone(),
+                            });
+                        }
+                        let ret = call_ret_ty(sig);
+                        self.check_argument_escape(args, false);
+                        for arg in args { self.infer_expr(arg); }
+                        return ret;
+                    }
                     if let Some(info) = self.symbols.lookup_class(&cls_name) {
                         // Classe opaque (import non résolu) — accès permissif
                         if info.is_opaque {
@@ -1440,6 +1515,7 @@ impl<'a> TypeChecker<'a> {
                             cls_name.clone()
                         };
                         if let Some(sig) = self.symbols.lookup_method_in_chain(&method_owner, field).filter(|_| http_receiver_ok) {
+                            self.record(fspan, field, Target::Method { class: method_owner.clone(), name: field.clone() }, &call_ret_ty(sig));
                             // Une méthode static ne peut pas être appelée sur une instance
                             // SAUF pour ces classes : les méthodes sont statiques mais utilisables
                             // comme méthodes d'instance sur les variables (ex: a.trim(), arr.len(), m.size(), data.encode(), req.close(), res.status()).
@@ -1663,6 +1739,7 @@ impl<'a> TypeChecker<'a> {
 
                 // Chercher la méthode dans la chaîne d'héritage
                 if let Some(sig) = self.symbols.lookup_method_in_chain(&resolved_class, method) {
+                    self.record(span, method, Target::Method { class: resolved_class.clone(), name: method.clone() }, &call_ret_ty(sig));
                     let Some(resolved) = self.resolve_named_call(args, |tc| {
                         Some(tc.method_target(&resolved_class, method, sig, false))
                     }) else {
@@ -1729,6 +1806,14 @@ impl<'a> TypeChecker<'a> {
                     }
                     return ret;
                 }
+                // Classe connue sans cette méthode : l'appel était abandonné
+                // en silence à la compilation (valeur `null` à l'exécution).
+                if self.symbols.lookup_class(&resolved_class).is_some_and(|info| !info.is_opaque) {
+                    self.errors.push(SemaError::UndefinedSymbol {
+                        name: format!("{}::{}", resolved_class, method),
+                        span: span.clone(),
+                    });
+                }
                 for arg in args { self.infer_expr(arg); }
                 Type::Mixed
             }
@@ -1750,16 +1835,23 @@ impl<'a> TypeChecker<'a> {
                 } else {
                     class.clone()
                 };
+                if name == COMPLETION_MARKER {
+                    self.record(span, name, Target::Completion(Completion::Static), &Type::Named(resolved_class.clone()));
+                    return Type::Mixed;
+                }
                 // Classe opaque (import non résolu) — accès permissif
                 if let Some(info) = self.symbols.lookup_class(&resolved_class) {
                     if info.is_opaque { return Type::Mixed; }
                 }
                 if let Some((ty, _)) = self.symbols.lookup_class_const(&resolved_class, name) {
-                    return ty.clone();
+                    let ty = ty.clone();
+                    self.record(span, name, Target::ClassConst { class: resolved_class.clone(), name: name.clone() }, &ty);
+                    return ty;
                 }
                 // Référence à une méthode statique sans appel : ClassName::myStatic
                 if let Some(sig) = self.symbols.lookup_method_in_chain(&resolved_class, name) {
                     if sig.is_static {
+                            self.record(span, name, Target::Method { class: resolved_class.clone(), name: name.clone() }, &call_ret_ty(sig));
                         // Construire le type Function avec les paramètres. Même raison que la
                         // référence à une fonction libre sans appel (Expr::Ident, plus haut) :
                         // si `sig` est `async`, appeler cette valeur doit produire `Resolvable<T>`.
@@ -1780,6 +1872,7 @@ impl<'a> TypeChecker<'a> {
             Expr::New { class, type_args, args, span } => {
                 // Vérifier si c'est une classe ou un générique
                 let is_class = self.symbols.lookup_class(class).is_some();
+                self.record(span, class, Target::Class(class.clone()), &Type::Named(class.clone()));
                 let is_generic = self.symbols.lookup_generic(class).is_some();
                 
                 if !is_class && !is_generic {
@@ -2005,17 +2098,22 @@ impl<'a> TypeChecker<'a> {
                     return Type::Map(Box::new(Type::Mixed), Box::new(Type::Mixed));
                 }
                 let key_ty = self.infer_expr(&entries[0].0);
-                let val_ty = self.infer_expr(&entries[0].1);
+                let mut value_types = vec![self.infer_expr(&entries[0].1)];
                 for (k, v) in &entries[1..] {
                     self.infer_expr(k);
-                    self.infer_expr(v);
+                    value_types.push(self.infer_expr(v));
                 }
+                let val_ty = value_types[0].clone();
+                self.note_literal_keys(entries, value_types);
                 Type::Map(Box::new(key_ty), Box::new(val_ty))
             }
 
             Expr::Index { object, index, .. } => {
                 let obj_ty = self.infer_expr(object);
                 self.infer_expr(index);
+                if let Some(ty) = self.map_key_type(object, index) {
+                    return ty;
+                }
                 match &obj_ty {
                     Type::Array(inner) => *inner.clone(),
                     Type::Map(_, val)  => *val.clone(),
@@ -2036,7 +2134,7 @@ impl<'a> TypeChecker<'a> {
                 // Ouvre un scope pour les paramètres de la closure
                 self.scopes.push();
                 for p in params {
-                    self.scopes.declare(
+                    self.declare_local(
                         p.name.clone(),
                         LocalBinding { ty: p.ty.clone(), mutable: false, span: p.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                     );

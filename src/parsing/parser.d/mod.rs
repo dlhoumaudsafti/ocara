@@ -12,6 +12,7 @@ mod statements;
 mod compound_assign;
 mod expressions;
 mod runtime;
+mod recovery;
 
 #[cfg(test)]
 mod tests;

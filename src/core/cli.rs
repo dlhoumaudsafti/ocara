@@ -44,6 +44,8 @@ pub struct CliArgs {
     /// Répertoire racine du NDK Android (`$ANDROID_NDK_HOME` si absent) —
     /// requis avec `--android-runtime` pour localiser le clang de croisement.
     pub android_ndk: Option<PathBuf>,
+    /// true = serveur de langage (LSP) sur stdin/stdout, sans fichier d'entrée
+    pub lsp: bool,
 }
 
 pub fn print_help() {
@@ -74,6 +76,7 @@ pub fn print_help() {
     println!("                doit être chargeable par une Activity Android via JNI.");
     println!("  --android-ndk <dir>");
     println!("                Racine du NDK Android (défaut : $ANDROID_NDK_HOME).");
+    println!("  --lsp         Serveur de langage (LSP) sur stdin/stdout, pour les éditeurs");
     println!("  -h, --help    Affiche cette aide");
     println!();
     println!("Exemples :");
@@ -105,6 +108,7 @@ pub fn parse_args() -> CliArgs {
     let mut android_runtime_sdl: Option<PathBuf> = None;
     let mut android_jni_bridge: Option<PathBuf> = None;
     let mut android_ndk: Option<PathBuf> = None;
+    let mut lsp = false;
 
     let mut i = 1;
     while i < args.len() {
@@ -113,6 +117,7 @@ pub fn parse_args() -> CliArgs {
             "--check"   => check   = true,
             "--no-link" => no_link = true,
             "--release" => release = true,
+            "--lsp"     => lsp     = true,
             "-o" if i + 1 < args.len() => {
                 output = PathBuf::from(&args[i + 1]);
                 i += 1;
@@ -149,5 +154,5 @@ pub fn parse_args() -> CliArgs {
         }
         i += 1;
     }
-    CliArgs { input, output, dump, check, no_link, release, src_dir, target, android_runtime, android_runtime_sdl, android_jni_bridge, android_ndk }
+    CliArgs { input, output, dump, check, no_link, release, src_dir, target, android_runtime, android_runtime_sdl, android_jni_bridge, android_ndk, lsp }
 }

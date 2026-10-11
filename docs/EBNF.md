@@ -205,6 +205,10 @@ Le chemin dans le littéral de chaîne est relatif au fichier courant. L'extensi
 - Deux imports peuvent pointer vers le même type sous des alias différents.
 - Un symbole importé sans alias est accessible par son nom simple **seulement si** aucun symbole local ne le masque.
 - Un symbole local masque toujours un import (voir §22).
+- Deux types ou deux fonctions libres de **namespaces différents** peuvent
+  porter le même nom (`context.car…Format` et `context.home…Format`) : ce
+  sont deux déclarations distinctes, et chaque fichier utilise celle qu'il
+  déclare ou importe.
 
 ### 4.3 Quand utiliser chaque format
 
@@ -1089,6 +1093,24 @@ var config:map<string, string> = {
 - Le type s'annote `map<K, V>` où `K` est le type de clé et `V` le type de valeur.
 - Les clés peuvent être de n'importe quel type.
 - Un tableau vide s'écrit `[]` et est distinct d'un map vide `{}`.
+
+**Type par clé.** Quand une variable `map` est initialisée par un littéral dont
+les clés sont des chaînes, chaque clé garde le type de sa valeur : la lecture
+`m['clé']` a ce type précis (pas l'union `V`), et une affectation
+`m['clé'] = v` doit lui correspondre.
+
+```ocara
+const details:map<string, CarEntity|string> = {
+    "car": car,
+    "rows_html": ""
+}
+details['rows_html'] += `<li>…</li>`   // string : concaténation acceptée
+var c:CarEntity = details['car']       // CarEntity
+details['rows_html'] = car             // erreur : string attendu
+```
+
+Une clé absente du littéral (ou calculée), une valeur `null`/`mixed`, ou une
+map réaffectée en entier retombent sur le type déclaré `V`.
 
 ### 7.4 Accès par index
 

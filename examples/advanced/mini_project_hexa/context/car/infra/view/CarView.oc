@@ -1,0 +1,36 @@
+namespace context.car.infra.view
+
+import ocara.HTML
+import context.car.app.dto.CarDetailsDTO
+import context.car.app.port.CarViewPort
+import context.car.infra.view.CarViewModel
+import context.car.infra.view.helpers.Format
+import context.car.infra.view.helpers.Flash
+
+class CarView implements CarViewPort {
+    public static method show(id:int, details:CarDetailsDTO, error_code:string, success_code:string): string {
+        var rows_html:string = ""
+        for m in details.maintenances {
+            rows_html += `<maintenance-row
+                type="${m.type}"
+                description="${m.description}"
+                cost="${Format::price(m.cost)}"
+                date="${Format::date(m.created_at)}">`
+        }
+        if details.maintenances.len() equal 0 {
+            rows_html = `<p class="empty">Aucun entretien enregistré pour cette voiture.</p>`
+        }
+        const car_details:CarViewModel = use CarViewModel(
+            id:id.toStr(),
+            car:details.car,
+            purchase_price:Format::price(details.car.purchase_price),
+            estimated_price:Format::price(details.car.estimated_price),
+            maintenance_total:Format::price(details.maintenance_total),
+            improvement_total:Format::price(details.improvement_total),
+            rows_html:rows_html,
+            error_text:Flash::message(error_code),
+            success_text:Flash::message(success_code)
+        )
+        return HTML::renderFile('templates/car/car_detail.html')
+    }
+}

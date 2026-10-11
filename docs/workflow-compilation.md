@@ -102,6 +102,8 @@ Le parser consomme les tokens et construit un arbre représentant la structure d
 L'AST préserve la structure hiérarchique du code mais ne contient pas encore d'informations de types.
 
 ### 3️⃣ **Semantic Analysis** (Analyse Sémantique)
+
+Les étapes 1 à 3 (lecture, lexing, parsing, chargement des imports, vérifications de structure, désucrages, sema) forment `core::analysis::analyze` (`src/core/analysis.d/`), partagée par le CLI et par le serveur de langage `ocara --lsp` (`src/lsp/`). Aucune n'arrête le processus : chaque erreur devient un `core::diagnostics::Diagnostic`, que le CLI affiche au format GCC et que le serveur publie à l'éditeur. Les fichiers `.oc` sont lus par `core::source`, qui substitue le texte non enregistré des documents ouverts dans l'éditeur ; la sema peut noter chaque nom résolu (`sema::index`) pour le survol et la définition.
 **Input** : AST non typé  
 **Output** : AST typé + table des symboles  
 **Responsable** : `src/sema/`

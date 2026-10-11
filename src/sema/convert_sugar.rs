@@ -69,6 +69,8 @@ impl<'a> TypeChecker<'a> {
     ) -> Option<Type> {
         let static_name = convert_method_for(obj_ty, method)?;
         let sig = crate::builtins::builtin_class("Convert")?.methods.get(static_name)?.clone();
+        let target = crate::sema::index::Target::Method { class: "Convert".into(), name: static_name.into() };
+        self.record(span, method, target, &sig.ret_ty);
         let convert = self.symbols.local_name_for_builtin("Convert");
 
         let Some(resolved) = self.resolve_named_call(args, |_| {

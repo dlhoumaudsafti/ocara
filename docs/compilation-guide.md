@@ -57,6 +57,7 @@ ocara [OPTIONS] [FICHIER]
 | `--check` | Analyse sémantique uniquement — n'émet aucun binaire |
 | `--no-link` | Génère le fichier objet `.o` sans lier |
 | `--dump` | Affiche les tokens, l'AST et le HIR puis s'arrête |
+| `--lsp` | Serveur de langage (LSP) sur stdin/stdout, lancé par les éditeurs : diagnostics en direct, survol, définition, symboles — sans fichier d'entrée |
 
 ---
 
