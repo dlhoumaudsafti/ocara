@@ -43,6 +43,10 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
   - **Configuration** (en-tête fixe) : OS, ARCH (valeur personnalisée possible) et BUILD de l'éditeur
     (réglages `ocara.os`/`ocara.arch`/`ocara.build`), boutons **Compiler**, **Lancer** (Debug ou Release
     selon BUILD), **Fixer**, **Dump**, et accès aux paramètres de l'extension ;
+  - **Navigation** : chaque fichier ouvert depuis le panneau (Workflow, graphe d'appels) entre dans un
+    historique ; une barre **← / →** avec la liste des étapes apparaît en tête du panneau (et les
+    flèches dans la barre de titre de l'éditeur) pour revenir aux scripts précédents. Ouvrir un autre
+    fichier à la main ferme l'historique ;
   - **Workflow**, en partant du script affiché : arbre des **imports** (récursif, runtimes compris,
     doublons signalés), **structure** (classes, structs, interfaces, enums, fonctions, membres et
     variables locales avec leur type réel), **graphe d'appels** (fonctions et méthodes appelées,

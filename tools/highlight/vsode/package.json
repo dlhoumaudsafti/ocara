@@ -223,6 +223,36 @@
         "title": "Effacer l'historique de benchmark",
         "category": "Ocara",
         "icon": "$(clear-all)"
+      },
+      {
+        "command": "ocara.nav.back",
+        "title": "Script précédent",
+        "category": "Ocara",
+        "icon": "$(arrow-left)",
+        "enablement": "ocara.nav.canBack"
+      },
+      {
+        "command": "ocara.nav.forward",
+        "title": "Script suivant",
+        "category": "Ocara",
+        "icon": "$(arrow-right)",
+        "enablement": "ocara.nav.canForward"
+      },
+      {
+        "command": "ocara.nav.clear",
+        "title": "Fermer l'historique de navigation",
+        "category": "Ocara",
+        "icon": "$(close)"
+      },
+      {
+        "command": "ocara.nav.open",
+        "title": "Ouvrir (historique de navigation)",
+        "category": "Ocara"
+      },
+      {
+        "command": "ocara.nav.go",
+        "title": "Aller à une entrée de l'historique",
+        "category": "Ocara"
       }
     ],
     "menus": {
@@ -322,6 +352,26 @@
         {
           "command": "ocara.workflow.refresh",
           "when": "false"
+        },
+        {
+          "command": "ocara.nav.open",
+          "when": "false"
+        },
+        {
+          "command": "ocara.nav.go",
+          "when": "false"
+        },
+        {
+          "command": "ocara.nav.back",
+          "when": "ocara.nav.active"
+        },
+        {
+          "command": "ocara.nav.forward",
+          "when": "ocara.nav.active"
+        },
+        {
+          "command": "ocara.nav.clear",
+          "when": "ocara.nav.active"
         }
       ],
       "view/title": [
@@ -349,6 +399,18 @@
           "command": "ocara.bench.clear",
           "when": "view == ocara.benchmark",
           "group": "navigation@4"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "ocara.nav.back",
+          "when": "ocara.nav.active",
+          "group": "navigation@-3"
+        },
+        {
+          "command": "ocara.nav.forward",
+          "when": "ocara.nav.active",
+          "group": "navigation@-2"
         }
       ]
     },

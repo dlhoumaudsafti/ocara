@@ -198,11 +198,7 @@ function dim(t: vscode.TreeItem): void {
     t.tooltip = `${t.tooltip ?? t.label} — variante when écartée pour la configuration active`;
 }
 
+/** Ouverture enregistrée dans l'historique de navigation (navigation.ts). */
 function openCommand(file: string, line: number): vscode.Command {
-    const position = new vscode.Position(Math.max(line - 1, 0), 0);
-    return {
-        command: 'vscode.open',
-        title: 'Ouvrir',
-        arguments: [vscode.Uri.file(file), { selection: new vscode.Range(position, position) }],
-    };
+    return { command: 'ocara.nav.open', title: 'Ouvrir', arguments: [file, line] };
 }

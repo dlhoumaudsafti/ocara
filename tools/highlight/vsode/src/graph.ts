@@ -51,11 +51,9 @@ export class GraphProvider implements vscode.WebviewViewProvider {
             case 'ready':
                 this.post();
                 break;
-            case 'open': {
-                const position = new vscode.Position(Math.max(msg.line - 1, 0), 0);
-                await vscode.window.showTextDocument(vscode.Uri.file(msg.file), { selection: new vscode.Range(position, position) });
+            case 'open':
+                await vscode.commands.executeCommand('ocara.nav.open', msg.file, msg.line);
                 break;
-            }
             case 'copy':
                 await vscode.env.clipboard.writeText(msg.markdown);
                 vscode.window.showInformationMessage('Ocara : graphe d\'appels copié (Markdown, Mermaid).');

@@ -8,6 +8,7 @@ import { WorkflowProvider } from './workflow';
 import { BenchmarkProvider } from './benchmark';
 import { ControlsProvider } from './controls';
 import { GraphProvider } from './graph';
+import { Navigation } from './navigation';
 
 export function activate(context: vscode.ExtensionContext): void {
     // Serveur de langage du compilateur : diagnostics en direct, définition,
@@ -27,7 +28,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
     // Barre latérale Ocara : configuration et commandes, workflow, graphe
     // d'appels et benchmark du script affiché.
-    new ControlsProvider().register(context);
+    const navigation = new Navigation();
+    navigation.register(context);
+    new ControlsProvider(navigation).register(context);
     const workflow = new WorkflowProvider(context.extensionUri);
     workflow.register(context);
     new GraphProvider(context.extensionUri).register(context, workflow.onData);
