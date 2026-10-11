@@ -30,7 +30,7 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     fonction dans tout l'espace de travail — imports mis à jour et fichier renommé avec sa classe ; une
     méthode redéfinie est renommée avec toute sa chaîne (parents, sous-classes, interfaces).
   - **variantes `when`** : la variante écartée pour la configuration de l'éditeur (réglages
-    `ocara.os`/`ocara.arch`, mode debug) est estompée ; les diagnostics des autres configurations
+    `ocara.os`/`ocara.arch`/`ocara.build`) est estompée ; les diagnostics des autres configurations
     sont signalés avec leur combinaison (`[System::OS = 'windows']`) ; `when` et ses opérateurs
     ont une couleur dédiée, quel que soit le thème.
 - Les noms de type (`var x:Dog`, `extends Animal`, paramètres, `on e is FileException`) ont survol,
@@ -77,6 +77,7 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
 | `ocara.osOther` | `""` | Valeur personnalisée de `System::OS` (avec `ocara.os` = `other`). |
 | `ocara.arch` | `system` | `System::ARCH` de l'éditeur : `system`, `x86_64`, `aarch64`, `arm`, ou `other` (valeur de `ocara.archOther`). |
 | `ocara.archOther` | `""` | Valeur personnalisée de `System::ARCH` (avec `ocara.arch` = `other`). |
+| `ocara.build` | `debug` | `System::BUILD` de l'éditeur : `debug` ou `release`. Les commandes de compilation gardent leur propre mode (Debug/Release). |
 
 Laissé à sa valeur par défaut et absent du PATH, un outil est cherché dans
 `<workspace>/target/release/` (dépôt du compilateur ouvert dans VS Code).

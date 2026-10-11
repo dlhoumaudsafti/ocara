@@ -213,7 +213,7 @@ fn handle_notification(connection: &Connection, ws: &mut Workspace, index: &mut 
                 refresh(connection, ws, &path);
             }
         }
-        // Réglages `ocara.os`/`ocara.arch` : nouvelle configuration active,
+        // Réglages `ocara.os`/`ocara.arch`/`ocara.build` : nouvelle configuration active,
         // documents ouverts réanalysés (variantes `when` estompées).
         DidChangeConfiguration::METHOD => {
             let Ok(p) = serde_json::from_value::<lsp_types::DidChangeConfigurationParams>(note.params) else { return };
@@ -232,11 +232,11 @@ fn handle_notification(connection: &Connection, ws: &mut Workspace, index: &mut 
     }
 }
 
-/// Configuration active de l'éditeur : `{ "os": …, "arch": … }` (absents :
-/// valeurs de l'hôte), mode debug.
+/// Configuration active de l'éditeur : `{ "os": …, "arch": …, "build": … }`
+/// (absents : valeurs de l'hôte, mode debug).
 fn apply_build_settings(settings: Option<&Value>) {
     let mut config = crate::parsing::build::BuildConfig::for_target(None, false);
-    for (key, name) in [("os", "OS"), ("arch", "ARCH")] {
+    for (key, name) in [("os", "OS"), ("arch", "ARCH"), ("build", "BUILD")] {
         if let Some(value) = settings.and_then(|s| s.get(key)).and_then(Value::as_str).filter(|v| !v.is_empty()) {
             config.values.insert(name.to_string(), value.to_string());
         }

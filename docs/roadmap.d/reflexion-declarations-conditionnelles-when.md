@@ -285,8 +285,8 @@ Mise en œuvre prévue dans l'extension VS Code
 
 - **Configuration de l'éditeur** : réglages `ocara.os` (`system`, `linux`,
   `windows`, `macos`, `android`, `other` + `ocara.osOther`) et `ocara.arch`
-  (`system`, `x86_64`, `aarch64`, `arm`, `other` + `ocara.archOther`), mode
-  debug. Transmis au serveur à l'initialisation puis à chaque changement
+  (`system`, `x86_64`, `aarch64`, `arm`, `other` + `ocara.archOther`),
+  `ocara.build` (`debug` par défaut, `release`). Transmis au serveur à l'initialisation puis à chaque changement
   (`workspace/didChangeConfiguration`) : documents ouverts réanalysés. Ils ne
   changent pas la cible des commandes de compilation (machine hôte).
 - **Variantes écartées estompées** : le parseur note la dernière ligne de

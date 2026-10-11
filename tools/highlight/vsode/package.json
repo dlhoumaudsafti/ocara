@@ -108,6 +108,19 @@
           "type": "string",
           "default": "",
           "markdownDescription": "Valeur personnalisée de `System::ARCH` quand `ocara.arch` vaut `other`."
+        },
+        "ocara.build": {
+          "type": "string",
+          "enum": [
+            "debug",
+            "release"
+          ],
+          "enumDescriptions": [
+            "Mode debug (défaut)",
+            "Mode release (`--release`)"
+          ],
+          "default": "debug",
+          "markdownDescription": "Valeur de `System::BUILD` pour l'éditeur (mêmes effets que `ocara.os`). Les commandes de compilation gardent leur propre mode (Debug/Release)."
         }
       }
     },

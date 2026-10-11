@@ -31,7 +31,7 @@ export async function startLanguageServer(context: vscode.ExtensionContext): Pro
         client,
         vscode.commands.registerCommand('ocara.showReferences', showReferences),
         vscode.workspace.onDidChangeConfiguration(e => {
-            if (client && ['ocara.os', 'ocara.osOther', 'ocara.arch', 'ocara.archOther'].some(s => e.affectsConfiguration(s))) {
+            if (client && ['ocara.os', 'ocara.osOther', 'ocara.arch', 'ocara.archOther', 'ocara.build'].some(s => e.affectsConfiguration(s))) {
                 void client.sendNotification('workspace/didChangeConfiguration', { settings: buildSettings() });
             }
         }),
@@ -52,15 +52,16 @@ function showReferences(uri: string, position: unknown, locations: unknown[]): T
 }
 
 /** Configuration active de l'éditeur pour les clauses `when` : `system`
- *  (absent) = valeur de la machine, `other` = valeur personnalisée. */
-function buildSettings(): { os?: string; arch?: string } {
+ *  (absent) = valeur de la machine, `other` = valeur personnalisée ; mode
+ *  `debug` ou `release`. */
+function buildSettings(): { os?: string; arch?: string; build: string } {
     const config = vscode.workspace.getConfiguration('ocara');
     const pick = (key: string): string | undefined => {
         const value = config.get<string>(key, 'system');
         if (value === 'system') { return undefined; }
         return value === 'other' ? (config.get<string>(`${key}Other`, '').trim() || undefined) : value;
     };
-    return { os: pick('os'), arch: pick('arch') };
+    return { os: pick('os'), arch: pick('arch'), build: config.get<string>('build', 'debug') };
 }
 
 export function stopLanguageServer(): Thenable<void> | undefined {
