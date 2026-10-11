@@ -59,6 +59,11 @@
           "default": true,
           "markdownDescription": "Analyse `ocaracs` automatique à l'affichage, l'ouverture et l'enregistrement d'un fichier `.oc` (règles : `.ocaracs` le plus proche du script, sinon valeurs par défaut d'ocaracs)."
         },
+        "ocara.autoImport.enable": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Ajoute les imports manquants à l'enregistrement d'un fichier `.oc` : `import ocara.X` pour un builtin, sinon le fichier du projet qui déclare le type, cherché dans le dossier du script, ses sous-dossiers, puis les dossiers parents jusqu'à la racine du projet. Le correctif rapide (Ctrl+.) reste disponible quand ce réglage est désactivé."
+        },
         "ocara.os": {
           "type": "string",
           "enum": [

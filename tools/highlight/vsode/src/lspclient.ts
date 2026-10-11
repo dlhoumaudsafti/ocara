@@ -30,6 +30,11 @@ export async function startLanguageServer(context: vscode.ExtensionContext): Pro
     context.subscriptions.push(
         client,
         vscode.commands.registerCommand('ocara.showReferences', showReferences),
+        vscode.workspace.onWillSaveTextDocument(e => {
+            if (e.document.languageId === 'ocara' && vscode.workspace.getConfiguration('ocara').get<boolean>('autoImport.enable', true)) {
+                e.waitUntil(missingImportEdits(e.document));
+            }
+        }),
         vscode.workspace.onDidChangeConfiguration(e => {
             if (client && ['ocara.os', 'ocara.osOther', 'ocara.arch', 'ocara.archOther', 'ocara.build'].some(s => e.affectsConfiguration(s))) {
                 void client.sendNotification('workspace/didChangeConfiguration', { settings: buildSettings() });
@@ -49,6 +54,16 @@ function showReferences(uri: string, position: unknown, locations: unknown[]): T
     const p2c = client.protocol2CodeConverter;
     return vscode.commands.executeCommand('editor.action.showReferences',
         p2c.asUri(uri), p2c.asPosition(position as never), locations.map(l => p2c.asLocation(l as never)));
+}
+
+/** Imports manquants du document (action `source.addMissingImports` du serveur). */
+async function missingImportEdits(document: vscode.TextDocument): Promise<vscode.TextEdit[]> {
+    if (!client) { return []; }
+    const all = new vscode.Range(0, 0, document.lineCount, 0);
+    const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+        'vscode.executeCodeActionProvider', document.uri, all, 'source.addMissingImports');
+    const edit = actions?.find(a => a.kind?.value === 'source.addMissingImports')?.edit;
+    return edit?.get(document.uri) ?? [];
 }
 
 /** Configuration active de l'éditeur pour les clauses `when` : `system`

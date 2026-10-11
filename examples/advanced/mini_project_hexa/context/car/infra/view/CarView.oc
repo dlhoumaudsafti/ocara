@@ -21,15 +21,15 @@ class CarView implements CarViewPort {
             rows_html = `<p class="empty">Aucun entretien enregistré pour cette voiture.</p>`
         }
         const car_details:CarViewModel = use CarViewModel(
-            id:id.toStr(),
-            car:details.car,
-            purchase_price:Format::price(details.car.purchase_price),
-            estimated_price:Format::price(details.car.estimated_price),
-            maintenance_total:Format::price(details.maintenance_total),
-            improvement_total:Format::price(details.improvement_total),
-            rows_html:rows_html,
-            error_text:Flash::message(error_code),
-            success_text:Flash::message(success_code)
+            id: id.toStr(),
+            car: details.car,
+            purchase_price: Format::price(details.car.purchase_price),
+            estimated_price: Format::price(details.car.estimated_price),
+            maintenance_total: Format::price(details.maintenance_total),
+            improvement_total: Format::price(details.improvement_total),
+            rows_html: rows_html,
+            error_text: Flash::message(error_code),
+            success_text: Flash::message(success_code)
         )
         return HTML::renderFile('templates/car/car_detail.html')
     }

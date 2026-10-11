@@ -213,7 +213,7 @@ pub fn parse(text: &str) -> Option<Program> {
     crate::parsing::build::with_config(keep_all, || crate::parsing::parser::Parser::new(tokens).parse_program().ok())
 }
 
-fn collect_sources(dir: &Path, out: &mut Vec<PathBuf>) {
+pub(super) fn collect_sources(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
     for entry in entries.flatten() {
         let path = entry.path();

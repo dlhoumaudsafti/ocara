@@ -29,6 +29,12 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
   - **renommage** (F2) d'une variable, d'un paramètre, d'un champ, d'une méthode, d'une classe ou d'une
     fonction dans tout l'espace de travail — imports mis à jour et fichier renommé avec sa classe ; une
     méthode redéfinie est renommée avec toute sa chaîne (parents, sous-classes, interfaces).
+  - **imports manquants** : un type utilisé sans import (`HTTPServer::…`, `use Foo()`, `x:Foo`, y
+    compris dans un gabarit `${…}`) est importé à l'enregistrement (réglage `ocara.autoImport.enable`) :
+    `import ocara.X` pour un builtin, sinon le fichier du projet qui le déclare, cherché dans le
+    dossier du script, ses sous-dossiers, puis chaque dossier parent jusqu'à la racine du projet
+    (`import a.b.Foo` si le chemin suit le namespace, sinon `import Foo from "./…"`). Correctif
+    rapide (Ctrl+.) sur le nom, avec les autres déclarations homonymes du projet en alternative ;
   - **variantes `when`** : la variante écartée pour la configuration de l'éditeur (réglages
     `ocara.os`/`ocara.arch`/`ocara.build`) est estompée ; les diagnostics des autres configurations
     sont signalés avec leur combinaison (`[System::OS = 'windows']`) ; `when` et ses opérateurs
@@ -73,6 +79,7 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
 | `ocara.compilerPath` | `ocara` | Chemin du compilateur ou commande pour le lancer — arguments et guillemets acceptés, variables `${workspaceFolder}`/`${fileDirname}` (ex. `"${workspaceFolder}/target/release/ocara"`). |
 | `ocara.ocaracsPath` | `ocaracs` | Chemin d'ocaracs ou commande pour le lancer (mêmes règles). |
 | `ocara.lint.enable` | `true` | Active l'analyse ocaracs automatique. |
+| `ocara.autoImport.enable` | `true` | Ajoute les imports manquants à l'enregistrement (le correctif rapide reste disponible sinon). |
 | `ocara.os` | `system` | `System::OS` de l'éditeur pour les clauses `when` : `system` (machine), `linux`, `windows`, `macos`, `android`, ou `other` (valeur de `ocara.osOther`). Variante retenue, variantes écartées estompées. Ne change pas la cible des commandes de compilation. |
 | `ocara.osOther` | `""` | Valeur personnalisée de `System::OS` (avec `ocara.os` = `other`). |
 | `ocara.arch` | `system` | `System::ARCH` de l'éditeur : `system`, `x86_64`, `aarch64`, `arm`, ou `other` (valeur de `ocara.archOther`). |

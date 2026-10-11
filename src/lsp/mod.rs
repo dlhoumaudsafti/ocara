@@ -2,6 +2,7 @@
 //! l'analyse du compilateur (`core::analysis`) — voir
 //! docs/roadmap.d/tooling-language-server.md.
 
+mod auto_import;
 mod builtin_docs;
 mod callsite;
 mod completion;
@@ -23,7 +24,7 @@ use lsp_types::notification::{
     DidChangeConfiguration, DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument, DidOpenTextDocument, DidSaveTextDocument, Notification as _,
     PublishDiagnostics,
 };
-use lsp_types::request::{CodeLensRequest, Completion, DocumentLinkRequest, DocumentSymbolRequest, GotoDefinition, HoverRequest, References, Rename, Request as _, SemanticTokensFullRequest, SignatureHelpRequest};
+use lsp_types::request::{CodeActionRequest, CodeLensRequest, Completion, DocumentLinkRequest, DocumentSymbolRequest, GotoDefinition, HoverRequest, References, Rename, Request as _, SemanticTokensFullRequest, SignatureHelpRequest};
 use lsp_types::{
     DocumentSymbolResponse, GotoDefinitionResponse, InitializeParams, OneOf, PublishDiagnosticsParams,
     ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
@@ -55,6 +56,10 @@ pub fn run() {
         semantic_tokens_provider: Some(lsp_types::SemanticTokensServerCapabilities::SemanticTokensOptions(lsp_types::SemanticTokensOptions {
             legend: semantic::legend(),
             full: Some(lsp_types::SemanticTokensFullOptions::Bool(true)),
+            ..Default::default()
+        })),
+        code_action_provider: Some(lsp_types::CodeActionProviderCapability::Options(lsp_types::CodeActionOptions {
+            code_action_kinds: Some(vec![lsp_types::CodeActionKind::QUICKFIX, lsp_types::CodeActionKind::new(auto_import::SOURCE_KIND)]),
             ..Default::default()
         })),
         document_link_provider: Some(lsp_types::DocumentLinkOptions { resolve_provider: Some(false), work_done_progress_options: Default::default() }),
@@ -144,6 +149,10 @@ fn handle_request(ws: &Workspace, index: &mut project::ProjectIndex, req: Reques
             .ok()
             .and_then(|p| ws.text(&to_path(&p.text_document.uri)?))
             .map(|text| serde_json::to_value(lsp_types::SemanticTokensResult::Tokens(semantic::tokens(&text))).unwrap_or(Value::Null)),
+        CodeActionRequest::METHOD => serde_json::from_value::<lsp_types::CodeActionParams>(req.params)
+            .ok()
+            .and_then(|p| Some(auto_import::code_actions(ws, &to_path(&p.text_document.uri)?, &p)))
+            .map(|a| serde_json::to_value(a).unwrap_or(Value::Null)),
         DocumentLinkRequest::METHOD => serde_json::from_value::<lsp_types::DocumentLinkParams>(req.params)
             .ok()
             .and_then(|p| to_path(&p.text_document.uri))

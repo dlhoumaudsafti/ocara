@@ -222,6 +222,27 @@ Résolution comme à l'exécution : racine du projet (dossier du `main.oc`),
 puis dossier du fichier. Ignorés : commentaires, gabarits backtick, chaînes
 interpolées (`${…}`), chemins inexistants ou désignant un dossier.
 
+## Imports manquants (2026-10-11)
+
+`textDocument/codeAction` (`src/lsp/auto_import.rs`) : un nom de type
+(initiale majuscule, hors `a.B`/`A::B`) utilisé dans le document — gabarits
+`${…}` compris — sans y être déclaré ni importé (alias, `import ocara.*`,
+`import * from` pris en compte) reçoit son import :
+
+- builtin (`OCARA_BUILTINS`) → `import ocara.X` ;
+- sinon le fichier du projet qui le déclare, cherché dans le dossier du
+  script, ses sous-dossiers, puis chaque dossier parent et ses
+  sous-dossiers jusqu'à la racine du projet (à niveau égal, le moins
+  profond d'abord) ; `import a.b.Foo` si `a/b/Foo.oc` depuis la racine y
+  mène, sinon `import Foo from "./…"` relatif au script ;
+- un correctif rapide par nom (3 candidats au plus, le plus proche
+  préféré) ; l'action `source.addMissingImports` ajoute tous les imports
+  d'un coup, après le dernier import (sinon après `namespace`).
+
+L'extension applique `source.addMissingImports` à l'enregistrement
+(`onWillSaveTextDocument`), sauf si `ocara.autoImport.enable` est désactivé.
+Un nom introuvable n'est pas importé.
+
 ## Étapes suivantes
 
 - Client JetBrains (voir [tooling-jetbrains-plugin.md](tooling-jetbrains-plugin.md)).
