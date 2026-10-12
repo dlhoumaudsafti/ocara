@@ -385,6 +385,11 @@
     "keyword-control": {
       "patterns": [
         {
+          "comment": "Plages `a to b` (fin incluse) / `a until b` (fin exclue) : mots-clés seulement entre deux bornes",
+          "match": "(?<=[\\w)\\]])\\s+(to|until)(?=\\s+[\\w(\\-])",
+          "captures": { "1": { "name": "keyword.control.range.ocara" } }
+        },
+        {
           "comment": "`has` n'est un mot-clé que dans `for k has v in m` (identifiant ailleurs : m.has(k)).",
           "match": "\\b(for)\\s+([a-zA-Z_][\\w]*)\\s+(has)\\b",
           "captures": {

@@ -222,20 +222,35 @@ impl Parser {
         Ok(expr)
     }
 
-    /// Range : `expr..expr`  — précédence entre comparaison et addition
+    /// Plage : `a until b` (borne de fin exclue) ou `a to b` (incluse,
+    /// réécrite `a until b + 1`) — précédence entre comparaison et
+    /// addition. `to`/`until` ne sont des mots-clés qu'après une expression,
+    /// sur la même ligne. L'ancienne forme `a..b` est refusée.
     fn parse_range(&mut self) -> ParseResult<Expr> {
         let left = self.parse_additive()?;
         if self.check_exact(&TokenKind::DotDot) {
-            let span = self.span();
-            self.advance();
-            let right = self.parse_additive()?;
-            return Ok(Expr::Range {
-                start: Box::new(left),
-                end:   Box::new(right),
-                span,
-            });
+            return Err(ParseError::new(
+                "'..' n'existe plus : écrire 'a until b' (borne de fin exclue, ancien 'a..b') ou 'a to b' (borne de fin incluse)",
+                self.span(),
+            ));
         }
-        Ok(left)
+        let inclusive = match self.peek_kind() {
+            TokenKind::Ident(w) if (w == "to" || w == "until") && self.previous_line() == Some(self.span().line) => w == "to",
+            _ => return Ok(left),
+        };
+        let span = self.span();
+        self.advance();
+        let mut right = self.parse_additive()?;
+        if inclusive {
+            let one_span = right.span().clone();
+            right = Expr::Binary {
+                op: BinOp::Add,
+                left: Box::new(right),
+                right: Box::new(Expr::Literal(Literal::Int(1), one_span.clone())),
+                span: one_span,
+            };
+        }
+        Ok(Expr::Range { start: Box::new(left), end: Box::new(right), span })
     }
 
     fn parse_additive(&mut self) -> ParseResult<Expr> {

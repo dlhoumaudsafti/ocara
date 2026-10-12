@@ -27,7 +27,7 @@ class Utils {
 
     public method sum_range(from:int, to:int): int {
         var total:int = 0
-        for i in from..to {
+        for i in from until to {
             total = total + i
         }
         return total

@@ -90,7 +90,7 @@ class Test_15_operators {
         UnitTest::assertTrue(a greater 10 or b equal 0)
         
         var count:int = 0
-        for i in 0..5 {
+        for i in 0 until 5 {
             count = count + 1
         }
         UnitTest::assertEquals(5, count)

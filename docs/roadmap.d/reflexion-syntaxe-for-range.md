@@ -2,7 +2,9 @@
 
 ## Statut
 
-**Réflexion ouverte, pas une décision.** Ce ticket documente une piste d'évolution de syntaxe à peser, pas un chantier acté. Objectif de cette fiche : que la discussion et ses compromis ne se perdent pas, jusqu'à ce qu'une décision explicite soit prise (adopter, adapter, ou classer sans suite).
+**Implémenté le 2026-10-12** — `a to b` (fin incluse) et `a until b` (fin exclue) remplacent `a..b`, sans période de coexistence : `..` est refusé avec un message de migration (même démarche que la suppression des comparaisons symboliques). Voir docs/EBNF.md §27.4.
+
+Mise en œuvre : `parse_range` (`src/parsing/parser.d/expressions.rs`) — `to`/`until` mots-clés contextuels (après une expression, sur la même ligne), `a to b` réécrit `a until b + 1` ; exemples et tests migrés (`1..6` → `1 to 5`, `0..n` → `0 until n`) ; EBNF (les deux occurrences de `RangeExpr`, §27.4) ; coloration TextMate de `to`/`until`.
 
 ## Proposition
 

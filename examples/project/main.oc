@@ -339,7 +339,7 @@ function main(): int {
     IO::writeln(`Nouveau score Alice : ${grades["Alice"]}`)
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 8. BOUCLES — while, for..in, for..range
+    // 8. BOUCLES — while, for … in, for sur une plage (to / until)
     // ─────────────────────────────────────────────────────────────────────────
     IO::writeln("── 8. Boucles ───────────────────────────────────────")
 
@@ -355,8 +355,8 @@ function main(): int {
         IO::writeln(`  for-in : ${sc}`)
     }
 
-    // For..range
-    for i in 1..6 {
+    // For sur une plage (to : fin incluse)
+    for i in 1 to 5 {
         IO::writeln(`  range : ${i}`)
     }
 

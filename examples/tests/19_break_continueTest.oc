@@ -24,7 +24,7 @@ class Test_19_break_continue {
     
     public method continueTest(): int {
         var sum:int = 0
-        for i in 0..6 {
+        for i in 0 until 6 {
             if i equal 2 {
                 continue
             }
@@ -78,7 +78,7 @@ class Test_19_break_continue {
         UnitTest::assertEquals(4, odd_count)
         
         var k_count:int = 0
-        for k in 0..10 {
+        for k in 0 until 10 {
             if k equal 4 {
                 break
             }
@@ -87,7 +87,7 @@ class Test_19_break_continue {
         UnitTest::assertEquals(4, k_count)
         
         var n_count:int = 0
-        for n in 0..6 {
+        for n in 0 until 6 {
             if n equal 2 or n equal 4 {
                 continue
             }

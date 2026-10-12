@@ -68,7 +68,7 @@ const KEYWORDS: &[(&str, &str, &str)] = &[
     ("default", "25", "Cas par défaut d'un `switch`/`match`."),
     ("match", "26", "Expression de filtrage, un bras par ligne : `1 => ...`, `is string => ...`, `default => ...`."),
     ("while", "27.1", "Boucle tant que la condition est vraie."),
-    ("for", "27.2", "Boucle d'itération : `for x in tableau`, `for k has v in map`, `for i in 0..n`."),
+    ("for", "27.2", "Boucle d'itération : `for x in tableau`, `for k has v in map`, `for i in 0 until n` (borne exclue), `for i in 1 to n` (incluse)."),
     ("in", "27.2", "Dans un `for` : la collection parcourue."),
     ("has", "27.3", "Dans `for k has v in m` : sépare la clé de la valeur d'une map."),
     ("break", "27.5", "Sort de la boucle courante."),

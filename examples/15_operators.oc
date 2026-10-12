@@ -6,7 +6,7 @@
 //   - Comparaison   : equal, not equal, smaller, smaller or equal, greater, greater or equal
 //   - Logiques      : and or not
 //   - Unaires       : - (négation) not
-//   - Plage         : start..end
+//   - Plage         : start to end (fin incluse), start until end (fin exclue)
 //   - Précédence des opérateurs
 // ─────────────────────────────────────────────────────────────────────────────
 architecture permissive
@@ -61,15 +61,15 @@ function main(): int {
         IO::writeln("au moins une condition vraie")
     }
 
-    // ── Plage .. ─────────────────────────────────────────────────────────────
-    // 0..5 → 0, 1, 2, 3, 4  (end exclus)
-    for i in 0..5 {
+    // ── Plages to / until ────────────────────────────────────────────────────
+    // 0 until 5 → 0, 1, 2, 3, 4  (fin exclue) ; 0 to 5 → 0 … 5 (fin incluse)
+    for i in 0 until 5 {
         IO::writeln(i)
     }
 
     // La plage a une précédence inférieure à l'addition
     scoped limit:int = 3
-    for j in 0..limit + 2 {    // 0 .. (3 + 2) = 0..5
+    for j in 0 until limit + 2 {    // 0 until (3 + 2) = 0 until 5
         IO::writeln(j)
     }
 

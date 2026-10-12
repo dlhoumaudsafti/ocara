@@ -11,6 +11,7 @@ et permettre de déclarer un nombre d'usages autorisés :
 consumed truc:string = "salut"     // 1 usage (inchangé)
 consumed+1 truc:string = "salut"   // forme « incrément » : 1 + 1 = 2 usages
 consumed<2> truc:string = "salut"  // forme « total » : 2 usages
+consumed@2 truc:string = "salut"  // forme « total » : 2 usages
 ```
 
 Formes candidates pour le total : `consumed<2>`, `consumed{2}`, `consumed[2]`.

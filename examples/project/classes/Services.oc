@@ -29,7 +29,7 @@ class Services {
 
     public method process_range(from:int, to:int): void {
         IO::writeln(`── Traitement ${from}..${to} ──`)
-        for i in from..to {
+        for i in from until to {
             IO::writeln(`  item ${i}`)
         }
     }

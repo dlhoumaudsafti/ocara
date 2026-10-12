@@ -1333,7 +1333,7 @@ ComparisonOp ::= "equal" | ( "not" "equal" )
                | "smaller" ( "or" "equal" )?
                | "greater" ( "or" "equal" )?
 IsCheckExpr  ::= RangeExpr ( "is" Type )?
-RangeExpr    ::= AdditiveExpr ( ".." AdditiveExpr )?
+RangeExpr    ::= AdditiveExpr ( ( "to" | "until" ) AdditiveExpr )?
 AdditiveExpr ::= MultiplicativeExpr ( ( "+" | "-" ) MultiplicativeExpr )*
 MultiplicativeExpr ::= UnaryExpr ( ( "*" | "/" | "%" ) UnaryExpr )*
 UnaryExpr    ::= ( "not" | "-" | "resolve" | "++" | "--" ) UnaryExpr
@@ -1369,7 +1369,7 @@ NamedArg       ::= Identifier ":" Expression
 
 ### 10.1 Notes importantes
 
-- **Priorité du `..`** : l'opérateur de plage a une précédence inférieure à l'addition — `0..n+1` est `0 .. (n+1)`.
+- **Priorité de `to`/`until`** : les opérateurs de plage ont une précédence inférieure à l'addition — `0 until n+1` est `0 until (n+1)`.
 - **Annotation de type postfix** : dans un contexte `match` ou `switch`, l'accès `expr.field:type` est syntaxiquement autorisé ; l'annotation de type est ignorée sémantiquement (hint visuel uniquement).
 - **L'appel de fonction** sans receveur est une `PostfixExpr` dont le `PrimaryExpr` est un `Identifier` suivi de `( ArgList? )`.
 - **Arguments nommés** (`f(name: expr)`) : un appel est soit entièrement positionnel, soit entièrement nommé — jamais un mélange (voir §14.6).
@@ -2428,7 +2428,7 @@ Une méthode préfixée par `static` appartient à la classe et non à une insta
 class MathUtils {
     public static method pow(base:int, exp:int): int {
         var result:int = 1
-        for i in 0..exp {
+        for i in 0 until exp {
             result = result * base
         }
         return result
@@ -3542,7 +3542,7 @@ ForStmt ::= "for" Identifier "in" Expression Block
 ```
 
 ```ocara
-for i in 0..5 {
+for i in 0 until 5 {
     IO::writeln(i)
 }
 ```
@@ -3566,15 +3566,24 @@ for key has value in profile {
 ### 27.4 Opérateur de plage
 
 ```ebnf
-RangeExpr ::= AdditiveExpr ".." AdditiveExpr
+RangeExpr ::= AdditiveExpr ( "to" | "until" ) AdditiveExpr
 ```
 
-Produit une séquence d'entiers de `start` inclus à `end` **exclus**.
+Produit une séquence d'entiers à partir de `start` (inclus) :
+
+- `start to end` : jusqu'à `end` **inclus** ;
+- `start until end` : jusqu'à `end` **exclu**.
 
 ```ocara
-0..5    // 0, 1, 2, 3, 4
-1..n+1  // 1, 2, …, n
+1 to 5      // 1, 2, 3, 4, 5
+0 until 5   // 0, 1, 2, 3, 4
+0 until n   // les indices d'un tableau de n éléments
 ```
+
+`to` et `until` ne sont des mots-clés qu'entre deux bornes, sur la même ligne :
+ailleurs ce sont des identifiants ordinaires (`for i in from until to`).
+L'ancienne forme `a..b` est refusée à la compilation (« '..' n'existe plus :
+écrire 'a until b' … ou 'a to b' … »).
 
 ### 27.5 Break
 
@@ -3582,7 +3591,7 @@ Produit une séquence d'entiers de `start` inclus à `end` **exclus**.
 BreakStmt ::= "break"
 ```
 
-Interrompt immédiatement la boucle courante (`while`, `for..in`, `for..range`). L'exécution reprend à l'instruction suivant la boucle.
+Interrompt immédiatement la boucle courante (`while`, `for … in` sur un tableau ou une plage). L'exécution reprend à l'instruction suivant la boucle.
 
 ```ocara
 var i:int = 0
@@ -3603,10 +3612,10 @@ while i smaller 10 {
 ContinueStmt ::= "continue"
 ```
 
-Passe immédiatement à l'**itération suivante** de la boucle courante. Pour un `for..range` ou `for..in`, l'incrément est exécuté avant de réévaluer la condition.
+Passe immédiatement à l'**itération suivante** de la boucle courante. Pour un `for … in` (plage ou tableau), l'incrément est exécuté avant de réévaluer la condition.
 
 ```ocara
-for i in 0..10 {
+for i in 0 until 10 {
     if i % 2 equal 0 {
         continue
     }
@@ -3996,7 +4005,7 @@ ComparisonOp ::= "equal" | ( "not" "equal" )
               | "smaller" ( "or" "equal" )?
               | "greater" ( "or" "equal" )?
 IsCheckExpr ::= RangeExpr ( "is" Type )?
-RangeExpr   ::= AdditiveExpr ( ".." AdditiveExpr )?
+RangeExpr   ::= AdditiveExpr ( ( "to" | "until" ) AdditiveExpr )?
 AdditiveExpr ::= MultiplicativeExpr ( ( "+" | "-" ) MultiplicativeExpr )*
 MultiplicativeExpr ::= UnaryExpr ( ( "*" | "/" | "%" ) UnaryExpr )*
 UnaryExpr   ::= ( "not" | "-" | "resolve" | "++" | "--" ) UnaryExpr | PostfixExpr

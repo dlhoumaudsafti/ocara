@@ -21,7 +21,7 @@ class Test_07_loops {
     
     public method forRangeTest(): int {
         var sum:int = 0
-        for i in 1..6 {
+        for i in 1 to 5 {
             sum = sum + i
         }
         UnitTest::assertEquals(15, sum)  // 1+2+3+4+5 = 15
@@ -65,14 +65,14 @@ class Test_07_loops {
         
         // Test for in range
         var count_range:int = 0
-        for j in 1..6 {
+        for j in 1 to 5 {
             count_range = count_range + 1
         }
         UnitTest::assertEquals(5, count_range)
         
         // Test sum
         var sum:int = 0
-        for k in 1..11 {
+        for k in 1 to 10 {
             sum = sum + k
         }
         UnitTest::assertEquals(55, sum)

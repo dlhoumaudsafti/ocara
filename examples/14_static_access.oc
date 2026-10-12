@@ -75,7 +75,7 @@ class StringUtils {
 
     public static method repeat(c:string, n:int): string {
         var result:string = ""
-        for i in 0..n {
+        for i in 0 until n {
             result = result + c
         }
         return result

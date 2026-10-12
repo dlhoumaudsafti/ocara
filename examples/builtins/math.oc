@@ -112,8 +112,8 @@ function main(): int {
     // Puissance via boucle vérifiée avec pow
     var base:int = 2
     var resultat:int = 1
-    for _ in 0..8 {
-        resultat = resultat * base
+    for _ in 0 until 8 {
+        resultat *= base
     }
     scoped attendu:int = Math::pow(2, 8)
     IO::writeln(`2^8 boucle = ${resultat}, Math::pow = ${attendu}`)   // 256

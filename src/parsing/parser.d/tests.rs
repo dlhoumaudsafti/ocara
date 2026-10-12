@@ -248,8 +248,12 @@ mod tests {
 
     #[test]
     fn test_expr_range() {
-        let expr = parse_expr("0..5");
-        assert!(matches!(expr, Expr::Range { .. }));
+        assert!(matches!(parse_expr("0 until 5"), Expr::Range { .. }));
+        // `to` : borne incluse, réécrite `0 until 5 + 1`.
+        assert!(matches!(parse_expr("0 to 5"), Expr::Range { end, .. } if matches!(*end, Expr::Binary { op: BinOp::Add, .. })));
+        let tokens = Lexer::new("0..5").tokenize().expect("lex error");
+        let err = Parser::new(tokens).parse_expr().expect_err("'..' accepté");
+        assert!(err.message.contains("until"), "{}", err.message);
     }
 
     #[test]

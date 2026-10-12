@@ -26,16 +26,16 @@ function main(): int {
         IO::writeln(`impair : ${j}`)
     }
 
-    // break dans for..range
-    for k in 0..10 {
+    // break dans une boucle sur une plage
+    for k in 0 until 10 {
         if k equal 4 {
             break
         }
         IO::writeln(`range : ${k}`)
     }
 
-    // continue dans for..range
-    for n in 0..6 {
+    // continue dans une boucle sur une plage
+    for n in 0 until 6 {
         if n equal 2 or n equal 4 {
             continue
         }

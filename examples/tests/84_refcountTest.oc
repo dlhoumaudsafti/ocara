@@ -35,7 +35,7 @@ class Test_84_refcount {
 
     public method reassignedStringInLoopTest(): int {
         var s:string = ""
-        for i in 0..100 {
+        for i in 0 until 100 {
             s = s + "x"
         }
         UnitTest::assertEquals(100, s.len())

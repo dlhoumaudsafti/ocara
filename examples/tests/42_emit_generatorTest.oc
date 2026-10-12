@@ -268,7 +268,7 @@ function pairsGen(): message<string> {
 }
 
 function rangeGen(n:int): message<int> {
-    for i in 0..n {
+    for i in 0 until n {
         emit i * 2
     }
 }
