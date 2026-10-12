@@ -14,18 +14,22 @@ architecture hexagonal
 
 ```ocara
 architecture hexagonal {
-    infrastructure: infra,
-    application: app,
-    domain: dom
+    layers: {
+        infrastructure: infra,
+        application: app,
+        domain: dom,
+    },
 }
 ```
 
-Les noms situés à droite des deux-points sont des alias de répertoire. Les noms canoniques des couches sont `infrastructure`, `application` et `domain`. Les alias `infra`, `app` et `dom` sont des choix de projet, pas des mots-clés du langage. Une couche omise conserve son nom canonique :
+Les couches sont regroupées dans `layers`, séparées des autres propriétés (`src`, `shared`). Les noms situés à droite des deux-points sont des alias de répertoire. Une virgule finale est permise après chaque entrée, y compris la dernière. Les noms canoniques des couches sont `infrastructure`, `application` et `domain`. Les alias `infra`, `app` et `dom` sont des choix de projet, pas des mots-clés du langage. Une couche omise conserve son nom canonique :
 
 ```ocara
 architecture hexagonal {
-    infrastructure: infra,
-    application: app
+    layers: {
+        infrastructure: infra,
+        application: app,
+    },
 }
 ```
 
@@ -66,12 +70,14 @@ Les chemins source et les namespaces doivent rester cohérents. Le compilateur d
 
 ## Racines partagées
 
-La propriété `shared` déclare les racines transversales accessibles depuis les contextes du projet :
+La propriété `shared` déclare les racines transversales accessibles depuis les contextes du projet. Ses chemins partent de la racine du projet (dossier du fichier d'entrée), indépendamment de `src` : `context.core` désigne `context/core/`.
 
 ```ocara
 architecture hexagonal {
-    infrastructure: infra,
-    application: app,
+    layers: {
+        infrastructure: infra,
+        application: app,
+    },
     shared: [
         context.core,
         context.shared
@@ -87,31 +93,42 @@ Une racine partagée est une exception aux frontières entre contextes, pas une 
 
 Ainsi, déclarer une racine partagée n'autorise pas `application` à dépendre de l'infrastructure d'un autre contexte. Les deux contrôles sont cumulatifs : autorisation de franchir la frontière de contexte, puis validation de la direction entre couches.
 
-Les racines partagées sans segment de couche identifiable, telle que `configs`, sont un cas à trancher. La proposition initiale les utilise notamment pour autoriser certains `wiring`. Il faut préciser si elles sont :
-
-1. uniquement accessibles dans les déclarations `wiring` ;
-2. importables par toutes les couches comme modules de composition ;
-3. soumises à une catégorie explicite supplémentaire (par exemple `composition:` ou `shared` avec une politique dédiée).
-
-Par prudence, elles ne devraient pas être considérées silencieusement comme un accès libre pour les imports ordinaires.
+Seuls les répertoires structurés en couches (segments `domain`, `application`, `infrastructure` ou leurs alias) peuvent être déclarés dans `shared`. Une entrée sans segment de couche, telle que `configs`, est une erreur de compilation.
 
 ## Règles de `wiring`
 
 `wiring` reste une déclaration de liaison compile-time, différente d'un import ordinaire. Il permet au code consommateur de dépendre du contrat, tandis que le compilateur connaît l'adaptateur concret sans exiger que le service applicatif l'importe.
 
-Dans un contexte maître donné, une interface ne peut référencer par `wiring` qu'une implémentation appartenant au même contexte maître. Par exemple, une interface sous `context.home.domain` peut viser une classe sous `context.home.infra` ou `context.home.app`, `context.home.domain`, mais pas une classe sous `context.car.*`.
+Dans un contexte maître donné, une interface ne peut référencer par `wiring` qu'une implémentation appartenant au même contexte maître ou à une racine `shared`. Par exemple, une interface sous `context.home.domain` peut viser une classe sous `context.home.infra`, `context.home.app` ou `context.home.domain`, mais pas une classe sous `context.car.*`.
 
-Une racine déclarée dans `shared` peut également fournir une cible de `wiring`, conformément au cas d'usage demandé :
+Un contexte peut aussi dépendre d'un contrat partagé : une classe de `context.home` peut implémenter (`implements`) une interface déclarée dans une racine `shared`, par exemple `context.core.domain.contract.Clock`, dans le respect de la direction des couches. Le `wiring` de ce contrat partagé peut alors viser l'implémentation du contexte qui l'utilise.
+
+Exemple de configuration :
 
 ```ocara
 architecture hexagonal {
-    infrastructure: infra,
-    application: app,
-    shared: [context.core, context.shared, configs]
+    src: mon_dossier_structuré_en_hexa, // par défaut le dossier src du projet : répertoire où le code est structuré en hexagonal
+    layers: {
+        infrastructure: infra,
+        application: app,
+    },
+    shared: [context.core, context.shared],
 }
 ```
 
-Dans cette configuration, un `wiring` déclaré dans `context.home.domain` peut cibler une implémentation de `context.home`, `context.core`, `context.shared` ou `configs`. Cette autorisation concerne le lien de compilation et ne rend pas automatiquement ces modules importables depuis le code du domaine.
+```ocara
+architecture hexagonal {
+    src: context,
+    layers: {
+        infrastructure: infra,
+        application: app,
+        domain: dom,
+    },
+    shared: [context.core, context.shared],
+}
+```
+
+Dans cette configuration, un `wiring` déclaré dans `context.home.domain` peut cibler une implémentation de `context.home`, `context.core` ou `context.shared`. Cette autorisation concerne le lien de compilation et ne rend pas automatiquement ces modules importables depuis le code du domaine.
 
 L'architecture hexagonale ne doit pas modifier la résolution existante de `wiring` (choix du premier wiring sans alias, sélection par alias, conformité `implements`, etc.). Elle ajoute une vérification de frontière à ces règles. La cible doit toujours être résolue et satisfaire les vérifications existantes.
 
@@ -119,12 +136,19 @@ L'architecture hexagonale ne doit pas modifier la résolution existante de `wiri
 
 La déclaration d'architecture est placée une fois dans le fichier d'entrée du programme et s'applique au graphe complet des sources utilisateur atteint depuis ce point d'entrée. Une bibliothèque importée ne remplace pas silencieusement la politique architecturale du programme appelant. En l'absence de déclaration, la structure hexagonale s'applique avec les noms de couches canoniques.
 
-Le format exact et le support des racines de contexte explicites restent à décider. Deux stratégies sont envisageables :
+La propriété `src` désigne le répertoire soumis à la structure hexagonale (par défaut `src/`) ; le reste du projet n'est pas contrôlé. Les contextes sont déduits sous ce répertoire : `<src>.<contexte>.<couche>`. Dans `mini_project_hexa`, seul `context/` est structuré en hexagonal (`src: context`) ; `configs/`, `core/` et `templates/` restent libres.
 
-- déduire les contextes depuis une racine convenue, telle que `context.<nom>.<couche>` ;
-- déclarer aussi les racines de contexte dans `architecture hexagonal`, pour permettre plusieurs conventions de répertoires.
+```ocara
+architecture hexagonal {
+    src: context,
+    layers: {
+        infrastructure: infra,
+        application: app,
+    },
+}
+```
 
-La première approche est simple et correspond au projet `mini_project_hexa`. La seconde est plus flexible, mais augmente la configuration. La conception devra également définir le comportement des fichiers de l'entrée principale, des tests, des scripts sans namespace, et des modules partagés imbriqués sous un contexte.
+La conception devra également définir le comportement des fichiers de l'entrée principale, des scripts sans namespace, et des modules partagés imbriqués sous un contexte.
 
 ## Diagnostics attendus
 
@@ -143,18 +167,24 @@ Cas à diagnostiquer explicitement :
 - `wiring` hors du contexte maître de l'interface et hors des racines partagées ;
 - alias de couche dupliqué ou invalide ;
 - fichier ou namespace impossible à classifier sans ambiguïté ;
-- entrée de `shared` qui ne correspond à aucune racine source résolue.
+- entrée de `shared` qui ne correspond à aucune racine source résolue ;
+- entrée de `shared` sans segment de couche (ex. `configs`).
 
 Les erreurs de configuration architecturale devraient être distinguées des erreurs de syntaxe Ocara ordinaires afin de faciliter leur compréhension et les tests.
 
 ## Architecture permissive et compatibilité
 
-- L'absence de déclaration équivaut à `architecture hexagonal` avec les noms canoniques `infrastructure`, `application` et `domain`.
+- L'absence de déclaration équivaut à `architecture hexagonal` avec les valeurs par défaut : `src: src` (répertoire `src/`), couches `infrastructure/`, `application/` et `domain/`, et aucune racine `shared` (aucun import entre contextes autorisé).
 - `architecture permissive` désactive uniquement les contrôles de couches, de contextes et de frontières de `wiring`; le typage strict, les règles de visibilité et toutes les autres vérifications restent actifs.
 - L'architecture hexagonale est stricte : toute dépendance utilisateur que le compilateur ne peut pas classer doit produire un diagnostic plutôt que d'être acceptée par défaut.
 - Ce défaut strict peut rendre non compilables des projets Ocara existants qui ne suivent pas une arborescence hexagonale. Ils devront soit adopter ou adapter cette structure, soit déclarer `architecture permissive` pour conserver leur organisation actuelle.
 - Les builtins `ocara.*` ne sont pas concernés par les règles de couches.
 - Les vérifications architecturales n'introduisent aucun coût à l'exécution : elles sont faites à la compilation.
+- **Tests unitaires** : un fichier de test (`ocaraunit`) est un fichier d'entrée comme un autre. L'architecture s'y applique de la même façon : son bloc `architecture`, sinon le défaut hexagonal. Un test qui importe le code d'un projet hexagonal est donc soumis aux mêmes règles de couches, de contextes et de `wiring`. Un test qui ne suit pas cette structure déclare `architecture permissive`.
+
+### Migration des exemples et des tests
+
+Le défaut hexagonal rend non conformes la plupart des exemples existants. Lors de l'implémentation, tous les exemples (`examples/*.oc`, `examples/advanced/*`, `examples/builtins`, `examples/generics`, `examples/mods`, `examples/from`, `examples/runtime`…) et les fichiers de tests unitaires (`examples/tests`, `examples/project/tests`) reçoivent `architecture permissive` dans leur fichier d'entrée. Seul `examples/advanced/mini_project_hexa` déclare `architecture hexagonal` (`src: context`) et sert de référence. `make regression` et les tests `ocaraunit` doivent rester verts après cette migration.
 
 ## Tests de non-régression à prévoir
 
@@ -167,16 +197,25 @@ Les erreurs de configuration architecturale devraient être distinguées des err
 7. Les mêmes contrôles s'appliquent aux imports aliasés, relatifs, wildcard/sélectifs si ces formes sont autorisées, et transitifs.
 8. Les namespaces qui contredisent leur chemin, les collisions d'alias et les chemins non classifiables donnent des diagnostics stables.
 9. Une application représentative, notamment `examples/advanced/mini_project_hexa`, compile sous le mode choisi et sert de test d'intégration architectural.
+10. Un fichier de test `ocaraunit` est contrôlé comme un fichier d'entrée : une violation de couche y est rejetée, `architecture permissive` la lève.
 
 ## Décisions ouvertes avant implémentation
 
-- Syntaxe définitive de `architecture hexagonal` et de la liste `shared` (virgules, séparateurs, plusieurs blocs ou un seul bloc global).
-- Racine de contexte déduite ou déclarée; gestion de plusieurs projets/racines dans un même graphe.
-- Politique des racines `shared` non stratifiées telles que `configs`, séparée pour les imports ordinaires et les `wiring`.
+- Plusieurs blocs `architecture` ou un seul bloc global.
+- Gestion de plusieurs projets/racines `src` dans un même graphe.
 - Une racine partagée peut-elle contenir des couches, et comment les reconnaître lorsqu'elle est nommée `context.shared` ?
-- Traitement des tests, outils, fichiers d'entrée hors contexte et bibliothèques utilisateur externes.
+- Traitement des outils, fichiers d'entrée hors contexte et bibliothèques utilisateur externes.
 - La validation porte-t-elle uniquement sur les imports directs (recommandé pour des diagnostics lisibles) ou aussi sur une fermeture transitive, sachant qu'un import direct constitue déjà le graphe de dépendances visible au compilateur ?
 - Diagnostic ou erreur fatale lorsque la source ne peut pas être classée en mode strict.
+
+## Outillage : extension VS Code
+
+Les instructions d'architecture sont des instructions bas niveau du langage, comme `when` : elles partagent sa couleur dédiée (jaune `#FFCC00` en gras sur thème sombre, jaune orangé `#A86500` sur thème clair, voir [reflexion-declarations-conditionnelles-when.md](reflexion-declarations-conditionnelles-when.md)).
+
+- **Coloration** : le mot-clé `architecture`, son mode (`hexagonal`, `permissive`) et les propriétés du bloc (`src`, `layers`, `shared`) prennent cette couleur.
+- **Couches dans les namespaces et les imports** : dans `namespace context.home.app.usecase` et `import context.car.infra.db.CarRepository`, le segment de couche (`app`, `infra`, `domain`… selon les alias déclarés) est coloré de la même façon, pour identifier la couche d'un coup d'œil. La détection suit la configuration effective du programme (bloc `architecture` du fichier d'entrée, sinon valeurs par défaut) : jetons sémantiques du serveur de langage, et non une règle TextMate figée, puisque les alias sont propres à chaque projet.
+- **Détection des couches par l'extension** : le serveur de langage expose, pour chaque fichier, son contexte et sa couche (ou « hors `src` ») ; l'encart Workflow les affiche (imports et structure annotés de leur couche).
+- **Graphe d'appels** : les boîtes (classes, structs, interfaces, fonctions…) sont encapsulées dans un cadre jaune par couche — `domain`, `application`, `infrastructure` — lui-même regroupé par contexte ; les éléments hors `src` (configs, runtimes) restent hors cadre. L'export Markdown (Mermaid) reproduit ces cadres en `subgraph` imbriqués.
 
 ## Priorité / Complexité
 

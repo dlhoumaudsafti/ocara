@@ -29,6 +29,14 @@ import configs.Components
 import configs.Server
 import configs.Database
 
+architecture hexagonal {
+    src: context,
+    layers: {
+        application: app,
+        infrastructure: infra
+    }
+}
+
 runtime core.init is init
 when System::OS is 'android'
 runtime core.mainAndroid is main
