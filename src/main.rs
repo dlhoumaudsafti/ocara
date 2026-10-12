@@ -55,6 +55,9 @@ fn main() {
     // ── 5. Lowering AST → Ocara HIR ────────────────────────────────────────────
     let source_file = args.input.to_string_lossy().to_string();
     let mut ir_module = lower_program(&program, &source_file);
+    if args.leak_check {
+        ir::leak_check::instrument(&mut ir_module);
+    }
     if args.profile {
         let classes: Vec<String> = program.classes.iter().map(|c| c.name.clone()).collect();
         ir::profile::instrument(&mut ir_module, &classes);

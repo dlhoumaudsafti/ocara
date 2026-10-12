@@ -68,8 +68,9 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     visée par son `wiring` (lien violet en tirets) ; les appels builtin (`IO::writeln`, `Thread.run`…)
     sont regroupés par classe `ocara.*` en gris, masquables (bouton `ocara.*`). **Exporter** en Markdown (`.md`, graphe Mermaid) ou en image (`.png`), ou
     **copier** le Markdown dans le presse-papiers ;
-  - **Benchmark** : temps et pic mémoire sur plusieurs exécutions (build Release), détection de fuite
-    (marqueur `__N__`), profil par fonction (`ocara --profile`) et historique comparé par script
+  - **Benchmark** : temps et pic mémoire sur plusieurs exécutions (build Release), **détection des
+    fuites** en un clic (`ocara --leak-check` : le script s'exécute tel quel, les valeurs non libérées
+    sont listées par classe), fuite par croissance (marqueur `__N__`), profil par fonction (`ocara --profile`) et historique comparé par script
     (voir docs/benchmarking.md).
 - Les noms de type (`var x:Dog`, `extends Animal`, paramètres, `on e is FileException`) ont survol,
   définition et références comme les autres noms.

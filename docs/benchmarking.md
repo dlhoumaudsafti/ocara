@@ -7,6 +7,29 @@ faussent une mesure et les résultats de référence actuels.
 Prérequis : un compilateur à jour (`make build`), et `/usr/bin/time`
 (paquet `time`) pour le pic mémoire.
 
+## Détecter une fuite : le bilan `--leak-check` (le plus simple)
+
+`ocara programme.oc --leak-check -o programme` compte chaque allocation et
+chaque libération de valeur (chaînes, tableaux, maps, objets par classe,
+closures…). À la sortie du programme, ce qui n'a pas été libéré est listé,
+par classe ou par genre — aucun marqueur, aucune boucle à écrire :
+
+```
+── fuites : 2000 valeur(s) non libérée(s) à la sortie ──
+    1000 × C                            (allouées 1000, libérées 0)
+    1000 × variable capturée            (allouées 2000, libérées 1000)
+```
+
+- `OCARA_LEAK_OUT=fuites.tsv ./programme` écrit le bilan dans un fichier
+  (`restants<TAB>alloués<TAB>libérés<TAB>genre`).
+- Juste avant le bilan, une passe du collecteur de cycles libère les valeurs
+  qui y attendaient : ce qui reste est réellement perdu.
+- Le programme doit se terminer normalement (un serveur arrêté par un signal
+  ne produit pas de bilan) : pour un serveur, voir « le plateau » plus bas.
+- Sans `--leak-check`, le coût est nul (un test de booléen par allocation).
+
+Dans VS Code : encart Benchmark → « Détecter les fuites ».
+
 ## Détecter une fuite : le pic mémoire à deux tailles
 
 Le principe : exécuter le même programme pour N et 10 × N itérations, et

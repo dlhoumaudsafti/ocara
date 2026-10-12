@@ -15,6 +15,8 @@ pub struct CliArgs {
     pub release: bool,
     /// true = fonctions instrumentées pour le profilage (src/ir/profile.rs)
     pub profile: bool,
+    /// true = allocations comptées, bilan des fuites à la sortie (src/ir/leak_check.rs)
+    pub leak_check: bool,
     /// Répertoire racine pour la résolution des imports (défaut : répertoire du fichier d'entrée)
     pub src_dir: Option<PathBuf>,
     /// Triple cible Cranelift (ex: "aarch64-linux-android") — quand présent,
@@ -67,6 +69,8 @@ pub fn print_help() {
     println!("  --release     Build release (System::BUILD = \"release\", symboles retirés)");
     println!("  --profile     Mesure le temps de chaque fonction ; rapport à la sortie du programme");
     println!("                (fichier OCARA_PROFILE_OUT, sinon stderr)");
+    println!("  --leak-check  Compte allocations et libérations ; valeurs non libérées listées à la sortie");
+    println!("                (fichier OCARA_LEAK_OUT, sinon stderr)");
     println!("  --target <triple>");
     println!("                Cible de compilation croisée Cranelift (ex: aarch64-linux-android).");
     println!("                Sans --android-runtime, exige --no-link (voir docs/roadmap.d/packaging-android.md).");
@@ -108,6 +112,7 @@ pub fn parse_args() -> CliArgs {
     let mut no_link = false;
     let mut release = false;
     let mut profile = false;
+    let mut leak_check = false;
     let mut src_dir = None;
     let mut target: Option<String> = None;
     let mut android_runtime: Option<PathBuf> = None;
@@ -124,6 +129,7 @@ pub fn parse_args() -> CliArgs {
             "--no-link" => no_link = true,
             "--release" => release = true,
             "--profile" => profile = true,
+            "--leak-check" => leak_check = true,
             "--lsp"     => lsp     = true,
             "-o" if i + 1 < args.len() => {
                 output = PathBuf::from(&args[i + 1]);
@@ -161,5 +167,5 @@ pub fn parse_args() -> CliArgs {
         }
         i += 1;
     }
-    CliArgs { input, output, dump, check, no_link, release, profile, src_dir, target, android_runtime, android_runtime_sdl, android_jni_bridge, android_ndk, lsp }
+    CliArgs { input, output, dump, check, no_link, release, profile, leak_check, src_dir, target, android_runtime, android_runtime_sdl, android_jni_bridge, android_ndk, lsp }
 }

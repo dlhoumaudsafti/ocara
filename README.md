@@ -138,6 +138,7 @@ ocara [options] <fichier.oc>
 | `--dump` | Afficher la représentation intermédiaire (IR) |
 | `--no-link` | Compiler sans lier (génère un `.o`) |
 | `--release` | Optimisations maximales (défaut : debug) |
+| `--leak-check` | Compte allocations et libérations ; liste à la sortie les valeurs non libérées, par classe ou genre (fichier `OCARA_LEAK_OUT`, sinon stderr) |
 | `--profile` | Mesure le temps de chaque fonction ; rapport à la sortie du programme (fichier `OCARA_PROFILE_OUT`, sinon stderr) |
 | `--src <dossier>` | Dossier racine pour la résolution des imports |
 

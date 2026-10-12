@@ -7,9 +7,10 @@ import { ocaraOutput, runTool } from './toolrunner';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Encart « Benchmark » (barre latérale Ocara) pour le script affiché :
-// temps et pic mémoire sur N exécutions (build Release), détection de fuite
-// (pic mémoire à deux valeurs du marqueur `__N__`), profil par fonction
-// (`ocara --profile`), historique comparé. Méthode : docs/benchmarking.md.
+// temps et pic mémoire sur N exécutions (build Release), fuites (bilan des
+// allocations `ocara --leak-check`, ou pic mémoire à deux valeurs du
+// marqueur `__N__`), profil par fonction (`ocara --profile`), historique
+// comparé. Méthode : docs/benchmarking.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
 type Kind = 'time' | 'leak' | 'profile';
@@ -24,9 +25,12 @@ interface Entry {
 
 interface ProfileRow { name: string; calls: number; totalMs: number; ownMs: number }
 
+/** Bilan `--leak-check` : valeurs restantes d'un genre (classe, string…). */
+interface LeakRow { label: string; live: number; allocated: number; freed: number }
+
 type Item =
     | { type: 'action'; label: string; command: string; icon: string }
-    | { type: 'group'; id: 'profile' | 'history'; label: string }
+    | { type: 'group'; id: 'profile' | 'leaks' | 'history'; label: string }
     | { type: 'row'; label: string; description: string; icon: string; tooltip?: string };
 
 const TIME_BIN = '/usr/bin/time';
@@ -36,6 +40,7 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
     readonly onDidChangeTreeData = this.changed.event;
     private file: string | undefined;
     private profile: ProfileRow[] = [];
+    private leaks: LeakRow[] | undefined;
     private running = false;
 
     constructor(private readonly state: vscode.Memento) {}
@@ -44,7 +49,8 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
         context.subscriptions.push(
             vscode.window.createTreeView('ocara.benchmark', { treeDataProvider: this }),
             vscode.commands.registerCommand('ocara.bench.run', () => this.guard(f => this.measure(f))),
-            vscode.commands.registerCommand('ocara.bench.leak', () => this.guard(f => this.leak(f))),
+            vscode.commands.registerCommand('ocara.bench.leak', () => this.guard(f => this.leakCheck(f))),
+            vscode.commands.registerCommand('ocara.bench.leakGrowth', () => this.guard(f => this.leak(f))),
             vscode.commands.registerCommand('ocara.bench.profile', () => this.guard(f => this.runProfile(f))),
             vscode.commands.registerCommand('ocara.bench.clear', () => this.clear()),
             vscode.window.onDidChangeActiveTextEditor(() => this.follow()),
@@ -58,6 +64,7 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
         if (doc?.languageId === 'ocara' && doc.uri.scheme === 'file' && doc.uri.fsPath !== this.file) {
             this.file = doc.uri.fsPath;
             this.profile = [];
+            this.leaks = undefined;
             this.changed.fire();
         }
     }
@@ -96,6 +103,32 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
         });
     }
 
+    /** Bilan des allocations (`ocara --leak-check`) : le script s'exécute
+     *  tel quel, ce qui reste alloué à la sortie est listé par genre. */
+    private async leakCheck(file: string): Promise<void> {
+        let rows: LeakRow[] = [];
+        let reported = false;
+        await withTempDir(async dir => {
+            const binary = await build(file, path.join(dir, 'leaks'), ['--release', '--leak-check']);
+            const out = path.join(dir, 'leaks.tsv');
+            await execute(binary, path.dirname(file), dir, { OCARA_LEAK_OUT: out });
+            reported = fs.existsSync(out);
+            rows = (reported ? fs.readFileSync(out, 'utf8') : '').split('\n').filter(Boolean).map(line => {
+                const [live, allocated, freed, ...label] = line.split('\t');
+                return { label: label.join('\t'), live: Number(live), allocated: Number(allocated), freed: Number(freed) };
+            });
+        });
+        if (!reported) { throw new Error('bilan absent : le programme ne s\'est pas terminé normalement.'); }
+        this.leaks = rows;
+        const total = rows.reduce((a, r) => a + r.live, 0);
+        const summary = total === 0
+            ? 'aucune fuite — toute valeur allouée a été libérée'
+            : `⚠ ${total} valeur(s) non libérée(s) — ${rows.slice(0, 3).map(r => `${r.live} × ${r.label}`).join(', ')}`;
+        this.add(file, { kind: 'leak', value: total, summary });
+        (total ? vscode.window.showWarningMessage : vscode.window.showInformationMessage)(`Ocara : ${summary}`);
+    }
+
+    /** Méthode par croissance : pic mémoire à deux valeurs du marqueur `__N__`. */
     private async leak(file: string): Promise<void> {
         const source = fs.readFileSync(file, 'utf8');
         if (!source.includes('__N__')) {
@@ -167,12 +200,21 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
         if (!item) {
             const items: Item[] = [
                 { type: 'action', label: 'Mesurer temps et mémoire', command: 'ocara.bench.run', icon: 'dashboard' },
-                { type: 'action', label: 'Détecter une fuite (__N__)', command: 'ocara.bench.leak', icon: 'debug-alt' },
+                { type: 'action', label: 'Détecter les fuites', command: 'ocara.bench.leak', icon: 'debug-alt' },
+                { type: 'action', label: 'Fuite par croissance (__N__)', command: 'ocara.bench.leakGrowth', icon: 'graph-line' },
                 { type: 'action', label: 'Profiler par fonction', command: 'ocara.bench.profile', icon: 'flame' },
             ];
+            if (this.leaks) { items.push({ type: 'group', id: 'leaks', label: this.leaks.length ? 'Fuites détectées' : 'Fuites : aucune' }); }
             if (this.profile.length) { items.push({ type: 'group', id: 'profile', label: 'Dernier profil' }); }
             items.push({ type: 'group', id: 'history', label: 'Historique' });
             return items;
+        }
+        if (item.type === 'group' && item.id === 'leaks') {
+            return (this.leaks ?? []).map(r => ({
+                type: 'row', label: `${r.live} × ${r.label}`, icon: 'warning',
+                description: `allouées ${r.allocated}, libérées ${r.freed}`,
+                tooltip: `${r.live} valeur(s) « ${r.label} » encore allouée(s) à la sortie du programme`,
+            }));
         }
         if (item.type === 'group' && item.id === 'profile') {
             return this.profile.map(r => ({
@@ -200,7 +242,7 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
         }
         if (item.type === 'group') {
             const t = new vscode.TreeItem(item.label, vscode.TreeItemCollapsibleState.Expanded);
-            t.iconPath = new vscode.ThemeIcon(item.id === 'profile' ? 'flame' : 'history');
+            t.iconPath = new vscode.ThemeIcon(item.id === 'profile' ? 'flame' : item.id === 'leaks' ? (this.leaks?.length ? 'warning' : 'pass') : 'history');
             return t;
         }
         const t = new vscode.TreeItem(item.label);
