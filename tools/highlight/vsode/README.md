@@ -70,7 +70,7 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     **copier** le Markdown dans le presse-papiers ;
   - **Benchmark** : temps et pic mémoire sur plusieurs exécutions (build Release), **détection des
     fuites** en un clic (`ocara --leak-check` : le script s'exécute tel quel, les valeurs non libérées
-    sont listées par classe), fuite par croissance (marqueur `__N__`), profil par fonction (`ocara --profile`) et historique comparé par script
+    sont listées par classe, puis par fonction d'allocation — un clic ouvre la fonction), fuite par croissance (marqueur `__N__`), profil par fonction (`ocara --profile`) et historique comparé par script
     (voir docs/benchmarking.md).
 - Les noms de type (`var x:Dog`, `extends Animal`, paramètres, `on e is FileException`) ont survol,
   définition et références comme les autres noms.

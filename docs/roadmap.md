@@ -10,7 +10,7 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 Cette roadmap est construite pour qu'on puisse dire que le langage est stable **quand la section "Priorité Haute" ci-dessous est vide** — pas avant. Ce n'est pas un objectif séparé à suivre en plus des tickets : c'est littéralement ce que cette section représente. Volontairement, aucune checklist n'est dupliquée ici (le projet a déjà payé le prix d'une source de vérité dupliquée ailleurs — voir `docs/adding-builtins.md`, la double liste `OCARA_BUILTINS`) : la liste unique à vider est celle de la section "Priorité Haute".
 
-**La section "Priorité Haute" n'est pas vide** (bug trouvé le 2026-10-12 par `ocara --leak-check`) — au sens de cette définition, le langage n'est pas « stable » tant qu'il n'est pas corrigé. Les sections Moyenne/Basse/Très Basse ci-dessous restent à traiter mais ne bloquent pas cette définition — voir la Légende.
+**La section "Priorité Haute" est actuellement vide** — au sens de cette définition, le langage est « stable ». Les sections Moyenne/Basse/Très Basse ci-dessous restent à traiter mais ne bloquent pas cette définition — voir la Légende.
 
 ## Légende
 
@@ -29,8 +29,6 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Résultat faux : variable modifiée dans un `on` à l'intérieur d'une boucle** — `n = n + 1` dans `try { … } on e { … }` répété en boucle ne compte qu'une fois (`n=1` à chaque tour, attendu 1, 2, 3…), et une cellule capturée fuit par tour. *(Structurel — lowering de try/on, captures)* → [détails](roadmap.d/langage-try-on-boucle-variable.md)
-
 ---
 
 ## Priorité Moyenne
@@ -46,7 +44,6 @@ Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnali
 Confort ou portée future — n'affecte pas la correction du compilateur ou des binaires produits.
 
 - **Extension JetBrains équivalente à l'extension VS Code** — plugin IntelliJ Platform (IDEA, CLion, RustRover, PhpStorm…) aux fonctionnalités identiques : coloration (grammaire TextMate réutilisée, couleur dédiée de `when`), diagnostics, définition, références, survol, complétion, signature help, CodeLens, ocaracs et mise en forme, commandes compiler / lancer / dump / documentation, réglages. Client du serveur de langage (`ocara --lsp`), sans heuristiques recodées ; liste de parité commune aux deux extensions. *(Moyenne après le serveur de langage, Structurel sans lui)* → [détails](roadmap.d/tooling-jetbrains-plugin.md)
-- **Grammaire Tree-sitter `tree-sitter-ocara/`** — `grammar.js`, `queries/highlights.scm` et corpus de tests dérivés de l'EBNF, pour colorer le code Ocara (fichiers `.oc` et blocs ```` ```ocara ```` des Markdown). Couvre directement Neovim, Helix, Zed, Emacs ; GitHub (Linguist, grammaires TextMate), GitLab (Rouge) et VS Code (TextMate) ne lisent pas Tree-sitter : pour eux, ajout d'Ocara à Linguist (seuil d'usage public) et lexer Rouge en amont, `.gitattributes` en attendant. *(Moyenne — grammaire et requêtes ; dépôt en amont hors de notre contrôle)* → [détails](roadmap.d/tooling-tree-sitter.md)
 
 ---
 
@@ -66,6 +63,7 @@ Pas important du tout pour le moment — portage/intégration massifs, aucune ur
 - **Builtin `ocara.UIHybrid`** (WebView unifiée : Tauri+WebKit desktop ↔ WebView Android, selon la cible de compilation) — même mécanisme que `ocara.UI` ci-dessus mais pour le paradigme WebView, point de départ plus solide (les deux backends se ressemblent déjà). Dépend du [hybride WebView Android](roadmap.d/packaging-android-webview-hybrid.md). *(Massive)* → [détails](roadmap.d/langage-builtin-ui-hybride.md)
 - **Tauri : gestion du menu clic-droit et de l'inspecteur WebKit** — aujourd'hui non contrôlés par `ocara.Tauri` (menu par défaut du navigateur, inspecteur non exposé). `devtools` : simple activation de feature Cargo ; menu contextuel sur Linux/WebKitGTK : `wry` n'expose rien de portable, nécessiterait du FFI direct. *(Légère pour l'inspecteur, non évaluée pour le menu)* → [détails](roadmap.d/builtins-tauri-webkit-menu-inspecteur.md)
 - **Suite différée de `securite-lien-no-pie` : activer `is_pic` côté Cranelift** pour obtenir un vrai PIE sans `TEXTREL` (donc pouvoir retirer `-no-pie` sans régression de sécurité) — défense en profondeur, pas un bug fonctionnel, déjà explicitement différé par le ticket clos faute de besoin concret. *(Dangereuse — touche l'émission d'adresses dans tout le codegen Cranelift)* → [détails](roadmap.d/securite-pie-cranelift-is-pic.md)
+- **Grammaire Tree-sitter `tree-sitter-ocara/`** — `grammar.js`, `queries/highlights.scm` et corpus de tests dérivés de l'EBNF, pour colorer le code Ocara (fichiers `.oc` et blocs ```` ```ocara ```` des Markdown). Couvre directement Neovim, Helix, Zed, Emacs ; GitHub (Linguist, grammaires TextMate), GitLab (Rouge) et VS Code (TextMate) ne lisent pas Tree-sitter : pour eux, ajout d'Ocara à Linguist (seuil d'usage public) et lexer Rouge en amont, `.gitattributes` en attendant. *(Moyenne — grammaire et requêtes ; dépôt en amont hors de notre contrôle)* → [détails](roadmap.d/tooling-tree-sitter.md)
 
 ---
 

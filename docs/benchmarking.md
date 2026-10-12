@@ -11,24 +11,32 @@ Prérequis : un compilateur à jour (`make build`), et `/usr/bin/time`
 
 `ocara programme.oc --leak-check -o programme` compte chaque allocation et
 chaque libération de valeur (chaînes, tableaux, maps, objets par classe,
-closures…). À la sortie du programme, ce qui n'a pas été libéré est listé,
-par classe ou par genre — aucun marqueur, aucune boucle à écrire :
+closures…), avec la fonction qui a alloué chaque valeur. À la sortie du
+programme, ce qui n'a pas été libéré est listé par classe ou par genre, puis
+par fonction d'allocation (fichier et ligne de sa déclaration) — aucun
+marqueur, aucune boucle à écrire :
 
 ```
-── fuites : 2000 valeur(s) non libérée(s) à la sortie ──
-    1000 × C                            (allouées 1000, libérées 0)
-    1000 × variable capturée            (allouées 2000, libérées 1000)
+── fuites : 2 valeur(s) non libérée(s) à la sortie ──
+       1 × Job                          (allouées 1, libérées 0)
+                1 alloué(s) dans startWorker — worker.oc:8
+       1 × variable capturée            (allouées 1, libérées 0)
+                1 alloué(s) dans startWorker — worker.oc:8
 ```
 
-- `OCARA_LEAK_OUT=fuites.tsv ./programme` écrit le bilan dans un fichier
-  (`restants<TAB>alloués<TAB>libérés<TAB>genre`).
+- `OCARA_LEAK_OUT=fuites.tsv ./programme` écrit le bilan dans un fichier :
+  `K<TAB>genre<TAB>restants<TAB>alloués<TAB>libérés`, suivi pour ce genre de
+  lignes `S<TAB>genre<TAB>nombre<TAB>fonction<TAB>fichier<TAB>ligne`.
+- Une valeur allouée dans une closure est attribuée à la fonction qui
+  l'appelle.
 - Juste avant le bilan, une passe du collecteur de cycles libère les valeurs
   qui y attendaient : ce qui reste est réellement perdu.
 - Le programme doit se terminer normalement (un serveur arrêté par un signal
   ne produit pas de bilan) : pour un serveur, voir « le plateau » plus bas.
 - Sans `--leak-check`, le coût est nul (un test de booléen par allocation).
 
-Dans VS Code : encart Benchmark → « Détecter les fuites ».
+Dans VS Code : encart Benchmark → « Détecter les fuites » ; chaque genre se
+déplie en fonctions d'allocation, un clic ouvre la fonction.
 
 ## Détecter une fuite : le pic mémoire à deux tailles
 

@@ -16,6 +16,7 @@ mod tests_homonyms;
 #[cfg(test)]
 mod tests_architecture;
 pub mod interface_wiring;
+pub mod leak_sites;
 pub mod monomorph;
 pub mod named_args;
 pub mod structs;

@@ -111,14 +111,15 @@ pub(crate) unsafe fn alloc_block(payload: usize, aux: i64, tag: i64, zeroed: boo
         *(raw as *mut i64) = 1;
         *(raw.add(8) as *mut i64) = aux;
         *(raw.add(16) as *mut i64) = tag;
-        crate::leak::on_alloc(crate::leak::Kind::Tag(tag));
-        raw as i64 + HEADER as i64
+        let val = raw as i64 + HEADER as i64;
+        crate::leak::on_alloc(crate::leak::Kind::Tag(tag), val);
+        val
     }
 }
 
 pub(crate) unsafe fn free_block(val: i64, payload: usize) {
     unsafe {
-        crate::leak::on_free(crate::leak::Kind::Tag(*((val - 8) as *const i64)));
+        crate::leak::on_free(crate::leak::Kind::Tag(*((val - 8) as *const i64)), val);
         dealloc((val - HEADER as i64) as *mut u8, block_layout(payload))
     }
 }
@@ -141,8 +142,9 @@ pub(crate) unsafe fn alloc_object(size: usize, class_id: i64, desc: i64) -> i64 
         *(raw.add(8) as *mut i64) = 1;
         *(raw.add(16) as *mut i64) = class_id;
         *(raw.add(24) as *mut i64) = TAG_OBJECT;
-        crate::leak::on_alloc(crate::leak::Kind::Class(class_id));
-        raw as i64 + 8 + HEADER as i64
+        let val = raw as i64 + 8 + HEADER as i64;
+        crate::leak::on_alloc(crate::leak::Kind::Class(class_id), val);
+        val
     }
 }
 
@@ -194,7 +196,7 @@ pub(crate) unsafe fn free_object(val: i64) {
             return;
         }
         let size = object_mask(val).len() * 8;
-        crate::leak::on_free(crate::leak::Kind::Class(*((val - 16) as *const i64)));
+        crate::leak::on_free(crate::leak::Kind::Class(*((val - 16) as *const i64)), val);
         dealloc((val - 8 - HEADER as i64) as *mut u8, object_layout(size));
     }
 }
@@ -227,13 +229,14 @@ pub(crate) unsafe fn alloc_box(bits: i64, tag: i64) -> i64 {
         assert!(!raw.is_null(), "ocara_runtime: OOM");
         *(raw as *mut i64) = 1;
         *(raw.add(8) as *mut i64) = bits;
-        crate::leak::on_alloc(crate::leak::Kind::Boxed);
-        (raw as i64 + 8) | tag
+        let val = (raw as i64 + 8) | tag;
+        crate::leak::on_alloc(crate::leak::Kind::Boxed, val);
+        val
     }
 }
 
 pub(crate) unsafe fn free_box(val: i64) {
-    crate::leak::on_free(crate::leak::Kind::Boxed);
+    crate::leak::on_free(crate::leak::Kind::Boxed, val);
     unsafe { dealloc(((val & !3) - 8) as *mut u8, Layout::from_size_align(16, 8).unwrap()) }
 }
 

@@ -1,0 +1,55 @@
+architecture permissive
+
+import ocara.UnitTest
+
+// Variable modifiée dans un `try`/`on` à l'intérieur d'une boucle
+// (docs/roadmap.d/langage-try-on-boucle-variable.md) : elle était promue
+// dans une nouvelle cellule à chaque tour, repartant de sa valeur d'avant la
+// boucle (compteur bloqué à 1) et laissant fuir une cellule par tour.
+class Test_86_try_on_loop_variable {
+
+    public method counterInHandlerForLoopTest(): int {
+        var n:int = 0
+        for i in 0 until 1000 {
+            try {
+                failingCall()
+            } on e {
+                n += 1
+            }
+        }
+        UnitTest::assertEquals(1000, n)
+        return 0
+    }
+
+    public method counterInHandlerWhileLoopTest(): int {
+        var n:int = 0
+        var i:int = 0
+        while i smaller 5 {
+            i = i + 1
+            try {
+                failingCall()
+            } on e {
+                n += i
+            }
+        }
+        UnitTest::assertEquals(15, n)
+        return 0
+    }
+
+    public method counterInTryBodyTest(): int {
+        var ok:int = 0
+        for i in 1 to 4 {
+            try {
+                ok += i
+            } on e {
+                ok = -1
+            }
+        }
+        UnitTest::assertEquals(10, ok)
+        return 0
+    }
+}
+
+function failingCall(): void {
+    raise "échec"
+}

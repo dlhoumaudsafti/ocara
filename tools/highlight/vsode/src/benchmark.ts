@@ -26,12 +26,15 @@ interface Entry {
 interface ProfileRow { name: string; calls: number; totalMs: number; ownMs: number }
 
 /** Bilan `--leak-check` : valeurs restantes d'un genre (classe, string…). */
-interface LeakRow { label: string; live: number; allocated: number; freed: number }
+interface LeakRow { label: string; live: number; allocated: number; freed: number; sites: LeakSite[] }
+
+/** Fonction où des valeurs restantes ont été allouées. */
+interface LeakSite { count: number; func: string; file: string; line: number }
 
 type Item =
     | { type: 'action'; label: string; command: string; icon: string }
     | { type: 'group'; id: 'profile' | 'leaks' | 'history'; label: string }
-    | { type: 'row'; label: string; description: string; icon: string; tooltip?: string };
+    | { type: 'row'; label: string; description: string; icon: string; tooltip?: string; children?: Item[]; open?: { file: string; line: number } };
 
 const TIME_BIN = '/usr/bin/time';
 
@@ -113,17 +116,27 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
             const out = path.join(dir, 'leaks.tsv');
             await execute(binary, path.dirname(file), dir, { OCARA_LEAK_OUT: out });
             reported = fs.existsSync(out);
-            rows = (reported ? fs.readFileSync(out, 'utf8') : '').split('\n').filter(Boolean).map(line => {
-                const [live, allocated, freed, ...label] = line.split('\t');
-                return { label: label.join('\t'), live: Number(live), allocated: Number(allocated), freed: Number(freed) };
-            });
+            // `K genre restants alloués libérés`, puis ses `S genre nombre fonction fichier ligne`.
+            for (const line of (reported ? fs.readFileSync(out, 'utf8') : '').split('\n').filter(Boolean)) {
+                const f = line.split('\t');
+                if (f[0] === 'K') {
+                    rows.push({ label: f[1], live: Number(f[2]), allocated: Number(f[3]), freed: Number(f[4]), sites: [] });
+                } else if (f[0] === 'S' && rows.length) {
+                    rows[rows.length - 1].sites.push({ count: Number(f[2]), func: f[3], file: f[4], line: Number(f[5]) });
+                }
+            }
         });
         if (!reported) { throw new Error('bilan absent : le programme ne s\'est pas terminé normalement.'); }
         this.leaks = rows;
         const total = rows.reduce((a, r) => a + r.live, 0);
         const summary = total === 0
             ? 'aucune fuite — toute valeur allouée a été libérée'
-            : `⚠ ${total} valeur(s) non libérée(s) — ${rows.slice(0, 3).map(r => `${r.live} × ${r.label}`).join(', ')}`;
+            : `⚠ ${total} valeur(s) non libérée(s) — ${rows.slice(0, 3).map(r => `${r.live} × ${r.label}${r.sites[0] ? ` (${r.sites[0].func})` : ''}`).join(', ')}`;
+        const out = ocaraOutput();
+        for (const r of rows) {
+            out.appendLine(`[fuites] ${r.live} × ${r.label} (allouées ${r.allocated}, libérées ${r.freed})`);
+            for (const s of r.sites) { out.appendLine(`           ${s.count} dans ${s.func}${s.file ? ` — ${s.file}:${s.line}` : ''}`); }
+        }
         this.add(file, { kind: 'leak', value: total, summary });
         (total ? vscode.window.showWarningMessage : vscode.window.showInformationMessage)(`Ocara : ${summary}`);
     }
@@ -213,7 +226,14 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
             return (this.leaks ?? []).map(r => ({
                 type: 'row', label: `${r.live} × ${r.label}`, icon: 'warning',
                 description: `allouées ${r.allocated}, libérées ${r.freed}`,
-                tooltip: `${r.live} valeur(s) « ${r.label} » encore allouée(s) à la sortie du programme`,
+                tooltip: `${r.live} valeur(s) « ${r.label} » encore allouée(s) à la sortie du programme — dépliez pour voir où`,
+                // Lieux d'allocation : un clic ouvre la fonction qui a alloué.
+                children: r.sites.map(s => ({
+                    type: 'row' as const, label: s.func, icon: 'symbol-method',
+                    description: `${s.count} alloué(s)${s.file ? ` — ${path.basename(s.file)}:${s.line}` : ''}`,
+                    tooltip: s.file ? `${s.count} « ${r.label} » alloué(s) dans ${s.func} — ${s.file}:${s.line}` : `${s.count} « ${r.label} » alloué(s) hors d'une fonction connue`,
+                    open: s.file ? { file: s.file, line: s.line } : undefined,
+                })),
             }));
         }
         if (item.type === 'group' && item.id === 'profile') {
@@ -228,6 +248,9 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
                 const previous = list.slice(i + 1).find(p => p.kind === e.kind);
                 return { type: 'row', label: e.date, description: `${delta(e, previous)}${e.summary}`, icon: ICONS[e.kind], tooltip: e.summary };
             });
+        }
+        if (item.type === 'row') {
+            return item.children ?? [];
         }
         return [];
     }
@@ -245,10 +268,13 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
             t.iconPath = new vscode.ThemeIcon(item.id === 'profile' ? 'flame' : item.id === 'leaks' ? (this.leaks?.length ? 'warning' : 'pass') : 'history');
             return t;
         }
-        const t = new vscode.TreeItem(item.label);
+        const t = new vscode.TreeItem(item.label, item.children?.length ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None);
         t.description = item.description;
         t.tooltip = item.tooltip ?? `${item.label} — ${item.description}`;
         t.iconPath = new vscode.ThemeIcon(item.icon);
+        if (item.open) {
+            t.command = { command: 'ocara.nav.open', title: 'Ouvrir', arguments: [item.open.file, item.open.line] };
+        }
         return t;
     }
 }

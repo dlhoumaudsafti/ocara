@@ -56,7 +56,8 @@ fn main() {
     let source_file = args.input.to_string_lossy().to_string();
     let mut ir_module = lower_program(&program, &source_file);
     if args.leak_check {
-        ir::leak_check::instrument(&mut ir_module);
+        let classes: Vec<String> = program.classes.iter().map(|c| c.name.clone()).collect();
+        ir::leak_check::instrument(&mut ir_module, &classes, &core::leak_sites::sites(&program, &args.input));
     }
     if args.profile {
         let classes: Vec<String> = program.classes.iter().map(|c| c.name.clone()).collect();

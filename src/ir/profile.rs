@@ -16,18 +16,20 @@ pub fn instrument(module: &mut IrModule, classes: &[String]) {
         .collect();
     for (func, idx) in module.functions.iter_mut().zip(labels) {
         if let Some(idx) = idx {
-            wrap(func, idx);
+            wrap(func, idx, "__prof_enter", "__prof_exit");
         }
     }
 }
 
-fn wrap(func: &mut IrFunction, idx: u32) {
+/// Encadre `func` : `enter(chaîne idx)` en entrée, `exit(chaîne idx)` avant
+/// chaque `return` (profilage, bilan des fuites).
+pub fn wrap(func: &mut IrFunction, idx: u32, enter: &'static str, exit: &'static str) {
     let mut calls: Vec<(usize, usize, &'static str)> = Vec::new();
-    calls.push((0, 0, "__prof_enter"));
+    calls.push((0, 0, enter));
     for (b, block) in func.blocks.iter().enumerate() {
         for (i, inst) in block.insts.iter().enumerate() {
             if matches!(inst, Inst::Return { .. }) {
-                calls.push((b, i, "__prof_exit"));
+                calls.push((b, i, exit));
             }
         }
     }
@@ -42,7 +44,7 @@ fn wrap(func: &mut IrFunction, idx: u32) {
 
 /// `Classe_méthode` → `Classe.méthode` (classe la plus longue qui préfixe le
 /// nom), sinon le nom tel quel.
-fn label(name: &str, classes: &[String]) -> String {
+pub fn label(name: &str, classes: &[String]) -> String {
     classes.iter()
         .filter(|c| name.len() > c.len() + 1 && name.starts_with(c.as_str()) && name.as_bytes()[c.len()] == b'_')
         .max_by_key(|c| c.len())

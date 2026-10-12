@@ -1,7 +1,7 @@
 # Variable modifiée dans un `on` à l'intérieur d'une boucle : résultat faux et fuite
 
-Statut : **à corriger** — trouvé le 2026-10-12 en testant le bilan des
-fuites (`ocara --leak-check`).
+Statut : **corrigé le 2026-10-12** — trouvé le même jour en testant le bilan
+des fuites (`ocara --leak-check`).
 
 ## Reproduction
 
@@ -33,16 +33,22 @@ avec `while`. Avec 1 000 tours, `--leak-check` rapporte aussi
 `999 × variable capturée (allouées 2000, libérées 1001)` : une cellule
 capturée fuit par tour.
 
-## Pistes
+## Cause et correction
 
-- `try`/`on` repose sur `setjmp`/`longjmp` (runtime `__ocara_try_exec`) : une
-  variable modifiée entre le `setjmp` et le `longjmp`, ou dans le bloc `on`,
-  peut être restaurée à sa valeur du moment du `setjmp` si elle vit dans un
-  registre. Ici `n` est capturée dans une cellule (le corps du `try` est
-  une closure) : la cellule est-elle recréée à chaque tour au lieu d'être
-  partagée, la mise à jour se faisant sur une copie ?
-- La cellule non libérée par tour va dans le même sens (cellule créée par
-  tour, jamais rendue).
+Le corps d'un `try` et ses blocs `on` sont des fonctions séparées : une
+variable qu'ils lisent ou écrivent est promue dans une cellule partagée. La
+promotion était émise à l'endroit du `try` — dans le corps de la boucle,
+donc exécutée à chaque tour : une nouvelle cellule, initialisée depuis
+l'emplacement d'origine (resté à 0 puisque les écritures vont dans la
+cellule), et la cellule du tour précédent jamais rendue.
+
+Les closures avaient le même problème, réglé par une promotion anticipée
+avant la boucle (`hoist_closure_promotions_before_loop`) ; sa recherche des
+captures ne comptait pas les références directes d'un `try`. Correction
+(`src/lower/expr.d/captures.rs`) : dans un `try`, le corps et les blocs `on`
+comptent leurs références directes — la variable est promue une fois, avant
+la boucle, et chaque tour réutilise la même cellule. Test :
+`examples/tests/86_try_on_loop_variableTest.oc`.
 
 ## Vérification
 

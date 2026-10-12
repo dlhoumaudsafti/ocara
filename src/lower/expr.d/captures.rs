@@ -84,9 +84,14 @@ fn walk_stmt_caps(stmt: &Stmt, p: &HashSet<String>, l: &HashMap<String, (Value, 
             for c in cases { walk_block_caps(&c.body, p, l, caps, seen, count_direct_refs); }
             if let Some(blk) = default { walk_block_caps(blk, p, l, caps, seen, count_direct_refs); }
         }
+        // Corps et blocs `on` d'un `try` sont des fonctions séparées qui
+        // capturent les variables qu'ils lisent ou écrivent (voir
+        // exceptions.rs) : leurs références directes comptent, pour qu'une
+        // variable modifiée dans un `try` en boucle soit promue une seule
+        // fois, avant la boucle (docs/roadmap.d/langage-try-on-boucle-variable.md).
         Stmt::Try { body, handlers, .. } => {
-            walk_block_caps(body, p, l, caps, seen, count_direct_refs);
-            for h in handlers { walk_block_caps(&h.body, p, l, caps, seen, count_direct_refs); }
+            walk_block_caps(body, p, l, caps, seen, true);
+            for h in handlers { walk_block_caps(&h.body, p, l, caps, seen, true); }
         }
         Stmt::Raise { value, .. } => walk_expr_caps(value, p, l, caps, seen, count_direct_refs),
         Stmt::Emit { value, .. } => walk_expr_caps(value, p, l, caps, seen, count_direct_refs),
