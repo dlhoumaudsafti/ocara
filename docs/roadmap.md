@@ -36,7 +36,6 @@ Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnali
 ## Priorité Moyenne
 
 À traiter mais non bloquant pour la stabilité du langage.
-- **Extension VS Code : couches hexagonales visibles** — instructions d'architecture (`architecture`, `hexagonal`/`permissive`, `src`, `layers`, `shared`) et segments de couche des `namespace`/`import` colorés comme `when` (instructions bas niveau du langage), détection de la couche de chaque fichier selon la configuration effective, graphe d'appels encapsulant les éléments dans un cadre jaune par couche (et par contexte), export Markdown compris. *(Moyenne après l'architecture hexagonale — jetons sémantiques du serveur de langage, classification partagée avec le compilateur, cadres du graphe)* → [détails](roadmap.d/langage-mode-hexa.md)
 
 ---
 

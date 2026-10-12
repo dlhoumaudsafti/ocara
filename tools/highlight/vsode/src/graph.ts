@@ -16,7 +16,8 @@ import type { Workflow } from './workflow';
 const MAX_MEMBERS = 200;
 
 interface Member { id: string; name: string; params: string; ret: string; static: boolean; file: string; line: number; root: boolean; inactive: boolean }
-interface Group { id: string; kind: string; title: string; file: string; members: Member[] }
+/** `context`/`layer` : place dans l'architecture hexagonale (absentes hors `src`). */
+interface Group { id: string; kind: string; title: string; file: string; context?: string | null; layer?: string | null; members: Member[] }
 
 type Message =
     | { type: 'ready' }
@@ -100,7 +101,7 @@ export class GraphProvider implements vscode.WebviewViewProvider {
             const kind = n.kind ?? 'function';
             const gid = kind === 'function' ? `fn:${n.file}` : kind === 'runtime' ? id : `${n.owner}@${n.file}`;
             const title = kind === 'function' ? `fonctions · ${path.basename(n.file)}` : n.owner ?? n.label;
-            if (!groups.has(gid)) { groups.set(gid, { id: gid, kind, title, file: n.file, members: [] }); }
+            if (!groups.has(gid)) { groups.set(gid, { id: gid, kind, title, file: n.file, context: n.context, layer: n.layer, members: [] }); }
             groups.get(gid)!.members.push({
                 id, name: n.name ?? n.label, params: n.params ?? '', ret: n.ret ?? '', static: !!n.static,
                 file: n.file, line: n.line, root: data.calls.roots.includes(id), inactive: !!n.inactive,

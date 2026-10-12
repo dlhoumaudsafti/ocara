@@ -15,6 +15,15 @@ namespace .
 //   make android     arm64 + x86_64 dans le même APK
 //   make simulator   Installe/lance sur un appareil détecté ou l'émulateur (choix interactif)
 
+architecture hexagonal {
+    src: context,
+    layers: {
+        infrastructure: infra,
+        application: app,
+    },
+    shared: [context.shared],
+}
+
 when System::OS is not 'android'
 import ocara.Thread
 
@@ -28,15 +37,7 @@ import ocara.HTTPResponse
 import configs.Components
 import configs.Server
 import context.shared.infra.db.Database
-
-architecture hexagonal {
-    src: context,
-    layers: {
-        infrastructure: infra,
-        application: app,
-    },
-    shared: [context.shared],
-}
+import ocara.System
 
 runtime core.init is init
 when System::OS is 'android'

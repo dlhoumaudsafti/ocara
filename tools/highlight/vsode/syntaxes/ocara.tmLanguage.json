@@ -6,6 +6,7 @@
   "patterns": [
     { "include": "#comments" },
     { "include": "#when-clause" },
+    { "include": "#architecture-decl" },
     { "include": "#namespace" },
     { "include": "#import" },
     { "include": "#runtime-import" },
@@ -58,6 +59,15 @@
           }
         }
       ]
+    },
+
+    "architecture-decl": {
+      "comment": "architecture hexagonal|permissive (docs/EBNF.md §33) : couleur des instructions bas niveau, comme when ; propriétés du bloc et couches colorées par le serveur de langage",
+      "match": "^\\s*(architecture)\\s+(hexagonal|permissive)\\b",
+      "captures": {
+        "1": { "name": "keyword.control.directive.when.ocara" },
+        "2": { "name": "keyword.control.directive.when.ocara" }
+      }
     },
 
     "when-clause": {

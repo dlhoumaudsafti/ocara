@@ -66,9 +66,87 @@
         if (fresh) fit(); else draw();
     }
 
+    // ── Architecture hexagonale : cadres par contexte et par couche ───────
+
+    const LAYERS = ['infrastructure', 'application', 'domain'];
+    const FPAD = 14, LAYER_HEAD = 22, CTX_HEAD = 26, LAYER_GAP = 60, CTX_GAP = 44;
+    const layered = () => groups.some(g => g.layer);
+    const yellow = () => document.body.classList.contains('vscode-light') ? '#A86500' : '#FFCC00';
+    const contexts = () => [...new Set(groups.filter(g => g.layer).map(g => g.context))];
+
+    function place(g, x, y, keep) {
+        const old = positions.get(g.id);
+        if (keep && old) { g.x = old.x; g.y = old.y; } else { g.x = x; g.y = y; }
+        positions.set(g.id, { x: g.x, y: g.y });
+    }
+
+    /** Hors `src` (runtimes, configuration) en première colonne ; puis une
+     *  rangée par contexte : couches infrastructure → application → domain,
+     *  dans le sens des dépendances. */
+    function layeredLayout(keep) {
+        const outside = groups.filter(g => !g.layer);
+        let y = 0;
+        for (const g of outside) { place(g, 0, y, keep); y += g.h + ROW_GAP; }
+        const x0 = outside.length ? Math.max(...outside.map(g => g.w)) + COL_GAP : 0;
+        y = 0;
+        for (const ctx of contexts()) {
+            let x = x0 + FPAD, rowH = 0;
+            for (const layer of LAYERS) {
+                const gs = groups.filter(g => g.context === ctx && g.layer === layer);
+                if (!gs.length) continue;
+                let gy = y + CTX_HEAD + LAYER_HEAD + FPAD;
+                for (const g of gs) { place(g, x + FPAD, gy, keep); gy += g.h + ROW_GAP; }
+                rowH = Math.max(rowH, gy - y);
+                x += Math.max(...gs.map(g => g.w)) + FPAD * 2 + LAYER_GAP;
+            }
+            y += rowH + FPAD + CTX_GAP;
+        }
+    }
+
+    /** Cadres recalculés depuis la position des boîtes (suivent le glisser). */
+    function frames() {
+        const box = gs => {
+            const x0 = Math.min(...gs.map(g => g.x)), y0 = Math.min(...gs.map(g => g.y));
+            const x1 = Math.max(...gs.map(g => g.x + g.w)), y1 = Math.max(...gs.map(g => g.y + g.h));
+            return { x0, y0, x1, y1 };
+        };
+        const out = [];
+        for (const ctx of contexts()) {
+            const layers = [];
+            for (const layer of LAYERS) {
+                const gs = groups.filter(g => g.context === ctx && g.layer === layer);
+                if (!gs.length) continue;
+                const b = box(gs);
+                layers.push({ kind: 'layer', label: layer, x: b.x0 - FPAD, y: b.y0 - FPAD - LAYER_HEAD, w: b.x1 - b.x0 + FPAD * 2, h: b.y1 - b.y0 + FPAD * 2 + LAYER_HEAD });
+            }
+            const x0 = Math.min(...layers.map(f => f.x)), y0 = Math.min(...layers.map(f => f.y));
+            const x1 = Math.max(...layers.map(f => f.x + f.w)), y1 = Math.max(...layers.map(f => f.y + f.h));
+            out.push({ kind: 'context', label: `contexte ${ctx}`, x: x0 - FPAD, y: y0 - CTX_HEAD, w: x1 - x0 + FPAD * 2, h: y1 - y0 + CTX_HEAD + FPAD }, ...layers);
+        }
+        return out;
+    }
+
+    function paintFrames(c) {
+        const fg = css('--vscode-foreground') || '#ccc';
+        c.textBaseline = 'middle'; c.textAlign = 'left';
+        for (const f of frames()) {
+            const layer = f.kind === 'layer';
+            c.globalAlpha = layer ? 1 : 0.45;
+            c.strokeStyle = layer ? yellow() : fg; c.lineWidth = layer ? 1.6 : 1;
+            c.setLineDash(layer ? [] : [6, 4]);
+            roundRect(c, f.x, f.y, f.w, f.h, layer ? 8 : 10); c.stroke();
+            c.setLineDash([]);
+            c.globalAlpha = layer ? 1 : 0.8;
+            c.fillStyle = layer ? yellow() : fg; c.font = font('bold');
+            c.fillText(f.label, f.x + 10, f.y + (layer ? LAYER_HEAD : CTX_HEAD) / 2 + 2);
+        }
+        c.globalAlpha = 1;
+    }
+
     /** Colonnes par niveau d'appel (plus long chemin depuis les racines),
      *  ordre dans une colonne par barycentre des voisins. */
     function layout(keep) {
+        if (layered()) { layeredLayout(keep); return; }
         const out = new Map(groups.map(g => [g.id, new Set()]));
         const inn = new Map(groups.map(g => [g.id, new Set()]));
         for (const [a, b] of edges) {
@@ -196,6 +274,7 @@
                 if (highlight === a || highlight === b || highlight === a.group || highlight === b.group) lit.add(e);
             }
         }
+        if (layered()) paintFrames(c);
         for (const e of edges) {
             const on = lit.has(e);
             c.globalAlpha = highlight && !on ? 0.15 : (e[0].inactive || e[1].inactive ? 0.35 : 0.75);
@@ -238,7 +317,9 @@
     }
 
     function bounds() {
-        const xs = groups.flatMap(g => [g.x, g.x + g.w]), ys = groups.flatMap(g => [g.y, g.y + g.h]);
+        const fs = layered() ? frames() : [];
+        const xs = groups.flatMap(g => [g.x, g.x + g.w]).concat(fs.flatMap(f => [f.x, f.x + f.w]));
+        const ys = groups.flatMap(g => [g.y, g.y + g.h]).concat(fs.flatMap(f => [f.y, f.y + f.h]));
         return { x0: Math.min(...xs) - 40, x1: Math.max(...xs) + 60, y0: Math.min(...ys) - 30, y1: Math.max(...ys) + 40 };
     }
 
@@ -337,11 +418,30 @@
     function markdown() {
         const id = new Map();
         const lines = ['flowchart LR'];
-        groups.forEach((g, gi) => {
-            lines.push(`    subgraph g${gi}["${esc(headerText(g))}"]`, '        direction TB');
-            g.members.forEach(m => { id.set(m, `n${id.size}`); lines.push(`        ${id.get(m)}["${esc(memberText(m))}"]`); });
-            lines.push('    end', `    style g${gi} stroke:${KINDS[g.kind] ? KINDS[g.kind][1] : '#888'},stroke-width:2px`);
+        const styles = [];
+        const group = (g, indent) => {
+            const gi = groups.indexOf(g);
+            lines.push(`${indent}subgraph g${gi}["${esc(headerText(g))}"]`, `${indent}    direction TB`);
+            g.members.forEach(m => { id.set(m, `n${id.size}`); lines.push(`${indent}    ${id.get(m)}["${esc(memberText(m))}"]`); });
+            lines.push(`${indent}end`);
+            styles.push(`    style g${gi} stroke:${KINDS[g.kind] ? KINDS[g.kind][1] : '#888'},stroke-width:2px`);
+        };
+        // Architecture hexagonale : contexte > couche (cadre jaune) > types.
+        groups.filter(g => !g.layer).forEach(g => group(g, '    '));
+        contexts().forEach((ctx, ci) => {
+            lines.push(`    subgraph c${ci}["contexte ${esc(ctx)}"]`, '        direction LR');
+            LAYERS.forEach((layer, li) => {
+                const gs = groups.filter(g => g.context === ctx && g.layer === layer);
+                if (!gs.length) return;
+                lines.push(`        subgraph c${ci}l${li}["${layer}"]`, '            direction TB');
+                gs.forEach(g => group(g, '            '));
+                lines.push('        end');
+                styles.push(`    style c${ci}l${li} stroke:#FFCC00,stroke-width:2px`);
+            });
+            lines.push('    end');
+            styles.push(`    style c${ci} stroke-dasharray:6 4`);
         });
+        lines.push(...styles);
         for (const [a, b] of edges) lines.push(`    ${id.get(a)} ${a.inactive || b.inactive ? '-.->' : '-->'} ${id.get(b)}`);
         const roots = [...id].filter(([m]) => m.root).map(([, n]) => n);
         const inactive = [...id].filter(([m]) => m.inactive).map(([, n]) => n);

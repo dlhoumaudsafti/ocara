@@ -3,7 +3,7 @@
 //! Partagée par le CLI (`main.rs`) et le serveur de langage (`lsp`) : aucune
 //! étape ne quitte le processus, chaque erreur devient un `Diagnostic`.
 
-mod architecture;
+pub mod architecture;
 mod architecture_rules;
 mod checks;
 mod front;

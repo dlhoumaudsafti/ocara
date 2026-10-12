@@ -8,7 +8,8 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use super::architecture_rules::{check_file, Place};
+use super::architecture_rules::check_file;
+pub use super::architecture_rules::Place;
 use super::imports::parse_module;
 use crate::core::diagnostics::Diagnostic;
 use crate::parsing::ast::{ArchitectureDecl, ArchitectureMode, Program};
@@ -62,12 +63,15 @@ impl Config {
     }
 }
 
-pub fn check(entry: &Program, input: &Path, root: &Path) -> Vec<Diagnostic> {
+/// Configuration effective pour `input` (déclaration `own` du fichier,
+/// sinon celle du `main.oc` du projet, sinon défaut) : `Ok(None)` en
+/// architecture permissive, erreurs de configuration sinon.
+pub fn effective(own: Option<&ArchitectureDecl>, input: &Path, root: &Path) -> Result<Option<Config>, Vec<Diagnostic>> {
     // `ocara main.oc` : dossier du fichier = chemin vide.
     let root = if root.as_os_str().is_empty() { Path::new(".") } else { root };
     let root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
     let project_main = root.join("main.oc");
-    let (decl, decl_file) = match &entry.architecture {
+    let (decl, decl_file) = match own {
         Some(d) => (Some(d.clone()), input.to_path_buf()),
         None if project_main.is_file() && !same(&project_main, input) => {
             (parse_module(&project_main).ok().and_then(|p| p.architecture), project_main.clone())
@@ -75,10 +79,15 @@ pub fn check(entry: &Program, input: &Path, root: &Path) -> Vec<Diagnostic> {
         None => (None, input.to_path_buf()),
     };
     if decl.as_ref().is_some_and(|d| d.mode == ArchitectureMode::Permissive) {
-        return Vec::new();
+        return Ok(None);
     }
-    let config = match configure(decl.as_ref(), &decl_file, &root) {
-        Ok(config) => config,
+    configure(decl.as_ref(), &decl_file, &root).map(Some)
+}
+
+pub fn check(entry: &Program, input: &Path, root: &Path) -> Vec<Diagnostic> {
+    let config = match effective(entry.architecture.as_ref(), input, root) {
+        Ok(Some(config)) => config,
+        Ok(None) => return Vec::new(),
         Err(diags) => return diags,
     };
     let mut out = Vec::new();

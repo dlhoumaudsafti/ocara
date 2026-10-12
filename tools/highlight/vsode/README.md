@@ -53,6 +53,11 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     dépliable niveau par niveau, récursion signalée) et **variantes `when`** (retenue ou écartée pour
     la configuration de l'éditeur). Un clic ouvre la déclaration ; les imports, déclarations, membres,
     variables et appels d'une variante `when` écartée sont estompés ;
+  - **Architecture hexagonale** (docs/EBNF.md §33) : le bloc `architecture` et le segment de couche des
+    `namespace`/`import`/`wiring` (`context.car.**infra**.db`, selon les alias du projet) prennent la
+    couleur des instructions bas niveau (comme `when`) ; l'encart Workflow indique la place du script
+    (« car · infrastructure (infra) ») et la couche de chaque import ; le graphe d'appels range les boîtes
+    dans un cadre jaune par couche, regroupé par contexte (cadres repris à l'export Mermaid) ;
   - **Graphe d'appels** interactif, à partir du script affiché (pour un `main.oc` : ses blocs runtime,
     fichiers runtime compris) : une boîte par type — class, struct, interface, module, generic,
     fonctions d'un fichier, bloc runtime — de couleur propre, listant les méthodes utilisées avec leurs

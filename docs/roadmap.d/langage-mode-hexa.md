@@ -1,6 +1,6 @@
 # Architecture hexagonale — vérification compile-time des dépendances
 
-Statut : **implémentée le 2026-10-12** (compilateur et serveur de langage) — référence du langage : [docs/EBNF.md §33](../EBNF.md#33-architecture-hexagonal-permissive). Reste l'outillage de l'extension (section « Outillage »).
+Statut : **implémentée le 2026-10-12** (compilateur et serveur de langage) — référence du langage : [docs/EBNF.md §33](../EBNF.md#33-architecture-hexagonal-permissive). Outillage de l'extension VS Code implémenté le 2026-10-12 (section « Outillage »).
 
 ## Proposition
 
@@ -215,7 +215,7 @@ Le défaut hexagonal rend non conformes la plupart des exemples existants. Lors 
 - Gestion de plusieurs projets/racines `src` dans un même graphe.
 - Bibliothèques utilisateur externes (hors du projet).
 
-## Outillage : extension VS Code
+## Outillage : extension VS Code (implémenté le 2026-10-12)
 
 Les instructions d'architecture sont des instructions bas niveau du langage, comme `when` : elles partagent sa couleur dédiée (jaune `#FFCC00` en gras sur thème sombre, jaune orangé `#A86500` sur thème clair, voir [reflexion-declarations-conditionnelles-when.md](reflexion-declarations-conditionnelles-when.md)).
 
@@ -223,6 +223,8 @@ Les instructions d'architecture sont des instructions bas niveau du langage, com
 - **Couches dans les namespaces et les imports** : dans `namespace context.home.app.usecase` et `import context.car.infra.db.CarRepository`, le segment de couche (`app`, `infra`, `domain`… selon les alias déclarés) est coloré de la même façon, pour identifier la couche d'un coup d'œil. La détection suit la configuration effective du programme (bloc `architecture` du fichier d'entrée, sinon valeurs par défaut) : jetons sémantiques du serveur de langage, et non une règle TextMate figée, puisque les alias sont propres à chaque projet.
 - **Détection des couches par l'extension** : le serveur de langage expose, pour chaque fichier, son contexte et sa couche (ou « hors `src` ») ; l'encart Workflow les affiche (imports et structure annotés de leur couche).
 - **Graphe d'appels** : les boîtes (classes, structs, interfaces, fonctions…) sont encapsulées dans un cadre jaune par couche — `domain`, `application`, `infrastructure` — lui-même regroupé par contexte ; les éléments hors `src` (configs, runtimes) restent hors cadre. L'export Markdown (Mermaid) reproduit ces cadres en `subgraph` imbriqués.
+
+Mise en œuvre : jetons sémantiques `ocaraWhen` du serveur de langage (`src/lsp/semantic.rs`, `src/lsp/layers.rs` — configuration effective partagée avec le compilateur, `core::analysis::architecture::effective`) pour le bloc `architecture` et les segments de couche des chemins `namespace`, `import` et `wiring` ; règle TextMate de secours pour `architecture hexagonal|permissive` ; place du script et couche des imports dans l'encart Workflow (`place`, descriptions) ; contexte et couche de chaque nœud du graphe d'appels, cadres dessinés autour des boîtes et recalculés quand on les déplace (`media/graph.js`), `subgraph` imbriqués à l'export Mermaid. Pour un projet `architecture permissive` (ou hors `src`), rien de tout cela n'apparaît.
 
 ## Priorité / Complexité
 

@@ -9,6 +9,7 @@ mod completion;
 mod decls;
 mod features;
 mod keywords;
+pub(crate) mod layers;
 mod links;
 mod navigation;
 mod position;
@@ -150,8 +151,12 @@ fn handle_request(ws: &Workspace, index: &mut project::ProjectIndex, req: Reques
             .map(|l| serde_json::to_value(GotoDefinitionResponse::Scalar(l)).unwrap_or(Value::Null)),
         SemanticTokensFullRequest::METHOD => serde_json::from_value::<lsp_types::SemanticTokensParams>(req.params)
             .ok()
-            .and_then(|p| ws.text(&to_path(&p.text_document.uri)?))
-            .map(|text| serde_json::to_value(lsp_types::SemanticTokensResult::Tokens(semantic::tokens(&text))).unwrap_or(Value::Null)),
+            .and_then(|p| to_path(&p.text_document.uri))
+            .and_then(|path| {
+                let layers = layers::config(ws, &path).map(|c| layers::LayerSyntax::from_config(&c));
+                Some(semantic::tokens(&ws.text(&path)?, layers.as_ref()))
+            })
+            .map(|tokens| serde_json::to_value(lsp_types::SemanticTokensResult::Tokens(tokens)).unwrap_or(Value::Null)),
         CodeActionRequest::METHOD => serde_json::from_value::<lsp_types::CodeActionParams>(req.params)
             .ok()
             .and_then(|p| Some(auto_import::code_actions(ws, &to_path(&p.text_document.uri)?, &p)))

@@ -31,13 +31,46 @@ pub fn workflow(ws: &Workspace, path: &Path) -> Value {
     if let Some(nodes) = calls.get_mut("nodes") {
         inactive.mark(nodes);
     }
+    let mut imports = Value::from(imports_of(ws, path, &root, &mut seen, &inactive, 0));
+    // Architecture hexagonale : place du script, couche des fichiers importés
+    // et des fonctions du graphe d'appels.
+    let config = super::layers::config(ws, path);
+    let place = config.as_ref().and_then(|c| super::layers::describe(c, path)).map(|(label, ..)| label);
+    if let Some(config) = &config {
+        annotate_imports(config, &mut imports);
+        if let Some(Value::Object(nodes)) = calls.get_mut("nodes") {
+            for node in nodes.values_mut() {
+                let Some(file) = node.get("file").and_then(Value::as_str).map(PathBuf::from) else { continue };
+                if let Some((_, context, layer)) = super::layers::describe(config, &file) {
+                    node["context"] = json!(context);
+                    node["layer"] = json!(layer);
+                }
+            }
+        }
+    }
     json!({
         "file": path,
-        "imports": imports_of(ws, path, &root, &mut seen, &inactive, 0),
+        "place": place,
+        "imports": imports,
         "structure": structure,
         "calls": calls,
         "variants": variants(ws, path, &text),
     })
+}
+
+/// Description d'un import complétée de la couche du fichier visé.
+fn annotate_imports(config: &crate::core::analysis::architecture::Config, value: &mut Value) {
+    let Value::Array(items) = value else { return };
+    for item in items {
+        let file = item.get("file").and_then(Value::as_str).map(PathBuf::from);
+        if let Some((label, ..)) = file.as_deref().and_then(|f| super::layers::describe(config, f)) {
+            let description = item["description"].as_str().unwrap_or("").to_string();
+            item["description"] = json!(format!("{} — {}", label, description));
+        }
+        if let Some(children) = item.get_mut("children") {
+            annotate_imports(config, children);
+        }
+    }
 }
 
 /// Lignes des variantes `when` écartées pour la configuration active.

@@ -33,10 +33,15 @@ interface CallNode {
     params?: string;
     ret?: string;
     static?: boolean;
+    /** Contexte et couche hexagonaux du fichier (architecture du projet). */
+    context?: string | null;
+    layer?: string | null;
 }
 
 export interface Workflow {
     file: string;
+    /** Place du script dans l'architecture hexagonale (« car · infrastructure (infra) »). */
+    place?: string | null;
     imports: WfNode[];
     structure: WfNode[];
     calls: { roots: string[]; nodes: Record<string, CallNode> };
@@ -154,7 +159,8 @@ export class WorkflowProvider implements vscode.TreeDataProvider<Item> {
         if (item.type === 'script') {
             // Script de départ, avec le logo Ocara du thème (clair / sombre).
             const t = new vscode.TreeItem(path.basename(data.file));
-            t.description = vscode.workspace.asRelativePath(path.dirname(data.file));
+            t.description = data.place ?? vscode.workspace.asRelativePath(path.dirname(data.file));
+            t.tooltip = `${data.file}${data.place ? ` — ${data.place}` : ''}`;
             t.iconPath = {
                 light: vscode.Uri.joinPath(this.extensionUri, 'logo-min-black.png'),
                 dark: vscode.Uri.joinPath(this.extensionUri, 'logo-min-white.png'),
