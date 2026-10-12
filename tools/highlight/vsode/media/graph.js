@@ -20,10 +20,14 @@
         generic: ['--vscode-charts-purple', '#b180d7', 'generic'],
         function: ['--vscode-charts-yellow', '#cca700', ''],
         runtime: ['--vscode-charts-red', '#f14c4c', ''],
+        builtin: ['--vscode-disabledForeground', '#8b8b8b', ''],
     };
+    const WIRING = ['--vscode-charts-purple', '#c586c0'];
 
     const saved = vscode.getState() || {};
     let linkStyle = saved.linkStyle || 'smooth';
+    let showBuiltins = saved.showBuiltins !== false;
+    let lastMsg = null;
     let data = null, groups = [], members = new Map(), edges = [];
     let view = { x: 0, y: 0, k: 1 }, hover = null, drag = null, pan = null;
     let positions = new Map();
@@ -35,6 +39,7 @@
 
     function memberText(m) {
         if (m.group.kind === 'runtime') return m.name;
+        if (m.group.kind === 'builtin') return `${m.name}(…)${m.ret && m.ret !== 'void' ? ': ' + m.ret : ''}`;
         let params = m.params.length > MAX_PARAMS ? m.params.slice(0, MAX_PARAMS - 1) + '…' : m.params;
         return `${m.static ? '::' : ''}${m.name}(${params})${m.ret ? ': ' + m.ret : ''}`;
     }
@@ -44,7 +49,11 @@
         return label ? `${label} ${g.title}` : g.title;
     }
 
-    function load(msg) {
+    function load(raw) {
+        lastMsg = raw;
+        // Appels builtin (ocara.*) masquables depuis la barre d'outils.
+        const hidden = new Set(showBuiltins ? [] : raw.groups.filter(g => g.kind === 'builtin').flatMap(g => g.members.map(m => m.id)));
+        const msg = { ...raw, groups: raw.groups.filter(g => showBuiltins || g.kind !== 'builtin'), edges: raw.edges.filter(([a, b]) => !hidden.has(a) && !hidden.has(b)) };
         data = msg;
         members = new Map();
         groups = msg.groups.map(g => ({ ...g }));
@@ -58,7 +67,7 @@
             g.w = Math.ceil(w + PAD * 2);
             g.h = HEADER + g.members.length * ROW + 6;
         }
-        edges = msg.edges.map(([a, b]) => [members.get(a), members.get(b)]).filter(([a, b]) => a && b);
+        edges = msg.edges.map(([a, b, kind]) => [members.get(a), members.get(b), kind || 'call']).filter(([a, b]) => a && b);
         $('empty').style.display = groups.length ? 'none' : 'flex';
         $('info').textContent = `${msg.title} — ${members.size} fonction(s), ${edges.length} appel(s)${msg.truncated ? ' — graphe tronqué' : ''}`;
         const fresh = groups.some(g => !positions.has(g.id));
@@ -84,9 +93,10 @@
      *  rangée par contexte : couches infrastructure → application → domain,
      *  dans le sens des dépendances. */
     function layeredLayout(keep) {
-        const outside = groups.filter(g => !g.layer);
+        const outside = groups.filter(g => !g.layer && g.kind !== 'builtin');
         let y = 0;
         for (const g of outside) { place(g, 0, y, keep); y += g.h + ROW_GAP; }
+        let right = 0;
         const x0 = outside.length ? Math.max(...outside.map(g => g.w)) + COL_GAP : 0;
         y = 0;
         for (const ctx of contexts()) {
@@ -99,8 +109,12 @@
                 rowH = Math.max(rowH, gy - y);
                 x += Math.max(...gs.map(g => g.w)) + FPAD * 2 + LAYER_GAP;
             }
+            right = Math.max(right, x);
             y += rowH + FPAD + CTX_GAP;
         }
+        // Builtins appelés : dernière colonne, hors cadres.
+        y = 0;
+        for (const g of groups.filter(g => g.kind === 'builtin')) { place(g, right + COL_GAP, y, keep); y += g.h + ROW_GAP; }
     }
 
     /** Cadres recalculés depuis la position des boîtes (suivent le glisser). */
@@ -277,10 +291,12 @@
         if (layered()) paintFrames(c);
         for (const e of edges) {
             const on = lit.has(e);
-            c.globalAlpha = highlight && !on ? 0.15 : (e[0].inactive || e[1].inactive ? 0.35 : 0.75);
-            c.strokeStyle = c.fillStyle = on ? accent : fg;
-            c.lineWidth = on ? 2 : 1.1;
-            c.setLineDash(e[0].inactive || e[1].inactive ? [5, 4] : []);
+            const wiring = e[2] === 'wiring';
+            c.globalAlpha = highlight && !on ? 0.15 : (e[0].inactive || e[1].inactive ? 0.35 : wiring ? 0.95 : 0.75);
+            c.strokeStyle = c.fillStyle = on ? accent : wiring ? ((WIRING[0] && css(WIRING[0])) || WIRING[1]) : fg;
+            c.lineWidth = on ? 2 : wiring ? 1.6 : 1.1;
+            // wiring (interface → implémentation) : tirets longs ; variante écartée : pointillés.
+            c.setLineDash(wiring ? [8, 4] : e[0].inactive || e[1].inactive ? [5, 4] : []);
             edge(c, e[0], e[1]);
         }
         c.setLineDash([]);
@@ -374,12 +390,12 @@
         canvas.classList.toggle('pointer', !!(h && h.member));
         if (target !== hover) {
             hover = target;
-            canvas.title = h && h.member ? `${h.member.name} — ${h.member.file.split(/[\\/]/).pop()}:${h.member.line}${h.member.inactive ? ' (variante when écartée)' : ''}` : '';
+            canvas.title = h && h.member ? `${h.member.name} — ${h.member.file ? h.member.file.split(/[\\/]/).pop() + ':' + h.member.line : 'builtin ' + h.group.title}${h.member.inactive ? ' (variante when écartée)' : ''}` : '';
             draw();
         }
     });
     window.addEventListener('mouseup', () => {
-        if (drag && !drag.moved && drag.member) vscode.postMessage({ type: 'open', file: drag.member.file, line: drag.member.line });
+        if (drag && !drag.moved && drag.member && drag.member.file) vscode.postMessage({ type: 'open', file: drag.member.file, line: drag.member.line });
         drag = null; pan = null; canvas.classList.remove('dragging');
     });
     canvas.addEventListener('wheel', e => {
@@ -397,6 +413,13 @@
         vscode.setState({ ...vscode.getState(), linkStyle: style });
         draw();
     }
+    $('builtins').classList.toggle('on', showBuiltins);
+    $('builtins').addEventListener('click', () => {
+        showBuiltins = !showBuiltins;
+        $('builtins').classList.toggle('on', showBuiltins);
+        vscode.setState({ ...vscode.getState(), showBuiltins });
+        if (lastMsg) { positions.clear(); load(lastMsg); fit(); }
+    });
     $('smooth').addEventListener('click', () => setLinkStyle('smooth'));
     $('straight').addEventListener('click', () => setLinkStyle('straight'));
     $('fit').addEventListener('click', fit);
@@ -442,7 +465,7 @@
             styles.push(`    style c${ci} stroke-dasharray:6 4`);
         });
         lines.push(...styles);
-        for (const [a, b] of edges) lines.push(`    ${id.get(a)} ${a.inactive || b.inactive ? '-.->' : '-->'} ${id.get(b)}`);
+        for (const [a, b, kind] of edges) lines.push(`    ${id.get(a)} ${kind === 'wiring' ? '-. wiring .->' : a.inactive || b.inactive ? '-.->' : '-->'} ${id.get(b)}`);
         const roots = [...id].filter(([m]) => m.root).map(([, n]) => n);
         const inactive = [...id].filter(([m]) => m.inactive).map(([, n]) => n);
         lines.push('    classDef root font-weight:bold', '    classDef inactive stroke-dasharray:4 3,opacity:0.5');

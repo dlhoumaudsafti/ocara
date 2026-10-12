@@ -15,9 +15,9 @@ import type { Workflow } from './workflow';
 /** Au-delà, les fonctions atteignables ne sont plus ajoutées au graphe. */
 const MAX_MEMBERS = 200;
 
-interface Member { id: string; name: string; params: string; ret: string; static: boolean; file: string; line: number; root: boolean; inactive: boolean }
+interface Member { id: string; name: string; params: string; ret: string; static: boolean; file: string | null; line: number; root: boolean; inactive: boolean }
 /** `context`/`layer` : place dans l'architecture hexagonale (absentes hors `src`). */
-interface Group { id: string; kind: string; title: string; file: string; context?: string | null; layer?: string | null; members: Member[] }
+interface Group { id: string; kind: string; title: string; file: string | null; context?: string | null; layer?: string | null; members: Member[] }
 
 type Message =
     | { type: 'ready' }
@@ -91,7 +91,7 @@ export class GraphProvider implements vscode.WebviewViewProvider {
             const n = data.calls.nodes[id];
             if (!n) { continue; }
             order.push(id);
-            for (const c of n.callees) {
+            for (const c of [...(n.wired ?? []), ...n.callees]) {
                 if (!seen.has(c)) { seen.add(c); queue.push(c); }
             }
         }
@@ -99,8 +99,8 @@ export class GraphProvider implements vscode.WebviewViewProvider {
         for (const id of order) {
             const n = data.calls.nodes[id];
             const kind = n.kind ?? 'function';
-            const gid = kind === 'function' ? `fn:${n.file}` : kind === 'runtime' ? id : `${n.owner}@${n.file}`;
-            const title = kind === 'function' ? `fonctions · ${path.basename(n.file)}` : n.owner ?? n.label;
+            const gid = kind === 'function' ? `fn:${n.file}` : kind === 'runtime' ? id : kind === 'builtin' ? `builtin:${n.owner}` : `${n.owner}@${n.file}`;
+            const title = kind === 'function' ? `fonctions · ${path.basename(n.file)}` : kind === 'builtin' ? `ocara.${n.owner}` : n.owner ?? n.label;
             if (!groups.has(gid)) { groups.set(gid, { id: gid, kind, title, file: n.file, context: n.context, layer: n.layer, members: [] }); }
             groups.get(gid)!.members.push({
                 id, name: n.name ?? n.label, params: n.params ?? '', ret: n.ret ?? '', static: !!n.static,
@@ -108,7 +108,11 @@ export class GraphProvider implements vscode.WebviewViewProvider {
             });
         }
         const ids = new Set(order);
-        const edges = order.flatMap(id => data.calls.nodes[id].callees.filter(c => ids.has(c)).map(c => [id, c]));
+        // [appelant, appelé, genre] : 'call', ou 'wiring' (interface → implémentation).
+        const edges = order.flatMap(id => [
+            ...(data.calls.nodes[id].wired ?? []).filter(c => ids.has(c)).map(c => [id, c, 'wiring']),
+            ...data.calls.nodes[id].callees.filter(c => ids.has(c)).map(c => [id, c, 'call']),
+        ]);
         void this.view.webview.postMessage({
             file: data.file, title: path.basename(data.file), groups: [...groups.values()], edges, truncated: seen.size > order.length,
         });
@@ -129,6 +133,7 @@ function html(webview: vscode.Webview, media: vscode.Uri): string {
     <div class="toggle" title="Style des liens">
       <button id="smooth" class="on" title="Liens souples (courbes)">∿ Souple</button><button id="straight" title="Liens droits en angle">⌐ Droit</button>
     </div>
+    <button id="builtins" class="on" title="Afficher les appels builtin (ocara.*)">ocara.*</button>
     <button id="fit" title="Recentrer le graphe">⤢</button>
     <button id="relayout" title="Réorganiser">↻</button>
     <button id="copy" title="Copier en Markdown (Mermaid)">⧉</button>

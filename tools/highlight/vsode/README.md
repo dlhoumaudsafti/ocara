@@ -64,7 +64,9 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     paramètres et leur type de retour ; colonnes par niveau d'appel, ordonnées pour limiter les
     croisements. Liens **souples** (courbes) ou **droits** (en angle) ; molette = zoom, glisser = déplacer
     le fond ou une boîte, survol = appels mis en avant, clic = ouvrir la déclaration ; variantes `when`
-    écartées estompées. **Exporter** en Markdown (`.md`, graphe Mermaid) ou en image (`.png`), ou
+    écartées estompées. Un appel écrit via une interface passe par sa méthode, reliée à l'implémentation
+    visée par son `wiring` (lien violet en tirets) ; les appels builtin (`IO::writeln`, `Thread.run`…)
+    sont regroupés par classe `ocara.*` en gris, masquables (bouton `ocara.*`). **Exporter** en Markdown (`.md`, graphe Mermaid) ou en image (`.png`), ou
     **copier** le Markdown dans le presse-papiers ;
   - **Benchmark** : temps et pic mémoire sur plusieurs exécutions (build Release), détection de fuite
     (marqueur `__N__`), profil par fonction (`ocara --profile`) et historique comparé par script

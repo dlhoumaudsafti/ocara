@@ -22,6 +22,7 @@ interface WfNode {
 
 interface CallNode {
     label: string;
+    /** `null` pour une méthode builtin (`kind: 'builtin'`). */
     file: string;
     line: number;
     callees: string[];
@@ -33,6 +34,8 @@ interface CallNode {
     params?: string;
     ret?: string;
     static?: boolean;
+    /** Implémentations visées par les `wiring` (méthode d'interface). */
+    wired?: string[];
     /** Contexte et couche hexagonaux du fichier (architecture du projet). */
     context?: string | null;
     layer?: string | null;
@@ -52,7 +55,7 @@ type Item =
     | { type: 'script' }
     | { type: 'section'; id: string; label: string; icon: string }
     | { type: 'node'; node: WfNode }
-    | { type: 'call'; key: string; ancestors: string[] };
+    | { type: 'call'; key: string; ancestors: string[]; wiring?: boolean };
 
 const ICONS: Record<string, string> = {
     builtin: 'library', import: 'file-code', runtime: 'play-circle', missing: 'warning',
@@ -149,7 +152,11 @@ export class WorkflowProvider implements vscode.TreeDataProvider<Item> {
                 // Un appel récursif n'est pas redéplié.
                 if (item.ancestors.includes(item.key)) { return []; }
                 const ancestors = [...item.ancestors, item.key];
-                return (data.calls.nodes[item.key]?.callees ?? []).map(key => ({ type: 'call', key, ancestors }));
+                const node = data.calls.nodes[item.key];
+                return [
+                    ...(node?.wired ?? []).map(key => ({ type: 'call' as const, key, ancestors, wiring: true })),
+                    ...(node?.callees ?? []).map(key => ({ type: 'call' as const, key, ancestors })),
+                ];
             }
         }
     }
@@ -176,11 +183,14 @@ export class WorkflowProvider implements vscode.TreeDataProvider<Item> {
         if (item.type === 'call') {
             const node = data.calls.nodes[item.key];
             const recursive = item.ancestors.includes(item.key);
-            const leaf = recursive || !node?.callees.length;
+            const leaf = recursive || !(node?.callees.length || node?.wired?.length);
             const t = new vscode.TreeItem(node?.label ?? item.key, leaf ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Collapsed);
-            t.iconPath = new vscode.ThemeIcon(recursive ? 'sync' : 'symbol-method', node?.inactive ? new vscode.ThemeColor('disabledForeground') : undefined);
-            t.description = recursive ? 'récursif' : node ? `${path.basename(node.file)}:${node.line}` : '';
-            if (node) { t.command = openCommand(node.file, node.line); }
+            const builtin = node?.kind === 'builtin';
+            const icon = recursive ? 'sync' : item.wiring ? 'plug' : builtin ? 'library' : 'symbol-method';
+            t.iconPath = new vscode.ThemeIcon(icon, node?.inactive ? new vscode.ThemeColor('disabledForeground') : undefined);
+            const where = node && node.file ? `${path.basename(node.file)}:${node.line}` : 'builtin';
+            t.description = recursive ? 'récursif' : item.wiring ? `wiring → ${where}` : where;
+            if (node?.file) { t.command = openCommand(node.file, node.line); }
             if (node?.inactive) { dim(t); }
             return t;
         }

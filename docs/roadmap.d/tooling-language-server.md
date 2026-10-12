@@ -259,7 +259,11 @@ Graphe d'appels (`src/lsp/workflow_calls.rs`) : fonctions, méthodes,
 constructeurs (`use X(…)` indexé comme appel de `X::init`), signatures
 d'interface et blocs runtime (fichier runtime entier ou bloc du fichier
 d'entrée), avec propriétaire, genre, paramètres et type de retour ; un
-`main.oc` sans fonction part de ses blocs runtime.
+`main.oc` sans fonction part de ses blocs runtime. Les méthodes builtin
+appelées sont des nœuds `builtin` (clé `builtin:Classe.méthode`) ; un appel
+écrit via une interface (`Contrat::m`, nom lu à la position de la
+référence) vise la méthode d'interface, reliée par `wired` aux
+implémentations des classes de ses `wiring`.
 
 ## Étapes suivantes
 

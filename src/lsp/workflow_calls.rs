@@ -57,33 +57,88 @@ pub fn calls(ws: &Workspace, path: &Path) -> Value {
     callables.extend(runtime_blocks(program, &entry, &mut end_in));
 
     let mut callees: HashMap<String, Vec<String>> = HashMap::new();
+    // Méthodes builtin appelées (`IO::writeln`, `t.run()`) : clé → nœud.
+    let mut builtins = serde_json::Map::new();
+    let mut texts: HashMap<PathBuf, Vec<String>> = HashMap::new();
     for r in &checked.references {
-        if !matches!(r.target, Target::Function(_) | Target::Method { .. }) {
-            continue;
-        }
-        let Some(decl) = decls::find(program, &r.target) else { continue };
-        let target = span_path(&decl.span, &entry);
-        let Some(callee) = callables.iter().find(|c| c.file == target && c.line == decl.span.line) else { continue };
         let file = span_path(&r.span, &entry);
+        // Appel écrit via une interface (`CarViewPort::show`) que la sema a
+        // résolu vers l'implémentation du `wiring` : le lien passe par la
+        // méthode d'interface, reliée ensuite à l'implémentation.
+        let lines = texts.entry(file.clone()).or_insert_with(|| ws.text(&file).map(|t| t.lines().map(str::to_string).collect()).unwrap_or_default());
+        let written = written_name(lines, &r.span);
+        let via_interface = match &r.target {
+            Target::Method { class, name } if written.as_deref().is_some_and(|w| w != class) => callables.iter()
+                .find(|c| c.kind == "interface" && c.name == *name && c.owner.as_deref().map(crate::core::analysis::homonyms::display) == written)
+                .map(Callable::key),
+            _ => None,
+        };
+        let callee = match (&r.target, decls::find(program, &r.target)) {
+            _ if via_interface.is_some() => via_interface.unwrap_or_default(),
+            (Target::Function(_) | Target::Method { .. }, Some(decl)) => {
+                let target = span_path(&decl.span, &entry);
+                let Some(c) = callables.iter().find(|c| c.file == target && c.line == decl.span.line) else { continue };
+                c.key()
+            }
+            (Target::Method { class, name }, None) if crate::builtins::builtin_class(class).is_some() => {
+                let key = format!("builtin:{}.{}", class, name);
+                builtins.entry(key.clone()).or_insert_with(|| json!({
+                    "label": format!("{}::{}", class, name), "owner": class, "kind": "builtin", "name": name,
+                    "params": "…", "ret": display_type(&r.ty), "static": false, "file": null, "line": 0, "callees": [], "wired": [],
+                }));
+                key
+            }
+            _ => continue,
+        };
         let Some(owner) = callables.iter()
             .filter(|c| c.file == file && (c.line..=c.end).contains(&r.span.line))
             .min_by_key(|c| c.end - c.line) else { continue };
         let list = callees.entry(owner.key()).or_default();
-        if !list.contains(&callee.key()) {
-            list.push(callee.key());
+        if !list.contains(&callee) {
+            list.push(callee);
         }
     }
+    let wired = wirings(program, &entry, &callables);
 
-    let mut nodes = serde_json::Map::new();
+    let mut nodes = builtins;
     for c in &callables {
         nodes.insert(c.key(), json!({
             "label": c.label(), "owner": c.owner, "kind": c.kind, "name": c.name, "params": c.params, "ret": c.ret,
             "static": c.is_static, "file": c.file, "line": c.line, "callees": callees.get(&c.key()).cloned().unwrap_or_default(),
+            "wired": wired.get(&c.key()).cloned().unwrap_or_default(),
         }));
     }
     let shown = |c: &&Callable| c.file == path || (c.kind == "runtime" && path == entry);
     let roots: Vec<String> = callables.iter().filter(shown).map(Callable::key).collect();
     json!({ "roots": roots, "nodes": nodes })
+}
+
+/// Identifiant écrit à la position de la référence (classe d'un `A::b`).
+fn written_name(lines: &[String], span: &crate::parsing::token::Span) -> Option<String> {
+    let line = lines.get(span.line.checked_sub(1)?)?;
+    let word: String = line.chars().skip(span.col.saturating_sub(1)).take_while(|c| c.is_alphanumeric() || *c == '_').collect();
+    (!word.is_empty()).then_some(word)
+}
+
+/// Méthode d'interface → implémentations des classes visées par ses
+/// `wiring` (même nom de méthode).
+fn wirings(program: &Program, entry: &Path, callables: &[Callable]) -> HashMap<String, Vec<String>> {
+    let mut out: HashMap<String, Vec<String>> = HashMap::new();
+    for interface in &program.interfaces {
+        for wiring in &interface.wirings {
+            let file = format!("{}.oc", wiring.path.join("/"));
+            let Some(class) = program.classes.iter().find(|c| {
+                crate::core::analysis::homonyms::display(&c.name) == wiring.simple_name() && span_path(&c.span, entry).ends_with(&file)
+            }) else { continue };
+            for method in &interface.methods {
+                let find = |owner: &str, kind: Option<&str>| callables.iter()
+                    .find(|c| c.owner.as_deref() == Some(owner) && c.name == method.name && kind.is_none_or(|k| c.kind == k));
+                let (Some(from), Some(to)) = (find(&interface.name, Some("interface")), find(&class.name, None)) else { continue };
+                out.entry(from.key()).or_default().push(to.key());
+            }
+        }
+    }
+    out
 }
 
 fn signature(params: &[Param], ret: &Type) -> (String, String) {
