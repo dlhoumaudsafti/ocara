@@ -1,0 +1,65 @@
+architecture permissive
+
+import ocara.UnitTest
+
+// Closure capturant `self`, retournée par une méthode
+// (docs/roadmap.d/memoire-closure-capture-self.md) : la cellule de `self`
+// était relâchée deux fois (corruption du tas après quelques milliers
+// d'appels) et l'objet jamais libéré.
+class Test_85_closure_capture_self {
+
+    public method manyClosuresDoNotCorruptTheHeapTest(): int {
+        var total:int = 0
+        for i in 0 until 20000 {
+            var c:SelfCounter = use SelfCounter(i)
+            var inc:Function<int()> = c.incrementer(1)
+            total = total + inc()
+        }
+        UnitTest::assertEquals(200010000, total)
+        return 0
+    }
+
+    public method closureKeepsSelfAliveTest(): int {
+        var f:Function<int()> = makeCounter()
+        UnitTest::assertEquals(15, f())
+        UnitTest::assertEquals(20, f())
+        return 0
+    }
+
+    public method twoClosuresShareSelfTest(): int {
+        scoped c:SelfCounter = use SelfCounter(1)
+        var by2:Function<int()> = c.multiplier(2)
+        var by3:Function<int()> = c.multiplier(3)
+        UnitTest::assertEquals(2, by2())
+        UnitTest::assertEquals(6, by3())
+        UnitTest::assertEquals(6, c.value)
+        return 0
+    }
+}
+
+class SelfCounter {
+    public property value:int
+
+    init(value:int) {
+        self.value = value
+    }
+
+    public method incrementer(step:int): Function<int()> {
+        return nameless(): int {
+            self.value = self.value + step
+            return self.value
+        }
+    }
+
+    public method multiplier(factor:int): Function<int()> {
+        return nameless(): int {
+            self.value = self.value * factor
+            return self.value
+        }
+    }
+}
+
+function makeCounter(): Function<int()> {
+    var c:SelfCounter = use SelfCounter(10)
+    return c.incrementer(5)
+}

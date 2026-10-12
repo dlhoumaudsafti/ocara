@@ -10,7 +10,7 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 Cette roadmap est construite pour qu'on puisse dire que le langage est stable **quand la section "Priorité Haute" ci-dessous est vide** — pas avant. Ce n'est pas un objectif séparé à suivre en plus des tickets : c'est littéralement ce que cette section représente. Volontairement, aucune checklist n'est dupliquée ici (le projet a déjà payé le prix d'une source de vérité dupliquée ailleurs — voir `docs/adding-builtins.md`, la double liste `OCARA_BUILTINS`) : la liste unique à vider est celle de la section "Priorité Haute".
 
-**La section "Priorité Haute" est actuellement vide** — au sens de cette définition, le langage est « stable ». Les sections Moyenne/Basse/Très Basse ci-dessous restent à traiter mais ne bloquent pas cette définition — voir la Légende.
+**La section "Priorité Haute" n'est pas vide** (bug trouvé le 2026-10-12 par `ocara --leak-check`) — au sens de cette définition, le langage n'est pas « stable » tant qu'il n'est pas corrigé. Les sections Moyenne/Basse/Très Basse ci-dessous restent à traiter mais ne bloquent pas cette définition — voir la Légende.
 
 ## Légende
 
@@ -29,9 +29,7 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Crash : closure capturant `self` retournée par une méthode — corruption du tas (`malloc(): unaligned fastbin chunk detected`, SIGABRT)** — dès quelques milliers d'appels, avec `var` ou `scoped`, closure appelée ou non. *(Structurel — lowering des captures, environnements de closure dans `rc.rs`)* → [détails](roadmap.d/memoire-closure-capture-self.md)
 - **Résultat faux : variable modifiée dans un `on` à l'intérieur d'une boucle** — `n = n + 1` dans `try { … } on e { … }` répété en boucle ne compte qu'une fois (`n=1` à chaque tour, attendu 1, 2, 3…), et une cellule capturée fuit par tour. *(Structurel — lowering de try/on, captures)* → [détails](roadmap.d/langage-try-on-boucle-variable.md)
-- **Fuite : closure capturant `self` — l'objet et sa cellule de capture ne sont jamais libérés** — `ocara --leak-check` : `1000 × C (allouées 1000, libérées 0)`, `variable capturée (allouées 2000, libérées 1000)` ; visible sur `examples/25_nameless.oc`. *(même cause probable que le crash ci-dessus)* → [détails](roadmap.d/memoire-closure-capture-self.md)
 
 ---
 

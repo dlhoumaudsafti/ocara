@@ -1,7 +1,7 @@
 # Closure capturant `self` retournée par une méthode : corruption du tas et fuite
 
-Statut : **à corriger** — trouvé le 2026-10-12 par le bilan des fuites
-(`ocara --leak-check`, encart Benchmark de l'extension).
+Statut : **corrigé le 2026-10-12** — trouvé le même jour par le bilan des
+fuites (`ocara --leak-check`, encart Benchmark de l'extension).
 
 ## Reproduction
 
@@ -41,16 +41,22 @@ function main(): int {
   jamais rendue, et l'objet qu'elle retient non plus. Visible aussi sur
   `examples/25_nameless.oc` (2 `Counter`, 3 cellules).
 
-## Pistes
+## Cause et correction
 
-- Capture de `self` dans une méthode : la cellule de `self` est-elle
-  retenue (compte +1) à la capture et rendue à la destruction de
-  l'environnement de la closure (`Kind::Env`, `for_each_child`) ? L'écart
-  allouées/libérées (2 cellules par appel, 1 libérée) désigne la cellule de
-  `self`.
-- Corruption : une libération en trop (cellule ou objet rendu deux fois, ou
-  rendu par le scope de la méthode alors que la closure le garde) expliquerait
-  l'erreur de `malloc` sous charge.
+Une méthode reçoit `self` en premier paramètre (type `mixed`, donc compté) :
+`begin_function` le déclarait deux fois — locale simple, puis paramètre
+compté retenu à l'entrée. Capturé par une closure, `self` est promu dans une
+cellule :
+
+- les **deux** déclarations relâchaient la cellule en fin de méthode →
+  cellule libérée alors que l'environnement de la closure la tenait encore
+  (utilisation après libération, corruption du tas sous charge) ;
+- `promote_to_cell` retenait `self` une fois de plus pour la cellule, et la
+  retenue d'entrée du paramètre n'était jamais rendue → objet jamais libéré.
+
+Correction (`src/lower/stmt.d/rc.rs`) : la référence du paramètre compté
+passe à la cellule (plus de retenue supplémentaire) ; la cellule n'est
+relâchée que par l'entrée comptée. Test : `examples/tests/85_closure_capture_selfTest.oc`.
 
 ## Vérification
 

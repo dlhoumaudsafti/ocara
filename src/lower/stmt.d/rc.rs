@@ -223,6 +223,11 @@ fn release_local(builder: &mut LowerBuilder, local: &RcLocal) {
         return;
     }
     if builder.heap_promoted.contains(&local.name) {
+        // `self` d'une méthode est déclaré deux fois (simple, puis paramètre
+        // compté) : sa cellule n'est rendue qu'une fois, par l'entrée comptée.
+        if !local.counted && builder.rc_counted_locals.contains(&local.name) {
+            return;
+        }
         if let Some((cell, _, _)) = builder.locals.get(&local.name).cloned() {
             release(builder, &cell);
         }
@@ -424,8 +429,9 @@ pub fn finish_unwind(builder: &mut LowerBuilder) {
 
 /// Promeut la locale `name` (slot `slot`) dans une cellule comptée partagée
 /// avec les closures/`try` qui la capturent : la référence du slot passe à
-/// la cellule (`self`, emprunté, y est retenu). La cellule est rendue en fin
-/// de portée de la locale (`release_locals`).
+/// la cellule (`self` emprunté, non compté, y est retenu ; paramètre compté
+/// d'une méthode, sa référence y passe). La cellule est rendue en fin de
+/// portée de la locale (`release_locals`).
 pub fn promote_to_cell(builder: &mut LowerBuilder, name: &str, slot: Value, ty: &IrType) -> Value {
     let counted = builder.rc_counted_locals.contains(name) || name == "self";
     let flag = builder.new_value();
@@ -434,7 +440,7 @@ pub fn promote_to_cell(builder: &mut LowerBuilder, name: &str, slot: Value, ty: 
     builder.emit(Inst::Call { dest: Some(cell.clone()), func: "__alloc_locked_cell".into(), args: vec![flag], ret_ty: IrType::Ptr });
     let cur = builder.new_value();
     builder.emit(Inst::Load { dest: cur.clone(), ptr: slot, ty: ty.clone() });
-    if name == "self" {
+    if name == "self" && !builder.rc_counted_locals.contains(name) {
         retain(builder, &cur);
     }
     builder.emit(Inst::Call { dest: None, func: "__locked_cell_set".into(), args: vec![cell.clone(), cur], ret_ty: IrType::Void });
