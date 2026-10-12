@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 
 class Test_24_function_types {

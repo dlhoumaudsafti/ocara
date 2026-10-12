@@ -11,7 +11,7 @@ namespace context.car.infra.db
 
 import ocara.SQLite
 import ocara.DateTime
-import configs.Database
+import context.shared.infra.db.Database
 import context.car.domain.entity.MaintenanceEntity
 import context.car.domain.contract.MaintenanceContract
 

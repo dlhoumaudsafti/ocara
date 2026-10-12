@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 import ocara.String
 import UserDto from "67_named_arguments"

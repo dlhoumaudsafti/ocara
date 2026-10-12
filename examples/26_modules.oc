@@ -1,6 +1,8 @@
 // examples/26_modules.oc
 // Démonstration des modules (mixins)
 
+architecture permissive
+
 import ocara.IO
 
 // ── Module Timestamped ────────────────────────────────────────────────────────

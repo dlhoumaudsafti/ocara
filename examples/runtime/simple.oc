@@ -1,4 +1,6 @@
 namespace .
+
+architecture permissive
 import ocara.IO
 
 init {

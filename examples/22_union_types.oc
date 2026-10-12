@@ -12,6 +12,8 @@
 // 27_type_narrowing.oc et 30_variadic.oc pour des unions combinant
 // plusieurs types primitifs (int|string|null, variadic<int|null>, ...).
 // ─────────────────────────────────────────────────────────────────────────────
+architecture permissive
+
 import ocara.IO
 
 class User {

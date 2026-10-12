@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 import Modifiers from "62_interface_method_modifiers"
 import Impl from "62_interface_method_modifiers"

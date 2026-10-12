@@ -8,7 +8,7 @@ namespace context.search.infra.db
 // dans la requête.
 
 import ocara.SQLite
-import configs.Database
+import context.shared.infra.db.Database
 import context.search.domain.entity.CarSearchResultEntity
 import context.search.domain.entity.MaintenanceSearchResultEntity
 import context.search.domain.contract.SearchContract

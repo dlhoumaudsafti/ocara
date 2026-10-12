@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 import Shape from "61_interface_instance_dispatch"
 import Drawable from "61_interface_instance_dispatch"

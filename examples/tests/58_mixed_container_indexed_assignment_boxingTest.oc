@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 
 // `conteneur[clé] = valeur` (indexation en ÉCRITURE) sur un `map<string,mixed>`/

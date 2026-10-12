@@ -3,6 +3,8 @@
 //! Partagée par le CLI (`main.rs`) et le serveur de langage (`lsp`) : aucune
 //! étape ne quitte le processus, chaque erreur devient un `Diagnostic`.
 
+mod architecture;
+mod architecture_rules;
 mod checks;
 mod front;
 pub mod homonyms;
@@ -93,6 +95,8 @@ fn analyze_program(opts: &AnalyzeOptions) -> Result<Analysis, Diagnostic> {
     homonyms.apply(&mut program, input);
 
     imports::check_imports(&program, source_dir, input)?;
+    // Architecture hexagonale : imports et `wiring` de chaque fichier atteint.
+    let architecture = architecture::check(&program, input, source_dir);
     syntax.extend(imports::load_imports(&mut program, source_dir, input, &all_interfaces, &homonyms, opts.tolerant)?);
 
     crate::core::interface_wiring::resolve_bare_interface_names(&mut program, &all_interfaces);
@@ -118,6 +122,7 @@ fn analyze_program(opts: &AnalyzeOptions) -> Result<Analysis, Diagnostic> {
     // Sur un programme amputé par des erreurs de syntaxe, les erreurs de la
     // sema seraient du bruit : seules les premières sont rapportées.
     let mut diagnostics = if syntax.is_empty() { out.diagnostics } else { syntax };
+    diagnostics.splice(0..0, architecture);
     if !diagnostics.iter().any(Diagnostic::is_error) {
         if let Err((span, msg)) = crate::core::named_args::rewrite_program(&mut program, &out.rewrites) {
             diagnostics.push(Diagnostic::at(input, &span, msg));

@@ -7,6 +7,8 @@
 // - Les méthodes statiques ET d'instance
 // - Les méthodes d'instance ne nécessitent PAS d'import JSON
 
+architecture permissive
+
 import ocara.IO
 import ocara.JSON  // Nécessaire uniquement pour les méthodes statiques (JSON::encode, etc.)
 import ocara.Array

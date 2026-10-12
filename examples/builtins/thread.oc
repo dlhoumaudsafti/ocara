@@ -1,6 +1,8 @@
 // examples/builtins/thread.oc
 // Démonstration de ocara.Thread
 
+architecture permissive
+
 import ocara.Thread
 import ocara.IO
 

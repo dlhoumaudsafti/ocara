@@ -27,14 +27,15 @@ import ocara.HTTPResponse
 
 import configs.Components
 import configs.Server
-import configs.Database
+import context.shared.infra.db.Database
 
 architecture hexagonal {
     src: context,
     layers: {
+        infrastructure: infra,
         application: app,
-        infrastructure: infra
-    }
+    },
+    shared: [context.shared],
 }
 
 runtime core.init is init

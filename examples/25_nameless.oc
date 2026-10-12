@@ -10,6 +10,8 @@
 //   - Retour d'une closure depuis une méthode
 //   - Combinaison avec des fonctions d'ordre supérieur
 // ─────────────────────────────────────────────────────────────────────────────
+architecture permissive
+
 import ocara.IO
 
 

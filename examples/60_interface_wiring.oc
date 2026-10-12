@@ -19,6 +19,8 @@
 //     d'AST à la compilation).
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 
 interface Repo {

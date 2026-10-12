@@ -8,6 +8,8 @@
 //   - Annotation de type postfix sur le sujet (hint visuel)
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 
 function main(): int {

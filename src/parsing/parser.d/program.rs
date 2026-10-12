@@ -1,7 +1,7 @@
 /// Parsing du programme principal
 
 use crate::parsing::ast::{
-    ClassDecl, ConstDecl, EnumDecl, FuncDecl, GenericDecl, ImportDecl, InterfaceDecl, ModuleDecl, Program,
+    ArchitectureDecl, ClassDecl, ConstDecl, EnumDecl, FuncDecl, GenericDecl, ImportDecl, InterfaceDecl, ModuleDecl, Program,
     RuntimeBlock, RuntimeImport,
 };
 use crate::parsing::token::TokenKind;
@@ -21,34 +21,21 @@ impl Parser {
                 self.advance(); // consommer '.'
                 program.namespace = Some(".".to_string()); // namespace racine explicite
             } else {
-                // Doit être un identifiant (ou plusieurs séparés par des points)
-                let tok = self.current().clone();
-                if let TokenKind::Ident(_) = tok.kind {
-                    let mut ns_parts = vec![tok.lexeme.clone()];
+                // Identifiants séparés par des points ; les mots-clés
+                // contextuels (`error`, `main`, `init`…) y sont permis comme
+                // dans un chemin d'import.
+                let mut ns_parts = vec![self.eat_ident().map_err(|_| ParseError::new(
+                    "expected '.' or identifier after 'namespace'".to_string(),
+                    self.span(),
+                ))?.0];
+                while self.check_exact(&TokenKind::Dot) {
                     self.advance();
-                    
-                    // Lire les parties supplémentaires du namespace (ex: configs.components)
-                    while self.check_exact(&TokenKind::Dot) {
-                        self.advance(); // consommer '.'
-                        let tok = self.current().clone();
-                        if let TokenKind::Ident(_) = tok.kind {
-                            ns_parts.push(tok.lexeme.clone());
-                            self.advance();
-                        } else {
-                            return Err(ParseError::new(
-                                "expected identifier after '.' in namespace declaration".to_string(),
-                                self.span(),
-                            ));
-                        }
-                    }
-                    
-                    program.namespace = Some(ns_parts.join("."));
-                } else {
-                    return Err(ParseError::new(
-                        "expected '.' or identifier after 'namespace'".to_string(),
+                    ns_parts.push(self.eat_ident().map_err(|_| ParseError::new(
+                        "expected identifier after '.' in namespace declaration".to_string(),
                         self.span(),
-                    ));
+                    ))?.0);
                 }
+                program.namespace = Some(ns_parts.join("."));
             }
         }
 
@@ -69,9 +56,13 @@ impl Parser {
         let (variants, items): (Vec<Variant>, Vec<TopItem>) = items.into_iter().unzip();
         let keep = self.select_or_note(&variants)?;
         for (item, keep) in items.into_iter().zip(keep) {
-            if keep {
-                item.push_into(&mut program);
+            if !keep {
+                continue;
             }
+            if let (TopItem::Architecture(decl), Some(_)) = (&item, &program.architecture) {
+                return Err(ParseError::new("une seule déclaration 'architecture' par fichier", decl.span.clone()));
+            }
+            item.push_into(&mut program);
         }
 
         program.type_refs = std::mem::take(&mut self.type_refs);
@@ -82,6 +73,10 @@ impl Parser {
     fn parse_top_level(&mut self) -> ParseResult<(Variant, TopItem)> {
         let clause = self.parse_when_clause()?;
         let span = self.span();
+        if self.at_architecture() {
+            let decl = self.parse_architecture()?;
+            return Ok((Variant { key: "architecture".into(), clause, span, end_line: self.end_line() }, TopItem::Architecture(decl)));
+        }
         let item = match self.peek_kind().clone() {
             TokenKind::Import => TopItem::Import(self.parse_import()?),
             TokenKind::Runtime => TopItem::RuntimeImport(self.parse_runtime_import()?),
@@ -121,6 +116,7 @@ impl Parser {
 }
 
 enum TopItem {
+    Architecture(ArchitectureDecl),
     Import(ImportDecl),
     RuntimeImport(RuntimeImport),
     RuntimeBlock(RuntimeBlock),
@@ -137,6 +133,7 @@ impl TopItem {
     /// Clé des variantes : même genre et même nom (types partagent un nom).
     fn key(&self) -> String {
         match self {
+            TopItem::Architecture(_) => "architecture".into(),
             TopItem::Import(i) => format!("import:{}:{:?}:{:?}", i.path.join("."), i.file_path, i.alias),
             TopItem::RuntimeImport(r) => match &r.kind {
                 Some(kind) => format!("runtime:{:?}", kind),
@@ -155,6 +152,7 @@ impl TopItem {
 
     fn push_into(self, program: &mut Program) {
         match self {
+            TopItem::Architecture(a) => program.architecture = Some(a),
             TopItem::Import(i) => program.imports.push(i),
             TopItem::RuntimeImport(r) => program.runtime_imports.push(r),
             TopItem::RuntimeBlock(b) => program.runtime_blocks.push(b),

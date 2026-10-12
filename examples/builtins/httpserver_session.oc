@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.HTTPServer
 import ocara.HTTPServerRequest
 import ocara.HTTPServerSession

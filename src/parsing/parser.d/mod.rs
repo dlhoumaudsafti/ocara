@@ -14,6 +14,7 @@ mod expressions;
 mod runtime;
 mod recovery;
 mod when;
+mod architecture;
 
 #[cfg(test)]
 mod tests;

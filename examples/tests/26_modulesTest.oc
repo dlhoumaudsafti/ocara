@@ -2,6 +2,8 @@
 // Tests unitaires pour 26_modules.oc (skeleton)
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.UnitTest
 
 class Test_26_modules {

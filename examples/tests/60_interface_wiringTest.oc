@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 import Repo from "60_interface_wiring"
 import Repo from "60_interface_wiring" as InMemoryRepo

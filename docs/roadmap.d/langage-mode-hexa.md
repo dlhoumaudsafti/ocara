@@ -1,5 +1,7 @@
 # Architecture hexagonale — vérification compile-time des dépendances
 
+Statut : **implémentée le 2026-10-12** (compilateur et serveur de langage) — référence du langage : [docs/EBNF.md §33](../EBNF.md#33-architecture-hexagonal-permissive). Reste l'outillage de l'extension (section « Outillage »).
+
 ## Proposition
 
 Faire de l'architecture hexagonale la structure par défaut d'un programme Ocara. Le développeur peut la déclarer explicitement dans le fichier d'entrée, notamment pour configurer les noms de répertoires, ou demander `architecture permissive` pour désactiver les contrôles architecturaux. La structure permissive ne relâche ni le typage strict ni les autres règles du langage.
@@ -199,14 +201,19 @@ Le défaut hexagonal rend non conformes la plupart des exemples existants. Lors 
 9. Une application représentative, notamment `examples/advanced/mini_project_hexa`, compile sous le mode choisi et sert de test d'intégration architectural.
 10. Un fichier de test `ocaraunit` est contrôlé comme un fichier d'entrée : une violation de couche y est rejetée, `architecture permissive` la lève.
 
-## Décisions ouvertes avant implémentation
+## Mise en œuvre (2026-10-12)
 
-- Plusieurs blocs `architecture` ou un seul bloc global.
+- **Parseur** (`src/parsing/parser.d/architecture.rs`) : `architecture permissive` / `architecture hexagonal { src, layers, shared }` au premier niveau, virgule finale permise ; `architecture` n'est un mot-clé qu'à cette position. Une seule déclaration par fichier. Le `namespace` accepte désormais les mots-clés contextuels (`error`, `main`…), comme les imports.
+- **Configuration** (`src/core/analysis.d/architecture.rs`) : bloc du fichier analysé, sinon celui du `main.oc` du projet (racine des imports), sinon le défaut. Un fichier de test `ocaraunit` suit donc la configuration du projet, ou la sienne s'il en déclare une.
+- **Vérification** (`architecture_rules.rs`) : chaque fichier atteint depuis l'entrée est contrôlé s'il est dans le répertoire hexagonal — namespace conforme au chemin, classement `<src>/<contexte>/<couche>`, imports directs (sens des couches, contextes isolés sauf `shared`, rien hors du répertoire hexagonal) et cibles de `wiring`. Les fichiers hors `src` ne sont pas contrôlés.
+- **Décisions prises** : un import d'un fichier de `src` vers un fichier hors de `src` est interdit ; sans déclaration, un `src/` absent est une erreur ; une déclaration dans un fichier importé n'a pas d'effet ; seuls les imports directs sont vérifiés (chaque fichier du graphe l'est) ; un fichier non classable est une erreur de compilation.
+- **Migration** : `architecture permissive` ajouté aux exemples et tests (fichier d'entrée de chaque projet, chaque fichier isolé) ; `mini_project_hexa` déclare `architecture hexagonal` (`src: context`, `shared: [context.shared]`) — `configs.Database` et `configs.Language` déplacés dans `context/shared/infra/`, namespaces manquants ajoutés.
+- **Tests** : `src/core/tests_architecture.rs`.
+
+## Décisions ouvertes
+
 - Gestion de plusieurs projets/racines `src` dans un même graphe.
-- Une racine partagée peut-elle contenir des couches, et comment les reconnaître lorsqu'elle est nommée `context.shared` ?
-- Traitement des outils, fichiers d'entrée hors contexte et bibliothèques utilisateur externes.
-- La validation porte-t-elle uniquement sur les imports directs (recommandé pour des diagnostics lisibles) ou aussi sur une fermeture transitive, sachant qu'un import direct constitue déjà le graphe de dépendances visible au compilateur ?
-- Diagnostic ou erreur fatale lorsque la source ne peut pas être classée en mode strict.
+- Bibliothèques utilisateur externes (hors du projet).
 
 ## Outillage : extension VS Code
 

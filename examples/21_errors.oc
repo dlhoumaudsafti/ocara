@@ -6,6 +6,8 @@
 // Usage :
 //   ./target/release/ocara examples/21_errors.oc --check
 
+architecture permissive
+
 import ocara.IO
 import ocara.Math
 import ocara.Mutex

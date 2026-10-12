@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 
 // Une fermeture créée À L'INTÉRIEUR d'une boucle (`while`/`for`) doit voir

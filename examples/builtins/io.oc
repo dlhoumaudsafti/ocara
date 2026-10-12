@@ -9,6 +9,8 @@
 //   - IO::readArray(sep) / IO::readMap(sep, kv)
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 import ocara.Array
 import ocara.Map

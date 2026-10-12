@@ -7,6 +7,8 @@
 //   - Variable de type classe / interface
 //   - Multiple instances
 // ─────────────────────────────────────────────────────────────────────────────
+architecture permissive
+
 import ocara.IO
 
 class Color {

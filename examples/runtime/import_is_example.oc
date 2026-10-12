@@ -1,5 +1,7 @@
 // Exemple : Import runtime avec 'is' (le contenu devient directement le bloc spécifié)
 
+architecture permissive
+
 import ocara.IO
 
 // Importer config.oc comme bloc init

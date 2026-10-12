@@ -13,6 +13,8 @@
 // docs/roadmap.d/langage-chained-call-depth-limit.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 
 class Circle {

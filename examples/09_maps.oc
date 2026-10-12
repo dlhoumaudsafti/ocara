@@ -8,6 +8,8 @@
 //   - Itération for key has val in map
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 import ocara.Map
 import ocara.Array

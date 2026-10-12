@@ -17,6 +17,8 @@
 // positionnel (les noms de paramètres n'y sont pas connus).
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 import ocara.String
 

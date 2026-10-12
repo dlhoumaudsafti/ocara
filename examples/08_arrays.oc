@@ -9,6 +9,8 @@
 //   - Itération avec for in
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 import ocara.Array
 

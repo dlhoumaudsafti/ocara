@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 import DoublingFetcher from "64_async_instance_method_dispatch"
 import Animal from "64_async_instance_method_dispatch"

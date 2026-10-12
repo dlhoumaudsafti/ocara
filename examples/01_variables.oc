@@ -18,6 +18,8 @@
 // pas sortir de son bloc. Voir docs/variables.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 import ocara.Array
 

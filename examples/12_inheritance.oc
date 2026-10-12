@@ -10,6 +10,8 @@
 //     (voir docs/EBNF.md §18.1) plutôt que de redupliquer ses champs
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 interface Loggable {
     method log(msg:string): void
 }

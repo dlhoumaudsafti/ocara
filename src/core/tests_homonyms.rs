@@ -30,7 +30,7 @@ fn homonymous_classes_resolve_per_importing_file() {
     let user = |ns: &str, class: &str| format!("namespace {}\n\nimport {}.Helper\n\nclass {} {{\n    public static method run(): string {{\n        return Helper::label()\n    }}\n}}\n", ns, ns, class);
     write(&dir, "a/UseA.oc", &user("a", "UseA"));
     write(&dir, "b/UseB.oc", &user("b", "UseB"));
-    write(&dir, "main.oc", "import ocara.IO\nimport a.UseA\nimport b.UseB\n\nfunction main(): int {\n    IO::writeln(UseA::run() + UseB::run())\n    return 0\n}\n");
+    write(&dir, "main.oc", "architecture permissive\nimport ocara.IO\nimport a.UseA\nimport b.UseB\n\nfunction main(): int {\n    IO::writeln(UseA::run() + UseB::run())\n    return 0\n}\n");
 
     let input = dir.join("main.oc");
     let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&dir), dump: false, index: false, tolerant: false });
@@ -59,7 +59,7 @@ fn homonymous_functions_resolve_per_importing_file() {
     let user = |ns: &str, class: &str| format!("namespace {}\n\nimport label from \"util\"\n\nclass {} {{\n    public static method run(): string {{\n        return label()\n    }}\n}}\n", ns, class);
     write(&dir, "a/UseA.oc", &user("a", "UseA"));
     write(&dir, "b/UseB.oc", &user("b", "UseB"));
-    write(&dir, "main.oc", "import ocara.IO\nimport a.UseA\nimport b.UseB\n\nfunction main(): int {\n    IO::writeln(UseA::run() + UseB::run())\n    return 0\n}\n");
+    write(&dir, "main.oc", "architecture permissive\nimport ocara.IO\nimport a.UseA\nimport b.UseB\n\nfunction main(): int {\n    IO::writeln(UseA::run() + UseB::run())\n    return 0\n}\n");
 
     let input = dir.join("main.oc");
     let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&dir), dump: false, index: false, tolerant: false });

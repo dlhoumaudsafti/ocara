@@ -26,6 +26,8 @@
 //   /tmp/ocara_app
 namespace .
 
+architecture permissive
+
 import ocara.IO
 import ocara.Thread
 import ocara.Tauri

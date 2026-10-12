@@ -13,6 +13,8 @@
 //   - Array::sort(arr)
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 import ocara.Array
 

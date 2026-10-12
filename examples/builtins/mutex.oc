@@ -2,6 +2,8 @@
 // Démonstration de ocara.Mutex avec ocara.Thread (y compris withLock, qui
 // garantit le unlock même si la section critique raise)
 
+architecture permissive
+
 import ocara.Mutex
 import ocara.Thread
 import ocara.IO

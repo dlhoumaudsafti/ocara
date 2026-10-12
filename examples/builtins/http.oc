@@ -1,6 +1,8 @@
 // examples/builtins/http.oc
 // Démonstration de ocara.HTTPRequest / ocara.HTTPResponse
 
+architecture permissive
+
 import ocara.HTTPRequest
 import ocara.HTTPResponse
 import ocara.IO

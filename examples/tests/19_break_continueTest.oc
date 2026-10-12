@@ -2,6 +2,8 @@
 // Tests unitaires pour 19_break_continue.oc
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.UnitTest
 
 class Test_19_break_continue {

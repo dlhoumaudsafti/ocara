@@ -11,6 +11,8 @@
 // `Convert::mapKeysToArray`/`mapValuesToArray`.
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 
 function main(): int {

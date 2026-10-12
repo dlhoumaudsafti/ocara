@@ -2,6 +2,8 @@
 // Tests unitaires pour 06_match.oc
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.UnitTest
 
 class Test_06_match {

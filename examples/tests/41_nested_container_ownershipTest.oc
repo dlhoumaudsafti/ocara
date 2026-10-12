@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 
 // Libération/clonage "shallow" d'un array<T>/map<K,T> à élément primitif

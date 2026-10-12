@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 import Circle from "63_chained_call_on_free_function_result"
 import pickCircle from "63_chained_call_on_free_function_result"

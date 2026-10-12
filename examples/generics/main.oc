@@ -1,5 +1,7 @@
 namespace .
 
+architecture permissive
+
 import ocara.IO
 import List
 

@@ -8,7 +8,7 @@ import ocara.HTTPServerRequest
 import context.home.app.usecase.DashboardService
 import context.home.app.dto.DashboardDto
 import context.home.app.port.HomeViewPort
-import configs.Language
+import context.shared.infra.i18n.Language
 
 class HomeController {
 

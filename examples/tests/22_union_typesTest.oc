@@ -2,6 +2,8 @@
 // Tests unitaires pour 22_union_types.oc
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.UnitTest
 
 class Test_22_union_types {

@@ -1,4 +1,6 @@
 namespace .
+
+architecture permissive
 // examples/advanced/mini_projet/main.oc
 // Point d'entrée : le serveur HTTP tourne sur un thread dédié et la fenêtre
 // Tauri affiche directement son URL (http://localhost:8081) — une vraie

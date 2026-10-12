@@ -1,5 +1,7 @@
 // Exemple : Codes d'erreur personnalisés avec les blocs runtime
 
+architecture permissive
+
 import ocara.IO
 
 init {

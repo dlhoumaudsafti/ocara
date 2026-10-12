@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 
 // Propriété des objets étendue : conteneur `scoped` initialisé par un appel

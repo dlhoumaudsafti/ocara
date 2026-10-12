@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 
 // `object[index1][index2]` (indexation chaînée dont un des niveaux est une

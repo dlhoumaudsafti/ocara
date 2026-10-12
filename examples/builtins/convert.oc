@@ -11,6 +11,8 @@
 //   - Conversions map → string, keys[], values[]
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 import ocara.Convert
 import ocara.Array

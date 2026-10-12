@@ -9,6 +9,8 @@
 //   - Instanciation avec use
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 
 class Point {

@@ -22,6 +22,8 @@
 // sur des try imbriqués successifs) corrigé dans src/ir/module.rs (compteur
 // dédié `try_counter`) / src/lower/stmt.d/statements.d/exceptions.rs.
 
+architecture permissive
+
 import ocara.IO
 import ocara.SDL
 

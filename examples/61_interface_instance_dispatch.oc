@@ -9,6 +9,8 @@
 // classe, voir examples/11_interfaces.oc pour le même patron).
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 
 interface Shape {

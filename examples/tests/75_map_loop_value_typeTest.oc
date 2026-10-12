@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 
 // `for k has v in m` : la valeur est lue au type de valeur déclaré de la map.

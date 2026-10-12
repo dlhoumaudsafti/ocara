@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 
 // `on e` (sans filtre) reçoit une valeur `mixed` : `${e}` d'une chaîne levée

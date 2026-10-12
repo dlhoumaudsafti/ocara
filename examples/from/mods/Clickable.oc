@@ -1,6 +1,8 @@
 // Module Clickable - Ajoute un comportement de compteur de clics
 namespace mods
 
+architecture permissive
+
 module Clickable {
     private property click_count:int
     private property enabled:bool

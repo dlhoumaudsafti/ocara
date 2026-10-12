@@ -13,6 +13,8 @@ mod tests_property_init;
 mod tests_render_file;
 #[cfg(test)]
 mod tests_homonyms;
+#[cfg(test)]
+mod tests_architecture;
 pub mod interface_wiring;
 pub mod monomorph;
 pub mod named_args;

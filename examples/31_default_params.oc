@@ -8,6 +8,8 @@
 //   - Méthodes de classe avec paramètres par défaut
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 import ocara.Convert
 import ocara.Array

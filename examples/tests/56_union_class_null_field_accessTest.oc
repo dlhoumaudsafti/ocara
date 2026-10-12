@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 
 // Un accès de champ (`Expr::Field`) sur une variable dont le type DÉCLARÉ est

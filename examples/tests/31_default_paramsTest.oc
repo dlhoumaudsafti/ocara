@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 
 class Test_31_default_params {

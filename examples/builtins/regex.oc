@@ -13,6 +13,8 @@
 //   - Regex::extract(pattern, str, group)     → string
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 import ocara.Regex
 

@@ -1,5 +1,5 @@
-namespace configs
-// examples/advanced/mini_projet/configs/Database.oc
+namespace context.shared.infra.db
+// examples/advanced/mini_project_hexa/context/shared/infra/db/Database.oc
 // Accès SQLite bas niveau : ouverture de connexion + migration du schéma.
 //
 // Comme dans examples/advanced/tauri_httpserver/configs/Database.oc : pas de propriété

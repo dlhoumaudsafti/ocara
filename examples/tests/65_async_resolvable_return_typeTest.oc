@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 import Doubler from "65_async_resolvable_return_type"
 

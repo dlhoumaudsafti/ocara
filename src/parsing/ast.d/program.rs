@@ -7,6 +7,7 @@ use super::interfaces::InterfaceDecl;
 use super::enums::EnumDecl;
 use super::functions::FuncDecl;
 use super::runtime::{RuntimeImport, RuntimeBlock};
+use super::architecture::ArchitectureDecl;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Programme (racine de l'AST)
@@ -29,6 +30,9 @@ pub struct Program {
     /// `implements`, `modules`, filtres `is`) et leur position — pour le
     /// serveur de langage ; jamais fusionnés depuis les imports.
     pub type_refs:  Vec<(String, crate::parsing::token::Span)>,
+    /// `architecture hexagonal { … }` / `architecture permissive` — seule
+    /// celle du fichier d'entrée compte (core::architecture).
+    pub architecture: Option<ArchitectureDecl>,
 }
 
 impl Program {
@@ -46,6 +50,7 @@ impl Program {
             interfaces: Vec::new(),
             functions:  Vec::new(),
             type_refs:  Vec::new(),
+            architecture: None,
         }
     }
 }

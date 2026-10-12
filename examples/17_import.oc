@@ -11,6 +11,8 @@
 //        chaque import depuis la racine du projet.
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 import mods.User as UserModel
 import mods.Logger as AppLogger

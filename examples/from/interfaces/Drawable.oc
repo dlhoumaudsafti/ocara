@@ -1,6 +1,8 @@
 // Interface pour les objets dessinables
 namespace interfaces
 
+architecture permissive
+
 interface Drawable {
     method draw(): void
     method getColor(): string

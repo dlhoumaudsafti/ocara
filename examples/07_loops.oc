@@ -9,6 +9,8 @@
 //   - Opérateur de plage : start..end (end exclus)
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 
 function main(): int {

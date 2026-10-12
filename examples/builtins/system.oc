@@ -1,6 +1,8 @@
 // examples/builtins/system.oc
 // Démonstration de ocara.System
 
+architecture permissive
+
 import ocara.System
 import ocara.IO
 

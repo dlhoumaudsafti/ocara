@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 import ocara.IO
 import Circle from "11_interfaces"

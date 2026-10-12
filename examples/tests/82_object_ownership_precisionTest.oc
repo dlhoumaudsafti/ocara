@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 
 // Propriété des objets : `resolve` d'un appel `async`, champs de même nom

@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 
 // Polymorphisme réel : une variable typée par une classe PARENTE ou une

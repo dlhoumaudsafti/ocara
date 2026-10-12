@@ -8,6 +8,8 @@
 //   - Annotations de type obligatoires
 //   - Le type mixed accepte toutes les valeurs
 // ─────────────────────────────────────────────────────────────────────────────
+architecture permissive
+
 import ocara.IO
 import ocara.Array
 

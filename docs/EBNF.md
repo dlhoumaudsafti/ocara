@@ -45,6 +45,7 @@
 30. [Résolution des noms](#30-résolution-des-noms)
 31. [Grammaire EBNF complète](#31-grammaire-ebnf-complète)
 32. [Déclarations conditionnelles (when)](#32-déclarations-conditionnelles-when)
+33. [Architecture (hexagonal, permissive)](#33-architecture-hexagonal-permissive)
 
 ---
 
@@ -4142,3 +4143,72 @@ entre les deux est acceptée par le compilateur.
 
 `when` est un mot-clé réservé. `System::BUILD` est aussi lisible dans le
 code (`"debug"` ou `"release"`, fixé à la compilation).
+
+---
+
+## 33. Architecture (`hexagonal`, `permissive`)
+
+Un programme Ocara est contrôlé, par défaut, comme une **architecture hexagonale** : le compilateur vérifie la direction des dépendances entre
+couches et l'isolement des contextes (voir
+[roadmap.d/langage-mode-hexa.md](roadmap.d/langage-mode-hexa.md)).
+
+```ebnf
+ArchitectureDecl ::= "architecture" ( "permissive" | "hexagonal" ArchBlock? )
+ArchBlock        ::= "{" ( ArchEntry ( "," ArchEntry )* ","? )? "}"
+ArchEntry        ::= "src" ":" DottedPath
+                   | "layers" ":" "{" ( LayerAlias ( "," LayerAlias )* ","? )? "}"
+                   | "shared" ":" "[" ( DottedPath ( "," DottedPath )* ","? )? "]"
+LayerAlias       ::= ( "infrastructure" | "application" | "domain" ) ":" Identifier
+DottedPath       ::= Identifier ( "." Identifier )*
+```
+
+```ocara
+architecture hexagonal {
+    src: context,
+    layers: {
+        infrastructure: infra,
+        application: app,
+    },
+    shared: [context.shared],
+}
+```
+
+**Configuration.** La déclaration se place au premier niveau du fichier
+d'entrée (`architecture` n'est un mot-clé qu'à cette position). Un fichier
+sans déclaration suit celle du `main.oc` de son projet, sinon le défaut :
+`architecture hexagonal` avec `src: src`, couches `infrastructure`,
+`application`, `domain` et aucune racine `shared`. Un fichier de test
+(`ocaraunit`) suit les mêmes règles.
+
+- `src` : répertoire structuré en hexagonal, depuis la racine du projet ;
+  ses fichiers sont rangés en `<src>/<contexte>/<couche>/…`. Le reste du
+  projet n'est pas contrôlé.
+- `layers` : alias de répertoire des couches ; une couche omise garde son
+  nom canonique.
+- `shared` : racines (depuis la racine du projet) importables par tous les
+  contextes ; chacune doit être structurée en couches.
+- `architecture permissive` : aucun contrôle architectural (le typage et
+  les autres règles restent actifs).
+
+**Règles** (erreurs de compilation, sur l'import ou le `wiring` fautif) :
+
+| Fichier qui importe | Peut importer |
+|---|---|
+| `domain` | `domain` |
+| `application` | `application`, `domain` |
+| `infrastructure` | `infrastructure`, `application`, `domain` |
+
+- deux contextes sont isolés, sauf vers une racine `shared` (qui reste
+  soumise au sens des couches) ;
+- un fichier du répertoire hexagonal ne peut rien importer hors de ce
+  répertoire (hors racines `shared` et builtins `ocara.*`) ;
+- son `namespace` reflète son chemin (`context/car/infra/db/X.oc` →
+  `namespace context.car.infra.db`) ;
+- un fichier qui n'est pas dans `<src>/<contexte>/<couche>/` n'est pas
+  classable ;
+- un `wiring` vise une implémentation de son contexte ou d'une racine
+  `shared`.
+
+Un répertoire `src` introuvable est une erreur : structurer le projet ou
+déclarer `architecture permissive`.
+

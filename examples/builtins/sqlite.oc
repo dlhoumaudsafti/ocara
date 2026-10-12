@@ -2,6 +2,8 @@
 // Exemple d'utilisation de la classe SQLite
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.SQLite
 import ocara.IO
 import ocara.Map

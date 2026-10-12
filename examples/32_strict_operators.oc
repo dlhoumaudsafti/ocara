@@ -14,6 +14,8 @@
 // l'unique paire de types compatible malgré des types nominaux différents
 // (widening numérique explicite lors de la compilation, pas un bitcast).
 
+architecture permissive
+
 import ocara.IO
 
 function main(): int {

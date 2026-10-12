@@ -7,6 +7,8 @@
 //   - Polymorphisme via le type de l'interface
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 
 interface Printable {

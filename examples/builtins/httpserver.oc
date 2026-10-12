@@ -15,6 +15,8 @@
 //   curl http://localhost:8080/hits
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.HTTPServer
 import ocara.HTTPServerRequest
 import ocara.IO

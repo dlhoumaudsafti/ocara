@@ -13,6 +13,8 @@
 // aussi bien l'appel statique que l'appel d'instance démontrés ici.
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 
 // Cas 1 — classe concrète ordinaire, aucun héritage ni interface (le cas

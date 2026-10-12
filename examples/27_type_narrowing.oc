@@ -3,6 +3,8 @@
 // ============================================================================
 // Démonstration du narrowing de type avec l'opérateur 'is' et les patterns
 
+architecture permissive
+
 import ocara.IO
 import ocara.Convert
 

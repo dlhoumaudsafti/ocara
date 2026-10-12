@@ -13,6 +13,8 @@
 //   - Combinaison avec les template strings
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 import ocara.String
 

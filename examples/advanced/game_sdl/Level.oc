@@ -1,5 +1,7 @@
 namespace .
 
+architecture permissive
+
 // Le decor : 3 plans en parallax (ciel+skyline lointaine, immeubles, route),
 // tous dessines depuis LA MEME texture (assets/tileset.png, chargee
 // une seule fois dans init) via des sous-rectangles (SDL.drawTextureRegion) —

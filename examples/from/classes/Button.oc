@@ -1,5 +1,7 @@
 namespace classes
 
+architecture permissive
+
 import ocara.IO
 import ocara.Convert
 import UIComponent

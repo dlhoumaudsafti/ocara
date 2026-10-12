@@ -11,6 +11,8 @@
 // Test rapide (compile-check seulement, n'ouvre pas de fenêtre — pas de run()) :
 //   ./target/release/ocara examples/builtins/tauri.oc --check
 
+architecture permissive
+
 import ocara.IO
 import ocara.DateTime
 import ocara.Tauri

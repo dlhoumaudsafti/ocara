@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 
 // Conteneur d'objets `scoped` : ses instances ne sont libérées que si

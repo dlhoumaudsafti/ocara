@@ -8,6 +8,8 @@
 //   - Récursion
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 
 function add(a:int, b:int): int {

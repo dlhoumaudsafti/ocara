@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 
 // Comptage de références (docs/roadmap.d/memoire-refcount.md) : une valeur

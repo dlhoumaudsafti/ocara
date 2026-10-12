@@ -1,5 +1,7 @@
 // Fichier de blocs runtime réutilisables pour le logging
 
+architecture permissive
+
 import ocara.IO
 
 init {

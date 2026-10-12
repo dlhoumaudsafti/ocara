@@ -5,6 +5,8 @@
 // Run     : ./ocara examples/builtins/time.oc
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.Time
 import ocara.IO
 import ocara.Convert

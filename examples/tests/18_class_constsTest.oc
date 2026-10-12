@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 
 class Test_18_class_consts {

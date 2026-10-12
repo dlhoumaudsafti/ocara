@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 
 // Littéraux `array`/`map` typés par leur destination, à toute profondeur —

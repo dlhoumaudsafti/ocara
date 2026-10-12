@@ -14,6 +14,8 @@
 // à une profondeur ARBITRAIRE — pas seulement étendue à 3 niveaux.
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 
 // Le cas exact du ticket : 3 niveaux, deux classes DIFFÉRENTES enchaînées

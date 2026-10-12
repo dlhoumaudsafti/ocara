@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 
 // Affectations composées `+=`, `-=`, `*=`, `/=`, `%=` (int/float/mixed) ;

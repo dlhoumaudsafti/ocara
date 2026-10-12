@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 import Wrapper from "66_chained_call_depth_limit"
 import Circle from "66_chained_call_depth_limit"

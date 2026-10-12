@@ -7,6 +7,8 @@
 //   - Opérateurs logiques : and or not
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 import ocara.HTTPServer
 

@@ -1,6 +1,8 @@
 // examples/builtins/html.oc
 // Démonstration de ocara.HTMLComponent et ocara.HTML
 
+architecture permissive
+
 import ocara.IO
 import ocara.HTML
 import ocara.HTMLComponent

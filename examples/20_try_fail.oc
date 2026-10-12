@@ -8,6 +8,8 @@
 //   - Plusieurs clauses `on` (du plus spécifique au plus général)
 //   - Une classe d'exception ordinaire (pas de base requise)
 
+architecture permissive
+
 import ocara.IO
 
 

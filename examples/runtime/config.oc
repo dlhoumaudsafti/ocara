@@ -2,6 +2,8 @@
 // Ce fichier ne contient QUE du code (pas de bloc init)
 // Il sera importé avec "runtime config is init"
 
+architecture permissive
+
 import ocara.IO
 
 IO::writeln("╔═══════════════════════════════════════════╗")

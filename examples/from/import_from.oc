@@ -1,5 +1,7 @@
 namespace . // pas obligatoire, mais clarifie que les classes sont dans le namespace global
 
+architecture permissive
+
 import ocara.IO
 import ocara.Convert
 import classes.Button

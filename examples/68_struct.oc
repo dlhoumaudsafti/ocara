@@ -17,6 +17,8 @@
 // `private`, et un struct n'étend/n'est étendu que par un struct.
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 import ocara.Array
 

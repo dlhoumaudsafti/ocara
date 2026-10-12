@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 import ocara.Exception
 import ocara.FileException

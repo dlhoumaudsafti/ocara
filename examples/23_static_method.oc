@@ -6,6 +6,8 @@
 //   - self:: = raccourci pour ClassName:: depuis l'intérieur d'une classe
 //   - Réutilisation de logique sans instanciation
 // ─────────────────────────────────────────────────────────────────────────────
+architecture permissive
+
 import ocara.IO
 import ocara.String
 

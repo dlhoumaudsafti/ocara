@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 
 // Une fermeture créée à l'intérieur d'un bloc `if`/`switch` (passage unique,

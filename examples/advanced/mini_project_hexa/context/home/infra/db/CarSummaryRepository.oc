@@ -6,7 +6,7 @@ namespace context.home.infra.db
 // n'inclut PAS les entretiens de type "improvement").
 
 import ocara.SQLite
-import configs.Database
+import context.shared.infra.db.Database
 import context.home.domain.entity.CarSummaryEntity
 import context.home.domain.contract.CarSummaryContract
 

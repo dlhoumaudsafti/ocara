@@ -11,6 +11,8 @@
 // réel et le type du handle étaient alors identiques).
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 
 class Doubler {

@@ -7,6 +7,8 @@
 //   - Cas default optionnel
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 
 function http_status(code:int): void {

@@ -19,6 +19,8 @@
 //   curl http://localhost:8080/contact
 namespace .
 
+architecture permissive
+
 import ocara.IO
 import configs.Components 
 import configs.Server

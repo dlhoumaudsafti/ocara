@@ -10,6 +10,8 @@
 //   - Map::merge(a, b)
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 import ocara.Map
 import ocara.Array

@@ -19,6 +19,8 @@
 
 namespace .
 
+architecture permissive
+
 import ocara.IO
 import ocara.SDL
 import Player

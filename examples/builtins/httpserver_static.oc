@@ -16,6 +16,8 @@
 //   curl http://localhost:8080/unknown.html      # → page 404 personnalisée
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.HTTPServer
 import ocara.HTTPServerRequest
 import ocara.IO

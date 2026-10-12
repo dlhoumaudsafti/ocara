@@ -9,6 +9,8 @@
 // passées en paramètres.
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 
 // ─── Définition de fonctions simples ───

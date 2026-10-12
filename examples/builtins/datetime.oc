@@ -5,6 +5,8 @@
 // Run     : ./ocara examples/builtins/datetime.oc
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.DateTime
 import ocara.IO
 import ocara.Convert

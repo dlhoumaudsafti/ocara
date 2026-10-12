@@ -7,6 +7,8 @@
 //   - Syntaxe Class::NAME          → lecture d'une constante de classe
 //   - Appel sans instanciation
 // ─────────────────────────────────────────────────────────────────────────────
+architecture permissive
+
 import ocara.IO
 
 class Math {

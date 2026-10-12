@@ -1,5 +1,7 @@
 namespace .
 
+architecture permissive
+
 // Le personnage : anime (marche/course), sens de deplacement, dessin.
 //
 // Toutes les frames viennent de LA MEME texture (assets/sprite.png,

@@ -17,4 +17,5 @@ pub use ast_d::enums::*;
 pub use ast_d::imports::*;
 pub use ast_d::runtime::*;
 pub use ast_d::program::*;
+pub use ast_d::architecture::*;
 pub use ast_d::span_shift::*;

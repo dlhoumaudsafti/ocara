@@ -7,6 +7,8 @@
 //   - Méthodes statiques : public static method ... (appelables via ::)
 //   - Combinaison const + static func dans la même classe
 // ─────────────────────────────────────────────────────────────────────────────
+architecture permissive
+
 import ocara.IO
 
 class Direction {

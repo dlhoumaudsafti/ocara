@@ -8,6 +8,8 @@
 //   /tmp/directory_demo
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.Directory
 import ocara.File
 import ocara.IO

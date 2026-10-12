@@ -2,6 +2,8 @@
 // Tests unitaires pour 03_builtins.oc
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.UnitTest
 import ocara.IO
 

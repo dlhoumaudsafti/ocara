@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.HTTPRequest as Request
 import ocara.HTTPResponse
 import ocara.UnitTest

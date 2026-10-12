@@ -3,6 +3,8 @@
 // Démonstration complète de toutes les fonctionnalités du langage Ocara
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.IO
 import classes.Models
 import classes.Services

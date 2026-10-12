@@ -2,6 +2,8 @@
 // Tests unitaires pour 17_import.oc (skeleton)
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.UnitTest
 import mods.User as UserModel
 import mods.Logger as AppLogger

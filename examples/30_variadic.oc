@@ -4,6 +4,8 @@
 // Démonstration complète : int, float, string, bool, null, array, map,
 // Function, classes, unions, mixed
 
+architecture permissive
+
 import ocara.IO
 import ocara.Convert
 import ocara.Array

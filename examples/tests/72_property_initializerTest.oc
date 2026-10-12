@@ -1,3 +1,5 @@
+architecture permissive
+
 import ocara.UnitTest
 
 // docs/roadmap.d/langage-property-initializer.md — `property nom:T = expr`

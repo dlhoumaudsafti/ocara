@@ -1,3 +1,5 @@
+architecture permissive
+
 class Math {
     public static method abs(n:int): int {
         if n smaller 0 {

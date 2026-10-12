@@ -2,6 +2,8 @@
 // Tests unitaires pour 09_maps.oc
 // ─────────────────────────────────────────────────────────────────────────────
 
+architecture permissive
+
 import ocara.UnitTest
 import ocara.IO
 import ocara.Map

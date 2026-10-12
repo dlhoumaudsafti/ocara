@@ -1,6 +1,8 @@
 // Exemple d'utilisation de MySQL/MariaDB
 
 namespace .
+
+architecture permissive
 import ocara.IO
 import ocara.MySQL
 import ocara.MySQLException
