@@ -1,0 +1,64 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.System
+
+// Correctifs de l'audit du 2026-10-13 (complexité simple) :
+//   - méthode statique variadic, `xs.len()` sur un variadic (docs/roadmap.d/langage-variadic-element-kinds.md) ;
+//   - grand entier négatif dans un `mixed` (docs/roadmap.d/memoire-mixed-grand-entier-negatif.md) ;
+//   - lecture répétée de `System::OS` sans fuite (docs/roadmap.d/memoire-system-os-fuite.md).
+class Test_90_static_variadic_negative_int_system {
+
+    public method staticVariadicTest(): int {
+        UnitTest::assertEquals(3, Counter::count(1, 2, 3))
+        UnitTest::assertEquals(0, Counter::count())
+        UnitTest::assertEquals(16, Counter::sum(10, 1, 2, 3))
+        return 0
+    }
+
+    public method variadicLenInFunctionTest(): int {
+        UnitTest::assertEquals(4, countAll(5, 6, 7, 8))
+        return 0
+    }
+
+    public method largeNegativeMixedIsIntTest(): int {
+        var n:mixed = 0 - 70000
+        UnitTest::assertTrue(n is int)
+        var kind:string = match n {
+            is int => "int"
+            default => "autre"
+        }
+        UnitTest::assertEquals("int", kind)
+        return 0
+    }
+
+    public method systemOsReadInLoopTest(): int {
+        var same:int = 0
+        for i in 0 until 100 {
+            var os:string = System::OS
+            if os equal System::OS {
+                same += 1
+            }
+        }
+        UnitTest::assertEquals(100, same)
+        return 0
+    }
+}
+
+class Counter {
+    public static method count(xs:variadic<int>): int {
+        return xs.len()
+    }
+
+    public static method sum(base:int, xs:variadic<int>): int {
+        var total:int = base
+        for x in xs {
+            total += x
+        }
+        return total
+    }
+}
+
+function countAll(xs:variadic<int>): int {
+    return xs.len()
+}

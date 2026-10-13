@@ -163,24 +163,44 @@ fn row_to_map(row: &mysql::Row) -> i64 {
     for (i, column) in columns.iter().enumerate() {
         let col_name = column.name_str();
         let key_ptr = unsafe { alloc_str(col_name.as_ref()) };
-        let value: i64 = match row.as_ref(i) {
-            Some(MyValue::NULL) => 0,
-            Some(MyValue::Int(v)) => *v,
-            Some(MyValue::UInt(v)) => *v as i64,
-            Some(MyValue::Float(v)) => crate::__box_float((*v as f64).to_bits() as i64),
-            Some(MyValue::Double(v)) => crate::__box_float(v.to_bits() as i64),
-            Some(MyValue::Bytes(b)) => {
-                if let Ok(s) = std::str::from_utf8(b) {
-                    unsafe { alloc_str(s) }
-                } else {
-                    0
-                }
-            }
-            _ => 0,
-        };
+        let value = value_as_mixed(row.as_ref(i));
         crate::map_set_owned_key(row_map, key_ptr, value);
     }
     row_map
+}
+
+/// Valeur de colonne MySQL → valeur `mixed` Ocara. Entiers boxés comme côté
+/// SQLite (`row_column_as_mixed`) : un grand entier brut était pris pour un
+/// pointeur, et `0` confondu avec NULL ; dates, heures et BLOB non UTF-8
+/// devenaient `null` (voir
+/// docs/roadmap.d/stdlib-mysql-requetes-parametrees-transactions.md).
+pub(crate) fn value_as_mixed(value: Option<&MyValue>) -> i64 {
+    match value {
+        Some(MyValue::NULL) | None => 0,
+        Some(MyValue::Int(v)) => crate::box_int_if_needed(*v),
+        Some(MyValue::UInt(v)) => crate::box_int_if_needed(*v as i64),
+        Some(MyValue::Float(v)) => crate::__box_float((*v as f64).to_bits() as i64),
+        Some(MyValue::Double(v)) => crate::__box_float(v.to_bits() as i64),
+        Some(MyValue::Bytes(b)) => unsafe { alloc_str(&String::from_utf8_lossy(b)) },
+        Some(MyValue::Date(y, mo, d, h, mi, sec, us)) => {
+            let text = if *us == 0 {
+                format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", y, mo, d, h, mi, sec)
+            } else {
+                format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}", y, mo, d, h, mi, sec, us)
+            };
+            unsafe { alloc_str(&text) }
+        }
+        Some(MyValue::Time(neg, days, h, mi, sec, us)) => {
+            let hours = *days as u64 * 24 + *h as u64;
+            let sign = if *neg { "-" } else { "" };
+            let text = if *us == 0 {
+                format!("{}{:02}:{:02}:{:02}", sign, hours, mi, sec)
+            } else {
+                format!("{}{:02}:{:02}:{:02}.{:06}", sign, hours, mi, sec, us)
+            };
+            unsafe { alloc_str(&text) }
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

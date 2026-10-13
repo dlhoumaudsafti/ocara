@@ -1,6 +1,6 @@
 # Chaque lecture de `System::OS` alloue une chaîne jamais libérée
 
-Statut : **à corriger** — constaté le 2026-10-13 (audit de la roadmap).
+Statut : **corrigé** le 2026-10-13 (constaté le même jour par l'audit de la roadmap).
 
 ## Constat
 
@@ -35,3 +35,7 @@ temporaire possédé.
 ## Priorité / Complexité
 
 **Haute** (fuite, règle du projet) — **Simple**.
+
+## Correctif
+
+Cause confirmée : `__system_os`/`__system_arch` allouent une chaîne à chaque lecture, que le lowering ne suivait pas comme temporaire possédé. Correction : `rc::track` sur le résultat (`src/lower/expr.d/lower.rs`) — `--leak-check` : aucune fuite sur 2 000 lectures de `System::OS`/`System::ARCH`. `System::BUILD` est une chaîne statique, non concernée. Test : `examples/tests/90_static_variadic_negative_int_systemTest.oc`.

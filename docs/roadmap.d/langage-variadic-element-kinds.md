@@ -78,3 +78,5 @@ K::cnt(1, 2, 3)   // codegen : mismatched argument count … got 3, expected 1
 ```
 
 La branche `Expr::StaticCall` (`src/lower/expr.d/lower.rs`, ~l.880+) n'appelle jamais `pack_variadic_args` (appelé seulement ~l.603 et ~l.865), alors que `program.rs` (~l.166) enregistre l'info variadic. Aucun exemple ni test ne couvre ce cas. **Haute (programme valide refusé) — Simple.**
+
+**Corrigé le 2026-10-13** : `Expr::StaticCall` empaquette les arguments variadic (`pack_variadic_args`). En vérifiant, un second défaut est apparu : `xs.len()` sur un paramètre variadic rendait 1 (fonction libre, méthode d'instance ou statique) — le paramètre n'était pas enregistré comme `array<T>` (`String_len` émis). Corrigé dans `lower_func` (type déclaré `array<T>` pour un variadic). Test : `examples/tests/90_static_variadic_negative_int_systemTest.oc`.

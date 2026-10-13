@@ -622,7 +622,7 @@ consumed m:message<int> = truc()   // ❌ E30
 fichier.oc:3:19: error: parameter 'm': type 'message<T>' cannot be used as a parameter type — it is return-type-only
 ```
 
-`message<T>` est return-type-only : il ne peut jamais être le type déclaré d'un paramètre de fonction, méthode ou constructeur.
+`message<T>` est return-type-only : il ne peut jamais être le type déclaré d'un paramètre de fonction, méthode, constructeur ou closure (`nameless(m:message<int>)`), ni d'un paramètre d'un type `Function<…>` (`Function<void(message<int>)>`). Itérer un tel paramètre de closure plantait le programme.
 
 **Correction :** ne pas passer de `message<T>` en paramètre — la fonction qui produit les valeurs doit elle-même contenir les `emit`.
 
@@ -1249,6 +1249,26 @@ half(n.toFloat())        // ✅
 ```
 
 **Correction :** convertir explicitement la valeur (`n.toFloat()`, `s.toInt()`, `n.toStr()`…) ou corriger le type du paramètre.
+
+---
+
+### E63 — Champ ou index sur une valeur sans membres
+
+```
+fichier.oc:14:18: error: cannot read field 'nonexistent' — the value's type is 'int', which has no fields
+fichier.oc:15:18: error: cannot index a value of type 'void' — only arrays, maps and strings can be indexed
+```
+
+Lecture d'un champ (`x.champ`) ou indexation (`x[i]`) sur une valeur de type `int`, `float`, `bool`, `null`, `void` (résultat d'un appel sans valeur), `Function<…>`, `message<T>` ou `Resolvable<T>`. Le pendant d'E36/E37 (appels de méthode) pour les champs et les index : jusqu'à ce diagnostic, ces accès compilaient puis lisaient une adresse arbitraire (SIGSEGV). `mixed` reste permissif.
+
+```ocara
+var x:int = 42
+IO::writeln(x.nonexistent)   // ❌ E63
+IO::writeln(x[3])            // ❌ E63
+IO::writeln(f.doIt().x)      // ❌ E63 — doIt(): void
+```
+
+**Correction :** lire le champ sur l'objet qui le porte, indexer un `array`/`map`/`string`, ou convertir la valeur (`x.toStr()`).
 
 ---
 

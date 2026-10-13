@@ -1,6 +1,6 @@
 # Accès de champ et indexation sur `int`/`float`/`bool`/`void` acceptés — SIGSEGV
 
-Statut : **à corriger** — constaté le 2026-10-13 (audit de la roadmap).
+Statut : **corrigé** le 2026-10-13 (constaté le même jour par l'audit de la roadmap).
 
 ## Constat
 
@@ -45,3 +45,7 @@ Tests sema (`src/sema/tests/method_call_on_non_class.rs`,
 ## Priorité / Complexité
 
 **Haute** (programme invalide accepté qui plante) — **Simple**.
+
+## Correctif
+
+Nouveau diagnostic **E63** (`SemaError::AccessOnNonContainer`) : champ lu ou indexation sur `int`/`float`/`bool`/`null`/`void`/`Function`/`message<T>`/`Resolvable<T>` (`has_no_members`, `src/sema/typecheck.rs`). `mixed` reste permissif. Tests : `src/sema/tests/access_on_non_container.rs`.

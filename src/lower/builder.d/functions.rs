@@ -181,8 +181,11 @@ pub fn lower_func(
             builder.elem_types.insert(param.name.clone(), IrType::from_ast(val_ty));
             builder.elem_ast_types.insert(param.name.clone(), (**val_ty).clone());
         }
+        // Type vu par le corps : `variadic<T>` est un `array<T>` (`xs.len()`
+        // émettait sinon `String_len`, voir docs/roadmap.d/langage-variadic-element-kinds.md).
+        let decl_ty = if param.is_variadic { crate::parsing::ast::Type::Array(Box::new(param.ty.clone())) } else { param.ty.clone() };
         // Marquer les paramètres de type Function pour CallIndirect
-        if let crate::parsing::ast::Type::Function { ret_ty, .. } = &param.ty {
+        if let crate::parsing::ast::Type::Function { ret_ty, .. } = &decl_ty {
             builder.func_vars.insert(param.name.clone());
             builder.func_ret_types.insert(param.name.clone(), IrType::from_ast(ret_ty));
             builder.func_ret_ast.insert(param.name.clone(), (**ret_ty).clone());
@@ -191,7 +194,7 @@ pub fn lower_func(
         // (classe, générique, union `Classe|null`, et `String`/`Array`/`Map`
         // pour les builtins : sans ça, `xs.push(...)` sur un paramètre
         // `array<T>` était compilé en `String_push`, SIGSEGV).
-        crate::lower::stmt::statements::register_var_class(&mut builder, &param.name, &param.ty);
+        crate::lower::stmt::statements::register_var_class(&mut builder, &param.name, &decl_ty);
         // Un paramètre de type générique (`Box<int>`) : même résolution que
         // pour une variable locale directement initialisée (voir
         // `lower_var`/`lower_const` dans statements.d/variables.rs) — sans
@@ -200,7 +203,7 @@ pub fn lower_func(
         // le fallback `_method_<nom>` (jamais généré) au lieu de
         // `Box_int_<nom>` : confirmé par reproduction (voir
         // docs/roadmap.d/langage-generiques.md).
-        if let crate::parsing::ast::Type::Generic { name: generic_name, args } = &param.ty {
+        if let crate::parsing::ast::Type::Generic { name: generic_name, args } = &decl_ty {
             let specialized_name = crate::core::monomorph::monomorphized_name(generic_name, args);
             builder.var_class.insert(param.name.clone(), specialized_name);
         }
@@ -213,7 +216,7 @@ pub fn lower_func(
         // correctif que `register_var_class`/`union_named_class`
         // (src/lower/stmt.d/statements.d/variables.rs) — voir
         // docs/roadmap.d/langage-union-class-null-field-access.md.
-        if let Some(class_name) = crate::parsing::ast::union_named_class(&param.ty) {
+        if let Some(class_name) = crate::parsing::ast::union_named_class(&decl_ty) {
             builder.var_class.insert(param.name.clone(), class_name);
         }
         // Slot alloca qui recevra la valeur du paramètre

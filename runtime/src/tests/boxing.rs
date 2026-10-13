@@ -282,3 +282,14 @@ fn shared_boxed_element_survives_its_first_container() {
     assert_eq!(unsafe { unbox_int(elem) }, 7_000_000, "l'élément partagé doit rester valide");
     crate::rc::__rc_release(copy);
 }
+
+// Grand entier négatif logé dans un `mixed` : laissé brut par
+// `box_int_if_needed`, il doit rester `int` (voir
+// docs/roadmap.d/memoire-mixed-grand-entier-negatif.md).
+#[test]
+fn large_negative_raw_int_is_int() {
+    let v = box_int_if_needed(-70_000);
+    assert_eq!(crate::typecheck::__is_int(v), 1);
+    assert_eq!(crate::typecheck::__is_int(box_int_if_needed(-5)), 1);
+    assert_eq!(crate::typecheck::__is_int(box_int_if_needed(i64::MIN + 1)), 1);
+}

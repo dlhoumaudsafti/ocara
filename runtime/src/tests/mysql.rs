@@ -30,8 +30,38 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 use crate::*;
-use crate::mysql::{mixed_to_mysql_value, read_placeholders};
+use crate::mysql::{mixed_to_mysql_value, read_placeholders, value_as_mixed};
 use ::mysql::Value as MyValue;
+
+// ── Groupe 0 : value_as_mixed (colonne lue → mixed) ─────────────────────────
+// Voir docs/roadmap.d/stdlib-mysql-requetes-parametrees-transactions.md : les
+// entiers de colonne étaient rangés bruts (grand entier pris pour un
+// pointeur, `0` confondu avec NULL), dates et BLOB devenaient `null`.
+
+#[test]
+fn value_as_mixed_large_int_round_trips() {
+    let v = value_as_mixed(Some(&MyValue::Int(1_790_255_242)));
+    assert_eq!(mixed_to_mysql_value(v), Ok(MyValue::Int(1_790_255_242)));
+    let u = value_as_mixed(Some(&MyValue::UInt(100_000)));
+    assert_eq!(mixed_to_mysql_value(u), Ok(MyValue::Int(100_000)));
+}
+
+#[test]
+fn value_as_mixed_zero_is_not_null() {
+    let zero = value_as_mixed(Some(&MyValue::Int(0)));
+    assert_ne!(zero, 0);
+    assert_eq!(value_as_mixed(Some(&MyValue::NULL)), 0);
+}
+
+#[test]
+fn value_as_mixed_dates_times_and_blobs_are_strings() {
+    let date = value_as_mixed(Some(&MyValue::Date(2026, 10, 13, 9, 5, 0, 0)));
+    assert_eq!(unsafe { ptr_to_str(date) }, "2026-10-13 09:05:00");
+    let time = value_as_mixed(Some(&MyValue::Time(false, 1, 2, 3, 4, 0)));
+    assert_eq!(unsafe { ptr_to_str(time) }, "26:03:04");
+    let blob = value_as_mixed(Some(&MyValue::Bytes(vec![0x61, 0xff, 0x62])));
+    assert_ne!(blob, 0);
+}
 
 // ── Groupe 1 : mixed_to_mysql_value ─────────────────────────────────────────
 

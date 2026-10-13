@@ -131,6 +131,11 @@ pub enum SemaError {
     /// la vérification de types), pas un oubli. Voir
     /// docs/roadmap.d/langage-appel-methode-sur-primitif-accepte.md.
     MethodCallOnNonClass { type_name: String, method: String, available: Vec<String>, span: Span },
+    /// Champ lu ou indexation sur une valeur sans champs ni éléments
+    /// (`int`/`float`/`bool`/`null`/`void`…) — compilait puis plantait
+    /// (voir docs/roadmap.d/sema-acces-champ-index-non-classe.md). `field` :
+    /// `None` pour une indexation.
+    AccessOnNonContainer { type_name: String, field: Option<String>, span: Span },
     /// `use Interface(...)` (construction) ou `Interface::method()` (appel
     /// statique) sur une interface qui n'a AUCUN `wiring` déclaré — voir
     /// docs/roadmap.d/langage-interface-wiring.md. Quand l'interface a au
@@ -227,6 +232,7 @@ impl SemaError {
             SemaError::IncDecInvalidType { span, .. } => span,
             SemaError::MethodCallOnVoid { span, .. } => span,
             SemaError::MethodCallOnNonClass { span, .. } => span,
+            SemaError::AccessOnNonContainer { span, .. } => span,
             SemaError::InterfaceNoWiring   { span, .. } => span,
             SemaError::ResolveOnNonResolvable { span, .. } => span,
             SemaError::AsyncReturnsResolvable { span, .. } => span,
@@ -330,6 +336,10 @@ impl SemaError {
                 } else {
                     format!("cannot call '.{}(...)' — the receiver's type is '{}', whose only methods are the conversions: {}", method, type_name, available.join(", "))
                 },
+            SemaError::AccessOnNonContainer { type_name, field, .. } => match field {
+                Some(field) => format!("cannot read field '{}' — the value's type is '{}', which has no fields", field, type_name),
+                None => format!("cannot index a value of type '{}' — only arrays, maps and strings can be indexed", type_name),
+            },
             SemaError::InterfaceNoWiring { name, .. } =>
                 format!("interface '{}' cannot be constructed or have a static method called on it directly: it has no 'wiring' declaration — add at least one 'wiring <Class>' inside the interface, or use a concrete implementing class directly", name),
             SemaError::ResolveOnNonResolvable { found, .. } =>

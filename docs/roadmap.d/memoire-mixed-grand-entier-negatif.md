@@ -1,6 +1,6 @@
 # Entier négatif de grande valeur dans un `mixed` : pas reconnu comme `int`
 
-Statut : **à corriger** — constaté le 2026-10-13 (audit de la roadmap).
+Statut : **corrigé** le 2026-10-13 (constaté le même jour par l'audit de la roadmap).
 
 ## Constat
 
@@ -33,3 +33,7 @@ affichage, `JSON::encode`) ; tests `runtime/src/tests/boxing.rs`.
 ## Priorité / Complexité
 
 **Haute** (résultat faux) — **Simple**.
+
+## Correctif
+
+`__is_int` (`runtime/src/typecheck.rs`) traite toute valeur négative comme un entier brut (jamais une adresse). Les autres consommateurs (`get_value_type`) le faisaient déjà. Tests : `large_negative_raw_int_is_int` (`runtime/src/tests/boxing.rs`), `examples/tests/90_…` (`largeNegativeMixedIsIntTest`).

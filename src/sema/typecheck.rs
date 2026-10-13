@@ -192,7 +192,7 @@ impl<'a> TypeChecker<'a> {
         // `message<T>` (générateurs) est return-type-only : jamais un type
         // de paramètre (voir docs/roadmap.d/langage-emit-iterable.md).
         for param in &func.params {
-            if let Type::Message(_) = &param.ty {
+            if message_in_param_position(&param.ty) {
                 self.errors.push(SemaError::MessageAsParamType {
                     name: param.name.clone(),
                     span: param.span.clone(),
@@ -307,7 +307,7 @@ impl<'a> TypeChecker<'a> {
                     for p in params {
                         // `message<T>` return-type-only (voir check_func) :
                         // s'applique aussi aux paramètres de constructeur.
-                        if let Type::Message(_) = &p.ty {
+                        if message_in_param_position(&p.ty) {
                             self.errors.push(SemaError::MessageAsParamType {
                                 name: p.name.clone(),
                                 span: p.span.clone(),
@@ -1166,7 +1166,16 @@ impl<'a> TypeChecker<'a> {
                 }
                 let cls_name = match type_class_name(&obj_ty) {
                     Some(n) => n,
-                    None    => return Type::Mixed,
+                    None => {
+                        if has_no_members(&obj_ty) {
+                            self.errors.push(SemaError::AccessOnNonContainer {
+                                type_name: type_name(&obj_ty),
+                                field:     Some(field.clone()),
+                                span:      self.with_runtime_ctx(span),
+                            });
+                        }
+                        return Type::Mixed;
+                    }
                 };
                 if let Some(info) = self.symbols.lookup_class(&cls_name) {
                     // Classe opaque (import non résolu) — accès permissif
@@ -2196,7 +2205,7 @@ impl<'a> TypeChecker<'a> {
                 Type::Map(Box::new(key_ty), Box::new(val_ty))
             }
 
-            Expr::Index { object, index, .. } => {
+            Expr::Index { object, index, span } => {
                 let obj_ty = self.infer_expr(object);
                 self.infer_expr(index);
                 if let Some(ty) = self.map_key_type(object, index) {
@@ -2205,6 +2214,14 @@ impl<'a> TypeChecker<'a> {
                 match &obj_ty {
                     Type::Array(inner) => *inner.clone(),
                     Type::Map(_, val)  => *val.clone(),
+                    ty if has_no_members(ty) => {
+                        self.errors.push(SemaError::AccessOnNonContainer {
+                            type_name: type_name(ty),
+                            field:     None,
+                            span:      self.with_runtime_ctx(span),
+                        });
+                        Type::Mixed
+                    }
                     _                  => Type::Mixed,
                 }
             }
@@ -2219,6 +2236,14 @@ impl<'a> TypeChecker<'a> {
             }
 
             Expr::Nameless { params, ret_ty, body, span: _ } => {
+                // `message<T>` reste return-type-only, closures comprises
+                // (E31) : itérer un tel paramètre plantait (voir
+                // docs/roadmap.d/langage-emit-iterable.md).
+                for p in params {
+                    if message_in_param_position(&p.ty) {
+                        self.errors.push(SemaError::MessageAsParamType { name: p.name.clone(), span: p.span.clone() });
+                    }
+                }
                 // Ouvre un scope pour les paramètres de la closure
                 self.scopes.push();
                 for p in params {
@@ -2577,6 +2602,23 @@ impl TypeChecker<'_> {
     fn is_user_class(&self, class: &str) -> bool {
         self.program.is_some_and(|p| p.classes.iter().any(|c| c.name == class))
     }
+}
+
+/// `message<T>` en position de paramètre : le type lui-même, ou un paramètre
+/// d'un type `Function<…>` (E31 — `message<T>` est return-type-only).
+fn message_in_param_position(ty: &Type) -> bool {
+    match ty {
+        Type::Message(_) => true,
+        Type::Function { param_tys, .. } => param_tys.iter().any(|p| matches!(p, Type::Message(_)) || message_in_param_position(p)),
+        _ => false,
+    }
+}
+
+/// Valeur sans champs ni éléments : un accès `.champ` ou `[i]` y lisait une
+/// adresse arbitraire (SIGSEGV). `mixed` reste permissif.
+fn has_no_members(ty: &Type) -> bool {
+    matches!(ty, Type::Int | Type::Float | Type::Bool | Type::Null | Type::Void
+        | Type::Function { .. } | Type::Message(_) | Type::Resolvable(_))
 }
 
 fn arith_symbol(op: &BinOp) -> &'static str {

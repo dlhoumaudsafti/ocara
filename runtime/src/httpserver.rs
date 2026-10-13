@@ -59,7 +59,9 @@
 //
 // Note sécurité concurrente :
 //   L'invocation d'un handler (route ou erreur) est sérialisée par un mutex
-//   propre à chaque serveur (`handler_lock`, voir HTTPServer_run/handle_request) :
+//   global, commun à tous les serveurs du programme (`HANDLER_LOCK`) — un
+//   verrou par serveur laissait deux serveurs partageant une capture se
+//   marcher dessus (incrémentations perdues) :
 //   deux handlers Ocara ne s'exécutent JAMAIS en même temps, ce qui élimine
 //   par construction le data race sur les captures partagées (heap_promoted)
 //   entre deux exécutions concurrentes du même handler. Voir
@@ -826,14 +828,18 @@ fn try_serve_static_file(req_handle: i64, req_path: &str, root_path: Option<&str
 // Traitement d'une requête
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Exécute un handler Ocara sous la protection de `handler_lock` — voir la
+/// Verrou des handlers, commun à tous les serveurs — voir la note sécurité
+/// concurrente en tête de fichier.
+static HANDLER_LOCK: Mutex<()> = Mutex::new(());
+
+/// Exécute un handler Ocara sous la protection de `HANDLER_LOCK` — voir la
 /// note sécurité concurrente en tête de fichier : sérialise l'invocation
 /// pour qu'aucune capture partagée (heap_promoted) ne soit jamais touchée
 /// par deux handlers en même temps.
-unsafe fn call_handler_locked(handler_lock: &Mutex<()>, h: &SendHandler, req_handle: i64) {
+unsafe fn call_handler_locked(h: &SendHandler, req_handle: i64) {
     let _guard = {
         let _parked = crate::rc::park();
-        handler_lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+        HANDLER_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
     };
     let f: OcaraHandlerFn = unsafe { std::mem::transmute(h.func_ptr as usize) };
     unsafe { f(h.env_ptr, req_handle) };
@@ -844,7 +850,6 @@ fn handle_request(
     routes: &[Route],
     root_path: Option<&str>,
     error_handlers: &HashMap<u16, SendHandler>,
-    handler_lock: &Mutex<()>,
 ) {
     // Lire le corps en OCTETS BRUTS (pas `read_to_string`) : un corps
     // `multipart/form-data` contenant un fichier (JPEG, PDF...) n'est PAS de
@@ -923,7 +928,7 @@ fn handle_request(
 
     // Appeler le handler ou tenter de servir un fichier statique
     if let Some(h) = handler {
-        unsafe { call_handler_locked(handler_lock, &h, req_handle) };
+        unsafe { call_handler_locked(&h, req_handle) };
     } else if method_str == "GET" {
         // Si GET / sans route → essayer /index.html automatiquement
         let serve_path = if path_str == "/" { "/index.html" } else { &path_str };
@@ -937,7 +942,7 @@ fn handle_request(
 
             // Chercher un handler d'erreur 404 personnalisé
             if let Some(error_h) = error_handlers.get(&404) {
-                unsafe { call_handler_locked(handler_lock, error_h, req_handle) };
+                unsafe { call_handler_locked(error_h, req_handle) };
             } else {
                 ctx.resp_body = format!("404 Not Found: {} {}", method_str, path_str);
             }
@@ -949,7 +954,7 @@ fn handle_request(
 
         // Chercher un handler d'erreur 404 personnalisé
         if let Some(error_h) = error_handlers.get(&404) {
-            unsafe { call_handler_locked(handler_lock, error_h, req_handle) };
+            unsafe { call_handler_locked(error_h, req_handle) };
         } else {
             ctx.resp_body = format!("404 Not Found: {} {}", method_str, path_str);
         }
@@ -1124,9 +1129,6 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
     let routes: Arc<Vec<Route>> = Arc::new(std::mem::take(&mut data.routes));
     let root_path: Arc<Option<String>> = Arc::new(data.root_path.clone());
     let error_handlers: Arc<HashMap<u16, SendHandler>> = Arc::new(std::mem::take(&mut data.error_handlers));
-    // Un seul verrou par serveur, partagé par tous les workers — voir la note
-    // sécurité concurrente en tête de fichier.
-    let handler_lock: Arc<Mutex<()>> = Arc::new(Mutex::new(()));
 
     server_log!("HTTPServer: listening on http://{}\n", addr);
 
@@ -1135,14 +1137,13 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
         let routes = Arc::clone(&routes);
         let root_path = Arc::clone(&root_path);
         let error_handlers = Arc::clone(&error_handlers);
-        let handler_lock = Arc::clone(&handler_lock);
         let guard = crate::rc::ThreadGuard::new();
         std::thread::spawn(move || {
             let _guard = guard;
             loop {
                 let next = { let _parked = crate::rc::park(); server.recv() };
                 match next {
-                    Ok(request) => handle_request(request, &routes, root_path.as_deref(), &error_handlers, &handler_lock),
+                    Ok(request) => handle_request(request, &routes, root_path.as_deref(), &error_handlers),
                     Err(_)      => break,
                 }
             }

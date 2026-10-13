@@ -139,3 +139,5 @@ Les cas A et B, les `return`/`break` anticipés et `Array::fromMessage` sont cor
 Tests à ajouter dans `examples/tests/42_emit_generatorTest.oc` pour chacun.
 
 **Point 3 corrigé le 2026-10-13** : les variables de `for` d'un générateur sont typées d'après les types déclarés connus (`collect_local_decls`, paramètres compris), les paramètres du générateur reçoivent leurs métadonnées (`register_const_meta`), et les arguments d'appel d'un générateur sont abaissés au type de leur paramètre (`collect_call_args`). Test : `examples/tests/89_…` (`floatLoopInGeneratorTest`). Les points 1 et 2 restent ouverts.
+
+**Point 1 corrigé le 2026-10-13** : E31 s'applique aux paramètres de closure et aux paramètres `message<T>` d'un type `Function<…>` (`message_in_param_position`, `src/sema/typecheck.rs`). Test : `message_closure_parameter_is_rejected` (`src/sema/tests/access_on_non_container.rs`). Reste le point 2.

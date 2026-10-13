@@ -71,7 +71,7 @@ pub extern "C" fn __is_null(val: i64) -> i64 {
     if val == 0 { 1 } else { 0 }
 }
 
-/// int : soit un entier brut NON NUL (val != 0 && val.abs() < PTR_THRESHOLD),
+/// int : soit un entier brut NON NUL (négatif, ou positif < PTR_THRESHOLD),
 /// soit un entier boxé (bits 1:0 = 11, voir `__box_int_for_mixed`/
 /// `box_int_if_needed` dans lib.rs — un entier assez grand pour être ambigu
 /// avec un pointeur heap, OU valant `0` (sinon indiscernable de `null`), est
@@ -79,7 +79,11 @@ pub extern "C" fn __is_null(val: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn __is_int(val: i64) -> i64 {
     if val >= PTR_THRESHOLD && (val & 3) == 3 { return 1; }
-    if val != 0 && val.abs() < PTR_THRESHOLD { 1 } else { 0 }
+    // Un négatif n'est jamais une adresse : `box_int_if_needed` le laisse
+    // brut quelle que soit sa magnitude (`0 - 70000` n'était pas `int`,
+    // voir docs/roadmap.d/memoire-mixed-grand-entier-negatif.md).
+    if val < 0 { return 1; }
+    if val != 0 && val < PTR_THRESHOLD { 1 } else { 0 }
 }
 
 /// float : détecté via le tag de boxing (bits 1:0 = 01, utilisé par __box_float).

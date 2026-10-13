@@ -51,3 +51,5 @@ Une fois ce préalable posé, le reste du travail est le même que côté SQLite
 4. Risque à investiguer : tout passe par des requêtes préparées, or certaines instructions ne sont pas préparables côté MySQL.
 
 Test : `runtime/src/tests/mysql.rs` (grands entiers, `0`, NULL, dates), marqué `#[ignore]` sans serveur.
+
+**Points 1 et 2 corrigés le 2026-10-13** : conversion des colonnes extraite dans `value_as_mixed` (`runtime/src/mysql.rs`) — entiers boxés (`box_int_if_needed`), dates/heures rendues en chaîne (`AAAA-MM-JJ HH:MM:SS`, `HH:MM:SS`), BLOB non UTF-8 en chaîne (conversion avec perte). Tests sans serveur : `value_as_mixed_*` (`runtime/src/tests/mysql.rs`). Non exécuté contre un vrai serveur MySQL. Restent le point 3 (transactions) et le point 4 (instructions non préparables).

@@ -1100,6 +1100,13 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 let param_ty = param_type_for_call_arg(builder, &func_name, i, CallForm::Static);
                 box_arg_for_mixed_param(builder, param_ty, &arg_ty, raw)
             }).collect();
+            // Méthode statique variadic : même empaquetage qu'une fonction
+            // libre (échec de codegen « mismatched argument count » sinon, voir
+            // docs/roadmap.d/langage-variadic-element-kinds.md).
+            let arg_vals = match builder.fn_variadic_info.get(func_name.as_str()).cloned() {
+                Some((fixed_count, elem_ty)) => pack_variadic_args(builder, args, arg_vals, fixed_count, &elem_ty),
+                None => arg_vals,
+            };
 
             // Si c'est un appel parent::method(), il faut ajouter self comme premier argument
             // car les méthodes d'instance prennent toujours self en premier paramètre
@@ -1209,6 +1216,9 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     args:   vec![],
                     ret_ty: IrType::Ptr,
                 });
+                // Chaîne allouée à chaque lecture : temporaire possédé (sinon
+                // jamais libérée, voir docs/roadmap.d/memoire-system-os-fuite.md).
+                crate::lower::stmt::rc::track(builder, &dest);
             } else {
                 // Référence à une méthode statique sans appel → fat pointer
                 let method_key = format!("{}_{}", class, name);

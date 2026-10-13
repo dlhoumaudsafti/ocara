@@ -59,3 +59,5 @@ Vérifié : `examples/builtins/httpserver.oc`/`.sh` mis à jour — la route `/h
 `docs/builtins/HTTPServer.md` (~l.545) affirme qu'une capture partagée uniquement entre handlers n'a plus besoin de `Mutex` — faux dès qu'il y a deux serveurs. Si la capture est une chaîne ou un objet réaffecté, deux threads peuvent relâcher la même ancienne valeur (double libération possible, non démontrée).
 
 Correction : verrou global (`static`) commun à tous les serveurs, ou documentation corrigée. Test : variante à deux serveurs dans `examples/builtins/httpserver.sh`. **Haute — Simple.**
+
+**Corrigé le 2026-10-13** : un seul verrou global `HANDLER_LOCK` (`runtime/src/httpserver.rs`) pour tous les serveurs du programme. Vérifié : deux serveurs partageant un compteur, 2 × 100 puis 2 × 150 requêtes simultanées → 201 et 301 (exacts). L'affirmation de `docs/builtins/HTTPServer.md` est désormais vraie.
