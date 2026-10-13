@@ -59,3 +59,7 @@ Le socle (compiler `ocara`/`ocara_runtime` et les faire tourner) s'est avéré u
 ## Fichiers clés
 
 `runtime/src/mutex.rs` (module `platform`, `pub(crate)`, **fait**), `runtime/src/lib.rs` (`__alloc_locked_cell`/`__locked_cell_get`/`__locked_cell_set` réutilisent `crate::mutex::platform`, **fait**), `runtime/Cargo.toml` (`windows-sys` en dépendance `cfg(windows)` uniquement, **fait**), `build.rs` racine (`target_release_dir`, stub `.a` vide pour Tauri/SDL sur Windows, **fait**), `src/codegen/link.rs` (`link()` : pilote `gcc`/`cc`, `-no-pie` conditionnel, `-lws2_32`/`-lbcrypt`/`-luserenv`/`-lntdll` sur Windows, **fait**), `Makefile` (`build-runtime-windows`/`build-windows`, **fait**), [docs/windows.md](../windows.md) (procédure complète, **fait**), `runtime_tauri/` (WebView2/MSVC, **pas fait**, voir "Ce qui reste"), `runtime_sdl/` (**pas essayé**, voir "Ce qui reste").
+
+## Reste à faire — audit du 2026-10-13
+
+**À revérifier depuis le comptage de références.** `target/x86_64-pc-windows-gnu/release/libocara_runtime.a` et `ocara.exe` datent du 23 septembre : le runtime rc, le détecteur de cycles, les atomiques et le déroulement par `longjmp` n'ont jamais tourné sous Wine. `--target x86_64-pc-windows-gnu --no-link` produit toujours un objet COFF valide.

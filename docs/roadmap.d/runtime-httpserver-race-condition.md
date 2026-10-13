@@ -51,3 +51,11 @@ Vérifié : `examples/builtins/httpserver.oc`/`.sh` mis à jour — la route `/h
 ## Fichiers clés
 
 `runtime/src/httpserver.rs` (`handler_lock`, `call_handler_locked`, fait), `docs/builtins/HTTPServer.md` (fait), `examples/builtins/httpserver.oc`/`.sh` (fait), `examples/advanced/httpserver/`, `examples/advanced/mini_project/`, [langage-nested-closure-recapture](langage-nested-closure-recapture.md) (bug connexe découvert et corrigé), [exceptions-setjmp-longjmp-dette](exceptions-setjmp-longjmp-dette.md) (même famille de risque `setjmp`/`longjmp`, analysée ci-dessus).
+
+## Reste à faire — audit du 2026-10-13
+
+**Race résiduelle entre plusieurs serveurs.** Le verrou `handler_lock` (`runtime/src/httpserver.rs`, ~l.833 et ~l.1129) est créé **par serveur** dans `HTTPServer_run`. Deux `HTTPServer` du même programme (le second lancé dans un `Thread`) qui partagent une capture ne sont pas sérialisés entre eux : 100 requêtes simultanées sur chacun des deux ports donnent **185** puis **183** au lieu de 201. Un seul serveur reste exact (200 requêtes → 201).
+
+`docs/builtins/HTTPServer.md` (~l.545) affirme qu'une capture partagée uniquement entre handlers n'a plus besoin de `Mutex` — faux dès qu'il y a deux serveurs. Si la capture est une chaîne ou un objet réaffecté, deux threads peuvent relâcher la même ancienne valeur (double libération possible, non démontrée).
+
+Correction : verrou global (`static`) commun à tous les serveurs, ou documentation corrigée. Test : variante à deux serveurs dans `examples/builtins/httpserver.sh`. **Haute — Simple.**

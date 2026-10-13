@@ -127,3 +127,13 @@ Dans un ordre logique de dépendance :
 ## Fichiers clés
 
 `src/parsing/` (lexer/parser), `src/parsing/ast.d/statements.rs` (`Stmt::Emit`), `src/parsing/ast.d/types.rs` (`Type::Message`), `src/sema/typecheck.rs`/`src/sema/message_emit.rs` (typage, diagnostics E30-E34, "au plus un emit hors boucle"), `src/lower/builder.d/message_gen.rs` (machine à états, `__new`/`__resume`, `frame_vars`, les 2 formes de consommation câblées, Cas A), `src/lower/builder.d/program.rs`/`classes.rs` (redirection vers `message_gen` + pré-passage `register_all_message_funcs`), `runtime/src/lib.rs` (`__free_obj`, `__ocara_try_enter`/`__ocara_try_exit`), `src/codegen/desc.d/lowlevel.rs` (`setjmp` appelable directement), `src/builtins/array.rs`/`runtime/src/lib.rs` (`Array::fromMessage`, pas encore fait), `examples/tests/42_emit_generatorTest.oc`, `docs/EBNF.md`, `docs/workflow-compilation.md`, `docs/adding-types.md`.
+
+## Reste à faire — audit du 2026-10-13
+
+Les cas A et B, les `return`/`break` anticipés et `Array::fromMessage` sont corrigés (`examples/tests/42_emit_generatorTest.oc`, 39 assertions ; aucune fuite). Le §6 « Limites » ci-dessus est en partie périmé (cas B, fuites). Restent trois défauts avérés :
+
+1. **Paramètre de closure typé `message<T>` — SIGSEGV.** `K::run(nameless(m:message<int>): void { for v in m { … } })` compile, affiche `41`, puis plante (exit 139). Contraire à l'EBNF §28 (« jamais un type de paramètre ») : E31 ne s'applique qu'aux fonctions et méthodes. Correction : étendre E31 aux paramètres de closure et aux types `Function<…>` (qui produisent aujourd'hui des messages absurdes « expected type 'X', found 'X' »). **Haute — Simple.**
+2. **Closure qui modifie une locale du générateur — sans effet.** `var acc = 1; f = nameless(): void { acc = acc + 10 }; f(); emit acc` émet `1` (la même fonction non générateur donne `11`) ; en boucle, `0 0 0` au lieu de `10 20 30`. Cause probable : les locales du générateur vivent dans `frame_vars`, la cellule capturée n'est pas celle relue par `emit`. **Haute — Structurel.**
+3. **`for` sur `array<float>`/`map<_,float>` dans un générateur — valeurs fausses.** `emit x / 2.0` produit `0.0000…376`, `1.0 greater 2.0` est vrai, `emit v * 2.0` sur une map donne 0 (`emit x` sans calcul reste correct). Cause : `src/lower/builder.d/message_gen.rs` (~l.842-846) force la variable de boucle en `Ptr` (« limitation acceptée »). Correction : reprendre `elem_type_after_index` comme `lower_for_in`. **Haute — Légère.**
+
+Tests à ajouter dans `examples/tests/42_emit_generatorTest.oc` pour chacun.

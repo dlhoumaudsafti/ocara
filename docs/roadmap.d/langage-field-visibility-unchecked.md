@@ -51,3 +51,15 @@ sans nouvelle erreur. Tests : `src/sema/tests/field_visibility.rs`.
 `src/sema/typecheck.rs` (`Expr::Field`, `Stmt::Assign`),
 `src/sema/symbols.d/types.rs` (`FieldInfo.vis`), `src/sema/error.rs`,
 `docs/diagnostics.md`.
+
+## Reste à faire — audit du 2026-10-13
+
+Les champs sont vérifiés (E54, `src/sema/tests/field_visibility.rs`), mais **ni les méthodes ni les constantes de classe** :
+
+```ocara
+k.secret()          // méthode private : compile, affiche 2
+K::ps()             // protected static : compile, affiche 7
+Config::SECRET      // constante private : compile, affiche abc
+```
+
+Contraire à l'EBNF §9 et §16.3 (« les règles de visibilité s'appliquent normalement »), en contradiction avec §17 qui reconnaît que `FuncSig` n'a aucun champ de visibilité. Une classe peut aussi implémenter une méthode d'interface en `private` et rester appelable de partout. Correction : porter la visibilité dans `FuncSig` et les constantes, même règle qu'E54. **Haute (programme invalide accepté) — Légère.**

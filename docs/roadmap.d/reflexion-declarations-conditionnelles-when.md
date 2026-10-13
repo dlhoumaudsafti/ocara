@@ -302,3 +302,7 @@ Mise en œuvre prévue dans l'extension VS Code
   lancer (Debug) », « Compiler et lancer (Release) » (Release = `--release`).
 
 Plus rien en attente sur cette fiche.
+
+## Reste à faire — audit du 2026-10-13
+
+Le deuxième exemple de cette fiche ne compile pas (« expected type, found LitString ») à cause de [langage-map-litteral-cle-champ](langage-map-litteral-cle-champ.md) ; avec des clés entre parenthèses il compile dans toutes les combinaisons.

@@ -133,3 +133,11 @@ Chaque groupe de symboles non résolus localement (`AAsset_*`/`ALooper_*`/`ANati
 ## Fichiers clés
 
 `src/codegen/emit.d/emitter.rs` (sélection de cible + `is_pic` pour cible croisée — **fait**), `src/core/cli.rs` (flags `--target`/`--android-runtime`/`--android-runtime-sdl`/`--android-ndk` — **fait**), `Cargo.toml` racine (feature `arm64` de `cranelift-codegen` — **fait**), `src/codegen/link.rs` (`link_android`, lien final Android + SDL — **fait**), `Makefile` (cibles `build-runtime-android`/`build-runtime-sdl-android` — **fait**), `runtime/src/mutex.rs` (compilé et vérifié pour Bionic — **fait**), `runtime_sdl/Cargo.toml` (dépendance `sdl3`/`sdl3-mixer-sys`, feature `no-sdlmixer-mod-xmp` — **fait**), `runtime_tauri/` (hors périmètre Android, définitif), [securite-pie-cranelift-is-pic](securite-pie-cranelift-is-pic.md) (ticket voisin, note ajoutée sur `is_pic`, resté non traité pour le chemin hôte), [packaging-android-webview-hybrid](packaging-android-webview-hybrid.md) et [packaging-android-gui-native](packaging-android-gui-native.md) (chantiers suivants, packaging/UI).
+
+## Reste à faire — audit du 2026-10-13
+
+**À revérifier depuis le comptage de références.** Toutes les vérifications sur appareil datent des 22-23 septembre, avant le comptage de références (commit `dea95ca`, 8 octobre : en-tête rc, cycles, déroulement). `--target aarch64-linux-android --no-link` produit toujours un ELF aarch64 valide, mais rien n'a été réexécuté sur appareil.
+
+Risques à investiguer (aucun appareil disponible lors de l'audit) :
+- `mallopt(-204, 0)` (désactivation du marquage de pointeurs Scudo) n'est appelé que dans le pont JNI optionnel (`runtime_android_jni/src/lib.rs`) ; un `.so` lié sans `--android-jni-bridge` (chemin `ocara.SDL`) ne l'appelle pas — la mauvaise classification des pointeurs de `mixed` (voir [runtime-android-aarch64-pic-string-concat](runtime-android-aarch64-pic-string-concat.md)) pourrait revenir ;
+- `System_exit` (`runtime/src/lib.rs` ~l.1561) appelle `std::process::exit` sans la garde Android de `__ocara_fail` (voir [runtime-android-exit-unsafe](runtime-android-exit-unsafe.md)).

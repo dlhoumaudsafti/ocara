@@ -1,5 +1,7 @@
 # SIGSEGV : appeler une méthode D'INSTANCE `async` via le sucre `obj.methode()`
 
+> Statut vérifié lors de l'audit du 2026-10-13 : **corrigé** (`examples/tests/64_async_instance_method_dispatchTest.oc`). Les mentions de priorité ci-dessous sont historiques.
+
 Vérifié :
 - **Root cause confirmée toujours exacte** en relisant ce ticket avant de coder quoi que ce soit (comme demandé) : `src/lower/expr.d/lower.rs`, le bras `Expr::Call { callee: Expr::Field { .. } }` (sucre d'instance) émettait TOUJOURS son `Inst::Call` directement, sans jamais consulter `builder.async_funcs` — contrairement aux deux autres formes d'appel (fonction libre, `Classe::methode()` statique), qui le font déjà correctement.
 - **Corrigé en réutilisant EXACTEMENT le même mécanisme d'empaquetage/spawn déjà en place** pour les deux autres formes d'appel — pas un second mécanisme : `src/lower/expr.d/lower.rs`, juste avant l'émission de l'`Inst::Call` direct (une fois `call_target` déjà résolu, dispatcher dynamique inclus), un nouveau garde `if builder.async_funcs.contains(call_target.as_str())` empaquette `all_args` (qui contient déjà `self` en premier — `obj_val` — suivi des arguments réels déjà boxés pour `mixed`, EXACTEMENT l'ordre attendu par le wrapper) dans un environnement heap et spawn `__async_wrap_<call_target>` via `__task_spawn`, retournant le task handle au lieu d'appeler la méthode directement.

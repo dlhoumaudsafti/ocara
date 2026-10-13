@@ -42,3 +42,12 @@ Une fois ce préalable posé, le reste du travail est le même que côté SQLite
 ## Fichiers clés
 
 `runtime/src/mysql.rs` (`OcaraMySQLDatabase`, connexion épinglée, `row_to_map`, `params_from_binds`), `runtime/src/tests/mysql.rs` (nouveau, 19 tests) + `runtime/src/tests/mod.rs` (`mod mysql;`), `src/builtins/mysql.rs`, `src/codegen/desc.d/mysql.rs`, `src/lower/stmt.d/statements.d/variables.rs` (`map_value_type` — bug de narrowing d'union, affecte tout `map<K,V>|null`, pas seulement MySQL), `docs/builtins/MySQL.md`, `examples/builtins/mysql.oc`, `tools/highlight/vsode/data/builtins-data.json` (régénéré).
+
+## Reste à faire — audit du 2026-10-13
+
+1. **Entiers non boxés — crash (démontré par le code, pas de serveur MySQL pour l'exécuter).** `row_to_map` (`runtime/src/mysql.rs`, ~l.168-169) range `MyValue::Int`/`UInt` bruts, sans `box_int_if_needed` : c'est le bug corrigé côté SQLite par [stdlib-sqlite-integer-column-boxing](stdlib-sqlite-integer-column-boxing.md), jamais reporté sur MySQL. Un grand entier (horodatage `1790255242`) relu en `int` fait planter `__mixed_to_int` ; une colonne valant `0` devient indiscernable de NULL. Correction : réutiliser le motif `row_column_as_mixed`. **Haute — Simple.**
+2. **Colonnes perdues** : le cas `_ => 0` transforme `Date`/`Time` et un `Bytes` non UTF-8 (BLOB) en `null` sans erreur. À traiter avec le point 1.
+3. **Transactions limitées à une instruction** : voir [stdlib-transactions-non-atomiques](stdlib-transactions-non-atomiques.md).
+4. Risque à investiguer : tout passe par des requêtes préparées, or certaines instructions ne sont pas préparables côté MySQL.
+
+Test : `runtime/src/tests/mysql.rs` (grands entiers, `0`, NULL, dates), marqué `#[ignore]` sans serveur.

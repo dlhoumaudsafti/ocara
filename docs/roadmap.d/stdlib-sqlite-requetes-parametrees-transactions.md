@@ -1,5 +1,7 @@
 # `SQLite` — requêtes paramétrées (placeholders nominatifs) + transactions prepare/bind/commit/rollback
 
+> Statut vérifié lors de l'audit du 2026-10-13 : **corrigé** (placeholders et codes d'erreur ; le point 4 (migration `SqlSafe`) est fait ; les transactions sont suivies dans [stdlib-transactions-non-atomiques](stdlib-transactions-non-atomiques.md)). Les mentions de priorité ci-dessous sont historiques.
+
 ## ✅ Terminé (points 1, 2, 3, 5 — point 4 explicitement différé, voir plus bas)
 
 Les 7 méthodes implémentées exactement selon les signatures décidées ci-dessous (`runtime/src/sqlite.rs`, `src/builtins/sqlite.rs`, `src/codegen/desc.d/sqlite.rs`). Découverte en cours de route non anticipée par le design initial : le mécanisme de dispatch par arité pour les builtins à paramètres optionnels (suffixe `_N`, déjà utilisé par `DotEnv::load`) n'existait que pour les appels de fonction libre et `Class::method()` statique — jamais pour `obj.méthode()`. Généralisé dans `src/lower/expr.d/lower.rs` (juste avant l'émission de `Inst::Call` dans la branche d'appel de méthode) : recherche directe d'une variante `<nom>_<N réel>` plutôt que de réutiliser le calcul `args.len() < builtin.params.len()` des deux autres branches, qui aurait été décalé d'un cran par `self` (absent de `args` mais présent dans `builtin.params`, propre aux méthodes d'instance).

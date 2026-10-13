@@ -23,3 +23,7 @@ C'est le point de départ le plus solide des deux builtins UI envisagés : Tauri
 ## Fichiers clés
 
 Aucun — chantier pas commencé. [packaging-android-webview-hybrid](packaging-android-webview-hybrid.md) (prérequis direct, pas fait), `docs/builtins/Tauri.md` (API desktop existante, référence), [langage-builtin-ui-multiplateforme](langage-builtin-ui-multiplateforme.md) (ticket frère pour la GUI native, même mécanisme de résolution par cible à concevoir une fois pour les deux).
+
+## Reste à faire — audit du 2026-10-13
+
+Le prérequis « hybride WebView Android » est fait et vérifié sur appareil (voir [packaging-android-webview-hybrid](packaging-android-webview-hybrid.md)). La sélection d'un backend selon la cible peut s'appuyer sur les déclarations conditionnelles `when System::OS is …` (EBNF §32).

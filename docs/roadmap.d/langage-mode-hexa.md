@@ -233,3 +233,7 @@ Mise en œuvre : jetons sémantiques `ocaraWhen` du serveur de langage (`src/lsp
 ## Fichiers et surfaces concernés
 
 À confirmer lors de l'implémentation : grammaire et AST du programme (`src/parsing/`), chargement/résolution des imports (`src/main.rs`, `src/core/interface_wiring.rs`), validations sémantiques et diagnostics (`src/sema/`, `src/core/`), tests du parser/imports/`wiring`, documentation canonique (`docs/EBNF.md`, §31 compris), ainsi que l'exemple `examples/advanced/mini_project_hexa` et sa commande de build.
+
+## Reste à faire — audit du 2026-10-13
+
+Implémentée (`src/core/tests_architecture.rs`). Restent deux décisions ouvertes : plusieurs racines `src`, bibliothèques externes — **Basse**. Le plan de tests n'est couvert que partiellement (imports relatifs ou transitifs, fichiers de test `ocaraunit`). Plusieurs passages ci-dessus sont périmés (« la règle précise reste à définir », « Fichiers… à confirmer », « Priorité Moyenne »).

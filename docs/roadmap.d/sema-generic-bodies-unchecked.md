@@ -1,5 +1,7 @@
 # Corps des `generic` jamais parcourus par l'analyse sémantique
 
+> Statut vérifié lors de l'audit du 2026-10-13 : **corrigé** (`src/sema/tests/generic_check.rs`). Les mentions de priorité ci-dessous sont historiques.
+
 ## Constat (vérifié dans le code)
 
 `TypeChecker::check_program` (`src/sema/typecheck.rs`) vérifie les blocs

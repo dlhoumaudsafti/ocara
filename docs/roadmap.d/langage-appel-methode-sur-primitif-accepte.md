@@ -55,3 +55,7 @@ Nouveau diagnostic **E37** (`SemaError::MethodCallOnNonClass`, `docs/diagnostics
 ## Fichiers clés
 
 `src/sema/error.rs` (`SemaError::MethodCallOnNonClass`), `src/sema/typecheck.rs` (le rejet, juste après la branche E36), `src/sema/tests/method_call_on_non_class.rs` (nouveau), `docs/diagnostics.md` (§E37, nouveau), [langage-appel-methode-sur-void-accepte](langage-appel-methode-sur-void-accepte.md) (E36, le correctif dont celui-ci reprend exactement le mécanisme).
+
+## Reste à faire — audit du 2026-10-13
+
+E37 couvre les **appels de méthode** ; l'**accès de champ** et l'**indexation** sur un primitif restent acceptés et plantent : voir [sema-acces-champ-index-non-classe](sema-acces-champ-index-non-classe.md).

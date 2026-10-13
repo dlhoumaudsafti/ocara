@@ -273,3 +273,12 @@ requêtes).
 ## Reste à faire
 
 Rien de connu à ce jour.
+
+## Reste à faire — audit du 2026-10-13
+
+La section « Reste à faire : rien de connu » n'est plus exacte, et la limite « `raise` traverse les frames, locales non relâchées » est périmée (corrigée en phase 5, confirmée sans fuite par l'audit). Restent :
+
+1. **Cycles jamais collectés tant que ≥ 2 threads Ocara tournent — fuite non bornée.** Deux threads qui créent des cycles pendant que `main` attend dans `join` : 18,6 Mo à 20 000 cycles par thread, **291 Mo** à 400 000 ; le thread principal créant des cycles pendant qu'un worker calcule : 11 Mo puis 135 Mo. Mono-thread : stable (6,2 → 6,4 Mo). Cause, par conception (phase 6) : la collecte complète n'a lieu que si le thread qui la lance est le seul en cours d'exécution. `--leak-check` ne la voit pas (collecte à la sortie). Concerne directement un serveur ou un jeu avec un worker actif. Correction : collecte concurrente (Dangereuse), ou à défaut points de rendez-vous réguliers pour les threads Ocara ; au minimum, documenter la limite (EBNF ~l.1199) et la faire signaler par `--leak-check`. **Haute — Dangereuse.**
+2. Fuites du boxing : [memoire-boxing-temporaires-non-relaches](memoire-boxing-temporaires-non-relaches.md), [memoire-system-os-fuite](memoire-system-os-fuite.md) ; crash des littéraux à union : [memoire-union-litteral-boxing](memoire-union-litteral-boxing.md).
+
+Aucun test multi-thread de croissance mémoire n'existe : en ajouter un (mesure RSS bornée) avec le correctif.

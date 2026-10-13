@@ -1,5 +1,7 @@
 # Méthodes d'instance manquantes pour `Convert` — `a.toInt()` au lieu de `Convert::strToInt(a)`
 
+> Statut vérifié lors de l'audit du 2026-10-13 : **corrigé** (`examples/tests/69_convert_instance_methodsTest.oc`). Les mentions de priorité ci-dessous sont historiques.
+
 ## Constat (vérifié directement)
 
 Aucune des 19 méthodes statiques de `Convert` (`docs/builtins/Convert.md`)

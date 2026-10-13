@@ -40,3 +40,7 @@ soustraction : le corps est vérifié une seule fois avec `T` permissif.
 `src/sema/error.rs`, `src/sema/named_args.rs`, `src/core/named_args.rs`.
 Tests : `src/sema/tests/compound_assign.rs`,
 `examples/tests/76_compound_assignmentTest.oc`.
+
+## Reste à faire — audit du 2026-10-13
+
+**La limite « generic avec `T = string` » est plus large qu'annoncé.** Dans un `generic` instancié avec `string`, `x -= e` et `self.v - e` affichent `-24` (différence d'adresses) et `self.v * e` affiche `101117263381120` : E59 est contourné pour tous les opérateurs arithmétiques, pas seulement `-=`. Correction : vérifier les opérateurs à la monomorphisation (par instanciation), ou refuser l'arithmétique sur un `T` non contraint. **Haute (résultat faux) — Structurel.**

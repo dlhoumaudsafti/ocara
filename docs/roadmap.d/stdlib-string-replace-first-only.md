@@ -1,5 +1,7 @@
 # `String::replace` ne remplace que la première occurrence (contredit sa documentation)
 
+> Statut vérifié lors de l'audit du 2026-10-13 : **corrigé** (`runtime/src/tests/string.rs`, `examples/tests/67_named_argumentsTest.oc`). Les mentions de priorité ci-dessous sont historiques.
+
 ## Constat (reproduit)
 
 ```ocara

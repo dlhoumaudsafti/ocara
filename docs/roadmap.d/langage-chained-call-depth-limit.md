@@ -1,5 +1,7 @@
 # Appel chaîné cassé à partir de 3 niveaux — `a.b().c().d()` (et non `a.b().c()`)
 
+> Statut vérifié lors de l'audit du 2026-10-13 : **corrigé** (`examples/tests/66_chained_call_depth_limitTest.oc`). Les mentions de priorité ci-dessous sont historiques.
+
 ## Constat (vérifié indépendamment)
 
 Trouvé en marge de [langage-chained-call-on-free-function-result](langage-chained-call-on-free-function-result.md)

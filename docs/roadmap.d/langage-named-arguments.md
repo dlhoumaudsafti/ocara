@@ -1,5 +1,7 @@
 # Arguments nommés à l'appel (fonction, méthode, `use Classe(...)`, `struct`...)
 
+> Statut vérifié lors de l'audit du 2026-10-13 : **corrigé** (E45 à E50 reproduits ; seul l'aller-à-la-définition sur un nom d'argument n'est pas vérifié). Les mentions de priorité ci-dessous sont historiques.
+
 ## Demande (David)
 
 ```ocara

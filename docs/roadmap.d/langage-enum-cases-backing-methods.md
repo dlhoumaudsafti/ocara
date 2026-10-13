@@ -80,3 +80,8 @@ Le `match` a lui aussi des limites qui bloquent l'exemple avec méthode :
 ## Fichiers clés
 
 `src/parsing/ast.d/enums.rs` (`EnumDecl`/`EnumVariant`), `src/parsing/ast.d/patterns.rs` (`MatchArm`/`MatchPattern`), `src/parsing/parser.d/declarations.rs`, `src/sema/symbols.d/registers.rs`, `src/sema/typecheck.rs`, `docs/EBNF.md` (§21 Enums, §26 Match).
+
+## Reste à faire — audit du 2026-10-13
+
+- Priorité alignée sur la roadmap : **Moyenne** (fonctionnalité, non bloquante).
+- Constats annexes (messages trompeurs, **Basse — Simple**) : `enum S { case A case B }` est lu comme des variantes nommées `case`, `A`… et produit « duplicate symbol 'S::case' » ; les virgules entre variantes sont facultatives alors que l'EBNF §21 les exige.

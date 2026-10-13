@@ -51,3 +51,7 @@ Rien dans la signature `req:int` n'indiquait qu'il s'agissait d'une requête HTT
 ## Fichiers clés
 
 `runtime/src/httpserver.rs` (`ParamValue`, `parse_boundary`, `parse_multipart`, `build_params_buckets`, `lookup_param`, toutes les fonctions `HTTPServerRequest_*`), `runtime/src/tests/httpserver.rs` (29 tests), `src/builtins/httpserver.rs` (`request_class()`), `src/builtins/mod.rs`, `src/codegen/desc.d/httpserver.rs`, `src/sema/typecheck.rs` (`allows_instance_sugar`), `src/main.rs`/`tools/ocaracs/src/main.rs` (`OCARA_BUILTINS`), `src/lower/expr.d/lower.rs` (`BUILTIN_MODULES`), `docs/builtins/HTTPServer.md`, `tools/highlight/vsode/scripts/generate-builtins-data.py` (+ son JSON régénéré), `examples/tests/59_httpserver_requestTest.oc`, et les 25 fichiers `examples/` migrés (voir liste complète ci-dessus).
+
+## Reste à faire — audit du 2026-10-13
+
+**Aucune limite de taille du corps de requête** (ni multipart) : un client peut faire allouer une quantité arbitraire de mémoire. Non documenté dans `docs/builtins/HTTPServer.md`. Correction : limite configurable, réponse 413 au-delà. **Basse — Légère.**

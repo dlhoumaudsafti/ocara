@@ -1,8 +1,8 @@
 # Cohérence interne de l'EBNF et de la stdlib — la doc grandit par accrétion sans passe de relecture
 
-## ✅ Terminé
+## Statut
 
-Voir §"Ce qui a été fait" plus bas.
+La première passe est terminée (voir §"Ce qui a été fait" plus bas). **Rouvert le 2026-10-13** : l'audit de la roadmap a relevé de nouvelles divergences, listées dans « Reste à faire » en fin de fiche.
 
 ## Constat général
 
@@ -47,3 +47,36 @@ Vérifié : corrections de texte uniquement, aucun fichier source/runtime touch�
 ## Fichiers clés
 
 `docs/EBNF.md` (§2, §6.5, §14.3, §16.6, §19, §23, §27, §31), `docs/builtins/Map.md`, `docs/builtins/String.md`, `docs/builtins/Regex.md`, `docs/builtins/SQLite.md`, `docs/builtins/MySQL.md`, `docs/roadmap.md` (méthode de travail).
+
+## Reste à faire — audit du 2026-10-13
+
+### EBNF
+
+- §31 (« Grammaire EBNF complète ») : `Program` impose un ordre strict et ne contient pas `ArchitectureDecl` (§33) — le parseur accepte n'importe quel ordre après `namespace`, et `when … architecture` ; `Statement` n'inclut pas `ResultStmt` (§5.5) ; `TemplateString` y est utilisé sans être défini (il l'est en §7, ~l.1014) ; `Identifier ::= [a-zA-Z]…` alors que le lexer accepte l'Unicode et un `_` initial.
+- §11 (~l.1396) présente encore `..` comme opérateur de plage (refusé par le parseur, remplacé par `to`/`until`).
+- §8 (mots réservés) oublie `emit`, `when`, `message`, `smaller`, `greater`.
+- Table variadic (~l.1730) : `variadic<Function<int>>` est une erreur de syntaxe (`Function<int()>`).
+- ~l.1814 renvoie vers « §4.5 », qui n'existe pas (§6.5).
+- ~l.3770 : les exceptions builtin « héritent implicitement de `Exception` » — faux pour la sema (bug suivi dans [sema-builtin-parent-init-noop](sema-builtin-parent-init-noop.md)).
+
+### `docs/builtins/*.md`
+
+- Exemples qui ne compilent pas : 15 `var m:map = …` sans paramètres de type dans `Map.md` ; `Map::size(user) > 0` dans `SQLite.md` (~l.93) et `MySQL.md` (~l.99) ; boucles `while i < …` dans `Convert.md`, `Mutex.md`, `Regex.md` (opérateurs `<`/`>` retirés).
+- Méthodes non documentées : `UnitTest::assertRaises`, `assertException{Code,Message,Source}{Not}Equals`, `assertArray`/`assertMap`/`assertClass`/`assertEnum`/`assertFunction` ; `Array::get`/`Array::set` ; `HTMLComponent.tag` ; SDL `unloadTexture`/`unloadSound`/`unloadFont` ; aucune page pour les classes d'exception (`src/builtins/exception.rs`).
+- `HTTPServer.md` (~l.545) : affirmation fausse sur les captures partagées (voir [runtime-httpserver-race-condition](runtime-httpserver-race-condition.md)).
+
+### Autres
+
+- 13 liens vers des fiches supprimées (`langage-mixed-arithmetic`, `memoire-strategie-var`, `langage-generiques`, `memoire-concurrence-threads`…) dans `docs/builtins/Map.md`, `YAML.md`, `examples/tests/{33,35,36,39,40,44}`, `src/lower/**`, `src/sema/**`, `runtime/src/*.rs`.
+- Commentaires d'exemples devenus faux (bugs corrigés depuis) : `examples/61_interface_instance_dispatch.oc` (~l.73-77) et `examples/tests/61_…` (~l.98-107), `examples/tests/52_…` (~l.44-48), `examples/tests/47_…` (en-tête : « le cas boucle reste cassé »).
+- `examples/01_variables.oc` (~l.10) et `docs/variables.md` (~l.173) décrivent encore la constante globale comme « évaluée à la compilation ».
+- `docs/benchmarking.md` (~l.192) : ancienne syntaxe `0..N`.
+- `ocara --help` : `--dump` affiche aussi le HIR, pas seulement tokens et AST.
+- `README.md` (~l.3) : badge vers `github.com/yourusername`.
+- Extension VS Code : `layers` et `shared` (clés du bloc `architecture`) ne sont pas colorés.
+- `examples/advanced/mini_project` : commentaires affirmant qu'aucun parseur `x-www-form-urlencoded` n'existe (`configs/routes/Cars.oc`, `controllers/CarController.oc`) — il existe depuis [stdlib-httpserver-post-body-parsing](stdlib-httpserver-post-body-parsing.md).
+- Commentaires de code périmés citant des mécanismes supprimés par le comptage de références (`FieldOwnership::Resource` dans `src/sema/typecheck.rs`, `scope.rs`, `error.rs` ; `__value_free` dans `src/codegen/desc.d/lowlevel.rs`).
+
+Validation suggérée : compiler automatiquement les blocs ```` ```ocara ```` de `docs/` (au moins ceux marqués comme complets) dans `make regression`.
+
+**Basse — Simple** (aucun impact sur les binaires produits, mais la doc induit en erreur).

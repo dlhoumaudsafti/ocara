@@ -38,3 +38,7 @@ Concevoir UNE API `ocara.UI` qui ait un sens dans les deux mondes (quels concept
 ## Fichiers clés
 
 Aucun — chantier pas commencé, dépend de prérequis eux-mêmes non commencés ou non clarifiés. [packaging-android-gui-native](packaging-android-gui-native.md) (prérequis direct, pas fait), [builtins-tauri](builtins-tauri.md) (portée actuelle du "vrai support Tauri", à comparer avec l'intention de David), `docs/builtins/Tauri.md` (référence du builtin desktop existant), [langage-builtin-ui-hybride](langage-builtin-ui-hybride.md) (ticket frère, WebView unifiée), `src/codegen/runtime.rs`/table des builtins (mécanisme de résolution des builtins, à étendre pour dépendre de la cible).
+
+## Reste à faire — audit du 2026-10-13
+
+L'affirmation « `--target` n'influence jamais la résolution des builtins / mécanisme nouveau dans Ocara » est périmée : les déclarations conditionnelles `when System::OS is …` (EBNF §32, par exemple `when System::OS is not 'android' import ocara.Tauri`) sélectionnent déjà imports et déclarations selon la cible.

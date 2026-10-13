@@ -260,3 +260,19 @@ grammaire des types) et §14.5 (réécrit), `docs/diagnostics.md` (E43 —
 d'une fonction/méthode `async`), grammaire TextMate VS Code
 (`tools/highlight/vsode/syntaxes/ocara.tmLanguage.json`, `Resolvable` coloré
 comme type built-in).
+
+## Reste à faire — audit du 2026-10-13
+
+**Statut : rouvert.** L'appel direct, la variable, le paramètre, E43 et E44 sont corrects (`examples/tests/65_async_resolvable_return_typeTest.oc`), mais `resolve` à travers **un champ, un élément de tableau ou une valeur de retour de fonction** rend une valeur déchet :
+
+```ocara
+var s:string = resolve h.t        // champ : affiche 10080272 (adresse)
+var s2:string = resolve mk()      // mk(): Resolvable<string> : adresse
+var f:float = resolve arr[0]      // array<Resolvable<float>> : 0.0000…42 ; f + 1.0 → 1
+```
+
+Cause : `src/lower/expr.d/lower.rs` (~l.1830-1835) et `typeinfer.rs` (~l.371-378) — seul `Expr::Ident` lit `async_var_ret` ; champ, index et appel non-`async` retombent sur `IrType::I64`. Contredit l'EBNF §14.5 (« à n'importe quelle profondeur d'indirection ») et la section « Résolution » de cette fiche.
+
+Correction : dériver `T` du type sema de l'opérande de `resolve` (ou étendre `async_var_ret` aux champs, index et retours). Test : `examples/tests/65_…` étendu aux trois formes. **Haute — Légère.**
+
+L'exception levée dans une tâche est suivie à part : [langage-async-exception-resolve](langage-async-exception-resolve.md).

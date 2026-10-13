@@ -39,3 +39,15 @@ Tests : `examples/tests/77_builtin_exception_constructorTest.oc`,
 
 `${e}` d'une chaîne levée → voir
 [langage-raised-string-interpolation](langage-raised-string-interpolation.md).
+
+## Reste à faire — audit du 2026-10-13
+
+**La « limite connue » est devenue un bug, aggravé par E62.** Pour la sema, les exceptions builtin (`FileException`, `IOException`…) ne sont pas des sous-types de `Exception` : `var z:Exception = use FileException(...)` était déjà refusé, et depuis E62 passer l'exception attrapée à une fonction l'est aussi :
+
+```ocara
+function logErr(e:Exception): void { IO::writeln(e.message) }
+try { … } on e is FileException { logErr(e) }
+// error: argument 'e' of 'logErr': expected type 'Exception', found 'FileException'
+```
+
+Contraire à `docs/EBNF.md` (~l.3770 : elles « héritent toutes implicitement de `Exception` »). Correction : faire de `Exception` l'ancêtre de chaque exception builtin pour `types_compat`/`class_matches` (`BUILTIN_EXCEPTION_NAMES`). **Haute (programme valide refusé) — Légère.** Test sema + `examples/tests/77_builtin_exception_constructorTest.oc`.

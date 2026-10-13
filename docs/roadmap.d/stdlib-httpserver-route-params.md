@@ -39,3 +39,7 @@ Les trois tickets `HTTPServer` ouverts ensemble sont maintenant tous clos : [std
 ## Fichiers clés
 
 `runtime/src/httpserver.rs` (`PathParamType`, `PathSegment`, `RoutePattern`, `parse_route_pattern`, `parse_path_param_value`, `match_route`, `HTTPServer_route`, `handle_request`, `build_params_buckets`), `runtime/src/tests/httpserver.rs` (13 nouveaux tests), `docs/builtins/HTTPServer.md`, `examples/tests/59_httpserver_requestTest.oc` (7 nouvelles assertions), et dans `examples/advanced/mini_project_hexa/` : `configs/routes/CarRoutes.oc`, `context/car/infra/controllers/{CarController,MaintenanceController}.oc`, `configs/components/{CarCard,SearchMaintenance}.oc`, `templates/{home,car_detail}.html`, `probe_main.oc` + `core/probe_main.runtime.oc` (nouveaux, outil de vérification headless).
+
+## Reste à faire — audit du 2026-10-13
+
+Le SIGSEGV obtenu en passant un `mixed` (ici un `int` de route) à un paramètre `string`, présenté plus haut comme « comportement attendu », est un défaut : voir [langage-mixed-vers-string-non-converti](langage-mixed-vers-string-non-converti.md).

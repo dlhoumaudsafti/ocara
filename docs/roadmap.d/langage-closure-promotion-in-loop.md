@@ -73,3 +73,18 @@ Nouveau test de régression : `examples/tests/48_closure_promotion_in_loopTest.o
 ## Fichiers clés
 
 `src/lower/expr.d/captures.rs` (`names_captured_by_nested_closures`, fait), `src/lower/expr.d/lower.rs` (`hoist_closure_promotions_before_loop`, fait), `src/lower/stmt.d/statements.d/control_flow.rs` (`lower_while`, câblé), `src/lower/stmt.d/statements.d/loops.rs` (`lower_for_in`, `lower_for_map`, câblés), `examples/tests/48_closure_promotion_in_loopTest.oc` (fait), [langage-closure-promotion-block-scope](langage-closure-promotion-block-scope.md) (ticket parent, cas hors-boucle), [langage-nested-closure-recapture](langage-nested-closure-recapture.md) (mécanisme de capture transitif réutilisé).
+
+## Reste à faire — audit du 2026-10-13
+
+**Rouvert pour `for x in générateur()`.** Les boucles `while`, `for` sur plage ou tableau et imbriquées sont correctes (`examples/tests/48_closure_promotion_in_loopTest.oc`). Mais :
+
+```ocara
+var c:int = 0
+for x in compteur() {            // compteur(): message<int>, émet 1..4
+    var f = nameless(): void { c = c + x }
+    f()
+}
+// gen-for: 4 au lieu de 10 ; --leak-check : 9 × variable capturée
+```
+
+Cause : `src/lower/stmt.d/statements.d/loops.rs` (~l.22-25) — le chemin générateur (`lower_for_message`) fait `return` avant `hoist_closure_promotions_before_loop` (~l.31). Correction : appliquer le hoist avant ce `return`. **Haute — Légère.** Test à ajouter dans `48_…`.

@@ -60,3 +60,7 @@ conteneurs imbriqués).
 
 `src/lower/expr.d/` (littéraux de tableau, `LiteralElemKind`),
 `runtime/src/lib.rs` (encodage JSON, boxing), `examples/tests/40_json_yaml_concrete_containersTest.oc`.
+
+## Reste à faire — audit du 2026-10-13
+
+La « limite restante » décrite plus haut est bien plus grave qu'un `0` lu `null` : un tableau concret placé dans un `mixed` puis encodé plante ou produit des bits bruts — voir [stdlib-json-yaml-valeurs-brutes](stdlib-json-yaml-valeurs-brutes.md). Le littéral à union de primitifs plante aussi, probable régression de ce correctif — voir [memoire-union-litteral-boxing](memoire-union-litteral-boxing.md).

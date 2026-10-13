@@ -1,5 +1,7 @@
 # `struct` façon C — type agrégat, potentiellement à sémantique de valeur
 
+> Statut vérifié lors de l'audit du 2026-10-13 : **corrigé** (décision (B) implémentée ; la sémantique de valeur (A) reste différée). Les mentions de priorité ci-dessous sont historiques.
+
 ## Demande (David)
 
 ```ocara

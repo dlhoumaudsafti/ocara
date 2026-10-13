@@ -9,3 +9,7 @@ Le lien OpenSSL inconditionnel du build du compilateur est retiré, `cargo build
 ## Fichiers clés
 
 `build.rs` (`ensure_runtime_lib`), `Makefile`.
+
+## Reste à faire — audit du 2026-10-13
+
+Hypothèse forte, non vérifiée (cargo non lancé pendant l'audit) : `build.rs` (~l.48-57) lance un `cargo build --release` imbriqué dans le **même** répertoire `target/`, depuis un build script ; le cargo parent tient `target/release/.cargo-lock`. Le blocage d'« plus d'une heure sans sortie » serait un interblocage sur ce verrou (le message « Blocking waiting for file lock » de l'enfant est capturé, donc invisible), et non une recompilation lente. Piste : `CARGO_TARGET_DIR` séparé pour le build imbriqué.

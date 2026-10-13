@@ -51,3 +51,9 @@ Aucun test de non-régression `.oc` ajouté (rien ne plantait avant — c'était
 ## Fichiers clés
 
 `runtime/src/typecheck.rs`, `runtime/src/lib.rs` (`box_int_if_needed`, `get_value_type`, `is_ptr`/`is_float_box`/`is_bool_box`/`is_int_box`, `__value_free`/`__value_clone`, `is_boxed_primitive`/`free_boxed_primitive`/`clone_boxed_primitive`), `runtime/src/tests/boxing.rs` (filet de tests du volet 1), `src/lower/stmt.d/ownership.rs` (`concrete_elem_shape`), `src/lower/expr.d/helpers.rs` (`box_arg_for_mixed_param`), `src/lower/expr.d/lower.rs` (comparaisons `mixed`).
+
+## Reste à faire — audit du 2026-10-13
+
+- Le volet 2 (« les ~14 sites de boxing sont auditables ») n'a jamais été mené : l'audit révèle des sites qui fuient ou plantent — [memoire-boxing-temporaires-non-relaches](memoire-boxing-temporaires-non-relaches.md), [memoire-union-litteral-boxing](memoire-union-litteral-boxing.md), [memoire-mixed-grand-entier-negatif](memoire-mixed-grand-entier-negatif.md).
+- Références périmées : `runtime/src/tests/boxing.rs` contient 23 tests (pas 25) ; `__value_free`, `__value_clone`, `is_boxed_primitive`, `concrete_elem_shape` ont été supprimés par le comptage de références (`FLAG_RAW` dans `runtime/src/rc.rs` joue ce rôle).
+- « Garantie OS » : fausse sur Android 11+ arm64 (marquage Scudo), neutralisée seulement par le pont JNI — voir [packaging-android](packaging-android.md).

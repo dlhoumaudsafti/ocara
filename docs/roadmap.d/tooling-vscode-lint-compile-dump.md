@@ -1,5 +1,7 @@
 # Extension VS Code : analyse ocaracs automatique, compilation et dump depuis l'éditeur
 
+> Statut vérifié lors de l'audit du 2026-10-13 : **corrigé** (code de l'extension (`tools/highlight/vsode/src/lint.ts`, `compile.ts`)). Les mentions de priorité ci-dessous sont historiques.
+
 ## Demande (David)
 
 ### 1. Analyse ocaracs automatique

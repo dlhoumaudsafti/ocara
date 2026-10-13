@@ -59,3 +59,9 @@ forme `kind | depth << 8` (`value_to_json`, `value_to_yaml`). Test :
 (`static_leaf_shape`, `push_hidden_leaf_shape`),
 `examples/tests/73_httpserver_sessionTest.oc`,
 `examples/builtins/httpserver_session.oc` et `.sh`.
+
+## Reste à faire — audit du 2026-10-13
+
+**Sessions jamais purgées.** Chaque requête sans cookie qui appelle `req.session()` crée une session conservée jusqu'à l'arrêt du serveur : la mémoire croît sans borne sur un serveur exposé (robots, clients sans cookie). Correction : expiration (durée d'inactivité configurable) et purge périodique. **Moyenne — Légère.**
+
+Limite de taille du corps de requête : voir [stdlib-httpserver-request-object](stdlib-httpserver-request-object.md).

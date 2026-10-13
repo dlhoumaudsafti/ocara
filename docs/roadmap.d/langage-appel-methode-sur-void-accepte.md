@@ -40,3 +40,7 @@ Portée volontairement restreinte à ce cas précis (appel de méthode) — un a
 ## Fichiers clés
 
 `src/sema/error.rs` (`SemaError::MethodCallOnVoid`), `src/sema/typecheck.rs` (le rejet, dans la branche `Expr::Call`/`Expr::Field`), `src/sema/tests/method_call_on_void.rs` (nouveau), `docs/diagnostics.md` (§E36, nouveau), `examples/advanced/tauri_httpserver/configs/Server.oc`, [langage-use-chaine-valeur-retour-perdue](langage-use-chaine-valeur-retour-perdue.md) (bugs voisins, même symptôme de fond : symbole mangled inexistant ignoré silencieusement par le codegen).
+
+## Reste à faire — audit du 2026-10-13
+
+La limite « cas très marginal » (champ sur un résultat `void`) est en réalité un SIGSEGV, et l'indexation d'un `void` rend `null` : voir [sema-acces-champ-index-non-classe](sema-acces-champ-index-non-classe.md).

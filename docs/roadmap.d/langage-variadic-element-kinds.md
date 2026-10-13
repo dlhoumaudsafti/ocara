@@ -67,3 +67,14 @@ dans `docs/EBNF.md` §14.2.
 `src/lower/stmt.d/statements.d/loops.rs` (variable de boucle), packing
 variadic dans `src/lower/expr.d/lower.rs`, `src/lower/builder.d/program.rs`
 (`fn_variadic_info`), `src/sema/typecheck.rs` (type d'un argument variadic).
+
+## Reste à faire — audit du 2026-10-13
+
+**Méthode statique variadic — erreur de codegen.** L'affirmation « un seul empaquetage pour fonction libre, méthode statique et méthode d'instance » est fausse pour la méthode statique :
+
+```ocara
+class K { public static method cnt(xs:variadic<int>): int { return xs.len() } }
+K::cnt(1, 2, 3)   // codegen : mismatched argument count … got 3, expected 1
+```
+
+La branche `Expr::StaticCall` (`src/lower/expr.d/lower.rs`, ~l.880+) n'appelle jamais `pack_variadic_args` (appelé seulement ~l.603 et ~l.865), alors que `program.rs` (~l.166) enregistre l'info variadic. Aucun exemple ni test ne couvre ce cas. **Haute (programme valide refusé) — Simple.**

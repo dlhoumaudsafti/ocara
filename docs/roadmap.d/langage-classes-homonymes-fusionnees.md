@@ -74,3 +74,8 @@ d'entrée, n'est jamais renommé. Test : `src/core/tests_homonyms.rs`.
   (visibilité globale) voit le premier chargé, comme avant.
 - Dans un fichier qui voit une fonction homonyme, une variable locale du
   même nom serait renommée avec elle.
+
+## Reste à faire — audit du 2026-10-13
+
+1. La « limite 1 » ci-dessus est inexacte : un fichier qui voit un homonyme sans l'importer n'obtient pas « le premier chargé » mais un symbole inconnu, et l'appel rend `null` sans diagnostic. Suivi dans [sema-appel-symbole-inconnu-accepte](sema-appel-symbole-inconnu-accepte.md).
+2. **Variable locale portant le nom d'une fonction — ignorée.** `var label:Function<string()> = nameless(): string { return "LOCAL" }` puis `return label()` appelle la fonction globale `label` (`fa`) au lieu de la closure (seul un avertissement « variable 'label' is never used ») ; un paramètre `label:string` renvoyé tel quel est refusé (« expected return type 'string', found 'Function<string()>' »). La portée locale doit masquer le nom global, en sema comme au lowering. **Haute (résultat faux) — Légère.**
