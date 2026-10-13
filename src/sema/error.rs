@@ -167,6 +167,9 @@ pub enum SemaError {
     /// (et, pour `protected`, de ses descendantes) — voir
     /// `crate::sema::field_visibility` (E54).
     FieldNotAccessible { class: String, field: String, protected: bool, span: Span },
+    /// Méthode ou constante de classe `private`/`protected` inaccessible —
+    /// même règle que les champs (E54).
+    MemberNotAccessible { kind: String, class: String, name: String, protected: bool, span: Span },
     /// Valeur d'une constante de classe non évaluable à la compilation
     /// (appel, variable...) — voir `Expr::const_literal` (E55).
     ClassConstNotConstant { class: String, name: String, span: Span },
@@ -234,6 +237,7 @@ impl SemaError {
             SemaError::NamedArgMissing    { span, .. } => span,
             SemaError::NamedArgUnresolved { span, .. } => span,
             SemaError::FieldNotAccessible { span, .. } => span,
+            SemaError::MemberNotAccessible { span, .. } => span,
             SemaError::ClassConstNotConstant { span, .. } => span,
             SemaError::FieldCalledAsMethod { span, .. } => span,
             SemaError::ArithmeticOnNonNumeric { span, .. } => span,
@@ -348,6 +352,12 @@ impl SemaError {
                 format!("missing argument '{}' in this named call to '{}' — it has no default value", name, callee),
             SemaError::NamedArgUnresolved { name, .. } =>
                 format!("named argument '{}' cannot be used here: the parameter names of the called target are not statically known (e.g. a call through a 'Function<...>' value) — pass the arguments positionally", name),
+            SemaError::MemberNotAccessible { kind, class, name, protected, .. } =>
+                if *protected {
+                    format!("{} '{}' of '{}' is protected — it is only accessible from '{}' and the classes that extend it", kind, name, class, class)
+                } else {
+                    format!("{} '{}' of '{}' is private — it is only accessible from inside '{}'", kind, name, class, class)
+                },
             SemaError::FieldNotAccessible { class, field, protected, .. } =>
                 if *protected {
                     format!("field '{}' of '{}' is protected — it is only accessible from '{}' and the classes/structs that extend it", field, class, class)

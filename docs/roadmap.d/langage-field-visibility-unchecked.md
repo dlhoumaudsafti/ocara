@@ -63,3 +63,5 @@ Config::SECRET      // constante private : compile, affiche abc
 ```
 
 Contraire à l'EBNF §9 et §16.3 (« les règles de visibilité s'appliquent normalement »), en contradiction avec §17 qui reconnaît que `FuncSig` n'a aucun champ de visibilité. Une classe peut aussi implémenter une méthode d'interface en `private` et rester appelable de partout. Correction : porter la visibilité dans `FuncSig` et les constantes, même règle qu'E54. **Haute (programme invalide accepté) — Légère.**
+
+**Corrigé le 2026-10-13** : `SemaError::MemberNotAccessible` (E54) pour les méthodes (instance, statiques, `parent::`) et les constantes de classe, même règle que les champs (`src/sema/field_visibility.rs`, table `method_vis` des classes du programme, modules compris). Tests : `src/sema/tests/member_visibility.rs`. La visibilité déclarée dans une interface reste ignorée (limitation volontaire).

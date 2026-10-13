@@ -1,0 +1,92 @@
+architecture permissive
+
+import ocara.UnitTest
+
+// Correctifs de l'audit du 2026-10-13 (générateurs, async, exceptions) :
+//   - closure dans `for x in générateur()` (docs/roadmap.d/langage-closure-promotion-in-loop.md) ;
+//   - `for` sur des flottants dans un générateur (docs/roadmap.d/langage-emit-iterable.md) ;
+//   - `resolve` à travers un champ, un élément, un retour (docs/roadmap.d/langage-async-non-int-return-type-check.md) ;
+//   - `e.message` après `raise "chaîne"` (docs/roadmap.d/langage-exception-chaine-champ-message.md).
+class Test_89_generators_resolve_and_catch {
+
+    public method closureInGeneratorLoopTest(): int {
+        var c:int = 0
+        for x in counter() {
+            var add:Function<void()> = nameless(): void { c = c + x }
+            add()
+        }
+        UnitTest::assertEquals(10, c)
+        return 0
+    }
+
+    public method floatLoopInGeneratorTest(): int {
+        var total:float = 0.0
+        var ys:array<float> = [1.0, 3.0]
+        for v in halves(ys) {
+            total = total + v
+        }
+        for v in halves([5.0]) {
+            total = total + v
+        }
+        UnitTest::assertEquals(4.5, total)
+        return 0
+    }
+
+    public method resolveIndirectTest(): int {
+        var h:TaskHolder = use TaskHolder()
+        h.t = greet()
+        var s:string = resolve h.t
+        var s2:string = resolve makeGreet()
+        var arr:array<Resolvable<float>> = [half()]
+        var f:float = resolve arr[0]
+        UnitTest::assertEquals("bonjour", s)
+        UnitTest::assertEquals("bonjour", s2)
+        UnitTest::assertEquals(3.5, f + 1.0)
+        return 0
+    }
+
+    public method messageOfRaisedStringTest(): int {
+        var msg:string = ""
+        try {
+            raise "direct"
+        } on e {
+            msg = e.message
+        }
+        UnitTest::assertEquals("direct", msg)
+        try {
+            raise use Exception("objet", 3)
+        } on e {
+            msg = e.message
+        }
+        UnitTest::assertEquals("objet", msg)
+        return 0
+    }
+}
+
+class TaskHolder {
+    public property t:Resolvable<string>
+}
+
+function counter(): message<int> {
+    for i in 1 to 4 {
+        emit i
+    }
+}
+
+function halves(xs:array<float>): message<float> {
+    for x in xs {
+        emit x / 2.0
+    }
+}
+
+async function greet(): string {
+    return "bonjour"
+}
+
+async function half(): float {
+    return 2.5
+}
+
+function makeGreet(): Resolvable<string> {
+    return greet()
+}

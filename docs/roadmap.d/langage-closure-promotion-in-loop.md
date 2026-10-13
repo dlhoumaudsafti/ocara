@@ -88,3 +88,5 @@ for x in compteur() {            // compteur(): message<int>, émet 1..4
 ```
 
 Cause : `src/lower/stmt.d/statements.d/loops.rs` (~l.22-25) — le chemin générateur (`lower_for_message`) fait `return` avant `hoist_closure_promotions_before_loop` (~l.31). Correction : appliquer le hoist avant ce `return`. **Haute — Légère.** Test à ajouter dans `48_…`.
+
+**Corrigé le 2026-10-13** : le hoist est fait avant le chemin générateur, et la boucle sur générateur ouvre une portée d'itération (`begin_iteration`/`end_iteration`, `lower_for_message`) — résultat 10, aucune fuite. Test : `examples/tests/89_…` (`closureInGeneratorLoopTest`).

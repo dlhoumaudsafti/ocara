@@ -1,6 +1,6 @@
 # Littéral map `{obj.champ: valeur}` refusé par le parseur
 
-Statut : **à corriger** — constaté le 2026-10-13 (audit de la roadmap).
+Statut : **corrigé** le 2026-10-13 (constaté le même jour par l'audit de la roadmap).
 
 ## Constat
 
@@ -32,3 +32,7 @@ l'exemple de la fiche `when`.
 ## Priorité / Complexité
 
 **Haute** (programme valide refusé) — **Légère**.
+
+## Correctif
+
+Le parseur ne lit plus l'annotation `obj.champ:Type` pendant la lecture d'une clé de littéral map (`Parser::in_map_key`). Test : `test_map_literal_field_key` (`src/parsing/parser.d/tests.rs`) et `examples/tests/88_…` (`mapLiteralFieldKeyTest`).

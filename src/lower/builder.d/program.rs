@@ -879,7 +879,16 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     // Génère les wrappers __fn_wrap_* pour toutes les fonctions/méthodes statiques
     // référençables comme type Function. Convention : wrapper(env_ptr, args...) { return orig(args) }
     {
+        // Méthodes déclarées par une interface : aucun corps à envelopper
+        // (le wrapper appelait un symbole inexistant).
+        // Idem pour un générateur, abaissé en `<nom>__new`/`<nom>__resume`.
+        let interface_prefixes: Vec<String> = program.interfaces.iter().map(|i| format!("{}_", i.name)).collect();
+        let generators: HashSet<&str> = program.functions.iter()
+            .filter(|f| super::message_gen::is_message_func(&f.ret_ty))
+            .map(|f| f.name.as_str())
+            .collect();
         let names_to_wrap: Vec<(String, Vec<IrType>, IrType)> = fn_param_types.iter()
+            .filter(|(k, _)| !interface_prefixes.iter().any(|p| k.starts_with(p.as_str())) && !generators.contains(k.as_str()))
             .map(|(k, params)| {
                 let ret_ty = fn_ret_types.get(k.as_str()).cloned().unwrap_or(IrType::I64);
                 (k.clone(), params.clone(), ret_ty)

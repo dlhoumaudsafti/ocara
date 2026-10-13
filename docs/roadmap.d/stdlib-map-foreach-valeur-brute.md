@@ -1,6 +1,6 @@
 # `Map::forEach` sur une map concrète `int`/`float` — SIGSEGV
 
-Statut : **à corriger** — constaté le 2026-10-13 (audit de la roadmap).
+Statut : **corrigé** le 2026-10-13 (constaté le même jour par l'audit de la roadmap).
 
 ## Constat
 
@@ -40,3 +40,7 @@ Test `examples/tests/` sur `map<string,int>` (petites et grandes valeurs),
 ## Priorité / Complexité
 
 **Haute** (crash) — **Légère**.
+
+## Correctif
+
+Le compilateur passe à `Map_forEach` la forme des valeurs de la map en argument caché (`push_hidden_leaf_shape`, `src/lower/expr.d/helpers.rs`, même mécanisme que `JSON::encode`) ; le runtime boxe chaque valeur brute `int`/`float`/`bool` avant l'appel de la closure et la relâche après. Test : `examples/tests/88_…` (`forEachConcreteMapTest`), `--leak-check` sans fuite.

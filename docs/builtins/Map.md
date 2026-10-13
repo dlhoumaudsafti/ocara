@@ -167,7 +167,7 @@ Map::forEach(scores, nameless(key:mixed, value:mixed): void {
 })
 ```
 
-> **Limite connue** : `value` est typé `mixed` (comme `Map::get`). Le concaténer à une `string` (`+` ou template) fonctionne, mais une **opération arithmétique** directe (`total + value`) sur une valeur `mixed` produit aujourd'hui un résultat incorrect, y compris après un narrowing `if value is int { ... }` — bug de compilateur indépendant de `forEach` (voir `docs/roadmap.d/langage-mixed-arithmetic.md`). En attendant, convertir explicitement via une string (`Convert::strToInt(\`${value}\`)`) plutôt qu'une addition directe.
+> `value` est typé `mixed` (comme `Map::get`) : sur une map concrète (`map<string,int>`, `map<string,float>`, `map<string,bool>`), chaque valeur est boxée avant l'appel. Après un narrowing (`if value is int { total = total + value }`), l'arithmétique est correcte.
 
 ---
 

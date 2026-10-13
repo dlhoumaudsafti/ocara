@@ -1067,7 +1067,7 @@ struct Q extends P { x:int }   // ❌ E53
 
 ---
 
-### E54 — Champ `private`/`protected` inaccessible
+### E54 — Membre `private`/`protected` inaccessible
 
 ```
 fichier.oc:9:18: error: field 'y' of 'C' is protected — it is only accessible from 'C' and the classes/structs that extend it
@@ -1089,6 +1089,13 @@ class C {
 var c:C = use C()
 IO::writeln(`${c.y}`)   // ❌ E54 — protected
 c.z = 4                 // ❌ E54 — private
+```
+
+La même règle s'applique aux **méthodes** (d'instance, statiques, appelées via `parent::`) et aux **constantes de classe** :
+
+```
+fichier.oc:14:18: error: method 'secret' of 'C' is private — it is only accessible from inside 'C'
+fichier.oc:16:17: error: constant 'SECRET' of 'C' is private — it is only accessible from inside 'C'
 ```
 
 **Correction :** exposer la donnée via une méthode publique de la classe, ou rendre le champ `public` s'il fait réellement partie de l'interface de la classe.

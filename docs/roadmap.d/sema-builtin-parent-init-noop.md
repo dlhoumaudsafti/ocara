@@ -51,3 +51,5 @@ try { … } on e is FileException { logErr(e) }
 ```
 
 Contraire à `docs/EBNF.md` (~l.3770 : elles « héritent toutes implicitement de `Exception` »). Correction : faire de `Exception` l'ancêtre de chaque exception builtin pour `types_compat`/`class_matches` (`BUILTIN_EXCEPTION_NAMES`). **Haute (programme valide refusé) — Légère.** Test sema + `examples/tests/77_builtin_exception_constructorTest.oc`.
+
+**Corrigé le 2026-10-13** : `class_matches` (`src/sema/symbols.d/lookups.rs`) considère chaque exception builtin comme fille de `Exception`. Test : `builtin_exception_is_accepted_for_exception` (`src/sema/tests/arg_types.rs`).

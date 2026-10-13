@@ -1,0 +1,70 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.Array
+import ocara.Map
+
+// Correctifs de l'audit du 2026-10-13 (conteneurs et récepteurs) :
+//   - littéral à union de primitifs (docs/roadmap.d/memoire-union-litteral-boxing.md) ;
+//   - méthode sucrée sur un récepteur indexé (docs/roadmap.d/langage-methode-recepteur-indexe.md) ;
+//   - Map::forEach sur une map concrète (docs/roadmap.d/stdlib-map-foreach-valeur-brute.md) ;
+//   - clé `{obj.champ: v}` d'un littéral map (docs/roadmap.d/langage-map-litteral-cle-champ.md).
+class Test_88_containers_receivers_and_foreach {
+
+    public method unionLiteralTest(): int {
+        var a:array<int|float> = [1, 2.5, 70000]
+        var b:array<float|null> = [2.5, null]
+        var m:map<string, int|float> = {"a": 2.5}
+        UnitTest::assertEquals(2.5, a[1])
+        UnitTest::assertEquals(70000, a[2])
+        UnitTest::assertEquals(2.5, b[0])
+        UnitTest::assertEquals(2.5, m["a"])
+        return 0
+    }
+
+    public method indexedReceiverTest(): int {
+        var nest:array<array<int>> = [[1, 2, 3]]
+        nest[0].push(5)
+        UnitTest::assertEquals(4, nest[0].len())
+        var ma:map<string, array<int>> = {"a": [1, 2, 3]}
+        UnitTest::assertEquals(3, ma["a"].len())
+        var count:int = 0
+        for k has v in ma {
+            count = count + v.len()
+        }
+        UnitTest::assertEquals(3, count)
+        var mm:map<string, map<string,int>> = {"x": {"y": 1}}
+        UnitTest::assertTrue(mm["x"].has("y"))
+        return 0
+    }
+
+    public method forEachConcreteMapTest(): int {
+        var mi:map<string,int> = {"a": 3, "c": 100000}
+        var total:int = 0
+        Map::forEach(mi, nameless(key:mixed, value:mixed): void {
+            total = total + 1
+        })
+        UnitTest::assertEquals(2, total)
+        var seen:float = 0.0
+        var mf:map<string,float> = {"x": 2.5}
+        mf.forEach(nameless(key:mixed, value:mixed): void {
+            seen = value
+        })
+        UnitTest::assertEquals(2.5, seen)
+        return 0
+    }
+
+    public method mapLiteralFieldKeyTest(): int {
+        var p:KeyHolder = use KeyHolder(4)
+        var m:map<int,string> = {p.k: "quatre"}
+        UnitTest::assertEquals("quatre", m[4])
+        return 0
+    }
+}
+
+class KeyHolder {
+    public property k:int
+    init(k:int) {
+        self.k = k
+    }
+}

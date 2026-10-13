@@ -1311,7 +1311,11 @@ pub extern "C" fn Map_isEmpty(ptr: i64) -> i64 {
 /// entrée. `callback` est un fat pointer Ocara {func_ptr, env_ptr} (même
 /// convention que les handlers HTTPServer::route, voir runtime/src/httpserver.rs).
 #[unsafe(no_mangle)]
-pub extern "C" fn Map_forEach(ptr: i64, callback: i64) {
+///
+/// `shape` : forme des valeurs connue du compilateur (`static_leaf_shape`) —
+/// une valeur brute `int`/`float`/`bool` est boxée avant d'être passée au
+/// paramètre `mixed` de la closure (sinon lue comme un pointeur : SIGSEGV).
+pub extern "C" fn Map_forEach(ptr: i64, callback: i64, shape: i64) {
     if ptr == 0 || callback == 0 { return; }
     type ForEachFn = extern "C" fn(i64, i64, i64) -> i64;
     let func_ptr = unsafe { *(callback as *const i64) };
@@ -1322,9 +1326,17 @@ pub extern "C" fn Map_forEach(ptr: i64, callback: i64) {
     // directe vers `data`.
     let entries: Vec<(String, i64)> = unsafe { map_ref(ptr).data.clone() };
     for (_, v) in &entries { retain_elem(ptr, *v) }
+    let leaf_kind = if shape >> 8 == 1 { shape & 0xff } else { 0 };
     for (k, v) in &entries {
         let key_ptr = unsafe { alloc_str(k) };
-        f(env_ptr, key_ptr, *v);
+        let value = match leaf_kind {
+            1 => __box_int_for_mixed(*v),
+            2 => __box_float(*v),
+            3 => __box_bool(*v),
+            _ => *v,
+        };
+        f(env_ptr, key_ptr, value);
+        if value != *v { unsafe { rc::release(value) } }
         unsafe { rc::release(key_ptr) }
     }
     for (_, v) in &entries { release_elem(ptr, *v) }

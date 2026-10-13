@@ -1,6 +1,6 @@
 # Méthode sucrée sur un récepteur indexé : repli sur `String`, appel perdu
 
-Statut : **à corriger** — constaté le 2026-10-13 (audit de la roadmap).
+Statut : **corrigé** le 2026-10-13 (constaté le même jour par l'audit de la roadmap).
 
 ## Constat
 
@@ -45,3 +45,7 @@ valeur d'une boucle sur map ; `make regression`.
 ## Priorité / Complexité
 
 **Haute** (résultat faux silencieux sur un usage de base) — **Légère**.
+
+## Correctif
+
+`resolve_receiver_class` résout un récepteur indexé par son type d'élément (`receiver_class_of_type` : `String`/`Array`/`Map`/classe/générique) ; la valeur `v` de `for k has v` reçoit ses métadonnées (`register_const_meta`). Test : `examples/tests/88_…` (`indexedReceiverTest`).

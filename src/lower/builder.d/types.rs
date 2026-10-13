@@ -34,6 +34,10 @@ pub struct LowerBuilder<'m> {
     pub map_vars: HashSet<String>,
     /// Mapping nom_variable → nom_classe (pour résoudre les appels de méthode)
     pub var_class: HashMap<String, String>,
+    /// Bindings d'un handler générique `on e` : la valeur levée peut être une
+    /// chaîne (`raise "x"`) — un accès de champ y est vérifié à l'exécution
+    /// (`__exc_get_field`).
+    pub generic_catch_vars: std::collections::HashSet<String>,
     /// Classe courante (Some(name) si on est dans une méthode/constructeur)
     pub current_class: Option<String>,
     /// Type de retour DÉCLARÉ (AST) de la fonction en cours — type de
@@ -184,6 +188,7 @@ impl<'m> LowerBuilder<'m> {
             elem_ast_types: HashMap::new(),
             map_vars: HashSet::new(),
             var_class: HashMap::new(),
+            generic_catch_vars: std::collections::HashSet::new(),
             current_class: None,
             ret_ast_ty: None,
             parent_class: None,

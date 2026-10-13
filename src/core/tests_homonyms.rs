@@ -82,3 +82,33 @@ fn homonymous_functions_resolve_per_importing_file() {
     assert_eq!(called("UseB"), "label__ns__b");
     assert!(program.functions.iter().any(|f| f.name == "main"));
 }
+
+/// Une variable locale ou un paramètre portant le nom d'une fonction
+/// homonyme la masque : l'appel n'est pas réécrit vers la fonction globale.
+#[test]
+fn local_names_shadow_homonymous_functions() {
+    let dir = std::env::temp_dir().join(format!("ocara_homonym_shadow_{}", std::process::id()));
+    let util = |ns: &str| format!("namespace {}\n\nfunction label(): string {{\n    return \"{}\"\n}}\n", ns, ns);
+    write(&dir, "a/util.oc", &util("a"));
+    write(&dir, "b/util.oc", &util("b"));
+    let user = |ns: &str, class: &str| format!("namespace {}\n\nimport label from \"util\"\n\nclass {} {{\n    public static method run(): string {{\n        var label:Function<string()> = nameless(): string {{ return \"LOCAL\" }}\n        return label()\n    }}\n    public static method param(label:string): string {{\n        return label\n    }}\n}}\n", ns, class);
+    write(&dir, "a/UseA.oc", &user("a", "UseA"));
+    write(&dir, "b/UseB.oc", &user("b", "UseB"));
+    write(&dir, "main.oc", "architecture permissive\nimport ocara.IO\nimport a.UseA\nimport b.UseB\n\nfunction main(): int {\n    IO::writeln(UseA::run() + UseB::param(\"p\"))\n    return 0\n}\n");
+
+    let input = dir.join("main.oc");
+    let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&dir), dump: false, index: false, tolerant: false });
+    std::fs::remove_dir_all(&dir).ok();
+
+    assert!(!analysis.has_errors(), "{:?}", analysis.diagnostics);
+    let program = &analysis.checked.unwrap().program;
+    let c = program.classes.iter().find(|c| c.name == "UseA").unwrap();
+    let body = c.members.iter().find_map(|m| match m { ClassMember::Method { decl, .. } if decl.name == "run" => Some(&decl.body), _ => None }).unwrap();
+    match &body.stmts[1] {
+        Stmt::Return { value: Some(Expr::Call { callee, .. }), .. } => match callee.as_ref() {
+            Expr::Ident(name, _) => assert_eq!(name, "label"),
+            other => panic!("appel de la variable locale attendu, trouvé {:?}", other),
+        },
+        other => panic!("return label() attendu, trouvé {:?}", other),
+    }
+}

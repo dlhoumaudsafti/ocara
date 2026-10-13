@@ -132,10 +132,23 @@ pub fn param_type_for_call_arg(builder: &LowerBuilder, mangled: &str, i: usize, 
 /// docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md — confirmé par
 /// reproduction sur un appel de méthode AVANT ce correctif (`b.show(3.5)`
 /// avec `show(v:mixed)` corrompait déjà silencieusement `v`).
+///
+/// La cellule boxée est un temporaire possédé du statement (relâché à sa
+/// fin) : l'appelé et les conteneurs retiennent ce qu'ils gardent — sans ce
+/// suivi, chaque appel `f(1.5)` laissait fuir une cellule (voir
+/// docs/roadmap.d/memoire-boxing-temporaires-non-relaches.md).
 pub fn box_arg_for_mixed_param(builder: &mut LowerBuilder, param_ty: Option<IrType>, arg_ty: &IrType, val: Value) -> Value {
     if param_ty != Some(IrType::Ptr) {
         return val;
     }
+    let boxed = box_scalar_arg(builder, arg_ty, val.clone());
+    if boxed != val {
+        crate::lower::stmt::rc::track(builder, &boxed);
+    }
+    boxed
+}
+
+fn box_scalar_arg(builder: &mut LowerBuilder, arg_ty: &IrType, val: Value) -> Value {
     match arg_ty {
         IrType::F64 => {
             let d = builder.new_value();
@@ -195,7 +208,9 @@ pub fn resolve_receiver_class(builder: &LowerBuilder, expr: &Expr) -> Option<Str
         Expr::Field { object, field, .. } => resolve_chained_field_class(builder, object, field),
         // Élément indexé (`items[0].nom`) : classe du type d'élément —
         // sinon chaque champ était lu à l'offset 0.
-        Expr::Index { object, .. } => elem_type_after_index(builder, object).as_ref().and_then(crate::parsing::ast::resolved_named_class),
+        // `string`/`array`/`map` compris : `nest[0].push(x)` émettait
+        // `String_push`, perdu en silence (docs/roadmap.d/langage-methode-recepteur-indexe.md).
+        Expr::Index { object, .. } => elem_type_after_index(builder, object).as_ref().and_then(receiver_class_of_type),
         // Appel chaîné : `expr.methode(...)` ou `maFonction(...)` utilisé
         // comme récepteur.
         Expr::Call { callee, .. } => match callee.as_ref() {
@@ -240,6 +255,18 @@ pub fn resolve_receiver_class(builder: &LowerBuilder, expr: &Expr) -> Option<Str
             builder.module.method_ret_class.get(&format!("{}_{}", owner, method)).cloned()
         }
         _ => None,
+    }
+}
+
+/// Classe de récepteur d'une valeur de type `ty` : classe utilisateur,
+/// générique monomorphisé, ou famille builtin `String`/`Array`/`Map`.
+pub fn receiver_class_of_type(ty: &Type) -> Option<String> {
+    match ty {
+        Type::String => Some("String".to_string()),
+        Type::Array(_) => Some("Array".to_string()),
+        Type::Map(..) => Some("Map".to_string()),
+        Type::Generic { name, args } => Some(crate::core::monomorph::monomorphized_name(name, args)),
+        _ => crate::parsing::ast::resolved_named_class(ty),
     }
 }
 
@@ -526,11 +553,18 @@ pub fn static_leaf_shape(builder: &LowerBuilder, expr: &Expr) -> i64 {
 
 /// Builtins recevant la forme de leur dernier argument (`static_leaf_shape`)
 /// en argument caché supplémentaire.
-pub fn push_hidden_leaf_shape(builder: &mut LowerBuilder, func: &str, args: &[Expr], mut lowered: Vec<Value>) -> Vec<Value> {
-    if !matches!(func, "HTTPServerSession_set" | "HTTPServerSession_setGlobal") {
-        return lowered;
-    }
-    let shape = args.last().map_or(0, |value| static_leaf_shape(builder, value));
+///
+/// `Map_forEach` reçoit celle de la map (receveur du sucre `m.forEach(f)`,
+/// sinon premier argument) : ses valeurs brutes `int`/`float`/`bool` sont
+/// boxées avant d'être passées au paramètre `mixed` de la closure (voir
+/// docs/roadmap.d/stdlib-map-foreach-valeur-brute.md).
+pub fn push_hidden_leaf_shape(builder: &mut LowerBuilder, func: &str, receiver: Option<&Expr>, args: &[Expr], mut lowered: Vec<Value>) -> Vec<Value> {
+    let source = match func {
+        "HTTPServerSession_set" | "HTTPServerSession_setGlobal" => args.last(),
+        "Map_forEach" => receiver.or(args.first()),
+        _ => return lowered,
+    };
+    let shape = source.map_or(0, |value| static_leaf_shape(builder, value));
     let shape_val = builder.new_value();
     builder.emit(Inst::ConstInt { dest: shape_val.clone(), value: shape });
     lowered.push(shape_val);

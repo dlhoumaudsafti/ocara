@@ -1,6 +1,6 @@
 # Littéral `array`/`map` dont l'élément est une union de primitifs — SIGSEGV
 
-Statut : **à corriger** — constaté le 2026-10-13 (audit de la roadmap).
+Statut : **corrigé** le 2026-10-13 (constaté le même jour par l'audit de la roadmap).
 
 ## Constat
 
@@ -40,3 +40,7 @@ Test `examples/tests/` couvrant les cinq cas ci-dessus (lecture des valeurs,
 ## Priorité / Complexité
 
 **Haute** (crash d'un programme valide, usage courant) — **Légère**.
+
+## Correctif
+
+`lower_literal_element` (`src/lower/expr.d/lower.rs`) boxe aussi l'élément quand le type déclaré est une union, comme pour `mixed`. Test : `examples/tests/88_containers_receivers_and_foreachTest.oc` (`unionLiteralTest`).

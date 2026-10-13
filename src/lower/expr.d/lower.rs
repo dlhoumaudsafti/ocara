@@ -164,6 +164,12 @@ fn lower_builtin_exception_init(builder: &mut LowerBuilder, obj: Value, layout_c
 /// Argument d'appel : un littéral `[...]`/`{...}` est construit au type
 /// déclaré du paramètre `idx` de `callee` — sinon `array<mixed>`, dont les
 /// scalaires boxés étaient relus bruts par un paramètre `array<float>`.
+/// Argument abaissé au type déclaré de son paramètre (littéraux `array`/
+/// `map` à éléments concrets) — aussi utilisé pour l'appel d'un générateur.
+pub fn lower_typed_call_arg(builder: &mut LowerBuilder, callee: &str, idx: usize, arg: &Expr) -> Value {
+    lower_call_arg(builder, callee, idx, arg)
+}
+
 fn lower_call_arg(builder: &mut LowerBuilder, callee: &str, idx: usize, arg: &Expr) -> Value {
     let param = builder.module.param_ast_types.get(callee).and_then(|p| p.get(idx)).cloned();
     match (arg, param) {
@@ -207,7 +213,11 @@ fn lower_literal_element(builder: &mut LowerBuilder, elem: &Expr, elem_ty: &Type
         _ => {
             let ir_ty = expr_ir_type(builder, elem);
             let v = lower_expr(builder, elem);
-            if matches!(elem_ty, Type::Mixed) { box_for_dyn_arith(builder, &ir_ty, v) } else { v }
+            // `mixed` comme union (`int|float`, `float|null`…) : l'élément
+            // est relu comme une valeur `mixed` — un flottant ou un grand
+            // entier brut y était pris pour un pointeur (SIGSEGV, voir
+            // docs/roadmap.d/memoire-union-litteral-boxing.md).
+            if matches!(elem_ty, Type::Mixed | Type::Union(_)) { box_for_dyn_arith(builder, &ir_ty, v) } else { v }
         }
     }
 }
@@ -392,6 +402,20 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             };
             let obj_val = lower_expr(builder, object);
             let dest = builder.new_value();
+            // `on e` sans filtre : `e` peut être une chaîne levée (`raise
+            // "x"`) — lire `e.message` à l'offset 0 de la chaîne faisait
+            // planter le programme (docs/roadmap.d/langage-exception-chaine-champ-message.md).
+            if matches!(object.as_ref(), Expr::Ident(n, _) if builder.generic_catch_vars.contains(n.as_str())) {
+                let off = builder.new_value();
+                builder.emit(Inst::ConstInt { dest: off.clone(), value: offset as i64 });
+                builder.emit(Inst::Call {
+                    dest:   Some(dest.clone()),
+                    func:   "__exc_get_field".into(),
+                    args:   vec![obj_val, off],
+                    ret_ty: field_ty,
+                });
+                return dest;
+            }
             builder.emit(Inst::GetField {
                 dest:  dest.clone(),
                 obj:   obj_val,
@@ -605,7 +629,7 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     };
                     let mut all_args = vec![obj_val];
                     all_args.extend(arg_vals);
-                    let all_args = push_hidden_leaf_shape(builder, &func_mangled, &completed_args, all_args);
+                    let all_args = push_hidden_leaf_shape(builder, &func_mangled, Some(object.as_ref()), &completed_args, all_args);
                     // Résoudre le type de retour depuis fn_ret_types
                     let ret_ty = builder.fn_ret_types.get(&func_mangled).cloned().unwrap_or(IrType::Ptr);
                     // Dispatch dynamique réel (héritage de classe) : un appel
@@ -1106,7 +1130,7 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             } else {
                 final_args
             };
-            let final_args = push_hidden_leaf_shape(builder, &func_name, args, final_args);
+            let final_args = push_hidden_leaf_shape(builder, &func_name, None, args, final_args);
 
             // Vérifier si le builtin retourne void
             if is_void_builtin(&func_name) {
@@ -1827,12 +1851,7 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // (variable `Resolvable<T>`) reste résolu via `async_var_ret`,
             // alimenté par le type DÉCLARÉ de la variable (couvre toute
             // profondeur d'indirection — voir `lower_var`/`lower_const`).
-            let orig_ty = match expr.as_ref() {
-                Expr::Ident(var_name, _) => {
-                    builder.async_var_ret.get(var_name).cloned().unwrap_or(IrType::I64)
-                }
-                _ => super::typeinfer::declared_call_return_ir_type(builder, expr).unwrap_or(IrType::I64),
-            };
+            let orig_ty = super::typeinfer::resolve_result_ir_type(builder, expr);
 
             let task_ptr = lower_expr(builder, expr);
             let raw = builder.new_value();

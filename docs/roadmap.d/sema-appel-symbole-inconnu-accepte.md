@@ -1,6 +1,6 @@
 # Appel à une fonction ou une classe inconnue accepté — `null` silencieux
 
-Statut : **à corriger** — constaté le 2026-10-13 (audit de la roadmap).
+Statut : **corrigé** le 2026-10-13 (constaté le même jour par l'audit de la roadmap).
 
 ## Constat
 
@@ -43,3 +43,12 @@ Tests sema (fonction inconnue, classe inconnue, homonyme non importé) ;
 ## Priorité / Complexité
 
 **Haute** (programme invalide accepté, résultat faux silencieux) — **Légère**.
+
+## Correctif
+
+- Sema : E01 pour une fonction libre inconnue (ni locale, ni fonction, ni constante) et pour un appel statique sur une classe inconnue (ni classe, interface, générique, module, enum, ni builtin) ; `Classe()` sans `use` est signalé « not callable » (`write 'use Classe(...)'`).
+- Codegen (`calls.rs`) : un appel vers un symbole inexistant est une erreur interne (seul un `Classe_init` absent — classe sans constructeur — reste sans effet).
+- Le garde-fou a révélé des wrappers `__fn_wrap_*` générés pour des méthodes d'interface et des générateurs (appels vers des symboles inexistants) : ils ne sont plus générés.
+- `examples/tests/31_default_paramsTest.oc` appelait `Calculator()` sans `use` (instance jamais créée) : corrigé.
+
+Tests : `src/sema/tests/unknown_symbols.rs`. Reste : l'incohérence `--check` / compilation sur `String::trim` sans import.

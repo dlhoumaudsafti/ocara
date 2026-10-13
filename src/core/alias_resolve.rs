@@ -278,7 +278,7 @@ fn resolve_expr(aliases: &HashMap<String, String>, expr: &mut Expr) {
             }
         }
         Expr::Nameless { params, ret_ty, body, .. } => {
-            for p in params {
+            for p in params.iter_mut() {
                 resolve_type(aliases, &mut p.ty);
                 if let Some(d) = &mut p.default_value {
                     resolve_expr(aliases, d);
@@ -287,7 +287,8 @@ fn resolve_expr(aliases: &HashMap<String, String>, expr: &mut Expr) {
             if let Some(rt) = ret_ty {
                 resolve_type(aliases, rt);
             }
-            resolve_block(aliases, body);
+            let inner = shadowed(aliases, params, body);
+            resolve_block(&inner, body);
         }
         Expr::Resolve { expr, .. } => resolve_expr(aliases, expr),
         Expr::IsCheck { expr, ty, .. } => {
@@ -385,13 +386,14 @@ fn resolve_class_member(aliases: &HashMap<String, String>, member: &mut ClassMem
         }
         ClassMember::Method { decl, .. } => resolve_func(aliases, decl),
         ClassMember::Constructor { params, body, .. } => {
-            for p in params {
+            for p in params.iter_mut() {
                 resolve_type(aliases, &mut p.ty);
                 if let Some(d) = &mut p.default_value {
                     resolve_expr(aliases, d);
                 }
             }
-            resolve_block(aliases, body);
+            let inner = shadowed(aliases, params, body);
+            resolve_block(&inner, body);
         }
     }
 }
@@ -404,5 +406,61 @@ fn resolve_func(aliases: &HashMap<String, String>, f: &mut FuncDecl) {
         }
     }
     resolve_type(aliases, &mut f.ret_ty);
-    resolve_block(aliases, &mut f.body);
+    let inner = shadowed(aliases, &f.params, &f.body);
+    resolve_block(&inner, &mut f.body);
+}
+
+/// Table sans les fonctions homonymes masquées par un paramètre ou une
+/// locale du corps : `var label:Function<…>` puis `label()` appelait sinon la
+/// fonction globale `label` (voir docs/roadmap.d/langage-classes-homonymes-fusionnees.md).
+fn shadowed<'a>(aliases: &'a HashMap<String, String>, params: &[Param], body: &Block) -> std::borrow::Cow<'a, HashMap<String, String>> {
+    let mut names: Vec<String> = params.iter().map(|p| p.name.clone()).collect();
+    collect_locals(&body.stmts, &mut names);
+    let keys: Vec<String> = names.iter()
+        .map(|n| crate::core::analysis::homonyms::fn_key(n))
+        .filter(|k| aliases.contains_key(k))
+        .collect();
+    if keys.is_empty() {
+        return std::borrow::Cow::Borrowed(aliases);
+    }
+    let mut inner = aliases.clone();
+    for k in keys {
+        inner.remove(&k);
+    }
+    std::borrow::Cow::Owned(inner)
+}
+
+fn collect_locals(stmts: &[Stmt], out: &mut Vec<String>) {
+    for stmt in stmts {
+        match stmt {
+            Stmt::Var { name, .. } | Stmt::Const { name, .. } => out.push(name.clone()),
+            Stmt::ForIn { var, body, .. } => {
+                out.push(var.clone());
+                collect_locals(&body.stmts, out);
+            }
+            Stmt::ForMap { key, value, body, .. } => {
+                out.push(key.clone());
+                out.push(value.clone());
+                collect_locals(&body.stmts, out);
+            }
+            Stmt::If { then_block, elseif, else_block, .. } => {
+                collect_locals(&then_block.stmts, out);
+                for (_, b) in elseif { collect_locals(&b.stmts, out); }
+                if let Some(b) = else_block { collect_locals(&b.stmts, out); }
+            }
+            Stmt::Switch { cases, default, .. } => {
+                for c in cases { collect_locals(&c.body.stmts, out); }
+                if let Some(b) = default { collect_locals(&b.stmts, out); }
+            }
+            Stmt::While { body, .. } => collect_locals(&body.stmts, out),
+            Stmt::Try { body, handlers, .. } => {
+                collect_locals(&body.stmts, out);
+                for h in handlers {
+                    out.push(h.binding.clone());
+                    collect_locals(&h.body.stmts, out);
+                }
+            }
+            _ => {}
+        }
+    }
 }

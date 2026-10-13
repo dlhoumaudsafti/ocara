@@ -105,7 +105,7 @@ pub fn register_message_func(module: &mut IrModule, func: &FuncDecl) {
             fields.push((p.name.clone(), IrType::from_ast(&p.ty)));
         }
     }
-    for (name, ty) in collect_local_decls(&func.body) {
+    for (name, ty) in collect_local_decls(&func.params, &func.body) {
         if !fields.iter().any(|(n, _)| n == &name) {
             fields.push((name, ty));
         }
@@ -297,6 +297,10 @@ fn generate_resume_fn(
         if crate::lower::stmt::rc::counted(&builder, &p.ty) {
             builder.rc_counted_locals.insert(p.name.clone());
         }
+        // Type d'élément / classe des paramètres (`for x in xs` sur un
+        // `array<float>` relisait sinon chaque élément comme un pointeur).
+        let ty = if p.is_variadic { Type::Array(Box::new(p.ty.clone())) } else { p.ty.clone() };
+        crate::lower::stmt::statements::register_const_meta(&mut builder, &p.name, &ty);
     }
 
     let start_bb = builder.new_block();
@@ -503,6 +507,11 @@ pub fn lower_try_in_generator(builder: &mut LowerBuilder, body: &Block, handlers
         builder.store_local(&handler.binding, err_val.clone());
         let exception_class = handler.class_filter.clone().unwrap_or_else(|| "Exception".to_string());
         builder.var_class.insert(handler.binding.clone(), exception_class);
+        if handler.class_filter.is_none() {
+            builder.generic_catch_vars.insert(handler.binding.clone());
+        } else {
+            builder.generic_catch_vars.remove(&handler.binding);
+        }
         crate::lower::stmt::lower_block(builder, &handler.body);
         if !builder.is_terminated() {
             // La valeur levée appartient à la frame `try` (voir `lower_raise`) :
@@ -575,20 +584,24 @@ pub fn detect_message_call(builder: &LowerBuilder, expr: &Expr) -> Option<(Strin
 
 /// Évalue les arguments de `expr` (+ le récepteur en tête pour un appel de
 /// méthode d'instance `obj.nom(...)`), dans l'ordre attendu par `<mangled>__new`.
-fn collect_call_args(builder: &mut LowerBuilder, expr: &Expr) -> Vec<Value> {
+///
+/// Chaque argument est abaissé au type de son paramètre (`mangled`) : un
+/// littéral `[1.0, 3.0]` passé à `xs:array<float>` était construit en
+/// éléments boxés, relus comme des flottants bruts.
+fn collect_call_args(builder: &mut LowerBuilder, expr: &Expr, mangled: &str) -> Vec<Value> {
     match expr {
         Expr::Call { callee, args, .. } => {
             let mut vals = Vec::new();
             if let Expr::Field { object, .. } = callee.as_ref() {
                 vals.push(crate::lower::expr::lower_expr(builder, object));
             }
-            for a in args {
-                vals.push(crate::lower::expr::lower_expr(builder, a));
+            for (i, a) in args.iter().enumerate() {
+                vals.push(crate::lower::expr::lower_typed_call_arg(builder, mangled, i, a));
             }
             vals
         }
         Expr::StaticCall { args, .. } => {
-            args.iter().map(|a| crate::lower::expr::lower_expr(builder, a)).collect()
+            args.iter().enumerate().map(|(i, a)| crate::lower::expr::lower_typed_call_arg(builder, mangled, i, a)).collect()
         }
         _ => Vec::new(),
     }
@@ -701,7 +714,7 @@ pub fn lower_arg_or_message(builder: &mut LowerBuilder, expr: &Expr) -> Value {
 /// `resume`, lecture de `__value`, libération immédiate du frame (usage
 /// unique). Retourne la valeur `T` déjà déballée.
 pub fn lower_message_scalar(builder: &mut LowerBuilder, expr: &Expr, mangled: &str, elem_ty: IrType) -> Value {
-    let args = collect_call_args(builder, expr);
+    let args = collect_call_args(builder, expr, mangled);
     let frame = call_new(builder, mangled, args);
     let _has_val = call_resume(builder, mangled, frame.clone());
     let val = get_value_field(builder, frame.clone(), elem_ty);
@@ -730,7 +743,7 @@ pub fn lower_for_message(
     elem_ty: IrType,
     body: &Block,
 ) {
-    let args = collect_call_args(builder, expr);
+    let args = collect_call_args(builder, expr, mangled);
     let frame = call_new(builder, mangled, args);
     crate::lower::stmt::rc::track(builder, &frame);
     let kept = keep_across_emit(builder, &frame, IrType::Ptr);
@@ -747,16 +760,26 @@ pub fn lower_for_message(
 
     builder.switch_to(&body_bb);
     let val = get_value_field(builder, frame.clone(), elem_ty.clone());
+    // Portée d'itération, comme `lower_for_in` : la variable de boucle et
+    // les cellules capturées dans le corps sont rendues à chaque tour (sinon
+    // une cellule par tour fuyait, voir
+    // docs/roadmap.d/langage-closure-promotion-in-loop.md).
+    let elem_ast = builder.module.message_elems.get(mangled).cloned();
+    let counted_snapshot = builder.rc_counted_locals.clone();
+    crate::lower::stmt::rc::begin_iteration(builder);
     builder.declare_local(var, elem_ty, false);
-    builder.store_local(var, val);
+    builder.store_local(var, val.clone());
+    crate::lower::stmt::rc::bind_loop_var(builder, var, elem_ast.as_ref(), &val);
 
-    builder.loop_stack.push((cond_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len()));
+    builder.loop_stack.push((cond_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len() - 1));
     crate::lower::stmt::rc::enter_loop(builder);
     builder.loop_depth += 1;
     crate::lower::stmt::lower_block(builder, body);
     builder.loop_depth -= 1;
     crate::lower::stmt::rc::exit_loop(builder);
     builder.loop_stack.pop();
+    crate::lower::stmt::rc::end_iteration(builder);
+    builder.rc_counted_locals = counted_snapshot;
 
     if !builder.is_terminated() {
         builder.emit(Inst::Jump { target: cond_bb.clone() });
@@ -780,7 +803,7 @@ pub fn try_frame_field(depth: usize) -> String {
 /// à type d'élément concret connu (voir `lower_array_literal`) : valeur
 /// brute, jamais boxée.
 pub fn lower_array_from_message(builder: &mut LowerBuilder, expr: &Expr, mangled: &str, elem_ty: IrType) -> Value {
-    let args = collect_call_args(builder, expr);
+    let args = collect_call_args(builder, expr, mangled);
     let frame = call_new(builder, mangled, args);
 
     let arr = builder.new_value();
@@ -815,9 +838,16 @@ pub fn lower_array_from_message(builder: &mut LowerBuilder, expr: &Expr, mangled
 /// champ `__try_frame_N` par niveau de `try` imbriqué, binding `on e`) —
 /// même ordre de parcours que `crate::sema::message_emit`, mais ne s'en sert
 /// pas directement (celui-ci ne retourne que des booléens).
-fn collect_local_decls(body: &Block) -> Vec<(String, IrType)> {
+fn collect_local_decls(params: &[crate::parsing::ast::Param], body: &Block) -> Vec<(String, IrType)> {
     let mut out = Vec::new();
-    walk_block(body, 0, &mut out);
+    // Types déclarés connus (paramètres, `var`/`const` déjà vus) : type de la
+    // variable d'un `for` sur `array<float>`/`map<_,float>` — `Ptr` en dur
+    // faisait relire un flottant comme un pointeur (voir
+    // docs/roadmap.d/langage-emit-iterable.md).
+    let mut env: std::collections::HashMap<String, Type> = params.iter()
+        .map(|p| (p.name.clone(), if p.is_variadic { Type::Array(Box::new(p.ty.clone())) } else { p.ty.clone() }))
+        .collect();
+    walk_block(body, 0, &mut env, &mut out);
     out
 }
 
@@ -827,47 +857,63 @@ fn push_unique(out: &mut Vec<(String, IrType)>, name: String, ty: IrType) {
     }
 }
 
-fn walk_block(block: &Block, try_depth: usize, out: &mut Vec<(String, IrType)>) {
-    walk_stmts(&block.stmts, try_depth, out);
+fn walk_block(block: &Block, try_depth: usize, env: &mut std::collections::HashMap<String, Type>, out: &mut Vec<(String, IrType)>) {
+    walk_stmts(&block.stmts, try_depth, env, out);
 }
 
-fn walk_stmts(stmts: &[Stmt], try_depth: usize, out: &mut Vec<(String, IrType)>) {
+fn walk_stmts(stmts: &[Stmt], try_depth: usize, env: &mut std::collections::HashMap<String, Type>, out: &mut Vec<(String, IrType)>) {
     for stmt in stmts {
         match stmt {
             Stmt::Var { name, ty, .. } | Stmt::Const { name, ty, .. } => {
+                env.insert(name.clone(), ty.clone());
                 push_unique(out, name.clone(), IrType::from_ast(ty));
             }
             Stmt::ForIn { var, iter, body, .. } => {
-                // Même heuristique que `lower_for_in` : I64 pour un range,
-                // Ptr par défaut sinon (voir sa doc — limitation acceptée
-                // pour un `for` concret imbriqué dans un générateur, cas
-                // marginal pour cette première implémentation).
-                let ty = if matches!(iter, Expr::Range { .. }) { IrType::I64 } else { IrType::Ptr };
+                // Plage : `int` ; variable `array<T>` connue : `T` ; sinon
+                // `Ptr` par défaut.
+                let elem = match iter {
+                    Expr::Range { .. } => Some(Type::Int),
+                    Expr::Ident(n, _) => match env.get(n.as_str()) {
+                        Some(Type::Array(inner)) => Some((**inner).clone()),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                let ty = elem.as_ref().map_or(IrType::Ptr, IrType::from_ast);
+                if let Some(elem) = elem { env.insert(var.clone(), elem); }
                 push_unique(out, var.clone(), ty);
-                walk_block(body, try_depth, out);
+                walk_block(body, try_depth, env, out);
             }
-            Stmt::ForMap { key, value, body, .. } => {
+            Stmt::ForMap { key, value, iter, body, .. } => {
                 push_unique(out, key.clone(), IrType::Ptr);
-                push_unique(out, value.clone(), IrType::I64);
-                walk_block(body, try_depth, out);
+                let val = match iter {
+                    Expr::Ident(n, _) => match env.get(n.as_str()) {
+                        Some(Type::Map(_, v)) => Some((**v).clone()),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                push_unique(out, value.clone(), val.as_ref().map_or(IrType::I64, IrType::from_ast));
+                if let Some(v) = val { env.insert(value.clone(), v); }
+                walk_block(body, try_depth, env, out);
             }
             Stmt::If { then_block, elseif, else_block, .. } => {
-                walk_block(then_block, try_depth, out);
-                for (_, blk) in elseif { walk_block(blk, try_depth, out); }
-                if let Some(blk) = else_block { walk_block(blk, try_depth, out); }
+                walk_block(then_block, try_depth, env, out);
+                for (_, blk) in elseif { walk_block(blk, try_depth, env, out); }
+                if let Some(blk) = else_block { walk_block(blk, try_depth, env, out); }
             }
             Stmt::Switch { cases, default, .. } => {
-                for case in cases { walk_block(&case.body, try_depth, out); }
-                if let Some(blk) = default { walk_block(blk, try_depth, out); }
+                for case in cases { walk_block(&case.body, try_depth, env, out); }
+                if let Some(blk) = default { walk_block(blk, try_depth, env, out); }
             }
-            Stmt::While { body, .. } => walk_block(body, try_depth, out),
+            Stmt::While { body, .. } => walk_block(body, try_depth, env, out),
             Stmt::Try { body, handlers, .. } => {
                 push_unique(out, try_frame_field(try_depth), IrType::Ptr);
-                walk_block(body, try_depth + 1, out);
+                walk_block(body, try_depth + 1, env, out);
                 for h in handlers {
                     // Même type que le binding `on e` de `lower_try`.
                     push_unique(out, h.binding.clone(), IrType::Ptr);
-                    walk_block(&h.body, try_depth, out);
+                    walk_block(&h.body, try_depth, env, out);
                 }
             }
             Stmt::Expr(_) | Stmt::Return { .. } | Stmt::Result { .. } | Stmt::Break { .. }

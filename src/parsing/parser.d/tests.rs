@@ -333,6 +333,20 @@ mod tests {
     }
 
     #[test]
+    fn test_map_literal_field_key() {
+        // `{c.ret: "x"}` : le `:` sépare la clé de la valeur, ce n'est pas
+        // l'annotation `obj.champ:Type` (docs/roadmap.d/langage-map-litteral-cle-champ.md).
+        let expr = parse_expr(r#"{c.ret: "x", d.k: c.v}"#);
+        if let Expr::Map { entries, .. } = expr {
+            assert_eq!(entries.len(), 2);
+            assert!(matches!(entries[0].0, Expr::Field { .. }));
+            assert!(matches!(entries[1].1, Expr::Field { .. }));
+        } else {
+            panic!("expected Map");
+        }
+    }
+
+    #[test]
     fn test_index_access() {
         let expr = parse_expr("arr[0]");
         assert!(matches!(expr, Expr::Index { .. }));

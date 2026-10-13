@@ -276,3 +276,5 @@ Cause : `src/lower/expr.d/lower.rs` (~l.1830-1835) et `typeinfer.rs` (~l.371-378
 Correction : dériver `T` du type sema de l'opérande de `resolve` (ou étendre `async_var_ret` aux champs, index et retours). Test : `examples/tests/65_…` étendu aux trois formes. **Haute — Légère.**
 
 L'exception levée dans une tâche est suivie à part : [langage-async-exception-resolve](langage-async-exception-resolve.md).
+
+**Corrigé le 2026-10-13** (point `resolve` indirect) : `resolve_result_ir_type` (`src/lower/expr.d/typeinfer.rs`) lit le type AST de l'opérande quand il est `Resolvable<T>` (champ via `class_field_types`, élément via `elem_type_after_index`, retour via `call_ret_types`). Test : `examples/tests/89_generators_resolve_and_catchTest.oc` (`resolveIndirectTest`).

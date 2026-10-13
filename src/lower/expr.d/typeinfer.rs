@@ -131,6 +131,52 @@ pub(crate) fn declared_call_return_ir_type(builder: &LowerBuilder, call_expr: &E
     }
 }
 
+/// Type IR de la valeur produite par `resolve expr` : variable
+/// `Resolvable<T>` (`async_var_ret`), puis type AST de l'opérande quand il
+/// est `Resolvable<T>` (champ, élément, retour d'une fonction qui rend un
+/// `Resolvable<T>`), puis appel `async` direct. Sans les cas champ/élément/
+/// retour, la valeur était relue en `I64` (adresse d'une chaîne, bits d'un
+/// flottant — voir docs/roadmap.d/langage-async-non-int-return-type-check.md).
+pub(crate) fn resolve_result_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
+    if let Expr::Ident(var_name, _) = expr {
+        return builder.async_var_ret.get(var_name).cloned().unwrap_or(IrType::I64);
+    }
+    if let Some(Type::Resolvable(inner)) = resolvable_operand_type(builder, expr) {
+        return IrType::from_ast(&inner);
+    }
+    declared_call_return_ir_type(builder, expr).unwrap_or(IrType::I64)
+}
+
+/// Type AST déclaré d'un opérande de `resolve` autre qu'une variable.
+fn resolvable_operand_type(builder: &LowerBuilder, expr: &Expr) -> Option<Type> {
+    use super::helpers::{elem_type_after_index, resolve_receiver_class};
+    match expr {
+        Expr::Index { object, .. } => elem_type_after_index(builder, object),
+        Expr::Field { object, field, .. } => {
+            let class = resolve_receiver_class(builder, object)?;
+            builder.module.class_field_types.get(&class)?
+                .iter().find(|(f, _)| f == field).map(|(_, ty)| ty.clone())
+        }
+        Expr::Call { callee, .. } => match callee.as_ref() {
+            Expr::Ident(name, _) => builder.module.call_ret_types.get(name.as_str()).cloned(),
+            Expr::Field { object, field, .. } => {
+                let class = resolve_receiver_class(builder, object)?;
+                builder.module.call_ret_types.get(&format!("{}_{}", class, field)).cloned()
+            }
+            _ => None,
+        },
+        Expr::StaticCall { class, method, .. } => {
+            let owner = match class.as_str() {
+                "<self>"   => builder.current_class.clone()?,
+                "<parent>" => builder.parent_class.clone()?,
+                _          => class.clone(),
+            };
+            builder.module.call_ret_types.get(&format!("{}_{}", owner, method)).cloned()
+        }
+        _ => None,
+    }
+}
+
 /// Détermine le type IR d'une expression sans générer de code.
 /// Utilisé pour le dispatch typé de `write` et la détection de concat string.
 pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
@@ -373,12 +419,7 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
             // qui l'a produite (voir `lower_var`/`lower_const`, couvre toute
             // profondeur d'indirection, contrairement à l'ancien hack
             // `async_var_funcs`/`async_var_ret` par nom de fonction).
-            match expr.as_ref() {
-                Expr::Ident(var_name, _) => {
-                    builder.async_var_ret.get(var_name).cloned().unwrap_or(IrType::I64)
-                }
-                _ => declared_call_return_ir_type(builder, expr).unwrap_or(IrType::I64),
-            }
+            resolve_result_ir_type(builder, expr)
         }
         Expr::Nameless { .. } => IrType::Ptr,
         // Littéraux `array`/`map`, instanciation, `self`/`parent` : toujours

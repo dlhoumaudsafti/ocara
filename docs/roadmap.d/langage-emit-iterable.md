@@ -137,3 +137,5 @@ Les cas A et B, les `return`/`break` anticipés et `Array::fromMessage` sont cor
 3. **`for` sur `array<float>`/`map<_,float>` dans un générateur — valeurs fausses.** `emit x / 2.0` produit `0.0000…376`, `1.0 greater 2.0` est vrai, `emit v * 2.0` sur une map donne 0 (`emit x` sans calcul reste correct). Cause : `src/lower/builder.d/message_gen.rs` (~l.842-846) force la variable de boucle en `Ptr` (« limitation acceptée »). Correction : reprendre `elem_type_after_index` comme `lower_for_in`. **Haute — Légère.**
 
 Tests à ajouter dans `examples/tests/42_emit_generatorTest.oc` pour chacun.
+
+**Point 3 corrigé le 2026-10-13** : les variables de `for` d'un générateur sont typées d'après les types déclarés connus (`collect_local_decls`, paramètres compris), les paramètres du générateur reçoivent leurs métadonnées (`register_const_meta`), et les arguments d'appel d'un générateur sont abaissés au type de leur paramètre (`collect_call_args`). Test : `examples/tests/89_…` (`floatLoopInGeneratorTest`). Les points 1 et 2 restent ouverts.

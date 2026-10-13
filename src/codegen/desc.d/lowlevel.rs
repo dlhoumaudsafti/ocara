@@ -127,6 +127,8 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__leak_check_init",      params: &[clt::I64],                        returns: None,              module: None },
     BuiltinDesc { name: "__leak_enter",           params: &[clt::I64],                        returns: None,              module: None },
     BuiltinDesc { name: "__leak_exit",            params: &[clt::I64],                        returns: None,              module: None },
+    // Champ d'un binding `on e` générique (voir runtime/src/exception.rs)
+    BuiltinDesc { name: "__exc_get_field",        params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
     // Constantes globales calculées (voir runtime/src/global_const.rs)
     BuiltinDesc { name: "__global_const_slot",    params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
 

@@ -37,6 +37,8 @@ pub struct TypeChecker<'a> {
     /// `check_program`, utilisé pour résoudre un appel vers une classe
     /// utilisateur (voir `crate::sema::escape::resolve_user_callable`).
     class_members: crate::sema::escape::ClassMembers,
+    /// Visibilité des méthodes des classes du programme (E54).
+    pub(crate) method_vis: std::collections::HashMap<String, std::collections::HashMap<String, crate::parsing::ast::Visibility>>,
     /// Classes utilisateur contenant (directement ou transitivement) une
     /// ressource native — calculé une fois dans `check_program`, voir
     /// `crate::sema::scope::compute_resource_classes`/`ownership_class_of`.
@@ -69,6 +71,7 @@ impl<'a> TypeChecker<'a> {
             program: None,
             escaping_params: std::collections::HashMap::new(),
             class_members: std::collections::HashMap::new(),
+            method_vis: std::collections::HashMap::new(),
             resource_classes: std::collections::HashSet::new(),
             callable_params: std::collections::HashMap::new(),
             rewrites: crate::sema::named_args::AstRewrites::default(),
@@ -98,6 +101,7 @@ impl<'a> TypeChecker<'a> {
         // — confinement des ressources `var` (`check_resource_var_containment`).
         self.escaping_params = crate::sema::escape::compute_escaping_params(program);
         self.class_members = crate::sema::escape::collect_class_members(&program.classes);
+        self.method_vis = crate::sema::field_visibility::collect_method_visibility(program);
         self.resource_classes = crate::sema::scope::compute_resource_classes(&program.classes);
         self.callable_params = crate::sema::named_args::collect_callable_params(program);
 
@@ -1529,6 +1533,7 @@ impl<'a> TypeChecker<'a> {
                         };
                         if let Some(sig) = self.symbols.lookup_method_in_chain(&method_owner, field).filter(|_| http_receiver_ok) {
                             self.record(fspan, field, Target::Method { class: method_owner.clone(), name: field.clone() }, &call_ret_ty(sig));
+                            self.check_method_visibility(&method_owner, field, fspan);
                             // Une méthode static ne peut pas être appelée sur une instance
                             // SAUF pour ces classes : les méthodes sont statiques mais utilisables
                             // comme méthodes d'instance sur les variables (ex: a.trim(), arr.len(), m.size(), data.encode(), req.close(), res.status()).
@@ -1674,6 +1679,20 @@ impl<'a> TypeChecker<'a> {
                         });
                     }
                 }
+                // Fonction libre inconnue (ni locale, ni fonction, ni
+                // constante) : l'appel disparaissait au codegen et rendait
+                // `null` (voir docs/roadmap.d/sema-appel-symbole-inconnu-accepte.md).
+                if let Expr::Ident(name, name_span) = callee.as_ref() {
+                    if self.scopes.lookup(name).is_none() && self.symbols.lookup_const(name).is_none() {
+                        let span = self.with_runtime_ctx(name_span);
+                        self.errors.push(if self.symbols.lookup_class(name).is_some() {
+                            // `Classe()` sans `use` : l'instance n'était jamais créée.
+                            SemaError::NotCallable { name: format!("{} (write 'use {}(...)' to create an instance)", name, name), span }
+                        } else {
+                            SemaError::UndefinedSymbol { name: name.clone(), span }
+                        });
+                    }
+                }
                 for arg in args { self.infer_expr(arg); }
                 Type::Mixed
             }
@@ -1712,6 +1731,7 @@ impl<'a> TypeChecker<'a> {
                             return Type::Mixed;
                         };
                         let args: &[Expr] = &resolved;
+                        self.check_method_visibility(&parent, method, span);
                         if !target.accepts_arg_count(args.len()) {
                             self.errors.push(SemaError::WrongArgCount {
                                 name:     target.callee.clone(),
@@ -1785,6 +1805,7 @@ impl<'a> TypeChecker<'a> {
                         return Type::Mixed;
                     };
                     let args: &[Expr] = &resolved;
+                    self.check_method_visibility(&resolved_class, method, span);
                     // Une méthode non-static ne peut pas être appelée via ::
                     if !sig.is_static {
                         self.errors.push(SemaError::NotStaticMethod {
@@ -1848,7 +1869,17 @@ impl<'a> TypeChecker<'a> {
                 }
                 // Classe connue sans cette méthode : l'appel était abandonné
                 // en silence à la compilation (valeur `null` à l'exécution).
-                if self.symbols.lookup_class(&resolved_class).is_some_and(|info| !info.is_opaque) {
+                // Classe connue sans cette méthode, ou classe inconnue (ni
+                // classe, ni interface, ni générique, ni module, ni enum).
+                let known_class = self.symbols.lookup_class(&resolved_class).is_some_and(|info| !info.is_opaque);
+                let unknown_type = !resolved_class.starts_with('<')
+                    && self.symbols.lookup_class(&resolved_class).is_none()
+                    && self.symbols.lookup_interface(&resolved_class).is_none()
+                    && self.symbols.lookup_generic(&resolved_class).is_none()
+                    && self.symbols.lookup_module(&resolved_class).is_none()
+                    && self.symbols.lookup_enum(&resolved_class).is_none()
+                    && crate::builtins::builtin_class(&resolved_class).is_none();
+                if known_class || unknown_type {
                     self.errors.push(SemaError::UndefinedSymbol {
                         name: format!("{}::{}", resolved_class, method),
                         span: span.clone(),
@@ -1883,8 +1914,9 @@ impl<'a> TypeChecker<'a> {
                 if let Some(info) = self.symbols.lookup_class(&resolved_class) {
                     if info.is_opaque { return Type::Mixed; }
                 }
-                if let Some((ty, _)) = self.symbols.lookup_class_const(&resolved_class, name) {
-                    let ty = ty.clone();
+                if let Some((ty, vis)) = self.symbols.lookup_class_const(&resolved_class, name) {
+                    let (ty, vis) = (ty.clone(), vis.clone());
+                    self.check_member_visibility("constant", &resolved_class, &vis, name, span);
                     self.record(span, name, Target::ClassConst { class: resolved_class.clone(), name: name.clone() }, &ty);
                     return ty;
                 }

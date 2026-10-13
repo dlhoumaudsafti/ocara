@@ -1,6 +1,6 @@
 # Primitif boxé vers un paramètre `mixed`/union ou un conteneur — jamais relâché
 
-Statut : **à corriger** — constaté le 2026-10-13 (audit de la roadmap).
+Statut : **corrigé** le 2026-10-13 (constaté le même jour par l'audit de la roadmap).
 
 ## Constat
 
@@ -39,3 +39,10 @@ ci-dessus (« aucune fuite ») ; mesure mémoire stable en boucle.
 ## Priorité / Complexité
 
 **Haute** (fuite non bornée, règle du projet) — **Légère**.
+
+## Correctif
+
+- `box_arg_for_mixed_param` (`src/lower/expr.d/helpers.rs`) et l'affectation indexée (`assignments.rs`) enregistrent la cellule boxée comme temporaire du statement (`rc::track`) ; l'appelé et les conteneurs retiennent ce qu'ils gardent.
+- Toute union est comptée comme `mixed` (`is_counted`, `src/lower/builder.d/rc_layout.rs`) : elle a la même représentation (IR `Ptr`, scalaires boxés).
+
+Vérifié avec `--leak-check` sur chacun des sites listés (« aucune fuite »). L'inventaire exhaustif des sites de boxing reste à faire (voir [memoire-boxing-durcissement](memoire-boxing-durcissement.md)).

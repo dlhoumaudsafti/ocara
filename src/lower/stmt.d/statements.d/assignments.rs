@@ -129,7 +129,14 @@ pub fn lower_assign(
             let val = match elem_type_after_index(builder, object) {
                 Some(elem_ast_ty) => {
                     let elem_ir_ty = IrType::from_ast(&elem_ast_ty);
-                    box_for_any(builder, &elem_ir_ty, val_ty, val)
+                    let boxed = box_for_any(builder, &elem_ir_ty, val_ty, val.clone());
+                    // Cellule boxée : temporaire du statement, le conteneur
+                    // la retient (sinon fuite, voir
+                    // docs/roadmap.d/memoire-boxing-temporaires-non-relaches.md).
+                    if boxed != val {
+                        crate::lower::stmt::rc::track(builder, &boxed);
+                    }
+                    boxed
                 }
                 None => val,
             };

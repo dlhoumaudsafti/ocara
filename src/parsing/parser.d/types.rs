@@ -45,10 +45,13 @@ pub struct Parser {
     /// Mode tolérant (`parse_program_recovering`) et erreurs déjà notées.
     pub(super) recover: bool,
     pub(super) errors: Vec<ParseError>,
+    /// Lecture d'une clé de littéral map : le `:` qui suit `obj.champ` sépare
+    /// la clé de la valeur, ce n'est pas une annotation de type.
+    pub(super) in_map_key: bool,
 }
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, pos: 0, property_initializers: Vec::new(), type_refs: Vec::new(), recover: false, errors: Vec::new() }
+        Self { tokens, pos: 0, property_initializers: Vec::new(), type_refs: Vec::new(), recover: false, errors: Vec::new(), in_map_key: false }
     }
 }

@@ -1,6 +1,6 @@
 # `e.message` après un `raise "chaîne"` dans un handler générique — SIGSEGV
 
-Statut : **à corriger** — constaté le 2026-10-13 (audit de la roadmap).
+Statut : **corrigé** le 2026-10-13 (constaté le même jour par l'audit de la roadmap).
 
 ## Constat
 
@@ -47,3 +47,7 @@ Test `examples/tests/` : `raise "x"` puis `e.message` (comportement choisi),
 ## Priorité / Complexité
 
 **Haute** (crash sur un motif courant de gestion d'erreur) — **Légère**.
+
+## Correctif
+
+Choix retenu : garde à l'exécution. Dans un handler générique `on e`, un accès de champ sur `e` passe par `__exc_get_field` (`runtime/src/exception.rs`) : pour une chaîne levée, `e.message` rend la chaîne elle-même et tout autre champ vaut `null` ; pour une exception, lecture normale. Bindings suivis par `LowerBuilder::generic_catch_vars` (`src/lower/stmt.d/statements.d/exceptions.rs`, `message_gen.rs` pour un générateur). Test : `examples/tests/89_generators_resolve_and_catchTest.oc` (`messageOfRaisedStringTest`). Le cas plus général d'un champ lu sur un `mixed` non objet hors handler reste permissif (limitation du type `mixed`, voir W02).

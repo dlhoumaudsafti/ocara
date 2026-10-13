@@ -162,3 +162,23 @@ fn default_value_type_is_checked() {
     "#;
     assert_eq!(mismatches(&errors_in(src)), one("bad", "n", "int", "string"));
 }
+
+#[test]
+fn builtin_exception_is_accepted_for_exception() {
+    let src = r#"
+        import ocara.Exception
+        function logErr(e:Exception): int { return e.code }
+        function main(): int {
+            var z:Exception = use FileException("x", 1)
+            try {
+                raise use FileException("y", 2)
+            } on e is FileException {
+                logErr(e)
+            }
+            return logErr(z)
+        }
+    "#;
+    let errs = errors_in(src);
+    assert!(mismatches(&errs).is_empty(), "{:?}", errs);
+    assert!(!errs.iter().any(|e| matches!(e, SemaError::TypeMismatch { .. })), "{:?}", errs);
+}

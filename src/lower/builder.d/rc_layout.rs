@@ -16,7 +16,10 @@ pub(crate) fn is_counted(ty: &Type, objects: &HashSet<String>) -> bool {
         Type::String | Type::Mixed | Type::Array(_) | Type::Map(..) | Type::Function { .. } | Type::Generic { .. } => true,
         Type::Named(n) => objects.contains(n),
         Type::Qualified(parts) => parts.last().is_some_and(|n| objects.contains(n)),
-        Type::Union(members) => members.iter().all(|m| matches!(m, Type::Null) || is_counted(m, objects)),
+        // Toute union est représentée comme un `mixed` (IR `Ptr`, scalaires
+        // boxés) : comptée comme lui — `var r:int|float = 2.5` laissait fuir
+        // la cellule boxée (docs/roadmap.d/memoire-boxing-temporaires-non-relaches.md).
+        Type::Union(_) => true,
         _ => false,
     }
 }

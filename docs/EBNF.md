@@ -2550,10 +2550,10 @@ WiringDecl ::= "wiring" Identifier ( "." Identifier )*
   (voir docs/roadmap.d/langage-interface-method-modifiers.md).
   Contrairement à une `class`, la visibilité reste **optionnelle** ici (une
   interface n'a jamais eu de notion de visibilité propre) et n'est **jamais
-  vérifiée** à l'implémentation — `FuncSig` (table des symboles) ne porte
-  aucun champ de visibilité pour aucune méthode dans ce compilateur, ni pour
-  une classe ordinaire ni pour `extends` ; l'imposer ici serait une
-  asymétrie nouvelle, pas la symétrie recherchée. `static` et `async`, eux,
+  vérifiée** à l'implémentation : une classe peut implémenter la méthode
+  avec la visibilité de son choix. À l'appel, c'est la visibilité déclarée
+  par la **classe** qui s'applique (E54, comme pour toute méthode de
+  classe). `static` et `async`, eux,
   ont une sémantique directe et sont vérifiés à l'implémentation (E09, voir
   docs/diagnostics.md) : la classe qui `implements` doit reprendre
   exactement la même staticité/asynchronicité que l'interface pour chaque

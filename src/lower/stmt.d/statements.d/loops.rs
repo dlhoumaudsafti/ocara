@@ -19,16 +19,17 @@ pub fn lower_for_in(
     // voir docs/roadmap.d/langage-emit-iterable.md) : lowering entièrement
     // différent (machine à états, pas de tableau) — voir
     // `crate::lower::builder::message_gen::lower_for_message`.
+    // Pré-promotion : voir docs/roadmap.d/langage-closure-promotion-in-loop.md.
+    // AVANT de déclarer `var` (la variable d'itération elle-même n'existe pas
+    // encore ici, donc jamais concernée par ce pré-scan — seules les
+    // variables déjà existantes AVANT la boucle le sont). Avant aussi le
+    // chemin générateur, qui la sautait (cellule recréée à chaque tour).
+    hoist_closure_promotions_before_loop(builder, body);
+
     if let Some((mangled, elem_ty)) = crate::lower::builder::message_gen::detect_message_call(builder, iter) {
         crate::lower::builder::message_gen::lower_for_message(builder, var, iter, &mangled, elem_ty, body);
         return;
     }
-
-    // Pré-promotion : voir docs/roadmap.d/langage-closure-promotion-in-loop.md.
-    // AVANT de déclarer `var` (la variable d'itération elle-même n'existe pas
-    // encore ici, donc jamais concernée par ce pré-scan — seules les
-    // variables déjà existantes AVANT la boucle le sont).
-    hoist_closure_promotions_before_loop(builder, body);
 
     // Lowering : __iter_init(iter), boucle sur __iter_next
     let iter_val  = lower_expr(builder, iter);
@@ -314,8 +315,10 @@ pub fn lower_for_map(
     // correctif (`value` n'avait AUCUNE entrée `var_class`, quel que soit le
     // type de valeur de la map). Voir
     // docs/roadmap.d/langage-union-class-null-field-access.md.
-    if let Some(class_name) = val_ast.as_ref().and_then(resolved_named_class) {
-        builder.var_class.insert(value.to_string(), class_name);
+    // `array<T>`/`map<K,V>`/`string` compris : `v.len()`, `v.push(x)`
+    // émettaient `String_*` (voir docs/roadmap.d/langage-methode-recepteur-indexe.md).
+    if let Some(ty) = val_ast.as_ref() {
+        super::variables::register_const_meta(builder, value, ty);
     }
 
     // continue → incr_bb, break → merge_bb

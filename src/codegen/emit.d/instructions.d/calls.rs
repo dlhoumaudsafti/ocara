@@ -65,8 +65,15 @@ pub fn emit_calls(
                 // Fonction interne du runtime sans descripteur : bug du
                 // compilateur, jamais à ignorer (l'appel disparaîtrait).
                 return Err(CodegenError(format!("fonction interne non déclarée : {}", func)));
+            } else if func.ends_with("_init") {
+                // `use C()` sur une classe sans constructeur (ni hérité) :
+                // rien à initialiser.
+            } else {
+                // Appel vers un symbole inexistant : la sema aurait dû le
+                // refuser — l'ignorer rendait `null` en silence (voir
+                // docs/roadmap.d/sema-appel-symbole-inconnu-accepte.md).
+                return Err(CodegenError(format!("appel vers une fonction inconnue : {}", func)));
             }
-            // Autre fonction inconnue : ignorée (module non importé)
         }
 
         Inst::CallIndirect { dest, callee, args, .. } => {

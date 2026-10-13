@@ -406,6 +406,11 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
             // Si filtre connu → utiliser le filtre, sinon → Exception par défaut
             let exception_class = handler.class_filter.clone().unwrap_or_else(|| "Exception".to_string());
             hb.var_class.insert(handler.binding.clone(), exception_class);
+            if handler.class_filter.is_none() {
+                hb.generic_catch_vars.insert(handler.binding.clone());
+            } else {
+                hb.generic_catch_vars.remove(&handler.binding);
+            }
 
             lower_block(&mut hb, &handler.body);
             if !hb.is_terminated() {

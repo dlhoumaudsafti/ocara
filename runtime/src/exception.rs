@@ -270,3 +270,18 @@ pub(crate) unsafe fn raised_value_message(val: i64) -> Option<String> {
         None
     }
 }
+
+/// Champ d'une valeur rattrapée par un handler générique `on e` : une
+/// chaîne levée (`raise "x"`) n'a pas de champs — `message` (offset 0) est
+/// la chaîne elle-même, tout autre champ vaut `null`. Sinon, lecture normale
+/// du champ de l'exception.
+#[unsafe(no_mangle)]
+pub extern "C" fn __exc_get_field(val: i64, offset: i64) -> i64 {
+    if val == 0 {
+        return 0;
+    }
+    if crate::typecheck::__is_string(val) == 1 {
+        return if offset == 0 { val } else { 0 };
+    }
+    unsafe { *((val + offset) as *const i64) }
+}

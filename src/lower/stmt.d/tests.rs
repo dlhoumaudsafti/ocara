@@ -33,11 +33,15 @@ mod tests {
         assert!(!is_counted(&Type::Named("HTTPRequest".into()), &objects()));
     }
 
+    /// Toute union est représentée comme un `mixed` (scalaires boxés) :
+    /// comptée comme lui (docs/roadmap.d/memoire-boxing-temporaires-non-relaches.md).
     #[test]
-    fn nullable_union_follows_its_member() {
+    fn unions_are_counted_like_mixed() {
         let user_or_null = Type::Union(vec![Type::Named("User".into()), Type::Null]);
         let int_or_string = Type::Union(vec![Type::Int, Type::String]);
+        let int_or_float = Type::Union(vec![Type::Int, Type::Float]);
         assert!(is_counted(&user_or_null, &objects()));
-        assert!(!is_counted(&int_or_string, &objects()));
+        assert!(is_counted(&int_or_string, &objects()));
+        assert!(is_counted(&int_or_float, &objects()));
     }
 }

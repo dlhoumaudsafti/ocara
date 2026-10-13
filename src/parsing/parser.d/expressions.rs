@@ -350,7 +350,7 @@ impl Parser {
                         // accès simple
                         // Annotation de type optionnelle après `.field` (spec: `user.age:int`)
                         // On la consomme silencieusement (usage dans match/switch)
-                        if self.check_exact(&TokenKind::Colon) {
+                        if self.check_exact(&TokenKind::Colon) && !self.in_map_key {
                             self.advance();
                             self.parse_type()?; // type hint ignoré à ce stade
                         }
@@ -566,7 +566,10 @@ impl Parser {
                 self.advance();
                 let mut entries = Vec::new();
                 while !self.check_exact(&TokenKind::RBrace) {
-                    let k = self.parse_expr()?;
+                    let saved = std::mem::replace(&mut self.in_map_key, true);
+                    let k = self.parse_expr();
+                    self.in_map_key = saved;
+                    let k = k?;
                     self.eat(&TokenKind::Colon)?;
                     let v = self.parse_expr()?;
                     entries.push((k, v));

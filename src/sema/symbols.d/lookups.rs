@@ -141,6 +141,11 @@ impl SymbolTable {
             if c == target {
                 return true;
             }
+            // Exceptions builtin (`FileException`…) : filles implicites de
+            // `Exception` (docs/EBNF.md, exceptions builtin).
+            if target == "Exception" && crate::builtins::exception::BUILTIN_EXCEPTION_NAMES.contains(&c.as_str()) {
+                return true;
+            }
             let Some(info) = self.classes.get(&c) else { break };
             if info.implements.iter().any(|i| i == target) {
                 return true;
