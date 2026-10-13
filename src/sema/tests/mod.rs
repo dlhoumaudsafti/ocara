@@ -17,6 +17,7 @@ mod generic_check;
 mod exception_binding;
 mod compound_assign;
 mod use_without_init;
+mod arg_types;
 mod global_const;
 mod interface_call;
 mod map_keys;

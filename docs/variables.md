@@ -143,12 +143,15 @@ const APP_NAME:string = "Ocara"
 ```
 
 - **Déclaration** : au niveau du module, hors de toute fonction.
-- **Contrainte** : la valeur doit être connue à la compilation — un
-  littéral, éventuellement négé ou combiné par `+ - * / %` (concaténation
-  `+` entre chaînes). Un appel de fonction est refusé : **E61**. Pour une
-  valeur calculée, écrire une fonction.
+- **Valeur** : n'importe quelle expression du type déclaré. Un littéral
+  (éventuellement négé ou combiné par `+ - * / %`) est recopié tel quel ;
+  une valeur calculée (`const G:int = tick()`) est évaluée **une seule
+  fois**, en tête de `main`, dans l'ordre de déclaration, puis relue par
+  chaque fonction.
 - **Usage** : par son nom, depuis toute fonction ou méthode du module.
-- **Libération** : jamais — c'est un littéral figé dans le binaire.
+- **Libération** : un littéral n'est jamais libéré (figé dans le binaire) ;
+  une valeur calculée comptée (chaîne, tableau, objet…) l'est à la sortie de
+  `main`.
 
 ## `const` de classe
 
@@ -228,4 +231,3 @@ class Repo {
 | E28 | Ressource `var`/`const` jamais fermée |
 | E35 | Fermeture manuelle d'un champ ressource |
 | E55 | `const` de classe non évaluable à la compilation |
-| E61 | `const` globale non évaluable à la compilation |

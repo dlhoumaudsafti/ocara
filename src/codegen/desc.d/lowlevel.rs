@@ -127,6 +127,8 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__leak_check_init",      params: &[clt::I64],                        returns: None,              module: None },
     BuiltinDesc { name: "__leak_enter",           params: &[clt::I64],                        returns: None,              module: None },
     BuiltinDesc { name: "__leak_exit",            params: &[clt::I64],                        returns: None,              module: None },
+    // Constantes globales calculées (voir runtime/src/global_const.rs)
+    BuiltinDesc { name: "__global_const_slot",    params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
 
     // Trampolines ui.handler / ui.handlers (voir src/lower/expr.d/tauri_handler.rs)
     BuiltinDesc { name: "__tauri_obj_is_string",   params: &[clt::I64, clt::I64],  returns: Some(clt::I64), module: None },

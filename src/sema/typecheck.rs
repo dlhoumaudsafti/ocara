@@ -143,12 +143,17 @@ impl<'a> TypeChecker<'a> {
 
     // ── Enum ─────────────────────────────────────────────────────────────────
 
-    /// Constante globale : réévaluée à l'entrée de chaque fonction, sa
-    /// valeur doit être connue à la compilation (E61), comme une constante
-    /// de classe (E55).
+    /// Constante globale : valeur de n'importe quelle expression (appel
+    /// compris), évaluée une seule fois en tête de `main` (voir
+    /// `lower_const_prologue`) — compatible avec le type déclaré.
     fn check_global_const(&mut self, c: &crate::parsing::ast::ConstDecl) {
-        if c.value.const_literal().is_none() {
-            self.errors.push(SemaError::GlobalConstNotConstant { name: c.name.clone(), span: c.span.clone() });
+        let found = self.infer_expr(&c.value);
+        if !types_compat(&found, &c.ty, &self.symbols) {
+            self.errors.push(SemaError::TypeMismatch {
+                expected: type_name(&c.ty),
+                found:    type_name(&found),
+                span:     c.value.span().clone(),
+            });
         }
     }
 
@@ -224,6 +229,11 @@ impl<'a> TypeChecker<'a> {
             }
         }
 
+        let callee = match &self.current_class {
+            Some(class) => format!("{}::{}", class, func.name),
+            None => func.name.clone(),
+        };
+        self.check_param_defaults(&callee, &func.params);
         for param in &func.params {
             // Warning si variadic<mixed>
             if param.is_variadic {
@@ -289,6 +299,7 @@ impl<'a> TypeChecker<'a> {
                     // via le typecheck lazy des classes.
                     let saved_ret = self.current_ret.take();
                     self.current_ret = Some(Type::Void);
+                    self.check_param_defaults(&format!("{}::init", class.name), params);
                     for p in params {
                         // `message<T>` return-type-only (voir check_func) :
                         // s'applique aussi aux paramètres de constructeur.
@@ -1255,9 +1266,10 @@ impl<'a> TypeChecker<'a> {
                         // Appel async : retourne Resolvable<T> (T = type de retour déclaré) — voir `call_ret_ty`.
                         let ret = call_ret_ty(sig);
                         self.check_argument_escape(args, false);
-                        for arg in args {
-                            let arg_ty = self.infer_expr(arg);
-                            self.check_message_scalar_consumption(arg, &arg_ty, span);
+                        let expected = crate::sema::arg_types::ExpectedParams::from_sig(sig);
+                        let arg_tys = self.check_call_args(name, &expected, args);
+                        for (arg, arg_ty) in args.iter().zip(&arg_tys) {
+                            self.check_message_scalar_consumption(arg, arg_ty, span);
                         }
                         return ret;
                     }
@@ -1478,7 +1490,8 @@ impl<'a> TypeChecker<'a> {
                         }
                         let ret = call_ret_ty(sig);
                         self.check_argument_escape(args, false);
-                        for arg in args { self.infer_expr(arg); }
+                        let expected = crate::sema::arg_types::ExpectedParams::from_sig(sig);
+                        self.check_call_args(&format!("{}::{}", cls_name, field), &expected, args);
                         return ret;
                     }
                     if let Some(info) = self.symbols.lookup_class(&cls_name) {
@@ -1583,7 +1596,9 @@ impl<'a> TypeChecker<'a> {
                             // voir `call_ret_ty` et docs/roadmap.d/langage-async-non-int-return-type-check.md.
                             let ret = call_ret_ty(sig);
                             self.check_argument_escape(args, false);
-                            for arg in args { self.infer_expr(arg); }
+                            let receiver = usize::from(allows_instance_sugar && sig.is_static);
+                            let expected = crate::sema::arg_types::ExpectedParams::from_sig(sig).skip(receiver);
+                            self.check_call_args(&format!("{}::{}", cls_name, field), &expected, args);
                             return ret;
                         }
 
@@ -1644,7 +1659,8 @@ impl<'a> TypeChecker<'a> {
                                     // no-op ici, mais garde une seule source de vérité pour la
                                     // substitution Resolvable<T> plutôt que deux règles parallèles.
                                     let ret = call_ret_ty(sig);
-                                    for arg in args { self.infer_expr(arg); }
+                                    let expected = crate::sema::arg_types::ExpectedParams::from_sig(sig).skip(1);
+                                    self.check_call_args(&format!("JSON::{}", field), &expected, args);
                                     return ret;
                                 }
                             }
@@ -1685,6 +1701,29 @@ impl<'a> TypeChecker<'a> {
                     if let Some(parent) = parent.filter(|p| crate::builtins::exception::is_builtin_exception(p)) {
                         self.check_builtin_exception_ctor(&parent, args, span);
                         return Type::Void;
+                    }
+                }
+                // `parent::m(...)`/`parent::init(...)` vers une méthode du
+                // programme : arité et types des arguments.
+                if class == "<parent>" {
+                    let parent = self.current_class.as_deref().and_then(|c| self.symbols.lookup_parent_class(c));
+                    if let Some((parent, target)) = parent.and_then(|p| self.user_method_target(&p, method).map(|t| (p, t))) {
+                        let Some(resolved) = self.resolve_named_call(args, |tc| tc.user_method_target(&parent, method)) else {
+                            return Type::Mixed;
+                        };
+                        let args: &[Expr] = &resolved;
+                        if !target.accepts_arg_count(args.len()) {
+                            self.errors.push(SemaError::WrongArgCount {
+                                name:     target.callee.clone(),
+                                expected: target.required_count(),
+                                found:    args.len(),
+                                span:     span.clone(),
+                            });
+                        }
+                        if let Some(expected) = self.user_expected_params(&parent, method) {
+                            self.check_call_args(&target.callee, &expected, args);
+                        }
+                        return Type::Mixed;
                     }
                 }
 
@@ -1780,9 +1819,10 @@ impl<'a> TypeChecker<'a> {
                     }
                     let is_http_request_call = resolved_class == self.symbols.local_name_for_builtin("HTTPRequest");
                     self.check_argument_escape(args, is_http_request_call);
-                    for arg in args {
-                        let arg_ty = self.infer_expr(arg);
-                        self.check_message_scalar_consumption(arg, &arg_ty, span);
+                    let expected = crate::sema::arg_types::ExpectedParams::from_sig(sig);
+                    let arg_tys = self.check_call_args(&format!("{}::{}", resolved_class, method), &expected, args);
+                    for (arg, arg_ty) in args.iter().zip(&arg_tys) {
+                        self.check_message_scalar_consumption(arg, arg_ty, span);
                     }
                     // `HTTPRequest::close(req)`/`::closeResponse(res)` — même
                     // mécanisme que `m.destroy()`/`db.close()` ci-dessus
@@ -1979,7 +2019,19 @@ impl<'a> TypeChecker<'a> {
                     });
                 }
                 self.check_argument_escape(args, false);
-                for arg in args { self.infer_expr(arg); }
+                match self.user_expected_params(class, "init").filter(|_| !is_opaque) {
+                    // Constructeur d'un générique : `T` remplacé par les
+                    // arguments de type de cette instanciation.
+                    Some(mut expected) if is_generic => {
+                        let type_params = self.symbols.lookup_generic(class).map(|g| g.type_params.clone()).unwrap_or_default();
+                        for (_, ty) in &mut expected.params {
+                            *ty = if type_args.is_empty() { Type::Mixed } else { substitute_type_params(ty, &type_params, type_args) };
+                        }
+                        self.check_call_args(&format!("{}::init", class), &expected, args);
+                    }
+                    Some(expected) => { self.check_call_args(&format!("{}::init", class), &expected, args); }
+                    None => for arg in args { self.infer_expr(arg); },
+                }
 
                 // Si c'est un générique avec type_args, retourner Type::Generic
                 if is_generic && !type_args.is_empty() {

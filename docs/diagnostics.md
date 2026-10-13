@@ -1219,6 +1219,32 @@ var e:MyErr = use MyErr("boom", 2)   // ✅
 
 ---
 
+### E62 — Argument d'un type incompatible avec le paramètre
+
+```
+fichier.oc:12:21: error: argument 'a' of 'add': expected type 'int', found 'string'
+```
+
+Chaque argument d'un appel est comparé au type déclaré de son paramètre, avec la même règle de compatibilité qu'une affectation ou un `return` : `mixed` accepte tout, `null` est accepté pour un type référence ou une union `T|null`, une sous-classe pour sa classe parente, une classe pour une interface qu'elle implémente. Pas de conversion implicite : un `int` n'est pas un `float`.
+
+Le contrôle couvre toutes les formes d'appel : fonctions libres, méthodes d'instance et statiques (héritées, via une interface, `parent::`), constructeurs (`use X(…)`, `parent::init(…)`), builtins, arguments nommés et éléments d'un `variadic<T>` (un `T[]` est aussi accepté). La valeur par défaut d'un paramètre est vérifiée à la déclaration. Avant ce diagnostic, seule l'arité l'était : la valeur était réinterprétée telle quelle (`add("1", 2)` affichait l'adresse de la chaîne, `Math::sqrt(25)` un flottant aberrant).
+
+```ocara
+function add(a:int, b:int): int { return a + b }
+function half(x:float): float { return x / 2.0 }
+function label(n:int = "zéro"): int { return n }   // ❌ E62 (valeur par défaut)
+
+add("1", 2)              // ❌ E62
+add(b: 2, a: "un")       // ❌ E62
+var n:int = 4
+half(n)                  // ❌ E62 — int n'est pas float
+half(n.toFloat())        // ✅
+```
+
+**Correction :** convertir explicitement la valeur (`n.toFloat()`, `s.toInt()`, `n.toStr()`…) ou corriger le type du paramètre.
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.
@@ -1365,20 +1391,16 @@ try {
 
 ---
 
-### E61 — Valeur de constante globale non évaluable à la compilation
+### E61 — *(retiré)* Valeur de constante globale non évaluable à la compilation
 
-```
-fichier.oc:6:1: error: value of global constant 'G' must be known at compile time — a literal, possibly negated or combined with +, -, *, /, % (e.g. '-273', '60 * 1000'); use a function for a computed value
-```
-
-Une constante globale est réévaluée à l'entrée de chaque fonction : sa valeur doit être calculable à la compilation, comme une constante de classe (E55). Une valeur issue d'un appel bouclait jusqu'au débordement de pile quand la fonction appelée lisait elle-même ses constantes globales (SIGSEGV confirmé). Sont acceptés : littéraux, `-x`, `not x`, et `+ - * / %` entre littéraux (concaténation `+` entre chaînes).
+Code retiré le 2026-10-13 : une constante globale accepte désormais n'importe quelle expression, appel compris. Une valeur calculée est évaluée **une seule fois**, en tête de `main` (dans l'ordre de déclaration), puis relue par chaque fonction — elle n'est plus réévaluée à chaque entrée de fonction, ce qui bouclait quand la fonction appelée lisait elle-même ses constantes. La valeur doit être compatible avec le type déclaré (E01).
 
 ```ocara
 function tick(): int { return 7 }
 
-const OK:int = 60 * 1000   // ✅
-const G:int = tick()       // ❌ E61
+const OK:int = 60 * 1000   // ✅ littéral
+const G:int = tick()       // ✅ évaluée une fois, au démarrage
 ```
 
-**Correction :** écrire la valeur littérale, ou exposer la valeur calculée par une fonction (`function g(): int { return tick() }`).
+Une fonction appelée pendant l'initialisation qui lit une constante pas encore évaluée (la sienne, ou une déclarée plus loin) y lit `0`/`null`.
 

@@ -211,9 +211,12 @@ serveur `mini_project_hexa` stable à ≈ 9,5 Mo sur 16 000 requêtes.
   libération comme dans le détecteur de cycles. `Mutex_destroy`,
   `Thread_join` et `Thread_detach` mettent le champ à zéro (après le join) :
   une fermeture manuelle suivie de la finalisation reste sans effet.
-- **E61** : une `const` globale doit être évaluable à la compilation ; une
-  `const G = f()` était réévaluée à chaque entrée de fonction (récursion
-  infinie si `f` lisait `G`).
+- **Constantes globales calculées** : une `const G = f()` était réévaluée
+  à chaque entrée de fonction (récursion infinie si `f` lisait `G`) —
+  d'abord interdite (E61), elle est désormais évaluée une seule fois en tête
+  de `main` et rangée dans un emplacement runtime (`__global_const_slot`)
+  relu par les autres fonctions ; `main` possède la valeur et la relâche à
+  sa sortie (2026-10-13).
 
 Mesures : cycles créés dans un thread pendant que le principal attend
 (`join`), ressources `scoped` (`Mutex`, SQLite) traversées par un `raise` :

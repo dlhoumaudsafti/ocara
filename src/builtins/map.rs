@@ -98,7 +98,7 @@ pub fn class() -> ClassInfo {
     methods.insert("forEach".into(), m(
         vec![
             ("m", map_ty),
-            ("callback", Type::Function { ret_ty: Box::new(Type::Void), param_tys: vec![] }),
+            ("callback", Type::Function { ret_ty: Box::new(Type::Void), param_tys: vec![Type::Mixed, Type::Mixed] }),
         ],
         Type::Void,
     ));

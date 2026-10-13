@@ -299,7 +299,7 @@ fn lower_runtime_main_manual(
     all_stmts: Vec<crate::parsing::ast::Stmt>,
     main_end_index: usize,
     exit_start_index: usize,
-    _consts: &[ConstDecl],
+    consts: &[ConstDecl],
     fn_ret_types: &HashMap<String, IrType>,
     fn_param_types: &HashMap<String, Vec<IrType>>,
     fn_param_names: &HashMap<String, Vec<String>>,
@@ -321,6 +321,8 @@ fn lower_runtime_main_manual(
     builder.fn_variadic_info = fn_variadic_info.clone();
     builder.func_default_args = func_default_args.clone();
     builder.async_funcs = async_funcs.clone();
+    // Pas de portée comptée dans ce `main` : constantes jamais relâchées.
+    let _ = super::functions::lower_const_prologue(&mut builder, consts, true);
 
     // Créer le label de sortie anticipée (avant le if ERROR != 0)
     let runtime_exit_label = builder.new_block();

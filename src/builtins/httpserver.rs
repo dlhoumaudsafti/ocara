@@ -120,21 +120,21 @@ pub fn class() -> ClassInfo {
         Type::Void,
     ));
 
-    // s.route(path:string, method:string, f:Function<void>) → void
+    // s.route(path:string, method:string, f:Function<int(HTTPServerRequest)>) → void
     methods.insert("route".into(), instance(
         vec![
             ("path",   Type::String),
             ("method", Type::String),
-            ("f",      Type::Function { ret_ty: Box::new(Type::Void), param_tys: vec![] }),
+            ("f",      handler_ty()),
         ],
         Type::Void,
     ));
 
-    // s.routeError(code:int, f:Function<void>) → void
+    // s.routeError(code:int, f:Function<int(HTTPServerRequest)>) → void
     methods.insert("routeError".into(), instance(
         vec![
             ("code", Type::Int),
-            ("f",    Type::Function { ret_ty: Box::new(Type::Void), param_tys: vec![] }),
+            ("f",    handler_ty()),
         ],
         Type::Void,
     ));
@@ -325,4 +325,9 @@ pub fn session_class() -> ClassInfo {
         class_consts: HashMap::new(),
         is_opaque:    false,
     }
+}
+
+/// Gestionnaire de route : `nameless(req:HTTPServerRequest): int`.
+fn handler_ty() -> Type {
+    Type::Function { ret_ty: Box::new(Type::Int), param_tys: vec![Type::Named("HTTPServerRequest".into())] }
 }

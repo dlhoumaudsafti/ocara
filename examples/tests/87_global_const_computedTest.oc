@@ -1,0 +1,37 @@
+architecture permissive
+
+import ocara.UnitTest
+
+// Constante globale calculée (docs/variables.md) : évaluée une seule fois en
+// tête de `main`, puis relue par chaque fonction — elle était réévaluée à
+// chaque entrée de fonction (récursion infinie si la fonction appelée lisait
+// ses constantes), puis interdite (E61, retiré).
+function tick(): int { return 7 }
+function label(): string { return `n°${SEVEN}` }
+function names(): array<string> { return ["a", "b", "c"] }
+
+const SEVEN:int = tick()
+const LABEL:string = label()
+const NAMES:array<string> = names()
+const DOUBLE:int = SEVEN * 2
+
+class Test_87_global_const_computed {
+
+    public method callValueTest(): int {
+        UnitTest::assertEquals(7, SEVEN)
+        UnitTest::assertEquals(14, DOUBLE)
+        return 0
+    }
+
+    public method readFromCalledFunctionTest(): int {
+        UnitTest::assertEquals("n°7", LABEL)
+        UnitTest::assertEquals("n°7", label())
+        return 0
+    }
+
+    public method arrayValueTest(): int {
+        UnitTest::assertEquals(3, NAMES.len())
+        UnitTest::assertEquals("b", NAMES[1])
+        return 0
+    }
+}

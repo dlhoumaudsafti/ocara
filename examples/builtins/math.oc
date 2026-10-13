@@ -101,7 +101,8 @@ function main(): int {
     // Distance entre deux points (Pythagore)
     var dx:int = 3
     var dy:int = 4
-    scoped dist:float = Math::sqrt(Math::pow(dx, 2) + Math::pow(dy, 2))
+    var squares:int = Math::pow(dx, 2) + Math::pow(dy, 2)
+    scoped dist:float = Math::sqrt(squares.toFloat())
     IO::writeln(`Distance (3,4) = ${dist}`)    // 5.0
 
     // Normalisation d'un score (0–100) avec borne

@@ -158,24 +158,16 @@ pub fn lower_const(
     ty: &Type,
     value: &Expr,
 ) {
-    let ir_ty = IrType::from_ast(ty);
-    
-    if let Type::Array(inner) = ty {
-        builder.elem_types.insert(name.to_string(), IrType::from_ast(inner));
-        builder.elem_ast_types.insert(name.to_string(), (**inner).clone());
-    }
-    
-    if let Some(val_ty) = map_value_type(ty) {
-        builder.map_vars.insert(name.to_string());
-        builder.elem_types.insert(name.to_string(), IrType::from_ast(val_ty));
-        builder.elem_ast_types.insert(name.to_string(), val_ty.clone());
-    }
+    lower_const_value(builder, name, ty, value);
+    declare_if_counted(builder, name, ty);
+}
 
-    // Classe/générique/string/array/map/function/union : voir register_var_class.
-    // (Avant ce correctif, `lower_const` réimplémentait une copie PARTIELLE
-    // de ce bloc — sans les cas Map/Function/Union — voir sa doc pour le
-    // bug concret que l'absence du cas Union causait sur `const x:Classe|null`.)
-    register_var_class(builder, name, ty);
+/// `lower_const` sans l'inscription de la locale dans la portée comptée
+/// (constante globale calculée de `main`, inscrite après l'ouverture de la
+/// portée de la fonction — voir `lower_const_prologue`).
+pub(crate) fn lower_const_value(builder: &mut LowerBuilder, name: &str, ty: &Type, value: &Expr) {
+    let ir_ty = IrType::from_ast(ty);
+    register_const_meta(builder, name, ty);
 
     let _slot = builder.declare_local(name, ir_ty.clone(), false);
     let val_ty = expr_ir_type_pub(builder, value);
@@ -187,7 +179,27 @@ pub fn lower_const(
     // qu'à `lower_var`).
     register_async_var_ret(builder, name, ty);
     builder.store_local(name, val);
-    declare_if_counted(builder, name, ty);
+}
+
+/// Type d'élément, map et classe d'une constante `name:ty` (lecture de
+/// `c.len()`, `c[i]`, `c.méthode()`).
+pub(crate) fn register_const_meta(builder: &mut LowerBuilder, name: &str, ty: &Type) {
+    if let Type::Array(inner) = ty {
+        builder.elem_types.insert(name.to_string(), IrType::from_ast(inner));
+        builder.elem_ast_types.insert(name.to_string(), (**inner).clone());
+    }
+
+    if let Some(val_ty) = map_value_type(ty) {
+        builder.map_vars.insert(name.to_string());
+        builder.elem_types.insert(name.to_string(), IrType::from_ast(val_ty));
+        builder.elem_ast_types.insert(name.to_string(), val_ty.clone());
+    }
+
+    // Classe/générique/string/array/map/function/union : voir register_var_class.
+    // (Avant ce correctif, `lower_const` réimplémentait une copie PARTIELLE
+    // de ce bloc — sans les cas Map/Function/Union — voir sa doc pour le
+    // bug concret que l'absence du cas Union causait sur `const x:Classe|null`.)
+    register_var_class(builder, name, ty);
 }
 
 /// Valeur rangée dans une locale de type déclaré `ty` : convertie (boxing

@@ -1,6 +1,6 @@
 # Types des arguments jamais vérifiés à l'appel
 
-Statut : **à corriger** — constaté le 2026-10-13.
+Statut : **corrigé** le 2026-10-13 — erreur **E62** (voir `docs/diagnostics.md`).
 
 ## Constat
 
@@ -58,6 +58,36 @@ crash possible).
 
 Activer la vérification peut révéler des appels incorrects dans les
 exemples et la bibliothèque : les corriger un par un (régression complète).
+
+## Correction
+
+`src/sema/arg_types.rs` : `check_call_args` compare chaque argument (liste
+positionnelle déjà résolue pour un appel nommé, valeurs par défaut
+comprises) au type de son paramètre avec `types_compat`, pour les fonctions
+libres, méthodes d'instance (sucre d'instance des builtins : receveur
+retiré), méthodes via interface, méthodes statiques, `parent::m(…)` et
+`parent::init(…)` (arité aussi, jamais contrôlée jusque-là), constructeurs
+(`T` d'un `generic` substitué par l'argument de type) et sucre JSON ; un
+élément de `variadic<T>` est comparé à `T` (un `T[]` est aussi accepté).
+`check_param_defaults` vérifie la valeur par défaut à la déclaration. Les
+appels via une variable `Function<…>` et les méthodes d'un générique
+instancié étaient déjà vérifiés (E01).
+
+Pas de conversion implicite `int` → `float` (même règle que `var f:float =
+3`). Diagnostic : `argument 'b' of 'add': expected type 'int', found
+'string'`, sur l'argument fautif.
+
+Révélé par le contrôle, corrigé :
+
+- `examples/builtins/math.oc` : `Math::sqrt(int)` affichait `Distance (3,4)
+  = 0.0000…0111` au lieu de `5` → `squares.toFloat()`.
+- Signatures builtin imprécises (`Function<void()>` pour « n'importe quelle
+  fonction ») : `HTTPServer.route`/`routeError` →
+  `Function<int(HTTPServerRequest)>`, `HTMLComponent.register` →
+  `Function<string(map<string,mixed>)>`, `Map::forEach` →
+  `Function<void(mixed, mixed)>`.
+
+Tests : `src/sema/tests/arg_types.rs`.
 
 ## Priorité / Complexité
 

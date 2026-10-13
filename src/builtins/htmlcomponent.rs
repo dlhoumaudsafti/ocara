@@ -63,9 +63,12 @@ pub fn class() -> ClassInfo {
         Type::Void,
     ));
 
-    // c.register(handler: Function<string>) → void
+    // c.register(handler: Function<string(map<string,mixed>)>) → void
     methods.insert("register".into(), instance(
-        vec![("handler", Type::Function { ret_ty: Box::new(Type::String), param_tys: vec![] })],
+        vec![("handler", Type::Function {
+            ret_ty:    Box::new(Type::String),
+            param_tys: vec![Type::Map(Box::new(Type::String), Box::new(Type::Mixed))],
+        })],
         Type::Void,
     ));
 

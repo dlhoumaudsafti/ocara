@@ -347,8 +347,8 @@ server.route("/hits", "GET", nameless(req:HTTPServerRequest): int {
 | `host` | `(host:string) → void` | Adresse d'écoute |
 | `workers` | `(n:int) → void` | Nombre de threads workers |
 | `rootPath` | `(path:string) → void` | Répertoire racine pour fichiers statiques |
-| `route` | `(path:string, method:string, f:Function) → void` | Enregistre une route |
-| `routeError` | `(code:int, f:Function) → void` | Enregistre un handler d'erreur personnalisé |
+| `route` | `(path:string, method:string, f:Function<int(HTTPServerRequest)>) → void` | Enregistre une route |
+| `routeError` | `(code:int, f:Function<int(HTTPServerRequest)>) → void` | Enregistre un handler d'erreur personnalisé |
 | `run` | `() → void` | Démarre le serveur (bloquant) |
 
 ## Exemple complet

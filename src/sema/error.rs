@@ -170,9 +170,6 @@ pub enum SemaError {
     /// Valeur d'une constante de classe non évaluable à la compilation
     /// (appel, variable...) — voir `Expr::const_literal` (E55).
     ClassConstNotConstant { class: String, name: String, span: Span },
-    /// Valeur d'une constante globale non évaluable à la compilation (E61) :
-    /// elle est réévaluée à l'entrée de chaque fonction, un appel y bouclerait.
-    GlobalConstNotConstant { name: String, span: Span },
     /// Champ appelé comme une méthode (`e.message()` au lieu de
     /// `e.message`) — E57.
     FieldCalledAsMethod { class: String, field: String, span: Span },
@@ -182,6 +179,9 @@ pub enum SemaError {
     /// `use C(args)` sur une classe utilisateur sans `init` (ni hérité d'un
     /// ancêtre utilisateur) — les arguments seraient perdus (E60).
     ArgsWithoutConstructor { class: String, found: usize, span: Span },
+    /// Argument d'un type incompatible avec le paramètre déclaré (`add("1",
+    /// 2)` avec `a:int`) — voir `crate::sema::arg_types` (E62).
+    ArgTypeMismatch { callee: String, param: String, expected: String, found: String, span: Span },
 }
 
 impl SemaError {
@@ -235,10 +235,10 @@ impl SemaError {
             SemaError::NamedArgUnresolved { span, .. } => span,
             SemaError::FieldNotAccessible { span, .. } => span,
             SemaError::ClassConstNotConstant { span, .. } => span,
-            SemaError::GlobalConstNotConstant { span, .. } => span,
             SemaError::FieldCalledAsMethod { span, .. } => span,
             SemaError::ArithmeticOnNonNumeric { span, .. } => span,
             SemaError::ArgsWithoutConstructor { span, .. } => span,
+            SemaError::ArgTypeMismatch { span, .. } => span,
         }
     }
 
@@ -356,14 +356,14 @@ impl SemaError {
                 },
             SemaError::ArgsWithoutConstructor { class, found, .. } =>
                 format!("'{}' has no init() — 'use {}()' takes no arguments, {} provided (declare init(...) that receives them — for an exception: init(message:string, code:int) {{ parent::init(message, code) }} — or use a struct for a constructor from its fields)", class, class, found),
+            SemaError::ArgTypeMismatch { callee, param, expected, found, .. } =>
+                format!("argument '{}' of '{}': expected type '{}', found '{}'", param, callee, expected, found),
             SemaError::ArithmeticOnNonNumeric { op, operand, .. } =>
                 format!("operator '{}' cannot be applied to '{}' — only int, float and mixed support it ('+' also concatenates strings, '-=' removes occurrences from a string)", op, operand),
             SemaError::FieldCalledAsMethod { class, field, .. } =>
                 format!("'{}' is a field of '{}', not a method — write '.{}' without parentheses", field, class, field),
             SemaError::ClassConstNotConstant { class, name, .. } =>
                 format!("value of class constant '{}::{}' must be known at compile time — a literal, possibly negated or combined with +, -, *, /, % (e.g. '-273', '60 * 1000'); use a static method for a computed value", class, name),
-            SemaError::GlobalConstNotConstant { name, .. } =>
-                format!("value of global constant '{}' must be known at compile time — a literal, possibly negated or combined with +, -, *, /, % (e.g. '-273', '60 * 1000'); use a function for a computed value", name),
         }
     }
 }

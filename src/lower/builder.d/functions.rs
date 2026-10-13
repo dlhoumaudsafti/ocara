@@ -22,6 +22,63 @@ pub fn lower_const_global(module: &mut IrModule, c: &ConstDecl) {
     module.add_global(IrGlobal { name: c.name.clone(), bytes });
 }
 
+/// Constantes globales, en locales de la fonction en cours. Une constante
+/// littérale est recopiée ; une constante calculée (`const G:int = tick()`)
+/// est évaluée une seule fois, par `main` (`entry`), et rangée dans son
+/// emplacement runtime (`__global_const_slot`) que les autres fonctions
+/// relisent sans la compter — la réévaluer à chaque entrée de fonction bouclait dès que la
+/// fonction appelée lisait elle-même ses constantes.
+///
+/// Rend les constantes possédées par `main` (`entry`) : à inscrire dans la
+/// portée comptée de la fonction (`own_entry_consts`) une fois ouverte, pour
+/// être relâchées à sa sortie.
+pub fn lower_const_prologue<'c>(builder: &mut LowerBuilder, consts: &'c [ConstDecl], entry: bool) -> Vec<&'c ConstDecl> {
+    use crate::lower::stmt::statements::{lower_const_value, register_const_meta};
+    let mut computed: i64 = 0;
+    let mut owned = Vec::new();
+    for c in consts {
+        let ir_ty = IrType::from_ast(&c.ty);
+        if c.value.const_literal().is_some() {
+            let _slot = builder.declare_local(&c.name, ir_ty, false);
+            let val = crate::lower::expr::lower_expr(builder, &c.value);
+            builder.store_local(&c.name, val);
+            continue;
+        }
+        let idx = builder.new_value();
+        builder.emit(Inst::ConstInt { dest: idx.clone(), value: computed });
+        computed += 1;
+        let addr = builder.new_value();
+        builder.emit(Inst::Call { dest: Some(addr.clone()), func: "__global_const_slot".into(), args: vec![idx], ret_ty: IrType::Ptr });
+        if entry {
+            // Locale de `main` propriétaire de la valeur (relâchée à sa
+            // sortie) ; l'emplacement n'en garde qu'une copie empruntée.
+            crate::lower::stmt::rc::begin_temps(builder);
+            lower_const_value(builder, &c.name, &c.ty, &c.value);
+            crate::lower::stmt::rc::end_temps(builder);
+            if let Some((val, _)) = builder.load_local(&c.name) {
+                builder.emit(Inst::Store { ptr: addr, src: val });
+            }
+            owned.push(c);
+        } else {
+            register_const_meta(builder, &c.name, &c.ty);
+            let _slot = builder.declare_local(&c.name, ir_ty.clone(), false);
+            let val = builder.new_value();
+            builder.emit(Inst::Load { dest: val.clone(), ptr: addr, ty: ir_ty });
+            builder.store_local(&c.name, val);
+        }
+    }
+    owned
+}
+
+/// Voir `lower_const_prologue`.
+pub fn own_entry_consts(builder: &mut LowerBuilder, owned: &[&ConstDecl]) {
+    for c in owned {
+        if crate::lower::stmt::rc::counted(builder, &c.ty) {
+            crate::lower::stmt::rc::declare(builder, &c.name);
+        }
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Fonction libre
 // ─────────────────────────────────────────────────────────────────────────────
@@ -86,12 +143,7 @@ pub fn lower_func(
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect();
     builder.async_funcs = async_funcs.iter().cloned().collect();
-    for c in consts {
-        let ir_ty = IrType::from_ast(&c.ty);
-        let _slot = builder.declare_local(&c.name, ir_ty, false);
-        let val = crate::lower::expr::lower_expr(&mut builder, &c.value);
-        builder.store_local(&c.name, val);
-    }
+    let owned_consts = lower_const_prologue(&mut builder, consts, func.name == "main" && class_name.is_none());
 
     // Enregistre les paramètres comme locaux immuables et met à jour IrParam::slot
     // pour pointer vers l'alloca réel (les consts ont avancé next_value).
@@ -178,6 +230,7 @@ pub fn lower_func(
     // Body
     crate::lower::stmt::rc::begin_unwind(&mut builder);
     crate::lower::stmt::rc::begin_function(&mut builder, &func.params);
+    own_entry_consts(&mut builder, &owned_consts);
     crate::lower::stmt::lower_block(&mut builder, &func.body);
     crate::lower::stmt::rc::end_function(&mut builder);
 

@@ -1282,7 +1282,7 @@ const APP_NAME:string = "Ocara"
 ```
 
 Les constantes globales sont définies **au niveau du module** (hors de toute fonction).  
-Leur valeur doit être évaluable à la compilation : un littéral, éventuellement négé ou combiné par `+ - * / %` (concaténation `+` entre chaînes) — sinon erreur **E61**.  
+Leur valeur est une expression quelconque du type déclaré : un littéral est recopié tel quel, une valeur calculée (`const G:int = tick()`) est évaluée une seule fois en tête de `main`, dans l'ordre de déclaration.  
 Elles sont accessibles depuis n'importe quelle fonction ou méthode du module.
 
 **Constante locale** : `const` à l'intérieur d'une fonction déclare une variable **non réaffectable** (erreur E10 sinon), de même portée de bloc que `var` ; sa valeur peut être n'importe quelle expression, évaluée à la déclaration :
@@ -1589,6 +1589,7 @@ Param     ::= Identifier ":" ( "variadic" "<" Type ">" | Type ( "=" Expr )? )
 - Un paramètre peut avoir une **valeur par défaut** avec la syntaxe `param:Type = valeur`.
 - Les paramètres avec valeur par défaut **doivent être placés après** les paramètres obligatoires (sauf pour un variadic en dernière position).
 - Un paramètre variadic **ne peut pas** avoir de valeur par défaut.
+- À l'appel, chaque argument (positionnel, nommé ou variadic) doit être compatible avec le type de son paramètre — même règle qu'une affectation, sans conversion implicite (`int` n'est pas `float`) ; une valeur par défaut aussi — sinon erreur **E62**.
 
 **Exemple :**
 
