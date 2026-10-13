@@ -101,7 +101,7 @@ for dir in dirs {
 Teste si un répertoire existe.
 
 ```ocara
-if !Directory::exists("/var/log/myapp") {
+if not Directory::exists("/var/log/myapp") {
     Directory::create("/var/log/myapp")
 }
 ```
@@ -288,7 +288,7 @@ import ocara.Directory
 import ocara.IO
 
 function rotate_backups(backup_dir:string, max_backups:int): void {
-    if !Directory::exists(backup_dir) {
+    if not Directory::exists(backup_dir) {
         Directory::create(backup_dir)
         return
     }
@@ -373,7 +373,7 @@ function copy_by_extension(src:string, dst:string, ext:string): int {
     var count:int = 0
     var files:array<string> = Directory::listFiles(src)
     
-    if !Directory::exists(dst) {
+    if not Directory::exists(dst) {
         Directory::create(dst)
     }
     
@@ -501,7 +501,7 @@ import ocara.IO
 
 function manage_directory(path:string): void {
     try {
-        if !Directory::exists(path) {
+        if not Directory::exists(path) {
             IO::writeln("Le répertoire n'existe pas")
             return
         }
@@ -536,7 +536,7 @@ import ocara.IO
 
 function safe_copy(src:string, dst:string): void {
     try {
-        if !Directory::exists(src) {
+        if not Directory::exists(src) {
             IO::writeln("Le répertoire source n'existe pas")
             return
         }

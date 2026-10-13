@@ -257,6 +257,7 @@ scoped vals:array<mixed> = Convert::mapValuesToArray(m)
 import ocara.Convert
 import ocara.Array
 import ocara.Map
+import ocara.IO
 
 function main(): int {
 
@@ -264,19 +265,19 @@ function main(): int {
     var s:string  = "128"
     scoped n:int  = Convert::strToInt(s)
     scoped r:string = Convert::intToStr(n / 2)
-    write(`Moitié de ${s} = ${r}`)   // 64
+    IO::writeln(`Moitié de ${s} = ${r}`)   // 64
 
     // Parser une config inline
     scoped cfg:map<string, string> = Convert::strToMap("debug=1,lang=fr,limit=50", ",", "=")
     scoped debug:bool = Convert::strToBool(Map::get(cfg, "debug"))
     scoped limit:int  = Convert::strToInt(Map::get(cfg, "limit"))
-    write(`debug=${debug}  limit=${limit}`)   // debug=true  limit=50
+    IO::writeln(`debug=${debug}  limit=${limit}`)   // debug=true  limit=50
 
     // Sérialiser un tableau en CSV puis le reparseur
     var data:array<string> = ["alice", "bob", "charlie"]
     scoped csv:string    = Convert::arrayToStr(data, ",")
     scoped back:array<string> = Convert::strToArray(csv, ",")
-    write(`roundtrip : ${Array::len(back)} éléments`)   // 3
+    IO::writeln(`roundtrip : ${Array::len(back)} éléments`)   // 3
 
     return 0
 }
@@ -334,7 +335,7 @@ function main(): int {
     
     scoped i:int = 0
     scoped len:int = Array::len(values)
-    while i < len {
+    while i smaller len {
         var s:string = values.get(i)
         try {
             var f:float = Convert::strToFloat(s)
@@ -356,12 +357,12 @@ import ocara.Convert
 import ocara.ConvertException
 import ocara.IO
 
-function safe_str_to_int(s:string, default:int): int {
+function safe_str_to_int(s:string, fallback:int): int {
     try {
         return Convert::strToInt(s)
     } on e is ConvertException {
-        IO::writeln(`Warning: invalid int '${s}', using default ${default}`)
-        return default
+        IO::writeln(`Warning: invalid int '${s}', using default ${fallback}`)
+        return fallback
     }
 }
 

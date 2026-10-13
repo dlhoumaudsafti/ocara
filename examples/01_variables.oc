@@ -7,7 +7,8 @@
 //                la fermeture du bloc
 //   - consumed : variable à USAGE UNIQUE — rend sa valeur (ferme sa
 //                ressource) juste après sa première utilisation
-//   - const    : constante globale (évaluée à la compilation)
+//   - const    : constante globale (littéral recopié tel quel ; valeur
+//                calculée évaluée une seule fois en tête de `main`)
 //   - null     : absence de valeur pour les types référence
 //
 // NOTE : toute valeur tas (string, array, map, objet) est comptée : elle

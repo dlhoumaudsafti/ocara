@@ -1,6 +1,5 @@
 /// Dispatch dynamique réel pour l'héritage de classe (voir
-/// docs/roadmap.d/langage-interfaces.md et `super::interfaces`, le même
-/// mécanisme pour les interfaces).
+/// `super::interfaces`, le même mécanisme pour les interfaces).
 ///
 /// `var s:Shape = use Circle()` (avec `Circle extends Shape`) compilait déjà
 /// (résolution statique de `Shape_describe`) mais appelait TOUJOURS

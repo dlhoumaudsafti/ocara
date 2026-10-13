@@ -33,19 +33,10 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__map_set",         params: &[clt::I64, clt::I64, clt::I64],         returns: None,              module: None },
     BuiltinDesc { name: "__map_get",         params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
 
-    // ── Libération / clonage (scoped/consumed — voir docs/EBNF.md) ────────────
-    // `__value_free`/`__value_clone` dispatchent sur le tag RUNTIME (pas le
-    // type statique AST) — seul moyen sûr de savoir si une `string` donnée
-    // est réellement possédée (tas) ou empruntée (littéral en .rodata).
-    // Point d'entrée unique utilisé par le lowering pour toute `scoped`/
-    // `consumed` de type valeur (string/array/map) — voir
-    // crate::lower::stmt::ownership.
-    // Conteneurs d'objets : (conteneur, adresse de __free_/__clone_<Classe>).
-    // Variantes "shallow" pour array<T>/map<K,T> à élément primitif concret
-    // (int/float/bool, jamais mixed) — voir runtime/src/lib.rs.
-    // Conteneur concret imbriqué sur 2+ niveaux (`array<array<int>>`...) —
-    // voir `crate::lower::stmt::ownership::concrete_elem_shape` : 2e/3e
-    // paramètre = string de "forme" + offset courant.
+    // ── Libération ────────────────────────────────────────────────────────────
+    // La libération des valeurs tas (string/array/map/objet) et la fermeture
+    // des champs ressource passent par le comptage de références : voir
+    // src/lower/builder.d/rc_layout.rs et runtime/src/rc.rs.
 
     // ── Comparaisons avec vérification de type au runtime ─────────────────────
     // Utilisées uniquement quand sema n'a pas pu vérifier statiquement (au
@@ -106,8 +97,7 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__rc_collect_cycles",    params: &[],                                         returns: None,               module: None },
     BuiltinDesc { name: "__alloc_class_obj",      params: &[clt::I64, clt::I64, clt::I64],            returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__alloc_fat_ptr",        params: &[],                                returns: Some(clt::I64),    module: None },
-    // Cellule verrouillée pour variables capturées (voir runtime/src/lib.rs
-    // et docs/roadmap.d/memoire-concurrence-threads.md).
+    // Cellule verrouillée pour variables capturées (voir runtime/src/lib.rs).
     BuiltinDesc { name: "__alloc_gen",             params: &[clt::I64, clt::I64],                     returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__free_gen",              params: &[clt::I64, clt::I64],                     returns: None,               module: None },
     BuiltinDesc { name: "__alloc_env",             params: &[clt::I64, clt::I64],                     returns: Some(clt::I64),    module: None },

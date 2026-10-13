@@ -25,9 +25,10 @@ import ocara.*           // importe toutes les classes builtins
 
 ```ocara
 import ocara.Math
+import ocara.IO
 
-write(Math::PI)    // 3.14159265358979
-write(Math::TAU)   // 6.28318530717958
+IO::writeln(Math::PI)    // 3.14159265358979
+IO::writeln(Math::TAU)   // 6.28318530717958
 ```
 
 ---
@@ -172,28 +173,29 @@ Math::round(-2.5)  // → -2
 
 ```ocara
 import ocara.Math
+import ocara.IO
 
 function main(): int {
 
     // Aire d'un cercle
     var r:float = 5.0
     scoped aire:float = Math::PI * r * r
-    write(`Aire cercle r=5 : ${aire}`)     // ~78.53
+    IO::writeln(`Aire cercle r=5 : ${aire}`)     // ~78.53
 
     // Distance euclidienne (Pythagore)
     var dx:int = 3
     var dy:int = 4
-    scoped dist:float = Math::sqrt(Math::pow(dx, 2) + Math::pow(dy, 2))
-    write(`Distance = ${dist}`)            // 5.0
+    scoped dist:float = Math::sqrt((Math::pow(dx, 2) + Math::pow(dy, 2)).toFloat())
+    IO::writeln(`Distance = ${dist}`)            // 5.0
 
     // Score normalisé entre 0 et 100
     var score:int = 120
     scoped clamped:int = Math::clamp(score, 0, 100)
-    write(`Score : ${clamped}`)            // 100
+    IO::writeln(`Score : ${clamped}`)            // 100
 
     // Arrondi d'une valeur calculée
     scoped pages:int = Math::ceil(157.0 / 10.0)
-    write(`Pages nécessaires : ${pages}`)  // 16
+    IO::writeln(`Pages nécessaires : ${pages}`)  // 16
 
     return 0
 }

@@ -13,7 +13,7 @@ import ocara.YAML
 // jamais ses éléments. Corrigé en calculant, à la compilation, le type de
 // feuille concret connu statiquement (`static_json_leaf_kind`) et en le
 // transmettant à `value_to_json`/`value_to_yaml`, qui n'a alors plus besoin
-// de deviner. Voir docs/roadmap.d/langage-mixed-literal-stringification.md.
+// de deviner.
 
 class Test_40_json_yaml_concrete_containers {
 

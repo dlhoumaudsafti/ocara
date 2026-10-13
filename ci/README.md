@@ -8,6 +8,15 @@ Pipeline d'intégration continue pour le projet Ocara.
 make ci
 ```
 
+## Exemples de la documentation
+
+```bash
+./ci/doc_examples.sh            # tous les fichiers de docs/
+./ci/doc_examples.sh docs/X.md  # un seul fichier
+```
+
+Vérifie (`ocara --check`) chaque bloc ```` ```ocara ```` **complet** de `docs/` (un bloc qui déclare `function main`) ; `architecture permissive` est ajouté s'il manque. Un bloc précédé de `<!-- doc-check: skip -->` (suite d'un bloc précédent, programme multi-fichiers, gabarit) ou contenant `❌` est ignoré. Lancé par `make regression`.
+
 ## Pipeline
 
 Le pipeline CI traite **chaque fichier individuellement** avec 4 étapes séquentielles :

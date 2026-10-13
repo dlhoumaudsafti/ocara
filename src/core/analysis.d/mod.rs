@@ -26,7 +26,7 @@ pub struct AnalyzeOptions<'a> {
     pub input: &'a Path,
     /// Racine de résolution des imports (`--src`) ; dossier du fichier sinon.
     pub src_dir: Option<&'a Path>,
-    /// Affiche les tokens et l'AST (`--dump`).
+    /// Affiche les tokens, l'AST et la représentation intermédiaire (`--dump`).
     pub dump: bool,
     /// Collecte l'index des références (serveur de langage).
     pub index: bool,

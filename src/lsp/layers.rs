@@ -17,11 +17,13 @@ pub fn config(ws: &Workspace, path: &Path) -> Option<Config> {
     effective(program.architecture.as_ref(), path, &ws.project_root(path)).ok().flatten()
 }
 
-/// « car · infrastructure (infra) », « hors src », ou `None` si non classable.
+/// « car · infrastructure (infra) », « hors src », « bibliothèque externe »,
+/// ou `None` si non classable.
 pub fn describe(config: &Config, file: &Path) -> Option<(String, Option<String>, Option<&'static str>)> {
     match config.place(file) {
         Place::Layer { context, layer } => Some((format!("{} · {} ({})", context, layer, config.alias(layer)), Some(context), Some(layer))),
         Place::Outside => Some((format!("hors {}/", config.src_name.replace('.', "/")), None, None)),
+        Place::External => Some(("bibliothèque externe".to_string(), None, None)),
         Place::Unclassified => None,
     }
 }

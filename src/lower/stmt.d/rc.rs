@@ -7,8 +7,10 @@
 //! - Une lecture (variable, champ, index) est empruntée : un stockage la
 //!   retient.
 //! - Les locales comptées sont relâchées en sortie de portée (fin de bloc,
-//!   `return`, `break`, `continue`), jamais une variable capturée par une
-//!   closure (sa cellule n'est pas encore comptée : fuite sûre).
+//!   `return`, `break`, `continue`). Une variable capturée par une closure
+//!   vit dans une cellule comptée (`promote_to_cell`) : la locale rend sa
+//!   cellule en sortie de portée, et la cellule relâche la valeur quand plus
+//!   aucune closure ne la tient.
 
 use crate::ir::inst::{Inst, Value};
 use crate::ir::types::IrType;

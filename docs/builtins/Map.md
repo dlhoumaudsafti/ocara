@@ -22,7 +22,7 @@ import ocara.*          // importe toutes les classes builtins
 Retourne le nombre d'entrées de la map.
 
 ```ocara
-var m:map = {"a": 1, "b": 2, "c": 3}
+var m:map<string, int> = {"a": 1, "b": 2, "c": 3}
 Map::size(m)    // → 3
 Map::size({})   // → 0
 ```
@@ -45,7 +45,7 @@ Map::isEmpty({"x": 1})       // → false
 Retourne `true` si la clé `key` existe dans la map.
 
 ```ocara
-var m:map = {"alice": 95, "bob": 72}
+var m:map<string, int> = {"alice": 95, "bob": 72}
 Map::has(m, "alice")    // → true
 Map::has(m, "david")    // → false
 ```
@@ -59,7 +59,7 @@ Retourne la valeur associée à `key`.
 Toujours vérifier avec `Map::has` avant si la présence n'est pas garantie, ou entourer l'appel d'un `try`/`on`.
 
 ```ocara
-var m:map = {"prix": 42, "qte": 3}
+var m:map<string, int> = {"prix": 42, "qte": 3}
 scoped p:int = Map::get(m, "prix")   // → 42
 
 if Map::has(m, "remise") {
@@ -77,7 +77,7 @@ Insère ou **met à jour** l'entrée `key` → `val` dans la map.
 Modifie la map en place.
 
 ```ocara
-var m:map = {"a": 1}
+var m:map<string, int> = {"a": 1}
 Map::set(m, "b", 2)    // insère  → {"a": 1, "b": 2}
 Map::set(m, "a", 99)   // mise à jour → {"a": 99, "b": 2}
 ```
@@ -90,7 +90,7 @@ Supprime l'entrée associée à `key`. Sans effet si la clé est absente.
 Modifie la map en place.
 
 ```ocara
-var m:map = {"a": 1, "b": 2}
+var m:map<string, int> = {"a": 1, "b": 2}
 Map::remove(m, "a")
 // m est maintenant {"b": 2}
 ```
@@ -103,7 +103,7 @@ Retourne un tableau contenant toutes les clés de la map.
 L'ordre n'est pas garanti.
 
 ```ocara
-var m:map = {"x": 10, "y": 20, "z": 30}
+var m:map<string, int> = {"x": 10, "y": 20, "z": 30}
 scoped cles:array<string> = Map::keys(m)
 // → ["x", "y", "z"] (ordre quelconque)
 ```
@@ -116,7 +116,7 @@ Retourne un tableau contenant toutes les valeurs de la map.
 L'ordre correspond à celui de `Map::keys`.
 
 ```ocara
-var m:map = {"x": 10, "y": 20}
+var m:map<string, int> = {"x": 10, "y": 20}
 scoped vals:array<int> = Map::values(m)
 // → [10, 20]
 ```
@@ -129,10 +129,10 @@ Retourne une **nouvelle** map contenant toutes les entrées de `a` et `b`.
 En cas de clé commune, la valeur de `b` **écrase** celle de `a`.
 
 ```ocara
-var base:map = {"timeout": 30, "retry": 3}
-var extra:map = {"timeout": 60, "debug": 1}
+var base:map<string, int> = {"timeout": 30, "retry": 3}
+var extra:map<string, int> = {"timeout": 60, "debug": 1}
 
-scoped config:map = Map::merge(base, extra)
+scoped config:map<string, int> = Map::merge(base, extra)
 Map::get(config, "timeout")   // → 60  (écrasé par extra)
 Map::get(config, "retry")     // → 3   (conservé de base)
 Map::get(config, "debug")     // → 1   (ajouté depuis extra)
@@ -176,38 +176,40 @@ Map::forEach(scores, nameless(key:mixed, value:mixed): void {
 ```ocara
 import ocara.Map
 import ocara.Array
+import ocara.IO
 
 function main(): int {
 
     // Initialisation et alimentation dynamique
-    var compteurs:map = {}
+    var compteurs:map<string, int> = {}
     var mots:array<string> = ["foo", "bar", "foo", "baz", "foo", "bar"]
 
     for mot in mots {
         if Map::has(compteurs, mot) {
             scoped c:int = Map::get(compteurs, mot)
             Map::set(compteurs, mot, c + 1)
+        } else {
+            Map::set(compteurs, mot, 1)
         }
-        Map::set(compteurs, mot, 1)
     }
 
     // Afficher les résultats
     for cle in Map::keys(compteurs) {
-        write(`${cle} : ${Map::get(compteurs, cle)}`)
+        IO::writeln(`${cle} : ${Map::get(compteurs, cle)}`)
     }
 
     // Fusion de configurations
-    var defaults:map = {"lang": "fr", "theme": "light", "limit": 20}
-    var user_prefs:map = {"theme": "dark", "limit": 50}
-    scoped final_cfg:map = Map::merge(defaults, user_prefs)
+    var defaults:map<string, mixed> = {"lang": "fr", "theme": "light", "limit": 20}
+    var user_prefs:map<string, mixed> = {"theme": "dark", "limit": 50}
+    scoped final_cfg:map<string, mixed> = Map::merge(defaults, user_prefs)
 
-    write(`theme : ${Map::get(final_cfg, "theme")}`)   // dark
-    write(`lang  : ${Map::get(final_cfg, "lang")}`)    // fr
+    IO::writeln(`theme : ${Map::get(final_cfg, "theme")}`)   // dark
+    IO::writeln(`lang  : ${Map::get(final_cfg, "lang")}`)    // fr
 
     // Vérification avant accès
-    var m:map = {}
+    var m:map<string, int> = {}
     if Map::isEmpty(m) {
-        write("aucune donnée")
+        IO::writeln("aucune donnée")
     }
 
     return 0

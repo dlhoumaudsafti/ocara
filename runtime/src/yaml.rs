@@ -14,8 +14,7 @@ use crate::__map_new;
 /// historique), 1/2/3 = int/float/bool — le type de feuille concret d'un
 /// conteneur qui ne boxe jamais ses éléments (`array<int>`...), sans quoi un
 /// entier brut `0`/`1` est indiscernable de `null`/`false` (voir
-/// `value_to_yaml`, même angle mort que pour JSON — voir
-/// docs/roadmap.d/langage-mixed-literal-stringification.md).
+/// `value_to_yaml`, même angle mort que pour JSON).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn YAML_encode(data: i64, leaf_kind: i64) -> i64 {
     let yaml_val = value_to_yaml(data, leaf_kind);

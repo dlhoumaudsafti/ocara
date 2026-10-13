@@ -36,7 +36,7 @@ pub fn check_implements(program: &Program, symbols: &SymbolTable, input: &Path) 
         check_contracts("class", &class_decl.name, &class_decl.implements, &class_decl.span, &lookup, symbols, input)?;
     }
     // Un `generic` n'est monomorphisé en classe qu'après la sema : vérifié
-    // ici sur sa déclaration (docs/roadmap.d/langage-generiques.md).
+    // ici sur sa déclaration.
     for generic_decl in &program.generics {
         let info = symbols.lookup_generic(&generic_decl.name).expect("generic enregistré");
         let lookup = |method: &str| info.methods.get(method);

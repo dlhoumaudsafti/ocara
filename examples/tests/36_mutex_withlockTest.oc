@@ -4,8 +4,7 @@ import ocara.UnitTest
 import ocara.Mutex
 
 // `Mutex::withLock` : lock + exécution de la closure + unlock garanti, même
-// si la closure `raise` (voir docs/roadmap.d/memoire-deadlocks-raise.md et
-// docs/builtins/Mutex.md). Avec lock()/unlock() manuels, un raise entre les
+// si la closure `raise` (voir docs/builtins/Mutex.md). Avec lock()/unlock() manuels, un raise entre les
 // deux appels saute unlock() (setjmp/longjmp, pas d'unwinding) et laisse le
 // mutex verrouillé pour toujours.
 //

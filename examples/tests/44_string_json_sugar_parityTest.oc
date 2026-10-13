@@ -65,7 +65,7 @@ class Test_44_string_json_sugar_parity {
 
     // `JSON::encode`/`.encode()` sur un conteneur CONCRET (`array<float>`/
     // `array<bool>`) — le cas historique le plus fragile pour ce genre de
-    // parité (voir docs/roadmap.d/langage-mixed-literal-stringification.md).
+    // parité.
     public method jsonEncodeConcreteParityTest(): int {
         var floats:array<float> = [1.5, 0.0]
         var bools:array<bool> = [true, false]

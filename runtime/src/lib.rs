@@ -152,12 +152,10 @@ pub mod global_const;
 /// chaîne valide, voir `src/parsing/lexer.d/scanner.d/readers.rs`) — un tel
 /// octet interne aurait fait recalculer une longueur plus COURTE que
 /// l'allocation réelle, donc un `Layout` faux passé à `dealloc` (voir
-/// docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md). `__object_free`
-/// (n_fields recalculé, `src/lower/builder.d/class_ownership.rs`) reste lui
-/// sans changement : `n_fields` provient d'une SEULE source
-/// (`class_layouts`), relue identiquement à l'allocation et à la
-/// libération dans une même compilation — rien à recalculer de façon
-/// divergente, contrairement au cas des strings.
+/// docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md). La libération
+/// d'un objet (`rc::free_object`, runtime/src/rc.rs) n'a pas ce problème :
+/// sa taille vient du masque de classe rangé dans l'en-tête de l'instance
+/// (`src/lower/builder.d/rc_layout.rs`), le même qu'à l'allocation.
 /// `pub` (pas `pub(crate)`) : utilisé depuis le crate séparé runtime_tauri.
 pub unsafe fn alloc_str(s: &str) -> i64 {
     let bytes = s.as_bytes();
@@ -2327,11 +2325,10 @@ pub extern "C" fn __alloc_obj(size: i64) -> i64 {
 }
 
 /// Libère un bloc alloué par `__alloc_obj` (même `size`, en octets, que celle
-/// passée à l'allocation — rien ne la mémorise ailleurs, comme pour
-/// `__object_free`). Utilisée pour le frame heap d'un générateur (`emit`/
+/// passée à l'allocation — rien ne la mémorise ailleurs). Utilisée pour le frame heap d'un générateur (`emit`/
 /// `message<T>`, voir docs/roadmap.d/langage-emit-iterable.md et
 /// `src/lower/builder.d/message_gen.rs`) : pas de tag/header à sauter (contrairement
-/// à `__object_free`, réservé à `__alloc_class_obj`), le pointeur libéré est
+/// à `rc::free_object`, réservé à `__alloc_class_obj`), le pointeur libéré est
 /// exactement celui retourné par `__alloc_obj`.
 #[unsafe(no_mangle)]
 pub extern "C" fn __free_obj(ptr: i64, size: i64) {
@@ -2371,8 +2368,7 @@ pub extern "C" fn __alloc_fat_ptr() -> i64 {
 // `src/lower/expr.d/lower.rs`) : le scope extérieur et la closure partagent
 // alors le même pointeur, potentiellement lu/écrit depuis plusieurs threads
 // à la fois (Thread::run, workers HTTPServer) — sans ces fonctions, un accès
-// concurrent était un comportement non défini (voir
-// docs/roadmap.d/memoire-concurrence-threads.md). Chaque cellule embarque
+// concurrent était un comportement non défini. Chaque cellule embarque
 // désormais son propre mutex : `__alloc_locked_cell` réserve les octets d'un
 // `pthread_mutex_t` juste AVANT la valeur (même convention "header avant le
 // pointeur retourné" que les tags `TAG_*` du reste du runtime), et
@@ -2958,8 +2954,7 @@ pub extern "C" fn __ocara_fail(val: i64, type_name: i64) {
 /// `"FileNotFound|FileException|Exception"` — voir IrModule::ancestor_chain,
 /// lower_raise). Un filtre sur une classe PARENTE doit attraper une sous-
 /// classe : on cherche `filter` comme un des maillons de la chaîne, pas une
-/// égalité stricte avec la valeur entière de `stored` — voir
-/// docs/roadmap.d/langage-exceptions.md. Reste compatible avec un `stored`
+/// égalité stricte avec la valeur entière de `stored`. Reste compatible avec un `stored`
 /// à un seul maillon (pas de `|`) : le split ne renvoie alors que lui-même.
 #[unsafe(no_mangle)]
 pub extern "C" fn __ocara_type_matches(stored: i64, filter: i64) -> i64 {
@@ -3346,8 +3341,7 @@ pub extern "C" fn __dyn_add(a: i64, b: i64) -> i64 {
 /// seule question est entier vs flottant, décidée ICI dynamiquement
 /// (`is_float_box` sur CHAQUE opérande) plutôt que par le type statique de
 /// l'AUTRE opérande — un `mixed` contenant un float combiné à un `int` connu
-/// aurait sinon été silencieusement tronqué en entier (voir
-/// docs/roadmap.d/langage-mixed-arithmetic.md). Retourne, comme `__dyn_add`,
+/// aurait sinon été silencieusement tronqué en entier. Retourne, comme `__dyn_add`,
 /// une valeur "mixed" auto-décrite (entier brut ou float boxé).
 macro_rules! dyn_arith_op {
     ($name:ident, $op:tt) => {
@@ -3425,8 +3419,7 @@ fn value_to_json(val: i64, shape: i64) -> JsonValue {
     // ce déballage pour `mixed`, un float/bool construit par un littéral
     // `array<mixed>`/`map<string,mixed>` (voir lower_array_literal/
     // lower_map_literal) ressortait comme un entier correspondant à
-    // l'adresse du pointeur boxé (confirmé par reproduction — voir
-    // docs/roadmap.d/langage-mixed-literal-stringification.md).
+    // l'adresse du pointeur boxé (confirmé par reproduction).
     if leaf_kind == 0 {
         if is_float_box(val) {
             let f = unsafe { unbox_float(val) };

@@ -161,10 +161,39 @@ scoped s:array<string> = Array::sort(["banane", "pomme", "abricot"])
 
 ---
 
+### `Array::get(arr, idx)` → `mixed`
+
+Retourne l'élément à l'indice `idx` (à partir de 0). Équivalent de `arr[idx]` / `arr.get(idx)`.  
+**Indice hors bornes** : retourne la valeur nulle (`0`), **sans** lever d'exception.
+
+```ocara
+var nums:array<int> = [10, 20, 30]
+var x:int = Array::get(nums, 1)    // → 20
+Array::get(nums, 42)               // → 0 (hors bornes, pas d'exception)
+```
+
+---
+
+### `Array::set(arr, idx, val)` → `void`
+
+Remplace l'élément à l'indice `idx` par `val`. Modifie le tableau en place.  
+Si `idx` dépasse la fin du tableau, celui-ci est **agrandi** jusqu'à `idx` ; les cases intermédiaires valent `null`.
+
+```ocara
+var nums:array<int> = [10, 20, 30]
+Array::set(nums, 1, 99)    // → [10, 99, 30]
+Array::set(nums, 5, 7)     // → [10, 99, 30, null, null, 7]  (len = 6)
+```
+
+> ⚠️ Ne jamais passer un indice **négatif** : il n'est pas vérifié et provoque un agrandissement démesuré du tableau.
+
+---
+
 ## Combinaisons courantes
 
 ```ocara
 import ocara.Array
+import ocara.IO
 
 function main(): int {
 
@@ -176,22 +205,22 @@ function main(): int {
             Array::push(unique, v)
         }
     }
-    write(`unique : ${Array::join(unique, ", ")}`)   // 1, 2, 3, 4, 5
+    IO::writeln(`unique : ${Array::join(unique, ", ")}`)   // 1, 2, 3, 4, 5
 
     // Extraire les 3 derniers éléments
     var data:array<int>    = [10, 20, 30, 40, 50, 60]
     scoped tail:array<int> = Array::slice(data, Array::len(data) - 3, Array::len(data))
-    write(Array::join(tail, ", "))   // 40, 50, 60
+    IO::writeln(Array::join(tail, ", "))   // 40, 50, 60
 
     // Trier puis joindre
     var tags:array<string>      = ["rust", "ocara", "cranelift", "llvm"]
     scoped sorted:array<string> = Array::sort(tags)
-    write(Array::join(sorted, " | "))   // cranelift | llvm | ocara | rust
+    IO::writeln(Array::join(sorted, " | "))   // cranelift | llvm | ocara | rust
 
     // Vérification avant accès
     var vide:array<int> = []
     if Array::len(vide) equal 0 {
-        write("tableau vide")
+        IO::writeln("tableau vide")
     }
 
     return 0
@@ -350,6 +379,7 @@ Les messages d'exception sont en anglais :
 - `Array::contains()`, `Array::indexOf()` ne lèvent jamais d'exception (retournent false/-1)
 - `Array::slice()` ne lève jamais d'exception (ajuste automatiquement les indices)
 - `Array::reverse()`, `Array::sort()`, `Array::join()` ne lèvent jamais d'exception
+- `Array::get()` ne lève jamais d'exception (retourne `0` hors bornes) ; `Array::set()` non plus (agrandit le tableau si besoin)
 
 ---
 
@@ -368,6 +398,8 @@ Les messages d'exception sont en anglais :
 | `Array::slice`       | `Array_slice`      | `I64, I64, I64`           | `I64`   |
 | `Array::join`        | `Array_join`       | `I64, I64`                | `I64`   |
 | `Array::sort`        | `Array_sort`       | `I64`                     | `I64`   |
+| `Array::get`         | `Array_get`        | `I64, I64`                | `I64`   |
+| `Array::set`         | `Array_set`        | `I64, I64, I64`           | —       |
 
 Les tableaux sont passés comme pointeurs `I64` vers la structure de tableau gérée par le runtime.  
 `Array::contains` retourne `0` (false) ou `1` (true) encodé en `I64`.

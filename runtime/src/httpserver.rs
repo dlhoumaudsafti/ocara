@@ -132,10 +132,16 @@ struct Route {
 // OcaraHttpServer — struct interne
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Taille maximale par défaut d'un corps de requête : 10 Mio.
+const DEFAULT_MAX_BODY: usize = 10 * 1024 * 1024;
+
 struct OcaraHttpServer {
     port:          u16,
     host:          String,
     workers:       usize,
+    /// Taille maximale du corps de requête en octets (0 : sans limite) —
+    /// au-delà, réponse 413 sans appeler le handler.
+    max_body:      usize,
     routes:        Vec<Route>,
     root_path:     Option<String>,  // Répertoire racine pour fichiers statiques
     error_handlers: HashMap<u16, SendHandler>, // Handlers pour codes d'erreur (404, 500, etc.)
@@ -147,6 +153,7 @@ impl OcaraHttpServer {
             port:           8080,
             host:           "0.0.0.0".into(),
             workers:        4,
+            max_body:       DEFAULT_MAX_BODY,
             routes:         Vec::new(),
             root_path:      None,
             error_handlers: HashMap::new(),
@@ -850,6 +857,7 @@ fn handle_request(
     routes: &[Route],
     root_path: Option<&str>,
     error_handlers: &HashMap<u16, SendHandler>,
+    max_body: usize,
 ) {
     // Lire le corps en OCTETS BRUTS (pas `read_to_string`) : un corps
     // `multipart/form-data` contenant un fichier (JPEG, PDF...) n'est PAS de
@@ -860,8 +868,23 @@ fn handle_request(
     // (accessible côté Ocara via `body(): string`) reste dérivé en texte via
     // une conversion LOSSY — comportement inchangé pour un corps texte réel
     // (JSON, urlencoded...), qui est toujours de l'UTF-8 valide.
+    // Corps borné (`maxBodySize`, défaut 10 Mio) : un client pouvait faire
+    // allouer une quantité arbitraire de mémoire — 413 au-delà, sans
+    // appeler le handler (voir docs/roadmap.d/stdlib-httpserver-request-object.md).
+    if max_body > 0 && request.body_length().is_some_and(|n| n > max_body) {
+        let _ = request.respond(tiny_http::Response::from_string("Payload Too Large").with_status_code(413));
+        return;
+    }
     let mut raw_body: Vec<u8> = Vec::new();
-    let _ = request.as_reader().read_to_end(&mut raw_body);
+    if max_body > 0 {
+        let _ = std::io::Read::read_to_end(&mut std::io::Read::take(request.as_reader(), max_body as u64 + 1), &mut raw_body);
+        if raw_body.len() > max_body {
+            let _ = request.respond(tiny_http::Response::from_string("Payload Too Large").with_status_code(413));
+            return;
+        }
+    } else {
+        let _ = request.as_reader().read_to_end(&mut raw_body);
+    }
     let body = String::from_utf8_lossy(&raw_body).to_string();
 
     // Décomposer l'URL en chemin + query string
@@ -1016,6 +1039,14 @@ pub extern "C" fn HTTPServer_host(self_ptr: i64, host_ptr: i64) {
     s.host = unsafe { ptr_to_str(host_ptr).to_string() };
 }
 
+/// Taille maximale du corps de requête en octets (défaut : 10 Mio, 0 : sans
+/// limite). Au-delà, le serveur répond 413 sans appeler le handler.
+#[unsafe(no_mangle)]
+pub extern "C" fn HTTPServer_maxBodySize(self_ptr: i64, bytes: i64) {
+    let s = unsafe { server_from_slot(self_ptr) };
+    s.max_body = bytes.max(0) as usize;
+}
+
 /// Définit le nombre de threads workers (défaut : 4).
 #[unsafe(no_mangle)]
 pub extern "C" fn HTTPServer_workers(self_ptr: i64, n: i64) {
@@ -1129,6 +1160,7 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
     let routes: Arc<Vec<Route>> = Arc::new(std::mem::take(&mut data.routes));
     let root_path: Arc<Option<String>> = Arc::new(data.root_path.clone());
     let error_handlers: Arc<HashMap<u16, SendHandler>> = Arc::new(std::mem::take(&mut data.error_handlers));
+    let max_body = data.max_body;
 
     server_log!("HTTPServer: listening on http://{}\n", addr);
 
@@ -1143,7 +1175,7 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
             loop {
                 let next = { let _parked = crate::rc::park(); server.recv() };
                 match next {
-                    Ok(request) => handle_request(request, &routes, root_path.as_deref(), &error_handlers),
+                    Ok(request) => handle_request(request, &routes, root_path.as_deref(), &error_handlers, max_body),
                     Err(_)      => break,
                 }
             }

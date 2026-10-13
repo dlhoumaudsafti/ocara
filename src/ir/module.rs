@@ -39,14 +39,10 @@ pub struct IrModule {
     pub class_layouts: HashMap<String, Vec<(String, IrType)>>,
     /// Comme `class_layouts`, mais avec le vrai type AST de chaque champ
     /// (pas `IrType`, qui réduit string/array/map/instance à `Ptr`, tous
-    /// indistinguables) — indispensable pour générer les destructeurs/
-    /// clones réels des instances de classe utilisateur (`scoped`/
-    /// `consumed MaClasse`, voir `src/lower/builder.d/class_ownership.rs`).
-    /// UNIQUEMENT pour les classes utilisateur (`program.classes`) — sert
-    /// aussi de test d'appartenance : une classe absente d'ici (builtin/
-    /// opaque comme Mutex/SDL/Exception) n'a PAS de `__free_<Classe>`/
-    /// `__clone_<Classe>` généré, donc ne doit jamais être traitée comme un
-    /// objet possédable (voir `class_ownership::has_generated_destructor`).
+    /// indistinguables) — indispensable pour calculer le masque de comptage
+    /// de références de chaque classe (champ compté, handle de ressource à
+    /// fermer avec l'objet : voir `src/lower/builder.d/rc_layout.rs`).
+    /// UNIQUEMENT pour les classes utilisateur (`program.classes`).
     pub class_field_types: HashMap<String, Vec<(String, Type)>>,
     /// Champs de type map<K,V> par classe (hérités inclus) : class_name → noms de
     /// champs. `class_layouts` réduit tout à IrType::Ptr (map/array/string
@@ -63,7 +59,7 @@ pub struct IrModule {
     /// (`__alloc_class_obj`, `runtime/src/lib.rs`) pour permettre un
     /// polymorphisme réel : `is ClassName`/`is InterfaceName` et le dispatch
     /// dynamique d'une méthode appelée via une variable de type parent/
-    /// interface (voir docs/roadmap.d/langage-interfaces.md).
+    /// interface.
     pub class_ids: HashMap<String, i64>,
     /// Masque des champs tas de chaque classe (index de chaîne internée),
     /// rangé dans l'en-tête des instances — voir `builder::rc_layout`.
@@ -87,8 +83,7 @@ pub struct IrModule {
     /// le diagnostic E09/le dispatch dynamique — pas de transitivité via
     /// `extends` pour `implements`). `x is Circle` et `x is Drawable`
     /// compilaient jusqu'ici en code STRICTEMENT IDENTIQUE (`__is_object`
-    /// seul, sans jamais regarder la classe RÉELLE de `x`) — voir
-    /// docs/roadmap.d/langage-interfaces.md.
+    /// seul, sans jamais regarder la classe RÉELLE de `x`).
     pub is_check_candidates: HashMap<String, Vec<i64>>,
     /// Types des paramètres du constructeur : class_name → Vec<IrType>
     pub ctor_param_types: HashMap<String, Vec<IrType>>,
@@ -208,7 +203,7 @@ impl IrModule {
     /// caractère). Utilisée par `raise` (voir `lower_raise`) pour que
     /// `__ocara_type_matches` (runtime/src/lib.rs) puisse faire correspondre
     /// un filtre `on e is X` à une SOUS-CLASSE de `X`, pas seulement à `X`
-    /// lui-même — voir docs/roadmap.d/langage-exceptions.md. `class_parents`
+    /// lui-même. `class_parents`
     /// couvre aussi bien les classes utilisateur (`extends`) que les
     /// exceptions builtin (voir `lower_program`).
     pub fn ancestor_chain(&self, class_name: &str) -> String {

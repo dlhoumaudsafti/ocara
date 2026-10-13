@@ -13,9 +13,8 @@ use crate::lower::builder::LowerBuilder;
 /// cible concrète est refusée par la sema) : un `float`/`bool` boxé, ou un
 /// `int` déjà brut. Sans déballage, le bit pattern du pointeur boxé était
 /// stocké tel quel dans la cible concrète — résultat faux, confirmé par
-/// reproduction (`var m:mixed = 3.5; var f:float = m` ; voir
-/// docs/roadmap.d/langage-mixed-arithmetic.md, découvert en corrigeant
-/// l'arithmétique `mixed` mais pas spécifique à un opérateur).
+/// reproduction (`var m:mixed = 3.5; var f:float = m` ; découvert en
+/// corrigeant l'arithmétique `mixed` mais pas spécifique à un opérateur).
 pub fn box_for_any(builder: &mut LowerBuilder, target_ty: &IrType, val_ty: IrType, val: Value) -> Value {
     if *target_ty != IrType::Ptr {
         if val_ty != IrType::Ptr {

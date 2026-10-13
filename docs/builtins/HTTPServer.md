@@ -21,6 +21,7 @@ const server:HTTPServer = use HTTPServer()
 server.port(8080)            // port d'écoute (défaut : 8080)
 server.host("0.0.0.0")       // interface réseau (défaut : "0.0.0.0")
 server.workers(32)           // threads workers (défaut : 4)
+server.maxBodySize(1048576)  // corps de requête max en octets (défaut : 10 Mio, 0 : sans limite)
 server.rootPath("./public") // répertoire pour fichiers statiques (optionnel)
 ```
 
@@ -346,6 +347,7 @@ server.route("/hits", "GET", nameless(req:HTTPServerRequest): int {
 | `port` | `(port:int) → void` | Port d'écoute |
 | `host` | `(host:string) → void` | Adresse d'écoute |
 | `workers` | `(n:int) → void` | Nombre de threads workers |
+| `maxBodySize` | `(bytes:int) → void` | Taille maximale du corps de requête en octets (défaut 10 Mio, `0` : sans limite) — au-delà, réponse `413 Payload Too Large` sans appeler le handler |
 | `rootPath` | `(path:string) → void` | Répertoire racine pour fichiers statiques |
 | `route` | `(path:string, method:string, f:Function<int(HTTPServerRequest)>) → void` | Enregistre une route |
 | `routeError` | `(code:int, f:Function<int(HTTPServerRequest)>) → void` | Enregistre un handler d'erreur personnalisé |
@@ -540,9 +542,9 @@ server.run()
 
 ## Notes de sécurité / concurrence
 
-`workers` threads acceptent réellement les connexions en parallèle (voir « Gestion des connexions multiples » ci-dessus) — ce n'est pas une simulation de concurrence. **Mais l'exécution d'un handler (route ou page d'erreur) est sérialisée** : un verrou interne, propre à chaque serveur, garantit qu'un seul handler Ocara s'exécute à la fois, quel que soit le nombre de workers. Deux requêtes simultanées ne peuvent donc **jamais** exécuter le même handler — ou deux handlers différents — en même temps. Ce qui reste parallèle entre requêtes : la lecture de la requête (corps, en-têtes) et l'envoi de la réponse, avant/après l'appel au handler.
+`workers` threads acceptent réellement les connexions en parallèle (voir « Gestion des connexions multiples » ci-dessus) — ce n'est pas une simulation de concurrence. **Mais l'exécution d'un handler (route ou page d'erreur) est sérialisée** : un verrou interne, **global et commun à tous les serveurs du programme**, garantit qu'un seul handler Ocara s'exécute à la fois, quel que soit le nombre de workers et le nombre de serveurs `HTTPServer` lancés. Deux requêtes simultanées ne peuvent donc **jamais** exécuter le même handler — ou deux handlers différents, même enregistrés sur deux serveurs distincts — en même temps. Ce qui reste parallèle entre requêtes : la lecture de la requête (corps, en-têtes) et l'envoi de la réponse, avant/après l'appel au handler.
 
-Conséquence pratique : **une variable capturée par un handler et partagée uniquement avec d'autres handlers n'a plus besoin d'être protégée par un `Mutex`** — la sérialisation l'empêche par construction.
+Conséquence pratique : **une variable capturée par un handler et partagée uniquement avec d'autres handlers n'a plus besoin d'être protégée par un `Mutex`, y compris entre plusieurs serveurs du même programme** — la sérialisation l'empêche par construction.
 
 ```ocara
 var hitCount:int = 0
@@ -582,11 +584,13 @@ function main(): int {
 
     // Tourne en dehors du verrou interne de HTTPServer : sans Mutex ici,
     // data race réel avec le handler ci-dessus.
-    var bg:Thread = Thread::spawn(nameless(): void {
+    var bg:Thread = use Thread()
+    bg.run(nameless(): void {
         lock.withLock(nameless(): void {
             counter = counter + 1
         })
     })
+    bg.detach()
 
     server.run()
     return 0

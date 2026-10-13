@@ -104,7 +104,7 @@ pub fn emit_memory(
                 // (identité réelle à l'exécution, voir IrModule::class_ids
                 // et `__alloc_class_obj` dans runtime/src/lib.rs — nécessaire
                 // pour `is ClassName`/`is InterfaceName` et le dispatch
-                // dynamique, voir docs/roadmap.d/langage-interfaces.md).
+                // dynamique).
                 let n_fields = class_layouts.get(class.as_str()).map(|f| f.len()).unwrap_or(1);
                 let size     = (n_fields as i64) * 8;
                 let size_val = builder.ins().iconst(clt::I64, size);

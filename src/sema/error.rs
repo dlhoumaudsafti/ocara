@@ -47,9 +47,10 @@ pub enum SemaError {
     UnclosedResourceVar { name: String, ty_name: String, span: Span },
     /// `.close()`/`.destroy()`/`.closeResponse()` appelé manuellement sur
     /// `self.<champ>`, un champ de type ressource (`Mutex`/`SQLite`/`MySQL`/
-    /// `MariaDB`/`HTTPRequest`/`HTTPResponse`) — `__free_<Classe>` ferme déjà
-    /// ce champ automatiquement quand l'instance porteuse est détruite (voir
-    /// `class_ownership::classify_field`/`FieldOwnership::Resource`) ; un
+    /// `MariaDB`/`HTTPRequest`/`HTTPResponse`) — ce champ est déjà fermé
+    /// automatiquement quand l'instance porteuse est détruite (lettre de
+    /// ressource du masque de classe, `src/lower/builder.d/rc_layout.rs`,
+    /// fermée par `finalize_object` dans `runtime/src/rc.rs`) ; un
     /// appel manuel en plus referait une fermeture déjà faite ailleurs dans
     /// la vie de l'instance, SEGFAULT le jour où les deux se produisent
     /// (même famille que `ResourceAlreadyFinalized`, mais entre méthodes

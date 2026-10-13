@@ -81,6 +81,7 @@ Documentation détaillée des classes intégrées au runtime Ocara :
 | [Thread.md](builtins/Thread.md) | Threads natifs (`spawn`, `join`, `sleep`) |
 | [Mutex.md](builtins/Mutex.md) | Verrous mutex pour synchronisation (`lock`, `unlock`) |
 | [UnitTest.md](builtins/UnitTest.md) | Assertions pour tests unitaires (`assertEquals`, `assertTrue`, `assertFalse`) |
+| [Exception.md](builtins/Exception.md) | Classes d'exception builtin, `raise`, `try`/`on` (`message`, `code`, `source`) |
 
 ### Interface graphique (expérimental)
 

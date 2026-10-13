@@ -2,16 +2,14 @@ architecture permissive
 
 import ocara.UnitTest
 
-// Libération/clonage "shallow" d'un array<T>/map<K,T> à élément primitif
-// concret (int/float/bool) ne couvrait que le niveau IMMÉDIAT — un
-// conteneur imbriqué (`array<array<int>>`) retombait dès le premier niveau
-// sur le chemin générique `__value_free`/`__value_clone`, qui redevient
-// dangereux un cran plus profond : un bit pattern `int`/`float` brut peut
-// ressembler à un pointeur heap valide, exactement le même SEGFAULT que
-// celui déjà corrigé pour le niveau immédiat (voir
-// docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md). Corrigé en
-// généralisant la variante "shallow" à une profondeur arbitraire
-// (`concrete_elem_shape`/`__array_free_concrete`/`__map_free_concrete`).
+// Libération d'un conteneur imbriqué à élément primitif concret
+// (`array<array<int>>`, `map<string, array<float>>`...) : un bit pattern
+// `int`/`float` brut peut ressembler à un pointeur heap valide, et le
+// libérer comme tel plantait (SEGFAULT, voir
+// docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md). La libération
+// passe aujourd'hui par le comptage de références
+// (src/lower/builder.d/rc_layout.rs, runtime/src/rc.rs) ; ces tests
+// vérifient l'absence de crash à plusieurs niveaux d'imbrication.
 //
 // NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée
 // du fichier (voir 33_exception_hierarchyTest.oc).

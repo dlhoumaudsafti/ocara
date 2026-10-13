@@ -171,13 +171,14 @@ String::empty(" a ")     // → false
 
 ```ocara
 import ocara.String
+import ocara.IO
 
 function main(): int {
 
     // Normaliser une saisie utilisateur
     var saisie:string = "  Alice  "
     scoped nom:string = String::capitalize(String::trim(saisie))
-    write(`Bonjour ${nom} !`)     // Bonjour Alice !
+    IO::writeln(`Bonjour ${nom} !`)     // Bonjour Alice !
 
     // Vérifier avant d'utiliser
     var entree:string = ""
@@ -187,11 +188,11 @@ function main(): int {
 
     // Découper et afficher
     scoped tags:array<string> = String::split("rust,ocara,cranelift", ",")
-    write(`Premier tag : ${String::upper(tags[0])}`)   // RUST
+    IO::writeln(`Premier tag : ${String::upper(tags[0])}`)   // RUST
 
     // Extraire une donnée balisée
     scoped version:string = String::between("build:[2.0.1]:stable", "[", "]")
-    write(`Version = ${version}`)   // 2.0.1
+    IO::writeln(`Version = ${version}`)   // 2.0.1
 
     return 0
 }

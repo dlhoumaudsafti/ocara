@@ -1,5 +1,5 @@
 //! Vérification, chargement et fusion des imports dans le programme
-//! d'entrée (voir docs/roadmap.d/langage-imports-modules.md).
+//! d'entrée.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};

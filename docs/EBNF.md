@@ -76,19 +76,17 @@
 ## 2. Structure d'un programme
 
 Un programme Ocara est un ensemble de fichiers sources (extension `.oc`).  
-Chaque fichier suit strictement l'ordre suivant :
+Chaque fichier a la forme suivante :
 
 ```
-Program ::= NamespaceDecl?
-            ImportDecl*
-            RuntimeImport*
-            RuntimeBlock*
-            ( ConstDecl | EnumDecl | ClassDecl | StructDecl | GenericDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
+Program  ::= NamespaceDecl? TopLevel*
+TopLevel ::= ImportDecl | RuntimeImport | RuntimeBlock | ArchitectureDecl
+           | ConstDecl | EnumDecl | ClassDecl | StructDecl | GenericDecl | ModuleDecl | InterfaceDecl | FuncDecl
 ```
 
 **Contraintes d'ordre :**
 - La déclaration de namespace (optionnelle) est toujours en première position.
-- Les imports viennent ensuite.
+- Le reste est accepté dans n'importe quel ordre ; par convention, les imports viennent en tête, puis la déclaration `architecture` (au plus une par fichier, §33), puis les déclarations.
 - Les imports runtime et blocs runtime (v0.3.0) sont optionnels.
 - Les déclarations de constantes, enums, classes, modules, interfaces et fonctions peuvent être dans n'importe quel ordre entre elles.
 - Il n'existe pas de code de niveau module exécutable hors d'une fonction (sauf dans les blocs runtime).
@@ -1134,9 +1132,9 @@ L'accès par index est un opérateur postfixe (précédence maximale).
 ## 8. Identifiants
 
 ```ebnf
-Identifier ::= Letter ( Letter | Digit | "_" )*
+Identifier ::= ( Letter | "_" ) ( Letter | Digit | "_" )*
 
-Letter ::= [a-z] | [A-Z]
+Letter ::= (* toute lettre Unicode : a-z, A-Z, é, ß… *)
 Digit  ::= [0-9]
 ```
 
@@ -1158,10 +1156,12 @@ while     for       in         return     result     use      break     continue
 try       on        is         raise
 int       float     string     bool       mixed      array    map       void
 true      false     null
-or        and       not        equal
-nameless  async     resolve    variadic   enum
+or        and       not        equal      smaller    greater
+nameless  async     resolve    variadic   enum       emit     message   when
 runtime   main      error      success    exit
 ```
+
+Mots **contextuels** (réservés seulement à leur position, utilisables comme identifiants ailleurs) : `to` et `until` (plages, §11), `has` (`for k has v in m`), `architecture`, `hexagonal`, `permissive`, `src`, `layers`, `shared` (§33).
 
 **Variables magiques réservées :**
 
@@ -1288,6 +1288,10 @@ Elles sont accessibles depuis n'importe quelle fonction ou méthode du module.
 **Constante locale** : `const` à l'intérieur d'une fonction déclare une variable **non réaffectable** (erreur E10 sinon), de même portée de bloc que `var` ; sa valeur peut être n'importe quelle expression, évaluée à la déclaration :
 
 ```ocara
+function compute(): int {
+    return 6 * 7
+}
+
 function main(): int {
     const total:int = compute()   // non réaffectable, portée du bloc
     return total
@@ -1393,7 +1397,7 @@ Du plus faible au plus fort :
 | 2      | `and`                    | Gauche        | |
 | 3      | `equal` `not equal` `smaller` `greater` `smaller or equal` `greater or equal` | Gauche | Comparaisons, toutes typées à la compilation |
 | 4      | `is`                     | —             | Test de type (narrowing) |
-| 5      | `..`                     | Aucune        | Opérateur de plage |
+| 5      | `to` `until`             | Aucune        | Plages : `a to b` (fin incluse), `a until b` (fin exclue) — `..` est refusé |
 | 6      | `+` `-`                  | Gauche        | |
 | 7      | `*` `/` `%`              | Gauche        | |
 | 8      | `not` `-` (unaire) `++` `--` (préfixe) | Droite | `++`/`--` : cible `Ident`/`Field`/`Index` de type `int`/`float` uniquement |
@@ -1515,6 +1519,7 @@ générale au typage strict de `+`.
 ```ebnf
 Statement ::= VarDecl
             | ScopedDecl
+            | ConsumedDecl
             | ConstDecl
             | IfStmt
             | SwitchStmt
@@ -1526,9 +1531,11 @@ Statement ::= VarDecl
             | TryStmt
             | RaiseStmt
             | EmitStmt
+            | ResultStmt
             | AssignStmt
             | Expression
 
+ResultStmt ::= "result" Expression      (* blocs runtime uniquement, §5.5 *)
 AssignStmt ::= Target ( "=" | "+=" | "-=" | "*=" | "/=" | "%=" ) Expression
 Target     ::= Identifier | PostfixExpr "." Identifier | PostfixExpr "[" Expression "]"
 ```
@@ -1733,7 +1740,7 @@ Tous les types Ocara sont supportés dans les paramètres variadics :
 | Tableaux | `variadic<array<int>>`, `variadic<array<string>>` |
 | Maps | `variadic<map<string, int>>` |
 | Classes | `variadic<User>`, `variadic<Animal>` |
-| Functions | `variadic<Function<int>>` |
+| Functions | `variadic<Function<int()>>` |
 | Unions | `variadic<int\|string>`, `variadic<User\|null>` |
 | Mixed | `variadic<mixed>` (avec warning) |
 
@@ -1811,7 +1818,7 @@ Pour un élément lui-même tableau/`mixed` (`variadic<array<T>>`, `variadic<mix
 
 ### 14.3 Fonctions de première classe
 
-Une fonction peut être passée comme valeur en utilisant le type `Function` (voir §4.5).
+Une fonction peut être passée comme valeur en utilisant le type `Function` (voir §6.5).
 
 ```ocara
 function double(n:int): int { return n * 2 }
@@ -2729,6 +2736,9 @@ module Timestamped {
 
 ### 19.2 Utilisation dans une classe
 
+Suite de l'exemple précédent (module `Timestamped`) :
+
+<!-- doc-check: skip -->
 ```ocara
 class User modules Timestamped {
     private property name: string
@@ -3037,6 +3047,7 @@ generic Cache<K, V = string> extends Storage modules Timestamped implements Seri
 
 ### 20.5 Import et instanciation
 
+<!-- doc-check: skip -->
 ```ocara
 // Fichier: repository/Cache.oc
 namespace repository
@@ -3228,11 +3239,11 @@ generic Result<Value, Error> {
         raise "Called unwrap on an error result"
     }
     
-    public method unwrapOr(default:Value): Value {
+    public method unwrapOr(fallback:Value): Value {
         if self.is_ok {
             return self.value
         }
-        return default
+        return fallback
     }
 }
 
@@ -3295,11 +3306,11 @@ generic Option<T> {
         raise "Called unwrap on None"
     }
     
-    public method unwrapOr(default:T): T {
+    public method unwrapOr(fallback:T): T {
         if self.has_value {
             return self.value
         }
-        return default
+        return fallback
     }
 }
 
@@ -3845,11 +3856,12 @@ Un import ne peut jamais écraser un symbole local existant.
 ```ebnf
 (* ── Programme ─────────────────────────────────────────────────── *)
 
-Program     ::= NamespaceDecl?
-                ImportDecl*
-                RuntimeImport*
-                RuntimeBlock*
-                ( ConstDecl | EnumDecl | ClassDecl | StructDecl | GenericDecl | ModuleDecl | InterfaceDecl | FuncDecl )*
+Program     ::= NamespaceDecl? TopLevel*
+TopLevel    ::= ImportDecl | RuntimeImport | RuntimeBlock | ArchitectureDecl
+              | ConstDecl | EnumDecl | ClassDecl | StructDecl | GenericDecl | ModuleDecl | InterfaceDecl | FuncDecl
+
+(* `ArchitectureDecl` : §33, au plus une par fichier. Après `namespace`,
+   l'ordre est libre (convention : imports en tête). *)
 
 (* Toute déclaration de premier niveau, tout membre (classe, generic,
    module, struct, interface) et toute instruction peut être précédé de
@@ -3962,9 +3974,11 @@ Statement   ::= VarDecl
               | TryStmt
               | RaiseStmt
               | EmitStmt
+              | ResultStmt
               | AssignStmt
               | Expression
 
+ResultStmt   ::= "result" Expression      (* blocs runtime uniquement, §5.5 *)
 AssignStmt   ::= Target ( "=" | "+=" | "-=" | "*=" | "/=" | "%=" ) Expression
 Target       ::= Identifier | PostfixExpr "." Identifier | PostfixExpr "[" Expression "]"
 
@@ -4059,11 +4073,14 @@ String      ::= '"' ( EscapeSeq | [^"\n] )* '"'
               | "'" ( EscapeSeq | [^'\n] )* "'"
 Boolean     ::= "true" | "false"
 EscapeSeq   ::= "\" ( "n" | "t" | "r" | '"' | "'" | "\" | "0" )
+TemplateString ::= "`" TemplatePart* "`"
+TemplatePart   ::= TemplateText | "${" Expression "}"
+TemplateText   ::= [^`$] | "$" [^{]
 
 (* ── Identifiant ────────────────────────────────────────────────── *)
 
-Identifier  ::= Letter ( Letter | Digit | "_" )*
-Letter      ::= [a-zA-Z]
+Identifier  ::= ( Letter | "_" ) ( Letter | Digit | "_" )*
+Letter      ::= (* toute lettre Unicode : a-z, A-Z, é, ß… *)
 Digit       ::= [0-9]
 
 (* ── Commentaires (ignorés par le parser) ───────────────────────── *)
@@ -4210,8 +4227,14 @@ sans déclaration suit celle du `main.oc` de son projet, sinon le défaut :
 
 - deux contextes sont isolés, sauf vers une racine `shared` (qui reste
   soumise au sens des couches) ;
-- un fichier du répertoire hexagonal ne peut rien importer hors de ce
-  répertoire (hors racines `shared` et builtins `ocara.*`) ;
+- un fichier du répertoire hexagonal ne peut rien importer d'autre du
+  projet hors de ce répertoire (hors racines `shared` et builtins
+  `ocara.*`) ;
+- une **bibliothèque externe** (fichier hors du dossier du projet) n'est
+  importable que depuis la couche infrastructure ;
+- un programme n'a qu'**une seule racine hexagonale** : un fichier placé
+  sous un second répertoire du même nom (second projet importé) est
+  refusé ;
 - son `namespace` reflète son chemin (`context/car/infra/db/X.oc` →
   `namespace context.car.infra.db`) ;
 - un fichier qui n'est pas dans `<src>/<contexte>/<couche>/` n'est pas

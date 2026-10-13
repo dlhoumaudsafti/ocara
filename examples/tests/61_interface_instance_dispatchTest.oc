@@ -96,15 +96,11 @@ class Test_61_interface_instance_dispatch {
     // fonction, `pickShape`) — le compilateur ne peut PAS résoudre la
     // cible à la compilation ici, contrairement à `wiring`.
     //
-    // Le résultat de `pickShape(...)` est capturé dans une variable AVANT
-    // d'appeler `.shapeName()`/`.area()` dessus — chaîner l'appel de méthode
-    // directement sur le résultat d'un appel de FONCTION LIBRE
-    // (`pickShape(0).shapeName()`) est un bug préexistant, SANS RAPPORT avec
-    // celui-ci, découvert en écrivant ce test (retourne silencieusement
-    // `null`, sans crash, y compris pour une classe concrète ordinaire sans
-    // la moindre interface en jeu — confirmé par reproduction minimale) :
-    // volontairement contourné ici plutôt que masqué, voir la note dans
-    // docs/roadmap.d/langage-interface-instance-dispatch-segfault.md.
+    // Le résultat de `pickShape(...)` est capturé dans une variable avant
+    // d'appeler `.shapeName()`/`.area()` dessus. Le chaînage direct sur le
+    // résultat d'un appel de FONCTION LIBRE (`pickShape(0).shapeName()`)
+    // fonctionne également depuis son correctif (voir
+    // docs/roadmap.d/langage-chained-call-on-free-function-result.md).
     public method runtimeChosenConcreteTypeDispatchesCorrectlyTest(): int {
         var s0:Shape = pickShape(0)
         var s1:Shape = pickShape(1)

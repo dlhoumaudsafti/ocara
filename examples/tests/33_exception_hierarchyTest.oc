@@ -5,7 +5,7 @@ import ocara.File
 
 // Vraie hiérarchie d'exceptions : `on e is X` doit attraper une SOUS-CLASSE
 // de X, pas seulement une correspondance exacte de nom (voir
-// docs/roadmap.d/langage-exceptions.md et IrModule::ancestor_chain).
+// IrModule::ancestor_chain).
 //
 // NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée
 // du fichier pour y appeler les méthodes `*Test` (voir extract_class_name,

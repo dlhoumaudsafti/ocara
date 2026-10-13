@@ -132,7 +132,7 @@ impl SymbolTable {
     ///
     /// Utilisé pour l'affectation polymorphe réelle (`var s:Shape =
     /// use Circle()`, `var d:Drawable = use Circle()`) — voir
-    /// `types_compat` et docs/roadmap.d/langage-interfaces.md. `target`
+    /// `types_compat`. `target`
     /// n'a pas besoin d'exister (retourne simplement `false`, l'appelant a
     /// déjà vérifié son existence séparément si besoin).
     pub fn class_matches(&self, class_name: &str, target: &str) -> bool {

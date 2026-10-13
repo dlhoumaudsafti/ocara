@@ -201,8 +201,7 @@ pub fn lower_func(
         // ça, `var_class` n'a aucune entrée pour ce paramètre et tout appel
         // de méthode dessus dans le corps de la fonction/méthode retombe sur
         // le fallback `_method_<nom>` (jamais généré) au lieu de
-        // `Box_int_<nom>` : confirmé par reproduction (voir
-        // docs/roadmap.d/langage-generiques.md).
+        // `Box_int_<nom>` : confirmé par reproduction.
         if let crate::parsing::ast::Type::Generic { name: generic_name, args } = &decl_ty {
             let specialized_name = crate::core::monomorph::monomorphized_name(generic_name, args);
             builder.var_class.insert(param.name.clone(), specialized_name);

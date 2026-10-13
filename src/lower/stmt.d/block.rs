@@ -20,7 +20,7 @@ pub fn lower_block(builder: &mut LowerBuilder, block: &Block) {
     // le reste de la fonction, y compris après la fin de ce bloc — confirmé
     // par reproduction (y compris pour un simple `var`, pas seulement
     // `scoped`/`consumed` : use-after-free une fois la variable interne
-    // libérée, voir docs/roadmap.d/memoire-double-free-et-fuites-scoped.md).
+    // libérée).
     // On restaure donc la vue d'avant ce bloc en sortie : les noms externes
     // masqués retrouvent leur slot d'origine, ceux déclarés ICI disparaissent.
     let locals_snapshot = builder.locals.clone();

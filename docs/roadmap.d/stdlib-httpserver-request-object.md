@@ -55,3 +55,5 @@ Rien dans la signature `req:int` n'indiquait qu'il s'agissait d'une requête HTT
 ## Reste à faire — audit du 2026-10-13
 
 **Aucune limite de taille du corps de requête** (ni multipart) : un client peut faire allouer une quantité arbitraire de mémoire. Non documenté dans `docs/builtins/HTTPServer.md`. Correction : limite configurable, réponse 413 au-delà. **Basse — Légère.**
+
+**Corrigé le 2026-10-13** : `server.maxBodySize(bytes)` (défaut 10 Mio, `0` : sans limite) ; au-delà, réponse `413 Payload Too Large` sans appeler le handler, que la taille soit annoncée (`Content-Length`) ou non (transfert chunked, lecture bornée). Vérifié : 5 octets → 200, corps trop long → 413 (annoncé et chunked). Test : `examples/builtins/httpserver.sh` (POST de 11 Mo → 413). Documenté dans `docs/builtins/HTTPServer.md`.

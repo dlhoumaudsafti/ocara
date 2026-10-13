@@ -72,6 +72,10 @@ names = []               // l'ancien tableau est rendu
 ## `const` locale — variable non réaffectable
 
 ```ocara
+function compute(): int {
+    return 6 * 7
+}
+
 function main(): int {
     const total:int = compute()   // n'importe quelle expression
     return total
@@ -170,8 +174,10 @@ IO::writeln(Config::VERSION)      // depuis l'extérieur, sans instance
 ```
 
 - **Déclaration** : dans le corps de la classe, avec une visibilité.
-- **Contrainte** : valeur connue à la compilation (mêmes règles que la
-  `const` globale) — sinon **E55** ; la visibilité s'applique (`public`
+- **Contrainte** : contrairement à la `const` globale, la valeur doit être
+  connue à la compilation — un littéral, éventuellement négé (`-x`,
+  `not x`) ou combiné par `+ - * / %` entre littéraux — sinon **E55** (une
+  valeur calculée passe par une méthode statique) ; la visibilité s'applique (`public`
   partout, `protected` dans la classe et ses sous-classes, `private` dans
   la classe).
 - **Usage** : `Classe::NOM`, ou `self::NOM` dans la classe. La valeur est

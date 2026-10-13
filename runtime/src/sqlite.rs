@@ -330,8 +330,7 @@ pub unsafe extern "C" fn SQLite_execute(self_ptr: i64, query_ptr: i64, placehold
         // échoue — AVANT tout appel à throw_sqlite_exception, qui saute par
         // `longjmp` et ne laisserait jamais ce `Drop` s'exécuter s'il restait
         // à faire à ce moment-là : verrou tenu indéfiniment, deadlock
-        // confirmé par reproduction sur la requête suivante (voir
-        // docs/roadmap.d/memoire-deadlocks-raise.md).
+        // confirmé par reproduction sur la requête suivante.
         let result: Result<(i64, Option<i64>), String> = (|| {
             let binds = read_placeholders(placeholder_ptr)?;
             let named = named_params(&binds);

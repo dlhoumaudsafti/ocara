@@ -1,6 +1,7 @@
 //! Règles de l'architecture hexagonale pour un fichier : namespace conforme
 //! au chemin, imports (sens des couches, frontières entre contextes, rien
-//! hors du répertoire hexagonal) et cibles de `wiring` (même contexte ou
+//! hors du répertoire hexagonal, bibliothèque externe depuis
+//! l'infrastructure seulement) et cibles de `wiring` (même contexte ou
 //! racine `shared`). Les fichiers hors du répertoire hexagonal ne sont pas
 //! contrôlés.
 
@@ -13,7 +14,10 @@ use crate::parsing::ast::Program;
 use crate::parsing::token::Span;
 
 pub enum Place {
-    /// Hors du répertoire hexagonal (et des racines partagées).
+    /// Hors du dossier du projet : bibliothèque externe, importable depuis la
+    /// couche infrastructure seulement.
+    External,
+    /// Dans le projet, hors du répertoire hexagonal (et des racines partagées).
     Outside,
     /// Dans le répertoire hexagonal, sans `<contexte>/<couche>` reconnu.
     Unclassified,
@@ -56,7 +60,7 @@ pub fn check_file(config: &Config, file: &Path, program: &Program, entry: bool, 
         }
     }
     let (context, layer) = match config.place(file) {
-        Place::Outside => return next,
+        Place::Outside | Place::External => return next,
         Place::Unclassified => {
             out.push(Diagnostic::error(file, 1, 1, unclassified(config, file)));
             return next;
@@ -90,9 +94,18 @@ fn unclassified(config: &Config, file: &Path) -> String {
 fn import_violation(config: &Config, me: &str, context: &str, layer: &str, target: &Path) -> Option<String> {
     let them = config.dotted(target);
     match config.place(target) {
-        Place::Outside => Some(format!(
-            "architecture hexagonale : '{}' ({}) ne peut pas importer '{}', hors du répertoire hexagonal '{}/'",
-            me, layer, them, config.src_name.replace('.', "/"))),
+        // Bibliothèque externe : détail technique, réservé à l'infrastructure.
+        Place::External => (layer != "infrastructure").then(|| format!(
+            "architecture hexagonale : '{}' ({}) ne peut pas importer la bibliothèque externe '{}' — seule la couche infrastructure ({}) importe une bibliothèque hors du projet",
+            me, layer, target.display(), config.alias("infrastructure"))),
+        Place::Outside => Some(match config.in_other_src(target) {
+            Some(other) => format!(
+                "architecture hexagonale : '{}' importe '{}', situé dans un second répertoire hexagonal '{}' — un programme n'a qu'une seule racine hexagonale ('{}/')",
+                me, them, other.strip_prefix(&config.root).unwrap_or(&other).display(), config.src_name.replace('.', "/")),
+            None => format!(
+                "architecture hexagonale : '{}' ({}) ne peut pas importer '{}', hors du répertoire hexagonal '{}/'",
+                me, layer, them, config.src_name.replace('.', "/")),
+        }),
         Place::Unclassified => Some(format!("architecture hexagonale : '{}' importe '{}', qui n'est pas classable", me, them)),
         Place::Layer { context: other, layer: to } => {
             if other != context && !config.is_shared(target) {

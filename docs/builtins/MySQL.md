@@ -96,7 +96,7 @@ for row in rows {
 
 Exécute une requête SELECT et retourne la première ligne, ou `null` si aucun résultat.
 
-> ⚠️ **Piège** : `SQLite::queryOne` (voir [SQLite](SQLite.md)) porte le même nom de méthode mais une sémantique **différente** pour représenter "aucun résultat" — il retourne une **map vide** (vérifier avec `Map::size(...) > 0`), pas `null`. Ne pas écrire de code générique sur les deux sans tenir compte de cette différence.
+> ⚠️ **Piège** : `SQLite::queryOne` (voir [SQLite](SQLite.md)) porte le même nom de méthode mais une sémantique **différente** pour représenter "aucun résultat" — il retourne une **map vide** (vérifier avec `Map::size(...) greater 0`), pas `null`. Ne pas écrire de code générique sur les deux sans tenir compte de cette différence.
 
 ```ocara
 const user:map<string, mixed>|null = db.queryOne("SELECT * FROM users WHERE id = :id", {"id": 1})

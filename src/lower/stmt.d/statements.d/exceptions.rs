@@ -28,8 +28,7 @@ pub fn lower_raise(builder: &mut LowerBuilder, value: &Expr) {
     // complète (elle-même incluse), pas juste son propre nom : un filtre sur
     // une classe PARENTE (`on e is Exception`) doit attraper une sous-classe
     // (`FileNotFound extends FileException`), pas seulement une égalité
-    // stricte de nom — voir IrModule::ancestor_chain et
-    // docs/roadmap.d/langage-exceptions.md.
+    // stricte de nom — voir IrModule::ancestor_chain.
     let known_class: Option<String> = match value {
         Expr::New { class, .. } => Some(class.clone()),
         Expr::Ident(name, _) => builder.var_class.get(name.as_str()).cloned(),
@@ -215,8 +214,7 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
             // confirmé par reproduction (SEGFAULT visuel indirect : dans
             // `examples/builtins/sdl.oc`, `textureId`/`fontId` assignés dans
             // un `try` redevenaient -1 juste après, empêchant tout dessin de
-            // texture/texte bien que le chargement ait réussi) — voir
-            // docs/roadmap.d/memoire-double-free-et-fuites-scoped.md.
+            // texture/texte bien que le chargement ait réussi).
             for (idx, (name, ty)) in captures.iter().enumerate() {
                 let offset_bytes = (idx * 8) as i64;
 
@@ -520,7 +518,6 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
                 // seul : cette valeur est désormais lue/écrite depuis le
                 // scope appelant ET le corps try, potentiellement après un
                 // `raise`/`longjmp` qui n'a rien à voir avec le thread —
-                // voir docs/roadmap.d/memoire-concurrence-threads.md pour le
                 // même choix déjà fait pour les closures).
                 let heap_ptr = crate::lower::stmt::rc::promote_to_cell(builder, name, slot, &slot_ty);
                 // Rediriger les futurs accès dans le scope appelant vers le tas

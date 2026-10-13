@@ -137,7 +137,7 @@ pub fn lower_class(
     // reproduction : `FilledCircle extends Circle extends Shape`, seul
     // `Shape` déclare `name()` — un appel PUREMENT STATIQUE `f.name()` sur
     // `f:FilledCircle` échouait déjà, indépendamment de tout dispatch
-    // dynamique — voir docs/roadmap.d/langage-interfaces.md). `already_emitted`
+    // dynamique). `already_emitted`
     // accumule au fur et à mesure : une méthode déjà trouvée à un niveau
     // plus proche n'est jamais réémise depuis un ancêtre plus lointain
     // (priorité à la redéclaration la plus proche, sémantique normale de

@@ -8,7 +8,7 @@
 // (voir `OwnershipClass::Resource`, `src/sema/scope.rs`) — auparavant
 // `int`, ce qui rendait impossible de suivre sa fermeture obligatoire
 // (`close`/`closeResponse`, déjà présents côté runtime, jamais reliés au
-// système de possession). Voir docs/roadmap.d/memoire-double-free-et-fuites-scoped.md.
+// système de possession).
 //
 // ── Construction & configuration ────────────────────────────────────────────
 //   HTTPRequest::new(url)                 → HTTPRequest   crée une requête

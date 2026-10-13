@@ -103,7 +103,7 @@
         ],
         "returns": "void",
         "static": true,
-        "doc": "`IO::writeln(val)` → `void`\n\nAffiche `val` sur stdout **suivi d'un saut de ligne**.  \nÉquivalent à la fonction globale `write()`.\n\n```ocara\nIO::writeln(\"Bonjour Ocara\")   // Bonjour Ocara\\n\nIO::writeln(42)                 // 42\\n\nIO::writeln(true)               // true\\n\n```",
+        "doc": "`IO::writeln(val)` → `void`\n\nAffiche `val` sur stdout **suivi d'un saut de ligne**.\n\n```ocara\nIO::writeln(\"Bonjour Ocara\")   // Bonjour Ocara\\n\nIO::writeln(42)                 // 42\\n\nIO::writeln(true)               // true\\n\n```",
         "docFile": "IO.md",
         "docHeading": "`IO::writeln(val)` → `void`"
       }
@@ -249,6 +249,10 @@
         "type": "string"
       },
       {
+        "name": "BUILD",
+        "type": "string"
+      },
+      {
         "name": "OS",
         "type": "string"
       }
@@ -341,7 +345,7 @@
         "params": [],
         "returns": "void",
         "static": false,
-        "doc": "`m.lock() → void`\n\nVerrouille le mutex. Si le mutex est déjà verrouillé par un autre thread, le thread courant est bloqué jusqu'à ce que le mutex soit disponible.\n\n**Attention** : si le même thread tente de verrouiller deux fois le même mutex, cela provoque un **deadlock** (blocage permanent).\n\n```ocara\nvar m:Mutex = use Mutex()\nm.lock()\n// section critique — un seul thread à la fois\nm.unlock()\n```",
+        "doc": "`m.lock() → void`\n\nVerrouille le mutex. Si le mutex est déjà verrouillé par un autre thread, le thread courant est bloqué jusqu'à ce que le mutex soit disponible.\n\n**Attention** : si le même thread tente de verrouiller deux fois le même mutex, cela provoque un **deadlock** (blocage permanent).\n\n```ocara\nscoped m:Mutex = use Mutex()\nm.lock()\n// section critique — un seul thread à la fois\nm.unlock()\n```",
         "docFile": "Mutex.md",
         "docHeading": "`m.lock() → void`"
       },
@@ -373,7 +377,7 @@
         ],
         "returns": "void",
         "static": false,
-        "doc": "`m.withLock(f:Function<void>) → void`\n\nVerrouille le mutex, exécute `f()`, puis **déverrouille systématiquement** —\ny compris si `f()` lève une exception (`raise`).\n\nC'est la méthode à préférer à `lock()`/`unlock()` manuels dès que la section\ncritique peut lever une exception : avec `lock()`/`unlock()`, un `raise`\nentre les deux appels saute `unlock()` (le mécanisme d'exceptions d'Ocara\nutilise setjmp/longjmp, pas de unwinding avec des destructeurs de scope) et\nlaisse le mutex verrouillé **pour toujours** — tout autre thread en attente\ndessus est bloqué définitivement. `withLock` élimine ce risque : le\ndéverrouillage a lieu avant que l'exception ne continue sa propagation vers\nl'appelant.\n\n```ocara\nvar m:Mutex = use Mutex()\n\n// Cas normal\nm.withLock(nameless(): void {\n    // section critique\n})\n\n// Cas avec exception : le mutex est quand même déverrouillé, et\n// l'exception continue de se propager normalement\ntry {\n    m.withLock(nameless(): void {\n        raise use MonException(\"erreur\", 1)\n    })\n} on e is MonException {\n    IO::writeln(`rattrapée : ${e.message}`)\n}\n\n// Preuve que le mutex n'est plus verrouillé :\nm.lock()\nm.unlock()\n```\n\n> **Note** : `withLock` ne remplace pas `lock()`/`unlock()`, qui restent\n> disponibles pour un contrôle manuel plus fin — c'est une méthode\n> additionnelle, pas une dépréciation.",
+        "doc": "`m.withLock(f:Function<void>) → void`\n\nVerrouille le mutex, exécute `f()`, puis **déverrouille systématiquement** —\ny compris si `f()` lève une exception (`raise`).\n\nC'est la méthode à préférer à `lock()`/`unlock()` manuels dès que la section\ncritique peut lever une exception : avec `lock()`/`unlock()`, un `raise`\nentre les deux appels saute `unlock()` (le mécanisme d'exceptions d'Ocara\nutilise setjmp/longjmp, pas de unwinding avec des destructeurs de scope) et\nlaisse le mutex verrouillé **pour toujours** — tout autre thread en attente\ndessus est bloqué définitivement. `withLock` élimine ce risque : le\ndéverrouillage a lieu avant que l'exception ne continue sa propagation vers\nl'appelant.\n\n```ocara\nscoped m:Mutex = use Mutex()\n\n// Cas normal\nm.withLock(nameless(): void {\n    // section critique\n})\n\n// Cas avec exception : le mutex est quand même déverrouillé, et\n// l'exception continue de se propager normalement\ntry {\n    m.withLock(nameless(): void {\n        raise use MonException(\"erreur\", 1)\n    })\n} on e is MonException {\n    IO::writeln(`rattrapée : ${e.message}`)\n}\n\n// Preuve que le mutex n'est plus verrouillé :\nm.lock()\nm.unlock()\n```\n\n> **Note** : `withLock` ne remplace pas `lock()`/`unlock()`, qui restent\n> disponibles pour un contrôle manuel plus fin — c'est une méthode\n> additionnelle, pas une dépréciation.",
         "docFile": "Mutex.md",
         "docHeading": "`m.withLock(f:Function<void>) → void`"
       }
@@ -786,8 +790,9 @@
         ],
         "returns": "mixed",
         "static": true,
-        "doc": "Exemple :\n\n```ocara\nscoped debug:bool = Convert::strToBool(Map::get(cfg, \"debug\"))\n```",
-        "docFile": "Convert.md"
+        "doc": "`Array::get(arr, idx)` → `mixed`\n\nRetourne l'élément à l'indice `idx` (à partir de 0). Équivalent de `arr[idx]` / `arr.get(idx)`.  \n**Indice hors bornes** : retourne la valeur nulle (`0`), **sans** lever d'exception.\n\n```ocara\nvar nums:array<int> = [10, 20, 30]\nvar x:int = Array::get(nums, 1)    // → 20\nArray::get(nums, 42)               // → 0 (hors bornes, pas d'exception)\n```",
+        "docFile": "Array.md",
+        "docHeading": "`Array::get(arr, idx)` → `mixed`"
       },
       {
         "name": "indexOf",
@@ -917,8 +922,9 @@
         ],
         "returns": "void",
         "static": true,
-        "doc": "Exemple :\n\n```ocara\nsess.set(\"user\", req.param(\"name\"))\n```",
-        "docFile": "HTTPServer.md"
+        "doc": "`Array::set(arr, idx, val)` → `void`\n\nRemplace l'élément à l'indice `idx` par `val`. Modifie le tableau en place.  \nSi `idx` dépasse la fin du tableau, celui-ci est **agrandi** jusqu'à `idx` ; les cases intermédiaires valent `null`.\n\n```ocara\nvar nums:array<int> = [10, 20, 30]\nArray::set(nums, 1, 99)    // → [10, 99, 30]\nArray::set(nums, 5, 7)     // → [10, 99, 30, null, null, 7]  (len = 6)\n```\n\n> ⚠️ Ne jamais passer un indice **négatif** : il n'est pas vérifié et provoque un agrandissement démesuré du tableau.",
+        "docFile": "Array.md",
+        "docHeading": "`Array::set(arr, idx, val)` → `void`"
       },
       {
         "name": "slice",
@@ -971,12 +977,12 @@
           },
           {
             "name": "callback",
-            "type": "Function<void()>"
+            "type": "Function<void(mixed, mixed)>"
           }
         ],
         "returns": "void",
         "static": true,
-        "doc": "`Map::forEach(m, callback)` → `void`\n\nAppelle `callback` pour chaque entrée de la map, avec la clé et la valeur.\n\n**Paramètres** :\n- `m` : la map à parcourir\n- `callback` : `nameless(key:mixed, value:mixed): void` — appelé une fois par entrée\n\n```ocara\nconst scores:map<string, mixed> = {\"Alice\": 95, \"Bob\": 82}\n\nMap::forEach(scores, nameless(key:mixed, value:mixed): void {\n    IO::writeln(`${key} : ${value}`)\n})\n// Alice : 95\n// Bob : 82\n```\n\nLe callback peut capturer et modifier des variables du scope englobant (comme toute closure `nameless`) :\n\n```ocara\nvar lines:array<string> = []\nMap::forEach(scores, nameless(key:mixed, value:mixed): void {\n    Array::push(lines, key + \" -> \" + value)\n})\n```\n\n> **Limite connue** : `value` est typé `mixed` (comme `Map::get`). Le concaténer à une `string` (`+` ou template) fonctionne, mais une **opération arithmétique** directe (`total + value`) sur une valeur `mixed` produit aujourd'hui un résultat incorrect, y compris après un narrowing `if value is int { ... }` — bug de compilateur indépendant de `forEach` (voir `docs/roadmap.d/langage-mixed-arithmetic.md`). En attendant, convertir explicitement via une string (`Convert::strToInt(\\`${value}\\`)`) plutôt qu'une addition directe.",
+        "doc": "`Map::forEach(m, callback)` → `void`\n\nAppelle `callback` pour chaque entrée de la map, avec la clé et la valeur.\n\n**Paramètres** :\n- `m` : la map à parcourir\n- `callback` : `nameless(key:mixed, value:mixed): void` — appelé une fois par entrée\n\n```ocara\nconst scores:map<string, mixed> = {\"Alice\": 95, \"Bob\": 82}\n\nMap::forEach(scores, nameless(key:mixed, value:mixed): void {\n    IO::writeln(`${key} : ${value}`)\n})\n// Alice : 95\n// Bob : 82\n```\n\nLe callback peut capturer et modifier des variables du scope englobant (comme toute closure `nameless`) :\n\n```ocara\nvar lines:array<string> = []\nMap::forEach(scores, nameless(key:mixed, value:mixed): void {\n    Array::push(lines, key + \" -> \" + value)\n})\n```\n\n> `value` est typé `mixed` (comme `Map::get`) : sur une map concrète (`map<string,int>`, `map<string,float>`, `map<string,bool>`), chaque valeur est boxée avant l'appel. Après un narrowing (`if value is int { total = total + value }`), l'arithmétique est correcte.",
         "docFile": "Map.md",
         "docHeading": "`Map::forEach(m, callback)` → `void`"
       },
@@ -994,7 +1000,7 @@
         ],
         "returns": "mixed",
         "static": true,
-        "doc": "`Map::get(m, key)` → `mixed`\n\nRetourne la valeur associée à `key`.  \n**Si la clé est absente, lève une `MapException`** (code 101, `KEY_NOT_FOUND` — voir « Gestion d'erreurs » plus bas).  \nToujours vérifier avec `Map::has` avant si la présence n'est pas garantie, ou entourer l'appel d'un `try`/`on`.\n\n```ocara\nvar m:map = {\"prix\": 42, \"qte\": 3}\nscoped p:int = Map::get(m, \"prix\")   // → 42\n\nif Map::has(m, \"remise\") {\n    scoped r:int = Map::get(m, \"remise\")\n} else {\n    IO::writeln(\"pas de remise\")   // clé absente : Map::get lèverait ici\n}\n```",
+        "doc": "`Map::get(m, key)` → `mixed`\n\nRetourne la valeur associée à `key`.  \n**Si la clé est absente, lève une `MapException`** (code 101, `KEY_NOT_FOUND` — voir « Gestion d'erreurs » plus bas).  \nToujours vérifier avec `Map::has` avant si la présence n'est pas garantie, ou entourer l'appel d'un `try`/`on`.\n\n```ocara\nvar m:map<string, int> = {\"prix\": 42, \"qte\": 3}\nscoped p:int = Map::get(m, \"prix\")   // → 42\n\nif Map::has(m, \"remise\") {\n    scoped r:int = Map::get(m, \"remise\")\n} else {\n    IO::writeln(\"pas de remise\")   // clé absente : Map::get lèverait ici\n}\n```",
         "docFile": "Map.md",
         "docHeading": "`Map::get(m, key)` → `mixed`"
       },
@@ -1012,7 +1018,7 @@
         ],
         "returns": "bool",
         "static": true,
-        "doc": "`Map::has(m, key)` → `bool`\n\nRetourne `true` si la clé `key` existe dans la map.\n\n```ocara\nvar m:map = {\"alice\": 95, \"bob\": 72}\nMap::has(m, \"alice\")    // → true\nMap::has(m, \"david\")    // → false\n```",
+        "doc": "`Map::has(m, key)` → `bool`\n\nRetourne `true` si la clé `key` existe dans la map.\n\n```ocara\nvar m:map<string, int> = {\"alice\": 95, \"bob\": 72}\nMap::has(m, \"alice\")    // → true\nMap::has(m, \"david\")    // → false\n```",
         "docFile": "Map.md",
         "docHeading": "`Map::has(m, key)` → `bool`"
       },
@@ -1040,7 +1046,7 @@
         ],
         "returns": "mixed[]",
         "static": true,
-        "doc": "`Map::keys(m)` → `array<mixed>`\n\nRetourne un tableau contenant toutes les clés de la map.  \nL'ordre n'est pas garanti.\n\n```ocara\nvar m:map = {\"x\": 10, \"y\": 20, \"z\": 30}\nscoped cles:array<string> = Map::keys(m)\n// → [\"x\", \"y\", \"z\"] (ordre quelconque)\n```",
+        "doc": "`Map::keys(m)` → `array<mixed>`\n\nRetourne un tableau contenant toutes les clés de la map.  \nL'ordre n'est pas garanti.\n\n```ocara\nvar m:map<string, int> = {\"x\": 10, \"y\": 20, \"z\": 30}\nscoped cles:array<string> = Map::keys(m)\n// → [\"x\", \"y\", \"z\"] (ordre quelconque)\n```",
         "docFile": "Map.md",
         "docHeading": "`Map::keys(m)` → `array<mixed>`"
       },
@@ -1058,7 +1064,7 @@
         ],
         "returns": "map<mixed, mixed>",
         "static": true,
-        "doc": "`Map::merge(a, b)` → `map`\n\nRetourne une **nouvelle** map contenant toutes les entrées de `a` et `b`.  \nEn cas de clé commune, la valeur de `b` **écrase** celle de `a`.\n\n```ocara\nvar base:map = {\"timeout\": 30, \"retry\": 3}\nvar extra:map = {\"timeout\": 60, \"debug\": 1}\n\nscoped config:map = Map::merge(base, extra)\nMap::get(config, \"timeout\")   // → 60  (écrasé par extra)\nMap::get(config, \"retry\")     // → 3   (conservé de base)\nMap::get(config, \"debug\")     // → 1   (ajouté depuis extra)\n```",
+        "doc": "`Map::merge(a, b)` → `map`\n\nRetourne une **nouvelle** map contenant toutes les entrées de `a` et `b`.  \nEn cas de clé commune, la valeur de `b` **écrase** celle de `a`.\n\n```ocara\nvar base:map<string, int> = {\"timeout\": 30, \"retry\": 3}\nvar extra:map<string, int> = {\"timeout\": 60, \"debug\": 1}\n\nscoped config:map<string, int> = Map::merge(base, extra)\nMap::get(config, \"timeout\")   // → 60  (écrasé par extra)\nMap::get(config, \"retry\")     // → 3   (conservé de base)\nMap::get(config, \"debug\")     // → 1   (ajouté depuis extra)\n```",
         "docFile": "Map.md",
         "docHeading": "`Map::merge(a, b)` → `map`"
       },
@@ -1076,7 +1082,7 @@
         ],
         "returns": "void",
         "static": true,
-        "doc": "`Map::remove(m, key)` → `void`\n\nSupprime l'entrée associée à `key`. Sans effet si la clé est absente.  \nModifie la map en place.\n\n```ocara\nvar m:map = {\"a\": 1, \"b\": 2}\nMap::remove(m, \"a\")\n// m est maintenant {\"b\": 2}\n```",
+        "doc": "`Map::remove(m, key)` → `void`\n\nSupprime l'entrée associée à `key`. Sans effet si la clé est absente.  \nModifie la map en place.\n\n```ocara\nvar m:map<string, int> = {\"a\": 1, \"b\": 2}\nMap::remove(m, \"a\")\n// m est maintenant {\"b\": 2}\n```",
         "docFile": "Map.md",
         "docHeading": "`Map::remove(m, key)` → `void`"
       },
@@ -1098,7 +1104,7 @@
         ],
         "returns": "void",
         "static": true,
-        "doc": "`Map::set(m, key, val)` → `void`\n\nInsère ou **met à jour** l'entrée `key` → `val` dans la map.  \nModifie la map en place.\n\n```ocara\nvar m:map = {\"a\": 1}\nMap::set(m, \"b\", 2)    // insère  → {\"a\": 1, \"b\": 2}\nMap::set(m, \"a\", 99)   // mise à jour → {\"a\": 99, \"b\": 2}\n```",
+        "doc": "`Map::set(m, key, val)` → `void`\n\nInsère ou **met à jour** l'entrée `key` → `val` dans la map.  \nModifie la map en place.\n\n```ocara\nvar m:map<string, int> = {\"a\": 1}\nMap::set(m, \"b\", 2)    // insère  → {\"a\": 1, \"b\": 2}\nMap::set(m, \"a\", 99)   // mise à jour → {\"a\": 99, \"b\": 2}\n```",
         "docFile": "Map.md",
         "docHeading": "`Map::set(m, key, val)` → `void`"
       },
@@ -1112,7 +1118,7 @@
         ],
         "returns": "int",
         "static": true,
-        "doc": "`Map::size(m)` → `int`\n\nRetourne le nombre d'entrées de la map.\n\n```ocara\nvar m:map = {\"a\": 1, \"b\": 2, \"c\": 3}\nMap::size(m)    // → 3\nMap::size({})   // → 0\n```",
+        "doc": "`Map::size(m)` → `int`\n\nRetourne le nombre d'entrées de la map.\n\n```ocara\nvar m:map<string, int> = {\"a\": 1, \"b\": 2, \"c\": 3}\nMap::size(m)    // → 3\nMap::size({})   // → 0\n```",
         "docFile": "Map.md",
         "docHeading": "`Map::size(m)` → `int`"
       },
@@ -1126,7 +1132,7 @@
         ],
         "returns": "mixed[]",
         "static": true,
-        "doc": "`Map::values(m)` → `array<mixed>`\n\nRetourne un tableau contenant toutes les valeurs de la map.  \nL'ordre correspond à celui de `Map::keys`.\n\n```ocara\nvar m:map = {\"x\": 10, \"y\": 20}\nscoped vals:array<int> = Map::values(m)\n// → [10, 20]\n```",
+        "doc": "`Map::values(m)` → `array<mixed>`\n\nRetourne un tableau contenant toutes les valeurs de la map.  \nL'ordre correspond à celui de `Map::keys`.\n\n```ocara\nvar m:map<string, int> = {\"x\": 10, \"y\": 20}\nscoped vals:array<int> = Map::values(m)\n// → [10, 20]\n```",
         "docFile": "Map.md",
         "docHeading": "`Map::values(m)` → `array<mixed>`"
       }
@@ -2295,7 +2301,7 @@
         ],
         "returns": "bool",
         "static": true,
-        "doc": "`Directory::exists(path: string) → bool`\n\nTeste si un répertoire existe.\n\n```ocara\nif !Directory::exists(\"/var/log/myapp\") {\n    Directory::create(\"/var/log/myapp\")\n}\n```",
+        "doc": "`Directory::exists(path: string) → bool`\n\nTeste si un répertoire existe.\n\n```ocara\nif not Directory::exists(\"/var/log/myapp\") {\n    Directory::create(\"/var/log/myapp\")\n}\n```",
         "docFile": "Directory.md",
         "docHeading": "`Directory::exists(path: string) → bool`"
       },
@@ -2800,6 +2806,19 @@
         "docFile": "HTTPServer.md"
       },
       {
+        "name": "maxBodySize",
+        "params": [
+          {
+            "name": "bytes",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "Exemple :\n\n```ocara\nserver.maxBodySize(1048576)  // corps de requête max en octets (défaut : 10 Mio, 0 : sans limite)\n```",
+        "docFile": "HTTPServer.md"
+      },
+      {
         "name": "port",
         "params": [
           {
@@ -2838,7 +2857,7 @@
           },
           {
             "name": "f",
-            "type": "Function<void()>"
+            "type": "Type::Function{ret_ty:Box::new(Type::Int),param_tys:vec![Type::Named(\"HTTPServerRequest\".into())]"
           }
         ],
         "returns": "void",
@@ -2855,7 +2874,7 @@
           },
           {
             "name": "f",
-            "type": "Function<void()>"
+            "type": "Type::Function{ret_ty:Box::new(Type::Int),param_tys:vec![Type::Named(\"HTTPServerRequest\".into())]"
           }
         ],
         "returns": "void",
@@ -4039,7 +4058,9 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`unloadTexture(textureId:int)` / `unloadFont(fontId:int)` / `unloadSound(soundId:int)` → `void` — Libère une texture / police / un son chargé (id inconnu : no-op)",
+        "docFile": "SDL.md"
       },
       {
         "name": "unloadSound",
@@ -4050,7 +4071,9 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`unloadTexture(textureId:int)` / `unloadFont(fontId:int)` / `unloadSound(soundId:int)` → `void` — Libère une texture / police / un son chargé (id inconnu : no-op)",
+        "docFile": "SDL.md"
       },
       {
         "name": "unloadTexture",
@@ -4061,7 +4084,9 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`unloadTexture(textureId:int)` / `unloadFont(fontId:int)` / `unloadSound(soundId:int)` → `void` — Libère une texture / police / un son chargé (id inconnu : no-op)",
+        "docFile": "SDL.md"
       }
     ],
     "consts": []
@@ -4149,7 +4174,7 @@
         "params": [
           {
             "name": "handler",
-            "type": "Function<string()>"
+            "type": "Type::Function{ret_ty:Box::new(Type::String),param_tys:vec![Type::Map(Box::new(Type::String),Box::new(Type::Mixed))],}"
           }
         ],
         "returns": "void",
@@ -4167,7 +4192,10 @@
           }
         ],
         "returns": "void",
-        "static": false
+        "static": false,
+        "doc": "`c.tag(name: string)` → `void`\n\nDéfinit ou remplace le nom de balise du composant (celui passé à `use HTMLComponent(\"nom\")`). Utile notamment dans une classe qui étend `HTMLComponent`, pour fixer le tag sans passer par le constructeur.\n\n```ocara\nvar card:HTMLComponent = use HTMLComponent(\"card\")\ncard.tag(\"product-card\")\ncard.register(nameless(attrs:map<string, mixed>): string {\n    return `<div class=\"product\">${attrs[\"name\"]}</div>`\n})\n// le composant répond à <product-card>, plus à <card>\n```\n\n> Le nom est lu au moment de `register` : appeler `tag` **après** `register` ne déplace pas le handler déjà enregistré (il reste associé à l'ancien nom). Appeler `tag` avant `register`.",
+        "docFile": "HTMLComponent.md",
+        "docHeading": "`c.tag(name: string)` → `void`"
       },
       {
         "name": "unregister",
@@ -4198,7 +4226,10 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertArray(value)`\n\nVérifie que `value` est un tableau (`array<T>`). Code 119 sinon.\n\n```ocara\nUnitTest::assertArray([1, 2, 3])\n```",
+        "docFile": "UnitTest.md",
+        "docHeading": "`UnitTest::assertArray(value)`"
       },
       {
         "name": "assertClass",
@@ -4209,7 +4240,10 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertClass(value)`\n\nVérifie que `value` est une instance de classe. Code 116 sinon.\n\n```ocara\nscoped p:Point = use Point(1)\nUnitTest::assertClass(p)\n```",
+        "docFile": "UnitTest.md",
+        "docHeading": "`UnitTest::assertClass(value)`"
       },
       {
         "name": "assertContains",
@@ -4252,7 +4286,10 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertEnum(value)`\n\nVérifie que `value` est un objet (même test runtime que `assertClass`). Code 117 sinon.\n\n> ⚠️ Les variantes d'enum compilent vers des **constantes entières** : `UnitTest::assertEnum(Color::RED)` **échoue** (code 117, `value is not an enum`). Pour une variante d'enum, comparer plutôt sa valeur avec `assertEquals`.",
+        "docFile": "UnitTest.md",
+        "docHeading": "`UnitTest::assertEnum(value)`"
       },
       {
         "name": "assertEquals",
@@ -4285,7 +4322,10 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertExceptionCodeEquals(code:int, expected:int)`",
+        "docFile": "UnitTest.md",
+        "docHeading": "`UnitTest::assertExceptionCodeEquals(code:int, expected:int)`"
       },
       {
         "name": "assertExceptionCodeNotEquals",
@@ -4300,7 +4340,10 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertExceptionCodeNotEquals(code:int, expected:int)`\n\nCompare `e.code` à l'entier attendu. Codes 123 / 124 en cas d'échec.\n\n```ocara\nUnitTest::assertExceptionCodeEquals(e.code, 101)\nUnitTest::assertExceptionCodeNotEquals(e.code, 0)\n```",
+        "docFile": "UnitTest.md",
+        "docHeading": "`UnitTest::assertExceptionCodeNotEquals(code:int, expected:int)`"
       },
       {
         "name": "assertExceptionMessageEquals",
@@ -4315,7 +4358,10 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertExceptionMessageEquals(message:string, expected:string)`",
+        "docFile": "UnitTest.md",
+        "docHeading": "`UnitTest::assertExceptionMessageEquals(message:string, expected:string)`"
       },
       {
         "name": "assertExceptionMessageNotEquals",
@@ -4330,7 +4376,10 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertExceptionMessageNotEquals(message:string, expected:string)`\n\nCompare `e.message` à la chaîne attendue (égalité exacte). Codes 121 / 122 en cas d'échec.\n\n```ocara\nUnitTest::assertExceptionMessageEquals(e.message, \"Key not found: absent\")\nUnitTest::assertExceptionMessageNotEquals(e.message, \"\")\n```",
+        "docFile": "UnitTest.md",
+        "docHeading": "`UnitTest::assertExceptionMessageNotEquals(message:string, expected:string)`"
       },
       {
         "name": "assertExceptionSourceEquals",
@@ -4345,7 +4394,10 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertExceptionSourceEquals(source:string, expected:string)`",
+        "docFile": "UnitTest.md",
+        "docHeading": "`UnitTest::assertExceptionSourceEquals(source:string, expected:string)`"
       },
       {
         "name": "assertExceptionSourceNotEquals",
@@ -4360,7 +4412,10 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertExceptionSourceNotEquals(source:string, expected:string)`\n\nCompare `e.source` (classe builtin à l'origine de l'exception, ex. `\"Map\"`) à la chaîne attendue. Codes 125 / 126 en cas d'échec.\n\n```ocara\nUnitTest::assertExceptionSourceEquals(e.source, \"Map\")\nUnitTest::assertExceptionSourceNotEquals(e.source, \"File\")\n```\n\nSortie de l'exemple ci-dessus :\n\n```\nPASS assertRaises\nPASS assertExceptionCodeEquals: 101 == 101\nPASS assertExceptionMessageEquals: \"Key not found: absent\" == \"Key not found: absent\"\nPASS assertExceptionSourceEquals: \"Map\" == \"Map\"\n```\n\nVoir [Exception](Exception.md) pour les champs `message`, `code` et `source`.",
+        "docFile": "UnitTest.md",
+        "docHeading": "`UnitTest::assertExceptionSourceNotEquals(source:string, expected:string)`"
       },
       {
         "name": "assertFalse",
@@ -4385,7 +4440,10 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertFunction(value)`\n\nVérifie que `value` est une fonction (closure `nameless` ou référence de fonction). Code 115 sinon.\n\n```ocara\nUnitTest::assertFunction(nameless(x:int): int { return x })\n```",
+        "docFile": "UnitTest.md",
+        "docHeading": "`UnitTest::assertFunction(value)`"
       },
       {
         "name": "assertGreater",
@@ -4468,7 +4526,10 @@
           }
         ],
         "returns": "void",
-        "static": true
+        "static": true,
+        "doc": "`UnitTest::assertMap(value)`\n\nVérifie que `value` est une map (`map<K, V>`). Code 118 sinon.\n\n```ocara\nconst m:map<string, int> = {\"a\": 1}\nUnitTest::assertMap(m)\n```",
+        "docFile": "UnitTest.md",
+        "docHeading": "`UnitTest::assertMap(value)`"
       },
       {
         "name": "assertNotEmpty",
@@ -4715,7 +4776,7 @@
         ],
         "returns": "map<string, mixed>",
         "static": false,
-        "doc": "`db.queryOne(query: string, placeholder: map<string, mixed>|null = null) → map<string, mixed>`\n\nExécute une requête SELECT et retourne une seule ligne (ou une map vide si aucun résultat).\n\n> ⚠️ **Piège** : `MySQL::queryOne`/`MariaDB::queryOne` (voir [MySQL](MySQL.md)) portent le même nom de méthode mais une sémantique **différente** pour représenter \"aucun résultat\" — ils retournent `null` (type `map<string, mixed>|null`), pas une map vide. Ne pas écrire de code générique sur les deux sans tenir compte de cette différence.\n\n```ocara\nconst user:map<string, mixed> = db.queryOne(\"SELECT * FROM users WHERE id = :id\", {\"id\": 1})\n\nif Map::size(user) > 0 {\n    IO::writeln(`User found: ${user[\"name\"]}`)\n} else {\n    IO::writeln(\"User not found\")\n}\n```\n\n**Erreur** : `SQLiteException` (code 103) si la requête échoue.",
+        "doc": "`db.queryOne(query: string, placeholder: map<string, mixed>|null = null) → map<string, mixed>`\n\nExécute une requête SELECT et retourne une seule ligne (ou une map vide si aucun résultat).\n\n> ⚠️ **Piège** : `MySQL::queryOne`/`MariaDB::queryOne` (voir [MySQL](MySQL.md)) portent le même nom de méthode mais une sémantique **différente** pour représenter \"aucun résultat\" — ils retournent `null` (type `map<string, mixed>|null`), pas une map vide. Ne pas écrire de code générique sur les deux sans tenir compte de cette différence.\n\n```ocara\nconst user:map<string, mixed> = db.queryOne(\"SELECT * FROM users WHERE id = :id\", {\"id\": 1})\n\nif Map::size(user) greater 0 {\n    IO::writeln(`User found: ${user[\"name\"]}`)\n} else {\n    IO::writeln(\"User not found\")\n}\n```\n\n**Erreur** : `SQLiteException` (code 103) si la requête échoue.",
         "docFile": "SQLite.md",
         "docHeading": "`db.queryOne(query: string, placeholder: map<string, mixed>|null = null) → map<string, mixed>`"
       },
@@ -4906,7 +4967,7 @@
         ],
         "returns": "map<string, mixed>|null",
         "static": false,
-        "doc": "`db.queryOne(query: string, placeholder: map<string, mixed>|null = null) → map<string, mixed>|null`\n\nExécute une requête SELECT et retourne la première ligne, ou `null` si aucun résultat.\n\n> ⚠️ **Piège** : `SQLite::queryOne` (voir [SQLite](SQLite.md)) porte le même nom de méthode mais une sémantique **différente** pour représenter \"aucun résultat\" — il retourne une **map vide** (vérifier avec `Map::size(...) > 0`), pas `null`. Ne pas écrire de code générique sur les deux sans tenir compte de cette différence.\n\n```ocara\nconst user:map<string, mixed>|null = db.queryOne(\"SELECT * FROM users WHERE id = :id\", {\"id\": 1})\n\nif user not equal null {\n    IO::writeln(`User found: ${user[\"name\"]}`)\n} else {\n    IO::writeln(\"User not found\")\n}\n```\n\n**Erreur** : `MySQLException` (code 103) si la requête échoue.",
+        "doc": "`db.queryOne(query: string, placeholder: map<string, mixed>|null = null) → map<string, mixed>|null`\n\nExécute une requête SELECT et retourne la première ligne, ou `null` si aucun résultat.\n\n> ⚠️ **Piège** : `SQLite::queryOne` (voir [SQLite](SQLite.md)) porte le même nom de méthode mais une sémantique **différente** pour représenter \"aucun résultat\" — il retourne une **map vide** (vérifier avec `Map::size(...) greater 0`), pas `null`. Ne pas écrire de code générique sur les deux sans tenir compte de cette différence.\n\n```ocara\nconst user:map<string, mixed>|null = db.queryOne(\"SELECT * FROM users WHERE id = :id\", {\"id\": 1})\n\nif user not equal null {\n    IO::writeln(`User found: ${user[\"name\"]}`)\n} else {\n    IO::writeln(\"User not found\")\n}\n```\n\n**Erreur** : `MySQLException` (code 103) si la requête échoue.",
         "docFile": "MySQL.md",
         "docHeading": "`db.queryOne(query: string, placeholder: map<string, mixed>|null = null) → map<string, mixed>|null`"
       },

@@ -322,8 +322,7 @@ pub unsafe extern "C" fn MySQL_execute(db_ptr: i64, query_ptr: i64, placeholder_
 
         // Voir le commentaire de `MySQL_execute` d'origine : le verrou est
         // entièrement scopé à cette closure, relâché avant tout
-        // throw_mysql_exception (même raison que côté SQLite, voir
-        // docs/roadmap.d/memoire-deadlocks-raise.md).
+        // throw_mysql_exception (même raison que côté SQLite).
         let result: Result<(i64, u64), String> = (|| {
             let binds = read_placeholders(placeholder_ptr)?;
             let pool = db.pool.lock().unwrap();

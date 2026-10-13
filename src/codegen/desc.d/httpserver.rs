@@ -10,6 +10,7 @@ pub const HTTPSERVER_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "HTTPServer_port",       params: &[clt::I64, clt::I64],                  returns: None,           module: Some("HTTPServer") },
     BuiltinDesc { name: "HTTPServer_host",       params: &[clt::I64, clt::I64],                  returns: None,           module: Some("HTTPServer") },
     BuiltinDesc { name: "HTTPServer_workers",    params: &[clt::I64, clt::I64],                  returns: None,           module: Some("HTTPServer") },
+    BuiltinDesc { name: "HTTPServer_maxBodySize", params: &[clt::I64, clt::I64],                 returns: None,           module: Some("HTTPServer") },
     BuiltinDesc { name: "HTTPServer_rootPath",   params: &[clt::I64, clt::I64],                  returns: None,           module: Some("HTTPServer") },
     BuiltinDesc { name: "HTTPServer_route",         params: &[clt::I64, clt::I64, clt::I64, clt::I64], returns: None,        module: Some("HTTPServer") },
     BuiltinDesc { name: "HTTPServer_routeError",    params: &[clt::I64, clt::I64, clt::I64],        returns: None,           module: Some("HTTPServer") },

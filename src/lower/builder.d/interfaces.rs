@@ -1,5 +1,4 @@
-/// Dispatch dynamique réel pour les interfaces (voir
-/// docs/roadmap.d/langage-interfaces.md).
+/// Dispatch dynamique réel pour les interfaces.
 ///
 /// Un appel `d.method(...)` sur une variable typée par une INTERFACE
 /// (`var d:Drawable`) est mangled comme n'importe quel appel de méthode

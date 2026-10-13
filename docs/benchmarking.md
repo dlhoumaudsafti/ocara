@@ -47,6 +47,7 @@ proportionnellement au nombre d'itérations.
 
 Le programme lit son nombre d'itérations dans un marqueur `__N__` :
 
+<!-- doc-check: skip -->
 ```ocara
 import ocara.IO
 import ocara.Convert
@@ -189,9 +190,10 @@ défaut). Le pic mémoire demande `/usr/bin/time`.
 
 ## Pièges
 
-- **`for i in 0..N` alloue un tableau de N entiers** (8 octets par
-  itération). La mesure le prend pour une fuite : utiliser une boucle
-  `while` pour piloter le nombre d'itérations.
+- **`for i in 0 until N` alloue un tableau de N entiers** (8 octets par
+  itération, voir docs/roadmap.d/langage-for-range-allocation.md). La
+  mesure le prend pour une fuite : utiliser une boucle `while` pour piloter
+  le nombre d'itérations.
 - **Le détecteur de cycles agit par lots** : un objet qui a été partagé puis
   libéré peut rester en attente jusqu'à ce que 10 000 candidats se soient
   accumulés. Mesurer sur au moins 20 000 itérations ; en dessous, la mémoire

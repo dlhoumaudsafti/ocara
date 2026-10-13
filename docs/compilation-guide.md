@@ -227,7 +227,7 @@ function main(): int {
     IO::writeln("Bonjour " + nom)
     
     // Utiliser JSON
-    var data:map = map("nom": nom, "age": 25)
+    var data:map<string, mixed> = {"nom": nom, "age": 25}
     var json:string = JSON::encode(data)
     IO::writeln("JSON: " + json)
     

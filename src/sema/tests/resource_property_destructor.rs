@@ -3,19 +3,20 @@
 ///
 /// Jusqu'ici rejeté d'office (E29, `SemaError::ResourceField`, supprimé) :
 /// aucun mécanisme n'existait pour fermer un tel champ. Désormais autorisé —
-/// `__free_<Classe>` ferme le champ via son symbole runtime dédié (voir
-/// `crate::lower::builder::class_ownership::classify_field`), et la classe
+/// le champ est fermé à la destruction de l'instance (lettre de ressource du
+/// masque de classe, `crate::lower::builder::rc_layout`, fermée par
+/// `finalize_object` dans runtime/src/rc.rs), et la classe
 /// porteuse est traitée comme `OwnershipClass::Resource` PARTOUT où
 /// l'échappement est vérifié (`crate::sema::scope::compute_resource_classes`/
 /// `ownership_class_of`) : mêmes règles qu'une ressource nue (E18 : ne peut
 /// pas s'échapper de son bloc `scoped`/`consumed` ; E28 : un `var`/`const`
-/// doit être fermé manuellement ou prouvé non-échappant) — sans quoi deux
-/// instances pourraient partager le même handle natif (`__clone_<Classe>` ne
-/// clone jamais un champ ressource) et l'une le fermerait sous le nez de
-/// l'autre. Un appel manuel `.close()`/`.destroy()` sur `self.<champ>` est
-/// lui aussi rejeté (nouveau : `SemaError::ManualCloseOnResourceField`) —
-/// `__free_<Classe>` le fermera de toute façon à la destruction de
-/// l'instance, un appel en plus serait toujours une double fermeture.
+/// doit être fermé manuellement ou prouvé non-échappant) — sans quoi le
+/// handle natif pourrait être fermé (destruction de l'instance porteuse)
+/// alors qu'il est encore utilisé ailleurs. Un appel manuel
+/// `.close()`/`.destroy()` sur `self.<champ>` est lui aussi rejeté
+/// (`SemaError::ManualCloseOnResourceField`) — le champ sera fermé de toute
+/// façon à la destruction de l'instance, un appel en plus serait toujours une
+/// double fermeture.
 ///
 /// Cas concret ayant motivé ce chantier :
 /// `examples/advanced/tauri_httpserver/configs/Database.oc`
@@ -90,8 +91,8 @@ fn resource_property_declaration_is_accepted() {
 
 /// Une instance `scoped` d'une classe contenant une ressource ne peut pas
 /// s'échapper de son bloc (E18) — exactement comme une ressource nue :
-/// sans ça, la copie « échappée » partagerait le même handle natif que
-/// l'original (`__clone_<Classe>` ne duplique jamais un champ ressource).
+/// sans ça, la référence « échappée » partagerait le handle natif fermé en
+/// fin de bloc.
 #[test]
 fn scoped_instance_cannot_escape_its_block() {
     let src = format!(

@@ -2,7 +2,7 @@
 
 ## Statut
 
-La première passe est terminée (voir §"Ce qui a été fait" plus bas). **Rouvert le 2026-10-13** : l'audit de la roadmap a relevé de nouvelles divergences, listées dans « Reste à faire » en fin de fiche.
+Deux passes terminées (la seconde le 2026-10-13, voir « 2ᵉ passe » en fin de fiche). Les exemples complets de `docs/` sont désormais vérifiés par `ci/doc_examples.sh` (lancé par `make regression`).
 
 ## Constat général
 
@@ -48,7 +48,7 @@ Vérifié : corrections de texte uniquement, aucun fichier source/runtime touch�
 
 `docs/EBNF.md` (§2, §6.5, §14.3, §16.6, §19, §23, §27, §31), `docs/builtins/Map.md`, `docs/builtins/String.md`, `docs/builtins/Regex.md`, `docs/builtins/SQLite.md`, `docs/builtins/MySQL.md`, `docs/roadmap.md` (méthode de travail).
 
-## Reste à faire — audit du 2026-10-13
+## 2ᵉ passe — relevé de l'audit du 2026-10-13 (traité)
 
 ### EBNF
 
@@ -79,4 +79,12 @@ Vérifié : corrections de texte uniquement, aucun fichier source/runtime touch�
 
 Validation suggérée : compiler automatiquement les blocs ```` ```ocara ```` de `docs/` (au moins ceux marqués comme complets) dans `make regression`.
 
-**Basse — Simple** (aucun impact sur les binaires produits, mais la doc induit en erreur).
+
+### Traitement (2026-10-13)
+
+- EBNF : `Program` (ordre libre après `namespace`, `ArchitectureDecl`), `ResultStmt` et `ConsumedDecl` dans `Statement`, `TemplateString` et identifiants Unicode/`_` dans le §31, mots réservés et contextuels (§8), plages `to`/`until` (§11), `variadic<Function<int()>>`, renvoi §6.5 ; exemples corrigés (`compute()` défini, paramètre `default` renommé, blocs dépendants marqués `<!-- doc-check: skip -->`).
+- `docs/builtins` : exemples recompilés (types de map, `smaller`/`greater`, `write()` global inexistant, `not`, `Thread::spawn`…), méthodes documentées (`UnitTest` : assertions de type et d'exception ; `Array::get`/`set` ; `HTMLComponent.tag` ; SDL `unload*`), nouvelle page `Exception.md`, format réel de sortie de `UnitTest`, flottants YAML, verrou `HTTPServer` global.
+- Liens vers des fiches supprimées et commentaires périmés corrigés dans `docs/`, `examples/`, `src/`, `runtime/` ; données de l'extension régénérées (`builtins-data.json`).
+- `ocara --help` (`--dump` affiche aussi le HIR), badge du README, `docs/benchmarking.md`.
+- Coloration de `layers`/`shared` : assurée par le serveur de langage (jetons sémantiques, test `colors_architecture_block_and_layer_segments`) — pas de défaut.
+- Nouveau garde-fou : `ci/doc_examples.sh` vérifie (`ocara --check`) chaque bloc ```` ```ocara ```` complet de `docs/`. Il a révélé deux bugs du compilateur : `modules X` sur un module inexistant accepté (corrigé) et la méthode statique d'un `generic` inappelable ([langage-generique-methode-statique](langage-generique-methode-statique.md)), ainsi que [stdlib-unittest-assertenum](stdlib-unittest-assertenum.md).

@@ -155,8 +155,7 @@ pub fn drop_consumed_used_in(builder: &mut LowerBuilder, stmt: &Stmt) {
         // Usage situé dans un corps de boucle plus profond que la
         // déclaration (donc répété à chaque itération réelle) : ne pas
         // libérer ici, sous peine de libérer plusieurs fois la même valeur
-        // au fil des itérations (confirmé par reproduction — voir
-        // docs/roadmap.d/memoire-double-free-et-fuites-scoped.md).
+        // au fil des itérations (confirmé par reproduction).
         // `emit_scope_drops` libère correctement une seule fois, quand le
         // bloc où la variable est déclarée se termine normalement (donc
         // après la boucle, puisqu'elle la précède).

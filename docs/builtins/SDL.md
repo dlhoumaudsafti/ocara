@@ -123,8 +123,8 @@ win.drawTextureScaled(logoId, 650, 20, 120, 120)    // redimensionnée
 
 `loadTexture` charge l'image **une seule fois** — le handle retourné (`int`)
 est réutilisable pour tous les `drawTexture`/`drawTextureScaled` suivants,
-frame après frame. La texture reste en mémoire jusqu'à la fin du programme
-(pas de méthode pour la libérer en Palier 2 — voir [Limites](#limites-du-palier-1)).
+frame après frame. La texture reste en mémoire jusqu'à la fin du programme,
+sauf libération explicite via `unloadTexture` (voir [Libérer les ressources](#libérer-les-ressources)).
 
 ### Sprite sheets / tilesets : `drawTextureRegion`
 
@@ -223,6 +223,29 @@ limite de SDL3, c'est un choix pour garder l'API simple. `pauseMusic`/
 `resumeMusic`/`stopMusic`/`setMusicVolume` sont des no-op silencieux si
 aucune musique n'est en cours.
 
+## Libérer les ressources
+
+Textures, polices et sons chargés par `loadTexture`/`loadFont`/`loadSound`
+sont **persistants** : ils restent en mémoire jusqu'à la fin du programme.
+Un programme qui charge/décharge dynamiquement ses assets (changement de
+niveau, etc.) les libère explicitement :
+
+```ocara
+var levelBg:int = win.loadTexture("level1.png")
+var levelFont:int = win.loadFont("police.ttf", 24)
+var levelSound:int = win.loadSound("ambiance.wav")
+
+// Fin du niveau :
+win.unloadTexture(levelBg)
+win.unloadFont(levelFont)
+win.unloadSound(levelSound)
+```
+
+- Un `id` inconnu (jamais chargé ou déjà libéré) est un **no-op silencieux**.
+- Après libération, le handle devient inconnu : `drawTexture`/`drawText`/
+  `playSound` dessus sont des no-op silencieux (voir note plus bas).
+- Sans effet sur une fenêtre déjà fermée (`close()`).
+
 ## Limites du Palier 1
 
 Ce sont des contraintes de SDL lui-même, pas des choix de design Ocara :
@@ -233,7 +256,7 @@ Ce sont des contraintes de SDL lui-même, pas des choix de design Ocara :
    Le support multi-fenêtre est un chantier de palier ultérieur.
 2. **Tous les appels sur une fenêtre doivent venir du thread qui l'a créée**
    (contrainte SDL/OS, plus stricte encore sur macOS). Appeler une méthode
-   `SDL` depuis un `Thread::spawn()` lève une `SDLException` (`code: 201`)
+   `SDL` depuis un autre thread (`ocara.Thread`, `t.run(...)`) lève une `SDLException` (`code: 201`)
    plutôt que de planter silencieusement ou de corrompre l'affichage.
 
 ```ocara
@@ -313,6 +336,7 @@ Convention runtime : `SDL_<méthode>`.
 | `drawTextureRegion(textureId:int, srcX:int, srcY:int, srcW:int, srcH:int, x:int, y:int, w:int, h:int, flipH:bool)` → `void` | Dessine un sous-rectangle de la texture (sprite sheet/tileset), redimensionné, avec retournement horizontal optionnel |
 | `loadFont(path:string, size:int)` → `int` | Charge une police (.ttf/.otf) à une taille donnée, retourne un handle |
 | `drawText(fontId:int, text:string, x:int, y:int, r:int, g:int, b:int, a:int)` → `void` | Rend une ligne de texte à la position et couleur données |
+| `unloadTexture(textureId:int)` / `unloadFont(fontId:int)` / `unloadSound(soundId:int)` → `void` | Libère une texture / police / un son chargé (id inconnu : no-op) |
 | `isButtonPressed(gamepadId:int, button:string)` → `bool` | État direct d'un bouton de manette |
 | `getAxis(gamepadId:int, axis:string)` → `int` | État direct d'un axe de manette (`-32768..32767`) |
 | `loadSound(path:string)` → `int` | Charge un son (WAV/OGG/MP3), retourne un handle |

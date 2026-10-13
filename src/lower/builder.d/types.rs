@@ -59,8 +59,7 @@ pub struct LowerBuilder<'m> {
     /// `OwnedLocalInfo::declared_loop_depth` pour éviter qu'une `consumed`
     /// déclarée AVANT une boucle, mais utilisée dans son corps, ne soit
     /// libérée à répétition — une fois par itération réelle plutôt qu'une
-    /// seule fois (voir `crate::lower::stmt::ownership::drop_consumed_used_in`
-    /// et `docs/roadmap.d/memoire-double-free-et-fuites-scoped.md`).
+    /// seule fois (voir `crate::lower::stmt::ownership::drop_consumed_used_in`).
     pub loop_depth: usize,
     /// Pile des blocs actuellement ouverts : chaque frame liste les noms
     /// des variables `scoped`/`consumed` (types pris en charge) déclarées
@@ -286,8 +285,7 @@ impl<'m> LowerBuilder<'m> {
     /// Stocke `src` dans le slot du local `name`.
     /// Pour les variables capturées, écrit via double-indirection :
     /// GetField(env, idx) → heap_ptr, puis `__locked_cell_set(heap_ptr, src)`
-    /// (verrouillé — voir la doc de `heap_promoted` et
-    /// docs/roadmap.d/memoire-concurrence-threads.md).
+    /// (verrouillé — voir la doc de `heap_promoted`).
     pub fn store_local(&mut self, name: &str, src: Value) {
         // Variable d'un générateur → accès DIRECT (pas de double-indirection,
         // voir la doc de `frame_vars`) sur le champ correspondant du frame.

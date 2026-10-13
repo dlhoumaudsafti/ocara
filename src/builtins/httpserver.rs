@@ -114,6 +114,13 @@ pub fn class() -> ClassInfo {
         Type::Void,
     ));
 
+    // s.maxBodySize(bytes:int) → void — taille max du corps de requête
+    // (défaut 10 Mio, 0 : sans limite) ; au-delà, réponse 413.
+    methods.insert("maxBodySize".into(), instance(
+        vec![("bytes", Type::Int)],
+        Type::Void,
+    ));
+
     // s.rootPath(path:string) → void
     methods.insert("rootPath".into(), instance(
         vec![("path", Type::String)],

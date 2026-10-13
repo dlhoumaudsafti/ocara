@@ -8,8 +8,8 @@
 // comme un des maillons, pas une égalité stricte, pour qu'`on e is Exception`
 // attrape n'importe laquelle de ces exceptions builtin (toutes des sous-
 // classes directes et uniques d'`Exception` — hiérarchie plate d'un seul
-// niveau, câblée ici en dur plutôt que via un mécanisme générique, voir
-// docs/roadmap.d/langage-exceptions.md). Seule `throw_exception` (la base)
+// niveau, câblée ici en dur plutôt que via un mécanisme générique). Seule
+// `throw_exception` (la base)
 // n'a pas de parent, donc pas de suffixe `|Exception`.
 // ─────────────────────────────────────────────────────────────────────────────
 

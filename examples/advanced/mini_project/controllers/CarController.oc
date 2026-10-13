@@ -2,9 +2,9 @@
 // Fiche détail d'une voiture (historique d'entretiens + formulaire d'ajout
 // d'entretien) et création d'une nouvelle voiture.
 //
-// GET plutôt que POST pour la création (voir configs/routes/Cars.oc) : le
-// runtime décode déjà la query string (req.query()) mais n'offre pas
-// de parseur de corps application/x-www-form-urlencoded pour POST.
+// La création passe par GET (voir configs/routes/Cars.oc) : paramètres lus
+// dans la query string. Un corps POST application/x-www-form-urlencoded est
+// lui aussi décodé par le runtime (req.param(...)/req.params()).
 
 import ocara.HTML
 import ocara.HTTPServer

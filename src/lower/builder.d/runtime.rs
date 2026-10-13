@@ -288,8 +288,8 @@ fn generate_runtime_main(
 /// dedans soit réellement libérée en fin de bloc : sans ça, `lower_stmt` seul
 /// n'alimente jamais `block_scope_stack`, donc ni `emit_scope_drops` (fin de
 /// bloc normale) ni `emit_early_exit_drops` (`result` anticipé) n'ont quoi
-/// que ce soit à parcourir — fuite systématique (confirmé par reproduction,
-/// voir docs/roadmap.d/memoire-runtime-block-jamais-libere.md). Les blocs
+/// que ce soit à parcourir — fuite systématique (confirmé par reproduction).
+/// Les blocs
 /// `error`/`success` n'ont pas ce problème : ils sont déjà de vrais `Block`
 /// passés en `then_block`/`else_block` d'un `Stmt::If` (voir
 /// `generate_runtime_main`), lowered via `lower_if` → `lower_block` comme

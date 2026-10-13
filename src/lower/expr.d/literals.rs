@@ -43,8 +43,8 @@ pub fn lower_is_check(builder: &mut LowerBuilder, val: &Value, ty: &Type) -> Val
 
 /// `val is ClassName`/`val is InterfaceName` — RÉEL : jusqu'ici, les deux
 /// compilaient en code strictement identique (`__is_object` seul), incapable
-/// de distinguer une classe d'une autre ou une classe d'une interface (voir
-/// docs/roadmap.d/langage-interfaces.md). Vérifie maintenant que `val` est un
+/// de distinguer une classe d'une autre ou une classe d'une interface.
+/// Vérifie maintenant que `val` est un
 /// objet ET que son identité de classe réelle (`class_id`, voir
 /// `__alloc_class_obj` dans runtime/src/lib.rs) fait partie des candidats
 /// précalculés pour `name` (`IrModule::is_check_candidates` — elle-même et

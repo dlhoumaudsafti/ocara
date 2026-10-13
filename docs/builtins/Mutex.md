@@ -21,7 +21,7 @@ import ocara.*
 Alloue un nouveau mutex (déverrouillé par défaut).
 
 ```ocara
-var m:Mutex = use Mutex()
+scoped m:Mutex = use Mutex()
 ```
 
 ---
@@ -35,7 +35,7 @@ Verrouille le mutex. Si le mutex est déjà verrouillé par un autre thread, le 
 **Attention** : si le même thread tente de verrouiller deux fois le même mutex, cela provoque un **deadlock** (blocage permanent).
 
 ```ocara
-var m:Mutex = use Mutex()
+scoped m:Mutex = use Mutex()
 m.lock()
 // section critique — un seul thread à la fois
 m.unlock()
@@ -87,7 +87,7 @@ déverrouillage a lieu avant que l'exception ne continue sa propagation vers
 l'appelant.
 
 ```ocara
-var m:Mutex = use Mutex()
+scoped m:Mutex = use Mutex()
 
 // Cas normal
 m.withLock(nameless(): void {
@@ -144,14 +144,14 @@ import ocara.Mutex
 
 function main(): void {
     var counter:int = 0
-    var m:Mutex = use Mutex()
+    scoped m:Mutex = use Mutex()
     
     var t1:Thread = use Thread()
     var t2:Thread = use Thread()
     
     t1.run(nameless(): void {
         var i:int = 0
-        while i < 1000 {
+        while i smaller 1000 {
             m.lock()
             counter = counter + 1
             m.unlock()
@@ -161,7 +161,7 @@ function main(): void {
     
     t2.run(nameless(): void {
         var i:int = 0
-        while i < 1000 {
+        while i smaller 1000 {
             m.lock()
             counter = counter + 1
             m.unlock()
@@ -186,7 +186,7 @@ import ocara.IO
 import ocara.Mutex
 
 function main(): void {
-    var m:Mutex = use Mutex()
+    scoped m:Mutex = use Mutex()
     
     if m.tryLock() {
         IO::writeln("verrou acquis")
@@ -258,7 +258,7 @@ import ocara.MutexException
 
 // Exemple 1 : Gestion d'erreur lors du verrouillage
 function main(): void {
-    var m:Mutex = use Mutex()
+    scoped m:Mutex = use Mutex()
     try {
         m.lock()
         // section critique
@@ -271,7 +271,7 @@ function main(): void {
 
 // Exemple 2 : Détection d'unlock invalide
 function bad_unlock(): void {
-    var m:Mutex = use Mutex()
+    scoped m:Mutex = use Mutex()
     try {
         // Erreur : unlock sans lock préalable
         m.unlock()
@@ -284,7 +284,7 @@ function bad_unlock(): void {
 
 // Exemple 3 : Protection avec try_lock
 function safe_access(): void {
-    var m:Mutex = use Mutex()
+    scoped m:Mutex = use Mutex()
     if m.tryLock() {
         try {
             // section critique
@@ -302,7 +302,7 @@ function safe_access(): void {
 // avantageusement par `m.withLock(...)`, qui fait la même chose nativement
 // et sans risque d'oubli — voir plus haut « m.withLock ».
 function guaranteed_unlock(): void {
-    var m:Mutex = use Mutex()
+    scoped m:Mutex = use Mutex()
     var locked:bool = false
     try {
         m.lock()

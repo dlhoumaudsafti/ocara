@@ -201,7 +201,7 @@ import ocara.File
 import ocara.IO
 
 function copy_if_newer(src:string, dst:string): void {
-    if !File::exists(src) {
+    if not File::exists(src) {
         IO::writeln("Source file does not exist")
         return
     }
@@ -382,7 +382,7 @@ import ocara.IO
 
 function process_file(path:string): void {
     try {
-        if !File::exists(path) {
+        if not File::exists(path) {
             IO::writeln("Le fichier n'existe pas")
             return
         }

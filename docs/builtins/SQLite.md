@@ -90,7 +90,7 @@ Exécute une requête SELECT et retourne une seule ligne (ou une map vide si auc
 ```ocara
 const user:map<string, mixed> = db.queryOne("SELECT * FROM users WHERE id = :id", {"id": 1})
 
-if Map::size(user) > 0 {
+if Map::size(user) greater 0 {
     IO::writeln(`User found: ${user["name"]}`)
 } else {
     IO::writeln("User not found")

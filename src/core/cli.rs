@@ -64,7 +64,7 @@ pub fn print_help() {
     println!("  -o <sortie>   Fichier de sortie (défaut : out)");
     println!("  --src <dir>   Répertoire racine pour la résolution des imports");
     println!("  --check       Analyse sémantique uniquement, sans compilation");
-    println!("  --dump        Affiche les tokens et l'AST");
+    println!("  --dump        Affiche les tokens, l'AST et la représentation intermédiaire (HIR)");
     println!("  --no-link     Produit le fichier .o sans linker");
     println!("  --release     Build release (System::BUILD = \"release\", symboles retirés)");
     println!("  --profile     Mesure le temps de chaque fonction ; rapport à la sortie du programme");

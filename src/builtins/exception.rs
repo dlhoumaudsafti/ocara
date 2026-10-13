@@ -82,7 +82,7 @@ use crate::sema::symbols::{ClassInfo, FieldInfo};
 /// utilisé pour enregistrer `<Nom> → "Exception"` dans `IrModule::class_parents`
 /// (voir `src/lower/builder.d/program.rs`), afin qu'`on e is Exception` attrape
 /// n'importe quelle exception builtin (pas seulement une correspondance
-/// exacte de nom) — voir docs/roadmap.d/langage-exceptions.md. Volontairement
+/// exacte de nom). Volontairement
 /// PAS répercuté sur `ClassInfo.extends` (utilisé par le sema pour de vraies
 /// classes utilisateur, avec des attentes différentes — risque de ricochet
 /// non maîtrisé sur le typecheck `extends` si ces classes opaques y entraient).

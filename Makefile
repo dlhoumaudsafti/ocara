@@ -310,6 +310,7 @@ regression:
 	    ./ci/regression.sh || status=1; \
 	    ./ci/unittests.sh examples/project/tests || status=1; \
 	    ./ci/unittests.sh examples/tests || status=1; \
+	    ./ci/doc_examples.sh || status=1; \
 	    exit $$status; \
 	fi
 

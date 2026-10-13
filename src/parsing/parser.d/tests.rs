@@ -16,6 +16,34 @@ mod tests {
         Parser::new(tokens).parse_expr().expect("parse error")
     }
 
+    // ── enum : virgules, `case` (docs/roadmap.d/langage-enum-cases-backing-methods.md)
+
+    fn parse_err(src: &str) -> String {
+        let tokens = Lexer::new(src).tokenize().expect("lex error");
+        Parser::new(tokens).parse_program().expect_err("programme invalide accepté").message
+    }
+
+    #[test]
+    fn test_enum_variants_with_commas_and_trailing_comma() {
+        let p = parse("enum S { A, B = 5, C, }\n");
+        assert_eq!(p.enums[0].variants.len(), 3);
+    }
+
+    #[test]
+    fn test_enum_missing_comma_is_rejected() {
+        assert!(parse_err("enum S { A B }\n").contains("expected ','"));
+    }
+
+    #[test]
+    fn test_enum_case_keyword_is_rejected() {
+        assert!(parse_err("enum S { case A, case B }\n").contains("'case' is not supported"));
+    }
+
+    #[test]
+    fn test_enum_without_variant_is_rejected() {
+        assert!(parse_err("enum S { }\n").contains("at least one variant"));
+    }
+
     // ── for k has v in m ────────────────────────────────────────────────────
 
     #[test]

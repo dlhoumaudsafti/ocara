@@ -25,9 +25,9 @@ pub(crate) const TAG_FUNCTION: i64 = 5;
 /// Les deux tags désignent une "vraie" string au sens du langage (`__is_string`
 /// répond vrai pour les deux) ; seul `TAG_STRING_OWNED` peut être libéré en
 /// toute sécurité (`dealloc`) — un littéral n'a jamais été `alloc()`.
-/// Introduit pour `scoped`/`consumed string` (voir `crate::__value_free`) :
-/// avant ce tag, libérer une `scoped string` plantait dès qu'elle contenait
-/// un littéral (`munmap_chunk(): invalid pointer`).
+/// Avant ce tag, libérer une string plantait dès qu'elle était un littéral
+/// (`munmap_chunk(): invalid pointer`) ; le comptage de références
+/// (runtime/src/rc.rs) ne compte et ne libère que `TAG_STRING_OWNED`.
 pub(crate) const TAG_STRING_OWNED: i64 = 6;
 /// Objet exception (`Exception`/`FileException`/.../toute classe d'exception
 /// builtin, voir `crate::exception::alloc_exception`) — a longtemps partagé

@@ -1,7 +1,9 @@
 //! Architecture hexagonale (voir docs/roadmap.d/langage-mode-hexa.md) :
 //! configuration (bloc `architecture` du fichier analysé, sinon du `main.oc`
 //! du projet, sinon défaut `src: src`), classement des fichiers du
-//! répertoire `src` en `<src>/<contexte>/<couche>/…`, et vérification des
+//! répertoire `src` en `<src>/<contexte>/<couche>/…` (une seule racine
+//! hexagonale par programme ; un fichier hors du projet est une
+//! bibliothèque externe), et vérification des
 //! imports et `wiring` de chaque fichier atteint depuis l'entrée. Règles :
 //! architecture_rules.rs.
 
@@ -26,9 +28,13 @@ pub struct Config {
 }
 
 impl Config {
-    /// Place d'un fichier : hors `src`, non classable, ou contexte + couche.
+    /// Place d'un fichier : hors du projet (bibliothèque externe), hors
+    /// `src`, non classable, ou contexte + couche.
     /// Une racine `shared` hors de `src` est son propre contexte.
     pub fn place(&self, file: &Path) -> Place {
+        if !file.starts_with(&self.root) {
+            return Place::External;
+        }
         let (base, context) = match file.strip_prefix(&self.src) {
             Ok(rel) => (rel.to_path_buf(), None),
             Err(_) => match self.shared.iter().find(|s| file.starts_with(s)) {
@@ -46,6 +52,22 @@ impl Config {
             Some(layer) => Place::Layer { context, layer },
             None => Place::Unclassified,
         }
+    }
+
+    /// Fichier du projet, hors du répertoire hexagonal, placé sous un autre
+    /// répertoire du même nom (second projet importé) : un programme n'a
+    /// qu'une seule racine hexagonale.
+    pub fn in_other_src(&self, file: &Path) -> Option<PathBuf> {
+        let name = self.src.file_name()?;
+        let rel = file.strip_prefix(&self.root).ok()?;
+        let mut dir = self.root.clone();
+        for part in rel.parent()?.iter() {
+            dir.push(part);
+            if part == name && dir != self.src {
+                return Some(dir);
+            }
+        }
+        None
     }
 
     pub fn is_shared(&self, file: &Path) -> bool {

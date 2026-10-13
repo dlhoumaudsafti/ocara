@@ -211,7 +211,7 @@ pub extern "C" fn Mutex_tryLock(self_ptr: i64) -> i64 {
 /// {func_ptr, env_ptr}), puis déverrouille systématiquement — y compris si
 /// la closure lève une exception (`raise`).
 ///
-/// Problème résolu (voir docs/roadmap.d/memoire-deadlocks-raise.md) :
+/// Problème résolu :
 /// avec `lock()`/`unlock()` manuels, un `raise` entre les deux appels saute
 /// `unlock()` (setjmp/longjmp, pas d'unwinding Rust) et laisse le mutex
 /// verrouillé pour toujours — tout autre thread en attente dessus est bloqué

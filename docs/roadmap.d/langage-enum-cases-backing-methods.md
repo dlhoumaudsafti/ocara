@@ -85,3 +85,5 @@ Le `match` a lui aussi des limites qui bloquent l'exemple avec méthode :
 
 - Priorité alignée sur la roadmap : **Moyenne** (fonctionnalité, non bloquante).
 - Constats annexes (messages trompeurs, **Basse — Simple**) : `enum S { case A case B }` est lu comme des variantes nommées `case`, `A`… et produit « duplicate symbol 'S::case' » ; les virgules entre variantes sont facultatives alors que l'EBNF §21 les exige.
+
+**Messages trompeurs corrigés le 2026-10-13** : le parseur exige la virgule entre variantes (finale facultative, conforme à l'EBNF §21), refuse un enum vide, et signale `case` (« 'case' is not supported in an enum — write the variants as plain names separated by commas »). Tests : `test_enum_*` (`src/parsing/parser.d/tests.rs`). La fonctionnalité « enums enrichis » reste en Priorité Moyenne.

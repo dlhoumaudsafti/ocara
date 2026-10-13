@@ -400,6 +400,15 @@ impl Parser {
         while !self.check_exact(&TokenKind::RBrace) {
             let vspan = self.span();
             let (vname, _) = self.eat_ident()?;
+            // `case` (syntaxe d'enum enrichi, non supportée) était lu comme
+            // une variante nommée `case` — voir
+            // docs/roadmap.d/langage-enum-cases-backing-methods.md.
+            if vname == "case" {
+                return Err(ParseError::new(
+                    format!("'case' is not supported in an enum — write the variants as plain names separated by commas: enum {} {{ A, B }}", name),
+                    vspan,
+                ));
+            }
             // Valeur explicite optionnelle : `Variant = 42`
             let value = if self.check_exact(&TokenKind::Eq) {
                 self.advance();
@@ -420,10 +429,19 @@ impl Parser {
                 None
             };
             variants.push(EnumVariant { name: vname, value, span: vspan });
-            // Virgule optionnelle entre variantes
+            // Virgule obligatoire entre variantes, finale facultative (EBNF
+            // §21 : `EnumVariant ( "," EnumVariant )* ","?`).
             if self.check_exact(&TokenKind::Comma) {
                 self.advance();
+            } else if !self.check_exact(&TokenKind::RBrace) {
+                return Err(ParseError::new(
+                    format!("expected ',' between the variants of enum '{}'", name),
+                    self.span(),
+                ));
             }
+        }
+        if variants.is_empty() {
+            return Err(ParseError::new(format!("enum '{}' must declare at least one variant", name), span));
         }
         self.eat(&TokenKind::RBrace)?;
 

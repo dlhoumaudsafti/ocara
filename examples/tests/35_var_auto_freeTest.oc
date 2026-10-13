@@ -3,12 +3,12 @@ architecture permissive
 import ocara.UnitTest
 import ocara.Convert
 
-// Stratégie de gestion mémoire pour `var` (voir docs/roadmap.d/memoire-strategie-var.md) :
-// un `var` prouvé ne jamais s'échapper de sa fonction est libéré
-// automatiquement en fin de bloc (comme un `scoped` implicite). Ces tests ne
-// peuvent pas mesurer une fuite directement (pas d'API mémoire exposée),
-// mais vérifient l'absence de corruption/crash — le vrai risque d'un bug
-// dans l'analyse d'échappement (libérer une valeur encore utilisée ailleurs).
+// Libération automatique des `var` (comptage de références, voir
+// docs/roadmap.d/memoire-refcount.md) : une valeur tas est libérée dès que
+// plus rien ne la référence. Ces tests ne peuvent pas mesurer une fuite
+// directement (pas d'API mémoire exposée), mais vérifient l'absence de
+// corruption/crash — le vrai risque d'un bug de comptage (libérer une valeur
+// encore utilisée ailleurs).
 //
 // NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée
 // du fichier pour y appeler les méthodes `*Test` (voir extract_class_name,

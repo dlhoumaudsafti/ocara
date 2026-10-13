@@ -97,7 +97,7 @@ const data:mixed = YAML::parse(yamlStr)  // Identique à decode()
 | Type Ocara | Type YAML | Notes |
 |------------|-----------|-------|
 | `int` | number | Entiers |
-| `float` | number | `decode()`/`parse()` reconstruisent un vrai flottant depuis un nombre YAML à virgule. Pour `encode()` : un flottant lu depuis une source qui le transporte "boxé" (résultat de requête SQL, valeur déjà décodée d'un YAML/JSON...) s'encode comme un nombre YAML ; un littéral flottant écrit directement dans un `array<mixed>`/`map<string, mixed>` (ex. `{'pi': 3.14159}`) s'encode comme une **chaîne** (`'3.14159'`), car ces littéraux sont stockés sous forme de string dans un conteneur `mixed` (limitation du langage, pas de YAML — voir `docs/roadmap.d/langage-mixed-literal-stringification.md`) |
+| `float` | number | `decode()`/`parse()` reconstruisent un vrai flottant depuis un nombre YAML à virgule ; `encode()` écrit un flottant comme un nombre YAML (`pi: 3.14159`), y compris un littéral placé dans un `array<mixed>`/`map<string, mixed>` |
 | `string` | string | Chaînes de caractères |
 | `bool` | boolean | `true` / `false` |
 | `null` | null | Valeur nulle |

@@ -68,7 +68,7 @@ context.home.infra.db.CarRepository
 
 Deux contextes non partagés sont isolés par défaut. Un import de `context.car.infra.db.CarRepository` depuis `context.home.infra.controller.HomeController` est donc rejeté, même si les deux fichiers appartiennent à `infrastructure`. L'égalité de couche n'autorise pas à elle seule une dépendance entre deux contextes maîtres distincts.
 
-Les chemins source et les namespaces doivent rester cohérents. Le compilateur doit classer un module à partir du chemin résolu et vérifier que son namespace ne contredit pas ce classement; sinon, un namespace trompeur pourrait contourner les frontières de dossiers. La règle précise de gestion des fichiers dont le namespace ne reflète pas leur chemin reste à définir : diagnostic dédié recommandé en mode `hexa`.
+Les chemins source et les namespaces doivent rester cohérents. Le compilateur doit classer un module à partir du chemin résolu et vérifier que son namespace ne contredit pas ce classement; sinon, un namespace trompeur pourrait contourner les frontières de dossiers. Un fichier du répertoire hexagonal dont le namespace ne reflète pas son chemin est refusé (diagnostic dédié, voir « Mise en œuvre »).
 
 ## Racines partagées
 
@@ -210,10 +210,12 @@ Le défaut hexagonal rend non conformes la plupart des exemples existants. Lors 
 - **Migration** : `architecture permissive` ajouté aux exemples et tests (fichier d'entrée de chaque projet, chaque fichier isolé) ; `mini_project_hexa` déclare `architecture hexagonal` (`src: context`, `shared: [context.shared]`) — `configs.Database` et `configs.Language` déplacés dans `context/shared/infra/`, namespaces manquants ajoutés.
 - **Tests** : `src/core/tests_architecture.rs`.
 
-## Décisions ouvertes
+## Décisions complémentaires (2026-10-13)
 
-- Gestion de plusieurs projets/racines `src` dans un même graphe.
-- Bibliothèques utilisateur externes (hors du projet).
+- **Une seule racine hexagonale** : le répertoire `src` du fichier d'entrée est l'unique racine. Un fichier du projet situé sous un second répertoire du même nom (second projet importé) est refusé avec un message dédié (« second répertoire hexagonal … — un programme n'a qu'une seule racine hexagonale »).
+- **Bibliothèques externes** : un fichier hors du dossier du projet (`Place::External`) est un détail technique — seule la couche infrastructure (ou une racine `shared`, dont la couche est vérifiée de la même façon) peut l'importer ; domaine et application ne le peuvent pas. Ses propres imports ne sont pas contrôlés.
+
+Implémentation : `Config::place`/`in_other_src` (`src/core/analysis.d/architecture.rs`), `import_violation` (`architecture_rules.rs`), libellé « bibliothèque externe » dans le serveur de langage (`src/lsp/layers.rs`). Tests : `external_library_only_from_infrastructure`, `single_hexagonal_root`, `relative_and_transitive_imports_are_checked`, `test_files_follow_project_architecture` (`src/core/tests_architecture.rs`) — le plan de tests ci-dessus est couvert (points 1 à 10).
 
 ## Outillage : extension VS Code (implémenté le 2026-10-12)
 
@@ -228,12 +230,8 @@ Mise en œuvre : jetons sémantiques `ocaraWhen` du serveur de langage (`src/lsp
 
 ## Priorité / Complexité
 
-**Priorité Moyenne** — structure hexagonale stricte par défaut, avec opt-out explicite via `architecture permissive`; apporte une vérification architecturale aux applications métier tout en préservant un chemin sans ces contraintes pour les autres programmes. **Complexité estimée : Structurelle** — configuration de projet, classification des sources, intégration au graphe d'import, diagnostics et contraintes spécifiques à `wiring`; la résolution actuelle s'appuie sur namespaces et chemins, et nécessite une vérification centralisée pour éviter des règles divergentes entre le chargement normal des imports et le pré-scan de `wiring`.
+Implémentée — plus rien d'ouvert (décisions complémentaires prises le 2026-10-13).
 
 ## Fichiers et surfaces concernés
 
-À confirmer lors de l'implémentation : grammaire et AST du programme (`src/parsing/`), chargement/résolution des imports (`src/main.rs`, `src/core/interface_wiring.rs`), validations sémantiques et diagnostics (`src/sema/`, `src/core/`), tests du parser/imports/`wiring`, documentation canonique (`docs/EBNF.md`, §31 compris), ainsi que l'exemple `examples/advanced/mini_project_hexa` et sa commande de build.
-
-## Reste à faire — audit du 2026-10-13
-
-Implémentée (`src/core/tests_architecture.rs`). Restent deux décisions ouvertes : plusieurs racines `src`, bibliothèques externes — **Basse**. Le plan de tests n'est couvert que partiellement (imports relatifs ou transitifs, fichiers de test `ocaraunit`). Plusieurs passages ci-dessus sont périmés (« la règle précise reste à définir », « Fichiers… à confirmer », « Priorité Moyenne »).
+Parseur `src/parsing/parser.d/architecture.rs`, configuration et règles `src/core/analysis.d/architecture.rs` et `architecture_rules.rs`, serveur de langage `src/lsp/layers.rs`, tests `src/core/tests_architecture.rs`, documentation `docs/EBNF.md` (§33), exemple de référence `examples/advanced/mini_project_hexa`.

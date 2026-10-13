@@ -50,8 +50,7 @@ Comment vas tu ?
 
 ### `IO::writeln(val)` → `void`
 
-Affiche `val` sur stdout **suivi d'un saut de ligne**.  
-Équivalent à la fonction globale `write()`.
+Affiche `val` sur stdout **suivi d'un saut de ligne**.
 
 ```ocara
 IO::writeln("Bonjour Ocara")   // Bonjour Ocara\n
@@ -285,18 +284,18 @@ Exemple :
 
 ---
 
-## Différence avec `write()` / `read()` globaux
+## Pas de `write()` / `read()` globaux
 
-| Fonction globale | Équivalent IO         | Différence                            |
-|------------------|-----------------------|---------------------------------------|
-| `write(val)`     | `IO::writeln(val)`    | Identique (avec `\n`)                 |
-| `read()`         | `IO::read()`          | Identique                             |
-| —                | `IO::write(val)`      | Sans `\n` final                       |
-| —                | `IO::readInt()`      | Conversion automatique en `int`       |
-| —                | `IO::readFloat()`    | Conversion automatique en `float`     |
-| —                | `IO::readBool()`     | Conversion automatique en `bool`      |
-| —                | `IO::readArray(sep)` | Découpe automatique en `array<string>` |
-| —                | `IO::readMap(s, kv)` | Parsing automatique en `map<s,s>`     |
+Ocara ne fournit **aucune** fonction globale `write()` ou `read()` : un appel `write(x)` est rejeté (`undefined symbol 'write'`). Toutes les entrées/sorties console passent par la classe `IO` :
+
+| Besoin                         | Méthode                |
+|--------------------------------|------------------------|
+| Afficher avec `\n` final       | `IO::writeln(val)`     |
+| Afficher sans `\n` final       | `IO::write(val)`       |
+| Lire une entrée                | `IO::read()`           |
+| Lire un `int` / `float` / `bool` | `IO::readInt()` / `IO::readFloat()` / `IO::readBool()` |
+| Lire et découper en `array<string>` | `IO::readArray(sep)` |
+| Lire et parser en `map<string, string>` | `IO::readMap(s, kv)` |
 
 ---
 

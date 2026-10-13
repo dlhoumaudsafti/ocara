@@ -276,6 +276,18 @@ impl<'a> TypeChecker<'a> {
         }
         self.checked_classes.insert(class.name.clone());
 
+        // `modules X` : X doit être un module déclaré — un nom inconnu était
+        // ignoré en silence (ses méthodes manquaient ensuite, avec un message
+        // « field not found » trompeur).
+        for module in &class.modules {
+            if self.symbols.lookup_module(module).is_none() {
+                self.errors.push(SemaError::UndefinedSymbol {
+                    name: format!("module {}", module),
+                    span: class.span.clone(),
+                });
+            }
+        }
+
         // Save/restore (même raison que current_ret dans check_func) : le
         // typecheck lazy peut déclencher check_class() DEPUIS le corps d'une
         // méthode d'une AUTRE classe déjà en cours de vérification — sans
@@ -368,9 +380,10 @@ impl<'a> TypeChecker<'a> {
                         });
                     }
                     // Un champ de type ressource (Mutex/SQLite/MySQL/MariaDB/
-                    // HTTPRequest/HTTPResponse) est autorisé : `__free_<Classe>`
-                    // le ferme désormais via son symbole runtime dédié (voir
-                    // `class_ownership::classify_field`/`FieldOwnership::Resource`).
+                    // HTTPRequest/HTTPResponse) est autorisé : il est fermé à la
+                    // destruction de l'instance (lettre de ressource du masque
+                    // de classe, `src/lower/builder.d/rc_layout.rs`, fermée par
+                    // `finalize_object` dans `runtime/src/rc.rs`).
                     // La classe porteuse est de ce fait traitée comme
                     // `OwnershipClass::Resource` PARTOUT où l'échappement est
                     // vérifié (voir `compute_resource_classes`/
@@ -379,11 +392,9 @@ impl<'a> TypeChecker<'a> {
                     // ressource nue : ne peut pas s'échapper de son bloc
                     // `scoped`/`consumed` (E18), et un `var`/`const` doit
                     // être fermé manuellement ou prouvé non-échappant (E28).
-                    // Sans ça, deux instances pourraient se retrouver à
-                    // partager le même handle natif (`__clone_<Classe>` ne
-                    // clone jamais un champ ressource, voir
-                    // `FieldOwnership::Resource`) et l'une fermerait la
-                    // ressource sous le nez de l'autre.
+                    // Sans ça, le handle natif pourrait être fermé (destruction
+                    // de l'instance porteuse) alors qu'il est encore utilisé
+                    // ailleurs.
                 }
             }
         }
@@ -1049,7 +1060,7 @@ impl<'a> TypeChecker<'a> {
     /// (méthodes D'INSTANCE, `m.lock()` — jamais un "argument" au sens de
     /// cette fonction, donc jamais concernées par ce carve-out). Sans cette
     /// exception, l'usage normal de `HTTPRequest` serait rejeté à tort comme
-    /// un échappement — voir docs/roadmap.d/memoire-double-free-et-fuites-scoped.md.
+    /// un échappement.
     fn check_argument_escape(&mut self, args: &[Expr], allow_resource_use: bool) {
         for arg in args {
             let Expr::Ident(name, use_span) = arg else { continue };
@@ -1303,7 +1314,7 @@ impl<'a> TypeChecker<'a> {
                     // des paramètres de type par les arguments concrets de CETTE
                     // instance (`T` → `int` pour `List<int>`) — jusqu'ici, ce cas
                     // retombait silencieusement sur `Type::Mixed` sans la moindre
-                    // vérification (voir docs/roadmap.d/langage-generiques.md).
+                    // vérification.
                     if let Type::Generic { name: generic_name, args: type_args } = &obj_ty {
                         if let Some(ginfo) = self.symbols.lookup_generic(generic_name) {
                             if let Some(sig) = ginfo.methods.get(field) {
@@ -1437,8 +1448,7 @@ impl<'a> TypeChecker<'a> {
                     // MariaDB) : même mécanisme que Thread ci-dessus,
                     // généralisé (E25) — un second appel referait une
                     // libération déjà faite côté runtime, SEGFAULT confirmé
-                    // par reproduction pour un double `Mutex::destroy` — voir
-                    // docs/roadmap.d/memoire-documentation-diagnostics.md.
+                    // par reproduction pour un double `Mutex::destroy`.
                     let manual_finalizer = matches!(
                         (cls_name.as_str(), field.as_str()),
                         ("Mutex", "destroy") | ("SQLite", "close") | ("MySQL", "close") | ("MariaDB", "close")
@@ -1457,8 +1467,8 @@ impl<'a> TypeChecker<'a> {
                         }
                         // `self.<champ>.close()`/`.destroy()`/`.closeResponse()` :
                         // un champ ressource est déjà fermé automatiquement
-                        // par `__free_<Classe>` quand l'instance porteuse est
-                        // détruite (voir `class_ownership::classify_field`) —
+                        // quand l'instance porteuse est détruite (voir
+                        // `finalize_object`, runtime/src/rc.rs) —
                         // un appel manuel ici referait TOUJOURS cette
                         // fermeture une seconde fois (à la différence de
                         // `ResourceAlreadyFinalized` ci-dessus, qui ne détecte
@@ -1857,8 +1867,7 @@ impl<'a> TypeChecker<'a> {
                     // `HTTPRequest::close(req)`/`::closeResponse(res)` — même
                     // mécanisme que `m.destroy()`/`db.close()` ci-dessus
                     // (E25), mais l'argument est ici passé en ARGUMENT
-                    // (appel statique), pas en receveur d'un appel d'instance
-                    // — voir docs/roadmap.d/memoire-double-free-et-fuites-scoped.md.
+                    // (appel statique), pas en receveur d'un appel d'instance.
                     let manual_finalizer_arg = if is_http_request_call && matches!(method.as_str(), "close" | "closeResponse") {
                         args.first()
                     } else {
@@ -2440,7 +2449,7 @@ pub fn type_name(ty: &Type) -> String {
 /// mécanisme, `Type::Named(a) vs Type::Named(b)` ne passait que par l'égalité
 /// stricte du catch-all final (`found == expected`), rejetant purement et
 /// simplement TOUTE affectation polymorphe, même la plus basique (héritage
-/// de classe) — voir docs/roadmap.d/langage-interfaces.md.
+/// de classe).
 pub fn types_compat(found: &Type, expected: &Type, symbols: &SymbolTable) -> bool {
     if matches!(found, Type::Mixed) || matches!(expected, Type::Mixed) {
         return true;
@@ -2473,6 +2482,11 @@ pub fn types_compat(found: &Type, expected: &Type, symbols: &SymbolTable) -> boo
             f == e || symbols.class_matches(f, e)
         }
         (Type::Array(f), Type::Array(e)) => types_compat(f, e, symbols),
+        // Générique instancié : même générique, arguments compatibles un à un
+        // (`Box<T>` dans le corps d'une méthode statique contre `Box<mixed>`
+        // de sa signature — refusé à tort jusqu'ici).
+        (Type::Generic { name: f, args: fa }, Type::Generic { name: e, args: ea }) =>
+            f == e && fa.len() == ea.len() && fa.iter().zip(ea).all(|(f, e)| types_compat(f, e, symbols)),
         (Type::Map(fk, fv), Type::Map(ek, ev)) =>
             types_compat(fk, ek, symbols) && types_compat(fv, ev, symbols),
         // `Resolvable<T>` : contrairement à `message<T>` (déballé

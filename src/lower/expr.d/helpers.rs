@@ -297,7 +297,7 @@ pub fn resolve_chained_field_class(builder: &LowerBuilder, object: &Expr, field:
         // sans ça, un appel de méthode sur un champ générique
         // (`self.box.get()`, `c.box.get()`) ne trouvait aucune classe et
         // retombait sur un symbole `_method_<nom>` inexistant (confirmé par
-        // reproduction — voir docs/roadmap.d/langage-generiques.md).
+        // reproduction).
         Type::Generic { name, args } => Some(crate::core::monomorph::monomorphized_name(&name, &args)),
         _ => None,
     }
@@ -519,8 +519,7 @@ pub fn is_void_builtin(func_name: &str) -> bool {
 /// ne conservent aucune information de type par élément, donc un conteneur
 /// **concret** (jamais boxé, contrairement à `mixed`) ne peut pas être
 /// interprété sans ambiguïté par ces fonctions (un entier brut `0`/`1` y est
-/// indiscernable de `null`/`false` — confirmé par reproduction, voir
-/// docs/roadmap.d/langage-mixed-literal-stringification.md) à moins de leur
+/// indiscernable de `null`/`false` — confirmé par reproduction) à moins de leur
 /// dire, une fois pour toutes à la compilation, quel est ce type de feuille.
 ///
 /// Retourne `0` (inconnu — comportement heuristique historique, inchangé)

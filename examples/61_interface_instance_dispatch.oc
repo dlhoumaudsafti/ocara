@@ -71,11 +71,10 @@ function main(): int {
     var d:Drawable = use Circle(1.0)
     IO::writeln(d.draw())
 
-    // Capturé dans une variable avant l'appel de méthode : chaîner
-    // directement sur le résultat d'une fonction LIBRE (`pickShape(0).shapeName()`)
-    // se heurte à un bug préexistant sans rapport (retourne `null`
-    // silencieusement) — voir la note dans
-    // examples/tests/61_interface_instance_dispatchTest.oc.
+    // Résultat capturé dans une variable avant l'appel de méthode ; le
+    // chaînage direct sur le résultat d'une fonction LIBRE
+    // (`pickShape(0).shapeName()`) fonctionne aussi (voir
+    // docs/roadmap.d/langage-chained-call-on-free-function-result.md).
     var picked0:Shape = pickShape(0)
     var picked1:Shape = pickShape(1)
     var picked2:Shape = pickShape(2)

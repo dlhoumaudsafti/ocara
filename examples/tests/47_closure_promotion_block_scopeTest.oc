@@ -12,10 +12,10 @@ import ocara.UnitTest
 // aveuglément TOUTE entrée présente avant le bloc, y compris celles
 // légitimement redirigées vers une cellule heap pendant le bloc.
 //
-// Limite connue, NON couverte ici : une fermeture créée À L'INTÉRIEUR d'une
-// boucle (`while`/`for`) reste cassée différemment (la promotion se
-// ré-exécute à chaque itération plutôt qu'une seule fois) — chantier séparé,
-// voir la même fiche, §"Limite connue restante".
+// Le cas d'une fermeture créée À L'INTÉRIEUR d'une boucle (`while`/`for`),
+// où la promotion se ré-exécutait à chaque itération, est corrigé
+// séparément et n'est pas couvert ici — voir
+// docs/roadmap.d/langage-closure-promotion-in-loop.md.
 
 class Test_47_closure_promotion_block_scope {
 

@@ -67,8 +67,7 @@ fn lower_elseif_chain(
 /// dans une branche marquerait la variable "déjà détruite" pour les branches
 /// suivantes ET pour le code après le if, qui suivent pourtant un chemin
 /// d'exécution différent et n'ont jamais réellement vu cette destruction :
-/// la variable fuirait sur leur propre chemin (confirmé par reproduction —
-/// voir `docs/roadmap.d/memoire-double-free-et-fuites-scoped.md`).
+/// la variable fuirait sur leur propre chemin (confirmé par reproduction).
 ///
 /// Chaque branche reçoit donc son propre instantané de `owned_locals` pris
 /// juste avant elle, restauré juste après — ainsi une branche ne voit jamais

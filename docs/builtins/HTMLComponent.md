@@ -57,6 +57,23 @@ card.register(nameless(attrs:map<string, mixed>): string {
 
 ---
 
+### `c.tag(name: string)` → `void`
+
+Définit ou remplace le nom de balise du composant (celui passé à `use HTMLComponent("nom")`). Utile notamment dans une classe qui étend `HTMLComponent`, pour fixer le tag sans passer par le constructeur.
+
+```ocara
+var card:HTMLComponent = use HTMLComponent("card")
+card.tag("product-card")
+card.register(nameless(attrs:map<string, mixed>): string {
+    return `<div class="product">${attrs["name"]}</div>`
+})
+// le composant répond à <product-card>, plus à <card>
+```
+
+> Le nom est lu au moment de `register` : appeler `tag` **après** `register` ne déplace pas le handler déjà enregistré (il reste associé à l'ancien nom). Appeler `tag` avant `register`.
+
+---
+
 ## Méthodes statiques
 
 ### `HTMLComponent::unregister(name: string)` → `void`
@@ -176,7 +193,7 @@ function main(): void {
         scoped stars:int = attrs["stars"]
         var out:string = ""
         var i:int = 0
-        while i < stars {
+        while i smaller stars {
             out = out + "★"
             i = i + 1
         }

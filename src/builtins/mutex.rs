@@ -59,7 +59,7 @@ pub fn class() -> ClassInfo {
 
     // m.withLock(f:Function<void>) → void — lock, exécute f(), unlock garanti
     // (y compris si f() raise, contrairement à lock()/unlock() manuels — voir
-    // Mutex_withLock / docs/roadmap.d/memoire-deadlocks-raise.md)
+    // Mutex_withLock dans runtime/src/mutex.rs)
     methods.insert("withLock".into(), instance(
         vec![("f", Type::Function { ret_ty: Box::new(Type::Void), param_tys: vec![] })],
         Type::Void,

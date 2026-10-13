@@ -64,3 +64,15 @@ fn class_called_without_use_is_not_callable() {
     let errs = errors("var k:K = K()");
     assert!(errs.iter().any(|e| matches!(e, SemaError::NotCallable { .. })), "{:?}", errs);
 }
+
+#[test]
+fn unknown_module_is_rejected() {
+    let src = "class User modules Inexistant {\n}\nfunction main(): int { return 0 }\n";
+    let program = parse(src);
+    let mut symbols = SymbolTable::new();
+    for decl in &program.classes { symbols.register_class(decl); }
+    for decl in &program.functions { symbols.register_function(decl); }
+    let mut checker = TypeChecker::new(&symbols);
+    checker.check_program(&program);
+    assert_eq!(undefined(&checker.errors), vec!["module Inexistant".to_string()]);
+}

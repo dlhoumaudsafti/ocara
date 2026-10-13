@@ -1,10 +1,11 @@
 namespace configs.routes
 // examples/advanced/mini_projet/configs/routes/Cars.oc
 //
-// Mutation via GET plutôt que POST : req.query() décode déjà l'URL
-// (voir runtime/src/httpserver.rs::parse_query), alors qu'aucun parseur
-// application/x-www-form-urlencoded n'est fourni pour un corps de requête
-// POST. Le "redirect after action" de CarController::create (302 vers une
+// Mutation via GET : les paramètres sont lus dans la query string (voir
+// runtime/src/httpserver.rs::parse_query). Un formulaire POST
+// (application/x-www-form-urlencoded) serait aussi possible : son corps est
+// décodé par le runtime et accessible via req.param(...)/req.params().
+// Le "redirect after action" de CarController::create (302 vers une
 // URL propre) évite le risque habituel de resoumission au rechargement.
 
 import controllers.CarController

@@ -160,31 +160,32 @@ Regex::extract("([^@]+)@(.+)", "user@example.com", 2)   // → "example.com"
 
 ```ocara
 import ocara.Regex
+import ocara.IO
 
 function main(): int {
 
     // Validation d'un e-mail
     var email:string = "contact@ocara-lang.org"
     if Regex::test("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", email) {
-        write(`${email} est valide`)
+        IO::writeln(`${email} est valide`)
     }
 
     // Extraire toutes les URLs d'un texte
     var texte:string = "voir https://ocara.dev et https://github.com/ocara"
     scoped urls:array<string> = Regex::findAll("https?://[^\\s]+", texte)
     scoped nb:int = Regex::count("https?://[^\\s]+", texte)
-    write(`${nb} URL(s) trouvée(s)`)
+    IO::writeln(`${nb} URL(s) trouvée(s)`)
 
     // Normaliser des séparateurs
     scoped csv:string = Regex::replaceAll("[,;\\t]+", "a,b;c\td", ",")
-    write(csv)   // a,b,c,d
+    IO::writeln(csv)   // a,b,c,d
 
     // Extraire année/mois/jour d'une date
     scoped d:string = "Livraison le 2026-04-25"
     scoped an:string  = Regex::extract("(\\d{4})-(\\d{2})-(\\d{2})", d, 1)
     scoped mo:string  = Regex::extract("(\\d{4})-(\\d{2})-(\\d{2})", d, 2)
     scoped jo:string  = Regex::extract("(\\d{4})-(\\d{2})-(\\d{2})", d, 3)
-    write(`Année=${an} Mois=${mo} Jour=${jo}`)
+    IO::writeln(`Année=${an} Mois=${mo} Jour=${jo}`)
 
     return 0
 }
@@ -290,7 +291,7 @@ function main(): int {
     
     scoped i:int = 0
     scoped len:int = Array::len(patterns)
-    while i < len {
+    while i smaller len {
         var p:string = patterns.get(i)
         var valid:bool = validate_regex_pattern(p)
         if valid {
@@ -342,12 +343,12 @@ function search_with_pattern(pattern:string, texts:array<string>): void {
     try {
         scoped i:int = 0
         scoped len:int = Array::len(texts)
-        while i < len {
+        while i smaller len {
             var text:string = texts.get(i)
             var found:bool = Regex::test(pattern, text)
             if found {
-                var match:string = Regex::find(pattern, text)
-                IO::writeln(`  ✓ Found in '${text}': '${match}'`)
+                var hit:string = Regex::find(pattern, text)
+                IO::writeln(`  ✓ Found in '${text}': '${hit}'`)
             } else {
                 IO::writeln(`  - Not found in '${text}'`)
             }

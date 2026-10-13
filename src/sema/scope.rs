@@ -43,8 +43,7 @@ pub struct LocalBinding {
     /// différence de `scoped`/`consumed`, qui finalisent automatiquement en
     /// fin de bloc — voir `drop_func_for`). `false` par défaut : tant que ça
     /// n'a pas été prouvé contenu, on suppose prudemment qu'il pourrait
-    /// s'échapper (aucun faux positif possible, voir
-    /// docs/roadmap.d/memoire-documentation-diagnostics.md).
+    /// s'échapper (aucun faux positif possible).
     pub resource_contained: bool,
 }
 
@@ -58,13 +57,13 @@ pub struct LocalBinding {
 /// des variables" pour la justification de cette classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OwnershipClass {
-    /// `string`/`array<T>`/`map<K,V>` — clonée automatiquement à
-    /// l'échappement. Pour `string` spécifiquement : le runtime distingue
+    /// `string`/`array<T>`/`map<K,V>` — valeur comptée : l'échappement
+    /// partage la valeur (référence retenue), sans clonage. Pour `string` spécifiquement : le runtime distingue
     /// désormais un littéral (`"foo"`, tag `TAG_STRING`, `.rodata`, jamais
     /// libéré ni cloné — aliasé directement, toujours sûr car immuable et
     /// éternel) d'une allocation tas réelle (tag `TAG_STRING_OWNED`, posée
     /// par `alloc_str` — concaténation, `String::*`, lecture fichier...),
-    /// via `__value_free`/`__value_clone` (`runtime/src/lib.rs`). Avant ce
+    /// seule comptée et libérée (`runtime/src/rc.rs`). Avant ce
     /// tag dédié, les deux étaient indiscernables et libérer une `scoped
     /// string` plantait dès qu'elle contenait un littéral — voir
     /// l'historique de `TAG_STRING_OWNED` dans `runtime/src/typecheck.rs`.
@@ -85,17 +84,12 @@ pub enum OwnershipClass {
 }
 
 /// `Type::Named(n)` non-ressource est traitée comme `Value` (instance de
-/// classe utilisateur — clonée à l'échappement, comme `array`/`map`) SANS
-/// vérifier ici si `n` a réellement un destructeur généré : cette fonction
-/// n'a pas accès à `program.classes`. La sema (permissive : aucune classe
-/// n'a besoin d'être "reconnue" pour qu'un échappement soit autorisé) et le
-/// lowering restent cohérents grâce à un seul point de vérité côté lowering
-/// — `crate::lower::builder::class_ownership::has_generated_destructor` —
-/// consulté avant tout appel `__free_<Classe>`/`__clone_<Classe>` : si `n`
-/// n'est pas une classe utilisateur réelle (SDL/Tauri/Exception/toute autre
-/// classe builtin, qui n'ont pas d'entrée dans `class_field_types`), aucune
-/// fonction n'est appelée — comportement identique à `var` (aucune
-/// destruction, aucun clonage), pas de plantage ni de symbole manquant.
+/// classe utilisateur — partagée à l'échappement, comme `array`/`map`) SANS
+/// vérifier ici si `n` est une classe utilisateur : cette fonction
+/// n'a pas accès à `program.classes`. La libération d'une instance relève
+/// du comptage de références (`src/lower/builder.d/rc_layout.rs`,
+/// `runtime/src/rc.rs`), qui ignore toute classe hors `rc_objects` : aucun
+/// plantage ni symbole manquant pour une classe builtin.
 pub fn ownership_class(ty: &Type) -> OwnershipClass {
     match ty {
         Type::String | Type::Array(_) | Type::Map(_, _) => OwnershipClass::Value,
@@ -120,15 +114,14 @@ pub fn ownership_class(ty: &Type) -> OwnershipClass {
 /// Une classe de cet ensemble DOIT être traitée comme
 /// `OwnershipClass::Resource` partout où `ownership_class` est consulté pour
 /// une décision d'échappement/de possession (voir `ownership_class_of`) :
-/// son destructeur ferme désormais un handle natif (voir
-/// `crate::lower::builder::class_ownership`), donc elle hérite des mêmes
+/// la destruction de l'instance ferme un handle natif (lettre de ressource
+/// du masque de classe, `src/lower/builder.d/rc_layout.rs`, fermée par
+/// `finalize_object` dans `runtime/src/rc.rs`), donc elle hérite des mêmes
 /// règles qu'une ressource nue (E18 : ne peut pas s'échapper de son bloc
 /// `scoped`/`consumed` ; E28 : un `var`/`const` prouvé non-échappant doit
 /// être fermé manuellement, jamais auto-libéré silencieusement). Sans ça,
-/// deux instances pourraient se retrouver à partager le même handle natif
-/// (`__clone_<Classe>` copie un champ ressource tel quel, jamais dupliqué —
-/// voir `FieldOwnership::Resource`) et l'une fermerait la ressource sous le
-/// nez de l'autre : double-free / use-after-close silencieux.
+/// le handle natif pourrait être fermé (destruction de l'instance porteuse)
+/// alors qu'il est encore utilisé ailleurs : use-after-close silencieux.
 pub fn compute_resource_classes(classes: &[ClassDecl]) -> HashSet<String> {
     let mut result: HashSet<String> = HashSet::new();
     loop {
@@ -176,11 +169,12 @@ pub fn ownership_class_of(ty: &Type, resource_classes: &HashSet<String>) -> Owne
 
 /// Nom du symbole runtime qui finalise une valeur du type ressource NATIF
 /// nommé (`SQLite_close`, `Mutex_destroy`, ...) — `None` si `ty_name` n'est
-/// pas l'un des types listés dans `ownership_class`. Point de vérité unique,
-/// partagé par `lower::stmt::ownership::drop_func_for` (finalisation d'une
-/// `scoped`/`consumed`/`var` ressource) et `lower::builder::class_ownership`
-/// (finalisation d'un CHAMP ressource dans `__free_<Classe>`) — éviter deux
-/// copies de ce mapping qui pourraient diverger silencieusement.
+/// pas l'un des types listés dans `ownership_class`. Utilisé par
+/// `lower::stmt::ownership::drop_func_for` (finalisation d'une
+/// `scoped`/`consumed`/`var` ressource) ; la fermeture d'un CHAMP ressource
+/// passe, elle, par le masque de classe (`lower::builder::rc_layout`) et
+/// `finalize_object` (`runtime/src/rc.rs`) — les deux tables doivent rester
+/// alignées.
 pub fn resource_closer_symbol(ty_name: &str) -> Option<&'static str> {
     match ty_name {
         "Mutex" => Some("Mutex_destroy"),
@@ -359,9 +353,7 @@ impl ScopeStack {
     /// l'était déjà — un second appel referait un `Box::from_raw`/une
     /// libération sur un pointeur déjà repris côté runtime, un use-after-free
     /// confirmé par reproduction pour chacun de ces types (abort pour
-    /// `Thread`, SEGFAULT pour `Mutex`) — voir
-    /// `docs/roadmap.d/memoire-double-free-et-fuites-scoped.md` et
-    /// `docs/roadmap.d/memoire-documentation-diagnostics.md`.
+    /// `Thread`, SEGFAULT pour `Mutex`).
     pub fn mark_resource_finalized(&mut self, name: &str) -> bool {
         for frame in self.frames.iter_mut().rev() {
             if let Some(b) = frame.get_mut(name) {

@@ -99,3 +99,94 @@ fn wiring_stays_in_its_context() {
     let errs = errors("wiring", "architecture hexagonal {\n    src: context,\n    layers: { infrastructure: infra },\n}", &files, &["context.home.domain.Contract"]);
     assert!(errs.iter().any(|e| e.contains("'wiring context.car.infra.CarRepo' vise le contexte 'car'")), "{:?}", errs);
 }
+
+/// Projet dans `<tmp>/proj` (fichier d'entrée `proj/main.oc`), fichiers
+/// placés relativement à `<tmp>` — pour une bibliothèque hors du projet.
+fn layout_errors(test: &str, files: &[(&str, String)], main: &str) -> Vec<String> {
+    let base = std::env::temp_dir().join(format!("ocara_arch_layout_{}_{}", test, std::process::id()));
+    std::fs::remove_dir_all(&base).ok();
+    for (rel, text) in files {
+        write(&base, rel, text);
+    }
+    write(&base, "proj/main.oc", main);
+    let input = base.join("proj/main.oc");
+    let src_dir = base.join("proj");
+    let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&src_dir), dump: false, index: false, tolerant: false });
+    std::fs::remove_dir_all(&base).ok();
+    analysis.diagnostics.iter().filter(|d| d.is_error()).map(|d| d.message.clone()).collect()
+}
+
+const LIB: &str = "class Util {\n    public static method ping(): int {\n        return 1\n    }\n}\n";
+
+fn relative_import_class(ns: &str, name: &str, from: &str) -> String {
+    format!("namespace {}\n\nimport Util from \"{}\"\n\nclass {} {{\n    public static method ping(): int {{\n        return Util::ping()\n    }}\n}}\n", ns, from, name)
+}
+
+/// Bibliothèque hors du projet : importable depuis l'infrastructure, pas
+/// depuis le domaine ni l'application (décision du 2026-10-13).
+#[test]
+fn external_library_only_from_infrastructure() {
+    let main = format!("import ocara.IO\nimport context.home.infra.Repo\n\n{}\n\nfunction main(): int {{\n    return 0\n}}\n", HEXA);
+    let files = [
+        ("lib/Util.oc", LIB.to_string()),
+        ("proj/context/home/infra/Repo.oc", relative_import_class("context.home.infra", "Repo", "../../../../lib/Util")),
+    ];
+    let errs = layout_errors("extok", &files, &main);
+    assert!(!errs.iter().any(|e| e.contains("bibliothèque externe")), "{:?}", errs);
+
+    let main = format!("import ocara.IO\nimport context.home.domain.Entity\n\n{}\n\nfunction main(): int {{\n    return 0\n}}\n", HEXA);
+    let files = [
+        ("lib/Util.oc", LIB.to_string()),
+        ("proj/context/home/domain/Entity.oc", relative_import_class("context.home.domain", "Entity", "../../../../lib/Util")),
+    ];
+    let errs = layout_errors("extko", &files, &main);
+    assert!(errs.iter().any(|e| e.contains("ne peut pas importer la bibliothèque externe")), "{:?}", errs);
+}
+
+/// Un second répertoire hexagonal dans le graphe est refusé : une seule
+/// racine par programme (décision du 2026-10-13).
+#[test]
+fn single_hexagonal_root() {
+    let files = [
+        ("vendor/context/home/domain/Other.oc", class("vendor.context.home.domain", "Other", &[])),
+        ("context/home/infra/Repo.oc", class("context.home.infra", "Repo", &["vendor.context.home.domain.Other"])),
+    ];
+    let errs = errors("tworoots", HEXA, &files, &["context.home.infra.Repo"]);
+    assert!(errs.iter().any(|e| e.contains("second répertoire hexagonal 'vendor/context'")), "{:?}", errs);
+}
+
+/// Imports relatifs et transitifs : chaque fichier du graphe est vérifié.
+#[test]
+fn relative_and_transitive_imports_are_checked() {
+    let files = [
+        ("context/home/infra/Repo.oc", class("context.home.infra", "Repo", &[])),
+        ("context/home/app/Service.oc", "namespace context.home.app\n\nimport Repo from \"../infra/Repo\"\n\nclass Service {\n    public static method ping(): int {\n        return 1\n    }\n}\n".to_string()),
+        ("context/home/domain/Entity.oc", class("context.home.domain", "Entity", &[])),
+        ("context/home/infra/Entry.oc", class("context.home.infra", "Entry", &["context.home.app.Service", "context.home.domain.Entity"])),
+    ];
+    let errs = errors("relative", HEXA, &files, &["context.home.infra.Entry"]);
+    assert!(errs.iter().any(|e| e.contains("application (app) peut dépendre de application et domain, pas de infrastructure")), "{:?}", errs);
+}
+
+/// Un fichier de test `ocaraunit` suit la configuration du `main.oc` du
+/// projet : une violation dans son graphe est rejetée, sa propre
+/// `architecture permissive` la lève (plan de tests, point 10).
+#[test]
+fn test_files_follow_project_architecture() {
+    let run = |test: &str, test_header: &str| -> Vec<String> {
+        let dir = std::env::temp_dir().join(format!("ocara_arch_unit_{}_{}", test, std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        write(&dir, "main.oc", &format!("import ocara.IO\n\n{}\n\nfunction main(): int {{\n    return 0\n}}\n", HEXA));
+        write(&dir, "context/home/app/Service.oc", &class("context.home.app", "Service", &[]));
+        write(&dir, "context/home/domain/Entity.oc", &class("context.home.domain", "Entity", &["context.home.app.Service"]));
+        write(&dir, "tests/EntityTest.oc", &format!("{}\nimport ocara.UnitTest\nimport context.home.domain.Entity\n\nclass Test_Entity {{\n    public method pingTest(): int {{\n        UnitTest::assertEquals(1, Entity::ping())\n        return 0\n    }}\n}}\n", test_header));
+        let input = dir.join("tests/EntityTest.oc");
+        let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&dir), dump: false, index: false, tolerant: false });
+        std::fs::remove_dir_all(&dir).ok();
+        analysis.diagnostics.iter().filter(|d| d.is_error()).map(|d| d.message.clone()).collect()
+    };
+    let errs = run("strict", "");
+    assert!(errs.iter().any(|e| e.contains("domain (domain) peut dépendre de domain, pas de application")), "{:?}", errs);
+    let errs = run("permissive", "architecture permissive\n");
+    assert!(!errs.iter().any(|e| e.contains("architecture hexagonale")), "{:?}", errs);
+}

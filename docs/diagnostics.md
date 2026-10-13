@@ -587,11 +587,11 @@ function main(): int {
 
 ### E29 — (retiré) Champ de classe d'un type ressource
 
-Historiquement, une `property` d'un type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`/`HTTPRequest`/`HTTPResponse`) sur une classe utilisateur était rejetée d'office (`__free_<Classe>` ne savait libérer qu'un champ `string`/`array`/`map`/instance de classe, jamais une ressource).
+Historiquement, une `property` d'un type ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`/`HTTPRequest`/`HTTPResponse`) sur une classe utilisateur était rejetée d'office (aucun mécanisme ne savait fermer un tel champ).
 
-**Ce n'est plus le cas.** `__free_<Classe>` ferme désormais un tel champ automatiquement, via son symbole runtime dédié (`SQLite_close`, `Mutex_destroy`, ...), quand l'instance porteuse est détruite (`scoped`/`consumed`, ou un `var`/`const` prouvé non-échappant). Pour que ça reste sûr, la classe porteuse est alors traitée comme une ressource NATIVE partout où l'échappement est vérifié :
+**Ce n'est plus le cas.** Un tel champ est fermé automatiquement, via son symbole runtime dédié (`SQLite_close`, `Mutex_destroy`, ...), quand l'instance porteuse est détruite (comptage de références : lettre de ressource du masque de classe, `src/lower/builder.d/rc_layout.rs`, fermée par `finalize_object` dans `runtime/src/rc.rs`). Pour que ça reste sûr, la classe porteuse est alors traitée comme une ressource NATIVE partout où l'échappement est vérifié :
 
-- Une `scoped`/`consumed` instance de cette classe ne peut pas s'échapper de son bloc (assignation, `return`, argument) — voir E18 : deux instances vivantes ne peuvent jamais se partager le même handle (`__clone_<Classe>` ne clone jamais un champ ressource).
+- Une `scoped`/`consumed` instance de cette classe ne peut pas s'échapper de son bloc (assignation, `return`, argument) — voir E18 : le handle serait sinon fermé en fin de bloc alors qu'il reste référencé ailleurs.
 - Un `var`/`const` de cette classe doit être fermé manuellement ou prouvé non-échappant, sinon E28 (« fuite permanente ») s'applique — comme pour une ressource nue, sauf qu'une classe composite n'a en général pas de méthode `close()` à elle : `scoped`/`consumed` reste le seul choix pratique.
 - Voir E35 ci-dessous pour l'interdiction de fermer manuellement un tel champ depuis une méthode de la classe.
 
@@ -679,7 +679,7 @@ for x in trucLoop() { }  // ✅ toujours valable
 fichier.oc:12:16: error: 'self.db' ('SQLite') is closed automatically when the 'Database' instance is destroyed — calling '.close()' manually here would close it a second time (undefined behavior); remove this call
 ```
 
-Depuis qu'une `property` de type ressource est autorisée sur une classe utilisateur (voir E29 ci-dessus), `__free_<Classe>` ferme ce champ automatiquement à la destruction de l'instance porteuse. Appeler `.close()`/`.destroy()`/`.closeResponse()` manuellement sur `self.<champ>` depuis une méthode de la classe referait donc TOUJOURS cette fermeture une seconde fois — contrairement à E25 (`ResourceAlreadyFinalized`), qui ne détecte qu'un second appel explicite sur une variable locale, ici le PREMIER appel explicite est déjà en trop : aucun suivi n'est possible à travers des appels de méthode arbitraires pour distinguer un usage sûr.
+Depuis qu'une `property` de type ressource est autorisée sur une classe utilisateur (voir E29 ci-dessus), ce champ est fermé automatiquement à la destruction de l'instance porteuse. Appeler `.close()`/`.destroy()`/`.closeResponse()` manuellement sur `self.<champ>` depuis une méthode de la classe referait donc TOUJOURS cette fermeture une seconde fois — contrairement à E25 (`ResourceAlreadyFinalized`), qui ne détecte qu'un second appel explicite sur une variable locale, ici le PREMIER appel explicite est déjà en trop : aucun suivi n'est possible à travers des appels de méthode arbitraires pour distinguer un usage sûr.
 
 ```ocara
 class Database {

@@ -637,8 +637,8 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     // classe qui a des sous-classes est redirigé vers son
                     // dispatcher `__dispatch_Classe_méthode` — sans quoi
                     // l'appel résoudrait TOUJOURS vers `class_name`, jamais
-                    // vers une éventuelle surcharge du type réel de l'objet
-                    // (voir docs/roadmap.d/langage-interfaces.md). `self` doit
+                    // vers une éventuelle surcharge du type réel de l'objet.
+                    // `self` doit
                     // se comporter comme n'importe quel appel virtuel (le
                     // patron "template method" — une méthode de base qui
                     // appelle `self.hook()` en attendant qu'une sous-classe
@@ -769,8 +769,7 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     // suivie (Mutex::destroy, SQLite/MySQL/MariaDB::close) :
                     // marquer comme déjà détruite pour que la destruction
                     // automatique de fin de bloc ne la libère pas une seconde
-                    // fois (double-free confirmé sans cette marque — voir
-                    // docs/roadmap.d/memoire-double-free-et-fuites-scoped.md).
+                    // fois (double-free confirmé sans cette marque).
                     if let Expr::Ident(var_name, _) = object.as_ref() {
                         let is_manual_finalizer = matches!(
                             (class_name.as_deref(), field.as_str()),
@@ -1152,7 +1151,7 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 // voir plus haut) pour que la libération automatique de fin
                 // de bloc ne libère pas une seconde fois — mais l'argument
                 // est ici passé en ARGUMENT (appel statique), pas en
-                // receveur. Voir docs/roadmap.d/memoire-double-free-et-fuites-scoped.md.
+                // receveur.
                 if func_name == "HTTPRequest_close" || func_name == "HTTPRequest_closeResponse" {
                     if let Some(Expr::Ident(var_name, _)) = args.first() {
                         crate::lower::stmt::ownership::mark_finalized(builder, var_name);
@@ -1284,7 +1283,7 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // sinon) plutôt que de supposer systématiquement une
             // concaténation comme avant ce correctif — ce qui produisait un
             // résultat numérique faux pour un `mixed` contenant un nombre
-            // (voir docs/roadmap.d/langage-mixed-arithmetic.md). Un opérande
+            // (confirmé par reproduction). Un opérande
             // à type CONNU F64/Bool (jamais taggé, contrairement à la même
             // valeur stockée dans un `mixed`) est d'abord boxé pour rejoindre
             // la même représentation "mixed" que `__dyn_add` attend des deux
@@ -1396,8 +1395,7 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // que de se fier au type statique de l'AUTRE opérande : un `int`
             // connu combiné à un `mixed` qui contient en réalité un `float`
             // aurait sinon figé `ty` à I64, tronquant silencieusement le
-            // float (confirmé par reproduction — voir
-            // docs/roadmap.d/langage-mixed-arithmetic.md). Retourne, comme
+            // float (confirmé par reproduction). Retourne, comme
             // `__dyn_add`, une valeur "mixed" auto-décrite (entier brut ou
             // float boxé) — `expr_ir_type` rapporte donc aussi `Ptr` pour ce
             // cas (voir typeinfer.rs), le consommateur (`box_for_any` pour
@@ -1761,7 +1759,7 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 // (`__alloc_locked_cell`, pas `__alloc_obj`) : cette valeur sera
                 // désormais lue/écrite depuis le scope extérieur ET la closure,
                 // potentiellement sur des threads différents (Thread::run,
-                // workers HTTPServer) — voir docs/roadmap.d/memoire-concurrence-threads.md.
+                // workers HTTPServer) — d'où la cellule verrouillée.
                 if let Some((slot, ty, mutable)) = builder.locals.get(cap_name.as_str()).cloned() {
                     let heap_ptr = crate::lower::stmt::rc::promote_to_cell(builder, cap_name, slot, &ty);
                     // Rediriger les futurs accès dans le scope extérieur vers le heap

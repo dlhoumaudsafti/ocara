@@ -377,8 +377,8 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     }
 
     // Hiérarchie des exceptions builtin : toutes "héritent" de `Exception`
-    // pour le filtrage `on e is X` (voir IrModule::ancestor_chain, lower_raise,
-    // et docs/roadmap.d/langage-exceptions.md) — `.entry(...).or_insert` pour
+    // pour le filtrage `on e is X` (voir IrModule::ancestor_chain et
+    // lower_raise) — `.entry(...).or_insert` pour
     // ne jamais écraser un `extends` explicite d'une classe utilisateur qui
     // porterait le même nom (cas limite improbable, mais gratuit à éviter).
     for name in crate::builtins::exception::BUILTIN_EXCEPTION_NAMES {
@@ -481,8 +481,8 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     // (pas IrType) — voir la doc de IrModule::class_field_types. Volontairement
     // limité aux classes utilisateur : si le parent (`extends`) n'est PAS
     // dans `classes` (parent builtin, ex: exception personnalisée), on
-    // s'arrête là plutôt que d'inventer un type — ces champs hérités ne
-    // seront simplement pas libérés/clonés récursivement (fuite, pas un bug).
+    // s'arrête là plutôt que d'inventer un type (leur libération relève du
+    // comptage de références du parent, voir rc_layout.rs).
     fn collect_field_types(
         classes: &[ClassDecl],
         modules: &[ModuleDecl],
@@ -947,7 +947,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     }
 
     // Dispatch dynamique réel pour les interfaces ET l'héritage de classe
-    // (voir docs/roadmap.d/langage-interfaces.md) — après toutes les
+    // — après toutes les
     // classes, dont les méthodes concrètes doivent déjà exister pour être
     // appelées depuis les dispatchers générés ici.
     super::interfaces::generate_interface_dispatchers(&mut module, program);

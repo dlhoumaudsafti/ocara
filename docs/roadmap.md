@@ -37,6 +37,8 @@ Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnali
 - **Closure qui modifie une locale d'un générateur — sans effet** — `acc` reste à sa valeur d'avant l'appel. *(Structurel)* → [détails](roadmap.d/langage-emit-iterable.md)
 - **Arithmétique sur `T = string` dans un `generic` — contourne E59** — `-`, `-=`, `*` produisent des différences d'adresses. *(Structurel — vérification par instanciation)* → [détails](roadmap.d/langage-compound-assignment.md)
 - **`raise` dans une fonction `async` non rattrapable autour de `resolve`** — « UNHANDLED EXCEPTION », arrêt du programme malgré le `try`. *(Structurel)* → [détails](roadmap.d/langage-async-exception-resolve.md)
+- **Méthode statique d'un `generic` inappelable** — `Box::of(4)` (fabrique statique d'un générique, exemples `Result::ok`/`Option::some` de l'EBNF §20) : aucune instance générée, erreur de compilation. *(Structurel — instanciation à inférer ou syntaxe `Box<int>::of`)* → [détails](roadmap.d/langage-generique-methode-statique.md)
+- **`UnitTest::assertEnum` échoue toujours sur une variante d'enum** — le runtime attend un objet, une variante est un entier. *(Simple — vérification à la compilation ou retrait, à trancher)* → [détails](roadmap.d/stdlib-unittest-assertenum.md)
 
 ---
 
@@ -57,10 +59,6 @@ Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnali
 
 Confort ou portée future — n'affecte pas la correction du compilateur ou des binaires produits.
 
-- **Cohérence de la documentation (2ᵉ passe)** — §31 de l'EBNF incomplet (`ArchitectureDecl`, `ResultStmt`, `TemplateString`), `..` encore cité, exemples de `docs/builtins` qui ne compilent plus, méthodes non documentées, liens vers des fiches supprimées, commentaires d'exemples périmés. *(Simple)* → [détails](roadmap.d/coherence-documentation-ebnf-stdlib.md)
-- **`HTTPServer` : aucune limite de taille du corps de requête** *(Légère)* → [détails](roadmap.d/stdlib-httpserver-request-object.md)
-- **Mode hexagonal : décisions ouvertes** — plusieurs racines `src`, bibliothèques externes ; plan de tests partiellement couvert. *(Légère)* → [détails](roadmap.d/langage-mode-hexa.md)
-- **Messages trompeurs de la sema** — `enum { case A }` lu comme une variante `case`, virgules d'enum facultatives contrairement à l'EBNF. *(Simple)* → [détails](roadmap.d/langage-enum-cases-backing-methods.md)
 - **Extension JetBrains équivalente à l'extension VS Code** — plugin IntelliJ Platform (IDEA, CLion, RustRover, PhpStorm…) aux fonctionnalités identiques : coloration (grammaire TextMate réutilisée, couleur dédiée de `when`), diagnostics, définition, références, survol, complétion, signature help, CodeLens, ocaracs et mise en forme, commandes compiler / lancer / dump / documentation, réglages. Client du serveur de langage (`ocara --lsp`), sans heuristiques recodées ; liste de parité commune aux deux extensions. *(Moyenne après le serveur de langage, Structurel sans lui)* → [détails](roadmap.d/tooling-jetbrains-plugin.md)
 
 ---

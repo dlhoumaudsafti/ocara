@@ -1,6 +1,7 @@
 /// Analyse d'échappement interprocédurale des paramètres de fonction/
-/// méthode/constructeur UTILISATEUR — voir docs/roadmap.d/memoire-strategie-var.md
-/// et docs/roadmap.d/memoire-echappement-argument.md.
+/// méthode/constructeur UTILISATEUR (diagnostics E26/E28 ; la libération
+/// mémoire elle-même relève du comptage de références, voir
+/// docs/roadmap.d/memoire-refcount.md).
 ///
 /// Sert à `sema::typecheck` (`check_resource_var_containment`) : une
 /// ressource déclarée en `var` est confinée si elle ne s'échappe jamais

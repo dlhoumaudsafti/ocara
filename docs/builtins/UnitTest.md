@@ -181,18 +181,144 @@ UnitTest::fail("cette branche ne devrait jamais être atteinte")
 
 ---
 
+### Types
+
+Ces assertions vérifient la **nature runtime** de la valeur (paramètre `value:mixed`). Elles affichent `PASS <nom>` en cas de succès.
+
+#### `UnitTest::assertArray(value)`
+
+Vérifie que `value` est un tableau (`array<T>`). Code 119 sinon.
+
+```ocara
+UnitTest::assertArray([1, 2, 3])
+```
+
+---
+
+#### `UnitTest::assertMap(value)`
+
+Vérifie que `value` est une map (`map<K, V>`). Code 118 sinon.
+
+```ocara
+const m:map<string, int> = {"a": 1}
+UnitTest::assertMap(m)
+```
+
+---
+
+#### `UnitTest::assertFunction(value)`
+
+Vérifie que `value` est une fonction (closure `nameless` ou référence de fonction). Code 115 sinon.
+
+```ocara
+UnitTest::assertFunction(nameless(x:int): int { return x })
+```
+
+---
+
+#### `UnitTest::assertClass(value)`
+
+Vérifie que `value` est une instance de classe. Code 116 sinon.
+
+```ocara
+scoped p:Point = use Point(1)
+UnitTest::assertClass(p)
+```
+
+---
+
+#### `UnitTest::assertEnum(value)`
+
+Vérifie que `value` est un objet (même test runtime que `assertClass`). Code 117 sinon.
+
+> ⚠️ Les variantes d'enum compilent vers des **constantes entières** : `UnitTest::assertEnum(Color::RED)` **échoue** (code 117, `value is not an enum`). Pour une variante d'enum, comparer plutôt sa valeur avec `assertEquals`.
+
+---
+
+### Exceptions
+
+#### `UnitTest::assertRaises(callable) → Exception`
+
+Exécute `callable` (closure sans paramètre) dans un `try` interne. Si une exception est levée, affiche `PASS assertRaises` et **retourne l'exception capturée** (type déclaré `mixed`, assignable à une variable `Exception`) pour l'inspecter ensuite. Si `callable` se termine sans lever, lève une `UnitTestException` (code 120, `assertRaises: callable did not raise an exception`).
+
+```ocara
+const m:map<string, int> = {"a": 1}
+const e:Exception = UnitTest::assertRaises(nameless(): void {
+    Map::get(m, "absent")
+})
+UnitTest::assertExceptionCodeEquals(e.code, 101)
+```
+
+---
+
+#### `UnitTest::assertExceptionMessageEquals(message:string, expected:string)`
+#### `UnitTest::assertExceptionMessageNotEquals(message:string, expected:string)`
+
+Compare `e.message` à la chaîne attendue (égalité exacte). Codes 121 / 122 en cas d'échec.
+
+```ocara
+UnitTest::assertExceptionMessageEquals(e.message, "Key not found: absent")
+UnitTest::assertExceptionMessageNotEquals(e.message, "")
+```
+
+---
+
+#### `UnitTest::assertExceptionCodeEquals(code:int, expected:int)`
+#### `UnitTest::assertExceptionCodeNotEquals(code:int, expected:int)`
+
+Compare `e.code` à l'entier attendu. Codes 123 / 124 en cas d'échec.
+
+```ocara
+UnitTest::assertExceptionCodeEquals(e.code, 101)
+UnitTest::assertExceptionCodeNotEquals(e.code, 0)
+```
+
+---
+
+#### `UnitTest::assertExceptionSourceEquals(source:string, expected:string)`
+#### `UnitTest::assertExceptionSourceNotEquals(source:string, expected:string)`
+
+Compare `e.source` (classe builtin à l'origine de l'exception, ex. `"Map"`) à la chaîne attendue. Codes 125 / 126 en cas d'échec.
+
+```ocara
+UnitTest::assertExceptionSourceEquals(e.source, "Map")
+UnitTest::assertExceptionSourceNotEquals(e.source, "File")
+```
+
+Sortie de l'exemple ci-dessus :
+
+```
+PASS assertRaises
+PASS assertExceptionCodeEquals: 101 == 101
+PASS assertExceptionMessageEquals: "Key not found: absent" == "Key not found: absent"
+PASS assertExceptionSourceEquals: "Map" == "Map"
+```
+
+Voir [Exception](Exception.md) pour les champs `message`, `code` et `source`.
+
+---
+
 ## Format de sortie
 
-Chaque assertion écrit une ligne sur stdout :
+Chaque assertion réussie écrit une ligne `PASS` sur stdout :
 
 ```
 PASS assertEquals: 42 == 42
-FAIL assertEquals: attendu "alice" mais obtenu "bob"
 PASS assertTrue
-FAIL assertGreater: 10 n'est pas > 50
 ```
 
-Ce format est lu par `ocaraunit` pour produire le rapport final.
+Une assertion en échec lève une `UnitTestException` (message en anglais, par exemple `assertGreater: 10 is not > 50`) : l'exécution du fichier de test s'arrête là, et `ocaraunit` le compte comme **erreur d'exécution** en affichant le message. Les assertions déjà passées restent comptées.
+
+```
+  PASS assertEquals: 42 == 42
+  PASS assertTrue
+  2 PASS  0 FAIL (compile: 937ms, run: 1ms)
+  ERREUR exécution :
+  … Exception raised: UnitTestException …
+  Message: assertGreater: 10 is not > 50
+```
+
+`ocaraunit` lit ces lignes pour produire le rapport final.
 
 ---
 
@@ -381,6 +507,13 @@ class MathTest {
 | 117  | `assertEnum` | Non enum |
 | 118  | `assertMap` | Non map |
 | 119  | `assertArray` | Non array |
+| 120  | `assertRaises` | Le callable n'a levé aucune exception |
+| 121  | `assertExceptionMessageEquals` | Messages différents |
+| 122  | `assertExceptionMessageNotEquals` | Messages égaux |
+| 123  | `assertExceptionCodeEquals` | Codes différents |
+| 124  | `assertExceptionCodeNotEquals` | Codes égaux |
+| 125  | `assertExceptionSourceEquals` | Sources différentes |
+| 126  | `assertExceptionSourceNotEquals` | Sources égales |
 
 **Exemples d'utilisation** :
 

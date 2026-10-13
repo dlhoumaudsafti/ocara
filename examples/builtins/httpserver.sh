@@ -36,6 +36,14 @@ if ! echo "$resp" | grep -q "bonjour"; then
     FAIL=1
 fi
 
+# POST /echo avec un corps au-delà de la limite par défaut (10 Mio) → 413,
+# sans appeler le handler (docs/roadmap.d/stdlib-httpserver-request-object.md).
+code=$(head -c 11000000 /dev/zero | curl -s --max-time 10 -o /dev/null -w "%{http_code}" -X POST --data-binary @- "http://localhost:$PORT/echo")
+if [ "$code" != "413" ]; then
+    echo "FAIL: POST /echo de 11 Mo — attendu 413, reçu $code" >&2
+    FAIL=1
+fi
+
 # GET /hits en vraie concurrence → le compteur ne doit perdre AUCUNE
 # incrémentation, sans Mutex explicite : HTTPServer sérialise nativement
 # l'invocation des handlers (docs/roadmap.d/runtime-httpserver-race-
