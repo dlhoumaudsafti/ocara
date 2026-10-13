@@ -10,7 +10,7 @@ Ce fichier ne contient volontairement **aucun détail technique**. Chaque point 
 
 Cette roadmap est construite pour qu'on puisse dire que le langage est stable **quand la section "Priorité Haute" ci-dessous est vide** — pas avant. Ce n'est pas un objectif séparé à suivre en plus des tickets : c'est littéralement ce que cette section représente. Volontairement, aucune checklist n'est dupliquée ici (le projet a déjà payé le prix d'une source de vérité dupliquée ailleurs — voir `docs/adding-builtins.md`, la double liste `OCARA_BUILTINS`) : la liste unique à vider est celle de la section "Priorité Haute".
 
-**La section "Priorité Haute" est actuellement vide** — au sens de cette définition, le langage est « stable ». Les sections Moyenne/Basse/Très Basse ci-dessous restent à traiter mais ne bloquent pas cette définition — voir la Légende.
+**La section "Priorité Haute" n'est pas vide** — au sens de cette définition, le langage n'est pas « stable » tant qu'elle ne l'est pas. Les sections Moyenne/Basse/Très Basse ci-dessous restent à traiter mais ne bloquent pas cette définition — voir la Légende.
 
 ## Légende
 
@@ -28,6 +28,8 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 ## Priorité Haute
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
+
+- **Types des arguments jamais vérifiés à l'appel** — seule l'arité est contrôlée : `add("1", 2)` (paramètres `int`) compile et affiche l'adresse de la chaîne (`10051650`) ; même chose pour les méthodes (instance, statiques), constructeurs, arguments nommés et builtins ; un objet attendu reçoit n'importe quoi (comportement indéfini). *(Structurel — vérification par argument avec `types_compat`, toutes les formes d'appel)* → [détails](roadmap.d/sema-types-arguments-appel.md)
 
 ---
 
