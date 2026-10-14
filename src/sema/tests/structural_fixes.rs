@@ -4,7 +4,6 @@
 /// instanciation de `generic`.
 use crate::parsing::ast::Program;
 use crate::parsing::{lexer::Lexer, parser::Parser};
-use crate::sema::error::SemaError;
 use crate::sema::symbols::SymbolTable;
 use crate::sema::typecheck::TypeChecker;
 
@@ -33,6 +32,13 @@ const BOX: &str = r#"
         init(v:T) { self.v = v }
         public static method of(v:T): Box<T> { return use Box<T>(v) }
         public static method empty(): Box<T> { return use Box<T>(null) }
+    }
+"#;
+
+const ACC: &str = r#"
+    generic Acc<T> {
+        private property v:T
+        init(v:T) { self.v = v }
         public method minus(e:T): T { return self.v - e }
     }
 "#;
@@ -75,8 +81,8 @@ fn generic_static_call_without_inferable_type_args_is_rejected() {
 
 #[test]
 fn generic_instance_with_invalid_operation_is_rejected() {
-    let src = format!("{}\nfunction main(): int {{\n var a:Box<int> = use Box<int>(1)\n var s:Box<string> = use Box<string>(\"x\")\n return 0\n}}\n", BOX);
+    let src = format!("{}\nfunction main(): int {{\n var a:Acc<int> = use Acc<int>(1)\n var s:Acc<string> = use Acc<string>(\"x\")\n return 0\n}}\n", ACC);
     let errs = check(&src).0;
-    assert!(errs.iter().any(|e| e.contains("in 'Box<string>'") && e.contains("operator '-'")), "{:?}", errs);
-    assert!(!errs.iter().any(|e| e.contains("Box<int>")), "{:?}", errs);
+    assert!(errs.iter().any(|e| e.contains("in 'Acc<string>'") && e.contains("operator '-'")), "{:?}", errs);
+    assert!(!errs.iter().any(|e| e.contains("Acc<int>")), "{:?}", errs);
 }
