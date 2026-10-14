@@ -1,6 +1,6 @@
 # JSON / YAML : valeurs brutes mal interprétées (SIGSEGV, `1` lu `true`, flottants perdus)
 
-Statut : **à corriger** — constaté le 2026-10-13 (audit de la roadmap).
+Statut : **corrigé** le 2026-10-13 (constaté le même jour par l'audit de la roadmap).
 
 ## Constat
 
@@ -58,3 +58,10 @@ Tests `examples/tests/` : aller-retour encode/decode sur `array<int>`,
 
 **Haute** (crash et corruption silencieuse des données sérialisées) —
 **Structurel** (représentation des éléments bruts vue par le runtime).
+
+## Correctif
+
+- Le drapeau « éléments bruts » d'un tableau/map porte aussi leur type (`__rc_mark_raw_kind`, `rc::raw_kind`, bits 1-2 de `aux`), posé par le compilateur pour tout conteneur concret ; JSON/YAML (et `Map::forEach`) l'utilisent quand la forme n'est pas connue statiquement (tableau concret placé dans un `mixed`).
+- Heuristique `1 → true` retirée (JSON, YAML) ; `__is_bool` ne reconnaît plus qu'un booléen boxé ; `JSON::decode`/`YAML::decode` boxent booléens et flottants.
+
+Tests : `examples/tests/91_mixed_string_map_keys_jsonTest.oc` (`jsonRawContainersTest`).

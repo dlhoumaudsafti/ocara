@@ -367,7 +367,7 @@ fn release_elem(ptr: i64, val: i64) {
 fn array_sharing(src: i64, vals: Vec<i64>) -> i64 {
     let dst = new_array();
     if is_raw_container(src) {
-        rc::__rc_mark_raw(dst);
+        rc::copy_raw(src, dst);
     } else {
         for &v in &vals { unsafe { rc::retain(v) } }
     }
@@ -671,11 +671,34 @@ pub extern "C" fn __array_set(ptr: i64, idx: i64, val: i64) {
 /// Si c'est un pointeur vers une string, on lit son contenu.
 /// Sinon, on convertit l'entier en string décimale.
 unsafe fn key_to_string(key: i64) -> String {
-    if is_ptr(key) {
+    // Clé non-chaîne d'une `map<int|float|bool, V>` : boxée par le
+    // compilateur, convertie en texte ici (lue comme une chaîne sinon).
+    if is_float_box(key) || is_bool_box(key) || is_int_box(key) {
+        val_to_string(key)
+    } else if is_ptr(key) {
         unsafe { ptr_to_str(key).to_string() }
     } else {
         key.to_string()
     }
+}
+
+/// Clé texte d'une map → valeur brute du type de clé déclaré `K` (`kind` :
+/// 1 = int, 2 = float, 3 = bool ; sinon la chaîne, retenue).
+fn key_from_text(text: &str, kind: i64) -> i64 {
+    match kind {
+        1 => text.parse::<i64>().unwrap_or(0),
+        2 => text.parse::<f64>().unwrap_or(0.0).to_bits() as i64,
+        3 => i64::from(text == "true"),
+        _ => unsafe { alloc_str(text) },
+    }
+}
+
+/// Clé (chaîne) d'une `map<K, V>` relue au type `K` — variable de clé de
+/// `for k has v in m` (voir docs/roadmap.d/langage-map-loop-value-type.md).
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_key_as(key: i64, kind: i64) -> i64 {
+    if key == 0 { return 0; }
+    key_from_text(unsafe { ptr_to_str(key) }, kind)
 }
 
 #[unsafe(no_mangle)]
@@ -1256,13 +1279,18 @@ pub extern "C" fn Map_remove(ptr: i64, key: i64) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn Map_keys(ptr: i64) -> i64 {
-    if ptr == 0 { return new_array(); }
+pub extern "C" fn Map_keys(ptr: i64, kind: i64) -> i64 {
     let arr_ptr = new_array();
+    // `kind` (argument caché, type de clé `K` connu du compilateur) : clés
+    // `int`/`float`/`bool` rendues brutes, tableau marqué en conséquence.
+    if (1..=3).contains(&kind) {
+        crate::rc::__rc_mark_raw_kind(arr_ptr, kind);
+    }
+    if ptr == 0 { return arr_ptr; }
     unsafe {
-        // Les clés sont stockées en string — on les alloue
+        // Les clés sont stockées en string — converties au type `K`.
         let keys: Vec<i64> = map_ref(ptr).data.iter()
-            .map(|(k, _)| alloc_str(k))
+            .map(|(k, _)| key_from_text(k, kind))
             .collect();
         array_ref(arr_ptr).data = keys;
     }
@@ -1324,7 +1352,7 @@ pub extern "C" fn Map_forEach(ptr: i64, callback: i64, shape: i64) {
     // directe vers `data`.
     let entries: Vec<(String, i64)> = unsafe { map_ref(ptr).data.clone() };
     for (_, v) in &entries { retain_elem(ptr, *v) }
-    let leaf_kind = if shape >> 8 == 1 { shape & 0xff } else { 0 };
+    let leaf_kind = if shape >> 8 == 1 { shape & 0xff } else { rc::raw_kind(ptr) };
     for (k, v) in &entries {
         let key_ptr = unsafe { alloc_str(k) };
         let value = match leaf_kind {
@@ -1346,10 +1374,13 @@ pub extern "C" fn Map_forEach(ptr: i64, callback: i64, shape: i64) {
 // Codes d'erreur ConvertException :
 //   101 - INVALID_INT   : Conversion string vers int invalide
 //   102 - INVALID_FLOAT : Conversion string vers float invalide
+//   103 - TYPE          : Convert::mixedToStr sur un tableau, une map ou un objet
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ERR_CONVERT_INVALID_INT: i64 = 101;
 const ERR_CONVERT_INVALID_FLOAT: i64 = 102;
+/// Valeur `mixed` qui n'est ni une chaîne ni un scalaire (Convert::mixedToStr).
+const ERR_CONVERT_TYPE: i64 = 103;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn Convert_strToInt(s: i64) -> i64 {
@@ -1411,6 +1442,27 @@ pub extern "C" fn Convert_strToMap(s: i64, sep: i64, kv: i64) -> i64 {
     ptr
 }
 
+#[unsafe(no_mangle)]
+pub extern "C" fn Convert_mixedToStr(val: i64) -> i64 {
+    if val == 0 {
+        return 0;
+    }
+    if is_float_box(val) || is_bool_box(val) || is_int_box(val) || !is_ptr(val) {
+        return unsafe { alloc_str(&val_to_string(val)) };
+    }
+    if crate::typecheck::__is_string(val) != 0 {
+        return __rc_passthrough(val);
+    }
+    unsafe {
+        crate::exception::throw_convert_exception(
+            "Convert::mixedToStr: an array, map or object cannot be used as a string",
+            ERR_CONVERT_TYPE,
+            "Convert",
+        )
+    }
+}
+
+/// mixed → string — voir `Convert_mixedToStr` plus haut.
 #[unsafe(no_mangle)]
 pub extern "C" fn Convert_intToStr(n: i64) -> i64 {
     unsafe { alloc_str(&n.to_string()) }
@@ -1497,7 +1549,7 @@ pub extern "C" fn Convert_mapToStr(ptr: i64, sep: i64, kv: i64) -> i64 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn Convert_mapKeysToArray(ptr: i64) -> i64 {
-    Map_keys(ptr)
+    Map_keys(ptr, 0)
 }
 
 #[unsafe(no_mangle)]
@@ -2073,16 +2125,11 @@ pub extern "C" fn UnitTest_assertClass(value: i64) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn UnitTest_assertEnum(value: i64) {
-    // Les enums sont implémentés comme des objets en Ocara
-    let is_obj = __is_object(value) != 0;
-    if is_obj {
-        ut_pass("assertEnum");
-    } else {
-        unsafe {
-            crate::exception::throw_unittest_exception("assertEnum: value is not an enum", 117);
-        }
-    }
+pub extern "C" fn UnitTest_assertEnum(_value: i64) {
+    // Une variante d'enum est un entier à l'exécution : le type est vérifié
+    // à la compilation (la sema refuse tout argument qui n'est pas une
+    // valeur d'enum), l'assertion réussit donc ici.
+    ut_pass("assertEnum");
 }
 
 #[unsafe(no_mangle)]
@@ -2436,6 +2483,18 @@ pub extern "C" fn __locked_cell_set(cell_ptr: i64, val: i64) {
         *(cell_ptr as *mut i64) = val;
         cell_mutex_platform::unlock(cell_mutex(cell_ptr));
     }
+}
+
+/// Cellule d'une variable de générateur capturée par une closure : celle
+/// déjà rangée dans le frame (`existing`), sinon une cellule neuve (valeur
+/// initiale nulle) — créée au premier accès, partagée ensuite par le corps du
+/// générateur et ses closures (voir docs/roadmap.d/langage-emit-iterable.md).
+#[unsafe(no_mangle)]
+pub extern "C" fn __gen_cell(existing: i64, counted: i64) -> i64 {
+    if existing != 0 {
+        return existing;
+    }
+    __alloc_locked_cell(counted)
 }
 
 /// Frame d'un générateur : bloc compté de `size` octets, détruit par
@@ -2972,7 +3031,10 @@ pub extern "C" fn __ocara_type_matches(stored: i64, filter: i64) -> i64 {
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct OcaraTask {
-    handle: Option<std::thread::JoinHandle<i64>>,
+    /// Valeur rendue par la tâche, ou exception levée et non rattrapée dans
+    /// la tâche (valeur, type) — relevée par `resolve` dans le thread qui
+    /// attend (voir docs/roadmap.d/langage-async-exception-resolve.md).
+    handle: Option<std::thread::JoinHandle<Result<i64, (i64, i64)>>>,
 }
 
 /// Déboxe un float précédemment boxé par `__box_float`.
@@ -3005,19 +3067,18 @@ pub extern "C" fn __unbox_int(tagged: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn __task_spawn(func: i64, env: i64) -> i64 {
     let guard = rc::ThreadGuard::new();
-    let handle = std::thread::spawn(move || unsafe {
+    let handle = std::thread::spawn(move || {
         let _guard = guard;
-        let f: extern "C" fn(i64) -> i64 = std::mem::transmute(func as usize);
-        f(env)
+        // Une exception non rattrapée dans la tâche est capturée ici (au
+        // lieu d'arrêter le processus) et relevée au `resolve`.
+        run_closure_catching(func, env)
     });
     rc::handle_new(OcaraTask { handle: Some(handle) })
 }
 
-// `resolve expr` : attend le thread et libère le wrapper OcaraTask (jusqu'ici
-// jamais libéré, même sur ce chemin nominal — le pointeur n'était que
-// déréférencé via `&mut *`, jamais repris via `Box::from_raw`). Pas de piège
-// longjmp ici : `handle.join()` ne lève pas d'exception Ocara (échec avalé
-// par `unwrap_or(0)`), donc un drop de fin de scope classique est sûr.
+// `resolve expr` : attend le thread et libère le wrapper OcaraTask. Le
+// wrapper est libéré AVANT de relever une éventuelle exception de la tâche
+// (`__ocara_fail` saute par `longjmp`, aucun drop ne suivrait).
 // Limite assumée (hors périmètre) : une tâche jamais `resolve`e fuit toujours
 // — rien n'impose l'appel de `resolve` côté Ocara, pas d'équivalent `detach`
 // pour les tâches async.
@@ -3027,11 +3088,22 @@ pub extern "C" fn __task_resolve(task_ptr: i64) -> i64 {
         return 0;
     }
     let mut task = unsafe { rc::handle_take::<OcaraTask>(task_ptr) };
-    if let Some(handle) = task.handle.take() {
-        let _parked = rc::park();
-        handle.join().unwrap_or(0)
-    } else {
-        0
+    let outcome = match task.handle.take() {
+        Some(handle) => {
+            let _parked = rc::park();
+            handle.join().unwrap_or(Ok(0))
+        }
+        None => Ok(0),
+    };
+    drop(task);
+    match outcome {
+        Ok(value) => value,
+        // Exception de la tâche : relevée ici, rattrapable par le `try`
+        // qui entoure `resolve` (la valeur levée est transférée).
+        Err((ev, et)) => {
+            __ocara_fail(ev, et);
+            0
+        }
     }
 }
 
@@ -3445,23 +3517,18 @@ fn value_to_json(val: i64, shape: i64) -> JsonValue {
                 1 => JsonValue::Number(serde_json::Number::from(val)),
                 2 => serde_json::Number::from_f64(f64::from_bits(val as u64)).map(JsonValue::Number).unwrap_or(JsonValue::Null),
                 3 => JsonValue::Bool(val != 0),
-                _ => {
-                    // `mixed` : heuristique imprécise pour un bool JAMAIS
-                    // boxé (limitation pré-existante, non résolue ici — voir
-                    // __is_bool) ; conservée telle quelle, comportement
-                    // historique inchangé.
-                    if val == 1 {
-                        JsonValue::Bool(true)
-                    } else {
-                        JsonValue::Number(serde_json::Number::from(val))
-                    }
-                }
+                // `mixed` : un booléen y est toujours boxé (traité plus
+                // haut) — une valeur brute est un entier, `1` compris.
+                _ => JsonValue::Number(serde_json::Number::from(val)),
             }
         }
         4 => {  // String
             JsonValue::String(unsafe { ptr_to_str(val) }.to_string())
         }
         5 => {  // Array — même leaf_kind à travers toute la récursion.
+            // Forme inconnue du compilateur (tableau concret placé dans un
+            // `mixed`) : type des éléments bruts porté par le tableau.
+            let child = if child == 0 { rc::raw_kind(val) } else { child };
             let mut json_arr = Vec::new();
             let len = __array_len(val);
             for i in 0..len {
@@ -3471,6 +3538,7 @@ fn value_to_json(val: i64, shape: i64) -> JsonValue {
             JsonValue::Array(json_arr)
         }
         6 => {  // Map — même leaf_kind à travers toute la récursion.
+            let child = if child == 0 { rc::raw_kind(val) } else { child };
             let mut json_obj = JsonMap::new();
             unsafe {
                 let map_ptr = val as *mut OcaraMap;
@@ -3512,7 +3580,9 @@ pub extern "C" fn JSON_decode(json: i64) -> i64 {
 fn json_to_value(json: &JsonValue) -> i64 {
     match json {
         JsonValue::Null => 0,
-        JsonValue::Bool(b) => if *b { 1 } else { 0 },
+        // Logé dans un `mixed` : booléen et flottant boxés, comme partout
+        // ailleurs (sinon `true` relu `1`, et un flottant perdu).
+        JsonValue::Bool(b) => __box_bool(i64::from(*b)),
         JsonValue::Number(n) => {
             if let Some(i) = n.as_i64() {
                 // La valeur décodée est toujours logée dans un `mixed`
@@ -3520,6 +3590,8 @@ fn json_to_value(json: &JsonValue) -> i64 {
                 // besoin, comme n'importe quel autre `int` en transit vers un
                 // `mixed` (voir `box_int_if_needed`).
                 box_int_if_needed(i)
+            } else if let Some(f) = n.as_f64() {
+                __box_float(f.to_bits() as i64)
             } else {
                 0
             }

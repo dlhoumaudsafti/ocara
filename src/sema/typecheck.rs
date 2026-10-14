@@ -23,10 +23,13 @@ pub struct TypeChecker<'a> {
     /// `mixed`, sans que les diagnostics propres à `mixed` (E14/E15/W02/W03)
     /// ne s'appliquent.
     pub(crate) current_generic: Option<(String, usize)>,
+    /// Arguments de type de l'instanciation en cours de revérification
+    /// (`None` : forme effacée, `T` = `mixed`) — voir `generic_check`.
+    pub(crate) current_generic_args: Option<Vec<Type>>,
     /// Contexte runtime actuel (init, main, error, success, exit)
     current_runtime_ctx: Option<String>,
     /// Classes déjà typecheckées (pour éviter de les typecheck plusieurs fois)
-    checked_classes: std::collections::HashSet<String>,
+    pub(crate) checked_classes: std::collections::HashSet<String>,
     /// Référence au Program pour accéder aux ClassDecl lors du typecheck lazy
     program: Option<&'a Program>,
     /// Paramètres échappants par fonction/méthode/constructeur utilisateur
@@ -39,6 +42,10 @@ pub struct TypeChecker<'a> {
     class_members: crate::sema::escape::ClassMembers,
     /// Visibilité des méthodes des classes du programme (E54).
     pub(crate) method_vis: std::collections::HashMap<String, std::collections::HashMap<String, crate::parsing::ast::Visibility>>,
+    /// Type attendu de l'expression en cours d'inférence (déclaration
+    /// typée) — consommé par la première `infer_expr`, sert à inférer les
+    /// arguments de type d'un appel statique de `generic`.
+    pub(crate) expected_hint: Option<Type>,
     /// Classes utilisateur contenant (directement ou transitivement) une
     /// ressource native — calculé une fois dans `check_program`, voir
     /// `crate::sema::scope::compute_resource_classes`/`ownership_class_of`.
@@ -66,12 +73,14 @@ impl<'a> TypeChecker<'a> {
             current_ret:   None,
             current_class: None,
             current_generic: None,
+            current_generic_args: None,
             current_runtime_ctx: None,
             checked_classes: std::collections::HashSet::new(),
             program: None,
             escaping_params: std::collections::HashMap::new(),
             class_members: std::collections::HashMap::new(),
             method_vis: std::collections::HashMap::new(),
+            expected_hint: None,
             resource_classes: std::collections::HashSet::new(),
             callable_params: std::collections::HashMap::new(),
             rewrites: crate::sema::named_args::AstRewrites::default(),
@@ -143,6 +152,7 @@ impl<'a> TypeChecker<'a> {
         for module in &program.modules {
             self.check_module(module);
         }
+        self.check_generic_instances(program);
     }
 
     // ── Enum ─────────────────────────────────────────────────────────────────
@@ -152,6 +162,7 @@ impl<'a> TypeChecker<'a> {
     /// `lower_const_prologue`) — compatible avec le type déclaré.
     fn check_global_const(&mut self, c: &crate::parsing::ast::ConstDecl) {
         let found = self.infer_expr(&c.value);
+        self.note_mixed_to_string(&c.value, &found, &c.ty);
         if !types_compat(&found, &c.ty, &self.symbols) {
             self.errors.push(SemaError::TypeMismatch {
                 expected: type_name(&c.ty),
@@ -361,7 +372,9 @@ impl<'a> TypeChecker<'a> {
                             span:  span.clone(),
                         });
                     }
+                    self.expected_hint = Some(ty.clone());
                     let val_ty = self.infer_expr(value);
+                    self.note_mixed_to_string(value, &val_ty, ty);
                     if !types_compat(&val_ty, ty, &self.symbols) {
                         self.errors.push(SemaError::TypeMismatch {
                             expected: type_name(ty),
@@ -558,6 +571,7 @@ impl<'a> TypeChecker<'a> {
                     });
                 }
                 self.last_map_literal = None;
+                self.expected_hint = Some(ty.clone());
                 let val_ty = self.infer_expr(value);
                 self.bind_map_keys(name, ty, value);
                 // `value` peut lui-même être une `scoped`/`consumed` d'un
@@ -569,6 +583,7 @@ impl<'a> TypeChecker<'a> {
                 // qu'ajouter du bruit ("expected message<int>, found
                 // message<int>" — `types_compat` déballe TOUJOURS le côté
                 // "found", jamais le côté "expected").
+                self.note_mixed_to_string(value, &val_ty, ty);
                 if !ty_is_message && !types_compat(&val_ty, ty, &self.symbols) {
                     self.errors.push(SemaError::TypeMismatch {
                         expected: type_name(ty),
@@ -611,9 +626,11 @@ impl<'a> TypeChecker<'a> {
                     });
                 }
                 self.last_map_literal = None;
+                self.expected_hint = Some(ty.clone());
                 let val_ty = self.infer_expr(value);
                 self.bind_map_keys(name, ty, value);
                 self.check_message_scalar_consumption(value, &val_ty, span);
+                self.note_mixed_to_string(value, &val_ty, ty);
                 if !ty_is_message && !types_compat(&val_ty, ty, &self.symbols) {
                     self.errors.push(SemaError::TypeMismatch {
                         expected: type_name(ty),
@@ -740,6 +757,9 @@ impl<'a> TypeChecker<'a> {
                 }
 
                 if let Some(expr) = value {
+                    // Type de retour déclaré : sert à inférer les arguments de
+                    // type d'un appel statique de `generic` (`return Result::ok(x)`).
+                    self.expected_hint = Some(ret_ty.clone());
                     let ty = self.infer_expr(expr);
                     // `return x` est un point d'échappement au même titre
                     // qu'une affectation.
@@ -760,6 +780,7 @@ impl<'a> TypeChecker<'a> {
                         false
                     };
                     
+                    self.note_mixed_to_string(expr, &ty, &ret_ty);
                     if !is_runtime_return && !types_compat(&ty, &ret_ty, &self.symbols) {
                         self.errors.push(SemaError::ReturnTypeMismatch {
                             expected: type_name(&ret_ty),
@@ -890,13 +911,23 @@ impl<'a> TypeChecker<'a> {
                 match target {
                     Expr::Ident(name, _) => {
                         if let Some(binding) = self.scopes.lookup(name) {
+                            let target_ty = binding.ty.clone();
                             if !binding.mutable {
                                 self.errors.push(SemaError::InvalidAssign {
                                     name: name.clone(),
                                     span: span.clone(),
                                 });
                             }
-                            let _ = val_ty;
+                            // Type de la valeur réaffectée — jamais vérifié
+                            // jusqu'ici (`x = "abc"` sur un `int` compilait).
+                            self.note_mixed_to_string(value, &val_ty, &target_ty);
+                            if !types_compat(&val_ty, &target_ty, &self.symbols) {
+                                self.errors.push(SemaError::TypeMismatch {
+                                    expected: type_name(&target_ty),
+                                    found:    type_name(&val_ty),
+                                    span:     span.clone(),
+                                });
+                            }
                         } else {
                             self.errors.push(SemaError::UndefinedSymbol {
                                 name: name.clone(),
@@ -912,6 +943,7 @@ impl<'a> TypeChecker<'a> {
                                 // Type de la valeur affectée (initialiseur de `property`
                                 // compris, désucré en `self.x = expr`) — jamais vérifié
                                 // jusqu'ici pour un champ.
+                                self.note_mixed_to_string(value, &val_ty, &f.ty);
                                 if !types_compat(&val_ty, &f.ty, &self.symbols) {
                                     self.errors.push(SemaError::TypeMismatch {
                                         expected: type_name(&f.ty),
@@ -1085,6 +1117,7 @@ impl<'a> TypeChecker<'a> {
     // ── Inférence de type des expressions ────────────────────────────────────
 
     pub fn infer_expr(&mut self, expr: &Expr) -> Type {
+        let hint = self.expected_hint.take();
         match expr {
             Expr::Literal(lit, _) => literal_type(lit),
 
@@ -1092,7 +1125,8 @@ impl<'a> TypeChecker<'a> {
                 // Corps d'un `generic` (voir `check_generic`) : `self` est une
                 // instance du generic, ses méthodes résolues avec `T` permissif.
                 if let Some((name, arity)) = self.current_generic.as_ref().filter(|(n, _)| self.current_class.as_ref() == Some(n)) {
-                    Type::Generic { name: name.clone(), args: vec![Type::Mixed; *arity] }
+                    let args = self.current_generic_args.clone().unwrap_or_else(|| vec![Type::Mixed; *arity]);
+                    Type::Generic { name: name.clone(), args }
                 } else if let Some(cls) = &self.current_class {
                     Type::Named(cls.clone())
                 } else {
@@ -1174,6 +1208,15 @@ impl<'a> TypeChecker<'a> {
                 if field == COMPLETION_MARKER {
                     self.record(span, field, Target::Completion(Completion::Member), &obj_ty);
                     return Type::Mixed;
+                }
+                // Champ d'un générique instancié (`self.v` dans `Box<string>`) :
+                // type déclaré avec les paramètres de type substitués.
+                if let Type::Generic { name: generic_name, args: type_args } = &obj_ty {
+                    if let Some(ginfo) = self.symbols.lookup_generic(generic_name) {
+                        if let Some(f) = ginfo.fields.get(field) {
+                            return substitute_type_params(&f.ty, &ginfo.type_params, type_args);
+                        }
+                    }
                 }
                 let cls_name = match type_class_name(&obj_ty) {
                     Some(n) => n,
@@ -1716,7 +1759,10 @@ impl<'a> TypeChecker<'a> {
                 Type::Mixed
             }
 
-            Expr::StaticCall { class, method, args, span } => {
+            Expr::StaticCall { class, method, args, span, type_args } => {
+                if let Some(ret) = self.check_generic_static_call(class, method, type_args, args, span, hint.as_ref()) {
+                    return ret;
+                }
                 // Résoudre "<self>" vers la classe courante
                 let resolved_class = if class == "<self>" {
                     match &self.current_class {
@@ -1861,6 +1907,20 @@ impl<'a> TypeChecker<'a> {
                     self.check_argument_escape(args, is_http_request_call);
                     let expected = crate::sema::arg_types::ExpectedParams::from_sig(sig);
                     let arg_tys = self.check_call_args(&format!("{}::{}", resolved_class, method), &expected, args);
+                    // `UnitTest::assertEnum(x)` : vérifié ici, une variante
+                    // d'enum n'étant qu'un entier à l'exécution (voir
+                    // docs/roadmap.d/stdlib-unittest-assertenum.md).
+                    if method == "assertEnum" && resolved_class == self.symbols.local_name_for_builtin("UnitTest") {
+                        if let (Some(arg), Some(ty)) = (args.first(), arg_tys.first()) {
+                            if !self.is_enum_value(arg, ty) {
+                                self.errors.push(SemaError::TypeMismatch {
+                                    expected: "enum".into(),
+                                    found:    type_name(ty),
+                                    span:     arg.span().clone(),
+                                });
+                            }
+                        }
+                    }
                     for (arg, arg_ty) in args.iter().zip(&arg_tys) {
                         self.check_message_scalar_consumption(arg, arg_ty, span);
                     }
@@ -2366,7 +2426,7 @@ fn type_class_name(ty: &Type) -> Option<String> {
 /// sinon `Type::Mixed` (arité déjà signalée par ailleurs si incorrecte — E21).
 /// `Type::Named(n)` où `n` n'est PAS un nom de paramètre de type (une vraie
 /// classe) traverse inchangé.
-fn substitute_type_params(ty: &Type, params: &[TypeParam], args: &[Type]) -> Type {
+pub(crate) fn substitute_type_params(ty: &Type, params: &[TypeParam], args: &[Type]) -> Type {
     let substituted_named = |n: &str| -> Option<Type> {
         params.iter().position(|p| p.name == n).map(|i| {
             args.get(i).cloned()
@@ -2608,6 +2668,17 @@ impl TypeChecker<'_> {
             }
         }
         for arg in args.iter().skip(2) { self.infer_expr(arg); }
+    }
+
+    /// Valeur d'enum : variante (`Color::RED`) ou valeur dont le type
+    /// statique est un enum (`c:Color`).
+    fn is_enum_value(&self, arg: &Expr, ty: &Type) -> bool {
+        if let Expr::StaticConst { class, .. } = arg {
+            if self.symbols.lookup_enum(class).is_some() {
+                return true;
+            }
+        }
+        matches!(ty, Type::Named(n) if self.symbols.lookup_enum(n).is_some())
     }
 
     /// Classe déclarée dans le programme — un ancêtre builtin ne lui transmet

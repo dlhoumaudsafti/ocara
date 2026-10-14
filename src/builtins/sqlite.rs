@@ -166,6 +166,10 @@ pub fn class() -> ClassInfo {
 
     // db.commit(close:bool = false) → mixed — exécute+commit la requête préparée ;
     // array<map<string,mixed>> si SELECT, sinon int (lignes affectées)
+    // db.begin() → void — ouvre une transaction explicite : les instructions
+    // suivantes en font partie jusqu'au commit()/rollback().
+    methods.insert("begin".into(), instance_opt(vec![], Type::Void, 0));
+
     methods.insert("commit".into(), instance_opt(
         vec![("close", Type::Bool)],
         Type::Mixed,

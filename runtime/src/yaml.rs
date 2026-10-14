@@ -80,8 +80,6 @@ fn value_to_yaml(val: i64, shape: i64) -> YamlValue {
                         YamlValue::Bool(crate::__unbox_bool(val) != 0)
                     } else if is_boxed_int {
                         YamlValue::Number(serde_yaml::Number::from(crate::__unbox_int(val)))
-                    } else if val == 1 {
-                        YamlValue::Bool(true)
                     } else {
                         YamlValue::Number(serde_yaml::Number::from(val))
                     }
@@ -92,6 +90,9 @@ fn value_to_yaml(val: i64, shape: i64) -> YamlValue {
             YamlValue::String(unsafe { ptr_to_str(val) }.to_string())
         }
         5 => {  // Array — même leaf_kind à travers toute la récursion.
+            // Forme inconnue (tableau concret dans un `mixed`) : type porté
+            // par le tableau (voir `value_to_json`).
+            let child = if child == 0 { crate::rc::raw_kind(val) } else { child };
             let mut yaml_arr = Vec::new();
             let len = __array_len(val);
             for i in 0..len {
@@ -101,6 +102,7 @@ fn value_to_yaml(val: i64, shape: i64) -> YamlValue {
             YamlValue::Sequence(yaml_arr)
         }
         6 => {  // Map — même leaf_kind à travers toute la récursion.
+            let child = if child == 0 { crate::rc::raw_kind(val) } else { child };
             let mut yaml_obj = YamlMap::new();
             unsafe {
                 let map_ptr = val as *mut OcaraMap;
@@ -144,7 +146,7 @@ pub unsafe extern "C" fn YAML_parse(yaml: i64) -> i64 {
 fn yaml_to_value(yaml: &YamlValue) -> i64 {
     match yaml {
         YamlValue::Null => 0,
-        YamlValue::Bool(b) => if *b { 1 } else { 0 },
+        YamlValue::Bool(b) => crate::__box_bool(i64::from(*b)),
         YamlValue::Number(n) => {
             if let Some(i) = n.as_i64() {
                 // Toujours logé dans un `mixed` (élément d'array/map) : boxer

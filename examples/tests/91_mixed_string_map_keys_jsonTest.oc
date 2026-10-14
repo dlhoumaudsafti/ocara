@@ -1,0 +1,73 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.JSON
+import ocara.YAML
+import ocara.Map
+
+// Correctifs structurels du 2026-10-13 :
+//   - `mixed` utilisé comme `string` (docs/roadmap.d/langage-mixed-vers-string-non-converti.md) ;
+//   - clés de `map<int|float, V>` (docs/roadmap.d/langage-map-loop-value-type.md) ;
+//   - JSON/YAML : tableau concret dans un `mixed`, `1` contre `true`, flottants
+//     décodés (docs/roadmap.d/stdlib-json-yaml-valeurs-brutes.md) ;
+//   - `UnitTest::assertEnum` (docs/roadmap.d/stdlib-unittest-assertenum.md).
+class Test_91_mixed_string_map_keys_json {
+
+    public method mixedToStringTest(): int {
+        var m:mixed = 42
+        var s:string = m
+        UnitTest::assertEquals("42", s)
+        UnitTest::assertEquals(2, s.len())
+        UnitTest::assertEquals(3, textLength(m + 100))
+        var n:mixed = null
+        var t:string = n
+        UnitTest::assertTrue(t is null)
+        return 0
+    }
+
+    public method intKeysTest(): int {
+        var mi:map<int,string> = {1: "un", 10: "dix"}
+        var total:int = 0
+        for k has v in mi {
+            total = total + k * 10
+        }
+        UnitTest::assertEquals(110, total)
+        var ks:array<int> = mi.keys()
+        UnitTest::assertEquals(11, ks[1] + 1)
+        UnitTest::assertEquals("dix", mi[10])
+        var mf:map<float,int> = {1.5: 3}
+        var seen:float = 0.0
+        for k2 has v2 in mf {
+            seen = k2 + 1.0
+        }
+        UnitTest::assertEquals(2.5, seen)
+        return 0
+    }
+
+    public method jsonRawContainersTest(): int {
+        var flat:array<int> = [123456, 5]
+        var mm:array<mixed> = [flat]
+        UnitTest::assertEquals("[[123456,5]]", JSON::encode(mm))
+        var fl:array<float> = [0.0, 1.5]
+        UnitTest::assertEquals("[[0.0,1.5]]", JSON::encode([fl]))
+        UnitTest::assertEquals("[1,2,0,true]", JSON::encode([1, 2, 0, true]))
+        UnitTest::assertEquals("x: 1\n", YAML::encode({"x": 1}))
+        var d:map<string,mixed> = JSON::decode("{\"p\":3.75,\"q\":1,\"r\":true}")
+        UnitTest::assertEquals("{\"p\":3.75,\"q\":1,\"r\":true}", JSON::encode(d))
+        UnitTest::assertTrue(d["r"] is bool)
+        var one:mixed = 1
+        UnitTest::assertFalse(one is bool)
+        return 0
+    }
+
+    public method assertEnumTest(): int {
+        UnitTest::assertEnum(Color::GREEN)
+        return 0
+    }
+}
+
+enum Color { RED, GREEN }
+
+function textLength(s:string): int {
+    return s.len()
+}

@@ -20,6 +20,7 @@ pub const SQLITE_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "SQLite_prepare",       params: &[clt::I64, clt::I64],     returns: None,           module: Some("SQLite") },
     BuiltinDesc { name: "SQLite_bind",          params: &[clt::I64, clt::I64],     returns: None,           module: Some("SQLite") },
     BuiltinDesc { name: "SQLite_commit_0",      params: &[clt::I64],               returns: Some(clt::I64), module: Some("SQLite") },
+    BuiltinDesc { name: "SQLite_begin",         params: &[clt::I64],               returns: None,           module: Some("SQLite") },
     BuiltinDesc { name: "SQLite_commit",        params: &[clt::I64, clt::I64],     returns: Some(clt::I64), module: Some("SQLite") },
     BuiltinDesc { name: "SQLite_rollback_0",    params: &[clt::I64],               returns: None,           module: Some("SQLite") },
     BuiltinDesc { name: "SQLite_rollback",      params: &[clt::I64, clt::I64],     returns: None,           module: Some("SQLite") },

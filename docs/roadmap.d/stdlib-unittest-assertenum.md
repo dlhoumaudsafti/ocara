@@ -27,3 +27,7 @@ Test `examples/tests/` : `assertEnum(Color::RED)` passe ; un entier ou un objet 
 ## Priorité / Complexité
 
 **Haute** (assertion builtin toujours fausse) — **Simple**.
+
+## Correctif
+
+Choix retenu : **vérification à la compilation**. La sema exige pour `UnitTest::assertEnum(x)` une variante d'enum (`Color::RED`) ou une valeur de type enum, sinon « expected type 'enum' » ; le runtime valide alors l'assertion. Tests : `src/sema/tests/structural_fixes.rs`, `examples/tests/91_…` (`assertEnumTest`).

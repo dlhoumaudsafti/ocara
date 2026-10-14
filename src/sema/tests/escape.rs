@@ -100,8 +100,7 @@ fn argument_to_unresolved_builtin_is_not_flagged_in_non_strict_mode() {
             class: "Array".into(),
             method: "push".into(),
             args: vec![ident("arr"), ident("x")],
-            span: span(),
-        })]),
+            span: span(), type_args: Vec::new() })]),
         is_async: false,
         span: span(),
     });
@@ -122,7 +121,7 @@ fn argument_to_unresolved_builtin_is_not_flagged_in_non_strict_mode() {
 fn var_never_escapes_is_strict_and_catches_what_compute_escaping_params_misses() {
     let stmts = block(vec![
         Stmt::Var { name: "x".into(), ty: Type::Int, value: Expr::Literal(Literal::Int(5), span()), mutable: true, kind: VarKind::Scoped, span: span() },
-        Stmt::Expr(Expr::StaticCall { class: "Array".into(), method: "push".into(), args: vec![ident("arr"), ident("x")], span: span() }),
+        Stmt::Expr(Expr::StaticCall { class: "Array".into(), method: "push".into(), args: vec![ident("arr"), ident("x")], span: span(), type_args: Vec::new() }),
     ]);
 
     let class_members: HashMap<String, std::collections::HashSet<String>> = HashMap::new();

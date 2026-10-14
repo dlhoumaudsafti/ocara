@@ -174,6 +174,10 @@ pub fn class() -> ClassInfo {
     ));
 
     // db.commit(close:bool = false) → mixed
+    // db.begin() → void — ouvre une transaction explicite : les instructions
+    // suivantes en font partie jusqu'au commit()/rollback().
+    methods.insert("begin".into(), instance(vec![], Type::Void));
+
     methods.insert("commit".into(), instance_opt(
         vec![("close", Type::Bool)],
         Type::Mixed,

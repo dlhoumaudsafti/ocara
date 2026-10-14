@@ -295,8 +295,7 @@ function handle_api(req:HTTPServerRequest): int {
 
 ## Limitations actuelles (v1.0.0)
 
-- ⚠️ **Entier 1** : La valeur `1` est parfois interprétée comme booléen `true` dans l'encodage (correction prévue dans une prochaine version)
-- ❌ **Float** : Les valeurs `float` ne sont pas encore supportées dans l'encodage/décodage (prévu pour une prochaine version)
+- ✅ **Entiers, flottants, booléens** : `1` reste un entier, `true` un booléen, `3.75` un flottant, à l'encodage comme au décodage — y compris un tableau concret (`array<int>`, `array<float>`…) placé dans un `mixed`
 - ❌ **Types custom** : Les objets de classes utilisateur ne peuvent pas être encodés directement (utiliser des maps intermédiaires)
 - ✅ **Performance** : L'implémentation utilise `serde_json` (Rust) pour des performances optimales
 

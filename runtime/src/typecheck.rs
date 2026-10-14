@@ -102,7 +102,8 @@ pub extern "C" fn __is_float(val: i64) -> i64 {
 /// `lower_array_literal`) : ce cas-là est désormais détecté correctement.
 #[unsafe(no_mangle)]
 pub extern "C" fn __is_bool(val: i64) -> i64 {
-    if val == 0 || val == 1 { return 1; }
+    // Un booléen logé dans un `mixed` est toujours boxé : un 0/1 brut est un
+    // entier (`var one:mixed = 1` n'est pas `bool`).
     if val >= PTR_THRESHOLD && (val & 3) == 2 { 1 } else { 0 }
 }
 

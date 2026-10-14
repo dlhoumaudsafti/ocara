@@ -361,6 +361,38 @@ pub fn elem_type_after_index(builder: &LowerBuilder, expr: &Expr) -> Option<Type
     }
 }
 
+/// Type de clé `K` d'une expression `map<K, V>` (variable, champ, élément,
+/// résultat d'appel).
+pub fn map_key_type(builder: &LowerBuilder, expr: &Expr) -> Option<Type> {
+    let map_ty = match expr {
+        Expr::Ident(name, _) => return builder.map_key_types.get(name.as_str()).cloned(),
+        Expr::Field { object, field, .. } => {
+            let class_name = resolve_receiver_class(builder, object)?;
+            builder.module.class_field_types.get(&class_name)?
+                .iter().find(|(f, _)| f == field)
+                .map(|(_, ty)| ty.clone())?
+        }
+        Expr::Index { object, .. } => elem_type_after_index(builder, object)?,
+        Expr::Call { .. } | Expr::StaticCall { .. } => call_ret_type(builder, expr)?,
+        _ => return None,
+    };
+    match map_ty {
+        Type::Map(key, _) => Some(*key),
+        _ => None,
+    }
+}
+
+/// Code du type de clé pour le runtime (`Map_keys`, `__map_key_as`) :
+/// 1 = int, 2 = float, 3 = bool, 0 = chaîne (ou inconnu).
+pub fn map_key_kind(builder: &LowerBuilder, expr: &Expr) -> i64 {
+    match map_key_type(builder, expr) {
+        Some(Type::Int) => 1,
+        Some(Type::Float) => 2,
+        Some(Type::Bool) => 3,
+        _ => 0,
+    }
+}
+
 /// Type de retour déclaré d'un appel (fonction libre, méthode chaînée,
 /// méthode statique — builtin compris), voir `IrModule::call_ret_types`.
 fn call_ret_type(builder: &LowerBuilder, expr: &Expr) -> Option<Type> {
@@ -561,6 +593,14 @@ pub fn push_hidden_leaf_shape(builder: &mut LowerBuilder, func: &str, receiver: 
     let source = match func {
         "HTTPServerSession_set" | "HTTPServerSession_setGlobal" => args.last(),
         "Map_forEach" => receiver.or(args.first()),
+        // `Map_keys` : type de clé `K` (clés rendues au type déclaré).
+        "Map_keys" => {
+            let kind = receiver.or(args.first()).map_or(0, |m| map_key_kind(builder, m));
+            let kind_val = builder.new_value();
+            builder.emit(Inst::ConstInt { dest: kind_val.clone(), value: kind });
+            lowered.push(kind_val);
+            return lowered;
+        }
         _ => return lowered,
     };
     let shape = source.map_or(0, |value| static_leaf_shape(builder, value));

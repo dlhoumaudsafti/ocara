@@ -282,3 +282,5 @@ La section « Reste à faire : rien de connu » n'est plus exacte, et la limite 
 2. Fuites du boxing : [memoire-boxing-temporaires-non-relaches](memoire-boxing-temporaires-non-relaches.md), [memoire-system-os-fuite](memoire-system-os-fuite.md) ; crash des littéraux à union : [memoire-union-litteral-boxing](memoire-union-litteral-boxing.md).
 
 Aucun test multi-thread de croissance mémoire n'existe : en ajouter un (mesure RSS bornée) avec le correctif.
+
+**Décision du 2026-10-13 (point 1)** : option « collecte concurrente complète ». Obstacle relevé en concevant : le collecteur parcourrait des tableaux/maps (`Vec` Rust non verrouillés) pendant qu'un autre thread y fait un `push` qui réalloue — lecture de mémoire libérée possible. La rendre sûre impose de revoir le runtime des conteneurs (verrou par tableau/map ou mémoire épochale, libération différée pendant une collecte), puis un collecteur qui ne modifie pas les compteurs (comptes internes sur une table annexe, marque « touché » posée par `retain`/`release` pendant la collecte, libération seulement des cycles non touchés). Reste en Priorité Haute.

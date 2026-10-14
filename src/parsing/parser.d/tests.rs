@@ -44,6 +44,19 @@ mod tests {
         assert!(parse_err("enum S { }\n").contains("at least one variant"));
     }
 
+    #[test]
+    fn test_static_call_with_type_args() {
+        let expr = parse_expr("Box<int>::of(4)");
+        match expr {
+            Expr::StaticCall { class, method, type_args, .. } => {
+                assert_eq!(class, "Box");
+                assert_eq!(method, "of");
+                assert_eq!(type_args, vec![Type::Int]);
+            }
+            other => panic!("appel statique attendu, trouvé {:?}", other),
+        }
+    }
+
     // ── for k has v in m ────────────────────────────────────────────────────
 
     #[test]

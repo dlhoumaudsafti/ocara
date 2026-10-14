@@ -231,7 +231,7 @@ UnitTest::assertClass(p)
 
 Vérifie que `value` est un objet (même test runtime que `assertClass`). Code 117 sinon.
 
-> ⚠️ Les variantes d'enum compilent vers des **constantes entières** : `UnitTest::assertEnum(Color::RED)` **échoue** (code 117, `value is not an enum`). Pour une variante d'enum, comparer plutôt sa valeur avec `assertEquals`.
+> Les variantes d'enum sont des entiers à l'exécution : `assertEnum` est vérifié **à la compilation**. L'argument doit être une variante (`UnitTest::assertEnum(Color::RED)`) ou une valeur de type enum, sinon erreur de compilation (« expected type 'enum' »).
 
 ---
 

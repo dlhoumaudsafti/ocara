@@ -1,6 +1,6 @@
 # Valeur `mixed` contenant un entier utilisée comme `string` — SIGSEGV
 
-Statut : **à corriger** — constaté le 2026-10-13 (audit de la roadmap).
+Statut : **corrigé** le 2026-10-13 (constaté le même jour par l'audit de la roadmap).
 
 ## Constat
 
@@ -37,3 +37,7 @@ Test `examples/tests/` (affectation, argument, retour), cas HTTPServer dans
 ## Priorité / Complexité
 
 **Haute** (crash d'un serveur sur une requête ordinaire) — **Structurel**.
+
+## Correctif
+
+Choix retenu : **conversion à l'exécution**. La sema note chaque expression `mixed` utilisée où une `string` est attendue (déclaration, réaffectation, champ, argument, `return`, constante) — `crate::sema::mixed_string` — et la réécriture de l'AST l'enveloppe dans `Convert::mixedToStr` (nouveau builtin public) : une chaîne passe telle quelle, un `int`/`float`/`bool` devient son texte, `null` reste `null`, un tableau/map/objet lève `ConvertException` (code 103). Au passage, la **réaffectation d'une variable** (`x = …`) n'était jamais vérifiée par la sema (`var x:int` puis `x = "abc"` compilait) : elle l'est désormais. Tests : `src/sema/tests/structural_fixes.rs`, `examples/tests/91_mixed_string_map_keys_jsonTest.oc`.

@@ -30,6 +30,7 @@ pub const MYSQL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "MySQL_prepare",    params: &[clt::I64, clt::I64], returns: None,           module: Some("MySQL") },
     BuiltinDesc { name: "MySQL_bind",       params: &[clt::I64, clt::I64], returns: None,           module: Some("MySQL") },
     BuiltinDesc { name: "MySQL_commit_0",   params: &[clt::I64],           returns: Some(clt::I64), module: Some("MySQL") },
+    BuiltinDesc { name: "MySQL_begin",          params: &[clt::I64],               returns: None,           module: Some("MySQL") },
     BuiltinDesc { name: "MySQL_commit",     params: &[clt::I64, clt::I64], returns: Some(clt::I64), module: Some("MySQL") },
     BuiltinDesc { name: "MySQL_rollback_0", params: &[clt::I64],           returns: None,           module: Some("MySQL") },
     BuiltinDesc { name: "MySQL_rollback",   params: &[clt::I64, clt::I64], returns: None,           module: Some("MySQL") },

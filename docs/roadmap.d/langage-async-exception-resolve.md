@@ -1,6 +1,6 @@
 # `raise` dans une fonction `async` : non rattrapable autour de `resolve`
 
-Statut : **à corriger** — constaté le 2026-10-13 (audit de la roadmap). Question
+Statut : **corrigé** le 2026-10-13 (constaté le même jour par l'audit de la roadmap). Question
 laissée « ouverte » par [langage-async-non-int-return-type-check](langage-async-non-int-return-type-check.md),
 jamais tranchée ni documentée.
 
@@ -40,3 +40,7 @@ non rattrapée (code de sortie), exception d'une méthode `async` d'instance ;
 ## Priorité / Complexité
 
 **Haute** (arrêt du programme sur un motif d'erreur ordinaire) — **Structurel**.
+
+## Correctif
+
+La tâche s'exécute sous `run_closure_catching` (`__task_spawn`, `runtime/src/lib.rs`) : une exception non rattrapée y est conservée dans la tâche, puis relevée par `__task_resolve` dans le thread qui attend — rattrapable par le `try` qui entoure `resolve`, sinon signalée comme toute exception non rattrapée. Une tâche jamais résolue garde son exception sans arrêter le programme. Test : `examples/tests/92_async_generic_static_generatorTest.oc`.

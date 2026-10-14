@@ -23,7 +23,7 @@ pub fn complete_implicit_inits(program: &mut Program) {
             .find(|m| matches!(m, ClassMember::Constructor { .. }))
         else { continue };
         let args = params.iter().map(|p| Expr::Ident(p.name.clone(), p.span.clone())).collect();
-        let call = Expr::StaticCall { class: "<parent>".into(), method: "init".into(), args, span: span.clone() };
+        let call = Expr::StaticCall { class: "<parent>".into(), method: "init".into(), args, span: span.clone(), type_args: Vec::new() };
         body.stmts.insert(0, Stmt::Expr(call));
         *own = params;
     }

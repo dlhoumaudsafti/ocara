@@ -30,6 +30,8 @@ pub struct LowerBuilder<'m> {
     pub elem_types: HashMap<String, IrType>,
     /// Type AST des éléments pour les variables tableau (pour métadonnées complètes)
     pub elem_ast_types: HashMap<String, Type>,
+    /// Type de clé `K` des variables `map<K, V>` (clés non-chaînes).
+    pub map_key_types: HashMap<String, Type>,
     /// Noms des variables déclarées comme map<K,V> (pour Expr::Index → __map_get)
     pub map_vars: HashSet<String>,
     /// Mapping nom_variable → nom_classe (pour résoudre les appels de méthode)
@@ -90,6 +92,10 @@ pub struct LowerBuilder<'m> {
     /// (frame_ptr: Value, index de champ, type: IrType). Inclut aussi les
     /// pseudo-champs réservés `__state`/`__value`.
     pub frame_vars: HashMap<String, (Value, usize, IrType)>,
+    /// Variables d'un générateur capturées par une closure : nom → champ du
+    /// frame qui porte leur cellule partagée (`__gen_cell`). Tout accès passe
+    /// par la cellule — sans elle, la closure modifiait une copie.
+    pub gen_cells: HashMap<String, String>,
     /// Points de reprise d'un générateur, dans l'ordre des `emit` rencontrés
     /// pendant le lowering du corps (état `k+1` → `message_resume_blocks[k].0`)
     /// — rempli par `Stmt::Emit`, consulté après coup pour construire le
@@ -185,6 +191,7 @@ impl<'m> LowerBuilder<'m> {
             fn_variadic_info: HashMap::new(),
             elem_types: HashMap::new(),
             elem_ast_types: HashMap::new(),
+            map_key_types: HashMap::new(),
             map_vars: HashSet::new(),
             var_class: HashMap::new(),
             generic_catch_vars: std::collections::HashSet::new(),
@@ -198,6 +205,7 @@ impl<'m> LowerBuilder<'m> {
             func_ret_types: HashMap::new(),
             captured_vars: HashMap::new(),
             frame_vars: HashMap::new(),
+            gen_cells: HashMap::new(),
             message_resume_blocks: Vec::new(),
             gen_try_stack: Vec::new(),
             heap_promoted: HashSet::new(),
@@ -286,7 +294,33 @@ impl<'m> LowerBuilder<'m> {
     /// Pour les variables capturées, écrit via double-indirection :
     /// GetField(env, idx) → heap_ptr, puis `__locked_cell_set(heap_ptr, src)`
     /// (verrouillé — voir la doc de `heap_promoted`).
+    /// Cellule d'une variable de générateur capturée (voir `gen_cells`),
+    /// créée au premier accès et rangée dans son champ du frame.
+    fn gen_cell(&mut self, name: &str, field: &str) -> (Value, IrType) {
+        let ty = self.frame_vars.get(name).map(|(_, _, t)| t.clone()).unwrap_or(IrType::I64);
+        let (frame, idx, _) = self.frame_vars[field].clone();
+        let existing = self.new_value();
+        self.emit(Inst::GetField { dest: existing.clone(), obj: frame.clone(), field: field.to_string(), ty: IrType::Ptr, offset: (idx * 8) as i32 });
+        let counted = self.new_value();
+        self.emit(Inst::ConstInt { dest: counted.clone(), value: i64::from(ty == IrType::Ptr) });
+        let cell = self.new_value();
+        self.emit(Inst::Call { dest: Some(cell.clone()), func: "__gen_cell".into(), args: vec![existing, counted], ret_ty: IrType::Ptr });
+        self.emit(Inst::SetField { obj: frame, field: field.to_string(), src: cell.clone(), offset: (idx * 8) as i32 });
+        (cell, ty)
+    }
+
+    /// Cellule (créée au besoin) d'une variable de générateur capturée.
+    pub fn gen_cell_of(&mut self, name: &str) -> Option<Value> {
+        let field = self.gen_cells.get(name).cloned()?;
+        Some(self.gen_cell(name, &field).0)
+    }
+
     pub fn store_local(&mut self, name: &str, src: Value) {
+        if let Some(field) = self.gen_cells.get(name).cloned() {
+            let (cell, _) = self.gen_cell(name, &field);
+            self.emit(Inst::Call { dest: None, func: "__locked_cell_set".into(), args: vec![cell, src], ret_ty: IrType::Void });
+            return;
+        }
         // Variable d'un générateur → accès DIRECT (pas de double-indirection,
         // voir la doc de `frame_vars`) sur le champ correspondant du frame.
         if let Some((frame, idx, ty)) = self.frame_vars.get(name).cloned() {
@@ -340,6 +374,12 @@ impl<'m> LowerBuilder<'m> {
     /// Pour les variables capturées, lit via double-indirection :
     /// GetField(env, idx) → heap_ptr, puis `__locked_cell_get(heap_ptr)`.
     pub fn load_local(&mut self, name: &str) -> Option<(Value, IrType)> {
+        if let Some(field) = self.gen_cells.get(name).cloned() {
+            let (cell, ty) = self.gen_cell(name, &field);
+            let dest = self.new_value();
+            self.emit(Inst::Call { dest: Some(dest.clone()), func: "__locked_cell_get".into(), args: vec![cell], ret_ty: ty.clone() });
+            return Some((dest, ty));
+        }
         // Variable d'un générateur → accès DIRECT (voir la doc de `frame_vars`)
         if let Some((frame, idx, ty)) = self.frame_vars.get(name).cloned() {
             let dest = self.new_value();

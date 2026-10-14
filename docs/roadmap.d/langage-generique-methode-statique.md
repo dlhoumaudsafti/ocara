@@ -40,3 +40,13 @@ Test `examples/tests/` : fabrique statique d'un générique utilisée avec deux 
 ## Priorité / Complexité
 
 **Haute** (programme présenté comme valide par la documentation, refusé) — **Structurel**.
+
+## Correctif
+
+Choix retenu : **inférence + syntaxe explicite**.
+
+- Parseur : `Box<int>::of(4)` (`Expr::StaticCall.type_args`).
+- Sema (`crate::sema::generic_static`) : arguments de type explicites, sinon inférés depuis les arguments, puis le type attendu (`var b:Box<int> = Box::of(4)`, type de retour de la fonction), puis les valeurs par défaut ; sinon erreur « cannot infer the type arguments ». Arguments vérifiés contre les types substitués.
+- Monomorphisation : l'instanciation est collectée et l'appel vise la classe spécialisée (`Box_int::of`). Corrigé au passage : `use Box<T>(…)` dans le corps spécialisé visait la classe non spécialisée.
+
+Les exemples `Result`/`Option` de l'EBNF §20 compilent et s'exécutent. Tests : `src/sema/tests/structural_fixes.rs`, `test_static_call_with_type_args` (parseur), `examples/tests/92_…` (`genericStaticCallTest`).

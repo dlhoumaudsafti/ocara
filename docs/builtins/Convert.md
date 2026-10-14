@@ -117,6 +117,17 @@ scoped m2:map<string, string> = Convert::strToMap("x:10 y:20", " ", ":")
 
 ## `int` → *
 
+### `Convert::mixedToStr(v)` → `string`
+
+Convertit une valeur `mixed` en chaîne : une chaîne est rendue telle quelle, un `int`/`float`/`bool` devient son texte (`42` → `"42"`), `null` reste `null`. Un tableau, une map ou un objet lève `ConvertException` (code 103).
+
+Cette conversion est aussi **implicite** : un `mixed` utilisé là où une `string` est attendue (déclaration, affectation, argument, `return`) passe par `mixedToStr`.
+
+```ocara
+var id:mixed = 42
+var s:string = id          // "42"
+```
+
 ### `Convert::intToStr(n)` → `string`
 
 ```ocara
@@ -295,6 +306,7 @@ Certaines méthodes Convert peuvent lever une `ConvertException` en cas d'erreur
 |------|------|-----------|-------------|
 | 101 | `INVALID_INT` | `Convert::strToInt()` | Impossible de convertir la chaîne en entier (format invalide) |
 | 102 | `INVALID_FLOAT` | `Convert::strToFloat()` | Impossible de convertir la chaîne en flottant (format invalide) |
+| 103 | `TYPE` | `Convert::mixedToStr()` | Tableau, map ou objet utilisé comme chaîne |
 
 ### Exemples de gestion d'erreurs
 

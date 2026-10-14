@@ -68,6 +68,12 @@ pub enum SemaError {
     /// arité attendue : entre le nombre de paramètres sans valeur par défaut
     /// et le nombre total de paramètres déclarés.
     GenericArityMismatch { name: String, expected_min: usize, expected_max: usize, found: usize, span: Span },
+    /// Appel statique sur un `generic` dont les arguments de type ne sont ni
+    /// écrits ni déductibles (`Box::empty()` sans type attendu).
+    GenericTypeArgsNotInferred { name: String, method: String, span: Span },
+    /// Erreur propre à une instanciation concrète d'un `generic` (`T`
+    /// remplacé) : `self.v - e` avec `T = string` (E59).
+    InGenericInstance { instance: String, message: String, span: Span },
     /// `.join()`/`.detach()` appelé une seconde fois sur la même `Thread` —
     /// use-after-free confirmé côté runtime (le premier appel a déjà repris
     /// et libéré le handle natif).
@@ -221,6 +227,8 @@ impl SemaError {
             SemaError::ManualCloseOnResourceField { span, .. } => span,
             SemaError::StringConcatMismatch { span, .. } => span,
             SemaError::GenericArityMismatch { span, .. } => span,
+            SemaError::GenericTypeArgsNotInferred { span, .. } => span,
+            SemaError::InGenericInstance { span, .. } => span,
             SemaError::ThreadAlreadyFinalized { span, .. } => span,
             SemaError::OnFilterClassNotFound { span, .. } => span,
             SemaError::CatchAllNotLast { span } => span,
@@ -303,6 +311,10 @@ impl SemaError {
                 format!("'self.{}' ('{}') is closed automatically when the '{}' instance is destroyed — calling '.{}()' manually here would close it a second time (undefined behavior); remove this call", field, ty_name, class, method),
             SemaError::StringConcatMismatch { left, right, .. } =>
                 format!("cannot concatenate '{}' and '{}' with '+': string concatenation is strictly typed (only string + string is allowed) — use a template string (`${{...}}`) or convert explicitly (Convert::*ToStr)", left, right),
+            SemaError::InGenericInstance { instance, message, .. } =>
+                format!("in '{}': {}", instance, message),
+            SemaError::GenericTypeArgsNotInferred { name, method, .. } =>
+                format!("cannot infer the type arguments of '{}::{}' — write them explicitly ('{}<…>::{}(…)') or declare the expected type ('var x:{}<…> = …')", name, method, name, method, name),
             SemaError::GenericArityMismatch { name, expected_min, expected_max, found, .. } =>
                 if expected_min == expected_max {
                     format!("generic '{}' expects {} type argument(s), {} provided", name, expected_min, found)

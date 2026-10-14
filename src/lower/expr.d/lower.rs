@@ -93,8 +93,12 @@ fn pack_variadic_args(builder: &mut LowerBuilder, args: &[Expr], arg_vals: Vec<V
     crate::lower::stmt::rc::track(builder, &arr);
     let concrete = matches!(elem_ty, IrType::I64 | IrType::F64 | IrType::Bool);
     if concrete {
+        // Type des éléments mémorisé avec le drapeau (JSON/YAML, forEach).
+        let raw_kind = match elem_ty { IrType::F64 => 2, IrType::Bool => 3, _ => 1 };
+        let kind_val = builder.new_value();
+        builder.emit(Inst::ConstInt { dest: kind_val.clone(), value: raw_kind });
         let marked = builder.new_value();
-        builder.emit(Inst::Call { dest: Some(marked), func: "__rc_mark_raw".into(), args: vec![arr.clone()], ret_ty: IrType::Ptr });
+        builder.emit(Inst::Call { dest: Some(marked), func: "__rc_mark_raw_kind".into(), args: vec![arr.clone(), kind_val], ret_ty: IrType::Ptr });
     }
     for (arg_expr, val) in args[fixed_count..].iter().zip(arg_vals[fixed_count..].iter()) {
         let stored = if concrete {
@@ -199,11 +203,20 @@ pub fn lower_map_literal(builder: &mut LowerBuilder, entries: &[(Expr, Expr)], v
     crate::lower::stmt::rc::track(builder, &map);
     crate::lower::stmt::rc::mark_raw_if_primitive(builder, &Type::Map(Box::new(Type::String), Box::new(val_ty.clone())), &map);
     for (key, val) in entries {
-        let kv = lower_expr(builder, key);
+        let kv = lower_map_key(builder, key);
         let vv = lower_literal_element(builder, val, val_ty);
         builder.emit(Inst::Call { dest: None, func: "__map_set".into(), args: vec![map.clone(), kv, vv], ret_ty: IrType::Void });
     }
     map
+}
+
+/// Clé de map : un `int`/`float`/`bool` est boxé pour que le runtime le
+/// convertisse en texte (un flottant ou un grand entier brut y était lu comme
+/// un pointeur de chaîne — voir docs/roadmap.d/langage-map-loop-value-type.md).
+pub fn lower_map_key(builder: &mut LowerBuilder, key: &Expr) -> Value {
+    let ty = expr_ir_type(builder, key);
+    let v = lower_expr(builder, key);
+    box_for_dyn_arith(builder, &ty, v)
 }
 
 fn lower_literal_element(builder: &mut LowerBuilder, elem: &Expr, elem_ty: &Type) -> Value {
@@ -900,7 +913,7 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
         }
 
         // ── Accès statique ──────────────────────────────────────────────────
-        Expr::StaticCall { class, method, args, span } => {
+        Expr::StaticCall { class, method, args, span, .. } => {
             // Résoudre "<parent>" et "<self>" vers les classes appropriées
             let self_class;
             let parent_class;
@@ -1503,13 +1516,13 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
         // ── Accès par index ───────────────────────────────────────────────────
         Expr::Index { object, index, .. } => {
             let obj_val = lower_expr(builder, object);
-            let idx_val = lower_expr(builder, index);
+            let is_map = is_map_target(builder, object);
+            let idx_val = if is_map { lower_map_key(builder, index) } else { lower_expr(builder, index) };
             let dest = builder.new_value();
             // Détermine si c'est un accès map ou array selon le type de la variable
             // — ou, pour `self.champ[clé]`/`obj.champ[clé]`, selon le type déclaré
             // du CHAMP (module.class_map_fields, seule source fiable : class_layouts
             // réduit tout champ à IrType::Ptr, map/array/string indistinguables).
-            let is_map = is_map_target(builder, object);
             let func = if is_map { "__map_get" } else { "__array_get" };
             builder.emit(Inst::Call {
                 dest:   Some(dest.clone()),
@@ -1721,6 +1734,11 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             for (name, (_env_val, _idx, ty)) in builder.captured_vars.iter() {
                 capture_scope.entry(name.clone()).or_insert_with(|| (Value(0), ty.clone(), false));
             }
+            // Variables d'un générateur (champs du frame) partagées par cellule.
+            for name in builder.gen_cells.keys() {
+                let ty = builder.frame_vars.get(name).map(|(_, _, t)| t.clone()).unwrap_or(IrType::I64);
+                capture_scope.entry(name.clone()).or_insert_with(|| (Value(0), ty, true));
+            }
             let captures = collect_captures(body, &param_names, &capture_scope);
             
             // Collecter les valeurs par défaut des paramètres
@@ -1750,6 +1768,10 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // toute mutation ultérieure de la variable dans le scope extérieur sera
             // visible depuis la closure, et vice-versa.
             let capture_vals: Vec<Value> = captures.iter().map(|(cap_name, _)| {
+                // Variable d'un générateur : sa cellule partagée (voir `gen_cells`).
+                if let Some(cell) = builder.gen_cell_of(cap_name) {
+                    return cell;
+                }
                 // Déjà promu par une closure précédente dans la même fonction
                 if builder.heap_promoted.contains(cap_name.as_str()) {
                     return builder.slot_of_local(cap_name)

@@ -46,10 +46,18 @@ pub fn mark_raw_if_primitive(builder: &mut LowerBuilder, ty: &Type, v: &Value) {
         Type::Array(inner) | Type::Map(_, inner) => inner.as_ref(),
         _ => return,
     };
-    if matches!(elem, Type::Int | Type::Float | Type::Bool) {
-        let dest = builder.new_value();
-        builder.emit(Inst::Call { dest: Some(dest), func: "__rc_mark_raw".into(), args: vec![v.clone()], ret_ty: IrType::Ptr });
-    }
+    let raw_kind = match elem {
+        Type::Int => 1,
+        Type::Float => 2,
+        Type::Bool => 3,
+        _ => return,
+    };
+    // Le type des éléments est mémorisé avec le drapeau : JSON/YAML le lisent
+    // quand le tableau est ensuite placé dans un `mixed`.
+    let kind_val = builder.new_value();
+    builder.emit(Inst::ConstInt { dest: kind_val.clone(), value: raw_kind });
+    let dest = builder.new_value();
+    builder.emit(Inst::Call { dest: Some(dest), func: "__rc_mark_raw_kind".into(), args: vec![v.clone(), kind_val], ret_ty: IrType::Ptr });
 }
 
 // ── Temporaires ─────────────────────────────────────────────────────────────
@@ -296,7 +304,9 @@ pub fn declare(builder: &mut LowerBuilder, name: &str) {
 /// frame qui ne porte qu'elle — `__drop` peut le relâcher sans risque, quel
 /// que soit le type d'une autre locale du même nom (voir `declare_local`).
 fn bind_field(builder: &mut LowerBuilder, name: &str) -> Option<String> {
-    if !builder.rc_generator || !builder.frame_vars.contains_key(name) {
+    // Variable capturée : elle vit dans sa cellule (`gen_cells`), jamais
+    // déplacée dans un champ caché (la cellule la rend à sa libération).
+    if !builder.rc_generator || !builder.frame_vars.contains_key(name) || builder.gen_cells.contains_key(name) {
         return None;
     }
     let (cur, ty) = builder.load_local(name)?;

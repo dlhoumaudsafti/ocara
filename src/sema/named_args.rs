@@ -44,6 +44,13 @@ pub struct AstRewrites {
     /// `s -= e` sur une `string` (clé : span de l'opérateur) : réécrit en
     /// `String::replace(s, e, "")` — voir parser.d/compound_assign.rs.
     pub string_removals: std::collections::HashSet<ArgSiteKey>,
+    /// Expressions `mixed` attendues comme `string` (clé : position et
+    /// variante de l'expression) : enveloppées dans `Convert::mixedToStr` —
+    /// voir `crate::sema::mixed_string`.
+    pub mixed_to_string: std::collections::HashSet<(ArgSiteKey, std::mem::Discriminant<Expr>)>,
+    /// Arguments de type retenus pour un appel statique sur un `generic`
+    /// (clé : span de l'appel) — voir `crate::sema::generic_static`.
+    pub generic_static: HashMap<ArgSiteKey, Vec<Type>>,
 }
 
 /// Paramètres déclarés par callable utilisateur : `"fonction"`,

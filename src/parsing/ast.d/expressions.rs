@@ -39,6 +39,9 @@ pub enum Expr {
         method: String,
         args:   Vec<Expr>,
         span:   Span,
+        /// Arguments de type explicites d'un appel statique sur un `generic`
+        /// (`Box<int>::of(4)`), ou inférés par la sema ; vide sinon.
+        type_args: Vec<Type>,
     },
 
     /// Lecture d'une constante de classe : `Test::NAME`

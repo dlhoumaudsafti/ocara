@@ -69,6 +69,10 @@ impl<'a> TypeChecker<'a> {
         for (i, arg) in args.iter().enumerate() {
             let found = self.infer_expr(arg);
             if let Some((param, want)) = expected.slot(i) {
+                let want = want.clone();
+                let param = param.clone();
+                self.note_mixed_to_string(arg, &found, &want);
+                let (param, want) = (&param, &want);
                 let is_variadic_slot = expected.variadic && i + 1 >= expected.params.len();
                 let ok = types_compat(&found, want, &self.symbols)
                     || (is_variadic_slot && types_compat(&found, &Type::Array(Box::new(want.clone())), &self.symbols));

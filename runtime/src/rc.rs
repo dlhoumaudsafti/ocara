@@ -12,6 +12,12 @@ use crate::typecheck::{read_tag, TAG_ARRAY, TAG_CELL, TAG_ENV, TAG_EXCEPTION, TA
 
 pub(crate) const HEADER: usize = 24;
 pub(crate) const FLAG_RAW: i64 = 1;
+/// Type des éléments bruts d'un conteneur `FLAG_RAW` (bits 1-2 de `aux`) :
+/// 1 = int, 2 = float, 3 = bool, 0 = non précisé (traité comme int). Lu par
+/// JSON/YAML et `Map::forEach` quand le compilateur ne connaît pas la forme
+/// (tableau concret placé dans un `mixed`).
+const RAW_KIND_SHIFT: u32 = 1;
+const RAW_KIND_MASK: i64 = 0b11 << RAW_KIND_SHIFT;
 
 const COUNT_MASK: i64 = 0xFFFF_FFFF;
 const COLOR_SHIFT: u32 = 32;
@@ -679,6 +685,39 @@ pub extern "C" fn __rc_count(val: i64) -> i64 {
 }
 
 /// Conteneur à éléments `int`/`float`/`bool` bruts : jamais suivis comme pointeurs.
+#[unsafe(no_mangle)]
+pub extern "C" fn __rc_mark_raw_kind(val: i64, raw_kind: i64) -> i64 {
+    unsafe {
+        if matches!(kind(val), Some(Kind::Array | Kind::Map)) {
+            set_aux(val, (aux(val) & !RAW_KIND_MASK) | FLAG_RAW | ((raw_kind & 0b11) << RAW_KIND_SHIFT));
+        }
+    }
+    val
+}
+
+/// Type des éléments bruts de `val` (1 = int, 2 = float, 3 = bool), 0 si ce
+/// n'est pas un conteneur à éléments bruts.
+pub(crate) fn raw_kind(val: i64) -> i64 {
+    unsafe {
+        if !matches!(kind(val), Some(Kind::Array | Kind::Map)) || aux(val) & FLAG_RAW == 0 {
+            return 0;
+        }
+        match (aux(val) & RAW_KIND_MASK) >> RAW_KIND_SHIFT {
+            0 => 1,
+            k => k,
+        }
+    }
+}
+
+/// Propage le drapeau « éléments bruts » (et leur type) de `src` à `dst`.
+pub(crate) fn copy_raw(src: i64, dst: i64) {
+    unsafe {
+        if aux(src) & FLAG_RAW != 0 {
+            set_aux(dst, (aux(dst) & !RAW_KIND_MASK) | FLAG_RAW | (aux(src) & RAW_KIND_MASK));
+        }
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn __rc_mark_raw(val: i64) -> i64 {
     unsafe {

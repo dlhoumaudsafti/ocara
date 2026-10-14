@@ -29,16 +29,7 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **`mixed` contenant un entier utilisé comme `string` — SIGSEGV** — `var s:string = req.param("id")` (route `<id:int>`) fait planter le serveur ; `String::len(s)` rend 0. *(Structurel — conversion vérifiée ou refus à la compilation)* → [détails](roadmap.d/langage-mixed-vers-string-non-converti.md)
-- **JSON / YAML : tableau concret dans un `mixed` (SIGSEGV), `1` lu `true`, flottants perdus au décodage** — `JSON::encode([flat])` plante ou sort des bits bruts ; `[1, 2]` devient `[true, 2]` ; `3.75` décodé en `null`. *(Structurel — forme des éléments bruts visible du runtime)* → [détails](roadmap.d/stdlib-json-yaml-valeurs-brutes.md)
-- **Transactions SQLite / MySQL limitées à une instruction** — chaque `commit()` a son propre `BEGIN…COMMIT` : le « virement » documenté n'est pas atomique (100 créés à partir de rien après un `rollback`). *(Structurel)* → [détails](roadmap.d/stdlib-transactions-non-atomiques.md)
-- **Fuite : cycles jamais collectés tant que ≥ 2 threads Ocara tournent** — 291 Mo pour 2 × 400 000 cycles ; invisible pour `--leak-check`. *(Dangereuse — collecte concurrente ; à défaut documenter et signaler)* → [détails](roadmap.d/memoire-refcount.md)
-- **Clé de `for k has v` sur une `map<int,…>` lue comme chaîne** — `k * 10` donne une adresse, `k + 1` donne `"11"`, `k equal 1` toujours faux. *(Structurel)* → [détails](roadmap.d/langage-map-loop-value-type.md)
-- **Closure qui modifie une locale d'un générateur — sans effet** — `acc` reste à sa valeur d'avant l'appel. *(Structurel)* → [détails](roadmap.d/langage-emit-iterable.md)
-- **Arithmétique sur `T = string` dans un `generic` — contourne E59** — `-`, `-=`, `*` produisent des différences d'adresses. *(Structurel — vérification par instanciation)* → [détails](roadmap.d/langage-compound-assignment.md)
-- **`raise` dans une fonction `async` non rattrapable autour de `resolve`** — « UNHANDLED EXCEPTION », arrêt du programme malgré le `try`. *(Structurel)* → [détails](roadmap.d/langage-async-exception-resolve.md)
-- **Méthode statique d'un `generic` inappelable** — `Box::of(4)` (fabrique statique d'un générique, exemples `Result::ok`/`Option::some` de l'EBNF §20) : aucune instance générée, erreur de compilation. *(Structurel — instanciation à inférer ou syntaxe `Box<int>::of`)* → [détails](roadmap.d/langage-generique-methode-statique.md)
-- **`UnitTest::assertEnum` échoue toujours sur une variante d'enum** — le runtime attend un objet, une variante est un entier. *(Simple — vérification à la compilation ou retrait, à trancher)* → [détails](roadmap.d/stdlib-unittest-assertenum.md)
+- **Fuite : cycles jamais collectés tant que ≥ 2 threads Ocara tournent** — 291 Mo pour 2 × 400 000 cycles ; invisible pour `--leak-check`. Option retenue (2026-10-13) : collecte concurrente complète, ce qui impose des conteneurs protégés (verrou par tableau/map, libération différée). *(Dangereuse — runtime des conteneurs et du collecteur)* → [détails](roadmap.d/memoire-refcount.md)
 
 ---
 

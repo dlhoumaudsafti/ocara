@@ -44,3 +44,5 @@ Tests : `src/sema/tests/compound_assign.rs`,
 ## Reste à faire — audit du 2026-10-13
 
 **La limite « generic avec `T = string` » est plus large qu'annoncé.** Dans un `generic` instancié avec `string`, `x -= e` et `self.v - e` affichent `-24` (différence d'adresses) et `self.v * e` affiche `101117263381120` : E59 est contourné pour tous les opérateurs arithmétiques, pas seulement `-=`. Correction : vérifier les opérateurs à la monomorphisation (par instanciation), ou refuser l'arithmétique sur un `T` non contraint. **Haute (résultat faux) — Structurel.**
+
+**Corrigé le 2026-10-13** (option « vérification à l'instanciation ») : chaque instanciation concrète écrite dans le programme (`use Box<string>(…)`) fait revérifier le corps du `generic` avec `T` remplacé (`check_generic_instances`, `src/sema/generic_check.rs`) ; seules les erreurs propres à l'instanciation sont signalées, préfixées (« in 'Box<string>': operator '-' cannot be applied to 'string' »). Les champs d'un générique instancié sont désormais typés (`self.v` : `T` substitué). Test : `src/sema/tests/structural_fixes.rs`.

@@ -106,11 +106,16 @@ fn substitute_type(ty: &Type, type_params: &[String], type_args: &[Type]) -> Typ
 fn substitute_expr(expr: &mut Expr, type_params: &[String], type_args: &[Type], mapping: &HashMap<(String, Vec<Type>), String>) {
     match expr {
         Expr::New { class, type_args: ta, args, .. } => {
-            // Si c'est un générique, remplacer par le nom monomorphisé
+            // Si c'est un générique, remplacer par le nom monomorphisé —
+            // paramètres de type substitués d'abord (`use Box<T>(v)` dans le
+            // corps de `Box<int>` désigne `Box<int>`).
             if !ta.is_empty() {
-                if let Some(specialized_name) = mapping.get(&(class.clone(), ta.clone())) {
+                let concrete: Vec<Type> = ta.iter().map(|t| substitute_type(t, type_params, type_args)).collect();
+                if let Some(specialized_name) = mapping.get(&(class.clone(), concrete.clone())) {
                     *class = specialized_name.clone();
                     ta.clear();
+                } else {
+                    *ta = concrete;
                 }
             }
             for arg in args {
@@ -131,7 +136,18 @@ fn substitute_expr(expr: &mut Expr, type_params: &[String], type_args: &[Type], 
                 substitute_expr(arg, type_params, type_args, mapping);
             }
         }
-        Expr::StaticCall { args, .. } => {
+        Expr::StaticCall { class, type_args: ta, args, .. } => {
+            // Appel statique sur un générique instancié : méthode de la
+            // classe spécialisée (`Box<int>::of` → `Box_int::of`).
+            if !ta.is_empty() {
+                let concrete: Vec<Type> = ta.iter().map(|t| substitute_type(t, type_params, type_args)).collect();
+                if let Some(specialized_name) = mapping.get(&(class.clone(), concrete.clone())) {
+                    *class = specialized_name.clone();
+                    ta.clear();
+                } else {
+                    *ta = concrete;
+                }
+            }
             for arg in args {
                 substitute_expr(arg, type_params, type_args, mapping);
             }
@@ -406,7 +422,10 @@ fn collect_from_expr(expr: &Expr, instantiations: &mut HashSet<(String, Vec<Type
                 collect_from_expr(arg, instantiations);
             }
         }
-        Expr::StaticCall { args, .. } => {
+        Expr::StaticCall { class, type_args, args, .. } => {
+            if !type_args.is_empty() {
+                instantiations.insert((class.clone(), type_args.clone()));
+            }
             for arg in args {
                 collect_from_expr(arg, instantiations);
             }
@@ -537,6 +556,29 @@ fn specialize_members(generic_decl: &GenericDecl, type_args: &[Type], mapping: &
 /// sémantique de vérifier son corps UNE fois, instancié ou non, sans rien
 /// supposer de `T` (voir `TypeChecker::check_generic`,
 /// docs/roadmap.d/sema-generic-bodies-unchecked.md).
+/// Corps d'un générique avec ses paramètres de type remplacés par
+/// `type_args`, sous le nom du générique (vérification sémantique d'une
+/// instanciation, voir `crate::sema::generic_check`).
+pub fn instantiated_generic_class(generic_decl: &GenericDecl, type_args: &[Type]) -> ClassDecl {
+    ClassDecl {
+        name: generic_decl.name.clone(),
+        extends: generic_decl.extends.clone(),
+        modules: generic_decl.modules.clone(),
+        implements: generic_decl.implements.clone(),
+        members: specialize_members(generic_decl, type_args, &HashMap::new()),
+        span: generic_decl.span.clone(),
+        is_struct: false,
+            implicit_init: false,
+    }
+}
+
+/// Instanciations `(générique, arguments de type)` écrites dans le programme.
+pub fn generic_instantiations(program: &ast::Program) -> Vec<(String, Vec<Type>)> {
+    let mut found: Vec<(String, Vec<Type>)> = collect_generic_instantiations(program).into_iter().collect();
+    found.sort_by(|a, b| format!("{:?}", a).cmp(&format!("{:?}", b)));
+    found
+}
+
 pub fn erased_generic_class(generic_decl: &GenericDecl) -> ClassDecl {
     let type_args = vec![Type::Mixed; generic_decl.type_params.len()];
     ClassDecl {

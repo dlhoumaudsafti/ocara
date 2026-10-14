@@ -20,6 +20,7 @@ mod use_without_init;
 mod arg_types;
 mod member_visibility;
 mod access_on_non_container;
+mod structural_fixes;
 mod unknown_symbols;
 mod global_const;
 mod interface_call;

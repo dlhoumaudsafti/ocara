@@ -501,7 +501,7 @@ impl Parser {
                         let args = self.parse_arg_list()?;
                         self.eat(&TokenKind::RParen)?;
                         // "<self>" est un marqueur résolu plus tard par le typecheck/lower
-                        return Ok(Expr::StaticCall { class: "<self>".into(), method: member, args, span });
+                        return Ok(Expr::StaticCall { class: "<self>".into(), method: member, args, span, type_args: Vec::new() });
                     }
                     // self::CONST — constante de classe courante
                     return Ok(Expr::StaticConst { class: "<self>".into(), name: member, span });
@@ -523,7 +523,7 @@ impl Parser {
                         let args = self.parse_arg_list()?;
                         self.eat(&TokenKind::RParen)?;
                         // "<parent>" est un marqueur résolu plus tard par le typecheck/lower
-                        return Ok(Expr::StaticCall { class: "<parent>".into(), method: member, args, span });
+                        return Ok(Expr::StaticCall { class: "<parent>".into(), method: member, args, span, type_args: Vec::new() });
                     }
                     // parent::CONST — constante de classe parent
                     return Ok(Expr::StaticConst { class: "<parent>".into(), name: member, span });
@@ -612,6 +612,18 @@ impl Parser {
             TokenKind::Ident(name) => {
                 self.advance();
 
+                // Appel statique sur un générique instancié : `Box<int>::of(4)`
+                // (voir docs/roadmap.d/langage-generique-methode-statique.md).
+                // Sinon (`a < b` n'existe plus), retour à l'erreur habituelle.
+                let mut type_args = Vec::new();
+                if self.check_exact(&TokenKind::Lt) {
+                    let saved = self.pos;
+                    match self.try_static_type_args() {
+                        Some(args) => type_args = args,
+                        None => self.pos = saved,
+                    }
+                }
+
                 // Accès statique : `Class::method(...)` ou `Class::NAME`
                 if self.check_exact(&TokenKind::ColonColon) {
                     self.advance();
@@ -623,7 +635,7 @@ impl Parser {
                         self.advance();
                         let args = self.parse_arg_list()?;
                         self.eat(&TokenKind::RParen)?;
-                        return Ok(Expr::StaticCall { class: name, method: member, args, span });
+                        return Ok(Expr::StaticCall { class: name, method: member, args, span, type_args });
                     } else {
                         // Lecture d'une constante de classe
                         return Ok(Expr::StaticConst { class: name, name: member, span });
@@ -730,6 +742,28 @@ impl Parser {
     }
 
     // ── Liste d'arguments ────────────────────────────────────────────────────
+
+    /// `<T, U>` suivi de `::` (appel statique sur un générique) : les
+    /// arguments de type, ou `None` sans rien laisser derrière (l'appelant
+    /// restaure la position).
+    fn try_static_type_args(&mut self) -> Option<Vec<Type>> {
+        let (refs, errors) = (self.type_refs.len(), self.errors.len());
+        let parsed = (|| {
+            self.eat(&TokenKind::Lt).ok()?;
+            let mut args = vec![self.parse_type().ok()?];
+            while self.check_exact(&TokenKind::Comma) {
+                self.advance();
+                args.push(self.parse_type().ok()?);
+            }
+            self.eat(&TokenKind::Gt).ok()?;
+            self.check_exact(&TokenKind::ColonColon).then_some(args)
+        })();
+        if parsed.is_none() {
+            self.type_refs.truncate(refs);
+            self.errors.truncate(errors);
+        }
+        parsed
+    }
 
     fn parse_arg_list(&mut self) -> ParseResult<Vec<Expr>> {
         let mut args = Vec::new();

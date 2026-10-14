@@ -1517,6 +1517,20 @@
         "docHeading": "`Convert::mapValuesToArray(m)` → `array<mixed>`"
       },
       {
+        "name": "mixedToStr",
+        "params": [
+          {
+            "name": "v",
+            "type": "mixed"
+          }
+        ],
+        "returns": "string",
+        "static": true,
+        "doc": "`Convert::mixedToStr(v)` → `string`\n\nConvertit une valeur `mixed` en chaîne : une chaîne est rendue telle quelle, un `int`/`float`/`bool` devient son texte (`42` → `\"42\"`), `null` reste `null`. Un tableau, une map ou un objet lève `ConvertException` (code 103).\n\nCette conversion est aussi **implicite** : un `mixed` utilisé là où une `string` est attendue (déclaration, affectation, argument, `return`) passe par `mixedToStr`.\n\n```ocara\nvar id:mixed = 42\nvar s:string = id          // \"42\"\n```",
+        "docFile": "Convert.md",
+        "docHeading": "`Convert::mixedToStr(v)` → `string`"
+      },
+      {
         "name": "strToArray",
         "params": [
           {
@@ -4287,7 +4301,7 @@
         ],
         "returns": "void",
         "static": true,
-        "doc": "`UnitTest::assertEnum(value)`\n\nVérifie que `value` est un objet (même test runtime que `assertClass`). Code 117 sinon.\n\n> ⚠️ Les variantes d'enum compilent vers des **constantes entières** : `UnitTest::assertEnum(Color::RED)` **échoue** (code 117, `value is not an enum`). Pour une variante d'enum, comparer plutôt sa valeur avec `assertEquals`.",
+        "doc": "`UnitTest::assertEnum(value)`\n\nVérifie que `value` est un objet (même test runtime que `assertClass`). Code 117 sinon.\n\n> Les variantes d'enum sont des entiers à l'exécution : `assertEnum` est vérifié **à la compilation**. L'argument doit être une variante (`UnitTest::assertEnum(Color::RED)`) ou une valeur de type enum, sinon erreur de compilation (« expected type 'enum' »).",
         "docFile": "UnitTest.md",
         "docHeading": "`UnitTest::assertEnum(value)`"
       },
@@ -4649,6 +4663,15 @@
         "docHeading": "`db.affectedRows() → int`"
       },
       {
+        "name": "begin",
+        "params": [],
+        "returns": "void",
+        "static": false,
+        "doc": "Transactions — `begin()` / `commit()` / `rollback()`\n\nPour plusieurs instructions qui doivent réussir ou échouer **en bloc**, `begin()` ouvre une transaction : toutes les instructions suivantes (`execute`, `query`, `queryOne`, requête préparée) en font partie jusqu'au `commit()`, qui valide l'ensemble, ou au `rollback()`, qui annule l'ensemble.\n\n```ocara\nscoped db:SQLite = SQLite::open(\"data.db\")\ntry {\n    db.begin()\n    db.execute(\"UPDATE accounts SET balance = balance - :amount WHERE id = :from\", {\"amount\": 100, \"from\": 1})\n    db.execute(\"UPDATE accounts SET balance = balance + :amount WHERE id = :to\", {\"amount\": 100, \"to\": 2})\n    db.commit()\n    IO::writeln(\"transfert effectué\")\n} on e is SQLiteException {\n    IO::writeln(`Erreur : ${e.message}`)\n    db.rollback()   // aucun des deux débits/crédits n'est conservé\n}\n```\n\nSans `begin()`, `prepare()`/`bind()`/`commit()` exécutent **une seule** requête préparée dans sa propre transaction (`commit()` rend les lignes d'un SELECT ou le nombre de lignes affectées). Dans une transaction ouverte par `begin()`, une requête préparée en cours est exécutée par le `commit()`, avant la validation.\n\n### `db.begin() → void`\n\nOuvre une transaction explicite. Un second `begin()` avant `commit()`/`rollback()` lève `SQLiteException`.\n\n### `db.prepare(query: string) → void`\n\nValide la requête **immédiatement** (erreur de syntaxe remontée à cet appel, pas plus tard) et la mémorise pour `bind()`/`commit()`. N'exécute rien.\n\n**Erreur** : `SQLiteE",
+        "docFile": "SQLite.md",
+        "docHeading": "Transactions — `begin()` / `commit()` / `rollback()`"
+      },
+      {
         "name": "bind",
         "params": [
           {
@@ -4740,9 +4763,9 @@
         ],
         "returns": "void",
         "static": false,
-        "doc": "Transactions — `prepare()` / `bind()` / `commit()` / `rollback()`\n\nPour une opération qui doit réussir ou échouer **en bloc** (donc annulable via `rollback()`), le flux \"stepped\" remplace `execute`/`query`/`queryOne` one-shot par quatre étapes explicites sur la même connexion :\n\n```ocara\nconst db:SQLite = SQLite::open(\"data.db\")\ntry {\n    db.prepare(\"UPDATE accounts SET balance = balance - :amount WHERE id = :from\")\n    db.bind({\"amount\": 100, \"from\": 1})\n    db.commit()\n\n    db.prepare(\"UPDATE accounts SET balance = balance + :amount WHERE id = :to\")\n    db.bind({\"amount\": 100, \"to\": 2})\n    var affected:mixed = db.commit()\n    IO::writeln(`transfert effectué, ${affected} ligne(s) affectée(s)`)\n} on e is SQLiteException {\n    IO::writeln(`Erreur : ${e.message}`)\n    db.rollback()\n}\n```\n\n### `db.prepare(query: string) → void`\n\nValide la requête **immédiatement** (erreur de syntaxe remontée à cet appel, pas plus tard) et la mémorise pour `bind()`/`commit()`. N'exécute rien.\n\n**Erreur** : `SQLiteException` (code 105) si la requête est syntaxiquement invalide.\n\n### `db.bind(placeholders: map<string, mixed>) → void`\n\nBind les placeholders nominatifs `:nom` de la requête posée par le dernier `prepare()`. Doit suivre un `prepare()` sans `commit()`/`rollback()` entre les deux — appeler `bind()` sans `prepare()` préalable lève une exception plutôt que d'échouer silencieusement.\n\n**Erreur** : `SQLiteException` (code 106) si aucun `prepare()` n'est en attente, ou si une valeur de place",
+        "doc": "`db.prepare(query: string) → void`\n\nValide la requête **immédiatement** (erreur de syntaxe remontée à cet appel, pas plus tard) et la mémorise pour `bind()`/`commit()`. N'exécute rien.\n\n**Erreur** : `SQLiteException` (code 105) si la requête est syntaxiquement invalide.",
         "docFile": "SQLite.md",
-        "docHeading": "Transactions — `prepare()` / `bind()` / `commit()` / `rollback()`"
+        "docHeading": "`db.prepare(query: string) → void`"
       },
       {
         "name": "query",
@@ -4826,6 +4849,15 @@
         "doc": "`db.affectedRows() → int`\n\nRetourne le nombre de lignes affectées par la dernière requête `execute()`.\n\n```ocara\nconst affected:int = db.execute(\"UPDATE users SET age = 32 WHERE name = 'Alice'\")\nIO::writeln(`${affected} rows updated`)\n```",
         "docFile": "MySQL.md",
         "docHeading": "`db.affectedRows() → int`"
+      },
+      {
+        "name": "begin",
+        "params": [],
+        "returns": "void",
+        "static": false,
+        "doc": "Transactions — `begin()` / `commit()` / `rollback()`\n\nPour plusieurs instructions qui doivent réussir ou échouer **en bloc**, `begin()` ouvre une transaction : toutes les instructions suivantes (`execute`, `query`, `queryOne`, requête préparée) en font partie jusqu'au `commit()`, qui valide l'ensemble, ou au `rollback()`, qui annule l'ensemble.\n\n```ocara\nscoped db:MySQL = MySQL::connect(\"localhost\", \"root\", \"password\", \"bank\")\ntry {\n    db.begin()\n    db.execute(\"UPDATE accounts SET balance = balance - :amount WHERE id = :from\", {\"amount\": 100, \"from\": 1})\n    db.execute(\"UPDATE accounts SET balance = balance + :amount WHERE id = :to\", {\"amount\": 100, \"to\": 2})\n    db.commit()\n    IO::writeln(\"transfert effectué\")\n} on e is MySQLException {\n    IO::writeln(`Erreur : ${e.message}`)\n    db.rollback()   // aucun des deux débits/crédits n'est conservé\n}\n```\n\nSans `begin()`, `prepare()`/`bind()`/`commit()` exécutent **une seule** requête préparée dans sa propre transaction (`commit()` rend les lignes d'un SELECT ou le nombre de lignes affectées). Dans une transaction ouverte par `begin()`, une requête préparée en cours est exécutée par le `commit()`, avant la validation.\n\n### `db.begin() → void`\n\nOuvre une transaction explicite. Un second `begin()` avant `commit()`/`rollback()` lève `MySQLException`.\n\n### `db.prepare(query: string) → void`\n\nÉpingle une connexion dédiée au cycle et valide la requête **immédiatement** côté serveur (`COM_STMT_PREPARE` réel — erreur de syntaxe remonté",
+        "docFile": "MySQL.md",
+        "docHeading": "Transactions — `begin()` / `commit()` / `rollback()`"
       },
       {
         "name": "bind",
@@ -4931,9 +4963,9 @@
         ],
         "returns": "void",
         "static": false,
-        "doc": "Transactions — `prepare()` / `bind()` / `commit()` / `rollback()`\n\nPour une opération qui doit réussir ou échouer **en bloc** (donc annulable via `rollback()`), le flux \"stepped\" remplace `execute`/`query`/`queryOne` one-shot par quatre étapes explicites — même design que [SQLite](SQLite.md#transactions--prepare--bind--commit--rollback), sur la même connexion à chaque étape :\n\n```ocara\nconst db:MySQL = MySQL::connect(\"localhost\", \"root\", \"password\", \"bank\")\ntry {\n    db.prepare(\"UPDATE accounts SET balance = balance - :amount WHERE id = :from\")\n    db.bind({\"amount\": 100, \"from\": 1})\n    db.commit()\n\n    db.prepare(\"UPDATE accounts SET balance = balance + :amount WHERE id = :to\")\n    db.bind({\"amount\": 100, \"to\": 2})\n    var affected:mixed = db.commit()\n    IO::writeln(`transfert effectué, ${affected} ligne(s) affectée(s)`)\n} on e is MySQLException {\n    IO::writeln(`Erreur : ${e.message}`)\n    db.rollback()\n}\n```\n\n### `db.prepare(query: string) → void`\n\nÉpingle une connexion dédiée au cycle et valide la requête **immédiatement** côté serveur (`COM_STMT_PREPARE` réel — erreur de syntaxe remontée à cet appel, pas plus tard). Un cycle précédent resté ouvert (`commit()` échoué, `rollback()` jamais appelé) est annulé automatiquement avant de continuer.\n\n**Erreur** : `MySQLException` (code 105) si la requête est syntaxiquement invalide.\n\n### `db.bind(placeholders: map<string, mixed>) → void`\n\nBind les placeholders nominatifs `:nom` de la requête posée par le dernier `prepare()`. A",
+        "doc": "`db.prepare(query: string) → void`\n\nÉpingle une connexion dédiée au cycle et valide la requête **immédiatement** côté serveur (`COM_STMT_PREPARE` réel — erreur de syntaxe remontée à cet appel, pas plus tard). Un cycle précédent resté ouvert (`commit()` échoué, `rollback()` jamais appelé) est annulé automatiquement avant de continuer.\n\n**Erreur** : `MySQLException` (code 105) si la requête est syntaxiquement invalide.",
         "docFile": "MySQL.md",
-        "docHeading": "Transactions — `prepare()` / `bind()` / `commit()` / `rollback()`"
+        "docHeading": "`db.prepare(query: string) → void`"
       },
       {
         "name": "query",

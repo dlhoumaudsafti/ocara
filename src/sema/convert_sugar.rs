@@ -97,8 +97,7 @@ impl<'a> TypeChecker<'a> {
             class:  convert,
             method: static_name.to_string(),
             args:   full_args,
-            span:   span.clone(),
-        });
+            span:   span.clone(), type_args: Vec::new() });
         Some(sig.ret_ty.clone())
     }
 }

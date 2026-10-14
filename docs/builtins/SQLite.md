@@ -111,26 +111,29 @@ Il n'y a pas de placeholders positionnels (`?`) — choix délibéré, cohérent
 
 Types de valeurs bindables : `int`, `float`, `bool`, `string`, `null`. Une valeur `array`/`map`/objet/fonction dans la map de placeholders lève `SQLiteException` (code 106) — ce ne sont pas des valeurs SQL scalaires.
 
-## Transactions — `prepare()` / `bind()` / `commit()` / `rollback()`
+## Transactions — `begin()` / `commit()` / `rollback()`
 
-Pour une opération qui doit réussir ou échouer **en bloc** (donc annulable via `rollback()`), le flux "stepped" remplace `execute`/`query`/`queryOne` one-shot par quatre étapes explicites sur la même connexion :
+Pour plusieurs instructions qui doivent réussir ou échouer **en bloc**, `begin()` ouvre une transaction : toutes les instructions suivantes (`execute`, `query`, `queryOne`, requête préparée) en font partie jusqu'au `commit()`, qui valide l'ensemble, ou au `rollback()`, qui annule l'ensemble.
 
 ```ocara
-const db:SQLite = SQLite::open("data.db")
+scoped db:SQLite = SQLite::open("data.db")
 try {
-    db.prepare("UPDATE accounts SET balance = balance - :amount WHERE id = :from")
-    db.bind({"amount": 100, "from": 1})
+    db.begin()
+    db.execute("UPDATE accounts SET balance = balance - :amount WHERE id = :from", {"amount": 100, "from": 1})
+    db.execute("UPDATE accounts SET balance = balance + :amount WHERE id = :to", {"amount": 100, "to": 2})
     db.commit()
-
-    db.prepare("UPDATE accounts SET balance = balance + :amount WHERE id = :to")
-    db.bind({"amount": 100, "to": 2})
-    var affected:mixed = db.commit()
-    IO::writeln(`transfert effectué, ${affected} ligne(s) affectée(s)`)
+    IO::writeln("transfert effectué")
 } on e is SQLiteException {
     IO::writeln(`Erreur : ${e.message}`)
-    db.rollback()
+    db.rollback()   // aucun des deux débits/crédits n'est conservé
 }
 ```
+
+Sans `begin()`, `prepare()`/`bind()`/`commit()` exécutent **une seule** requête préparée dans sa propre transaction (`commit()` rend les lignes d'un SELECT ou le nombre de lignes affectées). Dans une transaction ouverte par `begin()`, une requête préparée en cours est exécutée par le `commit()`, avant la validation.
+
+### `db.begin() → void`
+
+Ouvre une transaction explicite. Un second `begin()` avant `commit()`/`rollback()` lève `SQLiteException`.
 
 ### `db.prepare(query: string) → void`
 

@@ -64,6 +64,11 @@ pub struct OcaraMySQLDatabase {
     // Connexion épinglée pour la durée d'un cycle prepare→bind→commit/rollback
     // — voir le commentaire de tête de fichier.
     pinned_conn: Mutex<Option<PooledConn>>,
+    // `true` entre `begin()` et le `commit()`/`rollback()` qui la referme :
+    // execute/query/requête préparée passent par la connexion épinglée et
+    // forment UNE transaction — voir
+    // docs/roadmap.d/stdlib-transactions-non-atomiques.md.
+    explicit_tx: Mutex<bool>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -246,6 +251,7 @@ pub unsafe extern "C" fn MySQL_connect(
                     pending_binds: Mutex::new(None),
                     tx_open: Mutex::new(false),
                     pinned_conn: Mutex::new(None),
+                    explicit_tx: Mutex::new(false),
                 });
                 crate::rc::handle_new(*db)
             }
@@ -325,9 +331,8 @@ pub unsafe extern "C" fn MySQL_execute(db_ptr: i64, query_ptr: i64, placeholder_
         // throw_mysql_exception (même raison que côté SQLite).
         let result: Result<(i64, u64), String> = (|| {
             let binds = read_placeholders(placeholder_ptr)?;
-            let pool = db.pool.lock().unwrap();
-            let mut conn = pool.get_conn()
-                .map_err(|e| format!("Failed to get connection: {}", e))?;
+            let mut holder = acquire_conn(db)?;
+            let conn = holder.get();
             // Toujours `exec_drop` (protocole binaire, requête préparée),
             // jamais `query_drop` (protocole texte) — voir le commentaire
             // détaillé sur `row_to_map` : le protocole texte renvoie TOUTE
@@ -377,9 +382,8 @@ pub unsafe extern "C" fn MySQL_query(db_ptr: i64, query_ptr: i64, placeholder_pt
 
         let result: Result<i64, String> = (|| {
             let binds = read_placeholders(placeholder_ptr)?;
-            let pool = db.pool.lock().unwrap();
-            let mut conn = pool.get_conn()
-                .map_err(|e| format!("Failed to get connection: {}", e))?;
+            let mut holder = acquire_conn(db)?;
+            let conn = holder.get();
 
             let result_array = crate::__array_new();
 
@@ -431,9 +435,8 @@ pub unsafe extern "C" fn MySQL_queryOne(db_ptr: i64, query_ptr: i64, placeholder
 
         let result: Result<i64, String> = (|| {
             let binds = read_placeholders(placeholder_ptr)?;
-            let pool = db.pool.lock().unwrap();
-            let mut conn = pool.get_conn()
-                .map_err(|e| format!("Failed to get connection: {}", e))?;
+            let mut holder = acquire_conn(db)?;
+            let conn = holder.get();
 
             // `row_to_map` doit s'exécuter PENDANT que `query_result` est
             // encore en vie (`Row` lu en streaming depuis la connexion,
@@ -467,6 +470,34 @@ pub unsafe extern "C" fn MySQL_queryOne(db_ptr: i64, query_ptr: i64, placeholder
 // prepare / bind / commit / rollback — flux stepped transactionnel
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Connexion d'une requête : la connexion épinglée pendant une transaction
+/// explicite (`begin()`), sinon une connexion du pool.
+enum ConnRef<'a> {
+    Pinned(std::sync::MutexGuard<'a, Option<PooledConn>>),
+    Pooled(PooledConn),
+}
+
+impl ConnRef<'_> {
+    fn get(&mut self) -> &mut PooledConn {
+        match self {
+            ConnRef::Pinned(guard) => guard.as_mut().expect("connexion épinglée"),
+            ConnRef::Pooled(conn) => conn,
+        }
+    }
+}
+
+fn acquire_conn(db: &OcaraMySQLDatabase) -> Result<ConnRef<'_>, String> {
+    if *db.explicit_tx.lock().unwrap() {
+        let guard = db.pinned_conn.lock().unwrap();
+        if guard.is_none() {
+            return Err("internal error: no pinned connection for the open transaction".into());
+        }
+        return Ok(ConnRef::Pinned(guard));
+    }
+    let pool = db.pool.lock().unwrap();
+    pool.get_conn().map(ConnRef::Pooled).map_err(|e| format!("Failed to get connection: {}", e))
+}
+
 /// Annule au mieux (best-effort) une transaction laissée ouverte par un
 /// cycle précédent, sans jamais lever — appelée en tête de `prepare()` pour
 /// ne JAMAIS rendre une connexion mid-transaction au pool (ce que ferait
@@ -480,6 +511,7 @@ unsafe fn rollback_pending(db: &OcaraMySQLDatabase) {
         }
     }
     *tx_open = false;
+    *db.explicit_tx.lock().unwrap() = false;
     *db.pending_query.lock().unwrap() = None;
     *db.pending_binds.lock().unwrap() = None;
     // La connexion épinglée retourne au pool ici (Drop de PooledConn).
@@ -497,9 +529,24 @@ unsafe fn rollback_pending(db: &OcaraMySQLDatabase) {
 pub unsafe extern "C" fn MySQL_prepare(db_ptr: i64, query_ptr: i64) {
     unsafe {
         let db = &*(db_ptr as *const OcaraMySQLDatabase);
-        rollback_pending(db);
-
         let query = ptr_to_str(query_ptr).to_string();
+
+        // Transaction explicite : la requête est préparée sur la connexion
+        // épinglée par `begin()`, sans annuler la transaction en cours.
+        if *db.explicit_tx.lock().unwrap() {
+            let prepared = acquire_conn(db).and_then(|mut holder| {
+                holder.get().prep(&query).map(|_| ()).map_err(|e| format!("Failed to prepare query '{}': {}", query, e))
+            });
+            match prepared {
+                Ok(()) => {
+                    *db.pending_query.lock().unwrap() = Some(query);
+                    *db.pending_binds.lock().unwrap() = None;
+                }
+                Err(msg) => throw_mysql_exception(&msg, ERR_PREPARE, "MySQL"),
+            }
+            return;
+        }
+        rollback_pending(db);
 
         let result: Result<PooledConn, String> = (|| {
             let pool = db.pool.lock().unwrap();
@@ -558,6 +605,35 @@ pub unsafe extern "C" fn MySQL_commit_0(db_ptr: i64) -> i64 {
     unsafe { MySQL_commit(db_ptr, 0) }
 }
 
+/// db.begin() → void
+/// Ouvre une transaction explicite sur une connexion épinglée : `execute`,
+/// `query`, `queryOne` et la requête préparée en font partie jusqu'au
+/// `commit()` (validation de l'ensemble) ou au `rollback()` (annulation).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn MySQL_begin(db_ptr: i64) {
+    unsafe {
+        let db = &*(db_ptr as *const OcaraMySQLDatabase);
+        if *db.explicit_tx.lock().unwrap() {
+            throw_mysql_exception("begin() called while a transaction is already open — commit() or rollback() first", ERR_COMMIT, "MySQL");
+        }
+        rollback_pending(db);
+        let result: Result<PooledConn, String> = (|| {
+            let pool = db.pool.lock().unwrap();
+            let mut conn = pool.get_conn().map_err(|e| format!("Failed to get connection: {}", e))?;
+            conn.query_drop("START TRANSACTION").map_err(|e| format!("Failed to START TRANSACTION: {}", e))?;
+            Ok(conn)
+        })();
+        match result {
+            Ok(conn) => {
+                *db.pinned_conn.lock().unwrap() = Some(conn);
+                *db.tx_open.lock().unwrap() = true;
+                *db.explicit_tx.lock().unwrap() = true;
+            }
+            Err(msg) => throw_mysql_exception(&msg, ERR_COMMIT, "MySQL"),
+        }
+    }
+}
+
 /// db.commit(close:bool = false) → mixed
 /// Exécute la requête posée par `prepare()`/`bind()`, sur la connexion
 /// épinglée par `prepare()`, à l'intérieur d'une transaction SQL
@@ -572,10 +648,12 @@ pub unsafe extern "C" fn MySQL_commit(db_ptr: i64, close: i64) -> i64 {
     unsafe {
         let db = &*(db_ptr as *const OcaraMySQLDatabase);
 
+        let explicit = *db.explicit_tx.lock().unwrap();
         let query = match db.pending_query.lock().unwrap().clone() {
-            Some(q) => q,
+            Some(q) => Some(q),
+            None if explicit => None,
             None => throw_mysql_exception(
-                "commit() called without a pending prepare() — call prepare(query) first",
+                "commit() called without a pending prepare() — call prepare(query) first, or begin() a transaction",
                 ERR_COMMIT,
                 "MySQL"
             ),
@@ -589,11 +667,19 @@ pub unsafe extern "C" fn MySQL_commit(db_ptr: i64, close: i64) -> i64 {
             let conn = conn_guard.as_mut()
                 .ok_or_else(|| "internal error: no pinned connection for commit()".to_string())?;
 
-            conn.query_drop("START TRANSACTION")
-                .map_err(|e| format!("Failed to START TRANSACTION: {}", e))?;
-            *db.tx_open.lock().unwrap() = true;
+            // Transaction explicite (`begin()`) : déjà ouverte.
+            if !explicit {
+                conn.query_drop("START TRANSACTION")
+                    .map_err(|e| format!("Failed to START TRANSACTION: {}", e))?;
+                *db.tx_open.lock().unwrap() = true;
+            }
 
-            let stmt = conn.prep(&query)
+            let Some(query) = query.as_ref() else {
+                conn.query_drop("COMMIT")
+                    .map_err(|e| format!("Failed to COMMIT transaction: {}", e))?;
+                return Ok(crate::box_int_if_needed(0));
+            };
+            let stmt = conn.prep(query)
                 .map_err(|e| format!("Failed to prepare query '{}': {}", query, e))?;
 
             let params = params_from_binds(&binds);
@@ -628,6 +714,7 @@ pub unsafe extern "C" fn MySQL_commit(db_ptr: i64, close: i64) -> i64 {
                 *db.pending_query.lock().unwrap() = None;
                 *db.pending_binds.lock().unwrap() = None;
                 *db.tx_open.lock().unwrap() = false;
+                *db.explicit_tx.lock().unwrap() = false;
                 *db.pinned_conn.lock().unwrap() = None; // rendue au pool
                 if close != 0 {
                     MySQL_close(db_ptr);

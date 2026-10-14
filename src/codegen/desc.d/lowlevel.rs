@@ -90,6 +90,7 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__rc_retain",            params: &[clt::I64],                                 returns: None,               module: None },
     BuiltinDesc { name: "__rc_release",           params: &[clt::I64],                                 returns: None,               module: None },
     BuiltinDesc { name: "__rc_mark_raw",          params: &[clt::I64],                                 returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__rc_mark_raw_kind",     params: &[clt::I64, clt::I64],                       returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__rc_unwind_push",       params: &[clt::I64, clt::I64],                     returns: None,               module: None },
     BuiltinDesc { name: "__rc_unwind_pop",        params: &[],                                         returns: None,               module: None },
     BuiltinDesc { name: "__rc_resource_push",     params: &[clt::I64, clt::I64],                     returns: None,               module: None },
@@ -119,6 +120,8 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__leak_exit",            params: &[clt::I64],                        returns: None,              module: None },
     // Champ d'un binding `on e` générique (voir runtime/src/exception.rs)
     BuiltinDesc { name: "__exc_get_field",        params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
+    // Variable de générateur capturée par une closure (voir runtime/src/lib.rs)
+    BuiltinDesc { name: "__gen_cell",             params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
     // Constantes globales calculées (voir runtime/src/global_const.rs)
     BuiltinDesc { name: "__global_const_slot",    params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
 

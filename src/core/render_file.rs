@@ -255,7 +255,7 @@ fn desugar_expr(expr: &mut Expr, map: &mut ConstMap) -> Result<(), DesugarError>
             }
         }
 
-        Expr::StaticCall { class, method, args, span } => {
+        Expr::StaticCall { class, method, args, span, .. } => {
             for a in args.iter_mut() {
                 desugar_expr(a, map)?;
             }

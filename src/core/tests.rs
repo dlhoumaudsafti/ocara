@@ -208,7 +208,7 @@ fn resolve_aliases_rewrites_static_call_class_only() {
     program.functions.push(FuncDecl {
         name: "main".into(), params: vec![], ret_ty: Type::Void, is_async: false, span: span(),
         body: Block {
-            stmts: vec![Stmt::Expr(Expr::StaticCall { class: "MyChild".into(), method: "greet".into(), args: vec![], span: span() })],
+            stmts: vec![Stmt::Expr(Expr::StaticCall { class: "MyChild".into(), method: "greet".into(), args: vec![], span: span(), type_args: Vec::new() })],
             span: span(),
         },
     });

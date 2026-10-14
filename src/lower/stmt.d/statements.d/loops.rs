@@ -230,10 +230,14 @@ pub fn lower_for_map(
 
     // Récupère le tableau des clés
     let keys_arr = builder.new_value();
+    // Clés en chaîne (kind 0) : elles servent à la recherche `__map_get` ;
+    // la variable `key` est ensuite convertie au type `K` déclaré.
+    let string_keys = builder.new_value();
+    builder.emit(Inst::ConstInt { dest: string_keys.clone(), value: 0 });
     builder.emit(Inst::Call {
         dest:   Some(keys_arr.clone()),
         func:   "Map_keys".into(),
-        args:   vec![iter_val.clone()],
+        args:   vec![iter_val.clone(), string_keys],
         ret_ty: IrType::Ptr,
     });
     crate::lower::stmt::rc::track(builder, &keys_arr);
@@ -282,9 +286,25 @@ pub fn lower_for_map(
     });
     let counted_snapshot = builder.rc_counted_locals.clone();
     crate::lower::stmt::rc::begin_iteration(builder);
-    builder.declare_local(key, IrType::Ptr, false);
-    builder.store_local(key, k.clone());
-    crate::lower::stmt::rc::bind_loop_var(builder, key, Some(&Type::String), &k);
+    // Clé d'une `map<int|float|bool, V>` : relue au type `K` (stockée en
+    // texte par le runtime — `k * 10` donnait une adresse, voir
+    // docs/roadmap.d/langage-map-loop-value-type.md).
+    let key_kind = crate::lower::expr::helpers::map_key_kind(builder, iter);
+    if key_kind != 0 {
+        let key_ty = match key_kind { 1 => Type::Int, 2 => Type::Float, _ => Type::Bool };
+        let key_ir = IrType::from_ast(&key_ty);
+        let kind_val = builder.new_value();
+        builder.emit(Inst::ConstInt { dest: kind_val.clone(), value: key_kind });
+        let typed = builder.new_value();
+        builder.emit(Inst::Call { dest: Some(typed.clone()), func: "__map_key_as".into(), args: vec![k.clone(), kind_val], ret_ty: key_ir.clone() });
+        builder.declare_local(key, key_ir, false);
+        builder.store_local(key, typed.clone());
+        crate::lower::stmt::rc::bind_loop_var(builder, key, Some(&key_ty), &typed);
+    } else {
+        builder.declare_local(key, IrType::Ptr, false);
+        builder.store_local(key, k.clone());
+        crate::lower::stmt::rc::bind_loop_var(builder, key, Some(&Type::String), &k);
+    }
 
     // Valeur correspondante, lue au type de valeur déclaré de la map (comme
     // l'élément de `for x in array<T>`) — `I64` en dur affichait l'adresse

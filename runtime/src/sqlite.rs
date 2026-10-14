@@ -75,6 +75,11 @@ struct OcaraSQLiteDatabase {
     // permet à `rollback()` de savoir s'il y a réellement quelque chose à
     // annuler côté SQL, plutôt que de tenter un `ROLLBACK` à l'aveugle.
     tx_open: Mutex<bool>,
+    // `true` entre `begin()` et le `commit()`/`rollback()` qui la referme :
+    // les instructions exécutées entre-temps (execute, query, requête
+    // préparée) forment UNE transaction — voir
+    // docs/roadmap.d/stdlib-transactions-non-atomiques.md.
+    explicit_tx: Mutex<bool>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -231,6 +236,7 @@ pub unsafe extern "C" fn SQLite_open(path_ptr: i64) -> i64 {
                     affected_rows: Mutex::new(0),
                     pending_query: Mutex::new(None),
                     pending_binds: Mutex::new(None),
+                    explicit_tx: Mutex::new(false),
                     tx_open: Mutex::new(false),
                 });
                 crate::rc::handle_new(*db)
@@ -270,6 +276,7 @@ pub unsafe extern "C" fn SQLite_withOpen(path_ptr: i64, fat_ptr: i64) {
                     affected_rows: Mutex::new(0),
                     pending_query: Mutex::new(None),
                     pending_binds: Mutex::new(None),
+                    explicit_tx: Mutex::new(false),
                     tx_open: Mutex::new(false),
                 });
                 crate::rc::handle_new(*db)
@@ -520,6 +527,30 @@ pub unsafe extern "C" fn SQLite_bind(self_ptr: i64, placeholders_ptr: i64) {
     }
 }
 
+/// db.begin() → void
+/// Ouvre une transaction explicite (`BEGIN`) : toutes les instructions
+/// suivantes (`execute`, `query`, requête préparée) en font partie jusqu'au
+/// `commit()` (validation de l'ensemble) ou au `rollback()` (annulation de
+/// l'ensemble). Sans `begin()`, `commit()` garde son comportement d'origine
+/// (la seule requête préparée, dans sa propre transaction).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn SQLite_begin(self_ptr: i64) {
+    unsafe {
+        let db = &*(self_ptr as *const OcaraSQLiteDatabase);
+        if *db.explicit_tx.lock().unwrap() {
+            throw_sqlite_exception("begin() called while a transaction is already open — commit() or rollback() first", ERR_COMMIT, "SQLite");
+        }
+        let result = db.conn.lock().unwrap().execute_batch("BEGIN").map_err(|e| format!("Failed to BEGIN transaction: {}", e));
+        match result {
+            Ok(()) => {
+                *db.explicit_tx.lock().unwrap() = true;
+                *db.tx_open.lock().unwrap() = true;
+            }
+            Err(msg) => throw_sqlite_exception(&msg, ERR_COMMIT, "SQLite"),
+        }
+    }
+}
+
 /// db.commit() → mixed — équivalent à commit(close=false).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn SQLite_commit_0(self_ptr: i64) -> i64 {
@@ -540,10 +571,12 @@ pub unsafe extern "C" fn SQLite_commit(self_ptr: i64, close: i64) -> i64 {
     unsafe {
         let db = &*(self_ptr as *const OcaraSQLiteDatabase);
 
+        let explicit = *db.explicit_tx.lock().unwrap();
         let query = match db.pending_query.lock().unwrap().clone() {
-            Some(q) => q,
+            Some(q) => Some(q),
+            None if explicit => None,
             None => throw_sqlite_exception(
-                "commit() called without a pending prepare() — call prepare(query) first",
+                "commit() called without a pending prepare() — call prepare(query) first, or begin() a transaction",
                 ERR_COMMIT,
                 "SQLite"
             ),
@@ -557,25 +590,31 @@ pub unsafe extern "C" fn SQLite_commit(self_ptr: i64, close: i64) -> i64 {
             let mut conn_guard = db.conn.lock().unwrap();
             let conn = &mut *conn_guard;
 
-            conn.execute_batch("BEGIN")
-                .map_err(|e| format!("Failed to BEGIN transaction: {}", e))?;
-            *db.tx_open.lock().unwrap() = true;
+            // Transaction explicite (`begin()`) : déjà ouverte.
+            if !explicit {
+                conn.execute_batch("BEGIN")
+                    .map_err(|e| format!("Failed to BEGIN transaction: {}", e))?;
+                *db.tx_open.lock().unwrap() = true;
+            }
 
-            let mut stmt = conn.prepare(&query)
-                .map_err(|e| format!("Failed to prepare query '{}': {}", query, e))?;
-
-            let outcome: Result<i64, String> = if stmt.column_count() > 0 {
-                // SELECT — collecte toutes les lignes.
-                collect_all_rows(&mut stmt, &named)
-            } else {
-                // Écriture — exécute et boxe le nombre de lignes affectées
-                // (voir `box_int_if_needed` : un int logé dans un `mixed`
-                // doit être boxé s'il vaut 0 ou dépasse PTR_THRESHOLD).
-                stmt.execute(&named[..])
-                    .map(|affected| crate::box_int_if_needed(affected as i64))
-                    .map_err(|e| format!("Failed to execute query '{}': {}", query, e))
+            let value = match &query {
+                Some(query) => {
+                    let mut stmt = conn.prepare(query)
+                        .map_err(|e| format!("Failed to prepare query '{}': {}", query, e))?;
+                    if stmt.column_count() > 0 {
+                        // SELECT — collecte toutes les lignes.
+                        collect_all_rows(&mut stmt, &named)?
+                    } else {
+                        // Écriture — exécute et boxe le nombre de lignes affectées
+                        // (voir `box_int_if_needed` : un int logé dans un `mixed`
+                        // doit être boxé s'il vaut 0 ou dépasse PTR_THRESHOLD).
+                        stmt.execute(&named[..])
+                            .map(|affected| crate::box_int_if_needed(affected as i64))
+                            .map_err(|e| format!("Failed to execute query '{}': {}", query, e))?
+                    }
+                }
+                None => crate::box_int_if_needed(0),
             };
-            let value = outcome?;
 
             conn.execute_batch("COMMIT")
                 .map_err(|e| format!("Failed to COMMIT transaction: {}", e))?;
@@ -588,6 +627,7 @@ pub unsafe extern "C" fn SQLite_commit(self_ptr: i64, close: i64) -> i64 {
                 *db.pending_query.lock().unwrap() = None;
                 *db.pending_binds.lock().unwrap() = None;
                 *db.tx_open.lock().unwrap() = false;
+                *db.explicit_tx.lock().unwrap() = false;
                 if close != 0 {
                     SQLite_close(self_ptr);
                 }
@@ -626,6 +666,7 @@ pub unsafe extern "C" fn SQLite_rollback(self_ptr: i64, close: i64) {
         *db.pending_query.lock().unwrap() = None;
         *db.pending_binds.lock().unwrap() = None;
         *db.tx_open.lock().unwrap() = false;
+        *db.explicit_tx.lock().unwrap() = false;
 
         if close != 0 {
             SQLite_close(self_ptr);

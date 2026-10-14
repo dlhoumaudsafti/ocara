@@ -1,6 +1,6 @@
 # Transactions SQLite / MySQL limitées à une seule instruction — virement non atomique
 
-Statut : **à corriger** — constaté le 2026-10-13 (audit de la roadmap).
+Statut : **corrigé** le 2026-10-13 (constaté le même jour par l'audit de la roadmap).
 
 ## Constat
 
@@ -37,3 +37,7 @@ test MySQL marqué `#[ignore]` sans serveur.
 
 **Haute** (intégrité des données, la documentation promet l'inverse) —
 **Structurel**.
+
+## Correctif
+
+Choix retenu : **`begin()` explicite**. `db.begin()` ouvre une transaction : toutes les instructions suivantes (`execute`, `query`, `queryOne`, requête préparée) en font partie jusqu'au `commit()` (validation de l'ensemble, requête préparée éventuelle comprise) ou au `rollback()` (annulation de l'ensemble). Sans `begin()`, `commit()` garde son comportement d'origine. SQLite : état `explicit_tx` (`runtime/src/sqlite.rs`) ; MySQL : la transaction vit sur une connexion épinglée, utilisée par toutes les requêtes tant qu'elle est ouverte (`acquire_conn`, `runtime/src/mysql.rs`). Vérifié : le virement documenté est désormais atomique (échec → solde inchangé). Tests : `sqlite_begin_*` (`runtime/src/tests/sqlite.rs`) ; MySQL non exécuté (pas de serveur de test).

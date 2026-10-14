@@ -1272,6 +1272,35 @@ IO::writeln(f.doIt().x)      // ❌ E63 — doIt(): void
 
 ---
 
+### E64 — Arguments de type d'un appel statique de `generic` non déductibles
+
+```
+fichier.oc:8:19: error: cannot infer the type arguments of 'Box::empty' — write them explicitly ('Box<…>::empty(…)') or declare the expected type ('var x:Box<…> = …')
+```
+
+Une méthode statique d'un `generic` s'appelle sur une instanciation : ses arguments de type sont écrits (`Box<int>::empty()`) ou déduits des arguments de l'appel, du type attendu (déclaration, type de retour de la fonction) ou des valeurs par défaut. Sans aucune de ces sources, l'appel est refusé.
+
+```ocara
+var a:Box<int> = Box::of(4)          // ✅ T déduit de l'argument
+var b:Box<int> = Box::empty()        // ✅ T déduit du type déclaré
+var c:Box<int> = Box<int>::empty()   // ✅ explicite
+var d:mixed = Box::empty()           // ❌ E64
+```
+
+---
+
+### E65 — Erreur propre à une instanciation de `generic`
+
+```
+fichier.oc:9:23: error: in 'Acc<string>': operator '-' cannot be applied to 'string' — only int, float and mixed support it ('+' also concatenates strings, '-=' removes occurrences from a string)
+```
+
+Le corps d'un `generic` est vérifié une fois avec ses paramètres de type libres, puis pour chaque instanciation écrite dans le programme, avec `T` remplacé : une opération valide pour `int` mais pas pour `string` est signalée pour l'instanciation fautive. Le message d'origine (E59, E62…) est précédé du nom de l'instanciation.
+
+**Correction :** ne pas instancier le `generic` avec ce type, ou adapter l'opération.
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.

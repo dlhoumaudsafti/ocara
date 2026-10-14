@@ -465,3 +465,45 @@ fn sqlite_query_zero_integer_column_is_not_confused_with_null() {
         crate::sqlite::SQLite_close(db);
     }
 }
+
+// ── Transaction explicite begin() (docs/roadmap.d/stdlib-transactions-non-atomiques.md)
+
+#[test]
+fn sqlite_begin_rollback_undoes_every_statement() {
+    unsafe {
+        let db = open_memory_db();
+        crate::sqlite::SQLite_execute_1(db, alloc_str("CREATE TABLE acc (id INTEGER PRIMARY KEY, balance INTEGER)"));
+        crate::sqlite::SQLite_execute_1(db, alloc_str("INSERT INTO acc VALUES (1, 500), (2, 0)"));
+
+        crate::sqlite::SQLite_begin(db);
+        crate::sqlite::SQLite_execute_1(db, alloc_str("UPDATE acc SET balance = balance + 100 WHERE id = 2"));
+        crate::sqlite::SQLite_execute_1(db, alloc_str("UPDATE acc SET balance = balance - 100 WHERE id = 1"));
+        crate::sqlite::SQLite_rollback_0(db);
+
+        let two = crate::sqlite::SQLite_queryOne_1(db, alloc_str("SELECT SUM(balance) AS total FROM acc"));
+        assert_eq!(__map_get(two, alloc_str("total")), 500);
+
+        crate::sqlite::SQLite_close(db);
+    }
+}
+
+#[test]
+fn sqlite_begin_commit_applies_statements_and_prepared_query() {
+    unsafe {
+        let db = open_memory_db();
+        crate::sqlite::SQLite_execute_1(db, alloc_str("CREATE TABLE acc (id INTEGER PRIMARY KEY, balance INTEGER)"));
+        crate::sqlite::SQLite_execute_1(db, alloc_str("INSERT INTO acc VALUES (1, 500), (2, 0)"));
+
+        crate::sqlite::SQLite_begin(db);
+        crate::sqlite::SQLite_execute_1(db, alloc_str("UPDATE acc SET balance = balance + 100 WHERE id = 2"));
+        crate::sqlite::SQLite_prepare(db, alloc_str("UPDATE acc SET balance = balance - 100 WHERE id = 1"));
+        crate::sqlite::SQLite_commit_0(db);
+
+        let one = crate::sqlite::SQLite_queryOne_1(db, alloc_str("SELECT balance FROM acc WHERE id = 1"));
+        assert_eq!(__map_get(one, alloc_str("balance")), 400);
+        let two = crate::sqlite::SQLite_queryOne_1(db, alloc_str("SELECT balance FROM acc WHERE id = 2"));
+        assert_eq!(__map_get(two, alloc_str("balance")), 100);
+
+        crate::sqlite::SQLite_close(db);
+    }
+}

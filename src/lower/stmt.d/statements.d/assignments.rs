@@ -91,7 +91,11 @@ pub fn lower_assign(
         }
         Expr::Index { object, index, .. } => {
             let obj_val = lower_expr(builder, object);
-            let idx_val = lower_expr(builder, index);
+            let idx_val = if is_map_target(builder, object) {
+                crate::lower::expr::lower_map_key(builder, index)
+            } else {
+                lower_expr(builder, index)
+            };
             // Même détection map-vs-array que la lecture (Expr::Index dans
             // lower.rs, et lower_incdec ci-dessous) — sans elle, `map[clé] = v`
             // (variable OU self.champ) appelait toujours __array_set, qui
@@ -207,7 +211,11 @@ pub fn lower_incdec(builder: &mut LowerBuilder, op: &IncDecOp, target: &Expr) ->
         }
         Expr::Index { object, index, .. } => {
             let obj_val = lower_expr(builder, object);
-            let idx_val = lower_expr(builder, index);
+            let idx_val = if is_map_target(builder, object) {
+                crate::lower::expr::lower_map_key(builder, index)
+            } else {
+                lower_expr(builder, index)
+            };
             let ty = expr_ir_type_pub(builder, target);
             let (get_func, set_func) = if is_map_target(builder, object) {
                 ("__map_get", "__map_set")

@@ -18,7 +18,7 @@ use crate::sema::named_args::{site_key, AstRewrites};
 pub type NamedArgError = (Span, String);
 
 pub fn rewrite_program(program: &mut Program, rewrites: &AstRewrites) -> Result<(), NamedArgError> {
-    if !rewrites.calls.is_empty() {
+    if !rewrites.calls.is_empty() || !rewrites.mixed_to_string.is_empty() {
         ensure_builtin_import(program, "Convert");
     }
     if !rewrites.string_removals.is_empty() {
@@ -128,6 +128,28 @@ impl Rewriter<'_> {
     }
 
     fn expr(&self, expr: &mut Expr) -> Result<(), NamedArgError> {
+        // `mixed` attendu comme `string` : `Convert::mixedToStr(expr)` (voir
+        // `crate::sema::mixed_string`). L'expression d'origine est réécrite
+        // une seule fois (`expr_body`), puis enveloppée.
+        let key = (site_key(expr.span()), std::mem::discriminant(&*expr));
+        if self.rewrites.mixed_to_string.contains(&key) {
+            self.expr_body(expr)?;
+            let span = expr.span().clone();
+            let inner = std::mem::replace(expr, Expr::Literal(Literal::Null, span.clone()));
+            *expr = Expr::StaticCall { class: "Convert".into(), method: "mixedToStr".into(), args: vec![inner], span, type_args: Vec::new() };
+            return Ok(());
+        }
+        self.expr_body(expr)
+    }
+
+    fn expr_body(&self, expr: &mut Expr) -> Result<(), NamedArgError> {
+        // Appel statique sur un `generic` : arguments de type retenus par la
+        // sema (voir `crate::sema::generic_static`).
+        if let Expr::StaticCall { span, type_args, .. } = expr {
+            if let Some(resolved) = self.rewrites.generic_static.get(&site_key(span)) {
+                *type_args = resolved.clone();
+            }
+        }
         if let Expr::Call { span, .. } = expr {
             if let Some(replacement) = self.rewrites.calls.get(&site_key(span)) {
                 *expr = replacement.clone();
@@ -137,7 +159,7 @@ impl Rewriter<'_> {
         if let Expr::Binary { op: op @ BinOp::Remove, left, right, span } = expr {
             if self.rewrites.string_removals.contains(&site_key(span)) {
                 let args = vec![(**left).clone(), (**right).clone(), Expr::Literal(Literal::String(String::new()), span.clone())];
-                *expr = Expr::StaticCall { class: "String".into(), method: "replace".into(), args, span: span.clone() };
+                *expr = Expr::StaticCall { class: "String".into(), method: "replace".into(), args, span: span.clone(), type_args: Vec::new() };
             } else {
                 *op = BinOp::Sub;
             }

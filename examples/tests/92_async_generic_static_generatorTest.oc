@@ -1,0 +1,83 @@
+architecture permissive
+
+import ocara.UnitTest
+
+// Correctifs structurels du 2026-10-13 :
+//   - exception d'une tâche `async` relevée au `resolve` (docs/roadmap.d/langage-async-exception-resolve.md) ;
+//   - méthode statique d'un `generic` (docs/roadmap.d/langage-generique-methode-statique.md) ;
+//   - closure qui modifie une variable d'un générateur (docs/roadmap.d/langage-emit-iterable.md).
+class Test_92_async_generic_static_generator {
+
+    public method asyncExceptionCaughtAroundResolveTest(): int {
+        var t:Resolvable<int> = failing()
+        var caught:string = ""
+        try {
+            var v:int = resolve t
+            caught = "jamais"
+        } on e is TaskError {
+            caught = e.message
+        }
+        UnitTest::assertEquals("tâche", caught)
+        var ok:Resolvable<int> = five()
+        UnitTest::assertEquals(5, resolve ok)
+        return 0
+    }
+
+    public method genericStaticCallTest(): int {
+        var a:Holder<int> = Holder::of(4)
+        var b:Holder<string> = Holder<string>::of("texte")
+        var c:Holder<int> = Holder::empty()
+        UnitTest::assertEquals(4, a.get())
+        UnitTest::assertEquals("texte", b.get())
+        UnitTest::assertEquals(0, c.get())
+        return 0
+    }
+
+    public method closureInGeneratorTest(): int {
+        var total:int = 0
+        for v in accumulate() {
+            total = total + v
+        }
+        UnitTest::assertEquals(11 + 21 + 31, total)
+        return 0
+    }
+}
+
+class TaskError extends Exception {
+    init(m:string) {
+        parent::init(m, 3)
+    }
+}
+
+async function failing(): int {
+    raise use TaskError("tâche")
+}
+
+async function five(): int {
+    return 5
+}
+
+generic Holder<T> {
+    private property value:T
+    init(v:T) {
+        self.value = v
+    }
+    public static method of(v:T): Holder<T> {
+        return use Holder<T>(v)
+    }
+    public static method empty(): Holder<T> {
+        return use Holder<T>(null)
+    }
+    public method get(): T {
+        return self.value
+    }
+}
+
+function accumulate(): message<int> {
+    var acc:int = 1
+    var add:Function<void()> = nameless(): void { acc = acc + 10 }
+    for i in 0 until 3 {
+        add()
+        emit acc
+    }
+}

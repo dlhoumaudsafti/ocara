@@ -63,8 +63,9 @@ pub(crate) fn register_var_class(builder: &mut LowerBuilder, name: &str, ty: &Ty
     if let Type::Array(_) = ty {
         builder.var_class.insert(name.to_string(), "Array".to_string());
     }
-    if let Type::Map(_, _) = ty {
+    if let Type::Map(key, _) = ty {
         builder.var_class.insert(name.to_string(), "Map".to_string());
+        builder.map_key_types.insert(name.to_string(), (**key).clone());
     }
 
     // Variable de type Function → enregistrer pour CallIndirect.

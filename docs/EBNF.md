@@ -669,6 +669,15 @@ var keys:array<mixed> = Map::keys(config)                // ["port", "workers"]
 - `merge()` retourne une **nouvelle map** (pas de modification in-place) et est chainable : `m1.merge(m2).merge(m3)`.
 - Les clés et valeurs retournées par `keys()` et `values()` sont de type `array<mixed>`.
 
+#### Conversion d'un `mixed` vers `string`
+
+Un `mixed` utilisé là où une `string` est attendue (déclaration, affectation, argument, `return`) est converti à l'exécution (`Convert::mixedToStr`) : une chaîne passe telle quelle, un `int`/`float`/`bool` devient son texte (`42` → `"42"`), `null` reste `null`, un tableau, une map ou un objet lève `ConvertException`.
+
+```ocara
+var id:mixed = req.param("id")   // route "/v/<id:int>" : un int
+var s:string = id                 // "42"
+```
+
 #### Restrictions sur le type `mixed`
 
 Le type `mixed` désactive la vérification de type statique et doit être utilisé **uniquement** dans des contextes spécifiques. Le compilateur applique les règles suivantes :
@@ -1091,7 +1100,7 @@ var config:map<string, string> = {
 ```
 
 - Le type s'annote `map<K, V>` où `K` est le type de clé et `V` le type de valeur.
-- Les clés peuvent être de n'importe quel type.
+- Les clés peuvent être de n'importe quel type (`int`, `float`, `bool`, `string`) : `for k has v in m` et `keys()` les rendent au type `K` déclaré.
 - Un tableau vide s'écrit `[]` et est distinct d'un map vide `{}`.
 
 **Type par clé.** Quand une variable `map` est initialisée par un littéral dont
@@ -1925,6 +1934,8 @@ IO::writeln(user.name)   // "Bob" — l'objet original est muté
 ---
 
 ### 14.5 Fonctions asynchrones (`async` / `resolve`)
+
+**Exceptions** : une exception levée et non rattrapée dans une tâche `async` est conservée par la tâche, puis relevée au `resolve`, dans le thread qui attend — un `try`/`on` autour de `resolve` la rattrape.
 
 Une **fonction/méthode asynchrone** est déclarée avec le modificateur `async` (fonction libre, méthode statique OU méthode d'instance — les trois formes sont prises en charge). Son appel ne bloque pas l'appelant : il retourne immédiatement une **handle de tâche**, typée `Resolvable<T>` où `T` est le type de retour **déclaré** de la fonction/méthode. La valeur finale est récupérée avec l'expression `resolve`, qui déballe `Resolvable<T>` en `T`.
 
@@ -3098,6 +3109,35 @@ NewExpr ::= "use" Identifier ( "<" TypeArgs ">" )? "(" ArgList? ")"
 - Les types omis utilisent leurs valeurs par défaut (si définies)
 - L'ordre des types doit correspondre à l'ordre des paramètres
 
+### 20.5.1 Méthodes statiques
+
+Une méthode `static` d'un `generic` s'appelle avec les arguments de type explicites, ou sans eux quand ils se déduisent des arguments de l'appel, du type attendu (déclaration, type de retour) ou des valeurs par défaut :
+
+```ocara
+generic Box<T> {
+    private property value:T
+    init(v:T) {
+        self.value = v
+    }
+    public static method of(v:T): Box<T> {
+        return use Box<T>(v)
+    }
+    public method get(): T {
+        return self.value
+    }
+}
+
+function main(): int {
+    var a:Box<int> = Box::of(4)               // T déduit de l'argument
+    var b:Box<string> = Box<string>::of("x")  // T explicite
+    return a.get()
+}
+```
+
+Sans instanciation déductible (`var e:mixed = Box::empty()`), la compilation échoue (« cannot infer the type arguments »).
+
+**Vérification par instanciation** : le corps d'un `generic` est vérifié une fois avec `T` libre, puis à nouveau pour chaque instanciation écrite dans le programme, `T` remplacé : `self.v - e` dans `Box<string>` est refusé (« in 'Box<string>': operator '-' cannot be applied to 'string' »).
+
 ### 20.6 Monomorphisation
 
 **Vérification du corps** : chaque `generic` est vérifié par l'analyse sémantique **une fois**, qu'il soit instancié ou non, ses paramètres de type étant traités comme des types libres. Tout ce qui ne dépend pas de `T` est contrôlé comme dans une classe ordinaire (symboles inconnus, arité des appels, types concrets, visibilité, arguments nommés, `self.méthode(...)`) ; une opération sur une valeur de type `T` est acceptée — sa validité dépend de l'instanciation. Une erreur est signalée une seule fois, à sa position dans le generic. Même vérification pour le corps d'un `module` (§19), dont les accès à des membres de la classe utilisatrice (`self.x`) restent permissifs.
@@ -3399,7 +3439,8 @@ var cache:Cache<int, User> = use Cache<int, User>()
 
 ```ebnf
 StaticCallee ::= Identifier | "self" | "parent"
-StaticCall   ::= StaticCallee "::" Identifier "(" ArgList? ")"
+StaticCall   ::= StaticCallee TypeArgs? "::" Identifier "(" ArgList? ")"
+TypeArgs     ::= "<" Type ( "," Type )* ">"
 StaticConst  ::= StaticCallee "::" Identifier
 ```
 
@@ -4046,7 +4087,8 @@ PrimaryExpr ::= Literal
 NewExpr      ::= "use" Identifier ( "<" TypeArgs ">" )? "(" ArgList? ")"
 NamelessExpr ::= "nameless" "(" ParamList? ")" ( ":" Type )? Block
 StaticCallee ::= Identifier | "self" | "parent"
-StaticCall  ::= StaticCallee "::" Identifier "(" ArgList? ")"
+StaticCall  ::= StaticCallee TypeArgs? "::" Identifier "(" ArgList? ")"
+TypeArgs    ::= "<" Type ( "," Type )* ">"   (* appel statique sur un generic : Box<int>::of(4) *)
 StaticConst ::= StaticCallee "::" Identifier
 ArrayLiteral ::= "[" ( Expression ( "," Expression )* ","? )? "]"
 MapLiteral   ::= "{" MapEntry ( "," MapEntry )* ","? "}"

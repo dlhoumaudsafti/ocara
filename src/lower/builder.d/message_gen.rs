@@ -302,6 +302,17 @@ fn generate_resume_fn(
         let ty = if p.is_variadic { Type::Array(Box::new(p.ty.clone())) } else { p.ty.clone() };
         crate::lower::stmt::statements::register_const_meta(&mut builder, &p.name, &ty);
     }
+    // Variables du générateur capturées par une closure de son corps : une
+    // cellule partagée chacune, dès l'entrée (un accès abaissé avant la
+    // closure doit déjà passer par elle) — voir `LowerBuilder::gen_cells`.
+    let scope: HashMap<String, (Value, IrType, bool)> = builder.frame_vars.iter()
+        .filter(|(n, _)| !n.starts_with("__"))
+        .map(|(n, (_, _, t))| (n.clone(), (Value(0), t.clone(), true)))
+        .collect();
+    for (name, _) in crate::lower::expr::captures::names_captured_by_nested_closures(&func.body, &scope) {
+        let field = spill_field(&mut builder, IrType::Ptr, true);
+        builder.gen_cells.insert(name, field);
+    }
 
     let start_bb = builder.new_block();
     builder.switch_to(&start_bb);
@@ -810,8 +821,12 @@ pub fn lower_array_from_message(builder: &mut LowerBuilder, expr: &Expr, mangled
     builder.emit(Inst::Call { dest: Some(arr.clone()), func: "__array_new".into(), args: vec![], ret_ty: IrType::Ptr });
     crate::lower::stmt::rc::track(builder, &arr);
     if matches!(elem_ty, IrType::I64 | IrType::F64 | IrType::Bool) {
+        // Type des éléments mémorisé avec le drapeau (JSON/YAML, forEach).
+        let raw_kind = match elem_ty { IrType::F64 => 2, IrType::Bool => 3, _ => 1 };
+        let kind_val = builder.new_value();
+        builder.emit(Inst::ConstInt { dest: kind_val.clone(), value: raw_kind });
         let marked = builder.new_value();
-        builder.emit(Inst::Call { dest: Some(marked), func: "__rc_mark_raw".into(), args: vec![arr.clone()], ret_ty: IrType::Ptr });
+        builder.emit(Inst::Call { dest: Some(marked), func: "__rc_mark_raw_kind".into(), args: vec![arr.clone(), kind_val], ret_ty: IrType::Ptr });
     }
 
     let cond_bb  = builder.new_block();
