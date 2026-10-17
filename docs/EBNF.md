@@ -3871,6 +3871,8 @@ class AppError extends Exception {
 
 > `source` vaut `""` pour une exception construite par le programme ; le runtime y place le module d'origine (`"HTTPServer"`…) pour une exception qu'il lève lui-même.
 
+Une classe du programme qui porte le nom d'une exception builtin (comme `IOException` dans l'exemple du début de cette section) la **masque** : disposition des champs, construction (`use`) et `parent::init` sont ceux de la classe déclarée.
+
 ---
 
 ## 30. Résolution des noms

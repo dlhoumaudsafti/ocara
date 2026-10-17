@@ -1790,7 +1790,7 @@ impl<'a> TypeChecker<'a> {
                 // `parent::init(message, code)` d'une sous-classe d'exception builtin.
                 if class == "<parent>" && method == "init" {
                     let parent = self.current_class.as_deref().and_then(|c| self.symbols.lookup_parent_class(c));
-                    if let Some(parent) = parent.filter(|p| crate::builtins::exception::is_builtin_exception(p)) {
+                    if let Some(parent) = parent.filter(|p| crate::builtins::exception::is_builtin_exception(p) && !self.class_members.contains_key(p)) {
                         self.check_builtin_exception_ctor(&parent, args, span);
                         return Type::Void;
                     }
@@ -2097,7 +2097,8 @@ impl<'a> TypeChecker<'a> {
                     }
                 }
 
-                if crate::builtins::exception::is_builtin_exception(class) {
+                // Une classe du programme masque l'exception builtin homonyme.
+                if crate::builtins::exception::is_builtin_exception(class) && !self.class_members.contains_key(class) {
                     self.check_builtin_exception_ctor(class, args, span);
                     return Type::Named(class.clone());
                 }

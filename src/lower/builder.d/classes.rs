@@ -167,18 +167,31 @@ pub fn lower_class(
     let mut current_parent = class.extends.clone();
     while let Some(parent_name) = current_parent {
         let Some(parent) = all_classes.iter().find(|c| c.name == parent_name) else { break };
-        for member in &parent.members {
-            if let ClassMember::Method { decl, .. } = member {
+        // Méthodes du parent, y compris celles reçues de ses `modules`.
+        let parent_own: HashSet<&str> = parent.members.iter()
+            .filter_map(|m| if let ClassMember::Method { decl, .. } = m { Some(decl.name.as_str()) } else { None })
+            .collect();
+        let parent_module_members = parent.modules.iter()
+            .filter_map(|name| all_modules.iter().find(|m| &m.name == name))
+            .flat_map(|m| m.members.iter())
+            .filter(|m| matches!(m, ClassMember::Method { decl, .. } if !parent_own.contains(decl.name.as_str())));
+        for member in parent.members.iter().chain(parent_module_members) {
+            if let ClassMember::Method { decl, is_static, .. } = member {
                 if !already_emitted.contains(&decl.name) {
                     already_emitted.insert(decl.name.clone());
-                    let self_param = crate::parsing::ast::Param {
-                        name: "self".into(),
-                        ty:   Type::Mixed,
-                        is_variadic: false,
-                        default_value: None,
-                        span: decl.span.clone(),
-                    };
-                    let mut full_params = vec![self_param];
+                    // Méthode statique héritée : pas de `self` (comme une
+                    // méthode statique propre) — sinon `Enfant::m(x)`
+                    // appelait une fonction à un paramètre de trop.
+                    let mut full_params = Vec::new();
+                    if !is_static {
+                        full_params.push(crate::parsing::ast::Param {
+                            name: "self".into(),
+                            ty:   Type::Mixed,
+                            is_variadic: false,
+                            default_value: None,
+                            span: decl.span.clone(),
+                        });
+                    }
                     full_params.extend(decl.params.clone());
                     let mangled = FuncDecl {
                         name:   format!("{}_{}", class.name, decl.name),

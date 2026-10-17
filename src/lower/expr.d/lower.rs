@@ -941,7 +941,8 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             }
 
             // `parent::init(message, code)` d'une sous-classe d'exception builtin.
-            if class == "<parent>" && method == "init" && crate::builtins::exception::is_builtin_exception(resolved_class) {
+            if class == "<parent>" && method == "init" && crate::builtins::exception::is_builtin_exception(resolved_class)
+                && !builder.module.user_classes.contains(resolved_class) {
                 if let (Some((self_val, _)), Some(current)) = (builder.load_local("self"), builder.current_class.clone()) {
                     lower_builtin_exception_init(builder, self_val, &current, args);
                 }
@@ -1261,7 +1262,7 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
         Expr::New { class, args, .. } => {
             let dest = builder.new_value();
             builder.emit(Inst::Alloc { dest: dest.clone(), class: class.clone() });
-            if crate::builtins::exception::is_builtin_exception(class) {
+            if crate::builtins::exception::is_builtin_exception(class) && !builder.module.user_classes.contains(class) {
                 lower_builtin_exception_init(builder, dest.clone(), class, args);
                 return dest;
             }

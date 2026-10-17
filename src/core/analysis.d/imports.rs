@@ -275,16 +275,7 @@ fn merge_requested(
     }
 
     if let Some(cls) = mod_prog.classes.iter().find(|c| c.name == requested_name).cloned() {
-        for iface_name in &cls.implements {
-            if program.interfaces.iter().any(|i| &i.name == iface_name) {
-                continue;
-            }
-            if let Some(iface) = mod_prog.interfaces.iter().find(|i| &i.name == iface_name).cloned() {
-                enqueue_wiring_imports(&iface, current_file_dir, loaded_namespace, imports_to_process, &mut program.classes, &mod_prog.classes);
-                program.interfaces.push(iface);
-            }
-        }
-        program.classes.push(cls);
+        merge_class_with_deps(program, mod_prog, cls, current_file_dir, loaded_namespace, imports_to_process);
     } else if let Some(generic_item) = mod_prog.generics.iter().find(|g| g.name == requested_name).cloned() {
         program.generics.push(generic_item);
     } else if let Some(iface) = mod_prog.interfaces.iter().find(|i| i.name == requested_name).cloned() {
@@ -310,6 +301,46 @@ fn merge_requested(
             format!("'{}' not found in file '{}' — {}", requested_name, file_path.display(), hint)));
     }
     Ok(())
+}
+
+/// Classe importée sélectivement, avec ses dépendances déclarées dans le même
+/// fichier : interfaces implémentées, `modules` et classe parente (elle-même
+/// avec ses dépendances) — voir EBNF « Chargement récursif ». Celles d'un
+/// autre fichier arrivent par les imports de ce fichier.
+fn merge_class_with_deps(
+    program: &mut Program,
+    mod_prog: &Program,
+    cls: ClassDecl,
+    current_file_dir: &Path,
+    loaded_namespace: &Option<String>,
+    imports_to_process: &mut Pending,
+) {
+    if program.classes.iter().any(|c| c.name == cls.name) {
+        return;
+    }
+    for iface_name in &cls.implements {
+        if program.interfaces.iter().any(|i| &i.name == iface_name) {
+            continue;
+        }
+        if let Some(iface) = mod_prog.interfaces.iter().find(|i| &i.name == iface_name).cloned() {
+            enqueue_wiring_imports(&iface, current_file_dir, loaded_namespace, imports_to_process, &mut program.classes, &mod_prog.classes);
+            program.interfaces.push(iface);
+        }
+    }
+    for module_name in &cls.modules {
+        if program.modules.iter().any(|m| &m.name == module_name) {
+            continue;
+        }
+        if let Some(module) = mod_prog.modules.iter().find(|m| &m.name == module_name).cloned() {
+            program.modules.push(module);
+        }
+    }
+    let parent = cls.extends.as_ref()
+        .and_then(|name| mod_prog.classes.iter().find(|c| &c.name == name).cloned());
+    program.classes.push(cls);
+    if let Some(parent) = parent {
+        merge_class_with_deps(program, mod_prog, parent, current_file_dir, loaded_namespace, imports_to_process);
+    }
 }
 
 /// Un module peut introduire des doublons (classe rapatriée puis refusionnée).

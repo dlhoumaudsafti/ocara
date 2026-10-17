@@ -20,14 +20,8 @@ RED='\033[0;31m'
 YELLOW='\033[0;33m'
 RESET='\033[0m'
 
-# Voir docs/roadmap.d/memoire-fuites-exemples-leak-check.md
-KNOWN_LEAKS=(
-    20_try_fail
-    60_interface_wiring
-    64_async_instance_method_dispatch
-    65_async_resolvable_return_type
-    67_named_arguments
-)
+# Fuite connue et suivie dans la roadmap : y ajouter le nom de l'exemple.
+KNOWN_LEAKS=()
 
 trap 'rm -rf "$TMP_DIR"' EXIT
 

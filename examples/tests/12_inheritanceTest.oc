@@ -80,6 +80,35 @@ class Test12Inheritance extends UnitTest {
         self::assertEquals("Rex", dog.getName())
         return 0
     }
+
+    // Méthodes déclarées par le grand-parent (`Leaf extends Mid extends Root`) :
+    // type de retour (float lu comme Ptr → SIGSEGV) et paramètre par défaut
+    // omis (échec de codegen) perdus au-delà du parent direct.
+    public method grandparentReturnTypeTest(): int {
+        var leaf:Leaf = use Leaf()
+        self::assertEquals(0.5, leaf.ratio())
+        self::assertEquals("root", leaf.label())
+        self::assertTrue(leaf.enabled())
+        return 0
+    }
+
+    // Méthode statique héritée, appelée via la sous-classe : la copie
+    // `Leaf_make` recevait un `self` en trop (échec de codegen).
+    public method inheritedStaticMethodTest(): int {
+        self::assertEquals(10, Leaf::make(5))
+        self::assertEquals(6, Leaf::make())
+        self::assertEquals(6, Mid::make())
+        return 0
+    }
+
+    public method grandparentDefaultParamTest(): int {
+        var leaf:Leaf = use Leaf()
+        self::assertEquals("Hello World", leaf.greet())
+        self::assertEquals("Hello Ocara", leaf.greet("Ocara"))
+        var mid:Mid = use Mid()
+        self::assertEquals("Hello World", mid.greet())
+        return 0
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -164,3 +193,30 @@ class Cat extends Animal {
     }
 }
 
+class Root {
+    public method ratio(): float {
+        return 0.5
+    }
+
+    public method label(): string {
+        return `r${"oot"}`
+    }
+
+    public method enabled(): bool {
+        return true
+    }
+
+    public method greet(name:string = "World"): string {
+        return "Hello " + name
+    }
+
+    public static method make(n:int = 3): int {
+        return n * 2
+    }
+}
+
+class Mid extends Root {
+}
+
+class Leaf extends Mid {
+}

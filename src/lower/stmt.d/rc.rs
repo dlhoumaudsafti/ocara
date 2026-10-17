@@ -167,15 +167,13 @@ pub fn keep(builder: &mut LowerBuilder, v: &Value, is_counted: bool) {
     }
 }
 
-/// Arguments rangés dans l'env d'une tâche `async` : ils doivent survivre à
-/// l'appelant (jamais relâchés ensuite). `self` éventuel en tête.
+/// Arguments rangés dans l'env d'une tâche `async` (`self` éventuel en
+/// tête) : la tâche détient une référence sur chaque valeur `Ptr`, pour
+/// qu'elle survive à l'appelant ; le wrapper la relâche après l'appel (voir
+/// `generate_async_wrapper`). Types : `IrModule::task_arg_types`, la même
+/// source que le wrapper.
 pub fn keep_task_args(builder: &mut LowerBuilder, callee: &str, vals: &[Value]) {
-    let declared = builder.fn_param_types.get(callee).cloned().unwrap_or_default();
-    let types: Vec<IrType> = if declared.len() + 1 == vals.len() {
-        std::iter::once(IrType::Ptr).chain(declared).collect()
-    } else {
-        declared
-    };
+    let types = builder.module.task_arg_types.get(callee).cloned().unwrap_or_default();
     for (i, v) in vals.iter().enumerate() {
         let is_counted = types.len() == vals.len() && types[i] == IrType::Ptr;
         keep(builder, v, is_counted);

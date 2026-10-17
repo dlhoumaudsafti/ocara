@@ -57,6 +57,8 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         }
     }
 
+    module.user_classes = program.classes.iter().map(|c| c.name.clone()).collect();
+
     // Constantes globales → globals du module
     for c in &program.consts {
         lower_const_global(&mut module, c);
@@ -86,15 +88,17 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     for func in &program.functions {
         if func.is_async {
             async_funcs.insert(func.name.clone());
+            module.task_arg_types.insert(func.name.clone(), task_arg_types(false, &func.params));
         }
     }
     
     // Collecte des méthodes async de classes
     for class in &program.classes {
-        for member in &class.members {
-            if let ClassMember::Method { decl, .. } = member {
+        for member in class_methods(program, class) {
+            if let ClassMember::Method { decl, is_static, .. } = member {
                 if decl.is_async {
                     let mangled = format!("{}_{}", class.name, decl.name);
+                    module.task_arg_types.insert(mangled.clone(), task_arg_types(!is_static, &decl.params));
                     async_funcs.insert(mangled);
                 }
             }
@@ -132,7 +136,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     }
     
     for class in &program.classes {
-        for member in &class.members {
+        for member in class_methods(program, class) {
             if let ClassMember::Method { decl, is_static, .. } = member {
                 let mangled = format!("{}_{}", class.name, decl.name);
 
@@ -244,6 +248,9 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         for method in &iface.methods {
             let mangled = format!("{}_{}", iface.name, method.name);
             fn_ret_types.insert(mangled.clone(), IrType::from_ast(&method.ret_ty));
+            // Type AST du retour : sans lui, `rc::call_owned` ne savait pas que
+            // le dispatcher rend une valeur possédée (chaîne jamais relâchée).
+            module.call_ret_types.insert(mangled.clone(), method.ret_ty.clone());
             if let Some(name) = concrete_return_class(&method.ret_ty) {
                 module.method_ret_class.insert(mangled.clone(), name);
             }
@@ -329,7 +336,9 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         for method_name in super::class_dispatch::callable_instance_method_names(&class.name, &program.classes) {
             if let Some(decl) = super::class_dispatch::find_method_decl(&class.name, &method_name, &program.classes) {
                 if decl.is_async {
-                    async_funcs.insert(format!("__dispatch_{}_{}", class.name, method_name));
+                    let name = format!("__dispatch_{}_{}", class.name, method_name);
+                    module.task_arg_types.insert(name.clone(), task_arg_types(true, &decl.params));
+                    async_funcs.insert(name);
                 }
             }
         }
@@ -346,7 +355,9 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
             // statique async est déjà résolu vers la classe concrète avant
             // le lowering (`wiring`) ou rejeté (E38), jamais via ce chemin.
             if method.is_async && !method.is_static {
-                async_funcs.insert(format!("{}_{}", iface.name, method.name));
+                let name = format!("{}_{}", iface.name, method.name);
+                module.task_arg_types.insert(name.clone(), task_arg_types(true, &method.params));
+                async_funcs.insert(name);
             }
         }
     }
@@ -437,30 +448,37 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         ("code".to_string(), IrType::I64),      // offset 8
         ("source".to_string(), IrType::Ptr),    // offset 16
     ];
-    module.class_layouts.insert("Exception".to_string(), exception_layout.clone());
-    module.class_layouts.insert("FileException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("DirectoryException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("IOException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("SystemException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("ArrayException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("MapException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("MathException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("ConvertException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("RegexException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("DateTimeException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("DateException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("TimeException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("ThreadException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("MutexException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("UnitTestException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("HTTPServerException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("TauriException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("SDLException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("SQLiteException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("MySQLException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("MariaDBException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("DotEnvException".to_string(), exception_layout.clone());
-    module.class_layouts.insert("YAMLException".to_string(), exception_layout);
+    // Une classe du programme garde sa propre disposition (voir `user_classes`).
+    for name in [
+        "Exception",
+        "FileException",
+        "DirectoryException",
+        "IOException",
+        "SystemException",
+        "ArrayException",
+        "MapException",
+        "MathException",
+        "ConvertException",
+        "RegexException",
+        "DateTimeException",
+        "DateException",
+        "TimeException",
+        "ThreadException",
+        "MutexException",
+        "UnitTestException",
+        "HTTPServerException",
+        "TauriException",
+        "SDLException",
+        "SQLiteException",
+        "MySQLException",
+        "MariaDBException",
+        "DotEnvException",
+        "YAMLException",
+    ] {
+        if !module.user_classes.contains(name) {
+            module.class_layouts.insert(name.to_string(), exception_layout.clone());
+        }
+    }
 
     // Ajouter les layouts des builtins opaques (pointeur vers structure Rust)
     // Ces classes ont un constructeur _init qui alloue une structure opaque
@@ -598,7 +616,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
 
     // Collecte les types de retour des méthodes propres
     for class in &program.classes {
-        for member in &class.members {
+        for member in class_methods(program, class) {
             if let ClassMember::Method { decl, .. } = member {
                 fn_ret_types.insert(
                     format!("{}_{}", class.name, decl.name),
@@ -848,31 +866,67 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         fn_ret_types.insert(format!("{}_close", prefix), IrType::Void);
     }
 
-    // Propage les types de retour des méthodes héritées (non surchargées) dans fn_ret_types
+    // Propage les types de retour des méthodes héritées (non surchargées) :
+    // chaque classe remonte toute sa chaîne d'ancêtres, l'ancêtre le plus
+    // proche qui DÉCLARE la méthode l'emporte. Ne regarder que le parent
+    // direct perdait les méthodes du grand-parent (`C extends B extends A`,
+    // `ratio()` déclarée dans `A` : retour `float` lu comme `Ptr`, SIGSEGV).
     for class in &program.classes {
-        if let Some(parent_name) = &class.extends {
-            let own_methods: HashSet<String> = class.members.iter()
-                .filter_map(|m| if let ClassMember::Method { decl, .. } = m { Some(decl.name.clone()) } else { None })
-                .collect();
-            if let Some(parent) = program.classes.iter().find(|c| &c.name == parent_name) {
-                for member in &parent.members {
-                    if let ClassMember::Method { decl, .. } = member {
-                        if !own_methods.contains(&decl.name) {
-                            let child_key  = format!("{}_{}", class.name, decl.name);
-                            let parent_key = format!("{}_{}", parent_name, decl.name);
-                            if let Some(ty) = fn_ret_types.get(&parent_key).cloned() {
-                                fn_ret_types.insert(child_key.clone(), ty);
-                            }
-                            // Même propagation pour `method_ret_class` (voir sa doc) :
-                            // une méthode héritée non surchargée doit rester résolvable
-                            // pour le chaînage (`sousClasse.methodeHeritee().autreChose()`).
-                            if let Some(name) = module.method_ret_class.get(&parent_key).cloned() {
-                                module.method_ret_class.insert(child_key, name);
-                            }
-                        }
+        let mut seen: HashSet<String> = class_methods(program, class).iter()
+            .filter_map(|m| if let ClassMember::Method { decl, .. } = m { Some(decl.name.clone()) } else { None })
+            .collect();
+        let mut ancestor = class.extends.as_ref()
+            .and_then(|name| program.classes.iter().find(|c| &c.name == name));
+        let mut depth = 0;
+        while let Some(parent) = ancestor {
+            for member in class_methods(program, parent) {
+                let ClassMember::Method { decl, is_static, .. } = member else { continue };
+                if !seen.insert(decl.name.clone()) {
+                    continue;
+                }
+                let child_key  = format!("{}_{}", class.name, decl.name);
+                let parent_key = format!("{}_{}", parent.name, decl.name);
+                if let Some(ty) = fn_ret_types.get(&parent_key).cloned() {
+                    fn_ret_types.insert(child_key.clone(), ty);
+                }
+                // Type AST du retour : sans lui, `rc::call_owned` ne savait
+                // pas que la méthode héritée rend une valeur possédée.
+                if let Some(ty) = module.call_ret_types.get(&parent_key).cloned() {
+                    module.call_ret_types.insert(child_key.clone(), ty);
+                }
+                // `method_ret_class` (voir sa doc) : une méthode héritée reste
+                // résolvable pour le chaînage (`sousClasse.heritee().autre()`).
+                if let Some(name) = module.method_ret_class.get(&parent_key).cloned() {
+                    module.method_ret_class.insert(child_key.clone(), name);
+                }
+                // Signature des paramètres (valeurs par défaut, types pour le
+                // boxing `mixed`, variadique) : sans elle, un paramètre par
+                // défaut omis faisait échouer la génération de code.
+                if let Some(defaults) = func_default_args.get(&parent_key).cloned() {
+                    func_default_args.insert(child_key.clone(), defaults);
+                }
+                if let Some(types) = module.method_param_types.get(&parent_key).cloned() {
+                    module.method_param_types.insert(child_key.clone(), types);
+                }
+                if *is_static {
+                    if let Some(types) = fn_param_types.get(&parent_key).cloned() {
+                        fn_param_types.insert(child_key.clone(), types);
+                    }
+                    if let Some(names) = fn_param_names.get(&parent_key).cloned() {
+                        fn_param_names.insert(child_key.clone(), names);
                     }
                 }
+                if let Some(info) = fn_variadic_info.get(&parent_key).cloned() {
+                    fn_variadic_info.insert(child_key, info);
+                }
             }
+            // Garde-fou contre un cycle d'héritage (rejeté par la sema).
+            depth += 1;
+            if depth > program.classes.len() {
+                break;
+            }
+            ancestor = parent.extends.as_ref()
+                .and_then(|name| program.classes.iter().find(|c| &c.name == name));
         }
     }
 
@@ -913,7 +967,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         lower_func(&mut module, func, &program.consts, &fn_ret_types, &fn_param_types, &fn_param_names, &fn_variadic_info, &func_default_args, None, None, &async_funcs);
         // Générer le wrapper async si la fonction est marquée async
         if func.is_async {
-            let param_tys: Vec<IrType> = func.params.iter().map(|p| IrType::from_ast(&p.ty)).collect();
+            let param_tys = task_arg_types(false, &func.params);
             let ret_ty = IrType::from_ast(&func.ret_ty);
             let wrapper_name = format!("__async_wrap_{}", func.name);
             generate_async_wrapper(&mut module, &func.name, &wrapper_name, &param_tys, ret_ty, &fn_ret_types);
@@ -925,19 +979,11 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         lower_class(&mut module, class, &program.classes, &program.modules, &program.consts, &fn_ret_types, &fn_param_types, &fn_param_names, &fn_variadic_info, &func_default_args, &async_funcs);
         
         // Générer les wrappers async pour les méthodes de classes
-        for member in &class.members {
+        for member in class_methods(program, class) {
             if let ClassMember::Method { decl, is_static, .. } = member {
                 if decl.is_async {
                     let mangled_name = format!("{}_{}", class.name, decl.name);
-                    let param_tys: Vec<IrType> = if *is_static {
-                        // Méthode statique : pas de self
-                        decl.params.iter().map(|p| IrType::from_ast(&p.ty)).collect()
-                    } else {
-                        // Méthode d'instance : self en premier (Type::Mixed → IrType::Ptr)
-                        let mut types = vec![IrType::Ptr];
-                        types.extend(decl.params.iter().map(|p| IrType::from_ast(&p.ty)));
-                        types
-                    };
+                    let param_tys = task_arg_types(!is_static, &decl.params);
                     let ret_ty = IrType::from_ast(&decl.ret_ty);
                     let wrapper_name = format!("__async_wrap_{}", mangled_name);
                     generate_async_wrapper(&mut module, &mangled_name, &wrapper_name, &param_tys, ret_ty, &fn_ret_types);
@@ -973,8 +1019,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
                 continue;
             }
             let dispatcher_name = format!("__dispatch_{}_{}", class.name, method_name);
-            let mut param_tys = vec![IrType::Ptr];
-            param_tys.extend(decl.params.iter().map(|p| IrType::from_ast(&p.ty)));
+            let param_tys = task_arg_types(true, &decl.params);
             let ret_ty = IrType::from_ast(&decl.ret_ty);
             let wrapper_name = format!("__async_wrap_{}", dispatcher_name);
             generate_async_wrapper(&mut module, &dispatcher_name, &wrapper_name, &param_tys, ret_ty, &fn_ret_types);
@@ -990,8 +1035,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
                 continue;
             }
             let dispatcher_name = format!("{}_{}", iface.name, method.name);
-            let mut param_tys = vec![IrType::Ptr];
-            param_tys.extend(method.params.iter().map(|p| IrType::from_ast(&p.ty)));
+            let param_tys = task_arg_types(true, &method.params);
             let ret_ty = IrType::from_ast(&method.ret_ty);
             let wrapper_name = format!("__async_wrap_{}", dispatcher_name);
             generate_async_wrapper(&mut module, &dispatcher_name, &wrapper_name, &param_tys, ret_ty, &fn_ret_types);
@@ -1003,4 +1047,30 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
 
     super::rc_layout::compute_class_masks(&mut module);
     module
+}
+
+/// Méthodes d'une classe : les siennes, puis celles reçues de ses `modules`
+/// qu'elle ne redéfinit pas — toutes émises sous `Classe_méthode` (voir
+/// `classes.rs`), elles partagent donc les mêmes tables de signatures. Sans
+/// les méthodes de module, leur type de retour retombait sur `Ptr` au site
+/// d'appel (`float` → SIGSEGV, `int` 0 → `null`, `bool` → `1`).
+fn class_methods<'a>(program: &'a Program, class: &'a ClassDecl) -> Vec<&'a ClassMember> {
+    let own: HashSet<&str> = class.members.iter()
+        .filter_map(|m| match m { ClassMember::Method { decl, .. } => Some(decl.name.as_str()), _ => None })
+        .collect();
+    let from_modules = class.modules.iter()
+        .filter_map(|name| program.modules.iter().find(|m| &m.name == name))
+        .flat_map(|m| m.members.iter())
+        .filter(|m| matches!(m, ClassMember::Method { decl, .. } if !own.contains(decl.name.as_str())));
+    class.members.iter().chain(from_modules).collect()
+}
+
+/// Types des valeurs rangées dans l'env d'une tâche `async` (`self` en tête
+/// pour une méthode d'instance) — source unique du site d'appel
+/// (`rc::keep_task_args`, qui retient chaque `Ptr`) et du wrapper
+/// (`generate_async_wrapper`, qui les relâche après l'appel).
+fn task_arg_types(has_self: bool, params: &[Param]) -> Vec<IrType> {
+    has_self.then_some(IrType::Ptr).into_iter()
+        .chain(params.iter().map(|p| IrType::from_ast(&p.ty)))
+        .collect()
 }

@@ -102,6 +102,14 @@ pub struct IrModule {
     /// (voir program.rs) : un wrapper généré pour une méthode d'instance sans
     /// tenir compte de `self` serait cassé (appel désaligné).
     pub method_param_types: HashMap<String, Vec<IrType>>,
+    /// Cible `async` (fonction, méthode, dispatcher) → types des valeurs de
+    /// l'env de sa tâche (`self` en tête si méthode d'instance). Retenues par
+    /// le site d'appel, relâchées par le wrapper après l'appel.
+    pub task_arg_types: HashMap<String, Vec<IrType>>,
+    /// Classes déclarées par le programme : l'une d'elles masque l'exception
+    /// builtin homonyme (`class IOException { … }`) — disposition, construction
+    /// et `parent::init` sont alors ceux de la classe utilisateur.
+    pub user_classes: HashSet<String>,
     /// Constantes de classes : "ClassName__NAME" → (IrType, Literal)
     pub class_consts: HashMap<String, (IrType, Literal)>,
     /// Compteur pour nommer les closures anonymes (__anon_0, __anon_1, ...)

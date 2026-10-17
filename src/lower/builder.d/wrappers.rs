@@ -89,6 +89,12 @@ fn free_task_env(builder: &mut LowerBuilder, env: Value, n_args: usize) {
     builder.emit(Inst::Call { dest: None, func: "__free_obj".into(), args: vec![env, size], ret_ty: IrType::Void });
 }
 
+fn release_held(builder: &mut LowerBuilder, held: &[Value]) {
+    for v in held {
+        crate::lower::stmt::rc::release(builder, v);
+    }
+}
+
 /// Génère un wrapper async `__async_wrap_FUNCNAME(env: i64) -> i64`
 /// Lit les arguments depuis l'env heap (env[0], env[8], ...) et appelle la fonction réelle.
 pub fn generate_async_wrapper(
@@ -127,6 +133,12 @@ pub fn generate_async_wrapper(
             });
             call_args.push(dest);
         }
+        // Références détenues par la tâche (`rc::keep_task_args`), rendues
+        // une fois l'appel terminé.
+        let held: Vec<Value> = call_args.iter().zip(param_tys)
+            .filter(|(_, ty)| **ty == IrType::Ptr)
+            .map(|(v, _)| v.clone())
+            .collect();
 
         // Appel direct
         if ret_ty != IrType::Void {
@@ -160,6 +172,7 @@ pub fn generate_async_wrapper(
                 }
                 boxed
             };
+            release_held(&mut builder, &held);
             free_task_env(&mut builder, env_val, param_tys.len());
             builder.emit(Inst::Return { value: Some(final_val) });
         } else {
@@ -169,6 +182,7 @@ pub fn generate_async_wrapper(
                 args:   call_args,
                 ret_ty: IrType::Void,
             });
+            release_held(&mut builder, &held);
             free_task_env(&mut builder, env_val, param_tys.len());
             let zero = builder.new_value();
             builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });

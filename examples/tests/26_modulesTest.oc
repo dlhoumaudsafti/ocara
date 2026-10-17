@@ -2,19 +2,14 @@
 // Tests unitaires pour 26_modules.oc
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// NB : les résultats des méthodes issues d'un `module` (getAge, getId) sont
-// d'abord capturés dans une variable typée (`var x:int = u.getId()`) avant
-// l'assertion. Passés directement en argument (`assertEquals(0, u.getId())`),
-// leur type de retour est perdu au site d'appel (retombe sur Ptr : un `0`
-// devient `null`, un `float` segfault) — bug compilateur à corriger, voir
-// rapport (fn_ret_types non peuplé pour les méthodes de module).
+// Les résultats des méthodes issues d'un `module` (getAge, getId) sont passés
+// directement en argument : leur type de retour était perdu au site d'appel
+// (`0` → `null`, `float` → SIGSEGV), voir moduleReturnTypesTest.
 
 architecture permissive
 
 import ocara.UnitTest
-import Timestamped from "26_modules"
-import Identifiable from "26_modules"
-import User from "26_modules"
+import User from "../26_modules"
 
 class Test26Modules extends UnitTest {
 
@@ -27,8 +22,7 @@ class Test26Modules extends UnitTest {
     // Module Timestamped : created_at initialisé à 0 par init → âge 100
     public method getAgeTest(): int {
         var u:User = use User(0)
-        var age:int = u.getAge()
-        self::assertEquals(100, age)
+        self::assertEquals(100, u.getAge())
         return 0
     }
 
@@ -36,27 +30,23 @@ class Test26Modules extends UnitTest {
     public method markCreatedTest(): int {
         var u:User = use User(0)
         u.markCreated()
-        var age:int = u.getAge()
-        self::assertEquals(58, age)
+        self::assertEquals(58, u.getAge())
         return 0
     }
 
     // Module Identifiable : id initialisé à 0 par init
     public method getIdTest(): int {
         var u:User = use User(0)
-        var id:int = u.getId()
-        self::assertEquals(0, id)
+        self::assertEquals(0, u.getId())
         return 0
     }
 
     public method setIdTest(): int {
         var u:User = use User(0)
         u.setId(1001)
-        var id1:int = u.getId()
-        self::assertEquals(1001, id1)
+        self::assertEquals(1001, u.getId())
         u.setId(7)
-        var id2:int = u.getId()
-        self::assertEquals(7, id2)
+        self::assertEquals(7, u.getId())
         return 0
     }
 
@@ -82,17 +72,45 @@ class Test26Modules extends UnitTest {
         u.addPoints(50)
         self::assertEquals(150, u.getScore())
         u.setId(1001)
-        var id:int = u.getId()
-        self::assertEquals(1001, id)
-        var age1:int = u.getAge()
-        self::assertEquals(100, age1)
+        self::assertEquals(1001, u.getId())
+        self::assertEquals(100, u.getAge())
         u.markCreated()
-        var age2:int = u.getAge()
-        self::assertEquals(58, age2)
+        self::assertEquals(58, u.getAge())
         // Les modules sont indépendants : l'état des uns n'affecte pas les autres
-        var id_after:int = u.getId()
-        self::assertEquals(1001, id_after)
+        self::assertEquals(1001, u.getId())
         self::assertEquals(150, u.getScore())
         return 0
     }
+
+    // Types de retour des méthodes de module (int, bool, float, string)
+    // passés directement en argument.
+    public method moduleReturnTypesTest(): int {
+        var m:Measured = use Measured()
+        self::assertEquals(0, m.zero())
+        self::assertTrue(m.yes())
+        self::assertEquals(0.5, m.half())
+        self::assertEquals("mod", m.label())
+        return 0
+    }
+}
+
+module Measures {
+    public method zero(): int {
+        return 0
+    }
+
+    public method yes(): bool {
+        return true
+    }
+
+    public method half(): float {
+        return 0.5
+    }
+
+    public method label(): string {
+        return "mod"
+    }
+}
+
+class Measured modules Measures {
 }
