@@ -7,28 +7,28 @@ import ocara.System
 //   - méthode statique variadic, `xs.len()` sur un variadic (docs/roadmap.d/langage-variadic-element-kinds.md) ;
 //   - grand entier négatif dans un `mixed` (docs/roadmap.d/memoire-mixed-grand-entier-negatif.md) ;
 //   - lecture répétée de `System::OS` sans fuite (docs/roadmap.d/memoire-system-os-fuite.md).
-class Test_90_static_variadic_negative_int_system {
+class Test90StaticVariadicNegativeIntSystem extends UnitTest {
 
     public method staticVariadicTest(): int {
-        UnitTest::assertEquals(3, Counter::count(1, 2, 3))
-        UnitTest::assertEquals(0, Counter::count())
-        UnitTest::assertEquals(16, Counter::sum(10, 1, 2, 3))
+        self::assertEquals(3, Counter::count(1, 2, 3))
+        self::assertEquals(0, Counter::count())
+        self::assertEquals(16, Counter::sum(10, 1, 2, 3))
         return 0
     }
 
     public method variadicLenInFunctionTest(): int {
-        UnitTest::assertEquals(4, countAll(5, 6, 7, 8))
+        self::assertEquals(4, countAll(5, 6, 7, 8))
         return 0
     }
 
     public method largeNegativeMixedIsIntTest(): int {
         var n:mixed = 0 - 70000
-        UnitTest::assertTrue(n is int)
+        self::assertTrue(n is int)
         var kind:string = match n {
             is int => "int"
             default => "autre"
         }
-        UnitTest::assertEquals("int", kind)
+        self::assertEquals("int", kind)
         return 0
     }
 
@@ -40,7 +40,7 @@ class Test_90_static_variadic_negative_int_system {
                 same += 1
             }
         }
-        UnitTest::assertEquals(100, same)
+        self::assertEquals(100, same)
         return 0
     }
 }

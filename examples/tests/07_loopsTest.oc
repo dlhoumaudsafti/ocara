@@ -6,8 +6,8 @@ architecture permissive
 
 import ocara.UnitTest
 
-class Test_07_loops {
-    
+class Test07Loops extends UnitTest {
+
     public method whileLoopTest(): int {
         var sum:int = 0
         var i:int = 1
@@ -15,29 +15,29 @@ class Test_07_loops {
             sum = sum + i
             i = i + 1
         }
-        UnitTest::assertEquals(15, sum)  // 1+2+3+4+5 = 15
+        self::assertEquals(15, sum)  // 1+2+3+4+5 = 15
         return 0
     }
-    
+
     public method forRangeTest(): int {
         var sum:int = 0
         for i in 1 to 5 {
             sum = sum + i
         }
-        UnitTest::assertEquals(15, sum)  // 1+2+3+4+5 = 15
+        self::assertEquals(15, sum)  // 1+2+3+4+5 = 15
         return 0
     }
-    
+
     public method forArrayTest(): int {
         var numbers:array<int> = [10, 20, 30]
         var sum:int = 0
         for n in numbers {
             sum = sum + n
         }
-        UnitTest::assertEquals(60, sum)
+        self::assertEquals(60, sum)
         return 0
     }
-    
+
     public method nestedLoopTest(): int {
         var count:int = 0
         var i:int = 0
@@ -49,10 +49,10 @@ class Test_07_loops {
             }
             i = i + 1
         }
-        UnitTest::assertEquals(6, count)  // 3 * 2 = 6
+        self::assertEquals(6, count)  // 3 * 2 = 6
         return 0
     }
-    
+
     public method mainTest(): int {
         // Reproduit le comportement de main()
         var i:int = 0
@@ -61,30 +61,30 @@ class Test_07_loops {
             counter = counter + 1
             i = i + 1
         }
-        UnitTest::assertEquals(5, counter)
-        
+        self::assertEquals(5, counter)
+
         // Test for in range
         var count_range:int = 0
         for j in 1 to 5 {
             count_range = count_range + 1
         }
-        UnitTest::assertEquals(5, count_range)
-        
+        self::assertEquals(5, count_range)
+
         // Test sum
         var sum:int = 0
         for k in 1 to 10 {
             sum = sum + k
         }
-        UnitTest::assertEquals(55, sum)
-        
+        self::assertEquals(55, sum)
+
         // Test array iteration
         var fruits:array<string> = ["pomme", "banane", "cerise"]
         var fruit_count:int = 0
         for fruit in fruits {
             fruit_count = fruit_count + 1
         }
-        UnitTest::assertEquals(3, fruit_count)
-        
+        self::assertEquals(3, fruit_count)
+
         // Test map iteration
         var scores:map<string, int> = {
             "Alice": 95,
@@ -95,15 +95,15 @@ class Test_07_loops {
         for nom has points in scores {
             entry_count = entry_count + 1
         }
-        UnitTest::assertEquals(3, entry_count)
-        
+        self::assertEquals(3, entry_count)
+
         // Test countdown
         var countdown:int = 5
         while countdown greater 0 {
             countdown = countdown - 1
         }
-        UnitTest::assertEquals(0, countdown)
-        
+        self::assertEquals(0, countdown)
+
         return 0
     }
 }

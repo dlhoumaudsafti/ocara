@@ -10,24 +10,24 @@ import ocara.Convert
 // corruption/crash — le vrai risque d'un bug de comptage (libérer une valeur
 // encore utilisée ailleurs).
 
-class Test_35_var_auto_free {
+class Test35VarAutoFree extends UnitTest {
 
     // Un `var` qui ne s'échappe jamais (utilisé uniquement en local) : la
     // libération automatique répétée ne doit jamais corrompre les valeurs
     // suivantes ni planter (stress : plusieurs milliers d'allocations/
     // libérations à la suite).
     public method nonEscapingVarStressTest(): int {
-        var allCorrect:bool = true
+        var all_correct:bool = true
         var i:int = 0
         while i smaller 2000 {
             var tmp:string = "valeur-" + Convert::intToStr(i)
             var expected:string = "valeur-" + Convert::intToStr(i)
             if tmp not equal expected {
-                allCorrect = false
+                all_correct = false
             }
             i = i + 1
         }
-        UnitTest::assertTrue(allCorrect)
+        self::assertTrue(all_correct)
         return 0
     }
 
@@ -44,17 +44,17 @@ class Test_35_var_auto_free {
             acc.push(h)
             i = i + 1
         }
-        var allCorrect:bool = true
+        var all_correct:bool = true
         var j:int = 0
         while j smaller acc.len() {
             var expected:string = "marqueur-" + Convert::intToStr(j)
             var got:Holder = acc.get(j)
             if got.s not equal expected {
-                allCorrect = false
+                all_correct = false
             }
             j = j + 1
         }
-        UnitTest::assertTrue(allCorrect)
+        self::assertTrue(all_correct)
         return 0
     }
 
@@ -77,9 +77,9 @@ class Test_35_var_auto_free {
         }
         f()
         f()
-        UnitTest::assertEquals(2, results.len())
-        UnitTest::assertTrue(msg equal results.get(0))
-        UnitTest::assertTrue(msg equal results.get(1))
+        self::assertEquals(2, results.len())
+        self::assertTrue(msg equal results.get(0))
+        self::assertTrue(msg equal results.get(1))
         return 0
     }
 
@@ -93,7 +93,7 @@ class Test_35_var_auto_free {
             s = "valeur-boucle-" + Convert::intToStr(i)
             i = i + 1
         }
-        UnitTest::assertTrue(s equal "valeur-boucle-1999")
+        self::assertTrue(s equal "valeur-boucle-1999")
         return 0
     }
 }

@@ -12,7 +12,7 @@ import ocara.File
 // détecte statiquement, et que withOpen (comme une déclaration `scoped`,
 // fermée même par un raise) évite.
 
-class Test_49_sqlite_with_open {
+class Test49SqliteWithOpen extends UnitTest {
 
     // Cas nominal : la closure reçoit une connexion utilisable.
     public method normalExecutionTest(): int {
@@ -30,7 +30,7 @@ class Test_49_sqlite_with_open {
         // une nouvelle connexion sur le même fichier voit les données commises.
         const db2:SQLite = SQLite::open(path)
         const rows:array<map<string, mixed>> = db2.query("SELECT * FROM t")
-        UnitTest::assertEquals(1, rows.len())
+        self::assertEquals(1, rows.len())
         db2.close()
         File::remove(path)
         return 0
@@ -58,8 +58,8 @@ class Test_49_sqlite_with_open {
             received_message = e.message
         }
 
-        UnitTest::assertTrue(caught)
-        UnitTest::assertTrue(received_message equal "boom")
+        self::assertTrue(caught)
+        self::assertTrue(received_message equal "boom")
         File::remove(path)
         return 0
     }
@@ -98,7 +98,7 @@ class Test_49_sqlite_with_open {
 
         // Une seule ligne (id=2) : la transaction id=1 a bien été annulée
         // par la fermeture de la connexion précédente.
-        UnitTest::assertEquals(1, rows.len())
+        self::assertEquals(1, rows.len())
         return 0
     }
 
@@ -111,8 +111,8 @@ class Test_49_sqlite_with_open {
             File::remove(path)
         }
 
-        var innerCaught:bool = false
-        var outerCaught:bool = false
+        var inner_caught:bool = false
+        var outer_caught:bool = false
 
         try {
             try {
@@ -121,15 +121,15 @@ class Test_49_sqlite_with_open {
                     raise use SqliteWithOpenError("propagation multi-niveaux")
                 })
             } on e is SqliteWithOpenError {
-                innerCaught = true
+                inner_caught = true
                 raise use SqliteWithOpenError(e.message)
             }
         } on e is SqliteWithOpenError {
-            outerCaught = true
+            outer_caught = true
         }
 
-        UnitTest::assertTrue(innerCaught)
-        UnitTest::assertTrue(outerCaught)
+        self::assertTrue(inner_caught)
+        self::assertTrue(outer_caught)
         File::remove(path)
         return 0
     }

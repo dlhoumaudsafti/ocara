@@ -17,7 +17,7 @@ import ocara.UnitTest
 // séparément et n'est pas couvert ici — voir
 // docs/roadmap.d/langage-closure-promotion-in-loop.md.
 
-class Test_47_closure_promotion_block_scope {
+class Test47ClosurePromotionBlockScope extends UnitTest {
 
     // Cas exact du SEGFAULT original : fermeture créée dans un `if`,
     // variable relue après le bloc.
@@ -27,7 +27,7 @@ class Test_47_closure_promotion_block_scope {
             var f:Function<void()> = nameless(): void { counter = counter + 1 }
             f()
         }
-        UnitTest::assertEquals(1, counter)
+        self::assertEquals(1, counter)
         return 0
     }
 
@@ -40,7 +40,7 @@ class Test_47_closure_promotion_block_scope {
             var f:Function<void()> = nameless(): void { counter = counter + 1 }
             f()
         }
-        UnitTest::assertEquals(1, counter)
+        self::assertEquals(1, counter)
         return 0
     }
 
@@ -57,7 +57,7 @@ class Test_47_closure_promotion_block_scope {
                 inner()
             })
         }
-        UnitTest::assertEquals(1, counter)
+        self::assertEquals(1, counter)
         return 0
     }
 
@@ -70,9 +70,9 @@ class Test_47_closure_promotion_block_scope {
         var x:int = 1
         if true {
             var x:int = 99
-            UnitTest::assertEquals(99, x)
+            self::assertEquals(99, x)
         }
-        UnitTest::assertEquals(1, x)
+        self::assertEquals(1, x)
         return 0
     }
 
@@ -87,7 +87,7 @@ class Test_47_closure_promotion_block_scope {
             f()
         }
         f()
-        UnitTest::assertEquals(3, counter)
+        self::assertEquals(3, counter)
         return 0
     }
 }

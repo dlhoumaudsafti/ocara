@@ -2,57 +2,57 @@ architecture permissive
 
 import ocara.UnitTest
 
-class Test_27_type_narrowing {
-    
+class Test27TypeNarrowing extends UnitTest {
+
     public method isNullTest(): int {
         var val:int|string|null = null
-        UnitTest::assertTrue(val is null)
-        UnitTest::assertFalse(val is int)
-        UnitTest::assertFalse(val is string)
+        self::assertTrue(val is null)
+        self::assertFalse(val is int)
+        self::assertFalse(val is string)
         return 0
     }
-    
+
     public method isIntTest(): int {
         var val:int|string|null = 42
-        UnitTest::assertFalse(val is null)
-        UnitTest::assertTrue(val is int)
-        UnitTest::assertFalse(val is string)
+        self::assertFalse(val is null)
+        self::assertTrue(val is int)
+        self::assertFalse(val is string)
         return 0
     }
-    
+
     public method isStringTest(): int {
         var val:int|string|null = "test"
-        UnitTest::assertFalse(val is null)
-        UnitTest::assertFalse(val is int)
-        UnitTest::assertTrue(val is string)
+        self::assertFalse(val is null)
+        self::assertFalse(val is int)
+        self::assertTrue(val is string)
         return 0
     }
-    
+
     public method formatValueTest(): int {
-        UnitTest::assertEquals("(null)", formatValue(null))
-        
+        self::assertEquals("(null)", formatValue(null))
+
         var i:int|string|null = 42
-        UnitTest::assertEquals("entier", formatValue(i))
-        
+        self::assertEquals("entier", formatValue(i))
+
         var s:int|string|null = "hello"
-        UnitTest::assertEquals("chaîne", formatValue(s))
-        
+        self::assertEquals("chaîne", formatValue(s))
+
         return 0
     }
-    
+
     public method mainTest(): int {
         var val_null:int|string|null = null
-        UnitTest::assertTrue(val_null is null)
-        UnitTest::assertEquals("(null)", formatValue(val_null))
-        
+        self::assertTrue(val_null is null)
+        self::assertEquals("(null)", formatValue(val_null))
+
         var val_int:int|string|null = 42
-        UnitTest::assertTrue(val_int is int)
-        UnitTest::assertEquals("entier", formatValue(val_int))
-        
+        self::assertTrue(val_int is int)
+        self::assertEquals("entier", formatValue(val_int))
+
         var val_str:int|string|null = "test"
-        UnitTest::assertTrue(val_str is string)
-        UnitTest::assertEquals("chaîne", formatValue(val_str))
-        
+        self::assertTrue(val_str is string)
+        self::assertEquals("chaîne", formatValue(val_str))
+
         return 0
     }
 }

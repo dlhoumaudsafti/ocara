@@ -3,47 +3,47 @@ architecture permissive
 import ocara.UnitTest
 import ocara.IO
 
-class Test_24_function_types {
-    
+class Test24FunctionTypes extends UnitTest {
+
     public method binaryOpTest(): int {
         var op:Function<int(int, int)> = add
-        UnitTest::assertEquals(15, compute(10, 5, op))
+        self::assertEquals(15, compute(10, 5, op))
         return 0
     }
-    
+
     public method transformerTest(): int {
         var tr:Function<int(int)> = double
-        UnitTest::assertEquals(20, transform(10, tr))
+        self::assertEquals(20, transform(10, tr))
         return 0
     }
-    
+
     public method addTest(): int {
-        UnitTest::assertEquals(15, add(10, 5))
-        UnitTest::assertEquals(-3, add(2, -5))
+        self::assertEquals(15, add(10, 5))
+        self::assertEquals(-3, add(2, -5))
         return 0
     }
 
     public method subtractTest(): int {
-        UnitTest::assertEquals(5, subtract(10, 5))
-        UnitTest::assertEquals(-5, subtract(5, 10))
+        self::assertEquals(5, subtract(10, 5))
+        self::assertEquals(-5, subtract(5, 10))
         return 0
     }
 
     public method multiplyTest(): int {
-        UnitTest::assertEquals(50, multiply(10, 5))
-        UnitTest::assertEquals(0, multiply(7, 0))
+        self::assertEquals(50, multiply(10, 5))
+        self::assertEquals(0, multiply(7, 0))
         return 0
     }
 
     public method doubleTest(): int {
-        UnitTest::assertEquals(14, double(7))
-        UnitTest::assertEquals(0, double(0))
+        self::assertEquals(14, double(7))
+        self::assertEquals(0, double(0))
         return 0
     }
 
     public method tripleTest(): int {
-        UnitTest::assertEquals(21, triple(7))
-        UnitTest::assertEquals(-9, triple(-3))
+        self::assertEquals(21, triple(7))
+        self::assertEquals(-9, triple(-3))
         return 0
     }
 
@@ -51,17 +51,17 @@ class Test_24_function_types {
         var op_add:Function<int(int, int)> = add
         var op_sub:Function<int(int, int)> = subtract
         var op_mul:Function<int(int, int)> = multiply
-        UnitTest::assertEquals(15, compute(10, 5, op_add))
-        UnitTest::assertEquals(5, compute(10, 5, op_sub))
-        UnitTest::assertEquals(50, compute(10, 5, op_mul))
+        self::assertEquals(15, compute(10, 5, op_add))
+        self::assertEquals(5, compute(10, 5, op_sub))
+        self::assertEquals(50, compute(10, 5, op_mul))
         return 0
     }
 
     public method transformTest(): int {
         var t1:Function<int(int)> = double
         var t2:Function<int(int)> = triple
-        UnitTest::assertEquals(14, transform(7, t1))
-        UnitTest::assertEquals(21, transform(7, t2))
+        self::assertEquals(14, transform(7, t1))
+        self::assertEquals(21, transform(7, t2))
         return 0
     }
 
@@ -71,9 +71,9 @@ class Test_24_function_types {
             count = count + 1
         }
         repeat(5, action)
-        UnitTest::assertEquals(5, count)
+        self::assertEquals(5, count)
         repeat(0, action)
-        UnitTest::assertEquals(5, count)
+        self::assertEquals(5, count)
         return 0
     }
 
@@ -81,23 +81,23 @@ class Test_24_function_types {
         var action:Function<void()> = printStar
         repeat(3, action)
         printStar()
-        UnitTest::assertTrue(true)
+        self::assertTrue(true)
         return 0
     }
 
     public method mainTest(): int {
         var op1:Function<int(int, int)> = add
-        UnitTest::assertEquals(15, compute(10, 5, op1))
+        self::assertEquals(15, compute(10, 5, op1))
         var op2:Function<int(int, int)> = subtract
-        UnitTest::assertEquals(5, compute(10, 5, op2))
+        self::assertEquals(5, compute(10, 5, op2))
         var op3:Function<int(int, int)> = multiply
-        UnitTest::assertEquals(50, compute(10, 5, op3))
+        self::assertEquals(50, compute(10, 5, op3))
 
         var t1:Function<int(int)> = double
-        UnitTest::assertEquals(14, transform(7, t1))
+        self::assertEquals(14, transform(7, t1))
         var t2:Function<int(int)> = triple
-        UnitTest::assertEquals(21, transform(7, t2))
-        
+        self::assertEquals(21, transform(7, t2))
+
         return 0
     }
 }

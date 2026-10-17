@@ -7,16 +7,16 @@ import ocara.FileException
 // Constructeur des exceptions builtin `(message:string, code:int = 0)` :
 // `use Exception(...)`, `raise use FileException(...)` et `parent::init(...)`
 // d'une sous-classe remplissent `message`/`code` (valaient `null`/`0`).
-class Test_77_builtin_exception_constructor {
+class Test77BuiltinExceptionConstructor extends UnitTest {
 
     public method directConstructionTest(): int {
         var e:Exception = use Exception("boom", 3)
-        UnitTest::assertEquals("boom", e.message)
-        UnitTest::assertEquals(3, e.code)
-        UnitTest::assertEquals("", e.source)
+        self::assertEquals("boom", e.message)
+        self::assertEquals(3, e.code)
+        self::assertEquals("", e.source)
         var f:FileException = use FileException("absent")
-        UnitTest::assertEquals("absent", f.message)
-        UnitTest::assertEquals(0, f.code)
+        self::assertEquals("absent", f.message)
+        self::assertEquals(0, f.code)
         return 0
     }
 
@@ -29,8 +29,8 @@ class Test_77_builtin_exception_constructor {
             message = e.message
             code = e.code
         }
-        UnitTest::assertEquals("disque plein", message)
-        UnitTest::assertEquals(28, code)
+        self::assertEquals("disque plein", message)
+        self::assertEquals(28, code)
         return 0
     }
 
@@ -43,8 +43,8 @@ class Test_77_builtin_exception_constructor {
             message = e.message
             code = e.code
         }
-        UnitTest::assertEquals("via parent", message)
-        UnitTest::assertEquals(7, code)
+        self::assertEquals("via parent", message)
+        self::assertEquals(7, code)
         return 0
     }
 }

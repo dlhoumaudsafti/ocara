@@ -2,62 +2,62 @@ architecture permissive
 
 import ocara.UnitTest
 
-class Test_10_classes {
-    
+class Test10Classes extends UnitTest {
+
     public method displayTest(): int {
         var p:Point = use Point(3, 4)
         p.display()
-        UnitTest::assertTrue(true)
+        self::assertTrue(true)
         return 0
     }
-    
+
     public method distanceFromOriginTest(): int {
         var p:Point = use Point(3, 4)
-        UnitTest::assertEquals(25, p.distanceFromOrigin())
+        self::assertEquals(25, p.distanceFromOrigin())
         return 0
     }
-    
+
     public method depositTest(): int {
         var account:BankAccount = use BankAccount("Alice", 1000.0)
-        var before:float = account.get_balance()
+        var before:float = account.getBalance()
         account.deposit(500.0)
-        var after:float = account.get_balance()
-        UnitTest::assertTrue(after greater before)
+        var after:float = account.getBalance()
+        self::assertTrue(after greater before)
         return 0
     }
-    
+
     public method withdrawTest(): int {
         var account:BankAccount = use BankAccount("Alice", 1000.0)
-        var before:float = account.get_balance()
+        var before:float = account.getBalance()
         account.withdraw(200.0)
-        var after:float = account.get_balance()
-        UnitTest::assertTrue(after smaller before)
+        var after:float = account.getBalance()
+        self::assertTrue(after smaller before)
         return 0
     }
-    
+
     public method showBalanceTest(): int {
         var account:BankAccount = use BankAccount("Alice", 1000.0)
         account.showBalance()
-        UnitTest::assertTrue(true)
+        self::assertTrue(true)
         return 0
     }
-    
+
     public method isNegativeTest(): int {
         var account:BankAccount = use BankAccount("Alice", -100.0)
-        UnitTest::assertTrue(account.check_negative())
+        self::assertTrue(account.checkNegative())
         var positive:BankAccount = use BankAccount("Bob", 100.0)
-        UnitTest::assertFalse(positive.check_negative())
+        self::assertFalse(positive.checkNegative())
         return 0
     }
-    
+
     public method pointTest(): int {
         var p:Point = use Point(3, 4)
-        UnitTest::assertEquals(3, p.x)
-        UnitTest::assertEquals(4, p.y)
-        UnitTest::assertEquals(25, p.distanceFromOrigin())
+        self::assertEquals(3, p.x)
+        self::assertEquals(4, p.y)
+        self::assertEquals(25, p.distanceFromOrigin())
         return 0
     }
-    
+
     public method bankAccountTest(): int {
         var account:BankAccount = use BankAccount("Alice", 1000.0)
         account.deposit(500.0)
@@ -65,18 +65,18 @@ class Test_10_classes {
         account.withdraw(2000.0)
         return 0
     }
-    
+
     public method mainTest(): int {
         var p:Point = use Point(3, 4)
         p.display()
-        UnitTest::assertEquals(25, p.distanceFromOrigin())
-        
+        self::assertEquals(25, p.distanceFromOrigin())
+
         var account:BankAccount = use BankAccount("Alice", 1000.0)
         account.showBalance()
         account.deposit(500.0)
         account.withdraw(200.0)
         account.withdraw(2000.0)
-        
+
         return 0
     }
 }
@@ -126,11 +126,11 @@ class BankAccount {
     public method showBalance(): void {
     }
 
-    public method check_negative(): bool {
+    public method checkNegative(): bool {
         return self.balance smaller 0.0
     }
 
-    public method get_balance(): float {
+    public method getBalance(): float {
         return self.balance
     }
 }

@@ -8,7 +8,7 @@ import ocara.Mutex
 // deux appels saute unlock() (setjmp/longjmp, pas d'unwinding) et laisse le
 // mutex verrouillé pour toujours.
 
-class Test_36_mutex_with_lock {
+class Test36MutexWithLock extends UnitTest {
 
     // Cas nominal : la closure s'exécute, le mutex est déverrouillé après.
     public method normalExecutionTest(): int {
@@ -19,9 +19,9 @@ class Test_36_mutex_with_lock {
             ran = true
         })
 
-        UnitTest::assertTrue(ran)
+        self::assertTrue(ran)
         // Preuve que le mutex est bien déverrouillé après un withLock nominal.
-        UnitTest::assertTrue(m.tryLock())
+        self::assertTrue(m.tryLock())
         m.unlock()
         m.destroy()
         return 0
@@ -46,9 +46,9 @@ class Test_36_mutex_with_lock {
             received_code = e.code
         }
 
-        UnitTest::assertTrue(caught)
-        UnitTest::assertTrue(received_message equal "boom")
-        UnitTest::assertEquals(7, received_code)
+        self::assertTrue(caught)
+        self::assertTrue(received_message equal "boom")
+        self::assertEquals(7, received_code)
         m.destroy()
         return 0
     }
@@ -68,7 +68,7 @@ class Test_36_mutex_with_lock {
         }
 
         // Si withLock n'avait pas déverrouillé, tryLock() échouerait ici.
-        UnitTest::assertTrue(m.tryLock())
+        self::assertTrue(m.tryLock())
         m.unlock()
         m.destroy()
         return 0
@@ -79,8 +79,8 @@ class Test_36_mutex_with_lock {
     // withLock qui l'empêcherait de se propager plus loin qu'un seul niveau).
     public method rethrowsToOuterTryTest(): int {
         var m:Mutex = use Mutex()
-        var innerCaught:bool = false
-        var outerCaught:bool = false
+        var inner_caught:bool = false
+        var outer_caught:bool = false
 
         try {
             try {
@@ -88,15 +88,15 @@ class Test_36_mutex_with_lock {
                     raise use MutexWithLockError("propagation multi-niveaux", 2)
                 })
             } on e is MutexWithLockError {
-                innerCaught = true
+                inner_caught = true
                 raise use MutexWithLockError(e.message, e.code)
             }
         } on e is MutexWithLockError {
-            outerCaught = true
+            outer_caught = true
         }
 
-        UnitTest::assertTrue(innerCaught)
-        UnitTest::assertTrue(outerCaught)
+        self::assertTrue(inner_caught)
+        self::assertTrue(outer_caught)
         m.destroy()
         return 0
     }

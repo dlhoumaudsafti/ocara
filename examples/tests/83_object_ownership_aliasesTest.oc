@@ -7,14 +7,14 @@ import ocara.Array
 // porteur vit (même bloc), alias local d'un champ seulement lu
 // (`const list = bag.items`, `Array::len`), receveur résultat d'appel
 // (`self.makeBag().items`) identifié par sa classe.
-class Test_83_object_ownership_aliases {
+class Test83ObjectOwnershipAliases extends UnitTest {
 
     public method readAfterTransferTest(): int {
         var ys:array<AliasItem> = [use AliasItem("a"), use AliasItem("b")]
         scoped bag:AliasBag = use AliasBag(ys)
-        UnitTest::assertEquals(2, ys.len())
-        UnitTest::assertEquals("a!", ys[0].name)
-        UnitTest::assertEquals(2, bag.count())
+        self::assertEquals(2, ys.len())
+        self::assertEquals("a!", ys[0].name)
+        self::assertEquals(2, bag.count())
         return 0
     }
 
@@ -25,13 +25,13 @@ class Test_83_object_ownership_aliases {
         for it in list {
             names = names + it.name
         }
-        UnitTest::assertEquals("m!", names)
-        UnitTest::assertEquals(1, Array::len(list))
+        self::assertEquals("m!", names)
+        self::assertEquals(1, Array::len(list))
         return 0
     }
 
     public method callReceiverTest(): int {
-        UnitTest::assertEquals(1, self.makeBag().items.len())
+        self::assertEquals(1, self.makeBag().items.len())
         return 0
     }
 

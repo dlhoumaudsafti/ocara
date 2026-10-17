@@ -210,14 +210,14 @@ class CircleTests extends UnitTest {
 ```ocara
 import ocara.UnitTest
 
-class MathTest {
+class MathTest extends UnitTest {
     public method addTest(): int {
-        UnitTest::assertEquals(5, add(2, 3))
+        self::assertEquals(5, add(2, 3))
         return 0
     }
 
     public method negativeAddTest(): int {
-        UnitTest::assertLess(add(-5, -3), 0)
+        self::assertLess(add(-5, -3), 0)
         return 0
     }
 

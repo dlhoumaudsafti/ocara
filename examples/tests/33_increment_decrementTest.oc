@@ -7,22 +7,22 @@ architecture permissive
 import ocara.UnitTest
 import Counter from "33_increment_decrement"
 
-class Test_33_increment_decrement {
+class Test33IncrementDecrement extends UnitTest {
 
     public method intPostfixPrefixTest(): int {
         var i:int = 5
-        UnitTest::assertEquals(5, i++)
-        UnitTest::assertEquals(6, i)
-        UnitTest::assertEquals(7, ++i)
-        UnitTest::assertEquals(7, i--)
-        UnitTest::assertEquals(5, --i)
+        self::assertEquals(5, i++)
+        self::assertEquals(6, i)
+        self::assertEquals(7, ++i)
+        self::assertEquals(7, i--)
+        self::assertEquals(5, --i)
         return 0
     }
 
     public method floatIncrementTest(): int {
         var f:float = 1.5
         f++
-        UnitTest::assertEquals(2.5, f)
+        self::assertEquals(2.5, f)
         return 0
     }
 
@@ -32,8 +32,8 @@ class Test_33_increment_decrement {
         while j smaller 5 {
             acc = acc + j++
         }
-        UnitTest::assertEquals(10, acc)
-        UnitTest::assertEquals(5, j)
+        self::assertEquals(10, acc)
+        self::assertEquals(5, j)
         return 0
     }
 
@@ -41,8 +41,8 @@ class Test_33_increment_decrement {
         var arr:array<int> = [10, 20, 30]
         arr[0]++
         arr[2]--
-        UnitTest::assertEquals(11, arr[0])
-        UnitTest::assertEquals(29, arr[2])
+        self::assertEquals(11, arr[0])
+        self::assertEquals(29, arr[2])
         return 0
     }
 
@@ -50,14 +50,14 @@ class Test_33_increment_decrement {
         var c:Counter = use Counter(100)
         c.value++
         ++c.value
-        UnitTest::assertEquals(102, c.value)
+        self::assertEquals(102, c.value)
         return 0
     }
 
     public method mapValueTest(): int {
         var scores:map<string, int> = {"alice": 10}
         scores["alice"]++
-        UnitTest::assertEquals(11, scores["alice"])
+        self::assertEquals(11, scores["alice"])
         return 0
     }
 }

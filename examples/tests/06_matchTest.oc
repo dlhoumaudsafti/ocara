@@ -6,8 +6,8 @@ architecture permissive
 
 import ocara.UnitTest
 
-class Test_06_match {
-    
+class Test06Match extends UnitTest {
+
     public method matchExpressionTest(): int {
         var score:int = 90
         scoped mention:string = match score {
@@ -17,10 +17,10 @@ class Test_06_match {
             60  => "Passable"
             default => "Insuffisant"
         }
-        UnitTest::assertEquals("Excellent", mention)
+        self::assertEquals("Excellent", mention)
         return 0
     }
-    
+
     public method mainTest(): int {
         var score:int = 90
         scoped mention:string = match score {
@@ -30,8 +30,8 @@ class Test_06_match {
             60  => "Passable"
             default => "Insuffisant"
         }
-        UnitTest::assertEquals("Excellent", mention)
-        
+        self::assertEquals("Excellent", mention)
+
         var code:int = 2
         var result:string = match code {
             1 => "un"
@@ -39,24 +39,24 @@ class Test_06_match {
             3 => "trois"
             default => "autre"
         }
-        UnitTest::assertEquals("deux", result)
-        
+        self::assertEquals("deux", result)
+
         var actif:bool = true
         scoped etat:string = match actif {
             true  => "actif"
             false => "inactif"
             default => "inconnu"
         }
-        UnitTest::assertEquals("actif", etat)
-        
+        self::assertEquals("actif", etat)
+
         var age:int = 43
         scoped tranche:string = match age:int {
             43 => "senior"
             20 => "jeune"
             default => "autre tranche"
         }
-        UnitTest::assertEquals("senior", tranche)
-        
+        self::assertEquals("senior", tranche)
+
         return 0
     }
 }

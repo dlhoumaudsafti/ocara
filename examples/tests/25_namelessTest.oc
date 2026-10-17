@@ -3,45 +3,45 @@ architecture permissive
 import ocara.UnitTest
 import Counter from "25_nameless"
 
-class Test_25_nameless {
-    
+class Test25Nameless extends UnitTest {
+
     public method simpleClosureTest(): int {
         var called:int = 0
         var greet:Function<void()> = nameless(): void {
             called = called + 1
         }
         greet()
-        UnitTest::assertEquals(1, called)
+        self::assertEquals(1, called)
         return 0
     }
-    
+
     public method closureWithParamTest(): int {
         var double:Function<int(int)> = nameless(x:int): int {
             return x * 2
         }
-        UnitTest::assertEquals(14, double(7))
-        UnitTest::assertEquals(10, apply(double, 5))
+        self::assertEquals(14, double(7))
+        self::assertEquals(10, apply(double, 5))
         return 0
     }
-    
+
     public method captureScopeTest(): int {
         var step:int = 3
         var add_step:Function<int(int)> = nameless(x:int): int {
             return x + step
         }
-        UnitTest::assertEquals(13, add_step(10))
+        self::assertEquals(13, add_step(10))
         return 0
     }
-    
+
     public method makeIncrementerTest(): int {
         scoped c:Counter = use Counter(0)
         var inc:Function<void()> = c.makeIncrementer(5)
-        UnitTest::assertEquals(0, c.value)
+        self::assertEquals(0, c.value)
         inc()
-        UnitTest::assertEquals(5, c.value)
+        self::assertEquals(5, c.value)
         inc()
         inc()
-        UnitTest::assertEquals(15, c.value)
+        self::assertEquals(15, c.value)
         return 0
     }
 
@@ -50,11 +50,11 @@ class Test_25_nameless {
         var by2:Function<void()> = d.makeMultiplier(2)
         var by3:Function<void()> = d.makeMultiplier(3)
         by2()
-        UnitTest::assertEquals(2, d.value)
+        self::assertEquals(2, d.value)
         by3()
-        UnitTest::assertEquals(6, d.value)
+        self::assertEquals(6, d.value)
         by2()
-        UnitTest::assertEquals(12, d.value)
+        self::assertEquals(12, d.value)
         return 0
     }
 
@@ -63,19 +63,19 @@ class Test_25_nameless {
             // Simple closure
         }
         greet()
-        
+
         var double:Function<int(int)> = nameless(x:int): int {
             return x * 2
         }
-        UnitTest::assertEquals(14, double(7))
-        UnitTest::assertEquals(10, apply(double, 5))
-        
+        self::assertEquals(14, double(7))
+        self::assertEquals(10, apply(double, 5))
+
         var step:int = 3
         var add_step:Function<int(int)> = nameless(x:int): int {
             return x + step
         }
-        UnitTest::assertEquals(13, add_step(10))
-        
+        self::assertEquals(13, add_step(10))
+
         return 0
     }
 }

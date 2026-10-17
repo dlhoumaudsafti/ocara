@@ -3,43 +3,43 @@ architecture permissive
 import ocara.UnitTest
 import ocara.IO
 
-class Test_12_inheritance {
-    
+class Test12Inheritance extends UnitTest {
+
     public method dogTest(): int {
         var dog:Dog = use Dog("Rex", "Labrador")
-        UnitTest::assertEquals("Rex", dog.get_name())
-        UnitTest::assertEquals("Labrador", dog.get_breed())
+        self::assertEquals("Rex", dog.getName())
+        self::assertEquals("Labrador", dog.getBreed())
         dog.log("test")
         return 0
     }
-    
+
     public method catTest(): int {
         var cat:Cat = use Cat("Mimi", true)
-        UnitTest::assertEquals("Mimi", cat.get_name())
-        UnitTest::assertTrue(cat.is_indoor())
+        self::assertEquals("Mimi", cat.getName())
+        self::assertTrue(cat.isIndoor())
         return 0
     }
-    
+
     public method mainTest(): int {
         var dog:Dog = use Dog("Rex", "Labrador")
-        UnitTest::assertEquals("Rex", dog.get_name())
-        
+        self::assertEquals("Rex", dog.getName())
+
         var cat:Cat = use Cat("Mimi", true)
-        UnitTest::assertEquals("Mimi", cat.get_name())
-        
+        self::assertEquals("Mimi", cat.getName())
+
         return 0
     }
     public method speakTest(): int {
         var dog:Dog = use Dog("Rex", "Labrador")
         var cat:Cat = use Cat("Mimi", true)
         // parent::init a bien fixé le cri propre à chaque sous-classe
-        UnitTest::assertEquals("Woof", dog.get_sound())
-        UnitTest::assertEquals("Meow", cat.get_sound())
+        self::assertEquals("Woof", dog.getSound())
+        self::assertEquals("Meow", cat.getSound())
         dog.speak()
         cat.speak()
         // speak() n'altère pas l'état
-        UnitTest::assertEquals("Rex", dog.get_name())
-        UnitTest::assertEquals("Mimi", cat.get_name())
+        self::assertEquals("Rex", dog.getName())
+        self::assertEquals("Mimi", cat.getName())
         return 0
     }
 
@@ -52,22 +52,22 @@ class Test_12_inheritance {
         dog.describe()
         outdoor.describe()
         indoor.describe()
-        UnitTest::assertEquals("Generic", animal.get_name())
-        UnitTest::assertEquals("Labrador", dog.get_breed())
-        UnitTest::assertFalse(outdoor.is_indoor())
-        UnitTest::assertTrue(indoor.is_indoor())
+        self::assertEquals("Generic", animal.getName())
+        self::assertEquals("Labrador", dog.getBreed())
+        self::assertFalse(outdoor.isIndoor())
+        self::assertTrue(indoor.isIndoor())
         // dispatch via une variable typée par la classe parente
         var base:Animal = dog
         base.describe()
-        UnitTest::assertEquals("Rex", base.get_name())
+        self::assertEquals("Rex", base.getName())
         return 0
     }
 
     public method fetchTest(): int {
         var dog:Dog = use Dog("Rex", "Labrador")
         dog.fetch()
-        UnitTest::assertEquals("Rex", dog.get_name())
-        UnitTest::assertEquals("Labrador", dog.get_breed())
+        self::assertEquals("Rex", dog.getName())
+        self::assertEquals("Labrador", dog.getBreed())
         return 0
     }
 
@@ -77,7 +77,7 @@ class Test_12_inheritance {
         // utilisable via l'interface Loggable
         var logger:Loggable = dog
         logger.log("via interface")
-        UnitTest::assertEquals("Rex", dog.get_name())
+        self::assertEquals("Rex", dog.getName())
         return 0
     }
 }
@@ -100,11 +100,11 @@ class Animal {
         self.sound = sound
     }
 
-    public method get_name(): string {
+    public method getName(): string {
         return self.name
     }
 
-    public method get_sound(): string {
+    public method getSound(): string {
         return self.sound
     }
 
@@ -125,7 +125,7 @@ class Dog extends Animal implements Loggable {
         self.breed = breed
     }
 
-    public method get_breed(): string {
+    public method getBreed(): string {
         return self.breed
     }
 
@@ -150,7 +150,7 @@ class Cat extends Animal {
         self.indoor = indoor
     }
 
-    public method is_indoor(): bool {
+    public method isIndoor(): bool {
         return self.indoor
     }
 

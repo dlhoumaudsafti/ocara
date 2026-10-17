@@ -3,65 +3,65 @@ architecture permissive
 import ocara.UnitTest
 import ocara.IO
 
-class Test_02_functions {
-    
+class Test02Functions extends UnitTest {
+
     public method addTest(): int {
-        UnitTest::assertEquals(5, add(2, 3))
-        UnitTest::assertEquals(0, add(0, 0))
-        UnitTest::assertEquals(-1, add(2, -3))
+        self::assertEquals(5, add(2, 3))
+        self::assertEquals(0, add(0, 0))
+        self::assertEquals(-1, add(2, -3))
         return 0
     }
-    
+
     public method multiplyTest(): int {
-        UnitTest::assertEquals(6, multiply(2, 3))
-        UnitTest::assertEquals(0, multiply(0, 5))
-        UnitTest::assertEquals(-6, multiply(2, -3))
+        self::assertEquals(6, multiply(2, 3))
+        self::assertEquals(0, multiply(0, 5))
+        self::assertEquals(-6, multiply(2, -3))
         return 0
     }
-    
+
     public method maxTest(): int {
-        UnitTest::assertEquals(10, max(10, 5))
-        UnitTest::assertEquals(10, max(5, 10))
-        UnitTest::assertEquals(7, max(7, 7))
+        self::assertEquals(10, max(10, 5))
+        self::assertEquals(10, max(5, 10))
+        self::assertEquals(7, max(7, 7))
         return 0
     }
-    
+
     public method factorialTest(): int {
-        UnitTest::assertEquals(1, factorial(0))
-        UnitTest::assertEquals(1, factorial(1))
-        UnitTest::assertEquals(2, factorial(2))
-        UnitTest::assertEquals(6, factorial(3))
-        UnitTest::assertEquals(24, factorial(4))
-        UnitTest::assertEquals(120, factorial(5))
+        self::assertEquals(1, factorial(0))
+        self::assertEquals(1, factorial(1))
+        self::assertEquals(2, factorial(2))
+        self::assertEquals(6, factorial(3))
+        self::assertEquals(24, factorial(4))
+        self::assertEquals(120, factorial(5))
         return 0
     }
-    
+
     public method fibonacciTest(): int {
-        UnitTest::assertEquals(0, fibonacci(0))
-        UnitTest::assertEquals(1, fibonacci(1))
-        UnitTest::assertEquals(1, fibonacci(2))
-        UnitTest::assertEquals(2, fibonacci(3))
-        UnitTest::assertEquals(3, fibonacci(4))
-        UnitTest::assertEquals(5, fibonacci(5))
-        UnitTest::assertEquals(8, fibonacci(6))
+        self::assertEquals(0, fibonacci(0))
+        self::assertEquals(1, fibonacci(1))
+        self::assertEquals(1, fibonacci(2))
+        self::assertEquals(2, fibonacci(3))
+        self::assertEquals(3, fibonacci(4))
+        self::assertEquals(5, fibonacci(5))
+        self::assertEquals(8, fibonacci(6))
         return 0
     }
-    
+
     public method greetTest(): int {
         // Appelle greet pour assurer la couverture
         greet("Ocara")
         greet("Test")
         return 0
     }
-    
+
     public method mainTest(): int {
         // Reproduit le comportement de main() avec des assertions
-        UnitTest::assertEquals(7, add(3, 4))
-        UnitTest::assertEquals(42, multiply(6, 7))
+        self::assertEquals(7, add(3, 4))
+        self::assertEquals(42, multiply(6, 7))
         greet("Ocara")
-        UnitTest::assertEquals(20, max(10, 20))
-        UnitTest::assertEquals(120, factorial(5))
-        UnitTest::assertEquals(21, fibonacci(8))
+        self::assertEquals(20, max(10, 20))
+        self::assertEquals(120, factorial(5))
+        self::assertEquals(21, fibonacci(8))
         return 0
     }
 }

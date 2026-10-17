@@ -3,70 +3,70 @@ architecture permissive
 import ocara.UnitTest
 import ocara.IO
 
-class Test_13_instantiation {
-    
+class Test13Instantiation extends UnitTest {
+
     public method colorTest(): int {
         var red:Color = use Color(255, 0, 0)
-        UnitTest::assertEquals(255, red.r)
-        UnitTest::assertEquals(0, red.g)
-        UnitTest::assertEquals(0, red.b)
+        self::assertEquals(255, red.r)
+        self::assertEquals(0, red.g)
+        self::assertEquals(0, red.b)
         return 0
     }
-    
+
     public method timerTest(): int {
         var timer:Timer = use Timer(10)
-        UnitTest::assertEquals(10, timer.remaining())
-        UnitTest::assertFalse(timer.isDone())
-        
+        self::assertEquals(10, timer.remaining())
+        self::assertFalse(timer.isDone())
+
         timer.tick()
-        UnitTest::assertEquals(9, timer.remaining())
-        
+        self::assertEquals(9, timer.remaining())
+
         return 0
     }
-    
+
     public method mainTest(): int {
         var red:Color = use Color(255, 0, 0)
         var green:Color = use Color(0, 255, 0)
         var blue:Color = use Color(0, 0, 255)
-        
-        UnitTest::assertEquals(255, red.r)
-        UnitTest::assertEquals(255, green.g)
-        UnitTest::assertEquals(255, blue.b)
-        
+
+        self::assertEquals(255, red.r)
+        self::assertEquals(255, green.g)
+        self::assertEquals(255, blue.b)
+
         var timer:Timer = use Timer(5)
-        UnitTest::assertEquals(5, timer.remaining())
+        self::assertEquals(5, timer.remaining())
         timer.tick()
-        UnitTest::assertEquals(4, timer.remaining())
-        
+        self::assertEquals(4, timer.remaining())
+
         return 0
     }
     public method displayTest(): int {
         var c:Color = use Color(10, 20, 30)
         c.display()
-        UnitTest::assertEquals(10, c.r)
-        UnitTest::assertEquals(20, c.g)
-        UnitTest::assertEquals(30, c.b)
+        self::assertEquals(10, c.r)
+        self::assertEquals(20, c.g)
+        self::assertEquals(30, c.b)
 
         var p1:Pair = use Pair("clé", 42)
         var p2:Pair = use Pair(true, 3.14)
         p1.display()
         p2.display()
-        UnitTest::assertEquals("clé", p1.first)
-        UnitTest::assertEquals(42, p1.second)
-        UnitTest::assertEquals(true, p2.first)
-        UnitTest::assertEquals(3.14, p2.second)
+        self::assertEquals("clé", p1.first)
+        self::assertEquals(42, p1.second)
+        self::assertEquals(true, p2.first)
+        self::assertEquals(3.14, p2.second)
         return 0
     }
 
     public method tickTest(): int {
         var t:Timer = use Timer(2)
         t.tick()
-        UnitTest::assertEquals(1, t.remaining())
+        self::assertEquals(1, t.remaining())
         t.tick()
-        UnitTest::assertEquals(0, t.remaining())
+        self::assertEquals(0, t.remaining())
         // ne descend jamais sous zéro
         t.tick()
-        UnitTest::assertEquals(0, t.remaining())
+        self::assertEquals(0, t.remaining())
         return 0
     }
 
@@ -76,18 +76,18 @@ class Test_13_instantiation {
         t1.tick()
         t1.tick()
         // instances indépendantes
-        UnitTest::assertEquals(1, t1.remaining())
-        UnitTest::assertEquals(5, t2.remaining())
+        self::assertEquals(1, t1.remaining())
+        self::assertEquals(5, t2.remaining())
         return 0
     }
 
     public method isDoneTest(): int {
         var t:Timer = use Timer(1)
-        UnitTest::assertFalse(t.isDone())
+        self::assertFalse(t.isDone())
         t.tick()
-        UnitTest::assertTrue(t.isDone())
+        self::assertTrue(t.isDone())
         var zero:Timer = use Timer(0)
-        UnitTest::assertTrue(zero.isDone())
+        self::assertTrue(zero.isDone())
         return 0
     }
 }

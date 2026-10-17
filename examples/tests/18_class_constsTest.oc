@@ -3,86 +3,86 @@ architecture permissive
 import ocara.UnitTest
 import ocara.IO
 
-class Test_18_class_consts {
-    
+class Test18ClassConsts extends UnitTest {
+
     public method directionConstTest(): int {
-        UnitTest::assertEquals("N", Direction::NORTH)
-        UnitTest::assertEquals("S", Direction::SOUTH)
-        UnitTest::assertEquals("E", Direction::EAST)
-        UnitTest::assertEquals("W", Direction::WEST)
+        self::assertEquals("N", Direction::NORTH)
+        self::assertEquals("S", Direction::SOUTH)
+        self::assertEquals("E", Direction::EAST)
+        self::assertEquals("W", Direction::WEST)
         return 0
     }
-    
+
     public method directionOppositeTest(): int {
-        UnitTest::assertEquals("S", Direction::opposite("N"))
-        UnitTest::assertEquals("N", Direction::opposite("S"))
-        UnitTest::assertEquals("W", Direction::opposite("E"))
-        UnitTest::assertEquals("E", Direction::opposite("W"))
+        self::assertEquals("S", Direction::opposite("N"))
+        self::assertEquals("N", Direction::opposite("S"))
+        self::assertEquals("W", Direction::opposite("E"))
+        self::assertEquals("E", Direction::opposite("W"))
         return 0
     }
-    
+
     public method configTest(): int {
-        UnitTest::assertEquals("1.0.0", Config::VERSION)
-        UnitTest::assertEquals("Ocara App", Config::APP_NAME)
-        UnitTest::assertEquals(3, Config::MAX_RETRY)
-        UnitTest::assertTrue(Config::retryLimitOk(0))
-        UnitTest::assertTrue(Config::retryLimitOk(2))
-        UnitTest::assertFalse(Config::retryLimitOk(3))
+        self::assertEquals("1.0.0", Config::VERSION)
+        self::assertEquals("Ocara App", Config::APP_NAME)
+        self::assertEquals(3, Config::MAX_RETRY)
+        self::assertTrue(Config::retryLimitOk(0))
+        self::assertTrue(Config::retryLimitOk(2))
+        self::assertFalse(Config::retryLimitOk(3))
         return 0
     }
-    
+
     public method colorTest(): int {
-        UnitTest::assertEquals("#FF0000", Color::RED)
-        UnitTest::assertEquals("#00FF00", Color::GREEN)
-        UnitTest::assertEquals("#0000FF", Color::BLUE)
+        self::assertEquals("#FF0000", Color::RED)
+        self::assertEquals("#00FF00", Color::GREEN)
+        self::assertEquals("#0000FF", Color::BLUE)
         return 0
     }
-    
+
     public method mainTest(): int {
-        UnitTest::assertEquals("N", Direction::NORTH)
-        UnitTest::assertEquals("S", Direction::opposite("N"))
-        UnitTest::assertEquals("1.0.0", Config::VERSION)
-        UnitTest::assertTrue(Config::retryLimitOk(0))
-        UnitTest::assertEquals("#FF0000", Color::RED)
+        self::assertEquals("N", Direction::NORTH)
+        self::assertEquals("S", Direction::opposite("N"))
+        self::assertEquals("1.0.0", Config::VERSION)
+        self::assertTrue(Config::retryLimitOk(0))
+        self::assertEquals("#FF0000", Color::RED)
         return 0
     }
     public method oppositeTest(): int {
-        UnitTest::assertEquals(Direction::SOUTH, Direction::opposite(Direction::NORTH))
-        UnitTest::assertEquals(Direction::NORTH, Direction::opposite(Direction::SOUTH))
-        UnitTest::assertEquals(Direction::WEST, Direction::opposite(Direction::EAST))
-        UnitTest::assertEquals(Direction::EAST, Direction::opposite(Direction::WEST))
-        UnitTest::assertEquals("?", Direction::opposite("X"))
-        UnitTest::assertEquals("?", Direction::opposite(""))
+        self::assertEquals(Direction::SOUTH, Direction::opposite(Direction::NORTH))
+        self::assertEquals(Direction::NORTH, Direction::opposite(Direction::SOUTH))
+        self::assertEquals(Direction::WEST, Direction::opposite(Direction::EAST))
+        self::assertEquals(Direction::EAST, Direction::opposite(Direction::WEST))
+        self::assertEquals("?", Direction::opposite("X"))
+        self::assertEquals("?", Direction::opposite(""))
         // involution
-        UnitTest::assertEquals("N", Direction::opposite(Direction::opposite("N")))
+        self::assertEquals("N", Direction::opposite(Direction::opposite("N")))
         return 0
     }
 
     public method bannerTest(): int {
         Config::banner()
-        UnitTest::assertEquals("Ocara App v1.0.0", Config::APP_NAME + " v" + Config::VERSION)
+        self::assertEquals("Ocara App v1.0.0", Config::APP_NAME + " v" + Config::VERSION)
         return 0
     }
 
     public method retryLimitOkTest(): int {
-        UnitTest::assertTrue(Config::retryLimitOk(0))
-        UnitTest::assertTrue(Config::retryLimitOk(2))
-        UnitTest::assertFalse(Config::retryLimitOk(3))
-        UnitTest::assertFalse(Config::retryLimitOk(10))
+        self::assertTrue(Config::retryLimitOk(0))
+        self::assertTrue(Config::retryLimitOk(2))
+        self::assertFalse(Config::retryLimitOk(3))
+        self::assertFalse(Config::retryLimitOk(10))
         // boucle de main : le nombre de tentatives vaut MAX_RETRY
         var attempt:int = 0
         while Config::retryLimitOk(attempt) {
             attempt = attempt + 1
         }
-        UnitTest::assertEquals(Config::MAX_RETRY, attempt)
+        self::assertEquals(Config::MAX_RETRY, attempt)
         return 0
     }
 
     public method primaryColorsTest(): int {
         Color::primaryColors()
-        UnitTest::assertEquals("#FF0000", Color::RED)
-        UnitTest::assertEquals("#00FF00", Color::GREEN)
-        UnitTest::assertEquals("#0000FF", Color::BLUE)
+        self::assertEquals("#FF0000", Color::RED)
+        self::assertEquals("#00FF00", Color::GREEN)
+        self::assertEquals("#0000FF", Color::BLUE)
         return 0
     }
 }

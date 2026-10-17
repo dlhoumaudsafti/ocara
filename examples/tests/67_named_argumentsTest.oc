@@ -8,65 +8,65 @@ import AdminDto from "67_named_arguments"
 // docs/roadmap.d/langage-named-arguments.md — chaque test vérifie la VALEUR
 // réellement obtenue (ordre de résolution par nom + valeurs par défaut
 // comblant les trous), pas seulement l'absence d'erreur de compilation.
-class Test_67_named_arguments {
+class Test67NamedArguments extends UnitTest {
 
     public method positionalStillWorksTest(): int {
         var u:UserDto = use UserDto(42, "David", "d@x.io")
-        UnitTest::assertEquals("[42:David:d@x.io:user]", u.describe())
+        self::assertEquals("[42:David:d@x.io:user]", u.describe())
         return 0
     }
 
     public method namedInAnyOrderTest(): int {
         var u:UserDto = use UserDto(email: "e@x.io", name: "Eve", id: 3)
-        UnitTest::assertEquals("[3:Eve:e@x.io:user]", u.describe())
+        self::assertEquals("[3:Eve:e@x.io:user]", u.describe())
         return 0
     }
 
     public method middleDefaultSkippedTest(): int {
         var u:UserDto = use UserDto(role: "admin", name: "Bob", id: 5)
-        UnitTest::assertEquals("(5:Bob:none:admin)", u.describe(suffix: ")", prefix: "("))
+        self::assertEquals("(5:Bob:none:admin)", u.describe(suffix: ")", prefix: "("))
         return 0
     }
 
     public method positionalInitDefaultsTest(): int {
         var u:UserDto = use UserDto(7, "Zed")
-        UnitTest::assertEquals("[7:Zed:none:user]", u.describe())
+        self::assertEquals("[7:Zed:none:user]", u.describe())
         return 0
     }
 
     public method staticAndInheritedTest(): int {
-        UnitTest::assertEquals("[0:Anon:none:guest]", UserDto::guest(name: "Anon").describe())
+        self::assertEquals("[0:Anon:none:guest]", UserDto::guest(name: "Anon").describe())
         var admin:AdminDto = use AdminDto(name: "Root", id: 1, role: "admin")
-        UnitTest::assertEquals("{1:Root:none:admin]", admin.describe(prefix: "{"))
+        self::assertEquals("{1:Root:none:admin]", admin.describe(prefix: "{"))
         return 0
     }
 
     public method builtinNamedTest(): int {
-        UnitTest::assertEquals("a-b-c", String::replace(to: "-", s: "a_b_c", from: "_"))
+        self::assertEquals("a-b-c", String::replace(to: "-", s: "a_b_c", from: "_"))
         return 0
     }
 
     // `describe` : défauts, positionnel, nommé partiel et complet.
     public method describeTest(): int {
         var u:UserDto = use UserDto(1, "Al", "a@x.io", "dev")
-        UnitTest::assertEquals("[1:Al:a@x.io:dev]", u.describe())
-        UnitTest::assertEquals("<1:Al:a@x.io:dev>", u.describe("<", ">"))
-        UnitTest::assertEquals("[1:Al:a@x.io:dev}", u.describe(suffix: "}"))
-        UnitTest::assertEquals("(1:Al:a@x.io:dev)", u.describe(suffix: ")", prefix: "("))
+        self::assertEquals("[1:Al:a@x.io:dev]", u.describe())
+        self::assertEquals("<1:Al:a@x.io:dev>", u.describe("<", ">"))
+        self::assertEquals("[1:Al:a@x.io:dev}", u.describe(suffix: "}"))
+        self::assertEquals("(1:Al:a@x.io:dev)", u.describe(suffix: ")", prefix: "("))
         return 0
     }
 
     // `guest` : rôle forcé à "guest", `id` par défaut à 0 ou fourni.
     public method guestTest(): int {
         var g:UserDto = UserDto::guest(name: "Anon")
-        UnitTest::assertEquals(0, g.id)
-        UnitTest::assertEquals("Anon", g.name)
-        UnitTest::assertEquals("none", g.email)
-        UnitTest::assertEquals("guest", g.role)
+        self::assertEquals(0, g.id)
+        self::assertEquals("Anon", g.name)
+        self::assertEquals("none", g.email)
+        self::assertEquals("guest", g.role)
         var g2:UserDto = UserDto::guest(id: 9, name: "Visitor")
-        UnitTest::assertEquals("[9:Visitor:none:guest]", g2.describe())
+        self::assertEquals("[9:Visitor:none:guest]", g2.describe())
         var g3:UserDto = UserDto::guest("Pos", 4)
-        UnitTest::assertEquals(4, g3.id)
+        self::assertEquals(4, g3.id)
         return 0
     }
 }

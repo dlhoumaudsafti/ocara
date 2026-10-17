@@ -18,12 +18,12 @@ import Level3 from "66_chained_call_depth_limit"
 //
 // Chaque test vérifie la VALEUR réellement obtenue, pas seulement l'absence
 // d'erreur de compilation.
-class Test_66_chained_call_depth_limit {
+class Test66ChainedCallDepthLimit extends UnitTest {
 
     // 2 niveaux — non-régression : fonctionnait déjà avant ce correctif.
     public method twoLevelChainStillWorksTest(): int {
         var w:Wrapper = use Wrapper(use Circle())
-        UnitTest::assertEquals("circle", w.getCircle().shapeName())
+        self::assertEquals("circle", w.getCircle().shapeName())
         return 0
     }
 
@@ -31,7 +31,7 @@ class Test_66_chained_call_depth_limit {
     // enchaînées (`Wrapper` -> `Circle` -> `string`).
     public method threeLevelChainAcrossDifferentClassesTest(): int {
         var w:Wrapper = use Wrapper(use Circle())
-        UnitTest::assertEquals("CIRCLE", w.getCircle().shapeName().upper())
+        self::assertEquals("CIRCLE", w.getCircle().shapeName().upper())
         return 0
     }
 
@@ -40,7 +40,7 @@ class Test_66_chained_call_depth_limit {
     // `String::upper`).
     public method fourLevelChainTest(): int {
         var l1:Level1 = use Level1()
-        UnitTest::assertEquals("DEEP", l1.next().next().label().upper())
+        self::assertEquals("DEEP", l1.next().next().label().upper())
         return 0
     }
 
@@ -49,13 +49,13 @@ class Test_66_chained_call_depth_limit {
         var c:Circle = use Circle()
         var w:Wrapper = use Wrapper(c)
         var got:Circle = w.getCircle()
-        UnitTest::assertEquals("circle", got.shapeName())
+        self::assertEquals("circle", got.shapeName())
         return 0
     }
 
     public method shapeNameTest(): int {
         var c:Circle = use Circle()
-        UnitTest::assertEquals("circle", c.shapeName())
+        self::assertEquals("circle", c.shapeName())
         return 0
     }
 
@@ -64,14 +64,14 @@ class Test_66_chained_call_depth_limit {
         var l1:Level1 = use Level1()
         var l2:Level2 = l1.next()
         var l3:Level3 = l2.next()
-        UnitTest::assertEquals("deep", l3.label())
+        self::assertEquals("deep", l3.label())
         return 0
     }
 
     public method labelTest(): int {
         var l3:Level3 = use Level3()
-        UnitTest::assertEquals("deep", l3.label())
-        UnitTest::assertEquals("DEEP", l3.label().upper())
+        self::assertEquals("deep", l3.label())
+        self::assertEquals("DEEP", l3.label().upper())
         return 0
     }
 }

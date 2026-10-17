@@ -2,37 +2,37 @@ architecture permissive
 
 import ocara.UnitTest
 
-class Test_30_variadic {
-    
+class Test30Variadic extends UnitTest {
+
     public method variadicIntTest(): int {
-        UnitTest::assertEquals(0, sumInt())
-        UnitTest::assertEquals(5, sumInt(5))
-        UnitTest::assertEquals(15, sumInt(5, 10))
-        UnitTest::assertEquals(30, sumInt(5, 10, 15))
+        self::assertEquals(0, sumInt())
+        self::assertEquals(5, sumInt(5))
+        self::assertEquals(15, sumInt(5, 10))
+        self::assertEquals(30, sumInt(5, 10, 15))
         return 0
     }
-    
+
     public method variadicStringTest(): int {
-        UnitTest::assertEquals("", concatString())
-        UnitTest::assertEquals("hello", concatString("hello"))
-        UnitTest::assertEquals("helloworld", concatString("hello", "world"))
+        self::assertEquals("", concatString())
+        self::assertEquals("hello", concatString("hello"))
+        self::assertEquals("helloworld", concatString("hello", "world"))
         return 0
     }
-    
+
     public method variadicBoolTest(): int {
-        UnitTest::assertTrue(allTrue())
-        UnitTest::assertTrue(allTrue(true))
-        UnitTest::assertTrue(allTrue(true, true))
-        UnitTest::assertFalse(allTrue(true, false))
-        UnitTest::assertFalse(allTrue(false, true))
+        self::assertTrue(allTrue())
+        self::assertTrue(allTrue(true))
+        self::assertTrue(allTrue(true, true))
+        self::assertFalse(allTrue(true, false))
+        self::assertFalse(allTrue(false, true))
         return 0
     }
-    
+
     public method mainTest(): int {
-        UnitTest::assertEquals(30, sumInt(5, 10, 15))
-        UnitTest::assertEquals("helloworld", concatString("hello", "world"))
-        UnitTest::assertTrue(allTrue(true, true))
-        UnitTest::assertFalse(allTrue(true, false))
+        self::assertEquals(30, sumInt(5, 10, 15))
+        self::assertEquals("helloworld", concatString("hello", "world"))
+        self::assertTrue(allTrue(true, true))
+        self::assertFalse(allTrue(true, false))
         return 0
     }
 }

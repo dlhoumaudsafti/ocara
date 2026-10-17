@@ -31,7 +31,7 @@ import ocara.UnitTest
 // src/sema/tests/self_const_resolution.rs pour les tests Rust). Reproduit
 // dans examples/advanced/tauri_httpserver/configs/Database.oc
 // (`SQLite::open(self::DB_PATH)`).
-class Test_51_import_alias_and_self_const {
+class Test51ImportAliasAndSelfConst extends UnitTest {
     private const GREETING:string = "bonjour"
     private property greeting:string
 
@@ -42,26 +42,26 @@ class Test_51_import_alias_and_self_const {
 
     public method aliasedStaticCallCompilesAndRunsTest(): int {
         scoped res:HTTPResponse = Request::get("http://127.0.0.1:1/health")
-        UnitTest::assertFalse(Request::ok(res))
-        UnitTest::assertTrue(Request::isError(res))
+        self::assertFalse(Request::ok(res))
+        self::assertTrue(Request::isError(res))
         return 0
     }
 
     public method aliasedInstanceSugarCompilesAndRunsTest(): int {
         scoped res:HTTPResponse = Request::get("http://127.0.0.1:1/health")
-        UnitTest::assertFalse(res.ok())
-        UnitTest::assertTrue(res.isError())
+        self::assertFalse(res.ok())
+        self::assertTrue(res.isError())
         return 0
     }
 
     public method constructorResolvedConstTest(): int {
-        UnitTest::assertEquals("bonjour", self.greeting)
+        self::assertEquals("bonjour", self.greeting)
         return 0
     }
 
     // Depuis une méthode d'instance normale (pas le constructeur).
     public method instanceMethodResolvedConstTest(): int {
-        UnitTest::assertEquals("bonjour", self::GREETING)
+        self::assertEquals("bonjour", self::GREETING)
         return 0
     }
 }

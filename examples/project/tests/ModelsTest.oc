@@ -5,25 +5,25 @@
 import ocara.UnitTest
 import classes.Models
 
-class ModelsTest {
+class ModelsTest extends UnitTest {
 
-    public method get_titleTest(): int {
+    public method getTitleTest(): int {
         scoped m:Models = use Models("Ocara", 1)
-        UnitTest::assertEquals("Ocara", m.get_title())
+        self::assertEquals("Ocara", m.get_title())
         return 0
     }
 
-    public method get_idTest(): int {
+    public method getIdTest(): int {
         scoped m:Models = use Models("Ocara", 42)
-        UnitTest::assertEquals(42, m.get_id())
+        self::assertEquals(42, m.get_id())
         return 0
     }
 
     public method displayTest(): int {
         // display() ne retourne rien — on vérifie juste que l'appel ne lève pas d'erreur
         scoped m:Models = use Models("Test", 7)
-        UnitTest::assertNotNull(m)
-        UnitTest::pass("display appelé sans erreur")
+        self::assertNotNull(m)
+        self::pass("display appelé sans erreur")
         return 0
     }
 }

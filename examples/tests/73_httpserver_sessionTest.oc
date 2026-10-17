@@ -10,7 +10,7 @@ import ocara.Convert
 
 // `HTTPServerSession` — session par visiteur (cookie OCARASESSID) et état
 // global partagé, sur un vrai serveur démarré dans un thread détaché.
-class Test_73_httpserver_session {
+class Test73HttpserverSession extends UnitTest {
 
     public method sessionSurvivesRequestsWithCookieTest(): int {
         var s:HTTPServer = use HTTPServer()
@@ -49,32 +49,32 @@ class Test_73_httpserver_session {
 
         scoped login:HTTPResponse = HTTPRequest::get("http://localhost:8206/login")
         var id:string = login.body()
-        UnitTest::assertEquals(32, id.len())
-        UnitTest::assertEquals("OCARASESSID=" + id + "; Path=/; HttpOnly; SameSite=Lax", login.header("Set-Cookie"))
+        self::assertEquals(32, id.len())
+        self::assertEquals("OCARASESSID=" + id + "; Path=/; HttpOnly; SameSite=Lax", login.header("Set-Cookie"))
 
         scoped me:HTTPRequest = HTTPRequest::new("http://localhost:8206/me")
         me.setHeader("Cookie", "theme=dark; OCARASESSID=" + id)
-        scoped meRes:HTTPResponse = me.send()
-        UnitTest::assertEquals(200, meRes.status())
-        UnitTest::assertEquals("ada|70001|true,false|" + id, meRes.body())
+        scoped me_res:HTTPResponse = me.send()
+        self::assertEquals(200, me_res.status())
+        self::assertEquals("ada|70001|true,false|" + id, me_res.body())
 
         scoped anon:HTTPResponse = HTTPRequest::get("http://localhost:8206/me")
-        UnitTest::assertEquals(401, anon.status())
+        self::assertEquals(401, anon.status())
 
         scoped forged:HTTPRequest = HTTPRequest::new("http://localhost:8206/me")
         forged.setHeader("Cookie", "OCARASESSID=attacker-chosen")
-        scoped forgedRes:HTTPResponse = forged.send()
-        UnitTest::assertEquals(401, forgedRes.status())
+        scoped forged_res:HTTPResponse = forged.send()
+        self::assertEquals(401, forged_res.status())
 
         scoped logout:HTTPRequest = HTTPRequest::new("http://localhost:8206/logout")
         logout.setHeader("Cookie", "OCARASESSID=" + id)
-        scoped logoutRes:HTTPResponse = logout.send()
-        UnitTest::assertEquals("OCARASESSID=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0", logoutRes.header("Set-Cookie"))
+        scoped logout_res:HTTPResponse = logout.send()
+        self::assertEquals("OCARASESSID=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0", logout_res.header("Set-Cookie"))
 
         scoped after:HTTPRequest = HTTPRequest::new("http://localhost:8206/me")
         after.setHeader("Cookie", "OCARASESSID=" + id)
-        scoped afterRes:HTTPResponse = after.send()
-        UnitTest::assertEquals(401, afterRes.status())
+        scoped after_res:HTTPResponse = after.send()
+        self::assertEquals(401, after_res.status())
         return 0
     }
 
@@ -97,12 +97,12 @@ class Test_73_httpserver_session {
 
         scoped first:HTTPResponse = HTTPRequest::get("http://localhost:8207/hit")
         scoped second:HTTPResponse = HTTPRequest::get("http://localhost:8207/hit")
-        UnitTest::assertEquals("1", first.body())
-        UnitTest::assertEquals("2", second.body())
-        UnitTest::assertEquals(2, HTTPServerSession::getGlobal("hits"))
-        UnitTest::assertEquals("", first.header("Set-Cookie"))
+        self::assertEquals("1", first.body())
+        self::assertEquals("2", second.body())
+        self::assertEquals(2, HTTPServerSession::getGlobal("hits"))
+        self::assertEquals("", first.header("Set-Cookie"))
         HTTPServerSession::removeGlobal("hits")
-        UnitTest::assertFalse(HTTPServerSession::hasGlobal("hits"))
+        self::assertFalse(HTTPServerSession::hasGlobal("hits"))
         return 0
     }
 
@@ -111,9 +111,9 @@ class Test_73_httpserver_session {
         HTTPServerSession::setGlobal("scores", scores)
         scores["ada"] = 5
         var copy:map<string, int> = HTTPServerSession::getGlobal("scores")
-        UnitTest::assertEquals(0, copy["ada"])
-        UnitTest::assertEquals(70000, copy["bob"])
-        UnitTest::assertNull(HTTPServerSession::getGlobal("absent"))
+        self::assertEquals(0, copy["ada"])
+        self::assertEquals(70000, copy["bob"])
+        self::assertNull(HTTPServerSession::getGlobal("absent"))
         return 0
     }
 }

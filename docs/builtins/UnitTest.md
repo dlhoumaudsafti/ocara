@@ -455,19 +455,19 @@ Les méthodes de classe utilisent le mot-clé `method` précédé d'un modificat
 
 Les méthodes **statiques** (`public static method fooTest`) sont aussi reconnues et exécutées.
 
-Une classe de test peut hériter de `UnitTest` (`class MathTests extends UnitTest`) pour appeler les assertions par `self::assertEquals(...)`.
+Style recommandé (suivi par tous les tests du projet) : la classe de test hérite de `UnitTest` et appelle les assertions par `self::assertEquals(...)` plutôt que `UnitTest::assertEquals(...)`.
 
 ```ocara
 import ocara.UnitTest
 
-class MathTest {
+class MathTest extends UnitTest {
     public method addTest(): int {
-        UnitTest::assertEquals(5, add(2, 3))
+        self::assertEquals(5, add(2, 3))
         return 0
     }
 
     public method negativeNumbersTest(): int {
-        UnitTest::assertLess(add(-5, -3), 0)
+        self::assertLess(add(-5, -3), 0)
         return 0
     }
 

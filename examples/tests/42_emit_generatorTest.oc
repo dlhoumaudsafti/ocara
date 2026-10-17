@@ -13,7 +13,7 @@ import ocara.Convert
 // y compris avec des `try` imbriqués et un `raise` déclenché par une
 // fonction appelée depuis l'intérieur du `try`.
 
-class Test_42_emit_generator {
+class Test42EmitGenerator extends UnitTest {
 
     // `for x in truc()` — consommation complète, aucune restriction.
     public method forBasicTest(): int {
@@ -21,28 +21,28 @@ class Test_42_emit_generator {
         for x in twoValues() {
             sum = sum + x
         }
-        UnitTest::assertEquals(3, sum)
+        self::assertEquals(3, sum)
         return 0
     }
 
     // Consommation scalaire directe : `var v:T = truc()`.
     public method scalarVarTest(): int {
         var v:int = singleValue()
-        UnitTest::assertEquals(42, v)
+        self::assertEquals(42, v)
         return 0
     }
 
     // Consommation scalaire directe en position d'ARGUMENT d'un appel.
     public method scalarAsArgumentTest(): int {
-        UnitTest::assertEquals(42, identity(singleValue()))
+        self::assertEquals(42, identity(singleValue()))
         return 0
     }
 
     // Branchement (`if`/`else`) : au plus un `emit` jamais atteint, donc
     // consommation scalaire directe autorisée pour les DEUX branches.
     public method branchScalarTest(): int {
-        UnitTest::assertEquals(1, branchValue(true))
-        UnitTest::assertEquals(2, branchValue(false))
+        self::assertEquals(1, branchValue(true))
+        self::assertEquals(2, branchValue(false))
         return 0
     }
 
@@ -56,8 +56,8 @@ class Test_42_emit_generator {
             sum = sum + x
             count = count + 1
         }
-        UnitTest::assertEquals(6, sum)     // 0+1+2+3
-        UnitTest::assertEquals(4, count)
+        self::assertEquals(6, sum)     // 0+1+2+3
+        self::assertEquals(4, count)
         return 0
     }
 
@@ -71,7 +71,7 @@ class Test_42_emit_generator {
                 break
             }
         }
-        UnitTest::assertEquals(3, count)   // 0, 1, 2 puis break
+        self::assertEquals(3, count)   // 0, 1, 2 puis break
         return 0
     }
 
@@ -79,13 +79,13 @@ class Test_42_emit_generator {
     public method methodGeneratorTest(): int {
         var g:Gen = use Gen()
         var first:int = g.produce()
-        UnitTest::assertEquals(10, first)
+        self::assertEquals(10, first)
 
         var sum:int = 0
         for x in g.produce() {
             sum = sum + x
         }
-        UnitTest::assertEquals(30, sum)    // 10 + 20
+        self::assertEquals(30, sum)    // 10 + 20
         return 0
     }
 
@@ -96,7 +96,7 @@ class Test_42_emit_generator {
         for x in tryNoRaise() {
             sum = sum + x
         }
-        UnitTest::assertEquals(3, sum)
+        self::assertEquals(3, sum)
         return 0
     }
 
@@ -108,10 +108,10 @@ class Test_42_emit_generator {
         for x in tryRaiseCaught() {
             Array::push(values, x)
         }
-        UnitTest::assertEquals(3, Array::len(values))
-        UnitTest::assertEquals(1, Array::get(values, 0))
-        UnitTest::assertEquals(99, Array::get(values, 1))
-        UnitTest::assertEquals(4, Array::get(values, 2))
+        self::assertEquals(3, Array::len(values))
+        self::assertEquals(1, Array::get(values, 0))
+        self::assertEquals(99, Array::get(values, 1))
+        self::assertEquals(4, Array::get(values, 2))
         return 0
     }
 
@@ -124,9 +124,9 @@ class Test_42_emit_generator {
         for x in tryRaiseFromCall() {
             Array::push(values, x)
         }
-        UnitTest::assertEquals(2, Array::len(values))
-        UnitTest::assertEquals(1, Array::get(values, 0))
-        UnitTest::assertEquals(77, Array::get(values, 1))
+        self::assertEquals(2, Array::len(values))
+        self::assertEquals(1, Array::get(values, 0))
+        self::assertEquals(77, Array::get(values, 1))
         return 0
     }
 
@@ -139,12 +139,12 @@ class Test_42_emit_generator {
         for x in tryNested() {
             Array::push(values, x)
         }
-        UnitTest::assertEquals(5, Array::len(values))
-        UnitTest::assertEquals(1,  Array::get(values, 0))
-        UnitTest::assertEquals(2,  Array::get(values, 1))
-        UnitTest::assertEquals(20, Array::get(values, 2))
-        UnitTest::assertEquals(4,  Array::get(values, 3))
-        UnitTest::assertEquals(40, Array::get(values, 4))
+        self::assertEquals(5, Array::len(values))
+        self::assertEquals(1,  Array::get(values, 0))
+        self::assertEquals(2,  Array::get(values, 1))
+        self::assertEquals(20, Array::get(values, 2))
+        self::assertEquals(4,  Array::get(values, 3))
+        self::assertEquals(40, Array::get(values, 4))
         return 0
     }
 
@@ -152,15 +152,15 @@ class Test_42_emit_generator {
     // pas — l'exception doit se re-propager vers un `try` EXTÉRIEUR au
     // générateur (celui du code consommateur), pas être avalée.
     public method tryUnmatchedFilterPropagatesTest(): int {
-        var caughtOutside:bool = false
+        var caught_outside:bool = false
         try {
             for x in tryWrongFilter() {
                 IO::write(x)
             }
         } on e {
-            caughtOutside = true
+            caught_outside = true
         }
-        UnitTest::assertTrue(caughtOutside)
+        self::assertTrue(caught_outside)
         return 0
     }
 
@@ -169,11 +169,11 @@ class Test_42_emit_generator {
     // générateur est un `try`/`on` complet (Cas A).
     public method fromMessageBasicTest(): int {
         var values:array<int> = Array::fromMessage(countTo(5))
-        UnitTest::assertEquals(5, Array::len(values))
+        self::assertEquals(5, Array::len(values))
         var i:int = 0
         while i smaller Array::len(values) {
             var v:int = Array::get(values, i)
-            UnitTest::assertEquals(i, v)
+            self::assertEquals(i, v)
             i = i + 1
         }
         return 0
@@ -181,13 +181,13 @@ class Test_42_emit_generator {
 
     public method fromMessageWithTryTest(): int {
         var values:array<int> = Array::fromMessage(tryRaiseCaught())
-        UnitTest::assertEquals(3, Array::len(values))
+        self::assertEquals(3, Array::len(values))
         var a:int = Array::get(values, 0)
         var b:int = Array::get(values, 1)
         var c:int = Array::get(values, 2)
-        UnitTest::assertEquals(1, a)
-        UnitTest::assertEquals(99, b)
-        UnitTest::assertEquals(4, c)
+        self::assertEquals(1, a)
+        self::assertEquals(99, b)
+        self::assertEquals(4, c)
         return 0
     }
 
@@ -199,19 +199,19 @@ class Test_42_emit_generator {
         for s in wordsGen(3) {
             out = out + s
         }
-        UnitTest::assertEquals("w0!w1!w2!", out)
+        self::assertEquals("w0!w1!w2!", out)
         var pairs:string = ""
         for p in pairsGen() {
             pairs = pairs + p + ";"
         }
-        UnitTest::assertEquals("a=x;b=y;", pairs)
+        self::assertEquals("a=x;b=y;", pairs)
         var sum:int = 0
         for x in rangeGen(4) {
             sum = sum + x
         }
-        UnitTest::assertEquals(12, sum)
+        self::assertEquals(12, sum)
         var nested:array<string> = Array::fromMessage(nestedGen(2))
-        UnitTest::assertEquals(4, Array::len(nested))
+        self::assertEquals(4, Array::len(nested))
         return 0
     }
 
@@ -223,7 +223,7 @@ class Test_42_emit_generator {
             first = s
             break
         }
-        UnitTest::assertEquals("w0!", first)
+        self::assertEquals("w0!", first)
         return 0
     }
 }

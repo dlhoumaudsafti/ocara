@@ -28,12 +28,12 @@ import greeting from "63_chained_call_on_free_function_result"
 // niveaux, `a.b().c().d()`, avec ou sans fonction libre) désormais corrigée
 // aussi — voir examples/tests/66_chained_call_depth_limitTest.oc et
 // docs/roadmap.d/langage-chained-call-depth-limit.md.
-class Test_63_chained_call_on_free_function_result {
+class Test63ChainedCallOnFreeFunctionResult extends UnitTest {
 
     // Le cas EXACT du ticket : classe utilisateur, méthode d'instance
     // retournant une string.
     public method chainedCallOnUserClassMethodTest(): int {
-        UnitTest::assertEquals("circle", pickCircle(0).shapeName())
+        self::assertEquals("circle", pickCircle(0).shapeName())
         return 0
     }
 
@@ -41,7 +41,7 @@ class Test_63_chained_call_on_free_function_result {
     // vérifie que le correctif n'est pas accidentellement spécifique à un
     // seul type de retour de méthode.
     public method chainedCallOnUserClassSecondMethodTest(): int {
-        UnitTest::assertEquals(12.56, pickCircle(0).area())
+        self::assertEquals(12.56, pickCircle(0).area())
         return 0
     }
 
@@ -49,47 +49,47 @@ class Test_63_chained_call_on_free_function_result {
     // fonction libre, chacune re-résolvant sa propre chaîne) — non-régression
     // sur la ré-utilisation du même `IrModule::func_ret_class`.
     public method chainedCallInvokedTwiceIndependentlyTest(): int {
-        UnitTest::assertEquals("circle", pickCircle(1).shapeName())
-        UnitTest::assertEquals("circle", pickCircle(2).shapeName())
+        self::assertEquals("circle", pickCircle(1).shapeName())
+        self::assertEquals("circle", pickCircle(2).shapeName())
         return 0
     }
 
     // Famille de récepteur DIFFÉRENTE : `array<T>` — une fonction libre qui
     // retourne un tableau, méthode builtin `len()` chaînée directement.
     public method chainedCallOnArrayReturningFunctionTest(): int {
-        UnitTest::assertEquals(3, makeNames().len())
+        self::assertEquals(3, makeNames().len())
         return 0
     }
 
     // Famille de récepteur DIFFÉRENTE : `map<K,V>`.
     public method chainedCallOnMapReturningFunctionTest(): int {
-        UnitTest::assertTrue(makeScores().has("alice"))
-        UnitTest::assertFalse(makeScores().has("carol"))
+        self::assertTrue(makeScores().has("alice"))
+        self::assertFalse(makeScores().has("carol"))
         return 0
     }
 
     // Famille de récepteur DIFFÉRENTE : `string` (méthode d'instance sucrée
     // sur un littéral builtin, pas une classe utilisateur).
     public method chainedCallOnStringReturningFunctionTest(): int {
-        UnitTest::assertEquals("HELLO WORLD", greeting().upper())
+        self::assertEquals("HELLO WORLD", greeting().upper())
         return 0
     }
 
     // `shapeName` via une instance nommée (hors chaînage).
     public method shapeNameTest(): int {
         var c:Circle = use Circle(1.0)
-        UnitTest::assertEquals("circle", c.shapeName())
-        UnitTest::assertEquals("circle", pickCircle(3).shapeName())
+        self::assertEquals("circle", c.shapeName())
+        self::assertEquals("circle", pickCircle(3).shapeName())
         return 0
     }
 
     // `area` = 3.14 * r * r, pour plusieurs rayons.
     public method areaTest(): int {
         var c:Circle = use Circle(1.0)
-        UnitTest::assertEquals(3.14, c.area())
+        self::assertEquals(3.14, c.area())
         var z:Circle = use Circle(0.0)
-        UnitTest::assertEquals(0.0, z.area())
-        UnitTest::assertEquals(12.56, pickCircle(0).area())
+        self::assertEquals(0.0, z.area())
+        self::assertEquals(12.56, pickCircle(0).area())
         return 0
     }
 }

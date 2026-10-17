@@ -11,7 +11,7 @@ import ocara.File
 // par reproduction : une valeur 2000.0 revenait comme 4656510908468559872
 // (les bits de 2000.0 réinterprétés comme un entier) avant ce correctif.
 
-class Test_55_sqlite_real_column_boxing {
+class Test55SqliteRealColumnBoxing extends UnitTest {
 
     public method queryBoxesRealColumnTest(): int {
         const path:string = "test_55_query.db"
@@ -27,7 +27,7 @@ class Test_55_sqlite_real_column_boxing {
         File::remove(path)
 
         var price:float = rows[0]["price"]
-        UnitTest::assertEquals(2000.0, price)
+        self::assertEquals(2000.0, price)
         return 0
     }
 
@@ -45,7 +45,7 @@ class Test_55_sqlite_real_column_boxing {
         File::remove(path)
 
         var price:float = row["price"]
-        UnitTest::assertEquals(2000.0, price)
+        self::assertEquals(2000.0, price)
         return 0
     }
 
@@ -65,7 +65,7 @@ class Test_55_sqlite_real_column_boxing {
         File::remove(path)
 
         var qty:int = row["qty"]
-        UnitTest::assertEquals(42, qty)
+        self::assertEquals(42, qty)
         return 0
     }
 }

@@ -6,95 +6,95 @@ architecture permissive
 
 import ocara.UnitTest
 
-class Test_15_operators {
-    
+class Test15Operators extends UnitTest {
+
     public method arithmeticTest(): int {
-        UnitTest::assertEquals(13, 10 + 3)
-        UnitTest::assertEquals(7, 10 - 3)
-        UnitTest::assertEquals(30, 10 * 3)
-        UnitTest::assertEquals(3, 10 / 3)
-        UnitTest::assertEquals(1, 10 % 3)
+        self::assertEquals(13, 10 + 3)
+        self::assertEquals(7, 10 - 3)
+        self::assertEquals(30, 10 * 3)
+        self::assertEquals(3, 10 / 3)
+        self::assertEquals(1, 10 % 3)
         return 0
     }
-    
+
     public method precedenceTest(): int {
-        UnitTest::assertEquals(14, 2 + 3 * 4)
-        UnitTest::assertEquals(20, (2 + 3) * 4)
-        UnitTest::assertEquals(5, 10 - 2 * 3 + 1)
+        self::assertEquals(14, 2 + 3 * 4)
+        self::assertEquals(20, (2 + 3) * 4)
+        self::assertEquals(5, 10 - 2 * 3 + 1)
         return 0
     }
-    
+
     public method unaryTest(): int {
         var n:int = 5
-        UnitTest::assertEquals(-5, -n)
-        UnitTest::assertEquals(5, -(-n))
+        self::assertEquals(-5, -n)
+        self::assertEquals(5, -(-n))
         return 0
     }
-    
+
     public method comparisonTest(): int {
-        UnitTest::assertTrue(5 equal 5)
-        UnitTest::assertTrue(5 not equal 3)
-        UnitTest::assertTrue(5 smaller 10)
-        UnitTest::assertTrue(5 smaller or equal 5)
-        UnitTest::assertTrue(10 greater 5)
-        UnitTest::assertTrue(10 greater or equal 10)
+        self::assertTrue(5 equal 5)
+        self::assertTrue(5 not equal 3)
+        self::assertTrue(5 smaller 10)
+        self::assertTrue(5 smaller or equal 5)
+        self::assertTrue(10 greater 5)
+        self::assertTrue(10 greater or equal 10)
         return 0
     }
-    
+
     public method logicalTest(): int {
-        UnitTest::assertTrue(true and true)
-        UnitTest::assertFalse(true and false)
-        UnitTest::assertTrue(false or true)
-        UnitTest::assertFalse(false or false)
-        UnitTest::assertTrue(not false)
-        UnitTest::assertFalse(not true)
+        self::assertTrue(true and true)
+        self::assertFalse(true and false)
+        self::assertTrue(false or true)
+        self::assertFalse(false or false)
+        self::assertTrue(not false)
+        self::assertFalse(not true)
         return 0
     }
-    
+
     public method mainTest(): int {
         // Reproduit le comportement de main()
-        UnitTest::assertEquals(13, 10 + 3)
-        UnitTest::assertEquals(7, 10 - 3)
-        UnitTest::assertEquals(30, 10 * 3)
-        UnitTest::assertEquals(3, 10 / 3)
-        UnitTest::assertEquals(1, 10 % 3)
-        
-        UnitTest::assertEquals(14, 2 + 3 * 4)
-        UnitTest::assertEquals(20, (2 + 3) * 4)
-        UnitTest::assertEquals(5, 10 - 2 * 3 + 1)
-        
+        self::assertEquals(13, 10 + 3)
+        self::assertEquals(7, 10 - 3)
+        self::assertEquals(30, 10 * 3)
+        self::assertEquals(3, 10 / 3)
+        self::assertEquals(1, 10 % 3)
+
+        self::assertEquals(14, 2 + 3 * 4)
+        self::assertEquals(20, (2 + 3) * 4)
+        self::assertEquals(5, 10 - 2 * 3 + 1)
+
         var n:int = 5
-        UnitTest::assertEquals(-5, -n)
-        UnitTest::assertEquals(5, -(-n))
-        
+        self::assertEquals(-5, -n)
+        self::assertEquals(5, -(-n))
+
         var flag:bool = false
-        UnitTest::assertTrue(not flag)
-        UnitTest::assertFalse(not true)
-        UnitTest::assertTrue(not not true)
-        
-        UnitTest::assertTrue(5 equal 5)
-        UnitTest::assertTrue(5 not equal 3)
-        UnitTest::assertTrue(5 smaller 10)
-        UnitTest::assertTrue(5 smaller or equal 5)
-        UnitTest::assertTrue(10 greater 5)
-        UnitTest::assertTrue(10 greater or equal 10)
-        
-        UnitTest::assertTrue(true and true)
-        UnitTest::assertFalse(true and false)
-        UnitTest::assertTrue(false or true)
-        UnitTest::assertFalse(false or false)
-        
+        self::assertTrue(not flag)
+        self::assertFalse(not true)
+        self::assertTrue(not not true)
+
+        self::assertTrue(5 equal 5)
+        self::assertTrue(5 not equal 3)
+        self::assertTrue(5 smaller 10)
+        self::assertTrue(5 smaller or equal 5)
+        self::assertTrue(10 greater 5)
+        self::assertTrue(10 greater or equal 10)
+
+        self::assertTrue(true and true)
+        self::assertFalse(true and false)
+        self::assertTrue(false or true)
+        self::assertFalse(false or false)
+
         var a:int = 5
         var b:int = 0
-        UnitTest::assertTrue(a greater 0 and b greater or equal 0)
-        UnitTest::assertTrue(a greater 10 or b equal 0)
-        
+        self::assertTrue(a greater 0 and b greater or equal 0)
+        self::assertTrue(a greater 10 or b equal 0)
+
         var count:int = 0
         for i in 0 until 5 {
             count = count + 1
         }
-        UnitTest::assertEquals(5, count)
-        
+        self::assertEquals(5, count)
+
         return 0
     }
 }

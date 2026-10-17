@@ -6,7 +6,7 @@ import ocara.UnitTest
 // (docs/roadmap.d/langage-try-on-boucle-variable.md) : elle était promue
 // dans une nouvelle cellule à chaque tour, repartant de sa valeur d'avant la
 // boucle (compteur bloqué à 1) et laissant fuir une cellule par tour.
-class Test_86_try_on_loop_variable {
+class Test86TryOnLoopVariable extends UnitTest {
 
     public method counterInHandlerForLoopTest(): int {
         var n:int = 0
@@ -17,7 +17,7 @@ class Test_86_try_on_loop_variable {
                 n += 1
             }
         }
-        UnitTest::assertEquals(1000, n)
+        self::assertEquals(1000, n)
         return 0
     }
 
@@ -32,7 +32,7 @@ class Test_86_try_on_loop_variable {
                 n += i
             }
         }
-        UnitTest::assertEquals(15, n)
+        self::assertEquals(15, n)
         return 0
     }
 
@@ -45,7 +45,7 @@ class Test_86_try_on_loop_variable {
                 ok = -1
             }
         }
-        UnitTest::assertEquals(10, ok)
+        self::assertEquals(10, ok)
         return 0
     }
 }

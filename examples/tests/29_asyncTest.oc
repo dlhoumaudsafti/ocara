@@ -2,23 +2,23 @@ architecture permissive
 
 import ocara.UnitTest
 
-class Test_29_async {
-    
+class Test29Async extends UnitTest {
+
     public method asyncIntTest(): int {
         var ti:Resolvable<int> = asyncInt(7)
         var ri:int = resolve ti
-        UnitTest::assertEquals(49, ri)
+        self::assertEquals(49, ri)
         return 0
     }
 
     public method asyncBoolTest(): int {
         var tb:Resolvable<bool> = asyncBool(5)
         var rb:bool = resolve tb
-        UnitTest::assertTrue(rb)
+        self::assertTrue(rb)
 
         var tb2:Resolvable<bool> = asyncBool(-5)
         var rb2:bool = resolve tb2
-        UnitTest::assertFalse(rb2)
+        self::assertFalse(rb2)
 
         return 0
     }
@@ -26,22 +26,22 @@ class Test_29_async {
     public method asyncStringTest(): int {
         var ts:Resolvable<string> = asyncString("world")
         var rs:string = resolve ts
-        UnitTest::assertEquals("hello world", rs)
+        self::assertEquals("hello world", rs)
         return 0
     }
 
     public method mainTest(): int {
         var ti:Resolvable<int> = asyncInt(7)
         var ri:int = resolve ti
-        UnitTest::assertEquals(49, ri)
+        self::assertEquals(49, ri)
 
         var tb:Resolvable<bool> = asyncBool(5)
         var rb:bool = resolve tb
-        UnitTest::assertTrue(rb)
+        self::assertTrue(rb)
 
         var ts:Resolvable<string> = asyncString("world")
         var rs:string = resolve ts
-        UnitTest::assertEquals("hello world", rs)
+        self::assertEquals("hello world", rs)
 
         return 0
     }

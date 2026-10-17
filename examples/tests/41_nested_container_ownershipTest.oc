@@ -11,7 +11,7 @@ import ocara.UnitTest
 // (src/lower/builder.d/rc_layout.rs, runtime/src/rc.rs) ; ces tests
 // vérifient l'absence de crash à plusieurs niveaux d'imbrication.
 
-class Test_41_nested_container_ownership {
+class Test41NestedContainerOwnership extends UnitTest {
 
     // `array<array<float>>` : les valeurs choisies ci-dessous dépassent
     // PTR_THRESHOLD une fois interprétées comme bits bruts — exactement le
@@ -23,7 +23,7 @@ class Test_41_nested_container_ownership {
             self.makeNestedFloat()
             i = i + 1
         }
-        UnitTest::assertTrue(true)
+        self::assertTrue(true)
         return 0
     }
 
@@ -38,7 +38,7 @@ class Test_41_nested_container_ownership {
             self.makeTripleNested()
             i = i + 1
         }
-        UnitTest::assertTrue(true)
+        self::assertTrue(true)
         return 0
     }
 
@@ -53,7 +53,7 @@ class Test_41_nested_container_ownership {
             self.makeNestedMap()
             i = i + 1
         }
-        UnitTest::assertTrue(true)
+        self::assertTrue(true)
         return 0
     }
 
@@ -65,10 +65,10 @@ class Test_41_nested_container_ownership {
     // profonde (pas seulement "ne plante pas").
     public method nestedArrayCloneContentTest(): int {
         var escaped:array<array<int>> = self.makeAndEscape()
-        UnitTest::assertEquals(10, escaped[0][0])
-        UnitTest::assertEquals(20, escaped[0][1])
-        UnitTest::assertEquals(30, escaped[1][0])
-        UnitTest::assertEquals(999999, escaped[1][1])
+        self::assertEquals(10, escaped[0][0])
+        self::assertEquals(20, escaped[0][1])
+        self::assertEquals(30, escaped[1][0])
+        self::assertEquals(999999, escaped[1][1])
         return 0
     }
 

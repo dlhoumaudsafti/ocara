@@ -4,61 +4,61 @@ import ocara.UnitTest
 import ocara.IO
 import ocara.Array
 
-class Test_16_types {
-    
+class Test16Types extends UnitTest {
+
     public method primitivesTest(): int {
         var i:int = 42
         var f:float = 3.14
         var s:string = "Ocara"
         var b:bool = true
-        
-        UnitTest::assertEquals(42, i)
-        UnitTest::assertNotNull(f)
-        UnitTest::assertEquals("Ocara", s)
-        UnitTest::assertTrue(b)
-        
+
+        self::assertEquals(42, i)
+        self::assertNotNull(f)
+        self::assertEquals("Ocara", s)
+        self::assertTrue(b)
+
         return 0
     }
-    
+
     public method mixedTest(): int {
         var a:mixed = "text"
-        UnitTest::assertNotNull(a)
-        
+        self::assertNotNull(a)
+
         a = 100
-        UnitTest::assertNotNull(a)
-        
+        self::assertNotNull(a)
+
         a = false
-        UnitTest::assertNotNull(a)
-        
+        self::assertNotNull(a)
+
         return 0
     }
-    
+
     public method arraysTest(): int {
         var ints:array<int> = [1, 2, 3]
         var strs:array<string> = ["a", "b", "c"]
 
-        UnitTest::assertEquals(1, ints[0])
-        UnitTest::assertEquals("b", strs[1])
+        self::assertEquals(1, ints[0])
+        self::assertEquals("b", strs[1])
 
         return 0
     }
-    
+
     public method mainTest(): int {
         var i:int = 42
         var f:float = 3.14
         var s:string = "Ocara"
         var b:bool = true
         var a:mixed = "text"
-        
-        UnitTest::assertEquals(42, i)
-        UnitTest::assertNotNull(f)
-        UnitTest::assertEquals("Ocara", s)
-        UnitTest::assertTrue(b)
-        UnitTest::assertNotNull(a)
-        
+
+        self::assertEquals(42, i)
+        self::assertNotNull(f)
+        self::assertEquals("Ocara", s)
+        self::assertTrue(b)
+        self::assertNotNull(a)
+
         a = 100
         a = false
-        
+
         var ints:array<int> = [1, 2, 3]
         var strs:array<string> = ["a", "b", "c"]
         var bools:array<bool> = [true, false, true]
@@ -66,35 +66,35 @@ class Test_16_types {
         var vals:array<mixed> = [1, "deux", 3.0, false]
         var matrix:array<array<int>> = [[1, 2], [3, 4]]
 
-        UnitTest::assertEquals(1, ints[0])
-        UnitTest::assertEquals("b", strs[1])
-        UnitTest::assertTrue(bools[2])
-        UnitTest::assertEquals(true, bools[2])
-        UnitTest::assertEquals(2.5, floats[1])
-        UnitTest::assertNotNull(vals[1])
-        
+        self::assertEquals(1, ints[0])
+        self::assertEquals("b", strs[1])
+        self::assertTrue(bools[2])
+        self::assertEquals(true, bools[2])
+        self::assertEquals(2.5, floats[1])
+        self::assertNotNull(vals[1])
+
         var config:map<string, mixed> = {
             "debug": true,
             "version": 1,
             "name": "app"
         }
-        UnitTest::assertNotNull(config["debug"])
-        UnitTest::assertNotNull(config["version"])
-        
+        self::assertNotNull(config["debug"])
+        self::assertNotNull(config["version"])
+
         var v:Vector2 = use Vector2(1.0, 2.5)
-        UnitTest::assertNotNull(v.x)
-        UnitTest::assertNotNull(v.y)
-        
+        self::assertNotNull(v.x)
+        self::assertNotNull(v.y)
+
         return 0
     }
     public method displayTest(): int {
         var v:Vector2 = use Vector2(1.0, 2.5)
         v.display()
-        UnitTest::assertEquals(1.0, v.x)
-        UnitTest::assertEquals(2.5, v.y)
+        self::assertEquals(1.0, v.x)
+        self::assertEquals(2.5, v.y)
         v.x = -3.5
         v.display()
-        UnitTest::assertEquals(-3.5, v.x)
+        self::assertEquals(-3.5, v.x)
         return 0
     }
 }

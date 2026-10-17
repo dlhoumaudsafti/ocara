@@ -9,45 +9,45 @@ import ocara.Array
 // la NOUVELLE — utilisables comme expressions (`x = i++`, `foo(i++)`...), pas
 // seulement comme instructions.
 
-class Test_45_increment_decrement {
+class Test45IncrementDecrement extends UnitTest {
 
     // Suffixe : la valeur retournée est l'ANCIENNE, la variable avance quand même.
     public method postIncReturnsOldValueTest(): int {
         var i:int = 5
-        UnitTest::assertEquals(5, i++)
-        UnitTest::assertEquals(6, i)
+        self::assertEquals(5, i++)
+        self::assertEquals(6, i)
         return 0
     }
 
     public method postDecReturnsOldValueTest(): int {
         var i:int = 5
-        UnitTest::assertEquals(5, i--)
-        UnitTest::assertEquals(4, i)
+        self::assertEquals(5, i--)
+        self::assertEquals(4, i)
         return 0
     }
 
     // Préfixe : la valeur retournée est la NOUVELLE.
     public method preIncReturnsNewValueTest(): int {
         var i:int = 5
-        UnitTest::assertEquals(6, ++i)
-        UnitTest::assertEquals(6, i)
+        self::assertEquals(6, ++i)
+        self::assertEquals(6, i)
         return 0
     }
 
     public method preDecReturnsNewValueTest(): int {
         var i:int = 5
-        UnitTest::assertEquals(4, --i)
-        UnitTest::assertEquals(4, i)
+        self::assertEquals(4, --i)
+        self::assertEquals(4, i)
         return 0
     }
 
     // Sur un float — même sémantique, pas de résultat que sur int.
     public method floatIncDecTest(): int {
         var f:float = 1.5
-        UnitTest::assertEquals(1.5, f++)
-        UnitTest::assertEquals(2.5, f)
-        UnitTest::assertEquals(1.5, --f)
-        UnitTest::assertEquals(1.5, f)
+        self::assertEquals(1.5, f++)
+        self::assertEquals(2.5, f)
+        self::assertEquals(1.5, --f)
+        self::assertEquals(1.5, f)
         return 0
     }
 
@@ -56,41 +56,41 @@ class Test_45_increment_decrement {
     public method usableAsExpressionTest(): int {
         var i:int = 0
         var x:int = i++
-        UnitTest::assertEquals(0, x)
-        UnitTest::assertEquals(1, i)
+        self::assertEquals(0, x)
+        self::assertEquals(1, i)
 
         var j:int = 0
         var acc:int = 0
         while j smaller 4 {
             acc = acc + j++
         }
-        UnitTest::assertEquals(6, acc)  // 0+1+2+3
+        self::assertEquals(6, acc)  // 0+1+2+3
         return 0
     }
 
     // Cible = élément de tableau (`arr[i]++`).
     public method arrayIndexTargetTest(): int {
         var arr:array<int> = [10, 20, 30]
-        UnitTest::assertEquals(10, arr[0]++)
-        UnitTest::assertEquals(11, arr[0])
-        UnitTest::assertEquals(31, ++arr[2])
+        self::assertEquals(10, arr[0]++)
+        self::assertEquals(11, arr[0])
+        self::assertEquals(31, ++arr[2])
         return 0
     }
 
     // Cible = valeur d'une map (`map[clé]++`).
     public method mapValueTargetTest(): int {
         var scores:map<string, int> = {"a": 1, "b": 2}
-        UnitTest::assertEquals(1, scores["a"]++)
-        UnitTest::assertEquals(2, scores["a"])
+        self::assertEquals(1, scores["a"]++)
+        self::assertEquals(2, scores["a"])
         return 0
     }
 
     // Cible = propriété d'un objet (`self.champ++`/`obj.champ++`).
     public method fieldTargetTest(): int {
         var c:Counter = use Counter(100)
-        UnitTest::assertEquals(100, c.value++)
-        UnitTest::assertEquals(101, c.value)
-        UnitTest::assertEquals(102, ++c.value)
+        self::assertEquals(100, c.value++)
+        self::assertEquals(101, c.value)
+        self::assertEquals(102, ++c.value)
         return 0
     }
 
@@ -101,8 +101,8 @@ class Test_45_increment_decrement {
         var counter:Counter = use Counter(0)
         var arr:array<int> = [100, 200, 300]
         arr[counter.bump()]++
-        UnitTest::assertEquals(1, counter.value)
-        UnitTest::assertEquals(101, arr[0])
+        self::assertEquals(1, counter.value)
+        self::assertEquals(101, arr[0])
         return 0
     }
 
@@ -116,7 +116,7 @@ class Test_45_increment_decrement {
     public method prefixOnNextLineNotSwallowedTest(): int {
         var c:Counter = use Counter(100)
         ++c.value
-        UnitTest::assertEquals(101, c.value)
+        self::assertEquals(101, c.value)
         return 0
     }
 
@@ -125,7 +125,7 @@ class Test_45_increment_decrement {
     // section "risque de compatibilité vérifié").
     public method doubleNegationStillWorksTest(): int {
         var x:int = 5
-        UnitTest::assertEquals(5, - -x)
+        self::assertEquals(5, - -x)
         return 0
     }
 }

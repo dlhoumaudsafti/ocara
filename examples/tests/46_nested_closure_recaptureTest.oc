@@ -12,7 +12,7 @@ import ocara.Mutex
 // construit avec un pointeur NUL (aucune capture), et toute mutation à
 // l'intérieur restait sans effet — silencieusement, aucun crash.
 
-class Test_46_nested_closure_recapture {
+class Test46NestedClosureRecapture extends UnitTest {
 
     // Cas minimal : fermeture passée en argument à une méthode statique,
     // contenant elle-même une fermeture imbriquée qui mute une variable
@@ -25,7 +25,7 @@ class Test_46_nested_closure_recapture {
             }
             inner()
         })
-        UnitTest::assertEquals(1, counter)
+        self::assertEquals(1, counter)
         return 0
     }
 
@@ -41,7 +41,7 @@ class Test_46_nested_closure_recapture {
                 counter = counter + 1
             })
         })
-        UnitTest::assertEquals(1, counter)
+        self::assertEquals(1, counter)
         return 0
     }
 
@@ -59,7 +59,7 @@ class Test_46_nested_closure_recapture {
                 innermost()
             })
         })
-        UnitTest::assertEquals(1, counter)
+        self::assertEquals(1, counter)
         return 0
     }
 
@@ -76,7 +76,7 @@ class Test_46_nested_closure_recapture {
             inner()
             result = local1
         })
-        UnitTest::assertEquals(11, result)
+        self::assertEquals(11, result)
         return 0
     }
 
@@ -116,7 +116,7 @@ class Test_46_nested_closure_recapture {
             inner()
         })
 
-        UnitTest::assertEquals(5, counter)
+        self::assertEquals(5, counter)
         return 0
     }
 }

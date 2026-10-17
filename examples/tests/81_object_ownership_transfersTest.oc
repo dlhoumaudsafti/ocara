@@ -7,25 +7,25 @@ import ocara.UnitTest
 // qu'y insérer des objets neufs, champ `array<Classe>` alimenté par un
 // conteneur neuf. Un conteneur transféré à DEUX objets (partagé) n'est
 // libéré par aucun d'eux : il reste lisible.
-class Test_81_object_ownership_transfers {
+class Test81ObjectOwnershipTransfers extends UnitTest {
 
     public method containerFromCallTest(): int {
         scoped items:array<TransferItem> = self.all()
-        UnitTest::assertEquals(2, items.len())
-        UnitTest::assertEquals("a!", items[0].name)
+        self::assertEquals(2, items.len())
+        self::assertEquals("a!", items[0].name)
         return 0
     }
 
     public method containerFilledByCalleeTest(): int {
         scoped items:array<TransferItem> = []
         self.fill(items)
-        UnitTest::assertEquals("c!", items[0].name)
+        self::assertEquals("c!", items[0].name)
         return 0
     }
 
     public method owningFieldTest(): int {
         scoped bag:TransferBag = use TransferBag(self.all())
-        UnitTest::assertEquals(2, bag.count())
+        self::assertEquals(2, bag.count())
         return 0
     }
 
@@ -35,7 +35,7 @@ class Test_81_object_ownership_transfers {
             scoped b1:TransferBag = use TransferBag(ys)
             scoped b2:TransferBag = use TransferBag(ys)
         }
-        UnitTest::assertEquals("y!", ys[0].name)
+        self::assertEquals("y!", ys[0].name)
         return 0
     }
 

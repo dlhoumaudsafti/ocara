@@ -18,7 +18,7 @@ import ocara.String
 // méthodes ci-dessous vérifient maintenant du contenu réel, pas seulement
 // l'absence de crash.
 
-class Test_34_string_nul_safety {
+class Test34StringNulSafety extends UnitTest {
 
     public method scopedStringWithEmbeddedNulTest(): int {
         var i:int = 0
@@ -26,7 +26,7 @@ class Test_34_string_nul_safety {
             self.makeOne()
             i = i + 1
         }
-        UnitTest::assertTrue(true)
+        self::assertTrue(true)
         return 0
     }
 
@@ -40,11 +40,11 @@ class Test_34_string_nul_safety {
     // portion avant le premier `\0`.
     public method literalWithEmbeddedNulNotTruncatedTest(): int {
         var s:string = "a\0b"
-        UnitTest::assertEquals(3, String::len(s))
+        self::assertEquals(3, String::len(s))
         var same:string = "a\0b"
-        UnitTest::assertTrue(s equal same)
+        self::assertTrue(s equal same)
         var different:string = "a\0c"
-        UnitTest::assertFalse(s equal different)
+        self::assertFalse(s equal different)
         return 0
     }
 
@@ -53,8 +53,8 @@ class Test_34_string_nul_safety {
     // même mécanisme (`ptr_to_str` lit la longueur du header dans les deux cas).
     public method concatenatedStringWithEmbeddedNulTest(): int {
         var s:string = "x" + "\0" + "y"
-        UnitTest::assertEquals(3, String::len(s))
-        UnitTest::assertTrue(s equal "x\0y")
+        self::assertEquals(3, String::len(s))
+        self::assertTrue(s equal "x\0y")
         return 0
     }
 }

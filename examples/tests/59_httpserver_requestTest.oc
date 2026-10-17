@@ -17,7 +17,7 @@ import ocara.Convert
 // un vrai `HTTPServer` démarré dans un thread détaché, de vraies requêtes
 // `HTTPRequest` — pas une réimplémentation séparée de la logique de parsing
 // (déjà testée en isolation côté Rust, voir runtime/src/tests/httpserver.rs).
-class Test_59_httpserver_request {
+class Test59HttpserverRequest extends UnitTest {
 
     // `header(name)` insensible à la casse dans les deux sens, `headers()`
     // reflète la casse D'ORIGINE des clés (seule la RECHERCHE est insensible).
@@ -25,11 +25,11 @@ class Test_59_httpserver_request {
         var s:HTTPServer = use HTTPServer()
         s.port(8197)
         s.route("/headers", "GET", nameless(req:HTTPServerRequest): int {
-            var byLower:string  = req.header("x-custom-header")
-            var byOrig:string   = req.header("X-Custom-Header")
+            var by_lower:string  = req.header("x-custom-header")
+            var by_orig:string   = req.header("X-Custom-Header")
             var all:map<string, mixed> = req.headers()
-            var fromMap:string  = all["X-Custom-Header"]
-            req.respond(200, byLower + "|" + byOrig + "|" + fromMap)
+            var from_map:string  = all["X-Custom-Header"]
+            req.respond(200, by_lower + "|" + by_orig + "|" + from_map)
             return 0
         })
         var t:Thread = use Thread()
@@ -41,8 +41,8 @@ class Test_59_httpserver_request {
         req.setMethod("GET")
         req.setHeader("X-Custom-Header", "HelloValue")
         scoped res:HTTPResponse = req.send()
-        UnitTest::assertEquals(200, res.status())
-        UnitTest::assertEquals("HelloValue|HelloValue|HelloValue", res.body())
+        self::assertEquals(200, res.status())
+        self::assertEquals("HelloValue|HelloValue|HelloValue", res.body())
         return 0
     }
 
@@ -52,9 +52,9 @@ class Test_59_httpserver_request {
         var s:HTTPServer = use HTTPServer()
         s.port(8198)
         s.route("/getparam", "GET", nameless(req:HTTPServerRequest): int {
-            var viaQuery:string = req.query("id")
-            var viaParam:mixed  = req.param("id")
-            req.respond(200, viaQuery + "|" + viaParam)
+            var via_query:string = req.query("id")
+            var via_param:mixed  = req.param("id")
+            req.respond(200, via_query + "|" + via_param)
             return 0
         })
         var t:Thread = use Thread()
@@ -63,8 +63,8 @@ class Test_59_httpserver_request {
         Thread::sleep(300)
 
         scoped res:HTTPResponse = HTTPRequest::get("http://localhost:8198/getparam?id=42")
-        UnitTest::assertEquals(200, res.status())
-        UnitTest::assertEquals("42|42", res.body())
+        self::assertEquals(200, res.status())
+        self::assertEquals("42|42", res.body())
         return 0
     }
 
@@ -79,11 +79,11 @@ class Test_59_httpserver_request {
             var name:mixed     = req.param("name")
             var overridden:mixed = req.param("shared")
             var params:map<string, map<string, mixed>> = req.params()
-            var getBucket:map<string, mixed>  = params["GET"]
-            var postBucket:map<string, mixed> = params["POST"]
-            var sharedFromGet:mixed  = getBucket["shared"]
-            var sharedFromPost:mixed = postBucket["shared"]
-            req.respond(200, name + "|" + overridden + "|" + sharedFromGet + "|" + sharedFromPost)
+            var get_bucket:map<string, mixed>  = params["GET"]
+            var post_bucket:map<string, mixed> = params["POST"]
+            var shared_from_get:mixed  = get_bucket["shared"]
+            var shared_from_post:mixed = post_bucket["shared"]
+            req.respond(200, name + "|" + overridden + "|" + shared_from_get + "|" + shared_from_post)
             return 0
         })
         var t:Thread = use Thread()
@@ -96,8 +96,8 @@ class Test_59_httpserver_request {
         req.setHeader("Content-Type", "application/x-www-form-urlencoded")
         req.setBody("name=Alice&shared=fromBody")
         scoped res:HTTPResponse = req.send()
-        UnitTest::assertEquals(200, res.status())
-        UnitTest::assertEquals("Alice|fromBody|fromQuery|fromBody", res.body())
+        self::assertEquals(200, res.status())
+        self::assertEquals("Alice|fromBody|fromQuery|fromBody", res.body())
         return 0
     }
 
@@ -111,11 +111,13 @@ class Test_59_httpserver_request {
             var field1:mixed = req.param("field1")
             var file:map<string,mixed> = req.param("thefile")
             var filename:string    = file["filename"]
-            var contentType:string = file["contentType"]
+            var content_type:string = file["contentType"]
             var size:int            = file["size"]
             var content:array<int> = file["content"]
-            var firstByte:int = content[0]
-            req.respond(200, field1 + "|" + filename + "|" + contentType + "|" + Convert::intToStr(size) + "|" + Convert::intToStr(content.len()) + "|" + Convert::intToStr(firstByte))
+            var first_byte:int = content[0]
+            var body:string = field1 + "|" + filename + "|" + content_type + "|" + Convert::intToStr(size)
+            body = body + "|" + Convert::intToStr(content.len()) + "|" + Convert::intToStr(first_byte)
+            req.respond(200, body)
             return 0
         })
         var t:Thread = use Thread()
@@ -124,14 +126,14 @@ class Test_59_httpserver_request {
         Thread::sleep(300)
 
         const boundary:string = "OcaraTestBoundary123"
-        const fileContent:string = "hello-file-bytes"
+        const file_content:string = "hello-file-bytes"
         var body:string = "--" + boundary + "\r\n"
         body = body + "Content-Disposition: form-data; name=\"field1\"\r\n\r\n"
         body = body + "hello world\r\n"
         body = body + "--" + boundary + "\r\n"
         body = body + "Content-Disposition: form-data; name=\"thefile\"; filename=\"test.txt\"\r\n"
         body = body + "Content-Type: text/plain\r\n\r\n"
-        body = body + fileContent + "\r\n"
+        body = body + file_content + "\r\n"
         body = body + "--" + boundary + "--\r\n"
 
         scoped req:HTTPRequest = HTTPRequest::new("http://localhost:8200/upload")
@@ -139,10 +141,10 @@ class Test_59_httpserver_request {
         req.setHeader("Content-Type", "multipart/form-data; boundary=" + boundary)
         req.setBody(body)
         scoped res:HTTPResponse = req.send()
-        UnitTest::assertEquals(200, res.status())
+        self::assertEquals(200, res.status())
         // "hello world|test.txt|text/plain|16|16|104" — 16 octets dans
         // "hello-file-bytes", premier octet 'h' = 104.
-        UnitTest::assertEquals("hello world|test.txt|text/plain|16|16|104", res.body())
+        self::assertEquals("hello world|test.txt|text/plain|16|16|104", res.body())
         return 0
     }
 
@@ -155,11 +157,11 @@ class Test_59_httpserver_request {
         var s:HTTPServer = use HTTPServer()
         s.port(8202)
         s.route("/voitures/<id:int>", "GET", nameless(req:HTTPServerRequest): int {
-            var idViaParam:int = req.param("id")
+            var id_via_param:int = req.param("id")
             var params:map<string, map<string, mixed>> = req.params()
-            var getBucket:map<string, mixed> = params["GET"]
-            var idViaParams:int = getBucket["id"]
-            req.respond(200, Convert::intToStr(idViaParam) + "|" + Convert::intToStr(idViaParams))
+            var get_bucket:map<string, mixed> = params["GET"]
+            var id_via_params:int = get_bucket["id"]
+            req.respond(200, Convert::intToStr(id_via_param) + "|" + Convert::intToStr(id_via_params))
             return 0
         })
         var t:Thread = use Thread()
@@ -168,8 +170,8 @@ class Test_59_httpserver_request {
         Thread::sleep(300)
 
         scoped res:HTTPResponse = HTTPRequest::get("http://localhost:8202/voitures/42")
-        UnitTest::assertEquals(200, res.status())
-        UnitTest::assertEquals("42|42", res.body())
+        self::assertEquals(200, res.status())
+        self::assertEquals("42|42", res.body())
         return 0
     }
 
@@ -178,9 +180,9 @@ class Test_59_httpserver_request {
         var s:HTTPServer = use HTTPServer()
         s.port(8203)
         s.route("/voitures/<car_id:int>/entretiens/<id:int>", "GET", nameless(req:HTTPServerRequest): int {
-            var carId:int = req.param("car_id")
+            var car_id:int = req.param("car_id")
             var id:int    = req.param("id")
-            req.respond(200, Convert::intToStr(carId) + "|" + Convert::intToStr(id))
+            req.respond(200, Convert::intToStr(car_id) + "|" + Convert::intToStr(id))
             return 0
         })
         var t:Thread = use Thread()
@@ -189,8 +191,8 @@ class Test_59_httpserver_request {
         Thread::sleep(300)
 
         scoped res:HTTPResponse = HTTPRequest::get("http://localhost:8203/voitures/7/entretiens/99")
-        UnitTest::assertEquals(200, res.status())
-        UnitTest::assertEquals("7|99", res.body())
+        self::assertEquals(200, res.status())
+        self::assertEquals("7|99", res.body())
         return 0
     }
 
@@ -210,7 +212,7 @@ class Test_59_httpserver_request {
         Thread::sleep(300)
 
         scoped res:HTTPResponse = HTTPRequest::get("http://localhost:8204/voitures/abc")
-        UnitTest::assertEquals(404, res.status())
+        self::assertEquals(404, res.status())
         return 0
     }
 
@@ -231,8 +233,8 @@ class Test_59_httpserver_request {
         Thread::sleep(300)
 
         scoped res:HTTPResponse = HTTPRequest::get("http://localhost:8205/voitures/1?id=999")
-        UnitTest::assertEquals(200, res.status())
-        UnitTest::assertEquals("1", res.body())
+        self::assertEquals(200, res.status())
+        self::assertEquals("1", res.body())
         return 0
     }
 }

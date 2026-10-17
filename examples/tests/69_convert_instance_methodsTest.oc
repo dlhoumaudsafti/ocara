@@ -6,15 +6,15 @@ import ocara.Convert
 // docs/roadmap.d/stdlib-convert-instance-methods.md — chaque forme
 // d'instance doit produire EXACTEMENT la même valeur que la méthode statique
 // `Convert` qu'elle remplace.
-class Test_69_convert_instance_methods {
+class Test69ConvertInstanceMethods extends UnitTest {
 
     public method stringConversionsTest(): int {
         var s:string = "12"
-        UnitTest::assertEquals(Convert::strToInt(s), s.toInt())
-        UnitTest::assertEquals(Convert::strToFloat("3.5"), "3.5".toFloat())
-        UnitTest::assertEquals(Convert::strToBool("true"), "true".toBool())
-        UnitTest::assertEquals(3, "a,b,c".toArray(",").len())
-        UnitTest::assertEquals("v", "k=v".toMap(";", "=")["k"])
+        self::assertEquals(Convert::strToInt(s), s.toInt())
+        self::assertEquals(Convert::strToFloat("3.5"), "3.5".toFloat())
+        self::assertEquals(Convert::strToBool("true"), "true".toBool())
+        self::assertEquals(3, "a,b,c".toArray(",").len())
+        self::assertEquals("v", "k=v".toMap(";", "=")["k"])
         return 0
     }
 
@@ -22,31 +22,31 @@ class Test_69_convert_instance_methods {
         var i:int = 7
         var f:float = -1.5
         var b:bool = false
-        UnitTest::assertEquals(Convert::intToStr(i), i.toStr())
-        UnitTest::assertEquals(Convert::intToFloat(i), i.toFloat())
-        UnitTest::assertEquals(Convert::intToBool(i), i.toBool())
-        UnitTest::assertEquals(Convert::floatToStr(f), f.toStr())
-        UnitTest::assertEquals(Convert::floatToInt(f), f.toInt())
-        UnitTest::assertEquals(Convert::floatToBool(f), f.toBool())
-        UnitTest::assertEquals(Convert::boolToStr(b), b.toStr())
-        UnitTest::assertEquals(Convert::boolToInt(b), b.toInt())
-        UnitTest::assertEquals(Convert::boolToFloat(b), b.toFloat())
+        self::assertEquals(Convert::intToStr(i), i.toStr())
+        self::assertEquals(Convert::intToFloat(i), i.toFloat())
+        self::assertEquals(Convert::intToBool(i), i.toBool())
+        self::assertEquals(Convert::floatToStr(f), f.toStr())
+        self::assertEquals(Convert::floatToInt(f), f.toInt())
+        self::assertEquals(Convert::floatToBool(f), f.toBool())
+        self::assertEquals(Convert::boolToStr(b), b.toStr())
+        self::assertEquals(Convert::boolToInt(b), b.toInt())
+        self::assertEquals(Convert::boolToFloat(b), b.toFloat())
         return 0
     }
 
     public method containerConversionsTest(): int {
         var arr:array<string> = ["a=1", "b=2"]
         var m:map<string, string> = "k=v;x=y".toMap(";", "=")
-        UnitTest::assertEquals(Convert::arrayToStr(arr, ","), arr.toStr(","))
-        UnitTest::assertEquals(2, arr.toMap("=").size())
-        UnitTest::assertEquals(Convert::mapToStr(m, "&", ":"), m.toStr("&", ":"))
+        self::assertEquals(Convert::arrayToStr(arr, ","), arr.toStr(","))
+        self::assertEquals(2, arr.toMap("=").size())
+        self::assertEquals(Convert::mapToStr(m, "&", ":"), m.toStr("&", ":"))
         return 0
     }
 
     public method chainingTest(): int {
-        UnitTest::assertEquals("41", "41".toInt().toStr())
-        UnitTest::assertEquals(2, Convert::strToArray("x,y", ",").len())
-        UnitTest::assertEquals("1+2", [1, 2].toStr(sep: "+"))
+        self::assertEquals("41", "41".toInt().toStr())
+        self::assertEquals(2, Convert::strToArray("x,y", ",").len())
+        self::assertEquals("1+2", [1, 2].toStr(sep: "+"))
         return 0
     }
 
@@ -54,37 +54,37 @@ class Test_69_convert_instance_methods {
     public method mainTest(): int {
         var raw:string = "41"
         var n:int = raw.toInt() + 1
-        UnitTest::assertEquals(42, n)
-        UnitTest::assertEquals(3.5, "3.5".toFloat())
-        UnitTest::assertTrue("true".toBool())
+        self::assertEquals(42, n)
+        self::assertEquals(3.5, "3.5".toFloat())
+        self::assertTrue("true".toBool())
         var parts:array<string> = "a,b,c".toArray(",")
-        UnitTest::assertEquals(3, parts.len())
-        UnitTest::assertEquals("c", parts[2])
+        self::assertEquals(3, parts.len())
+        self::assertEquals("c", parts[2])
         var conf:map<string, string> = "host=localhost;port=8080".toMap(";", "=")
-        UnitTest::assertEquals("8080", conf["port"])
-        UnitTest::assertEquals("localhost", conf["host"])
+        self::assertEquals("8080", conf["port"])
+        self::assertEquals("localhost", conf["host"])
 
         var count:int = 7
-        UnitTest::assertEquals("7", count.toStr())
-        UnitTest::assertEquals(7.0, count.toFloat())
-        UnitTest::assertTrue(count.toBool())
+        self::assertEquals("7", count.toStr())
+        self::assertEquals(7.0, count.toFloat())
+        self::assertTrue(count.toBool())
         var price:float = 2.75
-        UnitTest::assertEquals(Convert::floatToStr(price), price.toStr())
-        UnitTest::assertEquals(2, price.toInt())
-        UnitTest::assertTrue(price.toBool())
+        self::assertEquals(Convert::floatToStr(price), price.toStr())
+        self::assertEquals(2, price.toInt())
+        self::assertTrue(price.toBool())
         var flag:bool = true
-        UnitTest::assertEquals("true", flag.toStr())
-        UnitTest::assertEquals(1, flag.toInt())
-        UnitTest::assertEquals(1.0, flag.toFloat())
+        self::assertEquals("true", flag.toStr())
+        self::assertEquals(1, flag.toInt())
+        self::assertEquals(1.0, flag.toFloat())
 
         var ids:array<int> = [1, 2, 3]
-        UnitTest::assertEquals("1-2-3", ids.toStr("-"))
-        UnitTest::assertEquals(2, ["a=1", "b=2"].toMap("=").size())
-        UnitTest::assertEquals(Convert::mapToStr(conf, "&", ":"), conf.toStr("&", ":"))
+        self::assertEquals("1-2-3", ids.toStr("-"))
+        self::assertEquals(2, ["a=1", "b=2"].toMap("=").size())
+        self::assertEquals(Convert::mapToStr(conf, "&", ":"), conf.toStr("&", ":"))
 
-        UnitTest::assertEquals("41", raw.toInt().toStr().toInt().toStr())
-        UnitTest::assertEquals(2, "x,y".toArray(",").len())
-        UnitTest::assertEquals("1+2+3", ids.toStr(sep: "+"))
+        self::assertEquals("41", raw.toInt().toStr().toInt().toStr())
+        self::assertEquals(2, "x,y".toArray(",").len())
+        self::assertEquals("1+2+3", ids.toStr(sep: "+"))
         return 0
     }
 }

@@ -9,44 +9,44 @@ import ocara.IO
 import ocara.Map
 import ocara.Array
 
-class Test_09_maps {
-    
+class Test09Maps extends UnitTest {
+
     public method mapLiteralTest(): int {
         var config:map<string, string> = {
             "lang": "fr",
             "theme": "dark"
         }
-        
-        UnitTest::assertEquals("fr", config["lang"])
-        UnitTest::assertEquals("dark", config["theme"])
+
+        self::assertEquals("fr", config["lang"])
+        self::assertEquals("dark", config["theme"])
         return 0
     }
-    
+
     public method mapUpdateTest(): int {
         var prices:map<string, int> = {
             "pomme": 2
         }
-        UnitTest::assertEquals(2, prices["pomme"])
-        
+        self::assertEquals(2, prices["pomme"])
+
         prices["pomme"] = 3
-        UnitTest::assertEquals(3, prices["pomme"])
+        self::assertEquals(3, prices["pomme"])
         return 0
     }
-    
+
     public method mapIterationTest(): int {
         var data:map<string, int> = {
             "a": 1,
             "b": 2
         }
-        
+
         var sum:int = 0
         for k has v in data {
             sum = sum + v
         }
-        UnitTest::assertEquals(3, sum)
+        self::assertEquals(3, sum)
         return 0
     }
-    
+
     public method mainTest(): int {
         // Reproduit le comportement de main() - version simplifiée
         var ages:map<string, int> = {
@@ -54,31 +54,31 @@ class Test_09_maps {
             "Bob":   25,
             "Carol": 35
         }
-        UnitTest::assertEquals(30, ages["Alice"])
-        UnitTest::assertEquals(25, ages["Bob"])
-        
+        self::assertEquals(30, ages["Alice"])
+        self::assertEquals(25, ages["Bob"])
+
         var age_count:int = 0
         for nom has age in ages {
             age_count = age_count + 1
         }
-        UnitTest::assertEquals(3, age_count)
-        
+        self::assertEquals(3, age_count)
+
         var capitales:map<string, string> = {
             "France":    "Paris",
             "Allemagne": "Berlin",
             "Espagne":   "Madrid"
         }
-        UnitTest::assertEquals("Paris", capitales["France"])
-        UnitTest::assertEquals("Madrid", capitales["Espagne"])
-        
+        self::assertEquals("Paris", capitales["France"])
+        self::assertEquals("Madrid", capitales["Espagne"])
+
         var codes:map<int, string> = {
             200: "OK",
             404: "Not Found",
             500: "Server Error"
         }
-        UnitTest::assertEquals("OK", codes[200])
-        UnitTest::assertEquals("Not Found", codes[404])
-        
+        self::assertEquals("OK", codes[200])
+        self::assertEquals("Not Found", codes[404])
+
         return 0
     }
 }

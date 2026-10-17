@@ -3,12 +3,12 @@ architecture permissive
 import ocara.UnitTest
 import ocara.IO
 
-class Test_05_switch {
-    
+class Test05Switch extends UnitTest {
+
     public method switchIntTest(): int {
         var day:int = 2
         var result:string = ""
-        
+
         switch day {
             1 {
                 result = "lundi"
@@ -23,15 +23,15 @@ class Test_05_switch {
                 result = "autre"
             }
         }
-        
-        UnitTest::assertEquals("mardi", result)
+
+        self::assertEquals("mardi", result)
         return 0
     }
-    
+
     public method switchStringTest(): int {
         var fruit:string = "pomme"
         var color:string = ""
-        
+
         switch fruit {
             "pomme" {
                 color = "rouge"
@@ -46,15 +46,15 @@ class Test_05_switch {
                 color = "inconnu"
             }
         }
-        
-        UnitTest::assertEquals("rouge", color)
+
+        self::assertEquals("rouge", color)
         return 0
     }
-    
+
     public method switchDefaultTest(): int {
         var n:int = 999
         var result:string = ""
-        
+
         switch n {
             1 {
                 result = "un"
@@ -66,11 +66,11 @@ class Test_05_switch {
                 result = "autre"
             }
         }
-        
-        UnitTest::assertEquals("autre", result)
+
+        self::assertEquals("autre", result)
         return 0
     }
-    
+
     public method httpStatusTest(): int {
         // Appelle httpStatus pour assurer la couverture
         httpStatus(200)
@@ -82,7 +82,7 @@ class Test_05_switch {
         httpStatus(999)
         return 0
     }
-    
+
     public method dayTypeTest(): int {
         // Appelle dayType pour assurer la couverture
         dayType("lundi")
@@ -91,7 +91,7 @@ class Test_05_switch {
         dayType("dimanche")
         return 0
     }
-    
+
     public method mainTest(): int {
         // Reproduit le comportement de main()
         httpStatus(200)
@@ -99,7 +99,7 @@ class Test_05_switch {
         httpStatus(999)
         dayType("lundi")
         dayType("samedi")
-        
+
         var niveau:int = 3
         var result:string = ""
         switch niveau {
@@ -116,7 +116,7 @@ class Test_05_switch {
                 result = "Niveau inconnu"
             }
         }
-        UnitTest::assertEquals("Avancé", result)
+        self::assertEquals("Avancé", result)
         return 0
     }
 }

@@ -6,7 +6,7 @@ import ocara.UnitTest
 //   - exception d'une tâche `async` relevée au `resolve` (docs/roadmap.d/langage-async-exception-resolve.md) ;
 //   - méthode statique d'un `generic` (docs/roadmap.d/langage-generique-methode-statique.md) ;
 //   - closure qui modifie une variable d'un générateur (docs/roadmap.d/langage-emit-iterable.md).
-class Test_92_async_generic_static_generator {
+class Test92AsyncGenericStaticGenerator extends UnitTest {
 
     public method asyncExceptionCaughtAroundResolveTest(): int {
         var t:Resolvable<int> = failing()
@@ -17,9 +17,9 @@ class Test_92_async_generic_static_generator {
         } on e is TaskError {
             caught = e.message
         }
-        UnitTest::assertEquals("tâche", caught)
+        self::assertEquals("tâche", caught)
         var ok:Resolvable<int> = five()
-        UnitTest::assertEquals(5, resolve ok)
+        self::assertEquals(5, resolve ok)
         return 0
     }
 
@@ -27,9 +27,9 @@ class Test_92_async_generic_static_generator {
         var a:Holder<int> = Holder::of(4)
         var b:Holder<string> = Holder<string>::of("texte")
         var c:Holder<int> = Holder::empty()
-        UnitTest::assertEquals(4, a.get())
-        UnitTest::assertEquals("texte", b.get())
-        UnitTest::assertEquals(0, c.get())
+        self::assertEquals(4, a.get())
+        self::assertEquals("texte", b.get())
+        self::assertEquals(0, c.get())
         return 0
     }
 
@@ -38,7 +38,7 @@ class Test_92_async_generic_static_generator {
         for v in accumulate() {
             total = total + v
         }
-        UnitTest::assertEquals(11 + 21 + 31, total)
+        self::assertEquals(11 + 21 + 31, total)
         return 0
     }
 }

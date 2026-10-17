@@ -5,7 +5,7 @@ import ocara.UnitTest
 // `for k has v in m` : la valeur est lue au type de valeur déclaré de la map.
 // Elle était toujours déclarée `int` : `${v}` d'une `map<string, string>`
 // ou d'une `map<string, mixed>` affichait une adresse.
-class Test_75_map_loop_value_type {
+class Test75MapLoopValueType extends UnitTest {
 
     public method stringValuesTest(): int {
         var capitales:map<string, string> = {"France": "Paris"}
@@ -13,7 +13,7 @@ class Test_75_map_loop_value_type {
         for pays has capitale in capitales {
             seen = `${pays} → ${capitale}`
         }
-        UnitTest::assertEquals("France → Paris", seen)
+        self::assertEquals("France → Paris", seen)
         return 0
     }
 
@@ -27,9 +27,9 @@ class Test_75_map_loop_value_type {
         for k has n in ages { total = n + 1 }
         for k has p in prix { double = p * 2.0 }
         for k has f in flags { any_on = f }
-        UnitTest::assertEquals(70001, total)
-        UnitTest::assertEquals(3.0, double)
-        UnitTest::assertFalse(any_on)
+        self::assertEquals(70001, total)
+        self::assertEquals(3.0, double)
+        self::assertFalse(any_on)
         return 0
     }
 
@@ -39,7 +39,7 @@ class Test_75_map_loop_value_type {
         for k has v in profil {
             out = out + `${k}=${v};`
         }
-        UnitTest::assertEquals("nom=David;actif=true;score=9.8;", out)
+        self::assertEquals("nom=David;actif=true;score=9.8;", out)
         return 0
     }
 }

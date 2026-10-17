@@ -9,33 +9,33 @@ import ocara.System
 import separator from "70_when"
 import Platform from "70_when"
 
-class Test_70_when {
+class Test70When extends UnitTest {
 
     public method separatorTest(): int {
         when System::OS is 'windows'
-        UnitTest::assertEquals("\\", separator())
+        self::assertEquals("\\", separator())
         when default
-        UnitTest::assertEquals("/", separator())
+        self::assertEquals("/", separator())
         return 0
     }
 
     public method familyTest(): int {
         var p:Platform = use Platform()
         when System::OS is 'linux' or System::OS is 'android'
-        UnitTest::assertEquals("unix", p.family)
+        self::assertEquals("unix", p.family)
         when System::OS is 'macos'
-        UnitTest::assertEquals("darwin", p.family)
+        self::assertEquals("darwin", p.family)
         when default
-        UnitTest::assertEquals("autre", p.family)
+        self::assertEquals("autre", p.family)
         return 0
     }
 
     public method levelTest(): int {
         var p:Platform = use Platform()
         when System::BUILD is 'debug'
-        UnitTest::assertEquals("debug", p.level())
+        self::assertEquals("debug", p.level())
         when default
-        UnitTest::assertEquals(3, p.level())
+        self::assertEquals(3, p.level())
         return 0
     }
 }

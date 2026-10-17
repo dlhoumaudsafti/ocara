@@ -5,25 +5,25 @@
 import ocara.UnitTest
 import classes.Services
 
-class ServicesTest {
+class ServicesTest extends UnitTest {
 
-    public method count_tasksTest(): int {
+    public method countTasksTest(): int {
         scoped s:Services = use Services()
-        UnitTest::assertEquals(0, s.count_tasks())
+        self::assertEquals(0, s.count_tasks())
         s.add("tâche 1")
-        UnitTest::assertEquals(1, s.count_tasks())
+        self::assertEquals(1, s.count_tasks())
         s.add("tâche 2")
-        UnitTest::assertEquals(2, s.count_tasks())
+        self::assertEquals(2, s.count_tasks())
         return 0
     }
 
     public method addTest(): int {
         scoped s:Services = use Services()
-        UnitTest::assertEquals(0, s.count_tasks())
+        self::assertEquals(0, s.count_tasks())
         s.add("tâche A")
         s.add("tâche B")
         s.add("tâche C")
-        UnitTest::assertEquals(3, s.count_tasks())
+        self::assertEquals(3, s.count_tasks())
         return 0
     }
 
@@ -33,23 +33,23 @@ class ServicesTest {
         s.tag("urgent")
         s.tag("urgent")
         s.tag("normal")
-        UnitTest::pass("tag appelé sans erreur")
+        self::pass("tag appelé sans erreur")
         return 0
     }
 
-    public method process_rangeTest(): int {
+    public method processRangeTest(): int {
         scoped s:Services = use Services()
         // process_range() affiche uniquement, on vérifie qu'il ne plante pas
         s.process_range(1, 3)
-        UnitTest::pass("process_range appelé sans erreur")
+        self::pass("process_range appelé sans erreur")
         return 0
     }
 
-    public method show_summaryTest(): int {
+    public method showSummaryTest(): int {
         scoped s:Services = use Services()
         s.add("tâche X")
         s.show_summary()
-        UnitTest::assertEquals(1, s.count_tasks())
+        self::assertEquals(1, s.count_tasks())
         return 0
     }
 }

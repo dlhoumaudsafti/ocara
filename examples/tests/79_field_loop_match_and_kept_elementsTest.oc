@@ -10,7 +10,7 @@ import ocara.JSON
 //   construite à l'exécution tombait toujours dans `default` ;
 // - les éléments extraits d'un conteneur `consumed`/`scoped` puis conservés
 //   étaient libérés avec lui (chaîne vide, puis SIGSEGV).
-class Test_79_field_loop_match_and_kept_elements {
+class Test79FieldLoopMatchAndKeptElements extends UnitTest {
 
     public method loopOverFieldTest(): int {
         var d:LoopDto = use LoopDto([use LoopItem(1, "improvement", 2.5)], [1.5])
@@ -23,8 +23,8 @@ class Test_79_field_loop_match_and_kept_elements {
         for p in d.prices {
             total = total + p
         }
-        UnitTest::assertEquals("1 improvement", seen)
-        UnitTest::assertEquals(4.0, total)
+        self::assertEquals("1 improvement", seen)
+        self::assertEquals(4.0, total)
         return 0
     }
 
@@ -39,16 +39,16 @@ class Test_79_field_loop_match_and_kept_elements {
             "improvement" { via_switch = "oui" }
             default { via_switch = "non" }
         }
-        UnitTest::assertEquals("Amélioration", label)
-        UnitTest::assertEquals("oui", via_switch)
+        self::assertEquals("Amélioration", label)
+        self::assertEquals("oui", via_switch)
         return 0
     }
 
     public method keptElementsSurviveContainerTest(): int {
         var items:array<LoopItem> = self.load()
-        UnitTest::assertEquals("alpha", items[0].type)
-        UnitTest::assertEquals("beta", items[1].type)
-        UnitTest::assertEquals("gamma", self.first())
+        self::assertEquals("alpha", items[0].type)
+        self::assertEquals("beta", items[1].type)
+        self::assertEquals("gamma", self.first())
         return 0
     }
 

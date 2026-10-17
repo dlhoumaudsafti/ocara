@@ -15,23 +15,23 @@ const LABEL:string = label()
 const NAMES:array<string> = names()
 const DOUBLE:int = SEVEN * 2
 
-class Test_87_global_const_computed {
+class Test87GlobalConstComputed extends UnitTest {
 
     public method callValueTest(): int {
-        UnitTest::assertEquals(7, SEVEN)
-        UnitTest::assertEquals(14, DOUBLE)
+        self::assertEquals(7, SEVEN)
+        self::assertEquals(14, DOUBLE)
         return 0
     }
 
     public method readFromCalledFunctionTest(): int {
-        UnitTest::assertEquals("n°7", LABEL)
-        UnitTest::assertEquals("n°7", label())
+        self::assertEquals("n°7", LABEL)
+        self::assertEquals("n°7", label())
         return 0
     }
 
     public method arrayValueTest(): int {
-        UnitTest::assertEquals(3, NAMES.len())
-        UnitTest::assertEquals("b", NAMES[1])
+        self::assertEquals(3, NAMES.len())
+        self::assertEquals("b", NAMES[1])
         return 0
     }
 }

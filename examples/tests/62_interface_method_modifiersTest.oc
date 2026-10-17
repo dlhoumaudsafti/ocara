@@ -21,12 +21,12 @@ import Impl from "62_interface_method_modifiers"
 // historique de ce chemin — docs/roadmap.d/langage-async-instance-method-dispatch-broken.md —
 // est corrigé). Le handle retourné est typé `Resolvable<int>` (pas un `int`
 // nu) — voir docs/roadmap.d/langage-async-non-int-return-type-check.md.
-class Test_62_interface_method_modifiers {
+class Test62InterfaceMethodModifiers extends UnitTest {
 
     // `public` — appelé via le type interface (dispatch d'instance réel).
     public method publicModifierTest(): int {
         var m:Modifiers = use Impl()
-        UnitTest::assertEquals("hello", m.greet())
+        self::assertEquals("hello", m.greet())
         return 0
     }
 
@@ -35,20 +35,20 @@ class Test_62_interface_method_modifiers {
     // l'extérieur, comme n'importe quelle autre méthode.
     public method privateModifierTest(): int {
         var m:Modifiers = use Impl()
-        UnitTest::assertEquals(42, m.secretNumber())
+        self::assertEquals(42, m.secretNumber())
         return 0
     }
 
     // `protected` — même remarque que `private` ci-dessus.
     public method protectedModifierTest(): int {
         var m:Modifiers = use Impl()
-        UnitTest::assertEquals("demo", m.category())
+        self::assertEquals("demo", m.category())
         return 0
     }
 
     // `static` (seul) — appelé via la classe concrète directement.
     public method staticModifierTest(): int {
-        UnitTest::assertEquals(1, Impl::version())
+        self::assertEquals(1, Impl::version())
         return 0
     }
 
@@ -56,7 +56,7 @@ class Test_62_interface_method_modifiers {
     public method staticAsyncModifierTest(): int {
         var t:Resolvable<int> = Impl::fetchDoubled(21)
         var r:int = resolve t
-        UnitTest::assertEquals(42, r)
+        self::assertEquals(42, r)
         return 0
     }
 
@@ -66,45 +66,45 @@ class Test_62_interface_method_modifiers {
     // échoué avant d'atteindre ce test (E09).
     public method allModifiersCompileAndDispatchCorrectlyTest(): int {
         var m:Modifiers = use Impl()
-        UnitTest::assertEquals("hello", m.greet())
-        UnitTest::assertEquals(42, m.secretNumber())
-        UnitTest::assertEquals("demo", m.category())
-        UnitTest::assertEquals(1, Impl::version())
+        self::assertEquals("hello", m.greet())
+        self::assertEquals(42, m.secretNumber())
+        self::assertEquals("demo", m.category())
+        self::assertEquals(1, Impl::version())
         var t:Resolvable<int> = Impl::fetchDoubled(10)
         var r:int = resolve t
-        UnitTest::assertEquals(20, r)
+        self::assertEquals(20, r)
         return 0
     }
 
     // Couverture nominale : `greet` (public) via l'interface ET via la classe concrète.
     public method greetTest(): int {
         var m:Modifiers = use Impl()
-        UnitTest::assertEquals("hello", m.greet())
+        self::assertEquals("hello", m.greet())
         var i:Impl = use Impl()
-        UnitTest::assertEquals("hello", i.greet())
+        self::assertEquals("hello", i.greet())
         return 0
     }
 
     // `secretNumber` (private) — visibilité non vérifiée sur l'interface.
     public method secretNumberTest(): int {
         var m:Modifiers = use Impl()
-        UnitTest::assertEquals(42, m.secretNumber())
-        UnitTest::assertEquals(84, m.secretNumber() + m.secretNumber())
+        self::assertEquals(42, m.secretNumber())
+        self::assertEquals(84, m.secretNumber() + m.secretNumber())
         return 0
     }
 
     // `category` (protected) — même remarque.
     public method categoryTest(): int {
         var m:Modifiers = use Impl()
-        UnitTest::assertEquals("demo", m.category())
-        UnitTest::assertEquals(4, m.category().len())
+        self::assertEquals("demo", m.category())
+        self::assertEquals(4, m.category().len())
         return 0
     }
 
     // `version` (static) — appel statique répétable, valeur stable.
     public method versionTest(): int {
-        UnitTest::assertEquals(1, Impl::version())
-        UnitTest::assertEquals(Impl::version(), Impl::version())
+        self::assertEquals(1, Impl::version())
+        self::assertEquals(Impl::version(), Impl::version())
         return 0
     }
 }

@@ -37,13 +37,13 @@ import pickShape from "61_interface_instance_dispatch"
 //
 // Classes/interfaces/fonction support dans examples/61_interface_instance_dispatch.oc
 // (convention ocaraunit : un fichier de test = une seule classe).
-class Test_61_interface_instance_dispatch {
+class Test61InterfaceInstanceDispatch extends UnitTest {
 
     // Le cas exact du ticket : une seule classe, un seul appel.
     public method singleImplementerInstanceCallTest(): int {
         const c:Circle = use Circle(2.0)
         var s:Shape = c
-        UnitTest::assertEquals(12.56, s.area())
+        self::assertEquals(12.56, s.area())
         return 0
     }
 
@@ -56,14 +56,14 @@ class Test_61_interface_instance_dispatch {
         var square:Shape = use Square(3.0)
         var triangle:Shape = use Triangle(4.0, 5.0)
 
-        UnitTest::assertEquals("Circle", circle.shapeName())
-        UnitTest::assertEquals(12.56, circle.area())
+        self::assertEquals("Circle", circle.shapeName())
+        self::assertEquals(12.56, circle.area())
 
-        UnitTest::assertEquals("Square", square.shapeName())
-        UnitTest::assertEquals(9.0, square.area())
+        self::assertEquals("Square", square.shapeName())
+        self::assertEquals(9.0, square.area())
 
-        UnitTest::assertEquals("Triangle", triangle.shapeName())
-        UnitTest::assertEquals(10.0, triangle.area())
+        self::assertEquals("Triangle", triangle.shapeName())
+        self::assertEquals(10.0, triangle.area())
         return 0
     }
 
@@ -77,7 +77,7 @@ class Test_61_interface_instance_dispatch {
             total = total + s.area()
         }
         // Circle: 3.14 · Square: 4.0 · Triangle: 3.0 → 10.14
-        UnitTest::assertEquals(10.14, total)
+        self::assertEquals(10.14, total)
         return 0
     }
 
@@ -87,8 +87,8 @@ class Test_61_interface_instance_dispatch {
     public method classImplementingMultipleInterfacesTest(): int {
         var s:Shape = use Circle(2.0)
         var d:Drawable = use Circle(2.0)
-        UnitTest::assertEquals(12.56, s.area())
-        UnitTest::assertEquals("O", d.draw())
+        self::assertEquals(12.56, s.area())
+        self::assertEquals("O", d.draw())
         return 0
     }
 
@@ -106,13 +106,13 @@ class Test_61_interface_instance_dispatch {
         var s1:Shape = pickShape(1)
         var s2:Shape = pickShape(2)
 
-        UnitTest::assertEquals("Circle", s0.shapeName())
-        UnitTest::assertEquals("Square", s1.shapeName())
-        UnitTest::assertEquals("Triangle", s2.shapeName())
+        self::assertEquals("Circle", s0.shapeName())
+        self::assertEquals("Square", s1.shapeName())
+        self::assertEquals("Triangle", s2.shapeName())
 
-        UnitTest::assertEquals(12.56, s0.area())
-        UnitTest::assertEquals(9.0, s1.area())
-        UnitTest::assertEquals(10.0, s2.area())
+        self::assertEquals(12.56, s0.area())
+        self::assertEquals(9.0, s1.area())
+        self::assertEquals(10.0, s2.area())
         return 0
     }
 
@@ -122,12 +122,12 @@ class Test_61_interface_instance_dispatch {
         const c:Circle = use Circle(1.0)
         const sq:Square = use Square(4.0)
         const t:Triangle = use Triangle(6.0, 2.0)
-        UnitTest::assertEquals(3.14, c.area())
-        UnitTest::assertEquals(16.0, sq.area())
-        UnitTest::assertEquals(6.0, t.area())
+        self::assertEquals(3.14, c.area())
+        self::assertEquals(16.0, sq.area())
+        self::assertEquals(6.0, t.area())
 
         var s:Shape = use Square(0.5)
-        UnitTest::assertEquals(0.25, s.area())
+        self::assertEquals(0.25, s.area())
         return 0
     }
 
@@ -136,12 +136,12 @@ class Test_61_interface_instance_dispatch {
         const c:Circle = use Circle(1.0)
         const sq:Square = use Square(1.0)
         const t:Triangle = use Triangle(1.0, 1.0)
-        UnitTest::assertEquals("Circle", c.shapeName())
-        UnitTest::assertEquals("Square", sq.shapeName())
-        UnitTest::assertEquals("Triangle", t.shapeName())
+        self::assertEquals("Circle", c.shapeName())
+        self::assertEquals("Square", sq.shapeName())
+        self::assertEquals("Triangle", t.shapeName())
 
         var s:Shape = use Triangle(1.0, 1.0)
-        UnitTest::assertEquals("Triangle", s.shapeName())
+        self::assertEquals("Triangle", s.shapeName())
         return 0
     }
 
@@ -150,13 +150,13 @@ class Test_61_interface_instance_dispatch {
     public method drawTest(): int {
         const c:Circle = use Circle(1.0)
         const sq:Square = use Square(1.0)
-        UnitTest::assertEquals("O", c.draw())
-        UnitTest::assertEquals("[]", sq.draw())
+        self::assertEquals("O", c.draw())
+        self::assertEquals("[]", sq.draw())
 
         var d1:Drawable = use Circle(1.0)
         var d2:Drawable = use Square(1.0)
-        UnitTest::assertEquals("O", d1.draw())
-        UnitTest::assertEquals("[]", d2.draw())
+        self::assertEquals("O", d1.draw())
+        self::assertEquals("[]", d2.draw())
         return 0
     }
 }

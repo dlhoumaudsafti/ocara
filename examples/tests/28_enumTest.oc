@@ -2,70 +2,70 @@ architecture permissive
 
 import ocara.UnitTest
 
-class Test_28_enum {
-    
+class Test28Enum extends UnitTest {
+
     public method enumAutoValuesTest(): int {
-        UnitTest::assertEquals(0, Direction::North)
-        UnitTest::assertEquals(1, Direction::East)
-        UnitTest::assertEquals(2, Direction::South)
-        UnitTest::assertEquals(3, Direction::West)
+        self::assertEquals(0, Direction::North)
+        self::assertEquals(1, Direction::East)
+        self::assertEquals(2, Direction::South)
+        self::assertEquals(3, Direction::West)
         return 0
     }
-    
+
     public method enumExplicitValuesTest(): int {
-        UnitTest::assertEquals(200, HttpStatus::Ok)
-        UnitTest::assertEquals(201, HttpStatus::Created)
-        UnitTest::assertEquals(404, HttpStatus::NotFound)
-        UnitTest::assertEquals(500, HttpStatus::Error)
+        self::assertEquals(200, HttpStatus::Ok)
+        self::assertEquals(201, HttpStatus::Created)
+        self::assertEquals(404, HttpStatus::NotFound)
+        self::assertEquals(500, HttpStatus::Error)
         return 0
     }
-    
+
     public method enumSwitchTest(): int {
-        UnitTest::assertEquals("Nord", directionName(Direction::North))
-        UnitTest::assertEquals("Sud", directionName(Direction::South))
+        self::assertEquals("Nord", directionName(Direction::North))
+        self::assertEquals("Sud", directionName(Direction::South))
         return 0
     }
-    
+
     public method enumComparisonTest(): int {
         var s:int = HttpStatus::Error
-        UnitTest::assertTrue(isError(s))
-        UnitTest::assertTrue(s equal HttpStatus::Error)
+        self::assertTrue(isError(s))
+        self::assertTrue(s equal HttpStatus::Error)
         return 0
     }
-    
+
     public method directionNameTest(): int {
-        UnitTest::assertEquals("Nord", directionName(Direction::North))
-        UnitTest::assertEquals("Est", directionName(Direction::East))
-        UnitTest::assertEquals("Sud", directionName(Direction::South))
-        UnitTest::assertEquals("Ouest", directionName(Direction::West))
-        UnitTest::assertEquals("Inconnu", directionName(42))
+        self::assertEquals("Nord", directionName(Direction::North))
+        self::assertEquals("Est", directionName(Direction::East))
+        self::assertEquals("Sud", directionName(Direction::South))
+        self::assertEquals("Ouest", directionName(Direction::West))
+        self::assertEquals("Inconnu", directionName(42))
         return 0
     }
 
     public method httpLabelTest(): int {
-        UnitTest::assertEquals("OK", httpLabel(HttpStatus::Ok))
-        UnitTest::assertEquals("Created", httpLabel(HttpStatus::Created))
-        UnitTest::assertEquals("Not Found", httpLabel(HttpStatus::NotFound))
-        UnitTest::assertEquals("Internal Server Error", httpLabel(HttpStatus::Error))
-        UnitTest::assertEquals("?", httpLabel(418))
+        self::assertEquals("OK", httpLabel(HttpStatus::Ok))
+        self::assertEquals("Created", httpLabel(HttpStatus::Created))
+        self::assertEquals("Not Found", httpLabel(HttpStatus::NotFound))
+        self::assertEquals("Internal Server Error", httpLabel(HttpStatus::Error))
+        self::assertEquals("?", httpLabel(418))
         return 0
     }
 
     public method isErrorTest(): int {
-        UnitTest::assertTrue(isError(HttpStatus::Error))
-        UnitTest::assertTrue(isError(500))
-        UnitTest::assertFalse(isError(HttpStatus::Ok))
-        UnitTest::assertFalse(isError(HttpStatus::NotFound))
+        self::assertTrue(isError(HttpStatus::Error))
+        self::assertTrue(isError(500))
+        self::assertFalse(isError(HttpStatus::Ok))
+        self::assertFalse(isError(HttpStatus::NotFound))
         return 0
     }
 
     public method mainTest(): int {
-        UnitTest::assertEquals(0, Direction::North)
-        UnitTest::assertEquals(200, HttpStatus::Ok)
-        UnitTest::assertEquals("Nord", directionName(Direction::North))
-        UnitTest::assertEquals("Sud", directionName(Direction::South))
-        UnitTest::assertEquals("Not Found", httpLabel(HttpStatus::NotFound))
-        UnitTest::assertTrue(isError(HttpStatus::Error))
+        self::assertEquals(0, Direction::North)
+        self::assertEquals(200, HttpStatus::Ok)
+        self::assertEquals("Nord", directionName(Direction::North))
+        self::assertEquals("Sud", directionName(Direction::South))
+        self::assertEquals("Not Found", httpLabel(HttpStatus::NotFound))
+        self::assertTrue(isError(HttpStatus::Error))
         return 0
     }
 }

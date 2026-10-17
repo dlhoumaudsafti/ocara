@@ -16,11 +16,11 @@ import Timestamped from "26_modules"
 import Identifiable from "26_modules"
 import User from "26_modules"
 
-class Test_26_modules {
-    
+class Test26Modules extends UnitTest {
+
     public method basicTest(): int {
         var u:User = use User(10)
-        UnitTest::assertEquals(10, u.getScore())
+        self::assertEquals(10, u.getScore())
         return 0
     }
 
@@ -28,7 +28,7 @@ class Test_26_modules {
     public method getAgeTest(): int {
         var u:User = use User(0)
         var age:int = u.getAge()
-        UnitTest::assertEquals(100, age)
+        self::assertEquals(100, age)
         return 0
     }
 
@@ -37,7 +37,7 @@ class Test_26_modules {
         var u:User = use User(0)
         u.markCreated()
         var age:int = u.getAge()
-        UnitTest::assertEquals(58, age)
+        self::assertEquals(58, age)
         return 0
     }
 
@@ -45,7 +45,7 @@ class Test_26_modules {
     public method getIdTest(): int {
         var u:User = use User(0)
         var id:int = u.getId()
-        UnitTest::assertEquals(0, id)
+        self::assertEquals(0, id)
         return 0
     }
 
@@ -53,46 +53,46 @@ class Test_26_modules {
         var u:User = use User(0)
         u.setId(1001)
         var id1:int = u.getId()
-        UnitTest::assertEquals(1001, id1)
+        self::assertEquals(1001, id1)
         u.setId(7)
         var id2:int = u.getId()
-        UnitTest::assertEquals(7, id2)
+        self::assertEquals(7, id2)
         return 0
     }
 
     public method getScoreTest(): int {
         var u:User = use User(100)
-        UnitTest::assertEquals(100, u.getScore())
+        self::assertEquals(100, u.getScore())
         return 0
     }
 
     public method addPointsTest(): int {
         var u:User = use User(100)
         u.addPoints(50)
-        UnitTest::assertEquals(150, u.getScore())
+        self::assertEquals(150, u.getScore())
         u.addPoints(-30)
-        UnitTest::assertEquals(120, u.getScore())
+        self::assertEquals(120, u.getScore())
         return 0
     }
-    
+
     // Reproduit le scénario de main() avec assertions
     public method mainTest(): int {
         var u:User = use User(100)
-        UnitTest::assertEquals(100, u.getScore())
+        self::assertEquals(100, u.getScore())
         u.addPoints(50)
-        UnitTest::assertEquals(150, u.getScore())
+        self::assertEquals(150, u.getScore())
         u.setId(1001)
         var id:int = u.getId()
-        UnitTest::assertEquals(1001, id)
+        self::assertEquals(1001, id)
         var age1:int = u.getAge()
-        UnitTest::assertEquals(100, age1)
+        self::assertEquals(100, age1)
         u.markCreated()
         var age2:int = u.getAge()
-        UnitTest::assertEquals(58, age2)
+        self::assertEquals(58, age2)
         // Les modules sont indépendants : l'état des uns n'affecte pas les autres
         var id_after:int = u.getId()
-        UnitTest::assertEquals(1001, id_after)
-        UnitTest::assertEquals(150, u.getScore())
+        self::assertEquals(1001, id_after)
+        self::assertEquals(150, u.getScore())
         return 0
     }
 }

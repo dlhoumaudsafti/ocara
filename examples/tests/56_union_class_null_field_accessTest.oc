@@ -24,20 +24,20 @@ import ocara.UnitTest
 // helper partagé, `union_named_class`/`resolved_named_class`
 // (src/parsing/ast.d/types.rs), maintenant appelé par TOUS les sites qui
 // lient un identifiant à un type déclaré/résolu.
-class Test_56_union_class_null_field_access {
+class Test56UnionClassNullFieldAccess extends UnitTest {
 
     // Cas exact du repro original : `const f:Foo|null = Repo::find()`, une
     // méthode statique qui retourne réellement une instance (jamais null).
     public method constUnionReturnReadsCorrectFieldsTest(): int {
         const f:Foo|null = Repo::find()
         if f is null {
-            UnitTest::assertTrue(false)
+            self::assertTrue(false)
             return 1
         }
-        UnitTest::assertEquals(99, f.id)
-        UnitTest::assertEquals("AAA", f.reference)
-        UnitTest::assertEquals("BBB", f.brand)
-        UnitTest::assertEquals("CCC", f.model)
+        self::assertEquals(99, f.id)
+        self::assertEquals("AAA", f.reference)
+        self::assertEquals("BBB", f.brand)
+        self::assertEquals("CCC", f.model)
         return 0
     }
 
@@ -47,11 +47,11 @@ class Test_56_union_class_null_field_access {
     public method varUnionReturnReadsCorrectFieldsTest(): int {
         var f:Foo|null = Repo::find()
         if f is null {
-            UnitTest::assertTrue(false)
+            self::assertTrue(false)
             return 1
         }
-        UnitTest::assertEquals("AAA", f.reference)
-        UnitTest::assertEquals("BBB", f.brand)
+        self::assertEquals("AAA", f.reference)
+        self::assertEquals("BBB", f.brand)
         return 0
     }
 
@@ -61,14 +61,14 @@ class Test_56_union_class_null_field_access {
     public method constUnionFieldWriteTest(): int {
         const f:Foo|null = Repo::find()
         if f is null {
-            UnitTest::assertTrue(false)
+            self::assertTrue(false)
             return 1
         }
         f.reference = "ZZZ"
-        UnitTest::assertEquals(99, f.id)
-        UnitTest::assertEquals("ZZZ", f.reference)
-        UnitTest::assertEquals("BBB", f.brand)
-        UnitTest::assertEquals("CCC", f.model)
+        self::assertEquals(99, f.id)
+        self::assertEquals("ZZZ", f.reference)
+        self::assertEquals("BBB", f.brand)
+        self::assertEquals("CCC", f.model)
         return 0
     }
 
@@ -78,12 +78,12 @@ class Test_56_union_class_null_field_access {
     public method nestedFieldThroughUnionNarrowingTest(): int {
         const p:Person|null = PersonRepo::find()
         if p is null {
-            UnitTest::assertTrue(false)
+            self::assertTrue(false)
             return 1
         }
-        UnitTest::assertEquals("Alice", p.name)
-        UnitTest::assertEquals("Paris", p.address.city)
-        UnitTest::assertEquals("75000", p.address.zip)
+        self::assertEquals("Alice", p.name)
+        self::assertEquals("Paris", p.address.city)
+        self::assertEquals("75000", p.address.zip)
         return 0
     }
 
@@ -101,11 +101,11 @@ class Test_56_union_class_null_field_access {
             ids.push(it.id)
             refs.push(it.reference)
         }
-        UnitTest::assertEquals(2, ids.len())
-        UnitTest::assertEquals(1, ids[0])
-        UnitTest::assertEquals(2, ids[1])
-        UnitTest::assertEquals("AAA", refs[0])
-        UnitTest::assertEquals("DDD", refs[1])
+        self::assertEquals(2, ids.len())
+        self::assertEquals(1, ids[0])
+        self::assertEquals(2, ids[1])
+        self::assertEquals("AAA", refs[0])
+        self::assertEquals("DDD", refs[1])
         return 0
     }
 
@@ -117,10 +117,10 @@ class Test_56_union_class_null_field_access {
         m["a"] = use Foo(7, "AAA", "BBB", "CCC")
 
         for k has v in m {
-            UnitTest::assertEquals("a", k)
-            UnitTest::assertEquals(7, v.id)
-            UnitTest::assertEquals("AAA", v.reference)
-            UnitTest::assertEquals("CCC", v.model)
+            self::assertEquals("a", k)
+            self::assertEquals(7, v.id)
+            self::assertEquals("AAA", v.reference)
+            self::assertEquals("CCC", v.model)
         }
         return 0
     }
@@ -128,7 +128,7 @@ class Test_56_union_class_null_field_access {
     // Quatrième trigger : un paramètre de fonction typé `Classe|null` (même
     // pattern que le retour `Classe|null`, appliqué à un paramètre).
     public method functionParamUnionReadsCorrectFieldsTest(): int {
-        UnitTest::assertEquals("AAA-BBB", describe(use Foo(1, "AAA", "BBB", "CCC")))
+        self::assertEquals("AAA-BBB", describe(use Foo(1, "AAA", "BBB", "CCC")))
         return 0
     }
 
@@ -136,10 +136,10 @@ class Test_56_union_class_null_field_access {
     // doit pas être affectée par ce correctif.
     public method plainClassConstUnaffectedTest(): int {
         const f:Foo = use Foo(5, "GGG", "HHH", "III")
-        UnitTest::assertEquals(5, f.id)
-        UnitTest::assertEquals("GGG", f.reference)
-        UnitTest::assertEquals("HHH", f.brand)
-        UnitTest::assertEquals("III", f.model)
+        self::assertEquals(5, f.id)
+        self::assertEquals("GGG", f.reference)
+        self::assertEquals("HHH", f.brand)
+        self::assertEquals("III", f.model)
         return 0
     }
 }

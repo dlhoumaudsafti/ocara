@@ -7,7 +7,7 @@ import ocara.File
 // de X, pas seulement une correspondance exacte de nom (voir
 // IrModule::ancestor_chain).
 
-class Test_33_exception_hierarchy {
+class Test33ExceptionHierarchy extends UnitTest {
 
     // Sous-classe utilisateur attrapée par un filtre sur sa classe parente
     public method userHierarchyTest(): int {
@@ -16,11 +16,11 @@ class Test_33_exception_hierarchy {
             raise use DerivedError("boom utilisateur", 1)
         } on e is BaseError {
             caught = true
-            UnitTest::assertEquals(1, e.code)
+            self::assertEquals(1, e.code)
         } on e {
             caught = false
         }
-        UnitTest::assertTrue(caught)
+        self::assertTrue(caught)
         return 0
     }
 
@@ -34,7 +34,7 @@ class Test_33_exception_hierarchy {
         } on e {
             caught = false
         }
-        UnitTest::assertTrue(caught)
+        self::assertTrue(caught)
         return 0
     }
 
@@ -45,11 +45,11 @@ class Test_33_exception_hierarchy {
             raise use MyFileError("fichier manquant", 404)
         } on e is FileException {
             caught = true
-            UnitTest::assertEquals(404, e.code)
+            self::assertEquals(404, e.code)
         } on e {
             caught = false
         }
-        UnitTest::assertTrue(caught)
+        self::assertTrue(caught)
         return 0
     }
 
@@ -64,7 +64,7 @@ class Test_33_exception_hierarchy {
         } on e {
             caught = false
         }
-        UnitTest::assertTrue(caught)
+        self::assertTrue(caught)
         return 0
     }
 
@@ -80,23 +80,23 @@ class Test_33_exception_hierarchy {
         } on e {
             caught = false
         }
-        UnitTest::assertTrue(caught)
+        self::assertTrue(caught)
         return 0
     }
 
     // Contrôle négatif : un filtre sans lien de parenté ne doit PAS attraper
     public method unrelatedFilterTest(): int {
-        var caughtByWrongFilter:bool = false
-        var caughtByCatchAll:bool = false
+        var caught_by_wrong_filter:bool = false
+        var caught_by_catch_all:bool = false
         try {
             raise use DerivedError("ne doit pas matcher", 3)
         } on e is FileException {
-            caughtByWrongFilter = true
+            caught_by_wrong_filter = true
         } on e {
-            caughtByCatchAll = true
+            caught_by_catch_all = true
         }
-        UnitTest::assertFalse(caughtByWrongFilter)
-        UnitTest::assertTrue(caughtByCatchAll)
+        self::assertFalse(caught_by_wrong_filter)
+        self::assertTrue(caught_by_catch_all)
         return 0
     }
 
@@ -110,7 +110,7 @@ class Test_33_exception_hierarchy {
         } on e {
             caught = false
         }
-        UnitTest::assertTrue(caught)
+        self::assertTrue(caught)
         return 0
     }
 }

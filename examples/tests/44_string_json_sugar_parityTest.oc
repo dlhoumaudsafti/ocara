@@ -17,49 +17,49 @@ import ocara.Array
 // `JSON` (contrairement à `Array`/`Map`, leurs méthodes n'ont pas de type
 // d'élément générique `T` à résoudre depuis `elem_types` — pas le même risque
 // structurel).
-class Test_44_string_json_sugar_parity {
+class Test44StringJsonSugarParity extends UnitTest {
 
     public method stringTrimParityTest(): int {
         var text:string = "  Hello World  "
-        UnitTest::assertEquals("Hello World", text.trim())
-        UnitTest::assertEquals("Hello World", String::trim(text))
+        self::assertEquals("Hello World", text.trim())
+        self::assertEquals("Hello World", String::trim(text))
         return 0
     }
 
     public method stringLenParityTest(): int {
         var text:string = "Hello"
-        UnitTest::assertEquals(5, text.len())
-        UnitTest::assertEquals(5, String::len(text))
+        self::assertEquals(5, text.len())
+        self::assertEquals(5, String::len(text))
         return 0
     }
 
     public method stringUpperLowerParityTest(): int {
         var text:string = "Hello"
-        UnitTest::assertEquals("HELLO", text.upper())
-        UnitTest::assertEquals("HELLO", String::upper(text))
-        UnitTest::assertEquals("hello", text.lower())
-        UnitTest::assertEquals("hello", String::lower(text))
+        self::assertEquals("HELLO", text.upper())
+        self::assertEquals("HELLO", String::upper(text))
+        self::assertEquals("hello", text.lower())
+        self::assertEquals("hello", String::lower(text))
         return 0
     }
 
     public method stringSplitParityTest(): int {
         var csv:string = "a,b,c"
-        var partsSugar:array<string> = csv.split(",")
-        var partsStatic:array<string> = String::split(csv, ",")
-        UnitTest::assertEquals(3, Array::len(partsSugar))
-        UnitTest::assertEquals(3, Array::len(partsStatic))
-        UnitTest::assertEquals("a", partsSugar.get(0))
-        UnitTest::assertEquals("a", partsStatic.get(0))
+        var parts_sugar:array<string> = csv.split(",")
+        var parts_static:array<string> = String::split(csv, ",")
+        self::assertEquals(3, Array::len(parts_sugar))
+        self::assertEquals(3, Array::len(parts_static))
+        self::assertEquals("a", parts_sugar.get(0))
+        self::assertEquals("a", parts_static.get(0))
         return 0
     }
 
     public method stringEmptyParityTest(): int {
         var empty:string = ""
         var full:string = "x"
-        UnitTest::assertTrue(empty.empty())
-        UnitTest::assertTrue(String::empty(empty))
-        UnitTest::assertFalse(full.empty())
-        UnitTest::assertFalse(String::empty(full))
+        self::assertTrue(empty.empty())
+        self::assertTrue(String::empty(empty))
+        self::assertFalse(full.empty())
+        self::assertFalse(String::empty(full))
         return 0
     }
 
@@ -69,10 +69,10 @@ class Test_44_string_json_sugar_parity {
     public method jsonEncodeConcreteParityTest(): int {
         var floats:array<float> = [1.5, 0.0]
         var bools:array<bool> = [true, false]
-        UnitTest::assertEquals("[1.5,0.0]", JSON::encode(floats))
-        UnitTest::assertEquals("[1.5,0.0]", floats.encode())
-        UnitTest::assertEquals("[true,false]", JSON::encode(bools))
-        UnitTest::assertEquals("[true,false]", bools.encode())
+        self::assertEquals("[1.5,0.0]", JSON::encode(floats))
+        self::assertEquals("[1.5,0.0]", floats.encode())
+        self::assertEquals("[true,false]", JSON::encode(bools))
+        self::assertEquals("[true,false]", bools.encode())
         return 0
     }
 }

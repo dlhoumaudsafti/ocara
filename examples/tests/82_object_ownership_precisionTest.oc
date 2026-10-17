@@ -6,13 +6,13 @@ import ocara.UnitTest
 // dans deux classes distingués par leur classe, conteneur lu PUIS déplacé,
 // conteneur déplacé vers `self` puis relu, déplacement dans une boucle
 // refusé (le conteneur reste lisible : jamais de double libération).
-class Test_82_object_ownership_precision {
+class Test82ObjectOwnershipPrecision extends UnitTest {
 
     public method resolvedAsyncContainerTest(): int {
         consumed task:Resolvable<array<PrecisionItem>> = self.load()
         const items:array<PrecisionItem> = resolve task
         scoped box:PrecisionBox = use PrecisionBox(items)
-        UnitTest::assertEquals(2, box.count())
+        self::assertEquals(2, box.count())
         return 0
     }
 
@@ -20,14 +20,14 @@ class Test_82_object_ownership_precision {
         var ys:array<PrecisionItem> = [use PrecisionItem("y")]
         var n:int = ys.len()
         scoped box:PrecisionBox = use PrecisionBox(ys)
-        UnitTest::assertEquals(1, n)
-        UnitTest::assertEquals(1, box.count())
+        self::assertEquals(1, n)
+        self::assertEquals(1, box.count())
         return 0
     }
 
     public method moveToSelfThenReadTest(): int {
         scoped keeper:PrecisionKeeper = use PrecisionKeeper()
-        UnitTest::assertEquals("k!", keeper.adopt())
+        self::assertEquals("k!", keeper.adopt())
         return 0
     }
 
@@ -38,7 +38,7 @@ class Test_82_object_ownership_precision {
             scoped other:PrecisionOther = use PrecisionOther(zs)
             i = i + 1
         }
-        UnitTest::assertEquals("z!", zs[0].name)
+        self::assertEquals("z!", zs[0].name)
         return 0
     }
 

@@ -3,8 +3,8 @@ architecture permissive
 import ocara.UnitTest
 import ocara.IO
 
-class Test_04_conditions extends UnitTest {
-    
+class Test04Conditions extends UnitTest {
+
     public method simpleIfTest(): int {
         var outcome:int = 0
         var x:int = 10
@@ -14,7 +14,7 @@ class Test_04_conditions extends UnitTest {
         self::assertEquals(1, outcome)
         return 0
     }
-    
+
     public method ifElseTest(): int {
         var outcome:int = 0
         var x:int = 3
@@ -26,11 +26,11 @@ class Test_04_conditions extends UnitTest {
         self::assertEquals(2, outcome)
         return 0
     }
-    
+
     public method elseifTest(): int {
         var score:int = 75
         var grade:string = ""
-        
+
         if score greater or equal 90 {
             grade = "A"
         } elseif score greater or equal 80 {
@@ -40,22 +40,22 @@ class Test_04_conditions extends UnitTest {
         } else {
             grade = "F"
         }
-        
+
         self::assertEquals("C", grade)
         return 0
     }
-    
+
     public method nestedIfTest(): int {
         var x:int = 10
         var y:int = 20
         var outcome:int = 0
-        
+
         if x greater 5 {
             if y greater 15 {
                 outcome = 3
             }
         }
-        
+
         self::assertEquals(3, outcome)
         return 0
     }
@@ -83,7 +83,7 @@ class Test_04_conditions extends UnitTest {
 
         self::assertTrue(outcome)
     }
-    
+
     public method noteToMentionTest(): int {
         self::assertEquals("Excellent", noteToMention(95))
         self::assertEquals("Excellent", noteToMention(90))
@@ -95,7 +95,7 @@ class Test_04_conditions extends UnitTest {
         self::assertEquals("Insuffisant", noteToMention(0))
         return 0
     }
-    
+
     public method isAdultTest(): int {
         self::assertTrue(isAdult(18))
         self::assertTrue(isAdult(20))
@@ -104,27 +104,27 @@ class Test_04_conditions extends UnitTest {
         self::assertFalse(isAdult(0))
         return 0
     }
-    
+
     public method mainTest(): int {
         // Reproduit le comportement de main() avec des assertions
         var x:int = 10
         self::assertTrue(x greater 0)
-        
+
         var temperature:int = 25
         self::assertTrue(temperature greater or equal 25)
-        
+
         var a:int = 5
         var b:int = 10
         self::assertTrue(a greater 0 and b greater 0)
         self::assertTrue(a greater 100 or b greater 5)
         self::assertTrue(not false)
-        
+
         self::assertEquals("Bien", noteToMention(85))
         self::assertEquals("Insuffisant", noteToMention(45))
-        
+
         self::assertTrue(isAdult(20))
         self::assertFalse(isAdult(15))
-        
+
         return 0
     }
 }

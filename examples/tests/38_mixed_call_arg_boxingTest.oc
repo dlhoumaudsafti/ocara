@@ -16,20 +16,20 @@ import ocara.Array
 // documenté ce même chantier) — on utilise `equal`/`assertTrue` pour toute
 // valeur `mixed`, `assertEquals` seulement pour des petits entiers concrets.
 
-class Test_38_mixed_call_arg_boxing {
+class Test38MixedCallArgBoxing extends UnitTest {
 
     // Méthode D'INSTANCE — float
     public method instanceMethodFloatTest(): int {
         var b:Box = use Box(0)
-        UnitTest::assertTrue(b.acceptFloat(3.5))
+        self::assertTrue(b.acceptFloat(3.5))
         return 0
     }
 
     // Méthode D'INSTANCE — bool
     public method instanceMethodBoolTest(): int {
         var b:Box = use Box(0)
-        UnitTest::assertTrue(b.acceptBool(true))
-        UnitTest::assertFalse(b.acceptBool(false))
+        self::assertTrue(b.acceptBool(true))
+        self::assertFalse(b.acceptBool(false))
         return 0
     }
 
@@ -37,15 +37,15 @@ class Test_38_mixed_call_arg_boxing {
     // voir memoire-fiabilite-runtime-bas-niveau.md)
     public method instanceMethodLargeIntTest(): int {
         var b:Box = use Box(0)
-        UnitTest::assertTrue(b.acceptInt(1000000))
+        self::assertTrue(b.acceptInt(1000000))
         return 0
     }
 
     // Méthode STATIQUE (classe utilisateur) — float/bool/int
     public method staticMethodTest(): int {
-        UnitTest::assertTrue(StaticBox::acceptFloat(2.5))
-        UnitTest::assertTrue(StaticBox::acceptBool(true))
-        UnitTest::assertTrue(StaticBox::acceptInt(2000000))
+        self::assertTrue(StaticBox::acceptFloat(2.5))
+        self::assertTrue(StaticBox::acceptBool(true))
+        self::assertTrue(StaticBox::acceptInt(2000000))
         return 0
     }
 
@@ -53,7 +53,7 @@ class Test_38_mixed_call_arg_boxing {
     // refactor qui factorise sa logique de boxing avec les méthodes.
     public method constructorTest(): int {
         var b:Box = use Box(7.5)
-        UnitTest::assertTrue(b.storedFloatIsFloat())
+        self::assertTrue(b.storedFloatIsFloat())
         return 0
     }
 
@@ -65,9 +65,9 @@ class Test_38_mixed_call_arg_boxing {
         Array::push(arr, 3000000)
         var first:mixed = arr[0]
         var second:mixed = arr[1]
-        UnitTest::assertTrue(first is float)
-        UnitTest::assertTrue(second is int)
-        UnitTest::assertTrue(second equal 3000000)
+        self::assertTrue(first is float)
+        self::assertTrue(second is int)
+        self::assertTrue(second equal 3000000)
         return 0
     }
 
@@ -88,7 +88,7 @@ class Test_38_mixed_call_arg_boxing {
     public method sugarGetIndexZeroNotCorruptedTest(): int {
         var arr:array<int> = [10, 20, 30]
         var first:int = arr.get(0)
-        UnitTest::assertEquals(10, first)
+        self::assertEquals(10, first)
         return 0
     }
 
@@ -104,9 +104,9 @@ class Test_38_mixed_call_arg_boxing {
             i = i + 1
         }
         var first:Cell = acc.get(0)
-        UnitTest::assertEquals(0, first.n)
+        self::assertEquals(0, first.n)
         var last:Cell = acc.get(4)
-        UnitTest::assertEquals(4, last.n)
+        self::assertEquals(4, last.n)
         return 0
     }
 
@@ -118,9 +118,9 @@ class Test_38_mixed_call_arg_boxing {
     public method sugarSliceFromZeroNotCorruptedTest(): int {
         var arr:array<int> = [10, 20, 30, 40]
         var sub:array<int> = arr.slice(0, 2)
-        UnitTest::assertEquals(2, Array::len(sub))
-        UnitTest::assertEquals(10, sub.get(0))
-        UnitTest::assertEquals(20, sub.get(1))
+        self::assertEquals(2, Array::len(sub))
+        self::assertEquals(10, sub.get(0))
+        self::assertEquals(20, sub.get(1))
         return 0
     }
 }

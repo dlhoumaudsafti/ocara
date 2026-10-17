@@ -12,13 +12,13 @@ import Doubler from "65_async_resolvable_return_type"
 // que la valeur RÉELLEMENT produite au runtime était déjà correcte (un
 // handle de tâche). Chaque test vérifie la VALEUR réellement obtenue après
 // `resolve`, pas seulement que ça compile.
-class Test_65_async_resolvable_return_type {
+class Test65AsyncResolvableReturnType extends UnitTest {
 
     // Le cas exact du ticket : appel STATIQUE `async` retournant `string`.
     public method staticAsyncStringReturnTest(): int {
         var t:Resolvable<string> = Doubler::fetch()
         var r:string = resolve t
-        UnitTest::assertEquals("hi", r)
+        self::assertEquals("hi", r)
         return 0
     }
 
@@ -27,7 +27,7 @@ class Test_65_async_resolvable_return_type {
         var d:Doubler = use Doubler()
         var t:Resolvable<string> = d.fetchInstance()
         var r:string = resolve t
-        UnitTest::assertEquals("instance-hi", r)
+        self::assertEquals("instance-hi", r)
         return 0
     }
 
@@ -38,7 +38,7 @@ class Test_65_async_resolvable_return_type {
     public method staticAsyncFloatReturnTest(): int {
         var t:Resolvable<float> = Doubler::fetchRatio()
         var r:float = resolve t
-        UnitTest::assertEquals(3.5, r)
+        self::assertEquals(3.5, r)
         return 0
     }
 
@@ -48,9 +48,9 @@ class Test_65_async_resolvable_return_type {
     public method resolvableSurvivesIndirectionTest(): int {
         var pending:Resolvable<string> = Doubler::fetch()
         var other:int = 1 + 1
-        UnitTest::assertEquals(2, other)
+        self::assertEquals(2, other)
         var value:string = resolve pending
-        UnitTest::assertEquals("hi", value)
+        self::assertEquals("hi", value)
         return 0
     }
 }

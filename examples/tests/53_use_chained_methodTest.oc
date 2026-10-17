@@ -24,17 +24,17 @@ import ocara.Mutex
 // Voir src/lower/expr.d/tests.rs (resolve_chained_field_class_recognizes_new_expr_as_base)
 // pour le test unitaire ciblé, et
 // docs/roadmap.d/langage-use-chaine-valeur-retour-perdue.md pour l'historique.
-class Test_53_use_chained_method {
+class Test53UseChainedMethod extends UnitTest {
 
     public method chainedIntReturnIsCorrectTest(): int {
         var r:int = use Counter(5).getValue()
-        UnitTest::assertEquals(5, r)
+        self::assertEquals(5, r)
         return 0
     }
 
     public method chainedStringReturnIsCorrectTest(): int {
         var r:string = use Greeter("Alice").greet()
-        UnitTest::assertEquals("Bonjour Alice", r)
+        self::assertEquals("Bonjour Alice", r)
         return 0
     }
 
@@ -43,13 +43,13 @@ class Test_53_use_chained_method {
     // argument(s).
     public method chainedCallWithoutConstructorArgsTest(): int {
         var r:int = use Answer().fortyTwo()
-        UnitTest::assertEquals(42, r)
+        self::assertEquals(42, r)
         return 0
     }
 
     public method chainedFieldReadIsCorrectTest(): int {
         var r:int = use Counter(7).value
-        UnitTest::assertEquals(7, r)
+        self::assertEquals(7, r)
         return 0
     }
 
@@ -73,7 +73,7 @@ class Test_53_use_chained_method {
         Thread::sleep(300)
 
         lock.withLock(nameless(): void {
-            UnitTest::assertTrue(ran)
+            self::assertTrue(ran)
         })
         return 0
     }

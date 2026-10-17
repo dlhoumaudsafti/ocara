@@ -7,7 +7,7 @@ import ocara.UnitTest
 // relue, champ, élément extrait et retourné) survit au conteneur.
 // `xs.push(...)` sur un paramètre `array<Classe>` était compilé en
 // `String_push` (SIGSEGV).
-class Test_80_scoped_object_containers {
+class Test80ScopedObjectContainers extends UnitTest {
 
     public method sharedObjectSurvivesContainerTest(): int {
         var shared:OwnedItem = use OwnedItem("shared")
@@ -15,24 +15,24 @@ class Test_80_scoped_object_containers {
             scoped box:array<OwnedItem> = []
             box.push(shared)
         }
-        UnitTest::assertEquals("shared", shared.name)
+        self::assertEquals("shared", shared.name)
         var h:OwnedHolder = use OwnedHolder(use OwnedItem("kept"))
-        UnitTest::assertEquals(1, h.fill())
-        UnitTest::assertEquals("kept", h.keep.name)
+        self::assertEquals(1, h.fill())
+        self::assertEquals("kept", h.keep.name)
         return 0
     }
 
     public method extractedElementSurvivesTest(): int {
         var it:OwnedItem = self.first()
-        UnitTest::assertEquals("a!", it.name)
+        self::assertEquals("a!", it.name)
         return 0
     }
 
     public method pushOnArrayParameterTest(): int {
         var xs:array<OwnedItem> = []
         self.fillAll(xs)
-        UnitTest::assertEquals(1, xs.len())
-        UnitTest::assertEquals("in", xs[0].name)
+        self::assertEquals(1, xs.len())
+        self::assertEquals("in", xs[0].name)
         return 0
     }
 
@@ -44,7 +44,7 @@ class Test_80_scoped_object_containers {
             seen = seen + owned["x"].name
             i = i + 1
         }
-        UnitTest::assertEquals("m!m!m!", seen)
+        self::assertEquals("m!m!m!", seen)
         return 0
     }
 

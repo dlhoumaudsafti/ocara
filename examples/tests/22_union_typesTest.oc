@@ -6,59 +6,59 @@ architecture permissive
 
 import ocara.UnitTest
 
-class Test_22_union_types {
-    
+class Test22UnionTypes extends UnitTest {
+
     public method unionIntOrStringTest(): int {
         var value:int|string = 42
-        UnitTest::assertTrue(value is int)
-        UnitTest::assertFalse(value is string)
+        self::assertTrue(value is int)
+        self::assertFalse(value is string)
         return 0
     }
-    
+
     public method unionNullableTest(): int {
         var name:string|null = "Alice"
-        UnitTest::assertFalse(name is null)
-        UnitTest::assertTrue(name is string)
+        self::assertFalse(name is null)
+        self::assertTrue(name is string)
         return 0
     }
-    
+
     public method unionNullTest(): int {
         var empty:string|null = null
-        UnitTest::assertTrue(empty is null)
+        self::assertTrue(empty is null)
         return 0
     }
-    
+
     public method unionMultipleTypesTest(): int {
         var val:int|string|bool = true
-        UnitTest::assertNotNull(val)
+        self::assertNotNull(val)
         return 0
     }
-    
+
     public method titleTest(): int {
         var adult:User = use User("Alice", 30)
         var t1:string|null = adult.title()
-        UnitTest::assertNotNull(t1)
-        
+        self::assertNotNull(t1)
+
         var minor:User = use User("Bob", 15)
         var t2:string|null = minor.title()
-        UnitTest::assertNull(t2)
-        
+        self::assertNull(t2)
+
         return 0
     }
-    
+
     public method ageGroupTest(): int {
         var senior:User = use User("Senior", 65)
         var g1:string|null = senior.ageGroup()
-        UnitTest::assertNotNull(g1)
-        
+        self::assertNotNull(g1)
+
         var adult:User = use User("Adult", 30)
         var g2:string|null = adult.ageGroup()
-        UnitTest::assertNotNull(g2)
-        
+        self::assertNotNull(g2)
+
         var minor:User = use User("Minor", 10)
         var g3:string|null = minor.ageGroup()
-        UnitTest::assertNotNull(g3)
-        
+        self::assertNotNull(g3)
+
         return 0
     }
 }

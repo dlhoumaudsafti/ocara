@@ -15,15 +15,15 @@ import ocara.JSON
 // comparaison (type + valeur, `__cmp_eq_strict`), plus une égalité brute de
 // i64 — `assertEquals` fonctionne donc correctement même sur un `mixed` boxé.
 
-class Test_37_mixed_large_int {
+class Test37MixedLargeInt extends UnitTest {
 
     // Narrowing `is` sur un entier mixed ordinaire, sans crash.
     public method isNarrowingNoCrashTest(): int {
         var n:mixed = 1000000
-        UnitTest::assertFalse(n is string)
-        UnitTest::assertFalse(n is array<mixed>)
-        UnitTest::assertTrue(n is int)
-        UnitTest::assertTrue(n equal 1000000)
+        self::assertFalse(n is string)
+        self::assertFalse(n is array<mixed>)
+        self::assertTrue(n is int)
+        self::assertTrue(n equal 1000000)
         return 0
     }
 
@@ -32,17 +32,17 @@ class Test_37_mixed_large_int {
     // — la magnitude seule décide, pas l'alignement.
     public method nonAlignedLargeIntTest(): int {
         var m:mixed = 65537
-        UnitTest::assertTrue(m is int)
-        UnitTest::assertFalse(m is string)
-        UnitTest::assertTrue(m equal 65537)
+        self::assertTrue(m is int)
+        self::assertFalse(m is string)
+        self::assertTrue(m equal 65537)
         return 0
     }
 
     // Un petit entier mixed reste inchangé (jamais boxé).
     public method smallIntUnaffectedTest(): int {
         var s:mixed = 42
-        UnitTest::assertTrue(s is int)
-        UnitTest::assertEquals(42, s)
+        self::assertTrue(s is int)
+        self::assertEquals(42, s)
         return 0
     }
 
@@ -55,7 +55,7 @@ class Test_37_mixed_large_int {
     // SEGFAULT et la valeur correcte via `equal` sont vérifiées ici.
     public method negativeLargeIntTest(): int {
         var neg:mixed = 0 - 5000000
-        UnitTest::assertTrue(neg equal (0 - 5000000))
+        self::assertTrue(neg equal (0 - 5000000))
         return 0
     }
 
@@ -63,12 +63,12 @@ class Test_37_mixed_large_int {
     // string, puis de nouveau un grand entier — chaque valeur reste correcte.
     public method reassignmentRoundtripTest(): int {
         var v:mixed = 2000000
-        UnitTest::assertTrue(v equal 2000000)
+        self::assertTrue(v equal 2000000)
         v = "texte"
-        UnitTest::assertTrue(v is string)
+        self::assertTrue(v is string)
         v = 3000000
-        UnitTest::assertTrue(v is int)
-        UnitTest::assertTrue(v equal 3000000)
+        self::assertTrue(v is int)
+        self::assertTrue(v equal 3000000)
         return 0
     }
 
@@ -79,8 +79,8 @@ class Test_37_mixed_large_int {
         var a:mixed = 100000
         var b:mixed = 200000
         var c:mixed = a + b
-        UnitTest::assertTrue(c is int)
-        UnitTest::assertTrue(c equal 300000)
+        self::assertTrue(c is int)
+        self::assertTrue(c equal 300000)
         return 0
     }
 
@@ -89,9 +89,9 @@ class Test_37_mixed_large_int {
     public method strictComparisonTest(): int {
         var x:mixed = 100000
         var y:mixed = 200000
-        UnitTest::assertTrue(x smaller y)
-        UnitTest::assertTrue(y greater x)
-        UnitTest::assertFalse(x greater y)
+        self::assertTrue(x smaller y)
+        self::assertTrue(y greater x)
+        self::assertFalse(x greater y)
         return 0
     }
 
@@ -101,11 +101,11 @@ class Test_37_mixed_large_int {
         var arr:array<mixed> = [1000000, "deux", 3000000]
         var encoded:string = JSON::encode(arr)
         var decoded:array<mixed> = JSON::decode(encoded)
-        UnitTest::assertEquals(3, Array::len(decoded))
+        self::assertEquals(3, Array::len(decoded))
         var first:mixed = decoded[0]
-        UnitTest::assertTrue(first equal 1000000)
+        self::assertTrue(first equal 1000000)
         var third:mixed = decoded[2]
-        UnitTest::assertTrue(third equal 3000000)
+        self::assertTrue(third equal 3000000)
         return 0
     }
 
@@ -116,9 +116,9 @@ class Test_37_mixed_large_int {
     public method concretePrimitiveArrayAutoFreeTest(): int {
         var floats:array<float> = [1.5, 2.5, 3.5]
         var ints:array<int>     = [1000000, 2000000, 3000000]
-        UnitTest::assertEquals(3, Array::len(floats))
-        UnitTest::assertEquals(3, Array::len(ints))
-        UnitTest::assertEquals(1000000, ints[0])
+        self::assertEquals(3, Array::len(floats))
+        self::assertEquals(3, Array::len(ints))
+        self::assertEquals(1000000, ints[0])
         return 0
     }
 
@@ -131,10 +131,10 @@ class Test_37_mixed_large_int {
     // `box_int_if_needed` boxe désormais `n != 0 && n < 0x10000` OU `n == 0`.
     public method mixedZeroIsIntNotNullTest(): int {
         var m:mixed = 0
-        UnitTest::assertTrue(m is int)
-        UnitTest::assertFalse(m is null)
-        UnitTest::assertTrue(m equal 0)
-        UnitTest::assertEquals(0, m)
+        self::assertTrue(m is int)
+        self::assertFalse(m is null)
+        self::assertTrue(m equal 0)
+        self::assertEquals(0, m)
         return 0
     }
 
@@ -142,8 +142,8 @@ class Test_37_mixed_large_int {
     // détection (seul l'entier `0` change de représentation, pas `null`).
     public method mixedNullStillNullTest(): int {
         var n:mixed = null
-        UnitTest::assertTrue(n is null)
-        UnitTest::assertFalse(n is int)
+        self::assertTrue(n is null)
+        self::assertFalse(n is int)
         return 0
     }
 
@@ -153,7 +153,7 @@ class Test_37_mixed_large_int {
     public method mixedZeroNotEqualNullTest(): int {
         var zero:mixed = 0
         var nul:mixed = null
-        UnitTest::assertFalse(zero equal nul)
+        self::assertFalse(zero equal nul)
         return 0
     }
 
@@ -161,12 +161,12 @@ class Test_37_mixed_large_int {
     // nouveau `0` — chaque valeur reste correctement distincte.
     public method mixedZeroNullReassignmentTest(): int {
         var v:mixed = 0
-        UnitTest::assertTrue(v is int)
+        self::assertTrue(v is int)
         v = null
-        UnitTest::assertTrue(v is null)
+        self::assertTrue(v is null)
         v = 0
-        UnitTest::assertTrue(v is int)
-        UnitTest::assertEquals(0, v)
+        self::assertTrue(v is int)
+        self::assertEquals(0, v)
         return 0
     }
 
@@ -176,8 +176,8 @@ class Test_37_mixed_large_int {
         var a:mixed = 5
         var b:mixed = 0 - 5
         var c:mixed = a + b
-        UnitTest::assertTrue(c is int)
-        UnitTest::assertEquals(0, c)
+        self::assertTrue(c is int)
+        self::assertEquals(0, c)
         return 0
     }
 
@@ -185,12 +185,12 @@ class Test_37_mixed_large_int {
     // son identité propre (pas seulement une variable isolée).
     public method mixedArrayZeroAndNullTest(): int {
         var arr:array<mixed> = [0, null, 5]
-        UnitTest::assertEquals(3, Array::len(arr))
+        self::assertEquals(3, Array::len(arr))
         var first:mixed = Array::get(arr, 0)
         var second:mixed = Array::get(arr, 1)
-        UnitTest::assertTrue(first is int)
-        UnitTest::assertTrue(second is null)
-        UnitTest::assertEquals(0, first)
+        self::assertTrue(first is int)
+        self::assertTrue(second is null)
+        self::assertEquals(0, first)
         return 0
     }
 
@@ -200,7 +200,7 @@ class Test_37_mixed_large_int {
     public method jsonEncodeZeroVsNullTest(): int {
         var arr:array<mixed> = [0, null]
         var encoded:string = JSON::encode(arr)
-        UnitTest::assertEquals("[0,null]", encoded)
+        self::assertEquals("[0,null]", encoded)
         return 0
     }
 }

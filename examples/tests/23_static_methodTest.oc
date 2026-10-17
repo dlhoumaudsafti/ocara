@@ -3,124 +3,124 @@ architecture permissive
 import ocara.UnitTest
 import ocara.String
 
-class Test_23_static_method {
-    
+class Test23StaticMethod extends UnitTest {
+
     public method validatorTest(): int {
-        UnitTest::assertTrue(Validator::isPositive(5))
-        UnitTest::assertFalse(Validator::isPositive(-5))
-        UnitTest::assertTrue(Validator::isInRange(50, 0, 100))
-        UnitTest::assertFalse(Validator::isInRange(150, 0, 100))
-        UnitTest::assertTrue(Validator::isValidAge(30))
-        UnitTest::assertFalse(Validator::isValidAge(200))
-        UnitTest::assertTrue(Validator::isValidScore(75))
-        UnitTest::assertFalse(Validator::isValidScore(150))
+        self::assertTrue(Validator::isPositive(5))
+        self::assertFalse(Validator::isPositive(-5))
+        self::assertTrue(Validator::isInRange(50, 0, 100))
+        self::assertFalse(Validator::isInRange(150, 0, 100))
+        self::assertTrue(Validator::isValidAge(30))
+        self::assertFalse(Validator::isValidAge(200))
+        self::assertTrue(Validator::isValidScore(75))
+        self::assertFalse(Validator::isValidScore(150))
         return 0
     }
-    
+
     public method temperatureTest(): int {
-        UnitTest::assertEquals(32, Temperature::toFahrenheit(0))
-        UnitTest::assertEquals(212, Temperature::toFahrenheit(100))
-        UnitTest::assertEquals(0, Temperature::toCelsius(32))
-        UnitTest::assertTrue(Temperature::isValid(0))
-        UnitTest::assertFalse(Temperature::isValid(-300))
-        UnitTest::assertEquals(-273, Temperature::clamp(-300))
-        UnitTest::assertEquals(25, Temperature::clamp(25))
+        self::assertEquals(32, Temperature::toFahrenheit(0))
+        self::assertEquals(212, Temperature::toFahrenheit(100))
+        self::assertEquals(0, Temperature::toCelsius(32))
+        self::assertTrue(Temperature::isValid(0))
+        self::assertFalse(Temperature::isValid(-300))
+        self::assertEquals(-273, Temperature::clamp(-300))
+        self::assertEquals(25, Temperature::clamp(25))
         return 0
     }
-    
+
     public method mainTest(): int {
-        UnitTest::assertTrue(Validator::isValidAge(30))
-        UnitTest::assertTrue(Validator::isValidScore(75))
-        UnitTest::assertEquals(32, Temperature::toFahrenheit(0))
-        UnitTest::assertTrue(Temperature::isValid(0))
+        self::assertTrue(Validator::isValidAge(30))
+        self::assertTrue(Validator::isValidScore(75))
+        self::assertEquals(32, Temperature::toFahrenheit(0))
+        self::assertTrue(Temperature::isValid(0))
         return 0
     }
     public method isPositiveTest(): int {
-        UnitTest::assertTrue(Validator::isPositive(5))
-        UnitTest::assertFalse(Validator::isPositive(-3))
-        UnitTest::assertFalse(Validator::isPositive(0))
+        self::assertTrue(Validator::isPositive(5))
+        self::assertFalse(Validator::isPositive(-3))
+        self::assertFalse(Validator::isPositive(0))
         return 0
     }
 
     public method isInRangeTest(): int {
-        UnitTest::assertTrue(Validator::isInRange(50, 0, 100))
-        UnitTest::assertTrue(Validator::isInRange(0, 0, 100))
-        UnitTest::assertTrue(Validator::isInRange(100, 0, 100))
-        UnitTest::assertFalse(Validator::isInRange(-1, 0, 100))
-        UnitTest::assertFalse(Validator::isInRange(101, 0, 100))
+        self::assertTrue(Validator::isInRange(50, 0, 100))
+        self::assertTrue(Validator::isInRange(0, 0, 100))
+        self::assertTrue(Validator::isInRange(100, 0, 100))
+        self::assertFalse(Validator::isInRange(-1, 0, 100))
+        self::assertFalse(Validator::isInRange(101, 0, 100))
         return 0
     }
 
     public method isValidAgeTest(): int {
-        UnitTest::assertTrue(Validator::isValidAge(25))
-        UnitTest::assertTrue(Validator::isValidAge(1))
-        UnitTest::assertTrue(Validator::isValidAge(150))
-        UnitTest::assertFalse(Validator::isValidAge(0))
-        UnitTest::assertFalse(Validator::isValidAge(-5))
-        UnitTest::assertFalse(Validator::isValidAge(200))
+        self::assertTrue(Validator::isValidAge(25))
+        self::assertTrue(Validator::isValidAge(1))
+        self::assertTrue(Validator::isValidAge(150))
+        self::assertFalse(Validator::isValidAge(0))
+        self::assertFalse(Validator::isValidAge(-5))
+        self::assertFalse(Validator::isValidAge(200))
         return 0
     }
 
     public method isValidScoreTest(): int {
-        UnitTest::assertTrue(Validator::isValidScore(85))
-        UnitTest::assertTrue(Validator::isValidScore(0))
-        UnitTest::assertTrue(Validator::isValidScore(100))
-        UnitTest::assertFalse(Validator::isValidScore(101))
-        UnitTest::assertFalse(Validator::isValidScore(-1))
+        self::assertTrue(Validator::isValidScore(85))
+        self::assertTrue(Validator::isValidScore(0))
+        self::assertTrue(Validator::isValidScore(100))
+        self::assertFalse(Validator::isValidScore(101))
+        self::assertFalse(Validator::isValidScore(-1))
         return 0
     }
 
     public method toFahrenheitTest(): int {
-        UnitTest::assertEquals(212, Temperature::toFahrenheit(100))
-        UnitTest::assertEquals(32, Temperature::toFahrenheit(0))
-        UnitTest::assertEquals(-40, Temperature::toFahrenheit(-40))
+        self::assertEquals(212, Temperature::toFahrenheit(100))
+        self::assertEquals(32, Temperature::toFahrenheit(0))
+        self::assertEquals(-40, Temperature::toFahrenheit(-40))
         return 0
     }
 
     public method toCelsiusTest(): int {
-        UnitTest::assertEquals(100, Temperature::toCelsius(212))
-        UnitTest::assertEquals(0, Temperature::toCelsius(32))
-        UnitTest::assertEquals(-40, Temperature::toCelsius(-40))
+        self::assertEquals(100, Temperature::toCelsius(212))
+        self::assertEquals(0, Temperature::toCelsius(32))
+        self::assertEquals(-40, Temperature::toCelsius(-40))
         // aller-retour exact (valeurs multiples de 5 : pas de troncature entière)
-        UnitTest::assertEquals(100, Temperature::toCelsius(Temperature::toFahrenheit(100)))
+        self::assertEquals(100, Temperature::toCelsius(Temperature::toFahrenheit(100)))
         // division entière : 37 °C -> 98 °F -> 36 °C
-        UnitTest::assertEquals(36, Temperature::toCelsius(Temperature::toFahrenheit(37)))
+        self::assertEquals(36, Temperature::toCelsius(Temperature::toFahrenheit(37)))
         return 0
     }
 
     public method isValidTest(): int {
-        UnitTest::assertTrue(Temperature::isValid(-273))
-        UnitTest::assertTrue(Temperature::isValid(20))
-        UnitTest::assertFalse(Temperature::isValid(-274))
-        UnitTest::assertFalse(Temperature::isValid(-300))
+        self::assertTrue(Temperature::isValid(-273))
+        self::assertTrue(Temperature::isValid(20))
+        self::assertFalse(Temperature::isValid(-274))
+        self::assertFalse(Temperature::isValid(-300))
         return 0
     }
 
     public method clampTest(): int {
-        UnitTest::assertEquals(-273, Temperature::clamp(-300))
-        UnitTest::assertEquals(20, Temperature::clamp(20))
-        UnitTest::assertEquals(Temperature::ABSOLUTE_ZERO, Temperature::clamp(-273))
+        self::assertEquals(-273, Temperature::clamp(-300))
+        self::assertEquals(20, Temperature::clamp(20))
+        self::assertEquals(Temperature::ABSOLUTE_ZERO, Temperature::clamp(-273))
         return 0
     }
 
     public method hasContentTest(): int {
-        UnitTest::assertTrue(StringCheck::hasContent("hello"))
-        UnitTest::assertTrue(StringCheck::hasContent(" "))
-        UnitTest::assertFalse(StringCheck::hasContent(""))
+        self::assertTrue(StringCheck::hasContent("hello"))
+        self::assertTrue(StringCheck::hasContent(" "))
+        self::assertFalse(StringCheck::hasContent(""))
         return 0
     }
 
     public method startsWithUpperTest(): int {
-        UnitTest::assertTrue(StringCheck::startsWithUpper("Alice"))
-        UnitTest::assertFalse(StringCheck::startsWithUpper("alice"))
-        UnitTest::assertFalse(StringCheck::startsWithUpper(""))
+        self::assertTrue(StringCheck::startsWithUpper("Alice"))
+        self::assertFalse(StringCheck::startsWithUpper("alice"))
+        self::assertFalse(StringCheck::startsWithUpper(""))
         return 0
     }
 
     public method isValidNameTest(): int {
-        UnitTest::assertTrue(StringCheck::isValidName("Alice"))
-        UnitTest::assertFalse(StringCheck::isValidName("alice"))
-        UnitTest::assertFalse(StringCheck::isValidName(""))
+        self::assertTrue(StringCheck::isValidName("Alice"))
+        self::assertFalse(StringCheck::isValidName("alice"))
+        self::assertFalse(StringCheck::isValidName(""))
         return 0
     }
 }

@@ -27,20 +27,20 @@ import useRepo from "60_interface_wiring"
 // `generate_interface_dispatchers` : un appel statique n'a jamais besoin
 // d'un dispatcher runtime, `wiring`/l'alias ont déjà tout résolu avant le
 // codegen.
-class Test_60_interface_wiring {
+class Test60InterfaceWiring extends UnitTest {
 
     // Nom NU (bare), sans alias : `use Repo()` doit résoudre vers le
     // PREMIER `wiring` déclaré (`PostgresRepo`), jamais `InMemoryRepo`.
     public method bareNameConstructionResolvesToFirstWiringTest(): int {
         var r:Repo = use Repo()
-        UnitTest::assertEquals("postgres:hello", r.save("hello"))
+        self::assertEquals("postgres:hello", r.save("hello"))
         return 0
     }
 
     // Même règle pour un appel STATIQUE nu : `Repo::create()`.
     public method bareNameStaticCallResolvesToFirstWiringTest(): int {
         var r:Repo = Repo::create()
-        UnitTest::assertEquals("postgres:hi", r.save("hi"))
+        self::assertEquals("postgres:hi", r.save("hi"))
         return 0
     }
 
@@ -51,7 +51,7 @@ class Test_60_interface_wiring {
     // `InMemoryRepo` directement.
     public method aliasedConstructionResolvesToMatchingWiringTest(): int {
         var r:InMemoryRepo = use InMemoryRepo()
-        UnitTest::assertEquals("memory:hello", r.save("hello"))
+        self::assertEquals("memory:hello", r.save("hello"))
         return 0
     }
 
@@ -68,7 +68,7 @@ class Test_60_interface_wiring {
     // bonne implémentation concrète — vérifié via `r.save("hi")` ci-dessous.
     public method aliasedStaticCallResolvesToMatchingWiringTest(): int {
         var r:Repo = InMemoryRepo::create()
-        UnitTest::assertEquals("memory:hi", r.save("hi"))
+        self::assertEquals("memory:hi", r.save("hi"))
         return 0
     }
 
@@ -77,8 +77,8 @@ class Test_60_interface_wiring {
     // indifféremment les deux implémentations concrètes, `wiring` ne
     // remplace JAMAIS cette forme de polymorphisme réel.
     public method typeAnnotationStaysAbstractAndAcceptsBothImplementationsTest(): int {
-        UnitTest::assertEquals("postgres:poly", useRepo(use PostgresRepo(), "poly"))
-        UnitTest::assertEquals("memory:poly", useRepo(use InMemoryRepo(), "poly"))
+        self::assertEquals("postgres:poly", useRepo(use PostgresRepo(), "poly"))
+        self::assertEquals("memory:poly", useRepo(use InMemoryRepo(), "poly"))
         return 0
     }
 
@@ -87,9 +87,9 @@ class Test_60_interface_wiring {
     // classe, vérifiée par le préfixe produit par `save()`.
     public method createTest(): int {
         var pg:Repo = PostgresRepo::create()
-        UnitTest::assertEquals("postgres:a", pg.save("a"))
+        self::assertEquals("postgres:a", pg.save("a"))
         var mem:Repo = InMemoryRepo::create()
-        UnitTest::assertEquals("memory:b", mem.save("b"))
+        self::assertEquals("memory:b", mem.save("b"))
         return 0
     }
 
@@ -97,23 +97,23 @@ class Test_60_interface_wiring {
     // concrète puis via le type abstrait `Repo`.
     public method saveTest(): int {
         const pg:PostgresRepo = use PostgresRepo()
-        UnitTest::assertEquals("postgres:x", pg.save("x"))
-        UnitTest::assertEquals("postgres:", pg.save(""))
+        self::assertEquals("postgres:x", pg.save("x"))
+        self::assertEquals("postgres:", pg.save(""))
         var r:Repo = use PostgresRepo()
-        UnitTest::assertEquals("postgres:y", r.save("y"))
+        self::assertEquals("postgres:y", r.save("y"))
         var m:Repo = use InMemoryRepo()
-        UnitTest::assertEquals("memory:z", m.save("z"))
+        self::assertEquals("memory:z", m.save("z"))
         return 0
     }
 
     // Reproduit le scénario de main() avec assertions.
     public method mainTest(): int {
         var via_bare_new:Repo = use Repo()
-        UnitTest::assertEquals("postgres:hello", via_bare_new.save("hello"))
+        self::assertEquals("postgres:hello", via_bare_new.save("hello"))
         var via_bare_static:Repo = Repo::create()
-        UnitTest::assertEquals("postgres:hi", via_bare_static.save("hi"))
-        UnitTest::assertEquals("postgres:poly", useRepo(use PostgresRepo(), "poly"))
-        UnitTest::assertEquals("memory:poly", useRepo(use InMemoryRepo(), "poly"))
+        self::assertEquals("postgres:hi", via_bare_static.save("hi"))
+        self::assertEquals("postgres:poly", useRepo(use PostgresRepo(), "poly"))
+        self::assertEquals("memory:poly", useRepo(use InMemoryRepo(), "poly"))
         return 0
     }
 }

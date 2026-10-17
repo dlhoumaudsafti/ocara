@@ -25,7 +25,7 @@ import ocara.File
 // ne fonctionnait pas, la connexion suivante sur le même fichier resterait
 // bloquée par le verrou d'écriture SQLite jamais relâché (même famille de
 // symptôme que 49_sqlite_with_open_raiseTest.oc).
-class Test_52_class_resource_property_destructor {
+class Test52ClassResourcePropertyDestructor extends UnitTest {
 
     public method classCanOwnAResourcePropertyTest(): int {
         const path:string = "test_52_visits.db"
@@ -53,9 +53,9 @@ class Test_52_class_resource_property_destructor {
         scoped d3:Database = use Database(path)
         const v3:int = d3.recordVisit()
 
-        UnitTest::assertEquals(1, v1)
-        UnitTest::assertEquals(2, v2)
-        UnitTest::assertEquals(3, v3)
+        self::assertEquals(1, v1)
+        self::assertEquals(2, v2)
+        self::assertEquals(3, v3)
 
         File::remove(path)
         return 0

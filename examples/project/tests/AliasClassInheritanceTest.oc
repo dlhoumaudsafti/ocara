@@ -22,12 +22,12 @@ import ocara.UnitTest
 import classes.AliasGreetChild as MyChild
 import classes.AliasGreetCaller
 
-class AliasClassInheritanceTest {
+class AliasClassInheritanceTest extends UnitTest {
 
     public method aliasedChildStillResolvesInheritedMethodTest(): int {
         const c:MyChild = use MyChild()
         const caller:AliasGreetCaller = use AliasGreetCaller(c)
-        UnitTest::assertEquals("greet from Base", caller.result)
+        self::assertEquals("greet from Base", caller.result)
         return 0
     }
 }
