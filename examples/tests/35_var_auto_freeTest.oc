@@ -9,11 +9,6 @@ import ocara.Convert
 // directement (pas d'API mémoire exposée), mais vérifient l'absence de
 // corruption/crash — le vrai risque d'un bug de comptage (libérer une valeur
 // encore utilisée ailleurs).
-//
-// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée
-// du fichier pour y appeler les méthodes `*Test` (voir extract_class_name,
-// tools/ocaraunit/src/main.rs) — la classe de test doit donc précéder
-// `Holder` ci-dessous, pas l'inverse.
 
 class Test_35_var_auto_free {
 

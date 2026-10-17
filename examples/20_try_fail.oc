@@ -36,15 +36,15 @@ class NetworkError {
 
 // ─── Fonctions qui peuvent échouer ───────────────────────────────────────────
 
-function open_file(path: string): void {
+function openFile(path: string): void {
     raise use IOException("Fichier introuvable : " + path, 404)
 }
 
-function fetch_url(url: string): void {
+function fetchUrl(url: string): void {
     raise use NetworkError("Impossible de joindre : " + url)
 }
 
-function risky_int(): void {
+function riskyInt(): void {
     raise "erreur simple (string)"
 }
 
@@ -56,7 +56,7 @@ function main(): int {
     // ── Cas 1 : attraper une IOException ────────────────────────────────────
     IO::writeln("=== Cas 1 : IOException ===")
     try {
-        open_file("/etc/secret.txt")
+        openFile("/etc/secret.txt")
     } on e is IOException {
         IO::writeln(`[${e.code}] ${e.message}`)
     } on e {
@@ -67,7 +67,7 @@ function main(): int {
     // ── Cas 2 : attraper une NetworkError ───────────────────────────────────
     IO::writeln("=== Cas 2 : NetworkError ===")
     try {
-        fetch_url("https://exemple.oc")
+        fetchUrl("https://exemple.oc")
     } on e is IOException {
         IO::writeln(`IOException : ${e.message}`)
     } on e is NetworkError {
@@ -80,7 +80,7 @@ function main(): int {
     // ── Cas 3 : attraper une erreur de type string ───────────────────────────
     IO::writeln("=== Cas 3 : raise string ===")
     try {
-        risky_int()
+        riskyInt()
     } on e {
         IO::writeln(`capturé : ${e}`)
     }

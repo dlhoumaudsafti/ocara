@@ -11,11 +11,11 @@ import ocara.IO
 module Timestamped {
     private property created_at: int
 
-    public method mark_created(): void {
+    public method markCreated(): void {
         self.created_at = 42  // Placeholder, devrait être System::time()
     }
 
-    public method get_age(): int {
+    public method getAge(): int {
         return 100 - self.created_at
     }
 }
@@ -26,11 +26,11 @@ module Timestamped {
 module Identifiable {
     private property id: int
 
-    public method set_id(i: int): void {
+    public method setId(i: int): void {
         self.id = i
     }
 
-    public method get_id(): int {
+    public method getId(): int {
         return self.id
     }
 }
@@ -46,11 +46,11 @@ class User modules Timestamped, Identifiable {
         self.created_at = 0
     }
 
-    public method get_score(): int {
+    public method getScore(): int {
         return self.score
     }
 
-    public method add_points(points: int): void {
+    public method addPoints(points: int): void {
         self.score = self.score + points
     }
 }
@@ -64,33 +64,33 @@ function main(): int {
 
     // Utilisation des méthodes de User
     IO::write("Score initial: ")
-    IO::writeln(u.get_score())
+    IO::writeln(u.getScore())
 
-    u.add_points(50)
+    u.addPoints(50)
     IO::write("Score après bonus: ")
-    IO::writeln(u.get_score())
+    IO::writeln(u.getScore())
 
     // Utilisation des méthodes du module Identifiable
-    u.set_id(1001)
+    u.setId(1001)
     IO::write("ID utilisateur: ")
-    IO::writeln(u.get_id())
+    IO::writeln(u.getId())
 
     // Utilisation des méthodes du module Timestamped
     IO::write("Age initial: ")
-    IO::writeln(u.get_age())
+    IO::writeln(u.getAge())
 
-    u.mark_created()
+    u.markCreated()
     IO::write("Age après création: ")
-    IO::writeln(u.get_age())
+    IO::writeln(u.getAge())
 
     IO::writeln("")
     IO::writeln("=== Résumé ===")
     IO::write("Utilisateur #")
-    IO::writeln(u.get_id())
+    IO::writeln(u.getId())
     IO::write("  Score: ")
-    IO::writeln(u.get_score())
+    IO::writeln(u.getScore())
     IO::write("  Age:   ")
-    IO::writeln(u.get_age())
+    IO::writeln(u.getAge())
 
     IO::writeln("")
     IO::writeln("Les modules (mixins) permettent de composer")

@@ -114,9 +114,9 @@ impl<'a> TypeChecker<'a> {
         self.resource_classes = crate::sema::scope::compute_resource_classes(&program.classes);
         self.callable_params = crate::sema::named_args::collect_callable_params(program);
 
-        // W04 : ressource scoped/consumed encore ouverte au moment d'un
-        // raise non rattrapé localement — voir crate::sema::resource_raise.
-        self.warnings.extend(crate::sema::resource_raise::check_program(program, &self.resource_classes));
+        // W04 : un raise non rattrapé localement saute la finalisation d'un
+        // Thread ou d'une ressource `var` — voir crate::sema::resource_raise.
+        self.warnings.extend(crate::sema::resource_raise::check_program(program));
 
         // Enums — vérifier les doublons de variantes
         for c in &program.consts {

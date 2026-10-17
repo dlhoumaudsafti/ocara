@@ -34,7 +34,7 @@ class User {
     }
 
     // Retourne le groupe d'âge ou null si inconnu
-    public method age_group(): string|null {
+    public method ageGroup(): string|null {
         if self.age greater or equal 60 {
             return "senior"
         }
@@ -49,7 +49,7 @@ class User {
 }
 
 // Retourne un User ou null selon l'id
-function find_user(id:int): User|null {
+function findUser(id:int): User|null {
     if id equal 1 {
         return use User("Alice", 30)
     }
@@ -77,7 +77,7 @@ function grade(score:int): string|null {
 function main(): int {
 
     // ── User|null ────────────────────────────────────────────────────────────
-    var u1:User|null = find_user(1)
+    var u1:User|null = findUser(1)
     if u1 equal null {
         IO::writeln("utilisateur introuvable")
     } else {
@@ -92,7 +92,7 @@ function main(): int {
             IO::writeln(t)     // M.
         }
 
-        var g:string|null = u1.age_group()
+        var g:string|null = u1.ageGroup()
         if g equal null {
             IO::writeln("groupe inconnu")
         } else {
@@ -101,7 +101,7 @@ function main(): int {
     }
 
     // User non trouvé
-    var u2:User|null = find_user(99)
+    var u2:User|null = findUser(99)
     if u2 equal null {
         IO::writeln("utilisateur introuvable")   // utilisateur introuvable
     } else {
@@ -109,7 +109,7 @@ function main(): int {
     }
 
     // User mineur → title() retourne null
-    var u3:User|null = find_user(2)
+    var u3:User|null = findUser(2)
     if u3 equal null {
         IO::writeln("utilisateur introuvable")
     } else {

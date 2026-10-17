@@ -255,10 +255,9 @@ pub unsafe extern "C" fn SQLite_open(path_ptr: i64) -> i64 {
 /// SQLite::withOpen(path:string, f:Function<void(SQLite)>) → void
 /// Ouvre la base, exécute `f(db)`, ferme SYSTÉMATIQUEMENT — y compris si
 /// `f()` lève une exception. Voir docs/roadmap.d/exceptions-setjmp-longjmp-dette.md :
-/// `SQLite::open(path)` seul laisse `.close()` à la charge du développeur —
-/// un `raise` avant que `.close()` ne soit atteint (setjmp/longjmp, pas
-/// d'unwinding Rust) fuit la connexion pour toujours (voir le diagnostic W04,
-/// `src/sema/resource_raise.rs`). Même patron que `Mutex::withLock`
+/// Une connexion `var` ouverte par `SQLite::open(path)` laisse `.close()` à
+/// la charge du développeur — un `raise` avant que `.close()` ne soit
+/// atteint fuit la connexion (diagnostic W04, `src/sema/resource_raise.rs`). Même patron que `Mutex::withLock`
 /// (`runtime/src/mutex.rs`), étendu pour une closure qui REÇOIT la ressource
 /// en paramètre (`nameless(db:SQLite): void {...}`) plutôt que de la
 /// capturer (la connexion n'existe pas encore avant cet appel) — voir

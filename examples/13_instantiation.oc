@@ -47,7 +47,7 @@ class Timer {
         return self.seconds
     }
 
-    public method is_done(): bool {
+    public method isDone(): bool {
         return self.seconds equal 0
     }
 }

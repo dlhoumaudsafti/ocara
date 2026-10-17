@@ -115,4 +115,48 @@ class Test_61_interface_instance_dispatch {
         UnitTest::assertEquals(10.0, s2.area())
         return 0
     }
+
+    // `area()` de chaque implémentation, appel direct sur la classe
+    // concrète ET via le type interface `Shape`.
+    public method areaTest(): int {
+        const c:Circle = use Circle(1.0)
+        const sq:Square = use Square(4.0)
+        const t:Triangle = use Triangle(6.0, 2.0)
+        UnitTest::assertEquals(3.14, c.area())
+        UnitTest::assertEquals(16.0, sq.area())
+        UnitTest::assertEquals(6.0, t.area())
+
+        var s:Shape = use Square(0.5)
+        UnitTest::assertEquals(0.25, s.area())
+        return 0
+    }
+
+    // `shapeName()` de chaque implémentation, direct et via `Shape`.
+    public method shapeNameTest(): int {
+        const c:Circle = use Circle(1.0)
+        const sq:Square = use Square(1.0)
+        const t:Triangle = use Triangle(1.0, 1.0)
+        UnitTest::assertEquals("Circle", c.shapeName())
+        UnitTest::assertEquals("Square", sq.shapeName())
+        UnitTest::assertEquals("Triangle", t.shapeName())
+
+        var s:Shape = use Triangle(1.0, 1.0)
+        UnitTest::assertEquals("Triangle", s.shapeName())
+        return 0
+    }
+
+    // `draw()` des deux classes implémentant `Drawable` (Circle, Square),
+    // direct et via le type interface `Drawable`.
+    public method drawTest(): int {
+        const c:Circle = use Circle(1.0)
+        const sq:Square = use Square(1.0)
+        UnitTest::assertEquals("O", c.draw())
+        UnitTest::assertEquals("[]", sq.draw())
+
+        var d1:Drawable = use Circle(1.0)
+        var d2:Drawable = use Square(1.0)
+        UnitTest::assertEquals("O", d1.draw())
+        UnitTest::assertEquals("[]", d2.draw())
+        return 0
+    }
 }

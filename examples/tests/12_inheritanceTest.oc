@@ -1,6 +1,7 @@
 architecture permissive
 
 import ocara.UnitTest
+import ocara.IO
 
 class Test_12_inheritance {
     
@@ -28,6 +29,57 @@ class Test_12_inheritance {
         
         return 0
     }
+    public method speakTest(): int {
+        var dog:Dog = use Dog("Rex", "Labrador")
+        var cat:Cat = use Cat("Mimi", true)
+        // parent::init a bien fixé le cri propre à chaque sous-classe
+        UnitTest::assertEquals("Woof", dog.get_sound())
+        UnitTest::assertEquals("Meow", cat.get_sound())
+        dog.speak()
+        cat.speak()
+        // speak() n'altère pas l'état
+        UnitTest::assertEquals("Rex", dog.get_name())
+        UnitTest::assertEquals("Mimi", cat.get_name())
+        return 0
+    }
+
+    public method describeTest(): int {
+        var animal:Animal = use Animal("Generic", "...")
+        var dog:Dog = use Dog("Rex", "Labrador")
+        var outdoor:Cat = use Cat("Tom", false)
+        var indoor:Cat = use Cat("Mimi", true)
+        animal.describe()
+        dog.describe()
+        outdoor.describe()
+        indoor.describe()
+        UnitTest::assertEquals("Generic", animal.get_name())
+        UnitTest::assertEquals("Labrador", dog.get_breed())
+        UnitTest::assertFalse(outdoor.is_indoor())
+        UnitTest::assertTrue(indoor.is_indoor())
+        // dispatch via une variable typée par la classe parente
+        var base:Animal = dog
+        base.describe()
+        UnitTest::assertEquals("Rex", base.get_name())
+        return 0
+    }
+
+    public method fetchTest(): int {
+        var dog:Dog = use Dog("Rex", "Labrador")
+        dog.fetch()
+        UnitTest::assertEquals("Rex", dog.get_name())
+        UnitTest::assertEquals("Labrador", dog.get_breed())
+        return 0
+    }
+
+    public method logTest(): int {
+        var dog:Dog = use Dog("Rex", "Labrador")
+        dog.log("promenade effectuée")
+        // utilisable via l'interface Loggable
+        var logger:Loggable = dog
+        logger.log("via interface")
+        UnitTest::assertEquals("Rex", dog.get_name())
+        return 0
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -51,6 +103,18 @@ class Animal {
     public method get_name(): string {
         return self.name
     }
+
+    public method get_sound(): string {
+        return self.sound
+    }
+
+    public method speak(): void {
+        IO::writeln(self.name + " dit : " + self.sound)
+    }
+
+    public method describe(): void {
+        IO::writeln("Animal : " + self.name)
+    }
 }
 
 class Dog extends Animal implements Loggable {
@@ -65,8 +129,16 @@ class Dog extends Animal implements Loggable {
         return self.breed
     }
 
+    public method describe(): void {
+        IO::writeln("Chien : " + self.name + " (" + self.breed + ")")
+    }
+
+    public method fetch(): void {
+        IO::writeln(self.name + " rapporte la balle !")
+    }
+
     public method log(msg:string): void {
-        // Log implementation
+        IO::writeln("[Dog:" + self.name + "] " + msg)
     }
 }
 
@@ -80,6 +152,15 @@ class Cat extends Animal {
 
     public method is_indoor(): bool {
         return self.indoor
+    }
+
+    public method describe(): void {
+        scoped type:string = match self.indoor {
+            true  => "d'intérieur"
+            false => "d'extérieur"
+            default => "inconnu"
+        }
+        IO::writeln("Chat " + type + " : " + self.name)
     }
 }
 

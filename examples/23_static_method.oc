@@ -13,21 +13,21 @@ import ocara.String
 
 class Validator {
 
-    public static method is_positive(n:int): bool {
+    public static method isPositive(n:int): bool {
         return n greater 0
     }
 
-    public static method is_in_range(n:int, low:int, high:int): bool {
+    public static method isInRange(n:int, low:int, high:int): bool {
         return n greater or equal low and n smaller or equal high
     }
 
     // Appelle d'autres méthodes statiques de la même classe via self::
-    public static method is_valid_age(age:int): bool {
-        return self::is_positive(age) and self::is_in_range(age, 1, 150)
+    public static method isValidAge(age:int): bool {
+        return self::isPositive(age) and self::isInRange(age, 1, 150)
     }
 
-    public static method is_valid_score(score:int): bool {
-        return self::is_in_range(score, 0, 100)
+    public static method isValidScore(score:int): bool {
+        return self::isInRange(score, 0, 100)
     }
 }
 
@@ -37,23 +37,23 @@ class Temperature {
     public const ABSOLUTE_ZERO:int = -273
 
     // Conversion Celsius → Fahrenheit
-    public static method to_fahrenheit(c:int): int {
+    public static method toFahrenheit(c:int): int {
         return c * 9 / 5 + 32
     }
 
     // Conversion Fahrenheit → Celsius
-    public static method to_celsius(f:int): int {
+    public static method toCelsius(f:int): int {
         return (f - 32) * 5 / 9
     }
 
     // Vérifie qu'une température est physiquement possible
-    public static method is_valid(c:int): bool {
+    public static method isValid(c:int): bool {
         return c greater or equal Temperature::ABSOLUTE_ZERO
     }
 
     // Normalise : si en-dessous du zéro absolu, renvoie le zéro absolu
     public static method clamp(c:int): int {
-        if self::is_valid(c) {
+        if self::isValid(c) {
             return c
         }
         return Temperature::ABSOLUTE_ZERO
@@ -63,16 +63,16 @@ class Temperature {
 
 class StringCheck {
 
-    public static method has_content(s:string): bool {
+    public static method hasContent(s:string): bool {
         return s not equal ""
     }
 
-    public static method starts_with_upper(s:string): bool {
-        return s equal String::capitalize(s) and self::has_content(s)
+    public static method startsWithUpper(s:string): bool {
+        return s equal String::capitalize(s) and self::hasContent(s)
     }
 
-    public static method is_valid_name(s:string): bool {
-        return self::has_content(s) and self::starts_with_upper(s)
+    public static method isValidName(s:string): bool {
+        return self::hasContent(s) and self::startsWithUpper(s)
     }
 }
 
@@ -80,29 +80,29 @@ class StringCheck {
 function main(): int {
 
     // ── Validator ────────────────────────────────────────────────────────────
-    IO::writeln(Validator::is_positive(5))          // true
-    IO::writeln(Validator::is_positive(-3))         // false
-    IO::writeln(Validator::is_valid_age(25))        // true
-    IO::writeln(Validator::is_valid_age(0))         // false
-    IO::writeln(Validator::is_valid_age(200))       // false
-    IO::writeln(Validator::is_valid_score(85))      // true
-    IO::writeln(Validator::is_valid_score(101))     // false
+    IO::writeln(Validator::isPositive(5))          // true
+    IO::writeln(Validator::isPositive(-3))         // false
+    IO::writeln(Validator::isValidAge(25))        // true
+    IO::writeln(Validator::isValidAge(0))         // false
+    IO::writeln(Validator::isValidAge(200))       // false
+    IO::writeln(Validator::isValidScore(85))      // true
+    IO::writeln(Validator::isValidScore(101))     // false
 
     // ── Temperature ──────────────────────────────────────────────────────────
-    IO::writeln(Temperature::to_fahrenheit(100))    // 212
-    IO::writeln(Temperature::to_fahrenheit(0))      // 32
-    IO::writeln(Temperature::to_celsius(212))       // 100
-    IO::writeln(Temperature::is_valid(-273))        // true
-    IO::writeln(Temperature::is_valid(-300))        // false
+    IO::writeln(Temperature::toFahrenheit(100))    // 212
+    IO::writeln(Temperature::toFahrenheit(0))      // 32
+    IO::writeln(Temperature::toCelsius(212))       // 100
+    IO::writeln(Temperature::isValid(-273))        // true
+    IO::writeln(Temperature::isValid(-300))        // false
     IO::writeln(Temperature::clamp(-300))           // -273
     IO::writeln(Temperature::clamp(20))             // 20
 
     // ── StringCheck ──────────────────────────────────────────────────────────
-    IO::writeln(StringCheck::has_content("hello"))  // true
-    IO::writeln(StringCheck::has_content(""))       // false
-    IO::writeln(StringCheck::is_valid_name("Alice"))// true
-    IO::writeln(StringCheck::is_valid_name("alice"))// false
-    IO::writeln(StringCheck::is_valid_name(""))     // false
+    IO::writeln(StringCheck::hasContent("hello"))  // true
+    IO::writeln(StringCheck::hasContent(""))       // false
+    IO::writeln(StringCheck::isValidName("Alice"))// true
+    IO::writeln(StringCheck::isValidName("alice"))// false
+    IO::writeln(StringCheck::isValidName(""))     // false
 
     return 0
 }

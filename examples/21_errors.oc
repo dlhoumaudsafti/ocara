@@ -85,12 +85,12 @@ function main(): int {
     req.close()
 
     // Erreur 13 — fuite d'un handle natif HTTPRequest déclaré en `var` (E28).
-    var leakedReq: HTTPRequest = HTTPRequest::new("http://example.com")
-    leakedReq.setMethod("GET")
+    var leaked_req: HTTPRequest = HTTPRequest::new("http://example.com")
+    leaked_req.setMethod("GET")
 
     // Erreur 15 — `++`/`--` sur une cible invalide (ni Ident, ni Field, ni
     // Index) — voir docs/roadmap.d/langage-increment-decrement.md.
-    var invalideCible: int = 5++
+    var invalide_cible: int = 5++
 
     // Erreur 16 — `++`/`--` sur une cible d'un type autre que int/float.
     var texte: string = "abc"

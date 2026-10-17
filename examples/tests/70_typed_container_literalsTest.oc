@@ -9,8 +9,6 @@ import ocara.UnitTest
 // boucle) ou libère/clone (destructeur de classe) un tel conteneur doit le
 // savoir. Valeurs choisies au-dessus de PTR_THRESHOLD (65536) : un scalaire
 // brut pris pour un pointeur y plantait au lieu de seulement s'afficher faux.
-//
-// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée.
 class Test_70_typed_container_literals {
 
     public method nestedVarLiteralTest(): int {

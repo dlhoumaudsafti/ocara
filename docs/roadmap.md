@@ -29,6 +29,7 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
+- **SIGSEGV : méthode de `module` dont le résultat est passé directement en argument** — type de retour perdu au site d'appel (`float` → crash, `int` 0 → `null`, `bool` → `1`). *(Légère)* → [détails](roadmap.d/langage-module-method-return-type.md)
 - **Fuite : cycles jamais collectés tant que ≥ 2 threads Ocara tournent** — 291 Mo pour 2 × 400 000 cycles ; invisible pour `--leak-check`. Option retenue (2026-10-13) : collecte concurrente complète, ce qui impose des conteneurs protégés (verrou par tableau/map, libération différée). *(Dangereuse — runtime des conteneurs et du collecteur)* → [détails](roadmap.d/memoire-refcount.md)
 - **Fuites détectées par `make leak-check` sur 5 exemples** — receveurs d'appels `async` jamais libérés (64, 65), chaînes retournées par dispatch d'interface (60), message d'exception concaténé (20), `AdminDto.describe` (67). Listés dans `KNOWN_LEAKS` de `ci/leak_check.sh`. *(Légère à Structurel)* → [détails](roadmap.d/memoire-fuites-exemples-leak-check.md)
 
@@ -38,8 +39,6 @@ Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnali
 
 À traiter mais non bloquant pour la stabilité du langage.
 
-- **`make ci` rouge par construction** — 19 exemples avec avertissements `ocaracs` (casse des identifiants), 18 avec une couverture de tests incomplète (100 % exigé). *(Légère — volume)* → [détails](roadmap.d/qualite-ci-exemples-non-conformes.md)
-- **Avertissement W04 devenu faux** — un `raise` ferme désormais les ressources `scoped`/`consumed` traversées, mais W04 annonce toujours une fuite ; la fiche et `diagnostics.md` décrivent l'ancien comportement. *(Légère)* → [détails](roadmap.d/exceptions-setjmp-longjmp-dette.md)
 - **Sessions `HTTPServer` jamais purgées** — une session par requête sans cookie, conservée jusqu'à l'arrêt : mémoire non bornée sur un serveur exposé. *(Légère — expiration et purge)* → [détails](roadmap.d/stdlib-httpserver-session.md)
 - **Serveur de langage : renommage destructeur sans `workspaceFolders`** — index vide, seule la déclaration est renommée, le programme ne compile plus. *(Légère — repli sur `rootUri`)* → [détails](roadmap.d/tooling-language-server.md)
 - **`for i in a until b` alloue un tableau de `b − a` entiers** — mémoire en O(n) pour une boucle de comptage. *(Légère)* → [détails](roadmap.d/langage-for-range-allocation.md)

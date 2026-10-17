@@ -27,7 +27,7 @@ class Point {
         IO::writeln(`Point(${self.x}, ${self.y})`)
     }
 
-    public method distance_from_origin(): int {
+    public method distanceFromOrigin(): int {
         return self.x * self.x + self.y * self.y
     }
 }
@@ -57,11 +57,11 @@ class BankAccount {
         }
     }
 
-    public method show_balance(): void {
+    public method showBalance(): void {
         IO::writeln(`${self.owner} — solde : ${self.balance}`)
     }
 
-    private method is_negative(): bool {
+    private method isNegative(): bool {
         return self.balance smaller 0.0
     }
 }
@@ -71,10 +71,10 @@ function main(): int {
 
     var p:Point = use Point(3, 4)
     p.display()                         // Point(3, 4)
-    IO::writeln(p.distance_from_origin())     // 25
+    IO::writeln(p.distanceFromOrigin())     // 25
 
     var account:BankAccount = use BankAccount("Alice", 1000.0)
-    account.show_balance()              // Alice — solde : 1000.0
+    account.showBalance()              // Alice — solde : 1000.0
     account.deposit(500.0)             // Dépôt de 500.0 — solde : 1500.0
     account.withdraw(200.0)            // Retrait de 200.0 — solde : 1300.0
     account.withdraw(2000.0)           // Fonds insuffisants

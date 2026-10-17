@@ -5,8 +5,6 @@ import ocara.UnitTest
 // docs/roadmap.d/langage-property-initializer.md — `property nom:T = expr`
 // évalué avant le corps de `init()`, dans l'ordre de déclaration ; `init()`
 // écrit ou absent ; constructeur hérité conservé.
-//
-// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée.
 class Test_72_property_initializer {
 
     public method initializerBeforeInitBodyTest(): int {

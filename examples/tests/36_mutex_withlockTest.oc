@@ -7,10 +7,6 @@ import ocara.Mutex
 // si la closure `raise` (voir docs/builtins/Mutex.md). Avec lock()/unlock() manuels, un raise entre les
 // deux appels saute unlock() (setjmp/longjmp, pas d'unwinding) et laisse le
 // mutex verrouillé pour toujours.
-//
-// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée
-// du fichier (voir 33_exception_hierarchyTest.oc) — la classe de test doit
-// donc précéder MutexWithLockError ci-dessous.
 
 class Test_36_mutex_with_lock {
 

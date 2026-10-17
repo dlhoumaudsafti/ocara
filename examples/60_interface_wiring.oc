@@ -59,11 +59,11 @@ function useRepo(r:Repo, msg:string): string {
 
 function main(): int {
     // Nom nu, sans alias → premier wiring (PostgresRepo).
-    var viaBareNew:Repo = use Repo()
-    IO::writeln(viaBareNew.save("hello"))       // postgres:hello
+    var via_bare_new:Repo = use Repo()
+    IO::writeln(via_bare_new.save("hello"))       // postgres:hello
 
-    var viaBareStatic:Repo = Repo::create()
-    IO::writeln(viaBareStatic.save("hi"))       // postgres:hi
+    var via_bare_static:Repo = Repo::create()
+    IO::writeln(via_bare_static.save("hi"))       // postgres:hi
 
     // Polymorphisme réel : les deux implémentations concrètes restent
     // interchangeables via le type abstrait `Repo`.

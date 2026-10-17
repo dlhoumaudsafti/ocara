@@ -12,10 +12,6 @@ import ocara.Convert
 // générateur lui-même) : rejeu de `setjmp`/`TryFrame` à chaque reprise,
 // y compris avec des `try` imbriqués et un `raise` déclenché par une
 // fonction appelée depuis l'intérieur du `try`.
-//
-// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée
-// du fichier (voir 33_exception_hierarchyTest.oc) — la classe de test doit
-// donc précéder les classes/fonctions auxiliaires ci-dessous.
 
 class Test_42_emit_generator {
 

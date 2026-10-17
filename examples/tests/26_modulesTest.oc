@@ -1,20 +1,98 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Tests unitaires pour 26_modules.oc (skeleton)
+// Tests unitaires pour 26_modules.oc
 // ─────────────────────────────────────────────────────────────────────────────
+//
+// NB : les résultats des méthodes issues d'un `module` (getAge, getId) sont
+// d'abord capturés dans une variable typée (`var x:int = u.getId()`) avant
+// l'assertion. Passés directement en argument (`assertEquals(0, u.getId())`),
+// leur type de retour est perdu au site d'appel (retombe sur Ptr : un `0`
+// devient `null`, un `float` segfault) — bug compilateur à corriger, voir
+// rapport (fn_ret_types non peuplé pour les méthodes de module).
 
 architecture permissive
 
 import ocara.UnitTest
+import Timestamped from "26_modules"
+import Identifiable from "26_modules"
+import User from "26_modules"
 
 class Test_26_modules {
     
     public method basicTest(): int {
-        UnitTest::assertTrue(true)
+        var u:User = use User(10)
+        UnitTest::assertEquals(10, u.getScore())
+        return 0
+    }
+
+    // Module Timestamped : created_at initialisé à 0 par init → âge 100
+    public method getAgeTest(): int {
+        var u:User = use User(0)
+        var age:int = u.getAge()
+        UnitTest::assertEquals(100, age)
+        return 0
+    }
+
+    // Module Timestamped : markCreated() fixe created_at à 42 → âge 58
+    public method markCreatedTest(): int {
+        var u:User = use User(0)
+        u.markCreated()
+        var age:int = u.getAge()
+        UnitTest::assertEquals(58, age)
+        return 0
+    }
+
+    // Module Identifiable : id initialisé à 0 par init
+    public method getIdTest(): int {
+        var u:User = use User(0)
+        var id:int = u.getId()
+        UnitTest::assertEquals(0, id)
+        return 0
+    }
+
+    public method setIdTest(): int {
+        var u:User = use User(0)
+        u.setId(1001)
+        var id1:int = u.getId()
+        UnitTest::assertEquals(1001, id1)
+        u.setId(7)
+        var id2:int = u.getId()
+        UnitTest::assertEquals(7, id2)
+        return 0
+    }
+
+    public method getScoreTest(): int {
+        var u:User = use User(100)
+        UnitTest::assertEquals(100, u.getScore())
+        return 0
+    }
+
+    public method addPointsTest(): int {
+        var u:User = use User(100)
+        u.addPoints(50)
+        UnitTest::assertEquals(150, u.getScore())
+        u.addPoints(-30)
+        UnitTest::assertEquals(120, u.getScore())
         return 0
     }
     
+    // Reproduit le scénario de main() avec assertions
     public method mainTest(): int {
-        UnitTest::assertTrue(true)
+        var u:User = use User(100)
+        UnitTest::assertEquals(100, u.getScore())
+        u.addPoints(50)
+        UnitTest::assertEquals(150, u.getScore())
+        u.setId(1001)
+        var id:int = u.getId()
+        UnitTest::assertEquals(1001, id)
+        var age1:int = u.getAge()
+        UnitTest::assertEquals(100, age1)
+        u.markCreated()
+        var age2:int = u.getAge()
+        UnitTest::assertEquals(58, age2)
+        // Les modules sont indépendants : l'état des uns n'affecte pas les autres
+        var id_after:int = u.getId()
+        UnitTest::assertEquals(1001, id_after)
+        UnitTest::assertEquals(150, u.getScore())
         return 0
     }
 }

@@ -161,7 +161,7 @@ Les fichiers de test peuvent être organisés **en sous-dossiers** dans `tests/`
 
 ### Fichiers de test
 
-Dans un fichier sans déclaration de classe, toute fonction dont le nom se termine par `Test` est un test :
+Dans un fichier sans déclaration de classe, toute fonction dont le nom **commence ou se termine par `test`** (casse ignorée : `addTest`, `testAdd`, `add_test`) est un test — la casse des noms relève du linter `ocaracs`, pas du runner :
 
 ```ocara
 import ocara.UnitTest
@@ -181,7 +181,7 @@ function negativeAddTest(): int {
     return 0
 }
 
-// Pas de suffixe Test → ignorée par ocaraunit
+// Ni préfixe ni suffixe test → ignorée par ocaraunit
 function helper(): int {
     return 42
 }
@@ -189,9 +189,23 @@ function helper(): int {
 
 ### Méthodes de test — classe
 
-Dans un fichier avec une déclaration de classe, seules les méthodes **publiques** dont le nom se termine par `Test` sont des tests.
+Dans un fichier avec une ou plusieurs classes, les tests sont les méthodes **publiques** dont le nom commence ou se termine par `test` (casse ignorée). Le nom de la classe et sa position dans le fichier sont libres : chaque classe qui contient au moins un test est instanciée (constructeur sans argument) et ses tests sont appelés ; les classes auxiliaires sans test ne sont pas touchées. Les méthodes `private`/`protected` ne sont jamais des tests (y placer les helpers).
 
-Les méthodes **statiques** (`public static method fooTest`) sont également reconnues.
+Les méthodes **statiques** (`public static method fooTest`) sont également reconnues, appelées sur la classe.
+
+Une classe de test peut hériter de `UnitTest` pour écrire `self::assertEquals(...)` au lieu de `UnitTest::assertEquals(...)` :
+
+```ocara
+import ocara.UnitTest
+import Circle from "../Circle"
+
+class CircleTests extends UnitTest {
+    public method areaTest(): int {
+        self::assertEquals(12.56636, use Circle(2.0).area())
+        return 0
+    }
+}
+```
 
 ```ocara
 import ocara.UnitTest
@@ -249,7 +263,7 @@ Résultat global : 5 PASS  1 FAIL  0 ERREUR(S)
 
 Après l'exécution des tests, `ocaraunit` analyse les fichiers `.oc` non-test du projet et calcule le taux de couverture par fichier.
 
-**Règle de couverture :** une fonction ou méthode `foo` est considérée couverte s'il existe un test nommé `fooTest` dans les fichiers `*Test.oc`.
+**Règle de couverture :** une fonction ou méthode `foo` est considérée couverte s'il existe un test nommé `fooTest` ou `testFoo` (casse ignorée) dans les fichiers `*Test.oc`.
 
 Sont analysées : `function foo`, `public method foo`, `protected method foo`, `private method foo`, `public static method foo` (et variantes `protected`/`private static`).
 
@@ -337,6 +351,10 @@ ocaraunit --src examples/project examples/project/tests
 ```
 
 Utile si vos tests ne sont pas dans un dossier `tests/` ou pour des structures de projet complexes.
+
+### Imports relatifs au fichier de test
+
+Le compilateur résout les imports depuis la racine du projet ; un fichier de test peut pourtant écrire ses imports relativement à son propre dossier (`import Circle from "../Circle"` depuis `tests/`). Avant compilation, `ocaraunit` réécrit un tel chemin en chemin relatif à la racine. Un chemin déjà relatif à la racine (`import Circle from "Circle"`) est laissé tel quel : les deux écritures fonctionnent.
 
 ---
 

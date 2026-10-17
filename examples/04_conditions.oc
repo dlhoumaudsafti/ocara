@@ -12,7 +12,7 @@ architecture permissive
 import ocara.IO
 import ocara.HTTPServer
 
-function note_to_mention(note:int): string {
+function noteToMention(note:int): string {
     if note greater or equal 90 {
         return "Excellent"
     } elseif note greater or equal 75 {
@@ -24,7 +24,7 @@ function note_to_mention(note:int): string {
     }
 }
 
-function is_adult(age:int): bool {
+function isAdult(age:int): bool {
     return age greater or equal 18
 }
 
@@ -65,10 +65,10 @@ function main(): int {
     }
 
     // Appel de fonction avec condition
-    IO::writeln(note_to_mention(85))      // Bien
-    IO::writeln(note_to_mention(45))      // Insuffisant
+    IO::writeln(noteToMention(85))      // Bien
+    IO::writeln(noteToMention(45))      // Insuffisant
 
-    if is_adult(20) {
+    if isAdult(20) {
         IO::writeln("majeur")
     } else {
         IO::writeln("mineur")

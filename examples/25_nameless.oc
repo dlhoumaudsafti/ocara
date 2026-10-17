@@ -44,7 +44,7 @@ class Counter {
     }
 
     // Retourne une closure qui incrémente self.value de `step` à chaque appel
-    public method make_incrementer(step:int): Function<void()> {
+    public method makeIncrementer(step:int): Function<void()> {
         return nameless(): void {
             self.value = self.value + step
             IO::writeln(self.value)
@@ -52,7 +52,7 @@ class Counter {
     }
 
     // Retourne une closure qui multiplie self.value par `factor`
-    public method make_multiplier(factor:int): Function<void()> {
+    public method makeMultiplier(factor:int): Function<void()> {
         return nameless(): void {
             self.value = self.value * factor
             IO::writeln(self.value)
@@ -118,7 +118,7 @@ function main(): int {
 
     // ── Closure capturant self dans une méthode ───────────────────────────────
     scoped c:Counter = use Counter(0)
-    var inc:Function<void()> = c.make_incrementer(5)
+    var inc:Function<void()> = c.makeIncrementer(5)
     run(inc)                       // 5
     run(inc)                       // 10
     run(inc)                       // 15
@@ -126,8 +126,8 @@ function main(): int {
 
     // ── Deux closures indépendantes sur le même objet ─────────────────────────
     scoped d:Counter = use Counter(1)
-    var by2:Function<void()> = d.make_multiplier(2)
-    var by3:Function<void()> = d.make_multiplier(3)
+    var by2:Function<void()> = d.makeMultiplier(2)
+    var by3:Function<void()> = d.makeMultiplier(3)
     run(by2)                       // 2  (1 * 2)
     run(by3)                       // 6  (2 * 3)
     run(by2)                       // 12 (6 * 2)

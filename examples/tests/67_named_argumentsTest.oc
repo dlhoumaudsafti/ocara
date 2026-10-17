@@ -45,4 +45,28 @@ class Test_67_named_arguments {
         UnitTest::assertEquals("a-b-c", String::replace(to: "-", s: "a_b_c", from: "_"))
         return 0
     }
+
+    // `describe` : défauts, positionnel, nommé partiel et complet.
+    public method describeTest(): int {
+        var u:UserDto = use UserDto(1, "Al", "a@x.io", "dev")
+        UnitTest::assertEquals("[1:Al:a@x.io:dev]", u.describe())
+        UnitTest::assertEquals("<1:Al:a@x.io:dev>", u.describe("<", ">"))
+        UnitTest::assertEquals("[1:Al:a@x.io:dev}", u.describe(suffix: "}"))
+        UnitTest::assertEquals("(1:Al:a@x.io:dev)", u.describe(suffix: ")", prefix: "("))
+        return 0
+    }
+
+    // `guest` : rôle forcé à "guest", `id` par défaut à 0 ou fourni.
+    public method guestTest(): int {
+        var g:UserDto = UserDto::guest(name: "Anon")
+        UnitTest::assertEquals(0, g.id)
+        UnitTest::assertEquals("Anon", g.name)
+        UnitTest::assertEquals("none", g.email)
+        UnitTest::assertEquals("guest", g.role)
+        var g2:UserDto = UserDto::guest(id: 9, name: "Visitor")
+        UnitTest::assertEquals("[9:Visitor:none:guest]", g2.describe())
+        var g3:UserDto = UserDto::guest("Pos", 4)
+        UnitTest::assertEquals(4, g3.id)
+        return 0
+    }
 }

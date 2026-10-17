@@ -43,4 +43,35 @@ class Test_66_chained_call_depth_limit {
         UnitTest::assertEquals("DEEP", l1.next().next().label().upper())
         return 0
     }
+
+    // `getCircle` retourne bien l'instance passée au constructeur.
+    public method getCircleTest(): int {
+        var c:Circle = use Circle()
+        var w:Wrapper = use Wrapper(c)
+        var got:Circle = w.getCircle()
+        UnitTest::assertEquals("circle", got.shapeName())
+        return 0
+    }
+
+    public method shapeNameTest(): int {
+        var c:Circle = use Circle()
+        UnitTest::assertEquals("circle", c.shapeName())
+        return 0
+    }
+
+    // `next` (homonyme Level1/Level2) : chaque étape retourne la classe suivante.
+    public method nextTest(): int {
+        var l1:Level1 = use Level1()
+        var l2:Level2 = l1.next()
+        var l3:Level3 = l2.next()
+        UnitTest::assertEquals("deep", l3.label())
+        return 0
+    }
+
+    public method labelTest(): int {
+        var l3:Level3 = use Level3()
+        UnitTest::assertEquals("deep", l3.label())
+        UnitTest::assertEquals("DEEP", l3.label().upper())
+        return 0
+    }
 }

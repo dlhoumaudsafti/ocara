@@ -426,7 +426,7 @@ Les fichiers de test peuvent être organisés en sous-dossiers dans `tests/`. `o
 
 ### Script sans classe
 
-Toutes les fonctions dont le nom se termine par `Test` sont exécutées par `ocaraunit`.  
+Toutes les fonctions dont le nom commence ou se termine par `test` (casse ignorée : `addTest`, `testAdd`) sont exécutées par `ocaraunit`.  
 Les fonctions globales n'ont pas de modificateur de visibilité en Ocara.
 
 ```ocara
@@ -442,7 +442,7 @@ function negativeNumbersTest(): int {
     return 0
 }
 
-// Pas de suffixe Test → ignorée par ocaraunit
+// Ni préfixe ni suffixe test → ignorée par ocaraunit
 function helper(): int {
     return 42
 }
@@ -450,10 +450,12 @@ function helper(): int {
 
 ### Classe de test
 
-Seules les méthodes **publiques** dont le nom se termine par `Test` sont exécutées par `ocaraunit`.  
+Seules les méthodes **publiques** dont le nom commence ou se termine par `test` (casse ignorée) sont exécutées par `ocaraunit`, quelle que soit la classe qui les déclare (nom et position libres ; chaque classe contenant des tests est instanciée sans argument).  
 Les méthodes de classe utilisent le mot-clé `method` précédé d'un modificateur de visibilité.
 
 Les méthodes **statiques** (`public static method fooTest`) sont aussi reconnues et exécutées.
+
+Une classe de test peut hériter de `UnitTest` (`class MathTests extends UnitTest`) pour appeler les assertions par `self::assertEquals(...)`.
 
 ```ocara
 import ocara.UnitTest

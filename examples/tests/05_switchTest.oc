@@ -71,34 +71,34 @@ class Test_05_switch {
         return 0
     }
     
-    public method http_statusTest(): int {
-        // Appelle http_status pour assurer la couverture
-        http_status(200)
-        http_status(201)
-        http_status(400)
-        http_status(401)
-        http_status(404)
-        http_status(500)
-        http_status(999)
+    public method httpStatusTest(): int {
+        // Appelle httpStatus pour assurer la couverture
+        httpStatus(200)
+        httpStatus(201)
+        httpStatus(400)
+        httpStatus(401)
+        httpStatus(404)
+        httpStatus(500)
+        httpStatus(999)
         return 0
     }
     
-    public method day_typeTest(): int {
-        // Appelle day_type pour assurer la couverture
-        day_type("lundi")
-        day_type("mardi")
-        day_type("samedi")
-        day_type("dimanche")
+    public method dayTypeTest(): int {
+        // Appelle dayType pour assurer la couverture
+        dayType("lundi")
+        dayType("mardi")
+        dayType("samedi")
+        dayType("dimanche")
         return 0
     }
     
     public method mainTest(): int {
         // Reproduit le comportement de main()
-        http_status(200)
-        http_status(404)
-        http_status(999)
-        day_type("lundi")
-        day_type("samedi")
+        httpStatus(200)
+        httpStatus(404)
+        httpStatus(999)
+        dayType("lundi")
+        dayType("samedi")
         
         var niveau:int = 3
         var result:string = ""
@@ -126,7 +126,7 @@ class Test_05_switch {
 // ─────────────────────────────────────────────────────────────────────────────
 
 
-function http_status(code:int): void {
+function httpStatus(code:int): void {
     switch code {
         200 {
             IO::writeln("200 OK")
@@ -152,7 +152,7 @@ function http_status(code:int): void {
     }
 }
 
-function day_type(day:string): void {
+function dayType(day:string): void {
     switch day {
         "samedi" {
             IO::writeln("Week-end")

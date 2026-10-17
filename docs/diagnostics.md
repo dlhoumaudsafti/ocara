@@ -1355,24 +1355,33 @@ function log(args:variadic<mixed>): void {  // ⚠️ warning
 
 ---
 
-### W04 — Ressource `scoped`/`consumed` ouverte au moment d'un `raise` non rattrapé localement
+### W04 — `raise` qui saute la finalisation d'un `Thread` ou d'une ressource `var`
 
 ```
-fichier.oc:5:5: warning: 'm' ('Mutex') is a 'scoped'/'consumed' resource still open when a 'raise' later in this block is not locally caught — its 'longjmp' skips this block's normal cleanup, leaking 'm' (or leaving a Mutex locked forever) — finalize it ('.destroy()'/'.close()'/'.join()'/'.detach()') before that 'raise', or wrap the risky code in a local 'try'/'on'
+fichier.oc:5:5: warning: thread 't' is neither joined nor detached when a 'raise' later in this block is not locally caught — the 'raise' skips '.join()'/'.detach()' and abandons the thread — call it before that 'raise', or wrap the risky code in a local 'try'/'on'
+fichier.oc:9:5: warning: 'db' ('SQLite') is declared with 'var': a 'raise' in this block that is not locally caught skips its manual '.close()'/'.destroy()', leaking it (or leaving a Mutex locked) — declare it 'scoped' (closed automatically, even by a 'raise'), or wrap the risky code in a local 'try'/'on'
 ```
 
-Une `scoped`/`consumed` ressource (`Mutex`/`SQLite`/`MySQL`/`MariaDB`/`HTTPRequest`/`HTTPResponse`/`Thread`) est encore ouverte (pas finalisée manuellement) quand un `raise` plus loin dans le même bloc n'est protégé par aucun `try` local. Le mécanisme d'exceptions d'Ocara (`setjmp`/`longjmp`) saute par-dessus la finalisation automatique de fin de bloc — la ressource fuit (ou, pour un `Mutex`, reste verrouillée pour toujours) si ce `raise` se déclenche réellement à l'exécution. Voir [§9.2 de l'EBNF](EBNF.md#92-variable-de-bloc-scoped) et `docs/roadmap.d/exceptions-setjmp-longjmp-dette.md`.
+Un `raise` rend les références et ferme les ressources `scoped`/`consumed` (`Mutex`/`SQLite`/`MySQL`/`MariaDB`/`HTTPRequest`/`HTTPResponse`, et classes qui en contiennent) de toutes les frames qu'il traverse — voir [§9.2 de l'EBNF](EBNF.md#92-variable-de-bloc-scoped). Deux finalisations restent à la charge du développeur, et W04 signale un `raise` non rattrapé localement qui les saute :
+
+- **`Thread`** (`scoped`/`consumed`/`var`) : le `.join()`/`.detach()` n'est pas exécuté, le thread est abandonné sans être attendu ;
+- **ressource native déclarée `var`** : rien ne la ferme à la place du développeur ; le `raise` saute son `.close()`/`.destroy()` manuel — la ressource fuit, ou un `Mutex` reste verrouillé.
 
 ```ocara
-scoped m:Mutex = use Mutex()
-m.lock()
-raise use MonException("erreur", 1)   // ⚠️ 'm' ne sera jamais déverrouillé/détruit
-m.unlock()                             // jamais atteint
+scoped t:Thread = use Thread()
+t.run(nameless(): void { travail() })
+raise use MonException("erreur", 1)   // ⚠️ 't' ne sera jamais rejoint
+t.join()                               // jamais atteint
+
+var db:SQLite = SQLite::open("app.db")
+db.execute("BEGIN")
+raise use MonException("erreur", 1)   // ⚠️ 'db' ne sera jamais fermée
+db.close()                             // jamais atteint
 ```
 
-Volontairement **conservateur** (mêmes principes que E28) : un `raise` à l'intérieur d'un `try` local (même sans vérifier que ses `on` couvrent la classe réellement levée) est considéré rattrapé, jamais signalé ; une finalisation (`.destroy()`/`.close()`/`.join()`/`.detach()`) appelée en ligne droite avant le `raise` supprime l'avertissement. Aucune analyse interprocédurale : seul un `raise` textuel compte, pas un appel vers une fonction qui pourrait elle-même en lever un.
+Volontairement **conservateur** : un `raise` à l'intérieur d'un `try` local (même sans vérifier que ses `on` couvrent la classe réellement levée) est considéré rattrapé ; une finalisation (`.destroy()`/`.close()`/`.join()`/`.detach()`) appelée en ligne droite avant le `raise` supprime l'avertissement ; une ressource `var` n'est signalée que si sa fermeture manuelle suit le `raise` dans le même bloc (une ressource partagée, jamais fermée à cet endroit, n'est pas concernée). Aucune analyse interprocédurale : seul un `raise` textuel compte, pas un appel vers une fonction qui pourrait elle-même en lever un.
 
-**Correction :** finaliser la ressource avant le code risqué, ou utiliser une variante `withX` qui garantit la finalisation même en cas d'exception — `m.withLock(...)` (voir [Mutex](builtins/Mutex.md)), `SQLite::withOpen(...)` (voir [SQLite](builtins/SQLite.md)), `MySQL::withConnect(...)`/`MariaDB::withConnect(...)` (voir [MySQL](builtins/MySQL.md)) — ou entourer le code à risque d'un `try`/`on` local.
+**Correction :** déclarer la ressource `scoped` (fermée automatiquement, même par un `raise`), utiliser une variante `withX` — `m.withLock(...)` (voir [Mutex](builtins/Mutex.md)), `SQLite::withOpen(...)` (voir [SQLite](builtins/SQLite.md)), `MySQL::withConnect(...)`/`MariaDB::withConnect(...)` (voir [MySQL](builtins/MySQL.md)) —, finaliser avant le code risqué, ou entourer ce code d'un `try`/`on` local.
 
 ---
 

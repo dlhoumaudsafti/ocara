@@ -5,32 +5,32 @@ import ocara.Convert
 import ocara.Array
 
 // ── 1. int ────────────────────────────────────────────────────────────────────
-async function async_int(n:int): int {
+async function asyncInt(n:int): int {
     return n * n
 }
 
 // ── 2. float ──────────────────────────────────────────────────────────────────
-async function async_float(x:float): float {
+async function asyncFloat(x:float): float {
     return x * 2.5
 }
 
 // ── 3. bool ───────────────────────────────────────────────────────────────────
-async function async_bool(n:int): bool {
+async function asyncBool(n:int): bool {
     return n greater 0
 }
 
 // ── 4. string ─────────────────────────────────────────────────────────────────
-async function async_string(s:string): string {
+async function asyncString(s:string): string {
     return "hello " + s
 }
 
 // ── 5. array ──────────────────────────────────────────────────────────────────
-async function async_array(): array<int> {
+async function asyncArray(): array<int> {
     return [10, 20, 30]
 }
 
 // ── 6. Function / nameless ────────────────────────────────────────────────────
-async function async_func(factor:int): Function<int(int)> {
+async function asyncFunc(factor:int): Function<int(int)> {
     return nameless(x:int): int { return x * factor }
 }
 
@@ -44,19 +44,19 @@ class Point {
     }
 }
 
-async function async_object(x:int, y:int): Point {
+async function asyncObject(x:int, y:int): Point {
     return use Point(x, y)
 }
 
 // ── 8. map ────────────────────────────────────────────────────────────────────
-async function async_map(): map<string, int> {
+async function asyncMap(): map<string, int> {
     return {"a": 1, "b": 2}
 }
 
 // ── 9. enum ───────────────────────────────────────────────────────────────────
 enum Color { Red, Green = 10, Blue }
 
-async function async_enum(): int {
+async function asyncEnum(): int {
     return Color::Green
 }
 
@@ -66,50 +66,50 @@ async function async_enum(): int {
 // information (voir docs/roadmap.d/langage-async-non-int-return-type-check.md).
 function main(): void {
     IO::writeln("--- int ---")
-    var ti:Resolvable<int> = async_int(7)
+    var ti:Resolvable<int> = asyncInt(7)
     var ri:int = resolve ti
     IO::writeln(Convert::intToStr(ri))
 
     IO::writeln("--- float ---")
-    var tf:Resolvable<float> = async_float(4.0)
+    var tf:Resolvable<float> = asyncFloat(4.0)
     var rf:float = resolve tf
     IO::writeln(Convert::floatToStr(rf))
 
     IO::writeln("--- bool ---")
-    var tb:Resolvable<bool> = async_bool(5)
+    var tb:Resolvable<bool> = asyncBool(5)
     var rb:bool = resolve tb
     IO::writeln(Convert::boolToStr(rb))
 
     IO::writeln("--- string ---")
-    var ts:Resolvable<string> = async_string("world")
+    var ts:Resolvable<string> = asyncString("world")
     var rs:string = resolve ts
     IO::writeln(rs)
 
     IO::writeln("--- array ---")
-    var ta:Resolvable<array<int>> = async_array()
+    var ta:Resolvable<array<int>> = asyncArray()
     var ra:array<int> = resolve ta
     IO::writeln(Convert::intToStr(Array::len(ra)))
     IO::writeln(Convert::intToStr(ra[0]))
 
     IO::writeln("--- Function ---")
-    var tfn:Resolvable<Function<int(int)>> = async_func(3)
+    var tfn:Resolvable<Function<int(int)>> = asyncFunc(3)
     var rfn:Function<int(int)> = resolve tfn
     var res:int = rfn(7)
     IO::writeln(Convert::intToStr(res))
 
     IO::writeln("--- object ---")
-    var to:Resolvable<Point> = async_object(3, 4)
+    var to:Resolvable<Point> = asyncObject(3, 4)
     var ro:Point = resolve to
     IO::writeln(Convert::intToStr(ro.x))
     IO::writeln(Convert::intToStr(ro.y))
 
     IO::writeln("--- map ---")
-    var tm:Resolvable<map<string, int>> = async_map()
+    var tm:Resolvable<map<string, int>> = asyncMap()
     var rm:map<string, int> = resolve tm
     IO::writeln(Convert::intToStr(rm["a"]))
 
     IO::writeln("--- enum ---")
-    var ten:Resolvable<int> = async_enum()
+    var ten:Resolvable<int> = asyncEnum()
     var ren:int = resolve ten
     IO::writeln(Convert::intToStr(ren))
 }

@@ -51,7 +51,7 @@ class HttpStatus {
 
 ### Fonctions et méthodes — `camelCase`
 
-S'applique aux fonctions libres, aux méthodes d'instance et statiques, publiques comme privées. C'est déjà la convention à 100 % des builtins du runtime (`strToInt`, `tryLock`, `renderCached`) — la nouveauté est de l'étendre explicitement au code utilisateur, où les exemples les plus anciens utilisaient encore `snake_case` (`is_adult`, `get_score`).
+S'applique aux fonctions libres, aux méthodes d'instance et statiques, publiques comme privées. C'est déjà la convention à 100 % des builtins du runtime (`strToInt`, `tryLock`, `renderCached`) — elle s'applique aussi au code utilisateur ; tous les exemples (`examples/NN_*.oc`) la suivent, vérifié par `ocaracs` dans `make ci`.
 
 ```ocara
 function computeTotal(items:array<float>): float { ... }

@@ -7,14 +7,10 @@ import ocara.File
 // `SQLite::withOpen` : open + exécution de la closure avec la connexion EN
 // PARAMÈTRE + close garanti, y compris si la closure `raise` (voir
 // docs/roadmap.d/exceptions-setjmp-longjmp-dette.md et docs/builtins/SQLite.md).
-// Avec open()/close() manuels, un raise entre les deux appels saute close()
-// (setjmp/longjmp, pas d'unwinding) et fuit la connexion pour toujours —
-// c'est exactement ce que le diagnostic W04 détecte statiquement, et ce que
-// withOpen corrige à la racine pour qui l'utilise.
-//
-// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée du
-// fichier (voir 33_exception_hierarchyTest.oc) — la classe de test doit donc
-// précéder SqliteWithOpenError ci-dessous.
+// Avec une connexion `var` et open()/close() manuels, un raise entre les deux
+// appels saute close() et fuit la connexion — ce que le diagnostic W04
+// détecte statiquement, et que withOpen (comme une déclaration `scoped`,
+// fermée même par un raise) évite.
 
 class Test_49_sqlite_with_open {
 

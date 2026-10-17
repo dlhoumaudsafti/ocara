@@ -81,4 +81,39 @@ class Test_60_interface_wiring {
         UnitTest::assertEquals("memory:poly", useRepo(use InMemoryRepo(), "poly"))
         return 0
     }
+
+    // `create()` (méthode statique) de CHAQUE implémentation concrète
+    // (PostgresRepo, InMemoryRepo) : retourne une instance de la bonne
+    // classe, vérifiée par le préfixe produit par `save()`.
+    public method createTest(): int {
+        var pg:Repo = PostgresRepo::create()
+        UnitTest::assertEquals("postgres:a", pg.save("a"))
+        var mem:Repo = InMemoryRepo::create()
+        UnitTest::assertEquals("memory:b", mem.save("b"))
+        return 0
+    }
+
+    // `save()` de chaque implémentation, appel direct sur l'instance
+    // concrète puis via le type abstrait `Repo`.
+    public method saveTest(): int {
+        const pg:PostgresRepo = use PostgresRepo()
+        UnitTest::assertEquals("postgres:x", pg.save("x"))
+        UnitTest::assertEquals("postgres:", pg.save(""))
+        var r:Repo = use PostgresRepo()
+        UnitTest::assertEquals("postgres:y", r.save("y"))
+        var m:Repo = use InMemoryRepo()
+        UnitTest::assertEquals("memory:z", m.save("z"))
+        return 0
+    }
+
+    // Reproduit le scénario de main() avec assertions.
+    public method mainTest(): int {
+        var via_bare_new:Repo = use Repo()
+        UnitTest::assertEquals("postgres:hello", via_bare_new.save("hello"))
+        var via_bare_static:Repo = Repo::create()
+        UnitTest::assertEquals("postgres:hi", via_bare_static.save("hi"))
+        UnitTest::assertEquals("postgres:poly", useRepo(use PostgresRepo(), "poly"))
+        UnitTest::assertEquals("memory:poly", useRepo(use InMemoryRepo(), "poly"))
+        return 0
+    }
 }

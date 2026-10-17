@@ -46,17 +46,17 @@ class Test_22_union_types {
         return 0
     }
     
-    public method age_groupTest(): int {
+    public method ageGroupTest(): int {
         var senior:User = use User("Senior", 65)
-        var g1:string|null = senior.age_group()
+        var g1:string|null = senior.ageGroup()
         UnitTest::assertNotNull(g1)
         
         var adult:User = use User("Adult", 30)
-        var g2:string|null = adult.age_group()
+        var g2:string|null = adult.ageGroup()
         UnitTest::assertNotNull(g2)
         
         var minor:User = use User("Minor", 10)
-        var g3:string|null = minor.age_group()
+        var g3:string|null = minor.ageGroup()
         UnitTest::assertNotNull(g3)
         
         return 0
@@ -79,7 +79,7 @@ class User {
         return null
     }
 
-    public method age_group(): string|null {
+    public method ageGroup(): string|null {
         if self.age greater or equal 60 {
             return "senior"
         }

@@ -1,11 +1,10 @@
-/// Tests unitaires — W04, ressource scoped/consumed ouverte au moment d'un
-/// raise non rattrapé localement (docs/roadmap.d/exceptions-setjmp-longjmp-dette.md).
+/// Tests unitaires — W04, `raise` non rattrapé localement qui saute la
+/// finalisation d'un `Thread` ou d'une ressource native `var`
+/// (voir `crate::sema::resource_raise`).
 ///
 /// Graphes de contrôle synthétiques minimaux, construits directement en AST
-/// (pas de parsing) — un par cas décrit dans la doc de
-/// `crate::sema::resource_raise`.
+/// (pas de parsing) — un par cas décrit dans la doc du module.
 
-use std::collections::HashSet;
 use crate::sema::resource_raise::check_program;
 use crate::sema::error::SemaWarning;
 use crate::parsing::ast::*;
@@ -19,13 +18,13 @@ fn block(stmts: Vec<Stmt>) -> Block {
     Block { stmts, span: span() }
 }
 
-fn scoped_mutex(name: &str) -> Stmt {
+fn decl(name: &str, class: &str, kind: VarKind) -> Stmt {
     Stmt::Var {
         name: name.to_string(),
-        ty: Type::Named("Mutex".into()),
-        value: Expr::New { class: "Mutex".into(), type_args: vec![], args: vec![], span: span() },
+        ty: Type::Named(class.into()),
+        value: Expr::New { class: class.into(), type_args: vec![], args: vec![], span: span() },
         mutable: true,
-        kind: VarKind::Scoped,
+        kind,
         span: span(),
     }
 }
@@ -42,70 +41,73 @@ fn finalize_call(name: &str, method: &str) -> Stmt {
     })
 }
 
-fn program_with_main_body(body: Block) -> Program {
+fn warns_for(body: Vec<Stmt>, var_name: &str) -> bool {
     let mut p = Program::new();
     p.functions.push(FuncDecl {
         name: "main".into(),
         params: vec![],
         ret_ty: Type::Void,
-        body,
+        body: block(body),
         is_async: false,
         span: span(),
     });
-    p
+    check_program(&p).iter().any(|w| matches!(w, SemaWarning::RaiseSkipsFinalization { name, .. } if name == var_name))
 }
 
-fn find_leak_warning<'a>(warnings: &'a [SemaWarning], var_name: &str) -> Option<&'a SemaWarning> {
-    warnings.iter().find(|w| matches!(w, SemaWarning::ScopedResourceRaiseLeak { name, .. } if name == var_name))
-}
-
-/// Cas direct : `scoped m:Mutex`, puis un `raise` plus loin dans le MÊME
-/// bloc, sans aucun `try` — doit être signalé.
+/// `scoped t:Thread` puis un `raise` dans le même bloc : le `.join()`
+/// obligatoire est sauté — signalé.
 #[test]
-fn direct_raise_after_resource_in_same_block_warns() {
-    let program = program_with_main_body(block(vec![
-        scoped_mutex("m"),
-        raise_stmt(),
-    ]));
-    let warnings = check_program(&program, &HashSet::new());
-    assert!(find_leak_warning(&warnings, "m").is_some());
+fn scoped_thread_then_raise_warns() {
+    assert!(warns_for(vec![decl("t", "Thread", VarKind::Scoped), raise_stmt(), finalize_call("t", "join")], "t"));
 }
 
-/// La ressource est finalisée (`.destroy()`) en ligne droite AVANT le
-/// `raise`, dans le même bloc — ne doit PAS être signalée.
+/// Une ressource native `scoped` est fermée par le déroulement du `raise`
+/// (`__rc_resource_push`) — jamais signalée.
+#[test]
+fn scoped_native_resource_is_closed_by_unwind_and_not_warned() {
+    assert!(!warns_for(vec![decl("db", "SQLite", VarKind::Scoped), raise_stmt()], "db"));
+    assert!(!warns_for(vec![decl("m", "Mutex", VarKind::Consumed), raise_stmt()], "m"));
+}
+
+/// `var db:SQLite` puis `raise` puis `db.close()` : le `raise` saute la
+/// fermeture manuelle — signalé.
+#[test]
+fn var_resource_closed_after_raise_warns() {
+    assert!(warns_for(vec![decl("db", "SQLite", VarKind::Var), raise_stmt(), finalize_call("db", "close")], "db"));
+}
+
+/// `var` jamais fermée dans ce bloc (ressource partagée ailleurs) : le
+/// `raise` ne saute rien — pas signalé.
+#[test]
+fn var_resource_never_closed_here_does_not_warn() {
+    assert!(!warns_for(vec![decl("m", "Mutex", VarKind::Var), raise_stmt()], "m"));
+}
+
+/// Finalisation en ligne droite AVANT le `raise` — pas signalé.
 #[test]
 fn finalized_before_raise_does_not_warn() {
-    let program = program_with_main_body(block(vec![
-        scoped_mutex("m"),
-        finalize_call("m", "destroy"),
-        raise_stmt(),
-    ]));
-    let warnings = check_program(&program, &HashSet::new());
-    assert!(find_leak_warning(&warnings, "m").is_none());
+    assert!(!warns_for(vec![decl("t", "Thread", VarKind::Scoped), finalize_call("t", "join"), raise_stmt()], "t"));
 }
 
-/// Le `raise` est à l'intérieur d'un `try` propre à CE bloc — assumé
-/// rattrapé localement, ne doit PAS être signalé.
+/// `raise` dans le corps d'un `try` local — assumé rattrapé, pas signalé.
 #[test]
 fn raise_inside_local_try_does_not_warn() {
-    let program = program_with_main_body(block(vec![
-        scoped_mutex("m"),
+    assert!(!warns_for(vec![
+        decl("t", "Thread", VarKind::Scoped),
         Stmt::Try {
             body: block(vec![raise_stmt()]),
             handlers: vec![OnClause { binding: "e".into(), class_filter: None, body: block(vec![]), span: span() }],
             span: span(),
         },
-    ]));
-    let warnings = check_program(&program, &HashSet::new());
-    assert!(find_leak_warning(&warnings, "m").is_none());
+        finalize_call("t", "join"),
+    ], "t"));
 }
 
-/// Le `raise` est atteignable via un `if` imbriqué SANS son propre `try` —
-/// rien ne l'arrête, doit être signalé (même bloc englobant concerné).
+/// `raise` atteignable via un `if` imbriqué sans `try` propre — signalé.
 #[test]
 fn raise_reachable_through_nested_if_without_try_warns() {
-    let program = program_with_main_body(block(vec![
-        scoped_mutex("m"),
+    assert!(warns_for(vec![
+        decl("db", "SQLite", VarKind::Var),
         Stmt::If {
             condition: Expr::Literal(Literal::Bool(true), span()),
             then_block: block(vec![raise_stmt()]),
@@ -113,52 +115,20 @@ fn raise_reachable_through_nested_if_without_try_warns() {
             else_block: None,
             span: span(),
         },
-    ]));
-    let warnings = check_program(&program, &HashSet::new());
-    assert!(find_leak_warning(&warnings, "m").is_some());
+        finalize_call("db", "close"),
+    ], "db"));
 }
 
-/// Le `raise` est dans le handler `on` d'un `try` (pas son corps protégé) —
-/// plus rien ne le protège, doit être signalé.
+/// `raise` dans le handler `on` d'un `try` — plus rien ne le protège, signalé.
 #[test]
 fn raise_inside_on_handler_warns() {
-    let program = program_with_main_body(block(vec![
-        scoped_mutex("m"),
+    assert!(warns_for(vec![
+        decl("t", "Thread", VarKind::Scoped),
         Stmt::Try {
             body: block(vec![]),
             handlers: vec![OnClause { binding: "e".into(), class_filter: None, body: block(vec![raise_stmt()]), span: span() }],
             span: span(),
         },
-    ]));
-    let warnings = check_program(&program, &HashSet::new());
-    assert!(find_leak_warning(&warnings, "m").is_some());
-}
-
-/// Aucune ressource déclarée du tout — un `raise` seul ne doit jamais être
-/// signalé (rien à protéger).
-#[test]
-fn raise_without_any_resource_does_not_warn() {
-    let program = program_with_main_body(block(vec![raise_stmt()]));
-    let warnings = check_program(&program, &HashSet::new());
-    assert!(warnings.is_empty());
-}
-
-/// Un `var` (pas `scoped`/`consumed`) n'est jamais concerné par ce
-/// diagnostic — c'est le rôle d'un diagnostic distinct (E28,
-/// `UnclosedResourceVar`), pas de celui-ci.
-#[test]
-fn plain_var_resource_is_not_checked_by_this_warning() {
-    let program = program_with_main_body(block(vec![
-        Stmt::Var {
-            name: "m".into(),
-            ty: Type::Named("Mutex".into()),
-            value: Expr::New { class: "Mutex".into(), type_args: vec![], args: vec![], span: span() },
-            mutable: true,
-            kind: VarKind::Var,
-            span: span(),
-        },
-        raise_stmt(),
-    ]));
-    let warnings = check_program(&program, &HashSet::new());
-    assert!(find_leak_warning(&warnings, "m").is_none());
+        finalize_call("t", "detach"),
+    ], "t"));
 }

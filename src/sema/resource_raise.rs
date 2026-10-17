@@ -1,80 +1,88 @@
-/// Détecte qu'une `scoped`/`consumed` ressource (Mutex/SQLite/MySQL/MariaDB/
-/// HTTPRequest/HTTPResponse/Thread) reste "ouverte" (pas encore finalisée
-/// manuellement) au moment d'un `raise` qui n'est PAS localement rattrapé par
-/// un `try` dans le MÊME bloc — voir
-/// docs/roadmap.d/exceptions-setjmp-longjmp-dette.md : le mécanisme
-/// d'exceptions d'Ocara (`setjmp`/`longjmp`, voir
-/// `src/lower/stmt.d/statements.d/exceptions.rs`) saute par-dessus tout code
-/// de nettoyage intermédiaire, y compris la finalisation automatique de fin
-/// de bloc d'une `scoped`/`consumed` (voir `docs/EBNF.md` §9.2) — fuite
-/// (SQLite/MySQL/MariaDB/HTTPRequest/HTTPResponse) ou deadlock permanent
-/// (Mutex jamais déverrouillé, Thread jamais rejoint/détaché) pour tout code
-/// qui dépendrait ensuite de cette ressource.
+/// W04 : un `raise` non rattrapé localement saute une finalisation que le
+/// déroulement des exceptions ne fait PAS à la place du développeur.
 ///
-/// Volontairement CONSERVATEUR (même philosophie que E28, voir
-/// `crate::sema::scope::UnclosedResourceVar`, et le mode non strict de
-/// `crate::sema::escape`) — quitte à manquer un vrai risque plutôt que
-/// signaler du code parfaitement sûr :
+/// Le déroulement (`__rc_resource_push`, `src/lower/stmt.d/ownership.rs`)
+/// ferme les ressources natives `scoped`/`consumed` (Mutex/SQLite/MySQL/
+/// MariaDB/HTTPRequest/HTTPResponse) et rend les références des objets
+/// (une classe utilisateur porteuse de ressource est fermée à sa
+/// destruction) — rien à signaler pour elles. Restent deux cas :
+///   - un `Thread` (`scoped`/`consumed`/`var`) : un `raise` saute son
+///     `.join()`/`.detach()`, le thread est abandonné (jamais attendu) ;
+///   - une ressource native déclarée `var` : rien ne la ferme à la place du
+///     développeur, un `raise` saute son `.close()`/`.destroy()` manuel —
+///     fuite, ou `Mutex` laissé verrouillé.
+///
+/// Volontairement CONSERVATEUR — quitte à manquer un vrai risque plutôt que
+/// signaler du code sûr :
 ///   - un `raise` À L'INTÉRIEUR d'un `try` imbriqué est considéré rattrapé
-///     localement pour tout ce qui est déclaré AVANT/EN DEHORS de ce `try`
-///     (sans vérifier que ses `on` couvrent réellement la classe levée —
-///     complexité d'appariement de types délibérément hors périmètre ici) ;
-///   - un `raise` dans un `on` HANDLER, en revanche, compte comme
-///     atteignant le bloc englobant (rien ne le protège plus, son propre
-///     `try` a déjà servi) ;
-///   - une finalisation (`.join()`/`.detach()`/`.destroy()`/`.close()`)
-///     appelée en LIGNE DROITE (pas dans un `if`/`while` imbriqué) avant le
-///     `raise`, dans le MÊME bloc, supprime l'avertissement pour cette
-///     ressource précise ;
+///     localement (sans vérifier que ses `on` couvrent la classe levée) ;
+///   - un `raise` dans un `on` HANDLER compte comme atteignant le bloc
+///     englobant (plus aucun `try` ne le protège) ;
+///   - une finalisation (`.join()`/`.detach()`/`.destroy()`/`.close()`) en
+///     LIGNE DROITE avant le `raise`, dans le MÊME bloc, supprime
+///     l'avertissement pour cette variable ;
+///   - une variable `var` n'est signalée que si sa finalisation manuelle
+///     apparaît APRÈS le `raise` dans le même bloc (le `raise` la saute
+///     réellement) — une ressource `var` partagée et jamais fermée ici
+///     n'est pas concernée ;
 ///   - un `raise` atteignable via un `if`/`while`/`for`/`switch` imbriqué
-///     (jamais protégé par son propre `try`) compte comme atteignant le
-///     bloc englobant, puisque rien n'arrête sa propagation à cette
-///     frontière.
-/// Aucune analyse interprocédurale : seul un `raise` TEXTUEL compte, pas un
-/// appel vers une fonction qui pourrait elle-même lever une exception —
-/// cohérent avec le mode non strict de `crate::sema::escape`.
+///     (sans son propre `try`) compte comme atteignant le bloc englobant.
+/// Aucune analyse interprocédurale : seul un `raise` TEXTUEL compte.
 use std::collections::HashSet;
 use crate::parsing::ast::*;
 use crate::parsing::token::Span;
 use crate::sema::error::SemaWarning;
-use crate::sema::scope::{ownership_class_of, OwnershipClass};
+use crate::sema::scope::{ownership_class, OwnershipClass};
 
-pub fn check_program(program: &Program, resource_classes: &HashSet<String>) -> Vec<SemaWarning> {
+pub fn check_program(program: &Program) -> Vec<SemaWarning> {
     let mut warnings = Vec::new();
     for func in &program.functions {
-        scan_block(&func.body, resource_classes, &mut warnings);
+        scan_block(&func.body, &mut warnings);
     }
     for class in &program.classes {
-        scan_members(&class.members, resource_classes, &mut warnings);
+        scan_members(&class.members, &mut warnings);
     }
     for module in &program.modules {
-        scan_members(&module.members, resource_classes, &mut warnings);
+        scan_members(&module.members, &mut warnings);
     }
     warnings
 }
 
-fn scan_members(members: &[ClassMember], resource_classes: &HashSet<String>, warnings: &mut Vec<SemaWarning>) {
+fn scan_members(members: &[ClassMember], warnings: &mut Vec<SemaWarning>) {
     for member in members {
         match member {
-            ClassMember::Constructor { body, .. } => scan_block(body, resource_classes, warnings),
-            ClassMember::Method { decl, .. } => scan_block(&decl.body, resource_classes, warnings),
+            ClassMember::Constructor { body, .. } => scan_block(body, warnings),
+            ClassMember::Method { decl, .. } => scan_block(&decl.body, warnings),
             ClassMember::Field { .. } | ClassMember::Const { .. } => {}
         }
     }
 }
 
-/// Nom de classe (`Type::Named`) pour une ressource "possédable" au sens de
-/// ce diagnostic — `OwnershipClass::Resource` (ressource nue OU classe
-/// utilisateur en contenant une, voir `resource_classes`) ou `Thread` (même
-/// contrainte de finalisation manuelle, méthodes différentes — voir
-/// `crate::sema::scope::ownership_class_of`).
-fn resource_class_name<'a>(ty: &'a Type, resource_classes: &HashSet<String>) -> Option<&'a str> {
-    if let Type::Named(n) = ty {
-        if matches!(ownership_class_of(ty, resource_classes), OwnershipClass::Resource | OwnershipClass::Thread) {
-            return Some(n.as_str());
-        }
-    }
-    None
+/// Variable suivie, pas encore finalisée en ligne droite.
+struct Tracked {
+    name:       String,
+    class_name: String,
+    span:       Span,
+    is_thread:  bool,
+    /// `var` : signalée seulement si sa finalisation suit le `raise`.
+    manual:     bool,
+}
+
+/// `Some(Tracked)` si la déclaration relève de W04 (voir la doc du module).
+fn tracked(name: &str, ty: &Type, kind: &VarKind, span: &Span) -> Option<Tracked> {
+    let Type::Named(class_name) = ty else { return None };
+    let is_thread = match ownership_class(ty) {
+        OwnershipClass::Thread => true,
+        OwnershipClass::Resource if *kind == VarKind::Var => false,
+        _ => return None,
+    };
+    Some(Tracked {
+        name: name.to_string(),
+        class_name: class_name.clone(),
+        span: span.clone(),
+        is_thread,
+        manual: *kind == VarKind::Var,
+    })
 }
 
 /// Vrai si `field` finalise manuellement une ressource/Thread — mêmes noms
@@ -83,57 +91,62 @@ fn is_finalizing_method(field: &str) -> bool {
     matches!(field, "destroy" | "close" | "join" | "detach")
 }
 
-type OpenResource = (String, String, Span);
+/// `recv` si `stmt` est un appel `recv.<finalisation>()` en instruction.
+fn finalized_name(stmt: &Stmt) -> Option<&str> {
+    let Stmt::Expr(Expr::Call { callee, .. }) = stmt else { return None };
+    let Expr::Field { object, field, .. } = callee.as_ref() else { return None };
+    let Expr::Ident(recv, _) = object.as_ref() else { return None };
+    is_finalizing_method(field).then_some(recv.as_str())
+}
 
-fn scan_block(block: &Block, resource_classes: &HashSet<String>, warnings: &mut Vec<SemaWarning>) {
-    // Ressources `scoped`/`consumed` déclarées DIRECTEMENT dans CE bloc, pas
-    // encore finalisées en ligne droite ni déjà signalées.
-    let mut open: Vec<OpenResource> = Vec::new();
+fn scan_block(block: &Block, warnings: &mut Vec<SemaWarning>) {
+    let mut open: Vec<Tracked> = Vec::new();
     let mut warned: HashSet<String> = HashSet::new();
 
-    for stmt in &block.stmts {
+    for (i, stmt) in block.stmts.iter().enumerate() {
+        let rest = &block.stmts[i + 1..];
         match stmt {
-            Stmt::Var { name, ty, kind, span, .. } if matches!(kind, VarKind::Scoped | VarKind::Consumed) => {
-                if let Some(class_name) = resource_class_name(ty, resource_classes) {
-                    open.push((name.clone(), class_name.to_string(), span.clone()));
+            Stmt::Var { name, ty, kind, span, .. } => {
+                if let Some(t) = tracked(name, ty, kind, span) {
+                    open.push(t);
                 }
             }
-            Stmt::Expr(Expr::Call { callee, .. }) => {
-                if let Expr::Field { object, field, .. } = callee.as_ref() {
-                    if let Expr::Ident(recv, _) = object.as_ref() {
-                        if is_finalizing_method(field) {
-                            open.retain(|(n, _, _)| n != recv.as_str());
-                        }
-                    }
+            Stmt::Expr(_) => {
+                if let Some(recv) = finalized_name(stmt) {
+                    open.retain(|t| t.name != recv);
                 }
             }
-            Stmt::Raise { .. } => warn_open(&open, warnings, &mut warned),
+            Stmt::Raise { .. } => warn_open(&open, rest, warnings, &mut warned),
             Stmt::If { then_block, elseif, else_block, .. } => {
-                check_nested(then_block, &open, warnings, &mut warned);
-                for (_, blk) in elseif { check_nested(blk, &open, warnings, &mut warned); }
-                if let Some(blk) = else_block { check_nested(blk, &open, warnings, &mut warned); }
-                scan_block(then_block, resource_classes, warnings);
-                for (_, blk) in elseif { scan_block(blk, resource_classes, warnings); }
-                if let Some(blk) = else_block { scan_block(blk, resource_classes, warnings); }
+                let mut blocks = vec![then_block];
+                blocks.extend(elseif.iter().map(|(_, b)| b));
+                blocks.extend(else_block.iter());
+                for blk in blocks {
+                    check_nested(blk, &open, rest, warnings, &mut warned);
+                    scan_block(blk, warnings);
+                }
             }
             Stmt::While { body, .. } | Stmt::ForIn { body, .. } | Stmt::ForMap { body, .. } => {
-                check_nested(body, &open, warnings, &mut warned);
-                scan_block(body, resource_classes, warnings);
+                check_nested(body, &open, rest, warnings, &mut warned);
+                scan_block(body, warnings);
             }
             Stmt::Switch { cases, default, .. } => {
-                for c in cases { check_nested(&c.body, &open, warnings, &mut warned); scan_block(&c.body, resource_classes, warnings); }
-                if let Some(d) = default { check_nested(d, &open, warnings, &mut warned); scan_block(d, resource_classes, warnings); }
+                for c in cases {
+                    check_nested(&c.body, &open, rest, warnings, &mut warned);
+                    scan_block(&c.body, warnings);
+                }
+                if let Some(d) = default {
+                    check_nested(d, &open, rest, warnings, &mut warned);
+                    scan_block(d, warnings);
+                }
             }
             Stmt::Try { body, handlers, .. } => {
-                // `body` : un `raise` ici est assumé rattrapé localement pour
-                // les ressources du bloc ENGLOBANT (voir la doc de module) —
-                // ne pas vérifier `open` contre son contenu.
-                scan_block(body, resource_classes, warnings);
-                // Les HANDLERS, en revanche : plus aucun `try` ne les protège
-                // — un `raise` dedans atteint le bloc englobant normalement.
+                // `body` : un `raise` ici est assumé rattrapé localement.
+                scan_block(body, warnings);
+                // Les handlers, eux, ne sont plus protégés par aucun `try`.
                 for h in handlers {
-                    check_nested(&h.body, &open, warnings, &mut warned);
-                    scan_block(&h.body, resource_classes, warnings);
+                    check_nested(&h.body, &open, rest, warnings, &mut warned);
+                    scan_block(&h.body, warnings);
                 }
             }
             _ => {}
@@ -141,25 +154,57 @@ fn scan_block(block: &Block, resource_classes: &HashSet<String>, warnings: &mut 
     }
 }
 
-fn warn_open(open: &[OpenResource], warnings: &mut Vec<SemaWarning>, warned: &mut HashSet<String>) {
-    for (name, class_name, decl_span) in open {
-        if warned.insert(name.clone()) {
-            warnings.push(SemaWarning::ScopedResourceRaiseLeak {
-                name: name.clone(),
-                class_name: class_name.clone(),
-                span: decl_span.clone(),
+/// Signale (une fois) chaque variable de `open` dont un `raise` saute la
+/// finalisation ; `rest` = instructions du bloc qui suivent ce `raise`.
+fn warn_open(open: &[Tracked], rest: &[Stmt], warnings: &mut Vec<SemaWarning>, warned: &mut HashSet<String>) {
+    for t in open {
+        if t.manual && !finalized_later(rest, &t.name) {
+            continue;
+        }
+        if warned.insert(t.name.clone()) {
+            warnings.push(SemaWarning::RaiseSkipsFinalization {
+                name: t.name.clone(),
+                class_name: t.class_name.clone(),
+                is_thread: t.is_thread,
+                span: t.span.clone(),
             });
         }
     }
 }
 
-/// Vérifie si `block` (un `if`/`while`/`for`/`switch`/handler `on` imbriqué,
-/// PAS le corps protégé d'un `try`) contient un `raise` atteignable sans
-/// passer par un `try` qui lui est propre — si oui, chaque ressource encore
-/// `open` (du bloc PARENT) est signalée une fois.
-fn check_nested(block: &Block, open: &[OpenResource], warnings: &mut Vec<SemaWarning>, warned: &mut HashSet<String>) {
+/// Vrai si `name` est finalisée quelque part dans `stmts` (à toute profondeur).
+fn finalized_later(stmts: &[Stmt], name: &str) -> bool {
+    stmts.iter().any(|s| {
+        if finalized_name(s) == Some(name) {
+            return true;
+        }
+        match s {
+            Stmt::If { then_block, elseif, else_block, .. } => {
+                finalized_later(&then_block.stmts, name)
+                    || elseif.iter().any(|(_, b)| finalized_later(&b.stmts, name))
+                    || else_block.as_ref().is_some_and(|b| finalized_later(&b.stmts, name))
+            }
+            Stmt::While { body, .. } | Stmt::ForIn { body, .. } | Stmt::ForMap { body, .. } => finalized_later(&body.stmts, name),
+            Stmt::Switch { cases, default, .. } => {
+                cases.iter().any(|c| finalized_later(&c.body.stmts, name))
+                    || default.as_ref().is_some_and(|b| finalized_later(&b.stmts, name))
+            }
+            Stmt::Try { body, handlers, .. } => {
+                finalized_later(&body.stmts, name) || handlers.iter().any(|h| finalized_later(&h.body.stmts, name))
+            }
+            _ => false,
+        }
+    })
+}
+
+/// Si `block` (un `if`/`while`/`for`/`switch`/handler `on` imbriqué, PAS le
+/// corps protégé d'un `try`) contient un `raise` atteignable sans `try`
+/// propre, chaque variable encore `open` du bloc PARENT est examinée. Une
+/// finalisation placée dans `block` après ce `raise` ne compte pas : seul
+/// `rest` (la suite du bloc parent) est consulté, conservateur.
+fn check_nested(block: &Block, open: &[Tracked], rest: &[Stmt], warnings: &mut Vec<SemaWarning>, warned: &mut HashSet<String>) {
     if !open.is_empty() && block_reaches_uncaught_raise(block) {
-        warn_open(open, warnings, warned);
+        warn_open(open, rest, warnings, warned);
     }
 }
 
@@ -180,9 +225,7 @@ fn stmt_reaches_uncaught_raise(stmt: &Stmt) -> bool {
             cases.iter().any(|c| block_reaches_uncaught_raise(&c.body))
                 || default.as_ref().is_some_and(|b| block_reaches_uncaught_raise(b))
         }
-        // Un `try` imbriqué protège tout ce qui est DANS son propre corps —
-        // jamais considéré comme "atteignant" le bloc au-delà de lui-même.
-        // Ses handlers, eux, comptent (plus aucun `try` ne les couvre).
+        // Un `try` imbriqué protège son propre corps ; ses handlers, non.
         Stmt::Try { handlers, .. } => handlers.iter().any(|h| block_reaches_uncaught_raise(&h.body)),
         _ => false,
     }

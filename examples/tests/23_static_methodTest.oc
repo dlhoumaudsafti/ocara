@@ -1,37 +1,126 @@
 architecture permissive
 
 import ocara.UnitTest
+import ocara.String
 
 class Test_23_static_method {
     
     public method validatorTest(): int {
-        UnitTest::assertTrue(Validator::is_positive(5))
-        UnitTest::assertFalse(Validator::is_positive(-5))
-        UnitTest::assertTrue(Validator::is_in_range(50, 0, 100))
-        UnitTest::assertFalse(Validator::is_in_range(150, 0, 100))
-        UnitTest::assertTrue(Validator::is_valid_age(30))
-        UnitTest::assertFalse(Validator::is_valid_age(200))
-        UnitTest::assertTrue(Validator::is_valid_score(75))
-        UnitTest::assertFalse(Validator::is_valid_score(150))
+        UnitTest::assertTrue(Validator::isPositive(5))
+        UnitTest::assertFalse(Validator::isPositive(-5))
+        UnitTest::assertTrue(Validator::isInRange(50, 0, 100))
+        UnitTest::assertFalse(Validator::isInRange(150, 0, 100))
+        UnitTest::assertTrue(Validator::isValidAge(30))
+        UnitTest::assertFalse(Validator::isValidAge(200))
+        UnitTest::assertTrue(Validator::isValidScore(75))
+        UnitTest::assertFalse(Validator::isValidScore(150))
         return 0
     }
     
     public method temperatureTest(): int {
-        UnitTest::assertEquals(32, Temperature::to_fahrenheit(0))
-        UnitTest::assertEquals(212, Temperature::to_fahrenheit(100))
-        UnitTest::assertEquals(0, Temperature::to_celsius(32))
-        UnitTest::assertTrue(Temperature::is_valid(0))
-        UnitTest::assertFalse(Temperature::is_valid(-300))
+        UnitTest::assertEquals(32, Temperature::toFahrenheit(0))
+        UnitTest::assertEquals(212, Temperature::toFahrenheit(100))
+        UnitTest::assertEquals(0, Temperature::toCelsius(32))
+        UnitTest::assertTrue(Temperature::isValid(0))
+        UnitTest::assertFalse(Temperature::isValid(-300))
         UnitTest::assertEquals(-273, Temperature::clamp(-300))
         UnitTest::assertEquals(25, Temperature::clamp(25))
         return 0
     }
     
     public method mainTest(): int {
-        UnitTest::assertTrue(Validator::is_valid_age(30))
-        UnitTest::assertTrue(Validator::is_valid_score(75))
-        UnitTest::assertEquals(32, Temperature::to_fahrenheit(0))
-        UnitTest::assertTrue(Temperature::is_valid(0))
+        UnitTest::assertTrue(Validator::isValidAge(30))
+        UnitTest::assertTrue(Validator::isValidScore(75))
+        UnitTest::assertEquals(32, Temperature::toFahrenheit(0))
+        UnitTest::assertTrue(Temperature::isValid(0))
+        return 0
+    }
+    public method isPositiveTest(): int {
+        UnitTest::assertTrue(Validator::isPositive(5))
+        UnitTest::assertFalse(Validator::isPositive(-3))
+        UnitTest::assertFalse(Validator::isPositive(0))
+        return 0
+    }
+
+    public method isInRangeTest(): int {
+        UnitTest::assertTrue(Validator::isInRange(50, 0, 100))
+        UnitTest::assertTrue(Validator::isInRange(0, 0, 100))
+        UnitTest::assertTrue(Validator::isInRange(100, 0, 100))
+        UnitTest::assertFalse(Validator::isInRange(-1, 0, 100))
+        UnitTest::assertFalse(Validator::isInRange(101, 0, 100))
+        return 0
+    }
+
+    public method isValidAgeTest(): int {
+        UnitTest::assertTrue(Validator::isValidAge(25))
+        UnitTest::assertTrue(Validator::isValidAge(1))
+        UnitTest::assertTrue(Validator::isValidAge(150))
+        UnitTest::assertFalse(Validator::isValidAge(0))
+        UnitTest::assertFalse(Validator::isValidAge(-5))
+        UnitTest::assertFalse(Validator::isValidAge(200))
+        return 0
+    }
+
+    public method isValidScoreTest(): int {
+        UnitTest::assertTrue(Validator::isValidScore(85))
+        UnitTest::assertTrue(Validator::isValidScore(0))
+        UnitTest::assertTrue(Validator::isValidScore(100))
+        UnitTest::assertFalse(Validator::isValidScore(101))
+        UnitTest::assertFalse(Validator::isValidScore(-1))
+        return 0
+    }
+
+    public method toFahrenheitTest(): int {
+        UnitTest::assertEquals(212, Temperature::toFahrenheit(100))
+        UnitTest::assertEquals(32, Temperature::toFahrenheit(0))
+        UnitTest::assertEquals(-40, Temperature::toFahrenheit(-40))
+        return 0
+    }
+
+    public method toCelsiusTest(): int {
+        UnitTest::assertEquals(100, Temperature::toCelsius(212))
+        UnitTest::assertEquals(0, Temperature::toCelsius(32))
+        UnitTest::assertEquals(-40, Temperature::toCelsius(-40))
+        // aller-retour exact (valeurs multiples de 5 : pas de troncature entière)
+        UnitTest::assertEquals(100, Temperature::toCelsius(Temperature::toFahrenheit(100)))
+        // division entière : 37 °C -> 98 °F -> 36 °C
+        UnitTest::assertEquals(36, Temperature::toCelsius(Temperature::toFahrenheit(37)))
+        return 0
+    }
+
+    public method isValidTest(): int {
+        UnitTest::assertTrue(Temperature::isValid(-273))
+        UnitTest::assertTrue(Temperature::isValid(20))
+        UnitTest::assertFalse(Temperature::isValid(-274))
+        UnitTest::assertFalse(Temperature::isValid(-300))
+        return 0
+    }
+
+    public method clampTest(): int {
+        UnitTest::assertEquals(-273, Temperature::clamp(-300))
+        UnitTest::assertEquals(20, Temperature::clamp(20))
+        UnitTest::assertEquals(Temperature::ABSOLUTE_ZERO, Temperature::clamp(-273))
+        return 0
+    }
+
+    public method hasContentTest(): int {
+        UnitTest::assertTrue(StringCheck::hasContent("hello"))
+        UnitTest::assertTrue(StringCheck::hasContent(" "))
+        UnitTest::assertFalse(StringCheck::hasContent(""))
+        return 0
+    }
+
+    public method startsWithUpperTest(): int {
+        UnitTest::assertTrue(StringCheck::startsWithUpper("Alice"))
+        UnitTest::assertFalse(StringCheck::startsWithUpper("alice"))
+        UnitTest::assertFalse(StringCheck::startsWithUpper(""))
+        return 0
+    }
+
+    public method isValidNameTest(): int {
+        UnitTest::assertTrue(StringCheck::isValidName("Alice"))
+        UnitTest::assertFalse(StringCheck::isValidName("alice"))
+        UnitTest::assertFalse(StringCheck::isValidName(""))
         return 0
     }
 }
@@ -42,43 +131,56 @@ class Test_23_static_method {
 
 
 class Validator {
-    public static method is_positive(n:int): bool {
+    public static method isPositive(n:int): bool {
         return n greater 0
     }
 
-    public static method is_in_range(n:int, low:int, high:int): bool {
+    public static method isInRange(n:int, low:int, high:int): bool {
         return n greater or equal low and n smaller or equal high
     }
 
-    public static method is_valid_age(age:int): bool {
-        return self::is_positive(age) and self::is_in_range(age, 1, 150)
+    public static method isValidAge(age:int): bool {
+        return self::isPositive(age) and self::isInRange(age, 1, 150)
     }
 
-    public static method is_valid_score(score:int): bool {
-        return self::is_in_range(score, 0, 100)
+    public static method isValidScore(score:int): bool {
+        return self::isInRange(score, 0, 100)
     }
 }
 
 class Temperature {
     public const ABSOLUTE_ZERO:int = -273
 
-    public static method to_fahrenheit(c:int): int {
+    public static method toFahrenheit(c:int): int {
         return c * 9 / 5 + 32
     }
 
-    public static method to_celsius(f:int): int {
+    public static method toCelsius(f:int): int {
         return (f - 32) * 5 / 9
     }
 
-    public static method is_valid(c:int): bool {
+    public static method isValid(c:int): bool {
         return c greater or equal Temperature::ABSOLUTE_ZERO
     }
 
     public static method clamp(c:int): int {
-        if self::is_valid(c) {
+        if self::isValid(c) {
             return c
         }
         return Temperature::ABSOLUTE_ZERO
     }
 }
 
+class StringCheck {
+    public static method hasContent(s:string): bool {
+        return s not equal ""
+    }
+
+    public static method startsWithUpper(s:string): bool {
+        return s equal String::capitalize(s) and self::hasContent(s)
+    }
+
+    public static method isValidName(s:string): bool {
+        return self::hasContent(s) and self::startsWithUpper(s)
+    }
+}

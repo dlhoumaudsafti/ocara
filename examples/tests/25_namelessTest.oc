@@ -1,6 +1,7 @@
 architecture permissive
 
 import ocara.UnitTest
+import Counter from "25_nameless"
 
 class Test_25_nameless {
     
@@ -32,6 +33,31 @@ class Test_25_nameless {
         return 0
     }
     
+    public method makeIncrementerTest(): int {
+        scoped c:Counter = use Counter(0)
+        var inc:Function<void()> = c.makeIncrementer(5)
+        UnitTest::assertEquals(0, c.value)
+        inc()
+        UnitTest::assertEquals(5, c.value)
+        inc()
+        inc()
+        UnitTest::assertEquals(15, c.value)
+        return 0
+    }
+
+    public method makeMultiplierTest(): int {
+        scoped d:Counter = use Counter(1)
+        var by2:Function<void()> = d.makeMultiplier(2)
+        var by3:Function<void()> = d.makeMultiplier(3)
+        by2()
+        UnitTest::assertEquals(2, d.value)
+        by3()
+        UnitTest::assertEquals(6, d.value)
+        by2()
+        UnitTest::assertEquals(12, d.value)
+        return 0
+    }
+
     public method mainTest(): int {
         var greet:Function<void()> = nameless(): void {
             // Simple closure

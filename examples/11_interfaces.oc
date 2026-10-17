@@ -12,7 +12,7 @@ architecture permissive
 import ocara.IO
 
 interface Printable {
-    method print_info(): void
+    method printInfo(): void
 }
 
 interface Serializable {
@@ -46,7 +46,7 @@ class Circle implements Shape, Printable {
         IO::writeln(`Cercle de rayon ${self.radius}`)
     }
 
-    public method print_info(): void {
+    public method printInfo(): void {
         IO::writeln(`Cercle — rayon=${self.radius} aire=${self.area()}`)
     }
 }
@@ -74,7 +74,7 @@ class Rectangle implements Shape, Printable {
         IO::writeln(`Rectangle ${self.width}×${self.height}`)
     }
 
-    public method print_info(): void {
+    public method printInfo(): void {
         IO::writeln(`Rectangle — ${self.width}×${self.height} aire=${self.area()}`)
     }
 }
@@ -88,12 +88,12 @@ function main(): int {
     c.describe()            // Cercle de rayon 5.0
     IO::writeln(c.area())         // ~78.54
     IO::writeln(c.perimeter())    // ~31.42
-    c.print_info()
+    c.printInfo()
 
     r.describe()            // Rectangle 4.0×6.0
     IO::writeln(r.area())         // 24.0
     IO::writeln(r.perimeter())    // 20.0
-    r.print_info()
+    r.printInfo()
 
     return 0
 }

@@ -74,4 +74,22 @@ class Test_63_chained_call_on_free_function_result {
         UnitTest::assertEquals("HELLO WORLD", greeting().upper())
         return 0
     }
+
+    // `shapeName` via une instance nommée (hors chaînage).
+    public method shapeNameTest(): int {
+        var c:Circle = use Circle(1.0)
+        UnitTest::assertEquals("circle", c.shapeName())
+        UnitTest::assertEquals("circle", pickCircle(3).shapeName())
+        return 0
+    }
+
+    // `area` = 3.14 * r * r, pour plusieurs rayons.
+    public method areaTest(): int {
+        var c:Circle = use Circle(1.0)
+        UnitTest::assertEquals(3.14, c.area())
+        var z:Circle = use Circle(0.0)
+        UnitTest::assertEquals(0.0, z.area())
+        UnitTest::assertEquals(12.56, pickCircle(0).area())
+        return 0
+    }
 }

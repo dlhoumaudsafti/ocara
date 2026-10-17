@@ -84,24 +84,24 @@ class Test_04_conditions extends UnitTest {
         self::assertTrue(outcome)
     }
     
-    public method note_to_mentionTest(): int {
-        self::assertEquals("Excellent", note_to_mention(95))
-        self::assertEquals("Excellent", note_to_mention(90))
-        self::assertEquals("Bien", note_to_mention(85))
-        self::assertEquals("Bien", note_to_mention(75))
-        self::assertEquals("Passable", note_to_mention(65))
-        self::assertEquals("Passable", note_to_mention(60))
-        self::assertEquals("Insuffisant", note_to_mention(45))
-        self::assertEquals("Insuffisant", note_to_mention(0))
+    public method noteToMentionTest(): int {
+        self::assertEquals("Excellent", noteToMention(95))
+        self::assertEquals("Excellent", noteToMention(90))
+        self::assertEquals("Bien", noteToMention(85))
+        self::assertEquals("Bien", noteToMention(75))
+        self::assertEquals("Passable", noteToMention(65))
+        self::assertEquals("Passable", noteToMention(60))
+        self::assertEquals("Insuffisant", noteToMention(45))
+        self::assertEquals("Insuffisant", noteToMention(0))
         return 0
     }
     
-    public method is_adultTest(): int {
-        self::assertTrue(is_adult(18))
-        self::assertTrue(is_adult(20))
-        self::assertTrue(is_adult(100))
-        self::assertFalse(is_adult(17))
-        self::assertFalse(is_adult(0))
+    public method isAdultTest(): int {
+        self::assertTrue(isAdult(18))
+        self::assertTrue(isAdult(20))
+        self::assertTrue(isAdult(100))
+        self::assertFalse(isAdult(17))
+        self::assertFalse(isAdult(0))
         return 0
     }
     
@@ -119,11 +119,11 @@ class Test_04_conditions extends UnitTest {
         self::assertTrue(a greater 100 or b greater 5)
         self::assertTrue(not false)
         
-        self::assertEquals("Bien", note_to_mention(85))
-        self::assertEquals("Insuffisant", note_to_mention(45))
+        self::assertEquals("Bien", noteToMention(85))
+        self::assertEquals("Insuffisant", noteToMention(45))
         
-        self::assertTrue(is_adult(20))
-        self::assertFalse(is_adult(15))
+        self::assertTrue(isAdult(20))
+        self::assertFalse(isAdult(15))
         
         return 0
     }
@@ -134,7 +134,7 @@ class Test_04_conditions extends UnitTest {
 // ─────────────────────────────────────────────────────────────────────────────
 
 
-function note_to_mention(note:int): string {
+function noteToMention(note:int): string {
     if note greater or equal 90 {
         return "Excellent"
     } elseif note greater or equal 75 {
@@ -146,7 +146,7 @@ function note_to_mention(note:int): string {
     }
 }
 
-function is_adult(age:int): bool {
+function isAdult(age:int): bool {
     return age greater or equal 18
 }
 

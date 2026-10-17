@@ -5,18 +5,18 @@ import ocara.UnitTest
 class Test_29_async {
     
     public method asyncIntTest(): int {
-        var ti:Resolvable<int> = async_int(7)
+        var ti:Resolvable<int> = asyncInt(7)
         var ri:int = resolve ti
         UnitTest::assertEquals(49, ri)
         return 0
     }
 
     public method asyncBoolTest(): int {
-        var tb:Resolvable<bool> = async_bool(5)
+        var tb:Resolvable<bool> = asyncBool(5)
         var rb:bool = resolve tb
         UnitTest::assertTrue(rb)
 
-        var tb2:Resolvable<bool> = async_bool(-5)
+        var tb2:Resolvable<bool> = asyncBool(-5)
         var rb2:bool = resolve tb2
         UnitTest::assertFalse(rb2)
 
@@ -24,22 +24,22 @@ class Test_29_async {
     }
 
     public method asyncStringTest(): int {
-        var ts:Resolvable<string> = async_string("world")
+        var ts:Resolvable<string> = asyncString("world")
         var rs:string = resolve ts
         UnitTest::assertEquals("hello world", rs)
         return 0
     }
 
     public method mainTest(): int {
-        var ti:Resolvable<int> = async_int(7)
+        var ti:Resolvable<int> = asyncInt(7)
         var ri:int = resolve ti
         UnitTest::assertEquals(49, ri)
 
-        var tb:Resolvable<bool> = async_bool(5)
+        var tb:Resolvable<bool> = asyncBool(5)
         var rb:bool = resolve tb
         UnitTest::assertTrue(rb)
 
-        var ts:Resolvable<string> = async_string("world")
+        var ts:Resolvable<string> = asyncString("world")
         var rs:string = resolve ts
         UnitTest::assertEquals("hello world", rs)
 
@@ -52,15 +52,15 @@ class Test_29_async {
 // ─────────────────────────────────────────────────────────────────────────────
 
 
-async function async_int(n:int): int {
+async function asyncInt(n:int): int {
     return n * n
 }
 
-async function async_bool(n:int): bool {
+async function asyncBool(n:int): bool {
     return n greater 0
 }
 
-async function async_string(s:string): string {
+async function asyncString(s:string): string {
     return "hello " + s
 }
 

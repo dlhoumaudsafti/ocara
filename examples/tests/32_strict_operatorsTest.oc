@@ -32,9 +32,9 @@ class Test_32_strict_operators {
 
     public method stringContentEqualityTest(): int {
         var name:string = "Alice"
-        var otherName:string = "Alice"
+        var other_name:string = "Alice"
 
-        UnitTest::assertTrue(name equal otherName)
+        UnitTest::assertTrue(name equal other_name)
         return 0
     }
 

@@ -1816,11 +1816,11 @@ sum(__variadic_arr)
 ```ocara
 function sum(nums:variadic<int>): int { ... }
 
-function default_sum(nums:variadic<int>): int {
+function defaultSum(nums:variadic<int>): int {
     return sum(nums)              // sum reçoit [10, 20] → 30
 }
 
-default_sum(10, 20)               // 30
+defaultSum(10, 20)               // 30
 ```
 
 Pour un élément lui-même tableau/`mixed` (`variadic<array<T>>`, `variadic<mixed>`), seul un paramètre variadic est ainsi transmis — un tableau quelconque passé seul y reste UN élément.
@@ -2463,12 +2463,12 @@ Depuis l'intérieur d'une classe, une méthode statique peut en appeler une autr
 
 ```ocara
 class Validator {
-    public static method is_positive(n:int): bool {
+    public static method isPositive(n:int): bool {
         return n greater 0
     }
 
     public static method are_both_positive(a:int, b:int): bool {
-        return self::is_positive(a) and self::is_positive(b)
+        return self::isPositive(a) and self::isPositive(b)
     }
 }
 ```
@@ -2735,11 +2735,11 @@ ClassDecl  ::= "class" Identifier
 module Timestamped {
     private property created_at: int
 
-    public method mark_created(): void {
+    public method markCreated(): void {
         self.created_at = System::time()
     }
 
-    public method get_age(): int {
+    public method getAge(): int {
         return System::time() - self.created_at
     }
 }
@@ -2766,8 +2766,8 @@ class User modules Timestamped {
 
 function main(): int {
     var u: User = use User("Alice")
-    u.mark_created()          // méthode du module
-    IO::writeln(u.get_age())  // méthode du module
+    u.markCreated()          // méthode du module
+    IO::writeln(u.getAge())  // méthode du module
     return 0
 }
 ```
@@ -2985,11 +2985,11 @@ generic Cache<K, V> extends Storage {
 module Timestamped {
     private property created_at:int
     
-    public method mark_created(): void {
+    public method markCreated(): void {
         self.created_at = DateTime::now()
     }
     
-    public method get_age(): int {
+    public method getAge(): int {
         return DateTime::now() - self.created_at
     }
 }
@@ -3000,7 +3000,7 @@ generic Cache<K, V> modules Timestamped {
     
     init() {
         self.data = {}
-        self.mark_created()  // méthode du module
+        self.markCreated()  // méthode du module
     }
 }
 ```
@@ -3036,7 +3036,7 @@ generic Cache<K, V = string> extends Storage modules Timestamped implements Seri
     
     init() {
         self.data = {}
-        self.mark_created()
+        self.markCreated()
     }
     
     public method set(key:K, value:V): void {
@@ -3354,7 +3354,7 @@ generic Option<T> {
     }
 }
 
-function find_user(id:int): Option<string> {
+function findUser(id:int): Option<string> {
     if id equal 1 {
         return Option::some("Alice")
     }
@@ -3362,12 +3362,12 @@ function find_user(id:int): Option<string> {
 }
 
 function main(): int {
-    var user:Option<string> = find_user(1)
+    var user:Option<string> = findUser(1)
     if user.isSome() {
         IO::writeln(`Utilisateur : ${user.unwrap()}`)
     }
     
-    var unknown:Option<string> = find_user(999)
+    var unknown:Option<string> = findUser(999)
     var name:string = unknown.unwrapOr("Anonyme")
     IO::writeln(name)  // Anonyme
     
@@ -3453,13 +3453,13 @@ var result:int = Math::abs(-5)         // appel statique
 var s:string = String::from(42)
 
 var f:Function<int(int)> = MathOp::square   // référence — pas d'appel
-var g:Function<bool(int)> = self::is_positive // référence depuis l'intérieur
+var g:Function<bool(int)> = self::isPositive // référence depuis l'intérieur
 
 class Validator {
-    public static method is_positive(n:int): bool { return n greater 0 }
+    public static method isPositive(n:int): bool { return n greater 0 }
 
     public static method are_both_positive(a:int, b:int): bool {
-        return self::is_positive(a) and self::is_positive(b)
+        return self::isPositive(a) and self::isPositive(b)
     }
 }
 ```

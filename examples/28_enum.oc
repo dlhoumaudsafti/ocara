@@ -20,7 +20,7 @@ enum HttpStatus {
 }
 
 // ── 3. Enum utilisé dans switch ──────────────────────────────────────────────
-function direction_name(d:int): string {
+function directionName(d:int): string {
     switch d {
         0 { return "Nord" }
         1 { return "Est" }
@@ -30,7 +30,7 @@ function direction_name(d:int): string {
     }
 }
 
-function http_label(code:int): string {
+function httpLabel(code:int): string {
     switch code {
         200 { return "OK" }
         201 { return "Created" }
@@ -41,7 +41,7 @@ function http_label(code:int): string {
 }
 
 // ── 4. Enum utilisé dans if ──────────────────────────────────────────────────
-function is_error(status:int): bool {
+function isError(status:int): bool {
     return status equal HttpStatus::Error
 }
 
@@ -59,13 +59,13 @@ function main(): void {
     IO::writeln(Convert::intToStr(HttpStatus::Error))    // 500
 
     IO::writeln("3. switch sur enum :")
-    IO::writeln(direction_name(Direction::North))  // Nord
-    IO::writeln(direction_name(Direction::South))  // Sud
-    IO::writeln(http_label(HttpStatus::NotFound))  // Not Found
+    IO::writeln(directionName(Direction::North))  // Nord
+    IO::writeln(directionName(Direction::South))  // Sud
+    IO::writeln(httpLabel(HttpStatus::NotFound))  // Not Found
 
     IO::writeln("4. comparaison :")
     var s:int = HttpStatus::Error
-    if is_error(s) {
+    if isError(s) {
         IO::writeln("erreur detectee")
     }
     if s equal HttpStatus::Error {

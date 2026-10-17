@@ -12,10 +12,6 @@ import ocara.Array
 // Découvert en creusant ce chantier (`b.show(3.5)` avec `show(v:mixed)`
 // corrompait déjà silencieusement `v`).
 //
-// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée
-// du fichier (voir 33_exception_hierarchyTest.oc) — la classe de test doit
-// donc précéder Box/StaticBox ci-dessous.
-//
 // NOTE assertEquals : compare par égalité BRUTE de i64 (bug pré-existant,
 // documenté ce même chantier) — on utilise `equal`/`assertTrue` pour toute
 // valeur `mixed`, `assertEquals` seulement pour des petits entiers concrets.

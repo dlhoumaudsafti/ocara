@@ -40,9 +40,11 @@ import context.shared.infra.db.Database
 import ocara.System
 
 runtime core.init is init
+
 when System::OS is 'android'
 runtime core.mainAndroid is main
 when default
 runtime core.main is main
+
 runtime core.error is error
 runtime core.exit is exit

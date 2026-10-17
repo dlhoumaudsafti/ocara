@@ -49,4 +49,42 @@ class Test_69_convert_instance_methods {
         UnitTest::assertEquals("1+2", [1, 2].toStr(sep: "+"))
         return 0
     }
+
+    // Scénario de `main` de l'exemple reproduit avec assertions.
+    public method mainTest(): int {
+        var raw:string = "41"
+        var n:int = raw.toInt() + 1
+        UnitTest::assertEquals(42, n)
+        UnitTest::assertEquals(3.5, "3.5".toFloat())
+        UnitTest::assertTrue("true".toBool())
+        var parts:array<string> = "a,b,c".toArray(",")
+        UnitTest::assertEquals(3, parts.len())
+        UnitTest::assertEquals("c", parts[2])
+        var conf:map<string, string> = "host=localhost;port=8080".toMap(";", "=")
+        UnitTest::assertEquals("8080", conf["port"])
+        UnitTest::assertEquals("localhost", conf["host"])
+
+        var count:int = 7
+        UnitTest::assertEquals("7", count.toStr())
+        UnitTest::assertEquals(7.0, count.toFloat())
+        UnitTest::assertTrue(count.toBool())
+        var price:float = 2.75
+        UnitTest::assertEquals(Convert::floatToStr(price), price.toStr())
+        UnitTest::assertEquals(2, price.toInt())
+        UnitTest::assertTrue(price.toBool())
+        var flag:bool = true
+        UnitTest::assertEquals("true", flag.toStr())
+        UnitTest::assertEquals(1, flag.toInt())
+        UnitTest::assertEquals(1.0, flag.toFloat())
+
+        var ids:array<int> = [1, 2, 3]
+        UnitTest::assertEquals("1-2-3", ids.toStr("-"))
+        UnitTest::assertEquals(2, ["a=1", "b=2"].toMap("=").size())
+        UnitTest::assertEquals(Convert::mapToStr(conf, "&", ":"), conf.toStr("&", ":"))
+
+        UnitTest::assertEquals("41", raw.toInt().toStr().toInt().toStr())
+        UnitTest::assertEquals(2, "x,y".toArray(",").len())
+        UnitTest::assertEquals("1+2+3", ids.toStr(sep: "+"))
+        return 0
+    }
 }

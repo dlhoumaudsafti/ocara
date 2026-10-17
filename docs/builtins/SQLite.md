@@ -22,7 +22,7 @@ const db:SQLite = SQLite::open("data.db")
 
 ### `SQLite::withOpen(path: string, f: Function<void(SQLite)>) → void`
 
-Ouvre la base, exécute `f(db)` avec la connexion fraîchement ouverte, puis **ferme systématiquement** la connexion — y compris si `f()` lève une exception. Avec `open()`/`close()` manuels, un `raise` entre les deux appels saute `close()` (le mécanisme d'exceptions d'Ocara est `setjmp`/`longjmp`, sans unwinding) et fuit la connexion pour toujours ; c'est exactement le risque que le diagnostic [W04](../diagnostics.md) signale statiquement pour une ressource `scoped`/`consumed`, et que `withOpen` corrige à la racine pour qui l'utilise.
+Ouvre la base, exécute `f(db)` avec la connexion fraîchement ouverte, puis **ferme systématiquement** la connexion — y compris si `f()` lève une exception. Avec une connexion `var` et `open()`/`close()` manuels, un `raise` entre les deux appels saute `close()` et fuit la connexion — risque que le diagnostic [W04](../diagnostics.md) signale statiquement, et que `withOpen` (comme une déclaration `scoped`, fermée même par un `raise`) évite.
 
 ```ocara
 SQLite::withOpen("data.db", nameless(db:SQLite): void {

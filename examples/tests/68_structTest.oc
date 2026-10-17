@@ -5,6 +5,7 @@ import ocara.Array
 import UserDTO from "68_struct"
 import AdminDTO from "68_struct"
 import TeamDTO from "68_struct"
+import findUser from "68_struct"
 
 // docs/roadmap.d/langage-struct-value-type.md — constructeur généré depuis
 // les champs (défauts compris, arguments nommés), héritage entre structs,
@@ -51,6 +52,40 @@ class Test_68_struct {
         UnitTest::assertEquals("core", team.label)
         UnitTest::assertEquals(1, Array::len(team.members))
         UnitTest::assertTrue(team.lead is null)
+        return 0
+    }
+
+    // `findUser` : null pour id 0, sinon un UserDTO avec les défauts.
+    public method findUserTest(): int {
+        var missing:UserDTO|null = findUser(0)
+        UnitTest::assertTrue(missing is null)
+        var found:UserDTO|null = findUser(5)
+        UnitTest::assertFalse(found is null)
+        if found is UserDTO {
+            UnitTest::assertEquals(5, found.id)
+            UnitTest::assertEquals("John", found.name)
+            UnitTest::assertEquals("john.doe@example.com", found.email)
+        }
+        return 0
+    }
+
+    // Scénario de `main` reproduit avec assertions.
+    public method mainTest(): int {
+        var a:UserDTO = use UserDTO(1, "David")
+        UnitTest::assertEquals("1 David john.doe@example.com", `${a.id} ${a.name} ${a.email}`)
+        var b:UserDTO = use UserDTO(id: 2)
+        UnitTest::assertEquals("2 John john.doe@example.com", `${b.id} ${b.name} ${b.email}`)
+        var c:UserDTO = use UserDTO(email: "eve@example.com", id: 3)
+        UnitTest::assertEquals("3 John eve@example.com", `${c.id} ${c.name} ${c.email}`)
+        var admin:AdminDTO = use AdminDTO(name: "Root", id: 4, level: 9)
+        UnitTest::assertEquals("4 Root 9", `${admin.id} ${admin.name} ${admin.level}`)
+        admin.name = "Admin"
+        UnitTest::assertEquals("Admin user", `${admin.name} ${UserDTO::KIND}`)
+        var team:TeamDTO = use TeamDTO(label: "core", members: [a, b], lead: c)
+        UnitTest::assertEquals("core 2", `${team.label} ${Array::len(team.members)}`)
+        UnitTest::assertFalse(team.lead is null)
+        var missing:UserDTO|null = findUser(0)
+        UnitTest::assertTrue(missing is null)
         return 0
     }
 }

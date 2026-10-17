@@ -11,9 +11,9 @@ class Test_10_classes {
         return 0
     }
     
-    public method distance_from_originTest(): int {
+    public method distanceFromOriginTest(): int {
         var p:Point = use Point(3, 4)
-        UnitTest::assertEquals(25, p.distance_from_origin())
+        UnitTest::assertEquals(25, p.distanceFromOrigin())
         return 0
     }
     
@@ -35,14 +35,14 @@ class Test_10_classes {
         return 0
     }
     
-    public method show_balanceTest(): int {
+    public method showBalanceTest(): int {
         var account:BankAccount = use BankAccount("Alice", 1000.0)
-        account.show_balance()
+        account.showBalance()
         UnitTest::assertTrue(true)
         return 0
     }
     
-    public method is_negativeTest(): int {
+    public method isNegativeTest(): int {
         var account:BankAccount = use BankAccount("Alice", -100.0)
         UnitTest::assertTrue(account.check_negative())
         var positive:BankAccount = use BankAccount("Bob", 100.0)
@@ -54,7 +54,7 @@ class Test_10_classes {
         var p:Point = use Point(3, 4)
         UnitTest::assertEquals(3, p.x)
         UnitTest::assertEquals(4, p.y)
-        UnitTest::assertEquals(25, p.distance_from_origin())
+        UnitTest::assertEquals(25, p.distanceFromOrigin())
         return 0
     }
     
@@ -69,10 +69,10 @@ class Test_10_classes {
     public method mainTest(): int {
         var p:Point = use Point(3, 4)
         p.display()
-        UnitTest::assertEquals(25, p.distance_from_origin())
+        UnitTest::assertEquals(25, p.distanceFromOrigin())
         
         var account:BankAccount = use BankAccount("Alice", 1000.0)
-        account.show_balance()
+        account.showBalance()
         account.deposit(500.0)
         account.withdraw(200.0)
         account.withdraw(2000.0)
@@ -98,7 +98,7 @@ class Point {
     public method display(): void {
     }
 
-    public method distance_from_origin(): int {
+    public method distanceFromOrigin(): int {
         return self.x * self.x + self.y * self.y
     }
 }
@@ -123,7 +123,7 @@ class BankAccount {
         }
     }
 
-    public method show_balance(): void {
+    public method showBalance(): void {
     }
 
     public method check_negative(): bool {

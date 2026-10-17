@@ -26,7 +26,7 @@ class Vector2 {
 }
 
 
-function display_all(values:array<mixed>): void {
+function displayAll(values:array<mixed>): void {
     for v in values {
         IO::writeln(v)
     }
@@ -83,7 +83,7 @@ function main(): int {
     v.display()
 
     // ── Fonction prenant array<mixed> ───────────────────────────────────────────────
-    display_all([42, "hello", true])
+    displayAll([42, "hello", true])
 
     return 0
 }

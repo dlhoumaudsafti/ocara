@@ -7,8 +7,6 @@ import ocara.Array
 // docs/roadmap.d/memoire-array-push-large-int-boxed.md — valeurs choisies
 // au-dessus de PTR_THRESHOLD (65536) : un scalaire boxé relu brut (ou
 // l'inverse) y donnait une adresse au lieu de la valeur.
-//
-// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée.
 class Test_71_variadic_forwarding_and_push {
 
     public method forwardVariadicTest(): int {

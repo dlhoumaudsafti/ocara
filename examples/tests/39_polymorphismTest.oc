@@ -11,10 +11,6 @@ import ocara.UnitTest
 // n'était possible, pas seulement pour les interfaces). `is ClassName`/
 // `is InterfaceName` ne distinguait pas non plus une classe d'une autre
 // (toujours `__is_object` seul).
-//
-// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée
-// du fichier (voir 33_exception_hierarchyTest.oc) — la classe de test doit
-// donc précéder les classes/interfaces auxiliaires ci-dessous.
 
 class Test_39_polymorphism {
 

@@ -11,9 +11,6 @@ import ocara.JSON
 // (tag bits bas = 11, même mécanisme que float/bool) un tel entier UNIQUEMENT
 // quand il est assez grand pour être ambigu — un petit entier reste brut.
 //
-// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée du
-// fichier (voir 33_exception_hierarchyTest.oc) — pas de classe auxiliaire ici.
-//
 // NOTE assertEquals : `UnitTest::assertEquals` utilise désormais une vraie
 // comparaison (type + valeur, `__cmp_eq_strict`), plus une égalité brute de
 // i64 — `assertEquals` fonctionne donc correctement même sur un `mixed` boxé.

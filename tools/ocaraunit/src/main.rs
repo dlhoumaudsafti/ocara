@@ -9,8 +9,11 @@
 //
 // Convention de découverte :
 //   - Fichiers    : *Test.oc
-//   - Script sans classe : toute fonction dont le nom se termine par "Test"
-//   - Classe       : toute méthode publique dont le nom se termine par "Test"
+//   - Script sans classe : toute fonction dont le nom commence ou se
+//                          termine par "test" (casse ignorée)
+//   - Classe(s)    : toute méthode publique (d'instance ou statique) dont le
+//                    nom commence ou se termine par "test", quelle que soit
+//                    la classe qui la déclare
 //
 // Format de sortie des assertions (stdout du binaire compilé) :
 //   PASS <message>
@@ -163,80 +166,122 @@ fn file_has_class(source: &str) -> bool {
     })
 }
 
-/// Extrait le nom de la première classe déclarée dans le fichier.
-fn extract_class_name(source: &str) -> Option<String> {
-    for line in source.lines() {
-        let t = line.trim();
-        if let Some(rest) = t.strip_prefix("class ") {
-            let name = rest.split_whitespace().next().unwrap_or("").trim_matches('{').trim();
-            if !name.is_empty() {
-                return Some(name.to_string());
-            }
-        }
-    }
-    None
+/// Vrai si `ident` désigne un test : préfixe ou suffixe `test`, casse
+/// ignorée (`fooTest`, `testFoo`, `foo_test`…). La casse relève du linter
+/// (ocaracs), pas du runner.
+fn is_test_name(ident: &str) -> bool {
+    let lower = ident.to_ascii_lowercase();
+    lower.starts_with("test") || lower.ends_with("test")
 }
 
-/// Génère un `function main()` qui appelle tous les tests du fichier.
-/// - Script : appelle directement chaque fonction `fooTest()`
-/// - Classe  : instancie la classe (sans arguments) puis appelle chaque méthode
-fn generate_main(source: &str, test_names: &[String]) -> String {
-    if test_names.is_empty() {
-        return "\nfunction main(): int {\n    return 0\n}\n".to_string();
-    }
-    let mut code = String::from("\nfunction main(): int {\n");
-    if file_has_class(source) {
-        if let Some(class_name) = extract_class_name(source) {
-            code.push_str(&format!("    scoped _t:{} = use {}()\n", class_name, class_name));
-            for name in test_names {
-                code.push_str(&format!("    _t.{}()\n", name));
+/// Un test découvert : fonction libre (`class: None`) ou méthode publique
+/// d'une classe, d'instance ou statique.
+#[derive(Debug, Clone)]
+struct TestEntry {
+    class:     Option<String>,
+    name:      String,
+    is_static: bool,
+}
+
+/// Identifiant qui suit `prefix` sur la ligne (jusqu'à `(`).
+fn ident_after<'a>(line: &'a str, prefix: &str) -> Option<&'a str> {
+    let ident = line.strip_prefix(prefix)?.split('(').next()?.trim();
+    (!ident.is_empty()).then_some(ident)
+}
+
+/// Extrait les tests selon la convention ocaraunit.
+///
+/// - Script sans classe : toute `function` dont le nom est un test ;
+/// - Fichier avec classe(s) : toute méthode `public` (d'instance ou
+///   `static`) dont le nom est un test, rattachée à la classe qui la déclare
+///   — quel que soit le nom de cette classe ou sa position dans le fichier.
+fn extract_tests(source: &str) -> Vec<TestEntry> {
+    let has_class = file_has_class(source);
+    let mut tests = Vec::new();
+    let mut current_class: Option<String> = None;
+    for line in source.lines() {
+        let t = line.trim();
+        if has_class {
+            if let Some(rest) = t.strip_prefix("class ") {
+                let name = rest.split(|c: char| c.is_whitespace() || c == '{' || c == '<').next().unwrap_or("");
+                current_class = (!name.is_empty()).then(|| name.to_string());
+                continue;
+            }
+            let (ident, is_static) = match (ident_after(t, "public static method "), ident_after(t, "public method ")) {
+                (Some(i), _) => (i, true),
+                (None, Some(i)) => (i, false),
+                _ => continue,
+            };
+            if is_test_name(ident) && current_class.is_some() {
+                tests.push(TestEntry { class: current_class.clone(), name: ident.to_string(), is_static });
+            }
+        } else if let Some(ident) = ident_after(t, "function ") {
+            if is_test_name(ident) {
+                tests.push(TestEntry { class: None, name: ident.to_string(), is_static: false });
             }
         }
-    } else {
-        for name in test_names {
-            code.push_str(&format!("    {}()\n", name));
+    }
+    tests
+}
+
+/// Génère un `function main()` qui appelle tous les tests du fichier :
+/// fonctions libres appelées directement ; pour chaque classe contenant des
+/// tests, une instance (constructeur sans argument) puis chaque méthode, les
+/// méthodes statiques étant appelées sur la classe.
+fn generate_main(tests: &[TestEntry]) -> String {
+    let mut code = String::from("\nfunction main(): int {\n");
+    let mut instances: Vec<(String, String)> = Vec::new();
+    for test in tests {
+        match (&test.class, test.is_static) {
+            (None, _) => code.push_str(&format!("    {}()\n", test.name)),
+            (Some(class), true) => code.push_str(&format!("    {}::{}()\n", class, test.name)),
+            (Some(class), false) => {
+                let var = match instances.iter().find(|(c, _)| c == class) {
+                    Some((_, v)) => v.clone(),
+                    None => {
+                        let v = format!("_t{}", instances.len());
+                        code.push_str(&format!("    scoped {}:{} = use {}()\n", v, class, class));
+                        instances.push((class.clone(), v.clone()));
+                        v
+                    }
+                };
+                code.push_str(&format!("    {}.{}()\n", var, test.name));
+            }
         }
     }
     code.push_str("    return 0\n}\n");
     code
 }
 
-/// Extrait les noms de fonctions/méthodes de test selon la convention ocaraunit.
-///
-/// - Script sans classe : `function <name>Test(...)`
-/// - Classe : `public method <name>Test(...)`
-fn extract_test_names(source: &str) -> Vec<String> {
-    let has_class = file_has_class(source);
-    let mut names = Vec::new();
-    for line in source.lines() {
-        let trimmed = line.trim();
-        if has_class {
-            // Cherche : public method <ident>Test (
-            if let Some(rest) = trimmed.strip_prefix("public method ") {
-                let ident = rest
-                    .split('(')
-                    .next()
-                    .unwrap_or("")
-                    .trim();
-                if ident.ends_with("Test") {
-                    names.push(ident.to_string());
-                }
-            }
-        } else {
-            // Cherche : function <ident>Test (
-            if let Some(rest) = trimmed.strip_prefix("function ") {
-                let ident = rest
-                    .split('(')
-                    .next()
-                    .unwrap_or("")
-                    .trim();
-                if ident.ends_with("Test") {
-                    names.push(ident.to_string());
-                }
-            }
+/// Réécrit les imports `from "chemin"` relatifs au dossier du fichier de
+/// test (`"../Foo"` depuis `tests/`) en chemins relatifs à `project_root` :
+/// le test est compilé depuis la racine (`--src`), qui résout tous les
+/// imports à partir d'elle. Un chemin déjà relatif à la racine, ou qui ne
+/// désigne aucun fichier depuis le dossier du test, est laissé tel quel.
+fn rebase_imports(source: &str, test_dir: &Path, project_root: &Path) -> String {
+    let Ok(root) = project_root.canonicalize() else { return source.to_string() };
+    let rebase = |path: &str| -> Option<String> {
+        let mut candidate = test_dir.join(path.trim_end_matches(".oc"));
+        candidate.set_extension("oc");
+        let abs = candidate.canonicalize().ok()?;
+        if root.join(format!("{}.oc", path.trim_end_matches(".oc"))).exists() {
+            return None;
         }
-    }
-    names
+        let rel = abs.strip_prefix(&root).ok()?;
+        Some(rel.with_extension("").to_string_lossy().to_string())
+    };
+    source.lines().map(|line| {
+        let t = line.trim_start();
+        if !t.starts_with("import ") {
+            return line.to_string();
+        }
+        let Some(start) = line.find("from \"").map(|i| i + 6) else { return line.to_string() };
+        let Some(len) = line[start..].find('"') else { return line.to_string() };
+        match rebase(&line[start..start + len]) {
+            Some(new_path) => format!("{}{}{}", &line[..start], new_path, &line[start + len..]),
+            None => line.to_string(),
+        }
+    }).collect::<Vec<_>>().join("\n")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -393,8 +438,10 @@ fn run_test_file(
             Ok(s)  => s,
             Err(e) => return (vec![], Some(format!("impossible de lire le fichier : {}", e))),
         };
-        let test_names = extract_test_names(&source);
-        let main_code  = generate_main(&source, &test_names);
+        let tests     = extract_tests(&source);
+        let main_code = generate_main(&tests);
+        let test_dir  = src.parent().unwrap_or(project_root);
+        let source    = rebase_imports(&source, test_dir, project_root);
         let _ = fs::write(&tmp_src, format!("{}\n{}", source, main_code));
 
         // Compilation depuis la racine du projet
@@ -533,8 +580,7 @@ fn extract_all_function_names(source: &str) -> Vec<(String, usize)> {
 }
 
 /// Calcule la couverture d'un fichier source non-test.
-/// "couverte" = il existe un fichier *Test.oc qui importe ce fichier
-/// ET qui contient un test dont le nom correspond au schéma <funcName>Test.
+/// "couverte" = un test s'appelle `<nom>Test` ou `test<Nom>` (casse ignorée).
 fn compute_coverage(
     src_file: &Path,
     all_funcs: &[(String, usize)],
@@ -543,8 +589,8 @@ fn compute_coverage(
     let mut covered = 0usize;
     let mut uncovered = Vec::new();
     for (name, lineno) in all_funcs {
-        let expected = format!("{}Test", name);
-        if test_names_global.contains(&expected) {
+        let lower = name.to_ascii_lowercase();
+        if test_names_global.contains(&format!("{}test", lower)) || test_names_global.contains(&format!("test{}", lower)) {
             covered += 1;
         } else {
             uncovered.push((name.clone(), *lineno));
@@ -790,8 +836,8 @@ fn main() {
     let mut global_test_names: HashSet<String> = HashSet::new();
     for tf in &test_files {
         if let Ok(src) = fs::read_to_string(tf) {
-            for name in extract_test_names(&src) {
-                global_test_names.insert(name);
+            for test in extract_tests(&src) {
+                global_test_names.insert(test.name.to_ascii_lowercase());
             }
         }
     }

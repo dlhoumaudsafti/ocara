@@ -10,9 +10,6 @@ import ocara.UnitTest
 // passe aujourd'hui par le comptage de références
 // (src/lower/builder.d/rc_layout.rs, runtime/src/rc.rs) ; ces tests
 // vérifient l'absence de crash à plusieurs niveaux d'imbrication.
-//
-// NOTE ordre des classes : ocaraunit instancie la PREMIÈRE classe déclarée
-// du fichier (voir 33_exception_hierarchyTest.oc).
 
 class Test_41_nested_container_ownership {
 

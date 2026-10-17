@@ -418,14 +418,10 @@ pub enum SemaWarning {
     UnusedVariable { name: String, span: Span },
     MixedLocalVariable { name: String, span: Span },
     VariadicMixed { name: String, span: Span },
-    /// `scoped`/`consumed` ressource (Mutex/SQLite/MySQL/MariaDB/
-    /// HTTPRequest/HTTPResponse/Thread) encore ouverte au moment d'un
-    /// `raise` qui n'est pas localement rattrapé par un `try` dans le même
-    /// bloc — voir `crate::sema::resource_raise` et
-    /// docs/roadmap.d/exceptions-setjmp-longjmp-dette.md. `longjmp` saute
-    /// par-dessus la finalisation automatique de fin de bloc : fuite ou
-    /// deadlock permanent, pas de corruption.
-    ScopedResourceRaiseLeak { name: String, class_name: String, span: Span },
+    /// W04 : un `raise` non rattrapé localement saute le `.join()`/
+    /// `.detach()` d'un `Thread`, ou le `.close()`/`.destroy()` manuel d'une
+    /// ressource native `var` — voir `crate::sema::resource_raise`.
+    RaiseSkipsFinalization { name: String, class_name: String, is_thread: bool, span: Span },
 }
 
 impl SemaWarning {
@@ -434,7 +430,7 @@ impl SemaWarning {
             SemaWarning::UnusedVariable { span, .. } => span,
             SemaWarning::MixedLocalVariable { span, .. } => span,
             SemaWarning::VariadicMixed { span, .. } => span,
-            SemaWarning::ScopedResourceRaiseLeak { span, .. } => span,
+            SemaWarning::RaiseSkipsFinalization { span, .. } => span,
         }
     }
 
@@ -446,8 +442,10 @@ impl SemaWarning {
                 format!("local variable '{}': type 'mixed' disables type checking — prefer a concrete type or union (e.g., int|string|null)", name),
             SemaWarning::VariadicMixed { name, .. } =>
                 format!("variadic parameter '{}': variadic<mixed> disables type checking — consider variadic<T|U> with explicit union", name),
-            SemaWarning::ScopedResourceRaiseLeak { name, class_name, .. } =>
-                format!("'{}' ('{}') is a 'scoped'/'consumed' resource still open when a 'raise' later in this block is not locally caught — its 'longjmp' skips this block's normal cleanup, leaking '{}' (or leaving a Mutex locked forever) — finalize it ('.destroy()'/'.close()'/'.join()'/'.detach()') before that 'raise', or wrap the risky code in a local 'try'/'on'", name, class_name, name),
+            SemaWarning::RaiseSkipsFinalization { name, is_thread: true, .. } =>
+                format!("thread '{}' is neither joined nor detached when a 'raise' later in this block is not locally caught — the 'raise' skips '.join()'/'.detach()' and abandons the thread — call it before that 'raise', or wrap the risky code in a local 'try'/'on'", name),
+            SemaWarning::RaiseSkipsFinalization { name, class_name, .. } =>
+                format!("'{}' ('{}') is declared with 'var': a 'raise' in this block that is not locally caught skips its manual '.close()'/'.destroy()', leaking it (or leaving a Mutex locked) — declare it 'scoped' (closed automatically, even by a 'raise'), or wrap the risky code in a local 'try'/'on'", name, class_name),
         }
     }
 }

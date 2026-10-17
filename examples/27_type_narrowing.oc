@@ -26,7 +26,7 @@ function process(val:int|string|null): void {
 
 // ── Expression 'is' retournant un bool ─────────────────────────────────────
 
-function check_type(val:int|string|null): void {
+function checkType(val:int|string|null): void {
     IO::writeln("Test avec expression is :")
 
     var is_null:bool = val is null
@@ -47,7 +47,7 @@ function check_type(val:int|string|null): void {
 
 // ── Narrowing dans les conditions if ───────────────────────────────────────
 
-function format_value(val:int|string|null): string {
+function formatValue(val:int|string|null): string {
     if val is null {
         return "(null)"
     }
@@ -69,24 +69,24 @@ function main(): int {
     // Test avec null
     IO::writeln("1. Valeur null :")
     process(null)
-    check_type(null)
-    IO::writeln("   Format : " + format_value(null))
+    checkType(null)
+    IO::writeln("   Format : " + formatValue(null))
     IO::writeln("")
 
     // Test avec int
     IO::writeln("2. Valeur int (42) :")
     var i:int|string|null = 42
     process(i)
-    check_type(i)
-    IO::writeln("   Format : " + format_value(i))
+    checkType(i)
+    IO::writeln("   Format : " + formatValue(i))
     IO::writeln("")
 
     // Test avec string
     IO::writeln("3. Valeur string (\"hello\") :")
     var s:int|string|null = "hello"
     process(s)
-    check_type(s)
-    IO::writeln("   Format : " + format_value(s))
+    checkType(s)
+    IO::writeln("   Format : " + formatValue(s))
     IO::writeln("")
 
     // ── Tests des types manquants ─────────────────────────────────────────

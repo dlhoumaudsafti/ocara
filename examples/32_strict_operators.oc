@@ -58,10 +58,10 @@ function main(): int {
     IO::writeln("3. equal sur des strings — comparaison de contenu")
 
     var name:string = "Alice"
-    var otherName:string = "Alice"
+    var other_name:string = "Alice"
 
-    if name equal otherName {
-        IO::writeln("  name equal otherName : true (meme contenu)")
+    if name equal other_name {
+        IO::writeln("  name equal other_name : true (meme contenu)")
     }
 
     IO::writeln("")

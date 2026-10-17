@@ -1,6 +1,7 @@
 architecture permissive
 
 import ocara.UnitTest
+import ocara.IO
 import ocara.Array
 
 class Test_16_types {
@@ -86,6 +87,16 @@ class Test_16_types {
         
         return 0
     }
+    public method displayTest(): int {
+        var v:Vector2 = use Vector2(1.0, 2.5)
+        v.display()
+        UnitTest::assertEquals(1.0, v.x)
+        UnitTest::assertEquals(2.5, v.y)
+        v.x = -3.5
+        v.display()
+        UnitTest::assertEquals(-3.5, v.x)
+        return 0
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -99,6 +110,9 @@ class Vector2 {
     init(x:float, y:float) {
         self.x = x
         self.y = y
+    }
+    public method display(): void {
+        IO::writeln(`Vector2(${self.x}, ${self.y})`)
     }
 }
 

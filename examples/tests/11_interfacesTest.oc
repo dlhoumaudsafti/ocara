@@ -2,35 +2,29 @@ architecture permissive
 
 import ocara.UnitTest
 import ocara.IO
-import Circle from "11_interfaces"
-import Rectangle from "11_interfaces"
+import Circle from "../11_interfaces"
+import Rectangle from "../11_interfaces"
 
-class Test_11_interfaces {
+class Test11Interfaces extends UnitTest {
 
-    private property circle:Circle
-    private property rectangle:Rectangle
+    private property circle:Circle = use Circle(5.0)
+    private property rectangle:Rectangle = use Rectangle(4.0, 6.0)
 
-    init() {
-        // Nécessaire pour que les classes soient chargées avant les tests
-        self.circle = use Circle(5.0)
-        self.rectangle = use Rectangle(4.0, 6.0)
-    }
-    
     public method areaTest(): int {
         var area2:float = self.circle.area()
-        UnitTest::assertEquals(area2, 78.53975)
+        self::assertEquals(area2, 78.53975)
 
-        var rectArea:float = self.rectangle.area()
-        UnitTest::assertEquals(rectArea, 24.0)
+        var rect_area:float = self.rectangle.area()
+        self::assertEquals(rect_area, 24.0)
         return 0
     }
 
     public method perimeterTest(): int {
         var perimeter:float = self.circle.perimeter()
-        UnitTest::assertEquals(perimeter, 31.4159)
+        self::assertEquals(perimeter, 31.4159)
 
-        var rectPerimeter:float = self.rectangle.perimeter()
-        UnitTest::assertEquals(rectPerimeter, 20.0)
+        var rect_perimeter:float = self.rectangle.perimeter()
+        self::assertEquals(rect_perimeter, 20.0)
         return 0
     }
 
@@ -40,12 +34,12 @@ class Test_11_interfaces {
         return 0
     }
 
-    public method print_infoTest(): int {
-        self.circle.print_info()
-        self.rectangle.print_info()
+    public method printInfoTest(): int {
+        self.circle.printInfo()
+        self.rectangle.printInfo()
         return 0
     }
-    
+
     public method mainTest(): int {
         return 0
     }

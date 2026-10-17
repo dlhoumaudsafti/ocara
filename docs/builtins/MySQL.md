@@ -32,7 +32,7 @@ const db:MySQL = MySQL::connect("localhost", "root", "password", "mydb")
 
 ### `MySQL::withConnect(host: string, user: string, password: string, database: string, f: Function<void(MySQL)>) → void`
 
-Connecte, exécute `f(db)` avec la connexion fraîchement établie, puis **ferme systématiquement** la connexion — y compris si `f()` lève une exception. Avec `connect()`/`close()` manuels, un `raise` entre les deux appels saute `close()` (le mécanisme d'exceptions d'Ocara est `setjmp`/`longjmp`, sans unwinding) et fuit la connexion pour toujours ; c'est exactement le risque que le diagnostic [W04](../diagnostics.md) signale statiquement pour une ressource `scoped`/`consumed`, et que `withConnect` corrige à la racine pour qui l'utilise. Disponible également sous `MariaDB::withConnect`.
+Connecte, exécute `f(db)` avec la connexion fraîchement établie, puis **ferme systématiquement** la connexion — y compris si `f()` lève une exception. Avec une connexion `var` et `connect()`/`close()` manuels, un `raise` entre les deux appels saute `close()` et fuit la connexion — risque que le diagnostic [W04](../diagnostics.md) signale statiquement, et que `withConnect` (comme une déclaration `scoped`, fermée même par un `raise`) évite. Disponible également sous `MariaDB::withConnect`.
 
 ```ocara
 MySQL::withConnect("localhost", "root", "password", "mydb", nameless(db:MySQL): void {

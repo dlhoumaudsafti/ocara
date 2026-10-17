@@ -11,7 +11,7 @@ architecture permissive
 
 import ocara.IO
 
-function http_status(code:int): void {
+function httpStatus(code:int): void {
     switch code {
         200 {
             IO::writeln("200 OK")
@@ -37,7 +37,7 @@ function http_status(code:int): void {
     }
 }
 
-function day_type(day:string): void {
+function dayType(day:string): void {
     switch day {
         "samedi" {
             IO::writeln("Week-end")
@@ -54,12 +54,12 @@ function day_type(day:string): void {
 
 function main(): int {
 
-    http_status(200)        // 200 OK
-    http_status(404)        // 404 Not Found
-    http_status(999)        // Code HTTP inconnu
+    httpStatus(200)        // 200 OK
+    httpStatus(404)        // 404 Not Found
+    httpStatus(999)        // Code HTTP inconnu
 
-    day_type("lundi")       // Jour de semaine
-    day_type("samedi")      // Week-end
+    dayType("lundi")       // Jour de semaine
+    dayType("samedi")      // Week-end
 
     // Switch inline
     var niveau:int = 3

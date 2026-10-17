@@ -29,13 +29,13 @@ class Test_27_type_narrowing {
     }
     
     public method formatValueTest(): int {
-        UnitTest::assertEquals("(null)", format_value(null))
+        UnitTest::assertEquals("(null)", formatValue(null))
         
         var i:int|string|null = 42
-        UnitTest::assertEquals("entier", format_value(i))
+        UnitTest::assertEquals("entier", formatValue(i))
         
         var s:int|string|null = "hello"
-        UnitTest::assertEquals("chaîne", format_value(s))
+        UnitTest::assertEquals("chaîne", formatValue(s))
         
         return 0
     }
@@ -43,15 +43,15 @@ class Test_27_type_narrowing {
     public method mainTest(): int {
         var val_null:int|string|null = null
         UnitTest::assertTrue(val_null is null)
-        UnitTest::assertEquals("(null)", format_value(val_null))
+        UnitTest::assertEquals("(null)", formatValue(val_null))
         
         var val_int:int|string|null = 42
         UnitTest::assertTrue(val_int is int)
-        UnitTest::assertEquals("entier", format_value(val_int))
+        UnitTest::assertEquals("entier", formatValue(val_int))
         
         var val_str:int|string|null = "test"
         UnitTest::assertTrue(val_str is string)
-        UnitTest::assertEquals("chaîne", format_value(val_str))
+        UnitTest::assertEquals("chaîne", formatValue(val_str))
         
         return 0
     }
@@ -62,7 +62,7 @@ class Test_27_type_narrowing {
 // ─────────────────────────────────────────────────────────────────────────────
 
 
-function format_value(val:int|string|null): string {
+function formatValue(val:int|string|null): string {
     if val is null {
         return "(null)"
     }

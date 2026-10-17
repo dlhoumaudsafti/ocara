@@ -75,4 +75,36 @@ class Test_62_interface_method_modifiers {
         UnitTest::assertEquals(20, r)
         return 0
     }
+
+    // Couverture nominale : `greet` (public) via l'interface ET via la classe concrète.
+    public method greetTest(): int {
+        var m:Modifiers = use Impl()
+        UnitTest::assertEquals("hello", m.greet())
+        var i:Impl = use Impl()
+        UnitTest::assertEquals("hello", i.greet())
+        return 0
+    }
+
+    // `secretNumber` (private) — visibilité non vérifiée sur l'interface.
+    public method secretNumberTest(): int {
+        var m:Modifiers = use Impl()
+        UnitTest::assertEquals(42, m.secretNumber())
+        UnitTest::assertEquals(84, m.secretNumber() + m.secretNumber())
+        return 0
+    }
+
+    // `category` (protected) — même remarque.
+    public method categoryTest(): int {
+        var m:Modifiers = use Impl()
+        UnitTest::assertEquals("demo", m.category())
+        UnitTest::assertEquals(4, m.category().len())
+        return 0
+    }
+
+    // `version` (static) — appel statique répétable, valeur stable.
+    public method versionTest(): int {
+        UnitTest::assertEquals(1, Impl::version())
+        UnitTest::assertEquals(Impl::version(), Impl::version())
+        return 0
+    }
 }
