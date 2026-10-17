@@ -1,6 +1,6 @@
 # Roadmap Ocara
 
-_Dernière mise à jour : 2026-10-13_
+_Dernière mise à jour : 2026-10-17_
 
 Ce document liste ce qu'il reste à faire pour faire d'Ocara un langage solide. Cette révision fait suite à une analyse complète du projet (doc, code source du compilateur, exemples, runtimes natifs) et **reprioritise délibérément autour de la robustesse, la stabilité et la fiabilité** — avant toute nouvelle fonctionnalité ou tout chantier de portage. Le focus reste, comme avant, la **gestion mémoire** : le compilateur n'a pas de ramasse-miettes (choix assumé et définitif), et l'historique du projet montre plusieurs SEGFAULTs confirmés par reproduction sur la représentation `mixed` — mais la même question de fiabilité se posait aussi sur le mécanisme d'exceptions (`setjmp`/`longjmp`), sur la quasi-absence de tests Rust unitaires en dehors du front-end, et sur au moins une race condition documentée (`HTTPServer`).
 
@@ -30,6 +30,7 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
 - **Fuite : cycles jamais collectés tant que ≥ 2 threads Ocara tournent** — 291 Mo pour 2 × 400 000 cycles ; invisible pour `--leak-check`. Option retenue (2026-10-13) : collecte concurrente complète, ce qui impose des conteneurs protégés (verrou par tableau/map, libération différée). *(Dangereuse — runtime des conteneurs et du collecteur)* → [détails](roadmap.d/memoire-refcount.md)
+- **Fuites détectées par `make leak-check` sur 5 exemples** — receveurs d'appels `async` jamais libérés (64, 65), chaînes retournées par dispatch d'interface (60), message d'exception concaténé (20), `AdminDto.describe` (67). Listés dans `KNOWN_LEAKS` de `ci/leak_check.sh`. *(Légère à Structurel)* → [détails](roadmap.d/memoire-fuites-exemples-leak-check.md)
 
 ---
 
@@ -37,7 +38,7 @@ Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnali
 
 À traiter mais non bloquant pour la stabilité du langage.
 
-- **Scripts de CI et cibles de test : échecs masqués** — `make tests-examples` ne retient que le dernier code de retour, `make ci` cherche des tests inexistants, `--leak-check` n'est lancé nulle part. *(Simple)* → [détails](roadmap.d/qualite-scripts-ci.md)
+- **`make ci` rouge par construction** — 19 exemples avec avertissements `ocaracs` (casse des identifiants), 18 avec une couverture de tests incomplète (100 % exigé). *(Légère — volume)* → [détails](roadmap.d/qualite-ci-exemples-non-conformes.md)
 - **Avertissement W04 devenu faux** — un `raise` ferme désormais les ressources `scoped`/`consumed` traversées, mais W04 annonce toujours une fuite ; la fiche et `diagnostics.md` décrivent l'ancien comportement. *(Légère)* → [détails](roadmap.d/exceptions-setjmp-longjmp-dette.md)
 - **Sessions `HTTPServer` jamais purgées** — une session par requête sans cookie, conservée jusqu'à l'arrêt : mémoire non bornée sur un serveur exposé. *(Légère — expiration et purge)* → [détails](roadmap.d/stdlib-httpserver-session.md)
 - **Serveur de langage : renommage destructeur sans `workspaceFolders`** — index vide, seule la déclaration est renommée, le programme ne compile plus. *(Légère — repli sur `rootUri`)* → [détails](roadmap.d/tooling-language-server.md)

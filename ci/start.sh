@@ -163,7 +163,11 @@ process_file() {
     local test_file=""
     local base_name=$(basename "$name")
     
-    if [[ "$src" == examples/project/* ]]; then
+    if [[ "$name" == *"21_errors"* ]]; then
+        # Erreurs de compilation intentionnelles : rien à tester unitairement
+        echo -e "        ${YELLOW}⊘ Skip (erreurs intentionnelles)${RESET}"
+        echo "  [4/4] Tests : ⊘ Skip" >> "$REPORT_FILE"
+    elif [[ "$src" == examples/project/* ]]; then
         # Pour project/main.oc → mainTest.oc dans examples/project/tests/
         test_file="examples/project/tests/${base_name}Test.oc"
     elif [[ "$src" == examples/builtins/* ]]; then
@@ -235,7 +239,10 @@ process_file() {
 # Traiter tous les fichiers
 # ══════════════════════════════════════════════════════════════════════════════
 
-OCARAUNIT --clear > /dev/null 2>&1
+if ! $OCARAUNIT --clear > /dev/null; then
+    echo -e "${RED}✗ Erreur : impossible de vider le cache ocaraunit${RESET}"
+    exit 1
+fi
 
 # Exemples NN_*.oc
 for src in examples/[0-9][0-9]_*.oc; do

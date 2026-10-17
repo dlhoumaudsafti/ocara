@@ -84,8 +84,12 @@ run_tests() {
 # ── Exécution avec argument spécifique ────────────────────────────────────────
 if [ $# -eq 1 ]; then
     TARGET="$1"
-    run_tests "$TARGET"
-    exit $?
+    # Appel en contexte conditionnel : sinon `set -e` interrompt run_tests
+    # dès l'échec d'ocaraunit, avant son message FAIL.
+    if run_tests "$TARGET"; then
+        exit 0
+    fi
+    exit 1
 fi
 
 # ── Exécution par défaut : examples/project/tests ─────────────────────────────

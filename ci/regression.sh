@@ -138,8 +138,12 @@ if [ $# -eq 1 ]; then
     echo " Régression $src"
     echo "══════════════════════════════════════════════"
     
-    run_test "$src" "$name"
-    exit $?
+    # Appel en contexte conditionnel : sinon `set -e` interrompt run_test au
+    # premier échec (compilation, exécution) avant son message FAIL.
+    if run_test "$src" "$name"; then
+        exit 0
+    fi
+    exit 1
 fi
 
 # ── Exécution de tous les tests ──────────────────────────────────────────────
