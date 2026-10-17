@@ -45,6 +45,11 @@ pub fn convert_method_for(ty: &Type, name: &str) -> Option<&'static str> {
     })
 }
 
+/// Vrai si `name` est une méthode de conversion pour au moins un type.
+pub fn is_conversion_name(name: &str) -> bool {
+    matches!(name, "toInt" | "toFloat" | "toBool" | "toStr" | "toArray" | "toMap")
+}
+
 /// Noms des méthodes de conversion disponibles sur un receveur de type `ty`
 /// (pour le message d'erreur d'un appel de méthode inconnue sur `int`/...).
 pub fn conversion_methods_for(ty: &Type) -> Vec<String> {

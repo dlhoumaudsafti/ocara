@@ -4,6 +4,7 @@
 #   make android            Compile arm64 + x86_64, les deux dans le MÊME APK debug
 #   make android-production Idem, mais release signé (production) — voir docs/android.md
 #   make simulator          Installe+lance l'APK DEBUG sur un appareil détecté ou l'émulateur
+#   make tests              Tests unitaires (tests/, même arborescence que le projet)
 #
 # ANDROID_NDK_HOME/ANDROID_HOME par défaut sur ce poste — surchageables via
 # l'environnement si besoin (ex: ANDROID_NDK_HOME=/autre/chemin make android).
@@ -23,7 +24,7 @@ PACKAGING  := $(ROOT)/packaging/android
 APK_DEBUG    := $(abspath $(PACKAGING)/app/build/outputs/apk/debug/app-debug.apk)
 APK_RELEASE  := $(abspath $(PACKAGING)/app/build/outputs/apk/release/app-release.apk)
 
-.PHONY: desktop android android-production simulator _android_native_libs clean
+.PHONY: desktop android android-production simulator tests _android_native_libs clean
 
 desktop:
 	$(OCARA) build main.oc -o out
@@ -83,6 +84,13 @@ simulator:
 		if [ -z "$$SERIAL" ]; then echo "Choix invalide."; exit 1; fi; \
 		$(MAKE) -C $(ROOT) ANDROID_HOME="$(ANDROID_HOME)" ANDROID_SERIAL=$$SERIAL android-simulator $(APK_DEBUG); \
 	fi
+
+# Tests unitaires : tests/ reprend l'arborescence du projet (context/<contexte>/
+# <couche>/…, configs/…). Ils tournent sur ./app.db sans toucher aux données
+# existantes (voitures TEST-OCUNIT-* créées puis supprimées, voir
+# tests/support/Fixture.oc).
+tests:
+	$(ROOT)/target/release/ocaraunit --coverage . tests
 
 clean:
 	rm -f out out.o app.db

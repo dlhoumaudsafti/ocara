@@ -1,0 +1,20 @@
+import ocara.UnitTest
+import ocara.HTML
+import configs.components.Layout
+import configs.components.NavBar
+
+class LayoutTest extends UnitTest {
+
+    init() {
+        use Layout()
+        use NavBar()
+    }
+
+    public method renderTest(): int {
+        const html:string = HTML::render('<layout title="Accueil" active="home"><p>Contenu</p></layout>')
+        self::assertContains(html, "<title>Accueil — Garage Ocara</title>")
+        self::assertContains(html, `<main class="container"><p>Contenu</p></main>`)
+        self::assertContains(html, `class="nav-link active">Voitures</a>`)
+        return 0
+    }
+}

@@ -1,0 +1,21 @@
+import ocara.UnitTest
+import ocara.HTML
+import configs.components.NavBar
+
+class NavBarTest extends UnitTest {
+
+    init() {
+        use NavBar()
+    }
+
+    // Seul le lien de la section courante porte la classe "active".
+    public method renderTest(): int {
+        const home:string = HTML::render('<nav-bar active="home">')
+        self::assertContains(home, `class="nav-link active">Voitures</a>`)
+        self::assertContains(home, `class="nav-link">Recherche</a>`)
+        const search:string = HTML::render('<nav-bar active="search">')
+        self::assertContains(search, `class="nav-link">Voitures</a>`)
+        self::assertContains(search, `class="nav-link active">Recherche</a>`)
+        return 0
+    }
+}

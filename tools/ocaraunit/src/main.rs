@@ -472,9 +472,12 @@ fn run_test_file(
         used_cache = true;
     }
 
-    // Exécution
+    // Exécution depuis la racine du projet, comme la compilation : les
+    // chemins relatifs du programme (templates, fichiers de données) se
+    // résolvent comme pour l'application elle-même.
     let run_start = Instant::now();
     let run_out = Command::new(&bin)
+        .current_dir(project_root)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output();
@@ -706,7 +709,7 @@ fn main() {
     let test_dir_arg_clone = test_dir_arg.clone();
     
     // Vérifier si l'argument est un fichier spécifique
-    let (_scan_root, test_files) = if let Some(path_arg) = test_dir_arg {
+    let (scan_root, test_files) = if let Some(path_arg) = test_dir_arg {
         let path = PathBuf::from(&path_arg);
         if path.is_file() {
             // Fichier spécifique fourni
@@ -954,10 +957,13 @@ fn main() {
             // Comportement par défaut : tous les fichiers du dossier
             let all_oc = collect_oc_files(&coverage_source, &cfg.exclude, &config_root);
             // Exclure les fichiers *Test.oc eux-mêmes et le dossier tests/
+            // (fichiers de support des tests compris : ce n'est pas du code
+            // de production à couvrir).
             let test_file_set: HashSet<PathBuf> = test_files.iter().cloned().collect();
             all_oc
                 .into_iter()
                 .filter(|p| !test_file_set.contains(p))
+                .filter(|p| !fs::canonicalize(p).is_ok_and(|abs| abs.starts_with(&scan_root)))
                 .collect()
         };
 

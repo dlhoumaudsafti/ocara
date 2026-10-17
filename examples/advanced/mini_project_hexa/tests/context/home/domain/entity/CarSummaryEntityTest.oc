@@ -1,0 +1,17 @@
+import ocara.UnitTest
+import context.home.domain.entity.CarSummaryEntity
+
+class CarSummaryEntityTest extends UnitTest {
+
+    public method initTest(): int {
+        const car:CarSummaryEntity = use CarSummaryEntity(4, "REF-4", "Peugeot", "308", 12000.0, 12500.0, 380.0)
+        self::assertEquals(4, car.id)
+        self::assertEquals("REF-4", car.reference)
+        self::assertEquals("Peugeot", car.brand)
+        self::assertEquals("308", car.model)
+        self::assertEquals(12000.0, car.purchasePrice)
+        self::assertEquals(12500.0, car.estimatedPrice)
+        self::assertEquals(380.0, car.maintenanceTotal)
+        return 0
+    }
+}

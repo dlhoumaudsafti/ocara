@@ -133,6 +133,36 @@ class Test49SqliteWithOpen extends UnitTest {
         File::remove(path)
         return 0
     }
+
+    // `lastInsertId()`/`affectedRows()` après un INSERT préparé
+    // (`prepare`/`bind`/`commit`) : renvoyaient 0, seul `execute()` les
+    // mettait à jour.
+    public method lastInsertIdAfterCommitTest(): int {
+        const path:string = "test_49_last_id.db"
+        if File::exists(path) {
+            File::remove(path)
+        }
+        var first_id:int = 0
+        var second_id:int = 0
+        var affected:int = 0
+        SQLite::withOpen(path, nameless(db:SQLite): void {
+            db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)")
+            db.prepare("INSERT INTO t (name) VALUES (:name)")
+            db.bind({"name": "a"})
+            db.commit()
+            first_id = db.lastInsertId()
+            affected = db.affectedRows()
+            db.prepare("INSERT INTO t (name) VALUES (:name)")
+            db.bind({"name": "b"})
+            db.commit()
+            second_id = db.lastInsertId()
+        })
+        self::assertEquals(1, first_id)
+        self::assertEquals(1, affected)
+        self::assertEquals(2, second_id)
+        File::remove(path)
+        return 0
+    }
 }
 
 class SqliteWithOpenError extends Exception {

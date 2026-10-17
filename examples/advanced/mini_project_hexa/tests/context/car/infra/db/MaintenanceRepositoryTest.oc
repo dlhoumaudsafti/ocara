@@ -1,0 +1,98 @@
+import ocara.UnitTest
+import context.car.domain.entity.MaintenanceEntity
+import context.car.infra.db.MaintenanceRepository
+import tests.support.Fixture
+
+class MaintenanceRepositoryTest extends UnitTest {
+
+    public method createTest(): int {
+        Fixture::reset()
+        const car_id:int = Fixture::car("MCREATE", "Peugeot", "208", 9000.0)
+        const id:int = MaintenanceRepository::create(car_id, "maintenance", "Vidange", 80.0)
+        self::assertTrue(id greater 0)
+        consumed items:Resolvable<array<MaintenanceEntity>> = MaintenanceRepository::forCar(car_id)
+        const list:array<MaintenanceEntity> = resolve items
+        self::assertEquals(1, list.len())
+        self::assertEquals(id, list[0].id)
+        self::assertEquals(car_id, list[0].car_id)
+        self::assertEquals("maintenance", list[0].type)
+        self::assertEquals("Vidange", list[0].description)
+        self::assertEquals(80.0, list[0].cost)
+        Fixture::cleanup()
+        return 0
+    }
+
+    public method forCarTest(): int {
+        Fixture::reset()
+        const car_id:int = Fixture::car("MLIST", "Peugeot", "208", 9000.0)
+        const other_id:int = Fixture::car("MOTHER", "Renault", "Zoe", 15000.0)
+        Fixture::maintenance(car_id, "maintenance", "Pneus", 400.0)
+        Fixture::maintenance(car_id, "improvement", "Peinture", 500.0)
+        Fixture::maintenance(other_id, "maintenance", "Freins", 250.0)
+        consumed items:Resolvable<array<MaintenanceEntity>> = MaintenanceRepository::forCar(car_id)
+        const list:array<MaintenanceEntity> = resolve items
+        self::assertEquals(2, list.len())
+        for m in list {
+            self::assertEquals(car_id, m.car_id)
+        }
+        Fixture::cleanup()
+        return 0
+    }
+
+    public method forCarEmptyTest(): int {
+        Fixture::reset()
+        const car_id:int = Fixture::car("MEMPTY", "Peugeot", "208", 9000.0)
+        consumed items:Resolvable<array<MaintenanceEntity>> = MaintenanceRepository::forCar(car_id)
+        const list:array<MaintenanceEntity> = resolve items
+        self::assertEquals(0, list.len())
+        Fixture::cleanup()
+        return 0
+    }
+
+    // Seuls les entretiens de type "improvement" comptent.
+    public method improvementTotalTest(): int {
+        Fixture::reset()
+        const car_id:int = Fixture::car("MIMPR", "Peugeot", "208", 9000.0)
+        Fixture::maintenance(car_id, "improvement", "Peinture", 500.0)
+        Fixture::maintenance(car_id, "improvement", "Jantes", 250.5)
+        Fixture::maintenance(car_id, "maintenance", "Vidange", 80.0)
+        consumed total:Resolvable<float> = MaintenanceRepository::improvementTotal(car_id)
+        self::assertEquals(750.5, resolve total)
+        Fixture::cleanup()
+        return 0
+    }
+
+    // Seuls les entretiens de type "maintenance" comptent ; 0 sans entretien.
+    public method maintenanceTotalTest(): int {
+        Fixture::reset()
+        const car_id:int = Fixture::car("MMAINT", "Peugeot", "208", 9000.0)
+        consumed empty:Resolvable<float> = MaintenanceRepository::maintenanceTotal(car_id)
+        self::assertEquals(0.0, resolve empty)
+        Fixture::maintenance(car_id, "maintenance", "Vidange", 80.0)
+        Fixture::maintenance(car_id, "maintenance", "Pneus", 400.0)
+        Fixture::maintenance(car_id, "improvement", "Peinture", 500.0)
+        consumed total:Resolvable<float> = MaintenanceRepository::maintenanceTotal(car_id)
+        self::assertEquals(480.0, resolve total)
+        Fixture::cleanup()
+        return 0
+    }
+
+    // fromRow (privée) : chaque colonne arrive dans le bon champ, date de
+    // création renseignée.
+    public method fromRowTest(): int {
+        Fixture::reset()
+        const car_id:int = Fixture::car("MROW", "Peugeot", "208", 9000.0)
+        Fixture::maintenance(car_id, "improvement", "Jantes alu", 320.5)
+        consumed items:Resolvable<array<MaintenanceEntity>> = MaintenanceRepository::forCar(car_id)
+        const list:array<MaintenanceEntity> = resolve items
+        self::assertEquals(1, list.len())
+        self::assertNotNull(list[0].id)
+        self::assertEquals(car_id, list[0].car_id)
+        self::assertEquals("improvement", list[0].type)
+        self::assertEquals("Jantes alu", list[0].description)
+        self::assertEquals(320.5, list[0].cost)
+        self::assertGreater(list[0].created_at, 0)
+        Fixture::cleanup()
+        return 0
+    }
+}

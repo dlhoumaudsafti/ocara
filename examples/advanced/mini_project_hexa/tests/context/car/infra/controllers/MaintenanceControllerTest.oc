@@ -1,0 +1,71 @@
+import ocara.UnitTest
+import ocara.HTTPServer
+import ocara.HTTPServerRequest
+import ocara.HTTPRequest
+import ocara.HTTPResponse
+import ocara.Thread
+import context.car.infra.controllers.CarController
+import context.car.infra.controllers.MaintenanceController
+import tests.support.Fixture
+
+// Route de configs/routes/CarRoutes.oc ; la redirection mène à la fiche de
+// la voiture (CarController::show), où s'affiche le message flash.
+class MaintenanceControllerTest extends UnitTest {
+
+    init() {
+        var server:HTTPServer = use HTTPServer()
+        server.port(18102)
+        server.route("/voitures/<id:int>", "GET", CarController::show)
+        server.route("/voitures/<car_id:int>/entretiens", "POST", MaintenanceController::create)
+        var t:Thread = use Thread()
+        t.run(nameless(): void { server.run() })
+        t.detach()
+        Thread::sleep(300)
+    }
+
+    // Une amélioration est enregistrée et relève le prix de vente estimé.
+    public method createTest(): int {
+        Fixture::reset()
+        const id:int = Fixture::car("MAINT", "Peugeot", "308", 10000.0)
+        scoped res:HTTPResponse = self.post(id, "type=improvement&description=Peinture&cost=500")
+        self::assertEquals(200, res.status())
+        self::assertContains(res.body(), "Entretien ajouté — prix de vente estimé mis à jour.")
+        self::assertEquals(1, Fixture::maintenanceCount(id))
+        self::assertEquals(10500.0, Fixture::estimatedPrice(id))
+        Fixture::cleanup()
+        return 0
+    }
+
+    // Une maintenance simple ne change pas le prix de vente estimé.
+    public method createMaintenanceKeepsPriceTest(): int {
+        Fixture::reset()
+        const id:int = Fixture::car("MAINT2", "Peugeot", "308", 10000.0)
+        scoped res:HTTPResponse = self.post(id, "type=maintenance&description=Vidange&cost=80")
+        self::assertEquals(1, Fixture::maintenanceCount(id))
+        self::assertEquals(10000.0, Fixture::estimatedPrice(id))
+        Fixture::cleanup()
+        return 0
+    }
+
+    public method createInvalidTest(): int {
+        Fixture::reset()
+        const id:int = Fixture::car("MAINT3", "Peugeot", "308", 10000.0)
+        scoped bad_cost:HTTPResponse = self.post(id, "type=maintenance&description=Vidange&cost=0")
+        scoped bad_type:HTTPResponse = self.post(id, "type=autre&description=Vidange&cost=80")
+        scoped no_desc:HTTPResponse = self.post(id, "type=maintenance&description=%20&cost=80")
+        self::assertContains(bad_cost.body(), "coût de l")
+        self::assertContains(bad_type.body(), "coût de l")
+        self::assertContains(no_desc.body(), "coût de l")
+        self::assertEquals(0, Fixture::maintenanceCount(id))
+        Fixture::cleanup()
+        return 0
+    }
+
+    private method post(car_id:int, body:string): HTTPResponse {
+        scoped req:HTTPRequest = HTTPRequest::new(`http://localhost:18102/voitures/${car_id}/entretiens`)
+        req.setMethod("POST")
+        req.setHeader("Content-Type", "application/x-www-form-urlencoded")
+        req.setBody(body)
+        return req.send()
+    }
+}

@@ -1,0 +1,104 @@
+import ocara.UnitTest
+import ocara.HTTPServer
+import ocara.HTTPServerRequest
+import ocara.HTTPRequest
+import ocara.HTTPResponse
+import ocara.Thread
+import context.car.infra.controllers.CarController
+import tests.support.Fixture
+
+// Routes de configs/routes/CarRoutes.oc sur un serveur dédié ; la page
+// d'accueil (autre contexte) est remplacée par un écho du code d'erreur.
+// HTTPRequest suit les redirections : chaque test vérifie la page d'arrivée.
+class CarControllerTest extends UnitTest {
+
+    init() {
+        var server:HTTPServer = use HTTPServer()
+        server.port(18101)
+        server.route("/", "GET", nameless(req:HTTPServerRequest): int {
+            req.respond(200, "accueil:" + req.query("error"))
+            return 0
+        })
+        server.route("/voitures/<id:int>", "GET", CarController::show)
+        server.route("/voitures/ajouter", "POST", CarController::create)
+        server.route("/voitures/<id:int>/supprimer", "DELETE", CarController::delete)
+        var t:Thread = use Thread()
+        t.run(nameless(): void { server.run() })
+        t.detach()
+        Thread::sleep(300)
+    }
+
+    public method showTest(): int {
+        Fixture::reset()
+        const id:int = Fixture::car("SHOW", "Peugeot", "308", 12000.5)
+        scoped res:HTTPResponse = HTTPRequest::get(`http://localhost:18101/voitures/${id}?success=car_added`)
+        self::assertEquals(200, res.status())
+        self::assertContains(res.body(), "TEST-OCUNIT-SHOW")
+        self::assertContains(res.body(), "12000,50 €")
+        self::assertContains(res.body(), "Voiture ajoutée avec succès.")
+        Fixture::cleanup()
+        return 0
+    }
+
+    public method showUnknownCarTest(): int {
+        Fixture::reset()
+        scoped res:HTTPResponse = HTTPRequest::get("http://localhost:18101/voitures/999999999")
+        self::assertEquals(404, res.status())
+        return 0
+    }
+
+    // Création puis redirection vers la fiche de la nouvelle voiture.
+    public method createTest(): int {
+        Fixture::reset()
+        scoped res:HTTPResponse = self.post(
+            "/voitures/ajouter",
+            "reference=TEST-OCUNIT-POST&brand=Renault&model=Clio&purchase_price=8000.25"
+        )
+        self::assertEquals(200, res.status())
+        self::assertContains(res.body(), "TEST-OCUNIT-POST")
+        self::assertContains(res.body(), "8000,25 €")
+        self::assertContains(res.body(), "Voiture ajoutée avec succès.")
+        Fixture::cleanup()
+        return 0
+    }
+
+    public method createMissingFieldsTest(): int {
+        Fixture::reset()
+        scoped res:HTTPResponse = self.post(
+            "/voitures/ajouter",
+            "reference=TEST-OCUNIT-X&brand=&model=Clio&purchase_price=100"
+        )
+        self::assertEquals("accueil:missing_fields", res.body())
+        return 0
+    }
+
+    public method createInvalidPriceTest(): int {
+        Fixture::reset()
+        scoped res:HTTPResponse = self.post(
+            "/voitures/ajouter",
+            "reference=TEST-OCUNIT-X&brand=Fiat&model=500&purchase_price=0"
+        )
+        self::assertEquals("accueil:invalid_price", res.body())
+        return 0
+    }
+
+    // Suppression puis redirection vers la fiche, désormais introuvable.
+    public method deleteTest(): int {
+        Fixture::reset()
+        const id:int = Fixture::car("DELETE", "Fiat", "500", 5000.0)
+        scoped req:HTTPRequest = HTTPRequest::new(`http://localhost:18101/voitures/${id}/supprimer`)
+        req.setMethod("DELETE")
+        scoped res:HTTPResponse = req.send()
+        self::assertEquals(404, res.status())
+        self::assertFalse(Fixture::carExists(id))
+        return 0
+    }
+
+    private method post(path:string, body:string): HTTPResponse {
+        scoped req:HTTPRequest = HTTPRequest::new("http://localhost:18101" + path)
+        req.setMethod("POST")
+        req.setHeader("Content-Type", "application/x-www-form-urlencoded")
+        req.setBody(body)
+        return req.send()
+    }
+}

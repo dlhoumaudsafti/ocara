@@ -1301,6 +1301,28 @@ Le corps d'un `generic` est vérifié une fois avec ses paramètres de type libr
 
 ---
 
+### E66 — Méthode de conversion sur une valeur `mixed`
+
+```
+fichier.oc:12:46: error: cannot call '.toFloat()' on a 'mixed' value — conversion methods depend on the receiver's static type: store the value in a typed variable first (e.g. 'const s:string = ...') or call the 'Convert::...' function directly
+```
+
+Les méthodes de conversion (`toInt`, `toFloat`, `toBool`, `toStr`, `toArray`, `toMap`) sont résolues vers `Convert` d'après le type **statique** du receveur (voir [Convert](builtins/Convert.md)) : sur une valeur `mixed` — typiquement `req.param(...)`, une valeur de `map<string, mixed>` ou le résultat d'une méthode appelée sur un `mixed` — aucune correspondance n'existe. Ces appels compilaient jusqu'ici vers un symbole inexistant (`String_toFloat`) et échouaient à la génération de code.
+
+```ocara
+scoped price:float = req.param("price").trim().toFloat()   // ❌ E66
+```
+
+**Correction :** passer par une variable typée, ou par la forme statique.
+
+```ocara
+const price_str:string = req.param("price").trim()
+scoped price:float = price_str.toFloat()                   // ✅
+scoped other:float = Convert::strToFloat(req.param("price")) // ✅
+```
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.

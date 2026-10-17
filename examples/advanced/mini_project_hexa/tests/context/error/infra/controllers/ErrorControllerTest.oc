@@ -1,0 +1,28 @@
+import ocara.UnitTest
+import ocara.HTTPServer
+import ocara.HTTPRequest
+import ocara.HTTPResponse
+import ocara.Thread
+import context.error.infra.controllers.ErrorController
+
+// Gestionnaire 404 de configs/routes/Error.oc sur un serveur dédié.
+class ErrorControllerTest extends UnitTest {
+
+    init() {
+        var server:HTTPServer = use HTTPServer()
+        server.port(18105)
+        server.routeError(404, ErrorController::handle404)
+        var t:Thread = use Thread()
+        t.run(nameless(): void { server.run() })
+        t.detach()
+        Thread::sleep(300)
+    }
+
+    public method handle404Test(): int {
+        scoped res:HTTPResponse = HTTPRequest::get("http://localhost:18105/page/inexistante")
+        self::assertEquals(404, res.status())
+        self::assertContains(res.body(), "/page/inexistante")
+        self::assertContains(res.body(), "n'existe pas")
+        return 0
+    }
+}

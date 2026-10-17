@@ -52,6 +52,25 @@ class Test31DefaultParams extends UnitTest {
 
         return 0
     }
+
+    // Méthode statique : un paramètre par défaut omis faisait échouer la
+    // génération de code (« mismatched argument count »).
+    public method staticDefaultParamTest(): int {
+        self::assertEquals("Hello, World!", Greeter::greet())
+        self::assertEquals("Hello, Ocara!", Greeter::greet("Ocara"))
+        self::assertEquals("Bonjour, World!", Greeter::greetWith("Bonjour"))
+        return 0
+    }
+}
+
+class Greeter {
+    public static method greet(name:string = "World"): string {
+        return "Hello, " + name + "!"
+    }
+
+    public static method greetWith(greeting:string, name:string = "World"): string {
+        return greeting + ", " + name + "!"
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

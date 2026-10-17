@@ -1,0 +1,28 @@
+import ocara.UnitTest
+import context.car.infra.view.helpers.Flash
+
+class FlashTest extends UnitTest {
+
+    public method messageTest(): int {
+        self::assertEquals("Merci de renseigner tous les champs correctement.", Flash::message("missing_fields"))
+        self::assertEquals("Le prix d'achat doit être un nombre positif.", Flash::message("invalid_price"))
+        self::assertEquals(
+            "La description et le coût de l'entretien doivent être valides.",
+            Flash::message("invalid_cost")
+        )
+        self::assertEquals("Voiture introuvable.", Flash::message("not_found"))
+        self::assertEquals("Voiture ajoutée avec succès.", Flash::message("car_added"))
+        self::assertEquals(
+            "Entretien ajouté — prix de vente estimé mis à jour.",
+            Flash::message("maintenance_added")
+        )
+        return 0
+    }
+
+    // Code absent ou inconnu : aucun message.
+    public method messageUnknownCodeTest(): int {
+        self::assertEquals("", Flash::message(""))
+        self::assertEquals("", Flash::message("inconnu"))
+        return 0
+    }
+}

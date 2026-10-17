@@ -1012,6 +1012,11 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 }
             };
 
+            // Paramètres par défaut omis (`Classe::m(a)` pour `m(a, b = …)`) :
+            // même complétion qu'une fonction libre ou une méthode d'instance.
+            let completed_args = complete_args_with_defaults(builder, &func_name, args);
+            let args = &completed_args[..];
+
             // Vérifier si c'est une méthode async
             if builder.async_funcs.contains(func_name.as_str()) {
                 let wrapper_name = format!("__async_wrap_{}", func_name);

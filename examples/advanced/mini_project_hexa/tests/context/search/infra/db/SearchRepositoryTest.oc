@@ -1,0 +1,81 @@
+import ocara.UnitTest
+import context.search.domain.entity.CarSearchResultEntity
+import context.search.domain.entity.MaintenanceSearchResultEntity
+import context.search.infra.db.SearchRepository
+import tests.support.Fixture
+
+class SearchRepositoryTest extends UnitTest {
+
+    // Recherche dans la référence, la marque et le modèle ; total des
+    // entretiens "maintenance" seulement.
+    public method carsTest(): int {
+        Fixture::reset()
+        const id:int = Fixture::car("SEARCH", "Ocunitmobile", "Zx", 9000.0)
+        Fixture::maintenance(id, "maintenance", "Vidange", 80.0)
+        Fixture::maintenance(id, "improvement", "Peinture", 500.0)
+
+        const by_ref:array<CarSearchResultEntity> = SearchRepository::cars("OCUNIT-SEARCH")
+        self::assertEquals(1, by_ref.len())
+        self::assertEquals(id, by_ref[0].id)
+        self::assertEquals("Ocunitmobile", by_ref[0].brand)
+        self::assertEquals(9000.0, by_ref[0].purchase_price)
+        self::assertEquals(80.0, by_ref[0].maintenance_total)
+
+        self::assertEquals(1, SearchRepository::cars("Ocunitmobile").len())
+        self::assertEquals(0, SearchRepository::cars("OCUNIT-INTROUVABLE").len())
+        Fixture::cleanup()
+        return 0
+    }
+
+    // Recherche dans la description, avec la référence de la voiture.
+    public method maintenancesTest(): int {
+        Fixture::reset()
+        const id:int = Fixture::car("SMAINT", "Peugeot", "308", 9000.0)
+        Fixture::maintenance(id, "improvement", "Peinture OCUNIT-SPECIALE", 500.0)
+        Fixture::maintenance(id, "maintenance", "Vidange", 80.0)
+
+        const found:array<MaintenanceSearchResultEntity> = SearchRepository::maintenances("OCUNIT-SPECIALE")
+        self::assertEquals(1, found.len())
+        self::assertEquals(id, found[0].car_id)
+        self::assertEquals("TEST-OCUNIT-SMAINT", found[0].car_reference)
+        self::assertEquals("improvement", found[0].type)
+        self::assertEquals(500.0, found[0].cost)
+        Fixture::cleanup()
+        return 0
+    }
+
+    // carFromRow (privée) : colonnes de `cars` et total agrégé.
+    public method carFromRowTest(): int {
+        Fixture::reset()
+        const id:int = Fixture::car("CROW", "Skoda", "Fabia", 7500.0)
+        Fixture::maintenance(id, "maintenance", "Vidange", 90.0)
+        const found:array<CarSearchResultEntity> = SearchRepository::cars("OCUNIT-CROW")
+        self::assertEquals(1, found.len())
+        self::assertEquals(id, found[0].id)
+        self::assertEquals("TEST-OCUNIT-CROW", found[0].reference)
+        self::assertEquals("Skoda", found[0].brand)
+        self::assertEquals("Fabia", found[0].model)
+        self::assertEquals(7500.0, found[0].purchase_price)
+        self::assertEquals(7500.0, found[0].estimated_price)
+        self::assertEquals(90.0, found[0].maintenance_total)
+        Fixture::cleanup()
+        return 0
+    }
+
+    // maintenanceFromRow (privée) : colonnes de `maintenances` et référence
+    // de la voiture issue de la jointure.
+    public method maintenanceFromRowTest(): int {
+        Fixture::reset()
+        const id:int = Fixture::car("MFROW", "Skoda", "Fabia", 7500.0)
+        Fixture::maintenance(id, "maintenance", "Filtre OCUNIT-MFROW", 45.5)
+        const found:array<MaintenanceSearchResultEntity> = SearchRepository::maintenances("OCUNIT-MFROW")
+        self::assertEquals(1, found.len())
+        self::assertEquals(id, found[0].car_id)
+        self::assertEquals("TEST-OCUNIT-MFROW", found[0].car_reference)
+        self::assertEquals("maintenance", found[0].type)
+        self::assertEquals("Filtre OCUNIT-MFROW", found[0].description)
+        self::assertEquals(45.5, found[0].cost)
+        Fixture::cleanup()
+        return 0
+    }
+}

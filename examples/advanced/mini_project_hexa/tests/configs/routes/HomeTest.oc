@@ -1,0 +1,29 @@
+import ocara.UnitTest
+import ocara.HTTPRequest
+import ocara.HTTPResponse
+import ocara.Thread
+import configs.Server
+import configs.routes.Home
+import tests.support.Fixture
+
+// Routes de configs/routes/Home.oc seules, sur un serveur dédié.
+class HomeTest extends UnitTest {
+
+    init() {
+        Fixture::reset()
+        var server:Server = use Server()
+        server.port(18111)
+        use Home(server)
+        var t:Thread = use Thread()
+        t.run(nameless(): void { server.run() })
+        t.detach()
+        Thread::sleep(300)
+    }
+
+    public method initTest(): int {
+        scoped res:HTTPResponse = HTTPRequest::get("http://localhost:18111/")
+        self::assertEquals(200, res.status())
+        self::assertContains(res.body(), "Flotte de véhicules")
+        return 0
+    }
+}

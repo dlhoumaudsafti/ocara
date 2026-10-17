@@ -1,0 +1,19 @@
+import ocara.UnitTest
+import context.shared.infra.i18n.Language
+
+class LanguageTest extends UnitTest {
+
+    public method getTest(): int {
+        const en:map<string, string> = Language::get("home", "en")
+        const fr:map<string, string> = Language::get("home", "fr")
+        self::assertTrue(en.has("home"))
+        self::assertTrue(fr.has("home"))
+        return 0
+    }
+
+    public method getDefaultLanguageTest(): int {
+        const lang:map<string, string> = Language::get("home")
+        self::assertTrue(lang.has("home"))
+        return 0
+    }
+}

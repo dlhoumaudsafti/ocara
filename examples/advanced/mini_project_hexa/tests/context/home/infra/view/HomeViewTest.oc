@@ -1,0 +1,34 @@
+import ocara.UnitTest
+import ocara.String
+import context.home.domain.entity.CarSummaryEntity
+import context.home.app.dto.DashboardDto
+import context.home.infra.view.HomeView
+
+class HomeViewTest extends UnitTest {
+
+    public method showTest(): int {
+        var cars:array<CarSummaryEntity> = []
+        cars.push(use CarSummaryEntity(1, "REF-HOME-1", "Peugeot", "308", 12000.0, 12500.0, 80.0))
+        cars.push(use CarSummaryEntity(2, "REF-HOME-2", "Renault", "Clio", 8000.0, 8000.0, 0.0))
+        const dashboard:DashboardDto = use DashboardDto(cars, 20000.0, 20500.0)
+
+        const html:string = HomeView::show(dashboard, "missing_fields", "car_added")
+        self::assertContains(html, "REF-HOME-1")
+        self::assertContains(html, "REF-HOME-2")
+        self::assertContains(html, "20000,00 €")
+        self::assertContains(html, "20500,00 €")
+        // Plus-value = valeur estimée - valeur d'achat.
+        self::assertContains(html, "500,00 €")
+        self::assertContains(html, "Merci de renseigner tous les champs correctement.")
+        self::assertContains(html, "Voiture ajoutée avec succès.")
+        self::assertEquals(1, String::split(html, "Aucune voiture pour le moment").len())
+        return 0
+    }
+
+    public method showWithoutCarTest(): int {
+        const dashboard:DashboardDto = use DashboardDto([], 0.0, 0.0)
+        const html:string = HomeView::show(dashboard, "", "")
+        self::assertContains(html, "Aucune voiture pour le moment")
+        return 0
+    }
+}

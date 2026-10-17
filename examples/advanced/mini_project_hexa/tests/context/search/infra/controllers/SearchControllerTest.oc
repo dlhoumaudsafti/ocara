@@ -1,0 +1,52 @@
+import ocara.UnitTest
+import ocara.HTTPServer
+import ocara.HTTPServerRequest
+import ocara.HTTPRequest
+import ocara.HTTPResponse
+import ocara.Thread
+import context.search.infra.controllers.SearchController
+import tests.support.Fixture
+
+// Route de configs/routes/Search.oc sur un serveur dédié.
+class SearchControllerTest extends UnitTest {
+
+    init() {
+        var server:HTTPServer = use HTTPServer()
+        server.port(18104)
+        server.route("/recherche", "GET", SearchController::handle)
+        var t:Thread = use Thread()
+        t.run(nameless(): void { server.run() })
+        t.detach()
+        Thread::sleep(300)
+    }
+
+    public method handleTest(): int {
+        Fixture::reset()
+        const id:int = Fixture::car("HANDLE", "Peugeot", "308", 9100.0)
+        Fixture::maintenance(id, "maintenance", "Courroie OCUNIT-HANDLE", 350.0)
+        scoped res:HTTPResponse = HTTPRequest::get("http://localhost:18104/recherche?q=OCUNIT-HANDLE")
+        self::assertEquals(200, res.status())
+        self::assertContains(res.body(), "TEST-OCUNIT-HANDLE")
+        self::assertContains(res.body(), "9100,00 €")
+        self::assertContains(res.body(), "Courroie OCUNIT-HANDLE")
+        self::assertContains(res.body(), "350,00 €")
+        Fixture::cleanup()
+        return 0
+    }
+
+    public method handleWithoutResultTest(): int {
+        Fixture::reset()
+        scoped res:HTTPResponse = HTTPRequest::get("http://localhost:18104/recherche?q=OCUNIT-RIEN")
+        self::assertContains(res.body(), "Aucune voiture ne correspond à « OCUNIT-RIEN ».")
+        self::assertContains(res.body(), "Aucun entretien ne correspond à « OCUNIT-RIEN ».")
+        return 0
+    }
+
+    // Terme vide (ou blanc) : invitation à saisir, aucune recherche.
+    public method handleEmptyTermTest(): int {
+        scoped res:HTTPResponse = HTTPRequest::get("http://localhost:18104/recherche?q=%20")
+        self::assertEquals(200, res.status())
+        self::assertContains(res.body(), "Saisissez un terme ci-dessus pour lancer une recherche.")
+        return 0
+    }
+}

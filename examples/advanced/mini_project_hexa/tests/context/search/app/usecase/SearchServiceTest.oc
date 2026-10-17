@@ -1,0 +1,30 @@
+import ocara.UnitTest
+import context.search.app.dto.SearchResultsDto
+import context.search.app.usecase.SearchService
+import tests.support.Fixture
+
+class SearchServiceTest extends UnitTest {
+
+    // Un même terme cherche à la fois les voitures et les entretiens.
+    public method runTest(): int {
+        Fixture::reset()
+        const id:int = Fixture::car("RUN", "Peugeot", "308", 9000.0)
+        Fixture::maintenance(id, "maintenance", "Contrôle OCUNIT-RUN", 60.0)
+
+        const results:SearchResultsDto = SearchService::run("OCUNIT-RUN")
+        self::assertEquals(1, results.cars.len())
+        self::assertEquals("TEST-OCUNIT-RUN", results.cars[0].reference)
+        self::assertEquals(1, results.maintenances.len())
+        self::assertEquals(60.0, results.maintenances[0].cost)
+        Fixture::cleanup()
+        return 0
+    }
+
+    public method runWithoutResultTest(): int {
+        Fixture::reset()
+        const results:SearchResultsDto = SearchService::run("OCUNIT-AUCUN-RESULTAT")
+        self::assertEquals(0, results.cars.len())
+        self::assertEquals(0, results.maintenances.len())
+        return 0
+    }
+}

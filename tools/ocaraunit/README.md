@@ -94,6 +94,14 @@ importées par les tests) — empreinte calculée une fois par exécution, sur l
 
 ---
 
+## Répertoire d'exécution
+
+Chaque binaire de test est compilé **et exécuté** depuis la racine du projet (le parent du dossier `tests/`, ou `--src`) : les chemins relatifs du programme testé (templates, fichiers de langue, base `./app.db`…) se résolvent comme pour l'application elle-même.
+
+## Fichiers de support
+
+Le dossier de tests peut contenir des fichiers qui ne sont pas des tests (données de test, helpers partagés — ex. `tests/support/Fixture.oc`, importé par `import tests.support.Fixture`). Seuls les fichiers `*Test.oc` sont exécutés, et aucun fichier du dossier de tests n'entre dans l'analyse de couverture.
+
 ## Échecs d'exécution
 
 Un `assert*` en échec lève une `UnitTestException` qui arrête le binaire de test : les

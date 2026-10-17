@@ -1,0 +1,22 @@
+import ocara.UnitTest
+import ocara.HTML
+import configs.components.CarCard
+
+class CarCardTest extends UnitTest {
+
+    init() {
+        use CarCard()
+    }
+
+    public method renderTest(): int {
+        const html:string = HTML::render(`<car-card id="7" reference="AB-123" brand="Peugeot" model="308"
+            purchase_price="12000,00 €" estimated_price="12500,00 €" maintenance_total="80,00 €">`)
+        self::assertContains(html, `href="/voitures/7"`)
+        self::assertContains(html, `<span class="car-reference">AB-123</span>`)
+        self::assertContains(html, `<span class="car-model">Peugeot 308</span>`)
+        self::assertContains(html, "12000,00 €")
+        self::assertContains(html, "12500,00 €")
+        self::assertContains(html, "80,00 €")
+        return 0
+    }
+}

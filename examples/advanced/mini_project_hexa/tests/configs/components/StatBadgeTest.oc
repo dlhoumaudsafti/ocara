@@ -1,0 +1,17 @@
+import ocara.UnitTest
+import ocara.HTML
+import configs.components.StatBadge
+
+class StatBadgeTest extends UnitTest {
+
+    init() {
+        use StatBadge()
+    }
+
+    public method renderTest(): int {
+        const html:string = HTML::render('<stat-badge label="Voitures" value="3">')
+        self::assertContains(html, `<span class="stat-value">3</span>`)
+        self::assertContains(html, `<span class="stat-label">Voitures</span>`)
+        return 0
+    }
+}

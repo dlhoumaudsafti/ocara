@@ -143,6 +143,11 @@ pub enum SemaError {
     /// (voir docs/roadmap.d/sema-acces-champ-index-non-classe.md). `field` :
     /// `None` pour une indexation.
     AccessOnNonContainer { type_name: String, field: Option<String>, span: Span },
+    /// E66 : méthode de conversion (`toInt`/`toFloat`/…) sur une valeur
+    /// `mixed` — la correspondance avec `Convert` dépend du type statique du
+    /// receveur (voir `crate::sema::convert_sugar`) ; compilait jusqu'ici
+    /// vers un symbole inexistant (`String_toFloat`).
+    ConversionOnMixed { method: String, span: Span },
     /// `use Interface(...)` (construction) ou `Interface::method()` (appel
     /// statique) sur une interface qui n'a AUCUN `wiring` déclaré — voir
     /// docs/roadmap.d/langage-interface-wiring.md. Quand l'interface a au
@@ -242,6 +247,7 @@ impl SemaError {
             SemaError::MethodCallOnVoid { span, .. } => span,
             SemaError::MethodCallOnNonClass { span, .. } => span,
             SemaError::AccessOnNonContainer { span, .. } => span,
+            SemaError::ConversionOnMixed  { span, .. } => span,
             SemaError::InterfaceNoWiring   { span, .. } => span,
             SemaError::ResolveOnNonResolvable { span, .. } => span,
             SemaError::AsyncReturnsResolvable { span, .. } => span,
@@ -349,6 +355,8 @@ impl SemaError {
                 } else {
                     format!("cannot call '.{}(...)' — the receiver's type is '{}', whose only methods are the conversions: {}", method, type_name, available.join(", "))
                 },
+            SemaError::ConversionOnMixed { method, .. } =>
+                format!("cannot call '.{}()' on a 'mixed' value — conversion methods depend on the receiver's static type: store the value in a typed variable first (e.g. 'const s:string = ...') or call the 'Convert::...' function directly", method),
             SemaError::AccessOnNonContainer { type_name, field, .. } => match field {
                 Some(field) => format!("cannot read field '{}' — the value's type is '{}', which has no fields", field, type_name),
                 None => format!("cannot index a value of type '{}' — only arrays, maps and strings can be indexed", type_name),

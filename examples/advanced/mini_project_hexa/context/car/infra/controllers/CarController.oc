@@ -44,7 +44,8 @@ class CarController {
         const reference:string = req.param("reference").trim()
         const brand:string     = req.param("brand").trim()
         const model:string     = req.param("model").trim()
-        scoped price:float     = req.param("purchase_price").trim().toFloat()
+        consumed price_str:string = req.param("purchase_price").trim()
+        scoped price:float     = price_str.toFloat()
 
         if reference.empty() or brand.empty() or model.empty() {
             req.respondHeader("Location", "/?error=missing_fields")

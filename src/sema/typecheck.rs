@@ -1351,6 +1351,14 @@ impl<'a> TypeChecker<'a> {
                     if let Some(ret) = self.resolve_convert_sugar(object, &obj_ty, field, args, span) {
                         return ret;
                     }
+                    if obj_ty == Type::Mixed && crate::sema::convert_sugar::is_conversion_name(field) {
+                        self.errors.push(SemaError::ConversionOnMixed {
+                            method: field.clone(),
+                            span: self.with_runtime_ctx(fspan),
+                        });
+                        for a in args { self.infer_expr(a); }
+                        return Type::Mixed;
+                    }
 
                     // Valeur d'un générique instancié (`List<int>`, ...) : résoudre
                     // la méthode dans la déclaration `generic`, avec substitution

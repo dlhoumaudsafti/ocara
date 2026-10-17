@@ -74,3 +74,11 @@ fn wrong_arity_is_rejected() {
     let (errors, _) = check("function main(): int { var s:string = \"1\"\n var n:int = s.toInt(2)\n return n }");
     assert!(errors.iter().any(|e| matches!(e, SemaError::WrongArgCount { .. })), "{:?}", errors);
 }
+
+/// Receveur `mixed` (ex. `req.param(...)`) : la conversion dépend du type
+/// statique — refusée par la sema au lieu d'un symbole inexistant au codegen.
+#[test]
+fn conversion_on_mixed_receiver_is_rejected() {
+    let (errors, _) = check("function main(): int { var m:mixed = \"3.5\"\n var f:float = m.toFloat()\n return 0 }");
+    assert!(errors.iter().any(|e| matches!(e, SemaError::ConversionOnMixed { method, .. } if method == "toFloat")), "{:?}", errors);
+}

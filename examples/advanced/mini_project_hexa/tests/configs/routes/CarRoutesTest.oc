@@ -1,0 +1,54 @@
+import ocara.UnitTest
+import ocara.HTTPRequest
+import ocara.HTTPResponse
+import ocara.Thread
+import configs.Server
+import configs.routes.CarRoutes
+import tests.support.Fixture
+
+// Routes de configs/routes/CarRoutes.oc seules, sur un serveur dédié.
+class CarRoutesTest extends UnitTest {
+
+    init() {
+        Fixture::reset()
+        var server:Server = use Server()
+        server.port(18114)
+        use CarRoutes(server)
+        var t:Thread = use Thread()
+        t.run(nameless(): void { server.run() })
+        t.detach()
+        Thread::sleep(300)
+    }
+
+    // Fiche, ajout d'entretien, création et suppression.
+    public method initTest(): int {
+        const id:int = Fixture::car("ROUTES", "Peugeot", "308", 10000.0)
+        scoped show:HTTPResponse = HTTPRequest::get(`http://localhost:18114/voitures/${id}`)
+        self::assertEquals(200, show.status())
+        self::assertContains(show.body(), "TEST-OCUNIT-ROUTES")
+
+        scoped add:HTTPRequest = HTTPRequest::new(`http://localhost:18114/voitures/${id}/entretiens`)
+        add.setMethod("POST")
+        add.setHeader("Content-Type", "application/x-www-form-urlencoded")
+        add.setBody("type=improvement&description=Jantes&cost=250")
+        scoped added:HTTPResponse = add.send()
+        self::assertEquals(200, added.status())
+        self::assertEquals(1, Fixture::maintenanceCount(id))
+
+        scoped create:HTTPRequest = HTTPRequest::new("http://localhost:18114/voitures/ajouter")
+        create.setMethod("POST")
+        create.setHeader("Content-Type", "application/x-www-form-urlencoded")
+        create.setBody("reference=TEST-OCUNIT-ROUTES2&brand=Fiat&model=Panda&purchase_price=4000")
+        scoped created:HTTPResponse = create.send()
+        self::assertEquals(200, created.status())
+        self::assertContains(created.body(), "TEST-OCUNIT-ROUTES2")
+
+        scoped del:HTTPRequest = HTTPRequest::new(`http://localhost:18114/voitures/${id}/supprimer`)
+        del.setMethod("DELETE")
+        scoped deleted:HTTPResponse = del.send()
+        self::assertFalse(Fixture::carExists(id))
+        self::assertEquals(0, Fixture::maintenanceCount(id))
+        Fixture::cleanup()
+        return 0
+    }
+}

@@ -73,10 +73,14 @@ class CarRepository implements CarContract {
         })
     }
 
+    // Les entretiens de la voiture partent avec elle, dans la même
+    // transaction : le `ON DELETE CASCADE` du schéma n'est pas fiable (inactif
+    // sans `PRAGMA foreign_keys`, absent d'une base créée avant lui).
     public static method delete(id:int): void {
         SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
-            db.prepare("DELETE FROM cars WHERE id = :id")
-            db.bind({"id": id})
+            db.begin()
+            db.execute("DELETE FROM maintenances WHERE car_id = :id", {"id": id})
+            db.execute("DELETE FROM cars WHERE id = :id", {"id": id})
             db.commit()
         })
     }

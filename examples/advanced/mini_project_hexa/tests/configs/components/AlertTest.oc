@@ -1,0 +1,22 @@
+import ocara.UnitTest
+import ocara.HTML
+import configs.components.Alert
+
+class AlertTest extends UnitTest {
+
+    init() {
+        use Alert()
+    }
+
+    public method renderTest(): int {
+        const html:string = HTML::render('<alert kind="error" message="Oups">')
+        self::assertContains(html, `<div class="alert alert-error">Oups</div>`)
+        return 0
+    }
+
+    // Message vide : rien n'est affiché.
+    public method renderEmptyMessageTest(): int {
+        self::assertEquals("", HTML::render('<alert kind="success" message="">'))
+        return 0
+    }
+}

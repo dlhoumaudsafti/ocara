@@ -1,0 +1,20 @@
+import ocara.UnitTest
+import ocara.HTML
+import configs.components.SearchMaintenance
+
+class SearchMaintenanceTest extends UnitTest {
+
+    init() {
+        use SearchMaintenance()
+    }
+
+    public method renderTest(): int {
+        const html:string = HTML::render(`<search-maintenance car_id="7" car_reference="AB-123"
+            type="improvement" description="Peinture" cost="500,00 €">`)
+        self::assertContains(html, `href="/voitures/7"`)
+        self::assertContains(html, `<span class="badge badge-improvement">Amélioration</span>`)
+        self::assertContains(html, `<span class="maintenance-car">AB-123</span>`)
+        self::assertContains(html, `<span class="maintenance-cost">500,00 €</span>`)
+        return 0
+    }
+}

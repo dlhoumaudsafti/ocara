@@ -1,0 +1,17 @@
+import ocara.UnitTest
+import ocara.HTML
+import configs.components.SearchBar
+
+class SearchBarTest extends UnitTest {
+
+    init() {
+        use SearchBar()
+    }
+
+    public method renderTest(): int {
+        const html:string = HTML::render('<search-bar q="clio">')
+        self::assertContains(html, `action="/recherche"`)
+        self::assertContains(html, `value="clio"`)
+        return 0
+    }
+}

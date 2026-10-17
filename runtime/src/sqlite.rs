@@ -585,7 +585,9 @@ pub unsafe extern "C" fn SQLite_commit(self_ptr: i64, close: i64) -> i64 {
 
         // Voir le commentaire de SQLite_execute : le verrou reste scopé à
         // cette closure, relâché avant tout throw_sqlite_exception.
-        let result: Result<i64, String> = (|| {
+        // `(valeur, lignes affectées, id inséré)` — mêmes règles que
+        // `SQLite_execute` pour `affectedRows()`/`lastInsertId()`.
+        let result: Result<(i64, Option<i64>, Option<i64>), String> = (|| {
             let mut conn_guard = db.conn.lock().unwrap();
             let conn = &mut *conn_guard;
 
@@ -596,33 +598,41 @@ pub unsafe extern "C" fn SQLite_commit(self_ptr: i64, close: i64) -> i64 {
                 *db.tx_open.lock().unwrap() = true;
             }
 
-            let value = match &query {
+            let (value, affected, last_id) = match &query {
                 Some(query) => {
                     let mut stmt = conn.prepare(query)
                         .map_err(|e| format!("Failed to prepare query '{}': {}", query, e))?;
                     if stmt.column_count() > 0 {
                         // SELECT — collecte toutes les lignes.
-                        collect_all_rows(&mut stmt, &named)?
+                        (collect_all_rows(&mut stmt, &named)?, None, None)
                     } else {
                         // Écriture — exécute et boxe le nombre de lignes affectées
                         // (voir `box_int_if_needed` : un int logé dans un `mixed`
                         // doit être boxé s'il vaut 0 ou dépasse PTR_THRESHOLD).
-                        stmt.execute(&named[..])
-                            .map(|affected| crate::box_int_if_needed(affected as i64))
-                            .map_err(|e| format!("Failed to execute query '{}': {}", query, e))?
+                        let affected = stmt.execute(&named[..])
+                            .map_err(|e| format!("Failed to execute query '{}': {}", query, e))? as i64;
+                        let last_id = query.trim().to_uppercase().starts_with("INSERT")
+                            .then(|| conn.last_insert_rowid());
+                        (crate::box_int_if_needed(affected), Some(affected), last_id)
                     }
                 }
-                None => crate::box_int_if_needed(0),
+                None => (crate::box_int_if_needed(0), None, None),
             };
 
             conn.execute_batch("COMMIT")
                 .map_err(|e| format!("Failed to COMMIT transaction: {}", e))?;
 
-            Ok(value)
+            Ok((value, affected, last_id))
         })();
 
         match result {
-            Ok(value) => {
+            Ok((value, affected, last_id)) => {
+                if let Some(affected) = affected {
+                    *db.affected_rows.lock().unwrap() = affected;
+                }
+                if let Some(id) = last_id {
+                    *db.last_insert_id.lock().unwrap() = id;
+                }
                 *db.pending_query.lock().unwrap() = None;
                 *db.pending_binds.lock().unwrap() = None;
                 *db.tx_open.lock().unwrap() = false;

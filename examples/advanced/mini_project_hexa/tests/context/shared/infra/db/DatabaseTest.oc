@@ -1,0 +1,38 @@
+import ocara.UnitTest
+import ocara.SQLite
+import context.shared.infra.db.Database
+
+class DatabaseTest extends UnitTest {
+
+    public method pathTest(): int {
+        self::assertEquals("./app.db", Database::path())
+        return 0
+    }
+
+    public method connectTest(): int {
+        const db:SQLite = Database::connect()
+        const row:map<string, mixed> = db.queryOne("SELECT 1 AS one")
+        db.close()
+        var one:int = row["one"]
+        self::assertEquals(1, one)
+        return 0
+    }
+
+    // Idempotente : deux migrations successives laissent les deux tables.
+    public method migrateTest(): int {
+        Database::migrate()
+        Database::migrate()
+        const db:SQLite = Database::connect()
+        const rows:array<map<string, mixed>> = db.query(
+            "SELECT name FROM sqlite_master"
+            + " WHERE type = 'table' AND name IN ('cars', 'maintenances') ORDER BY name"
+        )
+        db.close()
+        self::assertEquals(2, rows.len())
+        var first:string = rows[0]["name"]
+        var second:string = rows[1]["name"]
+        self::assertEquals("cars", first)
+        self::assertEquals("maintenances", second)
+        return 0
+    }
+}

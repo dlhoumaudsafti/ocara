@@ -1,0 +1,43 @@
+import ocara.UnitTest
+import ocara.HTTPServer
+import ocara.HTTPServerRequest
+import ocara.HTTPRequest
+import ocara.HTTPResponse
+import ocara.Thread
+import context.home.infra.controllers.HomeController
+import tests.support.Fixture
+
+// Route de configs/routes/Home.oc sur un serveur dédié.
+class HomeControllerTest extends UnitTest {
+
+    init() {
+        var server:HTTPServer = use HTTPServer()
+        server.port(18103)
+        server.route("/", "GET", HomeController::index)
+        var t:Thread = use Thread()
+        t.run(nameless(): void { server.run() })
+        t.detach()
+        Thread::sleep(300)
+    }
+
+    public method indexTest(): int {
+        Fixture::reset()
+        Fixture::car("INDEX", "Peugeot", "308", 12345.0)
+        scoped res:HTTPResponse = HTTPRequest::get("http://localhost:18103/?success=car_added&lang=fr")
+        self::assertEquals(200, res.status())
+        self::assertContains(res.body(), "Flotte de véhicules")
+        self::assertContains(res.body(), "TEST-OCUNIT-INDEX")
+        self::assertContains(res.body(), "12345,00 €")
+        self::assertContains(res.body(), "Voiture ajoutée avec succès.")
+        Fixture::cleanup()
+        return 0
+    }
+
+    public method indexErrorTest(): int {
+        Fixture::reset()
+        scoped res:HTTPResponse = HTTPRequest::get("http://localhost:18103/?error=invalid_price")
+        self::assertEquals(200, res.status())
+        self::assertContains(res.body(), "Le prix d'achat doit être un nombre positif.")
+        return 0
+    }
+}

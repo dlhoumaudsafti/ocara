@@ -1,0 +1,47 @@
+import ocara.UnitTest
+import ocara.HTTPRequest
+import ocara.HTTPResponse
+import ocara.Thread
+import configs.Components
+import configs.Server
+import context.shared.infra.db.Database
+
+// Serveur complet de l'application (routes de configs/routes/*) démarré par
+// `start()` sur un port de test, comme le fait core/init.runtime.oc.
+class ServerTest extends UnitTest {
+
+    init() {
+        use Components()
+        Database::migrate()
+        var server:Server = use Server()
+        server.port(18106)
+        server.routes()
+        var t:Thread = use Thread()
+        t.run(nameless(): void { server.start() })
+        t.detach()
+        Thread::sleep(300)
+    }
+
+    public method routesTest(): int {
+        scoped home:HTTPResponse = HTTPRequest::get("http://localhost:18106/")
+        self::assertEquals(200, home.status())
+        self::assertContains(home.body(), "Flotte de véhicules")
+
+        scoped search:HTTPResponse = HTTPRequest::get("http://localhost:18106/recherche")
+        self::assertEquals(200, search.status())
+        self::assertContains(search.body(), "<title>Recherche — Garage Ocara</title>")
+
+        // Paramètre de chemin non numérique : la route ne correspond pas.
+        scoped bad_id:HTTPResponse = HTTPRequest::get("http://localhost:18106/voitures/abc")
+        self::assertEquals(404, bad_id.status())
+        self::assertContains(bad_id.body(), "Page non trouvée")
+        return 0
+    }
+
+    // Fichiers statiques servis depuis ./public/.
+    public method startTest(): int {
+        scoped css:HTTPResponse = HTTPRequest::get("http://localhost:18106/style.css")
+        self::assertEquals(200, css.status())
+        return 0
+    }
+}

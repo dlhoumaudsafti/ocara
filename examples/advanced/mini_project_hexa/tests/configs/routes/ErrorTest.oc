@@ -1,0 +1,29 @@
+import ocara.UnitTest
+import ocara.HTTPRequest
+import ocara.HTTPResponse
+import ocara.Thread
+import configs.Server
+import configs.routes.Error
+import tests.support.Fixture
+
+// Routes de configs/routes/Error.oc seules, sur un serveur dédié.
+class ErrorTest extends UnitTest {
+
+    init() {
+        Fixture::reset()
+        var server:Server = use Server()
+        server.port(18113)
+        use Error(server)
+        var t:Thread = use Thread()
+        t.run(nameless(): void { server.run() })
+        t.detach()
+        Thread::sleep(300)
+    }
+
+    public method initTest(): int {
+        scoped res:HTTPResponse = HTTPRequest::get("http://localhost:18113/inconnue")
+        self::assertEquals(404, res.status())
+        self::assertContains(res.body(), "/inconnue")
+        return 0
+    }
+}

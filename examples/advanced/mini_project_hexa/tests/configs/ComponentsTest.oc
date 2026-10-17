@@ -1,0 +1,45 @@
+import ocara.UnitTest
+import ocara.HTML
+import configs.Components
+
+class ComponentsTest extends UnitTest {
+
+    init() {
+        use Components()
+    }
+
+    // Tous les composants sont enregistrés, y compris imbriqués dans un autre.
+    public method registersAllComponentsTest(): int {
+        const html:string = HTML::render(`<layout title="T" active="search">
+            <search-bar q="x">
+            <alert kind="error" message="Erreur">
+            <stat-badge label="L" value="V">
+            <car-card
+                id="1" 
+                reference="R"
+                brand="B"
+                model="M"
+                purchase_price="1"
+                estimated_price="2"
+                maintenance_total="3"
+            >
+            <maintenance-row type="maintenance" description="D" cost="4" date="5">
+            <search-maintenance
+                car_id="1"
+                car_reference="R"
+                type="improvement"
+                description="D"
+                cost="4"
+            >
+        </layout>`)
+        self::assertContains(html, "<title>T — Garage Ocara</title>")
+        self::assertContains(html, `class="nav-link active">Recherche</a>`)
+        self::assertContains(html, `class="search-bar"`)
+        self::assertContains(html, `class="alert alert-error"`)
+        self::assertContains(html, `class="stat-badge"`)
+        self::assertContains(html, `class="car-card"`)
+        self::assertContains(html, `<div class="maintenance-row">`)
+        self::assertContains(html, `class="maintenance-row search-result"`)
+        return 0
+    }
+}
