@@ -6,8 +6,8 @@ architecture permissive
 
 import ocara.UnitTest
 import ocara.System
-import separator from "70_when"
-import Platform from "70_when"
+import separator from "../70_when"
+import Platform from "../70_when"
 
 class Test70When extends UnitTest {
 

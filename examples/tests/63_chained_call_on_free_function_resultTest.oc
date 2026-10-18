@@ -1,11 +1,11 @@
 architecture permissive
 
 import ocara.UnitTest
-import Circle from "63_chained_call_on_free_function_result"
-import pickCircle from "63_chained_call_on_free_function_result"
-import makeNames from "63_chained_call_on_free_function_result"
-import makeScores from "63_chained_call_on_free_function_result"
-import greeting from "63_chained_call_on_free_function_result"
+import Circle from "../63_chained_call_on_free_function_result"
+import pickCircle from "../63_chained_call_on_free_function_result"
+import makeNames from "../63_chained_call_on_free_function_result"
+import makeScores from "../63_chained_call_on_free_function_result"
+import greeting from "../63_chained_call_on_free_function_result"
 
 // docs/roadmap.d/langage-chained-call-on-free-function-result.md —
 // `maFonction(...).methode()` (appel de méthode chaîné directement sur le

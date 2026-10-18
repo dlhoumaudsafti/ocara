@@ -1,9 +1,9 @@
 architecture permissive
 
 import ocara.UnitTest
-import Repo from "60_interface_wiring"
-import Repo from "60_interface_wiring" as InMemoryRepo
-import useRepo from "60_interface_wiring"
+import Repo from "../60_interface_wiring"
+import Repo from "../60_interface_wiring" as InMemoryRepo
+import useRepo from "../60_interface_wiring"
 
 // `wiring <Classe>` — liaison interface → implémentation à la compilation,
 // voir docs/roadmap.d/langage-interface-wiring.md et
@@ -45,7 +45,7 @@ class Test60InterfaceWiring extends UnitTest {
     }
 
     // Alias dont le nom simple correspond au SECOND `wiring`
-    // (`import Repo from "60_interface_wiring" as InMemoryRepo`, tout en
+    // (`import Repo from "../60_interface_wiring" as InMemoryRepo`, tout en
     // haut de ce fichier) : substitution complète, y compris en annotation
     // de type (`var r:InMemoryRepo`) — comme si ce fichier avait importé
     // `InMemoryRepo` directement.

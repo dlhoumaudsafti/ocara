@@ -159,6 +159,18 @@
           }
         },
         {
+          "comment": "import churn from \"file\" [as alias] — import sélectif d'une fonction",
+          "match": "^(import)\\s+([a-z_][\\w]*)\\s+(from)\\s+(\"[^\"]+\")(?:\\s+(as)\\s+([a-z_][\\w]*))?\\s*$",
+          "captures": {
+            "1": { "name": "keyword.control.import.ocara" },
+            "2": { "name": "entity.name.function.ocara" },
+            "3": { "name": "keyword.control.from.ocara" },
+            "4": { "name": "string.quoted.double.ocara" },
+            "5": { "name": "keyword.control.as.ocara" },
+            "6": { "name": "entity.name.function.ocara" }
+          }
+        },
+        {
           "comment": "import ocara.Builtin — namespace builtin en couleur distincte",
           "match": "^(import)\\s+(ocara)(\\.)([\\w]+)\\s*$",
           "captures": {

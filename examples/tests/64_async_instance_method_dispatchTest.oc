@@ -1,15 +1,15 @@
 architecture permissive
 
 import ocara.UnitTest
-import DoublingFetcher from "64_async_instance_method_dispatch"
-import Animal from "64_async_instance_method_dispatch"
-import Dog from "64_async_instance_method_dispatch"
-import Repo from "64_async_instance_method_dispatch"
-import ConcreteRepo from "64_async_instance_method_dispatch"
-import Talker from "64_async_instance_method_dispatch"
-import Cat from "64_async_instance_method_dispatch"
-import Robot from "64_async_instance_method_dispatch"
-import pickTalker from "64_async_instance_method_dispatch"
+import DoublingFetcher from "../64_async_instance_method_dispatch"
+import Animal from "../64_async_instance_method_dispatch"
+import Dog from "../64_async_instance_method_dispatch"
+import Repo from "../64_async_instance_method_dispatch"
+import ConcreteRepo from "../64_async_instance_method_dispatch"
+import Talker from "../64_async_instance_method_dispatch"
+import Cat from "../64_async_instance_method_dispatch"
+import Robot from "../64_async_instance_method_dispatch"
+import pickTalker from "../64_async_instance_method_dispatch"
 
 // docs/roadmap.d/langage-async-instance-method-dispatch-broken.md — appeler
 // une méthode D'INSTANCE `async` via le sucre `obj.methode()` segfaultait

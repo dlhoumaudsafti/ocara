@@ -2,8 +2,8 @@ architecture permissive
 
 import ocara.UnitTest
 import ocara.String
-import UserDto from "67_named_arguments"
-import AdminDto from "67_named_arguments"
+import UserDto from "../67_named_arguments"
+import AdminDto from "../67_named_arguments"
 
 // docs/roadmap.d/langage-named-arguments.md — chaque test vérifie la VALEUR
 // réellement obtenue (ordre de résolution par nom + valeurs par défaut

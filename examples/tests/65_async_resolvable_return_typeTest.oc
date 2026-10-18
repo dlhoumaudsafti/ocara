@@ -1,7 +1,7 @@
 architecture permissive
 
 import ocara.UnitTest
-import Doubler from "65_async_resolvable_return_type"
+import Doubler from "../65_async_resolvable_return_type"
 
 // docs/roadmap.d/langage-async-non-int-return-type-check.md — le repro exact
 // du ticket : `Doubler::fetch(): string` (appel STATIQUE) et

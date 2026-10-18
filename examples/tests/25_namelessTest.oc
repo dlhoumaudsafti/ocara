@@ -1,7 +1,7 @@
 architecture permissive
 
 import ocara.UnitTest
-import Counter from "25_nameless"
+import Counter from "../25_nameless"
 
 class Test25Nameless extends UnitTest {
 

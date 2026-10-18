@@ -1,12 +1,12 @@
 architecture permissive
 
 import ocara.UnitTest
-import Shape from "61_interface_instance_dispatch"
-import Drawable from "61_interface_instance_dispatch"
-import Circle from "61_interface_instance_dispatch"
-import Square from "61_interface_instance_dispatch"
-import Triangle from "61_interface_instance_dispatch"
-import pickShape from "61_interface_instance_dispatch"
+import Shape from "../61_interface_instance_dispatch"
+import Drawable from "../61_interface_instance_dispatch"
+import Circle from "../61_interface_instance_dispatch"
+import Square from "../61_interface_instance_dispatch"
+import Triangle from "../61_interface_instance_dispatch"
+import pickShape from "../61_interface_instance_dispatch"
 
 // SIGSEGV corrigé — voir docs/roadmap.d/langage-interface-instance-dispatch-segfault.md.
 // `var s:UneInterface = uneInstanceConcrete; s.methode()` (polymorphisme

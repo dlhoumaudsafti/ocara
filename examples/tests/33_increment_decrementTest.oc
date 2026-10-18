@@ -5,7 +5,7 @@
 architecture permissive
 
 import ocara.UnitTest
-import Counter from "33_increment_decrement"
+import Counter from "../33_increment_decrement"
 
 class Test33IncrementDecrement extends UnitTest {
 

@@ -1,8 +1,8 @@
 architecture permissive
 
 import ocara.UnitTest
-import Modifiers from "62_interface_method_modifiers"
-import Impl from "62_interface_method_modifiers"
+import Modifiers from "../62_interface_method_modifiers"
+import Impl from "../62_interface_method_modifiers"
 
 // docs/roadmap.d/langage-interface-method-modifiers.md — les 12 combinaisons
 // de modificateurs (3 visibilités × [rien, `static`, `async`, `static async`])

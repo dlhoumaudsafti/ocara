@@ -2,10 +2,10 @@ architecture permissive
 
 import ocara.UnitTest
 import ocara.Array
-import UserDTO from "68_struct"
-import AdminDTO from "68_struct"
-import TeamDTO from "68_struct"
-import findUser from "68_struct"
+import UserDTO from "../68_struct"
+import AdminDTO from "../68_struct"
+import TeamDTO from "../68_struct"
+import findUser from "../68_struct"
 
 // docs/roadmap.d/langage-struct-value-type.md — constructeur généré depuis
 // les champs (défauts compris, arguments nommés), héritage entre structs,
