@@ -28,6 +28,10 @@ pub struct TypeChecker<'a> {
     pub(crate) current_generic_args: Option<Vec<Type>>,
     /// Contexte runtime actuel (init, main, error, success, exit)
     current_runtime_ctx: Option<String>,
+    /// Profondeur de closures (`nameless`) en cours de vérification : le
+    /// corps d'une closure est une fonction ordinaire, même déclarée dans un
+    /// bloc runtime (`return` y quitte la closure, `result` y est interdit).
+    closure_depth: usize,
     /// Classes déjà typecheckées (pour éviter de les typecheck plusieurs fois)
     pub(crate) checked_classes: std::collections::HashSet<String>,
     /// Référence au Program pour accéder aux ClassDecl lors du typecheck lazy
@@ -75,6 +79,7 @@ impl<'a> TypeChecker<'a> {
             current_generic: None,
             current_generic_args: None,
             current_runtime_ctx: None,
+            closure_depth: 0,
             checked_classes: std::collections::HashSet::new(),
             program: None,
             escaping_params: std::collections::HashMap::new(),
@@ -92,6 +97,11 @@ impl<'a> TypeChecker<'a> {
     
     // ── Helper pour ajouter le contexte runtime au span ──────────────────────
     
+    /// Corps d'un bloc runtime lui-même, hors closure.
+    fn in_runtime_body(&self) -> bool {
+        self.current_runtime_ctx.is_some() && self.closure_depth == 0
+    }
+
     fn with_runtime_ctx(&self, span: &Span) -> Span {
         let mut s = span.clone();
         if let Some(ctx) = &self.current_runtime_ctx {
@@ -727,7 +737,7 @@ impl<'a> TypeChecker<'a> {
             Stmt::Return { value, span } => {
                 // `return` est réservé aux fonctions/méthodes normales : dans un bloc
                 // runtime, c'est `result` qui fixe ERROR sans quitter le bloc.
-                if self.current_runtime_ctx.is_some() {
+                if self.in_runtime_body() {
                     self.errors.push(SemaError::ReturnInsideRuntimeBlock { span: span.clone() });
                     return;
                 }
@@ -768,7 +778,7 @@ impl<'a> TypeChecker<'a> {
 
                     // Exception pour les blocs runtime : main peut retourner ERROR (int) ou SUCCESS (bool)
                     // même si son type de retour est void
-                    let is_runtime_return = if self.current_runtime_ctx.is_some() && ret_ty == Type::Void {
+                    let is_runtime_return = if self.in_runtime_body() && ret_ty == Type::Void {
                         // Vérifier si c'est "return ERROR" ou "return SUCCESS"
                         if let Expr::Ident(name, _) = expr {
                             name == "ERROR" || name == "SUCCESS"
@@ -799,7 +809,7 @@ impl<'a> TypeChecker<'a> {
 
             Stmt::Result { value, span } => {
                 // `result` n'a de sens qu'à l'intérieur d'un bloc runtime.
-                if self.current_runtime_ctx.is_none() {
+                if !self.in_runtime_body() {
                     self.errors.push(SemaError::ResultOutsideRuntimeBlock { span: span.clone() });
                     return;
                 }
@@ -2335,7 +2345,9 @@ impl<'a> TypeChecker<'a> {
                 let saved_ret = self.current_ret.take();
                 let closure_ret = ret_ty.as_ref().cloned().unwrap_or(Type::Void);
                 self.current_ret = Some(closure_ret.clone());
+                self.closure_depth += 1;
                 self.check_block(body);
+                self.closure_depth -= 1;
                 self.current_ret = saved_ret;
                 { let _u = self.scopes.pop_scope(&self.resource_classes); self.flush_warnings(_u); }
                 

@@ -26,8 +26,9 @@ partagé (voir [memoire-scoped-object-elements-leak.md](memoire-scoped-object-el
 | exception (`TAG_EXCEPTION`) | 0 | `message`, `source` |
 | primitif boxé | — | cellule `[rc][bits]`, `val = (cellule+8) | tag` |
 
-Le mot `rc` porte le compte (bits 0–47), la couleur du détecteur
-(bits 48–55) et le drapeau « dans le tampon des racines » (bit 56).
+Le mot `rc` porte le compte (bits 0–31), la couleur du détecteur
+(bits 32–39), le drapeau « dans le tampon des racines » (`BUFFERED`, bit 40),
+`DEAD` (bit 42) et l'époque de collecte concurrente (bits 48–55).
 
 ## Primitives runtime
 
@@ -53,21 +54,16 @@ Le mot `rc` porte le compte (bits 0–47), la couleur du détecteur
 
 ## Détecteur de cycles
 
-Collecte synchrone par suppression d'essai (Bacon–Rajan). Un `release` qui
-laisse un conteneur, un objet ou une closure à un compte non nul l'ajoute au
-tampon des racines. La collecte (marquage gris, balayage, ramassage des
-blancs) se déclenche :
+Un `release` qui laisse un conteneur, un objet ou une closure partagé l'ajoute
+au tampon des racines — AVANT de rendre sa référence (après, un autre thread
+peut l'avoir libéré). La collecte se déclenche quand le tampon dépasse un
+seuil, et à la sortie du programme :
 
-- quand le tampon dépasse un seuil ;
-- seulement si aucun thread Ocara secondaire ne tourne (`Thread::run`,
-  workers HTTPServer, `async`) : marquer pendant qu'un autre thread modifie
-  des comptes serait faux ;
-- à la sortie du programme.
-
-## Limites connues
-
-- `raise` traverse les frames par `longjmp` : les locales des frames sautées
-  ne sont pas relâchées (fuite, jamais de libération prématurée).
+- **thread seul en cours** (les autres sont garés) : suppression d'essai
+  synchrone (Bacon–Rajan), qui modifie les comptes ;
+- **plusieurs threads en cours** : collecte concurrente
+  (`runtime/src/rc_concurrent.rs`, voir la phase 9), les autres threads
+  continuent.
 
 ## Phases
 
@@ -270,17 +266,52 @@ SDL `present`/`delay` : 92 → 127 Mo avant, 88,8 → 90,1 Mo après. Applicatio
 `tauri_httpserver`, fenêtre ouverte : plateau à ≈ 164 Mo (3 000 puis 6 000
 requêtes).
 
+## Phase 9 — collecte concurrente (2026-10-18)
+
+Avec au moins deux threads Ocara en cours, les cycles n'étaient jamais
+collectés (291 Mo pour 2 × 400 000 cycles). Option retenue le 2026-10-13 :
+collecte concurrente complète.
+
+- **Conteneurs verrouillés** (`runtime/src/containers.rs`) : tout accès au
+  `Vec` d'un tableau ou d'une map passe par `with_array`/`with_map` (verrou
+  tournant par conteneur). Section critique réduite aux opérations sur le
+  `Vec` : jamais de `retain`/`release` (ils peuvent lancer une collecte), ni
+  d'exception (`longjmp` sauterait le déverrouillage).
+- **Collecteur sans modification de compte** (`rc_concurrent.rs`) : relevé du
+  compte et des références internes du sous-graphe atteignable depuis les
+  racines ; vivant si compte > références internes, ou touché pendant la
+  collecte, puis tout ce qu'un vivant atteint ; le reste est libéré.
+- **Époque** : chaque collecte concurrente a un numéro (1–255) ; `retain`/
+  `release` l'inscrivent dans le mot `rc` de la valeur touchée. Ordre `SeqCst`
+  entre l'opération de compte et la lecture de l'époque : une opération qui
+  ne voit pas l'époque est visible du relevé.
+- **Libérations différées** : pendant une collecte, un bloc libéré par un
+  autre thread est mis de côté, rendu en fin de collecte — le collecteur ne lit
+  jamais de mémoire libérée.
+- **`DEAD`** : une valeur détruite alors qu'elle est dans le tampon est
+  libérée par la collecte ; `DEAD` et `BUFFERED` sont posés et lus par des
+  opérations atomiques uniques, un seul thread libère le bloc.
+- **Racines vivantes conservées** en collecte concurrente : leur `release`
+  peut être encore en cours (inscription faite, décrémentation à venir) ; les
+  retirer perdait des cycles. Le seuil se règle sur le nombre de racines
+  conservées.
+- **Contre-pression** : au-delà de 4 fois le seuil pendant une collecte, un
+  thread qui inscrit une racine attend sa fin (la mémoire suit le rythme du
+  collecteur) — jamais le thread collecteur lui-même.
+- Défaut préexistant corrigé : `release` inscrivait la racine APRÈS avoir
+  rendu sa référence ; un autre thread pouvait libérer la valeur entre-temps
+  (racine vers un bloc libéré puis réutilisé, plantage du collecteur).
+
+Mesures (avant → après) : 2 × 400 000 cycles 253 → 45 Mo ; 2 × 4 millions
+(non mesurable avant) 45 Mo ; graphe partagé recâblé et audité pendant les
+collectes (5 threads) 1,1 Go → 80 Mo, 0 incohérence sur 45 exécutions dont
+la moitié sur 2 cœurs, aucune fuite à la sortie ; serveur HTTP à 4 workers
+dont le handler crée 50 cycles, 100 000 requêtes : plateau à ≈ 12,5 Mo.
+
+Garde-fous : `examples/34_concurrent_cycles.oc` (régression, `leak-check`,
+test ocaraunit) et `ci/memory_bound.sh` (mémoire résidente ≤ 120 Mo, ≈ 220 Mo
+avant), lancé par `make regression` et `make ci`.
+
 ## Reste à faire
 
 Rien de connu à ce jour.
-
-## Reste à faire — audit du 2026-10-13
-
-La section « Reste à faire : rien de connu » n'est plus exacte, et la limite « `raise` traverse les frames, locales non relâchées » est périmée (corrigée en phase 5, confirmée sans fuite par l'audit). Restent :
-
-1. **Cycles jamais collectés tant que ≥ 2 threads Ocara tournent — fuite non bornée.** Deux threads qui créent des cycles pendant que `main` attend dans `join` : 18,6 Mo à 20 000 cycles par thread, **291 Mo** à 400 000 ; le thread principal créant des cycles pendant qu'un worker calcule : 11 Mo puis 135 Mo. Mono-thread : stable (6,2 → 6,4 Mo). Cause, par conception (phase 6) : la collecte complète n'a lieu que si le thread qui la lance est le seul en cours d'exécution. `--leak-check` ne la voit pas (collecte à la sortie). Concerne directement un serveur ou un jeu avec un worker actif. Correction : collecte concurrente (Dangereuse), ou à défaut points de rendez-vous réguliers pour les threads Ocara ; au minimum, documenter la limite (EBNF ~l.1199) et la faire signaler par `--leak-check`. **Haute — Dangereuse.**
-2. Fuites du boxing : [memoire-boxing-temporaires-non-relaches](memoire-boxing-temporaires-non-relaches.md), [memoire-system-os-fuite](memoire-system-os-fuite.md) ; crash des littéraux à union : [memoire-union-litteral-boxing](memoire-union-litteral-boxing.md).
-
-Aucun test multi-thread de croissance mémoire n'existe : en ajouter un (mesure RSS bornée) avec le correctif.
-
-**Décision du 2026-10-13 (point 1)** : option « collecte concurrente complète ». Obstacle relevé en concevant : le collecteur parcourrait des tableaux/maps (`Vec` Rust non verrouillés) pendant qu'un autre thread y fait un `push` qui réalloue — lecture de mémoire libérée possible. La rendre sûre impose de revoir le runtime des conteneurs (verrou par tableau/map ou mémoire épochale, libération différée pendant une collecte), puis un collecteur qui ne modifie pas les compteurs (comptes internes sur une table annexe, marque « touché » posée par `retain`/`release` pendant la collecte, libération seulement des cycles non touchés). Reste en Priorité Haute.

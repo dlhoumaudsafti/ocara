@@ -210,8 +210,8 @@ fn heap_object_eq_strict_is_pointer_identity_not_structural() {
     let a = new_array();
     let b = new_array();
     unsafe {
-        array_ref(a).data.push(1);
-        array_ref(b).data.push(1);
+        with_array(a, |data| data.push(1));
+        with_array(b, |data| data.push(1));
     }
     assert_eq!(__cmp_eq_strict(a, b), 0);
     assert_eq!(__cmp_eq_strict(a, a), 1);
@@ -278,7 +278,7 @@ fn shared_boxed_element_survives_its_first_container() {
     __array_push(original, box_int_if_needed(7_000_000));
     let copy = Array_slice(original, 0, 1);
     crate::rc::__rc_release(original);
-    let elem = unsafe { array_ref(copy).data[0] };
+    let elem = unsafe { with_array(copy, |data| data[0]) };
     assert_eq!(unsafe { unbox_int(elem) }, 7_000_000, "l'élément partagé doit rester valide");
     crate::rc::__rc_release(copy);
 }

@@ -167,7 +167,7 @@ fn capture_array(val: i64, each: impl Fn(i64) -> Result<Stored, &'static str>) -
 }
 
 fn capture_map(val: i64, each: impl Fn(i64) -> Result<Stored, &'static str>) -> Result<Stored, &'static str> {
-    let pairs = unsafe { (*(val as *const crate::OcaraMap)).data.clone() };
+    let pairs = unsafe { crate::map_entries(val) };
     pairs.into_iter().map(|(k, v)| each(v).map(|s| (k, s))).collect::<Result<_, _>>().map(Stored::Map)
 }
 

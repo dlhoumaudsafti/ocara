@@ -1,0 +1,63 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests unitaires pour 34_concurrent_cycles.oc
+// ─────────────────────────────────────────────────────────────────────────────
+
+architecture permissive
+
+import ocara.UnitTest
+import ocara.Thread
+import ocara.Mutex
+import Node from "../34_concurrent_cycles"
+import churn from "../34_concurrent_cycles"
+import rewire from "../34_concurrent_cycles"
+import audit from "../34_concurrent_cycles"
+
+class Test34ConcurrentCycles extends UnitTest {
+
+    public method churnTest(): int {
+        self::assertEquals(1000, churn(1000))
+        return 0
+    }
+
+    // Le hub garde au plus `keep` pairs, chacune formant une paire cohérente.
+    public method rewireTest(): int {
+        var hub:Node = use Node(-1)
+        var m:Mutex = use Mutex()
+        self::assertEquals(200, rewire(hub, m, 200, 1, 10))
+        self::assertEquals(10, hub.peers.len())
+        self::assertEquals(0, audit(hub, m, 1))
+        m.destroy()
+        return 0
+    }
+
+    public method auditTest(): int {
+        var hub:Node = use Node(-1)
+        var m:Mutex = use Mutex()
+        var broken:Node = use Node(5)
+        hub.peers.push(broken)
+        self::assertEquals(3, audit(hub, m, 3))
+        m.destroy()
+        return 0
+    }
+
+    // Plusieurs threads à la fois : cycles poubelles et graphe partagé, aucune
+    // incohérence relevée pendant les collectes concurrentes.
+    public method concurrentTest(): int {
+        var hub:Node = use Node(-1)
+        var m:Mutex = use Mutex()
+        var errors:int = 0
+        var t1:Thread = use Thread()
+        var t2:Thread = use Thread()
+        var t3:Thread = use Thread()
+        t1.run(nameless(): void { churn(100000) })
+        t2.run(nameless(): void { rewire(hub, m, 20000, 1, 20) })
+        t3.run(nameless(): void { errors = audit(hub, m, 500) })
+        t1.join()
+        t2.join()
+        t3.join()
+        self::assertEquals(0, errors)
+        self::assertEquals(20, hub.peers.len())
+        m.destroy()
+        return 0
+    }
+}

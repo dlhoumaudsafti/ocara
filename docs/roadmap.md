@@ -1,6 +1,6 @@
 # Roadmap Ocara
 
-_Dernière mise à jour : 2026-10-17_
+_Dernière mise à jour : 2026-10-18_
 
 Ce document liste ce qu'il reste à faire pour faire d'Ocara un langage solide. Cette révision fait suite à une analyse complète du projet (doc, code source du compilateur, exemples, runtimes natifs) et **reprioritise délibérément autour de la robustesse, la stabilité et la fiabilité** — avant toute nouvelle fonctionnalité ou tout chantier de portage. Le focus reste, comme avant, la **gestion mémoire** : le compilateur n'a pas de ramasse-miettes (choix assumé et définitif), et l'historique du projet montre plusieurs SEGFAULTs confirmés par reproduction sur la représentation `mixed` — mais la même question de fiabilité se posait aussi sur le mécanisme d'exceptions (`setjmp`/`longjmp`), sur la quasi-absence de tests Rust unitaires en dehors du front-end, et sur au moins une race condition documentée (`HTTPServer`).
 
@@ -29,7 +29,7 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Fuite : cycles jamais collectés tant que ≥ 2 threads Ocara tournent** — 291 Mo pour 2 × 400 000 cycles ; invisible pour `--leak-check`. Option retenue (2026-10-13) : collecte concurrente complète, ce qui impose des conteneurs protégés (verrou par tableau/map, libération différée). *(Dangereuse — runtime des conteneurs et du collecteur)* → [détails](roadmap.d/memoire-refcount.md)
+- **SIGSEGV : champ `int` lu à travers un receveur `T|null` non vérifié puis comparé** — `a.next.value` (`next:Node|null`) traité comme `mixed` sans boxing, lu comme un pointeur par la comparaison. *(Légère à Structurel)* → [détails](roadmap.d/langage-union-field-access-boxing.md)
 
 ---
 

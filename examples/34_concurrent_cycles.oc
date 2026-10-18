@@ -1,0 +1,112 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 34 — cycles créés par plusieurs threads à la fois
+//
+// Voir docs/roadmap.d/memoire-refcount.md (« Collecte concurrente ») : les
+// références circulaires sont rendues même quand plusieurs threads Ocara
+// tournent. Deux threads produisent des cycles poubelles en continu (collectes
+// concurrentes permanentes) pendant que deux autres recâblent un graphe
+// cyclique partagé et qu'un cinquième le parcourt en vérifiant chaque valeur.
+// La mémoire reste bornée (voir ci/memory_bound.sh) et aucune valeur n'est
+// libérée tant qu'un thread peut l'atteindre.
+// ─────────────────────────────────────────────────────────────────────────────
+
+architecture permissive
+
+import ocara.IO
+import ocara.Thread
+import ocara.Mutex
+import ocara.Array
+
+class Node {
+    public property value:int
+    public property next:Node|null = null
+    public property peers:array<Node> = []
+
+    init(value:int) {
+        self.value = value
+    }
+}
+
+// Paires a ↔ b abandonnées à chaque tour.
+function churn(rounds:int): int {
+    var i:int = 0
+    while i smaller rounds {
+        var a:Node = use Node(i)
+        var b:Node = use Node(i)
+        a.next = b
+        b.next = a
+        a.peers.push(b)
+        i = i + 1
+    }
+    return rounds
+}
+
+// Ajoute au hub des paires qui le référencent (cycles avec un nœud vivant) ;
+// au-delà de `keep` pairs, la plus ancienne est retirée.
+function rewire(hub:Node, m:Mutex, rounds:int, tag:int, keep:int): int {
+    var i:int = 0
+    while i smaller rounds {
+        var fresh:Node = use Node(tag * 1000000 + i)
+        var buddy:Node = use Node(tag * 1000000 + i)
+        fresh.next = buddy
+        buddy.next = fresh
+        m.lock()
+        fresh.peers.push(hub)
+        hub.peers.push(fresh)
+        if hub.peers.len() greater keep {
+            Array::pop(hub.peers)
+        }
+        m.unlock()
+        i = i + 1
+    }
+    return rounds
+}
+
+// Nombre d'incohérences relevées en parcourant le hub : chaque pair et son
+// voisin portent la même valeur et se référencent mutuellement.
+function audit(hub:Node, m:Mutex, rounds:int): int {
+    var errors:int = 0
+    var i:int = 0
+    while i smaller rounds {
+        m.lock()
+        for p in hub.peers {
+            var buddy:Node|null = p.next
+            if buddy is null {
+                errors = errors + 1
+            } else {
+                var back:Node|null = buddy.next
+                if buddy.value not equal p.value or back is null {
+                    errors = errors + 1
+                }
+            }
+        }
+        m.unlock()
+        i = i + 1
+    }
+    return errors
+}
+
+function main(): int {
+    var hub:Node = use Node(-1)
+    var m:Mutex = use Mutex()
+    var errors:int = 0
+    var t1:Thread = use Thread()
+    var t2:Thread = use Thread()
+    var t3:Thread = use Thread()
+    var t4:Thread = use Thread()
+    var t5:Thread = use Thread()
+    t1.run(nameless(): void { churn(300000) })
+    t2.run(nameless(): void { churn(300000) })
+    t3.run(nameless(): void { rewire(hub, m, 50000, 1, 50) })
+    t4.run(nameless(): void { rewire(hub, m, 50000, 2, 50) })
+    t5.run(nameless(): void { errors = audit(hub, m, 2000) })
+    t1.join()
+    t2.join()
+    t3.join()
+    t4.join()
+    t5.join()
+    IO::writeln(`incohérences : ${errors}`)
+    IO::writeln(`pairs du hub : ${hub.peers.len()}`)
+    m.destroy()
+    return errors
+}

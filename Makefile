@@ -315,6 +315,7 @@ regression:
 	    ./ci/unittests.sh examples/advanced/mini_project_hexa/tests || status=1; \
 	    ./ci/doc_examples.sh || status=1; \
 	    ./ci/leak_check.sh || status=1; \
+	    ./ci/memory_bound.sh || status=1; \
 	    exit $$status; \
 	fi
 
@@ -329,6 +330,7 @@ ci:
 	@status=0; \
 	./ci/start.sh || status=1; \
 	./ci/leak_check.sh || status=1; \
+	./ci/memory_bound.sh || status=1; \
 	exit $$status
 
 # ── Outils (ocaracs + ocaraunit) ─────────────────────────────────────────────

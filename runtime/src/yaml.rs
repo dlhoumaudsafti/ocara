@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 use serde_yaml::{Value as YamlValue, Mapping as YamlMap};
-use crate::{alloc_str, ptr_to_str, get_value_type, OcaraMap};
+use crate::{alloc_str, ptr_to_str, get_value_type};
 use crate::{__array_new, __array_len, __array_get};
 use crate::__map_new;
 
@@ -104,11 +104,8 @@ fn value_to_yaml(val: i64, shape: i64) -> YamlValue {
         6 => {  // Map — même leaf_kind à travers toute la récursion.
             let child = if child == 0 { crate::rc::raw_kind(val) } else { child };
             let mut yaml_obj = YamlMap::new();
-            unsafe {
-                let map_ptr = val as *mut OcaraMap;
-                for (key_str, value) in (*map_ptr).data.iter() {
-                    yaml_obj.insert(YamlValue::String(key_str.clone()), value_to_yaml(*value, child));
-                }
+            for (key_str, value) in unsafe { crate::map_entries(val) } {
+                yaml_obj.insert(YamlValue::String(key_str), value_to_yaml(value, child));
             }
             YamlValue::Mapping(yaml_obj)
         }

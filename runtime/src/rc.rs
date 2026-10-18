@@ -5,7 +5,7 @@
 //! cellule boxée porte `[rc][bits]` avec `val = (cellule + 8) | tag`.
 
 use std::alloc::{alloc, alloc_zeroed, dealloc, Layout};
-use std::sync::atomic::{fence, AtomicBool, AtomicI64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 use crate::typecheck::{read_tag, TAG_ARRAY, TAG_CELL, TAG_ENV, TAG_EXCEPTION, TAG_FUNCTION, TAG_GEN, TAG_MAP, TAG_OBJECT, TAG_STRING_OWNED};
@@ -19,20 +19,40 @@ pub(crate) const FLAG_RAW: i64 = 1;
 const RAW_KIND_SHIFT: u32 = 1;
 const RAW_KIND_MASK: i64 = 0b11 << RAW_KIND_SHIFT;
 
-const COUNT_MASK: i64 = 0xFFFF_FFFF;
+pub(crate) const COUNT_MASK: i64 = 0xFFFF_FFFF;
 const COLOR_SHIFT: u32 = 32;
 const COLOR_MASK: i64 = 0xFF << COLOR_SHIFT;
 const BUFFERED: i64 = 1 << 40;
+/// Époque de la dernière collecte concurrente pendant laquelle le compte a
+/// changé (bits 48–55) : la valeur est vivante pour cette collecte (voir
+/// `rc_concurrent`). Une époque, pas un drapeau : rien à effacer, et une
+/// valeur touchée pendant une collecte ne passe pas pour touchée à la
+/// suivante.
+const EPOCH_SHIFT: u32 = 48;
+const EPOCH_MASK: i64 = 0xFF << EPOCH_SHIFT;
+/// Détruite (enfants rendus) alors qu'elle était dans le tampon des racines :
+/// la collecte libérera son bloc. Posé et lu avec `BUFFERED` par des
+/// opérations atomiques uniques — un seul des deux threads la libère.
+pub(crate) const DEAD: i64 = 1 << 42;
 const ROOTS_THRESHOLD: usize = 10_000;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Color { Black = 0, Gray = 1, White = 2, Purple = 3 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Kind { String, Array, Map, Object, Function, Exception, Boxed, Cell, Env, Generator }
+pub(crate) enum Kind { String, Array, Map, Object, Function, Exception, Boxed, Cell, Env, Generator }
 
 static ROOTS: Mutex<Vec<i64>> = Mutex::new(Vec::new());
+/// Une collecte est en cours (une seule à la fois).
 static COLLECTING: AtomicBool = AtomicBool::new(false);
+/// Collecte synchrone en cours : les autres threads Ocara sont garés et ne
+/// reprennent qu'après.
+static EXCLUSIVE: AtomicBool = AtomicBool::new(false);
+/// Époque de la collecte concurrente en cours (0 : aucune) : `retain`/
+/// `release` y marquent les valeurs touchées, les libérations sont différées.
+static EPOCH: AtomicI64 = AtomicI64::new(0);
+static LAST_EPOCH: AtomicI64 = AtomicI64::new(0);
+static DEFERRED: Mutex<Vec<i64>> = Mutex::new(Vec::new());
 /// Taille du tampon des racines qui déclenche une collecte : relevée quand
 /// beaucoup de racines restent vivantes, pour ne pas rebalayer sans cesse.
 static ROOTS_LIMIT: AtomicUsize = AtomicUsize::new(ROOTS_THRESHOLD);
@@ -79,11 +99,11 @@ impl Drop for Parked {
 fn resume() {
     loop {
         RUNNING.fetch_add(1, Ordering::SeqCst);
-        if !COLLECTING.load(Ordering::SeqCst) {
+        if !EXCLUSIVE.load(Ordering::SeqCst) {
             return;
         }
         RUNNING.fetch_sub(1, Ordering::SeqCst);
-        while COLLECTING.load(Ordering::SeqCst) {
+        while EXCLUSIVE.load(Ordering::SeqCst) {
             std::thread::yield_now();
         }
     }
@@ -175,7 +195,7 @@ unsafe fn object_mask<'a>(val: i64) -> &'a [u8] {
 /// marqué d'une lettre est un handle de ressource fermé avec l'objet (puis
 /// remis à zéro) ; `X`/`T` ferment l'objet builtin opaque lui-même
 /// (`Mutex`, `Thread` jamais attendu, détaché).
-unsafe fn finalize_object(val: i64) {
+pub(crate) unsafe fn finalize_object(val: i64) {
     unsafe {
         for (i, &kind) in object_mask(val).iter().enumerate() {
             let field = (val + 8 * i as i64) as *mut i64;
@@ -250,7 +270,7 @@ fn is_boxed(val: i64) -> bool {
     val >= 0x10000 && (val & 3) != 0
 }
 
-unsafe fn kind(val: i64) -> Option<Kind> {
+pub(crate) unsafe fn kind(val: i64) -> Option<Kind> {
     if is_boxed(val) {
         return Some(Kind::Boxed);
     }
@@ -268,16 +288,16 @@ unsafe fn kind(val: i64) -> Option<Kind> {
     }
 }
 
-unsafe fn word<'a>(val: i64, k: Kind) -> &'a AtomicI64 {
+pub(crate) unsafe fn word<'a>(val: i64, k: Kind) -> &'a AtomicI64 {
     let addr = if k == Kind::Boxed { (val & !3) - 8 } else { val - HEADER as i64 };
     unsafe { &*(addr as *const AtomicI64) }
 }
 
-fn can_cycle(k: Kind) -> bool {
+pub(crate) fn can_cycle(k: Kind) -> bool {
     matches!(k, Kind::Array | Kind::Map | Kind::Object | Kind::Function | Kind::Cell | Kind::Env)
 }
 
-fn count_of(w: &AtomicI64) -> i64 {
+pub(crate) fn count_of(w: &AtomicI64) -> i64 {
     w.load(Ordering::Acquire) & COUNT_MASK
 }
 
@@ -301,7 +321,7 @@ fn is_buffered(w: &AtomicI64) -> bool {
 }
 
 /// Enfants comptés d'une valeur (éléments, champs tas, message d'exception).
-unsafe fn for_each_child(val: i64, k: Kind, f: &mut dyn FnMut(i64)) {
+pub(crate) unsafe fn for_each_child(val: i64, k: Kind, f: &mut dyn FnMut(i64)) {
     unsafe {
         match k {
             Kind::Array if aux(val) & FLAG_RAW == 0 => {
@@ -330,8 +350,18 @@ unsafe fn for_each_child(val: i64, k: Kind, f: &mut dyn FnMut(i64)) {
     }
 }
 
-/// Libère la mémoire d'un bloc, sans toucher à ses enfants.
+/// Libère la mémoire d'un bloc, sans toucher à ses enfants — différée
+/// pendant une collecte concurrente, qui peut encore lire ce bloc.
 unsafe fn dealloc_block(val: i64, k: Kind) {
+    if EPOCH.load(Ordering::SeqCst) != 0 {
+        DEFERRED.lock().unwrap_or_else(|e| e.into_inner()).push(val);
+        return;
+    }
+    unsafe { dealloc_now(val, k) }
+}
+
+/// Libère tout de suite (collecteur, ou hors collecte concurrente).
+pub(crate) unsafe fn dealloc_now(val: i64, k: Kind) {
     unsafe {
         match k {
             Kind::String => crate::free_str(val),
@@ -351,10 +381,30 @@ unsafe fn dealloc_block(val: i64, k: Kind) {
     }
 }
 
+/// Pendant une collecte concurrente, marque la valeur dont le compte vient
+/// de changer. `SeqCst` (opération de compte comprise) : une opération qui
+/// ne voit pas l'époque est visible du collecteur, qui ne lit les comptes
+/// qu'après l'avoir publiée.
+fn touch(w: &AtomicI64) {
+    let epoch = EPOCH.load(Ordering::SeqCst);
+    if epoch != 0 {
+        let _ = w.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |x| {
+            Some((x & !EPOCH_MASK) | (epoch << EPOCH_SHIFT))
+        });
+    }
+}
+
+/// Le compte de `w` a changé pendant la collecte concurrente `epoch`.
+pub(crate) fn touched_in(w: &AtomicI64, epoch: i64) -> bool {
+    (w.load(Ordering::SeqCst) & EPOCH_MASK) >> EPOCH_SHIFT == epoch
+}
+
 pub(crate) unsafe fn retain(val: i64) {
     unsafe {
         if let Some(k) = kind(val) {
-            word(val, k).fetch_add(1, Ordering::Relaxed);
+            let w = word(val, k);
+            w.fetch_add(1, Ordering::SeqCst);
+            touch(w);
         }
     }
 }
@@ -362,14 +412,25 @@ pub(crate) unsafe fn retain(val: i64) {
 pub(crate) unsafe fn release(val: i64) {
     unsafe {
         let Some(k) = kind(val) else { return };
-        let w = word(val, k);
-        if w.fetch_sub(1, Ordering::Release) & COUNT_MASK == 1 {
-            fence(Ordering::Acquire);
+        if decrement(val, k, word(val, k)) {
             destroy(val, k);
-        } else if can_cycle(k) {
-            possible_root(val, w);
         }
     }
+}
+
+/// Rend une référence ; vrai si c'était la dernière. Une valeur susceptible
+/// de former un cycle et encore partagée est inscrite parmi les racines
+/// AVANT de rendre la référence : après, un autre thread peut l'avoir
+/// libérée. Un compte de 1 n'est jamais partagé (personne d'autre ne peut
+/// l'atteindre pour la retenir) ; si elle meurt quand même entre-temps,
+/// `destroy` la voit inscrite et laisse la collecte la libérer.
+unsafe fn decrement(val: i64, k: Kind, w: &AtomicI64) -> bool {
+    if can_cycle(k) && count_of(w) > 1 {
+        possible_root(val, w);
+    }
+    let previous = w.fetch_sub(1, Ordering::SeqCst);
+    touch(w);
+    previous & COUNT_MASK == 1
 }
 
 /// Compte à zéro : relâche les enfants (sans récursion), puis libère le
@@ -384,18 +445,11 @@ unsafe fn destroy(val: i64, k: Kind) {
             }
             for_each_child(x, xk, &mut |t| {
                 let Some(tk) = kind(t) else { return };
-                let tw = word(t, tk);
-                if tw.fetch_sub(1, Ordering::Release) & COUNT_MASK == 1 {
-                    fence(Ordering::Acquire);
+                if decrement(t, tk, word(t, tk)) {
                     stack.push((t, tk));
-                } else if can_cycle(tk) {
-                    possible_root(t, tw);
                 }
             });
-            let xw = word(x, xk);
-            if is_buffered(xw) {
-                set_color(xw, Color::Black);
-            } else {
+            if word(x, xk).fetch_or(DEAD, Ordering::SeqCst) & BUFFERED == 0 {
                 dealloc_block(x, xk);
             }
         }
@@ -408,44 +462,79 @@ fn possible_root(val: i64, w: &AtomicI64) {
     if previous & BUFFERED != 0 {
         return;
     }
-    let full = {
+    let pending = {
         let mut roots = ROOTS.lock().unwrap_or_else(|e| e.into_inner());
         roots.push(val);
-        roots.len() >= ROOTS_LIMIT.load(Ordering::Acquire)
+        roots.len()
     };
-    if full {
-        collect_cycles();
+    let limit = ROOTS_LIMIT.load(Ordering::Acquire);
+    if pending < limit {
+        return;
     }
+    // Contre-pression : les autres threads produisent des racines pendant
+    // une collecte concurrente ; au-delà de 4 fois le seuil, attendre sa fin
+    // borne la mémoire au rythme du collecteur.
+    if pending >= limit * 4 && !IN_COLLECTOR.with(|c| c.get()) {
+        while COLLECTING.load(Ordering::SeqCst) {
+            std::thread::yield_now();
+        }
+    }
+    collect_cycles();
 }
 
-/// Collecte synchrone des cycles quand le thread courant est le seul en
-/// cours (les autres sont garés et ne peuvent reprendre qu'après) ; sinon
-/// seulement le balayage des racines mortes (marquer pendant qu'un autre
-/// thread modifie des comptes serait faux). Sans effet si une collecte est
-/// déjà en cours.
+thread_local! {
+    /// Le thread courant exécute une collecte : ses propres `release` ne
+    /// l'attendent jamais.
+    static IN_COLLECTOR: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Collecte des cycles, une seule à la fois. Thread courant seul en cours :
+/// collecte synchrone (les autres sont garés et attendent `EXCLUSIVE`) ;
+/// sinon collecte concurrente (`rc_concurrent`), les autres threads
+/// continuent.
 pub(crate) fn collect_cycles() {
     if COLLECTING.swap(true, Ordering::SeqCst) {
         return;
     }
-    if RUNNING.load(Ordering::SeqCst) != 1 {
-        sweep_dead_roots();
-        COLLECTING.store(false, Ordering::SeqCst);
-        return;
+    IN_COLLECTOR.with(|c| c.set(true));
+    EXCLUSIVE.store(true, Ordering::SeqCst);
+    if RUNNING.load(Ordering::SeqCst) == 1 {
+        unsafe { collect_exclusive() }
+        EXCLUSIVE.store(false, Ordering::SeqCst);
+    } else {
+        EXCLUSIVE.store(false, Ordering::SeqCst);
+        collect_concurrent();
     }
-    let roots = std::mem::take(&mut *ROOTS.lock().unwrap_or_else(|e| e.into_inner()));
+    IN_COLLECTOR.with(|c| c.set(false));
+    COLLECTING.store(false, Ordering::SeqCst);
+}
+
+fn take_roots() -> Vec<i64> {
+    std::mem::take(&mut *ROOTS.lock().unwrap_or_else(|e| e.into_inner()))
+}
+
+/// Retire `val` du tampon des racines ; la libère si elle a été détruite
+/// pendant qu'elle y était (voir `DEAD`).
+pub(crate) unsafe fn unbuffer(val: i64, k: Kind) {
+    unsafe {
+        if word(val, k).fetch_and(!BUFFERED, Ordering::SeqCst) & DEAD != 0 {
+            dealloc_now(val, k);
+        }
+    }
+}
+/// Suppression d'essai (Bacon–Rajan) : modifie les comptes, donc réservée au
+/// thread seul en cours.
+unsafe fn collect_exclusive() {
     unsafe {
         let mut kept = Vec::new();
-        for s in roots {
+        for s in take_roots() {
             let Some(k) = kind(s) else { continue };
             let w = word(s, k);
             if color_of(w) == Color::Purple && count_of(w) > 0 {
                 mark_gray(s, k);
                 kept.push((s, k));
             } else {
-                w.fetch_and(!BUFFERED, Ordering::AcqRel);
-                if color_of(w) == Color::Black && count_of(w) == 0 {
-                    dealloc_block(s, k);
-                }
+                unbuffer(s, k);
             }
         }
         for &(s, k) in &kept {
@@ -459,31 +548,30 @@ pub(crate) fn collect_cycles() {
         }
     }
     ROOTS_LIMIT.store(ROOTS_THRESHOLD, Ordering::Release);
-    COLLECTING.store(false, Ordering::SeqCst);
 }
 
-/// Libère les racines mortes : compte à zéro et couleur noire, posée par
-/// `destroy` une fois ses enfants relâchés — plus rien ne peut les atteindre,
-/// même depuis un autre thread. Les racines vivantes restent en attente.
-fn sweep_dead_roots() {
-    let roots = std::mem::take(&mut *ROOTS.lock().unwrap_or_else(|e| e.into_inner()));
-    let mut alive = Vec::with_capacity(roots.len());
-    unsafe {
-        for s in roots {
-            let Some(k) = kind(s) else { continue };
-            let w = word(s, k);
-            if count_of(w) == 0 && color_of(w) == Color::Black {
-                dealloc_block(s, k);
-            } else {
-                alive.push(s);
-            }
+/// Collecte pendant que d'autres threads Ocara modifient des comptes :
+/// libérations différées pendant l'époque de collecte, racines touchées
+/// remises dans le tampon.
+fn collect_concurrent() {
+    let epoch = LAST_EPOCH.load(Ordering::Relaxed) % 255 + 1;
+    LAST_EPOCH.store(epoch, Ordering::Relaxed);
+    EPOCH.store(epoch, Ordering::SeqCst);
+    let kept = unsafe { crate::rc_concurrent::collect(take_roots(), epoch) };
+    EPOCH.store(0, Ordering::SeqCst);
+    let deferred = std::mem::take(&mut *DEFERRED.lock().unwrap_or_else(|e| e.into_inner()));
+    for val in deferred {
+        if let Some(k) = unsafe { kind(val) } {
+            unsafe { dealloc_now(val, k) }
         }
     }
-    ROOTS_LIMIT.store((alive.len() * 2).max(ROOTS_THRESHOLD), Ordering::Release);
-    ROOTS.lock().unwrap_or_else(|e| e.into_inner()).extend(alive);
+    // Seuil relevé par les seules racines remises (encore vivantes), pas par
+    // celles arrivées pendant la collecte.
+    ROOTS_LIMIT.store((kept.len() * 2).max(ROOTS_THRESHOLD), Ordering::Release);
+    ROOTS.lock().unwrap_or_else(|e| e.into_inner()).extend(kept);
 }
 
-unsafe fn cyclic_children(val: i64, k: Kind) -> Vec<(i64, Kind)> {
+pub(crate) unsafe fn cyclic_children(val: i64, k: Kind) -> Vec<(i64, Kind)> {
     let mut out = Vec::new();
     unsafe {
         for_each_child(val, k, &mut |t| {

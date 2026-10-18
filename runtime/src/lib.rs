@@ -23,6 +23,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 use std::alloc::{alloc_zeroed, dealloc, Layout};
+use crate::containers::{with_array, with_map, OcaraArray, OcaraMap};
 use crate::typecheck::{TAG_STRING_OWNED, TAG_ARRAY, TAG_MAP, TAG_FUNCTION,
     __is_function, __is_object, __is_map, __is_array, __is_string};
 use std::io::{self, BufRead};
@@ -125,6 +126,8 @@ pub mod rc;
 pub mod profile;
 pub mod leak;
 pub mod global_const;
+pub(crate) mod containers;
+pub(crate) mod rc_concurrent;
 // Tauri vit dans le crate séparé runtime_tauri (voir sa doc) : pas de `mod tauri`
 // ici, pour que ce code (et sa dépendance GTK/WebKit) n'existe dans le binaire
 // final QUE pour les programmes qui importent réellement ocara.Tauri.
@@ -322,21 +325,10 @@ fn fmt_val(val: i64) -> String {
 // Structures heap
 // ─────────────────────────────────────────────────────────────────────────────
 
-struct OcaraArray {
-    data: Vec<i64>,
-}
-
-struct OcaraMap {
-    /// Les clés sont stockées comme strings (pointeur i64 → contenu) pour
-    /// permettre la comparaison par valeur lors des lookups.
-    /// On stocke les paires (clé_str, valeur) pour pouvoir itérer.
-    data: Vec<(String, i64)>,
-}
-
 fn new_array() -> i64 {
     unsafe {
         let val = rc::alloc_block(std::mem::size_of::<OcaraArray>(), 0, TAG_ARRAY, false);
-        std::ptr::write(val as *mut OcaraArray, OcaraArray { data: Vec::new() });
+        std::ptr::write(val as *mut OcaraArray, OcaraArray::new(Vec::new()));
         val
     }
 }
@@ -371,7 +363,7 @@ fn array_sharing(src: i64, vals: Vec<i64>) -> i64 {
     } else {
         for &v in &vals { unsafe { rc::retain(v) } }
     }
-    unsafe { array_ref(dst).data = vals; }
+    unsafe { with_array(dst, |data| *data = vals) }
     dst
 }
 
@@ -379,7 +371,7 @@ fn array_sharing(src: i64, vals: Vec<i64>) -> i64 {
 /// runtime) : transférée au tableau, sans retenue.
 pub(crate) fn array_push_owned(ptr: i64, val: i64) {
     if ptr == 0 { return; }
-    unsafe { array_ref(ptr).data.push(val); }
+    unsafe { with_array(ptr, |data| data.push(val)) }
 }
 
 #[unsafe(no_mangle)]
@@ -392,17 +384,17 @@ pub extern "C" fn __array_push(ptr: i64, val: i64) {
 pub(crate) fn new_map() -> i64 {
     unsafe {
         let val = rc::alloc_block(std::mem::size_of::<OcaraMap>(), 0, TAG_MAP, false);
-        std::ptr::write(val as *mut OcaraMap, OcaraMap { data: Vec::new() });
+        std::ptr::write(val as *mut OcaraMap, OcaraMap::new());
         val
     }
 }
 
 pub(crate) unsafe fn array_data(ptr: i64) -> Vec<i64> {
-    unsafe { array_ref(ptr).data.clone() }
+    unsafe { with_array(ptr, |data| data.clone()) }
 }
 
 pub(crate) unsafe fn map_values(ptr: i64) -> Vec<i64> {
-    unsafe { map_ref(ptr).data.iter().map(|(_, v)| *v).collect() }
+    unsafe { with_map(ptr, |data| data.iter().map(|(_, v)| *v).collect()) }
 }
 
 pub(crate) unsafe fn drop_array_block(ptr: i64) {
@@ -419,13 +411,6 @@ pub(crate) unsafe fn drop_map_block(ptr: i64) {
     }
 }
 
-unsafe fn array_ref(ptr: i64) -> &'static mut OcaraArray {
-    unsafe { &mut *(ptr as *mut OcaraArray) }
-}
-
-unsafe fn map_ref(ptr: i64) -> &'static mut OcaraMap {
-    unsafe { &mut *(ptr as *mut OcaraMap) }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // I/O de base — write / read
@@ -522,9 +507,7 @@ pub extern "C" fn __array_to_str(ptr: i64) -> i64 {
     if ptr == 0 {
         return unsafe { alloc_str("[]") };
     }
-    let parts: Vec<String> = unsafe {
-        array_ref(ptr).data.iter().map(|&v| fmt_val(v)).collect()
-    };
+    let parts: Vec<String> = unsafe { array_data(ptr) }.iter().map(|&v| fmt_val(v)).collect();
     let r = format!("[{}]", parts.join(", "));
     unsafe { alloc_str(&r) }
 }
@@ -623,44 +606,36 @@ pub extern "C" fn ocara_read() -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn __range(lo: i64, hi: i64) -> i64 {
     let ptr = rc::__rc_mark_raw(new_array());
-    unsafe {
-        let arr = array_ref(ptr);
-        for i in lo..hi {
-            arr.data.push(i);
-        }
-    }
+    unsafe { with_array(ptr, |data| data.extend(lo..hi)) }
     ptr
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn __array_len(ptr: i64) -> i64 {
     if ptr == 0 { return 0; }
-    unsafe { array_ref(ptr).data.len() as i64 }
+    unsafe { with_array(ptr, |data| data.len() as i64) }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn __array_get(ptr: i64, idx: i64) -> i64 {
     if ptr == 0 { return 0; }
-    unsafe {
-        let arr = array_ref(ptr);
-        let i = idx as usize;
-        if i < arr.data.len() { arr.data[i] } else { 0 }
-    }
+    unsafe { with_array(ptr, |data| data.get(idx as usize).copied().unwrap_or(0)) }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn __array_set(ptr: i64, idx: i64, val: i64) {
     if ptr == 0 { return; }
-    unsafe {
-        let arr = array_ref(ptr);
-        let i = idx as usize;
-        while arr.data.len() <= i {
-            arr.data.push(0);
-        }
-        retain_elem(ptr, val);
-        let old = std::mem::replace(&mut arr.data[i], val);
-        release_elem(ptr, old);
-    }
+    let i = idx as usize;
+    retain_elem(ptr, val);
+    let old = unsafe {
+        with_array(ptr, |data| {
+            if data.len() <= i {
+                data.resize(i + 1, 0);
+            }
+            std::mem::replace(&mut data[i], val)
+        })
+    };
+    release_elem(ptr, old);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -718,15 +693,18 @@ pub fn map_set_owned_key(ptr: i64, key: i64, val: i64) {
 /// Range `val` sous `key` sans le retenir ; l'ancienne valeur est relâchée.
 fn map_put(ptr: i64, key: i64, val: i64) {
     if ptr == 0 { return; }
-    unsafe {
-        let k = key_to_string(key);
-        let m = map_ref(ptr);
-        if let Some(entry) = m.data.iter_mut().find(|e| e.0 == k) {
-            let old = std::mem::replace(&mut entry.1, val);
-            release_elem(ptr, old);
-            return;
-        }
-        m.data.push((k, val));
+    let k = unsafe { key_to_string(key) };
+    let old = unsafe {
+        with_map(ptr, |data| match data.iter_mut().find(|e| e.0 == k) {
+            Some(entry) => Some(std::mem::replace(&mut entry.1, val)),
+            None => {
+                data.push((k, val));
+                None
+            }
+        })
+    };
+    if let Some(old) = old {
+        release_elem(ptr, old);
     }
 }
 
@@ -741,27 +719,22 @@ pub extern "C" fn __map_set(ptr: i64, key: i64, val: i64) {
 /// la clé ; `0` si absente. `pub` : utilisé par runtime_sdl/runtime_tauri.
 pub fn map_lookup(ptr: i64, key: &str) -> i64 {
     if ptr == 0 { return 0; }
-    unsafe { map_ref(ptr).data.iter().find(|e| e.0 == key).map_or(0, |e| e.1) }
+    unsafe { with_map(ptr, |data| data.iter().find(|e| e.0 == key).map_or(0, |e| e.1)) }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn __map_get(ptr: i64, key: i64) -> i64 {
     if ptr == 0 { return 0; }
-    unsafe {
-        let k = key_to_string(key);
-        for entry in &map_ref(ptr).data {
-            if entry.0 == k { return entry.1; }
-        }
-        0
-    }
+    let k = unsafe { key_to_string(key) };
+    map_lookup(ptr, &k)
 }
 
 /// Copie les paires (clé, valeur `mixed` brute) d'une `map<string, mixed>` —
 /// pour un appelant hors de ce fichier (ex. `sqlite::bind`) qui doit itérer
-/// tout le contenu sans exposer `OcaraMap`/`map_ref` eux-mêmes.
+/// tout le contenu sans exposer `OcaraMap` lui-même.
 pub(crate) unsafe fn map_entries(ptr: i64) -> Vec<(String, i64)> {
     if ptr == 0 { return Vec::new(); }
-    unsafe { map_ref(ptr).data.clone() }
+    unsafe { with_map(ptr, |data| data.clone()) }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -937,12 +910,8 @@ pub extern "C" fn String_split(s: i64, sep: i64) -> i64 {
     let src   = unsafe { ptr_to_str(s).to_string() };
     let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep).to_string() } } else { " ".to_string() };
     let ptr = new_array();
-    unsafe {
-        let arr = array_ref(ptr);
-        for part in src.split(sep_s.as_str()) {
-            arr.data.push(alloc_str(part));
-        }
-    }
+    let parts: Vec<i64> = src.split(sep_s.as_str()).map(|part| unsafe { alloc_str(part) }).collect();
+    unsafe { with_array(ptr, |data| *data = parts) }
     ptr
 }
 
@@ -1086,16 +1055,11 @@ pub extern "C" fn Array_pop(ptr: i64) -> i64 {
             );
         }
     }
-    unsafe {
-        let arr = array_ref(ptr);
-        if arr.data.is_empty() {
-            exception::throw_array_exception(
-                "Cannot pop from empty array",
-                ERR_ARRAY_EMPTY,
-                "Array"
-            );
-        }
-        arr.data.pop().unwrap()
+    match unsafe { with_array(ptr, |data| data.pop()) } {
+        Some(v) => v,
+        None => unsafe {
+            exception::throw_array_exception("Cannot pop from empty array", ERR_ARRAY_EMPTY, "Array")
+        },
     }
 }
 
@@ -1110,16 +1074,11 @@ pub extern "C" fn Array_first(ptr: i64) -> i64 {
             );
         }
     }
-    unsafe {
-        let arr = array_ref(ptr);
-        if arr.data.is_empty() {
-            exception::throw_array_exception(
-                "Cannot get first element from empty array",
-                ERR_ARRAY_EMPTY,
-                "Array"
-            );
-        }
-        *arr.data.first().unwrap()
+    match unsafe { with_array(ptr, |data| data.first().copied()) } {
+        Some(v) => v,
+        None => unsafe {
+            exception::throw_array_exception("Cannot get first element from empty array", ERR_ARRAY_EMPTY, "Array")
+        },
     }
 }
 
@@ -1134,37 +1093,30 @@ pub extern "C" fn Array_last(ptr: i64) -> i64 {
             );
         }
     }
-    unsafe {
-        let arr = array_ref(ptr);
-        if arr.data.is_empty() {
-            exception::throw_array_exception(
-                "Cannot get last element from empty array",
-                ERR_ARRAY_EMPTY,
-                "Array"
-            );
-        }
-        *arr.data.last().unwrap()
+    match unsafe { with_array(ptr, |data| data.last().copied()) } {
+        Some(v) => v,
+        None => unsafe {
+            exception::throw_array_exception("Cannot get last element from empty array", ERR_ARRAY_EMPTY, "Array")
+        },
     }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn Array_contains(ptr: i64, val: i64) -> i64 {
     if ptr == 0 { return 0; }
-    if unsafe { array_ref(ptr).data.contains(&val) } { 1 } else { 0 }
+    if unsafe { with_array(ptr, |data| data.contains(&val)) } { 1 } else { 0 }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn Array_indexOf(ptr: i64, val: i64) -> i64 {
     if ptr == 0 { return -1; }
-    unsafe {
-        array_ref(ptr).data.iter().position(|&x| x == val).map(|i| i as i64).unwrap_or(-1)
-    }
+    unsafe { with_array(ptr, |data| data.iter().position(|&x| x == val).map_or(-1, |i| i as i64)) }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn Array_reverse(ptr: i64) -> i64 {
     if ptr == 0 { return new_array(); }
-    let vals = unsafe { array_ref(ptr).data.iter().rev().copied().collect() };
+    let vals = unsafe { with_array(ptr, |data| data.iter().rev().copied().collect()) };
     array_sharing(ptr, vals)
 }
 
@@ -1172,10 +1124,11 @@ pub extern "C" fn Array_reverse(ptr: i64) -> i64 {
 pub extern "C" fn Array_slice(ptr: i64, from: i64, to: i64) -> i64 {
     if ptr == 0 { return new_array(); }
     let vals = unsafe {
-        let src = &array_ref(ptr).data;
-        let lo = (from as usize).min(src.len());
-        let hi = (to as usize).min(src.len());
-        src[lo..hi].to_vec()
+        with_array(ptr, |data| {
+            let lo = (from as usize).min(data.len());
+            let hi = (to as usize).min(data.len()).max(lo);
+            data[lo..hi].to_vec()
+        })
     };
     array_sharing(ptr, vals)
 }
@@ -1184,9 +1137,7 @@ pub extern "C" fn Array_slice(ptr: i64, from: i64, to: i64) -> i64 {
 pub extern "C" fn Array_join(ptr: i64, sep: i64) -> i64 {
     if ptr == 0 { return unsafe { alloc_str("") }; }
     let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep).to_string() } } else { "".to_string() };
-    let parts: Vec<String> = unsafe {
-        array_ref(ptr).data.iter().map(|&v| fmt_val(v)).collect()
-    };
+    let parts: Vec<String> = unsafe { array_data(ptr) }.iter().map(|&v| fmt_val(v)).collect();
     let r = parts.join(&sep_s);
     unsafe { alloc_str(&r) }
 }
@@ -1194,7 +1145,7 @@ pub extern "C" fn Array_join(ptr: i64, sep: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn Array_sort(ptr: i64) -> i64 {
     if ptr == 0 { return new_array(); }
-    let mut vals = unsafe { array_ref(ptr).data.clone() };
+    let mut vals = unsafe { array_data(ptr) };
     vals.sort();
     array_sharing(ptr, vals)
 }
@@ -1221,16 +1172,14 @@ const ERR_MAP_KEY_NOT_FOUND: i64 = 101;
 #[unsafe(no_mangle)]
 pub extern "C" fn Map_size(ptr: i64) -> i64 {
     if ptr == 0 { return 0; }
-    unsafe { map_ref(ptr).data.len() as i64 }
+    unsafe { with_map(ptr, |data| data.len() as i64) }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn Map_has(ptr: i64, key: i64) -> i64 {
     if ptr == 0 { return 0; }
-    unsafe {
-        let k = key_to_string(key);
-        if map_ref(ptr).data.iter().any(|e| e.0 == k) { 1 } else { 0 }
-    }
+    let k = unsafe { key_to_string(key) };
+    if unsafe { with_map(ptr, |data| data.iter().any(|e| e.0 == k)) } { 1 } else { 0 }
 }
 
 #[unsafe(no_mangle)]
@@ -1245,19 +1194,12 @@ pub extern "C" fn Map_get(ptr: i64, key: i64) -> i64 {
             );
         }
     }
-    unsafe {
-        let k = key_to_string(key);
-        let map = map_ref(ptr);
-        match map.data.iter().find(|e| e.0 == k) {
-            Some((_, v)) => *v,
-            None => {
-                exception::throw_map_exception(
-                    &format!("Key not found: {}", k),
-                    ERR_MAP_KEY_NOT_FOUND,
-                    "Map"
-                );
-            }
-        }
+    let k = unsafe { key_to_string(key) };
+    match unsafe { with_map(ptr, |data| data.iter().find(|e| e.0 == k).map(|e| e.1)) } {
+        Some(v) => v,
+        None => unsafe {
+            exception::throw_map_exception(&format!("Key not found: {}", k), ERR_MAP_KEY_NOT_FOUND, "Map")
+        },
     }
 }
 
@@ -1269,13 +1211,15 @@ pub extern "C" fn Map_set(ptr: i64, key: i64, val: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn Map_remove(ptr: i64, key: i64) {
     if ptr == 0 { return; }
-    unsafe {
-        let k = key_to_string(key);
-        let m = map_ref(ptr);
-        let removed: Vec<i64> = m.data.iter().filter(|e| e.0 == k).map(|e| e.1).collect();
-        m.data.retain(|e| e.0 != k);
-        for v in removed { release_elem(ptr, v) }
-    }
+    let k = unsafe { key_to_string(key) };
+    let removed: Vec<i64> = unsafe {
+        with_map(ptr, |data| {
+            let removed = data.iter().filter(|e| e.0 == k).map(|e| e.1).collect();
+            data.retain(|e| e.0 != k);
+            removed
+        })
+    };
+    for v in removed { release_elem(ptr, v) }
 }
 
 #[unsafe(no_mangle)]
@@ -1287,13 +1231,10 @@ pub extern "C" fn Map_keys(ptr: i64, kind: i64) -> i64 {
         crate::rc::__rc_mark_raw_kind(arr_ptr, kind);
     }
     if ptr == 0 { return arr_ptr; }
-    unsafe {
-        // Les clés sont stockées en string — converties au type `K`.
-        let keys: Vec<i64> = map_ref(ptr).data.iter()
-            .map(|(k, _)| key_from_text(k, kind))
-            .collect();
-        array_ref(arr_ptr).data = keys;
-    }
+    // Les clés sont stockées en texte — converties au type `K`.
+    let texts: Vec<String> = unsafe { with_map(ptr, |data| data.iter().map(|(k, _)| k.clone()).collect()) };
+    let keys: Vec<i64> = texts.iter().map(|k| key_from_text(k, kind)).collect();
+    unsafe { with_array(arr_ptr, |data| *data = keys) }
     arr_ptr
 }
 
@@ -1307,20 +1248,10 @@ pub extern "C" fn Map_values(ptr: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn Map_merge(a: i64, b: i64) -> i64 {
     let new_ptr = new_map();
-    if a != 0 {
-        unsafe {
-            for (k, v) in &map_ref(a).data {
-                retain_elem(a, *v);
-                map_set_owned_key(new_ptr, alloc_str(k), *v);
-            }
-        }
-    }
-    if b != 0 {
-        unsafe {
-            for (k, v) in &map_ref(b).data {
-                retain_elem(b, *v);
-                map_set_owned_key(new_ptr, alloc_str(k), *v);
-            }
+    for src in [a, b] {
+        for (k, v) in unsafe { map_entries(src) } {
+            retain_elem(src, v);
+            map_set_owned_key(new_ptr, unsafe { alloc_str(&k) }, v);
         }
     }
     new_ptr
@@ -1329,7 +1260,7 @@ pub extern "C" fn Map_merge(a: i64, b: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn Map_isEmpty(ptr: i64) -> i64 {
     if ptr == 0 { return 1; }
-    if unsafe { map_ref(ptr).data.is_empty() } { 1 } else { 0 }
+    if unsafe { with_map(ptr, |data| data.is_empty()) } { 1 } else { 0 }
 }
 
 /// Map::forEach(m, callback) → void
@@ -1350,7 +1281,7 @@ pub extern "C" fn Map_forEach(ptr: i64, callback: i64, shape: i64) {
     // Copie des entrées avant d'itérer : le callback pourrait modifier la map
     // (Map::set/remove) pendant l'itération, ce qui invaliderait une référence
     // directe vers `data`.
-    let entries: Vec<(String, i64)> = unsafe { map_ref(ptr).data.clone() };
+    let entries: Vec<(String, i64)> = unsafe { map_entries(ptr) };
     for (_, v) in &entries { retain_elem(ptr, *v) }
     let leaf_kind = if shape >> 8 == 1 { shape & 0xff } else { rc::raw_kind(ptr) };
     for (k, v) in &entries {
@@ -1519,8 +1450,7 @@ pub extern "C" fn Convert_arrayToMap(ptr: i64, kv: i64) -> i64 {
     let kv_s = if is_ptr(kv) { unsafe { ptr_to_str(kv).to_string() } } else { "=".to_string() };
     let map_ptr = new_map();
     unsafe {
-        let arr = array_ref(ptr);
-        for &elem in &arr.data {
+        for elem in array_data(ptr) {
             if is_ptr(elem) {
                 let s = ptr_to_str(elem).to_string();
                 if let Some(pos) = s.find(kv_s.as_str()) {
@@ -1538,11 +1468,9 @@ pub extern "C" fn Convert_mapToStr(ptr: i64, sep: i64, kv: i64) -> i64 {
     if ptr == 0 { return unsafe { alloc_str("") }; }
     let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep).to_string() } } else { ",".to_string() };
     let kv_s  = if is_ptr(kv)  { unsafe { ptr_to_str(kv).to_string() }  } else { "=".to_string() };
-    let parts: Vec<String> = unsafe {
-        map_ref(ptr).data.iter()
-            .map(|(k, v)| format!("{}{}{}", k, kv_s, fmt_val(*v)))
-            .collect()
-    };
+    let parts: Vec<String> = unsafe { map_entries(ptr) }.iter()
+        .map(|(k, v)| format!("{}{}{}", k, kv_s, fmt_val(*v)))
+        .collect();
     let r = parts.join(&sep_s);
     unsafe { alloc_str(&r) }
 }
@@ -1685,12 +1613,8 @@ pub extern "C" fn System_pid() -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn System_args() -> i64 {
     let ptr = new_array();
-    unsafe {
-        let arr = array_ref(ptr);
-        for arg in std::env::args() {
-            arr.data.push(alloc_str(&arg));
-        }
-    }
+    let args: Vec<i64> = std::env::args().map(|arg| unsafe { alloc_str(&arg) }).collect();
+    unsafe { with_array(ptr, |data| *data = args) }
     ptr
 }
 
@@ -3540,11 +3464,8 @@ fn value_to_json(val: i64, shape: i64) -> JsonValue {
         6 => {  // Map — même leaf_kind à travers toute la récursion.
             let child = if child == 0 { rc::raw_kind(val) } else { child };
             let mut json_obj = JsonMap::new();
-            unsafe {
-                let map_ptr = val as *mut OcaraMap;
-                for (key_str, value) in (*map_ptr).data.iter() {
-                    json_obj.insert(key_str.clone(), value_to_json(*value, child));
-                }
+            for (key_str, value) in unsafe { map_entries(val) } {
+                json_obj.insert(key_str, value_to_json(value, child));
             }
             JsonValue::Object(json_obj)
         }
