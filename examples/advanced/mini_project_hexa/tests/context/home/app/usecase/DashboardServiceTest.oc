@@ -1,24 +1,33 @@
 import ocara.UnitTest
 import context.home.app.dto.DashboardDto
 import context.home.app.usecase.DashboardService
-import tests.support.Fixture
+import tests.support.fake.FakeDatabase
 
-// La base peut contenir d'autres voitures : on vérifie l'écart produit par
-// les voitures de test, pas des totaux absolus.
+// Base en mémoire, vide à chaque test : totaux exacts.
 class DashboardServiceTest extends UnitTest {
+    wiring tests.support.fake.FakeCarSummaryRepository
 
     public method buildTest(): int {
-        Fixture::reset()
-        const before:DashboardDto = DashboardService::build()
-        Fixture::car("DASH1", "Peugeot", "308", 12000.0)
-        const id:int = Fixture::car("DASH2", "Renault", "Clio", 8000.0)
-        Fixture::maintenance(id, "maintenance", "Vidange", 80.0)
-        const after:DashboardDto = DashboardService::build()
+        FakeDatabase::reset()
+        FakeDatabase::car("DASH1", "Peugeot", "308", 12000.0)
+        const id:int = FakeDatabase::car("DASH2", "Renault", "Clio", 8000.0)
+        FakeDatabase::maintenance(id, "maintenance", "Vidange", 80.0)
+        const dashboard:DashboardDto = DashboardService::build()
 
-        self::assertEquals(before.cars.len() + 2, after.cars.len())
-        self::assertEquals(20000.0, after.total_purchase_value - before.total_purchase_value)
-        self::assertEquals(20000.0, after.total_estimated_value - before.total_estimated_value)
-        Fixture::cleanup()
+        self::assertEquals(2, dashboard.cars.len())
+        self::assertEquals("TEST-OCUNIT-DASH2", dashboard.cars[0].reference)
+        self::assertEquals(80.0, dashboard.cars[0].maintenanceTotal)
+        self::assertEquals(20000.0, dashboard.total_purchase_value)
+        self::assertEquals(20000.0, dashboard.total_estimated_value)
+        FakeDatabase::cleanup()
+        return 0
+    }
+
+    public method buildEmptyTest(): int {
+        FakeDatabase::reset()
+        const dashboard:DashboardDto = DashboardService::build()
+        self::assertEquals(0, dashboard.cars.len())
+        self::assertEquals(0.0, dashboard.total_purchase_value)
         return 0
     }
 }

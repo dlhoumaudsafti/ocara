@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use crate::core::alias_resolve::{compute_aliases, resolve_aliases};
 use crate::core::diagnostics::Diagnostic;
 use crate::core::runtime_expand::update_program_spans_with_file;
-use crate::parsing::ast::{ClassDecl, ImportDecl, InterfaceDecl, Program};
+use crate::parsing::ast::{ClassDecl, ImportDecl, InterfaceDecl, Program, WiringDecl};
 use crate::parsing::{lexer::Lexer, parser::Parser};
 
 /// Les modules `ocara.*` sont livrés avec le runtime.
@@ -32,14 +32,14 @@ type Pending = Vec<(ImportDecl, PathBuf, Option<String>)>;
 /// vient d'être chargé (`local_pool`) est rapatriée directement : il n'y a
 /// pas de fichier séparé à charger.
 fn enqueue_wiring_imports(
-    iface: &InterfaceDecl,
+    wirings: &[WiringDecl],
     parent_dir: &Path,
     parent_namespace: &Option<String>,
     imports_to_process: &mut Pending,
     program_classes: &mut Vec<ClassDecl>,
     local_pool: &[ClassDecl],
 ) {
-    for w in &iface.wirings {
+    for w in wirings {
         let target = w.simple_name();
         if program_classes.iter().any(|c| c.name == target) {
             continue;
@@ -172,8 +172,12 @@ pub fn load_imports(
     }
     let interfaces = program.interfaces.clone();
     for iface in &interfaces {
-        enqueue_wiring_imports(iface, source_dir, &main_namespace, &mut imports_to_process, &mut program.classes, &[]);
+        enqueue_wiring_imports(&iface.wirings, source_dir, &main_namespace, &mut imports_to_process, &mut program.classes, &[]);
     }
+    // `wiring` d'une classe de test : import implicite, comme pour une
+    // interface (voir core::test_wiring).
+    let test_wirings = crate::core::test_wiring::targets(program);
+    enqueue_wiring_imports(&test_wirings, source_dir, &main_namespace, &mut imports_to_process, &mut program.classes, &[]);
 
     while !imports_to_process.is_empty() {
         let (imp, parent_dir, parent_namespace) = imports_to_process.remove(0);
@@ -210,10 +214,11 @@ pub fn load_imports(
         let mod_file_aliases = compute_aliases(&mod_prog.imports, all_interfaces, &file_path)?;
         resolve_aliases(&mut mod_prog, &mod_file_aliases);
         homonyms.apply(&mut mod_prog, &file_path);
+        crate::core::test_wiring::check_imported(&mod_prog, &file_path)?;
 
         if is_wildcard {
             for iface in &mod_prog.interfaces {
-                enqueue_wiring_imports(iface, &current_file_dir, &loaded_namespace, &mut imports_to_process, &mut program.classes, &mod_prog.classes);
+                enqueue_wiring_imports(&iface.wirings, &current_file_dir, &loaded_namespace, &mut imports_to_process, &mut program.classes, &mod_prog.classes);
             }
             program.classes.extend(mod_prog.classes);
             program.interfaces.extend(mod_prog.interfaces);
@@ -279,7 +284,7 @@ fn merge_requested(
     } else if let Some(generic_item) = mod_prog.generics.iter().find(|g| g.name == requested_name).cloned() {
         program.generics.push(generic_item);
     } else if let Some(iface) = mod_prog.interfaces.iter().find(|i| i.name == requested_name).cloned() {
-        enqueue_wiring_imports(&iface, current_file_dir, loaded_namespace, imports_to_process, &mut program.classes, &mod_prog.classes);
+        enqueue_wiring_imports(&iface.wirings, current_file_dir, loaded_namespace, imports_to_process, &mut program.classes, &mod_prog.classes);
         program.interfaces.push(iface);
     } else if let Some(module) = mod_prog.modules.iter().find(|m| m.name == requested_name).cloned() {
         program.modules.push(module);
@@ -323,7 +328,7 @@ fn merge_class_with_deps(
             continue;
         }
         if let Some(iface) = mod_prog.interfaces.iter().find(|i| &i.name == iface_name).cloned() {
-            enqueue_wiring_imports(&iface, current_file_dir, loaded_namespace, imports_to_process, &mut program.classes, &mod_prog.classes);
+            enqueue_wiring_imports(&iface.wirings, current_file_dir, loaded_namespace, imports_to_process, &mut program.classes, &mod_prog.classes);
             program.interfaces.push(iface);
         }
     }

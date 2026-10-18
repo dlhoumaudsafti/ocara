@@ -478,6 +478,30 @@ class MathTest extends UnitTest {
 }
 ```
 
+### Remplacer une implémentation (`wiring`)
+
+Une classe de test peut déclarer des `wiring`, comme une interface. Pour toute la compilation du test, la classe visée remplace l'implémentation des interfaces qu'elle `implements`. Un cas d'usage qui appelle `CarContract::find(id)` reçoit alors le faux dépôt, sans modification du code de production (voir [EBNF §17.2](../EBNF.md#172-wiring-dans-une-classe-de-test--remplacer-une-implémentation)).
+
+```ocara
+import ocara.UnitTest
+import context.car.app.usecase.CarDetailsService
+import tests.support.fake.FakeDatabase
+
+class CarDetailsServiceTest extends UnitTest {
+    wiring tests.support.fake.FakeCarRepository          // implements CarContract
+    wiring tests.support.fake.FakeMaintenanceRepository  // implements MaintenanceContract
+
+    public method buildTest(): int {
+        FakeDatabase::reset()
+        const car_id:int = FakeDatabase::car("DETAILS", "Peugeot", "308", 12000.0)
+        self::assertNotNull(CarDetailsService::build(car_id))
+        return 0
+    }
+}
+```
+
+Réservé aux tests : la classe doit `extends UnitTest`, dans le fichier de test compilé (`*Test.oc`). Un fichier importé ne peut pas en déclarer. Le `wiring` vaut import implicite de la classe visée.
+
 ---
 
 ## Exceptions

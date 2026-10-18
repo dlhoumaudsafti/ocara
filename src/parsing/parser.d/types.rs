@@ -48,10 +48,13 @@ pub struct Parser {
     /// Lecture d'une clé de littéral map : le `:` qui suit `obj.champ` sépare
     /// la clé de la valeur, ce n'est pas une annotation de type.
     pub(super) in_map_key: bool,
+    /// `wiring <chemin>` lus dans le corps de classe en cours — repris par
+    /// `parse_class` (classe de test, voir `core::test_wiring`).
+    pub(super) class_wirings: Vec<crate::parsing::ast::WiringDecl>,
 }
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, pos: 0, property_initializers: Vec::new(), type_refs: Vec::new(), recover: false, errors: Vec::new(), in_map_key: false }
+        Self { tokens, pos: 0, property_initializers: Vec::new(), type_refs: Vec::new(), recover: false, errors: Vec::new(), in_map_key: false, class_wirings: Vec::new() }
     }
 }

@@ -4,13 +4,15 @@ import ocara.HTTPResponse
 import ocara.Thread
 import configs.Server
 import configs.routes.CarRoutes
-import tests.support.Fixture
+import tests.support.fake.FakeDatabase
 
 // Routes de configs/routes/CarRoutes.oc seules, sur un serveur dédié.
 class CarRoutesTest extends UnitTest {
+    wiring tests.support.fake.FakeCarRepository
+    wiring tests.support.fake.FakeMaintenanceRepository
 
     init() {
-        Fixture::reset()
+        FakeDatabase::reset()
         var server:Server = use Server()
         server.port(18114)
         use CarRoutes(server)
@@ -22,7 +24,7 @@ class CarRoutesTest extends UnitTest {
 
     // Fiche, ajout d'entretien, création et suppression.
     public method initTest(): int {
-        const id:int = Fixture::car("ROUTES", "Peugeot", "308", 10000.0)
+        const id:int = FakeDatabase::car("ROUTES", "Peugeot", "308", 10000.0)
         scoped show:HTTPResponse = HTTPRequest::get(`http://localhost:18114/voitures/${id}`)
         self::assertEquals(200, show.status())
         self::assertContains(show.body(), "TEST-OCUNIT-ROUTES")
@@ -33,7 +35,7 @@ class CarRoutesTest extends UnitTest {
         add.setBody("type=improvement&description=Jantes&cost=250")
         scoped added:HTTPResponse = add.send()
         self::assertEquals(200, added.status())
-        self::assertEquals(1, Fixture::maintenanceCount(id))
+        self::assertEquals(1, FakeDatabase::maintenanceCount(id))
 
         scoped create:HTTPRequest = HTTPRequest::new("http://localhost:18114/voitures/ajouter")
         create.setMethod("POST")
@@ -46,9 +48,9 @@ class CarRoutesTest extends UnitTest {
         scoped del:HTTPRequest = HTTPRequest::new(`http://localhost:18114/voitures/${id}/supprimer`)
         del.setMethod("DELETE")
         scoped deleted:HTTPResponse = del.send()
-        self::assertFalse(Fixture::carExists(id))
-        self::assertEquals(0, Fixture::maintenanceCount(id))
-        Fixture::cleanup()
+        self::assertFalse(FakeDatabase::carExists(id))
+        self::assertEquals(0, FakeDatabase::maintenanceCount(id))
+        FakeDatabase::cleanup()
         return 0
     }
 }

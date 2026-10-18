@@ -5,6 +5,7 @@ use super::expressions::Expr;
 use super::statements::Block;
 use super::params::Param;
 use super::functions::FuncDecl;
+use super::interfaces::WiringDecl;
 use crate::parsing::token::Span;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -60,6 +61,10 @@ pub struct ClassDecl {
     /// `property` (aucun `init` écrit) — complété par `core::property_init`
     /// quand un ancêtre a un constructeur (paramètres + `parent::init(...)`).
     pub implicit_init: bool,
+    /// `wiring <chemin>` d'une classe de test unitaire : la classe visée
+    /// remplace, pour toute la compilation du test, la cible des interfaces
+    /// qu'elle implémente (voir `core::test_wiring`).
+    pub wirings: Vec<WiringDecl>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

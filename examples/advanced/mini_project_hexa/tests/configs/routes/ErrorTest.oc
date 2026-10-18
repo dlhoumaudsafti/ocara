@@ -4,13 +4,11 @@ import ocara.HTTPResponse
 import ocara.Thread
 import configs.Server
 import configs.routes.Error
-import tests.support.Fixture
 
 // Routes de configs/routes/Error.oc seules, sur un serveur dédié.
 class ErrorTest extends UnitTest {
 
     init() {
-        Fixture::reset()
         var server:Server = use Server()
         server.port(18113)
         use Error(server)

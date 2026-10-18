@@ -1,0 +1,67 @@
+// SearchContract en mémoire (tests.support.fake.FakeDatabase) — remplace
+// context.search.infra.db.SearchRepository dans un test qui déclare
+// `wiring tests.support.fake.FakeSearchRepository`. Même recherche que le
+// `LIKE '%terme%'` SQL (insensible à la casse pour l'ASCII, comme SQLite).
+
+import context.search.domain.entity.CarSearchResultEntity
+import context.search.domain.entity.MaintenanceSearchResultEntity
+import context.search.domain.contract.SearchContract
+import tests.support.fake.FakeDatabase
+
+class FakeSearchRepository implements SearchContract {
+
+    private static method carFromRow(row:map<string, mixed>): CarSearchResultEntity {
+        var id:int = row["id"]
+        var reference:string = row["reference"]
+        var brand:string = row["brand"]
+        var model:string = row["model"]
+        var purchase_price:float = row["purchase_price"]
+        var estimated_price:float = row["estimated_sale_price"]
+        const maintenance_total:float = FakeDatabase::total(id, "maintenance")
+        return use CarSearchResultEntity(
+            id, reference, brand, model, purchase_price, estimated_price, maintenance_total
+        )
+    }
+
+    private static method maintenanceFromRow(row:map<string, mixed>): MaintenanceSearchResultEntity {
+        var car_id:int = row["car_id"]
+        var car_reference:string = FakeDatabase::carRow(car_id)["reference"]
+        var type:string = row["type"]
+        var description:string = row["description"]
+        var cost:float = row["cost"]
+        return use MaintenanceSearchResultEntity(car_id, car_reference, type, description, cost)
+    }
+
+    public static method cars(term:string): array<CarSearchResultEntity> {
+        var items:array<CarSearchResultEntity> = []
+        for row in FakeDatabase::cars() {
+            var reference:string = row["reference"]
+            var brand:string = row["brand"]
+            var model:string = row["model"]
+            if self::like(reference, term) or self::like(brand, term) or self::like(model, term) {
+                items.push(self::carFromRow(row))
+            }
+        }
+        return items
+    }
+
+    public static method maintenances(term:string): array<MaintenanceSearchResultEntity> {
+        var items:array<MaintenanceSearchResultEntity> = []
+        for row in FakeDatabase::maintenances(0) {
+            var description:string = row["description"]
+            var car_id:int = row["car_id"]
+            if self::like(description, term) and FakeDatabase::carExists(car_id) {
+                items.push(self::maintenanceFromRow(row))
+            }
+        }
+        return items
+    }
+
+    // `value LIKE '%term%'` : un terme vide correspond à tout.
+    private static method like(value:string, term:string): bool {
+        if term.empty() {
+            return true
+        }
+        return value.lower().split(term.lower()).len() greater 1
+    }
+}

@@ -15,6 +15,8 @@ mod tests_render_file;
 mod tests_homonyms;
 #[cfg(test)]
 mod tests_architecture;
+#[cfg(test)]
+mod tests_test_wiring;
 pub mod interface_wiring;
 pub mod leak_sites;
 pub mod monomorph;
@@ -24,3 +26,4 @@ pub mod property_init;
 pub mod render_file;
 pub mod runtime_expand;
 pub mod source;
+pub mod test_wiring;

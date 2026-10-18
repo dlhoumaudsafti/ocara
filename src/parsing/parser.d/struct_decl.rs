@@ -66,7 +66,7 @@ impl Parser {
         };
         members.push(ClassMember::Constructor { params, body, span: span.clone() });
 
-        Ok(ClassDecl { name, extends, modules: Vec::new(), implements: Vec::new(), members, span, is_struct: true, implicit_init: false })
+        Ok(ClassDecl { name, extends, modules: Vec::new(), implements: Vec::new(), members, span, is_struct: true, implicit_init: false, wirings: Vec::new() })
     }
 
     /// `[vis] const NAME:T = expr` ou `[vis] [property] name:T [= expr]` —

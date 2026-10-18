@@ -30,6 +30,7 @@
 16. [Classes](#16-classes)
 17. [Interfaces](#17-interfaces)
     - [17.1 wiring — liaison interface → implémentation à la compilation](#171-wiring--liaison-interface--implémentation-à-la-compilation)
+    - [17.2 wiring dans une classe de test — remplacer une implémentation](#172-wiring-dans-une-classe-de-test--remplacer-une-implémentation)
 18. [Héritage et implémentation](#18-héritage-et-implémentation)
 19. [Modules (mixins)](#19-modules-mixins)
 20. [Génériques (generic)](#20-génériques-generic)
@@ -2298,6 +2299,7 @@ ClassMember ::= Constructor
               | Visibility "static"? "method" Identifier "(" ParamList? ")" ":" Type Block
               | Visibility "property" Identifier ":" Type ( "=" Expression )?
               | Visibility "const" Identifier ":" Type "=" Expression
+              | WiringDecl        (* classe de test unitaire uniquement — §17.2 *)
 
 Constructor ::= "init" "(" ParamList? ")" Block
 
@@ -2590,7 +2592,7 @@ interface Logger {
 
 ### 17.1 `wiring` — liaison interface → implémentation à la compilation
 
-Voir `docs/roadmap.d/langage-interface-wiring.md` pour la spécification complète (ticket fermé). `wiring` n'est valide qu'à l'intérieur d'un corps `interface`, et y est **répétable** :
+Voir `docs/roadmap.d/langage-interface-wiring.md` pour la spécification complète (ticket fermé). `wiring` n'est valide qu'à l'intérieur d'un corps `interface` (et d'une classe de test unitaire, §17.2), et y est **répétable** :
 
 ```ocara
 interface Repo {
@@ -2628,6 +2630,30 @@ var b:Repo = Repo::create()      // → PostgresRepo (premier wiring)
 ```
 
 Voir `examples/60_interface_wiring.oc` et `examples/tests/60_interface_wiringTest.oc` pour un exemple exécutable complet (nom nu, alias, polymorphisme via le type abstrait).
+
+### 17.2 `wiring` dans une classe de test — remplacer une implémentation
+
+Une classe de test unitaire peut déclarer des `wiring`, avec la même syntaxe que dans une interface. La classe visée remplace alors, **pour toute la compilation du test**, l'implémentation des interfaces qu'elle `implements` : un cas d'usage qui écrit `CarContract::find(id)` appelle le faux dépôt, sans que le code de production change.
+
+```ocara
+// tests/context/car/app/usecase/CarDetailsServiceTest.oc
+class CarDetailsServiceTest extends UnitTest {
+    wiring tests.support.fake.FakeCarRepository         // implements CarContract
+    wiring tests.support.fake.FakeMaintenanceRepository // implements MaintenanceContract
+
+    public method buildTest(): int { ... }
+}
+```
+
+**Règles :**
+
+- Comme dans une interface, le `wiring` vaut **import implicite** de la classe visée.
+- La classe visée devient le **premier** `wiring` de chacune des interfaces qu'elle implémente : tout nom nu de ces interfaces (`Interface::m()`, `use Interface()`) la désigne, partout dans le programme.
+- Un import aliasé qui choisit explicitement une implémentation (§17.1), ou un nom de classe concrète écrit en clair, n'est pas remplacé.
+- Réservé aux tests (erreurs de compilation sinon) : la classe doit `extends UnitTest`, dans le fichier compilé dont le nom finit par `Test.oc` (dont celui que génère `ocaraunit`). Un fichier importé ne peut pas en déclarer, ni un `module` ou un `generic`.
+- Erreurs : classe visée introuvable, classe visée qui n'implémente aucune interface, interface remplacée par deux classes différentes.
+
+Voir `examples/tests/94_test_wiringTest.oc` et les tests de `examples/advanced/mini_project_hexa` (`tests/support/fake/`).
 
 ---
 
@@ -3963,6 +3989,7 @@ ClassMember ::= Constructor
               | Visibility "static"? "async"? "method" Identifier "(" ParamList? ")" ":" Type Block
               | Visibility "property" Identifier ":" Type ( "=" Expression )?
               | Visibility "const" Identifier ":" Type "=" Expression
+              | WiringDecl        (* classe de test unitaire uniquement — §17.2 *)
 Constructor ::= "init" "(" ParamList? ")" Block
 Visibility  ::= "public" | "private" | "protected"
 StructMember ::= StructVisibility? "property"? Identifier ":" Type ( "=" Expression )?

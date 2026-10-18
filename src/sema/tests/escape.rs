@@ -48,7 +48,7 @@ fn param_assigned_to_field_escapes() {
             span: span(),
         }],
         span: span(),
-        is_struct: false, implicit_init: false,
+        is_struct: false, implicit_init: false, wirings: Vec::new(),
     });
 
     let result = compute_escaping_params(&program);

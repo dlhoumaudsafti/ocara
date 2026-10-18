@@ -1,0 +1,162 @@
+// Base en mémoire des faux dépôts (tests/support/fake/Fake*Repository) :
+// lignes `cars` et `maintenances` au format des tables SQLite, partagées par
+// les contextes car, home et search comme la vraie base. Un test la remplit
+// avec la même API que tests.support.Fixture, sans toucher à `./app.db` ;
+// il déclare les faux dépôts dans sa classe (`wiring tests.support.fake.…`).
+
+import ocara.DateTime
+
+const FAKE_CARS:array<map<string, mixed>> = []
+const FAKE_MAINTENANCES:array<map<string, mixed>> = []
+const FAKE_SEQUENCE:map<string, int> = {"id": 0}
+
+class FakeDatabase {
+
+    // Base vide.
+    public static method reset(): void {
+        self::clear(FAKE_CARS)
+        self::clear(FAKE_MAINTENANCES)
+    }
+
+    public static method cleanup(): void {
+        self::reset()
+    }
+
+    // Voiture de test `TEST-OCUNIT-<suffix>` ; prix de vente estimé = prix d'achat.
+    public static method car(suffix:string, brand:string, model:string, price:float): int {
+        return self::insertCar("TEST-OCUNIT-" + suffix, brand, model, price)
+    }
+
+    public static method maintenance(car_id:int, type:string, description:string, cost:float): void {
+        self::insertMaintenance(car_id, type, description, cost)
+    }
+
+    public static method insertCar(reference:string, brand:string, model:string, price:float): int {
+        const id:int = self::nextId()
+        FAKE_CARS.push({
+            "id": id,
+            "reference": reference,
+            "brand": brand,
+            "model": model,
+            "purchase_price": price,
+            "estimated_sale_price": price,
+            "created_at": DateTime::now()
+        })
+        return id
+    }
+
+    public static method insertMaintenance(car_id:int, type:string, description:string, cost:float): int {
+        const id:int = self::nextId()
+        FAKE_MAINTENANCES.push({
+            "id": id,
+            "car_id": car_id,
+            "type": type,
+            "description": description,
+            "cost": cost,
+            "created_at": DateTime::now()
+        })
+        return id
+    }
+
+    // Lignes de voitures, la plus récente d'abord (`ORDER BY created_at DESC`).
+    public static method cars(): array<map<string, mixed>> {
+        return self::newestFirst(FAKE_CARS)
+    }
+
+    // Entretiens d'une voiture (`0` : tous), le plus récent d'abord.
+    public static method maintenances(car_id:int): array<map<string, mixed>> {
+        var rows:array<map<string, mixed>> = []
+        for row in self::newestFirst(FAKE_MAINTENANCES) {
+            var owner:int = row["car_id"]
+            if car_id equal 0 or owner equal car_id {
+                rows.push(row)
+            }
+        }
+        return rows
+    }
+
+    // Ligne de la voiture `id`, vide si elle n'existe pas (comme `queryOne`).
+    public static method carRow(id:int): map<string, mixed> {
+        for row in FAKE_CARS {
+            var row_id:int = row["id"]
+            if row_id equal id {
+                return row
+            }
+        }
+        return {}
+    }
+
+    // Somme des entretiens d'un type pour une voiture.
+    public static method total(car_id:int, type:string): float {
+        var sum:float = 0.0
+        for row in self::maintenances(car_id) {
+            var row_type:string = row["type"]
+            var cost:float = row["cost"]
+            if row_type equal type {
+                sum += cost
+            }
+        }
+        return sum
+    }
+
+    public static method setEstimatedPrice(id:int, price:float): void {
+        const row:map<string, mixed> = self::carRow(id)
+        if row.size() greater 0 {
+            row["estimated_sale_price"] = price
+        }
+    }
+
+    // La voiture et ses entretiens.
+    public static method deleteCar(id:int): void {
+        self::removeWhere(FAKE_MAINTENANCES, "car_id", id)
+        self::removeWhere(FAKE_CARS, "id", id)
+    }
+
+    public static method estimatedPrice(car_id:int): float {
+        var price:float = self::carRow(car_id)["estimated_sale_price"]
+        return price
+    }
+
+    public static method carExists(car_id:int): bool {
+        return self::carRow(car_id).size() greater 0
+    }
+
+    public static method maintenanceCount(car_id:int): int {
+        return self::maintenances(car_id).len()
+    }
+
+    private static method nextId(): int {
+        FAKE_SEQUENCE["id"] = FAKE_SEQUENCE["id"] + 1
+        return FAKE_SEQUENCE["id"]
+    }
+
+    private static method newestFirst(rows:array<map<string, mixed>>): array<map<string, mixed>> {
+        var ordered:array<map<string, mixed>> = []
+        var i:int = rows.len() - 1
+        while i greater or equal 0 {
+            ordered.push(rows[i])
+            i -= 1
+        }
+        return ordered
+    }
+
+    private static method removeWhere(rows:array<map<string, mixed>>, key:string, id:int): void {
+        var kept:array<map<string, mixed>> = []
+        for row in rows {
+            var value:int = row[key]
+            if value not equal id {
+                kept.push(row)
+            }
+        }
+        self::clear(rows)
+        for row in kept {
+            rows.push(row)
+        }
+    }
+
+    private static method clear(rows:array<map<string, mixed>>): void {
+        while rows.len() greater 0 {
+            rows.pop()
+        }
+    }
+}

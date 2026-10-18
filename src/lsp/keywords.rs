@@ -45,7 +45,7 @@ const KEYWORDS: &[(&str, &str, &str)] = &[
     ("struct", "16.7", "Agrégat de données : champs et constantes, constructeur généré depuis les champs ; n'étend qu'un struct."),
     ("generic", "20", "Classe générique paramétrée par des types : `generic Liste<T> { ... }` (monomorphisée à la compilation)."),
     ("interface", "17", "Contrat de méthodes, implémenté via `implements` ; peut désigner son implémentation avec `wiring`."),
-    ("wiring", "17.1", "Dans une interface : classe concrète liée à l'interface à la compilation (`use Interface()` → cette classe)."),
+    ("wiring", "17.1", "Dans une interface : classe concrète liée à l'interface à la compilation (`use Interface()` → cette classe). Dans une classe de test : remplace l'implémentation des interfaces de la classe visée (§17.2)."),
     ("module", "19.1", "Mixin : membres réutilisables incorporés dans les classes qui l'utilisent (`modules`)."),
     ("modules", "19.2", "Dans l'en-tête d'une classe : modules (mixins) incorporés."),
     ("extends", "18", "Héritage simple d'une classe (ou d'un struct depuis un struct)."),

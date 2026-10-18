@@ -1,0 +1,55 @@
+architecture permissive
+
+import ocara.UnitTest
+
+// `wiring` dans une classe de test : la classe visée remplace la cible des
+// interfaces qu'elle implémente, pour toute la compilation du test. Le code
+// « de production » (`Greeter`) écrit `Repo::name()` et `use Repo()` sans
+// rien savoir du faux — voir docs/EBNF.md §17.2.
+
+interface Repo {
+    wiring RealRepo
+    public static method name(): string
+    public method save(value:string): string
+}
+
+class RealRepo implements Repo {
+    public static method name(): string { return "real" }
+    public method save(value:string): string { return "real:" + value }
+}
+
+class FakeRepo implements Repo {
+    public static method name(): string { return "fake" }
+    public method save(value:string): string { return "fake:" + value }
+}
+
+class Greeter {
+    public static method source(): string {
+        return Repo::name()
+    }
+
+    public static method store(value:string): string {
+        const repo:Repo = use Repo()
+        return repo.save(value)
+    }
+}
+
+class Test94TestWiring extends UnitTest {
+    wiring FakeRepo
+
+    public method staticCallUsesFakeTest(): int {
+        self::assertEquals("fake", Greeter::source())
+        return 0
+    }
+
+    public method constructionUsesFakeTest(): int {
+        self::assertEquals("fake:x", Greeter::store("x"))
+        return 0
+    }
+
+    // Une implémentation nommée explicitement n'est pas remplacée.
+    public method explicitClassIsUntouchedTest(): int {
+        self::assertEquals("real", RealRepo::name())
+        return 0
+    }
+}

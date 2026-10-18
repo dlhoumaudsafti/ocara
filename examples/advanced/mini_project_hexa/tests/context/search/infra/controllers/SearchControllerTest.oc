@@ -5,10 +5,11 @@ import ocara.HTTPRequest
 import ocara.HTTPResponse
 import ocara.Thread
 import context.search.infra.controllers.SearchController
-import tests.support.Fixture
+import tests.support.fake.FakeDatabase
 
 // Route de configs/routes/Search.oc sur un serveur dédié.
 class SearchControllerTest extends UnitTest {
+    wiring tests.support.fake.FakeSearchRepository
 
     init() {
         var server:HTTPServer = use HTTPServer()
@@ -21,21 +22,21 @@ class SearchControllerTest extends UnitTest {
     }
 
     public method handleTest(): int {
-        Fixture::reset()
-        const id:int = Fixture::car("HANDLE", "Peugeot", "308", 9100.0)
-        Fixture::maintenance(id, "maintenance", "Courroie OCUNIT-HANDLE", 350.0)
+        FakeDatabase::reset()
+        const id:int = FakeDatabase::car("HANDLE", "Peugeot", "308", 9100.0)
+        FakeDatabase::maintenance(id, "maintenance", "Courroie OCUNIT-HANDLE", 350.0)
         scoped res:HTTPResponse = HTTPRequest::get("http://localhost:18104/recherche?q=OCUNIT-HANDLE")
         self::assertEquals(200, res.status())
         self::assertContains(res.body(), "TEST-OCUNIT-HANDLE")
         self::assertContains(res.body(), "9100,00 €")
         self::assertContains(res.body(), "Courroie OCUNIT-HANDLE")
         self::assertContains(res.body(), "350,00 €")
-        Fixture::cleanup()
+        FakeDatabase::cleanup()
         return 0
     }
 
     public method handleWithoutResultTest(): int {
-        Fixture::reset()
+        FakeDatabase::reset()
         scoped res:HTTPResponse = HTTPRequest::get("http://localhost:18104/recherche?q=OCUNIT-RIEN")
         self::assertContains(res.body(), "Aucune voiture ne correspond à « OCUNIT-RIEN ».")
         self::assertContains(res.body(), "Aucun entretien ne correspond à « OCUNIT-RIEN ».")

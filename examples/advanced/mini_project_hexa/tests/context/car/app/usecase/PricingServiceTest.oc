@@ -1,34 +1,36 @@
 import ocara.UnitTest
 import context.car.app.usecase.PricingService
-import tests.support.Fixture
+import tests.support.fake.FakeDatabase
 
 class PricingServiceTest extends UnitTest {
+    wiring tests.support.fake.FakeCarRepository
+    wiring tests.support.fake.FakeMaintenanceRepository
 
     // Prix estimé = prix d'achat + améliorations ; la maintenance n'y entre pas.
     public method recalculateEstimatedPriceTest(): int {
-        Fixture::reset()
-        const car_id:int = Fixture::car("PRICING", "Peugeot", "308", 12000.0)
-        Fixture::maintenance(car_id, "improvement", "Peinture", 500.0)
-        Fixture::maintenance(car_id, "maintenance", "Vidange", 80.0)
+        FakeDatabase::reset()
+        const car_id:int = FakeDatabase::car("PRICING", "Peugeot", "308", 12000.0)
+        FakeDatabase::maintenance(car_id, "improvement", "Peinture", 500.0)
+        FakeDatabase::maintenance(car_id, "maintenance", "Vidange", 80.0)
         self::assertEquals(12500.0, PricingService::recalculateEstimatedPrice(car_id))
-        self::assertEquals(12500.0, Fixture::estimatedPrice(car_id))
-        Fixture::cleanup()
+        self::assertEquals(12500.0, FakeDatabase::estimatedPrice(car_id))
+        FakeDatabase::cleanup()
         return 0
     }
 
     // Recalcul complet, pas un cumul : deux appels donnent le même prix.
     public method recalculateIsIdempotentTest(): int {
-        Fixture::reset()
-        const car_id:int = Fixture::car("IDEMP", "Peugeot", "308", 10000.0)
-        Fixture::maintenance(car_id, "improvement", "Jantes", 300.0)
+        FakeDatabase::reset()
+        const car_id:int = FakeDatabase::car("IDEMP", "Peugeot", "308", 10000.0)
+        FakeDatabase::maintenance(car_id, "improvement", "Jantes", 300.0)
         PricingService::recalculateEstimatedPrice(car_id)
         self::assertEquals(10300.0, PricingService::recalculateEstimatedPrice(car_id))
-        Fixture::cleanup()
+        FakeDatabase::cleanup()
         return 0
     }
 
     public method recalculateUnknownCarTest(): int {
-        Fixture::reset()
+        FakeDatabase::reset()
         self::assertEquals(0.0, PricingService::recalculateEstimatedPrice(-1))
         return 0
     }

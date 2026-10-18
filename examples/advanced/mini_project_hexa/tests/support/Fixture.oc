@@ -1,4 +1,7 @@
-// Données de test partagées par les tests qui touchent la base.
+// Données de test des adaptateurs SQL (tests/context/*/infra/db) — les seuls
+// tests qui touchent la vraie base. Les autres (cas d'usage, contrôleurs,
+// routes) remplacent les dépôts par tests/support/fake/ (`wiring` de classe
+// de test) et se remplissent avec tests.support.fake.FakeDatabase.
 //
 // Les tests tournent sur la base de l'application (`./app.db`, voir
 // context.shared.infra.db.Database) : ils ne créent que des voitures dont la

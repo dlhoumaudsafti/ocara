@@ -142,8 +142,17 @@ impl Parser {
     /// Membres d'un corps de classe, generic ou module ; l'initialiseur
     /// d'une `property` écartée l'est avec elle.
     pub(super) fn parse_members(&mut self) -> ParseResult<Vec<ClassMember>> {
+        // Reste d'un corps abandonné sur erreur (mode tolérant).
+        self.class_wirings.clear();
         let mut entries = Vec::new();
         while !self.check_exact(&TokenKind::RBrace) {
+            // `wiring <chemin>` : réservé aux classes de test, repris par
+            // `parse_class` (refusé ailleurs).
+            if self.check_exact(&TokenKind::Wiring) {
+                let wiring = self.parse_wiring_decl()?;
+                self.class_wirings.push(wiring);
+                continue;
+            }
             let start = self.pos;
             let before = self.property_initializers.len();
             match self.parse_member_variant() {

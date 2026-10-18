@@ -1,0 +1,40 @@
+// CarContract en mémoire (tests.support.fake.FakeDatabase) — remplace
+// context.car.infra.db.CarRepository dans un test qui déclare
+// `wiring tests.support.fake.FakeCarRepository`.
+
+import context.car.domain.entity.CarEntity
+import context.car.domain.contract.CarContract
+import tests.support.fake.FakeDatabase
+
+class FakeCarRepository implements CarContract {
+
+    private static method fromRow(row:map<string, mixed>): CarEntity {
+        var id:int = row["id"]
+        var reference:string = row["reference"]
+        var brand:string = row["brand"]
+        var model:string = row["model"]
+        var purchase_price:float = row["purchase_price"]
+        var estimated_price:float = row["estimated_sale_price"]
+        return use CarEntity(id, reference, brand, model, purchase_price, estimated_price)
+    }
+
+    public static method find(id:int): CarEntity|null {
+        const row:map<string, mixed> = FakeDatabase::carRow(id)
+        if row.size() equal 0 {
+            return null
+        }
+        return self::fromRow(row)
+    }
+
+    public static method create(reference:string, brand:string, model:string, purchase_price:float): int {
+        return FakeDatabase::insertCar(reference, brand, model, purchase_price)
+    }
+
+    public static method updateEstimatedPrice(id:int, new_price:float): void {
+        FakeDatabase::setEstimatedPrice(id, new_price)
+    }
+
+    public static method delete(id:int): void {
+        FakeDatabase::deleteCar(id)
+    }
+}

@@ -4,13 +4,14 @@ import ocara.HTTPResponse
 import ocara.Thread
 import configs.Server
 import configs.routes.Home
-import tests.support.Fixture
+import tests.support.fake.FakeDatabase
 
 // Routes de configs/routes/Home.oc seules, sur un serveur dédié.
 class HomeTest extends UnitTest {
+    wiring tests.support.fake.FakeCarSummaryRepository
 
     init() {
-        Fixture::reset()
+        FakeDatabase::reset()
         var server:Server = use Server()
         server.port(18111)
         use Home(server)

@@ -568,7 +568,7 @@ pub fn instantiated_generic_class(generic_decl: &GenericDecl, type_args: &[Type]
         members: specialize_members(generic_decl, type_args, &HashMap::new()),
         span: generic_decl.span.clone(),
         is_struct: false,
-            implicit_init: false,
+            implicit_init: false, wirings: Vec::new(),
     }
 }
 
@@ -589,7 +589,7 @@ pub fn erased_generic_class(generic_decl: &GenericDecl) -> ClassDecl {
         members: specialize_members(generic_decl, &type_args, &HashMap::new()),
         span: generic_decl.span.clone(),
         is_struct: false,
-            implicit_init: false,
+            implicit_init: false, wirings: Vec::new(),
     }
 }
 
@@ -627,7 +627,7 @@ pub fn monomorphize(program: &mut ast::Program) {
             members: specialized_members,
             span: generic_decl.span.clone(),
             is_struct: false,
-            implicit_init: false,
+            implicit_init: false, wirings: Vec::new(),
         };
         
         specialized_classes.push(specialized_class);

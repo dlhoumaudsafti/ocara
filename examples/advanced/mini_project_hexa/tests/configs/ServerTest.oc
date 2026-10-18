@@ -4,15 +4,19 @@ import ocara.HTTPResponse
 import ocara.Thread
 import configs.Components
 import configs.Server
-import context.shared.infra.db.Database
+import tests.support.fake.FakeDatabase
 
 // Serveur complet de l'application (routes de configs/routes/*) démarré par
 // `start()` sur un port de test, comme le fait core/init.runtime.oc.
 class ServerTest extends UnitTest {
+    wiring tests.support.fake.FakeCarRepository
+    wiring tests.support.fake.FakeMaintenanceRepository
+    wiring tests.support.fake.FakeCarSummaryRepository
+    wiring tests.support.fake.FakeSearchRepository
 
     init() {
         use Components()
-        Database::migrate()
+        FakeDatabase::reset()
         var server:Server = use Server()
         server.port(18106)
         server.routes()

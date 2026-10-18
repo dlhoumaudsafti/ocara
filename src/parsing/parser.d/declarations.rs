@@ -165,8 +165,9 @@ impl Parser {
         let mut members = self.parse_members()?;
         self.eat(&TokenKind::RBrace)?;
         let implicit_init = self.inject_property_initializers(&mut members, &span);
+        let wirings = std::mem::take(&mut self.class_wirings);
 
-        Ok(ClassDecl { name, extends, modules, implements, members, span, is_struct: false, implicit_init })
+        Ok(ClassDecl { name, extends, modules, implements, members, span, is_struct: false, implicit_init, wirings })
     }
 
     pub(super) fn parse_class_member(&mut self) -> ParseResult<ClassMember> {
@@ -355,6 +356,7 @@ impl Parser {
         let mut members = self.parse_members()?;
         self.eat(&TokenKind::RBrace)?;
         self.inject_property_initializers(&mut members, &span);
+        self.reject_class_wirings("generic", &name)?;
 
         Ok(GenericDecl { 
             name, 
@@ -378,6 +380,7 @@ impl Parser {
         self.eat(&TokenKind::LBrace)?;
         let members = self.parse_members()?;
         self.eat(&TokenKind::RBrace)?;
+        self.reject_class_wirings("module", &name)?;
         if let Some((field, _, field_span)) = self.property_initializers.drain(..).next() {
             return Err(ParseError::new(
                 format!("module '{}': property '{}' cannot have an initializer — a module has no constructor of its own; initialize it in the init() of the classes using the module", name, field),
@@ -490,12 +493,22 @@ impl Parser {
         Ok(InterfaceDecl { name, methods, wirings, span })
     }
 
+    /// `wiring` lu dans un `generic` ou un `module` : seules une interface et
+    /// une classe de test peuvent en déclarer.
+    fn reject_class_wirings(&mut self, kind: &str, name: &str) -> ParseResult<()> {
+        let Some(wiring) = self.class_wirings.drain(..).next() else { return Ok(()) };
+        Err(ParseError::new(
+            format!("{} '{}': 'wiring' is only allowed in an interface or in a unit test class", kind, name),
+            wiring.span,
+        ))
+    }
+
     /// `wiring context.home.infra.db.CarSummaryRepository` — un chemin
     /// qualifié pointé, comme `import a.b.C` (voir `parse_import`, format
     /// "ancien"/namespace) mais sans le mot-clé `import` ni d'alias : le nom
     /// SIMPLE (dernier segment) sert de nom réel de classe partout où ce
     /// wiring est résolu (voir `WiringDecl::simple_name`).
-    fn parse_wiring_decl(&mut self) -> ParseResult<WiringDecl> {
+    pub(super) fn parse_wiring_decl(&mut self) -> ParseResult<WiringDecl> {
         let span = self.span();
         self.eat(&TokenKind::Wiring)?;
         let (first, mut last_span) = self.eat_ident()?;

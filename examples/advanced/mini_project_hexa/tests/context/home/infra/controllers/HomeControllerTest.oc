@@ -5,10 +5,11 @@ import ocara.HTTPRequest
 import ocara.HTTPResponse
 import ocara.Thread
 import context.home.infra.controllers.HomeController
-import tests.support.Fixture
+import tests.support.fake.FakeDatabase
 
 // Route de configs/routes/Home.oc sur un serveur dédié.
 class HomeControllerTest extends UnitTest {
+    wiring tests.support.fake.FakeCarSummaryRepository
 
     init() {
         var server:HTTPServer = use HTTPServer()
@@ -21,20 +22,20 @@ class HomeControllerTest extends UnitTest {
     }
 
     public method indexTest(): int {
-        Fixture::reset()
-        Fixture::car("INDEX", "Peugeot", "308", 12345.0)
+        FakeDatabase::reset()
+        FakeDatabase::car("INDEX", "Peugeot", "308", 12345.0)
         scoped res:HTTPResponse = HTTPRequest::get("http://localhost:18103/?success=car_added&lang=fr")
         self::assertEquals(200, res.status())
         self::assertContains(res.body(), "Flotte de véhicules")
         self::assertContains(res.body(), "TEST-OCUNIT-INDEX")
         self::assertContains(res.body(), "12345,00 €")
         self::assertContains(res.body(), "Voiture ajoutée avec succès.")
-        Fixture::cleanup()
+        FakeDatabase::cleanup()
         return 0
     }
 
     public method indexErrorTest(): int {
-        Fixture::reset()
+        FakeDatabase::reset()
         scoped res:HTTPResponse = HTTPRequest::get("http://localhost:18103/?error=invalid_price")
         self::assertEquals(200, res.status())
         self::assertContains(res.body(), "Le prix d'achat doit être un nombre positif.")

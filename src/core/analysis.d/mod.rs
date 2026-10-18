@@ -87,7 +87,8 @@ fn analyze_program(opts: &AnalyzeOptions) -> Result<Analysis, Diagnostic> {
 
     // Interfaces et leurs `wiring` atteignables, connues avant toute
     // résolution d'alias (voir core::interface_wiring).
-    let all_interfaces = crate::core::interface_wiring::collect_all_interfaces(&program, source_dir);
+    let mut all_interfaces = crate::core::interface_wiring::collect_all_interfaces(&program, source_dir);
+    crate::core::test_wiring::check_entry(&program, input)?;
     let aliases = compute_aliases(&program.imports, &all_interfaces, input)?;
     resolve_aliases(&mut program, &aliases);
     // Types homonymes de fichiers différents : un nom interne chacun.
@@ -99,6 +100,9 @@ fn analyze_program(opts: &AnalyzeOptions) -> Result<Analysis, Diagnostic> {
     let architecture = architecture::check(&program, input, source_dir);
     syntax.extend(imports::load_imports(&mut program, source_dir, input, &all_interfaces, &homonyms, opts.tolerant)?);
 
+    // `wiring` d'une classe de test : la classe visée devient la première
+    // cible de ses interfaces (voir core::test_wiring).
+    crate::core::test_wiring::apply(&mut program, &mut all_interfaces, input)?;
     crate::core::interface_wiring::resolve_bare_interface_names(&mut program, &all_interfaces);
     crate::core::property_init::complete_implicit_inits(&mut program);
     crate::core::structs::expand_structs(&mut program)

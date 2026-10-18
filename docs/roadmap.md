@@ -44,7 +44,6 @@ Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnali
 
 Confort ou portée future — n'affecte pas la correction du compilateur ou des binaires produits.
 
-- **Remplacer un `wiring` depuis un test** — faire utiliser un faux dépôt par un cas d'usage à contrat statique (`CarContract::find`) sans modifier le code de production, pour tester `domain`/`app` sans base de données ; déclaration réservée aux fichiers `*Test.oc`, syntaxe à trancher. *(Légère à Structurel)* → [détails](roadmap.d/langage-wiring-substitution-tests.md)
 - **Extension JetBrains équivalente à l'extension VS Code** — plugin IntelliJ Platform (IDEA, CLion, RustRover, PhpStorm…) aux fonctionnalités identiques : coloration (grammaire TextMate réutilisée, couleur dédiée de `when`), diagnostics, définition, références, survol, complétion, signature help, CodeLens, ocaracs et mise en forme, commandes compiler / lancer / dump / documentation, réglages. Client du serveur de langage (`ocara --lsp`), sans heuristiques recodées ; liste de parité commune aux deux extensions. *(Moyenne après le serveur de langage, Structurel sans lui)* → [détails](roadmap.d/tooling-jetbrains-plugin.md)
 
 ---
