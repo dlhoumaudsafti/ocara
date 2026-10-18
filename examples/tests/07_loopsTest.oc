@@ -106,4 +106,70 @@ class Test07Loops extends UnitTest {
 
         return 0
     }
+
+    // `for i in a until b` / `a to b` : boucle compteur, sans tableau
+    // intermédiaire (mémoire constante) — mêmes bornes qu'avant.
+    public method rangeLoopBoundsTest(): int {
+        var total:int = 0
+        for i in 1 to 3 {
+            total = total + i
+        }
+        self::assertEquals(6, total)
+        total = 0
+        for i in 1 until 3 {
+            total = total + i
+        }
+        self::assertEquals(3, total)
+        var turns:int = 0
+        for i in 5 until 2 {
+            turns = turns + 1
+        }
+        self::assertEquals(0, turns)
+        total = 0
+        for i in -2 to 1 {
+            total = total + i
+        }
+        self::assertEquals(-2, total)
+        return 0
+    }
+
+    public method rangeLoopBreakContinueTest(): int {
+        var total:int = 0
+        for i in 0 until 100 {
+            if i equal 2 {
+                continue
+            }
+            if i equal 5 {
+                break
+            }
+            total = total + i
+        }
+        self::assertEquals(8, total)
+        return 0
+    }
+
+    public method rangeLoopInGeneratorTest(): int {
+        var total:int = 0
+        for v in tens(4) {
+            total = total + v
+        }
+        self::assertEquals(60, total)
+        return 0
+    }
+
+    // Plage utilisée comme valeur : un tableau (elle était boxée comme un
+    // entier — SIGSEGV).
+    public method rangeAsValueTest(): int {
+        var r:array<int> = 2 to 4
+        self::assertEquals(3, r.len())
+        self::assertEquals(2, r[0])
+        self::assertEquals(4, r[2])
+        return 0
+    }
+}
+
+function tens(n:int): message<int> {
+    for i in 0 until n {
+        emit i * 10
+    }
 }

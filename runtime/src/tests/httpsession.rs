@@ -5,7 +5,7 @@
 // examples/tests/73_httpserver_sessionTest.oc.
 // ─────────────────────────────────────────────────────────────────────────────
 
-use crate::httpsession::{capture, materialize, parse_cookies, Stored};
+use crate::httpsession::{capture, materialize, parse_cookies, set_session_timeout, Session, Store, Stored};
 use crate::httpsession::{HTTPServerSession_getGlobal, HTTPServerSession_hasGlobal, HTTPServerSession_removeGlobal, HTTPServerSession_setGlobal};
 use crate::*;
 
@@ -71,4 +71,59 @@ fn globals_set_has_get_remove() {
     HTTPServerSession_removeGlobal(key);
     assert_eq!(HTTPServerSession_hasGlobal(key), 0);
     assert_eq!(HTTPServerSession_getGlobal(key), 0);
+}
+
+// ─── Expiration des sessions ────────────────────────────────────────────────
+
+fn store_with(id: &str, idle: std::time::Duration, now: std::time::Instant) -> Store {
+    let mut store = Store::default();
+    let mut session = Session::default();
+    session.last_access = now - idle;
+    store.sessions.insert(id.to_string(), session);
+    store
+}
+
+#[test]
+fn active_session_is_resumed_and_touched() {
+    let now = std::time::Instant::now() + std::time::Duration::from_secs(3600);
+    let mut store = store_with("a", std::time::Duration::from_secs(60), now);
+    assert!(store.resume("a", now));
+    assert_eq!(store.sessions["a"].last_access, now);
+}
+
+// Inactive depuis plus de 30 min (défaut) : jamais reprise, retirée.
+#[test]
+fn expired_session_is_not_resumed() {
+    let now = std::time::Instant::now() + std::time::Duration::from_secs(7200);
+    let mut store = store_with("a", std::time::Duration::from_secs(31 * 60), now);
+    assert!(!store.resume("a", now));
+    assert!(store.sessions.is_empty());
+    assert!(!store.resume("inconnue", now));
+}
+
+// Purge au plus une fois par minute ; ne retire que les sessions expirées.
+#[test]
+fn purge_removes_expired_sessions_at_most_once_a_minute() {
+    let now = std::time::Instant::now() + std::time::Duration::from_secs(7200);
+    let mut store = store_with("vieille", std::time::Duration::from_secs(31 * 60), now);
+    let mut active = Session::default();
+    active.last_access = now;
+    store.sessions.insert("active".to_string(), active);
+    store.last_purge = now;
+    store.purge_expired(now);
+    assert_eq!(store.sessions.len(), 2);
+    store.last_purge = now - std::time::Duration::from_secs(61);
+    store.purge_expired(now);
+    assert!(store.sessions.contains_key("active"));
+    assert!(!store.sessions.contains_key("vieille"));
+}
+
+#[test]
+fn zero_timeout_disables_expiration() {
+    let now = std::time::Instant::now() + std::time::Duration::from_secs(7200);
+    let mut store = store_with("a", std::time::Duration::from_secs(3600), now);
+    set_session_timeout(0);
+    let resumed = store.resume("a", now);
+    set_session_timeout(30 * 60);
+    assert!(resumed);
 }

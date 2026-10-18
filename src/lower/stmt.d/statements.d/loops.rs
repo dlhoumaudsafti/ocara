@@ -31,6 +31,11 @@ pub fn lower_for_in(
         return;
     }
 
+    if let Expr::Range { start, end, .. } = iter {
+        lower_for_range(builder, var, start, end, body);
+        return;
+    }
+
     // Lowering : __iter_init(iter), boucle sur __iter_next
     let iter_val  = lower_expr(builder, iter);
     let idx = LoopIndex::new(builder, "__for_idx");
@@ -171,6 +176,56 @@ pub fn lower_for_in(
     builder.switch_to(&merge_bb);
 }
 
+/// `for i in a until b` (et `a to b`, réécrit `a until b + 1` par le
+/// parseur) : boucle compteur, sans le tableau de `b − a` entiers que
+/// construisait `__range` (mémoire en O(n)). Bornes évaluées une fois ; la
+/// variable de boucle est une copie du compteur (la modifier dans le corps
+/// ne change pas l'itération, comme avec le tableau).
+fn lower_for_range(builder: &mut LowerBuilder, var: &str, start: &Expr, end: &Expr, body: &Block) {
+    let start_val = lower_expr(builder, start);
+    let end_val = lower_expr(builder, end);
+    let counter = LoopIndex::starting_at(builder, "__range_idx", start_val);
+    let kept_end = keep_across_emit(builder, &end_val, IrType::I64);
+
+    let cond_bb  = builder.new_block();
+    let body_bb  = builder.new_block();
+    let incr_bb  = builder.new_block();
+    let merge_bb = builder.new_block();
+
+    builder.emit(Inst::Jump { target: cond_bb.clone() });
+    builder.switch_to(&cond_bb);
+    let end_val = reload(builder, &kept_end, &end_val);
+    let current = counter.load(builder);
+    let cond = builder.new_value();
+    builder.emit(Inst::CmpLt { dest: cond.clone(), lhs: current.clone(), rhs: end_val, ty: IrType::I64 });
+    builder.emit(Inst::Branch { cond, then_bb: body_bb.clone(), else_bb: merge_bb.clone() });
+
+    builder.switch_to(&body_bb);
+    let counted_snapshot = builder.rc_counted_locals.clone();
+    crate::lower::stmt::rc::begin_iteration(builder);
+    builder.declare_local(var, IrType::I64, false);
+    builder.store_local(var, current.clone());
+    crate::lower::stmt::rc::bind_loop_var(builder, var, Some(&Type::Int), &current);
+
+    builder.loop_stack.push((incr_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len() - 1));
+    crate::lower::stmt::rc::enter_loop(builder);
+    builder.loop_depth += 1;
+    lower_block(builder, body);
+    builder.loop_depth -= 1;
+    crate::lower::stmt::rc::exit_loop(builder);
+    builder.loop_stack.pop();
+    crate::lower::stmt::rc::end_iteration(builder);
+    builder.rc_counted_locals = counted_snapshot;
+
+    if !builder.is_terminated() {
+        builder.emit(Inst::Jump { target: incr_bb.clone() });
+    }
+    builder.switch_to(&incr_bb);
+    counter.increment(builder);
+    builder.emit(Inst::Jump { target: cond_bb.clone() });
+    builder.switch_to(&merge_bb);
+}
+
 /// Index d'une boucle `for` : un slot de pile, ou dans un générateur un
 /// champ caché du frame (la pile ne survit pas à un `emit` du corps).
 enum LoopIndex {
@@ -182,13 +237,17 @@ impl LoopIndex {
     fn new(builder: &mut LowerBuilder, name: &str) -> Self {
         let zero = builder.new_value();
         builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+        Self::starting_at(builder, name, zero)
+    }
+
+    fn starting_at(builder: &mut LowerBuilder, name: &str, initial: Value) -> Self {
         if builder.rc_generator {
             let field = crate::lower::builder::message_gen::spill_field(builder, IrType::I64, false);
-            builder.store_local(&field, zero);
+            builder.store_local(&field, initial);
             return LoopIndex::Field(field);
         }
         let slot = builder.declare_local(name, IrType::I64, true);
-        builder.emit(Inst::Store { ptr: slot.clone(), src: zero });
+        builder.emit(Inst::Store { ptr: slot.clone(), src: initial });
         LoopIndex::Slot(slot)
     }
 

@@ -431,7 +431,9 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
         // "assez grand") aurait alors été boxé comme si c'était un entier,
         // corrompant la valeur (confirmé par reproduction : `var a:array<int>
         // = [1,2,3]` cassait déjà `Array::len(a)` avant ce correctif).
-        Expr::Array { .. } | Expr::Map { .. } | Expr::New { .. }
+        // Plage utilisée comme valeur (`var r:array<int> = 2 to 4`) : un
+        // tableau (`__range`) — boxée comme un entier, elle plantait.
+        Expr::Array { .. } | Expr::Map { .. } | Expr::New { .. } | Expr::Range { .. }
         | Expr::SelfExpr(_) | Expr::ParentExpr(_) => IrType::Ptr,
         _ => IrType::I64,
     }

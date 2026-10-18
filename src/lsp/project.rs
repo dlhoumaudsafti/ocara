@@ -51,6 +51,11 @@ pub struct ProjectIndex {
 }
 
 impl ProjectIndex {
+    /// Les racines ont changé : tout l'index sera reconstruit.
+    pub fn reset(&mut self) {
+        *self = Self::default();
+    }
+
     /// Le document `path` a changé : ses entrées seront réanalysées.
     pub fn invalidate(&mut self, path: &Path) {
         let owners: Vec<PathBuf> = self.entries.iter()

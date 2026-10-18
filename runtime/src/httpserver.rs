@@ -1048,6 +1048,14 @@ pub extern "C" fn HTTPServer_maxBodySize(self_ptr: i64, bytes: i64) {
 }
 
 /// Définit le nombre de threads workers (défaut : 4).
+/// Durée d'inactivité (secondes) après laquelle une session expire
+/// (défaut 30 min, 0 : jamais) — réglage commun à tout le processus, comme
+/// le stockage des sessions (voir `httpsession`).
+#[unsafe(no_mangle)]
+pub extern "C" fn HTTPServer_sessionTimeout(_self_ptr: i64, seconds: i64) {
+    crate::httpsession::set_session_timeout(seconds);
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn HTTPServer_workers(self_ptr: i64, n: i64) {
     let s = unsafe { server_from_slot(self_ptr) };

@@ -20,6 +20,8 @@ mod workflow;
 mod workflow_calls;
 mod workflow_code;
 mod workspace;
+#[cfg(test)]
+mod tests_roots;
 
 use std::path::{Path, PathBuf};
 
@@ -76,10 +78,7 @@ pub fn run() {
     let Ok(init) = connection.initialize(serde_json::to_value(capabilities).unwrap_or(Value::Null)) else { return };
     let params: InitializeParams = serde_json::from_value(init).unwrap_or_default();
     apply_build_settings(params.initialization_options.as_ref());
-    let roots = params.workspace_folders.unwrap_or_default().iter()
-        .filter_map(|f| to_path(&f.uri))
-        .collect();
-    let mut ws = Workspace::new(roots);
+    let mut ws = Workspace::new(client_roots(&params));
     let mut index = project::ProjectIndex::default();
 
     for msg in &connection.receiver {
@@ -97,6 +96,22 @@ pub fn run() {
     }
     drop(connection);
     let _ = io_threads.join();
+}
+
+/// Dossiers racine du client : `workspaceFolders`, sinon `rootUri` (clients
+/// plus anciens). Sans racine, l'index du projet restait vide : références,
+/// CodeLens et renommage ne voyaient que la déclaration — un renommage
+/// cassait alors le programme (voir aussi `Workspace::adopt_root`).
+fn client_roots(params: &InitializeParams) -> Vec<PathBuf> {
+    let folders: Vec<PathBuf> = params.workspace_folders.iter().flatten()
+        .filter_map(|f| to_path(&f.uri))
+        .collect();
+    if !folders.is_empty() {
+        return folders;
+    }
+    #[allow(deprecated)]
+    let root_uri = params.root_uri.as_ref();
+    root_uri.and_then(to_path).into_iter().collect()
 }
 
 fn to_path(url: &Url) -> Option<PathBuf> {
@@ -203,6 +218,9 @@ fn handle_notification(connection: &Connection, ws: &mut Workspace, index: &mut 
             let Ok(p) = serde_json::from_value::<lsp_types::DidOpenTextDocumentParams>(note.params) else { return };
             let Some(path) = to_path(&p.text_document.uri) else { return };
             ws.open(path.clone(), p.text_document.text);
+            if ws.adopt_root(&path) {
+                index.reset();
+            }
             index.invalidate(&path);
             refresh(connection, ws, &path);
         }

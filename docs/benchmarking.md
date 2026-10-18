@@ -190,18 +190,15 @@ défaut). Le pic mémoire demande `/usr/bin/time`.
 
 ## Pièges
 
-- **`for i in 0 until N` alloue un tableau de N entiers** (8 octets par
-  itération, voir docs/roadmap.d/langage-for-range-allocation.md). La
-  mesure le prend pour une fuite : utiliser une boucle `while` pour piloter
-  le nombre d'itérations.
 - **Le détecteur de cycles agit par lots** : un objet qui a été partagé puis
   libéré peut rester en attente jusqu'à ce que 10 000 candidats se soient
   accumulés. Mesurer sur au moins 20 000 itérations ; en dessous, la mémoire
   semble monter alors qu'elle sera rendue au lot suivant.
-- **Threads** : la collecte des cycles a lieu quand les autres threads sont
-  bloqués dans un appel du runtime (attente d'une requête HTTP, `join`,
-  `sleep`, verrou, boucle d'événements Tauri, `present`/`delay` SDL). Un
-  thread qui calcule sans jamais se bloquer la retarde.
+- **Threads** : la collecte des cycles a lieu aussi pendant que d'autres
+  threads tournent (collecte concurrente) ; quand ils produisent des cycles
+  plus vite qu'elle ne les rend, ils l'attendent brièvement — un programme
+  multi-thread qui crée beaucoup de cycles peut donc paraître plus lent
+  qu'en mono-thread, à mémoire bornée.
 - **SQLite** garde un cache de pages par connexion : ouvrir une base dans
   la boucle mesure aussi ce cache. Comparer à taille égale de données.
 - **Compiler en dehors de la mesure** : `/usr/bin/time` doit porter sur le

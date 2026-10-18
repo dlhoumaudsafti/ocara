@@ -269,14 +269,6 @@ implémentations des classes de ses `wiring`.
 
 - Client JetBrains (voir [tooling-jetbrains-plugin.md](tooling-jetbrains-plugin.md)).
 
-## En attendant (gains rapides sur l'extension actuelle)
-
-- Tests automatisés de la partie pure de l'extension (`declarations.ts`,
-  découpage des paramètres, ancres de documentation), aujourd'hui inexistants.
-- Cache du contexte runtime et des références CodeLens, invalidé par le
-  watcher existant (`WorkspaceIndex`) — aujourd'hui tout le workspace est
-  relu à chaque survol/complétion dans un fichier runtime.
-
 ## Priorité / Complexité
 
 **Moyenne** (outillage, ne bloque pas la stabilité du langage) —
@@ -285,14 +277,16 @@ spans en plages ; réécriture de l'extension en client léger).
 
 ## Fichiers clés
 
-`src/main.rs` (pipeline, `process::exit` à remplacer par des erreurs
-remontées), `src/core/cli.rs`, `src/sema/`, `src/parsing/token.rs` (spans),
+`src/core/analysis.d/` (pipeline partagé), `src/core/cli.rs`, `src/sema/`, `src/parsing/token.rs` (spans),
 `tools/highlight/vsode/src/` (extension), `Makefile`.
 
-## Reste à faire — audit du 2026-10-13
+## Racines de l'espace de travail (2026-10-18)
 
-Les étapes 1 à 5 sont faites (diagnostics, survol, définition, complétion, références, renommage, CodeLens vérifiés à la main). Reste :
-
-1. **Renommage destructeur sans `workspaceFolders`.** Si le client n'envoie que `rootUri` (ou ouvre un fichier hors dossier), l'index du projet est vide (`src/lsp/project.rs` ~l.85, `mod.rs` ~l.79) : les références ne renvoient que la déclaration, le CodeLens affiche « 0 référence » et `rename` ne modifie que la déclaration — le programme ne compile plus, sans avertissement. Correction : repli sur `rootUri`, puis sur la racine `main.oc` du document ouvert. **Moyenne — Légère.** Concerne aussi le futur [plugin JetBrains](tooling-jetbrains-plugin.md).
-2. Aucun test automatisé du serveur pour ce scénario.
-3. Défauts de cette fiche : la section « En attendant (gains rapides) » cite `declarations.ts`/`WorkspaceIndex` (supprimés) ; « Fichiers clés » parle d'un `process::exit` à remplacer (déjà fait) ; le détail de complétion affiche `string[]` au lieu de `array<string>`.
+- **Sans `workspaceFolders`** (client qui n'envoie que `rootUri`) : le
+  serveur se replie sur `rootUri` (`lsp::client_roots`). L'index n'est plus
+  vide, et le renommage ne touche plus seulement la déclaration.
+- **Fichier ouvert hors de toute racine** : la racine `main.oc` de son projet
+  est adoptée (`Workspace::adopt_root`), et l'index est reconstruit.
+- Tests : `src/lsp/tests_roots.rs`.
+- Détail de complétion des méthodes builtin : `array<string>` au lieu de
+  `string[]` (`generate-builtins-data.py`).

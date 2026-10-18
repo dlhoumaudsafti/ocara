@@ -6,6 +6,7 @@
 //   s.port(port:int)                         → void
 //   s.host(host:string)                      → void
 //   s.workers(n:int)                         → void
+//   s.sessionTimeout(seconds:int)            → void
 //   s.rootPath(path:string)                 → void
 //   s.route(path:string, method:string, f:Function) → void
 //   s.run()                                      → void  (bloquant)
@@ -118,6 +119,13 @@ pub fn class() -> ClassInfo {
     // (défaut 10 Mio, 0 : sans limite) ; au-delà, réponse 413.
     methods.insert("maxBodySize".into(), instance(
         vec![("bytes", Type::Int)],
+        Type::Void,
+    ));
+
+    // s.sessionTimeout(seconds:int) → void — durée d'inactivité après
+    // laquelle une session expire (défaut 30 min, 0 : jamais).
+    methods.insert("sessionTimeout".into(), instance(
+        vec![("seconds", Type::Int)],
         Type::Void,
     ));
 

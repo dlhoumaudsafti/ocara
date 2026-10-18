@@ -19,7 +19,7 @@
             "type": "string"
           }
         ],
-        "returns": "string[]",
+        "returns": "array<string>",
         "static": true,
         "doc": "`IO::readArray(sep)` → `array<string>`\n\nLit une ligne depuis stdin et la découpe selon le séparateur `sep`.  \nRetourne un `array<string>`.\n\n| Paramètre | Type     | Description    |\n|-----------|----------|----------------|\n| `sep`     | `string` | Séparateur     |\n\n```ocara\n// Saisie : \"rust,ocara,cranelift\"\nscoped tags:array<string> = IO::readArray(\",\")\n// → [\"rust\", \"ocara\", \"cranelift\"]\n\n// Saisie : \"10 20 30\"\nscoped nums:array<string> = IO::readArray(\" \")\n// → [\"10\", \"20\", \"30\"]\n```",
         "docFile": "IO.md",
@@ -116,7 +116,7 @@
       {
         "name": "args",
         "params": [],
-        "returns": "string[]",
+        "returns": "array<string>",
         "static": true,
         "doc": "`System::args() → array<string>`\n\nRetourne les arguments passés à la ligne de commande (équivalent de `argv` en C, `argv[0]` inclus).\n\n```ocara\nscoped argv:array<string> = System::args()\n```",
         "docFile": "System.md",
@@ -636,7 +636,7 @@
             "type": "string"
           }
         ],
-        "returns": "string[]",
+        "returns": "array<string>",
         "static": true,
         "doc": "`String::explode(s, sep)` → `array<string>`\n\nAlias de [`String::split`](#stringsplits-sep--string). Comportement identique.\n\n```ocara\nscoped parts:array<string> = String::explode(\"x|y|z\", \"|\")\n// → [\"x\", \"y\", \"z\"]\n```",
         "docFile": "String.md",
@@ -704,7 +704,7 @@
             "type": "string"
           }
         ],
-        "returns": "string[]",
+        "returns": "array<string>",
         "static": true,
         "doc": "`String::split(s, sep)` → `array<string>`\n\nDécoupe `s` en un tableau de sous-chaînes, en utilisant `sep` comme séparateur.  \nVoir aussi [`String::explode`](#stringexplodes-sep--string) — fonctionnellement identique.\n\n| Paramètre | Type     | Description   |\n|-----------|----------|---------------|\n| `s`       | `string` | Chaîne source |\n| `sep`     | `string` | Séparateur    |\n\n```ocara\nscoped mots:array<string> = String::split(\"alice,bob,charlie\", \",\")\n// → [\"alice\", \"bob\", \"charlie\"]\n\nscoped lignes:array<string> = String::split(\"a\\nb\\nc\", \"\\n\")\n// → [\"a\", \"b\", \"c\"]\n```",
         "docFile": "String.md",
@@ -749,7 +749,7 @@
         "params": [
           {
             "name": "arr",
-            "type": "mixed[]"
+            "type": "array<mixed>"
           },
           {
             "name": "val",
@@ -767,7 +767,7 @@
         "params": [
           {
             "name": "arr",
-            "type": "mixed[]"
+            "type": "array<mixed>"
           }
         ],
         "returns": "mixed",
@@ -781,7 +781,7 @@
         "params": [
           {
             "name": "arr",
-            "type": "mixed[]"
+            "type": "array<mixed>"
           },
           {
             "name": "idx",
@@ -799,7 +799,7 @@
         "params": [
           {
             "name": "arr",
-            "type": "mixed[]"
+            "type": "array<mixed>"
           },
           {
             "name": "val",
@@ -817,7 +817,7 @@
         "params": [
           {
             "name": "arr",
-            "type": "mixed[]"
+            "type": "array<mixed>"
           },
           {
             "name": "sep",
@@ -835,7 +835,7 @@
         "params": [
           {
             "name": "arr",
-            "type": "mixed[]"
+            "type": "array<mixed>"
           }
         ],
         "returns": "mixed",
@@ -849,7 +849,7 @@
         "params": [
           {
             "name": "arr",
-            "type": "mixed[]"
+            "type": "array<mixed>"
           }
         ],
         "returns": "int",
@@ -863,7 +863,7 @@
         "params": [
           {
             "name": "arr",
-            "type": "mixed[]"
+            "type": "array<mixed>"
           }
         ],
         "returns": "mixed",
@@ -877,7 +877,7 @@
         "params": [
           {
             "name": "arr",
-            "type": "mixed[]"
+            "type": "array<mixed>"
           },
           {
             "name": "val",
@@ -895,10 +895,10 @@
         "params": [
           {
             "name": "arr",
-            "type": "mixed[]"
+            "type": "array<mixed>"
           }
         ],
-        "returns": "mixed[]",
+        "returns": "array<mixed>",
         "static": true,
         "doc": "`Array::reverse(arr)` → `array<mixed>`\n\nRetourne un **nouvel** array contenant les éléments dans l'ordre inverse.  \nLe tableau original n'est pas modifié.\n\n```ocara\nscoped inv:array<int> = Array::reverse([1, 2, 3])\n// → [3, 2, 1]\n```",
         "docFile": "Array.md",
@@ -909,7 +909,7 @@
         "params": [
           {
             "name": "arr",
-            "type": "mixed[]"
+            "type": "array<mixed>"
           },
           {
             "name": "idx",
@@ -931,7 +931,7 @@
         "params": [
           {
             "name": "arr",
-            "type": "mixed[]"
+            "type": "array<mixed>"
           },
           {
             "name": "from",
@@ -942,7 +942,7 @@
             "type": "int"
           }
         ],
-        "returns": "mixed[]",
+        "returns": "array<mixed>",
         "static": true,
         "doc": "`Array::slice(arr, from, to)` → `array<mixed>`\n\nRetourne un **nouvel** array contenant les éléments de l'index `from` (inclus) à `to` (exclu).  \nIndices 0-basés.\n\n| Paramètre | Type  | Description               |\n|-----------|-------|---------------------------|\n| `arr`     | `array<T>` | Tableau source            |\n| `from`    | `int` | Index de début (inclus)   |\n| `to`      | `int` | Index de fin (exclu)      |\n\n```ocara\nvar t:array<int> = [10, 20, 30, 40, 50]\nArray::slice(t, 1, 4)   // → [20, 30, 40]\nArray::slice(t, 0, 2)   // → [10, 20]\n```\n\nExtraire les N derniers éléments :\n```ocara\nscoped tail:array<int> = Array::slice(t, Array::len(t) - 2, Array::len(t))\n// → [40, 50]\n```",
         "docFile": "Array.md",
@@ -953,10 +953,10 @@
         "params": [
           {
             "name": "arr",
-            "type": "mixed[]"
+            "type": "array<mixed>"
           }
         ],
-        "returns": "mixed[]",
+        "returns": "array<mixed>",
         "static": true,
         "doc": "`Array::sort(arr)` → `array<mixed>`\n\nRetourne un **nouvel** array trié en ordre naturel (numérique pour les `array<int>`, lexicographique pour les `array<string>`).  \nLe tableau original n'est pas modifié.\n\n```ocara\nscoped t:array<int>    = Array::sort([30, 10, 50, 20])\n// → [10, 20, 30, 50]\n\nscoped s:array<string> = Array::sort([\"banane\", \"pomme\", \"abricot\"])\n// → [\"abricot\", \"banane\", \"pomme\"]\n```",
         "docFile": "Array.md",
@@ -1044,7 +1044,7 @@
             "type": "map<mixed, mixed>"
           }
         ],
-        "returns": "mixed[]",
+        "returns": "array<mixed>",
         "static": true,
         "doc": "`Map::keys(m)` → `array<mixed>`\n\nRetourne un tableau contenant toutes les clés de la map.  \nL'ordre n'est pas garanti.\n\n```ocara\nvar m:map<string, int> = {\"x\": 10, \"y\": 20, \"z\": 30}\nscoped cles:array<string> = Map::keys(m)\n// → [\"x\", \"y\", \"z\"] (ordre quelconque)\n```",
         "docFile": "Map.md",
@@ -1130,7 +1130,7 @@
             "type": "map<mixed, mixed>"
           }
         ],
-        "returns": "mixed[]",
+        "returns": "array<mixed>",
         "static": true,
         "doc": "`Map::values(m)` → `array<mixed>`\n\nRetourne un tableau contenant toutes les valeurs de la map.  \nL'ordre correspond à celui de `Map::keys`.\n\n```ocara\nvar m:map<string, int> = {\"x\": 10, \"y\": 20}\nscoped vals:array<int> = Map::values(m)\n// → [10, 20]\n```",
         "docFile": "Map.md",
@@ -1212,7 +1212,7 @@
             "type": "string"
           }
         ],
-        "returns": "string[]",
+        "returns": "array<string>",
         "static": true,
         "doc": "`Regex::findAll(pattern, s)` → `array<string>`\n\nRetourne **toutes** les sous-chaînes correspondant à `pattern` sous forme de tableau.\n\n```ocara\nscoped nums:array<string> = Regex::findAll(\"[0-9]+\", \"a1 b22 c333\")\n// → [\"1\", \"22\", \"333\"]\n\nscoped mots:array<string> = Regex::findAll(\"[a-z]+\", \"hello world foo\")\n// → [\"hello\", \"world\", \"foo\"]\n```",
         "docFile": "Regex.md",
@@ -1274,7 +1274,7 @@
             "type": "string"
           }
         ],
-        "returns": "string[]",
+        "returns": "array<string>",
         "static": true,
         "doc": "`Regex::split(pattern, s)` → `array<string>`\n\nDécoupe `s` en utilisant `pattern` comme séparateur.\n\n```ocara\nRegex::split(\"[,;|]+\", \"a,b;;c|d\")\n// → [\"a\", \"b\", \"c\", \"d\"]\n\nRegex::split(\"\\\\s+\", \"un  deux   trois\")\n// → [\"un\", \"deux\", \"trois\"]\n```",
         "docFile": "Regex.md",
@@ -1309,7 +1309,7 @@
         "params": [
           {
             "name": "arr",
-            "type": "mixed[]"
+            "type": "array<mixed>"
           },
           {
             "name": "kv",
@@ -1327,7 +1327,7 @@
         "params": [
           {
             "name": "arr",
-            "type": "mixed[]"
+            "type": "array<mixed>"
           },
           {
             "name": "sep",
@@ -1474,7 +1474,7 @@
             "type": "map<string, string>"
           }
         ],
-        "returns": "string[]",
+        "returns": "array<string>",
         "static": true,
         "doc": "`Convert::mapKeysToArray(m)` → `array<string>`\n\nRetourne un tableau de toutes les clés. Équivalent à `Map::keys`.\n\n```ocara\nscoped cles:array<string> = Convert::mapKeysToArray(m)\n// → [\"lang\", \"theme\"]\n```",
         "docFile": "Convert.md",
@@ -1510,7 +1510,7 @@
             "type": "map<string, string>"
           }
         ],
-        "returns": "mixed[]",
+        "returns": "array<mixed>",
         "static": true,
         "doc": "`Convert::mapValuesToArray(m)` → `array<mixed>`\n\nRetourne un tableau de toutes les valeurs. Équivalent à `Map::values`.\n\n```ocara\nscoped vals:array<mixed> = Convert::mapValuesToArray(m)\n// → [\"fr\", \"dark\"]\n```",
         "docFile": "Convert.md",
@@ -1542,7 +1542,7 @@
             "type": "string"
           }
         ],
-        "returns": "string[]",
+        "returns": "array<string>",
         "static": true,
         "doc": "`Convert::strToArray(s, sep)` → `array<string>`\n\nDécoupe `s` selon le séparateur `sep` et retourne un `array<string>`.\n\n```ocara\nConvert::strToArray(\"rust,ocara,web\", \",\")   // → [\"rust\", \"ocara\", \"web\"]\nConvert::strToArray(\"10 20 30\", \" \")          // → [\"10\", \"20\", \"30\"]\n```",
         "docFile": "Convert.md",
@@ -2169,7 +2169,7 @@
             "type": "string"
           }
         ],
-        "returns": "int[]",
+        "returns": "array<int>",
         "static": true,
         "doc": "`File::readBytes(path: string) → array<int>`\n\nLit le contenu d'un fichier en binaire (array d'octets).\n\n```ocara\nvar bytes:array<int> = File::readBytes(\"/tmp/image.png\")\nIO::writeln(`Taille: ${Array::len(bytes)} octets`)\n```\n\n**Erreur** : `fail` si le fichier n'existe pas ou n'est pas lisible.",
         "docFile": "File.md",
@@ -2230,7 +2230,7 @@
           },
           {
             "name": "data",
-            "type": "int[]"
+            "type": "array<int>"
           }
         ],
         "returns": "void",
@@ -2341,7 +2341,7 @@
             "type": "string"
           }
         ],
-        "returns": "string[]",
+        "returns": "array<string>",
         "static": true,
         "doc": "`Directory::list(path: string) → array<string>`\n\nListe tous les fichiers et répertoires d'un répertoire.\n\n```ocara\nvar entries:array<string> = Directory::list(\"/tmp\")\n\nfor entry in entries {\n    IO::writeln(entry)\n}\n```\n\n**Erreur** : `fail` si le répertoire n'existe pas ou n'est pas accessible.",
         "docFile": "Directory.md",
@@ -2355,7 +2355,7 @@
             "type": "string"
           }
         ],
-        "returns": "string[]",
+        "returns": "array<string>",
         "static": true,
         "doc": "`Directory::listDirs(path: string) → array<string>`\n\nListe uniquement les sous-répertoires d'un répertoire.\n\n```ocara\nvar dirs:array<string> = Directory::listDirs(\"/tmp\")\n\nfor dir in dirs {\n    IO::writeln(`Répertoire: ${dir}`)\n}\n```\n\n**Erreur** : `fail` si le répertoire n'existe pas ou n'est pas accessible.",
         "docFile": "Directory.md",
@@ -2369,7 +2369,7 @@
             "type": "string"
           }
         ],
-        "returns": "string[]",
+        "returns": "array<string>",
         "static": true,
         "doc": "`Directory::listFiles(path: string) → array<string>`\n\nListe uniquement les fichiers d'un répertoire.\n\n```ocara\nvar files:array<string> = Directory::listFiles(\"/tmp\")\n\nfor file in files {\n    IO::writeln(`Fichier: ${file}`)\n}\n```\n\n**Erreur** : `fail` si le répertoire n'existe pas ou n'est pas accessible.",
         "docFile": "Directory.md",
@@ -2902,6 +2902,19 @@
         "returns": "void",
         "static": false,
         "doc": "Exemple :\n\n```ocara\nserver.run()   // bloquant — le programme attend indéfiniment\n```",
+        "docFile": "HTTPServer.md"
+      },
+      {
+        "name": "sessionTimeout",
+        "params": [
+          {
+            "name": "seconds",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "Exemple :\n\n```ocara\nserver.sessionTimeout(900)   // expiration d'une session inactive en secondes (défaut : 1800, 0 : jamais)\n```",
         "docFile": "HTTPServer.md"
       },
       {
@@ -4779,7 +4792,7 @@
             "type": "map<string, mixed>|null"
           }
         ],
-        "returns": "map<string, mixed>[]",
+        "returns": "array<map<string, mixed>>",
         "static": false,
         "doc": "`db.query(query: string, placeholder: map<string, mixed>|null = null) → array<map<string, mixed>>`\n\nExécute une requête SELECT et retourne un array de maps (une map par ligne).\n\n```ocara\nconst rows:array<map<string, mixed>> = db.query(\"SELECT * FROM users\")\nconst adults:array<map<string, mixed>> = db.query(\"SELECT * FROM users WHERE age >= :min\", {\"min\": 18})\n\nfor row in rows {\n    const name:string = row[\"name\"]\n    const age:int = row[\"age\"]\n    IO::writeln(`${name} has ${age} years`)\n}\n```\n\n**Erreur** : `SQLiteException` (code 103) si la requête échoue.",
         "docFile": "SQLite.md",
@@ -4979,7 +4992,7 @@
             "type": "map<string, mixed>|null"
           }
         ],
-        "returns": "map<string, mixed>[]",
+        "returns": "array<map<string, mixed>>",
         "static": false,
         "doc": "`db.query(query: string, placeholder: map<string, mixed>|null = null) → array<map<string, mixed>>`\n\nExécute une requête SELECT et retourne un array de maps (une map par ligne).\n\n```ocara\nconst rows:array<map<string, mixed>> = db.query(\"SELECT * FROM users\")\nconst adults:array<map<string, mixed>> = db.query(\"SELECT * FROM users WHERE age >= :min\", {\"min\": 18})\n\nfor row in rows {\n    const name:string = row[\"name\"]\n    const age:int = row[\"age\"]\n    IO::writeln(`${name} has ${age} years`)\n}\n```\n\n**Types de colonnes** :\n- `INT`, `BIGINT` → `int` (i64)\n- `FLOAT`, `DOUBLE` → `float` (f64)\n- `VARCHAR`, `TEXT` → `string`\n- `NULL` → `null` (0)\n\n**Erreur** : `MySQLException` (code 103) si la requête échoue.",
         "docFile": "MySQL.md",

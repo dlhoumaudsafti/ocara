@@ -30,12 +30,16 @@
 // en rematérialise une copie neuve. `shape` (argument caché, voir
 // `static_leaf_shape`) décrit les feuilles d'un conteneur concret
 // (`array<int>`...), restituées brutes. Objets et fonctions : refusés
-// (HTTPServerException 102). Aucune expiration : une session vit jusqu'à
-// `destroy()` ou l'arrêt du processus.
+// (HTTPServerException 102). Expiration : une session inactive depuis plus
+// de `HTTPServer.sessionTimeout` secondes (30 min par défaut, 0 : jamais)
+// n'est plus reprise ; les sessions expirées sont purgées au plus une fois
+// par minute, lors d'un accès à une session.
 // ─────────────────────────────────────────────────────────────────────────────
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use once_cell::sync::Lazy;
 use rand::Rng;
@@ -64,10 +68,77 @@ struct Entry {
     shape: i64,
 }
 
-#[derive(Default)]
-struct Store {
-    sessions: HashMap<String, HashMap<String, Entry>>,
+pub(crate) struct Session {
+    data: HashMap<String, Entry>,
+    pub(crate) last_access: Instant,
+}
+
+impl Default for Session {
+    fn default() -> Self {
+        Session { data: HashMap::new(), last_access: Instant::now() }
+    }
+}
+
+pub(crate) struct Store {
+    pub(crate) sessions: HashMap<String, Session>,
     globals:  HashMap<String, Entry>,
+    pub(crate) last_purge: Instant,
+}
+
+impl Default for Store {
+    fn default() -> Self {
+        Store { sessions: HashMap::new(), globals: HashMap::new(), last_purge: Instant::now() }
+    }
+}
+
+/// Durée d'inactivité (secondes) au-delà de laquelle une session expire ;
+/// 0 : jamais (`HTTPServer.sessionTimeout`).
+static SESSION_TIMEOUT_SECS: AtomicU64 = AtomicU64::new(30 * 60);
+const PURGE_INTERVAL: Duration = Duration::from_secs(60);
+
+pub(crate) fn set_session_timeout(seconds: i64) {
+    SESSION_TIMEOUT_SECS.store(seconds.max(0) as u64, Ordering::Relaxed);
+}
+
+fn session_timeout() -> Option<Duration> {
+    match SESSION_TIMEOUT_SECS.load(Ordering::Relaxed) {
+        0 => None,
+        secs => Some(Duration::from_secs(secs)),
+    }
+}
+
+impl Session {
+    fn expired(&self, now: Instant) -> bool {
+        session_timeout().is_some_and(|timeout| now.duration_since(self.last_access) > timeout)
+    }
+}
+
+impl Store {
+    /// Retire les sessions expirées, au plus une fois par `PURGE_INTERVAL` :
+    /// sans cela, chaque visiteur sans cookie laissait une session jusqu'à
+    /// l'arrêt du serveur (mémoire non bornée).
+    pub(crate) fn purge_expired(&mut self, now: Instant) {
+        if now.duration_since(self.last_purge) < PURGE_INTERVAL {
+            return;
+        }
+        self.last_purge = now;
+        self.sessions.retain(|_, session| !session.expired(now));
+    }
+
+    /// Session connue et non expirée, dont le dernier accès est mis à jour.
+    pub(crate) fn resume(&mut self, id: &str, now: Instant) -> bool {
+        match self.sessions.get_mut(id) {
+            Some(session) if !session.expired(now) => {
+                session.last_access = now;
+                true
+            }
+            Some(_) => {
+                self.sessions.remove(id);
+                false
+            }
+            None => false,
+        }
+    }
 }
 
 static STORE: Lazy<Mutex<Store>> = Lazy::new(|| Mutex::new(Store::default()));
@@ -109,12 +180,18 @@ fn ensure_session(req: i64) -> String {
     if let Some(id) = unsafe { ctx_ref(req) }.session_id.clone() {
         return id;
     }
-    let known = request_cookie(req, SESSION_COOKIE).filter(|id| store().sessions.contains_key(id));
+    let now = Instant::now();
+    let cookie = request_cookie(req, SESSION_COOKIE);
+    let known = {
+        let mut store = store();
+        store.purge_expired(now);
+        cookie.filter(|id| store.resume(id, now))
+    };
     let id = match known {
         Some(id) => id,
         None => {
             let id = new_session_id();
-            store().sessions.insert(id.clone(), HashMap::new());
+            store().sessions.insert(id.clone(), Session::default());
             push_set_cookie(req, &format!("{}={}; Path=/; HttpOnly; SameSite=Lax", SESSION_COOKIE, id));
             id
         }
@@ -244,27 +321,27 @@ pub extern "C" fn HTTPServerSession_id(sess: i64) -> i64 {
 pub extern "C" fn HTTPServerSession_set(sess: i64, key: i64, val: i64, shape: i64) {
     let entry = entry_of(val, shape);
     let id = ensure_session(sess);
-    store().sessions.entry(id).or_default().insert(key_of(key), entry);
+    store().sessions.entry(id).or_default().data.insert(key_of(key), entry);
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn HTTPServerSession_get(sess: i64, key: i64) -> i64 {
     let id = ensure_session(sess);
-    let entry = store().sessions.get(&id).and_then(|s| s.get(&key_of(key)).cloned());
+    let entry = store().sessions.get(&id).and_then(|s| s.data.get(&key_of(key)).cloned());
     materialize_entry(entry)
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn HTTPServerSession_has(sess: i64, key: i64) -> i64 {
     let id = ensure_session(sess);
-    store().sessions.get(&id).is_some_and(|s| s.contains_key(&key_of(key))) as i64
+    store().sessions.get(&id).is_some_and(|s| s.data.contains_key(&key_of(key))) as i64
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn HTTPServerSession_remove(sess: i64, key: i64) {
     let id = ensure_session(sess);
     if let Some(s) = store().sessions.get_mut(&id) {
-        s.remove(&key_of(key));
+        s.data.remove(&key_of(key));
     }
 }
 

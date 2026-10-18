@@ -22,6 +22,7 @@ server.port(8080)            // port d'écoute (défaut : 8080)
 server.host("0.0.0.0")       // interface réseau (défaut : "0.0.0.0")
 server.workers(32)           // threads workers (défaut : 4)
 server.maxBodySize(1048576)  // corps de requête max en octets (défaut : 10 Mio, 0 : sans limite)
+server.sessionTimeout(900)   // expiration d'une session inactive en secondes (défaut : 1800, 0 : jamais)
 server.rootPath("./public") // répertoire pour fichiers statiques (optionnel)
 ```
 
@@ -337,7 +338,7 @@ server.route("/hits", "GET", nameless(req:HTTPServerRequest): int {
 - Un conteneur concret (`array<int>`, `map<string, float>`…) est restitué avec la même représentation : `var cart:array<int> = sess.get("cart")`.
 - **Objets et fonctions refusés** : `HTTPServerException`, code `102`.
 - **Concurrence** : sessions et état global sont protégés par un verrou interne. Ils sont donc sûrs aussi depuis un `ocara.Thread` en dehors des handlers.
-- **Durée de vie** : en mémoire, par processus. Aucune persistance entre redémarrages et **aucune expiration automatique** : une session vit jusqu'à `destroy()` ou l'arrêt du serveur.
+- **Durée de vie** : en mémoire, par processus, sans persistance entre redémarrages. Une session inactive depuis plus de `sessionTimeout` secondes (30 min par défaut) expire : son cookie n'est plus reconnu et une nouvelle session est créée, comme pour un identifiant inconnu. Les sessions expirées sont purgées au plus une fois par minute, lors d'un accès à une session : la mémoire reste bornée même face à des clients qui n'envoient jamais de cookie. `sessionTimeout(0)` désactive l'expiration (une session vit alors jusqu'à `destroy()` ou l'arrêt du serveur). L'état global n'expire pas.
 - Le handle `HTTPServerSession` n'est valide que pendant l'exécution du handler, comme `req`. Ne le conservez pas au-delà.
 
 ## Méthodes d'instance — récapitulatif (HTTPServer)
@@ -347,6 +348,7 @@ server.route("/hits", "GET", nameless(req:HTTPServerRequest): int {
 | `port` | `(port:int) → void` | Port d'écoute |
 | `host` | `(host:string) → void` | Adresse d'écoute |
 | `workers` | `(n:int) → void` | Nombre de threads workers |
+| `sessionTimeout` | `(seconds:int) → void` | Durée d'inactivité après laquelle une session expire, en secondes (défaut 1800, soit 30 min ; `0` : jamais). Réglage commun à tout le processus |
 | `maxBodySize` | `(bytes:int) → void` | Taille maximale du corps de requête en octets (défaut 10 Mio, `0` : sans limite) — au-delà, réponse `413 Payload Too Large` sans appeler le handler |
 | `rootPath` | `(path:string) → void` | Répertoire racine pour fichiers statiques |
 | `route` | `(path:string, method:string, f:Function<int(HTTPServerRequest)>) → void` | Enregistre une route |

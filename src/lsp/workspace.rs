@@ -8,7 +8,8 @@ use crate::core::source;
 
 #[derive(Default)]
 pub struct Workspace {
-    /// Dossiers racine du client (`workspaceFolders`).
+    /// Dossiers racine : ceux du client (`workspaceFolders`/`rootUri`),
+    /// plus le projet de chaque document ouvert hors de ces dossiers.
     roots: Vec<PathBuf>,
     /// Texte courant de chaque document ouvert.
     texts: HashMap<PathBuf, String>,
@@ -34,6 +35,19 @@ impl Workspace {
 
     pub fn roots(&self) -> &[PathBuf] {
         &self.roots
+    }
+
+    /// Document ouvert hors de tout dossier racine (client sans
+    /// `workspaceFolders` ni `rootUri`, fichier ouvert seul) : son projet
+    /// (`project_root`, dossier du `main.oc` le plus proche) devient une
+    /// racine. Vrai si une racine a été ajoutée (l'index est à reconstruire).
+    pub fn adopt_root(&mut self, path: &Path) -> bool {
+        if self.roots.iter().any(|r| path.starts_with(r)) {
+            return false;
+        }
+        let root = self.project_root(path);
+        self.roots.push(root.canonicalize().unwrap_or(root));
+        true
     }
 
     pub fn open_paths(&self) -> Vec<PathBuf> {

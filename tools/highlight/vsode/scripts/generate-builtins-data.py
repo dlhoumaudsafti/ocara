@@ -105,10 +105,10 @@ def simplify_type_text(t, local_vars):
         t = t2
     if t in local_vars:
         return simplify_type_text(local_vars[t], local_vars)
-    # Type::Array(Box::new(X)) -> X[]
+    # Type::Array(Box::new(X)) -> array<X>
     m = re.fullmatch(r'Type::Array\(Box::new\((.+)\)\)', t)
     if m:
-        return simplify_type_text(m.group(1), local_vars) + "[]"
+        return f"array<{simplify_type_text(m.group(1), local_vars)}>"
     # Type::Map(Box::new(K), Box::new(V)) -> map<K, V>
     m = re.fullmatch(r'Type::Map\(Box::new\((.+)\),\s*Box::new\((.+)\)\)', t)
     if m:

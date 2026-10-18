@@ -29,6 +29,7 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
+- **Fermeture capturant une variable de boucle au nom réutilisé : valeurs fausses puis blocage** — `for i …` suivi d'un second `for i …` dont le corps crée une fermeture capturant `i` : `222` au lieu de `012` (valeur arbitraire avec un tableau), puis le programme ne se termine plus. *(Dangereuse — promotion des captures indexée par nom)* → [détails](roadmap.d/langage-closure-capture-loop-var-reused-name.md)
 
 ---
 
@@ -36,9 +37,6 @@ Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnali
 
 À traiter mais non bloquant pour la stabilité du langage.
 
-- **Sessions `HTTPServer` jamais purgées** — une session par requête sans cookie, conservée jusqu'à l'arrêt : mémoire non bornée sur un serveur exposé. *(Légère — expiration et purge)* → [détails](roadmap.d/stdlib-httpserver-session.md)
-- **Serveur de langage : renommage destructeur sans `workspaceFolders`** — index vide, seule la déclaration est renommée, le programme ne compile plus. *(Légère — repli sur `rootUri`)* → [détails](roadmap.d/tooling-language-server.md)
-- **`for i in a until b` alloue un tableau de `b − a` entiers** — mémoire en O(n) pour une boucle de comptage. *(Légère)* → [détails](roadmap.d/langage-for-range-allocation.md)
 - **Enums enrichis** — syntaxe `case`, backing type typé déclaré (`enum Status: string { case Pending = 'pending' }`), méthodes d'instance avec `self` référençant le cas courant et pattern `self::Case`/motifs multiples par bras dans un `match`. Vérifié : l'enum actuel est un pur groupe de constantes `int` (`EnumVariant.value: Option<i64>` câblé en dur, pas de méthodes, pas d'instanciation), et `match` ne supporte ni motif « cas d'enum » ni plusieurs motifs séparés par une virgule dans un même bras. *(Massive — nouveau système d'enum quasi complet + extension du pattern matching, plusieurs points à trancher avant d'implémenter)* → [détails](roadmap.d/langage-enum-cases-backing-methods.md)
 - **Réflexion : types numériques de largeur explicite** — `int8`…`uint64` et `float16`…`float64`, avec `int`/`float` comme alias envisagés de `int64`/`float64`. Non tranché : règles de dépassement, de conversion et d'affectation, précision et valeurs spéciales des flottants, compatibilité (signatures, collections, `mixed`, builtins), représentation réelle — tout occupe aujourd'hui un mot de 64 bits, les gains mémoire ou de performance restent une hypothèse à vérifier. *(Massive si la famille complète est retenue — à réévaluer selon la piste choisie)* → [détails](roadmap.d/langage-types-numeriques-largeur.md)
 

@@ -33,8 +33,11 @@ Documentation utilisateur : `docs/builtins/HTTPServer.md`, section
   forme `kind | depth << 8` (`static_leaf_shape`). Les feuilles brutes d'un
   `array<int>` sont ainsi lues sans tag et restituées brutes
   (`var cart:array<int> = sess.get("cart")`).
-- **Expiration** : aucune en v1, limitation documentée. Une session vit
-  jusqu'à `destroy()` ou l'arrêt du processus.
+- **Expiration** (2026-10-18) : une session inactive depuis plus de
+  `server.sessionTimeout(secondes)` (30 min par défaut, `0` désactive) n'est
+  plus reprise. Elle est supprimée à la purge, faite au plus une fois par
+  minute lors d'une ouverture de session (`Store::purge_expired`), ce qui
+  borne la mémoire. L'état global n'expire pas.
 
 ## Bug corrigé en passant
 
@@ -46,7 +49,6 @@ forme `kind | depth << 8` (`value_to_json`, `value_to_yaml`). Test :
 
 ## Limites restantes
 
-- Pas d'expiration ni de nettoyage des sessions inactives.
 - Pas de persistance entre redémarrages.
 - Pas d'attribut `Secure` sur le cookie : le serveur ne gère pas TLS lui-même.
 
@@ -60,8 +62,6 @@ forme `kind | depth << 8` (`value_to_json`, `value_to_yaml`). Test :
 `examples/tests/73_httpserver_sessionTest.oc`,
 `examples/builtins/httpserver_session.oc` et `.sh`.
 
-## Reste à faire — audit du 2026-10-13
-
-**Sessions jamais purgées.** Chaque requête sans cookie qui appelle `req.session()` crée une session conservée jusqu'à l'arrêt du serveur : la mémoire croît sans borne sur un serveur exposé (robots, clients sans cookie). Correction : expiration (durée d'inactivité configurable) et purge périodique. **Moyenne — Légère.**
+## Voir aussi
 
 Limite de taille du corps de requête : voir [stdlib-httpserver-request-object](stdlib-httpserver-request-object.md).
