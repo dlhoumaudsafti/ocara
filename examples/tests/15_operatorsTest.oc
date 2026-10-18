@@ -5,6 +5,8 @@
 architecture permissive
 
 import ocara.UnitTest
+import ocara.IO
+import ocara.MathException
 
 class Test15Operators extends UnitTest {
 
@@ -95,6 +97,39 @@ class Test15Operators extends UnitTest {
         }
         self::assertEquals(5, count)
 
+        return 0
+    }
+
+    // Division et modulo entiers par zéro : MathException (104) rattrapable —
+    // le programme s'arrêtait (SIGILL/SIGFPE).
+    public method integerDivisionByZeroTest(): int {
+        var a:int = 7
+        var zero:int = 0
+        var code:int = 0
+        try {
+            IO::writeln(a / zero)
+        } on e is MathException {
+            code = e.code
+        }
+        self::assertEquals(104, code)
+        code = 0
+        try {
+            IO::writeln(a % zero)
+        } on e is MathException {
+            code = e.code
+        }
+        self::assertEquals(104, code)
+        return 0
+    }
+
+    // INT_MIN / -1 boucle comme tout dépassement entier ; INT_MIN % -1 vaut 0.
+    public method integerDivisionOverflowTest(): int {
+        var lowest:int = -9223372036854775807 - 1
+        var minus_one:int = -1
+        self::assertEquals(lowest, lowest / minus_one)
+        self::assertEquals(0, lowest % minus_one)
+        self::assertEquals(-3, -7 / 2)
+        self::assertEquals(-1, -7 % 2)
         return 0
     }
 }

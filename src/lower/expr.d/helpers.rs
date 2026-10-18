@@ -286,21 +286,10 @@ pub fn resolve_chained_field_class(builder: &LowerBuilder, object: &Expr, field:
     let field_ty = builder.module.class_field_types.get(&base_class)?
         .iter().find(|(f, _)| f == field)
         .map(|(_, ty)| ty.clone())?;
-    match field_ty {
-        Type::Named(n)   => Some(n),
-        Type::String     => Some("String".to_string()),
-        Type::Array(_)   => Some("Array".to_string()),
-        Type::Map(_, _)  => Some("Map".to_string()),
-        // Champ de type générique (`property box:Box<int>`) — même
-        // résolution que pour une variable locale/un paramètre (voir
-        // `lower_var`/le paramètre `Type::Generic` dans `functions.rs`) :
-        // sans ça, un appel de méthode sur un champ générique
-        // (`self.box.get()`, `c.box.get()`) ne trouvait aucune classe et
-        // retombait sur un symbole `_method_<nom>` inexistant (confirmé par
-        // reproduction).
-        Type::Generic { name, args } => Some(crate::core::monomorph::monomorphized_name(&name, &args)),
-        _ => None,
-    }
+    // Union comprise (`next:Node|null`) : sans elle, `a.next.value` lisait le
+    // champ comme un `mixed` non boxé (SIGSEGV à la comparaison) et
+    // `a.next.m()` appelait `String_m` (docs/EBNF.md §6.3).
+    receiver_class_of_type(&field_ty)
 }
 
 /// Type "élément" d'un conteneur — le type de `x[i]` sachant que `x` est de
@@ -391,6 +380,22 @@ pub fn map_key_kind(builder: &LowerBuilder, expr: &Expr) -> i64 {
         Some(Type::Bool) => 3,
         _ => 0,
     }
+}
+
+/// Vrai si le receveur `expr` d'un accès de membre peut valoir `null` selon
+/// son type déclaré : variable ou paramètre `T|null`, champ, retour d'appel
+/// ou élément de conteneur `T|null`.
+pub fn receiver_may_be_null(builder: &LowerBuilder, expr: &Expr) -> bool {
+    let declared = match expr {
+        Expr::Ident(name, _) => return builder.nullable_vars.contains(name.as_str()),
+        Expr::Field { object, field, .. } => resolve_receiver_class(builder, object)
+            .and_then(|cls| builder.module.class_field_types.get(&cls)?
+                .iter().find(|(f, _)| f == field).map(|(_, ty)| ty.clone())),
+        Expr::Call { .. } | Expr::StaticCall { .. } => call_ret_type(builder, expr),
+        Expr::Index { object, .. } => elem_type_after_index(builder, object),
+        _ => None,
+    };
+    declared.is_some_and(|ty| crate::parsing::ast::admits_null(&ty))
 }
 
 /// Type de retour déclaré d'un appel (fonction libre, méthode chaînée,

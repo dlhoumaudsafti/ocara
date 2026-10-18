@@ -111,6 +111,15 @@ pub fn union_named_class(ty: &Type) -> Option<String> {
 /// site de binding (variable de boucle `for x in array<T>`, valeur d'un
 /// `for k has v in map<K,V>`...) peut avoir besoin de la même réponse : "quelle
 /// classe dois-je enregistrer dans `var_class` pour ce type élément ?".
+/// Vrai si une valeur de type `ty` peut être `null` (`null`, `T|null`).
+pub fn admits_null(ty: &Type) -> bool {
+    match ty {
+        Type::Null => true,
+        Type::Union(members) => members.iter().any(admits_null),
+        _ => false,
+    }
+}
+
 pub fn resolved_named_class(ty: &Type) -> Option<String> {
     match ty {
         Type::Named(n) => Some(n.clone()),

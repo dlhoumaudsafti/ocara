@@ -413,7 +413,7 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             } else {
                 IrType::Ptr
             };
-            let obj_val = lower_expr(builder, object);
+            let obj_val = lower_receiver(builder, object, field);
             let dest = builder.new_value();
             // `on e` sans filtre : `e` peut être une chaîne levée (`raise
             // "x"`) — lire `e.message` à l'offset 0 de la chaîne faisait
@@ -611,7 +611,7 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     // Compléter les arguments avec les valeurs par défaut si nécessaire
                     let completed_args = complete_args_with_defaults(builder, &func_mangled, args);
 
-                    let obj_val = lower_expr(builder, object);
+                    let obj_val = lower_receiver(builder, object, field);
                     let dest = builder.new_value();
                     // Boxer F64/Bool/I64 si le paramètre cible est `mixed`
                     // (Ptr) — voir `box_arg_for_mixed_param`. Basé sur
@@ -1456,9 +1456,7 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 } else {
                     rv_raw
                 };
-                let dest = builder.new_value();
-                builder.emit(Inst::Mod { dest: dest.clone(), lhs: lv, rhs: rv, ty: IrType::I64 });
-                return dest;
+                return int_div_or_mod(builder, "__int_mod", lv, rv);
             }
 
             // Chemin normal : aucun opérande Ptr, types statiquement connus
@@ -1470,6 +1468,13 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             };
             let lv = lower_expr(builder, left);
             let rv = lower_expr(builder, right);
+            if ty == IrType::I64 {
+                match op {
+                    BinOp::Div => return int_div_or_mod(builder, "__int_div", lv, rv),
+                    BinOp::Mod => return int_div_or_mod(builder, "__int_mod", lv, rv),
+                    _ => {}
+                }
+            }
             let dest = builder.new_value();
 
             let inst = match op {
@@ -1978,3 +1983,24 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
     }
 }
 
+/// `/`/`%` entre entiers : appel du runtime, qui lève une `MathException` sur
+/// un diviseur nul (`sdiv`/`srem` arrêtaient le programme, SIGILL/SIGFPE).
+fn int_div_or_mod(builder: &mut LowerBuilder, func: &str, lhs: Value, rhs: Value) -> Value {
+    let dest = builder.new_value();
+    builder.emit(Inst::Call { dest: Some(dest.clone()), func: func.into(), args: vec![lhs, rhs], ret_ty: IrType::I64 });
+    dest
+}
+
+/// Évalue le receveur d'un accès au membre `member` ; un receveur dont le
+/// type déclaré admet `null` est vérifié à l'exécution (`__null_receiver` lève
+/// une exception) — lire à l'adresse 0 arrêtait le programme (SIGSEGV).
+pub fn lower_receiver(builder: &mut LowerBuilder, object: &Expr, member: &str) -> Value {
+    let val = lower_expr(builder, object);
+    if crate::lower::expr::helpers::receiver_may_be_null(builder, object) {
+        let idx = builder.module.intern_string(member);
+        let name = builder.new_value();
+        builder.emit(Inst::ConstStr { dest: name.clone(), idx });
+        builder.emit(Inst::Call { dest: None, func: "__null_receiver".into(), args: vec![val.clone(), name], ret_ty: IrType::Void });
+    }
+    val
+}

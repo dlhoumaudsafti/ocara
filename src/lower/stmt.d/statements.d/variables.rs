@@ -43,6 +43,11 @@ fn map_value_type(ty: &Type) -> Option<&Type> {
 /// causait et docs/roadmap.d/langage-union-class-null-field-access.md pour
 /// la reproduction complète.
 pub(crate) fn register_var_class(builder: &mut LowerBuilder, name: &str, ty: &Type) {
+    if crate::parsing::ast::admits_null(ty) {
+        builder.nullable_vars.insert(name.to_string());
+    } else {
+        builder.nullable_vars.remove(name);
+    }
     // Type de classe utilisateur direct.
     if let Type::Named(class_name) = ty {
         builder.var_class.insert(name.to_string(), class_name.clone());

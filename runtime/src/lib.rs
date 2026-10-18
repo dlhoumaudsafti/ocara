@@ -3340,7 +3340,7 @@ pub extern "C" fn __dyn_add(a: i64, b: i64) -> i64 {
 /// aurait sinon été silencieusement tronqué en entier. Retourne, comme `__dyn_add`,
 /// une valeur "mixed" auto-décrite (entier brut ou float boxé).
 macro_rules! dyn_arith_op {
-    ($name:ident, $op:tt) => {
+    ($name:ident, $op:tt, $int_op:ident) => {
         #[unsafe(no_mangle)]
         pub extern "C" fn $name(a: i64, b: i64) -> i64 {
             if is_float_box(a) || is_float_box(b) {
@@ -3349,14 +3349,55 @@ macro_rules! dyn_arith_op {
                 // Voir le commentaire équivalent dans `__dyn_add` : le résultat
                 // est déjà une valeur "mixed" retournée telle quelle à
                 // l'appelant, donc à reboxer ICI si nécessaire.
-                box_int_if_needed(unbox_numeric_i64(a) $op unbox_numeric_i64(b))
+                box_int_if_needed(unbox_numeric_i64(a).$int_op(unbox_numeric_i64(b)))
             }
         }
     };
 }
-dyn_arith_op!(__dyn_sub, -);
-dyn_arith_op!(__dyn_mul, *);
-dyn_arith_op!(__dyn_div, /);
+dyn_arith_op!(__dyn_sub, -, wrapping_sub);
+dyn_arith_op!(__dyn_mul, *, wrapping_mul);
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __dyn_div(a: i64, b: i64) -> i64 {
+    if is_float_box(a) || is_float_box(b) {
+        __box_float((unbox_numeric_f64(a) / unbox_numeric_f64(b)).to_bits() as i64)
+    } else {
+        box_int_if_needed(__int_div(unbox_numeric_i64(a), unbox_numeric_i64(b)))
+    }
+}
+
+/// Accès au membre `member` (chaîne) d'un receveur `T|null` : `Exception`
+/// si le receveur vaut `null` — lire à l'adresse 0 arrêtait le programme.
+#[unsafe(no_mangle)]
+pub extern "C" fn __null_receiver(val: i64, member: i64) {
+    if val == 0 {
+        let name = unsafe { ptr_to_str(member) };
+        unsafe { exception::throw_exception(&format!("Cannot access '{}' on null", name), 0, "") }
+    }
+}
+
+const ERR_MATH_DIVISION_BY_ZERO: i64 = 104;
+
+/// `a / b` entre entiers : `MathException` (104) si `b` vaut 0 ;
+/// `i64::MIN / -1` boucle (`i64::MIN`), comme tout dépassement entier
+/// (`+`, `-`, `*`). Remplace `sdiv`, qui arrêtait le programme (SIGILL/SIGFPE).
+#[unsafe(no_mangle)]
+pub extern "C" fn __int_div(a: i64, b: i64) -> i64 {
+    if b == 0 {
+        unsafe { exception::throw_math_exception("Division by zero", ERR_MATH_DIVISION_BY_ZERO, "Math") }
+    }
+    a.wrapping_div(b)
+}
+
+/// `a % b` entre entiers : `MathException` (104) si `b` vaut 0 ;
+/// `i64::MIN % -1` vaut 0.
+#[unsafe(no_mangle)]
+pub extern "C" fn __int_mod(a: i64, b: i64) -> i64 {
+    if b == 0 {
+        unsafe { exception::throw_math_exception("Modulo by zero", ERR_MATH_DIVISION_BY_ZERO, "Math") }
+    }
+    a.wrapping_rem(b)
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // ocara.JSON — Sérialisation et désérialisation JSON

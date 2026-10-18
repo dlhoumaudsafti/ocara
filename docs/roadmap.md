@@ -29,8 +29,6 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **SIGSEGV : champ `int` lu à travers un receveur `T|null` non vérifié puis comparé** — `a.next.value` (`next:Node|null`) traité comme `mixed` sans boxing, lu comme un pointeur par la comparaison. *(Légère à Structurel)* → [détails](roadmap.d/langage-union-field-access-boxing.md)
-- **Division entière par zéro : arrêt du programme sans exception** — `x / 0` (SIGILL), `x % 0` et `INT_MIN / -1` (SIGFPE) interrompent le processus, sans exception rattrapable. *(Légère)* → [détails](roadmap.d/langage-division-entiere-par-zero.md)
 
 ---
 

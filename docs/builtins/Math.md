@@ -214,6 +214,7 @@ Certaines méthodes Math peuvent lever une `MathException` en cas d'erreur.
 | 101 | `NEGATIVE_SQRT` | `Math::sqrt()` | Tentative de calcul de la racine carrée d'un nombre négatif |
 | 102 | `NEGATIVE_EXPONENT` | `Math::pow()` | Tentative d'élévation à une puissance négative |
 | 103 | `INVALID_RANGE` | `Math::random()` | Borne `min` supérieure à `max` |
+| 104 | `DIVISION_BY_ZERO` | `/`, `%` entre `int` | Diviseur nul (opérateur du langage, pas une méthode de `Math`) |
 
 ### Exemples de gestion d'erreurs
 

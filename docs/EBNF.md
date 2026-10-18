@@ -806,7 +806,8 @@ public method parse(raw:string): int|float { ... }
 - `null` dans un union indique une valeur optionnelle (pattern courant : `T|null`).
 - La valeur retournée doit être compatible avec **au moins une** variante de l'union.
 - L'ordre des variantes est sans importance sémantique.
-- Les unions ne sont pas autorisés comme type de `property` — utiliser `mixed` dans ce cas.
+- Un union est autorisé comme type de `property` (`public property next:Node|null = null`).
+- Un membre d'une valeur `T|null` (`a.next.value`, `a.next.m()`) a le type déclaré dans `T`, avec ou sans narrowing. Si la valeur vaut `null` à l'exécution, l'accès lève une `Exception` (« Cannot access 'value' on null »), rattrapable par `try`/`on`.
 
 ```ocara
 // OK — retourner null ou un objet
@@ -1411,6 +1412,8 @@ Du plus faible au plus fort :
 | 7      | `*` `/` `%`              | Gauche        | |
 | 8      | `not` `-` (unaire) `++` `--` (préfixe) | Droite | `++`/`--` : cible `Ident`/`Field`/`Index` de type `int`/`float` uniquement |
 | 9      | `.` `()` `[]` `++` `--` (postfix) | Gauche | `++`/`--` suffixe : seulement sur la même ligne que la fin de l'opérande |
+
+`/` et `%` entre `int` : division entière tronquée vers zéro (`-7 / 2` vaut `-3`, `-7 % 2` vaut `-1`). Un diviseur nul lève une `MathException` (code 104, « Division by zero » / « Modulo by zero ») ; comme tout dépassement entier (`+`, `-`, `*`), `INT_MIN / -1` boucle (vaut `INT_MIN`) et `INT_MIN % -1` vaut `0`. Entre `float`, la division suit IEEE 754 (`1.0 / 0.0` vaut `inf`).
 
 ### 11.1 Comparaisons
 

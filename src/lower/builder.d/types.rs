@@ -36,6 +36,9 @@ pub struct LowerBuilder<'m> {
     pub map_vars: HashSet<String>,
     /// Mapping nom_variable → nom_classe (pour résoudre les appels de méthode)
     pub var_class: HashMap<String, String>,
+    /// Variables et paramètres déclarés `T|null` : un accès de membre dessus
+    /// vérifie `null` à l'exécution (voir `lower::expr::lower_receiver`).
+    pub nullable_vars: HashSet<String>,
     /// Bindings d'un handler générique `on e` : la valeur levée peut être une
     /// chaîne (`raise "x"`) — un accès de champ y est vérifié à l'exécution
     /// (`__exc_get_field`).
@@ -194,6 +197,7 @@ impl<'m> LowerBuilder<'m> {
             map_key_types: HashMap::new(),
             map_vars: HashSet::new(),
             var_class: HashMap::new(),
+            nullable_vars: HashSet::new(),
             generic_catch_vars: std::collections::HashSet::new(),
             current_class: None,
             ret_ast_ty: None,

@@ -11,6 +11,11 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__int_to_float",    params: &[clt::I64],                             returns: Some(clt::F64),    module: None },
     BuiltinDesc { name: "__box_bool",        params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__box_int_for_mixed", params: &[clt::I64],                           returns: Some(clt::I64),    module: None },
+    // Division et modulo entiers gardés (diviseur nul → MathException)
+    BuiltinDesc { name: "__int_div",           params: &[clt::I64, clt::I64],                 returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__int_mod",           params: &[clt::I64, clt::I64],                 returns: Some(clt::I64),    module: None },
+    // Receveur `T|null` d'un accès de membre (null → exception)
+    BuiltinDesc { name: "__null_receiver",     params: &[clt::I64, clt::I64],                 returns: None,              module: None },
 
     // ── Type checking runtime (narrowing 'is Type') ───────────────────────────
     BuiltinDesc { name: "__is_null",         params: &[clt::I64],                             returns: Some(clt::I64),    module: None },

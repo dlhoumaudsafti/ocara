@@ -53,12 +53,11 @@ Vérifié dans le code et par exécution avec le compilateur courant :
 - **Dépassement entier** : `+`, `-`, `*` sont émis en `iadd`/`isub`/`imul`
   sans contrôle — `9223372036854775807 + 1` donne `-9223372036854775808`
   (bouclage en complément à deux), sans erreur.
-- **Division entière** : `sdiv`/`srem` sans garde — `x / 0` arrête le
-  programme (SIGILL), `x % 0` et `INT_MIN / -1` aussi (SIGFPE), sans
-  exception Ocara. Défaut suivi à part en Priorité Haute (voir
-  [langage-division-entiere-par-zero](langage-division-entiere-par-zero.md)).
-  Une constante de classe calculée à la compilation rejette déjà la division
-  par zéro et le débordement (`docs/diagnostics.md`, E55).
+- **Division entière** (corrigé le 2026-10-18) : `/` et `%` entre `int`
+  passent par le runtime (`__int_div`/`__int_mod`) ; un diviseur nul lève une
+  `MathException` (code 104), `INT_MIN / -1` boucle, `INT_MIN % -1` vaut 0
+  (`docs/EBNF.md` §11). Une constante de classe calculée à la compilation
+  rejette la division par zéro et le débordement (`docs/diagnostics.md`, E55).
 - **Flottants** : `1.0 / 0.0` donne `inf` ; `0.1 + 0.2` donne
   `0.30000000000000004` (comportement IEEE 754 double).
 - **Pas de conversion implicite** entre `int` et `float` : `var f:float = 3`

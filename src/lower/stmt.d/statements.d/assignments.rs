@@ -57,7 +57,7 @@ pub fn lower_assign(
             let offset = class_name.as_deref()
                 .map(|cls| field_offset(&builder.module.class_layouts, cls, field))
                 .unwrap_or(0);
-            let obj_val = lower_expr(builder, object);
+            let obj_val = crate::lower::expr::lower_receiver(builder, object, field);
             let field_ty = class_name.as_deref().and_then(|cls| declared_field_type(builder, cls, field));
             let counted = field_ty.as_ref().is_some_and(|ty| crate::lower::stmt::rc::counted(builder, ty));
             let (val, fresh) = match &field_ty {
@@ -200,7 +200,7 @@ pub fn lower_incdec(builder: &mut LowerBuilder, op: &IncDecOp, target: &Expr) ->
                 ),
                 None => (0, IrType::I64),
             };
-            let obj_val = lower_expr(builder, object);
+            let obj_val = crate::lower::expr::lower_receiver(builder, object, field);
             let old_val = builder.new_value();
             builder.emit(Inst::GetField {
                 dest: old_val.clone(), obj: obj_val.clone(), field: field.clone(), ty: ty.clone(), offset,

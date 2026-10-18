@@ -12,7 +12,7 @@ pub mod lower;
 mod tests;
 
 // Re-exports publics
-pub use lower::lower_expr;
+pub use lower::{lower_expr, lower_receiver};
 pub use lower::{lower_array_literal, lower_map_key, lower_map_literal, lower_typed_call_arg};
 pub use lower::hoist_closure_promotions_before_loop;
 pub use typeinfer::expr_ir_type_pub;

@@ -96,6 +96,9 @@ pub fn lower_nameless_fn(
             if let Some(cls) = union_named_class(&param.ty) {
                 builder.var_class.insert(param.name.clone(), cls);
             }
+            if crate::parsing::ast::admits_null(&param.ty) {
+                builder.nullable_vars.insert(param.name.clone());
+            }
             let slot = builder.declare_local(&param.name, ir_ty.clone(), false);
             let recv = builder.new_value();
             builder.emit(Inst::Store { ptr: slot, src: recv.clone() });
