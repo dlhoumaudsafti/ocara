@@ -5,7 +5,7 @@ use crate::ir::types::IrType;
 use crate::ir::inst::{Inst, Value};
 use crate::lower::builder::LowerBuilder;
 use crate::lower::builder::message_gen::{keep_across_emit, reload};
-use crate::lower::expr::{lower_expr, hoist_closure_promotions_before_loop};
+use crate::lower::expr::{lower_expr, lower_array_literal, hoist_closure_promotions_before_loop};
 use crate::lower::expr::helpers::elem_type_after_index;
 use super::super::super::block::lower_block;
 
@@ -20,11 +20,11 @@ pub fn lower_for_in(
     // différent (machine à états, pas de tableau) — voir
     // `crate::lower::builder::message_gen::lower_for_message`.
     // Pré-promotion : voir docs/roadmap.d/langage-closure-promotion-in-loop.md.
-    // AVANT de déclarer `var` (la variable d'itération elle-même n'existe pas
-    // encore ici, donc jamais concernée par ce pré-scan — seules les
-    // variables déjà existantes AVANT la boucle le sont). Avant aussi le
+    // AVANT de déclarer `var`, exclue du pré-scan (un homonyme d'une boucle
+    // précédente peut rester dans `locals`) — seules les variables
+    // existant AVANT la boucle sont concernées. Avant aussi le
     // chemin générateur, qui la sautait (cellule recréée à chaque tour).
-    hoist_closure_promotions_before_loop(builder, body);
+    hoist_closure_promotions_before_loop(builder, body, &[var]);
 
     if let Some((mangled, elem_ty)) = crate::lower::builder::message_gen::detect_message_call(builder, iter) {
         crate::lower::builder::message_gen::lower_for_message(builder, var, iter, &mangled, elem_ty, body);
@@ -37,13 +37,21 @@ pub fn lower_for_in(
     }
 
     // Lowering : __iter_init(iter), boucle sur __iter_next
-    let iter_val  = lower_expr(builder, iter);
+    // Tableau littéral à éléments scalaires de même type : construit brut,
+    // comme `var xs:array<int> = [...]`. En `mixed`, la variable de boucle
+    // était un pointeur alors que la sema la type `int` (`(j * 10).toStr()`
+    // affichait une adresse pour `0`).
+    let literal_elem = literal_elem_type(iter);
+    let iter_val = match (iter, &literal_elem) {
+        (Expr::Array { elements, .. }, Some(ty)) => lower_array_literal(builder, elements, ty),
+        _ => lower_expr(builder, iter),
+    };
     let idx = LoopIndex::new(builder, "__for_idx");
 
     // Type de l'élément : I64 pour les plages entières, Ptr pour les tableaux
     // Type AST de l'élément : variable, mais aussi champ (`obj.items`),
     // appel ou index — voir `elem_type_after_index`.
-    let elem_ast = elem_type_after_index(builder, iter);
+    let elem_ast = literal_elem.or_else(|| elem_type_after_index(builder, iter));
     let elem_ty = match iter {
         Expr::Range { .. } => IrType::I64,
         Expr::Ident(name, _) => {
@@ -176,6 +184,20 @@ pub fn lower_for_in(
     builder.switch_to(&merge_bb);
 }
 
+/// `int`/`float`/`bool` si `iter` est un tableau littéral non vide dont tous
+/// les éléments sont des constantes de ce type ; sinon `None` (`mixed`).
+fn literal_elem_type(iter: &Expr) -> Option<Type> {
+    let Expr::Array { elements, .. } = iter else { return None };
+    let kind = |e: &Expr| match e.const_literal()? {
+        Literal::Int(_) => Some(Type::Int),
+        Literal::Float(_) => Some(Type::Float),
+        Literal::Bool(_) => Some(Type::Bool),
+        _ => None,
+    };
+    let first = kind(elements.first()?)?;
+    elements.iter().all(|e| kind(e).as_ref() == Some(&first)).then_some(first)
+}
+
 /// `for i in a until b` (et `a to b`, réécrit `a until b + 1` par le
 /// parseur) : boucle compteur, sans le tableau de `b − a` entiers que
 /// construisait `__range` (mémoire en O(n)). Bornes évaluées une fois ; la
@@ -283,7 +305,7 @@ pub fn lower_for_map(
     body: &Block,
 ) {
     // Pré-promotion : voir docs/roadmap.d/langage-closure-promotion-in-loop.md.
-    hoist_closure_promotions_before_loop(builder, body);
+    hoist_closure_promotions_before_loop(builder, body, &[key, value]);
 
     let iter_val = lower_expr(builder, iter);
 

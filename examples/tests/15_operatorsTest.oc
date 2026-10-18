@@ -132,4 +132,21 @@ class Test15Operators extends UnitTest {
         self::assertEquals(-1, -7 % 2)
         return 0
     }
+
+    // `-x` et `%` sur des flottants : opérations flottantes, pas entières
+    // sur les bits (`-2.5` valait `-1.75`, `5.5 % 2.0` une valeur absurde).
+    public method floatNegationAndModuloTest(): int {
+        var g:float = -2.5
+        var a:float = 5.5
+        var b:float = -5.5
+        var c:float = 7.25
+        self::assertEquals("-2.5", g.toStr())
+        self::assertEquals("-5", (g * 2.0).toStr())
+        self::assertEquals("5", (-(g * 2.0)).toStr())
+        self::assertEquals("1.5", (a % 2.0).toStr())
+        self::assertEquals("-1.5", (b % 2.0).toStr())
+        self::assertEquals("0.25", (c % 0.5).toStr())
+        self::assertEquals(-7, -(7))
+        return 0
+    }
 }

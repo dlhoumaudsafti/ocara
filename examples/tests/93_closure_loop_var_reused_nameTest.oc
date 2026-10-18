@@ -1,0 +1,95 @@
+architecture permissive
+
+import ocara.UnitTest
+
+// Une fermeture créée dans une boucle capture la variable de boucle, dont le
+// nom a déjà servi à une boucle précédente de la même fonction. Avant le
+// correctif, la nouvelle déclaration héritait de la promotion de
+// l'homonyme : valeurs fausses (`222`), puis blocage — voir
+// docs/roadmap.d/langage-closure-capture-loop-var-reused-name.md.
+// Couvre aussi, dans un générateur, une cellule neuve par itération, et un
+// tableau littéral itéré directement (éléments bruts, pas `mixed`), et la
+// valeur d'une `map<K, V>` typée `V` par la sema (`v.toStr()`).
+
+function tensReused(n:int): message<int> {
+    for i in 0 until n { emit i }
+    var fns:array<Function<int()>> = []
+    for i in 0 until n { fns.push(nameless(): int { return i * 10 }) }
+    for f in fns { emit f() }
+}
+
+function literalTens(): message<int> {
+    for j in [0, 1, 2] { emit j * 10 }
+}
+
+class Test93ClosureLoopVarReusedName extends UnitTest {
+
+    public method rangeLoopReusedNameTest(): int {
+        var s:string = ""
+        for i in 0 until 3 { s = s + i.toStr() }
+        var fns:array<Function<int()>> = []
+        for i in 0 until 3 { fns.push(nameless(): int { return i }) }
+        for f in fns { s = s + f().toStr() }
+        self::assertEquals("012012", s)
+        return 0
+    }
+
+    public method capturedFirstThenPlainLoopTest(): int {
+        var fns:array<Function<int()>> = []
+        for i in 0 until 3 { fns.push(nameless(): int { return i }) }
+        var s:string = ""
+        for i in 0 until 3 { s = s + i.toStr() }
+        for f in fns { s = s + f().toStr() }
+        self::assertEquals("012012", s)
+        return 0
+    }
+
+    public method arrayLoopReusedNameTest(): int {
+        var s:string = ""
+        for x in [5, 6] { s = s + x.toStr() }
+        var fns:array<Function<int()>> = []
+        for x in [7, 8, 9] { fns.push(nameless(): int { return x }) }
+        for f in fns { s = s + f().toStr() }
+        self::assertEquals("56789", s)
+        return 0
+    }
+
+    public method mapLoopReusedNameTest(): int {
+        var first:map<string, int> = {"a": 1, "b": 2}
+        var second:map<string, int> = {"c": 3, "d": 4}
+        var s:string = ""
+        for k has v in first { s = s + k + v.toStr() }
+        var fns:array<Function<int()>> = []
+        for k has v in second { fns.push(nameless(): int { return v }) }
+        for f in fns { s = s + f().toStr() }
+        self::assertEquals("a1b234", s)
+        return 0
+    }
+
+    public method stringLoopReusedNameTest(): int {
+        var s:string = ""
+        for w in ["a", "b"] { s = s + w }
+        var fns:array<Function<string()>> = []
+        for w in ["c", "d"] { fns.push(nameless(): string { return w + "!" }) }
+        for f in fns { s = s + f() }
+        self::assertEquals("abc!d!", s)
+        return 0
+    }
+
+    public method generatorClosurePerIterationTest(): int {
+        var s:string = ""
+        for v in tensReused(3) { s = s + v.toStr() + "," }
+        self::assertEquals("0,1,2,0,10,20,", s)
+        return 0
+    }
+
+    public method literalArrayLoopRawElementsTest(): int {
+        var s:string = ""
+        for j in [0, 1, 2] { s = s + (j * 10).toStr() + "," }
+        for v in literalTens() { s = s + v.toStr() + "," }
+        for b in [true, false] { s = s + b.toStr() }
+        for f in [1.5, -2.5] { s = s + (f * 2.0).toStr() }
+        self::assertEquals("0,10,20,0,10,20,truefalse3-5", s)
+        return 0
+    }
+}

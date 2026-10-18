@@ -185,7 +185,7 @@ pub fn lower_while(
     // Pré-promotion : voir docs/roadmap.d/langage-closure-promotion-in-loop.md
     // et la doc de `hoist_closure_promotions_before_loop`. Avant d'entrer
     // dans la boucle (donc une seule fois, pas à chaque itération).
-    hoist_closure_promotions_before_loop(builder, body);
+    hoist_closure_promotions_before_loop(builder, body, &[]);
 
     let cond_bb  = builder.new_block();
     let body_bb  = builder.new_block();

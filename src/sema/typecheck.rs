@@ -726,10 +726,15 @@ impl<'a> TypeChecker<'a> {
             }
 
             Stmt::ForMap { key, value, iter, body, span } => {
-                self.infer_expr(iter);
+                // Clé et valeur au type déclaré de la map, comme les lit le
+                // lowering (`lower_for_map`) ; `mixed` si inconnu.
+                let (key_ty, value_ty) = match self.infer_expr(iter) {
+                    Type::Map(k, v) => (*k, *v),
+                    _ => (Type::Mixed, Type::Mixed),
+                };
                 self.scopes.push();
-                self.declare_local(key.clone(),   LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
-                self.declare_local(value.clone(), LocalBinding { ty: Type::Mixed, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
+                self.declare_local(key.clone(),   LocalBinding { ty: key_ty, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
+                self.declare_local(value.clone(), LocalBinding { ty: value_ty, mutable: false, span: span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false });
                 self.check_block(body);
                 { let _u = self.scopes.pop_scope(&self.resource_classes); self.flush_warnings(_u); }
             }

@@ -24,6 +24,9 @@ pub fn lower_block(builder: &mut LowerBuilder, block: &Block) {
     // On restaure donc la vue d'avant ce bloc en sortie : les noms externes
     // masqués retrouvent leur slot d'origine, ceux déclarés ICI disparaissent.
     let locals_snapshot = builder.locals.clone();
+    // Une déclaration masquante retire son nom de `heap_promoted` (voir
+    // `declare_local`) : le nom externe déjà promu doit le redevenir.
+    let promoted_snapshot = builder.heap_promoted.clone();
 
     for stmt in &block.stmts {
         if builder.is_terminated() { break; }
@@ -74,7 +77,9 @@ pub fn lower_block(builder: &mut LowerBuilder, block: &Block) {
         // c'est exactement le signal qui distingue une redirection légitime
         // (à garder) d'un nouveau `var`/`scoped`/`consumed` de même nom qui
         // masque ce nom (cas normal, à restaurer, ci-dessous).
-        if builder.heap_promoted.contains(name.as_str()) {
+        if promoted_snapshot.contains(name.as_str()) {
+            builder.heap_promoted.insert(name.clone());
+        } else if builder.heap_promoted.contains(name.as_str()) {
             continue;
         }
         builder.locals.insert(name, binding);

@@ -261,8 +261,16 @@ fn lower_literal_element(builder: &mut LowerBuilder, elem: &Expr, elem_ty: &Type
 /// minimise le risque de régresser le chemin existant, déjà validé par
 /// `examples/tests/46_nested_closure_recaptureTest.oc` et
 /// `47_closure_promotion_block_scopeTest.oc`.
-pub fn hoist_closure_promotions_before_loop(builder: &mut LowerBuilder, body: &Block) {
+///
+/// `loop_vars` : variables déclarées par la boucle elle-même. Un homonyme
+/// resté dans `locals` (variable d'une boucle précédente) n'est pas celle
+/// que capture la fermeture : le promouvoir partageait une cellule entre les
+/// itérations (voir docs/roadmap.d/langage-closure-capture-loop-var-reused-name.md).
+pub fn hoist_closure_promotions_before_loop(builder: &mut LowerBuilder, body: &Block, loop_vars: &[&str]) {
     let mut capture_scope: std::collections::HashMap<String, (Value, IrType, bool)> = builder.locals.clone();
+    for name in loop_vars {
+        capture_scope.remove(*name);
+    }
     for (name, (_env_val, _idx, ty)) in builder.captured_vars.iter() {
         capture_scope.entry(name.clone()).or_insert_with(|| (Value(0), ty.clone(), false));
     }
@@ -1493,10 +1501,13 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
 
         // ── Opération unaire ──────────────────────────────────────────────────
         Expr::Unary { op, operand, .. } => {
+            // `-x` sur un `float` : négation flottante (une négation entière
+            // des bits faisait de `-2.5` la valeur `-1.75`).
+            let ty = if expr_ir_type(builder, operand) == IrType::F64 { IrType::F64 } else { IrType::I64 };
             let src = lower_expr(builder, operand);
             let dest = builder.new_value();
             let inst = match op {
-                UnaryOp::Neg => Inst::Neg { dest: dest.clone(), src, ty: IrType::I64 },
+                UnaryOp::Neg => Inst::Neg { dest: dest.clone(), src, ty },
                 UnaryOp::Not => Inst::Not { dest: dest.clone(), src },
             };
             builder.emit(inst);

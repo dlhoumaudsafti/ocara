@@ -29,8 +29,6 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Fermeture capturant une variable de boucle au nom réutilisé : valeurs fausses puis blocage** — `for i …` suivi d'un second `for i …` dont le corps crée une fermeture capturant `i` : `222` au lieu de `012` (valeur arbitraire avec un tableau), puis le programme ne se termine plus. *(Dangereuse — promotion des captures indexée par nom)* → [détails](roadmap.d/langage-closure-capture-loop-var-reused-name.md)
-
 ---
 
 ## Priorité Moyenne

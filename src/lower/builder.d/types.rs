@@ -264,6 +264,13 @@ impl<'m> LowerBuilder<'m> {
     // ── Déclaration d'une variable locale (avec Alloca) ───────────────────────
 
     pub fn declare_local(&mut self, name: &str, ty: IrType, mutable: bool) -> Value {
+        // Une nouvelle déclaration est un slot neuf, jamais une cellule : la
+        // promotion d'une variable homonyme antérieure (boucle précédente,
+        // bloc frère) ne la concerne pas. Sans ceci, chaque accès passait
+        // par `__locked_cell_get`/`set` sur un slot de pile (valeurs
+        // fausses, mémoire corrompue — voir
+        // docs/roadmap.d/langage-closure-capture-loop-var-reused-name.md).
+        self.heap_promoted.remove(name);
         // Variable d'un générateur : déjà un champ du frame heap (voir
         // `message_gen`), pas d'Alloca — le nom est simplement déjà résolu
         // via `frame_vars`, consulté en priorité par `load_local`/
@@ -278,7 +285,9 @@ impl<'m> LowerBuilder<'m> {
         }
         if let Some((frame, _, field_ty)) = self.frame_vars.get_mut(name) {
             *field_ty = ty;
-            return frame.clone();
+            let frame = frame.clone();
+            self.reset_gen_cell(name);
+            return frame;
         }
         let slot = self.new_value();
         self.emit(Inst::Alloca { dest: slot.clone(), ty: ty.clone() });
@@ -311,6 +320,22 @@ impl<'m> LowerBuilder<'m> {
         self.emit(Inst::Call { dest: Some(cell.clone()), func: "__gen_cell".into(), args: vec![existing, counted], ret_ty: IrType::Ptr });
         self.emit(Inst::SetField { obj: frame, field: field.to_string(), src: cell.clone(), offset: (idx * 8) as i32 });
         (cell, ty)
+    }
+
+    /// Nouvelle déclaration d'une variable de générateur capturée (variable
+    /// de boucle, `var` d'un corps de boucle) : le frame rend sa cellule et
+    /// la suivante en crée une neuve. Sinon toutes les fermetures d'une
+    /// boucle partageaient la cellule et lisaient la dernière valeur.
+    fn reset_gen_cell(&mut self, name: &str) {
+        let Some(field) = self.gen_cells.get(name).cloned() else { return };
+        let (frame, idx, _) = self.frame_vars[&field].clone();
+        let offset = (idx * 8) as i32;
+        let old = self.new_value();
+        self.emit(Inst::GetField { dest: old.clone(), obj: frame.clone(), field: field.clone(), ty: IrType::Ptr, offset });
+        self.emit(Inst::Call { dest: None, func: "__rc_release".into(), args: vec![old], ret_ty: IrType::Void });
+        let zero = self.new_value();
+        self.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+        self.emit(Inst::SetField { obj: frame, field, src: zero, offset });
     }
 
     /// Cellule (créée au besoin) d'une variable de générateur capturée.

@@ -67,15 +67,31 @@ pub fn emit_arithmetic(
             def!(dest, v);
         }
 
-        Inst::Mod { dest, lhs, rhs, .. } => {
+        Inst::Mod { dest, lhs, rhs, ty } => {
             let (l, r) = (use_var!(lhs), use_var!(rhs));
-            let v = builder.ins().srem(l, r);
+            // Flottants : `x − trunc(x / y) × y` (signe du dividende, comme
+            // `fmod`) — `srem` sur les bits donnait une valeur absurde.
+            let v = if *ty == IrType::F64 {
+                let lf = builder.ins().bitcast(clt::F64, MemFlags::new(), l);
+                let rf = builder.ins().bitcast(clt::F64, MemFlags::new(), r);
+                let quot = builder.ins().fdiv(lf, rf);
+                let whole = builder.ins().trunc(quot);
+                let prod = builder.ins().fmul(whole, rf);
+                let res = builder.ins().fsub(lf, prod);
+                builder.ins().bitcast(clt::I64, MemFlags::new(), res)
+            } else { builder.ins().srem(l, r) };
             def!(dest, v);
         }
 
-        Inst::Neg { dest, src, .. } => {
+        Inst::Neg { dest, src, ty } => {
             let s = use_var!(src);
-            let v = builder.ins().ineg(s);
+            let v = if *ty == IrType::F64 {
+                let sf = builder.ins().bitcast(clt::F64, MemFlags::new(), s);
+                let neg = builder.ins().fneg(sf);
+                builder.ins().bitcast(clt::I64, MemFlags::new(), neg)
+            } else {
+                builder.ins().ineg(s)
+            };
             def!(dest, v);
         }
 
