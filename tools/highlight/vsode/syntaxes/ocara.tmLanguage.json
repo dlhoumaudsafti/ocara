@@ -381,7 +381,7 @@
     },
 
     "wiring-declaration": {
-      "comment": "wiring path.to.ClassName — voir docs/roadmap.d/langage-interface-wiring.md",
+      "comment": "wiring path.to.ClassName — dans une interface (EBNF §17.1) ou une classe de test (§17.2)",
       "match": "\\b(wiring)\\s+([A-Za-z_][\\w.]*)\\b",
       "captures": {
         "1": { "name": "keyword.other.ocara" },

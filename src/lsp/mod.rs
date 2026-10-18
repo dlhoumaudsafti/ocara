@@ -22,6 +22,8 @@ mod workflow_code;
 mod workspace;
 #[cfg(test)]
 mod tests_roots;
+#[cfg(test)]
+mod tests_test_wiring;
 
 use std::path::{Path, PathBuf};
 

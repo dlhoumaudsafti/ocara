@@ -187,7 +187,7 @@ fn import_locations(ws: &Workspace, index: &ProjectIndex, name: &str, file_renam
                 _ => {}
             }
         }
-        for w in own.interfaces.iter().flat_map(|i| &i.wirings) {
+        for w in decls::wirings(&own) {
             if w.path.last().is_some_and(|l| l == name) {
                 on_line(&w.span, 1);
             }

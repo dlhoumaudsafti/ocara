@@ -1,7 +1,7 @@
 //! Déclaration désignée par une référence de la sema, retrouvée dans l'AST
 //! fusionné : position et signature affichable.
 
-use crate::parsing::ast::{ClassMember, FuncDecl, Param, Program, Type};
+use crate::parsing::ast::{ClassMember, FuncDecl, Param, Program, Type, WiringDecl};
 use crate::parsing::token::Span;
 use crate::sema::index::Target;
 
@@ -9,6 +9,13 @@ pub struct Decl {
     pub name: String,
     pub span: Span,
     pub signature: String,
+}
+
+/// `wiring` écrits dans un fichier : ceux des interfaces et ceux des
+/// classes de test (EBNF §17.2).
+pub fn wirings(program: &Program) -> impl Iterator<Item = &WiringDecl> {
+    let in_interfaces = program.interfaces.iter().flat_map(|i| &i.wirings);
+    in_interfaces.chain(program.classes.iter().flat_map(|c| &c.wirings))
 }
 
 pub fn find(program: &Program, target: &Target) -> Option<Decl> {

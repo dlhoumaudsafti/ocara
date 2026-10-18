@@ -16,7 +16,8 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     par le sucre d'instance (`s.trim()`, `s.toInt()`), mots-clés (résumé et lien vers leur section de
     l'EBNF) ;
   - **Go-to-Definition** (Ctrl+Clic) : variables, paramètres, fonctions, méthodes (héritées comprises),
-    champs, constantes, classes, lignes `import` / `runtime` / `wiring`, argument nommé → paramètre ;
+    champs, constantes, classes, lignes `import` / `runtime` / `wiring` (d'une interface ou d'une classe
+    de test), argument nommé → paramètre ;
   - **autocomplétion** sur le type réel du receveur (`a.`, `self.`, `a.b().`, `A::`) : membres hérités,
     builtins, sucre `String`/`Array`/`Map` et conversions `Convert` sur un primitif, propriétés
     `message`/`code`/`source` d'une exception, noms visibles, classes après `use`, noms des paramètres
@@ -27,7 +28,7 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     la méthode déclarante ;
   - **symboles du document** (plan, `Ctrl+Shift+O`) ;
   - **renommage** (F2) d'une variable, d'un paramètre, d'un champ, d'une méthode, d'une classe ou d'une
-    fonction dans tout l'espace de travail — imports mis à jour et fichier renommé avec sa classe ; une
+    fonction dans tout l'espace de travail — imports et lignes `wiring` mis à jour, fichier renommé avec sa classe ; une
     méthode redéfinie est renommée avec toute sa chaîne (parents, sous-classes, interfaces).
   - **imports manquants** : un type utilisé sans import (`HTTPServer::…`, `use Foo()`, `x:Foo`, y
     compris dans un gabarit `${…}`) est importé à l'enregistrement (réglage `ocara.autoImport.enable`) :

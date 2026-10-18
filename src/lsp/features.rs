@@ -322,7 +322,7 @@ fn declaration_line_target(ws: &Workspace, analysis: &Analysis, path: &Path, pos
         let file = crate::core::runtime_expand::resolve_runtime_file(&root, &rt.path)?;
         return Some(Location::new(to_url(&file.canonicalize().unwrap_or(file)), point(0, 0)));
     }
-    let wiring = own.interfaces.iter().flat_map(|i| &i.wirings).find(|w| on_line(&w.span))?;
+    let wiring = decls::wirings(&own).find(|w| on_line(&w.span))?;
     let d = decls::find(merged?, &Target::Class(wiring.simple_name().to_string()))?;
     location_of(ws, &span_path(&d.span, path), &d.span, &d.name)
 }
