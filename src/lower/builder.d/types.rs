@@ -132,6 +132,16 @@ pub struct LowerBuilder<'m> {
     /// Label de sortie anticipée pour les blocs runtime (fonction main seulement)
     /// Pointe vers le label juste avant le `if (ERROR != 0)` qui détermine error/success
     pub runtime_exit_bb: Option<BlockId>,
+    /// `main` des blocs runtime : (index dans `block_scope_stack`, index dans
+    /// `rc_scopes`) de la portée unique qui va de `init` à `exit`. Un
+    /// `result` de `main` ne libère que les portées plus internes : les
+    /// variables restent lisibles dans `error`/`success`/`exit`.
+    pub runtime_scope: Option<(usize, usize)>,
+    /// Slots pointeur des déclarations de premier niveau d'`init`/`main`,
+    /// créés et mis à 0 en tête de fonction : un `result` qui saute une
+    /// déclaration laisse 0 (libération sans effet) au lieu d'une valeur
+    /// indéterminée. Repris par `declare_local`.
+    pub runtime_preslots: HashMap<String, Value>,
     /// Métadonnées de propriété (`scoped`/`consumed`) par nom de variable —
     /// voir `crate::lower::stmt::ownership`. Flat comme `locals` (pas de
     /// scoping imbriqué) : une redéclaration du même nom dans un bloc frère
@@ -219,6 +229,8 @@ impl<'m> LowerBuilder<'m> {
             func_default_args: HashMap::new(),
             func_var_param_count: HashMap::new(),
             runtime_exit_bb: None,
+            runtime_scope: None,
+            runtime_preslots: HashMap::new(),
             owned_locals: HashMap::new(),
             rc_temps: Vec::new(),
             rc_scopes: Vec::new(),
@@ -288,6 +300,13 @@ impl<'m> LowerBuilder<'m> {
             let frame = frame.clone();
             self.reset_gen_cell(name);
             return frame;
+        }
+        // Déclaration de premier niveau d'`init`/`main` : slot déjà créé à 0
+        // (voir `runtime_preslots`).
+        let top_level = self.runtime_scope.is_some_and(|(depth, _)| depth + 1 == self.block_scope_stack.len());
+        if let Some(slot) = top_level.then(|| self.runtime_preslots.remove(name)).flatten() {
+            self.locals.insert(name.to_string(), (slot.clone(), ty, mutable));
+            return slot;
         }
         let slot = self.new_value();
         self.emit(Inst::Alloca { dest: slot.clone(), ty: ty.clone() });

@@ -1,11 +1,29 @@
 /// Lowering de blocs
 
-use crate::parsing::ast::Block;
+use std::collections::{HashMap, HashSet};
+use crate::ir::inst::Value;
+use crate::ir::types::IrType;
+use crate::parsing::ast::{Block, Stmt};
 use crate::lower::builder::LowerBuilder;
 use super::statements::lower_stmt;
 use super::ownership::{drop_consumed_used_in, emit_scope_drops};
 
 pub fn lower_block(builder: &mut LowerBuilder, block: &Block) {
+    let state = enter_block(builder);
+    lower_block_stmts(builder, &block.stmts);
+    leave_block(builder, state, block);
+}
+
+/// État d'avant un bloc, restauré par `leave_block`.
+pub struct BlockState {
+    counted_snapshot:  HashSet<String>,
+    locals_snapshot:   HashMap<String, (Value, IrType, bool)>,
+    promoted_snapshot: HashSet<String>,
+}
+
+/// Ouvre la portée d'un bloc (voir `lower_block`). Le `main` des blocs
+/// runtime en ouvre une seule pour `init` jusqu'à `exit`.
+pub fn enter_block(builder: &mut LowerBuilder) -> BlockState {
     // Nouvelle frame pour ce bloc — alimentée par `register_owned_local`,
     // consultée par `emit_early_exit_drops` sur un `return`/`break`/
     // `continue` anticipé (voir la doc de `block_scope_stack`).
@@ -27,8 +45,12 @@ pub fn lower_block(builder: &mut LowerBuilder, block: &Block) {
     // Une déclaration masquante retire son nom de `heap_promoted` (voir
     // `declare_local`) : le nom externe déjà promu doit le redevenir.
     let promoted_snapshot = builder.heap_promoted.clone();
+    BlockState { counted_snapshot, locals_snapshot, promoted_snapshot }
+}
 
-    for stmt in &block.stmts {
+/// Instructions d'un bloc ouvert par `enter_block`.
+pub fn lower_block_stmts(builder: &mut LowerBuilder, stmts: &[Stmt]) {
+    for stmt in stmts {
         if builder.is_terminated() { break; }
         super::rc::begin_temps(builder);
         lower_stmt(builder, stmt);
@@ -40,6 +62,12 @@ pub fn lower_block(builder: &mut LowerBuilder, block: &Block) {
             super::rc::release_consumed_used_in(builder, stmt);
         }
     }
+}
+
+/// Ferme la portée ouverte par `enter_block` ; `block` porte les
+/// déclarations directes à détruire en fin de bloc.
+pub fn leave_block(builder: &mut LowerBuilder, state: BlockState, block: &Block) {
+    let BlockState { counted_snapshot, locals_snapshot, promoted_snapshot } = state;
     // `scoped`, et `consumed` jamais utilisée : détruites en fin de bloc —
     // seulement si le bloc se termine normalement (pas de return/raise/
     // break/continue déjà émis, voir la doc de crate::lower::stmt::ownership).

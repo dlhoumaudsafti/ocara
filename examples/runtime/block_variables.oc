@@ -1,0 +1,49 @@
+architecture permissive
+
+import ocara.IO
+
+// Les variables déclarées dans `init` et `main` restent lisibles dans
+// `success`, `error` et `exit` (EBNF §5.3) : objet, chaîne, tableau, fermeture.
+// Un `result` de `main` saute à la suite sans les libérer ; une déclaration
+// qu'il saute (`late`) ne plante pas à la libération finale.
+// Une valeur fausse fait sortir le programme avec un code non nul (`result`
+// dans `success`/`exit`) — voir docs/roadmap.d/langage-runtime-blocs-variables.md.
+
+class Box {
+    public property v:int = 7
+}
+
+init {
+    var counter:int = 0
+    var names:array<string> = ["a"]
+}
+
+main {
+    counter = counter + 1
+    var box:Box = use Box()
+    var label:string = "hello" + " world"
+    names.push(label)
+    var shout:Function<string()> = nameless(): string { return label + "!" }
+    if counter equal 1 {
+        var inner:string = "x" + "y"
+        IO::writeln(`main: ${inner}`)
+        result SUCCESS
+    }
+    var late:string = "never" + " set"
+    IO::writeln(late)
+}
+
+success {
+    const line:string = `${counter} ${box.v} ${label} ${names.len()} ${shout()}`
+    IO::writeln(`success: ${line}`)
+    if line not equal "1 7 hello world 2 hello world!" {
+        result 2
+    }
+}
+
+exit {
+    IO::writeln(`exit: ${box.v} ${names[1]}`)
+    if box.v not equal 7 or names[1] not equal "hello world" {
+        result 3
+    }
+}

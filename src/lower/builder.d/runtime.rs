@@ -247,10 +247,6 @@ fn generate_runtime_main(
     }
     
     // Ajouter le bloc exit
-    // Index où commencent (s'ils existent) les statements du bloc exit —
-    // permet à `lower_runtime_main_manual` de les isoler dans leur propre
-    // `Block` (voir sa doc pour pourquoi).
-    let exit_start_index = all_stmts.len();
     if let Some(exit_block) = program.runtime_blocks.iter().find(|b| b.kind == crate::parsing::ast::RuntimeBlockKind::Exit) {
         all_stmts.extend(exit_block.statements.clone());
     }
@@ -266,7 +262,6 @@ fn generate_runtime_main(
         module,
         all_stmts,
         main_end_index,
-        exit_start_index,
         consts,
         fn_ret_types,
         fn_param_types,
@@ -277,28 +272,43 @@ fn generate_runtime_main(
     );
 }
 
+/// Slots pointeur des déclarations de premier niveau d'`init`/`main`, créés
+/// à 0 avant toute instruction : un `result` qui saute une déclaration laisse
+/// 0 dans son slot, libéré sans effet à la fin (voir `runtime_preslots`).
+fn preset_runtime_slots(builder: &mut crate::lower::builder::LowerBuilder, stmts: &[crate::parsing::ast::Stmt]) {
+    use crate::ir::inst::Inst;
+    use crate::parsing::ast::Stmt;
+    for stmt in stmts {
+        let (Stmt::Var { name, ty, .. } | Stmt::Const { name, ty, .. }) = stmt else { continue };
+        if IrType::from_ast(ty) != IrType::Ptr {
+            continue;
+        }
+        let slot = builder.new_value();
+        builder.emit(Inst::Alloca { dest: slot.clone(), ty: IrType::Ptr });
+        let zero = builder.new_value();
+        builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+        builder.emit(Inst::Store { ptr: slot.clone(), src: zero });
+        builder.runtime_preslots.insert(name.clone(), slot);
+    }
+}
+
 /// Lower manuel de la fonction main des blocs runtime pour gérer le label runtime_exit_bb
 ///
-/// `all_stmts` mélange des statements qui doivent survivre à toute la
-/// fonction (`ERROR`/`SUCCESS`, jamais `scoped`/`consumed`) et des statements
-/// qui appartiennent à un bloc source précis (`init`+`main`, `exit`) — ces
-/// derniers sont enveloppés dans un vrai `Block` et lowered via `lower_block`
-/// (au lieu d'un simple appel direct à `lower_stmt` par statement, comme
-/// avant ce correctif) pour qu'une `scoped`/`consumed` déclarée directement
-/// dedans soit réellement libérée en fin de bloc : sans ça, `lower_stmt` seul
-/// n'alimente jamais `block_scope_stack`, donc ni `emit_scope_drops` (fin de
-/// bloc normale) ni `emit_early_exit_drops` (`result` anticipé) n'ont quoi
-/// que ce soit à parcourir — fuite systématique (confirmé par reproduction).
-/// Les blocs
-/// `error`/`success` n'ont pas ce problème : ils sont déjà de vrais `Block`
-/// passés en `then_block`/`else_block` d'un `Stmt::If` (voir
-/// `generate_runtime_main`), lowered via `lower_if` → `lower_block` comme
-/// n'importe quel `if` normal.
+/// `ERROR`/`SUCCESS` sont lowered hors de toute portée (lisibles jusqu'au
+/// `return ERROR` final). Tout le reste — `init`, `main`, le `if` des blocs
+/// `error`/`success`, `exit` — partage UNE portée (`enter_block` /
+/// `leave_block`) : les variables d'`init`/`main` restent vivantes jusqu'à la
+/// fin de `exit` (EBNF §5.3), et les `scoped`/`consumed` y sont détruites
+/// (`block_scope_stack`, comme un bloc ordinaire). Un `result` de `main` ne
+/// libère que les portées plus internes avant de sauter au label ; une
+/// déclaration de premier niveau qu'il saute garde un slot à 0
+/// (`preset_runtime_slots`). Auparavant `init`+`main` formaient un bloc
+/// libéré avant `error`/`success`/`exit` : objet lu dans `exit` → SIGSEGV,
+/// chaîne → `null` (voir docs/roadmap.d/langage-runtime-blocs-variables.md).
 fn lower_runtime_main_manual(
     module: &mut IrModule,
     all_stmts: Vec<crate::parsing::ast::Stmt>,
     main_end_index: usize,
-    exit_start_index: usize,
     consts: &[ConstDecl],
     fn_ret_types: &HashMap<String, IrType>,
     fn_param_types: &HashMap<String, Vec<IrType>>,
@@ -309,7 +319,7 @@ fn lower_runtime_main_manual(
 ) {
     use crate::lower::builder::LowerBuilder;
     use crate::lower::stmt::statements::lower_stmt;
-    use crate::lower::stmt::block::lower_block;
+    use crate::lower::stmt::block::{enter_block, leave_block, lower_block_stmts};
     use crate::ir::inst::Inst;
     use crate::parsing::ast::Block;
     use crate::parsing::token::Span;
@@ -338,12 +348,18 @@ fn lower_runtime_main_manual(
         lower_stmt(&mut builder, stmt);
     }
 
-    // init + main : vrai bloc (voir la doc de cette fonction).
-    let init_main_block = Block {
-        stmts: all_stmts[RUNTIME_VARS_COUNT..main_end_index].to_vec(),
+    // init + main + error/success + exit : UNE portée (voir la doc de cette
+    // fonction) — les variables déclarées dans `init`/`main` restent
+    // vivantes jusqu'à la fin de `exit` (EBNF §5.3), libérées au `return
+    // ERROR` final.
+    let scope_block = Block {
+        stmts: all_stmts[RUNTIME_VARS_COUNT..all_stmts.len() - 1].to_vec(),
         span: Span::new(0, 0),
     };
-    lower_block(&mut builder, &init_main_block);
+    let state = enter_block(&mut builder);
+    builder.runtime_scope = Some((builder.block_scope_stack.len() - 1, builder.rc_scopes.len() - 1));
+    preset_runtime_slots(&mut builder, &all_stmts[RUNTIME_VARS_COUNT..main_end_index]);
+    lower_block_stmts(&mut builder, &all_stmts[RUNTIME_VARS_COUNT..main_end_index]);
 
     // Basculer vers le label de sortie anticipée
     if !builder.is_terminated() {
@@ -354,23 +370,14 @@ fn lower_runtime_main_manual(
     // Désactiver runtime_exit_bb pour que les returns suivants ne soient plus transformés
     builder.runtime_exit_bb = None;
 
-    // Le if (ERROR != 0) { error } else { success } — déjà un vrai `Stmt::If`
-    // dont les branches sont des `Block` lowered via `lower_if` → `lower_block`,
-    // rien à changer ici.
-    for stmt in &all_stmts[main_end_index..exit_start_index] {
-        lower_stmt(&mut builder, stmt);
-    }
-
-    // exit : même raisonnement que init+main ci-dessus. `all_stmts.len() - 1`
-    // exclut le `return ERROR` final (toujours le tout dernier statement,
-    // voir `generate_runtime_main`), lowered séparément juste après.
-    let exit_block = Block {
-        stmts: all_stmts[exit_start_index..all_stmts.len() - 1].to_vec(),
-        span: Span::new(0, 0),
-    };
-    lower_block(&mut builder, &exit_block);
-
+    // Le if (ERROR != 0) { error } else { success }, puis `exit` ; le
+    // `return ERROR` final (toujours le dernier statement, voir
+    // `generate_runtime_main`) libère toute la portée.
+    lower_block_stmts(&mut builder, &all_stmts[main_end_index..all_stmts.len() - 1]);
     lower_stmt(&mut builder, &all_stmts[all_stmts.len() - 1]);
+    builder.runtime_scope = None;
+    builder.runtime_preslots.clear();
+    leave_block(&mut builder, state, &scope_block);
 
     if !builder.is_terminated() {
         let zero = builder.new_value();

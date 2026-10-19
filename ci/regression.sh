@@ -212,6 +212,20 @@ fi
 
 echo ""
 
+# Blocs runtime : variables d'`init`/`main` lues dans `success`/`exit`
+# (programme auto-vérifiant : code de sortie non nul si une valeur est fausse,
+# voir docs/roadmap.d/langage-runtime-blocs-variables.md).
+echo "══════════════════════════════════════════════"
+echo " Régression examples/runtime/block_variables.oc"
+echo "══════════════════════════════════════════════"
+
+if ! run_test "examples/runtime/block_variables.oc" "runtime/block_variables"; then
+    fail=1
+    failed="$failed runtime/block_variables"
+fi
+
+echo ""
+
 # Test examples/advanced/httpserver/main.oc — serveur HTTP pur (pas de GUI),
 # testé via httpserver.sh (démarrage en fond + requêtes + arrêt), même
 # mécanisme que examples/builtins/httpserver.sh. `mini_project` et

@@ -164,9 +164,20 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
                 if let Some((error_slot, _, _)) = builder.locals.get("ERROR").cloned() {
                     builder.emit(Inst::Store { ptr: error_slot.clone(), src: result_val.clone() });
 
-                    // Sauter au label de sortie anticipée du bloc main
+                    // Sauter au label de sortie anticipée du bloc main. Seules
+                    // les portées plus internes que la portée runtime sont
+                    // libérées : les variables d'`init`/`main` restent lisibles
+                    // dans `error`/`success`/`exit` (voir
+                    // docs/roadmap.d/langage-runtime-blocs-variables.md).
                     if let Some(exit_bb) = builder.runtime_exit_bb.clone() {
-                        crate::lower::stmt::rc::release_all(builder);
+                        match builder.runtime_scope {
+                            Some((block_depth, rc_depth)) => {
+                                crate::lower::stmt::ownership::emit_early_exit_drops(builder, block_depth + 1);
+                                crate::lower::stmt::rc::release_temps_from(builder, 0);
+                                crate::lower::stmt::rc::release_scopes_from(builder, rc_depth + 1);
+                            }
+                            None => crate::lower::stmt::rc::release_all(builder),
+                        }
                         builder.emit(Inst::Jump { target: exit_bb });
                         return; // Ne pas émettre de Return après
                     }

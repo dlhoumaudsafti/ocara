@@ -1,41 +1,43 @@
-# Blocs runtime : variables de `init`/`main` libérées avant `success`/`error`/`exit`
+# Blocs runtime : variables de `init`/`main` libérées avant `success`/`error`/`exit` — corrigé
 
-Audit du 2026-10-19. Reproduit sur le binaire courant.
+Audit du 2026-10-19, corrigé le même jour.
 
 ## Constat
 
 EBNF §5.3 : « les variables déclarées dans un bloc sont accessibles dans tous
-les blocs suivants ». Or :
-
-```ocara
-class Box { public property v:int = 7 }
-main {
-    var b:Box = use Box()
-    IO::writeln("main")
-}
-exit { IO::writeln(`${b.v}`) }      // affiche "main" puis SIGSEGV
-```
-
-- Objet : SIGSEGV dans `exit`, `success` ou `error` (après `result 1`).
-- Chaîne / tableau : `null`. L'exemple de l'EBNF §5.7 (`init { var
-  counter:int = 0 } main { counter = counter + 1 } success { … }`) affiche
-  `Compteur: null`.
-- `init` → `main` fonctionne.
-- Inverse pour une ressource native : `const db:SQLite = SQLite::open(…)` dans
-  `main`, fermée dans `exit`, n'est jamais libérée ; le bilan `--leak-check`
-  l'attribue à la ligne 0 (`examples/builtins/sqlite.oc`).
+les blocs suivants ». Or un objet de `main` lu dans `exit` faisait un
+SIGSEGV, une chaîne ou un tableau valait `null` (l'exemple de l'EBNF §5.7
+affichait `Compteur: null`), et une ressource native ouverte dans `main` et
+fermée dans `exit` n'était jamais libérée (`examples/builtins/sqlite.oc`).
 
 ## Cause
 
-`lower_runtime_main_manual` (`src/lower/builder.d/runtime.rs`) regroupe
-`init` + `main` dans un `Block` abaissé par `lower_block`, qui retire et
-relâche les locales en sortie, avant `error`/`success`/`exit`.
+`lower_runtime_main_manual` (`src/lower/builder.d/runtime.rs`) abaissait
+`init` + `main` comme un bloc à part : ses locales étaient relâchées en
+sortie de bloc, avant `error`/`success`/`exit`.
 
-## Priorité / Complexité
+## Correctif
 
-**Haute** (crash, fuite) — **Légère**.
+- `lower_block` est découpé en `enter_block` / `lower_block_stmts` /
+  `leave_block` (`src/lower/stmt.d/block.rs`). Le `main` runtime ouvre UNE
+  portée pour `init`, `main`, le `if` des blocs `error`/`success` et `exit` ;
+  le `return ERROR` final la libère.
+- Un `result` de `main` ne libère que les portées plus internes avant de
+  sauter au label de sortie (`builder.runtime_scope`,
+  `src/lower/stmt.d/statements.rs`).
+- Une déclaration de premier niveau d'`init`/`main` sautée par un `result`
+  garde un slot mis à 0 en tête de fonction (`preset_runtime_slots`,
+  `runtime_preslots` repris par `declare_local`) : sa libération finale est
+  sans effet. Les fonctions de fermeture des ressources acceptent déjà 0.
 
-## Fichiers clés
+## Tests
 
-`src/lower/builder.d/runtime.rs`, `src/lower/stmt.d/block.rs`,
-`src/core/leak_sites.rs` (ligne 0).
+`examples/runtime/block_variables.oc` (auto-vérifiant, lancé par
+`ci/regression.sh`) : objet, chaîne, tableau et fermeture de `init`/`main`
+lus dans `success`/`exit`, `result SUCCESS` qui saute une déclaration ;
+`--leak-check` sans fuite (aussi sur `examples/builtins/sqlite.oc`).
+
+## Reste
+
+L'attribution d'une fuite du `main` runtime à la ligne 0 dans le bilan
+`--leak-check` (le `main` synthétisé n'a pas de position) n'est pas traitée.
