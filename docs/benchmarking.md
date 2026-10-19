@@ -145,8 +145,9 @@ make build
 /usr/bin/time -f "après : %e s" ./bench_apres
 ```
 
-Exécuter chaque mesure plusieurs fois et garder la meilleure : le temps d'un
-programme court varie d'une exécution à l'autre. Un micro-benchmark doit
+Exécuter chaque mesure plusieurs fois et garder le minimum et la médiane
+(voir « Préparer une mesure fiable ») : le temps d'un programme court varie
+d'une exécution à l'autre. Un micro-benchmark doit
 faire au moins quelques millions d'opérations pour dépasser le bruit.
 
 ## Profiler par fonction : `--profile`
@@ -171,6 +172,220 @@ méthode d'une mesure de temps (`src/ir/profile.rs`, `runtime/src/profile.rs`).
 - Un programme interrompu (serveur arrêté par un signal) n'écrit pas de
   rapport.
 
+## Préparer une mesure fiable
+
+Noter l'environnement avant chaque série : sur une machine chargée, seules
+les comparaisons relatives restent valables.
+
+```bash
+nproc; uptime                      # charge moyenne > nproc/2 : comparer en relatif
+cat /proc/sys/kernel/perf_event_paranoid /proc/sys/kernel/yama/ptrace_scope
+```
+
+Répéter et garder le **minimum** (meilleur estimateur sur une machine
+chargée) et la **médiane** (un grand écart avec le min signale du bruit) :
+
+```bash
+#!/bin/bash
+# run.sh RUNS label binaire… → min, médiane, pic mémoire
+R=$1; shift; L=$1; shift; : > /tmp/times_$L.txt
+for i in $(seq 1 $R); do
+  /usr/bin/time -f "%e %M" -o /tmp/t1.txt timeout 120 "$@" > /dev/null 2> /tmp/err_$L.txt
+  cat /tmp/t1.txt >> /tmp/times_$L.txt
+done
+sort -n /tmp/times_$L.txt | awk -v l="$L" '{t[NR]=$1; if($2>m)m=$2}
+  END{printf "%-28s min %6.3f  med %6.3f  rss %d KB\n", l, t[1], t[int((NR+1)/2)], m}'
+```
+
+## Détecter une complexité super-linéaire : le test par doublement
+
+Même principe que le pic mémoire à deux tailles, appliqué au temps : on
+double N plusieurs fois et on regarde le rapport des temps.
+
+```bash
+for N in 10000 20000 40000 80000; do
+  sed "s/__N__/$N/g" bench.oc > b_$N.oc && ./target/release/ocara b_$N.oc -o b_$N > /dev/null
+  ./run.sh 3 b_$N ./b_$N
+done
+```
+
+Rapport d'environ 2 quand N double : linéaire ; environ 4 : quadratique ; un
+saut plus fort : effet de cache. Avec trois tailles éloignées, la pente
+log-log `log(t2/t1) / log(N2/N1)` donne l'exposant directement (1 : linéaire,
+2 : quadratique).
+
+Le même test s'applique au **compilateur** : générer des programmes de
+taille croissante (nombre d'instructions dans une fonction, de fonctions, de
+classes, longueur d'une chaîne `elseif`, profondeur d'une expression) et
+mesurer `--check` (lexer, parseur, sema), `--no-link -o x.o` (avec
+abaissement et Cranelift) et la compilation complète. `strace -f -tt -e
+trace=execve,exit_group ./target/release/ocara …` sépare le temps de
+compilation de celui de l'éditeur de liens.
+
+## Comparer à une référence Python et C
+
+Écrire le même algorithme en Python (`time.perf_counter()`) et en C
+(`cc -O2`, avec `__attribute__((noinline))` sur la fonction appelée, sinon la
+boucle est éliminée). Ordre de grandeur attendu pour du code compilé : entre
+C et 10 fois C. Plus lent que Python signale un problème (voir
+[roadmap.d/perf-runtime-complexite.md](roadmap.d/perf-runtime-complexite.md)).
+
+## Profiler le runtime avec `perf`
+
+`--profile` mesure les fonctions Ocara ; le temps passé dans le runtime
+(retain/release, collecte de cycles, allocations) y est compté dans
+l'appelant. `perf` le montre par symbole :
+
+```bash
+sudo sysctl kernel.perf_event_paranoid=1      # temporaire ; sinon « No supported events found »
+perf stat -r 5 -e task-clock,cycles,instructions,cache-misses,context-switches ./prog > /dev/null
+perf record -g --call-graph dwarf -o perf.data ./prog > /dev/null
+perf report -i perf.data --stdio --no-children --percent-limit 2 | head -60
+```
+
+Compiler **sans** `--release` : ce mode retire les symboles (perf et gdb
+n'affichent plus que des adresses) et ne change pas la vitesse.
+
+## Profiler sans `perf` : échantillonnage avec gdb
+
+Sans les droits pour `perf` ni `gdb -p` (`ptrace_scope=1`), on lance le
+programme **sous** gdb et on l'interrompt de l'extérieur par `SIGUSR2` ; à
+chaque arrêt, le script relève la pile de chaque thread.
+
+```python
+# pmp.py — gdb -batch -nx -x pmp.py --args ./prog
+import gdb, collections
+for c in ["set debuginfod enabled off", "set pagination off", "set confirm off",
+          "handle SIGUSR2 stop print nopass", "handle SIGPIPE nostop noprint pass"]:
+    gdb.execute(c)
+leaf, incl, stacks = collections.Counter(), collections.Counter(), collections.Counter()
+def sample():
+    for t in gdb.selected_inferior().threads():
+        t.switch(); f = gdb.newest_frame(); names = []
+        while f is not None and len(names) < 16:
+            names.append(f.name() or hex(f.pc())); f = f.older()
+        if names:
+            leaf[names[0]] += 1; stacks[" <- ".join(names[:5])] += 1
+            for n in set(names): incl[n] += 1
+gdb.execute("run", to_string=True)
+while gdb.selected_inferior().pid != 0:
+    sample()
+    try: gdb.execute("continue", to_string=True)
+    except gdb.error: break
+tot = sum(leaf.values()) or 1
+for title, c in (("propre", leaf), ("inclusif", incl), ("piles", stacks)):
+    print("==", title, "==")
+    for k, v in c.most_common(15): print("%5.1f%% %s" % (100 * v / tot, k))
+```
+
+```bash
+#!/bin/bash
+# pmp.sh <échantillons> <intervalle_s> <binaire>
+B=$3; NAME=$(basename "$B" | cut -c1-15)
+gdb -batch -nx -x pmp.py --args "$B" 2> /dev/null | sed -n "/^==/,\$p" &
+G=$!
+for i in $(seq 1 $1); do sleep $2; kill -0 $G 2> /dev/null || break; pkill -USR2 -x "$NAME"; done
+pkill -KILL -x "$NAME"; wait $G
+```
+
+- `handle … noprint` implique `nostop` : il faut écrire `stop print`.
+- Chaque échantillon coûte environ 30 ms : viser 50 à 200 échantillons sur un
+  programme de 2 à 5 s (`./pmp.sh 150 0.01 ./prog`).
+- Les signaux arrivent au retour des appels système : la part des fonctions
+  qui en font (`sigprocmask`) est gonflée. Confirmer avec `strace -c`.
+- Pour le compilateur lui-même, même méthode sur `target/debug/ocara` (avec
+  symboles) : `( sleep N; pkill -INT -x ocara ) & gdb -batch -ex run -ex "bt 40"
+  --args target/debug/ocara prog.oc --no-link -o y.o`.
+
+## Compter les appels au runtime : points d'arrêt gdb
+
+Compte exact des retain/release et des collectes de cycles (environ 1 000
+fois plus lent : prendre un N petit, par exemple 10⁵) :
+
+```
+# count.gdb — gdb -batch -nx -x count.gdb ./prog
+set debuginfod enabled off
+set breakpoint pending off
+break ocara_runtime::rc::collect_cycles
+ignore 1 100000000
+break __rc_retain
+ignore 2 1000000000
+break __rc_release
+ignore 3 1000000000
+run > /dev/null
+info breakpoints
+```
+
+Lire « breakpoint already hit N times ». Une fonction inlinée (par exemple
+`possible_root`) n'a pas de point d'arrêt.
+
+## Appels système dans une boucle : `strace -c`
+
+```bash
+strace -c -o sys.txt ./prog > /dev/null; head -15 sys.txt     # mono-thread
+strace -f -c -o sys.txt ./prog > /dev/null                     # threads, async
+```
+
+Un nombre d'appels proportionnel à N signale un appel système par
+itération : `rt_sigprocmask` (exceptions : `setjmp` sauvegarde le masque),
+`clone3` (une tâche `async` = un thread), `futex` (attente de verrou).
+
+## `/usr/bin/time -v` : champs utiles
+
+`/usr/bin/time -v ./prog > /dev/null 2> tv.txt` :
+
+- « Maximum resident set size » : le pic mémoire (`%M`) ;
+- « Voluntary context switches » : attentes, `join` ;
+- « Involuntary context switches » : machine chargée ;
+- « Minor page faults » : environ une par page allouée (allocations
+  massives) ;
+- « User » / « System time » : un temps système élevé signale des appels
+  système dans la boucle.
+
+## Lire le comptage de références généré : `--dump`
+
+```bash
+./target/release/ocara prog.oc --dump -o prog > dump.txt
+grep -n "^func " dump.txt
+sed -n '/^func Classe_methode/,/^func /p' dump.txt | grep -c "__rc_retain\|__rc_release"
+```
+
+Utile pour vérifier ce qu'un appel de méthode, un gabarit ou une boucle
+coûte en retain/release, et si une valeur est boxée (`__box_int_for_mixed`).
+
+## Fuites invisibles au bilan `--leak-check`
+
+Le bilan compte les valeurs Ocara. Une instance Rust créée par un builtin
+(`Box::into_raw`) sans destruction correspondante n'y apparaît pas : seul le
+pic mémoire à deux tailles la révèle (10⁵ contre 10⁶ instances). Liste des
+candidats :
+
+```bash
+grep -n "Box::into_raw\|Box::from_raw" runtime/src/*.rs
+```
+
+Pour un bilan sur tous les exemples : compiler chaque `examples/**/*.oc` qui
+a un `main` avec `--leak-check`, l'exécuter sous `timeout 30` avec une entrée
+standard préparée, puis classer avec `grep -q "fuites : aucune"`. Copier
+seulement les sources (les dossiers `.ocaraunit_cache` pèsent des dizaines de
+Go).
+
+## Serveur HTTP sous charge concurrente
+
+Le plateau ci-dessus utilise `curl` en série. Pour une charge concurrente,
+un script Python avec un `ThreadPoolExecutor` et une
+`http.client.HTTPConnection` par thread (keep-alive) envoie N requêtes avec un
+parallélisme P, compte les codes HTTP et les exceptions, et relève `VmRSS` et
+`Threads` dans `/proc/$(pgrep -x serveur)/status` avant et après. Répéter 3 à
+6 séries pour vérifier le plateau. Référence : environ 5 000 à 6 600
+requêtes/s avec 8 workers.
+
+Cas limites à couvrir : clients lents (corps incomplet avec un
+`Content-Length` annoncé, en-têtes incomplets) en nombre égal aux workers ;
+sockets brutes (pipelining, HTTP/1.0, chunked, octets non UTF-8) ;
+fichiers statiques binaires (`curl -s $B/big.bin -o got.bin; cmp got.bin
+www/big.bin`).
+
 ## Dans VS Code : encart « Benchmark »
 
 La barre latérale Ocara (icône du logo) a un encart « Benchmark » pour le
@@ -187,6 +402,10 @@ script affiché :
 
 Chaque exécution est limitée à `ocara.benchmark.timeout` secondes (30 par
 défaut). Le pic mémoire demande `/usr/bin/time`.
+
+Pistes d'évolution de l'encart (courbe de complexité, compteurs du runtime,
+flamegraph, `strace -c`, comparaison A/B) :
+[roadmap.d/tooling-vscode-benchmark-profilage.md](roadmap.d/tooling-vscode-benchmark-profilage.md).
 
 ## Pièges
 
@@ -205,6 +424,21 @@ défaut). Le pic mémoire demande `/usr/bin/time`.
   binaire, jamais sur `ocara`.
 - **Sortie** : rediriger la sortie standard (`> /dev/null`) pour ne pas
   mesurer l'affichage du terminal.
+- **`--release` ne rend pas plus rapide** : il retire seulement les symboles
+  (Cranelift sans niveau d'optimisation). Pour profiler, garder un build par
+  défaut.
+- **Le temps propre de `--profile`** inclut le runtime (retain/release,
+  collectes) et environ 95 ns de mesure par appel instrumenté.
+- **Collectes de cycles mal attribuées** : en mono-thread, une collecte est
+  déclenchée par le `release` qui fait déborder le tampon ; son coût apparaît
+  dans une fonction utilisateur arbitraire (un constructeur, un accesseur).
+- **Threads et `async`** : mesurer à petite taille (2 000 et 10 000) et sans
+  `ulimit -v`, qui fait échouer la création des threads (abort, rc 134).
+  Plusieurs dizaines de Ko par itération signalent un thread jamais joint.
+- **Code de retour** : relever le code de sortie à chaque taille (124 :
+  délai, 134 : abort, 139 : SIGSEGV) ; un plantage qui n'apparaît qu'à grande
+  taille est souvent une valeur brute prise pour un pointeur (seuil 65 536,
+  `PTR_THRESHOLD`).
 
 ## Mesures de référence
 
@@ -229,3 +463,21 @@ Serveur `examples/advanced/mini_project_hexa` : plateau à environ 9,5 Mo sur
 Coût d'un appel de fonction manipulant des valeurs comptées (retenue,
 libération, enregistrement pour le déroulement des exceptions) : environ
 20 ns (5 millions d'appels en 0,11 s).
+
+Audit du 2026-10-19 (machine de 12 cœurs chargée ; minimum de 3 à 5
+exécutions) — les écarts sont suivis dans
+[roadmap.d/perf-runtime-complexite.md](roadmap.d/perf-runtime-complexite.md) :
+
+| Mesure | Ocara | Référence |
+|---|---|---|
+| Boucle d'entiers, 2·10⁸ itérations | 0,58 s (`while`), 0,43 s (`for … until`) | C `-O2` 0,15 s ; Python ≈ 11,6 s |
+| Boucle de flottants, 10⁸ itérations | 0,25 s | C `-O2` 0,10 s |
+| Appel de fonction libre / méthode / via interface | 1,4 ns / 26 ns / 50 ns | C 0,5 ns ; méthode Python 37 ns |
+| `use P(i)` (objet int + string) | 90–140 ns | Python 123 ns |
+| `push` 10⁶ | 0,02 s | — |
+| `map<int,int>`, 10⁵ insertions + lectures | 18–21 s | Python 0,10 s |
+| `s = s + "x"`, 10⁶ | 67 s | Python 0,026 s |
+| Gabarit à trois parties | 410–610 ns | f-string Python 135 ns |
+| Exception levée et rattrapée | 0,37–0,69 µs | Python 0,12 µs |
+| `async` + `resolve` | ~30 µs | — |
+| Serveur HTTP, 8 workers | 5 000–6 600 requêtes/s | — |
