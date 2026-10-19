@@ -1,0 +1,100 @@
+architecture permissive
+
+import ocara.UnitTest
+
+// Un `int`/`float` qui entre dans une union par `return`, `emit` ou
+// l'écriture d'une propriété est boxé : brut, il était retenu comme un
+// pointeur (SIGSEGV dès 65 536 ou pour tout float). Une valeur d'union
+// affinée par `is` et renvoyée en scalaire est déballée. Un gabarit sur un
+// tableau à éléments bruts les formate selon leur type — voir
+// docs/roadmap.d/langage-union-scalaire-non-boxe.md.
+
+function boxInt(n:int): int|string { return n }
+function boxFloat(): int|float { return 2.5 }
+function nullableFloat(x:float): float|null { return x }
+function narrowedFloat(v:int|float): float {
+    if v is float { return v }
+    return 0.5
+}
+function halfOf(v:int|float): float {
+    if v is float { return v / 2.0 }
+    return 0.0
+}
+function narrowedInt(v:int|string): int {
+    if v is int { return v }
+    return -1
+}
+function mixedValues(): message<int|string> {
+    emit 90000
+    emit "x"
+}
+
+class Holder {
+    public property v:int|float = 1.25
+    public property w:int|string = 0
+
+    public method echo(n:int): int|string { return n }
+}
+
+class Test95UnionScalarBoxing extends UnitTest {
+
+    public method returnedIntIsBoxedTest(): int {
+        const a:int|string = boxInt(70000)
+        self::assertEquals("70000", `${a}`)
+        return 0
+    }
+
+    public method returnedFloatIsBoxedTest(): int {
+        const x:int|float = boxFloat()
+        self::assertEquals("2.5", `${x}`)
+        const y:float|null = nullableFloat(3.5)
+        if y is null {
+            self::fail("null")
+        } else {
+            self::assertEquals(4.5, y + 1.0)
+        }
+        return 0
+    }
+
+    public method narrowedValueIsUnboxedTest(): int {
+        self::assertEquals(3.0, narrowedFloat(3.0))
+        self::assertEquals(1.5, halfOf(3.0))
+        self::assertEquals(130001, narrowedInt(130000) + 1)
+        return 0
+    }
+
+    public method propertyIsBoxedTest(): int {
+        var h:Holder = use Holder()
+        self::assertEquals("1.25", `${h.v}`)
+        h.w = 80000
+        self::assertEquals("80000", `${h.w}`)
+        h.v = 4.75
+        self::assertEquals("4.75", `${h.v}`)
+        return 0
+    }
+
+    public method methodAndClosureReturnsAreBoxedTest(): int {
+        var h:Holder = use Holder()
+        self::assertEquals("100000", `${h.echo(100000)}`)
+        var f:Function<int|string(int)> = nameless(n:int): int|string { return n }
+        self::assertEquals("120000", `${f(120000)}`)
+        return 0
+    }
+
+    public method emittedValueIsBoxedTest(): int {
+        var s:string = ""
+        for v in mixedValues() {
+            s = s + `${v},`
+        }
+        self::assertEquals("90000,x,", s)
+        return 0
+    }
+
+    public method rawArrayTemplateTest(): int {
+        var af:array<float> = [1.5, 2.5]
+        var ai:array<int> = [100000, 0, -3]
+        var ab:array<bool> = [true, false]
+        self::assertEquals("[1.5, 2.5] [100000, 0, -3] [true, false]", `${af} ${ai} ${ab}`)
+        return 0
+    }
+}

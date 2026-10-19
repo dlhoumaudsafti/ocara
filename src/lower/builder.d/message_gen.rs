@@ -650,17 +650,29 @@ pub fn drop_func_name(mangled_func_name: &str) -> String {
 
 /// `emit v` : le frame possède la valeur émise (le consommateur l'emprunte
 /// jusqu'à la reprise suivante) ; la précédente est rendue.
-pub fn store_emitted(builder: &mut LowerBuilder, val: Value) {
-    let counted = match &builder.ret_ast_ty {
-        Some(Type::Message(elem)) => crate::lower::stmt::rc::counted(builder, elem),
-        _ => false,
+pub fn store_emitted(builder: &mut LowerBuilder, val_ty: IrType, val: Value) {
+    let elem = match &builder.ret_ast_ty {
+        Some(Type::Message(elem)) => Some((**elem).clone()),
+        _ => None,
     };
+    // `message<mixed>`/`message<int|string>` : un scalaire émis est boxé,
+    // sinon il était retenu comme un pointeur (voir
+    // docs/roadmap.d/langage-union-scalaire-non-boxe.md).
+    let boxed = match &elem {
+        Some(Type::Mixed | Type::Union(_)) => crate::lower::stmt::statements::box_for_any(builder, &IrType::Ptr, val_ty, val.clone()),
+        _ => val.clone(),
+    };
+    let fresh = boxed != val;
+    let val = boxed;
+    let counted = elem.as_ref().is_some_and(|ty| crate::lower::stmt::rc::counted(builder, ty));
     if !counted {
         builder.store_local(VALUE_FIELD, val);
         return;
     }
     let old = builder.load_local(VALUE_FIELD).map(|(v, _)| v);
-    crate::lower::stmt::rc::take(builder, &val);
+    if !fresh {
+        crate::lower::stmt::rc::take(builder, &val);
+    }
     builder.store_local(VALUE_FIELD, val);
     if let Some(old) = old {
         crate::lower::stmt::rc::release(builder, &old);

@@ -22,7 +22,8 @@ contenu des chaînes :
    `[3.5, -1.0, 2.25, -10.5]` → `-1, -10.5, 2.25, 3.5`.
 4. **`IO::writeln` et gabarits sur conteneurs** : `IO::writeln(array<int>)` et
    `IO::writeln(map)` impriment des octets bruts ; `${map}` → `[1, ]` ;
-   `${array<array<int>>}` → octets bruts ; `${array<bool>}` → `[1, null]`.
+   `${array<array<int>>}` → octets bruts (le gabarit d'un tableau à éléments
+   bruts `int`/`float`/`bool` est corrigé).
 5. **Assertions `UnitTest`** : `assertGreater(2.5, 1.5)` affiche des adresses
    de boîtes ; `assertEmpty([])` échoue et `assertNotEmpty([])` passe ;
    `assertEquals([1,2],[1,2])` échoue (`expected    but got   `) ;
@@ -30,6 +31,10 @@ contenu des chaînes :
    tableaux (`lib.rs` ~l.1880-2052).
 
 ## Piste
+
+Le gabarit `${array<…>}` est corrigé (2026-10-19) : `__array_to_str` passe
+par `fmt_elem(raw_kind, v)` (`runtime/src/lib.rs`), à réutiliser pour
+`Array_join`, l'affichage `IO::writeln` et `UnitTest`.
 
 Un seul formateur d'élément qui reçoit le genre du conteneur (comme
 `value_to_json` avec `kind | depth << 8`) et une comparaison par contenu pour

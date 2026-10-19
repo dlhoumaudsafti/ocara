@@ -15,6 +15,7 @@ use statements_impl::*;
 // privé, seul un re-export explicite le rend atteignable de l'extérieur.
 pub use statements_impl::assignments::lower_incdec;
 pub(crate) use statements_impl::variables::{lower_const_value, register_const_meta, register_var_class};
+pub(crate) use statements_impl::helpers::box_for_any;
 
 pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
     match stmt {
@@ -214,8 +215,9 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
         // de continuer le lowering dans un nouveau bloc, qui deviendra le
         // point de reprise correspondant.
         Stmt::Emit { value, .. } => {
+            let val_ty = crate::lower::expr::expr_ir_type_pub(builder, value);
             let val = lower_expr(builder, value);
-            crate::lower::builder::message_gen::store_emitted(builder, val);
+            crate::lower::builder::message_gen::store_emitted(builder, val_ty, val);
 
             let state_k = builder.message_resume_blocks.len() as i64 + 1;
             let k_val = builder.new_value();
@@ -251,8 +253,14 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
 /// Valeur retournée : boxée si la fonction retourne `mixed`, puis possédée
 /// par l'appelant (+1) si son type est compté.
 fn returned_value(builder: &mut LowerBuilder, ret_ty: &Type, val_ty: IrType, val: crate::ir::inst::Value) -> crate::ir::inst::Value {
+    // `mixed` et union : représentation `Ptr` auto-décrite — un scalaire
+    // brut y était retenu comme un pointeur (SIGSEGV, voir
+    // docs/roadmap.d/langage-union-scalaire-non-boxe.md).
+    // Retour scalaire d'une valeur `mixed`/union (variable affinée par `is`,
+    // `v / 2.0` calculé en dynamique) : déballée, comme `var r:float = v`.
     let boxed = match ret_ty {
-        Type::Mixed => statements_impl::helpers::box_for_any(builder, &IrType::Ptr, val_ty, val.clone()),
+        Type::Mixed | Type::Union(_) => statements_impl::helpers::box_for_any(builder, &IrType::Ptr, val_ty, val.clone()),
+        Type::Int | Type::Float | Type::Bool => statements_impl::helpers::box_for_any(builder, &IrType::from_ast(ret_ty), val_ty, val.clone()),
         _ => val.clone(),
     };
     if boxed == val && crate::lower::stmt::rc::counted(builder, ret_ty) {

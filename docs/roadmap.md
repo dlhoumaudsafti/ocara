@@ -29,7 +29,6 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Union recevant un `int`/`float` non boxé : SIGSEGV** — `return n` ou propriété vers `int|string`, `int|float`, `float|null` : la valeur brute est retenue comme un pointeur (SIGSEGV dès 65 536 ou pour tout float) ; float affiné renvoyé faux ; gabarit sur `array<float>` → SIGSEGV. *(Légère)* → [détails](roadmap.d/langage-union-scalaire-non-boxe.md)
 - **Fermeture créée dans une branche non exécutée : SIGSEGV** — `if flag { nameless … capture x }` avec `flag` faux, puis lecture de `x` → SIGSEGV ; idem dans une boucle et un `switch`. *(Légère)* → [détails](roadmap.d/langage-closure-branche-non-prise.md)
 - **Map capturée par une fermeture, indexée : SIGSEGV** — `m["a"] = 5` dans une `nameless` puis `m["a"]` → SIGSEGV (métadonnées de capture non propagées) ; casse le partage d'une map entre threads et handlers ; fonction capturée rendant une `string` → fuite par appel. *(Simple)* → [détails](roadmap.d/langage-closure-metadonnees-capture.md)
 - **`async`/`resolve` : double free, handles boxés, appels synchrones** — Second `resolve` → double free ; `hs.push(sq(3))` puis `resolve` → SIGSEGV ; `async` dans une `nameless`/générateur appelé en synchrone → SIGSEGV ; tâche jamais résolue → ~36 Ko perdus par appel. *(Structurel)* → [détails](roadmap.d/async-resolvable-handles.md)

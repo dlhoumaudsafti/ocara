@@ -507,9 +507,22 @@ pub extern "C" fn __array_to_str(ptr: i64) -> i64 {
     if ptr == 0 {
         return unsafe { alloc_str("[]") };
     }
-    let parts: Vec<String> = unsafe { array_data(ptr) }.iter().map(|&v| fmt_val(v)).collect();
+    let kind = rc::raw_kind(ptr);
+    let parts: Vec<String> = unsafe { array_data(ptr) }.iter().map(|&v| fmt_elem(kind, v)).collect();
     let r = format!("[{}]", parts.join(", "));
     unsafe { alloc_str(&r) }
+}
+
+/// Élément d'un conteneur, selon son genre brut (`rc::raw_kind` : 1 int,
+/// 2 float, 3 bool, 0 valeur auto-décrite). Un entier ou un flottant brut lu
+/// par `fmt_val` était pris pour un pointeur (SIGSEGV sur `${array<float>}`).
+pub(crate) fn fmt_elem(kind: i64, v: i64) -> String {
+    match kind {
+        1 => v.to_string(),
+        2 => f64::from_bits(v as u64).to_string(),
+        3 => (if v != 0 { "true" } else { "false" }).to_string(),
+        _ => fmt_val(v),
+    }
 }
 
 /// Retourne le nom du système d'exploitation cible.

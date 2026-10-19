@@ -61,7 +61,9 @@ pub fn lower_assign(
             let field_ty = class_name.as_deref().and_then(|cls| declared_field_type(builder, cls, field));
             let counted = field_ty.as_ref().is_some_and(|ty| crate::lower::stmt::rc::counted(builder, ty));
             let (val, fresh) = match &field_ty {
-                Some(Type::Mixed) => {
+                // Union comme `mixed` : un scalaire brut y était retenu comme
+                // un pointeur (voir docs/roadmap.d/langage-union-scalaire-non-boxe.md).
+                Some(Type::Mixed | Type::Union(_)) => {
                     let boxed = box_for_any(builder, &IrType::Ptr, val_ty, val.clone());
                     let fresh = boxed != val;
                     (boxed, fresh)

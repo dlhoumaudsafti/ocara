@@ -1,48 +1,46 @@
-# Scalaire (`int`/`float`) placé dans une union sans être boxé : SIGSEGV ou valeur fausse
+# Scalaire (`int`/`float`) placé dans une union sans être boxé — corrigé
 
-Audit du 2026-10-19. Reproduit sur le binaire courant.
+Audit du 2026-10-19, corrigé le même jour.
 
 ## Constat
 
-Un `int` ou un `float` qui entre dans un type union (`int|string`, `int|float`,
-`float|null`…) par un `return` ou par l'écriture d'une propriété n'est pas
-boxé. La valeur brute est ensuite traitée comme un pointeur (`__rc_retain`,
-affichage) :
-
-- `int` ≥ 65 536 (`PTR_THRESHOLD`, `runtime/src/typecheck.rs:56`) ou `float`
-  (ses bits ressemblent à une adresse) : **SIGSEGV** dans `__rc_retain`.
-- `int` plus petit : valeur affichée fausse ou `null`.
+Un `int` ou un `float` qui entrait dans un type union (`int|string`,
+`int|float`, `float|null`…) par un `return`, un `emit` ou l'écriture d'une
+propriété n'était pas boxé : la valeur brute était retenue comme un pointeur
+(`__rc_retain`), d'où un SIGSEGV dès 65 536 (`PTR_THRESHOLD`) ou pour tout
+float.
 
 ```ocara
-function box(n:int): int|string { return n }          // SIGSEGV avec box(70000)
-function k(): int|float { return 2.5 }                  // var x:int|float = k() → SIGSEGV
-class C { public property v:int|float = 1.25 }          // affichage de c.v → SIGSEGV
-function k2(x:float): float|null { return x }           // y + 1.0 après `is null` → SIGSEGV
+function box(n:int): int|string { return n }          // box(70000) → SIGSEGV
+function k(): int|float { return 2.5 }                  // SIGSEGV
+class C { public property v:int|float = 1.25 }          // affichage → SIGSEGV
 ```
-
-Cas qui fonctionnent : la variable locale (`var r:int|string = n; return r`),
-`m["a"] = n` sur une `map<string, int|string>`, l'argument `show(80000)`,
-`array<int|string>`.
 
 Même famille :
 
-- **Float affiné renvoyé depuis une union** : `function e(v:int|float): float
-  { if v is float { return v } return 0.5 }` → `e(3.0)` affiche un dénormal
-  (`0.000…0195`) au lieu de `3`.
-- **Gabarit `${…}` sur un `array<float>`** : SIGSEGV.
+- valeur d'union affinée par `is` puis renvoyée en scalaire
+  (`if v is float { return v }`, `return v / 2.0`) : non déballée, un
+  dénormal au lieu de `3` ;
+- gabarit `${array<float>}` : SIGSEGV (`${array<int>}` avec 100 000 et
+  `${array<bool>}` faux).
 
-## Piste
+## Correctif
 
-Le chemin `return` et l'affectation de propriété vers un type union doivent
-appliquer la même conversion que la déclaration locale (`box_for_dyn_arith` /
-`__box_int_for_mixed`, `__box_float`). Vérifier aussi les paramètres par
-défaut et les champs de génériques.
+- `returned_value` (`src/lower/stmt.d/statements.rs`) : `box_for_any` vers
+  `Ptr` pour un retour `mixed` **ou union**, et déballage vers le scalaire
+  pour un retour `int`/`float`/`bool` — la même conversion que
+  `var r:T = expr`.
+- Propriété `mixed` **ou union** : boxée à l'affectation
+  (`src/lower/stmt.d/statements.d/assignments.rs`), initialiseurs de
+  `property` compris.
+- `emit` dans un `message<mixed>` ou `message<union>` : boxé dans
+  `store_emitted` (`src/lower/builder.d/message_gen.rs`), sans retenue en
+  double d'une cellule neuve.
+- `__array_to_str` formate chaque élément selon le genre brut du tableau
+  (`fmt_elem`, `runtime/src/lib.rs`).
 
-## Priorité / Complexité
+## Tests
 
-**Haute** (crash) — **Légère**.
-
-## Fichiers clés
-
-`src/lower/stmt.d/statements.d/` (return), `src/lower/stmt.d/statements.d/assign*`
-(propriétés), `src/lower/expr.d/helpers.rs` (`box_for_dyn_arith`).
+`examples/tests/95_union_scalar_boxingTest.oc` (retours de fonction, méthode,
+statique et `nameless`, `emit`, propriétés, valeurs affinées, gabarits de
+tableaux bruts) ; `--leak-check` sans fuite.
