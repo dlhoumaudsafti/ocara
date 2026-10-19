@@ -1,0 +1,123 @@
+architecture permissive
+
+import ocara.UnitTest
+
+// Fermeture créée dans une seule branche (`if`, `elseif`, `else`, `case`,
+// bras de `match`) : la variable capturée est promue avant le branchement,
+// pour tous les chemins. Promue seulement dans la branche prise, elle
+// restait un slot de pile sur les autres chemins alors que le code suivant
+// la lisait comme une cellule (SIGSEGV) — voir
+// docs/roadmap.d/langage-closure-branche-non-prise.md.
+
+function untakenBranch(flag:bool): int {
+    var x:int = 5
+    if flag {
+        var f:Function<int()> = nameless(): int { return x }
+        f()
+    }
+    return x
+}
+
+function viaIf(flag:bool): string {
+    var x:int = 5
+    var f:Function<int()> = nameless(): int { return 0 }
+    if flag {
+        f = nameless(): int { return x }
+    } elseif x equal 99 {
+        f = nameless(): int { return x * 2 }
+    } else {
+        x = x + 1
+    }
+    x = x + 10
+    return `${x}:${f()}`
+}
+
+function viaSwitch(n:int): string {
+    var s:string = "a"
+    var g:Function<string()> = nameless(): string { return "-" }
+    switch n {
+        1 { g = nameless(): string { return s + "!" } }
+        default { s = s + "b" }
+    }
+    s = s + "c"
+    return `${s}:${g()}`
+}
+
+function viaMatch(n:int): string {
+    var t:string = "m"
+    var h:Function<string()> = match n {
+        1 => nameless(): string { return t + "1" }
+        default => nameless(): string { return "d" }
+    }
+    t = t + "x"
+    return `${t}:${h()}`
+}
+
+function branchInGenerator(flag:bool): message<int> {
+    var z:int = 3
+    if flag {
+        var f:Function<int()> = nameless(): int { return z }
+        emit f()
+    }
+    emit z
+}
+
+class Test96ClosureBranchCapture extends UnitTest {
+
+    public method untakenBranchTest(): int {
+        self::assertEquals(5, untakenBranch(false))
+        self::assertEquals(5, untakenBranch(true))
+        return 0
+    }
+
+    public method ifElseifElseTest(): int {
+        self::assertEquals("15:15", viaIf(true))
+        self::assertEquals("16:0", viaIf(false))
+        return 0
+    }
+
+    public method switchTest(): int {
+        self::assertEquals("ac:ac!", viaSwitch(1))
+        self::assertEquals("abc:-", viaSwitch(2))
+        return 0
+    }
+
+    public method matchTest(): int {
+        self::assertEquals("mx:mx1", viaMatch(1))
+        self::assertEquals("mx:d", viaMatch(2))
+        return 0
+    }
+
+    public method branchInLoopTest(): int {
+        var out:array<Function<int()>> = []
+        for k in 0 until 3 {
+            if k equal 1 { out.push(nameless(): int { return k * 100 }) }
+        }
+        var s:string = ""
+        for f in out { s = s + `${f()}` }
+        self::assertEquals("100", s)
+        return 0
+    }
+
+    public method switchInLoopTest(): int {
+        var out:array<Function<int()>> = []
+        for k in 0 until 3 {
+            switch k {
+                1 { out.push(nameless(): int { return k }) }
+                default { out.push(nameless(): int { return k + 10 }) }
+            }
+        }
+        var s:string = ""
+        for f in out { s = s + `${f()},` }
+        self::assertEquals("10,1,12,", s)
+        return 0
+    }
+
+    public method generatorBranchTest(): int {
+        var s:string = ""
+        for v in branchInGenerator(false) { s = s + `${v}` }
+        for v in branchInGenerator(true) { s = s + `${v}` }
+        self::assertEquals("333", s)
+        return 0
+    }
+}

@@ -5,7 +5,7 @@ use crate::ir::types::IrType;
 use crate::ir::inst::{Inst, Value};
 use crate::lower::builder::LowerBuilder;
 use crate::lower::builder::message_gen::{keep_across_emit, reload};
-use crate::lower::expr::{lower_expr, lower_array_literal, hoist_closure_promotions_before_loop};
+use crate::lower::expr::{lower_expr, lower_array_literal, hoist_closure_promotions};
 use crate::lower::expr::helpers::elem_type_after_index;
 use super::super::super::block::lower_block;
 
@@ -24,7 +24,7 @@ pub fn lower_for_in(
     // précédente peut rester dans `locals`) — seules les variables
     // existant AVANT la boucle sont concernées. Avant aussi le
     // chemin générateur, qui la sautait (cellule recréée à chaque tour).
-    hoist_closure_promotions_before_loop(builder, body, &[var]);
+    hoist_closure_promotions(builder, body, &[var]);
 
     if let Some((mangled, elem_ty)) = crate::lower::builder::message_gen::detect_message_call(builder, iter) {
         crate::lower::builder::message_gen::lower_for_message(builder, var, iter, &mangled, elem_ty, body);
@@ -305,7 +305,7 @@ pub fn lower_for_map(
     body: &Block,
 ) {
     // Pré-promotion : voir docs/roadmap.d/langage-closure-promotion-in-loop.md.
-    hoist_closure_promotions_before_loop(builder, body, &[key, value]);
+    hoist_closure_promotions(builder, body, &[key, value]);
 
     let iter_val = lower_expr(builder, iter);
 

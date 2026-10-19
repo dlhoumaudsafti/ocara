@@ -3,7 +3,7 @@
 use crate::parsing::ast::*;
 use crate::ir::inst::Inst;
 use crate::lower::builder::LowerBuilder;
-use crate::lower::expr::{lower_expr, hoist_closure_promotions_before_loop};
+use crate::lower::expr::{lower_expr, hoist_closure_promotions, hoist_closure_promotions_in_exprs};
 use super::super::super::block::lower_block;
 
 /// Lowering récursif de la chaîne elseif.
@@ -83,6 +83,17 @@ pub fn lower_if(
     elseif: &[(Expr, Block)],
     else_block: &Option<Block>,
 ) {
+    // Une fermeture créée dans une seule branche : ses captures sont promues
+    // avant le branchement, pour tous les chemins (voir
+    // `hoist_closure_promotions`).
+    hoist_closure_promotions(builder, then_block, &[]);
+    for (cond, blk) in elseif {
+        hoist_closure_promotions_in_exprs(builder, &[cond]);
+        hoist_closure_promotions(builder, blk, &[]);
+    }
+    if let Some(blk) = else_block {
+        hoist_closure_promotions(builder, blk, &[]);
+    }
     let cond_val = lower_expr(builder, condition);
     crate::lower::stmt::rc::flush_temps(builder);
     let then_bb  = builder.new_block();
@@ -131,6 +142,14 @@ pub fn lower_switch(
     cases: &[SwitchCase],
     default: &Option<Block>,
 ) {
+    // Captures des fermetures d'un `case` promues avant le branchement
+    // (voir `hoist_closure_promotions`).
+    for case in cases {
+        hoist_closure_promotions(builder, &case.body, &[]);
+    }
+    if let Some(blk) = default {
+        hoist_closure_promotions(builder, blk, &[]);
+    }
     let subj = lower_expr(builder, subject);
     let merge_bb = builder.new_block();
 
@@ -183,9 +202,9 @@ pub fn lower_while(
     body: &Block,
 ) {
     // Pré-promotion : voir docs/roadmap.d/langage-closure-promotion-in-loop.md
-    // et la doc de `hoist_closure_promotions_before_loop`. Avant d'entrer
+    // et la doc de `hoist_closure_promotions`. Avant d'entrer
     // dans la boucle (donc une seule fois, pas à chaque itération).
-    hoist_closure_promotions_before_loop(builder, body, &[]);
+    hoist_closure_promotions(builder, body, &[]);
 
     let cond_bb  = builder.new_block();
     let body_bb  = builder.new_block();

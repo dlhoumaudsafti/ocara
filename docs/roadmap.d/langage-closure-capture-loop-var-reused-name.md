@@ -18,7 +18,7 @@ for f in fns { s = s + f().toStr() }   // attendu 012, obtenu 222, puis blocage
 
 La variable d'une boucle est déclarée hors du bloc du corps : elle reste
 dans `locals` après la boucle. La pré-promotion de la boucle suivante
-(`hoist_closure_promotions_before_loop`) promouvait cet homonyme au tas, et
+(`hoist_closure_promotions`) promouvait cet homonyme au tas, et
 `heap_promoted` (indexé par nom) restait marqué. La nouvelle déclaration
 créait un slot de pile, mais chaque accès passait par
 `__locked_cell_get`/`set` sur ce slot (mémoire corrompue).

@@ -43,7 +43,7 @@ l'emplacement d'origine (resté à 0 puisque les écritures vont dans la
 cellule), et la cellule du tour précédent jamais rendue.
 
 Les closures avaient le même problème, réglé par une promotion anticipée
-avant la boucle (`hoist_closure_promotions_before_loop`) ; sa recherche des
+avant la boucle (`hoist_closure_promotions`) ; sa recherche des
 captures ne comptait pas les références directes d'un `try`. Correction
 (`src/lower/expr.d/captures.rs`) : dans un `try`, le corps et les blocs `on`
 comptent leurs références directes — la variable est promue une fois, avant

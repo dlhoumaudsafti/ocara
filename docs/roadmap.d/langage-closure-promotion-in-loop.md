@@ -57,7 +57,7 @@ Cause profonde : le check `if builder.heap_promoted.contains(cap_name) { /* réu
 Exactement la piste envisagée ci-dessus, implémentée telle quelle :
 
 1. **Pré-scan** : nouvelle fonction publique `names_captured_by_nested_closures` (`src/lower/expr.d/captures.rs`), qui partage les mêmes fonctions de parcours internes que `collect_captures` (un paramètre `count_direct_refs: bool` ajouté et discrètement threadé partout — `collect_captures` garde exactement son comportement/signature d'avant, `true` ; la nouvelle fonction utilise `false`). `false` fait ignorer les références DIRECTES du bloc scanné (le compteur `i` d'un `while i smaller N {...}` n'est jamais confondu avec une capture) — seules les captures de fermetures RÉELLEMENT créées dans le bloc, à n'importe quelle profondeur (`Expr::Nameless`, déjà rendu transitif par le correctif de [langage-nested-closure-recapture](langage-nested-closure-recapture.md)), sont remontées.
-2. **Hoist** : nouvelle fonction `hoist_closure_promotions_before_loop` (`src/lower/expr.d/lower.rs`) — appelle le pré-scan, puis pour chaque nom pas déjà `heap_promoted`, émet la MÊME séquence de promotion que `Expr::Nameless` (`__alloc_locked_cell` + copie + redirection + `heap_promoted.insert`), volontairement DUPLIQUÉE plutôt que refactorisée avec le code existant (déjà testé) — un ajout pur à un nouvel endroit, risque minimal sur le chemin déjà validé.
+2. **Hoist** : nouvelle fonction `hoist_closure_promotions` (`src/lower/expr.d/lower.rs`) — appelle le pré-scan, puis pour chaque nom pas déjà `heap_promoted`, émet la MÊME séquence de promotion que `Expr::Nameless` (`__alloc_locked_cell` + copie + redirection + `heap_promoted.insert`), volontairement DUPLIQUÉE plutôt que refactorisée avec le code existant (déjà testé) — un ajout pur à un nouvel endroit, risque minimal sur le chemin déjà validé.
 3. **Câblage** : appelée en tout premier, AVANT toute déclaration locale propre à la boucle (variable d'itération, index...), dans `lower_while`, `lower_for_in` (après le court-circuit générateur, qui a son propre mécanisme) et `lower_for_map` (`src/lower/stmt.d/statements.d/control_flow.rs`/`loops.rs`).
 
 Une fois pré-promue AVANT le bloc de la boucle (donc une seule fois, dans le bloc prédécesseur — confirmé par `ocara --dump`), le chemin "déjà promu, réutiliser" déjà existant dans `Expr::Nameless` s'applique naturellement à chaque itération : aucune ré-allocation, la même cellule est relue/écrite à chaque passage.
@@ -72,7 +72,7 @@ Nouveau test de régression : `examples/tests/48_closure_promotion_in_loopTest.o
 
 ## Fichiers clés
 
-`src/lower/expr.d/captures.rs` (`names_captured_by_nested_closures`, fait), `src/lower/expr.d/lower.rs` (`hoist_closure_promotions_before_loop`, fait), `src/lower/stmt.d/statements.d/control_flow.rs` (`lower_while`, câblé), `src/lower/stmt.d/statements.d/loops.rs` (`lower_for_in`, `lower_for_map`, câblés), `examples/tests/48_closure_promotion_in_loopTest.oc` (fait), [langage-closure-promotion-block-scope](langage-closure-promotion-block-scope.md) (ticket parent, cas hors-boucle), [langage-nested-closure-recapture](langage-nested-closure-recapture.md) (mécanisme de capture transitif réutilisé).
+`src/lower/expr.d/captures.rs` (`names_captured_by_nested_closures`, fait), `src/lower/expr.d/lower.rs` (`hoist_closure_promotions`, fait), `src/lower/stmt.d/statements.d/control_flow.rs` (`lower_while`, câblé), `src/lower/stmt.d/statements.d/loops.rs` (`lower_for_in`, `lower_for_map`, câblés), `examples/tests/48_closure_promotion_in_loopTest.oc` (fait), [langage-closure-promotion-block-scope](langage-closure-promotion-block-scope.md) (ticket parent, cas hors-boucle), [langage-nested-closure-recapture](langage-nested-closure-recapture.md) (mécanisme de capture transitif réutilisé).
 
 ## Reste à faire — audit du 2026-10-13
 
@@ -87,6 +87,6 @@ for x in compteur() {            // compteur(): message<int>, émet 1..4
 // gen-for: 4 au lieu de 10 ; --leak-check : 9 × variable capturée
 ```
 
-Cause : `src/lower/stmt.d/statements.d/loops.rs` (~l.22-25) — le chemin générateur (`lower_for_message`) fait `return` avant `hoist_closure_promotions_before_loop` (~l.31). Correction : appliquer le hoist avant ce `return`. **Haute — Légère.** Test à ajouter dans `48_…`.
+Cause : `src/lower/stmt.d/statements.d/loops.rs` (~l.22-25) — le chemin générateur (`lower_for_message`) fait `return` avant `hoist_closure_promotions` (~l.31). Correction : appliquer le hoist avant ce `return`. **Haute — Légère.** Test à ajouter dans `48_…`.
 
 **Corrigé le 2026-10-13** : le hoist est fait avant le chemin générateur, et la boucle sur générateur ouvre une portée d'itération (`begin_iteration`/`end_iteration`, `lower_for_message`) — résultat 10, aucune fuite. Test : `examples/tests/89_…` (`closureInGeneratorLoopTest`).

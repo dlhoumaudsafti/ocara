@@ -1,6 +1,6 @@
-# Fermeture créée dans une branche non exécutée : SIGSEGV sur la variable capturée
+# Fermeture créée dans une branche non exécutée : SIGSEGV — corrigé
 
-Audit du 2026-10-19. Reproduit sur le binaire courant.
+Audit du 2026-10-19, corrigé le même jour.
 
 ## Constat
 
@@ -15,29 +15,29 @@ function show(flag:bool): void {
 }
 ```
 
-Même chose dans une boucle (`for k in 0 until 3 { if k equal 1 {
-out.push(nameless(): int { return k }) } }` plante dès l'itération 0) et dans
-un `switch`.
+Même chose dans une boucle (`for k … { if k equal 1 { out.push(nameless…k) } }`
+plantait dès l'itération 0) et dans un `switch`.
 
 ## Cause
 
-`src/lower/stmt.d/block.rs` (restauration de fin de bloc) garde la
-redirection `locals[name]` vers la cellule tas, alors que la cellule n'est
-allouée que dans la branche prise : l'autre chemin lit le slot de pile comme
-une cellule (`__locked_cell_get`).
+La capture promouvait la variable au tas à l'endroit de la fermeture, donc
+seulement dans la branche prise ; la redirection `locals[name]` vers la
+cellule restait en vigueur après le branchement (`src/lower/stmt.d/block.rs`).
+Sur les autres chemins, la variable était encore un slot de pile, lu comme une
+cellule (`__locked_cell_get`).
 
-## Piste
+## Correctif
 
-Promouvoir la variable AVANT le branchement (comme
-`hoist_closure_promotions_before_loop` le fait pour les boucles) : un
-pré-scan des `if`/`switch`/`match` qui contiennent une fermeture capturant une
-variable externe.
+La pré-promotion des boucles, renommée `hoist_closure_promotions`
+(`src/lower/expr.d/lower.rs`), s'applique aussi avant chaque branchement :
+branches de `if`/`elseif`/`else` (conditions d'`elseif` comprises) et cas de
+`switch` (`src/lower/stmt.d/statements.d/control_flow.rs`), bras de `match`
+(`hoist_closure_promotions_in_exprs`). La cellule est créée sur tous les
+chemins ; une variable déclarée dans un corps de boucle reste neuve à chaque
+itération.
 
-## Priorité / Complexité
+## Tests
 
-**Haute** (crash) — **Légère**.
-
-## Fichiers clés
-
-`src/lower/stmt.d/block.rs`, `src/lower/expr.d/lower.rs`
-(`hoist_closure_promotions_before_loop`), `src/lower/stmt.d/statements.d/control_flow.rs`.
+`examples/tests/96_closure_branch_captureTest.oc` (branche non prise, `if`/
+`elseif`/`else`, `switch`, `match`, branche dans une boucle, `switch` dans une
+boucle, générateur) ; `--leak-check` sans fuite.

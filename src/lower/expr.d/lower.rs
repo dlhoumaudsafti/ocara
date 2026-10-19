@@ -235,10 +235,17 @@ fn lower_literal_element(builder: &mut LowerBuilder, elem: &Expr, elem_ty: &Type
     }
 }
 
-/// Pré-promeut, AVANT d'entrer dans un corps de boucle (`while`/`for`),
-/// toute variable existante qu'une fermeture créée QUELQUE PART dans `body`
-/// va capturer — appelé par `lower_while`/`lower_for_in`/`lower_for_map`
-/// (`src/lower/stmt.d/statements.d/`) juste avant de lower le corps.
+/// Pré-promeut, AVANT d'entrer dans un corps de boucle (`while`/`for`) ou
+/// dans une branche (`if`/`elseif`/`else`, `case`, bras de `match`), toute
+/// variable existante qu'une fermeture créée QUELQUE PART dans `body` va
+/// capturer — appelé par `lower_while`/`lower_for_in`/`lower_for_map`,
+/// `lower_if`/`lower_switch` (`src/lower/stmt.d/statements.d/`) et
+/// `Expr::Match`, juste avant de lower le corps.
+///
+/// Branches : promue seulement dans la branche prise, la variable restait
+/// un slot de pile sur les autres chemins alors que le code après le
+/// branchement la lisait comme une cellule (SIGSEGV, voir
+/// docs/roadmap.d/langage-closure-branche-non-prise.md).
 ///
 /// Sans ceci, la promotion normale (déclenchée au premier `Expr::Nameless`
 /// rencontré pendant le lowering, voir plus bas dans ce fichier) atterrit à
@@ -266,7 +273,7 @@ fn lower_literal_element(builder: &mut LowerBuilder, elem: &Expr, elem_ty: &Type
 /// resté dans `locals` (variable d'une boucle précédente) n'est pas celle
 /// que capture la fermeture : le promouvoir partageait une cellule entre les
 /// itérations (voir docs/roadmap.d/langage-closure-capture-loop-var-reused-name.md).
-pub fn hoist_closure_promotions_before_loop(builder: &mut LowerBuilder, body: &Block, loop_vars: &[&str]) {
+pub fn hoist_closure_promotions(builder: &mut LowerBuilder, body: &Block, loop_vars: &[&str]) {
     let mut capture_scope: std::collections::HashMap<String, (Value, IrType, bool)> = builder.locals.clone();
     for name in loop_vars {
         capture_scope.remove(*name);
@@ -294,6 +301,17 @@ pub fn hoist_closure_promotions_before_loop(builder: &mut LowerBuilder, body: &B
             builder.heap_promoted.insert(name);
         }
     }
+}
+
+/// `hoist_closure_promotions` pour des expressions évaluées sous condition
+/// (condition d'un `elseif`, bras de `match`).
+pub fn hoist_closure_promotions_in_exprs(builder: &mut LowerBuilder, exprs: &[&Expr]) {
+    let Some(first) = exprs.first() else { return };
+    let block = Block {
+        stmts: exprs.iter().map(|e| Stmt::Expr((*e).clone())).collect(),
+        span: first.span().clone(),
+    };
+    hoist_closure_promotions(builder, &block, &[]);
 }
 
 /// Bras de `match` : ses temporaires sont relâchés dans le bras (le bloc
@@ -1576,6 +1594,10 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 matches!(arm.body, Expr::Array { .. } | Expr::Map { .. })
                     || crate::lower::stmt::rc::produces_owned(builder, &arm.body)
             });
+            // Bras évalués sous condition : captures promues avant (voir
+            // `hoist_closure_promotions`).
+            let bodies: Vec<&Expr> = arms.iter().map(|arm| &arm.body).collect();
+            hoist_closure_promotions_in_exprs(builder, &bodies);
             let subj = lower_expr(builder, subject);
             let result_slot = builder.new_value();
             builder.emit(Inst::Alloca { dest: result_slot.clone(), ty: IrType::Ptr });
