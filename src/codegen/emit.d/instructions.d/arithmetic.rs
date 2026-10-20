@@ -1,7 +1,8 @@
 /// Émission des instructions arithmétiques
 
 use cranelift_codegen::ir::{types as clt, InstBuilder, MemFlags};
-use cranelift_frontend::{FunctionBuilder, Variable};
+use cranelift_frontend::FunctionBuilder;
+use super::super::value_slots::ValueSlots;
 use crate::ir::inst::Inst;
 use crate::ir::types::IrType;
 use super::super::error::CgResult;
@@ -9,16 +10,16 @@ use super::super::error::CgResult;
 pub fn emit_arithmetic(
     builder: &mut FunctionBuilder,
     inst: &Inst,
-    vars: &[Variable],
+    vars: &ValueSlots,
 ) -> CgResult<bool> {
     macro_rules! def {
         ($v:expr, $val:expr) => {
-            builder.def_var(vars[$v.0 as usize], $val)
+            vars.def(builder, $v.0, $val)
         };
     }
     macro_rules! use_var {
         ($v:expr) => {
-            builder.use_var(vars[$v.0 as usize])
+            vars.get(builder, $v.0)
         };
     }
 

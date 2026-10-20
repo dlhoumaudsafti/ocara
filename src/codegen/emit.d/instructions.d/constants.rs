@@ -1,7 +1,8 @@
 /// Émission des instructions de constantes
 
 use cranelift_codegen::ir::{types as clt, InstBuilder, MemFlags};
-use cranelift_frontend::{FunctionBuilder, Variable};
+use cranelift_frontend::FunctionBuilder;
+use super::super::value_slots::ValueSlots;
 use cranelift_module::{Linkage, Module};
 use cranelift_object::ObjectModule;
 use crate::ir::inst::Inst;
@@ -10,12 +11,12 @@ use super::super::error::{CodegenError, CgResult};
 pub fn emit_constants(
     builder: &mut FunctionBuilder,
     inst: &Inst,
-    vars: &[Variable],
+    vars: &ValueSlots,
     module: &mut ObjectModule,
 ) -> CgResult<bool> {
     macro_rules! def {
         ($v:expr, $val:expr) => {
-            builder.def_var(vars[$v.0 as usize], $val)
+            vars.def(builder, $v.0, $val)
         };
     }
 

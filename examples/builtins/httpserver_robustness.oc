@@ -1,0 +1,70 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// examples/builtins/httpserver_robustness.oc
+//
+// Robustesse de HTTPServer (voir docs/roadmap.d/stdlib-httpserver-robustesse.md,
+// vérifié par httpserver_robustness.sh) :
+//   - exception non rattrapée dans un handler → 500, le serveur continue ;
+//   - respondHeader refuse CR/LF (HTTPServerException 103 → 500) ;
+//   - URL décodées en UTF-8, `+` littéral dans un chemin ;
+//   - fichiers statiques binaires et noms encodés ;
+//   - HEAD sur une route GET, 405 avec `Allow`, `<x:float>` fini ;
+//   - en-têtes répétés fusionnés, téléversements lents sans blocage.
+// ─────────────────────────────────────────────────────────────────────────────
+
+architecture permissive
+
+import ocara.HTTPServer
+import ocara.HTTPServerRequest
+
+class RobustnessError {
+    public property message: string
+    public property code: int
+    init(message: string, code: int) {
+        self.message = message
+        self.code = code
+    }
+}
+
+function main(): int {
+    const server:HTTPServer = use HTTPServer()
+    server.port(8093)
+    server.workers(2)
+    server.rootPath("/tmp/oc_httpserver_robustness")
+
+    server.route("/boom", "GET", nameless(req:HTTPServerRequest): int {
+        raise use RobustnessError("boom", 3)
+        return 0
+    })
+    server.route("/echo", "GET", nameless(req:HTTPServerRequest): int {
+        req.respondHeader("X-Echo", req.query("v"))
+        req.respond(200, "ok")
+        return 0
+    })
+    server.route("/s/<x:string>", "GET", nameless(req:HTTPServerRequest): int {
+        req.respond(200, `${req.param("x")}|${req.query("q")}`)
+        return 0
+    })
+    server.route("/i/<id:int>", "GET", nameless(req:HTTPServerRequest): int {
+        req.respond(200, `id=${req.param("id")}`)
+        return 0
+    })
+    server.route("/f/<x:float>", "GET", nameless(req:HTTPServerRequest): int {
+        req.respond(200, `f=${req.param("x")}`)
+        return 0
+    })
+    server.route("/cookie", "GET", nameless(req:HTTPServerRequest): int {
+        req.respond(200, req.header("Cookie"))
+        return 0
+    })
+    server.route("/up", "POST", nameless(req:HTTPServerRequest): int {
+        req.respond(200, "received")
+        return 0
+    })
+    server.routeError(500, nameless(req:HTTPServerRequest): int {
+        req.respond(500, "custom 500")
+        return 0
+    })
+
+    server.run()
+    return 0
+}

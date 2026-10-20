@@ -2,7 +2,8 @@
 
 use std::collections::HashMap;
 use cranelift_codegen::ir::{types as clt, InstBuilder, MemFlags, condcodes::IntCC, Block as CrBlock};
-use cranelift_frontend::{FunctionBuilder, Variable};
+use cranelift_frontend::FunctionBuilder;
+use super::super::value_slots::ValueSlots;
 use crate::ir::inst::{BlockId, Inst};
 use crate::ir::types::IrType;
 use super::super::error::CgResult;
@@ -10,13 +11,13 @@ use super::super::error::CgResult;
 pub fn emit_control_flow(
     builder: &mut FunctionBuilder,
     inst: &Inst,
-    vars: &[Variable],
+    vars: &ValueSlots,
     cl_blocks: &HashMap<BlockId, CrBlock>,
     func_ret_ty: &IrType,
 ) -> CgResult<bool> {
     macro_rules! use_var {
         ($v:expr) => {
-            builder.use_var(vars[$v.0 as usize])
+            vars.get(builder, $v.0)
         };
     }
 

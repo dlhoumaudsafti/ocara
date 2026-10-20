@@ -2611,6 +2611,9 @@ pub fn types_compat(found: &Type, expected: &Type, symbols: &SymbolTable) -> boo
         (Type::Named(f), Type::Named(e)) => {
             f == e || symbols.class_matches(f, e)
         }
+        // Générique instancié affecté à une interface qu'il implémente ou à
+        // une classe dont il hérite (EBNF §20.4).
+        (Type::Generic { name: f, .. }, Type::Named(e)) => symbols.class_matches(f, e),
         (Type::Array(f), Type::Array(e)) => types_compat(f, e, symbols),
         // Générique instancié : même générique, arguments compatibles un à un
         // (`Box<T>` dans le corps d'une méthode statique contre `Box<mixed>`

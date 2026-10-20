@@ -129,6 +129,9 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__gen_cell",             params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
     // Constantes globales calculées (voir runtime/src/global_const.rs)
     BuiltinDesc { name: "__global_const_slot",    params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
+    // Pile alternative + message de débordement de pile, appelé en tête du
+    // `main` généré (voir runtime/src/stack_guard.rs)
+    BuiltinDesc { name: "__ocara_runtime_init",   params: &[],                                returns: None,              module: None },
 
     // Trampolines ui.handler / ui.handlers (voir src/lower/expr.d/tauri_handler.rs)
     BuiltinDesc { name: "__tauri_obj_is_string",   params: &[clt::I64, clt::I64],  returns: Some(clt::I64), module: None },

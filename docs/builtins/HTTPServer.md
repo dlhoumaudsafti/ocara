@@ -57,7 +57,7 @@ server.route("/voitures/<id:int>", "GET", nameless(req:HTTPServerRequest): int {
 })
 ```
 
-Types supportés : `int`, `float`, `bool` (`"true"`/`"false"` uniquement), `string` (accepte n'importe quel texte, décodé URL). Un chemin peut contenir plusieurs paramètres, éventuellement mêlés à des segments littéraux :
+Types supportés : `int`, `float` (valeur finie : `nan`/`inf` refusés), `bool` (`"true"`/`"false"` uniquement), `string` (accepte n'importe quel texte). Chaque segment est décodé (`%XX` en UTF-8, `/h%C3%A9llo` → `héllo` ; `/i/%31` correspond à `<id:int>`) après le découpage sur `/` ; dans un chemin, `+` reste un `+` (il ne vaut un espace que dans une query string ou un corps de formulaire). Un chemin peut contenir plusieurs paramètres, éventuellement mêlés à des segments littéraux :
 
 ```ocara
 server.route("/voitures/<car_id:int>/entretiens", "POST", nameless(req:HTTPServerRequest): int {
@@ -101,6 +101,20 @@ server.routeError(404, nameless(req:HTTPServerRequest): int {
 ```
 
 Si aucun handler d'erreur n'est défini, le serveur retourne une page d'erreur par défaut.
+
+Codes produits par le serveur lui-même :
+
+| Code | Cas |
+|---|---|
+| `404` | aucune route ni fichier statique pour ce chemin |
+| `405` | le chemin existe pour d'autres méthodes (en-tête `Allow` renseigné) |
+| `500` | exception non rattrapée dans un handler : le serveur la journalise sur stderr et **continue** ; un handler `routeError(500)` peut personnaliser la réponse (une exception dans celui-ci donne la page 500 par défaut) |
+| `400` | ligne de requête ou en-tête invalide (non ASCII…) |
+| `408` | client muet plus de 10 s, ou corps non reçu en 60 s |
+| `413` | corps au-delà de `maxBodySize` |
+| `503` | plus de 256 corps de requête en cours de réception |
+
+Une requête `HEAD` utilise la route `GET` du même chemin (le corps n'est pas envoyé).
 
 ## Fonctionnalités automatiques
 
@@ -183,6 +197,10 @@ server.route("/echo", "GET", nameless(req:HTTPServerRequest): int {
 |---|---|---|
 | `respond` | `(status:int, body:string) → void` | Définit le statut et le corps de la réponse |
 | `respondHeader` | `(name:string, value:string) → void` | Ajoute un en-tête à la réponse |
+
+`respondHeader` refuse un nom qui n'est pas un *token* HTTP et une valeur contenant CR, LF ou un autre caractère de contrôle (`HTTPServerException`, code `103`) : une valeur venue du client (`req.query("v")`) ne peut pas injecter d'en-tête ni de cookie. Non rattrapée, l'exception donne une réponse 500.
+
+Un en-tête de requête répété est fusionné : deux `Cookie` donnent `a=1; b=2`, les autres en-têtes sont joints par `, `. Les valeurs de query string et de corps `urlencoded` sont décodées en UTF-8 (`caf%C3%A9+cr%C3%A8me` → `café crème`) ; un éventuel fragment `#…` n'est jamais rattaché à la query.
 
 ## Paramètres unifiés — `param()` / `params()`
 
@@ -495,8 +513,10 @@ Le serveur détecte automatiquement le `Content-Type` selon l'extension :
 
 ### Sécurité
 
-- **Protection path traversal** : les chemins contenant `..` sont rejetés automatiquement
-- **Lecture seule** : seules les requêtes `GET` tentent de servir des fichiers statiques
+- **Protection path traversal** : les chemins contenant `..` (y compris encodés, `%2e%2e`) sont rejetés automatiquement
+- **Lecture seule** : seules les requêtes `GET` et `HEAD` tentent de servir des fichiers statiques
+- **Noms encodés** : le chemin est décodé avant la recherche (`/%C3%A9.txt` sert `é.txt`)
+- **Contenu binaire intact** : le fichier est envoyé octet pour octet (`.png`, `.woff`…)
 - **Canonicalisation** : le chemin final doit rester dans le répertoire `root_path`
 
 Exemple de requêtes bloquées :
@@ -509,7 +529,9 @@ POST /index.html      → ignoré (routes dynamiques prioritaires)
 ## Gestion des connexions multiples
 
 Le modèle est **accept pool** :  
-`workers` threads appellent chacun `server.recv()` en boucle. Chaque requête est traitée dans le thread qui l'a acceptée (sans handoff). Ce modèle est simple et efficace pour des charges I/O-bound.
+`workers` threads appellent chacun `server.recv()` en boucle. Une requête sans corps (ou avec un corps d'au plus 1 Kio, déjà lu à la réception des en-têtes) est traitée dans le worker qui l'a reçue. Une requête dont le corps reste à lire est confiée à un thread de réception dédié (au plus 256 simultanément, 503 au-delà) qui lit le corps puis la traite : des clients qui téléversent lentement n'occupent jamais les workers.
+
+Chaque connexion a un délai d'inactivité de 10 s (lecture comme écriture : 408 puis fermeture) et un corps doit être reçu en 60 s au plus. Une erreur transitoire à l'acceptation d'une connexion (descripteurs épuisés…) n'arrête pas l'écoute.
 
 ### Configuration des workers
 

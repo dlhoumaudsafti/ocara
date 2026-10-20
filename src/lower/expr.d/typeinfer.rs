@@ -180,6 +180,19 @@ fn resolvable_operand_type(builder: &LowerBuilder, expr: &Expr) -> Option<Type> 
 /// Détermine le type IR d'une expression sans générer de code.
 /// Utilisé pour le dispatch typé de `write` et la détection de concat string.
 pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
+    if !matches!(expr, Expr::Binary { .. }) {
+        return expr_ir_type_uncached(builder, expr);
+    }
+    let key = expr as *const Expr;
+    if let Some(ty) = builder.binary_ir_types.borrow().get(&key) {
+        return ty.clone();
+    }
+    let ty = expr_ir_type_uncached(builder, expr);
+    builder.binary_ir_types.borrow_mut().insert(key, ty.clone());
+    ty
+}
+
+fn expr_ir_type_uncached(builder: &LowerBuilder, expr: &Expr) -> IrType {
     match expr {
         Expr::Literal(Literal::Int(_), _)    => IrType::I64,
         Expr::Literal(Literal::Float(_), _)  => IrType::F64,

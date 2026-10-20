@@ -876,7 +876,7 @@ Toutes les allocations heap (string, array, map, objet, fat-pointer) sont préc�
 | `is null` | teste `val == 0` | ✓ précis |
 | `is int` | teste `val != 0 && val < 65536` | ✓ précis pour les cas usuels |
 | `is float` | shortcut statique à la compilation (type connu) | ✓ précis statiquement |
-| `is bool` | teste `val == 0 \|\| val == 1` | ⚠️ peut confondre avec int 0 et 1 |
+| `is bool` | teste le marquage d'un bool boxé (`__box_bool`) | ✓ précis dans un `mixed` |
 | `is string` | lit le tag header : `TAG_STRING` (1) | ✓ précis |
 | `is array<T>` | lit le tag header : `TAG_ARRAY` (2) | ✓ précis |
 | `is map<K,V>` | lit le tag header : `TAG_MAP` (3) | ✓ précis |
@@ -894,7 +894,7 @@ Toutes les allocations heap (string, array, map, objet, fat-pointer) sont préc�
 **Limitations actuelles (v1.0.0) :**
 
 - `is float` fonctionne uniquement quand le type est connu **statiquement** à la compilation. Dans un contexte `mixed` dynamique, seuls les floats explicitement boxés (via `__box_float`) sont détectables.
-- `is bool` reconnaît un bool explicitement boxé (via `__box_bool` — le cas d'un `bool` littéral dans un `array<mixed>`/`map<K,mixed>`, ou affecté à une variable `mixed`) ; un bool jamais boxé reste indistinguable des `int` 0 et 1.
+- Un `bool` logé dans un `mixed` (littéral dans un `array<mixed>`/`map<K,mixed>`, affectation à une variable `mixed`…) est toujours boxé : `is bool` le distingue des `int` 0 et 1, et `equal` aussi (`mixed(0) equal false` est faux).
 - `is ClassName` vérifie seulement que la valeur est une instance d'**un** objet (tag `TAG_OBJECT`), sans distinguer les classes entre elles. Pour un narrowing fin par classe, utiliser les patterns dans `on … is ClassName` dans les blocs `try/on`.
 
 ### 6.4 Annotation de type
@@ -2483,6 +2483,7 @@ class Validator {
 > - `self::method()` n'est valide qu'à l'intérieur d'une méthode ou du constructeur d'une classe.
 > - `self::` appelle uniquement des méthodes `static` — pas des méthodes d'instance.
 > - Depuis l'extérieur de la classe, on utilise toujours `ClassName::method()`.
+> - Dans une méthode statique héritée, `self::` désigne la classe **appelée** (liaison tardive) : avec `B extends A` et `A::viaSelf()` qui appelle `self::make()`, `B::viaSelf()` appelle `B::make()` si `B` le redéfinit.
 
 ### 16.6 `self`
 
@@ -2694,6 +2695,8 @@ StaticCallee ::= Identifier | "self" | "parent"
 ```
 
 `parent::` partage la syntaxe `Classe::membre` de `self::` (§23) mais pas sa sémantique : `self::` n'appelle que des méthodes **statiques** de la classe courante, alors que `parent::` appelle une méthode ou un constructeur **d'instance** du parent — l'appel injecte implicitement `self`, exactement comme un appel de méthode classique.
+
+`parent::` est lié à la classe qui **déclare** la méthode (ou le constructeur), pas à la classe de l'objet : avec `B.who()` qui rend `"B" + parent::who()` et `C extends B` sans redéfinition, `c.who()` rend `"BA"`.
 
 ```ocara
 class Animal {

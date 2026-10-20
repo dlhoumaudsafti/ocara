@@ -5,6 +5,7 @@ mod boxing;
 mod sqlite;
 mod mysql;
 mod httpserver;
+mod httpserver_wire;
 mod httpsession;
 mod string;
 mod rc;

@@ -1,5 +1,6 @@
 /// Wrappers pour fonctions et async
 
+use std::rc::Rc;
 use std::collections::HashMap;
 use crate::ir::func::IrParam;
 use crate::ir::inst::{Inst, Value};
@@ -15,7 +16,7 @@ pub fn generate_wrapper(
     wrapper_name:  &str,
     param_tys:     &[IrType],
     ret_ty:        IrType,
-    fn_ret_types:  &HashMap<String, IrType>,
+    fn_ret_types:  &Rc<HashMap<String, IrType>>,
 ) {
     let ir_func = {
         // Params : __env (ignoré) + params originaux
@@ -32,7 +33,7 @@ pub fn generate_wrapper(
         let wrapper_ret_ty = if ret_ty == IrType::Void { IrType::I64 } else { ret_ty.clone() };
 
         let mut builder = LowerBuilder::new(module, wrapper_name.into(), ir_params, wrapper_ret_ty.clone());
-        builder.fn_ret_types = fn_ret_types.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        builder.fn_ret_types = Rc::clone(fn_ret_types);
 
         // Setup params (pattern alloca + receiver)
         let mut updated_params = Vec::new();
@@ -103,13 +104,13 @@ pub fn generate_async_wrapper(
     wrapper_name:  &str,
     param_tys:     &[IrType],
     ret_ty:        IrType,
-    fn_ret_types:  &HashMap<String, IrType>,
+    fn_ret_types:  &Rc<HashMap<String, IrType>>,
 ) {
     let ir_func = {
         let ir_params = vec![IrParam { name: "__env".into(), ty: IrType::I64, slot: Value(0) }];
 
         let mut builder = LowerBuilder::new(module, wrapper_name.into(), ir_params, IrType::I64);
-        builder.fn_ret_types = fn_ret_types.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        builder.fn_ret_types = Rc::clone(fn_ret_types);
 
         // Paramètre : slot alloca pour __env
         let env_slot = builder.declare_local("__env", IrType::I64, false);

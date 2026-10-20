@@ -101,6 +101,8 @@ Le parser consomme les tokens et construit un arbre représentant la structure d
 
 L'AST préserve la structure hiérarchique du code mais ne contient pas encore d'informations de types.
 
+Toute la compilation tourne dans un thread à pile de 1 Gio (`src/main.rs`, réservée virtuellement) : le parseur est descendant et les passes suivantes récursives sur l'arbre. La profondeur d'une expression (imbrication et opérateurs enchaînés) est bornée à 50 000 par le parseur, qui émet un diagnostic au-delà (`MAX_EXPR_DEPTH`, `expressions.rs`).
+
 ### 3️⃣ **Semantic Analysis** (Analyse Sémantique)
 
 Les étapes 1 à 3 (lecture, lexing, parsing, chargement des imports, vérifications de structure, désucrages, sema) forment `core::analysis::analyze` (`src/core/analysis.d/`), partagée par le CLI et par le serveur de langage `ocara --lsp` (`src/lsp/`). Aucune n'arrête le processus : chaque erreur devient un `core::diagnostics::Diagnostic`, que le CLI affiche au format GCC et que le serveur publie à l'éditeur. Les fichiers `.oc` sont lus par `core::source`, qui substitue le texte non enregistré des documents ouverts dans l'éditeur ; la sema peut noter chaque nom résolu (`sema::index`) pour le survol et la définition.
@@ -185,9 +187,12 @@ Utilise **Cranelift** comme backend JIT/AOT :
 - Gère les conversions de types (ex: F64 ↔ I64 pour compatibilité)
 - Optimise les accès mémoire
 - Génère les appels aux fonctions runtime
+- Valeurs IR (`value_slots.rs`) : une valeur définie une fois et utilisée seulement plus loin dans son bloc devient une valeur Cranelift directe ; les autres (paramètres, `Phi`, valeurs vivantes entre blocs) passent par une `Variable` du constructeur SSA — tout déclarer en `Variable` rendait une longue chaîne `elseif` quadratique en mémoire
+- Le `main` généré appelle d'abord `__ocara_runtime_init` (`runtime/src/stack_guard.rs`) : pile alternative et message « débordement de pile » au lieu d'un SIGSEGV muet (hors Android et Windows)
 
 **c) Compilation**
 - Cranelift compile l'IR Cranelift en code machine natif (x86_64, ARM, etc.)
+- Le vérificateur Cranelift est appelé fonction par fonction, sauf au-delà de 2 000 blocs (`VERIFIER_MAX_BLOCKS`) : son test de dominance est quadratique sur une fonction géante en chaîne
 - Applique des optimisations (register allocation, instruction selection)
 - Produit un objet relocatable
 

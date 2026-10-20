@@ -2,7 +2,8 @@
 
 use std::collections::HashMap;
 use cranelift_codegen::ir::{types as clt, AbiParam, InstBuilder, MemFlags, Signature, Value as CrValue};
-use cranelift_frontend::{FunctionBuilder, Variable};
+use cranelift_frontend::FunctionBuilder;
+use super::super::value_slots::ValueSlots;
 use cranelift_module::{FuncId, Module};
 use cranelift_object::ObjectModule;
 use crate::ir::inst::Inst;
@@ -11,7 +12,7 @@ use super::super::error::{CodegenError, CgResult};
 pub fn emit_calls(
     builder: &mut FunctionBuilder,
     inst: &Inst,
-    vars: &[Variable],
+    vars: &ValueSlots,
     module: &mut ObjectModule,
     func_ids: &HashMap<String, FuncId>,
     param_types: &HashMap<String, Vec<cranelift_codegen::ir::Type>>,
@@ -19,12 +20,12 @@ pub fn emit_calls(
 ) -> CgResult<bool> {
     macro_rules! def {
         ($v:expr, $val:expr) => {
-            builder.def_var(vars[$v.0 as usize], $val)
+            vars.def(builder, $v.0, $val)
         };
     }
     macro_rules! use_var {
         ($v:expr) => {
-            builder.use_var(vars[$v.0 as usize])
+            vars.get(builder, $v.0)
         };
     }
 

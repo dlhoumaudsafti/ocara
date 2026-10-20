@@ -1,5 +1,13 @@
 # Compilateur et binaires : débordements de pile et complexité super-linéaire
 
+**Clos le 2026-10-20** (reliquats sur des tailles extrêmes : [compilateur-limites-echelle-residuelles](compilateur-limites-echelle-residuelles.md)). Vérifié :
+1. Compilation dans un thread à pile de 1 Gio (`src/main.rs`) + borne de profondeur d'expression à 50 000 avec diagnostic (`MAX_EXPR_DEPTH`, `expressions.rs`) : 20 000 parenthèses et 100 000 termes compilent, au-delà erreur propre au lieu d'un abort.
+2. Débordement de pile d'un programme : message « débordement de pile » via pile alternative et gestionnaire SIGSEGV/SIGBUS (`runtime/src/stack_guard.rs`, appelé en tête du `main` généré et de chaque thread du runtime), code de sortie inchangé (139). Hors Android et Windows.
+3. `select_variants` en une passe : 50 000 instructions, 7,5 s → 0,3 s à `--check`.
+4. Tables globales partagées (`Rc`) au lieu d'être recopiées par fonction, et plus de copie des tables du codegen par fonction (`emit_function`) : 4 000 fonctions 11,1 s → 0,4 s ; 2 000 classes 3,7 s → 0,4 s. Type IR des `Binary` mémoïsé par instruction (`binary_ir_types`) : somme de 20 000 termes 14 s → 0,7 s.
+5. `elseif` × 10 000 : 5,6 s / 1,6 Go → 1,1 s / 250 Mo. Origine des 1,6 Go : une `Variable` Cranelift par valeur HIR (table par variable indexée par bloc) — `value_slots.rs` ne garde des `Variable` que pour les valeurs vivantes entre blocs. Vérificateur Cranelift appelé par fonction, sauf au-delà de 2 000 blocs (test de dominance quadratique).
+
+
 Audit du 2026-10-19. Mesuré sur une machine chargée : les pentes sont nettes,
 les valeurs absolues bruitées.
 

@@ -1,5 +1,6 @@
 /// Lowering du programme complet
 
+use std::rc::Rc;
 use std::collections::{HashMap, HashSet};
 use crate::parsing::ast::*;
 use crate::ir::module::IrModule;
@@ -335,8 +336,8 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         if !module.classes_with_subclasses.contains(&class.name) {
             continue;
         }
-        for method_name in super::class_dispatch::callable_instance_method_names(&class.name, &program.classes) {
-            if let Some(decl) = super::class_dispatch::find_method_decl(&class.name, &method_name, &program.classes) {
+        for method_name in super::class_dispatch::callable_instance_method_names(&class.name, program) {
+            if let Some(decl) = super::class_dispatch::find_method_decl(&class.name, &method_name, program) {
                 if decl.is_async {
                     let name = format!("__dispatch_{}_{}", class.name, method_name);
                     module.task_arg_types.insert(name.clone(), task_arg_types(true, &decl.params));
@@ -419,7 +420,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         };
         
         // Ajouter les champs des modules en premier
-        for module_name in &class.modules {
+        for module_name in class.modules.iter().rev() {
             if let Some(module_decl) = modules.iter().find(|m| &m.name == module_name) {
                 for member in &module_decl.members {
                     if let ClassMember::Field { name, ty, .. } = member {
@@ -517,7 +518,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         } else {
             vec![]
         };
-        for module_name in &class.modules {
+        for module_name in class.modules.iter().rev() {
             if let Some(module_decl) = modules.iter().find(|m| &m.name == module_name) {
                 for member in &module_decl.members {
                     if let ClassMember::Field { name, ty, .. } = member {
@@ -947,6 +948,16 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         }
     }
 
+    // Tables complètes : partagées (`Rc`) par tous les builders de fonction
+    // au lieu d'être recopiées pour chacune (abaissement quadratique en
+    // nombre de fonctions).
+    let fn_ret_types = Rc::new(fn_ret_types);
+    let fn_param_types = Rc::new(fn_param_types);
+    let fn_param_names = Rc::new(fn_param_names);
+    let fn_variadic_info = Rc::new(fn_variadic_info);
+    let func_default_args = Rc::new(func_default_args);
+    let async_funcs = Rc::new(async_funcs);
+
     // Génère les wrappers __fn_wrap_* pour toutes les fonctions/méthodes statiques
     // référençables comme type Function. Convention : wrapper(env_ptr, args...) { return orig(args) }
     {
@@ -1042,8 +1053,8 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         if !module.classes_with_subclasses.contains(&class.name) {
             continue;
         }
-        for method_name in super::class_dispatch::callable_instance_method_names(&class.name, &program.classes) {
-            let Some(decl) = super::class_dispatch::find_method_decl(&class.name, &method_name, &program.classes) else { continue };
+        for method_name in super::class_dispatch::callable_instance_method_names(&class.name, program) {
+            let Some(decl) = super::class_dispatch::find_method_decl(&class.name, &method_name, program) else { continue };
             if !decl.is_async {
                 continue;
             }
@@ -1084,14 +1095,7 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
 /// les méthodes de module, leur type de retour retombait sur `Ptr` au site
 /// d'appel (`float` → SIGSEGV, `int` 0 → `null`, `bool` → `1`).
 fn class_methods<'a>(program: &'a Program, class: &'a ClassDecl) -> Vec<&'a ClassMember> {
-    let own: HashSet<&str> = class.members.iter()
-        .filter_map(|m| match m { ClassMember::Method { decl, .. } => Some(decl.name.as_str()), _ => None })
-        .collect();
-    let from_modules = class.modules.iter()
-        .filter_map(|name| program.modules.iter().find(|m| &m.name == name))
-        .flat_map(|m| m.members.iter())
-        .filter(|m| matches!(m, ClassMember::Method { decl, .. } if !own.contains(decl.name.as_str())));
-    class.members.iter().chain(from_modules).collect()
+    class.members.iter().chain(super::classes::module_methods(class, &program.modules)).collect()
 }
 
 /// Types des valeurs rangées dans l'env d'une tâche `async` (`self` en tête

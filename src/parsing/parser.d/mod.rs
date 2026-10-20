@@ -20,5 +20,7 @@ mod architecture;
 mod tests;
 #[cfg(test)]
 mod tests_when;
+#[cfg(test)]
+mod tests_depth;
 
 pub use types::Parser;

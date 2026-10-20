@@ -77,7 +77,7 @@ mod tests {
     fn user_function_param_types_never_shift_between_forms() {
         let mut module = IrModule::new("test");
         let mut builder = LowerBuilder::new(&mut module, "test_fn".into(), vec![], IrType::Void);
-        builder.fn_param_types.insert("MaClasse_methode".into(), vec![IrType::I64, IrType::F64]);
+        std::rc::Rc::make_mut(&mut builder.fn_param_types).insert("MaClasse_methode".into(), vec![IrType::I64, IrType::F64]);
 
         assert_eq!(param_type_for_call_arg(&builder, "MaClasse_methode", 0, CallForm::Static), Some(IrType::I64));
         assert_eq!(param_type_for_call_arg(&builder, "MaClasse_methode", 0, CallForm::Sugar), Some(IrType::I64));

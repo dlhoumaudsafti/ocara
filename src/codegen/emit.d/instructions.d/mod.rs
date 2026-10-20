@@ -11,7 +11,8 @@ mod objects;
 
 use std::collections::HashMap;
 use cranelift_codegen::ir::Block as CrBlock;
-use cranelift_frontend::{FunctionBuilder, Variable};
+use cranelift_frontend::FunctionBuilder;
+use super::value_slots::ValueSlots;
 use cranelift_module::FuncId;
 use cranelift_object::ObjectModule;
 use crate::ir::inst::{BlockId, Inst};
@@ -23,7 +24,7 @@ use super::error::CgResult;
 pub fn emit_inst(
     builder:   &mut FunctionBuilder,
     inst:      &Inst,
-    vars:      &[Variable],
+    vars:      &ValueSlots,
     cl_blocks:   &HashMap<BlockId, CrBlock>,
     module:      &mut ObjectModule,
     func_ids:    &HashMap<String, FuncId>,

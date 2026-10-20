@@ -289,29 +289,62 @@ fn substitute_stmt(stmt: &mut Stmt, type_params: &[String], type_args: &[Type], 
     }
 }
 
-/// Collecte tous les usages de génériques dans le programme
+/// Collecte tous les usages de génériques dans le programme, y compris ceux
+/// qui n'apparaissent que dans le corps d'un générique instancié
+/// (`Pair<int,string>.swap()` qui construit `Pair<string,int>`) : point fixe
+/// sur les corps spécialisés.
 fn collect_generic_instantiations(program: &ast::Program) -> HashSet<(String, Vec<Type>)> {
     let mut instantiations = HashSet::new();
-    
-    // Parcourir toutes les fonctions
     for func in &program.functions {
         collect_from_func(func, &mut instantiations);
     }
-    
-    // Parcourir toutes les classes
     for class in &program.classes {
-        for member in &class.members {
-            if let ClassMember::Method { decl, .. } = member {
-                collect_from_func(decl, &mut instantiations);
-            } else if let ClassMember::Constructor { body, .. } = member {
-                for stmt in &body.stmts {
-                    collect_from_stmt(stmt, &mut instantiations);
-                }
+        collect_from_members(&class.members, &mut instantiations);
+    }
+    for module in &program.modules {
+        collect_from_members(&module.members, &mut instantiations);
+    }
+
+    let mut pending: Vec<(String, Vec<Type>)> = instantiations.iter().cloned().collect();
+    while let Some((name, type_args)) = pending.pop() {
+        let Some(generic_decl) = program.generics.iter().find(|g| g.name == name) else { continue };
+        let mut found = HashSet::new();
+        collect_from_members(&specialize_members(generic_decl, &type_args, &HashMap::new()), &mut found);
+        for inst in found {
+            if inst.1.iter().all(|t| type_depth(t) <= MAX_INSTANTIATION_DEPTH) && instantiations.insert(inst.clone()) {
+                pending.push(inst);
             }
         }
     }
-    
     instantiations
+}
+
+/// Borne la récursion polymorphe (`Foo<T>` qui construit `Foo<array<T>>`),
+/// qui produirait sinon une infinité d'instanciations.
+const MAX_INSTANTIATION_DEPTH: usize = 16;
+
+fn type_depth(ty: &Type) -> usize {
+    match ty {
+        Type::Array(inner) | Type::Message(inner) | Type::Resolvable(inner) => 1 + type_depth(inner),
+        Type::Map(k, v) => 1 + type_depth(k).max(type_depth(v)),
+        Type::Generic { args, .. } => 1 + args.iter().map(type_depth).max().unwrap_or(0),
+        Type::Union(variants) => 1 + variants.iter().map(type_depth).max().unwrap_or(0),
+        _ => 0,
+    }
+}
+
+fn collect_from_members(members: &[ClassMember], instantiations: &mut HashSet<(String, Vec<Type>)>) {
+    for member in members {
+        match member {
+            ClassMember::Method { decl, .. } => collect_from_func(decl, instantiations),
+            ClassMember::Constructor { body, .. } => {
+                for stmt in &body.stmts {
+                    collect_from_stmt(stmt, instantiations);
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 fn collect_from_func(func: &FuncDecl, instantiations: &mut HashSet<(String, Vec<Type>)>) {
@@ -602,37 +635,29 @@ pub fn monomorphize(program: &mut ast::Program) {
         return;
     }
     
-    // 2. Créer un mapping (generic_name, type_args) -> specialized_name
-    let mut mapping: HashMap<(String, Vec<Type>), String> = HashMap::new();
+    // 2. Mapping complet (generic_name, type_args) -> specialized_name, avant
+    // toute spécialisation : un corps peut construire n'importe quelle autre
+    // instanciation.
+    let mapping: HashMap<(String, Vec<Type>), String> = instantiations.iter()
+        .filter(|(name, _)| program.generics.iter().any(|g| &g.name == name))
+        .map(|(name, type_args)| ((name.clone(), type_args.clone()), monomorphized_name(name, type_args)))
+        .collect();
     let mut specialized_classes: Vec<ClassDecl> = Vec::new();
-    
-    for (generic_name, type_args) in &instantiations {
-        // Trouver la déclaration générique
-        let generic_decl = match program.generics.iter().find(|g| &g.name == generic_name) {
-            Some(g) => g,
-            None => continue, // Générique non trouvé (erreur déjà signalée par le typecheck)
-        };
-        
-        // Générer le nom spécialisé
-        let specialized_name = monomorphized_name(generic_name, type_args);
-        mapping.insert((generic_name.clone(), type_args.clone()), specialized_name.clone());
-        
-        let specialized_members = specialize_members(generic_decl, type_args, &mapping);
-
-        let specialized_class = ClassDecl {
-            name: specialized_name,
+    for ((generic_name, type_args), specialized_name) in &mapping {
+        let Some(generic_decl) = program.generics.iter().find(|g| &g.name == generic_name) else { continue };
+        specialized_classes.push(ClassDecl {
+            name: specialized_name.clone(),
             extends: generic_decl.extends.clone(),
             modules: generic_decl.modules.clone(),
             implements: generic_decl.implements.clone(),
-            members: specialized_members,
+            members: specialize_members(generic_decl, type_args, &mapping),
             span: generic_decl.span.clone(),
             is_struct: false,
             implicit_init: false, wirings: Vec::new(),
-        };
-        
-        specialized_classes.push(specialized_class);
+        });
     }
-    
+    specialized_classes.sort_by(|a, b| a.name.cmp(&b.name));
+
     // 3. Ajouter les classes spécialisées au programme
     program.classes.extend(specialized_classes);
     

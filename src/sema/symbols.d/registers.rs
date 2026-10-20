@@ -279,7 +279,7 @@ impl SymbolTable {
         }
 
         // Composer les membres des modules (mixins)
-        for module_name in &decl.modules {
+        for module_name in decl.modules.iter().rev() {
             if let Some(module_info) = self.modules.get(module_name).cloned() {
                 // Ajouter les champs du module
                 for (name, field) in module_info.fields {
@@ -351,7 +351,7 @@ impl SymbolTable {
         }
 
         // Composer les membres des modules (mixins)
-        for module_name in &decl.modules {
+        for module_name in decl.modules.iter().rev() {
             if let Some(module_info) = self.modules.get(module_name).cloned() {
                 // Ajouter les champs du module
                 for (name, field) in module_info.fields {

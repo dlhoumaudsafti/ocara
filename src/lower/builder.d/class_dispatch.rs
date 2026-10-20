@@ -77,8 +77,8 @@ pub fn generate_class_dispatchers(module: &mut IrModule, program: &Program) {
             }
         }
 
-        for method_name in callable_instance_method_names(&class.name, &program.classes) {
-            generate_one_class_dispatcher(module, &class.name, &method_name, &candidates, &program.classes);
+        for method_name in callable_instance_method_names(&class.name, program) {
+            generate_one_class_dispatcher(module, &class.name, &method_name, &candidates, program);
         }
     }
 }
@@ -112,19 +112,27 @@ pub fn transitive_descendants(class_name: &str, all_classes: &[ClassDecl]) -> Ve
 /// lui-même reste 100% synchrone (voir `generate_one_class_dispatcher`),
 /// seul son wrapper a besoin d'exister pour que le site d'appel puisse le
 /// spawn comme n'importe quelle autre cible `async_funcs`.
-pub fn callable_instance_method_names(class_name: &str, all_classes: &[ClassDecl]) -> HashSet<String> {
+pub fn callable_instance_method_names(class_name: &str, program: &Program) -> HashSet<String> {
     let mut names = HashSet::new();
     let mut current = Some(class_name.to_string());
     while let Some(c) = current {
-        let Some(decl) = all_classes.iter().find(|d| d.name == c) else { break };
-        for member in &decl.members {
-            if let ClassMember::Method { decl: m, is_static: false, .. } = member {
-                names.insert(m.name.clone());
-            }
+        let Some(decl) = program.classes.iter().find(|d| d.name == c) else { break };
+        for m in instance_methods(decl, program) {
+            names.insert(m.name.clone());
         }
         current = decl.extends.clone();
     }
     names
+}
+
+/// Méthodes d'instance d'une classe : les siennes puis celles de ses modules
+/// qu'elle ne redéfinit pas (toutes émises sous `Classe_méthode`).
+fn instance_methods<'a>(class: &'a ClassDecl, program: &'a Program) -> impl Iterator<Item = &'a FuncDecl> {
+    class.members.iter().chain(super::classes::module_methods(class, &program.modules))
+        .filter_map(|member| match member {
+            ClassMember::Method { decl, is_static: false, .. } => Some(decl),
+            _ => None,
+        })
 }
 
 fn generate_one_class_dispatcher(
@@ -132,7 +140,7 @@ fn generate_one_class_dispatcher(
     class_name: &str,
     method_name: &str,
     candidates: &[&ClassDecl],
-    all_classes: &[ClassDecl],
+    program: &Program,
 ) {
     // Signature de la méthode : celle du candidat le plus proche de
     // `class_name` (lui-même, s'il déclare la méthode — sinon un ancêtre,
@@ -140,7 +148,7 @@ fn generate_one_class_dispatcher(
     // ses descendants) — tous les candidats partagent la même signature
     // (héritage sans changement de signature, seule sa présence dans les
     // membres varie).
-    let Some(sig) = find_method_decl(class_name, method_name, all_classes) else { return };
+    let Some(sig) = find_method_decl(class_name, method_name, program) else { return };
     let ret_ty = IrType::from_ast(&sig.ret_ty);
 
     let mut f = IrFunction::new(format!("__dispatch_{}_{}", class_name, method_name), vec![], ret_ty.clone());
@@ -211,17 +219,13 @@ fn generate_one_class_dispatcher(
 /// identique pour tous les candidats. `pub` depuis
 /// docs/roadmap.d/langage-async-instance-method-dispatch-broken.md — voir
 /// la doc de `callable_instance_method_names` ci-dessus, même raison.
-pub fn find_method_decl<'a>(class_name: &str, method_name: &str, all_classes: &'a [ClassDecl]) -> Option<&'a FuncDecl> {
-    let mut current = all_classes.iter().find(|c| c.name == class_name);
+pub fn find_method_decl<'a>(class_name: &str, method_name: &str, program: &'a Program) -> Option<&'a FuncDecl> {
+    let mut current = program.classes.iter().find(|c| c.name == class_name);
     while let Some(decl) = current {
-        for member in &decl.members {
-            if let ClassMember::Method { decl: m, is_static: false, .. } = member {
-                if m.name == method_name {
-                    return Some(m);
-                }
-            }
+        if let Some(m) = instance_methods(decl, program).find(|m| m.name == method_name) {
+            return Some(m);
         }
-        current = decl.extends.as_ref().and_then(|p| all_classes.iter().find(|c| &c.name == p));
+        current = decl.extends.as_ref().and_then(|p| program.classes.iter().find(|c| &c.name == p));
     }
     None
 }

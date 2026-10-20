@@ -89,6 +89,9 @@ run_test() {
         httpserver_session)
             examples/builtins/httpserver_session.sh "$TMP"
             ;;
+        httpserver_robustness)
+            examples/builtins/httpserver_robustness.sh "$TMP"
+            ;;
         advanced_httpserver)
             examples/advanced/httpserver/httpserver.sh "$TMP"
             ;;

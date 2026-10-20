@@ -1,0 +1,137 @@
+architecture permissive
+
+import ocara.UnitTest
+
+// Dispatch, héritage, modules et génériques — voir
+// docs/roadmap.d/langage-dispatch-heritage-generiques.md.
+
+interface Named101 {
+    method name(): string
+}
+
+class Base101 implements Named101 {
+    init() {}
+    public method name(): string { return "base" }
+}
+
+class Child101 extends Base101 {
+    init() {}
+}
+
+class Override101 extends Base101 {
+    init() {}
+    public method name(): string { return "override" }
+}
+
+class A101 {
+    public property tag:string
+    init() { self.tag = "A" }
+    public method who(): string { return "A" }
+}
+
+class B101 extends A101 {
+    init() {
+        parent::init()
+        self.tag = self.tag + "B"
+    }
+    public method who(): string { return "B" + parent::who() }
+}
+
+class C101 extends B101 {}
+
+class D101 extends C101 {}
+
+module Greeter101 {
+    public method greet(): string { return "hi" }
+}
+
+module First101 {
+    public method pick(): string { return "first" }
+}
+
+module Last101 {
+    public method pick(): string { return "last" }
+}
+
+class Greeted101 modules Greeter101, First101, Last101 {
+    init() {}
+}
+
+class SubGreeted101 extends Greeted101 {
+    init() {}
+}
+
+generic Pair101<X, Y> {
+    public property first:X
+    public property second:Y
+    init(a:X, b:Y) {
+        self.first = a
+        self.second = b
+    }
+    public method swap(): Pair101<Y, X> { return use Pair101<Y, X>(self.second, self.first) }
+}
+
+interface Sized101 {
+    method size(): int
+}
+
+generic Bag101<T> implements Sized101 {
+    private property n:int
+    init() { self.n = 3 }
+    public method size(): int { return self.n }
+}
+
+class Test101DispatchInheritanceGenerics extends UnitTest {
+
+    public method interfaceCallOnSubclassOfImplementerTest(): int {
+        var a:Named101 = use Child101()
+        self::assertEquals("base", a.name())
+        var b:Named101 = use Override101()
+        self::assertEquals("override", b.name())
+        return 0
+    }
+
+    public method parentCallInInheritedMethodTest(): int {
+        var c:C101 = use C101()
+        self::assertEquals("BA", c.who())
+        var d:D101 = use D101()
+        self::assertEquals("BA", d.who())
+        self::assertEquals("AB", d.tag)
+        return 0
+    }
+
+    public method genericInstantiatedOnlyInGenericBodyTest(): int {
+        var p:Pair101<int, string> = use Pair101<int, string>(1, "x")
+        var q:Pair101<string, int> = p.swap()
+        self::assertEquals("x", q.first)
+        self::assertEquals(1, q.second)
+        return 0
+    }
+
+    public method moduleMethodOnClassWithSubclassTest(): int {
+        var g:Greeted101 = use SubGreeted101()
+        self::assertEquals("hi", g.greet())
+        return 0
+    }
+
+    public method lastModuleWinsTest(): int {
+        var g:Greeted101 = use Greeted101()
+        self::assertEquals("last", g.pick())
+        return 0
+    }
+
+    public method genericAssignableToItsInterfaceTest(): int {
+        var s:Sized101 = use Bag101<string>()
+        self::assertEquals(3, s.size())
+        return 0
+    }
+
+    public method mixedZeroIsNotFalseTest(): int {
+        var zero:mixed = 0
+        var one:mixed = 1
+        self::assertFalse(zero equal false)
+        self::assertFalse(one equal true)
+        self::assertTrue(zero equal 0)
+        return 0
+    }
+}

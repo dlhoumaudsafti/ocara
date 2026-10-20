@@ -1,5 +1,6 @@
 /// Lowering des fonctions et constantes globales
 
+use std::rc::Rc;
 use std::collections::{HashMap, HashSet};
 use crate::parsing::ast::*;
 use crate::ir::func::IrParam;
@@ -87,14 +88,14 @@ pub fn lower_func(
     module: &mut IrModule,
     func: &FuncDecl,
     consts: &[crate::parsing::ast::ConstDecl],
-    fn_ret_types: &HashMap<String, IrType>,
-    fn_param_types: &HashMap<String, Vec<IrType>>,
-    fn_param_names: &HashMap<String, Vec<String>>,
-    fn_variadic_info: &HashMap<String, (usize, IrType)>,
-    func_default_args: &HashMap<String, Vec<Option<Expr>>>,
+    fn_ret_types: &Rc<HashMap<String, IrType>>,
+    fn_param_types: &Rc<HashMap<String, Vec<IrType>>>,
+    fn_param_names: &Rc<HashMap<String, Vec<String>>>,
+    fn_variadic_info: &Rc<HashMap<String, (usize, IrType)>>,
+    func_default_args: &Rc<HashMap<String, Vec<Option<Expr>>>>,
     class_name: Option<&str>,
     parent_class: Option<&str>,
-    async_funcs: &HashSet<String>,
+    async_funcs: &Rc<HashSet<String>>,
 ) {
     // Transformer les paramètres : si variadic, le dernier devient Ptr (tableau)
     let ir_params: Vec<IrParam> = func.params.iter().enumerate().map(|(i, p)| {
@@ -127,22 +128,12 @@ pub fn lower_func(
     if let Some(parent) = parent_class {
         builder.parent_class = Some(parent.to_string());
     }
-    builder.fn_ret_types = fn_ret_types.iter()
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .collect();
-    builder.fn_param_types = fn_param_types.iter()
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .collect();
-    builder.fn_param_names = fn_param_names.iter()
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .collect();
-    builder.fn_variadic_info = fn_variadic_info.iter()
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .collect();
-    builder.func_default_args = func_default_args.iter()
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .collect();
-    builder.async_funcs = async_funcs.iter().cloned().collect();
+    builder.fn_ret_types = Rc::clone(fn_ret_types);
+    builder.fn_param_types = Rc::clone(fn_param_types);
+    builder.fn_param_names = Rc::clone(fn_param_names);
+    builder.fn_variadic_info = Rc::clone(fn_variadic_info);
+    builder.func_default_args = Rc::clone(func_default_args);
+    builder.async_funcs = Rc::clone(async_funcs);
     let owned_consts = lower_const_prologue(&mut builder, consts, func.name == "main" && class_name.is_none());
 
     // Enregistre les paramètres comme locaux immuables et met à jour IrParam::slot

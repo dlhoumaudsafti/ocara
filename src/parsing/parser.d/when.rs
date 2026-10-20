@@ -5,6 +5,7 @@
 //! clause vraie l'emporte, sinon la variante sans clause (ou `when default`).
 //! Voir docs/roadmap.d/reflexion-declarations-conditionnelles-when.md.
 
+use std::collections::HashMap;
 use crate::parsing::ast::{ClassMember, Stmt};
 use crate::parsing::build;
 use crate::parsing::token::{Span, TokenKind};
@@ -231,13 +232,19 @@ impl Parser {
     pub(super) fn select_variants(&self, variants: &[Variant]) -> ParseResult<Vec<bool>> {
         let config = build::current();
         let mut keep = vec![true; variants.len()];
-        let mut seen: Vec<&str> = Vec::new();
-        for (i, v) in variants.iter().enumerate() {
-            if seen.contains(&v.key.as_str()) {
-                continue;
-            }
-            seen.push(&v.key);
-            let group: Vec<usize> = (i..variants.len()).filter(|&j| variants[j].key == v.key).collect();
+        // Groupes par clé, dans l'ordre de première occurrence — une passe
+        // (un balayage par clé rendait un bloc de n instructions quadratique).
+        let mut group_of: HashMap<&str, usize> = HashMap::new();
+        let mut groups: Vec<Vec<usize>> = Vec::new();
+        for (j, v) in variants.iter().enumerate() {
+            let index = *group_of.entry(v.key.as_str()).or_insert_with(|| {
+                groups.push(Vec::new());
+                groups.len() - 1
+            });
+            groups[index].push(j);
+        }
+        for group in groups {
+            let i = group[0];
             if group.iter().all(|&j| matches!(variants[j].clause, Clause::None)) {
                 continue;
             }

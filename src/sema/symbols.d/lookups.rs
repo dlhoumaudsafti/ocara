@@ -146,11 +146,15 @@ impl SymbolTable {
             if target == "Exception" && crate::builtins::exception::BUILTIN_EXCEPTION_NAMES.contains(&c.as_str()) {
                 return true;
             }
-            let Some(info) = self.classes.get(&c) else { break };
-            if info.implements.iter().any(|i| i == target) {
+            let (implements, extends) = match (self.classes.get(&c), self.generics.get(&c)) {
+                (Some(info), _) => (&info.implements, &info.extends),
+                (None, Some(info)) => (&info.implements, &info.extends),
+                (None, None) => break,
+            };
+            if implements.iter().any(|i| i == target) {
                 return true;
             }
-            current = info.extends.clone();
+            current = extends.clone();
         }
         false
     }

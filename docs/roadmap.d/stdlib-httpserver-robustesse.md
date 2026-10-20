@@ -1,5 +1,14 @@
 # HTTPServer : arrêt sur exception, injection d'en-têtes, déni de service, encodages
 
+**Clos le 2026-10-20.** Vérifié (`examples/builtins/httpserver_robustness.oc` + `.sh`, `runtime/src/tests/httpserver_wire.rs`) :
+1. Exception non rattrapée dans un handler → 500 (ou `routeError(500)`), journalisée, le serveur continue (`call_handler_locked` via `run_closure_catching_with_arg`).
+2. `respondHeader` refuse CR/LF/contrôles (`HTTPServerException` 103).
+3. Corps de plus de 1 Kio reçus hors des workers (thread dédié, 256 au plus, 503 au-delà) ; délai d'inactivité de 10 s par connexion (408) et 60 s par corps. tiny_http 0.12 ne permettant ni délai par connexion ni reprise après une erreur d'`accept()`, il est vendorisé et patché (`vendor/tiny_http`, modifications marquées `[Ocara]`, `[patch.crates-io]` du Cargo.toml racine).
+4. Décodage `%XX` en octets puis UTF-8 (`runtime/src/httpserver_wire.rs`).
+5. Fichiers statiques envoyés octet pour octet (`resp_body: Vec<u8>`).
+6. `+` littéral dans un chemin ; chemins décodés avant routage et recherche statique ; en-tête non ASCII ou chemin non UTF-8 → 400 (tiny_http patché) ; en-têtes répétés fusionnés ; `HEAD` servi par la route `GET` ; 405 avec `Allow` ; `<x:float>` fini ; fragment retiré de la query.
+
+
 Audit du 2026-10-19. Reproduit sur le binaire courant (ports de test, `curl`
 et scripts Python).
 

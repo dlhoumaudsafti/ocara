@@ -4,19 +4,44 @@ use crate::parsing::ast::*;
 use crate::parsing::token::TokenKind;
 use super::types::{Parser, ParseError, ParseResult};
 
+/// Profondeur maximale de l'arbre d'une expression : au-delà, les passes
+/// récursives du compilateur déborderaient leur pile (voir `main.rs`).
+const MAX_EXPR_DEPTH: usize = 50_000;
+
 impl Parser {
+    /// Un niveau de plus dans l'arbre de l'expression en cours.
+    fn deepen(&mut self) -> ParseResult<()> {
+        self.expr_depth += 1;
+        if self.expr_depth > MAX_EXPR_DEPTH {
+            return Err(ParseError::new(
+                &format!("expression trop profonde (plus de {} niveaux d'imbrication ou d'opérateurs enchaînés) : découpez-la en variables intermédiaires", MAX_EXPR_DEPTH),
+                self.span(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Analyse une sous-expression imbriquée ; sa profondeur ne compte plus
+    /// une fois refermée.
+    fn nested<T>(&mut self, parse: impl FnOnce(&mut Self) -> ParseResult<T>) -> ParseResult<T> {
+        let saved = self.expr_depth;
+        let result = self.deepen().and_then(|_| parse(self));
+        self.expr_depth = saved;
+        result
+    }
+
     // ── Expressions ──────────────────────────────────────────────────────────
     // Précédence (croissante) :
     //   Or → And → Equality → Comparison → Additive → Multiplicative → Unary → Postfix → Primary
 
     pub fn parse_expr(&mut self) -> ParseResult<Expr> {
-        self.parse_or()
+        self.nested(Self::parse_or)
     }
 
     /// Parse expression sans autoriser 'is' au top level
     /// Utilisé pour les body de match arms où 'is' est réservé aux patterns
     fn parse_expr_no_is(&mut self) -> ParseResult<Expr> {
-        self.parse_or_no_is()
+        self.nested(Self::parse_or_no_is)
     }
 
     fn parse_or(&mut self) -> ParseResult<Expr> {
@@ -31,6 +56,7 @@ impl Parser {
                 right: Box::new(right),
                 span,
             };
+            self.deepen()?;
         }
         Ok(left)
     }
@@ -48,6 +74,7 @@ impl Parser {
                 right: Box::new(right),
                 span,
             };
+            self.deepen()?;
         }
         Ok(left)
     }
@@ -64,6 +91,7 @@ impl Parser {
                 right: Box::new(right),
                 span,
             };
+            self.deepen()?;
         }
         Ok(left)
     }
@@ -81,6 +109,7 @@ impl Parser {
                 right: Box::new(right),
                 span,
             };
+            self.deepen()?;
         }
         Ok(left)
     }
@@ -98,6 +127,7 @@ impl Parser {
                 let right = self.parse_is_check()?;
                 let full_span = span.union(right.span());
                 left = Expr::Binary { op, left: Box::new(left), right: Box::new(right), span: full_span };
+                self.deepen()?;
                 continue;
             }
             let span = left.span().clone();
@@ -114,6 +144,7 @@ impl Parser {
             let right = self.parse_is_check()?;
             let full_span = span.union(right.span());
             left = Expr::Binary { op, left: Box::new(left), right: Box::new(right), span: full_span };
+            self.deepen()?;
         }
         Ok(left)
     }
@@ -127,6 +158,7 @@ impl Parser {
                 let right = self.parse_range()?;
                 let full_span = span.union(right.span());
                 left = Expr::Binary { op, left: Box::new(left), right: Box::new(right), span: full_span };
+                self.deepen()?;
                 continue;
             }
             let span = left.span().clone();
@@ -143,6 +175,7 @@ impl Parser {
             let right = self.parse_range()?;
             let full_span = span.union(right.span());
             left = Expr::Binary { op, left: Box::new(left), right: Box::new(right), span: full_span };
+            self.deepen()?;
         }
         Ok(left)
     }
@@ -265,6 +298,7 @@ impl Parser {
             self.advance();
             let right = self.parse_multiplicative()?;
             left = Expr::Binary { op, left: Box::new(left), right: Box::new(right), span };
+            self.deepen()?;
         }
         Ok(left)
     }
@@ -282,11 +316,16 @@ impl Parser {
             self.advance();
             let right = self.parse_unary()?;
             left = Expr::Binary { op, left: Box::new(left), right: Box::new(right), span };
+            self.deepen()?;
         }
         Ok(left)
     }
 
     fn parse_unary(&mut self) -> ParseResult<Expr> {
+        self.nested(Self::parse_unary_operand)
+    }
+
+    fn parse_unary_operand(&mut self) -> ParseResult<Expr> {
         let span = self.span();
         match self.peek_kind().clone() {
             TokenKind::KwNot => {
@@ -399,6 +438,7 @@ impl Parser {
 
                 _ => break,
             }
+            self.deepen()?;
         }
 
         Ok(expr)

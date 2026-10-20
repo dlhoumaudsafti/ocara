@@ -106,6 +106,7 @@ pub extern "C" fn Thread_run(self_ptr: i64, fat_ptr: i64) {
 
     let handle = match std::thread::Builder::new().spawn(move || {
         let _guard = guard;
+        let _stack = crate::stack_guard::ThreadStack::enter();
         let _closure = ClosureRef(closure as i64);
         // Initialiser l'ID du thread courant pour ce thread
         CURRENT_THREAD_ID.with(|c| c.set(sc.thread_id));

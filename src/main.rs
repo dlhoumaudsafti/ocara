@@ -18,7 +18,24 @@ use core::cli::parse_args;
 use core::monomorph::monomorphize;
 use parsing::diagnostic;
 
+/// Pile du thread de compilation : parseur descendant et passes récursives
+/// sur l'arbre (une expression de 800 niveaux débordait les 8 Mio du thread
+/// principal). Réservée virtuellement, seules les pages touchées sont
+/// allouées.
+const COMPILER_STACK_SIZE: usize = 1 << 30;
+
 fn main() {
+    let compiler = std::thread::Builder::new()
+        .name("ocara".into())
+        .stack_size(COMPILER_STACK_SIZE)
+        .spawn(run)
+        .expect("thread de compilation");
+    if compiler.join().is_err() {
+        std::process::exit(101);
+    }
+}
+
+fn run() {
     let args = parse_args();
     if args.lsp {
         lsp::run();

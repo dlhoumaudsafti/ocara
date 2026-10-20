@@ -5,7 +5,8 @@ use cranelift_codegen::ir::{types as clt, AbiParam, Block as CrBlock, InstBuilde
     Signature, UserFuncName};
 use cranelift_codegen::{Context, settings};
 use cranelift_codegen::settings::Configurable;
-use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Variable};
+use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
+use super::value_slots::ValueSlots;
 use cranelift_module::{DataDescription, FuncId, Linkage, Module};
 use cranelift_object::{ObjectBuilder, ObjectModule};
 
@@ -15,8 +16,12 @@ use crate::ir::module::IrModule;
 use crate::ir::types::IrType;
 use crate::codegen::runtime::{builtin_sig, builtins};
 use super::error::{CodegenError, CgResult};
-use super::helpers::{ir_type_to_cl, max_value_id};
+use super::helpers::ir_type_to_cl;
 use super::instructions::emit_inst;
+
+/// Taille (en blocs HIR) au-delà de laquelle une fonction n'est plus passée
+/// au vérificateur Cranelift — voir `emit_function`.
+const VERIFIER_MAX_BLOCKS: usize = 2000;
 
 pub struct CraneliftEmitter {
     module: ObjectModule,
@@ -77,6 +82,9 @@ impl CraneliftEmitter {
             settings_builder.set("is_pic", "true")
                 .map_err(|e| CodegenError(format!("réglage is_pic: {}", e)))?;
         }
+        // Vérificateur appelé fonction par fonction (voir `emit_function`).
+        settings_builder.set("enable_verifier", "false")
+            .map_err(|e| CodegenError(format!("réglage enable_verifier: {}", e)))?;
         let flags = settings::Flags::new(settings_builder);
 
         let isa = match target {
@@ -272,14 +280,8 @@ impl CraneliftEmitter {
         let mut fb_ctx = FunctionBuilderContext::new();
         let mut builder = FunctionBuilder::new(&mut ctx.func, &mut fb_ctx);
 
-        // ── Variables Cranelift (une par valeur HIR) ──────────────────────────
-        let max_val = max_value_id(ir_func);
-        let vars: Vec<Variable> = (0..=max_val)
-            .map(Variable::from_u32)
-            .collect();
-        for var in &vars {
-            builder.declare_var(*var, clt::I64);
-        }
+        // ── Valeurs HIR (voir `ValueSlots`) ───────────────────────────────────
+        let vars = ValueSlots::new(&mut builder, ir_func);
 
         // ── Blocs Cranelift ───────────────────────────────────────────────────
         let mut cl_blocks: HashMap<BlockId, CrBlock> = HashMap::new();
@@ -307,18 +309,29 @@ impl CraneliftEmitter {
                     } else {
                         *param
                     };
-                    builder.def_var(vars[v], stored_val);
+                    vars.def(&mut builder, v as u32, stored_val);
                 }
             }
         }
 
+        // Point d'entrée du programme : initialisation du runtime (message
+        // de débordement de pile, voir runtime/src/stack_guard.rs).
+        if ir_func.name == "main" {
+            if let Some(&init_id) = self.func_ids.get("__ocara_runtime_init") {
+                let init_ref = self.module.declare_func_in_func(init_id, builder.func);
+                builder.ins().call(init_ref, &[]);
+            }
+        }
+
         // ── Émission des instructions ─────────────────────────────────────────
-        let func_ids    = self.func_ids.clone();
-        let param_types = self.param_types.clone();
-        let ret_types   = self.ret_types.clone();
-        let class_layouts = self.class_layouts.clone();
-        let class_ids = self.class_ids.clone();
-        let func_ret_ty = ir_func.ret_ty.clone();
+        // Emprunts de champs disjoints : aucune table recopiée par fonction
+        // (la copie rendait la génération quadratique en nombre de fonctions).
+        let func_ids      = &self.func_ids;
+        let param_types   = &self.param_types;
+        let ret_types     = &self.ret_types;
+        let class_layouts = &self.class_layouts;
+        let class_ids     = &self.class_ids;
+        let func_ret_ty   = &ir_func.ret_ty;
         let module = &mut self.module;
 
         for (bb_idx, bb) in ir_func.blocks.iter().enumerate() {
@@ -335,12 +348,12 @@ impl CraneliftEmitter {
                     &vars,
                     &cl_blocks,
                     module,
-                    &func_ids,
-                    &param_types,
-                    &ret_types,
-                    &class_layouts,
-                    &class_ids,
-                    &func_ret_ty,
+                    func_ids,
+                    param_types,
+                    ret_types,
+                    class_layouts,
+                    class_ids,
+                    func_ret_ty,
                 )?;
             }
         }
@@ -349,7 +362,14 @@ impl CraneliftEmitter {
         builder.seal_all_blocks();
         builder.finalize();
 
-        // Vérification + compilation
+        // Vérification + compilation. Le test de dominance du vérificateur
+        // remonte l'arbre des dominateurs pour chaque argument : quadratique
+        // sur une fonction géante en chaîne (`elseif` × 10 000), qu'il ne
+        // vérifie donc pas.
+        if ir_func.blocks.len() <= VERIFIER_MAX_BLOCKS {
+            ctx.verify(self.module.isa())
+                .map_err(|e| CodegenError(format!("define_function: Compilation(Verifier({}))", e)))?;
+        }
         let fid = *self.func_ids.get(&ir_func.name).unwrap();
         self.module
             .define_function(fid, &mut ctx)

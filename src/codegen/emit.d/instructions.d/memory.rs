@@ -2,7 +2,8 @@
 
 use std::collections::HashMap;
 use cranelift_codegen::ir::{types as clt, InstBuilder, MemFlags, StackSlotData, StackSlotKind};
-use cranelift_frontend::{FunctionBuilder, Variable};
+use cranelift_frontend::FunctionBuilder;
+use super::super::value_slots::ValueSlots;
 use cranelift_module::{FuncId, Module};
 use cranelift_object::ObjectModule;
 use crate::ir::inst::Inst;
@@ -12,7 +13,7 @@ use super::constants::string_address;
 pub fn emit_memory(
     builder: &mut FunctionBuilder,
     inst: &Inst,
-    vars: &[Variable],
+    vars: &ValueSlots,
     module: &mut ObjectModule,
     func_ids: &HashMap<String, FuncId>,
     class_layouts: &HashMap<String, Vec<(String, cranelift_codegen::ir::Type)>>,
@@ -20,12 +21,12 @@ pub fn emit_memory(
 ) -> CgResult<bool> {
     macro_rules! def {
         ($v:expr, $val:expr) => {
-            builder.def_var(vars[$v.0 as usize], $val)
+            vars.def(builder, $v.0, $val)
         };
     }
     macro_rules! use_var {
         ($v:expr) => {
-            builder.use_var(vars[$v.0 as usize])
+            vars.get(builder, $v.0)
         };
     }
 

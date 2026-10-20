@@ -1,5 +1,6 @@
 /// Lowering des blocs runtime
 
+use std::rc::Rc;
 use std::collections::{HashMap, HashSet};
 use crate::parsing::ast::*;
 use crate::ir::module::IrModule;
@@ -124,12 +125,12 @@ pub fn lower_runtime_blocks(
     module: &mut IrModule,
     program: &Program,
     consts: &[ConstDecl],
-    fn_ret_types: &HashMap<String, IrType>,
-    fn_param_types: &HashMap<String, Vec<IrType>>,
-    fn_param_names: &HashMap<String, Vec<String>>,
-    fn_variadic_info: &HashMap<String, (usize, IrType)>,
-    func_default_args: &HashMap<String, Vec<Option<Expr>>>,
-    async_funcs: &HashSet<String>,
+    fn_ret_types: &Rc<HashMap<String, IrType>>,
+    fn_param_types: &Rc<HashMap<String, Vec<IrType>>>,
+    fn_param_names: &Rc<HashMap<String, Vec<String>>>,
+    fn_variadic_info: &Rc<HashMap<String, (usize, IrType)>>,
+    func_default_args: &Rc<HashMap<String, Vec<Option<Expr>>>>,
+    async_funcs: &Rc<HashSet<String>>,
 ) {
     // Si pas de blocs runtime, pas besoin de générer quoi que ce soit
     if program.runtime_blocks.is_empty() {
@@ -145,12 +146,12 @@ fn generate_runtime_main(
     module: &mut IrModule,
     program: &Program,
     consts: &[ConstDecl],
-    fn_ret_types: &HashMap<String, IrType>,
-    fn_param_types: &HashMap<String, Vec<IrType>>,
-    fn_param_names: &HashMap<String, Vec<String>>,
-    fn_variadic_info: &HashMap<String, (usize, IrType)>,
-    func_default_args: &HashMap<String, Vec<Option<Expr>>>,
-    async_funcs: &HashSet<String>,
+    fn_ret_types: &Rc<HashMap<String, IrType>>,
+    fn_param_types: &Rc<HashMap<String, Vec<IrType>>>,
+    fn_param_names: &Rc<HashMap<String, Vec<String>>>,
+    fn_variadic_info: &Rc<HashMap<String, (usize, IrType)>>,
+    func_default_args: &Rc<HashMap<String, Vec<Option<Expr>>>>,
+    async_funcs: &Rc<HashSet<String>>,
 ) {
     use crate::parsing::token::Span;
     
@@ -310,12 +311,12 @@ fn lower_runtime_main_manual(
     all_stmts: Vec<crate::parsing::ast::Stmt>,
     main_end_index: usize,
     consts: &[ConstDecl],
-    fn_ret_types: &HashMap<String, IrType>,
-    fn_param_types: &HashMap<String, Vec<IrType>>,
-    fn_param_names: &HashMap<String, Vec<String>>,
-    fn_variadic_info: &HashMap<String, (usize, IrType)>,
-    func_default_args: &HashMap<String, Vec<Option<Expr>>>,
-    async_funcs: &HashSet<String>,
+    fn_ret_types: &Rc<HashMap<String, IrType>>,
+    fn_param_types: &Rc<HashMap<String, Vec<IrType>>>,
+    fn_param_names: &Rc<HashMap<String, Vec<String>>>,
+    fn_variadic_info: &Rc<HashMap<String, (usize, IrType)>>,
+    func_default_args: &Rc<HashMap<String, Vec<Option<Expr>>>>,
+    async_funcs: &Rc<HashSet<String>>,
 ) {
     use crate::lower::builder::LowerBuilder;
     use crate::lower::stmt::statements::lower_stmt;

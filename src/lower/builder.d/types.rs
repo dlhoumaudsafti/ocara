@@ -1,6 +1,7 @@
 /// Types et structures du builder
 
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 use crate::parsing::ast::*;
 use crate::ir::func::{IrFunction, IrParam};
 use crate::ir::inst::{BlockId, Inst, Value};
@@ -17,15 +18,15 @@ pub struct LowerBuilder<'m> {
     /// Mapping nom local → slot Alloca (Value)
     pub locals: HashMap<String, (Value, IrType, bool)>, // (slot, type, mutable)
     /// Types de retour des fonctions utilisateur (pour le dispatch IO::writeln)
-    pub fn_ret_types: HashMap<String, IrType>,
+    pub fn_ret_types: Rc<HashMap<String, IrType>>,
     /// Types des paramètres des fonctions (pour la génération de wrappers Function)
-    pub fn_param_types: HashMap<String, Vec<IrType>>,
+    pub fn_param_types: Rc<HashMap<String, Vec<IrType>>>,
     /// Noms des paramètres des fonctions/méthodes statiques (pour ui.handler() côté Tauri :
     /// permet de générer un trampoline JSON qui matche les arguments par nom, pas seulement
     /// par position — voir src/lower/expr.d/tauri_handler.rs)
-    pub fn_param_names: HashMap<String, Vec<String>>,
+    pub fn_param_names: Rc<HashMap<String, Vec<String>>>,
     /// Infos variadic : (fixed_params_count, array_elem_type)
-    pub fn_variadic_info: HashMap<String, (usize, IrType)>,
+    pub fn_variadic_info: Rc<HashMap<String, (usize, IrType)>>,
     /// Type des éléments pour les variables tableau (ex: jours:string[] → Ptr)
     pub elem_types: HashMap<String, IrType>,
     /// Type AST des éléments pour les variables tableau (pour métadonnées complètes)
@@ -118,14 +119,14 @@ pub struct LowerBuilder<'m> {
     /// Après promotion, `locals[name]` est un heap pointer (pas une Alloca stack).
     pub heap_promoted: HashSet<String>,
     /// Noms des fonctions marquées `async` (au sens Ocara : spawn thread)
-    pub async_funcs: HashSet<String>,
+    pub async_funcs: Rc<HashSet<String>>,
     /// Mapping var_name → IrType de retour original de la fonction async
     /// Utilisé par Expr::Resolve pour savoir quel unboxing appliquer.
     pub async_var_ret: HashMap<String, IrType>,
     /// Noms des paramètres variadic (pour unboxing dans les boucles for)
     pub variadic_params: HashSet<String>,
     /// Valeurs par défaut des paramètres : func_name → Vec<Option<Expr>>
-    pub func_default_args: HashMap<String, Vec<Option<Expr>>>,
+    pub func_default_args: Rc<HashMap<String, Vec<Option<Expr>>>>,
     /// Nombre total de paramètres pour les variables Function : var_name → count
     #[allow(dead_code)]
     pub func_var_param_count: HashMap<String, usize>,
@@ -184,6 +185,11 @@ pub struct LowerBuilder<'m> {
     /// Variables `Function<T(...)>` → `T` (possession du résultat d'un appel
     /// indirect).
     pub func_ret_ast: HashMap<String, Type>,
+    /// Type IR déjà calculé de chaque `Expr::Binary` de l'instruction en
+    /// cours (vidé par `lower_stmt`) : sans lui, le lowering d'une chaîne
+    /// `a + a + … + a` retypait tout le sous-arbre gauche à chaque niveau
+    /// (quadratique). Clé : adresse du nœud, stable le temps d'une instruction.
+    pub binary_ir_types: std::cell::RefCell<HashMap<*const Expr, IrType>>,
 }
 
 impl<'m> LowerBuilder<'m> {
@@ -198,10 +204,10 @@ impl<'m> LowerBuilder<'m> {
             module,
             func,
             locals: HashMap::new(),
-            fn_ret_types: HashMap::new(),
-            fn_param_types: HashMap::new(),
-            fn_param_names: HashMap::new(),
-            fn_variadic_info: HashMap::new(),
+            fn_ret_types: Rc::default(),
+            fn_param_types: Rc::default(),
+            fn_param_names: Rc::default(),
+            fn_variadic_info: Rc::default(),
             elem_types: HashMap::new(),
             elem_ast_types: HashMap::new(),
             map_key_types: HashMap::new(),
@@ -223,10 +229,10 @@ impl<'m> LowerBuilder<'m> {
             message_resume_blocks: Vec::new(),
             gen_try_stack: Vec::new(),
             heap_promoted: HashSet::new(),
-            async_funcs: HashSet::new(),
+            async_funcs: Rc::default(),
             async_var_ret: HashMap::new(),
             variadic_params: HashSet::new(),
-            func_default_args: HashMap::new(),
+            func_default_args: Rc::default(),
             func_var_param_count: HashMap::new(),
             runtime_exit_bb: None,
             runtime_scope: None,
@@ -248,6 +254,7 @@ impl<'m> LowerBuilder<'m> {
             rc_consumed: HashMap::new(),
             resolvable_types: HashMap::new(),
             func_ret_ast: HashMap::new(),
+            binary_ir_types: std::cell::RefCell::new(HashMap::new()),
         }
     }
 

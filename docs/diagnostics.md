@@ -50,6 +50,7 @@ Produites lors de la construction de l'AST.
 | `unexpected token 'X'` | Token inattendu à cette position |
 | `operator 'X' has been removed — use 'Y' instead` | Ancien opérateur de comparaison symbolique (`==`, `!=`, `<`, `<=`, `>`, `>=`, `===`, `!==`, `<==`, `>==`) — voir [§11.1 de l'EBNF](EBNF.md#111-comparaisons) |
 | `unexpected top-level declaration: Wiring` | `wiring` utilisé en dehors d'un corps `interface` (déclaration de premier niveau, ou à l'intérieur d'une classe/fonction) — `wiring` n'est reconnu que par `parse_interface`, voir [§17.1 de l'EBNF](EBNF.md#171-wiring--liaison-interface--implémentation-à-la-compilation) |
+| `expression trop profonde (plus de 50000 niveaux d'imbrication ou d'opérateurs enchaînés)` | Arbre d'expression trop profond pour les passes récursives du compilateur (parenthèses imbriquées, ou très longue chaîne `a + a + …`) — découper en variables intermédiaires |
 
 ---
 

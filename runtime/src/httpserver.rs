@@ -38,7 +38,7 @@
 //
 // Parsing du corps (voir docs/roadmap.d/stdlib-httpserver-post-body-parsing.md,
 // désormais clos, et le nouveau support multipart) : `application/x-www-form-
-// urlencoded` réutilise `parse_query`/`url_decode` (déjà utilisées pour la query
+// urlencoded` réutilise `parse_query`/`form_decode` (déjà utilisées pour la query
 // string) contre le corps ; `multipart/form-data` est parsé par un mini-parseur
 // écrit à la main (`parse_multipart`) — voir sa doc pour les choix de tolérance
 // (CRLF vs LF) et de représentation des champs fichier.
@@ -81,14 +81,27 @@
 
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}},
+    time::{Duration, Instant},
 };
 
 use crate::{alloc_str, ptr_to_str};
 use crate::exception::throw_httpserver_exception;
+use crate::httpserver_wire::{
+    insert_request_header, is_valid_header_name, is_valid_header_value, parse_query, percent_decode, split_target,
+};
 
 // Codes d'erreur HTTPServerException
 const ERR_SERVER_START: i64 = 101;
+const ERR_INVALID_HEADER: i64 = 103;
+
+/// Délai d'inactivité d'une connexion (lecture ou écriture) : un client qui
+/// n'envoie plus rien est déconnecté (408) au lieu de bloquer un thread.
+const IDLE_TIMEOUT: Duration = Duration::from_secs(10);
+/// Durée maximale de réception d'un corps de requête, quel que soit son débit.
+const BODY_DEADLINE: Duration = Duration::from_secs(60);
+/// Corps en cours de réception simultanément (hors workers) : au-delà, 503.
+const MAX_RECEIVING_BODIES: usize = 256;
 
 // Macro safe pour les logs serveur (contourne le write(2) shadowé)
 macro_rules! server_log {
@@ -100,9 +113,6 @@ macro_rules! server_log {
 // ─────────────────────────────────────────────────────────────────────────────
 // Types handler
 // ─────────────────────────────────────────────────────────────────────────────
-
-/// Signature d'un handler Ocara : fn(env_ptr, req_handle) → i64
-type OcaraHandlerFn = unsafe extern "C" fn(i64, i64) -> i64;
 
 /// Wrapper Send pour les raw pointers de closure.
 /// Safety : les closures Ocara sont allouées sur le tas (heap_promoted) et
@@ -191,7 +201,7 @@ pub(crate) struct OcaraHttpContext {
     param_buckets: HashMap<String, HashMap<String, ParamValue>>,
     // Construction de la réponse
     resp_status:  u16,
-    resp_body:    String,
+    resp_body:    Vec<u8>,
     pub(crate) resp_headers: Vec<tiny_http::Header>,
     // Session ouverte par `req.session()` (voir runtime/src/httpsession.rs)
     pub(crate) session_id: Option<String>,
@@ -258,7 +268,7 @@ pub(crate) enum ParamValue {
 /// à la fois `<nom:string>` et tout type inconnu/non reconnu — dégrade
 /// silencieusement vers une chaîne brute plutôt que de rejeter
 /// l'enregistrement de la route (même philosophie de tolérance que
-/// `url_decode`/`parse_query` ailleurs dans ce fichier : jamais planter sur
+/// `percent_decode`/`parse_query` (httpserver_wire.rs) : jamais planter sur
 /// une entrée mal formée).
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum PathParamType {
@@ -324,21 +334,19 @@ pub(crate) fn parse_route_pattern(path: &str) -> RoutePattern {
 /// (voir sa doc — la route suivante est essayée, jamais de valeur
 /// bidon/zéro substituée).
 ///
-/// `<nom:string>` décode l'URL du segment (`url_decode`, déjà utilisée pour
-/// la query string) — un segment de chemin peut légitimement contenir des
-/// caractères encodés (espaces, accents...). Un segment LITTÉRAL du pattern
-/// n'est en revanche jamais décodé avant comparaison (comportement
-/// historique inchangé, un chemin littéral est comparé octet pour octet).
-fn parse_path_param_value(raw: &str, ty: PathParamType) -> Option<ParamValue> {
+/// `decoded` est le segment de requête déjà décodé (`percent_decode`, `+`
+/// conservé) — pour tous les types : `/i/%31` correspond à `<id:int>`. Un
+/// `<x:float>` refuse `nan` et `inf`.
+fn parse_path_param_value(decoded: &str, ty: PathParamType) -> Option<ParamValue> {
     match ty {
-        PathParamType::Int   => raw.parse::<i64>().ok().map(ParamValue::Int),
-        PathParamType::Float => raw.parse::<f64>().ok().map(ParamValue::Float),
-        PathParamType::Bool  => match raw {
+        PathParamType::Int   => decoded.parse::<i64>().ok().map(ParamValue::Int),
+        PathParamType::Float => decoded.parse::<f64>().ok().filter(|f| f.is_finite()).map(ParamValue::Float),
+        PathParamType::Bool  => match decoded {
             "true"  => Some(ParamValue::Bool(true)),
             "false" => Some(ParamValue::Bool(false)),
             _       => None,
         },
-        PathParamType::Str => Some(ParamValue::Text(url_decode(raw))),
+        PathParamType::Str => Some(ParamValue::Text(decoded.to_string())),
     }
 }
 
@@ -367,14 +375,17 @@ pub(crate) fn match_route(pattern: &RoutePattern, request_path: &str) -> Option<
             }
             let mut params = HashMap::new();
             for (seg, req_seg) in segments.iter().zip(request_segments.iter()) {
+                // Segment décodé APRÈS le découpage sur `/` : `%2F` reste
+                // dans son segment ; `+` n'y est jamais un espace.
+                let decoded = percent_decode(req_seg);
                 match seg {
                     PathSegment::Literal(lit) => {
-                        if lit != req_seg {
+                        if lit != req_seg && *lit != decoded {
                             return None;
                         }
                     }
                     PathSegment::Param { name, ty } => {
-                        let value = parse_path_param_value(req_seg, *ty)?;
+                        let value = parse_path_param_value(&decoded, *ty)?;
                         params.insert(name.clone(), value);
                     }
                 }
@@ -402,48 +413,6 @@ pub(crate) unsafe fn ctx_ref(req: i64) -> &'static mut OcaraHttpContext {
     unsafe {
         &mut *(req as *mut OcaraHttpContext)
     }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Parsing de la query string
-// ─────────────────────────────────────────────────────────────────────────────
-
-fn parse_query(raw: &str) -> HashMap<String, String> {
-    let mut map = HashMap::new();
-    for pair in raw.split('&') {
-        let mut it = pair.splitn(2, '=');
-        let key = it.next().unwrap_or("").to_string();
-        let val = it.next().unwrap_or("").to_string();
-        if !key.is_empty() {
-            // Décodage URL simple (+ → espace, %XX → caractère)
-            map.insert(url_decode(&key), url_decode(&val));
-        }
-    }
-    map
-}
-
-fn url_decode(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let bytes = s.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'+' => { out.push(' '); i += 1; }
-            b'%' if i + 2 < bytes.len() => {
-                if let Ok(hex) = std::str::from_utf8(&bytes[i+1..i+3]) {
-                    if let Ok(n) = u8::from_str_radix(hex, 16) {
-                        out.push(n as char);
-                        i += 3;
-                        continue;
-                    }
-                }
-                out.push(bytes[i] as char);
-                i += 1;
-            }
-            b => { out.push(b as char); i += 1; }
-        }
-    }
-    out
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -534,8 +503,8 @@ pub(crate) struct MultipartPart {
 /// écrit à la main plutôt qu'une dépendance externe : ce projet n'a AUCUNE
 /// crate de parsing multipart déjà en dépendance (`tiny_http`, `ureq`, `url`,
 /// `regex`, `serde_json`, `rusqlite`, `mysql` — vérifié dans
-/// `runtime/Cargo.toml`, aucune ne fait ça), et `parse_query`/`url_decode`
-/// ci-dessus établissent déjà la convention de ce fichier : écrire son propre
+/// `runtime/Cargo.toml`, aucune ne fait ça), et `parse_query`/`percent_decode`
+/// (httpserver_wire.rs) établissent déjà la convention de ce fichier : écrire son propre
 /// parsing HTTP-adjacent plutôt que d'ajouter une dépendance pour un format
 /// aussi simple à parser soi-même.
 ///
@@ -545,7 +514,7 @@ pub(crate) struct MultipartPart {
 /// avant), puis ne retire qu'UNE SEULE terminaison de ligne (`\r\n` ou `\n`)
 /// en tête/queue du contenu capturé — accepte donc aussi bien un corps strict
 /// CRLF qu'un corps LF-seul (client non conforme), même esprit de tolérance
-/// que le reste de ce fichier (`url_decode` ne rejette jamais un `%` mal
+/// que le reste de ce fichier (`percent_decode` ne rejette jamais un `%` mal
 /// formé, `parse_query` ignore silencieusement une paire sans `=`).
 ///
 /// Limitation documentée (voir docs/roadmap.d/stdlib-httpserver-request-object.md,
@@ -819,7 +788,7 @@ fn try_serve_static_file(req_handle: i64, req_path: &str, root_path: Option<&str
     // Remplir la réponse
     let ctx = unsafe { ctx_ref(req_handle) };
     ctx.resp_status = 200;
-    ctx.resp_body = String::from_utf8_lossy(&content).to_string();
+    ctx.resp_body = content;
     
     // Ajouter Content-Type
     let header = tiny_http::Header::from_bytes(
@@ -839,154 +808,227 @@ fn try_serve_static_file(req_handle: i64, req_path: &str, root_path: Option<&str
 /// concurrente en tête de fichier.
 static HANDLER_LOCK: Mutex<()> = Mutex::new(());
 
+/// Configuration d'un serveur démarré, partagée par ses workers et par les
+/// threads de réception de corps (voir `dispatch_request`).
+struct ServerShared {
+    routes:         Vec<Route>,
+    root_path:      Option<String>,
+    error_handlers: HashMap<u16, SendHandler>,
+    max_body:       usize,
+    receiving:      AtomicUsize,
+}
+
 /// Exécute un handler Ocara sous la protection de `HANDLER_LOCK` — voir la
 /// note sécurité concurrente en tête de fichier : sérialise l'invocation
 /// pour qu'aucune capture partagée (heap_promoted) ne soit jamais touchée
-/// par deux handlers en même temps.
-unsafe fn call_handler_locked(h: &SendHandler, req_handle: i64) {
+/// par deux handlers en même temps. Une exception non rattrapée dans le
+/// handler est capturée ici (le serveur continue) : `false`, l'appelant
+/// répond 500.
+unsafe fn call_handler_locked(h: &SendHandler, req_handle: i64) -> bool {
     let _guard = {
         let _parked = crate::rc::park();
         HANDLER_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
     };
-    let f: OcaraHandlerFn = unsafe { std::mem::transmute(h.func_ptr as usize) };
-    unsafe { f(h.env_ptr, req_handle) };
+    match crate::run_closure_catching_with_arg(h.func_ptr, h.env_ptr, req_handle) {
+        Ok(_) => true,
+        Err((error_val, error_type)) => {
+            let type_name = if error_type == 0 { "" } else { unsafe { ptr_to_str(error_type) } };
+            let type_name = type_name.split('|').next().unwrap_or("");
+            server_log!("HTTPServer: unhandled exception in handler ({}) → 500\n", type_name);
+            crate::rc::__rc_release(error_val);
+            false
+        }
+    }
 }
 
-fn handle_request(
-    mut request: tiny_http::Request,
-    routes: &[Route],
-    root_path: Option<&str>,
-    error_handlers: &HashMap<u16, SendHandler>,
-    max_body: usize,
-) {
-    // Lire le corps en OCTETS BRUTS (pas `read_to_string`) : un corps
-    // `multipart/form-data` contenant un fichier (JPEG, PDF...) n'est PAS de
-    // l'UTF-8 valide — `read_to_string` aurait échoué (silencieusement,
-    // `body` restant vide) dès le premier octet non-UTF-8 rencontré, ce qui
-    // aurait corrompu/tronqué tout upload binaire avant même que
-    // `build_params_buckets`/`parse_multipart` ne le voie. `ctx.body`
-    // (accessible côté Ocara via `body(): string`) reste dérivé en texte via
-    // une conversion LOSSY — comportement inchangé pour un corps texte réel
-    // (JSON, urlencoded...), qui est toujours de l'UTF-8 valide.
-    // Corps borné (`maxBodySize`, défaut 10 Mio) : un client pouvait faire
-    // allouer une quantité arbitraire de mémoire — 413 au-delà, sans
-    // appeler le handler (voir docs/roadmap.d/stdlib-httpserver-request-object.md).
-    if max_body > 0 && request.body_length().is_some_and(|n| n > max_body) {
-        let _ = request.respond(tiny_http::Response::from_string("Payload Too Large").with_status_code(413));
+/// Répond `code` : handler `routeError(code)` s'il existe (lui aussi protégé
+/// contre les exceptions, 500 par défaut s'il échoue), sinon `default_body`.
+fn respond_error(req_handle: i64, code: u16, default_body: String, error_handlers: &HashMap<u16, SendHandler>) {
+    let ctx = unsafe { ctx_ref(req_handle) };
+    ctx.resp_status = code;
+    ctx.resp_body = default_body.into_bytes();
+    if let Some(error_h) = error_handlers.get(&code) {
+        if !unsafe { call_handler_locked(error_h, req_handle) } {
+            reset_response(req_handle, 500, "500 Internal Server Error");
+        }
+    }
+}
+
+fn reset_response(req_handle: i64, code: u16, body: &str) {
+    let ctx = unsafe { ctx_ref(req_handle) };
+    ctx.resp_status = code;
+    ctx.resp_body = body.as_bytes().to_vec();
+    ctx.resp_headers.clear();
+}
+
+fn respond_status(request: tiny_http::Request, code: u16, body: &str) {
+    let _parked = crate::rc::park();
+    let _ = request.respond(tiny_http::Response::from_string(body).with_status_code(code));
+}
+
+/// Un corps de plus de 1 Kio (ou `chunked`) est lu depuis la socket par
+/// l'appelant de `as_reader()` — tiny_http a déjà lu les plus petits.
+fn body_is_streamed(request: &tiny_http::Request) -> bool {
+    match request.body_length() {
+        Some(n) => n > 1024,
+        None => request.headers().iter().any(|h| h.field.equiv("Transfer-Encoding")),
+    }
+}
+
+/// Un corps à lire depuis la socket est reçu hors des workers, dans un thread
+/// dédié (borné par `MAX_RECEIVING_BODIES`) : N clients qui téléversent
+/// lentement ne bloquent plus les autres requêtes.
+fn dispatch_request(request: tiny_http::Request, shared: &Arc<ServerShared>) {
+    if !body_is_streamed(&request) {
+        handle_request(request, shared);
         return;
     }
-    let mut raw_body: Vec<u8> = Vec::new();
-    if max_body > 0 {
-        let _ = std::io::Read::read_to_end(&mut std::io::Read::take(request.as_reader(), max_body as u64 + 1), &mut raw_body);
-        if raw_body.len() > max_body {
-            let _ = request.respond(tiny_http::Response::from_string("Payload Too Large").with_status_code(413));
-            return;
-        }
-    } else {
-        let _ = request.as_reader().read_to_end(&mut raw_body);
+    if shared.receiving.fetch_add(1, Ordering::SeqCst) >= MAX_RECEIVING_BODIES {
+        shared.receiving.fetch_sub(1, Ordering::SeqCst);
+        respond_status(request, 503, "Service Unavailable");
+        return;
     }
+    let shared = Arc::clone(shared);
+    let guard = crate::rc::ThreadGuard::new();
+    std::thread::spawn(move || {
+        let _guard = guard;
+        let _stack = crate::stack_guard::ThreadStack::enter();
+        handle_request(request, &shared);
+        shared.receiving.fetch_sub(1, Ordering::SeqCst);
+    });
+}
+
+/// Lit le corps (borné par `max_body` et par `BODY_DEADLINE`, chaque lecture
+/// par `IDLE_TIMEOUT`) — `Err(code)` : 413 trop grand, 408 trop lent ou
+/// connexion interrompue.
+fn read_body(request: &mut tiny_http::Request, max_body: usize) -> Result<Vec<u8>, u16> {
+    if max_body > 0 && request.body_length().is_some_and(|n| n > max_body) {
+        return Err(413);
+    }
+    let _parked = crate::rc::park();
+    let started = Instant::now();
+    let reader = request.as_reader();
+    let mut body: Vec<u8> = Vec::new();
+    let mut chunk = [0u8; 16 * 1024];
+    loop {
+        if started.elapsed() > BODY_DEADLINE {
+            return Err(408);
+        }
+        match reader.read(&mut chunk) {
+            Ok(0) => return Ok(body),
+            Ok(n) => {
+                body.extend_from_slice(&chunk[..n]);
+                if max_body > 0 && body.len() > max_body {
+                    return Err(413);
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(_) => return Err(408),
+        }
+    }
+}
+
+/// Route de la requête : méthode exacte d'abord, puis la route `GET` pour un
+/// `HEAD` (tiny_http n'envoie pas le corps d'une réponse à `HEAD`). `Err`
+/// liste les méthodes acceptées par ce chemin (vide : aucune route, 404 ;
+/// sinon 405).
+fn find_route(routes: &[Route], method: &str, path: &str) -> Result<(SendHandler, HashMap<String, ParamValue>), Vec<String>> {
+    let lookup = |wanted: &str| routes.iter()
+        .filter(|r| r.method == wanted)
+        .find_map(|r| match_route(&r.pattern, path).map(|params| (r.handler.clone(), params)));
+    if let Some(found) = lookup(method).or_else(|| if method == "HEAD" { lookup("GET") } else { None }) {
+        return Ok(found);
+    }
+    let mut allowed: Vec<String> = routes.iter()
+        .filter(|r| !matches!(r.pattern, RoutePattern::Wildcard) && match_route(&r.pattern, path).is_some())
+        .map(|r| r.method.clone())
+        .collect();
+    allowed.sort();
+    allowed.dedup();
+    Err(allowed)
+}
+
+fn handle_request(mut request: tiny_http::Request, shared: &ServerShared) {
+    // Lire le corps en OCTETS BRUTS (pas `read_to_string`) : un corps
+    // `multipart/form-data` contenant un fichier (JPEG, PDF...) n'est PAS de
+    // l'UTF-8 valide. `ctx.body` (accessible côté Ocara via `body(): string`)
+    // reste dérivé en texte via une conversion LOSSY — comportement inchangé
+    // pour un corps texte réel (JSON, urlencoded...).
+    let raw_body = match read_body(&mut request, shared.max_body) {
+        Ok(body) => body,
+        Err(413) => return respond_status(request, 413, "Payload Too Large"),
+        Err(code) => return respond_status(request, code, "Request Timeout"),
+    };
     let body = String::from_utf8_lossy(&raw_body).to_string();
 
-    // Décomposer l'URL en chemin + query string
     let full_url = request.url().to_string();
-    let (path, query_str) = match full_url.find('?') {
-        Some(pos) => (&full_url[..pos], &full_url[pos + 1..]),
-        None      => (full_url.as_str(), ""),
-    };
+    let (path, query_str) = split_target(&full_url);
 
     let method = request.method().to_string().to_uppercase();
 
-    // Collecter les en-têtes de la requête — casse D'ORIGINE préservée (voir
-    // la doc de `OcaraHttpContext.headers` : nécessaire pour `headers()`,
-    // `header(name)` reste insensible à la casse via `header_lookup`).
+    // Casse D'ORIGINE préservée (voir la doc de `OcaraHttpContext.headers`) ;
+    // un en-tête répété (deux `Cookie`) est fusionné, jamais écrasé.
     let mut headers: HashMap<String, String> = HashMap::new();
     for h in request.headers() {
-        headers.insert(
-            h.field.to_string(),
-            h.value.to_string(),
-        );
+        insert_request_header(&mut headers, h.field.as_str().as_str(), h.value.as_str());
     }
 
-    // Chercher une route correspondante — premier match gagne, dans l'ordre
-    // d'enregistrement (voir `match_route` : un segment littéral qui ne
-    // matche pas, ou un paramètre qui échoue à parser selon son type déclaré,
-    // fait passer à la route suivante, sans logique de priorité séparée).
-    let mut path_params: HashMap<String, ParamValue> = HashMap::new();
-    let mut handler: Option<SendHandler> = None;
-    for r in routes.iter() {
-        if r.method != method {
-            continue;
-        }
-        if let Some(params) = match_route(&r.pattern, path) {
-            path_params = params;
-            handler = Some(r.handler.clone());
-            break;
-        }
-    }
+    let route = find_route(&shared.routes, &method, path);
+    let empty_params = HashMap::new();
+    let path_params = match &route {
+        Ok((_, params)) => params,
+        Err(_) => &empty_params,
+    };
 
     // Paramètres GET (query string PUIS paramètres de chemin, qui l'emportent
     // sur la query string à clé égale — voir `build_params_buckets`) + corps
-    // (urlencoded/multipart, méthode réelle) — calculés une seule fois ici,
-    // consultés ensuite par `param()`/`params()` sans jamais re-parser (voir
-    // leur doc).
-    let param_buckets = build_params_buckets(query_str, &method, &headers, &raw_body, &path_params);
+    // (urlencoded/multipart, méthode réelle) — calculés une seule fois ici.
+    let param_buckets = build_params_buckets(query_str, &method, &headers, &raw_body, path_params);
 
-    // Construire le contexte de requête
-    let path_str   = path.to_string();
-    let method_str = method.clone();
+    let path_str = path.to_string();
     let ctx = Box::new(OcaraHttpContext {
         path:         path_str.clone(),
-        method:       method_str.clone(),
+        method:       method.clone(),
         body,
         headers,
         query:        parse_query(query_str),
         param_buckets,
         resp_status:  200,
-        resp_body:    String::new(),
+        resp_body:    Vec::new(),
         resp_headers: Vec::new(),
         session_id:   None,
         request:      Some(request),
     });
     let req_handle = crate::rc::handle_new(*ctx);
 
-    // Appeler le handler ou tenter de servir un fichier statique
-    if let Some(h) = handler {
-        unsafe { call_handler_locked(&h, req_handle) };
-    } else if method_str == "GET" {
-        // Si GET / sans route → essayer /index.html automatiquement
-        let serve_path = if path_str == "/" { "/index.html" } else { &path_str };
-
-        if try_serve_static_file(req_handle, serve_path, root_path) {
-            // Fichier statique servi avec succès
-        } else {
-            // Aucune route trouvée et pas de fichier statique → 404
-            let ctx = unsafe { ctx_ref(req_handle) };
-            ctx.resp_status = 404;
-
-            // Chercher un handler d'erreur 404 personnalisé
-            if let Some(error_h) = error_handlers.get(&404) {
-                unsafe { call_handler_locked(error_h, req_handle) };
-            } else {
-                ctx.resp_body = format!("404 Not Found: {} {}", method_str, path_str);
+    match route {
+        Ok((handler, _)) => {
+            if !unsafe { call_handler_locked(&handler, req_handle) } {
+                reset_response(req_handle, 500, "500 Internal Server Error");
+                respond_error(req_handle, 500, "500 Internal Server Error".into(), &shared.error_handlers);
             }
         }
-    } else {
-        // Méthode non-GET sans route → 404
-        let ctx = unsafe { ctx_ref(req_handle) };
-        ctx.resp_status = 404;
-
-        // Chercher un handler d'erreur 404 personnalisé
-        if let Some(error_h) = error_handlers.get(&404) {
-            unsafe { call_handler_locked(error_h, req_handle) };
-        } else {
-            ctx.resp_body = format!("404 Not Found: {} {}", method_str, path_str);
+        Err(allowed) => {
+            // GET / sans route → /index.html ; chemin décodé (`%C3%A9.txt`).
+            let serve_path = if path_str == "/" { "/index.html".to_string() } else { percent_decode(&path_str) };
+            let is_read = method == "GET" || method == "HEAD";
+            let served = is_read && try_serve_static_file(req_handle, &serve_path, shared.root_path.as_deref());
+            if served {
+                // fichier statique
+            } else if allowed.is_empty() {
+                respond_error(req_handle, 404, format!("404 Not Found: {} {}", method, path_str), &shared.error_handlers);
+            } else {
+                if let Ok(h) = tiny_http::Header::from_bytes(&b"Allow"[..], allowed.join(", ").as_bytes()) {
+                    unsafe { ctx_ref(req_handle) }.resp_headers.push(h);
+                }
+                respond_error(req_handle, 405, format!("405 Method Not Allowed: {} {}", method, path_str), &shared.error_handlers);
+            }
         }
     }
 
     // Envoyer la réponse
     let ctx = unsafe { &mut *(req_handle as *mut OcaraHttpContext) };
-    
-    // Ajouter Content-Type par défaut si non défini
+
     let has_content_type = ctx.resp_headers.iter().any(|h| {
         h.field.to_string().eq_ignore_ascii_case("Content-Type")
     });
@@ -997,19 +1039,17 @@ fn handle_request(
         ).unwrap();
         ctx.resp_headers.push(default_ct);
     }
-    
+
     if let Some(req) = ctx.request.take() {
-        let status = tiny_http::StatusCode(ctx.resp_status);
-        let mut resp = tiny_http::Response::from_string(ctx.resp_body.clone())
-            .with_status_code(status);
-        // Ajouter les en-têtes de réponse
+        let mut resp = tiny_http::Response::from_data(std::mem::take(&mut ctx.resp_body))
+            .with_status_code(tiny_http::StatusCode(ctx.resp_status));
         for h in ctx.resp_headers.drain(..) {
             resp = resp.with_header(h);
         }
+        let _parked = crate::rc::park();
         let _ = req.respond(resp);
     }
 
-    // Libérer le contexte
     drop(unsafe { crate::rc::handle_take::<OcaraHttpContext>(req_handle) });
 }
 
@@ -1154,7 +1194,11 @@ pub extern "C" fn HTTPServer_routeError(
 pub extern "C" fn HTTPServer_run(self_ptr: i64) {
     let data   = unsafe { server_from_slot(self_ptr) };
     let addr   = format!("{}:{}", data.host, data.port);
-    let server = match tiny_http::Server::http(&addr) {
+    // Délai par connexion acceptée (tiny_http patché, voir le Cargo.toml
+    // racine) : un client muet reçoit 408 au lieu de bloquer un thread.
+    let server = match std::net::TcpListener::bind(&addr).map_err(|e| e.to_string())
+        .and_then(|listener| tiny_http::Server::from_listener_with_timeout(listener, None, Some(IDLE_TIMEOUT)).map_err(|e| e.to_string()))
+    {
         Ok(s)  => Arc::new(s),
         Err(e) => {
             unsafe {
@@ -1165,25 +1209,27 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
             }
         }
     };
-    let routes: Arc<Vec<Route>> = Arc::new(std::mem::take(&mut data.routes));
-    let root_path: Arc<Option<String>> = Arc::new(data.root_path.clone());
-    let error_handlers: Arc<HashMap<u16, SendHandler>> = Arc::new(std::mem::take(&mut data.error_handlers));
-    let max_body = data.max_body;
+    let shared = Arc::new(ServerShared {
+        routes:         std::mem::take(&mut data.routes),
+        root_path:      data.root_path.clone(),
+        error_handlers: std::mem::take(&mut data.error_handlers),
+        max_body:       data.max_body,
+        receiving:      AtomicUsize::new(0),
+    });
 
     server_log!("HTTPServer: listening on http://{}\n", addr);
 
     let handles: Vec<_> = (0..data.workers).map(|_| {
         let server = Arc::clone(&server);
-        let routes = Arc::clone(&routes);
-        let root_path = Arc::clone(&root_path);
-        let error_handlers = Arc::clone(&error_handlers);
+        let shared = Arc::clone(&shared);
         let guard = crate::rc::ThreadGuard::new();
         std::thread::spawn(move || {
             let _guard = guard;
+            let _stack = crate::stack_guard::ThreadStack::enter();
             loop {
                 let next = { let _parked = crate::rc::park(); server.recv() };
                 match next {
-                    Ok(request) => handle_request(request, &routes, root_path.as_deref(), &error_handlers, max_body),
+                    Ok(request) => dispatch_request(request, &shared),
                     Err(_)      => break,
                 }
             }
@@ -1401,7 +1447,7 @@ pub extern "C" fn HTTPServerRequest_respond(req: i64, status: i64, body_ptr: i64
     let body      = unsafe { ptr_to_str(body_ptr).to_string() };
     let ctx       = unsafe { ctx_ref(req) };
     ctx.resp_status = status as u16;
-    ctx.resp_body   = body;
+    ctx.resp_body   = body.into_bytes();
 }
 
 /// Ajoute un en-tête à la réponse (ex: "Content-Type", "text/html").
@@ -1409,9 +1455,16 @@ pub extern "C" fn HTTPServerRequest_respond(req: i64, status: i64, body_ptr: i64
 pub extern "C" fn HTTPServerRequest_respondHeader(req: i64, name_ptr: i64, value_ptr: i64) {
     let name  = unsafe { ptr_to_str(name_ptr).to_string() };
     let value = unsafe { ptr_to_str(value_ptr).to_string() };
-    let header_str = format!("{}: {}", name, value);
+    if !is_valid_header_name(&name) || !is_valid_header_value(&value) {
+        unsafe {
+            throw_httpserver_exception(
+                &format!("Invalid response header '{}': CR, LF and control characters are not allowed", name.escape_debug()),
+                ERR_INVALID_HEADER,
+            );
+        }
+    }
     let ctx = unsafe { ctx_ref(req) };
-    if let Ok(h) = header_str.parse::<tiny_http::Header>() {
+    if let Ok(h) = tiny_http::Header::from_bytes(name.as_bytes(), value.as_bytes()) {
         ctx.resp_headers.push(h);
     }
 }

@@ -1,6 +1,13 @@
 [workspace]
 members = ["runtime", "runtime_tauri", "runtime_sdl", "runtime_android_jni", "tools/ocaracs", "tools/ocaraunit"]
 
+# tiny_http 0.12.0 patché (vendor/tiny_http, modifications marquées
+# `[Ocara]`) : délai de lecture/écriture par connexion, écoute maintenue
+# après une erreur d'`accept()` transitoire, 400 sur un en-tête non ASCII —
+# voir runtime/src/httpserver.rs (`HTTPServer_run`).
+[patch.crates-io]
+tiny_http = { path = "vendor/tiny_http" }
+
 [package]
 name    = "ocara"
 version = "1.0.0"

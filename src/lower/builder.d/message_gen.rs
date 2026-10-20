@@ -24,6 +24,7 @@
 /// rien de stack-résident (Alloca) ne survivrait à une reprise. Promouvoir
 /// tout, sans analyse de vivacité, est une simplification volontaire pour
 /// cette première implémentation (voir la fiche roadmap).
+use std::rc::Rc;
 use std::collections::{HashMap, HashSet};
 use crate::parsing::ast::*;
 use crate::ir::func::IrParam;
@@ -155,9 +156,9 @@ pub fn register_all_message_funcs(module: &mut IrModule, program: &Program) {
 pub fn lower_message_func(
     module: &mut IrModule,
     func: &FuncDecl,
-    fn_ret_types: &HashMap<String, IrType>,
-    fn_param_types: &HashMap<String, Vec<IrType>>,
-    fn_param_names: &HashMap<String, Vec<String>>,
+    fn_ret_types: &Rc<HashMap<String, IrType>>,
+    fn_param_types: &Rc<HashMap<String, Vec<IrType>>>,
+    fn_param_names: &Rc<HashMap<String, Vec<String>>>,
 ) {
     if !is_message_func(&func.ret_ty) { return; }
     let frame_class = frame_class_name(&func.name);
@@ -265,9 +266,9 @@ fn generate_resume_fn(
     module: &mut IrModule,
     func: &FuncDecl,
     fields: &[(String, IrType)],
-    fn_ret_types: &HashMap<String, IrType>,
-    fn_param_types: &HashMap<String, Vec<IrType>>,
-    fn_param_names: &HashMap<String, Vec<String>>,
+    fn_ret_types: &Rc<HashMap<String, IrType>>,
+    fn_param_types: &Rc<HashMap<String, Vec<IrType>>>,
+    fn_param_names: &Rc<HashMap<String, Vec<String>>>,
 ) -> Vec<(String, IrType, bool)> {
     let ir_params = vec![IrParam { name: "__frame".into(), ty: IrType::Ptr, slot: Value(0) }];
     let mut builder = LowerBuilder::new(module, resume_func_name(&func.name), ir_params, IrType::Bool);

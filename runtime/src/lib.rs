@@ -109,6 +109,8 @@ pub mod httprequest;
 pub mod thread;
 pub mod mutex;
 pub mod httpserver;
+mod stack_guard;
+mod httpserver_wire;
 pub mod httpsession;
 pub mod civil;
 pub mod datetime;
@@ -3182,6 +3184,7 @@ pub extern "C" fn __task_spawn(func: i64, env: i64) -> i64 {
     let guard = rc::ThreadGuard::new();
     let handle = std::thread::spawn(move || {
         let _guard = guard;
+        let _stack = crate::stack_guard::ThreadStack::enter();
         // Une exception non rattrapée dans la tâche est capturée ici (au
         // lieu d'arrêter le processus) et relevée au `resolve`.
         run_closure_catching(func, env)
@@ -3329,8 +3332,12 @@ pub extern "C" fn __cmp_eq_strict(lhs: i64, rhs: i64) -> i64 {
         return 1; // null === null
     }
 
-    // Types primitifs (int/float/bool, bruts ou boxés) : voir cmp_primitive
+    // Types primitifs (int/float/bool, bruts ou boxés) : voir cmp_primitive.
+    // Un bool logé dans un `mixed` est toujours boxé : `0 equal false` est faux.
     if lhs_type == 1 {
+        if is_bool_box(lhs) != is_bool_box(rhs) {
+            return 0;
+        }
         return if cmp_primitive(lhs, rhs, |a, b| a == b, |a, b| a == b) { 1 } else { 0 };
     }
 

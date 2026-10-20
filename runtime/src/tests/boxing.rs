@@ -220,14 +220,15 @@ fn heap_object_eq_strict_is_pointer_identity_not_structural() {
 }
 
 #[test]
-fn bool_boxed_and_int_compare_by_numeric_value() {
-    // Comportement actuel figé ici (pas nécessairement souhaitable, voir
-    // la limitation documentée pour `is bool` dans docs/EBNF.md §6.3) : un
-    // bool boxé `true` et un entier brut `1` comparent égaux, car
-    // cmp_primitive traite les deux comme des i64 numériques dès qu'aucun
-    // côté n'est float-boxé.
+fn bool_boxed_and_int_are_never_equal() {
+    // Un bool logé dans un `mixed` est toujours boxé (voir `__is_bool`) :
+    // `mixed(1) equal true` et `mixed(0) equal false` sont faux.
     let t = __box_bool(1);
-    assert_eq!(__cmp_eq_strict(t, 1), 1);
+    let f = __box_bool(0);
+    assert_eq!(__cmp_eq_strict(t, 1), 0);
+    assert_eq!(__cmp_eq_strict(f, __box_int_for_mixed(0)), 0);
+    assert_eq!(__cmp_eq_strict(t, __box_bool(1)), 1);
+    assert_eq!(__cmp_eq_strict(f, __box_bool(0)), 1);
 }
 
 // ── Groupe 4 : strings avec NUL interne, à toute position ──

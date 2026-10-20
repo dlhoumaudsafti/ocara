@@ -1,5 +1,6 @@
 /// Lowering des fonctions anonymes (closures)
 
+use std::rc::Rc;
 use std::collections::{HashMap, HashSet};
 use crate::parsing::ast::*;
 use crate::ir::func::IrParam;
@@ -61,9 +62,9 @@ pub fn lower_nameless_fn(
     ret_ast_ty:    Option<Type>,  // type déclaré ; l'ABI retourne toujours I64
     body:          &Block,
     captures:      &[(String, IrType)],
-    fn_ret_types:  &HashMap<String, IrType>,
-    fn_param_types: &HashMap<String, Vec<IrType>>,
-    fn_param_names: &HashMap<String, Vec<String>>,
+    fn_ret_types:  &Rc<HashMap<String, IrType>>,
+    fn_param_types: &Rc<HashMap<String, Vec<IrType>>>,
+    fn_param_names: &Rc<HashMap<String, Vec<String>>>,
     current_class: &Option<String>,
     meta:          &CaptureMeta,
     has_defaults:  bool,
@@ -99,9 +100,9 @@ pub fn lower_nameless_fn(
         // Convention uniforme : toutes les closures retournent I64
         // (void → retourne 0, les callers ignorent le résultat)
         let mut builder = LowerBuilder::new(module, anon_name.into(), ir_params, IrType::I64);
-        builder.fn_ret_types   = fn_ret_types.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
-        builder.fn_param_types = fn_param_types.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
-        builder.fn_param_names = fn_param_names.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        builder.fn_ret_types   = Rc::clone(fn_ret_types);
+        builder.fn_param_types = Rc::clone(fn_param_types);
+        builder.fn_param_names = Rc::clone(fn_param_names);
         builder.current_class  = current_class.clone();
         builder.var_class      = meta.var_class.clone();
         builder.func_vars      = meta.func_vars.clone();

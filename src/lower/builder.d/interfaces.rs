@@ -16,25 +16,20 @@ use crate::ir::inst::Inst;
 use crate::ir::module::IrModule;
 use crate::ir::types::IrType;
 use crate::parsing::ast::{ClassDecl, InterfaceMethod, Program};
+use super::class_dispatch::transitive_descendants;
 
 /// Génère, pour chaque interface implémentée par au moins une classe, un
 /// dispatcher réel pour chacune de ses méthodes.
 ///
-/// Portée volontairement alignée sur celle du diagnostic E09 (`src/main.rs`) :
-/// seules les classes qui déclarent `implements Interface` DIRECTEMENT dans
-/// leur propre liste sont candidates au dispatch — une sous-classe qui n'a
-/// pas elle-même redéclaré `implements` n'est PAS candidate ici, même si
-/// `SymbolTable::class_matches` (utilisée par `types_compat` pour
-/// l'affectation) la considère transitivement compatible via `extends` :
-/// cette asymétrie est voulue, E09 n'a validé la signature QUE pour les
-/// classes qui l'implémentent explicitement, on ne peut pas générer un appel
-/// vers une méthode dont la signature n'a jamais été vérifiée contre
-/// l'interface (voir `SymbolTable::class_matches` pour le détail).
+/// Candidats : les classes qui déclarent `implements Interface` et toutes
+/// leurs sous-classes (directes ou transitives) — `var a:Named = use Child()`
+/// avec `Child extends Base implements Named` est accepté par `types_compat`,
+/// le dispatcher doit donc reconnaître l'identité de classe de `Child` (sa
+/// méthode `Child_m`, propre ou copie héritée, existe toujours, voir
+/// `lower_class`).
 pub fn generate_interface_dispatchers(module: &mut IrModule, program: &Program) {
     for iface in &program.interfaces {
-        let implementers: Vec<&ClassDecl> = program.classes.iter()
-            .filter(|c| c.implements.iter().any(|i| i == &iface.name))
-            .collect();
+        let implementers = implementers_with_descendants(&iface.name, &program.classes);
         // Interface jamais implémentée : rien à générer (jamais atteignable
         // par un appel qui aurait passé la sema de toute façon).
         if implementers.is_empty() {
@@ -65,6 +60,18 @@ pub fn generate_interface_dispatchers(module: &mut IrModule, program: &Program) 
             generate_one_dispatcher(module, &iface.name, method, &implementers);
         }
     }
+}
+
+fn implementers_with_descendants<'c>(iface_name: &str, all_classes: &'c [ClassDecl]) -> Vec<&'c ClassDecl> {
+    let mut names: Vec<String> = Vec::new();
+    for class in all_classes.iter().filter(|c| c.implements.iter().any(|i| i == iface_name)) {
+        for name in std::iter::once(class.name.clone()).chain(transitive_descendants(&class.name, all_classes)) {
+            if !names.contains(&name) {
+                names.push(name);
+            }
+        }
+    }
+    names.iter().filter_map(|n| all_classes.iter().find(|c| &c.name == n)).collect()
 }
 
 fn generate_one_dispatcher(
@@ -387,5 +394,26 @@ mod tests {
             "an interface method's own instance param types must be known (mixed lowers to Ptr), \
              not just its implementers' — otherwise mixed-boxing at the call site has nothing to check against"
         );
+    }
+
+    /// Une sous-classe (directe ou transitive) d'un implémenteur reçoit sa
+    /// branche dans le dispatcher : `var a:Named = use Child()` rendait `null`.
+    #[test]
+    fn dispatcher_covers_subclasses_of_implementers() {
+        let module = lower(
+            "interface Named {\n\
+                 method name(): string\n\
+             }\n\
+             class Base implements Named {\n\
+                 public method name(): string { return \"base\" }\n\
+             }\n\
+             class Child extends Base {}\n\
+             class GrandChild extends Child {}\n",
+        );
+
+        let dispatcher = module.functions.iter().find(|f| f.name == "Named_name").expect("dispatcher must be generated");
+        for callee in ["Base_name", "Child_name", "GrandChild_name"] {
+            find_call(dispatcher, callee);
+        }
     }
 }
