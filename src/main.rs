@@ -11,7 +11,7 @@ use std::fs;
 
 use codegen::emit::CraneliftEmitter;
 use codegen::link::{link, link_android};
-use lower::builder::lower_program;
+use lower::builder::lower_program_with;
 
 use core::analysis::{analyze, AnalyzeOptions};
 use core::cli::parse_args;
@@ -52,12 +52,17 @@ fn run() {
         dump: args.dump,
         index: false,
         tolerant: false,
+        architecture_only: args.check_architecture,
     });
     for d in &analysis.diagnostics {
         d.print();
     }
     if analysis.has_errors() {
         std::process::exit(1);
+    }
+    if args.check_architecture {
+        println!("architecture ok");
+        return;
     }
     let mut program = analysis.checked.expect("analyse sans erreur").program;
 
@@ -71,7 +76,14 @@ fn run() {
 
     // ── 5. Lowering AST → Ocara HIR ────────────────────────────────────────────
     let source_file = args.input.to_string_lossy().to_string();
-    let mut ir_module = lower_program(&program, &source_file);
+    let mut ir_module = lower_program_with(&program, &source_file, args.coverage || args.coverage_points);
+    if args.coverage_points {
+        for (file, line) in ir_module.coverage.iter().flatten() {
+            println!("{}\t{}", line, file);
+        }
+        return;
+    }
+    ir::coverage::register_points(&mut ir_module);
     if args.leak_check {
         let classes: Vec<String> = program.classes.iter().map(|c| c.name.clone()).collect();
         ir::leak_check::instrument(&mut ir_module, &classes, &core::leak_sites::sites(&program, &args.input));

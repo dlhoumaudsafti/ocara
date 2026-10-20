@@ -1,12 +1,15 @@
 import * as vscode from 'vscode';
 import type { Navigation, NavState } from './navigation';
+import type { QualityMonitor, QualityState } from './quality';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // En-tête de la barre latérale Ocara : configuration `when` de l'éditeur
 // (OS, ARCH, BUILD — réglages ocara.os/arch/build) et boutons Compiler,
 // Lancer, Fixer, Dump (mode Debug/Release suivant BUILD), accès aux réglages.
 // Barre ← / → de l'historique de navigation, visible après une ouverture
-// depuis le panneau (navigation.ts).
+// depuis le panneau (navigation.ts). En tête, la LED « prêt pour la release »
+// et ses trois voyants (linter, couverture, architecture — quality.ts) ;
+// tous au vert en BUILD release, Compiler et Lancer passent au vert.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const OS = ['system', 'linux', 'windows', 'macos', 'android', 'other'];
@@ -22,11 +25,12 @@ type Message =
 export class ControlsProvider implements vscode.WebviewViewProvider {
     private view: vscode.WebviewView | undefined;
 
-    constructor(private readonly navigation: Navigation) {}
+    constructor(private readonly navigation: Navigation, private readonly quality: QualityMonitor) {}
 
     register(context: vscode.ExtensionContext): void {
         context.subscriptions.push(
             this.navigation.onChange(state => this.postNav(state)),
+            this.quality.onChange(state => this.postQuality(state)),
             vscode.window.registerWebviewViewProvider('ocara.controls', this),
             vscode.workspace.onDidChangeConfiguration(e => {
                 if (e.affectsConfiguration('ocara')) { this.post(); }
@@ -39,9 +43,14 @@ export class ControlsProvider implements vscode.WebviewViewProvider {
         view.webview.options = { enableScripts: true };
         view.webview.html = html(nonce());
         view.webview.onDidReceiveMessage((msg: Message) => void this.handle(msg));
-        view.onDidChangeVisibility(() => { this.post(); this.postNav(this.navigation.state()); });
+        view.onDidChangeVisibility(() => { this.post(); this.postNav(this.navigation.state()); this.postQuality(this.quality.state()); });
         this.post();
         this.postNav(this.navigation.state());
+        this.postQuality(this.quality.state());
+    }
+
+    private postQuality(quality: QualityState): void {
+        void this.view?.webview.postMessage({ quality });
     }
 
     private postNav(nav: NavState): void {
@@ -120,8 +129,29 @@ function html(n: string): string {
   .nav[hidden] { display: none; }
   .nav button { padding: 2px 8px; font-size: 13px; }
   .nav button:disabled { opacity: .4; cursor: default; }
+  .quality { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; padding-bottom: 6px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-widget-border, transparent)); }
+  .led { width: 12px; height: 12px; border-radius: 50%; flex: none; background: #888;
+    box-shadow: 0 0 6px 1px currentColor; color: #888; }
+  .led.red { background: #e5484d; color: #e5484d; }
+  .led.orange { background: #f5a524; color: #f5a524; }
+  .led.blue { background: #3b82f6; color: #3b82f6; }
+  .led.green { background: #30a46c; color: #30a46c; }
+  .quality .title { font-weight: 600; opacity: .85; margin-right: auto; }
+  .light { display: inline-flex; align-items: center; gap: 3px; opacity: .85; font-size: 11px; }
+  .light::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #888; }
+  .light.ok::before { background: #30a46c; }
+  .light.ko::before { background: #e5484d; }
+  button.primary.ready { background: #2e8b57; color: #fff; }
+  button.primary.ready:hover { background: #33a065; }
 </style></head>
 <body>
+  <div class="quality" id="quality" title="Qualité requise pour une compilation release">
+    <span class="led" id="led"></span><span class="title">Release</span>
+    <span class="light" id="q-lint">Linter</span>
+    <span class="light" id="q-coverage">Coverage</span>
+    <span class="light" id="q-architecture">Architecture</span>
+  </div>
   <div class="nav" id="nav" hidden>
     <button id="back" title="Script précédent">←</button>
     <button id="forward" title="Script suivant">→</button>
@@ -146,13 +176,34 @@ function html(n: string): string {
     $(key).addEventListener('change', e => { $(key + 'Other').hidden = e.target.value !== 'other'; set(key, e.target.value); });
     $(key + 'Other').addEventListener('change', e => set(key + 'Other', e.target.value.trim()));
   }
-  $('build').addEventListener('change', e => set('build', e.target.value));
+  $('build').addEventListener('change', e => { set('build', e.target.value); paintButtons(); });
   document.querySelectorAll('button[data-action]').forEach(b => b.addEventListener('click', () => vscode.postMessage({ type: 'run', action: b.dataset.action })));
   $('back').addEventListener('click', () => vscode.postMessage({ type: 'nav', action: 'back' }));
   $('forward').addEventListener('click', () => vscode.postMessage({ type: 'nav', action: 'forward' }));
   $('navClear').addEventListener('click', () => vscode.postMessage({ type: 'nav', action: 'clear' }));
   $('history').addEventListener('change', e => vscode.postMessage({ type: 'nav-go', index: Number(e.target.value) }));
+  let releaseReady = false;
+  const ledColor = score => score >= 100 ? 'green' : score >= 66.6666 ? 'blue' : score >= 33.3333 ? 'orange' : 'red';
+  const paintButtons = () => {
+    document.querySelectorAll('button[data-action="compile"], button[data-action="run"]')
+      .forEach(b => b.classList.toggle('ready', releaseReady && $('build').value === 'release'));
+  };
   window.addEventListener('message', ({ data: msg }) => {
+    if (msg.quality) {
+      const q = msg.quality;
+      $('led').className = 'led ' + ledColor(q.score);
+      const names = { lint: 'Linter', coverage: 'Coverage', architecture: 'Architecture' };
+      const tips = [];
+      for (const key of ['lint', 'coverage', 'architecture']) {
+        $('q-' + key).className = 'light ' + q[key].light;
+        $('q-' + key).title = names[key] + ' : ' + q[key].detail;
+        tips.push(names[key] + ' : ' + q[key].detail);
+      }
+      $('quality').title = 'Qualité release : ' + Math.round(q.score) + ' %\\n' + tips.join('\\n');
+      releaseReady = q.score >= 100;
+      paintButtons();
+      return;
+    }
     if (msg.nav) {
       const { entries, index } = msg.nav;
       $('nav').hidden = entries.length < 2;
@@ -170,6 +221,7 @@ function html(n: string): string {
     const data = msg.config;
     if (!data) return;
     for (const key of ['os', 'arch', 'build']) { $(key).value = data[key]; }
+    paintButtons();
     for (const key of ['os', 'arch']) {
       $(key + 'Other').hidden = data[key] !== 'other';
       if (document.activeElement !== $(key + 'Other')) { $(key + 'Other').value = data[key + 'Other']; }

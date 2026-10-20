@@ -17,7 +17,8 @@
     "onView:ocara.controls",
     "onView:ocara.workflow",
     "onView:ocara.graph",
-    "onView:ocara.benchmark"
+    "onView:ocara.benchmark",
+    "onView:ocara.coverage"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -58,10 +59,43 @@
           "default": "ocaracs",
           "markdownDescription": "Chemin de l'analyseur de style `ocaracs` ou commande pour le lancer (mêmes règles que `ocara.compilerPath`)."
         },
+        "ocara.ocaraunitPath": {
+          "type": "string",
+          "default": "ocaraunit",
+          "markdownDescription": "Chemin du runner de tests `ocaraunit` ou commande pour le lancer (mêmes règles que `ocara.compilerPath`)."
+        },
         "ocara.lint.enable": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Analyse `ocaracs` automatique à l'affichage, l'ouverture et l'enregistrement d'un fichier `.oc` (règles : `.ocaracs` le plus proche du script, sinon valeurs par défaut d'ocaracs)."
+        },
+        "ocara.coverage.auto": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Lance automatiquement les tests et la couverture par ligne à l'ouverture de l'espace de travail et à l'enregistrement d'un fichier `.oc` (bouton et commande « Lancer les tests et la couverture » disponibles sinon)."
+        },
+        "ocara.coverage.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Dossiers ou fichiers exclus de la couverture et des voyants (ex. `core`, `main.oc`, `context/car/infra/db`). Comparés par segments de chemin, relativement à la racine de chaque projet (et de l'espace de travail pour la recherche des projets) : `core` exclut `core/…` et `a/core/…`."
+        },
+        "ocara.coverage.projects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Dossiers de tests à lancer (relatifs à l'espace de travail, ex. `examples/advanced/mini_project_hexa/tests`). Vide : tout dossier `tests` contenant des `*Test.oc`, la racine du projet étant son parent."
+        },
+        "ocara.coverage.threshold": {
+          "type": "number",
+          "default": 100,
+          "minimum": 0,
+          "maximum": 100,
+          "markdownDescription": "Couverture par ligne (en %) à partir de laquelle le voyant Coverage passe au vert (tous les tests doivent aussi passer)."
         },
         "ocara.autoImport.enable": {
           "type": "boolean",
@@ -264,6 +298,22 @@
         "command": "ocara.restartLanguageServer",
         "title": "Redémarrer le serveur de langage",
         "category": "Ocara"
+      },
+      {
+        "command": "ocara.coverage.run",
+        "title": "Lancer les tests et la couverture",
+        "category": "Ocara",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "ocara.coverage.goto",
+        "title": "Aller au code non couvert",
+        "category": "Ocara"
+      },
+      {
+        "command": "ocara.coverage.output",
+        "title": "Afficher la sortie des tests",
+        "category": "Ocara"
       }
     ],
     "menus": {
@@ -383,6 +433,14 @@
         {
           "command": "ocara.nav.clear",
           "when": "ocara.nav.active"
+        },
+        {
+          "command": "ocara.coverage.goto",
+          "when": "false"
+        },
+        {
+          "command": "ocara.coverage.output",
+          "when": "false"
         }
       ],
       "view/title": [
@@ -415,6 +473,11 @@
           "command": "ocara.bench.clear",
           "when": "view == ocara.benchmark",
           "group": "navigation@5"
+        },
+        {
+          "command": "ocara.coverage.run",
+          "when": "view == ocara.coverage",
+          "group": "navigation"
         }
       ],
       "editor/title": [
@@ -502,6 +565,11 @@
         {
           "id": "ocara.benchmark",
           "name": "Benchmark",
+          "contextualTitle": "Ocara"
+        },
+        {
+          "id": "ocara.coverage",
+          "name": "Coverage",
           "contextualTitle": "Ocara"
         }
       ]

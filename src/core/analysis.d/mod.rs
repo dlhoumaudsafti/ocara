@@ -33,6 +33,9 @@ pub struct AnalyzeOptions<'a> {
     /// Reprise sur erreur de syntaxe : analyse du programme partiel, seules
     /// les erreurs de syntaxe sont rapportées (serveur de langage).
     pub tolerant: bool,
+    /// S'arrête après la vérification de l'architecture hexagonale : seuls
+    /// ses diagnostics sont rapportés (`--check-architecture`).
+    pub architecture_only: bool,
 }
 
 /// Programme fusionné et vérifié par la sema (même avec des erreurs).
@@ -98,6 +101,9 @@ fn analyze_program(opts: &AnalyzeOptions) -> Result<Analysis, Diagnostic> {
     imports::check_imports(&program, source_dir, input)?;
     // Architecture hexagonale : imports et `wiring` de chaque fichier atteint.
     let architecture = architecture::check(&program, input, source_dir);
+    if opts.architecture_only {
+        return Ok(Analysis { diagnostics: architecture, checked: None, variants: Vec::new() });
+    }
     syntax.extend(imports::load_imports(&mut program, source_dir, input, &all_interfaces, &homonyms, opts.tolerant)?);
 
     // `wiring` d'une classe de test : la classe visée devient la première

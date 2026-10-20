@@ -47,6 +47,7 @@ fn restore_loop_vars(builder: &mut LowerBuilder, saved: Vec<SavedBinding>) {
 
 pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
     builder.binary_ir_types.get_mut().clear();
+    crate::ir::coverage::mark_stmt(builder, crate::core::runtime_expand::get_stmt_span(stmt));
     match stmt {
         // ── Déclarations ──────────────────────────────────────────────────────
         Stmt::Var { name, ty, value, mutable, kind, .. } => {

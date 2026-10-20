@@ -13,4 +13,4 @@ pub mod message_gen;
 
 // Re-exports publics
 pub use types::LowerBuilder;
-pub use program::lower_program;
+pub use program::lower_program_with;

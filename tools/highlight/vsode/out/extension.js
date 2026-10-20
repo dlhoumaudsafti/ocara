@@ -12,6 +12,8 @@ const benchmark_1 = require("./benchmark");
 const controls_1 = require("./controls");
 const graph_1 = require("./graph");
 const navigation_1 = require("./navigation");
+const coverage_1 = require("./coverage");
+const quality_1 = require("./quality");
 function activate(context) {
     // Serveur de langage du compilateur : diagnostics en direct, définition,
     // survol des noms, symboles du document, complétion, aide à la signature,
@@ -26,10 +28,15 @@ function activate(context) {
     new compile_1.OcaraCompiler().register(context);
     (0, fix_1.registerFix)(context, linter);
     // Barre latérale Ocara : configuration et commandes, workflow, graphe
-    // d'appels et benchmark du script affiché.
+    // d'appels, benchmark du script affiché et couverture de l'espace de travail.
     const navigation = new navigation_1.Navigation();
     navigation.register(context);
-    new controls_1.ControlsProvider(navigation).register(context);
+    // Tests et couverture par ligne (ocaraunit), voyants de qualité release.
+    const coverage = new coverage_1.CoverageProvider();
+    coverage.register(context);
+    const quality = new quality_1.QualityMonitor(coverage);
+    quality.register(context);
+    new controls_1.ControlsProvider(navigation, quality).register(context);
     const workflow = new workflow_1.WorkflowProvider(context.extensionUri);
     workflow.register(context);
     new graph_1.GraphProvider(context.extensionUri).register(context, workflow.onData);

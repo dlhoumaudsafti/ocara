@@ -12,6 +12,7 @@ use std::{
 use crate::{
     config::{collect_oc_files, Config},
     coverage::{compute_coverage, extract_all_function_names, FileCoverage},
+    lines::Hits,
     runner::{run_test_file, RunContext, TestResult},
 };
 
@@ -44,7 +45,7 @@ pub fn rel_path(path: &Path) -> String {
     path.strip_prefix(&cwd).unwrap_or(path).to_string_lossy().to_string()
 }
 
-fn print_separator(c: &Ansi) {
+pub fn print_separator(c: &Ansi) {
     println!("{}══════════════════════════════════════════════{}", c.dim, c.reset);
 }
 
@@ -57,9 +58,9 @@ fn print_block(c: &Ansi, title: &str, text: &str) {
 
 #[derive(Default)]
 pub struct Totals {
-    pass:       usize,
-    fail:       usize,
-    errors:     usize,
+    pub pass:   usize,
+    pub fail:   usize,
+    pub errors: usize,
     compile_ms: u128,
     run_ms:     u128,
 }
@@ -111,7 +112,7 @@ fn print_totals(c: &Ansi, t: &Totals) {
 }
 
 /// Exécute chaque fichier de test, affiche les résultats et les totaux.
-pub fn run_all(c: &Ansi, ctx: &RunContext, test_files: &[PathBuf]) -> Totals {
+pub fn run_all(c: &Ansi, ctx: &RunContext, test_files: &[PathBuf], hits: &mut Hits) -> Totals {
     print_separator(c);
     println!("{} Tests ocaraunit{}", c.bold, c.reset);
     print_separator(c);
@@ -121,7 +122,12 @@ pub fn run_all(c: &Ansi, ctx: &RunContext, test_files: &[PathBuf]) -> Totals {
         println!();
         println!("{}{}{}:", c.bold, shown, c.reset);
         match run_test_file(ctx, tf, &shown) {
-            Ok(res) => print_result(c, &res, &mut totals),
+            Ok(res) => {
+                if let Some(report) = &res.coverage {
+                    hits.add_report(report, &ctx.project_root);
+                }
+                print_result(c, &res, &mut totals);
+            }
             Err(err) => {
                 print_block(c, "ERREUR compilation :", &err);
                 totals.errors += 1;
@@ -134,7 +140,7 @@ pub fn run_all(c: &Ansi, ctx: &RunContext, test_files: &[PathBuf]) -> Totals {
 
 /// Fichiers source couverts : `scope` (fichier unique ou dossier), hors
 /// fichiers de test et hors dossier de tests (fichiers de support compris).
-fn coverage_sources(scope: &Path, scan_root: &Path, test_files: &[PathBuf], cfg: &Config, cfg_root: &Path) -> Vec<PathBuf> {
+pub fn coverage_sources(scope: &Path, scan_root: &Path, test_files: &[PathBuf], cfg: &Config, cfg_root: &Path) -> Vec<PathBuf> {
     if scope.is_file() {
         return vec![scope.to_path_buf()];
     }

@@ -26,7 +26,7 @@ fn errors(test: &str, architecture: &str, files: &[(&str, String)], entry_import
     let imports: String = entry_imports.iter().map(|i| format!("import {}\n", i)).collect();
     write(&dir, "main.oc", &format!("import ocara.IO\n{}\n{}\n\nfunction main(): int {{\n    return 0\n}}\n", imports, architecture));
     let input = dir.join("main.oc");
-    let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&dir), dump: false, index: false, tolerant: false });
+    let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&dir), dump: false, index: false, tolerant: false, architecture_only: false });
     std::fs::remove_dir_all(&dir).ok();
     analysis.diagnostics.iter().filter(|d| d.is_error()).map(|d| d.message.clone()).collect()
 }
@@ -111,7 +111,7 @@ fn layout_errors(test: &str, files: &[(&str, String)], main: &str) -> Vec<String
     write(&base, "proj/main.oc", main);
     let input = base.join("proj/main.oc");
     let src_dir = base.join("proj");
-    let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&src_dir), dump: false, index: false, tolerant: false });
+    let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&src_dir), dump: false, index: false, tolerant: false, architecture_only: false });
     std::fs::remove_dir_all(&base).ok();
     analysis.diagnostics.iter().filter(|d| d.is_error()).map(|d| d.message.clone()).collect()
 }
@@ -181,7 +181,7 @@ fn test_files_follow_project_architecture() {
         write(&dir, "context/home/domain/Entity.oc", &class("context.home.domain", "Entity", &["context.home.app.Service"]));
         write(&dir, "tests/EntityTest.oc", &format!("{}\nimport ocara.UnitTest\nimport context.home.domain.Entity\n\nclass Test_Entity {{\n    public method pingTest(): int {{\n        UnitTest::assertEquals(1, Entity::ping())\n        return 0\n    }}\n}}\n", test_header));
         let input = dir.join("tests/EntityTest.oc");
-        let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&dir), dump: false, index: false, tolerant: false });
+        let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&dir), dump: false, index: false, tolerant: false, architecture_only: false });
         std::fs::remove_dir_all(&dir).ok();
         analysis.diagnostics.iter().filter(|d| d.is_error()).map(|d| d.message.clone()).collect()
     };
@@ -189,4 +189,24 @@ fn test_files_follow_project_architecture() {
     assert!(errs.iter().any(|e| e.contains("domain (domain) peut dépendre de domain, pas de application")), "{:?}", errs);
     let errs = run("permissive", "architecture permissive\n");
     assert!(!errs.iter().any(|e| e.contains("architecture hexagonale")), "{:?}", errs);
+}
+
+/// `--check-architecture` : seuls les diagnostics d'architecture comptent
+/// (une erreur de type du programme n'en est pas un).
+#[test]
+fn architecture_only_reports_architecture_errors_only() {
+    let check = |test: &str, entity_imports: &[&str]| -> Vec<String> {
+        let dir = std::env::temp_dir().join(format!("ocara_arch_only_{}_{}", test, std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        write(&dir, "context/home/app/Service.oc", &class("context.home.app", "Service", &[]));
+        write(&dir, "context/home/domain/Entity.oc", &class("context.home.domain", "Entity", entity_imports));
+        write(&dir, "main.oc", &format!("import context.home.domain.Entity\n{}\n\nfunction main(): int {{\n    var x:int = \"pas un entier\"\n    return 0\n}}\n", HEXA));
+        let input = dir.join("main.oc");
+        let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&dir), dump: false, index: false, tolerant: false, architecture_only: true });
+        std::fs::remove_dir_all(&dir).ok();
+        analysis.diagnostics.iter().filter(|d| d.is_error()).map(|d| d.message.clone()).collect()
+    };
+    assert!(check("ok", &[]).is_empty(), "{:?}", check("ok", &[]));
+    let errs = check("ko", &["context.home.app.Service"]);
+    assert!(errs.iter().any(|e| e.contains("pas de application")), "{:?}", errs);
 }

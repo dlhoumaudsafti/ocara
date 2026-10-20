@@ -25,6 +25,8 @@ pub struct RunContext {
     pub timeout:      Duration,
     /// Conserver les codes ANSI des sorties du compilateur et du binaire
     pub color:        bool,
+    /// Binaires compilés avec `ocara --coverage` (voir `lines.rs`)
+    pub line_coverage: bool,
 }
 
 #[derive(Debug)]
@@ -42,6 +44,8 @@ pub struct TestResult {
     pub compile_time_ms: u128,
     /// Temps d'exécution en millisecondes
     pub run_time_ms: u128,
+    /// Points de couverture écrits par le binaire (`--line-coverage`)
+    pub coverage: Option<String>,
 }
 
 impl TestResult {
@@ -83,6 +87,9 @@ fn compile(ctx: &RunContext, src: &Path, bin: &Path, shown: &str) -> Result<(), 
     fs::write(&tmp_src, source).map_err(|e| format!("écriture de {} : {}", tmp_src.display(), e))?;
     let mut cmd = Command::new(&ctx.ocara);
     cmd.arg(&tmp_src).arg("-o").arg(bin).arg("--src").arg(&ctx.project_root).current_dir(&ctx.project_root);
+    if ctx.line_coverage {
+        cmd.arg("--coverage");
+    }
     let out = run(&mut cmd, ctx.timeout);
     let _ = fs::remove_file(&tmp_src);
     let out = out.map_err(|e| format!("impossible de lancer {} : {}", ctx.ocara.display(), e))?;
@@ -160,11 +167,20 @@ pub fn run_test_file(ctx: &RunContext, src: &Path, shown: &str) -> Result<TestRe
         compile_time_ms = start.elapsed().as_millis().max(1);
         purge(&ctx.cache_dir, &bin, &entry);
     }
+    let report = bin.with_extension("cov");
+    let _ = fs::remove_file(&report);
+    let mut cmd = Command::new(&bin);
+    cmd.current_dir(&ctx.project_root);
+    if ctx.line_coverage {
+        cmd.env("OCARA_COVERAGE_FILE", &report);
+    }
     let start = Instant::now();
-    let out = run(Command::new(&bin).current_dir(&ctx.project_root), ctx.timeout)
+    let out = run(&mut cmd, ctx.timeout)
         .map_err(|e| format!("impossible d'exécuter le binaire : {}", e))?;
     let run_time_ms = start.elapsed().as_millis();
     let mut asserts = parse_asserts(&out.stdout);
     let error = run_error(ctx, &out, &mut asserts);
-    Ok(TestResult { asserts, error, compile_time_ms, run_time_ms })
+    let coverage = ctx.line_coverage.then(|| fs::read_to_string(&report).unwrap_or_default());
+    let _ = fs::remove_file(&report);
+    Ok(TestResult { asserts, error, compile_time_ms, run_time_ms, coverage })
 }

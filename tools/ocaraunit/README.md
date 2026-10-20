@@ -26,6 +26,10 @@ ocaraunit [options] [<dossier|fichier>]
 |---------------------------|--------------------------------------------------------------------|
 | `--coverage`              | Active l'analyse de couverture (périmètre : racine du projet)      |
 | `--coverage=<chemin>`     | Couverture limitée à un dossier ou à un fichier                    |
+| `--line-coverage`         | Couverture **par ligne** : tests compilés avec `ocara --coverage` (voir plus bas) |
+| `--line-coverage=<chemin>`| Couverture par ligne limitée à un dossier ou à un fichier          |
+| `--exclude <chemin>`      | Exclut un dossier ou un fichier (tests et couverture), en plus de `[exclude]` ; répétable |
+| `--json <fichier>`        | Écrit les résultats et la couverture par ligne en JSON (avec `--line-coverage`) |
 | `--src <dossier>`         | Dossier racine du projet pour résoudre les imports                |
 | `--timeout <s>`           | Délai par fichier de test (compilation, puis exécution), défaut 120 s |
 | `--clear`                 | Supprimer le cache (seul) ou avant de lancer les tests            |
@@ -333,6 +337,49 @@ Sont analysées : toutes les fonctions libres (`function foo`) et toutes les mé
 La même règle s'applique au pourcentage global en bas.
 
 ---
+
+## Couverture par ligne (`--line-coverage`)
+
+`--coverage` mesure une couverture **par nom** (une fonction `foo` est couverte s'il existe un test
+`fooTest`) ; c'est celle qu'exige la CI. `--line-coverage` mesure ce que les tests **exécutent
+réellement** :
+
+- chaque fichier de test est compilé avec `ocara --coverage` (binaires instrumentés rangés à part,
+  dans `.ocaraunit_cache/lines/`) : chaque instruction source est un point `(fichier, ligne)` ;
+- à sa sortie, chaque binaire écrit ses points dans le fichier `$OCARA_COVERAGE_FILE` ; les points de
+  tous les tests sont fusionnés — une ligne est couverte si un test l'a exécutée ;
+- un fichier source qu'aucun test n'importe reçoit ses points de `ocara --coverage-points` : il est
+  entièrement non couvert. Un fichier qui ne se compile pas seul (variante `when` d'un autre système,
+  par exemple) est signalé « non analysé » ;
+- périmètre et exclusions comme pour `--coverage` (fichiers du dossier de tests, `[exclude]`,
+  `--exclude`) ; une instruction sans position (synthétisée par les blocs runtime) n'est pas comptée.
+
+```
+══════════════════════════════════════════════
+ Couverture par ligne
+══════════════════════════════════════════════
+
+  configs/Server.oc                92.9%  [███████████████████░]  13/14 lignes
+    configs/Server.oc:33:1: non couverte (ligne 33)
+  context/car/infra/db/CarRepository.oc  100.0%  [████████████████████]  29/29 lignes
+
+══════════════════════════════════════════════
+ Couverture globale : 93.3% (393/421 lignes)
+══════════════════════════════════════════════
+```
+
+`--json <fichier>` écrit le même résultat pour l'extension VS Code :
+
+```json
+{"tests":{"pass":302,"fail":0,"errors":0},
+ "coverage":{"covered":393,"total":421,"percent":93.35,
+   "files":[{"path":"/…/configs/Server.oc","covered":13,"total":14,"percent":92.86,
+             "uncovered":[{"start":33,"end":33}],"points":[[12,1],…,[33,0]]}],
+   "unanalyzed":[{"path":"/…/core/mainAndroid.runtime.oc","error":"…"}]}}
+```
+
+`uncovered` regroupe les lignes instrumentées consécutives jamais exécutées ; `points` liste chaque
+ligne instrumentée et son exécution (`1`/`0`).
 
 ## Configuration `.ocaraunit`
 

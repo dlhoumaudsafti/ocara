@@ -93,7 +93,7 @@ impl Workspace {
         let root = self.project_root(path);
         let _ = std::env::set_current_dir(&root);
         let input = self.entry_for(path, &root);
-        analyze(&AnalyzeOptions { input: &input, src_dir: Some(&root), dump: false, index: true, tolerant: true })
+        analyze(&AnalyzeOptions { input: &input, src_dir: Some(&root), dump: false, index: true, tolerant: true, architecture_only: false })
     }
 
     /// Fichier d'entrée de l'analyse de `path` : le `main.oc` du projet pour

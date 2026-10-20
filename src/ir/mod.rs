@@ -9,3 +9,4 @@ pub mod func;
 pub mod module;
 pub mod profile;
 pub mod leak_check;
+pub mod coverage;

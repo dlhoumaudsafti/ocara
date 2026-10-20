@@ -140,6 +140,9 @@ ocara [options] <fichier.oc>
 | `--release` | Optimisations maximales (défaut : debug) |
 | `--leak-check` | Compte allocations et libérations ; liste à la sortie les valeurs non libérées, par classe ou genre (fichier `OCARA_LEAK_OUT`, sinon stderr) |
 | `--profile` | Mesure le temps de chaque fonction ; rapport à la sortie du programme (fichier `OCARA_PROFILE_OUT`, sinon stderr) |
+| `--coverage` | Couverture par ligne : chaque instruction exécutée est notée ; à la sortie, `<0\|1>\t<ligne>\t<fichier>` par point dans le fichier `OCARA_COVERAGE_FILE` (rien sans cette variable) |
+| `--coverage-points` | Liste les lignes instrumentées par `--coverage` (`<ligne>\t<fichier>`), sans compiler |
+| `--check-architecture` | Vérifie seulement l'architecture hexagonale (imports, `wiring`) |
 | `--src <dossier>` | Dossier racine pour la résolution des imports |
 
 ### Exemples

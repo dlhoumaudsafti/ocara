@@ -109,6 +109,7 @@ pub mod httprequest;
 pub mod thread;
 pub mod mutex;
 pub mod httpserver;
+mod coverage;
 mod stack_guard;
 mod httpserver_wire;
 pub mod httpsession;

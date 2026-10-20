@@ -23,6 +23,8 @@ mod config;
 mod coverage;
 mod discovery;
 mod imports;
+mod line_report;
+mod lines;
 mod process;
 mod report;
 mod runner;
@@ -54,6 +56,10 @@ fn usage() {
     eprintln!("Options:");
     eprintln!("  --coverage                Analyse aussi la couverture (périmètre : racine du projet)");
     eprintln!("  --coverage=<chemin>       Couverture limitée à un dossier ou un fichier");
+    eprintln!("  --line-coverage           Couverture par ligne (tests instrumentés, périmètre : racine du projet)");
+    eprintln!("  --line-coverage=<chemin>  Couverture par ligne limitée à un dossier ou un fichier");
+    eprintln!("  --exclude <chemin>        Exclut un dossier ou un fichier (tests et couverture), répétable");
+    eprintln!("  --json <fichier>          Écrit résultats et couverture par ligne en JSON");
     eprintln!("  --src <dossier>           Racine du projet pour résoudre les imports");
     eprintln!("  --timeout <s>             Délai par fichier de test, compilation et exécution (défaut : {} s)",
               cli::DEFAULT_TIMEOUT_S);
@@ -151,11 +157,14 @@ fn main() {
         None => detect_project_root(&target),
     };
     let cfg_root = find_config_root(&project_root).unwrap_or_else(|| project_root.clone());
-    let cfg = load_config(&cfg_root);
+    let mut cfg = load_config(&cfg_root);
+    cfg.exclude.extend(opts.excludes.iter().cloned());
     let (scan_root, test_files) = select_tests(&c, &target, &cfg, &cfg_root);
 
-    let cache_dir = project_root.join(CACHE_DIR);
-    if opts.clear { clear_cache(&c, &cache_dir); }
+    let cache_root = project_root.join(CACHE_DIR);
+    if opts.clear { clear_cache(&c, &cache_root); }
+    // Binaires instrumentés à part : alterner les deux modes ne recompile rien.
+    let cache_dir = if opts.line_coverage { cache_root.join("lines") } else { cache_root };
     let _ = fs::create_dir_all(&cache_dir);
 
     let ocara = find_ocara_bin(&cwd);
@@ -166,8 +175,23 @@ fn main() {
         cache_dir,
         timeout: Duration::from_secs(opts.timeout_s),
         color: !c.reset.is_empty(),
+        line_coverage: opts.line_coverage,
     };
-    let totals: Totals = report::run_all(&c, &ctx, &test_files);
+    let mut hits = lines::Hits::default();
+    let totals: Totals = report::run_all(&c, &ctx, &test_files, &mut hits);
+    let scope = opts.coverage_target.as_deref().map(|t| absolute(Path::new(t), &cwd))
+        .unwrap_or_else(|| project_root.clone());
+
+    if opts.line_coverage {
+        let (files, unanalyzed) = line_report::compute(&ctx, &scope, &scan_root, &test_files, &cfg, &cfg_root, &mut hits);
+        line_report::print(&c, &files, &unanalyzed);
+        if let Some(json) = &opts.json {
+            let report = lines::Report { pass: totals.pass, fail: totals.fail, errors: totals.errors, files: &files, unanalyzed: &unanalyzed };
+            if let Err(e) = fs::write(absolute(Path::new(json), &cwd), lines::to_json(&report)) {
+                eprintln!("{}Erreur : écriture de {} : {}{}", c.red, json, e, c.reset);
+            }
+        }
+    }
 
     if opts.coverage {
         let names: HashSet<String> = test_files.iter()
@@ -175,8 +199,6 @@ fn main() {
             .flat_map(|src| extract_tests(&src))
             .map(|t| coverage::normalize(&t.name))
             .collect();
-        let scope = opts.coverage_target.as_deref().map(|t| absolute(Path::new(t), &cwd));
-        let scope = scope.unwrap_or_else(|| project_root.clone());
         report::print_coverage(&c, &scope, &scan_root, &test_files, &cfg, &cfg_root, &names);
     }
 

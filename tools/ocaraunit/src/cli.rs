@@ -20,6 +20,13 @@ pub struct Options {
     pub clear:           bool,
     pub timeout_s:       u64,
     pub help:            bool,
+    /// `--line-coverage` : couverture par ligne (instrumentée) au lieu de la
+    /// couverture par nom ; périmètre dans `coverage_target`
+    pub line_coverage:   bool,
+    /// `--exclude <chemin>` (répétable), en plus de `[exclude]` du `.ocaraunit`
+    pub excludes:        Vec<String>,
+    /// `--json <fichier>` : résultats et couverture par ligne en JSON
+    pub json:            Option<String>,
 }
 
 impl Default for Options {
@@ -27,6 +34,7 @@ impl Default for Options {
         Options {
             coverage: false, coverage_target: None, target: None, src: None,
             clear: false, timeout_s: DEFAULT_TIMEOUT_S, help: false,
+            line_coverage: false, excludes: Vec::new(), json: None,
         }
     }
 }
@@ -92,6 +100,14 @@ pub fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Options, Str
                     None => after_coverage = true,
                 }
             }
+            "--line-coverage" => {
+                opts.line_coverage = true;
+                if inline.is_some() {
+                    opts.coverage_target = Some(value(inline, &mut rest, "--line-coverage")?);
+                }
+            }
+            "--exclude" => opts.excludes.push(value(inline, &mut rest, "--exclude")?),
+            "--json" => opts.json = Some(value(inline, &mut rest, "--json")?),
             "--src" => opts.src = Some(value(inline, &mut rest, "--src")?),
             "--timeout" => opts.timeout_s = parse_timeout(&value(inline, &mut rest, "--timeout")?)?,
             "--clear" if inline.is_none() => opts.clear = true,

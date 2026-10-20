@@ -12,6 +12,9 @@ use crate::parsing::ast::{Literal, Type};
 pub struct IrModule {
     pub name:      String,
     pub source_file: String,
+    /// Couverture (`--coverage`) : un point par instruction source lowered,
+    /// `(fichier, ligne)` — voir `crate::ir::coverage`. `None` sans `--coverage`.
+    pub coverage: Option<Vec<(String, usize)>>,
     pub functions: Vec<IrFunction>,
     /// Table des chaînes littérales (index → contenu)
     pub strings:   Vec<String>,

@@ -4,8 +4,9 @@ import * as fs from 'fs';
 import { execFile } from 'child_process';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Lancement des outils en ligne de commande (`ocara`, `ocaracs`) — commande
-// configurable par l'utilisateur (`ocara.compilerPath`/`ocara.ocaracsPath`) :
+// Lancement des outils en ligne de commande (`ocara`, `ocaracs`, `ocaraunit`)
+// — commande configurable par l'utilisateur (`ocara.compilerPath`,
+// `ocara.ocaracsPath`, `ocara.ocaraunitPath`) :
 // un chemin (`/usr/local/bin/ocara`) ou une commande avec arguments
 // (`"${workspaceFolder}/target/release/ocara" --src src`). Voir
 // docs/roadmap.d/tooling-vscode-lint-compile-dump.md.
@@ -67,11 +68,12 @@ export function ocaraOutput(): vscode.OutputChannel {
     return output;
 }
 
-/** Lance l'outil configuré par `setting` avec `args`, depuis `cwd`. */
-export function runTool(setting: string, defaultName: string, args: string[], cwd: string, document?: vscode.Uri): Promise<ToolResult> {
+/** Lance l'outil configuré par `setting` avec `args`, depuis `cwd` (`env` :
+ *  variables ajoutées à l'environnement). */
+export function runTool(setting: string, defaultName: string, args: string[], cwd: string, document?: vscode.Uri, env?: NodeJS.ProcessEnv): Promise<ToolResult> {
     const [program, ...baseArgs] = resolveCommand(setting, defaultName, document);
     return new Promise(resolve => {
-        execFile(program, [...baseArgs, ...args], { cwd, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
+        execFile(program, [...baseArgs, ...args], { cwd, maxBuffer: 64 * 1024 * 1024, env: { ...process.env, ...env } }, (error, stdout, stderr) => {
             const errno = error as NodeJS.ErrnoException | null;
             if (errno && typeof errno.code === 'string') {
                 resolve({ stdout, stderr, code: null, launchError: `${program} : ${errno.message}` });

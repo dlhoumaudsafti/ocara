@@ -33,7 +33,7 @@ fn homonymous_classes_resolve_per_importing_file() {
     write(&dir, "main.oc", "architecture permissive\nimport ocara.IO\nimport a.UseA\nimport b.UseB\n\nfunction main(): int {\n    IO::writeln(UseA::run() + UseB::run())\n    return 0\n}\n");
 
     let input = dir.join("main.oc");
-    let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&dir), dump: false, index: false, tolerant: false });
+    let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&dir), dump: false, index: false, tolerant: false, architecture_only: false });
     std::fs::remove_dir_all(&dir).ok();
 
     assert!(!analysis.has_errors(), "{:?}", analysis.diagnostics);
@@ -62,7 +62,7 @@ fn homonymous_functions_resolve_per_importing_file() {
     write(&dir, "main.oc", "architecture permissive\nimport ocara.IO\nimport a.UseA\nimport b.UseB\n\nfunction main(): int {\n    IO::writeln(UseA::run() + UseB::run())\n    return 0\n}\n");
 
     let input = dir.join("main.oc");
-    let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&dir), dump: false, index: false, tolerant: false });
+    let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&dir), dump: false, index: false, tolerant: false, architecture_only: false });
     std::fs::remove_dir_all(&dir).ok();
 
     assert!(!analysis.has_errors(), "{:?}", analysis.diagnostics);
@@ -97,7 +97,7 @@ fn local_names_shadow_homonymous_functions() {
     write(&dir, "main.oc", "architecture permissive\nimport ocara.IO\nimport a.UseA\nimport b.UseB\n\nfunction main(): int {\n    IO::writeln(UseA::run() + UseB::param(\"p\"))\n    return 0\n}\n");
 
     let input = dir.join("main.oc");
-    let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&dir), dump: false, index: false, tolerant: false });
+    let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&dir), dump: false, index: false, tolerant: false, architecture_only: false });
     std::fs::remove_dir_all(&dir).ok();
 
     assert!(!analysis.has_errors(), "{:?}", analysis.diagnostics);

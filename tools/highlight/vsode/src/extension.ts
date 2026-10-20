@@ -9,6 +9,8 @@ import { BenchmarkProvider } from './benchmark';
 import { ControlsProvider } from './controls';
 import { GraphProvider } from './graph';
 import { Navigation } from './navigation';
+import { CoverageProvider } from './coverage';
+import { QualityMonitor } from './quality';
 
 export function activate(context: vscode.ExtensionContext): void {
     // Serveur de langage du compilateur : diagnostics en direct, définition,
@@ -27,10 +29,15 @@ export function activate(context: vscode.ExtensionContext): void {
     registerFix(context, linter);
 
     // Barre latérale Ocara : configuration et commandes, workflow, graphe
-    // d'appels et benchmark du script affiché.
+    // d'appels, benchmark du script affiché et couverture de l'espace de travail.
     const navigation = new Navigation();
     navigation.register(context);
-    new ControlsProvider(navigation).register(context);
+    // Tests et couverture par ligne (ocaraunit), voyants de qualité release.
+    const coverage = new CoverageProvider();
+    coverage.register(context);
+    const quality = new QualityMonitor(coverage);
+    quality.register(context);
+    new ControlsProvider(navigation, quality).register(context);
     const workflow = new WorkflowProvider(context.extensionUri);
     workflow.register(context);
     new GraphProvider(context.extensionUri).register(context, workflow.onData);

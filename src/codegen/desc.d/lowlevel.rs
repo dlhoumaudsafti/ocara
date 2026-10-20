@@ -132,6 +132,10 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     // Pile alternative + message de débordement de pile, appelé en tête du
     // `main` généré (voir runtime/src/stack_guard.rs)
     BuiltinDesc { name: "__ocara_runtime_init",   params: &[],                                returns: None,              module: None },
+    // Couverture par ligne `--coverage` (voir runtime/src/coverage.rs)
+    BuiltinDesc { name: "__cov_init",             params: &[clt::I64],                        returns: None,              module: None },
+    BuiltinDesc { name: "__cov_point",            params: &[clt::I64, clt::I64, clt::I64],    returns: None,              module: None },
+    BuiltinDesc { name: "__cov_hit",              params: &[clt::I64],                        returns: None,              module: None },
 
     // Trampolines ui.handler / ui.handlers (voir src/lower/expr.d/tauri_handler.rs)
     BuiltinDesc { name: "__tauri_obj_is_string",   params: &[clt::I64, clt::I64],  returns: Some(clt::I64), module: None },

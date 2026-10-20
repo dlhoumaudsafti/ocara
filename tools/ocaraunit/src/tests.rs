@@ -144,3 +144,65 @@ fn coverage_ignores_case_and_underscores() {
     let names = [normalize("addBonusTest")].into_iter().collect();
     assert_eq!(compute_coverage(Path::new("a.oc"), &funcs, &names).covered_funcs, 1);
 }
+
+// ── Couverture par ligne (lines.rs) ──
+
+mod line_coverage {
+    use std::collections::BTreeMap;
+    use std::path::Path;
+
+    use crate::cli::parse_args;
+    use crate::lines::{to_json, FileLines, Hits, Report};
+
+    fn lines(points: &[(usize, bool)]) -> BTreeMap<usize, bool> {
+        points.iter().copied().collect()
+    }
+
+    #[test]
+    fn consecutive_uncovered_lines_form_one_range() {
+        let f = FileLines::of(Path::new("a.oc"), &lines(&[(2, true), (3, false), (5, false), (7, true), (9, false)]));
+        assert_eq!(f.uncovered, vec![(3, 5), (9, 9)]);
+        assert_eq!((f.covered, f.total), (2, 5));
+        assert_eq!(f.percent(), 40.0);
+    }
+
+    #[test]
+    fn a_line_hit_by_any_test_is_covered() {
+        let root = Path::new("/projet");
+        let mut hits = Hits::default();
+        hits.add_report("0\t4\t/projet/a.oc\n1\t5\t/projet/a.oc\n", root);
+        hits.add_report("1\t4\t/projet/a.oc\n0\t5\t/projet/a.oc\n", root);
+        hits.add_points("6\t/projet/a.oc\n", root);
+        let file = &hits.files[Path::new("/projet/a.oc")];
+        assert_eq!(file, &lines(&[(4, true), (5, true), (6, false)]));
+    }
+
+    #[test]
+    fn relative_report_paths_are_resolved_from_the_root() {
+        let mut hits = Hits::default();
+        hits.add_report("1\t1\tsrc/a.oc\n", Path::new("/projet"));
+        assert!(hits.files.contains_key(Path::new("/projet/src/a.oc")));
+    }
+
+    #[test]
+    fn json_report_lists_files_and_ranges() {
+        let files = vec![FileLines::of(Path::new("/p/\"a\".oc"), &lines(&[(1, true), (2, false)]))];
+        let json = to_json(&Report { pass: 3, fail: 0, errors: 1, files: &files, unanalyzed: &[] });
+        assert!(json.contains("\"tests\":{\"pass\":3,\"fail\":0,\"errors\":1}"), "{}", json);
+        assert!(json.contains("\"path\":\"/p/\\\"a\\\".oc\""), "{}", json);
+        assert!(json.contains("\"uncovered\":[{\"start\":2,\"end\":2}]"), "{}", json);
+        assert!(json.contains("\"percent\":50.00"), "{}", json);
+        assert!(json.contains("\"points\":[[1,1],[2,0]]"), "{}", json);
+    }
+
+    #[test]
+    fn line_coverage_exclude_and_json_options() {
+        let opts = parse_args(["--line-coverage=src", "--exclude", "core", "--exclude=main.oc", "--json", "out.json", "tests"]
+            .iter().map(|s| s.to_string())).expect("options valides");
+        assert!(opts.line_coverage && !opts.coverage);
+        assert_eq!(opts.coverage_target.as_deref(), Some("src"));
+        assert_eq!(opts.excludes, vec!["core".to_string(), "main.oc".to_string()]);
+        assert_eq!(opts.json.as_deref(), Some("out.json"));
+        assert_eq!(opts.target.as_deref(), Some("tests"));
+    }
+}

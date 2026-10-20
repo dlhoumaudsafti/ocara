@@ -35,9 +35,17 @@ fn concrete_return_class(ty: &Type) -> Option<String> {
     }
 }
 
+#[cfg(test)]
 pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
+    lower_program_with(program, source_file, false)
+}
+
+/// `coverage` : chaque instruction source devient un point de couverture
+/// (voir `crate::ir::coverage`).
+pub fn lower_program_with(program: &Program, source_file: &str, coverage: bool) -> IrModule {
     let module_name = "ocara_module".to_string();
     let mut module = IrModule::new(module_name);
+    module.coverage = coverage.then(Vec::new);
     
     // Stocker le nom du fichier source pour les messages d'erreur
     module.source_file = source_file.to_string();
