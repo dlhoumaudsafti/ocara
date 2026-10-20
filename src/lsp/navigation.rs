@@ -92,6 +92,14 @@ pub fn rename(ws: &Workspace, index: &ProjectIndex, path: &Path, pos: &Position,
     let (key, declaration) = key_at(ws, path, pos).ok_or("rien à renommer ici")?;
     let declaration = declaration.ok_or("déclaration introuvable (builtin ?)")?;
     let old_name = name_at(ws, &declaration).ok_or("déclaration introuvable")?;
+    if new_name == old_name {
+        return Err("le nom est inchangé".to_string());
+    }
+    let declaring = declaration.uri.to_file_path().map_err(|_| "déclaration introuvable")?;
+    let own = ws.text(&declaring).as_deref().and_then(super::project::parse).ok_or("déclaration introuvable")?;
+    if let Some(reason) = super::rename_check::conflict(&own, declaration.range.start.line as usize + 1, new_name) {
+        return Err(reason);
+    }
     let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
     let mut add = |loc: Location| {
         let edits = changes.entry(loc.uri).or_default();

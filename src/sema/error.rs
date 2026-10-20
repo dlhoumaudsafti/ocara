@@ -16,6 +16,8 @@ pub enum SemaError {
     ReturnTypeMismatch{ expected: String, found: String, span: Span },
     NotAClass         { name: String, span: Span },
     FieldNotFound     { class: String, field: String, span: Span },
+    /// Appel `objet.m()` d'une méthode inexistante (message « field … » trompeur).
+    MethodNotFound    { class: String, method: String, span: Span },
     InterfaceNotImpl  { class: String, iface: String, method: String, span: Span },
     InvalidAssign     { name: String, span: Span },
     NotStaticMethod   { class: String, method: String, span: Span },
@@ -215,6 +217,7 @@ impl SemaError {
             SemaError::ReturnTypeMismatch { span, .. } => span,
             SemaError::NotAClass          { span, .. } => span,
             SemaError::FieldNotFound      { span, .. } => span,
+            SemaError::MethodNotFound     { span, .. } => span,
             SemaError::InterfaceNotImpl   { span, .. } => span,
             SemaError::InvalidAssign      { span, .. } => span,
             SemaError::NotStaticMethod    { span, .. } => span,
@@ -285,6 +288,8 @@ impl SemaError {
                 format!("'{}' is not a class", name),
             SemaError::FieldNotFound     { class, field, .. } =>
                 format!("field '{}' not found in class '{}'", field, class),
+            SemaError::MethodNotFound    { class, method, .. } =>
+                format!("method '{}' not found in class '{}'", method, class),
             SemaError::InterfaceNotImpl  { class, iface, method, .. } =>
                 format!("class '{}' does not implement '{}::{}' from interface '{}'", class, iface, method, iface),
             SemaError::InvalidAssign     { name, .. } =>

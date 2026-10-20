@@ -90,7 +90,7 @@ simulator:
 # existantes (voitures TEST-OCUNIT-* créées puis supprimées, voir
 # tests/support/Fixture.oc).
 tests:
-	$(ROOT)/target/release/ocaraunit --coverage . tests
+	$(ROOT)/target/release/ocaraunit --coverage=. tests
 
 clean:
 	rm -f out out.o app.db

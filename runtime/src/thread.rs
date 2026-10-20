@@ -186,7 +186,8 @@ pub extern "C" fn Thread_id(self_ptr: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn Thread_sleep(ms: i64) {
     let _parked = crate::rc::park();
-    std::thread::sleep(std::time::Duration::from_millis(ms as u64));
+    // Durée négative : aucune attente (voir `System_sleep`).
+    std::thread::sleep(std::time::Duration::from_millis(ms.max(0) as u64));
 }
 
 /// Retourne l'ID du thread courant (0 pour le thread principal).

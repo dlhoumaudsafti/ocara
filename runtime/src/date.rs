@@ -96,11 +96,16 @@ pub extern "C" fn Date_day(date: i64) -> i64 {
             );
         }
     }
+    // Jour borné par la longueur réelle du mois (`2023-02-31` refusé).
+    let max_day = match (parts[0].parse::<i64>(), parts[1].parse::<i64>()) {
+        (Ok(y), Ok(m)) if (1..=12).contains(&m) => crate::civil::days_in_month(y, m),
+        _ => 31,
+    };
     match parts[2].parse::<i64>() {
-        Ok(d) if d >= 1 && d <= 31 => d,
+        Ok(d) if d >= 1 && d <= max_day => d,
         _ => unsafe {
             crate::exception::throw_date_exception(
-                &format!("Invalid day in date: '{}' (must be 1-31)", date_str),
+                &format!("Invalid day in date: '{}' (must be 1-{})", date_str, max_day),
                 101
             );
         }
@@ -110,40 +115,22 @@ pub extern "C" fn Date_day(date: i64) -> i64 {
 /// Retourne le jour de la semaine (0=lundi, 6=dimanche)
 #[unsafe(no_mangle)]
 pub extern "C" fn Date_dayOfWeek(date: i64) -> i64 {
-    let year = Date_year(date) as i32;
-    let month = Date_month(date) as i32;
-    let day = Date_day(date) as i32;
-    
-    // Calcul du nombre de jours depuis epoch
-    let mut days = 0i64;
-    for y in 1970..year {
-        days += if is_leap_year(y) { 366 } else { 365 };
-    }
-    let months_days = days_in_months(year);
-    for m in 0..(month - 1) as usize {
-        days += months_days[m] as i64;
-    }
-    days += (day - 1) as i64;
-    
-    // 1970-01-01 était un jeudi (epoch + 3 jours = lundi)
-    ((days + 3) % 7) as i64
+    let days = crate::civil::days_from_civil(Date_year(date), Date_month(date), Date_day(date));
+    // 1970-01-01 était un jeudi (3 avec 0 = lundi) ; division euclidienne :
+    // juste aussi avant 1970.
+    (days + 3).rem_euclid(7)
 }
 
 /// Retourne 1 si l'année est bissextile, 0 sinon
 #[unsafe(no_mangle)]
 pub extern "C" fn Date_isLeapYear(year: i64) -> i64 {
-    if is_leap_year(year as i32) { 1 } else { 0 }
+    if crate::civil::is_leap_year(year) { 1 } else { 0 }
 }
 
 /// Retourne le nombre de jours dans un mois donné
 #[unsafe(no_mangle)]
 pub extern "C" fn Date_daysInMonth(year: i64, month: i64) -> i64 {
-    let months = days_in_months(year as i32);
-    if month >= 1 && month <= 12 {
-        months[(month - 1) as usize] as i64
-    } else {
-        0
-    }
+    crate::civil::days_in_month(year, month)
 }
 
 /// Ajoute N jours à une date
@@ -183,53 +170,10 @@ pub extern "C" fn Date_diffDays(date1: i64, date2: i64) -> i64 {
 // ─────────────────────────────────────────────────────────────────────────────
 
 fn timestamp_to_date(ts: i64) -> (i32, i32, i32) {
-    let mut days = (ts / 86400) as i32;
-    
-    let mut year = 1970;
-    loop {
-        let year_days = if is_leap_year(year) { 366 } else { 365 };
-        if days < year_days {
-            break;
-        }
-        days -= year_days;
-        year += 1;
-    }
-    
-    let mut month = 1;
-    let months_days = days_in_months(year);
-    for (m, &m_days) in months_days.iter().enumerate() {
-        if days < m_days {
-            month = (m + 1) as i32;
-            break;
-        }
-        days -= m_days;
-    }
-    
-    let day = days + 1;
-    (year, month, day)
+    let (year, month, day) = crate::civil::civil_from_days(ts.div_euclid(86_400));
+    (year as i32, month as i32, day as i32)
 }
 
 fn date_to_timestamp(year: i32, month: i32, day: i32) -> i64 {
-    let mut days = 0i64;
-    
-    for y in 1970..year {
-        days += if is_leap_year(y) { 366 } else { 365 };
-    }
-    
-    let months_days = days_in_months(year);
-    for m in 0..(month - 1) as usize {
-        days += months_days[m] as i64;
-    }
-    
-    days += (day - 1) as i64;
-    days * 86400
-}
-
-fn is_leap_year(year: i32) -> bool {
-    (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
-}
-
-fn days_in_months(year: i32) -> [i32; 12] {
-    let feb_days = if is_leap_year(year) { 29 } else { 28 };
-    [31, feb_days, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    crate::civil::days_from_civil(year as i64, month as i64, day as i64) * 86_400
 }

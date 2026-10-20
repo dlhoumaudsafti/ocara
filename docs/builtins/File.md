@@ -46,7 +46,7 @@ File::write("/tmp/output.txt", "Hello, World!")
 
 ### `File::writeBytes(path: string, data: array<int>) → void`
 
-Écrit des données binaires dans un fichier.
+Écrit des données binaires dans un fichier. Chaque élément doit être un octet (0 à 255), sinon `FileException` 104.
 
 ```ocara
 var data:array<int> = [0x89, 0x50, 0x4E, 0x47]  // Signature PNG
@@ -133,7 +133,7 @@ File::remove("/tmp/temp.txt")
 
 ### `File::copy(src: string, dst: string) → void`
 
-Copie un fichier.
+Copie un fichier. Copier un fichier sur lui-même ne fait rien.
 
 ```ocara
 File::copy("/tmp/original.txt", "/tmp/copie.txt")

@@ -793,6 +793,11 @@ pub fn lower_for_message(
     builder.declare_local(var, elem_ty, false);
     builder.store_local(var, val.clone());
     crate::lower::stmt::rc::bind_loop_var(builder, var, elem_ast.as_ref(), &val);
+    // `message<Function<…>>` : variable appelable ; map, classe… (voir
+    // `register_loop_var_meta`).
+    if let Some(ty) = &elem_ast {
+        crate::lower::stmt::statements::register_loop_var_meta(builder, var, ty);
+    }
 
     builder.loop_stack.push((cond_bb.clone(), merge_bb.clone(), builder.block_scope_stack.len() - 1));
     crate::lower::stmt::rc::enter_loop(builder);

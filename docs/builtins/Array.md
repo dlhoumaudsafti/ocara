@@ -112,7 +112,7 @@ scoped inv:array<int> = Array::reverse([1, 2, 3])
 ### `Array::slice(arr, from, to)` → `array<mixed>`
 
 Retourne un **nouvel** array contenant les éléments de l'index `from` (inclus) à `to` (exclu).  
-Indices 0-basés.
+Indices 0-basés ; un indice hors du tableau est ramené dans `[0, len]` (`slice(t, -2, 2)` vaut `slice(t, 0, 2)`, `to` inférieur à `from` donne un tableau vide).
 
 | Paramètre | Type  | Description               |
 |-----------|-------|---------------------------|

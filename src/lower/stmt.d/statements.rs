@@ -16,6 +16,34 @@ use statements_impl::*;
 pub use statements_impl::assignments::lower_incdec;
 pub(crate) use statements_impl::variables::{lower_const_value, register_const_meta, register_var_class};
 pub(crate) use statements_impl::helpers::box_for_any;
+pub(crate) use statements_impl::loops::register_loop_var_meta;
+
+/// Liaison d'un nom avant une boucle : (nom, slot, promu au tas).
+type SavedBinding = (String, Option<(crate::ir::inst::Value, IrType, bool)>, bool);
+
+/// Les variables d'une boucle `for` sont déclarées hors du bloc du corps :
+/// sans restauration, elles survivaient à la boucle et un `try` ou une
+/// boucle suivante capturait ce nom périmé (cellule jamais rendue, voir
+/// docs/roadmap.d/memoire-fuites-exceptions-et-builtins.md).
+fn save_loop_vars(builder: &LowerBuilder, names: &[&String]) -> Vec<SavedBinding> {
+    names.iter().map(|name| {
+        (name.to_string(), builder.locals.get(name.as_str()).cloned(), builder.heap_promoted.contains(name.as_str()))
+    }).collect()
+}
+
+fn restore_loop_vars(builder: &mut LowerBuilder, saved: Vec<SavedBinding>) {
+    for (name, binding, promoted) in saved {
+        match binding {
+            Some(binding) => { builder.locals.insert(name.clone(), binding); }
+            None => { builder.locals.remove(&name); }
+        }
+        if promoted {
+            builder.heap_promoted.insert(name);
+        } else {
+            builder.heap_promoted.remove(&name);
+        }
+    }
+}
 
 pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
     match stmt {
@@ -40,10 +68,14 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
 
         // ── Boucles ───────────────────────────────────────────────────────────
         Stmt::ForIn { var, iter, body, .. } => {
+            let saved = save_loop_vars(builder, &[var]);
             lower_for_in(builder, var, iter, body);
+            restore_loop_vars(builder, saved);
         }
         Stmt::ForMap { key, value, iter, body, .. } => {
+            let saved = save_loop_vars(builder, &[key, value]);
             lower_for_map(builder, key, value, iter, body);
+            restore_loop_vars(builder, saved);
         }
         Stmt::Break { .. } => {
             lower_break(builder);
@@ -170,14 +202,7 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
                     // dans `error`/`success`/`exit` (voir
                     // docs/roadmap.d/langage-runtime-blocs-variables.md).
                     if let Some(exit_bb) = builder.runtime_exit_bb.clone() {
-                        match builder.runtime_scope {
-                            Some((block_depth, rc_depth)) => {
-                                crate::lower::stmt::ownership::emit_early_exit_drops(builder, block_depth + 1);
-                                crate::lower::stmt::rc::release_temps_from(builder, 0);
-                                crate::lower::stmt::rc::release_scopes_from(builder, rc_depth + 1);
-                            }
-                            None => crate::lower::stmt::rc::release_all(builder),
-                        }
+                        crate::lower::stmt::rc::release_before_runtime_exit(builder);
                         builder.emit(Inst::Jump { target: exit_bb });
                         return; // Ne pas émettre de Return après
                     }

@@ -649,7 +649,11 @@ pub unsafe extern "C" fn MySQL_commit(db_ptr: i64, close: i64) -> i64 {
         let db = &*(db_ptr as *const OcaraMySQLDatabase);
 
         let explicit = *db.explicit_tx.lock().unwrap();
-        let query = match db.pending_query.lock().unwrap().clone() {
+        // Verrou relâché AVANT le `match` : un `throw_*` (longjmp) dans un bras
+        // sauterait son drop et laisserait `pending_query` verrouillé à vie
+        // (`rollback()` bloqué ensuite).
+        let pending = db.pending_query.lock().unwrap().clone();
+        let query = match pending {
             Some(q) => Some(q),
             None if explicit => None,
             None => throw_mysql_exception(

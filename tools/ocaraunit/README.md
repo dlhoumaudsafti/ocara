@@ -23,11 +23,19 @@ ocaraunit [options] [<dossier|fichier>]
 ### Options
 
 | Option                    | Description                                                        |
-|---------------------------|--------------------------------------------------------------------||
-| `--coverage [<dossier>]`  | Active l'analyse de couverture sur `<dossier>` (défaut : `.`)      |
+|---------------------------|--------------------------------------------------------------------|
+| `--coverage`              | Active l'analyse de couverture (périmètre : racine du projet)      |
+| `--coverage=<chemin>`     | Couverture limitée à un dossier ou à un fichier                    |
 | `--src <dossier>`         | Dossier racine du projet pour résoudre les imports                |
+| `--timeout <s>`           | Délai par fichier de test (compilation, puis exécution), défaut 120 s |
 | `--clear`                 | Supprimer le cache (seul) ou avant de lancer les tests            |
 | `--help`, `-h`            | Afficher l'aide                                                    |
+
+`--coverage` seul ne consomme jamais l'argument suivant : `ocaraunit --coverage tests/` lance les
+tests de `tests/` avec couverture. Forme historique conservée : avec **deux** arguments
+positionnels, celui qui suit `--coverage` est le périmètre de couverture
+(`ocaraunit --coverage src/Foo.oc tests/FooTest.oc`). Une option inconnue ou un argument en trop
+est une erreur (code de sortie `2`).
 
 ### Arguments
 
@@ -53,7 +61,10 @@ ocaraunit --src examples/project examples/project/tests
 
 # Tests avec couverture
 ocaraunit --coverage
-ocaraunit --coverage src/
+ocaraunit --coverage=src/ tests/
+
+# Délai par fichier de test (un test qui boucle est tué et compté en erreur)
+ocaraunit --timeout 30 tests/
 
 # Supprimer le cache uniquement
 ocaraunit --clear
@@ -62,7 +73,7 @@ ocaraunit --clear
 ocaraunit --clear examples/tests/MyTest.oc
 
 # Combinaison complète : --clear + --src + --coverage
-ocaraunit --clear --src examples examples/tests/17_importTest.oc --coverage examples/17_import.oc
+ocaraunit --clear --src examples --coverage=examples/17_import.oc examples/tests/17_importTest.oc
 ```
 
 Via Makefile :
@@ -75,7 +86,13 @@ make unittest                      # lance les tests dans tests/
 
 ## Gestion du cache
 
-ocaraunit met en cache les binaires compilés dans `.ocaraunit_cache/` pour accélérer les exécutions successives.
+ocaraunit met en cache les binaires compilés dans `.ocaraunit_cache/`, **à la racine du projet**
+(pas dans le dossier courant), pour accélérer les exécutions successives.
+
+Une seule version est gardée par fichier de test (`<stem>-<hash du chemin>-<hash du contenu>`) :
+à chaque recompilation, les versions précédentes du même test (et les entrées de l'ancien format
+`<stem>-<hash>`) sont supprimées, et le `.o` intermédiaire n'est jamais conservé. Le cache ne
+grossit donc plus avec le nombre d'exécutions.
 
 **Purger le cache :**
 
@@ -87,10 +104,12 @@ ocaraunit --clear
 ocaraunit --clear tests/
 ```
 
-Le cache est invalidé automatiquement si le fichier de test change, si le compilateur `ocara`
-change (il embarque le runtime), ou si n'importe quel fichier `.oc` du projet change (classes
-importées par les tests) — empreinte calculée une fois par exécution, sur les métadonnées
-(chemin, taille, date de modification). `--clear` reste disponible pour repartir de zéro.
+Le binaire d'un test est recompilé si le fichier de test change, si le compilateur `ocara`
+change (il embarque le runtime), si n'importe quel fichier `.oc` sous la racine du projet change,
+ou si un fichier **réellement importé** par le test change — imports suivis transitivement et
+résolus comme le compilateur (`import X from "../.."`, `import a.b.X`, namespace), y compris hors
+de la racine du projet. Empreinte sur les métadonnées (chemin, taille, date de modification).
+`--clear` reste disponible pour repartir de zéro.
 
 ---
 
@@ -102,13 +121,24 @@ Chaque binaire de test est compilé **et exécuté** depuis la racine du projet 
 
 Le dossier de tests peut contenir des fichiers qui ne sont pas des tests (données de test, helpers partagés — ex. `tests/support/Fixture.oc`, importé par `import tests.support.Fixture`). Seuls les fichiers `*Test.oc` sont exécutés, et aucun fichier du dossier de tests n'entre dans l'analyse de couverture.
 
-## Échecs d'exécution
+## Échecs et erreurs
 
-Un `assert*` en échec lève une `UnitTestException` qui arrête le binaire de test : les
-assertions déjà passées du fichier sont affichées, puis une **ERREUR d'exécution** avec le
-message de l'exception (`Message: assertEquals: expected "v" but got null`). Les assertions
-suivantes du même fichier ne sont pas exécutées. Toute fin anormale du binaire est signalée
-(code de sortie non nul), même après des assertions réussies.
+Chaque test est appelé dans un `try … on e is UnitTestException` généré : un `assert*` en échec
+est compté en **FAIL** (`FAIL [Classe.methode] assertEquals: expected 1 but got 2`), arrête ce
+test seulement, et les tests suivants du fichier s'exécutent. Les assertions suivantes **du même
+test** ne sont pas exécutées.
+
+Sont comptés en **ERREUR** :
+
+- un fichier qui ne compile pas (diagnostics rapportés sur le fichier de test d'origine) ;
+- un fichier `*Test.oc` sans aucun test, ou qui déclare déjà `function main()` (ocaraunit génère
+  le sien) ;
+- toute autre fin anormale du binaire, avec sa cause : exception non rattrapée (bandeau et
+  `Message:`), `tué par le signal 11 (SIGSEGV)`, `code de sortie 3` ;
+- un fichier qui dépasse `--timeout` (compilation ou exécution) : le binaire est tué.
+
+Les codes ANSI des sorties du compilateur et du binaire sont retirés quand la sortie
+d'ocaraunit n'est pas un terminal (ou avec `NO_COLOR`).
 
 ---
 
@@ -153,7 +183,8 @@ projet/
 └── examples/
 ```
 
-Si le dossier `tests/` n'existe pas (et qu'aucun argument n'est fourni), `ocaraunit` affiche un avertissement et quitte.
+Si le dossier de tests n'existe pas ou ne contient aucun `*Test.oc`, `ocaraunit` affiche une
+erreur et sort avec le code `1` : aucune exécution « verte » sans test exécuté.
 
 ### Nommage des fichiers de test
 
@@ -169,7 +200,7 @@ Les fichiers de test peuvent être organisés **en sous-dossiers** dans `tests/`
 
 ### Fichiers de test
 
-Dans un fichier sans déclaration de classe, toute fonction dont le nom **commence ou se termine par `test`** (casse ignorée : `addTest`, `testAdd`, `add_test`) est un test — la casse des noms relève du linter `ocaracs`, pas du runner :
+Toute fonction libre dont le nom **commence ou se termine par `test`** (casse ignorée : `addTest`, `testAdd`, `add_test`) est un test, que le fichier déclare aussi des classes ou non — la casse des noms relève du linter `ocaracs`, pas du runner. La découverte ignore commentaires et chaînes, et tolère espaces multiples et tabulations (`public  method`, `public\tstatic\tmethod`). Le fichier ne doit pas déclarer de `function main()` :
 
 ```ocara
 import ocara.UnitTest
@@ -197,7 +228,7 @@ function helper(): int {
 
 ### Méthodes de test — classe
 
-Dans un fichier avec une ou plusieurs classes, les tests sont les méthodes **publiques** dont le nom commence ou se termine par `test` (casse ignorée). Le nom de la classe et sa position dans le fichier sont libres : chaque classe qui contient au moins un test est instanciée (constructeur sans argument) et ses tests sont appelés ; les classes auxiliaires sans test ne sont pas touchées. Les méthodes `private`/`protected` ne sont jamais des tests (y placer les helpers).
+Dans une ou plusieurs classes, les tests sont les méthodes **publiques** dont le nom commence ou se termine par `test` (casse ignorée). Le nom de la classe et sa position dans le fichier sont libres : chaque classe qui contient au moins un test est instanciée (constructeur sans argument) et ses tests sont appelés ; les classes auxiliaires sans test ne sont pas touchées. Les méthodes `private`/`protected` ne sont jamais des tests (y placer les helpers), pas plus que celles d'un `module`, d'une `interface` ou d'un `generic`.
 
 Les méthodes **statiques** (`public static method fooTest`) sont également reconnues, appelées sur la classe.
 
@@ -252,28 +283,28 @@ src/MathTest.oc:
   3 PASS  0 FAIL
 
 src/UserTest.oc:
-  PASS assertEquals: alice == alice
-  FAIL assertEquals: attendu 42 mais obtenu 0
-  2 PASS  1 FAIL
+  PASS assertEquals: "alice" == "alice"
+  FAIL [UserTest.ageTest] assertEquals: expected 42 but got 0
+  1 PASS  1 FAIL
 
 ══════════════════════════════════════════════
-Résultat global : 5 PASS  1 FAIL  0 ERREUR(S)
+Résultat global : 4 PASS  1 FAIL  0 ERREUR(S)
 ══════════════════════════════════════════════
 ```
 
 - `PASS` en vert, `FAIL` en rouge
 - Résultat global en vert si tout est OK, rouge sinon
-- Code de sortie `0` si tous les tests passent, `1` sinon
+- Code de sortie `0` si tous les tests passent, `1` sinon (voir [Codes de sortie](#codes-de-sortie))
 
 ---
 
 ## Analyse de couverture (`--coverage`)
 
-Après l'exécution des tests, `ocaraunit` analyse les fichiers `.oc` non-test du projet et calcule le taux de couverture par fichier.
+Après l'exécution des tests, `ocaraunit` analyse les fichiers `.oc` non-test de la racine du projet (ou du périmètre `--coverage=<chemin>`) et calcule le taux de couverture par fichier.
 
-**Règle de couverture :** une fonction ou méthode `foo` est considérée couverte s'il existe un test nommé `fooTest` ou `testFoo` (casse ignorée) dans les fichiers `*Test.oc`.
+**Règle de couverture :** une fonction ou méthode `foo` est considérée couverte s'il existe un test nommé `fooTest` ou `testFoo` (casse et `_` ignorés) dans les fichiers `*Test.oc`. Dans un fichier qui déclare une classe, seules ses méthodes comptent (hors `init`) ; sinon, seules les fonctions libres (hors `main`). Les déclarations `async` ne comptent pas.
 
-Sont analysées : `function foo`, `public method foo`, `protected method foo`, `private method foo`, `public static method foo` (et variantes `protected`/`private static`).
+Sont analysées : toutes les fonctions libres (`function foo`) et toutes les méthodes, quelle que soit leur visibilité (`public`/`protected`/`private`, `static` ou non), hors constructeur `init`.
 
 ### Affichage
 
@@ -315,7 +346,9 @@ Créez un fichier `.ocaraunit` à la racine de votre projet pour configurer ocar
 
 [exclude]
 # Exclure des fichiers ou répertoires de l'analyse de couverture
-# (les fichiers de test *Test.oc dans ces chemins sont également ignorés)
+# (les fichiers de test *Test.oc dans ces chemins sont également ignorés).
+# Comparaison par composants de chemin : `src/` exclut `src/…` et
+# `lib/src/…`, jamais `mysrc/`.
 vendor/
 examples/
 generated/
@@ -348,7 +381,9 @@ ocaraunit examples/project/tests
 ocaraunit examples/project/tests/ModelsTest.oc
 ```
 
-La détection cherche le parent du dossier `tests/` comme racine du projet.
+La racine est le parent du dossier `tests` le plus proche du chemin fourni ; hors d'un dossier
+`tests` (ex. `spec/FooTest.oc`), c'est le dossier du `.ocaraunit` le plus proche, sinon le dossier
+du test lui-même. Sans argument, la racine est le dossier courant (tests dans `./tests/`).
 
 ### Option `--src`
 
@@ -362,7 +397,7 @@ Utile si vos tests ne sont pas dans un dossier `tests/` ou pour des structures d
 
 ### Imports relatifs au fichier de test
 
-Le compilateur résout les imports depuis la racine du projet ; un fichier de test peut pourtant écrire ses imports relativement à son propre dossier (`import Circle from "../Circle"` depuis `tests/`). Avant compilation, `ocaraunit` réécrit un tel chemin en chemin relatif à la racine. Un chemin déjà relatif à la racine (`import Circle from "Circle"`) est laissé tel quel : les deux écritures fonctionnent.
+Le compilateur résout les imports depuis la racine du projet ; un fichier de test peut pourtant écrire ses imports relativement à son propre dossier (`import Circle from "../Circle"` depuis `tests/`). Avant compilation, `ocaraunit` réécrit un tel chemin en chemin relatif à la racine — avec des `../` s'il sort de la racine (`import Helper from "../../lib/Helper"`). Un chemin déjà relatif à la racine (`import Circle from "Circle"`) est laissé tel quel : les deux écritures fonctionnent. La réécriture conserve les numéros de ligne, et le `main` généré est ajouté en fin de fichier.
 
 ---
 
@@ -370,7 +405,7 @@ Le compilateur résout les imports depuis la racine du projet ; un fichier de te
 
 | Variable | Description                                     |
 |----------|-------------------------------------------------|
-| `OCARA`  | Chemin vers le binaire `ocara` (défaut : auto-détecté) |
+| `OCARA`  | Chemin vers le binaire `ocara` (défaut : auto-détecté) ; un chemin relatif est résolu depuis le dossier de lancement |
 
 Auto-détection dans l'ordre :
 1. Variable `OCARA`
@@ -392,7 +427,8 @@ Auto-détection dans l'ordre :
 | Code | Signification                             |
 |------|-------------------------------------------|
 | `0`  | Tous les tests ont réussi                 |
-| `1`  | Au moins un test a échoué ou erreur       |
+| `1`  | Au moins un FAIL ou une ERREUR, ou aucun test à exécuter (dossier absent ou vide) |
+| `2`  | Erreur d'utilisation (option inconnue, argument en trop, valeur invalide) |
 
 ---
 
@@ -444,7 +480,7 @@ cd examples/project
 ../../target/release/ocaraunit --coverage
 
 # Ou avec --src explicite
-./target/release/ocaraunit --src examples/project --coverage examples/project/tests
+./target/release/ocaraunit --src examples/project --coverage examples/project/tests   # --coverage n'avale plus le dossier
 
 # Lancer un seul test
 ./target/release/ocaraunit examples/project/tests/ModelsTest.oc

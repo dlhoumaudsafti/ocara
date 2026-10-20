@@ -1,34 +1,25 @@
-# Appels indirects et générateurs statiques : erreurs de codegen sur du code valide
+# Appels indirects et générateurs statiques — corrigé
 
-Audit du 2026-10-19. Reproduit sur le binaire courant.
+Audit du 2026-10-19, corrigé le 2026-10-20.
 
 ## Constat
 
-1. **Appeler le résultat d'un appel ou d'un index** : `adder(4)(1)`,
-   `fs[0](5)`, `m["d"](21)` → `codegen error: appel vers une fonction
-   inconnue : _unknown`, plus un faux avertissement « variable 'fs' is never
-   used ». Une callee qui n'est ni `Ident` ni `Field` tombe dans
-   `_ => "_unknown"` (`src/lower/expr.d/lower.rs` ~l.810).
-2. **Variable d'un `for` sur un `message<Function<…>>` non appelable** :
-   `for f in gen("x") { f() }` → `appel vers une fonction inconnue : f` (le
-   chemin générateur ne remplit pas `func_vars`, contrairement à
-   `loops.rs` pour un tableau).
-3. **Déclarer une méthode générateur statique casse la compilation**, même
-   jamais appelée : `class Bag { public static method one(): message<int> {
-   emit 7 } }` → `appel vers une fonction inconnue : Bag_one`.
-4. **Champ `Function` non appelable directement** : `h.f()` → « 'f' is a
-   field of 'Holder', not a method » (il faut `var g = h.f; g()`).
+`adder(4)(1)`, `fs[0](5)`, `m["d"](21)` → « fonction inconnue : _unknown » ;
+variable d'un `for` sur `message<Function<…>>` non appelable ; une méthode
+générateur statique cassait la compilation même jamais appelée ; un champ
+`Function` n'était pas appelable (`h.f()`).
 
-## Piste
+## Correctif
 
-Abaisser toute callee expression en valeur fat-pointer puis appel indirect
-(comme pour une variable `Function`).
+- `callee_function_ret` (`src/lower/expr.d/helpers.rs`) : type de retour
+  d'une callee index, appel ou champ `Function` ; `call_fat_ptr` factorise
+  l'appel indirect ; résultat compté rendu comme temporaire. Sema :
+  `check_expression_call` (types d'arguments vérifiés, variable marquée
+  utilisée) ; un champ `Function` appelé n'est plus une erreur.
+- `register_loop_var_meta` partagé par la boucle sur tableau et la boucle sur
+  générateur.
+- Les méthodes générateurs statiques n'ont plus de wrapper `__fn_wrap_`.
 
-## Priorité / Complexité
+## Tests
 
-**Haute** (code valide rejeté) — **Légère**.
-
-## Fichiers clés
-
-`src/lower/expr.d/lower.rs`, `src/lower/builder.d/message_gen.rs`,
-`src/lower/builder.d/classes.rs`, `src/sema/typecheck.rs` (champ appelé).
+`examples/tests/99_short_circuit_indirect_callsTest.oc`.

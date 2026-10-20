@@ -1404,8 +1404,8 @@ Du plus faible au plus fort :
 
 | Niveau | Opérateurs               | Associativité | Notes |
 |--------|--------------------------|---------------|-------|
-| 1      | `or`                     | Gauche        | |
-| 2      | `and`                    | Gauche        | |
+| 1      | `or`                     | Gauche        | Court-circuit : l'opérande droit n'est évalué que si le gauche est faux |
+| 2      | `and`                    | Gauche        | Court-circuit : l'opérande droit n'est évalué que si le gauche est vrai |
 | 3      | `equal` `not equal` `smaller` `greater` `smaller or equal` `greater or equal` | Gauche | Comparaisons, toutes typées à la compilation |
 | 4      | `is`                     | —             | Test de type (narrowing) |
 | 5      | `to` `until`             | Aucune        | Plages : `a to b` (fin incluse), `a until b` (fin exclue) — `..` est refusé |
@@ -1413,6 +1413,8 @@ Du plus faible au plus fort :
 | 7      | `*` `/` `%`              | Gauche        | |
 | 8      | `not` `-` (unaire) `++` `--` (préfixe) | Droite | `++`/`--` : cible `Ident`/`Field`/`Index` de type `int`/`float` uniquement |
 | 9      | `.` `()` `[]` `++` `--` (postfix) | Gauche | `++`/`--` suffixe : seulement sur la même ligne que la fin de l'opérande |
+
+`and` / `or` court-circuitent : `x not equal null and x.v equal 1` ne lit jamais `x.v` quand `x` vaut `null`. Une condition `mixed` (`if`, `while`, `not`, `and`, `or`) est évaluée sur sa valeur (`false`, `0`, `null` sont faux), jamais sur la présence d'une valeur boxée.
 
 `/` et `%` entre `int` : division entière tronquée vers zéro (`-7 / 2` vaut `-3`, `-7 % 2` vaut `-1`). Un diviseur nul lève une `MathException` (code 104, « Division by zero » / « Modulo by zero ») ; comme tout dépassement entier (`+`, `-`, `*`), `INT_MIN / -1` boucle (vaut `INT_MIN`) et `INT_MIN % -1` vaut `0`. Entre `float`, la division suit IEEE 754 (`1.0 / 0.0` vaut `inf`).
 
@@ -1490,9 +1492,8 @@ function validate(value:mixed): bool {
 }
 
 validate(42)     // true
-validate(42.0)   // false — le widening numérique int/float n'existe que pour des
-                  // types concrets connus à la compilation ; via 'mixed', 42 et 42.0
-                  // ne sont pas reconnus comme numériquement égaux
+validate(42.0)   // true — via 'mixed', la comparaison est numérique :
+                  // 42 et 42.0 sont égaux (une chaîne "42" ne l'est pas)
 ```
 
 > **Recommandation** : Utiliser les opérateurs stricts principalement pour les types référence et les unions de types (`mixed`, `T|U|null`) où la distinction de type est garantie et pertinente.

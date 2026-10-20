@@ -207,7 +207,7 @@ function main(): int {
 Les cas limites retournent des valeurs sensées :
 - `String::len()` retourne toujours un nombre (0 pour chaîne vide)
 - `String::between()` retourne une chaîne vide si les délimiteurs ne sont pas trouvés
-- `String::split()` retourne toujours un tableau (vide si chaîne vide)
+- `String::split()` retourne toujours un tableau (vide si chaîne vide ; un séparateur vide découpe en caractères)
 - `String::empty()` retourne toujours `true` ou `false`
 
 **Remarque :** Le typage statique d'Ocara garantit que vous ne passerez jamais un type incorrect à une méthode String (erreur de compilation).

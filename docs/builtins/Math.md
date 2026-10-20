@@ -215,6 +215,7 @@ Certaines méthodes Math peuvent lever une `MathException` en cas d'erreur.
 | 102 | `NEGATIVE_EXPONENT` | `Math::pow()` | Tentative d'élévation à une puissance négative |
 | 103 | `INVALID_RANGE` | `Math::random()` | Borne `min` supérieure à `max` |
 | 104 | `DIVISION_BY_ZERO` | `/`, `%` entre `int` | Diviseur nul (opérateur du langage, pas une méthode de `Math`) |
+| 105 | `OVERFLOW` | `Math::abs()`, `Math::pow()` | Résultat hors de `int` (`abs(INT_MIN)`, `pow(2, 64)`) |
 
 ### Exemples de gestion d'erreurs
 

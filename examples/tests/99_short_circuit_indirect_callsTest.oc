@@ -1,0 +1,102 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.File
+import ocara.Thread
+
+// `and`/`or` court-circuitent ; une condition `mixed` est lue sur sa valeur ;
+// appels indirects (`adder(4)(1)`, `fs[0](5)`, `m["d"](21)`, champ
+// `Function`, variable d'un `for` sur `message<Function>`) ; méthode
+// générateur statique ; type de retour des builtins (`File::size`) — voir
+// docs/roadmap.d/langage-and-or-court-circuit.md,
+// docs/roadmap.d/langage-appels-indirects.md,
+// docs/roadmap.d/builtins-types-retour-manquants.md.
+
+class Node {
+    public property v:int = 1
+}
+
+class Holder {
+    public property f:Function<string(int)> = nameless(n:int): string { return `n=${n}` }
+}
+
+class Bag {
+    public static method two(): message<int> {
+        emit 7
+        emit 8
+    }
+}
+
+function adder(n:int): Function<int(int)> {
+    return nameless(x:int): int { return x + n }
+}
+
+function makers(): message<Function<string()>> {
+    emit nameless(): string { return "first" }
+    emit nameless(): string { return "second" }
+}
+
+class Test99ShortCircuitIndirectCalls extends UnitTest {
+    public property calls:int = 0
+
+    public method touch(): bool {
+        self.calls = self.calls + 1
+        return true
+    }
+
+    public method shortCircuitTest(): int {
+        var n:Node|null = null
+        var guarded:bool = n not equal null and n.v equal 1
+        self::assertFalse(guarded)
+        var d:int = 0
+        self::assertFalse(d not equal 0 and 10 / d equal 2)
+        self.calls = 0
+        var a:bool = false and self.touch()
+        var b:bool = true or self.touch()
+        self::assertEquals(0, self.calls)
+        var c:bool = true and self.touch()
+        self::assertEquals(1, self.calls)
+        self::assertTrue(c)
+        return 0
+    }
+
+    public method mixedConditionTest(): int {
+        var f:mixed = false
+        var t:mixed = true
+        var flags:map<string, mixed> = {"active": false}
+        var taken:int = 0
+        if f { taken = taken + 1 }
+        if not t { taken = taken + 1 }
+        if flags["active"] { taken = taken + 1 }
+        self::assertEquals(0, taken)
+        return 0
+    }
+
+    public method indirectCallsTest(): int {
+        self::assertEquals(5, adder(4)(1))
+        var fs:array<Function<int(int)>> = [adder(10), adder(20)]
+        self::assertEquals(40, fs[0](5) + fs[1](5))
+        var m:map<string, Function<int(int)>> = {"d": adder(100)}
+        self::assertEquals(121, m["d"](21))
+        var h:Holder = use Holder()
+        self::assertEquals("n=3", h.f(3))
+        var s:string = ""
+        for make in makers() { s = s + make() + "," }
+        self::assertEquals("first,second,", s)
+        return 0
+    }
+
+    public method staticGeneratorMethodTest(): int {
+        var s:string = ""
+        for v in Bag::two() { s = s + `${v}` }
+        self::assertEquals("78", s)
+        return 0
+    }
+
+    public method builtinReturnTypesTest(): int {
+        File::write("__99_size.txt", "0123456789")
+        self::assertEquals("10 true 0", `${File::size("__99_size.txt")} ${File::exists("__99_size.txt")} ${Thread::currentId()}`)
+        File::remove("__99_size.txt")
+        return 0
+    }
+}

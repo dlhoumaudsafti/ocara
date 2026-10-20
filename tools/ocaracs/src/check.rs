@@ -55,13 +55,47 @@ pub fn decl_assign_pos(line: &str) -> Option<usize> {
     })
 }
 
+/// Mots d'une condition `when` (docs/EBNF.md §32), hors opérandes.
+const WHEN_WORDS: [&str; 8] = ["default", "is", "not", "greater", "smaller", "or", "and", "equal"];
+
+/// Jetons de `text` : chaînes '…'/"…" entières, parenthèses ignorées.
+fn when_tokens(text: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c.is_whitespace() || c == '(' || c == ')' { continue; }
+        let mut token = c.to_string();
+        if c == '\'' || c == '"' {
+            for n in chars.by_ref() { token.push(n); if n == c { break; } }
+        } else {
+            while let Some(&n) = chars.peek().filter(|n| !n.is_whitespace() && !matches!(n, '(' | ')')) {
+                token.push(n);
+                chars.next();
+            }
+        }
+        tokens.push(token);
+    }
+    tokens
+}
+
+/// Ligne `when …` qui ne contient QUE la clause (`when default function f()`
+/// porte sa déclaration sur la même ligne : rien à coller).
+fn is_bare_when_clause(code: &str) -> bool {
+    let Some(rest) = code.strip_prefix("when").filter(|r| r.is_empty() || r.starts_with([' ', '\t'])) else { return false };
+    when_tokens(rest).iter().all(|t| {
+        WHEN_WORDS.contains(&t.as_str()) || t.starts_with(['\'', '"'])
+            || t.chars().all(|c| c.is_ascii_digit() || c == '-')
+            || t.strip_prefix("System::").is_some_and(|k| ["OS", "ARCH", "BUILD"].contains(&k))
+    })
+}
+
 /// Lignes vides (numéro, indice) qui suivent une ligne `when …` avant la
 /// déclaration qu'elle conditionne.
 pub fn detached_when_blanks(lines: &[&str], states: &[crate::text::LineState]) -> Vec<(usize, usize)> {
     let mut out = Vec::new();
     for (i, line) in lines.iter().enumerate() {
-        let t = line.trim_start();
-        if states[i].starts_in_bt || !(t == "when" || t.starts_with("when ")) {
+        let code = comment_pos(line, states[i]).map_or(*line, |c| &line[..c]).trim();
+        if states[i].starts_in_bt || !is_bare_when_clause(code) {
             continue;
         }
         let mut j = i + 1;
@@ -75,7 +109,19 @@ pub fn detached_when_blanks(lines: &[&str], states: &[crate::text::LineState]) -
     out
 }
 
+/// Colonne (1-based, en caractères) de l'octet `byte` de `line`.
+fn col(line: &str, byte: usize) -> usize {
+    line[..byte].chars().count() + 1
+}
+
 pub fn check_file(path: &Path, content: &str, cfg: &Config) -> usize {
+    let found = findings(path, content, cfg);
+    for (line, col, msg) in &found { emit(path, *line, *col, msg); }
+    found.len()
+}
+
+/// Écarts de `content`, triés : (ligne, colonne en caractères, message).
+fn findings(path: &Path, content: &str, cfg: &Config) -> Vec<(usize, usize, String)> {
     let lines: Vec<&str> = content.lines().collect();
     let states = line_states(&lines);
     let indent = indent_rule(&lines, &states, cfg);
@@ -104,8 +150,8 @@ pub fn check_file(path: &Path, content: &str, cfg: &Config) -> usize {
         if cfg.spacing_assign && !state.starts_in_bt {
             if let Some(j) = decl_assign_pos(line) {
                 let bytes = line.as_bytes();
-                if j == 0 || !matches!(bytes[j - 1], b' ' | b'\t') { warn(lnum, j + 1, "espace manquant avant '='"); }
-                if bytes.get(j + 1).is_some_and(|b| !matches!(b, b' ' | b'\t')) { warn(lnum, j + 2, "espace manquant après '='"); }
+                if j == 0 || !matches!(bytes[j - 1], b' ' | b'\t') { warn(lnum, col(line, j), "espace manquant avant '='"); }
+                if bytes.get(j + 1).is_some_and(|b| !matches!(b, b' ' | b'\t')) { warn(lnum, col(line, j) + 1, "espace manquant après '='"); }
             }
         }
 
@@ -113,7 +159,7 @@ pub fn check_file(path: &Path, content: &str, cfg: &Config) -> usize {
         if cfg.trailing_ws && !state.ends_in_bt && !line.is_empty() {
             let trimmed = line.trim_end();
             if trimmed.len() < line.len() {
-                warn(lnum, trimmed.len() + 1, "espace(s) ou tabulation(s) en fin de ligne");
+                warn(lnum, col(line, trimmed.len()), "espace(s) ou tabulation(s) en fin de ligne");
             }
         }
 
@@ -140,7 +186,7 @@ pub fn check_file(path: &Path, content: &str, cfg: &Config) -> usize {
             if let Some(pos) = comment_pos(line, *state) {
                 let after = &line[pos + 2..];
                 if !after.is_empty() && !after.starts_with(' ') && !after.starts_with('/') {
-                    warn(lnum, pos + 1, "espace manquant après '//' dans le commentaire");
+                    warn(lnum, col(line, pos), "espace manquant après '//' dans le commentaire");
                 }
             }
         }
@@ -160,10 +206,36 @@ pub fn check_file(path: &Path, content: &str, cfg: &Config) -> usize {
 
     // ── R11 : le fichier se termine par une newline ──────────────────────────
     if cfg.file_ends_newline && !content.is_empty() && !content.ends_with('\n') {
-        warn(lines.len(), lines.last().map_or(0, |l| l.len()) + 1, "le fichier ne se termine pas par une newline");
+        warn(lines.len(), lines.last().map_or(1, |l| col(l, l.len())), "le fichier ne se termine pas par une newline");
     }
 
     found.sort_by_key(|(line, col, _)| (*line, *col));
-    for (line, col, msg) in &found { emit(path, *line, *col, msg); }
-    found.len()
+    found
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{detached_when_blanks, findings};
+    use crate::config::parse_config;
+    use crate::text::line_states;
+    use std::path::Path;
+
+    fn cols(src: &str) -> Vec<(usize, usize)> {
+        findings(Path::new("a.oc"), src, &parse_config("")).into_iter().map(|(l, c, _)| (l, c)).collect()
+    }
+
+    #[test]
+    fn columns_are_counted_in_characters() {
+        // « é » occupe deux octets : les colonnes restent en caractères.
+        assert_eq!(cols("var é:int=1\n"), vec![(1, 1), (1, 10), (1, 11)]);
+        assert_eq!(cols("var s:string = \"é\" \n"), vec![(1, 19)]);
+        assert_eq!(cols("var s:string = \"é\" //x\n"), vec![(1, 20)]);
+        assert_eq!(cols("var s:string = \"é\""), vec![(1, 19)]);
+    }
+
+    #[test]
+    fn when_with_its_declaration_on_the_same_line_is_not_a_clause() {
+        let lines = ["when default function f(): int { return 1 }", "", "function g(): int { return 2 }", "when System::OS is 'linux' // os", "", "const X:int = 1"];
+        assert_eq!(detached_when_blanks(&lines, &line_states(&lines)), vec![(5, 4)]);
+    }
 }

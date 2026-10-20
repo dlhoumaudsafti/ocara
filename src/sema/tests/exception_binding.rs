@@ -46,7 +46,7 @@ fn field_called_as_method_is_reported() {
 #[test]
 fn unknown_method_is_reported() {
     let errors = check(&in_handler(r#"var m:mixed = e.nothing()"#));
-    assert!(errors.iter().any(|e| matches!(e, SemaError::FieldNotFound { field, .. } if field == "nothing")), "{:?}", errors);
+    assert!(errors.iter().any(|e| matches!(e, SemaError::MethodNotFound { method, .. } if method == "nothing")), "{:?}", errors);
 }
 
 #[test]

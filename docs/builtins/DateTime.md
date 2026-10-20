@@ -32,7 +32,7 @@ Convertit un timestamp en chaîne au format ISO 8601 : `YYYY-MM-DDTHH:MM:SS`.
 ```ocara
 var ts:int = 1714233600
 var dt:string = DateTime::fromTimestamp(ts)
-IO::write(dt)  // "2024-04-27T18:00:00"
+IO::write(dt)  // "2024-04-27T16:00:00" (UTC)
 ```
 
 ### `DateTime::year(ts:int) → int`
@@ -111,10 +111,10 @@ Formats acceptés :
 - `YYYY-MM-DDTHH:MM:SS` (ISO 8601 standard)
 - `YYYY-MM-DD HH:MM:SS` (avec espace)
 
-Retourne `0` en cas d'erreur de parsing.
+Lève `DateTimeException` (code 101) si la chaîne est mal formée ou désigne une date inexistante (`2023-02-31`). Les dates antérieures à 1970 donnent un timestamp négatif.
 
 ```ocara
-var ts:int = DateTime::parse("2024-04-27T18:00:00")
+var ts:int = DateTime::parse("2024-04-27T16:00:00")
 IO::write(ts)  // 1714233600
 ```
 

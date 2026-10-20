@@ -2,8 +2,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { execFile } from 'child_process';
-import { ocaraOutput, runTool } from './toolrunner';
+import { spawn } from 'child_process';
+import { ocaraOutput, resolveCommand, runTool } from './toolrunner';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Encart « Benchmark » (barre latérale Ocara) pour le script affiché :
@@ -13,15 +13,23 @@ import { ocaraOutput, runTool } from './toolrunner';
 // comparé. Méthode : docs/benchmarking.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
-type Kind = 'time' | 'leak' | 'profile';
+/** `leak` : nombre de valeurs non libérées ; `growth` : pic mémoire (Ko) de la
+ *  méthode par croissance — deux unités, donc deux genres comparés à part. */
+type Kind = 'time' | 'leak' | 'growth' | 'profile';
 
 interface Entry {
     date: string;
     kind: Kind;
-    /** Mesure comparée d'une exécution à l'autre (ms, Ko ou ms propre). */
+    /** Mesure comparée d'une exécution à l'autre (ms, nombre, Ko ou ms propre). */
     value: number;
     summary: string;
 }
+
+/** Fin d'une exécution mesurée. */
+interface RunResult { ms: number; peakKb: number; code: number | null; signal: string | null }
+
+/** Derniers résultats détaillés d'un script (profil, bilan de fuites). */
+interface Details { profile: ProfileRow[]; leaks?: LeakRow[] }
 
 interface ProfileRow { name: string; calls: number; totalMs: number; ownMs: number }
 
@@ -42,8 +50,9 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
     private readonly changed = new vscode.EventEmitter<void>();
     readonly onDidChangeTreeData = this.changed.event;
     private file: string | undefined;
-    private profile: ProfileRow[] = [];
-    private leaks: LeakRow[] | undefined;
+    /** Résultats par script mesuré : un changement d'éditeur pendant une
+     *  mesure ne les attache pas au script nouvellement affiché. */
+    private readonly details = new Map<string, Details>();
     private running = false;
 
     constructor(private readonly state: vscode.Memento) {}
@@ -66,20 +75,28 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
         const doc = vscode.window.activeTextEditor?.document;
         if (doc?.languageId === 'ocara' && doc.uri.scheme === 'file' && doc.uri.fsPath !== this.file) {
             this.file = doc.uri.fsPath;
-            this.profile = [];
-            this.leaks = undefined;
             this.changed.fire();
         }
     }
 
+    /** Résultats détaillés de `file` (créés au besoin). */
+    private detailsOf(file: string): Details {
+        let d = this.details.get(file);
+        if (!d) { d = { profile: [] }; this.details.set(file, d); }
+        return d;
+    }
+
     private async guard(run: (file: string) => Promise<void>): Promise<void> {
-        if (!this.file) { vscode.window.showWarningMessage('Ocara : ouvrez un script .oc à mesurer.'); return; }
+        // Script figé au lancement : le résultat lui reste attaché même si
+        // l'éditeur actif change pendant la mesure.
+        const file = this.file;
+        if (!file) { vscode.window.showWarningMessage('Ocara : ouvrez un script .oc à mesurer.'); return; }
         if (this.running) { vscode.window.showInformationMessage('Ocara : une mesure est déjà en cours.'); return; }
-        const doc = vscode.workspace.textDocuments.find(d => d.uri.fsPath === this.file);
+        const doc = vscode.workspace.textDocuments.find(d => d.uri.fsPath === file);
         if (doc?.isDirty) { await doc.save(); }
         this.running = true;
         try {
-            await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Ocara : benchmark de ${path.basename(this.file)}…` }, () => run(this.file!));
+            await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Ocara : benchmark de ${path.basename(file)}…` }, () => run(file));
         } catch (err) {
             vscode.window.showErrorMessage(`Ocara : ${err instanceof Error ? err.message : err}`);
         } finally {
@@ -96,7 +113,7 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
             const times: number[] = [];
             let peak = 0;
             for (let i = 0; i < runs; i++) {
-                const r = await execute(binary, path.dirname(file), dir);
+                const r = requireSuccess(await execute(binary, path.dirname(file), dir));
                 times.push(r.ms);
                 peak = Math.max(peak, r.peakKb);
             }
@@ -109,29 +126,19 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
     /** Bilan des allocations (`ocara --leak-check`) : le script s'exécute
      *  tel quel, ce qui reste alloué à la sortie est listé par genre. */
     private async leakCheck(file: string): Promise<void> {
-        let rows: LeakRow[] = [];
-        let reported = false;
-        await withTempDir(async dir => {
+        const { rows, run } = await withTempDir(async dir => {
             const binary = await build(file, path.join(dir, 'leaks'), ['--release', '--leak-check']);
             const out = path.join(dir, 'leaks.tsv');
-            await execute(binary, path.dirname(file), dir, { OCARA_LEAK_OUT: out });
-            reported = fs.existsSync(out);
-            // `K genre restants alloués libérés`, puis ses `S genre nombre fonction fichier ligne`.
-            for (const line of (reported ? fs.readFileSync(out, 'utf8') : '').split('\n').filter(Boolean)) {
-                const f = line.split('\t');
-                if (f[0] === 'K') {
-                    rows.push({ label: f[1], live: Number(f[2]), allocated: Number(f[3]), freed: Number(f[4]), sites: [] });
-                } else if (f[0] === 'S' && rows.length) {
-                    rows[rows.length - 1].sites.push({ count: Number(f[2]), func: f[3], file: f[4], line: Number(f[5]) });
-                }
-            }
+            const run = await execute(binary, path.dirname(file), dir, { OCARA_LEAK_OUT: out });
+            return { run, rows: fs.existsSync(out) ? parseLeaks(fs.readFileSync(out, 'utf8')) : undefined };
         });
-        if (!reported) { throw new Error('bilan absent : le programme ne s\'est pas terminé normalement.'); }
-        this.leaks = rows;
+        if (!rows) { throw new Error(`bilan absent : le programme ne s'est pas terminé normalement${exitNote(run)}.`); }
+        this.detailsOf(file).leaks = rows;
         const total = rows.reduce((a, r) => a + r.live, 0);
-        const summary = total === 0
+        // Code de sortie non nul : le bilan reste valable, la fin anormale est signalée.
+        const summary = (total === 0
             ? 'aucune fuite — toute valeur allouée a été libérée'
-            : `⚠ ${total} valeur(s) non libérée(s) — ${rows.slice(0, 3).map(r => `${r.live} × ${r.label}${r.sites[0] ? ` (${r.sites[0].func})` : ''}`).join(', ')}`;
+            : `⚠ ${total} valeur(s) non libérée(s) — ${rows.slice(0, 3).map(r => `${r.live} × ${r.label}${r.sites[0] ? ` (${r.sites[0].func})` : ''}`).join(', ')}`) + exitNote(run);
         const out = ocaraOutput();
         for (const r of rows) {
             out.appendLine(`[fuites] ${r.live} × ${r.label} (allouées ${r.allocated}, libérées ${r.freed})`);
@@ -152,45 +159,41 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
         const peaks: number[] = [];
         await withTempDir(async dir => {
             for (const n of [small, large]) {
-                // Copie voisine du script : ses imports relatifs restent valides.
-                const copy = path.join(path.dirname(file), `.${path.basename(file, '.oc')}.bench${n}.oc`);
+                // Copie dans le dossier temporaire (jamais dans le projet) ;
+                // `--src` garde la résolution des imports depuis le dossier du script.
+                const copy = path.join(dir, `${path.basename(file, '.oc')}.bench${n}.oc`);
                 fs.writeFileSync(copy, source.split('__N__').join(String(n)));
-                try {
-                    const binary = await build(copy, path.join(dir, `leak${n}`), ['--release']);
-                    peaks.push((await execute(binary, path.dirname(file), dir)).peakKb);
-                } finally {
-                    fs.rmSync(copy, { force: true });
-                }
+                const binary = await build(copy, path.join(dir, `leak${n}`), ['--release', ...srcFlag(file)], file);
+                peaks.push(requireSuccess(await execute(binary, path.dirname(file), dir)).peakKb);
             }
         });
         const growth = peaks[1] - peaks[0];
         const leaking = growth > Math.max(1024, peaks[0] * 0.1);
         const verdict = leaking ? `⚠ fuite probable (+${formatKb(growth)})` : 'stable : pas de fuite';
-        this.add(file, { kind: 'leak', value: peaks[1], summary: `${verdict} — N=${small} : ${formatKb(peaks[0])}, N=${large} : ${formatKb(peaks[1])}` });
+        this.add(file, { kind: 'growth', value: peaks[1], summary: `${verdict} — N=${small} : ${formatKb(peaks[0])}, N=${large} : ${formatKb(peaks[1])}` });
         (leaking ? vscode.window.showWarningMessage : vscode.window.showInformationMessage)(`Ocara : ${verdict}`);
     }
 
     private async runProfile(file: string): Promise<void> {
-        await withTempDir(async dir => {
+        const { profile, run } = await withTempDir(async dir => {
             const binary = await build(file, path.join(dir, 'profile'), ['--release', '--profile']);
             const out = path.join(dir, 'profile.tsv');
-            await execute(binary, path.dirname(file), dir, { OCARA_PROFILE_OUT: out });
-            const text = fs.existsSync(out) ? fs.readFileSync(out, 'utf8') : '';
-            this.profile = text.split('\n').filter(Boolean).map(line => {
-                const [calls, total, own, ...name] = line.split('\t');
-                return { name: name.join('\t'), calls: Number(calls), totalMs: Number(total) / 1e6, ownMs: Number(own) / 1e6 };
-            });
+            const run = await execute(binary, path.dirname(file), dir, { OCARA_PROFILE_OUT: out });
+            return { run, profile: fs.existsSync(out) ? parseProfile(fs.readFileSync(out, 'utf8')) : [] };
         });
-        if (!this.profile.length) { throw new Error('profil vide : le programme ne s\'est pas terminé normalement (délai dépassé ?).'); }
-        const top = this.profile[0];
-        const own = this.profile.reduce((a, r) => a + r.ownMs, 0);
-        this.add(file, { kind: 'profile', value: own, summary: `${this.profile.length} fonctions, ${formatMs(own)} mesurées — plus coûteuse : ${top.name} (${formatMs(top.ownMs)})` });
+        if (!profile.length) { throw new Error(`profil vide : le programme ne s'est pas terminé normalement${exitNote(run)}.`); }
+        this.detailsOf(file).profile = profile;
+        const top = profile[0];
+        const own = profile.reduce((a, r) => a + r.ownMs, 0);
+        this.add(file, { kind: 'profile', value: own, summary: `${profile.length} fonctions, ${formatMs(own)} mesurées — plus coûteuse : ${top.name} (${formatMs(top.ownMs)})${exitNote(run)}` });
     }
 
     // ── Historique ───────────────────────────────────────────────────────────
 
     private history(file: string): Entry[] {
-        return this.state.get<Entry[]>(`ocara.bench:${file}`, []);
+        // Anciennes entrées « par croissance » enregistrées sous `leak` (Ko).
+        return this.state.get<Entry[]>(`ocara.bench:${file}`, [])
+            .map(e => (e.kind === 'leak' && / N=\d+ : /.test(e.summary) ? { ...e, kind: 'growth' as Kind } : e));
     }
 
     private add(file: string, entry: Omit<Entry, 'date'>): void {
@@ -201,8 +204,10 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
     }
 
     private async clear(): Promise<void> {
-        if (this.file) { await this.state.update(`ocara.bench:${this.file}`, undefined); }
-        this.profile = [];
+        if (this.file) {
+            await this.state.update(`ocara.bench:${this.file}`, undefined);
+            this.details.delete(this.file);
+        }
         this.changed.fire();
     }
 
@@ -210,6 +215,7 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
 
     getChildren(item?: Item): Item[] {
         if (!this.file) { return []; }
+        const details = this.detailsOf(this.file);
         if (!item) {
             const items: Item[] = [
                 { type: 'action', label: 'Mesurer temps et mémoire', command: 'ocara.bench.run', icon: 'dashboard' },
@@ -217,13 +223,13 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
                 { type: 'action', label: 'Fuite par croissance (__N__)', command: 'ocara.bench.leakGrowth', icon: 'graph-line' },
                 { type: 'action', label: 'Profiler par fonction', command: 'ocara.bench.profile', icon: 'flame' },
             ];
-            if (this.leaks) { items.push({ type: 'group', id: 'leaks', label: this.leaks.length ? 'Fuites détectées' : 'Fuites : aucune' }); }
-            if (this.profile.length) { items.push({ type: 'group', id: 'profile', label: 'Dernier profil' }); }
+            if (details.leaks) { items.push({ type: 'group', id: 'leaks', label: details.leaks.length ? 'Fuites détectées' : 'Fuites : aucune' }); }
+            if (details.profile.length) { items.push({ type: 'group', id: 'profile', label: 'Dernier profil' }); }
             items.push({ type: 'group', id: 'history', label: 'Historique' });
             return items;
         }
         if (item.type === 'group' && item.id === 'leaks') {
-            return (this.leaks ?? []).map(r => ({
+            return (details.leaks ?? []).map(r => ({
                 type: 'row', label: `${r.live} × ${r.label}`, icon: 'warning',
                 description: `allouées ${r.allocated}, libérées ${r.freed}`,
                 tooltip: `${r.live} valeur(s) « ${r.label} » encore allouée(s) à la sortie du programme — dépliez pour voir où`,
@@ -237,7 +243,7 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
             }));
         }
         if (item.type === 'group' && item.id === 'profile') {
-            return this.profile.map(r => ({
+            return details.profile.map(r => ({
                 type: 'row', label: r.name, icon: 'symbol-method',
                 description: `propre ${formatMs(r.ownMs)} · total ${formatMs(r.totalMs)} · ${r.calls} appel(s)`,
             }));
@@ -265,7 +271,7 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
         }
         if (item.type === 'group') {
             const t = new vscode.TreeItem(item.label, vscode.TreeItemCollapsibleState.Expanded);
-            t.iconPath = new vscode.ThemeIcon(item.id === 'profile' ? 'flame' : item.id === 'leaks' ? (this.leaks?.length ? 'warning' : 'pass') : 'history');
+            t.iconPath = new vscode.ThemeIcon(item.id === 'profile' ? 'flame' : item.id === 'leaks' ? (this.file && this.details.get(this.file)?.leaks?.length ? 'warning' : 'pass') : 'history');
             return t;
         }
         const t = new vscode.TreeItem(item.label, item.children?.length ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None);
@@ -279,7 +285,47 @@ export class BenchmarkProvider implements vscode.TreeDataProvider<Item> {
     }
 }
 
-const ICONS: Record<Kind, string> = { time: 'dashboard', leak: 'debug-alt', profile: 'flame' };
+const ICONS: Record<Kind, string> = { time: 'dashboard', leak: 'debug-alt', growth: 'graph-line', profile: 'flame' };
+
+/** `K genre restants alloués libérés`, puis ses `S genre nombre fonction fichier ligne`. */
+function parseLeaks(text: string): LeakRow[] {
+    const rows: LeakRow[] = [];
+    for (const line of text.split('\n').filter(Boolean)) {
+        const f = line.split('\t');
+        if (f[0] === 'K') {
+            rows.push({ label: f[1], live: Number(f[2]), allocated: Number(f[3]), freed: Number(f[4]), sites: [] });
+        } else if (f[0] === 'S' && rows.length) {
+            rows[rows.length - 1].sites.push({ count: Number(f[2]), func: f[3], file: f[4], line: Number(f[5]) });
+        }
+    }
+    return rows;
+}
+
+/** `appels total propre nom` (nanosecondes) par ligne. */
+function parseProfile(text: string): ProfileRow[] {
+    return text.split('\n').filter(Boolean).map(line => {
+        const [calls, total, own, ...name] = line.split('\t');
+        return { name: name.join('\t'), calls: Number(calls), totalMs: Number(total) / 1e6, ownMs: Number(own) / 1e6 };
+    });
+}
+
+/** Mention d'une fin anormale (` (code 3)`), vide si le programme a réussi. */
+function exitNote(run: RunResult | undefined): string {
+    if (!run || run.code === 0) { return ''; }
+    return run.signal ? ` (arrêté par ${run.signal})` : ` (code de sortie ${run.code})`;
+}
+
+/** Mesure de temps ou de pic : un programme en erreur la fausserait. */
+function requireSuccess(run: RunResult): RunResult {
+    if (run.code !== 0) { throw new Error(`le programme s'est terminé en erreur${exitNote(run)}`); }
+    return run;
+}
+
+/** `--src <dossier du script>` pour compiler une copie temporaire, sauf si
+ *  la commande configurée fixe déjà son propre `--src`. */
+function srcFlag(file: string): string[] {
+    return resolveCommand('compilerPath', 'ocara', vscode.Uri.file(file)).includes('--src') ? [] : ['--src', path.dirname(file)];
+}
 
 /** Écart avec la mesure précédente du même genre (plus bas = mieux). */
 function delta(entry: Entry, previous: Entry | undefined): string {
@@ -293,19 +339,20 @@ function config(): vscode.WorkspaceConfiguration {
     return vscode.workspace.getConfiguration('ocara.benchmark');
 }
 
-async function withTempDir(run: (dir: string) => Promise<void>): Promise<void> {
+async function withTempDir<T>(run: (dir: string) => Promise<T>): Promise<T> {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ocara-bench-'));
     try {
-        await run(dir);
+        return await run(dir);
     } finally {
         fs.rmSync(dir, { recursive: true, force: true });
     }
 }
 
-/** Compile `file` en `binary` ; erreur du compilateur sinon. */
-async function build(file: string, binary: string, flags: string[]): Promise<string> {
-    const uri = vscode.Uri.file(file);
-    const r = await runTool('compilerPath', 'ocara', [file, '-o', binary, ...flags], path.dirname(file), uri);
+/** Compile `file` en `binary` ; erreur du compilateur sinon. `script` :
+ *  script d'origine (réglages `${workspaceFolder}`) quand `file` est une copie. */
+async function build(file: string, binary: string, flags: string[], script = file): Promise<string> {
+    const uri = vscode.Uri.file(script);
+    const r = await runTool('compilerPath', 'ocara', [file, '-o', binary, ...flags], path.dirname(script), uri);
     if (r.launchError) { throw new Error(`impossible de lancer le compilateur (${r.launchError})`); }
     if (r.code !== 0) {
         ocaraOutput().appendLine(`${r.stderr}\n${r.stdout}`.replace(/\x1b\[[0-9;]*m/g, '').trim());
@@ -315,29 +362,49 @@ async function build(file: string, binary: string, flags: string[]): Promise<str
     return binary;
 }
 
-/** Exécute `binary` depuis `cwd` : durée (ms) et pic mémoire (Ko, 0 si inconnu). */
-function execute(binary: string, cwd: string, tmp: string, env: Record<string, string> = {}): Promise<{ ms: number; peakKb: number }> {
+/** Exécute `binary` depuis `cwd` : durée (ms), pic mémoire (Ko, 0 si
+ *  inconnu) et code de sortie. Délai dépassé : tout le groupe de processus
+ *  est tué (`/usr/bin/time` ET le programme mesuré), puis erreur. */
+function execute(binary: string, cwd: string, tmp: string, env: Record<string, string> = {}): Promise<RunResult> {
     const timeout = Math.max(1, config().get<number>('timeout', 30)) * 1000;
     const memFile = path.join(tmp, 'mem.txt');
     const measured = fs.existsSync(TIME_BIN);
     const [program, args] = measured ? [TIME_BIN, ['-f', '%M', '-o', memFile, binary]] : [binary, []];
     return new Promise((resolve, reject) => {
         const start = process.hrtime.bigint();
-        execFile(program, args, { cwd, timeout, env: { ...process.env, ...env }, maxBuffer: 64 * 1024 * 1024 }, (error, _stdout, stderr) => {
-            const ms = Number(process.hrtime.bigint() - start) / 1e6;
-            if (error && (error as { killed?: boolean }).killed) {
+        // `detached` : groupe de processus propre, tuable d'un bloc.
+        const child = spawn(program, args, { cwd, env: { ...process.env, ...env }, detached: process.platform !== 'win32', stdio: ['ignore', 'ignore', 'pipe'] });
+        let stderr = '';
+        let timedOut = false;
+        child.stderr?.on('data', (chunk: Buffer) => { if (stderr.length < 64 * 1024) { stderr += chunk.toString(); } });
+        const timer = setTimeout(() => { timedOut = true; killTree(child.pid); }, timeout);
+        child.on('error', err => { clearTimeout(timer); reject(new Error(`impossible de lancer le programme (${err.message})`)); });
+        child.on('close', (code, signal) => {
+            clearTimeout(timer);
+            if (timedOut) {
                 reject(new Error(`délai dépassé (${timeout / 1000} s, réglage « ocara.benchmark.timeout »)`));
                 return;
             }
-            if (error) {
-                ocaraOutput().appendLine(stderr);
-                reject(new Error(`le programme s'est terminé en erreur (code ${(error as { code?: number }).code ?? '?'})`));
-                return;
-            }
-            const peakKb = measured && fs.existsSync(memFile) ? parseInt(fs.readFileSync(memFile, 'utf8').trim().split('\n').pop() ?? '0', 10) || 0 : 0;
-            resolve({ ms, peakKb });
+            if (code !== 0 && stderr.trim()) { ocaraOutput().appendLine(stderr.trim()); }
+            resolve({ ms: Number(process.hrtime.bigint() - start) / 1e6, peakKb: readPeak(measured, memFile), code, signal });
         });
     });
+}
+
+/** Tue le groupe de processus `pid` (repli : le seul processus). */
+function killTree(pid: number | undefined): void {
+    if (pid === undefined) { return; }
+    try {
+        process.kill(process.platform === 'win32' ? pid : -pid, 'SIGKILL');
+    } catch {
+        try { process.kill(pid, 'SIGKILL'); } catch { /* déjà terminé */ }
+    }
+}
+
+/** Pic mémoire écrit par `/usr/bin/time -f %M` (dernière ligne), 0 sinon. */
+function readPeak(measured: boolean, memFile: string): number {
+    if (!measured || !fs.existsSync(memFile)) { return 0; }
+    return parseInt(fs.readFileSync(memFile, 'utf8').trim().split('\n').pop() ?? '0', 10) || 0;
 }
 
 function formatMs(ms: number): string {

@@ -68,15 +68,24 @@ fn load_env_file(filename: &str) {
             let key = line[..eq_pos].trim().to_string();
             let mut value = line[eq_pos + 1..].trim().to_string();
 
-            // Retirer les guillemets si présents
-            if (value.starts_with('"') && value.ends_with('"')) ||
-               (value.starts_with('\'') && value.ends_with('\'')) {
+            // Retirer les guillemets si présents (au moins deux caractères :
+            // `A="` seul faisait paniquer le découpage).
+            if value.len() >= 2 && ((value.starts_with('"') && value.ends_with('"')) ||
+               (value.starts_with('\'') && value.ends_with('\''))) {
                 value = value[1..value.len() - 1].to_string();
             }
 
-            // Charger dans l'environnement système aussi
-            unsafe {
-                std::env::set_var(&key, &value);
+            // Clé vide (`=valeur`) ou NUL : ligne ignorée (`set_var` paniquait).
+            if !crate::valid_env_pair(&key, &value) {
+                continue;
+            }
+
+            // Charger dans l'environnement système, sans écraser une variable
+            // déjà définie par le système (DotEnv.md).
+            if std::env::var_os(&key).is_none() {
+                unsafe {
+                    std::env::set_var(&key, &value);
+                }
             }
             
             // Stocker dans notre HashMap

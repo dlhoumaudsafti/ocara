@@ -18,6 +18,9 @@ pub enum LexError {
 
     /// Entier trop grand pour un i64.
     IntegerOverflow(String, Span),
+
+    /// Nombre en notation à exposant (`1.0e300`), non supportée.
+    ExponentNotation(String, Span),
 }
 
 impl fmt::Display for LexError {
@@ -34,6 +37,9 @@ impl fmt::Display for LexError {
 
             LexError::IntegerOverflow(raw, span) =>
                 write!(f, "[{}] Entier trop grand : {}", span, raw),
+
+            LexError::ExponentNotation(raw, span) =>
+                write!(f, "[{}] Notation à exposant non supportée : {}", span, raw),
         }
     }
 }

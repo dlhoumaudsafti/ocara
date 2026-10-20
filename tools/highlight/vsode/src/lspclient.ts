@@ -12,6 +12,29 @@ import { docLink, rewriteDocLinks } from './docs';
 let client: LanguageClient | undefined;
 
 export async function startLanguageServer(context: vscode.ExtensionContext): Promise<void> {
+    context.subscriptions.push(
+        { dispose: () => { void client?.dispose(); } },
+        vscode.commands.registerCommand('ocara.showReferences', showReferences),
+        vscode.commands.registerCommand('ocara.restartLanguageServer', restartLanguageServer),
+        vscode.workspace.onWillSaveTextDocument(e => {
+            if (e.document.languageId === 'ocara' && vscode.workspace.getConfiguration('ocara').get<boolean>('autoImport.enable', true)) {
+                e.waitUntil(missingImportEdits(e.document));
+            }
+        }),
+        vscode.workspace.onDidChangeConfiguration(e => {
+            // Nouveau compilateur : le serveur en cours est l'ancien binaire.
+            if (e.affectsConfiguration('ocara.compilerPath')) {
+                void restartLanguageServer();
+            } else if (client && ['ocara.os', 'ocara.osOther', 'ocara.arch', 'ocara.archOther', 'ocara.build'].some(s => e.affectsConfiguration(s))) {
+                void client.sendNotification('workspace/didChangeConfiguration', { settings: buildSettings() });
+            }
+        }),
+    );
+    await launch();
+}
+
+/** Crée et démarre le client avec la commande `ocara.compilerPath` actuelle. */
+async function launch(): Promise<void> {
     const [command, ...args] = resolveCommand('compilerPath', 'ocara');
     const serverOptions: ServerOptions = { command, args: [...args, '--lsp'] };
     const clientOptions: LanguageClientOptions = {
@@ -27,25 +50,25 @@ export async function startLanguageServer(context: vscode.ExtensionContext): Pro
         },
     };
     client = new LanguageClient('ocara', 'Ocara (serveur de langage)', serverOptions, clientOptions);
-    context.subscriptions.push(
-        client,
-        vscode.commands.registerCommand('ocara.showReferences', showReferences),
-        vscode.workspace.onWillSaveTextDocument(e => {
-            if (e.document.languageId === 'ocara' && vscode.workspace.getConfiguration('ocara').get<boolean>('autoImport.enable', true)) {
-                e.waitUntil(missingImportEdits(e.document));
-            }
-        }),
-        vscode.workspace.onDidChangeConfiguration(e => {
-            if (client && ['ocara.os', 'ocara.osOther', 'ocara.arch', 'ocara.archOther', 'ocara.build'].some(s => e.affectsConfiguration(s))) {
-                void client.sendNotification('workspace/didChangeConfiguration', { settings: buildSettings() });
-            }
-        }),
-    );
     try {
         await client.start();
     } catch (err) {
         vscode.window.showErrorMessage(`Ocara : impossible de démarrer le serveur de langage (${err}) — réglage « ocara.compilerPath ».`);
     }
+}
+
+/** Commande « Ocara : Redémarrer le serveur de langage » (et changement de
+ *  `ocara.compilerPath`) : arrête le serveur en cours puis en relance un. */
+async function restartLanguageServer(): Promise<void> {
+    const previous = client;
+    client = undefined;
+    try {
+        // `dispose` arrête le serveur et libère ses abonnements (sortie, watchers).
+        await previous?.dispose();
+    } catch {
+        // Serveur déjà arrêté (lancement raté) : rien à arrêter.
+    }
+    await launch();
 }
 
 /** CodeLens du serveur : arguments LSP (uri, position, emplacements) → panneau de références. */

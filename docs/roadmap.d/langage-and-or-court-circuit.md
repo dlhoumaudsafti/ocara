@@ -1,42 +1,23 @@
-# `and` / `or` sans court-circuit ; condition `mixed` testée comme un pointeur
+# `and` / `or` sans court-circuit ; condition `mixed` testée comme un pointeur — corrigé
 
-Audit du 2026-10-19. Reproduit sur le binaire courant.
+Audit du 2026-10-19, corrigé le 2026-10-20.
 
 ## Constat
 
-1. **`and` et `or` évaluent toujours leurs deux opérandes.**
-   ```ocara
-   var n:Node|null = null
-   if n not equal null and n.v equal 1 { … }   // lève "Cannot access 'v' on null"
-   IO::writeln(false and side("B"))            // affiche "Bfalse"
-   ```
-   `d not equal 0 and 10 / d equal 2` lève « Division by zero ». La garde
-   « non null puis champ », très courante, ne protège rien. Non documenté ;
-   les langages courants court-circuitent.
-   `src/lower/expr.d/lower.rs` (~l.1494) émet `Inst::And`/`Inst::Or` après
-   avoir abaissé les deux côtés ; `logical.rs` les traduit en `band`/`bor`.
-2. **Condition `mixed` (ou `bool|…`) : le pointeur de la boîte est testé, pas
-   le booléen.**
-   ```ocara
-   var f:mixed = false
-   if f { … }                         // branche prise
-   var mm:map<string, mixed> = {"active": false}
-   if mm["active"] { … }              // branche prise (maps issues de JSON)
-   ```
-   `not t`, `x and t`, `while f` sont faux de la même manière. Une
-   affectation `var b:bool = f` déballe correctement.
+`and`/`or` évaluaient toujours les deux opérandes
+(`n not equal null and n.v equal 1` levait « Cannot access 'v' on null »),
+et une condition `mixed` testait le pointeur de la boîte (`if mixed(false)`
+prenait la branche).
 
-## Piste
+## Correctif (`src/lower/expr.d/lower.rs`)
 
-Abaisser `a and b` en `if a { b } else { false }` (blocs + phi), idem `or` ;
-déballer (`__unbox_bool`) un opérande `mixed`/union dans `if`, `while`,
-`not`, `and`, `or`. Documenter le court-circuit dans l'EBNF.
+- `lower_short_circuit` : `a and b` / `a or b` abaissés en blocs, `b`
+  évalué seulement si nécessaire, ses temporaires rendus dans sa branche.
+- `lower_condition` : une condition `mixed`/union est déballée
+  (`__mixed_to_int` puis comparaison à 0) ; utilisée par `if`, `elseif`,
+  `while`, `not`, `and`, `or`.
+- EBNF §11 : court-circuit et valeur de vérité d'un `mixed` documentés.
 
-## Priorité / Complexité
+## Tests
 
-**Haute** (valeurs fausses, exceptions inattendues) — **Légère**.
-
-## Fichiers clés
-
-`src/lower/expr.d/lower.rs`, `src/codegen/emit.d/instructions.d/logical.rs`,
-`src/lower/stmt.d/statements.d/control_flow.rs`, `docs/EBNF.md` (opérateurs).
+`examples/tests/99_short_circuit_indirect_callsTest.oc`.

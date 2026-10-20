@@ -83,6 +83,10 @@ impl Lexer {
                         match self.current() {
                             None => return Err(LexError::UnterminatedString(start)),
                             Some('{') => { depth += 1; expr_src.push('{'); self.advance(); }
+                            // Chaîne de l'expression copiée telle quelle : ses
+                            // accolades ne comptent pas (`${String::len("{x")}`
+                            // donnait « unterminated string »).
+                            Some(q @ ('"' | '\'')) => self.copy_quoted(q, &mut expr_src, &start)?,
                             Some('}') => {
                                 depth -= 1;
                                 if depth == 0 {
@@ -128,6 +132,33 @@ impl Lexer {
     /// Règle pour éviter la confusion avec `..` :
     /// le `.` n'est consommé comme séparateur décimal que si le caractère
     /// immédiatement suivant est un chiffre (ex. `1.5` ok, `0..5` → `0` `..` `5`).
+    /// Copie dans `out` une chaîne délimitée par `quote` (guillemets compris,
+    /// échappements conservés) d'une expression `${…}` de gabarit.
+    fn copy_quoted(&mut self, quote: char, out: &mut String, start: &Span) -> Result<(), LexError> {
+        out.push(quote);
+        self.advance();
+        loop {
+            match self.current() {
+                None => return Err(LexError::UnterminatedString(start.clone())),
+                Some('\\') => {
+                    out.push('\\');
+                    self.advance();
+                    if let Some(c) = self.current() {
+                        out.push(c);
+                        self.advance();
+                    }
+                }
+                Some(c) => {
+                    out.push(c);
+                    self.advance();
+                    if c == quote {
+                        return Ok(());
+                    }
+                }
+            }
+        }
+    }
+
     pub(in crate::parsing::lexer) fn read_number(&mut self, start: Span) -> Result<Token, LexError> {
         let raw_start = self.pos;
         let mut is_float = false;
@@ -149,6 +180,20 @@ impl Lexer {
         }
 
         let lexeme: String = self.source[raw_start..self.pos].iter().collect();
+
+        // `1.0e300` : notation à exposant non supportée (EBNF). Sans ce
+        // contrôle, `e300` devenait un identifiant (« undefined symbol »).
+        if matches!(self.current(), Some('e' | 'E'))
+            && self.peek_next().is_some_and(|c| c.is_ascii_digit() || c == '+' || c == '-')
+        {
+            let mut raw = lexeme.clone();
+            raw.push(self.current().unwrap_or('e'));
+            while self.peek_next().is_some_and(|c| c.is_ascii_digit() || c == '+' || c == '-') {
+                self.advance();
+                raw.push(self.current().unwrap_or(' '));
+            }
+            return Err(LexError::ExponentNotation(raw, start));
+        }
 
         let kind = if is_float {
             // Les flottants débordants deviennent ±inf, acceptable au niveau lexical.

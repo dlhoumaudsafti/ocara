@@ -36,6 +36,9 @@ use crate::{alloc_str, ptr_to_str, new_map};
 struct ComponentEntry {
     func_ptr: i64,
     env_ptr:  i64,
+    /// Closure retenue par `register` : rendue quand l'entrée est remplacée,
+    /// retirée (`unregister`) ou vidée en fin de programme.
+    fat_ptr:  i64,
 }
 unsafe impl Send for ComponentEntry {}
 
@@ -59,11 +62,11 @@ struct OcaraHtmlComponent {
 }
 
 #[inline]
-unsafe fn component_from_slot(self_ptr: i64) -> &'static mut OcaraHtmlComponent {
+unsafe fn component_from_slot(self_ptr: i64) -> &'static OcaraHtmlComponent {
     unsafe {
         let slot  = self_ptr as *const i64;
-        let inner = *slot as *mut OcaraHtmlComponent;
-        &mut *inner
+        let inner = *slot as *const OcaraHtmlComponent;
+        &*inner
     }
 }
 
@@ -77,10 +80,21 @@ unsafe fn component_from_slot(self_ptr: i64) -> &'static mut OcaraHtmlComponent 
 /// Convention : self_ptr est le slot alloué, name_ptr est passé après.
 #[unsafe(no_mangle)]
 pub extern "C" fn HTMLComponent_init(self_ptr: i64, name_ptr: i64) {
-    let name = unsafe { ptr_to_str(name_ptr).to_string() };
-    let c    = Box::new(OcaraHtmlComponent { name });
-    let raw  = Box::into_raw(c) as i64;
-    unsafe { *(self_ptr as *mut i64) = raw; }
+    let name = unsafe { ptr_to_str(name_ptr) };
+    unsafe { *(self_ptr as *mut i64) = interned(name); }
+}
+
+/// Une instance native par nom distinct, jamais modifiée : une instance n'a
+/// pas d'autre état que son nom, et un `Box` par `use HTMLComponent(…)`
+/// n'était jamais détruit (croissance sans limite).
+static INTERNED: Mutex<Option<HashMap<String, i64>>> = Mutex::new(None);
+
+fn interned(name: &str) -> i64 {
+    let mut guard = INTERNED.lock().unwrap();
+    let names = guard.get_or_insert_with(HashMap::new);
+    *names.entry(name.to_string()).or_insert_with(|| {
+        Box::into_raw(Box::new(OcaraHtmlComponent { name: name.to_string() })) as i64
+    })
 }
 
 /// Définit ou modifie le nom du tag du composant.
@@ -88,19 +102,8 @@ pub extern "C" fn HTMLComponent_init(self_ptr: i64, name_ptr: i64) {
 /// Si le composant n'est pas encore initialisé, l'initialise avec un nom vide d'abord.
 #[unsafe(no_mangle)]
 pub extern "C" fn HTMLComponent_tag(self_ptr: i64, name_ptr: i64) {
-    // Vérifier si le composant est déjà initialisé
-    let slot = self_ptr as *const i64;
-    let inner = unsafe { *slot };
-    
-    // Si non initialisé (pointeur nul), initialiser d'abord
-    if inner == 0 {
-        let c = Box::new(OcaraHtmlComponent { name: String::new() });
-        let raw = Box::into_raw(c) as i64;
-        unsafe { *(self_ptr as *mut i64) = raw; }
-    }
-    
-    let comp = unsafe { component_from_slot(self_ptr) };
-    comp.name = unsafe { ptr_to_str(name_ptr).to_string() };
+    let name = unsafe { ptr_to_str(name_ptr) };
+    unsafe { *(self_ptr as *mut i64) = interned(name); }
 }
 
 /// Enregistre un handler nameless(attrs: map<string, mixed>): string.
@@ -111,9 +114,24 @@ pub extern "C" fn HTMLComponent_register(self_ptr: i64, fat_ptr: i64) {
     crate::rc::__rc_retain(fat_ptr);
     let func_ptr = unsafe { *(fat_ptr as *const i64) };
     let env_ptr  = unsafe { *((fat_ptr as *const i64).add(1)) };
-    with_registry(|reg| {
-        reg.insert(comp.name.clone(), ComponentEntry { func_ptr, env_ptr });
-    });
+    let old = with_registry(|reg| reg.insert(comp.name.clone(), ComponentEntry { func_ptr, env_ptr, fat_ptr }));
+    release_entry(old);
+}
+
+/// Rend la closure d'une entrée retirée ou remplacée.
+fn release_entry(entry: Option<ComponentEntry>) {
+    if let Some(entry) = entry {
+        crate::rc::__rc_release(entry.fat_ptr);
+    }
+}
+
+/// Fin de programme (bilan `--leak-check`) : rend les closures encore
+/// enregistrées.
+pub(crate) fn release_registry() {
+    let entries: Vec<ComponentEntry> = with_registry(|reg| reg.drain().map(|(_, e)| e).collect());
+    for entry in entries {
+        release_entry(Some(entry));
+    }
 }
 
 /// Retire un composant du registre global (méthode statique, pas de self_ptr —
@@ -122,9 +140,8 @@ pub extern "C" fn HTMLComponent_register(self_ptr: i64, fat_ptr: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn HTMLComponent_unregister(name_ptr: i64) {
     let name = unsafe { ptr_to_str(name_ptr).to_string() };
-    with_registry(|reg| {
-        reg.remove(&name);
-    });
+    let old = with_registry(|reg| reg.remove(&name));
+    release_entry(old);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -144,8 +161,9 @@ unsafe fn attr_to_ocara(val: AttrVal) -> i64 {
     unsafe {
         match val {
             AttrVal::Str(s)  => alloc_str(&s),
-            AttrVal::Int(n)  => n,
-            AttrVal::Bool(b) => if b { 1 } else { 0 },
+            // Map `mixed` : scalaires boxés (`0` brut se lisait `null`).
+            AttrVal::Int(n)  => crate::box_int_if_needed(n),
+            AttrVal::Bool(b) => crate::__box_bool(b as i64),
             AttrVal::Map(entries) => {
                 let m = new_map();
                 for (k, v) in entries {
@@ -208,7 +226,11 @@ fn parse_attr_value(s: &[u8], i: &mut usize) -> AttrVal {
             if s[*i] == b'-' { *i += 1; }
             while *i < s.len() && s[*i].is_ascii_digit() { *i += 1; }
             let tok = String::from_utf8_lossy(&s[start..*i]).into_owned();
-            AttrVal::Int(tok.parse::<i64>().unwrap_or(0))
+            // Nombre hors de `int` : gardé en texte (il valait 0).
+            match tok.parse::<i64>() {
+                Ok(n) => AttrVal::Int(n),
+                Err(_) => AttrVal::Str(tok),
+            }
         }
         // true / false
         _ => {
@@ -548,7 +570,7 @@ fn render_recursive(template: &str, depth: u32) -> String {
                     crate::map_set_owned_key(attrs_ptr, k, v);
                 }
             }
-            let entry = ComponentEntry { func_ptr, env_ptr };
+            let entry = ComponentEntry { func_ptr, env_ptr, fat_ptr: 0 };
             call_component(&entry, attrs_ptr)
         };
 

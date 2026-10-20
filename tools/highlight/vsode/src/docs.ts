@@ -52,14 +52,24 @@ export function docLink(label: string, relPath: string, heading?: string): strin
 
 /**
  * Liens relatifs d'un extrait de `docs/builtins/<fichier>` (`[Regex](Regex.md)`,
- * `[EBNF](../EBNF.md#...)`) → liens `ocara.openDoc` vers la copie embarquée ;
+ * `[EBNF](../EBNF.md#...)`) → liens `ocara.openDoc` vers la copie embarquée
+ * (ancre `#…` conservée) ;
  * les autres liens relatifs (README...) n'existent pas dans l'extension :
  * réduits à leur texte.
  */
 export function rewriteDocLinks(markdown: string, fromDir: 'builtins' | ''): string {
-    return markdown.replace(/\[([^\]]+)\]\((?!https?:|command:|#)([^)#\s]+)(#[^)\s]*)?\)/g, (_all, label: string, target: string) => {
+    return markdown.replace(/\[([^\]]+)\]\((?!https?:|command:|#)([^)#\s]+)(?:#([^)\s]*))?\)/g, (_all, label: string, target: string, anchor?: string) => {
         const rel = path.posix.normalize(path.posix.join(fromDir, target));
         const known = rel === 'EBNF.md' || /^builtins\/[^/]+\.md$/.test(rel);
-        return known ? docLink(label, rel) : label;
+        // L'ancre (déjà un identifiant de titre) est conservée : `slugify` la laisse intacte.
+        return known ? docLink(label, rel, anchor ? safeDecode(anchor) : undefined) : label;
     });
+}
+
+function safeDecode(value: string): string {
+    try {
+        return decodeURIComponent(value);
+    } catch {
+        return value;
+    }
 }

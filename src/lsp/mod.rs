@@ -14,6 +14,7 @@ mod links;
 mod navigation;
 mod position;
 mod project;
+mod rename_check;
 mod semantic;
 mod signature;
 mod workflow;
@@ -24,6 +25,8 @@ mod workspace;
 mod tests_roots;
 #[cfg(test)]
 mod tests_test_wiring;
+#[cfg(test)]
+mod tests_rename_check;
 
 use std::path::{Path, PathBuf};
 
@@ -230,9 +233,16 @@ fn handle_notification(connection: &Connection, ws: &mut Workspace, index: &mut 
             let Ok(p) = serde_json::from_value::<lsp_types::DidChangeTextDocumentParams>(note.params) else { return };
             let Some(path) = to_path(&p.text_document.uri) else { return };
             let Some(change) = p.content_changes.into_iter().last() else { return };
+            let dependents = dependents(ws, &path);
             ws.open(path.clone(), change.text);
             index.invalidate(&path);
             refresh(connection, ws, &path);
+            // Documents ouverts qui importent ce fichier : réanalysés sur le
+            // texte en cours (leurs diagnostics et leur survol restaient
+            // périmés jusqu'à l'enregistrement).
+            for other in dependents {
+                refresh(connection, ws, &other);
+            }
         }
         DidSaveTextDocument::METHOD => {
             // Un fichier enregistré peut changer l'analyse des autres
@@ -266,8 +276,15 @@ fn handle_notification(connection: &Connection, ws: &mut Workspace, index: &mut 
         DidCloseTextDocument::METHOD => {
             let Ok(p) = serde_json::from_value::<lsp_types::DidCloseTextDocumentParams>(note.params) else { return };
             let Some(path) = to_path(&p.text_document.uri) else { return };
+            // Modifications non enregistrées abandonnées : l'index et les
+            // documents qui importent ce fichier repartent du disque.
+            let dependents = dependents(ws, &path);
             ws.close(&path);
+            index.invalidate(&path);
             publish(connection, &path, Vec::new());
+            for other in dependents {
+                refresh(connection, ws, &other);
+            }
         }
         _ => {}
     }
@@ -283,6 +300,28 @@ fn apply_build_settings(settings: Option<&Value>) {
         }
     }
     crate::parsing::build::set_current(config);
+}
+
+/// Autres documents ouverts dont la dernière analyse contient une
+/// déclaration du fichier `path` (ils l'importent).
+fn dependents(ws: &Workspace, path: &Path) -> Vec<PathBuf> {
+    ws.open_paths().into_iter()
+        .filter(|other| other != path)
+        .filter(|other| ws.analysis(other).and_then(|a| a.checked.as_ref()).is_some_and(|c| declares_from(&c.program, other, path)))
+        .collect()
+}
+
+/// Vrai si une déclaration de premier niveau de `program` (analysé depuis
+/// `entry`) vient du fichier `file`.
+fn declares_from(program: &crate::parsing::ast::Program, entry: &Path, file: &Path) -> bool {
+    let spans = program.classes.iter().map(|c| &c.span)
+        .chain(program.interfaces.iter().map(|i| &i.span))
+        .chain(program.functions.iter().map(|f| &f.span))
+        .chain(program.modules.iter().map(|m| &m.span))
+        .chain(program.generics.iter().map(|g| &g.span))
+        .chain(program.enums.iter().map(|e| &e.span))
+        .chain(program.consts.iter().map(|c| &c.span));
+    spans.into_iter().any(|span| span.file.is_some() && features::span_path(span, entry) == file)
 }
 
 fn refresh(connection: &Connection, ws: &mut Workspace, path: &Path) {

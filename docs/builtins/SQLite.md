@@ -109,6 +109,8 @@ db.execute("INSERT INTO users (name, age) VALUES (:name, :age)", {"name": "Alice
 
 Il n'y a pas de placeholders positionnels (`?`) — choix délibéré, cohérent avec le reste du langage (comparaisons en toutes lettres plutôt qu'en symboles, voir `examples/32_strict_operators.oc`) : le nom du placeholder porte l'intention au point d'appel, un `?` ne le fait pas.
 
+Les colonnes lues deviennent : INTEGER → `int`, REAL → `float`, TEXT → `string`, BLOB → `array<int>` (un octet par élément), NULL → `null`.
+
 Types de valeurs bindables : `int`, `float`, `bool`, `string`, `null`. Une valeur `array`/`map`/objet/fonction dans la map de placeholders lève `SQLiteException` (code 106) — ce ne sont pas des valeurs SQL scalaires.
 
 ## Transactions — `begin()` / `commit()` / `rollback()`

@@ -173,6 +173,15 @@ pub extern "C" fn DateTime_parse(s: i64) -> i64 {
         }
     };
     
+    // Jour inexistant (`2023-02-31`) : refusé, il basculait sur le mois suivant.
+    if day as i64 > crate::civil::days_in_month(year as i64, month as i64) {
+        unsafe {
+            crate::exception::throw_datetime_exception(
+                &format!("Invalid day in datetime: '{}' (month {} has {} days)", s_str, month, crate::civil::days_in_month(year as i64, month as i64)),
+                101
+            );
+        }
+    }
     parts_to_timestamp(year, month, day, hour, minute, second)
 }
 
@@ -182,81 +191,11 @@ pub extern "C" fn DateTime_parse(s: i64) -> i64 {
 
 /// Convertit un timestamp Unix en composants (année, mois, jour, heure, minute, seconde)
 fn timestamp_to_parts(ts: i64) -> (i32, i32, i32, i32, i32, i32) {
-    let mut remaining = ts;
-    
-    // Extraire l'heure, minute, seconde
-    let second = (remaining % 60) as i32;
-    remaining /= 60;
-    let minute = (remaining % 60) as i32;
-    remaining /= 60;
-    let hour = (remaining % 24) as i32;
-    remaining /= 24;
-    
-    // remaining = nombre de jours depuis epoch
-    let mut days = remaining as i32;
-    
-    // Calculer l'année (approximation puis ajustement)
-    let mut year = 1970;
-    loop {
-        let year_days = if is_leap_year(year) { 366 } else { 365 };
-        if days < year_days {
-            break;
-        }
-        days -= year_days;
-        year += 1;
-    }
-    
-    // Calculer le mois et le jour
-    let mut month = 1;
-    let months_days = days_in_months(year);
-    for (m, &m_days) in months_days.iter().enumerate() {
-        if days < m_days {
-            month = (m + 1) as i32;
-            break;
-        }
-        days -= m_days;
-    }
-    
-    let day = days + 1;
-    
-    (year, month, day, hour, minute, second)
+    let (y, mo, d, h, mi, s) = crate::civil::parts_from_timestamp(ts);
+    (y as i32, mo as i32, d as i32, h as i32, mi as i32, s as i32)
 }
 
 /// Convertit des composants en timestamp Unix
 fn parts_to_timestamp(year: i32, month: i32, day: i32, hour: i32, minute: i32, second: i32) -> i64 {
-    // Calculer les jours depuis epoch
-    let mut days = 0i64;
-    
-    // Ajouter les années complètes
-    for y in 1970..year {
-        days += if is_leap_year(y) { 366 } else { 365 };
-    }
-    
-    // Ajouter les mois de l'année courante
-    let months_days = days_in_months(year);
-    for m in 0..(month - 1) as usize {
-        days += months_days[m] as i64;
-    }
-    
-    // Ajouter les jours
-    days += (day - 1) as i64;
-    
-    // Convertir en secondes
-    let mut ts = days * 86400;
-    ts += hour as i64 * 3600;
-    ts += minute as i64 * 60;
-    ts += second as i64;
-    
-    ts
-}
-
-/// Retourne true si l'année est bissextile
-fn is_leap_year(year: i32) -> bool {
-    (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
-}
-
-/// Retourne le nombre de jours dans chaque mois pour une année donnée
-fn days_in_months(year: i32) -> [i32; 12] {
-    let feb_days = if is_leap_year(year) { 29 } else { 28 };
-    [31, feb_days, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    crate::civil::timestamp_from_parts(year as i64, month as i64, day as i64, hour as i64, minute as i64, second as i64)
 }

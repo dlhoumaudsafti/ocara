@@ -1,0 +1,65 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.Array
+import ocara.Convert
+
+// Éléments bruts (`int`/`float`/`bool`) et chaînes dans les tableaux :
+// `join`/`sort`/`contains`/`indexOf` selon le type des éléments et le contenu
+// des chaînes, affichage des conteneurs, assertions `UnitTest` sur tableaux
+// et flottants — voir docs/roadmap.d/stdlib-array-elements-bruts.md.
+
+class Test97ArrayRawElementsDisplay extends UnitTest {
+
+    public method joinRawElementsTest(): int {
+        var ai:array<int> = [100000, 0, -3, 70000]
+        var af:array<float> = [3.5, -1.0]
+        var ab:array<bool> = [true, false]
+        self::assertEquals("100000,0,-3,70000", Array::join(ai, ","))
+        self::assertEquals("100000;0;-3;70000", Convert::arrayToStr(ai, ";"))
+        self::assertEquals("3.5|-1", af.join("|"))
+        self::assertEquals("true,false", ab.join(","))
+        return 0
+    }
+
+    public method stringsComparedByContentTest(): int {
+        var x:string = "b"
+        var w:array<string> = [`z${x}`, `a${x}`, `m${x}`]
+        self::assertEquals("ab,mb,zb", Array::sort(w).join(","))
+        self::assertTrue(Array::contains(w, `a${x}`))
+        self::assertEquals(2, Array::indexOf(w, `m${x}`))
+        return 0
+    }
+
+    public method rawElementsSearchedAndSortedByValueTest(): int {
+        var ai:array<int> = [100000, 0, -3]
+        var af:array<float> = [3.5, -1.0, 2.25, -10.5]
+        self::assertTrue(ai.contains(100000))
+        self::assertFalse(ai.contains(5))
+        self::assertEquals(1, ai.indexOf(0))
+        self::assertEquals("-3,0,100000", Array::sort(ai).join(","))
+        self::assertEquals("-10.5,-1,2.25,3.5", Array::sort(af).join(","))
+        self::assertEquals(3, af.indexOf(-10.5))
+        return 0
+    }
+
+    public method containersDisplayedTest(): int {
+        var ai:array<int> = [1, 0]
+        var m:map<string, int> = {"a": 1, "b": 0}
+        var nested:array<array<int>> = [[1, 2], [3]]
+        self::assertEquals("[1, 0] {a: 1, b: 0} [[1, 2], [3]]", `${ai} ${m} ${nested}`)
+        return 0
+    }
+
+    public method unitTestAssertionsOnContainersTest(): int {
+        var empty:array<int> = []
+        var full:array<int> = [1]
+        self::assertEmpty(empty)
+        self::assertNotEmpty(full)
+        self::assertEquals([1, 2], [1, 2])
+        self::assertNotEquals([1, 2], [2, 1])
+        self::assertGreater(2.5, 1.5)
+        self::assertLess(-1.5, 0.5)
+        return 0
+    }
+}

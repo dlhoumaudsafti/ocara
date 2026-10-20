@@ -5,9 +5,13 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
 ## Fonctionnalités
 
 - **Coloration syntaxique** complète (grammaire TextMate `syntaxes/ocara.tmLanguage.json`) : mots-clés,
-  types, classes, structs, méthodes, imports, chaînes, templates, noms d'arguments nommés.
+  types, classes, structs, méthodes, imports, chaînes, templates, noms d'arguments nommés. Dans un
+  template, `` \` `` et `\${x}` sont des échappements ; le HTML y est coloré (balises, attributs,
+  commentaires, entités) sans jamais déborder au-delà du `` ` `` fermant.
 - **Serveur de langage du compilateur** (`ocara --lsp`, lancé avec le compilateur du réglage
-  `ocara.compilerPath`) — toute la sémantique vient du compilateur lui-même, aucune heuristique :
+  `ocara.compilerPath` ; changer ce réglage redémarre le serveur, et la commande **« Ocara : Redémarrer
+  le serveur de langage »** le relance à la demande, par exemple après avoir recompilé `ocara`) — toute
+  la sémantique vient du compilateur lui-même, aucune heuristique :
   - **erreurs et avertissements pendant la frappe**, y compris ceux d'un fichier importé (signalés en
     tête du document, avec un lien) ; une erreur de syntaxe n'empêche pas le reste du document de
     fonctionner (toutes les erreurs de syntaxe sont signalées, survol et complétion continuent) ;
@@ -72,7 +76,13 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
   - **Benchmark** : temps et pic mémoire sur plusieurs exécutions (build Release), **détection des
     fuites** en un clic (`ocara --leak-check` : le script s'exécute tel quel, les valeurs non libérées
     sont listées par classe, puis par fonction d'allocation — un clic ouvre la fonction), fuite par croissance (marqueur `__N__`), profil par fonction (`ocara --profile`) et historique comparé par script
-    (voir docs/benchmarking.md).
+    (voir docs/benchmarking.md). Le délai `ocara.benchmark.timeout` tue le programme mesuré lui-même
+    (tout son groupe de processus) ; un code de sortie non nul fait échouer la mesure de temps, mais le
+    bilan de fuites et le profil restent affichés (fin anormale signalée). Les résultats restent
+    attachés au script mesuré même si l'éditeur actif change pendant la mesure. Fuites (nombre de
+    valeurs) et croissance (Ko) sont comparées séparément dans l'historique. Les copies `__N__` sont
+    écrites dans un dossier temporaire, jamais dans le projet (imports résolus depuis le dossier du
+    script par `--src`, sauf si `ocara.compilerPath` fixe déjà son propre `--src`).
 - Les noms de type (`var x:Dog`, `extends Animal`, paramètres, `on e is FileException`) ont survol,
   définition et références comme les autres noms.
 - **Documentation embarquée** : `docs/EBNF.md` et `docs/builtins/*.md` du dépôt sont copiés dans
@@ -87,15 +97,20 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
   d'un fichier `.oc` : chaque ligne concernée est surlignée en jaune, le message s'affiche au
   survol (et dans le panneau Problèmes). Règles : le `.ocaracs` le plus proche en remontant
   depuis le dossier du script, sinon les valeurs par défaut d'ocaracs. ocaracs lisant le fichier
-  sur disque, l'analyse porte sur la dernière version enregistrée.
+  sur disque, l'analyse porte sur la dernière version enregistrée. Les demandes rapprochées
+  (ouverture + affichage) sont regroupées en une analyse ; le résultat d'une analyse dépassée
+  (fichier fermé ou ré-analysé entre-temps) est ignoré ; désactiver `ocara.lint.enable` efface
+  diagnostics et surlignage.
 - **Clic droit → « Compiler (Debug) » / « Compiler (Release) »** (éditeur ou arborescence,
   aussi dans la palette) : demande le nom du binaire, créé dans le dossier du script (le
   compilateur y laisse aussi `<nom>.o`) ; Release compile avec `--release` (`System::BUILD`
-  vaut `release`). Erreurs dans le panneau Problèmes et la sortie « Ocara ».
+  vaut `release`). Erreurs dans le panneau Problèmes et la sortie « Ocara » ; celles d'un fichier
+  disparaissent dès qu'il est modifié ou enregistré.
 - **Clic droit → « Compiler et lancer (Debug) » / « (Release) »** : demande le nom du binaire
   comme « Compiler », puis l'exécute **depuis le dossier du script** dans le terminal intégré « Ocara »
-  (entrée clavier et programmes longs, comme un serveur, fonctionnent). Un seul terminal
-  « Ocara » sert à tous les lancements : le programme précédent y est arrêté (Ctrl+C) avant.
+  (entrée clavier et programmes longs, comme un serveur, fonctionnent). Le binaire est le processus
+  même du terminal (aucun shell : fonctionne avec bash, PowerShell ou cmd) ; un nouveau lancement
+  ferme le terminal « Ocara » précédent et le programme qui y tournait.
 - **Clic droit → « Afficher le dump »** : tokens, AST et IR (`ocara --dump`) dans un éditeur
   sans fichier — le binaire que `--dump` produit malgré tout est compilé dans un dossier
   temporaire supprimé aussitôt.
@@ -114,7 +129,7 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
 | `ocara.ocaracsPath` | `ocaracs` | Chemin d'ocaracs ou commande pour le lancer (mêmes règles). |
 | `ocara.lint.enable` | `true` | Active l'analyse ocaracs automatique. |
 | `ocara.benchmark.runs` | `5` | Nombre d'exécutions de « Mesurer temps et mémoire ». |
-| `ocara.benchmark.timeout` | `30` | Délai maximal d'une exécution mesurée (secondes). |
+| `ocara.benchmark.timeout` | `30` | Délai maximal d'une exécution mesurée (secondes) ; au-delà, le programme est tué. |
 | `ocara.benchmark.leakSizes` | `[20000, 200000]` | Valeurs de `__N__` comparées par la détection de fuite. |
 | `ocara.autoImport.enable` | `true` | Ajoute les imports manquants à l'enregistrement (le correctif rapide reste disponible sinon). |
 | `ocara.os` | `system` | `System::OS` de l'éditeur pour les clauses `when` : `system` (machine), `linux`, `windows`, `macos`, `android`, ou `other` (valeur de `ocara.osOther`). Variante retenue, variantes écartées estompées. Ne change pas la cible des commandes de compilation. |

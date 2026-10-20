@@ -187,9 +187,19 @@ fn row_column_as_mixed(row: &rusqlite::Row<'_>, i: usize) -> i64 {
         crate::__box_float(v.to_bits() as i64)
     } else if let Ok(v) = row.get::<_, String>(i) {
         unsafe { alloc_str(&v) }
+    } else if let Ok(bytes) = row.get::<_, Vec<u8>>(i) {
+        blob_to_array(&bytes)
     } else {
         0
     }
+}
+
+/// Colonne BLOB → `array<int>` d'octets (elle était lue comme `null`).
+fn blob_to_array(bytes: &[u8]) -> i64 {
+    let ptr = crate::__array_new();
+    crate::rc::__rc_mark_raw_kind(ptr, 1);
+    unsafe { crate::containers::with_array(ptr, |data| *data = bytes.iter().map(|&b| b as i64).collect()) };
+    ptr
 }
 
 /// Lit toutes les lignes du `Statement` déjà bindé dans un `array<map<string,
@@ -337,8 +347,13 @@ pub unsafe extern "C" fn SQLite_execute(self_ptr: i64, query_ptr: i64, placehold
         // `longjmp` et ne laisserait jamais ce `Drop` s'exécuter s'il restait
         // à faire à ce moment-là : verrou tenu indéfiniment, deadlock
         // confirmé par reproduction sur la requête suivante.
+        // Placeholders lus hors de la closure (aucun verrou tenu) : une
+        // valeur non bindable lève le code 106 (BIND) documenté.
+        let binds = match read_placeholders(placeholder_ptr) {
+            Ok(binds) => binds,
+            Err(msg) => throw_sqlite_exception(&msg, ERR_BIND, "SQLite"),
+        };
         let result: Result<(i64, Option<i64>), String> = (|| {
-            let binds = read_placeholders(placeholder_ptr)?;
             let named = named_params(&binds);
             let conn = db.conn.lock().unwrap();
             match conn.execute(&query, &named[..]) {
@@ -391,8 +406,13 @@ pub unsafe extern "C" fn SQLite_query(self_ptr: i64, query_ptr: i64, placeholder
         // scopé à cette closure (y compris `stmt`/`rows`, qui en empruntent
         // la durée de vie) et se relâche normalement à sa sortie, avant tout
         // throw_sqlite_exception.
+        // Placeholders lus hors de la closure (aucun verrou tenu) : une
+        // valeur non bindable lève le code 106 (BIND) documenté.
+        let binds = match read_placeholders(placeholder_ptr) {
+            Ok(binds) => binds,
+            Err(msg) => throw_sqlite_exception(&msg, ERR_BIND, "SQLite"),
+        };
         let result: Result<i64, String> = (|| {
-            let binds = read_placeholders(placeholder_ptr)?;
             let named = named_params(&binds);
             let mut conn_guard = db.conn.lock().unwrap();
             let conn = &mut *conn_guard;
@@ -427,8 +447,13 @@ pub unsafe extern "C" fn SQLite_queryOne(self_ptr: i64, query_ptr: i64, placehol
         let query = ptr_to_str(query_ptr).to_string();
 
         // Voir le commentaire de SQLite_execute.
+        // Placeholders lus hors de la closure (aucun verrou tenu) : une
+        // valeur non bindable lève le code 106 (BIND) documenté.
+        let binds = match read_placeholders(placeholder_ptr) {
+            Ok(binds) => binds,
+            Err(msg) => throw_sqlite_exception(&msg, ERR_BIND, "SQLite"),
+        };
         let result: Result<i64, String> = (|| {
-            let binds = read_placeholders(placeholder_ptr)?;
             let named = named_params(&binds);
             let mut conn_guard = db.conn.lock().unwrap();
             let conn = &mut *conn_guard;
@@ -571,7 +596,11 @@ pub unsafe extern "C" fn SQLite_commit(self_ptr: i64, close: i64) -> i64 {
         let db = &*(self_ptr as *const OcaraSQLiteDatabase);
 
         let explicit = *db.explicit_tx.lock().unwrap();
-        let query = match db.pending_query.lock().unwrap().clone() {
+        // Verrou relâché AVANT le `match` : un `throw_*` (longjmp) dans un bras
+        // sauterait son drop et laisserait `pending_query` verrouillé à vie
+        // (`rollback()` bloqué ensuite).
+        let pending = db.pending_query.lock().unwrap().clone();
+        let query = match pending {
             Some(q) => Some(q),
             None if explicit => None,
             None => throw_sqlite_exception(

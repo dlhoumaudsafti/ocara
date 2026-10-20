@@ -1131,6 +1131,38 @@ impl<'a> TypeChecker<'a> {
 
     // ── Inférence de type des expressions ────────────────────────────────────
 
+    /// Appel d'une expression de type `Function<R(P…)>` : nombre et types des
+    /// arguments vérifiés, type `R` rendu (`mixed` si la callee n'est pas une
+    /// fonction connue).
+    fn check_expression_call(&mut self, callee: &Expr, args: &[Expr], span: &Span) -> Type {
+        let callee_ty = self.infer_expr(callee);
+        let Type::Function { ret_ty, param_tys } = callee_ty else {
+            for arg in args { self.infer_expr(arg); }
+            return Type::Mixed;
+        };
+        if !param_tys.is_empty() && args.len() != param_tys.len() {
+            self.errors.push(SemaError::WrongArgCount {
+                name: "<function>".into(),
+                expected: param_tys.len(),
+                found: args.len(),
+                span: span.clone(),
+            });
+        }
+        for (i, arg) in args.iter().enumerate() {
+            let arg_ty = self.infer_expr(arg);
+            if let Some(expected_ty) = param_tys.get(i) {
+                if !types_compat(&arg_ty, expected_ty, &self.symbols) {
+                    self.errors.push(SemaError::TypeMismatch {
+                        expected: type_name(expected_ty),
+                        found: type_name(&arg_ty),
+                        span: span.clone(),
+                    });
+                }
+            }
+        }
+        *ret_ty
+    }
+
     pub fn infer_expr(&mut self, expr: &Expr) -> Type {
         let hint = self.expected_hint.take();
         match expr {
@@ -1272,6 +1304,12 @@ impl<'a> TypeChecker<'a> {
             }
 
             Expr::Call { callee, args, span } => {
+                // Appel du résultat d'un appel ou d'un index (`adder(4)(1)`,
+                // `fs[0](5)`) : la callee est une expression de type `Function`
+                // (son inférence marque aussi la variable comme utilisée).
+                if !matches!(callee.as_ref(), Expr::Ident(..) | Expr::Field { .. }) {
+                    return self.check_expression_call(callee, args, span);
+                }
                 // Appel indirect : variable locale de type Function
                 if let Expr::Ident(name, _) = callee.as_ref() {
                     if let Some(b) = self.scopes.lookup(name) {
@@ -1757,10 +1795,16 @@ impl<'a> TypeChecker<'a> {
                         }
                         
                         let _ = info;
+                        // Champ de type `Function` : `h.f()` appelle sa valeur.
+                        let field_is_function = self.symbols.lookup_field_owner(&cls_name, field)
+                            .is_some_and(|(_, f)| matches!(f.ty, Type::Function { .. }));
+                        if field_is_function {
+                            return self.check_expression_call(callee, args, span);
+                        }
                         let span = self.with_runtime_ctx(fspan);
                         self.errors.push(match self.symbols.lookup_field_owner(&cls_name, field) {
                             Some(_) => SemaError::FieldCalledAsMethod { class: cls_name, field: field.clone(), span },
-                            None => SemaError::FieldNotFound { class: cls_name, field: field.clone(), span },
+                            None => SemaError::MethodNotFound { class: cls_name, method: field.clone(), span },
                         });
                     }
                 }

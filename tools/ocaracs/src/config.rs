@@ -96,73 +96,105 @@ impl Config {
     }
 }
 
-fn invalid(key: &str, val: &str, expected: &str) {
-    eprintln!("ocaracs: .ocaracs : valeur invalide pour {} : '{}' (attendu : {}) — valeur par défaut conservée", key, val, expected);
-}
-
 const STYLES: &str = "snake_case|camelCase|PascalCase|UPPER_SNAKE_CASE|UPPERCASE";
 
-fn set_style(target: &mut Style, key: &str, val: &str) {
-    match Style::parse(val) {
-        Some(style) => *target = style,
-        None => invalid(key, val, STYLES),
+/// Message d'une valeur invalide (la valeur par défaut est conservée).
+fn invalid(key: &str, val: &str, expected: &str) -> String {
+    format!("valeur invalide pour {} : '{}' (attendu : {}) — valeur par défaut conservée", key, val, expected)
+}
+
+fn set_bool(target: &mut bool, key: &str, val: &str) -> Result<(), String> {
+    match val {
+        "true"  => *target = true,
+        "false" => *target = false,
+        _ => return Err(invalid(key, val, "true|false")),
+    }
+    Ok(())
+}
+
+fn set_usize(target: &mut usize, key: &str, val: &str, expected: &str) -> Result<(), String> {
+    *target = val.parse().map_err(|_| invalid(key, val, expected))?;
+    Ok(())
+}
+
+fn set_style(target: &mut Style, key: &str, val: &str) -> Result<(), String> {
+    *target = Style::parse(val).ok_or_else(|| invalid(key, val, STYLES))?;
+    Ok(())
+}
+
+/// Applique `key = val` à `cfg` ; `Err` : clé inconnue ou valeur invalide.
+fn set_rule(cfg: &mut Config, key: &str, val: &str) -> Result<(), String> {
+    match key {
+        "indentation"           => set_bool(&mut cfg.indent, key, val),
+        "empty_lines"           => set_bool(&mut cfg.empty_line_ws, key, val),
+        "spacing_assign"        => set_bool(&mut cfg.spacing_assign, key, val),
+        "trailing_whitespace"   => set_bool(&mut cfg.trailing_ws, key, val),
+        "max_line_length"       => set_usize(&mut cfg.max_line_length, key, val, "un entier, 0 = désactivé"),
+        "blank_lines_max"       => set_usize(&mut cfg.blank_lines_max, key, val, "un entier, 0 = désactivé"),
+        "naming_class"          => set_bool(&mut cfg.naming_class, key, val),
+        "naming_function"       => set_bool(&mut cfg.naming_function, key, val),
+        "naming_const"          => set_bool(&mut cfg.naming_const, key, val),
+        "comment_spacing"       => set_bool(&mut cfg.comment_spacing, key, val),
+        "file_ends_newline"     => set_bool(&mut cfg.file_ends_newline, key, val),
+        "naming_variable"       => set_bool(&mut cfg.naming_variable, key, val),
+        "naming_const_embed"    => set_bool(&mut cfg.naming_const_embed, key, val),
+        "when_attached"         => set_bool(&mut cfg.when_attached, key, val),
+        "naming_const_embed_is" => {
+            cfg.const_embed_style = Some(Style::parse(val).ok_or_else(|| invalid(key, val, STYLES))?);
+            Ok(())
+        }
+        "naming_const_is"       => set_style(&mut cfg.const_style, key, val),
+        "naming_var_is"         => set_style(&mut cfg.var_style, key, val),
+        "naming_function_is"    => set_style(&mut cfg.function_style, key, val),
+        "naming_class_is"       => set_style(&mut cfg.class_style, key, val),
+        "indentation_type"      => {
+            cfg.indent_type = match val {
+                "auto"  => IndentType::Auto,
+                "space" => IndentType::Space,
+                "tab"   => IndentType::Tab,
+                _ => return Err(invalid(key, val, "auto|space|tab")),
+            };
+            Ok(())
+        }
+        "indentation_gap"       => set_usize(&mut cfg.indent_gap, key, val, "un entier, 0 = auto"),
+        _ => Err(format!("clé inconnue '{}' (ignorée)", key)),
     }
 }
 
-pub fn parse_config(content: &str) -> Config {
+/// Configuration et erreurs (`ligne: message`) du contenu d'un `.ocaracs`.
+pub fn parse_config_report(content: &str) -> (Config, Vec<String>) {
     let mut cfg = Config::default();
+    let mut errors = Vec::new();
     let mut in_rules = false;
-    for raw in content.lines() {
-        let line = raw.trim();
+    for (i, raw) in content.lines().enumerate() {
+        let line = raw.split('#').next().unwrap_or("").trim();
         if line == "[rules]"        { in_rules = true;  continue; }
         if line.starts_with('[')    { in_rules = false; continue; }
-        if !in_rules || line.starts_with('#') || line.is_empty() { continue; }
-        let mut parts = line.splitn(2, '=');
-        let key = parts.next().unwrap_or("").trim();
-        let val = parts.next().unwrap_or("").split('#').next().unwrap_or("").trim();
-        match key {
-            "indentation"          => cfg.indent             = val == "true",
-            "empty_lines"          => cfg.empty_line_ws      = val == "true",
-            "spacing_assign"       => cfg.spacing_assign     = val == "true",
-            "trailing_whitespace"  => cfg.trailing_ws        = val == "true",
-            "max_line_length"      => cfg.max_line_length    = val.parse().unwrap_or(120),
-            "blank_lines_max"      => cfg.blank_lines_max    = val.parse().unwrap_or(2),
-            "naming_class"         => cfg.naming_class       = val == "true",
-            "naming_function"      => cfg.naming_function    = val == "true",
-            "naming_const"         => cfg.naming_const       = val == "true",
-            "comment_spacing"      => cfg.comment_spacing    = val == "true",
-            "file_ends_newline"    => cfg.file_ends_newline  = val == "true",
-            "naming_variable"      => cfg.naming_variable    = val == "true",
-            "naming_const_embed"   => cfg.naming_const_embed = val == "true",
-            "naming_const_embed_is" => match Style::parse(val) {
-                Some(style) => cfg.const_embed_style = Some(style),
-                None => invalid(key, val, STYLES),
-            },
-            "naming_const_is"      => set_style(&mut cfg.const_style, key, val),
-            "naming_var_is"        => set_style(&mut cfg.var_style, key, val),
-            "naming_function_is"   => set_style(&mut cfg.function_style, key, val),
-            "naming_class_is"      => set_style(&mut cfg.class_style, key, val),
-            "indentation_type"     => match val {
-                "auto"  => cfg.indent_type = IndentType::Auto,
-                "space" => cfg.indent_type = IndentType::Space,
-                "tab"   => cfg.indent_type = IndentType::Tab,
-                _ => invalid(key, val, "auto|space|tab"),
-            },
-            "when_attached"        => cfg.when_attached      = val == "true",
-            "indentation_gap"      => match val.parse() {
-                Ok(n) => cfg.indent_gap = n,
-                Err(_) => invalid(key, val, "un entier, 0 = auto"),
-            },
-            _ => {}
-        }
+        if !in_rules || line.is_empty() { continue; }
+        let result = match line.split_once('=') {
+            Some((key, val)) => set_rule(&mut cfg, key.trim(), val.trim()),
+            None => Err(format!("ligne sans '=' : '{}' (ignorée)", line)),
+        };
+        if let Err(e) = result { errors.push(format!("{}: {}", i + 1, e)); }
     }
+    (cfg, errors)
+}
+
+/// Configuration du contenu d'un `.ocaracs` ; ses erreurs sont signalées.
+pub fn parse_config(content: &str) -> Config {
+    let (cfg, errors) = parse_config_report(content);
+    for e in errors { eprintln!("ocaracs: .ocaracs:{}", e); }
     cfg
 }
 
 pub fn load_config(root: &Path) -> Config {
-    match fs::read_to_string(root.join(".ocaracs")) {
+    let path = root.join(".ocaracs");
+    match fs::read_to_string(&path) {
         Ok(c)  => parse_config(&c),
-        Err(_) => Config::default(),
+        Err(e) => {
+            if path.exists() { eprintln!("ocaracs: impossible de lire '{}': {} — configuration par défaut", path.display(), e); }
+            Config::default()
+        }
     }
 }
 
@@ -186,7 +218,7 @@ pub fn find_project_root(path: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_config, IndentType};
+    use super::{parse_config, parse_config_report, IndentType};
     use crate::naming::Style;
 
     #[test]
@@ -210,5 +242,15 @@ mod tests {
         let cfg = parse_config("[rules]\nnaming_var_is = kebab\nindentation_type = both\n");
         assert_eq!(cfg.var_style, Style::Snake);
         assert_eq!(cfg.indent_type, IndentType::Auto);
+    }
+
+    #[test]
+    fn errors_are_reported_with_their_line() {
+        let src = "[rules]\nindentation = flase\nmax_line_length = 80x\nnaming_clas = true\nblank_lines_max = 3 # commentaire\nnaming_class = false\n";
+        let (cfg, errors) = parse_config_report(src);
+        assert!(cfg.indent && cfg.max_line_length == 120 && cfg.blank_lines_max == 3 && !cfg.naming_class);
+        assert_eq!(errors.len(), 3, "{:?}", errors);
+        assert!(errors[0].starts_with("2: valeur invalide pour indentation"));
+        assert!(errors[1].starts_with("3: ") && errors[2].starts_with("4: clé inconnue 'naming_clas'"));
     }
 }

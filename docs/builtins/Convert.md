@@ -53,24 +53,24 @@ accès (passer par la forme statique). Le résultat se chaîne normalement :
 
 ### `Convert::strToInt(s)` → `int`
 
-Convertit la chaîne `s` en entier. Retourne `0` si la conversion échoue.
+Convertit la chaîne `s` en entier. Lève `ConvertException` (code 101) si la chaîne n'est pas un entier.
 
 ```ocara
 Convert::strToInt("42")     // → 42
 Convert::strToInt("-7")     // → -7
-Convert::strToInt("abc")    // → 0
+Convert::strToInt("abc")    // → ConvertException 101
 ```
 
 ---
 
 ### `Convert::strToFloat(s)` → `float`
 
-Convertit la chaîne `s` en décimal. Retourne `0.0` si la conversion échoue.
+Convertit la chaîne `s` en décimal. Lève `ConvertException` (code 102) si la chaîne n'est pas un nombre.
 
 ```ocara
 Convert::strToFloat("3.14")   // → 3.14
 Convert::strToFloat("42")     // → 42.0
-Convert::strToFloat("abc")    // → 0.0
+Convert::strToFloat("abc")    // → ConvertException 102
 ```
 
 ---

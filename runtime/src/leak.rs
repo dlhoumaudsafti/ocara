@@ -126,6 +126,9 @@ fn site(site: i64) -> (String, String, String) {
 }
 
 extern "C" fn report() {
+    // Registres globaux du runtime vidés : ce qu'ils retiennent n'est pas
+    // une fuite du programme.
+    crate::htmlcomponent::release_registry();
     // Valeurs en attente dans le tampon du collecteur de cycles : libérées
     // par sa prochaine passe, ce ne sont pas des fuites.
     crate::rc::collect_cycles();

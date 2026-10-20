@@ -3,7 +3,7 @@
 use crate::parsing::ast::*;
 use crate::ir::inst::Inst;
 use crate::lower::builder::LowerBuilder;
-use crate::lower::expr::{lower_expr, hoist_closure_promotions, hoist_closure_promotions_in_exprs};
+use crate::lower::expr::{lower_condition, lower_expr, hoist_closure_promotions, hoist_closure_promotions_in_exprs};
 use super::super::super::block::lower_block;
 
 /// Lowering récursif de la chaîne elseif.
@@ -30,7 +30,7 @@ fn lower_elseif_chain(
     }
 
     let (cond_expr, then_blk) = &elseif[0];
-    let cond_val = lower_expr(builder, cond_expr);
+    let cond_val = lower_condition(builder, cond_expr);
     crate::lower::stmt::rc::flush_temps(builder);
     let then_bb  = builder.new_block();
     let next_bb  = builder.new_block();
@@ -94,7 +94,7 @@ pub fn lower_if(
     if let Some(blk) = else_block {
         hoist_closure_promotions(builder, blk, &[]);
     }
-    let cond_val = lower_expr(builder, condition);
+    let cond_val = lower_condition(builder, condition);
     crate::lower::stmt::rc::flush_temps(builder);
     let then_bb  = builder.new_block();
     let else_bb  = builder.new_block();
@@ -213,7 +213,7 @@ pub fn lower_while(
     builder.emit(Inst::Jump { target: cond_bb.clone() });
     builder.switch_to(&cond_bb);
 
-    let cond_val = lower_expr(builder, condition);
+    let cond_val = lower_condition(builder, condition);
     crate::lower::stmt::rc::flush_temps(builder);
     builder.emit(Inst::Branch {
         cond:    cond_val,

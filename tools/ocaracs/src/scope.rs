@@ -3,8 +3,10 @@
 // `nameless`, bloc runtime (`main { }`…) et fichier runtime entier
 // (`*.runtime.oc`) — une `const` déclarée dans l'un d'eux est locale, sinon
 // globale ou de classe (R09).
-// Accolades comptées hors chaînes "…", hors backticks et hors commentaires.
+// Accolades comptées hors chaînes "…" et '…', hors backticks et hors commentaires.
 // ─────────────────────────────────────────────────────────────────────────────
+
+use crate::text::scan_code;
 
 #[derive(Default)]
 pub struct BodyTracker {
@@ -52,21 +54,12 @@ impl BodyTracker {
         if !self.in_backtick && (is_callable_decl(trimmed) || is_runtime_block(trimmed) || trimmed.contains("nameless(")) {
             self.pending = Some(self.depth);
         }
-        let mut in_str = false;
-        let mut prev = '\0';
-        let mut chars = line.chars().peekable();
-        while let Some(c) = chars.next() {
-            let escaped = prev == '\\';
-            prev = c;
-            if escaped { continue; }
-            match c {
-                '`' if !in_str => self.in_backtick = !self.in_backtick,
-                '"' if !self.in_backtick => in_str = !in_str,
-                '/' if !in_str && !self.in_backtick && chars.peek() == Some(&'/') => break,
-                '{' if !in_str && !self.in_backtick => self.open(),
-                '}' if !in_str && !self.in_backtick => self.close(),
-                _ => {}
-            }
+        // Accolades du code seulement : chaînes "…" ET '…', backticks et
+        // commentaires exclus (`'{'` n'ouvre rien).
+        let mut braces = Vec::new();
+        scan_code(line, &mut self.in_backtick, |_, c| if matches!(c, '{' | '}') { braces.push(c) });
+        for c in braces {
+            if c == '{' { self.open() } else { self.close() }
         }
     }
 
@@ -116,6 +109,12 @@ mod tests {
     fn interface_signature_does_not_open_a_body() {
         let src = "interface I {\n    method draw(): void\n}\nclass C {\n    public const X:int = 1\n}\n";
         assert_eq!(body_flags(src), vec![false; 6]);
+    }
+
+    #[test]
+    fn brace_in_single_quoted_string_is_ignored() {
+        let src = "function f(): string {\n    return '{'\n}\nconst A = 1\n";
+        assert_eq!(body_flags(src), vec![false, true, true, false]);
     }
 
     #[test]

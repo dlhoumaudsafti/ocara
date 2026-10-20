@@ -212,11 +212,13 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
     // homonyme déjà enregistrée ci-dessus.
     for (class_name, info) in crate::builtins::all_builtins() {
         for (method_name, sig) in &info.methods {
-            let mangled = format!("{}_{}", class_name, method_name);
-            if let Some(name) = concrete_return_class(&sig.ret_ty) {
-                module.method_ret_class.entry(mangled.clone()).or_insert(name);
+            for owner in builtin_call_owners(class_name) {
+                let mangled = format!("{}_{}", owner, method_name);
+                if let Some(name) = concrete_return_class(&sig.ret_ty) {
+                    module.method_ret_class.entry(mangled.clone()).or_insert(name);
+                }
+                module.call_ret_types.entry(mangled).or_insert_with(|| sig.ret_ty.clone());
             }
-            module.call_ret_types.entry(mangled).or_insert_with(|| sig.ret_ty.clone());
         }
     }
 
@@ -626,6 +628,21 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         }
     }
     
+    // Types de retour de TOUS les builtins, déduits de leurs signatures
+    // (`src/builtins/`) : un symbole absent de la table manuelle ci-dessous
+    // était lu comme `mixed` (`IO::writeln(File::size(f))` → SIGSEGV,
+    // `${res.status()}` → `null`, voir
+    // docs/roadmap.d/builtins-types-retour-manquants.md). Les entrées
+    // manuelles, insérées ensuite, restent prioritaires ; une méthode de
+    // classe utilisateur de même symbole aussi (`or_insert`).
+    for (class, info) in crate::builtins::all_builtins() {
+        for (method, sig) in &info.methods {
+            for owner in builtin_call_owners(class) {
+                fn_ret_types.entry(format!("{}_{}", owner, method)).or_insert_with(|| IrType::from_ast(&sig.ret_ty));
+            }
+        }
+    }
+
     // Ajout des types de retour des méthodes builtin String
     // (utilisé pour le chaînage des appels comme a.trim().lower())
     fn_ret_types.insert("String_len".to_string(), IrType::I64);
@@ -937,10 +954,22 @@ pub fn lower_program(program: &Program, source_file: &str) -> IrModule {
         // (le wrapper appelait un symbole inexistant).
         // Idem pour un générateur, abaissé en `<nom>__new`/`<nom>__resume`.
         let interface_prefixes: Vec<String> = program.interfaces.iter().map(|i| format!("{}_", i.name)).collect();
-        let generators: HashSet<&str> = program.functions.iter()
+        // Méthodes générateurs statiques comprises (`Classe_méthode`) : leur
+        // wrapper appelait `Classe_méthode`, inexistant — la seule
+        // déclaration cassait la compilation.
+        let mut generators: HashSet<String> = program.functions.iter()
             .filter(|f| super::message_gen::is_message_func(&f.ret_ty))
-            .map(|f| f.name.as_str())
+            .map(|f| f.name.clone())
             .collect();
+        for class in &program.classes {
+            for member in &class.members {
+                if let ClassMember::Method { decl, is_static: true, .. } = member {
+                    if super::message_gen::is_message_func(&decl.ret_ty) {
+                        generators.insert(format!("{}_{}", class.name, decl.name));
+                    }
+                }
+            }
+        }
         let names_to_wrap: Vec<(String, Vec<IrType>, IrType)> = fn_param_types.iter()
             .filter(|(k, _)| !interface_prefixes.iter().any(|p| k.starts_with(p.as_str())) && !generators.contains(k.as_str()))
             .map(|(k, params)| {
@@ -1073,4 +1102,14 @@ fn task_arg_types(has_self: bool, params: &[Param]) -> Vec<IrType> {
     has_self.then_some(IrType::Ptr).into_iter()
         .chain(params.iter().map(|p| IrType::from_ast(&p.ty)))
         .collect()
+}
+
+/// Classes sous lesquelles un appel de méthode builtin est cherché
+/// (`Classe_méthode`) : les méthodes de `HTTPRequest` s'appellent aussi sur un
+/// `HTTPResponse` (`res.ok()`, `res.body()`), qui n'a pas de méthodes propres.
+fn builtin_call_owners(class: &'static str) -> Vec<&'static str> {
+    match class {
+        "HTTPRequest" => vec!["HTTPRequest", "HTTPResponse"],
+        _ => vec![class],
+    }
 }

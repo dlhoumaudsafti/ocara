@@ -69,6 +69,8 @@ Remplace la **première** occurrence de `pattern` dans `s` par `repl`.
 | `s`       | `string` | Chaîne source            |
 | `repl`    | `string` | Chaîne de remplacement   |
 
+Dans `repl` (comme pour `Regex::replaceAll`), `$1`, `$2`… et `${nom}` insèrent le groupe capturé correspondant ; `$$` insère un `$` littéral. Un `$` suivi d'un nom de groupe inexistant (`"$x"`) est remplacé par une chaîne vide.
+
 ```ocara
 Regex::replace("[0-9]+", "ref-123-abc-456", "NUM")
 // → "ref-NUM-abc-456"

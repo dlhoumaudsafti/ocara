@@ -6,7 +6,7 @@
 use crate::config::Config;
 use crate::naming::Style;
 use crate::scope::{is_callable_decl, BodyTracker};
-use crate::text::{leading_name, strip_visibility, LineState};
+use crate::text::{leading_name, masked_code, strip_visibility, LineState};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DeclKind {
@@ -99,4 +99,49 @@ pub fn declarations(file_name: &str, lines: &[&str], states: &[LineState], cfg: 
         }
     }
     out
+}
+
+/// Champs NUS des `struct` (`userName:string`, sans `property`) : non
+/// vérifiés par R12, mais un renommage du même nom ne doit pas les toucher.
+pub fn struct_fields(lines: &[&str], states: &[LineState]) -> Vec<String> {
+    let (mut depth, mut struct_depth) = (0usize, None::<usize>);
+    let mut in_bt = false;
+    let mut out = Vec::new();
+    for (line, state) in lines.iter().zip(states) {
+        let code = masked_code(line, &mut in_bt);
+        let t = strip_visibility(code.trim());
+        if struct_depth == Some(depth) && !state.starts_in_bt {
+            let name = leading_name(t);
+            let rest = t[name.len()..].trim_start();
+            if !name.is_empty() && rest.starts_with(':') && !rest.starts_with("::") {
+                out.push(name.to_string());
+            }
+        }
+        if struct_depth.is_none() && t.starts_with("struct ") {
+            struct_depth = Some(depth + 1);
+        }
+        for c in code.chars() {
+            match c {
+                '{' => depth += 1,
+                '}' => {
+                    depth = depth.saturating_sub(1);
+                    if struct_depth.is_some_and(|d| depth < d) { struct_depth = None; }
+                }
+                _ => {}
+            }
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::struct_fields;
+    use crate::text::line_states;
+
+    #[test]
+    fn bare_struct_fields_are_listed() {
+        let lines = ["struct User {", "    userName:string = \"a:b\"", "    public property level:int = 1", "    lead:User|null = null", "}", "class C {", "    value:int", "}"];
+        assert_eq!(struct_fields(&lines, &line_states(&lines)), vec!["userName", "lead"]);
+    }
 }

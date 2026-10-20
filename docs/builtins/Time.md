@@ -32,7 +32,7 @@ Extrait l'heure d'un timestamp Unix au format `HH:MM:SS`.
 ```ocara
 var ts:int = 1714233600
 var time:string = Time::fromTimestamp(ts)
-IO::write(time)  // "18:00:00"
+IO::write(time)  // "16:00:00" (UTC)
 ```
 
 ### `Time::hour(time:string) → int`

@@ -21,7 +21,7 @@ help:
 	@echo "  build-all-dev           Compile tout en mode debug"
 	@echo "  test                    Lance les tests unitaires Cargo (cargo test)"
 	@echo "  tests-runtime           Lance les tests unitaires du runtime (ocara_runtime)"
-	@echo "  tests-tools             Lance les tests unitaires des outils (ocaracs)"
+	@echo "  tests-tools             Lance les tests unitaires des outils (ocaracs, ocaraunit)"
 	@echo "  regression              Lance la régression complète (tous les exemples)"
 	@echo "  regression <chemin>     Lance uniquement examples/<chemin>.oc"
 	@echo "                            ex: make regression builtins/io"
@@ -301,7 +301,7 @@ tests-runtime: pkgconfig-shim
 	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo test -p ocara_runtime -j4
 
 tests-tools:
-	RUSTFLAGS="-D warnings" cargo test -p ocaracs
+	RUSTFLAGS="-D warnings" cargo test -p ocaracs -p ocaraunit
 
 # ── Régression ────────────────────────────────────────────────────────────────
 regression:
@@ -346,7 +346,11 @@ lint-examples:
 	@echo "══════════════════════════════════════════════"
 	@echo " Lint ocaracs — examples/"
 	@echo "══════════════════════════════════════════════"
-	./target/release/ocaracs examples/ || true
+	@# Code 1 = avertissements de style : attendus (examples/ en compte des
+	@# centaines, la cible les affiche sans bloquer). Tout autre code non nul
+	@# (2 = usage ou cible introuvable, 101 = panique, signal) fait échouer.
+	@./target/release/ocaracs examples/; rc=$$?; \
+	if [ $$rc -ne 0 ] && [ $$rc -ne 1 ]; then echo "ocaracs : échec (code $$rc)"; exit $$rc; fi
 
 tests-examples:
 	@echo "══════════════════════════════════════════════"

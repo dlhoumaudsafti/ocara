@@ -340,6 +340,10 @@ pub fn expr_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrType {
                 return elem_ty;
             }
             let Expr::Call { callee, .. } = expr else { unreachable!() };
+            // Appel du résultat d'un appel ou d'un index (`adder(4)(1)`).
+            if let Some(ret) = super::helpers::callee_function_ret(builder, callee) {
+                return IrType::from_ast(&ret);
+            }
             // Appel indirect : variable de type Function<ReturnType>
             if let Expr::Ident(fname, _) = callee.as_ref() {
                 if let Some(ty) = builder.func_ret_types.get(fname.as_str()) {

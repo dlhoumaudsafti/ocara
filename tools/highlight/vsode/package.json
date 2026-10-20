@@ -259,6 +259,11 @@
         "title": "Fuite par croissance (__N__)",
         "category": "Ocara",
         "icon": "$(graph-line)"
+      },
+      {
+        "command": "ocara.restartLanguageServer",
+        "title": "Redémarrer le serveur de langage",
+        "category": "Ocara"
       }
     ],
     "menus": {
@@ -399,12 +404,17 @@
         {
           "command": "ocara.bench.profile",
           "when": "view == ocara.benchmark",
+          "group": "navigation@4"
+        },
+        {
+          "command": "ocara.bench.leakGrowth",
+          "when": "view == ocara.benchmark",
           "group": "navigation@3"
         },
         {
           "command": "ocara.bench.clear",
           "when": "view == ocara.benchmark",
-          "group": "navigation@4"
+          "group": "navigation@5"
         }
       ],
       "editor/title": [

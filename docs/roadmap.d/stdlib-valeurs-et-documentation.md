@@ -1,69 +1,43 @@
 # Bibliothèque standard : valeurs fausses et documentation divergente
 
-Audit du 2026-10-19. Reproduit sur le binaire courant.
+Audit du 2026-10-19 ; corrigé le 2026-10-20, sauf « Reste ».
 
-## Valeurs fausses
+## Corrigé
 
-| Appel | Obtenu | Attendu (doc) |
+| Appel | Avant | Maintenant |
 |---|---|---|
-| `String::empty("   ")` | `false` | `true` (String.md ~l.158) |
-| `String::split("", ",")` | `[""]` | vide (String.md ~l.210) ; `split("abc", "")` rend 5 éléments |
-| `Math::round(-2.5)` | `-3` | `-2` (Math.md ~l.167) |
-| `Math::abs(INT_MIN)` | `INT_MIN` | exception ou valeur définie |
-| `Math::pow(2, 64)`, `pow(10, 19)`, `pow(2, 4294967296)` | `0`, négatif, `1` (exposant tronqué en `u32`) | dépassement signalé |
-| `DateTime::fromTimestamp(-1)` | `1970-01-01T00:00:-1` | `1969-12-31T23:59:59` |
-| `DateTime::parse("1969-12-31T23:59:59")`, `parse("1900-01-01 00:00:00")` | `31535999`, `0` | `-1`, négatif |
-| `Date::addDays("1970-01-05", -10)` / `diffDays("1969-12-31","1970-01-01")` / `dayOfWeek("1969-12-31")` | `1970-01--5` / `364` / `3` | `1969-12-26` / `1` / `2` |
-| `Time::fromSeconds(-1)` | `00:00:-1` | `23:59:59` ou exception |
-| `DateTime::parse("2023-02-31T00:00:00")` | `2023-03-03` | exception 101 (DateTime.md) |
-| `File::infos` / `Directory::infos` | `is_file` = `1`, `is_dir` = `null`, `created`/`modified` en chaîne (vu via `mixed`/JSON) | bool et int (File.md ~l.115) |
-| `File::copy(p, p)` | **fichier vidé** (perte de données) | sans effet ou exception |
-| SQLite colonne BLOB (`x'00ff10'`) | `null` | octets ; tableau en placeholder → code 102 au lieu de 106 |
-| `File::writeBytes` avec 256 / -1 | 0 / 255 silencieusement | exception |
-| `Array::slice(a, -2, 5)` / `slice(a, 1, -1)` | vide / borné à la fin | comportement cohérent des négatifs |
-| `IO::read` en fin d'entrée | `""` | `IOException` (IO.md ~l.203) |
-| `DotEnv::load` | écrase les variables système (`HOME`) | ne les écrase pas (DotEnv.md ~l.220) |
-| Regex : remplacement `"$x"` | `""` (expansion `$1`/`$x` non documentée) | documenter ou échapper |
-| `HTMLComponent` : attribut int `0` lu en string | `null` | `"0"` |
+| `String::empty("   ")` | `false` | `true` |
+| `String::split("", ",")` / `split("abc", "")` | `[""]` / 5 éléments | `[]` / `a,b,c` |
+| `Math::round(-2.5)` | `-3` | `-2` (0,5 vers le haut, Math.md) |
+| `Math::abs(INT_MIN)`, `Math::pow(2, 64)`, exposant > `u32` | valeurs fausses | `MathException` 105 (`OVERFLOW`) |
+| dates avant 1970 (`DateTime`, `Date`, `Time`) | fausses (`1970-01-01T00:00:-1`) | justes (`runtime/src/civil.rs`, algorithmes de H. Hinnant) |
+| `2023-02-31` | basculait au mois suivant | `DateTimeException`/`DateException` 101 |
+| `File::infos` / `Directory::infos` | `is_file` = `1`, `created` en chaîne, `size` brut | valeurs boxées : `bool`, `int` |
+| `File::copy(p, p)` | fichier vidé | sans effet |
+| `File::writeBytes` hors 0..255 | tronqué | `FileException` 104 |
+| `Array::slice` avec négatifs | incohérent | bornes ramenées dans `[0, len]` |
+| SQLite BLOB | `null` | `array<int>` d'octets ; placeholder non bindable → 106 |
+| `IO::read` en fin d'entrée | `""` | `IOException` 101 |
+| attribut `HTMLComponent` entier `0` | `null` | `0` (valeurs boxées) |
+| constante `7.0 % 2.0` | refusée | acceptée |
+| `1.0e300` | « undefined symbol 'e300' » | « exponent notation is not supported » |
+| gabarit `${String::len("{x")}` | « unterminated string » | accepté |
 
-Causes des dates : boucles d'années à partir de 1970 et `%`/`/` tronqués
-(`runtime/src/datetime.rs` `timestamp_to_parts`/`parts_to_timestamp`,
-`runtime/src/date.rs`) ; jour validé seulement contre 1..31.
+Documentation alignée : Convert.md, DateTime.md, Time.md, DotEnv.md (copie
+en double retirée), JSON.md, YAML.md, UnitTest.md (`assertEnum`), Regex.md
+(`$1`, `${nom}`, `$$`), Math.md (code 105), String.md, File.md, SQLite.md,
+Array.md, EBNF §11.1.
 
-## Documentation divergente
+Tests : `examples/tests/98_stdlib_edge_valuesTest.oc`.
 
-- Convert.md (~l.56-73) : `strToInt`/`strToFloat` rendraient 0 sur entrée
-  invalide ; ils lèvent 101/102 (comme le dit Convert.md ~l.307).
-- DateTime.md (~l.114) : `parse` rendrait 0 ; il lève 101. L'exemple
-  `fromTimestamp(1714233600)` → « 18:00:00 » vaut `16:00:00` UTC (Time.md
-  idem).
-- DotEnv.md contient tout son contenu deux fois (l.1-226 et 228-445).
-- JSON.md : « floats pas encore supportés » (ils le sont), « nombres décodés
-  en `int` », exemples à clés en ordre d'insertion alors que la sortie est
-  triée.
-- YAML.md : `!!foo bar` décoderait en `null` ; il rend `"bar"`.
-- UnitTest.md (~l.230) : `assertEnum` échouerait (117) ; il passe toujours.
-- EBNF.md (~l.1493) : `validate(42.0)` comparé à `42` vaudrait `false` ; il
-  vaut `true`.
-
-## Petites limites du langage
+## Reste
 
 - `INT_MIN` non écrivable en littéral (`-9223372036854775808` → « integer too
-  large ») alors que `Convert::strToInt` l'accepte.
-- `public const E:float = 7.0 % 2.0` refusé : `fold_float` n'a pas de cas
-  `Mod` (`src/parsing/ast.d/const_fold.rs` ~l.52).
-- `1.0e300` → « undefined symbol 'e300' » : pas de littéral à exposant
-  (conforme à l'EBNF), message à améliorer.
-- Gabarit : une chaîne contenant `{` ou `}` dans `${…}` casse le lexer
-  (`` `${String::len("{x")}` `` → « unterminated string »).
-- Float entier affiché sans décimale (`42.0` → `42`), indiscernable d'un int.
+  large ») : le lexer ne sait pas que le `-` précède le littéral ; à traiter
+  au parseur (négation d'un littéral hors borne).
+- Un `float` entier s'affiche sans décimale (`42.0` → `42`), indiscernable
+  d'un `int` : choix de format à trancher (modifie de nombreuses sorties).
 
 ## Priorité / Complexité
 
-**Haute** (valeurs fausses, perte de données `File::copy`) — **Légère**.
-
-## Fichiers clés
-
-`runtime/src/lib.rs`, `runtime/src/datetime.rs`, `runtime/src/date.rs`,
-`runtime/src/file.rs`, `runtime/src/sqlite.rs`, `runtime/src/dotenv.rs`,
-`docs/builtins/*.md`, `docs/EBNF.md`.
+**Basse** (reste) — **Simple**.

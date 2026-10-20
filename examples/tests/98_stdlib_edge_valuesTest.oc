@@ -1,0 +1,101 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.String
+import ocara.Math
+import ocara.MathException
+import ocara.DateTime
+import ocara.DateTimeException
+import ocara.Date
+import ocara.Time
+import ocara.File
+import ocara.FileException
+import ocara.Array
+import ocara.JSON
+import ocara.SQLite
+import ocara.SQLiteException
+
+// Valeurs limites de la bibliothèque standard : chaînes, arrondis et
+// dépassements, dates avant 1970 et dates impossibles, `File::infos`,
+// `File::copy` sur lui-même, `writeBytes`, `slice`, BLOB SQLite, `clamp` —
+// voir docs/roadmap.d/stdlib-valeurs-et-documentation.md et
+// docs/roadmap.d/runtime-paniques-et-blocages.md.
+
+class Test98StdlibEdgeValues extends UnitTest {
+
+    public method stringEdgesTest(): int {
+        self::assertTrue(String::empty("   "))
+        self::assertEquals(0, String::split("", ",").len())
+        self::assertEquals("a|b|c", String::split("abc", "").join("|"))
+        return 0
+    }
+
+    public method mathEdgesTest(): int {
+        self::assertEquals(-2, Math::round(-2.5))
+        self::assertEquals(4, Math::round(3.5))
+        self::assertEquals(1024, Math::pow(2, 10))
+        var lowest:int = -9223372036854775807 - 1
+        var code:int = 0
+        try { Math::abs(lowest) } on e is MathException { code = e.code }
+        self::assertEquals(105, code)
+        code = 0
+        try { Math::pow(2, 64) } on e is MathException { code = e.code }
+        self::assertEquals(105, code)
+        code = 0
+        try { Math::clamp(5, 10, 0) } on e is MathException { code = e.code }
+        self::assertEquals(103, code)
+        return 0
+    }
+
+    public method datesBefore1970Test(): int {
+        self::assertEquals("1969-12-31T23:59:59", DateTime::fromTimestamp(-1))
+        self::assertEquals(-1, DateTime::parse("1969-12-31T23:59:59"))
+        self::assertEquals("1969-12-26", Date::addDays("1970-01-05", -10))
+        self::assertEquals(-1, Date::diffDays("1969-12-31", "1970-01-01"))
+        self::assertEquals(2, Date::dayOfWeek("1969-12-31"))
+        self::assertEquals("23:59:59", Time::fromSeconds(-1))
+        return 0
+    }
+
+    public method impossibleDateRefusedTest(): int {
+        var code:int = 0
+        try { DateTime::parse("2023-02-31T00:00:00") } on e is DateTimeException { code = e.code }
+        self::assertEquals(101, code)
+        return 0
+    }
+
+    public method fileEdgesTest(): int {
+        File::write("__98_edges.txt", "data")
+        self::assertEquals("{\"is_dir\":false,\"is_file\":true,\"size\":4}", JSON::encode({
+            "is_dir": File::infos("__98_edges.txt")["is_dir"],
+            "is_file": File::infos("__98_edges.txt")["is_file"],
+            "size": File::infos("__98_edges.txt")["size"]
+        }))
+        File::copy("__98_edges.txt", "__98_edges.txt")
+        self::assertEquals("data", File::read("__98_edges.txt"))
+        var code:int = 0
+        try { File::writeBytes("__98_edges.bin", [1, 256]) } on e is FileException { code = e.code }
+        self::assertEquals(104, code)
+        File::remove("__98_edges.txt")
+        return 0
+    }
+
+    public method sliceClampsBoundsTest(): int {
+        var t:array<int> = [10, 20, 30, 40, 50]
+        self::assertEquals("10,20", Array::slice(t, -2, 2).join(","))
+        self::assertEquals(0, Array::slice(t, 1, -1).len())
+        self::assertEquals("40,50", Array::slice(t, 3, 99).join(","))
+        return 0
+    }
+
+    public method sqliteBlobAndBindCodeTest(): int {
+        scoped db:SQLite = SQLite::open(":memory:")
+        db.execute("CREATE TABLE b (x BLOB)")
+        db.execute("INSERT INTO b VALUES (x'00ff10')")
+        self::assertEquals("[{\"x\":[0,255,16]}]", JSON::encode(db.query("SELECT x FROM b")))
+        var code:int = 0
+        try { db.execute("INSERT INTO b VALUES (:v)", {"v": [1, 2]}) } on e is SQLiteException { code = e.code }
+        self::assertEquals(106, code)
+        return 0
+    }
+}

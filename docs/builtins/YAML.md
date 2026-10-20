@@ -104,7 +104,7 @@ const data:mixed = YAML::parse(yamlStr)  // Identique à decode()
 | `array<T>` | sequence | Listes YAML (`- item`) |
 | `map<string, mixed>` | mapping | Objets YAML (`key: value`) |
 
-**Types YAML non supportés** : les types "tagged" (`!!something`) sont décodés en `null`.
+**Types YAML « tagged »** (`!!something valeur`) : le tag est ignoré, la valeur est décodée comme si elle n'en avait pas (`!!foo bar` → `"bar"`).
 
 ## Exemple complet
 

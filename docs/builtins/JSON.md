@@ -36,7 +36,7 @@ var users:map<string, mixed> = {
 
 scoped json:string = JSON::encode(users)
 IO::writeln(json)
-// → {"name":"Alice","age":30,"active":true}
+// → {"active":true,"age":30,"name":"Alice"}  (clés triées)
 
 // Avec un tableau
 var items:array<mixed> = [1, 2, "hello", true]
@@ -62,9 +62,8 @@ IO::writeln(arr)
 ```
 
 **Règles :**
-- Supporte les types : `int`, `string`, `bool`, `null`, arrays imbriqués, maps imbriquées
-- Les clés de map sont toujours converties en strings
-- Les valeurs `float` ne sont pas encore supportées (seront ajoutées dans v0.2.0)
+- Supporte les types : `int`, `float`, `string`, `bool`, `null`, arrays imbriqués, maps imbriquées
+- Les clés de map sont toujours converties en strings, et écrites par ordre alphabétique
 
 ---
 
@@ -108,7 +107,7 @@ IO::writeln(result)
 - Retourne `null` (0) si le JSON est invalide
 - Les objets JSON deviennent des `map<string, mixed>`
 - Les tableaux JSON deviennent des `array<mixed>`
-- Les nombres JSON deviennent des `int`
+- Les nombres JSON deviennent des `int`, ou des `float` s'ils ont une partie décimale ou un exposant
 - Les booléens et `null` JSON sont préservés
 
 ---
@@ -307,7 +306,7 @@ function handle_api(req:HTTPServerRequest): int {
 
 - Les arrays JSON → `array<mixed>` (array Ocara)
 - Les objets JSON → `map<string, mixed>` (map Ocara)
-- Les nombres JSON → `int` (pas de distinction float pour l'instant)
+- Les nombres JSON → `int` ou `float` (partie décimale ou exposant)
 - Les strings JSON → `string` (avec échappement Unicode)
 - Les booleans JSON → `bool` (true/false)
 - Le null JSON → `null` (valeur 0)

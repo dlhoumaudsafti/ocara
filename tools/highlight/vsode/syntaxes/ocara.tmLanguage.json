@@ -90,7 +90,7 @@
 
     "runtime-import": {
       "comment": "runtime start.Init as init — runtime block import",
-      "match": "^(runtime)\\s+([\\w]+(?:\\.[\\w]+)*)\\s+(as)\\s+(init|main|error|success|exit)\\s*$",
+      "match": "^\\s*(runtime)\\s+([\\w]+(?:\\.[\\w]+)*)\\s+(as)\\s+(init|main|error|success|exit)\\s*(?=//|$)",
       "captures": {
         "1": { "name": "keyword.control.runtime.ocara" },
         "2": { "name": "entity.name.namespace.ocara" },
@@ -136,7 +136,7 @@
       "patterns": [
         {
           "comment": "import * from \"file\" — wildcard import",
-          "match": "^(import)\\s+(\\*)\\s+(from)\\s+(\"[^\"]+\")(?:\\s+(as)\\s+([A-Z][\\w]*))?\\s*$",
+          "match": "^\\s*(import)\\s+(\\*)\\s+(from)\\s+(\"[^\"]+\")(?:\\s+(as)\\s+([A-Za-z_][\\w]*))?\\s*(?=//|$)",
           "captures": {
             "1": { "name": "keyword.control.import.ocara" },
             "2": { "name": "constant.language.import-all.ocara" },
@@ -148,7 +148,7 @@
         },
         {
           "comment": "import Circle from \"file\" [as Alias] — selective import",
-          "match": "^(import)\\s+([A-Z][\\w]*)\\s+(from)\\s+(\"[^\"]+\")(?:\\s+(as)\\s+([A-Z][\\w]*))?\\s*$",
+          "match": "^\\s*(import)\\s+([A-Z][\\w]*)\\s+(from)\\s+(\"[^\"]+\")(?:\\s+(as)\\s+([A-Za-z_][\\w]*))?\\s*(?=//|$)",
           "captures": {
             "1": { "name": "keyword.control.import.ocara" },
             "2": { "name": "entity.name.type.ocara" },
@@ -160,7 +160,7 @@
         },
         {
           "comment": "import churn from \"file\" [as alias] — import sélectif d'une fonction",
-          "match": "^(import)\\s+([a-z_][\\w]*)\\s+(from)\\s+(\"[^\"]+\")(?:\\s+(as)\\s+([a-z_][\\w]*))?\\s*$",
+          "match": "^\\s*(import)\\s+([a-z_][\\w]*)\\s+(from)\\s+(\"[^\"]+\")(?:\\s+(as)\\s+([a-z_][\\w]*))?\\s*(?=//|$)",
           "captures": {
             "1": { "name": "keyword.control.import.ocara" },
             "2": { "name": "entity.name.function.ocara" },
@@ -172,17 +172,19 @@
         },
         {
           "comment": "import ocara.Builtin — namespace builtin en couleur distincte",
-          "match": "^(import)\\s+(ocara)(\\.)([\\w]+)\\s*$",
+          "match": "^\\s*(import)\\s+(ocara)(\\.)([\\w]+)(?:\\s+(as)\\s+([A-Za-z_][\\w]*))?\\s*(?=//|$)",
           "captures": {
             "1": { "name": "keyword.control.import.ocara" },
             "2": { "name": "support.class.builtin.namespace.ocara" },
             "3": { "name": "punctuation.separator.dot.ocara" },
-            "4": { "name": "support.class.builtin.ocara" }
+            "4": { "name": "support.class.builtin.ocara" },
+            "5": { "name": "keyword.control.as.ocara" },
+            "6": { "name": "entity.name.type.alias.ocara" }
           }
         },
         {
           "comment": "import path.to.Module [as Alias]",
-          "match": "^(import)\\s+([\\w]+(?:\\.[\\w]+)*)(?:\\s+(as)\\s+([A-Z][\\w]*))?\\s*$",
+          "match": "^\\s*(import)\\s+([\\w]+(?:\\.[\\w]+)*)(?:\\s+(as)\\s+([A-Za-z_][\\w]*))?\\s*(?=//|$)",
           "captures": {
             "1": { "name": "keyword.control.import.ocara" },
             "2": { "name": "entity.name.namespace.ocara" },
@@ -203,10 +205,75 @@
       "endCaptures": {
         "0": { "name": "punctuation.definition.string.template.end.ocara" }
       },
+      "comment": "Échappements avant l'interpolation : \\` ne ferme pas le gabarit, \\${x} n'est pas interpolé. HTML : sous-ensemble maison (balises, attributs, commentaires, entités) dont chaque région s'arrête au ` fermant — text.html.basic avalait le reste du fichier sur <!-- ${x} ou un attribut non fermé.",
       "patterns": [
-        { "include": "#template-expression" },
         { "include": "#string-escape" },
-        { "include": "text.html.basic" }
+        { "include": "#template-expression" },
+        { "include": "#template-html" }
+      ]
+    },
+
+    "template-html": {
+      "patterns": [
+        {
+          "name": "comment.block.html",
+          "begin": "<!--",
+          "end": "-->|(?=`)",
+          "beginCaptures": { "0": { "name": "punctuation.definition.comment.html" } },
+          "endCaptures": { "0": { "name": "punctuation.definition.comment.html" } },
+          "patterns": [
+            { "include": "#string-escape" },
+            { "include": "#template-expression" }
+          ]
+        },
+        {
+          "name": "meta.tag.html",
+          "begin": "(</?)([A-Za-z][\\w:-]*)",
+          "end": "(/?>)|(?=`)",
+          "beginCaptures": {
+            "1": { "name": "punctuation.definition.tag.begin.html" },
+            "2": { "name": "entity.name.tag.html" }
+          },
+          "endCaptures": { "1": { "name": "punctuation.definition.tag.end.html" } },
+          "patterns": [
+            { "include": "#string-escape" },
+            { "include": "#template-expression" },
+            { "include": "#template-html-attribute-value" },
+            { "match": "[^\\s=\"'<>/`$]+", "name": "entity.other.attribute-name.html" },
+            { "match": "=", "name": "punctuation.separator.key-value.html" }
+          ]
+        },
+        {
+          "name": "constant.character.entity.html",
+          "match": "&(?:[A-Za-z][A-Za-z0-9]*|#\\d+|#x[0-9A-Fa-f]+);"
+        }
+      ]
+    },
+
+    "template-html-attribute-value": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.html",
+          "begin": "\"",
+          "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.html" } },
+          "endCaptures": { "0": { "name": "punctuation.definition.string.end.html" } },
+          "end": "\"|(?=`)",
+          "patterns": [
+            { "include": "#string-escape" },
+            { "include": "#template-expression" }
+          ]
+        },
+        {
+          "name": "string.quoted.single.html",
+          "begin": "'",
+          "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.html" } },
+          "endCaptures": { "0": { "name": "punctuation.definition.string.end.html" } },
+          "end": "'|(?=`)",
+          "patterns": [
+            { "include": "#string-escape" },
+            { "include": "#template-expression" }
+          ]
+        }
       ]
     },
 
@@ -258,7 +325,7 @@
 
     "string-escape": {
       "name": "constant.character.escape.ocara",
-      "match": "\\\\[ntr\"'\\\\0]"
+      "match": "\\\\[ntr\"'\\\\0`$]"
     },
 
     "named-argument": {
@@ -272,7 +339,7 @@
 
     "generic-declaration": {
       "comment": "generic List<T> or generic Cache<K, V = string>",
-      "match": "\\b(generic)\\s+([A-Z][\\w]*)\\s*<([^>]+)>\\b",
+      "match": "\\b(generic)\\s+([A-Z][\\w]*)\\s*<([^>]+)>",
       "captures": {
         "1": { "name": "keyword.declaration.generic.ocara" },
         "2": { "name": "entity.name.class.generic.ocara" },
@@ -324,8 +391,8 @@
     },
 
     "function-call": {
-      "comment": "free function call: name(",
-      "match": "\\b([a-z_][\\w]*)(?=\\s*\\()",
+      "comment": "free function call: name( — sauf mot-clé suivi de ( (if (, while (, return (, not (…)",
+      "match": "\\b(?!(?:if|elseif|else|switch|match|while|for|in|return|result|break|continue|default|try|on|raise|emit|and|or|not|equal|smaller|greater|is|var|const|use)\\b)([a-z_][\\w]*)(?=\\s*\\()",
       "captures": {
         "1": { "name": "entity.name.function.ocara" }
       }

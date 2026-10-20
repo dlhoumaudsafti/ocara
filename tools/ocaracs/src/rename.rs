@@ -1,22 +1,28 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // `--fix` : renommage des déclarations mal nommées (R07/R08/R09/R12/R13) et
-// de TOUS leurs usages dans les fichiers du projet. Un identifiant est
-// remplacé dans le code et dans les `${…}` des backticks, jamais dans une
-// chaîne ni un commentaire. Un membre (méthode, propriété, constante de
-// classe) est aussi renommé après `.`/`::` ; les autres noms seulement hors
-// de cette position (`.trim()` d'un builtin n'est jamais touché).
+// de TOUS leurs usages dans les fichiers du projet (réécriture : rewrite.rs).
+// Un membre (méthode, propriété, constante de classe) est aussi renommé après
+// `.`/`::` quand son receveur est un type du projet (members.rs) ; les autres
+// noms seulement hors de cette position (`.trim()` d'un builtin n'est jamais
+// touché). Un fichier qui porte le nom d'un symbole renommé
+// (`lib/car_model.oc` déclarant `car_model`) est renommé avec lui, et les
+// imports qui le désignent aussi.
 //
-// Renommage ignoré (et signalé) : nom cible déjà utilisé dans le projet, mot
-// réservé, même nom attendu sous deux styles différents, méthode de test
-// ocaraunit dont le nom perdrait son suffixe `Test`, ou nom présent dans un
-// fichier non `.oc` du projet (template HTML `${nom}`, script…).
+// Renommage ignoré (et signalé) : nom cible déjà utilisé dans le projet ou
+// visé par un autre renommage, mot réservé, même nom attendu sous deux styles
+// différents, méthode de test ocaraunit dont le nom perdrait son suffixe
+// `Test`, nom présent dans un fichier non `.oc` du projet (template HTML
+// `${nom}`, script…), membre accédé sur un receveur de type inconnu, nom
+// porté aussi par un champ nu de struct, fichier de destination existant.
 // ─────────────────────────────────────────────────────────────────────────────
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::config::Config;
-use crate::decls::{declarations, DeclKind};
+use crate::decls::{declarations, struct_fields, DeclKind};
+use crate::members::{Receivers, Verdict};
+use crate::rewrite::{rewrite, Access};
 use crate::text::line_states;
 
 const KEYWORDS: &[&str] = &[
@@ -24,21 +30,26 @@ const KEYWORDS: &[&str] = &[
     "method", "class", "struct", "generic", "module", "enum", "interface", "wiring", "extends", "modules",
     "implements", "init", "public", "private", "protected", "static", "if", "elseif", "else", "switch",
     "default", "match", "while", "for", "in", "return", "result", "use", "break", "continue", "try", "on",
-    "is", "raise", "emit", "self", "parent", "async", "resolve", "variadic", "runtime", "main", "error",
+    "is", "raise", "emit", "self", "parent", "async", "resolve", "variadic", "when", "runtime", "main", "error",
     "success", "exit", "int", "float", "string", "bool", "mixed", "array", "map", "message", "void",
     "true", "false", "null", "and", "or", "not", "equal", "smaller", "greater", "nameless",
 ];
 
 #[derive(Clone)]
 struct Target {
-    new:    String,
-    member: bool,
-    is_type: bool,
+    new:        String,
+    member:     bool,
+    /// Des fichiers portent ce nom : les segments d'import qui les
+    /// désignent sont renommés avec eux.
+    moves_file: bool,
 }
 
 #[derive(Default)]
 pub struct Plan {
-    targets: HashMap<String, Target>,
+    targets:   HashMap<String, Target>,
+    receivers: Receivers,
+    /// Fichiers renommés avec le symbole qu'ils portent : ancien → nouveau.
+    moves:     HashMap<PathBuf, PathBuf>,
     /// Lignes de compte rendu (renommages ignorés).
     pub skipped: Vec<String>,
 }
@@ -54,13 +65,10 @@ impl Plan {
         sorted.into_iter().map(|(old, t)| (old.clone(), t.new.clone())).collect()
     }
 
-    /// Nouveau chemin d'un fichier qui porte le nom d'une classe renommée
+    /// Nouveau chemin d'un fichier qui porte le nom d'un symbole renommé
     /// (`car_model.oc` déclarant `class car_model` → `CarModel.oc`).
     pub fn moved_path(&self, path: &Path) -> Option<PathBuf> {
-        let stem = path.file_stem()?.to_str()?;
-        let target = self.targets.get(stem).filter(|t| t.is_type)?;
-        let moved = path.with_file_name(format!("{}.oc", target.new));
-        (!moved.exists()).then_some(moved)
+        self.moves.get(path).cloned()
     }
 }
 
@@ -71,185 +79,141 @@ pub fn external_words(path: &Path, content: &str, out: &mut HashMap<String, Path
     }
 }
 
-/// Plan de renommage pour l'ensemble `files` (chemin, contenu) du projet ;
-/// `external` : mots des autres fichiers texte du projet (`external_words`).
-pub fn plan(files: &[(PathBuf, String)], external: &HashMap<String, PathBuf>, cfg: &Config) -> Plan {
-    let mut wanted: HashMap<String, (HashSet<String>, bool, bool)> = HashMap::new();
-    let mut used: HashSet<String> = HashSet::new();
+/// Ce que le projet déclare et utilise.
+#[derive(Default)]
+struct Survey {
+    /// Nom déclaré → (noms attendus, membre ?).
+    wanted:        HashMap<String, (HashSet<String>, bool)>,
+    /// Nom déclaré hors membre → fichiers qui le déclarent.
+    declared_in:   HashMap<String, Vec<PathBuf>>,
+    used:          HashSet<String>,
+    struct_fields: HashSet<String>,
+    /// Membres accédés sur un receveur de type inconnu.
+    ambiguous:     HashSet<String>,
+    /// Derniers segments d'import (désignent un fichier par son nom).
+    import_paths:  HashSet<String>,
+}
+
+fn survey(files: &[(PathBuf, String)], receivers: &Receivers, cfg: &Config) -> Survey {
+    let mut s = Survey::default();
     for (path, content) in files {
         let lines: Vec<&str> = content.lines().collect();
         let states = line_states(&lines);
         for decl in declarations(&path.to_string_lossy(), &lines, &states, cfg) {
             let target = if decl.style.matches(&decl.name) { decl.name.clone() } else { decl.style.convert(&decl.name) };
-            let entry = wanted.entry(decl.name).or_default();
+            if decl.kind != DeclKind::Member {
+                s.declared_in.entry(decl.name.clone()).or_default().push(path.clone());
+            }
+            let entry = s.wanted.entry(decl.name).or_default();
             entry.0.insert(target);
             entry.1 |= decl.kind == DeclKind::Member;
-            entry.2 |= decl.kind == DeclKind::Type;
         }
-        rewrite(content, &HashMap::new(), &mut |name, _| { used.insert(name.to_string()); None });
+        s.struct_fields.extend(struct_fields(&lines, &states));
+        rewrite(content, &mut |name, access| {
+            s.used.insert(name.to_string());
+            match access {
+                Access::Member(m) if receivers.verdict(path, m) == Verdict::Ambiguous => { s.ambiguous.insert(name.to_string()); }
+                Access::ImportPath => { s.import_paths.insert(name.to_string()); }
+                _ => {}
+            }
+            None
+        });
     }
+    s
+}
 
-    let mut plan = Plan::default();
-    let mut names: Vec<_> = wanted.into_iter().collect();
-    names.sort_by(|a, b| a.0.cmp(&b.0));
-    for (old, (targets, member, is_type)) in names {
+/// Raison d'ignorer le renommage `old` → `new`, s'il y en a une.
+fn skip_reason(old: &str, new: &str, member: bool, s: &Survey, external: &HashMap<String, PathBuf>) -> Option<String> {
+    if new.is_empty() {
+        Some("aucun nom valide dans ce style".to_string())
+    } else if KEYWORDS.contains(&new) {
+        Some(format!("'{}' est un mot réservé", new))
+    } else if s.used.contains(new) {
+        Some(format!("'{}' est déjà utilisé dans le projet", new))
+    } else if let Some(path) = external.get(old) {
+        Some(format!("référencé hors des fichiers .oc ({})", path.display()))
+    } else if old.ends_with("Test") && !new.ends_with("Test") {
+        Some("une méthode de test ocaraunit doit se terminer par 'Test'".to_string())
+    } else if member && s.ambiguous.contains(old) {
+        Some("accédé sur un receveur de type inconnu (peut-être un builtin)".to_string())
+    } else if !member && s.struct_fields.contains(old) {
+        Some("même nom qu'un champ de struct, dont les accès '.nom' ne seraient pas renommés".to_string())
+    } else {
+        None
+    }
+}
+
+/// Fichiers à renommer avec `old` (ceux qui le déclarent et portent son
+/// nom), ou la raison de ne pas renommer.
+fn file_moves(old: &str, new: &str, s: &Survey, files: &[(PathBuf, String)]) -> Result<Vec<(PathBuf, PathBuf)>, String> {
+    let mut moves = Vec::new();
+    for path in s.declared_in.get(old).into_iter().flatten() {
+        if path.file_stem().and_then(|f| f.to_str()) != Some(old) || moves.iter().any(|(p, _)| p == path) { continue; }
+        let dest = path.with_file_name(format!("{}.oc", new));
+        if dest.exists() || files.iter().any(|(p, _)| *p == dest) {
+            return Err(format!("le fichier '{}' existe déjà", dest.display()));
+        }
+        moves.push((path.clone(), dest));
+    }
+    if moves.is_empty() && s.import_paths.contains(old) {
+        return Err(format!("importé par son nom de fichier, mais aucun '{}.oc' ne le déclare", old));
+    }
+    Ok(moves)
+}
+
+/// Plan de renommage pour l'ensemble `files` (chemin, contenu) du projet ;
+/// `external` : mots des autres fichiers texte du projet (`external_words`).
+pub fn plan(files: &[(PathBuf, String)], external: &HashMap<String, PathBuf>, cfg: &Config) -> Plan {
+    let receivers = Receivers::collect(files);
+    let s = survey(files, &receivers, cfg);
+    let mut plan = Plan { receivers, ..Plan::default() };
+    let mut names: Vec<_> = s.wanted.iter().collect();
+    names.sort_by(|a, b| a.0.cmp(b.0));
+    let mut candidates: Vec<(&String, String, bool)> = Vec::new();
+    for (old, (targets, member)) in names {
         if targets.len() > 1 {
-            let mut list: Vec<_> = targets.into_iter().collect();
+            let mut list: Vec<_> = targets.iter().cloned().collect();
             list.sort();
             plan.skipped.push(format!("'{}' non renommé : styles différents attendus selon la déclaration ({})", old, list.join(", ")));
             continue;
         }
-        let Some(new) = targets.into_iter().next().filter(|n| *n != old) else { continue };
-        let reason = if new.is_empty() {
-            Some("aucun nom valide dans ce style".to_string())
-        } else if KEYWORDS.contains(&new.as_str()) {
-            Some(format!("'{}' est un mot réservé", new))
-        } else if used.contains(&new) {
-            Some(format!("'{}' est déjà utilisé dans le projet", new))
-        } else if let Some(path) = external.get(&old) {
-            Some(format!("référencé hors des fichiers .oc ({})", path.display()))
-        } else if old.ends_with("Test") && !new.ends_with("Test") {
-            Some("une méthode de test ocaraunit doit se terminer par 'Test'".to_string())
-        } else {
-            None
-        };
-        match reason {
+        let Some(new) = targets.iter().next().filter(|n| *n != old) else { continue };
+        match skip_reason(old, new, *member, &s, external) {
             Some(r) => plan.skipped.push(format!("'{}' non renommé en '{}' : {}", old, new, r)),
-            None => { plan.targets.insert(old, Target { new, member, is_type }); }
+            None => candidates.push((old, new.clone(), *member)),
+        }
+    }
+    for (old, new, member) in &candidates {
+        let rivals: Vec<&str> = candidates.iter().filter(|c| c.1 == *new && c.0 != *old).map(|c| c.0.as_str()).collect();
+        let moves = if rivals.is_empty() { file_moves(old, new, &s, files) } else {
+            Err(format!("'{}' deviendrait aussi '{}'", rivals.join("', '"), new))
+        };
+        match moves {
+            Err(r) => plan.skipped.push(format!("'{}' non renommé en '{}' : {}", old, new, r)),
+            Ok(moves) => {
+                let target = Target { new: new.clone(), member: *member, moves_file: !moves.is_empty() };
+                plan.moves.extend(moves);
+                plan.targets.insert((*old).clone(), target);
+            }
         }
     }
     plan
 }
 
-/// Applique le plan à un fichier ; retourne le contenu et le nombre de
+/// Applique le plan au fichier `path` ; retourne le contenu et le nombre de
 /// remplacements.
-pub fn apply(content: &str, plan: &Plan) -> (String, usize) {
+pub fn apply(path: &Path, content: &str, plan: &Plan) -> (String, usize) {
     let mut count = 0usize;
-    let out = rewrite(content, &plan.targets, &mut |name, after_member_op| {
+    let out = rewrite(content, &mut |name, access| {
         let target = plan.targets.get(name)?;
-        (target.member || !after_member_op).then(|| { count += 1; target.new.clone() })
+        let renamed = match access {
+            Access::Bare => true,
+            Access::ImportPath => target.moves_file,
+            Access::Member(m) => target.member && plan.receivers.verdict(path, m) == Verdict::Rename,
+        };
+        renamed.then(|| { count += 1; target.new.clone() })
     });
     (out, count)
-}
-
-enum Mode {
-    Code,
-    Quote(char),
-    Backtick,
-    /// `${` … `}` dans un backtick : code, avec profondeur d'accolades.
-    Interp(usize),
-}
-
-/// Recopie `content` en passant chaque identifiant du code à `visit(nom,
-/// précédé de '.'/'::')`, qui peut le remplacer. Les lignes `import` sont
-/// traitées à part (`rewrite_import`), `namespace`/`runtime` recopiées.
-fn rewrite(content: &str, targets: &HashMap<String, Target>, visit: &mut dyn FnMut(&str, bool) -> Option<String>) -> String {
-    let mut out = String::with_capacity(content.len());
-    let mut modes = vec![Mode::Code];
-    for line in content.split_inclusive('\n') {
-        let t = line.trim_start();
-        if matches!(modes.last(), Some(Mode::Code)) && modes.len() == 1 {
-            if t.starts_with("import ") {
-                out.push_str(&rewrite_import(line, targets, visit));
-                continue;
-            }
-            if t.starts_with("namespace ") || t.starts_with("runtime ") {
-                out.push_str(line);
-                continue;
-            }
-        }
-        rewrite_line(line, &mut modes, &mut out, visit);
-    }
-    out
-}
-
-fn rewrite_line(line: &str, modes: &mut Vec<Mode>, out: &mut String, visit: &mut dyn FnMut(&str, bool) -> Option<String>) {
-    let chars: Vec<char> = line.chars().collect();
-    let mut i = 0;
-    while i < chars.len() {
-        let c = chars[i];
-        let next = chars.get(i + 1).copied();
-        match modes.last_mut() {
-            Some(Mode::Quote(q)) => {
-                let q = *q;
-                out.push(c);
-                if c == '\\' { if let Some(n) = next { out.push(n); i += 1; } }
-                else if c == q { modes.pop(); }
-            }
-            Some(Mode::Backtick) => {
-                out.push(c);
-                if c == '\\' { if let Some(n) = next { out.push(n); i += 1; } }
-                else if c == '`' { modes.pop(); }
-                else if c == '$' && next == Some('{') { out.push('{'); i += 1; modes.push(Mode::Interp(0)); }
-            }
-            Some(Mode::Code) | Some(Mode::Interp(_)) => {
-                if c == '/' && next == Some('/') {
-                    out.extend(&chars[i..]);
-                    return;
-                }
-                if c.is_alphabetic() || c == '_' {
-                    let start = i;
-                    while i < chars.len() && (chars[i].is_alphanumeric() || chars[i] == '_') { i += 1; }
-                    let name: String = chars[start..i].iter().collect();
-                    let mut k = start;
-                    while k > 0 && chars[k - 1] == ' ' { k -= 1; }
-                    let member_op = (k >= 1 && chars[k - 1] == '.') || (k >= 2 && chars[k - 1] == ':' && chars[k - 2] == ':');
-                    let digit_prefixed = start > 0 && chars[start - 1].is_ascii_digit();
-                    match visit(&name, member_op).filter(|_| !digit_prefixed) {
-                        Some(new) => out.push_str(&new),
-                        None => out.push_str(&name),
-                    }
-                    continue;
-                }
-                out.push(c);
-                match (c, modes.last_mut()) {
-                    ('"' | '\'', _) => modes.push(Mode::Quote(c)),
-                    ('`', _) => modes.push(Mode::Backtick),
-                    ('{', Some(Mode::Interp(depth))) => *depth += 1,
-                    ('}', Some(Mode::Interp(0))) => { modes.pop(); }
-                    ('}', Some(Mode::Interp(depth))) => *depth -= 1,
-                    _ => {}
-                }
-            }
-            None => out.push(c),
-        }
-        i += 1;
-    }
-}
-
-/// `import a.b.Nom (as Alias)?` : seul le dernier segment (symbole importé)
-/// et l'alias sont renommés — les segments précédents sont des dossiers.
-/// `import Nom from "chemin/Nom" (as Alias)?` : le symbole, l'alias et le
-/// dernier composant du chemin (fichier renommé avec sa classe).
-fn rewrite_import(line: &str, targets: &HashMap<String, Target>, visit: &mut dyn FnMut(&str, bool) -> Option<String>) -> String {
-    let lead = &line[..line.len() - line.trim_start().len()];
-    let ending = &line[line.trim_end().len()..];
-    let body = line.trim();
-    let mut rename = |name: &str| visit(name, false).unwrap_or_else(|| name.to_string());
-    let (main, alias) = match body.split_once(" as ") {
-        Some((m, a)) => (m, Some(a.trim())),
-        None => (body, None),
-    };
-    let main = main.strip_prefix("import ").unwrap_or(main).trim();
-    let rewritten = if let Some((target, path)) = main.split_once(" from ") {
-        let path = path.trim();
-        let inner = path.trim_matches('"');
-        let (dir, file) = inner.rsplit_once('/').map_or(("", inner), |(d, f)| (d, f));
-        let (stem, ext) = file.strip_suffix(".oc").map_or((file, ""), |s| (s, ".oc"));
-        let stem = targets.get(stem).filter(|t| t.is_type).map_or(stem.to_string(), |t| t.new.clone());
-        let new_path = if dir.is_empty() { format!("{}{}", stem, ext) } else { format!("{}/{}{}", dir, stem, ext) };
-        let target = if target == "*" { target.to_string() } else { rename(target) };
-        format!("{} from \"{}\"", target, new_path)
-    } else if main.starts_with("ocara.") {
-        main.to_string()
-    } else {
-        match main.rsplit_once('.') {
-            Some((dirs, last)) => format!("{}.{}", dirs, rename(last)),
-            None => rename(main),
-        }
-    };
-    let alias = alias.map(|a| format!(" as {}", rename(a))).unwrap_or_default();
-    format!("{}import {}{}{}", lead, rewritten, alias, ending)
 }
 
 #[cfg(test)]
@@ -261,7 +225,7 @@ mod tests {
     fn run(files: &[(&str, &str)]) -> (Vec<String>, Vec<String>) {
         let files: Vec<(PathBuf, String)> = files.iter().map(|(p, c)| (PathBuf::from(p), c.to_string())).collect();
         let plan = plan(&files, &Default::default(), &parse_config(""));
-        (files.iter().map(|(_, c)| apply(c, &plan).0).collect(), plan.skipped)
+        (files.iter().map(|(p, c)| apply(p, c, &plan).0).collect(), plan.skipped)
     }
 
     #[test]
@@ -299,5 +263,60 @@ mod tests {
         assert!(out[0].contains("function is_adult()"));
         assert!(out[0].contains("function runFastTest()"));
         assert!(skipped.iter().any(|s| s.contains("'is_adult'") && s.contains("déjà utilisé")), "{:?}", skipped);
+    }
+
+    #[test]
+    fn two_names_converging_on_one_target_are_skipped() {
+        let (out, skipped) = run(&[("a.oc", "function main(): int {\n    var userID:int = 1\n    var userId:int = 2\n    return userID + userId\n}\n")]);
+        assert!(out[0].contains("var userID:int = 1") && out[0].contains("var userId:int = 2"));
+        assert!(skipped.iter().any(|s| s.contains("'userID'") && s.contains("deviendrait aussi")), "{:?}", skipped);
+    }
+
+    #[test]
+    fn members_are_renamed_only_on_project_receivers() {
+        let src = "class Window {\n    public property isOpen:bool\n    public method close(): void { self.isOpen = false }\n}\nfunction f(win:SDL, w:Window): bool {\n    return w.isOpen and win.isOpen()\n}\n";
+        let (out, _) = run(&[("a.oc", src)]);
+        assert!(out[0].contains("property is_open:bool") && out[0].contains("self.is_open = false"));
+        assert!(out[0].contains("return w.is_open and win.isOpen()"), "{}", out[0]);
+        let unknown = format!("{}function g(): bool {{\n    return make().isOpen\n}}\n", src);
+        let (out, skipped) = run(&[("a.oc", &unknown)]);
+        assert!(out[0].contains("property isOpen:bool"));
+        assert!(skipped.iter().any(|s| s.contains("receveur de type inconnu")), "{:?}", skipped);
+    }
+
+    #[test]
+    fn name_shared_with_a_bare_struct_field_is_skipped() {
+        let (out, skipped) = run(&[("a.oc", "struct User {\n    userName:string\n}\nfunction main(): int {\n    var userName:string = \"x\"\n    var u:User = use User(userName)\n    return u.userName.len()\n}\n")]);
+        assert!(out[0].contains("    userName:string\n") && out[0].contains("var userName:string"));
+        assert!(skipped.iter().any(|s| s.contains("champ de struct")), "{:?}", skipped);
+    }
+
+    #[test]
+    fn imported_function_moves_its_file_and_import_keeps_its_comment() {
+        let files: Vec<(PathBuf, String)> = vec![
+            (PathBuf::from("lib/do_stuff.oc"), "function do_stuff(): void {\n}\n".to_string()),
+            (PathBuf::from("main.oc"), "import lib.do_stuff // aide\nimport do_stuff from \"./lib/do_stuff\" as alias_x\nfunction main(): int {\n    do_stuff()\n    return 0\n}\n".to_string()),
+        ];
+        let plan = plan(&files, &Default::default(), &parse_config(""));
+        assert_eq!(plan.moved_path(&files[0].0), Some(PathBuf::from("lib/doStuff.oc")));
+        let main = apply(&files[1].0, &files[1].1, &plan).0;
+        assert!(main.starts_with("import lib.doStuff // aide\nimport doStuff from \"./lib/doStuff\" as alias_x\n"), "{}", main);
+    }
+
+    #[test]
+    fn import_of_a_file_not_named_after_the_symbol_blocks_the_rename() {
+        let (out, skipped) = run(&[
+            ("lib/tools.oc", "function do_stuff(): void {\n}\n"),
+            ("main.oc", "import lib.do_stuff\nfunction main(): int {\n    return 0\n}\n"),
+        ]);
+        assert!(out[0].contains("function do_stuff()") && out[1].starts_with("import lib.do_stuff\n"));
+        assert!(skipped.iter().any(|s| s.contains("nom de fichier")), "{:?}", skipped);
+    }
+
+    #[test]
+    fn reserved_when_and_quoted_brace() {
+        let (out, skipped) = run(&[("a.oc", "function When(): int { return 1 }\nfunction f(): string {\n    return '{'\n}\nconst max_size = 3\n")]);
+        assert!(out[0].contains("function When()") && skipped.iter().any(|s| s.contains("mot réservé")), "{:?}", skipped);
+        assert!(out[0].contains("const MAX_SIZE = 3"), "{}", out[0]);
     }
 }

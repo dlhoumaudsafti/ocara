@@ -113,7 +113,8 @@ pub extern "C" fn Time_second(time: i64) -> i64 {
 /// Convertit un nombre de secondes en HH:MM:SS
 #[unsafe(no_mangle)]
 pub extern "C" fn Time_fromSeconds(seconds: i64) -> i64 {
-    let s = seconds % 86400; // Garder dans la journée
+    // Garder dans la journée ; division euclidienne : `-1` → `23:59:59`.
+    let s = seconds.rem_euclid(86400);
     let hour = (s / 3600) as i32;
     let minute = ((s % 3600) / 60) as i32;
     let second = (s % 60) as i32;

@@ -5,7 +5,7 @@
 use crate::config::{Config, IndentType};
 
 /// État d'une ligne vis-à-vis des chaînes backtick multilignes.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct LineState {
     /// La ligne commence à l'intérieur d'un backtick : son début est du texte.
     pub starts_in_bt: bool,
@@ -45,6 +45,16 @@ pub fn scan_code(line: &str, in_bt: &mut bool, mut visit: impl FnMut(usize, char
         }
     }
     None
+}
+
+/// Code de `line` (`in_bt` conservé d'une ligne à l'autre) : le texte des
+/// chaînes et des backticks remplacé par `"`, le commentaire retiré.
+pub fn masked_code(line: &str, in_bt: &mut bool) -> String {
+    let mut masked: Vec<char> = line.chars().map(|_| '"').collect();
+    let byte_to_char = |pos: usize| line[..pos].chars().count();
+    let comment = scan_code(line, in_bt, |pos, c| masked[byte_to_char(pos)] = c);
+    masked.truncate(comment.map_or(masked.len(), byte_to_char));
+    masked.into_iter().collect()
 }
 
 pub fn line_states(lines: &[&str]) -> Vec<LineState> {

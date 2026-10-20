@@ -344,6 +344,21 @@ pub fn release_all(builder: &mut LowerBuilder) {
     release_scopes_from(builder, 0);
 }
 
+/// Saut vers la sortie anticipée du `main` runtime (`result`, `return` d'un
+/// handler) : seules les portées plus internes que la portée runtime sont
+/// rendues — les variables d'`init`/`main` restent lisibles dans
+/// `error`/`success`/`exit` (voir `LowerBuilder::runtime_scope`).
+pub fn release_before_runtime_exit(builder: &mut LowerBuilder) {
+    match builder.runtime_scope {
+        Some((block_depth, rc_depth)) => {
+            crate::lower::stmt::ownership::emit_early_exit_drops(builder, block_depth + 1);
+            release_temps_from(builder, 0);
+            release_scopes_from(builder, rc_depth + 1);
+        }
+        None => release_all(builder),
+    }
+}
+
 /// Affectation d'une locale comptée : nouvelle valeur prise, ancienne relâchée.
 pub fn assign_local(builder: &mut LowerBuilder, name: &str, val: Value, fresh: bool) {
     let old = builder.load_local(name).map(|(v, _)| v);

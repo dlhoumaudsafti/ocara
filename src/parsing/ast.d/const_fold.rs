@@ -55,6 +55,8 @@ fn fold_float(op: &BinOp, a: f64, b: f64) -> Option<Literal> {
         BinOp::Sub => a - b,
         BinOp::Mul => a * b,
         BinOp::Div if b != 0.0 => a / b,
+        // Même calcul que le `%` flottant à l'exécution (signe du dividende).
+        BinOp::Mod if b != 0.0 => a - (a / b).trunc() * b,
         _ => return None,
     }))
 }

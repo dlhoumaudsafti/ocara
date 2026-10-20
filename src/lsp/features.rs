@@ -35,7 +35,8 @@ pub fn diagnostics(ws: &Workspace, path: &Path, analysis: &Analysis) -> Vec<lsp_
         .filter(|d| d.file.canonicalize().unwrap_or_else(|_| d.file.clone()) == path)
         .map(|d| {
             let span = Span::new(d.line.max(1), d.col.max(1));
-            let mut range = name_range(&text, &span, &word_at(&text, &span));
+            let word = word_at(&text, &span);
+            let mut range = if word.is_empty() { super::position::point(span.line - 1, span.col - 1) } else { name_range(&text, &span, &word) };
             if range.start == range.end {
                 range.end.character += 1;
             }
@@ -85,9 +86,13 @@ fn to_lsp(d: &Diagnostic, range: Range, message: String) -> lsp_types::Diagnosti
 }
 
 /// Identifiant qui commence à la position du span (pour surligner le nom).
+/// Un `.` ou `::` en tête est sauté (erreur sur un membre placée sur le
+/// point : sans nom, c'est la `)` suivante qui était soulignée).
 fn word_at(text: &str, span: &Span) -> String {
     text.lines().nth(span.line - 1)
-        .map(|l| l.chars().skip(span.col - 1).take_while(|c| c.is_alphanumeric() || *c == '_').collect())
+        .map(|l| l.chars().skip(span.col - 1)
+            .skip_while(|c| matches!(c, '.' | ':'))
+            .take_while(|c| c.is_alphanumeric() || *c == '_').collect())
         .unwrap_or_default()
 }
 

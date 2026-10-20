@@ -20,12 +20,14 @@ pub fn parse_entry(input: &Path, dump: bool, tolerant: bool) -> Result<(Program,
             LexError::UnterminatedString(s)   => (s.line, s.col),
             LexError::InvalidEscape(_, s)     => (s.line, s.col),
             LexError::IntegerOverflow(_, s)   => (s.line, s.col),
+            LexError::ExponentNotation(_, s)  => (s.line, s.col),
         };
         let msg = match &e {
             LexError::UnexpectedChar(ch, _)    => format!("unexpected character '{}'", ch),
             LexError::UnterminatedString(_)    => "unterminated string".into(),
             LexError::InvalidEscape(ch, _)     => format!("invalid escape sequence '\\{}'", ch),
             LexError::IntegerOverflow(raw, _)  => format!("integer too large: {}", raw),
+            LexError::ExponentNotation(raw, _) => format!("exponent notation is not supported: '{}' — write the number in full", raw),
         };
         Diagnostic::error(input, line, col, msg)
     })?;

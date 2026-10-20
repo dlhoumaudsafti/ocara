@@ -309,35 +309,35 @@ pub unsafe extern "C" fn Directory_infos(path_ptr: i64) -> i64 {
             Ok(meta) => {
                 let map_ptr = crate::__map_new();
                 
-                // modified: string (timestamp)
+                // modified: int (timestamp) — valeurs boxées : la map est `mixed`
                 if let Ok(modified) = meta.modified() {
                     if let Ok(duration) = modified.duration_since(std::time::UNIX_EPOCH) {
                         let timestamp = duration.as_secs();
                         let mod_key = alloc_str("modified");
-                        let mod_val = alloc_str(&timestamp.to_string());
+                        let mod_val = crate::__box_int_for_mixed(timestamp as i64);
                         crate::map_set_owned_key(map_ptr, mod_key, mod_val);
                     }
                 }
                 
-                // created: string (timestamp)
+                // created: int (timestamp)
                 if let Ok(created) = meta.created() {
                     if let Ok(duration) = created.duration_since(std::time::UNIX_EPOCH) {
                         let timestamp = duration.as_secs();
                         let cre_key = alloc_str("created");
-                        let cre_val = alloc_str(&timestamp.to_string());
+                        let cre_val = crate::__box_int_for_mixed(timestamp as i64);
                         crate::map_set_owned_key(map_ptr, cre_key, cre_val);
                     }
                 }
                 
                 // is_dir: bool
                 let is_dir_key = alloc_str("is_dir");
-                crate::map_set_owned_key(map_ptr, is_dir_key, meta.is_dir() as i64);
+                crate::map_set_owned_key(map_ptr, is_dir_key, crate::__box_bool(meta.is_dir() as i64));
                 
                 // count: int (nombre d'entrées)
                 if let Ok(entries) = fs::read_dir(&path) {
                     let count = entries.count() as i64;
                     let count_key = alloc_str("count");
-                    crate::map_set_owned_key(map_ptr, count_key, count);
+                    crate::map_set_owned_key(map_ptr, count_key, crate::__box_int_for_mixed(count));
                 }
                 
                 map_ptr

@@ -229,7 +229,7 @@ UnitTest::assertClass(p)
 
 #### `UnitTest::assertEnum(value)`
 
-Vérifie que `value` est un objet (même test runtime que `assertClass`). Code 117 sinon.
+Vérifie que `value` est une variante d'enum. Ce contrôle est fait à la compilation (voir ci-dessous) : à l'exécution, l'assertion réussit toujours.
 
 > Les variantes d'enum sont des entiers à l'exécution : `assertEnum` est vérifié **à la compilation**. L'argument doit être une variante (`UnitTest::assertEnum(Color::RED)`) ou une valeur de type enum, sinon erreur de compilation (« expected type 'enum' »).
 

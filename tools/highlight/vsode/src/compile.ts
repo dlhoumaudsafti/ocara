@@ -14,15 +14,10 @@ import { ocaraOutput, parseToolMessages, runTool, toDiagnostic, ToolResult } fro
 
 const SOURCE = 'ocara';
 
-/** Argument shell entre apostrophes (`'` échappé). */
-function shellQuote(value: string): string {
-    return `'${value.replace(/'/g, `'\\''`)}'`;
-}
-
 export class OcaraCompiler implements vscode.Disposable {
     private readonly output = ocaraOutput();
     private readonly diagnostics = vscode.languages.createDiagnosticCollection(SOURCE);
-    /** Terminal « Ocara » unique, partagé par tous les lancements. */
+    /** Terminal « Ocara » du dernier lancement (remplacé au suivant). */
     private terminal: vscode.Terminal | undefined;
 
     register(context: vscode.ExtensionContext): void {
@@ -34,6 +29,9 @@ export class OcaraCompiler implements vscode.Disposable {
             vscode.commands.registerCommand('ocara.compileAndRunRelease', (uri?: vscode.Uri) => this.compileAndRun(uri, true)),
             vscode.window.onDidCloseTerminal(t => { if (t === this.terminal) { this.terminal = undefined; } }),
             vscode.commands.registerCommand('ocara.dump', (uri?: vscode.Uri) => this.dump(uri)),
+            // Diagnostics de compilation périmés dès que le fichier change.
+            vscode.workspace.onDidChangeTextDocument(e => { if (e.contentChanges.length) { this.diagnostics.delete(e.document.uri); } }),
+            vscode.workspace.onDidSaveTextDocument(doc => this.diagnostics.delete(doc.uri)),
         );
     }
 
@@ -81,18 +79,16 @@ export class OcaraCompiler implements vscode.Disposable {
     }
 
     /** Compile puis lance le binaire depuis le dossier du script, dans le
-     *  terminal « Ocara » (le programme précédent y est d'abord arrêté). */
+     *  terminal « Ocara » (le programme précédent est d'abord arrêté). Le
+     *  binaire EST le processus du terminal : aucun shell, donc aucune
+     *  syntaxe propre à un shell (POSIX, PowerShell, cmd). */
     private async compileAndRun(uri: vscode.Uri | undefined, release: boolean): Promise<void> {
         const file = await this.targetFile(uri);
         const binary = file && await this.askBinary(file, `Compiler et lancer le script Ocara (${release ? 'Release' : 'Debug'})`);
         if (!file || !binary || !await this.build(file, binary, release)) { return; }
-        if (this.terminal) {
-            this.terminal.sendText('\x03', false);
-        } else {
-            this.terminal = vscode.window.createTerminal({ name: 'Ocara' });
-        }
+        this.terminal?.dispose();
+        this.terminal = vscode.window.createTerminal({ name: 'Ocara', cwd: path.dirname(file.fsPath), shellPath: binary });
         this.terminal.show(true);
-        this.terminal.sendText(`cd ${shellQuote(path.dirname(file.fsPath))} && ${shellQuote(binary)}`);
     }
 
     private async dump(uri?: vscode.Uri): Promise<void> {

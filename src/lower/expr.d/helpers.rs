@@ -404,6 +404,29 @@ fn call_ret_type(builder: &LowerBuilder, expr: &Expr) -> Option<Type> {
     builder.module.call_ret_types.get(&call_key(builder, expr)?).cloned()
 }
 
+/// Type de retour AST d'une expression appelée qui n'est pas un nom de
+/// fonction (`adder(4)(1)`, `fs[0](5)`, `m["d"](21)`, champ `h.f()`) : son
+/// type `Function<R(…)>` vient de l'élément du conteneur indexé, du type de
+/// retour de l'appel ou du type déclaré du champ.
+pub(crate) fn callee_function_ret(builder: &LowerBuilder, callee: &Expr) -> Option<Type> {
+    let fn_ty = match callee {
+        Expr::Index { object, .. } => elem_type_after_index(builder, object)?,
+        Expr::Call { .. } | Expr::StaticCall { .. } => call_ret_type(builder, callee)?,
+        // Champ de type `Function` (`h.f()`), pas une méthode.
+        Expr::Field { object, field, .. } => {
+            let class_name = resolve_receiver_class(builder, object)?;
+            builder.module.class_field_types.get(&class_name)?
+                .iter().find(|(f, _)| f == field)
+                .map(|(_, ty)| ty.clone())?
+        }
+        _ => return None,
+    };
+    match fn_ty {
+        Type::Function { ret_ty, .. } => Some(*ret_ty),
+        _ => None,
+    }
+}
+
 /// Clé de `IrModule::call_ret_types` d'un appel : `fonction`, `Classe_méthode`.
 pub(crate) fn call_key(builder: &LowerBuilder, expr: &Expr) -> Option<String> {
     Some(match expr {

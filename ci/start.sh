@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# set -e
+# Pas de `set -e` : une étape en échec ne doit pas interrompre le pipeline
+# (tous les fichiers sont traités et rapportés). Chaque commande est donc
+# testée explicitement ; tout échec marque le fichier (file_status=1) et le
+# code de sortie final est non nul dès qu'un fichier échoue, qu'aucun
+# fichier n'a été traité, ou que les compteurs sont incohérents.
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CI Ocara - Pipeline d'intégration continue
@@ -53,10 +57,16 @@ if [ ! -x "$OCARACS" ]; then
 fi
 
 # Créer le dossier de dumps
-mkdir -p "$DUMP_DIR"
+if ! mkdir -p "$DUMP_DIR"; then
+    echo -e "${RED}✗ Erreur : impossible de créer $DUMP_DIR${RESET}"
+    exit 1
+fi
 
 # Initialiser le rapport
-echo "══════════════════════════════════════════════════════════════════════════════" > "$REPORT_FILE"
+if ! echo "══════════════════════════════════════════════════════════════════════════════" > "$REPORT_FILE"; then
+    echo -e "${RED}✗ Erreur : impossible d'écrire $REPORT_FILE${RESET}"
+    exit 1
+fi
 echo "  OCARA CI - RAPPORT D'INTÉGRATION CONTINUE" >> "$REPORT_FILE"
 echo "  Date: $(date '+%Y-%m-%d %H:%M:%S')" >> "$REPORT_FILE"
 echo "══════════════════════════════════════════════════════════════════════════════" >> "$REPORT_FILE"
@@ -285,6 +295,19 @@ echo -e "  ${BOLD}Fichiers traités :${RESET} $total_files"
 echo -e "  ${BOLD}Fichiers réussis :${RESET} ${GREEN}$passed_files${RESET}"
 echo -e "  ${BOLD}Fichiers échoués :${RESET} ${RED}$failed_files${RESET}"
 echo ""
+
+# Aucun fichier traité (motif vide, mauvais dossier courant) ou compteurs
+# incohérents : échec, jamais un succès silencieux.
+if [ "$total_files" -eq 0 ]; then
+    echo -e "${RED}${BOLD}✗ Pipeline CI : ÉCHEC (aucun fichier examples/NN_*.oc traité)${RESET}"
+    echo "✗ Pipeline CI : ÉCHEC (aucun fichier traité)" >> "$REPORT_FILE"
+    exit 1
+fi
+if [ $((passed_files + failed_files)) -ne "$total_files" ]; then
+    echo -e "${RED}${BOLD}✗ Pipeline CI : ÉCHEC (compteurs incohérents)${RESET}"
+    echo "✗ Pipeline CI : ÉCHEC (compteurs incohérents)" >> "$REPORT_FILE"
+    exit 1
+fi
 
 if [ $failed_files -eq 0 ]; then
     echo -e "${GREEN}${BOLD}✓ Pipeline CI : SUCCÈS${RESET}"

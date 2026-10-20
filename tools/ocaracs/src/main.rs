@@ -15,8 +15,11 @@ mod check;
 mod config;
 mod decls;
 mod fix;
+mod members;
 mod naming;
+mod project;
 mod rename;
+mod rewrite;
 mod scope;
 mod text;
 
@@ -32,50 +35,39 @@ use config::{find_project_root, load_config, Config};
 // Fichiers analysés : un fichier et ses imports utilisateur, ou un dossier
 // ─────────────────────────────────────────────────────────────────────────────
 
-const OCARA_BUILTINS: &[&str] = &[
-    "IO", "Math", "String", "Array", "Map", "JSON", "Tauri", "SDL",
-    "Convert", "System", "Regex", "HTTPRequest", "HTTPServer", "HTTPServerRequest", "HTTPServerSession", "SQLite", "MySQL", "MariaDB", "DotEnv", "YAML", "Thread", "Mutex",
-    "DateTime", "Date", "Time", "UnitTest", "HTMLComponent", "HTML",
-    "File", "Directory", "Exception", "FileException", "DirectoryException", "IOException", "SystemException",
-    "ArrayException", "MapException", "MathException", "ConvertException", "RegexException",
-    "DateTimeException", "DateException", "TimeException",
-    "ThreadException", "MutexException",
-    "UnitTestException", "HTTPServerException", "SQLiteException", "MySQLException", "MariaDBException", "DotEnvException", "YAMLException",
-    "TauriException", "SDLException",
-];
-
-fn extract_user_imports(content: &str, file_dir: &Path) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    for line in content.lines() {
-        let t = line.trim();
-        if !t.starts_with("import ") { continue; }
-        // Supprimer la partie " as Alias" éventuelle
-        let rest_raw = t[7..].trim();
-        let rest = rest_raw.split(" as ").next().unwrap_or(rest_raw).trim();
-        if rest.starts_with("ocara.") || rest == "ocara.*" { continue; }
-        let first = rest.split('.').next().unwrap_or("");
-        if OCARA_BUILTINS.contains(&first) { continue; }
-        let mut path = file_dir.to_path_buf();
-        for seg in rest.split('.') { path.push(seg); }
-        path.set_extension("oc");
-        out.push(path);
-    }
-    out
+/// Fichiers analysés et fichiers illisibles (absents ou pas en UTF-8).
+#[derive(Default)]
+struct Collected {
+    files:      Vec<PathBuf>,
+    seen:       HashSet<PathBuf>,
+    unreadable: usize,
 }
 
-/// Ajoute `path` (canonique) et, récursivement, ses imports utilisateur.
-fn collect_with_imports(path: &Path, out: &mut Vec<PathBuf>, seen: &mut HashSet<PathBuf>) {
-    // Un import inexistant est ignoré silencieusement (import de démonstration).
-    let Ok(canonical) = path.canonicalize() else { return };
-    if !seen.insert(canonical.clone()) { return; }
-    let Ok(content) = fs::read_to_string(&canonical) else {
-        eprintln!("ocaracs: impossible de lire '{}'", path.display());
+/// Lit `path` ; une erreur (UTF-8 invalide…) est signalée et comptée.
+fn read_source(path: &Path, unreadable: &mut usize) -> Option<String> {
+    match fs::read_to_string(path) {
+        Ok(content) => Some(content),
+        Err(e) => {
+            eprintln!("ocaracs: impossible de lire '{}': {}", display_path(path).display(), e);
+            *unreadable += 1;
+            None
+        }
+    }
+}
+
+/// Ajoute `path` (canonique) et, récursivement, les fichiers qu'il importe,
+/// résolus depuis `root` (dossier du fichier d'entrée, comme le compilateur).
+fn collect_with_imports(path: &Path, root: &Path, out: &mut Collected, report_missing: bool) {
+    let Ok(canonical) = path.canonicalize() else {
+        if report_missing { eprintln!("ocaracs: import introuvable : {}", display_path(path).display()); }
         return;
     };
-    out.push(canonical.clone());
+    if !out.seen.insert(canonical.clone()) { return; }
+    let Some(content) = read_source(&canonical, &mut out.unreadable) else { return };
+    out.files.push(canonical.clone());
     let file_dir = canonical.parent().unwrap_or(Path::new("."));
-    for imp in extract_user_imports(&content, file_dir) {
-        collect_with_imports(&imp, out, seen);
+    for imp in project::referenced_files(&content, file_dir, root) {
+        collect_with_imports(&imp, root, out, report_missing);
     }
 }
 
@@ -111,24 +103,33 @@ fn collect_external_words(dir: &Path, out: &mut HashMap<String, PathBuf>) {
     }
 }
 
-/// Tous les `.oc` sous `dir` ; avec `follow_imports`, les imports de chacun en plus.
-fn collect_dir(dir: &Path, follow_imports: bool, out: &mut Vec<PathBuf>, seen: &mut HashSet<PathBuf>) {
+/// Tous les `.oc` sous `dir` ; avec `root`, les imports de chacun en plus.
+fn collect_dir(dir: &Path, root: Option<&Path>, out: &mut Collected) {
     for path in dir_entries(dir) {
         if path.is_dir() {
-            collect_dir(&path, follow_imports, out, seen);
+            collect_dir(&path, root, out);
         } else if path.extension().is_some_and(|e| e == "oc") {
-            if follow_imports {
-                collect_with_imports(&path, out, seen);
-            } else if let Ok(canonical) = path.canonicalize() {
-                if seen.insert(canonical.clone()) { out.push(canonical); }
+            match root {
+                Some(root) => collect_with_imports(&path, root, out, false),
+                None => if let Ok(canonical) = path.canonicalize() {
+                    if out.seen.insert(canonical.clone()) { out.files.push(canonical); }
+                },
             }
         }
     }
 }
 
-fn analyzed_files(target: &Path) -> Vec<PathBuf> {
-    let (mut out, mut seen) = (Vec::new(), HashSet::new());
-    if target.is_dir() { collect_dir(target, true, &mut out, &mut seen); } else { collect_with_imports(target, &mut out, &mut seen); }
+/// Fichiers analysés pour `target` : un dossier (tous ses `.oc` et leurs
+/// imports, résolus depuis ce dossier) ou un fichier d'entrée et ses imports.
+fn analyzed_files(target: &Path) -> Collected {
+    let mut out = Collected::default();
+    if target.is_dir() {
+        let root = target.canonicalize().unwrap_or_else(|_| target.to_path_buf());
+        collect_dir(target, Some(&root), &mut out);
+    } else {
+        let root = target.canonicalize().ok().and_then(|p| p.parent().map(Path::to_path_buf)).unwrap_or_else(|| PathBuf::from("."));
+        collect_with_imports(target, &root, &mut out, true);
+    }
     out
 }
 
@@ -139,8 +140,13 @@ fn display_path(path: &Path) -> PathBuf {
         .unwrap_or_else(|| path.to_path_buf())
 }
 
-fn check_all(files: &[PathBuf], cfg: &Config) -> usize {
-    files.iter().filter_map(|f| fs::read_to_string(f).ok().map(|c| check::check_file(&display_path(f), &c, cfg))).sum()
+/// (avertissements, fichiers illisibles).
+fn check_all(files: &[PathBuf], cfg: &Config) -> (usize, usize) {
+    let mut unreadable = 0;
+    let warnings = files.iter()
+        .filter_map(|f| read_source(f, &mut unreadable).map(|c| check::check_file(&display_path(f), &c, cfg)))
+        .sum();
+    (warnings, unreadable)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -151,20 +157,27 @@ fn check_all(files: &[PathBuf], cfg: &Config) -> usize {
 /// puis retourne ces fichiers (chemins après renommage éventuel). Avec
 /// `dry_run`, rien n'est écrit : seul le compte rendu est affiché.
 fn fix_all(analyzed: &[PathBuf], root: &Path, cfg: &Config, dry_run: bool) -> Vec<PathBuf> {
-    let (mut project, mut seen) = (Vec::new(), HashSet::new());
-    collect_dir(root, false, &mut project, &mut seen);
-    project.extend(analyzed.iter().filter(|f| seen.insert((*f).clone())).cloned());
-    let contents: Vec<(PathBuf, String)> = project.iter()
-        .filter_map(|p| fs::read_to_string(p).ok().map(|c| (p.clone(), c)))
+    let mut project = Collected::default();
+    collect_dir(root, None, &mut project);
+    let mut files = project.files;
+    files.extend(analyzed.iter().filter(|f| project.seen.insert((*f).clone())).cloned());
+    let contents: Vec<(PathBuf, String)> = files.iter()
+        .filter_map(|p| read_source(p, &mut project.unreadable).map(|c| (p.clone(), c)))
         .collect();
     let mut external = HashMap::new();
     collect_external_words(root, &mut external);
-    let plan = rename::plan(&contents, &external, cfg);
+    // Un fichier illisible peut contenir des usages : aucun renommage.
+    let plan = if project.unreadable > 0 {
+        eprintln!("ocaracs: fichier(s) illisible(s) dans le projet : renommages désactivés");
+        rename::Plan::default()
+    } else {
+        rename::plan(&contents, &external, cfg)
+    };
 
     let (mut modified, mut replaced) = (0usize, 0usize);
     let mut result = Vec::new();
     for (path, content) in &contents {
-        let (renamed, n) = if plan.is_empty() { (content.clone(), 0) } else { rename::apply(content, &plan) };
+        let (renamed, n) = if plan.is_empty() { (content.clone(), 0) } else { rename::apply(path, content, &plan) };
         replaced += n;
         let is_analyzed = analyzed.contains(path);
         let fixed = if is_analyzed { fix::fix_layout(&renamed, cfg) } else { renamed };
@@ -215,7 +228,16 @@ fn print_help() {
     eprintln!("Codes de sortie:");
     eprintln!("  0  Aucun avertissement");
     eprintln!("  1  Avertissement(s) de style détecté(s)");
-    eprintln!("  2  Erreur d'utilisation");
+    eprintln!("  2  Erreur d'utilisation, ou fichier .oc illisible (UTF-8 invalide)");
+}
+
+/// Options reconnues (en plus de `--help`/`-h`).
+const OPTIONS: [&str; 2] = ["--fix", "--dry-run"];
+
+fn usage_error(msg: &str) -> ! {
+    eprintln!("ocaracs: {}", msg);
+    eprintln!("Voir 'ocaracs --help'.");
+    std::process::exit(2);
 }
 
 fn main() {
@@ -224,9 +246,13 @@ fn main() {
         print_help();
         std::process::exit(0);
     }
+    if let Some(unknown) = args.iter().find(|a| a.starts_with('-') && !OPTIONS.contains(&a.as_str())) {
+        usage_error(&format!("option inconnue : {}", unknown));
+    }
     let fix_mode = args.iter().any(|a| a == "--fix");
     let dry_run  = args.iter().any(|a| a == "--dry-run");
-    let targets: Vec<&String> = args.iter().filter(|a| !a.starts_with("--")).collect();
+    if dry_run && !fix_mode { usage_error("--dry-run s'utilise avec --fix"); }
+    let targets: Vec<&String> = args.iter().filter(|a| !a.starts_with('-')).collect();
     let [target] = targets.as_slice() else {
         print_help();
         std::process::exit(2);
@@ -234,25 +260,29 @@ fn main() {
 
     let target = PathBuf::from(target);
     if !target.exists() {
-        eprintln!("ocaracs: cible introuvable : {}", target.display());
-        std::process::exit(2);
+        usage_error(&format!("cible introuvable : {}", target.display()));
     }
 
     let project_root = find_project_root(&target);
     let config       = load_config(&project_root);
-    let mut files    = analyzed_files(&target);
+    let collected    = analyzed_files(&target);
+    let mut files    = collected.files;
     if fix_mode && dry_run {
         fix_all(&files, &project_root, &config, true);
-        return;
+        std::process::exit(if collected.unreadable > 0 { 2 } else { 0 });
     }
     if fix_mode {
         files = fix_all(&files, &project_root, &config, false);
     }
-    let total = check_all(&files, &config);
+    let (total, unreadable) = check_all(&files, &config);
 
     if total > 0 {
         eprintln!();
         eprintln!("{} avertissement(s) de style trouvé(s).", total);
-        std::process::exit(1);
     }
+    if unreadable + collected.unreadable > 0 {
+        eprintln!("ocaracs: {} fichier(s) illisible(s) (UTF-8 invalide ?) non analysé(s).", unreadable + collected.unreadable);
+        std::process::exit(2);
+    }
+    if total > 0 { std::process::exit(1); }
 }

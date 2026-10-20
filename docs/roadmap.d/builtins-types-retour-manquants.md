@@ -1,38 +1,25 @@
-# Builtins sans type de retour déclaré : `int`/`bool` lus comme `mixed` (SIGSEGV, `null`, fuites)
+# Builtins sans type de retour déclaré : `int`/`bool` lus comme `mixed` — corrigé
 
-Audit du 2026-10-19. Reproduit sur le binaire courant.
+Audit du 2026-10-19, corrigé le 2026-10-20.
 
 ## Constat
 
-La table manuelle `fn_ret_types` (`src/lower/builder.d/program.rs`,
-~l.760-830) n'a pas d'entrée pour plusieurs builtins. Leur résultat est alors
-traité comme `mixed` à l'affichage ou dans un gabarit :
+La table manuelle `fn_ret_types` (`src/lower/builder.d/program.rs`) n'avait
+pas d'entrée pour plusieurs builtins : leur résultat était traité comme
+`mixed` à l'affichage (`IO::writeln(File::size(f))` → SIGSEGV,
+`${res.status()}`/`${Thread::currentId()}` → `null`, `${r.body()}` → une
+chaîne perdue par appel).
 
-- `IO::writeln(File::size("f"))` sur un fichier de 100 000 octets → SIGSEGV ;
-- `${Thread::currentId()}` → `null` au lieu de `0` ;
-- `${res.status()}` → `null` ; `${res.ok()}`, `${m.tryLock()}` → `1`/`null`
-  au lieu de `true`/`false` ;
-- `${r.error()}`, `${r.body()}` sur un `HTTPResponse` → une chaîne perdue par
-  appel (`--leak-check`).
+## Correctif
 
-Passer par une variable typée (`var z:int = File::size(...)`) contourne le
-problème. Symboles concernés (int/bool) : `File_exists`, `File_size`,
-`Directory_exists`, `Directory_count`, `Thread_id`, `Thread_currentId`,
-`Mutex_tryLock`, `HTTPRequest_status`, `HTTPRequest_ok`,
-`HTTPRequest_isError`, `HTTPServerSession_has`, `HTTPServerSession_hasGlobal` ;
-d'autres symboles à retour pointeur manquent aussi (`File_read`,
-`HTTPRequest_body`…).
+- Les types de retour de tous les builtins sont déduits de leurs signatures
+  (`src/builtins/`) pour les symboles absents de la table manuelle, qui
+  reste prioritaire (`or_insert`).
+- Les méthodes de `HTTPRequest` sont aussi enregistrées sous `HTTPResponse_*`
+  (`builtin_call_owners`) : `res.ok()`, `res.body()` sont typés et leur
+  résultat possédé est rendu (`call_ret_types`).
 
-## Piste
+## Tests
 
-Dériver `fn_ret_types` des descripteurs `BuiltinDesc` (`src/codegen/desc.d/`)
-et des signatures de `src/builtins/` au lieu d'une table manuelle, et ajouter
-un test qui vérifie que chaque builtin a un type de retour.
-
-## Priorité / Complexité
-
-**Haute** (crash, fuite) — **Légère**.
-
-## Fichiers clés
-
-`src/lower/builder.d/program.rs`, `src/codegen/desc.d/*.rs`, `src/builtins/*.rs`.
+`examples/tests/99_short_circuit_indirect_callsTest.oc`
+(`builtinReturnTypesTest`).

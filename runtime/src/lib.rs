@@ -110,6 +110,7 @@ pub mod thread;
 pub mod mutex;
 pub mod httpserver;
 pub mod httpsession;
+pub mod civil;
 pub mod datetime;
 pub mod date;
 pub mod time;
@@ -310,10 +311,43 @@ fn val_to_string(val: i64) -> String {
     } else if is_int_box(val) {
         unsafe { unbox_int(val).to_string() }
     } else if is_ptr(val) {
-        unsafe { ptr_to_str(val).to_string() }
+        ptr_to_display(val, 0)
     } else {
         val.to_string()
     }
+}
+
+/// Valeur heap affichable : chaîne telle quelle, tableau `[a, b]`, map
+/// `{k: v}` (éléments selon leur genre brut, voir `fmt_elem`), objet ou
+/// fonction par leur genre. Un conteneur était lu comme une chaîne (octets
+/// bruts affichés par `IO::writeln(array)`). `depth` borne les cycles.
+fn ptr_to_display(val: i64, depth: usize) -> String {
+    if depth > 16 {
+        return "…".to_string();
+    }
+    match get_value_type(val) {
+        5 => {
+            let kind = rc::raw_kind(val);
+            let items: Vec<String> = unsafe { array_data(val) }.iter().map(|&v| nested_elem(kind, v, depth)).collect();
+            format!("[{}]", items.join(", "))
+        }
+        6 => {
+            let kind = rc::raw_kind(val);
+            let items: Vec<String> = unsafe { map_entries(val) }.iter().map(|(k, v)| format!("{}: {}", k, nested_elem(kind, *v, depth))).collect();
+            format!("{{{}}}", items.join(", "))
+        }
+        7 => "object".to_string(),
+        8 => "function".to_string(),
+        _ => unsafe { ptr_to_str(val).to_string() },
+    }
+}
+
+/// Élément de conteneur pour `ptr_to_display` (conteneurs imbriqués compris).
+fn nested_elem(kind: i64, v: i64, depth: usize) -> String {
+    if kind == 0 && is_ptr(v) {
+        return ptr_to_display(v, depth + 1);
+    }
+    fmt_elem(kind, v)
 }
 
 /// Formate un i64 en représentation affichable.
@@ -507,10 +541,8 @@ pub extern "C" fn __array_to_str(ptr: i64) -> i64 {
     if ptr == 0 {
         return unsafe { alloc_str("[]") };
     }
-    let kind = rc::raw_kind(ptr);
-    let parts: Vec<String> = unsafe { array_data(ptr) }.iter().map(|&v| fmt_elem(kind, v)).collect();
-    let r = format!("[{}]", parts.join(", "));
-    unsafe { alloc_str(&r) }
+    // Tableaux imbriqués compris (`${array<array<int>>}`).
+    unsafe { alloc_str(&ptr_to_display(ptr, 0)) }
 }
 
 /// Élément d'un conteneur, selon son genre brut (`rc::raw_kind` : 1 int,
@@ -591,6 +623,11 @@ fn read() -> i64 {
     let mut line = String::new();
     let outcome = { let _parked = rc::park(); io::stdin().lock().read_line(&mut line) };
     match outcome {
+        // Fin de l'entrée (stdin fermé) : `IOException` 101 (IO.md), au lieu
+        // d'une ligne vide indiscernable d'une vraie ligne vide.
+        Ok(0) => unsafe {
+            exception::throw_io_exception("Failed to read from stdin: end of input", ERR_IO_READ, "IO");
+        },
         Ok(_) => {
             if line.ends_with('\n') { line.pop(); }
             if line.ends_with('\r') { line.pop(); }
@@ -923,7 +960,16 @@ pub extern "C" fn String_split(s: i64, sep: i64) -> i64 {
     let src   = unsafe { ptr_to_str(s).to_string() };
     let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep).to_string() } } else { " ".to_string() };
     let ptr = new_array();
-    let parts: Vec<i64> = src.split(sep_s.as_str()).map(|part| unsafe { alloc_str(part) }).collect();
+    // Chaîne vide → tableau vide (String.md) ; séparateur vide → un élément
+    // par caractère (Rust ajoutait deux éléments vides aux extrémités).
+    let pieces: Vec<String> = if src.is_empty() {
+        Vec::new()
+    } else if sep_s.is_empty() {
+        src.chars().map(String::from).collect()
+    } else {
+        src.split(sep_s.as_str()).map(String::from).collect()
+    };
+    let parts: Vec<i64> = pieces.iter().map(|part| unsafe { alloc_str(part) }).collect();
     unsafe { with_array(ptr, |data| *data = parts) }
     ptr
 }
@@ -955,7 +1001,8 @@ pub extern "C" fn String_between(s: i64, start: i64, end: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn String_empty(s: i64) -> i64 {
     if !is_ptr(s) { return 1; }
-    if unsafe { ptr_to_str(s) }.is_empty() { 1 } else { 0 }
+    // Vide ou seulement des blancs (String.md : `String::empty("   ")` → true).
+    if unsafe { ptr_to_str(s) }.trim().is_empty() { 1 } else { 0 }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -970,9 +1017,20 @@ pub extern "C" fn String_empty(s: i64) -> i64 {
 const ERR_MATH_NEGATIVE_SQRT: i64 = 101;
 const ERR_MATH_NEGATIVE_EXPONENT: i64 = 102;
 const ERR_MATH_INVALID_RANGE: i64 = 103;
+const ERR_MATH_OVERFLOW: i64 = 105;
 
 #[unsafe(no_mangle)]
-pub extern "C" fn Math_abs(n: i64) -> i64 { n.abs() }
+pub extern "C" fn Math_abs(n: i64) -> i64 {
+    n.checked_abs().unwrap_or_else(|| math_overflow(&format!("abs({})", n)))
+}
+
+/// Résultat entier hors de `int` : `MathException` 105 (le résultat
+/// débordait en silence : `abs(INT_MIN)` = `INT_MIN`, `pow(2, 64)` = 0).
+fn math_overflow(op: &str) -> i64 {
+    unsafe {
+        exception::throw_math_exception(&format!("Integer overflow: {} does not fit in an int", op), ERR_MATH_OVERFLOW, "Math");
+    }
+}
 
 #[unsafe(no_mangle)]
 pub extern "C" fn Math_min(a: i64, b: i64) -> i64 { a.min(b) }
@@ -991,11 +1049,31 @@ pub extern "C" fn Math_pow(base: i64, exp: i64) -> i64 {
             );
         }
     }
-    base.pow(exp as u32)
+    // Exposant au-delà de `u32` : tronqué auparavant (`pow(2, 4294967296)` = 1).
+    let checked = u32::try_from(exp).ok().and_then(|e| base.checked_pow(e));
+    match (checked, base) {
+        (Some(v), _) => v,
+        (None, 0 | 1) => base,
+        (None, -1) => if exp % 2 == 0 { 1 } else { -1 },
+        (None, _) => math_overflow(&format!("pow({}, {})", base, exp)),
+    }
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn Math_clamp(n: i64, lo: i64, hi: i64) -> i64 { n.clamp(lo, hi) }
+pub extern "C" fn Math_clamp(n: i64, lo: i64, hi: i64) -> i64 {
+    // `i64::clamp` panique si `lo > hi` (abort : panique dans une fonction
+    // `extern "C"`) — même exception que `Math::random`.
+    if lo > hi {
+        unsafe {
+            exception::throw_math_exception(
+                &format!("Invalid range for clamp: min ({}) > max ({})", lo, hi),
+                ERR_MATH_INVALID_RANGE,
+                "Math"
+            );
+        }
+    }
+    n.clamp(lo, hi)
+}
 
 // Symbole attendu par le compilateur : "Math_random" (voir src/codegen/desc.d/
 // math.rs) — `Math_` en majuscule comme tous les autres builtins Math_*.
@@ -1036,7 +1114,10 @@ pub extern "C" fn Math_floor(n: f64) -> i64 { n.floor() as i64 }
 pub extern "C" fn Math_ceil(n: f64) -> i64 { n.ceil() as i64 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn Math_round(n: f64) -> i64 { n.round() as i64 }
+pub extern "C" fn Math_round(n: f64) -> i64 {
+    // Math.md : 0.5 arrondi vers le haut (`round(-2.5)` → -2), pas loin de zéro.
+    (n + 0.5).floor() as i64
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ocara.Array
@@ -1116,14 +1197,52 @@ pub extern "C" fn Array_last(ptr: i64) -> i64 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn Array_contains(ptr: i64, val: i64) -> i64 {
-    if ptr == 0 { return 0; }
-    if unsafe { with_array(ptr, |data| data.contains(&val)) } { 1 } else { 0 }
+    if Array_indexOf(ptr, val) >= 0 { 1 } else { 0 }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn Array_indexOf(ptr: i64, val: i64) -> i64 {
     if ptr == 0 { return -1; }
-    unsafe { with_array(ptr, |data| data.iter().position(|&x| x == val).map_or(-1, |i| i as i64)) }
+    let kind = rc::raw_kind(ptr);
+    unsafe { with_array(ptr, |data| data.iter().position(|&x| elem_eq(kind, x, val)).map_or(-1, |i| i as i64)) }
+}
+
+/// Élément `v` d'un conteneur de genre brut `kind` (voir `fmt_elem`) égal à
+/// `needle`, valeur dynamique (toujours boxée par l'appelant) : nombres et
+/// booléens par valeur, chaînes par contenu. Comparer les mots bruts
+/// trouvait une chaîne seulement si c'était le même objet.
+fn elem_eq(kind: i64, v: i64, needle: i64) -> bool {
+    match kind {
+        1 => !is_float_box(needle) && !is_bool_box(needle) && get_value_type(needle) == 1 && unbox_numeric_i64(needle) == v,
+        2 => is_float_box(needle) && unsafe { unbox_float(needle) } == f64::from_bits(v as u64),
+        3 => is_bool_box(needle) && unsafe { unbox_bool(needle) } == (v != 0),
+        _ => __cmp_eq_strict(v, needle) == 1,
+    }
+}
+
+/// Ordre de deux éléments d'un conteneur de genre brut `kind` : nombres par
+/// valeur (flottants compris), chaînes par contenu. Trier les mots bruts
+/// rangeait les flottants selon leurs bits et les chaînes selon leur adresse.
+fn elem_cmp(kind: i64, a: i64, b: i64) -> std::cmp::Ordering {
+    match kind {
+        2 => f64::from_bits(a as u64).total_cmp(&f64::from_bits(b as u64)),
+        1 | 3 => a.cmp(&b),
+        _ => dyn_cmp(a, b),
+    }
+}
+
+/// Ordre de deux valeurs dynamiques : par genre, puis par valeur.
+fn dyn_cmp(a: i64, b: i64) -> std::cmp::Ordering {
+    let (ta, tb) = (get_value_type(a), get_value_type(b));
+    if ta != tb {
+        return ta.cmp(&tb);
+    }
+    match ta {
+        1 if is_float_box(a) || is_float_box(b) => unbox_numeric_f64(a).total_cmp(&unbox_numeric_f64(b)),
+        1 => unbox_numeric_i64(a).cmp(&unbox_numeric_i64(b)),
+        4 => unsafe { ptr_to_str(a).cmp(ptr_to_str(b)) },
+        _ => a.cmp(&b),
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -1138,8 +1257,11 @@ pub extern "C" fn Array_slice(ptr: i64, from: i64, to: i64) -> i64 {
     if ptr == 0 { return new_array(); }
     let vals = unsafe {
         with_array(ptr, |data| {
-            let lo = (from as usize).min(data.len());
-            let hi = (to as usize).min(data.len()).max(lo);
+            // Bornes ramenées dans [0, len] : un indice négatif valait un
+            // `usize` énorme (`slice(a, -2, 5)` vide, `slice(a, 1, -1)` jusqu'à la fin).
+            let len = data.len() as i64;
+            let lo = from.clamp(0, len) as usize;
+            let hi = to.clamp(0, len).max(lo as i64) as usize;
             data[lo..hi].to_vec()
         })
     };
@@ -1150,7 +1272,8 @@ pub extern "C" fn Array_slice(ptr: i64, from: i64, to: i64) -> i64 {
 pub extern "C" fn Array_join(ptr: i64, sep: i64) -> i64 {
     if ptr == 0 { return unsafe { alloc_str("") }; }
     let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep).to_string() } } else { "".to_string() };
-    let parts: Vec<String> = unsafe { array_data(ptr) }.iter().map(|&v| fmt_val(v)).collect();
+    let kind = rc::raw_kind(ptr);
+    let parts: Vec<String> = unsafe { array_data(ptr) }.iter().map(|&v| fmt_elem(kind, v)).collect();
     let r = parts.join(&sep_s);
     unsafe { alloc_str(&r) }
 }
@@ -1158,8 +1281,9 @@ pub extern "C" fn Array_join(ptr: i64, sep: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn Array_sort(ptr: i64) -> i64 {
     if ptr == 0 { return new_array(); }
+    let kind = rc::raw_kind(ptr);
     let mut vals = unsafe { array_data(ptr) };
-    vals.sort();
+    vals.sort_by(|&a, &b| elem_cmp(kind, a, b));
     array_sharing(ptr, vals)
 }
 
@@ -1579,13 +1703,10 @@ pub extern "C" fn System_setEnv(name: i64, val: i64) {
     let key = unsafe { ptr_to_str(name) };
     let v   = if is_ptr(val) { unsafe { ptr_to_str(val).to_string() } } else { val.to_string() };
     
-    // set_var peut paniquer si le nom ou la valeur contient '=' ou NUL
-    // On catch le panic potentiel
-    match std::panic::catch_unwind(|| {
-        unsafe { std::env::set_var(key, &v); }
-    }) {
-        Ok(_) => {},
-        Err(_) => unsafe {
+    // `set_var` panique sur un nom vide ou contenant '=' / NUL, ou une valeur
+    // contenant NUL : vérifié avant, sans trace de panique sur stderr.
+    if !valid_env_pair(key, &v) {
+        unsafe {
             exception::throw_system_exception(
                 &format!("Failed to set environment variable '{}': invalid name or value", key),
                 ERR_SYSTEM_SET_ENV,
@@ -1593,6 +1714,12 @@ pub extern "C" fn System_setEnv(name: i64, val: i64) {
             );
         }
     }
+    unsafe { std::env::set_var(key, &v); }
+}
+
+/// Nom et valeur acceptés par `std::env::set_var` sans panique.
+pub(crate) fn valid_env_pair(key: &str, value: &str) -> bool {
+    !key.is_empty() && !key.contains('=') && !key.contains('\0') && !value.contains('\0')
 }
 
 #[unsafe(no_mangle)]
@@ -1615,7 +1742,9 @@ pub extern "C" fn System_cwd() -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn System_sleep(ms: i64) {
     let _parked = rc::park();
-    std::thread::sleep(Duration::from_millis(ms as u64));
+    // Durée négative : aucune attente (convertie en `u64`, elle durait des
+    // milliards d'années).
+    std::thread::sleep(Duration::from_millis(ms.max(0) as u64));
 }
 
 #[unsafe(no_mangle)]
@@ -1790,6 +1919,48 @@ unsafe fn ut_val_to_display(val: i64) -> String {
     val_to_string(val)
 }
 
+/// Vide au sens de `assertEmpty` : `null`, chaîne, tableau ou map sans
+/// élément. Un tableau était lu comme une chaîne (`assertEmpty([])` échouait).
+fn is_empty_value(value: i64) -> bool {
+    if value == 0 {
+        return true;
+    }
+    match get_value_type(value) {
+        4 => unsafe { ptr_to_str(value).is_empty() },
+        5 => unsafe { array_data(value).is_empty() },
+        6 => unsafe { map_entries(value).is_empty() },
+        _ => false,
+    }
+}
+
+/// Égalité de `assertEquals` : contenu des tableaux et des maps (éléments
+/// bruts selon leur genre), sinon `__cmp_eq_strict`. Deux tableaux de même
+/// contenu étaient comparés par adresse.
+fn values_deep_eq(a: i64, b: i64, depth: usize) -> bool {
+    let (ta, tb) = (get_value_type(a), get_value_type(b));
+    if depth > 16 || ta != tb || !matches!(ta, 5 | 6) {
+        return __cmp_eq_strict(a, b) != 0;
+    }
+    let (ka, kb) = (rc::raw_kind(a), rc::raw_kind(b));
+    if ta == 5 {
+        let (xs, ys) = unsafe { (array_data(a), array_data(b)) };
+        return xs.len() == ys.len() && xs.iter().zip(&ys).all(|(&x, &y)| elems_deep_eq(ka, x, kb, y, depth));
+    }
+    let (xs, ys) = unsafe { (map_entries(a), map_entries(b)) };
+    xs.len() == ys.len() && xs.iter().all(|(k, x)| ys.iter().any(|(k2, y)| k == k2 && elems_deep_eq(ka, *x, kb, *y, depth)))
+}
+
+/// Deux éléments de conteneurs de genres bruts `ka` et `kb`.
+fn elems_deep_eq(ka: i64, x: i64, kb: i64, y: i64, depth: usize) -> bool {
+    match (ka, kb) {
+        (0, 0) => values_deep_eq(x, y, depth + 1),
+        (0, k) => elem_eq(k, y, x),
+        (k, 0) => elem_eq(k, x, y),
+        (2, 2) => f64::from_bits(x as u64) == f64::from_bits(y as u64),
+        (k1, k2) => k1 == k2 && x == y,
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertEquals(expected: i64, actual: i64) {
     // Comparaison RÉELLE (type + valeur, contenu pour une string), pas une
@@ -1800,7 +1971,7 @@ pub extern "C" fn UnitTest_assertEquals(expected: i64, actual: i64) {
     // découvert et documenté plus tôt dans ce chantier, corrigé ici en
     // réutilisant `__cmp_eq_strict` (déjà correcte pour tous les cas, voir
     // sa doc plus bas dans ce fichier).
-    if __cmp_eq_strict(expected, actual) != 0 {
+    if values_deep_eq(expected, actual, 0) {
         ut_pass(&format!("assertEquals: {} == {}",
             unsafe { ut_val_to_display(expected) }, unsafe { ut_val_to_display(actual) }));
     } else {
@@ -1817,7 +1988,7 @@ pub extern "C" fn UnitTest_assertEquals(expected: i64, actual: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertNotEquals(expected: i64, actual: i64) {
     // Voir le commentaire de `UnitTest_assertEquals` — même correction.
-    if __cmp_eq_strict(expected, actual) == 0 {
+    if !values_deep_eq(expected, actual, 0) {
         ut_pass(&format!("assertNotEquals: {} != {}",
             unsafe { ut_val_to_display(expected) }, unsafe { ut_val_to_display(actual) }));
     } else {
@@ -1890,11 +2061,11 @@ pub extern "C" fn UnitTest_assertGreater(a: i64, b: i64) {
     // pour un `mixed` boxé (params déclarés `Type::Mixed`, voir
     // src/builtins/unittest.rs).
     if cmp_primitive(a, b, |x, y| x > y, |x, y| x > y) {
-        ut_pass(&format!("assertGreater: {} > {}", a, b));
+        ut_pass(&format!("assertGreater: {} > {}", unsafe { ut_val_to_display(a) }, unsafe { ut_val_to_display(b) }));
     } else {
         unsafe {
             crate::exception::throw_unittest_exception(
-                &format!("assertGreater: {} is not > {}", a, b),
+                &format!("assertGreater: {} is not > {}", ut_val_to_display(a), ut_val_to_display(b)),
                 107
             );
         }
@@ -1904,11 +2075,11 @@ pub extern "C" fn UnitTest_assertGreater(a: i64, b: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertLess(a: i64, b: i64) {
     if cmp_primitive(a, b, |x, y| x < y, |x, y| x < y) {
-        ut_pass(&format!("assertLess: {} < {}", a, b));
+        ut_pass(&format!("assertLess: {} < {}", unsafe { ut_val_to_display(a) }, unsafe { ut_val_to_display(b) }));
     } else {
         unsafe {
             crate::exception::throw_unittest_exception(
-                &format!("assertLess: {} is not < {}", a, b),
+                &format!("assertLess: {} is not < {}", ut_val_to_display(a), ut_val_to_display(b)),
                 108
             );
         }
@@ -1918,11 +2089,11 @@ pub extern "C" fn UnitTest_assertLess(a: i64, b: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertGreaterOrEquals(a: i64, b: i64) {
     if cmp_primitive(a, b, |x, y| x >= y, |x, y| x >= y) {
-        ut_pass(&format!("assertGreaterOrEquals: {} >= {}", a, b));
+        ut_pass(&format!("assertGreaterOrEquals: {} >= {}", unsafe { ut_val_to_display(a) }, unsafe { ut_val_to_display(b) }));
     } else {
         unsafe {
             crate::exception::throw_unittest_exception(
-                &format!("assertGreaterOrEquals: {} is not >= {}", a, b),
+                &format!("assertGreaterOrEquals: {} is not >= {}", ut_val_to_display(a), ut_val_to_display(b)),
                 109
             );
         }
@@ -1932,11 +2103,11 @@ pub extern "C" fn UnitTest_assertGreaterOrEquals(a: i64, b: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertLessOrEquals(a: i64, b: i64) {
     if cmp_primitive(a, b, |x, y| x <= y, |x, y| x <= y) {
-        ut_pass(&format!("assertLessOrEquals: {} <= {}", a, b));
+        ut_pass(&format!("assertLessOrEquals: {} <= {}", unsafe { ut_val_to_display(a) }, unsafe { ut_val_to_display(b) }));
     } else {
         unsafe {
             crate::exception::throw_unittest_exception(
-                &format!("assertLessOrEquals: {} is not <= {}", a, b),
+                &format!("assertLessOrEquals: {} is not <= {}", ut_val_to_display(a), ut_val_to_display(b)),
                 110
             );
         }
@@ -1982,15 +2153,7 @@ pub extern "C" fn UnitTest_assertEmpty(value: i64) {
     // et `ptr_to_str` sur son adresse (décalée du tag) lirait une zone
     // mémoire arbitraire (SEGFAULT potentiel, même famille de bug que
     // docs/roadmap.d/memoire-fiabilite-runtime-bas-niveau.md).
-    let empty = if value == 0 {
-        true
-    } else if is_float_box(value) || is_bool_box(value) || is_int_box(value) {
-        false
-    } else if value >= 0x10000 {
-        unsafe { ptr_to_str(value).is_empty() }
-    } else {
-        value == 0
-    };
+    let empty = is_empty_value(value);
     if empty {
         ut_pass("assertEmpty");
     } else {
@@ -2003,15 +2166,7 @@ pub extern "C" fn UnitTest_assertEmpty(value: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn UnitTest_assertNotEmpty(value: i64) {
     // Voir le commentaire de `UnitTest_assertEmpty` — même correction.
-    let empty = if value == 0 {
-        true
-    } else if is_float_box(value) || is_bool_box(value) || is_int_box(value) {
-        false
-    } else if value >= 0x10000 {
-        unsafe { ptr_to_str(value).is_empty() }
-    } else {
-        value == 0
-    };
+    let empty = is_empty_value(value);
     if !empty {
         ut_pass("assertNotEmpty");
     } else {
@@ -2654,12 +2809,14 @@ pub extern "C" fn __ocara_try_exec(body_fn: i64, handler_fn: i64) -> i64 {
             // Dépiler avant d'appeler le handler
             stack.depth.set(depth);
             // Appeler le gestionnaire
+            let mut held = [0i64; 2];
+            hold_raised(&mut held, ev, et);
             unsafe {
                 let handler: unsafe extern "C" fn(i64, i64) =
                     std::mem::transmute(handler_fn as usize);
                 handler(ev, et);
             }
-            release_raised(ev, et);
+            release_held(&mut held);
             
             // Vérifier si le handler a fait un return explicite
             let (has_returned, return_value) = handler_has_returned();
@@ -2677,6 +2834,23 @@ pub extern "C" fn __ocara_try_exec(body_fn: i64, handler_fn: i64) -> i64 {
 /// les transfère, voir `lower_raise`) : relâchés une fois le gestionnaire
 /// revenu. Un gestionnaire qui relève sort par `longjmp` et transfère la
 /// même référence plus haut.
+/// Valeur levée et nom de type tenus pendant l'appel du gestionnaire : inscrits
+/// sur la pile de déroulement (`rc::__rc_unwind_push`, `held` vit dans la frame
+/// du trampoline), ils sont rendus par `unwind_to` si le gestionnaire relève
+/// (`longjmp` qui saute cette frame) — sinon l'exception rattrapée `e`
+/// fuyait (`raise` dans un `on`).
+fn hold_raised(held: &mut [i64; 2], ev: i64, et: i64) {
+    rc::__rc_unwind_push(held.as_mut_ptr() as i64, 2);
+    *held = [ev, et];
+}
+
+/// Gestionnaire revenu normalement : retire l'inscription, puis rend.
+fn release_held(held: &mut [i64; 2]) {
+    rc::__rc_unwind_pop();
+    let [ev, et] = std::mem::take(held);
+    release_raised(ev, et);
+}
+
 fn release_raised(ev: i64, et: i64) {
     unsafe {
         rc::release(ev);
@@ -2739,12 +2913,14 @@ pub extern "C" fn __ocara_try_exec_with_captures(
             // `handler_fn` n'a ce 3ᵉ paramètre que si le lowering a détecté
             // des captures (corps ET/OU gestionnaires) — sinon il garde la
             // signature à 2 arguments appelée par `__ocara_try_exec`.
+            let mut held = [0i64; 2];
+            hold_raised(&mut held, ev, et);
             unsafe {
                 let handler: unsafe extern "C" fn(i64, i64, *const i64) =
                     std::mem::transmute(handler_fn as usize);
                 handler(ev, et, captures_ptr);
             }
-            release_raised(ev, et);
+            release_held(&mut held);
 
             // Vérifier si le handler a fait un return explicite
             let (has_returned, return_value) = handler_has_returned();

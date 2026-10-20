@@ -121,7 +121,16 @@ pub unsafe extern "C" fn File_writeBytes(path_ptr: i64, data_ptr: i64) {
         let mut bytes = Vec::with_capacity(len);
         for i in 0..len {
             let val = crate::__array_get(data_ptr, i as i64);
-            bytes.push(val as u8);
+            // Octet hors de 0..=255 : refusé (il était tronqué en silence,
+            // 256 → 0, -1 → 255).
+            match u8::try_from(val) {
+                Ok(b) => bytes.push(b),
+                Err(_) => throw_file_exception(
+                    &format!("Failed to write binary file '{}': value {} at index {} is not a byte (0-255)", path, val, i),
+                    ERR_WRITE_BYTES,
+                    "File"
+                ),
+            }
         }
         
         if let Err(e) = fs::write(&path, &bytes) {
@@ -233,6 +242,13 @@ pub unsafe extern "C" fn File_copy(src_ptr: i64, dst_ptr: i64) {
     unsafe {
         let src = ptr_to_str(src_ptr).to_string();
         let dst = ptr_to_str(dst_ptr).to_string();
+        // Même fichier : rien à copier (`fs::copy` le tronquait avant de le
+        // lire — fichier vidé).
+        if let (Ok(a), Ok(b)) = (fs::canonicalize(&src), fs::canonicalize(&dst)) {
+            if a == b {
+                return;
+            }
+        }
         if let Err(e) = fs::copy(&src, &dst) {
             throw_file_exception(
                 &format!("Failed to copy file from '{}' to '{}': {}", src, dst, e),
@@ -274,35 +290,35 @@ pub unsafe extern "C" fn File_infos(path_ptr: i64) -> i64 {
                 
                 // size: int
                 let size_key = alloc_str("size");
-                crate::map_set_owned_key(map_ptr, size_key, meta.len() as i64);
+                crate::map_set_owned_key(map_ptr, size_key, crate::__box_int_for_mixed(meta.len() as i64));
                 
-                // modified: string (timestamp)
+                // modified: int (timestamp) — valeurs boxées : la map est `mixed`
                 if let Ok(modified) = meta.modified() {
                     if let Ok(duration) = modified.duration_since(std::time::UNIX_EPOCH) {
                         let timestamp = duration.as_secs();
                         let mod_key = alloc_str("modified");
-                        let mod_val = alloc_str(&timestamp.to_string());
+                        let mod_val = crate::__box_int_for_mixed(timestamp as i64);
                         crate::map_set_owned_key(map_ptr, mod_key, mod_val);
                     }
                 }
                 
-                // created: string (timestamp)
+                // created: int (timestamp)
                 if let Ok(created) = meta.created() {
                     if let Ok(duration) = created.duration_since(std::time::UNIX_EPOCH) {
                         let timestamp = duration.as_secs();
                         let cre_key = alloc_str("created");
-                        let cre_val = alloc_str(&timestamp.to_string());
+                        let cre_val = crate::__box_int_for_mixed(timestamp as i64);
                         crate::map_set_owned_key(map_ptr, cre_key, cre_val);
                     }
                 }
                 
                 // is_file: bool
                 let is_file_key = alloc_str("is_file");
-                crate::map_set_owned_key(map_ptr, is_file_key, meta.is_file() as i64);
+                crate::map_set_owned_key(map_ptr, is_file_key, crate::__box_bool(meta.is_file() as i64));
                 
                 // is_dir: bool
                 let is_dir_key = alloc_str("is_dir");
-                crate::map_set_owned_key(map_ptr, is_dir_key, meta.is_dir() as i64);
+                crate::map_set_owned_key(map_ptr, is_dir_key, crate::__box_bool(meta.is_dir() as i64));
                 
                 // extension: string
                 if let Some(ext) = p.extension() {

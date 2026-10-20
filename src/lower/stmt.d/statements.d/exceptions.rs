@@ -596,7 +596,10 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
         else_bb: continue_bb.clone(),
     });
     
-    // Bloc return : extraire la valeur (try_result - 1) et retourner
+    // Bloc return : extraire la valeur (try_result - 1) et retourner. Les
+    // destructions anticipées émises ici ne concernent que ce chemin :
+    // `owned_locals` est restauré pour le bloc continue (voir `lower_if`).
+    let owned_snapshot = builder.owned_locals.clone();
     builder.switch_to(&return_bb);
     let one = builder.new_value();
     builder.emit(Inst::ConstInt { dest: one.clone(), value: 1 });
@@ -619,6 +622,7 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
             
             // Sauter au label de sortie anticipée du bloc main (avant if ERROR != 0)
             if let Some(exit_bb) = builder.runtime_exit_bb.clone() {
+                crate::lower::stmt::rc::release_before_runtime_exit(builder);
                 builder.emit(Inst::Jump { target: exit_bb });
             } else {
                 builder.emit(Inst::Jump { target: continue_bb.clone() });
@@ -638,10 +642,15 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
         // seule la valeur portée par un `return <expr>` dans le handler est
         // nécessairement ignorée, ce qui est cohérent : une fonction void n'a de
         // toute façon aucune valeur à propager.
+        // Locales de la fonction rendues avant de sortir (la valeur renvoyée
+        // par le gestionnaire est déjà possédée) — elles fuyaient.
+        crate::lower::stmt::rc::release_all(builder);
         let ret_val = if builder.func.ret_ty != IrType::Void { Some(return_value) } else { None };
         builder.emit(Inst::Return { value: ret_val });
     }
     
+    builder.owned_locals = owned_snapshot;
+
     // Bloc continue : continuer l'exécution normale
     // DOIT TOUJOURS être défini car il est référencé dans le Branch
     builder.switch_to(&continue_bb);

@@ -314,6 +314,86 @@ pub fn hoist_closure_promotions_in_exprs(builder: &mut LowerBuilder, exprs: &[&E
     hoist_closure_promotions(builder, &block, &[]);
 }
 
+/// Inscrit l'objet `obj` en construction sur la pile de déroulement (un mot
+/// de la frame) ; l'appelant le désinscrit (`__rc_unwind_pop`) après `init`.
+fn guard_new_object(builder: &mut LowerBuilder, obj: &Value) -> Value {
+    let word = builder.new_value();
+    builder.emit(Inst::Alloca { dest: word.clone(), ty: IrType::Ptr });
+    let one = builder.new_value();
+    builder.emit(Inst::ConstInt { dest: one.clone(), value: 1 });
+    builder.emit(Inst::Call { dest: None, func: "__rc_unwind_push".into(), args: vec![word.clone(), one], ret_ty: IrType::Void });
+    builder.emit(Inst::Store { ptr: word.clone(), src: obj.clone() });
+    word
+}
+
+/// Valeur de vérité (0/1) d'une condition. Une condition `mixed`/union est
+/// déballée : un booléen boxé est un pointeur, donc toujours « vrai »
+/// (`if mixed(false)` prenait la branche).
+pub fn lower_condition(builder: &mut LowerBuilder, expr: &Expr) -> Value {
+    let ty = expr_ir_type(builder, expr);
+    let v = lower_expr(builder, expr);
+    if ty != IrType::Ptr {
+        return v;
+    }
+    let raw = builder.new_value();
+    builder.emit(Inst::Call { dest: Some(raw.clone()), func: "__mixed_to_int".into(), args: vec![v], ret_ty: IrType::I64 });
+    let zero = builder.new_value();
+    builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+    let truth = builder.new_value();
+    builder.emit(Inst::CmpNe { dest: truth.clone(), lhs: raw, rhs: zero, ty: IrType::I64 });
+    truth
+}
+
+/// `a and b` / `a or b` : `b` n'est évalué que si `a` ne décide pas déjà
+/// (court-circuit). Les deux côtés étaient évalués : `x not equal null and
+/// x.v …` levait « Cannot access 'v' on null ». Les temporaires de `b` sont
+/// rendus dans sa branche.
+fn lower_short_circuit(builder: &mut LowerBuilder, op: &BinOp, left: &Expr, right: &Expr) -> Value {
+    let slot = builder.new_value();
+    builder.emit(Inst::Alloca { dest: slot.clone(), ty: IrType::Bool });
+    let lv = lower_condition(builder, left);
+    builder.emit(Inst::Store { ptr: slot.clone(), src: lv.clone() });
+    let rhs_bb = builder.new_block();
+    let merge_bb = builder.new_block();
+    let (then_bb, else_bb) = match op {
+        BinOp::And => (rhs_bb.clone(), merge_bb.clone()),
+        _ => (merge_bb.clone(), rhs_bb.clone()),
+    };
+    builder.emit(Inst::Branch { cond: lv, then_bb, else_bb });
+    builder.switch_to(&rhs_bb);
+    crate::lower::stmt::rc::begin_temps(builder);
+    let rv = lower_condition(builder, right);
+    builder.emit(Inst::Store { ptr: slot.clone(), src: rv });
+    crate::lower::stmt::rc::end_temps(builder);
+    builder.emit(Inst::Jump { target: merge_bb.clone() });
+    builder.switch_to(&merge_bb);
+    let dest = builder.new_value();
+    builder.emit(Inst::Load { dest: dest.clone(), ptr: slot, ty: IrType::Bool });
+    dest
+}
+
+/// Appel d'une fermeture `fat_ptr` (`{func, env}`) : `env` en premier
+/// argument, arguments manquants complétés par des sentinelles 0 (valeurs
+/// par défaut des `nameless`).
+fn call_fat_ptr(builder: &mut LowerBuilder, fat_ptr: Value, args: &[Expr], ret_ty: IrType) -> Value {
+    let func_ptr = builder.new_value();
+    builder.emit(Inst::GetField { dest: func_ptr.clone(), obj: fat_ptr.clone(), field: "func".into(), ty: IrType::Ptr, offset: 0 });
+    let env_ptr = builder.new_value();
+    builder.emit(Inst::GetField { dest: env_ptr.clone(), obj: fat_ptr, field: "env".into(), ty: IrType::Ptr, offset: 8 });
+    let mut arg_vals: Vec<Value> = args.iter().map(|a| lower_expr(builder, a)).collect();
+    const MAX_PARAMS: usize = 5;
+    while arg_vals.len() < MAX_PARAMS {
+        let zero = builder.new_value();
+        builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+        arg_vals.push(zero);
+    }
+    let mut all_args = vec![env_ptr];
+    all_args.extend(arg_vals);
+    let dest = builder.new_value();
+    builder.emit(Inst::CallIndirect { dest: Some(dest.clone()), callee: func_ptr, args: all_args, ret_ty });
+    dest
+}
+
 /// Bras de `match` : ses temporaires sont relâchés dans le bras (le bloc
 /// de fusion ne les voit pas). Si un bras produit une valeur possédée, tous
 /// rendent une valeur possédée (bras emprunté retenu).
@@ -482,40 +562,21 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     let fat_ptr = builder.load_local(name)
                         .map(|(v, _)| v)
                         .unwrap_or_else(|| { let d = builder.new_value(); builder.emit(Inst::Nop); d });
-                    // Lire func_ptr depuis fat_ptr[0]
-                    let func_ptr = builder.new_value();
-                    builder.emit(Inst::GetField { dest: func_ptr.clone(), obj: fat_ptr.clone(), field: "func".into(), ty: IrType::Ptr, offset: 0 });
-                    // Lire env_ptr depuis fat_ptr[8]
-                    let env_ptr = builder.new_value();
-                    builder.emit(Inst::GetField { dest: env_ptr.clone(), obj: fat_ptr, field: "env".into(), ty: IrType::Ptr, offset: 8 });
-                    
-                    // Évaluer les arguments fournis
-                    let mut arg_vals: Vec<Value> = args.iter().map(|a| lower_expr(builder, a)).collect();
-                    
-                    // Pour supporter les paramètres par défaut dans les nameless,
-                    // compléter avec des sentinelles (0) jusqu'à un maximum raisonnable
-                    // La fonction nameless détectera ces sentinelles et utilisera ses valeurs par défaut
-                    const MAX_PARAMS: usize = 5;
-                    while arg_vals.len() < MAX_PARAMS {
-                        let zero = builder.new_value();
-                        builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
-                        arg_vals.push(zero);
-                    }
-                    
-                    // Appel avec env_ptr en premier (convention uniforme)
-                    let mut all_args = vec![env_ptr];
-                    all_args.extend(arg_vals);
-                    let dest = builder.new_value();
-                    // Déterminer le type de retour depuis func_ret_types
                     let ret_ty = builder.func_ret_types.get(name.as_str()).cloned().unwrap_or(IrType::I64);
-                    builder.emit(Inst::CallIndirect {
-                        dest:   Some(dest.clone()),
-                        callee: func_ptr,
-                        args:   all_args,
-                        ret_ty,
-                    });
-                    return dest;
+                    return call_fat_ptr(builder, fat_ptr, args, ret_ty);
                 }
+            }
+            // Appel du résultat d'un appel ou d'un index (`adder(4)(1)`,
+            // `fs[0](5)`) : même appel indirect, le type de retour vient du
+            // type `Function` de l'expression appelée. Ces callees tombaient
+            // sur « fonction inconnue : _unknown ».
+            if let Some(ret) = crate::lower::expr::helpers::callee_function_ret(builder, callee) {
+                let fat_ptr = lower_expr(builder, callee);
+                let dest = call_fat_ptr(builder, fat_ptr, args, IrType::from_ast(&ret));
+                if crate::lower::stmt::rc::counted(builder, &ret) {
+                    crate::lower::stmt::rc::track(builder, &dest);
+                }
+                return dest;
             }
 
             let func_name = match callee.as_ref() {
@@ -557,6 +618,13 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                             args:   call_args,
                             ret_ty,
                         });
+                        // Valeur neuve (+1) : temporaire du statement, sinon
+                        // `m.encode()`/`s.decode()` perdaient leur résultat
+                        // (`JSON::encode(m)` était propre) — sauf si
+                        // `lower_expr` l'enregistre déjà.
+                        if !crate::lower::stmt::rc::produces_owned(builder, expr) {
+                            crate::lower::stmt::rc::track(builder, &dest);
+                        }
                         return dest;
                     }
                     
@@ -1297,6 +1365,11 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 .get(class.as_str())
                 .cloned()
                 .unwrap_or_default();
+            // Objet neuf inscrit sur la pile de déroulement pendant la
+            // construction (arguments puis `init`) : une exception qui en sort
+            // le rend au lieu de le perdre (voir
+            // docs/roadmap.d/memoire-fuites-exceptions-et-builtins.md).
+            let guard = builder.module.rc_objects.contains(class).then(|| guard_new_object(builder, &dest));
             let init_func = format!("{}_init", class);
             let args = complete_args_with_defaults(builder, &init_func, args);
             let mut ctor_args = vec![dest.clone()];
@@ -1313,11 +1386,17 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 args:   ctor_args,
                 ret_ty: IrType::Void,
             });
+            if guard.is_some() {
+                builder.emit(Inst::Call { dest: None, func: "__rc_unwind_pop".into(), args: vec![], ret_ty: IrType::Void });
+            }
             dest
         }
 
         // ── Opération binaire ─────────────────────────────────────────────────
         Expr::Binary { op, left, right, .. } => {
+            if matches!(op, BinOp::And | BinOp::Or) {
+                return lower_short_circuit(builder, op, left, right);
+            }
             let left_ty  = expr_ir_type(builder, left);
             let right_ty = expr_ir_type(builder, right);
 
@@ -1522,7 +1601,8 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // `-x` sur un `float` : négation flottante (une négation entière
             // des bits faisait de `-2.5` la valeur `-1.75`).
             let ty = if expr_ir_type(builder, operand) == IrType::F64 { IrType::F64 } else { IrType::I64 };
-            let src = lower_expr(builder, operand);
+            // `not` sur un `mixed` : sur sa valeur de vérité, pas son pointeur.
+            let src = if matches!(op, UnaryOp::Not) { lower_condition(builder, operand) } else { lower_expr(builder, operand) };
             let dest = builder.new_value();
             let inst = match op {
                 UnaryOp::Neg => Inst::Neg { dest: dest.clone(), src, ty },

@@ -131,35 +131,8 @@ pub fn lower_for_in(
     // docs/roadmap.d/langage-union-class-null-field-access.md.
     // Variable, mais aussi champ/appel/index : `for m in dto.maintenances`
     // lisait sinon chaque `m.champ` à l'offset 0 (toujours `id`).
-    {
-        if let Some(elem_ast_ty) = elem_ast {
-            if let Type::Map(_, val_ty) = &elem_ast_ty {
-                // L'élément est un map, enregistrer la variable d'itération comme map
-                builder.map_vars.insert(var.to_string());
-                builder.elem_types.insert(var.to_string(), IrType::from_ast(val_ty));
-                builder.elem_ast_types.insert(var.to_string(), (**val_ty).clone());
-                builder.var_class.insert(var.to_string(), "Map".to_string());
-            } else if let Type::Function { ret_ty, .. } = &elem_ast_ty {
-                // `variadic<Function<...>>`/`array<Function<...>>` : la variable
-                // de boucle est appelable (`f(x)`), comme un paramètre Function.
-                builder.func_vars.insert(var.to_string());
-                builder.func_ret_types.insert(var.to_string(), IrType::from_ast(ret_ty));
-                builder.func_ret_ast.insert(var.to_string(), (**ret_ty).clone());
-            } else if let Type::Array(inner) = &elem_ast_ty {
-                // `array<array<T>>` : la variable de boucle est un `array<T>`
-                // dont les éléments scalaires sont BRUTS (voir
-                // `lower_array_literal`) — sans son type d'élément, `row[0]`
-                // relisait un `0` comme `null` (et un grand entier comme un
-                // pointeur).
-                builder.elem_types.insert(var.to_string(), IrType::from_ast(inner));
-                builder.elem_ast_types.insert(var.to_string(), (**inner).clone());
-                builder.var_class.insert(var.to_string(), "Array".to_string());
-            } else if let Some(class_name) = resolved_named_class(&elem_ast_ty) {
-                // `array<Classe>` (ou `array<Classe|null>`) : la variable de
-                // boucle est une instance de Classe.
-                builder.var_class.insert(var.to_string(), class_name);
-            }
-        }
+    if let Some(elem_ast_ty) = elem_ast {
+        register_loop_var_meta(builder, var, &elem_ast_ty);
     }
 
     // continue → incr_bb, break → merge_bb
@@ -568,5 +541,38 @@ mod tests {
         lower_for_map(&mut builder, "k", "v", &ident("m"), &empty_block());
 
         assert_eq!(builder.var_class.get("v"), Some(&"Foo".to_string()));
+    }
+}
+
+/// Métadonnées de la variable de boucle `var` selon le type de ses éléments :
+/// map, `Function` appelable, tableau à éléments bruts, instance de classe.
+/// Partagé par la boucle sur tableau et la boucle sur générateur
+/// (`message<Function<…>>` : la variable n'était pas appelable).
+pub(crate) fn register_loop_var_meta(builder: &mut LowerBuilder, var: &str, elem_ast_ty: &Type) {
+    if let Type::Map(_, val_ty) = elem_ast_ty {
+        // L'élément est un map, enregistrer la variable d'itération comme map
+        builder.map_vars.insert(var.to_string());
+        builder.elem_types.insert(var.to_string(), IrType::from_ast(val_ty));
+        builder.elem_ast_types.insert(var.to_string(), (**val_ty).clone());
+        builder.var_class.insert(var.to_string(), "Map".to_string());
+    } else if let Type::Function { ret_ty, .. } = elem_ast_ty {
+        // `variadic<Function<...>>`/`array<Function<...>>` : la variable
+        // de boucle est appelable (`f(x)`), comme un paramètre Function.
+        builder.func_vars.insert(var.to_string());
+        builder.func_ret_types.insert(var.to_string(), IrType::from_ast(ret_ty));
+        builder.func_ret_ast.insert(var.to_string(), (**ret_ty).clone());
+    } else if let Type::Array(inner) = elem_ast_ty {
+        // `array<array<T>>` : la variable de boucle est un `array<T>`
+        // dont les éléments scalaires sont BRUTS (voir
+        // `lower_array_literal`) — sans son type d'élément, `row[0]`
+        // relisait un `0` comme `null` (et un grand entier comme un
+        // pointeur).
+        builder.elem_types.insert(var.to_string(), IrType::from_ast(inner));
+        builder.elem_ast_types.insert(var.to_string(), (**inner).clone());
+        builder.var_class.insert(var.to_string(), "Array".to_string());
+    } else if let Some(class_name) = resolved_named_class(elem_ast_ty) {
+        // `array<Classe>` (ou `array<Classe|null>`) : la variable de
+        // boucle est une instance de Classe.
+        builder.var_class.insert(var.to_string(), class_name);
     }
 }

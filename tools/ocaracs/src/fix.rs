@@ -6,10 +6,20 @@
 
 use crate::check::{decl_assign_pos, detached_when_blanks};
 use crate::config::Config;
-use crate::text::{comment_pos, indent_rule, leading_ws, line_states, scan_code, LineState};
+use crate::text::{comment_pos, indent_rule, leading_ws, line_states, masked_code, scan_code, LineState};
+
+/// Découpe `content` en lignes (sans fin de ligne) et fins de ligne
+/// (`"\r\n"`, `"\n"` ou `""` pour une dernière ligne sans newline) : chaque
+/// ligne garde la sienne, le contenu des backticks n'est donc jamais modifié.
+fn split_lines(content: &str) -> (Vec<&str>, Vec<&str>) {
+    content.split_inclusive('\n').map(|piece| {
+        let body = piece.strip_suffix('\n').map_or(piece, |b| b.strip_suffix('\r').unwrap_or(b));
+        (body, &piece[body.len()..])
+    }).unzip()
+}
 
 pub fn fix_layout(content: &str, cfg: &Config) -> String {
-    let lines: Vec<&str> = content.lines().collect();
+    let (lines, endings) = split_lines(content);
     let states = line_states(&lines);
     let mut out: Vec<String> = lines.iter().zip(&states)
         .map(|(line, state)| fix_line(line, *state, cfg))
@@ -26,14 +36,17 @@ pub fn fix_layout(content: &str, cfg: &Config) -> String {
         Vec::new()
     };
     let kept = |i: &usize| !detached.contains(i);
-    out = out.into_iter().enumerate().filter(|(i, _)| kept(i)).map(|(_, l)| l).collect();
+    let mut out: Vec<(String, &str)> = out.into_iter().zip(endings).enumerate()
+        .filter(|(i, _)| kept(i)).map(|(_, l)| l).collect();
     if cfg.blank_lines_max > 0 {
         let states: Vec<LineState> = states.iter().enumerate().filter(|(i, _)| kept(i)).map(|(_, s)| *s).collect();
         out = collapse_blank_lines(out, &states, cfg.blank_lines_max);
     }
-    let mut result = out.join("\n");
-    if !result.is_empty() && (content.ends_with('\n') || cfg.file_ends_newline) {
-        result.push('\n');
+    // R11 : newline finale dans le style du fichier.
+    let eol = if content.contains("\r\n") { "\r\n" } else { "\n" };
+    let mut result: String = out.iter().map(|(l, e)| format!("{}{}", l, e)).collect();
+    if !result.is_empty() && out.last().is_some_and(|(_, e)| e.is_empty()) && cfg.file_ends_newline {
+        result.push_str(eol);
     }
     result
 }
@@ -89,7 +102,8 @@ const CONTINUATION_ENDS: [&str; 7] = ["=", "+", "-", "*", "/", "&&", "||"];
 fn is_continuation(trimmed: &str, prev_code: Option<&str>) -> bool {
     let starts = CONTINUATION_STARTS.iter().any(|p| trimmed.starts_with(p)) && !trimmed.starts_with("..");
     let ends = prev_code.is_some_and(|p| {
-        CONTINUATION_ENDS.iter().any(|e| p.ends_with(e)) && !p.ends_with("++") && !p.ends_with("--") && !p.ends_with("==")
+        CONTINUATION_ENDS.iter().any(|e| p.ends_with(e))
+            && !["++", "--", "==", ".*"].iter().any(|e| p.ends_with(e))
     });
     starts || ends
 }
@@ -110,7 +124,10 @@ fn reindent(lines: &[&str], states: &[LineState], unit: &str) -> Vec<String> {
         } else { 0 };
         for _ in 0..lead_closers { stack.pop(); }
         let mut level = stack.windows(2).filter(|w| w[0] != w[1]).count() + usize::from(!stack.is_empty());
-        let comment = scan_code(line, &mut in_bt, |pos, c| {
+        // Code de la ligne, le texte des chaînes masqué : un `*` final dans
+        // un SQL backtick n'est pas un opérateur.
+        let code = masked_code(line, &mut in_bt.clone());
+        scan_code(line, &mut in_bt, |pos, c| {
             if code_line && pos < leading_ws(line).len() + lead_closers { return; }
             match c {
                 '{' | '(' | '[' => stack.push(i),
@@ -118,19 +135,19 @@ fn reindent(lines: &[&str], states: &[LineState], unit: &str) -> Vec<String> {
                 _ => {}
             }
         });
+        let previous = prev_code.clone();
+        if !code.trim().is_empty() { prev_code = Some(code.trim().to_string()); }
         if !code_line || trimmed.is_empty() { return line.to_string(); }
-        if lead_closers == 0 && is_continuation(trimmed, prev_code.as_deref()) { level += 1; }
-        let code = comment.map_or(*line, |c| &line[..c]).trim();
-        if !code.is_empty() { prev_code = Some(code.to_string()); }
+        if lead_closers == 0 && is_continuation(trimmed, previous.as_deref()) { level += 1; }
         format!("{}{}", unit.repeat(level), trimmed)
     }).collect()
 }
 
 /// R06 : au plus `max` lignes vides consécutives (hors backticks).
-fn collapse_blank_lines(lines: Vec<String>, states: &[LineState], max: usize) -> Vec<String> {
+fn collapse_blank_lines<'a>(lines: Vec<(String, &'a str)>, states: &[LineState], max: usize) -> Vec<(String, &'a str)> {
     let mut blanks = 0usize;
     lines.into_iter().zip(states).filter_map(|(line, state)| {
-        if line.trim().is_empty() && !state.inside_bt() {
+        if line.0.trim().is_empty() && !state.inside_bt() {
             blanks += 1;
             (blanks <= max).then_some(line)
         } else {
@@ -171,6 +188,19 @@ mod tests {
     fn when_clause_is_glued_to_its_declaration() {
         let src = "when System::OS is 'linux'\n\n\nfunction f(): int { return 1 }\n\nwhen default\nfunction f(): int { return 2 }\n";
         assert_eq!(fix(src), "when System::OS is 'linux'\nfunction f(): int { return 1 }\n\nwhen default\nfunction f(): int { return 2 }\n");
+    }
+
+    #[test]
+    fn line_endings_are_preserved() {
+        let src = "function f(): string {\r\nvar s:string = `a\r\nb`\r\nreturn s\r\n}";
+        assert_eq!(fix(src), "function f(): string {\r\n    var s:string = `a\r\nb`\r\n    return s\r\n}\r\n");
+        assert_eq!(fix("var x:int = 1\r\n\r\n\r\n\r\nvar y:int = 2\n"), "var x:int = 1\r\n\r\n\r\nvar y:int = 2\n");
+    }
+
+    #[test]
+    fn string_or_wildcard_ending_with_star_is_not_a_continuation() {
+        let src = "import ocara.*\nimport lib.A\nvar q:string = `SELECT *\nFROM t`\nvar n:int = 1\nvar m:string = \"a *\"\nvar k:int = 2\n";
+        assert_eq!(fix(src), src);
     }
 
     #[test]
