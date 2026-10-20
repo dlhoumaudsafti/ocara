@@ -29,7 +29,6 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Map capturée par une fermeture, indexée : SIGSEGV** — `m["a"] = 5` dans une `nameless` puis `m["a"]` → SIGSEGV (métadonnées de capture non propagées) ; casse le partage d'une map entre threads et handlers ; fonction capturée rendant une `string` → fuite par appel. *(Simple)* → [détails](roadmap.d/langage-closure-metadonnees-capture.md)
 - **`async`/`resolve` : double free, handles boxés, appels synchrones** — Second `resolve` → double free ; `hs.push(sq(3))` puis `resolve` → SIGSEGV ; `async` dans une `nameless`/générateur appelé en synchrone → SIGSEGV ; tâche jamais résolue → ~36 Ko perdus par appel. *(Structurel)* → [détails](roadmap.d/async-resolvable-handles.md)
 - **HTTPServer : arrêt sur exception, injection CRLF, déni de service** — Exception non rattrapée dans un handler → serveur arrêté ; `respondHeader` permet d'injecter des en-têtes ; N téléversements lents bloquent le serveur ; UTF-8 encodé → mojibake ; fichiers statiques binaires corrompus. *(Légère à Structurel)* → [détails](roadmap.d/stdlib-httpserver-robustesse.md)
 - **Exception dans un `Thread` : arrêt du processus** — Promis : `ThreadException` 102 au `join()` ; obtenu : arrêt (rc 1) — `Thread_run` sans `run_closure_catching`. *(Simple)* → [détails](roadmap.d/stdlib-thread-exception.md)

@@ -1,0 +1,95 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.Thread
+import ocara.Mutex
+
+// Une variable capturée par une fermeture garde ses métadonnées (map, clé,
+// éléments, fonction) : une map capturée indexée était traitée comme un
+// tableau (SIGSEGV), et l'appel d'une fonction capturée rendant une `string`
+// perdait son résultat — voir
+// docs/roadmap.d/langage-closure-metadonnees-capture.md.
+
+class Test100ClosureCapturedMetadata extends UnitTest {
+
+    public method capturedMapWrittenAndReadTest(): int {
+        var m:map<string, int> = {}
+        var f:Function<void()> = nameless(): void { m["a"] = 5 }
+        f()
+        self::assertEquals(5, m["a"])
+        var r:map<string, int> = {"a": 1}
+        var g:Function<int()> = nameless(): int { return r["a"] }
+        self::assertEquals(1, g())
+        return 0
+    }
+
+    public method compoundAndIncrementOnCapturedMapTest(): int {
+        var c:map<string, int> = {"a": 1}
+        var inc:Function<void()> = nameless(): void {
+            c["a"] += 1
+            c["a"]++
+        }
+        inc()
+        self::assertEquals(3, c["a"])
+        return 0
+    }
+
+    public method capturedMapWithIntKeysTest(): int {
+        var mi:map<int, int> = {}
+        var h:Function<void()> = nameless(): void {
+            mi[7] = 70
+            mi[8] = mi[7] + 1
+        }
+        h()
+        self::assertEquals(71, mi[8])
+        return 0
+    }
+
+    public method nestedContainersAndRawElementsTest(): int {
+        var arr:array<map<string, int>> = [{"k": 1}]
+        var k:Function<void()> = nameless(): void { arr[0]["k"] = 9 }
+        k()
+        self::assertEquals(9, arr[0]["k"])
+        var af:array<float> = [1.5, 2.5]
+        var sum:Function<float()> = nameless(): float { return af[0] + af[1] }
+        self::assertEquals(4.0, sum())
+        return 0
+    }
+
+    public method capturedFunctionAndNestingTest(): int {
+        var fn:Function<string(int)> = nameless(x:int): string { return `v-${x}` }
+        var last:string = ""
+        var call:Function<void()> = nameless(): void { last = fn(3) }
+        call()
+        self::assertEquals("v-3", last)
+        var r:map<string, int> = {"a": 2}
+        var outer:Function<int()> = nameless(): int {
+            var inner:Function<int()> = nameless(): int { return r["a"] * 10 }
+            return inner()
+        }
+        self::assertEquals(20, outer())
+        return 0
+    }
+
+    public method mapSharedBetweenThreadsTest(): int {
+        var shared:map<string, int> = {"n": 0}
+        scoped mu:Mutex = use Mutex()
+        var threads:array<Thread> = []
+        var t:int = 0
+        while t smaller 4 {
+            var th:Thread = use Thread()
+            th.run(nameless(): void {
+                var j:int = 0
+                while j smaller 250 {
+                    mu.withLock(nameless(): void { shared["n"] = shared["n"] + 1 })
+                    j = j + 1
+                }
+            })
+            threads.push(th)
+            t = t + 1
+        }
+        for th in threads { th.join() }
+        self::assertEquals(1000, shared["n"])
+        return 0
+    }
+}

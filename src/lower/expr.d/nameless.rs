@@ -7,6 +7,53 @@ use crate::ir::inst::{Inst, Value};
 use crate::ir::types::IrType;
 use crate::lower::builder::LowerBuilder;
 
+/// Métadonnées des variables de la fonction englobante, recopiées pour chaque
+/// nom capturé : sans elles, une map capturée et indexée (`m["a"] = 5`) était
+/// traitée comme un tableau (SIGSEGV), et l'appel d'une fonction capturée qui
+/// rend une `string` perdait son résultat (voir
+/// docs/roadmap.d/langage-closure-metadonnees-capture.md).
+pub struct CaptureMeta {
+    pub var_class:      HashMap<String, String>,
+    pub map_vars:       HashSet<String>,
+    pub map_key_types:  HashMap<String, Type>,
+    pub elem_types:     HashMap<String, IrType>,
+    pub elem_ast_types: HashMap<String, Type>,
+    pub nullable_vars:  HashSet<String>,
+    pub func_vars:      HashSet<String>,
+    pub func_ret_types: HashMap<String, IrType>,
+    pub func_ret_ast:   HashMap<String, Type>,
+}
+
+impl CaptureMeta {
+    pub fn of(builder: &LowerBuilder) -> Self {
+        CaptureMeta {
+            var_class:      builder.var_class.clone(),
+            map_vars:       builder.map_vars.clone(),
+            map_key_types:  builder.map_key_types.clone(),
+            elem_types:     builder.elem_types.clone(),
+            elem_ast_types: builder.elem_ast_types.clone(),
+            nullable_vars:  builder.nullable_vars.clone(),
+            func_vars:      builder.func_vars.clone(),
+            func_ret_types: builder.func_ret_types.clone(),
+            func_ret_ast:   builder.func_ret_ast.clone(),
+        }
+    }
+
+    /// Recopie dans `builder` les métadonnées du nom capturé `name`.
+    fn apply(&self, builder: &mut LowerBuilder, name: &str) {
+        let key = name.to_string();
+        if let Some(v) = self.var_class.get(name) { builder.var_class.insert(key.clone(), v.clone()); }
+        if self.map_vars.contains(name) { builder.map_vars.insert(key.clone()); }
+        if let Some(v) = self.map_key_types.get(name) { builder.map_key_types.insert(key.clone(), v.clone()); }
+        if let Some(v) = self.elem_types.get(name) { builder.elem_types.insert(key.clone(), v.clone()); }
+        if let Some(v) = self.elem_ast_types.get(name) { builder.elem_ast_types.insert(key.clone(), v.clone()); }
+        if self.nullable_vars.contains(name) { builder.nullable_vars.insert(key.clone()); }
+        if self.func_vars.contains(name) { builder.func_vars.insert(key.clone()); }
+        if let Some(v) = self.func_ret_types.get(name) { builder.func_ret_types.insert(key.clone(), v.clone()); }
+        if let Some(v) = self.func_ret_ast.get(name) { builder.func_ret_ast.insert(key, v.clone()); }
+    }
+}
+
 pub fn lower_nameless_fn(
     module:        &mut crate::ir::module::IrModule,
     anon_name:     &str,
@@ -18,8 +65,7 @@ pub fn lower_nameless_fn(
     fn_param_types: &HashMap<String, Vec<IrType>>,
     fn_param_names: &HashMap<String, Vec<String>>,
     current_class: &Option<String>,
-    var_class:     &HashMap<String, String>,
-    func_vars:     &HashSet<String>,
+    meta:          &CaptureMeta,
     has_defaults:  bool,
 ) {
     // Enregistrer le layout de l'env dans class_layouts
@@ -57,8 +103,8 @@ pub fn lower_nameless_fn(
         builder.fn_param_types = fn_param_types.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         builder.fn_param_names = fn_param_names.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         builder.current_class  = current_class.clone();
-        builder.var_class      = var_class.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
-        builder.func_vars      = func_vars.clone();
+        builder.var_class      = meta.var_class.clone();
+        builder.func_vars      = meta.func_vars.clone();
         builder.ret_ast_ty     = ret_ast_ty;
 
         // Setup params (alloca + receiver)
@@ -187,10 +233,8 @@ pub fn lower_nameless_fn(
                     cap_name.clone(),
                     (env_val.clone(), i, cap_ty.clone()),
                 );
-                // Propager le type de classe si c'est une instance
-                if let Some(cls) = var_class.get(cap_name.as_str()) {
-                    builder.var_class.insert(cap_name.clone(), cls.clone());
-                }
+                // Classe, map, éléments, fonction… du nom capturé.
+                meta.apply(&mut builder, cap_name);
             }
         }
 

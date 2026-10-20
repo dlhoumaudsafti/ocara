@@ -1880,8 +1880,7 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             let fn_param_types_clone = builder.fn_param_types.clone();
             let fn_param_names_clone = builder.fn_param_names.clone();
             let current_class        = builder.current_class.clone();
-            let var_class_snap       = builder.var_class.clone();
-            let func_vars_snap       = builder.func_vars.clone();
+            let capture_meta         = super::nameless::CaptureMeta::of(builder);
 
             // Collecter les heap pointers des captures.
             // Pour chaque variable capturée :
@@ -1942,8 +1941,7 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 &fn_param_types_clone,
                 &fn_param_names_clone,
                 &current_class,
-                &var_class_snap,
-                &func_vars_snap,
+                &capture_meta,
                 has_defaults,
             );
 
