@@ -124,7 +124,7 @@ export class ArchitectureProvider implements vscode.TreeDataProvider<Item>, vsco
 
     private setSummary(summary: ArchitectureSummary | undefined): void {
         this.summary = summary;
-        if (this.view) { headerPercent(this.view, summary?.percent); }
+        if (this.view) { headerPercent(this.view, 'Architecture', summary?.percent); }
         this.result.fire(summary);
         this.changed.fire(undefined);
     }

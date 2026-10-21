@@ -48,7 +48,8 @@ export function ledDot(percent: number): string {
     return percent >= 100 ? '🟢' : percent >= 66.6666 ? '🔵' : percent >= 33.3333 ? '🟠' : '🔴';
 }
 
-/** Pourcentage affiché dans l'en-tête d'un encart (`undefined` : aucun résultat). */
-export function headerPercent(view: vscode.TreeView<unknown>, percent: number | undefined): void {
-    view.description = percent === undefined ? '' : `${ledDot(percent)} ${(Math.floor(percent * 10) / 10).toFixed(1)} %`;
+/** Pourcentage affiché dans le titre d'un encart, visible même replié
+ *  (`undefined` : aucun résultat, titre seul). */
+export function headerPercent(view: vscode.TreeView<unknown>, name: string, percent: number | undefined): void {
+    view.title = percent === undefined ? name : `${name} · ${ledDot(percent)} ${(Math.floor(percent * 10) / 10).toFixed(1)} %`;
 }

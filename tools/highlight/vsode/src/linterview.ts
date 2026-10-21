@@ -78,7 +78,7 @@ export class LinterProvider implements vscode.TreeDataProvider<Item>, vscode.Dis
     /** Résultat publié ; en-tête : part des fichiers analysés sans avertissement. */
     private setSummary(summary: LintSummary | undefined): void {
         this.summary = summary;
-        if (this.view) { headerPercent(this.view, summary && !summary.launchError ? lintPercent(summary) : undefined); }
+        if (this.view) { headerPercent(this.view, 'Linter', summary && !summary.launchError ? lintPercent(summary) : undefined); }
         this.result.fire(summary);
         this.changed.fire(undefined);
     }

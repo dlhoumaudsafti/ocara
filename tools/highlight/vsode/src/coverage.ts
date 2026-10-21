@@ -123,7 +123,7 @@ export class CoverageProvider implements vscode.TreeDataProvider<Item>, vscode.D
     /** Périmètre changé : l'ancien résultat ne s'applique plus. */
     private reset(): void {
         this.summary = undefined;
-        if (this.view) { headerPercent(this.view, undefined); }
+        if (this.view) { headerPercent(this.view, 'Coverage', undefined); }
         this.result.fire(undefined);
         this.changed.fire(undefined);
         vscode.window.visibleTextEditors.forEach(e => this.decorate(e));
@@ -147,7 +147,7 @@ export class CoverageProvider implements vscode.TreeDataProvider<Item>, vscode.D
                 : projects.map(project => ({ project, tests: project.testsDir }));
             const roots = target.folder ?? target.file ?? undefined;
             this.summary = { ...(await analyze(runs)), target, ignored: await ignoredFiles(roots ? [roots] : projects.map(p => p.root)) };
-            if (this.view) { headerPercent(this.view, this.summary.projects > 0 ? this.summary.percent : undefined); }
+            if (this.view) { headerPercent(this.view, 'Coverage', this.summary.projects > 0 ? this.summary.percent : undefined); }
             this.result.fire(this.summary);
         } catch (err) {
             vscode.window.showErrorMessage(`Ocara : couverture — ${err instanceof Error ? err.message : err}`);

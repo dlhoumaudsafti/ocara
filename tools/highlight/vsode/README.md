@@ -130,7 +130,7 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     répertoire hexagonal sont regroupés à part ; chaque nœud indique sa part de scripts conformes. Une
     architecture **permissive** n'impose aucune contrainte : 100 %. `folder` / `script` : projet du
     dossier ou du script affiché, scripts de ce dossier ou ce script seulement.
-  - **Pourcentage dans l'en-tête** des encarts Linter (fichiers sans avertissement), Coverage
+  - **Pourcentage dans le titre** (visible même encart replié) des encarts Linter (fichiers sans avertissement), Coverage
     (couverture par ligne) et Architecture (scripts conformes), précédé d'une pastille selon la règle
     de la LED « Release » : 🔴 sous 33,33 %, 🟠 jusqu'à 66,66 %, 🔵 jusqu'à 99,99 %, 🟢 à 100 %.
   - Chaque bloc peut être déplacé hors de la barre latérale (panneau du bas, autre barre) : son onglet
