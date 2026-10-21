@@ -93,11 +93,9 @@ pub fn lower_program_with(program: &Program, source_file: &str, coverage: bool) 
     }
 
     // Collecte des fonctions marquées async
-    let mut async_funcs: HashSet<String> = HashSet::new();
     for func in &program.functions {
         if func.is_async {
-            async_funcs.insert(func.name.clone());
-            module.task_arg_types.insert(func.name.clone(), task_arg_types(false, &func.params));
+            register_task(&mut module, func.name.clone(), false, &func.params, &func.ret_ty);
         }
     }
     
@@ -107,8 +105,7 @@ pub fn lower_program_with(program: &Program, source_file: &str, coverage: bool) 
             if let ClassMember::Method { decl, is_static, .. } = member {
                 if decl.is_async {
                     let mangled = format!("{}_{}", class.name, decl.name);
-                    module.task_arg_types.insert(mangled.clone(), task_arg_types(!is_static, &decl.params));
-                    async_funcs.insert(mangled);
+                    register_task(&mut module, mangled, !is_static, &decl.params, &decl.ret_ty);
                 }
             }
         }
@@ -348,8 +345,7 @@ pub fn lower_program_with(program: &Program, source_file: &str, coverage: bool) 
             if let Some(decl) = super::class_dispatch::find_method_decl(&class.name, &method_name, program) {
                 if decl.is_async {
                     let name = format!("__dispatch_{}_{}", class.name, method_name);
-                    module.task_arg_types.insert(name.clone(), task_arg_types(true, &decl.params));
-                    async_funcs.insert(name);
+                    register_task(&mut module, name, true, &decl.params, &decl.ret_ty);
                 }
             }
         }
@@ -367,8 +363,7 @@ pub fn lower_program_with(program: &Program, source_file: &str, coverage: bool) 
             // le lowering (`wiring`) ou rejeté (E38), jamais via ce chemin.
             if method.is_async && !method.is_static {
                 let name = format!("{}_{}", iface.name, method.name);
-                module.task_arg_types.insert(name.clone(), task_arg_types(true, &method.params));
-                async_funcs.insert(name);
+                register_task(&mut module, name, true, &method.params, &method.ret_ty);
             }
         }
     }
@@ -964,7 +959,6 @@ pub fn lower_program_with(program: &Program, source_file: &str, coverage: bool) 
     let fn_param_names = Rc::new(fn_param_names);
     let fn_variadic_info = Rc::new(fn_variadic_info);
     let func_default_args = Rc::new(func_default_args);
-    let async_funcs = Rc::new(async_funcs);
 
     // Génère les wrappers __fn_wrap_* pour toutes les fonctions/méthodes statiques
     // référençables comme type Function. Convention : wrapper(env_ptr, args...) { return orig(args) }
@@ -1012,7 +1006,7 @@ pub fn lower_program_with(program: &Program, source_file: &str, coverage: bool) 
             super::message_gen::lower_message_func(&mut module, func, &fn_ret_types, &fn_param_types, &fn_param_names);
             continue;
         }
-        lower_func(&mut module, func, &program.consts, &fn_ret_types, &fn_param_types, &fn_param_names, &fn_variadic_info, &func_default_args, None, None, &async_funcs);
+        lower_func(&mut module, func, &program.consts, &fn_ret_types, &fn_param_types, &fn_param_names, &fn_variadic_info, &func_default_args, None, None);
         // Générer le wrapper async si la fonction est marquée async
         if func.is_async {
             let param_tys = task_arg_types(false, &func.params);
@@ -1024,7 +1018,7 @@ pub fn lower_program_with(program: &Program, source_file: &str, coverage: bool) 
 
     // Méthodes de classes (passe toutes les classes pour l'héritage)
     for class in &program.classes {
-        lower_class(&mut module, class, &program.classes, &program.modules, &program.consts, &fn_ret_types, &fn_param_types, &fn_param_names, &fn_variadic_info, &func_default_args, &async_funcs);
+        lower_class(&mut module, class, &program.classes, &program.modules, &program.consts, &fn_ret_types, &fn_param_types, &fn_param_names, &fn_variadic_info, &func_default_args);
         
         // Générer les wrappers async pour les méthodes de classes
         for member in class_methods(program, class) {
@@ -1091,7 +1085,7 @@ pub fn lower_program_with(program: &Program, source_file: &str, coverage: bool) 
     }
 
     // Blocs runtime → fonctions __init__, __main__, etc.
-    lower_runtime_blocks(&mut module, program, &program.consts, &fn_ret_types, &fn_param_types, &fn_param_names, &fn_variadic_info, &func_default_args, &async_funcs);
+    lower_runtime_blocks(&mut module, program, &program.consts, &fn_ret_types, &fn_param_types, &fn_param_names, &fn_variadic_info, &func_default_args);
 
     super::rc_layout::compute_class_masks(&mut module);
     module
@@ -1110,6 +1104,25 @@ fn class_methods<'a>(program: &'a Program, class: &'a ClassDecl) -> Vec<&'a Clas
 /// pour une méthode d'instance) — source unique du site d'appel
 /// (`rc::keep_task_args`, qui retient chaque `Ptr`) et du wrapper
 /// (`generate_async_wrapper`, qui les relâche après l'appel).
+/// Cible `async` : types de l'env de sa tâche et forme de son résultat
+/// (voir `IrModule::task_result_kinds`).
+fn register_task(module: &mut IrModule, name: String, has_self: bool, params: &[Param], ret_ty: &Type) {
+    module.task_arg_types.insert(name.clone(), task_arg_types(has_self, params));
+    module.task_result_kinds.insert(name.clone(), task_result_kind(&IrType::from_ast(ret_ty)));
+    Rc::make_mut(&mut module.async_funcs).insert(name);
+}
+
+/// Forme du résultat rendu par `__async_wrap_*` (voir `crate::task` du
+/// runtime) : 0 scalaire brut, 1 valeur tas, 2 flottant boxé, 3 booléen boxé.
+fn task_result_kind(ret_ty: &IrType) -> i64 {
+    match ret_ty {
+        IrType::Ptr => 1,
+        IrType::F64 => 2,
+        IrType::Bool => 3,
+        _ => 0,
+    }
+}
+
 fn task_arg_types(has_self: bool, params: &[Param]) -> Vec<IrType> {
     has_self.then_some(IrType::Ptr).into_iter()
         .chain(params.iter().map(|p| IrType::from_ast(&p.ty)))

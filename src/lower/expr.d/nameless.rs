@@ -146,6 +146,7 @@ pub fn lower_nameless_fn(
             if crate::parsing::ast::admits_null(&param.ty) {
                 builder.nullable_vars.insert(param.name.clone());
             }
+            crate::lower::stmt::statements::register_async_var_ret(&mut builder, &param.name, &param.ty);
             let slot = builder.declare_local(&param.name, ir_ty.clone(), false);
             let recv = builder.new_value();
             builder.emit(Inst::Store { ptr: slot, src: recv.clone() });

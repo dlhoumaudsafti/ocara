@@ -200,6 +200,7 @@ impl<'m> LowerBuilder<'m> {
         ret_ty: IrType,
     ) -> Self {
         let func = IrFunction::new(name, params, ret_ty);
+        let async_funcs = Rc::clone(&module.async_funcs);
         Self {
             module,
             func,
@@ -229,7 +230,7 @@ impl<'m> LowerBuilder<'m> {
             message_resume_blocks: Vec::new(),
             gen_try_stack: Vec::new(),
             heap_promoted: HashSet::new(),
-            async_funcs: Rc::default(),
+            async_funcs,
             async_var_ret: HashMap::new(),
             variadic_params: HashSet::new(),
             func_default_args: Rc::default(),

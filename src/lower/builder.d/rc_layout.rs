@@ -13,7 +13,7 @@ use crate::parsing::ast::{Program, Type};
 /// en-tête (ou boxée) : jamais un scalaire brut.
 pub(crate) fn is_counted(ty: &Type, objects: &HashSet<String>) -> bool {
     match ty {
-        Type::String | Type::Mixed | Type::Array(_) | Type::Map(..) | Type::Function { .. } | Type::Generic { .. } => true,
+        Type::String | Type::Mixed | Type::Array(_) | Type::Map(..) | Type::Function { .. } | Type::Generic { .. } | Type::Resolvable(_) => true,
         Type::Named(n) => objects.contains(n),
         Type::Qualified(parts) => parts.last().is_some_and(|n| objects.contains(n)),
         // Toute union est représentée comme un `mixed` (IR `Ptr`, scalaires

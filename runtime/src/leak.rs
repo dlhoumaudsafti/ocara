@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, Once};
 
-use crate::typecheck::{TAG_ARRAY, TAG_CELL, TAG_ENV, TAG_EXCEPTION, TAG_FUNCTION, TAG_GEN, TAG_HANDLE, TAG_MAP, TAG_STRING_OWNED};
+use crate::typecheck::{TAG_ARRAY, TAG_CELL, TAG_ENV, TAG_EXCEPTION, TAG_FUNCTION, TAG_GEN, TAG_HANDLE, TAG_MAP, TAG_STRING_OWNED, TAG_TASK};
 
 static ENABLED: AtomicBool = AtomicBool::new(false);
 static INIT: Once = Once::new();
@@ -110,6 +110,7 @@ fn label(kind: Kind, names: &HashMap<i64, String>) -> String {
         Kind::Tag(t) if t == TAG_GEN => "générateur".into(),
         Kind::Tag(t) if t == TAG_EXCEPTION => "exception".into(),
         Kind::Tag(t) if t == TAG_HANDLE => "ressource native".into(),
+        Kind::Tag(t) if t == TAG_TASK => "tâche async".into(),
         Kind::Tag(t) => format!("bloc (tag {})", t),
     }
 }
@@ -129,6 +130,9 @@ extern "C" fn report() {
     // Registres globaux du runtime vidés : ce qu'ils retiennent n'est pas
     // une fuite du programme.
     crate::htmlcomponent::release_registry();
+    // Tâches abandonnées encore en cours : elles relâchent leur résultat
+    // en finissant.
+    crate::task::settle();
     // Valeurs en attente dans le tampon du collecteur de cycles : libérées
     // par sa prochaine passe, ce ne sont pas des fuites.
     crate::rc::collect_cycles();

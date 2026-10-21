@@ -127,6 +127,7 @@ pub mod mysql;
 pub mod dotenv;
 pub mod yaml;
 pub mod rc;
+pub mod task;
 pub mod profile;
 pub mod leak;
 pub mod global_const;
@@ -3143,15 +3144,8 @@ pub extern "C" fn __ocara_type_matches(stored: i64, filter: i64) -> i64 {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Async tasks
+// Déballage des scalaires boxés
 // ─────────────────────────────────────────────────────────────────────────────
-
-struct OcaraTask {
-    /// Valeur rendue par la tâche, ou exception levée et non rattrapée dans
-    /// la tâche (valeur, type) — relevée par `resolve` dans le thread qui
-    /// attend (voir docs/roadmap.d/langage-async-exception-resolve.md).
-    handle: Option<std::thread::JoinHandle<Result<i64, (i64, i64)>>>,
-}
 
 /// Déboxe un float précédemment boxé par `__box_float`.
 /// Entrée : `ptr | 1` (tagged heap pointer).
@@ -3178,50 +3172,6 @@ pub extern "C" fn __unbox_bool(tagged: i64) -> i64 {
 pub extern "C" fn __unbox_int(tagged: i64) -> i64 {
     let ptr = (tagged & !3) as *const i64;
     unsafe { *ptr }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn __task_spawn(func: i64, env: i64) -> i64 {
-    let guard = rc::ThreadGuard::new();
-    let handle = std::thread::spawn(move || {
-        let _guard = guard;
-        let _stack = crate::stack_guard::ThreadStack::enter();
-        // Une exception non rattrapée dans la tâche est capturée ici (au
-        // lieu d'arrêter le processus) et relevée au `resolve`.
-        run_closure_catching(func, env)
-    });
-    rc::handle_new(OcaraTask { handle: Some(handle) })
-}
-
-// `resolve expr` : attend le thread et libère le wrapper OcaraTask. Le
-// wrapper est libéré AVANT de relever une éventuelle exception de la tâche
-// (`__ocara_fail` saute par `longjmp`, aucun drop ne suivrait).
-// Limite assumée (hors périmètre) : une tâche jamais `resolve`e fuit toujours
-// — rien n'impose l'appel de `resolve` côté Ocara, pas d'équivalent `detach`
-// pour les tâches async.
-#[unsafe(no_mangle)]
-pub extern "C" fn __task_resolve(task_ptr: i64) -> i64 {
-    if task_ptr == 0 {
-        return 0;
-    }
-    let mut task = unsafe { rc::handle_take::<OcaraTask>(task_ptr) };
-    let outcome = match task.handle.take() {
-        Some(handle) => {
-            let _parked = rc::park();
-            handle.join().unwrap_or(Ok(0))
-        }
-        None => Ok(0),
-    };
-    drop(task);
-    match outcome {
-        Ok(value) => value,
-        // Exception de la tâche : relevée ici, rattrapable par le `try`
-        // qui entoure `resolve` (la valeur levée est transférée).
-        Err((ev, et)) => {
-            __ocara_fail(ev, et);
-            0
-        }
-    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

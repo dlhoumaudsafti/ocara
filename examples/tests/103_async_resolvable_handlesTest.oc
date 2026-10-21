@@ -1,0 +1,122 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.Array
+
+// Cycle de vie d'un handle `Resolvable<T>` — voir
+// docs/roadmap.d/async-resolvable-handles.md : seconde résolution (double
+// free), handle rangé par `push` (SIGSEGV), appel `async` dans une
+// `nameless`/un générateur/une `Function` (exécuté en synchrone).
+
+class Test103AsyncResolvableHandles extends UnitTest {
+
+    public method secondResolveGivesDefaultTest(): int {
+        var t:Resolvable<int> = square(4)
+        var a:int = resolve t
+        var b:int = resolve t
+        self::assertEquals(16, a)
+        self::assertEquals(0, b)
+        var f:Resolvable<float> = half(5.0)
+        var x:float = resolve f
+        var y:float = resolve f
+        self::assertEquals(2.5, x)
+        self::assertEquals(0.0, y)
+        var p:Resolvable<bool> = positive(3)
+        self::assertTrue(resolve p)
+        self::assertFalse(resolve p)
+        return 0
+    }
+
+    public method pushedHandlesResolveTest(): int {
+        var tasks:array<Resolvable<int>> = []
+        for i in 1 to 4 {
+            tasks.push(square(i))
+        }
+        var total:int = 0
+        for task in tasks {
+            total += resolve task
+        }
+        for task in tasks {
+            total += resolve task
+        }
+        self::assertEquals(30, total)
+        var words:array<Resolvable<string>> = []
+        words.push(label(1))
+        var w:string = ""
+        for task in words {
+            w = resolve task
+        }
+        self::assertEquals("tâche 1", w)
+        return 0
+    }
+
+    public method handleAsParameterTest(): int {
+        self::assertEquals("tâche 2", awaitLabel(label(2)))
+        self::assertEquals(1.5, awaitHalf(half(3.0)))
+        return 0
+    }
+
+    public method asyncCallInNamelessTest(): int {
+        var compute:Function<int(int)> = nameless(n:int): int {
+            var r:Resolvable<int> = square(n)
+            return resolve r
+        }
+        self::assertEquals(25, compute(5))
+        return 0
+    }
+
+    public method asyncCallInGeneratorTest(): int {
+        var total:int = 0
+        for s in squares(3) {
+            total += s
+        }
+        self::assertEquals(14, total)
+        return 0
+    }
+
+    public method asyncFunctionValueTest(): int {
+        var start:Function<Resolvable<string>(int)> = label
+        var t:Resolvable<string> = start(4)
+        self::assertEquals("tâche 4", resolve t)
+        return 0
+    }
+
+    public method unresolvedTasksTest(): int {
+        for i in 0 to 50 {
+            label(i)
+        }
+        self::assertEquals(9, resolve square(3))
+        return 0
+    }
+}
+
+async function square(n:int): int {
+    return n * n
+}
+
+async function half(x:float): float {
+    return x / 2.0
+}
+
+async function positive(n:int): bool {
+    return n greater 0
+}
+
+async function label(n:int): string {
+    return `tâche ${n}`
+}
+
+function awaitLabel(t:Resolvable<string>): string {
+    return resolve t
+}
+
+function awaitHalf(t:Resolvable<float>): float {
+    return resolve t
+}
+
+function squares(n:int): message<int> {
+    for i in 1 to n {
+        var t:Resolvable<int> = square(i)
+        emit resolve t
+    }
+}

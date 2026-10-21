@@ -95,7 +95,7 @@ pub(crate) fn register_var_class(builder: &mut LowerBuilder, name: &str, ty: &Ty
 /// type DÉCLARÉ de la variable elle-même, qui porte l'information à
 /// n'importe quelle profondeur d'indirection (exactement le principe de
 /// `Type::Resolvable` côté sema — voir `crate::sema::typecheck::Expr::Resolve`).
-fn register_async_var_ret(builder: &mut LowerBuilder, name: &str, ty: &Type) {
+pub(crate) fn register_async_var_ret(builder: &mut LowerBuilder, name: &str, ty: &Type) {
     if let Type::Resolvable(inner) = ty {
         builder.async_var_ret.insert(name.to_string(), IrType::from_ast(inner));
         builder.resolvable_types.insert(name.to_string(), (**inner).clone());
@@ -179,11 +179,6 @@ pub(crate) fn lower_const_value(builder: &mut LowerBuilder, name: &str, ty: &Typ
     let val_ty = expr_ir_type_pub(builder, value);
     let val = lower_literal_or_expr(builder, value, ty);
     let val = store_value(builder, ty, &ir_ty, val_ty, val);
-    // Voir la doc de `register_async_var_ret`/le site d'appel équivalent
-    // dans `lower_var` — `const t:Resolvable<T> = ...` est tout aussi valide
-    // qu'un `var` (jamais couvert par l'ancien hack, qui ne s'appliquait
-    // qu'à `lower_var`).
-    register_async_var_ret(builder, name, ty);
     builder.store_local(name, val);
 }
 
@@ -206,6 +201,7 @@ pub(crate) fn register_const_meta(builder: &mut LowerBuilder, name: &str, ty: &T
     // de ce bloc — sans les cas Map/Function/Union — voir sa doc pour le
     // bug concret que l'absence du cas Union causait sur `const x:Classe|null`.)
     register_var_class(builder, name, ty);
+    register_async_var_ret(builder, name, ty);
 }
 
 /// Valeur rangée dans une locale de type déclaré `ty` : convertie (boxing

@@ -14,7 +14,7 @@ use statements_impl::*;
 // vit dans l'arbre `expr`, pas `stmt`) — `statements_impl` étant un module
 // privé, seul un re-export explicite le rend atteignable de l'extérieur.
 pub use statements_impl::assignments::lower_incdec;
-pub(crate) use statements_impl::variables::{lower_const_value, register_const_meta, register_var_class};
+pub(crate) use statements_impl::variables::{lower_const_value, register_async_var_ret, register_const_meta, register_var_class};
 pub(crate) use statements_impl::helpers::box_for_any;
 pub(crate) use statements_impl::loops::register_loop_var_meta;
 

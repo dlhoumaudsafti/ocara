@@ -657,4 +657,56 @@ mod tests {
         assert!(calls(&module, "Talker_speakCode", "Cat_speakCode"));
         assert!(calls(&module, "Talker_speakCode", "Robot_speakCode"));
     }
+
+    /// Fonctions de `module` qui appellent `target`.
+    fn callers_of<'a>(module: &'a IrModule, target: &str) -> Vec<&'a str> {
+        module.functions.iter()
+            .filter(|f| f.blocks.iter().flat_map(|b| &b.insts).any(|i| matches!(i, Inst::Call { func, .. } if func == target)))
+            .map(|f| f.name.as_str())
+            .collect()
+    }
+
+    /// Appel `async` dans une `nameless`, un générateur et via une valeur
+    /// `Function` : une tâche est lancée, la fonction n'est jamais appelée
+    /// en synchrone (voir docs/EBNF.md §14.5).
+    #[test]
+    fn async_call_spawns_in_nameless_generator_and_function_value() {
+        let module = lower_src(
+            "async function sq(n:int): int { return n * n }\n\
+             function gen(): message<int> {\n\
+                 var t:Resolvable<int> = sq(3)\n\
+                 emit resolve t\n\
+             }\n\
+             function main(): int {\n\
+                 var f:Function<int()> = nameless(): int {\n\
+                     var t:Resolvable<int> = sq(5)\n\
+                     return resolve t\n\
+                 }\n\
+                 var g:Function<Resolvable<int>(int)> = sq\n\
+                 return 0\n\
+             }\n",
+        );
+        let spawners = callers_of(&module, "__task_spawn");
+        assert!(spawners.contains(&"gen__resume"), "générateur : {:?}", spawners);
+        assert!(spawners.contains(&"__fn_wrap_sq"), "valeur Function : {:?}", spawners);
+        assert!(spawners.iter().any(|f| !["gen__resume", "__fn_wrap_sq", "main"].contains(f)), "nameless : {:?}", spawners);
+        assert_eq!(callers_of(&module, "sq"), vec!["__async_wrap_sq"]);
+    }
+
+    /// Un handle `Resolvable<T>` est une valeur comptée : jamais boxée par
+    /// `push`, relâchée en fin de portée.
+    #[test]
+    fn resolvable_handle_is_counted_and_never_boxed() {
+        let module = lower_src(
+            "async function sq(n:int): int { return n * n }\n\
+             function main(): int {\n\
+                 var hs:array<Resolvable<int>> = []\n\
+                 hs.push(sq(3))\n\
+                 var t:Resolvable<int> = sq(4)\n\
+                 return 0\n\
+             }\n",
+        );
+        assert!(!calls(&module, "main", "__box_int_for_mixed"));
+        assert!(calls(&module, "main", "__rc_release"));
+    }
 }

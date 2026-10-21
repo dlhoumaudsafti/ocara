@@ -835,36 +835,7 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     // boxé si besoin), donc directement réutilisable comme
                     // `arg_vals` l'est pour un appel statique/`parent::`.
                     if builder.async_funcs.contains(call_target.as_str()) {
-                        let wrapper_name = format!("__async_wrap_{}", call_target);
-                        let n_args = all_args.len();
-                        let env_size = builder.new_value();
-                        builder.emit(Inst::ConstInt { dest: env_size.clone(), value: ((n_args * 8).max(8)) as i64 });
-                        let env_ptr = builder.new_value();
-                        builder.emit(Inst::Call {
-                            dest:   Some(env_ptr.clone()),
-                            func:   "__alloc_obj".into(),
-                            args:   vec![env_size],
-                            ret_ty: IrType::I64,
-                        });
-                        crate::lower::stmt::rc::keep_task_args(builder, &call_target, &all_args);
-                        for (i, arg_val) in all_args.iter().enumerate() {
-                            builder.emit(Inst::SetField {
-                                obj:    env_ptr.clone(),
-                                field:  format!("__arg{}", i),
-                                src:    arg_val.clone(),
-                                offset: (i * 8) as i32,
-                            });
-                        }
-                        let func_addr = builder.new_value();
-                        builder.emit(Inst::FuncAddr { dest: func_addr.clone(), func: wrapper_name });
-                        let task = builder.new_value();
-                        builder.emit(Inst::Call {
-                            dest:   Some(task.clone()),
-                            func:   "__task_spawn".into(),
-                            args:   vec![func_addr, env_ptr],
-                            ret_ty: IrType::I64,
-                        });
-                        return task;
+                        return super::tasks::spawn_task(builder, &call_target, &all_args);
                     }
                     builder.emit(Inst::Call {
                         dest:   Some(dest.clone()),
@@ -938,44 +909,10 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                 return dummy;
             }
 
-            // Appel async : spawn un thread, retourne un task handle (i64)
+            // Appel async : spawn un thread, retourne un task handle
             if builder.async_funcs.contains(func_name.as_str()) {
-                let wrapper_name = format!("__async_wrap_{}", func_name);
-                // Évaluer les arguments
                 let arg_vals: Vec<Value> = args.iter().map(|a| lower_expr(builder, a)).collect();
-                let n_args = arg_vals.len();
-                // Allouer l'env heap : n_args * 8 octets (min 8 pour éviter null pointer)
-                let env_size = builder.new_value();
-                builder.emit(Inst::ConstInt { dest: env_size.clone(), value: ((n_args * 8).max(8)) as i64 });
-                let env_ptr = builder.new_value();
-                builder.emit(Inst::Call {
-                    dest:   Some(env_ptr.clone()),
-                    func:   "__alloc_obj".into(),
-                    args:   vec![env_size],
-                    ret_ty: IrType::I64,
-                });
-                // Stocker chaque arg dans env[i*8]
-                crate::lower::stmt::rc::keep_task_args(builder, &func_name, &arg_vals);
-                for (i, arg_val) in arg_vals.iter().enumerate() {
-                    builder.emit(Inst::SetField {
-                        obj:    env_ptr.clone(),
-                        field:  format!("__arg{}", i),
-                        src:    arg_val.clone(),
-                        offset: (i * 8) as i32,
-                    });
-                }
-                // Obtenir l'adresse du wrapper
-                let func_addr = builder.new_value();
-                builder.emit(Inst::FuncAddr { dest: func_addr.clone(), func: wrapper_name });
-                // Appeler __task_spawn(func_addr, env_ptr) → task handle
-                let task = builder.new_value();
-                builder.emit(Inst::Call {
-                    dest:   Some(task.clone()),
-                    func:   "__task_spawn".into(),
-                    args:   vec![func_addr, env_ptr],
-                    ret_ty: IrType::I64,
-                });
-                return task;
+                return super::tasks::spawn_task(builder, &func_name, &arg_vals);
             }
 
             // Boxer F64/Bool/I64 si le paramètre cible est `mixed` (Ptr) —
@@ -1114,50 +1051,14 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
 
             // Vérifier si c'est une méthode async
             if builder.async_funcs.contains(func_name.as_str()) {
-                let wrapper_name = format!("__async_wrap_{}", func_name);
-                // Évaluer les arguments
                 let mut arg_vals: Vec<Value> = args.iter().map(|a| lower_expr(builder, a)).collect();
-                
-                // Si c'est un appel parent::method(), il faut ajouter self comme premier argument
+                // `parent::method()` : `self` en premier argument
                 if class == "<parent>" {
                     if let Some((self_val, _)) = builder.load_local("self") {
                         arg_vals.insert(0, self_val);
                     }
                 }
-                
-                let n_args = arg_vals.len();
-                // Allouer l'env heap : n_args * 8 octets (min 8 pour éviter null pointer)
-                let env_size = builder.new_value();
-                builder.emit(Inst::ConstInt { dest: env_size.clone(), value: ((n_args * 8).max(8)) as i64 });
-                let env_ptr = builder.new_value();
-                builder.emit(Inst::Call {
-                    dest:   Some(env_ptr.clone()),
-                    func:   "__alloc_obj".into(),
-                    args:   vec![env_size],
-                    ret_ty: IrType::I64,
-                });
-                // Stocker chaque arg dans env[i*8]
-                crate::lower::stmt::rc::keep_task_args(builder, &func_name, &arg_vals);
-                for (i, arg_val) in arg_vals.iter().enumerate() {
-                    builder.emit(Inst::SetField {
-                        obj:    env_ptr.clone(),
-                        field:  format!("__arg{}", i),
-                        src:    arg_val.clone(),
-                        offset: (i * 8) as i32,
-                    });
-                }
-                // Obtenir l'adresse du wrapper
-                let func_addr = builder.new_value();
-                builder.emit(Inst::FuncAddr { dest: func_addr.clone(), func: wrapper_name });
-                // Appeler __task_spawn(func_addr, env_ptr) → task handle
-                let task = builder.new_value();
-                builder.emit(Inst::Call {
-                    dest:   Some(task.clone()),
-                    func:   "__task_spawn".into(),
-                    args:   vec![func_addr, env_ptr],
-                    ret_ty: IrType::I64,
-                });
-                return task;
+                return super::tasks::spawn_task(builder, &func_name, &arg_vals);
             }
 
             // Vérification de l'import : les modules ocara builtins doivent être importés

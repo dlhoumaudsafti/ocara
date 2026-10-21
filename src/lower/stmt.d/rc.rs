@@ -567,11 +567,14 @@ pub fn produces_owned(builder: &LowerBuilder, expr: &Expr) -> bool {
     }
 }
 
-/// Type `T` produit par `resolve task` : variable `Resolvable<T>` ou appel
-/// direct d'une fonction `async` qui retourne `T`.
+/// Type `T` produit par `resolve task` : variable, champ, élément ou retour
+/// `Resolvable<T>`, ou appel direct d'une fonction `async` qui retourne `T`.
 fn resolved_type(builder: &LowerBuilder, task: &Expr) -> Option<Type> {
-    match task {
-        Expr::Ident(name, _) => builder.resolvable_types.get(name).cloned(),
+    if let Expr::Ident(name, _) = task {
+        return builder.resolvable_types.get(name).cloned();
+    }
+    match crate::lower::expr::typeinfer::resolvable_operand_type(builder, task) {
+        Some(Type::Resolvable(inner)) => Some(*inner),
         _ => builder.module.call_ret_types.get(&crate::lower::expr::helpers::call_key(builder, task)?).cloned(),
     }
 }
@@ -586,7 +589,7 @@ fn call_owned(builder: &LowerBuilder, expr: &Expr) -> bool {
     }
     let Some(key) = crate::lower::expr::helpers::call_key(builder, expr) else { return false };
     if builder.async_funcs.contains(&key) || is_async_call(builder, expr) {
-        return false;
+        return true;
     }
     if BORROWING_BUILTINS.contains(&key.as_str()) {
         return false;

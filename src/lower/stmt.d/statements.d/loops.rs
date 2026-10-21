@@ -570,6 +570,9 @@ pub(crate) fn register_loop_var_meta(builder: &mut LowerBuilder, var: &str, elem
         builder.elem_types.insert(var.to_string(), IrType::from_ast(inner));
         builder.elem_ast_types.insert(var.to_string(), (**inner).clone());
         builder.var_class.insert(var.to_string(), "Array".to_string());
+    } else if let Type::Resolvable(_) = elem_ast_ty {
+        // `array<Resolvable<T>>` : `resolve x` déballe un `T`.
+        super::variables::register_async_var_ret(builder, var, elem_ast_ty);
     } else if let Some(class_name) = resolved_named_class(elem_ast_ty) {
         // `array<Classe>` (ou `array<Classe|null>`) : la variable de
         // boucle est une instance de Classe.

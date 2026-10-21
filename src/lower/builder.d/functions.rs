@@ -1,7 +1,7 @@
 /// Lowering des fonctions et constantes globales
 
 use std::rc::Rc;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use crate::parsing::ast::*;
 use crate::ir::func::IrParam;
 use crate::ir::inst::{Inst, Value};
@@ -95,7 +95,6 @@ pub fn lower_func(
     func_default_args: &Rc<HashMap<String, Vec<Option<Expr>>>>,
     class_name: Option<&str>,
     parent_class: Option<&str>,
-    async_funcs: &Rc<HashSet<String>>,
 ) {
     // Transformer les paramètres : si variadic, le dernier devient Ptr (tableau)
     let ir_params: Vec<IrParam> = func.params.iter().enumerate().map(|(i, p)| {
@@ -133,7 +132,6 @@ pub fn lower_func(
     builder.fn_param_names = Rc::clone(fn_param_names);
     builder.fn_variadic_info = Rc::clone(fn_variadic_info);
     builder.func_default_args = Rc::clone(func_default_args);
-    builder.async_funcs = Rc::clone(async_funcs);
     let owned_consts = lower_const_prologue(&mut builder, consts, func.name == "main" && class_name.is_none());
 
     // Enregistre les paramètres comme locaux immuables et met à jour IrParam::slot
@@ -186,6 +184,7 @@ pub fn lower_func(
         // pour les builtins : sans ça, `xs.push(...)` sur un paramètre
         // `array<T>` était compilé en `String_push`, SIGSEGV).
         crate::lower::stmt::statements::register_var_class(&mut builder, &param.name, &decl_ty);
+        crate::lower::stmt::statements::register_async_var_ret(&mut builder, &param.name, &decl_ty);
         // Un paramètre de type générique (`Box<int>`) : même résolution que
         // pour une variable locale directement initialisée (voir
         // `lower_var`/`lower_const` dans statements.d/variables.rs) — sans

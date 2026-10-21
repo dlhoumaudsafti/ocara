@@ -29,8 +29,10 @@ pub fn generate_wrapper(
         };
 
         // Convention uniforme : tous les wrappers retournent I64
-        // (void → retourne 0, les callers ignorent le résultat)
-        let wrapper_ret_ty = if ret_ty == IrType::Void { IrType::I64 } else { ret_ty.clone() };
+        // (void → retourne 0, les callers ignorent le résultat) ; une cible
+        // `async` rend son handle de tâche.
+        let is_async = module.async_funcs.contains(original_name);
+        let wrapper_ret_ty = if is_async { IrType::Ptr } else if ret_ty == IrType::Void { IrType::I64 } else { ret_ty.clone() };
 
         let mut builder = LowerBuilder::new(module, wrapper_name.into(), ir_params, wrapper_ret_ty.clone());
         builder.fn_ret_types = Rc::clone(fn_ret_types);
@@ -55,7 +57,10 @@ pub fn generate_wrapper(
         builder.func.params = updated_params;
 
         // Appel direct à la fonction originale (convention sans env)
-        if ret_ty != IrType::Void {
+        if is_async {
+            let task = crate::lower::expr::tasks::spawn_task(&mut builder, original_name, &call_args);
+            builder.emit(Inst::Return { value: Some(task) });
+        } else if ret_ty != IrType::Void {
             let dest = builder.new_value();
             builder.emit(Inst::Call {
                 dest:   Some(dest.clone()),

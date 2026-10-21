@@ -109,6 +109,12 @@ pub struct IrModule {
     /// l'env de sa tâche (`self` en tête si méthode d'instance). Retenues par
     /// le site d'appel, relâchées par le wrapper après l'appel.
     pub task_arg_types: HashMap<String, Vec<IrType>>,
+    /// Cible `async` → forme de son résultat, passée à `__task_spawn`
+    /// (0 scalaire brut, 1 valeur tas, 2 flottant boxé, 3 booléen boxé).
+    pub task_result_kinds: HashMap<String, i64>,
+    /// Cibles `async` (fonctions, méthodes, dispatchers), connues avant le
+    /// lowering du moindre corps : chaque `LowerBuilder` en part.
+    pub async_funcs: std::rc::Rc<HashSet<String>>,
     /// Classes déclarées par le programme : l'une d'elles masque l'exception
     /// builtin homonyme (`class IOException { … }`) — disposition, construction
     /// et `parent::init` sont alors ceux de la classe utilisateur.

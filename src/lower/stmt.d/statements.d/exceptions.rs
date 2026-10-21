@@ -188,7 +188,6 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
         bb.func_default_args = builder.func_default_args.clone();
         bb.func_vars       = builder.func_vars.clone();
         bb.func_ret_types  = builder.func_ret_types.clone();
-        bb.async_funcs     = builder.async_funcs.clone();
         bb.var_class       = builder.var_class.clone();
         bb.elem_types      = builder.elem_types.clone();
         bb.map_vars        = builder.map_vars.clone();
@@ -290,7 +289,6 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
         hb.func_default_args = builder.func_default_args.clone();
         hb.func_vars       = builder.func_vars.clone();
         hb.func_ret_types  = builder.func_ret_types.clone();
-        hb.async_funcs     = builder.async_funcs.clone();
         hb.var_class       = builder.var_class.clone();
         hb.elem_types      = builder.elem_types.clone();
         hb.map_vars        = builder.map_vars.clone();

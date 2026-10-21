@@ -37,9 +37,8 @@ pub enum Type {
     /// jamais pouvoir être lui-même le type de retour DÉCLARÉ d'une
     /// fonction/méthode `async` (pas de `Resolvable<Resolvable<T>>` implicite
     /// par double emballage, vérifié par la sema). Représentation runtime :
-    /// identique à `Type::Int` (l'entier opaque transportant le pointeur
-    /// `OcaraTask`) — jamais de classe backing, jamais de vtable, voir
-    /// `src/lower/`. Modelé sur `Type::Message` (wrapper built-in
+    /// handle de tâche compté (`Ptr`, voir runtime/src/task.rs) — jamais de
+    /// classe backing, jamais de vtable. Modelé sur `Type::Message` (wrapper built-in
     /// mono-paramètre), pas sur `Type::Generic` (réservé aux génériques
     /// UTILISATEUR avec une vraie classe backing) — `Resolvable<T>` n'a pas
     /// de classe backing, exactement comme `array<T>`/`map<K,V>`.

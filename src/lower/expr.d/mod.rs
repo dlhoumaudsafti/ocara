@@ -7,6 +7,7 @@ pub mod typeinfer;
 pub mod literals;
 pub mod tauri_handler;
 pub mod lower;
+pub mod tasks;
 
 #[cfg(test)]
 mod tests;

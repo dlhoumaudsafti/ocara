@@ -8,7 +8,7 @@ use std::alloc::{alloc, alloc_zeroed, dealloc, Layout};
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering};
 use std::sync::Mutex;
 
-use crate::typecheck::{read_tag, TAG_ARRAY, TAG_CELL, TAG_ENV, TAG_EXCEPTION, TAG_FUNCTION, TAG_GEN, TAG_MAP, TAG_OBJECT, TAG_STRING_OWNED};
+use crate::typecheck::{read_tag, TAG_ARRAY, TAG_CELL, TAG_ENV, TAG_EXCEPTION, TAG_FUNCTION, TAG_GEN, TAG_MAP, TAG_OBJECT, TAG_STRING_OWNED, TAG_TASK};
 
 pub(crate) const HEADER: usize = 24;
 pub(crate) const FLAG_RAW: i64 = 1;
@@ -40,7 +40,7 @@ const ROOTS_THRESHOLD: usize = 10_000;
 enum Color { Black = 0, Gray = 1, White = 2, Purple = 3 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Kind { String, Array, Map, Object, Function, Exception, Boxed, Cell, Env, Generator }
+pub(crate) enum Kind { String, Array, Map, Object, Function, Exception, Boxed, Cell, Env, Generator, Task }
 
 static ROOTS: Mutex<Vec<i64>> = Mutex::new(Vec::new());
 /// Une collecte est en cours (une seule à la fois).
@@ -284,6 +284,7 @@ pub(crate) unsafe fn kind(val: i64) -> Option<Kind> {
         TAG_CELL => Some(Kind::Cell),
         TAG_ENV => Some(Kind::Env),
         TAG_GEN => Some(Kind::Generator),
+        TAG_TASK => Some(Kind::Task),
         _ => None,
     }
 }
@@ -377,6 +378,7 @@ pub(crate) unsafe fn dealloc_now(val: i64, k: Kind) {
                 let drop: unsafe extern "C" fn(i64) = std::mem::transmute(aux(val) as usize);
                 drop(val);
             }
+            Kind::Task => crate::task::free_task(val),
         }
     }
 }

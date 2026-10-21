@@ -18,7 +18,6 @@ pub fn lower_class(
     fn_param_names: &Rc<HashMap<String, Vec<String>>>,
     fn_variadic_info: &Rc<HashMap<String, (usize, IrType)>>,
     func_default_args: &Rc<HashMap<String, Vec<Option<Expr>>>>,
-    async_funcs: &Rc<HashSet<String>>,
 ) {
     // Collecte des noms de méthodes propres (pour détecter les surcharges)
     let own_methods: HashSet<String> = class.members.iter()
@@ -41,7 +40,7 @@ pub fn lower_class(
                         // `super::message_gen::lower_message_func`.
                         super::message_gen::lower_message_func(module, &mangled, fn_ret_types, fn_param_types, fn_param_names);
                     } else {
-                        lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_param_names, fn_variadic_info, func_default_args, Some(&class.name), class.extends.as_deref(), async_funcs);
+                        lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_param_names, fn_variadic_info, func_default_args, Some(&class.name), class.extends.as_deref());
                     }
                 } else {
                     // Méthode d'instance : self en premier paramètre
@@ -66,7 +65,7 @@ pub fn lower_class(
                         // au-delà du `self` déjà préfixé aux params ci-dessus.
                         super::message_gen::lower_message_func(module, &mangled, fn_ret_types, fn_param_types, fn_param_names);
                     } else {
-                        lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_param_names, fn_variadic_info, func_default_args, Some(&class.name), class.extends.as_deref(), async_funcs);
+                        lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_param_names, fn_variadic_info, func_default_args, Some(&class.name), class.extends.as_deref());
                     }
                 }
             }
@@ -110,7 +109,7 @@ pub fn lower_class(
                 ..decl.clone()
             };
             // Contexte de la classe (layouts corrects)
-            lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_param_names, fn_variadic_info, func_default_args, Some(&class.name), class.extends.as_deref(), async_funcs);
+            lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_param_names, fn_variadic_info, func_default_args, Some(&class.name), class.extends.as_deref());
         }
     }
 
@@ -147,7 +146,7 @@ pub fn lower_class(
             is_async: false,
             span:     span.clone(),
         };
-        lower_func(module, &init_func, consts, fn_ret_types, fn_param_types, fn_param_names, fn_variadic_info, func_default_args, Some(&class.name), owner.extends.as_deref(), async_funcs);
+        lower_func(module, &init_func, consts, fn_ret_types, fn_param_types, fn_param_names, fn_variadic_info, func_default_args, Some(&class.name), owner.extends.as_deref());
     }
 
     let mut already_emitted = own_methods;
@@ -182,7 +181,7 @@ pub fn lower_class(
                     };
                     // Contexte de la classe enfant (layouts corrects), mais
                     // `parent::` part du parent de la classe déclarante.
-                    lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_param_names, fn_variadic_info, func_default_args, Some(&class.name), parent.extends.as_deref(), async_funcs);
+                    lower_func(module, &mangled, consts, fn_ret_types, fn_param_types, fn_param_names, fn_variadic_info, func_default_args, Some(&class.name), parent.extends.as_deref());
                 }
             }
         }

@@ -5,22 +5,11 @@ use crate::ir::types::IrType;
 use crate::lower::builder::LowerBuilder;
 
 /// Vrai si `mangled_name` (nom de fonction libre, ou `"{Classe}_{méthode}"`
-/// pour une méthode) désigne une cible `async` — voir
-/// docs/roadmap.d/langage-async-non-int-return-type-check.md. Un appel
-/// `async` ne produit JAMAIS sa valeur normalement : `lower_expr` (voir
-/// `crate::lower::expr::lower::lower_expr`, bloc `Expr::Call`/sucre
-/// d'instance) spawn une tâche et renvoie un handle opaque `I64`, quel que
-/// soit le type de retour DÉCLARÉ — `fn_ret_types`/`resolve_method_return_type`
-/// continuent de porter ce type déclaré tel quel (`string`, `float`...),
-/// nécessaire pour `Expr::Resolve` (déballer le VRAI résultat une fois la
-/// tâche terminée), mais AUCUN rapport avec le type de la valeur produite
-/// par l'appel lui-même. Avant ce garde-fou, `expr_ir_type` confondait les
-/// deux dès que le type de retour déclaré n'était pas `int` (`string`,
-/// `float`...) : la valeur (un handle `I64`) se faisait alors classer
-/// `Ptr`/`F64` et boxer comme un `mixed` par `box_for_any`
-/// (`__mixed_to_int`/`__box_float`), corrompant le handle — confirmé
-/// nécessaire par reproduction (`Doubler::fetch(): string` en appel
-/// statique/d'instance).
+/// pour une méthode) désigne une cible `async`. Un appel `async` produit
+/// un handle de tâche compté (`Ptr`, voir `crate::lower::expr::tasks`),
+/// quel que soit le type de retour DÉCLARÉ que portent
+/// `fn_ret_types`/`resolve_method_return_type` (utilisé par
+/// `Expr::Resolve` pour déballer le résultat).
 fn is_async_call_target(builder: &LowerBuilder, mangled_name: &str) -> bool {
     builder.async_funcs.contains(mangled_name)
 }
@@ -89,12 +78,10 @@ fn resolve_method_return_type(
     IrType::Ptr
 }
 
-/// Type de retour IR DÉCLARÉ (jamais `I64` par défaut pour un handle de
-/// tâche) d'un appel `async` directement opérande de `resolve` — voir
-/// docs/roadmap.d/langage-async-non-int-return-type-check.md. Contrairement
-/// à `expr_ir_type` (qui, via `is_async_call_target`, rapporte `I64` pour CE
-/// MÊME appel — la valeur RÉELLEMENT produite par `lower_expr`, un handle
-/// opaque), `Expr::Resolve` a besoin de l'information INVERSE : le type que
+/// Type de retour IR DÉCLARÉ d'un appel `async` directement opérande de
+/// `resolve` — voir docs/roadmap.d/langage-async-non-int-return-type-check.md.
+/// Contrairement à `expr_ir_type` (qui, via `is_async_call_target`, rapporte
+/// le handle de tâche que produit CE MÊME appel), `Expr::Resolve` a besoin de l'information INVERSE : le type que
 /// la tâche produira UNE FOIS RÉSOLUE, pour savoir s'il faut déballer un
 /// `float`/`bool` boxé (voir le lowering de `Expr::Resolve`,
 /// `crate::lower::expr::lower::lower_expr`). Utilisé pour les 3 formes
@@ -148,7 +135,7 @@ pub(crate) fn resolve_result_ir_type(builder: &LowerBuilder, expr: &Expr) -> IrT
 }
 
 /// Type AST déclaré d'un opérande de `resolve` autre qu'une variable.
-fn resolvable_operand_type(builder: &LowerBuilder, expr: &Expr) -> Option<Type> {
+pub(crate) fn resolvable_operand_type(builder: &LowerBuilder, expr: &Expr) -> Option<Type> {
     use super::helpers::{elem_type_after_index, resolve_receiver_class};
     match expr {
         Expr::Index { object, .. } => elem_type_after_index(builder, object),
@@ -158,6 +145,7 @@ fn resolvable_operand_type(builder: &LowerBuilder, expr: &Expr) -> Option<Type> 
                 .iter().find(|(f, _)| f == field).map(|(_, ty)| ty.clone())
         }
         Expr::Call { callee, .. } => match callee.as_ref() {
+            Expr::Ident(name, _) if builder.func_vars.contains(name.as_str()) => builder.func_ret_ast.get(name.as_str()).cloned(),
             Expr::Ident(name, _) => builder.module.call_ret_types.get(name.as_str()).cloned(),
             Expr::Field { object, field, .. } => {
                 let class = resolve_receiver_class(builder, object)?;
@@ -237,9 +225,9 @@ fn expr_ir_type_uncached(builder: &LowerBuilder, expr: &Expr) -> IrType {
             // `resolve_method_return_type`/`fn_ret_types` ici, qui continuent
             // de porter le type de retour DÉCLARÉ (`string`, `float`...),
             // sans rapport avec la valeur RÉELLEMENT produite par cet appel
-            // (un handle de tâche `I64`, voir `crate::lower::expr::lower`).
+            // (un handle de tâche, voir `crate::lower::expr::tasks`).
             if is_async_call_target(builder, &format!("{}_{}", resolved_class, method)) {
-                return IrType::I64;
+                return IrType::Ptr;
             }
             resolve_method_return_type(builder, resolved_class, method, args.first())
         }
@@ -369,7 +357,7 @@ fn expr_ir_type_uncached(builder: &LowerBuilder, expr: &Expr) -> IrType {
             // réellement produit par un appel async).
             if let Expr::Ident(fname, _) = callee.as_ref() {
                 if is_async_call_target(builder, fname.as_str()) {
-                    return IrType::I64;
+                    return IrType::Ptr;
                 }
                 if let Some(ty) = builder.fn_ret_types.get(fname.as_str()) {
                     return ty.clone();
@@ -394,7 +382,7 @@ fn expr_ir_type_uncached(builder: &LowerBuilder, expr: &Expr) -> IrType {
                     // Même garde `async` que `Expr::StaticCall`/l'appel de
                     // fonction libre ci-dessus.
                     if is_async_call_target(builder, &format!("{}_{}", cls, field)) {
-                        return IrType::I64;
+                        return IrType::Ptr;
                     }
                     return resolve_method_return_type(builder, cls, field, Some(object.as_ref()));
                 }

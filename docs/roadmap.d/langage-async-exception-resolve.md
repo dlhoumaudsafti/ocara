@@ -43,4 +43,4 @@ non rattrapée (code de sortie), exception d'une méthode `async` d'instance ;
 
 ## Correctif
 
-La tâche s'exécute sous `run_closure_catching` (`__task_spawn`, `runtime/src/lib.rs`) : une exception non rattrapée y est conservée dans la tâche, puis relevée par `__task_resolve` dans le thread qui attend — rattrapable par le `try` qui entoure `resolve`, sinon signalée comme toute exception non rattrapée. Une tâche jamais résolue garde son exception sans arrêter le programme. Test : `examples/tests/92_async_generic_static_generatorTest.oc`.
+La tâche s'exécute sous `run_closure_catching` (`__task_spawn`, `runtime/src/task.rs`) : une exception non rattrapée y est conservée dans la tâche, puis relevée par `__task_resolve` dans le thread qui attend — rattrapable par le `try` qui entoure `resolve`, sinon signalée comme toute exception non rattrapée. Une tâche jamais résolue garde son exception sans arrêter le programme. Test : `examples/tests/92_async_generic_static_generatorTest.oc`.

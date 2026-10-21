@@ -1,0 +1,92 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 71 — cycle de vie d'un handle `Resolvable<T>`
+//
+// Voir docs/roadmap.d/async-resolvable-handles.md et docs/EBNF.md §14.5.
+//
+// Illustre :
+//   - une seconde résolution rend la valeur par défaut de `T`
+//   - des handles rangés par `push`, dans une map, un champ, un paramètre
+//   - un appel `async` depuis une `nameless`, un générateur, une `Function`
+//   - une tâche jamais résolue est libérée avec son handle
+// ─────────────────────────────────────────────────────────────────────────────
+
+architecture permissive
+
+import ocara.IO
+import ocara.Array
+
+async function square(n:int): int {
+    return n * n
+}
+
+async function half(x:float): float {
+    return x / 2.0
+}
+
+async function label(n:int): string {
+    return `tâche ${n}`
+}
+
+class Job {
+    public property task:Resolvable<string>
+    init(n:int) {
+        self.task = label(n)
+    }
+}
+
+function await(t:Resolvable<string>): string {
+    return resolve t
+}
+
+function squares(n:int): message<int> {
+    for i in 1 to n {
+        var t:Resolvable<int> = square(i)
+        emit resolve t
+    }
+}
+
+function main(): void {
+    // ── 1. Seconde résolution : valeur par défaut ────────────────────────────
+    var t:Resolvable<int> = square(4)
+    var first:int = resolve t
+    var second:int = resolve t
+    IO::writeln(`${first} puis ${second}`)                // 16 puis 0
+    var h:Resolvable<float> = half(5.0)
+    var a:float = resolve h
+    var b:float = resolve h
+    IO::writeln(`${a} puis ${b}`)                         // 2.5 puis 0
+
+    // ── 2. Handles rangés dans des conteneurs, un champ, un paramètre ────────
+    var tasks:array<Resolvable<int>> = []
+    for i in 1 to 4 {
+        tasks.push(square(i))
+    }
+    var total:int = 0
+    for task in tasks {
+        total += resolve task
+    }
+    IO::writeln(`total ${total}`)                         // total 30
+    var by_name:map<string, Resolvable<string>> = {"a": label(1)}
+    IO::writeln(resolve by_name["a"])                      // tâche 1
+    var job:Job = use Job(2)
+    IO::writeln(resolve job.task)                         // tâche 2
+    IO::writeln(await(label(3)))                          // tâche 3
+
+    // ── 3. `nameless`, générateur, `Function` ────────────────────────────────
+    var compute:Function<int(int)> = nameless(n:int): int {
+        var r:Resolvable<int> = square(n)
+        return resolve r
+    }
+    IO::writeln(`${compute(5)}`)                          // 25
+    for s in squares(2) {
+        IO::writeln(`${s}`)                               // 1, 4
+    }
+    var start:Function<Resolvable<string>(int)> = label
+    IO::writeln(resolve start(4))                         // tâche 4
+
+    // ── 4. Tâches jamais résolues ────────────────────────────────────────────
+    for i in 0 to 100 {
+        label(i)
+    }
+    IO::writeln("fin")
+}

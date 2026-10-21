@@ -1,7 +1,7 @@
 /// Lowering des blocs runtime
 
 use std::rc::Rc;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use crate::parsing::ast::*;
 use crate::ir::module::IrModule;
 use crate::ir::types::IrType;
@@ -130,7 +130,6 @@ pub fn lower_runtime_blocks(
     fn_param_names: &Rc<HashMap<String, Vec<String>>>,
     fn_variadic_info: &Rc<HashMap<String, (usize, IrType)>>,
     func_default_args: &Rc<HashMap<String, Vec<Option<Expr>>>>,
-    async_funcs: &Rc<HashSet<String>>,
 ) {
     // Si pas de blocs runtime, pas besoin de générer quoi que ce soit
     if program.runtime_blocks.is_empty() {
@@ -138,7 +137,7 @@ pub fn lower_runtime_blocks(
     }
 
     // Merger tous les statements des blocs dans l'ordre : init → main → success → exit
-    generate_runtime_main(module, program, consts, fn_ret_types, fn_param_types, fn_param_names, fn_variadic_info, func_default_args, async_funcs);
+    generate_runtime_main(module, program, consts, fn_ret_types, fn_param_types, fn_param_names, fn_variadic_info, func_default_args);
 }
 
 /// Génère la fonction main() avec tous les statements des blocs runtime mergés
@@ -151,7 +150,6 @@ fn generate_runtime_main(
     fn_param_names: &Rc<HashMap<String, Vec<String>>>,
     fn_variadic_info: &Rc<HashMap<String, (usize, IrType)>>,
     func_default_args: &Rc<HashMap<String, Vec<Option<Expr>>>>,
-    async_funcs: &Rc<HashSet<String>>,
 ) {
     use crate::parsing::token::Span;
     
@@ -269,7 +267,6 @@ fn generate_runtime_main(
         fn_param_names,
         fn_variadic_info,
         func_default_args,
-        async_funcs,
     );
 }
 
@@ -316,7 +313,6 @@ fn lower_runtime_main_manual(
     fn_param_names: &Rc<HashMap<String, Vec<String>>>,
     fn_variadic_info: &Rc<HashMap<String, (usize, IrType)>>,
     func_default_args: &Rc<HashMap<String, Vec<Option<Expr>>>>,
-    async_funcs: &Rc<HashSet<String>>,
 ) {
     use crate::lower::builder::LowerBuilder;
     use crate::lower::stmt::statements::lower_stmt;
@@ -331,7 +327,6 @@ fn lower_runtime_main_manual(
     builder.fn_param_names = fn_param_names.clone();
     builder.fn_variadic_info = fn_variadic_info.clone();
     builder.func_default_args = func_default_args.clone();
-    builder.async_funcs = async_funcs.clone();
     // Pas de portée comptée dans ce `main` : constantes jamais relâchées.
     let _ = super::functions::lower_const_prologue(&mut builder, consts, true);
 

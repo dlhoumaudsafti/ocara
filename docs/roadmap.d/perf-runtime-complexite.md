@@ -49,8 +49,9 @@ exécutions) ; méthodes dans `docs/benchmarking.md` (test par doublement,
    `use P(i)`.
 6. **`try`/`raise` : deux `rt_sigprocmask` par exception** (`setjmp` de glibc
    sauvegarde le masque) — utiliser `_setjmp`/`_longjmp`.
-7. **`async` : un thread système par appel** (~30 µs/appel) — pool de
-   threads (voir [async-resolvable-handles.md](async-resolvable-handles.md)).
+7. **`async` : un thread système par appel** (~30 µs/appel, 100 000
+   `clone3` pour 100 000 appels) — pool de threads (`__task_spawn`,
+   `runtime/src/task.rs`).
 8. Spinlock CAS à chaque accès de tableau ou de map, même en mono-thread
    (~10 ns/opération).
 9. `--release` ne fait que retirer les symboles (pas de niveau

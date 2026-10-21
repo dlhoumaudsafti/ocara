@@ -1991,7 +1991,7 @@ var a:int = resolve compute(6)
 **Le type `Resolvable<T>`** (voir aussi [§6.2 Types composites](#62-types-composites)) :
 
 - C'est un type **built-in de premier ordre**, au même titre que `array<T>`/`map<K,V>` — utilisable comme type de variable (`var`/`scoped`/`consumed`), de paramètre, de propriété de classe, ou d'élément de tableau/map. Contrairement à `message<T>`, il n'est **pas** restreint à une position de retour.
-- `T` n'existe qu'au niveau du typechecker : la représentation runtime de `Resolvable<T>` est identique quel que soit `T` — un entier opaque (pointeur vers une `OcaraTask`), exactement comme avant l'introduction de ce type. Aucune vtable, aucun champ, aucune classe backing.
+- `T` n'existe qu'au niveau du typechecker : la représentation runtime de `Resolvable<T>` est identique quel que soit `T` — un handle de tâche compté (pointeur vers une tâche du runtime, comptage de références comme une `string` ou un `array`). Aucune vtable, aucun champ, aucune classe backing. Il peut être copié, rangé dans un tableau (`push`, littéral, index), une map, un champ, passé en paramètre ou retourné : toutes les copies désignent la même tâche.
 - **Seule restriction** : `Resolvable<T>` ne peut jamais être lui-même le type de retour **déclaré** d'une fonction/méthode `async` — `async method f(): Resolvable<string>` est un **rejet à la compilation** (empêcherait un double emballage implicite `Resolvable<Resolvable<string>>`).
 - Pas de syntaxe de construction directe (pas de littéral `Resolvable`) : une valeur `Resolvable<T>` ne peut provenir que de l'appel d'une fonction/méthode `async`. Pas de méthode d'instance dessus (pas de `.then()`, pas de combinateurs) — seul `resolve` en extrait la valeur.
 - `Resolvable` n'est **pas** un mot-clé réservé : c'est un identifiant ordinaire, reconnu comme ce type built-in uniquement quand il est immédiatement suivi de `<` en position de type (une classe utilisateur nommée `Resolvable`, sans arguments de type, resterait un `Identifier`/`Type` ordinaire).
@@ -2001,15 +2001,17 @@ var a:int = resolve compute(6)
 
 - `expr` doit être de type `Resolvable<T>` — sinon **erreur de compilation** (voir [E43](diagnostics.md#e43--resolve-sur-une-expression-qui-nest-pas-resolvablet)), jamais de repli silencieux sur un autre type.
 - Le type de `resolve expr` est alors `T` — une règle purement compositionnelle : `T` est porté par le type de `expr` lui-même, à n'importe quelle profondeur d'indirection (variable, champ, élément de tableau/map, paramètre, valeur de retour d'une autre fonction) — pas seulement pour une variable affectée directement par un appel `async`.
-- Une handle ne peut être résolue qu'une seule fois ; une seconde résolution retourne une valeur par défaut du type `T` (`0`/`0.0`/`false`/`null` selon le cas), sans erreur.
+- Une handle ne peut être résolue qu'une seule fois, quelle que soit la copie utilisée ; une seconde résolution retourne une valeur par défaut du type `T` (`0`/`0.0`/`false`/`null` selon le cas), sans erreur.
+- Une tâche jamais résolue n'est pas attendue : quand la dernière référence à son handle disparaît (fin de portée, élément retiré, objet détruit), la tâche continue jusqu'à son terme puis libère elle-même son résultat (ou l'exception qu'elle a levée). Rien ne fuit.
 
 **Modèle d'exécution :**
 
 | Étape | Mécanique interne |
 |-------|------------------|
 | Déclaration `async function f(args): T` (ou méthode statique/d'instance) | Le compilateur génère un wrapper `__async_wrap_f(env: i64): i64` qui dépack les arguments (et `self`, pour une méthode d'instance) depuis l'env heap et appelle `f`. |
-| Appel à `f(...)` (dans un contexte non-`resolve`) | Les arguments sont packagés dans un env heap ; `__task_spawn(wrapper_ptr, env_ptr)` est appelé → crée un thread OS et retourne un `Resolvable<T>` (au niveau machine : un entier opaque, pointeur vers une `OcaraTask`). |
-| `resolve expr` | Appel à `__task_resolve(task_ptr)` → joint le thread (`JoinHandle::join`), retourne le résultat en `T` (déballé — `__unbox_float`/`__unbox_bool` — si `T` est `float`/`bool`, brut sinon). |
+| Appel à `f(...)` (dans un contexte non-`resolve`) | Les arguments sont packagés dans un env heap ; `__task_spawn(wrapper_ptr, env_ptr, forme)` est appelé (`forme` : scalaire brut, valeur tas, `float`/`bool` boxé — pour libérer un résultat jamais résolu) → crée un thread OS détaché et retourne un `Resolvable<T>` (au niveau machine : un handle de tâche compté). Le même code est émis dans une fonction, une méthode, une `nameless`, un générateur, et par le wrapper d'une valeur `Function` qui référence `f`. |
+| `resolve expr` | Appel à `__task_resolve(task_ptr)` → attend la fin de la tâche, lui retire son résultat et le retourne en `T` (déballé — `__unbox_float`/`__unbox_bool` — si `T` est `float`/`bool`, brut sinon). Le handle n'est pas libéré par `resolve` : il l'est par le comptage de références. |
+| Dernière référence au handle rendue | La tâche est marquée abandonnée ; un résultat déjà produit et non résolu est relâché, sinon le thread le relâche en terminant. |
 
 **Règles :**
 

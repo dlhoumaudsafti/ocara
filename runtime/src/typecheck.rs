@@ -52,6 +52,9 @@ pub(crate) const TAG_GEN: i64 = 10;
 /// `crate::rc::handle_new`) : jamais compté, mais son en-tête garantit que
 /// `read_tag` ne lit jamais la mémoire d'un bloc étranger.
 pub(crate) const TAG_HANDLE: i64 = 11;
+/// Tâche `async` (`Resolvable<T>`, voir `crate::task`) : comptée, son
+/// résultat jamais résolu est relâché à sa destruction.
+pub(crate) const TAG_TASK: i64 = 12;
 
 const PTR_THRESHOLD: i64 = 65536;
 
