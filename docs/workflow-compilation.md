@@ -188,7 +188,7 @@ Utilise **Cranelift** comme backend JIT/AOT :
 - Optimise les accès mémoire
 - Génère les appels aux fonctions runtime
 - Valeurs IR (`value_slots.rs`) : une valeur définie une fois et utilisée seulement plus loin dans son bloc devient une valeur Cranelift directe ; les autres (paramètres, `Phi`, valeurs vivantes entre blocs) passent par une `Variable` du constructeur SSA — tout déclarer en `Variable` rendait une longue chaîne `elseif` quadratique en mémoire
-- `--coverage` (`src/ir/coverage.rs`) : chaque instruction source lowered devient un point `(fichier, ligne)` ; son exécution appelle `__cov_hit(n)`, et le `main` enregistre la table (`__cov_init`, `__cov_point`) auprès du runtime (`runtime/src/coverage.rs`), qui l'écrit à la sortie dans `$OCARA_COVERAGE_FILE`. `--coverage-points` liste ces points sans compiler (utilisé par ocaraunit `--line-coverage`)
+- `--coverage` (`src/ir/coverage.rs`) : chaque instruction source lowered devient un point `(fichier, ligne)` ; son exécution appelle `__cov_hit(n)`, et le `main` enregistre la table (`__cov_init`, `__cov_point`) auprès du runtime (`runtime/src/coverage.rs`), qui l'écrit à la sortie dans `$OCARA_COVERAGE_FILE`. `--coverage-points` liste ces points sans compiler (utilisé par ocaraunit `--line-coverage`, avec `--when` pour les fichiers runtime d'une autre variante)
 - Le `main` généré appelle d'abord `__ocara_runtime_init` (`runtime/src/stack_guard.rs`) : pile alternative et message « débordement de pile » au lieu d'un SIGSEGV muet (hors Android et Windows)
 
 **c) Compilation**

@@ -49,7 +49,9 @@ fn run() {
     }
 
     // Constantes de build des clauses `when` (et de `System::BUILD`).
-    parsing::build::set_current(parsing::build::BuildConfig::for_target(args.target.as_deref(), args.release));
+    let mut config = parsing::build::BuildConfig::for_target(args.target.as_deref(), args.release);
+    config.values.extend(args.when.iter().cloned());
+    parsing::build::set_current(config);
 
     // ── 1-4. Analyse : lecture, parsing, imports, vérifications, sema ─────────
     let analysis = analyze(&AnalyzeOptions {

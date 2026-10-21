@@ -199,6 +199,13 @@ pub extern "C" fn SDL_init(this: i64, options_ptr: i64) {
     let width  = unsafe { map_get_int(options_ptr, "width", 800) };
     let height = unsafe { map_get_int(options_ptr, "height", 600) };
 
+    // Binaire de test ocaraunit : fenêtre et son hors écran.
+    if ocara_runtime::blocking::test_mode() {
+        unsafe {
+            std::env::set_var("SDL_VIDEODRIVER", "offscreen");
+            std::env::set_var("SDL_AUDIODRIVER", "dummy");
+        }
+    }
     let result = (|| -> Result<OcaraSdlWindow, String> {
         let sdl_context = sdl3::init().map_err(err_string)?;
         let video = sdl_context.video().map_err(err_string)?;
@@ -435,10 +442,14 @@ pub extern "C" fn SDL_present(this: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn SDL_isOpen(this: i64) -> i64 {
     let map = SDL_WINDOWS.lock().unwrap();
-    match map.get(&this) {
-        Some(w) => if w.lock().unwrap().is_open { 1 } else { 0 },
-        None => 0,
+    let Some(w) = map.get(&this) else { return 0 };
+    let mut win = w.lock().unwrap();
+    let open = win.is_open;
+    // Binaire de test : la boucle `while win.isOpen()` fait un seul tour.
+    if open && ocara_runtime::blocking::neutralized("SDL.isOpen") {
+        win.is_open = false;
     }
+    if open { 1 } else { 0 }
 }
 
 /// Ne détruit PAS la fenêtre SDL sous-jacente (Palier 1 : garder ça simple —

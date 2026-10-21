@@ -15,18 +15,23 @@ use crate::{
     process::{run, strip_ansi},
     report::{coverage_sources, print_separator, rel_path, Ansi},
     runner::RunContext,
+    runtime_test::{declares_runtime, variants, Variant},
 };
 
 /// Fichiers runtime (`*.runtime.oc`) en dernier : leurs points viennent du
 /// fichier qui les déclare (`main.oc`), ils ne se compilent pas seuls.
 fn analysis_order(sources: &mut [PathBuf]) {
-    sources.sort_by_key(|p| p.to_string_lossy().ends_with(".runtime.oc"));
+    sources.sort_by_key(|p| is_runtime_file(p));
+}
+
+fn is_runtime_file(path: &Path) -> bool {
+    path.to_string_lossy().ends_with(".runtime.oc")
 }
 
 /// Points d'un fichier jamais compilé par un test (`ocara --coverage-points`).
-fn query_points(ctx: &RunContext, source: &Path, hits: &mut Hits) -> Result<(), String> {
+fn query_points(ctx: &RunContext, source: &Path, variant: &Variant, hits: &mut Hits) -> Result<(), String> {
     let mut cmd = Command::new(&ctx.ocara);
-    cmd.arg(source).arg("--coverage-points").arg("--src").arg(&ctx.project_root).current_dir(&ctx.project_root);
+    cmd.arg(source).arg("--coverage-points").arg("--src").arg(&ctx.project_root).args(variant.args()).current_dir(&ctx.project_root);
     let out = run(&mut cmd, ctx.timeout).map_err(|e| format!("impossible de lancer {} : {}", ctx.ocara.display(), e))?;
     if out.timed_out {
         return Err(format!("délai de {} s dépassé", ctx.timeout.as_secs()));
@@ -47,9 +52,17 @@ pub fn compute(ctx: &RunContext, scope: &Path, scan_root: &Path, test_files: &[P
         .collect();
     analysis_order(&mut sources);
     let mut unanalyzed = Vec::new();
+    let mut variants_queried = false;
     for source in &sources {
         if hits.files.contains_key(source) { continue; }
-        if let Err(error) = query_points(ctx, source, hits) {
+        // Fichier runtime d'une autre variante `when` (`mainAndroid`) : ses
+        // points viennent des points d'entrée compilés pour chaque variante.
+        if is_runtime_file(source) && !variants_queried {
+            variants_queried = true;
+            query_entry_variants(ctx, hits);
+            if hits.files.contains_key(source) { continue; }
+        }
+        if let Err(error) = query_points(ctx, source, &Variant::default(), hits) {
             unanalyzed.push(Unanalyzed { path: source.clone(), error });
         }
     }
@@ -60,6 +73,25 @@ pub fn compute(ctx: &RunContext, scope: &Path, scan_root: &Path, test_files: &[P
         .collect();
     files.sort_by(|a, b| a.path.cmp(&b.path));
     (files, unanalyzed)
+}
+
+/// Points des points d'entrée de la racine du projet (fichiers qui
+/// déclarent des blocs runtime), pour chacune de leurs variantes `when` :
+/// hors du périmètre (`--line-coverage=core`), ils n'ont pas été analysés.
+fn query_entry_variants(ctx: &RunContext, hits: &mut Hits) {
+    let Ok(dir) = fs::read_dir(&ctx.project_root) else { return };
+    let mut entries: Vec<PathBuf> = dir.flatten().map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|x| x == "oc") && !is_runtime_file(p))
+        .filter(|p| !p.to_string_lossy().contains("__ocaraunit__"))
+        .collect();
+    entries.sort();
+    for entry in entries {
+        let Ok(source) = fs::read_to_string(&entry) else { continue };
+        if !declares_runtime(&source) { continue; }
+        for variant in variants(&source) {
+            let _ = query_points(ctx, &entry, &variant, hits);
+        }
+    }
 }
 
 fn color<'a>(pct: f64, c: &'a Ansi) -> &'a str {

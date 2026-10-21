@@ -128,13 +128,12 @@ fn guarded_call(call: &str, label: &str) -> String {
     )
 }
 
-/// Génère un `function main()` qui appelle tous les tests du fichier :
-/// fonctions libres appelées directement ; pour chaque classe contenant des
-/// tests, une instance (constructeur sans argument) puis chaque méthode, les
-/// méthodes statiques étant appelées sur la classe. Ajouté en fin de
-/// fichier : les numéros de ligne du test restent ceux du fichier d'origine.
-pub fn generate_main(tests: &[TestEntry]) -> String {
-    let mut code = String::from("\nimport ocara.IO\n\nfunction main(): int {\n");
+/// Appels de tous les tests du fichier : fonctions libres appelées
+/// directement ; pour chaque classe contenant des tests, une instance
+/// (constructeur sans argument) puis chaque méthode, les méthodes statiques
+/// étant appelées sur la classe.
+pub fn test_calls(tests: &[TestEntry]) -> String {
+    let mut code = String::new();
     let mut instances: Vec<(String, String)> = Vec::new();
     for test in tests {
         let (call, label) = match (&test.class, test.is_static) {
@@ -155,6 +154,12 @@ pub fn generate_main(tests: &[TestEntry]) -> String {
         };
         code.push_str(&guarded_call(&call, &label));
     }
-    code.push_str("    return 0\n}\n");
     code
+}
+
+/// Génère un `function main()` qui appelle tous les tests du fichier (voir
+/// `test_calls`). Ajouté en fin de fichier : les numéros de ligne du test
+/// restent ceux du fichier d'origine.
+pub fn generate_main(tests: &[TestEntry]) -> String {
+    format!("\nimport ocara.IO\n\nfunction main(): int {{\n{}    return 0\n}}\n", test_calls(tests))
 }

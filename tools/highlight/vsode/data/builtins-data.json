@@ -944,7 +944,7 @@
         ],
         "returns": "array<mixed>",
         "static": true,
-        "doc": "`Array::slice(arr, from, to)` → `array<mixed>`\n\nRetourne un **nouvel** array contenant les éléments de l'index `from` (inclus) à `to` (exclu).  \nIndices 0-basés.\n\n| Paramètre | Type  | Description               |\n|-----------|-------|---------------------------|\n| `arr`     | `array<T>` | Tableau source            |\n| `from`    | `int` | Index de début (inclus)   |\n| `to`      | `int` | Index de fin (exclu)      |\n\n```ocara\nvar t:array<int> = [10, 20, 30, 40, 50]\nArray::slice(t, 1, 4)   // → [20, 30, 40]\nArray::slice(t, 0, 2)   // → [10, 20]\n```\n\nExtraire les N derniers éléments :\n```ocara\nscoped tail:array<int> = Array::slice(t, Array::len(t) - 2, Array::len(t))\n// → [40, 50]\n```",
+        "doc": "`Array::slice(arr, from, to)` → `array<mixed>`\n\nRetourne un **nouvel** array contenant les éléments de l'index `from` (inclus) à `to` (exclu).  \nIndices 0-basés ; un indice hors du tableau est ramené dans `[0, len]` (`slice(t, -2, 2)` vaut `slice(t, 0, 2)`, `to` inférieur à `from` donne un tableau vide).\n\n| Paramètre | Type  | Description               |\n|-----------|-------|---------------------------|\n| `arr`     | `array<T>` | Tableau source            |\n| `from`    | `int` | Index de début (inclus)   |\n| `to`      | `int` | Index de fin (exclu)      |\n\n```ocara\nvar t:array<int> = [10, 20, 30, 40, 50]\nArray::slice(t, 1, 4)   // → [20, 30, 40]\nArray::slice(t, 0, 2)   // → [10, 20]\n```\n\nExtraire les N derniers éléments :\n```ocara\nscoped tail:array<int> = Array::slice(t, Array::len(t) - 2, Array::len(t))\n// → [40, 50]\n```",
         "docFile": "Array.md",
         "docHeading": "`Array::slice(arr, from, to)` → `array<mixed>`"
       },
@@ -1236,7 +1236,7 @@
         ],
         "returns": "string",
         "static": true,
-        "doc": "`Regex::replace(pattern, s, repl)` → `string`\n\nRemplace la **première** occurrence de `pattern` dans `s` par `repl`.\n\n> ⚠️ **Piège** : `String::replace` (voir [String](String.md)) porte le même nom de méthode mais une sémantique **opposée** — il remplace **toutes** les occurrences. Pour l'équivalent ici, utiliser `Regex::replaceAll` ci-dessous, pas `Regex::replace`.\n\n| Paramètre | Type     | Description              |\n|-----------|----------|--------------------------|\n| `pattern` | `string` | Expression régulière     |\n| `s`       | `string` | Chaîne source            |\n| `repl`    | `string` | Chaîne de remplacement   |\n\n```ocara\nRegex::replace(\"[0-9]+\", \"ref-123-abc-456\", \"NUM\")\n// → \"ref-NUM-abc-456\"\n```",
+        "doc": "`Regex::replace(pattern, s, repl)` → `string`\n\nRemplace la **première** occurrence de `pattern` dans `s` par `repl`.\n\n> ⚠️ **Piège** : `String::replace` (voir [String](String.md)) porte le même nom de méthode mais une sémantique **opposée** — il remplace **toutes** les occurrences. Pour l'équivalent ici, utiliser `Regex::replaceAll` ci-dessous, pas `Regex::replace`.\n\n| Paramètre | Type     | Description              |\n|-----------|----------|--------------------------|\n| `pattern` | `string` | Expression régulière     |\n| `s`       | `string` | Chaîne source            |\n| `repl`    | `string` | Chaîne de remplacement   |\n\nDans `repl` (comme pour `Regex::replaceAll`), `$1`, `$2`… et `${nom}` insèrent le groupe capturé correspondant ; `$$` insère un `$` littéral. Un `$` suivi d'un nom de groupe inexistant (`\"$x\"`) est remplacé par une chaîne vide.\n\n```ocara\nRegex::replace(\"[0-9]+\", \"ref-123-abc-456\", \"NUM\")\n// → \"ref-NUM-abc-456\"\n```",
         "docFile": "Regex.md",
         "docHeading": "`Regex::replace(pattern, s, repl)` → `string`"
       },
@@ -1517,6 +1517,24 @@
         "docHeading": "`Convert::mapValuesToArray(m)` → `array<mixed>`"
       },
       {
+        "name": "mixedAs",
+        "params": [
+          {
+            "name": "v",
+            "type": "mixed"
+          },
+          {
+            "name": "type",
+            "type": "string"
+          }
+        ],
+        "returns": "mixed",
+        "static": true,
+        "doc": "`Convert::mixedAs(v, type)` → `mixed`\n\nRend `v` si c'est une valeur du type nommé `type` — `\"int\"`, `\"float\"`, `\"bool\"`, `\"array\"`, `\"map\"`, `\"function\"` ou `\"class:NomDeClasse\"` (la classe, une sous-classe, ou une classe qui implémente l'interface) — et lève sinon `ConvertException` (code 103, « expected a value of type 'User', found 'string' »).\n\nCette vérification est **implicite** : un `mixed` utilisé là où un autre type concret est attendu (déclaration, affectation, argument, `return`) passe par `mixedAs` (voir [§6 de l'EBNF](../EBNF.md#vérification-dun-mixed-rangé-dans-un-autre-type-concret)).\n\n```ocara\nvar row:array<mixed> = [use User(\"Ken\"), \"texte\"]\nvar ken:User = row[0]      // vérifié\nvar u:User = row[1]        // ConvertException (103)\n```",
+        "docFile": "Convert.md",
+        "docHeading": "`Convert::mixedAs(v, type)` → `mixed`"
+      },
+      {
         "name": "mixedToStr",
         "params": [
           {
@@ -1572,7 +1590,7 @@
         ],
         "returns": "float",
         "static": true,
-        "doc": "`Convert::strToFloat(s)` → `float`\n\nConvertit la chaîne `s` en décimal. Retourne `0.0` si la conversion échoue.\n\n```ocara\nConvert::strToFloat(\"3.14\")   // → 3.14\nConvert::strToFloat(\"42\")     // → 42.0\nConvert::strToFloat(\"abc\")    // → 0.0\n```",
+        "doc": "`Convert::strToFloat(s)` → `float`\n\nConvertit la chaîne `s` en décimal. Lève `ConvertException` (code 102) si la chaîne n'est pas un nombre.\n\n```ocara\nConvert::strToFloat(\"3.14\")   // → 3.14\nConvert::strToFloat(\"42\")     // → 42.0\nConvert::strToFloat(\"abc\")    // → ConvertException 102\n```",
         "docFile": "Convert.md",
         "docHeading": "`Convert::strToFloat(s)` → `float`"
       },
@@ -1586,7 +1604,7 @@
         ],
         "returns": "int",
         "static": true,
-        "doc": "`Convert::strToInt(s)` → `int`\n\nConvertit la chaîne `s` en entier. Retourne `0` si la conversion échoue.\n\n```ocara\nConvert::strToInt(\"42\")     // → 42\nConvert::strToInt(\"-7\")     // → -7\nConvert::strToInt(\"abc\")    // → 0\n```",
+        "doc": "`Convert::strToInt(s)` → `int`\n\nConvertit la chaîne `s` en entier. Lève `ConvertException` (code 101) si la chaîne n'est pas un entier.\n\n```ocara\nConvert::strToInt(\"42\")     // → 42\nConvert::strToInt(\"-7\")     // → -7\nConvert::strToInt(\"abc\")    // → ConvertException 101\n```",
         "docFile": "Convert.md",
         "docHeading": "`Convert::strToInt(s)` → `int`"
       },
@@ -1660,7 +1678,7 @@
         ],
         "returns": "string",
         "static": true,
-        "doc": "`DateTime::fromTimestamp(ts:int) → string`\n\nConvertit un timestamp en chaîne au format ISO 8601 : `YYYY-MM-DDTHH:MM:SS`.\n\n```ocara\nvar ts:int = 1714233600\nvar dt:string = DateTime::fromTimestamp(ts)\nIO::write(dt)  // \"2024-04-27T18:00:00\"\n```",
+        "doc": "`DateTime::fromTimestamp(ts:int) → string`\n\nConvertit un timestamp en chaîne au format ISO 8601 : `YYYY-MM-DDTHH:MM:SS`.\n\n```ocara\nvar ts:int = 1714233600\nvar dt:string = DateTime::fromTimestamp(ts)\nIO::write(dt)  // \"2024-04-27T16:00:00\" (UTC)\n```",
         "docFile": "DateTime.md",
         "docHeading": "`DateTime::fromTimestamp(ts:int) → string`"
       },
@@ -1725,7 +1743,7 @@
         ],
         "returns": "int",
         "static": true,
-        "doc": "`DateTime::parse(s:string) → int`\n\nParse une chaîne au format ISO 8601 et retourne le timestamp correspondant.\n\nFormats acceptés :\n- `YYYY-MM-DDTHH:MM:SS` (ISO 8601 standard)\n- `YYYY-MM-DD HH:MM:SS` (avec espace)\n\nRetourne `0` en cas d'erreur de parsing.\n\n```ocara\nvar ts:int = DateTime::parse(\"2024-04-27T18:00:00\")\nIO::write(ts)  // 1714233600\n```",
+        "doc": "`DateTime::parse(s:string) → int`\n\nParse une chaîne au format ISO 8601 et retourne le timestamp correspondant.\n\nFormats acceptés :\n- `YYYY-MM-DDTHH:MM:SS` (ISO 8601 standard)\n- `YYYY-MM-DD HH:MM:SS` (avec espace)\n\nLève `DateTimeException` (code 101) si la chaîne est mal formée ou désigne une date inexistante (`2023-02-31`). Les dates antérieures à 1970 donnent un timestamp négatif.\n\n```ocara\nvar ts:int = DateTime::parse(\"2024-04-27T16:00:00\")\nIO::write(ts)  // 1714233600\n```",
         "docFile": "DateTime.md",
         "docHeading": "`DateTime::parse(s:string) → int`"
       },
@@ -1976,7 +1994,7 @@
         ],
         "returns": "string",
         "static": true,
-        "doc": "`Time::fromTimestamp(ts:int) → string`\n\nExtrait l'heure d'un timestamp Unix au format `HH:MM:SS`.\n\n```ocara\nvar ts:int = 1714233600\nvar time:string = Time::fromTimestamp(ts)\nIO::write(time)  // \"18:00:00\"\n```",
+        "doc": "`Time::fromTimestamp(ts:int) → string`\n\nExtrait l'heure d'un timestamp Unix au format `HH:MM:SS`.\n\n```ocara\nvar ts:int = 1714233600\nvar time:string = Time::fromTimestamp(ts)\nIO::write(time)  // \"16:00:00\" (UTC)\n```",
         "docFile": "Time.md",
         "docHeading": "`Time::fromTimestamp(ts:int) → string`"
       },
@@ -2083,7 +2101,7 @@
         ],
         "returns": "void",
         "static": true,
-        "doc": "`File::copy(src: string, dst: string) → void`\n\nCopie un fichier.\n\n```ocara\nFile::copy(\"/tmp/original.txt\", \"/tmp/copie.txt\")\n```\n\n**Erreur** : `fail` si la source n'existe pas ou si l'écriture échoue.",
+        "doc": "`File::copy(src: string, dst: string) → void`\n\nCopie un fichier. Copier un fichier sur lui-même ne fait rien.\n\n```ocara\nFile::copy(\"/tmp/original.txt\", \"/tmp/copie.txt\")\n```\n\n**Erreur** : `fail` si la source n'existe pas ou si l'écriture échoue.",
         "docFile": "File.md",
         "docHeading": "`File::copy(src: string, dst: string) → void`"
       },
@@ -2235,7 +2253,7 @@
         ],
         "returns": "void",
         "static": true,
-        "doc": "`File::writeBytes(path: string, data: array<int>) → void`\n\nÉcrit des données binaires dans un fichier.\n\n```ocara\nvar data:array<int> = [0x89, 0x50, 0x4E, 0x47]  // Signature PNG\nFile::writeBytes(\"/tmp/test.png\", data)\n```\n\n**Erreur** : `fail` en cas d'erreur d'écriture.",
+        "doc": "`File::writeBytes(path: string, data: array<int>) → void`\n\nÉcrit des données binaires dans un fichier. Chaque élément doit être un octet (0 à 255), sinon `FileException` 104.\n\n```ocara\nvar data:array<int> = [0x89, 0x50, 0x4E, 0x47]  // Signature PNG\nFile::writeBytes(\"/tmp/test.png\", data)\n```\n\n**Erreur** : `fail` en cas d'erreur d'écriture.",
         "docFile": "File.md",
         "docHeading": "`File::writeBytes(path: string, data: array<int>) → void`"
       }
@@ -2437,7 +2455,7 @@
         ],
         "returns": "mixed",
         "static": true,
-        "doc": "`JSON::decode(json)` → `mixed`\n\nDécode une string JSON en structure Ocara (array ou map).\n\n| Paramètre | Type | Description |\n|-----------|------|-------------|\n| `json` | `string` | String JSON à décoder |\n\n```ocara\nimport ocara.JSON\n\nscoped json_str:string = `{\"name\":\"Bob\",\"age\":25}`\nvar data:mixed = JSON::decode(json_str)\n\n// data est une map<string, mixed>\n// Accès aux valeurs\nvar m:map<string, mixed> = data\nIO::writeln(m[\"name\"])  // → Bob\nIO::writeln(m[\"age\"])   // → 25\n\n// Décoder un tableau\nscoped arr_json:string = `[10, 20, 30]`\nvar arr:mixed = JSON::decode(arr_json)\n// arr est un array<mixed> (array)\n```\n\n**Méthode d'instance sur string :**\n\n```ocara\nimport ocara.JSON\n\nscoped json:string = `{\"status\":\"ok\",\"code\":200}`\nvar result:mixed = json.decode()  // ✅ Appel direct sur la string\nIO::writeln(result)\n```\n\n**Règles :**\n- Retourne `null` (0) si le JSON est invalide\n- Les objets JSON deviennent des `map<string, mixed>`\n- Les tableaux JSON deviennent des `array<mixed>`\n- Les nombres JSON deviennent des `int`\n- Les booléens et `null` JSON sont préservés",
+        "doc": "`JSON::decode(json)` → `mixed`\n\nDécode une string JSON en structure Ocara (array ou map).\n\n| Paramètre | Type | Description |\n|-----------|------|-------------|\n| `json` | `string` | String JSON à décoder |\n\n```ocara\nimport ocara.JSON\n\nscoped json_str:string = `{\"name\":\"Bob\",\"age\":25}`\nvar data:mixed = JSON::decode(json_str)\n\n// data est une map<string, mixed>\n// Accès aux valeurs\nvar m:map<string, mixed> = data\nIO::writeln(m[\"name\"])  // → Bob\nIO::writeln(m[\"age\"])   // → 25\n\n// Décoder un tableau\nscoped arr_json:string = `[10, 20, 30]`\nvar arr:mixed = JSON::decode(arr_json)\n// arr est un array<mixed> (array)\n```\n\n**Méthode d'instance sur string :**\n\n```ocara\nimport ocara.JSON\n\nscoped json:string = `{\"status\":\"ok\",\"code\":200}`\nvar result:mixed = json.decode()  // ✅ Appel direct sur la string\nIO::writeln(result)\n```\n\n**Règles :**\n- Retourne `null` (0) si le JSON est invalide\n- Les objets JSON deviennent des `map<string, mixed>`\n- Les tableaux JSON deviennent des `array<mixed>`\n- Les nombres JSON deviennent des `int`, ou des `float` s'ils ont une partie décimale ou un exposant\n- Les booléens et `null` JSON sont préservés",
         "docFile": "JSON.md",
         "docHeading": "`JSON::decode(json)` → `mixed`"
       },
@@ -2451,7 +2469,7 @@
         ],
         "returns": "string",
         "static": true,
-        "doc": "`JSON::encode(data)` → `string`\n\nEncode un array ou une map en JSON.\n\n| Paramètre | Type | Description |\n|-----------|------|-------------|\n| `data` | `array` ou `map` | Données à encoder en JSON |\n\n```ocara\nimport ocara.JSON\n\nvar users:map<string, mixed> = {\n    \"name\": \"Alice\",\n    \"age\": 30,\n    \"active\": true\n}\n\nscoped json:string = JSON::encode(users)\nIO::writeln(json)\n// → {\"name\":\"Alice\",\"age\":30,\"active\":true}\n\n// Avec un tableau\nvar items:array<mixed> = [1, 2, \"hello\", true]\nscoped arr_json:string = JSON::encode(items)\nIO::writeln(arr_json)\n// → [1,2,\"hello\",true]\n```\n\n**Méthode d'instance sur array/map :**\n\n```ocara\nimport ocara.JSON\n\nvar config:map<string, int> = {\"port\": 8080, \"timeout\": 5000}\nscoped json:string = config.encode()  // ✅ Appel direct sur la map\nIO::writeln(json)\n// → {\"port\":8080,\"timeout\":5000}\n\nvar numbers:array<int> = [1, 2, 3, 4, 5]\nscoped arr:string = numbers.encode()  // ✅ Appel direct sur l'array\nIO::writeln(arr)\n// → [1,2,3,4,5]\n```\n\n**Règles :**\n- Supporte les types : `int`, `string`, `bool`, `null`, arrays imbriqués, maps imbriquées\n- Les clés de map sont toujours converties en strings\n- Les valeurs `float` ne sont pas encore supportées (seront ajoutées dans v0.2.0)",
+        "doc": "`JSON::encode(data)` → `string`\n\nEncode un array ou une map en JSON.\n\n| Paramètre | Type | Description |\n|-----------|------|-------------|\n| `data` | `array` ou `map` | Données à encoder en JSON |\n\n```ocara\nimport ocara.JSON\n\nvar users:map<string, mixed> = {\n    \"name\": \"Alice\",\n    \"age\": 30,\n    \"active\": true\n}\n\nscoped json:string = JSON::encode(users)\nIO::writeln(json)\n// → {\"active\":true,\"age\":30,\"name\":\"Alice\"}  (clés triées)\n\n// Avec un tableau\nvar items:array<mixed> = [1, 2, \"hello\", true]\nscoped arr_json:string = JSON::encode(items)\nIO::writeln(arr_json)\n// → [1,2,\"hello\",true]\n```\n\n**Méthode d'instance sur array/map :**\n\n```ocara\nimport ocara.JSON\n\nvar config:map<string, int> = {\"port\": 8080, \"timeout\": 5000}\nscoped json:string = config.encode()  // ✅ Appel direct sur la map\nIO::writeln(json)\n// → {\"port\":8080,\"timeout\":5000}\n\nvar numbers:array<int> = [1, 2, 3, 4, 5]\nscoped arr:string = numbers.encode()  // ✅ Appel direct sur l'array\nIO::writeln(arr)\n// → [1,2,3,4,5]\n```\n\n**Règles :**\n- Supporte les types : `int`, `float`, `string`, `bool`, `null`, arrays imbriqués, maps imbriquées\n- Les clés de map sont toujours converties en strings, et écrites par ordre alphabétique",
         "docFile": "JSON.md",
         "docHeading": "`JSON::encode(data)` → `string`"
       },
@@ -4259,6 +4277,20 @@
         "docHeading": "`UnitTest::assertArray(value)`"
       },
       {
+        "name": "assertBlocksMainThread",
+        "params": [
+          {
+            "name": "expr",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`UnitTest::assertBlocksMainThread(expr)`\n\n`expr` occupe le thread principal : boucle d'événements (`Tauri.run`). Code 131 en cas d'échec, y compris pour un appel qui bloque seulement le thread appelant.",
+        "docFile": "UnitTest.md",
+        "docHeading": "`UnitTest::assertBlocksMainThread(expr)`"
+      },
+      {
         "name": "assertClass",
         "params": [
           {
@@ -4314,7 +4346,7 @@
         ],
         "returns": "void",
         "static": true,
-        "doc": "`UnitTest::assertEnum(value)`\n\nVérifie que `value` est un objet (même test runtime que `assertClass`). Code 117 sinon.\n\n> Les variantes d'enum sont des entiers à l'exécution : `assertEnum` est vérifié **à la compilation**. L'argument doit être une variante (`UnitTest::assertEnum(Color::RED)`) ou une valeur de type enum, sinon erreur de compilation (« expected type 'enum' »).",
+        "doc": "`UnitTest::assertEnum(value)`\n\nVérifie que `value` est une variante d'enum. Ce contrôle est fait à la compilation (voir ci-dessous) : à l'exécution, l'assertion réussit toujours.\n\n> Les variantes d'enum sont des entiers à l'exécution : `assertEnum` est vérifié **à la compilation**. L'argument doit être une variante (`UnitTest::assertEnum(Color::RED)`) ou une valeur de type enum, sinon erreur de compilation (« expected type 'enum' »).",
         "docFile": "UnitTest.md",
         "docHeading": "`UnitTest::assertEnum(value)`"
       },
@@ -4335,6 +4367,29 @@
         "doc": "`UnitTest::assertEquals(expected, actual)`\n\nVérifie que `expected` est égal à `actual`.\n\n```ocara\nUnitTest::assertEquals(42, result)\nUnitTest::assertEquals(\"bonjour\", message)\n```",
         "docFile": "UnitTest.md",
         "docHeading": "`UnitTest::assertEquals(expected, actual)`"
+      },
+      {
+        "name": "assertErrorResult",
+        "params": [],
+        "returns": "void",
+        "static": true,
+        "doc": "`UnitTest::assertErrorResult()`\n\nLe flot s'est terminé par `result ERROR` ou `result <code>` non nul. Code 128 en cas d'échec.",
+        "docFile": "UnitTest.md",
+        "docHeading": "`UnitTest::assertErrorResult()`"
+      },
+      {
+        "name": "assertErrorResultCode",
+        "params": [
+          {
+            "name": "code",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`UnitTest::assertErrorResultCode(code:int)`\n\nLe flot s'est terminé par `result <code>` avec ce code. Code 129 en cas d'échec.\n\n```ocara\nself::assertSuccessResult()\nself::assertErrorResultCode(5)   // core/main.runtime.oc : `result 5` après 10 s d'attente du serveur\n```",
+        "docFile": "UnitTest.md",
+        "docHeading": "`UnitTest::assertErrorResultCode(code:int)`"
       },
       {
         "name": "assertExceptionCodeEquals",
@@ -4509,6 +4564,20 @@
         "docHeading": "`UnitTest::assertGreaterOrEquals(a, b)`"
       },
       {
+        "name": "assertIsBlocking",
+        "params": [
+          {
+            "name": "expr",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`UnitTest::assertIsBlocking(expr)`\n\n`expr` bloque le thread appelant (`HTTPServer.run`, `Thread::sleep`, `Thread.join`, `Mutex.lock`, lectures `IO`, requêtes `HTTPRequest`, `resolve`…). Code 132 en cas d'échec.\n\n```ocara\nself::assertBlocksMainThread(use Tauri({\"title\": \"Garage Ocara\", \"url\": \"http://localhost:8081\"}).run())\nself::assertIsBlocking(use Server().start())   // Server extends HTTPServer, start() appelle self.run()\n```\n\n```\nPASS assertBlocksMainThread: Tauri.run occupies the main thread\nPASS assertIsBlocking: Server.start → HTTPServer.run blocks the calling thread\n```",
+        "docFile": "UnitTest.md",
+        "docHeading": "`UnitTest::assertIsBlocking(expr)`"
+      },
+      {
         "name": "assertLess",
         "params": [
           {
@@ -4617,6 +4686,15 @@
         "doc": "`UnitTest::assertNull(value)`\n\nVérifie que `value` est nulle (0).\n\n```ocara\nUnitTest::assertNull(result)\n```",
         "docFile": "UnitTest.md",
         "docHeading": "`UnitTest::assertNull(value)`"
+      },
+      {
+        "name": "assertSuccessResult",
+        "params": [],
+        "returns": "void",
+        "static": true,
+        "doc": "`UnitTest::assertSuccessResult()`\n\nLe flot s'est terminé sans erreur : `ERROR` vaut 0 (aucun `result`, ou `result SUCCESS`). Code 127 en cas d'échec.",
+        "docFile": "UnitTest.md",
+        "docHeading": "`UnitTest::assertSuccessResult()`"
       },
       {
         "name": "assertTrue",
@@ -5076,7 +5154,7 @@
         ],
         "returns": "string|null",
         "static": true,
-        "doc": "`DotEnv::get(key: string) → string|null`\n\nRécupère la valeur d'une variable d'environnement.\n\n**Retour** :\n- La valeur si la variable existe\n- `null` si la variable n'existe pas\n\n```ocara\nconst appName:string = DotEnv::get(\"APP_NAME\")\n\nif appName not equal null {\n    IO::writeln(`Application: ${appName}`)\n} else {\n    IO::writeln(\"APP_NAME non définie\")\n}\n```\n\n**Ordre de recherche** :\n1. Variables chargées depuis les fichiers `.env` (via `DotEnv::load()`)\n2. Variables d'environnement système",
+        "doc": "`DotEnv::get(key: string) → string|null`\n\nRécupère la valeur d'une variable d'environnement.\n\n**Retour** :\n- La valeur si la variable existe\n- `null` si la variable n'existe pas\n\n```ocara\nconst appName:string|null = DotEnv::get(\"APP_NAME\")\n\nif appName not equal null {\n    IO::writeln(`Application: ${appName}`)\n} else {\n    IO::writeln(\"APP_NAME non définie\")\n}\n```\n\n**Ordre de recherche** :\n1. Variables chargées depuis les fichiers `.env` (via `DotEnv::load()`)\n2. Variables d'environnement système",
         "docFile": "DotEnv.md",
         "docHeading": "`DotEnv::get(key: string) → string|null`"
       },

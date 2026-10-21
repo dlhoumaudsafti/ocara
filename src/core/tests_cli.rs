@@ -36,3 +36,12 @@ fn object_file_appends_its_extension() {
     assert_eq!(object_path(Path::new("build/app.1.2")), PathBuf::from("build/app.1.2.o"));
     assert_eq!(object_path(Path::new("out")), PathBuf::from("out.o"));
 }
+
+#[test]
+fn when_overrides_are_validated() {
+    let cli = parse(&args(&["main.oc", "--when", "System::OS=android", "--when", "BUILD='release'"])).expect("--when valide");
+    assert_eq!(cli.when, vec![("OS".to_string(), "android".to_string()), ("BUILD".to_string(), "release".to_string())]);
+    assert!(parse(&args(&["main.oc", "--when", "System::OS"])).err().unwrap().contains("forme attendue"));
+    assert!(parse(&args(&["main.oc", "--when", "System::GPU=x"])).err().unwrap().contains("constante inconnue"));
+    assert!(parse(&args(&["main.oc", "--when", "System::OS=beos"])).err().unwrap().contains("valeur inconnue"));
+}

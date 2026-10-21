@@ -158,6 +158,9 @@ pub fn load_imports(
     let mut parsed_files_cache: HashMap<PathBuf, Program> = HashMap::new();
     let mut imports_to_process: Pending = Vec::new();
     let main_namespace = program.namespace.clone();
+    // Fichier d'entrée atteint par un cycle (interface → `wiring` → classe
+    // qui importe l'interface) : ses déclarations sont déjà dans `program`.
+    let entry = input.canonicalize().unwrap_or_else(|_| input.to_path_buf());
 
     for imp in program.imports.iter().filter(|imp| imp.file_path.is_some()) {
         imports_to_process.push((imp.clone(), source_dir.to_path_buf(), main_namespace.clone()));
@@ -181,7 +184,7 @@ pub fn load_imports(
         let canonical_path = file_path.canonicalize().unwrap_or(file_path.clone());
         let is_wildcard = imp.path.first().is_some_and(|s| s == "*");
         let requested_key = if is_wildcard { "*".to_string() } else { imp.path.first().cloned().unwrap_or_default() };
-        if !processed.insert((canonical_path.clone(), requested_key)) {
+        if canonical_path == entry || !processed.insert((canonical_path.clone(), requested_key)) {
             continue;
         }
 

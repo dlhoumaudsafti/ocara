@@ -298,6 +298,53 @@ Voir [Exception](Exception.md) pour les champs `message`, `code` et `source`.
 
 ---
 
+### Flot runtime (`RuntimeTest.oc`)
+
+Ces trois assertions vérifient comment s'est terminé le `main` généré par les blocs runtime du point d'entrée (voir [Tester le flot runtime](#tester-le-flot-runtime-runtimetestoc)). Hors d'un `RuntimeTest.oc`, aucun flot n'a été exécuté : elles échouent avec le code 130.
+
+#### `UnitTest::assertSuccessResult()`
+
+Le flot s'est terminé sans erreur : `ERROR` vaut 0 (aucun `result`, ou `result SUCCESS`). Code 127 en cas d'échec.
+
+#### `UnitTest::assertErrorResult()`
+
+Le flot s'est terminé par `result ERROR` ou `result <code>` non nul. Code 128 en cas d'échec.
+
+#### `UnitTest::assertErrorResultCode(code:int)`
+
+Le flot s'est terminé par `result <code>` avec ce code. Code 129 en cas d'échec.
+
+```ocara
+self::assertSuccessResult()
+self::assertErrorResultCode(5)   // core/main.runtime.oc : `result 5` après 10 s d'attente du serveur
+```
+
+---
+
+### Blocage (tranchées à la compilation)
+
+`expr` est vérifiée par le compilateur mais **jamais évaluée** : savoir si un appel bloque en l'exécutant est indécidable en général, et ouvrirait réellement la fenêtre. Le compilateur analyse l'appel : étiquette du builtin appelé (voir [Ajouter une classe builtin](../adding-builtins.md#étiquette-bloquante)), propagée aux fonctions et méthodes utilisateur par le graphe d'appels. Le corps d'une `nameless` n'est pas suivi : il s'exécute plus tard, ailleurs (thread, rappel). Le message nomme le chemin jusqu'au builtin (`Server.start → HTTPServer.run`).
+
+#### `UnitTest::assertBlocksMainThread(expr)`
+
+`expr` occupe le thread principal : boucle d'événements (`Tauri.run`). Code 131 en cas d'échec, y compris pour un appel qui bloque seulement le thread appelant.
+
+#### `UnitTest::assertIsBlocking(expr)`
+
+`expr` bloque le thread appelant (`HTTPServer.run`, `Thread::sleep`, `Thread.join`, `Mutex.lock`, lectures `IO`, requêtes `HTTPRequest`, `resolve`…). Code 132 en cas d'échec.
+
+```ocara
+self::assertBlocksMainThread(use Tauri({"title": "Garage Ocara", "url": "http://localhost:8081"}).run())
+self::assertIsBlocking(use Server().start())   // Server extends HTTPServer, start() appelle self.run()
+```
+
+```
+PASS assertBlocksMainThread: Tauri.run occupies the main thread
+PASS assertIsBlocking: Server.start → HTTPServer.run blocks the calling thread
+```
+
+---
+
 ## Format de sortie
 
 Chaque assertion réussie écrit une ligne `PASS` sur stdout :
@@ -502,6 +549,34 @@ class CarDetailsServiceTest extends UnitTest {
 
 Réservé aux tests : la classe doit `extends UnitTest`, dans le fichier de test compilé (`*Test.oc`). Un fichier importé ne peut pas en déclarer. Le `wiring` vaut import implicite de la classe visée.
 
+### Tester le flot runtime (`RuntimeTest.oc`)
+
+Un fichier nommé **`RuntimeTest.oc`**, n'importe où sous `tests/`, représente le `main` complet généré par les blocs runtime de **`main.oc`** (racine du projet) : `init → main → error|success → exit`. Pour un autre point d'entrée de la racine, le fichier se nomme **`<entrée>.RuntimeTest.oc`** (`probe_main.RuntimeTest.oc` → `probe_main.oc`). `ocaraunit` compile et exécute ce flot (instrumenté sous `--line-coverage`, ce qui couvre les fichiers `*.runtime.oc`), puis appelle les tests du fichier, qui vérifient son résultat (`assertSuccessResult`…) et ses effets observables : requêtes HTTP, base, fichiers produits.
+
+```ocara
+import ocara.UnitTest
+import ocara.HTTPRequest
+import ocara.HTTPResponse
+
+class RuntimeTest extends UnitTest {
+    public method flowSucceedsTest(): int {
+        self::assertSuccessResult()
+        return 0
+    }
+
+    // Le serveur démarré par le bloc main répond encore.
+    public method serverAnswersTest(): int {
+        scoped home:HTTPResponse = HTTPRequest::get("http://localhost:8081/")
+        self::assertEquals(200, home.status())
+        return 0
+    }
+}
+```
+
+- **Variantes `when`** : le flot est compilé et exécuté une fois par variante `when` des déclarations `runtime` de `main.oc` (`when System::OS is 'android'` → une exécution avec `System::OS = 'android'` sur l'hôte, option `ocara --when`). Une instruction du test précédée de `when` ne vaut que pour sa variante.
+- **Builtins bloquants** : dans un binaire de test, `Tauri.run` et `HTTPServer.run` appelés sur le thread principal rendent la main tout de suite (après l'ouverture du port pour `HTTPServer.run`, dont les erreurs de démarrage restent levées) ; sur un autre thread (serveur lancé dans un `Thread`), ils s'exécutent réellement. La boucle `while win.isOpen()` d'une fenêtre `SDL` (hors écran) fait un seul tour. `ocaraunit` signale chaque appel neutralisé.
+- **Scénario** : une méthode `public static method prepareRuntime(): void` de la classe de test est appelée avant le bloc `init` (port occupé, base préparée…). Un `RuntimeTest.oc` par scénario, dans des dossiers distincts (`tests/runtime/server_busy/RuntimeTest.oc`).
+
 ---
 
 ## Exceptions
@@ -540,6 +615,12 @@ Réservé aux tests : la classe doit `extends UnitTest`, dans le fichier de test
 | 124  | `assertExceptionCodeNotEquals` | Codes égaux |
 | 125  | `assertExceptionSourceEquals` | Sources différentes |
 | 126  | `assertExceptionSourceNotEquals` | Sources égales |
+| 127  | `assertSuccessResult` | Flot runtime terminé par une erreur |
+| 128  | `assertErrorResult` | Flot runtime terminé sans erreur |
+| 129  | `assertErrorResultCode` | Autre code de `result` |
+| 130  | `assertSuccessResult`, `assertErrorResult`, `assertErrorResultCode` | Aucun flot runtime exécuté (hors `RuntimeTest.oc`) |
+| 131  | `assertBlocksMainThread` | L'expression n'occupe pas le thread principal |
+| 132  | `assertIsBlocking` | L'expression ne bloque jamais |
 
 **Exemples d'utilisation** :
 

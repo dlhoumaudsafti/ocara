@@ -1209,6 +1209,11 @@ pub extern "C" fn HTTPServer_run(self_ptr: i64) {
             }
         }
     };
+    // Binaire de test : port ouvert (erreurs de démarrage comprises), puis
+    // retour sans servir.
+    if crate::blocking::neutralized("HTTPServer.run") {
+        return;
+    }
     let shared = Arc::new(ServerShared {
         routes:         std::mem::take(&mut data.routes),
         root_path:      data.root_path.clone(),

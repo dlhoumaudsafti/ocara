@@ -2063,6 +2063,11 @@ impl<'a> TypeChecker<'a> {
                 // un `FuncSig` fixe comme les autres méthodes `Array::*` —
                 // traité entièrement à part, jamais enregistré dans les
                 // builtins normaux.
+                // Expression analysée, jamais évaluée (voir sema::blocking_assert).
+                if crate::sema::blocking_assert::is_blocking_assert(method) && self.symbols.class_matches(&resolved_class, "UnitTest") {
+                    return self.check_blocking_assert(method, args, span);
+                }
+
                 if resolved_class == "Array" && method == "fromMessage" {
                     if args.len() != 1 {
                         self.errors.push(SemaError::WrongArgCount {

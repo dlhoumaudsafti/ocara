@@ -273,6 +273,56 @@ class MathTest extends UnitTest {
 
 ---
 
+## Flot runtime (`RuntimeTest.oc`)
+
+Un test ordinaire a son propre `main` généré : il ne peut ni importer un bloc runtime, ni exécuter
+le `main` de l'application. Un fichier nommé **`RuntimeTest.oc`** (n'importe où sous le dossier de
+tests) représente au contraire le `main` complet généré par les blocs runtime de **`main.oc`**, à
+la racine du projet ; **`<entrée>.RuntimeTest.oc`** vise un autre point d'entrée de la racine
+(`probe_main.RuntimeTest.oc` → `probe_main.oc`) :
+
+1. le source compilé est le fichier de test, suivi des déclarations de `main.oc` (imports,
+   `runtime … is …`) et d'un dernier `runtime __ocaraunit__RuntimeTest_runner is exit` ;
+2. le flot complet s'exécute (`init → main → error|success → exit`, instrumenté sous
+   `--line-coverage`, ce qui couvre les fichiers `*.runtime.oc`) ;
+3. le runner transmet `ERROR` à `UnitTest` (`assertSuccessResult`, `assertErrorResult`,
+   `assertErrorResultCode`) puis appelle les tests du fichier, qui vérifient aussi les effets
+   observables (requêtes HTTP, base, fichiers) ; `ERROR` est remis à 0, le code de sortie ne reflète
+   que les tests.
+
+- **Variantes `when`** : une compilation et une exécution par variante `when` des déclarations
+  `runtime` de `main.oc` — `when System::OS is 'android'` donne une exécution `ocara --when
+  System::OS=android` sur l'hôte, affichée `tests/RuntimeTest.oc [System::OS = 'android']`. La
+  couverture par ligne interroge aussi `main.oc` pour chaque variante : un fichier runtime d'une
+  autre variante (`mainAndroid.runtime.oc`) n'est plus « non analysé ».
+- **Scénario** : une méthode `public static method prepareRuntime(): void` de la classe de test est
+  appelée avant le bloc `init` (port occupé, base préparée). Un `RuntimeTest.oc` par scénario, dans
+  des dossiers distincts (`tests/runtime/server_busy/RuntimeTest.oc`).
+
+### Builtins bloquants
+
+Les binaires de test sont lancés avec `OCARA_UNITTEST=1` (et une entrée standard vide). Un builtin
+qui ne rend jamais la main de lui-même, appelé sur le thread principal, rend alors la main
+immédiatement : `Tauri.run` (fenêtre), `HTTPServer.run` (après l'ouverture du port, dont les
+erreurs restent levées). Sur un autre thread — serveur lancé dans un `Thread` — l'appel s'exécute
+réellement. La boucle `while win.isOpen()` d'une fenêtre `SDL` (pilote hors écran) fait un seul
+tour. Chaque appel neutralisé est affiché :
+
+```
+tests/RuntimeTest.oc:
+  neutralisé : Tauri.run (bloquant, rend la main en test)
+  PASS assertSuccessResult
+  PASS assertEquals: 200 == 200
+  2 PASS  0 FAIL (compile: 2727ms, run: 50ms)
+
+tests/RuntimeTest.oc [System::OS = 'android']:
+  neutralisé : HTTPServer.run (bloquant, rend la main en test)
+  PASS assertSuccessResult
+  1 PASS  0 FAIL (compile: 748ms, run: 10ms)
+```
+
+---
+
 ## Format de sortie des tests
 
 ```
@@ -349,8 +399,9 @@ réellement** :
 - à sa sortie, chaque binaire écrit ses points dans le fichier `$OCARA_COVERAGE_FILE` ; les points de
   tous les tests sont fusionnés — une ligne est couverte si un test l'a exécutée ;
 - un fichier source qu'aucun test n'importe reçoit ses points de `ocara --coverage-points` : il est
-  entièrement non couvert. Un fichier qui ne se compile pas seul (variante `when` d'un autre système,
-  par exemple) est signalé « non analysé » ;
+  entièrement non couvert. Les fichiers runtime reçoivent les leurs du point d'entrée qui les
+  déclare, compilé pour chacune de ses variantes `when` (voir [Flot runtime](#flot-runtime-runtimetestoc)) ;
+  un fichier qui ne se compile toujours pas est signalé « non analysé » ;
 - périmètre et exclusions comme pour `--coverage` (fichiers du dossier de tests, `[exclude]`,
   `--exclude`) ; une instruction sans position (synthétisée par les blocs runtime) n'est pas comptée.
 
@@ -375,7 +426,7 @@ réellement** :
  "coverage":{"covered":393,"total":421,"percent":93.35,
    "files":[{"path":"/…/configs/Server.oc","covered":13,"total":14,"percent":92.86,
              "uncovered":[{"start":33,"end":33}],"points":[[12,1],…,[33,0]]}],
-   "unanalyzed":[{"path":"/…/core/mainAndroid.runtime.oc","error":"…"}]}}
+   "unanalyzed":[{"path":"/…/broken/Foo.oc","error":"…"}]}}
 ```
 
 `uncovered` regroupe les lignes instrumentées consécutives jamais exécutées ; `points` liste chaque
@@ -453,6 +504,7 @@ Le compilateur résout les imports depuis la racine du projet ; un fichier de te
 | Variable | Description                                     |
 |----------|-------------------------------------------------|
 | `OCARA`  | Chemin vers le binaire `ocara` (défaut : auto-détecté) ; un chemin relatif est résolu depuis le dossier de lancement |
+| `OCARA_UNITTEST` | Posée par ocaraunit pour chaque binaire de test : les builtins bloquants y rendent la main (voir [Builtins bloquants](#builtins-bloquants)) |
 
 Auto-détection dans l'ordre :
 1. Variable `OCARA`

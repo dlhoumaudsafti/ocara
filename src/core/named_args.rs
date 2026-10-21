@@ -160,7 +160,7 @@ impl Rewriter<'_> {
                 *type_args = resolved.clone();
             }
         }
-        if let Expr::Call { span, .. } = expr {
+        if let Expr::Call { span, .. } | Expr::StaticCall { span, .. } = expr {
             if let Some(replacement) = self.rewrites.calls.get(&site_key(span)) {
                 *expr = replacement.clone();
             }

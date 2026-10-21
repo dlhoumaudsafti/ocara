@@ -22,7 +22,10 @@ import { AutoRunner, currentTarget, describeTarget, isWithin, Target } from './s
 //     couverture limitée au dossier ; un dossier de tests ne lance que ses
 //     tests ; un dossier parent de projets les couvre entièrement ;
 //   - `script` : script affiché — tests de son projet, couverture limitée au
-//     script ; un `*Test.oc` ne lance que lui-même.
+//     script ; un `*Test.oc` ne lance que lui-même ; un fichier runtime
+//     (`*.runtime.oc`) ou un point d'entrée de la racine qui déclare des blocs
+//     runtime, ses seuls `RuntimeTest.oc`/`<entrée>.RuntimeTest.oc` (flot
+//     runtime complet, voir tools/ocaraunit/README.md).
 // Le voyant Coverage de la LED « Release » (quality.ts) reprend le résultat
 // du périmètre courant.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -280,13 +283,34 @@ function ownerOf(projects: Project[], p: string): Project | undefined {
     return projects.filter(project => isWithin(p, project.root)).sort((a, b) => b.root.length - a.root.length)[0];
 }
 
-/** Lancements du mode `script` : un `*Test.oc` seul, sinon les tests du projet couverts sur le script. */
+/** `RuntimeTest.oc` et `<entrée>.RuntimeTest.oc` du dossier de tests `dir`, récursivement. */
+function runtimeTests(dir: string): string[] {
+    let entries: fs.Dirent[];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return []; }
+    return entries.flatMap(e => {
+        const full = path.join(dir, e.name);
+        if (e.isDirectory()) { return runtimeTests(full); }
+        return e.name === 'RuntimeTest.oc' || e.name.endsWith('.RuntimeTest.oc') ? [full] : [];
+    });
+}
+
+/** Fichier exécuté seulement par le flot runtime : bloc runtime, ou point
+ *  d'entrée de la racine qui déclare des blocs runtime. */
+function isRuntimeScript(project: Project, file: string): boolean {
+    if (file.endsWith('.runtime.oc')) { return true; }
+    if (path.dirname(file) !== project.root) { return false; }
+    try { return /^\s*runtime\s/m.test(fs.readFileSync(file, 'utf8')); } catch { return false; }
+}
+
+/** Lancements du mode `script` : un `*Test.oc` seul, les `RuntimeTest.oc` d'un
+ *  script runtime, sinon les tests du projet couverts sur le script. */
 export function scriptRuns(projects: Project[], file: string): Run[] {
     const owner = ownerOf(projects, file);
     if (!owner) { return []; }
-    return isWithin(file, owner.testsDir)
-        ? [{ project: owner, tests: file }]
-        : [{ project: owner, tests: owner.testsDir, target: file }];
+    if (isWithin(file, owner.testsDir)) { return [{ project: owner, tests: file }]; }
+    const flows = isRuntimeScript(owner, file) ? runtimeTests(owner.testsDir) : [];
+    if (flows.length > 0) { return flows.map(tests => ({ project: owner, tests, target: file })); }
+    return [{ project: owner, tests: owner.testsDir, target: file }];
 }
 
 /** Scripts des `roots` exclus par `ocara.coverage.exclude` (hors dossiers de tests). */

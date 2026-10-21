@@ -10,6 +10,7 @@
 //   4. Ajouter les sigs Cranelift dans `src/codegen/runtime.rs`
 // ─────────────────────────────────────────────────────────────────────────────
 
+pub mod blocking;
 pub mod io;
 pub mod system;
 pub mod thread;

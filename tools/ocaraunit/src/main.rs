@@ -28,6 +28,7 @@ mod lines;
 mod process;
 mod report;
 mod runner;
+mod runtime_test;
 mod scan;
 #[cfg(test)]
 mod tests;

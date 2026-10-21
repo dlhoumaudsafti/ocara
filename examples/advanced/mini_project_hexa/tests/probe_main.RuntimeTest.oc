@@ -1,0 +1,18 @@
+import ocara.UnitTest
+import configs.Server
+
+// Flot complet de probe_main.oc (core/init.runtime.oc puis
+// core/probe_main.runtime.oc) : variante headless, `server.start()` sur le
+// thread principal — neutralisé en test après l'ouverture du port 8081.
+class ProbeMainRuntimeTest extends UnitTest {
+    public method flowSucceedsTest(): int {
+        self::assertSuccessResult()
+        return 0
+    }
+
+    // Hors test, le bloc main de probe_main ne rend jamais la main.
+    public method startBlocksTest(): int {
+        self::assertIsBlocking(use Server().start())
+        return 0
+    }
+}

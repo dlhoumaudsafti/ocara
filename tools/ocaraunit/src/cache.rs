@@ -65,8 +65,13 @@ pub struct EntryName {
 }
 
 impl EntryName {
-    pub fn of(src: &Path) -> EntryName {
-        let stem = src.file_stem().unwrap_or_default().to_string_lossy().to_string();
+    /// `variant` : variante `when` d'un `RuntimeTest.oc` (vide sinon), un
+    /// binaire chacune.
+    pub fn of(src: &Path, variant: &str) -> EntryName {
+        let mut stem = src.file_stem().unwrap_or_default().to_string_lossy().to_string();
+        if !variant.is_empty() {
+            stem = format!("{}.{}", stem, variant);
+        }
         let mut hasher = DefaultHasher::new();
         src.canonicalize().unwrap_or_else(|_| src.to_path_buf()).hash(&mut hasher);
         EntryName { stem, path_hash: format!("{:x}", hasher.finish()) }

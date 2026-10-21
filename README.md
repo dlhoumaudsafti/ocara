@@ -145,6 +145,7 @@ ocara [options] <fichier.oc>
 | `--check-architecture` | Vérifie seulement l'architecture hexagonale (imports, `wiring`) |
 | `--architecture-report` | Rapport d'architecture du projet en JSON : type (hexagonale, permissive), répertoire hexagonal, alias des couches, racines partagées, contexte/couche et violations de chaque script |
 | `--src <dossier>` | Dossier racine pour la résolution des imports |
+| `--when <System::NOM=valeur>` | Impose une constante de build aux clauses `when` (`OS`, `ARCH`, `BUILD`), répétable : `--when System::OS=android` compile pour l'hôte la variante Android (utilisé par ocaraunit pour `RuntimeTest.oc`) |
 
 Une option inconnue, une option sans sa valeur (`-o`, `--src`…), un second fichier d'entrée ou une
 sortie `-o` qui désigne le fichier source lui-même sont refusés (code de sortie `2`, comme `ocara`

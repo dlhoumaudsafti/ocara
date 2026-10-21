@@ -1,0 +1,45 @@
+import ocara.UnitTest
+import ocara.HTTPRequest
+import ocara.HTTPResponse
+import configs.Server
+
+when System::OS is not 'android'
+import ocara.Tauri
+import ocara.System
+
+// Flot complet de main.oc (core/*.runtime.oc : init → main → exit), exécuté
+// une fois par variante `when` des blocs runtime : bureau (serveur sur son
+// thread, fenêtre Tauri neutralisée) et Android (`server.start()` sur le
+// thread principal, neutralisé).
+class RuntimeTest extends UnitTest {
+    public method flowSucceedsTest(): int {
+        self::assertSuccessResult()
+        return 0
+    }
+
+    // Bureau : le serveur démarré par core/main.runtime.oc répond encore.
+    public method serverAnswersTest(): int {
+        when System::OS is not 'android'
+        self.assertHomePage()
+        return 0
+    }
+
+    // Tranchées à la compilation : les appels ne sont pas exécutés.
+    public method blockingCallsTest(): int {
+        self::assertIsBlocking(use Server().start())
+        when System::OS is not 'android'
+        self::assertBlocksMainThread(
+            use Tauri({
+                "title": "Garage Ocara",
+                "url": "http://localhost:8081"
+            }).run()
+        )
+        return 0
+    }
+
+    private method assertHomePage(): void {
+        scoped home:HTTPResponse = HTTPRequest::get("http://localhost:8081/")
+        self::assertEquals(200, home.status())
+        self::assertContains(home.body(), "Flotte de véhicules")
+    }
+}

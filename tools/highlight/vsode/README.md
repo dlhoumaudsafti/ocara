@@ -115,7 +115,10 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     sont **surlignées en rouge** dans l'éditeur. Fichiers listés **en vert** (entièrement couverts),
     **en rouge** (lignes non couvertes) ou **en gris** (exclus par `ocara.coverage.exclude`). Selon le périmètre : `workspace`, tous les projets ; `folder`, tests du projet qui contient
     le dossier, couverture limitée au dossier (un dossier de tests ne lance que ses tests, un dossier
-    parent de projets les couvre entièrement) ; `script`, tests du projet du script, couverture limitée
+    parent de projets les couvre entièrement) ; `script`, tests du projet du script (seulement ses
+    `RuntimeTest.oc`/`<entrée>.RuntimeTest.oc` pour un fichier `*.runtime.oc` ou un point d'entrée
+    de la racine : les blocs runtime ne sont exécutés que par le flot complet, voir le README
+    d'ocaraunit), couverture limitée
     au script (un `*Test.oc` ne lance que lui-même). Exclusions : `ocara.coverage.exclude`.
   - **Linter** : chaque fichier du périmètre, **en vert** sans avertissement, **en rouge** avec ses
     avertissements `ocaracs` (dépliable ; un clic ouvre le fichier sur l'avertissement), **en gris**

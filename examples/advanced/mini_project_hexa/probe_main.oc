@@ -1,0 +1,20 @@
+namespace .
+// examples/advanced/mini_project_hexa/probe_main.oc
+//
+// Variante de vérification SANS Tauri (pas de fenêtre) — utilisée UNIQUEMENT
+// pour tester le serveur HTTP dans un environnement headless (pas de serveur
+// d'affichage disponible), en démarrant `server.start()` directement, comme
+// le fait déjà la branche Android de core/main.runtime.oc (qui n'ouvre pas
+// non plus de fenêtre Tauri). Jamais utilisée par un build réel (`make
+// desktop`/`android`/`simulator`, voir main.oc). Testée par
+// tests/probe_main.RuntimeTest.oc.
+
+import ocara.IO
+import configs.Components
+import configs.Server
+import context.shared.infra.db.Database
+
+runtime core.init is init
+runtime core.probe_main is main
+runtime core.error is error
+runtime core.exit is exit

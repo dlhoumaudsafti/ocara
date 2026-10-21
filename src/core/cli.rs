@@ -56,6 +56,9 @@ pub struct CliArgs {
     /// Répertoire racine du NDK Android (`$ANDROID_NDK_HOME` si absent) —
     /// requis avec `--android-runtime` pour localiser le clang de croisement.
     pub android_ndk: Option<PathBuf>,
+    /// Constantes de build imposées (`--when System::OS=android`) : variantes
+    /// `when` d'une autre cible compilées pour l'hôte (ocaraunit, RuntimeTest.oc).
+    pub when: Vec<(String, String)>,
     /// true = serveur de langage (LSP) sur stdin/stdout, sans fichier d'entrée
     pub lsp: bool,
 }
@@ -95,6 +98,9 @@ pub fn print_help() {
     println!("  --android-jni-bridge <fichier.a>");
     println!("                libocara_runtime_android_jni.a pré-compilé — requis seulement si le .so");
     println!("                doit être chargeable par une Activity Android via JNI.");
+    println!("  --when <System::NOM=valeur>");
+    println!("                Impose une constante de build aux clauses `when` (OS, ARCH, BUILD),");
+    println!("                répétable. Ex. : --when System::OS=android sur l'hôte.");
     println!("  --android-ndk <dir>");
     println!("                Racine du NDK Android (défaut : $ANDROID_NDK_HOME).");
     println!("  --lsp         Serveur de langage (LSP) sur stdin/stdout, pour les éditeurs");
@@ -152,6 +158,7 @@ pub fn parse(args: &[String]) -> Result<CliArgs, String> {
     let mut android_jni_bridge: Option<PathBuf> = None;
     let mut android_ndk: Option<PathBuf> = None;
     let mut lsp = false;
+    let mut when = Vec::new();
 
     let skip_build = args.first().is_some_and(|a| a == "build");
     let mut rest = args.iter().skip(usize::from(skip_build));
@@ -176,6 +183,7 @@ pub fn parse(args: &[String]) -> Result<CliArgs, String> {
             "--android-runtime-sdl" => android_runtime_sdl = Some(PathBuf::from(value("--android-runtime-sdl")?)),
             "--android-jni-bridge" => android_jni_bridge = Some(PathBuf::from(value("--android-jni-bridge")?)),
             "--android-ndk" => android_ndk = Some(PathBuf::from(value("--android-ndk")?)),
+            "--when" => when.push(parse_when(&value("--when")?)?),
             option if option.starts_with('-') => return Err(format!("option inconnue : {}", option)),
             file => {
                 if let Some(first) = &input {
@@ -193,7 +201,21 @@ pub fn parse(args: &[String]) -> Result<CliArgs, String> {
     if !lsp && same_path(&input, &output) {
         return Err(format!("la sortie -o {} est le fichier source lui-même : il serait écrasé", output.display()));
     }
-    Ok(CliArgs { input, output, dump, check, no_link, release, profile, leak_check, coverage, check_architecture, coverage_points, architecture_report, src_dir, target, android_runtime, android_runtime_sdl, android_jni_bridge, android_ndk, lsp })
+    Ok(CliArgs { input, output, dump, check, no_link, release, profile, leak_check, coverage, check_architecture, coverage_points, architecture_report, src_dir, target, android_runtime, android_runtime_sdl, android_jni_bridge, android_ndk, when, lsp })
+}
+
+/// `System::OS=android` (ou `OS=android`) → (`OS`, `android`), constante et
+/// valeur prises dans `parsing::build::DOMAINS`.
+fn parse_when(raw: &str) -> Result<(String, String), String> {
+    let (name, value) = raw.split_once('=').ok_or_else(|| format!("--when {} : forme attendue System::NOM=valeur", raw))?;
+    let name = name.trim().trim_start_matches("System::");
+    let value = value.trim().trim_matches(|c| c == '\'' || c == '"');
+    let (_, domain) = crate::parsing::build::DOMAINS.iter().find(|(n, _)| *n == name)
+        .ok_or_else(|| format!("--when {} : constante inconnue (OS, ARCH ou BUILD)", raw))?;
+    if !domain.contains(&value) {
+        return Err(format!("--when {} : valeur inconnue pour System::{} ({})", raw, name, domain.join(", ")));
+    }
+    Ok((name.to_string(), value.to_string()))
 }
 
 /// Même fichier, existant ou non (`./x.oc` et `x.oc`).

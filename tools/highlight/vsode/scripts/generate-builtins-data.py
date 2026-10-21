@@ -208,6 +208,10 @@ def parse_file(class_name, mod_name, fn_name):
     methods = []
     for im in re.finditer(r'methods\.insert\(\s*"(\w+)"\.(?:into|to_string)\(\)\s*,\s*(\w+)\(', text):
         method_name = im.group(1)
+        # `__recordRuntimeResult`… : appels générés (ocaraunit, sema), jamais
+        # écrits — les constructeurs `__init__` restent.
+        if method_name.startswith("__") and method_name != "__init__":
+            continue
         helper = im.group(2)
         open_paren_idx = im.end() - 1
         close_idx = find_matching_paren(text, open_paren_idx)

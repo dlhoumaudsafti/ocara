@@ -1,0 +1,4 @@
+// Voir probe_main.oc — variante headless de core/main.runtime.oc : démarre le
+// serveur directement (même patron que la branche Android de main.runtime.oc),
+// sans thread d'attente ni fenêtre Tauri.
+server.start()

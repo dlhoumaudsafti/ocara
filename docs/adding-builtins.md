@@ -529,6 +529,7 @@ cd examples/builtins
 - [ ] Ajouter aux imports dans `OCARA_BUILTINS` (`src/main.rs`)
 - [ ] Ajouter aux imports dans `OCARA_BUILTINS` (`tools/ocaracs/src/main.rs`)
 - [ ] Ajouter dépendances externes si nécessaire (`runtime/Cargo.toml`)
+- [ ] Méthode bloquante : l'étiqueter dans `src/builtins/blocking.rs` (voir [Étiquette bloquante](#étiquette-bloquante))
 - [ ] Créer documentation `docs/builtins/<Classe>.md`
 - [ ] Créer exemple `examples/builtins/<classe>.oc`
 - [ ] Compiler avec `make build`
@@ -572,6 +573,29 @@ if self_ptr == 0 {
     throw_counter_exception("Counter is null", 101, "Counter");
 }
 ```
+
+---
+
+## Étiquette bloquante
+
+Une méthode qui bloque porte une étiquette dans `src/builtins/blocking.rs` :
+
+| Étiquette | Sens | Exemples |
+|-----------|------|----------|
+| `MAIN_THREAD` (thread principal) | Boucle d'événements qui prend le thread principal ; bloque aussi l'appelant | `Tauri.run` |
+| `BLOCKS` (bloquant) | Bloque le thread appelant | `HTTPServer.run`, `Thread::sleep`, `Thread.join`, `Mutex.lock`, lectures `IO`, requêtes `HTTPRequest` |
+
+Les assertions `UnitTest::assertBlocksMainThread`/`assertIsBlocking` lisent ces étiquettes (voir [UnitTest](builtins/UnitTest.md#blocage-tranchées-à-la-compilation)).
+
+Une méthode qui **ne rend jamais la main d'elle-même** (boucle d'événements, serveur) doit aussi rendre la main dans un binaire de test `ocaraunit`, sinon un `RuntimeTest.oc` ne termine jamais son flot : en tête de sa fonction runtime, après la validation de ses arguments,
+
+```rust
+if crate::blocking::neutralized("Counter.run") {   // ocara_runtime::blocking depuis un autre crate
+    return;
+}
+```
+
+`neutralized` n'est vrai que dans un binaire de test (`OCARA_UNITTEST`) et sur le thread principal ; l'appel est signalé par `ocaraunit`. Une attente bornée (`Thread::sleep`) n'est pas neutralisée.
 
 ---
 

@@ -623,6 +623,9 @@ fn clear_inherited_gtk_env() {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn Tauri_run(this: i64) {
+    if ocara_runtime::blocking::neutralized("Tauri.run") {
+        return;
+    }
     clear_inherited_gtk_env();
     let (title, width, height, url) = {
         let map = TAURI_WINDOWS.lock().unwrap();

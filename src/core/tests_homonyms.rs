@@ -112,3 +112,17 @@ fn local_names_shadow_homonymous_functions() {
         other => panic!("return label() attendu, trouvé {:?}", other),
     }
 }
+
+/// Fichier d'interface analysé seul (`--coverage-points`, serveur de
+/// langage) : sa cible de `wiring` importe l'interface, donc le fichier
+/// d'entrée lui-même — ses déclarations ne sont pas fusionnées deux fois.
+#[test]
+fn entry_file_reached_through_wiring_is_not_merged_twice() {
+    let dir = std::env::temp_dir().join(format!("ocara_entry_cycle_{}", std::process::id()));
+    write(&dir, "port/Port.oc", "namespace port\narchitecture permissive\n\ninterface Port {\n    wiring view.View\n    public static method show(): string\n}\n");
+    write(&dir, "view/View.oc", "namespace view\n\nimport port.Port\n\nclass View implements Port {\n    public static method show(): string {\n        return \"v\"\n    }\n}\n");
+    let input = dir.join("port/Port.oc");
+    let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&dir), dump: false, index: false, tolerant: false, architecture_only: false });
+    std::fs::remove_dir_all(&dir).ok();
+    assert!(!analysis.has_errors(), "{:?}", analysis.diagnostics);
+}

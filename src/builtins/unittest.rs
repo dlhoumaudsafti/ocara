@@ -24,6 +24,15 @@
 //   UnitTest::assertExceptionCodeNotEquals(code, expected)        → void
 //   UnitTest::assertExceptionSourceEquals(source, expected)       → void
 //   UnitTest::assertExceptionSourceNotEquals(source, expected)    → void
+//   UnitTest::assertSuccessResult()                → void   (RuntimeTest.oc)
+//   UnitTest::assertErrorResult()                  → void   (RuntimeTest.oc)
+//   UnitTest::assertErrorResultCode(code)          → void   (RuntimeTest.oc)
+//   UnitTest::assertBlocksMainThread(expr)         → void   (tranchée à la compilation)
+//   UnitTest::assertIsBlocking(expr)               → void   (tranchée à la compilation)
+//
+// Internes (appels générés par ocaraunit et par la sema) :
+//   UnitTest::__recordRuntimeResult(code)          → void
+//   UnitTest::__staticAssert(ok, message, code)    → void
 //
 // Convention runtime : UnitTest_<method>
 // ─────────────────────────────────────────────────────────────────────────────
@@ -214,6 +223,22 @@ pub fn class() -> ClassInfo {
     // UnitTest::assertExceptionSourceNotEquals(source, expected) → void
     methods.insert("assertExceptionSourceNotEquals".into(), m(
         vec![("source", Type::String), ("expected", Type::String)],
+        Type::Void,
+    ));
+
+    // Résultat du flot runtime d'un RuntimeTest.oc (voir runtime/src/unittest_runtime.rs).
+    methods.insert("assertSuccessResult".into(), m(vec![], Type::Void));
+    methods.insert("assertErrorResult".into(), m(vec![], Type::Void));
+    methods.insert("assertErrorResultCode".into(), m(vec![("code", Type::Int)], Type::Void));
+
+    // Expression analysée, jamais évaluée : remplacée par `__staticAssert`
+    // (voir src/sema/blocking_assert.rs).
+    methods.insert("assertBlocksMainThread".into(), m(vec![("expr", Type::Mixed)], Type::Void));
+    methods.insert("assertIsBlocking".into(), m(vec![("expr", Type::Mixed)], Type::Void));
+
+    methods.insert("__recordRuntimeResult".into(), m(vec![("code", Type::Int)], Type::Void));
+    methods.insert("__staticAssert".into(), m(
+        vec![("ok", Type::Bool), ("message", Type::String), ("code", Type::Int)],
         Type::Void,
     ));
 

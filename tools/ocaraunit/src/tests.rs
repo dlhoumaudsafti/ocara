@@ -89,7 +89,7 @@ fn relative_paths_outside_root() {
 
 #[test]
 fn cache_purge_selection() {
-    let entry = EntryName::of(Path::new("/nonexistent/tests/FooTest.oc"));
+    let entry = EntryName::of(Path::new("/nonexistent/tests/FooTest.oc"), "");
     let keep = entry.path(Path::new("/c"), 0xabc).file_name().unwrap().to_string_lossy().to_string();
     let older = entry.path(Path::new("/c"), 0x123).file_name().unwrap().to_string_lossy().to_string();
     assert!(!entry.is_stale(&keep, &keep));
@@ -204,5 +204,53 @@ mod line_coverage {
         assert_eq!(opts.excludes, vec!["core".to_string(), "main.oc".to_string()]);
         assert_eq!(opts.json.as_deref(), Some("out.json"));
         assert_eq!(opts.target.as_deref(), Some("tests"));
+    }
+}
+
+mod runtime_test {
+    use std::path::Path;
+
+    use crate::discovery::extract_tests;
+    use crate::runtime_test::{compose, entry_of, runner_module, runner_source, variants, Variant};
+
+    const ENTRY: &str = "namespace .\n\
+        when System::OS is not 'android'\nimport ocara.Tauri\n\n\
+        runtime core.init is init\n\n\
+        when System::OS is 'android'\nruntime core.mainAndroid is main\n\
+        when default\nruntime core.main is main\n\
+        runtime core.exit is exit\n";
+
+    #[test]
+    fn only_runtime_test_files_target_the_entry_point() {
+        assert_eq!(entry_of(Path::new("/p/tests/RuntimeTest.oc"), Path::new("/p")), Some(Path::new("/p/main.oc").to_path_buf()));
+        assert_eq!(entry_of(Path::new("/p/tests/probe_main.RuntimeTest.oc"), Path::new("/p")), Some(Path::new("/p/probe_main.oc").to_path_buf()));
+        assert_eq!(entry_of(Path::new("/p/tests/ConfigRuntimeTest.oc"), Path::new("/p")), None);
+        assert_eq!(entry_of(Path::new("/p/tests/.RuntimeTest.oc"), Path::new("/p")), None);
+    }
+
+    #[test]
+    fn variants_follow_the_when_clauses_of_runtime_declarations() {
+        let v = variants(ENTRY);
+        assert_eq!(v, vec![Variant::default(), Variant(vec![("OS".into(), "android".into())])]);
+        assert_eq!(v[1].label(), "System::OS = 'android'");
+        assert_eq!(v[1].args(), vec!["--when".to_string(), "System::OS=android".to_string()]);
+        assert_eq!(v[1].slug(), "OS-android");
+        assert_eq!(runner_module("probe_main.RuntimeTest"), "__ocaraunit__probe_main_RuntimeTest_runner");
+        // `is not` et `default` : l'hôte convient.
+        assert_eq!(variants("when System::OS is not 'android'\nruntime a is main\n"), vec![Variant::default()]);
+    }
+
+    #[test]
+    fn composition_runs_the_flow_then_the_tests_in_exit() {
+        let test = "class RuntimeTest extends UnitTest {\n    public static method prepareRuntime(): void {\n    }\n    public method flowTest(): int {\n        return 0\n    }\n}\n";
+        let source = compose(test, ENTRY, "__ocaraunit__RuntimeTest_runner");
+        assert!(source.starts_with(test), "lignes du test conservées");
+        assert!(!source.contains("namespace ."));
+        assert!(source.contains("init {\n    RuntimeTest::prepareRuntime()\n}\n"), "{}", source);
+        assert!(source.trim_end().ends_with("runtime __ocaraunit__RuntimeTest_runner is exit"), "{}", source);
+        let runner = runner_source(&extract_tests(test));
+        assert!(runner.starts_with("UnitTest::__recordRuntimeResult(ERROR)\n"), "{}", runner);
+        assert!(runner.contains("_t0.flowTest()") && !runner.contains("prepareRuntime"), "{}", runner);
+        assert!(runner.ends_with("ERROR = 0\n"), "{}", runner);
     }
 }

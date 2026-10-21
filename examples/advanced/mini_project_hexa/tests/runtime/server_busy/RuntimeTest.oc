@@ -1,0 +1,38 @@
+import ocara.UnitTest
+import ocara.HTTPServer
+import ocara.HTTPServerRequest
+import ocara.Thread
+
+// Scénario : le port 8081 est déjà pris par un serveur qui répond 503. Le
+// serveur de l'application ne démarre pas, core/main.runtime.oc abandonne
+// après 200 tentatives (10 s) avec `result 5`, traité par core/error.runtime.oc.
+class RuntimeTest extends UnitTest {
+    // Android : `server.start()` tourne sur le thread principal, un port
+    // occupé y lèverait l'exception hors de tout `try` — scénario bureau seul.
+    public static method prepareRuntime(): void {
+        when System::OS is not 'android'
+        RuntimeTest::occupyPort()
+    }
+
+    private static method occupyPort(): void {
+        const busy:HTTPServer = use HTTPServer()
+        busy.port(8081)
+        busy.route("/", "GET", nameless(req:HTTPServerRequest): int {
+            req.respond(503, "indisponible")
+            return 0
+        })
+        const thread:Thread = use Thread()
+        thread.run(nameless(): void { busy.run() })
+        thread.detach()
+        Thread::sleep(200)
+    }
+
+    // Android : port libre, `server.start()` neutralisé, le flot réussit.
+    public method serverTimeoutTest(): int {
+        when System::OS is 'android'
+        self::assertSuccessResult()
+        when default
+        self::assertErrorResultCode(5)
+        return 0
+    }
+}

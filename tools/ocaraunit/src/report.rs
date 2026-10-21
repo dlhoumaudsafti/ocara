@@ -14,6 +14,7 @@ use crate::{
     coverage::{compute_coverage, extract_all_function_names, FileCoverage},
     lines::Hits,
     runner::{run_test_file, RunContext, TestResult},
+    runtime_test::test_variants,
 };
 
 pub struct Ansi {
@@ -78,6 +79,9 @@ fn print_result(c: &Ansi, res: &TestResult, totals: &mut Totals) {
     if res.asserts.is_empty() && res.error.is_none() {
         println!("  {}(aucune assertion){}", c.dim, c.reset);
     }
+    for builtin in &res.blocked {
+        println!("  {}neutralisé : {} (bloquant, rend la main en test){}", c.dim, builtin, c.reset);
+    }
     for a in &res.asserts {
         let (col, label) = if a.passed { (c.green, "PASS") } else { (c.red, "FAIL") };
         println!("  {}{}{} {}", col, label, c.reset, a.message);
@@ -119,18 +123,23 @@ pub fn run_all(c: &Ansi, ctx: &RunContext, test_files: &[PathBuf], hits: &mut Hi
     let mut totals = Totals::default();
     for tf in test_files {
         let shown = rel_path(tf);
-        println!();
-        println!("{}{}{}:", c.bold, shown, c.reset);
-        match run_test_file(ctx, tf, &shown) {
-            Ok(res) => {
-                if let Some(report) = &res.coverage {
-                    hits.add_report(report, &ctx.project_root);
-                }
-                print_result(c, &res, &mut totals);
+        for variant in test_variants(tf, &ctx.project_root) {
+            println!();
+            match variant.label().as_str() {
+                "" => println!("{}{}{}:", c.bold, shown, c.reset),
+                label => println!("{}{}{} {}[{}]{}:", c.bold, shown, c.reset, c.dim, label, c.reset),
             }
-            Err(err) => {
-                print_block(c, "ERREUR compilation :", &err);
-                totals.errors += 1;
+            match run_test_file(ctx, tf, &shown, &variant) {
+                Ok(res) => {
+                    if let Some(report) = &res.coverage {
+                        hits.add_report(report, &ctx.project_root);
+                    }
+                    print_result(c, &res, &mut totals);
+                }
+                Err(err) => {
+                    print_block(c, "ERREUR compilation :", &err);
+                    totals.errors += 1;
+                }
             }
         }
     }
