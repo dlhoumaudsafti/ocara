@@ -9,6 +9,12 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use indexmap::IndexMap;
+
+/// Paires d'une map, clés stockées comme texte (comparées par valeur),
+/// gardées dans l'ordre d'insertion ; recherche par hachage.
+pub(crate) type MapData = IndexMap<String, i64>;
+
 pub(crate) struct OcaraArray {
     lock: AtomicBool,
     data: Vec<i64>,
@@ -16,9 +22,7 @@ pub(crate) struct OcaraArray {
 
 pub(crate) struct OcaraMap {
     lock: AtomicBool,
-    /// Clés stockées comme texte, pour comparer par valeur ; paires gardées
-    /// dans l'ordre d'insertion.
-    data: Vec<(String, i64)>,
+    data: MapData,
 }
 
 impl OcaraArray {
@@ -29,7 +33,7 @@ impl OcaraArray {
 
 impl OcaraMap {
     pub(crate) fn new() -> Self {
-        OcaraMap { lock: AtomicBool::new(false), data: Vec::new() }
+        OcaraMap { lock: AtomicBool::new(false), data: MapData::new() }
     }
 }
 
@@ -49,7 +53,7 @@ pub(crate) unsafe fn with_array<R>(ptr: i64, f: impl FnOnce(&mut Vec<i64>) -> R)
 }
 
 /// Accès exclusif aux paires de la map `ptr` (bloc `TAG_MAP` vivant).
-pub(crate) unsafe fn with_map<R>(ptr: i64, f: impl FnOnce(&mut Vec<(String, i64)>) -> R) -> R {
+pub(crate) unsafe fn with_map<R>(ptr: i64, f: impl FnOnce(&mut MapData) -> R) -> R {
     let OcaraMap { lock, data } = unsafe { &mut *(ptr as *mut OcaraMap) };
     locked(lock, data, f)
 }

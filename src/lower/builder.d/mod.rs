@@ -8,6 +8,7 @@ pub mod classes;
 pub mod wrappers;
 pub mod rc_layout;
 pub mod class_table;
+pub mod self_borrow;
 pub mod interfaces;
 pub mod class_dispatch;
 pub mod message_gen;

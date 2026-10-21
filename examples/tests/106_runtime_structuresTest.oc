@@ -1,0 +1,91 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.Map
+import ocara.String
+
+// Map par hachage et concaténation en place : mêmes résultats qu'avant
+// (ordre des clés, partage des chaînes) — voir
+// docs/roadmap.d/perf-runtime-complexite.md.
+
+class Test106RuntimeStructures extends UnitTest {
+
+    public method mapKeepsInsertionOrderTest(): int {
+        var m:map<string, int> = {"b": 1, "a": 2, "c": 3}
+        m["a"] = 20
+        Map::remove(m, "b")
+        m["d"] = 4
+        var keys:string = ""
+        for k has v in m {
+            keys = keys + k
+        }
+        self::assertEquals("acd", keys)
+        self::assertEquals(20, m["a"])
+        self::assertFalse(m.has("b"))
+        return 0
+    }
+
+    public method mapWithIntKeysTest(): int {
+        var squares:map<int, int> = {}
+        for i in 0 until 5000 {
+            squares[i] = i * i
+        }
+        self::assertEquals(4999 * 4999, squares[4999])
+        self::assertEquals(5000, squares.size())
+        return 0
+    }
+
+    public method appendDoesNotTouchSharedStringTest(): int {
+        var s:string = "ab"
+        var t:string = s
+        s = s + "c"
+        s += "d"
+        self::assertEquals("ab", t)
+        self::assertEquals("abcd", s)
+        return 0
+    }
+
+    public method appendSelfTest(): int {
+        var s:string = "ab"
+        s = s + s
+        s = s + s
+        self::assertEquals("abababab", s)
+        return 0
+    }
+
+    public method appendInClosureTest(): int {
+        var log:string = ""
+        var add:Function<void(string)> = nameless(x:string): void { log = log + x }
+        for i in 0 until 3 {
+            add(`${i}`)
+        }
+        self::assertEquals("012", log)
+        return 0
+    }
+
+    public method appendInGeneratorTest(): int {
+        var last:string = ""
+        for word in growing(3) {
+            last = word
+        }
+        self::assertEquals("xxx", last)
+        return 0
+    }
+
+    public method longAppendTest(): int {
+        var s:string = ""
+        for i in 0 until 20000 {
+            s = s + "ab"
+        }
+        self::assertEquals(40000, String::len(s))
+        return 0
+    }
+}
+
+function growing(n:int): message<string> {
+    var s:string = ""
+    for i in 0 until n {
+        s = s + "x"
+        emit s
+    }
+}

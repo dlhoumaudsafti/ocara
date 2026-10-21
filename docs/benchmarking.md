@@ -327,8 +327,9 @@ strace -f -c -o sys.txt ./prog > /dev/null                     # threads, async
 ```
 
 Un nombre d'appels proportionnel à N signale un appel système par
-itération : `rt_sigprocmask` (exceptions : `setjmp` sauvegarde le masque),
-`clone3` (une tâche `async` = un thread), `futex` (attente de verrou).
+itération : `clone3` (une tâche `async` = un thread), `futex` (attente de
+verrou). Une exception n'en fait plus aucun (`_setjmp`, sans sauvegarde du
+masque de signaux).
 
 ## `/usr/bin/time -v` : champs utiles
 
@@ -464,20 +465,21 @@ Coût d'un appel de fonction manipulant des valeurs comptées (retenue,
 libération, enregistrement pour le déroulement des exceptions) : environ
 20 ns (5 millions d'appels en 0,11 s).
 
-Audit du 2026-10-19 (machine de 12 cœurs chargée ; minimum de 3 à 5
-exécutions) — les écarts sont suivis dans
+Audit du 2026-10-19, mis à jour le 2026-10-21 (machine de 12 cœurs chargée ;
+minimum de 3 à 5 exécutions) — les écarts sont suivis dans
 [roadmap.d/perf-runtime-complexite.md](roadmap.d/perf-runtime-complexite.md) :
 
 | Mesure | Ocara | Référence |
 |---|---|---|
 | Boucle d'entiers, 2·10⁸ itérations | 0,58 s (`while`), 0,43 s (`for … until`) | C `-O2` 0,15 s ; Python ≈ 11,6 s |
 | Boucle de flottants, 10⁸ itérations | 0,25 s | C `-O2` 0,10 s |
-| Appel de fonction libre / méthode / via interface | 1,4 ns / 26 ns / 50 ns | C 0,5 ns ; méthode Python 37 ns |
-| `use P(i)` (objet int + string) | 90–140 ns | Python 123 ns |
+| Appel de fonction libre / accesseur / méthode qui appelle | 1,4 ns / 0,5 ns / ≈ 20 ns | C 0,5 ns ; méthode Python 37 ns |
+| `use P(i)` (objet int + string) | ≈ 80 ns | Python 123 ns |
 | `push` 10⁶ | 0,02 s | — |
-| `map<int,int>`, 10⁵ insertions + lectures | 18–21 s | Python 0,10 s |
-| `s = s + "x"`, 10⁶ | 67 s | Python 0,026 s |
+| `map<int,int>`, 10⁶ insertions + lectures | 0,36 s (`map<string,int>` : 0,75 s) | Python 1,2 s |
+| `s = s + "x"`, 10⁶ | 0,01 s | Python 0,026 s |
+| Graphe de 10⁶ objets liés, parcouru 5 fois | 0,57 s | — |
 | Gabarit à trois parties | 410–610 ns | f-string Python 135 ns |
-| Exception levée et rattrapée | 0,37–0,69 µs | Python 0,12 µs |
+| Exception levée et rattrapée | 0,06 µs | Python 0,12 µs |
 | `async` + `resolve` | ~30 µs | — |
 | Serveur HTTP, 8 workers | 5 000–6 600 requêtes/s | — |

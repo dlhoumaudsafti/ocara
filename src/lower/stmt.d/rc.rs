@@ -504,6 +504,10 @@ pub fn begin_function(builder: &mut LowerBuilder, params: &[crate::parsing::ast:
     }
     for param in params {
         let ty = if param.is_variadic { Type::Array(Box::new(param.ty.clone())) } else { param.ty.clone() };
+        // `self` emprunté : déjà déclaré simple ci-dessus.
+        if param.name == "self" && builder.self_borrowed {
+            continue;
+        }
         if !counted(builder, &ty) {
             declare_plain(builder, &param.name);
             continue;

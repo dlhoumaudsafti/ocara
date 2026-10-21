@@ -129,6 +129,7 @@ pub mod yaml;
 pub mod rc;
 pub mod task;
 pub mod mixed_check;
+pub mod str_append;
 pub mod profile;
 pub mod leak;
 pub mod global_const;
@@ -193,8 +194,7 @@ pub unsafe fn free_str(val: i64) {
         // Longueur réelle stockée à l'allocation (voir alloc_str) — plus
         // fiable qu'un recalcul par recherche du premier octet NUL, qui
         // sous-estimerait la taille si la string contient un NUL interne.
-        let len = *((val - 16) as *const i64) as usize;
-        rc::free_block(val, len + 1);
+        rc::free_block(val, str_append::str_payload(val));
     }
 }
 
@@ -213,7 +213,7 @@ pub unsafe fn ptr_to_str<'a>(val: i64) -> &'a str {
         return "";
     }
     unsafe {
-        let len = *((val - 16) as *const i64) as usize;
+        let len = str_append::str_len(val);
         let bytes = std::slice::from_raw_parts(val as *const u8, len);
         std::str::from_utf8(bytes).unwrap_or("")
     }
@@ -433,7 +433,7 @@ pub(crate) unsafe fn array_data(ptr: i64) -> Vec<i64> {
 }
 
 pub(crate) unsafe fn map_values(ptr: i64) -> Vec<i64> {
-    unsafe { with_map(ptr, |data| data.iter().map(|(_, v)| *v).collect()) }
+    unsafe { with_map(ptr, |data| data.values().copied().collect()) }
 }
 
 pub(crate) unsafe fn drop_array_block(ptr: i64) {
@@ -712,6 +712,15 @@ unsafe fn key_to_string(key: i64) -> String {
     }
 }
 
+/// Appelle `f` avec le texte de la clé, sans copie pour une clé chaîne.
+unsafe fn with_key_text<R>(key: i64, f: impl FnOnce(&str) -> R) -> R {
+    if is_ptr(key) && !is_float_box(key) && !is_bool_box(key) && !is_int_box(key) {
+        f(unsafe { ptr_to_str(key) })
+    } else {
+        f(&unsafe { key_to_string(key) })
+    }
+}
+
 /// Clé texte d'une map → valeur brute du type de clé déclaré `K` (`kind` :
 /// 1 = int, 2 = float, 3 = bool ; sinon la chaîne, retenue).
 fn key_from_text(text: &str, kind: i64) -> i64 {
@@ -750,13 +759,7 @@ fn map_put(ptr: i64, key: i64, val: i64) {
     if ptr == 0 { return; }
     let k = unsafe { key_to_string(key) };
     let old = unsafe {
-        with_map(ptr, |data| match data.iter_mut().find(|e| e.0 == k) {
-            Some(entry) => Some(std::mem::replace(&mut entry.1, val)),
-            None => {
-                data.push((k, val));
-                None
-            }
-        })
+        with_map(ptr, |data| data.insert(k, val))
     };
     if let Some(old) = old {
         release_elem(ptr, old);
@@ -774,14 +777,13 @@ pub extern "C" fn __map_set(ptr: i64, key: i64, val: i64) {
 /// la clé ; `0` si absente. `pub` : utilisé par runtime_sdl/runtime_tauri.
 pub fn map_lookup(ptr: i64, key: &str) -> i64 {
     if ptr == 0 { return 0; }
-    unsafe { with_map(ptr, |data| data.iter().find(|e| e.0 == key).map_or(0, |e| e.1)) }
+    unsafe { with_map(ptr, |data| data.get(key).copied().unwrap_or(0)) }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn __map_get(ptr: i64, key: i64) -> i64 {
     if ptr == 0 { return 0; }
-    let k = unsafe { key_to_string(key) };
-    map_lookup(ptr, &k)
+    unsafe { with_key_text(key, |k| map_lookup(ptr, k)) }
 }
 
 /// Copie les paires (clé, valeur `mixed` brute) d'une `map<string, mixed>` —
@@ -789,7 +791,7 @@ pub extern "C" fn __map_get(ptr: i64, key: i64) -> i64 {
 /// tout le contenu sans exposer `OcaraMap` lui-même.
 pub(crate) unsafe fn map_entries(ptr: i64) -> Vec<(String, i64)> {
     if ptr == 0 { return Vec::new(); }
-    unsafe { with_map(ptr, |data| data.clone()) }
+    unsafe { with_map(ptr, |data| data.iter().map(|(k, v)| (k.clone(), *v)).collect()) }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1320,8 +1322,7 @@ pub extern "C" fn Map_size(ptr: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn Map_has(ptr: i64, key: i64) -> i64 {
     if ptr == 0 { return 0; }
-    let k = unsafe { key_to_string(key) };
-    if unsafe { with_map(ptr, |data| data.iter().any(|e| e.0 == k)) } { 1 } else { 0 }
+    if unsafe { with_key_text(key, |k| with_map(ptr, |data| data.contains_key(k))) } { 1 } else { 0 }
 }
 
 #[unsafe(no_mangle)]
@@ -1337,7 +1338,7 @@ pub extern "C" fn Map_get(ptr: i64, key: i64) -> i64 {
         }
     }
     let k = unsafe { key_to_string(key) };
-    match unsafe { with_map(ptr, |data| data.iter().find(|e| e.0 == k).map(|e| e.1)) } {
+    match unsafe { with_map(ptr, |data| data.get(&k).copied()) } {
         Some(v) => v,
         None => unsafe {
             exception::throw_map_exception(&format!("Key not found: {}", k), ERR_MAP_KEY_NOT_FOUND, "Map")
@@ -1354,14 +1355,10 @@ pub extern "C" fn Map_set(ptr: i64, key: i64, val: i64) {
 pub extern "C" fn Map_remove(ptr: i64, key: i64) {
     if ptr == 0 { return; }
     let k = unsafe { key_to_string(key) };
-    let removed: Vec<i64> = unsafe {
-        with_map(ptr, |data| {
-            let removed = data.iter().filter(|e| e.0 == k).map(|e| e.1).collect();
-            data.retain(|e| e.0 != k);
-            removed
-        })
-    };
-    for v in removed { release_elem(ptr, v) }
+    let removed = unsafe { with_map(ptr, |data| data.shift_remove(&k)) };
+    if let Some(v) = removed {
+        release_elem(ptr, v);
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -1374,7 +1371,7 @@ pub extern "C" fn Map_keys(ptr: i64, kind: i64) -> i64 {
     }
     if ptr == 0 { return arr_ptr; }
     // Les clés sont stockées en texte — converties au type `K`.
-    let texts: Vec<String> = unsafe { with_map(ptr, |data| data.iter().map(|(k, _)| k.clone()).collect()) };
+    let texts: Vec<String> = unsafe { with_map(ptr, |data| data.keys().cloned().collect()) };
     let keys: Vec<i64> = texts.iter().map(|k| key_from_text(k, kind)).collect();
     unsafe { with_array(arr_ptr, |data| *data = keys) }
     arr_ptr
@@ -2644,7 +2641,10 @@ pub extern "C" fn __alloc_env(n_caps: i64, n_fields: i64) -> i64 {
 struct JmpBuf([u64; 25]);
 
 unsafe extern "C" {
+    /// `_setjmp` : sans sauvegarde du masque de signaux (`setjmp` de glibc
+    /// faisait deux `rt_sigprocmask` par exception).
     #[allow(improper_ctypes)]
+    #[cfg_attr(not(windows), link_name = "_setjmp")]
     fn setjmp(env: *mut JmpBuf) -> i32;
     #[allow(improper_ctypes)]
     fn longjmp(env: *mut JmpBuf, val: i32) -> !;

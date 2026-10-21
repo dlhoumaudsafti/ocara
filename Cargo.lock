@@ -2818,6 +2818,7 @@ name = "ocara_runtime"
 version = "1.0.0"
 dependencies = [
  "idna 0.3.0",
+ "indexmap 2.14.0",
  "libc",
  "libz-sys",
  "mysql",

@@ -221,6 +221,7 @@ pub fn lower_func(
 
     // Body
     crate::lower::stmt::rc::begin_unwind(&mut builder);
+    builder.self_borrowed = super::self_borrow::self_stays_alive(&func.body);
     crate::lower::stmt::rc::begin_function(&mut builder, &func.params);
     own_entry_consts(&mut builder, &owned_consts);
     crate::lower::stmt::lower_block(&mut builder, &func.body);

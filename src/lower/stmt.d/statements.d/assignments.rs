@@ -14,6 +14,9 @@ pub fn lower_assign(
     target: &Expr,
     value: &Expr,
 ) {
+    if lower_string_append(builder, target, value) {
+        return;
+    }
     let val_ty = expr_ir_type_pub(builder, value);
     // Littéral `array`/`map` affecté : typé par le type déclaré de la cible
     // (`self.counts = {"a": 0}` pour `map<string,int>`), comme pour `var`/
@@ -422,4 +425,24 @@ fn declared_field_type(builder: &LowerBuilder, class: &str, field: &str) -> Opti
     builder.module.class_field_types.get(class)?
         .iter().find(|(f, _)| f == field)
         .map(|(_, ty)| ty.clone())
+}
+
+/// `s = s + e` (et `s += e`) sur une variable `string` : `__str_append`
+/// reprend la référence de `s` et l'allonge en place quand elle n'est pas
+/// partagée — une boucle de concaténations n'est plus quadratique.
+fn lower_string_append(builder: &mut LowerBuilder, target: &Expr, value: &Expr) -> bool {
+    let (Expr::Ident(name, _), Expr::Binary { op: BinOp::Add, left, right, .. }) = (target, value) else { return false };
+    let same_var = matches!(left.as_ref(), Expr::Ident(l, _) if l == name);
+    if !same_var || builder.var_class.get(name.as_str()).map(String::as_str) != Some("String")
+        || !crate::lower::stmt::rc::is_counted_local(builder, name)
+        || expr_ir_type_pub(builder, right) != IrType::Ptr
+    {
+        return false;
+    }
+    let tail = lower_expr(builder, right);
+    let Some((current, _)) = builder.load_local(name) else { return false };
+    let joined = builder.new_value();
+    builder.emit(Inst::Call { dest: Some(joined.clone()), func: "__str_append".into(), args: vec![current, tail], ret_ty: IrType::Ptr });
+    builder.store_local(name, joined);
+    true
 }

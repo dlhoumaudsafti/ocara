@@ -1,0 +1,87 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 74 — structures du runtime à l'échelle
+//
+// Voir docs/roadmap.d/perf-runtime-complexite.md.
+//
+// Illustre (chaque boucle tourne en quelques millisecondes) :
+//   - une map de 100 000 clés (accès par hachage, ordre d'insertion gardé)
+//   - 100 000 concaténations `s = s + …` (allongement en place)
+//   - une chaîne partagée n'est jamais modifiée par la concaténation
+//   - 30 000 cycles poubelles rendus par le collecteur
+//   - des exceptions en boucle
+// ─────────────────────────────────────────────────────────────────────────────
+
+architecture permissive
+
+import ocara.IO
+import ocara.Map
+import ocara.String
+
+class Pair {
+    public property value:int
+    public property other:Pair|null = null
+
+    init(value:int) {
+        self.value = value
+    }
+
+    public method get(): int {
+        return self.value
+    }
+}
+
+function fillMap(n:int): int {
+    var m:map<string, int> = {}
+    for i in 0 until n {
+        m[`k${i}`] = i
+    }
+    var total:int = 0
+    for i in 0 until n {
+        total += m[`k${i}`]
+    }
+    Map::remove(m, "k0")
+    return total + m.size()
+}
+
+function build(n:int): string {
+    var s:string = ""
+    for i in 0 until n {
+        s = s + "x"
+    }
+    return s
+}
+
+function churn(n:int): int {
+    var sum:int = 0
+    for i in 0 until n {
+        var a:Pair = use Pair(i)
+        var b:Pair = use Pair(i)
+        a.other = b
+        b.other = a
+        sum += a.get() - b.get()
+    }
+    return sum
+}
+
+function failures(n:int): int {
+    var caught:int = 0
+    for i in 0 until n {
+        try {
+            raise "échec"
+        } on e {
+            caught += 1
+        }
+    }
+    return caught
+}
+
+function main(): void {
+    IO::writeln(`${fillMap(100000)}`)               // 5000049999
+    IO::writeln(`${String::len(build(100000))}`)    // 100000
+    var shared:string = "ab"
+    var copy:string = shared
+    shared = shared + "c"
+    IO::writeln(`${copy} ${shared}`)                // ab abc
+    IO::writeln(`${churn(30000)}`)                  // 0
+    IO::writeln(`${failures(10000)}`)               // 10000
+}

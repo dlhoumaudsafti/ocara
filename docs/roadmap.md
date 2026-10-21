@@ -29,7 +29,6 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Performances : `map` et concaténation quadratiques, collecteur de cycles** — Map 10⁵ insertions → ~20 s (recherche linéaire) ; `s = s + "x"` × 10⁶ → 67 s ; collecte de cycles qui reparcourt le graphe vivant ; méthode ~26 ns (retain/release de `self`) ; deux appels système par exception. *(Structurel)* → [détails](roadmap.d/perf-runtime-complexite.md)
 - **Compilateur : fonctions géantes encore super-linéaires** — `elseif` × 40 000 → 9,9 s (arbre des dominateurs de Cranelift) ; 50 000 `if` imbriqués → 130 s ; imbrication des instructions non bornée par un diagnostic. *(Légère à Structurel)* → [détails](roadmap.d/compilateur-limites-echelle-residuelles.md)
 
 ---
@@ -38,6 +37,7 @@ Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnali
 
 À traiter mais non bloquant pour la stabilité du langage.
 
+- **Performances : surcoûts constants restants** — méthode qui appelle du code ~20 ns (retenue de `self`) ; gabarits ~4 fois plus lents que Python ; un thread système par appel `async` ; spinlock par accès de conteneur ; pas de niveau d'optimisation Cranelift. *(Légère à Structurel)* → [détails](roadmap.d/perf-runtime-complexite.md)
 - **Tests des blocs runtime : `RuntimeTest.oc`, builtins bloquants neutralisés** — un `RuntimeTest.oc` exécute le `main` complet généré par les blocs runtime (variantes `when` comprises) pour couvrir les `*.runtime.oc` ; `assertSuccessResult()`/`assertErrorResult()`/`assertErrorResultCode(code)` ; builtins bloquants (Tauri, SDL, HTTPServer…) étiquetés et neutralisés dans les binaires de test ; `assertBlocksMainThread(expr)`/`assertIsBlocking(expr)` résolues à la compilation. *(Structurel)* → [détails](roadmap.d/tooling-ocaraunit-runtime-tests.md)
 - **Extension VS Code : nouvelles fonctions de benchmark et de profilage** — courbe de complexité (`__N__`, pente log-log), min/médiane et charge machine, comparaison A/B, compteurs du runtime (retain/release, collectes, threads), profil cliquable et CodeLens, flamegraph (perf ou échantillonnage gdb), `strace -c`, plateau de serveur, ocaraunit `--leak-check`/`--profile`, export de l'historique. *(Légère à Structurel)* → [détails](roadmap.d/tooling-vscode-benchmark-profilage.md)
 

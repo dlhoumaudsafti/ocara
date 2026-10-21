@@ -4,6 +4,7 @@ use cranelift_codegen::ir::types as clt;
 pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     // ── Internes (toujours disponibles, jamais appelables directement) ────────
     BuiltinDesc { name: "__str_concat",      params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__str_append",      params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__val_to_str",      params: &[clt::I64],                             returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__str_from_float",  params: &[clt::F64],                             returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__str_from_bool",   params: &[clt::I64],                             returns: Some(clt::I64),    module: None },

@@ -418,6 +418,13 @@ pub(crate) unsafe fn release(val: i64) {
             destroy(val, k);
         }
     }
+    // Collecte lancée APRÈS la décrémentation : lancée au milieu (racine
+    // inscrite, référence pas encore rendue), une collecte exclusive jugeait
+    // la valeur vivante et la retirait du tampon — la décrémentation qui
+    // suivait laissait alors un cycle poubelle sans racine.
+    if COLLECT_DUE.with(|c| c.replace(false)) {
+        collect_due();
+    }
 }
 
 /// Rend une référence ; vrai si c'était la dernière. Une valeur susceptible
@@ -427,7 +434,7 @@ pub(crate) unsafe fn release(val: i64) {
 /// l'atteindre pour la retenir) ; si elle meurt quand même entre-temps,
 /// `destroy` la voit inscrite et laisse la collecte la libérer.
 unsafe fn decrement(val: i64, k: Kind, w: &AtomicI64) -> bool {
-    if can_cycle(k) && count_of(w) > 1 {
+    if can_cycle(k) && count_of(w) > 1 && unsafe { may_hold_references(val, k) } {
         possible_root(val, w);
     }
     let previous = w.fetch_sub(1, Ordering::SeqCst);
@@ -458,7 +465,29 @@ unsafe fn destroy(val: i64, k: Kind) {
     }
 }
 
+/// Valeur qui peut référencer d'autres valeurs comptées, donc appartenir à
+/// un cycle : objet à champ référence, conteneur d'éléments non bruts,
+/// closure avec environnement, cellule comptée, environnement non vide.
+/// Les autres ne passent jamais par le tampon des racines.
+unsafe fn may_hold_references(val: i64, k: Kind) -> bool {
+    unsafe {
+        match k {
+            Kind::Object => object_mask(val).contains(&b'1'),
+            Kind::Array | Kind::Map => aux(val) & FLAG_RAW == 0,
+            Kind::Function => *((val + 8) as *const i64) != 0,
+            Kind::Cell => aux(val) & 1 != 0,
+            Kind::Env => aux(val) & COUNT_MASK != 0,
+            _ => false,
+        }
+    }
+}
+
 fn possible_root(val: i64, w: &AtomicI64) {
+    // Déjà inscrite et violette : rien à changer.
+    let current = w.load(Ordering::Acquire);
+    if current & BUFFERED != 0 && (current & COLOR_MASK) >> COLOR_SHIFT == Color::Purple as i64 {
+        return;
+    }
     set_color(w, Color::Purple);
     let previous = w.fetch_or(BUFFERED, Ordering::AcqRel);
     if previous & BUFFERED != 0 {
@@ -469,10 +498,15 @@ fn possible_root(val: i64, w: &AtomicI64) {
         roots.push(val);
         roots.len()
     };
-    let limit = ROOTS_LIMIT.load(Ordering::Acquire);
-    if pending < limit {
-        return;
+    if pending >= ROOTS_LIMIT.load(Ordering::Acquire) {
+        COLLECT_DUE.with(|c| c.set(true));
     }
+}
+
+/// Seuil du tampon des racines atteint : collecte.
+fn collect_due() {
+    let pending = ROOTS.lock().unwrap_or_else(|e| e.into_inner()).len();
+    let limit = ROOTS_LIMIT.load(Ordering::Acquire);
     // Contre-pression : les autres threads produisent des racines pendant
     // une collecte concurrente ; au-delà de 4 fois le seuil, attendre sa fin
     // borne la mémoire au rythme du collecteur.
@@ -485,6 +519,9 @@ fn possible_root(val: i64, w: &AtomicI64) {
 }
 
 thread_local! {
+    /// Le tampon des racines a atteint son seuil pendant un `release` du
+    /// thread courant : collecte à la fin de ce `release`.
+    static COLLECT_DUE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     /// Le thread courant exécute une collecte : ses propres `release` ne
     /// l'attendent jamais.
     static IN_COLLECTOR: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
@@ -542,14 +579,17 @@ unsafe fn collect_exclusive() {
         for &(s, k) in &kept {
             scan(s, k);
         }
+        // Seuil relevé par les racines restées vivantes : sans ça, un grand
+        // graphe vivant était reparcouru tous les `ROOTS_THRESHOLD` candidats.
+        let live = kept.iter().filter(|&&(s, k)| color_of(word(s, k)) == Color::Black).count();
         for &(s, k) in &kept {
             word(s, k).fetch_and(!BUFFERED, Ordering::AcqRel);
         }
         for (s, k) in kept {
             collect_white(s, k);
         }
+        ROOTS_LIMIT.store((live * 2).max(ROOTS_THRESHOLD), Ordering::Release);
     }
-    ROOTS_LIMIT.store(ROOTS_THRESHOLD, Ordering::Release);
 }
 
 /// Collecte pendant que d'autres threads Ocara modifient des comptes :

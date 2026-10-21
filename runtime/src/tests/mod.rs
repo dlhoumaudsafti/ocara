@@ -10,3 +10,4 @@ mod httpsession;
 mod string;
 mod rc;
 mod task;
+mod structures;
