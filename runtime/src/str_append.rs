@@ -94,3 +94,49 @@ pub extern "C" fn __str_append(s: i64, b: i64) -> i64 {
     unsafe { rc::release(s) }
     joined
 }
+
+/// Genre d'une partie de gabarit (voir `__str_build`).
+const PART_VALUE: i64 = 0;
+const PART_INT: i64 = 1;
+const PART_FLOAT: i64 = 2;
+const PART_BOOL: i64 = 3;
+const PART_ARRAY: i64 = 4;
+
+thread_local! {
+    /// Tampon de formatage des gabarits, réutilisé d'un appel à l'autre.
+    static TEMPLATE_BUFFER: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
+}
+
+/// Appelle `f` avec le tampon de texte du thread, vidé (réutilisé d'un appel
+/// à l'autre : aucune allocation pour construire un résultat).
+pub(crate) fn with_buffer<R>(f: impl FnOnce(&mut String) -> R) -> R {
+    TEMPLATE_BUFFER.with(|buffer| {
+        let mut text = buffer.borrow_mut();
+        text.clear();
+        f(&mut text)
+    })
+}
+
+/// Gabarit `` `a${x}b${y}` `` : `parts` pointe sur `n` paires (genre,
+/// valeur) — chaîne ou valeur auto-décrite, `int`, `float` (bits), `bool`,
+/// tableau. Formaté dans un tampon réutilisé, une seule allocation pour le
+/// résultat (une allocation par partie et par concaténation auparavant).
+#[unsafe(no_mangle)]
+pub extern "C" fn __str_build(parts: *const i64, n: i64) -> i64 {
+    use std::fmt::Write;
+    with_buffer(|text| {
+        for i in 0..n.max(0) as usize {
+            let (kind, v) = unsafe { (*parts.add(2 * i), *parts.add(2 * i + 1)) };
+            match kind {
+                PART_INT => { let _ = write!(text, "{}", v); }
+                PART_FLOAT => { let _ = write!(text, "{}", f64::from_bits(v as u64)); }
+                PART_BOOL => text.push_str(if v != 0 { "true" } else { "false" }),
+                PART_ARRAY if v == 0 => text.push_str("[]"),
+                PART_ARRAY => text.push_str(&crate::ptr_to_display(v, 0)),
+                PART_VALUE if crate::typecheck::__is_string(v) != 0 => text.push_str(unsafe { crate::ptr_to_str(v) }),
+                _ => text.push_str(&crate::val_to_string(v)),
+            }
+        }
+        unsafe { crate::alloc_str(text) }
+    })
+}

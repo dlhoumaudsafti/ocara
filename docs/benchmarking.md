@@ -327,9 +327,9 @@ strace -f -c -o sys.txt ./prog > /dev/null                     # threads, async
 ```
 
 Un nombre d'appels proportionnel à N signale un appel système par
-itération : `clone3` (une tâche `async` = un thread), `futex` (attente de
-verrou). Une exception n'en fait plus aucun (`_setjmp`, sans sauvegarde du
-masque de signaux).
+itération : `futex` (attente de verrou, réveil d'un thread du pool de
+tâches `async`). Une exception n'en fait plus aucun (`_setjmp`, sans
+sauvegarde du masque de signaux).
 
 ## `/usr/bin/time -v` : champs utiles
 
@@ -466,20 +466,35 @@ libération, enregistrement pour le déroulement des exceptions) : environ
 20 ns (5 millions d'appels en 0,11 s).
 
 Audit du 2026-10-19, mis à jour le 2026-10-21 (machine de 12 cœurs chargée ;
-minimum de 3 à 5 exécutions) — les écarts sont suivis dans
-[roadmap.d/perf-runtime-complexite.md](roadmap.d/perf-runtime-complexite.md) :
+minimum de 3 à 5 exécutions). Règle : **aucune mesure ne doit être plus lente
+que la référence Python**. `make perf` (`ci/perf_python.sh`, programmes dans
+`ci/perf/`) la vérifie : chaque mesure compile le programme Ocara et
+l'exécute avec le même algorithme en Python (minimum de 5 exécutions), et
+échoue si Ocara est plus lent. Hors de `make regression`, les temps
+dépendant de la charge de la machine. Pistes restantes :
+[roadmap.d/perf-runtime-complexite.md](roadmap.d/perf-runtime-complexite.md).
 
 | Mesure | Ocara | Référence |
 |---|---|---|
 | Boucle d'entiers, 2·10⁸ itérations | 0,58 s (`while`), 0,43 s (`for … until`) | C `-O2` 0,15 s ; Python ≈ 11,6 s |
 | Boucle de flottants, 10⁸ itérations | 0,25 s | C `-O2` 0,10 s |
-| Appel de fonction libre / accesseur / méthode qui appelle | 1,4 ns / 0,5 ns / ≈ 20 ns | C 0,5 ns ; méthode Python 37 ns |
+| Boucle flottante + `fib(30)` (`loop`) | 0,07 s | Python 1,18 s |
+| Appel de fonction libre / accesseur / méthode qui appelle | 1,4 ns / 0,5 ns / ≈ 15 ns | C 0,5 ns ; méthode Python 37 ns |
+| 10⁷ appels de méthode qui en appelle une autre (`meth`) | 0,15 s | Python 0,81 s |
 | `use P(i)` (objet int + string) | ≈ 80 ns | Python 123 ns |
-| `push` 10⁶ | 0,02 s | — |
-| `map<int,int>`, 10⁶ insertions + lectures | 0,36 s (`map<string,int>` : 0,75 s) | Python 1,2 s |
-| `s = s + "x"`, 10⁶ | 0,01 s | Python 0,026 s |
-| Graphe de 10⁶ objets liés, parcouru 5 fois | 0,57 s | — |
-| Gabarit à trois parties | 410–610 ns | f-string Python 135 ns |
-| Exception levée et rattrapée | 0,06 µs | Python 0,12 µs |
-| `async` + `resolve` | ~30 µs | — |
+| Tableau : 2·10⁶ `push` + 2·10⁷ lectures (`arr`) | 0,04 s | Python 1,20 s |
+| `map<string,int>`, 10⁶ insertions + lectures (`map`) | 0,28 s | Python 0,53 s |
+| `s = s + "x"`, 10⁶ (`concat`) | 0,01 s | Python 0,03 s |
+| Graphe de 10⁶ objets liés, parcouru 5 fois (`cycles`) | 0,36 s | Python 0,85 s |
+| Gabarit à trois parties, 2·10⁶ (`tpl`) | 0,09 s | f-string Python 0,32 s |
+| `String::split` (6 morceaux), 10⁶ (`split`) | 0,14 s | Python 0,16 s |
+| `String::replace` + `upper`, 10⁶ (`replace`) | 0,08 s | Python 0,13 s |
+| `Array::join` + `intToStr`, 10⁶ (`join`) | 0,09 s | Python 0,19 s |
+| Parcours `for k has v in m`, 2·10⁶ paires (`mapiter`) | 0,05 s | Python 0,11 s |
+| Comparaisons de chaînes, 2·10⁷ (`strcmp`) | 0,20 s | Python 0,69 s |
+| `Array::sort`, 10⁶ entiers (`sort`) | 0,04 s | Python 0,19 s |
+| `JSON::encode` + `decode`, 2·10⁵ (`jsonb`) | 0,27 s | Python 0,60 s |
+| 10⁶ objets créés + appel de méthode (`objs`) | 0,09 s | Python 0,63 s |
+| Exception levée et rattrapée, 10⁶ (`exc`) | 0,05 s | Python 0,17 s |
+| `async` + `resolve`, 5·10⁴ (`asy`) | 0,10 s (≈ 2 µs) | `asyncio` Python 0,23 s |
 | Serveur HTTP, 8 workers | 5 000–6 600 requêtes/s | — |

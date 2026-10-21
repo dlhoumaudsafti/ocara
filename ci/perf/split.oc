@@ -1,0 +1,20 @@
+architecture permissive
+
+import ocara.IO
+import ocara.Convert
+import ocara.System
+import ocara.String
+import ocara.Array
+import ocara.Map
+import ocara.JSON
+
+function main(): void {
+    var n:int = Convert::strToInt(System::args()[1])
+    var line:string = "alpha,beta,gamma,delta,epsilon,zeta"
+    var tot:int = 0
+    for i in 0 until n {
+        var parts:array<string> = String::split(line, ",")
+        tot += parts.len()
+    }
+    IO::writeln(`${tot}`)
+}

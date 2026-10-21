@@ -1,0 +1,18 @@
+architecture permissive
+
+import ocara.IO
+import ocara.Convert
+import ocara.System
+import ocara.String
+import ocara.Array
+
+function fib(n:int): int {
+    if n smaller 2 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+function main(): void {
+    var n:int = Convert::strToInt(System::args()[1])
+    var acc:float = 0.0
+    for i in 0 until n { acc = acc + Convert::intToFloat(i % 7) * 0.5 }
+    IO::writeln(`${fib(30)} ${acc}`)
+}

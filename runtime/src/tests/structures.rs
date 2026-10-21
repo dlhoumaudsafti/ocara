@@ -69,3 +69,56 @@ fn append_never_mutates_a_shared_string() {
     __rc_release(other);
     __rc_release(tail);
 }
+
+#[test]
+fn small_blocks_are_reused_and_resized() {
+    use crate::alloc_cache::{alloc, dealloc};
+    use std::alloc::Layout;
+    let layout = Layout::from_size_align(40, 8).unwrap();
+    unsafe {
+        let a = alloc(layout);
+        dealloc(a, layout);
+        let b = alloc(layout);
+        assert_eq!(a, b, "bloc resservi par la liste du thread");
+        dealloc(b, layout);
+    }
+    let mut v: Vec<u64> = Vec::new();
+    for i in 0..1000 {
+        v.push(i);
+    }
+    assert_eq!(v.iter().sum::<u64>(), 499500);
+}
+
+#[test]
+fn int_text_formats_every_range() {
+    for n in [0i64, 7, -7, 1234567890, i64::MAX, i64::MIN] {
+        assert_eq!(int_text(n, &mut [0; 20]), n.to_string());
+    }
+}
+
+#[test]
+fn replace_and_split_keep_their_results() {
+    unsafe {
+        let r = String_replace(key("aXbXXc"), key("X"), key("--"));
+        assert_eq!(ptr_to_str(r), "a--b----c");
+        let r = String_replace(key("éàé"), key("é"), key("e"));
+        assert_eq!(ptr_to_str(r), "eàe");
+        let parts = String_split(key("a,,b,é"), key(","));
+        let texts: Vec<String> = (0..__array_len(parts)).map(|i| ptr_to_str(__array_get(parts, i)).to_string()).collect();
+        assert_eq!(texts, vec!["a", "", "b", "é"]);
+        let parts = String_split(key("a::b"), key("::"));
+        assert_eq!(__array_len(parts), 2);
+        assert_eq!(String_len(key("éa")), 2);
+        assert_eq!(ptr_to_str(String_upper(key("abé"))), "ABÉ");
+    }
+}
+
+#[test]
+fn template_parts_are_formatted_by_kind() {
+    let text = key("x");
+    let parts: [i64; 10] = [0, text, 1, -42, 2, 2.5f64.to_bits() as i64, 3, 1, 0, 0];
+    let built = crate::str_append::__str_build(parts.as_ptr(), 5);
+    assert_eq!(unsafe { ptr_to_str(built) }, "x-422.5truenull");
+    __rc_release(built);
+    __rc_release(text);
+}

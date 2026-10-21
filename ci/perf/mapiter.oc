@@ -1,0 +1,20 @@
+architecture permissive
+
+import ocara.IO
+import ocara.Convert
+import ocara.System
+import ocara.String
+import ocara.Array
+import ocara.Map
+import ocara.JSON
+
+function main(): void {
+    var n:int = Convert::strToInt(System::args()[1])
+    var m:map<string, int> = {}
+    for i in 0 until 1000 { m[`k${i}`] = i }
+    var tot:int = 0
+    for r in 0 until n {
+        for k has v in m { tot += v }
+    }
+    IO::writeln(`${tot}`)
+}

@@ -9,6 +9,8 @@
 //   - une chaîne partagée n'est jamais modifiée par la concaténation
 //   - 30 000 cycles poubelles rendus par le collecteur
 //   - des exceptions en boucle
+//   - des gabarits (une allocation chacun) et des tâches `async` (pool de
+//     threads, ou exécution sur place par `resolve`)
 // ─────────────────────────────────────────────────────────────────────────────
 
 architecture permissive
@@ -16,6 +18,7 @@ architecture permissive
 import ocara.IO
 import ocara.Map
 import ocara.String
+import ocara.Convert
 
 class Pair {
     public property value:int
@@ -75,6 +78,27 @@ function failures(n:int): int {
     return caught
 }
 
+async function square(n:int): int {
+    return n * n
+}
+
+function labels(n:int): int {
+    var total:int = 0
+    for i in 0 until n {
+        var label:string = `#${i}: ${Convert::intToFloat(i) * 0.5} ${i greater 2}`
+        total += String::len(label)
+    }
+    return total
+}
+
+function tasks(n:int): int {
+    var total:int = 0
+    for i in 0 until n {
+        total += resolve square(i)
+    }
+    return total
+}
+
 function main(): void {
     IO::writeln(`${fillMap(100000)}`)               // 5000049999
     IO::writeln(`${String::len(build(100000))}`)    // 100000
@@ -84,4 +108,6 @@ function main(): void {
     IO::writeln(`${copy} ${shared}`)                // ab abc
     IO::writeln(`${churn(30000)}`)                  // 0
     IO::writeln(`${failures(10000)}`)               // 10000
+    IO::writeln(`${labels(10000)}`)                 // 166673
+    IO::writeln(`${tasks(10000)}`)                  // 333283335000
 }

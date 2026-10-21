@@ -1,0 +1,31 @@
+architecture permissive
+
+import ocara.IO
+import ocara.Convert
+import ocara.System
+
+class Node {
+    public property next:Node|null = null
+    public property v:int = 0
+    public method get(): int { return self.v }
+}
+
+function main(): void {
+    var n:int = Convert::strToInt(System::args()[1])
+    var nodes:array<Node> = []
+    var prev:Node|null = null
+    for i in 0 until n {
+        var x:Node = use Node()
+        x.v = i
+        x.next = prev
+        nodes.push(x)
+        prev = x
+    }
+    var tot:int = 0
+    for r in 0 until 5 {
+        for x in nodes {
+            tot += x.get()
+        }
+    }
+    IO::writeln(`${tot}`)
+}

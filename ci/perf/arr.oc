@@ -1,0 +1,18 @@
+architecture permissive
+
+import ocara.IO
+import ocara.Convert
+import ocara.System
+import ocara.String
+import ocara.Array
+
+function main(): void {
+    var n:int = Convert::strToInt(System::args()[1])
+    var xs:array<int> = []
+    for i in 0 until n { xs.push(i) }
+    var tot:int = 0
+    for r in 0 until 10 {
+        for i in 0 until n { tot += xs[i] }
+    }
+    IO::writeln(`${tot}`)
+}

@@ -4,7 +4,9 @@
 //! Toute valeur tas porte l'en-tête `[rc @ -24][aux @ -16][tag @ -8]` ; une
 //! cellule boxée porte `[rc][bits]` avec `val = (cellule + 8) | tag`.
 
-use std::alloc::{alloc, alloc_zeroed, dealloc, Layout};
+use std::alloc::Layout;
+
+use crate::alloc_cache::{alloc, alloc_zeroed, dealloc};
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering};
 use std::sync::Mutex;
 
@@ -69,8 +71,49 @@ pub(crate) struct ThreadGuard;
 
 impl ThreadGuard {
     pub(crate) fn new() -> Self {
+        go_multi_threaded();
         RUNNING.fetch_add(1, Ordering::SeqCst);
         ThreadGuard
+    }
+}
+
+/// Un autre thread a exécuté (ou va exécuter) du code Ocara : les comptes
+/// sont désormais modifiés par opérations atomiques. Tant qu'un seul thread
+/// en exécute, une simple lecture-écriture suffit (≈ 10 fois moins chère
+/// qu'un `lock xadd`) — sans retour possible.
+static MULTI_THREADED: AtomicBool = AtomicBool::new(false);
+
+pub(crate) fn is_multi_threaded() -> bool {
+    MULTI_THREADED.load(Ordering::Relaxed)
+}
+
+/// À appeler par le thread qui en crée un autre, AVANT sa création (ou par
+/// un thread étranger qui entre, voir `enter`).
+pub(crate) fn go_multi_threaded() {
+    MULTI_THREADED.store(true, Ordering::SeqCst);
+}
+
+/// Ajoute `delta` au mot de compte ; rend sa valeur précédente.
+fn add_count(w: &AtomicI64, delta: i64) -> i64 {
+    if MULTI_THREADED.load(Ordering::Relaxed) {
+        let previous = w.fetch_add(delta, Ordering::SeqCst);
+        touch(w);
+        previous
+    } else {
+        let previous = w.load(Ordering::Relaxed);
+        w.store(previous + delta, Ordering::Relaxed);
+        previous
+    }
+}
+
+/// Pose `bits` dans le mot de compte ; rend sa valeur précédente.
+fn or_flags(w: &AtomicI64, bits: i64) -> i64 {
+    if MULTI_THREADED.load(Ordering::Relaxed) {
+        w.fetch_or(bits, Ordering::SeqCst)
+    } else {
+        let previous = w.load(Ordering::Relaxed);
+        w.store(previous | bits, Ordering::Relaxed);
+        previous
     }
 }
 
@@ -114,6 +157,7 @@ fn resume() {
 pub struct Entered;
 
 pub fn enter() -> Entered {
+    go_multi_threaded();
     resume();
     Entered
 }
@@ -325,11 +369,13 @@ fn is_buffered(w: &AtomicI64) -> bool {
 pub(crate) unsafe fn for_each_child(val: i64, k: Kind, f: &mut dyn FnMut(i64)) {
     unsafe {
         match k {
+            // Parcours sous le verrou du conteneur, sans copie : `f` ne
+            // lance jamais de collecte (différée à la fin du `release`).
             Kind::Array if aux(val) & FLAG_RAW == 0 => {
-                for &el in &crate::array_data(val) { f(el) }
+                crate::containers::with_array(val, |data| for &el in data.iter() { f(el) })
             }
             Kind::Map if aux(val) & FLAG_RAW == 0 => {
-                for el in crate::map_values(val) { f(el) }
+                crate::containers::with_map(val, |data| for &el in data.values() { f(el) })
             }
             Kind::Object => {
                 for (i, &b) in object_mask(val).iter().enumerate() {
@@ -404,9 +450,7 @@ pub(crate) fn touched_in(w: &AtomicI64, epoch: i64) -> bool {
 pub(crate) unsafe fn retain(val: i64) {
     unsafe {
         if let Some(k) = kind(val) {
-            let w = word(val, k);
-            w.fetch_add(1, Ordering::SeqCst);
-            touch(w);
+            add_count(word(val, k), 1);
         }
     }
 }
@@ -437,9 +481,7 @@ unsafe fn decrement(val: i64, k: Kind, w: &AtomicI64) -> bool {
     if can_cycle(k) && count_of(w) > 1 && unsafe { may_hold_references(val, k) } {
         possible_root(val, w);
     }
-    let previous = w.fetch_sub(1, Ordering::SeqCst);
-    touch(w);
-    previous & COUNT_MASK == 1
+    add_count(w, -1) & COUNT_MASK == 1
 }
 
 /// Compte à zéro : relâche les enfants (sans récursion), puis libère le
@@ -447,18 +489,29 @@ unsafe fn decrement(val: i64, k: Kind, w: &AtomicI64) -> bool {
 /// libérera.
 unsafe fn destroy(val: i64, k: Kind) {
     unsafe {
-        let mut stack = vec![(val, k)];
-        while let Some((x, xk)) = stack.pop() {
+        // La pile n'alloue qu'à la première valeur enfant à détruire (une
+        // chaîne libérée allouait un `Vec`).
+        let mut stack: Vec<(i64, Kind)> = Vec::new();
+        let mut current = Some((val, k));
+        while let Some((x, xk)) = current.take().or_else(|| stack.pop()) {
             if xk == Kind::Object {
                 finalize_object(x);
             }
             for_each_child(x, xk, &mut |t| {
                 let Some(tk) = kind(t) else { return };
                 if decrement(t, tk, word(t, tk)) {
-                    stack.push((t, tk));
+                    // Feuille (chaîne, valeur boxée) : sans enfant ni
+                    // finalisation, libérée sur-le-champ.
+                    if matches!(tk, Kind::String | Kind::Boxed) {
+                        dealloc_block(t, tk);
+                    } else {
+                        stack.push((t, tk));
+                    }
                 }
             });
-            if word(x, xk).fetch_or(DEAD, Ordering::SeqCst) & BUFFERED == 0 {
+            // Une valeur qui ne peut pas former de cycle n'est jamais dans le
+            // tampon des racines.
+            if !can_cycle(xk) || or_flags(word(x, xk), DEAD) & BUFFERED == 0 {
                 dealloc_block(x, xk);
             }
         }
@@ -489,7 +542,7 @@ fn possible_root(val: i64, w: &AtomicI64) {
         return;
     }
     set_color(w, Color::Purple);
-    let previous = w.fetch_or(BUFFERED, Ordering::AcqRel);
+    let previous = or_flags(w, BUFFERED);
     if previous & BUFFERED != 0 {
         return;
     }

@@ -5,9 +5,9 @@ RED     := \033[0;31m
 RESET   := \033[0m
 
 # Argument optionnel : make regression builtins/io ; make android-simulator <apk>
-_TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests tests-runtime tests-tools regression ci leak-check lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android android-simulator build-runtime-windows build-windows,$(MAKECMDGOALS))
+_TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests tests-runtime tests-tools regression ci leak-check perf lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android android-simulator build-runtime-windows build-windows,$(MAKECMDGOALS))
 
-.PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests tests-runtime tests-tools regression ci leak-check lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android android-simulator build-runtime-windows build-windows $(_TARGET)
+.PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests tests-runtime tests-tools regression ci leak-check perf lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android android-simulator build-runtime-windows build-windows $(_TARGET)
 
 # ── Aide ──────────────────────────────────────────────────────────────────────
 help:
@@ -30,6 +30,8 @@ help:
 	@echo "  ci                      Lance le pipeline CI complet (check + dump + tests + lint + fuites)"
 	@echo "  leak-check              Compile les exemples avec --leak-check et échoue sur toute fuite"
 	@echo "  leak-check <chemin>     Bilan des fuites de examples/<chemin>.oc uniquement"
+	@echo "  perf                    Compare les performances à Python (ci/perf/) et échoue si Ocara est plus lent"
+	@echo "  perf <nom>              Une seule mesure (ex: make perf split)"
 	@echo "  lint-examples           Lance ocaracs sur tous les exemples"
 	@echo "  tests-examples          Lance ocaraunit sur les exemples"
 	@echo "  install                 Installe ocara dans /usr/local/bin/"
@@ -321,6 +323,9 @@ regression:
 
 leak-check:
 	./ci/leak_check.sh $(_TARGET)
+
+perf:
+	./ci/perf_python.sh $(_TARGET)
 
 # ── CI Pipeline ───────────────────────────────────────────────────────────────
 ci:

@@ -11,9 +11,57 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use indexmap::IndexMap;
 
-/// Paires d'une map, clés stockées comme texte (comparées par valeur),
-/// gardées dans l'ordre d'insertion ; recherche par hachage.
-pub(crate) type MapData = IndexMap<String, i64>;
+/// Paires d'une map, gardées dans l'ordre d'insertion ; recherche par
+/// hachage du texte de la clé.
+pub(crate) type MapData = IndexMap<MapKey, i64>;
+
+/// Clé d'une map : chaîne Ocara retenue par la map, comparée et hachée par
+/// son texte (une recherche par `&str` ne crée pas de clé). Rendre les clés
+/// (`Map_keys`, `for k has v in m`) les retient au lieu de les recopier.
+pub(crate) struct MapKey(i64);
+
+impl MapKey {
+    /// Reprend une référence (+1) sur la chaîne `val`.
+    pub(crate) unsafe fn owned(val: i64) -> Self {
+        MapKey(val)
+    }
+
+    pub(crate) fn text(&self) -> &str {
+        unsafe { crate::ptr_to_str(self.0) }
+    }
+
+    /// La chaîne, retenue pour l'appelant (+1).
+    pub(crate) fn share(&self) -> i64 {
+        unsafe { crate::rc::retain(self.0) };
+        self.0
+    }
+}
+
+impl Drop for MapKey {
+    fn drop(&mut self) {
+        unsafe { crate::rc::release(self.0) }
+    }
+}
+
+impl PartialEq for MapKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.text() == other.text()
+    }
+}
+
+impl Eq for MapKey {}
+
+impl std::hash::Hash for MapKey {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.text().hash(state)
+    }
+}
+
+impl std::borrow::Borrow<str> for MapKey {
+    fn borrow(&self) -> &str {
+        self.text()
+    }
+}
 
 pub(crate) struct OcaraArray {
     lock: AtomicBool,
@@ -38,6 +86,11 @@ impl OcaraMap {
 }
 
 fn locked<T, R>(lock: &AtomicBool, data: &mut T, f: impl FnOnce(&mut T) -> R) -> R {
+    // Un seul thread exécute du code Ocara : aucune collecte concurrente ni
+    // autre thread ne peut lire ce conteneur, le verrou est inutile.
+    if !crate::rc::is_multi_threaded() {
+        return f(data);
+    }
     while lock.compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed).is_err() {
         std::hint::spin_loop();
     }

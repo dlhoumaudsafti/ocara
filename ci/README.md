@@ -17,6 +17,18 @@ make ci
 
 Vérifie (`ocara --check`) chaque bloc ```` ```ocara ```` **complet** de `docs/` (un bloc qui déclare `function main`) ; `architecture permissive` est ajouté s'il manque. Un bloc précédé de `<!-- doc-check: skip -->` (suite d'un bloc précédent, programme multi-fichiers, gabarit) ou contenant `❌` est ignoré. Lancé par `make regression`.
 
+## Performances comparées à Python
+
+```bash
+make perf            # ./ci/perf_python.sh : toutes les mesures de ci/perf/
+make perf split      # une seule mesure
+```
+
+Chaque `ci/perf/<nom>.oc` est comparé au même algorithme en Python
+(`ci/perf/<nom>.py`), minimum de 5 exécutions de chaque côté : la passe
+échoue si Ocara est plus lent. Hors de `make regression` (temps dépendant de
+la charge de la machine). Tableau des mesures : `docs/benchmarking.md`.
+
 ## Pipeline
 
 Le pipeline CI traite **chaque fichier individuellement** avec 4 étapes séquentielles :

@@ -1,0 +1,17 @@
+architecture permissive
+
+import ocara.IO
+import ocara.Convert
+import ocara.System
+import ocara.String
+import ocara.Array
+import ocara.Map
+import ocara.JSON
+
+function main(): void {
+    var n:int = Convert::strToInt(System::args()[1])
+    var xs:array<string> = ["a", "b", "c", "d", "e"]
+    var tot:int = 0
+    for i in 0 until n { tot += String::len(Array::join(xs, "-")) + Convert::intToStr(i).len() }
+    IO::writeln(`${tot}`)
+}

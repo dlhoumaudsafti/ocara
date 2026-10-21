@@ -1,0 +1,19 @@
+architecture permissive
+
+import ocara.IO
+import ocara.Convert
+import ocara.System
+import ocara.String
+import ocara.Array
+
+class Counter {
+    public property total:int = 0
+    public method add(n:int): void { self.total += self.weight(n) }
+    public method weight(n:int): int { return n * 2 }
+}
+function main(): void {
+    var n:int = Convert::strToInt(System::args()[1])
+    var c:Counter = use Counter()
+    for i in 0 until n { c.add(i) }
+    IO::writeln(`${c.total}`)
+}

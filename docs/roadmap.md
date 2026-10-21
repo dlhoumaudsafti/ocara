@@ -37,7 +37,6 @@ Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnali
 
 À traiter mais non bloquant pour la stabilité du langage.
 
-- **Performances : surcoûts constants restants** — méthode qui appelle du code ~20 ns (retenue de `self`) ; gabarits ~4 fois plus lents que Python ; un thread système par appel `async` ; spinlock par accès de conteneur ; pas de niveau d'optimisation Cranelift. *(Légère à Structurel)* → [détails](roadmap.d/perf-runtime-complexite.md)
 - **Tests des blocs runtime : `RuntimeTest.oc`, builtins bloquants neutralisés** — un `RuntimeTest.oc` exécute le `main` complet généré par les blocs runtime (variantes `when` comprises) pour couvrir les `*.runtime.oc` ; `assertSuccessResult()`/`assertErrorResult()`/`assertErrorResultCode(code)` ; builtins bloquants (Tauri, SDL, HTTPServer…) étiquetés et neutralisés dans les binaires de test ; `assertBlocksMainThread(expr)`/`assertIsBlocking(expr)` résolues à la compilation. *(Structurel)* → [détails](roadmap.d/tooling-ocaraunit-runtime-tests.md)
 - **Extension VS Code : nouvelles fonctions de benchmark et de profilage** — courbe de complexité (`__N__`, pente log-log), min/médiane et charge machine, comparaison A/B, compteurs du runtime (retain/release, collectes, threads), profil cliquable et CodeLens, flamegraph (perf ou échantillonnage gdb), `strace -c`, plateau de serveur, ocaraunit `--leak-check`/`--profile`, export de l'historique. *(Légère à Structurel)* → [détails](roadmap.d/tooling-vscode-benchmark-profilage.md)
 
@@ -50,6 +49,7 @@ Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnali
 
 Confort ou portée future — n'affecte pas la correction du compilateur ou des binaires produits.
 
+- **Performances : pistes d'optimisation restantes** — plus aucune mesure plus lente que Python (`make perf`) ; restent les locales en registres (Cranelift `opt_level` sans effet sans elles), la retenue de `self` dans une méthode qui appelle (~15 ns), la marge faible de `String::split`, le surcoût du mode multi-thread. *(Légère à Structurel)* → [détails](roadmap.d/perf-runtime-complexite.md)
 - **Serveur de langage : requêtes bloquantes, documents sans titre** — mono-thread sans annulation (la première construction de l'index bloque 1 à 1,8 s), documents `untitled:` sans diagnostics, renommage de fichier envoyé sans vérifier les capacités du client. *(Légère à Structurel)* → [détails](roadmap.d/tooling-ocaracs-fix-et-lsp.md)
 - **ocaraunit : limites restantes** — une ligne « PASS … » imprimée par le code testé compte comme une assertion ; découverte lexicale (gabarits imbriqués) ; pas de parallélisme. *(Légère)* → [détails](roadmap.d/tooling-ocaraunit-fiabilite.md)
 - **Littéral `INT_MIN` et affichage des `float` entiers** — `-9223372036854775808` refusé (« integer too large ») ; `42.0` s'affiche `42`. *(Simple)* → [détails](roadmap.d/stdlib-valeurs-et-documentation.md)

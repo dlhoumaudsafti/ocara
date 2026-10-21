@@ -1,0 +1,109 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.Array
+import ocara.Thread
+import ocara.String
+
+// Gabarits construits en une seule allocation (`__str_build`) et tâches
+// `async` exécutées par un pool de threads ou sur place par `resolve` —
+// voir docs/roadmap.d/perf-runtime-complexite.md.
+
+class Tag {
+    public property name:string = "t"
+}
+
+class Test107TemplatesAndTaskPool extends UnitTest {
+
+    public method templateKindsTest(): int {
+        var n:int = -42
+        var f:float = 2.5
+        var b:bool = true
+        var xs:array<int> = [1, 2]
+        var m:mixed = 7
+        var s:string = "ok"
+        self::assertEquals("-42|2.5|true|[1, 2]|7|ok|", `${n}|${f}|${b}|${xs}|${m}|${s}|`)
+        self::assertEquals("", ``)
+        return 0
+    }
+
+    public method nestedTemplateTest(): int {
+        var inner:string = `[${String::upper("x")}]`
+        self::assertEquals("<[X]>", `<${inner}>`)
+        self::assertEquals("<<1>>", `<${`<${1}>`}>`)
+        return 0
+    }
+
+    public method resolvedInPlaceTest(): int {
+        var tot:int = 0
+        for i in 0 until 1000 {
+            tot += resolve square(i)
+        }
+        self::assertEquals(332833500, tot)
+        return 0
+    }
+
+    public method tasksRunInParallelTest(): int {
+        var ts:array<Resolvable<int>> = []
+        for i in 0 until 8 {
+            ts.push(slow(i))
+        }
+        var tot:int = 0
+        for t in ts {
+            tot += resolve t
+        }
+        self::assertEquals(28, tot)
+        return 0
+    }
+
+    public method taskWaitingForTaskTest(): int {
+        var inner:Resolvable<int> = slow(5)
+        var outer:Resolvable<int> = plusOne(inner)
+        self::assertEquals(6, resolve outer)
+        return 0
+    }
+
+    public method exceptionFromPooledTaskTest(): int {
+        var t:Resolvable<int> = failing()
+        Thread::sleep(20)
+        var caught:string = ""
+        try {
+            var v:int = resolve t
+            caught = `${v}`
+        } on e {
+            caught = "pris"
+        }
+        self::assertEquals("pris", caught)
+        return 0
+    }
+
+    public method abandonedTaskStillRunsTest(): int {
+        var tag:Tag = use Tag()
+        rename(tag)
+        Thread::sleep(50)
+        self::assertEquals("renommé", tag.name)
+        return 0
+    }
+}
+
+async function square(n:int): int {
+    return n * n
+}
+
+async function slow(n:int): int {
+    Thread::sleep(20)
+    return n
+}
+
+async function plusOne(t:Resolvable<int>): int {
+    return resolve t + 1
+}
+
+async function failing(): int {
+    raise "tâche"
+}
+
+async function rename(tag:Tag): int {
+    tag.name = "renommé"
+    return 0
+}

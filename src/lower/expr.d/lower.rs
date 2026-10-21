@@ -1672,96 +1672,51 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
         }
 
         // ── Chaîne template `${expr}` ─────────────────────────────────────
+        // Gabarit : paires (genre, valeur) rangées sur la pile, formatées en
+        // une seule allocation par `__str_build`.
         Expr::Template { parts, .. } => {
-            // Dérouler en concaténations successives via __str_concat
-            let mut concatenated = false;
-            let mut acc = {
-                let idx = builder.module.intern_string("");
-                let d = builder.new_value();
-                builder.emit(Inst::ConstStr { dest: d.clone(), idx });
-                d
-            };
-            for part in parts {
-                // Valeur brute de la partie + détection tableau
-                let (raw_val, part_ty, is_arr) = match part {
-                    TemplatePartExpr::Literal(s) => {
-                        let idx = builder.module.intern_string(s);
+            let pairs = builder.new_value();
+            builder.emit(Inst::AllocaWords { dest: pairs.clone(), words: (2 * parts.len()).max(1) as u32 });
+            for (i, part) in parts.iter().enumerate() {
+                let (kind, value) = match part {
+                    TemplatePartExpr::Literal(text) => {
+                        let idx = builder.module.intern_string(text);
                         let d = builder.new_value();
                         builder.emit(Inst::ConstStr { dest: d.clone(), idx });
-                        (d, IrType::Ptr, false)
+                        (0, d)
                     }
                     TemplatePartExpr::Expr(e) => {
-                        let ty = expr_ir_type(builder, e);
-                        let is_arr = is_array_expr(builder, e);
-                        let v = lower_expr(builder, e);
-                        (v, ty, is_arr)
+                        let kind = if is_array_expr(builder, e) {
+                            4
+                        } else {
+                            match expr_ir_type(builder, e) {
+                                IrType::I64 => 1,
+                                IrType::F64 => 2,
+                                IrType::Bool => 3,
+                                _ => 0,
+                            }
+                        };
+                        (kind, lower_expr(builder, e))
                     }
                 };
-
-                // Convertir en string si nécessaire
-                let str_val = if is_arr {
-                    // Tableau → formatage [a, b, c]
-                    let d = builder.new_value();
-                    builder.emit(Inst::Call {
-                        dest:   Some(d.clone()),
-                        func:   "__array_to_str".into(),
-                        args:   vec![raw_val.clone()],
-                        ret_ty: IrType::Ptr,
+                for (offset, word) in [(0, None), (8, Some(value))] {
+                    let src = word.unwrap_or_else(|| {
+                        let k = builder.new_value();
+                        builder.emit(Inst::ConstInt { dest: k.clone(), value: kind });
+                        k
                     });
-                    d
-                } else { match part_ty {
-                    IrType::F64 => {
-                        // Float stocké en I64 bitcasté → rebitcast en F64 puis __str_from_float
-                        let as_f64 = builder.new_value();
-                        builder.emit(Inst::Call {
-                            dest:   Some(as_f64.clone()),
-                            func:   "__str_from_float".into(),
-                            args:   vec![raw_val.clone()],
-                            ret_ty: IrType::Ptr,
-                        });
-                        as_f64
-                    }
-                    IrType::Bool => {
-                        let as_str = builder.new_value();
-                        builder.emit(Inst::Call {
-                            dest:   Some(as_str.clone()),
-                            func:   "__str_from_bool".into(),
-                            args:   vec![raw_val.clone()],
-                            ret_ty: IrType::Ptr,
-                        });
-                        as_str
-                    }
-                    IrType::I64 => {
-                        // Entier → __str_from_int (sans heuristique pointeur)
-                        let as_str = builder.new_value();
-                        builder.emit(Inst::Call {
-                            dest:   Some(as_str.clone()),
-                            func:   "__str_from_int".into(),
-                            args:   vec![raw_val.clone()],
-                            ret_ty: IrType::Ptr,
-                        });
-                        as_str
-                    }
-                    _ => raw_val.clone(), // Ptr : déjà une string
-                }};
-                if str_val != raw_val {
-                    crate::lower::stmt::rc::track(builder, &str_val);
+                    let off = builder.new_value();
+                    builder.emit(Inst::ConstInt { dest: off.clone(), value: (16 * i + offset) as i64 });
+                    let addr = builder.new_value();
+                    builder.emit(Inst::Add { dest: addr.clone(), lhs: pairs.clone(), rhs: off, ty: IrType::I64 });
+                    builder.emit(Inst::Store { ptr: addr, src });
                 }
-
-                let dest = builder.new_value();
-                builder.emit(Inst::Call {
-                    dest:   Some(dest.clone()),
-                    func:   "__str_concat".into(),
-                    args:   vec![acc.clone(), str_val],
-                    ret_ty: IrType::Ptr,
-                });
-                if concatenated {
-                    crate::lower::stmt::rc::track(builder, &acc);
-                }
-                concatenated = true;
-                acc = dest;
             }
-            acc
+            let count = builder.new_value();
+            builder.emit(Inst::ConstInt { dest: count.clone(), value: parts.len() as i64 });
+            let dest = builder.new_value();
+            builder.emit(Inst::Call { dest: Some(dest.clone()), func: "__str_build".into(), args: vec![pairs, count], ret_ty: IrType::Ptr });
+            dest
         }
 
         // ── Fonction anonyme (closure) ─────────────────────────────────────

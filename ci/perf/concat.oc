@@ -1,0 +1,15 @@
+architecture permissive
+
+import ocara.IO
+import ocara.String
+import ocara.Convert
+import ocara.System
+
+function main(): void {
+    var n:int = Convert::strToInt(System::args()[1])
+    var s:string = ""
+    for i in 0 until n {
+        s = s + "x"
+    }
+    IO::writeln(`${String::len(s)}`)
+}

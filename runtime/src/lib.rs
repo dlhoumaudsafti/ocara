@@ -23,7 +23,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 use std::alloc::{alloc_zeroed, dealloc, Layout};
-use crate::containers::{with_array, with_map, OcaraArray, OcaraMap};
+use crate::containers::{with_array, with_map, MapKey, OcaraArray, OcaraMap};
 use crate::typecheck::{TAG_STRING_OWNED, TAG_ARRAY, TAG_MAP, TAG_FUNCTION,
     __is_function, __is_object, __is_map, __is_array, __is_string};
 use std::io::{self, BufRead};
@@ -130,6 +130,7 @@ pub mod rc;
 pub mod task;
 pub mod mixed_check;
 pub mod str_append;
+mod alloc_cache;
 pub mod profile;
 pub mod leak;
 pub mod global_const;
@@ -178,6 +179,35 @@ pub unsafe fn alloc_str(s: &str) -> i64 {
     }
 }
 
+/// Chaîne possédée de `len` octets remplis par `fill` (pas de copie depuis
+/// une `String` intermédiaire). `fill` doit écrire de l'UTF-8 valide.
+pub(crate) unsafe fn alloc_str_with(len: usize, fill: impl FnOnce(&mut [u8])) -> i64 {
+    unsafe {
+        let val = rc::alloc_block(len + 1, len as i64, TAG_STRING_OWNED, false);
+        let data = std::slice::from_raw_parts_mut(val as *mut u8, len + 1);
+        fill(&mut data[..len]);
+        data[len] = 0;
+        val
+    }
+}
+
+/// Texte décimal d'un entier, sans allocation.
+pub(crate) fn int_text(n: i64, buf: &mut [u8; 20]) -> &str {
+    let mut i = buf.len();
+    let mut m = n.unsigned_abs();
+    loop {
+        i -= 1;
+        buf[i] = b'0' + (m % 10) as u8;
+        m /= 10;
+        if m == 0 { break; }
+    }
+    if n < 0 {
+        i -= 1;
+        buf[i] = b'-';
+    }
+    std::str::from_utf8(&buf[i..]).unwrap_or("")
+}
+
 /// Libère une chaîne allouée par `alloc_str` — exact inverse (même layout :
 /// 8 octets de longueur + 8 octets de tag + données + NUL, alignement 8).
 /// PAS un ramasse-miettes général : à utiliser uniquement sur des temporaires
@@ -215,7 +245,11 @@ pub unsafe fn ptr_to_str<'a>(val: i64) -> &'a str {
     unsafe {
         let len = str_append::str_len(val);
         let bytes = std::slice::from_raw_parts(val as *const u8, len);
-        std::str::from_utf8(bytes).unwrap_or("")
+        // Toute chaîne Ocara est écrite depuis un `&str` (`alloc_str`,
+        // `alloc_str_with`, `__str_append`, littéraux du codegen) : déjà de
+        // l'UTF-8 valide, la revalider coûtait une passe à chaque lecture.
+        debug_assert!(std::str::from_utf8(bytes).is_ok());
+        std::str::from_utf8_unchecked(bytes)
     }
 }
 
@@ -365,9 +399,14 @@ fn fmt_val(val: i64) -> String {
 // ─────────────────────────────────────────────────────────────────────────────
 
 fn new_array() -> i64 {
+    new_array_with(Vec::new())
+}
+
+/// Tableau neuf contenant `data` (éléments déjà possédés par le tableau).
+fn new_array_with(data: Vec<i64>) -> i64 {
     unsafe {
         let val = rc::alloc_block(std::mem::size_of::<OcaraArray>(), 0, TAG_ARRAY, false);
-        std::ptr::write(val as *mut OcaraArray, OcaraArray::new(Vec::new()));
+        std::ptr::write(val as *mut OcaraArray, OcaraArray::new(data));
         val
     }
 }
@@ -537,7 +576,7 @@ pub extern "C" fn __str_from_bool(b: i64) -> i64 {
 /// À utiliser dans les templates `${expr}` quand le type est I64.
 #[unsafe(no_mangle)]
 pub extern "C" fn __str_from_int(n: i64) -> i64 {
-    unsafe { alloc_str(&n.to_string()) }
+    unsafe { alloc_str(int_text(n, &mut [0; 20])) }
 }
 
 /// Convertit un tableau en string au format `[a, b, c]`.
@@ -712,6 +751,18 @@ unsafe fn key_to_string(key: i64) -> String {
     }
 }
 
+/// Clé de map retenue pour `key` : la chaîne elle-même, ou son texte.
+unsafe fn map_key(key: i64) -> MapKey {
+    unsafe {
+        if is_ptr(key) && typecheck::__is_string(key) != 0 {
+            rc::retain(key);
+            MapKey::owned(key)
+        } else {
+            MapKey::owned(alloc_str(&key_to_string(key)))
+        }
+    }
+}
+
 /// Appelle `f` avec le texte de la clé, sans copie pour une clé chaîne.
 unsafe fn with_key_text<R>(key: i64, f: impl FnOnce(&str) -> R) -> R {
     if is_ptr(key) && !is_float_box(key) && !is_bool_box(key) && !is_int_box(key) {
@@ -757,7 +808,7 @@ pub fn map_set_owned_key(ptr: i64, key: i64, val: i64) {
 /// Range `val` sous `key` sans le retenir ; l'ancienne valeur est relâchée.
 fn map_put(ptr: i64, key: i64, val: i64) {
     if ptr == 0 { return; }
-    let k = unsafe { key_to_string(key) };
+    let k = unsafe { map_key(key) };
     let old = unsafe {
         with_map(ptr, |data| data.insert(k, val))
     };
@@ -791,7 +842,7 @@ pub extern "C" fn __map_get(ptr: i64, key: i64) -> i64 {
 /// tout le contenu sans exposer `OcaraMap` lui-même.
 pub(crate) unsafe fn map_entries(ptr: i64) -> Vec<(String, i64)> {
     if ptr == 0 { return Vec::new(); }
-    unsafe { with_map(ptr, |data| data.iter().map(|(k, v)| (k.clone(), *v)).collect()) }
+    unsafe { with_map(ptr, |data| data.iter().map(|(k, v)| (k.text().to_string(), *v)).collect()) }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -914,21 +965,28 @@ pub extern "C" fn IO_readMap(sep: i64, kv: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn String_len(s: i64) -> i64 {
     if !is_ptr(s) { return 0; }
-    unsafe { ptr_to_str(s).chars().count() as i64 }
+    let text = unsafe { ptr_to_str(s) };
+    if text.is_ascii() { text.len() as i64 } else { text.chars().count() as i64 }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn String_upper(s: i64) -> i64 {
     if !is_ptr(s) { return __rc_passthrough(s); }
-    let r = unsafe { ptr_to_str(s) }.to_uppercase();
-    unsafe { alloc_str(&r) }
+    let text = unsafe { ptr_to_str(s) };
+    if text.is_ascii() {
+        return unsafe { alloc_str_with(text.len(), |buf| { buf.copy_from_slice(text.as_bytes()); buf.make_ascii_uppercase() }) };
+    }
+    unsafe { alloc_str(&text.to_uppercase()) }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn String_lower(s: i64) -> i64 {
     if !is_ptr(s) { return __rc_passthrough(s); }
-    let r = unsafe { ptr_to_str(s) }.to_lowercase();
-    unsafe { alloc_str(&r) }
+    let text = unsafe { ptr_to_str(s) };
+    if text.is_ascii() {
+        return unsafe { alloc_str_with(text.len(), |buf| { buf.copy_from_slice(text.as_bytes()); buf.make_ascii_lowercase() }) };
+    }
+    unsafe { alloc_str(&text.to_lowercase()) }
 }
 
 #[unsafe(no_mangle)]
@@ -957,28 +1015,44 @@ pub extern "C" fn String_replace(s: i64, from: i64, to: i64) -> i64 {
     let from_s = if is_ptr(from) { unsafe { ptr_to_str(from) } } else { "" };
     let to_s   = if is_ptr(to)   { unsafe { ptr_to_str(to) } }   else { "" };
     // `from` vide : chaîne inchangée (sinon `to` serait inséré entre chaque caractère).
-    let r = if from_s.is_empty() { src.to_string() } else { src.replace(from_s, to_s) };
-    unsafe { alloc_str(&r) }
+    if from_s.is_empty() {
+        return unsafe { alloc_str(src) };
+    }
+    // Une seule passe de recherche, dans un tampon réutilisé.
+    str_append::with_buffer(|text| {
+        let mut last = 0;
+        for (start, _) in src.match_indices(from_s) {
+            text.push_str(&src[last..start]);
+            text.push_str(to_s);
+            last = start + from_s.len();
+        }
+        text.push_str(&src[last..]);
+        unsafe { alloc_str(text) }
+    })
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn String_split(s: i64, sep: i64) -> i64 {
     if !is_ptr(s) { return new_array(); }
-    let src   = unsafe { ptr_to_str(s).to_string() };
-    let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep).to_string() } } else { " ".to_string() };
-    let ptr = new_array();
+    let src   = unsafe { ptr_to_str(s) };
+    let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep) } } else { " " };
     // Chaîne vide → tableau vide (String.md) ; séparateur vide → un élément
     // par caractère (Rust ajoutait deux éléments vides aux extrémités).
-    let pieces: Vec<String> = if src.is_empty() {
+    let parts: Vec<i64> = if src.is_empty() {
         Vec::new()
     } else if sep_s.is_empty() {
-        src.chars().map(String::from).collect()
+        let mut one = [0u8; 4];
+        src.chars().map(|c| unsafe { alloc_str(c.encode_utf8(&mut one)) }).collect()
+    } else if let [byte] = sep_s.as_bytes() {
+        // Séparateur d'un octet : recherche par caractère (memchr), tableau
+        // alloué à sa taille.
+        let mut parts = Vec::with_capacity(src.bytes().filter(|b| b == byte).count() + 1);
+        parts.extend(src.split(*byte as char).map(|part| unsafe { alloc_str(part) }));
+        parts
     } else {
-        src.split(sep_s.as_str()).map(String::from).collect()
+        src.split(sep_s).map(|part| unsafe { alloc_str(part) }).collect()
     };
-    let parts: Vec<i64> = pieces.iter().map(|part| unsafe { alloc_str(part) }).collect();
-    unsafe { with_array(ptr, |data| *data = parts) }
-    ptr
+    new_array_with(parts)
 }
 
 #[unsafe(no_mangle)]
@@ -1278,11 +1352,20 @@ pub extern "C" fn Array_slice(ptr: i64, from: i64, to: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn Array_join(ptr: i64, sep: i64) -> i64 {
     if ptr == 0 { return unsafe { alloc_str("") }; }
-    let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep).to_string() } } else { "".to_string() };
+    let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep) } } else { "" };
     let kind = rc::raw_kind(ptr);
-    let parts: Vec<String> = unsafe { array_data(ptr) }.iter().map(|&v| fmt_elem(kind, v)).collect();
-    let r = parts.join(&sep_s);
-    unsafe { alloc_str(&r) }
+    let mut text = String::new();
+    for (i, v) in unsafe { array_data(ptr) }.into_iter().enumerate() {
+        if i > 0 {
+            text.push_str(sep_s);
+        }
+        match kind {
+            1 => text.push_str(int_text(v, &mut [0; 20])),
+            0 if typecheck::__is_string(v) != 0 => text.push_str(unsafe { ptr_to_str(v) }),
+            _ => text.push_str(&fmt_elem(kind, v)),
+        }
+    }
+    unsafe { alloc_str(&text) }
 }
 
 #[unsafe(no_mangle)]
@@ -1338,7 +1421,7 @@ pub extern "C" fn Map_get(ptr: i64, key: i64) -> i64 {
         }
     }
     let k = unsafe { key_to_string(key) };
-    match unsafe { with_map(ptr, |data| data.get(&k).copied()) } {
+    match unsafe { with_map(ptr, |data| data.get(k.as_str()).copied()) } {
         Some(v) => v,
         None => unsafe {
             exception::throw_map_exception(&format!("Key not found: {}", k), ERR_MAP_KEY_NOT_FOUND, "Map")
@@ -1354,8 +1437,8 @@ pub extern "C" fn Map_set(ptr: i64, key: i64, val: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn Map_remove(ptr: i64, key: i64) {
     if ptr == 0 { return; }
-    let k = unsafe { key_to_string(key) };
-    let removed = unsafe { with_map(ptr, |data| data.shift_remove(&k)) };
+    let removed = unsafe { with_key_text(key, |k| with_map(ptr, |data| data.shift_remove_entry(k))) };
+    let removed = removed.map(|(_, v)| v);
     if let Some(v) = removed {
         release_elem(ptr, v);
     }
@@ -1371,8 +1454,9 @@ pub extern "C" fn Map_keys(ptr: i64, kind: i64) -> i64 {
     }
     if ptr == 0 { return arr_ptr; }
     // Les clés sont stockées en texte — converties au type `K`.
-    let texts: Vec<String> = unsafe { with_map(ptr, |data| data.keys().cloned().collect()) };
-    let keys: Vec<i64> = texts.iter().map(|k| key_from_text(k, kind)).collect();
+    let keys: Vec<i64> = unsafe {
+        with_map(ptr, |data| data.keys().map(|k| if (1..=3).contains(&kind) { key_from_text(k.text(), kind) } else { k.share() }).collect())
+    };
     unsafe { with_array(arr_ptr, |data| *data = keys) }
     arr_ptr
 }
@@ -1535,7 +1619,7 @@ pub extern "C" fn Convert_mixedToStr(val: i64) -> i64 {
 /// mixed → string — voir `Convert_mixedToStr` plus haut.
 #[unsafe(no_mangle)]
 pub extern "C" fn Convert_intToStr(n: i64) -> i64 {
-    unsafe { alloc_str(&n.to_string()) }
+    unsafe { alloc_str(int_text(n, &mut [0; 20])) }
 }
 
 #[unsafe(no_mangle)]
