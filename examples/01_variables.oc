@@ -94,9 +94,9 @@ function main(): int {
     IO::writeln(label)
     IO::writeln(unknown)
 
-    // null — absence de valeur pour les types référence (string, objet, tableau, map)
-    // null est compatible avec string, classes, tableaux et maps — pas avec int/float/bool
-    var nom:string  = null          // variable string initialisée à null
+    // null — absence de valeur : seul un type qui l'admet (`T|null`, `mixed`)
+    // accepte null
+    var nom:string|null = null      // variable string initialisée à null
     var tags:mixed  = null          // mixed accepte null
     IO::writeln(nom)                // null
     IO::writeln(tags)               // null

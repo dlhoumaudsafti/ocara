@@ -7,6 +7,7 @@
 pub mod error;
 pub mod arg_types;
 pub mod convert_sugar;
+pub mod duplicates;
 pub mod escape;
 pub mod field_visibility;
 pub mod generic_check;
@@ -16,7 +17,9 @@ pub mod map_keys;
 pub mod message_emit;
 pub mod mixed_string;
 pub mod named_args;
+pub mod narrowing;
 pub mod resource_raise;
+pub mod returns;
 pub mod scope;
 pub mod symbols;
 pub mod typecheck;

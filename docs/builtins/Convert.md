@@ -128,6 +128,18 @@ var id:mixed = 42
 var s:string = id          // "42"
 ```
 
+### `Convert::mixedAs(v, type)` → `mixed`
+
+Rend `v` si c'est une valeur du type nommé `type` — `"int"`, `"float"`, `"bool"`, `"array"`, `"map"`, `"function"` ou `"class:NomDeClasse"` (la classe, une sous-classe, ou une classe qui implémente l'interface) — et lève sinon `ConvertException` (code 103, « expected a value of type 'User', found 'string' »).
+
+Cette vérification est **implicite** : un `mixed` utilisé là où un autre type concret est attendu (déclaration, affectation, argument, `return`) passe par `mixedAs` (voir [§6 de l'EBNF](../EBNF.md#vérification-dun-mixed-rangé-dans-un-autre-type-concret)).
+
+```ocara
+var row:array<mixed> = [use User("Ken"), "texte"]
+var ken:User = row[0]      // vérifié
+var u:User = row[1]        // ConvertException (103)
+```
+
 ### `Convert::intToStr(n)` → `string`
 
 ```ocara
@@ -306,7 +318,7 @@ Certaines méthodes Convert peuvent lever une `ConvertException` en cas d'erreur
 |------|------|-----------|-------------|
 | 101 | `INVALID_INT` | `Convert::strToInt()` | Impossible de convertir la chaîne en entier (format invalide) |
 | 102 | `INVALID_FLOAT` | `Convert::strToFloat()` | Impossible de convertir la chaîne en flottant (format invalide) |
-| 103 | `TYPE` | `Convert::mixedToStr()` | Tableau, map ou objet utilisé comme chaîne |
+| 103 | `TYPE` | `Convert::mixedToStr()`, `Convert::mixedAs()` | Tableau, map ou objet utilisé comme chaîne ; valeur `mixed` d'un autre type que celui attendu |
 
 ### Exemples de gestion d'erreurs
 

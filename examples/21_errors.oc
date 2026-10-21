@@ -96,7 +96,32 @@ function main(): int {
     var texte: string = "abc"
     texte++
 
+    // Erreur 17 — `null` dans un type qui ne l'admet pas (écrire `string|null`).
+    var absent: string = null
+
+    // Erreur 18 — union dont une variante ne convient pas (raffiner avec `is`).
+    var u: int|string = "x"
+    var entier: int = u
+
+    // Erreur 19 — indexation d'une chaîne.
+    var lettre: string = texte[0]
+
     return 0
+}
+
+// Erreur 20 — un chemin se termine sans `return` (E67).
+function signe(x: int): string {
+    if x greater 0 {
+        return "positif"
+    }
+}
+
+// Erreur 21 — redéfinition incompatible (E68).
+class Forme {
+    public method aire(): float { return 0.0 }
+}
+class Carre extends Forme {
+    public method aire(): string { return "?" }
 }
 
 // Erreur 14 — champ de classe d'un type ressource (E29) : jamais fermé par

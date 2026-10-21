@@ -4,10 +4,11 @@ import ocara.YAML
 import ocara.File
 
 class Language {
-    public static method get(context:string, lang:string="en"): map<string, string>|void {
+    public static method get(context:string, lang:string="en"): map<string, string> {
         scoped path:string = `languages/${lang}/${context}.yaml`
         if (File::exists(path)) {
             return YAML::decode(File::read(path))
         }
+        return {}
     }
 }

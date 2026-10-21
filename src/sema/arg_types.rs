@@ -71,7 +71,7 @@ impl<'a> TypeChecker<'a> {
             if let Some((param, want)) = expected.slot(i) {
                 let want = want.clone();
                 let param = param.clone();
-                self.note_mixed_to_string(arg, &found, &want);
+                self.note_mixed_conversion(arg, &found, &want);
                 let (param, want) = (&param, &want);
                 let is_variadic_slot = expected.variadic && i + 1 >= expected.params.len();
                 let ok = types_compat(&found, want, &self.symbols)

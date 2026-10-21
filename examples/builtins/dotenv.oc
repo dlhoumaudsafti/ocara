@@ -16,10 +16,10 @@ main {
     DotEnv::load()
 
     // Récupérer des variables
-    const appName:string = DotEnv::get("APP_NAME")
-    const appVersion:string = DotEnv::get("APP_VERSION")
-    const debug:string = DotEnv::get("DEBUG")
-    const port:string = DotEnv::get("PORT")
+    const appName:string|null = DotEnv::get("APP_NAME")
+    const appVersion:string|null = DotEnv::get("APP_VERSION")
+    const debug:string|null = DotEnv::get("DEBUG")
+    const port:string|null = DotEnv::get("PORT")
 
     if appName not equal null {
         IO::writeln(`APP_NAME: ${appName}`)
@@ -51,9 +51,9 @@ main {
     IO::writeln("Chargement de .env.prod...")
     DotEnv::load("prod")
 
-    const dbHost:string = DotEnv::get("DB_HOST")
-    const dbUser:string = DotEnv::get("DB_USER")
-    const dbPassword:string = DotEnv::get("DB_PASSWORD")
+    const dbHost:string|null = DotEnv::get("DB_HOST")
+    const dbUser:string|null = DotEnv::get("DB_USER")
+    const dbPassword:string|null = DotEnv::get("DB_PASSWORD")
 
     if dbHost not equal null {
         IO::writeln(`DB_HOST: ${dbHost}`)
@@ -70,7 +70,7 @@ main {
     IO::writeln("")
 
     // Test avec une variable inexistante
-    const inexistante:string = DotEnv::get("VARIABLE_INEXISTANTE")
+    const inexistante:string|null = DotEnv::get("VARIABLE_INEXISTANTE")
     if inexistante equal null {
         IO::writeln("VARIABLE_INEXISTANTE: non définie (normal)")
     } else {

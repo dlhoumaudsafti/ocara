@@ -35,7 +35,7 @@ pub struct TypeChecker<'a> {
     /// Classes déjà typecheckées (pour éviter de les typecheck plusieurs fois)
     pub(crate) checked_classes: std::collections::HashSet<String>,
     /// Référence au Program pour accéder aux ClassDecl lors du typecheck lazy
-    program: Option<&'a Program>,
+    pub(crate) program: Option<&'a Program>,
     /// Paramètres échappants par fonction/méthode/constructeur utilisateur
     /// (voir `crate::sema::escape`) — calculé une fois dans `check_program`,
     /// consulté pour savoir si une ressource `var` reste confinée.
@@ -127,6 +127,7 @@ impl<'a> TypeChecker<'a> {
         // W04 : un raise non rattrapé localement saute la finalisation d'un
         // Thread ou d'une ressource `var` — voir crate::sema::resource_raise.
         self.warnings.extend(crate::sema::resource_raise::check_program(program));
+        self.errors.extend(crate::sema::duplicates::check_program(program));
 
         // Enums — vérifier les doublons de variantes
         for c in &program.consts {
@@ -172,7 +173,7 @@ impl<'a> TypeChecker<'a> {
     /// `lower_const_prologue`) — compatible avec le type déclaré.
     fn check_global_const(&mut self, c: &crate::parsing::ast::ConstDecl) {
         let found = self.infer_expr(&c.value);
-        self.note_mixed_to_string(&c.value, &found, &c.ty);
+        self.note_mixed_conversion(&c.value, &found, &c.ty);
         if !types_compat(&found, &c.ty, &self.symbols) {
             self.errors.push(SemaError::TypeMismatch {
                 expected: type_name(&c.ty),
@@ -284,8 +285,65 @@ impl<'a> TypeChecker<'a> {
         }
 
         self.check_block(&func.body);
+        self.check_all_paths_return(&func.name, &func.ret_ty, &func.body, &func.span);
         { let _u = self.scopes.pop_scope(&self.resource_classes); self.flush_warnings(_u); }
         self.current_ret = saved_ret;
+    }
+
+    /// E67 : corps non-`void` dont un chemin se termine sans `return`.
+    fn check_all_paths_return(&mut self, name: &str, ret: &Type, body: &Block, span: &Span) {
+        let may_return_nothing = matches!(ret, Type::Void | Type::Message(_))
+            || matches!(ret, Type::Union(vs) if vs.contains(&Type::Void));
+        if may_return_nothing || crate::sema::returns::always_returns(body) {
+            return;
+        }
+        self.errors.push(SemaError::MissingReturn { name: name.to_string(), ret: type_name(ret), span: span.clone() });
+    }
+
+    /// E68 : une méthode d'instance qui redéfinit celle d'un ancêtre garde
+    /// ses types de paramètres, et rend le même type ou un sous-type.
+    fn check_override(&mut self, class: &str, decl: &FuncDecl) {
+        let Some(parent) = self.symbols.lookup_parent_class(class) else { return };
+        let Some(inherited) = self.symbols.lookup_method_in_chain(&parent, &decl.name) else { return };
+        if inherited.is_static {
+            return;
+        }
+        let reason = if inherited.params.len() != decl.params.len() {
+            Some(format!("{} parameter(s) instead of {}", decl.params.len(), inherited.params.len()))
+        } else if let Some((p, (_, expected))) = decl.params.iter().zip(&inherited.params)
+            .find(|(p, (_, ty))| !(types_compat(&p.ty, ty, self.symbols) && types_compat(ty, &p.ty, self.symbols)))
+        {
+            Some(format!("parameter '{}' is '{}' instead of '{}'", p.name, type_name(&p.ty), type_name(expected)))
+        } else if !types_compat(&decl.ret_ty, &inherited.ret_ty, self.symbols) {
+            Some(format!("returns '{}' instead of '{}'", type_name(&decl.ret_ty), type_name(&inherited.ret_ty)))
+        } else {
+            None
+        };
+        if let Some(reason) = reason {
+            let owner = self.method_owner(&parent, &decl.name);
+            self.errors.push(SemaError::IncompatibleOverride {
+                class: class.to_string(),
+                method: decl.name.clone(),
+                parent: owner,
+                reason,
+                span: decl.span.clone(),
+            });
+        }
+    }
+
+    /// Ancêtre (à partir de `class`) qui déclare `method`.
+    fn method_owner(&self, class: &str, method: &str) -> String {
+        let mut current = class.to_string();
+        while let Some(info) = self.symbols.lookup_class(&current) {
+            if info.methods.contains_key(method) {
+                break;
+            }
+            match self.symbols.lookup_parent_class(&current) {
+                Some(p) => current = p,
+                None => break,
+            }
+        }
+        current
     }
 
     // ── Classe ───────────────────────────────────────────────────────────────
@@ -319,13 +377,16 @@ impl<'a> TypeChecker<'a> {
 
         for member in &class.members {
             match member {
-                ClassMember::Method { decl, .. } => {
+                ClassMember::Method { decl, is_static, .. } => {
                     // Vérifier le type de retour mixed
                     if matches!(decl.ret_ty, Type::Mixed) && self.current_generic.is_none() {
                         self.errors.push(SemaError::MixedInReturnType {
                             name: format!("{}::{}", class.name, decl.name),
                             span: decl.span.clone(),
                         });
+                    }
+                    if !is_static {
+                        self.check_override(&class.name, decl);
                     }
                     self.check_func(decl)
                 },
@@ -384,7 +445,7 @@ impl<'a> TypeChecker<'a> {
                     }
                     self.expected_hint = Some(ty.clone());
                     let val_ty = self.infer_expr(value);
-                    self.note_mixed_to_string(value, &val_ty, ty);
+                    self.note_mixed_conversion(value, &val_ty, ty);
                     if !types_compat(&val_ty, ty, &self.symbols) {
                         self.errors.push(SemaError::TypeMismatch {
                             expected: type_name(ty),
@@ -593,7 +654,7 @@ impl<'a> TypeChecker<'a> {
                 // qu'ajouter du bruit ("expected message<int>, found
                 // message<int>" — `types_compat` déballe TOUJOURS le côté
                 // "found", jamais le côté "expected").
-                self.note_mixed_to_string(value, &val_ty, ty);
+                self.note_mixed_conversion(value, &val_ty, ty);
                 if !ty_is_message && !types_compat(&val_ty, ty, &self.symbols) {
                     self.errors.push(SemaError::TypeMismatch {
                         expected: type_name(ty),
@@ -640,7 +701,7 @@ impl<'a> TypeChecker<'a> {
                 let val_ty = self.infer_expr(value);
                 self.bind_map_keys(name, ty, value);
                 self.check_message_scalar_consumption(value, &val_ty, span);
-                self.note_mixed_to_string(value, &val_ty, ty);
+                self.note_mixed_conversion(value, &val_ty, ty);
                 if !ty_is_message && !types_compat(&val_ty, ty, &self.symbols) {
                     self.errors.push(SemaError::TypeMismatch {
                         expected: type_name(ty),
@@ -670,14 +731,7 @@ impl<'a> TypeChecker<'a> {
                         span:     span.clone(),
                     });
                 }
-                self.check_block(then_block);
-                for (cond, blk) in elseif {
-                    self.infer_expr(cond);
-                    self.check_block(blk);
-                }
-                if let Some(blk) = else_block {
-                    self.check_block(blk);
-                }
+                self.check_if_chain(condition, then_block, elseif, else_block.as_ref());
             }
 
             Stmt::Switch { subject, cases, default, .. } => {
@@ -695,7 +749,8 @@ impl<'a> TypeChecker<'a> {
                         span:     span.clone(),
                     });
                 }
-                self.check_block(body);
+                let narrowed = self.condition_narrowings(condition);
+                self.check_narrowed_block(body, &narrowed.then);
             }
 
             Stmt::ForIn { var, iter, body, span } => {
@@ -795,7 +850,7 @@ impl<'a> TypeChecker<'a> {
                         false
                     };
                     
-                    self.note_mixed_to_string(expr, &ty, &ret_ty);
+                    self.note_mixed_conversion(expr, &ty, &ret_ty);
                     if !is_runtime_return && !types_compat(&ty, &ret_ty, &self.symbols) {
                         self.errors.push(SemaError::ReturnTypeMismatch {
                             expected: type_name(&ret_ty),
@@ -859,6 +914,19 @@ impl<'a> TypeChecker<'a> {
                     if handler.class_filter.is_none() && idx + 1 < handlers.len() {
                         self.errors.push(SemaError::CatchAllNotLast { span: handler.span.clone() });
                     }
+                    // W05 : un handler précédent attrape déjà cette classe.
+                    if let Some(class_name) = &handler.class_filter {
+                        let shadowing = handlers[..idx].iter()
+                            .filter_map(|h| h.class_filter.as_ref())
+                            .find(|earlier| self.symbols.class_matches(class_name, earlier));
+                        if let Some(earlier) = shadowing {
+                            self.warnings.push(SemaWarning::UnreachableHandler {
+                                class: class_name.clone(),
+                                shadowed_by: earlier.clone(),
+                                span: handler.span.clone(),
+                            });
+                        }
+                    }
                     // `on e is X` : X doit être une classe connue (utilisateur
                     // ou exception builtin, toujours enregistrée — voir
                     // SymbolTable::new) — sinon ce handler est silencieusement
@@ -916,9 +984,11 @@ impl<'a> TypeChecker<'a> {
 
             Stmt::Assign { target, value, span } => {
                 let val_ty = self.infer_expr(value);
-                // Map réaffectée en entier : ses types par clé ne valent plus.
+                // Map réaffectée en entier : ses types par clé ne valent plus,
+                // ni un type raffiné par une condition.
                 if let Expr::Ident(name, _) = target {
                     self.forget_map_keys(name);
+                    self.scopes.forget_narrowing(name);
                 }
                 // `target = value` : `value` peut être une `scoped`/
                 // `consumed` qui s'échappe vers `target`.
@@ -935,7 +1005,7 @@ impl<'a> TypeChecker<'a> {
                             }
                             // Type de la valeur réaffectée — jamais vérifié
                             // jusqu'ici (`x = "abc"` sur un `int` compilait).
-                            self.note_mixed_to_string(value, &val_ty, &target_ty);
+                            self.note_mixed_conversion(value, &val_ty, &target_ty);
                             if !types_compat(&val_ty, &target_ty, &self.symbols) {
                                 self.errors.push(SemaError::TypeMismatch {
                                     expected: type_name(&target_ty),
@@ -952,13 +1022,28 @@ impl<'a> TypeChecker<'a> {
                     }
                     Expr::Field { object, field, span: field_span } => {
                         let obj_ty = self.infer_expr(object);
-                        if let Some(cls_name) = type_class_name(&obj_ty) {
+                        // Champ d'un générique instancié : type avec `T` substitué
+                        // (`b.v = "zz"` sur un `Box<int>` compilait).
+                        let generic_field = match &obj_ty {
+                            Type::Generic { name, args } => self.symbols.lookup_generic(name)
+                                .and_then(|g| g.fields.get(field).map(|f| substitute_type_params(&f.ty, &g.type_params, args))),
+                            _ => None,
+                        };
+                        if let Some(field_ty) = generic_field {
+                            if !types_compat(&val_ty, &field_ty, &self.symbols) {
+                                self.errors.push(SemaError::TypeMismatch {
+                                    expected: type_name(&field_ty),
+                                    found:    type_name(&val_ty),
+                                    span:     span.clone(),
+                                });
+                            }
+                        } else if let Some(cls_name) = type_class_name(&obj_ty) {
                             if let Some((owner, f)) = self.symbols.lookup_field_owner(&cls_name, field) {
                                 self.check_field_visibility(owner, &f.vis, field, field_span);
                                 // Type de la valeur affectée (initialiseur de `property`
                                 // compris, désucré en `self.x = expr`) — jamais vérifié
                                 // jusqu'ici pour un champ.
-                                self.note_mixed_to_string(value, &val_ty, &f.ty);
+                                self.note_mixed_conversion(value, &val_ty, &f.ty);
                                 if !types_compat(&val_ty, &f.ty, &self.symbols) {
                                     self.errors.push(SemaError::TypeMismatch {
                                         expected: type_name(&f.ty),
@@ -969,9 +1054,12 @@ impl<'a> TypeChecker<'a> {
                             }
                         }
                     }
-                    Expr::Index { object, index, .. } => {
-                        self.infer_expr(object);
+                    Expr::Index { object, index, span: index_span } => {
+                        let obj_ty = self.infer_expr(object);
                         self.infer_expr(index);
+                        if has_no_members(&obj_ty) || obj_ty == Type::String {
+                            self.errors.push(SemaError::AccessOnNonContainer { type_name: type_name(&obj_ty), field: None, span: index_span.clone() });
+                        }
                         // Clé d'une map à type par clé : la valeur doit lui correspondre.
                         if let Some(key_ty) = self.map_key_type(object, index) {
                             if !types_compat(&val_ty, &key_ty, &self.symbols) {
@@ -992,6 +1080,93 @@ impl<'a> TypeChecker<'a> {
                 }
             }
         }
+    }
+
+    // ── Raffinement de type (narrowing) ───────────────────────────────────────
+
+    fn condition_narrowings(&self, condition: &Expr) -> crate::sema::narrowing::Narrowings {
+        crate::sema::narrowing::of_condition(condition, &|name| self.scopes.current_type(name))
+    }
+
+    /// Bloc vérifié avec les variables `narrowed` raffinées.
+    fn check_narrowed_block(&mut self, block: &Block, narrowed: &[(String, Type)]) {
+        self.scopes.push();
+        for (name, ty) in narrowed {
+            self.scopes.narrow(name.clone(), ty.clone());
+        }
+        self.check_block(block);
+        let popped = self.scopes.pop_scope(&self.resource_classes);
+        self.flush_warnings(popped);
+    }
+
+    /// `if`/`elseif`/`else` : chaque branche voit les raffinements de sa
+    /// condition et la négation des précédentes. Après le `if`, la variable
+    /// garde le raffinement du seul chemin qui continue (`if x is null {
+    /// return }` : `x` n'est plus `null`).
+    fn check_if_chain(&mut self, condition: &Expr, then_block: &Block, elseif: &[(Expr, Block)], else_block: Option<&Block>) {
+        let first = self.condition_narrowings(condition);
+        self.check_narrowed_block(then_block, &first.then);
+        let mut others = first.other.clone();
+        let mut all_diverge = crate::sema::narrowing::diverges(then_block);
+        for (cond, blk) in elseif {
+            self.scopes.push();
+            for (name, ty) in &others {
+                self.scopes.narrow(name.clone(), ty.clone());
+            }
+            self.infer_expr(cond);
+            let n = self.condition_narrowings(cond);
+            self.check_narrowed_block(blk, &n.then);
+            others.extend(n.other);
+            let popped = self.scopes.pop_scope(&self.resource_classes);
+            self.flush_warnings(popped);
+            all_diverge &= crate::sema::narrowing::diverges(blk);
+        }
+        let after = match else_block {
+            Some(blk) => {
+                self.check_narrowed_block(blk, &others);
+                (elseif.is_empty() && crate::sema::narrowing::diverges(blk) && !all_diverge).then_some(first.then)
+            }
+            None => all_diverge.then_some(others),
+        };
+        for (name, ty) in after.unwrap_or_default() {
+            self.scopes.narrow(name, ty);
+        }
+    }
+
+    /// `match` : union des types de ses bras ; sans `default` ni test `is`
+    /// couvrant toutes les variantes du sujet, aucun bras peut ne
+    /// correspondre et la valeur vaut `null`. Dans un bras `is T`, un sujet
+    /// variable locale est raffiné en `T`.
+    fn infer_match(&mut self, subject: &Expr, arms: &[MatchArm]) -> Type {
+        let subject_ty = self.infer_expr(subject);
+        let mut arm_types = Vec::new();
+        let mut remaining = subject_ty.clone();
+        for arm in arms {
+            let narrowed = match &arm.pattern {
+                Some(MatchPattern::IsType(ty)) => crate::sema::narrowing::of_condition(
+                    &Expr::IsCheck { expr: Box::new(subject.clone()), ty: ty.clone(), span: arm.span.clone() },
+                    &|name| self.scopes.current_type(name),
+                ).then,
+                _ => Vec::new(),
+            };
+            self.scopes.push();
+            for (name, ty) in narrowed {
+                self.scopes.narrow(name, ty);
+            }
+            arm_types.push(self.infer_expr(&arm.body));
+            let popped = self.scopes.pop_scope(&self.resource_classes);
+            self.flush_warnings(popped);
+            if let Some(MatchPattern::IsType(ty)) = &arm.pattern {
+                remaining = without_variant(&remaining, ty);
+            }
+        }
+        let exhaustive = arms.iter().any(|a| a.pattern.is_none()) || remaining == Type::Void
+            || bool_literals_cover(&subject_ty, arms);
+        let all_void = arm_types.iter().all(|t| *t == Type::Void);
+        if !exhaustive && !all_void {
+            arm_types.push(Type::Null);
+        }
+        union_of_types(arm_types)
     }
 
     // ── `message<T>` : consommation scalaire directe ─────────────────────────
@@ -1202,8 +1377,8 @@ impl<'a> TypeChecker<'a> {
                 }
                 // 1. variable locale
                 if let Some(b) = self.scopes.lookup(name) {
-                    let ty = b.ty.clone();
                     let decl = b.span.clone();
+                    let ty = self.scopes.current_type(name).unwrap_or(Type::Mixed);
                     self.record(span, name, Target::Local { decl }, &ty);
                     if let Err(first_use) = self.scopes.use_binding(name, span) {
                         self.errors.push(SemaError::ConsumedUsedTwice {
@@ -2255,7 +2430,13 @@ impl<'a> TypeChecker<'a> {
                         }
                         Type::Bool
                     }
-                    UnaryOp::Neg => ty,
+                    // `-` : nombres seulement (`-"abc"` affichait une adresse).
+                    UnaryOp::Neg => {
+                        if !matches!(ty, Type::Int | Type::Float | Type::Mixed) && !is_numeric_union(&ty) {
+                            self.errors.push(SemaError::ArithmeticOnNonNumeric { op: "-".into(), operand: type_name(&ty), span: span.clone() });
+                        }
+                        ty
+                    }
                 }
             }
 
@@ -2303,13 +2484,23 @@ impl<'a> TypeChecker<'a> {
                 target_ty
             }
 
+            // Littéral : typé par le type attendu quand chaque élément lui
+            // convient (`var s:array<Shape> = [use Circle(), use Square()]`),
+            // sinon par l'union des types de ses éléments.
             Expr::Array { elements, .. } => {
-                if elements.is_empty() {
-                    return Type::Array(Box::new(Type::Mixed));
+                let expected_elem = match &hint {
+                    Some(Type::Array(e)) => Some((**e).clone()),
+                    _ => None,
+                };
+                let elem_types: Vec<Type> = elements.iter().map(|e| {
+                    self.expected_hint = expected_elem.clone();
+                    self.infer_expr(e)
+                }).collect();
+                match expected_elem {
+                    Some(e) if elem_types.iter().all(|t| types_compat(t, &e, &self.symbols)) => Type::Array(Box::new(e)),
+                    _ if elem_types.is_empty() => Type::Array(Box::new(Type::Mixed)),
+                    _ => Type::Array(Box::new(union_of_types(elem_types))),
                 }
-                let elem_ty = self.infer_expr(&elements[0]);
-                for e in &elements[1..] { self.infer_expr(e); }
-                Type::Array(Box::new(elem_ty))
             }
 
             Expr::Range { start, end, .. } => {
@@ -2318,26 +2509,26 @@ impl<'a> TypeChecker<'a> {
                 Type::Array(Box::new(Type::Int))
             }
 
-            Expr::Match { subject, arms, .. } => {
-                self.infer_expr(subject);
-                let mut result = Type::Mixed;
-                for arm in arms {
-                    result = self.infer_expr(&arm.body);
-                }
-                result
-            }
+            Expr::Match { subject, arms, .. } => self.infer_match(subject, arms),
 
             Expr::Map { entries, .. } => {
                 if entries.is_empty() {
                     return Type::Map(Box::new(Type::Mixed), Box::new(Type::Mixed));
                 }
-                let key_ty = self.infer_expr(&entries[0].0);
-                let mut value_types = vec![self.infer_expr(&entries[0].1)];
-                for (k, v) in &entries[1..] {
-                    self.infer_expr(k);
+                let (expected_key, expected_val) = match &hint {
+                    Some(Type::Map(k, v)) => (Some((**k).clone()), Some((**v).clone())),
+                    _ => (None, None),
+                };
+                let mut key_types = Vec::new();
+                let mut value_types = Vec::new();
+                for (k, v) in entries {
+                    key_types.push(self.infer_expr(k));
+                    self.expected_hint = expected_val.clone();
                     value_types.push(self.infer_expr(v));
                 }
-                let val_ty = value_types[0].clone();
+                let fits = |types: &[Type], e: &Option<Type>| e.as_ref().filter(|e| types.iter().all(|t| types_compat(t, e, &self.symbols))).cloned();
+                let key_ty = fits(&key_types, &expected_key).unwrap_or_else(|| union_of_types(key_types.clone()));
+                let val_ty = fits(&value_types, &expected_val).unwrap_or_else(|| union_of_types(value_types.clone()));
                 self.note_literal_keys(entries, value_types);
                 Type::Map(Box::new(key_ty), Box::new(val_ty))
             }
@@ -2351,7 +2542,7 @@ impl<'a> TypeChecker<'a> {
                 match &obj_ty {
                     Type::Array(inner) => *inner.clone(),
                     Type::Map(_, val)  => *val.clone(),
-                    ty if has_no_members(ty) => {
+                    ty if has_no_members(ty) || *ty == Type::String => {
                         self.errors.push(SemaError::AccessOnNonContainer {
                             type_name: type_name(ty),
                             field:     None,
@@ -2372,7 +2563,7 @@ impl<'a> TypeChecker<'a> {
                 Type::String
             }
 
-            Expr::Nameless { params, ret_ty, body, span: _ } => {
+            Expr::Nameless { params, ret_ty, body, span } => {
                 // `message<T>` reste return-type-only, closures comprises
                 // (E31) : itérer un tel paramètre plantait (voir
                 // docs/roadmap.d/langage-emit-iterable.md).
@@ -2396,6 +2587,7 @@ impl<'a> TypeChecker<'a> {
                 self.current_ret = Some(closure_ret.clone());
                 self.closure_depth += 1;
                 self.check_block(body);
+                self.check_all_paths_return("nameless", &closure_ret, body, span);
                 self.closure_depth -= 1;
                 self.current_ret = saved_ret;
                 { let _u = self.scopes.pop_scope(&self.resource_classes); self.flush_warnings(_u); }
@@ -2580,24 +2772,61 @@ pub fn type_name(ty: &Type) -> String {
 /// stricte du catch-all final (`found == expected`), rejetant purement et
 /// simplement TOUTE affectation polymorphe, même la plus basique (héritage
 /// de classe).
+/// Union normalisée de `types` : unions aplaties, doublons retirés, `mixed`
+/// absorbe tout, une seule variante rend la variante elle-même.
+pub fn union_of_types(types: Vec<Type>) -> Type {
+    let mut out: Vec<Type> = Vec::new();
+    for ty in types {
+        let variants = match ty {
+            Type::Union(vs) => vs,
+            Type::Mixed => return Type::Mixed,
+            other => vec![other],
+        };
+        for v in variants {
+            if !out.contains(&v) {
+                out.push(v);
+            }
+        }
+    }
+    match out.len() {
+        0 => Type::Void,
+        1 => out.remove(0),
+        _ => Type::Union(out),
+    }
+}
+
+/// `ty` sans la variante `removed` (`void` quand plus rien ne reste).
+fn without_variant(ty: &Type, removed: &Type) -> Type {
+    match ty {
+        Type::Union(vs) => union_of_types(vs.iter().filter(|v| *v != removed).cloned().collect()),
+        other if other == removed => Type::Void,
+        other => other.clone(),
+    }
+}
+
+/// `match` sur un `bool` couvrant `true` et `false`.
+fn bool_literals_cover(subject: &Type, arms: &[MatchArm]) -> bool {
+    let has = |b: bool| arms.iter().any(|a| matches!(&a.pattern, Some(MatchPattern::Literal(Literal::Bool(v))) if *v == b));
+    *subject == Type::Bool && has(true) && has(false)
+}
+
 pub fn types_compat(found: &Type, expected: &Type, symbols: &SymbolTable) -> bool {
     if matches!(found, Type::Mixed) || matches!(expected, Type::Mixed) {
         return true;
     }
-    // Les unions sont vérifiés en premier (avant le cas null)
-    // union en position "found" : compatible si l'une des variantes est compatible avec expected
+    // Union trouvée : chacune de ses variantes doit convenir (sinon la
+    // valeur peut être celle qui ne convient pas — raffiner d'abord, voir
+    // `crate::sema::narrowing`).
     if let Type::Union(variants) = found {
-        return variants.iter().any(|v| types_compat(v, expected, symbols));
+        return variants.iter().all(|v| types_compat(v, expected, symbols));
     }
-    // union en position "expected" : compatible si found est compatible avec au moins une variante
+    // Union attendue : une variante qui accepte la valeur suffit.
     if let Type::Union(variants) = expected {
         return variants.iter().any(|v| types_compat(found, v, symbols));
     }
-    // null est compatible avec tout type référence (string, objet, tableau, map)
+    // `null` n'est accepté que par un type qui l'admet (`T|null`, `mixed`).
     if matches!(found, Type::Null) {
-        return matches!(expected,
-            Type::String | Type::Named(_) | Type::Array(_) | Type::Map(..) | Type::Null
-        );
+        return matches!(expected, Type::Null);
     }
     // `message<T>` consommé en scalaire : compatible avec tout ce que `T`
     // accepte (voir docs/roadmap.d/langage-emit-iterable.md) — la règle "au
@@ -2614,42 +2843,38 @@ pub fn types_compat(found: &Type, expected: &Type, symbols: &SymbolTable) -> boo
         // Générique instancié affecté à une interface qu'il implémente ou à
         // une classe dont il hérite (EBNF §20.4).
         (Type::Generic { name: f, .. }, Type::Named(e)) => symbols.class_matches(f, e),
-        (Type::Array(f), Type::Array(e)) => types_compat(f, e, symbols),
-        // Générique instancié : même générique, arguments compatibles un à un
+        // Conteneurs mutables : invariants (un `array<Dog>` vu comme
+        // `array<Animal>` recevrait un `Animal`) — `mixed` reste un joker.
+        (Type::Array(f), Type::Array(e)) => types_equiv(f, e, symbols),
+        // Générique instancié : même générique, arguments équivalents un à un
         // (`Box<T>` dans le corps d'une méthode statique contre `Box<mixed>`
-        // de sa signature — refusé à tort jusqu'ici).
+        // de sa signature).
         (Type::Generic { name: f, args: fa }, Type::Generic { name: e, args: ea }) =>
-            f == e && fa.len() == ea.len() && fa.iter().zip(ea).all(|(f, e)| types_compat(f, e, symbols)),
+            f == e && fa.len() == ea.len() && fa.iter().zip(ea).all(|(f, e)| types_equiv(f, e, symbols)),
         (Type::Map(fk, fv), Type::Map(ek, ev)) =>
-            types_compat(fk, ek, symbols) && types_compat(fv, ev, symbols),
+            types_equiv(fk, ek, symbols) && types_equiv(fv, ev, symbols),
         // `Resolvable<T>` : contrairement à `message<T>` (déballé
         // automatiquement ci-dessus), PAS d'unwrapping implicite — seul
-        // `resolve` peut en extraire `T` (sinon `var t:string = asyncCall()`
-        // type-checkerait par accident). Les arguments internes restent
-        // comparés via `types_compat` (pas une égalité structurelle stricte),
-        // même règle que `Array<T>`/`Map<K,V>` ci-dessus.
+        // `resolve` peut en extraire `T`. En lecture seule : covariant.
         (Type::Resolvable(f), Type::Resolvable(e)) => types_compat(f, e, symbols),
+        // `Function` : retour covariant, paramètres contravariants (EBNF
+        // §6.5) — la fonction trouvée doit accepter tout argument que
+        // l'appelant peut passer selon le type attendu.
         (
             Type::Function { ret_ty: f_ret, param_tys: f_params },
             Type::Function { ret_ty: e_ret, param_tys: e_params }
         ) => {
-            // Le type de retour doit être compatible
-            if !types_compat(f_ret, e_ret, symbols) {
-                return false;
-            }
-            // Les paramètres doivent correspondre exactement
-            if f_params.len() != e_params.len() {
-                return false;
-            }
-            for (fp, ep) in f_params.iter().zip(e_params.iter()) {
-                if !types_compat(fp, ep, symbols) {
-                    return false;
-                }
-            }
-            true
+            types_compat(f_ret, e_ret, symbols)
+                && f_params.len() == e_params.len()
+                && f_params.iter().zip(e_params).all(|(fp, ep)| types_compat(ep, fp, symbols))
         }
         _ => found == expected,
     }
+}
+
+/// Compatibilité dans les deux sens : élément d'un conteneur mutable.
+fn types_equiv(a: &Type, b: &Type, symbols: &SymbolTable) -> bool {
+    types_compat(a, b, symbols) && types_compat(b, a, symbols)
 }
 
 fn binary_result_type(
@@ -2691,7 +2916,7 @@ fn binary_result_type(
                     return lt.clone();
                 }
             }
-            if types_compat(lt, rt, symbols) { lt.clone() } else {
+            if types_compat(lt, rt, symbols) || types_compat(rt, lt, symbols) { lt.clone() } else {
                 errors.push(SemaError::TypeMismatch {
                     expected: type_name(lt),
                     found:    type_name(rt),
@@ -2810,11 +3035,22 @@ fn is_numeric(t: &Type) -> bool {
 /// malgré des types nominaux différents (widening numérique explicite lors du
 /// lowering). `mixed` ne peut pas être vérifié statiquement — la comparaison
 /// est alors déléguée à un contrôle de type au runtime (voir lower::expr::lower).
+/// Union dont toutes les variantes sont `int`/`float`.
+fn is_numeric_union(ty: &Type) -> bool {
+    matches!(ty, Type::Union(vs) if vs.iter().all(|v| matches!(v, Type::Int | Type::Float)))
+}
+
 fn comparable_types(lt: &Type, rt: &Type, symbols: &SymbolTable) -> bool {
     if matches!(lt, Type::Mixed) || matches!(rt, Type::Mixed) {
         return true;
     }
     if is_numeric(lt) && is_numeric(rt) {
+        return true;
+    }
+    // Test de nullité d'une valeur référence : toujours permis (une valeur
+    // venue d'un `mixed` ou d'un builtin peut valoir `null`).
+    let is_reference = |t: &Type| !matches!(t, Type::Int | Type::Float | Type::Bool | Type::Void);
+    if (*lt == Type::Null && is_reference(rt)) || (*rt == Type::Null && is_reference(lt)) {
         return true;
     }
     types_compat(lt, rt, symbols) || types_compat(rt, lt, symbols)

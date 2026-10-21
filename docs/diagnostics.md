@@ -82,13 +82,25 @@ String::to_upper(s)      // String n'a pas de méthode to_upper (c'est upper)
 fichier.oc:7:5: error: expected type 'int', found 'string'
 ```
 
-La valeur assignée ou retournée ne correspond pas au type déclaré.
+La valeur assignée ou retournée ne correspond pas au type déclaré. Les règles de compatibilité (voir [§6 de l'EBNF](EBNF.md#6-types)) :
+
+- `null` n'est accepté que par un type qui l'admet : `T|null` ou `mixed` ;
+- une valeur de type union n'est acceptée comme `T` que si **toutes** ses variantes le sont — raffiner d'abord avec `is`/`equal null` ;
+- `array<T>`, `map<K, V>` et les arguments d'un générique sont invariants (`array<Dog>` n'est pas un `array<Animal>`) ;
+- `Function` : retour covariant, paramètres contravariants ;
+- une instance de `generic` vérifie le type de ses champs à l'affectation (`b.v = "zz"` sur un `Box<int>`) ;
+- le type d'un `match` est l'union de ses bras (plus `null` sans `default`).
 
 ```ocara
-var n:int = "bonjour"    // string assigné à int
+var n:int = "bonjour"            // string assigné à int
+var s:string = null              // ❌ string n'admet pas null — écrire string|null
+var x:int|string = "a"
+var y:int = x                    // ❌ found 'int|string'
+var dogs:array<Dog> = [use Dog()]
+var animals:array<Animal> = dogs // ❌ found 'Dog[]'
 ```
 
-**Correction :** utiliser `Convert::strToInt()` ou corriger le type déclaré.
+**Correction :** utiliser `Convert::strToInt()`, déclarer le type `T|null`, raffiner la valeur (`if x is int { … }`, `if s is null { return }`), ou corriger le type déclaré.
 
 ---
 
@@ -98,12 +110,14 @@ var n:int = "bonjour"    // string assigné à int
 fichier.oc:12:5: error: duplicate symbol 'x'
 ```
 
-Une variable ou fonction est déclarée deux fois dans le même scope.
+Une variable est déclarée deux fois dans le même bloc, ou deux déclarations de même nom existent dans le programme : fonctions, classes/interfaces/génériques/enums/modules, méthodes ou propriétés d'une même classe (`duplicate symbol 'A::m'`). Le premier gagnait jusqu'ici en silence.
 
 ```ocara
 var x:int = 1
 var x:int = 2            // doublon dans le même bloc
-```
+
+function foo(): int { return 1 }
+function foo(): int { return 2 }   // doublon
 
 **Correction :** renommer l'une des deux déclarations.
 
@@ -1257,7 +1271,7 @@ half(n.toFloat())        // ✅
 
 ```
 fichier.oc:14:18: error: cannot read field 'nonexistent' — the value's type is 'int', which has no fields
-fichier.oc:15:18: error: cannot index a value of type 'void' — only arrays, maps and strings can be indexed
+fichier.oc:15:18: error: cannot index a value of type 'void' — only arrays and maps can be indexed (use the String::* functions on a string)
 ```
 
 Lecture d'un champ (`x.champ`) ou indexation (`x[i]`) sur une valeur de type `int`, `float`, `bool`, `null`, `void` (résultat d'un appel sans valeur), `Function<…>`, `message<T>` ou `Resolvable<T>`. Le pendant d'E36/E37 (appels de méthode) pour les champs et les index : jusqu'à ce diagnostic, ces accès compilaient puis lisaient une adresse arbitraire (SIGSEGV). `mixed` reste permissif.
@@ -1321,6 +1335,43 @@ const price_str:string = req.param("price").trim()
 scoped price:float = price_str.toFloat()                   // ✅
 scoped other:float = Convert::strToFloat(req.param("price")) // ✅
 ```
+
+---
+
+### E67 — Chemin sans `return`
+
+```
+fichier.oc:6:1: error: 'g' must return a 'string' on every path — a path reaches the end of its body without 'return' (add a final 'return' or 'raise')
+```
+
+Une fonction, une méthode ou une `nameless` non-`void` dont un chemin atteint la fin du corps sans `return` ni `raise`. Ce chemin rendait `null` (ou `0`) en silence. Un chemin se termine par `return` ou `raise` ; un `if` ne couvre tous les cas qu'avec un `else` dont toutes les branches se terminent ; une boucle `while true` sans `break` ne se termine jamais. Un type de retour `T|void` autorise un chemin sans valeur.
+
+```ocara
+function g(x:int): string {
+    if x greater 0 { return "positif" }
+}                                    // ❌ E67
+```
+
+**Correction :** ajouter le `return` (ou le `raise`) manquant.
+
+---
+
+### E68 — Redéfinition incompatible
+
+```
+fichier.oc:8:28: error: 'B::v' redefines 'A::v' with an incompatible signature (returns 'T' instead of 'int') — a redefinition keeps the same parameter types and returns the same type or a subclass of it; use another name for a different signature
+```
+
+Une méthode d'instance qui porte le nom d'une méthode héritée la redéfinit : l'appel `a.v()` sur une instance de la sous-classe exécute sa version, mais le code appelant lit le résultat au type annoncé par le parent. Avec un autre type de retour ou d'autres paramètres, il lisait une valeur fausse ou plantait. La redéfinition garde les mêmes types de paramètres et rend le même type ou une sous-classe.
+
+```ocara
+class A { public method v(): int { return 1 } }
+class B extends A {
+    public method v(): string { return "x" }   // ❌ E68
+}
+```
+
+**Correction :** aligner la signature sur celle du parent, ou donner un autre nom à la méthode.
 
 ---
 
@@ -1405,6 +1456,18 @@ db.close()                             // jamais atteint
 Volontairement **conservateur** : un `raise` à l'intérieur d'un `try` local (même sans vérifier que ses `on` couvrent la classe réellement levée) est considéré rattrapé ; une finalisation (`.destroy()`/`.close()`/`.join()`/`.detach()`) appelée en ligne droite avant le `raise` supprime l'avertissement ; une ressource `var` n'est signalée que si sa fermeture manuelle suit le `raise` dans le même bloc (une ressource partagée, jamais fermée à cet endroit, n'est pas concernée). Aucune analyse interprocédurale : seul un `raise` textuel compte, pas un appel vers une fonction qui pourrait elle-même en lever un.
 
 **Correction :** déclarer la ressource `scoped` (fermée automatiquement, même par un `raise`), utiliser une variante `withX` — `m.withLock(...)` (voir [Mutex](builtins/Mutex.md)), `SQLite::withOpen(...)` (voir [SQLite](builtins/SQLite.md)), `MySQL::withConnect(...)`/`MariaDB::withConnect(...)` (voir [MySQL](builtins/MySQL.md)) —, finaliser avant le code risqué, ou entourer ce code d'un `try`/`on` local.
+
+---
+
+### W05 — Handler `on` jamais atteint
+
+```
+fichier.oc:9:7: warning: handler 'on … is Enfant' is never reached — the previous handler 'on … is Parent' already catches every 'Enfant' (place the more specific handler first)
+```
+
+Les handlers d'un `try` sont essayés dans l'ordre : un `on e is Enfant` placé après un `on e is Parent` (Enfant hérite de Parent) ne reçoit jamais rien.
+
+**Correction :** placer le handler le plus spécifique en premier.
 
 ---
 

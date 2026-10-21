@@ -217,7 +217,10 @@ pub fn load_imports(
             }
             program.classes.extend(mod_prog.classes);
             program.interfaces.extend(mod_prog.interfaces);
-            program.functions.extend(mod_prog.functions);
+            // Le point d'entrée d'un fichier importé n'est pas importé : il
+            // doublerait celui du programme (un fichier de tests qui importe
+            // le `main.oc` d'un projet).
+            program.functions.extend(mod_prog.functions.into_iter().filter(|f| f.name != "main"));
             program.consts.extend(mod_prog.consts);
             program.modules.extend(mod_prog.modules);
             program.generics.extend(mod_prog.generics);
@@ -283,6 +286,9 @@ fn merge_requested(
         program.interfaces.push(iface);
     } else if let Some(module) = mod_prog.modules.iter().find(|m| m.name == requested_name).cloned() {
         program.modules.push(module);
+    } else if requested_name == "main" && mod_prog.functions.iter().any(|f| f.name == "main") {
+        return Err(Diagnostic::at(input, &imp.span,
+            format!("'main' is the entry point of '{}' and cannot be imported — import the classes and functions you need by name", file_path.display())));
     } else if let Some(func) = mod_prog.functions.iter().find(|f| f.name == requested_name).cloned() {
         program.functions.push(func);
     } else {
@@ -343,12 +349,22 @@ fn merge_class_with_deps(
     }
 }
 
-/// Un module peut introduire des doublons (classe rapatriée puis refusionnée).
+/// Un module peut introduire des doublons (classe rapatriée puis
+/// refusionnée) : seule une déclaration identique est retirée — deux
+/// déclarations différentes de même nom restent, signalées par la sema
+/// (E03, `crate::sema::duplicates`).
 fn dedup(program: &mut Program) {
-    let mut seen = HashSet::new();
-    program.classes.retain(|c| seen.insert(c.name.clone()));
-    let mut seen = HashSet::new();
-    program.functions.retain(|f| seen.insert(f.name.clone()));
-    let mut seen = HashSet::new();
-    program.consts.retain(|c| seen.insert(c.name.clone()));
+    retain_distinct(&mut program.classes);
+    retain_distinct(&mut program.functions);
+    retain_distinct(&mut program.consts);
+}
+
+fn retain_distinct<T: PartialEq + Clone>(items: &mut Vec<T>) {
+    let mut kept: Vec<T> = Vec::with_capacity(items.len());
+    for item in items.drain(..) {
+        if !kept.contains(&item) {
+            kept.push(item);
+        }
+    }
+    *items = kept;
 }

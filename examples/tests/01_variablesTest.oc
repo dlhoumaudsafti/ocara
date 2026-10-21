@@ -110,7 +110,7 @@ class Test01Variables extends UnitTest {
         self::assertEquals(99, unknown)    // IO::writeln(unknown) → 99
 
         // null — absence de valeur
-        var nom:string = null
+        var nom:string|null = null
         var tags:mixed = null
 
         // IO::writeln(nom) → null

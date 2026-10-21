@@ -227,16 +227,54 @@ pub struct PoppedScope {
 #[derive(Debug, Default)]
 pub struct ScopeStack {
     frames: Vec<HashMap<String, LocalBinding>>,
+    /// Types raffinés par une condition (voir `crate::sema::narrowing`),
+    /// un par frame : valables jusqu'à la fin du frame ou à la prochaine
+    /// affectation de la variable.
+    narrowed: Vec<HashMap<String, crate::parsing::ast::Type>>,
 }
 
 impl ScopeStack {
     pub fn push(&mut self) {
         self.frames.push(HashMap::new());
+        self.narrowed.push(HashMap::new());
     }
 
     #[allow(dead_code)]
     pub fn pop(&mut self) {
         self.frames.pop();
+        self.narrowed.pop();
+    }
+
+    /// Raffine `name` dans le frame courant.
+    pub fn narrow(&mut self, name: String, ty: crate::parsing::ast::Type) {
+        if self.lookup(&name).is_some() {
+            if let Some(top) = self.narrowed.last_mut() {
+                top.insert(name, ty);
+            }
+        }
+    }
+
+    /// Type courant de la variable locale `name` : raffiné, sinon déclaré.
+    pub fn current_type(&self, name: &str) -> Option<crate::parsing::ast::Type> {
+        for (frame, narrowed) in self.frames.iter().zip(&self.narrowed).rev() {
+            if let Some(ty) = narrowed.get(name) {
+                return Some(ty.clone());
+            }
+            if let Some(b) = frame.get(name) {
+                return Some(b.ty.clone());
+            }
+        }
+        None
+    }
+
+    /// Affectation de `name` : ses raffinements ne valent plus.
+    pub fn forget_narrowing(&mut self, name: &str) {
+        for (frame, narrowed) in self.frames.iter().zip(self.narrowed.iter_mut()).rev() {
+            narrowed.remove(name);
+            if frame.contains_key(name) {
+                break;
+            }
+        }
     }
 
     /// Dépile le scope courant et retourne les variables non utilisées ainsi
@@ -245,6 +283,7 @@ impl ScopeStack {
     /// traiter une instance d'une classe utilisateur contenant une ressource
     /// exactement comme une ressource nue (E28 ci-dessous).
     pub fn pop_scope(&mut self, resource_classes: &HashSet<String>) -> PoppedScope {
+        self.narrowed.pop();
         let frame = match self.frames.pop() {
             Some(f) => f,
             None    => return PoppedScope { unused: vec![], unfinalized_threads: vec![], unclosed_resource_vars: vec![] },

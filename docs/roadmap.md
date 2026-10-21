@@ -29,7 +29,6 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Sema : programmes invalides acceptés qui plantent** — `types_compat` trop permissif (union, `null`, covariance des conteneurs et de `Function`) ; redéfinition incompatible, champ générique, branche de `match`, `-` unaire, indexation de chaîne, chemin sans `return`, déclarations en double non signalées. *(Structurel)* → [détails](roadmap.d/sema-solidite-typage.md)
 - **Performances : `map` et concaténation quadratiques, collecteur de cycles** — Map 10⁵ insertions → ~20 s (recherche linéaire) ; `s = s + "x"` × 10⁶ → 67 s ; collecte de cycles qui reparcourt le graphe vivant ; méthode ~26 ns (retain/release de `self`) ; deux appels système par exception. *(Structurel)* → [détails](roadmap.d/perf-runtime-complexite.md)
 - **Compilateur : fonctions géantes encore super-linéaires** — `elseif` × 40 000 → 9,9 s (arbre des dominateurs de Cranelift) ; 50 000 `if` imbriqués → 130 s ; imbrication des instructions non bornée par un diagnostic. *(Légère à Structurel)* → [détails](roadmap.d/compilateur-limites-echelle-residuelles.md)
 

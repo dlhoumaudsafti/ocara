@@ -21,6 +21,7 @@ mod arg_types;
 mod member_visibility;
 mod access_on_non_container;
 mod structural_fixes;
+mod type_soundness;
 mod unknown_symbols;
 mod global_const;
 mod interface_call;

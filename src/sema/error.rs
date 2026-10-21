@@ -204,6 +204,13 @@ pub enum SemaError {
     /// Argument d'un type incompatible avec le paramètre déclaré (`add("1",
     /// 2)` avec `a:int`) — voir `crate::sema::arg_types` (E62).
     ArgTypeMismatch { callee: String, param: String, expected: String, found: String, span: Span },
+    /// Fonction/méthode/closure non-`void` dont un chemin se termine sans
+    /// `return` ni `raise` — voir `crate::sema::returns` (E67).
+    MissingReturn { name: String, ret: String, span: Span },
+    /// Redéfinition d'une méthode héritée avec une signature incompatible :
+    /// l'appel polymorphe (`a.v()` sur un `B`) lirait le résultat au type du
+    /// parent (E68).
+    IncompatibleOverride { class: String, method: String, parent: String, reason: String, span: Span },
 }
 
 impl SemaError {
@@ -267,6 +274,8 @@ impl SemaError {
             SemaError::ArithmeticOnNonNumeric { span, .. } => span,
             SemaError::ArgsWithoutConstructor { span, .. } => span,
             SemaError::ArgTypeMismatch { span, .. } => span,
+            SemaError::MissingReturn { span, .. } => span,
+            SemaError::IncompatibleOverride { span, .. } => span,
         }
     }
 
@@ -364,7 +373,7 @@ impl SemaError {
                 format!("cannot call '.{}()' on a 'mixed' value — conversion methods depend on the receiver's static type: store the value in a typed variable first (e.g. 'const s:string = ...') or call the 'Convert::...' function directly", method),
             SemaError::AccessOnNonContainer { type_name, field, .. } => match field {
                 Some(field) => format!("cannot read field '{}' — the value's type is '{}', which has no fields", field, type_name),
-                None => format!("cannot index a value of type '{}' — only arrays, maps and strings can be indexed", type_name),
+                None => format!("cannot index a value of type '{}' — only arrays and maps can be indexed (use the String::* functions on a string)", type_name),
             },
             SemaError::InterfaceNoWiring { name, .. } =>
                 format!("interface '{}' cannot be constructed or have a static method called on it directly: it has no 'wiring' declaration — add at least one 'wiring <Class>' inside the interface, or use a concrete implementing class directly", name),
@@ -402,6 +411,10 @@ impl SemaError {
                 },
             SemaError::ArgsWithoutConstructor { class, found, .. } =>
                 format!("'{}' has no init() — 'use {}()' takes no arguments, {} provided (declare init(...) that receives them — for an exception: init(message:string, code:int) {{ parent::init(message, code) }} — or use a struct for a constructor from its fields)", class, class, found),
+            SemaError::MissingReturn { name, ret, .. } =>
+                format!("'{}' must return a '{}' on every path — a path reaches the end of its body without 'return' (add a final 'return' or 'raise')", name, ret),
+            SemaError::IncompatibleOverride { class, method, parent, reason, .. } =>
+                format!("'{}::{}' redefines '{}::{}' with an incompatible signature ({}) — a redefinition keeps the same parameter types and returns the same type or a subclass of it; use another name for a different signature", class, method, parent, method, reason),
             SemaError::ArgTypeMismatch { callee, param, expected, found, .. } =>
                 format!("argument '{}' of '{}': expected type '{}', found '{}'", param, callee, expected, found),
             SemaError::ArithmeticOnNonNumeric { op, operand, .. } =>
@@ -435,6 +448,8 @@ pub enum SemaWarning {
     /// `.detach()` d'un `Thread`, ou le `.close()`/`.destroy()` manuel d'une
     /// ressource native `var` — voir `crate::sema::resource_raise`.
     RaiseSkipsFinalization { name: String, class_name: String, is_thread: bool, span: Span },
+    /// W05 : `on e is Enfant` après `on e is Parent` — jamais atteint.
+    UnreachableHandler { class: String, shadowed_by: String, span: Span },
 }
 
 impl SemaWarning {
@@ -444,6 +459,7 @@ impl SemaWarning {
             SemaWarning::MixedLocalVariable { span, .. } => span,
             SemaWarning::VariadicMixed { span, .. } => span,
             SemaWarning::RaiseSkipsFinalization { span, .. } => span,
+            SemaWarning::UnreachableHandler { span, .. } => span,
         }
     }
 
@@ -455,6 +471,8 @@ impl SemaWarning {
                 format!("local variable '{}': type 'mixed' disables type checking — prefer a concrete type or union (e.g., int|string|null)", name),
             SemaWarning::VariadicMixed { name, .. } =>
                 format!("variadic parameter '{}': variadic<mixed> disables type checking — consider variadic<T|U> with explicit union", name),
+            SemaWarning::UnreachableHandler { class, shadowed_by, .. } =>
+                format!("handler 'on … is {}' is never reached — the previous handler 'on … is {}' already catches every '{}' (place the more specific handler first)", class, shadowed_by, class),
             SemaWarning::RaiseSkipsFinalization { name, is_thread: true, .. } =>
                 format!("thread '{}' is neither joined nor detached when a 'raise' later in this block is not locally caught — the 'raise' skips '.join()'/'.detach()' and abandons the thread — call it before that 'raise', or wrap the risky code in a local 'try'/'on'", name),
             SemaWarning::RaiseSkipsFinalization { name, class_name, .. } =>

@@ -128,6 +128,7 @@ pub mod dotenv;
 pub mod yaml;
 pub mod rc;
 pub mod task;
+pub mod mixed_check;
 pub mod profile;
 pub mod leak;
 pub mod global_const;
@@ -1452,7 +1453,7 @@ pub extern "C" fn Map_forEach(ptr: i64, callback: i64, shape: i64) {
 const ERR_CONVERT_INVALID_INT: i64 = 101;
 const ERR_CONVERT_INVALID_FLOAT: i64 = 102;
 /// Valeur `mixed` qui n'est ni une chaîne ni un scalaire (Convert::mixedToStr).
-const ERR_CONVERT_TYPE: i64 = 103;
+pub(crate) const ERR_CONVERT_TYPE: i64 = 103;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn Convert_strToInt(s: i64) -> i64 {

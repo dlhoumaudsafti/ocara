@@ -48,6 +48,10 @@ pub struct AstRewrites {
     /// variante de l'expression) : enveloppées dans `Convert::mixedToStr` —
     /// voir `crate::sema::mixed_string`.
     pub mixed_to_string: std::collections::HashSet<(ArgSiteKey, std::mem::Discriminant<Expr>)>,
+    /// Expressions `mixed` attendues comme un autre type concret : type
+    /// vérifié à l'exécution par `Convert::mixedAs(expr, "type")` — voir
+    /// `crate::sema::mixed_string`.
+    pub mixed_checks: HashMap<(ArgSiteKey, std::mem::Discriminant<Expr>), String>,
     /// Arguments de type retenus pour un appel statique sur un `generic`
     /// (clé : span de l'appel) — voir `crate::sema::generic_static`.
     pub generic_static: HashMap<ArgSiteKey, Vec<Type>>,

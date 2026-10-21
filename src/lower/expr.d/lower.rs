@@ -1499,6 +1499,18 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
 
         // ── Opération unaire ──────────────────────────────────────────────────
         Expr::Unary { op, operand, .. } => {
+            // `-x` sur un `mixed` : négation dynamique (`0 - x`) — une
+            // négation des bits du pointeur d'un float boxé rendait un
+            // entier aberrant.
+            if matches!(op, UnaryOp::Neg) && expr_ir_type(builder, operand) == IrType::Ptr {
+                let v = lower_expr(builder, operand);
+                let zero = builder.new_value();
+                builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+                let dest = builder.new_value();
+                builder.emit(Inst::Call { dest: Some(dest.clone()), func: "__dyn_sub".into(), args: vec![zero, v], ret_ty: IrType::Ptr });
+                crate::lower::stmt::rc::track(builder, &dest);
+                return dest;
+            }
             // `-x` sur un `float` : négation flottante (une négation entière
             // des bits faisait de `-2.5` la valeur `-1.75`).
             let ty = if expr_ir_type(builder, operand) == IrType::F64 { IrType::F64 } else { IrType::I64 };
@@ -1582,6 +1594,11 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             let subj = lower_expr(builder, subject);
             let result_slot = builder.new_value();
             builder.emit(Inst::Alloca { dest: result_slot.clone(), ty: IrType::Ptr });
+            // Sans `default`, aucun bras peut ne correspondre : `null` (la
+            // sema type alors le `match` en `T|null`).
+            let null = builder.new_value();
+            builder.emit(Inst::ConstInt { dest: null.clone(), value: 0 });
+            builder.emit(Inst::Store { ptr: result_slot.clone(), src: null });
 
             let merge_bb = builder.new_block();
             let mut arm_blocks: Vec<(crate::ir::inst::BlockId, Value)> = Vec::new();

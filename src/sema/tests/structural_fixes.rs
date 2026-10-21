@@ -28,8 +28,8 @@ fn check(src: &str) -> (Vec<String>, usize, usize) {
 
 const BOX: &str = r#"
     generic Box<T> {
-        private property v:T
-        init(v:T) { self.v = v }
+        private property v:T|null
+        init(v:T|null) { self.v = v }
         public static method of(v:T): Box<T> { return use Box<T>(v) }
         public static method empty(): Box<T> { return use Box<T>(null) }
     }

@@ -73,6 +73,7 @@ pub fn class() -> ClassInfo {
     // mixed → string : chaîne telle quelle, int/float/bool en texte, null
     // conservé (utilisée aussi implicitement, voir crate::sema::mixed_string).
     methods.insert("mixedToStr".into(), m(vec![("v", Type::Mixed)], Type::String));
+    methods.insert("mixedAs".into(), m(vec![("v", Type::Mixed), ("type", Type::String)], Type::Mixed));
     methods.insert("intToStr".into(),   m(vec![("n", Type::Int)],   Type::String));
     methods.insert("intToFloat".into(), m(vec![("n", Type::Int)],   Type::Float));
     methods.insert("intToBool".into(),  m(vec![("n", Type::Int)],   Type::Bool));

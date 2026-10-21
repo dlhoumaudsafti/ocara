@@ -1,0 +1,85 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 73 — typage strict : `null`, unions, raffinement, `mixed`
+//
+// Voir docs/roadmap.d/sema-solidite-typage.md et docs/EBNF.md §6.3, §10.
+//
+// Illustre :
+//   - `null` n'est accepté que par un type qui l'admet (`T|null`)
+//   - une union n'est utilisable comme `T` qu'après un raffinement par `is`
+//     (ou `equal null`) : dans la branche, ou après un `if` qui sort
+//   - une valeur `mixed` rangée dans un type concret est vérifiée à
+//     l'exécution (ConvertException si son type ne convient pas)
+//   - le type d'un `match` est l'union des types de ses bras
+// ─────────────────────────────────────────────────────────────────────────────
+
+architecture permissive
+
+import ocara.IO
+import ocara.Array
+import ocara.String
+import ocara.ConvertException
+
+class User {
+    public property name:string
+    init(name:string) {
+        self.name = name
+    }
+}
+
+function find(users:array<User>, name:string): User|null {
+    for u in users {
+        if u.name equal name {
+            return u
+        }
+    }
+    return null
+}
+
+function greet(users:array<User>, name:string): string {
+    var found:User|null = find(users, name)
+    if found is null {
+        return `${name} : inconnu`
+    }
+    var user:User = found                       // raffiné : plus jamais null ici
+    return `bonjour ${user.name}`
+}
+
+function describe(value:int|string): string {
+    if value is int {
+        var n:int = value
+        return `nombre ${n * 2}`
+    }
+    var s:string = value
+    return `texte ${String::upper(s)}`
+}
+
+function label(n:int): string {
+    var text:string|null = match n {
+        1 => "un"
+        2 => "deux"
+    }                                           // sans `default` : string|null
+    if text equal null {
+        return "?"
+    }
+    return text
+}
+
+function main(): void {
+    var users:array<User> = [use User("Ada"), use User("Linus")]
+    IO::writeln(greet(users, "Ada"))            // bonjour Ada
+    IO::writeln(greet(users, "Grace"))          // Grace : inconnu
+    IO::writeln(describe(21))                   // nombre 42
+    IO::writeln(describe("ocara"))              // texte OCARA
+    IO::writeln(`${label(2)} ${label(9)}`)      // deux ?
+
+    var row:array<mixed> = [use User("Ken"), "pas un utilisateur", 2.5]
+    var ken:User = row[0]                       // vérifié : c'est bien un User
+    IO::writeln(ken.name)                       // Ken
+    try {
+        var wrong:User = row[1]
+        IO::writeln(wrong.name)
+    } on e is ConvertException {
+        IO::writeln(e.message)                  // expected a value of type 'User', found 'string'
+    }
+    IO::writeln(`${-row[2]}`)                   // -2.5
+}

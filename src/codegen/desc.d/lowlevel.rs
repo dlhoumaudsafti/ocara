@@ -122,6 +122,7 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__prof_exit",            params: &[clt::I64],                        returns: None,              module: None },
     // Bilan des fuites (`--leak-check`, voir src/ir/leak_check.rs)
     BuiltinDesc { name: "__leak_check_init",      params: &[clt::I64],                        returns: None,              module: None },
+    BuiltinDesc { name: "__class_table_init",     params: &[clt::I64],                        returns: None,              module: None },
     BuiltinDesc { name: "__leak_enter",           params: &[clt::I64],                        returns: None,              module: None },
     BuiltinDesc { name: "__leak_exit",            params: &[clt::I64],                        returns: None,              module: None },
     // Champ d'un binding `on e` générique (voir runtime/src/exception.rs)

@@ -1,0 +1,107 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.Array
+import ocara.ConvertException
+
+// Typage strict à l'exécution — voir docs/roadmap.d/sema-solidite-typage.md :
+// raffinement par `is`/`equal null`, `mixed` vérifié quand il est rangé dans
+// un type concret, `match` sans `default`, négation d'un `mixed`.
+
+class Test105TypeSoundness extends UnitTest {
+
+    public method narrowingAfterNullCheckTest(): int {
+        self::assertEquals(0, size(null))
+        self::assertEquals(5, size("ocara"))
+        return 0
+    }
+
+    public method narrowingInBranchTest(): int {
+        self::assertEquals(42, twice(21))
+        self::assertEquals(0, twice("x"))
+        return 0
+    }
+
+    public method mixedIntoClassIsCheckedTest(): int {
+        var row:array<mixed> = [use Pet("Rex"), use Puppy("Pip"), "pas un animal"]
+        var rex:Pet = row[0]
+        var pip:Pet = row[1]
+        self::assertEquals("Rex", rex.name)
+        self::assertEquals("Pip", pip.name)
+        var message:string = ""
+        try {
+            var wrong:Pet = row[2]
+            message = wrong.name
+        } on e is ConvertException {
+            message = e.message
+        }
+        self::assertEquals("expected a value of type 'Pet', found 'string'", message)
+        return 0
+    }
+
+    public method mixedIntoScalarIsCheckedTest(): int {
+        var row:array<mixed> = [7, "sept"]
+        var n:int = row[0]
+        self::assertEquals(7, n)
+        var caught:bool = false
+        try {
+            var bad:int = row[1]
+            n = bad
+        } on e is ConvertException {
+            caught = true
+        }
+        self::assertTrue(caught)
+        return 0
+    }
+
+    public method matchWithoutDefaultIsNullTest(): int {
+        self::assertEquals("deux", label(2))
+        self::assertEquals("?", label(9))
+        return 0
+    }
+
+    public method negatedMixedTest(): int {
+        var row:array<mixed> = [2.5, 4]
+        var f:float = -row[0]
+        var i:int = -row[1]
+        self::assertEquals(-2.5, f)
+        self::assertEquals(-4, i)
+        return 0
+    }
+}
+
+class Pet {
+    public property name:string
+    init(name:string) {
+        self.name = name
+    }
+}
+
+class Puppy extends Pet { }
+
+function size(s:string|null): int {
+    if s is null {
+        return 0
+    }
+    var t:string = s
+    return t.len()
+}
+
+function twice(v:int|string): int {
+    if v is int {
+        var n:int = v
+        return n * 2
+    }
+    return 0
+}
+
+function label(n:int): string {
+    var text:string|null = match n {
+        1 => "un"
+        2 => "deux"
+    }
+    if text equal null {
+        return "?"
+    }
+    return text
+}

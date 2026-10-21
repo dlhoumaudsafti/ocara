@@ -66,7 +66,7 @@ Récupère la valeur d'une variable d'environnement.
 - `null` si la variable n'existe pas
 
 ```ocara
-const appName:string = DotEnv::get("APP_NAME")
+const appName:string|null = DotEnv::get("APP_NAME")
 
 if appName not equal null {
     IO::writeln(`Application: ${appName}`)
@@ -117,11 +117,11 @@ if env equal "production" {
 }
 
 // Récupérer les variables
-const appName:string = DotEnv::get("APP_NAME")
-const version:string = DotEnv::get("APP_VERSION")
-const debug:string = DotEnv::get("DEBUG")
-const port:string = DotEnv::get("PORT")
-const dbUrl:string = DotEnv::get("DATABASE_URL")
+const appName:string|null = DotEnv::get("APP_NAME")
+const version:string|null = DotEnv::get("APP_VERSION")
+const debug:string|null = DotEnv::get("DEBUG")
+const port:string|null = DotEnv::get("PORT")
+const dbUrl:string|null = DotEnv::get("DATABASE_URL")
 
 IO::writeln(`Application: ${appName} v${version}`)
 IO::writeln(`Debug: ${debug}`)
@@ -154,10 +154,10 @@ import ocara.MySQL
 
 DotEnv::load("")
 
-const host:string = DotEnv::get("DB_HOST")
-const user:string = DotEnv::get("DB_USER")
-const password:string = DotEnv::get("DB_PASSWORD")
-const database:string = DotEnv::get("DB_NAME")
+const host:string|null = DotEnv::get("DB_HOST")
+const user:string|null = DotEnv::get("DB_USER")
+const password:string|null = DotEnv::get("DB_PASSWORD")
+const database:string|null = DotEnv::get("DB_NAME")
 
 if host not equal null and user not equal null and password not equal null and database not equal null {
     const db:MySQL = MySQL::connect(host, user, password, database)
@@ -172,8 +172,8 @@ if host not equal null and user not equal null and password not equal null and d
 ```ocara
 DotEnv::load("")
 
-const apiKey:string = DotEnv::get("API_KEY")
-const secretToken:string = DotEnv::get("SECRET_TOKEN")
+const apiKey:string|null = DotEnv::get("API_KEY")
+const secretToken:string|null = DotEnv::get("SECRET_TOKEN")
 
 if apiKey not equal null {
     // Utiliser l'API key

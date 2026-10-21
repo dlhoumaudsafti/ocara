@@ -18,7 +18,7 @@ use crate::sema::named_args::{site_key, AstRewrites};
 pub type NamedArgError = (Span, String);
 
 pub fn rewrite_program(program: &mut Program, rewrites: &AstRewrites) -> Result<(), NamedArgError> {
-    if !rewrites.calls.is_empty() || !rewrites.mixed_to_string.is_empty() {
+    if !rewrites.calls.is_empty() || !rewrites.mixed_to_string.is_empty() || !rewrites.mixed_checks.is_empty() {
         ensure_builtin_import(program, "Convert");
     }
     if !rewrites.string_removals.is_empty() {
@@ -137,6 +137,16 @@ impl Rewriter<'_> {
             let span = expr.span().clone();
             let inner = std::mem::replace(expr, Expr::Literal(Literal::Null, span.clone()));
             *expr = Expr::StaticCall { class: "Convert".into(), method: "mixedToStr".into(), args: vec![inner], span, type_args: Vec::new() };
+            return Ok(());
+        }
+        // `mixed` attendu comme un autre type concret : `Convert::mixedAs(expr,
+        // "type")`, qui vérifie le type à l'exécution.
+        if let Some(descriptor) = self.rewrites.mixed_checks.get(&key) {
+            self.expr_body(expr)?;
+            let span = expr.span().clone();
+            let inner = std::mem::replace(expr, Expr::Literal(Literal::Null, span.clone()));
+            let ty = Expr::Literal(Literal::String(descriptor.clone()), span.clone());
+            *expr = Expr::StaticCall { class: "Convert".into(), method: "mixedAs".into(), args: vec![inner, ty], span, type_args: Vec::new() };
             return Ok(());
         }
         self.expr_body(expr)

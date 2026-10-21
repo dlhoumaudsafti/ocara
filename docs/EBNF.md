@@ -679,6 +679,20 @@ var id:mixed = req.param("id")   // route "/v/<id:int>" : un int
 var s:string = id                 // "42"
 ```
 
+#### Vérification d'un `mixed` rangé dans un autre type concret
+
+Un `mixed` utilisé là où un autre type concret est attendu (`int`, `float`, `bool`, `array<T>`, `map<K, V>`, `Function<…>`, une classe ou une interface du programme, une instance de `generic`) est **vérifié à l'exécution** (`Convert::mixedAs`) : une valeur du bon type passe telle quelle, une autre lève une `ConvertException` (code 103) au lieu de produire une valeur fausse ou un accès mémoire invalide. Une instance d'une sous-classe, ou d'une classe qui implémente l'interface attendue, convient ; `null` ne convient à aucun type référence. Une union attendue n'est pas vérifiée.
+
+```ocara
+var row:array<mixed> = [use User("Ken"), "texte"]
+var ken:User = row[0]             // vérifié : un User
+try {
+    var u:User = row[1]           // ConvertException : expected a value of type 'User', found 'string'
+} on e is ConvertException {
+    IO::writeln(e.message)
+}
+```
+
 #### Restrictions sur le type `mixed`
 
 Le type `mixed` désactive la vérification de type statique et doit être utilisé **uniquement** dans des contextes spécifiques. Le compilateur applique les règles suivantes :
@@ -784,6 +798,8 @@ message<int>           // générateur (voir §28) — return-type-only
 Resolvable<string>     // handle de tâche async typé (voir §14.5)
 ```
 
+> **Conteneurs invariants** : `array<T>` et `map<K, V>` sont modifiables, donc un `array<Dog>` n'est **pas** un `array<Animal>` (on pourrait y ajouter un `Animal`) — E02. Même règle pour les arguments d'un générique (`Box<Dog>` n'est pas un `Box<Animal>`). `mixed` reste accepté dans les deux sens. Un **littéral** prend le type attendu quand chacun de ses éléments lui convient : `var a:array<Animal> = [use Dog(), use Cat()]`, `var n:array<int|float> = [1, 2.5]` ; sans type attendu, son type d'élément est l'union des types de ses éléments.
+
 > **`message<T>` est un cas particulier** : contrairement à tous les autres types de cette liste, il n'est valable **que** comme type de retour déclaré d'une fonction/méthode contenant `emit`, jamais comme type de paramètre ni comme type d'une variable (`var`/`scoped`/`consumed`). Voir [§28 Générateurs (`emit`)](#28-générateurs-emit) pour le détail complet.
 
 > **`Resolvable<T>` est, à l'inverse, un type de premier ordre ordinaire** : utilisable partout où un type l'est normalement (variable, paramètre, propriété de classe, élément de tableau/map). Sa seule restriction : il ne peut jamais être lui-même le type de retour **déclaré** d'une fonction/méthode `async` (pas de `Resolvable<Resolvable<T>>` par double emballage implicite). `Resolvable` n'est pas un mot-clé réservé — c'est un identifiant ordinaire, reconnu comme ce type built-in uniquement lorsqu'il est immédiatement suivi de `<`. Voir [§14.5 Fonctions asynchrones](#145-fonctions-asynchrones-async--resolve) pour le détail complet.
@@ -804,8 +820,9 @@ public method parse(raw:string): int|float { ... }
 **Règles sémantiques :**
 
 - Un union peut combiner n'importe quels types : primitifs, classes, `null`, tableaux, maps.
-- `null` dans un union indique une valeur optionnelle (pattern courant : `T|null`).
-- La valeur retournée doit être compatible avec **au moins une** variante de l'union.
+- `null` dans un union indique une valeur optionnelle (pattern courant : `T|null`) — c'est la seule façon d'accepter `null` (voir §10).
+- Une valeur est acceptée **par** une union si elle convient à **au moins une** variante (`return null` dans une fonction `Config|null`).
+- Une valeur **de type** union n'est acceptée là où un `T` est attendu que si **toutes** ses variantes conviennent à `T` (E02) : `var n:int = x` est refusé pour `x:int|string`. Il faut d'abord raffiner `x` (voir le narrowing ci-dessous).
 - L'ordre des variantes est sans importance sémantique.
 - Un union est autorisé comme type de `property` (`public property next:Node|null = null`).
 - Un membre d'une valeur `T|null` (`a.next.value`, `a.next.m()`) a le type déclaré dans `T`, avec ou sans narrowing. Si la valeur vaut `null` à l'exécution, l'accès lève une `Exception` (« Cannot access 'value' on null »), rattrapable par `try`/`on`.
@@ -826,7 +843,19 @@ function divide(a:int, b:int): int|float {
 
 **Type narrowing (raffinement de type) :**
 
-Ocara v1.0.0 supporte le narrowing via l'opérateur `is` dans les expressions `match` et les conditions, pour **tous les types** :
+Le compilateur raffine le type d'une **variable locale** (ou d'un paramètre) d'après les conditions qui la testent :
+
+| Condition | Dans le bloc si vraie | Dans `else` / après un `if` qui sort |
+|---|---|---|
+| `x is T` | `x` est `T` (les variantes de l'union qui sont `T`) | `x` est l'union **sans** `T` |
+| `x is null`, `x equal null` | `x` est `null` | `x` est l'union sans `null` |
+| `x not equal null` | `x` est l'union sans `null` | `x` est `null` |
+| `not c`, `c1 and c2`, `c1 or c2` | combinaisons des cas ci-dessus | |
+
+- Le raffinement vaut dans la branche (`if`, `elseif`, `else`, corps d'un `while`, bras `is T` d'un `match`), et **après** un `if` dont les autres branches sortent toujours (`return`, `raise`, `break`, `continue`, `result`) : `if x is null { return }` fait de `x` un `T` pour la suite du bloc.
+- Une affectation de la variable annule son raffinement.
+
+Ocara supporte le narrowing via l'opérateur `is` dans les expressions `match` et les conditions, pour **tous les types** :
 
 ```ocara
 // Narrowing dans match — tous les types supportés
@@ -880,7 +909,7 @@ Toutes les allocations heap (string, array, map, objet, fat-pointer) sont préc�
 | `is string` | lit le tag header : `TAG_STRING` (1) | ✓ précis |
 | `is array<T>` | lit le tag header : `TAG_ARRAY` (2) | ✓ précis |
 | `is map<K,V>` | lit le tag header : `TAG_MAP` (3) | ✓ précis |
-| `is ClassName` | lit le tag header : `TAG_OBJECT` (4) | ✓ précis |
+| `is ClassName` | tag `TAG_OBJECT` (4), puis identité de classe : la classe, ses sous-classes, ou les classes qui implémentent l'interface | ✓ précis |
 | `is Function<T(...)>` | lit le tag header : `TAG_FUNCTION` (5) | ✓ précis |
 
 **Schéma mémoire avec header :**
@@ -895,7 +924,6 @@ Toutes les allocations heap (string, array, map, objet, fat-pointer) sont préc�
 
 - `is float` fonctionne uniquement quand le type est connu **statiquement** à la compilation. Dans un contexte `mixed` dynamique, seuls les floats explicitement boxés (via `__box_float`) sont détectables.
 - Un `bool` logé dans un `mixed` (littéral dans un `array<mixed>`/`map<K,mixed>`, affectation à une variable `mixed`…) est toujours boxé : `is bool` le distingue des `int` 0 et 1, et `equal` aussi (`mixed(0) equal false` est faux).
-- `is ClassName` vérifie seulement que la valeur est une instance d'**un** objet (tag `TAG_OBJECT`), sans distinguer les classes entre elles. Pour un narrowing fin par classe, utiliser les patterns dans `on … is ClassName` dans les blocs `try/on`.
 
 ### 6.4 Annotation de type
 
@@ -959,10 +987,9 @@ function compute(a:int, b:int, op:Function<int(int, int)>): int {
 - Le **type de retour** est **obligatoire** et typé statiquement : `Function<int(...)>`, `Function<string|null(...)>`, `Function<void()>`, etc.
 - Le compilateur vérifie que le nombre et les types des paramètres correspondent exactement lors de l'assignation.
 - La compatibilité des types : 
-  - `Function<T(A, B)>` est compatible avec `Function<U(X, Y)>` si et seulement si :
-    - `T` est compatible avec `U` (covariance du retour)
-    - `A` est compatible avec `X` (contravariance des paramètres)
-    - `B` est compatible avec `Y` (contravariance des paramètres)
+  - une valeur `Function<T(A, B)>` est acceptée là où une `Function<U(X, Y)>` est attendue si et seulement si :
+    - `T` est compatible avec `U` (covariance du retour) ;
+    - `X` est compatible avec `A`, et `Y` avec `B` (contravariance des paramètres) : la fonction doit accepter tout argument que l'appelant peut lui passer. `nameless(a:Animal)` convient pour une `Function<int(Dog)>`, pas `nameless(d:Dog)` pour une `Function<int(Animal)>` (E02).
 - `Function` n'est pas un mot-clé mais un **type réservé** (PascalCase). Il ne peut pas être utilisé comme nom de classe ou de variable.
 - Les fonctions anonymes peuvent capturer des variables locales et `self` depuis leur portée d'enclosement. Toute variable capturée (primitif ou référence) est **promue sur le tas** au moment de la création de la closure : le scope d'origine et la closure partagent la même cellule heap (**shared cell**). Toute mutation — depuis la closure ou depuis le scope extérieur — est immédiatement visible des deux côtés. Voir §12.2 pour les détails.
 
@@ -990,14 +1017,16 @@ EscapeSeq ::= "\" ( "n" | "t" | "r" | '"' | "'" | "\" | "0" )
 Digit     ::= [0-9]
 ```
 
-> **`null`** représente l'absence de valeur pour les types référence (`string`, classes, tableaux, maps).
-> Son type inféré est `null`. Il est compatible avec tout type référence mais **pas** avec les types primitifs (`int`, `float`, `bool`).
+> **`null`** représente l'absence de valeur. Son type inféré est `null`, accepté **seulement** par un type qui l'admet : une union contenant `null` (`T|null`) ou `mixed`. Une variable ou un retour qui peut être absent se déclare donc `T|null` ; avant de s'en servir comme un `T`, on le raffine (voir §6.3).
 >
 > ```ocara
-> var nom:string = null        // OK
-> var obj:MonObjet = null      // OK
-> var n:int = null             // ERREUR — int n'accepte pas null
+> var nom:string|null = null   // OK
+> var obj:MonObjet|null = null // OK
+> var s:string = null          // ERREUR (E02) — string n'admet pas null
+> var n:int = null             // ERREUR (E02)
 > ```
+>
+> Tester la nullité (`x equal null`, `x is null`) reste permis sur toute valeur de type référence.
 
 **Séquences d'échappement dans les chaînes :**
 
@@ -1135,6 +1164,8 @@ Valide pour les tableaux et les maps :
 var first:int   = numbers[0]
 var name:string = profile["name"]
 ```
+
+Une chaîne n'est pas indexable (`s[1]` est rejeté, E63) : utiliser les fonctions `String::*`.
 
 L'accès par index est un opérateur postfixe (précédence maximale).
 
@@ -1604,7 +1635,7 @@ Param     ::= Identifier ":" ( "variadic" "<" Type ">" | Type ( "=" Expr )? )
 
 - Le type de retour est **obligatoire** (utiliser `void` si la fonction ne retourne rien).
 - Une fonction `void` peut omettre le `return`.
-- Une fonction non-`void` **doit** retourner une valeur sur tous les chemins d'exécution.
+- Une fonction non-`void` **doit** retourner une valeur sur tous les chemins d'exécution (E67) — fonctions, méthodes et `nameless`. Un chemin se termine par `return` ou `raise` ; un `if` n'est complet qu'avec un `else` dont toutes les branches se terminent ainsi ; une boucle `while true` sans `break` ne se termine jamais. Un type de retour `T|void` autorise un chemin sans valeur.
 - Un paramètre `variadic<Type>` accepte 0 ou N arguments du type spécifié.
 - Un paramètre variadic **doit** être le dernier paramètre de la liste.
 - Un paramètre peut avoir une **valeur par défaut** avec la syntaxe `param:Type = valeur`.
@@ -2673,6 +2704,8 @@ Interfaces   ::= "implements" Identifier ( "," Identifier )*
 - L'héritage est **simple** (une seule classe parente).
 - Une classe peut implémenter **plusieurs** interfaces.
 - `extends` et `implements` sont indépendants et optionnels.
+- Une méthode d'instance qui porte le nom d'une méthode héritée la **redéfinit** (appel polymorphe : `a.v()` sur une instance de `B` appelle `B::v`). Elle doit garder les **mêmes types de paramètres** et rendre le **même type ou une sous-classe** de celui du parent, sinon erreur E68 — `a.v()` lirait le résultat au type annoncé par le parent. Pour une signature différente, choisir un autre nom. `parent::v()` appelle la version du parent.
+- Deux déclarations de même nom dans un même programme (fonctions, classes/interfaces/génériques/enums/modules, méthodes ou propriétés d'une même classe) sont refusées (E03). Le `main` d'un fichier importé n'est jamais importé.
 
 ```ocara
 class ConsoleLogger implements Logger {
@@ -3564,6 +3597,10 @@ MatchPattern ::= Literal
 
 `match` est une **expression** (retourne une valeur). Chaque bras produit une valeur.
 
+- Son type est l'**union** des types de ses bras : `match n { 1 => "un"  default => use U() }` est un `string|U`, refusé là où un `U` est attendu.
+- Sans bras `default`, aucun bras peut ne correspondre : la valeur vaut alors `null`, et `null` s'ajoute au type (`string|null`) — sauf si les bras `is T` couvrent toutes les variantes de l'union testée, ou si les bras `true` et `false` couvrent un `bool`.
+- Dans un bras `is T`, une variable testée est raffinée en `T` (voir §6.3).
+
 ```ocara
 scoped label:string = match score {
     100 => "parfait"
@@ -3868,6 +3905,8 @@ try {
 }
 ```
 
+> Un handler `on e is Enfant` placé après un `on e is Parent` (Enfant hérite de Parent) n'est jamais atteint : avertissement W05 — placer le plus spécifique en premier.
+>
 > Le handler générique (`on e` sans `is`) doit toujours être placé en dernier — **imposé par le compilateur** (sinon les handlers suivants ne seraient jamais atteints, voir diagnostic E24). La classe passée à `is` doit également correspondre à une classe connue (classe du programme ou classe d'exception builtin) — un nom inexistant est rejeté à la compilation (E23) plutôt que de produire un handler silencieusement mort.
 >
 > **Hiérarchie réelle** : un filtre sur une classe **parente** attrape une instance d'une **sous-classe** — `on e is Parent` attrape une instance de `Enfant extends Parent`, transitivement (`extends` sur plusieurs niveaux fonctionne). Vrai aussi pour les ~20 classes d'exception builtin, qui héritent toutes implicitement de `Exception` : `on e is Exception` attrape n'importe laquelle d'entre elles (`FileException`, `SDLException`, ...), qu'elle soit levée par du code Ocara (`raise`) ou par le runtime lui-même (ex. `File::read` sur un fichier inexistant). Le type statiquement connu au moment du `raise` (littéral `use Classe(...)` **ou** variable dont la classe est connue) porte sa chaîne d'ancêtres complète ; un `raise` d'une expression dont le type n'est pas connu statiquement (`mixed`, valeur calculée...) reste, lui, seulement attrapable par un handler générique (`on e` sans `is`).

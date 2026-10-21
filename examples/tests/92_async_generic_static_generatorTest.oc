@@ -29,7 +29,7 @@ class Test92AsyncGenericStaticGenerator extends UnitTest {
         var c:Holder<int> = Holder::empty()
         self::assertEquals(4, a.get())
         self::assertEquals("texte", b.get())
-        self::assertEquals(0, c.get())
+        self::assertNull(c.get())
         return 0
     }
 
@@ -58,8 +58,8 @@ async function five(): int {
 }
 
 generic Holder<T> {
-    private property value:T
-    init(v:T) {
+    private property value:T|null
+    init(v:T|null) {
         self.value = v
     }
     public static method of(v:T): Holder<T> {
@@ -68,7 +68,7 @@ generic Holder<T> {
     public static method empty(): Holder<T> {
         return use Holder<T>(null)
     }
-    public method get(): T {
+    public method get(): T|null {
         return self.value
     }
 }

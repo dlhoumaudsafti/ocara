@@ -1088,6 +1088,7 @@ pub fn lower_program_with(program: &Program, source_file: &str, coverage: bool) 
     lower_runtime_blocks(&mut module, program, &program.consts, &fn_ret_types, &fn_param_types, &fn_param_names, &fn_variadic_info, &func_default_args);
 
     super::rc_layout::compute_class_masks(&mut module);
+    super::class_table::register(&mut module, program);
     module
 }
 
