@@ -23,6 +23,8 @@ pub struct CliArgs {
     pub check_architecture: bool,
     /// true = liste les points de couverture (`ligne\tfichier`) sans compiler
     pub coverage_points: bool,
+    /// true = rapport d'architecture du projet en JSON (core::analysis::architecture_report)
+    pub architecture_report: bool,
     /// Répertoire racine pour la résolution des imports (défaut : répertoire du fichier d'entrée)
     pub src_dir: Option<PathBuf>,
     /// Triple cible Cranelift (ex: "aarch64-linux-android") — quand présent,
@@ -79,6 +81,7 @@ pub fn print_help() {
     println!("  --coverage    Couverture par ligne, écrite à la sortie dans $OCARA_COVERAGE_FILE");
     println!("  --check-architecture  Vérifie seulement l'architecture hexagonale (imports, wiring)");
     println!("  --coverage-points     Liste les lignes instrumentées par --coverage (ligne<TAB>fichier), sans compiler");
+    println!("  --architecture-report Rapport d'architecture du projet en JSON (type, contextes, couches, violations)");
     println!("                (fichier OCARA_LEAK_OUT, sinon stderr)");
     println!("  --target <triple>");
     println!("                Cible de compilation croisée Cranelift (ex: aarch64-linux-android).");
@@ -125,6 +128,7 @@ pub fn parse_args() -> CliArgs {
     let mut coverage = false;
     let mut check_architecture = false;
     let mut coverage_points = false;
+    let mut architecture_report = false;
     let mut src_dir = None;
     let mut target: Option<String> = None;
     let mut android_runtime: Option<PathBuf> = None;
@@ -145,6 +149,7 @@ pub fn parse_args() -> CliArgs {
             "--coverage" => coverage = true,
             "--check-architecture" => check_architecture = true,
             "--coverage-points" => coverage_points = true,
+            "--architecture-report" => architecture_report = true,
             "--lsp"     => lsp     = true,
             "-o" if i + 1 < args.len() => {
                 output = PathBuf::from(&args[i + 1]);
@@ -182,5 +187,5 @@ pub fn parse_args() -> CliArgs {
         }
         i += 1;
     }
-    CliArgs { input, output, dump, check, no_link, release, profile, leak_check, coverage, check_architecture, coverage_points, src_dir, target, android_runtime, android_runtime_sdl, android_jni_bridge, android_ndk, lsp }
+    CliArgs { input, output, dump, check, no_link, release, profile, leak_check, coverage, check_architecture, coverage_points, architecture_report, src_dir, target, android_runtime, android_runtime_sdl, android_jni_bridge, android_ndk, lsp }
 }

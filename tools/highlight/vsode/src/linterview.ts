@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { parseToolMessages, runTool, ToolMessage } from './toolrunner';
 import { gotoLine, isExcludedFrom, ocFiles, qualityRoots, sectionExclusions } from './projects';
-import { fileItem, FileStatus, statusOrder } from './filestatus';
+import { fileItem, FileStatus, headerPercent, statusOrder } from './filestatus';
 import { AutoRunner, currentTarget, describeTarget, Target } from './scope';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -49,18 +49,20 @@ export class LinterProvider implements vscode.TreeDataProvider<Item>, vscode.Dis
     /** Nouveau résultat — voyant Linter. */
     readonly onResult = this.result.event;
     private summary: LintSummary | undefined;
+    private view: vscode.TreeView<Item> | undefined;
     private running = false;
     private pending = false;
     private readonly auto = new AutoRunner('lint', 'linter', () => void this.run(), DEBOUNCE_MS);
     private readonly disposables: vscode.Disposable[] = [];
 
     register(context: vscode.ExtensionContext): void {
+        this.view = vscode.window.createTreeView('ocara.linter', { treeDataProvider: this });
         this.disposables.push(
-            vscode.window.createTreeView('ocara.linter', { treeDataProvider: this }),
+            this.view,
             vscode.commands.registerCommand('ocara.linter.run', () => this.run()),
             vscode.commands.registerCommand('ocara.linter.goto', (file: string, line: number, col: number) => gotoLine(file, line, col)),
             vscode.workspace.onDidChangeConfiguration(e => {
-                if (e.affectsConfiguration('ocara.lint.scope')) { this.summary = undefined; this.result.fire(undefined); this.changed.fire(undefined); }
+                if (e.affectsConfiguration('ocara.lint.scope')) { this.setSummary(undefined); }
                 if (e.affectsConfiguration('ocara.ocaracsPath') || e.affectsConfiguration('ocara.lint.exclude')
                     || e.affectsConfiguration('ocara.lint.projects') || e.affectsConfiguration('ocara.coverage.projects')) { this.auto.schedule(true); }
             }),
@@ -71,6 +73,14 @@ export class LinterProvider implements vscode.TreeDataProvider<Item>, vscode.Dis
 
     current(): LintSummary | undefined {
         return this.summary;
+    }
+
+    /** Résultat publié ; en-tête : part des fichiers analysés sans avertissement. */
+    private setSummary(summary: LintSummary | undefined): void {
+        this.summary = summary;
+        if (this.view) { headerPercent(this.view, summary && !summary.launchError ? lintPercent(summary) : undefined); }
+        this.result.fire(summary);
+        this.changed.fire(undefined);
     }
 
     /** Une analyse à la fois ; une demande pendant l'analyse la relance à la fin. */
@@ -86,8 +96,7 @@ export class LinterProvider implements vscode.TreeDataProvider<Item>, vscode.Dis
         try {
             await vscode.workspace.saveAll(false);
             const roots = target.scope === 'workspace' ? await workspaceRoots() : [target.folder ?? target.file!];
-            this.summary = { ...(await lint(roots)), target };
-            this.result.fire(this.summary);
+            this.setSummary({ ...(await lint(roots)), target });
         } finally {
             this.running = false;
             this.changed.fire(undefined);
@@ -155,6 +164,12 @@ export class LinterProvider implements vscode.TreeDataProvider<Item>, vscode.Dis
     dispose(): void {
         this.disposables.forEach(d => d.dispose());
     }
+}
+
+/** Part des fichiers analysés (non ignorés) sans avertissement ; 100 % sans fichier. */
+export function lintPercent(summary: LintSummary): number {
+    const analyzed = summary.files.filter(f => f.status !== 'ignored');
+    return analyzed.length === 0 ? 100 : analyzed.filter(f => f.status === 'ok').length / analyzed.length * 100;
 }
 
 /** Dossiers analysés en `workspace` : `ocara.lint.projects`, sinon projets testés ou espace de travail. */

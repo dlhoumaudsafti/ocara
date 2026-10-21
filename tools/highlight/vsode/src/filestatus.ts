@@ -41,3 +41,14 @@ export function fileItem(file: string, status: FileStatus, collapsible: vscode.T
 export function statusOrder(status: FileStatus): number {
     return status === 'error' ? 0 : status === 'ok' ? 1 : 2;
 }
+
+/** Pastille de la règle de la LED « Release » : rouge sous 33,33 %, orange
+ *  jusqu'à 66,66 %, bleu jusqu'à 99,99 %, vert à 100 %. */
+export function ledDot(percent: number): string {
+    return percent >= 100 ? '🟢' : percent >= 66.6666 ? '🔵' : percent >= 33.3333 ? '🟠' : '🔴';
+}
+
+/** Pourcentage affiché dans l'en-tête d'un encart (`undefined` : aucun résultat). */
+export function headerPercent(view: vscode.TreeView<unknown>, percent: number | undefined): void {
+    view.description = percent === undefined ? '' : `${ledDot(percent)} ${(Math.floor(percent * 10) / 10).toFixed(1)} %`;
+}

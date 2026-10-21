@@ -143,6 +143,7 @@ ocara [options] <fichier.oc>
 | `--coverage` | Couverture par ligne : chaque instruction exécutée est notée ; à la sortie, `<0\|1>\t<ligne>\t<fichier>` par point dans le fichier `OCARA_COVERAGE_FILE` (rien sans cette variable) |
 | `--coverage-points` | Liste les lignes instrumentées par `--coverage` (`<ligne>\t<fichier>`), sans compiler |
 | `--check-architecture` | Vérifie seulement l'architecture hexagonale (imports, `wiring`) |
+| `--architecture-report` | Rapport d'architecture du projet en JSON : type (hexagonale, permissive), répertoire hexagonal, alias des couches, racines partagées, contexte/couche et violations de chaque script |
 | `--src <dossier>` | Dossier racine pour la résolution des imports |
 
 ### Exemples

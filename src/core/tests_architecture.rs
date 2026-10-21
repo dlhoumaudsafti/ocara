@@ -228,3 +228,37 @@ fn entry_imports_resolve_in_its_namespace() {
     let errors: Vec<String> = analysis.diagnostics.iter().filter(|d| d.is_error()).map(|d| d.message.clone()).collect();
     assert!(errors.is_empty(), "{:?}", errors);
 }
+
+/// `--architecture-report` : type d'architecture, alias des couches, place
+/// de chaque script et ses violations (lu par l'extension VS Code).
+#[test]
+fn architecture_report_lists_places_and_violations() {
+    use crate::core::analysis::architecture_report::report;
+    let dir = std::env::temp_dir().join(format!("ocara_arch_report_{}", std::process::id()));
+    std::fs::remove_dir_all(&dir).ok();
+    write(&dir, "context/home/infra/Repo.oc", &class("context.home.infra", "Repo", &[]));
+    write(&dir, "context/home/domain/Entity.oc", &class("context.home.domain", "Entity", &["context.home.infra.Repo"]));
+    write(&dir, "main.oc", &format!("import context.home.domain.Entity\n{}\n\nfunction main(): int {{\n    return 0\n}}\n", HEXA));
+    let value = report(&dir.join("main.oc"), &dir);
+    std::fs::remove_dir_all(&dir).ok();
+    assert_eq!(value["mode"], "hexagonal");
+    assert_eq!(value["layers"]["infrastructure"], "infra");
+    let files = value["files"].as_array().expect("files");
+    let entity = files.iter().find(|f| f["path"].as_str().unwrap().ends_with("Entity.oc")).expect("Entity");
+    assert_eq!(entity["place"]["context"], "home");
+    assert_eq!(entity["place"]["layer"], "domain");
+    assert!(entity["errors"][0]["message"].as_str().unwrap().contains("pas de infrastructure"), "{}", entity);
+    let repo = files.iter().find(|f| f["path"].as_str().unwrap().ends_with("Repo.oc")).expect("Repo");
+    assert!(repo["errors"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn architecture_report_of_a_permissive_project() {
+    use crate::core::analysis::architecture_report::report;
+    let dir = std::env::temp_dir().join(format!("ocara_arch_report_perm_{}", std::process::id()));
+    std::fs::remove_dir_all(&dir).ok();
+    write(&dir, "main.oc", "architecture permissive\n\nfunction main(): int {\n    return 0\n}\n");
+    let value = report(&dir.join("main.oc"), &dir);
+    std::fs::remove_dir_all(&dir).ok();
+    assert_eq!(value["mode"], "permissive");
+}

@@ -118,15 +118,21 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     de `ocara.lint.projects`, sinon racines des projets testés, sinon dossiers de l'espace de travail ;
     `folder` : dossier du script affiché ; `script` : le script affiché, ses propres avertissements
     seulement.
-  - **Architecture** : vérification de l'architecture hexagonale par le compilateur (`ocara <fichier>
-    --check-architecture`, docs/EBNF.md §33) — couche de chaque fichier selon son chemin
-    `<src>/<contexte>/<couche>/…`, sens des dépendances entre couches, isolement des contextes,
-    `wiring` et bibliothèques externes, avec les règles du bloc `architecture` du fichier, sinon du
-    `main.oc` du projet ; chaque fichier est vérifié avec tout ce qu'il importe. `workspace` : chaque
-    `main.oc` de l'espace de travail ; `folder` : chaque script du dossier du script affiché ;
-    `script` : le script affiché. Fichiers listés **en vert** (architecture respectée), **en rouge**
-    (erreurs, dépliables ; un clic ouvre le fichier sur l'erreur — y compris un fichier importé) ou
-    **en gris** (ignorés : tests, blocs runtime, `ocara.architecture.exclude`).
+  - **Architecture** : pour chaque projet (dossier d'un `main.oc`, ou `ocara.architecture.projects`),
+    le rapport du compilateur (`ocara main.oc --architecture-report`, docs/EBNF.md §33) : type
+    d'architecture (**hexagonale** ou **permissive**), puis les **contextes** du répertoire hexagonal
+    (`src`) et, dans chacun, les couches **application**, **infrastructure** et **domain** sous leur
+    alias du projet (« infrastructure (infra) »), avec leurs scripts — **en vert** si leurs imports et
+    `wiring` respectent l'architecture (couche selon le chemin `<src>/<contexte>/<couche>/…`, dépendances
+    vers l'intérieur, contextes isolés sauf racines partagées, bibliothèques externes depuis
+    l'infrastructure), **en rouge** sinon (dépliable ; un clic ouvre le fichier sur la violation), **en
+    gris** s'ils sont ignorés (tests, blocs runtime, `ocara.architecture.exclude`). Les scripts hors du
+    répertoire hexagonal sont regroupés à part ; chaque nœud indique sa part de scripts conformes. Une
+    architecture **permissive** n'impose aucune contrainte : 100 %. `folder` / `script` : projet du
+    dossier ou du script affiché, scripts de ce dossier ou ce script seulement.
+  - **Pourcentage dans l'en-tête** des encarts Linter (fichiers sans avertissement), Coverage
+    (couverture par ligne) et Architecture (scripts conformes), précédé d'une pastille selon la règle
+    de la LED « Release » : 🔴 sous 33,33 %, 🟠 jusqu'à 66,66 %, 🔵 jusqu'à 99,99 %, 🟢 à 100 %.
   - Chaque bloc peut être déplacé hors de la barre latérale (panneau du bas, autre barre) : son onglet
     porte alors son nom suivi d'« Ocara » (« Coverage - Ocara », « Linter - Ocara », « Architecture - Ocara »…).
 - Les noms de type (`var x:Dog`, `extends Animal`, paramètres, `on e is FileException`) ont survol,
@@ -186,6 +192,7 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
 | `ocara.coverage.threshold` | `100` | Couverture (%) à partir de laquelle le voyant Coverage est vert. |
 | `ocara.architecture.scope` | `workspace` | Périmètre de l'encart Architecture : chaque `main.oc` (`workspace`), chaque script du dossier du script affiché (`folder`) ou le script affiché (`script`). |
 | `ocara.architecture.auto` | `true` | Mode automatique de l'encart Architecture (bouton de l'en-tête). |
+| `ocara.architecture.projects` | `[]` | Dossiers de projet analysés par l'Architecture en `workspace` (chacun avec son `main.oc`) ; vide : dossier de chaque `main.oc`. |
 | `ocara.architecture.exclude` | `[]` | Dossiers ou fichiers ignorés par l'Architecture (listés en gris) ; tests et blocs runtime toujours ignorés. |
 | `ocara.benchmark.runs` | `5` | Nombre d'exécutions de « Mesurer temps et mémoire ». |
 | `ocara.benchmark.timeout` | `30` | Délai maximal d'une exécution mesurée (secondes) ; au-delà, le programme est tué. |

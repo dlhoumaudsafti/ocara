@@ -159,16 +159,24 @@
           ],
           "default": "workspace",
           "enumDescriptions": [
-            "Chaque point d'entrée main.oc de l'espace de travail.",
-            "Chaque script du dossier du script affiché (sous-dossiers compris).",
-            "Script affiché seul."
+            "Projets de l'espace de travail (dossier de chaque main.oc, ou ocara.architecture.projects).",
+            "Projet(s) du dossier du script affiché, scripts du dossier seulement.",
+            "Projet du script affiché, ce script seulement."
           ],
-          "markdownDescription": "Périmètre de l'encart **Architecture** et de son voyant : `ocara <fichier> --check-architecture` (règles du bloc `architecture` du fichier, sinon du `main.oc` du projet — docs/EBNF.md §33) sur chaque `main.oc` de l'espace de travail (`workspace`), chaque script du dossier du script affiché (`folder`) ou le script affiché (`script`) ; tests, blocs runtime et `ocara.architecture.exclude` ignorés (listés en gris). Lancement : bouton ▶, et automatiquement selon `ocara.architecture.auto`."
+          "markdownDescription": "Périmètre de l'encart **Architecture** et de son voyant : rapport du compilateur (`ocara main.oc --architecture-report`, docs/EBNF.md §33) pour les projets de l'espace de travail (`workspace` : dossier de chaque `main.oc`, ou `ocara.architecture.projects`), le projet du dossier du script affiché (`folder`, scripts du dossier seulement) ou du script affiché (`script`). Tests, blocs runtime et `ocara.architecture.exclude` ignorés (listés en gris). Lancement : bouton ▶, et automatiquement selon `ocara.architecture.auto`."
         },
         "ocara.architecture.auto": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Mode automatique de l'encart **Architecture** (bouton de l'en-tête), mêmes déclencheurs que `ocara.lint.auto`."
+        },
+        "ocara.architecture.projects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Dossiers de projet analysés par l'encart **Architecture** en périmètre `workspace` (relatifs à l'espace de travail, ex. `examples/advanced/mini_project_hexa`) ; chacun doit contenir son `main.oc`. Vide : dossier de chaque `main.oc` de l'espace de travail."
         },
         "ocara.architecture.exclude": {
           "type": "array",

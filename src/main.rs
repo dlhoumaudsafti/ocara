@@ -42,6 +42,12 @@ fn run() {
         return;
     }
 
+    if args.architecture_report {
+        let root = args.src_dir.clone().unwrap_or_else(|| args.input.parent().map(|p| p.to_path_buf()).unwrap_or_default());
+        println!("{}", core::analysis::architecture_report::report(&args.input, &root));
+        return;
+    }
+
     // Constantes de build des clauses `when` (et de `System::BUILD`).
     parsing::build::set_current(parsing::build::BuildConfig::for_target(args.target.as_deref(), args.release));
 

@@ -4,6 +4,7 @@
 //! étape ne quitte le processus, chaque erreur devient un `Diagnostic`.
 
 pub mod architecture;
+pub mod architecture_report;
 mod architecture_rules;
 mod checks;
 mod front;
