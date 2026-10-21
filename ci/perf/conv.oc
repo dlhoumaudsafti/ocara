@@ -1,0 +1,16 @@
+architecture permissive
+
+import ocara.IO
+import ocara.Convert
+import ocara.System
+
+function main(): void {
+    var n:int = Convert::strToInt(System::args()[1])
+    var ti:int = 0
+    var tf:float = 0.0
+    for i in 0 until n {
+        ti += Convert::strToInt(`${i}`)
+        tf += Convert::strToFloat(`${i}.5`)
+    }
+    IO::writeln(`${ti} ${tf}`)
+}

@@ -39,6 +39,8 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__map_new",         params: &[],                                     returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__map_set",         params: &[clt::I64, clt::I64, clt::I64],         returns: None,              module: None },
     BuiltinDesc { name: "__map_get",         params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__map_set_ikey",    params: &[clt::I64, clt::I64, clt::I64],         returns: None,              module: None },
+    BuiltinDesc { name: "__map_get_ikey",    params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
 
     // ── Libération ────────────────────────────────────────────────────────────
     // La libération des valeurs tas (string/array/map/objet) et la fermeture

@@ -1,0 +1,13 @@
+architecture permissive
+
+import ocara.IO
+import ocara.Convert
+import ocara.System
+
+function main(): void {
+    var n:int = Convert::strToInt(System::args()[1])
+    var count:int = 0
+    var add:Function<void(int)> = nameless(k:int): void { count += k }
+    for i in 0 until n { add(i % 3) }
+    IO::writeln(`${count}`)
+}

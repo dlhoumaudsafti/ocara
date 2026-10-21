@@ -1,0 +1,14 @@
+architecture permissive
+
+import ocara.IO
+import ocara.Convert
+import ocara.System
+
+function main(): void {
+    var n:int = Convert::strToInt(System::args()[1])
+    var m:map<int, int> = {}
+    for i in 0 until n { m[i] = i * 2 }
+    var t:int = 0
+    for i in 0 until n { t += m[i] }
+    IO::writeln(`${t}`)
+}

@@ -1,0 +1,22 @@
+architecture permissive
+
+import ocara.IO
+import ocara.Convert
+import ocara.System
+import ocara.Thread
+
+class Point {
+    public property x:int
+    init(x:int) { self.x = x }
+}
+function main(): void {
+    var n:int = Convert::strToInt(System::args()[1])
+    var t:Thread = use Thread()
+    t.run(nameless(): void { })
+    t.join()
+    var pts:array<Point> = []
+    for i in 0 until n { pts.push(use Point(i)) }
+    var tot:int = 0
+    for p in pts { tot += p.x }
+    IO::writeln(`${tot}`)
+}

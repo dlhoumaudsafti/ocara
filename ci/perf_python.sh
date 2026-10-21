@@ -20,13 +20,8 @@ RED='\033[0;31m'
 RESET='\033[0m'
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-# nom taille
-BENCHES=(
-    "map 1000000" "concat 1000000" "exc 1000000" "cycles 1000000"
-    "tpl 2000000" "meth 10000000" "arr 2000000" "asy 50000" "loop 20000000"
-    "split 1000000" "replace 1000000" "mapiter 2000" "join 1000000"
-    "objs 1000000" "strcmp 5000000" "sort 1000000" "jsonb 200000"
-)
+# nom taille, une mesure par ligne
+mapfile -t BENCHES < <(grep -v '^#' ci/perf/benches.txt)
 
 best() {
     local m=999 t
@@ -43,6 +38,10 @@ for spec in "${BENCHES[@]}"; do
     set -- $spec
     name=$1; size=$2
     [ -n "$ONLY" ] && [ "$ONLY" != "$name" ] && continue
+    # Module Python absent (PyYAML…) : rien à comparer.
+    if ! python3 "ci/perf/$name.py" 1 > /dev/null 2>&1; then
+        echo "SKIP $name : ci/perf/$name.py ne s'exécute pas (module Python manquant ?)"; continue
+    fi
     if ! $OCARA "ci/perf/$name.oc" -o "$TMP_DIR/$name" > "$TMP_DIR/$name.log" 2>&1; then
         echo -e "${RED}FAIL [compile] $name${RESET}"; sed 's/^/    /' "$TMP_DIR/$name.log"; status=1; continue
     fi

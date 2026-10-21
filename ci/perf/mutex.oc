@@ -1,0 +1,18 @@
+architecture permissive
+
+import ocara.IO
+import ocara.Convert
+import ocara.System
+import ocara.Mutex
+
+function main(): void {
+    var n:int = Convert::strToInt(System::args()[1])
+    scoped m:Mutex = use Mutex()
+    var c:int = 0
+    for i in 0 until n {
+        m.lock()
+        c += 1
+        m.unlock()
+    }
+    IO::writeln(`${c}`)
+}

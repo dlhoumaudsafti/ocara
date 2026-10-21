@@ -116,6 +116,7 @@ pub fn lower_func(
         ty => ty,
     };
 
+    let safe_self_calls = class_name.and_then(|c| module.safe_self_calls.get(c)).cloned().unwrap_or_default();
     let mut builder = LowerBuilder::new(module, func.name.clone(), ir_params.clone(), ret_ty);
     builder.ret_ast_ty = Some(func.ret_ty.clone());
     // Si on est dans une méthode/constructeur de classe, enregistrer la classe courante
@@ -221,7 +222,7 @@ pub fn lower_func(
 
     // Body
     crate::lower::stmt::rc::begin_unwind(&mut builder);
-    builder.self_borrowed = super::self_borrow::self_stays_alive(&func.body);
+    builder.self_borrowed = super::self_borrow::self_stays_alive(&func.body, &|m| safe_self_calls.contains(m));
     crate::lower::stmt::rc::begin_function(&mut builder, &func.params);
     own_entry_consts(&mut builder, &owned_consts);
     crate::lower::stmt::lower_block(&mut builder, &func.body);

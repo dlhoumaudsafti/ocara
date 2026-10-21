@@ -1,0 +1,20 @@
+architecture permissive
+
+import ocara.IO
+import ocara.Convert
+import ocara.System
+import ocara.File
+import ocara.String
+
+function main(): void {
+    var n:int = Convert::strToInt(System::args()[1])
+    var path:string = `/tmp/ocara_perf_file_${System::pid()}.txt`
+    var text:string = ""
+    for i in 0 until n { text += `ligne ${i}\n` }
+    File::write(path, text)
+    var lines:array<string> = String::split(File::read(path), "\n")
+    var tot:int = 0
+    for l in lines { tot += l.len() }
+    File::remove(path)
+    IO::writeln(`${lines.len()} ${tot}`)
+}

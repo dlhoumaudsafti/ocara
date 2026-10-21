@@ -356,9 +356,11 @@ pub unsafe extern "C" fn SQLite_execute(self_ptr: i64, query_ptr: i64, placehold
         let result: Result<(i64, Option<i64>), String> = (|| {
             let named = named_params(&binds);
             let conn = db.conn.lock().unwrap();
-            match conn.execute(&query, &named[..]) {
+            // Requête préparée gardée par la connexion (cache LRU de rusqlite),
+            // comme le module sqlite3 de Python : pas de re-préparation par appel.
+            match conn.prepare_cached(&query).and_then(|mut stmt| stmt.execute(&named[..])) {
                 Ok(affected) => {
-                    let last_id = if query.trim().to_uppercase().starts_with("INSERT") {
+                    let last_id = if query.trim_start().get(..6).is_some_and(|w| w.eq_ignore_ascii_case("INSERT")) {
                         Some(conn.last_insert_rowid())
                     } else {
                         None
@@ -417,7 +419,7 @@ pub unsafe extern "C" fn SQLite_query(self_ptr: i64, query_ptr: i64, placeholder
             let mut conn_guard = db.conn.lock().unwrap();
             let conn = &mut *conn_guard;
 
-            let mut stmt = conn.prepare(&query)
+            let mut stmt = conn.prepare_cached(&query)
                 .map_err(|e| format!("Failed to prepare query '{}': {}", query, e))?;
 
             let result_array = collect_all_rows(&mut stmt, &named)?;
@@ -458,7 +460,7 @@ pub unsafe extern "C" fn SQLite_queryOne(self_ptr: i64, query_ptr: i64, placehol
             let mut conn_guard = db.conn.lock().unwrap();
             let conn = &mut *conn_guard;
 
-            let mut stmt = conn.prepare(&query)
+            let mut stmt = conn.prepare_cached(&query)
                 .map_err(|e| format!("Failed to prepare query '{}': {}", query, e))?;
 
             let column_count = stmt.column_count();

@@ -96,11 +96,6 @@ pub fn lower_assign(
         }
         Expr::Index { object, index, .. } => {
             let obj_val = lower_expr(builder, object);
-            let idx_val = if is_map_target(builder, object) {
-                crate::lower::expr::lower_map_key(builder, index)
-            } else {
-                lower_expr(builder, index)
-            };
             // Même détection map-vs-array que la lecture (Expr::Index dans
             // lower.rs, et lower_incdec ci-dessous) — sans elle, `map[clé] = v`
             // (variable OU self.champ) appelait toujours __array_set, qui
@@ -108,7 +103,13 @@ pub fn lower_assign(
             // structure interne (crash au premier accès/itération suivant,
             // silencieux avant ça). Factorisé dans `is_map_target` (helpers.rs).
             let is_map = is_map_target(builder, object);
-            let func = if is_map { "__map_set" } else { "__array_set" };
+            let (idx_val, func) = if is_map {
+                let key = crate::lower::expr::lower_map_key(builder, index);
+                let func = key.set_func();
+                (key.value, func)
+            } else {
+                (lower_expr(builder, index), "__array_set")
+            };
             // Boxer `val` si l'ÉLÉMENT du conteneur est `mixed` (ou tout type
             // qui se représente en `Ptr` auto-décrit — `mixed`/union/objet,
             // voir IrType::from_ast) — même logique que `box_for_any` déjà
@@ -216,17 +217,14 @@ pub fn lower_incdec(builder: &mut LowerBuilder, op: &IncDecOp, target: &Expr) ->
         }
         Expr::Index { object, index, .. } => {
             let obj_val = lower_expr(builder, object);
-            let idx_val = if is_map_target(builder, object) {
-                crate::lower::expr::lower_map_key(builder, index)
+            let (idx_val, get_func, set_func) = if is_map_target(builder, object) {
+                let key = crate::lower::expr::lower_map_key(builder, index);
+                let (get, set) = (key.get_func(), key.set_func());
+                (key.value, get, set)
             } else {
-                lower_expr(builder, index)
+                (lower_expr(builder, index), "__array_get", "__array_set")
             };
             let ty = expr_ir_type_pub(builder, target);
-            let (get_func, set_func) = if is_map_target(builder, object) {
-                ("__map_get", "__map_set")
-            } else {
-                ("__array_get", "__array_set")
-            };
             let old_val = builder.new_value();
             builder.emit(Inst::Call {
                 dest: Some(old_val.clone()), func: get_func.into(),

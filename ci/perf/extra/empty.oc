@@ -1,0 +1,4 @@
+architecture permissive
+
+function main(): void {
+}

@@ -1,0 +1,18 @@
+architecture permissive
+
+import ocara.IO
+import ocara.Convert
+import ocara.System
+import ocara.Regex
+
+function main(): void {
+    var n:int = Convert::strToInt(System::args()[1])
+    var hits:int = 0
+    var out:int = 0
+    for i in 0 until n {
+        var line:string = `user${i}@example.com id=${i}`
+        if Regex::test("^[a-z]+[0-9]+@example\\.com", line) { hits += 1 }
+        out += Regex::replace("[0-9]+", line, "#").len()
+    }
+    IO::writeln(`${hits} ${out}`)
+}

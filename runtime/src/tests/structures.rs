@@ -122,3 +122,53 @@ fn template_parts_are_formatted_by_kind() {
     __rc_release(built);
     __rc_release(text);
 }
+
+/// Clé `int` brute (`__map_set_ikey`/`__map_get_ikey`) et clé texte : même
+/// clé quand le texte est le décimal canonique de l'entier (hachage par la
+/// valeur, voir `containers::KeyState`), clés distinctes sinon (`"07"`).
+#[test]
+fn raw_int_keys_and_their_decimal_text_are_the_same_key() {
+    let m = __map_new();
+    for i in [-12i64, -1, 0, 7, 42, i64::MAX, i64::MIN] {
+        __map_set_ikey(m, i, i.wrapping_add(1));
+    }
+    for i in [-12i64, -1, 0, 7, 42, i64::MAX, i64::MIN] {
+        let text = key(&i.to_string());
+        assert_eq!(__map_get(m, text), i.wrapping_add(1), "clé {}", i);
+        __rc_release(text);
+        assert_eq!(__map_get_ikey(m, i), i.wrapping_add(1));
+    }
+    let padded = key("07");
+    assert_eq!(__map_get(m, padded), 0, "\"07\" n'est pas la clé 7");
+    __map_set(m, padded, 99);
+    assert_eq!(__map_get_ikey(m, 7), 8);
+    __rc_release(padded);
+    __map_set_ikey(m, 42, 1000);
+    let keys = Map_keys(m, 0);
+    assert_eq!(__array_len(keys), 8, "écriture d'une clé existante sans doublon");
+    __rc_release(keys);
+    __rc_release(m);
+}
+
+/// Petits blocs au-delà d'une liste de thread (réserve commune) et blocs
+/// libérés par un autre thread : resservis, jamais deux fois à la fois.
+#[test]
+fn small_blocks_overflow_to_the_shared_pool_and_cross_threads() {
+    use crate::alloc_cache::{alloc, dealloc};
+    use std::alloc::Layout;
+    use std::collections::HashSet;
+    let layout = Layout::from_size_align(24, 8).unwrap();
+    let blocks: Vec<usize> = (0..5000).map(|_| unsafe { alloc(layout) } as usize).collect();
+    assert_eq!(blocks.iter().collect::<HashSet<_>>().len(), blocks.len(), "blocs distincts");
+    let freed_elsewhere = blocks.clone();
+    std::thread::spawn(move || {
+        for b in freed_elsewhere {
+            unsafe { dealloc(b as *mut u8, layout) };
+        }
+    }).join().unwrap();
+    let again: Vec<usize> = (0..5000).map(|_| unsafe { alloc(layout) } as usize).collect();
+    assert_eq!(again.iter().collect::<HashSet<_>>().len(), again.len(), "blocs distincts après réserve");
+    for b in again {
+        unsafe { dealloc(b as *mut u8, layout) };
+    }
+}

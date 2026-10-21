@@ -23,7 +23,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 use std::alloc::{alloc_zeroed, dealloc, Layout};
-use crate::containers::{with_array, with_map, MapKey, OcaraArray, OcaraMap};
+use crate::containers::{with_array, with_map, KeyText, MapKey, OcaraArray, OcaraMap};
 use crate::typecheck::{TAG_STRING_OWNED, TAG_ARRAY, TAG_MAP, TAG_FUNCTION,
     __is_function, __is_object, __is_map, __is_array, __is_string};
 use std::io::{self, BufRead};
@@ -826,11 +826,41 @@ pub extern "C" fn __map_set(ptr: i64, key: i64, val: i64) {
     map_put(ptr, key, val);
 }
 
+/// Texte décimal d'une clé `int`, formaté sur la pile.
+fn with_int_key<R>(key: i64, f: impl FnOnce(&str) -> R) -> R {
+    f(int_text(key, &mut [0; 20]))
+}
+
+/// `m[k] = v` pour une clé `int` brute : la chaîne de la clé n'est allouée
+/// qu'à l'insertion d'une clé nouvelle.
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_set_ikey(ptr: i64, key: i64, val: i64) {
+    if ptr == 0 { return; }
+    retain_elem(ptr, val);
+    let old = with_int_key(key, |text| unsafe {
+        with_map(ptr, |data| match data.get_mut(&KeyText(text)) {
+            Some(slot) => Some(std::mem::replace(slot, val)),
+            None => {
+                data.insert(MapKey::owned(alloc_str(text)), val);
+                None
+            }
+        })
+    });
+    if let Some(old) = old {
+        release_elem(ptr, old);
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_get_ikey(ptr: i64, key: i64) -> i64 {
+    with_int_key(key, |text| map_lookup(ptr, text))
+}
+
 /// Valeur (empruntée) sous la clé `key`, sans allouer de chaîne Ocara pour
 /// la clé ; `0` si absente. `pub` : utilisé par runtime_sdl/runtime_tauri.
 pub fn map_lookup(ptr: i64, key: &str) -> i64 {
     if ptr == 0 { return 0; }
-    unsafe { with_map(ptr, |data| data.get(key).copied().unwrap_or(0)) }
+    unsafe { with_map(ptr, |data| data.get(&KeyText(key)).copied().unwrap_or(0)) }
 }
 
 #[unsafe(no_mangle)]
@@ -1046,11 +1076,11 @@ pub extern "C" fn String_split(s: i64, sep: i64) -> i64 {
         let mut one = [0u8; 4];
         src.chars().map(|c| unsafe { alloc_str(c.encode_utf8(&mut one)) }).collect()
     } else if let [byte] = sep_s.as_bytes() {
-        // Séparateur d'un octet : recherche par caractère (memchr), tableau
-        // alloué à sa taille.
-        let mut parts = Vec::with_capacity(src.bytes().filter(|b| b == byte).count() + 1);
-        parts.extend(src.split(*byte as char).map(|part| unsafe { alloc_str(part) }));
-        parts
+        // Séparateur d'un octet : découpe directe sur les octets (un
+        // séparateur ASCII ne peut pas couper un caractère UTF-8).
+        src.as_bytes().split(|b| b == byte)
+            .map(|part| unsafe { alloc_str(std::str::from_utf8_unchecked(part)) })
+            .collect()
     } else {
         src.split(sep_s).map(|part| unsafe { alloc_str(part) }).collect()
     };
@@ -1407,7 +1437,7 @@ pub extern "C" fn Map_size(ptr: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn Map_has(ptr: i64, key: i64) -> i64 {
     if ptr == 0 { return 0; }
-    if unsafe { with_key_text(key, |k| with_map(ptr, |data| data.contains_key(k))) } { 1 } else { 0 }
+    if unsafe { with_key_text(key, |k| with_map(ptr, |data| data.contains_key(&KeyText(k)))) } { 1 } else { 0 }
 }
 
 #[unsafe(no_mangle)]
@@ -1423,7 +1453,7 @@ pub extern "C" fn Map_get(ptr: i64, key: i64) -> i64 {
         }
     }
     let k = unsafe { key_to_string(key) };
-    match unsafe { with_map(ptr, |data| data.get(k.as_str()).copied()) } {
+    match unsafe { with_map(ptr, |data| data.get(&KeyText(k.as_str())).copied()) } {
         Some(v) => v,
         None => unsafe {
             exception::throw_map_exception(&format!("Key not found: {}", k), ERR_MAP_KEY_NOT_FOUND, "Map")
@@ -1439,7 +1469,7 @@ pub extern "C" fn Map_set(ptr: i64, key: i64, val: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn Map_remove(ptr: i64, key: i64) {
     if ptr == 0 { return; }
-    let removed = unsafe { with_key_text(key, |k| with_map(ptr, |data| data.shift_remove_entry(k))) };
+    let removed = unsafe { with_key_text(key, |k| with_map(ptr, |data| data.shift_remove_entry(&KeyText(k)))) };
     let removed = removed.map(|(_, v)| v);
     if let Some(v) = removed {
         release_elem(ptr, v);
@@ -1859,12 +1889,34 @@ use regex::Regex as Re;
 
 const ERR_REGEX_INVALID_PATTERN: i64 = 101;
 
+/// Motifs déjà compilés (par thread) : un motif écrit dans une boucle était
+/// recompilé à chaque appel (30 µs). Partagés par `Rc` : un clone de `Regex`
+/// recrée son cache de recherche. Vidé quand il atteint la limite.
+const REGEX_CACHE_LIMIT: usize = 256;
+
+thread_local! {
+    static REGEX_CACHE: std::cell::RefCell<std::collections::HashMap<String, std::rc::Rc<Re>>> = std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
 /// Compile le pattern (i64 ptr → &str) ; lève RegexException si invalide.
-unsafe fn compile_regex(pattern: i64) -> Re {
+unsafe fn compile_regex(pattern: i64) -> std::rc::Rc<Re> {
     unsafe {
         let pat = ptr_to_str(pattern);
+        if let Some(re) = REGEX_CACHE.with(|c| c.borrow().get(pat).cloned()) {
+            return re;
+        }
         match Re::new(pat) {
-            Ok(re) => re,
+            Ok(re) => {
+                let re = std::rc::Rc::new(re);
+                REGEX_CACHE.with(|c| {
+                    let mut cache = c.borrow_mut();
+                    if cache.len() >= REGEX_CACHE_LIMIT {
+                        cache.clear();
+                    }
+                    cache.insert(pat.to_string(), re.clone());
+                });
+                re
+            }
             Err(e) => {
                 exception::throw_regex_exception(
                     &format!("Invalid regex pattern: '{}' ({})", pat, e),

@@ -36,6 +36,16 @@ pub fn emit_memory(
 
         Inst::Store { ptr, src } => {
             let s = use_var!(src);
+            if let Some(var) = vars.register(ptr.0) {
+                // Mêmes bits que `stack_store` puis `stack_load` en I64.
+                let bits = match builder.func.dfg.value_type(s) {
+                    clt::F64 => builder.ins().bitcast(clt::I64, MemFlags::new(), s),
+                    ty if ty.bits() < 64 => builder.ins().uextend(clt::I64, s),
+                    _ => s,
+                };
+                builder.def_var(var, bits);
+                return Ok(true);
+            }
             match vars.stack_slot(ptr.0) {
                 Some(slot) => { builder.ins().stack_store(s, slot, 0); }
                 None => {
@@ -46,6 +56,11 @@ pub fn emit_memory(
         }
 
         Inst::Load { dest, ptr, .. } => {
+            if let Some(var) = vars.register(ptr.0) {
+                let v = builder.use_var(var);
+                def!(dest, v);
+                return Ok(true);
+            }
             let v = match vars.stack_slot(ptr.0) {
                 Some(slot) => builder.ins().stack_load(clt::I64, slot, 0),
                 None => {

@@ -1,0 +1,17 @@
+architecture permissive
+
+import ocara.Convert
+import ocara.System
+import ocara.HTTPServer
+import ocara.HTTPServerRequest
+
+function main(): void {
+    const server:HTTPServer = use HTTPServer()
+    server.port(Convert::strToInt(System::args()[1]))
+    server.workers(4)
+    server.route("/", "GET", nameless(req:HTTPServerRequest): int {
+        req.respond(200, "ok")
+        return 0
+    })
+    server.run()
+}

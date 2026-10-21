@@ -1,0 +1,15 @@
+architecture permissive
+
+import ocara.IO
+import ocara.Convert
+import ocara.System
+import ocara.YAML
+import ocara.Map
+
+function main(): void {
+    var n:int = Convert::strToInt(System::args()[1])
+    var text:string = ""
+    for i in 0 until n { text += `k${i}:\n  name: item${i}\n  value: ${i}\n` }
+    var doc:map<string, mixed> = YAML::decode(text)
+    IO::writeln(`${Map::size(doc)}`)
+}

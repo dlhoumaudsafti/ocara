@@ -302,6 +302,7 @@ pub fn lower_program_with(program: &Program, source_file: &str, coverage: bool) 
             module.class_parents.insert(class.name.clone(), parent_name.clone());
         }
     }
+    module.safe_self_calls = super::self_borrow::safe_self_calls(program);
 
     // Identité de classe à l'exécution (voir IrModule::class_ids) : un id
     // entier unique par classe, attribué dans l'ordre de déclaration — 0 est

@@ -20,13 +20,19 @@ Vérifie (`ocara --check`) chaque bloc ```` ```ocara ```` **complet** de `docs/`
 ## Performances comparées à Python
 
 ```bash
-make perf            # ./ci/perf_python.sh : toutes les mesures de ci/perf/
+make perf            # ./ci/perf_python.sh : toutes les mesures de ci/perf/benches.txt
 make perf split      # une seule mesure
+make perf-extra      # ./ci/perf_extra.sh : démarrage, mémoire, serveur HTTP
 ```
 
 Chaque `ci/perf/<nom>.oc` est comparé au même algorithme en Python
 (`ci/perf/<nom>.py`), minimum de 5 exécutions de chaque côté : la passe
-échoue si Ocara est plus lent. Hors de `make regression` (temps dépendant de
+échoue si Ocara est plus lent. Une mesure dont le programme Python ne
+s'exécute pas (module absent) est sautée (`SKIP`). `make perf-extra` compare
+le démarrage (programme vide contre `python3 -c pass`), la mémoire résidente
+maximale de chaque mesure et le débit d'un serveur HTTP
+(`ci/perf/extra/`, même client pour les deux serveurs) ; il échoue si Ocara
+est moins bon sur l'un d'eux. Hors de `make regression` (temps dépendant de
 la charge de la machine). Tableau des mesures : `docs/benchmarking.md`.
 
 ## Pipeline

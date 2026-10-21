@@ -1,0 +1,24 @@
+architecture permissive
+
+import ocara.IO
+import ocara.Convert
+import ocara.System
+import ocara.SQLite
+
+function main(): void {
+    var n:int = Convert::strToInt(System::args()[1])
+    scoped db:SQLite = SQLite::open(":memory:")
+    db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT, v INTEGER)")
+    db.begin()
+    for i in 0 until n {
+        db.execute("INSERT INTO t (name, v) VALUES (:name, :v)", {"name": `n${i}`, "v": i})
+    }
+    db.commit()
+    var tot:int = 0
+    for i in 0 until n / 10 {
+        var row:map<string, mixed> = db.queryOne("SELECT v FROM t WHERE id = :id", {"id": i + 1})
+        var v:int = row["v"]
+        tot += v
+    }
+    IO::writeln(`${tot}`)
+}

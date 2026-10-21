@@ -1,0 +1,15 @@
+architecture permissive
+
+import ocara.IO
+import ocara.Convert
+import ocara.System
+
+function numbers(n:int): message<int> {
+    for i in 0 until n { emit i }
+}
+function main(): void {
+    var n:int = Convert::strToInt(System::args()[1])
+    var t:int = 0
+    for v in numbers(n) { t += v }
+    IO::writeln(`${t}`)
+}

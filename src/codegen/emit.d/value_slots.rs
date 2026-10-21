@@ -7,8 +7,14 @@
 /// `Variable` coûtait, dans `cranelift-frontend`, une table par variable
 /// indexée par bloc : mémoire et temps quadratiques sur une longue chaîne
 /// `elseif` (10 000 branches : 1,6 Go).
+///
+/// Une variable locale (`Alloca` de 8 octets) dont l'adresse ne sert qu'à
+/// ses propres `Load`/`Store` devient elle aussi une `Variable` : Cranelift
+/// la garde en registre au lieu de la relire en mémoire à chaque usage. Sauf
+/// dans une fonction qui appelle `setjmp` (générateur) : un registre ne
+/// survit pas à `longjmp`.
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use cranelift_codegen::ir::{types as clt, InstBuilder, StackSlot, StackSlotData, StackSlotKind, Value as ClValue};
 use cranelift_frontend::{FunctionBuilder, Variable};
 use crate::ir::func::IrFunction;
@@ -26,6 +32,8 @@ pub struct ValueSlots {
     /// les tests de dominance devenaient quadratiques sur une longue chaîne
     /// d'`elseif`.
     allocas: HashMap<u32, StackSlot>,
+    /// `Alloca` gardés en `Variable` (voir la doc du module).
+    registers: HashSet<u32>,
 }
 
 #[derive(Clone, Copy)]
@@ -40,12 +48,16 @@ impl ValueSlots {
         let count = max_value_id(ir_func) as usize + 1;
         let mut occ = vec![Occurrences { defs: 0, def_at: (0, 0), local: true }; count];
         let mut allocas = HashMap::new();
+        let registers = register_allocas(ir_func);
         for inst in ir_func.blocks.iter().flat_map(|b| &b.insts) {
             let (dest, bytes) = match inst {
                 Inst::Alloca { dest, .. } => (dest, 8),
                 Inst::AllocaWords { dest, words } => (dest, (*words).max(1) * 8),
                 _ => continue,
             };
+            if registers.contains(&dest.0) {
+                continue;
+            }
             let slot = builder.create_sized_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, bytes));
             allocas.insert(dest.0, slot);
         }
@@ -83,11 +95,17 @@ impl ValueSlots {
         }
         let block_local: Vec<bool> = occ.iter().map(|o| o.local && o.defs == 1).collect();
         for (i, local) in block_local.iter().enumerate() {
-            if !local && !allocas.contains_key(&(i as u32)) {
-                builder.declare_var(Variable::from_u32(i as u32), clt::I64);
+            let i = i as u32;
+            if (!local && !allocas.contains_key(&i)) || registers.contains(&i) {
+                builder.declare_var(Variable::from_u32(i), clt::I64);
             }
         }
-        ValueSlots { locals: RefCell::new(vec![None; count]), block_local, allocas }
+        ValueSlots { locals: RefCell::new(vec![None; count]), block_local, allocas, registers }
+    }
+
+    /// Variable qui tient la locale `ptr` si c'est un `Alloca` gardé en registre.
+    pub fn register(&self, ptr: u32) -> Option<Variable> {
+        self.registers.contains(&ptr).then(|| Variable::from_u32(ptr))
     }
 
     /// Emplacement de pile de la valeur `v` si c'est un `Alloca`.
@@ -117,6 +135,34 @@ impl ValueSlots {
             builder.use_var(Variable::from_u32(v))
         }
     }
+}
+
+/// `Alloca` de 8 octets dont la valeur n'est que le `ptr` de `Load`/`Store`
+/// (aucune fonction qui appelle `setjmp`).
+fn register_allocas(ir_func: &IrFunction) -> HashSet<u32> {
+    let insts = || ir_func.blocks.iter().flat_map(|b| &b.insts);
+    if insts().any(|i| matches!(i, Inst::Call { func, .. } if func == "setjmp")) {
+        return HashSet::new();
+    }
+    let mut candidates: HashSet<u32> = insts()
+        .filter_map(|i| match i { Inst::Alloca { dest, .. } => Some(dest.0), _ => None })
+        .collect();
+    for inst in insts() {
+        let direct = match inst {
+            Inst::Load { ptr, .. } | Inst::Store { ptr, .. } => Some(ptr.0),
+            Inst::Alloca { dest, .. } => Some(dest.0),
+            _ => None,
+        };
+        let mut skipped = false;
+        visit_values(inst, |v| {
+            if Some(v.0) == direct && !skipped {
+                skipped = true;
+                return;
+            }
+            candidates.remove(&v.0);
+        });
+    }
+    candidates
 }
 
 fn inst_dest(inst: &Inst) -> Option<&Value> {

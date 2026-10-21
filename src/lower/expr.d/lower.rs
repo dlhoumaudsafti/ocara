@@ -205,7 +205,7 @@ pub fn lower_map_literal(builder: &mut LowerBuilder, entries: &[(Expr, Expr)], v
     for (key, val) in entries {
         let kv = lower_map_key(builder, key);
         let vv = lower_literal_element(builder, val, val_ty);
-        builder.emit(Inst::Call { dest: None, func: "__map_set".into(), args: vec![map.clone(), kv, vv], ret_ty: IrType::Void });
+        builder.emit(Inst::Call { dest: None, func: kv.set_func().into(), args: vec![map.clone(), kv.value, vv], ret_ty: IrType::Void });
     }
     map
 }
@@ -213,10 +213,31 @@ pub fn lower_map_literal(builder: &mut LowerBuilder, entries: &[(Expr, Expr)], v
 /// Clé de map : un `int`/`float`/`bool` est boxé pour que le runtime le
 /// convertisse en texte (un flottant ou un grand entier brut y était lu comme
 /// un pointeur de chaîne — voir docs/roadmap.d/langage-map-loop-value-type.md).
-pub fn lower_map_key(builder: &mut LowerBuilder, key: &Expr) -> Value {
+/// Clé d'une map prête à l'appel : une clé `int` reste brute et passe par
+/// `__map_get_ikey`/`__map_set_ikey` (texte formaté sur la pile, ni boîte ni
+/// chaîne allouée à la lecture) ; toute autre clé est boxée si besoin.
+pub struct MapKeyArg {
+    pub value: Value,
+    int: bool,
+}
+
+impl MapKeyArg {
+    pub fn get_func(&self) -> &'static str {
+        if self.int { "__map_get_ikey" } else { "__map_get" }
+    }
+
+    pub fn set_func(&self) -> &'static str {
+        if self.int { "__map_set_ikey" } else { "__map_set" }
+    }
+}
+
+pub fn lower_map_key(builder: &mut LowerBuilder, key: &Expr) -> MapKeyArg {
     let ty = expr_ir_type(builder, key);
     let v = lower_expr(builder, key);
-    box_for_dyn_arith(builder, &ty, v)
+    if ty == IrType::I64 {
+        return MapKeyArg { value: v, int: true };
+    }
+    MapKeyArg { value: box_for_dyn_arith(builder, &ty, v), int: false }
 }
 
 fn lower_literal_element(builder: &mut LowerBuilder, elem: &Expr, elem_ty: &Type) -> Value {
@@ -1556,13 +1577,18 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
         Expr::Index { object, index, .. } => {
             let obj_val = lower_expr(builder, object);
             let is_map = is_map_target(builder, object);
-            let idx_val = if is_map { lower_map_key(builder, index) } else { lower_expr(builder, index) };
-            let dest = builder.new_value();
-            // Détermine si c'est un accès map ou array selon le type de la variable
-            // — ou, pour `self.champ[clé]`/`obj.champ[clé]`, selon le type déclaré
-            // du CHAMP (module.class_map_fields, seule source fiable : class_layouts
+            // Map ou tableau selon le type de la variable — ou, pour
+            // `self.champ[clé]`/`obj.champ[clé]`, selon le type déclaré du
+            // CHAMP (module.class_map_fields, seule source fiable : class_layouts
             // réduit tout champ à IrType::Ptr, map/array/string indistinguables).
-            let func = if is_map { "__map_get" } else { "__array_get" };
+            let (idx_val, func) = if is_map {
+                let key = lower_map_key(builder, index);
+                let func = key.get_func();
+                (key.value, func)
+            } else {
+                (lower_expr(builder, index), "__array_get")
+            };
+            let dest = builder.new_value();
             builder.emit(Inst::Call {
                 dest:   Some(dest.clone()),
                 func:   func.into(),

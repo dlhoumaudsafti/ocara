@@ -1,0 +1,23 @@
+architecture permissive
+
+import ocara.IO
+import ocara.Convert
+import ocara.System
+
+class AppError extends Exception {
+    init(message:string, code:int) {
+        parent::init(message, code)
+    }
+}
+function main(): void {
+    var n:int = Convert::strToInt(System::args()[1])
+    var c:int = 0
+    for i in 0 until n {
+        try {
+            raise use AppError("x", i)
+        } on e is AppError {
+            c += 1
+        }
+    }
+    IO::writeln(`${c}`)
+}

@@ -56,6 +56,9 @@ pub struct IrModule {
     pub class_map_fields: HashMap<String, HashSet<String>>,
     /// Héritage : class_name → parent_name
     pub class_parents: HashMap<String, String>,
+    /// Par classe : méthodes que `self.m(…)` appelle sans pouvoir libérer
+    /// `self` (voir `crate::lower::builder::self_borrow`).
+    pub safe_self_calls: HashMap<String, HashSet<String>>,
     /// Identité de classe à l'exécution : class_name → id entier unique
     /// (attribué une fois, à la compilation, dans l'ordre de déclaration —
     /// voir program.rs). Stocké dans le header de CHAQUE instance

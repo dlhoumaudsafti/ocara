@@ -468,33 +468,61 @@ libération, enregistrement pour le déroulement des exceptions) : environ
 Audit du 2026-10-19, mis à jour le 2026-10-21 (machine de 12 cœurs chargée ;
 minimum de 3 à 5 exécutions). Règle : **aucune mesure ne doit être plus lente
 que la référence Python**. `make perf` (`ci/perf_python.sh`, programmes dans
-`ci/perf/`) la vérifie : chaque mesure compile le programme Ocara et
-l'exécute avec le même algorithme en Python (minimum de 5 exécutions), et
-échoue si Ocara est plus lent. Hors de `make regression`, les temps
-dépendant de la charge de la machine. Pistes restantes :
+`ci/perf/`, liste dans `ci/perf/benches.txt`) la vérifie : chaque mesure
+compile le programme Ocara et l'exécute avec le même algorithme en Python
+(minimum de 5 exécutions), et échoue si Ocara est plus lent ; une mesure dont
+le programme Python ne s'exécute pas (module absent, PyYAML) est sautée.
+`make perf-extra` (`ci/perf_extra.sh`) compare à part le démarrage, la
+mémoire résidente maximale de chaque mesure et le débit d'un serveur HTTP.
+Hors de `make regression`, les temps dépendant de la charge de la machine.
+Pistes restantes :
 [roadmap.d/perf-runtime-complexite.md](roadmap.d/perf-runtime-complexite.md).
+
+Un programme Python de comparaison écrit `text += …` dans une fonction :
+au niveau du module, la concaténation n'est plus faite en place et devient
+quadratique (la mesure ne finit pas). Un nom de fichier ne doit pas masquer
+un module (`yaml.py`, `http.py`).
 
 | Mesure | Ocara | Référence |
 |---|---|---|
 | Boucle d'entiers, 2·10⁸ itérations | 0,58 s (`while`), 0,43 s (`for … until`) | C `-O2` 0,15 s ; Python ≈ 11,6 s |
 | Boucle de flottants, 10⁸ itérations | 0,25 s | C `-O2` 0,10 s |
 | Boucle flottante + `fib(30)` (`loop`) | 0,07 s | Python 1,18 s |
-| Appel de fonction libre / accesseur / méthode qui appelle | 1,4 ns / 0,5 ns / ≈ 15 ns | C 0,5 ns ; méthode Python 37 ns |
-| 10⁷ appels de méthode qui en appelle une autre (`meth`) | 0,15 s | Python 0,81 s |
+| Appel de fonction libre / accesseur / méthode qui appelle | 1,4 ns / 0,5 ns / ≈ 1 ns si l'appelée ne peut pas libérer `self`, ≈ 15 ns sinon | C 0,5 ns ; méthode Python 37 ns |
+| 10⁷ appels de méthode qui en appelle une autre (`meth`) | 0,01 s | Python 0,81 s |
 | `use P(i)` (objet int + string) | ≈ 80 ns | Python 123 ns |
-| Tableau : 2·10⁶ `push` + 2·10⁷ lectures (`arr`) | 0,04 s | Python 1,20 s |
-| `map<string,int>`, 10⁶ insertions + lectures (`map`) | 0,28 s | Python 0,53 s |
+| Tableau : 2·10⁶ `push` + 2·10⁷ lectures (`arr`) | 0,05 s | Python 1,20 s |
+| `map<string,int>`, 10⁶ insertions + lectures (`map`) | 0,29 s | Python 0,55 s |
+| `map<int,int>`, 10⁶ insertions + lectures (`mapint`) | 0,12 s | Python 0,18 s |
 | `s = s + "x"`, 10⁶ (`concat`) | 0,01 s | Python 0,03 s |
-| Graphe de 10⁶ objets liés, parcouru 5 fois (`cycles`) | 0,36 s | Python 0,85 s |
+| Graphe de 10⁶ objets liés, parcouru 5 fois (`cycles`) | 0,34 s | Python 0,86 s |
 | Gabarit à trois parties, 2·10⁶ (`tpl`) | 0,09 s | f-string Python 0,32 s |
-| `String::split` (6 morceaux), 10⁶ (`split`) | 0,14 s | Python 0,16 s |
+| `String::split` (6 morceaux), 10⁶ (`split`) | 0,12 s | Python 0,16 s |
 | `String::replace` + `upper`, 10⁶ (`replace`) | 0,08 s | Python 0,13 s |
 | `Array::join` + `intToStr`, 10⁶ (`join`) | 0,09 s | Python 0,19 s |
 | Parcours `for k has v in m`, 2·10⁶ paires (`mapiter`) | 0,05 s | Python 0,11 s |
 | Comparaisons de chaînes, 2·10⁷ (`strcmp`) | 0,20 s | Python 0,69 s |
 | `Array::sort`, 10⁶ entiers (`sort`) | 0,04 s | Python 0,19 s |
-| `JSON::encode` + `decode`, 2·10⁵ (`jsonb`) | 0,27 s | Python 0,60 s |
-| 10⁶ objets créés + appel de méthode (`objs`) | 0,09 s | Python 0,63 s |
+| `JSON::encode` + `decode`, 2·10⁵ (`jsonb`) | 0,25 s | Python 0,60 s |
+| 10⁶ objets créés + appel de méthode (`objs`) | 0,07 s | Python 0,64 s |
+| 2·10⁷ appels via une interface (`iface`) | 0,02 s | méthode Python 0,89 s |
+| Closure qui modifie une capture, 10⁷ (`clos`) | 0,12 s | `nonlocal` Python 0,43 s |
+| Générateur `emit` + `for`, 10⁷ valeurs (`gen`) | 0,01 s | `yield` Python 0,54 s |
+| Arithmétique `mixed` / `int\|float`, 10⁷ (`mixed`) | 0,50 s | Python 0,69 s |
+| Objets après un `Thread` (comptes atomiques), 10⁶ (`mt`) | 0,09 s | Python 0,53 s |
+| Exception de classe levée et rattrapée, 10⁶ (`excls`) | 0,17 s | Python 0,31 s |
+| `Regex::test` + `replace`, 3·10⁵ (`regex`) | 0,07 s | `re` Python 0,35 s |
+| Fichier de 2·10⁶ lignes écrit, relu, découpé (`file`) | 0,31 s | Python 0,33 s |
+| `strToInt` + `strToFloat`, 2·10⁶ (`conv`) | 0,17 s | Python 0,59 s |
+| `Array::contains`/`indexOf`/`slice`/`reverse`/`pop`, 2·10⁵ (`arrops`) | 0,22 s | Python 1,19 s |
+| `Array::sort`, 10⁶ chaînes (`sortstr`) | 0,32 s | Python 0,36 s |
+| `SQLite` : 2·10⁵ insertions + 2·10⁴ `queryOne` (`sqlite`) | 0,15 s | `sqlite3` Python 0,24 s |
+| `YAML::decode`, 5·10⁴ entrées (`yamldec`) | 0,11 s | PyYAML (`CSafeLoader`) 1,10 s |
+| `DateTime::format`, 10⁶ (`date`) | 0,40 s | `strftime` Python 0,64 s |
+| `Mutex` `lock`/`unlock` sans contention, 10⁷ (`mutex`) | 0,12 s | `threading.Lock` Python 1,00 s |
+| Démarrage d'un programme vide (`make perf-extra`) | 0,95 ms | `python3 -c pass` 11,8 ms |
+| Mémoire résidente maximale (`make perf-extra`) | inférieure sur chaque mesure (`objs` 74 Mio, `file` 165 Mio) | Python 158 Mio, 213 Mio |
 | Exception levée et rattrapée, 10⁶ (`exc`) | 0,05 s | Python 0,17 s |
 | `async` + `resolve`, 5·10⁴ (`asy`) | 0,10 s (≈ 2 µs) | `asyncio` Python 0,23 s |
 | Serveur HTTP, 8 workers | 5 000–6 600 requêtes/s | — |
+| Serveur HTTP, 4 workers, 4 clients en connexions persistantes (`make perf-extra`) | 36 600 requêtes/s | `http.server` Python 16 100 |
