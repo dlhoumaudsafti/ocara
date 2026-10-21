@@ -1,31 +1,24 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { parseToolMessages, runTool, ToolMessage } from './toolrunner';
-import { activeScriptFolder, gotoLine, qualityRoots } from './projects';
+import { gotoLine, qualityRoots } from './projects';
+import { AutoRunner, currentTarget, describeTarget, Target } from './scope';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Encart « Linter » (barre latérale Ocara) : avertissements d'`ocaracs` sur
 // les projets de l'espace de travail (racines des projets testés, sinon
 // dossiers de l'espace de travail — voir projects.ts), regroupés par
 // fichier ; un clic ouvre le fichier sur l'avertissement. Périmètre
-// (`ocara.lint.scope`) :
-//   - `workspace` : relancé à l'ouverture, à chaque enregistrement d'un `.oc`
-//     (`ocara.lint.enable`) et par le bouton ▶ ; résultat repris par le
-//     voyant Linter de la LED « Release » (quality.ts) ;
-//   - `folder` : dossier du script affiché (sous-dossiers compris), lancement
-//     manuel uniquement (bouton ▶) ; la LED ne reprend pas ce résultat.
+// (`ocara.lint.scope`) : `workspace`, `folder` (dossier du script affiché) ou
+// `script` (script affiché seul) ; mode automatique (`ocara.lint.auto`,
+// bouton de l'en-tête) et bouton ▶ — voir scope.ts. Le voyant Linter de la
+// LED « Release » (quality.ts) reprend le résultat du périmètre courant.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DEBOUNCE_MS = 800;
 
-export type LintScope = 'workspace' | 'folder';
-
-export function lintScope(): LintScope {
-    return vscode.workspace.getConfiguration('ocara.lint').get<string>('scope', 'workspace') === 'folder' ? 'folder' : 'workspace';
-}
-
 export interface LintSummary {
-    scope: LintScope;
+    target: Target;
     roots: string[];
     /** Avertissements par fichier (chemins absolus), fichiers triés. */
     files: { file: string; messages: ToolMessage[] }[];
@@ -43,15 +36,13 @@ type Item =
 export class LinterProvider implements vscode.TreeDataProvider<Item>, vscode.Disposable {
     private readonly changed = new vscode.EventEmitter<Item | undefined>();
     readonly onDidChangeTreeData = this.changed.event;
-    private readonly result = new vscode.EventEmitter<LintSummary>();
+    private readonly result = new vscode.EventEmitter<LintSummary | undefined>();
     /** Nouveau résultat — voyant Linter. */
     readonly onResult = this.result.event;
     private summary: LintSummary | undefined;
-    /** Dernier résultat sur tout l'espace de travail (voyant de la LED). */
-    private workspaceSummary: LintSummary | undefined;
     private running = false;
     private pending = false;
-    private timer: NodeJS.Timeout | undefined;
+    private readonly auto = new AutoRunner('lint', 'linter', () => void this.run(), DEBOUNCE_MS);
     private readonly disposables: vscode.Disposable[] = [];
 
     register(context: vscode.ExtensionContext): void {
@@ -59,45 +50,40 @@ export class LinterProvider implements vscode.TreeDataProvider<Item>, vscode.Dis
             vscode.window.createTreeView('ocara.linter', { treeDataProvider: this }),
             vscode.commands.registerCommand('ocara.linter.run', () => this.run()),
             vscode.commands.registerCommand('ocara.linter.goto', (file: string, line: number, col: number) => gotoLine(file, line, col)),
-            vscode.workspace.onDidSaveTextDocument(doc => { if (doc.languageId === 'ocara') { this.schedule(); } }),
             vscode.workspace.onDidChangeConfiguration(e => {
-                if (e.affectsConfiguration('ocara.lint.scope')) { this.summary = undefined; this.changed.fire(undefined); }
-                if (e.affectsConfiguration('ocara.lint') || e.affectsConfiguration('ocara.ocaracsPath') || e.affectsConfiguration('ocara.coverage')) { this.schedule(); }
+                if (e.affectsConfiguration('ocara.lint.scope')) { this.summary = undefined; this.result.fire(undefined); this.changed.fire(undefined); }
+                if (e.affectsConfiguration('ocara.ocaracsPath') || e.affectsConfiguration('ocara.coverage.exclude') || e.affectsConfiguration('ocara.coverage.projects')) { this.auto.schedule(true); }
             }),
         );
         context.subscriptions.push(this);
-        this.schedule();
+        this.auto.register(context);
     }
 
     current(): LintSummary | undefined {
-        return this.workspaceSummary;
-    }
-
-    /** Lancement automatique (périmètre `workspace`), regroupé. */
-    private schedule(): void {
-        if (lintScope() === 'folder' || !vscode.workspace.getConfiguration('ocara').get<boolean>('lint.enable', true)) { return; }
-        clearTimeout(this.timer);
-        this.timer = setTimeout(() => void this.run(), DEBOUNCE_MS);
+        return this.summary;
     }
 
     /** Une analyse à la fois ; une demande pendant l'analyse la relance à la fin. */
     async run(): Promise<void> {
         if (this.running) { this.pending = true; return; }
-        const scope = lintScope();
-        const folder = scope === 'folder' ? activeScriptFolder() : undefined;
-        if (scope === 'folder' && !folder) {
-            vscode.window.showWarningMessage('Ocara : ouvrez un script .oc — le linter analyse son dossier (réglage « ocara.lint.scope »).');
+        const target = currentTarget('lint');
+        if (!target) {
+            vscode.window.showWarningMessage('Ocara : ouvrez un script .oc — le linter porte sur le script affiché ou son dossier (réglage « ocara.lint.scope »).');
             return;
         }
         this.running = true;
         this.changed.fire(undefined);
         try {
             await vscode.workspace.saveAll(false);
-            this.summary = { ...(await lint(folder ? [folder] : await qualityRoots())), scope };
-            if (scope === 'workspace') {
-                this.workspaceSummary = this.summary;
-                this.result.fire(this.summary);
+            const roots = target.scope === 'workspace' ? await qualityRoots() : [target.folder ?? target.file!];
+            const summary = await lint(roots);
+            // Script seul : ocaracs analyse aussi ses imports, seuls ses propres avertissements comptent.
+            if (target.file) {
+                summary.files = summary.files.filter(f => f.file === target.file);
+                summary.count = summary.files.reduce((n, f) => n + f.messages.length, 0);
             }
+            this.summary = { ...summary, target };
+            this.result.fire(this.summary);
         } finally {
             this.running = false;
             this.changed.fire(undefined);
@@ -132,7 +118,7 @@ export class LinterProvider implements vscode.TreeDataProvider<Item>, vscode.Dis
                     return t;
                 }
                 const ok = s!.count === 0;
-                const where = s!.scope === 'folder' ? `${vscode.workspace.asRelativePath(s!.roots[0])} : ` : '';
+                const where = s!.target.scope === 'workspace' ? '' : `${describeTarget(s!.target)} : `;
                 const t = new vscode.TreeItem(`${where}${ok ? 'aucun avertissement' : `${s!.count} avertissement(s)`}`);
                 t.description = `${s!.files.length} fichier(s) · ${s!.roots.length} dossier(s) analysé(s)`;
                 t.tooltip = s!.roots.map(r => vscode.workspace.asRelativePath(r)).join('\n');
@@ -160,20 +146,21 @@ export class LinterProvider implements vscode.TreeDataProvider<Item>, vscode.Dis
     }
 
     dispose(): void {
-        clearTimeout(this.timer);
         this.disposables.forEach(d => d.dispose());
     }
 }
 
-async function lint(roots: string[]): Promise<Omit<LintSummary, 'scope'>> {
+async function lint(roots: string[]): Promise<Omit<LintSummary, 'target'>> {
     const byFile = new Map<string, ToolMessage[]>();
     // Projets imbriqués : un fichier analysé deux fois n'est compté qu'une fois.
     const seen = new Set<string>();
     for (const root of roots) {
-        const result = await runTool('ocaracsPath', 'ocaracs', [root], root);
+        // Racine analysée : un dossier, ou un script seul (`script`).
+        const cwd = root.endsWith('.oc') ? path.dirname(root) : root;
+        const result = await runTool('ocaracsPath', 'ocaracs', [root], cwd);
         if (result.launchError) { return { roots, files: [], count: 0, launchError: result.launchError }; }
         // Fichiers générés par ocaraunit pendant une analyse de couverture : ignorés.
-        for (const m of parseToolMessages(result.stderr, root)) {
+        for (const m of parseToolMessages(result.stderr, cwd)) {
             const key = `${m.file}:${m.line}:${m.col}:${m.message}`;
             if (path.basename(m.file).startsWith('__ocaraunit__') || seen.has(key)) { continue; }
             seen.add(key);

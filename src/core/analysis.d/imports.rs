@@ -70,12 +70,11 @@ pub fn check_imports(program: &Program, source_dir: &Path, input: &Path) -> Resu
             continue;
         }
 
+        // Même résolution que `load_imports` : namespace du fichier d'entrée
+        // d'abord (`namespace configs` + `import routes.Home` →
+        // `configs/routes/Home.oc`), puis racine.
         if let Some(file_path_str) = &imp.file_path {
-            let mut file_path = source_dir.to_path_buf();
-            file_path.push(file_path_str.trim_end_matches(".oc"));
-            if file_path.extension().is_none() {
-                file_path.set_extension("oc");
-            }
+            let file_path = resolve_import_path(file_path_str, source_dir, &program.namespace, source_dir);
             if !file_path.exists() {
                 return Err(Diagnostic::at(input, &imp.span,
                     format!("file not found: `{}` (expected file: {})", file_path_str, file_path.display())));
@@ -83,11 +82,7 @@ pub fn check_imports(program: &Program, source_dir: &Path, input: &Path) -> Resu
             continue;
         }
 
-        let mut file_path = source_dir.to_path_buf();
-        for segment in &imp.path {
-            file_path.push(segment);
-        }
-        file_path.set_extension("oc");
+        let file_path = resolve_import_path(&imp.path.join("/"), source_dir, &program.namespace, source_dir);
         if !file_path.exists() {
             return Err(Diagnostic::at(input, &imp.span,
                 format!("module not found: `{}` (expected file: {})", imp.path.join("."), file_path.display())));

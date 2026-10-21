@@ -9,9 +9,9 @@ class CarSummaryEntityTest extends UnitTest {
         self::assertEquals("REF-4", car.reference)
         self::assertEquals("Peugeot", car.brand)
         self::assertEquals("308", car.model)
-        self::assertEquals(12000.0, car.purchasePrice)
-        self::assertEquals(12500.0, car.estimatedPrice)
-        self::assertEquals(380.0, car.maintenanceTotal)
+        self::assertEquals(12000.0, car.purchase_price)
+        self::assertEquals(12500.0, car.estimated_price)
+        self::assertEquals(380.0, car.maintenance_total)
         return 0
     }
 }

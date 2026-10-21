@@ -12,6 +12,7 @@ import { Navigation } from './navigation';
 import { CoverageProvider } from './coverage';
 import { QualityMonitor } from './quality';
 import { LinterProvider } from './linterview';
+import { ArchitectureProvider } from './architecture';
 
 export function activate(context: vscode.ExtensionContext): void {
     // Serveur de langage du compilateur : diagnostics en direct, définition,
@@ -33,13 +34,15 @@ export function activate(context: vscode.ExtensionContext): void {
     // d'appels, benchmark du script affiché et couverture de l'espace de travail.
     const navigation = new Navigation();
     navigation.register(context);
-    // Tests et couverture par ligne (ocaraunit), avertissements ocaracs du
-    // projet, voyants de qualité release.
+    // Encarts Coverage (ocaraunit), Linter (ocaracs) et Architecture
+    // (--check-architecture), voyants de qualité release.
     const coverage = new CoverageProvider();
     coverage.register(context);
     const linterView = new LinterProvider();
     linterView.register(context);
-    const quality = new QualityMonitor(coverage, linterView);
+    const architecture = new ArchitectureProvider();
+    architecture.register(context);
+    const quality = new QualityMonitor(coverage, linterView, architecture);
     quality.register(context);
     new ControlsProvider(navigation, quality).register(context);
     const workflow = new WorkflowProvider(context.extensionUri);

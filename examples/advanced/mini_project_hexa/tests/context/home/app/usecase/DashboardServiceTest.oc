@@ -16,7 +16,7 @@ class DashboardServiceTest extends UnitTest {
 
         self::assertEquals(2, dashboard.cars.len())
         self::assertEquals("TEST-OCUNIT-DASH2", dashboard.cars[0].reference)
-        self::assertEquals(80.0, dashboard.cars[0].maintenanceTotal)
+        self::assertEquals(80.0, dashboard.cars[0].maintenance_total)
         self::assertEquals(20000.0, dashboard.total_purchase_value)
         self::assertEquals(20000.0, dashboard.total_estimated_value)
         FakeDatabase::cleanup()

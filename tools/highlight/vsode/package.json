@@ -19,7 +19,8 @@
     "onView:ocara.graph",
     "onView:ocara.benchmark",
     "onView:ocara.coverage",
-    "onView:ocara.linter"
+    "onView:ocara.linter",
+    "onView:ocara.architecture"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -74,32 +75,41 @@
           "type": "string",
           "enum": [
             "workspace",
-            "folder"
+            "folder",
+            "script"
           ],
           "default": "workspace",
           "enumDescriptions": [
-            "Projets de l'espace de travail ; relancé à l'ouverture et à chaque enregistrement, résultat repris par la LED « Release ».",
-            "Dossier du script affiché, sous-dossiers compris ; lancement manuel uniquement (bouton ▶ de l'encart Linter)."
+            "Projets de l'espace de travail.",
+            "Dossier du script affiché, sous-dossiers compris.",
+            "Script affiché seul (ses avertissements uniquement)."
           ],
-          "markdownDescription": "Périmètre de l'encart **Linter** : `workspace` (projets de l'espace de travail) ou `folder` (dossier du script affiché, sous-dossiers compris). En `folder`, lancement uniquement avec le bouton ▶ de l'encart, et la LED « Release » ne reprend pas ce résultat. N'affecte pas l'analyse `ocaracs` du fichier affiché (surlignage jaune)."
+          "markdownDescription": "Périmètre de l'encart **Linter** et de son voyant : `workspace` (projets de l'espace de travail), `folder` (dossier du script affiché, sous-dossiers compris) ou `script` (script affiché seul). Lancement : bouton ▶, et automatiquement selon `ocara.lint.auto`. N'affecte pas l'analyse `ocaracs` du fichier affiché (surlignage jaune, `ocara.lint.enable`)."
+        },
+        "ocara.lint.auto": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Mode automatique de l'encart **Linter** (bouton de l'en-tête) : en `workspace`, à l'ouverture et à chaque enregistrement d'un `.oc` ; en `folder`, à l'enregistrement d'un `.oc` du dossier et quand le script affiché change de dossier ; en `script`, à l'enregistrement du script et quand le script affiché change."
         },
         "ocara.coverage.scope": {
           "type": "string",
           "enum": [
             "workspace",
-            "folder"
+            "folder",
+            "script"
           ],
           "default": "workspace",
           "enumDescriptions": [
-            "Tout l'espace de travail ; lancement automatique possible (ocara.coverage.auto), résultat repris par la LED « Release ».",
-            "Dossier du script affiché, sous-dossiers compris ; lancement manuel uniquement (bouton ▶ de l'encart Coverage)."
+            "Tous les projets testés de l'espace de travail.",
+            "Dossier du script affiché : tests du projet qui le contient, couverture limitée au dossier.",
+            "Script affiché : tests de son projet, couverture limitée au script ; un *Test.oc ne lance que lui-même."
           ],
-          "markdownDescription": "Périmètre de la couverture : `workspace` (tout l'espace de travail) ou `folder` (dossier du script affiché : tests du projet qui le contient, couverture limitée au dossier ; un dossier de tests ne lance que ses tests). En `folder`, lancement uniquement avec le bouton ▶ de l'encart Coverage, et la LED « Release » ne reprend pas ce résultat."
+          "markdownDescription": "Périmètre de l'encart **Coverage** et de son voyant : `workspace` (tous les projets testés), `folder` (dossier du script affiché : tests du projet qui le contient, couverture limitée au dossier ; un dossier de tests ne lance que ses tests) ou `script` (script affiché : tests de son projet, couverture limitée au script ; un `*Test.oc` ne lance que lui-même). Lancement : bouton ▶, et automatiquement selon `ocara.coverage.auto`."
         },
         "ocara.coverage.auto": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Lance automatiquement les tests et la couverture à l'ouverture de l'espace de travail et à l'enregistrement d'un fichier `.oc` — périmètre `workspace` seulement (bouton ▶ et commande « Lancer les tests et la couverture » disponibles sinon)."
+          "markdownDescription": "Mode automatique de l'encart **Coverage** (bouton de l'en-tête) : en `workspace`, à l'ouverture et à chaque enregistrement d'un `.oc` ; en `folder`, à l'enregistrement d'un `.oc` du dossier et quand le script affiché change de dossier ; en `script`, à l'enregistrement du script et quand le script affiché change."
         },
         "ocara.coverage.exclude": {
           "type": "array",
@@ -123,6 +133,26 @@
           "minimum": 0,
           "maximum": 100,
           "markdownDescription": "Couverture par ligne (en %) à partir de laquelle le voyant Coverage passe au vert (tous les tests doivent aussi passer)."
+        },
+        "ocara.architecture.scope": {
+          "type": "string",
+          "enum": [
+            "workspace",
+            "folder",
+            "script"
+          ],
+          "default": "workspace",
+          "enumDescriptions": [
+            "Chaque point d'entrée main.oc de l'espace de travail.",
+            "Chaque script du dossier du script affiché (sous-dossiers compris).",
+            "Script affiché seul."
+          ],
+          "markdownDescription": "Périmètre de l'encart **Architecture** et de son voyant : `ocara <fichier> --check-architecture` (règles du bloc `architecture` du fichier, sinon du `main.oc` du projet — docs/EBNF.md §33) sur chaque `main.oc` de l'espace de travail (`workspace`), chaque script du dossier du script affiché (`folder`) ou le script affiché (`script`) ; tests et blocs runtime exclus, ainsi que `ocara.coverage.exclude`. Lancement : bouton ▶, et automatiquement selon `ocara.architecture.auto`."
+        },
+        "ocara.architecture.auto": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Mode automatique de l'encart **Architecture** (bouton de l'en-tête), mêmes déclencheurs que `ocara.lint.auto`."
         },
         "ocara.autoImport.enable": {
           "type": "boolean",
@@ -352,6 +382,53 @@
         "command": "ocara.linter.goto",
         "title": "Aller à l'avertissement",
         "category": "Ocara"
+      },
+      {
+        "command": "ocara.architecture.run",
+        "title": "Vérifier l'architecture",
+        "category": "Ocara",
+        "icon": "$(play)"
+      },
+      {
+        "command": "ocara.architecture.goto",
+        "title": "Aller à l'erreur d'architecture",
+        "category": "Ocara"
+      },
+      {
+        "command": "ocara.coverage.autoOff",
+        "title": "Mode automatique activé (Coverage) — désactiver",
+        "category": "Ocara",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "ocara.coverage.autoOn",
+        "title": "Mode automatique désactivé (Coverage) — activer",
+        "category": "Ocara",
+        "icon": "$(sync-ignored)"
+      },
+      {
+        "command": "ocara.linter.autoOff",
+        "title": "Mode automatique activé (Linter) — désactiver",
+        "category": "Ocara",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "ocara.linter.autoOn",
+        "title": "Mode automatique désactivé (Linter) — activer",
+        "category": "Ocara",
+        "icon": "$(sync-ignored)"
+      },
+      {
+        "command": "ocara.architecture.autoOff",
+        "title": "Mode automatique activé (Architecture) — désactiver",
+        "category": "Ocara",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "ocara.architecture.autoOn",
+        "title": "Mode automatique désactivé (Architecture) — activer",
+        "category": "Ocara",
+        "icon": "$(sync-ignored)"
       }
     ],
     "menus": {
@@ -483,6 +560,34 @@
         {
           "command": "ocara.linter.goto",
           "when": "false"
+        },
+        {
+          "command": "ocara.architecture.goto",
+          "when": "false"
+        },
+        {
+          "command": "ocara.coverage.autoOff",
+          "when": "false"
+        },
+        {
+          "command": "ocara.coverage.autoOn",
+          "when": "false"
+        },
+        {
+          "command": "ocara.linter.autoOff",
+          "when": "false"
+        },
+        {
+          "command": "ocara.linter.autoOn",
+          "when": "false"
+        },
+        {
+          "command": "ocara.architecture.autoOff",
+          "when": "false"
+        },
+        {
+          "command": "ocara.architecture.autoOn",
+          "when": "false"
         }
       ],
       "view/title": [
@@ -519,12 +624,47 @@
         {
           "command": "ocara.coverage.run",
           "when": "view == ocara.coverage",
-          "group": "navigation"
+          "group": "navigation@1"
         },
         {
           "command": "ocara.linter.run",
           "when": "view == ocara.linter",
-          "group": "navigation"
+          "group": "navigation@1"
+        },
+        {
+          "command": "ocara.architecture.run",
+          "when": "view == ocara.architecture",
+          "group": "navigation@1"
+        },
+        {
+          "command": "ocara.coverage.autoOff",
+          "when": "view == ocara.coverage && ocara.coverage.auto",
+          "group": "navigation@0"
+        },
+        {
+          "command": "ocara.coverage.autoOn",
+          "when": "view == ocara.coverage && !ocara.coverage.auto",
+          "group": "navigation@0"
+        },
+        {
+          "command": "ocara.linter.autoOff",
+          "when": "view == ocara.linter && ocara.linter.auto",
+          "group": "navigation@0"
+        },
+        {
+          "command": "ocara.linter.autoOn",
+          "when": "view == ocara.linter && !ocara.linter.auto",
+          "group": "navigation@0"
+        },
+        {
+          "command": "ocara.architecture.autoOff",
+          "when": "view == ocara.architecture && ocara.architecture.auto",
+          "group": "navigation@0"
+        },
+        {
+          "command": "ocara.architecture.autoOn",
+          "when": "view == ocara.architecture && !ocara.architecture.auto",
+          "group": "navigation@0"
         }
       ],
       "editor/title": [
@@ -623,6 +763,11 @@
           "id": "ocara.linter",
           "name": "Linter",
           "contextualTitle": "Linter - Ocara"
+        },
+        {
+          "id": "ocara.architecture",
+          "name": "Architecture",
+          "contextualTitle": "Architecture - Ocara"
         }
       ]
     },

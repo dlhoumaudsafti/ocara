@@ -16,9 +16,9 @@ class HomeView implements HomeViewPort {
                 reference="${car.reference}"
                 brand="${car.brand}"
                 model="${car.model}"
-                purchase_price="${Format::price(car.purchasePrice)}"
-                estimated_price="${Format::price(car.estimatedPrice)}"
-                maintenance_total="${Format::price(car.maintenanceTotal)}"
+                purchase_price="${Format::price(car.purchase_price)}"
+                estimated_price="${Format::price(car.estimated_price)}"
+                maintenance_total="${Format::price(car.maintenance_total)}"
             >`
         }
         if dashboard.cars.len() equal 0 {

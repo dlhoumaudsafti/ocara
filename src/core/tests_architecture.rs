@@ -210,3 +210,21 @@ fn architecture_only_reports_architecture_errors_only() {
     let errs = check("ko", &["context.home.app.Service"]);
     assert!(errs.iter().any(|e| e.contains("pas de application")), "{:?}", errs);
 }
+
+/// Fichier d'entrée avec `namespace` : ses imports se résolvent d'abord dans
+/// son namespace (`namespace configs` + `import routes.Home` →
+/// `configs/routes/Home.oc`), comme quand il est importé — le pré-contrôle des
+/// imports cherchait seulement à la racine (`--check-architecture` d'un tel
+/// fichier échouait).
+#[test]
+fn entry_imports_resolve_in_its_namespace() {
+    let dir = std::env::temp_dir().join(format!("ocara_entry_ns_{}", std::process::id()));
+    std::fs::remove_dir_all(&dir).ok();
+    write(&dir, "configs/routes/Home.oc", &class("configs.routes", "Home", &[]));
+    write(&dir, "configs/Server.oc", "namespace configs\narchitecture permissive\n\nimport routes.Home\n\nclass Server {\n    public static method ping(): int {\n        return Home::ping()\n    }\n}\n");
+    let input = dir.join("configs/Server.oc");
+    let analysis = analyze(&AnalyzeOptions { input: &input, src_dir: Some(&dir), dump: false, index: false, tolerant: false, architecture_only: false });
+    std::fs::remove_dir_all(&dir).ok();
+    let errors: Vec<String> = analysis.diagnostics.iter().filter(|d| d.is_error()).map(|d| d.message.clone()).collect();
+    assert!(errors.is_empty(), "{:?}", errors);
+}

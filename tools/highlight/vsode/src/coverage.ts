@@ -3,7 +3,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { ocaraOutput, resolveCommand, runTool } from './toolrunner';
-import { activeScriptFolder, coverageConfig, exclusions, findProjects, gotoLine, Project } from './projects';
+import { exclusions, findProjects, gotoLine, Project } from './projects';
+import { AutoRunner, currentTarget, describeTarget, isWithin, Target } from './scope';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Encart « Coverage » (barre latérale Ocara) : tests de chaque projet de
@@ -12,16 +13,16 @@ import { activeScriptFolder, coverageConfig, exclusions, findProjects, gotoLine,
 // fusionnée entre projets. L'encart affiche la couverture globale et, par
 // fichier, les plages non couvertes — un clic place le curseur au début de
 // la plage ; ces lignes sont surlignées dans l'éditeur ; les fichiers
-// entièrement couverts sont listés en vert. Périmètre (`ocara.coverage.scope`) :
-//   - `workspace` : tout l'espace de travail ; lancement par le bouton, la
-//     commande « Lancer les tests et la couverture », et automatiquement à
-//     l'ouverture et à l'enregistrement d'un `.oc` (`ocara.coverage.auto`) ;
-//   - `folder` : le dossier du script affiché (sous-dossiers compris) —
-//     lancement manuel uniquement. Les tests du projet qui contient le
-//     dossier sont lancés, la couverture porte sur le dossier ; un dossier
-//     de tests ne lance que ses tests ; un dossier parent de projets les
-//     couvre entièrement.
-// La LED « Release » (quality.ts) ne reçoit que les résultats `workspace`.
+// entièrement couverts sont listés en vert. Périmètre (`ocara.coverage.scope`,
+// voir scope.ts ; mode automatique `ocara.coverage.auto` et bouton ▶) :
+//   - `workspace` : tous les projets testés de l'espace de travail ;
+//   - `folder` : dossier du script affiché — tests du projet qui le contient,
+//     couverture limitée au dossier ; un dossier de tests ne lance que ses
+//     tests ; un dossier parent de projets les couvre entièrement ;
+//   - `script` : script affiché — tests de son projet, couverture limitée au
+//     script ; un `*Test.oc` ne lance que lui-même.
+// Le voyant Coverage de la LED « Release » (quality.ts) reprend le résultat
+// du périmètre courant.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Délai de regroupement des enregistrements rapprochés (ms). */
@@ -33,17 +34,11 @@ interface JsonReport {
     coverage: { files: JsonFile[]; unanalyzed: { path: string; error: string }[] };
 }
 
-export type Scope = 'workspace' | 'folder';
-
-export function coverageScope(): Scope {
-    return coverageConfig().get<string>('scope', 'workspace') === 'folder' ? 'folder' : 'workspace';
-}
-
 /** Un lancement d'ocaraunit : tests à exécuter, périmètre de couverture. */
 interface Run {
     project: Project;
     tests: string;
-    /** Dossier couvert (`--line-coverage=<dossier>`) ; absent : tout le projet. */
+    /** Dossier ou script couvert (`--line-coverage=<chemin>`) ; absent : tout le projet. */
     target?: string;
 }
 
@@ -51,9 +46,7 @@ interface Run {
 const FILE_SCHEME = 'ocara-coverage';
 
 export interface CoverageSummary {
-    scope: Scope;
-    /** Dossier couvert (`folder`). */
-    folder?: string;
+    target: Target;
     pass: number;
     fail: number;
     errors: number;
@@ -97,11 +90,9 @@ export class CoverageProvider implements vscode.TreeDataProvider<Item>, vscode.D
         overviewRulerLane: vscode.OverviewRulerLane.Left,
     });
     private summary: CoverageSummary | undefined;
-    /** Dernier résultat sur tout l'espace de travail (voyant de la LED). */
-    private workspaceSummary: CoverageSummary | undefined;
     private running = false;
     private pending = false;
-    private timer: NodeJS.Timeout | undefined;
+    private readonly auto = new AutoRunner('coverage', 'coverage', () => void this.run(), DEBOUNCE_MS);
     private readonly disposables: vscode.Disposable[] = [];
 
     register(context: vscode.ExtensionContext): void {
@@ -116,43 +107,34 @@ export class CoverageProvider implements vscode.TreeDataProvider<Item>, vscode.D
             vscode.commands.registerCommand('ocara.coverage.run', () => this.run()),
             vscode.commands.registerCommand('ocara.coverage.goto', (file: string, line: number) => gotoLine(file, line)),
             vscode.commands.registerCommand('ocara.coverage.output', () => ocaraOutput().show(true)),
-            vscode.workspace.onDidSaveTextDocument(doc => { if (doc.languageId === 'ocara') { this.schedule(); } }),
             vscode.window.onDidChangeVisibleTextEditors(editors => editors.forEach(e => this.decorate(e))),
             vscode.workspace.onDidChangeConfiguration(e => {
                 if (e.affectsConfiguration('ocara.coverage.scope')) { this.reset(); }
-                if (e.affectsConfiguration('ocara.coverage.exclude') || e.affectsConfiguration('ocara.coverage.projects')) { this.schedule(); }
+                if (e.affectsConfiguration('ocara.coverage.exclude') || e.affectsConfiguration('ocara.coverage.projects')) { this.auto.schedule(true); }
             }),
         );
         context.subscriptions.push(this);
-        this.schedule();
+        this.auto.register(context);
     }
 
     current(): CoverageSummary | undefined {
-        return this.workspaceSummary;
+        return this.summary;
     }
 
     /** Périmètre changé : l'ancien résultat ne s'applique plus. */
     private reset(): void {
         this.summary = undefined;
+        this.result.fire(undefined);
         this.changed.fire(undefined);
         vscode.window.visibleTextEditors.forEach(e => this.decorate(e));
-        this.schedule();
-    }
-
-    /** Lancement automatique (réglage `ocara.coverage.auto`, mode `workspace`), regroupé. */
-    private schedule(): void {
-        if (coverageScope() === 'folder' || !coverageConfig().get<boolean>('auto', true)) { return; }
-        clearTimeout(this.timer);
-        this.timer = setTimeout(() => void this.run(), DEBOUNCE_MS);
     }
 
     /** Une seule analyse à la fois ; une demande pendant l'analyse la relance à la fin. */
     async run(): Promise<void> {
         if (this.running) { this.pending = true; return; }
-        const scope = coverageScope();
-        const folder = scope === 'folder' ? activeScriptFolder() : undefined;
-        if (scope === 'folder' && !folder) {
-            vscode.window.showWarningMessage('Ocara : ouvrez un script .oc — la couverture porte sur son dossier (réglage « ocara.coverage.scope »).');
+        const target = currentTarget('coverage');
+        if (!target) {
+            vscode.window.showWarningMessage('Ocara : ouvrez un script .oc — la couverture porte sur le script affiché ou son dossier (réglage « ocara.coverage.scope »).');
             return;
         }
         this.running = true;
@@ -160,12 +142,11 @@ export class CoverageProvider implements vscode.TreeDataProvider<Item>, vscode.D
         try {
             await vscode.workspace.saveAll(false);
             const projects = await findProjects();
-            const runs = folder ? folderRuns(projects, folder) : projects.map(project => ({ project, tests: project.testsDir }));
-            this.summary = { ...(await analyze(runs)), scope, folder };
-            if (scope === 'workspace') {
-                this.workspaceSummary = this.summary;
-                this.result.fire(this.summary);
-            }
+            const runs = target.folder ? folderRuns(projects, target.folder)
+                : target.file ? scriptRuns(projects, target.file)
+                : projects.map(project => ({ project, tests: project.testsDir }));
+            this.summary = { ...(await analyze(runs)), target };
+            this.result.fire(this.summary);
         } catch (err) {
             vscode.window.showErrorMessage(`Ocara : couverture — ${err instanceof Error ? err.message : err}`);
         } finally {
@@ -214,7 +195,7 @@ export class CoverageProvider implements vscode.TreeDataProvider<Item>, vscode.D
                 return t;
             }
             case 'summary': {
-                const where = s!.scope === 'folder' && s!.folder ? ` de ${vscode.workspace.asRelativePath(s!.folder)}` : '';
+                const where = s!.target.scope === 'workspace' ? '' : ` (${describeTarget(s!.target)})`;
                 const t = new vscode.TreeItem(`Couverture${where} : ${formatPercent(s!.percent)}`);
                 t.description = `${s!.covered}/${s!.total} lignes · ${s!.pass} PASS`;
                 t.tooltip = `${s!.projects} projet(s) testé(s) — ${s!.pass} PASS, ${s!.fail} FAIL, ${s!.errors} erreur(s)`;
@@ -269,22 +250,16 @@ export class CoverageProvider implements vscode.TreeDataProvider<Item>, vscode.D
     }
 
     dispose(): void {
-        clearTimeout(this.timer);
         this.disposables.forEach(d => d.dispose());
     }
 }
 
 // ── Exécution d'ocaraunit et fusion ──────────────────────────────────────────
 
-function isWithin(child: string, parent: string): boolean {
-    const rel = path.relative(parent, child);
-    return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
-}
-
 /** Lancements du mode `folder` : projet qui contient le dossier (le plus
  *  profond) couvert sur ce dossier, sinon projets contenus dans le dossier. */
 export function folderRuns(projects: Project[], folder: string): Run[] {
-    const owner = projects.filter(p => isWithin(folder, p.root)).sort((a, b) => b.root.length - a.root.length)[0];
+    const owner = ownerOf(projects, folder);
     if (owner) {
         return isWithin(folder, owner.testsDir)
             ? [{ project: owner, tests: folder }]
@@ -293,9 +268,23 @@ export function folderRuns(projects: Project[], folder: string): Run[] {
     return projects.filter(p => isWithin(p.root, folder)).map(project => ({ project, tests: project.testsDir }));
 }
 
-async function analyze(runs: Run[]): Promise<Omit<CoverageSummary, 'scope' | 'folder'>> {
+/** Projet testé qui contient `p` (le plus profond). */
+function ownerOf(projects: Project[], p: string): Project | undefined {
+    return projects.filter(project => isWithin(p, project.root)).sort((a, b) => b.root.length - a.root.length)[0];
+}
+
+/** Lancements du mode `script` : un `*Test.oc` seul, sinon les tests du projet couverts sur le script. */
+export function scriptRuns(projects: Project[], file: string): Run[] {
+    const owner = ownerOf(projects, file);
+    if (!owner) { return []; }
+    return isWithin(file, owner.testsDir)
+        ? [{ project: owner, tests: file }]
+        : [{ project: owner, tests: owner.testsDir, target: file }];
+}
+
+async function analyze(runs: Run[]): Promise<Omit<CoverageSummary, 'target'>> {
     const merged = new Map<string, Map<number, boolean>>();
-    const summary: Omit<CoverageSummary, 'scope' | 'folder'> = { pass: 0, fail: 0, errors: 0, covered: 0, total: 0, percent: 100, files: [], unanalyzed: [], failedProjects: [], projects: runs.length };
+    const summary: Omit<CoverageSummary, 'target'> = { pass: 0, fail: 0, errors: 0, covered: 0, total: 0, percent: 100, files: [], unanalyzed: [], failedProjects: [], projects: runs.length };
     const excludeArgs = exclusions().flatMap(e => ['--exclude', e]);
     const compiler = resolveCommand('compilerPath', 'ocara');
     const env = compiler.length === 1 ? { OCARA: compiler[0] } : undefined;
