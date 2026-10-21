@@ -170,6 +170,9 @@ pub struct LowerBuilder<'m> {
     /// Méthode dont le corps ne peut pas libérer `self` : `self` n'est pas
     /// retenu (voir `crate::lower::builder::self_borrow`).
     pub self_borrowed: bool,
+    /// Blocs déjà examinés : contiennent-ils une `nameless` ? (voir
+    /// `crate::lower::expr::nameless_scan`).
+    pub nameless_memo: crate::lower::expr::nameless_scan::NamelessMemo,
     /// Générateur : champ caché de chaque temporaire possédé.
     pub rc_temp_fields: HashMap<Value, String>,
     /// Parallèle à `rc_temps` : champs cachés pris par chaque statement,
@@ -251,6 +254,7 @@ impl<'m> LowerBuilder<'m> {
             rc_loop_temps: Vec::new(),
             rc_generator: false,
             self_borrowed: false,
+            nameless_memo: Default::default(),
             rc_temp_fields: HashMap::new(),
             rc_temp_field_frames: Vec::new(),
             gen_free_temp_fields: Vec::new(),

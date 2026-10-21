@@ -89,9 +89,15 @@ impl IrFunction {
     }
 
     /// Passe au bloc dont l'id est fourni
+    /// Les blocs sont créés dans l'ordre de leur id (`new_block`) : l'indice
+    /// est l'id, sauf si l'ordre a été remanié (recherche en repli).
     pub fn switch_to(&mut self, id: &BlockId) {
-        self.current_bb = self.blocks.iter().position(|b| &b.id == id)
-            .expect("BasicBlock introuvable");
+        let direct = id.0 as usize;
+        self.current_bb = if self.blocks.get(direct).is_some_and(|b| &b.id == id) {
+            direct
+        } else {
+            self.blocks.iter().position(|b| &b.id == id).expect("BasicBlock introuvable")
+        };
     }
 
     // ── Émission d'instructions ───────────────────────────────────────────────

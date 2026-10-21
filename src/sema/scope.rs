@@ -231,6 +231,13 @@ pub struct ScopeStack {
     /// un par frame : valables jusqu'à la fin du frame ou à la prochaine
     /// affectation de la variable.
     narrowed: Vec<HashMap<String, crate::parsing::ast::Type>>,
+    /// Nombre de frames qui raffinent chaque nom : une variable jamais
+    /// raffinée (le cas courant) ne parcourt pas la pile.
+    narrowed_names: HashMap<String, usize>,
+    /// Frames qui déclarent chaque nom, du plus externe au plus interne :
+    /// une recherche ne remonte pas la pile (quadratique sur des blocs
+    /// profondément imbriqués).
+    declared_in: HashMap<String, Vec<usize>>,
 }
 
 impl ScopeStack {
@@ -241,21 +248,59 @@ impl ScopeStack {
 
     #[allow(dead_code)]
     pub fn pop(&mut self) {
-        self.frames.pop();
-        self.narrowed.pop();
+        if let Some(frame) = self.frames.pop() {
+            self.undeclare(frame.keys());
+        }
+        self.pop_narrowed();
+    }
+
+    fn undeclare<'k>(&mut self, names: impl Iterator<Item = &'k String>) {
+        for name in names {
+            if let Some(frames) = self.declared_in.get_mut(name) {
+                frames.pop();
+                if frames.is_empty() {
+                    self.declared_in.remove(name);
+                }
+            }
+        }
+    }
+
+    /// Frame la plus interne qui déclare `name`.
+    fn frame_of(&self, name: &str) -> Option<usize> {
+        self.declared_in.get(name).and_then(|f| f.last().copied())
+    }
+
+    fn pop_narrowed(&mut self) {
+        for name in self.narrowed.pop().unwrap_or_default().into_keys() {
+            self.unmark_narrowed(&name);
+        }
+    }
+
+    fn unmark_narrowed(&mut self, name: &str) {
+        if let Some(n) = self.narrowed_names.get_mut(name) {
+            *n -= 1;
+            if *n == 0 {
+                self.narrowed_names.remove(name);
+            }
+        }
     }
 
     /// Raffine `name` dans le frame courant.
     pub fn narrow(&mut self, name: String, ty: crate::parsing::ast::Type) {
         if self.lookup(&name).is_some() {
             if let Some(top) = self.narrowed.last_mut() {
-                top.insert(name, ty);
+                if top.insert(name.clone(), ty).is_none() {
+                    *self.narrowed_names.entry(name).or_insert(0) += 1;
+                }
             }
         }
     }
 
     /// Type courant de la variable locale `name` : raffiné, sinon déclaré.
     pub fn current_type(&self, name: &str) -> Option<crate::parsing::ast::Type> {
+        if !self.narrowed_names.contains_key(name) {
+            return self.lookup(name).map(|b| b.ty.clone());
+        }
         for (frame, narrowed) in self.frames.iter().zip(&self.narrowed).rev() {
             if let Some(ty) = narrowed.get(name) {
                 return Some(ty.clone());
@@ -269,11 +314,18 @@ impl ScopeStack {
 
     /// Affectation de `name` : ses raffinements ne valent plus.
     pub fn forget_narrowing(&mut self, name: &str) {
+        if !self.narrowed_names.contains_key(name) {
+            return;
+        }
+        let mut removed = 0;
         for (frame, narrowed) in self.frames.iter().zip(self.narrowed.iter_mut()).rev() {
-            narrowed.remove(name);
+            removed += usize::from(narrowed.remove(name).is_some());
             if frame.contains_key(name) {
                 break;
             }
+        }
+        for _ in 0..removed {
+            self.unmark_narrowed(name);
         }
     }
 
@@ -283,11 +335,12 @@ impl ScopeStack {
     /// traiter une instance d'une classe utilisateur contenant une ressource
     /// exactement comme une ressource nue (E28 ci-dessous).
     pub fn pop_scope(&mut self, resource_classes: &HashSet<String>) -> PoppedScope {
-        self.narrowed.pop();
+        self.pop_narrowed();
         let frame = match self.frames.pop() {
             Some(f) => f,
             None    => return PoppedScope { unused: vec![], unfinalized_threads: vec![], unclosed_resource_vars: vec![] },
         };
+        self.undeclare(frame.keys());
         let mut unused: Vec<UnusedVar> = Vec::new();
         let mut unfinalized_threads: Vec<UnfinalizedThread> = Vec::new();
         let mut unclosed_resource_vars: Vec<UnclosedResourceVar> = Vec::new();
@@ -331,10 +384,12 @@ impl ScopeStack {
     /// Déclare un symbole dans le scope courant.
     /// Retourne `false` si le nom est déjà déclaré dans ce scope exact.
     pub fn declare(&mut self, name: String, binding: LocalBinding) -> bool {
+        let depth = self.frames.len() - 1;
         let top = self.frames.last_mut().expect("scope stack vide");
         if top.contains_key(&name) {
             return false;
         }
+        self.declared_in.entry(name.clone()).or_default().push(depth);
         top.insert(name, binding);
         true
     }
@@ -357,12 +412,12 @@ impl ScopeStack {
 
     /// Recherche en remontant la pile.
     pub fn lookup(&self, name: &str) -> Option<&LocalBinding> {
-        for frame in self.frames.iter().rev() {
-            if let Some(b) = frame.get(name) {
-                return Some(b);
-            }
-        }
-        None
+        self.frames[self.frame_of(name)?].get(name)
+    }
+
+    fn lookup_mut(&mut self, name: &str) -> Option<&mut LocalBinding> {
+        let i = self.frame_of(name)?;
+        self.frames[i].get_mut(name)
     }
 
     /// Marque une variable comme utilisée (en remontant la pile), et fait
@@ -371,17 +426,14 @@ impl ScopeStack {
     /// déjà utilisée avant `use_span` — le point d'usage originel, pour que
     /// l'appelant puisse citer les deux positions dans l'erreur.
     pub fn use_binding(&mut self, name: &str, use_span: &Span) -> Result<(), Span> {
-        for frame in self.frames.iter_mut().rev() {
-            if let Some(b) = frame.get_mut(name) {
-                if b.kind == VarKind::Consumed {
-                    if let Some(first) = &b.consumed_used_at {
-                        return Err(first.clone());
-                    }
-                    b.consumed_used_at = Some(use_span.clone());
+        if let Some(b) = self.lookup_mut(name) {
+            if b.kind == VarKind::Consumed {
+                if let Some(first) = &b.consumed_used_at {
+                    return Err(first.clone());
                 }
-                b.used = true;
-                return Ok(());
+                b.consumed_used_at = Some(use_span.clone());
             }
+            b.used = true;
         }
         Ok(())
     }
@@ -394,14 +446,10 @@ impl ScopeStack {
     /// confirmé par reproduction pour chacun de ces types (abort pour
     /// `Thread`, SEGFAULT pour `Mutex`).
     pub fn mark_resource_finalized(&mut self, name: &str) -> bool {
-        for frame in self.frames.iter_mut().rev() {
-            if let Some(b) = frame.get_mut(name) {
-                let already = b.resource_finalized;
-                b.resource_finalized = true;
-                return already;
-            }
+        match self.lookup_mut(name) {
+            Some(b) => std::mem::replace(&mut b.resource_finalized, true),
+            None => false,
         }
-        false
     }
 
     /// Marque un `var`/`const` ressource comme prouvé "contenu" — voir

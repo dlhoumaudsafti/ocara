@@ -29,8 +29,6 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Compilateur : fonctions géantes encore super-linéaires** — `elseif` × 40 000 → 9,9 s (arbre des dominateurs de Cranelift) ; 50 000 `if` imbriqués → 130 s ; imbrication des instructions non bornée par un diagnostic. *(Légère à Structurel)* → [détails](roadmap.d/compilateur-limites-echelle-residuelles.md)
-
 ---
 
 ## Priorité Moyenne

@@ -7,7 +7,9 @@ use crate::parsing::parser::Parser;
 /// test : même pile que le thread de compilation.
 fn parse_on_big_stack(src: String) -> Result<(), String> {
     std::thread::Builder::new()
-        .stack_size(1 << 30)
+        // Frames plus grosses en debug qu'en release : 4 Gio réservés
+        // (mémoire virtuelle) pour atteindre la limite des blocs.
+        .stack_size(1 << 32)
         .spawn(move || {
             let tokens = Lexer::new(&src).tokenize().expect("lex error");
             Parser::new(tokens).parse_program().map(|_| ()).map_err(|e| e.message)
@@ -44,4 +46,21 @@ fn nesting_plus_chain_beyond_limit_is_a_diagnostic() {
     let chain = vec!["a"; 46_000].join(" + ");
     let err = parse_on_big_stack(program(&format!("{}{}{}", "(".repeat(depth), chain, ")".repeat(depth)))).expect_err("expression trop profonde acceptée");
     assert!(err.contains("expression trop profonde"), "{}", err);
+}
+
+/// Blocs imbriqués (`if` dans `if`…) : bornés par `MAX_BLOCK_DEPTH`
+/// (docs/roadmap.d/compilateur-limites-echelle-residuelles.md).
+fn nested_blocks(depth: usize) -> String {
+    format!("function main(): int {{\n{}\n{}\n    return 0\n}}\n", "if true {".repeat(depth), "}".repeat(depth))
+}
+
+#[test]
+fn deep_blocks_within_limit_are_accepted() {
+    assert!(parse_on_big_stack(nested_blocks(20_000)).is_ok());
+}
+
+#[test]
+fn too_deep_blocks_are_a_diagnostic() {
+    let err = parse_on_big_stack(nested_blocks(100_001)).expect_err("imbrication trop profonde acceptée");
+    assert!(err.contains("blocs trop profondément imbriqués"), "{}", err);
 }

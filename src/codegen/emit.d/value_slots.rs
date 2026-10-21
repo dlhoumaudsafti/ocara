@@ -8,7 +8,8 @@
 /// indexée par bloc : mémoire et temps quadratiques sur une longue chaîne
 /// `elseif` (10 000 branches : 1,6 Go).
 use std::cell::RefCell;
-use cranelift_codegen::ir::{types as clt, Value as ClValue};
+use std::collections::HashMap;
+use cranelift_codegen::ir::{types as clt, InstBuilder, StackSlot, StackSlotData, StackSlotKind, Value as ClValue};
 use cranelift_frontend::{FunctionBuilder, Variable};
 use crate::ir::func::IrFunction;
 use crate::ir::inst::{Inst, Value};
@@ -17,6 +18,14 @@ use super::helpers::{max_value_id, visit_values};
 pub struct ValueSlots {
     block_local: Vec<bool>,
     locals: RefCell<Vec<Option<ClValue>>>,
+    /// Emplacement de pile de chaque `Alloca`/`AllocaWords`, créé d'avance :
+    /// son adresse est recalculée à chaque usage (`stack_addr`) et une
+    /// lecture/écriture directe y accède sans adresse. Une adresse calculée
+    /// une fois et utilisée dans toute la fonction était une valeur vivante
+    /// partout — coûteuse pour l'allocation de registres de Cranelift, dont
+    /// les tests de dominance devenaient quadratiques sur une longue chaîne
+    /// d'`elseif`.
+    allocas: HashMap<u32, StackSlot>,
 }
 
 #[derive(Clone, Copy)]
@@ -30,6 +39,16 @@ impl ValueSlots {
     pub fn new(builder: &mut FunctionBuilder, ir_func: &IrFunction) -> Self {
         let count = max_value_id(ir_func) as usize + 1;
         let mut occ = vec![Occurrences { defs: 0, def_at: (0, 0), local: true }; count];
+        let mut allocas = HashMap::new();
+        for inst in ir_func.blocks.iter().flat_map(|b| &b.insts) {
+            let (dest, bytes) = match inst {
+                Inst::Alloca { dest, .. } => (dest, 8),
+                Inst::AllocaWords { dest, words } => (dest, (*words).max(1) * 8),
+                _ => continue,
+            };
+            let slot = builder.create_sized_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, bytes));
+            allocas.insert(dest.0, slot);
+        }
         for param in &ir_func.params {
             if let Some(o) = occ.get_mut(param.slot.0 as usize) {
                 o.local = false;
@@ -64,11 +83,16 @@ impl ValueSlots {
         }
         let block_local: Vec<bool> = occ.iter().map(|o| o.local && o.defs == 1).collect();
         for (i, local) in block_local.iter().enumerate() {
-            if !local {
+            if !local && !allocas.contains_key(&(i as u32)) {
                 builder.declare_var(Variable::from_u32(i as u32), clt::I64);
             }
         }
-        ValueSlots { locals: RefCell::new(vec![None; count]), block_local }
+        ValueSlots { locals: RefCell::new(vec![None; count]), block_local, allocas }
+    }
+
+    /// Emplacement de pile de la valeur `v` si c'est un `Alloca`.
+    pub fn stack_slot(&self, v: u32) -> Option<StackSlot> {
+        self.allocas.get(&v).copied()
     }
 
     pub fn len(&self) -> usize {
@@ -84,6 +108,9 @@ impl ValueSlots {
     }
 
     pub fn get(&self, builder: &mut FunctionBuilder, v: u32) -> ClValue {
+        if let Some(&slot) = self.allocas.get(&v) {
+            return builder.ins().stack_addr(clt::I64, slot, 0);
+        }
         if self.block_local[v as usize] {
             self.locals.borrow()[v as usize].expect("valeur locale à un bloc lue avant sa définition")
         } else {

@@ -3,6 +3,7 @@
 pub mod helpers;
 pub mod captures;
 pub mod nameless;
+pub mod nameless_scan;
 pub mod typeinfer;
 pub mod literals;
 pub mod tauri_handler;

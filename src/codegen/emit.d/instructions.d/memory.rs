@@ -1,7 +1,7 @@
 /// Émission des instructions mémoire
 
 use std::collections::HashMap;
-use cranelift_codegen::ir::{types as clt, InstBuilder, MemFlags, StackSlotData, StackSlotKind};
+use cranelift_codegen::ir::{types as clt, InstBuilder, MemFlags};
 use cranelift_frontend::FunctionBuilder;
 use super::super::value_slots::ValueSlots;
 use cranelift_module::{FuncId, Module};
@@ -31,32 +31,28 @@ pub fn emit_memory(
     }
 
     match inst {
-        Inst::Alloca { dest, .. } => {
-            // Slot de pile
-            let slot = builder.create_sized_stack_slot(StackSlotData::new(
-                StackSlotKind::ExplicitSlot, 8,
-            ));
-            let addr = builder.ins().stack_addr(clt::I64, slot, 0);
-            def!(dest, addr);
-        }
-
-        Inst::AllocaWords { dest, words } => {
-            let slot = builder.create_sized_stack_slot(StackSlotData::new(
-                StackSlotKind::ExplicitSlot, (*words).max(1) * 8,
-            ));
-            let addr = builder.ins().stack_addr(clt::I64, slot, 0);
-            def!(dest, addr);
-        }
+        // Emplacements créés d'avance (voir `ValueSlots::stack_slot`).
+        Inst::Alloca { .. } | Inst::AllocaWords { .. } => {}
 
         Inst::Store { ptr, src } => {
-            let p = use_var!(ptr);
             let s = use_var!(src);
-            builder.ins().store(MemFlags::new(), s, p, 0);
+            match vars.stack_slot(ptr.0) {
+                Some(slot) => { builder.ins().stack_store(s, slot, 0); }
+                None => {
+                    let p = use_var!(ptr);
+                    builder.ins().store(MemFlags::new(), s, p, 0);
+                }
+            }
         }
 
         Inst::Load { dest, ptr, .. } => {
-            let p = use_var!(ptr);
-            let v = builder.ins().load(clt::I64, MemFlags::new(), p, 0);
+            let v = match vars.stack_slot(ptr.0) {
+                Some(slot) => builder.ins().stack_load(clt::I64, slot, 0),
+                None => {
+                    let p = use_var!(ptr);
+                    builder.ins().load(clt::I64, MemFlags::new(), p, 0)
+                }
+            };
             def!(dest, v);
         }
 

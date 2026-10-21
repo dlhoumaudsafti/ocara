@@ -6,11 +6,19 @@ use crate::lower::builder::LowerBuilder;
 use crate::lower::expr::{lower_condition, lower_expr, hoist_closure_promotions, hoist_closure_promotions_in_exprs};
 use super::super::super::block::lower_block;
 
-/// Lowering récursif de la chaîne elseif.
+/// Lowering de la chaîne elseif (puis du `else` final).
 ///
 /// `outer_snapshot` : état de `owned_locals` avant tout le if/elseif/else —
-/// restauré après le dernier bras de la chaîne (voir la doc de `lower_if`
+/// restauré après chaque bras de la chaîne (voir la doc de `lower_if`
 /// pour la justification de ces sauvegardes/restaurations).
+///
+/// Les bras ne rejoignent pas tous `merge_bb` : ils rejoignent un arbre
+/// équilibré de blocs de fusion (`merge_tree`), dont chaque bloc n'a que
+/// deux prédécesseurs. Une fusion unique à n prédécesseurs rendait
+/// quadratique l'arbre des dominateurs de Cranelift (`elseif` × 40 000 :
+/// 9,9 s), et une chaîne de fusions vides, la résolution de ses alias
+/// d'étiquettes ; l'arbre borne les deux à log n. Les sauts vides sont
+/// repliés par Cranelift (aucun coût à l'exécution).
 fn lower_elseif_chain(
     builder:    &mut LowerBuilder,
     elseif:     &[(Expr, Block)],
@@ -18,43 +26,72 @@ fn lower_elseif_chain(
     merge_bb:   &crate::ir::inst::BlockId,
     outer_snapshot: &std::collections::HashMap<String, crate::lower::stmt::ownership::OwnedLocalInfo>,
 ) {
-    if elseif.is_empty() {
-        if let Some(blk) = else_block {
-            lower_block(builder, blk);
-        }
+    let arms = elseif.len() + 1;
+    let mut targets = vec![merge_bb.clone(); arms];
+    let mut joins = Vec::new();
+    merge_tree(builder, 0, arms, merge_bb, &mut targets, &mut joins);
+
+    for (i, (cond_expr, then_blk)) in elseif.iter().enumerate() {
+        let cond_val = lower_condition(builder, cond_expr);
+        crate::lower::stmt::rc::flush_temps(builder);
+        let then_bb = builder.new_block();
+        let next_bb = builder.new_block();
+        builder.emit(Inst::Branch {
+            cond:    cond_val,
+            then_bb: then_bb.clone(),
+            else_bb: next_bb.clone(),
+        });
+        builder.switch_to(&then_bb);
+        lower_block(builder, then_blk);
         if !builder.is_terminated() {
-            builder.emit(Inst::Jump { target: merge_bb.clone() });
+            builder.emit(Inst::Jump { target: targets[i].clone() });
         }
+        // Ce bras (elseif) est mutuellement exclusif avec les suivants de la
+        // chaîne : une destruction anticipée (return/break/continue) faite ici
+        // ne doit jamais empêcher un bras suivant de détruire à son tour la
+        // même variable sur son propre chemin d'exécution (voir la doc de
+        // `lower_if`).
         builder.owned_locals = outer_snapshot.clone();
-        return;
+        builder.switch_to(&next_bb);
     }
 
-    let (cond_expr, then_blk) = &elseif[0];
-    let cond_val = lower_condition(builder, cond_expr);
-    crate::lower::stmt::rc::flush_temps(builder);
-    let then_bb  = builder.new_block();
-    let next_bb  = builder.new_block();
-
-    builder.emit(Inst::Branch {
-        cond:    cond_val,
-        then_bb: then_bb.clone(),
-        else_bb: next_bb.clone(),
-    });
-
-    builder.switch_to(&then_bb);
-    lower_block(builder, then_blk);
+    if let Some(blk) = else_block {
+        lower_block(builder, blk);
+    }
     if !builder.is_terminated() {
-        builder.emit(Inst::Jump { target: merge_bb.clone() });
+        builder.emit(Inst::Jump { target: targets[arms - 1].clone() });
     }
-    // Ce bras (elseif) est mutuellement exclusif avec les suivants de la
-    // chaîne : une destruction anticipée (return/break/continue) faite ici
-    // ne doit jamais empêcher un bras suivant de détruire à son tour la
-    // même variable sur son propre chemin d'exécution (voir la doc de
-    // `lower_if`).
     builder.owned_locals = outer_snapshot.clone();
 
-    builder.switch_to(&next_bb);
-    lower_elseif_chain(builder, &elseif[1..], else_block, merge_bb, outer_snapshot);
+    for (join, parent) in joins {
+        builder.switch_to(&join);
+        builder.emit(Inst::Jump { target: parent });
+    }
+}
+
+/// Bloc de fusion rejoint par chacun des bras `lo..hi` (`targets`) : les
+/// tranches de plus de deux bras sont coupées en deux, chaque moitié
+/// rejoignant son propre bloc (`joins` : bloc, bloc parent à rejoindre).
+fn merge_tree(
+    builder: &mut LowerBuilder,
+    lo: usize,
+    hi: usize,
+    parent: &crate::ir::inst::BlockId,
+    targets: &mut [crate::ir::inst::BlockId],
+    joins: &mut Vec<(crate::ir::inst::BlockId, crate::ir::inst::BlockId)>,
+) {
+    if hi - lo <= 2 {
+        for target in &mut targets[lo..hi] {
+            *target = parent.clone();
+        }
+        return;
+    }
+    let mid = lo + (hi - lo) / 2;
+    for (a, b) in [(lo, mid), (mid, hi)] {
+        let join = builder.new_block();
+        joins.push((join.clone(), parent.clone()));
+        merge_tree(builder, a, b, &join, targets, joins);
+    }
 }
 
 /// Lowering d'un `if`/`elseif`/`else`.
@@ -121,7 +158,12 @@ pub fn lower_if(
     if !elseif.is_empty() {
         // Lowering de la chaîne elseif de manière récursive — restaure déjà
         // `outer_snapshot` en interne après son dernier bras.
-        lower_elseif_chain(builder, elseif, else_block.as_ref(), &merge_bb, &outer_snapshot);
+        // La chaîne rejoint son propre bloc : `merge_bb` n'a ainsi que deux
+        // prédécesseurs (ce bloc et le bras `then`).
+        let chain_merge = builder.new_block();
+        lower_elseif_chain(builder, elseif, else_block.as_ref(), &chain_merge, &outer_snapshot);
+        builder.switch_to(&chain_merge);
+        builder.emit(Inst::Jump { target: merge_bb.clone() });
     } else if let Some(blk) = else_block {
         lower_block(builder, blk);
         if !builder.is_terminated() {

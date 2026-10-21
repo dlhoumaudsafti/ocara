@@ -55,10 +55,13 @@ pub struct Parser {
     /// opérateurs enchaînés) — bornée par `MAX_EXPR_DEPTH`, voir
     /// `expressions.rs`.
     pub(super) expr_depth: usize,
+    /// Profondeur d'imbrication des blocs en cours — bornée par
+    /// `MAX_BLOCK_DEPTH`, voir `statements.rs`.
+    pub(super) block_depth: usize,
 }
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, pos: 0, property_initializers: Vec::new(), type_refs: Vec::new(), recover: false, errors: Vec::new(), in_map_key: false, class_wirings: Vec::new(), expr_depth: 0 }
+        Self { tokens, pos: 0, property_initializers: Vec::new(), type_refs: Vec::new(), recover: false, errors: Vec::new(), in_map_key: false, class_wirings: Vec::new(), expr_depth: 0, block_depth: 0 }
     }
 }

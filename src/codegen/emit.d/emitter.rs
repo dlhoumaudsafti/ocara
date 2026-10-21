@@ -378,7 +378,14 @@ impl CraneliftEmitter {
         let fid = *self.func_ids.get(&ir_func.name).unwrap();
         self.module
             .define_function(fid, &mut ctx)
-            .map_err(|e| CodegenError(format!("define_function: {:?}", e)))?;
+            .map_err(|e| match e {
+                // Limite de Cranelift sur la taille du code d'une fonction.
+                cranelift_module::ModuleError::Compilation(cranelift_codegen::CodegenError::CodeTooLarge) => CodegenError(format!(
+                    "function '{}' is too large for the code generator — split it into several functions",
+                    crate::core::analysis::homonyms::display(&ir_func.name),
+                )),
+                e => CodegenError(format!("define_function: {:?}", e)),
+            })?;
 
         Ok(())
     }

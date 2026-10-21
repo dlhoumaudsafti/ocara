@@ -103,3 +103,41 @@ mod try_exit_tests {
         assert!(codes.contains(&crate::lower::stmt::statements::try_exit_codes::TRY_BREAK));
     }
 }
+
+/// Tests unitaires — chaîne `elseif` : arbre équilibré de blocs de fusion,
+/// aucun bloc à plus de deux prédécesseurs
+/// (docs/roadmap.d/compilateur-limites-echelle-residuelles.md).
+#[cfg(test)]
+mod elseif_merge_tests {
+    use std::collections::HashMap;
+
+    use crate::ir::inst::Inst;
+    use crate::lower::builder::program::lower_program;
+    use crate::parsing::lexer::Lexer;
+    use crate::parsing::parser::Parser;
+
+    #[test]
+    fn elseif_chain_merges_have_at_most_two_predecessors() {
+        let arms: String = (1..200).map(|i| format!(" elseif x equal {} {{ r = {} }}", i, i)).collect();
+        let src = format!("function f(x:int): int {{\n var r:int = 0\n if x equal 0 {{ r = 0 }}{} else {{ r = -1 }}\n return r\n}}\n", arms);
+        let tokens = Lexer::new(&src).tokenize().expect("lex");
+        let program = Parser::new(tokens).parse_program().expect("parse");
+        let module = lower_program(&program, "<test>");
+        let func = module.functions.iter().find(|f| f.name == "f").expect("f");
+        let mut preds: HashMap<u32, usize> = HashMap::new();
+        for block in &func.blocks {
+            for inst in &block.insts {
+                let targets = match inst {
+                    Inst::Jump { target } => vec![target.0],
+                    Inst::Branch { then_bb, else_bb, .. } => vec![then_bb.0, else_bb.0],
+                    _ => continue,
+                };
+                for t in targets {
+                    *preds.entry(t).or_default() += 1;
+                }
+            }
+        }
+        let widest = preds.values().copied().max().unwrap_or(0);
+        assert!(widest <= 2, "un bloc a {} prédécesseurs", widest);
+    }
+}

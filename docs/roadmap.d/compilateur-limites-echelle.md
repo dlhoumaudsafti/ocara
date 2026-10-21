@@ -1,6 +1,6 @@
 # Compilateur et binaires : débordements de pile et complexité super-linéaire
 
-**Clos le 2026-10-20** (reliquats sur des tailles extrêmes : [compilateur-limites-echelle-residuelles](compilateur-limites-echelle-residuelles.md)). Vérifié :
+**Clos le 2026-10-20** (reliquats sur des tailles extrêmes traités le 2026-10-21 : `elseif` × 40 000 en 1,2 s, 50 000 `if` imbriqués en 2 s, imbrication des blocs bornée à 100 000 niveaux). Vérifié :
 1. Compilation dans un thread à pile de 1 Gio (`src/main.rs`) + borne de profondeur d'expression à 50 000 avec diagnostic (`MAX_EXPR_DEPTH`, `expressions.rs`) : 20 000 parenthèses et 100 000 termes compilent, au-delà erreur propre au lieu d'un abort.
 2. Débordement de pile d'un programme : message « débordement de pile » via pile alternative et gestionnaire SIGSEGV/SIGBUS (`runtime/src/stack_guard.rs`, appelé en tête du `main` généré et de chaque thread du runtime), code de sortie inchangé (139). Hors Android et Windows.
 3. `select_variants` en une passe : 50 000 instructions, 7,5 s → 0,3 s à `--check`.

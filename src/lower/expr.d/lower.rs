@@ -274,6 +274,9 @@ fn lower_literal_element(builder: &mut LowerBuilder, elem: &Expr, elem_ty: &Type
 /// que capture la fermeture : le promouvoir partageait une cellule entre les
 /// itérations (voir docs/roadmap.d/langage-closure-capture-loop-var-reused-name.md).
 pub fn hoist_closure_promotions(builder: &mut LowerBuilder, body: &Block, loop_vars: &[&str]) {
+    if !super::nameless_scan::block_has_nameless(body, &mut builder.nameless_memo) {
+        return;
+    }
     let mut capture_scope: std::collections::HashMap<String, (Value, IrType, bool)> = builder.locals.clone();
     for name in loop_vars {
         capture_scope.remove(*name);
@@ -307,6 +310,9 @@ pub fn hoist_closure_promotions(builder: &mut LowerBuilder, body: &Block, loop_v
 /// (condition d'un `elseif`, bras de `match`).
 pub fn hoist_closure_promotions_in_exprs(builder: &mut LowerBuilder, exprs: &[&Expr]) {
     let Some(first) = exprs.first() else { return };
+    if !exprs.iter().any(|e| super::nameless_scan::expr_has_nameless(e)) {
+        return;
+    }
     let block = Block {
         stmts: exprs.iter().map(|e| Stmt::Expr((*e).clone())).collect(),
         span: first.span().clone(),

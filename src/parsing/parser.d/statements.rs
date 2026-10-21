@@ -5,13 +5,26 @@ use crate::parsing::token::TokenKind;
 use super::types::{Parser, ParseError, ParseResult};
 use super::compound_assign::compound_op;
 
+/// Profondeur maximale d'imbrication des blocs : au-delà, les passes
+/// récursives du compilateur risqueraient de déborder leur pile (100 000
+/// niveaux mesurés sans problème, voir `main.rs`).
+const MAX_BLOCK_DEPTH: usize = 100_000;
+
 impl Parser {
     pub(super) fn parse_block(&mut self) -> ParseResult<Block> {
         let span = self.span();
-        self.eat(&TokenKind::LBrace)?;
-        let stmts = self.parse_stmts()?;
-        self.eat(&TokenKind::RBrace)?;
-        Ok(Block { stmts, span })
+        if self.block_depth >= MAX_BLOCK_DEPTH {
+            return Err(ParseError::new(
+                &format!("blocs trop profondément imbriqués (plus de {} niveaux) : extrayez une partie dans une fonction", MAX_BLOCK_DEPTH),
+                span,
+            ));
+        }
+        self.block_depth += 1;
+        let result = self.eat(&TokenKind::LBrace)
+            .and_then(|_| self.parse_stmts())
+            .and_then(|stmts| self.eat(&TokenKind::RBrace).map(|_| stmts));
+        self.block_depth -= 1;
+        Ok(Block { stmts: result?, span })
     }
 
     pub(super) fn parse_stmt(&mut self) -> ParseResult<Stmt> {
