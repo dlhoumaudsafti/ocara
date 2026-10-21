@@ -18,6 +18,10 @@ mod tests_architecture;
 #[cfg(test)]
 mod tests_test_wiring;
 #[cfg(test)]
+mod tests_leak_sites;
+#[cfg(test)]
+mod tests_cli;
+#[cfg(test)]
 mod tests_monomorph;
 pub mod interface_wiring;
 pub mod leak_sites;

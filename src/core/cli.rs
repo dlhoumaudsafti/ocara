@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Arguments de la ligne de commande
 #[derive(Debug)]
@@ -108,16 +108,32 @@ pub fn print_help() {
     println!("  ocara main.oc --target aarch64-linux-android --android-runtime libocara_runtime.a -o libmain.so");
 }
 
-pub fn parse_args() -> CliArgs {
-    let args: Vec<String> = std::env::args().collect();
+/// Code de sortie d'une ligne de commande invalide.
+const EXIT_USAGE: i32 = 2;
 
-    // Aide explicite ou aucun argument
-    if args.len() < 2 || args.iter().any(|a| a == "--help" || a == "-h") {
+pub fn parse_args() -> CliArgs {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.iter().any(|a| a == "--help" || a == "-h") {
         print_help();
         std::process::exit(0);
     }
+    if args.is_empty() {
+        print_help();
+        std::process::exit(EXIT_USAGE);
+    }
+    parse(&args).unwrap_or_else(|message| {
+        eprintln!("ocara : {}", message);
+        eprintln!("Voir : ocara --help");
+        std::process::exit(EXIT_USAGE);
+    })
+}
 
-    let mut input   = PathBuf::from("test.oc");
+/// Analyse les arguments (sans le nom du programme). Option inconnue, option
+/// sans sa valeur, second fichier d'entrée, fichier manquant ou sortie qui
+/// écraserait le source : erreur, jamais un repli silencieux. Un premier
+/// argument `build` (forme historique `ocara build main.oc`) est ignoré.
+pub fn parse(args: &[String]) -> Result<CliArgs, String> {
+    let mut input: Option<PathBuf> = None;
     let mut output  = PathBuf::from("out");
     let mut dump    = false;
     let mut check   = false;
@@ -137,9 +153,11 @@ pub fn parse_args() -> CliArgs {
     let mut android_ndk: Option<PathBuf> = None;
     let mut lsp = false;
 
-    let mut i = 1;
-    while i < args.len() {
-        match args[i].as_str() {
+    let skip_build = args.first().is_some_and(|a| a == "build");
+    let mut rest = args.iter().skip(usize::from(skip_build));
+    while let Some(arg) = rest.next() {
+        let mut value = |name: &str| rest.next().cloned().ok_or_else(|| format!("{} nécessite une valeur", name));
+        match arg.as_str() {
             "--dump"    => dump    = true,
             "--check"   => check   = true,
             "--no-link" => no_link = true,
@@ -151,41 +169,46 @@ pub fn parse_args() -> CliArgs {
             "--coverage-points" => coverage_points = true,
             "--architecture-report" => architecture_report = true,
             "--lsp"     => lsp     = true,
-            "-o" if i + 1 < args.len() => {
-                output = PathBuf::from(&args[i + 1]);
-                i += 1;
-            }
-            "--src" if i + 1 < args.len() => {
-                src_dir = Some(PathBuf::from(&args[i + 1]));
-                i += 1;
-            }
-            "--target" if i + 1 < args.len() => {
-                target = Some(args[i + 1].clone());
-                i += 1;
-            }
-            "--android-runtime" if i + 1 < args.len() => {
-                android_runtime = Some(PathBuf::from(&args[i + 1]));
-                i += 1;
-            }
-            "--android-runtime-sdl" if i + 1 < args.len() => {
-                android_runtime_sdl = Some(PathBuf::from(&args[i + 1]));
-                i += 1;
-            }
-            "--android-jni-bridge" if i + 1 < args.len() => {
-                android_jni_bridge = Some(PathBuf::from(&args[i + 1]));
-                i += 1;
-            }
-            "--android-ndk" if i + 1 < args.len() => {
-                android_ndk = Some(PathBuf::from(&args[i + 1]));
-                i += 1;
-            }
-            arg => {
-                if !arg.starts_with('-') {
-                    input = PathBuf::from(arg);
+            "-o" => output = PathBuf::from(value("-o")?),
+            "--src" => src_dir = Some(PathBuf::from(value("--src")?)),
+            "--target" => target = Some(value("--target")?),
+            "--android-runtime" => android_runtime = Some(PathBuf::from(value("--android-runtime")?)),
+            "--android-runtime-sdl" => android_runtime_sdl = Some(PathBuf::from(value("--android-runtime-sdl")?)),
+            "--android-jni-bridge" => android_jni_bridge = Some(PathBuf::from(value("--android-jni-bridge")?)),
+            "--android-ndk" => android_ndk = Some(PathBuf::from(value("--android-ndk")?)),
+            option if option.starts_with('-') => return Err(format!("option inconnue : {}", option)),
+            file => {
+                if let Some(first) = &input {
+                    return Err(format!("un seul fichier d'entrée attendu (reçu : {} et {})", first.display(), file));
                 }
+                input = Some(PathBuf::from(file));
             }
         }
-        i += 1;
     }
-    CliArgs { input, output, dump, check, no_link, release, profile, leak_check, coverage, check_architecture, coverage_points, architecture_report, src_dir, target, android_runtime, android_runtime_sdl, android_jni_bridge, android_ndk, lsp }
+    let input = match input {
+        Some(input) => input,
+        None if lsp => PathBuf::new(),
+        None => return Err("aucun fichier d'entrée (.oc)".to_string()),
+    };
+    if !lsp && same_path(&input, &output) {
+        return Err(format!("la sortie -o {} est le fichier source lui-même : il serait écrasé", output.display()));
+    }
+    Ok(CliArgs { input, output, dump, check, no_link, release, profile, leak_check, coverage, check_architecture, coverage_points, architecture_report, src_dir, target, android_runtime, android_runtime_sdl, android_jni_bridge, android_ndk, lsp })
+}
+
+/// Même fichier, existant ou non (`./x.oc` et `x.oc`).
+fn same_path(a: &Path, b: &Path) -> bool {
+    let absolute = |p: &Path| p.canonicalize().unwrap_or_else(|_| {
+        let joined = std::env::current_dir().map(|cwd| cwd.join(p)).unwrap_or_else(|_| p.to_path_buf());
+        joined.components().collect()
+    });
+    absolute(a) == absolute(b)
+}
+
+/// Fichier objet intermédiaire de `output` : `<output>.o` (jamais l'extension
+/// remplacée — `-o build/app.1.2` donnait `build/app.1.o`).
+pub fn object_path(output: &Path) -> PathBuf {
+    let mut name = output.as_os_str().to_os_string();
+    name.push(".o");
+    PathBuf::from(name)
 }

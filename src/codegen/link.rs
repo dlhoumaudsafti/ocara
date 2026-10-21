@@ -41,13 +41,67 @@ static RUNTIME_TAURI_BYTES: &[u8] =
 static RUNTIME_SDL_BYTES: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/libocara_runtime_sdl.a"));
 
-/// Extrait des bytes embarqués vers un fichier temporaire et retourne son chemin.
-fn extract_to_tmp(bytes: &[u8], label: &str) -> Result<PathBuf, LinkerError> {
-    let path = std::env::temp_dir()
-        .join(format!("lib{}_{}.a", label, std::process::id()));
-    std::fs::write(&path, bytes)
-        .map_err(|e| LinkerError(format!("extraction de {}: {}", label, e)))?;
-    Ok(path)
+/// Runtime embarqué extrait sur disque pour l'édition de liens.
+struct RuntimeArchive {
+    path: PathBuf,
+    /// Copie propre à cette compilation (pas de cache utilisateur) : supprimée
+    /// à la fin, y compris si la liaison échoue.
+    temporary: bool,
+}
+
+impl Drop for RuntimeArchive {
+    fn drop(&mut self) {
+        if self.temporary {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
+}
+
+/// Cache utilisateur des runtimes extraits (`$XDG_CACHE_HOME/ocara`,
+/// `~/.cache/ocara`, `%LOCALAPPDATA%\ocara`) — jamais un dossier partagé
+/// comme `/tmp`, où un fichier déposé par un autre utilisateur serait lié.
+fn cache_dir() -> Option<PathBuf> {
+    let base = std::env::var_os("XDG_CACHE_HOME").map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")))
+        .or_else(|| std::env::var_os("LOCALAPPDATA").map(PathBuf::from))?;
+    let dir = base.join("ocara");
+    std::fs::create_dir_all(&dir).ok()?;
+    Some(dir)
+}
+
+/// Extrait des bytes embarqués : une seule copie par contenu dans le cache
+/// utilisateur (`lib<label>-<empreinte>.a`, écrite à part puis renommée —
+/// une compilation interrompue ne laisse ni copie partielle réutilisée, ni
+/// fichier de 79 Mo par compilation), sinon une copie temporaire supprimée
+/// après la liaison.
+fn extract_runtime(bytes: &[u8], label: &str) -> Result<RuntimeArchive, LinkerError> {
+    use std::hash::{Hash, Hasher};
+    let err = |e: std::io::Error| LinkerError(format!("extraction de {}: {}", label, e));
+    let Some(dir) = cache_dir() else {
+        let path = std::env::temp_dir().join(format!("lib{}_{}.a", label, std::process::id()));
+        std::fs::write(&path, bytes).map_err(err)?;
+        return Ok(RuntimeArchive { path, temporary: true });
+    };
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    bytes.hash(&mut hasher);
+    let path = dir.join(format!("lib{}-{:016x}.a", label, hasher.finish()));
+    if std::fs::metadata(&path).is_ok_and(|m| m.len() == bytes.len() as u64) {
+        return Ok(RuntimeArchive { path, temporary: false });
+    }
+    let partial = dir.join(format!(".lib{}-{}.partial", label, std::process::id()));
+    std::fs::write(&partial, bytes).map_err(err)?;
+    std::fs::rename(&partial, &path).map_err(err)?;
+    // Nouvelle version du runtime : les copies des versions précédentes ne
+    // servent plus (une seule copie par runtime dans le cache).
+    let prefix = format!("lib{}-", label);
+    for old in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+        let name = old.file_name().to_string_lossy().into_owned();
+        let digits = name.strip_prefix(&prefix).and_then(|n| n.strip_suffix(".a"));
+        if digits.is_some_and(|d| d.len() == 16 && d.chars().all(|c| c.is_ascii_hexdigit())) && old.path() != path {
+            let _ = std::fs::remove_file(old.path());
+        }
+    }
+    Ok(RuntimeArchive { path, temporary: false })
 }
 
 /// Résout les flags `--libs` de pkg-config pour un paquet, avec repli automatique
@@ -92,17 +146,12 @@ pub fn link(
         .map_err(|e| LinkerError(format!("écriture objet: {}", e)))?;
 
     // 2. Extraction du/des runtime(s) embarqué(s) dans /tmp
-    let runtime = extract_to_tmp(RUNTIME_BYTES, "ocara_runtime")?;
-    let runtime_tauri = if needs_tauri {
-        Some(extract_to_tmp(RUNTIME_TAURI_BYTES, "ocara_runtime_tauri")?)
-    } else {
-        None
-    };
-    let runtime_sdl = if needs_sdl {
-        Some(extract_to_tmp(RUNTIME_SDL_BYTES, "ocara_runtime_sdl")?)
-    } else {
-        None
-    };
+    let runtime_archive = extract_runtime(RUNTIME_BYTES, "ocara_runtime")?;
+    let runtime = &runtime_archive.path;
+    let tauri_archive = if needs_tauri { Some(extract_runtime(RUNTIME_TAURI_BYTES, "ocara_runtime_tauri")?) } else { None };
+    let runtime_tauri = tauri_archive.as_ref().map(|a| a.path.clone());
+    let sdl_archive = if needs_sdl { Some(extract_runtime(RUNTIME_SDL_BYTES, "ocara_runtime_sdl")?) } else { None };
+    let runtime_sdl = sdl_archive.as_ref().map(|a| a.path.clone());
 
     // 3. Liaison : objet + runtime(s) → exécutable
     // --allow-multiple-definition : les symboles du .o (programme) priment sur la .a (runtime)
@@ -199,14 +248,9 @@ pub fn link(
     let status = cmd.status()
         .map_err(|e| LinkerError(format!("impossible de lancer {}: {}", linker_driver, e)))?;
 
-    // 4. Nettoyage des fichiers temporaires
-    let _ = std::fs::remove_file(&runtime);
-    if let Some(rt) = &runtime_tauri {
-        let _ = std::fs::remove_file(rt);
-    }
-    if let Some(rt) = &runtime_sdl {
-        let _ = std::fs::remove_file(rt);
-    }
+    // 4. L'objet intermédiaire ne reste pas à côté du binaire (les runtimes
+    //    temporaires sont supprimés par `RuntimeArchive`).
+    let _ = std::fs::remove_file(obj_path);
 
     if !status.success() {
         return Err(LinkerError(format!(
@@ -404,6 +448,7 @@ pub fn link_android(
         .args(if release { vec!["-Wl,-s"] } else { vec![] })
         .status()
         .map_err(|e| LinkerError(format!("impossible de lancer {}: {}", clang_path.display(), e)))?;
+    let _ = std::fs::remove_file(obj_path);
 
     if !status.success() {
         return Err(LinkerError(format!(

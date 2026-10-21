@@ -82,9 +82,15 @@ pub fn get_stmt_end_line(stmt: &Stmt) -> usize {
 pub fn expand_runtime_imports(program: &mut ast::Program, source_dir: &std::path::Path, input_file: &std::path::Path) -> Result<(), Diagnostic> {
     // Map: RuntimeBlockKind -> Vec<statements>
     let mut blocks_map: HashMap<ast::RuntimeBlockKind, Vec<ast::Stmt>> = HashMap::new();
-    
+    // Position de chaque bloc : sa première déclaration (bloc écrit dans le
+    // fichier, ou ligne `runtime x is <bloc>`) — localise par exemple une
+    // fuite du `main` synthétisé dans le bilan `--leak-check`.
+    let mut spans: HashMap<ast::RuntimeBlockKind, token::Span> = HashMap::new();
+    let located = |span: &token::Span| token::Span { file: span.file.clone().or_else(|| Some(input_file.to_string_lossy().into_owned())), ..span.clone() };
+
     // Ajouter les blocs existants dans le programme
     for block in &program.runtime_blocks {
+        spans.entry(block.kind).or_insert_with(|| located(&block.span));
         blocks_map.entry(block.kind)
             .or_insert_with(Vec::new)
             .extend(block.statements.clone());
@@ -103,6 +109,7 @@ pub fn expand_runtime_imports(program: &mut ast::Program, source_dir: &std::path
                         // Si kind est spécifié (runtime X is init), ajouter tous les statements au bloc spécifié
                         // Sinon (runtime X), importer tous les blocs déclarés
                         if let Some(target_kind) = rt_import.kind {
+                            spans.entry(target_kind).or_insert_with(|| located(&rt_import.span));
                             // Mode: le contenu du fichier devient le bloc spécifié
                             for block in blocks {
                                 blocks_map.entry(target_kind)
@@ -112,6 +119,7 @@ pub fn expand_runtime_imports(program: &mut ast::Program, source_dir: &std::path
                         } else {
                             // Mode: importer tous les blocs déclarés du fichier
                             for block in blocks {
+                                spans.entry(block.kind).or_insert_with(|| located(&rt_import.span));
                                 blocks_map.entry(block.kind)
                                     .or_insert_with(Vec::new)
                                     .extend(block.statements);
@@ -144,7 +152,7 @@ pub fn expand_runtime_imports(program: &mut ast::Program, source_dir: &std::path
             ast::RuntimeBlock {
                 kind,
                 statements,
-                span: token::Span::new(0, 0), // Span fusionné
+                span: spans.remove(&kind).unwrap_or_else(|| token::Span::new(0, 0)),
             }
         })
         .collect();

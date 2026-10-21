@@ -152,12 +152,16 @@ Deux méthodes peuvent lever une **ThreadException** :
 | Code | Signification |
 |------|---------------|
 | 101  | Thread spawn failed (ressources insuffisantes) |
-| 102  | Thread panicked during execution |
+| 102  | Exception non rattrapée dans le thread (ou panique interne) |
 
 **Méthodes concernées** :
 
 - `t.run(f)` — lève une exception si la création du thread OS échoue (code 101)
-- `t.join()` — lève une exception si le thread a paniqué pendant son exécution (code 102)
+- `t.join()` — lève une exception si une exception levée dans le thread n'y a pas été rattrapée (code 102, message `Uncaught exception in thread: <Type> : <message>`)
+
+Une exception non rattrapée n'arrête que le thread qui l'a levée, jamais le processus : elle est
+gardée jusqu'au `join()`. Pour un thread détaché (`detach()`), personne ne l'attend : elle est
+signalée sur la sortie d'erreur (`Thread <id> : exception non rattrapée (<Type> : <message>)`).
 
 **Exemples d'utilisation** :
 

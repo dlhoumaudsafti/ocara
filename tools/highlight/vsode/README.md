@@ -154,8 +154,8 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
   (fichier fermé ou ré-analysé entre-temps) est ignoré ; désactiver `ocara.lint.enable` efface
   diagnostics et surlignage.
 - **Clic droit → « Compiler (Debug) » / « Compiler (Release) »** (éditeur ou arborescence,
-  aussi dans la palette) : demande le nom du binaire, créé dans le dossier du script (le
-  compilateur y laisse aussi `<nom>.o`) ; Release compile avec `--release` (`System::BUILD`
+  aussi dans la palette) : demande le nom du binaire, créé dans le dossier du script (l'objet
+  intermédiaire `<nom>.o` est supprimé après la liaison) ; Release compile avec `--release` (`System::BUILD`
   vaut `release`). Erreurs dans le panneau Problèmes et la sortie « Ocara » ; celles d'un fichier
   disparaissent dès qu'il est modifié ou enregistré.
 - **Clic droit → « Compiler et lancer (Debug) » / « (Release) »** : demande le nom du binaire

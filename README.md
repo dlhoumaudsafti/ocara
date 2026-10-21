@@ -146,6 +146,14 @@ ocara [options] <fichier.oc>
 | `--architecture-report` | Rapport d'architecture du projet en JSON : type (hexagonale, permissive), répertoire hexagonal, alias des couches, racines partagées, contexte/couche et violations de chaque script |
 | `--src <dossier>` | Dossier racine pour la résolution des imports |
 
+Une option inconnue, une option sans sa valeur (`-o`, `--src`…), un second fichier d'entrée ou une
+sortie `-o` qui désigne le fichier source lui-même sont refusés (code de sortie `2`, comme `ocara`
+sans argument). La forme historique `ocara build main.oc` reste acceptée. L'objet intermédiaire
+`<sortie>.o` est supprimé après la liaison (avec `--no-link`, c'est la sortie : `-o app.o`, sinon
+`<sortie>.o`). Le runtime embarqué est extrait une seule fois par version dans le cache de
+l'utilisateur (`$XDG_CACHE_HOME/ocara`, sinon `~/.cache/ocara`), plus dans `/tmp` à chaque
+compilation. Un BOM UTF-8 en tête de fichier est ignoré.
+
 ### Exemples
 
 ```bash

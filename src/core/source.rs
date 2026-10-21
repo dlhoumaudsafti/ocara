@@ -18,7 +18,11 @@ pub fn read(path: &Path) -> std::io::Result<String> {
     if let Some(text) = OVERRIDES.with(|o| o.borrow().get(&key(path)).cloned()) {
         return Ok(text);
     }
-    std::fs::read_to_string(path)
+    // BOM UTF-8 en tête (éditeurs Windows) : ignoré, pas un caractère du source.
+    std::fs::read_to_string(path).map(|text| match text.strip_prefix('\u{feff}') {
+        Some(rest) => rest.to_string(),
+        None => text,
+    })
 }
 
 /// Remplace le contenu de `path` (texte non enregistré de l'éditeur).

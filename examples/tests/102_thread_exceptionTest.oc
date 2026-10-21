@@ -1,0 +1,66 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.Thread
+import ocara.ThreadException
+import ocara.Convert
+
+// Une exception non rattrapée dans un `Thread` arrête ce thread seulement :
+// `join()` la relève en ThreadException 102 (le processus s'arrêtait) — voir
+// docs/roadmap.d/stdlib-thread-exception.md.
+
+class ThreadFailure {
+    public property message: string
+    public property code: int
+    init(message: string, code: int) {
+        self.message = message
+        self.code = code
+    }
+}
+
+class Test102ThreadException extends UnitTest {
+
+    public method raiseInThreadIsReportedAtJoinTest(): int {
+        var t:Thread = use Thread()
+        t.run(nameless(): void { raise use ThreadFailure("x", 7) })
+        var code:int = 0
+        try {
+            t.join()
+        } on e is ThreadException {
+            code = e.code
+        }
+        self::assertEquals(102, code)
+        return 0
+    }
+
+    public method builtinExceptionInThreadIsReportedAtJoinTest(): int {
+        var t:Thread = use Thread()
+        t.run(nameless(): void { var n:int = Convert::strToInt("zz") })
+        var code:int = 0
+        try {
+            t.join()
+        } on e is ThreadException {
+            code = e.code
+        }
+        self::assertEquals(102, code)
+        return 0
+    }
+
+    public method normalThreadJoinsWithoutExceptionTest(): int {
+        var done:bool = false
+        var t:Thread = use Thread()
+        t.run(nameless(): void { done = true })
+        t.join()
+        self::assertTrue(done)
+        return 0
+    }
+
+    public method detachedThreadExceptionKeepsProcessAliveTest(): int {
+        var t:Thread = use Thread()
+        t.run(nameless(): void { raise use ThreadFailure("y", 8) })
+        t.detach()
+        Thread::sleep(100)
+        self::assertTrue(true)
+        return 0
+    }
+}

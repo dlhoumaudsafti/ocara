@@ -1,5 +1,13 @@
 # CLI du compilateur : source écrasé, fichiers temporaires, options ignorées
 
+**Clos le 2026-10-21.** Vérifié :
+1. `-o` désignant le source refusé (code 2) ; objet intermédiaire `<sortie>.o` (extension ajoutée, jamais remplacée), supprimé après la liaison.
+2. Runtime extrait une fois par version dans le cache utilisateur (`$XDG_CACHE_HOME/ocara`, `~/.cache/ocara`), écrit à part puis renommé, anciennes versions supprimées ; copie temporaire (supprimée même en cas d'échec) seulement sans dossier personnel (`src/codegen/link.rs`).
+3. `core::cli::parse` : option inconnue, option sans valeur, second fichier d'entrée, fichier manquant → erreur (code 2) ; `ocara` sans argument → aide, code 2 ; forme `ocara build main.oc` conservée.
+4. BOM UTF-8 ignoré (`core::source::read`) ; erreurs de lecture en 1:1.
+Tests : `src/core/tests_cli.rs`.
+
+
 Audit du 2026-10-19. Reproduit sur le binaire courant.
 
 ## Constat

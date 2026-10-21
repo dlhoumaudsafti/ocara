@@ -151,7 +151,8 @@ fn run() {
     };
 
     if args.no_link {
-        let obj_path = args.output.with_extension("o");
+        // Sans liaison, l'objet est la sortie : `-o app.o` tel quel, sinon `<sortie>.o`.
+        let obj_path = if args.output.extension().is_some_and(|e| e == "o") { args.output.clone() } else { core::cli::object_path(&args.output) };
         if let Err(e) = fs::write(&obj_path, &obj_bytes) {
             diagnostic::print_error(&args.input, 0, 0, &format!("écriture de '{}': {}", obj_path.display(), e));
             std::process::exit(1);
@@ -161,7 +162,7 @@ fn run() {
     }
 
     // ── 8. Liaison finale ─────────────────────────────────────────────────────
-    let obj_path = args.output.with_extension("o");
+    let obj_path = core::cli::object_path(&args.output);
     // Ne lier libocara_runtime_tauri.a + GTK/WebKit que si le programme importe
     // réellement ocara.Tauri (voir la doc dans src/codegen/link.rs).
     let needs_tauri = ir_module.imports.iter().any(|m| m == "Tauri");

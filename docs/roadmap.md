@@ -30,13 +30,10 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
 - **`async`/`resolve` : double free, handles boxés, appels synchrones** — Second `resolve` → double free ; `hs.push(sq(3))` puis `resolve` → SIGSEGV ; `async` dans une `nameless`/générateur appelé en synchrone → SIGSEGV ; tâche jamais résolue → ~36 Ko perdus par appel. *(Structurel)* → [détails](roadmap.d/async-resolvable-handles.md)
-- **Exception dans un `Thread` : arrêt du processus** — Promis : `ThreadException` 102 au `join()` ; obtenu : arrêt (rc 1) — `Thread_run` sans `run_closure_catching`. *(Simple)* → [détails](roadmap.d/stdlib-thread-exception.md)
 - **`try` : `break`/`continue`/`return` perdus ; locales de générateur perdues** — `continue`/`break` dans un `try` ignorés (`01234` au lieu de `02`, boucle infinie) ; `return` dans un `try` → erreur de codegen ; locales d'un générateur perdues après un `raise` rattrapé. *(Structurel)* → [détails](roadmap.d/langage-try-controle-de-flux.md)
 - **Sema : programmes invalides acceptés qui plantent** — `types_compat` trop permissif (union, `null`, covariance des conteneurs et de `Function`) ; redéfinition incompatible, champ générique, branche de `match`, `-` unaire, indexation de chaîne, chemin sans `return`, déclarations en double non signalées. *(Structurel)* → [détails](roadmap.d/sema-solidite-typage.md)
 - **Performances : `map` et concaténation quadratiques, collecteur de cycles** — Map 10⁵ insertions → ~20 s (recherche linéaire) ; `s = s + "x"` × 10⁶ → 67 s ; collecte de cycles qui reparcourt le graphe vivant ; méthode ~26 ns (retain/release de `self`) ; deux appels système par exception. *(Structurel)* → [détails](roadmap.d/perf-runtime-complexite.md)
 - **Compilateur : fonctions géantes encore super-linéaires** — `elseif` × 40 000 → 9,9 s (arbre des dominateurs de Cranelift) ; 50 000 `if` imbriqués → 130 s ; imbrication des instructions non bornée par un diagnostic. *(Légère à Structurel)* → [détails](roadmap.d/compilateur-limites-echelle-residuelles.md)
-- **Bilan `--leak-check` : fuite du `main` runtime attribuée à la ligne 0** — le `main` synthétisé des blocs runtime n'a pas de position, le site d'allocation affiché est `fichier.oc:0`. *(Simple)* → [détails](roadmap.d/langage-runtime-blocs-variables.md)
-- **CLI : `-o` sur le source l'écrase ; runtime laissé dans `/tmp`** — `ocara x.oc -o x.oc` remplace le source par l'exécutable ; 79 Mo extraits dans `/tmp` par compilation, laissés si interrompue ; options inconnues acceptées. *(Simple)* → [détails](roadmap.d/tooling-cli-compilateur.md)
 
 ---
 

@@ -12,7 +12,7 @@ use crate::parsing::{lexer::Lexer, parser::Parser, token};
 /// arrête l'analyse.
 pub fn parse_entry(input: &Path, dump: bool, tolerant: bool) -> Result<(Program, Vec<Diagnostic>), Diagnostic> {
     let source = crate::core::source::read(input)
-        .map_err(|e| Diagnostic::error(input, 0, 0, format!("cannot read '{}': {}", input.display(), e)))?;
+        .map_err(|e| Diagnostic::error(input, 1, 1, format!("cannot read '{}': {}", input.display(), e)))?;
 
     let tokens = Lexer::new(&source).tokenize().map_err(|e| {
         let (line, col) = match &e {

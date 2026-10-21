@@ -124,7 +124,7 @@ pub fn resolve_import_path(file_path_str: &str, parent_dir: &Path, parent_namesp
 /// de syntaxe (le lexing reste bloquant).
 fn parse_module_recovering(file_path: &Path) -> Result<(Program, Vec<Diagnostic>), Diagnostic> {
     let src = crate::core::source::read(file_path)
-        .map_err(|e| Diagnostic::error(file_path, 0, 0, format!("reading file '{}': {}", file_path.display(), e)))?;
+        .map_err(|e| Diagnostic::error(file_path, 1, 1, format!("reading file '{}': {}", file_path.display(), e)))?;
     let tokens = Lexer::new(&src).tokenize()
         .map_err(|e| Diagnostic::error(file_path, 0, 0, format!("{}", e)))?;
     let (program, errors) = crate::parsing::build::parsing_file(&file_path.to_string_lossy(), || Parser::new(tokens).parse_program_recovering());
@@ -134,7 +134,7 @@ fn parse_module_recovering(file_path: &Path) -> Result<(Program, Vec<Diagnostic>
 
 pub(super) fn parse_module(file_path: &Path) -> Result<Program, Diagnostic> {
     let src = crate::core::source::read(file_path)
-        .map_err(|e| Diagnostic::error(file_path, 0, 0, format!("reading file '{}': {}", file_path.display(), e)))?;
+        .map_err(|e| Diagnostic::error(file_path, 1, 1, format!("reading file '{}': {}", file_path.display(), e)))?;
     let tokens = Lexer::new(&src).tokenize()
         .map_err(|e| Diagnostic::error(file_path, 0, 0, format!("{}", e)))?;
     crate::parsing::build::parsing_file(&file_path.to_string_lossy(), || Parser::new(tokens).parse_program())

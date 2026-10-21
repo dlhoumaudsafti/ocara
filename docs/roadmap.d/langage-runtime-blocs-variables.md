@@ -37,7 +37,10 @@ sortie de bloc, avant `error`/`success`/`exit`.
 lus dans `success`/`exit`, `result SUCCESS` qui saute une déclaration ;
 `--leak-check` sans fuite (aussi sur `examples/builtins/sqlite.oc`).
 
-## Reste
+## Position du `main` runtime (bilan `--leak-check`) — corrigé le 2026-10-21
 
-L'attribution d'une fuite du `main` runtime à la ligne 0 dans le bilan
-`--leak-check` (le `main` synthétisé n'a pas de position) n'est pas traitée.
+Chaque bloc runtime fusionné garde la position de sa première déclaration
+(bloc écrit dans le fichier, ou ligne `runtime x is <bloc>` du fichier
+d'entrée — `expand_runtime_imports`, `src/core/runtime_expand.rs`) : une fuite
+du `main` synthétisé est attribuée à cette ligne, plus à `fichier.oc:0`.
+Test : `src/core/tests_leak_sites.rs`.

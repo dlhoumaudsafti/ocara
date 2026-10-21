@@ -34,13 +34,26 @@ thread_local! {
     static CURRENT_THREAD_ID: Cell<i64> = const { Cell::new(0) };
 }
 
-/// Signature d'une closure Ocara : fn(env_ptr: i64) -> i64
-type OcaraClosureFn = unsafe extern "C" fn(i64) -> i64;
-
 /// Struct interne stockée sur le tas (pointeur conservé dans le slot Ocara)
 struct OcaraThread {
     id:     i64,
-    handle: Option<std::thread::JoinHandle<()>>,
+    /// Résultat du thread : description d'une exception non rattrapée, relevée
+    /// en `ThreadException` 102 par `join()`.
+    handle: Option<std::thread::JoinHandle<Option<String>>>,
+}
+
+/// Description d'une exception levée (`Type : message`), puis relâchée : le
+/// thread qui l'a levée s'arrête, le processus continue.
+fn describe_uncaught(value: i64, type_name: i64) -> String {
+    let kind = if type_name == 0 { "" } else { unsafe { crate::ptr_to_str(type_name) } };
+    let kind = kind.split('|').next().unwrap_or("").to_string();
+    let message = unsafe { crate::exception::raised_value_message(value) };
+    crate::rc::__rc_release(value);
+    match message {
+        Some(m) if !kind.is_empty() => format!("{} : {}", kind, m),
+        Some(m) => m,
+        None => kind,
+    }
 }
 
 /// Lit le pointeur vers OcaraThread depuis le slot Ocara (8 octets à self_ptr).
@@ -110,8 +123,13 @@ pub extern "C" fn Thread_run(self_ptr: i64, fat_ptr: i64) {
         let _closure = ClosureRef(closure as i64);
         // Initialiser l'ID du thread courant pour ce thread
         CURRENT_THREAD_ID.with(|c| c.set(sc.thread_id));
-        let f: OcaraClosureFn = unsafe { std::mem::transmute(sc.func_ptr as usize) };
-        unsafe { f(sc.env_ptr) };
+        // Exception non rattrapée dans le thread : capturée ici (le processus
+        // continue), relevée au `join()` ; signalée sur stderr si personne ne
+        // l'attend (thread détaché).
+        match crate::run_closure_catching(sc.func_ptr, sc.env_ptr) {
+            Ok(_) => None,
+            Err((value, type_name)) => Some(describe_uncaught(value, type_name)),
+        }
     }) {
         Ok(h) => h,
         Err(e) => unsafe {
@@ -149,12 +167,14 @@ pub extern "C" fn Thread_join(self_ptr: i64) {
         // touchera plus).
         *(self_ptr as *mut i64) = 0;
         let t = Box::from_raw(ptr);
-        if let Some(Err(_)) = joined {
+        let failure = match joined {
+            Some(Err(_)) => Some("Thread panicked during execution".to_string()),
+            Some(Ok(Some(uncaught))) => Some(format!("Uncaught exception in thread: {}", uncaught)),
+            _ => None,
+        };
+        if let Some(message) = failure {
             drop(t); // avant le throw — voir la note ci-dessus
-            crate::exception::throw_thread_exception(
-                "Thread panicked during execution",
-                102
-            );
+            crate::exception::throw_thread_exception(&message, 102);
         }
         // chemin normal : `t` est droppé ici en sortant du bloc
     }
@@ -169,10 +189,19 @@ pub extern "C" fn Thread_detach(self_ptr: i64) {
         if ptr.is_null() {
             return;
         }
-        // Dropping le JoinHandle (via le Drop implicite de OcaraThread ici)
-        // détache le thread — Box::from_raw libère aussi le wrapper.
+        // Le JoinHandle repris par un thread de surveillance détache le
+        // thread : une exception non rattrapée y est signalée sur stderr
+        // (personne ne fera `join()`). Box::from_raw libère le wrapper.
         *(self_ptr as *mut i64) = 0;
-        let _ = Box::from_raw(ptr);
+        let t = Box::from_raw(ptr);
+        if let Some(handle) = t.handle {
+            let id = t.id;
+            let _ = std::thread::Builder::new().spawn(move || {
+                if let Ok(Some(uncaught)) = handle.join() {
+                    crate::write_stderr_raw(format!("Thread {} : exception non rattrapée ({})\n", id, uncaught).as_bytes());
+                }
+            });
+        }
     }
 }
 
