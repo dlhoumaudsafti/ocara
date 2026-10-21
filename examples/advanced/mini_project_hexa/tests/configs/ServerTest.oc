@@ -48,4 +48,15 @@ class ServerTest extends UnitTest {
         self::assertEquals(200, css.status())
         return 0
     }
+
+    // Port déjà pris par le serveur de `init()` : `start()` relance
+    // l'HTTPServerException du démarrage (code 101).
+    public method startPortTakenTest(): int {
+        var other:Server = use Server()
+        other.port(18106)
+        const e:Exception = self::assertRaises(nameless(): void { other.start() })
+        self::assertExceptionCodeEquals(e.code, 101)
+        return 0
+    }
+
 }

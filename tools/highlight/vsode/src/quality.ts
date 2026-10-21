@@ -2,13 +2,14 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { parseToolMessages, runTool } from './toolrunner';
-import { coverageConfig, findProjects } from './projects';
+import { coverageConfig, qualityRoots } from './projects';
+import { LinterProvider, LintSummary } from './linterview';
 import { CoverageProvider, CoverageSummary, coverageScope, formatPercent } from './coverage';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Voyants de qualité « prêt pour la release » de l'espace de travail, sur les
 // projets testés (voir projects.ts) :
-//   - linter       : `ocaracs <projet>` ne signale rien ;
+//   - linter       : l'encart Linter (`ocaracs <projet>`) ne signale rien ;
 //   - couverture   : tous les tests passent et la couverture par ligne
 //                    atteint `ocara.coverage.threshold` (100 % par défaut) ;
 //   - architecture : `ocara main.oc --check-architecture` réussit pour chaque
@@ -44,11 +45,12 @@ export class QualityMonitor implements vscode.Disposable {
     private generation = 0;
     private readonly disposables: vscode.Disposable[] = [];
 
-    constructor(private readonly coverageProvider: CoverageProvider) {}
+    constructor(private readonly coverageProvider: CoverageProvider, private readonly linter: LinterProvider) {}
 
     register(context: vscode.ExtensionContext): void {
         this.disposables.push(
             this.coverageProvider.onResult(summary => this.setCoverage(summary)),
+            this.linter.onResult(summary => this.setLint(summary)),
             vscode.workspace.onDidSaveTextDocument(doc => { if (doc.languageId === 'ocara') { this.schedule(); } }),
             vscode.workspace.onDidChangeConfiguration(e => {
                 if (e.affectsConfiguration('ocara.coverage.threshold') || e.affectsConfiguration('ocara.coverage.scope')) { this.setCoverage(this.coverageProvider.current()); }
@@ -57,7 +59,24 @@ export class QualityMonitor implements vscode.Disposable {
         );
         context.subscriptions.push(this);
         this.setCoverage(this.coverageProvider.current());
+        this.setLint(this.linter.current());
         this.schedule();
+    }
+
+    private setLint(summary: LintSummary | undefined): void {
+        if (!summary) {
+            const enabled = vscode.workspace.getConfiguration('ocara').get<boolean>('lint.enable', true);
+            this.lint = { light: 'pending', detail: enabled ? 'analyse en cours…' : 'analyse désactivée (ocara.lint.enable)' };
+        } else if (summary.launchError) {
+            this.lint = { light: 'ko', detail: `ocaracs introuvable (${summary.launchError})` };
+        } else if (summary.roots.length === 0) {
+            this.lint = { light: 'ko', detail: 'aucun dossier à analyser' };
+        } else {
+            this.lint = summary.count === 0
+                ? { light: 'ok', detail: 'aucun avertissement' }
+                : { light: 'ko', detail: `${summary.count} avertissement(s) ocaracs` };
+        }
+        this.publish();
     }
 
     state(): QualityState {
@@ -94,16 +113,11 @@ export class QualityMonitor implements vscode.Disposable {
         this.timer = setTimeout(() => void this.refresh(), DEBOUNCE_MS);
     }
 
-    /** Linter et architecture, relancés à chaque enregistrement. */
+    /** Architecture, revérifiée à chaque enregistrement (le linter vient de l'encart Linter). */
     private async refresh(): Promise<void> {
         const generation = ++this.generation;
-        const projects = await findProjects();
-        const roots = projects.length > 0
-            ? projects.map(p => p.root)
-            : (vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath);
-        const [lint, architecture] = await Promise.all([checkLint(roots), checkArchitecture(roots)]);
+        const architecture = await checkArchitecture(await qualityRoots());
         if (generation !== this.generation) { return; }
-        this.lint = lint;
         this.architecture = architecture;
         this.publish();
     }
@@ -112,20 +126,6 @@ export class QualityMonitor implements vscode.Disposable {
         clearTimeout(this.timer);
         this.disposables.forEach(d => d.dispose());
     }
-}
-
-async function checkLint(roots: string[]): Promise<Indicator> {
-    if (roots.length === 0) { return { light: 'ko', detail: 'aucun dossier à analyser' }; }
-    let warnings = 0;
-    for (const root of roots) {
-        const result = await runTool('ocaracsPath', 'ocaracs', [root], root);
-        if (result.launchError) { return { light: 'ko', detail: `ocaracs introuvable (${result.launchError})` }; }
-        // Fichiers générés par ocaraunit pendant une analyse de couverture : ignorés.
-        warnings += parseToolMessages(result.stderr, root).filter(m => !path.basename(m.file).startsWith('__ocaraunit__')).length;
-    }
-    return warnings === 0
-        ? { light: 'ok', detail: 'aucun avertissement' }
-        : { light: 'ko', detail: `${warnings} avertissement(s) ocaracs` };
 }
 
 async function checkArchitecture(roots: string[]): Promise<Indicator> {

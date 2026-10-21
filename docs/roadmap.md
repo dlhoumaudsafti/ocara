@@ -1,6 +1,6 @@
 # Roadmap Ocara
 
-_Dernière mise à jour : 2026-10-20_
+_Dernière mise à jour : 2026-10-21_
 
 Ce document liste ce qu'il reste à faire pour faire d'Ocara un langage solide. Cette révision fait suite à une analyse complète du projet (doc, code source du compilateur, exemples, runtimes natifs) et **reprioritise délibérément autour de la robustesse, la stabilité et la fiabilité** — avant toute nouvelle fonctionnalité ou tout chantier de portage. Le focus reste, comme avant, la **gestion mémoire** : le compilateur n'a pas de ramasse-miettes (choix assumé et définitif), et l'historique du projet montre plusieurs SEGFAULTs confirmés par reproduction sur la représentation `mixed` — mais la même question de fiabilité se posait aussi sur le mécanisme d'exceptions (`setjmp`/`longjmp`), sur la quasi-absence de tests Rust unitaires en dehors du front-end, et sur au moins une race condition documentée (`HTTPServer`).
 
@@ -44,6 +44,7 @@ Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnali
 
 À traiter mais non bloquant pour la stabilité du langage.
 
+- **Tests des blocs runtime : `RuntimeTest.oc`, builtins bloquants neutralisés** — un `RuntimeTest.oc` exécute le `main` complet généré par les blocs runtime (variantes `when` comprises) pour couvrir les `*.runtime.oc` ; `assertSuccessResult()`/`assertErrorResult()`/`assertErrorResultCode(code)` ; builtins bloquants (Tauri, SDL, HTTPServer…) étiquetés et neutralisés dans les binaires de test ; `assertBlocksMainThread(expr)`/`assertIsBlocking(expr)` résolues à la compilation. *(Structurel)* → [détails](roadmap.d/tooling-ocaraunit-runtime-tests.md)
 - **Extension VS Code : nouvelles fonctions de benchmark et de profilage** — courbe de complexité (`__N__`, pente log-log), min/médiane et charge machine, comparaison A/B, compteurs du runtime (retain/release, collectes, threads), profil cliquable et CodeLens, flamegraph (perf ou échantillonnage gdb), `strace -c`, plateau de serveur, ocaraunit `--leak-check`/`--profile`, export de l'historique. *(Légère à Structurel)* → [détails](roadmap.d/tooling-vscode-benchmark-profilage.md)
 
 - **Enums enrichis** — syntaxe `case`, backing type typé déclaré (`enum Status: string { case Pending = 'pending' }`), méthodes d'instance avec `self` référençant le cas courant et pattern `self::Case`/motifs multiples par bras dans un `match`. Vérifié : l'enum actuel est un pur groupe de constantes `int` (`EnumVariant.value: Option<i64>` câblé en dur, pas de méthodes, pas d'instanciation), et `match` ne supporte ni motif « cas d'enum » ni plusieurs motifs séparés par une virgule dans un même bras. *(Massive — nouveau système d'enum quasi complet + extension du pattern matching, plusieurs points à trancher avant d'implémenter)* → [détails](roadmap.d/langage-enum-cases-backing-methods.md)

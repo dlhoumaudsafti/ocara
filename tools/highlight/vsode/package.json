@@ -18,7 +18,8 @@
     "onView:ocara.workflow",
     "onView:ocara.graph",
     "onView:ocara.benchmark",
-    "onView:ocara.coverage"
+    "onView:ocara.coverage",
+    "onView:ocara.linter"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -327,6 +328,17 @@
         "command": "ocara.coverage.output",
         "title": "Afficher la sortie des tests",
         "category": "Ocara"
+      },
+      {
+        "command": "ocara.linter.run",
+        "title": "Analyser le style (ocaracs)",
+        "category": "Ocara",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "ocara.linter.goto",
+        "title": "Aller à l'avertissement",
+        "category": "Ocara"
       }
     ],
     "menus": {
@@ -454,6 +466,10 @@
         {
           "command": "ocara.coverage.output",
           "when": "false"
+        },
+        {
+          "command": "ocara.linter.goto",
+          "when": "false"
         }
       ],
       "view/title": [
@@ -490,6 +506,11 @@
         {
           "command": "ocara.coverage.run",
           "when": "view == ocara.coverage",
+          "group": "navigation"
+        },
+        {
+          "command": "ocara.linter.run",
+          "when": "view == ocara.linter",
           "group": "navigation"
         }
       ],
@@ -562,28 +583,33 @@
           "type": "webview",
           "id": "ocara.controls",
           "name": "Configuration",
-          "contextualTitle": "Ocara"
+          "contextualTitle": "Configuration - Ocara"
         },
         {
           "id": "ocara.workflow",
           "name": "Workflow",
-          "contextualTitle": "Ocara"
+          "contextualTitle": "Workflow - Ocara"
         },
         {
           "type": "webview",
           "id": "ocara.graph",
           "name": "Graphe d'appels",
-          "contextualTitle": "Ocara"
+          "contextualTitle": "Graphe d'appels - Ocara"
         },
         {
           "id": "ocara.benchmark",
           "name": "Benchmark",
-          "contextualTitle": "Ocara"
+          "contextualTitle": "Benchmark - Ocara"
         },
         {
           "id": "ocara.coverage",
           "name": "Coverage",
-          "contextualTitle": "Ocara"
+          "contextualTitle": "Coverage - Ocara"
+        },
+        {
+          "id": "ocara.linter",
+          "name": "Linter",
+          "contextualTitle": "Linter - Ocara"
         }
       ]
     },

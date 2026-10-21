@@ -51,7 +51,8 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     --check-architecture` réussit pour chaque projet qui a un `main.oc`). Couleur selon la part de
     voyants au vert : rouge sous 33,33 %, orange jusqu'à 66,66 %, bleu jusqu'à 99,99 %, vert à 100 % —
     les boutons **Compiler** et **Lancer** passent alors au vert en BUILD `release`. Survol : détail de
-    chaque voyant. Linter et architecture sont revérifiés à chaque enregistrement d'un `.oc` ;
+    chaque voyant. Linter (encart Linter) et architecture sont revérifiés à chaque enregistrement d'un
+    `.oc` ;
   - **Configuration** (en-tête fixe) : OS, ARCH (valeur personnalisée possible) et BUILD de l'éditeur
     (réglages `ocara.os`/`ocara.arch`/`ocara.build`), boutons **Compiler**, **Lancer** (Debug ou Release
     selon BUILD), **Fixer**, **Dump**, et accès aux paramètres de l'extension ;
@@ -109,6 +110,13 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
       LED « Release » ne reprend pas ce résultat (voyant Coverage « non mesuré »).
 
     Dossiers et fichiers exclus : `ocara.coverage.exclude`.
+  - **Linter** : avertissements d'`ocaracs` sur les projets de l'espace de travail (racines des
+    projets testés, sinon dossiers de l'espace de travail), regroupés par fichier ; un clic ouvre le
+    fichier sur l'avertissement. Relancé à l'ouverture, à chaque enregistrement d'un `.oc`
+    (`ocara.lint.enable`) et par le bouton de l'encart ; son résultat alimente le voyant Linter de la
+    LED « Release ».
+  - Chaque bloc peut être déplacé hors de la barre latérale (panneau du bas, autre barre) : son onglet
+    porte alors son nom suivi d'« Ocara » (« Coverage - Ocara », « Linter - Ocara »…).
 - Les noms de type (`var x:Dog`, `extends Animal`, paramètres, `on e is FileException`) ont survol,
   définition et références comme les autres noms.
 - **Documentation embarquée** : `docs/EBNF.md` et `docs/builtins/*.md` du dépôt sont copiés dans

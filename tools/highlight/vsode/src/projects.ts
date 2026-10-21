@@ -71,3 +71,24 @@ export async function findProjects(): Promise<Project[]> {
     }
     return [...dirs].sort().map(testsDir => ({ root: path.dirname(testsDir), testsDir }));
 }
+
+/** Dossiers analysés par le linter et l'architecture : racines des projets
+ *  testés, sinon dossiers de l'espace de travail. */
+export async function qualityRoots(): Promise<string[]> {
+    const projects = await findProjects();
+    return projects.length > 0
+        ? projects.map(p => p.root)
+        : (vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath);
+}
+
+/** Ouvre `file` et place le curseur ligne `line` (1-basée), colonne `col`
+ *  (1-basée ; absente : début du code de la ligne). */
+export async function gotoLine(file: string, line: number, col?: number): Promise<void> {
+    const document = await vscode.workspace.openTextDocument(file);
+    const editor = await vscode.window.showTextDocument(document);
+    const target = Math.max(0, Math.min(line - 1, document.lineCount - 1));
+    const character = col !== undefined ? Math.max(0, col - 1) : document.lineAt(target).firstNonWhitespaceCharacterIndex;
+    const position = new vscode.Position(target, character);
+    editor.selection = new vscode.Selection(position, position);
+    editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+}

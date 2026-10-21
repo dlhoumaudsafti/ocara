@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { ocaraOutput, resolveCommand, runTool } from './toolrunner';
-import { coverageConfig, exclusions, findProjects, Project } from './projects';
+import { coverageConfig, exclusions, findProjects, gotoLine, Project } from './projects';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Encart « Coverage » (barre latérale Ocara) : tests de chaque projet de
@@ -114,7 +114,7 @@ export class CoverageProvider implements vscode.TreeDataProvider<Item>, vscode.D
                     : undefined,
             }),
             vscode.commands.registerCommand('ocara.coverage.run', () => this.run()),
-            vscode.commands.registerCommand('ocara.coverage.goto', (file: string, line: number) => goto(file, line)),
+            vscode.commands.registerCommand('ocara.coverage.goto', (file: string, line: number) => gotoLine(file, line)),
             vscode.commands.registerCommand('ocara.coverage.output', () => ocaraOutput().show(true)),
             vscode.workspace.onDidSaveTextDocument(doc => { if (doc.languageId === 'ocara') { this.schedule(); } }),
             vscode.window.onDidChangeVisibleTextEditors(editors => editors.forEach(e => this.decorate(e))),
@@ -364,16 +364,6 @@ export function toFileCoverage(file: string, lines: Map<number, boolean>): FileC
     }
     if (open) { uncovered.push(open); }
     return { path: file, covered: sorted.filter(([, hit]) => hit).length, total: sorted.length, uncovered };
-}
-
-/** Ouvre `file` et place le curseur au début du code de la ligne `line` (1-basée). */
-async function goto(file: string, line: number): Promise<void> {
-    const document = await vscode.workspace.openTextDocument(file);
-    const editor = await vscode.window.showTextDocument(document);
-    const target = Math.max(0, Math.min(line - 1, document.lineCount - 1));
-    const position = new vscode.Position(target, document.lineAt(target).firstNonWhitespaceCharacterIndex);
-    editor.selection = new vscode.Selection(position, position);
-    editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
 }
 
 function samePath(a: string, b: string): boolean {
