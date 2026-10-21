@@ -92,3 +92,23 @@ export async function gotoLine(file: string, line: number, col?: number): Promis
     editor.selection = new vscode.Selection(position, position);
     editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
 }
+
+/** Exclusions d'une section (`ocara.<section>.exclude`), comparées par
+ *  segments de chemin depuis chacune des `bases` (racine analysée, dossier
+ *  de l'espace de travail). */
+export function isExcludedFrom(file: string, bases: string[], patterns: string[]): boolean {
+    const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(file))?.uri.fsPath;
+    return [...bases, ...(folder ? [folder] : [])].some(base => isExcluded(file, base, patterns));
+}
+
+export function sectionExclusions(section: string): string[] {
+    return vscode.workspace.getConfiguration(`ocara.${section}`).get<string[]>('exclude', [])
+        .map(e => e.trim()).filter(e => e.length > 0);
+}
+
+/** Scripts `.oc` d'un dossier (sous-dossiers compris), ou le script lui-même. */
+export async function ocFiles(root: string): Promise<string[]> {
+    if (root.endsWith('.oc')) { return [root]; }
+    return (await vscode.workspace.findFiles(new vscode.RelativePattern(root, '**/*.oc'), IGNORED))
+        .map(uri => uri.fsPath).filter(f => !path.basename(f).startsWith('__ocaraunit__'));
+}

@@ -13,6 +13,7 @@ import { CoverageProvider } from './coverage';
 import { QualityMonitor } from './quality';
 import { LinterProvider } from './linterview';
 import { ArchitectureProvider } from './architecture';
+import { registerFileStatus } from './filestatus';
 
 export function activate(context: vscode.ExtensionContext): void {
     // Serveur de langage du compilateur : diagnostics en direct, définition,
@@ -36,6 +37,7 @@ export function activate(context: vscode.ExtensionContext): void {
     navigation.register(context);
     // Encarts Coverage (ocaraunit), Linter (ocaracs) et Architecture
     // (--check-architecture), voyants de qualité release.
+    registerFileStatus(context);
     const coverage = new CoverageProvider();
     coverage.register(context);
     const linterView = new LinterProvider();

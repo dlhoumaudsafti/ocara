@@ -91,6 +91,22 @@
           "default": true,
           "markdownDescription": "Mode automatique de l'encart **Linter** (bouton de l'en-tête) : en `workspace`, à l'ouverture et à chaque enregistrement d'un `.oc` ; en `folder`, à l'enregistrement d'un `.oc` du dossier et quand le script affiché change de dossier ; en `script`, à l'enregistrement du script et quand le script affiché change."
         },
+        "ocara.lint.projects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Dossiers analysés par l'encart **Linter** en périmètre `workspace` (relatifs à l'espace de travail, ex. `examples/advanced/mini_project_hexa`). Vide : racines des projets testés (dossier `tests` contenant des `*Test.oc`), sinon dossiers de l'espace de travail."
+        },
+        "ocara.lint.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Dossiers ou fichiers ignorés par l'encart **Linter** (ex. `core`, `main.oc`, `tests/support`), comparés par segments de chemin depuis la racine analysée et l'espace de travail : listés en gris, leurs avertissements ne comptent pas."
+        },
         "ocara.coverage.scope": {
           "type": "string",
           "enum": [
@@ -117,7 +133,7 @@
             "type": "string"
           },
           "default": [],
-          "markdownDescription": "Dossiers ou fichiers exclus de la couverture et des voyants (ex. `core`, `main.oc`, `context/car/infra/db`). Comparés par segments de chemin, relativement à la racine de chaque projet (et de l'espace de travail pour la recherche des projets) : `core` exclut `core/…` et `a/core/…`."
+          "markdownDescription": "Dossiers ou fichiers exclus de la couverture (ex. `core`, `main.oc`, `context/car/infra/db`) et de la recherche des projets testés, listés en gris dans l'encart Coverage. Comparés par segments de chemin, relativement à la racine de chaque projet (et de l'espace de travail pour la recherche des projets) : `core` exclut `core/…` et `a/core/…`."
         },
         "ocara.coverage.projects": {
           "type": "array",
@@ -147,12 +163,20 @@
             "Chaque script du dossier du script affiché (sous-dossiers compris).",
             "Script affiché seul."
           ],
-          "markdownDescription": "Périmètre de l'encart **Architecture** et de son voyant : `ocara <fichier> --check-architecture` (règles du bloc `architecture` du fichier, sinon du `main.oc` du projet — docs/EBNF.md §33) sur chaque `main.oc` de l'espace de travail (`workspace`), chaque script du dossier du script affiché (`folder`) ou le script affiché (`script`) ; tests et blocs runtime exclus, ainsi que `ocara.coverage.exclude`. Lancement : bouton ▶, et automatiquement selon `ocara.architecture.auto`."
+          "markdownDescription": "Périmètre de l'encart **Architecture** et de son voyant : `ocara <fichier> --check-architecture` (règles du bloc `architecture` du fichier, sinon du `main.oc` du projet — docs/EBNF.md §33) sur chaque `main.oc` de l'espace de travail (`workspace`), chaque script du dossier du script affiché (`folder`) ou le script affiché (`script`) ; tests, blocs runtime et `ocara.architecture.exclude` ignorés (listés en gris). Lancement : bouton ▶, et automatiquement selon `ocara.architecture.auto`."
         },
         "ocara.architecture.auto": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Mode automatique de l'encart **Architecture** (bouton de l'en-tête), mêmes déclencheurs que `ocara.lint.auto`."
+        },
+        "ocara.architecture.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Dossiers ou fichiers ignorés par l'encart **Architecture** (ex. `configs`, `probe_main.oc`), comparés par segments de chemin depuis l'espace de travail : listés en gris, non vérifiés. Les tests et les blocs runtime le sont toujours."
         },
         "ocara.autoImport.enable": {
           "type": "boolean",

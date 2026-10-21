@@ -16,6 +16,7 @@ const coverage_1 = require("./coverage");
 const quality_1 = require("./quality");
 const linterview_1 = require("./linterview");
 const architecture_1 = require("./architecture");
+const filestatus_1 = require("./filestatus");
 function activate(context) {
     // Serveur de langage du compilateur : diagnostics en direct, définition,
     // survol des noms, symboles du document, complétion, aide à la signature,
@@ -35,6 +36,7 @@ function activate(context) {
     navigation.register(context);
     // Encarts Coverage (ocaraunit), Linter (ocaracs) et Architecture
     // (--check-architecture), voyants de qualité release.
+    (0, filestatus_1.registerFileStatus)(context);
     const coverage = new coverage_1.CoverageProvider();
     coverage.register(context);
     const linterView = new linterview_1.LinterProvider();

@@ -2,7 +2,8 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { parseToolMessages, runTool, ToolMessage } from './toolrunner';
-import { exclusions, gotoLine, isExcluded } from './projects';
+import { gotoLine, isExcludedFrom, sectionExclusions } from './projects';
+import { fileItem, FileStatus, statusOrder } from './filestatus';
 import { AutoRunner, currentTarget, describeTarget, Target } from './scope';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -17,19 +18,28 @@ import { AutoRunner, currentTarget, describeTarget, Target } from './scope';
 //   - `workspace` : chaque point d'entrée `main.oc` de l'espace de travail ;
 //   - `folder`    : chaque script du dossier du script affiché ;
 //   - `script`    : le script affiché ;
-// tests (`*Test.oc`, dossiers `tests`) et blocs runtime exclus. Mode
-// automatique (`ocara.architecture.auto`, bouton de l'en-tête) et bouton ▶ ;
-// le voyant Architecture de la LED « Release » reprend le résultat.
+// tests (`*Test.oc`, dossiers `tests`), blocs runtime et
+// `ocara.architecture.exclude` ignorés. Fichiers listés en vert (respectent
+// l'architecture), rouge (erreurs, dépliables, clic = fichier sur l'erreur)
+// ou gris (ignorés). Mode automatique (`ocara.architecture.auto`, bouton de
+// l'en-tête) et bouton ▶ ; le voyant Architecture de la LED « Release »
+// reprend le résultat.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DEBOUNCE_MS = 600;
 const IGNORED = '{**/node_modules/**,**/target/**,**/.ocaraunit_cache/**,**/.git/**}';
 
+export interface ArchitectureFile {
+    file: string;
+    status: FileStatus;
+    messages: ToolMessage[];
+}
+
 export interface ArchitectureSummary {
     target: Target;
     checked: number;
-    /** Erreurs par fichier, fichiers triés. */
-    files: { file: string; messages: ToolMessage[] }[];
+    /** Fichiers vérifiés, en erreur et ignorés. */
+    files: ArchitectureFile[];
     count: number;
     /** Compilateur introuvable. */
     launchError?: string;
@@ -38,11 +48,12 @@ export interface ArchitectureSummary {
 type Item =
     | { type: 'running' }
     | { type: 'summary' }
-    | { type: 'file'; file: string; messages: ToolMessage[] }
+    | { type: 'file'; entry: ArchitectureFile }
     | { type: 'message'; message: ToolMessage };
 
-/** Fichier vérifié et racine de résolution de ses imports (`--src`). */
-interface Entry { file: string; root: string }
+/** Fichier du périmètre ; `root` : racine de résolution de ses imports
+ *  (`--src`) ; `ignored` : ni vérifié, ni compté. */
+interface Entry { file: string; root: string; ignored: boolean }
 
 export class ArchitectureProvider implements vscode.TreeDataProvider<Item>, vscode.Disposable {
     private readonly changed = new vscode.EventEmitter<Item | undefined>();
@@ -63,7 +74,7 @@ export class ArchitectureProvider implements vscode.TreeDataProvider<Item>, vsco
             vscode.commands.registerCommand('ocara.architecture.goto', (file: string, line: number, col: number) => gotoLine(file, line, col)),
             vscode.workspace.onDidChangeConfiguration(e => {
                 if (e.affectsConfiguration('ocara.architecture.scope')) { this.summary = undefined; this.result.fire(undefined); this.changed.fire(undefined); }
-                if (e.affectsConfiguration('ocara.compilerPath') || e.affectsConfiguration('ocara.coverage.exclude')) { this.auto.schedule(true); }
+                if (e.affectsConfiguration('ocara.compilerPath') || e.affectsConfiguration('ocara.architecture.exclude')) { this.auto.schedule(true); }
             }),
         );
         context.subscriptions.push(this);
@@ -99,13 +110,13 @@ export class ArchitectureProvider implements vscode.TreeDataProvider<Item>, vsco
     }
 
     getChildren(item?: Item): Item[] {
-        if (item?.type === 'file') { return item.messages.map(message => ({ type: 'message', message })); }
+        if (item?.type === 'file') { return item.entry.messages.map(message => ({ type: 'message', message })); }
         if (item) { return []; }
         const items: Item[] = [];
         if (this.running) { items.push({ type: 'running' }); }
         if (!this.summary) { return items; }
         items.push({ type: 'summary' });
-        this.summary.files.forEach(f => items.push({ type: 'file', ...f }));
+        this.summary.files.forEach(entry => items.push({ type: 'file', entry }));
         return items;
     }
 
@@ -134,11 +145,13 @@ export class ArchitectureProvider implements vscode.TreeDataProvider<Item>, vsco
                 return t;
             }
             case 'file': {
-                const t = new vscode.TreeItem(path.basename(item.file), vscode.TreeItemCollapsibleState.Expanded);
-                t.description = `${item.messages.length} · ${path.dirname(vscode.workspace.asRelativePath(item.file))}`;
-                t.tooltip = item.file;
-                t.resourceUri = vscode.Uri.file(item.file);
-                t.iconPath = vscode.ThemeIcon.File;
+                const { file, status, messages } = item.entry;
+                const t = fileItem(file, status, status === 'error' ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None);
+                const dir = path.dirname(vscode.workspace.asRelativePath(file));
+                t.description = status === 'error' ? `${messages.length} · ${dir}` : status === 'ignored' ? `ignoré · ${dir}` : dir;
+                if (status !== 'error') {
+                    t.command = { command: 'ocara.architecture.goto', title: 'Ouvrir', arguments: [file, 1, 1] };
+                }
                 return t;
             }
             case 'message': {
@@ -167,47 +180,58 @@ function projectRoot(file: string): string {
     }
 }
 
-/** Script vérifiable : ni test, ni bloc runtime, ni fichier généré, ni exclu. */
-function checkable(file: string): boolean {
+/** Script ignoré : test, bloc runtime, ou exclu par `ocara.architecture.exclude`. */
+function ignored(file: string): boolean {
     const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(file))?.uri.fsPath;
     const rel = folder ? path.relative(folder, file) : file;
-    return !file.endsWith('.runtime.oc') && !file.endsWith('Test.oc') && !path.basename(file).startsWith('__ocaraunit__')
-        && !rel.split(path.sep).includes('tests') && (!folder || !isExcluded(file, folder, exclusions()));
+    return file.endsWith('.runtime.oc') || file.endsWith('Test.oc') || rel.split(path.sep).includes('tests')
+        || isExcludedFrom(file, [], sectionExclusions('architecture'));
+}
+
+function entry(file: string, root: string): Entry {
+    return { file, root, ignored: ignored(file) };
 }
 
 async function workspaceEntries(): Promise<Entry[]> {
     return (await vscode.workspace.findFiles('**/main.oc', IGNORED))
-        .map(uri => uri.fsPath).filter(checkable).sort()
-        .map(file => ({ file, root: path.dirname(file) }));
+        .map(uri => uri.fsPath).sort()
+        .map(file => entry(file, path.dirname(file)));
 }
 
 async function folderEntries(folder: string): Promise<Entry[]> {
     return (await vscode.workspace.findFiles(new vscode.RelativePattern(folder, '**/*.oc'), IGNORED))
-        .map(uri => uri.fsPath).filter(checkable).sort()
-        .map(file => ({ file, root: projectRoot(file) }));
+        .map(uri => uri.fsPath).filter(f => !path.basename(f).startsWith('__ocaraunit__')).sort()
+        .map(file => entry(file, projectRoot(file)));
 }
 
 function scriptEntries(file: string): Entry[] {
-    return checkable(file) ? [{ file, root: projectRoot(file) }] : [];
+    return [entry(file, projectRoot(file))];
 }
 
 async function check(entries: Entry[]): Promise<Omit<ArchitectureSummary, 'target'>> {
-    const byFile = new Map<string, ToolMessage[]>();
+    const messages = new Map<string, ToolMessage[]>();
+    const status = new Map<string, FileStatus>();
+    for (const e of entries) { status.set(e.file, e.ignored ? 'ignored' : 'ok'); }
+    const checked = entries.filter(e => !e.ignored);
     const seen = new Set<string>();
-    for (const { file, root } of entries) {
+    for (const { file, root } of checked) {
         const result = await runTool('compilerPath', 'ocara', [file, '--check-architecture', '--src', root], root, vscode.Uri.file(file));
-        if (result.launchError) { return { checked: entries.length, files: [], count: 0, launchError: result.launchError }; }
+        if (result.launchError) { return { checked: checked.length, files: [], count: 0, launchError: result.launchError }; }
         if (result.code === 0) { continue; }
-        const messages = parseToolMessages(result.stderr + result.stdout, root);
-        const found = messages.length > 0 ? messages
+        const found = parseToolMessages(result.stderr + result.stdout, root);
+        const errors = found.length > 0 ? found
             : [{ file, line: 0, col: 0, severity: 'error' as const, message: 'vérification en échec' }];
-        for (const m of found) {
+        for (const m of errors) {
             const key = `${m.file}:${m.line}:${m.col}:${m.message}`;
             if (seen.has(key)) { continue; }
             seen.add(key);
-            byFile.set(m.file, [...(byFile.get(m.file) ?? []), m]);
+            // Une erreur peut viser un fichier importé, hors du périmètre listé.
+            messages.set(m.file, [...(messages.get(m.file) ?? []), m]);
+            status.set(m.file, 'error');
         }
     }
-    const files = [...byFile.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([file, messages]) => ({ file, messages }));
-    return { checked: entries.length, files, count: files.reduce((n, f) => n + f.messages.length, 0) };
+    const files: ArchitectureFile[] = [...status.entries()]
+        .map(([file, st]) => ({ file, status: st, messages: messages.get(file) ?? [] }))
+        .sort((a, b) => statusOrder(a.status) - statusOrder(b.status) || a.file.localeCompare(b.file));
+    return { checked: checked.length, files, count: files.reduce((n, f) => n + f.messages.length, 0) };
 }

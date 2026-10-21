@@ -107,23 +107,26 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     contenant des `*Test.oc`, la racine étant son parent — ou `ocara.coverage.projects`). Affiche la
     couverture, les tests en échec (un clic ouvre la sortie « Ocara »), puis par fichier les plages de
     lignes non couvertes : un clic ouvre le fichier et place le curseur au début de la plage. Ces lignes
-    sont **surlignées en rouge** dans l'éditeur ; les fichiers entièrement couverts sont listés **en
-    vert**. Selon le périmètre : `workspace`, tous les projets ; `folder`, tests du projet qui contient
+    sont **surlignées en rouge** dans l'éditeur. Fichiers listés **en vert** (entièrement couverts),
+    **en rouge** (lignes non couvertes) ou **en gris** (exclus par `ocara.coverage.exclude`). Selon le périmètre : `workspace`, tous les projets ; `folder`, tests du projet qui contient
     le dossier, couverture limitée au dossier (un dossier de tests ne lance que ses tests, un dossier
     parent de projets les couvre entièrement) ; `script`, tests du projet du script, couverture limitée
     au script (un `*Test.oc` ne lance que lui-même). Exclusions : `ocara.coverage.exclude`.
-  - **Linter** : avertissements d'`ocaracs` regroupés par fichier ; un clic ouvre le fichier sur
-    l'avertissement. `workspace` : projets de l'espace de travail (racines des projets testés, sinon
-    dossiers de l'espace de travail) ; `folder` : dossier du script affiché ; `script` : le script
-    affiché, ses propres avertissements seulement.
+  - **Linter** : chaque fichier du périmètre, **en vert** sans avertissement, **en rouge** avec ses
+    avertissements `ocaracs` (dépliable ; un clic ouvre le fichier sur l'avertissement), **en gris**
+    s'il est exclu (`ocara.lint.exclude`, ses avertissements ne comptent pas). `workspace` : dossiers
+    de `ocara.lint.projects`, sinon racines des projets testés, sinon dossiers de l'espace de travail ;
+    `folder` : dossier du script affiché ; `script` : le script affiché, ses propres avertissements
+    seulement.
   - **Architecture** : vérification de l'architecture hexagonale par le compilateur (`ocara <fichier>
     --check-architecture`, docs/EBNF.md §33) — couche de chaque fichier selon son chemin
     `<src>/<contexte>/<couche>/…`, sens des dépendances entre couches, isolement des contextes,
     `wiring` et bibliothèques externes, avec les règles du bloc `architecture` du fichier, sinon du
     `main.oc` du projet ; chaque fichier est vérifié avec tout ce qu'il importe. `workspace` : chaque
     `main.oc` de l'espace de travail ; `folder` : chaque script du dossier du script affiché ;
-    `script` : le script affiché (tests et blocs runtime exclus, ainsi que `ocara.coverage.exclude`).
-    Erreurs regroupées par fichier, un clic ouvre le fichier sur l'erreur.
+    `script` : le script affiché. Fichiers listés **en vert** (architecture respectée), **en rouge**
+    (erreurs, dépliables ; un clic ouvre le fichier sur l'erreur — y compris un fichier importé) ou
+    **en gris** (ignorés : tests, blocs runtime, `ocara.architecture.exclude`).
   - Chaque bloc peut être déplacé hors de la barre latérale (panneau du bas, autre barre) : son onglet
     porte alors son nom suivi d'« Ocara » (« Coverage - Ocara », « Linter - Ocara », « Architecture - Ocara »…).
 - Les noms de type (`var x:Dog`, `extends Animal`, paramètres, `on e is FileException`) ont survol,
@@ -174,13 +177,16 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
 | `ocara.lint.enable` | `true` | Active l'analyse ocaracs automatique. |
 | `ocara.lint.scope` | `workspace` | Périmètre de l'encart Linter : `workspace`, `folder` (dossier du script affiché) ou `script` (script affiché). |
 | `ocara.lint.auto` | `true` | Mode automatique de l'encart Linter (bouton de l'en-tête). |
+| `ocara.lint.projects` | `[]` | Dossiers analysés par le Linter en `workspace` (relatifs à l'espace de travail) ; vide : projets testés, sinon dossiers de l'espace de travail. |
+| `ocara.lint.exclude` | `[]` | Dossiers ou fichiers ignorés par le Linter (listés en gris). |
 | `ocara.coverage.scope` | `workspace` | Périmètre de l'encart Coverage : `workspace`, `folder` (dossier du script affiché) ou `script` (script affiché). |
 | `ocara.coverage.auto` | `true` | Mode automatique de l'encart Coverage (bouton de l'en-tête). |
-| `ocara.coverage.exclude` | `[]` | Dossiers ou fichiers exclus de la couverture et des voyants (`core`, `main.oc`, `context/car/infra/db`), comparés par segments de chemin depuis la racine de chaque projet. |
+| `ocara.coverage.exclude` | `[]` | Dossiers ou fichiers exclus de la couverture (`core`, `main.oc`, `context/car/infra/db`), comparés par segments de chemin depuis la racine de chaque projet ; listés en gris. |
 | `ocara.coverage.projects` | `[]` | Dossiers de tests à lancer, relatifs à l'espace de travail ; vide : détection automatique. |
 | `ocara.coverage.threshold` | `100` | Couverture (%) à partir de laquelle le voyant Coverage est vert. |
 | `ocara.architecture.scope` | `workspace` | Périmètre de l'encart Architecture : chaque `main.oc` (`workspace`), chaque script du dossier du script affiché (`folder`) ou le script affiché (`script`). |
 | `ocara.architecture.auto` | `true` | Mode automatique de l'encart Architecture (bouton de l'en-tête). |
+| `ocara.architecture.exclude` | `[]` | Dossiers ou fichiers ignorés par l'Architecture (listés en gris) ; tests et blocs runtime toujours ignorés. |
 | `ocara.benchmark.runs` | `5` | Nombre d'exécutions de « Mesurer temps et mémoire ». |
 | `ocara.benchmark.timeout` | `30` | Délai maximal d'une exécution mesurée (secondes) ; au-delà, le programme est tué. |
 | `ocara.benchmark.leakSizes` | `[20000, 200000]` | Valeurs de `__N__` comparées par la détection de fuite. |

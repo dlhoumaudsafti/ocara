@@ -3,7 +3,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { ocaraOutput, resolveCommand, runTool } from './toolrunner';
-import { exclusions, findProjects, gotoLine, Project } from './projects';
+import { exclusions, findProjects, gotoLine, isExcludedFrom, ocFiles, Project } from './projects';
+import { fileItem } from './filestatus';
 import { AutoRunner, currentTarget, describeTarget, isWithin, Target } from './scope';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -13,7 +14,8 @@ import { AutoRunner, currentTarget, describeTarget, isWithin, Target } from './s
 // fusionnée entre projets. L'encart affiche la couverture globale et, par
 // fichier, les plages non couvertes — un clic place le curseur au début de
 // la plage ; ces lignes sont surlignées dans l'éditeur ; les fichiers
-// entièrement couverts sont listés en vert. Périmètre (`ocara.coverage.scope`,
+// entièrement couverts sont listés en vert, les autres en rouge, les fichiers
+// exclus (`ocara.coverage.exclude`) en gris. Périmètre (`ocara.coverage.scope`,
 // voir scope.ts ; mode automatique `ocara.coverage.auto` et bouton ▶) :
 //   - `workspace` : tous les projets testés de l'espace de travail ;
 //   - `folder` : dossier du script affiché — tests du projet qui le contient,
@@ -42,9 +44,6 @@ interface Run {
     target?: string;
 }
 
-/** Schéma des éléments de fichier de l'encart : couleur verte des fichiers couverts. */
-const FILE_SCHEME = 'ocara-coverage';
-
 export interface CoverageSummary {
     target: Target;
     pass: number;
@@ -55,6 +54,8 @@ export interface CoverageSummary {
     percent: number;
     files: FileCoverage[];
     unanalyzed: { path: string; error: string }[];
+    /** Scripts du périmètre exclus par `ocara.coverage.exclude` (listés en gris). */
+    ignored: string[];
     /** Projets dont ocaraunit n'a pas produit de rapport. */
     failedProjects: { root: string; error: string }[];
     projects: number;
@@ -75,6 +76,7 @@ type Item =
     | { type: 'file'; file: FileCoverage }
     | { type: 'range'; file: string; start: number; end: number }
     | { type: 'unanalyzed'; path: string; error: string }
+    | { type: 'ignored'; path: string }
     | { type: 'failed'; root: string; error: string };
 
 export class CoverageProvider implements vscode.TreeDataProvider<Item>, vscode.Disposable {
@@ -99,11 +101,6 @@ export class CoverageProvider implements vscode.TreeDataProvider<Item>, vscode.D
         this.disposables.push(
             this.highlight,
             vscode.window.createTreeView('ocara.coverage', { treeDataProvider: this }),
-            vscode.window.registerFileDecorationProvider({
-                provideFileDecoration: uri => uri.scheme === FILE_SCHEME && uri.query === 'covered'
-                    ? { color: new vscode.ThemeColor('testing.iconPassed'), tooltip: 'Entièrement couvert' }
-                    : undefined,
-            }),
             vscode.commands.registerCommand('ocara.coverage.run', () => this.run()),
             vscode.commands.registerCommand('ocara.coverage.goto', (file: string, line: number) => gotoLine(file, line)),
             vscode.commands.registerCommand('ocara.coverage.output', () => ocaraOutput().show(true)),
@@ -145,7 +142,8 @@ export class CoverageProvider implements vscode.TreeDataProvider<Item>, vscode.D
             const runs = target.folder ? folderRuns(projects, target.folder)
                 : target.file ? scriptRuns(projects, target.file)
                 : projects.map(project => ({ project, tests: project.testsDir }));
-            this.summary = { ...(await analyze(runs)), target };
+            const roots = target.folder ?? target.file ?? undefined;
+            this.summary = { ...(await analyze(runs)), target, ignored: await ignoredFiles(roots ? [roots] : projects.map(p => p.root)) };
             this.result.fire(this.summary);
         } catch (err) {
             vscode.window.showErrorMessage(`Ocara : couverture — ${err instanceof Error ? err.message : err}`);
@@ -183,6 +181,7 @@ export class CoverageProvider implements vscode.TreeDataProvider<Item>, vscode.D
         const files = [...s.files.filter(f => f.uncovered.length > 0), ...s.files.filter(f => f.uncovered.length === 0)];
         files.forEach(file => items.push({ type: 'file', file }));
         s.unanalyzed.forEach(u => items.push({ type: 'unanalyzed', ...u }));
+        s.ignored.forEach(p => items.push({ type: 'ignored', path: p }));
         return items;
     }
 
@@ -219,16 +218,20 @@ export class CoverageProvider implements vscode.TreeDataProvider<Item>, vscode.D
             }
             case 'file': {
                 const covered = item.file.uncovered.length === 0;
-                const t = new vscode.TreeItem(path.basename(item.file.path),
+                const t = fileItem(item.file.path, covered ? 'ok' : 'error',
                     covered ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Collapsed);
                 const pct = item.file.total ? item.file.covered / item.file.total * 100 : 100;
                 t.description = `${formatPercent(pct)} · ${relative(item.file.path)}`;
                 t.tooltip = `${item.file.path}\n${item.file.covered}/${item.file.total} lignes couvertes`;
-                t.resourceUri = vscode.Uri.file(item.file.path).with({ scheme: FILE_SCHEME, query: covered ? 'covered' : 'partial' });
-                t.iconPath = covered ? new vscode.ThemeIcon('pass-filled', new vscode.ThemeColor('testing.iconPassed')) : vscode.ThemeIcon.File;
                 if (covered) {
                     t.command = { command: 'ocara.coverage.goto', title: 'Ouvrir', arguments: [item.file.path, 1] };
                 }
+                return t;
+            }
+            case 'ignored': {
+                const t = fileItem(item.path, 'ignored', vscode.TreeItemCollapsibleState.None);
+                t.description = `exclu · ${relative(item.path)}`;
+                t.command = { command: 'ocara.coverage.goto', title: 'Ouvrir', arguments: [item.path, 1] };
                 return t;
             }
             case 'range': {
@@ -282,9 +285,24 @@ export function scriptRuns(projects: Project[], file: string): Run[] {
         : [{ project: owner, tests: owner.testsDir, target: file }];
 }
 
-async function analyze(runs: Run[]): Promise<Omit<CoverageSummary, 'target'>> {
+/** Scripts des `roots` exclus par `ocara.coverage.exclude` (hors dossiers de tests). */
+async function ignoredFiles(roots: string[]): Promise<string[]> {
+    const patterns = exclusions();
+    if (patterns.length === 0) { return []; }
+    const files = new Set<string>();
+    for (const root of roots) {
+        const base = root.endsWith('.oc') ? path.dirname(root) : root;
+        for (const file of await ocFiles(root)) {
+            const inTests = path.relative(base, file).split(path.sep).includes('tests');
+            if (!inTests && isExcludedFrom(file, [base], patterns)) { files.add(file); }
+        }
+    }
+    return [...files].sort();
+}
+
+async function analyze(runs: Run[]): Promise<Omit<CoverageSummary, 'target' | 'ignored'>> {
     const merged = new Map<string, Map<number, boolean>>();
-    const summary: Omit<CoverageSummary, 'target'> = { pass: 0, fail: 0, errors: 0, covered: 0, total: 0, percent: 100, files: [], unanalyzed: [], failedProjects: [], projects: runs.length };
+    const summary: Omit<CoverageSummary, 'target' | 'ignored'> = { pass: 0, fail: 0, errors: 0, covered: 0, total: 0, percent: 100, files: [], unanalyzed: [], failedProjects: [], projects: runs.length };
     const excludeArgs = exclusions().flatMap(e => ['--exclude', e]);
     const compiler = resolveCommand('compilerPath', 'ocara');
     const env = compiler.length === 1 ? { OCARA: compiler[0] } : undefined;
