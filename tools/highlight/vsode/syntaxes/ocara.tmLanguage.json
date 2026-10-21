@@ -11,6 +11,9 @@
     { "include": "#import" },
     { "include": "#runtime-import" },
     { "include": "#runtime-block" },
+    { "include": "#string-sql-double" },
+    { "include": "#string-sql-single" },
+    { "include": "#string-sql-template" },
     { "include": "#string-template" },
     { "include": "#string-double" },
     { "include": "#string-single" },
@@ -210,6 +213,239 @@
         { "include": "#string-escape" },
         { "include": "#template-expression" },
         { "include": "#template-html" }
+      ]
+    },
+
+    "string-sql-double": {
+      "comment": "Chaîne \"…\" reconnue comme SQL : premier argument de execute/query/queryOne/prepare, précédée de /* sql */, ou commençant par un mot-clé SQL en majuscules suivi d'un autre mot. Toute région interne s'arrête au \" fermant.",
+      "name": "string.quoted.double.ocara meta.embedded.sql",
+      "begin": "(?<=\\.execute\\(|\\.query\\(|\\.queryOne\\(|\\.prepare\\(|/\\*sql\\*/|/\\* sql \\*/|/\\*SQL\\*/|/\\* SQL \\*/)\\s*(\")|(\")(?=\\s*(?:SELECT|INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|WITH|PRAGMA|BEGIN|COMMIT|ROLLBACK|VACUUM|TRUNCATE|EXPLAIN|ANALYZE|ATTACH|DETACH|SAVEPOINT|RELEASE)\\s+[^\\s\"])",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.string.begin.ocara"
+        },
+        "2": {
+          "name": "punctuation.definition.string.begin.ocara"
+        }
+      },
+      "end": "\"",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.end.ocara"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#string-escape"
+        },
+        {
+          "name": "comment.block.sql",
+          "begin": "/\\*",
+          "end": "\\*/|(?=\")",
+          "patterns": [
+            {
+              "include": "#string-escape"
+            }
+          ]
+        },
+        {
+          "name": "comment.line.double-dash.sql",
+          "begin": "--",
+          "end": "$|(?=\")",
+          "patterns": [
+            {
+              "include": "#string-escape"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.sql",
+          "begin": "'",
+          "end": "'|(?=\")",
+          "patterns": [
+            {
+              "include": "#string-escape"
+            }
+          ]
+        },
+        {
+          "include": "#sql-tokens"
+        }
+      ]
+    },
+
+    "string-sql-single": {
+      "comment": "Chaîne '…' reconnue comme SQL : premier argument de execute/query/queryOne/prepare, précédée de /* sql */, ou commençant par un mot-clé SQL en majuscules suivi d'un autre mot. Toute région interne s'arrête au ' fermant.",
+      "name": "string.quoted.single.ocara meta.embedded.sql",
+      "begin": "(?<=\\.execute\\(|\\.query\\(|\\.queryOne\\(|\\.prepare\\(|/\\*sql\\*/|/\\* sql \\*/|/\\*SQL\\*/|/\\* SQL \\*/)\\s*(')|(')(?=\\s*(?:SELECT|INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|WITH|PRAGMA|BEGIN|COMMIT|ROLLBACK|VACUUM|TRUNCATE|EXPLAIN|ANALYZE|ATTACH|DETACH|SAVEPOINT|RELEASE)\\s+[^\\s'])",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.string.begin.ocara"
+        },
+        "2": {
+          "name": "punctuation.definition.string.begin.ocara"
+        }
+      },
+      "end": "'",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.end.ocara"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#string-escape"
+        },
+        {
+          "name": "comment.block.sql",
+          "begin": "/\\*",
+          "end": "\\*/|(?=')",
+          "patterns": [
+            {
+              "include": "#string-escape"
+            }
+          ]
+        },
+        {
+          "name": "comment.line.double-dash.sql",
+          "begin": "--",
+          "end": "$|(?=')",
+          "patterns": [
+            {
+              "include": "#string-escape"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.double.sql",
+          "begin": "\"",
+          "end": "\"|(?=')",
+          "patterns": [
+            {
+              "include": "#string-escape"
+            }
+          ]
+        },
+        {
+          "include": "#sql-tokens"
+        }
+      ]
+    },
+
+    "string-sql-template": {
+      "comment": "Chaîne `…` reconnue comme SQL : premier argument de execute/query/queryOne/prepare, précédée de /* sql */, ou commençant par un mot-clé SQL en majuscules suivi d'un autre mot. Toute région interne s'arrête au ` fermant.",
+      "name": "string.template.ocara meta.embedded.sql",
+      "begin": "(?<=\\.execute\\(|\\.query\\(|\\.queryOne\\(|\\.prepare\\(|/\\*sql\\*/|/\\* sql \\*/|/\\*SQL\\*/|/\\* SQL \\*/)\\s*(`)|(`)(?=\\s*(?:SELECT|INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|WITH|PRAGMA|BEGIN|COMMIT|ROLLBACK|VACUUM|TRUNCATE|EXPLAIN|ANALYZE|ATTACH|DETACH|SAVEPOINT|RELEASE)\\s+[^\\s`])",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.string.template.begin.ocara"
+        },
+        "2": {
+          "name": "punctuation.definition.string.template.begin.ocara"
+        }
+      },
+      "end": "`",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.template.end.ocara"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#string-escape"
+        },
+        {
+          "include": "#template-expression"
+        },
+        {
+          "name": "comment.block.sql",
+          "begin": "/\\*",
+          "end": "\\*/|(?=`)",
+          "patterns": [
+            {
+              "include": "#string-escape"
+            },
+            {
+              "include": "#template-expression"
+            }
+          ]
+        },
+        {
+          "name": "comment.line.double-dash.sql",
+          "begin": "--",
+          "end": "$|(?=`)",
+          "patterns": [
+            {
+              "include": "#string-escape"
+            },
+            {
+              "include": "#template-expression"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.sql",
+          "begin": "'",
+          "end": "'|(?=`)",
+          "patterns": [
+            {
+              "include": "#string-escape"
+            },
+            {
+              "include": "#template-expression"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.double.sql",
+          "begin": "\"",
+          "end": "\"|(?=`)",
+          "patterns": [
+            {
+              "include": "#string-escape"
+            },
+            {
+              "include": "#template-expression"
+            }
+          ]
+        },
+        {
+          "include": "#sql-tokens"
+        }
+      ]
+    },
+
+    "sql-tokens": {
+      "comment": "Mots SQL d'une chaîne reconnue comme SQL : aucun ne contient de délimiteur, ils ne peuvent pas déborder de la chaîne.",
+      "patterns": [
+        {
+          "name": "variable.parameter.sql",
+          "match": "(?<![:\\w]):[A-Za-z_]\\w*"
+        },
+        {
+          "name": "constant.numeric.sql",
+          "match": "\\b\\d+(?:\\.\\d+)?\\b"
+        },
+        {
+          "name": "constant.language.sql",
+          "match": "(?i)\\b(?:NULL|TRUE|FALSE|CURRENT_TIMESTAMP|CURRENT_DATE|CURRENT_TIME)\\b"
+        },
+        {
+          "name": "support.function.sql",
+          "match": "(?i)\\b(?:COUNT|SUM|AVG|MIN|MAX|TOTAL|GROUP_CONCAT|COALESCE|IFNULL|NULLIF|IIF|LENGTH|LOWER|UPPER|TRIM|LTRIM|RTRIM|SUBSTR|SUBSTRING|INSTR|REPLACE|ROUND|ABS|RANDOM|CAST|NOW|STRFTIME|DATE|DATETIME|JULIANDAY|LAST_INSERT_ROWID|LAST_INSERT_ID|CONCAT|JSON_EXTRACT|JSON_OBJECT|JSON_ARRAY|PRINTF|FORMAT|TYPEOF|HEX|QUOTE)(?=\\s*\\()"
+        },
+        {
+          "name": "storage.type.sql",
+          "match": "(?i)\\b(?:INTEGER|INT|BIGINT|SMALLINT|TINYINT|MEDIUMINT|REAL|DOUBLE|FLOAT|DECIMAL|NUMERIC|TEXT|LONGTEXT|MEDIUMTEXT|VARCHAR|CHAR|NCHAR|NVARCHAR|CLOB|BLOB|BOOLEAN|BOOL|DATE|DATETIME|TIME|TIMESTAMP|JSON|ENUM)\\b"
+        },
+        {
+          "name": "keyword.other.sql",
+          "match": "(?i)\\b(?:SELECT|FROM|WHERE|AND|OR|NOT|IN|IS|LIKE|GLOB|BETWEEN|EXISTS|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|TABLE|INDEX|VIEW|TRIGGER|UNIQUE|PRIMARY|KEY|FOREIGN|REFERENCES|CONSTRAINT|DEFAULT|CHECK|AUTOINCREMENT|AUTO_INCREMENT|DROP|ALTER|ADD|COLUMN|RENAME|TO|IF|JOIN|INNER|LEFT|RIGHT|FULL|OUTER|CROSS|NATURAL|ON|USING|AS|DISTINCT|ALL|GROUP|BY|ORDER|ASC|DESC|HAVING|LIMIT|OFFSET|UNION|INTERSECT|EXCEPT|CASE|WHEN|THEN|ELSE|END|WITH|RECURSIVE|REPLACE|RETURNING|CONFLICT|DO|NOTHING|BEGIN|COMMIT|ROLLBACK|TRANSACTION|SAVEPOINT|RELEASE|PRAGMA|VACUUM|EXPLAIN|ANALYZE|ATTACH|DETACH|DATABASE|SCHEMA|TRUNCATE|CASCADE|COLLATE|ESCAPE|TEMP|TEMPORARY|WITHOUT|ROWID|ENGINE|CHARSET)\\b"
+        },
+        {
+          "name": "keyword.operator.sql",
+          "match": "<>|!=|<=|>=|\\|\\||[=<>*+%/-]"
+        }
       ]
     },
 

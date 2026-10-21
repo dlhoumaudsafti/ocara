@@ -118,6 +118,8 @@ Toute valeur variable dans une requête SQL doit être **bindée**, jamais conca
 db.execute("INSERT INTO users (name, age) VALUES (:name, :age)", {"name": "Alice", "age": 30})
 ```
 
+Le compilateur avertit (W06, voir [diagnostics.md](../diagnostics.md#w06--requête-sql-construite-par-interpolation-ou-concaténation)) quand la requête passée à `execute`/`query`/`queryOne`/`prepare` est construite par `${…}` ou `+`.
+
 Pas de placeholders positionnels (`?`) — même choix que SQLite, voir `examples/32_strict_operators.oc` pour la même philosophie appliquée aux opérateurs de comparaison.
 
 Types de valeurs bindables : `int`, `float`, `bool` (converti en `0`/`1`, MySQL n'a pas de type bool natif), `string`, `null`. Une valeur `array`/`map`/objet/fonction dans la map de placeholders lève `MySQLException` (code 106).

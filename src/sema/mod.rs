@@ -21,6 +21,7 @@ pub mod narrowing;
 pub mod resource_raise;
 pub mod returns;
 pub mod scope;
+pub mod sql_injection;
 pub mod symbols;
 pub mod typecheck;
 

@@ -1470,6 +1470,21 @@ Les handlers d'un `try` sont essayés dans l'ordre : un `on e is Enfant` placé 
 
 **Correction :** placer le handler le plus spécifique en premier.
 
+### W06 — Requête SQL construite par interpolation ou concaténation
+
+```
+fichier.oc:7:16: warning: SQL query passed to 'execute' is built by interpolation or concatenation — SQL injection risk: bind the values with named placeholders ':name' and the placeholder map
+```
+
+Le premier argument de `execute`, `query`, `queryOne` ou `prepare` d'une connexion `SQLite`, `MySQL` ou `MariaDB` est un template contenant `${…}` ou une concaténation `+` dont un membre n'est pas un littéral : une valeur injectée dans le texte de la requête peut en changer le sens (injection SQL).
+
+```ocara
+db.execute(`DELETE FROM users WHERE id = ${id}`)                 // W06
+db.execute("DELETE FROM users WHERE id = :id", {"id": id})       // OK
+```
+
+**Correction :** écrire un paramètre nommé `:nom` dans la requête et passer la valeur dans la map de placeholders (voir [SQLite — Requêtes paramétrées](builtins/SQLite.md#requêtes-paramétrées-placeholders-nominatifs)). Un nom de table ou de colonne variable ne peut pas être un paramètre : le choisir dans une liste fixe avant de l'insérer.
+
 ---
 
 ## Utilisation

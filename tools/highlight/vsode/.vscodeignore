@@ -3,3 +3,4 @@ src/**
 tsconfig.json
 .vscode/**
 *.vsix
+scripts/test-grammar.js

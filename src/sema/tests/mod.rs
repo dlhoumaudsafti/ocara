@@ -27,3 +27,4 @@ mod global_const;
 mod interface_call;
 mod map_keys;
 mod runtime_block_closure;
+mod sql_injection;

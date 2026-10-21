@@ -107,6 +107,8 @@ Toute valeur variable dans une requête SQL doit être **bindée**, jamais conca
 db.execute("INSERT INTO users (name, age) VALUES (:name, :age)", {"name": "Alice", "age": 30})
 ```
 
+Le compilateur avertit (W06, voir [diagnostics.md](../diagnostics.md#w06--requête-sql-construite-par-interpolation-ou-concaténation)) quand la requête passée à `execute`/`query`/`queryOne`/`prepare` est construite par `${…}` ou `+`.
+
 Il n'y a pas de placeholders positionnels (`?`) — choix délibéré, cohérent avec le reste du langage (comparaisons en toutes lettres plutôt qu'en symboles, voir `examples/32_strict_operators.oc`) : le nom du placeholder porte l'intention au point d'appel, un `?` ne le fait pas.
 
 Les colonnes lues deviennent : INTEGER → `int`, REAL → `float`, TEXT → `string`, BLOB → `array<int>` (un octet par élément), NULL → `null`.

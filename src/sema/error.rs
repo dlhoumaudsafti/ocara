@@ -450,6 +450,8 @@ pub enum SemaWarning {
     RaiseSkipsFinalization { name: String, class_name: String, is_thread: bool, span: Span },
     /// W05 : `on e is Enfant` après `on e is Parent` — jamais atteint.
     UnreachableHandler { class: String, shadowed_by: String, span: Span },
+    /// W06 : requête SQL construite par `${…}` ou `+` — voir `crate::sema::sql_injection`.
+    SqlInterpolation { method: String, span: Span },
 }
 
 impl SemaWarning {
@@ -460,6 +462,7 @@ impl SemaWarning {
             SemaWarning::VariadicMixed { span, .. } => span,
             SemaWarning::RaiseSkipsFinalization { span, .. } => span,
             SemaWarning::UnreachableHandler { span, .. } => span,
+            SemaWarning::SqlInterpolation { span, .. } => span,
         }
     }
 
@@ -473,6 +476,8 @@ impl SemaWarning {
                 format!("variadic parameter '{}': variadic<mixed> disables type checking — consider variadic<T|U> with explicit union", name),
             SemaWarning::UnreachableHandler { class, shadowed_by, .. } =>
                 format!("handler 'on … is {}' is never reached — the previous handler 'on … is {}' already catches every '{}' (place the more specific handler first)", class, shadowed_by, class),
+            SemaWarning::SqlInterpolation { method, .. } =>
+                format!("SQL query passed to '{}' is built by interpolation or concatenation — SQL injection risk: bind the values with named placeholders ':name' and the placeholder map", method),
             SemaWarning::RaiseSkipsFinalization { name, is_thread: true, .. } =>
                 format!("thread '{}' is neither joined nor detached when a 'raise' later in this block is not locally caught — the 'raise' skips '.join()'/'.detach()' and abandons the thread — call it before that 'raise', or wrap the risky code in a local 'try'/'on'", name),
             SemaWarning::RaiseSkipsFinalization { name, class_name, .. } =>

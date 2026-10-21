@@ -7,7 +7,12 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
 - **Coloration syntaxique** complète (grammaire TextMate `syntaxes/ocara.tmLanguage.json`) : mots-clés,
   types, classes, structs, méthodes, imports, chaînes, templates, noms d'arguments nommés. Dans un
   template, `` \` `` et `\${x}` sont des échappements ; le HTML y est coloré (balises, attributs,
-  commentaires, entités) sans jamais déborder au-delà du `` ` `` fermant.
+  commentaires, entités) sans jamais déborder au-delà du `` ` `` fermant. Une chaîne (`"…"`, `'…'`
+  ou template) est colorée en **SQL** (mots-clés, types, fonctions, paramètres `:nom`, littéraux,
+  commentaires) quand elle est le premier argument de `execute`/`query`/`queryOne`/`prepare`, quand
+  elle suit un commentaire `/* sql */`, ou quand elle commence par un mot-clé SQL en majuscules suivi
+  d'un autre mot (`"SELECT * FROM t"`, mais pas `"DELETE"` seul) ; là aussi, rien ne déborde au-delà
+  du délimiteur fermant et `${…}` garde sa coloration Ocara. Tests : `npm run test:grammar`.
 - **Serveur de langage du compilateur** (`ocara --lsp`, lancé avec le compilateur du réglage
   `ocara.compilerPath` ; changer ce réglage redémarre le serveur, et la commande **« Ocara : Redémarrer
   le serveur de langage »** le relance à la demande, par exemple après avoir recompilé `ocara`) — toute

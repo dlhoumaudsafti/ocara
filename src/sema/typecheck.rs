@@ -1573,6 +1573,7 @@ impl<'a> TypeChecker<'a> {
                 // Appel de méthode : Field { object, field } → méthode
                 if let Expr::Field { object, field, span: fspan } = callee.as_ref() {
                     let obj_ty = self.infer_expr(object);
+                    self.check_sql_interpolation(&obj_ty, field, args);
 
                     // `s.toInt()`, `n.toStr()`... → `Convert::strToInt(s)`...
                     // (voir `crate::sema::convert_sugar`).
