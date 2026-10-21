@@ -45,3 +45,61 @@ mod tests {
         assert!(is_counted(&int_or_float, &objects()));
     }
 }
+
+/// Tests unitaires — sorties d'un corps `try`/gestionnaire `on`
+/// (docs/roadmap.d/langage-try-controle-de-flux.md) : `return`, `break`,
+/// `continue` rendent un code de sortie exécuté par la fonction englobante.
+#[cfg(test)]
+mod try_exit_tests {
+    use crate::ir::inst::Inst;
+    use crate::ir::module::IrModule;
+    use crate::ir::types::IrType;
+    use crate::lower::builder::program::lower_program;
+    use crate::parsing::lexer::Lexer;
+    use crate::parsing::parser::Parser;
+
+    fn lower_src(src: &str) -> IrModule {
+        let tokens = Lexer::new(src).tokenize().expect("lex");
+        let program = Parser::new(tokens).parse_program().expect("parse");
+        lower_program(&program, "<test>")
+    }
+
+    fn calls(module: &IrModule, func_name: &str, target: &str) -> bool {
+        let func = module.functions.iter().find(|f| f.name == func_name).expect("fonction");
+        func.blocks.iter().flat_map(|b| &b.insts).any(|i| matches!(i, Inst::Call { func, .. } if func == target))
+    }
+
+    #[test]
+    fn try_body_and_handler_return_an_exit_code() {
+        let module = lower_src(
+            "function f(): string {\n\
+                 try { return \"a\" } on e { return \"b\" }\n\
+                 return \"c\"\n\
+             }\n",
+        );
+        for name in ["__try_body_0", "__try_handler_0"] {
+            let func = module.functions.iter().find(|f| f.name == name).expect("fonction");
+            assert_eq!(func.ret_ty, IrType::I64, "{}", name);
+            assert!(calls(&module, name, "__ocara_try_set_return"), "{}", name);
+        }
+        assert!(calls(&module, "f", "__ocara_try_take_return"));
+    }
+
+    #[test]
+    fn break_in_try_body_leaves_the_body_with_a_code() {
+        let module = lower_src(
+            "function f(): int {\n\
+                 var n:int = 0\n\
+                 while true {\n\
+                     try { n = n + 1\n if n equal 3 { break } } on e { }\n\
+                 }\n\
+                 return n\n\
+             }\n",
+        );
+        let body = module.functions.iter().find(|f| f.name == "__try_body_0").expect("corps");
+        let codes: Vec<i64> = body.blocks.iter().flat_map(|b| &b.insts)
+            .filter_map(|i| match i { Inst::ConstInt { value, .. } => Some(*value), _ => None })
+            .collect();
+        assert!(codes.contains(&crate::lower::stmt::statements::try_exit_codes::TRY_BREAK));
+    }
+}

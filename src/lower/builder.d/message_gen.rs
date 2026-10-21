@@ -56,6 +56,10 @@ pub struct GenTryCtx {
     /// Bloc du handler INLINE (déjà lowered UNE SEULE FOIS) — la première
     /// exécution ET chaque rejeu y sautent tous en cas de `setjmp` non nul.
     pub handler_bb: BlockId,
+    /// Profondeurs (blocs `scoped`, temporaires, portées comptées) à
+    /// l'entrée du corps : un `raise` du corps ne rend que ce qui a été
+    /// ouvert depuis — les locales d'avant le `try` restent vivantes.
+    pub depths: (usize, usize, usize),
 }
 
 /// Nom du champ réservé qui porte l'état courant du générateur (I64).
@@ -475,7 +479,8 @@ pub fn lower_try_in_generator(builder: &mut LowerBuilder, body: &Block, handlers
 
     // ── Corps du try (chemin normal) ─────────────────────────────────────
     builder.switch_to(&body_start_bb);
-    builder.gen_try_stack.push(GenTryCtx { frame_field: frame_field.clone(), handler_bb: handler_bb.clone() });
+    let depths = (builder.block_scope_stack.len(), builder.rc_temps.len(), builder.rc_scopes.len());
+    builder.gen_try_stack.push(GenTryCtx { frame_field: frame_field.clone(), handler_bb: handler_bb.clone(), depths });
     crate::lower::stmt::lower_block(builder, body);
     builder.gen_try_stack.pop();
     if !builder.is_terminated() {

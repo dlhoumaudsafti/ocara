@@ -3811,6 +3811,8 @@ function truc(): message<int> {
 
 Le `try`/`on` est traité normalement : un `raise` déclenché à l'intérieur (qu'il soit écrit directement dans le générateur ou levé par une fonction qu'il appelle) est rattrapé par le `on` correspondant, l'imbrication de plusieurs `try` respecte l'ordre habituel (le plus interne rattrape en premier), et un filtre de classe (`on e is X`) qui ne correspond à rien se propage vers un `try` englobant, à l'extérieur du générateur, exactement comme pour un `try`/`raise` ordinaire.
 
+> Après un `raise` rattrapé dans le générateur, les variables déclarées avant le `try` gardent leur valeur ; une closure créée dans le générateur garde ses captures (paramètres compris) même après son épuisement.
+
 > Un générateur abandonné par son consommateur (`break`, `return`, ou `raise` depuis le corps du `for`) est détruit proprement : ses variables et la dernière valeur émise sont rendues.
 
 ---
@@ -3833,6 +3835,20 @@ try {
     var data:string = IO::read()
 } on e {
     raise `erreur inattendue : ${e}`
+}
+```
+
+**Contrôle de flux** : dans le corps d'un `try` comme dans un `on`, `return` sort de la fonction englobante (avec sa valeur), et `break`/`continue` agissent sur la boucle qui englobe le `try` — à travers autant de `try` imbriqués que nécessaire. Une boucle écrite à l'intérieur du `try` reste, elle, la cible de ses propres `break`/`continue`. Dans un bloc runtime (`main`, `init`…), `result` dans un `try`/`on` fixe `ERROR` et termine le bloc comme partout ailleurs.
+
+```ocara
+for i in 0 until 5 {
+    try {
+        if i equal 1 { continue }       // passe à i = 2
+        if i equal 3 { break }          // sort de la boucle
+        if i equal 4 { return i }       // sort de la fonction
+    } on e {
+        break
+    }
 }
 ```
 

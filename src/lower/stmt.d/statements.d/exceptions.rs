@@ -53,7 +53,7 @@ pub fn lower_raise(builder: &mut LowerBuilder, value: &Expr) {
 
     // `__ocara_fail` sort par `longjmp` : rendre maintenant ce qu'une sortie
     // de fonction rendrait (temporaires, locales), la valeur levée étant prise.
-    crate::lower::stmt::rc::release_all(builder);
+    crate::lower::stmt::rc::release_for_raise(builder);
     builder.emit(Inst::Call {
         dest:   None,
         func:   "__ocara_fail".into(),
@@ -75,12 +75,13 @@ pub fn lower_raise(builder: &mut LowerBuilder, value: &Expr) {
 /// Lowering de `try { body } on e [is Foo] { handler } …`
 ///
 /// Modèle callback :
-///   1. Le corps try      → fonction __try_body_N  () -> void
-///   2. Le gestionnaire   → fonction __try_handler_N (err_val:i64, err_type:i64) -> void
+///   1. Le corps try      → fonction __try_body_N  () -> code
+///   2. Le gestionnaire   → fonction __try_handler_N (err_val:i64, err_type:i64) -> code
 ///   3. Dans la fonction englobante :
 ///        body_addr    = FuncAddr(__try_body_N)
 ///        handler_addr = FuncAddr(__try_handler_N)
-///        call __ocara_try_exec(body_addr, handler_addr)
+///        code = call __ocara_try_exec(body_addr, handler_addr)
+///        puis `return`/`break`/`continue` selon `code` (voir `try_exit`)
 ///
 /// __ocara_try_exec (C) fait le setjmp, appelle le corps, et en cas d'erreur
 /// appelle le gestionnaire.  La frame de __ocara_try_exec reste vivante pendant
@@ -159,9 +160,7 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
     }
 
     // ── 1. Corps try ─────────────────────────────────────────────────────────
-    // Le body a un type de retour Void : il ne retourne jamais normalement,
-    // soit il bloque indéfiniment, soit il lève une exception
-    let body_ret_ty = IrType::Void;
+    // Corps et gestionnaire rendent un code de sortie (voir `try_exit`).
     let body_fn = {
         // Si captures, le body reçoit un Ptr vers le tableau
         let ir_params = if captures.is_empty() {
@@ -178,9 +177,10 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
             &mut *builder.module,
             body_fn_name.clone(),
             ir_params,
-            body_ret_ty.clone(),
+            IrType::I64,
         );
         bb.fn_ret_types    = builder.fn_ret_types.clone();
+        bb.ret_ast_ty      = builder.ret_ast_ty.clone();
         bb.rc_counted_locals = builder.rc_counted_locals.clone();
         bb.fn_param_types  = builder.fn_param_types.clone();
         bb.fn_param_names  = builder.fn_param_names.clone();
@@ -253,15 +253,7 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
         lower_block(&mut bb, body);
         
         if !bb.is_terminated() {
-            // Return implicite : valeur dummy si type non-void
-            let ret_val = if body_ret_ty != IrType::Void {
-                let dummy = bb.new_value();
-                bb.emit(Inst::ConstInt { dest: dummy.clone(), value: 0 });
-                Some(dummy)
-            } else {
-                None
-            };
-            bb.emit(Inst::Return { value: ret_val });
+            super::try_exit::exit_try_fn(&mut bb, super::try_exit::TRY_NORMAL, None);
         }
         crate::lower::stmt::rc::finish_unwind(&mut bb);
         bb.func   // move func out, drops bb, releases module reborrow
@@ -269,16 +261,12 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
     builder.module.add_function(body_fn);
 
     // ── 2. Gestionnaire ──────────────────────────────────────────────────────
-    // Le handler doit avoir le même type de retour que la fonction englobante
-    // car il peut contenir des return qui remontent à la fonction parente
-    let handler_ret_ty = builder.func.ret_ty.clone();
-    let handler_ret_ty_for_return = handler_ret_ty.clone();
     let handler_fn = {
         let mut hb = LowerBuilder::new(
             &mut *builder.module,
             handler_fn_name.clone(),
             vec![],            // params déclarés manuellement ci-dessous
-            handler_ret_ty,
+            IrType::I64,
         );
         hb.fn_ret_types    = builder.fn_ret_types.clone();
         hb.ret_ast_ty      = builder.ret_ast_ty.clone();
@@ -430,26 +418,11 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
                 ret_ty: IrType::Void,
             });
             // Après __ocara_fail, code mort mais l'IR doit être terminé
-            let ret_val = if handler_ret_ty_for_return != IrType::Void {
-                let dummy = hb.new_value();
-                hb.emit(Inst::ConstInt { dest: dummy.clone(), value: 0 });
-                Some(dummy)
-            } else {
-                None
-            };
-            hb.emit(Inst::Return { value: ret_val });
+            super::try_exit::exit_try_fn(&mut hb, super::try_exit::TRY_NORMAL, None);
         }
 
         hb.switch_to(&end_bb);
-        // Return implicite : si aucun handler n'a fait return explicite
-        let ret_val = if handler_ret_ty_for_return != IrType::Void {
-            let dummy = hb.new_value();
-            hb.emit(Inst::ConstInt { dest: dummy.clone(), value: 0 });
-            Some(dummy)
-        } else {
-            None
-        };
-        hb.emit(Inst::Return { value: ret_val });
+        super::try_exit::exit_try_fn(&mut hb, super::try_exit::TRY_NORMAL, None);
 
         crate::lower::stmt::rc::finish_unwind(&mut hb);
         hb.func   // move func out, drops hb, releases module reborrow
@@ -571,85 +544,5 @@ pub fn lower_try(builder: &mut LowerBuilder, body: &Block, handlers: &[OnClause]
         builder.emit(Inst::Call { dest: None, func: "__free_obj".into(), args: vec![array_ptr, array_bytes], ret_ty: IrType::Void });
     }
     
-    // Vérifier si le handler a fait un return (try_result != 0)
-    // Si oui, extraire la valeur (try_result - 1) et retourner immédiatement
-    let continue_bb = builder.new_block();
-    let return_bb = builder.new_block();
-    
-    // Comparaison explicite : try_result != 0
-    let zero = builder.new_value();
-    builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
-    
-    let has_return = builder.new_value();
-    builder.emit(Inst::CmpNe {
-        dest: has_return.clone(),
-        lhs: try_result.clone(),
-        rhs: zero,
-        ty: IrType::I64,
-    });
-    
-    builder.emit(Inst::Branch {
-        cond: has_return,
-        then_bb: return_bb.clone(),
-        else_bb: continue_bb.clone(),
-    });
-    
-    // Bloc return : extraire la valeur (try_result - 1) et retourner. Les
-    // destructions anticipées émises ici ne concernent que ce chemin :
-    // `owned_locals` est restauré pour le bloc continue (voir `lower_if`).
-    let owned_snapshot = builder.owned_locals.clone();
-    builder.switch_to(&return_bb);
-    let one = builder.new_value();
-    builder.emit(Inst::ConstInt { dest: one.clone(), value: 1 });
-    
-    let return_value = builder.new_value();
-    builder.emit(Inst::Sub {
-        dest: return_value.clone(),
-        lhs: try_result,
-        rhs: one,
-        ty: IrType::I64,
-    });
-    
-    // Si on est dans la fonction main (bloc runtime), transformer le return
-    // en assignation ERROR puis sauter à la fin du bloc main
-    if builder.func.name == "main" {
-        // Charger le slot de ERROR (doit exister)
-        if let Some((error_slot, _, _)) = builder.locals.get("ERROR").cloned() {
-            // ERROR = return_value
-            builder.emit(Inst::Store { ptr: error_slot.clone(), src: return_value.clone() });
-            
-            // Sauter au label de sortie anticipée du bloc main (avant if ERROR != 0)
-            if let Some(exit_bb) = builder.runtime_exit_bb.clone() {
-                crate::lower::stmt::rc::release_before_runtime_exit(builder);
-                builder.emit(Inst::Jump { target: exit_bb });
-            } else {
-                builder.emit(Inst::Jump { target: continue_bb.clone() });
-            }
-        } else {
-            // ERROR n'existe pas (ne devrait pas arriver), faire un return normal
-            let ret_val = if builder.func.ret_ty != IrType::Void { Some(return_value) } else { None };
-            builder.emit(Inst::Return { value: ret_val });
-        }
-    } else {
-        // Fonction normale : vrai return. `return_value` encode la valeur réelle
-        // (try_result - 1) que le handler a explicitement retournée — mais si LA
-        // FONCTION ENGLOBANTE est void, sa signature Cranelift ne déclare aucune
-        // valeur de retour : lui passer `return_value` quand même ferait échouer
-        // le vérificateur ("arguments of return must match function signature").
-        // Le contrôle de flux (sortie anticipée) reste correct avec value:None —
-        // seule la valeur portée par un `return <expr>` dans le handler est
-        // nécessairement ignorée, ce qui est cohérent : une fonction void n'a de
-        // toute façon aucune valeur à propager.
-        // Locales de la fonction rendues avant de sortir (la valeur renvoyée
-        // par le gestionnaire est déjà possédée) — elles fuyaient.
-        crate::lower::stmt::rc::release_all(builder);
-        let ret_val = if builder.func.ret_ty != IrType::Void { Some(return_value) } else { None };
-        builder.emit(Inst::Return { value: ret_val });
-    }
-    
-    builder.owned_locals = owned_snapshot;
-
-    // Bloc continue : continuer l'exécution normale
-    // DOIT TOUJOURS être défini car il est référencé dans le Branch
-    builder.switch_to(&continue_bb);
+    super::try_exit::dispatch_try_exit(builder, try_result);
 }

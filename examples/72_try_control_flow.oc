@@ -1,0 +1,94 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 72 — `return`, `break`, `continue` dans un `try` / `on`
+//
+// Voir docs/roadmap.d/langage-try-controle-de-flux.md et docs/EBNF.md §13.
+//
+// Illustre :
+//   - `continue` et `break` dans un `try` ou un `on` agissent sur la boucle
+//     qui englobe le `try`, même à travers des `try` imbriqués
+//   - `return` dans un `try` ou un `on` sort de la fonction
+//   - générateur : les locales survivent à un `raise` rattrapé, une closure
+//     garde ses captures (paramètre compris) après l'épuisement
+// ─────────────────────────────────────────────────────────────────────────────
+
+architecture permissive
+
+import ocara.IO
+import ocara.Array
+
+function digits(): string {
+    var s:string = ""
+    for i in 0 until 5 {
+        try {
+            if i equal 1 { continue }
+            if i equal 3 { break }
+            s = s + `${i}`
+        } on e { }
+    }
+    return s
+}
+
+function countUntilFailure(): int {
+    var n:int = 0
+    while true {
+        n = n + 1
+        try {
+            if n equal 4 { raise "stop" }
+        } on e {
+            break
+        }
+    }
+    return n
+}
+
+function find(xs:array<int>, wanted:int): string {
+    for x in xs {
+        try {
+            try {
+                if x equal wanted { return `trouvé ${x}` }
+            } on e { }
+        } on e { }
+    }
+    return "absent"
+}
+
+function parse(text:string): int {
+    try {
+        if text equal "" { raise "vide" }
+        return 1
+    } on e {
+        return -1
+    }
+    return 0
+}
+
+function survivors(): message<int> {
+    var xs:array<int> = [7, 8, 9]
+    try {
+        raise "boom"
+    } on e { }
+    emit xs.len()
+}
+
+function greeter(name:string): message<Function<string()>> {
+    var suffix:string = "!"
+    emit nameless(): string { return `bonjour ${name}${suffix}` }
+}
+
+function main(): void {
+    IO::writeln(digits())                        // 02
+    IO::writeln(`${countUntilFailure()}`)        // 4
+    IO::writeln(find([3, 5, 8], 5))              // trouvé 5
+    IO::writeln(find([3], 5))                    // absent
+    IO::writeln(`${parse("x")} ${parse("")}`)    // 1 -1
+    for n in survivors() {
+        IO::writeln(`${n}`)                      // 3
+    }
+    var greetings:array<Function<string()>> = []
+    for g in greeter("Ada") {
+        greetings.push(g)
+    }
+    for g in greetings {
+        IO::writeln(g())                         // bonjour Ada!
+    }
+}

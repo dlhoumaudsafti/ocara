@@ -343,8 +343,15 @@ impl<'m> LowerBuilder<'m> {
         self.emit(Inst::GetField { dest: existing.clone(), obj: frame.clone(), field: field.to_string(), ty: IrType::Ptr, offset: (idx * 8) as i32 });
         let counted = self.new_value();
         self.emit(Inst::ConstInt { dest: counted.clone(), value: i64::from(ty == IrType::Ptr) });
+        // Valeur initiale : le champ de la variable (argument d'un paramètre,
+        // rangé par `<générateur>__new`).
+        let initial = self.new_value();
+        match self.frame_vars.get(name).cloned() {
+            Some((obj, var_idx, _)) => self.emit(Inst::GetField { dest: initial.clone(), obj, field: name.to_string(), ty: IrType::I64, offset: (var_idx * 8) as i32 }),
+            None => self.emit(Inst::ConstInt { dest: initial.clone(), value: 0 }),
+        }
         let cell = self.new_value();
-        self.emit(Inst::Call { dest: Some(cell.clone()), func: "__gen_cell".into(), args: vec![existing, counted], ret_ty: IrType::Ptr });
+        self.emit(Inst::Call { dest: Some(cell.clone()), func: "__gen_cell".into(), args: vec![existing, counted, initial], ret_ty: IrType::Ptr });
         self.emit(Inst::SetField { obj: frame, field: field.to_string(), src: cell.clone(), offset: (idx * 8) as i32 });
         (cell, ty)
     }

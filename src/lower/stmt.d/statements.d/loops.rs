@@ -424,6 +424,10 @@ pub fn lower_break(builder: &mut LowerBuilder) {
         // voir crate::lower::stmt::ownership::emit_early_exit_drops.
         crate::lower::stmt::rc::release_loop_exit(builder, depth);
         builder.emit(Inst::Jump { target: break_bb });
+    } else if super::try_exit::in_try_fn(builder) {
+        // Boucle de la fonction englobante : quitter le corps `try`.
+        crate::lower::stmt::rc::release_all(builder);
+        super::try_exit::exit_try_fn(builder, super::try_exit::TRY_BREAK, None);
     }
 }
 
@@ -434,6 +438,9 @@ pub fn lower_continue(builder: &mut LowerBuilder) {
         // pour reboucler plutôt que sortir complètement.
         crate::lower::stmt::rc::release_loop_exit(builder, depth);
         builder.emit(Inst::Jump { target: continue_bb });
+    } else if super::try_exit::in_try_fn(builder) {
+        crate::lower::stmt::rc::release_all(builder);
+        super::try_exit::exit_try_fn(builder, super::try_exit::TRY_CONTINUE, None);
     }
 }
 

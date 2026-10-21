@@ -17,6 +17,21 @@ pub use statements_impl::assignments::lower_incdec;
 pub(crate) use statements_impl::variables::{lower_const_value, register_async_var_ret, register_const_meta, register_var_class};
 pub(crate) use statements_impl::helpers::box_for_any;
 pub(crate) use statements_impl::loops::register_loop_var_meta;
+#[cfg(test)]
+pub(crate) use statements_impl::try_exit as try_exit_codes;
+
+/// Valeur de `result expr` pour ERROR : `result SUCCESS` (un `bool`) et
+/// `result` sans valeur donnent 0.
+fn result_value(builder: &mut LowerBuilder, value: Option<&Expr>) -> crate::ir::inst::Value {
+    match value {
+        Some(Expr::Ident(name, _)) if name == "SUCCESS" => {}
+        Some(e) => return lower_expr(builder, e),
+        None => {}
+    }
+    let zero = builder.new_value();
+    builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
+    zero
+}
 
 /// Liaison d'un nom avant une boucle : (nom, slot, promu au tas).
 type SavedBinding = (String, Option<(crate::ir::inst::Value, IrType, bool)>, bool);
@@ -124,21 +139,8 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
             // même sémantique que la fin naturelle du corps.
             if builder.frame_vars.contains_key(crate::lower::builder::message_gen::STATE_FIELD) {
                 crate::lower::builder::message_gen::emit_generator_exhausted(builder);
-            } else if builder.func.name.starts_with("__try_handler_") {
-                let return_val = v.clone().unwrap_or_else(|| {
-                    // Return void → passer 0
-                    let zero = builder.new_value();
-                    builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
-                    zero
-                });
-                builder.emit(Inst::Call {
-                    dest: None,
-                    func: "__ocara_handler_set_return".into(),
-                    args: vec![return_val],
-                    ret_ty: IrType::Void,
-                });
-
-                builder.emit(Inst::Return { value: v });
+            } else if statements_impl::try_exit::in_try_fn(builder) {
+                statements_impl::try_exit::exit_try_fn(builder, statements_impl::try_exit::TRY_RETURN, v);
             } else {
                 // Fonction normale : vrai return.
                 // (`return` est rejeté par la sema à l'intérieur d'un bloc runtime —
@@ -156,43 +158,15 @@ pub fn lower_stmt(builder: &mut LowerBuilder, stmt: &Stmt) {
         // fixe ERROR puis saute vers le label de sortie anticipée (runtime_exit_bb)
         // sans quitter la fonction main() synthétisée. Remplace l'ancien sucre `return`.
         Stmt::Result { value, .. } => {
-            // Cas particulier : `result` à l'intérieur d'un handler d'exception
-            // (try/on), y compris quand ce handler est imbriqué dans un bloc
-            // runtime (ex: `init { try { ... } on e { result e.code } }`).
-            // Un handler est lowered comme une fonction séparée (__try_handler_*),
-            // donc on ne peut pas sauter vers runtime_exit_bb depuis là : on
-            // reprend le même mécanisme de propagation que `return` dans un
-            // handler (comportement historique, préservé à l'identique).
-            if builder.func.name.starts_with("__try_handler_") {
-                let v = value.as_ref().map(|e| lower_expr(builder, e));
+            // `result` dans un corps `try` ou un gestionnaire (fonctions
+            // séparées) : transmis comme un `return` au `main` englobant, qui
+            // fixe ERROR et saute à la sortie anticipée (voir `try_exit`).
+            if statements_impl::try_exit::in_try_fn(builder) {
+                let v = result_value(builder, value.as_ref());
                 crate::lower::stmt::rc::release_all(builder);
-                let return_val = v.clone().unwrap_or_else(|| {
-                    let zero = builder.new_value();
-                    builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
-                    zero
-                });
-
-                builder.emit(Inst::Call {
-                    dest: None,
-                    func: "__ocara_handler_set_return".into(),
-                    args: vec![return_val],
-                    ret_ty: IrType::Void,
-                });
-
-                builder.emit(Inst::Return { value: v });
+                statements_impl::try_exit::exit_try_fn(builder, statements_impl::try_exit::TRY_RETURN, Some(v));
             } else if builder.func.name == "main" && builder.runtime_exit_bb.is_some() {
-                // Gérer le cas spécial de "result SUCCESS" : SUCCESS est bool mais ERROR est int
-                // Convertir SUCCESS (bool) en 0 (int) directement (sans lowering, calculé
-                // une seule fois pour éviter de dupliquer les instructions émises).
-                let is_success_ident = matches!(value.as_ref(), Some(Expr::Ident(name, _)) if name == "SUCCESS");
-                let result_val = if is_success_ident || value.is_none() {
-                    // result SUCCESS, ou result (sans valeur) → ERROR = 0
-                    let zero = builder.new_value();
-                    builder.emit(Inst::ConstInt { dest: zero.clone(), value: 0 });
-                    zero
-                } else {
-                    lower_expr(builder, value.as_ref().unwrap())
-                };
+                let result_val = result_value(builder, value.as_ref());
 
                 // ERROR = result_value
                 if let Some((error_slot, _, _)) = builder.locals.get("ERROR").cloned() {

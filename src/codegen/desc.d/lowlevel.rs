@@ -79,7 +79,8 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__ocara_try_exit",              params: &[],                                returns: None,              module: None },
     BuiltinDesc { name: "__ocara_try_exec",             params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__ocara_try_exec_with_captures", params: &[clt::I64, clt::I64, clt::I64],    returns: Some(clt::I64),    module: None },
-    BuiltinDesc { name: "__ocara_handler_set_return",   params: &[clt::I64],                        returns: None,              module: None },
+    BuiltinDesc { name: "__ocara_try_set_return",       params: &[clt::I64],                        returns: None,              module: None },
+    BuiltinDesc { name: "__ocara_try_take_return",      params: &[],                                returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__ocara_fail",                 params: &[clt::I64, clt::I64],              returns: None,              module: None },
     BuiltinDesc { name: "__ocara_type_matches",         params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__task_spawn",           params: &[clt::I64, clt::I64, clt::I64],    returns: Some(clt::I64),    module: None },
@@ -126,7 +127,7 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     // Champ d'un binding `on e` générique (voir runtime/src/exception.rs)
     BuiltinDesc { name: "__exc_get_field",        params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
     // Variable de générateur capturée par une closure (voir runtime/src/lib.rs)
-    BuiltinDesc { name: "__gen_cell",             params: &[clt::I64, clt::I64],              returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__gen_cell",             params: &[clt::I64, clt::I64, clt::I64],    returns: Some(clt::I64),    module: None },
     // Constantes globales calculées (voir runtime/src/global_const.rs)
     BuiltinDesc { name: "__global_const_slot",    params: &[clt::I64],                        returns: Some(clt::I64),    module: None },
     // Pile alternative + message de débordement de pile, appelé en tête du

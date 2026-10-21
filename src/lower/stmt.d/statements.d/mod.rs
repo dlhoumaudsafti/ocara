@@ -6,6 +6,7 @@ pub mod control_flow;
 pub mod loops;
 pub mod assignments;
 pub mod exceptions;
+pub mod try_exit;
 
 pub use variables::*;
 pub use control_flow::*;

@@ -2267,7 +2267,7 @@ thread_local! {
 }
 
 #[unsafe(no_mangle)]
-extern "C" fn __assert_raises_body() {
+extern "C" fn __assert_raises_body() -> i64 {
     let func_ptr = ASSERT_RAISES_FUNC_PTR.with(|c| c.get());
     let env_ptr = ASSERT_RAISES_ENV_PTR.with(|c| c.get());
     
@@ -2277,13 +2277,15 @@ extern "C" fn __assert_raises_body() {
             f(env_ptr);
         }
     }
+    TRY_NORMAL
 }
 
 #[unsafe(no_mangle)]
-extern "C" fn __assert_raises_handler(error_val: i64, error_type: i64) {
+extern "C" fn __assert_raises_handler(error_val: i64, error_type: i64) -> i64 {
     unsafe { rc::retain(error_val) }
     ASSERT_RAISES_EXCEPTION.with(|e| e.set(error_val));
     ASSERT_RAISES_EXCEPTION_TYPE.with(|t| t.set(error_type));
+    TRY_NORMAL
 }
 
 #[unsafe(no_mangle)]
@@ -2582,15 +2584,22 @@ pub extern "C" fn __locked_cell_set(cell_ptr: i64, val: i64) {
 }
 
 /// Cellule d'une variable de générateur capturée par une closure : celle
-/// déjà rangée dans le frame (`existing`), sinon une cellule neuve (valeur
-/// initiale nulle) — créée au premier accès, partagée ensuite par le corps du
-/// générateur et ses closures (voir docs/roadmap.d/langage-emit-iterable.md).
+/// déjà rangée dans le frame (`existing`), sinon une cellule neuve —
+/// créée au premier accès, partagée ensuite par le corps du générateur et
+/// ses closures (voir docs/roadmap.d/langage-emit-iterable.md). Sa valeur
+/// initiale est celle du champ de la variable (`initial` : l'argument d'un
+/// paramètre, nulle pour une locale), retenue par la cellule.
 #[unsafe(no_mangle)]
-pub extern "C" fn __gen_cell(existing: i64, counted: i64) -> i64 {
+pub extern "C" fn __gen_cell(existing: i64, counted: i64, initial: i64) -> i64 {
     if existing != 0 {
         return existing;
     }
-    __alloc_locked_cell(counted)
+    let cell = __alloc_locked_cell(counted);
+    if counted != 0 {
+        unsafe { rc::retain(initial) }
+    }
+    __locked_cell_set(cell, initial);
+    cell
 }
 
 /// Frame d'un générateur : bloc compté de `size` octets, détruit par
@@ -2674,38 +2683,24 @@ thread_local! {
     };
 }
 
-// État pour propager les returns des handlers d'exception
-struct HandlerReturnState {
-    has_returned: Cell<bool>,
-    return_value: Cell<i64>,
-}
+/// Code de sortie d'un corps `try` ou d'un gestionnaire `on` (fonctions
+/// séparées, voir `lower_try`) : fin normale, ou `return`/`break`/`continue`
+/// à exécuter dans la fonction englobante. La valeur d'un `return` passe par
+/// `__ocara_try_set_return`/`__ocara_try_take_return`.
+const TRY_NORMAL: i64 = 0;
 
 thread_local! {
-    static HANDLER_RETURN: HandlerReturnState = HandlerReturnState {
-        has_returned: Cell::new(false),
-        return_value: Cell::new(0),
-    };
+    static TRY_RETURN: Cell<i64> = const { Cell::new(0) };
 }
 
-/// Appelée par le handler avant de faire return pour signaler qu'il veut propager
 #[unsafe(no_mangle)]
-pub extern "C" fn __ocara_handler_set_return(value: i64) {
-    HANDLER_RETURN.with(|state| {
-        state.has_returned.set(true);
-        state.return_value.set(value);
-    });
+pub extern "C" fn __ocara_try_set_return(value: i64) {
+    TRY_RETURN.with(|v| v.set(value));
 }
 
-/// Appelée par __ocara_try_exec pour vérifier si le handler a fait return
-fn handler_has_returned() -> (bool, i64) {
-    HANDLER_RETURN.with(|state| {
-        let has_ret = state.has_returned.get();
-        let val = state.return_value.get();
-        // Reset pour le prochain try/on
-        state.has_returned.set(false);
-        state.return_value.set(0);
-        (has_ret, val)
-    })
+#[unsafe(no_mangle)]
+pub extern "C" fn __ocara_try_take_return() -> i64 {
+    TRY_RETURN.with(|v| v.replace(0))
 }
 
 /// Pousse un nouveau `TryFrame` sur `TRY_STACK` et retourne un pointeur vers
@@ -2764,8 +2759,8 @@ pub extern "C" fn __ocara_try_exit() {
     });
 }
 
-/// Exécute un bloc try/on. Retourne 0 si le bloc se termine normalement,
-/// ou (1 + return_value) si le handler a fait un return explicite.
+/// Exécute un bloc try/on et retourne le code de sortie du corps, ou du
+/// gestionnaire si une exception a été levée (voir `TRY_NORMAL`).
 #[unsafe(no_mangle)]
 pub extern "C" fn __ocara_try_exec(body_fn: i64, handler_fn: i64) -> i64 {
     TRY_STACK.with(|stack| {
@@ -2797,14 +2792,14 @@ pub extern "C" fn __ocara_try_exec(body_fn: i64, handler_fn: i64) -> i64 {
 
         if ret == 0 {
             // Exécution normale du corps try
-            unsafe {
-                let body: unsafe extern "C" fn() =
+            let code = unsafe {
+                let body: unsafe extern "C" fn() -> i64 =
                     std::mem::transmute(body_fn as usize);
-                body();
-            }
+                body()
+            };
             // Sortie normale : dépiler
             stack.depth.set(depth);
-            0  // Pas de return du handler
+            code
         } else {
             // longjmp déclenché : récupérer error_val et error_type
             let (ev, et) = unsafe {
@@ -2815,21 +2810,13 @@ pub extern "C" fn __ocara_try_exec(body_fn: i64, handler_fn: i64) -> i64 {
             // Appeler le gestionnaire
             let mut held = [0i64; 2];
             hold_raised(&mut held, ev, et);
-            unsafe {
-                let handler: unsafe extern "C" fn(i64, i64) =
+            let code = unsafe {
+                let handler: unsafe extern "C" fn(i64, i64) -> i64 =
                     std::mem::transmute(handler_fn as usize);
-                handler(ev, et);
-            }
+                handler(ev, et)
+            };
             release_held(&mut held);
-            
-            // Vérifier si le handler a fait un return explicite
-            let (has_returned, return_value) = handler_has_returned();
-            if has_returned {
-                // Encoder : 1 + valeur pour distinguer de 0 (pas de return)
-                return_value.wrapping_add(1)
-            } else {
-                0  // Pas de return
-            }
+            code
         }
     })
 }
@@ -2864,7 +2851,7 @@ fn release_raised(ev: i64, et: i64) {
 
 /// Version dynamique avec pointeur vers tableau de captures.
 /// Le body reçoit un *const i64 pointant vers le début du tableau.
-/// Retourne 0 si le bloc se termine normalement, ou (1 + return_value) si return.
+/// Retourne le code de sortie, comme `__ocara_try_exec`.
 #[unsafe(no_mangle)]
 pub extern "C" fn __ocara_try_exec_with_captures(
     body_fn: i64,
@@ -2896,13 +2883,13 @@ pub extern "C" fn __ocara_try_exec_with_captures(
 
         if ret == 0 {
             // Le body reçoit le pointeur vers les captures
-            unsafe {
-                let body: unsafe extern "C" fn(*const i64) =
+            let code = unsafe {
+                let body: unsafe extern "C" fn(*const i64) -> i64 =
                     std::mem::transmute(body_fn as usize);
-                body(captures_ptr);
-            }
+                body(captures_ptr)
+            };
             stack.depth.set(depth);
-            0  // Pas de return
+            code
         } else {
             let (ev, et) = unsafe {
                 ((*frame_ptr).error_val, (*frame_ptr).error_type)
@@ -2919,21 +2906,13 @@ pub extern "C" fn __ocara_try_exec_with_captures(
             // signature à 2 arguments appelée par `__ocara_try_exec`.
             let mut held = [0i64; 2];
             hold_raised(&mut held, ev, et);
-            unsafe {
-                let handler: unsafe extern "C" fn(i64, i64, *const i64) =
+            let code = unsafe {
+                let handler: unsafe extern "C" fn(i64, i64, *const i64) -> i64 =
                     std::mem::transmute(handler_fn as usize);
-                handler(ev, et, captures_ptr);
-            }
+                handler(ev, et, captures_ptr)
+            };
             release_held(&mut held);
-
-            // Vérifier si le handler a fait un return explicite
-            let (has_returned, return_value) = handler_has_returned();
-            if has_returned {
-                // Encoder : 1 + valeur
-                return_value.wrapping_add(1)
-            } else {
-                0  // Pas de return
-            }
+            code
         }
     })
 }

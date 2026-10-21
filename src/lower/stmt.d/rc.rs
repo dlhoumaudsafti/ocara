@@ -230,7 +230,13 @@ fn release_local(builder: &mut LowerBuilder, local: &RcLocal) {
     if builder.captured_vars.contains_key(&local.name) {
         return;
     }
-    if builder.heap_promoted.contains(&local.name) {
+    if let Some(field) = builder.gen_cells.get(&local.name).cloned() {
+        // Variable de générateur capturée : rend sa cellule, qui garde la
+        // valeur tant qu'une closure la tient.
+        let Some((cell, _)) = builder.load_local(&field) else { return };
+        release(builder, &cell);
+        clear_local(builder, &field);
+    } else if builder.heap_promoted.contains(&local.name) {
         // `self` d'une méthode est déclaré deux fois (simple, puis paramètre
         // compté) : sa cellule n'est rendue qu'une fois, par l'entrée comptée.
         if !local.counted && builder.rc_counted_locals.contains(&local.name) {
@@ -342,6 +348,19 @@ pub fn release_all(builder: &mut LowerBuilder) {
     crate::lower::stmt::ownership::emit_early_exit_drops(builder, 0);
     release_temps_from(builder, 0);
     release_scopes_from(builder, 0);
+}
+
+/// `raise` : rend ce que la sortie par `longjmp` abandonne — tout, sauf dans
+/// le corps d'un `try` abaissé en ligne (générateur), où seul ce qui a été
+/// ouvert depuis l'entrée du `try` est rendu.
+pub fn release_for_raise(builder: &mut LowerBuilder) {
+    let Some((blocks, temps, scopes)) = builder.gen_try_stack.last().map(|ctx| ctx.depths) else {
+        release_all(builder);
+        return;
+    };
+    crate::lower::stmt::ownership::emit_early_exit_drops(builder, blocks);
+    release_temps_from(builder, temps);
+    release_scopes_from(builder, scopes);
 }
 
 /// Saut vers la sortie anticipée du `main` runtime (`result`, `return` d'un
