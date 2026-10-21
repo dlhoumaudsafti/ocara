@@ -23,7 +23,15 @@ class SearchRepository implements SearchContract {
         var purchase_price:float = row["purchase_price"]
         var estimated_price:float = row["estimated_sale_price"]
         var maintenance_total:float = row["maintenance_total"]
-        return use CarSearchResultEntity(id, reference, brand, model, purchase_price, estimated_price, maintenance_total)
+        return use CarSearchResultEntity(
+            id,
+            reference,
+            brand,
+            model,
+            purchase_price,
+            estimated_price,
+            maintenance_total
+        )
     }
 
     private static method maintenanceFromRow(row:map<string, mixed>): MaintenanceSearchResultEntity {

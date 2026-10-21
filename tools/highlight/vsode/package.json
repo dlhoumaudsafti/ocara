@@ -70,6 +70,19 @@
           "default": true,
           "markdownDescription": "Analyse `ocaracs` automatique à l'affichage, l'ouverture et l'enregistrement d'un fichier `.oc` (règles : `.ocaracs` le plus proche du script, sinon valeurs par défaut d'ocaracs)."
         },
+        "ocara.lint.scope": {
+          "type": "string",
+          "enum": [
+            "workspace",
+            "folder"
+          ],
+          "default": "workspace",
+          "enumDescriptions": [
+            "Projets de l'espace de travail ; relancé à l'ouverture et à chaque enregistrement, résultat repris par la LED « Release ».",
+            "Dossier du script affiché, sous-dossiers compris ; lancement manuel uniquement (bouton ▶ de l'encart Linter)."
+          ],
+          "markdownDescription": "Périmètre de l'encart **Linter** : `workspace` (projets de l'espace de travail) ou `folder` (dossier du script affiché, sous-dossiers compris). En `folder`, lancement uniquement avec le bouton ▶ de l'encart, et la LED « Release » ne reprend pas ce résultat. N'affecte pas l'analyse `ocaracs` du fichier affiché (surlignage jaune)."
+        },
         "ocara.coverage.scope": {
           "type": "string",
           "enum": [
@@ -333,7 +346,7 @@
         "command": "ocara.linter.run",
         "title": "Analyser le style (ocaracs)",
         "category": "Ocara",
-        "icon": "$(refresh)"
+        "icon": "$(play)"
       },
       {
         "command": "ocara.linter.goto",

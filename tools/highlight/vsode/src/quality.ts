@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { parseToolMessages, runTool } from './toolrunner';
 import { coverageConfig, qualityRoots } from './projects';
-import { LinterProvider, LintSummary } from './linterview';
+import { LinterProvider, LintSummary, lintScope } from './linterview';
 import { CoverageProvider, CoverageSummary, coverageScope, formatPercent } from './coverage';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -54,6 +54,7 @@ export class QualityMonitor implements vscode.Disposable {
             vscode.workspace.onDidSaveTextDocument(doc => { if (doc.languageId === 'ocara') { this.schedule(); } }),
             vscode.workspace.onDidChangeConfiguration(e => {
                 if (e.affectsConfiguration('ocara.coverage.threshold') || e.affectsConfiguration('ocara.coverage.scope')) { this.setCoverage(this.coverageProvider.current()); }
+                if (e.affectsConfiguration('ocara.lint.scope')) { this.setLint(this.linter.current()); }
                 if (e.affectsConfiguration('ocara')) { this.schedule(); }
             }),
         );
@@ -66,7 +67,10 @@ export class QualityMonitor implements vscode.Disposable {
     private setLint(summary: LintSummary | undefined): void {
         if (!summary) {
             const enabled = vscode.workspace.getConfiguration('ocara').get<boolean>('lint.enable', true);
-            this.lint = { light: 'pending', detail: enabled ? 'analyse en cours…' : 'analyse désactivée (ocara.lint.enable)' };
+            const detail = lintScope() === 'folder'
+                ? 'non mesuré — linter en mode dossier (réglage « ocara.lint.scope » à « workspace » pour la LED)'
+                : enabled ? 'analyse en cours…' : 'analyse désactivée (ocara.lint.enable)';
+            this.lint = { light: 'pending', detail };
         } else if (summary.launchError) {
             this.lint = { light: 'ko', detail: `ocaracs introuvable (${summary.launchError})` };
         } else if (summary.roots.length === 0) {

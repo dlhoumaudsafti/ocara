@@ -8,6 +8,6 @@ interface SearchContract {
     private static method carFromRow(row:map<string, mixed>): CarSearchResultEntity
     private static method maintenanceFromRow(row:map<string, mixed>): MaintenanceSearchResultEntity
     public static method cars(term:string): array<CarSearchResultEntity>
-    public static method maintenances(term:string): array<MaintenanceSearchResultEntity> 
+    public static method maintenances(term:string): array<MaintenanceSearchResultEntity>
 
 }

@@ -1,21 +1,31 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { parseToolMessages, runTool, ToolMessage } from './toolrunner';
-import { gotoLine, qualityRoots } from './projects';
+import { activeScriptFolder, gotoLine, qualityRoots } from './projects';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Encart « Linter » (barre latérale Ocara) : avertissements d'`ocaracs` sur
 // les projets de l'espace de travail (racines des projets testés, sinon
 // dossiers de l'espace de travail — voir projects.ts), regroupés par
-// fichier ; un clic ouvre le fichier sur l'avertissement. Relancé à
-// l'ouverture, à chaque enregistrement d'un `.oc` (réglage
-// `ocara.lint.enable`) et par le bouton de l'encart. Son résultat alimente
-// le voyant Linter de la LED « Release » (quality.ts).
+// fichier ; un clic ouvre le fichier sur l'avertissement. Périmètre
+// (`ocara.lint.scope`) :
+//   - `workspace` : relancé à l'ouverture, à chaque enregistrement d'un `.oc`
+//     (`ocara.lint.enable`) et par le bouton ▶ ; résultat repris par le
+//     voyant Linter de la LED « Release » (quality.ts) ;
+//   - `folder` : dossier du script affiché (sous-dossiers compris), lancement
+//     manuel uniquement (bouton ▶) ; la LED ne reprend pas ce résultat.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DEBOUNCE_MS = 800;
 
+export type LintScope = 'workspace' | 'folder';
+
+export function lintScope(): LintScope {
+    return vscode.workspace.getConfiguration('ocara.lint').get<string>('scope', 'workspace') === 'folder' ? 'folder' : 'workspace';
+}
+
 export interface LintSummary {
+    scope: LintScope;
     roots: string[];
     /** Avertissements par fichier (chemins absolus), fichiers triés. */
     files: { file: string; messages: ToolMessage[] }[];
@@ -37,6 +47,8 @@ export class LinterProvider implements vscode.TreeDataProvider<Item>, vscode.Dis
     /** Nouveau résultat — voyant Linter. */
     readonly onResult = this.result.event;
     private summary: LintSummary | undefined;
+    /** Dernier résultat sur tout l'espace de travail (voyant de la LED). */
+    private workspaceSummary: LintSummary | undefined;
     private running = false;
     private pending = false;
     private timer: NodeJS.Timeout | undefined;
@@ -49,6 +61,7 @@ export class LinterProvider implements vscode.TreeDataProvider<Item>, vscode.Dis
             vscode.commands.registerCommand('ocara.linter.goto', (file: string, line: number, col: number) => gotoLine(file, line, col)),
             vscode.workspace.onDidSaveTextDocument(doc => { if (doc.languageId === 'ocara') { this.schedule(); } }),
             vscode.workspace.onDidChangeConfiguration(e => {
+                if (e.affectsConfiguration('ocara.lint.scope')) { this.summary = undefined; this.changed.fire(undefined); }
                 if (e.affectsConfiguration('ocara.lint') || e.affectsConfiguration('ocara.ocaracsPath') || e.affectsConfiguration('ocara.coverage')) { this.schedule(); }
             }),
         );
@@ -57,11 +70,12 @@ export class LinterProvider implements vscode.TreeDataProvider<Item>, vscode.Dis
     }
 
     current(): LintSummary | undefined {
-        return this.summary;
+        return this.workspaceSummary;
     }
 
+    /** Lancement automatique (périmètre `workspace`), regroupé. */
     private schedule(): void {
-        if (!vscode.workspace.getConfiguration('ocara').get<boolean>('lint.enable', true)) { return; }
+        if (lintScope() === 'folder' || !vscode.workspace.getConfiguration('ocara').get<boolean>('lint.enable', true)) { return; }
         clearTimeout(this.timer);
         this.timer = setTimeout(() => void this.run(), DEBOUNCE_MS);
     }
@@ -69,11 +83,21 @@ export class LinterProvider implements vscode.TreeDataProvider<Item>, vscode.Dis
     /** Une analyse à la fois ; une demande pendant l'analyse la relance à la fin. */
     async run(): Promise<void> {
         if (this.running) { this.pending = true; return; }
+        const scope = lintScope();
+        const folder = scope === 'folder' ? activeScriptFolder() : undefined;
+        if (scope === 'folder' && !folder) {
+            vscode.window.showWarningMessage('Ocara : ouvrez un script .oc — le linter analyse son dossier (réglage « ocara.lint.scope »).');
+            return;
+        }
         this.running = true;
         this.changed.fire(undefined);
         try {
-            this.summary = await lint(await qualityRoots());
-            this.result.fire(this.summary);
+            await vscode.workspace.saveAll(false);
+            this.summary = { ...(await lint(folder ? [folder] : await qualityRoots())), scope };
+            if (scope === 'workspace') {
+                this.workspaceSummary = this.summary;
+                this.result.fire(this.summary);
+            }
         } finally {
             this.running = false;
             this.changed.fire(undefined);
@@ -108,7 +132,8 @@ export class LinterProvider implements vscode.TreeDataProvider<Item>, vscode.Dis
                     return t;
                 }
                 const ok = s!.count === 0;
-                const t = new vscode.TreeItem(ok ? 'Aucun avertissement' : `${s!.count} avertissement(s)`);
+                const where = s!.scope === 'folder' ? `${vscode.workspace.asRelativePath(s!.roots[0])} : ` : '';
+                const t = new vscode.TreeItem(`${where}${ok ? 'aucun avertissement' : `${s!.count} avertissement(s)`}`);
                 t.description = `${s!.files.length} fichier(s) · ${s!.roots.length} dossier(s) analysé(s)`;
                 t.tooltip = s!.roots.map(r => vscode.workspace.asRelativePath(r)).join('\n');
                 t.iconPath = new vscode.ThemeIcon(ok ? 'pass' : 'warning', new vscode.ThemeColor(ok ? 'testing.iconPassed' : 'charts.yellow'));
@@ -140,7 +165,7 @@ export class LinterProvider implements vscode.TreeDataProvider<Item>, vscode.Dis
     }
 }
 
-async function lint(roots: string[]): Promise<LintSummary> {
+async function lint(roots: string[]): Promise<Omit<LintSummary, 'scope'>> {
     const byFile = new Map<string, ToolMessage[]>();
     // Projets imbriqués : un fichier analysé deux fois n'est compté qu'une fois.
     const seen = new Set<string>();

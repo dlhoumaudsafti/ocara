@@ -17,10 +17,18 @@ class CarSummaryRepository implements CarSummaryContract {
         var reference:string = row["reference"]
         var brand:string = row["brand"]
         var model:string = row["model"]
-        var purchasePrice:float = row["purchase_price"]
-        var estimatedPrice:float = row["estimated_sale_price"]
-        var maintenanceTotal:float = row["maintenance_total"]
-        return use CarSummaryEntity(id, reference, brand, model, purchasePrice, estimatedPrice, maintenanceTotal)
+        var purchase_price:float = row["purchase_price"]
+        var estimated_price:float = row["estimated_sale_price"]
+        var maintenance_total:float = row["maintenance_total"]
+        return use CarSummaryEntity(
+            id,
+            reference,
+            brand,
+            model,
+            purchase_price,
+            estimated_price,
+            maintenance_total
+        )
     }
 
     public static method all(): array<CarSummaryEntity> {

@@ -110,11 +110,14 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
       LED « Release » ne reprend pas ce résultat (voyant Coverage « non mesuré »).
 
     Dossiers et fichiers exclus : `ocara.coverage.exclude`.
-  - **Linter** : avertissements d'`ocaracs` sur les projets de l'espace de travail (racines des
-    projets testés, sinon dossiers de l'espace de travail), regroupés par fichier ; un clic ouvre le
-    fichier sur l'avertissement. Relancé à l'ouverture, à chaque enregistrement d'un `.oc`
-    (`ocara.lint.enable`) et par le bouton de l'encart ; son résultat alimente le voyant Linter de la
-    LED « Release ».
+  - **Linter** : avertissements d'`ocaracs` regroupés par fichier ; un clic ouvre le fichier sur
+    l'avertissement. Périmètre (`ocara.lint.scope`) :
+    - `workspace` : projets de l'espace de travail (racines des projets testés, sinon dossiers de
+      l'espace de travail). Relancé à l'ouverture, à chaque enregistrement d'un `.oc`
+      (`ocara.lint.enable`) et par le bouton ▶ ; ce résultat alimente le voyant Linter de la LED
+      « Release » ;
+    - `folder` : le **dossier du script affiché**, sous-dossiers compris — lancement **manuel**
+      uniquement (bouton ▶) ; la LED ne reprend pas ce résultat (voyant Linter « non mesuré »).
   - Chaque bloc peut être déplacé hors de la barre latérale (panneau du bas, autre barre) : son onglet
     porte alors son nom suivi d'« Ocara » (« Coverage - Ocara », « Linter - Ocara »…).
 - Les noms de type (`var x:Dog`, `extends Animal`, paramètres, `on e is FileException`) ont survol,
@@ -163,6 +166,7 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
 | `ocara.ocaracsPath` | `ocaracs` | Chemin d'ocaracs ou commande pour le lancer (mêmes règles). |
 | `ocara.ocaraunitPath` | `ocaraunit` | Chemin d'ocaraunit ou commande pour le lancer (mêmes règles). Le compilateur de `ocara.compilerPath` lui est transmis (`OCARA`). |
 | `ocara.lint.enable` | `true` | Active l'analyse ocaracs automatique. |
+| `ocara.lint.scope` | `workspace` | Périmètre de l'encart Linter : `workspace` (projets de l'espace de travail) ou `folder` (dossier du script affiché, lancement manuel uniquement). |
 | `ocara.coverage.scope` | `workspace` | Périmètre : `workspace` (tout l'espace de travail) ou `folder` (dossier du script affiché, lancement manuel uniquement). |
 | `ocara.coverage.auto` | `true` | Lance les tests et la couverture à l'ouverture et à l'enregistrement d'un `.oc` (périmètre `workspace`). |
 | `ocara.coverage.exclude` | `[]` | Dossiers ou fichiers exclus de la couverture et des voyants (`core`, `main.oc`, `context/car/infra/db`), comparés par segments de chemin depuis la racine de chaque projet. |

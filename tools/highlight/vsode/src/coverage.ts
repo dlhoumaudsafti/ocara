@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { ocaraOutput, resolveCommand, runTool } from './toolrunner';
-import { coverageConfig, exclusions, findProjects, gotoLine, Project } from './projects';
+import { activeScriptFolder, coverageConfig, exclusions, findProjects, gotoLine, Project } from './projects';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Encart « Coverage » (barre latérale Ocara) : tests de chaque projet de
@@ -150,7 +150,7 @@ export class CoverageProvider implements vscode.TreeDataProvider<Item>, vscode.D
     async run(): Promise<void> {
         if (this.running) { this.pending = true; return; }
         const scope = coverageScope();
-        const folder = scope === 'folder' ? activeFolder() : undefined;
+        const folder = scope === 'folder' ? activeScriptFolder() : undefined;
         if (scope === 'folder' && !folder) {
             vscode.window.showWarningMessage('Ocara : ouvrez un script .oc — la couverture porte sur son dossier (réglage « ocara.coverage.scope »).');
             return;
@@ -275,12 +275,6 @@ export class CoverageProvider implements vscode.TreeDataProvider<Item>, vscode.D
 }
 
 // ── Exécution d'ocaraunit et fusion ──────────────────────────────────────────
-
-/** Dossier du script Ocara affiché. */
-function activeFolder(): string | undefined {
-    const doc = vscode.window.activeTextEditor?.document;
-    return doc?.languageId === 'ocara' && doc.uri.scheme === 'file' ? path.dirname(doc.uri.fsPath) : undefined;
-}
 
 function isWithin(child: string, parent: string): boolean {
     const rel = path.relative(parent, child);

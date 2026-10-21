@@ -92,3 +92,9 @@ export async function gotoLine(file: string, line: number, col?: number): Promis
     editor.selection = new vscode.Selection(position, position);
     editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
 }
+
+/** Dossier du script Ocara affiché (périmètre `folder` du linter et de la couverture). */
+export function activeScriptFolder(): string | undefined {
+    const doc = vscode.window.activeTextEditor?.document;
+    return doc?.languageId === 'ocara' && doc.uri.scheme === 'file' ? path.dirname(doc.uri.fsPath) : undefined;
+}

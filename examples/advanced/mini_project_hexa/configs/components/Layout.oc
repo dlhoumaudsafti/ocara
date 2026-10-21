@@ -24,7 +24,9 @@ class Layout extends HTMLComponent {
 <body>
   <nav-bar active="${active}">
   <main class="container">${content}</main>
-  <footer>Garage Ocara — gestion d'entretien de flotte, compilé nativement avec Ocara (SQLite + HTTPServer + Tauri)</footer>
+  <footer>
+    Garage Ocara - gestion d'entretien de flotte, compilé nativement avec Ocara
+  </footer>
 </body>
 </html>`
         })
