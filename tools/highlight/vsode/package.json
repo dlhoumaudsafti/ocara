@@ -69,10 +69,23 @@
           "default": true,
           "markdownDescription": "Analyse `ocaracs` automatique à l'affichage, l'ouverture et l'enregistrement d'un fichier `.oc` (règles : `.ocaracs` le plus proche du script, sinon valeurs par défaut d'ocaracs)."
         },
+        "ocara.coverage.scope": {
+          "type": "string",
+          "enum": [
+            "workspace",
+            "folder"
+          ],
+          "default": "workspace",
+          "enumDescriptions": [
+            "Tout l'espace de travail ; lancement automatique possible (ocara.coverage.auto), résultat repris par la LED « Release ».",
+            "Dossier du script affiché, sous-dossiers compris ; lancement manuel uniquement (bouton ▶ de l'encart Coverage)."
+          ],
+          "markdownDescription": "Périmètre de la couverture : `workspace` (tout l'espace de travail) ou `folder` (dossier du script affiché : tests du projet qui le contient, couverture limitée au dossier ; un dossier de tests ne lance que ses tests). En `folder`, lancement uniquement avec le bouton ▶ de l'encart Coverage, et la LED « Release » ne reprend pas ce résultat."
+        },
         "ocara.coverage.auto": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Lance automatiquement les tests et la couverture par ligne à l'ouverture de l'espace de travail et à l'enregistrement d'un fichier `.oc` (bouton et commande « Lancer les tests et la couverture » disponibles sinon)."
+          "markdownDescription": "Lance automatiquement les tests et la couverture à l'ouverture de l'espace de travail et à l'enregistrement d'un fichier `.oc` — périmètre `workspace` seulement (bouton ▶ et commande « Lancer les tests et la couverture » disponibles sinon)."
         },
         "ocara.coverage.exclude": {
           "type": "array",
@@ -303,7 +316,7 @@
         "command": "ocara.coverage.run",
         "title": "Lancer les tests et la couverture",
         "category": "Ocara",
-        "icon": "$(beaker)"
+        "icon": "$(play)"
       },
       {
         "command": "ocara.coverage.goto",

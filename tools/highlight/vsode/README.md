@@ -96,10 +96,19 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     couverture globale (lignes couvertes, PASS), les tests en échec (un clic ouvre la sortie « Ocara »),
     puis, par fichier, les plages de lignes non couvertes : un clic ouvre le fichier et place le curseur
     au début de la plage. Ces lignes sont **surlignées en rouge** dans l'éditeur (et dans la règle de
-    gauche). Lancement : bouton de l'encart ou commande **« Ocara : Lancer les tests et la
-    couverture »**, et automatiquement à l'ouverture de l'espace de travail et à chaque enregistrement
-    d'un `.oc` (réglage `ocara.coverage.auto`, demandes rapprochées regroupées). Dossiers et fichiers
-    exclus : `ocara.coverage.exclude`.
+    gauche) ; les fichiers entièrement couverts sont listés **en vert**. Périmètre
+    (`ocara.coverage.scope`) :
+    - `workspace` : tout l'espace de travail. Lancement : bouton ▶ de l'encart ou commande **« Ocara :
+      Lancer les tests et la couverture »**, et automatiquement à l'ouverture de l'espace de travail et
+      à chaque enregistrement d'un `.oc` (réglage `ocara.coverage.auto`, demandes rapprochées
+      regroupées). Ce résultat alimente le voyant Coverage de la LED « Release » ;
+    - `folder` : le **dossier du script affiché**, sous-dossiers compris — lancement **manuel**
+      uniquement (bouton ▶). Les tests du projet qui contient ce dossier sont lancés et la couverture
+      porte sur le dossier ; un dossier de tests (ou l'un de ses sous-dossiers) ne lance que ses tests,
+      couverture sur tout le projet ; un dossier parent de plusieurs projets les couvre entièrement. La
+      LED « Release » ne reprend pas ce résultat (voyant Coverage « non mesuré »).
+
+    Dossiers et fichiers exclus : `ocara.coverage.exclude`.
 - Les noms de type (`var x:Dog`, `extends Animal`, paramètres, `on e is FileException`) ont survol,
   définition et références comme les autres noms.
 - **Documentation embarquée** : `docs/EBNF.md` et `docs/builtins/*.md` du dépôt sont copiés dans
@@ -146,7 +155,8 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
 | `ocara.ocaracsPath` | `ocaracs` | Chemin d'ocaracs ou commande pour le lancer (mêmes règles). |
 | `ocara.ocaraunitPath` | `ocaraunit` | Chemin d'ocaraunit ou commande pour le lancer (mêmes règles). Le compilateur de `ocara.compilerPath` lui est transmis (`OCARA`). |
 | `ocara.lint.enable` | `true` | Active l'analyse ocaracs automatique. |
-| `ocara.coverage.auto` | `true` | Lance les tests et la couverture à l'ouverture et à l'enregistrement d'un `.oc`. |
+| `ocara.coverage.scope` | `workspace` | Périmètre : `workspace` (tout l'espace de travail) ou `folder` (dossier du script affiché, lancement manuel uniquement). |
+| `ocara.coverage.auto` | `true` | Lance les tests et la couverture à l'ouverture et à l'enregistrement d'un `.oc` (périmètre `workspace`). |
 | `ocara.coverage.exclude` | `[]` | Dossiers ou fichiers exclus de la couverture et des voyants (`core`, `main.oc`, `context/car/infra/db`), comparés par segments de chemin depuis la racine de chaque projet. |
 | `ocara.coverage.projects` | `[]` | Dossiers de tests à lancer, relatifs à l'espace de travail ; vide : détection automatique. |
 | `ocara.coverage.threshold` | `100` | Couverture (%) à partir de laquelle le voyant Coverage est vert. |

@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { parseToolMessages, runTool } from './toolrunner';
 import { coverageConfig, findProjects } from './projects';
-import { CoverageProvider, CoverageSummary, formatPercent } from './coverage';
+import { CoverageProvider, CoverageSummary, coverageScope, formatPercent } from './coverage';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Voyants de qualité « prêt pour la release » de l'espace de travail, sur les
@@ -51,7 +51,7 @@ export class QualityMonitor implements vscode.Disposable {
             this.coverageProvider.onResult(summary => this.setCoverage(summary)),
             vscode.workspace.onDidSaveTextDocument(doc => { if (doc.languageId === 'ocara') { this.schedule(); } }),
             vscode.workspace.onDidChangeConfiguration(e => {
-                if (e.affectsConfiguration('ocara.coverage.threshold')) { this.setCoverage(this.coverageProvider.current()); }
+                if (e.affectsConfiguration('ocara.coverage.threshold') || e.affectsConfiguration('ocara.coverage.scope')) { this.setCoverage(this.coverageProvider.current()); }
                 if (e.affectsConfiguration('ocara')) { this.schedule(); }
             }),
         );
@@ -74,7 +74,10 @@ export class QualityMonitor implements vscode.Disposable {
         const threshold = coverageConfig().get<number>('threshold', 100);
         if (!summary) {
             const auto = coverageConfig().get<boolean>('auto', true);
-            this.coverage = { light: 'pending', detail: auto ? 'analyse en cours…' : 'non mesurée — lancer les tests et la couverture' };
+            const detail = coverageScope() === 'folder'
+                ? 'non mesurée — couverture en mode dossier (réglage « ocara.coverage.scope » à « workspace » pour la LED)'
+                : auto ? 'analyse en cours…' : 'non mesurée — lancer les tests et la couverture';
+            this.coverage = { light: 'pending', detail };
         } else if (summary.projects === 0) {
             this.coverage = { light: 'ko', detail: 'aucun projet testé (dossier tests/ avec des *Test.oc)' };
         } else if (summary.fail > 0 || summary.errors > 0 || summary.failedProjects.length > 0) {
