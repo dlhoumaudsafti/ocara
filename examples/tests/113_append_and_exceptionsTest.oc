@@ -1,0 +1,62 @@
+architecture permissive
+
+import ocara.UnitTest
+
+// `s += `…`` écrit au bout de `s` (copie partagée intacte, gabarit qui relit
+// `s`) ; filtre `on e is` sur la classe levée ou un parent ; variable
+// capturée par un `try` (voir runtime/src/str_append.rs, lib.rs).
+
+class AppError extends Exception {
+    init(message:string, code:int) {
+        parent::init(message, code)
+    }
+}
+
+class DeepError extends AppError {
+    init(message:string) {
+        parent::init(message, 7)
+    }
+}
+
+class Test113AppendAndExceptions extends UnitTest {
+
+    public method templateAppendTest(): int {
+        var s:string = "a"
+        var kept:string = s
+        for i in 0 until 3 {
+            s += `-${i}`
+        }
+        s += `|${s}|`
+        self::assertEquals("a", kept)
+        self::assertEquals("a-0-1-2|a-0-1-2|", s)
+        var big:string = ""
+        for i in 0 until 5000 {
+            big += `${i},`
+        }
+        self::assertEquals(23890, big.len())
+        return 0
+    }
+
+    public method exceptionFiltersTest(): int {
+        var exact:int = 0
+        var inherited:int = 0
+        var codes:int = 0
+        for i in 0 until 10 {
+            try {
+                raise use AppError("x", i)
+            } on e is AppError {
+                exact += 1
+                codes += e.code
+            }
+            try {
+                raise use DeepError("y")
+            } on e is AppError {
+                inherited += 1
+            }
+        }
+        self::assertEquals(10, exact)
+        self::assertEquals(10, inherited)
+        self::assertEquals(45, codes)
+        return 0
+    }
+}

@@ -1,35 +1,37 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 394" width="720" height="394" role="img" aria-labelledby="t d">
 <title id="t">Démarrage d'un programme vide (ms)</title>
-<desc id="d">Durée moyenne d'un lancement sur 50 (make perf-extra) ; plus court = plus rapide. C++ 0,83; C 0,85; Ocara 0,96; Rust 1,01; Perl 2,03; Python 11,83; PHP 18,83.</desc>
+<desc id="d">Durée moyenne d'un lancement sur 50 (make perf-extra) ; plus court = plus rapide. C++ 0,76; C 0,77; Rust 0,88; Ocara 0,95; Perl 1,86; Python 11,45; PHP 19,81.</desc>
 <style>svg { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; } .surface { fill: #fcfcfb; } .ink { fill: #0b0b0b; } .ink2 { fill: #52514e; } .grid { stroke: #e4e3df; } .ref { stroke: #52514e; } .s0 { fill: #2a78d6; } .s1 { fill: #eb6834; } .s2 { fill: #1baf7a; } .s3 { fill: #eda100; } .s4 { fill: #e87ba4; } .s5 { fill: #008300; } .s6 { fill: #6250d6; } @media (prefers-color-scheme: dark) { .surface { fill: #1a1a19; } .ink { fill: #f0efec; } .ink2 { fill: #c3c2b7; } .grid { stroke: #3a3936; } .ref { stroke: #c3c2b7; } .s0 { fill: #3987e5; } .s1 { fill: #d95926; } .s2 { fill: #199e70; } .s3 { fill: #c98500; } .s4 { fill: #d55181; } .s5 { fill: #008300; } .s6 { fill: #9085e9; } }</style>
 <rect class="surface" width="720" height="394" rx="8"/>
 <text class="ink" x="24" y="30" font-size="16" font-weight="600">Démarrage d'un programme vide (ms)</text>
 <text class="ink2" x="24" y="50" font-size="12">Durée moyenne d'un lancement sur 50 (make perf-extra) ; plus court = plus rapide</text>
 <line class="grid" x1="150.0" y1="58" x2="150.0" y2="322" stroke-width="1"/>
 <text class="ink2" x="150.0" y="338" font-size="11" text-anchor="middle">0</text>
-<line class="grid" x1="362.4" y1="58" x2="362.4" y2="322" stroke-width="1"/>
-<text class="ink2" x="362.4" y="338" font-size="11" text-anchor="middle">10</text>
-<line class="ref" x1="170.4" y1="54" x2="170.4" y2="326" stroke-width="1.5" stroke-dasharray="4 3"/>
+<line class="grid" x1="351.9" y1="58" x2="351.9" y2="322" stroke-width="1"/>
+<text class="ink2" x="351.9" y="338" font-size="11" text-anchor="middle">10</text>
+<line class="grid" x1="553.8" y1="58" x2="553.8" y2="322" stroke-width="1"/>
+<text class="ink2" x="553.8" y="338" font-size="11" text-anchor="middle">20</text>
+<line class="ref" x1="169.2" y1="54" x2="169.2" y2="326" stroke-width="1.5" stroke-dasharray="4 3"/>
 <text class="ink" x="138" y="80.0" font-size="13" text-anchor="end">C++</text>
-<path class="s5" d="M150,64 h13.6 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-13.6 z"><title>C++ : 0,83 ms</title></path>
-<text class="ink" x="182.4" y="80.0" font-size="12">0,83 ms</text>
+<path class="s5" d="M150,64 h11.3 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-11.3 z"><title>C++ : 0,76 ms</title></path>
+<text class="ink" x="181.2" y="80.0" font-size="12">0,76 ms</text>
 <text class="ink" x="138" y="118.0" font-size="13" text-anchor="end">C</text>
-<path class="s4" d="M150,102 h14.1 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-14.1 z"><title>C : 0,85 ms</title></path>
-<text class="ink" x="182.4" y="118.0" font-size="12">0,85 ms</text>
-<text class="ink" x="138" y="156.0" font-size="13" text-anchor="end" font-weight="600">Ocara</text>
-<path class="s0" d="M150,140 h16.4 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-16.4 z"><title>Ocara : 0,96 ms</title></path>
-<text class="ink" x="178.4" y="156.0" font-size="12" font-weight="600">0,96 ms</text>
-<text class="ink" x="138" y="194.0" font-size="13" text-anchor="end">Rust</text>
-<path class="s6" d="M150,178 h17.5 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-17.5 z"><title>Rust : 1,01 ms</title></path>
-<text class="ink" x="182.4" y="194.0" font-size="12">1,01 ms</text>
+<path class="s4" d="M150,102 h11.5 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-11.5 z"><title>C : 0,77 ms</title></path>
+<text class="ink" x="181.2" y="118.0" font-size="12">0,77 ms</text>
+<text class="ink" x="138" y="156.0" font-size="13" text-anchor="end">Rust</text>
+<path class="s6" d="M150,140 h13.8 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-13.8 z"><title>Rust : 0,88 ms</title></path>
+<text class="ink" x="181.2" y="156.0" font-size="12">0,88 ms</text>
+<text class="ink" x="138" y="194.0" font-size="13" text-anchor="end" font-weight="600">Ocara</text>
+<path class="s0" d="M150,178 h15.2 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-15.2 z"><title>Ocara : 0,95 ms</title></path>
+<text class="ink" x="177.2" y="194.0" font-size="12" font-weight="600">0,95 ms</text>
 <text class="ink" x="138" y="232.0" font-size="13" text-anchor="end">Perl</text>
-<path class="s3" d="M150,216 h39.1 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-39.1 z"><title>Perl : 2,03 ms</title></path>
-<text class="ink" x="201.1" y="232.0" font-size="12">2,03 ms</text>
+<path class="s3" d="M150,216 h33.6 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-33.6 z"><title>Perl : 1,86 ms</title></path>
+<text class="ink" x="195.6" y="232.0" font-size="12">1,86 ms</text>
 <text class="ink" x="138" y="270.0" font-size="13" text-anchor="end">Python</text>
-<path class="s1" d="M150,254 h247.3 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-247.3 z"><title>Python : 11,83 ms</title></path>
-<text class="ink" x="409.3" y="270.0" font-size="12">11,83 ms</text>
+<path class="s1" d="M150,254 h227.2 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-227.2 z"><title>Python : 11,45 ms</title></path>
+<text class="ink" x="389.2" y="270.0" font-size="12">11,45 ms</text>
 <text class="ink" x="138" y="308.0" font-size="13" text-anchor="end">PHP</text>
-<path class="s2" d="M150,292 h396.0 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-396.0 z"><title>PHP : 18,83 ms</title></path>
-<text class="ink" x="558.0" y="308.0" font-size="12">18,83 ms</text>
+<path class="s2" d="M150,292 h396.0 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-396.0 z"><title>PHP : 19,81 ms</title></path>
+<text class="ink" x="558.0" y="308.0" font-size="12">19,81 ms</text>
 <text class="ink2" x="360.0" y="378" font-size="11" text-anchor="middle">ms (ligne pointillée : Ocara)</text>
 </svg>

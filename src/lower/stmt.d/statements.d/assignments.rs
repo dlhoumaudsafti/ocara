@@ -437,10 +437,18 @@ fn lower_string_append(builder: &mut LowerBuilder, target: &Expr, value: &Expr) 
     {
         return false;
     }
-    let tail = lower_expr(builder, right);
+    // Gabarit : ses parties écrites directement au bout de `s`
+    // (`__str_append_tpl`), sans chaîne temporaire.
+    let (func, args) = match right.as_ref() {
+        Expr::Template { parts, .. } => {
+            let (pairs, count) = crate::lower::expr::lower_template_parts(builder, parts);
+            ("__str_append_tpl", vec![pairs, count])
+        }
+        _ => ("__str_append", vec![lower_expr(builder, right)]),
+    };
     let Some((current, _)) = builder.load_local(name) else { return false };
     let joined = builder.new_value();
-    builder.emit(Inst::Call { dest: Some(joined.clone()), func: "__str_append".into(), args: vec![current, tail], ret_ty: IrType::Ptr });
+    builder.emit(Inst::Call { dest: Some(joined.clone()), func: func.into(), args: [vec![current], args].concat(), ret_ty: IrType::Ptr });
     builder.store_local(name, joined);
     true
 }

@@ -232,3 +232,8 @@ pub(crate) unsafe fn alloc_zeroed(layout: Layout) -> *mut u8 {
 pub(crate) unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
     unsafe { GLOBAL.dealloc(ptr, layout) }
 }
+
+#[inline]
+pub(crate) unsafe fn realloc(ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+    unsafe { GLOBAL.realloc(ptr, layout, new_size) }
+}

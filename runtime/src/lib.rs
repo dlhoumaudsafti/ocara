@@ -2886,6 +2886,11 @@ pub(crate) unsafe fn free_cell(cell_ptr: i64) {
 /// Lit la valeur d'une cellule de capture sous verrou.
 #[unsafe(no_mangle)]
 pub extern "C" fn __locked_cell_get(cell_ptr: i64) -> i64 {
+    // Un seul thread exécute du code Ocara : aucun autre ne peut toucher la
+    // cellule, le verrou est inutile (comme `containers::locked`).
+    if !rc::is_multi_threaded() {
+        return unsafe { *(cell_ptr as *const i64) };
+    }
     unsafe {
         cell_mutex_platform::lock(cell_mutex(cell_ptr));
         let val = *(cell_ptr as *const i64);
@@ -2897,6 +2902,10 @@ pub extern "C" fn __locked_cell_get(cell_ptr: i64) -> i64 {
 /// Écrit la valeur d'une cellule de capture sous verrou.
 #[unsafe(no_mangle)]
 pub extern "C" fn __locked_cell_set(cell_ptr: i64, val: i64) {
+    if !rc::is_multi_threaded() {
+        unsafe { *(cell_ptr as *mut i64) = val };
+        return;
+    }
     unsafe {
         cell_mutex_platform::lock(cell_mutex(cell_ptr));
         *(cell_ptr as *mut i64) = val;
@@ -3442,7 +3451,9 @@ pub extern "C" fn __ocara_type_matches(stored: i64, filter: i64) -> i64 {
     unsafe {
         let s = ptr_to_str(stored);
         let f = ptr_to_str(filter);
-        if s.split('|').any(|link| link == f) { 1 } else { 0 }
+        // Classe levée elle-même (premier maillon) : sans découper la chaîne.
+        let first = s.strip_prefix(f).is_some_and(|rest| rest.is_empty() || rest.starts_with('|'));
+        if first || s.split('|').any(|link| link == f) { 1 } else { 0 }
     }
 }
 

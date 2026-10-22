@@ -6,7 +6,7 @@
 
 use std::alloc::Layout;
 
-use crate::alloc_cache::{alloc, alloc_zeroed, dealloc};
+use crate::alloc_cache::{alloc, alloc_zeroed, dealloc, realloc};
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering};
 use std::sync::Mutex;
 
@@ -188,6 +188,24 @@ pub(crate) unsafe fn alloc_block(payload: usize, aux: i64, tag: i64, zeroed: boo
     }
 }
 
+/// Redimensionne le bloc d'une valeur non partagée, en-tête conservé (un
+/// gros bloc est agrandi sur place par le système, sans copie). `None`
+/// pendant une collecte concurrente, qui peut encore lire l'ancien bloc.
+pub(crate) unsafe fn realloc_block(val: i64, payload: usize, new_payload: usize) -> Option<i64> {
+    if EPOCH.load(Ordering::SeqCst) != 0 {
+        return None;
+    }
+    unsafe {
+        let kind = crate::leak::Kind::Tag(*((val - 8) as *const i64));
+        let raw = realloc((val - HEADER as i64) as *mut u8, block_layout(payload), HEADER + new_payload);
+        assert!(!raw.is_null(), "ocara_runtime: OOM");
+        let grown = raw as i64 + HEADER as i64;
+        crate::leak::on_free(kind, val);
+        crate::leak::on_alloc(kind, grown);
+        Some(grown)
+    }
+}
+
 #[inline]
 pub(crate) unsafe fn free_block(val: i64, payload: usize) {
     unsafe {
@@ -246,7 +264,7 @@ pub(crate) unsafe fn finalize_object(val: i64) {
         for (i, &kind) in object_mask(val).iter().enumerate() {
             let field = (val + 8 * i as i64) as *mut i64;
             match kind {
-                b'0' | b'1' => continue,
+                b'0' | b'1' | b's' => continue,
                 b'X' => crate::mutex::Mutex_destroy(val),
                 b'T' => crate::thread::Thread_detach(val),
                 _ if *field == 0 => continue,
@@ -382,7 +400,8 @@ pub(crate) unsafe fn for_each_child(val: i64, k: Kind, f: &mut dyn FnMut(i64)) {
             }
             Kind::Object => {
                 for (i, &b) in object_mask(val).iter().enumerate() {
-                    if b == b'1' { f(*((val + 8 * i as i64) as *const i64)) }
+                    // `1` valeur comptée, `s` chaîne (voir `rc_layout.rs`).
+                    if b == b'1' || b == b's' { f(*((val + 8 * i as i64) as *const i64)) }
                 }
             }
             Kind::Exception => {

@@ -291,7 +291,7 @@ pub fn lower_map_key(builder: &mut LowerBuilder, key: &Expr) -> MapKeyArg {
 
 /// Parties d'un gabarit : paires (genre, valeur) rangées sur la pile, et
 /// leur nombre (voir `__str_build`).
-fn lower_template_parts(builder: &mut LowerBuilder, parts: &[TemplatePartExpr]) -> (Value, Value) {
+pub fn lower_template_parts(builder: &mut LowerBuilder, parts: &[TemplatePartExpr]) -> (Value, Value) {
     let pairs = builder.new_value();
     builder.emit(Inst::AllocaWords { dest: pairs.clone(), words: (2 * parts.len()).max(1) as u32 });
     for (i, part) in parts.iter().enumerate() {

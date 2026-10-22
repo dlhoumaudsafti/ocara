@@ -1,6 +1,7 @@
 //! Descripteurs de classe du comptage de références
-//! (docs/roadmap.d/memoire-refcount.md) : un masque `'0'`/`'1'` par classe,
-//! un caractère par champ, `'1'` pour un champ qui porte une valeur tas.
+//! (docs/roadmap.d/memoire-refcount.md) : un masque par classe, un caractère
+//! par champ — `'1'` pour un champ qui porte une valeur tas, `'s'` pour une
+//! chaîne (comptée, mais jamais dans un cycle), `'0'` sinon.
 //! Le masque, interné comme chaîne littérale, est rangé dans l'en-tête de
 //! chaque instance par `__alloc_class_obj`.
 
@@ -45,7 +46,9 @@ fn is_opaque(layout: &[(String, crate::ir::types::IrType)]) -> bool {
     matches!(layout, [(field, _)] if field == "__opaque_ptr")
 }
 
-/// Un caractère par champ : `1` valeur comptée, `0` rien à faire, une
+/// Un caractère par champ : `1` valeur comptée, `s` chaîne (comptée, sans
+/// enfant : un objet dont les seuls champs comptés sont des chaînes ne passe
+/// jamais par le tampon des racines de cycle), `0` rien à faire, une
 /// lettre pour un handle de ressource fermé avec l'objet (voir
 /// `rc::finalize_object`). Les classes builtin opaques qui se ferment
 /// elles-mêmes : `X` (`Mutex`), `T` (`Thread`).
@@ -60,9 +63,10 @@ fn mask_for(module: &IrModule, class: &str, objects: &HashSet<String>) -> String
     layout.iter().map(|(field, _)| {
         let declared = types.and_then(|types| types.iter().find(|(f, _)| f == field));
         match declared {
+            Some((_, Type::String)) => 's',
             Some((_, ty)) if is_counted(ty, objects) => '1',
             Some((_, ty)) => resource_letter(ty).unwrap_or('0'),
-            None if is_builtin_exception_string(module, class, field) => '1',
+            None if is_builtin_exception_string(module, class, field) => 's',
             None => '0',
         }
     }).collect()

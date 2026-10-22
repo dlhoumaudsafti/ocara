@@ -35,19 +35,15 @@ unsafe fn set_len(val: i64, len: usize, exp: u32) {
     unsafe { *((val - 16) as *mut i64) = len as i64 | ((exp as i64) << CAPACITY_SHIFT) }
 }
 
-/// Chaîne possédée contenant `parts` bout à bout, avec de la marge pour les
-/// ajouts suivants.
-unsafe fn alloc_with_room(parts: &[&[u8]]) -> i64 {
-    let len: usize = parts.iter().map(|p| p.len()).sum();
+/// Chaîne possédée de `head` puis `extra` octets à remplir par l'appelant
+/// (NUL déjà posé), avec de la marge pour les ajouts suivants.
+unsafe fn alloc_with_room(head: &[u8], extra: usize) -> i64 {
+    let len = head.len() + extra;
     let exp = (len + 1).max(MIN_CAPACITY).next_power_of_two().trailing_zeros();
     unsafe {
         let val = rc::alloc_block(1 << exp, 0, TAG_STRING_OWNED, false);
-        let mut at = val as *mut u8;
-        for part in parts {
-            std::ptr::copy_nonoverlapping(part.as_ptr(), at, part.len());
-            at = at.add(part.len());
-        }
-        *at = 0;
+        std::ptr::copy_nonoverlapping(head.as_ptr(), val as *mut u8, head.len());
+        *(val as *mut u8).add(len) = 0;
         set_len(val, len, exp);
         val
     }
@@ -68,32 +64,58 @@ pub extern "C" fn __str_append(s: i64, b: i64) -> i64 {
         tail_owned = crate::val_to_string(b);
         tail_owned.as_bytes()
     };
-    if s != b && is_owned_string(s) && unsafe { rc::count_of(rc::word(s, rc::Kind::String)) } == 1 {
-        unsafe {
-            let len = str_len(s);
-            let needed = len + tail.len() + 1;
-            if needed <= str_payload(s) && *((s - 16) as *const i64) >> CAPACITY_SHIFT != 0 {
-                let exp = (*((s - 16) as *const i64) >> CAPACITY_SHIFT) as u32;
-                std::ptr::copy_nonoverlapping(tail.as_ptr(), (s as *mut u8).add(len), tail.len());
-                *(s as *mut u8).add(len + tail.len()) = 0;
-                set_len(s, len + tail.len(), exp);
-                return s;
-            }
-            let grown = alloc_with_room(&[crate::ptr_to_str(s).as_bytes(), tail]);
-            rc::release(s);
-            return grown;
-        }
+    // `s + s` : la queue est lue dans `s`, qui ne doit pas bouger avant la copie.
+    unsafe { append_with(s, tail.len(), s != b, |out| out.copy_from_slice(tail)) }
+}
+
+/// `s += `…${x}…`` : les parties du gabarit (voir `__str_build`) écrites
+/// directement au bout de `s`, sans chaîne temporaire pour le gabarit.
+#[unsafe(no_mangle)]
+pub extern "C" fn __str_append_tpl(s: i64, parts: *const i64, n: i64) -> i64 {
+    let pairs = unsafe { std::slice::from_raw_parts(parts as *const [i64; 2], n.max(0) as usize) };
+    if let Some(len) = plain_len(pairs) {
+        // `s += `${s}…`` : une partie lue dans `s`, qui ne doit pas bouger.
+        let in_place = !pairs.iter().any(|&[_, v]| v == s);
+        return unsafe { append_with(s, len, in_place, |out| write_plain(pairs, out)) };
     }
-    let head_owned;
-    let head: &[u8] = if crate::typecheck::__is_string(s) != 0 {
-        unsafe { crate::ptr_to_str(s).as_bytes() }
-    } else {
-        head_owned = crate::val_to_string(s);
-        head_owned.as_bytes()
-    };
-    let joined = unsafe { alloc_with_room(&[head, tail]) };
-    unsafe { rc::release(s) }
-    joined
+    with_template_text(parts, n, |text| unsafe { append_with(s, text.len(), true, |out| out.copy_from_slice(text.as_bytes())) })
+}
+
+/// `s` (référence reprise) suivie de `extra` octets écrits par `fill`. Une
+/// chaîne possédée non partagée (et `in_place`) est allongée sur place :
+/// dans sa capacité, sinon par agrandissement du bloc (capacité doublée) ;
+/// sinon une nouvelle chaîne reçoit `s` puis la suite, et `s` est relâchée.
+unsafe fn append_with(s: i64, extra: usize, in_place: bool, fill: impl FnOnce(&mut [u8])) -> i64 {
+    unsafe {
+        if in_place && is_owned_string(s) && rc::count_of(rc::word(s, rc::Kind::String)) == 1 {
+            let len = str_len(s);
+            let needed = len + extra + 1;
+            let exp = (*((s - 16) as *const i64) >> CAPACITY_SHIFT) as u32;
+            let target = if needed <= str_payload(s) && exp != 0 {
+                Some((s, exp))
+            } else {
+                let exp = needed.max(MIN_CAPACITY).next_power_of_two().trailing_zeros();
+                rc::realloc_block(s, str_payload(s), 1 << exp).map(|grown| (grown, exp))
+            };
+            if let Some((target, exp)) = target {
+                fill(std::slice::from_raw_parts_mut((target as *mut u8).add(len), extra));
+                *(target as *mut u8).add(len + extra) = 0;
+                set_len(target, len + extra, exp);
+                return target;
+            }
+        }
+        let head_owned;
+        let head: &[u8] = if crate::typecheck::__is_string(s) != 0 {
+            crate::ptr_to_str(s).as_bytes()
+        } else {
+            head_owned = crate::val_to_string(s);
+            head_owned.as_bytes()
+        };
+        let joined = alloc_with_room(head, extra);
+        fill(std::slice::from_raw_parts_mut((joined as *mut u8).add(head.len()), extra));
+        rc::release(s);
+        joined
+    }
 }
 
 /// Genre d'une partie de gabarit (voir `__str_build`).
@@ -141,29 +163,32 @@ pub(crate) fn int_len(n: i64) -> usize {
 #[unsafe(no_mangle)]
 pub extern "C" fn __str_build(parts: *const i64, n: i64) -> i64 {
     let parts = unsafe { std::slice::from_raw_parts(parts as *const [i64; 2], n.max(0) as usize) };
-    let mut len = 0;
-    for &[kind, v] in parts {
-        len += match kind {
-            PART_INT => int_len(v),
-            _ => match plain_part(kind, v) {
-                Some(text) => text.len(),
-                None => return build_formatted(parts),
-            },
-        };
+    match plain_len(parts) {
+        Some(len) => unsafe { crate::alloc_str_with(len, |out| write_plain(parts, out)) },
+        None => build_formatted(parts),
     }
-    unsafe {
-        crate::alloc_str_with(len, |out| {
-            let mut at = 0;
-            for &[kind, v] in parts {
-                let digits = &mut [0; 20];
-                let text = match kind {
-                    PART_INT => crate::int_text(v, digits),
-                    _ => plain_part(kind, v).unwrap_or_default(),
-                };
-                out[at..at + text.len()].copy_from_slice(text.as_bytes());
-                at += text.len();
-            }
-        })
+}
+
+/// Longueur d'un gabarit fait de chaînes, d'`int` et de `bool` ; `None` s'il
+/// a une partie à formater (flottant, tableau, valeur quelconque).
+fn plain_len(parts: &[[i64; 2]]) -> Option<usize> {
+    parts.iter().map(|&[kind, v]| match kind {
+        PART_INT => Some(int_len(v)),
+        _ => plain_part(kind, v).map(str::len),
+    }).sum()
+}
+
+/// Écrit dans `out` (de longueur `plain_len`) les parties d'un gabarit simple.
+fn write_plain(parts: &[[i64; 2]], out: &mut [u8]) {
+    let mut at = 0;
+    for &[kind, v] in parts {
+        let digits = &mut [0; 20];
+        let text = match kind {
+            PART_INT => crate::int_text(v, digits),
+            _ => plain_part(kind, v).unwrap_or_default(),
+        };
+        out[at..at + text.len()].copy_from_slice(text.as_bytes());
+        at += text.len();
     }
 }
 

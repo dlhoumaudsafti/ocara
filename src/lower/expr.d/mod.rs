@@ -15,6 +15,6 @@ mod tests;
 
 // Re-exports publics
 pub use lower::{lower_condition, lower_expr, lower_receiver};
-pub use lower::{lower_array_literal, lower_map_key, lower_map_literal, lower_typed_call_arg};
+pub use lower::{lower_array_literal, lower_map_key, lower_map_literal, lower_template_parts, lower_typed_call_arg};
 pub use lower::{hoist_closure_promotions, hoist_closure_promotions_in_exprs};
 pub use typeinfer::expr_ir_type_pub;

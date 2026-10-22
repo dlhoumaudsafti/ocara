@@ -222,3 +222,42 @@ fn join_writes_strings_ints_and_other_elements() {
         unsafe { rc::release(arr) }
     }
 }
+
+/// `s += `…`` (`__str_append_tpl`) : écrit au bout de `s` sans toucher une
+/// copie partagée, gabarit qui relit `s`, parties à formater, grande
+/// croissance (bloc agrandi sur place).
+#[test]
+fn template_append_writes_parts_after_the_string() {
+    use crate::str_append::{__str_append, __str_append_tpl};
+    let text = |v: i64| unsafe { ptr_to_str(v).to_string() };
+    let append = |s: i64, parts: &[[i64; 2]]| __str_append_tpl(s, parts.as_ptr() as *const i64, parts.len() as i64);
+    unsafe {
+        let mut s = __str_append(alloc_str(""), alloc_str("ab"));
+        let sep = alloc_str("-");
+        s = append(s, &[[0, sep], [1, 42], [3, 1]]);
+        assert_eq!(text(s), "ab-42true");
+
+        rc::retain(s);
+        let shared = s;
+        s = append(s, &[[1, 7]]);
+        assert_eq!(text(shared), "ab-42true", "la copie partagée ne change pas");
+        assert_eq!(text(s), "ab-42true7");
+        rc::release(shared);
+
+        s = append(s, &[[0, s], [0, sep]]);
+        assert_eq!(text(s), "ab-42true7ab-42true7-");
+
+        s = append(s, &[[2, 1.5f64.to_bits() as i64]]);
+        assert_eq!(text(s), "ab-42true7ab-42true7-1.5");
+
+        let mut big = alloc_str("");
+        for i in 0..100_000 {
+            big = append(big, &[[1, i], [0, sep]]);
+        }
+        let expected: String = (0..100_000).map(|i| format!("{}-", i)).collect();
+        assert_eq!(text(big), expected);
+        rc::release(big);
+        rc::release(s);
+        rc::release(sep);
+    }
+}
