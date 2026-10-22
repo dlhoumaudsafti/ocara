@@ -488,46 +488,95 @@ au niveau du module, la concaténation n'est plus faite en place et devient
 quadratique (la mesure ne finit pas). Un nom de fichier ne doit pas masquer
 un module (`yaml.py`, `http.py`).
 
+Mesures du 2026-10-22, une colonne par langage (`make perf`, `make perf-extra` ;
+minimum de 5 exécutions, au centième de seconde). En **gras**, le temps
+d'Ocara quand il est meilleur que Python, PHP et Perl, et chaque langage
+meilleur qu'Ocara ; <u>**souligné en gras**</u>, un résultat égal à celui
+d'Ocara ; « — » : mesure sautée pour ce langage (voir `ci/README.md`).
+
+| Mesure (temps en s, `make perf`) | Ocara | Python | PHP | Perl | C | C++ | Rust |
+|---|---|---|---|---|---|---|---|
+| `map<string,int>`, 10⁶ insertions + lectures (`map`) | 0,27 | 0,50 | **0,12** | 0,73 | — | 0,59 | 0,41 |
+| `s = s + "x"`, 10⁶ (`concat`) | **0,00** | 0,03 | 0,04 | 0,03 | <u>**0,00**</u> | <u>**0,00**</u> | <u>**0,00**</u> |
+| Exception levée et rattrapée, 10⁶ (`exc`) | **0,05** | 0,16 | 0,15 | 0,11 | — | 0,62 | 1,15 |
+| Graphe de 10⁶ objets liés, parcouru 5 fois (`cycles`) | **0,33** | 0,81 | 1,05 | 0,78 | **0,03** | **0,06** | **0,05** |
+| Gabarit à trois parties, 2·10⁶ (`tpl`) | **0,09** | 0,30 | 0,10 | 0,11 | <u>**0,09**</u> | <u>**0,09**</u> | **0,08** |
+| 10⁷ appels de méthode qui en appelle une autre (`meth`) | **0,01** | 0,79 | 0,24 | 1,40 | **0,00** | **0,00** | **0,00** |
+| Tableau : 2·10⁶ `push` + 2·10⁷ lectures (`arr`) | **0,05** | 1,17 | 0,16 | 0,43 | **0,01** | **0,02** | **0,01** |
+| `async` + `resolve`, 5·10⁴ (`asy`) | **0,10** | 0,23 | 0,21 | — | — | 1,15 | — |
+| Boucle flottante + `fib(30)` (`loop`) | **0,07** | 1,16 | 0,19 | 0,94 | **0,01** | **0,02** | **0,01** |
+| `String::split` (6 morceaux), 10⁶ (`split`) | 0,12 | 0,16 | **0,09** | 0,20 | **0,08** | 0,24 | 0,15 |
+| `String::replace` + `upper`, 10⁶ (`replace`) | 0,09 | 0,13 | **0,08** | 0,19 | **0,05** | **0,06** | **0,06** |
+| Parcours `for k has v in m`, 2·10⁶ paires (`mapiter`) | 0,05 | 0,11 | **0,03** | 0,19 | — | **0,00** | **0,00** |
+| `Array::join` + `intToStr`, 10⁶ (`join`) | 0,10 | 0,19 | **0,07** | 0,11 | **0,07** | **0,03** | **0,01** |
+| 10⁶ objets créés + appel de méthode (`objs`) | **0,07** | 0,63 | 0,18 | 0,65 | **0,02** | **0,03** | **0,03** |
+| Comparaisons de chaînes, 2·10⁷ (`strcmp`) | **0,17** | 0,69 | 0,22 | 0,53 | **0,02** | **0,00** | **0,00** |
+| `Array::sort`, 10⁶ entiers (`sort`) | **0,04** | 0,18 | 0,21 | 0,20 | 0,05 | 0,05 | **0,02** |
+| `JSON::encode` + `decode`, 2·10⁵ (`jsonb`) | 0,24 | 0,58 | **0,13** | 6,17 | — | — | — |
+| 2·10⁷ appels via une interface (`iface`) | **0,03** | 0,87 | 0,26 | 1,26 | **0,00** | **0,02** | **0,02** |
+| Closure qui modifie une capture, 10⁷ (`clos`) | **0,12** | 0,42 | 0,19 | 0,53 | — | **0,02** | **0,00** |
+| `map<int,int>`, 10⁶ insertions + lectures (`mapint`) | 0,11 | 0,18 | **0,03** | 0,65 | — | **0,04** | **0,09** |
+| Générateur `emit` + `for`, 10⁷ valeurs (`gen`) | **0,03** | 0,53 | 0,20 | 0,62 | — | **0,00** | **0,00** |
+| Arithmétique `mixed` / `int\|float`, 10⁷ (`mixed`) | 0,52 | 0,68 | **0,07** | **0,32** | **0,00** | **0,01** | **0,00** |
+| Objets après un `Thread` (comptes atomiques), 10⁶ (`mt`) | **0,09** | 0,53 | — | 0,32 | **0,03** | **0,04** | **0,04** |
+| Exception de classe levée et rattrapée, 10⁶ (`excls`) | 0,16 | 0,31 | <u>**0,16**</u> | 0,55 | — | 0,61 | 1,55 |
+| `Regex::test` + `replace`, 3·10⁵ (`regex`) | 0,06 | 0,35 | <u>**0,06**</u> | 0,11 | <u>**0,06**</u> | 0,13 | — |
+| Fichier de 2·10⁶ lignes écrit, relu, découpé (`file`) | 0,28 | 0,33 | **0,21** | **0,26** | **0,12** | **0,17** | **0,18** |
+| `strToInt` + `strToFloat`, 2·10⁶ (`conv`) | 0,17 | 0,58 | **0,15** | 0,32 | 0,23 | **0,16** | **0,12** |
+| `Array::contains`/`indexOf`/`slice`/`reverse`/`pop`, 2·10⁵ (`arrops`) | 0,22 | 1,18 | <u>**0,22**</u> | 5,15 | **0,06** | **0,04** | **0,04** |
+| `Array::sort`, 10⁶ chaînes (`sortstr`) | **0,31** | 0,35 | 0,38 | 0,63 | **0,22** | **0,20** | **0,23** |
+| `SQLite` : 2·10⁵ insertions + 2·10⁴ `queryOne` (`sqlite`) | 0,15 | 0,24 | **0,12** | — | **0,06** | **0,06** | — |
+| `YAML::decode`, 5·10⁴ entrées (`yamldec`) | **0,11** | 1,13 | — | — | — | — | — |
+| `DateTime::format`, 10⁶ (`date`) | 0,41 | 0,64 | **0,19** | 2,87 | **0,07** | **0,31** | — |
+| `Mutex` `lock`/`unlock` sans contention, 10⁷ (`mutex`) | **0,12** | 0,98 | — | 0,63 | **0,03** | **0,03** | **0,10** |
+
+| Mesure (mémoire résidente maximale en Mio, `make perf-extra`) | Ocara | Python | PHP | Perl | C | C++ | Rust |
+|---|---|---|---|---|---|---|---|
+| `map` | **79,3** | 115,2 | 101,3 | 197,2 | — | **75,4** | 128,9 |
+| `concat` | **5,3** | 10,2 | 33,0 | 7,0 | **2,6** | <u>**5,3**</u> | **2,9** |
+| `exc` | **3,3** | 9,3 | 32,3 | 5,9 | — | 3,6 | **2,0** |
+| `cycles` | **86,8** | 124,0 | 142,0 | 260,3 | **39,5** | **64,2** | **55,3** |
+| `tpl` | **4,2** | 9,1 | 32,2 | 5,9 | **1,5** | **3,6** | **2,1** |
+| `meth` | **3,4** | 9,3 | 32,0 | 5,9 | **1,5** | 3,5 | **2,0** |
+| `arr` | **18,4** | 85,7 | 63,6 | 69,9 | **16,7** | 19,3 | **17,2** |
+| `asy` | **4,0** | 19,4 | 32,2 | — | — | **3,9** | — |
+| `loop` | **3,2** | 9,3 | 32,0 | 6,2 | **1,6** | 3,8 | **2,0** |
+| `split` | **3,2** | 9,1 | 32,5 | 6,1 | **1,5** | 3,6 | **1,9** |
+| `replace` | **3,4** | 9,2 | 32,1 | 5,9 | **1,5** | 3,6 | **1,9** |
+| `mapiter` | **3,6** | 9,3 | 32,3 | 6,1 | — | 3,8 | **2,1** |
+| `join` | **3,4** | 9,2 | 32,3 | 5,7 | **1,6** | 3,6 | **1,9** |
+| `objs` | **73,0** | 154,5 | 133,5 | 312,7 | **39,5** | **41,3** | **39,8** |
+| `strcmp` | **3,4** | 9,2 | 32,2 | 6,0 | **1,6** | 3,5 | **2,1** |
+| `sort` | **27,3** | 60,6 | 87,6 | 97,8 | **16,4** | **10,8** | **17,0** |
+| `jsonb` | **7,1** | 10,2 | 32,2 | 7,8 | — | — | — |
+| `iface` | **4,4** | 9,3 | 32,3 | 5,9 | **1,5** | **3,5** | **2,0** |
+| `clos` | **4,2** | 9,1 | 32,2 | 5,9 | — | **3,5** | **2,0** |
+| `mapint` | 69,2 | 112,0 | **49,0** | 129,7 | — | **44,8** | **53,1** |
+| `gen` | **3,2** | 9,2 | 32,4 | 5,9 | — | 3,4 | **2,0** |
+| `mixed` | **3,2** | 9,1 | 32,3 | 6,0 | **1,5** | 3,5 | **2,0** |
+| `mt` | **72,7** | 125,0 | — | 214,7 | **39,7** | **49,2** | **40,1** |
+| `excls` | **4,4** | 9,3 | 32,5 | 6,0 | — | **3,8** | **1,9** |
+| `regex` | **5,7** | 10,3 | 32,4 | 5,9 | **1,7** | **3,7** | — |
+| `file` | **162,0** | 208,7 | 205,7 | 225,6 | **27,3** | **118,8** | **159,9** |
+| `conv` | **3,4** | 9,2 | 32,4 | 6,2 | **1,5** | 3,8 | **2,0** |
+| `arrops` | **3,3** | 9,2 | 32,2 | 6,3 | **1,5** | 3,4 | **2,0** |
+| `sortstr` | **56,9** | 76,1 | 116,9 | 189,5 | **47,2** | **33,7** | 66,7 |
+| `sqlite` | **9,3** | 15,2 | 37,0 | — | **7,1** | **8,4** | — |
+| `yamldec` | **77,6** | 157,1 | — | — | — | — | — |
+| `date` | **3,3** | 9,1 | 32,2 | 7,5 | **1,5** | 3,5 | — |
+| `mutex` | **3,3** | 9,9 | — | 7,0 | **1,5** | 3,5 | **2,1** |
+
+| Mesure (`make perf-extra`) | Ocara | Python | PHP | Perl | C | C++ | Rust |
+|---|---|---|---|---|---|---|---|
+| Démarrage d'un programme vide (ms) | **0,99** | 11,71 | 21,32 | 1,78 | **0,78** | **0,77** | **0,91** |
+| Serveur HTTP, 4 clients en connexions persistantes (requêtes/s) | **36734** | 15062 | 17423 | 17670 | — | — | — |
+
+Mesures ponctuelles (hors `make perf`) :
+
 | Mesure | Ocara | Référence |
 |---|---|---|
 | Boucle d'entiers, 2·10⁸ itérations | 0,58 s (`while`), 0,43 s (`for … until`) | C `-O2` 0,15 s ; Python ≈ 11,6 s |
 | Boucle de flottants, 10⁸ itérations | 0,25 s | C `-O2` 0,10 s |
-| Boucle flottante + `fib(30)` (`loop`) | 0,07 s | Python 1,18 s |
 | Appel de fonction libre / accesseur / méthode qui appelle | 1,4 ns / 0,5 ns / ≈ 1 ns si l'appelée ne peut pas libérer `self`, ≈ 15 ns sinon | C 0,5 ns ; méthode Python 37 ns |
-| 10⁷ appels de méthode qui en appelle une autre (`meth`) | 0,01 s | Python 0,81 s |
 | `use P(i)` (objet int + string) | ≈ 80 ns | Python 123 ns |
-| Tableau : 2·10⁶ `push` + 2·10⁷ lectures (`arr`) | 0,05 s | Python 1,20 s |
-| `map<string,int>`, 10⁶ insertions + lectures (`map`) | 0,29 s | Python 0,55 s |
-| `map<int,int>`, 10⁶ insertions + lectures (`mapint`) | 0,12 s | Python 0,18 s |
-| `s = s + "x"`, 10⁶ (`concat`) | 0,01 s | Python 0,03 s |
-| Graphe de 10⁶ objets liés, parcouru 5 fois (`cycles`) | 0,34 s | Python 0,86 s |
-| Gabarit à trois parties, 2·10⁶ (`tpl`) | 0,09 s | f-string Python 0,32 s |
-| `String::split` (6 morceaux), 10⁶ (`split`) | 0,12 s | Python 0,16 s |
-| `String::replace` + `upper`, 10⁶ (`replace`) | 0,08 s | Python 0,13 s |
-| `Array::join` + `intToStr`, 10⁶ (`join`) | 0,09 s | Python 0,19 s |
-| Parcours `for k has v in m`, 2·10⁶ paires (`mapiter`) | 0,05 s | Python 0,11 s |
-| Comparaisons de chaînes, 2·10⁷ (`strcmp`) | 0,20 s | Python 0,69 s |
-| `Array::sort`, 10⁶ entiers (`sort`) | 0,04 s | Python 0,19 s |
-| `JSON::encode` + `decode`, 2·10⁵ (`jsonb`) | 0,25 s | Python 0,60 s |
-| 10⁶ objets créés + appel de méthode (`objs`) | 0,07 s | Python 0,64 s |
-| 2·10⁷ appels via une interface (`iface`) | 0,02 s | méthode Python 0,89 s |
-| Closure qui modifie une capture, 10⁷ (`clos`) | 0,12 s | `nonlocal` Python 0,43 s |
-| Générateur `emit` + `for`, 10⁷ valeurs (`gen`) | 0,01 s | `yield` Python 0,54 s |
-| Arithmétique `mixed` / `int\|float`, 10⁷ (`mixed`) | 0,50 s | Python 0,69 s |
-| Objets après un `Thread` (comptes atomiques), 10⁶ (`mt`) | 0,09 s | Python 0,53 s |
-| Exception de classe levée et rattrapée, 10⁶ (`excls`) | 0,17 s | Python 0,31 s |
-| `Regex::test` + `replace`, 3·10⁵ (`regex`) | 0,07 s | `re` Python 0,35 s |
-| Fichier de 2·10⁶ lignes écrit, relu, découpé (`file`) | 0,31 s | Python 0,33 s |
-| `strToInt` + `strToFloat`, 2·10⁶ (`conv`) | 0,17 s | Python 0,59 s |
-| `Array::contains`/`indexOf`/`slice`/`reverse`/`pop`, 2·10⁵ (`arrops`) | 0,22 s | Python 1,19 s |
-| `Array::sort`, 10⁶ chaînes (`sortstr`) | 0,32 s | Python 0,36 s |
-| `SQLite` : 2·10⁵ insertions + 2·10⁴ `queryOne` (`sqlite`) | 0,15 s | `sqlite3` Python 0,24 s |
-| `YAML::decode`, 5·10⁴ entrées (`yamldec`) | 0,11 s | PyYAML (`CSafeLoader`) 1,10 s |
-| `DateTime::format`, 10⁶ (`date`) | 0,40 s | `strftime` Python 0,64 s |
-| `Mutex` `lock`/`unlock` sans contention, 10⁷ (`mutex`) | 0,12 s | `threading.Lock` Python 1,00 s |
-| Démarrage d'un programme vide (`make perf-extra`) | 0,95 ms | `python3 -c pass` 11,8 ms |
-| Mémoire résidente maximale (`make perf-extra`) | inférieure sur chaque mesure (`objs` 74 Mio, `file` 165 Mio) | Python 158 Mio, 213 Mio |
-| Exception levée et rattrapée, 10⁶ (`exc`) | 0,05 s | Python 0,17 s |
-| `async` + `resolve`, 5·10⁴ (`asy`) | 0,10 s (≈ 2 µs) | `asyncio` Python 0,23 s |
 | Serveur HTTP, 8 workers | 5 000–6 600 requêtes/s | — |
-| Serveur HTTP, 4 workers, 4 clients en connexions persistantes (`make perf-extra`) | 36 600 requêtes/s | `http.server` Python 16 100 |
