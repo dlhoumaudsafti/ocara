@@ -20,6 +20,7 @@ pub(crate) unsafe fn str_len(val: i64) -> usize {
 }
 
 /// Taille du bloc de données d'une chaîne possédée (NUL compris).
+#[inline]
 pub(crate) unsafe fn str_payload(val: i64) -> usize {
     unsafe {
         let aux = *((val - 16) as *const i64);

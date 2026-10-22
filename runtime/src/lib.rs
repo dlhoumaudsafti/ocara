@@ -240,6 +240,7 @@ pub(crate) fn int_text(n: i64, buf: &mut [u8; 20]) -> &str {
 /// référencée ailleurs — ce runtime ne fait aucun suivi de références,
 /// appeler ceci sur un pointeur encore utilisé ailleurs est un use-after-free.
 /// `pub` (pas `pub(crate)`) : utilisé depuis le crate séparé runtime_tauri.
+#[inline]
 pub unsafe fn free_str(val: i64) {
     if val == 0 {
         return;
@@ -1212,10 +1213,12 @@ pub extern "C" fn String_split(s: i64, sep: i64) -> i64 {
         src.chars().map(|c| unsafe { alloc_str(c.encode_utf8(&mut one)) }).collect()
     } else if let [byte] = sep_s.as_bytes() {
         // Séparateur d'un octet : découpe directe sur les octets (un
-        // séparateur ASCII ne peut pas couper un caractère UTF-8).
-        src.as_bytes().split(|b| b == byte)
-            .map(|part| unsafe { alloc_str(std::str::from_utf8_unchecked(part)) })
-            .collect()
+        // séparateur ASCII ne peut pas couper un caractère UTF-8), en une
+        // passe ; place pour 8 morceaux d'emblée (sans réallocation pour une
+        // ligne ordinaire).
+        let mut parts = Vec::with_capacity(8);
+        parts.extend(src.as_bytes().split(|b| b == byte).map(|part| unsafe { alloc_str(std::str::from_utf8_unchecked(part)) }));
+        parts
     } else {
         src.split(sep_s).map(|part| unsafe { alloc_str(part) }).collect()
     };

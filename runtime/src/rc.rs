@@ -173,6 +173,7 @@ fn block_layout(payload: usize) -> Layout {
 }
 
 /// Alloue un bloc compté (compte initial 1) et retourne le pointeur des données.
+#[inline(always)]
 pub(crate) unsafe fn alloc_block(payload: usize, aux: i64, tag: i64, zeroed: bool) -> i64 {
     unsafe {
         let layout = block_layout(payload);
@@ -187,6 +188,7 @@ pub(crate) unsafe fn alloc_block(payload: usize, aux: i64, tag: i64, zeroed: boo
     }
 }
 
+#[inline]
 pub(crate) unsafe fn free_block(val: i64, payload: usize) {
     unsafe {
         crate::leak::on_free(crate::leak::Kind::Tag(*((val - 8) as *const i64)), val);
@@ -527,22 +529,41 @@ unsafe fn destroy(val: i64, k: Kind) {
             if xk == Kind::Object {
                 finalize_object(x);
             }
-            for_each_child(x, xk, &mut |t| {
-                let Some(tk) = kind(t) else { return };
-                if decrement(t, tk, word(t, tk)) {
-                    // Feuille (chaîne, valeur boxée) : sans enfant ni
-                    // finalisation, libérée sur-le-champ.
-                    if matches!(tk, Kind::String | Kind::Boxed) {
-                        dealloc_block(t, tk);
-                    } else {
-                        stack.push((t, tk));
-                    }
-                }
-            });
+            // Tableau : éléments parcourus sans fermeture dynamique (un appel
+            // indirect par élément).
+            if xk == Kind::Array && aux(x) & FLAG_RAW == 0 {
+                crate::containers::with_array(x, |data| for &t in data.iter() { release_child(t, &mut stack) });
+            } else {
+                for_each_child(x, xk, &mut |t| release_child(t, &mut stack));
+            }
             // Une valeur qui ne peut pas former de cycle n'est jamais dans le
             // tampon des racines.
             if !can_cycle(xk) || or_flags(word(x, xk), DEAD) & BUFFERED == 0 {
                 dealloc_block(x, xk);
+            }
+        }
+    }
+}
+
+/// Enfant d'une valeur détruite : référence rendue ; une feuille (chaîne,
+/// valeur boxée), sans enfant ni finalisation, est libérée sur-le-champ, le
+/// reste attend sur `stack`.
+#[inline(always)]
+unsafe fn release_child(t: i64, stack: &mut Vec<(i64, Kind)>) {
+    unsafe {
+        // Chaîne possédée (cas le plus courant : éléments d'un `split`) : ni
+        // cycle ni enfant, compte rendu et libération directs.
+        if !is_boxed(t) && read_tag(t) == TAG_STRING_OWNED {
+            if add_count(word(t, Kind::String), -1) & COUNT_MASK == 1 {
+                if EPOCH.load(Ordering::SeqCst) == 0 { crate::free_str(t) } else { dealloc_block(t, Kind::String) }
+            }
+            return;
+        }
+        let Some(tk) = kind(t) else { return };
+        if decrement(t, tk, word(t, tk)) {
+            match tk {
+                Kind::String | Kind::Boxed => dealloc_block(t, tk),
+                _ => stack.push((t, tk)),
             }
         }
     }
