@@ -17,23 +17,33 @@ make ci
 
 Vérifie (`ocara --check`) chaque bloc ```` ```ocara ```` **complet** de `docs/` (un bloc qui déclare `function main`) ; `architecture permissive` est ajouté s'il manque. Un bloc précédé de `<!-- doc-check: skip -->` (suite d'un bloc précédent, programme multi-fichiers, gabarit) ou contenant `❌` est ignoré. Lancé par `make regression`.
 
-## Performances comparées à Python
+## Performances comparées à Python, PHP, Perl, C, C++ et Rust
 
 ```bash
-make perf            # ./ci/perf_python.sh : toutes les mesures de ci/perf/benches.txt
+make perf            # ./ci/perf_compare.sh : toutes les mesures de ci/perf/benches.txt
 make perf split      # une seule mesure
 make perf-extra      # ./ci/perf_extra.sh : démarrage, mémoire, serveur HTTP
 ```
 
-Chaque `ci/perf/<nom>.oc` est comparé au même algorithme en Python
-(`ci/perf/<nom>.py`), minimum de 5 exécutions de chaque côté : la passe
-échoue si Ocara est plus lent. Une mesure dont le programme Python ne
-s'exécute pas (module absent) est sautée (`SKIP`). `make perf-extra` compare
-le démarrage (programme vide contre `python3 -c pass`), la mémoire résidente
-maximale de chaque mesure et le débit d'un serveur HTTP
-(`ci/perf/extra/`, même client pour les deux serveurs) ; il échoue si Ocara
-est moins bon sur l'un d'eux. Hors de `make regression` (temps dépendant de
-la charge de la machine). Tableau des mesures : `docs/benchmarking.md`.
+Chaque `ci/perf/<nom>.oc` est comparé au même algorithme dans six langages :
+`<nom>.py` (`python3`), `.php` (`php`), `.pl` (`perl`), `.c` (`gcc -O2`),
+`.cpp` (`g++ -O2 -std=c++17`), `.rs` (`rustc -O`, bibliothèque standard
+seule) ; une ligne `// perf-libs: -lsqlite3` en tête d'un source C/C++ donne
+ses bibliothèques (`ci/perf_langs.sh`). Minimum de 5 exécutions : la passe
+échoue si Ocara est plus lent qu'un langage interprété (Python, PHP, Perl) ;
+C, C++ et Rust sont affichés en référence. Un programme qui ne s'exécute pas
+pour `n = 1` est sauté (« — ») : bibliothèque absente du langage (pas de
+table de hachage ni d'exceptions en C, pas de regex ni de SQLite sans crate
+en Rust…), module non installé (PyYAML, DBD::SQLite, extension PHP `yaml`).
+`make perf-extra` compare, dans les mêmes langages, le démarrage (programmes
+vides `ci/perf/extra/empty.*`), la mémoire résidente maximale de chaque
+mesure et le débit d'un serveur HTTP (`ci/perf/extra/http_server.*`, même
+client pour chaque serveur : `http.server`, `php -S` avec 4 processus,
+`HTTP::Daemon` ; C, C++ et Rust n'en ont pas dans leur bibliothèque
+standard). Aucun résidu : binaires compilés dans un dossier temporaire
+supprimé à la sortie, pas de `__pycache__` (`PYTHONDONTWRITEBYTECODE`). Hors
+de `make regression` (temps dépendant de la charge de la machine). Tableau
+des mesures : `docs/benchmarking.md`.
 
 ## Pipeline
 

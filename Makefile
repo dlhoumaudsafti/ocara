@@ -30,9 +30,9 @@ help:
 	@echo "  ci                      Lance le pipeline CI complet (check + dump + tests + lint + fuites)"
 	@echo "  leak-check              Compile les exemples avec --leak-check et échoue sur toute fuite"
 	@echo "  leak-check <chemin>     Bilan des fuites de examples/<chemin>.oc uniquement"
-	@echo "  perf                    Compare les performances à Python (ci/perf/) et échoue si Ocara est plus lent"
+	@echo "  perf                    Compare à Python, PHP, Perl, C, C++ et Rust (ci/perf/) ; échoue si Ocara est plus lent qu'un interprété"
 	@echo "  perf <nom>              Une seule mesure (ex: make perf split)"
-	@echo "  perf-extra              Démarrage, mémoire résidente et serveur HTTP comparés à Python"
+	@echo "  perf-extra              Démarrage, mémoire résidente et serveur HTTP comparés aux mêmes langages"
 	@echo "  lint-examples           Lance ocaracs sur tous les exemples"
 	@echo "  tests-examples          Lance ocaraunit sur les exemples"
 	@echo "  install                 Installe ocara dans /usr/local/bin/"
@@ -326,7 +326,7 @@ leak-check:
 	./ci/leak_check.sh $(_TARGET)
 
 perf:
-	./ci/perf_python.sh $(_TARGET)
+	./ci/perf_compare.sh $(_TARGET)
 
 perf-extra:
 	./ci/perf_extra.sh

@@ -23,6 +23,8 @@ target
 *node_modules/
 out
 out.o
+__pycache__/
+*.pyc
 *.db
 
 # Shim pkg-config généré par le Makefile (Tauri sur Ubuntu 24.04+)

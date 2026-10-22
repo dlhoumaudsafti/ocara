@@ -467,14 +467,19 @@ libération, enregistrement pour le déroulement des exceptions) : environ
 
 Audit du 2026-10-19, mis à jour le 2026-10-21 (machine de 12 cœurs chargée ;
 minimum de 3 à 5 exécutions). Règle : **aucune mesure ne doit être plus lente
-que la référence Python**. `make perf` (`ci/perf_python.sh`, programmes dans
-`ci/perf/`, liste dans `ci/perf/benches.txt`) la vérifie : chaque mesure
-compile le programme Ocara et l'exécute avec le même algorithme en Python
-(minimum de 5 exécutions), et échoue si Ocara est plus lent ; une mesure dont
-le programme Python ne s'exécute pas (module absent, PyYAML) est sautée.
-`make perf-extra` (`ci/perf_extra.sh`) compare à part le démarrage, la
-mémoire résidente maximale de chaque mesure et le débit d'un serveur HTTP.
-Hors de `make regression`, les temps dépendant de la charge de la machine.
+qu'un langage interprété (Python, PHP, Perl)**. `make perf`
+(`ci/perf_compare.sh`, programmes dans `ci/perf/`, liste dans
+`ci/perf/benches.txt`) la vérifie : chaque mesure compile le programme Ocara
+et l'exécute avec le même algorithme en Python, PHP, Perl, C, C++ et Rust
+(`<nom>.py`, `.php`, `.pl`, `.c`, `.cpp`, `.rs` ; minimum de 5 exécutions),
+et échoue si Ocara est plus lent qu'un langage interprété ; C, C++ et Rust
+sont affichés en référence. Un programme qui ne peut pas s'exécuter
+(bibliothèque absente du langage : JSON ou YAML en C, regex ou SQLite en Rust
+sans crate ; module non installé : PyYAML, DBD::SQLite) est sauté (« — »).
+`make perf-extra` (`ci/perf_extra.sh`) compare à part, dans les mêmes
+langages, le démarrage, la mémoire résidente maximale de chaque mesure et le
+débit d'un serveur HTTP. Hors de `make regression`, les temps dépendant de la
+charge de la machine.
 Pistes restantes :
 [roadmap.d/perf-runtime-complexite.md](roadmap.d/perf-runtime-complexite.md).
 

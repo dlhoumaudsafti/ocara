@@ -38,4 +38,4 @@ côté appelant, locales capturées hors cellule).
 ## Fichiers clés
 
 `src/codegen/emit.d/value_slots.rs`, `src/lower/builder.d/self_borrow.rs`,
-`src/lower/expr.d/lower.rs` (promotion des captures), `ci/perf_python.sh`.
+`src/lower/expr.d/lower.rs` (promotion des captures), `ci/perf_compare.sh`.
