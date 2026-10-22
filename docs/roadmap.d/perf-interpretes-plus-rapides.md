@@ -2,7 +2,7 @@
 
 Relevé du 2026-10-22 de `make perf` comparé à six langages
 (`ci/perf_compare.sh`, voir `ci/README.md`). La règle — aucune mesure plus
-lente qu'un langage interprété — échoue sur 6 mesures de temps ; aucune en
+lente qu'un langage interprété — échoue sur 5 mesures de temps ; aucune en
 mémoire (`make perf-extra`). Python et Perl ne sont plus devant sur
 aucune ; PHP 8.3 l'est sur toutes celles-ci.
 
@@ -11,11 +11,10 @@ aucune ; PHP 8.3 l'est sur toutes celles-ci.
 | Mesure | Ocara | Plus rapide | Piste probable |
 |---|---|---|---|
 | `split` — `String::split`, 6 morceaux | 0,12 s | PHP 0,09 s | une chaîne allouée par morceau |
-| `join` — `Array::join` + `intToStr` | 0,10 s | PHP 0,07 s | — |
-| `jsonb` — `JSON::encode` + `decode` | 0,23 s | PHP 0,14 s | passage par `serde_json::Value` |
+| `join` — `Array::join` + `intToStr` | 0,09 s | PHP 0,07 s | — |
+| `jsonb` — `JSON::encode` + `decode` | 0,21 s | PHP 0,13 s | passage par `serde_json::Value` |
 | `file` — fichier de 2·10⁶ lignes | 0,22 s | PHP 0,21 s | découpage : une chaîne par ligne |
-| `sqlite` — insertions + `queryOne` | 0,14 s | PHP 0,12 s | map de placeholders construite à chaque appel |
-| `date` — `DateTime::format` | 0,40 s | PHP 0,19 s | format analysé à chaque appel |
+| `sqlite` — insertions + `queryOne` | 0,13 s | PHP 0,11 s | map de placeholders construite à chaque appel |
 
 ## Égalités fragiles
 
@@ -34,10 +33,9 @@ de la machine la fait parfois échouer (`excls` : PHP oscille entre 0,16 et
 
 ## Priorité / Complexité
 
-**Moyenne** (règle de `make perf` non tenue) — **Légère** (format de date,
-placeholders) à **Moyenne** (découpage sans chaîne par morceau).
+**Moyenne** (règle de `make perf` non tenue) — **Légère** (placeholders) à
+**Moyenne** (découpage sans chaîne par morceau).
 
 ## Fichiers clés
 
-`runtime/src/lib.rs` (`__dyn_*`, `String_*`, JSON), `runtime/src/datetime.rs`,
-`runtime/src/sqlite.rs`, `ci/perf_compare.sh`, `ci/perf_report.py`.
+`runtime/src/lib.rs` (`String_*`, JSON), `runtime/src/sqlite.rs`, `ci/perf_compare.sh`, `ci/perf_report.py`.

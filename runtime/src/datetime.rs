@@ -71,22 +71,57 @@ pub extern "C" fn DateTime_second(ts: i64) -> i64 {
     timestamp_to_parts(ts).5 as i64
 }
 
-/// Formate un timestamp selon un pattern
-/// Patterns supportés : %Y (année), %m (mois), %d (jour), %H (heure), %M (minute), %S (seconde)
+/// Formate un timestamp selon un pattern, en une passe sur le pattern :
+/// %Y (année sur 4 chiffres), %m (mois), %d (jour), %H (heure), %M (minute),
+/// %S (seconde) sur 2 chiffres ; tout autre caractère est recopié. Écrit
+/// dans le tampon réutilisé du thread (six `replace` successifs allouaient
+/// chacun une chaîne, plus une par champ formaté).
 #[unsafe(no_mangle)]
 pub extern "C" fn DateTime_format(ts: i64, fmt: i64) -> i64 {
     let fmt_str = unsafe { crate::ptr_to_str(fmt) };
     let (year, month, day, hour, minute, second) = timestamp_to_parts(ts);
-    
-    let result = fmt_str
-        .replace("%Y", &format!("{:04}", year))
-        .replace("%m", &format!("{:02}", month))
-        .replace("%d", &format!("{:02}", day))
-        .replace("%H", &format!("{:02}", hour))
-        .replace("%M", &format!("{:02}", minute))
-        .replace("%S", &format!("{:02}", second));
-    
-    unsafe { crate::alloc_str(&result) }
+    crate::str_append::with_buffer(|out| {
+        let bytes = fmt_str.as_bytes();
+        let (mut i, mut copied) = (0, 0);
+        while i + 1 < bytes.len() {
+            let field = match (bytes[i], bytes[i + 1]) {
+                (b'%', b'Y') => Some((year, 4)),
+                (b'%', b'm') => Some((month, 2)),
+                (b'%', b'd') => Some((day, 2)),
+                (b'%', b'H') => Some((hour, 2)),
+                (b'%', b'M') => Some((minute, 2)),
+                (b'%', b'S') => Some((second, 2)),
+                _ => None,
+            };
+            match field {
+                Some((value, width)) => {
+                    out.push_str(&fmt_str[copied..i]);
+                    push_padded(out, value, width);
+                    i += 2;
+                    copied = i;
+                }
+                None => i += 1,
+            }
+        }
+        out.push_str(&fmt_str[copied..]);
+        unsafe { crate::alloc_str(out) }
+    })
+}
+
+/// `value` sur `width` chiffres complétés de zéros (comme `{:0width$}`).
+fn push_padded(out: &mut String, value: i32, width: usize) {
+    if (0..10i32.pow(width as u32)).contains(&value) {
+        let mut digits = [b'0'; 4];
+        let mut rest = value;
+        for digit in digits[..width].iter_mut().rev() {
+            *digit = b'0' + (rest % 10) as u8;
+            rest /= 10;
+        }
+        digits[..width].iter().for_each(|&d| out.push(char::from(d)));
+    } else {
+        use std::fmt::Write;
+        let _ = write!(out, "{:0width$}", value, width = width);
+    }
 }
 
 /// Parse une chaîne ISO 8601 en timestamp
