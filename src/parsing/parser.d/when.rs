@@ -126,7 +126,7 @@ impl Parser {
         let span = self.span();
         match self.peek_kind().clone() {
             TokenKind::LitString(s) => { self.advance(); Ok(Operand::Value(s)) }
-            TokenKind::LitInt(n) => { self.advance(); Ok(Operand::Value(n.to_string())) }
+            TokenKind::LitInt(n) => { let n = self.int_literal(n)?; self.advance(); Ok(Operand::Value(n.to_string())) }
             TokenKind::Ident(class) if class == "System" => {
                 self.advance();
                 self.eat(&TokenKind::ColonColon)?;

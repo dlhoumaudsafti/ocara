@@ -17,7 +17,7 @@ class Test97ArrayRawElementsDisplay extends UnitTest {
         var ab:array<bool> = [true, false]
         self::assertEquals("100000,0,-3,70000", Array::join(ai, ","))
         self::assertEquals("100000;0;-3;70000", Convert::arrayToStr(ai, ";"))
-        self::assertEquals("3.5|-1", af.join("|"))
+        self::assertEquals("3.5|-1.0", af.join("|"))
         self::assertEquals("true,false", ab.join(","))
         return 0
     }
@@ -38,7 +38,7 @@ class Test97ArrayRawElementsDisplay extends UnitTest {
         self::assertFalse(ai.contains(5))
         self::assertEquals(1, ai.indexOf(0))
         self::assertEquals("-3,0,100000", Array::sort(ai).join(","))
-        self::assertEquals("-10.5,-1,2.25,3.5", Array::sort(af).join(","))
+        self::assertEquals("-10.5,-1.0,2.25,3.5", Array::sort(af).join(","))
         self::assertEquals(3, af.indexOf(-10.5))
         return 0
     }

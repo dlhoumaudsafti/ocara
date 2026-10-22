@@ -21,6 +21,19 @@ impl Parser {
         }
     }
 
+    /// Valeur d'un littéral entier ; `i64::MIN` ne vient que de la magnitude
+    /// `9223372036854775808`, permise seulement derrière un `-`
+    /// (`-9223372036854775808`, voir `parse_unary_operand`).
+    pub(super) fn int_literal(&self, n: i64) -> ParseResult<i64> {
+        if n == i64::MIN {
+            return Err(ParseError::new(
+                "integer too large: 9223372036854775808 (only -9223372036854775808, INT_MIN, has this magnitude)".to_string(),
+                self.span(),
+            ));
+        }
+        Ok(n)
+    }
+
     pub(super) fn span(&self) -> Span {
         self.current().span.clone()
     }

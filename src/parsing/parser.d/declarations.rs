@@ -418,6 +418,7 @@ impl Parser {
                 let vspan2 = self.span();
                 match self.peek_kind().clone() {
                     TokenKind::LitInt(n) => {
+                        let n = self.int_literal(n)?;
                         self.advance();
                         Some(n)
                     }

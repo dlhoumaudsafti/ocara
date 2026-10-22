@@ -346,7 +346,7 @@ fn val_to_string(val: i64) -> String {
         return "null".to_string();
     }
     if is_float_box(val) {
-        unsafe { unbox_float(val).to_string() }
+        float_text(unsafe { unbox_float(val) })
     } else if is_bool_box(val) {
         unsafe { if unbox_bool(val) { "true".to_string() } else { "false".to_string() } }
     } else if is_int_box(val) {
@@ -552,9 +552,20 @@ pub extern "C" fn __box_int_for_mixed(n: i64) -> i64 {
     box_int_if_needed(n)
 }
 
+/// Texte d'un `float` : toujours une partie décimale (`42.0`, comme
+/// Python), pour qu'un flottant entier ne se confonde pas avec un `int`
+/// (`42`) ; `inf`, `-inf` et `NaN` inchangés.
+pub(crate) fn float_text(f: f64) -> String {
+    let mut text = f.to_string();
+    if f.is_finite() && !text.contains('.') {
+        text.push_str(".0");
+    }
+    text
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn __str_from_float(f: f64) -> i64 {
-    unsafe { alloc_str(&f.to_string()) }
+    unsafe { alloc_str(&float_text(f)) }
 }
 
 /// Conversion entier -> flottant pour le widening implicite des comparaisons
@@ -597,7 +608,7 @@ pub extern "C" fn __array_to_str(ptr: i64) -> i64 {
 pub(crate) fn fmt_elem(kind: i64, v: i64) -> String {
     match kind {
         1 => v.to_string(),
-        2 => f64::from_bits(v as u64).to_string(),
+        2 => float_text(f64::from_bits(v as u64)),
         3 => (if v != 0 { "true" } else { "false" }).to_string(),
         _ => fmt_val(v),
     }
@@ -653,7 +664,7 @@ pub extern "C" fn write_int(n: i64) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn write_float(f: f64) {
-    ocara_print(&f.to_string());
+    ocara_print(&float_text(f));
 }
 
 #[unsafe(no_mangle)]
@@ -901,7 +912,7 @@ pub extern "C" fn IO_writeInt(n: i64) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn IO_writeFloat(f: f64) {
-    ocara_print(&f.to_string());
+    ocara_print(&float_text(f));
 }
 
 #[unsafe(no_mangle)]
@@ -921,7 +932,7 @@ pub extern "C" fn IO_writelnInt(n: i64) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn IO_writelnFloat(f: f64) {
-    ocara_println(&f.to_string());
+    ocara_println(&float_text(f));
 }
 
 #[unsafe(no_mangle)]
@@ -1666,7 +1677,7 @@ pub extern "C" fn Convert_intToBool(n: i64) -> i64 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn Convert_floatToStr(f: f64) -> i64 {
-    unsafe { alloc_str(&f.to_string()) }
+    unsafe { alloc_str(&float_text(f)) }
 }
 
 #[unsafe(no_mangle)]

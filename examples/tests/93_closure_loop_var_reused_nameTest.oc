@@ -89,7 +89,7 @@ class Test93ClosureLoopVarReusedName extends UnitTest {
         for v in literalTens() { s = s + v.toStr() + "," }
         for b in [true, false] { s = s + b.toStr() }
         for f in [1.5, -2.5] { s = s + (f * 2.0).toStr() }
-        self::assertEquals("0,10,20,0,10,20,truefalse3-5", s)
+        self::assertEquals("0,10,20,0,10,20,truefalse3.0-5.0", s)
         return 0
     }
 }

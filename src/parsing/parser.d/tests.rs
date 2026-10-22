@@ -444,4 +444,21 @@ mod tests {
         let refs: Vec<(&str, usize, usize)> = program.type_refs.iter().map(|(n, s)| (n.as_str(), s.line, s.col)).collect();
         assert_eq!(refs, vec![("SqlRepo", 2, 19), ("Repo", 6, 12)]);
     }
+
+    // `-9223372036854775808` (INT_MIN) : sa magnitude dépasse `i64`, acceptée
+    // seulement derrière un `-` ; tout autre entier trop grand reste refusé.
+    #[test]
+    fn int_min_literal_only_after_minus() {
+        let parse = |src: &str| {
+            let tokens = Lexer::new(src).tokenize().map_err(|e| format!("{:?}", e))?;
+            Parser::new(tokens).parse_program().map(|_| ()).map_err(|e| e.message)
+        };
+        let body = |expr: &str| format!("function main(): void {{\n    const x:int = {}\n}}\n", expr);
+        assert!(parse(&body("-9223372036854775808")).is_ok());
+        assert!(parse(&body("9223372036854775808")).unwrap_err().contains("integer too large"));
+        assert!(parse(&body("-9223372036854775809")).unwrap_err().contains("IntegerOverflow"));
+        let program = Parser::new(Lexer::new(&body("-9223372036854775808")).tokenize().unwrap()).parse_program().unwrap();
+        let Stmt::Const { value, .. } = &program.functions[0].body.stmts[0] else { panic!("const attendue") };
+        assert!(matches!(value, Expr::Literal(Literal::Int(i64::MIN), _)), "{:?}", value);
+    }
 }

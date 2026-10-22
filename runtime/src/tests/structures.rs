@@ -172,3 +172,12 @@ fn small_blocks_overflow_to_the_shared_pool_and_cross_threads() {
         unsafe { dealloc(b as *mut u8, layout) };
     }
 }
+
+#[test]
+fn integral_floats_keep_a_decimal_part() {
+    assert_eq!(float_text(42.0), "42.0");
+    assert_eq!(float_text(-3.0), "-3.0");
+    assert_eq!(float_text(0.5), "0.5");
+    assert_eq!(float_text(f64::INFINITY), "inf");
+    assert_eq!(float_text(f64::NAN), "NaN");
+}

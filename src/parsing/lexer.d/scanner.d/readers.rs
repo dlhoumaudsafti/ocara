@@ -4,6 +4,9 @@ use super::super::types::Lexer;
 use crate::parsing::error::LexError;
 use crate::parsing::token::{Span, Token, TokenKind};
 
+/// Magnitude de `INT_MIN`, valable seulement derrière un `-`.
+const INT_MIN_MAGNITUDE: &str = "9223372036854775808";
+
 impl Lexer {
     /// Lit un littéral chaîne délimité par `"` ou `'`.
     /// Séquences d'échappement supportées : \n \t \r \" \' \\ \0
@@ -200,9 +203,15 @@ impl Lexer {
             let v: f64 = lexeme.parse().unwrap_or(f64::INFINITY);
             TokenKind::LitFloat(v)
         } else {
-            let v: i64 = lexeme.parse().map_err(|_| {
-                LexError::IntegerOverflow(lexeme.clone(), start.clone())
-            })?;
+            // `9223372036854775808` (2⁶³) : seulement la magnitude de
+            // `-9223372036854775808` (INT_MIN), que le parseur exige précédée
+            // d'un `-` (voir `Parser::int_literal`) ; aucun autre texte ne
+            // donne `i64::MIN`.
+            let v: i64 = match lexeme.parse() {
+                Ok(v) => v,
+                Err(_) if lexeme == INT_MIN_MAGNITUDE => i64::MIN,
+                Err(_) => return Err(LexError::IntegerOverflow(lexeme.clone(), start.clone())),
+            };
             TokenKind::LitInt(v)
         };
 

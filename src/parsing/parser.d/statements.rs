@@ -285,7 +285,7 @@ impl Parser {
     pub(super) fn parse_literal(&mut self) -> ParseResult<Literal> {
         let span = self.span();
         match self.peek_kind().clone() {
-            TokenKind::LitInt(n)    => { self.advance(); Ok(Literal::Int(n)) }
+            TokenKind::LitInt(n)    => { let n = self.int_literal(n)?; self.advance(); Ok(Literal::Int(n)) }
             TokenKind::LitFloat(f)  => { self.advance(); Ok(Literal::Float(f)) }
             TokenKind::LitString(s) => { self.advance(); Ok(Literal::String(s)) }
             TokenKind::LitTrue      => { self.advance(); Ok(Literal::Bool(true)) }

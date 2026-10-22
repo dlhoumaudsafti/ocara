@@ -141,8 +141,8 @@ class Test15Operators extends UnitTest {
         var b:float = -5.5
         var c:float = 7.25
         self::assertEquals("-2.5", g.toStr())
-        self::assertEquals("-5", (g * 2.0).toStr())
-        self::assertEquals("5", (-(g * 2.0)).toStr())
+        self::assertEquals("-5.0", (g * 2.0).toStr())
+        self::assertEquals("5.0", (-(g * 2.0)).toStr())
         self::assertEquals("1.5", (a % 2.0).toStr())
         self::assertEquals("-1.5", (b % 2.0).toStr())
         self::assertEquals("0.25", (c % 0.5).toStr())

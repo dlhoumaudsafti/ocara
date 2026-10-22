@@ -1017,6 +1017,10 @@ EscapeSeq ::= "\" ( "n" | "t" | "r" | '"' | "'" | "\" | "0" )
 Digit     ::= [0-9]
 ```
 
+> **Entiers** : un littéral `Integer` tient dans un `int` (`0` à `9223372036854775807`), sinon erreur « integer too large ». Seule exception, `-9223372036854775808` (`INT_MIN`) : sa magnitude n'est acceptée que précédée d'un `-`.
+>
+> **Affichage d'un `float`** (`IO::writeln`, gabarit, concaténation, `Convert::floatToStr`, élément de tableau) : toujours avec une partie décimale, `42.0` et non `42`, pour qu'un flottant entier ne se confonde pas avec un `int` ; `inf`, `-inf` et `NaN` s'écrivent ainsi.
+
 > **`null`** représente l'absence de valeur. Son type inféré est `null`, accepté **seulement** par un type qui l'admet : une union contenant `null` (`T|null`) ou `mixed`. Une variable ou un retour qui peut être absent se déclare donc `T|null` ; avant de s'en servir comme un `T`, on le raffine (voir §6.3).
 >
 > ```ocara

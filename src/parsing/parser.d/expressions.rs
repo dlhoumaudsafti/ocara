@@ -333,6 +333,13 @@ impl Parser {
                 let operand = self.parse_unary()?;
                 Ok(Expr::Unary { op: UnaryOp::Not, operand: Box::new(operand), span })
             }
+            // `-9223372036854775808` : INT_MIN, seul littéral dont la
+            // magnitude dépasse `i64` (voir `int_literal`).
+            TokenKind::Minus if self.peek_ahead(1).is_some_and(|t| t.kind == TokenKind::LitInt(i64::MIN)) => {
+                self.advance();
+                self.advance();
+                Ok(Expr::Literal(Literal::Int(i64::MIN), span))
+            }
             TokenKind::Minus => {
                 self.advance();
                 let operand = self.parse_unary()?;
@@ -450,6 +457,7 @@ impl Parser {
         match self.peek_kind().clone() {
             // ── Littéraux ───────────────────────────────────────────────────
             TokenKind::LitInt(n) => {
+                let n = self.int_literal(n)?;
                 self.advance();
                 Ok(Expr::Literal(Literal::Int(n), span))
             }

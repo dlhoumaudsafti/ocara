@@ -171,6 +171,7 @@ Convert::intToBool(-3)   // → true
 
 ```ocara
 Convert::floatToStr(3.14)   // → "3.14"
+Convert::floatToStr(42.0)   // → "42.0" (toujours une partie décimale)
 ```
 
 ### `Convert::floatToInt(f)` → `int`

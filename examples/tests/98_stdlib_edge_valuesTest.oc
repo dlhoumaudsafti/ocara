@@ -14,12 +14,12 @@ import ocara.Array
 import ocara.JSON
 import ocara.SQLite
 import ocara.SQLiteException
+import ocara.Convert
 
 // Valeurs limites de la bibliothèque standard : chaînes, arrondis et
 // dépassements, dates avant 1970 et dates impossibles, `File::infos`,
-// `File::copy` sur lui-même, `writeBytes`, `slice`, BLOB SQLite, `clamp` —
-// voir docs/roadmap.d/stdlib-valeurs-et-documentation.md et
-// docs/roadmap.d/runtime-paniques-et-blocages.md.
+// `File::copy` sur lui-même, `writeBytes`, `slice`, BLOB SQLite, `clamp`,
+// littéral `INT_MIN`, affichage d'un `float` entier (EBNF §7.1).
 
 class Test98StdlibEdgeValues extends UnitTest {
 
@@ -96,6 +96,27 @@ class Test98StdlibEdgeValues extends UnitTest {
         var code:int = 0
         try { db.execute("INSERT INTO b VALUES (:v)", {"v": [1, 2]}) } on e is SQLiteException { code = e.code }
         self::assertEquals(106, code)
+        return 0
+    }
+
+    // `-9223372036854775808` s'écrit en littéral (INT_MIN).
+    public method intMinLiteralTest(): int {
+        const m:int = -9223372036854775808
+        self::assertEquals("-9223372036854775808", `${m}`)
+        self::assertEquals(9223372036854775807, -(m + 1))
+        return 0
+    }
+
+    // Un `float` entier garde sa partie décimale : `42.0`, jamais `42`.
+    public method integralFloatDisplayTest(): int {
+        const f:float = 42.0
+        const fs:array<float> = [1.0, 2.5]
+        self::assertEquals("42.0", `${f}`)
+        self::assertEquals("42.0", Convert::floatToStr(f))
+        self::assertEquals("x=-3.0", "x=" + (-3.0).toStr())
+        self::assertEquals("1.0,2.5", fs.join(","))
+        self::assertEquals("4.0", `${Math::sqrt(16.0)}`)
+        self::assertEquals("0.5", `${0.5}`)
         return 0
     }
 }

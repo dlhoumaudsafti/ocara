@@ -129,7 +129,7 @@ pub extern "C" fn __str_build(parts: *const i64, n: i64) -> i64 {
             let (kind, v) = unsafe { (*parts.add(2 * i), *parts.add(2 * i + 1)) };
             match kind {
                 PART_INT => { let _ = write!(text, "{}", v); }
-                PART_FLOAT => { let _ = write!(text, "{}", f64::from_bits(v as u64)); }
+                PART_FLOAT => text.push_str(&crate::float_text(f64::from_bits(v as u64))),
                 PART_BOOL => text.push_str(if v != 0 { "true" } else { "false" }),
                 PART_ARRAY if v == 0 => text.push_str("[]"),
                 PART_ARRAY => text.push_str(&crate::ptr_to_display(v, 0)),
