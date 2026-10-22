@@ -1536,18 +1536,51 @@ pub extern "C" fn Array_join(ptr: i64, sep: i64) -> i64 {
     if ptr == 0 { return unsafe { alloc_str("") }; }
     let sep_s = if is_ptr(sep) { unsafe { ptr_to_str(sep) } } else { "" };
     let kind = rc::raw_kind(ptr);
-    let mut text = String::new();
-    for (i, v) in unsafe { array_data(ptr) }.into_iter().enumerate() {
-        if i > 0 {
-            text.push_str(sep_s);
-        }
-        match kind {
-            1 => text.push_str(int_text(v, &mut [0; 20])),
-            0 if typecheck::__is_string(v) != 0 => text.push_str(unsafe { ptr_to_str(v) }),
-            _ => text.push_str(&fmt_elem(kind, v)),
-        }
+    if let Some(joined) = unsafe { with_array(ptr, |data| join_plain(data, kind, sep_s)) } {
+        return joined;
     }
-    unsafe { alloc_str(&text) }
+    str_append::with_buffer(|text| {
+        for (i, v) in unsafe { array_data(ptr) }.into_iter().enumerate() {
+            if i > 0 {
+                text.push_str(sep_s);
+            }
+            match kind {
+                0 if typecheck::__is_string(v) != 0 => text.push_str(unsafe { ptr_to_str(v) }),
+                _ => text.push_str(&fmt_elem(kind, v)),
+            }
+        }
+        unsafe { alloc_str(text) }
+    })
+}
+
+/// `Array::join` d'un tableau de chaînes ou d'`int` : écrit directement dans
+/// le résultat, de longueur calculée d'avance (ni copie du tableau, ni
+/// chaîne intermédiaire) ; `None` pour tout autre élément.
+fn join_plain(data: &[i64], kind: i64, sep: &str) -> Option<i64> {
+    let text_len = |v: i64| match kind {
+        1 => Some(str_append::int_len(v)),
+        0 if typecheck::__is_string(v) != 0 => Some(unsafe { str_append::str_len(v) }),
+        _ => None,
+    };
+    let mut len = sep.len() * data.len().saturating_sub(1);
+    for &v in data {
+        len += text_len(v)?;
+    }
+    Some(unsafe {
+        alloc_str_with(len, |out| {
+            let mut at = 0;
+            for (i, &v) in data.iter().enumerate() {
+                if i > 0 {
+                    out[at..at + sep.len()].copy_from_slice(sep.as_bytes());
+                    at += sep.len();
+                }
+                let digits = &mut [0; 20];
+                let text = if kind == 1 { int_text(v, digits) } else { ptr_to_str(v) };
+                out[at..at + text.len()].copy_from_slice(text.as_bytes());
+                at += text.len();
+            }
+        })
+    })
 }
 
 #[unsafe(no_mangle)]

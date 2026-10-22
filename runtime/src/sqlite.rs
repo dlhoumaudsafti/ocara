@@ -47,6 +47,7 @@
 use rusqlite::{Connection, Statement, ToSql};
 use rusqlite::types::Value as SqlValue;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicI64, Ordering};
 use crate::{alloc_str, ptr_to_str};
 use crate::exception::throw_sqlite_exception;
 
@@ -61,8 +62,8 @@ const ERR_COMMIT: i64 = 107;
 /// Structure interne représentant une connexion SQLite
 struct OcaraSQLiteDatabase {
     conn: Mutex<Connection>,
-    last_insert_id: Mutex<i64>,
-    affected_rows: Mutex<i64>,
+    last_insert_id: AtomicI64,
+    affected_rows: AtomicI64,
     // ── État du flux stepped prepare()/bind()/commit()/rollback() ──────────
     // Posé par `prepare()`, consommé par `commit()`/`rollback()`. Volontairement
     // pas de `rusqlite::Statement` gardée vivante entre les appels FFI (elle
@@ -97,21 +98,38 @@ struct OcaraSQLiteDatabase {
 /// `get_value_type`. array/map/objet/function ne sont pas bindables : erreur
 /// explicite plutôt qu'un comportement silencieux incorrect.
 pub(crate) fn mixed_to_sql_value(val: i64) -> Result<SqlValue, String> {
+    Ok(match bindable(val)? {
+        Bindable::Null => SqlValue::Null,
+        Bindable::Integer(n) => SqlValue::Integer(n),
+        Bindable::Real(f) => SqlValue::Real(f),
+        Bindable::Text(text) => SqlValue::Text(text.to_string()),
+    })
+}
+
+/// Valeur SQL d'une valeur `mixed`, le texte emprunté à la chaîne Ocara.
+enum Bindable<'a> {
+    Null,
+    Integer(i64),
+    Real(f64),
+    Text(&'a str),
+}
+
+fn bindable<'a>(val: i64) -> Result<Bindable<'a>, String> {
     if val == 0 {
-        return Ok(SqlValue::Null);
+        return Ok(Bindable::Null);
     }
     if crate::is_float_box(val) {
-        return Ok(SqlValue::Real(unsafe { crate::unbox_float(val) }));
+        return Ok(Bindable::Real(unsafe { crate::unbox_float(val) }));
     }
     if crate::is_bool_box(val) {
-        return Ok(SqlValue::Integer(if unsafe { crate::unbox_bool(val) } { 1 } else { 0 }));
+        return Ok(Bindable::Integer(if unsafe { crate::unbox_bool(val) } { 1 } else { 0 }));
     }
     if crate::is_int_box(val) {
-        return Ok(SqlValue::Integer(unsafe { crate::unbox_int(val) }));
+        return Ok(Bindable::Integer(unsafe { crate::unbox_int(val) }));
     }
     match crate::get_value_type(val) {
-        1 => Ok(SqlValue::Integer(val)),                               // petit entier brut, jamais boxé
-        4 => Ok(SqlValue::Text(unsafe { ptr_to_str(val) }.to_string())), // string
+        1 => Ok(Bindable::Integer(val)),                       // petit entier brut, jamais boxé
+        4 => Ok(Bindable::Text(unsafe { ptr_to_str(val) })),   // string
         other => Err(format!(
             "placeholder value of unsupported type (code {}) — only int/float/bool/string/null can be bound",
             other
@@ -136,6 +154,55 @@ pub(crate) unsafe fn read_placeholders(placeholders_ptr: i64) -> Result<Vec<(Str
         out.push((format!(":{}", key), sql_val));
     }
     Ok(out)
+}
+
+/// Message d'erreur (code 106) de la première valeur non bindable de
+/// `placeholders_ptr`, vérifiée avant tout accès à la base comme avec
+/// `read_placeholders`, mais sans rien copier.
+unsafe fn check_placeholders(placeholders_ptr: i64) -> Result<(), String> {
+    if placeholders_ptr == 0 {
+        return Ok(());
+    }
+    let bad = unsafe {
+        crate::containers::with_map(placeholders_ptr, |data| {
+            data.iter().find_map(|(key, val)| bindable(val).err().map(|e| (key.with_text(str::to_string), e)))
+        })
+    };
+    match bad {
+        Some((key, e)) => Err(format!("bind placeholder ':{}': {}", key, e)),
+        None => Ok(()),
+    }
+}
+
+/// Lie les placeholders `:nom` de `stmt` aux valeurs de la map (déjà
+/// vérifiées par `check_placeholders`), sans copier clé ni texte — comme le
+/// binding nominatif de rusqlite : un nom absent de la requête est une
+/// erreur. Liaisons effacées au retour de la requête dans le cache.
+unsafe fn bind_placeholders(stmt: &mut Statement, placeholders_ptr: i64) -> rusqlite::Result<()> {
+    if placeholders_ptr == 0 {
+        return Ok(());
+    }
+    unsafe {
+        crate::containers::with_map(placeholders_ptr, |data| {
+            let mut name = String::new();
+            for (key, val) in data.iter() {
+                name.clear();
+                name.push(':');
+                key.with_text(|text| name.push_str(text));
+                let Some(index) = stmt.parameter_index(&name)? else {
+                    return Err(rusqlite::Error::InvalidParameterName(name));
+                };
+                match bindable(val) {
+                    Ok(Bindable::Null) => stmt.raw_bind_parameter(index, rusqlite::types::Null)?,
+                    Ok(Bindable::Integer(n)) => stmt.raw_bind_parameter(index, n)?,
+                    Ok(Bindable::Real(f)) => stmt.raw_bind_parameter(index, f)?,
+                    Ok(Bindable::Text(text)) => stmt.raw_bind_parameter(index, text)?,
+                    Err(_) => unreachable!("vérifié par check_placeholders"),
+                }
+            }
+            Ok(())
+        })
+    }
 }
 
 /// `&[(&str, &dyn ToSql)]` — forme attendue par `rusqlite` pour un binding
@@ -242,8 +309,8 @@ pub unsafe extern "C" fn SQLite_open(path_ptr: i64) -> i64 {
             Ok(conn) => {
                 let db = Box::new(OcaraSQLiteDatabase {
                     conn: Mutex::new(conn),
-                    last_insert_id: Mutex::new(0),
-                    affected_rows: Mutex::new(0),
+                    last_insert_id: AtomicI64::new(0),
+                    affected_rows: AtomicI64::new(0),
                     pending_query: Mutex::new(None),
                     pending_binds: Mutex::new(None),
                     explicit_tx: Mutex::new(false),
@@ -281,8 +348,8 @@ pub unsafe extern "C" fn SQLite_withOpen(path_ptr: i64, fat_ptr: i64) {
             Ok(conn) => {
                 let db = Box::new(OcaraSQLiteDatabase {
                     conn: Mutex::new(conn),
-                    last_insert_id: Mutex::new(0),
-                    affected_rows: Mutex::new(0),
+                    last_insert_id: AtomicI64::new(0),
+                    affected_rows: AtomicI64::new(0),
                     pending_query: Mutex::new(None),
                     pending_binds: Mutex::new(None),
                     explicit_tx: Mutex::new(false),
@@ -339,7 +406,7 @@ pub unsafe extern "C" fn SQLite_execute_2(self_ptr: i64, query_ptr: i64, placeho
 pub unsafe extern "C" fn SQLite_execute(self_ptr: i64, query_ptr: i64, placeholder_ptr: i64, close: i64) {
     unsafe {
         let db = &*(self_ptr as *const OcaraSQLiteDatabase);
-        let query = ptr_to_str(query_ptr).to_string();
+        let query = ptr_to_str(query_ptr);
 
         // Le verrou (`MutexGuard`) est entièrement scopé à cette closure et
         // se relâche normalement (Drop) à sa sortie, qu'elle réussisse ou
@@ -349,16 +416,18 @@ pub unsafe extern "C" fn SQLite_execute(self_ptr: i64, query_ptr: i64, placehold
         // confirmé par reproduction sur la requête suivante.
         // Placeholders lus hors de la closure (aucun verrou tenu) : une
         // valeur non bindable lève le code 106 (BIND) documenté.
-        let binds = match read_placeholders(placeholder_ptr) {
-            Ok(binds) => binds,
-            Err(msg) => throw_sqlite_exception(&msg, ERR_BIND, "SQLite"),
-        };
+        if let Err(msg) = check_placeholders(placeholder_ptr) {
+            throw_sqlite_exception(&msg, ERR_BIND, "SQLite");
+        }
         let result: Result<(i64, Option<i64>), String> = (|| {
-            let named = named_params(&binds);
             let conn = db.conn.lock().unwrap();
             // Requête préparée gardée par la connexion (cache LRU de rusqlite),
             // comme le module sqlite3 de Python : pas de re-préparation par appel.
-            match conn.prepare_cached(&query).and_then(|mut stmt| stmt.execute(&named[..])) {
+            let executed = conn.prepare_cached(query).and_then(|mut stmt| {
+                bind_placeholders(&mut stmt, placeholder_ptr)?;
+                stmt.raw_execute()
+            });
+            match executed {
                 Ok(affected) => {
                     let last_id = if query.trim_start().get(..6).is_some_and(|w| w.eq_ignore_ascii_case("INSERT")) {
                         Some(conn.last_insert_rowid())
@@ -373,9 +442,9 @@ pub unsafe extern "C" fn SQLite_execute(self_ptr: i64, query_ptr: i64, placehold
 
         match result {
             Ok((affected, last_id)) => {
-                *db.affected_rows.lock().unwrap() = affected;
+                db.affected_rows.store(affected, Ordering::Relaxed);
                 if let Some(id) = last_id {
-                    *db.last_insert_id.lock().unwrap() = id;
+                    db.last_insert_id.store(id, Ordering::Relaxed);
                 }
                 if close != 0 {
                     SQLite_close(self_ptr);
@@ -402,7 +471,7 @@ pub unsafe extern "C" fn SQLite_query_1(self_ptr: i64, query_ptr: i64) -> i64 {
 pub unsafe extern "C" fn SQLite_query(self_ptr: i64, query_ptr: i64, placeholder_ptr: i64) -> i64 {
     unsafe {
         let db = &*(self_ptr as *const OcaraSQLiteDatabase);
-        let query = ptr_to_str(query_ptr).to_string();
+        let query = ptr_to_str(query_ptr);
 
         // Voir le commentaire de SQLite_execute : le verrou est entièrement
         // scopé à cette closure (y compris `stmt`/`rows`, qui en empruntent
@@ -410,20 +479,20 @@ pub unsafe extern "C" fn SQLite_query(self_ptr: i64, query_ptr: i64, placeholder
         // throw_sqlite_exception.
         // Placeholders lus hors de la closure (aucun verrou tenu) : une
         // valeur non bindable lève le code 106 (BIND) documenté.
-        let binds = match read_placeholders(placeholder_ptr) {
-            Ok(binds) => binds,
-            Err(msg) => throw_sqlite_exception(&msg, ERR_BIND, "SQLite"),
-        };
+        if let Err(msg) = check_placeholders(placeholder_ptr) {
+            throw_sqlite_exception(&msg, ERR_BIND, "SQLite");
+        }
         let result: Result<i64, String> = (|| {
-            let named = named_params(&binds);
             let mut conn_guard = db.conn.lock().unwrap();
             let conn = &mut *conn_guard;
 
-            let mut stmt = conn.prepare_cached(&query)
+            let mut stmt = conn.prepare_cached(query)
                 .map_err(|e| format!("Failed to prepare query '{}': {}", query, e))?;
+            bind_placeholders(&mut stmt, placeholder_ptr)
+                .map_err(|e| format!("Failed to execute query '{}': {}", query, e))?;
 
-            let result_array = collect_all_rows(&mut stmt, &named)?;
-            *db.affected_rows.lock().unwrap() = crate::__array_len(result_array);
+            let result_array = collect_all_rows(&mut stmt, &[])?;
+            db.affected_rows.store(crate::__array_len(result_array), Ordering::Relaxed);
             Ok(result_array)
         })();
 
@@ -446,21 +515,19 @@ pub unsafe extern "C" fn SQLite_queryOne_1(self_ptr: i64, query_ptr: i64) -> i64
 pub unsafe extern "C" fn SQLite_queryOne(self_ptr: i64, query_ptr: i64, placeholder_ptr: i64) -> i64 {
     unsafe {
         let db = &*(self_ptr as *const OcaraSQLiteDatabase);
-        let query = ptr_to_str(query_ptr).to_string();
+        let query = ptr_to_str(query_ptr);
 
         // Voir le commentaire de SQLite_execute.
         // Placeholders lus hors de la closure (aucun verrou tenu) : une
         // valeur non bindable lève le code 106 (BIND) documenté.
-        let binds = match read_placeholders(placeholder_ptr) {
-            Ok(binds) => binds,
-            Err(msg) => throw_sqlite_exception(&msg, ERR_BIND, "SQLite"),
-        };
+        if let Err(msg) = check_placeholders(placeholder_ptr) {
+            throw_sqlite_exception(&msg, ERR_BIND, "SQLite");
+        }
         let result: Result<i64, String> = (|| {
-            let named = named_params(&binds);
             let mut conn_guard = db.conn.lock().unwrap();
             let conn = &mut *conn_guard;
 
-            let mut stmt = conn.prepare_cached(&query)
+            let mut stmt = conn.prepare_cached(query)
                 .map_err(|e| format!("Failed to prepare query '{}': {}", query, e))?;
 
             let column_count = stmt.column_count();
@@ -468,8 +535,9 @@ pub unsafe extern "C" fn SQLite_queryOne(self_ptr: i64, query_ptr: i64, placehol
                 .map(|i| stmt.column_name(i).unwrap().to_string())
                 .collect();
 
-            let mut rows = stmt.query(&named[..])
+            bind_placeholders(&mut stmt, placeholder_ptr)
                 .map_err(|e| format!("Failed to execute query '{}': {}", query, e))?;
+            let mut rows = stmt.raw_query();
 
             let row_map = crate::__map_new();
 
@@ -485,7 +553,7 @@ pub unsafe extern "C" fn SQLite_queryOne(self_ptr: i64, query_ptr: i64, placehol
                 0
             };
 
-            *db.affected_rows.lock().unwrap() = count;
+            db.affected_rows.store(count, Ordering::Relaxed);
             Ok(row_map)
         })();
 
@@ -659,10 +727,10 @@ pub unsafe extern "C" fn SQLite_commit(self_ptr: i64, close: i64) -> i64 {
         match result {
             Ok((value, affected, last_id)) => {
                 if let Some(affected) = affected {
-                    *db.affected_rows.lock().unwrap() = affected;
+                    db.affected_rows.store(affected, Ordering::Relaxed);
                 }
                 if let Some(id) = last_id {
-                    *db.last_insert_id.lock().unwrap() = id;
+                    db.last_insert_id.store(id, Ordering::Relaxed);
                 }
                 *db.pending_query.lock().unwrap() = None;
                 *db.pending_binds.lock().unwrap() = None;
@@ -724,7 +792,7 @@ pub unsafe extern "C" fn SQLite_rollback(self_ptr: i64, close: i64) {
 pub unsafe extern "C" fn SQLite_lastInsertId(self_ptr: i64) -> i64 {
     unsafe {
         let db = &*(self_ptr as *const OcaraSQLiteDatabase);
-        *db.last_insert_id.lock().unwrap()
+        db.last_insert_id.load(Ordering::Relaxed)
     }
 }
 
@@ -734,7 +802,7 @@ pub unsafe extern "C" fn SQLite_lastInsertId(self_ptr: i64) -> i64 {
 pub unsafe extern "C" fn SQLite_affectedRows(self_ptr: i64) -> i64 {
     unsafe {
         let db = &*(self_ptr as *const OcaraSQLiteDatabase);
-        *db.affected_rows.lock().unwrap()
+        db.affected_rows.load(Ordering::Relaxed)
     }
 }
 

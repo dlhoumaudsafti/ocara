@@ -507,3 +507,44 @@ fn sqlite_begin_commit_applies_statements_and_prepared_query() {
         crate::sqlite::SQLite_close(db);
     }
 }
+
+/// Paramètres liés directement depuis la map (sans copie) : chaque type, et
+/// une requête reprise du cache sans un paramètre déjà lié lit NULL (liaisons
+/// effacées au retour dans le cache).
+#[test]
+fn sqlite_direct_binding_handles_every_type_and_cached_statements() {
+    unsafe {
+        let db = open_memory_db();
+        crate::sqlite::SQLite_execute_1(db, alloc_str("CREATE TABLE t (id INTEGER PRIMARY KEY, s TEXT, i INTEGER, f REAL, b INTEGER, n TEXT)"));
+        let insert = alloc_str("INSERT INTO t (s, i, f, b, n) VALUES (:s, :i, :f, :b, :n)");
+        let m = __map_new();
+        __map_set(m, alloc_str("s"), alloc_str("é texte"));
+        __map_set(m, alloc_str("i"), box_int_if_needed(1 << 40));
+        __map_set(m, alloc_str("f"), __box_float(2.5f64.to_bits() as i64));
+        __map_set(m, alloc_str("b"), __box_bool(1));
+        __map_set(m, alloc_str("n"), 0);
+        crate::sqlite::SQLite_execute_2(db, insert, m);
+        let partial = __map_new();
+        __map_set(partial, alloc_str("s"), alloc_str("seul"));
+        crate::sqlite::SQLite_execute_2(db, insert, partial);
+
+        let select = alloc_str("SELECT s, i, f, b, n FROM t WHERE id = :id");
+        let first = __map_new();
+        __map_set(first, alloc_str("id"), 1);
+        let row = crate::sqlite::SQLite_queryOne(db, select, first);
+        let get = |row: i64, key: &str| __map_get(row, alloc_str(key));
+        assert_eq!(ptr_to_str(get(row, "s")), "é texte");
+        assert_eq!(unbox_int(get(row, "i")), 1 << 40);
+        assert_eq!(unbox_float(get(row, "f")), 2.5);
+        assert_eq!(get(row, "b"), 1);
+        assert_eq!(get(row, "n"), 0);
+
+        let second = __map_new();
+        __map_set(second, alloc_str("id"), 2);
+        let rows = crate::sqlite::SQLite_query(db, select, second);
+        let row = __array_get(rows, 0);
+        assert_eq!(ptr_to_str(get(row, "s")), "seul");
+        assert_eq!(get(row, "i"), 0, "paramètre non fourni : NULL, pas la valeur de l'appel précédent");
+        crate::sqlite::SQLite_close(db);
+    }
+}

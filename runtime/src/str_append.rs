@@ -129,7 +129,7 @@ fn plain_part<'a>(kind: i64, v: i64) -> Option<&'a str> {
 }
 
 /// Nombre de caractères du texte décimal de `n`.
-fn int_len(n: i64) -> usize {
+pub(crate) fn int_len(n: i64) -> usize {
     n.unsigned_abs().checked_ilog10().map_or(1, |log| log as usize + 1) + usize::from(n < 0)
 }
 

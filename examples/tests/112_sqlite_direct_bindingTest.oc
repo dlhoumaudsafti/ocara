@@ -1,0 +1,54 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.SQLite
+import ocara.SQLiteException
+import ocara.String
+
+// Paramètres `:nom` liés directement depuis la map (runtime/src/sqlite.rs,
+// `bind_placeholders`) : mêmes erreurs qu'avant, mêmes codes.
+
+class Test112SqliteDirectBinding extends UnitTest {
+
+    public method unknownPlaceholderNameTest(): int {
+        scoped db:SQLite = SQLite::open(":memory:")
+        db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER)")
+        var code:int = 0
+        var message:string = ""
+        try { db.execute("INSERT INTO t (v) VALUES (:v)", {"nope": 1}) } on e is SQLiteException {
+            code = e.code
+            message = e.message
+        }
+        self::assertEquals(102, code)
+        var without:string = String::replace(message, "Invalid parameter name: :nope", "")
+        self::assertTrue(String::len(without) smaller String::len(message))
+        code = 0
+        try { db.queryOne("SELECT v FROM t WHERE id = :id", {"other": 1}) } on e is SQLiteException { code = e.code }
+        self::assertEquals(103, code)
+        return 0
+    }
+
+    public method unbindableValueComesFirstTest(): int {
+        scoped db:SQLite = SQLite::open(":memory:")
+        db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER)")
+        var code:int = 0
+        try { db.queryOne("SELECT v FROM t WHERE id = :id", {"id": [1]}) } on e is SQLiteException { code = e.code }
+        self::assertEquals(106, code)
+        code = 0
+        try { db.execute("NOT SQL :v", {"v": {"a": 1}}) } on e is SQLiteException { code = e.code }
+        self::assertEquals(106, code)
+        return 0
+    }
+
+    public method boundValuesRoundtripTest(): int {
+        scoped db:SQLite = SQLite::open(":memory:")
+        db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, s TEXT, v INTEGER)")
+        for i in 0 until 20 {
+            db.execute("INSERT INTO t (s, v) VALUES (:s, :v)", {"s": `n${i}`, "v": i * 100000})
+        }
+        var row:map<string, mixed> = db.queryOne("SELECT s, v FROM t WHERE id = :id", {"id": 20})
+        self::assertEquals("n19", row["s"])
+        self::assertEquals(1900000, row["v"])
+        return 0
+    }
+}

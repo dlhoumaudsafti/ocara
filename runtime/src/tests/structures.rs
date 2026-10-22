@@ -181,3 +181,44 @@ fn integral_floats_keep_a_decimal_part() {
     assert_eq!(float_text(f64::INFINITY), "inf");
     assert_eq!(float_text(f64::NAN), "NaN");
 }
+
+/// `Array::join` : chaînes et `int` écrits directement, autres éléments par
+/// le tampon — même texte dans tous les cas.
+#[test]
+fn join_writes_strings_ints_and_other_elements() {
+    let joined = |arr: i64, sep: &str| unsafe {
+        let sep = alloc_str(sep);
+        let out = Array_join(arr, sep);
+        let text = ptr_to_str(out).to_string();
+        rc::release(out);
+        rc::release(sep);
+        text
+    };
+    let strings = new_array();
+    for s in ["a", "é", "", "bc"] {
+        array_push_owned(strings, unsafe { alloc_str(s) });
+    }
+    assert_eq!(joined(strings, "-"), "a-é--bc");
+    assert_eq!(joined(strings, ""), "aébc");
+    assert_eq!(joined(strings, " → "), "a → é →  → bc");
+    let ints = new_array();
+    rc::__rc_mark_raw_kind(ints, 1);
+    for n in [0i64, -7, 1 << 40, i64::MIN] {
+        __array_push(ints, n);
+    }
+    assert_eq!(joined(ints, ","), format!("0,-7,{},{}", 1i64 << 40, i64::MIN));
+    let floats = new_array();
+    rc::__rc_mark_raw_kind(floats, 2);
+    __array_push(floats, 1.5f64.to_bits() as i64);
+    __array_push(floats, 2.0f64.to_bits() as i64);
+    assert_eq!(joined(floats, ";"), "1.5;2.0");
+    let mixed = new_array();
+    array_push_owned(mixed, unsafe { alloc_str("x") });
+    array_push_owned(mixed, box_int_if_needed(70_000));
+    array_push_owned(mixed, __box_bool(1));
+    assert_eq!(joined(mixed, "|"), "x|70000|true");
+    assert_eq!(joined(new_array(), "-"), "");
+    for arr in [strings, ints, floats, mixed] {
+        unsafe { rc::release(arr) }
+    }
+}
