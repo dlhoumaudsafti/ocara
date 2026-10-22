@@ -192,12 +192,22 @@ var obj = use x()   // ❌ x n'est pas une classe
 fichier.oc:22:10: error: field 'nom' not found in class 'Point'
 ```
 
-Accès à un champ ou méthode inexistant dans une classe.
+Accès à un champ ou méthode inexistant dans une classe, une instance de
+`generic`, une chaîne, un tableau ou une map — en lecture comme en écriture
+(`=`, `+=`, `++`). Un nom de méthode n'est pas un champ affectable.
 
 ```ocara
 var p:Point = use Point(1, 2)
 IO::writeln(p.nom)        // 'nom' n'est pas dans Point
+p.nom = "a"               // idem en écriture
+
+var m:map<string, int> = {"A": 1}
+m.A = 3                   // field 'A' not found in class 'Map' : écrire m["A"] = 3
 ```
+
+Avant ce diagnostic, l'affectation compilait et écrivait à l'offset 0 du
+bloc : champ voisin écrasé, map corrompue, SIGSEGV sur une chaîne ou un
+tableau.
 
 ---
 

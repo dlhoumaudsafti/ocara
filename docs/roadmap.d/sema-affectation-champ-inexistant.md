@@ -1,7 +1,7 @@
 # Affectation à un champ inexistant acceptée — écriture à l'offset 0, SIGSEGV
 
-Statut : **à corriger** — constaté le 2026-10-22 en préparant
-[langage-map-acces-pointe](langage-map-acces-pointe.md).
+Statut : **corrigé** le 2026-10-22 (constaté le même jour en préparant
+[langage-map-acces-pointe](langage-map-acces-pointe.md)).
 
 ## Constat
 
@@ -37,15 +37,18 @@ corrompue. `m.size = 5` (nom d'une méthode) compile de la même façon.
 lowering (`src/lower/stmt.d/statements.d/assignments.rs`) émet alors un
 `SetField` à l'offset 0.
 
-## Correction attendue
+## Correction
 
-Même diagnostic qu'en lecture (`SemaError::FieldNotFound`) pour une
-affectation, une affectation composée (`+=`…) et `++`/`--` sur un champ
-inconnu, pour toute classe (utilisateur ou builtin `Map`/`Array`/`String`).
-`mixed` reste hors de ce correctif (permissif par choix, voir E63 dans
-[sema-acces-champ-index-non-classe](sema-acces-champ-index-non-classe.md),
-et la question de conception dans
-[langage-map-acces-pointe](langage-map-acces-pointe.md)).
+`src/sema/unknown_field.rs` (`TypeChecker::unknown_field`) : un champ absent
+d'une classe (chaîne d'héritage comprise), d'un `String`/`Array`/`Map` ou
+d'une instance de `generic` (parent compris) donne `FieldNotFound` (E08) à
+l'affectation ; un nom de méthode n'y est pas un champ. `+=` (désucré en
+`a.f = a.f + v`) et `++` étaient déjà refusés par la lecture : une seule
+erreur par champ. Une classe opaque (import non résolu), un parent de
+`generic` inconnu et `mixed` restent permissifs.
 
-Tests : sema (`src/sema/tests/`) pour chaque forme de cible, exemple de
-régression qui vérifie le diagnostic.
+La lecture d'un champ absent d'une instance de `generic` (`b.nope`), elle
+aussi acceptée et lue à l'offset 0, est refusée de la même façon.
+
+Tests : `src/sema/tests/unknown_field.rs`. Documentation : E08 dans
+`docs/diagnostics.md`.

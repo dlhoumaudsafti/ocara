@@ -25,6 +25,7 @@ pub mod scope;
 pub mod sql_injection;
 pub mod symbols;
 pub mod typecheck;
+pub mod unknown_field;
 
 #[cfg(test)]
 mod tests;

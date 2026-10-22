@@ -13,7 +13,7 @@ function main(): void {
     for i in 0 until n {
         if Array::contains(xs, i % 1500) { tot += 1 }
         tot += Array::indexOf(xs, i % 1000)
-        var part:array<int> = Array::slice(xs, i % 900, i % 900 + 50)
+        consumed part:array<int> = Array::slice(xs, i % 900, i % 900 + 50)
         tot += Array::reverse(part)[0]
         xs.push(i)
         tot += Array::pop(xs)

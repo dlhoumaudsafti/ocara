@@ -29,8 +29,6 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **Affectation à un champ inexistant acceptée — SIGSEGV** — `x.inconnu = v` compile pour toute classe (map, tableau, chaîne, classe utilisateur) et écrit à l'offset 0 du bloc : `truc.A = 1000000` sur une map puis des insertions → `munmap_chunk(): invalid pointer` ; `s.x = 5` sur une chaîne → SIGSEGV ; `p.nope = 5` écrase `p.x` en silence. La lecture, elle, est refusée. Prérequis de l'accès pointé aux maps. *(Simple — diagnostic `FieldNotFound` manquant sur la cible d'une affectation)* → [détails](roadmap.d/sema-affectation-champ-inexistant.md)
-
 ---
 
 ## Priorité Moyenne

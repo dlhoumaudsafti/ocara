@@ -20,6 +20,7 @@ mod use_without_init;
 mod arg_types;
 mod member_visibility;
 mod access_on_non_container;
+mod unknown_field;
 mod structural_fixes;
 mod type_soundness;
 mod unknown_symbols;

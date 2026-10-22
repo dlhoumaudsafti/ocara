@@ -37,9 +37,11 @@ un identifiant valide (`truc["foo-bar"]`, `truc["1a"]`, `truc[""]`).
 - **Lecture refusée** : `truc.A` donne
   `error: field 'A' not found in class 'Map'`
   (`src/sema/typecheck.rs`, accès `Expr::Field`).
-- **Écriture acceptée par erreur** : `truc.A = 3` compile et écrit à
-  l'offset 0 du bloc de la map (corruption, plantage). Bug à corriger
-  avant cette tâche : [sema-affectation-champ-inexistant](sema-affectation-champ-inexistant.md).
+- **Écriture refusée** de la même façon depuis le 2026-10-22 : elle
+  compilait et écrivait à l'offset 0 du bloc de la map
+  ([sema-affectation-champ-inexistant](sema-affectation-champ-inexistant.md),
+  `src/sema/unknown_field.rs`). La notation pointée lèvera ce refus pour
+  une `map<string, V>`.
 - **`mixed` permissif** : `j.user` sur un `mixed` (ex. résultat de
   `JSON::decode`) compile et lit l'offset 0 du bloc — un `mixed` contenant
   une map affiche `4` au lieu de sa clé `"user"`
@@ -188,9 +190,8 @@ notation pointée n'en est que le raccourci.
   identifiant reste accessible par `[]`.
 - Questions 1 à 7 tranchées et documentées ; tout usage refusé produit un
   diagnostic qui propose la forme `truc["…"]`.
-- Le bug [sema-affectation-champ-inexistant](sema-affectation-champ-inexistant.md)
-  corrigé (prérequis) ; plus aucune lecture de l'offset 0 d'une map via un
-  `mixed` si la question 5 retient la résolution dynamique.
+- Plus aucune lecture de l'offset 0 d'une map via un `mixed` si la
+  question 5 retient la résolution dynamique.
 - Aucune régression de performance : `make perf` et `make perf-extra` sans
   nouvel échec, `map`/`mapint`/`mapiter`/`jsonb` au moins aussi rapides
   qu'avant ; mesure `mapconst` ajoutée ; résultat de l'étude d'accélération
@@ -211,7 +212,8 @@ dynamique (question 5).
 ## Fichiers clés
 
 `src/parsing/parser.d/expressions.rs` (accès `.champ`),
-`src/sema/typecheck.rs` (`Expr::Field`, `Stmt::Assign`), `src/sema/map_keys.rs`,
+`src/sema/typecheck.rs` (`Expr::Field`, `Stmt::Assign`), `src/sema/unknown_field.rs`,
+`src/sema/map_keys.rs`,
 `src/lower/expr.d/lower.rs` et `src/lower/expr.d/helpers.rs`
 (`is_map_target`, `lower_map_key`),
 `src/lower/stmt.d/statements.d/assignments.rs`,

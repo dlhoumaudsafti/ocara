@@ -1037,6 +1037,19 @@ impl<'a> TypeChecker<'a> {
                                     span:     span.clone(),
                                 });
                             }
+                        } else if let Some(class) = self.unknown_field(&obj_ty, field, true) {
+                            // `a.f += v` (désucré en `a.f = a.f + v`) : la
+                            // lecture a déjà signalé le même champ.
+                            let reported = self.errors.iter().any(|e| matches!(e,
+                                SemaError::FieldNotFound { field: f, span: s, .. }
+                                    if f == field && (s.line, s.col) == (field_span.line, field_span.col)));
+                            if !reported {
+                                self.errors.push(SemaError::FieldNotFound {
+                                    class,
+                                    field: field.clone(),
+                                    span:  self.with_runtime_ctx(field_span),
+                                });
+                            }
                         } else if let Some(cls_name) = type_class_name(&obj_ty) {
                             if let Some((owner, f)) = self.symbols.lookup_field_owner(&cls_name, field) {
                                 self.check_field_visibility(owner, &f.vis, field, field_span);
@@ -1438,6 +1451,14 @@ impl<'a> TypeChecker<'a> {
                         if let Some(f) = ginfo.fields.get(field) {
                             return substitute_type_params(&f.ty, &ginfo.type_params, type_args);
                         }
+                    }
+                    if let Some(class) = self.unknown_field(&obj_ty, field, false) {
+                        self.errors.push(SemaError::FieldNotFound {
+                            class,
+                            field: field.clone(),
+                            span:  self.with_runtime_ctx(span),
+                        });
+                        return Type::Mixed;
                     }
                 }
                 let cls_name = match type_class_name(&obj_ty) {
@@ -2672,7 +2693,7 @@ fn call_ret_ty(sig: &FuncSig) -> Type {
     }
 }
 
-fn type_class_name(ty: &Type) -> Option<String> {
+pub(crate) fn type_class_name(ty: &Type) -> Option<String> {
     match ty {
         Type::Named(n)         => Some(n.clone()),
         Type::Qualified(parts) => parts.last().cloned(),
