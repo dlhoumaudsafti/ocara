@@ -11,3 +11,4 @@ mod string;
 mod rc;
 mod task;
 mod structures;
+mod map_table;

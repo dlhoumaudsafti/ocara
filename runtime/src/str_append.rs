@@ -117,26 +117,87 @@ pub(crate) fn with_buffer<R>(f: impl FnOnce(&mut String) -> R) -> R {
     })
 }
 
+/// Texte d'une partie de gabarit qui n'a rien à formater (chaîne, `bool`),
+/// `None` sinon.
+fn plain_part<'a>(kind: i64, v: i64) -> Option<&'a str> {
+    match kind {
+        PART_BOOL => Some(if v != 0 { "true" } else { "false" }),
+        PART_VALUE if crate::typecheck::__is_string(v) != 0 => Some(unsafe { crate::ptr_to_str(v) }),
+        _ => None,
+    }
+}
+
+/// Nombre de caractères du texte décimal de `n`.
+fn int_len(n: i64) -> usize {
+    n.unsigned_abs().checked_ilog10().map_or(1, |log| log as usize + 1) + usize::from(n < 0)
+}
+
 /// Gabarit `` `a${x}b${y}` `` : `parts` pointe sur `n` paires (genre,
 /// valeur) — chaîne ou valeur auto-décrite, `int`, `float` (bits), `bool`,
-/// tableau. Formaté dans un tampon réutilisé, une seule allocation pour le
-/// résultat (une allocation par partie et par concaténation auparavant).
+/// tableau. Fait de chaînes, d'`int` et de `bool`, il est écrit directement
+/// dans le résultat, de longueur calculée d'avance ; sinon formaté dans un
+/// tampon réutilisé. Une seule allocation dans les deux cas.
 #[unsafe(no_mangle)]
 pub extern "C" fn __str_build(parts: *const i64, n: i64) -> i64 {
-    use std::fmt::Write;
-    with_buffer(|text| {
-        for i in 0..n.max(0) as usize {
-            let (kind, v) = unsafe { (*parts.add(2 * i), *parts.add(2 * i + 1)) };
-            match kind {
-                PART_INT => { let _ = write!(text, "{}", v); }
-                PART_FLOAT => text.push_str(&crate::float_text(f64::from_bits(v as u64))),
-                PART_BOOL => text.push_str(if v != 0 { "true" } else { "false" }),
-                PART_ARRAY if v == 0 => text.push_str("[]"),
-                PART_ARRAY => text.push_str(&crate::ptr_to_display(v, 0)),
-                PART_VALUE if crate::typecheck::__is_string(v) != 0 => text.push_str(unsafe { crate::ptr_to_str(v) }),
-                _ => text.push_str(&crate::val_to_string(v)),
+    let parts = unsafe { std::slice::from_raw_parts(parts as *const [i64; 2], n.max(0) as usize) };
+    let mut len = 0;
+    for &[kind, v] in parts {
+        len += match kind {
+            PART_INT => int_len(v),
+            _ => match plain_part(kind, v) {
+                Some(text) => text.len(),
+                None => return build_formatted(parts),
+            },
+        };
+    }
+    unsafe {
+        crate::alloc_str_with(len, |out| {
+            let mut at = 0;
+            for &[kind, v] in parts {
+                let digits = &mut [0; 20];
+                let text = match kind {
+                    PART_INT => crate::int_text(v, digits),
+                    _ => plain_part(kind, v).unwrap_or_default(),
+                };
+                out[at..at + text.len()].copy_from_slice(text.as_bytes());
+                at += text.len();
             }
-        }
+        })
+    }
+}
+
+fn build_formatted(parts: &[[i64; 2]]) -> i64 {
+    with_buffer(|text| {
+        format_parts(parts, text);
         unsafe { crate::alloc_str(text) }
     })
+}
+
+fn format_parts(parts: &[[i64; 2]], text: &mut String) {
+    for &[kind, v] in parts {
+        match kind {
+            PART_INT => text.push_str(crate::int_text(v, &mut [0; 20])),
+            PART_FLOAT => text.push_str(&crate::float_text(f64::from_bits(v as u64))),
+            PART_ARRAY if v == 0 => text.push_str("[]"),
+            PART_ARRAY => text.push_str(&crate::ptr_to_display(v, 0)),
+            _ => match plain_part(kind, v) {
+                Some(plain) => text.push_str(plain),
+                None => text.push_str(&crate::val_to_string(v)),
+            },
+        }
+    }
+}
+
+/// Appelle `f` avec le texte du gabarit `parts` (voir `__str_build`), sans
+/// allouer de chaîne Ocara. Le tampon du thread est sorti le temps de `f` :
+/// `f` peut relâcher une valeur, donc lancer une collecte qui formate un
+/// autre gabarit.
+pub(crate) fn with_template_text<R>(parts: *const i64, n: i64, f: impl FnOnce(&str) -> R) -> R {
+    let parts = unsafe { std::slice::from_raw_parts(parts as *const [i64; 2], n.max(0) as usize) };
+    let mut text = TEMPLATE_BUFFER.with(|buffer| std::mem::take(&mut *buffer.borrow_mut()));
+    text.clear();
+    format_parts(parts, &mut text);
+    let result = f(&text);
+    TEMPLATE_BUFFER.with(|buffer| *buffer.borrow_mut() = text);
+    result
 }

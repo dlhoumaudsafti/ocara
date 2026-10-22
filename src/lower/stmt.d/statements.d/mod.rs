@@ -4,6 +4,7 @@ pub mod helpers;
 pub mod variables;
 pub mod control_flow;
 pub mod loops;
+pub mod map_loop_scan;
 pub mod assignments;
 pub mod exceptions;
 pub mod try_exit;

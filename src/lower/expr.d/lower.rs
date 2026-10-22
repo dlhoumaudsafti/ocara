@@ -205,7 +205,7 @@ pub fn lower_map_literal(builder: &mut LowerBuilder, entries: &[(Expr, Expr)], v
     for (key, val) in entries {
         let kv = lower_map_key(builder, key);
         let vv = lower_literal_element(builder, val, val_ty);
-        builder.emit(Inst::Call { dest: None, func: kv.set_func().into(), args: vec![map.clone(), kv.value, vv], ret_ty: IrType::Void });
+        builder.emit(Inst::Call { dest: None, func: kv.set_func().into(), args: [vec![map.clone()], kv.args, vec![vv]].concat(), ret_ty: IrType::Void });
     }
     map
 }
@@ -215,29 +215,96 @@ pub fn lower_map_literal(builder: &mut LowerBuilder, entries: &[(Expr, Expr)], v
 /// un pointeur de chaîne — voir docs/roadmap.d/langage-map-loop-value-type.md).
 /// Clé d'une map prête à l'appel : une clé `int` reste brute et passe par
 /// `__map_get_ikey`/`__map_set_ikey` (texte formaté sur la pile, ni boîte ni
-/// chaîne allouée à la lecture) ; toute autre clé est boxée si besoin.
+/// chaîne allouée à la lecture) ; un gabarit passe ses parties à
+/// `__map_get_tpl`/`__map_set_tpl` (texte formaté dans un tampon réutilisé,
+/// chaîne allouée seulement pour une clé nouvelle) ; toute autre clé est
+/// boxée si besoin.
 pub struct MapKeyArg {
-    pub value: Value,
-    int: bool,
+    /// Arguments de la clé, après celui de la map.
+    pub args: Vec<Value>,
+    kind: MapKeyKind,
+}
+
+enum MapKeyKind {
+    Int,
+    Template,
+    Value,
 }
 
 impl MapKeyArg {
     pub fn get_func(&self) -> &'static str {
-        if self.int { "__map_get_ikey" } else { "__map_get" }
+        match self.kind {
+            MapKeyKind::Int => "__map_get_ikey",
+            MapKeyKind::Template => "__map_get_tpl",
+            MapKeyKind::Value => "__map_get",
+        }
     }
 
     pub fn set_func(&self) -> &'static str {
-        if self.int { "__map_set_ikey" } else { "__map_set" }
+        match self.kind {
+            MapKeyKind::Int => "__map_set_ikey",
+            MapKeyKind::Template => "__map_set_tpl",
+            MapKeyKind::Value => "__map_set",
+        }
     }
 }
 
 pub fn lower_map_key(builder: &mut LowerBuilder, key: &Expr) -> MapKeyArg {
+    if let Expr::Template { parts, .. } = key {
+        let (pairs, count) = lower_template_parts(builder, parts);
+        return MapKeyArg { args: vec![pairs, count], kind: MapKeyKind::Template };
+    }
     let ty = expr_ir_type(builder, key);
     let v = lower_expr(builder, key);
     if ty == IrType::I64 {
-        return MapKeyArg { value: v, int: true };
+        return MapKeyArg { args: vec![v], kind: MapKeyKind::Int };
     }
-    MapKeyArg { value: box_for_dyn_arith(builder, &ty, v), int: false }
+    MapKeyArg { args: vec![box_for_dyn_arith(builder, &ty, v)], kind: MapKeyKind::Value }
+}
+
+/// Parties d'un gabarit : paires (genre, valeur) rangées sur la pile, et
+/// leur nombre (voir `__str_build`).
+fn lower_template_parts(builder: &mut LowerBuilder, parts: &[TemplatePartExpr]) -> (Value, Value) {
+    let pairs = builder.new_value();
+    builder.emit(Inst::AllocaWords { dest: pairs.clone(), words: (2 * parts.len()).max(1) as u32 });
+    for (i, part) in parts.iter().enumerate() {
+        let (kind, value) = match part {
+            TemplatePartExpr::Literal(text) => {
+                let idx = builder.module.intern_string(text);
+                let d = builder.new_value();
+                builder.emit(Inst::ConstStr { dest: d.clone(), idx });
+                (0, d)
+            }
+            TemplatePartExpr::Expr(e) => {
+                let kind = if is_array_expr(builder, e) {
+                    4
+                } else {
+                    match expr_ir_type(builder, e) {
+                        IrType::I64 => 1,
+                        IrType::F64 => 2,
+                        IrType::Bool => 3,
+                        _ => 0,
+                    }
+                };
+                (kind, lower_expr(builder, e))
+            }
+        };
+        for (offset, word) in [(0, None), (8, Some(value))] {
+            let src = word.unwrap_or_else(|| {
+                let k = builder.new_value();
+                builder.emit(Inst::ConstInt { dest: k.clone(), value: kind });
+                k
+            });
+            let off = builder.new_value();
+            builder.emit(Inst::ConstInt { dest: off.clone(), value: (16 * i + offset) as i64 });
+            let addr = builder.new_value();
+            builder.emit(Inst::Add { dest: addr.clone(), lhs: pairs.clone(), rhs: off, ty: IrType::I64 });
+            builder.emit(Inst::Store { ptr: addr, src });
+        }
+    }
+    let count = builder.new_value();
+    builder.emit(Inst::ConstInt { dest: count.clone(), value: parts.len() as i64 });
+    (pairs, count)
 }
 
 fn lower_literal_element(builder: &mut LowerBuilder, elem: &Expr, elem_ty: &Type) -> Value {
@@ -1581,18 +1648,18 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // `self.champ[clé]`/`obj.champ[clé]`, selon le type déclaré du
             // CHAMP (module.class_map_fields, seule source fiable : class_layouts
             // réduit tout champ à IrType::Ptr, map/array/string indistinguables).
-            let (idx_val, func) = if is_map {
+            let (idx_args, func) = if is_map {
                 let key = lower_map_key(builder, index);
                 let func = key.get_func();
-                (key.value, func)
+                (key.args, func)
             } else {
-                (lower_expr(builder, index), "__array_get")
+                (vec![lower_expr(builder, index)], "__array_get")
             };
             let dest = builder.new_value();
             builder.emit(Inst::Call {
                 dest:   Some(dest.clone()),
                 func:   func.into(),
-                args:   vec![obj_val, idx_val],
+                args:   [vec![obj_val], idx_args].concat(),
                 ret_ty: IrType::Ptr,
             });
             dest
@@ -1704,48 +1771,9 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
         }
 
         // ── Chaîne template `${expr}` ─────────────────────────────────────
-        // Gabarit : paires (genre, valeur) rangées sur la pile, formatées en
-        // une seule allocation par `__str_build`.
+        // Gabarit : formaté en une seule allocation par `__str_build`.
         Expr::Template { parts, .. } => {
-            let pairs = builder.new_value();
-            builder.emit(Inst::AllocaWords { dest: pairs.clone(), words: (2 * parts.len()).max(1) as u32 });
-            for (i, part) in parts.iter().enumerate() {
-                let (kind, value) = match part {
-                    TemplatePartExpr::Literal(text) => {
-                        let idx = builder.module.intern_string(text);
-                        let d = builder.new_value();
-                        builder.emit(Inst::ConstStr { dest: d.clone(), idx });
-                        (0, d)
-                    }
-                    TemplatePartExpr::Expr(e) => {
-                        let kind = if is_array_expr(builder, e) {
-                            4
-                        } else {
-                            match expr_ir_type(builder, e) {
-                                IrType::I64 => 1,
-                                IrType::F64 => 2,
-                                IrType::Bool => 3,
-                                _ => 0,
-                            }
-                        };
-                        (kind, lower_expr(builder, e))
-                    }
-                };
-                for (offset, word) in [(0, None), (8, Some(value))] {
-                    let src = word.unwrap_or_else(|| {
-                        let k = builder.new_value();
-                        builder.emit(Inst::ConstInt { dest: k.clone(), value: kind });
-                        k
-                    });
-                    let off = builder.new_value();
-                    builder.emit(Inst::ConstInt { dest: off.clone(), value: (16 * i + offset) as i64 });
-                    let addr = builder.new_value();
-                    builder.emit(Inst::Add { dest: addr.clone(), lhs: pairs.clone(), rhs: off, ty: IrType::I64 });
-                    builder.emit(Inst::Store { ptr: addr, src });
-                }
-            }
-            let count = builder.new_value();
-            builder.emit(Inst::ConstInt { dest: count.clone(), value: parts.len() as i64 });
+            let (pairs, count) = lower_template_parts(builder, parts);
             let dest = builder.new_value();
             builder.emit(Inst::Call { dest: Some(dest.clone()), func: "__str_build".into(), args: vec![pairs, count], ret_ty: IrType::Ptr });
             dest

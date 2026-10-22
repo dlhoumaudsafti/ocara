@@ -43,7 +43,13 @@ client pour chaque serveur : `http.server`, `php -S` avec 4 processus,
 standard). Aucun résidu : binaires compilés dans un dossier temporaire
 supprimé à la sortie, pas de `__pycache__` (`PYTHONDONTWRITEBYTECODE`). Hors
 de `make regression` (temps dépendant de la charge de la machine). Tableau
-des mesures : `docs/benchmarking.md`.
+des mesures : `docs/benchmarking.md`, régénéré avec ses graphiques
+(`docs/images/benchmark-*.svg`) depuis les sorties des deux commandes :
+
+```bash
+make perf > perf.log ; make perf-extra > extra.log
+python3 ci/perf_report.py perf.log extra.log
+```
 
 ## Pipeline
 

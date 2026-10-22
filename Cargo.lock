@@ -2817,8 +2817,8 @@ dependencies = [
 name = "ocara_runtime"
 version = "1.0.0"
 dependencies = [
+ "foldhash 0.2.0",
  "idna 0.3.0",
- "indexmap 2.14.0",
  "libc",
  "libz-sys",
  "mysql",

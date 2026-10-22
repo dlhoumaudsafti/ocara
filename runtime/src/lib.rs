@@ -23,7 +23,8 @@
 #![allow(clippy::missing_safety_doc)]
 
 use std::alloc::{alloc_zeroed, dealloc, Layout};
-use crate::containers::{with_array, with_map, KeyText, MapKey, OcaraArray, OcaraMap};
+use crate::containers::{with_array, with_map, OcaraArray, OcaraMap};
+use crate::map_table::{Key, KeyRef};
 use crate::typecheck::{TAG_STRING_OWNED, TAG_ARRAY, TAG_MAP, TAG_FUNCTION,
     __is_function, __is_object, __is_map, __is_array, __is_string};
 use std::io::{self, BufRead};
@@ -137,6 +138,8 @@ pub mod global_const;
 pub mod blocking;
 pub(crate) mod unittest_runtime;
 pub(crate) mod containers;
+pub(crate) mod map_table;
+pub(crate) mod map_hash;
 pub(crate) mod rc_concurrent;
 // Tauri vit dans le crate séparé runtime_tauri (voir sa doc) : pas de `mod tauri`
 // ici, pour que ce code (et sa dépendance GTK/WebKit) n'existe dans le binaire
@@ -193,21 +196,39 @@ pub(crate) unsafe fn alloc_str_with(len: usize, fill: impl FnOnce(&mut [u8])) ->
     }
 }
 
-/// Texte décimal d'un entier, sans allocation.
+/// Les cent paires de chiffres `"00"` à `"99"`.
+const DIGIT_PAIRS: [u8; 200] = {
+    let mut pairs = [0; 200];
+    let mut i = 0;
+    while i < 100 {
+        pairs[2 * i] = b'0' + (i / 10) as u8;
+        pairs[2 * i + 1] = b'0' + (i % 10) as u8;
+        i += 1;
+    }
+    pairs
+};
+
+/// Texte décimal d'un entier, sans allocation ; deux chiffres par division.
 pub(crate) fn int_text(n: i64, buf: &mut [u8; 20]) -> &str {
     let mut i = buf.len();
     let mut m = n.unsigned_abs();
-    loop {
+    while m >= 10 {
+        let pair = (m % 100) as usize * 2;
+        m /= 100;
+        i -= 2;
+        buf[i..i + 2].copy_from_slice(&DIGIT_PAIRS[pair..pair + 2]);
+    }
+    // Chiffre de tête restant, ou zéro seul.
+    if m > 0 || i == buf.len() {
         i -= 1;
-        buf[i] = b'0' + (m % 10) as u8;
-        m /= 10;
-        if m == 0 { break; }
+        buf[i] = b'0' + m as u8;
     }
     if n < 0 {
         i -= 1;
         buf[i] = b'-';
     }
-    std::str::from_utf8(&buf[i..]).unwrap_or("")
+    // Chiffres et signe ASCII : de l'UTF-8 valide.
+    unsafe { std::str::from_utf8_unchecked(&buf[i..]) }
 }
 
 /// Libère une chaîne allouée par `alloc_str` — exact inverse (même layout :
@@ -474,7 +495,7 @@ pub(crate) unsafe fn array_data(ptr: i64) -> Vec<i64> {
 }
 
 pub(crate) unsafe fn map_values(ptr: i64) -> Vec<i64> {
-    unsafe { with_map(ptr, |data| data.values().copied().collect()) }
+    unsafe { with_map(ptr, |data| data.values().collect()) }
 }
 
 pub(crate) unsafe fn drop_array_block(ptr: i64) {
@@ -729,6 +750,15 @@ pub extern "C" fn __array_get(ptr: i64, idx: i64) -> i64 {
     unsafe { with_array(ptr, |data| data.get(idx as usize).copied().unwrap_or(0)) }
 }
 
+/// Élément `idx` sorti du tableau, case remise à vide : sa référence passe à
+/// l'appelant (clé relevée par `Map_keys`, reprise par la variable de
+/// `for k has v in m`).
+#[unsafe(no_mangle)]
+pub extern "C" fn __array_take(ptr: i64, idx: i64) -> i64 {
+    if ptr == 0 { return 0; }
+    unsafe { with_array(ptr, |data| data.get_mut(idx as usize).map_or(0, std::mem::take)) }
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn __array_set(ptr: i64, idx: i64, val: i64) {
     if ptr == 0 { return; }
@@ -761,18 +791,6 @@ unsafe fn key_to_string(key: i64) -> String {
         unsafe { ptr_to_str(key).to_string() }
     } else {
         key.to_string()
-    }
-}
-
-/// Clé de map retenue pour `key` : la chaîne elle-même, ou son texte.
-unsafe fn map_key(key: i64) -> MapKey {
-    unsafe {
-        if is_ptr(key) && typecheck::__is_string(key) != 0 {
-            rc::retain(key);
-            MapKey::owned(key)
-        } else {
-            MapKey::owned(alloc_str(&key_to_string(key)))
-        }
     }
 }
 
@@ -819,12 +837,14 @@ pub fn map_set_owned_key(ptr: i64, key: i64, val: i64) {
 }
 
 /// Range `val` sous `key` sans le retenir ; l'ancienne valeur est relâchée.
+/// Une clé chaîne est retenue et reprise telle quelle par la map.
 fn map_put(ptr: i64, key: i64, val: i64) {
     if ptr == 0 { return; }
-    let k = unsafe { map_key(key) };
-    let old = unsafe {
-        with_map(ptr, |data| data.insert(k, val))
-    };
+    let owned = (is_ptr(key) && typecheck::__is_string(key) != 0).then(|| {
+        unsafe { rc::retain(key) };
+        key
+    });
+    let old = unsafe { with_key_text(key, |text| with_map(ptr, |data| data.insert(Key::Text(text), val, owned))) };
     if let Some(old) = old {
         release_elem(ptr, old);
     }
@@ -837,41 +857,52 @@ pub extern "C" fn __map_set(ptr: i64, key: i64, val: i64) {
     map_put(ptr, key, val);
 }
 
-/// Texte décimal d'une clé `int`, formaté sur la pile.
-fn with_int_key<R>(key: i64, f: impl FnOnce(&str) -> R) -> R {
-    f(int_text(key, &mut [0; 20]))
-}
-
-/// `m[k] = v` pour une clé `int` brute : la chaîne de la clé n'est allouée
-/// qu'à l'insertion d'une clé nouvelle.
-#[unsafe(no_mangle)]
-pub extern "C" fn __map_set_ikey(ptr: i64, key: i64, val: i64) {
-    if ptr == 0 { return; }
+/// Range `val` sous `key` : une chaîne n'est allouée pour la clé qu'à
+/// l'insertion d'une clé nouvelle dans une map à clés texte.
+fn map_set_key(ptr: i64, key: Key, val: i64) {
     retain_elem(ptr, val);
-    let old = with_int_key(key, |text| unsafe {
-        with_map(ptr, |data| match data.get_mut(&KeyText(text)) {
-            Some(slot) => Some(std::mem::replace(slot, val)),
-            None => {
-                data.insert(MapKey::owned(alloc_str(text)), val);
-                None
-            }
-        })
-    });
+    let old = unsafe { with_map(ptr, |data| data.insert(key, val, None)) };
     if let Some(old) = old {
         release_elem(ptr, old);
     }
 }
 
+/// Valeur (empruntée) sous `key` ; `0` si absente.
+fn map_get_key(ptr: i64, key: Key) -> i64 {
+    if ptr == 0 { return 0; }
+    unsafe { with_map(ptr, |data| data.get(key).unwrap_or(0)) }
+}
+
+/// `m[k] = v` pour une clé `int` brute.
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_set_ikey(ptr: i64, key: i64, val: i64) {
+    if ptr == 0 { return; }
+    map_set_key(ptr, Key::Int(key), val)
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn __map_get_ikey(ptr: i64, key: i64) -> i64 {
-    with_int_key(key, |text| map_lookup(ptr, text))
+    map_get_key(ptr, Key::Int(key))
+}
+
+/// `m[`…${x}…`] = v` : clé gabarit (parties comme `__str_build`), formatée
+/// dans un tampon réutilisé.
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_set_tpl(ptr: i64, parts: *const i64, n: i64, val: i64) {
+    if ptr == 0 { return; }
+    str_append::with_template_text(parts, n, |text| map_set_key(ptr, Key::Text(text), val))
+}
+
+/// `m[`…${x}…`]` : lecture sans allouer la chaîne de la clé.
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_get_tpl(ptr: i64, parts: *const i64, n: i64) -> i64 {
+    str_append::with_template_text(parts, n, |text| map_lookup(ptr, text))
 }
 
 /// Valeur (empruntée) sous la clé `key`, sans allouer de chaîne Ocara pour
 /// la clé ; `0` si absente. `pub` : utilisé par runtime_sdl/runtime_tauri.
 pub fn map_lookup(ptr: i64, key: &str) -> i64 {
-    if ptr == 0 { return 0; }
-    unsafe { with_map(ptr, |data| data.get(&KeyText(key)).copied().unwrap_or(0)) }
+    map_get_key(ptr, Key::Text(key))
 }
 
 #[unsafe(no_mangle)]
@@ -880,12 +911,43 @@ pub extern "C" fn __map_get(ptr: i64, key: i64) -> i64 {
     unsafe { with_key_text(key, |k| map_lookup(ptr, k)) }
 }
 
+/// Valeur de la clé `key` relevée au rang `index` par `Map_keys` (`for k has
+/// v in m`) : la paire `index` si elle porte toujours cette clé, sans
+/// hachage ; sinon recherche.
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_value_at(ptr: i64, index: i64, key: i64) -> i64 {
+    if ptr == 0 { return 0; }
+    unsafe { with_key_text(key, |k| with_map(ptr, |data| data.value_at(index as usize, Key::Text(k)).unwrap_or(0))) }
+}
+
+/// `__map_value_at` pour une clé `int` brute.
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_value_at_ikey(ptr: i64, index: i64, key: i64) -> i64 {
+    if ptr == 0 { return 0; }
+    unsafe { with_map(ptr, |data| data.value_at(index as usize, Key::Int(key)).unwrap_or(0)) }
+}
+
+/// Clé de rang `index`, empruntée — `for k has v in m` dont le corps ne peut
+/// pas modifier la map : entier brut pour `int_key`, sinon chaîne.
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_key_at(ptr: i64, index: i64, int_key: i64) -> i64 {
+    if ptr == 0 { return 0; }
+    unsafe { with_map(ptr, |data| data.key_at(index as usize, int_key != 0)) }
+}
+
+/// Valeur (empruntée) de rang `index`.
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_value_index(ptr: i64, index: i64) -> i64 {
+    if ptr == 0 { return 0; }
+    unsafe { with_map(ptr, |data| data.value_index(index as usize)) }
+}
+
 /// Copie les paires (clé, valeur `mixed` brute) d'une `map<string, mixed>` —
 /// pour un appelant hors de ce fichier (ex. `sqlite::bind`) qui doit itérer
 /// tout le contenu sans exposer `OcaraMap` lui-même.
 pub(crate) unsafe fn map_entries(ptr: i64) -> Vec<(String, i64)> {
     if ptr == 0 { return Vec::new(); }
-    unsafe { with_map(ptr, |data| data.iter().map(|(k, v)| (k.text().to_string(), *v)).collect()) }
+    unsafe { with_map(ptr, |data| data.iter().map(|(k, v)| (k.with_text(str::to_string), v)).collect()) }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1448,7 +1510,7 @@ pub extern "C" fn Map_size(ptr: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn Map_has(ptr: i64, key: i64) -> i64 {
     if ptr == 0 { return 0; }
-    if unsafe { with_key_text(key, |k| with_map(ptr, |data| data.contains_key(&KeyText(k)))) } { 1 } else { 0 }
+    if unsafe { with_key_text(key, |k| with_map(ptr, |data| data.contains_key(Key::Text(k)))) } { 1 } else { 0 }
 }
 
 #[unsafe(no_mangle)]
@@ -1464,7 +1526,7 @@ pub extern "C" fn Map_get(ptr: i64, key: i64) -> i64 {
         }
     }
     let k = unsafe { key_to_string(key) };
-    match unsafe { with_map(ptr, |data| data.get(&KeyText(k.as_str())).copied()) } {
+    match unsafe { with_map(ptr, |data| data.get(Key::Text(&k))) } {
         Some(v) => v,
         None => unsafe {
             exception::throw_map_exception(&format!("Key not found: {}", k), ERR_MAP_KEY_NOT_FOUND, "Map")
@@ -1480,8 +1542,7 @@ pub extern "C" fn Map_set(ptr: i64, key: i64, val: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn Map_remove(ptr: i64, key: i64) {
     if ptr == 0 { return; }
-    let removed = unsafe { with_key_text(key, |k| with_map(ptr, |data| data.shift_remove_entry(&KeyText(k)))) };
-    let removed = removed.map(|(_, v)| v);
+    let removed = unsafe { with_key_text(key, |k| with_map(ptr, |data| data.remove(Key::Text(k)))) };
     if let Some(v) = removed {
         release_elem(ptr, v);
     }
@@ -1498,7 +1559,11 @@ pub extern "C" fn Map_keys(ptr: i64, kind: i64) -> i64 {
     if ptr == 0 { return arr_ptr; }
     // Les clés sont stockées en texte — converties au type `K`.
     let keys: Vec<i64> = unsafe {
-        with_map(ptr, |data| data.keys().map(|k| if (1..=3).contains(&kind) { key_from_text(k.text(), kind) } else { k.share() }).collect())
+        with_map(ptr, |data| data.keys().map(|k| match (k, kind) {
+            (KeyRef::Int(value), 1) => value,
+            (k, 1..=3) => k.with_text(|text| key_from_text(text, kind)),
+            (k, _) => k.share(),
+        }).collect())
     };
     unsafe { with_array(arr_ptr, |data| *data = keys) }
     arr_ptr

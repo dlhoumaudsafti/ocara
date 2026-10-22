@@ -186,6 +186,9 @@ unsafe impl GlobalAlloc for CachingAlloc {
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+        if class_of(&layout).is_none() {
+            return unsafe { System.alloc_zeroed(layout) };
+        }
         let ptr = unsafe { self.alloc(layout) };
         if !ptr.is_null() {
             unsafe { std::ptr::write_bytes(ptr, 0, layout.size()) };

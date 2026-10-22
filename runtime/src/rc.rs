@@ -375,7 +375,7 @@ pub(crate) unsafe fn for_each_child(val: i64, k: Kind, f: &mut dyn FnMut(i64)) {
                 crate::containers::with_array(val, |data| for &el in data.iter() { f(el) })
             }
             Kind::Map if aux(val) & FLAG_RAW == 0 => {
-                crate::containers::with_map(val, |data| for &el in data.values() { f(el) })
+                crate::containers::with_map(val, |data| for el in data.values() { f(el) })
             }
             Kind::Object => {
                 for (i, &b) in object_mask(val).iter().enumerate() {
@@ -468,6 +468,16 @@ pub(crate) unsafe fn release(val: i64) {
     // suivait laissait alors un cycle poubelle sans racine.
     if COLLECT_DUE.with(|c| c.replace(false)) {
         collect_due();
+    }
+}
+
+/// Relâche une chaîne sans le détour de `destroy` (feuille : ni enfant, ni
+/// cycle, ni finalisation) — clés d'une map.
+pub(crate) unsafe fn release_string(val: i64) {
+    unsafe {
+        if kind(val) == Some(Kind::String) && add_count(word(val, Kind::String), -1) & COUNT_MASK == 1 {
+            dealloc_block(val, Kind::String);
+        }
     }
 }
 

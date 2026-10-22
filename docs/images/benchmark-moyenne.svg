@@ -1,41 +1,43 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 394" width="720" height="394" role="img" aria-labelledby="t d">
 <title id="t">Temps relatif moyen par langage (Ocara = 1)</title>
-<desc id="d">Moyenne géométrique du rapport à Ocara sur les mesures de make perf ; plus court = plus rapide. C 0,34; Rust 0,41; C++ 0,54; Ocara 1,00; PHP 1,43; Python 4,02; Perl 4,62.</desc>
+<desc id="d">Moyenne géométrique du rapport à Ocara sur les mesures de make perf ; plus court = plus rapide. C 0,35; Rust 0,51; C++ 0,65; Ocara 1,00; PHP 1,75; Python 4,81; Perl 5,57.</desc>
 <style>svg { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; } .surface { fill: #fcfcfb; } .ink { fill: #0b0b0b; } .ink2 { fill: #52514e; } .grid { stroke: #e4e3df; } .ref { stroke: #52514e; } .s0 { fill: #2a78d6; } .s1 { fill: #eb6834; } .s2 { fill: #1baf7a; } .s3 { fill: #eda100; } .s4 { fill: #e87ba4; } .s5 { fill: #008300; } .s6 { fill: #6250d6; } @media (prefers-color-scheme: dark) { .surface { fill: #1a1a19; } .ink { fill: #f0efec; } .ink2 { fill: #c3c2b7; } .grid { stroke: #3a3936; } .ref { stroke: #c3c2b7; } .s0 { fill: #3987e5; } .s1 { fill: #d95926; } .s2 { fill: #199e70; } .s3 { fill: #c98500; } .s4 { fill: #d55181; } .s5 { fill: #008300; } .s6 { fill: #9085e9; } }</style>
 <rect class="surface" width="720" height="394" rx="8"/>
 <text class="ink" x="24" y="30" font-size="16" font-weight="600">Temps relatif moyen par langage (Ocara = 1)</text>
 <text class="ink2" x="24" y="50" font-size="12">Moyenne géométrique du rapport à Ocara sur les mesures de make perf ; plus court = plus rapide</text>
 <line class="grid" x1="150.0" y1="58" x2="150.0" y2="322" stroke-width="1"/>
 <text class="ink2" x="150.0" y="338" font-size="11" text-anchor="middle">0</text>
-<line class="grid" x1="236.6" y1="58" x2="236.6" y2="322" stroke-width="1"/>
-<text class="ink2" x="236.6" y="338" font-size="11" text-anchor="middle">1</text>
-<line class="grid" x1="323.2" y1="58" x2="323.2" y2="322" stroke-width="1"/>
-<text class="ink2" x="323.2" y="338" font-size="11" text-anchor="middle">2</text>
-<line class="grid" x1="409.7" y1="58" x2="409.7" y2="322" stroke-width="1"/>
-<text class="ink2" x="409.7" y="338" font-size="11" text-anchor="middle">3</text>
-<line class="grid" x1="496.3" y1="58" x2="496.3" y2="322" stroke-width="1"/>
-<text class="ink2" x="496.3" y="338" font-size="11" text-anchor="middle">4</text>
-<line class="ref" x1="236.6" y1="54" x2="236.6" y2="326" stroke-width="1.5" stroke-dasharray="4 3"/>
+<line class="grid" x1="221.8" y1="58" x2="221.8" y2="322" stroke-width="1"/>
+<text class="ink2" x="221.8" y="338" font-size="11" text-anchor="middle">1</text>
+<line class="grid" x1="293.7" y1="58" x2="293.7" y2="322" stroke-width="1"/>
+<text class="ink2" x="293.7" y="338" font-size="11" text-anchor="middle">2</text>
+<line class="grid" x1="365.5" y1="58" x2="365.5" y2="322" stroke-width="1"/>
+<text class="ink2" x="365.5" y="338" font-size="11" text-anchor="middle">3</text>
+<line class="grid" x1="437.3" y1="58" x2="437.3" y2="322" stroke-width="1"/>
+<text class="ink2" x="437.3" y="338" font-size="11" text-anchor="middle">4</text>
+<line class="grid" x1="509.1" y1="58" x2="509.1" y2="322" stroke-width="1"/>
+<text class="ink2" x="509.1" y="338" font-size="11" text-anchor="middle">5</text>
+<line class="ref" x1="221.8" y1="54" x2="221.8" y2="326" stroke-width="1.5" stroke-dasharray="4 3"/>
 <text class="ink" x="138" y="80.0" font-size="13" text-anchor="end">C</text>
-<path class="s4" d="M150,64 h25.2 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-25.2 z"><title>C : 0,34 × (23 mesures)</title></path>
-<text class="ink" x="248.6" y="80.0" font-size="12">0,34 × (23 mesures)</text>
+<path class="s4" d="M150,64 h21.2 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-21.2 z"><title>C : 0,35 × (23 mesures)</title></path>
+<text class="ink" x="233.8" y="80.0" font-size="12">0,35 × (23 mesures)</text>
 <text class="ink" x="138" y="118.0" font-size="13" text-anchor="end">Rust</text>
-<path class="s6" d="M150,102 h31.2 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-31.2 z"><title>Rust : 0,41 × (27 mesures)</title></path>
-<text class="ink" x="248.6" y="118.0" font-size="12">0,41 × (27 mesures)</text>
+<path class="s6" d="M150,102 h33.0 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-33.0 z"><title>Rust : 0,51 × (27 mesures)</title></path>
+<text class="ink" x="233.8" y="118.0" font-size="12">0,51 × (27 mesures)</text>
 <text class="ink" x="138" y="156.0" font-size="13" text-anchor="end">C++</text>
-<path class="s5" d="M150,140 h42.7 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-42.7 z"><title>C++ : 0,54 × (31 mesures)</title></path>
-<text class="ink" x="248.6" y="156.0" font-size="12">0,54 × (31 mesures)</text>
+<path class="s5" d="M150,140 h43.0 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-43.0 z"><title>C++ : 0,65 × (31 mesures)</title></path>
+<text class="ink" x="233.8" y="156.0" font-size="12">0,65 × (31 mesures)</text>
 <text class="ink" x="138" y="194.0" font-size="13" text-anchor="end" font-weight="600">Ocara</text>
-<path class="s0" d="M150,178 h82.6 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-82.6 z"><title>Ocara : 1,00 × (33 mesures)</title></path>
-<text class="ink" x="244.6" y="194.0" font-size="12" font-weight="600">1,00 × (33 mesures)</text>
+<path class="s0" d="M150,178 h67.8 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-67.8 z"><title>Ocara : 1,00 × (33 mesures)</title></path>
+<text class="ink" x="229.8" y="194.0" font-size="12" font-weight="600">1,00 × (33 mesures)</text>
 <text class="ink" x="138" y="232.0" font-size="13" text-anchor="end">PHP</text>
-<path class="s2" d="M150,216 h119.7 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-119.7 z"><title>PHP : 1,43 × (30 mesures)</title></path>
-<text class="ink" x="281.7" y="232.0" font-size="12">1,43 × (30 mesures)</text>
+<path class="s2" d="M150,216 h121.5 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-121.5 z"><title>PHP : 1,75 × (30 mesures)</title></path>
+<text class="ink" x="283.5" y="232.0" font-size="12">1,75 × (30 mesures)</text>
 <text class="ink" x="138" y="270.0" font-size="13" text-anchor="end">Python</text>
-<path class="s1" d="M150,254 h343.8 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-343.8 z"><title>Python : 4,02 × (33 mesures)</title></path>
-<text class="ink" x="505.8" y="270.0" font-size="12">4,02 × (33 mesures)</text>
+<path class="s1" d="M150,254 h341.2 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-341.2 z"><title>Python : 4,81 × (33 mesures)</title></path>
+<text class="ink" x="503.2" y="270.0" font-size="12">4,81 × (33 mesures)</text>
 <text class="ink" x="138" y="308.0" font-size="13" text-anchor="end">Perl</text>
-<path class="s3" d="M150,292 h396.0 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-396.0 z"><title>Perl : 4,62 × (30 mesures)</title></path>
-<text class="ink" x="558.0" y="308.0" font-size="12">4,62 × (30 mesures)</text>
+<path class="s3" d="M150,292 h396.0 a4,4 0 0 1 4,4 v16 a4,4 0 0 1 -4,4 h-396.0 z"><title>Perl : 5,57 × (30 mesures)</title></path>
+<text class="ink" x="558.0" y="308.0" font-size="12">5,57 × (30 mesures)</text>
 <text class="ink2" x="360.0" y="378" font-size="11" text-anchor="middle">Rapport moyen au temps d'Ocara (ligne pointillée : Ocara)</text>
 </svg>

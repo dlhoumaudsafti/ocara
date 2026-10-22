@@ -103,12 +103,12 @@ pub fn lower_assign(
             // structure interne (crash au premier accès/itération suivant,
             // silencieux avant ça). Factorisé dans `is_map_target` (helpers.rs).
             let is_map = is_map_target(builder, object);
-            let (idx_val, func) = if is_map {
+            let (idx_args, func) = if is_map {
                 let key = crate::lower::expr::lower_map_key(builder, index);
                 let func = key.set_func();
-                (key.value, func)
+                (key.args, func)
             } else {
-                (lower_expr(builder, index), "__array_set")
+                (vec![lower_expr(builder, index)], "__array_set")
             };
             // Boxer `val` si l'ÉLÉMENT du conteneur est `mixed` (ou tout type
             // qui se représente en `Ptr` auto-décrit — `mixed`/union/objet,
@@ -153,7 +153,7 @@ pub fn lower_assign(
             builder.emit(Inst::Call {
                 dest:   None,
                 func:   func.into(),
-                args:   vec![obj_val, idx_val, val],
+                args:   [vec![obj_val], idx_args, vec![val]].concat(),
                 ret_ty: IrType::Void,
             });
         }
@@ -217,23 +217,23 @@ pub fn lower_incdec(builder: &mut LowerBuilder, op: &IncDecOp, target: &Expr) ->
         }
         Expr::Index { object, index, .. } => {
             let obj_val = lower_expr(builder, object);
-            let (idx_val, get_func, set_func) = if is_map_target(builder, object) {
+            let (idx_args, get_func, set_func) = if is_map_target(builder, object) {
                 let key = crate::lower::expr::lower_map_key(builder, index);
                 let (get, set) = (key.get_func(), key.set_func());
-                (key.value, get, set)
+                (key.args, get, set)
             } else {
-                (lower_expr(builder, index), "__array_get", "__array_set")
+                (vec![lower_expr(builder, index)], "__array_get", "__array_set")
             };
             let ty = expr_ir_type_pub(builder, target);
             let old_val = builder.new_value();
             builder.emit(Inst::Call {
                 dest: Some(old_val.clone()), func: get_func.into(),
-                args: vec![obj_val.clone(), idx_val.clone()], ret_ty: IrType::Ptr,
+                args: [vec![obj_val.clone()], idx_args.clone()].concat(), ret_ty: IrType::Ptr,
             });
             let new_val = emit_incdec_step(builder, op, old_val.clone(), &ty);
             builder.emit(Inst::Call {
                 dest: None, func: set_func.into(),
-                args: vec![obj_val, idx_val, new_val.clone()], ret_ty: IrType::Void,
+                args: [vec![obj_val], idx_args, vec![new_val.clone()]].concat(), ret_ty: IrType::Void,
             });
             if op.is_prefix() { new_val } else { old_val }
         }

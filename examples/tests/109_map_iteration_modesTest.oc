@@ -1,0 +1,110 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.Map
+
+// `for k has v in m` : parcours en place quand le corps ne peut pas modifier
+// la map (ni appel ni écriture indexée), sur les clés relevées sinon ; clés
+// entières rangées brutes (voir docs/roadmap.d/perf-interpretes-plus-rapides.md).
+
+class Test109MapIterationModes extends UnitTest {
+
+    public method inPlaceStringKeysTest(): int {
+        var m:map<string, int> = {"a": 1, "b": 2, "c": 3}
+        var keys:string = ""
+        var total:int = 0
+        for k has v in m {
+            keys = keys + k
+            total += v
+        }
+        self::assertEquals("abc", keys)
+        self::assertEquals(6, total)
+        return 0
+    }
+
+    public method inPlaceIntKeysTest(): int {
+        var m:map<int, int> = {}
+        for i in 0 until 1000 {
+            m[i - 500] = i
+        }
+        var keys:int = 0
+        var values:int = 0
+        for k has v in m {
+            keys += k
+            values += v
+        }
+        self::assertEquals(-500, keys)
+        self::assertEquals(499500, values)
+        return 0
+    }
+
+    public method intTextKeysOfAStringMapTest(): int {
+        var m:map<string, int> = {"1": 10, "2": 20}
+        var keys:string = ""
+        for k has v in m {
+            keys = keys + k + "=" + `${v}` + ";"
+        }
+        self::assertEquals("1=10;2=20;", keys)
+        m["x"] = 30
+        self::assertEquals(10, m["1"])
+        self::assertEquals(30, m["x"])
+        return 0
+    }
+
+    public method borrowedKeyOutlivesTheLoopTest(): int {
+        var m:map<string, string> = {"a": "x", "b": "y"}
+        var lastKey:string = ""
+        var lastValue:string = ""
+        for k has v in m {
+            lastKey = k
+            lastValue = v
+        }
+        Map::remove(m, "b")
+        m["a"] = "z"
+        self::assertEquals("b", lastKey)
+        self::assertEquals("y", lastValue)
+        return 0
+    }
+
+    public method removalDuringIterationVisitsTheRelevedKeysTest(): int {
+        var m:map<string, int> = {"a": 1, "b": 2, "c": 3, "d": 4}
+        var seen:string = ""
+        for k has v in m {
+            seen = seen + k
+            Map::remove(m, "c")
+        }
+        self::assertEquals("abcd", seen)
+        self::assertEquals(3, m.size())
+        return 0
+    }
+
+    public method insertionDuringIterationIsNotVisitedTest(): int {
+        var m:map<string, int> = {"a": 1, "b": 2}
+        var count:int = 0
+        for k has v in m {
+            m[`${k}2`] = v
+            count += 1
+        }
+        self::assertEquals(2, count)
+        self::assertEquals(4, m.size())
+        return 0
+    }
+
+    public method nestedLoopsAndBreakTest(): int {
+        var m:map<int, int> = {1: 10, 2: 20, 3: 30}
+        var pairs:int = 0
+        for a has x in m {
+            for b has y in m {
+                if b greater a {
+                    break
+                }
+                pairs += x + y
+            }
+            if a equal 2 {
+                continue
+            }
+        }
+        self::assertEquals(20 + 30 + 40 + 40 + 50 + 60, pairs)
+        return 0
+    }
+}

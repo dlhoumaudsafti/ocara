@@ -1,0 +1,106 @@
+// Table d'une map (map_table.rs, map_hash.rs) : localité des clés à suffixe
+// numérique, suppression sans case tombale, clés entières brutes.
+
+use crate::map_hash::{hash_int, hash_text};
+use crate::map_table::{Key, KeyRef, MapTable};
+use crate::*;
+
+fn insert(table: &mut MapTable, text: &str, value: i64) -> Option<i64> {
+    table.insert(Key::Text(text), value, Some(unsafe { alloc_str(text) }))
+}
+
+fn get(table: &MapTable, text: &str) -> Option<i64> {
+    table.get(Key::Text(text))
+}
+
+#[test]
+fn suffixed_keys_stay_close_to_their_position() {
+    let mut table = MapTable::default();
+    for i in 0..200_000 {
+        insert(&mut table, &format!("k{}", i), i);
+    }
+    for i in 0..200_000 {
+        assert_eq!(get(&table, &format!("k{}", i)), Some(i));
+    }
+    assert!(table.mean_displacement() < 1.0, "déplacement moyen {}", table.mean_displacement());
+}
+
+#[test]
+fn keys_differing_by_padding_or_sign_are_distinct() {
+    let mut table = MapTable::default();
+    for text in ["k7", "k007", "7", "07", "-7", "-0", "0", "", "-"] {
+        assert_eq!(insert(&mut table, text, text.len() as i64), None, "{:?}", text);
+    }
+    for text in ["k7", "k007", "7", "07", "-7", "-0", "0", "", "-"] {
+        assert_eq!(get(&table, text), Some(text.len() as i64), "{:?}", text);
+    }
+    assert_eq!(insert(&mut table, "k7", 99), Some(2));
+    assert_eq!(table.len(), 9);
+}
+
+/// Clés à suffixe (`item_N`) et entiers multiples de 1024 (même position
+/// modulo la taille de l'index : longues suites de sondage).
+#[test]
+fn removal_keeps_every_other_key_reachable_and_ordered() {
+    for name in [|i: i64| format!("item_{}", i), |i: i64| format!("{}", i * 1024)] {
+        let mut table = MapTable::default();
+        for i in 0..5000 {
+            insert(&mut table, &name(i * 7 % 5000), i);
+        }
+        for i in (0..5000).filter(|i| i % 3 == 0) {
+            assert!(table.remove(Key::Text(&name(i))).is_some());
+        }
+        for i in 0..5000 {
+            assert_eq!(table.contains_key(Key::Text(&name(i))), i % 3 != 0, "{}", name(i));
+        }
+        let order: Vec<i64> = table.values().collect();
+        assert!(order.windows(2).all(|pair| pair[0] < pair[1]));
+        assert_eq!(table.len(), order.len());
+    }
+}
+
+#[test]
+fn an_int_and_its_decimal_text_hash_alike() {
+    let seed = Default::default();
+    for value in [0, 1, -1, 9, 10, -10, 4096, 1 << 40, -(1 << 40), 999_999_999_999_999_999, i64::MAX, i64::MIN] {
+        assert_eq!(hash_int(value), hash_text(&seed, &value.to_string()), "{}", value);
+    }
+}
+
+/// Clés entières rangées brutes, retrouvées par leur texte ; une clé non
+/// entière fait passer la table aux chaînes sans rien perdre.
+#[test]
+fn int_keys_switch_to_text_keys_on_the_first_other_key() {
+    let mut table = MapTable::default();
+    for i in -500..500 {
+        assert_eq!(table.insert(Key::Int(i), i * 2, None), None);
+    }
+    assert_eq!(insert(&mut table, "7", 0), Some(14));
+    assert!(!table.has_text_keys());
+    assert_eq!(get(&table, "07"), None);
+    assert_eq!(get(&table, "-3"), Some(-6));
+    assert_eq!(table.remove(Key::Text("-500")), Some(-1000));
+    insert(&mut table, "k", 1);
+    assert!(table.has_text_keys());
+    for i in -499..500 {
+        let expected = if i == 7 { 0 } else { i * 2 };
+        assert_eq!(table.get(Key::Int(i)), Some(expected), "{}", i);
+        assert_eq!(get(&table, &i.to_string()), Some(expected), "{}", i);
+    }
+    let keys: Vec<String> = table.keys().map(|k| k.with_text(str::to_string)).collect();
+    assert_eq!(keys.first().map(String::as_str), Some("-499"));
+    assert_eq!(keys.last().map(String::as_str), Some("k"));
+}
+
+#[test]
+fn value_at_reads_the_pair_at_its_rank_or_searches() {
+    let mut table = MapTable::default();
+    for i in 0..10 {
+        table.insert(Key::Int(i), i + 100, None);
+    }
+    assert_eq!(table.value_at(3, Key::Int(3)), Some(103));
+    assert_eq!(table.value_at(3, Key::Int(8)), Some(108));
+    assert_eq!(table.value_at(42, Key::Text("9")), Some(109));
+    assert_eq!(table.value_at(0, Key::Int(10)), None);
+    assert!(matches!(table.keys().next(), Some(KeyRef::Int(0))));
+}

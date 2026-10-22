@@ -567,6 +567,17 @@ pub fn bind_loop_var(builder: &mut LowerBuilder, name: &str, ty: Option<&Type>, 
     }
 }
 
+/// Variable de boucle liée à un élément déjà possédé (+1) : relâchée en fin
+/// d'itération, sans retenue.
+pub fn bind_owned_loop_var(builder: &mut LowerBuilder, name: &str, ty: &Type, val: &Value) {
+    if counted(builder, ty) {
+        declare(builder, name);
+    } else {
+        release(builder, val);
+        declare_plain(builder, name);
+    }
+}
+
 // ── Possession d'une expression ─────────────────────────────────────────────
 
 /// Vrai si `expr` produit une valeur comptée possédée (+1). Les littéraux de

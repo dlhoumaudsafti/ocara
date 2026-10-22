@@ -91,7 +91,7 @@ fn small_blocks_are_reused_and_resized() {
 
 #[test]
 fn int_text_formats_every_range() {
-    for n in [0i64, 7, -7, 1234567890, i64::MAX, i64::MIN] {
+    for n in [0i64, 7, -7, 10, 99, 100, 101, 1005, -1000, 1234567890, i64::MAX, i64::MIN] {
         assert_eq!(int_text(n, &mut [0; 20]), n.to_string());
     }
 }

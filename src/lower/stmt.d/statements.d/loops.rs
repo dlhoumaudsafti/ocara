@@ -282,30 +282,43 @@ pub fn lower_for_map(
 
     let iter_val = lower_expr(builder, iter);
 
-    // Récupère le tableau des clés
-    let keys_arr = builder.new_value();
-    // Clés en chaîne (kind 0) : elles servent à la recherche `__map_get` ;
-    // la variable `key` est ensuite convertie au type `K` déclaré.
-    let string_keys = builder.new_value();
-    builder.emit(Inst::ConstInt { dest: string_keys.clone(), value: 0 });
-    builder.emit(Inst::Call {
-        dest:   Some(keys_arr.clone()),
-        func:   "Map_keys".into(),
-        args:   vec![iter_val.clone(), string_keys],
-        ret_ty: IrType::Ptr,
+    // Deux parcours. En place, si le corps ne peut pas modifier la map
+    // (`map_loop_scan`) : clé et valeur lues par rang, empruntées. Sinon
+    // sur les clés relevées avant la boucle — brutes pour une `map<int, V>`,
+    // en chaîne sinon (kind 0, converties ensuite au type `K` déclaré).
+    let key_kind = crate::lower::expr::helpers::map_key_kind(builder, iter);
+    let int_keys = key_kind == 1;
+    let scan = super::map_loop_scan::scan_body(body);
+    let in_place = key_kind <= 1 && scan.keeps_maps;
+    let borrowed = |name: &str| in_place && !scan.assigned.iter().any(|a| a == name);
+    let keys_arr = (!in_place).then(|| {
+        let keys_arr = builder.new_value();
+        let keys_kind = builder.new_value();
+        builder.emit(Inst::ConstInt { dest: keys_kind.clone(), value: if int_keys { 1 } else { 0 } });
+        builder.emit(Inst::Call {
+            dest:   Some(keys_arr.clone()),
+            func:   "Map_keys".into(),
+            args:   vec![iter_val.clone(), keys_kind],
+            ret_ty: IrType::Ptr,
+        });
+        crate::lower::stmt::rc::track(builder, &keys_arr);
+        keys_arr
     });
-    crate::lower::stmt::rc::track(builder, &keys_arr);
 
     // Longueur
     let len_val = builder.new_value();
+    let (len_func, len_of) = match &keys_arr {
+        Some(keys_arr) => ("__array_len", keys_arr.clone()),
+        None => ("Map_size", iter_val.clone()),
+    };
     builder.emit(Inst::Call {
         dest:   Some(len_val.clone()),
-        func:   "__array_len".into(),
-        args:   vec![keys_arr.clone()],
+        func:   len_func.into(),
+        args:   vec![len_of],
         ret_ty: IrType::I64,
     });
     let kept_iter = keep_across_emit(builder, &iter_val, IrType::Ptr);
-    let kept_keys = keep_across_emit(builder, &keys_arr, IrType::Ptr);
+    let kept_keys = keys_arr.as_ref().map(|keys_arr| (keep_across_emit(builder, keys_arr, IrType::Ptr), keys_arr.clone()));
     let kept_len = keep_across_emit(builder, &len_val, IrType::I64);
 
     let idx = LoopIndex::new(builder, "__map_idx");
@@ -319,7 +332,7 @@ pub fn lower_for_map(
     builder.switch_to(&cond_bb);
 
     let iter_val = reload(builder, &kept_iter, &iter_val);
-    let keys_arr = reload(builder, &kept_keys, &keys_arr);
+    let keys_arr = kept_keys.map(|(kept, keys_arr)| reload(builder, &kept, &keys_arr));
     let len_val = reload(builder, &kept_len, &len_val);
     let idx_val = idx.load(builder);
     let cond = builder.new_value();
@@ -330,22 +343,34 @@ pub fn lower_for_map(
 
     builder.switch_to(&body_bb);
 
-    // Clé courante
+    // Clé courante. Relevée en chaîne, elle sort du relevé avec sa
+    // référence, reprise par la variable de boucle (une seule retenue).
     let k = builder.new_value();
+    let (key_func, key_args) = match keys_arr {
+        Some(keys_arr) => (if key_kind == 0 { "__array_take" } else { "__array_get" }, vec![keys_arr, idx_val.clone()]),
+        None => {
+            let int_key = builder.new_value();
+            builder.emit(Inst::ConstInt { dest: int_key.clone(), value: key_kind });
+            ("__map_key_at", vec![iter_val.clone(), idx_val.clone(), int_key])
+        }
+    };
     builder.emit(Inst::Call {
         dest:   Some(k.clone()),
-        func:   "__array_get".into(),
-        args:   vec![keys_arr, idx_val],
-        ret_ty: IrType::Ptr,
+        func:   key_func.into(),
+        args:   key_args,
+        ret_ty: if int_keys { IrType::I64 } else { IrType::Ptr },
     });
     let counted_snapshot = builder.rc_counted_locals.clone();
     crate::lower::stmt::rc::begin_iteration(builder);
-    // Clé d'une `map<int|float|bool, V>` : relue au type `K` (stockée en
-    // texte par le runtime — `k * 10` donnait une adresse, voir
+    // Clé d'une `map<float|bool, V>` : relue au type `K` (relevée en texte —
+    // `k * 10` donnait une adresse, voir
     // docs/roadmap.d/langage-map-loop-value-type.md).
-    let key_kind = crate::lower::expr::helpers::map_key_kind(builder, iter);
-    if key_kind != 0 {
-        let key_ty = match key_kind { 1 => Type::Int, 2 => Type::Float, _ => Type::Bool };
+    if int_keys {
+        builder.declare_local(key, IrType::I64, false);
+        builder.store_local(key, k.clone());
+        crate::lower::stmt::rc::bind_loop_var(builder, key, Some(&Type::Int), &k);
+    } else if key_kind != 0 {
+        let key_ty = if key_kind == 2 { Type::Float } else { Type::Bool };
         let key_ir = IrType::from_ast(&key_ty);
         let kind_val = builder.new_value();
         builder.emit(Inst::ConstInt { dest: kind_val.clone(), value: key_kind });
@@ -357,7 +382,13 @@ pub fn lower_for_map(
     } else {
         builder.declare_local(key, IrType::Ptr, false);
         builder.store_local(key, k.clone());
-        crate::lower::stmt::rc::bind_loop_var(builder, key, Some(&Type::String), &k);
+        if borrowed(key) {
+            crate::lower::stmt::rc::declare_plain(builder, key);
+        } else if in_place {
+            crate::lower::stmt::rc::bind_loop_var(builder, key, Some(&Type::String), &k);
+        } else {
+            crate::lower::stmt::rc::bind_owned_loop_var(builder, key, &Type::String, &k);
+        }
     }
 
     // Valeur correspondante, lue au type de valeur déclaré de la map (comme
@@ -368,16 +399,23 @@ pub fn lower_for_map(
         Expr::Ident(name, _) => builder.elem_types.get(name.as_str()).cloned().unwrap_or(IrType::Ptr),
         _ => val_ast.as_ref().map_or(IrType::Ptr, IrType::from_ast),
     };
+    // Valeur lue par rang : en place, ou au rang de la clé relevée
+    // (`__map_value_at*`, sans hachage tant que la map n'a pas changé).
     let v = builder.new_value();
-    builder.emit(Inst::Call {
-        dest:   Some(v.clone()),
-        func:   "__map_get".into(),
-        args:   vec![iter_val.clone(), k],
-        ret_ty: val_ty.clone(),
-    });
+    let (func, args) = match key_kind {
+        _ if in_place => ("__map_value_index", vec![iter_val.clone(), idx_val]),
+        0 => ("__map_value_at", vec![iter_val.clone(), idx_val, k]),
+        1 => ("__map_value_at_ikey", vec![iter_val.clone(), idx_val, k]),
+        _ => ("__map_get", vec![iter_val.clone(), k]),
+    };
+    builder.emit(Inst::Call { dest: Some(v.clone()), func: func.into(), args, ret_ty: val_ty.clone() });
     builder.declare_local(value, val_ty, false);
     builder.store_local(value, v.clone());
-    crate::lower::stmt::rc::bind_loop_var(builder, value, val_ast.as_ref(), &v);
+    if borrowed(value) {
+        crate::lower::stmt::rc::declare_plain(builder, value);
+    } else {
+        crate::lower::stmt::rc::bind_loop_var(builder, value, val_ast.as_ref(), &v);
+    }
 
     // Si l'itérateur est une variable `map<K,V>` dont le type de VALEUR est
     // connu statiquement (`elem_ast_types`, alimenté par `lower_var`/

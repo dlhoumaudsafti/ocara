@@ -41,6 +41,13 @@ pub const LOWLEVEL_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "__map_get",         params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
     BuiltinDesc { name: "__map_set_ikey",    params: &[clt::I64, clt::I64, clt::I64],         returns: None,              module: None },
     BuiltinDesc { name: "__map_get_ikey",    params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__map_set_tpl",     params: &[clt::I64, clt::I64, clt::I64, clt::I64], returns: None,            module: None },
+    BuiltinDesc { name: "__map_get_tpl",     params: &[clt::I64, clt::I64, clt::I64],         returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__array_take",      params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__map_key_at",      params: &[clt::I64, clt::I64, clt::I64],         returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__map_value_index", params: &[clt::I64, clt::I64],                   returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__map_value_at",    params: &[clt::I64, clt::I64, clt::I64],         returns: Some(clt::I64),    module: None },
+    BuiltinDesc { name: "__map_value_at_ikey", params: &[clt::I64, clt::I64, clt::I64],       returns: Some(clt::I64),    module: None },
 
     // ── Libération ────────────────────────────────────────────────────────────
     // La libération des valeurs tas (string/array/map/objet) et la fermeture
