@@ -2081,7 +2081,9 @@ const ERR_REGEX_INVALID_PATTERN: i64 = 101;
 const REGEX_CACHE_LIMIT: usize = 256;
 
 thread_local! {
-    static REGEX_CACHE: std::cell::RefCell<std::collections::HashMap<String, std::rc::Rc<Re>>> = std::cell::RefCell::new(std::collections::HashMap::new());
+    /// Motifs compilés ; hachage foldhash (SipHash coûtait une part notable
+    /// de chaque appel sur un motif court).
+    static REGEX_CACHE: std::cell::RefCell<std::collections::HashMap<String, std::rc::Rc<Re>, foldhash::fast::RandomState>> = std::cell::RefCell::new(std::collections::HashMap::default());
 }
 
 /// Compile le pattern (i64 ptr → &str) ; lève RegexException si invalide.
@@ -2155,8 +2157,8 @@ pub extern "C" fn Regex_replace(pattern: i64, text: i64, repl: i64) -> i64 {
         let re = compile_regex(pattern);
         let s  = ptr_to_str(text);
         let r  = ptr_to_str(repl);
-        let result = re.replacen(s, 1, r).into_owned();
-        alloc_str(&result)
+        // Sans correspondance, le texte est rendu emprunté : pas de copie.
+        alloc_str(&re.replacen(s, 1, r))
     }
 }
 
@@ -2166,8 +2168,7 @@ pub extern "C" fn Regex_replaceAll(pattern: i64, text: i64, repl: i64) -> i64 {
         let re = compile_regex(pattern);
         let s  = ptr_to_str(text);
         let r  = ptr_to_str(repl);
-        let result = re.replace_all(s, r).into_owned();
-        alloc_str(&result)
+        alloc_str(&re.replace_all(s, r))
     }
 }
 
