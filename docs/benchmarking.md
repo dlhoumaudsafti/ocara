@@ -488,6 +488,14 @@ au niveau du module, la concaténation n'est plus faite en place et devient
 quadratique (la mesure ne finit pas). Un nom de fichier ne doit pas masquer
 un module (`yaml.py`, `http.py`).
 
+![Temps relatif moyen par langage, Ocara = 1 : C 0,34 ; Rust 0,41 ; C++ 0,54 ; Ocara 1,00 ; PHP 1,43 ; Python 4,02 ; Perl 4,62](images/benchmark-moyenne.svg)
+
+Moyenne globale de chaque langage : moyenne géométrique, sur les mesures de
+`make perf` qu'il exécute (nombre entre parenthèses), du rapport entre son
+temps et celui d'Ocara — sous 1, plus rapide qu'Ocara. Une moyenne
+géométrique de rapports ne laisse pas une mesure longue écraser les autres ;
+un temps affiché `0,00` compte pour 0,005 s (moitié de la résolution).
+
 Mesures du 2026-10-22, une colonne par langage (`make perf`, `make perf-extra` ;
 minimum de 5 exécutions, au centième de seconde). En **gras**, le temps
 d'Ocara quand il est meilleur que Python, PHP et Perl, et chaque langage
@@ -530,6 +538,13 @@ d'Ocara ; « — » : mesure sautée pour ce langage (voir `ci/README.md`).
 | `DateTime::format`, 10⁶ (`date`) | 0,41 | 0,64 | **0,19** | 2,87 | **0,07** | **0,31** | — |
 | `Mutex` `lock`/`unlock` sans contention, 10⁷ (`mutex`) | **0,12** | 0,98 | — | 0,63 | **0,03** | **0,03** | **0,10** |
 
+![Mémoire résidente maximale moyenne en Mo : C 4,2 ; Rust 5,7 ; C++ 7,9 ; Ocara 9,0 ; Perl 18,5 ; Python 21,0 ; PHP 49,6](images/benchmark-memoire.svg)
+
+Moyenne géométrique de la mémoire résidente maximale, en Mo, sur les 18
+mesures que les sept langages exécutent tous : une moyenne sur les mesures
+propres à chaque langage favoriserait celui qui saute les plus gourmandes
+(C n'a ni `map` ni `mapint`).
+
 | Mesure (mémoire résidente maximale en Mio, `make perf-extra`) | Ocara | Python | PHP | Perl | C | C++ | Rust |
 |---|---|---|---|---|---|---|---|
 | `map` | **79,3** | 115,2 | 101,3 | 197,2 | — | **75,4** | 128,9 |
@@ -565,6 +580,10 @@ d'Ocara ; « — » : mesure sautée pour ce langage (voir `ci/README.md`).
 | `yamldec` | **77,6** | 157,1 | — | — | — | — | — |
 | `date` | **3,3** | 9,1 | 32,2 | 7,5 | **1,5** | 3,5 | — |
 | `mutex` | **3,3** | 9,9 | — | 7,0 | **1,5** | 3,5 | **2,1** |
+
+![Démarrage d'un programme vide en ms : C++ 0,77 ; C 0,78 ; Rust 0,91 ; Ocara 0,99 ; Perl 1,78 ; Python 11,71 ; PHP 21,32](images/benchmark-demarrage.svg)
+
+![Serveur HTTP en requêtes par seconde : Ocara 36 734 ; Perl 17 670 ; PHP 17 423 ; Python 15 062](images/benchmark-http.svg)
 
 | Mesure (`make perf-extra`) | Ocara | Python | PHP | Perl | C | C++ | Rust |
 |---|---|---|---|---|---|---|---|
