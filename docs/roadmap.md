@@ -1,6 +1,6 @@
 # Roadmap Ocara
 
-_Dernière mise à jour : 2026-10-21_
+_Dernière mise à jour : 2026-10-22_
 
 Ce document liste ce qu'il reste à faire pour faire d'Ocara un langage solide. Cette révision fait suite à une analyse complète du projet (doc, code source du compilateur, exemples, runtimes natifs) et **reprioritise délibérément autour de la robustesse, la stabilité et la fiabilité** — avant toute nouvelle fonctionnalité ou tout chantier de portage. Le focus reste, comme avant, la **gestion mémoire** : le compilateur n'a pas de ramasse-miettes (choix assumé et définitif), et l'historique du projet montre plusieurs SEGFAULTs confirmés par reproduction sur la représentation `mixed` — mais la même question de fiabilité se posait aussi sur le mécanisme d'exceptions (`setjmp`/`longjmp`), sur la quasi-absence de tests Rust unitaires en dehors du front-end, et sur au moins une race condition documentée (`HTTPServer`).
 
@@ -29,6 +29,8 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
+- **Affectation à un champ inexistant acceptée — SIGSEGV** — `x.inconnu = v` compile pour toute classe (map, tableau, chaîne, classe utilisateur) et écrit à l'offset 0 du bloc : `truc.A = 1000000` sur une map puis des insertions → `munmap_chunk(): invalid pointer` ; `s.x = 5` sur une chaîne → SIGSEGV ; `p.nope = 5` écrase `p.x` en silence. La lecture, elle, est refusée. Prérequis de l'accès pointé aux maps. *(Simple — diagnostic `FieldNotFound` manquant sur la cible d'une affectation)* → [détails](roadmap.d/sema-affectation-champ-inexistant.md)
+
 ---
 
 ## Priorité Moyenne
@@ -40,6 +42,7 @@ Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnali
 
 - **Enums enrichis** — syntaxe `case`, backing type typé déclaré (`enum Status: string { case Pending = 'pending' }`), méthodes d'instance avec `self` référençant le cas courant et pattern `self::Case`/motifs multiples par bras dans un `match`. Vérifié : l'enum actuel est un pur groupe de constantes `int` (`EnumVariant.value: Option<i64>` câblé en dur, pas de méthodes, pas d'instanciation), et `match` ne supporte ni motif « cas d'enum » ni plusieurs motifs séparés par une virgule dans un même bras. *(Massive — nouveau système d'enum quasi complet + extension du pattern matching, plusieurs points à trancher avant d'implémenter)* → [détails](roadmap.d/langage-enum-cases-backing-methods.md)
 - **Réflexion : types numériques de largeur explicite** — `int8`…`uint64` et `float16`…`float64`, avec `int`/`float` comme alias envisagés de `int64`/`float64`. Non tranché : règles de dépassement, de conversion et d'affectation, précision et valeurs spéciales des flottants, compatibilité (signatures, collections, `mixed`, builtins), représentation réelle — tout occupe aujourd'hui un mot de 64 bits, les gains mémoire ou de performance restent une hypothèse à vérifier. *(Massive si la famille complète est retenue — à réévaluer selon la piste choisie)* → [détails](roadmap.d/langage-types-numeriques-largeur.md)
+- **Accès aux maps par notation pointée** — `truc.A` comme raccourci de `truc["A"]` pour une clé conforme à `^[a-zA-Z_]([a-zA-Z0-9_]+)?$` (lecture, écriture, `+=`, `++`, chaînage), `truc["…"]` restant seul possible pour une clé dynamique ou non identifiant (`foo-bar`). À trancher : collision avec les méthodes (`truc.size`), mots-clés, Unicode, types de clé, `mixed` (aujourd'hui `j.user` lit la mémoire interne de la map), receveur `null`, lieu du désucrage. Exigence : aucune régression de `truc["A"]` ni des autres accès (mesures avant/après, nouvelle mesure `mapconst`) ; étudier, sans le présumer, un gain (cache par site d'appel, hachage précalculé) applicable aussi à `truc["A"]`. *(Légère si limité aux maps de type statique connu — Structurel si `mixed` est résolu dynamiquement)* → [détails](roadmap.d/langage-map-acces-pointe.md)
 
 ---
 
