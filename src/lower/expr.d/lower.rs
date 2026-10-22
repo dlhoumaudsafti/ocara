@@ -33,6 +33,17 @@ fn box_for_dyn_arith(builder: &mut LowerBuilder, ty: &IrType, val: Value) -> Val
     boxed
 }
 
+/// Opérande de `__dyn_*` : un littéral entier non nul sous 0x10000 (comme
+/// `2` dans `x * 2`) est déjà sa propre valeur `mixed` — ni boxage ni
+/// temporaire à suivre (voir `box_int_if_needed`).
+fn lower_dyn_operand(builder: &mut LowerBuilder, expr: &Expr, ty: &IrType) -> Value {
+    let val = lower_expr(builder, expr);
+    match expr {
+        Expr::Literal(Literal::Int(n), _) if *n != 0 && *n < 0x10000 => val,
+        _ => box_for_dyn_arith(builder, ty, val),
+    }
+}
+
 fn box_scalar_for_dyn(builder: &mut LowerBuilder, ty: &IrType, val: Value) -> Value {
     match ty {
         IrType::F64 => {
@@ -1408,10 +1419,8 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             // la même représentation "mixed" que `__dyn_add` attend des deux
             // côtés — I64/Ptr sont déjà dans cette représentation tels quels.
             if matches!(op, BinOp::Add) && (matches!(left_ty, IrType::Ptr) || matches!(right_ty, IrType::Ptr)) {
-                let lv_raw = lower_expr(builder, left);
-                let rv_raw = lower_expr(builder, right);
-                let lv = box_for_dyn_arith(builder, &left_ty, lv_raw);
-                let rv = box_for_dyn_arith(builder, &right_ty, rv_raw);
+                let lv = lower_dyn_operand(builder, left, &left_ty);
+                let rv = lower_dyn_operand(builder, right, &right_ty);
                 let dest = builder.new_value();
                 builder.emit(Inst::Call {
                     dest:   Some(dest.clone()),
@@ -1523,10 +1532,8 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             if matches!(op, BinOp::Sub | BinOp::Mul | BinOp::Div)
                 && (matches!(left_ty, IrType::Ptr) || matches!(right_ty, IrType::Ptr))
             {
-                let lv_raw = lower_expr(builder, left);
-                let rv_raw = lower_expr(builder, right);
-                let lv = box_for_dyn_arith(builder, &left_ty, lv_raw);
-                let rv = box_for_dyn_arith(builder, &right_ty, rv_raw);
+                let lv = lower_dyn_operand(builder, left, &left_ty);
+                let rv = lower_dyn_operand(builder, right, &right_ty);
                 let func = match op {
                     BinOp::Sub => "__dyn_sub",
                     BinOp::Mul => "__dyn_mul",

@@ -48,6 +48,18 @@ pub fn emit_calls(
 
             if let Some(&fid) = func_ids.get(func.as_str()) {
                 let fref = module.declare_func_in_func(fid, builder.func);
+                if matches!(func.as_str(), "__rc_retain" | "__rc_release") {
+                    emit_counted_only(builder, arg_vals[0], |builder| { builder.ins().call(fref, &arg_vals); });
+                    return Ok(true);
+                }
+                if let ("__box_int_for_mixed", Some(d)) = (func.as_str(), dest) {
+                    let boxed = emit_box_int(builder, arg_vals[0], |builder| {
+                        let call = builder.ins().call(fref, &arg_vals);
+                        builder.inst_results(call)[0]
+                    });
+                    def!(d, boxed);
+                    return Ok(true);
+                }
                 let call = builder.ins().call(fref, &arg_vals);
                 if let Some(d) = dest {
                     let results = builder.inst_results(call);
@@ -109,4 +121,49 @@ pub fn emit_calls(
     }
 
     Ok(true) // Instruction traitée
+}
+
+/// Appelle `call` seulement si `val` peut être une valeur comptée : ni un
+/// entier brut ou null (< 0x10000), ni un `int` de `mixed` rangé en ligne
+/// (`is_inline_int`, runtime/src/lib.rs) — sur une boucle `mixed`, l'appel
+/// qui ne faisait rien coûtait autant que le calcul.
+fn emit_counted_only(builder: &mut FunctionBuilder, val: CrValue, call: impl FnOnce(&mut FunctionBuilder)) {
+    use cranelift_codegen::ir::condcodes::IntCC;
+    let counted = builder.create_block();
+    let next = builder.create_block();
+    let maybe_ptr = builder.ins().icmp_imm(IntCC::SignedGreaterThanOrEqual, val, 0x10000);
+    let tag = builder.ins().band_imm(val, 0xC000_0000_0000_0007u64 as i64);
+    let not_inline = builder.ins().icmp_imm(IntCC::NotEqual, tag, 0x4000_0000_0000_0004);
+    let cond = builder.ins().band(maybe_ptr, not_inline);
+    builder.ins().brif(cond, counted, &[], next, &[]);
+    builder.switch_to_block(counted);
+    call(builder);
+    builder.ins().jump(next, &[]);
+    builder.switch_to_block(next);
+}
+
+/// `__box_int_for_mixed` sans appel dans les cas courants, même encodage que
+/// `box_int_if_needed` (runtime/src/lib.rs) : entier non nul sous 0x10000
+/// (négatifs compris) brut, entier de 0 à 2⁵⁹ en ligne
+/// (`0x4000_0000_0000_0004 | n << 3`) ; seul un plus grand appelle `call`.
+fn emit_box_int(builder: &mut FunctionBuilder, n: CrValue, call: impl FnOnce(&mut FunctionBuilder) -> CrValue) -> CrValue {
+    use cranelift_codegen::ir::condcodes::IntCC;
+    let nonzero = builder.ins().icmp_imm(IntCC::NotEqual, n, 0);
+    let small = builder.ins().icmp_imm(IntCC::SignedLessThan, n, 0x10000);
+    let raw = builder.ins().band(nonzero, small);
+    let shifted = builder.ins().ishl_imm(n, 3);
+    let inline = builder.ins().bor_imm(shifted, 0x4000_0000_0000_0004);
+    let fast = builder.ins().select(raw, n, inline);
+    let too_big = builder.ins().icmp_imm(IntCC::UnsignedGreaterThanOrEqual, n, 1 << 59);
+    let not_raw = builder.ins().bxor_imm(raw, 1);
+    let needs_cell = builder.ins().band(not_raw, too_big);
+    let cell = builder.create_block();
+    let next = builder.create_block();
+    let result = builder.append_block_param(next, clt::I64);
+    builder.ins().brif(needs_cell, cell, &[], next, &[fast.into()]);
+    builder.switch_to_block(cell);
+    let boxed = call(builder);
+    builder.ins().jump(next, &[boxed.into()]);
+    builder.switch_to_block(next);
+    result
 }

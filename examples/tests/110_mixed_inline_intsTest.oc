@@ -1,0 +1,68 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.JSON
+
+// Entiers d'un `mixed` : bruts sous 0x10000, en ligne jusqu'à 2⁵⁹, en
+// cellule au-delà — mêmes valeurs, mêmes tests de type et mêmes calculs aux
+// bornes de chaque représentation (voir `box_int_if_needed`, runtime/src/lib.rs).
+
+class Test110MixedInlineInts extends UnitTest {
+
+    public method boundariesKeepTheirValueTest(): int {
+        var values:array<int> = [
+            0, 1, 65535, 65536, -1, -65536, 576460752303423487,
+            576460752303423488, 9223372036854775807, -9223372036854775808
+        ]
+        var texts:string = ""
+        for n in values {
+            var m:mixed = n
+            if m is int {
+                texts = texts + `${m};`
+            }
+        }
+        self::assertEquals(
+            "0;1;65535;65536;-1;-65536;576460752303423487;"
+            + "576460752303423488;9223372036854775807;-9223372036854775808;"
+        , texts)
+        return 0
+    }
+
+    public method arithmeticAcrossRepresentationsTest(): int {
+        var big:mixed = 576460752303423487
+        var one:mixed = 1
+        var sum:mixed = big + one
+        var back:mixed = sum - one
+        var product:mixed = big * 2
+        var t:int|float = 0
+        var x:mixed = 0
+        for i in 0 until 1000 {
+            x = i * 100000
+            t = t + x * 2
+        }
+        self::assertEquals("576460752303423488", `${sum}`)
+        self::assertTrue(back equal big)
+        self::assertEquals("1152921504606846974", `${product}`)
+        self::assertEquals("99900000000", `${t}`)
+        return 0
+    }
+
+    public method zeroIsNotNullTest(): int {
+        var zero:mixed = 0
+        var none:mixed = null
+        self::assertTrue(zero is int)
+        self::assertFalse(none is int)
+        self::assertFalse(zero equal none)
+        return 0
+    }
+
+    public method containersAndJsonTest(): int {
+        var items:array<mixed> = [0, 65536, 576460752303423488, "s"]
+        var m:map<string, mixed> = {"a": 70000, "b": 0}
+        self::assertEquals("[0,65536,576460752303423488,\"s\"]", JSON::encode(items))
+        self::assertEquals("{\"a\":70000,\"b\":0}", JSON::encode(m))
+        var decoded:mixed = JSON::decode("[70000]")
+        self::assertEquals("[70000]", JSON::encode(decoded))
+        return 0
+    }
+}

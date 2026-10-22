@@ -548,7 +548,7 @@ au niveau du module, la concaténation n'est plus faite en place et devient
 quadratique (la mesure ne finit pas). Un nom de fichier ne doit pas masquer
 un module (`yaml.py`, `http.py`).
 
-![Temps relatif moyen par langage, Ocara = 1 : C 0,35 ; Rust 0,51 ; C++ 0,65 ; Ocara 1,00 ; PHP 1,75 ; Python 4,81 ; Perl 5,57](images/benchmark-moyenne.svg)
+![Temps relatif moyen par langage, Ocara = 1 : C 0,40 ; Rust 0,57 ; C++ 0,70 ; Ocara 1,00 ; PHP 1,93 ; Python 5,27 ; Perl 6,12](images/benchmark-moyenne.svg)
 
 Moyenne globale de chaque langage : moyenne géométrique, sur les mesures de
 `make perf` qu'il exécute (nombre entre parenthèses), du rapport entre son
@@ -566,41 +566,41 @@ depuis les sorties de `make perf` et `make perf-extra`.
 
 | Mesure (temps en s, `make perf`) | Ocara | Python | PHP | Perl | C | C++ | Rust |
 |---|---|---|---|---|---|---|---|
-| `map<string,int>`, 10⁶ insertions + lectures (`map`) | **0,11** | 0,52 | 0,12 | 0,71 | — | 0,56 | 0,40 |
-| `s = s + "x"`, 10⁶ (`concat`) | **0,00** | 0,03 | 0,03 | 0,03 | <u>**0,00**</u> | <u>**0,00**</u> | <u>**0,00**</u> |
-| Exception levée et rattrapée, 10⁶ (`exc`) | **0,06** | 0,16 | 0,15 | 0,11 | — | 0,62 | 1,15 |
-| Graphe de 10⁶ objets liés, parcouru 5 fois (`cycles`) | **0,34** | 0,83 | 1,07 | 0,78 | **0,03** | **0,06** | **0,05** |
-| Gabarit à trois parties, 2·10⁶ (`tpl`) | **0,08** | 0,31 | 0,10 | 0,11 | 0,09 | 0,09 | <u>**0,08**</u> |
-| 10⁷ appels de méthode qui en appelle une autre (`meth`) | **0,01** | 0,79 | 0,24 | 1,38 | **0,00** | **0,00** | **0,00** |
-| Tableau : 2·10⁶ `push` + 2·10⁷ lectures (`arr`) | **0,04** | 1,17 | 0,16 | 0,43 | **0,01** | **0,02** | **0,01** |
-| `async` + `resolve`, 5·10⁴ (`asy`) | **0,09** | 0,22 | 0,20 | — | — | 0,99 | — |
-| Boucle flottante + `fib(30)` (`loop`) | **0,06** | 1,14 | 0,19 | 0,94 | **0,01** | **0,02** | **0,02** |
-| `String::split` (6 morceaux), 10⁶ (`split`) | 0,12 | 0,15 | **0,09** | 0,19 | **0,08** | 0,24 | 0,14 |
-| `String::replace` + `upper`, 10⁶ (`replace`) | 0,08 | 0,13 | <u>**0,08**</u> | 0,19 | **0,05** | **0,06** | **0,06** |
-| Parcours `for k has v in m`, 2·10⁶ paires (`mapiter`) | **0,01** | 0,10 | 0,03 | 0,19 | — | **0,00** | **0,00** |
-| `Array::join` + `intToStr`, 10⁶ (`join`) | 0,10 | 0,18 | **0,07** | <u>**0,10**</u> | **0,07** | **0,03** | **0,01** |
-| 10⁶ objets créés + appel de méthode (`objs`) | **0,07** | 0,64 | 0,17 | 0,65 | **0,02** | **0,03** | **0,03** |
-| Comparaisons de chaînes, 2·10⁷ (`strcmp`) | **0,19** | 0,66 | 0,21 | 0,53 | **0,02** | **0,00** | **0,00** |
-| `Array::sort`, 10⁶ entiers (`sort`) | **0,04** | 0,19 | 0,21 | 0,20 | 0,05 | 0,05 | **0,02** |
-| `JSON::encode` + `decode`, 2·10⁵ (`jsonb`) | 0,22 | 0,58 | **0,13** | 6,10 | — | — | — |
-| 2·10⁷ appels via une interface (`iface`) | **0,03** | 0,88 | 0,26 | 1,25 | **0,00** | **0,02** | **0,02** |
-| Closure qui modifie une capture, 10⁷ (`clos`) | **0,12** | 0,42 | 0,19 | 0,53 | — | **0,02** | **0,00** |
-| `map<int,int>`, 10⁶ insertions + lectures (`mapint`) | **0,02** | 0,18 | 0,04 | 0,65 | — | 0,05 | 0,09 |
-| Générateur `emit` + `for`, 10⁷ valeurs (`gen`) | **0,01** | 0,53 | 0,20 | 0,62 | — | **0,00** | **0,00** |
-| Arithmétique `mixed` / `int\|float`, 10⁷ (`mixed`) | 0,48 | 0,68 | **0,07** | **0,33** | **0,00** | **0,01** | **0,00** |
-| Objets après un `Thread` (comptes atomiques), 10⁶ (`mt`) | **0,09** | 0,52 | — | 0,31 | **0,04** | **0,04** | **0,04** |
-| Exception de classe levée et rattrapée, 10⁶ (`excls`) | 0,17 | 0,31 | <u>**0,17**</u> | 0,53 | — | 0,61 | 1,53 |
-| `Regex::test` + `replace`, 3·10⁵ (`regex`) | 0,06 | 0,34 | <u>**0,06**</u> | 0,11 | **0,05** | 0,13 | — |
-| Fichier de 2·10⁶ lignes écrit, relu, découpé (`file`) | 0,27 | 0,33 | **0,21** | **0,26** | **0,12** | **0,17** | **0,18** |
-| `strToInt` + `strToFloat`, 2·10⁶ (`conv`) | **0,14** | 0,58 | 0,15 | 0,32 | 0,23 | 0,16 | **0,12** |
-| `Array::contains`/`indexOf`/`slice`/`reverse`/`pop`, 2·10⁵ (`arrops`) | 0,22 | 1,18 | <u>**0,22**</u> | 5,14 | **0,06** | **0,04** | **0,04** |
-| `Array::sort`, 10⁶ chaînes (`sortstr`) | **0,31** | 0,36 | 0,38 | 0,63 | **0,21** | **0,20** | **0,23** |
-| `SQLite` : 2·10⁵ insertions + 2·10⁴ `queryOne` (`sqlite`) | 0,14 | 0,24 | **0,12** | — | **0,06** | **0,06** | — |
-| `YAML::decode`, 5·10⁴ entrées (`yamldec`) | **0,10** | 1,06 | — | — | — | — | — |
-| `DateTime::format`, 10⁶ (`date`) | 0,41 | 0,64 | **0,19** | 2,85 | **0,07** | **0,31** | — |
-| `Mutex` `lock`/`unlock` sans contention, 10⁷ (`mutex`) | **0,13** | 0,99 | — | 0,63 | **0,03** | **0,03** | **0,10** |
+| `map<string,int>`, 10⁶ insertions + lectures (`map`) | **0,10** | 0,52 | 0,12 | 0,73 | — | 0,55 | 0,40 |
+| `s = s + "x"`, 10⁶ (`concat`) | **0,00** | 0,03 | 0,03 | 0,02 | <u>**0,00**</u> | <u>**0,00**</u> | <u>**0,00**</u> |
+| Exception levée et rattrapée, 10⁶ (`exc`) | **0,06** | 0,16 | 0,15 | 0,11 | — | 0,62 | 1,17 |
+| Graphe de 10⁶ objets liés, parcouru 5 fois (`cycles`) | **0,34** | 0,84 | 1,08 | 0,81 | **0,03** | **0,07** | **0,05** |
+| Gabarit à trois parties, 2·10⁶ (`tpl`) | **0,09** | 0,31 | 0,10 | 0,11 | 0,10 | <u>**0,09**</u> | **0,08** |
+| 10⁷ appels de méthode qui en appelle une autre (`meth`) | **0,01** | 0,81 | 0,25 | 1,42 | **0,00** | **0,00** | **0,00** |
+| Tableau : 2·10⁶ `push` + 2·10⁷ lectures (`arr`) | **0,04** | 1,22 | 0,16 | 0,44 | **0,01** | **0,02** | **0,01** |
+| `async` + `resolve`, 5·10⁴ (`asy`) | **0,10** | 0,22 | 0,20 | — | — | 1,13 | — |
+| Boucle flottante + `fib(30)` (`loop`) | **0,07** | 1,17 | 0,19 | 0,97 | **0,01** | **0,01** | **0,02** |
+| `String::split` (6 morceaux), 10⁶ (`split`) | 0,12 | 0,16 | **0,09** | 0,20 | **0,08** | 0,24 | 0,14 |
+| `String::replace` + `upper`, 10⁶ (`replace`) | 0,08 | 0,12 | <u>**0,08**</u> | 0,19 | **0,05** | **0,06** | **0,06** |
+| Parcours `for k has v in m`, 2·10⁶ paires (`mapiter`) | **0,01** | 0,11 | 0,03 | 0,20 | — | **0,00** | **0,00** |
+| `Array::join` + `intToStr`, 10⁶ (`join`) | 0,10 | 0,19 | **0,07** | 0,11 | **0,07** | **0,03** | **0,01** |
+| 10⁶ objets créés + appel de méthode (`objs`) | **0,07** | 0,64 | 0,18 | 0,67 | **0,02** | **0,03** | **0,03** |
+| Comparaisons de chaînes, 2·10⁷ (`strcmp`) | **0,19** | 0,70 | 0,23 | 0,54 | **0,02** | **0,00** | **0,00** |
+| `Array::sort`, 10⁶ entiers (`sort`) | **0,04** | 0,19 | 0,22 | 0,20 | 0,05 | 0,05 | **0,02** |
+| `JSON::encode` + `decode`, 2·10⁵ (`jsonb`) | 0,23 | 0,60 | **0,14** | 6,26 | — | — | — |
+| 2·10⁷ appels via une interface (`iface`) | **0,03** | 0,88 | 0,26 | 1,26 | **0,00** | **0,02** | **0,02** |
+| Closure qui modifie une capture, 10⁷ (`clos`) | **0,12** | 0,42 | 0,20 | 0,53 | — | **0,02** | **0,00** |
+| `map<int,int>`, 10⁶ insertions + lectures (`mapint`) | **0,03** | 0,17 | 0,04 | 0,65 | — | 0,04 | 0,09 |
+| Générateur `emit` + `for`, 10⁷ valeurs (`gen`) | **0,01** | 0,55 | 0,20 | 0,63 | — | **0,00** | **0,00** |
+| Arithmétique `mixed` / `int\|float`, 10⁷ (`mixed`) | 0,07 | 0,69 | <u>**0,07**</u> | 0,32 | **0,00** | **0,01** | **0,00** |
+| Objets après un `Thread` (comptes atomiques), 10⁶ (`mt`) | **0,09** | 0,52 | — | 0,32 | **0,03** | **0,04** | **0,04** |
+| Exception de classe levée et rattrapée, 10⁶ (`excls`) | 0,17 | 0,31 | **0,16** | 0,54 | — | 0,61 | 1,55 |
+| `Regex::test` + `replace`, 3·10⁵ (`regex`) | 0,06 | 0,35 | <u>**0,06**</u> | 0,11 | <u>**0,06**</u> | 0,13 | — |
+| Fichier de 2·10⁶ lignes écrit, relu, découpé (`file`) | 0,22 | 0,33 | **0,21** | 0,26 | **0,13** | **0,17** | **0,19** |
+| `strToInt` + `strToFloat`, 2·10⁶ (`conv`) | **0,14** | 0,59 | 0,16 | 0,33 | 0,24 | 0,17 | **0,12** |
+| `Array::contains`/`indexOf`/`slice`/`reverse`/`pop`, 2·10⁵ (`arrops`) | **0,08** | 1,20 | 0,26 | 5,19 | **0,06** | **0,04** | **0,04** |
+| `Array::sort`, 10⁶ chaînes (`sortstr`) | **0,29** | 0,35 | 0,38 | 0,65 | **0,22** | **0,21** | **0,23** |
+| `SQLite` : 2·10⁵ insertions + 2·10⁴ `queryOne` (`sqlite`) | 0,14 | 0,25 | **0,12** | — | **0,06** | **0,06** | — |
+| `YAML::decode`, 5·10⁴ entrées (`yamldec`) | **0,10** | 1,07 | — | — | — | — | — |
+| `DateTime::format`, 10⁶ (`date`) | 0,40 | 0,65 | **0,19** | 2,92 | **0,07** | **0,31** | — |
+| `Mutex` `lock`/`unlock` sans contention, 10⁷ (`mutex`) | **0,12** | 1,00 | — | 0,62 | **0,03** | **0,03** | **0,10** |
 
-![Mémoire résidente maximale moyenne en Mo : C 4,2 ; Rust 5,7 ; C++ 7,9 ; Ocara 8,7 ; Perl 18,5 ; Python 21,0 ; PHP 49,5](images/benchmark-memoire.svg)
+![Mémoire résidente maximale moyenne en Mo : C 4,2 ; Rust 5,8 ; C++ 7,9 ; Ocara 8,7 ; Perl 18,4 ; Python 21,0 ; PHP 49,6](images/benchmark-memoire.svg)
 
 Moyenne géométrique de la mémoire résidente maximale, en Mo, sur les 18
 mesures que les sept langages exécutent tous : une moyenne sur les mesures
@@ -609,48 +609,48 @@ propres à chaque langage favoriserait celui qui saute les plus gourmandes
 
 | Mesure (mémoire résidente maximale en Mio, `make perf-extra`) | Ocara | Python | PHP | Perl | C | C++ | Rust |
 |---|---|---|---|---|---|---|---|
-| `map` | **66,4** | 115,0 | 100,9 | 197,1 | — | 75,1 | 128,8 |
-| `concat` | **4,2** | 10,3 | 33,1 | 6,9 | **2,5** | 5,2 | **2,9** |
-| `exc` | **3,1** | 9,2 | 31,9 | 5,9 | — | 3,8 | **2,1** |
-| `cycles` | **86,6** | 124,0 | 142,0 | 260,2 | **39,5** | **64,2** | **55,1** |
-| `tpl` | **3,1** | 9,1 | 31,9 | 5,9 | **1,5** | 3,5 | **2,0** |
-| `meth` | **3,3** | 9,3 | 32,1 | 6,1 | **1,5** | 3,6 | **1,8** |
-| `arr` | **18,4** | 85,8 | 63,3 | 69,9 | **16,7** | 19,4 | **17,2** |
-| `asy` | **4,0** | 19,5 | 32,1 | — | — | **3,9** | — |
-| `loop` | **3,1** | 9,3 | 32,1 | 5,9 | **1,6** | 3,8 | **2,0** |
-| `split` | **3,2** | 9,2 | 31,8 | 6,0 | **1,5** | 3,7 | **2,0** |
-| `replace` | **3,3** | 9,3 | 32,3 | 5,9 | **1,5** | 3,5 | **2,1** |
-| `mapiter` | **4,7** | 9,4 | 32,0 | 6,1 | — | **3,7** | **2,1** |
-| `join` | **4,4** | 9,1 | 32,2 | 5,9 | **1,6** | **3,5** | **2,1** |
-| `objs` | **72,0** | 154,8 | 133,5 | 312,9 | **39,5** | **41,5** | **39,9** |
-| `strcmp` | **3,2** | 9,2 | 32,3 | 6,1 | **1,6** | 3,6 | **2,1** |
-| `sort` | **26,2** | 60,6 | 87,5 | 97,8 | **16,4** | **10,9** | **17,0** |
-| `jsonb` | **7,1** | 10,5 | 32,2 | 7,9 | — | — | — |
-| `iface` | **3,2** | 9,2 | 32,2 | 5,8 | **1,5** | 3,5 | **1,9** |
-| `clos` | **3,1** | 9,2 | 31,8 | 6,2 | — | 3,5 | **2,1** |
-| `mapint` | **26,3** | 112,1 | 48,9 | 129,7 | — | 44,8 | 52,8 |
-| `gen` | **3,1** | 9,1 | 32,0 | 5,9 | — | 3,6 | **2,0** |
-| `mixed` | **3,1** | 9,3 | 31,9 | 5,9 | **1,5** | 3,6 | **1,9** |
-| `mt` | **72,4** | 125,1 | — | 214,6 | **39,7** | **49,2** | **40,1** |
-| `excls` | **5,5** | 9,2 | 32,5 | 5,9 | — | **3,8** | **2,1** |
-| `regex` | **5,3** | 10,2 | 32,4 | 6,0 | **1,7** | **3,7** | — |
-| `file` | **162,8** | 208,6 | 205,9 | 225,6 | **27,3** | **118,8** | **160,0** |
-| `conv` | **3,3** | 9,2 | 32,1 | 6,2 | **1,5** | 3,8 | **1,9** |
-| `arrops` | **4,8** | 9,2 | 32,3 | 6,4 | **1,5** | **3,5** | **2,1** |
-| `sortstr` | **56,6** | 76,0 | 117,0 | 189,5 | **47,2** | **33,8** | 66,5 |
-| `sqlite` | **9,3** | 15,3 | 37,3 | — | **7,0** | **8,4** | — |
-| `yamldec` | **77,7** | 157,2 | — | — | — | — | — |
-| `date` | **3,3** | 9,3 | 32,2 | 7,3 | **1,5** | 3,5 | — |
-| `mutex` | **2,9** | 9,9 | — | 6,9 | **1,5** | 3,5 | **2,0** |
+| `map` | **61,8** | 115,2 | 101,1 | 197,2 | — | 75,3 | 128,7 |
+| `concat` | **4,4** | 10,2 | 33,3 | 6,8 | **2,6** | 5,3 | **2,9** |
+| `exc` | **3,2** | 9,3 | 32,2 | 6,1 | — | 3,6 | **1,9** |
+| `cycles` | **86,6** | 124,2 | 142,0 | 260,2 | **39,5** | **64,2** | **55,3** |
+| `tpl` | **3,1** | 9,2 | 32,3 | 5,9 | **1,5** | 3,6 | **2,0** |
+| `meth` | **3,8** | 9,2 | 32,1 | 5,8 | **1,5** | **3,5** | **2,1** |
+| `arr` | **19,1** | 85,7 | 63,6 | 70,0 | **16,7** | 19,3 | **17,2** |
+| `asy` | **5,0** | 19,5 | 32,3 | — | — | **3,9** | — |
+| `loop` | **3,7** | 9,3 | 32,1 | 6,1 | **1,5** | <u>**3,7**</u> | **2,1** |
+| `split` | **3,3** | 9,3 | 32,2 | 5,9 | **1,5** | 3,6 | **2,1** |
+| `replace` | **3,3** | 9,3 | 32,4 | 6,1 | **1,5** | 3,6 | **2,0** |
+| `mapiter` | **3,5** | 9,3 | 32,1 | 6,1 | — | 3,7 | **2,1** |
+| `join` | **3,2** | 9,1 | 32,1 | 6,1 | **1,6** | 3,6 | **2,0** |
+| `objs` | **72,1** | 154,7 | 133,5 | 313,0 | **39,5** | **41,3** | **39,9** |
+| `strcmp` | **3,2** | 9,2 | 32,1 | 6,0 | **1,5** | 3,5 | **2,1** |
+| `sort` | **26,1** | 60,7 | 87,8 | 97,8 | **16,4** | **10,8** | **17,2** |
+| `jsonb` | **7,1** | 10,4 | 32,1 | 7,8 | — | — | — |
+| `iface` | **3,3** | 9,1 | 32,3 | 6,0 | **1,5** | 3,5 | **2,0** |
+| `clos` | **3,2** | 9,1 | 32,0 | 5,8 | — | 3,6 | **2,0** |
+| `mapint` | **26,4** | 112,1 | 49,1 | 129,4 | — | 44,8 | 53,1 |
+| `gen` | **3,4** | 9,2 | 32,1 | 5,9 | — | 3,6 | **2,1** |
+| `mixed` | **3,2** | 9,3 | 32,0 | 6,0 | **1,5** | 3,5 | **2,0** |
+| `mt` | **73,8** | 125,1 | — | 214,6 | **39,7** | **49,3** | **40,1** |
+| `excls` | **4,3** | 9,3 | 32,1 | 5,9 | — | **3,8** | **2,0** |
+| `regex` | **5,6** | 10,1 | 32,4 | 6,1 | **1,7** | **3,7** | — |
+| `file` | **161,9** | 208,6 | 205,8 | 225,6 | **27,4** | **118,8** | **159,9** |
+| `conv` | **3,8** | 9,2 | 32,1 | 6,1 | **1,5** | <u>**3,8**</u> | **2,1** |
+| `arrops` | **3,2** | 9,1 | 32,4 | 6,3 | **1,5** | 3,5 | **2,0** |
+| `sortstr` | **56,5** | 76,0 | 117,0 | 189,5 | **47,2** | **33,7** | 66,5 |
+| `sqlite` | **10,3** | 15,3 | 37,0 | — | **6,9** | **8,4** | — |
+| `yamldec` | **77,1** | 157,0 | — | — | — | — | — |
+| `date` | **3,3** | 9,1 | 32,0 | 7,2 | **1,5** | 3,7 | — |
+| `mutex` | **3,1** | 10,0 | — | 7,1 | **1,5** | 3,5 | **2,0** |
 
-![Démarrage d'un programme vide en ms : C 0,76 ; C++ 0,82 ; Rust 0,91 ; Ocara 0,93 ; Perl 1,84 ; Python 12,14 ; PHP 22,32](images/benchmark-demarrage.svg)
+![Démarrage d'un programme vide en ms : C 0,74 ; C++ 0,76 ; Rust 0,90 ; Ocara 0,95 ; Perl 1,91 ; Python 11,87 ; PHP 19,18](images/benchmark-demarrage.svg)
 
-![Serveur HTTP en requêtes par seconde : Ocara 36 883 ; PHP 20 675 ; Perl 18 285 ; Python 15 253](images/benchmark-http.svg)
+![Serveur HTTP en requêtes par seconde : Ocara 38 015 ; PHP 17 577 ; Perl 17 045 ; Python 15 299](images/benchmark-http.svg)
 
 | Mesure (`make perf-extra`) | Ocara | Python | PHP | Perl | C | C++ | Rust |
 |---|---|---|---|---|---|---|---|
-| Démarrage d'un programme vide (ms) | **0,93** | 12,14 | 22,32 | 1,84 | **0,76** | **0,82** | **0,91** |
-| Serveur HTTP, 4 clients en connexions persistantes (requêtes/s) | **36883** | 15253 | 20675 | 18285 | — | — | — |
+| Démarrage d'un programme vide (ms) | **0,95** | 11,87 | 19,18 | 1,91 | **0,74** | **0,76** | **0,90** |
+| Serveur HTTP, 4 clients en connexions persistantes (requêtes/s) | **38015** | 15299 | 17577 | 17045 | — | — | — |
 
 Mesures ponctuelles (hors `make perf`) :
 
@@ -664,7 +664,7 @@ Mesures ponctuelles (hors `make perf`) :
 
 ## Classement final
 
-![Classement final, indice global (Ocara = 1, plus petit = meilleur) : 1. C 0,52 ; 2. Rust 0,69 ; 3. C++ 0,81 ; 4. Ocara 1,00 ; 5. Perl 2,62 ; 6. Python 4,37 ; 7. PHP 4,54](images/benchmark-classement.svg)
+![Classement final, indice global (Ocara = 1, plus petit = meilleur) : 1. C 0,53 ; 2. Rust 0,71 ; 3. C++ 0,80 ; 4. Ocara 1,00 ; 5. Perl 2,76 ; 6. Python 4,46 ; 7. PHP 4,69](images/benchmark-classement.svg)
 
 Indice global de chaque langage : moyenne géométrique de ses quatre moyennes
 ci-dessus, chacune ramenée à Ocara et orientée « plus petit = meilleur » —
@@ -675,10 +675,10 @@ leur indice porte sur trois critères.
 
 | Rang | Langage | Indice global | Temps relatif | Mémoire (Mo) | Démarrage (ms) | Serveur HTTP (req/s) |
 |---|---|---|---|---|---|---|
-| 1 | C | 0,52 | 0,35 | 4,2 | 0,76 | — |
-| 2 | Rust | 0,69 | 0,51 | 5,7 | 0,91 | — |
-| 3 | C++ | 0,81 | 0,65 | 7,9 | 0,82 | — |
-| 4 | **Ocara** | **1,00** | **1,00** | **8,7** | **0,93** | **36 883** |
-| 5 | Perl | 2,62 | 5,57 | 18,5 | 1,84 | 18 285 |
-| 6 | Python | 4,37 | 4,81 | 21,0 | 12,14 | 15 253 |
-| 7 | PHP | 4,54 | 1,75 | 49,5 | 22,32 | 20 675 |
+| 1 | C | 0,53 | 0,40 | 4,2 | 0,74 | — |
+| 2 | Rust | 0,71 | 0,57 | 5,8 | 0,90 | — |
+| 3 | C++ | 0,80 | 0,70 | 7,9 | 0,76 | — |
+| 4 | **Ocara** | **1,00** | **1,00** | **8,7** | **0,95** | **38 015** |
+| 5 | Perl | 2,76 | 6,12 | 18,4 | 1,91 | 17 045 |
+| 6 | Python | 4,46 | 5,27 | 21,0 | 11,87 | 15 299 |
+| 7 | PHP | 4,69 | 1,93 | 49,6 | 19,18 | 17 577 |

@@ -455,7 +455,26 @@ pub(crate) unsafe fn retain(val: i64) {
     }
 }
 
+/// Ni pointeur ni cellule (entier brut ou en ligne, null) : rien à rendre.
+/// Testé avant l'appel du chemin complet, dont le prologue coûtait autant que
+/// le test sur une boucle `mixed`.
+#[inline]
 pub(crate) unsafe fn release(val: i64) {
+    if val >= 0x10000 && !crate::is_inline_int(val) {
+        unsafe { release_out_of_line(val) }
+    }
+}
+
+#[inline(never)]
+unsafe fn release_out_of_line(val: i64) {
+    unsafe { release_counted(val) }
+}
+
+/// Chemin complet de `release` : sûr pour toute valeur (`kind` écarte ce qui
+/// n'est pas compté). Appelé directement par `__rc_release`, que le code
+/// généré ne lance déjà que pour une valeur qui peut être comptée.
+#[inline]
+unsafe fn release_counted(val: i64) {
     unsafe {
         let Some(k) = kind(val) else { return };
         if decrement(val, k, word(val, k)) {
@@ -863,7 +882,7 @@ pub extern "C" fn __rc_retain(val: i64) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn __rc_release(val: i64) {
-    unsafe { release(val) }
+    unsafe { release_counted(val) }
 }
 
 #[unsafe(no_mangle)]

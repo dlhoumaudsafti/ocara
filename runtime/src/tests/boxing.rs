@@ -294,3 +294,70 @@ fn large_negative_raw_int_is_int() {
     assert_eq!(crate::typecheck::__is_int(box_int_if_needed(-5)), 1);
     assert_eq!(crate::typecheck::__is_int(box_int_if_needed(i64::MIN + 1)), 1);
 }
+
+// ── Entiers en ligne (`is_inline_int`) : ni cellule, ni pointeur ─────────────
+
+/// Jusqu'à 2⁵⁹ (exclu), un `int` à boxer est rangé en ligne ; au-delà, dans
+/// une cellule. Les deux se déballent pareil et ne sont jamais lus comme un
+/// pointeur ou une cellule (compte de références, tag).
+#[test]
+fn inline_ints_roundtrip_without_allocation() {
+    let limit = 1i64 << 59;
+    for n in [0i64, 65536, 65537, 1 << 40, limit - 1] {
+        let boxed = box_int_if_needed(n);
+        assert!(is_inline_int(boxed), "doit être en ligne : {n}");
+        assert!(is_int_box(boxed) && !is_float_box(boxed) && !is_bool_box(boxed));
+        assert_eq!(unsafe { unbox_int(boxed) }, n);
+        assert_eq!(__unbox_int(boxed), n);
+        assert_eq!(typecheck::__is_int(boxed), 1);
+        assert_eq!(unsafe { typecheck::read_tag(boxed) }, 0, "jamais lu comme un pointeur : {n}");
+        assert_eq!(get_value_type(boxed), 1);
+        assert_eq!(val_to_string(boxed), n.to_string());
+        unsafe {
+            rc::retain(boxed);
+            rc::release(boxed);
+        }
+    }
+    for n in [limit, i64::MAX] {
+        let boxed = box_int_if_needed(n);
+        assert!(!is_inline_int(boxed) && is_int_box(boxed), "doit être en cellule : {n}");
+        assert_eq!(unsafe { unbox_int(boxed) }, n);
+        unsafe { rc::release(boxed) }
+    }
+}
+
+/// Un entier négatif brut dont les bits ressemblent au motif en ligne (bit 62
+/// posé, bits bas 100) reste un entier brut.
+#[test]
+fn raw_negative_ints_are_never_read_as_inline() {
+    for n in [-4i64, -(1 << 59) - 4, i64::MIN + 4] {
+        assert!(!is_inline_int(n), "{n}");
+        assert_eq!(__mixed_to_int(n), n);
+    }
+}
+
+#[test]
+fn dyn_arithmetic_on_inline_ints() {
+    let big = box_int_if_needed(1 << 40);
+    let product = __dyn_mul(big, 2);
+    assert!(is_inline_int(product));
+    assert_eq!(__mixed_to_int(__dyn_add(product, box_int_if_needed(0))), 1 << 41);
+    assert_eq!(__mixed_to_int(__dyn_sub(product, big)), 1 << 40);
+}
+
+/// `indexOf` sur un `array<int>` (éléments bruts) : la valeur cherchée,
+/// boxée par l'appelant, est décodée une fois quelle que soit sa forme.
+#[test]
+fn index_of_raw_ints_decodes_the_needle_once() {
+    let arr = new_array();
+    rc::__rc_mark_raw_kind(arr, 1);
+    for n in [5i64, 0, 70_000, -3, 1 << 60] {
+        __array_push(arr, n);
+    }
+    assert_eq!(Array_indexOf(arr, box_int_if_needed(0)), 1);
+    assert_eq!(Array_indexOf(arr, box_int_if_needed(70_000)), 2);
+    assert_eq!(Array_indexOf(arr, -3), 3);
+    assert_eq!(Array_indexOf(arr, box_int_if_needed(1 << 60)), 4);
+    assert_eq!(Array_indexOf(arr, __box_float(5f64.to_bits() as i64)), -1);
+    assert_eq!(Array_indexOf(arr, 0), -1, "null n'est pas l'entier 0");
+}

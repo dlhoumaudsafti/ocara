@@ -15,7 +15,7 @@ use std::hash::{BuildHasher, Hasher};
 
 use foldhash::fast::RandomState;
 
-pub(crate) const SUFFIX_BLOCK: u64 = 16;
+pub(crate) const SUFFIX_BLOCK: u64 = 256;
 
 /// Préfixe, nombre et valeur des chiffres finaux d'un texte (au plus 18),
 /// lus en une passe depuis la fin.
@@ -47,6 +47,13 @@ pub(crate) fn hash_int(value: i64) -> u32 {
     (x as u32).wrapping_add(((x >> 32) as u32).wrapping_mul(0x9E37_79B9))
 }
 
+/// 32 bits hauts du produit par la constante dorée : tous les bits de `h`
+/// y contribuent (les 32 bits bas de foldhash suivaient de trop près le
+/// numéro de bloc pour certaines graines, et les blocs s'amassaient).
+fn fold32(h: u64) -> u32 {
+    (h.wrapping_mul(0x9E37_79B9_7F4A_7C15) >> 32) as u32
+}
+
 pub(crate) fn hash_text(seed: &RandomState, text: &str) -> u32 {
     let mut hasher = seed.build_hasher();
     let Some((prefix, digits, value)) = numeric_suffix(text) else {
@@ -54,7 +61,7 @@ pub(crate) fn hash_text(seed: &RandomState, text: &str) -> u32 {
             return hash_int(value);
         }
         hasher.write(text.as_bytes());
-        return hasher.finish() as u32;
+        return fold32(hasher.finish());
     };
     let canonical = digits == 1 || !text[prefix.len()..].starts_with('0');
     if canonical && (prefix.is_empty() || prefix == "-" && value != 0) {
@@ -63,5 +70,5 @@ pub(crate) fn hash_text(seed: &RandomState, text: &str) -> u32 {
     hasher.write(prefix.as_bytes());
     // Le nombre de chiffres distingue `"k7"` de `"k007"`.
     hasher.write_u64((value / SUFFIX_BLOCK) ^ ((digits as u64) << 58));
-    (hasher.finish() as u32).wrapping_add((value % SUFFIX_BLOCK) as u32)
+    fold32(hasher.finish()).wrapping_add((value % SUFFIX_BLOCK) as u32)
 }

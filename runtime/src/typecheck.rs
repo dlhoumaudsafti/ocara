@@ -63,8 +63,9 @@ const PTR_THRESHOLD: i64 = 65536;
 #[inline]
 pub(crate) unsafe fn read_tag(val: i64) -> i64 {
     unsafe {
-        // Un pointeur heap plain : >= PTR_THRESHOLD ET bits 1:0 == 0
-        if val < PTR_THRESHOLD || (val & 3) != 0 { return 0; }
+        // Un pointeur heap plain : >= PTR_THRESHOLD ET bits 2:0 == 000 (un
+        // `int` en ligne, bits 100, n'en est pas un — voir `box_int_if_needed`).
+        if val < PTR_THRESHOLD || (val & 7) != 0 { return 0; }
         *((val - 8) as *const i64)
     }
 }
@@ -75,13 +76,13 @@ pub extern "C" fn __is_null(val: i64) -> i64 {
 }
 
 /// int : soit un entier brut NON NUL (négatif, ou positif < PTR_THRESHOLD),
-/// soit un entier boxé (bits 1:0 = 11, voir `__box_int_for_mixed`/
+/// soit un entier boxé (en ligne ou bits 1:0 = 11, voir `__box_int_for_mixed`/
 /// `box_int_if_needed` dans lib.rs — un entier assez grand pour être ambigu
 /// avec un pointeur heap, OU valant `0` (sinon indiscernable de `null`), est
 /// boxé quand il est logé dans un `mixed`).
 #[unsafe(no_mangle)]
 pub extern "C" fn __is_int(val: i64) -> i64 {
-    if val >= PTR_THRESHOLD && (val & 3) == 3 { return 1; }
+    if crate::is_int_box(val) { return 1; }
     // Un négatif n'est jamais une adresse : `box_int_if_needed` le laisse
     // brut quelle que soit sa magnitude (`0 - 70000` n'était pas `int`,
     // voir docs/roadmap.d/memoire-mixed-grand-entier-negatif.md).

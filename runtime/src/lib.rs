@@ -283,11 +283,24 @@ pub unsafe fn ptr_to_str<'a>(val: i64) -> &'a str {
 //   bits 1:0 = 01  → float boxé  (__box_float)
 //   bits 1:0 = 10  → bool boxé   (__box_bool)
 //   bits 1:0 = 11  → int boxé   (__box_int_for_mixed) — voir plus bas
+// Un `int` de `mixed` de 0 à 2⁵⁹ est rangé en ligne, sans cellule :
+// `INLINE_INT_TAG | n << 3` (bits 2:0 = 100, bit 62 posé, bit 63 nul) —
+// jamais une adresse (≥ 2⁶²), ni un entier brut (négatif ou < 0x10000).
 
-/// Retourne true si val est un pointeur string/objet (bits bas == 00).
+/// Retourne true si val est un pointeur string/objet (bits bas == 000).
 #[inline]
 fn is_ptr(val: i64) -> bool {
-    val >= 0x10000 && (val & 3) == 0
+    val >= 0x10000 && (val & 7) == 0
+}
+
+const INLINE_INT_TAG: u64 = 0x4000_0000_0000_0004;
+const INLINE_INT_MASK: u64 = 0xC000_0000_0000_0007;
+const INLINE_INT_LIMIT: i64 = 1 << 59;
+
+/// `int` de `mixed` rangé en ligne (voir `box_int_if_needed`).
+#[inline]
+pub(crate) fn is_inline_int(val: i64) -> bool {
+    val as u64 & INLINE_INT_MASK == INLINE_INT_TAG
 }
 
 #[inline]
@@ -308,7 +321,7 @@ pub(crate) fn is_bool_box(val: i64) -> bool {
 /// tout autre petit entier reste brut, jamais alloué.
 #[inline]
 pub(crate) fn is_int_box(val: i64) -> bool {
-    val >= 0x10000 && (val & 3) == 3
+    is_inline_int(val) || (val >= 0x10000 && (val & 3) == 3)
 }
 
 #[inline]
@@ -323,6 +336,9 @@ pub(crate) unsafe fn unbox_bool(val: i64) -> bool {
 
 #[inline]
 pub(crate) unsafe fn unbox_int(val: i64) -> i64 {
+    if is_inline_int(val) {
+        return ((val as u64 ^ INLINE_INT_TAG) >> 3) as i64;
+    }
     unsafe { *((val & !3) as *const i64) }
 }
 
@@ -352,11 +368,24 @@ pub(crate) unsafe fn unbox_int(val: i64) -> i64 {
 /// runtime, si un `int` donné a besoin d'être boxé — appelée à chaque
 /// endroit qui logeait auparavant un `int` brut dans un `mixed` (affectation,
 /// argument, littéral `array`/`map`, résultat arithmétique dynamique...).
+///
+/// Un `int` à boxer jusqu'à 2⁵⁹ (`0` compris, cas de loin le plus courant)
+/// est rangé en ligne, sans allocation ; seul un plus grand passe par une
+/// cellule (`ptr | 3`) — chaque opération `mixed` allouait sa cellule.
 #[inline]
 pub(crate) fn box_int_if_needed(n: i64) -> i64 {
     if n != 0 && n < 0x10000 {
         return n;
     }
+    if n < INLINE_INT_LIMIT {
+        return (INLINE_INT_TAG | (n as u64) << 3) as i64;
+    }
+    int_cell(n)
+}
+
+#[cold]
+#[inline(never)]
+fn int_cell(n: i64) -> i64 {
     unsafe { rc::alloc_box(n, 3) }
 }
 
@@ -1390,7 +1419,19 @@ pub extern "C" fn Array_contains(ptr: i64, val: i64) -> i64 {
 pub extern "C" fn Array_indexOf(ptr: i64, val: i64) -> i64 {
     if ptr == 0 { return -1; }
     let kind = rc::raw_kind(ptr);
-    unsafe { with_array(ptr, |data| data.iter().position(|&x| elem_eq(kind, x, val)).map_or(-1, |i| i as i64)) }
+    let found = unsafe {
+        with_array(ptr, |data| match kind {
+            // Valeur cherchée décodée une fois, puis comparée mot à mot.
+            1 => int_needle(val).and_then(|n| data.iter().position(|&x| x == n)),
+            _ => data.iter().position(|&x| elem_eq(kind, x, val)),
+        })
+    };
+    found.map_or(-1, |i| i as i64)
+}
+
+/// Entier cherché parmi des `int` bruts ; `None` si `needle` n'en est pas un.
+fn int_needle(needle: i64) -> Option<i64> {
+    (!is_float_box(needle) && !is_bool_box(needle) && get_value_type(needle) == 1).then(|| unbox_numeric_i64(needle))
 }
 
 /// Élément `v` d'un conteneur de genre brut `kind` (voir `fmt_elem`) égal à
@@ -1399,7 +1440,7 @@ pub extern "C" fn Array_indexOf(ptr: i64, val: i64) -> i64 {
 /// trouvait une chaîne seulement si c'était le même objet.
 fn elem_eq(kind: i64, v: i64, needle: i64) -> bool {
     match kind {
-        1 => !is_float_box(needle) && !is_bool_box(needle) && get_value_type(needle) == 1 && unbox_numeric_i64(needle) == v,
+        1 => int_needle(needle) == Some(v),
         2 => is_float_box(needle) && unsafe { unbox_float(needle) } == f64::from_bits(v as u64),
         3 => is_bool_box(needle) && unsafe { unbox_bool(needle) } == (v != 0),
         _ => __cmp_eq_strict(v, needle) == 1,
@@ -3358,13 +3399,11 @@ pub extern "C" fn __unbox_bool(tagged: i64) -> i64 {
     unsafe { *ptr }
 }
 
-/// Déboxe un int précédemment boxé par `__box_int_for_mixed`.
-/// Entrée : `ptr | 3` (tagged heap pointer).
-/// Sortie : la valeur i64 originale.
+/// Déboxe un int précédemment boxé par `__box_int_for_mixed` (en ligne ou
+/// `ptr | 3`) ; sortie : la valeur i64 originale.
 #[unsafe(no_mangle)]
 pub extern "C" fn __unbox_int(tagged: i64) -> i64 {
-    let ptr = (tagged & !3) as *const i64;
-    unsafe { *ptr }
+    unsafe { unbox_int(tagged) }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3643,6 +3682,19 @@ pub extern "C" fn __mixed_to_float(val: i64) -> f64 {
     unbox_numeric_f64(val)
 }
 
+/// Valeur entière d'un opérande `mixed` sans cellule : entier brut ou en
+/// ligne (chemin rapide de `__dyn_*`) ; `None` pour tout le reste.
+#[inline]
+fn plain_int(val: i64) -> Option<i64> {
+    if val < 0 || (val > 0 && val < 0x10000) {
+        Some(val)
+    } else if is_inline_int(val) {
+        Some(unsafe { unbox_int(val) })
+    } else {
+        None
+    }
+}
+
 /// `+` quand au moins un opérande est `Ptr` (mixed, ou un `string`/`array`/...
 /// réellement connu) : décide DYNAMIQUEMENT, au lieu de supposer
 /// systématiquement une concaténation string comme avant ce correctif — un
@@ -3657,6 +3709,16 @@ pub extern "C" fn __mixed_to_float(val: i64) -> f64 {
 /// englobant via `__mixed_to_int`/`__mixed_to_float`) de la déballer si besoin.
 #[unsafe(no_mangle)]
 pub extern "C" fn __dyn_add(a: i64, b: i64) -> i64 {
+    match (plain_int(a), plain_int(b)) {
+        (Some(x), Some(y)) => box_int_if_needed(x.wrapping_add(y)),
+        _ => dyn_add_other(a, b),
+    }
+}
+
+/// `__dyn_add` hors entiers sans cellule, hors ligne : son prologue pesait
+/// sur le chemin entier.
+#[inline(never)]
+fn dyn_add_other(a: i64, b: i64) -> i64 {
     if is_heap_object(a) || is_heap_object(b) {
         return unsafe { alloc_str(&(val_to_string(a) + &val_to_string(b))) };
     }
@@ -3683,13 +3745,16 @@ macro_rules! dyn_arith_op {
     ($name:ident, $op:tt, $int_op:ident) => {
         #[unsafe(no_mangle)]
         pub extern "C" fn $name(a: i64, b: i64) -> i64 {
-            if is_float_box(a) || is_float_box(b) {
-                __box_float((unbox_numeric_f64(a) $op unbox_numeric_f64(b)).to_bits() as i64)
-            } else {
-                // Voir le commentaire équivalent dans `__dyn_add` : le résultat
-                // est déjà une valeur "mixed" retournée telle quelle à
-                // l'appelant, donc à reboxer ICI si nécessaire.
+            #[inline(never)]
+            fn other(a: i64, b: i64) -> i64 {
+                if is_float_box(a) || is_float_box(b) {
+                    return __box_float((unbox_numeric_f64(a) $op unbox_numeric_f64(b)).to_bits() as i64);
+                }
                 box_int_if_needed(unbox_numeric_i64(a).$int_op(unbox_numeric_i64(b)))
+            }
+            match (plain_int(a), plain_int(b)) {
+                (Some(x), Some(y)) => box_int_if_needed(x.$int_op(y)),
+                _ => other(a, b),
             }
         }
     };
@@ -3699,6 +3764,9 @@ dyn_arith_op!(__dyn_mul, *, wrapping_mul);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn __dyn_div(a: i64, b: i64) -> i64 {
+    if let (Some(x), Some(y)) = (plain_int(a), plain_int(b)) {
+        return box_int_if_needed(__int_div(x, y));
+    }
     if is_float_box(a) || is_float_box(b) {
         __box_float((unbox_numeric_f64(a) / unbox_numeric_f64(b)).to_bits() as i64)
     } else {
