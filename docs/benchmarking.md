@@ -599,3 +599,24 @@ Mesures ponctuelles (hors `make perf`) :
 | Appel de fonction libre / accesseur / méthode qui appelle | 1,4 ns / 0,5 ns / ≈ 1 ns si l'appelée ne peut pas libérer `self`, ≈ 15 ns sinon | C 0,5 ns ; méthode Python 37 ns |
 | `use P(i)` (objet int + string) | ≈ 80 ns | Python 123 ns |
 | Serveur HTTP, 8 workers | 5 000–6 600 requêtes/s | — |
+
+## Classement final
+
+![Classement final, indice global (Ocara = 1, plus petit = meilleur) : 1. C 0,50 ; 2. Rust 0,62 ; 3. C++ 0,72 ; 4. Ocara 1,00 ; 5. Perl 2,44 ; 6. Python 4,06 ; 7. PHP 4,35](images/benchmark-classement.svg)
+
+Indice global de chaque langage : moyenne géométrique de ses quatre moyennes
+ci-dessus, chacune ramenée à Ocara et orientée « plus petit = meilleur » —
+temps relatif, mémoire résidente maximale divisée par celle d'Ocara,
+démarrage divisé par celui d'Ocara, débit HTTP d'Ocara divisé par le sien.
+C, C++ et Rust n'ont pas de serveur HTTP dans leur bibliothèque standard :
+leur indice porte sur trois critères.
+
+| Rang | Langage | Indice global | Temps relatif | Mémoire (Mo) | Démarrage (ms) | Serveur HTTP (req/s) |
+|---|---|---|---|---|---|---|
+| 1 | C | 0,50 | 0,34 | 4,2 | 0,78 | — |
+| 2 | Rust | 0,62 | 0,41 | 5,7 | 0,91 | — |
+| 3 | C++ | 0,72 | 0,54 | 7,9 | 0,77 | — |
+| 4 | **Ocara** | **1,00** | **1,00** | **9,0** | **0,99** | **36 734** |
+| 5 | Perl | 2,44 | 4,62 | 18,5 | 1,78 | 17 670 |
+| 6 | Python | 4,06 | 4,02 | 21,0 | 11,71 | 15 062 |
+| 7 | PHP | 4,35 | 1,43 | 49,6 | 21,32 | 17 423 |
