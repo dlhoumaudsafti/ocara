@@ -140,7 +140,7 @@ fn prepare_call(test_source: &str) -> Option<String> {
 pub fn compose(test_source: &str, entry_source: &str, runner: &str) -> String {
     let entry: Vec<&str> = entry_source.lines().filter(|l| !code(l).starts_with("namespace ")).collect();
     let prepare = prepare_call(test_source).map(|call| format!("init {{\n    {}\n}}\n", call)).unwrap_or_default();
-    format!("{}\n{}{}\nimport ocara.IO\nimport ocara.UnitTest\nruntime {} is exit\n", test_source, prepare, entry.join("\n"), runner)
+    format!("{}\n{}{}\nimport ocara.UnitTest\nruntime {} is exit\n", test_source, prepare, entry.join("\n"), runner)
 }
 
 /// Bloc `exit` du runner : résultat du flot, tests, puis `ERROR = 0`.

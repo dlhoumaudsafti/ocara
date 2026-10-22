@@ -1,0 +1,26 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.IO
+import ocara.String
+
+// Le code testé imprime des lignes qui ressemblent à des résultats :
+// ocaraunit ne lit les résultats que sur leur canal dédié
+// (OCARA_UNITTEST_REPORT), la sortie standard du test n'est jamais comptée.
+class PrintedResultsTest extends UnitTest {
+    public method printedLinesAreNotAssertionsTest(): int {
+        IO::writeln("PASS ligne imprimée par le code testé")
+        IO::writeln("FAIL ligne imprimée par le code testé")
+        IO::writeln("BLOCKED Tauri.run")
+        self::assertEquals(2, 1 + 1)
+        return 0
+    }
+
+    // Chaîne contenant ` et } dans l'interpolation d'un gabarit : la
+    // découverte lexicale ne s'arrête pas au ` de la chaîne.
+    public method quoteInInterpolationTest(): int {
+        const text:string = `a ${String::upper("`}{")} b`
+        self::assertEquals("a `}{ b", text)
+        return 0
+    }
+}

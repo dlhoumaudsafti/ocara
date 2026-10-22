@@ -7,10 +7,36 @@
 //! `assertErrorResultCode` comparent ce résultat. `assertBlocksMainThread`/
 //! `assertIsBlocking` sont tranchées par le compilateur, qui les remplace
 //! par `__staticAssert` (voir `src/sema/blocking_assert.rs`).
+//!
+//! Résultats (`PASS`/`FAIL`/`BLOCKED`) : écrits dans le fichier désigné par
+//! `OCARA_UNITTEST_REPORT` (posé par ocaraunit), sinon sur la sortie
+//! standard — une ligne « PASS … » imprimée par le code testé ne compte
+//! plus comme une assertion.
 
+use std::fs::{File, OpenOptions};
+use std::io::Write;
 use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 use crate::{ptr_to_str, ut_pass};
+
+static REPORT: OnceLock<Option<Mutex<File>>> = OnceLock::new();
+
+/// Écrit une ligne de résultat (canal d'ocaraunit, sinon sortie standard).
+pub(crate) fn report(line: &str) {
+    let file = REPORT.get_or_init(|| {
+        std::env::var_os("OCARA_UNITTEST_REPORT")
+            .and_then(|path| OpenOptions::new().create(true).append(true).open(path).ok())
+            .map(Mutex::new)
+    });
+    match file {
+        Some(file) => {
+            let mut file = file.lock().unwrap_or_else(|e| e.into_inner());
+            let _ = file.write_all(format!("{}\n", line).as_bytes());
+        }
+        None => crate::write_stdout_raw(format!("{}\n", line).as_bytes()),
+    }
+}
 
 /// Aucun flot runtime exécuté : test ordinaire, pas un `RuntimeTest.oc`.
 const NO_RESULT: i64 = i64::MIN;
@@ -61,6 +87,13 @@ pub extern "C" fn UnitTest_assertErrorResultCode(expected: i64) {
     } else {
         fail(&format!("assertErrorResultCode: expected result {} but the runtime flow ended with {}", expected, code), 129);
     }
+}
+
+/// Échec d'un test rattrapé par le `main` généré par ocaraunit.
+#[unsafe(no_mangle)]
+pub extern "C" fn UnitTest___reportFailure(label: i64, message: i64) {
+    let (label, message) = unsafe { (ptr_to_str(label), ptr_to_str(message)) };
+    report(&format!("FAIL [{}] {}", label, message));
 }
 
 #[unsafe(no_mangle)]

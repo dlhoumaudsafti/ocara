@@ -7,14 +7,15 @@ use std::{
     fs,
     io::IsTerminal,
     path::{Path, PathBuf},
+    sync::{atomic::{AtomicUsize, Ordering}, mpsc},
 };
 
 use crate::{
     config::{collect_oc_files, Config},
     coverage::{compute_coverage, extract_all_function_names, FileCoverage},
     lines::Hits,
-    runner::{run_test_file, RunContext, TestResult},
-    runtime_test::test_variants,
+    runner::{build_test_file, run_built, Built, RunContext, TestResult},
+    runtime_test::{test_variants, Variant},
 };
 
 pub struct Ansi {
@@ -115,21 +116,36 @@ fn print_totals(c: &Ansi, t: &Totals) {
     print_separator(c);
 }
 
-/// Exécute chaque fichier de test, affiche les résultats et les totaux.
+/// Compile les fichiers de test en parallèle (`--jobs`), puis exécute et
+/// affiche chacun dans l'ordre, dès que son binaire est prêt. Les exécutions
+/// restent une à une : des tests partagent des ressources (port, base).
 pub fn run_all(c: &Ansi, ctx: &RunContext, test_files: &[PathBuf], hits: &mut Hits) -> Totals {
     print_separator(c);
     println!("{} Tests ocaraunit{}", c.bold, c.reset);
     print_separator(c);
+    let jobs: Vec<(&PathBuf, String, Variant)> = test_files.iter()
+        .flat_map(|tf| test_variants(tf, &ctx.project_root).into_iter().map(move |v| (tf, rel_path(tf), v)))
+        .collect();
+    let (senders, receivers): (Vec<_>, Vec<_>) = jobs.iter().map(|_| mpsc::channel::<Result<Built, String>>()).unzip();
+    let next = AtomicUsize::new(0);
     let mut totals = Totals::default();
-    for tf in test_files {
-        let shown = rel_path(tf);
-        for variant in test_variants(tf, &ctx.project_root) {
+    std::thread::scope(|scope| {
+        for _ in 0..ctx.jobs.min(jobs.len()) {
+            scope.spawn(|| loop {
+                let i = next.fetch_add(1, Ordering::Relaxed);
+                let Some((tf, shown, variant)) = jobs.get(i) else { break };
+                let _ = senders[i].send(build_test_file(ctx, tf, shown, variant));
+            });
+        }
+        for ((_, shown, variant), receiver) in jobs.iter().zip(&receivers) {
             println!();
             match variant.label().as_str() {
                 "" => println!("{}{}{}:", c.bold, shown, c.reset),
                 label => println!("{}{}{} {}[{}]{}:", c.bold, shown, c.reset, c.dim, label, c.reset),
             }
-            match run_test_file(ctx, tf, &shown, &variant) {
+            let result = receiver.recv().unwrap_or_else(|_| Err("compilation interrompue".to_string()))
+                .and_then(|built| run_built(ctx, &built));
+            match result {
                 Ok(res) => {
                     if let Some(report) = &res.coverage {
                         hits.add_report(report, &ctx.project_root);
@@ -142,7 +158,7 @@ pub fn run_all(c: &Ansi, ctx: &RunContext, test_files: &[PathBuf], hits: &mut Hi
                 }
             }
         }
-    }
+    });
     print_totals(c, &totals);
     totals
 }

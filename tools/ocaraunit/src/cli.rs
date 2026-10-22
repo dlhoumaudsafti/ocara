@@ -27,6 +27,13 @@ pub struct Options {
     pub excludes:        Vec<String>,
     /// `--json <fichier>` : résultats et couverture par ligne en JSON
     pub json:            Option<String>,
+    /// `--jobs <n>` : compilations simultanées (exécutions toujours une à une)
+    pub jobs:            usize,
+}
+
+/// Compilations simultanées par défaut : les cœurs, au plus 8.
+pub fn default_jobs() -> usize {
+    std::thread::available_parallelism().map_or(1, |n| n.get()).min(8)
 }
 
 impl Default for Options {
@@ -34,8 +41,15 @@ impl Default for Options {
         Options {
             coverage: false, coverage_target: None, target: None, src: None,
             clear: false, timeout_s: DEFAULT_TIMEOUT_S, help: false,
-            line_coverage: false, excludes: Vec::new(), json: None,
+            line_coverage: false, excludes: Vec::new(), json: None, jobs: default_jobs(),
         }
+    }
+}
+
+fn parse_jobs(value: &str) -> Result<usize, String> {
+    match value.parse::<usize>() {
+        Ok(n) if n > 0 => Ok(n),
+        _ => Err(format!("--jobs attend un nombre > 0 (reçu « {} »)", value)),
     }
 }
 
@@ -110,6 +124,7 @@ pub fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Options, Str
             "--json" => opts.json = Some(value(inline, &mut rest, "--json")?),
             "--src" => opts.src = Some(value(inline, &mut rest, "--src")?),
             "--timeout" => opts.timeout_s = parse_timeout(&value(inline, &mut rest, "--timeout")?)?,
+            "--jobs" => opts.jobs = parse_jobs(&value(inline, &mut rest, "--jobs")?)?,
             "--clear" if inline.is_none() => opts.clear = true,
             "--help" | "-h" if inline.is_none() => opts.help = true,
             other if other.starts_with('-') => return Err(format!("option inconnue : {}", arg)),

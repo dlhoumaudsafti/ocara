@@ -4,7 +4,8 @@
 //! Un builtin qui ne rend jamais la main de lui-même (`Tauri.run`,
 //! `HTTPServer.run`) appelé sur le thread principal rend alors la main tout
 //! de suite : la ligne est exécutée, le flot va jusqu'au bout, et l'appel
-//! est signalé par une ligne `BLOCKED <builtin>` que relève ocaraunit. Sur
+//! est signalé par une ligne `BLOCKED <builtin>` (canal des résultats, voir
+//! `unittest_runtime::report`) que relève ocaraunit. Sur
 //! un autre thread (serveur lancé dans un `Thread`), l'appel s'exécute
 //! réellement. Étiquettes côté compilateur : `src/builtins/blocking.rs`.
 
@@ -38,6 +39,6 @@ pub fn neutralized(builtin: &str) -> bool {
     if !test_mode() || !on_main_thread() {
         return false;
     }
-    crate::write_stdout_raw(format!("BLOCKED {}\n", builtin).as_bytes());
+    crate::unittest_runtime::report(&format!("BLOCKED {}", builtin));
     true
 }

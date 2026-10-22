@@ -33,6 +33,7 @@
 // Internes (appels générés par ocaraunit et par la sema) :
 //   UnitTest::__recordRuntimeResult(code)          → void
 //   UnitTest::__staticAssert(ok, message, code)    → void
+//   UnitTest::__reportFailure(label, message)      → void
 //
 // Convention runtime : UnitTest_<method>
 // ─────────────────────────────────────────────────────────────────────────────
@@ -237,6 +238,7 @@ pub fn class() -> ClassInfo {
     methods.insert("assertIsBlocking".into(), m(vec![("expr", Type::Mixed)], Type::Void));
 
     methods.insert("__recordRuntimeResult".into(), m(vec![("code", Type::Int)], Type::Void));
+    methods.insert("__reportFailure".into(), m(vec![("label", Type::String), ("message", Type::String)], Type::Void));
     methods.insert("__staticAssert".into(), m(
         vec![("ok", Type::Bool), ("message", Type::String), ("code", Type::Int)],
         Type::Void,

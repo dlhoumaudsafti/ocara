@@ -347,25 +347,23 @@ PASS assertIsBlocking: Server.start → HTTPServer.run blocks the calling thread
 
 ## Format de sortie
 
-Chaque assertion réussie écrit une ligne `PASS` sur stdout :
+Chaque assertion réussie écrit une ligne `PASS` :
 
 ```
 PASS assertEquals: 42 == 42
 PASS assertTrue
 ```
 
-Une assertion en échec lève une `UnitTestException` (message en anglais, par exemple `assertGreater: 10 is not > 50`) : l'exécution du fichier de test s'arrête là, et `ocaraunit` le compte comme **erreur d'exécution** en affichant le message. Les assertions déjà passées restent comptées.
+Une assertion en échec lève une `UnitTestException` (message en anglais, par exemple `assertGreater: 10 is not > 50`). Le `main` généré par `ocaraunit` appelle chaque test dans un `try` : l'échec devient une ligne `FAIL [Classe.test] message`, et les tests suivants du fichier s'exécutent quand même.
 
 ```
   PASS assertEquals: 42 == 42
   PASS assertTrue
-  2 PASS  0 FAIL (compile: 937ms, run: 1ms)
-  ERREUR exécution :
-  … Exception raised: UnitTestException …
-  Message: assertGreater: 10 is not > 50
+  FAIL [MathTest.compareTest] assertGreater: 10 is not > 50
+  2 PASS  1 FAIL (compile: 937ms, run: 1ms)
 ```
 
-`ocaraunit` lit ces lignes pour produire le rapport final.
+Les lignes de résultat vont dans le fichier désigné par `OCARA_UNITTEST_REPORT`, que pose `ocaraunit` ; sans cette variable (binaire lancé à la main), sur la sortie standard. Une ligne « PASS … » imprimée par le code testé n'est donc jamais comptée comme une assertion.
 
 ---
 

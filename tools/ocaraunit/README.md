@@ -32,6 +32,7 @@ ocaraunit [options] [<dossier|fichier>]
 | `--json <fichier>`        | Écrit les résultats et la couverture par ligne en JSON (avec `--line-coverage`) |
 | `--src <dossier>`         | Dossier racine du projet pour résoudre les imports                |
 | `--timeout <s>`           | Délai par fichier de test (compilation, puis exécution), défaut 120 s |
+| `--jobs <n>`              | Compilations simultanées (défaut : nombre de cœurs, au plus 8) ; les tests s'exécutent un à un |
 | `--clear`                 | Supprimer le cache (seul) ou avant de lancer les tests            |
 | `--help`, `-h`            | Afficher l'aide                                                    |
 
@@ -204,7 +205,7 @@ Les fichiers de test peuvent être organisés **en sous-dossiers** dans `tests/`
 
 ### Fichiers de test
 
-Toute fonction libre dont le nom **commence ou se termine par `test`** (casse ignorée : `addTest`, `testAdd`, `add_test`) est un test, que le fichier déclare aussi des classes ou non — la casse des noms relève du linter `ocaracs`, pas du runner. La découverte ignore commentaires et chaînes, et tolère espaces multiples et tabulations (`public  method`, `public\tstatic\tmethod`). Le fichier ne doit pas déclarer de `function main()` :
+Toute fonction libre dont le nom **commence ou se termine par `test`** (casse ignorée : `addTest`, `testAdd`, `add_test`) est un test, que le fichier déclare aussi des classes ou non — la casse des noms relève du linter `ocaracs`, pas du runner. La découverte ignore commentaires et chaînes — y compris une chaîne qui contient `` ` `` ou des accolades dans l'interpolation `${…}` d'un gabarit — et tolère espaces multiples et tabulations (`public  method`, `public\tstatic\tmethod`). Le fichier ne doit pas déclarer de `function main()` :
 
 ```ocara
 import ocara.UnitTest
@@ -282,7 +283,7 @@ la racine du projet ; **`<entrée>.RuntimeTest.oc`** vise un autre point d'entr�
 (`probe_main.RuntimeTest.oc` → `probe_main.oc`) :
 
 1. le source compilé est le fichier de test, suivi des déclarations de `main.oc` (imports,
-   `runtime … is …`) et d'un dernier `runtime __ocaraunit__RuntimeTest_runner is exit` ;
+   `runtime … is …`) et d'un dernier `runtime __ocaraunit__<id>_runner is exit` ;
 2. le flot complet s'exécute (`init → main → error|success → exit`, instrumenté sous
    `--line-coverage`, ce qui couvre les fichiers `*.runtime.oc`) ;
 3. le runner transmet `ERROR` à `UnitTest` (`assertSuccessResult`, `assertErrorResult`,
@@ -347,6 +348,10 @@ Résultat global : 4 PASS  1 FAIL  0 ERREUR(S)
 ```
 
 - `PASS` en vert, `FAIL` en rouge
+- Les résultats sont lus dans le fichier `OCARA_UNITTEST_REPORT` où le runtime les écrit, jamais
+  sur la sortie standard du test : une ligne « PASS … » imprimée par le code testé ne compte pas
+- Compilation en parallèle (`--jobs`), exécution un fichier après l'autre, dans l'ordre : des tests
+  partagent des ressources (port, base) ; chaque fichier s'affiche dès que son binaire est prêt
 - Résultat global en vert si tout est OK, rouge sinon
 - Code de sortie `0` si tous les tests passent, `1` sinon (voir [Codes de sortie](#codes-de-sortie))
 
@@ -505,6 +510,7 @@ Le compilateur résout les imports depuis la racine du projet ; un fichier de te
 |----------|-------------------------------------------------|
 | `OCARA`  | Chemin vers le binaire `ocara` (défaut : auto-détecté) ; un chemin relatif est résolu depuis le dossier de lancement |
 | `OCARA_UNITTEST` | Posée par ocaraunit pour chaque binaire de test : les builtins bloquants y rendent la main (voir [Builtins bloquants](#builtins-bloquants)) |
+| `OCARA_UNITTEST_REPORT` | Posée par ocaraunit : fichier où le runtime écrit les lignes `PASS`/`FAIL`/`BLOCKED` (voir [Format de sortie](#format-de-sortie-des-tests)) |
 
 Auto-détection dans l'ordre :
 1. Variable `OCARA`

@@ -254,3 +254,32 @@ mod runtime_test {
         assert!(runner.ends_with("ERROR = 0\n"), "{}", runner);
     }
 }
+
+mod reliability {
+    use crate::cli::parse_args;
+    use crate::discovery::{extract_tests, generate_main};
+    use crate::scan::code_lines;
+
+    #[test]
+    fn strings_in_interpolations_hide_their_braces_and_keep_lines() {
+        let src = "const s:string = `a ${f(\"`}{\")} b`\nfunction fooTest(): int {\n    return 0\n}\n";
+        assert_eq!(code_lines(src).len(), 4);
+        let names: Vec<String> = extract_tests(src).into_iter().map(|t| t.name).collect();
+        assert_eq!(names, vec!["fooTest"]);
+    }
+
+    #[test]
+    fn failures_go_through_the_result_channel() {
+        let main = generate_main(&extract_tests("function fooTest(): int {\n    return 0\n}\n"));
+        assert!(main.contains("UnitTest::__reportFailure(\"fooTest\", _ocaraunit_e.message)"), "{}", main);
+        assert!(!main.contains("IO::writeln"), "{}", main);
+    }
+
+    #[test]
+    fn jobs_option_is_validated() {
+        let args = |list: &[&str]| parse_args(list.iter().map(|s| s.to_string()));
+        assert_eq!(args(&["--jobs", "3", "tests"]).expect("valide").jobs, 3);
+        assert_eq!(args(&["--jobs=1"]).expect("valide").jobs, 1);
+        assert!(args(&["--jobs", "0"]).is_err());
+    }
+}

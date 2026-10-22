@@ -118,12 +118,13 @@ pub fn declares_main(source: &str) -> bool {
 }
 
 /// Appel d'un test isolé dans un `try` : une assertion en échec
-/// (`UnitTestException`) est rapportée en ligne `FAIL` et les tests suivants
-/// du fichier s'exécutent quand même.
+/// (`UnitTestException`) est rapportée en ligne `FAIL` sur le canal des
+/// résultats (`UnitTest::__reportFailure`) et les tests suivants du fichier
+/// s'exécutent quand même.
 fn guarded_call(call: &str, label: &str) -> String {
     format!(
         "    try {{\n        {}\n    }} on _ocaraunit_e is UnitTestException {{\n        \
-         IO::writeln(`FAIL [{}] ${{_ocaraunit_e.message}}`)\n    }}\n",
+         UnitTest::__reportFailure(\"{}\", _ocaraunit_e.message)\n    }}\n",
         call, label
     )
 }
@@ -161,5 +162,5 @@ pub fn test_calls(tests: &[TestEntry]) -> String {
 /// `test_calls`). Ajouté en fin de fichier : les numéros de ligne du test
 /// restent ceux du fichier d'origine.
 pub fn generate_main(tests: &[TestEntry]) -> String {
-    format!("\nimport ocara.IO\n\nfunction main(): int {{\n{}    return 0\n}}\n", test_calls(tests))
+    format!("\nimport ocara.UnitTest\n\nfunction main(): int {{\n{}    return 0\n}}\n", test_calls(tests))
 }

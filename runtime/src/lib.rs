@@ -135,7 +135,7 @@ pub mod profile;
 pub mod leak;
 pub mod global_const;
 pub mod blocking;
-mod unittest_runtime;
+pub(crate) mod unittest_runtime;
 pub(crate) mod containers;
 pub(crate) mod rc_concurrent;
 // Tauri vit dans le crate séparé runtime_tauri (voir sa doc) : pas de `mod tauri`
@@ -2038,8 +2038,7 @@ pub extern "C" fn Regex_extract(pattern: i64, text: i64, n: i64) -> i64 {
 ///   PASS <message>
 ///   FAIL <message>
 pub(crate) fn ut_pass(msg: &str) {
-    let s = format!("PASS {}\n", msg);
-    write_stdout_raw(s.as_bytes());
+    unittest_runtime::report(&format!("PASS {}", msg));
 }
 
 unsafe fn ut_val_to_display(val: i64) -> String {

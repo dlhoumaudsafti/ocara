@@ -34,5 +34,6 @@ pub const UNITTEST_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "UnitTest_assertErrorResult",               params: &[],                   returns: None,           module: Some("UnitTest") },
     BuiltinDesc { name: "UnitTest_assertErrorResultCode",           params: &[clt::I64],           returns: None,           module: Some("UnitTest") },
     BuiltinDesc { name: "UnitTest___recordRuntimeResult",           params: &[clt::I64],           returns: None,           module: Some("UnitTest") },
+    BuiltinDesc { name: "UnitTest___reportFailure",                 params: &[clt::I64, clt::I64], returns: None,           module: Some("UnitTest") },
     BuiltinDesc { name: "UnitTest___staticAssert",                  params: &[clt::I64, clt::I64, clt::I64], returns: None, module: Some("UnitTest") },
 ];

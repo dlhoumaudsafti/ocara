@@ -20,6 +20,9 @@ use crate::{
 /// Variable d'environnement des binaires de test : les builtins bloquants
 /// y rendent la main (voir runtime/src/blocking.rs).
 const TEST_MODE_ENV: &str = "OCARA_UNITTEST";
+/// Fichier où le runtime écrit les résultats (`PASS`/`FAIL`/`BLOCKED`) :
+/// la sortie standard du code testé n'est jamais lue comme un résultat.
+const REPORT_ENV: &str = "OCARA_UNITTEST_REPORT";
 
 /// Paramètres communs à tous les fichiers de test d'une exécution.
 pub struct RunContext {
@@ -32,6 +35,8 @@ pub struct RunContext {
     pub color:        bool,
     /// Binaires compilés avec `ocara --coverage` (voir `lines.rs`)
     pub line_coverage: bool,
+    /// Compilations simultanées (`--jobs`)
+    pub jobs: usize,
 }
 
 #[derive(Debug)]
@@ -103,15 +108,21 @@ fn prepare_source(src: &Path, root: &Path, runner_module: &str) -> Result<Prepar
     })
 }
 
-/// Compile `src` vers `bin`. Le fichier généré `__ocaraunit__<stem>.oc` (et
+/// Compile `src` vers `bin`. Le fichier généré `__ocaraunit__<id>_<stem>.oc` (et
 /// le runner d'un `RuntimeTest.oc`) est placé à la racine (le compilateur y
 /// résout les imports) puis supprimé ; les diagnostics qui le citent sont
 /// ramenés au fichier de test d'origine.
 fn compile(ctx: &RunContext, src: &Path, bin: &Path, shown: &str, variant: &Variant) -> Result<(), String> {
-    let stem = src.file_stem().unwrap_or_default().to_string_lossy();
-    let runner_module = runtime_test::runner_module(&stem);
+    // Nom propre à ce binaire : deux tests de même nom, ou deux variantes
+    // d'un même test, se compilent en parallèle sans se marcher dessus.
+    let id: String = bin.file_name().unwrap_or_default().to_string_lossy().chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .collect();
+    let runner_module = runtime_test::runner_module(&id);
     let prepared = prepare_source(src, &ctx.project_root, &runner_module)?;
-    let tmp_name = format!("__ocaraunit__{}.oc", stem);
+    // Le nom finit par celui du test : `wiring` n'est permis que dans un `*Test.oc`.
+    let stem = src.file_stem().unwrap_or_default().to_string_lossy();
+    let tmp_name = format!("__ocaraunit__{}_{}.oc", id, stem);
     let tmp_src = ctx.project_root.join(&tmp_name);
     let tmp_runner = ctx.project_root.join(format!("{}.runtime.oc", runner_module));
     fs::write(&tmp_src, prepared.source).map_err(|e| format!("écriture de {} : {}", tmp_src.display(), e))?;
@@ -143,13 +154,13 @@ fn compile(ctx: &RunContext, src: &Path, bin: &Path, shown: &str, variant: &Vari
 }
 
 /// Builtins bloquants neutralisés (lignes `BLOCKED <builtin>`).
-fn parse_blocked(stdout: &str) -> Vec<String> {
-    stdout.lines().filter_map(|l| l.strip_prefix("BLOCKED ")).map(str::to_string).collect()
+fn parse_blocked(report: &str) -> Vec<String> {
+    report.lines().filter_map(|l| l.strip_prefix("BLOCKED ")).map(str::to_string).collect()
 }
 
-/// Lignes `PASS …` / `FAIL …` de la sortie du binaire.
-fn parse_asserts(stdout: &str) -> Vec<AssertResult> {
-    stdout.lines().filter_map(|line| {
+/// Lignes `PASS …` / `FAIL …` du canal des résultats.
+fn parse_asserts(report: &str) -> Vec<AssertResult> {
+    report.lines().filter_map(|line| {
         if let Some(msg) = line.strip_prefix("PASS ") {
             Some(AssertResult { passed: true, message: msg.to_string() })
         } else {
@@ -188,13 +199,18 @@ fn run_error(ctx: &RunContext, out: &Output, asserts: &mut Vec<AssertResult>) ->
     Some(text)
 }
 
-/// Compile (sauf binaire en cache) et exécute un fichier de test.
-///
-/// Le binaire est mis en cache sous une clé couvrant le test, ses imports
-/// transitifs et le compilateur (voir `cache.rs`) ; il est exécuté depuis
-/// la racine du projet, comme l'application, avec le délai `--timeout`.
-/// `Err` : le fichier n'a pas pu être compilé (ou ne contient aucun test).
-pub fn run_test_file(ctx: &RunContext, src: &Path, shown: &str, variant: &Variant) -> Result<TestResult, String> {
+/// Binaire d'un fichier de test, compilé ou trouvé en cache.
+pub struct Built {
+    bin: PathBuf,
+    /// Temps de compilation en millisecondes (0 : binaire en cache)
+    compile_time_ms: u128,
+}
+
+/// Compile un fichier de test, sauf binaire en cache (clé couvrant le test,
+/// ses imports transitifs et le compilateur, voir `cache.rs`). Sans effet
+/// sur les autres tests : appelable en parallèle. `Err` : le fichier n'a
+/// pas pu être compilé (ou ne contient aucun test).
+pub fn build_test_file(ctx: &RunContext, src: &Path, shown: &str, variant: &Variant) -> Result<Built, String> {
     let key = test_key(src, &ctx.project_root, ctx.fingerprint)
         .ok_or_else(|| "impossible de lire le fichier source".to_string())?;
     let entry = EntryName::of(src, &variant.slug());
@@ -206,21 +222,33 @@ pub fn run_test_file(ctx: &RunContext, src: &Path, shown: &str, variant: &Varian
         compile_time_ms = start.elapsed().as_millis().max(1);
         purge(&ctx.cache_dir, &bin, &entry);
     }
-    let report = bin.with_extension("cov");
-    let _ = fs::remove_file(&report);
-    let mut cmd = Command::new(&bin);
-    cmd.current_dir(&ctx.project_root).env(TEST_MODE_ENV, "1");
+    Ok(Built { bin, compile_time_ms })
+}
+
+/// Exécute un binaire de test depuis la racine du projet, comme
+/// l'application, avec le délai `--timeout`. Les résultats viennent du
+/// fichier `OCARA_UNITTEST_REPORT`, jamais de la sortie standard.
+pub fn run_built(ctx: &RunContext, built: &Built) -> Result<TestResult, String> {
+    let Built { bin, compile_time_ms } = built;
+    let coverage_file = PathBuf::from(format!("{}.cov", bin.display()));
+    let report_file = PathBuf::from(format!("{}.report", bin.display()));
+    let _ = fs::remove_file(&coverage_file);
+    let _ = fs::remove_file(&report_file);
+    let mut cmd = Command::new(bin);
+    cmd.current_dir(&ctx.project_root).env(TEST_MODE_ENV, "1").env(REPORT_ENV, &report_file);
     if ctx.line_coverage {
-        cmd.env("OCARA_COVERAGE_FILE", &report);
+        cmd.env("OCARA_COVERAGE_FILE", &coverage_file);
     }
     let start = Instant::now();
     let out = run(&mut cmd, ctx.timeout)
         .map_err(|e| format!("impossible d'exécuter le binaire : {}", e))?;
     let run_time_ms = start.elapsed().as_millis();
-    let mut asserts = parse_asserts(&out.stdout);
-    let blocked = parse_blocked(&out.stdout);
+    let report = fs::read_to_string(&report_file).unwrap_or_default();
+    let _ = fs::remove_file(&report_file);
+    let mut asserts = parse_asserts(&report);
+    let blocked = parse_blocked(&report);
     let error = run_error(ctx, &out, &mut asserts);
-    let coverage = ctx.line_coverage.then(|| fs::read_to_string(&report).unwrap_or_default());
-    let _ = fs::remove_file(&report);
-    Ok(TestResult { asserts, error, compile_time_ms, run_time_ms, coverage, blocked })
+    let coverage = ctx.line_coverage.then(|| fs::read_to_string(&coverage_file).unwrap_or_default());
+    let _ = fs::remove_file(&coverage_file);
+    Ok(TestResult { asserts, error, compile_time_ms: *compile_time_ms, run_time_ms, coverage, blocked })
 }

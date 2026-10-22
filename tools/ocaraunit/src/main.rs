@@ -64,6 +64,8 @@ fn usage() {
     eprintln!("  --src <dossier>           Racine du projet pour résoudre les imports");
     eprintln!("  --timeout <s>             Délai par fichier de test, compilation et exécution (défaut : {} s)",
               cli::DEFAULT_TIMEOUT_S);
+    eprintln!("  --jobs <n>                Compilations simultanées (défaut : {}) ; les tests s'exécutent un à un",
+              cli::default_jobs());
     eprintln!("  --clear                   Supprimer le cache (seul) ou avant de lancer les tests");
     eprintln!("  --help, -h                Afficher cette aide");
     eprintln!();
@@ -177,6 +179,7 @@ fn main() {
         timeout: Duration::from_secs(opts.timeout_s),
         color: !c.reset.is_empty(),
         line_coverage: opts.line_coverage,
+        jobs: opts.jobs,
     };
     let mut hits = lines::Hits::default();
     let totals: Totals = report::run_all(&c, &ctx, &test_files, &mut hits);

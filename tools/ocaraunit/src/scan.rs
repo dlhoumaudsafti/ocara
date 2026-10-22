@@ -27,14 +27,40 @@ pub fn code_lines(source: &str) -> Vec<String> {
     out.lines().map(str::to_string).collect()
 }
 
+type Chars<'a> = std::iter::Peekable<std::str::Chars<'a>>;
+
 /// Avance jusqu'au délimiteur fermant `quote` (échappements `\` sautés) ;
-/// seuls les sauts de ligne du contenu sont recopiés.
-fn skip_string(chars: &mut std::iter::Peekable<std::str::Chars>, quote: char, out: &mut String) {
+/// seuls les sauts de ligne du contenu sont recopiés. Dans un gabarit,
+/// `${ … }` est du code, qui peut contenir d'autres chaînes et gabarits.
+fn skip_string(chars: &mut Chars, quote: char, out: &mut String) {
     while let Some(c) = chars.next() {
         match c {
             '\\' => { chars.next(); }
             '\n' => out.push('\n'),
+            '$' if quote == '`' && chars.peek() == Some(&'{') => {
+                chars.next();
+                skip_interpolation(chars, out);
+            }
             c if c == quote => return,
+            _ => {}
+        }
+    }
+}
+
+/// Avance jusqu'à l'accolade qui ferme `${`.
+fn skip_interpolation(chars: &mut Chars, out: &mut String) {
+    let mut depth = 1;
+    while let Some(c) = chars.next() {
+        match c {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return;
+                }
+            }
+            '"' | '\'' | '`' => skip_string(chars, c, out),
+            '\n' => out.push('\n'),
             _ => {}
         }
     }
