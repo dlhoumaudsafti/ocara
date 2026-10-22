@@ -201,7 +201,12 @@ pub fn lower_array_literal(builder: &mut LowerBuilder, elements: &[Expr], elem_t
     crate::lower::stmt::rc::mark_raw_if_primitive(builder, &Type::Array(Box::new(elem_ty.clone())), &arr);
     for elem in elements {
         let stored = lower_literal_element(builder, elem, elem_ty);
-        builder.emit(Inst::Call { dest: None, func: "__array_push".into(), args: vec![arr.clone(), stored], ret_ty: IrType::Void });
+        // Élément possédé (littéral imbriqué, valeur boxée, résultat
+        // d'appel) : sa référence passe au tableau, sans retenue puis
+        // relâchement — un conteneur relâché encore partagé devenait racine
+        // possible de cycle.
+        let func = if crate::lower::stmt::rc::claim(builder, &stored) { "__array_push_owned" } else { "__array_push" };
+        builder.emit(Inst::Call { dest: None, func: func.into(), args: vec![arr.clone(), stored], ret_ty: IrType::Void });
     }
     arr
 }
@@ -216,7 +221,12 @@ pub fn lower_map_literal(builder: &mut LowerBuilder, entries: &[(Expr, Expr)], v
     for (key, val) in entries {
         let kv = lower_map_key(builder, key);
         let vv = lower_literal_element(builder, val, val_ty);
-        builder.emit(Inst::Call { dest: None, func: kv.set_func().into(), args: [vec![map.clone()], kv.args, vec![vv]].concat(), ret_ty: IrType::Void });
+        // Valeur possédée : cédée à la map (voir `lower_array_literal`).
+        let func = match kv.owned_set_func() {
+            Some(owned) if crate::lower::stmt::rc::claim(builder, &vv) => owned,
+            _ => kv.set_func(),
+        };
+        builder.emit(Inst::Call { dest: None, func: func.into(), args: [vec![map.clone()], kv.args, vec![vv]].concat(), ret_ty: IrType::Void });
     }
     map
 }
@@ -257,6 +267,12 @@ impl MapKeyArg {
             MapKeyKind::Template => "__map_set_tpl",
             MapKeyKind::Value => "__map_set",
         }
+    }
+
+    /// Variante de `set_func` qui reprend la référence de la valeur, si elle
+    /// existe pour ce genre de clé.
+    pub fn owned_set_func(&self) -> Option<&'static str> {
+        matches!(self.kind, MapKeyKind::Value).then_some("__map_set_owned")
     }
 }
 

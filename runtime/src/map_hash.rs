@@ -57,7 +57,9 @@ fn fold32(h: u64) -> u32 {
 pub(crate) fn hash_text(seed: &RandomState, text: &str) -> u32 {
     let mut hasher = seed.build_hasher();
     let Some((prefix, digits, value)) = numeric_suffix(text) else {
-        if let Some(value) = canonical_int(text) {
+        // Texte d'un `int` de 19 chiffres (au-delà de `numeric_suffix`) ;
+        // tout texte d'`int` finit par un chiffre.
+        if let Some(value) = text.ends_with(|c: char| c.is_ascii_digit()).then(|| canonical_int(text)).flatten() {
             return hash_int(value);
         }
         hasher.write(text.as_bytes());

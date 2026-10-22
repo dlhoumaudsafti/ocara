@@ -140,6 +140,7 @@ pub(crate) mod unittest_runtime;
 pub(crate) mod containers;
 pub(crate) mod map_table;
 pub(crate) mod map_hash;
+pub(crate) mod json_codec;
 pub(crate) mod rc_concurrent;
 // Tauri vit dans le crate séparé runtime_tauri (voir sa doc) : pas de `mod tauri`
 // ici, pour que ce code (et sa dépendance GTK/WebKit) n'existe dans le binaire
@@ -286,6 +287,9 @@ pub unsafe fn ptr_to_str<'a>(val: i64) -> &'a str {
 // Un `int` de `mixed` de 0 à 2⁵⁹ est rangé en ligne, sans cellule :
 // `INLINE_INT_TAG | n << 3` (bits 2:0 = 100, bit 62 posé, bit 63 nul) —
 // jamais une adresse (≥ 2⁶²), ni un entier brut (négatif ou < 0x10000).
+// Un `bool` de `mixed` l'est toujours : `INLINE_BOOL_TAG | b << 3` (bits
+// 2:0 = 010, lu par `is_bool_box` comme un bool boxé). Toute valeur comptée
+// (pointeur, cellule) est sous `POINTER_LIMIT`.
 
 /// Retourne true si val est un pointeur string/objet (bits bas == 000).
 #[inline]
@@ -293,7 +297,11 @@ fn is_ptr(val: i64) -> bool {
     val >= 0x10000 && (val & 7) == 0
 }
 
+/// Au-dessus de toute adresse d'un processus (48 bits sur aarch64, 57 au
+/// plus sur x86-64), sous les valeurs en ligne (≥ 2⁶²).
+pub(crate) const POINTER_LIMIT: i64 = 1 << 56;
 const INLINE_INT_TAG: u64 = 0x4000_0000_0000_0004;
+const INLINE_BOOL_TAG: u64 = 0x4000_0000_0000_0002;
 const INLINE_INT_MASK: u64 = 0xC000_0000_0000_0007;
 const INLINE_INT_LIMIT: i64 = 1 << 59;
 
@@ -331,6 +339,9 @@ pub(crate) unsafe fn unbox_float(val: i64) -> f64 {
 
 #[inline]
 pub(crate) unsafe fn unbox_bool(val: i64) -> bool {
+    if val as u64 & INLINE_INT_MASK == INLINE_BOOL_TAG {
+        return val >> 3 & 1 != 0;
+    }
     unsafe { *((val & !3) as *const i64) != 0 }
 }
 
@@ -504,6 +515,13 @@ pub(crate) fn array_push_owned(ptr: i64, val: i64) {
     unsafe { with_array(ptr, |data| data.push(val)) }
 }
 
+/// `__array_push` d'une valeur dont l'appelant cède la référence (élément
+/// possédé d'un littéral `[…]`) : sans retenue ni relâchement.
+#[unsafe(no_mangle)]
+pub extern "C" fn __array_push_owned(ptr: i64, val: i64) {
+    array_push_owned(ptr, val);
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn __array_push(ptr: i64, val: i64) {
     if ptr == 0 { return; }
@@ -586,10 +604,11 @@ pub extern "C" fn __box_float(bits: i64) -> i64 {
     unsafe { rc::alloc_box(bits, 1) }
 }
 
-/// Boxe un bool (0/1) dans une cellule heap ; retourne `ptr | 2`.
+/// Bool d'un `mixed`, rangé en ligne (`INLINE_BOOL_TAG | b << 3`) : une
+/// cellule allouée par booléen auparavant.
 #[unsafe(no_mangle)]
 pub extern "C" fn __box_bool(b: i64) -> i64 {
-    unsafe { rc::alloc_box(b, 2) }
+    (INLINE_BOOL_TAG | u64::from(b != 0) << 3) as i64
 }
 
 /// Point d'entrée appelé depuis le lowering partout où un `int` (connu
@@ -879,6 +898,13 @@ fn map_put(ptr: i64, key: i64, val: i64) {
     }
 }
 
+/// `__map_set` d'une valeur dont l'appelant cède la référence (élément
+/// possédé d'un littéral `{…}`) : sans retenue ni relâchement.
+#[unsafe(no_mangle)]
+pub extern "C" fn __map_set_owned(ptr: i64, key: i64, val: i64) {
+    map_put(ptr, key, val);
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn __map_set(ptr: i64, key: i64, val: i64) {
     if ptr == 0 { return; }
@@ -969,6 +995,13 @@ pub extern "C" fn __map_key_at(ptr: i64, index: i64, int_key: i64) -> i64 {
 pub extern "C" fn __map_value_index(ptr: i64, index: i64) -> i64 {
     if ptr == 0 { return 0; }
     unsafe { with_map(ptr, |data| data.value_index(index as usize)) }
+}
+
+/// Paires (clé retenue +1, valeur empruntée) d'une map, sans recopier le
+/// texte des clés (voir `json_codec`).
+pub(crate) unsafe fn map_shared_entries(ptr: i64) -> Vec<(i64, i64)> {
+    if ptr == 0 { return Vec::new(); }
+    unsafe { with_map(ptr, |data| data.iter().map(|(k, v)| (k.share(), v)).collect()) }
 }
 
 /// Copie les paires (clé, valeur `mixed` brute) d'une `map<string, mixed>` —
@@ -3395,8 +3428,7 @@ pub extern "C" fn __unbox_float(tagged: i64) -> f64 {
 /// Sortie : 0 ou 1 comme i64.
 #[unsafe(no_mangle)]
 pub extern "C" fn __unbox_bool(tagged: i64) -> i64 {
-    let ptr = (tagged & !3) as *const i64;
-    unsafe { *ptr }
+    i64::from(unsafe { unbox_bool(tagged) })
 }
 
 /// Déboxe un int précédemment boxé par `__box_int_for_mixed` (en ligne ou
@@ -3811,7 +3843,7 @@ pub extern "C" fn __int_mod(a: i64, b: i64) -> i64 {
 // ocara.JSON — Sérialisation et désérialisation JSON
 // ────────────────────────────────────────────────────────────────────────────
 
-use serde_json::{Value as JsonValue, Map as JsonMap};
+use serde_json::Value as JsonValue;
 
 /// JSON::encode(data, leaf_kind) → string
 /// Encode un array ou map en JSON. `leaf_kind` (2e paramètre, jamais visible
@@ -3823,168 +3855,17 @@ use serde_json::{Value as JsonValue, Map as JsonMap};
 /// indiscernable de `null`/`false` (voir `value_to_json`).
 #[unsafe(no_mangle)]
 pub extern "C" fn JSON_encode(data: i64, leaf_kind: i64) -> i64 {
-    let json_val = value_to_json(data, leaf_kind);
-    let json_str = serde_json::to_string(&json_val).unwrap_or_else(|_| "null".to_string());
-    unsafe { alloc_str(&json_str) }
+    json_codec::encode(data, leaf_kind)
 }
 
-/// Convertit une valeur Ocara en JsonValue. `leaf_kind` : voir `JSON_encode`
-/// — reste le MÊME à travers toute la récursion (un `array<array<int>>` a
-/// `int` comme feuille à tous les niveaux, garanti par le typage statique
-/// d'Ocara), et ne s'applique QUE lorsque `val` n'est pas lui-même un
-/// pointeur tas réel (string/array/map, détecté de façon fiable par
-/// `get_value_type` indépendamment de `leaf_kind`) — seul le panier
-/// "primitif" (1, jamais un pointeur valide) est concerné par l'ambiguïté
-/// que `leaf_kind` résout.
-fn value_to_json(val: i64, shape: i64) -> JsonValue {
-    // `shape` = `kind | depth << 8` (voir `static_leaf_shape`) : une feuille
-    // brute d'un conteneur concret est convertie SANS lecture de tag — un
-    // entier comme 70000 ressemble à un pointeur aligné (SIGSEGV sinon).
-    let (leaf_kind, depth) = (shape & 0xff, shape >> 8);
-    if leaf_kind != 0 && depth == 0 {
-        return raw_leaf_to_json(val, leaf_kind);
-    }
-    let child = if leaf_kind == 0 { 0 } else { leaf_kind | (depth - 1) << 8 };
-    if val == 0 {
-        // `null` uniquement pour `mixed` (leaf_kind == 0, comportement
-        // historique) — pour un type de feuille concret connu, 0 est une
-        // valeur int/float/bool normale, jamais `null`.
-        return match leaf_kind {
-            1 => JsonValue::Number(serde_json::Number::from(0i64)),
-            2 => serde_json::Number::from_f64(0.0).map(JsonValue::Number).unwrap_or(JsonValue::Null),
-            3 => JsonValue::Bool(false),
-            _ => JsonValue::Null,
-        };
-    }
-
-    // `float`/`bool`/`int` boxés (voir `__box_float`/`__box_bool`/
-    // `box_int_if_needed`) : uniquement pertinent pour `mixed` (leaf_kind ==
-    // 0) — un élément d'un conteneur CONCRET (`array<int>`...) n'est jamais
-    // boxé, cette détection resterait un faux ami sur un tel élément. Sans
-    // ce déballage pour `mixed`, un float/bool construit par un littéral
-    // `array<mixed>`/`map<string,mixed>` (voir lower_array_literal/
-    // lower_map_literal) ressortait comme un entier correspondant à
-    // l'adresse du pointeur boxé (confirmé par reproduction).
-    if leaf_kind == 0 {
-        if is_float_box(val) {
-            let f = unsafe { unbox_float(val) };
-            return serde_json::Number::from_f64(f).map(JsonValue::Number).unwrap_or(JsonValue::Null);
-        }
-        if is_bool_box(val) {
-            return JsonValue::Bool(unsafe { unbox_bool(val) });
-        }
-        if is_int_box(val) {
-            return JsonValue::Number(serde_json::Number::from(unsafe { unbox_int(val) }));
-        }
-    }
-
-    let typ = get_value_type(val);
-
-    match typ {
-        1 => {  // Primitif : jamais un pointeur valide — c'est ICI, et
-                // seulement ici, que l'ambiguïté int/bool/null concrète se
-                // pose, résolue directement par `leaf_kind` quand il est
-                // connu (aucune approximation possible, contrairement au cas
-                // `mixed` ci-dessous, hérité tel quel de l'historique).
-            match leaf_kind {
-                1 => JsonValue::Number(serde_json::Number::from(val)),
-                2 => serde_json::Number::from_f64(f64::from_bits(val as u64)).map(JsonValue::Number).unwrap_or(JsonValue::Null),
-                3 => JsonValue::Bool(val != 0),
-                // `mixed` : un booléen y est toujours boxé (traité plus
-                // haut) — une valeur brute est un entier, `1` compris.
-                _ => JsonValue::Number(serde_json::Number::from(val)),
-            }
-        }
-        4 => {  // String
-            JsonValue::String(unsafe { ptr_to_str(val) }.to_string())
-        }
-        5 => {  // Array — même leaf_kind à travers toute la récursion.
-            // Forme inconnue du compilateur (tableau concret placé dans un
-            // `mixed`) : type des éléments bruts porté par le tableau.
-            let child = if child == 0 { rc::raw_kind(val) } else { child };
-            let mut json_arr = Vec::new();
-            let len = __array_len(val);
-            for i in 0..len {
-                let elem = __array_get(val, i);
-                json_arr.push(value_to_json(elem, child));
-            }
-            JsonValue::Array(json_arr)
-        }
-        6 => {  // Map — même leaf_kind à travers toute la récursion.
-            let child = if child == 0 { rc::raw_kind(val) } else { child };
-            let mut json_obj = JsonMap::new();
-            for (key_str, value) in unsafe { map_entries(val) } {
-                json_obj.insert(key_str, value_to_json(value, child));
-            }
-            JsonValue::Object(json_obj)
-        }
-        _ => JsonValue::Null
-    }
-}
-
-fn raw_leaf_to_json(val: i64, leaf_kind: i64) -> JsonValue {
-    match leaf_kind {
-        2 => serde_json::Number::from_f64(f64::from_bits(val as u64)).map(JsonValue::Number).unwrap_or(JsonValue::Null),
-        3 => JsonValue::Bool(val != 0),
-        _ => JsonValue::Number(serde_json::Number::from(val)),
-    }
-}
-
-/// JSON::decode(json) → mixed (array ou map)
-/// Décode une string JSON en structure Ocara
+/// JSON::decode(json) → mixed (array ou map) ; `null` si le texte n'est pas
+/// du JSON valide (voir `json_codec::decode`).
 #[unsafe(no_mangle)]
 pub extern "C" fn JSON_decode(json: i64) -> i64 {
     if json == 0 {
         return 0;
     }
-    
-    let json_str = unsafe { ptr_to_str(json) };
-    
-    match serde_json::from_str::<JsonValue>(json_str) {
-        Ok(value) => json_to_value(&value),
-        Err(_) => 0  // Retourner null en cas d'erreur
-    }
-}
-
-/// Convertit un JsonValue en valeur Ocara
-fn json_to_value(json: &JsonValue) -> i64 {
-    match json {
-        JsonValue::Null => 0,
-        // Logé dans un `mixed` : booléen et flottant boxés, comme partout
-        // ailleurs (sinon `true` relu `1`, et un flottant perdu).
-        JsonValue::Bool(b) => __box_bool(i64::from(*b)),
-        JsonValue::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                // La valeur décodée est toujours logée dans un `mixed`
-                // (élément d'array/map, voir docs `JSON::decode`) — boxer si
-                // besoin, comme n'importe quel autre `int` en transit vers un
-                // `mixed` (voir `box_int_if_needed`).
-                box_int_if_needed(i)
-            } else if let Some(f) = n.as_f64() {
-                __box_float(f.to_bits() as i64)
-            } else {
-                0
-            }
-        }
-        JsonValue::String(s) => unsafe { alloc_str(s) },
-        JsonValue::Array(arr) => {
-            let ocara_arr = __array_new();
-            for elem in arr {
-                let ocara_val = json_to_value(elem);
-                array_push_owned(ocara_arr, ocara_val);
-            }
-            ocara_arr
-        }
-        JsonValue::Object(obj) => {
-            let ocara_map = __map_new();
-            for (key, value) in obj {
-                let key_str = unsafe { alloc_str(key) };
-                let ocara_val = json_to_value(value);
-                map_set_owned_key(ocara_map, key_str, ocara_val);
-            }
-            ocara_map
-        }
-    }
+    json_codec::decode(unsafe { ptr_to_str(json) })
 }
 
 /// JSON::pretty(json) → string

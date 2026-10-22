@@ -361,3 +361,25 @@ fn index_of_raw_ints_decodes_the_needle_once() {
     assert_eq!(Array_indexOf(arr, __box_float(5f64.to_bits() as i64)), -1);
     assert_eq!(Array_indexOf(arr, 0), -1, "null n'est pas l'entier 0");
 }
+
+/// Bool de `mixed` rangé en ligne : lu comme un bool boxé, jamais comme un
+/// pointeur ni compté.
+#[test]
+fn inline_bools_roundtrip_without_allocation() {
+    for (b, expected) in [(0i64, false), (1, true), (7, true)] {
+        let boxed = __box_bool(b);
+        assert!(is_bool_box(boxed) && !is_float_box(boxed) && !is_int_box(boxed) && !is_inline_int(boxed));
+        assert_eq!(unsafe { unbox_bool(boxed) }, expected);
+        assert_eq!(__unbox_bool(boxed), i64::from(expected));
+        assert_eq!(typecheck::__is_bool(boxed), 1);
+        assert_eq!(typecheck::__is_int(boxed), 0);
+        assert_eq!(unsafe { typecheck::read_tag(boxed) }, 0);
+        assert_eq!(val_to_string(boxed), expected.to_string());
+        assert_eq!(__mixed_to_int(boxed), i64::from(expected));
+        assert!(boxed >= POINTER_LIMIT);
+        unsafe {
+            rc::retain(boxed);
+            rc::release(boxed);
+        }
+    }
+}

@@ -123,18 +123,16 @@ pub fn emit_calls(
     Ok(true) // Instruction traitée
 }
 
-/// Appelle `call` seulement si `val` peut être une valeur comptée : ni un
-/// entier brut ou null (< 0x10000), ni un `int` de `mixed` rangé en ligne
-/// (`is_inline_int`, runtime/src/lib.rs) — sur une boucle `mixed`, l'appel
-/// qui ne faisait rien coûtait autant que le calcul.
+/// Appelle `call` seulement si `val` peut être une valeur comptée : entre
+/// 0x10000 et `POINTER_LIMIT` (runtime/src/lib.rs) — ni un entier brut ou
+/// null, ni une valeur de `mixed` rangée en ligne (`int`, `bool`). Sur une
+/// boucle `mixed`, l'appel qui ne faisait rien coûtait autant que le calcul.
 fn emit_counted_only(builder: &mut FunctionBuilder, val: CrValue, call: impl FnOnce(&mut FunctionBuilder)) {
     use cranelift_codegen::ir::condcodes::IntCC;
     let counted = builder.create_block();
     let next = builder.create_block();
-    let maybe_ptr = builder.ins().icmp_imm(IntCC::SignedGreaterThanOrEqual, val, 0x10000);
-    let tag = builder.ins().band_imm(val, 0xC000_0000_0000_0007u64 as i64);
-    let not_inline = builder.ins().icmp_imm(IntCC::NotEqual, tag, 0x4000_0000_0000_0004);
-    let cond = builder.ins().band(maybe_ptr, not_inline);
+    let offset = builder.ins().iadd_imm(val, -0x10000);
+    let cond = builder.ins().icmp_imm(IntCC::UnsignedLessThan, offset, (1 << 56) - 0x10000);
     builder.ins().brif(cond, counted, &[], next, &[]);
     builder.switch_to_block(counted);
     call(builder);

@@ -24,12 +24,12 @@ pub unsafe extern "C" fn YAML_encode(data: i64, leaf_kind: i64) -> i64 {
 
 /// Convertit une valeur Ocara en YamlValue. `leaf_kind` : voir `YAML_encode`
 /// — reste le MÊME à travers toute la récursion (même raisonnement que
-/// `value_to_json` dans lib.rs) et ne s'applique QUE lorsque `val` n'est pas
+/// `json_codec::Encoded`) et ne s'applique QUE lorsque `val` n'est pas
 /// lui-même un pointeur tas réel (seul le panier "primitif", jamais un
 /// pointeur valide, est concerné par l'ambiguïté que `leaf_kind` résout).
 fn value_to_yaml(val: i64, shape: i64) -> YamlValue {
     // `shape` = `kind | depth << 8` : feuille brute convertie sans lecture de
-    // tag (voir `value_to_json`).
+    // tag (voir `json_codec::Encoded`).
     let (leaf_kind, depth) = (shape & 0xff, shape >> 8);
     if leaf_kind != 0 && depth == 0 {
         return match leaf_kind {
@@ -91,7 +91,7 @@ fn value_to_yaml(val: i64, shape: i64) -> YamlValue {
         }
         5 => {  // Array — même leaf_kind à travers toute la récursion.
             // Forme inconnue (tableau concret dans un `mixed`) : type porté
-            // par le tableau (voir `value_to_json`).
+            // par le tableau (voir `json_codec::Encoded`).
             let child = if child == 0 { crate::rc::raw_kind(val) } else { child };
             let mut yaml_arr = Vec::new();
             let len = __array_len(val);

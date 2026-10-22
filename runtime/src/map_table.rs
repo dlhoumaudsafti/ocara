@@ -4,7 +4,8 @@
 //! la case d'une autre clé est écartée sans lire sa paire ni le texte de sa
 //! clé (avec l'étiquette de 7 bits d'`indexmap`, chaque fausse
 //! correspondance coûtait deux défauts de cache), et l'agrandissement replace
-//! les cases sans relire les paires.
+//! les cases sans relire les paires. Jusqu'à `SMALL` paires, pas d'index :
+//! une clé est cherchée dans les paires elles-mêmes.
 //!
 //! Tant que toutes ses clés sont des textes d'`int` (`map<int, V>`), la table
 //! les range en entiers bruts : ni chaîne allouée, ni texte formaté ou relu.
@@ -34,6 +35,10 @@ const STEP_INVERSE: usize = {
     inverse
 };
 const MIN_SLOTS: usize = 8;
+/// Jusqu'à ce nombre de paires, pas d'index : une clé est cherchée dans les
+/// paires (pointeur puis texte), sans hachage ni case allouée — le cas
+/// d'un objet JSON ou d'une petite map de configuration.
+const SMALL: usize = 8;
 
 /// `key` : entier brut, ou chaîne Ocara retenue par la table (`text_keys`).
 struct Entry {
@@ -165,10 +170,38 @@ impl MapTable {
         }
     }
 
-    fn position(&self, key: Key) -> Option<(usize, usize)> {
+    /// Indice de la paire de clé `key` (normalisée) d'une petite table, sans
+    /// index.
+    fn find_small(&self, key: Key) -> Option<usize> {
+        self.entries.iter().position(|entry| self.is_key(entry.key, key))
+    }
+
+    /// Case de l'index (aucune pour une petite table) et indice de la paire
+    /// de clé `key`.
+    fn position(&self, key: Key) -> Option<(Option<usize>, usize)> {
         if self.entries.is_empty() { return None; }
         let key = self.normalize(key)?;
-        self.find(self.hash(key), key).ok()
+        if self.slots.is_empty() {
+            return self.find_small(key).map(|index| (None, index));
+        }
+        self.find(self.hash(key), key).ok().map(|(pos, index)| (Some(pos), index))
+    }
+
+    /// Index construit au passage de `SMALL` paires : chaque clé rangée est
+    /// hachée une fois.
+    fn build_index(&mut self) {
+        let size = ((self.entries.len() + 1) * 2).next_power_of_two().max(MIN_SLOTS);
+        self.slots = vec![EMPTY; size];
+        for index in 0..self.entries.len() {
+            let stored = self.entries[index].key;
+            let hash = if self.text_keys {
+                hash_text(&self.seed, unsafe { crate::ptr_to_str(stored) })
+            } else {
+                hash_int(stored)
+            };
+            let pos = free_slot(&self.slots, hash);
+            self.slots[pos] = slot_of(hash, index);
+        }
     }
 
     /// Double l'index ; ses cases relues dans l'ordre sont écrites sur deux
@@ -243,23 +276,42 @@ impl MapTable {
                 key
             }
         };
-        let hash = self.hash(key);
-        let mut pos = None;
-        if !self.slots.is_empty() {
-            match self.find(hash, key) {
-                Ok((_, index)) => {
-                    if let Some(text) = owned { unsafe { crate::rc::release_string(text) } }
-                    return Some(std::mem::replace(&mut self.entries[index].value, value));
-                }
-                Err(free) => pos = Some(free),
+        if self.slots.is_empty() {
+            if let Some(index) = self.find_small(key) {
+                if let Some(text) = owned { unsafe { crate::rc::release_string(text) } }
+                return Some(std::mem::replace(&mut self.entries[index].value, value));
             }
+            if self.entries.len() < SMALL {
+                let stored = self.stored_key(key, owned);
+                self.entries.push(Entry { key: stored, value });
+                return None;
+            }
+            self.build_index();
         }
+        let hash = self.hash(key);
+        let mut pos = match self.find(hash, key) {
+            Ok((_, index)) => {
+                if let Some(text) = owned { unsafe { crate::rc::release_string(text) } }
+                return Some(std::mem::replace(&mut self.entries[index].value, value));
+            }
+            Err(free) => Some(free),
+        };
         // Au plus une case sur deux occupée : sondages courts.
         if (self.entries.len() + 1) * 2 > self.slots.len() {
             self.grow();
             pos = None;
         }
-        let stored = match (key, owned) {
+        let stored = self.stored_key(key, owned);
+        let pos = pos.unwrap_or_else(|| free_slot(&self.slots, hash));
+        self.slots[pos] = slot_of(hash, self.entries.len());
+        self.entries.push(Entry { key: stored, value });
+        None
+    }
+
+    /// Clé à ranger pour `key` : entier brut, ou chaîne — `owned` reprise,
+    /// sinon allouée. `owned` non reprise est relâchée.
+    fn stored_key(&self, key: Key, owned: Option<i64>) -> i64 {
+        match (key, owned) {
             (Key::Int(value), owned) if !self.text_keys => {
                 if let Some(text) = owned { unsafe { crate::rc::release_string(text) } }
                 value
@@ -267,23 +319,35 @@ impl MapTable {
             (_, Some(text)) => text,
             (Key::Text(text), None) => unsafe { crate::alloc_str(text) },
             (Key::Int(value), None) => unsafe { crate::alloc_str(crate::int_text(value, &mut [0; 20])) },
-        };
-        let pos = pos.unwrap_or_else(|| free_slot(&self.slots, hash));
-        self.slots[pos] = slot_of(hash, self.entries.len());
-        self.entries.push(Entry { key: stored, value });
-        None
+        }
+    }
+
+    /// Range les paires par texte de clé (ordre de `JSON::decode`), index
+    /// reconstruit s'il existe.
+    pub(crate) fn sort_by_key_text(&mut self) {
+        if self.text_keys {
+            self.entries.sort_by(|a, b| unsafe { crate::ptr_to_str(a.key).cmp(crate::ptr_to_str(b.key)) });
+        } else {
+            let text = |key: i64| crate::int_text(key, &mut [0; 20]).to_string();
+            self.entries.sort_by_cached_key(|entry| text(entry.key));
+        }
+        if !self.slots.is_empty() {
+            self.build_index();
+        }
     }
 
     /// Retire la paire de clé `key` en gardant l'ordre des autres ; rend sa
     /// valeur.
     pub(crate) fn remove(&mut self, key: Key) -> Option<i64> {
         let (pos, index) = self.position(key)?;
-        self.clear_slot(pos);
+        if let Some(pos) = pos {
+            self.clear_slot(pos);
+        }
         let Entry { key, value } = self.entries.remove(index);
         if self.text_keys {
             unsafe { crate::rc::release_string(key) }
         }
-        if index < self.entries.len() {
+        if pos.is_some() && index < self.entries.len() {
             for slot in &mut self.slots {
                 if *slot != EMPTY && slot_index(*slot) > index {
                     *slot -= 1;
@@ -314,6 +378,7 @@ impl MapTable {
     /// Nombre moyen de pas d'une case depuis sa position d'origine.
     #[cfg(test)]
     pub(crate) fn mean_displacement(&self) -> f64 {
+        if self.slots.is_empty() { return 0.0; }
         let mask = self.slots.len() - 1;
         let total: usize = self.slots.iter().enumerate().filter(|&(_, &slot)| slot != EMPTY)
             .map(|(pos, &slot)| steps(slot_hash(slot) as usize, pos, mask)).sum();

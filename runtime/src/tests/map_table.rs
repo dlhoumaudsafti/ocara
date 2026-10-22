@@ -104,3 +104,47 @@ fn value_at_reads_the_pair_at_its_rank_or_searches() {
     assert_eq!(table.value_at(0, Key::Int(10)), None);
     assert!(matches!(table.keys().next(), Some(KeyRef::Int(0))));
 }
+
+/// Petite table (sans index) : mêmes résultats avant et après la
+/// construction de l'index à la neuvième clé, suppressions comprises.
+#[test]
+fn small_tables_switch_to_an_index_without_losing_keys() {
+    let mut table = MapTable::default();
+    for i in 0..8 {
+        assert_eq!(insert(&mut table, &format!("key{}", i), i), None);
+    }
+    assert_eq!(table.mean_displacement(), 0.0, "pas encore d'index");
+    assert_eq!(insert(&mut table, "key3", 30), Some(3));
+    assert_eq!(table.remove(Key::Text("key0")), Some(0));
+    assert_eq!(get(&table, "key0"), None);
+    for i in 8..20 {
+        insert(&mut table, &format!("key{}", i), i);
+    }
+    assert_eq!(table.remove(Key::Text("key5")), Some(5));
+    for i in 1..20 {
+        let expected = match i { 3 => Some(30), 5 => None, _ => Some(i) };
+        assert_eq!(get(&table, &format!("key{}", i)), expected, "key{}", i);
+    }
+    let order: Vec<String> = table.keys().map(|k| k.with_text(str::to_string)).collect();
+    assert_eq!(order.first().map(String::as_str), Some("key1"));
+    assert_eq!(order.len(), 18);
+}
+
+#[test]
+fn small_int_tables_switch_to_text_keys() {
+    let mut table = MapTable::default();
+    for i in 0..5 {
+        table.insert(Key::Int(i * 70_000), i, None);
+    }
+    assert_eq!(get(&table, "140000"), Some(2));
+    insert(&mut table, "x", 9);
+    assert!(table.has_text_keys());
+    for i in 0..5 {
+        assert_eq!(table.get(Key::Int(i * 70_000)), Some(i));
+    }
+    for i in 0..10 {
+        table.insert(Key::Int(-i), -i, None);
+    }
+    assert_eq!(get(&table, "-9"), Some(-9));
+    assert_eq!(get(&table, "x"), Some(9));
+}

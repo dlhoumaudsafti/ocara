@@ -310,8 +310,9 @@ pub(crate) unsafe fn free_box(val: i64) {
     unsafe { dealloc(((val & !3) - 8) as *mut u8, Layout::from_size_align(16, 8).unwrap()) }
 }
 
+/// Cellule d'un primitif (`ptr | 1..3`) — pas une valeur en ligne.
 fn is_boxed(val: i64) -> bool {
-    val >= 0x10000 && (val & 3) != 0
+    (0x10000..crate::POINTER_LIMIT).contains(&val) && (val & 3) != 0
 }
 
 pub(crate) unsafe fn kind(val: i64) -> Option<Kind> {
@@ -455,12 +456,12 @@ pub(crate) unsafe fn retain(val: i64) {
     }
 }
 
-/// Ni pointeur ni cellule (entier brut ou en ligne, null) : rien à rendre.
-/// Testé avant l'appel du chemin complet, dont le prologue coûtait autant que
-/// le test sur une boucle `mixed`.
+/// Ni pointeur ni cellule (entier brut, valeur en ligne, null) : rien à
+/// rendre. Testé avant l'appel du chemin complet, dont le prologue coûtait
+/// autant que le test sur une boucle `mixed`.
 #[inline]
 pub(crate) unsafe fn release(val: i64) {
-    if val >= 0x10000 && !crate::is_inline_int(val) {
+    if (0x10000..crate::POINTER_LIMIT).contains(&val) {
         unsafe { release_out_of_line(val) }
     }
 }

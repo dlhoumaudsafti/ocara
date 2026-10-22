@@ -1,0 +1,51 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.JSON
+import ocara.Map
+
+// JSON::encode/decode sans arbre intermédiaire : clés triées, dernière
+// valeur d'une clé en double, `null` pour un texte invalide, feuilles
+// typées (voir runtime/src/json_codec.rs).
+
+class Test111JsonCodec extends UnitTest {
+
+    public method typedLeavesTest(): int {
+        var ints:array<int> = [0, 1, 70000]
+        var floats:array<float> = [0.0, 1.5]
+        var bools:array<bool> = [false, true]
+        var nested:array<array<int>> = [[0], [1, 2]]
+        self::assertEquals("[0,1,70000]", JSON::encode(ints))
+        self::assertEquals("[0.0,1.5]", JSON::encode(floats))
+        self::assertEquals("[false,true]", JSON::encode(bools))
+        self::assertEquals("[[0],[1,2]]", JSON::encode(nested))
+        return 0
+    }
+
+    public method mixedValuesTest(): int {
+        var m:map<string, mixed> = {"z": 0, "a": null, "m": [true, 2.5, "x"], "k": {"b": 1}}
+        self::assertEquals("{\"a\":null,\"k\":{\"b\":1},\"m\":[true,2.5,\"x\"],\"z\":0}", JSON::encode(m))
+        return 0
+    }
+
+    public method decodeTest(): int {
+        var back:map<string, mixed> = JSON::decode("{\"b\": 1, \"a\": [1, {\"c\": false}], \"b\": 3}")
+        self::assertEquals(2, back.size())
+        self::assertEquals(3, back["b"])
+        self::assertEquals("{\"a\":[1,{\"c\":false}],\"b\":3}", JSON::encode(back))
+        var keys:string = ""
+        for k has v in back {
+            keys = keys + k
+        }
+        self::assertEquals("ab", keys)
+        return 0
+    }
+
+    public method invalidTextIsNullTest(): int {
+        var bad:mixed = JSON::decode("{\"a\": [1, 2], \"c\": tru}")
+        var trailing:mixed = JSON::decode("[1] x")
+        self::assertTrue(bad is null)
+        self::assertTrue(trailing is null)
+        return 0
+    }
+}
