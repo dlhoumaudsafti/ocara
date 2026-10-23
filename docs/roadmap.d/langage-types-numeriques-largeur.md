@@ -94,6 +94,10 @@ Vérifié dans le code et par exécution avec le compilateur courant :
   dynamiques. Une variable `int` choisit la représentation entière minimale
   adaptée à sa valeur ; une variable `float` choisit la représentation flottante
   minimale qui préserve exactement sa valeur.
+- L'usage de `int` et `float` reste autorisé pour la flexibilité, mais génère
+  un avertissement du compilateur, à l'endroit où le type dynamique est
+  introduit plutôt qu'à chaque opération. Comme pour `mixed`, un mécanisme
+  explicite permet de supprimer l'avertissement lorsque ce choix est voulu.
 - Les variables restent toujours annotées (`var x:int = 5`) ; `var x = 5` n'est
   pas une forme valide.
 - Dans `array<int>`, `map<string, int>` ou `map<string, array<int>>`, `int`
@@ -209,6 +213,18 @@ Vérifié dans le code et par exécution avec le compilateur courant :
   compris le §31), les builtins concernés, `ocaracs`, l'extension VS Code et
   les outils dépendant des types. Mesurer les gains réels de mémoire et de
   performance ; ne pas les présumer.
+- Le compilateur signale simplement l'emploi des types dynamiques ; il
+  n'affirme pas qu'une plage est sûre à partir d'une analyse incomplète.
+  `ocaracs` porte l'analyse de plage plus approfondie et peut proposer un
+  correctif vers un type fixe lorsqu'il prouve que toutes les valeurs tiennent
+  dans sa plage (par exemple `uint16` pour une valeur toujours comprise entre
+  0 et 65 535). L'analyse suit les affectations, branches, boucles, appels et
+  entrées externes ; toute source qu'elle ne peut pas borner rend la conclusion
+  inconnue, et non faussement sûre. Le correctif est présenté comme une
+  suggestion à valider, avec la plage et les hypothèses établies ; si l'analyse
+  ne peut pas conclure, `ocaracs` l'indique au lieu de prétendre qu'un type
+  précis est garanti. Les types dynamiques restent disponibles pour les cas
+  où la plage est inconnue ou où la flexibilité est intentionnelle.
 
 ### Représentation et gains possibles
 
