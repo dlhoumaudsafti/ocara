@@ -96,6 +96,11 @@ Vérifié dans le code et par exécution avec le compilateur courant :
   minimale qui préserve exactement sa valeur.
 - Les variables restent toujours annotées (`var x:int = 5`) ; `var x = 5` n'est
   pas une forme valide.
+- Dans `array<int>`, `map<string, int>` ou `map<string, array<int>>`, `int`
+  reste le type numérique dynamique : le conteneur ne déduit pas une largeur
+  fixe commune à partir des valeurs qu'il contient. Pour demander un stockage
+  homogène compact, le type fixe est explicite, par exemple
+  `array<uint8>`, `map<string, uint8>` ou `map<string, array<uint8>>`.
 - Les expressions littérales numériques sont des `int`/`float` dynamiques et
   choisissent leur représentation minimale selon leur valeur. Dans une
   déclaration à type fixe, un littéral est vérifié directement dans le type
@@ -176,6 +181,13 @@ Vérifié dans le code et par exécution avec le compilateur courant :
   dynamique `int` stockée en `uint8` peut donc satisfaire à la fois `m is int`
   et `m is uint8`. Le mot `mixed` reste physiquement tagué sur 64 bits ; la
   largeur est exposée par ses tags, sans prétendre réduire la taille du mot.
+- Le caractère dynamique de `int`/`float` est conservé dans les collections :
+  `array<int>` et `map<string, int>` n'équivalent pas à `array<uint8>` et
+  `map<string, uint8>`, même si toutes les valeurs présentes tiennent
+  actuellement en 8 bits. La disposition compacte ciblée en phase 2 concerne
+  les collections dont le type d'élément ou de valeur est explicitement fixe,
+  y compris les types fixes imbriqués comme
+  `map<string, array<uint8>>`.
 
 ### Builtins et réalisation
 
@@ -187,8 +199,12 @@ Vérifié dans le code et par exécution avec le compilateur courant :
 - La réalisation est découpée en deux phases :
   1. Types et opérations dynamiques/fixes, règles de sémantique, conversions,
      exceptions, tags `mixed` et ABI des builtins.
-  2. Représentations compactes des champs d'objets, des `array<T>` et des
-     valeurs de maps à type fixe ; maintien du mot tagué 64 bits pour `mixed`.
+  2. Représentations compactes des champs d'objets et des collections
+     explicitement typées avec des types numériques fixes (`array<uint8>`,
+     `map<string, uint8>`, `map<string, array<uint8>>`, etc.) ; les collections
+     de `int`/`float` dynamiques gardent leur sémantique dynamique et ne sont
+     pas automatiquement converties en conteneurs homogènes à largeur fixe.
+     `mixed` reste un mot tagué de 64 bits.
 - Mettre à jour les tests, la documentation canonique (`docs/EBNF.md`, y
   compris le §31), les builtins concernés, `ocaracs`, l'extension VS Code et
   les outils dépendant des types. Mesurer les gains réels de mémoire et de
@@ -197,17 +213,21 @@ Vérifié dans le code et par exécution avec le compilateur courant :
 ### Représentation et gains possibles
 
 - Aujourd'hui, toute valeur occupe un mot de 64 bits (registre, champ,
-  élément, `mixed`). Les types dynamiques peuvent être recanonicalisés sur leur
-  largeur minimale ; les types fixes ne réduiront la mémoire que si la
-  représentation change aussi : conteneurs spécialisés et champs compactés.
-  `mixed` garde un mot tagué de 64 bits.
-- **Hypothèse à examiner, pas une garantie** : des tableaux compacts
-  (`array<uint8>` pour des octets, `array<float32>` pour des données
-  numériques ou graphiques) pourraient réduire la mémoire et améliorer
-  l'usage du cache. Pour les variables scalaires, les registres restent de
-  64 bits : peu ou pas de gain attendu, et des conversions (extension,
-  troncature) peuvent même ajouter des instructions. À mesurer sur des cas
-  concrets avant de conclure.
+  élément, `mixed`). La largeur interne minimale de `int`/`float` ne signifie
+  pas à elle seule qu'un `array<int>` ou `map<string, int>` est compact :
+  seul un layout de collection dédié peut réduire son stockage. Les types fixes
+  déclarés explicitement (`array<uint8>`, champs `uint8`, etc.) permettent de
+  cibler sans ambiguïté des layouts compacts ; `mixed` garde un mot tagué de
+  64 bits.
+- **Hypothèse à examiner, pas une garantie** : des collections à type fixe
+  (`array<uint8>` pour des octets, `array<float32>` pour des données numériques
+  ou graphiques, ainsi que les types fixes imbriqués dans des maps) pourraient
+  réduire la mémoire et améliorer l'usage du cache. À titre d'ordre de
+  grandeur, un million d'éléments `uint8` occuperait environ 1 Mo de données
+  brutes contre 8 Mo s'ils étaient stockés en mots de 64 bits, hors capacité
+  inutilisée et métadonnées. Pour les calculs scalaires, les registres restent
+  de 64 bits : peu ou pas de gain attendu, et des conversions peuvent même
+  ajouter des instructions. Mesurer les cas concrets avant de conclure.
 - Cas d'usage à identifier : manipulation binaire (fichiers, réseau,
   images), SDL (couleurs `uint8`), données numériques, interopérabilité.
 
