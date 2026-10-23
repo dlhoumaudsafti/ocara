@@ -1,8 +1,9 @@
 # Types numériques de largeur explicite (`int8`…`uint64`, `float16`…`float64`)
 
-Statut : **réflexion non tranchée** — ouverte le 2026-10-18. Aucune décision
-n'est prise : cette fiche décrit l'existant (vérifié) et les questions à
-trancher avant toute implémentation.
+Statut : **conception validée le 2026-10-23**, avant implémentation. La famille
+complète est retenue ; `int` et `float` seront des types numériques dynamiques,
+distincts des types à largeur fixe. La réalisation est massive et sera menée
+en deux phases, décrites ci-dessous.
 
 ## Proposition étudiée
 
@@ -18,7 +19,7 @@ Entiers :
 | `uint32` | 0 à 4 294 967 295 | 4 octets |
 | `int64` | −9 223 372 036 854 775 808 à 9 223 372 036 854 775 807 | 8 octets |
 | `uint64` | 0 à 18 446 744 073 709 551 615 | 8 octets |
-| `int` | alias envisagé de `int64` | 8 octets |
+| `int` | entier dynamique, largeur minimale selon la valeur | variable |
 
 Flottants :
 
@@ -27,7 +28,7 @@ Flottants :
 | `float16` | −65 504 à 65 504 | 2 octets |
 | `float32` | −3,4 × 10³⁸ à 3,4 × 10³⁸ | 4 octets |
 | `float64` | −1,8 × 10³⁰⁸ à 1,8 × 10³⁰⁸ | 8 octets |
-| `float` | alias envisagé de `float64` | 8 octets |
+| `float` | flottant dynamique, largeur minimale préservant exactement la valeur | variable |
 
 « Taille numérique » désigne la largeur de la valeur elle-même, pas
 l'espace qu'elle occuperait réellement en mémoire : voir l'état actuel
@@ -83,72 +84,123 @@ Vérifié dans le code et par exécution avec le compilateur courant :
   FFI exposée au code Ocara : « FFI » désigne seulement les appels du code
   généré vers le runtime Rust (`docs/workflow-compilation.md`).
 
-## Questions à trancher
+## Décisions de conception validées (2026-10-23)
 
-### Dépassement, conversion, affectation
+### Types dynamiques et types fixes
 
-- Dépassement d'une opération : bouclage (comme aujourd'hui pour `int`),
-  exception, saturation, ou au choix (opérateurs dédiés) ? Le même choix
-  pour toutes les largeurs ?
-- Littéral hors plage du type cible (`var b:uint8 = 300`) : erreur de
-  compilation, comme pour `int` aujourd'hui ?
-- Affectation entre largeurs : élargissement implicite autorisé
-  (`int16` → `int32`) et rétrécissement explicite seulement ? Ou aucune
-  conversion implicite, dans la ligne actuelle (`int` ↔ `float` refusé) ?
-- Signé ↔ non signé : conversion explicite obligatoire ? Que vaut
-  `uint8(-1)` — erreur, bouclage (255), exception ?
-- Type d'un littéral non annoté (`var x = 5`) : toujours `int` (= `int64`) ?
-- Opérations mixtes entre largeurs (`int8 + int32`) : erreur, ou promotion
-  vers la plus large ? Division d'entiers non signés, décalages, modulo
-  négatif.
+- Ajouter les huit types entiers fixes (`int8`…`int64`, `uint8`…`uint64`) et
+  les trois flottants fixes (`float16`…`float64`).
+- `int` et `float` **ne sont pas des alias** : ce sont des types numériques
+  dynamiques. Une variable `int` choisit la représentation entière minimale
+  adaptée à sa valeur ; une variable `float` choisit la représentation flottante
+  minimale qui préserve exactement sa valeur.
+- Les variables restent toujours annotées (`var x:int = 5`) ; `var x = 5` n'est
+  pas une forme valide.
+- Les expressions littérales numériques sont des `int`/`float` dynamiques et
+  choisissent leur représentation minimale selon leur valeur. Dans une
+  déclaration à type fixe, un littéral est vérifié directement dans le type
+  déclaré.
+- Un littéral dans une déclaration à largeur fixe est vérifié dans le type
+  déclaré à la compilation. Une valeur constante hors plage est une erreur de
+  compilation.
 
-### Flottants
+### Entiers, opérations et conversions
 
-- Précision : `float32` (~7 chiffres décimaux significatifs) et `float16`
-  (~3 chiffres) perdent de l'information dès la conversion depuis `float64` ;
-  conversion implicite interdite, ou permise avec avertissement ?
-- Valeurs spéciales (`inf`, `-inf`, `NaN`, `-0.0`, nombres sous-normaux) :
-  comportement dans `equal`, dans le tri, comme clé de map (aujourd'hui
-  convertie en texte), à l'affichage.
-- `float16` : support réel de la cible (Cranelift, x86-64, aarch64, Android)
-  et de Rust côté runtime à vérifier ; à défaut, conversion vers `float32`
-  pour chaque calcul — coût et intérêt à évaluer.
-- Comparaison `int`/`float` : la règle d'élargissement actuelle s'étend-elle
-  à toutes les paires ? `uint64` contre `float64` n'est pas représentable
-  sans perte au-delà de 2⁵³.
+- Un entier dynamique non négatif utilise la plus petite largeur non signée
+  qui le contient ; un entier négatif utilise la plus petite largeur signée.
+  La largeur est recalculée après chaque opération :
+  ```ocara
+  var i:int = 255 // uint8
+  i++             // uint16
+  i -= 257        // int8
+  ```
+- Une opération à laquelle participe un `int` dynamique produit un `int`
+  dynamique, même si l'autre opérande est un entier fixe. Par exemple :
+  ```ocara
+  var i:int = 5
+  var b:uint8 = 251
+  var x:int = i + b    // 256, représenté en uint16
+  var y:uint8 = i + b  // IntegerException et NumericException
+  ```
+  Le résultat est calculé puis affecté ; le type cible ne change pas le type
+  dynamique intermédiaire.
+- Entre types entiers fixes, les opérations de même signe promeuvent vers la
+  largeur supérieure ; une opération arithmétique signé/non signé est refusée.
+  Les comparaisons entre largeurs et signes différents restent permises et
+  exactes.
+- Affecter un `int`/`float` dynamique à un type fixe effectue une conversion
+  vérifiée selon le type cible. Pour un entier, la valeur doit tenir dans la
+  plage ; pour un flottant, elle est arrondie à la précision IEEE cible si elle
+  reste dans la plage finie. Un dépassement lève `IntegerException` ou
+  `FloatException`. Entre deux types fixes, les règles d'élargissement sûr et
+  de conversion explicite ci-dessous s'appliquent.
+- Le dépassement de tout entier fixe, y compris `int64`, lève une exception.
+  Un entier dynamique hors de la plage `int64`…`uint64` lève aussi une
+  exception ; aucun de ces cas ne boucle.
+- Les affectations entre types fixes n'autorisent implicitement que les
+  élargissements qui préservent exactement toutes les valeurs source. Une
+  conversion rétrécissante ou signé/non signé non sûre passe par `Convert`.
+  Les littéraux explicitement typés peuvent être vérifiés directement dans
+  leur contexte à la compilation.
+- `Convert` conserve et étend sa matrice de conversions numériques, avec les
+  méthodes d'instance correspondantes (`.toUint8()`, etc.). Une conversion
+  numérique hors plage lève l'exception de la famille numérique, et non une
+  troncature ou un bouclage.
 
-### Compatibilité
+### Flottants et comparaisons
 
-- Signatures : surcharge par largeur ou non ; passage d'un `int8` à un
-  paramètre `int` (élargissement implicite ?).
-- Collections : `array<uint8>` stocké en `Vec<i64>` (aucun gain mémoire) ou
-  conteneur spécialisé (`Vec<u8>`) — avec des conséquences sur tout le
-  runtime des conteneurs, le drapeau « éléments bruts », JSON/YAML,
-  `Map::forEach`, la collecte des cycles.
-- Propriétés : champ de largeur réduite placé dans un mot de 8 octets
-  (aucun gain) ou disposition compacte (alignement, masques de classe du
-  comptage de références, `field_offset`).
-- Constantes et `enum` (aujourd'hui `int`) ; `const` calculées à la
-  compilation (E55) : plage du type à vérifier.
-- `mixed` : boxing à définir pour chaque largeur ; les tests de type
-  (`is int`, `__is_int`) doivent-ils distinguer `int8` de `int64` ? Il
-  faudrait alors une étiquette de largeur dans la valeur boxée.
-- Builtins : quels builtins acceptent ou rendent des largeurs réduites
-  (`Math`, `Convert`, `Array`, SQLite `INTEGER`/`REAL`, JSON, `File` binaire,
-  HTTP) ; ABI `i64`/`f64` actuelle à étendre ou conversions aux frontières.
-- FFI future : si une FFI vers des bibliothèques C est un jour exposée, des
-  types de largeur fixe seront nécessaires pour décrire leurs signatures —
-  argument à peser, mais pas un besoin actuel.
-- Outillage : EBNF §6.1 et §31, `ocaracs`, extension VS Code (coloration,
-  complétion), serveur de langage, `docs/builtins/*.md`.
+- Les flottants fixes suivent IEEE 754 à leur précision déclarée. `float16`,
+  `float32` et `float64` ne se convertissent implicitement vers une largeur
+  supérieure que si toutes les valeurs source sont préservées exactement.
+- `float` dynamique retient la plus petite largeur qui préserve exactement la
+  valeur ; une conversion ou une opération qui dépasse la plage finie du type
+  fixe lève `FloatException`. Les valeurs spéciales IEEE restent définies :
+  NaN n'est égal à aucune valeur, les zéros signés sont égaux, et les infinis
+  sont ordonnés.
+- Les comparaisons entier/flottant et inter-largeurs sont exactes, sans
+  conversion arrondie vers un flottant commun.
+- Les clés flottantes de map sont canoniques : `+0.0` et `-0.0` désignent la
+  même clé ; tous les NaN désignent une clé canonique.
+
+### Exceptions et `mixed`
+
+- `NumericException` est la classe de base ; `IntegerException` et
+  `FloatException` en sont des sous-classes. Une erreur entière est donc
+  interceptable par `IntegerException` ou `NumericException`, et une erreur
+  flottante par `FloatException` ou `NumericException`.
+- Les erreurs de dépassement entier, y compris les conversions hors plage,
+  relèvent de `IntegerException`. Les dépassements flottants de calcul ou de
+  conversion relèvent de `FloatException`. `MathException` reste notamment
+  utilisée pour la division entière par zéro.
+- `mixed` conserve le type et la largeur réellement stockés. Une valeur
+  dynamique `int` stockée en `uint8` peut donc satisfaire à la fois `m is int`
+  et `m is uint8`. Le mot `mixed` reste physiquement tagué sur 64 bits ; la
+  largeur est exposée par ses tags, sans prétendre réduire la taille du mot.
+
+### Builtins et réalisation
+
+- Les builtins numériques génériques utilisent `int`/`float` dynamiques. Les
+  signatures fixes restent réservées aux opérations dont le contrat impose
+  une largeur (par exemple les octets et buffers). Les résultats numériques
+  des builtins sont dynamiques ; l'affectation à un type fixe vérifie sa plage
+  et lève l'exception numérique correspondante si nécessaire.
+- La réalisation est découpée en deux phases :
+  1. Types et opérations dynamiques/fixes, règles de sémantique, conversions,
+     exceptions, tags `mixed` et ABI des builtins.
+  2. Représentations compactes des champs d'objets, des `array<T>` et des
+     valeurs de maps à type fixe ; maintien du mot tagué 64 bits pour `mixed`.
+- Mettre à jour les tests, la documentation canonique (`docs/EBNF.md`, y
+  compris le §31), les builtins concernés, `ocaracs`, l'extension VS Code et
+  les outils dépendant des types. Mesurer les gains réels de mémoire et de
+  performance ; ne pas les présumer.
 
 ### Représentation et gains possibles
 
 - Aujourd'hui, toute valeur occupe un mot de 64 bits (registre, champ,
-  élément, `mixed`). Une largeur plus faible ne réduirait la mémoire que si
-  la représentation change aussi : conteneurs spécialisés, champs compactés,
-  tampons binaires. Sans cela, elle n'apporterait que la vérification de
-  plage.
+  élément, `mixed`). Les types dynamiques peuvent être recanonicalisés sur leur
+  largeur minimale ; les types fixes ne réduiront la mémoire que si la
+  représentation change aussi : conteneurs spécialisés et champs compactés.
+  `mixed` garde un mot tagué de 64 bits.
 - **Hypothèse à examiner, pas une garantie** : des tableaux compacts
   (`array<uint8>` pour des octets, `array<float32>` pour des données
   numériques ou graphiques) pourraient réduire la mémoire et améliorer
@@ -170,15 +222,8 @@ Vérifié dans le code et par exécution avec le compilateur courant :
 - Maintenance et tests : chaque builtin numérique et chaque conversion à
   couvrir pour chaque largeur.
 
-## Pistes possibles (non décidées)
-
-- Ne rien ajouter et documenter `int`/`float` comme seuls types numériques.
-- Ajouter seulement des **types de stockage** (`array<uint8>` compact, champs
-  compacts), les calculs restant en `int`/`float`.
-- Ajouter la famille complète, avec `int`/`float` comme alias de
-  `int64`/`float64`.
-
 ## Priorité / Complexité
 
-**Moyenne** (évolution du langage, aucun bug en jeu) — **Massive** si la
-famille complète est retenue, à réévaluer selon la piste choisie.
+**Moyenne** (évolution du langage, aucun bug en jeu) — **Massive** : famille
+complète, types dynamiques, exceptions, ABI, builtins et représentations
+compactes en deux phases.
