@@ -2,7 +2,7 @@
 
 Audit du 2026-10-19, mis à jour le 2026-10-21. Les 33 mesures de `make perf`
 et celles de `make perf-extra` (démarrage, mémoire, serveur HTTP) sont
-meilleures que Python — tableau dans `docs/benchmarking.md`. Ce qui reste,
+meilleures que Python, PHP, Perl — tableau dans `docs/benchmarking.md`. Ce qui reste,
 pour gagner encore :
 
 1. **Locales encore en mémoire** : une locale dont l'adresse ne sert qu'à
@@ -32,7 +32,7 @@ pour gagner encore :
 
 ## Priorité / Complexité
 
-**Basse** (aucune mesure plus lente que Python) — **Structurel** (preuve
+**Basse** (aucune mesure plus lente que Python, PHP, Perl) — **Structurel** (preuve
 côté appelant, locales capturées hors cellule).
 
 ## Fichiers clés
