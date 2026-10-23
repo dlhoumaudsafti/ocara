@@ -170,6 +170,8 @@ pub struct LowerBuilder<'m> {
     /// Méthode dont le corps ne peut pas libérer `self` : `self` n'est pas
     /// retenu (voir `crate::lower::builder::self_borrow`).
     pub self_borrowed: bool,
+    /// Paramètres empruntés sans retenue (voir `self_borrow::borrowed_params`).
+    pub borrowed_params: HashSet<String>,
     /// Blocs déjà examinés : contiennent-ils une `nameless` ? (voir
     /// `crate::lower::expr::nameless_scan`).
     pub nameless_memo: crate::lower::expr::nameless_scan::NamelessMemo,
@@ -254,6 +256,7 @@ impl<'m> LowerBuilder<'m> {
             rc_loop_temps: Vec::new(),
             rc_generator: false,
             self_borrowed: false,
+            borrowed_params: HashSet::new(),
             nameless_memo: Default::default(),
             rc_temp_fields: HashMap::new(),
             rc_temp_field_frames: Vec::new(),

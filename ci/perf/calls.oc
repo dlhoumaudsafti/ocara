@@ -1,0 +1,22 @@
+architecture permissive
+
+import ocara.IO
+import ocara.Convert
+import ocara.System
+import ocara.Math
+
+class Pt {
+    public property x:int = 0
+    public method dist(n:int): int { return Math::abs(n - self.x) }
+}
+class Acc {
+    public property total:int = 0
+    public method add(p:Pt, n:int): void { self.total += p.dist(n) }
+}
+function main(): void {
+    var n:int = Convert::strToInt(System::args()[1])
+    var p:Pt = use Pt()
+    var a:Acc = use Acc()
+    for i in 0 until n { a.add(p, i) }
+    IO::writeln(`${a.total}`)
+}

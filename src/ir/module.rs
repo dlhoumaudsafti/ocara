@@ -59,6 +59,16 @@ pub struct IrModule {
     /// Par classe : méthodes que `self.m(…)` appelle sans pouvoir libérer
     /// `self` (voir `crate::lower::builder::self_borrow`).
     pub safe_self_calls: HashMap<String, HashSet<String>>,
+    /// Par classe : méthodes pures, appelables sur un receveur de cette
+    /// classe sans rien libérer de ce que tient l'appelant ; et fonctions
+    /// pures (même module).
+    pub pure_calls: HashMap<String, HashSet<String>>,
+    pub pure_functions: HashSet<String>,
+    /// Types déclarés par le programme (un `C::m(…)` sur l'un d'eux n'est
+    /// pas un builtin).
+    pub program_types: HashSet<String>,
+    /// Par classe : champs `int`/`float`/`bool`, hérités compris.
+    pub scalar_fields: HashMap<String, HashSet<String>>,
     /// Identité de classe à l'exécution : class_name → id entier unique
     /// (attribué une fois, à la compilation, dans l'ordre de déclaration —
     /// voir program.rs). Stocké dans le header de CHAQUE instance

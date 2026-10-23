@@ -117,6 +117,10 @@ pub fn lower_func(
     };
 
     let safe_self_calls = class_name.and_then(|c| module.safe_self_calls.get(c)).cloned().unwrap_or_default();
+    let pure_calls = module.pure_calls.clone();
+    let pure_functions = module.pure_functions.clone();
+    let program_types = module.program_types.clone();
+    let scalar_fields = module.scalar_fields.clone();
     let mut builder = LowerBuilder::new(module, func.name.clone(), ir_params.clone(), ret_ty);
     builder.ret_ast_ty = Some(func.ret_ty.clone());
     // Si on est dans une méthode/constructeur de classe, enregistrer la classe courante
@@ -222,7 +226,19 @@ pub fn lower_func(
 
     // Body
     crate::lower::stmt::rc::begin_unwind(&mut builder);
-    builder.self_borrowed = super::self_borrow::self_stays_alive(&func.body, &|m| safe_self_calls.contains(m));
+    let calls = super::self_borrow::Calls {
+        self_class: class_name,
+        scalar_field: &|c, f| scalar_fields.get(c).is_some_and(|fs| fs.contains(f)),
+        self_call: &|m| safe_self_calls.contains(m),
+        pure_call: &|c, m| pure_calls.get(c).is_some_and(|ms| ms.contains(m)),
+        pure_fn: &|f| pure_functions.contains(f),
+        user_type: &|t| program_types.contains(t),
+    };
+    builder.self_borrowed = super::self_borrow::self_stays_alive(&func.params, &func.body, &calls);
+    // Une tâche `async` survit à l'appel : ses arguments doivent être retenus.
+    if !func.is_async {
+        builder.borrowed_params = super::self_borrow::borrowed_params(&func.params, &func.body, &calls);
+    }
     crate::lower::stmt::rc::begin_function(&mut builder, &func.params);
     own_entry_consts(&mut builder, &owned_consts);
     crate::lower::stmt::lower_block(&mut builder, &func.body);

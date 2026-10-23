@@ -508,7 +508,7 @@ pub fn begin_function(builder: &mut LowerBuilder, params: &[crate::parsing::ast:
         if param.name == "self" && builder.self_borrowed {
             continue;
         }
-        if !counted(builder, &ty) {
+        if !counted(builder, &ty) || builder.borrowed_params.contains(&param.name) {
             declare_plain(builder, &param.name);
             continue;
         }

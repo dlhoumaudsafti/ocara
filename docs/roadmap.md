@@ -44,7 +44,7 @@ Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnali
 
 Confort ou portée future — n'affecte pas la correction du compilateur ou des binaires produits.
 
-- **Performances : pistes d'optimisation restantes** — toutes les mesures de `make perf` et `make perf-extra` sont meilleures que Python, PHP, Perl ; restent les locales en pile des générateurs et des captures (`nameless`, `try`) et la retenue de `self` quand la méthode appelée peut le libérer (~15 ns). *(Structurel)* → [détails](roadmap.d/perf-runtime-complexite.md)
+- **Performances : pistes d'optimisation restantes** — toutes les mesures de `make perf` et `make perf-extra` sont meilleures que Python, PHP, Perl ; restent le test du drapeau multi-thread à chaque accès d'une variable capturée et la retenue de `self`/des paramètres quand l'appelée a un effet ou un receveur de type inconnu. *(Structurel)* → [détails](roadmap.d/perf-runtime-complexite.md)
 - **Performances : égalités fragiles avec PHP** — `make perf` (comparaison à Python, PHP, Perl, C, C++ et Rust) passe désormais entièrement, mais sans marge : Ocara est à égalité avec PHP 8.3 sur `replace`, `join`, `jsonb`, `regex` et devant d'un centième seulement sur `map`, `split`, `mapint`, `mixed` — le bruit de la machine peut faire échouer la règle. *(Légère à Moyenne)* → [détails](roadmap.d/perf-interpretes-plus-rapides.md)
 - **Serveur de langage : requêtes bloquantes, documents sans titre** — mono-thread sans annulation (la première construction de l'index bloque 1 à 1,8 s), documents `untitled:` sans diagnostics, renommage de fichier envoyé sans vérifier les capacités du client. *(Légère à Structurel)* → [détails](roadmap.d/tooling-ocaracs-fix-et-lsp.md)
 

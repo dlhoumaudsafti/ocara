@@ -302,7 +302,12 @@ pub fn lower_program_with(program: &Program, source_file: &str, coverage: bool) 
             module.class_parents.insert(class.name.clone(), parent_name.clone());
         }
     }
-    module.safe_self_calls = super::self_borrow::safe_self_calls(program);
+    let borrowing = super::self_borrow::analyze(program);
+    module.safe_self_calls = borrowing.safe;
+    module.pure_calls = borrowing.pure;
+    module.pure_functions = borrowing.pure_functions;
+    module.program_types = borrowing.program_types;
+    module.scalar_fields = borrowing.scalar_fields;
 
     // Identité de classe à l'exécution (voir IrModule::class_ids) : un id
     // entier unique par classe, attribué dans l'ordre de déclaration — 0 est

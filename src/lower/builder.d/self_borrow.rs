@@ -7,55 +7,176 @@
 //! aucun se passe de la retenue/relâche de `self` (accesseurs, `init`
 //! simples).
 //!
-//! Un appel de méthode sur `self` (`self.poids(n)`) est sûr quand la méthode
-//! appelée ne peut pas libérer son propre `self` : elle se résout dans le
-//! programme (pas chez un parent builtin) et TOUTES ses définitions, de
-//! n'importe quelle classe (liaison dynamique), sont elles-mêmes sûres —
-//! point fixe calculé une fois par programme (`safe_self_calls`).
+//! Un appel ne coupe rien quand l'appelée ne peut rien libérer de ce que
+//! tient un autre qu'elle :
+//! - `self.m(…)` : `m` se résout dans le programme (pas chez un parent
+//!   builtin) et TOUTES ses définitions, de n'importe quelle classe (liaison
+//!   dynamique), sont sûres (`self_safe`) ;
+//! - `x.m(…)` sur une locale ou un paramètre déclaré d'une classe du
+//!   programme, `f(…)` sur une fonction du programme : l'appelée est pure —
+//!   aucune écriture de conteneur ni de champ compté (même de son `self` ;
+//!   un champ `int`/`float`/`bool` ne libère rien), et seulement des appels
+//!   purs ;
+//! - un builtin sans rappel ni effet sur ses arguments (`Math`, `String`,
+//!   conversions scalaires de `Convert`).
+//!
+//! Points fixes calculés une fois par programme (`analyze`).
 
 use std::collections::{HashMap, HashSet};
 
-use crate::parsing::ast::{Block, ClassDecl, ClassMember, Expr, Program, Stmt, TemplatePartExpr};
+use crate::parsing::ast::{Block, ClassDecl, ClassMember, Param, Program, Type};
 
-/// Par classe : méthodes que `self.m(…)` appelle sans risquer de libérer `self`.
-pub type SafeSelfCalls = HashMap<String, HashSet<String>>;
+use super::borrow_scan::{assigned_names, Scan};
 
-/// Vrai si rien dans `body` ne peut libérer `self` ; `safe_call(m)` : un
-/// appel `self.m(…)` en est incapable.
-pub fn self_stays_alive(body: &Block, safe_call: &dyn Fn(&str) -> bool) -> bool {
-    body.stmts.iter().all(|s| stmt_safe(s, safe_call))
+/// Résultat de `analyze`, par classe : méthodes que `self.m(…)` appelle
+/// sans risquer de libérer `self` (`safe`), méthodes pures appelables sur un
+/// receveur de cette classe (`pure`) ; fonctions pures du programme.
+#[derive(Default)]
+pub struct Borrowing {
+    pub safe: HashMap<String, HashSet<String>>,
+    pub pure: HashMap<String, HashSet<String>>,
+    pub pure_functions: HashSet<String>,
+    pub program_types: HashSet<String>,
+    /// Par classe : champs `int`/`float`/`bool`, hérités compris.
+    pub scalar_fields: HashMap<String, HashSet<String>>,
 }
 
-pub fn safe_self_calls(program: &Program) -> SafeSelfCalls {
+/// Appels qu'un corps peut faire sans libérer ce que tient son appelant.
+pub struct Calls<'a> {
+    /// Classe de `self`, pour une méthode.
+    pub self_class: Option<&'a str>,
+    /// Champ non compté de la classe : `scalar_field(c, f)`.
+    pub scalar_field: &'a dyn Fn(&str, &str) -> bool,
+    /// `self.m(…)`.
+    pub self_call: &'a dyn Fn(&str) -> bool,
+    /// `x.m(…)`, `x` de classe `c` : `pure_call(c, m)`.
+    pub pure_call: &'a dyn Fn(&str, &str) -> bool,
+    /// `f(…)`.
+    pub pure_fn: &'a dyn Fn(&str) -> bool,
+    /// `C::m(…)` : vrai seulement pour un builtin, faux si `C` est du programme.
+    pub user_type: &'a dyn Fn(&str) -> bool,
+}
+
+/// Vrai si rien dans `body` ne peut libérer `self`.
+pub fn self_stays_alive(params: &[Param], body: &Block, calls: &Calls) -> bool {
+    Scan::new(params, body, calls, false).block(body)
+}
+
+/// Vrai si `body` ne peut rien libérer de ce que tient un autre que lui.
+fn is_pure(params: &[Param], body: &Block, calls: &Calls) -> bool {
+    Scan::new(params, body, calls, true).block(body)
+}
+
+/// Paramètres que le corps peut emprunter sans les retenir, comme `self` :
+/// ceux d'un corps pur, ni réaffectés, ni capturés (aucun `nameless` ni
+/// `try` — leurs cellules ne comptent que les locales comptées), ni
+/// variadiques ni à valeur par défaut (que l'appelant ne tient pas
+/// forcément). `self` relève de `self_stays_alive`.
+pub fn borrowed_params(params: &[Param], body: &Block, calls: &Calls) -> HashSet<String> {
+    let mut scan = Scan::new(params, body, calls, true);
+    scan.closed = true;
+    if !scan.block(body) {
+        return HashSet::new();
+    }
+    let mut assigned = HashSet::new();
+    assigned_names(body, &mut assigned);
+    params.iter()
+        .filter(|p| p.name != "self" && !p.is_variadic && p.default_value.is_none() && !assigned.contains(&p.name))
+        .map(|p| p.name.clone())
+        .collect()
+}
+
+pub fn analyze(program: &Program) -> Borrowing {
     let classes: HashMap<&str, &ClassDecl> = program.classes.iter().map(|c| (c.name.as_str(), c)).collect();
     let modules: HashMap<&str, &[ClassMember]> = program.modules.iter().map(|m| (m.name.as_str(), m.members.as_slice())).collect();
-    // `self.m()` dans `class` se résout-il dans le programme ?
+    // `m` sur une instance de `class` se résout-il dans le programme ?
     let resolves = |class: &str, method: &str| -> bool {
         let mut current = classes.get(class).copied();
         while let Some(c) = current {
-            if own_methods(c, &modules).iter().any(|(name, _)| *name == method) {
+            if own_methods(c, &modules).iter().any(|(name, _, _)| *name == method) {
                 return true;
             }
             current = c.extends.as_deref().and_then(|p| classes.get(p).copied());
         }
         false
     };
-    let definitions: Vec<(&str, &str, &Block)> = program.classes.iter()
-        .flat_map(|c| own_methods(c, &modules).into_iter().map(move |(name, body)| (c.name.as_str(), name, body)))
+    let program_types: HashSet<String> = program.classes.iter().map(|c| c.name.clone())
+        .chain(program.modules.iter().map(|m| m.name.clone()))
+        .chain(program.interfaces.iter().map(|i| i.name.clone()))
+        .chain(program.enums.iter().map(|e| e.name.clone()))
+        .chain(program.generics.iter().map(|g| g.name.clone()))
         .collect();
-    let mut safe: HashSet<String> = HashSet::new();
+    let user_type = |name: &str| program_types.contains(name);
+    let scalar_fields: HashMap<String, HashSet<String>> = program.classes.iter().map(|c| {
+        let mut fields = HashSet::new();
+        let mut current = Some(c);
+        while let Some(c) = current {
+            let members = c.members.iter()
+                .chain(c.modules.iter().filter_map(|m| modules.get(m.as_str()).copied()).flat_map(|members| members.iter()));
+            for m in members {
+                if let ClassMember::Field { name, ty: Type::Int | Type::Float | Type::Bool, .. } = m {
+                    fields.insert(name.clone());
+                }
+            }
+            current = c.extends.as_deref().and_then(|p| classes.get(p).copied());
+        }
+        (c.name.clone(), fields)
+    }).collect();
+    let scalar_field = |c: &str, f: &str| scalar_fields.get(c).is_some_and(|fs| fs.contains(f));
+    let definitions: Vec<(&str, &str, &[Param], &Block)> = program.classes.iter()
+        .flat_map(|c| own_methods(c, &modules).into_iter().map(move |(name, params, body)| (c.name.as_str(), name, params, body)))
+        .collect();
+    let names: HashSet<&str> = definitions.iter().map(|(_, name, _, _)| *name).collect();
+
+    // Méthodes (par nom, toutes définitions) et fonctions pures.
+    let mut pure: HashSet<&str> = HashSet::new();
+    let mut pure_fns: HashSet<&str> = HashSet::new();
     loop {
         let mut grown = false;
-        let names: HashSet<&str> = definitions.iter().map(|(_, name, _)| *name).collect();
-        for name in names {
+        let pure_call = |c: &str, m: &str| resolves(c, m) && pure.contains(m);
+        let pure_fn = |f: &str| pure_fns.contains(f);
+        let mut new_methods = Vec::new();
+        for &name in names.iter().filter(|n| !pure.contains(*n)) {
+            let all = definitions.iter().filter(|(_, n, _, _)| *n == name).all(|(class, _, params, body)| {
+                let self_call = |m: &str| pure_call(class, m);
+                is_pure(params, body, &Calls { self_class: Some(class), scalar_field: &scalar_field, self_call: &self_call, pure_call: &pure_call, pure_fn: &pure_fn, user_type: &user_type })
+            });
+            if all {
+                new_methods.push(name);
+            }
+        }
+        let mut new_fns = Vec::new();
+        for f in program.functions.iter().filter(|f| !pure_fns.contains(f.name.as_str())) {
+            let self_call = |_: &str| false;
+            if is_pure(&f.params, &f.body, &Calls { self_class: None, scalar_field: &scalar_field, self_call: &self_call, pure_call: &pure_call, pure_fn: &pure_fn, user_type: &user_type }) {
+                new_fns.push(f.name.as_str());
+            }
+        }
+        grown |= !new_methods.is_empty() || !new_fns.is_empty();
+        pure.extend(new_methods);
+        pure_fns.extend(new_fns);
+        if !grown {
+            break;
+        }
+    }
+
+    // Méthodes sûres pour `self.m(…)` : les pures, et celles qui n'écrivent
+    // que dans leur `self`.
+    let pure_call = |c: &str, m: &str| resolves(c, m) && pure.contains(m);
+    let pure_fn = |f: &str| pure_fns.contains(f);
+    let mut safe: HashSet<&str> = pure.clone();
+    loop {
+        let mut grown = false;
+        for &name in names.iter() {
             if safe.contains(name) {
                 continue;
             }
-            let all_safe = definitions.iter().filter(|(_, n, _)| *n == name).all(|(class, _, body)| {
-                self_stays_alive(body, &|m| resolves(class, m) && safe.contains(m))
+            let all_safe = definitions.iter().filter(|(_, n, _, _)| *n == name).all(|(class, _, params, body)| {
+                let self_call = |m: &str| resolves(class, m) && safe.contains(m);
+                self_stays_alive(params, body, &Calls { self_class: Some(class), scalar_field: &scalar_field, self_call: &self_call, pure_call: &pure_call, pure_fn: &pure_fn, user_type: &user_type })
             });
             if all_safe {
-                safe.insert(name.to_string());
+                safe.insert(name);
                 grown = true;
             }
         }
@@ -63,74 +184,28 @@ pub fn safe_self_calls(program: &Program) -> SafeSelfCalls {
             break;
         }
     }
-    program.classes.iter().map(|c| {
-        let calls = safe.iter().filter(|m| resolves(&c.name, m)).cloned().collect();
-        (c.name.clone(), calls)
-    }).collect()
+    let per_class = |set: &HashSet<&str>| program.classes.iter().map(|c| {
+        let methods = set.iter().filter(|m| resolves(&c.name, m)).map(|m| m.to_string()).collect();
+        (c.name.clone(), methods)
+    }).collect();
+    Borrowing {
+        safe: per_class(&safe),
+        pure: per_class(&pure),
+        pure_functions: pure_fns.into_iter().map(str::to_string).collect(),
+        program_types,
+        scalar_fields,
+    }
 }
 
 /// Méthodes d'instance d'une classe, celles de ses `modules` comprises.
-fn own_methods<'p>(class: &'p ClassDecl, modules: &HashMap<&str, &'p [ClassMember]>) -> Vec<(&'p str, &'p Block)> {
+fn own_methods<'p>(class: &'p ClassDecl, modules: &HashMap<&str, &'p [ClassMember]>) -> Vec<(&'p str, &'p [Param], &'p Block)> {
     class.members.iter()
         .chain(class.modules.iter().filter_map(|m| modules.get(m.as_str()).copied()).flat_map(|members| members.iter()))
         .filter_map(|m| match m {
-            ClassMember::Method { decl, is_static: false, .. } => Some((decl.name.as_str(), &decl.body)),
+            ClassMember::Method { decl, is_static: false, .. } => Some((decl.name.as_str(), decl.params.as_slice(), &decl.body)),
             _ => None,
         })
         .collect()
-}
-
-fn stmt_safe(stmt: &Stmt, safe_call: &dyn Fn(&str) -> bool) -> bool {
-    let block = |b: &Block| self_stays_alive(b, safe_call);
-    let expr = |e: &Expr| expr_safe(e, safe_call);
-    match stmt {
-        Stmt::Var { value, .. } | Stmt::Const { value, .. } | Stmt::Expr(value) | Stmt::Raise { value, .. } => expr(value),
-        Stmt::Return { value, .. } | Stmt::Result { value, .. } => value.as_ref().is_none_or(expr),
-        Stmt::Break { .. } | Stmt::Continue { .. } => true,
-        Stmt::If { condition, then_block, elseif, else_block, .. } =>
-            expr(condition) && block(then_block)
-                && elseif.iter().all(|(c, b)| expr(c) && block(b))
-                && else_block.as_ref().is_none_or(block),
-        Stmt::While { condition, body, .. } => expr(condition) && block(body),
-        Stmt::ForIn { iter, body, .. } | Stmt::ForMap { iter, body, .. } => expr(iter) && block(body),
-        Stmt::Switch { subject, cases, default, .. } =>
-            expr(subject) && cases.iter().all(|c| block(&c.body)) && default.as_ref().is_none_or(block),
-        Stmt::Try { body, handlers, .. } => block(body) && handlers.iter().all(|h| block(&h.body)),
-        Stmt::Assign { target, value, .. } => expr(value) && match target {
-            Expr::Ident(..) => true,
-            Expr::Field { object, .. } => matches!(object.as_ref(), Expr::SelfExpr(_)),
-            _ => false,
-        },
-        _ => false,
-    }
-}
-
-fn expr_safe(expr: &Expr, safe_call: &dyn Fn(&str) -> bool) -> bool {
-    let safe = |e: &Expr| expr_safe(e, safe_call);
-    match expr {
-        Expr::Call { callee, args, .. } => match callee.as_ref() {
-            Expr::Field { object, field, .. } if matches!(object.as_ref(), Expr::SelfExpr(_)) =>
-                safe_call(field) && args.iter().all(safe),
-            _ => false,
-        },
-        Expr::Literal(..) | Expr::Ident(..) | Expr::SelfExpr(_) | Expr::ParentExpr(_)
-        | Expr::StaticConst { .. } | Expr::Nameless { .. } => true,
-        Expr::Field { object, .. } => safe(object),
-        Expr::Binary { left, right, .. } => safe(left) && safe(right),
-        Expr::Unary { operand, .. } => safe(operand),
-        Expr::IsCheck { expr, .. } => safe(expr),
-        Expr::IncDec { target, .. } => safe(target),
-        Expr::Index { object, index, .. } => safe(object) && safe(index),
-        Expr::Range { start, end, .. } => safe(start) && safe(end),
-        Expr::Array { elements, .. } => elements.iter().all(safe),
-        Expr::Map { entries, .. } => entries.iter().all(|(k, v)| safe(k) && safe(v)),
-        Expr::Template { parts, .. } => parts.iter().all(|p| match p {
-            TemplatePartExpr::Expr(e) => safe(e),
-            _ => true,
-        }),
-        Expr::Match { subject, arms, .. } => safe(subject) && arms.iter().all(|a| safe(&a.body)),
-        _ => false,
-    }
 }
 
 #[cfg(test)]
@@ -138,9 +213,13 @@ mod tests {
     use super::*;
     use crate::parsing::{lexer::Lexer, parser::Parser};
 
-    fn calls(src: &str) -> SafeSelfCalls {
+    fn analyzed(src: &str) -> Borrowing {
         let tokens = Lexer::new(src).tokenize().expect("lex ok");
-        safe_self_calls(&Parser::new(tokens).parse_program().expect("parse ok"))
+        analyze(&Parser::new(tokens).parse_program().expect("parse ok"))
+    }
+
+    fn calls(src: &str) -> HashMap<String, HashSet<String>> {
+        analyzed(src).safe
     }
 
     #[test]
@@ -176,5 +255,74 @@ class Child extends Base {
 }
 ");
         assert!(!c["Base"].contains("step") && !c["Base"].contains("go"), "{:?}", c["Base"]);
+    }
+
+    #[test]
+    fn pure_calls_on_typed_receivers_and_builtins() {
+        let b = analyzed("class Pt {
+    public property x:int = 0
+    public property tag:string = \"\"
+    public method dist(n:int): int { return Math::abs(n - self.x) }
+    public method bump(): void { self.x += 1 }
+    public method rename(): void { self.tag = \"y\" }
+}
+class Acc {
+    public property total:int = 0
+    public method add(p:Pt, n:int): void {
+        self.total += p.dist(n)
+        p.bump()
+    }
+    public method relabel(p:Pt): void { p.rename() }
+    public method untyped(p:mixed): void { p.bump() }
+}
+function twice(n:int): int { return n * 2 }
+function shout(): void { IO::writeln(\"x\") }
+");
+        assert!(b.pure["Pt"].contains("dist") && b.pure["Pt"].contains("bump"), "{:?}", b.pure["Pt"]);
+        assert!(!b.pure["Pt"].contains("rename"), "champ compté : {:?}", b.pure["Pt"]);
+        assert!(b.safe["Pt"].contains("rename"));
+        assert!(b.pure["Acc"].contains("add") && !b.pure["Acc"].contains("relabel") && !b.pure["Acc"].contains("untyped"));
+        assert!(b.pure_functions.contains("twice") && !b.pure_functions.contains("shout"));
+    }
+
+    #[test]
+    fn a_program_class_named_like_a_builtin_is_not_pure() {
+        let b = analyzed("class Math {
+    public static method abs(n:int): int {
+        IO::writeln(\"x\")
+        return n
+    }
+}
+class Pt {
+    public property x:int = 0
+    public method dist(n:int): int { return Math::abs(n - self.x) }
+}
+");
+        assert!(!b.pure["Pt"].contains("dist") && !b.safe["Pt"].contains("dist"));
+    }
+
+    #[test]
+    fn borrowed_params_exclude_reassigned_and_captured_ones() {
+        let src = "class Pt {
+    public property x:int = 0
+}
+function keep(p:Pt, q:Pt): Pt {
+    q = p
+    return q
+}
+function cap(p:Pt): void {
+    var f:Function<int()> = nameless(): int { return p.x }
+}
+";
+        let tokens = Lexer::new(src).tokenize().expect("lex ok");
+        let program = Parser::new(tokens).parse_program().expect("parse ok");
+        let no = |_: &str| false;
+        let no2 = |_: &str, _: &str| false;
+        let calls = Calls { self_class: None, scalar_field: &no2, self_call: &no, pure_call: &no2, pure_fn: &no, user_type: &no };
+        let keep = &program.functions[0];
+        let borrowed = borrowed_params(&keep.params, &keep.body, &calls);
+        assert!(borrowed.contains("p") && !borrowed.contains("q"), "{:?}", borrowed);
+        let cap = &program.functions[1];
+        assert!(borrowed_params(&cap.params, &cap.body, &calls).is_empty());
     }
 }

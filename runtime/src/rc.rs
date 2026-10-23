@@ -80,8 +80,10 @@ impl ThreadGuard {
 /// Un autre thread a exécuté (ou va exécuter) du code Ocara : les comptes
 /// sont désormais modifiés par opérations atomiques. Tant qu'un seul thread
 /// en exécute, une simple lecture-écriture suffit (≈ 10 fois moins chère
-/// qu'un `lock xadd`) — sans retour possible.
-static MULTI_THREADED: AtomicBool = AtomicBool::new(false);
+/// qu'un `lock xadd`) — sans retour possible. Lu aussi par le code généré
+/// (accès en ligne aux cellules de capture, voir `emit_cell_access`).
+#[unsafe(export_name = "__ocara_multi_threaded")]
+pub static MULTI_THREADED: AtomicBool = AtomicBool::new(false);
 
 pub(crate) fn is_multi_threaded() -> bool {
     MULTI_THREADED.load(Ordering::Relaxed)

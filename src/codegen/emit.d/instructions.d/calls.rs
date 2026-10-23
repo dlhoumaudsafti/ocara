@@ -52,6 +52,16 @@ pub fn emit_calls(
                     emit_counted_only(builder, arg_vals[0], |builder| { builder.ins().call(fref, &arg_vals); });
                     return Ok(true);
                 }
+                if matches!(func.as_str(), "__locked_cell_get" | "__locked_cell_set") {
+                    let value = emit_cell_access(builder, module, &arg_vals, |builder| {
+                        let call = builder.ins().call(fref, &arg_vals);
+                        builder.inst_results(call).first().copied()
+                    })?;
+                    if let (Some(d), Some(v)) = (dest, value) {
+                        def!(d, v);
+                    }
+                    return Ok(true);
+                }
                 if let ("__box_int_for_mixed", Some(d)) = (func.as_str(), dest) {
                     let boxed = emit_box_int(builder, arg_vals[0], |builder| {
                         let call = builder.ins().call(fref, &arg_vals);
@@ -121,6 +131,47 @@ pub fn emit_calls(
     }
 
     Ok(true) // Instruction traitée
+}
+
+/// `__locked_cell_get(cell)` / `__locked_cell_set(cell, v)` : tant qu'un seul
+/// thread exécute du code Ocara (`__ocara_multi_threaded` nul), lecture ou
+/// écriture directe du mot de la cellule, sans appel ; sinon `call` (sous
+/// verrou). Une variable capturée par un `nameless` lue et écrite dans une
+/// boucle payait deux appels par tour.
+fn emit_cell_access(
+    builder: &mut FunctionBuilder,
+    module: &mut ObjectModule,
+    args: &[CrValue],
+    call: impl FnOnce(&mut FunctionBuilder) -> Option<CrValue>,
+) -> CgResult<Option<CrValue>> {
+    let data_id = module
+        .declare_data("__ocara_multi_threaded", cranelift_module::Linkage::Import, false, false)
+        .map_err(|e| CodegenError(format!("declare_data(__ocara_multi_threaded): {}", e)))?;
+    let gv = module.declare_data_in_func(data_id, builder.func);
+    let flag_addr = builder.ins().global_value(clt::I64, gv);
+    let flag = builder.ins().load(clt::I8, MemFlags::trusted(), flag_addr, 0);
+    let (fast, slow, next) = (builder.create_block(), builder.create_block(), builder.create_block());
+    let getter = args.len() == 1;
+    if getter {
+        builder.append_block_param(next, clt::I64);
+    }
+    builder.ins().brif(flag, slow, &[], fast, &[]);
+    builder.switch_to_block(fast);
+    if getter {
+        let v = builder.ins().load(clt::I64, MemFlags::trusted(), args[0], 0);
+        builder.ins().jump(next, &[v.into()]);
+    } else {
+        builder.ins().store(MemFlags::trusted(), args[1], args[0], 0);
+        builder.ins().jump(next, &[]);
+    }
+    builder.switch_to_block(slow);
+    let result = call(builder);
+    match result {
+        Some(v) if getter => builder.ins().jump(next, &[v.into()]),
+        _ => builder.ins().jump(next, &[]),
+    };
+    builder.switch_to_block(next);
+    Ok(if getter { Some(builder.block_params(next)[0]) } else { None })
 }
 
 /// Appelle `call` seulement si `val` peut être une valeur comptée : entre

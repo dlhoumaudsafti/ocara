@@ -1,0 +1,91 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.Math
+
+// Receveur et paramètres empruntés sans retenue quand l'appelée est pure
+// (voir src/lower/builder.d/self_borrow.rs) ; une redéfinition impure garde
+// la retenue partout.
+
+class Node {
+    public property v:int = 0
+    public property hits:int = 0
+    init(v:int) {
+        self.v = v
+    }
+    public method dist(n:int): int { return Math::abs(n - self.v) }
+    public method bump(): void { self.hits += 1 }
+}
+
+class Holder {
+    public property total:int = 0
+    public method add(n:Node, k:int): void {
+        self.total += n.dist(k)
+        n.bump()
+    }
+    public method keep(n:Node): Node { return n }
+    public method pair(a:Node, b:Node): array<Node> { return [a, b] }
+}
+
+class Base {
+    public property owner:Holder|null = null
+    public method step(): int { return 1 }
+}
+
+// Redéfinition qui libère son propriétaire : `step` n'est plus pure.
+class Dropper extends Base {
+    public method step(): int {
+        self.owner = null
+        return 2
+    }
+}
+
+class Runner {
+    public property sum:int = 0
+    public method run(b:Base): void { self.sum += b.step() }
+}
+
+function same(n:Node): Node { return n }
+
+function copy(n:Node): Node {
+    var m:Node = n
+    return m
+}
+
+class Test114BorrowedReceivers extends UnitTest {
+
+    public method pureCallsTest(): int {
+        var h:Holder = use Holder()
+        var n:Node = use Node(3)
+        for i in 0 until 5 {
+            h.add(n, i)
+        }
+        self::assertEquals(3 + 2 + 1 + 0 + 1, h.total)
+        self::assertEquals(5, n.hits)
+        return 0
+    }
+
+    public method borrowedParamsEscapeTest(): int {
+        var h:Holder = use Holder()
+        var kept:Node = h.keep(use Node(7))
+        self::assertEquals(7, kept.v)
+        var both:array<Node> = h.pair(use Node(1), use Node(2))
+        self::assertEquals(3, both[0].v + both[1].v)
+        self::assertEquals(9, same(use Node(9)).v)
+        self::assertEquals(4, copy(use Node(4)).v)
+        return 0
+    }
+
+    public method impureOverrideTest(): int {
+        var d:Dropper = use Dropper()
+        var r:Runner = use Runner()
+        d.owner = use Holder()
+        r.run(d)
+        self::assertEquals(2, r.sum)
+        var b:Base = use Dropper()
+        b.owner = use Holder()
+        b.owner.add(use Node(1), 4)
+        self::assertEquals(3, b.owner.total)
+        return 0
+    }
+}
