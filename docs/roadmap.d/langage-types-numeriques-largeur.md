@@ -112,6 +112,23 @@ Vérifié dans le code et par exécution avec le compilateur courant :
 - Un littéral dans une déclaration à largeur fixe est vérifié dans le type
   déclaré à la compilation. Une valeur constante hors plage est une erreur de
   compilation.
+- Les tests de type reconnaissent chaque type numérique précis (`is int`,
+  `is uint8`, `is int8`, `is float16`, etc.). Ajouter en plus le prédicat de
+  famille `is numeric`, vrai pour les types entiers et flottants dynamiques ou
+  fixes, faux pour les autres types :
+  ```ocara
+  var i:uint8 = 5
+  var f:float16 = 3.14
+  var s:string = "123"
+
+  i is numeric // true
+  f is numeric // true
+  s is numeric // false
+  ```
+  `numeric` sert ici de catégorie aux tests `is` ; ce n'est pas un type
+  numérique concret, une annotation de variable ou un type d'élément de
+  collection. Pour vérifier une largeur ou un type dynamique particulier, le
+  programme utilise son prédicat précis (`is uint8`, `is int`, etc.).
 
 ### Entiers, opérations et conversions
 
@@ -183,8 +200,10 @@ Vérifié dans le code et par exécution avec le compilateur courant :
   utilisée pour la division entière par zéro.
 - `mixed` conserve le type et la largeur réellement stockés. Une valeur
   dynamique `int` stockée en `uint8` peut donc satisfaire à la fois `m is int`
-  et `m is uint8`. Le mot `mixed` reste physiquement tagué sur 64 bits ; la
-  largeur est exposée par ses tags, sans prétendre réduire la taille du mot.
+  et `m is uint8` ; les valeurs numériques de `mixed` satisfont également
+  `m is numeric`, contrairement à une chaîne numérique comme `"123"`. Le mot
+  `mixed` reste physiquement tagué sur 64 bits ; la largeur est exposée par
+  ses tags, sans prétendre réduire la taille du mot.
 - Le caractère dynamique de `int`/`float` est conservé dans les collections :
   `array<int>` et `map<string, int>` n'équivalent pas à `array<uint8>` et
   `map<string, uint8>`, même si toutes les valeurs présentes tiennent
