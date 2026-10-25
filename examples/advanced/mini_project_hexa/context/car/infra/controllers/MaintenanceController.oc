@@ -20,19 +20,36 @@ class MaintenanceController {
         var car_id:int = req.param("car_id")
         const type:string        = req.param("type")
         const description:string = String::trim(req.param("description"))
+        const material_source:string = String::trim(req.param("material_source"))
         scoped cost_str:string     = req.param("cost")
+        scoped lifespan_str:string = String::trim(req.param("lifespan_days"))
 
         var cost:float  = Convert::strToFloat(cost_str)
+        var lifespan_days:int = 0
+        var invalid_lifespan:bool = false
+        if not String::empty(lifespan_str) {
+            var parsed_lifespan:int = Convert::strToInt(lifespan_str)
+            if parsed_lifespan smaller or equal 0 {
+                invalid_lifespan = true
+            }
+            lifespan_days = parsed_lifespan
+        }
         scoped id_str:string = Convert::intToStr(car_id)
 
-        scoped valid_type:bool = type equal "maintenance" or type equal "improvement"
-        if String::empty(description) or cost smaller or equal 0.0 or not valid_type {
+        var invalid_type:bool = true
+        if type equal "maintenance" or type equal "improvement" {
+            invalid_type = false
+        }
+        if String::empty(description)
+            or cost smaller or equal 0.0
+            or invalid_type
+            or invalid_lifespan {
             req.respondHeader("Location", "/voitures/" + id_str + "?error=invalid_cost")
             req.respond(302, "")
             return 0
         }
 
-        MaintenanceContract::create(car_id, type, description, cost)
+        MaintenanceContract::create(car_id, type, description, cost, material_source, lifespan_days)
         // Recalcul complet (pas un simple +=) : voir services/PricingService.oc.
         PricingService::recalculateEstimatedPrice(car_id)
 

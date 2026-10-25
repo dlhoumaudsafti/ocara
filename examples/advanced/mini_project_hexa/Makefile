@@ -13,8 +13,8 @@
 # variables associées (voir sa cible plus bas et docs/android.md — procédure
 # complète, génération du keystore incluse) — jamais de secret en dur ici.
 
-ANDROID_NDK_HOME ?= <PATH>/android-ndk-r30
-ANDROID_HOME     ?= <PATH>/android-sdk
+ANDROID_NDK_HOME ?= $(HOME)/android-ndk-r30
+ANDROID_HOME     ?= $(HOME)/android-sdk
 
 ROOT       := ../../..
 OCARA      := $(ROOT)/target/release/ocara
@@ -49,7 +49,25 @@ _android_native_libs:
 		-o $(PACKAGING)/app/src/main/jniLibs/x86_64/libmain.so
 
 android: _android_native_libs
+	rm -rf $(PACKAGING)/app/src/main/assets/public
+	cp -r public $(PACKAGING)/app/src/main/assets/public
 	cd $(PACKAGING) && ./gradlew assembleDebug
+
+mobile:
+	$(OCARA) main.oc --target aarch64-linux-android \
+		--android-runtime $(ROOT)/target/aarch64-linux-android/release/libocara_runtime.a \
+		--android-jni-bridge $(ROOT)/target/aarch64-linux-android/release/libocara_runtime_android_jni.a \
+		--android-ndk "$(ANDROID_NDK_HOME)" \
+		-o $(PACKAGING)/app/src/main/jniLibs/arm64-v8a/libmain.so
+	$(OCARA) main.oc --target x86_64-linux-android \
+		--android-runtime $(ROOT)/target/x86_64-linux-android/release/libocara_runtime.a \
+		--android-jni-bridge $(ROOT)/target/x86_64-linux-android/release/libocara_runtime_android_jni.a \
+		--android-ndk "$(ANDROID_NDK_HOME)" \
+		-o $(PACKAGING)/app/src/main/jniLibs/x86_64/libmain.so
+	rm -rf $(PACKAGING)/app/src/main/assets/public
+	cp -r public $(PACKAGING)/app/src/main/assets/public
+	cd $(PACKAGING) && ./gradlew assembleDebug
+	echo "1" | $(MAKE) simulator
 
 # APK de production : release, signé avec un VRAI keystore (jamais celui de
 # debug, auto-généré et impossible à faire reconnaître comme mise à jour
@@ -91,6 +109,7 @@ simulator:
 # tests/support/Fixture.oc).
 tests:
 	$(ROOT)/target/release/ocaraunit --coverage=. tests
+	$(ROOT)/target/release/ocaraunit --line-coverage=. tests
 
 clean:
 	rm -f out out.o app.db

@@ -6,15 +6,32 @@
 
   <section class="card car-detail-header">
     <h1>${car_details.car.reference} <span class="car-model-inline">${car_details.car.brand} ${car_details.car.model}</span></h1>
+    <p class="car-dates">
+      Acquisition : ${car_details.acquisition_date}
+      <span aria-hidden="true"> · </span>
+      Cession : ${car_details.sale_date}
+    </p>
     <div class="stats-row">
       <stat-badge label="Prix d'achat" value="${car_details.purchase_price}">
       <stat-badge label="Vente estimée" value="${car_details.estimated_price}">
       <stat-badge label="Coût entretiens" value="${car_details.maintenance_total}">
       <stat-badge label="Coût améliorations" value="${car_details.improvement_total}">
     </div>
-    <form method="DELETE" action="/voitures/${car_details.id}/supprimer" class="delete-form">
+    <form method="POST" action="/voitures/${car_details.id}/supprimer" class="delete-form"
+      data-confirm-message="Supprimer définitivement cette voiture et ses photos ?">
       <button type="submit" class="delete-button">Supprimer la voiture</button>
     </form>
+  </section>
+
+  <section class="card">
+    <h2>Galerie photo</h2>
+    <form method="POST" enctype="multipart/form-data" action="/voitures/${car_details.id}/photos" class="photo-upload-form">
+      <label>Ajouter une photo (JPEG, PNG, WebP ou GIF — 10 Mo maximum)
+        <input type="file" name="photo" accept="image/jpeg,image/png,image/webp,image/gif" required>
+      </label>
+      <button type="submit">Ajouter à la galerie</button>
+    </form>
+    <div class="photo-gallery">${car_details.photos_html}</div>
   </section>
 
   <section class="card">
@@ -31,6 +48,12 @@
       </label>
       <label>Coût (€)
         <input type="number" step="0.01" min="0" name="cost" placeholder="150" required>
+      </label>
+      <label>Source du matériel
+        <input type="text" name="material_source" placeholder="Magasin ou fournisseur">
+      </label>
+      <label>Durée de vie (jours, facultatif)
+        <input type="number" min="1" step="1" name="lifespan_days" placeholder="90">
       </label>
       <button type="submit">Ajouter l'entretien</button>
     </form>

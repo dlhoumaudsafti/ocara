@@ -6,14 +6,27 @@ class MaintenanceEntity {
     public property type:string
     public property description:string
     public property cost:float
+    public property material_source:string
+    public property lifespan_days:int
     public property created_at:int
 
-    init(id:int|null, car_id:int, type:string, description:string, cost:float, created_at:int) {
+    init(
+        id:int|null,
+        car_id:int,
+        type:string,
+        description:string,
+        cost:float,
+        material_source:string,
+        lifespan_days:int,
+        created_at:int
+    ) {
         self.id = id
         self.car_id = car_id
         self.type = type
         self.description = description
         self.cost = cost
+        self.material_source = material_source
+        self.lifespan_days = lifespan_days
         self.created_at = created_at
     }
 }

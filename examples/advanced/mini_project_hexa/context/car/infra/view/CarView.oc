@@ -1,6 +1,8 @@
 namespace context.car.infra.view
 
 import ocara.HTML
+import ocara.DateTime
+import ocara.Math
 import context.car.app.dto.CarDetailsDTO
 import context.car.app.port.CarViewPort
 import context.car.infra.view.CarViewModel
@@ -11,14 +13,52 @@ class CarView implements CarViewPort {
     public static method show(id:int, details:CarDetailsDTO, error_code:string, success_code:string): string {
         var rows_html:string = ""
         for m in details.maintenances {
+            var lifetime:int = m.lifespan_days
+            var replacement_color:string = ""
+            var due_date:string = ""
+            if lifetime greater 0 {
+                const due_at:int = m.created_at + lifetime * 86400
+                const seconds_left:int = due_at - DateTime::now()
+                if seconds_left smaller or equal 90 * 86400 {
+                    due_date = Format::date(due_at)
+                    if seconds_left smaller 0 {
+                        replacement_color = "rgb(255, 0, 0)"
+                    } else {
+                        const days_left:float = seconds_left.toFloat() / 86400.0
+                        const green:int = Math::round(165.0 * days_left / 90.0)
+                        replacement_color = "rgb(255, " + green.toStr() + ", 0)"
+                    }
+                }
+            }
             rows_html += `<maintenance-row
                 type="${m.type}"
                 description="${m.description}"
                 cost="${Format::price(m.cost)}"
-                date="${Format::date(m.created_at)}">`
+                date="${Format::date(m.created_at)}"
+                material_source="${m.material_source}"
+                due_date="${due_date}"
+                replacement_color="${replacement_color}">`
         }
         if details.maintenances.len() equal 0 {
             rows_html = `<p class="empty">Aucun entretien enregistré pour cette voiture.</p>`
+        }
+        var photos_html:string = ""
+        scoped safe_reference:string = HTML::escape(details.car.reference)
+        for photo in details.photos {
+            photos_html += `<a class="car-photo" href="${photo}" target="_blank" rel="noopener">
+                <img src="${photo}" alt="Photo de ${safe_reference}" loading="lazy">
+            </a>`
+        }
+        if details.photos.len() equal 0 {
+            photos_html = `<p class="empty">Aucune photo pour le moment.</p>`
+        }
+        var acquisition_date:string = details.car.acquisition_date
+        var sale_date:string = details.car.sale_date
+        if acquisition_date.empty() {
+            acquisition_date = "Non renseignée"
+        }
+        if sale_date.empty() {
+            sale_date = "Non renseignée"
         }
         const car_details:CarViewModel = use CarViewModel(
             id: id.toStr(),
@@ -28,6 +68,9 @@ class CarView implements CarViewPort {
             maintenance_total: Format::price(details.maintenance_total),
             improvement_total: Format::price(details.improvement_total),
             rows_html: rows_html,
+            photos_html: photos_html,
+            acquisition_date: HTML::escape(acquisition_date),
+            sale_date: HTML::escape(sale_date),
             error_text: Flash::message(error_code),
             success_text: Flash::message(success_code)
         )

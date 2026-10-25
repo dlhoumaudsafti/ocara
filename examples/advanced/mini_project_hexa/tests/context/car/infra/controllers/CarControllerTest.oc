@@ -4,6 +4,7 @@ import ocara.HTTPServerRequest
 import ocara.HTTPRequest
 import ocara.HTTPResponse
 import ocara.Thread
+import ocara.File
 import context.car.infra.controllers.CarController
 import tests.support.fake.FakeDatabase
 
@@ -13,6 +14,7 @@ import tests.support.fake.FakeDatabase
 class CarControllerTest extends UnitTest {
     wiring tests.support.fake.FakeCarRepository
     wiring tests.support.fake.FakeMaintenanceRepository
+    wiring tests.support.fake.FakeCarPhotoRepository
 
     init() {
         var server:HTTPServer = use HTTPServer()
@@ -23,7 +25,8 @@ class CarControllerTest extends UnitTest {
         })
         server.route("/voitures/<id:int>", "GET", CarController::show)
         server.route("/voitures/ajouter", "POST", CarController::create)
-        server.route("/voitures/<id:int>/supprimer", "DELETE", CarController::delete)
+        server.route("/voitures/<id:int>/supprimer", "POST", CarController::delete)
+        server.route("/voitures/<id:int>/photos", "POST", CarController::addPhoto)
         var t:Thread = use Thread()
         t.run(nameless(): void { server.run() })
         t.detach()
@@ -54,7 +57,8 @@ class CarControllerTest extends UnitTest {
         FakeDatabase::reset()
         scoped res:HTTPResponse = self.post(
             "/voitures/ajouter",
-            "reference=TEST-OCUNIT-POST&brand=Renault&model=Clio&purchase_price=8000.25"
+            "reference=TEST-OCUNIT-POST&brand=Renault&model=Clio&purchase_price=8000.25&"
+            + "acquisition_date=2024-01-02&sale_date="
         )
         self::assertEquals(200, res.status())
         self::assertContains(res.body(), "TEST-OCUNIT-POST")
@@ -89,10 +93,86 @@ class CarControllerTest extends UnitTest {
         FakeDatabase::reset()
         const id:int = FakeDatabase::car("DELETE", "Fiat", "500", 5000.0)
         scoped req:HTTPRequest = HTTPRequest::new(`http://localhost:18101/voitures/${id}/supprimer`)
-        req.setMethod("DELETE")
+        req.setMethod("POST")
         scoped res:HTTPResponse = req.send()
-        self::assertEquals(404, res.status())
+        self::assertEquals(200, res.status())
         self::assertFalse(FakeDatabase::carExists(id))
+        return 0
+    }
+
+    public method addPhotoTest(): int {
+        FakeDatabase::reset()
+        const id:int = FakeDatabase::car("PHOTO", "Peugeot", "308", 12000.0)
+        scoped res:HTTPResponse = self.uploadPhoto(id, "photo.gif", "image/gif", "GIF89a")
+        self::assertEquals(200, res.status())
+        self::assertContains(res.body(), "Photo ajoutée à la galerie.")
+        self::assertContains(res.body(), `<img src="/uploads/car-${id}-`)
+        var photos:array<string> = FakeDatabase::photos(id)
+        self::assertEquals(1, photos.len())
+        File::remove("./public" + photos[0])
+        FakeDatabase::cleanup()
+        return 0
+    }
+
+    public method addPhotoUnknownCarTest(): int {
+        scoped res:HTTPResponse = self.uploadPhoto(999999999, "photo.gif", "image/gif", "GIF89a")
+        self::assertEquals(404, res.status())
+        return 0
+    }
+
+    public method addPhotoMissingFileTest(): int {
+        FakeDatabase::reset()
+        const id:int = FakeDatabase::car("PHOTO-MISSING", "Peugeot", "308", 12000.0)
+        const boundary:string = "OcaraPhotoEmptyBoundary"
+        var body:string = "--" + boundary + "--\r\n"
+        scoped req:HTTPRequest = HTTPRequest::new(`http://localhost:18101/voitures/${id}/photos`)
+        req.setMethod("POST")
+        req.setHeader("Content-Type", "multipart/form-data; boundary=" + boundary)
+        req.setBody(body)
+        scoped res:HTTPResponse = req.send()
+        self::assertEquals(200, res.status())
+        self::assertContains(res.body(), "Photo invalide")
+        self::assertEquals(0, FakeDatabase::photos(id).len())
+
+        var text_body:string = "--" + boundary + "\r\n"
+        text_body += "Content-Disposition: form-data; name=\"photo\"\r\n\r\n"
+        text_body += "not-a-file\r\n--" + boundary + "--\r\n"
+        scoped text_req:HTTPRequest = HTTPRequest::new(`http://localhost:18101/voitures/${id}/photos`)
+        text_req.setMethod("POST")
+        text_req.setHeader("Content-Type", "multipart/form-data; boundary=" + boundary)
+        text_req.setBody(text_body)
+        scoped text_res:HTTPResponse = text_req.send()
+        self::assertEquals(200, text_res.status())
+        self::assertContains(text_res.body(), "Photo invalide")
+        self::assertEquals(0, FakeDatabase::photos(id).len())
+        FakeDatabase::cleanup()
+        return 0
+    }
+
+    public method addPhotoUnsupportedTypeTest(): int {
+        FakeDatabase::reset()
+        const id:int = FakeDatabase::car("PHOTO-TYPE", "Peugeot", "308", 12000.0)
+        scoped res:HTTPResponse = self.uploadPhoto(id, "photo.txt", "text/plain", "not-an-image")
+        self::assertEquals(200, res.status())
+        self::assertContains(res.body(), "Photo invalide")
+        self::assertEquals(0, FakeDatabase::photos(id).len())
+        FakeDatabase::cleanup()
+        return 0
+    }
+
+    public method addPhotoInvalidSignatureTest(): int {
+        FakeDatabase::reset()
+        const id:int = FakeDatabase::car("PHOTO-SIGNATURE", "Peugeot", "308", 12000.0)
+        scoped jpeg:HTTPResponse = self.uploadPhoto(id, "photo.jpg", "image/jpeg", "abc")
+        scoped png:HTTPResponse = self.uploadPhoto(id, "photo.png", "image/png", "12345678")
+        scoped gif:HTTPResponse = self.uploadPhoto(id, "photo.gif", "image/gif", "GIF")
+        scoped webp:HTTPResponse = self.uploadPhoto(id, "photo.webp", "image/webp", "abcdefghijkl")
+        self::assertContains(jpeg.body(), "Photo invalide")
+        self::assertContains(png.body(), "Photo invalide")
+        self::assertContains(gif.body(), "Photo invalide")
+        self::assertContains(webp.body(), "Photo invalide")
+        self::assertEquals(0, FakeDatabase::photos(id).len())
+        FakeDatabase::cleanup()
         return 0
     }
 
@@ -100,6 +180,19 @@ class CarControllerTest extends UnitTest {
         scoped req:HTTPRequest = HTTPRequest::new("http://localhost:18101" + path)
         req.setMethod("POST")
         req.setHeader("Content-Type", "application/x-www-form-urlencoded")
+        req.setBody(body)
+        return req.send()
+    }
+
+    private method uploadPhoto(id:int, filename:string, content_type:string, content:string): HTTPResponse {
+        const boundary:string = "OcaraPhotoTestBoundary"
+        var body:string = "--" + boundary + "\r\n"
+        body += "Content-Disposition: form-data; name=\"photo\"; filename=\"" + filename + "\"\r\n"
+        body += "Content-Type: " + content_type + "\r\n\r\n"
+        body += content + "\r\n--" + boundary + "--\r\n"
+        scoped req:HTTPRequest = HTTPRequest::new(`http://localhost:18101/voitures/${id}/photos`)
+        req.setMethod("POST")
+        req.setHeader("Content-Type", "multipart/form-data; boundary=" + boundary)
         req.setBody(body)
         return req.send()
     }

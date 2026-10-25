@@ -6,6 +6,7 @@ import context.car.domain.entity.MaintenanceEntity
 struct CarDetailsDTO {
     public property car:CarEntity
     public property maintenances:array<MaintenanceEntity>
+    public property photos:array<string>
     public property maintenance_total:float
     public property improvement_total:float
 }

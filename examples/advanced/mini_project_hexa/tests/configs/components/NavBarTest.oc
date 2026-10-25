@@ -13,6 +13,8 @@ class NavBarTest extends UnitTest {
         const home:string = HTML::render('<nav-bar active="home">')
         self::assertContains(home, `class="nav-link active">Voitures</a>`)
         self::assertContains(home, `class="nav-link">Recherche</a>`)
+        self::assertContains(home, `aria-controls="mobile-drawer"`)
+        self::assertContains(home, `class="mobile-drawer-backdrop"`)
         const search:string = HTML::render('<nav-bar active="search">')
         self::assertContains(search, `class="nav-link">Voitures</a>`)
         self::assertContains(search, `class="nav-link active">Recherche</a>`)

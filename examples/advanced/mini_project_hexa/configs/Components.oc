@@ -11,6 +11,7 @@ import components.StatBadge
 import components.CarCard
 import components.MaintenanceRow
 import components.SearchMaintenance
+import components.Modal
 
 class Components {
     init() {
@@ -22,5 +23,6 @@ class Components {
         use CarCard()
         use MaintenanceRow()
         use SearchMaintenance()
+        use Modal()
     }
 }

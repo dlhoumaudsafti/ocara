@@ -32,6 +32,11 @@ class Database {
 
     public static method migrate(): void {
         const db:SQLite = self::connect()
+        self::migrateSchema(db)
+        db.close()
+    }
+
+    public static method migrateSchema(db:SQLite): void {
         db.execute(`CREATE TABLE IF NOT EXISTS cars (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             reference TEXT NOT NULL,
@@ -41,6 +46,23 @@ class Database {
             estimated_sale_price REAL NOT NULL,
             created_at INTEGER NOT NULL
         )`)
+        var has_acquisition_date:bool = false
+        var has_sale_date:bool = false
+        for row in db.query("PRAGMA table_info(cars)") {
+            var column:string = row["name"]
+            if column equal "acquisition_date" {
+                has_acquisition_date = true
+            }
+            if column equal "sale_date" {
+                has_sale_date = true
+            }
+        }
+        if not has_acquisition_date {
+            db.execute("ALTER TABLE cars ADD COLUMN acquisition_date TEXT NOT NULL DEFAULT ''")
+        }
+        if not has_sale_date {
+            db.execute("ALTER TABLE cars ADD COLUMN sale_date TEXT NOT NULL DEFAULT ''")
+        }
         db.execute(`CREATE TABLE IF NOT EXISTS maintenances (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             car_id INTEGER NOT NULL,
@@ -50,6 +72,29 @@ class Database {
             created_at INTEGER NOT NULL,
             FOREIGN KEY(car_id) REFERENCES cars(id) ON DELETE CASCADE
         )`)
-        db.close()
+        var has_material_source:bool = false
+        var has_lifespan_days:bool = false
+        for row in db.query("PRAGMA table_info(maintenances)") {
+            var column:string = row["name"]
+            if column equal "material_source" {
+                has_material_source = true
+            }
+            if column equal "lifespan_days" {
+                has_lifespan_days = true
+            }
+        }
+        if not has_material_source {
+            db.execute("ALTER TABLE maintenances ADD COLUMN material_source TEXT NOT NULL DEFAULT ''")
+        }
+        if not has_lifespan_days {
+            db.execute("ALTER TABLE maintenances ADD COLUMN lifespan_days INTEGER NOT NULL DEFAULT 0")
+        }
+        db.execute(`CREATE TABLE IF NOT EXISTS car_photos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            car_id INTEGER NOT NULL,
+            path TEXT NOT NULL DEFAULT '',
+            FOREIGN KEY(car_id) REFERENCES cars(id) ON DELETE CASCADE
+        )`)
     }
+
 }

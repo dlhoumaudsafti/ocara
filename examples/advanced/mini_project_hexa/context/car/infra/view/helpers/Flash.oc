@@ -15,6 +15,9 @@ class Flash {
             "invalid_cost"       => "La description et le coût de l'entretien doivent être valides."
             "not_found"          => "Voiture introuvable."
             "car_added"          => "Voiture ajoutée avec succès."
+            "car_deleted"        => "Voiture supprimée avec succès."
+            "photo_added"        => "Photo ajoutée à la galerie."
+            "invalid_photo"      => "Photo invalide (JPEG, PNG, WebP ou GIF, 10 Mo maximum)."
             "maintenance_added"  => "Entretien ajouté — prix de vente estimé mis à jour."
             default              => ""
         }

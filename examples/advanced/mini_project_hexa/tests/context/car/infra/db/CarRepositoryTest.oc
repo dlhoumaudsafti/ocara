@@ -29,13 +29,17 @@ class CarRepositoryTest extends UnitTest {
     // Le prix de vente estimé démarre égal au prix d'achat.
     public method createTest(): int {
         Fixture::reset()
-        const id:int = CarRepository::create("TEST-OCUNIT-NEW", "Renault", "Clio", 8000.25)
+        const id:int = CarRepository::create(
+            "TEST-OCUNIT-NEW", "Renault", "Clio", 8000.25, "2024-02-01", "2025-03-01"
+        )
         self::assertTrue(id greater 0)
         const car:CarEntity|null = CarRepository::find(id)
         self::assertNotNull(car)
         self::assertEquals("Renault", car.brand)
         self::assertEquals(8000.25, car.purchase_price)
         self::assertEquals(8000.25, car.estimated_price)
+        self::assertEquals("2024-02-01", car.acquisition_date)
+        self::assertEquals("2025-03-01", car.sale_date)
         Fixture::cleanup()
         return 0
     }

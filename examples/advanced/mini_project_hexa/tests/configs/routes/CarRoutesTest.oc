@@ -10,6 +10,7 @@ import tests.support.fake.FakeDatabase
 class CarRoutesTest extends UnitTest {
     wiring tests.support.fake.FakeCarRepository
     wiring tests.support.fake.FakeMaintenanceRepository
+    wiring tests.support.fake.FakeCarPhotoRepository
 
     init() {
         FakeDatabase::reset()
@@ -32,7 +33,7 @@ class CarRoutesTest extends UnitTest {
         scoped add:HTTPRequest = HTTPRequest::new(`http://localhost:18114/voitures/${id}/entretiens`)
         add.setMethod("POST")
         add.setHeader("Content-Type", "application/x-www-form-urlencoded")
-        add.setBody("type=improvement&description=Jantes&cost=250")
+        add.setBody("type=improvement&description=Jantes&cost=250&material_source=&lifespan_days=")
         scoped added:HTTPResponse = add.send()
         self::assertEquals(200, added.status())
         self::assertEquals(1, FakeDatabase::maintenanceCount(id))
@@ -40,13 +41,15 @@ class CarRoutesTest extends UnitTest {
         scoped create:HTTPRequest = HTTPRequest::new("http://localhost:18114/voitures/ajouter")
         create.setMethod("POST")
         create.setHeader("Content-Type", "application/x-www-form-urlencoded")
-        create.setBody("reference=TEST-OCUNIT-ROUTES2&brand=Fiat&model=Panda&purchase_price=4000")
+        create.setBody(
+            "reference=TEST-OCUNIT-ROUTES2&brand=Fiat&model=Panda&purchase_price=4000&acquisition_date=&sale_date="
+        )
         scoped created:HTTPResponse = create.send()
         self::assertEquals(200, created.status())
         self::assertContains(created.body(), "TEST-OCUNIT-ROUTES2")
 
         scoped del:HTTPRequest = HTTPRequest::new(`http://localhost:18114/voitures/${id}/supprimer`)
-        del.setMethod("DELETE")
+        del.setMethod("POST")
         scoped deleted:HTTPResponse = del.send()
         self::assertFalse(FakeDatabase::carExists(id))
         self::assertEquals(0, FakeDatabase::maintenanceCount(id))

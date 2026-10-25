@@ -5,6 +5,7 @@ import context.car.domain.entity.CarEntity
 import context.car.domain.entity.MaintenanceEntity
 import context.car.domain.contract.CarContract
 import context.car.domain.contract.MaintenanceContract
+import context.car.domain.contract.CarPhotoContract
 
 class CarDetailsService {
 
@@ -23,6 +24,7 @@ class CarDetailsService {
         return use CarDetailsDTO(
             car,
             maintenances,
+            CarPhotoContract::forCar(carId),
             maintenance_total,
             improvement_total
         )

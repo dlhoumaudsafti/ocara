@@ -4,18 +4,22 @@ import context.car.domain.entity.MaintenanceEntity
 class MaintenanceEntityTest extends UnitTest {
 
     public method initTest(): int {
-        const m:MaintenanceEntity = use MaintenanceEntity(3, 7, "improvement", "Peinture", 500.0, 1790255242)
+        const m:MaintenanceEntity = use MaintenanceEntity(
+            3, 7, "improvement", "Peinture", 500.0, "Fournisseur", 365, 1790255242
+        )
         self::assertEquals(3, m.id)
         self::assertEquals(7, m.car_id)
         self::assertEquals("improvement", m.type)
         self::assertEquals("Peinture", m.description)
         self::assertEquals(500.0, m.cost)
+        self::assertEquals("Fournisseur", m.material_source)
+        self::assertEquals(365, m.lifespan_days)
         self::assertEquals(1790255242, m.created_at)
         return 0
     }
 
     public method initWithoutIdTest(): int {
-        const m:MaintenanceEntity = use MaintenanceEntity(null, 7, "maintenance", "Vidange", 80.0, 0)
+        const m:MaintenanceEntity = use MaintenanceEntity(null, 7, "maintenance", "Vidange", 80.0, "", 0, 0)
         self::assertNull(m.id)
         return 0
     }

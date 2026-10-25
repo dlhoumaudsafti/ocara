@@ -20,10 +20,15 @@ class Layout extends HTMLComponent {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title} — Garage Ocara</title>
   <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/css.d/modal.css">
+  <script src="/main.js" type="module"></script>
 </head>
 <body>
   <nav-bar active="${active}">
   <main class="container">${content}</main>
+  <modal-confirm>
+  <modal-alert>
+  <modal-info>
   <footer>
     Garage Ocara - gestion d'entretien de flotte, compilé nativement avec Ocara
   </footer>

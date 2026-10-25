@@ -13,8 +13,11 @@ import ocara.Array
 import ocara.Map
 import ocara.Convert
 import ocara.String
+import ocara.File
+import ocara.Directory
 import context.car.domain.entity.CarEntity
 import context.car.domain.contract.CarContract
+import context.car.domain.contract.CarPhotoContract
 import context.car.app.port.CarViewPort
 import context.car.app.usecase.CarDetailsService
 import context.car.app.dto.CarDetailsDTO
@@ -44,6 +47,8 @@ class CarController {
         const reference:string = req.param("reference").trim()
         const brand:string     = req.param("brand").trim()
         const model:string     = req.param("model").trim()
+        const acquisition_date:string = req.param("acquisition_date").trim()
+        const sale_date:string = req.param("sale_date").trim()
         consumed price_str:string = req.param("purchase_price").trim()
         scoped price:float     = price_str.toFloat()
 
@@ -58,7 +63,9 @@ class CarController {
             return 0
         }
 
-        consumed id:int = CarContract::create(reference, brand, model, price)
+        consumed id:int = CarContract::create(
+            reference, brand, model, price, acquisition_date, sale_date
+        )
 
         req.respondHeader("Location", `/voitures/${id}?success=car_added`)
         req.respond(302, "")
@@ -67,9 +74,92 @@ class CarController {
 
     public static method delete(req:HTTPServerRequest): int {
         var id:int = req.param("id")
+        CarPhotoContract::deleteForCar(id)
         CarContract::delete(id)
-        req.respondHeader("Location", `/voitures/${id}?success=car_deleted`)
-        req.respond(302, "")
+        req.respondHeader("Location", "/?success=car_deleted")
+        req.respond(303, "")
+        return 0
+    }
+
+    public static method addPhoto(req:HTTPServerRequest): int {
+        var id:int = req.param("id")
+        const car:CarEntity|null = CarContract::find(id)
+        if car is null {
+            req.respond(404, "")
+            return 0
+        }
+        const params:map<string, map<string, mixed>> = req.params()
+        const post_params:map<string, mixed> = Map::get(params, "POST")
+        if not Map::has(post_params, "photo") {
+            req.respondHeader("Location", `/voitures/${id}?error=invalid_photo`)
+            req.respond(303, "")
+            return 0
+        }
+        var photo:map<string, mixed> = match Map::get(post_params, "photo") {
+            is map<string, mixed> => Map::get(post_params, "photo")
+            default => {}
+        }
+        if photo.size() equal 0 {
+            req.respondHeader("Location", `/voitures/${id}?error=invalid_photo`)
+            req.respond(303, "")
+            return 0
+        }
+
+        var content_type:string = photo["contentType"]
+        var extension:string = match content_type {
+            "image/jpeg" => "jpg"
+            "image/png" => "png"
+            "image/webp" => "webp"
+            "image/gif" => "gif"
+            default => ""
+        }
+        var content:array<int> = photo["content"]
+        var valid_signature:bool = false
+        if extension equal "jpg" {
+            if content.len() greater or equal 3 {
+                valid_signature = content[0] equal 255 and content[1] equal 216 and content[2] equal 255
+            }
+        }
+        if extension equal "png" {
+            if content.len() greater or equal 8 {
+                valid_signature = content[0] equal 137 and content[1] equal 80
+                    and content[2] equal 78 and content[3] equal 71
+                    and content[4] equal 13 and content[5] equal 10
+                    and content[6] equal 26 and content[7] equal 10
+            }
+        }
+        if extension equal "gif" {
+            if content.len() greater or equal 6 {
+                valid_signature = content[0] equal 71 and content[1] equal 73
+                    and content[2] equal 70 and content[3] equal 56
+            }
+        }
+        if extension equal "webp" {
+            if content.len() greater or equal 12 {
+                valid_signature = content[0] equal 82 and content[1] equal 73
+                    and content[2] equal 70 and content[3] equal 70
+                    and content[8] equal 87 and content[9] equal 69
+                    and content[10] equal 66 and content[11] equal 80
+            }
+        }
+        var size:int = photo["size"]
+        if extension.empty()
+            or not valid_signature
+            or size greater 10485760
+            or size smaller 1
+            or size not equal content.len() {
+            req.respondHeader("Location", `/voitures/${id}?error=invalid_photo`)
+            req.respond(303, "")
+            return 0
+        }
+
+        Directory::createRecursive("./public/uploads")
+        var photo_id:int = CarPhotoContract::reserve(id)
+        var path:string = "/uploads/car-" + id.toStr() + "-" + photo_id.toStr() + "." + extension
+        File::writeBytes("./public" + path, content)
+        CarPhotoContract::setPath(photo_id, path)
+        req.respondHeader("Location", `/voitures/${id}?success=photo_added`)
+        req.respond(303, "")
         return 0
     }
 }

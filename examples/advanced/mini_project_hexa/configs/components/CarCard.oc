@@ -5,22 +5,24 @@ namespace configs.components
 // fait que de la présentation, aucun calcul.
 
 import ocara.HTMLComponent
+import ocara.HTML
 
 class CarCard extends HTMLComponent {
     init() {
         parent::init("car-card")
         self.register(nameless(attrs:map<string, string>): string {
-            consumed id:string              = attrs["id"]
-            consumed reference:string       = attrs["reference"]
+            scoped id:string              = attrs["id"]
+            scoped reference:string       = attrs["reference"]
             consumed brand:string           = attrs["brand"]
             consumed model:string           = attrs["model"]
             consumed purchase_price:string   = attrs["purchase_price"]
             consumed estimated_price:string  = attrs["estimated_price"]
             consumed maintenance_total:string = attrs["maintenance_total"]
-            return `<a class="car-card" href="/voitures/${id}">
+            return `<article class="car-card">
+      <a class="car-card-link" href="/voitures/${id}">
       <div class="car-card-header">
-        <span class="car-reference">${reference}</span>
-        <span class="car-model">${brand} ${model}</span>
+        <span class="car-reference">${HTML::escape(reference)}</span>
+        <span class="car-model">${HTML::escape(brand)} ${HTML::escape(model)}</span>
       </div>
       <div class="car-card-body">
         <div class="car-stat">
@@ -36,7 +38,14 @@ class CarCard extends HTMLComponent {
           <span class="car-stat-value">${maintenance_total}</span>
         </div>
       </div>
-    </a>`
+      </a>
+      <form method="POST" action="/voitures/${id}/supprimer" class="car-delete-form"
+        data-confirm-message="Supprimer définitivement cette voiture ?">
+        <button type="submit" class="car-delete-button"
+          aria-label="Supprimer ${HTML::escape(reference)}"
+          title="Supprimer">🗑</button>
+      </form>
+    </article>`
         })
     }
 }

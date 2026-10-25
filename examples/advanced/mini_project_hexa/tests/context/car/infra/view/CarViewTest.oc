@@ -1,5 +1,6 @@
 import ocara.UnitTest
 import ocara.String
+import ocara.DateTime
 import context.car.domain.entity.CarEntity
 import context.car.domain.entity.MaintenanceEntity
 import context.car.app.dto.CarDetailsDTO
@@ -8,11 +9,15 @@ import context.car.infra.view.CarView
 class CarViewTest extends UnitTest {
 
     public method showTest(): int {
-        const car:CarEntity = use CarEntity(7, "REF-VIEW", "Peugeot", "308", 12000.5, 12500.5)
+        const car:CarEntity = use CarEntity(
+            7, "REF-VIEW", "Peugeot", "308", 12000.5, 12500.5, "2024-01-01", "2025-01-01"
+        )
         var maintenances:array<MaintenanceEntity> = []
-        maintenances.push(use MaintenanceEntity(1, 7, "maintenance", "Vidange moteur", 80.0, 1790251200))
-        maintenances.push(use MaintenanceEntity(2, 7, "improvement", "Peinture", 500.0, 1790251200))
-        const details:CarDetailsDTO = use CarDetailsDTO(car, maintenances, 80.0, 500.0)
+        maintenances.push(use MaintenanceEntity(1, 7, "maintenance", "Vidange moteur", 80.0, "Garage", 0, 1790251200))
+        maintenances.push(use MaintenanceEntity(2, 7, "improvement", "Peinture", 500.0, "", 0, 1790251200))
+        const details:CarDetailsDTO = use CarDetailsDTO(
+            car, maintenances, ["/uploads/photo.jpg"], 80.0, 500.0
+        )
 
         const html:string = CarView::show(7, details, "invalid_cost", "maintenance_added")
         self::assertContains(html, "REF-VIEW")
@@ -20,6 +25,8 @@ class CarViewTest extends UnitTest {
         self::assertContains(html, "12500,50 €")
         self::assertContains(html, "Vidange moteur")
         self::assertContains(html, "24/09/2026")
+        self::assertContains(html, "2024-01-01")
+        self::assertContains(html, `<img src="/uploads/photo.jpg"`)
         self::assertContains(html, "La description et le coût de l'entretien doivent être valides.")
         self::assertContains(html, "Entretien ajouté — prix de vente estimé mis à jour.")
         self::assertEquals(1, String::split(html, "Aucun entretien enregistré").len())
@@ -27,10 +34,23 @@ class CarViewTest extends UnitTest {
     }
 
     public method showWithoutMaintenanceTest(): int {
-        const car:CarEntity = use CarEntity(8, "REF-EMPTY", "Renault", "Clio", 8000.0, 8000.0)
-        const details:CarDetailsDTO = use CarDetailsDTO(car, [], 0.0, 0.0)
+        const car:CarEntity = use CarEntity(8, "REF-EMPTY", "Renault", "Clio", 8000.0, 8000.0, "", "")
+        const details:CarDetailsDTO = use CarDetailsDTO(car, [], [], 0.0, 0.0)
         const html:string = CarView::show(8, details, "", "")
         self::assertContains(html, "Aucun entretien enregistré pour cette voiture.")
+        return 0
+    }
+
+    public method replacementWindowTest(): int {
+        const now:int = DateTime::now()
+        const car:CarEntity = use CarEntity(9, "REF-LIFE", "Renault", "Clio", 8000.0, 8000.0, "", "")
+        var maintenances:array<MaintenanceEntity> = []
+        maintenances.push(use MaintenanceEntity(1, 9, "maintenance", "À remplacer bientôt", 80.0, "", 90, now))
+        maintenances.push(use MaintenanceEntity(2, 9, "maintenance", "Déjà expiré", 80.0, "", 10, now - 20 * 86400))
+        const details:CarDetailsDTO = use CarDetailsDTO(car, maintenances, [], 160.0, 0.0)
+        const html:string = CarView::show(9, details, "", "")
+        self::assertContains(html, `due_date="`)
+        self::assertContains(html, `replacement_color="rgb(255, 0, 0)"`)
         return 0
     }
 }

@@ -1,0 +1,20 @@
+import context.car.domain.contract.CarPhotoContract
+import tests.support.fake.FakeDatabase
+
+class FakeCarPhotoRepository implements CarPhotoContract {
+    public static method reserve(car_id:int): int {
+        return FakeDatabase::addPhoto(car_id, "")
+    }
+
+    public static method setPath(id:int, path:string): void {
+        FakeDatabase::setPhotoPath(id, path)
+    }
+
+    public static method forCar(car_id:int): array<string> {
+        return FakeDatabase::photos(car_id)
+    }
+
+    public static method deleteForCar(car_id:int): void {
+        FakeDatabase::deletePhotos(car_id)
+    }
+}

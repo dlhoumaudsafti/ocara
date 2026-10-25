@@ -7,6 +7,7 @@ import tests.support.fake.FakeDatabase
 class CarDetailsServiceTest extends UnitTest {
     wiring tests.support.fake.FakeCarRepository
     wiring tests.support.fake.FakeMaintenanceRepository
+    wiring tests.support.fake.FakeCarPhotoRepository
 
     public method buildTest(): int {
         FakeDatabase::reset()
@@ -14,12 +15,15 @@ class CarDetailsServiceTest extends UnitTest {
         FakeDatabase::maintenance(car_id, "maintenance", "Vidange", 80.0)
         FakeDatabase::maintenance(car_id, "improvement", "Peinture", 500.0)
         FakeDatabase::maintenance(car_id, "improvement", "Jantes", 200.0)
+        FakeDatabase::addPhoto(car_id, "/uploads/test-photo.jpg")
         const details:CarDetailsDTO|null = CarDetailsService::build(car_id)
         self::assertNotNull(details)
         self::assertEquals("TEST-OCUNIT-DETAILS", details.car.reference)
         self::assertEquals(3, details.maintenances.len())
         self::assertEquals(80.0, details.maintenance_total)
         self::assertEquals(700.0, details.improvement_total)
+        self::assertEquals(1, details.photos.len())
+        self::assertEquals("/uploads/test-photo.jpg", details.photos[0])
         FakeDatabase::cleanup()
         return 0
     }

@@ -8,7 +8,9 @@ class MaintenanceRepositoryTest extends UnitTest {
     public method createTest(): int {
         Fixture::reset()
         const car_id:int = Fixture::car("MCREATE", "Peugeot", "208", 9000.0)
-        const id:int = MaintenanceRepository::create(car_id, "maintenance", "Vidange", 80.0)
+        const id:int = MaintenanceRepository::create(
+            car_id, "maintenance", "Vidange", 80.0, "Garage local", 180
+        )
         self::assertTrue(id greater 0)
         consumed items:Resolvable<array<MaintenanceEntity>> = MaintenanceRepository::forCar(car_id)
         const list:array<MaintenanceEntity> = resolve items
@@ -18,6 +20,8 @@ class MaintenanceRepositoryTest extends UnitTest {
         self::assertEquals("maintenance", list[0].type)
         self::assertEquals("Vidange", list[0].description)
         self::assertEquals(80.0, list[0].cost)
+        self::assertEquals("Garage local", list[0].material_source)
+        self::assertEquals(180, list[0].lifespan_days)
         Fixture::cleanup()
         return 0
     }

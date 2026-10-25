@@ -1,0 +1,47 @@
+namespace configs.components
+
+import ocara.HTMLComponent
+
+class Modal {
+    init() {
+        var confirm_modal:HTMLComponent = use HTMLComponent("modal-confirm")
+        confirm_modal.register(nameless(attrs:map<string, mixed>): string {
+            return `<dialog class="ocara-modal" data-ocara-modal="confirm" aria-labelledby="ocara-confirm-title">
+  <form method="dialog">
+    <h2 id="ocara-confirm-title">Confirmation</h2>
+    <p data-modal-message></p>
+    <div class="ocara-modal-actions">
+      <button type="submit" value="cancel" data-modal-cancel>Annuler</button>
+      <button type="submit" value="confirm" data-modal-confirm>Confirmer</button>
+    </div>
+  </form>
+</dialog>`
+        })
+
+        var alert_modal:HTMLComponent = use HTMLComponent("modal-alert")
+        alert_modal.register(nameless(attrs:map<string, mixed>): string {
+            return `<dialog class="ocara-modal" data-ocara-modal="alert" aria-labelledby="ocara-alert-title">
+  <form method="dialog">
+    <h2 id="ocara-alert-title">Attention</h2>
+    <p data-modal-message></p>
+    <div class="ocara-modal-actions">
+      <button type="submit" value="close" data-modal-confirm>OK</button>
+    </div>
+  </form>
+</dialog>`
+        })
+
+        var info_modal:HTMLComponent = use HTMLComponent("modal-info")
+        info_modal.register(nameless(attrs:map<string, mixed>): string {
+            return `<dialog class="ocara-modal" data-ocara-modal="info" aria-labelledby="ocara-info-title">
+  <form method="dialog">
+    <h2 id="ocara-info-title">Information</h2>
+    <p data-modal-message></p>
+    <div class="ocara-modal-actions">
+      <button type="submit" value="close" data-modal-confirm>OK</button>
+    </div>
+  </form>
+</dialog>`
+        })
+    }
+}

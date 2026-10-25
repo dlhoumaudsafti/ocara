@@ -26,4 +26,5 @@ class Format {
     public static method date(timestamp:int): string {
         return DateTime::format(timestamp, "%d/%m/%Y")
     }
+
 }

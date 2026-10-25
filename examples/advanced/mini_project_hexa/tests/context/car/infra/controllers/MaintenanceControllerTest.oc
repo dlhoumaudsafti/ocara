@@ -13,6 +13,7 @@ import tests.support.fake.FakeDatabase
 class MaintenanceControllerTest extends UnitTest {
     wiring tests.support.fake.FakeCarRepository
     wiring tests.support.fake.FakeMaintenanceRepository
+    wiring tests.support.fake.FakeCarPhotoRepository
 
     init() {
         var server:HTTPServer = use HTTPServer()
@@ -29,10 +30,15 @@ class MaintenanceControllerTest extends UnitTest {
     public method createTest(): int {
         FakeDatabase::reset()
         const id:int = FakeDatabase::car("MAINT", "Peugeot", "308", 10000.0)
-        scoped res:HTTPResponse = self.post(id, "type=improvement&description=Peinture&cost=500")
+        scoped res:HTTPResponse = self.post(
+            id, "type=improvement&description=Peinture&cost=500&material_source=Garage&lifespan_days=180"
+        )
         self::assertEquals(200, res.status())
         self::assertContains(res.body(), "Entretien ajouté — prix de vente estimé mis à jour.")
         self::assertEquals(1, FakeDatabase::maintenanceCount(id))
+        const saved:map<string, mixed> = FakeDatabase::maintenances(id)[0]
+        self::assertEquals("Garage", saved["material_source"])
+        self::assertEquals(180, saved["lifespan_days"])
         self::assertEquals(10500.0, FakeDatabase::estimatedPrice(id))
         FakeDatabase::cleanup()
         return 0
@@ -42,7 +48,9 @@ class MaintenanceControllerTest extends UnitTest {
     public method createMaintenanceKeepsPriceTest(): int {
         FakeDatabase::reset()
         const id:int = FakeDatabase::car("MAINT2", "Peugeot", "308", 10000.0)
-        scoped res:HTTPResponse = self.post(id, "type=maintenance&description=Vidange&cost=80")
+        self.post(
+            id, "type=maintenance&description=Vidange&cost=80&material_source=&lifespan_days="
+        )
         self::assertEquals(1, FakeDatabase::maintenanceCount(id))
         self::assertEquals(10000.0, FakeDatabase::estimatedPrice(id))
         FakeDatabase::cleanup()
@@ -52,11 +60,21 @@ class MaintenanceControllerTest extends UnitTest {
     public method createInvalidTest(): int {
         FakeDatabase::reset()
         const id:int = FakeDatabase::car("MAINT3", "Peugeot", "308", 10000.0)
-        scoped bad_cost:HTTPResponse = self.post(id, "type=maintenance&description=Vidange&cost=0")
-        scoped bad_type:HTTPResponse = self.post(id, "type=autre&description=Vidange&cost=80")
-        scoped no_desc:HTTPResponse = self.post(id, "type=maintenance&description=%20&cost=80")
+        consumed bad_cost:HTTPResponse = self.post(id,
+            "type=maintenance&description=Vidange&cost=0&material_source=&lifespan_days="
+        )
+        consumed bad_type:HTTPResponse = self.post(id,
+            "type=autre&description=Vidange&cost=80&material_source=&lifespan_days="
+        )
+        consumed bad_lifespan:HTTPResponse = self.post(id,
+            "type=maintenance&description=Vidange&cost=80&material_source=&lifespan_days=0"
+        )
+        consumed no_desc:HTTPResponse = self.post(id,
+            "type=maintenance&description=%20&cost=80&material_source=&lifespan_days="
+        )
         self::assertContains(bad_cost.body(), "coût de l")
         self::assertContains(bad_type.body(), "coût de l")
+        self::assertContains(bad_lifespan.body(), "coût de l")
         self::assertContains(no_desc.body(), "coût de l")
         self::assertEquals(0, FakeDatabase::maintenanceCount(id))
         FakeDatabase::cleanup()

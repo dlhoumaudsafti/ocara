@@ -11,6 +11,9 @@ struct CarViewModel {
     public property maintenance_total:string
     public property improvement_total:string
     public property rows_html:string
+    public property photos_html:string
+    public property acquisition_date:string
+    public property sale_date:string
     public property error_text:string
     public property success_text:string
 }

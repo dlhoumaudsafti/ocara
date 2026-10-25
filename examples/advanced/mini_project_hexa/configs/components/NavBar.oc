@@ -8,9 +8,19 @@ class NavBar extends HTMLComponent {
         parent::init("nav-bar")
         self.register(nameless(attrs:map<string, string>): string {
             scoped active:string    = attrs["active"]
-            consumed home_cls:string   = match active { "home"   => " active" default => "" }
-            consumed search_cls:string = match active { "search" => " active" default => "" }
+            scoped home_cls:string   = match active { "home"   => " active" default => "" }
+            scoped search_cls:string = match active { "search" => " active" default => "" }
             return `<nav>
+      <button type="button" class="mobile-menu-toggle" aria-label="Ouvrir le menu"
+        aria-controls="mobile-drawer" aria-expanded="false"><span aria-hidden="true">☰</span></button>
+      <div class="mobile-drawer-backdrop" data-drawer-close aria-hidden="true"></div>
+      <aside id="mobile-drawer" class="mobile-drawer" aria-hidden="true" inert>
+          <button type="button" class="mobile-drawer-close" data-drawer-close aria-label="Fermer le menu">
+            <span aria-hidden="true">×</span>
+          </button>
+          <a href="/" class="nav-link${home_cls}">Voitures</a>
+          <a href="/recherche" class="nav-link${search_cls}">Recherche</a>
+      </aside>
       <a href="/" class="brand">
         <img src="/imgs/logo-min.svg" alt="Logo Ocara">
         <span class="brand-text">Garage Ocara</span>

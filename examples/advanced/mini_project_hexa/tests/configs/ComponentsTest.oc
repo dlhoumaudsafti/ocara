@@ -40,6 +40,9 @@ class ComponentsTest extends UnitTest {
         self::assertContains(html, `class="car-card"`)
         self::assertContains(html, `<div class="maintenance-row">`)
         self::assertContains(html, `class="maintenance-row search-result"`)
+        self::assertContains(html, `data-ocara-modal="confirm"`)
+        self::assertContains(html, `data-ocara-modal="alert"`)
+        self::assertContains(html, `data-ocara-modal="info"`)
         return 0
     }
 }

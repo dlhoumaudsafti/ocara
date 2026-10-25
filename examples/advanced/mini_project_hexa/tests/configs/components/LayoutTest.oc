@@ -2,12 +2,14 @@ import ocara.UnitTest
 import ocara.HTML
 import configs.components.Layout
 import configs.components.NavBar
+import configs.components.Modal
 
 class LayoutTest extends UnitTest {
 
     init() {
         use Layout()
         use NavBar()
+        use Modal()
     }
 
     public method renderTest(): int {
@@ -15,6 +17,10 @@ class LayoutTest extends UnitTest {
         self::assertContains(html, "<title>Accueil — Garage Ocara</title>")
         self::assertContains(html, `<main class="container"><p>Contenu</p></main>`)
         self::assertContains(html, `class="nav-link active">Voitures</a>`)
+        self::assertContains(html, `data-ocara-modal="confirm"`)
+        self::assertContains(html, `data-ocara-modal="alert"`)
+        self::assertContains(html, `data-ocara-modal="info"`)
+        self::assertContains(html, `<script src="/main.js" type="module">`)
         return 0
     }
 }

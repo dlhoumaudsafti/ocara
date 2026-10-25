@@ -1,7 +1,10 @@
 <layout title="Voitures" active="home">
   <div class="page-header">
     <h1>Flotte de véhicules</h1>
-    <search-bar q="">
+    <details class="home-search">
+      <summary aria-label="Afficher la recherche">⌕ Recherche</summary>
+      <search-bar q="">
+    </details>
   </div>
 
   <alert kind="error" message="${home.error_text}">
@@ -28,6 +31,12 @@
       </label>
       <label>Prix d'achat (€)
         <input type="number" step="0.01" min="0" name="purchase_price" placeholder="8500" required>
+      </label>
+      <label>Date d'acquisition
+        <input type="date" name="acquisition_date">
+      </label>
+      <label>Date de cession
+        <input type="date" name="sale_date">
       </label>
       <button type="submit">Ajouter la voiture</button>
     </form>

@@ -8,6 +8,7 @@ import ocara.DateTime
 
 const FAKE_CARS:array<map<string, mixed>> = []
 const FAKE_MAINTENANCES:array<map<string, mixed>> = []
+const FAKE_CAR_PHOTOS:array<map<string, mixed>> = []
 const FAKE_SEQUENCE:map<string, int> = {"id": 0}
 
 class FakeDatabase {
@@ -16,6 +17,7 @@ class FakeDatabase {
     public static method reset(): void {
         self::clear(FAKE_CARS)
         self::clear(FAKE_MAINTENANCES)
+        self::clear(FAKE_CAR_PHOTOS)
     }
 
     public static method cleanup(): void {
@@ -24,14 +26,21 @@ class FakeDatabase {
 
     // Voiture de test `TEST-OCUNIT-<suffix>` ; prix de vente estimé = prix d'achat.
     public static method car(suffix:string, brand:string, model:string, price:float): int {
-        return self::insertCar("TEST-OCUNIT-" + suffix, brand, model, price)
+        return self::insertCar("TEST-OCUNIT-" + suffix, brand, model, price, "", "")
     }
 
     public static method maintenance(car_id:int, type:string, description:string, cost:float): void {
-        self::insertMaintenance(car_id, type, description, cost)
+        self::insertMaintenance(car_id, type, description, cost, "", 0)
     }
 
-    public static method insertCar(reference:string, brand:string, model:string, price:float): int {
+    public static method insertCar(
+        reference:string,
+        brand:string,
+        model:string,
+        price:float,
+        acquisition_date:string,
+        sale_date:string
+    ): int {
         const id:int = self::nextId()
         FAKE_CARS.push({
             "id": id,
@@ -40,12 +49,21 @@ class FakeDatabase {
             "model": model,
             "purchase_price": price,
             "estimated_sale_price": price,
+            "acquisition_date": acquisition_date,
+            "sale_date": sale_date,
             "created_at": DateTime::now()
         })
         return id
     }
 
-    public static method insertMaintenance(car_id:int, type:string, description:string, cost:float): int {
+    public static method insertMaintenance(
+        car_id:int,
+        type:string,
+        description:string,
+        cost:float,
+        material_source:string,
+        lifespan_days:int
+    ): int {
         const id:int = self::nextId()
         FAKE_MAINTENANCES.push({
             "id": id,
@@ -53,6 +71,8 @@ class FakeDatabase {
             "type": type,
             "description": description,
             "cost": cost,
+            "material_source": material_source,
+            "lifespan_days": lifespan_days,
             "created_at": DateTime::now()
         })
         return id
@@ -109,7 +129,39 @@ class FakeDatabase {
     // La voiture et ses entretiens.
     public static method deleteCar(id:int): void {
         self::removeWhere(FAKE_MAINTENANCES, "car_id", id)
+        self::removeWhere(FAKE_CAR_PHOTOS, "car_id", id)
         self::removeWhere(FAKE_CARS, "id", id)
+    }
+
+    public static method addPhoto(car_id:int, path:string): int {
+        const id:int = self::nextId()
+        FAKE_CAR_PHOTOS.push({"id": id, "car_id": car_id, "path": path})
+        return id
+    }
+
+    public static method setPhotoPath(id:int, path:string): void {
+        for row in FAKE_CAR_PHOTOS {
+            var photo_id:int = row["id"]
+            if photo_id equal id {
+                row["path"] = path
+            }
+        }
+    }
+
+    public static method photos(car_id:int): array<string> {
+        var paths:array<string> = []
+        for row in FAKE_CAR_PHOTOS {
+            var owner:int = row["car_id"]
+            if owner equal car_id {
+                var path:string = row["path"]
+                paths.push(path)
+            }
+        }
+        return paths
+    }
+
+    public static method deletePhotos(car_id:int): void {
+        self::removeWhere(FAKE_CAR_PHOTOS, "car_id", car_id)
     }
 
     public static method estimatedPrice(car_id:int): float {

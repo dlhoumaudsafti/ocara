@@ -1,0 +1,49 @@
+.ocara-modal {
+  width: min(92vw, 440px);
+  max-width: 440px;
+  padding: 24px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 18px 60px rgba(10, 20, 30, 0.28);
+}
+
+.ocara-modal::backdrop {
+  background: rgba(10, 20, 30, 0.56);
+  backdrop-filter: blur(2px);
+}
+
+.ocara-modal h2 {
+  margin-bottom: 10px;
+}
+
+.ocara-modal p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.ocara-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.ocara-modal-actions button[value="cancel"] {
+  color: var(--ink);
+  background: #e8edf1;
+}
+
+.ocara-modal-actions button[value="confirm"] {
+  background: var(--danger);
+}
+
+.ocara-modal-actions button:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ocara-modal { scroll-behavior: auto; }
+}

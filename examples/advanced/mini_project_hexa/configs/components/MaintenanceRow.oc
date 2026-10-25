@@ -5,6 +5,7 @@ namespace configs.components
 // de vente estimé, voir services/PricingService.oc).
 
 import ocara.HTMLComponent
+import ocara.HTML
 
 class MaintenanceRow extends HTMLComponent {
     init() {
@@ -14,6 +15,9 @@ class MaintenanceRow extends HTMLComponent {
             consumed description:string = attrs["description"]
             consumed cost:string        = attrs["cost"]
             consumed date:string        = attrs["date"]
+            scoped material_source:string = attrs["material_source"]
+            consumed due_date:string = attrs["due_date"]
+            scoped replacement_color:string = attrs["replacement_color"]
             consumed badge_cls:string    = match type {
                 "improvement" => "badge-improvement"
                 default => "badge-maintenance"
@@ -22,9 +26,19 @@ class MaintenanceRow extends HTMLComponent {
                 "improvement" => "Amélioration"
                 default => "Entretien"
             }
+            scoped source_html:string = ""
+            if not material_source.empty() {
+                source_html = `<span class="maintenance-source">Source : ${HTML::escape(material_source)}</span>`
+            }
+            scoped replacement_html:string = ""
+            if not replacement_color.empty() {
+                replacement_html = `<span class="replacement-warning" style="background:${replacement_color}">
+                    À remplacer avant le ${due_date}
+                </span>`
+            }
             return `<div class="maintenance-row">
       <span class="badge ${badge_cls}">${badge_label}</span>
-      <span class="maintenance-desc">${description}</span>
+      <span class="maintenance-desc">${HTML::escape(description)}${source_html}${replacement_html}</span>
       <span class="maintenance-date">${date}</span>
       <span class="maintenance-cost">${cost}</span>
     </div>`

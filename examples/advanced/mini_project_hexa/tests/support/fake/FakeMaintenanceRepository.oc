@@ -14,12 +14,25 @@ class FakeMaintenanceRepository implements MaintenanceContract {
         var type:string = row["type"]
         var description:string = row["description"]
         var cost:float = row["cost"]
+        var material_source:string = row["material_source"]
+        var lifespan_days:int = row["lifespan_days"]
         var created_at:int = row["created_at"]
-        return use MaintenanceEntity(id, car_id, type, description, cost, created_at)
+        return use MaintenanceEntity(
+            id, car_id, type, description, cost, material_source, lifespan_days, created_at
+        )
     }
 
-    public static method create(car_id:int, type:string, description:string, cost:float): int {
-        return FakeDatabase::insertMaintenance(car_id, type, description, cost)
+    public static method create(
+        car_id:int,
+        type:string,
+        description:string,
+        cost:float,
+        material_source:string,
+        lifespan_days:int
+    ): int {
+        return FakeDatabase::insertMaintenance(
+            car_id, type, description, cost, material_source, lifespan_days
+        )
     }
 
     public static async method forCar(car_id:int): array<MaintenanceEntity> {

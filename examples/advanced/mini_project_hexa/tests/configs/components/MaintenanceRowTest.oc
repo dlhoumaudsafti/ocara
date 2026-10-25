@@ -1,5 +1,6 @@
 import ocara.UnitTest
 import ocara.HTML
+import ocara.String
 import configs.components.MaintenanceRow
 
 class MaintenanceRowTest extends UnitTest {
@@ -10,9 +11,12 @@ class MaintenanceRowTest extends UnitTest {
 
     public method renderImprovementTest(): int {
         const html:string = HTML::render(`<maintenance-row type="improvement" description="Peinture"
-            cost="500,00 €" date="24/09/2026">`)
+            cost="500,00 €" date="24/09/2026" material_source="Garage" due_date="24/10/2026"
+            replacement_color="rgb(255, 100, 0)">`)
         self::assertContains(html, `<span class="badge badge-improvement">Amélioration</span>`)
-        self::assertContains(html, `<span class="maintenance-desc">Peinture</span>`)
+        self::assertContains(html, `<span class="maintenance-desc">Peinture`)
+        self::assertContains(html, "Source : Garage")
+        self::assertContains(html, "À remplacer avant le 24/10/2026")
         self::assertContains(html, `<span class="maintenance-date">24/09/2026</span>`)
         self::assertContains(html, `<span class="maintenance-cost">500,00 €</span>`)
         return 0
@@ -23,6 +27,16 @@ class MaintenanceRowTest extends UnitTest {
         const html:string = HTML::render(`<maintenance-row type="maintenance" description="Vidange"
             cost="80,00 €" date="24/09/2026">`)
         self::assertContains(html, `<span class="badge badge-maintenance">Entretien</span>`)
+        return 0
+    }
+
+    public method escapesUserTextTest(): int {
+        const html:string = HTML::render(`<maintenance-row type="maintenance"
+            description="Plaquettes <script>" cost="80,00 €" date="24/09/2026"
+            material_source="Garage & <script>" due_date="" replacement_color="">`)
+        self::assertContains(html, "Plaquettes &lt;script&gt;")
+        self::assertContains(html, "Garage &amp; &lt;script&gt;")
+        self::assertEquals(1, String::split(html, "<script>").len())
         return 0
     }
 }
