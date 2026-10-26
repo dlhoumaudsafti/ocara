@@ -16,100 +16,117 @@ class Level {
 
     public const SKY_PARALLAX_DIV:int       = 6   // ciel/skyline : le plus lent
     public const BACK_BUILDINGS_PARALLAX_DIV:int = 3   // immeubles lointains : plan intermediaire
-    public const BUILDINGS_PARALLAX_DIV:int = 1   // immeubles : plan intermediaire
-                                                   // (route : x1, pas de diviseur)
+    public const BUILDINGS_PARALLAX_DIV:int = 1   // immeubles : plan intermediaire (route : x1, pas de diviseur)
 
-    private property tilesetId:int
-    private property skyRect:array<int>            // [x, y, w, h]
-    private property backBuildingRects:array<int>  // [x, y, w, h]
-    private property roadRect:array<int>            // [x, y, w, h]
-    private property buildingRects:array<array<int>> // 7 x [x, y, w, h], alignees sur le sol
+    private property tileset_id:int
+    private property sky_rect:array<int> = [17, 12, 472, 248]
+    private property back_building_rects:array<int> = [18, 296, 658, 200]
+    private property road_rect:array<int> = [13, 851, 702, 124]
+    private property building_rects:array<array<int>> = [
+        [12,   506, 204, 310],
+        [237,  569, 238, 246],
+        [497,  508, 156, 307],
+        [667,  530, 202, 285],
+        [898,  586, 187, 229],
+        [1110, 585, 232, 230],
+        [1365, 523, 149, 292]
+    ]
 
-    private property skyWidth:int
-    private property roadWidth:int
-    private property buildingsWidth:int   // largeur totale de la sequence des 7 facades
+    private property sky_width:int
+    private property road_width:int
+    private property buildings_width:int   // largeur totale de la sequence des 7 facades
 
     init(win:SDL) {
-        self.tilesetId = win.loadTexture("examples/advanced/game_sdl/assets/tileset.png")
-
-        self.skyRect  = [17, 12, 472, 248]
-        self.backBuildingRects = [18, 296, 658, 200]
-        self.roadRect = [13, 851, 702, 124]
-        self.buildingRects = [
-            [12,   506, 204, 310],
-            [237,  569, 238, 246],
-            [497,  508, 156, 307],
-            [667,  530, 202, 285],
-            [898,  586, 187, 229],
-            [1110, 585, 232, 230],
-            [1365, 523, 149, 292]
-        ]
-
-        self.skyWidth  = self.skyRect[2]
-        self.roadWidth = self.roadRect[2]
+        self.tileset_id = win.loadTexture("assets/tileset.png")
+        self.sky_width  = self.sky_rect[2]
+        self.road_width = self.road_rect[2]
 
         var total:int = 0
-        for rect in self.buildingRects {
-            total = total + rect[2]
+        for rect in self.building_rects {
+            total += rect[2]
         }
-        self.buildingsWidth = total
+        self.buildings_width = total
     }
 
     // Dessine les 3 plans pour la position de defilement donnee (scrollX =
     // Player::worldX), du plus lointain au plus proche.
     public method draw(win:SDL, scrollX:int): void {
-        var skyOffset:int = (scrollX / Level::SKY_PARALLAX_DIV) % self.skyWidth
-        var sx:int = 0 - skyOffset
+        var sky_offset:int = (scrollX / Level::SKY_PARALLAX_DIV) % self.sky_width
+        var sx:int = 0 - sky_offset
         while sx smaller Level::WINDOW_WIDTH {
             win.drawTextureRegion(
-                self.tilesetId,
-                self.skyRect[0], self.skyRect[1], self.skyRect[2], self.skyRect[3],
-                sx, 0, self.skyRect[2], self.skyRect[3],
-                false
+                textureId: self.tileset_id,
+                srcX:      self.sky_rect[0],
+                srcY:      self.sky_rect[1],
+                srcW:      self.sky_rect[2],
+                srcH:      self.sky_rect[3],
+                x:         sx,
+                y:         0,
+                w:         self.sky_rect[2],
+                h:         self.sky_rect[3],
+                flipH:     false
             )
-            sx = sx + self.skyWidth
+            sx = sx + self.sky_width
         }
 
-        var backBuildingOffset:int = (scrollX / Level::BACK_BUILDINGS_PARALLAX_DIV) % self.backBuildingRects[2]
-        var bx:int = 0 - backBuildingOffset
+        var back_building_offset:int = (scrollX / Level::BACK_BUILDINGS_PARALLAX_DIV) % self.back_building_rects[2]
+        var bx:int = 0 - back_building_offset
         while bx smaller Level::WINDOW_WIDTH {
             win.drawTextureRegion(
-                self.tilesetId,
-                self.backBuildingRects[0], self.backBuildingRects[1], self.backBuildingRects[2], self.backBuildingRects[3],
-                bx, Level::GROUND_Y - self.backBuildingRects[3], self.backBuildingRects[2], self.backBuildingRects[3],
-                false
+                textureId: self.tileset_id,
+                srcX:      self.back_building_rects[0],
+                srcY:      self.back_building_rects[1],
+                srcW:      self.back_building_rects[2],
+                srcH:      self.back_building_rects[3],
+                x:         bx,
+                y:         Level::GROUND_Y - self.back_building_rects[3],
+                w:         self.back_building_rects[2],
+                h:         self.back_building_rects[3],
+                flipH:     false
             )
-            bx = bx + self.backBuildingRects[2]
+            bx = bx + self.back_building_rects[2]
         }
 
-        var buildingsOffset:int = (scrollX / Level::BUILDINGS_PARALLAX_DIV) % self.buildingsWidth
-        var seqX:int = 0 - buildingsOffset
-        while seqX smaller Level::WINDOW_WIDTH {
-            var bx:int = seqX
-            for rect in self.buildingRects {
+        var buildings_offset:int = (scrollX / Level::BUILDINGS_PARALLAX_DIV) % self.buildings_width
+        var seq_x:int = 0 - buildings_offset
+        while seq_x smaller Level::WINDOW_WIDTH {
+            var bx:int = seq_x
+            for rect in self.building_rects {
                 if bx + rect[2] greater 0 and bx smaller Level::WINDOW_WIDTH {
                     win.drawTextureRegion(
-                        self.tilesetId,
-                        rect[0], rect[1], rect[2], rect[3],
-                        bx, Level::GROUND_Y - rect[3]+3, rect[2], rect[3],
-                        false
+                        textureId: self.tileset_id,
+                        srcX:      rect[0],
+                        srcY:      rect[1],
+                        srcW:      rect[2],
+                        srcH:      rect[3],
+                        x:         bx,
+                        y:         Level::GROUND_Y - rect[3]+3,
+                        w:         rect[2],
+                        h:         rect[3],
+                        flipH:     false
                     )
                 }
                 bx = bx + rect[2]
             }
-            seqX = seqX + self.buildingsWidth
+            seq_x = seq_x + self.buildings_width
         }
 
-        var roadOffset:int = scrollX % self.roadWidth
-        var rx:int = 0 - roadOffset
+        var road_offset:int = scrollX % self.road_width
+        var rx:int = 0 - road_offset
         while rx smaller Level::WINDOW_WIDTH {
             win.drawTextureRegion(
-                self.tilesetId,
-                self.roadRect[0], self.roadRect[1], self.roadRect[2], self.roadRect[3],
-                rx, Level::GROUND_Y, self.roadRect[2], self.roadRect[3],
-                false
+                textureId: self.tileset_id,
+                srcX:      self.road_rect[0],
+                srcY:      self.road_rect[1],
+                srcW:      self.road_rect[2],
+                srcH:      self.road_rect[3],
+                x:         rx,
+                y:         Level::GROUND_Y,
+                w:         self.road_rect[2],
+                h:         self.road_rect[3],
+                flipH:     false
             )
-            rx = rx + self.roadWidth
+            rx = rx + self.road_width
         }
     }
 }

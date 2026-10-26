@@ -21,78 +21,99 @@ architecture permissive
 import ocara.SDL
 
 class Player {
-    public const WALK_SPEED:int = 4
-    public const RUN_SPEED:int  = 8
-    public const ANIM_HOLD:int  = 6   // frames moteur avant l'image suivante
-    public const FRAME_COUNT:int = 6
-    public const GROUND_Y:int     = 725
+    public const WALK_SPEED:int   = 4
+    public const RUN_SPEED:int    = 8
+    public const ANIM_HOLD:int    = 10   // frames moteur avant l'image suivante
+    public const FRAME_COUNT:int  = 6
+    public const GROUND_Y:int     = 760
+    public const GROUND_Y_MIN:int = 725
+    public const GROUND_Y_MAX:int = 800
+    public property world_x:int   = 0  // position dans le monde (0 = depart, jamais negatif)
 
-    public property worldX:int   // position dans le monde (0 = depart, jamais negatif)
-
-    private property spriteSheetId:int
-    private property walkFrames:array<array<int>>   // 8 x [x, y, w, h]
-    private property runFrames:array<array<int>>     // 8 x [x, y, w, h]
-    private property facingRight:bool
-    private property running:bool
-    private property moving:bool
-    private property animFrame:int
-    private property animTimer:int
+    private const HEIGHT:int      = 384
+    private const WIDTH:int       = 229
+    private property sprite_sheet_id:int
+    private property walk_frames:array<array<int>> = [
+        [0,               0, Player::WIDTH, Player::HEIGHT],
+        [Player::WIDTH,   0, Player::WIDTH, Player::HEIGHT],
+        [Player::WIDTH*2, 0, Player::WIDTH, Player::HEIGHT],
+        [Player::WIDTH*3, 0, Player::WIDTH, Player::HEIGHT],
+        [Player::WIDTH*4, 0, Player::WIDTH, Player::HEIGHT],
+        [Player::WIDTH*5, 0, Player::WIDTH, Player::HEIGHT]
+    ]
+    // Course : 3e colonne = bord droit (et non largeur) — srcW/w grandissent
+    // d'une frame a l'autre, d'ou l'effet d'etirement voulu en course.
+    private property run_frames:array<array<int>> = [
+        [0,               Player::HEIGHT, Player::WIDTH,   Player::HEIGHT],
+        [Player::WIDTH,   Player::HEIGHT, Player::WIDTH*2, Player::HEIGHT],
+        [Player::WIDTH*2, Player::HEIGHT, Player::WIDTH*3, Player::HEIGHT],
+        [Player::WIDTH*3, Player::HEIGHT, Player::WIDTH*4, Player::HEIGHT],
+        [Player::WIDTH*4, Player::HEIGHT, Player::WIDTH*5, Player::HEIGHT],
+        [Player::WIDTH*5, Player::HEIGHT, Player::WIDTH*6, Player::HEIGHT]
+    ]
+    private property facing_right:bool = true
+    private property running:bool      = false
+    private property moving:bool       = false
+    private property anim_frame:int    = 0
+    private property anim_timer:int    = 0
+    private property ground_y:int      = Player::GROUND_Y // ligne des pieds (profondeur sur la route)
 
     init(win:SDL) {
-        self.spriteSheetId = win.loadTexture("examples/advanced/game_sdl/assets/sprite.png")
-
-        self.walkFrames = [
-            [0,    0, 229, 384], [229, 0, 458, 384], [458, 0, 687, 384], [687,  0, 916, 384],
-            [916,  0, 1145, 384], [1145, 0, 1374, 384]
-        ]
-        self.runFrames = [
-            [0,   384, 229, 384], [229, 384, 458, 384], [458, 384, 687, 384], [687,  384, 916, 384],
-            [916, 384, 1145, 384], [1145, 384, 1374, 384]
-        ]
-
-        self.worldX      = 0
-        self.facingRight = true
-        self.running     = false
-        self.moving       = false
-        self.animFrame    = 0
-        self.animTimer    = 0
+        self.sprite_sheet_id = win.loadTexture("assets/sprite.png")
     }
 
     // Avance l'etat du personnage d'une frame moteur selon les touches tenues.
-    public method update(leftHeld:bool, rightHeld:bool, runHeld:bool): void {
-        self.running = runHeld
+    // Haut/bas ne deplacent le personnage en profondeur (axe y) que s'il
+    // marche ou court deja horizontalement.
+    public method update(left_held:bool, right_held:bool, up_held:bool, down_held:bool, run_held:bool): void {
+        self.running  = run_held
         var speed:int = Player::WALK_SPEED
-        if runHeld {
+        if run_held {
             speed = Player::RUN_SPEED
         }
 
         self.moving = false
-        if leftHeld and not rightHeld {
-            self.moving = true
-            self.facingRight = false
-            self.worldX = self.worldX - speed
-            if self.worldX smaller 0 {
-                self.worldX = 0
+        if left_held and not right_held {
+            self.moving       = true
+            self.facing_right = false
+            self.world_x     -= speed
+            if self.world_x smaller 0 {
+                self.world_x = 0
             }
         }
-        if rightHeld and not leftHeld {
-            self.moving = true
-            self.facingRight = true
-            self.worldX = self.worldX + speed
+        if right_held and not left_held {
+            self.moving       = true
+            self.facing_right = true
+            self.world_x     += speed
         }
 
         if self.moving {
-            self.animTimer = self.animTimer + 1
-            if self.animTimer greater or equal Player::ANIM_HOLD {
-                self.animTimer = 0
-                self.animFrame = self.animFrame + 1
-                if self.animFrame greater or equal Player::FRAME_COUNT {
-                    self.animFrame = 0
+            if up_held and not down_held {
+                self.ground_y -= speed
+                if self.ground_y smaller Player::GROUND_Y_MIN {
+                    self.ground_y = Player::GROUND_Y_MIN
+                }
+            }
+            if down_held and not up_held {
+                self.ground_y += speed
+                if self.ground_y greater Player::GROUND_Y_MAX {
+                    self.ground_y = Player::GROUND_Y_MAX
+                }
+            }
+        }
+
+        if self.moving {
+            self.anim_timer++
+            if self.anim_timer greater or equal Player::ANIM_HOLD {
+                self.anim_timer = 0
+                self.anim_frame++
+                if self.anim_frame greater or equal Player::FRAME_COUNT {
+                    self.anim_frame = 0
                 }
             }
         } else {
-            self.animFrame = 0
-            self.animTimer = 0
+            self.anim_frame = 0
+            self.anim_timer = 0
         }
     }
 
@@ -100,17 +121,23 @@ class Player {
     // largeur/hauteur variant d'une frame a l'autre, l'ancrage bas-centre
     // evite tout decalage visible d'une image a l'autre.
     public method draw(win:SDL, screenX:int): void {
-        var rect:array<int> = self.walkFrames[self.animFrame]
+        var rect:array<int> = self.walk_frames[self.anim_frame]
         if self.running {
-            rect = self.runFrames[self.animFrame]
+            rect = self.run_frames[self.anim_frame]
         }
         var w:int = rect[2]/5
         var h:int = rect[3]/5
         win.drawTextureRegion(
-            self.spriteSheetId,
-            rect[0], rect[1], rect[2], rect[3],
-            screenX - w / 2, Player::GROUND_Y - rect[3], w, h,
-            not self.facingRight
+            textureId: self.sprite_sheet_id,
+            srcX:      rect[0],
+            srcY:      rect[1],
+            srcW:      rect[2],
+            srcH:      rect[3],
+            x:         screenX - w / 2,
+            y:         self.ground_y - rect[3],
+            w:         w,
+            h:         h,
+            flipH:     not self.facing_right
         )
     }
 }
