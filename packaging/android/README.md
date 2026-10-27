@@ -26,6 +26,13 @@ dans `MainActivity.kt`), pas encore une abstraction du compilateur Ocara.
 - `app/src/main/java/com/ocara/bridge/OcaraBridge.kt` — déclaration Kotlin du
   pont JNI (`external fun nativeStartServer(dataDir: String): Boolean`), charge
   `libmain.so`.
+- `app/src/main/java/com/ocara/bridge/Ocara*.kt` — côté Kotlin des builtins
+  `ocara.Android*` (permissions, notifications, fichiers, caméra, micro,
+  audio ; les capteurs passent par le NDK) : voir
+  [docs/android.md](../../docs/android.md) §6. `MainActivity` appelle
+  `OcaraBridge.attach(this)` et transmet `onRequestPermissionsResult` ;
+  `AndroidManifest.xml` déclare les permissions de ces builtins (retirer
+  celles qui ne servent pas).
 - `app/src/main/java/com/ocara/demo/MainActivity.kt` — copie `assets/` vers le
   répertoire de stockage interne de l'app (voir "Fichiers statiques"
   ci-dessous), démarre le pont au lancement, sonde `http://127.0.0.1:8081/`

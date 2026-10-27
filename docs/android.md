@@ -14,6 +14,7 @@
 | Backend Android pour `ocara.SDL` | ✅ Fait, vérifié (formats audio "tracker"/MOD non disponibles) |
 | `ocara.Tauri` sur Android | ❌ Hors périmètre définitif (GTK ne tourne pas sur Android) |
 | Packaging APK / test sur émulateur (x86_64, KVM) | ✅ Fait, vérifié — voir §4 |
+| Builtins natifs (`ocara.Android*` : permissions, notifications, capteurs, fichiers, caméra, micro, audio) | ✅ Fait, vérifié sur appareil réel — voir §6 |
 | Test sur appareil physique réel | ✅ Fait, vérifié — crash/fichiers statiques/WebView/rendu HTML tous corrigés (`HTTP 200, 2306 octets`, identique à x86_64) — voir §4 et [runtime-android-aarch64-pic-string-concat](roadmap.d/runtime-android-aarch64-pic-string-concat.md) |
 
 Tout ce qui est vérifiable **par inspection statique du binaire produit** (architecture ELF correcte, bibliothèque réellement partagée, absence de `DT_TEXTREL`, toutes les dépendances dynamiques déclarées et effectivement fournies par les bibliothèques système du NDK) l'a été — ET, depuis §4, le comportement réel a aussi été vérifié **sur un vrai émulateur** (chargement JNI, `System.loadLibrary`, exécution du programme Ocara, réponse HTTP réelle). Ce SDK a un émulateur x86_64 avec accélération matérielle KVM (voir §4) — pas juste arm64-v8a en émulation logicielle lente. **Testé aussi sur un appareil physique réel (arm64-v8a)** : le crash au démarrage, l'accès aux fichiers statiques, la redirection WebView externe et le rendu HTML corrompu (pointeurs de tas Android tagués, pas un bug de codegen comme d'abord supposé — voir §4 et [roadmap.d/runtime-android-aarch64-pic-string-concat.md](roadmap.d/runtime-android-aarch64-pic-string-concat.md)) sont tous corrigés, pas juste "jamais essayé".
@@ -232,6 +233,70 @@ $ANDROID_HOME/build-tools/<version>/apksigner verify --print-certs \
 ```
 
 **Vérifié réellement** (keystore de test, à ne jamais réutiliser en production) : `assembleRelease` réussit (minification + réduction des ressources incluses), signature confirmée par `apksigner`, taille réduite d'environ 40 % par rapport au debug (~57 Mo contre ~96 Mo pour `examples/advanced/mini_project`, essentiellement les deux `.so` non compressibles). Installé sur un vrai téléphone (désinstallation de la version debug au préalable — signatures différentes, Android refuse une mise à jour qui change de signature) : chargement JNI, serveur HTTP, rendu HTML tous fonctionnels — `curl` répond `HTTP 200` avec le contenu attendu, confirmant que la règle R8 ci-dessus protège bien ce qu'il fallait.
+
+---
+
+## 6. Builtins natifs Android
+
+Sept builtins, un par domaine, donnent accès aux capacités du téléphone hors
+interface graphique. Chacun a son crate Rust (`runtime_android/<domaine>`),
+lié dans le `.so` **seulement si le programme l'importe** :
+
+| Builtin | Domaine | Voie |
+|---------|---------|------|
+| [AndroidPermissions](builtins/AndroidPermissions.md) | permissions d'exécution | JNI → `OcaraPermissions.kt` |
+| [AndroidNotifications](builtins/AndroidNotifications.md) | notifications système | JNI → `OcaraNotifications.kt` |
+| [AndroidSensors](builtins/AndroidSensors.md) | capteurs | NDK `ASensorManager` (sans Java) |
+| [AndroidFiles](builtins/AndroidFiles.md) | répertoires, assets, Téléchargements | JNI → `OcaraFiles.kt` |
+| [AndroidCamera](builtins/AndroidCamera.md) | photo | JNI → `OcaraCamera.kt` (Camera2) |
+| [AndroidMicrophone](builtins/AndroidMicrophone.md) | enregistrement | JNI → `OcaraMicrophone.kt` (`MediaRecorder`) |
+| [AndroidAudio](builtins/AndroidAudio.md) | lecture audio | JNI → `OcaraAudio.kt` (`MediaPlayer`) |
+
+**Fonctionnement.** Le pont JNI (`runtime_android_jni`) note la JVM et la
+classe `OcaraBridge` au démarrage. Le crate commun
+(`runtime_android/common`) attache le thread Ocara à la JVM au premier appel,
+charge les classes de l'app par le chargeur d'`OcaraBridge` et appelle leurs
+méthodes statiques ; une exception Java devient une `AndroidException`. Le
+code Kotlin vit dans `packaging/android/app/src/main/java/com/ocara/bridge/`.
+
+**Construire.** En plus du runtime et du pont (§1, §4) :
+
+```bash
+ANDROID_NDK_HOME="$NDK" make build-android-features   # runtime_android/*, à côté de libocara_runtime.a
+```
+
+`ocara ... --android-runtime <dossier>/libocara_runtime.a --android-jni-bridge ...`
+trouve les archives des builtins importés dans le même dossier ;
+`--android-jni-bridge` est obligatoire dès qu'un builtin `Android*` est
+importé. Exemple complet : `examples/advanced/android_native/` (`make android`).
+
+**Dans l'app.** `MainActivity` appelle `OcaraBridge.attach(this)` avant
+`nativeStartServer`, `OcaraBridge.detach(this)` dans `onDestroy`, et transmet
+`onRequestPermissionsResult` à `OcaraPermissions.onResult`. Le manifeste
+déclare les permissions des builtins utilisés (voir les commentaires de
+`AndroidManifest.xml`). Un chemin relatif part de `filesDir`, répertoire de
+travail du programme.
+
+**Hors Android**, un programme qui importe ces builtins compile ; chaque
+appel lève `AndroidException` 100.
+
+**Vérifié** sur un téléphone réel (arm64-v8a, Android 15) : demande de
+permission avec la boîte de dialogue système, notification, relevé de 8
+capteurs, répertoires et assets, photo 3120×4160 correctement exposée,
+enregistrement et relecture au micro, copie vers Téléchargements.
+
+### Codes d'erreur AndroidException
+
+| Code | Cause |
+|------|-------|
+| 100 | Hors Android, ou programme non démarré par `OcaraBridge` |
+| 101 | Permission non accordée |
+| 102 | Argument invalide (nom de permission ou de capteur inconnu, valeur hors bornes) |
+| 103 | Matériel absent ou indisponible (capteur, caméra, micro, stockage externe) |
+| 104 | Fichier ou asset introuvable, lecture ou écriture impossible |
+| 105 | Échec Android (autre exception Java) |
+| 106 | Délai dépassé (relevé de capteur, photo) |
+| 107 | État invalide (appel bloquant sur le thread principal Android, `stop` sans `start`…) |
 
 ---
 

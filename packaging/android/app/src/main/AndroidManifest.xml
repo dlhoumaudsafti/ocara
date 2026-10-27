@@ -5,6 +5,20 @@
          Android standard, pas spécifique à ce projet. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Builtins ocara.Android* : chaque permission ne sert qu'au builtin
+         indiqué ; retirer celles que le programme n'utilise pas. Android ne
+         demande rien tant que AndroidPermissions::request n'est pas appelé. -->
+    <!-- ocara.AndroidCamera -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- ocara.AndroidMicrophone -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- ocara.AndroidNotifications (Android 13 et plus) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- ocara.AndroidSensors, capteur step_counter (Android 10 et plus) -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <!-- ocara.AndroidFiles::saveToDownloads (Android 9 et moins) -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"

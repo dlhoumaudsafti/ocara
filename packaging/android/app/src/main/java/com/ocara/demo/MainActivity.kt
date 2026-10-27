@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.ocara.bridge.OcaraBridge
+import com.ocara.bridge.OcaraPermissions
 import com.ocara.demo.theme.OcaraUIHybridDemoTheme
 import java.io.File
 import java.net.HttpURLConnection
@@ -58,6 +59,8 @@ class MainActivity : ComponentActivity() {
     // Fire-and-forget : voir la doc de OcaraBridge.nativeStartServer — ne
     // bloque jamais ce thread (le thread principal/UI). `filesDir` (PAS un
     // chemin construit à la main) : voir la doc du paramètre `dataDir`.
+    // Contexte et Activity pour les builtins `ocara.Android*` (com.ocara.bridge.Ocara*).
+    OcaraBridge.attach(this)
     OcaraBridge.nativeStartServer(filesDir.absolutePath)
 
     // Barre de statut transparente (le contenu edge-to-edge de la WebView —
@@ -79,6 +82,19 @@ class MainActivity : ComponentActivity() {
         }
       }
     }
+  }
+
+  override fun onDestroy() {
+    OcaraBridge.detach(this)
+    super.onDestroy()
+  }
+
+  /** Réponse à `AndroidPermissions::request`, attendue par le programme Ocara. */
+  @Deprecated("Remplacée par les ActivityResult API, mais seule voie pour requestPermissions appelé hors de l'UI")
+  override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+    @Suppress("DEPRECATION")
+    super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    OcaraPermissions.onResult(requestCode, grantResults)
   }
 
   /**

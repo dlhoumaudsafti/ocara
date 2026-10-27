@@ -2897,11 +2897,67 @@ dependencies = [
 ]
 
 [[package]]
+name = "ocara_runtime_android_audio"
+version = "1.0.0"
+dependencies = [
+ "ocara_runtime_android_common",
+]
+
+[[package]]
+name = "ocara_runtime_android_camera"
+version = "1.0.0"
+dependencies = [
+ "ocara_runtime_android_common",
+]
+
+[[package]]
+name = "ocara_runtime_android_common"
+version = "1.0.0"
+dependencies = [
+ "jni",
+]
+
+[[package]]
+name = "ocara_runtime_android_files"
+version = "1.0.0"
+dependencies = [
+ "ocara_runtime_android_common",
+]
+
+[[package]]
 name = "ocara_runtime_android_jni"
 version = "1.0.0"
 dependencies = [
  "jni",
  "libc",
+]
+
+[[package]]
+name = "ocara_runtime_android_microphone"
+version = "1.0.0"
+dependencies = [
+ "ocara_runtime_android_common",
+]
+
+[[package]]
+name = "ocara_runtime_android_notifications"
+version = "1.0.0"
+dependencies = [
+ "ocara_runtime_android_common",
+]
+
+[[package]]
+name = "ocara_runtime_android_permissions"
+version = "1.0.0"
+dependencies = [
+ "ocara_runtime_android_common",
+]
+
+[[package]]
+name = "ocara_runtime_android_sensors"
+version = "1.0.0"
+dependencies = [
+ "ocara_runtime_android_common",
 ]
 
 [[package]]

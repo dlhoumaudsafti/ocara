@@ -149,14 +149,24 @@ impl CraneliftEmitter {
             // System::OS equal "android" { ... }`).
             let is_tauri_stub = self.is_android_target
                 && (desc.module == Some("Tauri") || desc.name == "Tauri_handler_register");
-            let linkage = if is_tauri_stub { Linkage::Local } else { Linkage::Import };
+            // `ocara.Android*` hors Android : talon qui lève AndroidException
+            // 100 (`__android_unavailable`), le programme compile partout.
+            let is_android_stub = !self.is_android_target
+                && desc.module.is_some_and(|m| crate::builtins::android::ANDROID_BUILTINS.iter().any(|(name, _)| *name == m));
+            let linkage = if is_tauri_stub || is_android_stub { Linkage::Local } else { Linkage::Import };
             // `_setjmp(env, frame)` : voir sa déclaration dans runtime/src/lib.rs.
             let symbol = if desc.name == "setjmp" { "_setjmp" } else { desc.name };
             let fid = self.module
                 .declare_function(symbol, linkage, &sig)
                 .map_err(|e| CodegenError(e.to_string()))?;
             if is_tauri_stub {
-                self.define_stub_function(fid, &sig)?;
+                self.define_stub_function(fid, &sig, None)?;
+            } else if is_android_stub {
+                let raise_sig = Signature::new(call_conv);
+                let raise = self.module
+                    .declare_function("__android_unavailable", Linkage::Import, &raise_sig)
+                    .map_err(|e| CodegenError(e.to_string()))?;
+                self.define_stub_function(fid, &sig, Some(raise))?;
             }
             self.func_ids.insert(desc.name.to_string(), fid);
             // Enregistre les types des paramètres pour les bitcasts
@@ -169,11 +179,16 @@ impl CraneliftEmitter {
             }
         }
 
-        // Fonctions du module
+        // Fonctions du module : locales, sauf `main` (point d'entrée de la libc,
+        // appelé par son nom par le pont JNI Android). Exportée, une fonction
+        // Ocara `send`/`write`/`read`… remplaçait celle de la libc dans tout le
+        // binaire : le runtime appelait le code Ocara à la place (SIGSEGV dès
+        // la première réponse d'HTTPServer).
         for func in &ir.functions {
             let sig = self.ir_func_signature(func);
+            let linkage = if func.name == "main" { Linkage::Export } else { Linkage::Local };
             let fid = self.module
-                .declare_function(&func.name, Linkage::Export, &sig)
+                .declare_function(&func.name, linkage, &sig)
                 .map_err(|e| CodegenError(e.to_string()))?;
             self.func_ids.insert(func.name.clone(), fid);
             // Enregistre les types des params et du retour pour les bitcasts F64↔I64
@@ -194,7 +209,8 @@ impl CraneliftEmitter {
     /// sinon `return` sans valeur. Utilisé UNIQUEMENT pour les builtins
     /// `Tauri_*` sur cible Android (voir `is_android_target`) — jamais pour
     /// une fonction ordinaire du module, qui passe par `emit_function`.
-    fn define_stub_function(&mut self, fid: cranelift_module::FuncId, sig: &Signature) -> CgResult<()> {
+    /// Talon local de `sig` qui rend 0, après l'appel de `raise` s'il est donné.
+    fn define_stub_function(&mut self, fid: cranelift_module::FuncId, sig: &Signature, raise: Option<cranelift_module::FuncId>) -> CgResult<()> {
         let mut ctx = Context::new();
         ctx.func.signature = sig.clone();
         ctx.func.name = UserFuncName::user(0, fid.as_u32());
@@ -207,6 +223,10 @@ impl CraneliftEmitter {
         builder.switch_to_block(entry);
         builder.seal_block(entry);
 
+        if let Some(raise) = raise {
+            let callee = self.module.declare_func_in_func(raise, builder.func);
+            builder.ins().call(callee, &[]);
+        }
         if let Some(ret) = sig.returns.first() {
             let zero = builder.ins().iconst(ret.value_type, 0);
             builder.ins().return_(&[zero]);

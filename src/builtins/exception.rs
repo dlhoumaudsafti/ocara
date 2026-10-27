@@ -92,7 +92,7 @@ pub const BUILTIN_EXCEPTION_NAMES: &[&str] = &[
     "RegexException", "DateTimeException", "DateException", "TimeException",
     "ThreadException", "MutexException", "UnitTestException", "HTTPServerException",
     "SQLiteException", "MySQLException", "MariaDBException", "DotEnvException",
-    "YAMLException", "SDLException", "TauriException", "ImageException",
+    "YAMLException", "SDLException", "TauriException", "ImageException", "AndroidException",
 ];
 
 /// `Exception` ou l'une des exceptions builtin — constructeur
@@ -219,6 +219,10 @@ pub fn sdl_exception_class() -> ClassInfo {
 }
 
 pub fn image_exception_class() -> ClassInfo {
+    make_exception_class()
+}
+
+pub fn android_exception_class() -> ClassInfo {
     make_exception_class()
 }
 

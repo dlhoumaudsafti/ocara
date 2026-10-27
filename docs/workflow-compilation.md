@@ -211,6 +211,7 @@ Utilise **Cranelift** comme backend JIT/AOT :
 
 - Résout les symboles entre le code généré et la bibliothèque runtime
 - Linke les fonctions built-in (compilées depuis `runtime/`) ; les runtimes séparés `runtime_tauri/`, `runtime_sdl/` et `runtime_image/` ne sont liés que si le programme importe `ocara.Tauri`, `ocara.SDL` ou `ocara.Image` (`IrModule::imports`)
+- Pour Android (`link_android`), lie en plus l'archive `runtime_android/<domaine>` de chaque builtin `ocara.Android*` importé, cherchée à côté de `--android-runtime` (`android_feature_libs`) ; hors Android, ces builtins sont des talons locaux qui lèvent `AndroidException` 100 (`src/codegen/emit.d/emitter.rs`)
 - Produit un exécutable natif ELF (Linux) ou PE (Windows)
 
 ---

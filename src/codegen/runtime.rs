@@ -37,6 +37,7 @@ use super::desc::{
     TAURI_BUILTINS,
     SDL_BUILTINS,
     IMAGE_BUILTINS,
+    ANDROID_BUILTINS,
 };
 
 #[derive(Clone, Copy)]
@@ -86,6 +87,7 @@ pub fn builtins() -> &'static [BuiltinDesc] {
         all.extend_from_slice(TAURI_BUILTINS);
         all.extend_from_slice(SDL_BUILTINS);
         all.extend_from_slice(IMAGE_BUILTINS);
+        all.extend_from_slice(ANDROID_BUILTINS);
         all
     })
 }

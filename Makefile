@@ -5,9 +5,9 @@ RED     := \033[0;31m
 RESET   := \033[0m
 
 # Argument optionnel : make regression builtins/io ; make android-simulator <apk>
-_TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests tests-runtime tests-tools regression ci leak-check perf perf-extra lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android android-simulator build-runtime-windows build-windows tests-windows,$(MAKECMDGOALS))
+_TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests tests-runtime tests-tools regression ci leak-check perf perf-extra lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android build-android-features android-simulator build-runtime-windows build-windows tests-windows,$(MAKECMDGOALS))
 
-.PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests tests-runtime tests-tools regression ci leak-check perf perf-extra lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android android-simulator build-runtime-windows build-windows tests-windows $(_TARGET)
+.PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests tests-runtime tests-tools regression ci leak-check perf perf-extra lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android build-android-features android-simulator build-runtime-windows build-windows tests-windows $(_TARGET)
 
 # ── Aide ──────────────────────────────────────────────────────────────────────
 help:
@@ -46,6 +46,7 @@ help:
 	@echo "  build-runtime-sdl-android  Cross-compile ocara_runtime_sdl (SDL3) pour aarch64-linux-android"
 	@echo "                            (nécessite ANDROID_NDK_HOME + cmake, sous-chantier 4)"
 	@echo "  build-jni-bridge-android   Cross-compile le pont JNI (runtime_android_jni)"
+	@echo "  build-android-features  Cross-compile les builtins ocara.Android* (runtime_android/*)"
 	@echo "                            (nécessite ANDROID_NDK_HOME, voir packaging/android/README.md)"
 	@echo "  android-simulator <apk> Installe et lance un APK sur un émulateur Android"
 	@echo "                            (démarre l'émulateur si besoin, fenêtre visible ;"
@@ -170,6 +171,22 @@ build-jni-bridge-android:
 	RANLIB_$(ANDROID_TARGET_ENV)="$(ANDROID_RANLIB)" \
 	CARGO_TARGET_$(shell echo $(ANDROID_TARGET_ENV) | tr a-z A-Z)_LINKER="$(ANDROID_CC)" \
 	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime_android_jni --target $(ANDROID_TARGET) -j4
+
+# Builtins `ocara.Android*` (packaging-android-native-features.md) : un crate
+# par domaine sous runtime_android/, chacun lié dans le .so seulement si le
+# programme importe son builtin (`link_android`, src/codegen/link.rs, cherche
+# ces archives à côté de --android-runtime). Exigent aussi le pont JNI.
+ANDROID_FEATURES := permissions notifications sensors files camera microphone audio
+
+build-android-features:
+	@if [ -z "$(ANDROID_NDK_HOME)" ]; then \
+	    echo "ANDROID_NDK_HOME non défini (racine du NDK Android requise)"; exit 1; \
+	fi
+	CC_$(ANDROID_TARGET_ENV)="$(ANDROID_CC)" \
+	AR_$(ANDROID_TARGET_ENV)="$(ANDROID_AR)" \
+	RANLIB_$(ANDROID_TARGET_ENV)="$(ANDROID_RANLIB)" \
+	CARGO_TARGET_$(shell echo $(ANDROID_TARGET_ENV) | tr a-z A-Z)_LINKER="$(ANDROID_CC)" \
+	RUSTFLAGS="-D warnings" cargo build --release $(foreach f,$(ANDROID_FEATURES),-p ocara_runtime_android_$(f)) --target $(ANDROID_TARGET) -j4
 
 # `ocara_runtime_sdl` (sous-chantier 4, packaging-android.md) : SDL3 + image/
 # ttf/mixer compilés depuis les sources via cmake (feature

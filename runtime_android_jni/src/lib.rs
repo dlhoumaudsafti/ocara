@@ -12,9 +12,31 @@
 //! points remplacés par des underscores) — un nom de classe différent
 //! exigerait de régénérer ce symbole, pas juste une valeur de configuration.
 
-use jni::objects::{JClass, JString};
-use jni::sys::jboolean;
-use jni::JNIEnv;
+use std::sync::OnceLock;
+
+use jni::objects::{GlobalRef, JObject, JString};
+use jni::sys::{jboolean, jobject};
+use jni::{JNIEnv, JavaVM};
+
+/// JVM et classe `OcaraBridge`, notées au démarrage : un thread natif ne
+/// trouve pas les classes de l'app par `FindClass` (chargeur système), les
+/// crates `runtime_android_*` passent par le chargeur de cette classe.
+static JVM: OnceLock<JavaVM> = OnceLock::new();
+static BRIDGE_CLASS: OnceLock<GlobalRef> = OnceLock::new();
+
+/// JVM de l'app (`JavaVM*`), nulle avant `nativeStartServer`. ABI C : chaque
+/// crate `runtime_android_*` embarque sa propre copie de `jni`.
+#[unsafe(no_mangle)]
+pub extern "C" fn ocara_android_vm() -> *mut jni::sys::JavaVM {
+    JVM.get().map_or(std::ptr::null_mut(), JavaVM::get_java_vm_pointer)
+}
+
+/// Référence globale de la classe `com.ocara.bridge.OcaraBridge`, nulle avant
+/// `nativeStartServer`.
+#[unsafe(no_mangle)]
+pub extern "C" fn ocara_android_bridge_class() -> jobject {
+    BRIDGE_CLASS.get().map_or(std::ptr::null_mut(), |class| class.as_obj().as_raw())
+}
 
 // `mallopt` existe bien dans Bionic (libc d'Android) mais n'est PAS exposé
 // par le crate `libc` pour la cible `android` (seulement pour glibc/hurd/aix/
@@ -95,14 +117,12 @@ unsafe extern "C" {
 /// chemin construit à la main, même dans le bac à sable de l'app, pouvait
 /// échouer à l'ouverture SQLite là où `getFilesDir()` fonctionne.
 ///
-/// Le thread lancé ici n'est PAS attaché à la JVM (`AttachCurrentThread`) :
-/// volontairement, le programme Ocara qui tourne dessus n'a aujourd'hui aucun
-/// besoin de rappeler du code Java (pas de callback JNI depuis `main`) — à
-/// revoir seulement si un futur besoin concret l'exige.
+/// Le thread lancé ici n'est pas attaché à la JVM : un crate
+/// `runtime_android_*` l'attache au premier appel Java (`ocara_android_vm`).
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_ocara_bridge_OcaraBridge_nativeStartServer<'local>(
     mut env: JNIEnv<'local>,
-    _class: JClass<'local>,
+    bridge: JObject<'local>,
     data_dir: JString<'local>,
 ) -> jboolean {
     // EN PREMIER, avant toute allocation faite par le programme Ocara (voir
@@ -112,6 +132,15 @@ pub extern "system" fn Java_com_ocara_bridge_OcaraBridge_nativeStartServer<'loca
     // Bionic absent/trop ancien) n'empêche pas de continuer, elle laisse
     // juste le bug de tagging non corrigé sur un tel appareil.
     unsafe { mallopt(M_BIONIC_SET_HEAP_TAGGING_LEVEL, M_HEAP_TAGGING_LEVEL_NONE) };
+
+    if let Ok(vm) = env.get_java_vm() {
+        let _ = JVM.set(vm);
+    }
+    // `bridge` : l'instance de l'`object` Kotlin `OcaraBridge` (méthode sans
+    // `@JvmStatic`), dont on garde la classe.
+    if let Ok(class) = env.get_object_class(&bridge).and_then(|class| env.new_global_ref(class)) {
+        let _ = BRIDGE_CLASS.set(class);
+    }
 
     let data_dir: String = match env.get_string(&data_dir) {
         Ok(s) => s.into(),

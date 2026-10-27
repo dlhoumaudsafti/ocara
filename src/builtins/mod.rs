@@ -40,6 +40,7 @@ pub mod mysql;
 pub mod tauri;
 pub mod sdl;
 pub mod image;
+pub mod android;
 
 use crate::sema::symbols::ClassInfo;
 
@@ -103,7 +104,8 @@ pub fn builtin_class(name: &str) -> Option<ClassInfo> {
         "SDLException" => Some(exception::sdl_exception_class()),
         "ImageException" => Some(exception::image_exception_class()),
         "TauriException" => Some(exception::tauri_exception_class()),
-        _             => None,
+        "AndroidException" => Some(exception::android_exception_class()),
+        _             => android::class(name),
     }
 }
 
@@ -167,5 +169,13 @@ pub fn all_builtins() -> Vec<(&'static str, ClassInfo)> {
         ("SDLException", exception::sdl_exception_class()),
         ("ImageException", exception::image_exception_class()),
         ("TauriException", exception::tauri_exception_class()),
+        ("AndroidException", exception::android_exception_class()),
+        ("AndroidPermissions", android::permissions_class()),
+        ("AndroidNotifications", android::notifications_class()),
+        ("AndroidSensors", android::sensors_class()),
+        ("AndroidFiles", android::files_class()),
+        ("AndroidCamera", android::camera_class()),
+        ("AndroidMicrophone", android::microphone_class()),
+        ("AndroidAudio", android::audio_class()),
     ]
 }

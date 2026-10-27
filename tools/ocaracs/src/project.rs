@@ -26,7 +26,8 @@ const OCARA_BUILTINS: &[&str] = &[
     "DateTimeException", "DateException", "TimeException",
     "ThreadException", "MutexException",
     "UnitTestException", "HTTPServerException", "SQLiteException", "MySQLException", "MariaDBException", "DotEnvException", "YAMLException",
-    "TauriException", "SDLException", "ImageException",
+    "TauriException", "SDLException", "ImageException", "AndroidException",
+    "AndroidPermissions", "AndroidNotifications", "AndroidSensors", "AndroidFiles", "AndroidCamera", "AndroidMicrophone", "AndroidAudio",
 ];
 
 const RUNTIME_EXTENSIONS: [&str; 4] = ["runtime.oc", "run.oc", "rt.oc", "oc"];

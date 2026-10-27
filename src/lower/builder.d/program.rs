@@ -482,6 +482,7 @@ pub fn lower_program_with(program: &Program, source_file: &str, coverage: bool) 
         "TauriException",
         "SDLException",
         "ImageException",
+        "AndroidException",
         "SQLiteException",
         "MySQLException",
         "MariaDBException",

@@ -2313,6 +2313,18 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
   - `getPixel()`/`setPixel()`, `setDrawColor()`/`clear()`/`drawPoint()`/`drawLine()`/`drawRect()`/`fillRect()`/`drawCircle()`/`fillCircle()`/`drawImage()`
   - `resize()`/`crop()`/`rotate()`/`flipH()`/`flipV()` (sur place)
 
+#### Android (hors GUI)
+
+Un builtin par domaine, toutes méthodes statiques ; programme compilé pour Android et lancé par l'app de `packaging/android` (ailleurs, chaque appel lève `AndroidException` 100). Voir [android.md](android.md).
+
+- **AndroidPermissions** — `isGranted()`, `request()` (attend la réponse de l'utilisateur) ([AndroidPermissions.md](builtins/AndroidPermissions.md))
+- **AndroidNotifications** — `show()`, `cancel()`, `areEnabled()` ([AndroidNotifications.md](builtins/AndroidNotifications.md))
+- **AndroidSensors** — `isAvailable()`, `list()`, `read()` (NDK `ASensorManager`) ([AndroidSensors.md](builtins/AndroidSensors.md))
+- **AndroidFiles** — `filesDir()`, `cacheDir()`, `externalFilesDir()`, `listAssets()`, `readAsset()`, `copyAsset()`, `saveToDownloads()` ([AndroidFiles.md](builtins/AndroidFiles.md))
+- **AndroidCamera** — `count()`, `takePhoto()` ([AndroidCamera.md](builtins/AndroidCamera.md))
+- **AndroidMicrophone** — `start()`, `stop()`, `isRecording()` ([AndroidMicrophone.md](builtins/AndroidMicrophone.md))
+- **AndroidAudio** — `play()`, `pause()`, `resume()`, `stop()`, `isPlaying()`, `setVolume()` ([AndroidAudio.md](builtins/AndroidAudio.md))
+
 #### Gestion des erreurs
 
 Les classes d'exception permettent une gestion fine des erreurs avec `try/on`. Toutes héritent d'une structure commune avec les champs `message:string`, `code:int`, et `source:string`.
@@ -2341,6 +2353,7 @@ Les classes d'exception permettent une gestion fine des erreurs avec `try/on`. T
 - **TauriException** — Erreurs d'enregistrement de handler IPC (`ui.handler`/`ui.handlers` avec un nom de commande déjà enregistré)
 - **SDLException** — Erreurs SDL (fenêtre déjà ouverte, échec d'initialisation, appel depuis le mauvais thread) (3 codes d'erreur)
 - **ImageException** — Erreurs d'image (fichier illisible ou corrompu, format non pris en charge, dimensions, pixel hors de l'image, valeur invalide) (8 codes d'erreur)
+- **AndroidException** — Erreurs des builtins `Android*` : hors Android, permission refusée, argument invalide, matériel absent, E/S, échec Android, délai dépassé, état invalide (8 codes d'erreur)
 
 > **Note :** La classe `String` ne lève aucune exception - toutes ses méthodes sont safe.
 

@@ -51,3 +51,28 @@ pub(crate) unsafe fn free_native(val: i64) {
 pub extern "C" fn __str_byte_len(val: i64) -> i64 {
     if val == 0 { 0 } else { unsafe { crate::str_append::str_len(val) as i64 } }
 }
+
+/// Chaîne Ocara possédée, copie des `len` octets UTF-8 de `ptr`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn __str_from_utf8(ptr: *const u8, len: usize) -> i64 {
+    unsafe {
+        let bytes = std::slice::from_raw_parts(ptr, len);
+        crate::alloc_str(std::str::from_utf8_unchecked(bytes))
+    }
+}
+
+/// Corps des talons `Android*_*` hors Android (`src/codegen/emit.d/emitter.rs`) :
+/// le programme compile partout, l'appel lève à l'exécution.
+#[unsafe(no_mangle)]
+pub extern "C" fn __android_unavailable() {
+    let (class, source) = ("AndroidException", "Android");
+    let message = "fonctionnalité disponible uniquement dans un programme compilé pour Android";
+    unsafe {
+        crate::exception::__raise_builtin_exception(
+            class.as_ptr(), class.len(),
+            source.as_ptr(), source.len(),
+            message.as_ptr(), message.len(),
+            100,
+        )
+    }
+}

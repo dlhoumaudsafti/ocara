@@ -10,7 +10,7 @@ mod sema;
 use std::fs;
 
 use codegen::emit::CraneliftEmitter;
-use codegen::link::{link, link_android};
+use codegen::link::{android_feature_libs, link, link_android};
 use lower::builder::lower_program_with;
 
 use core::analysis::{analyze, AnalyzeOptions};
@@ -209,6 +209,12 @@ fn run() {
         let target = args.target.as_deref().unwrap();
         let runtime_lib = args.android_runtime.as_ref().unwrap();
         let runtime_sdl_lib = if needs_sdl { args.android_runtime_sdl.as_deref() } else { None };
+        let feature_libs = android_feature_libs(&ir_module.imports, runtime_lib);
+        if !feature_libs.is_empty() && args.android_jni_bridge.is_none() {
+            diagnostic::print_error(&args.input, 0, 0,
+                "les builtins ocara.Android* requièrent --android-jni-bridge (voir `make build-jni-bridge-android`, docs/android.md)");
+            std::process::exit(1);
+        }
         let ndk_home = match args.android_ndk.clone()
             .or_else(|| std::env::var_os("ANDROID_NDK_HOME").map(std::path::PathBuf::from))
         {
@@ -220,7 +226,7 @@ fn run() {
             }
         };
 
-        match link_android(&obj_bytes, &obj_path, &args.output, target, &ndk_home, runtime_lib, runtime_sdl_lib, args.android_jni_bridge.as_deref(), args.release) {
+        match link_android(&obj_bytes, &obj_path, &args.output, target, &ndk_home, runtime_lib, runtime_sdl_lib, &feature_libs, args.android_jni_bridge.as_deref(), args.release) {
             Ok(()) => {
                 println!("compilation réussie (Android {}) → {}", target, args.output.display());
             }

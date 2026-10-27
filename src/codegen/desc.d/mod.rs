@@ -23,6 +23,7 @@ mod yaml;
 mod tauri;
 mod sdl;
 mod image;
+mod android;
 
 pub use lowlevel::LOWLEVEL_BUILTINS;
 pub use io::IO_BUILTINS;
@@ -49,4 +50,5 @@ pub use yaml::YAML_BUILTINS;
 pub use tauri::TAURI_BUILTINS;
 pub use sdl::SDL_BUILTINS;
 pub use image::IMAGE_BUILTINS;
+pub use android::ANDROID_BUILTINS;
 

@@ -1,0 +1,13 @@
+[package]
+name    = "ocara_runtime_android_common"
+version = "1.0.0"
+edition = "2024"
+
+# Code commun aux crates `runtime_android/<domaine>` : lié dans chacun (rlib),
+# sans état partagé — la JVM et la classe `OcaraBridge` viennent du pont JNI
+# (`runtime_android_jni`) en ABI C, le runtime Ocara aussi.
+[lib]
+name = "ocara_runtime_android_common"
+
+[dependencies]
+jni = "0.21"

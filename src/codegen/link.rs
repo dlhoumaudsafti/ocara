@@ -340,6 +340,17 @@ fn android_clang_prefix(triple: &str) -> Result<&'static str, LinkerError> {
 /// de packaging (« ce `.so` doit être chargeable par une Activity Android via
 /// JNI », voir docs/roadmap.d/packaging-android-webview-hybrid.md), pas une
 /// dépendance du programme compilé.
+/// Archives des builtins `ocara.Android*` importés
+/// (`libocara_runtime_android_<domaine>.a`, `make build-android-features`),
+/// cherchées dans le dossier de `runtime_lib` : un domaine non importé n'entre
+/// pas dans le `.so`.
+pub fn android_feature_libs(imports: &[String], runtime_lib: &Path) -> Vec<std::path::PathBuf> {
+    crate::builtins::android::ANDROID_BUILTINS.iter()
+        .filter(|(name, _)| imports.iter().any(|m| m == name))
+        .map(|(_, domain)| runtime_lib.with_file_name(format!("libocara_runtime_android_{domain}.a")))
+        .collect()
+}
+
 pub fn link_android(
     obj_bytes:      &[u8],
     obj_path:       &Path,
@@ -348,6 +359,7 @@ pub fn link_android(
     ndk_home:       &Path,
     runtime_lib:    &Path,
     runtime_sdl_lib: Option<&Path>,
+    feature_libs:   &[std::path::PathBuf],
     jni_bridge_lib: Option<&Path>,
     release:        bool,
 ) -> Result<(), LinkerError> {
@@ -370,6 +382,13 @@ pub fn link_android(
                 sdl_lib.display()
             )));
         }
+    }
+    if let Some(missing) = feature_libs.iter().find(|lib| !lib.exists()) {
+        return Err(LinkerError(format!(
+            "builtin Android introuvable: '{}' (produit par `make build-android-features`, \
+             à côté de --android-runtime, docs/android.md)",
+            missing.display()
+        )));
     }
     if let Some(jni_lib) = jni_bridge_lib {
         if !jni_lib.exists() {
@@ -407,6 +426,7 @@ pub fn link_android(
     if let Some(sdl_lib) = runtime_sdl_lib {
         cmd.arg(sdl_lib);
     }
+    cmd.args(feature_libs);
     if let Some(jni_lib) = jni_bridge_lib {
         cmd.arg(jni_lib);
         // -u force l'extraction du membre de l'archive qui définit ce symbole,
@@ -454,6 +474,9 @@ pub fn link_android(
             //              processus — état partagé de la gestion d'exceptions).
             vec!["-landroid", "-llog", "-lGLESv2", "-lOpenSLES", "-lc++"]
         } else { vec![] })
+        // -landroid : `ASensorManager*`/`ALooper*` d'`ocara.AndroidSensors`
+        // (inutile, donc écarté par --as-needed, pour les autres domaines).
+        .args(if !feature_libs.is_empty() && runtime_sdl_lib.is_none() { vec!["-landroid"] } else { vec![] })
         .arg("-Wl,--allow-multiple-definition")
         .arg("-Wl,--gc-sections")
         .arg("-Wl,--as-needed")
@@ -470,4 +493,22 @@ pub fn link_android(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::android_feature_libs;
+    use std::path::Path;
+
+    #[test]
+    fn android_feature_libs_follow_imports() {
+        let imports = vec!["IO".to_string(), "AndroidSensors".to_string(), "AndroidCamera".to_string()];
+        let libs = android_feature_libs(&imports, Path::new("/t/release/libocara_runtime.a"));
+        let names: Vec<String> = libs.iter().map(|p| p.display().to_string()).collect();
+        assert_eq!(names, vec![
+            "/t/release/libocara_runtime_android_sensors.a",
+            "/t/release/libocara_runtime_android_camera.a",
+        ]);
+        assert!(android_feature_libs(&["IO".to_string()], Path::new("/t/libocara_runtime.a")).is_empty());
+    }
 }

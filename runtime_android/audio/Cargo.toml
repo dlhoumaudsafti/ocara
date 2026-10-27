@@ -1,0 +1,13 @@
+[package]
+name    = "ocara_runtime_android_audio"
+version = "1.0.0"
+edition = "2024"
+
+# Lié dans le .so Android seulement si le programme importe le builtin du
+# domaine (src/codegen/link.rs, `link_android`).
+[lib]
+name       = "ocara_runtime_android_audio"
+crate-type = ["staticlib"]
+
+[dependencies]
+ocara_runtime_android_common = { path = "../common" }

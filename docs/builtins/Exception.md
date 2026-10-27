@@ -70,6 +70,7 @@ Chaque classe ci-dessous est un **sous-type de `Exception`** :
 | `YAMLException` | [YAML](YAML.md) |
 | `SDLException` | [SDL](SDL.md) |
 | `ImageException` | [Image](Image.md) |
+| `AndroidException` | [AndroidPermissions](AndroidPermissions.md), [AndroidNotifications](AndroidNotifications.md), [AndroidSensors](AndroidSensors.md), [AndroidFiles](AndroidFiles.md), [AndroidCamera](AndroidCamera.md), [AndroidMicrophone](AndroidMicrophone.md), [AndroidAudio](AndroidAudio.md) |
 | `TauriException` | [Tauri](Tauri.md) |
 
 Conséquences du sous-typage :

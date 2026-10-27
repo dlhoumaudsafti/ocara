@@ -1,0 +1,53 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.AndroidPermissions
+import ocara.AndroidNotifications
+import ocara.AndroidSensors
+import ocara.AndroidFiles
+import ocara.AndroidCamera
+import ocara.AndroidMicrophone
+import ocara.AndroidAudio
+
+// Builtins ocara.Android* hors Android : le programme compile, chaque appel
+// lève AndroidException 100, rattrapable, sans fuite (talons locaux,
+// src/codegen/emit.d/emitter.rs). Le comportement sur appareil est vérifié
+// par examples/advanced/android_native (docs/android.md §6).
+
+class Test119AndroidBuiltinsDesktop extends UnitTest {
+
+    public method valueReturningCallsRaiseTest(): int {
+        var codes:string = ""
+        try { AndroidPermissions::isGranted("camera") } on e is AndroidException { codes = codes + `${e.code} ` }
+        try { AndroidNotifications::show("t", "x") } on e is AndroidException { codes = codes + `${e.code} ` }
+        try { AndroidSensors::read("light") } on e is AndroidException { codes = codes + `${e.code} ` }
+        try { AndroidSensors::list() } on e is AndroidException { codes = codes + `${e.code} ` }
+        try { AndroidFiles::filesDir() } on e is AndroidException { codes = codes + `${e.code} ` }
+        try { AndroidCamera::count() } on e is AndroidException { codes = codes + `${e.code} ` }
+        try { AndroidMicrophone::isRecording() } on e is AndroidException { codes = codes + `${e.code} ` }
+        try { AndroidAudio::isPlaying() } on e is AndroidException { codes = codes + `${e.code}` }
+        self::assertEquals("100 100 100 100 100 100 100 100", codes)
+        return 0
+    }
+
+    public method voidCallsRaiseTest(): int {
+        var count:int = 0
+        try { AndroidCamera::takePhoto("p.jpg", "back") } on e is AndroidException { count++ }
+        try { AndroidMicrophone::start("v.m4a") } on e is AndroidException { count++ }
+        try { AndroidAudio::setVolume(0.5) } on e is AndroidException { count++ }
+        try { AndroidFiles::copyAsset("a", "b") } on e is AndroidException { count++ }
+        self::assertEquals(4, count)
+        return 0
+    }
+
+    public method messageAndSourceTest(): int {
+        var message:string = ""
+        try {
+            AndroidPermissions::request("camera")
+        } on e is AndroidException {
+            message = e.message
+        }
+        self::assertEquals("fonctionnalité disponible uniquement dans un programme compilé pour Android", message)
+        return 0
+    }
+}

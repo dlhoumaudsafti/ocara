@@ -1,0 +1,52 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.File
+import ocara.IO
+
+// Une fonction Ocara nommée comme une fonction de la libc (`write`, `read`,
+// `send`…) ne la remplace pas : les fonctions du programme sont locales au
+// binaire (src/codegen/emit.d/emitter.rs). Exportées, le runtime appelait le
+// code Ocara à la place de la libc (SIGSEGV à la première réponse
+// d'HTTPServer pour une fonction `send`).
+
+function write(n:int): int {
+    return n * 2
+}
+
+function read(n:int): int {
+    return n + 1
+}
+
+function open(text:string): string {
+    return `[${text}]`
+}
+
+function close(): int {
+    return 7
+}
+
+function send(text:string): string {
+    return text.upper()
+}
+
+class Test120FunctionNamedLikeLibc extends UnitTest {
+
+    public method ocaraFunctionsAreCalledTest(): int {
+        self::assertEquals(10, write(5))
+        self::assertEquals(6, read(5))
+        self::assertEquals("[a]", open("a"))
+        self::assertEquals(7, close())
+        self::assertEquals("OK", send("ok"))
+        return 0
+    }
+
+    public method runtimeStillUsesLibcTest(): int {
+        const path:string = "test_120_libc.txt"
+        File::write(path, "contenu")
+        IO::writeln("écriture par la libc")
+        self::assertEquals("contenu", File::read(path))
+        File::remove(path)
+        return 0
+    }
+}

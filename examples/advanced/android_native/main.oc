@@ -1,0 +1,151 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// examples/advanced/android_native/main.oc
+//
+// Builtins ocara.Android* dans l'app hybride de packaging/android : la
+// WebView affiche http://127.0.0.1:8081/, chaque lien appelle un domaine.
+// Même organisation que mini_project_hexa : un `Server` qui étend
+// HTTPServer, des routes en méthodes statiques d'un contrôleur.
+//
+//   make android      APK debug (arm64 + x86_64) avec ce programme
+//   make simulator    installe et lance l'APK
+//
+// Hors Android, le programme compile et chaque appel lève AndroidException 100.
+// ─────────────────────────────────────────────────────────────────────────────
+
+architecture permissive
+
+import ocara.HTTPServer
+import ocara.HTTPServerRequest
+import ocara.File
+import ocara.Thread
+import ocara.AndroidPermissions
+import ocara.AndroidNotifications
+import ocara.AndroidSensors
+import ocara.AndroidFiles
+import ocara.AndroidCamera
+import ocara.AndroidMicrophone
+import ocara.AndroidAudio
+
+const PAGE:string = "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width, initial-scale=1.0'><title>Ocara Android</title><style>body{font-family:sans-serif;margin:2rem 1rem}a{display:block;padding:.6rem 0;font-size:1.1rem}</style><h1>Ocara Android</h1><a href=/permissions?name=camera>Permission caméra</a><a href=/permissions?name=microphone>Permission micro</a><a href=/permissions?name=notifications>Permission notifications</a><a href=/permissions?name=activity_recognition>Permission activité</a><a href=/notify>Notification</a><a href=/sensors>Capteurs</a><a href=/files>Fichiers</a><a href=/photo>Photo</a><a href=/record>Enregistrer 2 s</a><a href=/play>Écouter l'enregistrement</a><a href=/download>Photo vers Téléchargements</a>"
+
+class AndroidController {
+
+    public static method index(req:HTTPServerRequest): int {
+        req.respond(200, PAGE)
+        return 0
+    }
+
+    public static method permissions(req:HTTPServerRequest): int {
+        const name:string = req.query("name")
+        try {
+            const before:bool = AndroidPermissions::isGranted(name)
+            const after:bool = AndroidPermissions::request(name)
+            req.respond(200, `${name} : avant ${before}, après ${after}`)
+        } on e is AndroidException {
+            req.respond(500, `AndroidException ${e.code} : ${e.message}`)
+        }
+        return 0
+    }
+
+    public static method notify(req:HTTPServerRequest): int {
+        try {
+            const id:int = AndroidNotifications::show("Ocara", "Bonjour depuis un programme Ocara")
+            req.respond(200, `notification ${id} (activées : ${AndroidNotifications::areEnabled()})`)
+        } on e is AndroidException {
+            req.respond(500, `AndroidException ${e.code} : ${e.message}`)
+        }
+        return 0
+    }
+
+    public static method sensors(req:HTTPServerRequest): int {
+        var text:string = ""
+        for name in AndroidSensors::list() {
+            try {
+                const values:array<float> = AndroidSensors::read(name)
+                text = text + `${name} : ${values.join(", ")}\n`
+            } on e is AndroidException {
+                text = text + `AndroidException ${e.code} : ${e.message}\n`
+            }
+        }
+        req.respond(200, text)
+        return 0
+    }
+
+    public static method files(req:HTTPServerRequest): int {
+        try {
+            const assets:array<string> = AndroidFiles::listAssets("")
+            req.respond(200, `files : ${AndroidFiles::filesDir()}\ncache : ${AndroidFiles::cacheDir()}\nexterne : ${AndroidFiles::externalFilesDir()}\nassets : ${assets.join(", ")}`)
+        } on e is AndroidException {
+            req.respond(500, `AndroidException ${e.code} : ${e.message}`)
+        }
+        return 0
+    }
+
+    public static method photo(req:HTTPServerRequest): int {
+        try {
+            AndroidCamera::takePhoto("photo.jpg", "back")
+            req.respond(200, `photo.jpg : ${File::size("photo.jpg")} octets (${AndroidCamera::count()} caméras)`)
+        } on e is AndroidException {
+            req.respond(500, `AndroidException ${e.code} : ${e.message}`)
+        }
+        return 0
+    }
+
+    public static method record(req:HTTPServerRequest): int {
+        try {
+            AndroidMicrophone::start("voice.m4a")
+            Thread::sleep(2000)
+            AndroidMicrophone::stop()
+            req.respond(200, `voice.m4a : ${File::size("voice.m4a")} octets`)
+        } on e is AndroidException {
+            req.respond(500, `AndroidException ${e.code} : ${e.message}`)
+        }
+        return 0
+    }
+
+    public static method play(req:HTTPServerRequest): int {
+        try {
+            AndroidAudio::setVolume(0.8)
+            AndroidAudio::play("voice.m4a")
+            req.respond(200, `lecture : ${AndroidAudio::isPlaying()}`)
+        } on e is AndroidException {
+            req.respond(500, `AndroidException ${e.code} : ${e.message}`)
+        }
+        return 0
+    }
+
+    public static method download(req:HTTPServerRequest): int {
+        try {
+            req.respond(200, AndroidFiles::saveToDownloads("photo.jpg", "ocara-photo.jpg"))
+        } on e is AndroidException {
+            req.respond(500, `AndroidException ${e.code} : ${e.message}`)
+        }
+        return 0
+    }
+}
+
+class Server extends HTTPServer {
+    init() {
+        parent::init()
+        self.port(8081)
+    }
+
+    public method routes(): void {
+        self.route("/",            "GET", AndroidController::index)
+        self.route("/permissions", "GET", AndroidController::permissions)
+        self.route("/notify",      "GET", AndroidController::notify)
+        self.route("/sensors",     "GET", AndroidController::sensors)
+        self.route("/files",       "GET", AndroidController::files)
+        self.route("/photo",       "GET", AndroidController::photo)
+        self.route("/record",      "GET", AndroidController::record)
+        self.route("/play",        "GET", AndroidController::play)
+        self.route("/download",    "GET", AndroidController::download)
+    }
+}
+
+function main(): int {
+    const server:Server = use Server()
+    server.routes()
+    server.run()
+    return 0
+}

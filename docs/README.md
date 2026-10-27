@@ -89,6 +89,13 @@ Documentation détaillée des classes intégrées au runtime Ocara :
 |---------|-------------|
 | [SDL.md](builtins/SDL.md) | Fenêtre, rendu 2D et événements (SDL2) |
 | [Image.md](builtins/Image.md) | Images hors fenêtre : création, chargement, dessin, transformations, enregistrement (PNG, JPEG, WEBP, GIF, BMP) |
+| [AndroidPermissions.md](builtins/AndroidPermissions.md) | Android : permissions d'exécution (caméra, micro, notifications…) |
+| [AndroidNotifications.md](builtins/AndroidNotifications.md) | Android : notifications système |
+| [AndroidSensors.md](builtins/AndroidSensors.md) | Android : capteurs (accéléromètre, gyroscope, lumière…) |
+| [AndroidFiles.md](builtins/AndroidFiles.md) | Android : répertoires de l'app, assets de l'APK, Téléchargements |
+| [AndroidCamera.md](builtins/AndroidCamera.md) | Android : photo JPEG sans aperçu |
+| [AndroidMicrophone.md](builtins/AndroidMicrophone.md) | Android : enregistrement du micro (AAC) |
+| [AndroidAudio.md](builtins/AndroidAudio.md) | Android : lecture d'un fichier audio |
 | [Tauri.md](builtins/Tauri.md) | ⚠️ **Partiellement fonctionnel** — fenêtre desktop native (Tauri v2) et appel de code Ocara depuis le JS de la page (`ui.handler`/`ui.handlers`) opérationnels ; événements/dialogues/notifications encore simulés |
 
 ---

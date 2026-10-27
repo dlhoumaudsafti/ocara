@@ -604,6 +604,28 @@ avec sa dernière référence (modèle : `ocara.Image`, `runtime_image/`) :
 
 ---
 
+## Builtin Android (domaine natif)
+
+Un builtin `ocara.Android<Domaine>` (modèle : `ocara.AndroidCamera`, voir
+[android.md](android.md) §6) :
+
+1. Crate `runtime_android/<domaine>` (staticlib) qui dépend de
+   `runtime_android/common` : `ffi` (chaînes, tableaux, exceptions du runtime
+   en ABI C) et `java::invoke(source, classe, méthode, args, Ret)` pour une
+   méthode statique Kotlin ; une API NDK se déclare directement (modèle :
+   `runtime_android/sensors`). Ajouter le crate au workspace et à
+   `ANDROID_FEATURES` (`Makefile`).
+2. Classe Kotlin `com.ocara.bridge.Ocara<Domaine>` (`packaging/android/…`),
+   méthodes `@JvmStatic` ; un entier Ocara est un `Long`, un flottant un
+   `Double`. Une erreur se lève en `OcaraAndroidError(code, message)`.
+3. Compilateur : la classe dans `src/builtins/android.rs` (et dans
+   `ANDROID_BUILTINS`, qui choisit l'archive à lier et les talons hors
+   Android), les signatures dans `src/codegen/desc.d/android.rs`, le nom dans
+   les listes d'imports (`src/core/analysis.d/imports.rs`,
+   `tools/ocaracs/src/project.rs`).
+4. Doc `docs/builtins/Android<Domaine>.md`, entrée dans `CLASSES` du
+   générateur VS Code, permission éventuelle dans `AndroidManifest.xml`.
+
 ## Étiquette bloquante
 
 Une méthode qui bloque porte une étiquette dans `src/builtins/blocking.rs` :

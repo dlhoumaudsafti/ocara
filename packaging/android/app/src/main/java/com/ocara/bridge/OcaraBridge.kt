@@ -1,5 +1,9 @@
 package com.ocara.bridge
 
+import android.app.Activity
+import android.content.Context
+import java.io.File
+
 /**
  * Pont JNI vers un programme Ocara compilé pour Android (voir
  * runtime_android_jni/src/lib.rs, et docs/roadmap.d/packaging-android-webview-hybrid.md).
@@ -12,6 +16,35 @@ package com.ocara.bridge
  * Rust pour la justification de ce choix (pas de configuration, un nom fixe).
  */
 object OcaraBridge {
+    private var appContext: Context? = null
+
+    /** Activity au premier plan, pour les demandes de permission ([OcaraPermissions]). */
+    @Volatile
+    var activity: Activity? = null
+        private set
+
+    /** Contexte de l'app, pour les builtins `ocara.Android*` (classes `Ocara*` de ce package). */
+    val context: Context
+        get() = appContext ?: throw OcaraAndroidError(OcaraAndroidError.UNAVAILABLE, "OcaraBridge.attach(activity) n'a pas été appelé")
+
+    /** À appeler dans `onCreate`, avant [nativeStartServer]. */
+    fun attach(activity: Activity) {
+        appContext = activity.applicationContext
+        this.activity = activity
+    }
+
+    /** À appeler dans `onDestroy`. */
+    fun detach(activity: Activity) {
+        if (this.activity === activity) this.activity = null
+    }
+
+    /**
+     * Fichier d'un chemin Ocara : un chemin relatif part du répertoire de
+     * travail du programme ([nativeStartServer] y fait `chdir`), pas de celui
+     * de la JVM.
+     */
+    fun file(path: String): File = File(path).let { if (it.isAbsolute) it else File(context.filesDir, path) }
+
     init {
         // Le nom "main" correspond au `-o libmain.so` utilisé lors de la
         // liaison Android (`ocara ... --android-jni-bridge ... -o libmain.so`)

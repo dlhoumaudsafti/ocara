@@ -4598,6 +4598,368 @@
     "consts": []
   },
   {
+    "name": "AndroidPermissions",
+    "methods": [
+      {
+        "name": "isGranted",
+        "params": [
+          {
+            "name": "permission",
+            "type": "string"
+          }
+        ],
+        "returns": "bool",
+        "static": true,
+        "doc": "`AndroidPermissions::isGranted(permission)` → `bool`\n\nVrai si la permission est accordée. Ne demande rien.",
+        "docFile": "AndroidPermissions.md",
+        "docHeading": "`AndroidPermissions::isGranted(permission)` → `bool`"
+      },
+      {
+        "name": "request",
+        "params": [
+          {
+            "name": "permission",
+            "type": "string"
+          }
+        ],
+        "returns": "bool",
+        "static": true,
+        "doc": "`AndroidPermissions::request(permission)` → `bool`\n\nDemande la permission si elle n'est pas déjà accordée et **attend la réponse\nde l'utilisateur** (le thread Ocara est bloqué, pas l'interface Android).\nRend vrai si elle est accordée. `AndroidException` 107 si appelée depuis le\nthread principal Android.",
+        "docFile": "AndroidPermissions.md",
+        "docHeading": "`AndroidPermissions::request(permission)` → `bool`"
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "AndroidNotifications",
+    "methods": [
+      {
+        "name": "areEnabled",
+        "params": [],
+        "returns": "bool",
+        "static": true,
+        "doc": "`AndroidNotifications::areEnabled()` → `bool`\n\nFaux si l'utilisateur a désactivé les notifications de l'app.",
+        "docFile": "AndroidNotifications.md",
+        "docHeading": "`AndroidNotifications::areEnabled()` → `bool`"
+      },
+      {
+        "name": "cancel",
+        "params": [
+          {
+            "name": "id",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`AndroidNotifications::cancel(id)` → `void`\n\nRetire la notification `id` (sans effet si elle n'existe plus).",
+        "docFile": "AndroidNotifications.md",
+        "docHeading": "`AndroidNotifications::cancel(id)` → `void`"
+      },
+      {
+        "name": "show",
+        "params": [
+          {
+            "name": "title",
+            "type": "string"
+          },
+          {
+            "name": "text",
+            "type": "string"
+          }
+        ],
+        "returns": "int",
+        "static": true,
+        "doc": "`AndroidNotifications::show(title, text)` → `int`\n\nAffiche une notification et rend son identifiant. `AndroidException` 101 si\nla permission manque.",
+        "docFile": "AndroidNotifications.md",
+        "docHeading": "`AndroidNotifications::show(title, text)` → `int`"
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "AndroidSensors",
+    "methods": [
+      {
+        "name": "isAvailable",
+        "params": [
+          {
+            "name": "sensor",
+            "type": "string"
+          }
+        ],
+        "returns": "bool",
+        "static": true,
+        "doc": "`AndroidSensors::isAvailable(sensor)` → `bool`\n\nVrai si l'appareil a ce capteur. `AndroidException` 102 pour un nom inconnu.",
+        "docFile": "AndroidSensors.md",
+        "docHeading": "`AndroidSensors::isAvailable(sensor)` → `bool`"
+      },
+      {
+        "name": "list",
+        "params": [],
+        "returns": "array<string>",
+        "static": true,
+        "doc": "`AndroidSensors::list()` → `array<string>`\n\nNoms des capteurs du tableau ci-dessus présents sur l'appareil.",
+        "docFile": "AndroidSensors.md",
+        "docHeading": "`AndroidSensors::list()` → `array<string>`"
+      },
+      {
+        "name": "read",
+        "params": [
+          {
+            "name": "sensor",
+            "type": "string"
+          }
+        ],
+        "returns": "array<float>",
+        "static": true,
+        "doc": "`AndroidSensors::read(sensor)` → `array<float>`\n\nUn relevé : le capteur est activé (50 Hz) le temps du premier événement, au\nplus 2 s. `AndroidException` 103 si l'appareil n'a pas ce capteur, 106 si\naucun relevé n'arrive (un capteur « à changement », comme `proximity`, peut\nne rien émettre tant que rien ne change), 101 pour `step_counter` sans la\npermission.",
+        "docFile": "AndroidSensors.md",
+        "docHeading": "`AndroidSensors::read(sensor)` → `array<float>`"
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "AndroidFiles",
+    "methods": [
+      {
+        "name": "cacheDir",
+        "params": [],
+        "returns": "string",
+        "static": true,
+        "doc": "`AndroidFiles::cacheDir()` → `string`\n\nCache privé, que le système peut vider.",
+        "docFile": "AndroidFiles.md",
+        "docHeading": "`AndroidFiles::cacheDir()` → `string`"
+      },
+      {
+        "name": "copyAsset",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          },
+          {
+            "name": "dest",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`AndroidFiles::copyAsset(path, dest)` → `void`\n\nCopie un asset vers `dest` (dossiers créés au besoin).",
+        "docFile": "AndroidFiles.md",
+        "docHeading": "`AndroidFiles::copyAsset(path, dest)` → `void`"
+      },
+      {
+        "name": "externalFilesDir",
+        "params": [],
+        "returns": "string",
+        "static": true,
+        "doc": "`AndroidFiles::externalFilesDir()` → `string`\n\nStockage externe propre à l'app (`Android/data/<package>/files`), lisible\npar l'utilisateur sur ordinateur. `AndroidException` 103 s'il est absent.",
+        "docFile": "AndroidFiles.md",
+        "docHeading": "`AndroidFiles::externalFilesDir()` → `string`"
+      },
+      {
+        "name": "filesDir",
+        "params": [],
+        "returns": "string",
+        "static": true,
+        "doc": "`AndroidFiles::filesDir()` → `string`\n\nStockage interne privé de l'app (répertoire de travail du programme).",
+        "docFile": "AndroidFiles.md",
+        "docHeading": "`AndroidFiles::filesDir()` → `string`"
+      },
+      {
+        "name": "listAssets",
+        "params": [
+          {
+            "name": "dir",
+            "type": "string"
+          }
+        ],
+        "returns": "array<string>",
+        "static": true,
+        "doc": "`AndroidFiles::listAssets(dir)` → `array<string>`\n\nNoms des entrées du dossier `dir` des assets de l'APK (`\"\"` : la racine).",
+        "docFile": "AndroidFiles.md",
+        "docHeading": "`AndroidFiles::listAssets(dir)` → `array<string>`"
+      },
+      {
+        "name": "readAsset",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true,
+        "doc": "`AndroidFiles::readAsset(path)` → `string`\n\nContenu texte (UTF-8) d'un asset. `AndroidException` 104 s'il est absent.",
+        "docFile": "AndroidFiles.md",
+        "docHeading": "`AndroidFiles::readAsset(path)` → `string`"
+      },
+      {
+        "name": "saveToDownloads",
+        "params": [
+          {
+            "name": "source",
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": true,
+        "doc": "`AndroidFiles::saveToDownloads(source, name)` → `string`\n\nCopie le fichier `source` dans Téléchargements sous le nom `name`, visible\nde l'utilisateur et des autres apps. Rend l'URI `content://` (Android 10 et\nplus, aucune permission) ou le chemin (Android 9 et moins, permission\n`android.permission.WRITE_EXTERNAL_STORAGE`).",
+        "docFile": "AndroidFiles.md",
+        "docHeading": "`AndroidFiles::saveToDownloads(source, name)` → `string`"
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "AndroidCamera",
+    "methods": [
+      {
+        "name": "count",
+        "params": [],
+        "returns": "int",
+        "static": true,
+        "doc": "`AndroidCamera::count()` → `int`\n\nNombre de caméras de l'appareil.",
+        "docFile": "AndroidCamera.md",
+        "docHeading": "`AndroidCamera::count()` → `int`"
+      },
+      {
+        "name": "takePhoto",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          },
+          {
+            "name": "facing",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`AndroidCamera::takePhoto(path, facing)` → `void`\n\nPrend une photo et l'enregistre en JPEG dans `path`. `facing` :\n`\"back\"` (dos, aussi pour `\"\"`) ou `\"front\"` (face). Bloque jusqu'à la\nphoto, 10 s au plus.",
+        "docFile": "AndroidCamera.md",
+        "docHeading": "`AndroidCamera::takePhoto(path, facing)` → `void`"
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "AndroidMicrophone",
+    "methods": [
+      {
+        "name": "isRecording",
+        "params": [],
+        "returns": "bool",
+        "static": true,
+        "doc": "`AndroidMicrophone::isRecording()` → `bool`\n\nVrai entre `start` et `stop`.",
+        "docFile": "AndroidMicrophone.md",
+        "docHeading": "`AndroidMicrophone::isRecording()` → `bool`"
+      },
+      {
+        "name": "start",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`AndroidMicrophone::start(path)` → `void`\n\nDémarre l'enregistrement vers `path`.",
+        "docFile": "AndroidMicrophone.md",
+        "docHeading": "`AndroidMicrophone::start(path)` → `void`"
+      },
+      {
+        "name": "stop",
+        "params": [],
+        "returns": "void",
+        "static": true,
+        "doc": "`AndroidMicrophone::stop()` → `void`\n\nArrête l'enregistrement et finalise le fichier. `AndroidException` 104 si\nrien n'a été enregistré (arrêt immédiat).",
+        "docFile": "AndroidMicrophone.md",
+        "docHeading": "`AndroidMicrophone::stop()` → `void`"
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "AndroidAudio",
+    "methods": [
+      {
+        "name": "isPlaying",
+        "params": [],
+        "returns": "bool",
+        "static": true,
+        "doc": "`AndroidAudio::isPlaying()` → `bool`\n\nVrai pendant la lecture (faux en pause et à la fin du fichier).",
+        "docFile": "AndroidAudio.md",
+        "docHeading": "`AndroidAudio::isPlaying()` → `bool`"
+      },
+      {
+        "name": "pause",
+        "params": [],
+        "returns": "void",
+        "static": true,
+        "doc": "`AndroidAudio::pause()` → `void`\n\nMet en pause.",
+        "docFile": "AndroidAudio.md",
+        "docHeading": "`AndroidAudio::pause()` → `void`"
+      },
+      {
+        "name": "play",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`AndroidAudio::play(path)` → `void`\n\nLit le fichier `path` depuis le début ; arrête la lecture précédente.",
+        "docFile": "AndroidAudio.md",
+        "docHeading": "`AndroidAudio::play(path)` → `void`"
+      },
+      {
+        "name": "resume",
+        "params": [],
+        "returns": "void",
+        "static": true,
+        "doc": "`AndroidAudio::resume()` → `void`\n\nReprend après une pause.",
+        "docFile": "AndroidAudio.md",
+        "docHeading": "`AndroidAudio::resume()` → `void`"
+      },
+      {
+        "name": "setVolume",
+        "params": [
+          {
+            "name": "volume",
+            "type": "float"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`AndroidAudio::setVolume(volume)` → `void`\n\nVolume de l'app, de `0.0` à `1.0` (défaut `1.0`), gardé pour les lectures\nsuivantes.",
+        "docFile": "AndroidAudio.md",
+        "docHeading": "`AndroidAudio::setVolume(volume)` → `void`"
+      },
+      {
+        "name": "stop",
+        "params": [],
+        "returns": "void",
+        "static": true,
+        "doc": "`AndroidAudio::stop()` → `void`\n\nArrête la lecture (sans effet s'il n'y en a pas).",
+        "docFile": "AndroidAudio.md",
+        "docHeading": "`AndroidAudio::stop()` → `void`"
+      }
+    ],
+    "consts": []
+  },
+  {
     "name": "HTML",
     "methods": [
       {
