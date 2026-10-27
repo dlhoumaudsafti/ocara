@@ -145,6 +145,13 @@ fn main() {
     std::fs::copy(&runtime_src, &runtime_dst)
         .expect("impossible de copier libocara_runtime.a dans OUT_DIR");
 
+    // libocara_runtime_image.a — crate séparé (voir src/codegen/link.rs), lié
+    // seulement pour les programmes qui importent ocara.Image. Rust pur :
+    // aucune dépendance système, compilable pour toute cible.
+    let image_src = ensure_runtime_lib(&manifest_dir, "ocara_runtime_image", &[]);
+    std::fs::copy(&image_src, out_dir.join("libocara_runtime_image.a"))
+        .expect("impossible de copier libocara_runtime_image.a dans OUT_DIR");
+
     // `ocara_runtime_tauri` (WebView2 sur Windows exige l'ABI MSVC — l'import
     // lib fournie par Microsoft est un `.lib` au format COFF/MSVC, illisible
     // par `ar`/`ld` GNU — voir docs/roadmap.d/packaging-windows.md) et
@@ -198,4 +205,5 @@ fn main() {
     println!("cargo:rerun-if-changed={}", release_dir.join("libocara_runtime.a").display());
     println!("cargo:rerun-if-changed={}", release_dir.join("libocara_runtime_tauri.a").display());
     println!("cargo:rerun-if-changed={}", release_dir.join("libocara_runtime_sdl.a").display());
+    println!("cargo:rerun-if-changed={}", release_dir.join("libocara_runtime_image.a").display());
 }

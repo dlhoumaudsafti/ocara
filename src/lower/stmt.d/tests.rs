@@ -141,3 +141,30 @@ mod elseif_merge_tests {
         assert!(widest <= 2, "un bloc a {} prédécesseurs", widest);
     }
 }
+
+/// Tests unitaires — valeurs natives comptées (`rc_layout::NATIVE_COUNTED`,
+/// `runtime/src/native.rs`) : une `Image` est relâchée comme une chaîne.
+#[cfg(test)]
+mod native_counted_tests {
+    use crate::ir::inst::Inst;
+    use crate::lower::builder::program::lower_program;
+    use crate::parsing::lexer::Lexer;
+    use crate::parsing::parser::Parser;
+
+    #[test]
+    fn image_local_is_released() {
+        let src = "import ocara.Image\n\
+                   function f(): void {\n\
+                       var img:Image = Image::create(2, 2)\n\
+                       img.clear()\n\
+                   }\n";
+        let tokens = Lexer::new(src).tokenize().expect("lex");
+        let program = Parser::new(tokens).parse_program().expect("parse");
+        let module = lower_program(&program, "<test>");
+        assert!(module.rc_objects.contains("Image"));
+        let func = module.functions.iter().find(|f| f.name == "f").expect("fonction");
+        let releases = func.blocks.iter().flat_map(|b| &b.insts)
+            .any(|i| matches!(i, Inst::Call { func, .. } if func == "__rc_release"));
+        assert!(releases);
+    }
+}

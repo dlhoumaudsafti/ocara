@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, Once};
 
-use crate::typecheck::{TAG_ARRAY, TAG_CELL, TAG_ENV, TAG_EXCEPTION, TAG_FUNCTION, TAG_GEN, TAG_HANDLE, TAG_MAP, TAG_STRING_OWNED, TAG_TASK};
+use crate::typecheck::{TAG_ARRAY, TAG_CELL, TAG_ENV, TAG_EXCEPTION, TAG_FUNCTION, TAG_GEN, TAG_HANDLE, TAG_MAP, TAG_NATIVE, TAG_STRING_OWNED, TAG_TASK};
 
 static ENABLED: AtomicBool = AtomicBool::new(false);
 static INIT: Once = Once::new();
@@ -111,6 +111,7 @@ fn label(kind: Kind, names: &HashMap<i64, String>) -> String {
         Kind::Tag(t) if t == TAG_EXCEPTION => "exception".into(),
         Kind::Tag(t) if t == TAG_HANDLE => "ressource native".into(),
         Kind::Tag(t) if t == TAG_TASK => "tâche async".into(),
+        Kind::Tag(t) if t == TAG_NATIVE => "objet natif".into(),
         Kind::Tag(t) => format!("bloc (tag {})", t),
     }
 }

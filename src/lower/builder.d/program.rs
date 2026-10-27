@@ -481,6 +481,7 @@ pub fn lower_program_with(program: &Program, source_file: &str, coverage: bool) 
         "HTTPServerException",
         "TauriException",
         "SDLException",
+        "ImageException",
         "SQLiteException",
         "MySQLException",
         "MariaDBException",

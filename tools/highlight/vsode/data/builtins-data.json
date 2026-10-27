@@ -4176,6 +4176,428 @@
     "consts": []
   },
   {
+    "name": "Image",
+    "methods": [
+      {
+        "name": "clear",
+        "params": [],
+        "returns": "void",
+        "static": false,
+        "doc": "`img.clear()` → `void`\n\nRemplit toute l'image avec la couleur courante, sans composition.",
+        "docFile": "Image.md",
+        "docHeading": "`img.clear()` → `void`"
+      },
+      {
+        "name": "copy",
+        "params": [],
+        "returns": "Image",
+        "static": false,
+        "doc": "`img.copy()` → `Image`\n\nNouvelle image indépendante : mêmes pixels, même couleur de dessin.",
+        "docFile": "Image.md",
+        "docHeading": "`img.copy()` → `Image`"
+      },
+      {
+        "name": "create",
+        "params": [
+          {
+            "name": "width",
+            "type": "int"
+          },
+          {
+            "name": "height",
+            "type": "int"
+          }
+        ],
+        "returns": "Image",
+        "static": true,
+        "doc": "`Image::create(width, height)` → `Image`\n\nImage de `width` × `height` pixels, entièrement transparente.\n`ImageException` 105 si une dimension est nulle ou négative, ou si l'image\ndépasse 2²⁸ pixels.\n\n```ocara\nvar img:Image = Image::create(width: 640, height: 480)\n```",
+        "docFile": "Image.md",
+        "docHeading": "`Image::create(width, height)` → `Image`"
+      },
+      {
+        "name": "crop",
+        "params": [
+          {
+            "name": "x",
+            "type": "int"
+          },
+          {
+            "name": "y",
+            "type": "int"
+          },
+          {
+            "name": "w",
+            "type": "int"
+          },
+          {
+            "name": "h",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`img.crop(x, y, w, h)` → `void`\n\nNe garde que le rectangle donné, qui doit être entièrement dans l'image\n(`ImageException` 106 sinon, 105 si `w` ou `h` n'est pas positif).",
+        "docFile": "Image.md",
+        "docHeading": "`img.crop(x, y, w, h)` → `void`"
+      },
+      {
+        "name": "drawCircle",
+        "params": [
+          {
+            "name": "cx",
+            "type": "int"
+          },
+          {
+            "name": "cy",
+            "type": "int"
+          },
+          {
+            "name": "radius",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`img.drawCircle(cx, cy, radius)` → `void`\n\nCercle d'un pixel d'épaisseur centré en `(cx, cy)`. `ImageException` 105 si\n`radius` est négatif.",
+        "docFile": "Image.md",
+        "docHeading": "`img.drawCircle(cx, cy, radius)` → `void`"
+      },
+      {
+        "name": "drawImage",
+        "params": [
+          {
+            "name": "src",
+            "type": "Image"
+          },
+          {
+            "name": "x",
+            "type": "int"
+          },
+          {
+            "name": "y",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`img.drawImage(src, x, y)` → `void`\n\nCompose `src` par-dessus l'image, son coin supérieur gauche en `(x, y)` : les\npixels transparents de `src` laissent voir l'image, les pixels\nsemi-transparents se mélangent. `src` peut être l'image elle-même.",
+        "docFile": "Image.md",
+        "docHeading": "`img.drawImage(src, x, y)` → `void`"
+      },
+      {
+        "name": "drawLine",
+        "params": [
+          {
+            "name": "x1",
+            "type": "int"
+          },
+          {
+            "name": "y1",
+            "type": "int"
+          },
+          {
+            "name": "x2",
+            "type": "int"
+          },
+          {
+            "name": "y2",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`img.drawLine(x1, y1, x2, y2)` → `void`\n\nSegment d'un pixel d'épaisseur, extrémités comprises.",
+        "docFile": "Image.md",
+        "docHeading": "`img.drawLine(x1, y1, x2, y2)` → `void`"
+      },
+      {
+        "name": "drawPoint",
+        "params": [
+          {
+            "name": "x",
+            "type": "int"
+          },
+          {
+            "name": "y",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`img.drawPoint(x, y)` → `void`\n\nUn pixel.",
+        "docFile": "Image.md",
+        "docHeading": "`img.drawPoint(x, y)` → `void`"
+      },
+      {
+        "name": "drawRect",
+        "params": [
+          {
+            "name": "x",
+            "type": "int"
+          },
+          {
+            "name": "y",
+            "type": "int"
+          },
+          {
+            "name": "w",
+            "type": "int"
+          },
+          {
+            "name": "h",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`img.drawRect(x, y, w, h)` → `void`\n\nContour d'un rectangle, un pixel d'épaisseur. `ImageException` 105 si `w` ou\n`h` est négatif ; rien n'est dessiné si l'un vaut 0.",
+        "docFile": "Image.md",
+        "docHeading": "`img.drawRect(x, y, w, h)` → `void`"
+      },
+      {
+        "name": "fillCircle",
+        "params": [
+          {
+            "name": "cx",
+            "type": "int"
+          },
+          {
+            "name": "cy",
+            "type": "int"
+          },
+          {
+            "name": "radius",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`img.fillCircle(cx, cy, radius)` → `void`\n\nDisque plein (un seul pixel pour un rayon 0).",
+        "docFile": "Image.md",
+        "docHeading": "`img.fillCircle(cx, cy, radius)` → `void`"
+      },
+      {
+        "name": "fillRect",
+        "params": [
+          {
+            "name": "x",
+            "type": "int"
+          },
+          {
+            "name": "y",
+            "type": "int"
+          },
+          {
+            "name": "w",
+            "type": "int"
+          },
+          {
+            "name": "h",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`img.fillRect(x, y, w, h)` → `void`\n\nRectangle plein. Mêmes règles que `drawRect`.",
+        "docFile": "Image.md",
+        "docHeading": "`img.fillRect(x, y, w, h)` → `void`"
+      },
+      {
+        "name": "flipH",
+        "params": [],
+        "returns": "void",
+        "static": false,
+        "doc": "`img.flipH()` → `void`\n\nMiroir horizontal (gauche ↔ droite).",
+        "docFile": "Image.md",
+        "docHeading": "`img.flipH()` → `void`"
+      },
+      {
+        "name": "flipV",
+        "params": [],
+        "returns": "void",
+        "static": false,
+        "doc": "`img.flipV()` → `void`\n\nMiroir vertical (haut ↔ bas).",
+        "docFile": "Image.md",
+        "docHeading": "`img.flipV()` → `void`"
+      },
+      {
+        "name": "getPixel",
+        "params": [
+          {
+            "name": "x",
+            "type": "int"
+          },
+          {
+            "name": "y",
+            "type": "int"
+          }
+        ],
+        "returns": "array<int>",
+        "static": false,
+        "doc": "`img.getPixel(x, y)` → `array<int>`\n\nComposantes `[r, g, b, a]` du pixel. `ImageException` 106 si `(x, y)` est\nhors de l'image.\n\n```ocara\nvar p:array<int> = img.getPixel(10, 20)\nIO::writeln(`rouge=${p[0]} alpha=${p[3]}`)\n```",
+        "docFile": "Image.md",
+        "docHeading": "`img.getPixel(x, y)` → `array<int>`"
+      },
+      {
+        "name": "height",
+        "params": [],
+        "returns": "int",
+        "static": false,
+        "doc": "`img.height()` → `int`\n\nHauteur en pixels.",
+        "docFile": "Image.md",
+        "docHeading": "`img.height()` → `int`"
+      },
+      {
+        "name": "load",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "Image",
+        "static": true,
+        "doc": "`Image::load(path)` → `Image`\n\nCharge un fichier PNG, JPEG, WEBP, GIF ou BMP (format reconnu au contenu).\n`ImageException` 101 si le fichier est illisible, 102 si son contenu n'est\npas une image reconnue ou est corrompu.",
+        "docFile": "Image.md",
+        "docHeading": "`Image::load(path)` → `Image`"
+      },
+      {
+        "name": "resize",
+        "params": [
+          {
+            "name": "width",
+            "type": "int"
+          },
+          {
+            "name": "height",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`img.resize(width, height)` → `void`\n\nRedimensionne l'image (filtre de Lanczos). Mêmes dimensions valides que\n`Image::create`. Pour garder les proportions, calculer l'une des dimensions\nà partir de l'autre.",
+        "docFile": "Image.md",
+        "docHeading": "`img.resize(width, height)` → `void`"
+      },
+      {
+        "name": "rotate",
+        "params": [
+          {
+            "name": "degrees",
+            "type": "float"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`img.rotate(degrees)` → `void`\n\nTourne l'image de `degrees` dans le sens horaire (négatif : sens\nanti-horaire). Un multiple de 90° est exact et échange largeur et hauteur\npour 90° et 270°. Un autre angle agrandit l'image pour tout contenir, les\ncoins ajoutés étant transparents, avec un échantillonnage bilinéaire.\n`ImageException` 107 si l'angle n'est pas un nombre fini.\n\n```ocara\nimg.rotate(90.0)\nimg.rotate(-12.5)\n```",
+        "docFile": "Image.md",
+        "docHeading": "`img.rotate(degrees)` → `void`"
+      },
+      {
+        "name": "save",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`img.save(path)` → `void`\n\nEnregistre l'image au format donné par l'extension de `path` (JPEG en\nqualité 90). `ImageException` 104 si l'extension n'est pas un format\nd'écriture pris en charge, 103 si le fichier ne peut pas être écrit.\n\n```ocara\nimg.save(\"sortie.png\")\nimg.save(\"sortie.webp\")\n```",
+        "docFile": "Image.md",
+        "docHeading": "`img.save(path)` → `void`"
+      },
+      {
+        "name": "saveJpeg",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          },
+          {
+            "name": "quality",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`img.saveJpeg(path, quality)` → `void`\n\nEnregistre en JPEG avec une qualité de 1 à 100 (`ImageException` 107 sinon).\nLe JPEG n'a pas de transparence : l'alpha est ignoré.",
+        "docFile": "Image.md",
+        "docHeading": "`img.saveJpeg(path, quality)` → `void`"
+      },
+      {
+        "name": "setDrawColor",
+        "params": [
+          {
+            "name": "r",
+            "type": "int"
+          },
+          {
+            "name": "g",
+            "type": "int"
+          },
+          {
+            "name": "b",
+            "type": "int"
+          },
+          {
+            "name": "a",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`img.setDrawColor(r, g, b, a)` → `void`\n\nCouleur des primitives de dessin et de `clear`. `ImageException` 107 si une\ncomposante sort de 0..255.",
+        "docFile": "Image.md",
+        "docHeading": "`img.setDrawColor(r, g, b, a)` → `void`"
+      },
+      {
+        "name": "setPixel",
+        "params": [
+          {
+            "name": "x",
+            "type": "int"
+          },
+          {
+            "name": "y",
+            "type": "int"
+          },
+          {
+            "name": "r",
+            "type": "int"
+          },
+          {
+            "name": "g",
+            "type": "int"
+          },
+          {
+            "name": "b",
+            "type": "int"
+          },
+          {
+            "name": "a",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`img.setPixel(x, y, r, g, b, a)` → `void`\n\nRemplace le pixel par cette couleur (sans composition). `ImageException` 106\nsi `(x, y)` est hors de l'image, 107 si une composante sort de 0..255.",
+        "docFile": "Image.md",
+        "docHeading": "`img.setPixel(x, y, r, g, b, a)` → `void`"
+      },
+      {
+        "name": "width",
+        "params": [],
+        "returns": "int",
+        "static": false,
+        "doc": "`img.width()` → `int`\n\nLargeur en pixels.",
+        "docFile": "Image.md",
+        "docHeading": "`img.width()` → `int`"
+      }
+    ],
+    "consts": []
+  },
+  {
     "name": "HTML",
     "methods": [
       {

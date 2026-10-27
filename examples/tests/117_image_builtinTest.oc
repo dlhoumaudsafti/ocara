@@ -1,0 +1,215 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.Image
+import ocara.Math
+
+// ocara.Image (docs/builtins/Image.md). Images de référence (tests/images/,
+// produites par un autre outil) : 16x16, quadrants rouge | vert / bleu |
+// jaune ; le quadrant jaune est semi-transparent (alpha 128) en PNG et WEBP,
+// opaque en BMP et JPEG, entièrement transparent en GIF.
+class Test117ImageBuiltin extends UnitTest {
+
+    private method rgba(img:Image, x:int, y:int): string {
+        var p:array<int> = img.getPixel(x, y)
+        return `${p[0]},${p[1]},${p[2]},${p[3]}`
+    }
+
+    private method near(img:Image, x:int, y:int, r:int, g:int, b:int): bool {
+        var p:array<int> = img.getPixel(x, y)
+        return Math::abs(p[0] - r) smaller 9 and Math::abs(p[1] - g) smaller 9 and Math::abs(p[2] - b) smaller 9
+    }
+
+    private method count(img:Image, r:int, g:int, b:int, a:int): int {
+        var n:int = 0
+        for y in 0 until img.height() {
+            for x in 0 until img.width() {
+                if self.rgba(img, x, y) equal `${r},${g},${b},${a}` {
+                    n += 1
+                }
+            }
+        }
+        return n
+    }
+
+    private method codeOf(action:Function<void()>): int {
+        try {
+            action()
+        } on e is ImageException {
+            return e.code
+        }
+        return 0
+    }
+
+    public method losslessReferencesAreReadExactlyTest(): int {
+        for ext in ["png", "webp"] {
+            var img:Image = Image::load(`tests/images/reference.${ext}`)
+            self::assertEquals(16, img.width())
+            self::assertEquals(16, img.height())
+            self::assertEquals("255,0,0,255", self.rgba(img, 0, 0))
+            self::assertEquals("0,255,0,255", self.rgba(img, 15, 0))
+            self::assertEquals("0,0,255,255", self.rgba(img, 0, 15))
+            self::assertEquals("255,255,0,128", self.rgba(img, 15, 15))
+        }
+        var bmp:Image = Image::load("tests/images/reference.bmp")
+        self::assertEquals("255,255,0,255", self.rgba(bmp, 15, 15))
+        var gif:Image = Image::load("tests/images/reference.gif")
+        self::assertEquals("0,255,0,255", self.rgba(gif, 15, 0))
+        self::assertEquals(0, gif.getPixel(15, 15)[3])
+        return 0
+    }
+
+    public method jpegReferenceIsReadApproximatelyTest(): int {
+        var img:Image = Image::load("tests/images/reference.jpg")
+        self::assertTrue(self.near(img, 0, 0, 255, 0, 0))
+        self::assertTrue(self.near(img, 15, 0, 0, 255, 0))
+        self::assertTrue(self.near(img, 0, 15, 0, 0, 255))
+        self::assertTrue(self.near(img, 15, 15, 255, 255, 0))
+        return 0
+    }
+
+    public method losslessFormatsRoundTripTest(): int {
+        for ext in ["png", "webp", "bmp", "gif"] {
+            var img:Image = Image::load(`tests/images/reference.${ext}`)
+            img.setPixel(1, 1, 10, 20, 30, 255)
+            img.setDrawColor(255, 255, 255, 255)
+            img.fillRect(4, 4, 2, 2)
+            var path:string = `/tmp/ocara_image_roundtrip.${ext}`
+            img.save(path)
+            var back:Image = Image::load(path)
+            self::assertEquals("10,20,30,255", self.rgba(back, 1, 1))
+            self::assertEquals("255,255,255,255", self.rgba(back, 5, 5))
+            self::assertEquals(self.rgba(img, 0, 15), self.rgba(back, 0, 15))
+            self::assertEquals(self.rgba(img, 15, 15), self.rgba(back, 15, 15))
+        }
+        return 0
+    }
+
+    public method jpegRoundTripKeepsColorsTest(): int {
+        var img:Image = Image::load("tests/images/reference.png")
+        img.setDrawColor(255, 255, 255, 255)
+        img.fillRect(0, 0, 8, 8)
+        img.saveJpeg("/tmp/ocara_image_roundtrip.jpg", 95)
+        var back:Image = Image::load("/tmp/ocara_image_roundtrip.jpg")
+        self::assertTrue(self.near(back, 2, 2, 255, 255, 255))
+        self::assertTrue(self.near(back, 12, 2, 0, 255, 0))
+        self::assertEquals(255, back.getPixel(15, 15)[3])
+        return 0
+    }
+
+    public method createIsTransparentTest(): int {
+        var img:Image = Image::create(width: 3, height: 2)
+        self::assertEquals(6, self.count(img, 0, 0, 0, 0))
+        img.setDrawColor(1, 2, 3, 4)
+        img.clear()
+        self::assertEquals(6, self.count(img, 1, 2, 3, 4))
+        return 0
+    }
+
+    public method drawingBlendsOverTheImageTest(): int {
+        var img:Image = Image::create(width: 4, height: 4)
+        img.setDrawColor(0, 0, 255, 255)
+        img.clear()
+        img.setDrawColor(255, 0, 0, 128)
+        img.fillRect(0, 0, 2, 2)
+        self::assertEquals(4, self.count(img, 128, 0, 127, 255))
+        img.setPixel(3, 3, 9, 9, 9, 0)
+        self::assertEquals("9,9,9,0", self.rgba(img, 3, 3))
+        return 0
+    }
+
+    public method shapesStayInsideTheImageTest(): int {
+        var img:Image = Image::create(width: 10, height: 10)
+        img.setDrawColor(255, 255, 255, 255)
+        img.drawRect(0, 0, 10, 10)
+        self::assertEquals(36, self.count(img, 255, 255, 255, 255))
+        img.clear()
+        img.setDrawColor(0, 0, 0, 255)
+        img.fillRect(-100, 2, 1000, 1)
+        self::assertEquals(10, self.count(img, 0, 0, 0, 255))
+        img.drawLine(-50, -50, 50, 50)
+        self::assertEquals(19, self.count(img, 0, 0, 0, 255))
+        img.drawPoint(-1, 3)
+        img.fillCircle(5, 5, 100)
+        self::assertEquals(100, self.count(img, 0, 0, 0, 255))
+        return 0
+    }
+
+    public method circlesTest(): int {
+        var img:Image = Image::create(width: 9, height: 9)
+        img.setDrawColor(255, 0, 0, 255)
+        img.fillCircle(4, 4, 0)
+        self::assertEquals(1, self.count(img, 255, 0, 0, 255))
+        img.fillCircle(4, 4, 2)
+        self::assertEquals(21, self.count(img, 255, 0, 0, 255))
+        var ring:Image = Image::create(width: 9, height: 9)
+        ring.setDrawColor(255, 0, 0, 255)
+        ring.drawCircle(4, 4, 3)
+        self::assertEquals("255,0,0,255", self.rgba(ring, 7, 4))
+        self::assertEquals("0,0,0,0", self.rgba(ring, 4, 4))
+        return 0
+    }
+
+    public method drawImageComposesAtOffsetTest(): int {
+        var dst:Image = Image::create(width: 4, height: 4)
+        var src:Image = Image::create(width: 2, height: 2)
+        src.setDrawColor(0, 255, 0, 255)
+        src.clear()
+        dst.drawImage(src, 3, 3)
+        dst.drawImage(src, -1, -1)
+        self::assertEquals(2, self.count(dst, 0, 255, 0, 255))
+        dst.drawImage(dst, 1, 0)
+        self::assertEquals(3, self.count(dst, 0, 255, 0, 255))
+        return 0
+    }
+
+    public method transformsTest(): int {
+        var img:Image = Image::load("tests/images/reference.png")
+        var copy:Image = img.copy()
+        copy.flipH()
+        self::assertEquals("0,255,0,255", self.rgba(copy, 0, 0))
+        self::assertEquals("255,0,0,255", self.rgba(img, 0, 0))
+        copy.flipV()
+        self::assertEquals("255,255,0,128", self.rgba(copy, 0, 0))
+        copy.crop(0, 0, 8, 4)
+        self::assertEquals(8, copy.width())
+        self::assertEquals(4, copy.height())
+        img.rotate(90.0)
+        self::assertEquals("0,0,255,255", self.rgba(img, 0, 0))
+        img.rotate(-90.0)
+        self::assertEquals("255,0,0,255", self.rgba(img, 0, 0))
+        img.rotate(45.0)
+        self::assertEquals(23, img.width())
+        self::assertEquals(0, img.getPixel(0, 0)[3])
+        img.resize(5, 7)
+        self::assertEquals(5, img.width())
+        self::assertEquals(7, img.height())
+        return 0
+    }
+
+    public method errorsRaiseImageExceptionTest(): int {
+        var img:Image = Image::create(width: 2, height: 2)
+        self::assertEquals(101, self.codeOf(nameless(): void { Image::load("/tmp/ocara_image_absente.png") }))
+        self::assertEquals(102, self.codeOf(nameless(): void { Image::load("tests/117_image_builtinTest.oc") }))
+        self::assertEquals(104, self.codeOf(nameless(): void { img.save("/tmp/ocara_image.xyz") }))
+        self::assertEquals(105, self.codeOf(nameless(): void { Image::create(width: 0, height: 5) }))
+        self::assertEquals(105, self.codeOf(nameless(): void { img.resize(100000, 100000) }))
+        self::assertEquals(106, self.codeOf(nameless(): void { img.getPixel(2, 0) }))
+        self::assertEquals(106, self.codeOf(nameless(): void { img.crop(1, 1, 2, 2) }))
+        self::assertEquals(107, self.codeOf(nameless(): void { img.setDrawColor(0, 0, 0, 256) }))
+        self::assertEquals(107, self.codeOf(nameless(): void { img.saveJpeg("/tmp/ocara_image.jpg", 0) }))
+        self::assertEquals(107, self.codeOf(nameless(): void { img.rotate(0.0 / 0.0) }))
+        return 0
+    }
+
+    public method imagesAreReleasedTest(): int {
+        var kept:Image = Image::create(width: 8, height: 8)
+        for i in 0 until 200 {
+            var tmp:Image = Image::create(width: 256, height: 256)
+            tmp.drawImage(kept, i, i)
+            kept = tmp.copy()
+        }
+        self::assertEquals(256, kept.width())
+        return 0
+    }
+}

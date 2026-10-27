@@ -576,6 +576,34 @@ if self_ptr == 0 {
 
 ---
 
+## Valeur native comptée dans un crate séparé
+
+Une classe dont les valeurs portent une structure Rust volumineuse, libérée
+avec sa dernière référence (modèle : `ocara.Image`, `runtime_image/`) :
+
+- **Crate séparé** (`runtime_<nom>/`, `crate-type = ["staticlib"]`) quand ses
+  dépendances ne doivent être liées que dans les programmes qui importent la
+  classe : membre du workspace (`Cargo.toml`), ligne `cargo build` dans les
+  cibles `build`/`build-dev` (et `build-runtime-windows` s'il est
+  portable) du `Makefile`, archive embarquée par `build.rs`, liée par
+  `src/codegen/link.rs` selon `IrModule::imports` (`src/main.rs`).
+- **Aucune dépendance Rust vers `ocara_runtime`** : le crate embarquerait
+  sa propre copie du runtime, et sous Windows une partie de ses appels s'y
+  lierait (pile des `try`, caches…). Il déclare seulement les points
+  d'entrée en ABI C dont il a besoin (`runtime_image/src/ffi.rs`) :
+  `__native_new(data, drop_fn)`/`__native_data(val, drop_fn)` (valeur
+  comptée `TAG_NATIVE`, `runtime/src/native.rs`), `__str_byte_len`,
+  `__raise_builtin_exception`, `__array_new`… `ocara_runtime` reste en
+  `[dev-dependencies]` pour ses tests.
+- **Comptage** : ajouter le nom de la classe à `NATIVE_COUNTED`
+  (`src/lower/builder.d/rc_layout.rs`) — le compilateur insère alors
+  retenues et relâchements comme pour une chaîne.
+- **Exceptions** : une exception part par `longjmp`, qui saute les
+  destructeurs. La lever hors de tout verrou, sans valeur à détruire encore
+  vivante (message recopié sur la pile, voir `ffi::raise`).
+
+---
+
 ## Étiquette bloquante
 
 Une méthode qui bloque porte une étiquette dans `src/builtins/blocking.rs` :

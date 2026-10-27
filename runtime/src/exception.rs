@@ -212,6 +212,24 @@ pub unsafe fn throw_sdl_exception(message: &str, code: i64) -> ! {
         std::hint::unreachable_unchecked()
     }
 }
+/// Lance l'exception builtin `class` (sous-classe d'`Exception`) depuis un
+/// crate séparé, en ABI C (voir `crate::native`) : chaque texte est passé
+/// en UTF-8 par adresse et longueur.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn __raise_builtin_exception(
+    class: *const u8, class_len: usize,
+    source: *const u8, source_len: usize,
+    message: *const u8, message_len: usize,
+    code: i64,
+) -> ! {
+    unsafe {
+        let text = |ptr: *const u8, len: usize| std::str::from_utf8_unchecked(std::slice::from_raw_parts(ptr, len));
+        let obj_ptr = alloc_exception(text(message, message_len), code, text(source, source_len));
+        let type_name = alloc_str(&format!("{}|Exception", text(class, class_len)));
+        __ocara_fail(obj_ptr, type_name);
+        std::hint::unreachable_unchecked()
+    }
+}
 /// Lance une SQLiteException
 pub unsafe fn throw_sqlite_exception(message: &str, code: i64, source: &str) -> ! {
     unsafe {

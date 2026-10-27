@@ -129,6 +129,7 @@ pub mod dotenv;
 pub mod yaml;
 pub mod rc;
 pub mod task;
+pub mod native;
 pub mod mixed_check;
 pub mod mixed_index;
 pub mod str_append;

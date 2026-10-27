@@ -1,0 +1,78 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// examples/builtins/image.oc
+//
+// Démonstration de ocara.Image : dessin, composition, transformations,
+// conversion de formats et gestion d'erreur, sans fenêtre.
+//
+// Pour tester :
+//   ./target/release/ocara examples/builtins/image.oc -o /tmp/image_demo
+//   /tmp/image_demo
+// ─────────────────────────────────────────────────────────────────────────────
+
+architecture permissive
+
+import ocara.Image
+import ocara.IO
+
+function drawPoster(): Image {
+    var img:Image = Image::create(width: 320, height: 200)
+    img.setDrawColor(240, 240, 230, 255)
+    img.clear()
+
+    img.setDrawColor(30, 60, 160, 255)
+    img.fillRect(20, 20, 120, 80)
+    img.setDrawColor(220, 40, 40, 140)
+    img.fillCircle(130, 100, 60)
+    img.setDrawColor(20, 120, 40, 255)
+    img.drawCircle(250, 140, 40)
+    img.drawRect(5, 5, 310, 190)
+    img.drawLine(0, 199, 319, 0)
+    return img
+}
+
+function main(): void {
+    IO::writeln("=== Dessin ===")
+    var poster:Image = drawPoster()
+    poster.save("/tmp/ocara_poster.png")
+    IO::writeln(`/tmp/ocara_poster.png : ${poster.width()}x${poster.height()}`)
+    var p:array<int> = poster.getPixel(50, 50)
+    IO::writeln(`pixel (50, 50) : r=${p[0]} g=${p[1]} b=${p[2]} a=${p[3]}`)
+
+    IO::writeln("")
+    IO::writeln("=== Miniature tournée, composée sur l'affiche ===")
+    var thumb:Image = Image::load("/tmp/ocara_poster.png")
+    thumb.resize(96, 60)
+    thumb.rotate(20.0)
+    IO::writeln(`miniature : ${thumb.width()}x${thumb.height()}`)
+    poster.drawImage(thumb, 200, 10)
+
+    IO::writeln("")
+    IO::writeln("=== Conversion de formats ===")
+    for ext in ["png", "webp", "gif", "bmp"] {
+        poster.save(`/tmp/ocara_poster.${ext}`)
+        IO::writeln(`/tmp/ocara_poster.${ext}`)
+    }
+    poster.saveJpeg("/tmp/ocara_poster.jpg", 85)
+    IO::writeln("/tmp/ocara_poster.jpg (qualité 85)")
+
+    IO::writeln("")
+    IO::writeln("=== Recadrage et miroir ===")
+    var detail:Image = poster.copy()
+    detail.crop(20, 20, 120, 80)
+    detail.flipH()
+    detail.save("/tmp/ocara_detail.png")
+    IO::writeln(`/tmp/ocara_detail.png : ${detail.width()}x${detail.height()}`)
+
+    IO::writeln("")
+    IO::writeln("=== Erreurs ===")
+    try {
+        Image::load("/tmp/ocara_absente.png")
+    } on e is ImageException {
+        IO::writeln(`ImageException ${e.code} : ${e.message}`)
+    }
+    try {
+        poster.save("/tmp/ocara_poster.xyz")
+    } on e is ImageException {
+        IO::writeln(`ImageException ${e.code} : ${e.message}`)
+    }
+}

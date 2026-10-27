@@ -88,6 +88,7 @@ Documentation détaillée des classes intégrées au runtime Ocara :
 | Builtin | Description |
 |---------|-------------|
 | [SDL.md](builtins/SDL.md) | Fenêtre, rendu 2D et événements (SDL2) |
+| [Image.md](builtins/Image.md) | Images hors fenêtre : création, chargement, dessin, transformations, enregistrement (PNG, JPEG, WEBP, GIF, BMP) |
 | [Tauri.md](builtins/Tauri.md) | ⚠️ **Partiellement fonctionnel** — fenêtre desktop native (Tauri v2) et appel de code Ocara depuis le JS de la page (`ui.handler`/`ui.handlers`) opérationnels ; événements/dialogues/notifications encore simulés |
 
 ---

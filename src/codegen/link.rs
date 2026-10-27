@@ -41,6 +41,12 @@ static RUNTIME_TAURI_BYTES: &[u8] =
 static RUNTIME_SDL_BYTES: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/libocara_runtime_sdl.a"));
 
+/// Runtime Image (`runtime_image/`) : crate séparé pour que les codecs
+/// (PNG, JPEG, WEBP, GIF, BMP — Rust pur, aucune bibliothèque C) ne soient
+/// liés que dans les programmes qui importent `ocara.Image`.
+static RUNTIME_IMAGE_BYTES: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/libocara_runtime_image.a"));
+
 /// Runtime embarqué extrait sur disque pour l'édition de liens.
 struct RuntimeArchive {
     path: PathBuf,
@@ -133,6 +139,7 @@ fn pkg_config_libs(package: &str) -> Vec<String> {
 /// par l'appelant via `ir_module.imports`). Contrôle si libocara_runtime_tauri.a
 /// et les bibliothèques GTK/WebKit sont liés — voir la doc de RUNTIME_TAURI_BYTES.
 /// `needs_sdl` : même principe pour `ocara.SDL` — voir la doc de RUNTIME_SDL_BYTES.
+/// `needs_image` : même principe pour `ocara.Image` — voir RUNTIME_IMAGE_BYTES.
 pub fn link(
     obj_bytes:   &[u8],
     obj_path:    &Path,
@@ -140,6 +147,7 @@ pub fn link(
     release:     bool,
     needs_tauri: bool,
     needs_sdl:   bool,
+    needs_image: bool,
 ) -> Result<(), LinkerError> {
     // 1. Écriture du fichier objet
     std::fs::write(obj_path, obj_bytes)
@@ -152,6 +160,7 @@ pub fn link(
     let runtime_tauri = tauri_archive.as_ref().map(|a| a.path.clone());
     let sdl_archive = if needs_sdl { Some(extract_runtime(RUNTIME_SDL_BYTES, "ocara_runtime_sdl")?) } else { None };
     let runtime_sdl = sdl_archive.as_ref().map(|a| a.path.clone());
+    let image_archive = if needs_image { Some(extract_runtime(RUNTIME_IMAGE_BYTES, "ocara_runtime_image")?) } else { None };
 
     // 3. Liaison : objet + runtime(s) → exécutable
     // --allow-multiple-definition : les symboles du .o (programme) priment sur la .a (runtime)
@@ -176,6 +185,9 @@ pub fn link(
     }
     if let Some(rt) = &runtime_sdl {
         cmd.arg(rt);
+    }
+    if let Some(rt) = &image_archive {
+        cmd.arg(&rt.path);
     }
     cmd.arg("-o")
         .arg(out_path)

@@ -22,6 +22,7 @@ mod dotenv;
 mod yaml;
 mod tauri;
 mod sdl;
+mod image;
 
 pub use lowlevel::LOWLEVEL_BUILTINS;
 pub use io::IO_BUILTINS;
@@ -47,4 +48,5 @@ pub use dotenv::DOTENV_BUILTINS;
 pub use yaml::YAML_BUILTINS;
 pub use tauri::TAURI_BUILTINS;
 pub use sdl::SDL_BUILTINS;
+pub use image::IMAGE_BUILTINS;
 

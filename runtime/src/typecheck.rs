@@ -55,6 +55,9 @@ pub(crate) const TAG_HANDLE: i64 = 11;
 /// Tâche `async` (`Resolvable<T>`, voir `crate::task`) : comptée, son
 /// résultat jamais résolu est relâché à sa destruction.
 pub(crate) const TAG_TASK: i64 = 12;
+/// Valeur native comptée (`Image`…, voir `crate::native`) : une structure
+/// Rust détruite avec le bloc.
+pub(crate) const TAG_NATIVE: i64 = 13;
 
 const PTR_THRESHOLD: i64 = 65536;
 

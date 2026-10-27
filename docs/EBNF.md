@@ -2306,6 +2306,13 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
   - Palier 2 : `loadTexture()`/`textureWidth()`/`textureHeight()`/`drawTexture()`/`drawTextureScaled()`/`drawTextureRegion()` (SDL_image), `loadFont()`/`drawText()` (SDL_ttf)
   - Palier 3 : `isButtonPressed()`/`getAxis()` (SDL_gamepad, + événements `pollEvent` dédiés), `loadSound()`/`playSound()`/`playMusic()`/`pauseMusic()`/`resumeMusic()`/`stopMusic()`/`setMusicVolume()` (SDL_mixer)
 
+#### Images
+
+- **Image** — Images en mémoire hors fenêtre : PNG, JPEG, WEBP, GIF, BMP (valeur comptée, voir [Image.md](builtins/Image.md))
+  - `Image::create()`/`Image::load()` (statiques), `width()`/`height()`/`copy()`, `save()`/`saveJpeg()`
+  - `getPixel()`/`setPixel()`, `setDrawColor()`/`clear()`/`drawPoint()`/`drawLine()`/`drawRect()`/`fillRect()`/`drawCircle()`/`fillCircle()`/`drawImage()`
+  - `resize()`/`crop()`/`rotate()`/`flipH()`/`flipV()` (sur place)
+
 #### Gestion des erreurs
 
 Les classes d'exception permettent une gestion fine des erreurs avec `try/on`. Toutes héritent d'une structure commune avec les champs `message:string`, `code:int`, et `source:string`.
@@ -2333,6 +2340,7 @@ Les classes d'exception permettent une gestion fine des erreurs avec `try/on`. T
 - **HTTPServerException** — Erreurs du serveur HTTP : démarrage (101, ex : port déjà utilisé), valeur non stockable en session (102)
 - **TauriException** — Erreurs d'enregistrement de handler IPC (`ui.handler`/`ui.handlers` avec un nom de commande déjà enregistré)
 - **SDLException** — Erreurs SDL (fenêtre déjà ouverte, échec d'initialisation, appel depuis le mauvais thread) (3 codes d'erreur)
+- **ImageException** — Erreurs d'image (fichier illisible ou corrompu, format non pris en charge, dimensions, pixel hors de l'image, valeur invalide) (8 codes d'erreur)
 
 > **Note :** La classe `String` ne lève aucune exception - toutes ses méthodes sont safe.
 

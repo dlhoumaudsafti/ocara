@@ -1580,6 +1580,7 @@ Les **exceptions runtime** (levées pendant l'exécution du programme) sont docu
 | `DotEnvException` | DotEnv | [DotEnv.md](builtins/DotEnv.md) |
 | `TauriException` | Tauri | [Tauri.md](builtins/Tauri.md) |
 | `SDLException` | SDL | [SDL.md](builtins/SDL.md) |
+| `ImageException` | Image | [Image.md](builtins/Image.md) |
 
 Chaque exception a des **codes d'erreur spécifiques** (101, 102, etc.) documentés dans les pages correspondantes.
 

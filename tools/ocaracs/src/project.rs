@@ -18,7 +18,7 @@ use crate::text::{line_states, masked_code};
 
 /// Modules livrés avec le runtime (importables aussi sans `ocara.`).
 const OCARA_BUILTINS: &[&str] = &[
-    "IO", "Math", "String", "Array", "Map", "JSON", "Tauri", "SDL",
+    "IO", "Math", "String", "Array", "Map", "JSON", "Tauri", "SDL", "Image",
     "Convert", "System", "Regex", "HTTPRequest", "HTTPResponse", "HTTPServer", "HTTPServerRequest", "HTTPServerSession", "SQLite", "MySQL", "MariaDB", "DotEnv", "YAML", "Thread", "Mutex",
     "DateTime", "Date", "Time", "UnitTest", "HTMLComponent", "HTML",
     "File", "Directory", "Exception", "FileException", "DirectoryException", "IOException", "SystemException",
@@ -26,7 +26,7 @@ const OCARA_BUILTINS: &[&str] = &[
     "DateTimeException", "DateException", "TimeException",
     "ThreadException", "MutexException",
     "UnitTestException", "HTTPServerException", "SQLiteException", "MySQLException", "MariaDBException", "DotEnvException", "YAMLException",
-    "TauriException", "SDLException",
+    "TauriException", "SDLException", "ImageException",
 ];
 
 const RUNTIME_EXTENSIONS: [&str; 4] = ["runtime.oc", "run.oc", "rt.oc", "oc"];

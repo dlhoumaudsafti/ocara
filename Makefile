@@ -20,7 +20,7 @@ help:
 	@echo "  build-all               Compile tout : ocara + outils (release)"
 	@echo "  build-all-dev           Compile tout en mode debug"
 	@echo "  test                    Lance les tests unitaires Cargo (cargo test)"
-	@echo "  tests-runtime           Lance les tests unitaires du runtime (ocara_runtime)"
+	@echo "  tests-runtime           Lance les tests unitaires du runtime (ocara_runtime, ocara_runtime_image)"
 	@echo "  tests-tools             Lance les tests unitaires des outils (ocaracs, ocaraunit)"
 	@echo "  regression              Lance la régression complète (tous les exemples)"
 	@echo "  regression <chemin>     Lance uniquement examples/<chemin>.oc"
@@ -104,12 +104,14 @@ build: pkgconfig-shim
 	# lié statiquement, voir runtime_sdl/Cargo.toml) — nécessite cmake + un
 	# compilateur C (+ headers X11 dev sur Linux), voir README.
 	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime_sdl -j4
+	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime_image -j4
 	RUSTFLAGS="-D warnings" cargo build --release -p ocara -j4
 
 build-dev: pkgconfig-shim
 	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo build -p ocara_runtime -j4
 	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo build -p ocara_runtime_tauri -j4
 	RUSTFLAGS="-D warnings" cargo build -p ocara_runtime_sdl -j4
+	RUSTFLAGS="-D warnings" cargo build -p ocara_runtime_image -j4
 	RUSTFLAGS="-D warnings" cargo build -p ocara -j4
 
 # ── Cross-compilation Android (sous-chantier 3, packaging-android.md) ───────
@@ -213,6 +215,10 @@ build-runtime-windows:
 	AR_x86_64_pc_windows_gnu="$(WINDOWS_AR)" \
 	CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER="$(WINDOWS_CC)" \
 	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime --target $(WINDOWS_TARGET) -j4
+	CC_x86_64_pc_windows_gnu="$(WINDOWS_CC)" \
+	AR_x86_64_pc_windows_gnu="$(WINDOWS_AR)" \
+	CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER="$(WINDOWS_CC)" \
+	RUSTFLAGS="-D warnings" cargo build --release -p ocara_runtime_image --target $(WINDOWS_TARGET) -j4
 
 # `ocara` lui-même cross-compilé pour Windows (contrairement à Android, où
 # seuls des PROGRAMMES Ocara étaient cross-compilés via `--target` sur le
@@ -301,7 +307,7 @@ tests:
 # `cargo test` à la racine ne couvre que le crate `ocara` : le runtime
 # (runtime/src/tests/) a ses propres tests, lancés séparément.
 tests-runtime: pkgconfig-shim
-	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo test -p ocara_runtime -j4
+	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo test -p ocara_runtime -p ocara_runtime_image -j4
 
 tests-tools:
 	RUSTFLAGS="-D warnings" cargo test -p ocaracs -p ocaraunit
@@ -410,7 +416,7 @@ uninstall-all: uninstall uninstall-tools
 
 # ── Nettoyage ───────────────────────────────────────────────────────────────
 clean:
-	cargo clean -p ocara -p ocara_runtime -p ocara_runtime_tauri -p ocara_runtime_sdl
+	cargo clean -p ocara -p ocara_runtime -p ocara_runtime_tauri -p ocara_runtime_sdl -p ocara_runtime_image
 	rm -f $(TMP)
 
 clean-tools:

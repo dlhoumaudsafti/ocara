@@ -10,6 +10,7 @@ mod httpsession;
 mod string;
 mod rc;
 mod task;
+mod native;
 mod structures;
 mod map_table;
 mod mixed_index;

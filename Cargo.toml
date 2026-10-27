@@ -1,5 +1,5 @@
 [workspace]
-members = ["runtime", "runtime_tauri", "runtime_sdl", "runtime_android_jni", "tools/ocaracs", "tools/ocaraunit"]
+members = ["runtime", "runtime_tauri", "runtime_sdl", "runtime_image", "runtime_android_jni", "tools/ocaracs", "tools/ocaraunit"]
 
 # tiny_http 0.12.0 patché (vendor/tiny_http, modifications marquées
 # `[Ocara]`) : délai de lecture/écriture par connexion, écoute maintenue

@@ -169,6 +169,7 @@ fn run() {
     // réellement ocara.Tauri (voir la doc dans src/codegen/link.rs).
     let needs_tauri = ir_module.imports.iter().any(|m| m == "Tauri");
     let needs_sdl = ir_module.imports.iter().any(|m| m == "SDL");
+    let needs_image = ir_module.imports.iter().any(|m| m == "Image");
 
     if android_link_requested {
         // Tauri n'a structurellement aucun équivalent Android (GTK ne tourne
@@ -199,6 +200,12 @@ fn run() {
             std::process::exit(1);
         }
 
+        if needs_image {
+            diagnostic::print_error(&args.input, 0, 0,
+                "ocara.Image n'est pas encore disponible sur Android (voir docs/roadmap.d/builtins-image.md)");
+            std::process::exit(1);
+        }
+
         let target = args.target.as_deref().unwrap();
         let runtime_lib = args.android_runtime.as_ref().unwrap();
         let runtime_sdl_lib = if needs_sdl { args.android_runtime_sdl.as_deref() } else { None };
@@ -225,7 +232,7 @@ fn run() {
         return;
     }
 
-    match link(&obj_bytes, &obj_path, &args.output, args.release, needs_tauri, needs_sdl) {
+    match link(&obj_bytes, &obj_path, &args.output, args.release, needs_tauri, needs_sdl, needs_image) {
         Ok(()) => {
             println!("compilation réussie → {}", args.output.display());
         }

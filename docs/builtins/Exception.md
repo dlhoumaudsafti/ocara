@@ -69,6 +69,7 @@ Chaque classe ci-dessous est un **sous-type de `Exception`** :
 | `DotEnvException` | [DotEnv](DotEnv.md) |
 | `YAMLException` | [YAML](YAML.md) |
 | `SDLException` | [SDL](SDL.md) |
+| `ImageException` | [Image](Image.md) |
 | `TauriException` | [Tauri](Tauri.md) |
 
 Conséquences du sous-typage :

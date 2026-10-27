@@ -97,6 +97,8 @@ x86_64-w64-mingw32-gcc mon_programme.o \
 wine mon_programme.exe
 ```
 
+Un programme qui importe `ocara.Image` ajoute `target/x86_64-pc-windows-gnu/release/libocara_runtime_image.a` juste après `libocara_runtime.a` (produit par `make build-runtime-windows`).
+
 **Vérifié réellement**, pas juste "ça devrait marcher" :
 - Un `"Hello World"` compilé ainsi affiche le bon texte sous Wine.
 - Un programme avec 2 `Thread`/`Mutex` incrémentant un compteur partagé 1000 fois chacun donne exactement `2000` (aucune perte d'incrément — `CRITICAL_SECTION`, l'équivalent Windows de `pthread_mutex`, fonctionne correctement sous charge concurrente réelle).

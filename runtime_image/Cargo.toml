@@ -1,0 +1,22 @@
+[package]
+name    = "ocara_runtime_image"
+version = "1.0.0"
+edition = "2024"
+
+[lib]
+name       = "ocara_runtime_image"
+crate-type = ["staticlib"]
+
+[dependencies]
+# Crate séparé du runtime principal, comme runtime_sdl : les codecs ne sont
+# liés que dans les programmes qui importent ocara.Image (voir
+# src/codegen/link.rs). Aucune dépendance Rust vers ocara_runtime : il
+# n'appelle que ses points d'entrée en ABI C (src/ffi.rs), pour ne jamais
+# embarquer une seconde copie du runtime. Rust pur, aucune bibliothèque C.
+# Sans les features par défaut : pas de rayon, ni des codecs non annoncés
+# (docs/builtins/Image.md). WEBP s'écrit sans perte uniquement.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp"] }
+
+[dev-dependencies]
+# Fournit les points d'entrée en ABI C au binaire de test.
+ocara_runtime = { path = "../runtime" }
