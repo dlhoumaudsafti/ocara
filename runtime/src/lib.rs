@@ -2973,21 +2973,32 @@ pub extern "C" fn __alloc_env(n_caps: i64, n_fields: i64) -> i64 {
 // reprend à l'intérieur de __ocara_try_exec, qui est toujours vivant.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// jmp_buf sur x86-64 Linux = 25 × u64 = 200 octets
-#[repr(C, align(8))]
-struct JmpBuf([u64; 25]);
+/// `jmp_buf` : 200 octets sous Linux x86-64, 256 alignés sur 16 sous Windows
+/// x64 (`_JUMP_BUFFER`, XMM6-15 sauvegardés par `movdqa`) — la plus grande
+/// taille sert partout, les offsets de `TryFrame` sont les mêmes pour toutes
+/// les cibles (voir `read_try_error` côté compilateur).
+#[repr(C, align(16))]
+struct JmpBuf([u8; 256]);
 
 unsafe extern "C" {
-    /// `_setjmp` : sans sauvegarde du masque de signaux (`setjmp` de glibc
-    /// faisait deux `rt_sigprocmask` par exception).
+    /// `_setjmp(env, frame)` : sans sauvegarde du masque de signaux sous Linux
+    /// (`setjmp` de glibc faisait deux `rt_sigprocmask` par exception), et
+    /// `frame` nul sous Windows pour que `longjmp` restaure les registres sans
+    /// dérouler par SEH — le code Cranelift n'a pas de table de déroulement,
+    /// et un `frame` arbitraire faisait perdre les locales de la fonction
+    /// englobante. glibc ignore le second argument.
     #[allow(improper_ctypes)]
-    #[cfg_attr(not(windows), link_name = "_setjmp")]
-    fn setjmp(env: *mut JmpBuf) -> i32;
+    #[link_name = "_setjmp"]
+    fn setjmp(env: *mut JmpBuf, frame: *mut u8) -> i32;
     #[allow(improper_ctypes)]
     fn longjmp(env: *mut JmpBuf, val: i32) -> !;
 }
 
+const _: () = assert!(std::mem::offset_of!(TryFrame, error_val) == 256);
+const _: () = assert!(std::mem::offset_of!(TryFrame, error_type) == 264);
+
 // État de la pile try (par thread, profondeur max = 64)
+#[repr(C)]
 struct TryFrame {
     env:        JmpBuf,
     error_val:  i64,
@@ -3055,8 +3066,8 @@ pub extern "C" fn __ocara_try_take_return() -> i64 {
 /// donc SA PROPRE frame doit appeler `setjmp` elle-même.
 ///
 /// `frame_ptr` (retourné en i64) pointe vers un `TryFrame` : offset 0 =
-/// `env` (JmpBuf, 200 octets — à passer tel quel à `setjmp`), offset 200 =
-/// `error_val`, offset 208 = `error_type` (voir `Inst::GetField` avec ces
+/// `env` (JmpBuf, 256 octets — à passer tel quel à `setjmp`), offset 256 =
+/// `error_val`, offset 264 = `error_type` (voir `Inst::GetField` avec ces
 /// offsets bruts dans le lowering, pas de fonction runtime dédiée pour les
 /// lire — même patron que `class_id` dans `__alloc_class_obj`).
 #[unsafe(no_mangle)]
@@ -3126,7 +3137,7 @@ pub extern "C" fn __ocara_try_exec(body_fn: i64, handler_fn: i64) -> i64 {
 
         // SETJMP — sauvegarde la frame de __ocara_try_exec
         let env_ptr: *mut JmpBuf = unsafe { &mut (*frame_ptr).env };
-        let ret = unsafe { setjmp(env_ptr) };
+        let ret = unsafe { setjmp(env_ptr, std::ptr::null_mut()) };
 
         if ret == 0 {
             // Exécution normale du corps try
@@ -3217,7 +3228,7 @@ pub extern "C" fn __ocara_try_exec_with_captures(
         stack.depth.set(depth + 1);
 
         let env_ptr: *mut JmpBuf = unsafe { &mut (*frame_ptr).env };
-        let ret = unsafe { setjmp(env_ptr) };
+        let ret = unsafe { setjmp(env_ptr, std::ptr::null_mut()) };
 
         if ret == 0 {
             // Le body reçoit le pointeur vers les captures
@@ -3286,7 +3297,7 @@ pub(crate) fn run_closure_catching(func_ptr: i64, env_ptr: i64) -> Result<i64, (
         stack.depth.set(depth + 1);
 
         let jmp_env: *mut JmpBuf = unsafe { &mut (*frame_ptr).env };
-        let ret = unsafe { setjmp(jmp_env) };
+        let ret = unsafe { setjmp(jmp_env, std::ptr::null_mut()) };
 
         if ret == 0 {
             let closure: unsafe extern "C" fn(i64) -> i64 =
@@ -3339,7 +3350,7 @@ pub(crate) fn run_closure_catching_with_arg(func_ptr: i64, env_ptr: i64, arg1: i
         stack.depth.set(depth + 1);
 
         let jmp_env: *mut JmpBuf = unsafe { &mut (*frame_ptr).env };
-        let ret = unsafe { setjmp(jmp_env) };
+        let ret = unsafe { setjmp(jmp_env, std::ptr::null_mut()) };
 
         if ret == 0 {
             let closure: unsafe extern "C" fn(i64, i64) -> i64 =

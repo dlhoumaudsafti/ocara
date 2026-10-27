@@ -32,7 +32,14 @@ class Test52ClassResourcePropertyDestructor extends UnitTest {
         if File::exists(path) {
             File::remove(path)
         }
+        self.recordThreeVisits(path)
+        // Connexions fermées au retour : Windows refuse de supprimer un
+        // fichier encore ouvert.
+        File::remove(path)
+        return 0
+    }
 
+    private method recordThreeVisits(path:string): void {
         scoped setup:Database = use Database(path)
         setup.migrate()
 
@@ -56,9 +63,6 @@ class Test52ClassResourcePropertyDestructor extends UnitTest {
         self::assertEquals(1, v1)
         self::assertEquals(2, v2)
         self::assertEquals(3, v3)
-
-        File::remove(path)
-        return 0
     }
 }
 

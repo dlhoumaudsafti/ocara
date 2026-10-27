@@ -5,9 +5,9 @@ RED     := \033[0;31m
 RESET   := \033[0m
 
 # Argument optionnel : make regression builtins/io ; make android-simulator <apk>
-_TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests tests-runtime tests-tools regression ci leak-check perf perf-extra lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android android-simulator build-runtime-windows build-windows,$(MAKECMDGOALS))
+_TARGET := $(filter-out build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests tests-runtime tests-tools regression ci leak-check perf perf-extra lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android android-simulator build-runtime-windows build-windows tests-windows,$(MAKECMDGOALS))
 
-.PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests tests-runtime tests-tools regression ci leak-check perf perf-extra lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android android-simulator build-runtime-windows build-windows $(_TARGET)
+.PHONY: build build-dev build-tools build-tools-dev build-all build-all-dev pkgconfig-shim test tests tests-runtime tests-tools regression ci leak-check perf perf-extra lint-examples tests-examples clean clean-tools clean-all help install install-tools install-all uninstall uninstall-tools uninstall-all build-runtime-android build-runtime-sdl-android build-jni-bridge-android android-simulator build-runtime-windows build-windows tests-windows $(_TARGET)
 
 # ── Aide ──────────────────────────────────────────────────────────────────────
 help:
@@ -55,6 +55,7 @@ help:
 	@echo "  build-runtime-windows   Cross-compile ocara_runtime pour x86_64-pc-windows-gnu"
 	@echo "                            (nécessite gcc-mingw-w64-x86-64, voir docs/roadmap.d/packaging-windows.md)"
 	@echo "  build-windows           Cross-compile ocara lui-même (ocara.exe) pour x86_64-pc-windows-gnu"
+	@echo "  tests-windows [chemin]  Lance ocaraunit sous Wine avec ocara.exe (après build-windows ; défaut examples/tests)"
 	@echo "  clean                   Supprime les artefacts de compilation d'ocara"
 	@echo "  clean-tools             Supprime les artefacts de compilation des outils"
 	@echo "  clean-all               Supprime tous les artefacts (clean + clean-tools)"
@@ -235,6 +236,14 @@ build-windows: build-runtime-windows
 	CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER="$(WINDOWS_CC)" \
 	RUSTFLAGS="-D warnings" cargo build --release -p ocara --target $(WINDOWS_TARGET) -j4
 	@echo "ocara.exe : target/$(WINDOWS_TARGET)/release/ocara.exe"
+
+# ── Suite ocaraunit sous Wine (après `make build-windows`) ──────────────────
+# Chaque test est compilé par ocara.exe sous Wine, lié avec MinGW-w64 et
+# exécuté sous Wine (ci/ocara_wine.sh). `--clear` : l'empreinte du cache est
+# celle du script, pas d'ocara.exe. Partage examples/.ocaraunit_cache avec
+# `make tests-examples` : ne pas lancer les deux en même temps.
+tests-windows:
+	OCARA=ci/ocara_wine.sh WINDOWS_CC="$(WINDOWS_CC)" ./target/release/ocaraunit --clear --timeout 300 $(or $(_TARGET),examples/tests)
 
 # ── Émulateur Android : installer + lancer un APK pour le tester ────────────
 # `make android-simulator <chemin.apk>` — nécessite $ANDROID_HOME (SDK).

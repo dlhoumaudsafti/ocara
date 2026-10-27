@@ -150,11 +150,8 @@ impl CraneliftEmitter {
             let is_tauri_stub = self.is_android_target
                 && (desc.module == Some("Tauri") || desc.name == "Tauri_handler_register");
             let linkage = if is_tauri_stub { Linkage::Local } else { Linkage::Import };
-            // `_setjmp` ne sauvegarde pas le masque de signaux : pas de
-            // `rt_sigprocmask` à chaque `try` d'un générateur (MinGW n'a que
-            // la macro `setjmp`).
-            let windows = self.module.isa().triple().operating_system == target_lexicon::OperatingSystem::Windows;
-            let symbol = if desc.name == "setjmp" && !windows { "_setjmp" } else { desc.name };
+            // `_setjmp(env, frame)` : voir sa déclaration dans runtime/src/lib.rs.
+            let symbol = if desc.name == "setjmp" { "_setjmp" } else { desc.name };
             let fid = self.module
                 .declare_function(symbol, linkage, &sig)
                 .map_err(|e| CodegenError(e.to_string()))?;

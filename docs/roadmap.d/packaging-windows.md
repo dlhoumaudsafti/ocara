@@ -62,4 +62,4 @@ Le socle (compiler `ocara`/`ocara_runtime` et les faire tourner) s'est avéré u
 
 ## Reste à faire — audit du 2026-10-13
 
-**À revérifier depuis le comptage de références.** `target/x86_64-pc-windows-gnu/release/libocara_runtime.a` et `ocara.exe` datent du 23 septembre : le runtime rc, le détecteur de cycles, les atomiques et le déroulement par `longjmp` n'ont jamais tourné sous Wine. `--target x86_64-pc-windows-gnu --no-link` produit toujours un objet COFF valide.
+**Revérifié le 2026-10-27** : la suite ocaraunit complète (`examples/tests`, comptage de références, cycles, threads, exceptions, générateurs) passe sous Wine avec `make tests-windows`. Deux corrections propres à Windows en sont sorties (`setjmp` de msvcrt, détection du thread principal), voir [docs/windows.md](../windows.md) « Pièges rencontrés ».

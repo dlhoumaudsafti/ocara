@@ -17,8 +17,8 @@ Statut : **base livrée**, priorité basse pour la suite. Voir
   enregistrement en PNG, JPEG, WEBP (sans perte), GIF (image fixe), BMP.
 - Windows : `runtime_image` est cross-compilé par `make build-runtime-windows`
   et embarqué dans `ocara.exe` ; chargement, dessin et enregistrement
-  vérifiés sous Wine. Les exceptions y sont touchées par le bug général
-  [windows-locales-apres-exception](windows-locales-apres-exception.md).
+  vérifiés sous Wine, exceptions comprises (`117_image_builtinTest.oc`
+  passe entièrement).
 - Tests : `examples/tests/117_image_builtinTest.oc` (images de référence
   produites par un autre outil dans `examples/tests/images/`),
   `runtime_image/src/tests.rs`, exemple `examples/builtins/image.oc`.

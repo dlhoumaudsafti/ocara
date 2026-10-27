@@ -51,6 +51,19 @@ make perf > perf.log ; make perf-extra > extra.log
 python3 ci/perf_report.py perf.log extra.log
 ```
 
+## Tests sous Windows (Wine)
+
+```bash
+make build-windows
+make tests-windows                     # examples/tests
+make tests-windows examples/tests/20_try_failTest.oc
+```
+
+ocaraunit avec `OCARA=ci/ocara_wine.sh` : chaque test est compilé par
+`ocara.exe` sous Wine, lié avec MinGW-w64 (`x86_64-w64-mingw32-gcc`, mêmes
+options que `src/codegen/link.rs` pour Windows) et exécuté sous Wine. Hors
+de `make regression` (Wine et MinGW-w64 requis, plusieurs minutes).
+
 ## Pipeline
 
 Le pipeline CI traite **chaque fichier individuellement** avec 4 étapes séquentielles :

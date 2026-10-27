@@ -9,13 +9,17 @@
 // le même signal qu'avant). Chaque thread lancé par le runtime appelle
 // `ThreadStack::enter` pour avoir sa propre pile alternative.
 //
-// Hors Android (l'environnement ART gère lui-même SIGSEGV) et Windows.
+// Hors Android (l'environnement ART gère lui-même SIGSEGV) et Windows. Sous
+// Windows, `__ocara_runtime_init` note seulement le thread principal (voir
+// `blocking::on_main_thread`).
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[unsafe(no_mangle)]
 pub extern "C" fn __ocara_runtime_init() {
     #[cfg(all(unix, not(target_os = "android")))]
     imp::install();
+    #[cfg(windows)]
+    crate::blocking::record_main_thread();
 }
 
 /// Pile alternative du thread courant, rendue à sa fin.

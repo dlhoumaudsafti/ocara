@@ -28,7 +28,22 @@ fn on_main_thread() -> bool {
     unsafe { libc::pthread_main_np() != 0 }
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "android", target_os = "macos")))]
+/// Thread du `main` généré, noté par `__ocara_runtime_init` : Windows n'a
+/// pas d'appel qui le donne.
+#[cfg(windows)]
+static MAIN_THREAD: OnceLock<u32> = OnceLock::new();
+
+#[cfg(windows)]
+pub(crate) fn record_main_thread() {
+    let _ = MAIN_THREAD.set(unsafe { windows_sys::Win32::System::Threading::GetCurrentThreadId() });
+}
+
+#[cfg(windows)]
+fn on_main_thread() -> bool {
+    MAIN_THREAD.get().is_none_or(|&id| id == unsafe { windows_sys::Win32::System::Threading::GetCurrentThreadId() })
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "android", target_os = "macos", windows)))]
 fn on_main_thread() -> bool {
     true
 }

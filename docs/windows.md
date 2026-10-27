@@ -103,6 +103,7 @@ Un programme qui importe `ocara.Image` ajoute `target/x86_64-pc-windows-gnu/rele
 - Un `"Hello World"` compilé ainsi affiche le bon texte sous Wine.
 - Un programme avec 2 `Thread`/`Mutex` incrémentant un compteur partagé 1000 fois chacun donne exactement `2000` (aucune perte d'incrément — `CRITICAL_SECTION`, l'équivalent Windows de `pthread_mutex`, fonctionne correctement sous charge concurrente réelle).
 - Un `ocara.HTTPServer` lancé sous Wine répond à un vrai `curl` depuis l'hôte Linux (`HTTP 200`, corps correct) — confirme que les sockets (`-lws2_32`) et toute la pile réseau fonctionnent réellement.
+- La suite ocaraunit complète (`examples/tests`) passe sous Wine comme sous Linux : `make tests-windows` (voir [ci/README.md](../ci/README.md)).
 
 ---
 
@@ -111,6 +112,9 @@ Un programme qui importe `ocara.Image` ajoute `target/x86_64-pc-windows-gnu/rele
 - **`pthread_mutex_*` n'existe pas dans `libc` pour Windows** (`runtime/src/mutex.rs`, et un deuxième site interne dans `runtime/src/lib.rs`) — Windows n'a pas de pthreads natif ; corrigé avec `CRITICAL_SECTION` (`windows-sys`) derrière un module `platform` conditionnel par plateforme. Voir [roadmap.d/packaging-windows.md](roadmap.d/packaging-windows.md) pour le détail complet.
 - **`build.rs` (racine) n'était pas conscient de la cible lors d'une cross-compilation** — embarquait silencieusement le runtime de l'HÔTE (Linux) au lieu de celui cross-compilé pour Windows. Corrigé (`target_release_dir()`, comparaison `TARGET`/`HOST`).
 - **`src/codegen/link.rs` codé en dur pour Linux** — pilote de lien (`cc` n'existe pas forcément sous Windows, `gcc` oui), `-no-pie` (concept ELF sans équivalent PE), bibliothèques système manquantes pour les sockets/la génération de nombres aléatoires (`-lws2_32`/`-lbcrypt`/`-luserenv`/`-lntdll`, jamais nécessaires sur Linux où ces symboles viennent de la libc).
+
+- **Variables locales à 0 après une exception attrapée** — `setjmp` de msvcrt prend un second argument (le cadre à dérouler), que le runtime ne passait pas : `longjmp` déroulait par SEH à partir d'une adresse quelconque, à travers du code Cranelift sans table de déroulement, et les registres non volatils de la fonction englobante étaient perdus. Le `jmp_buf` Windows fait en outre 256 octets (contre 200 sous Linux). Corrigé : `_setjmp(env, NULL)` partout (runtime et générateurs), `jmp_buf` de 256 octets alignés sur 16. Couvert par `examples/tests/118_locals_after_caught_exceptionTest.oc`.
+- **Serveur lancé dans un `Thread` neutralisé dans un binaire de test** — sous ocaraunit, un builtin bloquant (`HTTPServer.run`) ne rend la main tout de suite que sur le thread principal (`runtime/src/blocking.rs`), mais Windows n'avait pas de détection du thread principal : tout thread était pris pour lui, et un serveur lancé dans un `Thread` ne démarrait jamais. Corrigé : `__ocara_runtime_init` (appelé en tête du `main` généré) note `GetCurrentThreadId()`.
 
 ## Limitations connues
 

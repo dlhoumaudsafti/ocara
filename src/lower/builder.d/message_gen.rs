@@ -438,21 +438,24 @@ fn call_try_exit(builder: &mut LowerBuilder) {
 /// Appelle `setjmp` DIRECTEMENT (pas de wrapper Rust — voir la doc de
 /// `BuiltinDesc { name: "setjmp", ... }`, `src/codegen/desc.d/lowlevel.rs`) :
 /// la frame qui doit "rester vivante" pour un `longjmp` ultérieur est celle
-/// de `__resume` elle-même, l'appelante directe ICI.
+/// de `__resume` elle-même, l'appelante directe ICI. Second argument nul :
+/// `longjmp` sans déroulement SEH sous Windows.
 fn call_raw_setjmp(builder: &mut LowerBuilder, frame_ptr: Value) -> Value {
+    let no_frame = builder.new_value();
+    builder.emit(Inst::ConstInt { dest: no_frame.clone(), value: 0 });
     let dest = builder.new_value();
-    builder.emit(Inst::Call { dest: Some(dest.clone()), func: "setjmp".into(), args: vec![frame_ptr], ret_ty: IrType::I64 });
+    builder.emit(Inst::Call { dest: Some(dest.clone()), func: "setjmp".into(), args: vec![frame_ptr, no_frame], ret_ty: IrType::I64 });
     dest
 }
 
 /// Lit `error_val`/`error_type` depuis un pointeur `TryFrame` (offsets
-/// 200/208 — voir la doc de `__ocara_try_enter`, runtime/src/lib.rs : champ
-/// `env` = 25×u64 = 200 octets, puis les deux `i64`).
+/// 256/264 — voir la doc de `__ocara_try_enter`, runtime/src/lib.rs : champ
+/// `env` = 256 octets, puis les deux `i64`).
 fn read_try_error(builder: &mut LowerBuilder, frame_ptr: Value) -> (Value, Value) {
     let err_val = builder.new_value();
-    builder.emit(Inst::GetField { dest: err_val.clone(), obj: frame_ptr.clone(), field: "error_val".into(), ty: IrType::I64, offset: 200 });
+    builder.emit(Inst::GetField { dest: err_val.clone(), obj: frame_ptr.clone(), field: "error_val".into(), ty: IrType::I64, offset: 256 });
     let err_type = builder.new_value();
-    builder.emit(Inst::GetField { dest: err_type.clone(), obj: frame_ptr, field: "error_type".into(), ty: IrType::I64, offset: 208 });
+    builder.emit(Inst::GetField { dest: err_type.clone(), obj: frame_ptr, field: "error_type".into(), ty: IrType::I64, offset: 264 });
     (err_val, err_type)
 }
 
@@ -495,6 +498,10 @@ pub fn lower_try_in_generator(builder: &mut LowerBuilder, body: &Block, handlers
     call_try_exit(builder);
     let (frame_for_handler, _) = builder.load_local(&frame_field).unwrap();
     let (err_val, err_type) = read_try_error(builder, frame_for_handler);
+    // Le nom de type levé appartient lui aussi au gestionnaire (rendu par
+    // `release_raised` dans le trampoline de `lower_try`) : gardé à travers
+    // un `emit` du gestionnaire, rendu à sa fin.
+    let kept_type = keep_across_emit(builder, &err_type, IrType::Ptr);
 
     let mut next_check = builder.new_block();
     builder.emit(Inst::Jump { target: next_check.clone() });
@@ -533,9 +540,16 @@ pub fn lower_try_in_generator(builder: &mut LowerBuilder, body: &Block, handlers
         if !builder.is_terminated() {
             // La valeur levée appartient à la frame `try` (voir `lower_raise`) :
             // relue par le binding, champ du frame encore valide après un `emit`.
+            // Remis à nul ensuite : un binding capturé vit dans une cellule
+            // comptée, que `__drop` rend avec son contenu (double libération).
             if let Some((raised, _)) = builder.load_local(&handler.binding) {
                 crate::lower::stmt::rc::release(builder, &raised);
+                let null = builder.new_value();
+                builder.emit(Inst::ConstInt { dest: null.clone(), value: 0 });
+                builder.store_local(&handler.binding, null);
             }
+            let raised_type = reload(builder, &kept_type, &err_type);
+            crate::lower::stmt::rc::release(builder, &raised_type);
             builder.emit(Inst::Jump { target: after_bb.clone() });
         }
 
