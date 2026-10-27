@@ -60,29 +60,29 @@ main {
         while running {
             // capture Clavier
             scoped ev:map<string, string> = win.pollEvent()
-            while ev["type"] not equal "none" {
-                if ev["type"] equal "quit" { running = false }
+            while ev.type not equal "none" {
+                if ev.type equal "quit" { running = false }
                 else {
-                    if ev["type"] equal "keydown" {
-                        if ev["key"] equal "Escape" { running = false }
-                        if ev["key"] equal "Left" { left_held = true }
-                        elseif ev["key"] equal "Right" { right_held = true }
-                        elseif ev["key"] equal "Up" { up_held = true }
-                        elseif ev["key"] equal "Down" { down_held = true }
+                    if ev.type equal "keydown" {
+                        if ev.key equal "Escape" { running = false }
+                        if ev.key equal "Left" { left_held = true }
+                        elseif ev.key equal "Right" { right_held = true }
+                        elseif ev.key equal "Up" { up_held = true }
+                        elseif ev.key equal "Down" { down_held = true }
                         consumed is_run_key:bool = (
-                            ev["key"] equal "Left Ctrl" or
-                            ev["key"] equal "Right Ctrl"
+                            ev.key equal "Left Ctrl" or
+                            ev.key equal "Right Ctrl"
                         )
                         if is_run_key { run_held = true }
                     }
-                    if ev["type"] equal "keyup" {
-                        if ev["key"] equal "Left" { left_held = false }
-                        elseif ev["key"] equal "Right" { right_held = false }
-                        elseif ev["key"] equal "Up" { up_held = false }
-                        elseif ev["key"] equal "Down" { down_held = false }
+                    if ev.type equal "keyup" {
+                        if ev.key equal "Left" { left_held = false }
+                        elseif ev.key equal "Right" { right_held = false }
+                        elseif ev.key equal "Up" { up_held = false }
+                        elseif ev.key equal "Down" { down_held = false }
                         consumed is_run_key:bool = (
-                            ev["key"] equal "Left Ctrl" or
-                            ev["key"] equal "Right Ctrl"
+                            ev.key equal "Left Ctrl" or
+                            ev.key equal "Right Ctrl"
                         )
                         if is_run_key { run_held = false }
                     }

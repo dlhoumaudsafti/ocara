@@ -140,6 +140,18 @@ var ken:User = row[0]      // vérifié
 var u:User = row[1]        // ConvertException (103)
 ```
 
+### `Convert::mixedGet(v, key)` → `mixed` et `Convert::mixedSet(v, key, value)` → `void`
+
+Lisent et écrivent la clé `key` d'une valeur `mixed` : map (clé quelconque) ou tableau (clé entière), choisi à l'exécution. `null` se lit `null` et une écriture sur `null` n'a aucun effet ; toute autre valeur lève `ConvertException` (code 103, « cannot index a value of type 'string' »), de même qu'une valeur d'un autre type écrite dans une map ou un tableau à éléments typés.
+
+Ces appels sont **implicites** : `x[k]`, `x.clé`, `x[k] = v` et `x.clé = v` sur une valeur de type `mixed` passent par eux (voir [§6 de l'EBNF](../EBNF.md#accès-par-clé-à-une-valeur-mixed)).
+
+```ocara
+var j:mixed = JSON::decode(`{"user": "bob"}`)
+var name:mixed = j.user    // Convert::mixedGet(j, "user")
+j["age"] = 30              // Convert::mixedSet(j, "age", 30)
+```
+
 ### `Convert::intToStr(n)` → `string`
 
 ```ocara

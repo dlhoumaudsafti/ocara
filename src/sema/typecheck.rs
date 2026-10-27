@@ -65,6 +65,8 @@ pub struct TypeChecker<'a> {
     /// Type par clé des maps initialisées par un littéral (voir `sema::map_keys`).
     pub(crate) map_keys: std::collections::HashMap<String, std::collections::HashMap<String, Type>>,
     pub(crate) last_map_literal: Option<std::collections::HashMap<String, Type>>,
+    /// Variables des handlers `on e` sans filtre en cours (voir `sema::mixed_access`).
+    pub(crate) catch_all_bindings: std::collections::HashSet<String>,
 }
 
 impl<'a> TypeChecker<'a> {
@@ -91,6 +93,7 @@ impl<'a> TypeChecker<'a> {
             rewrites: crate::sema::named_args::AstRewrites::default(),
             index: None,
             map_keys: std::collections::HashMap::new(),
+            catch_all_bindings: std::collections::HashSet::new(),
             last_map_literal: None,
         }
     }
@@ -945,11 +948,18 @@ impl<'a> TypeChecker<'a> {
                     let binding_ty = handler.class_filter.as_ref()
                         .filter(|c| self.symbols.lookup_class(c).is_some())
                         .map_or(Type::Mixed, |c| Type::Named(c.clone()));
+                    let catch_all = binding_ty == Type::Mixed;
                     self.declare_local(
                         handler.binding.clone(),
                         LocalBinding { ty: binding_ty, mutable: false, span: handler.span.clone(), used: false, is_param: true, kind: VarKind::Var, consumed_used_at: None, resource_finalized: false, resource_contained: false },
                     );
+                    if catch_all {
+                        self.catch_all_bindings.insert(handler.binding.clone());
+                    }
                     self.check_block(&handler.body);
+                    if catch_all {
+                        self.catch_all_bindings.remove(&handler.binding);
+                    }
                     { let _u = self.scopes.pop_scope(&self.resource_classes); self.flush_warnings(_u); }
                 }
             }
@@ -1026,6 +1036,9 @@ impl<'a> TypeChecker<'a> {
                             self.check_slot_assign(&val_ty, &slot_ty, span);
                             return;
                         }
+                        if self.note_mixed_write(object, &obj_ty, field_span) {
+                            return;
+                        }
                         // Champ d'un générique instancié : type avec `T` substitué
                         // (`b.v = "zz"` sur un `Box<int>` compilait).
                         let generic_field = match &obj_ty {
@@ -1074,6 +1087,9 @@ impl<'a> TypeChecker<'a> {
                     Expr::Index { object, index, span: index_span } => {
                         let obj_ty = self.infer_expr(object);
                         self.infer_expr(index);
+                        if self.note_mixed_write(object, &obj_ty, index_span) {
+                            return;
+                        }
                         if has_no_members(&obj_ty) || obj_ty == Type::String {
                             self.errors.push(SemaError::AccessOnNonContainer { type_name: type_name(&obj_ty), field: None, span: index_span.clone() });
                         }
@@ -1450,6 +1466,7 @@ impl<'a> TypeChecker<'a> {
                 if let Some(ty) = self.resolve_map_dot(object, &obj_ty, field, span) {
                     return ty;
                 }
+                self.note_mixed_read(object, &obj_ty, span);
                 // Champ d'un générique instancié (`self.v` dans `Box<string>`) :
                 // type déclaré avec les paramètres de type substitués.
                 if let Type::Generic { name: generic_name, args: type_args } = &obj_ty {
@@ -2569,6 +2586,7 @@ impl<'a> TypeChecker<'a> {
             Expr::Index { object, index, span } => {
                 let obj_ty = self.infer_expr(object);
                 self.infer_expr(index);
+                self.note_mixed_read(object, &obj_ty, span);
                 if let Some(ty) = self.map_key_type(object, index) {
                     return ty;
                 }

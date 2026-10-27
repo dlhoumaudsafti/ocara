@@ -185,6 +185,7 @@ impl MapTable {
     /// chaîne `key` elle-même — clé littérale (`m["A"]`, `m.A`) rangée
     /// depuis le même littéral interné : trouvée par pointeur, sans lire le
     /// texte d'aucune clé.
+    #[inline]
     pub(crate) fn stored_index(&self, key: i64) -> Option<usize> {
         if !self.text_keys || !self.slots.is_empty() { return None; }
         self.entries.iter().position(|entry| entry.key == key)
@@ -275,6 +276,7 @@ impl MapTable {
         }
     }
 
+    #[inline]
     pub(crate) fn value_index(&self, index: usize) -> i64 {
         self.entries.get(index).map_or(0, |entry| entry.value)
     }

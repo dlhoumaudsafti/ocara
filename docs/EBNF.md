@@ -693,6 +693,33 @@ try {
 }
 ```
 
+#### Accès par clé à une valeur `mixed`
+
+`x[k]`, `x.clé` (lecture) et `x[k] = v`, `x.clé = v` (écriture, `+=`
+compris) sur une valeur de type `mixed` choisissent à l'exécution entre map
+et tableau (`Convert::mixedGet` / `Convert::mixedSet`) :
+
+- **map** : `x.clé` ≡ `x["clé"]` ; clé absente → valeur nulle ;
+- **tableau** : clé entière (`x[0]`) ;
+- **`null`** : se lit `null`, une écriture n'a aucun effet (comme `m["k"]`
+  sur une map nulle) ;
+- **autre valeur** (chaîne, nombre, objet) : `ConvertException` (code 103) ;
+- une valeur écrite dans une map ou un tableau à éléments typés
+  (`map<string, int>` rangée dans le `mixed`) doit être de ce type, sinon
+  `ConvertException` (103).
+
+```ocara
+var j:mixed = JSON::decode(`{"user": "bob", "tags": ["a", "b"]}`)
+j["user"]        // "bob"
+j.user           // "bob"
+j["tags"][1]     // "b"
+j.age = 30       // clé créée
+```
+
+La variable d'un `on e` sans filtre garde ses champs `e.message`, `e.code`,
+`e.source` (exception ou chaîne levée). Un `++`/`--` sur `x[k]` reste refusé
+(« '++'/'--' require an 'int' or 'float' target ») — écrire `x[k] += 1`.
+
 #### Restrictions sur le type `mixed`
 
 Le type `mixed` désactive la vérification de type statique et doit être utilisé **uniquement** dans des contextes spécifiques. Le compilateur applique les règles suivantes :
@@ -1208,9 +1235,8 @@ rows[0].name            // map élément d'un tableau
   désigne une clé — `truc.size()` est la taille, `truc.size` la clé `"size"`.
 - **Clés non chaîne** : refusé sur `map<int, V>`, `map<bool, V>`… (E69) ;
   accepté sur `map<mixed, V>`.
-- **`mixed`** : `x.A` sur une valeur `mixed` reste un accès de champ, sans
-  changement (catch-all `on e { e.message }`). Une map rangée dans un
-  `mixed` se type d'abord (`var m:map<string, mixed> = x`, puis `m.A`).
+- **`mixed`** : `x.A` et `x["A"]` sur une valeur `mixed` sont résolus à
+  l'exécution (voir « Accès par clé à une valeur `mixed` » au §6).
 - Résolu à la compilation (réécrit en `truc["A"]`) : aucun coût ajouté à
   l'exécution, ni sur `truc["A"]` ni sur les champs d'objets.
 

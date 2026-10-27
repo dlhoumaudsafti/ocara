@@ -17,6 +17,7 @@ pub mod index;
 pub mod map_dot;
 pub mod map_keys;
 pub mod message_emit;
+pub mod mixed_access;
 pub mod mixed_string;
 pub mod named_args;
 pub mod narrowing;

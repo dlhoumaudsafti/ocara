@@ -27,8 +27,6 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
-- **`x["clé"]` et `x.clé` sur une valeur `mixed` contenant une map : valeur fausse** — `JSON::decode(…)["user"]` rend `null` (le lowering choisit `__array_get` faute de type statique), `x.user` lit le début du bloc de la map (affiche `4`) ; lecture comme écriture, sans diagnostic. À trancher : résolution à l'exécution limitée aux `mixed` (étiquette du bloc) ou refus à la compilation — ce dernier casserait `on e { e.message }`, où `e` est un `mixed`. *(Légère à Structurel)* → [détails](roadmap.d/langage-index-sur-mixed.md)
-
 ---
 
 ## Priorité Moyenne

@@ -1,0 +1,98 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.JSON
+import ocara.Convert
+
+// `x["clé"]`, `x[i]` et `x.clé` sur une valeur `mixed` : map ou tableau
+// choisi à l'exécution (`Convert::mixedGet`/`Convert::mixedSet`) — voir
+// docs/EBNF.md §7.4. Une map portée par un `mixed` se lisait comme un
+// tableau (`null`) et `x.clé` lisait le début du bloc de la map.
+class Test116MixedIndexAccess extends UnitTest {
+
+    public method decodedJsonIsReadByKeyTest(): int {
+        var j:mixed = JSON::decode("{\"user\": \"bob\", \"tags\": [\"a\", \"b\"], \"n\": 3}")
+        self::assertEquals("bob", j["user"])
+        self::assertEquals("bob", j.user)
+        self::assertEquals("b", j["tags"][1])
+        self::assertEquals(3, j.n)
+        return 0
+    }
+
+    public method writesGoToTheMapTest(): int {
+        var j:mixed = JSON::decode("{\"user\": \"bob\"}")
+        j["user"] = "alice"
+        j.age = 30
+        self::assertEquals("alice", j.user)
+        self::assertEquals(30, j["age"])
+        return 0
+    }
+
+    public method rawElementsAreBoxedTest(): int {
+        var ints:map<string, int> = {"a": 1}
+        var x:mixed = ints
+        x["big"] = 9000000000
+        x.b += 2
+        self::assertEquals(9000000000, ints["big"])
+        self::assertEquals(2, ints["b"])
+        self::assertEquals(1, x.a)
+        var floats:map<string, float> = {"pi": 3.5}
+        var y:mixed = floats
+        self::assertEquals(3.5, y.pi)
+        return 0
+    }
+
+    public method arrayIsIndexedByAnIntTest(): int {
+        var arr:array<int> = [10, 20]
+        var z:mixed = arr
+        self::assertEquals(20, z[1])
+        z[0] = 7
+        self::assertEquals(7, arr[0])
+        return 0
+    }
+
+    public method nullReadsNullTest(): int {
+        var nothing:mixed = null
+        self::assertNull(nothing["k"])
+        return 0
+    }
+
+    public method nonContainerRaisesConvertExceptionTest(): int {
+        var s:mixed = "texte"
+        var code:int = 0
+        try {
+            var v:mixed = s["k"]
+        } on e is ConvertException {
+            code = e.code
+        }
+        self::assertEquals(103, code)
+        return 0
+    }
+
+    public method wrongElementTypeRaisesConvertExceptionTest(): int {
+        var ints:map<string, int> = {"a": 1}
+        var x:mixed = ints
+        var code:int = 0
+        try {
+            x["c"] = "pas un int"
+        } on e is ConvertException {
+            code = e.code
+        }
+        self::assertEquals(103, code)
+        return 0
+    }
+
+    public method catchAllFieldsAreUnchangedTest(): int {
+        var message:mixed = null
+        var code:mixed = null
+        try {
+            raise use Exception("boom", 3)
+        } on e {
+            message = e.message
+            code = e.code
+        }
+        self::assertEquals("boom", message)
+        self::assertEquals(3, code)
+        return 0
+    }
+}

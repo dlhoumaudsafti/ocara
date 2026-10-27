@@ -130,6 +130,7 @@ pub mod yaml;
 pub mod rc;
 pub mod task;
 pub mod mixed_check;
+pub mod mixed_index;
 pub mod str_append;
 mod alloc_cache;
 pub mod profile;

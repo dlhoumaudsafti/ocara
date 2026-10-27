@@ -18,9 +18,12 @@ Petites maps (jusqu'à `SMALL` = 8 paires, sans index —
   retient qu'en créant une paire : plus de retenue suivie d'un relâchement
   à chaque `m["k"] = v` sur une clé existante.
 
-Mesure `mapconst` (8 clés, 3 000 000 tours, 4 lectures et 2 écritures par
-tour) : voir les chiffres consignés dans le message de commit et
-`make perf` ; lectures seules 0,15 s → 0,10 s (PHP 0,18 s).
+Mesures A/B (2026-10-27, exécutables liés au runtime d'avant et d'après,
+entrelacés, meilleur de 5) : `mapconst` (8 clés, 3 000 000 tours, 4
+lectures et 2 écritures par tour) 0,30 s → 0,16 s (PHP 0,19 s) ; lectures
+seules 0,15 s → 0,10 s (PHP 0,18 s) ; `map` (1 000 000 clés dynamiques)
+inchangé dans le bruit (0,21 s, PHP 0,21 s) — `stored_index`/`value_index`
+en `#[inline]` pour ne rien ajouter au chemin des grandes tables.
 
 ## Reste
 

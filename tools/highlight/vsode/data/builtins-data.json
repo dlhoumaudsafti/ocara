@@ -1420,7 +1420,7 @@
         ],
         "returns": "string",
         "static": true,
-        "doc": "`Convert::floatToStr(f)` → `string`\n\n```ocara\nConvert::floatToStr(3.14)   // → \"3.14\"\n```",
+        "doc": "`Convert::floatToStr(f)` → `string`\n\n```ocara\nConvert::floatToStr(3.14)   // → \"3.14\"\nConvert::floatToStr(42.0)   // → \"42.0\" (toujours une partie décimale)\n```",
         "docFile": "Convert.md",
         "docHeading": "`Convert::floatToStr(f)` → `string`"
       },
@@ -1533,6 +1533,45 @@
         "doc": "`Convert::mixedAs(v, type)` → `mixed`\n\nRend `v` si c'est une valeur du type nommé `type` — `\"int\"`, `\"float\"`, `\"bool\"`, `\"array\"`, `\"map\"`, `\"function\"` ou `\"class:NomDeClasse\"` (la classe, une sous-classe, ou une classe qui implémente l'interface) — et lève sinon `ConvertException` (code 103, « expected a value of type 'User', found 'string' »).\n\nCette vérification est **implicite** : un `mixed` utilisé là où un autre type concret est attendu (déclaration, affectation, argument, `return`) passe par `mixedAs` (voir [§6 de l'EBNF](../EBNF.md#vérification-dun-mixed-rangé-dans-un-autre-type-concret)).\n\n```ocara\nvar row:array<mixed> = [use User(\"Ken\"), \"texte\"]\nvar ken:User = row[0]      // vérifié\nvar u:User = row[1]        // ConvertException (103)\n```",
         "docFile": "Convert.md",
         "docHeading": "`Convert::mixedAs(v, type)` → `mixed`"
+      },
+      {
+        "name": "mixedGet",
+        "params": [
+          {
+            "name": "v",
+            "type": "mixed"
+          },
+          {
+            "name": "key",
+            "type": "mixed"
+          }
+        ],
+        "returns": "mixed",
+        "static": true,
+        "doc": "`Convert::mixedGet(v, key)` → `mixed` et `Convert::mixedSet(v, key, value)` → `void`\n\nLisent et écrivent la clé `key` d'une valeur `mixed` : map (clé quelconque) ou tableau (clé entière), choisi à l'exécution. `null` se lit `null` et une écriture sur `null` n'a aucun effet ; toute autre valeur lève `ConvertException` (code 103, « cannot index a value of type 'string' »), de même qu'une valeur d'un autre type écrite dans une map ou un tableau à éléments typés.\n\nCes appels sont **implicites** : `x[k]`, `x.clé`, `x[k] = v` et `x.clé = v` sur une valeur de type `mixed` passent par eux (voir [§6 de l'EBNF](../EBNF.md#accès-par-clé-à-une-valeur-mixed)).\n\n```ocara\nvar j:mixed = JSON::decode(`{\"user\": \"bob\"}`)\nvar name:mixed = j.user    // Convert::mixedGet(j, \"user\")\nj[\"age\"] = 30              // Convert::mixedSet(j, \"age\", 30)\n```",
+        "docFile": "Convert.md",
+        "docHeading": "`Convert::mixedGet(v, key)` → `mixed` et `Convert::mixedSet(v, key, value)` → `void`"
+      },
+      {
+        "name": "mixedSet",
+        "params": [
+          {
+            "name": "v",
+            "type": "mixed"
+          },
+          {
+            "name": "key",
+            "type": "mixed"
+          },
+          {
+            "name": "value",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "Exemple :\n\n```ocara\nj[\"age\"] = 30              // Convert::mixedSet(j, \"age\", 30)\n```",
+        "docFile": "Convert.md"
       },
       {
         "name": "mixedToStr",
@@ -2455,7 +2494,7 @@
         ],
         "returns": "mixed",
         "static": true,
-        "doc": "`JSON::decode(json)` → `mixed`\n\nDécode une string JSON en structure Ocara (array ou map).\n\n| Paramètre | Type | Description |\n|-----------|------|-------------|\n| `json` | `string` | String JSON à décoder |\n\n```ocara\nimport ocara.JSON\n\nscoped json_str:string = `{\"name\":\"Bob\",\"age\":25}`\nvar data:mixed = JSON::decode(json_str)\n\n// data est une map<string, mixed>\n// Accès aux valeurs\nvar m:map<string, mixed> = data\nIO::writeln(m[\"name\"])  // → Bob\nIO::writeln(m[\"age\"])   // → 25\n\n// Décoder un tableau\nscoped arr_json:string = `[10, 20, 30]`\nvar arr:mixed = JSON::decode(arr_json)\n// arr est un array<mixed> (array)\n```\n\n**Méthode d'instance sur string :**\n\n```ocara\nimport ocara.JSON\n\nscoped json:string = `{\"status\":\"ok\",\"code\":200}`\nvar result:mixed = json.decode()  // ✅ Appel direct sur la string\nIO::writeln(result)\n```\n\n**Règles :**\n- Retourne `null` (0) si le JSON est invalide\n- Les objets JSON deviennent des `map<string, mixed>`\n- Les tableaux JSON deviennent des `array<mixed>`\n- Les nombres JSON deviennent des `int`, ou des `float` s'ils ont une partie décimale ou un exposant\n- Les booléens et `null` JSON sont préservés",
+        "doc": "`JSON::decode(json)` → `mixed`\n\nDécode une string JSON en structure Ocara (array ou map).\n\n| Paramètre | Type | Description |\n|-----------|------|-------------|\n| `json` | `string` | String JSON à décoder |\n\n```ocara\nimport ocara.JSON\n\nscoped json_str:string = `{\"name\":\"Bob\",\"age\":25}`\nvar data:mixed = JSON::decode(json_str)\n\n// data est une map<string, mixed>, lisible directement (voir §6 de l'EBNF,\n// « Accès par clé à une valeur mixed »)\nIO::writeln(data[\"name\"])  // → Bob\nIO::writeln(data.age)      // → 25\n\n// Ou typée d'abord, pour un accès vérifié à la compilation\nvar m:map<string, mixed> = data\nIO::writeln(m[\"name\"])  // → Bob\n\n// Décoder un tableau\nscoped arr_json:string = `[10, 20, 30]`\nvar arr:mixed = JSON::decode(arr_json)\n// arr est un array<mixed> (array)\n```\n\n**Méthode d'instance sur string :**\n\n```ocara\nimport ocara.JSON\n\nscoped json:string = `{\"status\":\"ok\",\"code\":200}`\nvar result:mixed = json.decode()  // ✅ Appel direct sur la string\nIO::writeln(result)\n```\n\n**Règles :**\n- Retourne `null` (0) si le JSON est invalide\n- Les objets JSON deviennent des `map<string, mixed>`\n- Les tableaux JSON deviennent des `array<mixed>`\n- Les nombres JSON deviennent des `int`, ou des `float` s'ils ont une partie décimale ou un exposant\n- Les booléens et `null` JSON sont préservés",
         "docFile": "JSON.md",
         "docHeading": "`JSON::decode(json)` → `mixed`"
       },

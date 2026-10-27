@@ -58,6 +58,12 @@ pub struct AstRewrites {
     /// `truc.A` sur une map (clé : span du point) : réécrit en `truc["A"]` —
     /// voir `crate::sema::map_dot`.
     pub map_dots: std::collections::HashSet<ArgSiteKey>,
+    /// `x[k]`/`x.k` lu sur un `mixed` (clé : span de l'accès) :
+    /// `Convert::mixedGet(x, k)` — voir `crate::sema::mixed_access`.
+    pub mixed_reads: std::collections::HashSet<ArgSiteKey>,
+    /// `x[k] = v`/`x.k = v` sur un `mixed` (clé : span de la cible) :
+    /// `Convert::mixedSet(x, k, v)`.
+    pub mixed_writes: std::collections::HashSet<ArgSiteKey>,
 }
 
 /// Paramètres déclarés par callable utilisateur : `"fonction"`,

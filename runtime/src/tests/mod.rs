@@ -12,5 +12,6 @@ mod rc;
 mod task;
 mod structures;
 mod map_table;
+mod mixed_index;
 mod datetime;
 mod json_codec;

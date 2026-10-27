@@ -20,7 +20,9 @@ use crate::sema::named_args::{site_key, AstRewrites};
 pub type NamedArgError = (Span, String);
 
 pub fn rewrite_program(program: &mut Program, rewrites: &AstRewrites) -> Result<(), NamedArgError> {
-    if !rewrites.calls.is_empty() || !rewrites.mixed_to_string.is_empty() || !rewrites.mixed_checks.is_empty() {
+    if !rewrites.calls.is_empty() || !rewrites.mixed_to_string.is_empty() || !rewrites.mixed_checks.is_empty()
+        || !rewrites.mixed_reads.is_empty() || !rewrites.mixed_writes.is_empty()
+    {
         ensure_builtin_import(program, "Convert");
     }
     if !rewrites.string_removals.is_empty() {
@@ -81,6 +83,21 @@ impl Rewriter<'_> {
     }
 
     fn stmt(&self, stmt: &mut Stmt) -> Result<(), NamedArgError> {
+        // `x[k] = v`/`x.k = v` sur un `mixed` : `Convert::mixedSet(x, k, v)`
+        // (voir `crate::sema::mixed_access`).
+        if let Stmt::Assign { target, value, .. } = stmt {
+            let span = target.span().clone();
+            if self.rewrites.mixed_writes.contains(&site_key(&span)) {
+                if let Some((mut object, mut key)) = take_access(target) {
+                    self.expr(&mut object)?;
+                    self.expr(&mut key)?;
+                    self.expr(value)?;
+                    let args = vec![object, key, value.clone()];
+                    *stmt = Stmt::Expr(Expr::StaticCall { class: "Convert".into(), method: "mixedSet".into(), args, span, type_args: Vec::new() });
+                    return Ok(());
+                }
+            }
+        }
         match stmt {
             Stmt::Var { value, .. } | Stmt::Const { value, .. } | Stmt::Expr(value)
             | Stmt::Raise { value, .. } | Stmt::Emit { value, .. } => self.expr(value),
@@ -175,6 +192,13 @@ impl Rewriter<'_> {
                 *expr = Expr::Index { object, index: Box::new(index), span: span.clone() };
             }
         }
+        // `x[k]`/`x.k` lu sur un `mixed` : `Convert::mixedGet(x, k)`.
+        if self.rewrites.mixed_reads.contains(&site_key(expr.span())) {
+            let span = expr.span().clone();
+            if let Some((object, key)) = take_access(expr) {
+                *expr = Expr::StaticCall { class: "Convert".into(), method: "mixedGet".into(), args: vec![object, key], span, type_args: Vec::new() };
+            }
+        }
         // `x -= e` : `String::replace(x, e, "")` sur une string, `x - e` sinon.
         if let Expr::Binary { op: op @ BinOp::Remove, left, right, span } = expr {
             if self.rewrites.string_removals.contains(&site_key(span)) {
@@ -215,6 +239,20 @@ impl Rewriter<'_> {
                 self.params(params)?;
                 self.block(body)
             }
+        }
+    }
+}
+
+/// Receveur et clé d'un accès `x[k]` ou `x.k` (clé `"k"`), retirés de
+/// `expr` ; `None` pour toute autre expression.
+fn take_access(expr: &mut Expr) -> Option<(Expr, Expr)> {
+    let placeholder = Expr::Literal(Literal::Null, expr.span().clone());
+    match std::mem::replace(expr, placeholder) {
+        Expr::Index { object, index, .. } => Some((*object, *index)),
+        Expr::Field { object, field, span } => Some((*object, Expr::Literal(Literal::String(field), span))),
+        other => {
+            *expr = other;
+            None
         }
     }
 }

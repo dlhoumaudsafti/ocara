@@ -137,6 +137,9 @@ Phase de vérification et enrichissement :
 - `truc.A` sur une valeur de type statique `map<string, V>` est typé comme `truc["A"]` (diagnostics E69 à E71) et noté par site (`AstRewrites::map_dots`)
 - Même réinjection que les arguments nommés : l'accès devient `truc["A"]` dans l'AST, le lowering ne voit jamais la forme pointée sur une map
 
+**f) Accès par clé à une valeur `mixed`** (`src/sema/mixed_access.rs`, puis `src/core/named_args.rs`)
+- `x[k]`/`x.clé` lu sur un `mixed` devient `Convert::mixedGet(x, k)`, une affectation `Convert::mixedSet(x, k, v)` : map ou tableau choisi à l'exécution (`runtime/src/mixed_index.rs`), le lowering ne sachant choisir que sur un type statique
+
 Si cette phase réussit, le programme est **sémantiquement correct**.
 
 ### 4️⃣ **Lowering** (AST → IR)

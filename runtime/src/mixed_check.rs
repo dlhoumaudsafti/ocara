@@ -31,7 +31,7 @@ fn class_chain(val: i64) -> Option<&'static Vec<String>> {
 }
 
 /// Nom du type de `val`, pour le message d'erreur.
-fn found_name(val: i64) -> String {
+pub(crate) fn found_name(val: i64) -> String {
     if val == 0 {
         return "null".into();
     }
@@ -54,7 +54,7 @@ fn is_int(val: i64) -> bool {
     crate::is_int_box(val) || val < 0x10000
 }
 
-fn matches(val: i64, expected: &str) -> bool {
+pub(crate) fn matches(val: i64, expected: &str) -> bool {
     match expected {
         "int" => is_int(val),
         "float" => crate::is_float_box(val) || is_int(val),

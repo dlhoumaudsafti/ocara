@@ -10,6 +10,8 @@ pub const CONVERT_BUILTINS: &[BuiltinDesc] = &[
     BuiltinDesc { name: "Convert_strToMap",         params: &[clt::I64, clt::I64, clt::I64],     returns: Some(clt::I64), module: Some("Convert") },
     BuiltinDesc { name: "Convert_mixedToStr",       params: &[clt::I64],                         returns: Some(clt::I64), module: Some("Convert") },
     BuiltinDesc { name: "Convert_mixedAs",          params: &[clt::I64, clt::I64],               returns: Some(clt::I64), module: Some("Convert") },
+    BuiltinDesc { name: "Convert_mixedGet",         params: &[clt::I64, clt::I64],               returns: Some(clt::I64), module: Some("Convert") },
+    BuiltinDesc { name: "Convert_mixedSet",         params: &[clt::I64, clt::I64, clt::I64],     returns: None,           module: Some("Convert") },
     BuiltinDesc { name: "Convert_intToStr",         params: &[clt::I64],                         returns: Some(clt::I64), module: Some("Convert") },
     BuiltinDesc { name: "Convert_intToFloat",       params: &[clt::I64],                         returns: Some(clt::F64), module: Some("Convert") },
     BuiltinDesc { name: "Convert_intToBool",        params: &[clt::I64],                         returns: Some(clt::I64), module: Some("Convert") },

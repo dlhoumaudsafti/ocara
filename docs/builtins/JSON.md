@@ -81,11 +81,14 @@ import ocara.JSON
 scoped json_str:string = `{"name":"Bob","age":25}`
 var data:mixed = JSON::decode(json_str)
 
-// data est une map<string, mixed>
-// Accès aux valeurs
+// data est une map<string, mixed>, lisible directement (voir §6 de l'EBNF,
+// « Accès par clé à une valeur mixed »)
+IO::writeln(data["name"])  // → Bob
+IO::writeln(data.age)      // → 25
+
+// Ou typée d'abord, pour un accès vérifié à la compilation
 var m:map<string, mixed> = data
 IO::writeln(m["name"])  // → Bob
-IO::writeln(m["age"])   // → 25
 
 // Décoder un tableau
 scoped arr_json:string = `[10, 20, 30]`
