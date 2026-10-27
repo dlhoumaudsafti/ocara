@@ -16,6 +16,9 @@ pub enum Target {
     /// ou un de ses parents).
     Method { class: String, name: String },
     Field { class: String, name: String },
+    /// Clé d'une map lue par la notation pointée (`truc.A`, voir
+    /// `crate::sema::map_dot`).
+    MapKey,
     ClassConst { class: String, name: String },
     /// Argument nommé : paramètre `name` de `callee` (`f` ou `Classe::m`).
     Param { callee: String, name: String },
@@ -26,7 +29,9 @@ pub enum Target {
 
 #[derive(Debug, Clone)]
 pub enum Completion {
-    Member,
+    /// Membres du type ; pour une map initialisée par un littéral, ses clés
+    /// utilisables après un point, avec leur type.
+    Member(Vec<(String, Type)>),
     Static,
     /// Variables locales et paramètres visibles, du plus proche au plus loin.
     Scope(Vec<(String, Type)>),

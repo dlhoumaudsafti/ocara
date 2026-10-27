@@ -55,6 +55,9 @@ pub struct AstRewrites {
     /// Arguments de type retenus pour un appel statique sur un `generic`
     /// (clé : span de l'appel) — voir `crate::sema::generic_static`.
     pub generic_static: HashMap<ArgSiteKey, Vec<Type>>,
+    /// `truc.A` sur une map (clé : span du point) : réécrit en `truc["A"]` —
+    /// voir `crate::sema::map_dot`.
+    pub map_dots: std::collections::HashSet<ArgSiteKey>,
 }
 
 /// Paramètres déclarés par callable utilisateur : `"fonction"`,

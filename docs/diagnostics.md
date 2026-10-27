@@ -1386,6 +1386,46 @@ class B extends A {
 
 ---
 
+### E69 — Notation pointée sur une map à clés non chaîne
+
+```
+fichier.oc:9:21: error: cannot read key 'A' with '.A' — the dot notation needs a map with string keys, this map's keys are 'int': write '[…]' with a key of that type
+```
+
+`truc.A` est le raccourci de `truc["A"]` (§7.4 de l'[EBNF](EBNF.md)) : il n'a de sens que pour une `map<string, V>` (ou `map<mixed, V>`).
+
+```ocara
+var ints:map<int, string> = {1: "a"}
+IO::writeln(ints.A)     // ❌ E69
+IO::writeln(ints[1])    // ✅
+```
+
+---
+
+### E70 — Clé non identifiant après un point
+
+```
+fichier.oc:9:18: error: 'été' cannot be written after a dot — only ASCII letters, digits and '_' are allowed: write '["été"]'
+```
+
+Après un point, une clé de map suit `^[a-zA-Z_][a-zA-Z0-9_]*$` ; les lettres Unicode, admises dans un identifiant, ne le sont pas ici.
+
+**Correction :** `truc["été"]`.
+
+---
+
+### E71 — Notation pointée à travers un paramètre de type
+
+```
+fichier.oc:6:56: error: in 'Box<map<string, int>>': '.A' reads a map key only when the receiver's static type is a map — here it depends on a type parameter: write '["A"]'
+```
+
+Dans un `generic`, `self.v.A` où `v:T` ne peut pas devenir `self.v["A"]` pour une seule instanciation : le corps est partagé par toutes.
+
+**Correction :** `self.v["A"]`, ou un champ de type `map<string, …>` explicite.
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.

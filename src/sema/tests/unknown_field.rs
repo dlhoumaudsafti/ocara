@@ -1,6 +1,7 @@
 /// Tests unitaires — champ inconnu refusé en écriture comme en lecture, sur
-/// une classe, un `String`/`Array`/`Map` et une instance de générique (voir
-/// docs/roadmap.d/sema-affectation-champ-inexistant.md).
+/// une classe, un `String`/`Array` et une instance de générique (voir
+/// docs/roadmap.d/sema-affectation-champ-inexistant.md). Sur une map,
+/// `m.A` désigne une clé : voir `map_dot.rs`.
 use crate::parsing::ast::Program;
 use crate::parsing::{lexer::Lexer, parser::Parser};
 use crate::sema::error::SemaError;
@@ -65,14 +66,12 @@ fn assigning_an_unknown_field_is_refused() {
     assert_eq!(unknown_fields("q.nope = 5"), vec![pair("P", "nope")]);
     assert_eq!(unknown_fields("s.x = 5"), vec![pair("String", "x")]);
     assert_eq!(unknown_fields("a.x = 5"), vec![pair("Array", "x")]);
-    assert_eq!(unknown_fields("m.A = 5"), vec![pair("Map", "A")]);
     assert_eq!(unknown_fields("b.nope = 5"), vec![pair("Box", "nope")]);
 }
 
 #[test]
 fn a_method_name_is_not_an_assignable_field() {
     assert_eq!(unknown_fields("p.size = 5"), vec![pair("P", "size")]);
-    assert_eq!(unknown_fields("m.size = 5"), vec![pair("Map", "size")]);
 }
 
 #[test]

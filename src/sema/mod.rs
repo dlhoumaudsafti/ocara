@@ -14,6 +14,7 @@ pub mod field_visibility;
 pub mod generic_check;
 pub mod generic_static;
 pub mod index;
+pub mod map_dot;
 pub mod map_keys;
 pub mod message_emit;
 pub mod mixed_string;

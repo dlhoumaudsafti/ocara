@@ -1169,9 +1169,50 @@ var first:int   = numbers[0]
 var name:string = profile["name"]
 ```
 
+Une valeur affectée par index (`numbers[0] = v`, `profile["name"] = v`) doit
+convenir au type des éléments ou des valeurs (au type de la clé pour une map à
+type par clé, §7.3) — E02.
+
 Une chaîne n'est pas indexable (`s[1]` est rejeté, E63) : utiliser les fonctions `String::*`.
 
 L'accès par index est un opérateur postfixe (précédence maximale).
+
+**Notation pointée sur une map.** Sur une valeur dont le type statique est
+`map<string, V>` (ou `map<string, V>|null`), `truc.A` est le raccourci de
+`truc["A"]` — en lecture, en affectation (`=`, `+=`…), en incrément (`++`,
+`--`) et en chaînage :
+
+```ocara
+var truc:map<string, int> = {"A": 1}
+truc.A          // ≡ truc["A"]
+truc.B = 3      // ≡ truc["B"] = 3 (clé créée)
+truc.A += 2
+truc.A++
+
+var cfg:map<string, map<string, string>> = {"db": {"host": "localhost"}}
+cfg.db.host             // ≡ cfg["db"]["host"]
+cfg.db["port"]          // mélange accepté
+self.options.debug      // champ map d'un objet
+rows[0].name            // map élément d'un tableau
+```
+
+- **Même sémantique que `[]`** : même valeur, même type (type par clé
+  compris, §7.3), une clé absente rend la valeur nulle du type sans
+  exception, un receveur `null` aussi (comme `truc["A"]`).
+- **Clé** : `^[a-zA-Z_][a-zA-Z0-9_]*$` uniquement. Toute autre clé —
+  dynamique (`truc[k]`), non identifiant (`truc["foo-bar"]`, `truc["1a"]`,
+  `truc[""]`), Unicode (`truc["été"]`, E70) ou mot réservé
+  (`truc["class"]`) — s'écrit avec `[]`. `truc.foo-bar` reste la
+  soustraction `truc.foo - bar`.
+- **Méthodes** : un appel reste un appel de méthode, un accès sans appel
+  désigne une clé — `truc.size()` est la taille, `truc.size` la clé `"size"`.
+- **Clés non chaîne** : refusé sur `map<int, V>`, `map<bool, V>`… (E69) ;
+  accepté sur `map<mixed, V>`.
+- **`mixed`** : `x.A` sur une valeur `mixed` reste un accès de champ, sans
+  changement (catch-all `on e { e.message }`). Une map rangée dans un
+  `mixed` se type d'abord (`var m:map<string, mixed> = x`, puis `m.A`).
+- Résolu à la compilation (réécrit en `truc["A"]`) : aucun coût ajouté à
+  l'exécution, ni sur `truc["A"]` ni sur les champs d'objets.
 
 ---
 
@@ -1389,7 +1430,7 @@ MultiplicativeExpr ::= UnaryExpr ( ( "*" | "/" | "%" ) UnaryExpr )*
 UnaryExpr    ::= ( "not" | "-" | "resolve" | "++" | "--" ) UnaryExpr
                | PostfixExpr
 PostfixExpr  ::= PrimaryExpr PostfixTail*
-PostfixTail  ::= "." Identifier ( "(" ArgList? ")" )?
+PostfixTail  ::= "." Identifier ( "(" ArgList? ")" )?   (* sans appel sur une map<string, V> : clé, §7.4 *)
                | "(" ArgList? ")"
                | "[" Expression "]"
                | "++" | "--"
@@ -1586,7 +1627,7 @@ Statement ::= VarDecl
 
 ResultStmt ::= "result" Expression      (* blocs runtime uniquement, §5.5 *)
 AssignStmt ::= Target ( "=" | "+=" | "-=" | "*=" | "/=" | "%=" ) Expression
-Target     ::= Identifier | PostfixExpr "." Identifier | PostfixExpr "[" Expression "]"
+Target     ::= Identifier | PostfixExpr "." Identifier | PostfixExpr "[" Expression "]"   (* "." Identifier sur une map<string, V> : clé, §7.4 *)
 ```
 
 ### 12.1 Affectations composées
@@ -2413,6 +2454,8 @@ class Child extends Base {
 var b:Base = use Base()
 b.p = 3        // ❌ E54 — protected
 ```
+
+Sur une valeur de type `map<string, V>`, `.nom` sans appel désigne la clé `"nom"`, pas un champ (§7.4).
 
 - `property` : champ d'instance d'une classe — **obligatoire** pour les champs. `var`, `scoped` et `consumed` sont **interdits** sur un champ de classe.
 - `const` : constante **statique** de classe, accessible via `Class::NAME`
@@ -4118,7 +4161,7 @@ Statement   ::= VarDecl
 
 ResultStmt   ::= "result" Expression      (* blocs runtime uniquement, §5.5 *)
 AssignStmt   ::= Target ( "=" | "+=" | "-=" | "*=" | "/=" | "%=" ) Expression
-Target       ::= Identifier | PostfixExpr "." Identifier | PostfixExpr "[" Expression "]"
+Target       ::= Identifier | PostfixExpr "." Identifier | PostfixExpr "[" Expression "]"   (* "." Identifier sur une map<string, V> : clé, §7.4 *)
 
 VarDecl      ::= "var" Identifier ":" Type "=" Expression
 ScopedDecl   ::= "scoped" Identifier ":" Type "=" Expression
@@ -4163,7 +4206,7 @@ AdditiveExpr ::= MultiplicativeExpr ( ( "+" | "-" ) MultiplicativeExpr )*
 MultiplicativeExpr ::= UnaryExpr ( ( "*" | "/" | "%" ) UnaryExpr )*
 UnaryExpr   ::= ( "not" | "-" | "resolve" | "++" | "--" ) UnaryExpr | PostfixExpr
 PostfixExpr ::= PrimaryExpr PostfixTail*
-PostfixTail ::= "." Identifier ( "(" ArgList? ")" )?
+PostfixTail ::= "." Identifier ( "(" ArgList? ")" )?   (* sans appel sur une map<string, V> : clé, §7.4 *)
               | "(" ArgList? ")"
               | "[" Expression "]"
               | "++" | "--"

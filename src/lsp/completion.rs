@@ -41,7 +41,13 @@ pub fn completion(ws: &Workspace, path: &Path, pos: &Position) -> Vec<Completion
     let Some(marker) = checked.references.iter().find(|r| r.name == COMPLETION_MARKER) else { return Vec::new() };
     let Target::Completion(kind) = &marker.target else { return Vec::new() };
     match kind {
-        Completion::Member => members(&checked.program, &marker.ty, false),
+        Completion::Member(keys) => {
+            let mut items: Vec<CompletionItem> = keys.iter()
+                .map(|(key, ty)| item(key, CompletionItemKind::FIELD, format!("[\"{}\"]: {}", key, display_type(ty))))
+                .collect();
+            items.extend(members(&checked.program, &marker.ty, false));
+            items
+        }
         Completion::Static => members(&checked.program, &marker.ty, true),
         Completion::Scope(locals) => {
             let mut items = match call_site(&text, pos) {

@@ -1,0 +1,111 @@
+architecture permissive
+
+import ocara.UnitTest
+
+// Notation pointée sur une map : `truc.A` est le raccourci de `truc["A"]`
+// pour une clé identifiant ASCII — voir docs/EBNF.md §7.4.
+class Test115MapDotAccess extends UnitTest {
+
+    public method readIsTheIndexedValueTest(): int {
+        var truc:map<string, int> = {"A": 1, "B": 2}
+        self::assertEquals(truc["A"], truc.A)
+        self::assertEquals(2, truc.B)
+        return 0
+    }
+
+    public method missingKeyReadsTheNullValueTest(): int {
+        var truc:map<string, int> = {"A": 1}
+        self::assertEquals(0, truc.absent)
+        return 0
+    }
+
+    public method writeCompoundAndIncrementTest(): int {
+        var truc:map<string, int> = {"A": 1}
+        truc.A = 3
+        truc.created = 10
+        truc.A += 4
+        truc.created++
+        self::assertEquals(7, truc["A"])
+        self::assertEquals(11, truc["created"])
+        return 0
+    }
+
+    public method chainedMapsTest(): int {
+        var cfg:map<string, map<string, string>> = {"db": {"host": "localhost", "port": "5432"}}
+        self::assertEquals("localhost", cfg.db.host)
+        self::assertEquals("5432", cfg.db["port"])
+        cfg.db.host = "remote"
+        self::assertEquals("remote", cfg["db"]["host"])
+        return 0
+    }
+
+    public method mapFieldOfAnObjectTest(): int {
+        var h:DotHolder = use DotHolder()
+        self::assertTrue(h.debug())
+        h.options.debug = false
+        self::assertFalse(h.options["debug"])
+        return 0
+    }
+
+    public method mapElementOfAnArrayTest(): int {
+        var rows:array<map<string, string>> = [{"name": "Alice"}, {"name": "Bob"}]
+        self::assertEquals("Bob", rows[1].name)
+        return 0
+    }
+
+    public method methodNameWithoutCallIsAKeyTest(): int {
+        var truc:map<string, int> = {"size": 42, "a": 1}
+        self::assertEquals(42, truc.size)
+        self::assertEquals(2, truc.size())
+        return 0
+    }
+
+    public method keyTypeFromTheLiteralTest(): int {
+        const details:map<string, DotCar|string> = {"car": use DotCar(), "html": "<ul>"}
+        var car:DotCar = details.car
+        self::assertEquals("Ocara", car.brand)
+        self::assertEquals("<ul>", details.html)
+        return 0
+    }
+
+    public method nonIdentifierKeysStayIndexedTest(): int {
+        var truc:map<string, int> = {"foo-bar": 1, "1a": 2, "": 3}
+        self::assertEquals(1, truc["foo-bar"])
+        self::assertEquals(2, truc["1a"])
+        self::assertEquals(3, truc[""])
+        return 0
+    }
+
+    public method capturedMapInAClosureTest(): int {
+        var truc:map<string, int> = {"count": 0}
+        const bump:Function<void()> = nameless(): void {
+            truc.count++
+        }
+        bump()
+        bump()
+        self::assertEquals(2, truc.count)
+        return 0
+    }
+
+    public method dotWriteInsideAMapLoopTest(): int {
+        var truc:map<string, int> = {"a": 1, "b": 2}
+        var total:map<string, int> = {"sum": 0}
+        for k has v in truc {
+            total.sum += v
+        }
+        self::assertEquals(3, total.sum)
+        return 0
+    }
+}
+
+class DotHolder {
+    public property options:map<string, bool> = {"debug": true}
+
+    public method debug(): bool {
+        return self.options.debug
+    }
+}
+
+class DotCar {
+    public property brand:string = "Ocara"
+}

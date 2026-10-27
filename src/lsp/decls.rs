@@ -20,7 +20,7 @@ pub fn wirings(program: &Program) -> impl Iterator<Item = &WiringDecl> {
 
 pub fn find(program: &Program, target: &Target) -> Option<Decl> {
     match target {
-        Target::Local { .. } | Target::Completion(_) => None,
+        Target::Local { .. } | Target::Completion(_) | Target::MapKey => None,
         Target::Const(name) => program.consts.iter().find(|c| &c.name == name)
             .map(|c| decl(name, &c.span, format!("const {}:{}", name, display_type(&c.ty)))),
         Target::Function(name) => program.functions.iter().find(|f| &f.name == name)

@@ -173,7 +173,21 @@ impl MapTable {
     /// Indice de la paire de clé `key` (normalisée) d'une petite table, sans
     /// index.
     fn find_small(&self, key: Key) -> Option<usize> {
+        if let Key::Text(text) = key {
+            if let Some(index) = self.stored_index(text.as_ptr() as i64) {
+                return Some(index);
+            }
+        }
         self.entries.iter().position(|entry| self.is_key(entry.key, key))
+    }
+
+    /// Indice de la paire d'une petite table à clés texte dont la clé est la
+    /// chaîne `key` elle-même — clé littérale (`m["A"]`, `m.A`) rangée
+    /// depuis le même littéral interné : trouvée par pointeur, sans lire le
+    /// texte d'aucune clé.
+    pub(crate) fn stored_index(&self, key: i64) -> Option<usize> {
+        if !self.text_keys || !self.slots.is_empty() { return None; }
+        self.entries.iter().position(|entry| entry.key == key)
     }
 
     /// Case de l'index (aucune pour une petite table) et indice de la paire
@@ -265,10 +279,11 @@ impl MapTable {
         self.entries.get(index).map_or(0, |entry| entry.value)
     }
 
-    /// Range `value` sous `key` ; rend l'ancienne valeur. `owned` : chaîne
-    /// de même texte que `key`, possédée par l'appelant (+1), reprise comme
-    /// clé ou relâchée.
-    pub(crate) fn insert(&mut self, key: Key, value: i64, owned: Option<i64>) -> Option<i64> {
+    /// Range `value` sous `key` ; rend l'ancienne valeur. `shared` : chaîne
+    /// de même texte que `key`, empruntée à l'appelant, retenue seulement si
+    /// elle devient la clé d'une nouvelle paire (aucune retenue ni
+    /// relâchement pour une clé déjà présente).
+    pub(crate) fn insert(&mut self, key: Key, value: i64, shared: Option<i64>) -> Option<i64> {
         let key = match self.normalize(key) {
             Some(key) => key,
             None => {
@@ -278,11 +293,10 @@ impl MapTable {
         };
         if self.slots.is_empty() {
             if let Some(index) = self.find_small(key) {
-                if let Some(text) = owned { unsafe { crate::rc::release_string(text) } }
                 return Some(std::mem::replace(&mut self.entries[index].value, value));
             }
             if self.entries.len() < SMALL {
-                let stored = self.stored_key(key, owned);
+                let stored = self.stored_key(key, shared);
                 self.entries.push(Entry { key: stored, value });
                 return None;
             }
@@ -291,7 +305,6 @@ impl MapTable {
         let hash = self.hash(key);
         let mut pos = match self.find(hash, key) {
             Ok((_, index)) => {
-                if let Some(text) = owned { unsafe { crate::rc::release_string(text) } }
                 return Some(std::mem::replace(&mut self.entries[index].value, value));
             }
             Err(free) => Some(free),
@@ -301,22 +314,22 @@ impl MapTable {
             self.grow();
             pos = None;
         }
-        let stored = self.stored_key(key, owned);
+        let stored = self.stored_key(key, shared);
         let pos = pos.unwrap_or_else(|| free_slot(&self.slots, hash));
         self.slots[pos] = slot_of(hash, self.entries.len());
         self.entries.push(Entry { key: stored, value });
         None
     }
 
-    /// Clé à ranger pour `key` : entier brut, ou chaîne — `owned` reprise,
-    /// sinon allouée. `owned` non reprise est relâchée.
-    fn stored_key(&self, key: Key, owned: Option<i64>) -> i64 {
-        match (key, owned) {
-            (Key::Int(value), owned) if !self.text_keys => {
-                if let Some(text) = owned { unsafe { crate::rc::release_string(text) } }
-                value
+    /// Clé à ranger pour `key` : entier brut, ou chaîne — `shared` retenue,
+    /// sinon allouée.
+    fn stored_key(&self, key: Key, shared: Option<i64>) -> i64 {
+        match (key, shared) {
+            (Key::Int(value), _) if !self.text_keys => value,
+            (_, Some(text)) => {
+                unsafe { crate::rc::retain(text) };
+                text
             }
-            (_, Some(text)) => text,
             (Key::Text(text), None) => unsafe { crate::alloc_str(text) },
             (Key::Int(value), None) => unsafe { crate::alloc_str(crate::int_text(value, &mut [0; 20])) },
         }

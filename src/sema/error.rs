@@ -211,6 +211,13 @@ pub enum SemaError {
     /// l'appel polymorphe (`a.v()` sur un `B`) lirait le résultat au type du
     /// parent (E68).
     IncompatibleOverride { class: String, method: String, parent: String, reason: String, span: Span },
+    /// `truc.A` sur une map dont les clés ne sont pas des chaînes
+    /// (`map<int, V>`) — voir `crate::sema::map_dot` (E69).
+    MapDotKeyType { key_type: String, field: String, span: Span },
+    /// `truc.été` : clé hors `^[a-zA-Z_][a-zA-Z0-9_]*$` (E70).
+    MapDotInvalidKey { field: String, span: Span },
+    /// `x.A` dans un `generic` où `x` est de type `T`, instancié en map (E71).
+    MapDotOnTypeParam { field: String, span: Span },
 }
 
 impl SemaError {
@@ -258,6 +265,9 @@ impl SemaError {
             SemaError::MethodCallOnNonClass { span, .. } => span,
             SemaError::AccessOnNonContainer { span, .. } => span,
             SemaError::ConversionOnMixed  { span, .. } => span,
+            SemaError::MapDotKeyType      { span, .. } => span,
+            SemaError::MapDotInvalidKey   { span, .. } => span,
+            SemaError::MapDotOnTypeParam  { span, .. } => span,
             SemaError::InterfaceNoWiring   { span, .. } => span,
             SemaError::ResolveOnNonResolvable { span, .. } => span,
             SemaError::AsyncReturnsResolvable { span, .. } => span,
@@ -371,6 +381,12 @@ impl SemaError {
                 },
             SemaError::ConversionOnMixed { method, .. } =>
                 format!("cannot call '.{}()' on a 'mixed' value — conversion methods depend on the receiver's static type: store the value in a typed variable first (e.g. 'const s:string = ...') or call the 'Convert::...' function directly", method),
+            SemaError::MapDotKeyType { key_type, field, .. } =>
+                format!("cannot read key '{}' with '.{}' — the dot notation needs a map with string keys, this map's keys are '{}': write '[…]' with a key of that type", field, field, key_type),
+            SemaError::MapDotInvalidKey { field, .. } =>
+                format!("'{}' cannot be written after a dot — only ASCII letters, digits and '_' are allowed: write '[\"{}\"]'", field, field),
+            SemaError::MapDotOnTypeParam { field, .. } =>
+                format!("'.{}' reads a map key only when the receiver's static type is a map — here it depends on a type parameter: write '[\"{}\"]'", field, field),
             SemaError::AccessOnNonContainer { type_name, field, .. } => match field {
                 Some(field) => format!("cannot read field '{}' — the value's type is '{}', which has no fields", field, type_name),
                 None => format!("cannot index a value of type '{}' — only arrays and maps can be indexed (use the String::* functions on a string)", type_name),

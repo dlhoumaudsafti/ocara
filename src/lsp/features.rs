@@ -236,6 +236,7 @@ fn hover_markdown(ws: &Workspace, program: &Program, r: &Reference, entry: &Path
             "{}\n\nClasse builtin.\n\n{}", code(&format!("ocara.{}", name)), builtin_docs::doc_link(&format!("{}.md", name), None))),
         Target::ClassConst { class, name } => Some(code(&format!("{}::{}:{}", class, name, display_type(&r.ty)))),
         Target::Field { class, name } => Some(code(&format!("{}.{}:{}", class, name, display_type(&r.ty)))),
+        Target::MapKey => Some(format!("{}\n\nClé de map — raccourci de `[\"{}\"]` (EBNF §7.4).", code(&format!("[\"{}\"]:{}", r.name, display_type(&r.ty))), r.name)),
         _ => None,
     }
 }

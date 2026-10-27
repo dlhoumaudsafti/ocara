@@ -889,11 +889,8 @@ pub fn map_set_owned_key(ptr: i64, key: i64, val: i64) {
 /// Une clé chaîne est retenue et reprise telle quelle par la map.
 fn map_put(ptr: i64, key: i64, val: i64) {
     if ptr == 0 { return; }
-    let owned = (is_ptr(key) && typecheck::__is_string(key) != 0).then(|| {
-        unsafe { rc::retain(key) };
-        key
-    });
-    let old = unsafe { with_key_text(key, |text| with_map(ptr, |data| data.insert(Key::Text(text), val, owned))) };
+    let shared = (is_ptr(key) && typecheck::__is_string(key) != 0).then_some(key);
+    let old = unsafe { with_key_text(key, |text| with_map(ptr, |data| data.insert(Key::Text(text), val, shared))) };
     if let Some(old) = old {
         release_elem(ptr, old);
     }
@@ -964,7 +961,12 @@ pub fn map_lookup(ptr: i64, key: &str) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn __map_get(ptr: i64, key: i64) -> i64 {
     if ptr == 0 { return 0; }
-    unsafe { with_key_text(key, |k| map_lookup(ptr, k)) }
+    unsafe {
+        with_map(ptr, |data| match data.stored_index(key) {
+            Some(index) => data.value_index(index),
+            None => with_key_text(key, |k| data.get(Key::Text(k)).unwrap_or(0)),
+        })
+    }
 }
 
 /// Valeur de la clé `key` relevée au rang `index` par `Map_keys` (`for k has

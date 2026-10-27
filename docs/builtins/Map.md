@@ -15,6 +15,26 @@ import ocara.*          // importe toutes les classes builtins
 
 ---
 
+## Accès aux clés : `m["clé"]` et `m.clé`
+
+Sans import, une map se lit et s'écrit par index ; pour une `map<string, V>`,
+la notation pointée en est le raccourci quand la clé est un identifiant ASCII
+(voir §7.4 de l'[EBNF](../EBNF.md)) :
+
+```ocara
+var cfg:map<string, int> = {"port": 8080}
+cfg["port"]          // 8080
+cfg.port             // 8080 — ≡ cfg["port"]
+cfg.workers = 4      // ≡ cfg["workers"] = 4
+cfg["max-conn"] = 9  // clé non identifiant : seulement par []
+```
+
+Une clé absente rend la valeur nulle du type (`0`, `null`) sans exception —
+`Map::get` lève une `MapException`. Une méthode s'appelle toujours avec des
+parenthèses : `cfg.size()` est la taille, `cfg.size` la clé `"size"`.
+
+---
+
 ## Référence des méthodes
 
 ### `Map::size(m)` → `int`

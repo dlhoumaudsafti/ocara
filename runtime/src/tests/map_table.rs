@@ -6,7 +6,10 @@ use crate::map_table::{Key, KeyRef, MapTable};
 use crate::*;
 
 fn insert(table: &mut MapTable, text: &str, value: i64) -> Option<i64> {
-    table.insert(Key::Text(text), value, Some(unsafe { alloc_str(text) }))
+    let shared = unsafe { alloc_str(text) };
+    let old = table.insert(Key::Text(text), value, Some(shared));
+    unsafe { crate::rc::release_string(shared) };
+    old
 }
 
 fn get(table: &MapTable, text: &str) -> Option<i64> {
@@ -147,4 +150,22 @@ fn small_int_tables_switch_to_text_keys() {
     }
     assert_eq!(get(&table, "-9"), Some(-9));
     assert_eq!(get(&table, "x"), Some(9));
+}
+
+/// Petite table : une clé cherchée avec la chaîne même qui a été rangée
+/// (littéral interné) est trouvée par pointeur ; une copie du même texte,
+/// par comparaison du texte.
+#[test]
+fn small_table_finds_a_stored_key_by_pointer_or_by_text() {
+    let mut table = MapTable::default();
+    let stored: Vec<i64> = ["alpha", "beta", "gamma", "theta"].iter().map(|t| unsafe { alloc_str(t) }).collect();
+    for (i, key) in stored.iter().enumerate() {
+        table.insert(Key::Text(unsafe { ptr_to_str(*key) }), i as i64, Some(*key));
+    }
+    for key in &stored {
+        unsafe { crate::rc::release_string(*key) };
+    }
+    assert_eq!(table.get(Key::Text(unsafe { ptr_to_str(stored[3]) })), Some(3));
+    assert_eq!(get(&table, &String::from("theta")), Some(3));
+    assert_eq!(get(&table, "delta"), None);
 }

@@ -22,13 +22,15 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     fonctionner (toutes les erreurs de syntaxe sont signalées, survol et complétion continuent) ;
   - **survol** : type réel d'une variable, signature et commentaires `//` d'une déclaration,
     documentation des méthodes builtin (extraite de `docs/builtins/*.md`), méthode réellement appelée
-    par le sucre d'instance (`s.trim()`, `s.toInt()`), mots-clés (résumé et lien vers leur section de
+    par le sucre d'instance (`s.trim()`, `s.toInt()`), clé lue par la notation pointée (`cfg.port`,
+    raccourci de `cfg["port"]`) avec son type, mots-clés (résumé et lien vers leur section de
     l'EBNF) ;
   - **Go-to-Definition** (Ctrl+Clic) : variables, paramètres, fonctions, méthodes (héritées comprises),
     champs, constantes, classes, lignes `import` / `runtime` / `wiring` (d'une interface ou d'une classe
     de test), argument nommé → paramètre ;
   - **autocomplétion** sur le type réel du receveur (`a.`, `self.`, `a.b().`, `A::`) : membres hérités,
-    builtins, sucre `String`/`Array`/`Map` et conversions `Convert` sur un primitif, propriétés
+    builtins, sucre `String`/`Array`/`Map` et conversions `Convert` sur un primitif, clés d'une map
+    initialisée par un littéral (`cfg.` propose `port`, `host`… avec leur type), propriétés
     `message`/`code`/`source` d'une exception, noms visibles, classes après `use`, noms des paramètres
     restants dans un appel nommé — chaque appel complété insère ses paramètres comme champs à remplir ;
   - **aide à la signature**, paramètre actif par position ou par nom ;

@@ -1,7 +1,7 @@
 # Affectation à un champ inexistant acceptée — écriture à l'offset 0, SIGSEGV
 
 Statut : **corrigé** le 2026-10-22 (constaté le même jour en préparant
-[langage-map-acces-pointe](langage-map-acces-pointe.md)).
+la notation pointée sur les maps, `docs/EBNF.md` §7.4).
 
 ## Constat
 

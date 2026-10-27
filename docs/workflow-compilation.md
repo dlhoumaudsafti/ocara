@@ -133,6 +133,10 @@ Phase de vérification et enrichissement :
 - Chaque appel `f(name: expr, ...)` est résolu contre sa cible (noms de paramètres, valeurs par défaut) en une liste positionnelle complète (diagnostics E45 à E50)
 - Juste après une analyse sans erreur, ces listes remplacent les arguments dans l'AST : la monomorphisation et le lowering ne voient jamais d'argument nommé
 
+**e) Notation pointée sur une map** (`src/sema/map_dot.rs`, puis `src/core/named_args.rs`)
+- `truc.A` sur une valeur de type statique `map<string, V>` est typé comme `truc["A"]` (diagnostics E69 à E71) et noté par site (`AstRewrites::map_dots`)
+- Même réinjection que les arguments nommés : l'accès devient `truc["A"]` dans l'AST, le lowering ne voit jamais la forme pointée sur une map
+
 Si cette phase réussit, le programme est **sémantiquement correct**.
 
 ### 4️⃣ **Lowering** (AST → IR)

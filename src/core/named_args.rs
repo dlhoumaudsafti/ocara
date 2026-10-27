@@ -2,9 +2,11 @@
 /// (`AstRewrites`) : chaque liste `args` commençant par un `Expr::NamedArg`
 /// est remplacée par sa forme positionnelle (voir `crate::sema::named_args`),
 /// et chaque appel de sucre `Convert` (`s.toInt()`) par l'appel statique
-/// correspondant (voir `crate::sema::convert_sugar`). Tourne juste après une
-/// sema sans erreur, avant la monomorphisation et le lowering — qui ne voient
-/// donc jamais ni argument nommé ni sucre `Convert`.
+/// correspondant (voir `crate::sema::convert_sugar`), et chaque `truc.A` sur
+/// une map par `truc["A"]` (voir `crate::sema::map_dot`). Tourne juste après
+/// une sema sans erreur, avant la monomorphisation et le lowering — qui ne
+/// voient donc jamais ni argument nommé, ni sucre `Convert`, ni notation
+/// pointée sur une map.
 ///
 /// Tout le code est parcouru par la sema (corps des `generic`/`module`
 /// compris, voir `crate::sema::generic_check`) : un argument nommé sans
@@ -163,6 +165,14 @@ impl Rewriter<'_> {
         if let Expr::Call { span, .. } | Expr::StaticCall { span, .. } = expr {
             if let Some(replacement) = self.rewrites.calls.get(&site_key(span)) {
                 *expr = replacement.clone();
+            }
+        }
+        // `truc.A` sur une map : `truc["A"]` (voir `crate::sema::map_dot`).
+        if let Expr::Field { object, field, span } = expr {
+            if self.rewrites.map_dots.contains(&site_key(span)) {
+                let index = Expr::Literal(Literal::String(std::mem::take(field)), span.clone());
+                let object = std::mem::replace(object, Box::new(Expr::Literal(Literal::Null, span.clone())));
+                *expr = Expr::Index { object, index: Box::new(index), span: span.clone() };
             }
         }
         // `x -= e` : `String::replace(x, e, "")` sur une string, `x - e` sinon.

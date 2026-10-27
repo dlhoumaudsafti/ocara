@@ -102,7 +102,7 @@ impl<'a> TypeChecker<'a> {
         self.current_runtime_ctx.is_some() && self.closure_depth == 0
     }
 
-    fn with_runtime_ctx(&self, span: &Span) -> Span {
+    pub(crate) fn with_runtime_ctx(&self, span: &Span) -> Span {
         let mut s = span.clone();
         if let Some(ctx) = &self.current_runtime_ctx {
             s.runtime_ctx = Some(ctx.clone());
@@ -1022,6 +1022,10 @@ impl<'a> TypeChecker<'a> {
                     }
                     Expr::Field { object, field, span: field_span } => {
                         let obj_ty = self.infer_expr(object);
+                        if let Some(slot_ty) = self.resolve_map_dot(object, &obj_ty, field, field_span) {
+                            self.check_slot_assign(&val_ty, &slot_ty, span);
+                            return;
+                        }
                         // Champ d'un générique instancié : type avec `T` substitué
                         // (`b.v = "zz"` sur un `Box<int>` compilait).
                         let generic_field = match &obj_ty {
@@ -1073,15 +1077,13 @@ impl<'a> TypeChecker<'a> {
                         if has_no_members(&obj_ty) || obj_ty == Type::String {
                             self.errors.push(SemaError::AccessOnNonContainer { type_name: type_name(&obj_ty), field: None, span: index_span.clone() });
                         }
-                        // Clé d'une map à type par clé : la valeur doit lui correspondre.
-                        if let Some(key_ty) = self.map_key_type(object, index) {
-                            if !types_compat(&val_ty, &key_ty, &self.symbols) {
-                                self.errors.push(SemaError::TypeMismatch {
-                                    expected: type_name(&key_ty),
-                                    found:    type_name(&val_ty),
-                                    span:     span.clone(),
-                                });
-                            }
+                        // Type par clé d'une map, sinon type des valeurs/éléments.
+                        let slot_ty = self.map_key_type(object, index).or_else(|| match &obj_ty {
+                            Type::Map(_, v) | Type::Array(v) => Some(v.as_ref().clone()),
+                            _ => None,
+                        });
+                        if let Some(slot_ty) = slot_ty {
+                            self.check_slot_assign(&val_ty, &slot_ty, span);
                         }
                     }
                     _ => {
@@ -1441,8 +1443,12 @@ impl<'a> TypeChecker<'a> {
             Expr::Field { object, field, span } => {
                 let obj_ty = self.infer_expr(object);
                 if field == COMPLETION_MARKER {
-                    self.record(span, field, Target::Completion(Completion::Member), &obj_ty);
+                    let keys = self.dot_keys(object);
+                    self.record(span, field, Target::Completion(Completion::Member(keys)), &obj_ty);
                     return Type::Mixed;
+                }
+                if let Some(ty) = self.resolve_map_dot(object, &obj_ty, field, span) {
+                    return ty;
                 }
                 // Champ d'un générique instancié (`self.v` dans `Box<string>`) :
                 // type déclaré avec les paramètres de type substitués.
