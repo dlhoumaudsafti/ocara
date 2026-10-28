@@ -58,11 +58,12 @@ fn is_opaque(layout: &[(String, crate::ir::types::IrType)]) -> bool {
 /// jamais par le tampon des racines de cycle), `0` rien à faire, une
 /// lettre pour un handle de ressource fermé avec l'objet (voir
 /// `rc::finalize_object`). Les classes builtin opaques qui se ferment
-/// elles-mêmes : `X` (`Mutex`), `T` (`Thread`).
+/// elles-mêmes : `X` (`Mutex`), `T` (`Thread`), `W` (`Tauri`).
 fn mask_for(module: &IrModule, class: &str, objects: &HashSet<String>) -> String {
     match class {
         "Mutex" => return "X".into(),
         "Thread" => return "T".into(),
+        "Tauri" => return "W".into(),
         _ => {}
     }
     let layout = &module.class_layouts[class];

@@ -500,6 +500,7 @@ pub fn lower_program_with(program: &Program, source_file: &str, coverage: bool) 
     module.class_layouts.insert("HTTPServer".to_string(), opaque_layout.clone());
     module.class_layouts.insert("Thread".to_string(), opaque_layout.clone());
     module.class_layouts.insert("Mutex".to_string(), opaque_layout.clone());
+    module.class_layouts.insert("Tauri".to_string(), opaque_layout.clone());
     module.class_layouts.insert("HTMLComponent".to_string(), opaque_layout);
     super::rc_layout::compute_rc_objects(&mut module, program);
     

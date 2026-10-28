@@ -20,7 +20,7 @@ pub(crate) fn state<R>(this: i64, f: impl FnOnce(&mut OcaraTauriWindow) -> R) ->
 }
 
 /// Vraie fenêtre, si `run()` l'a ouverte et qu'elle existe encore.
-fn live(this: i64) -> Option<tauri::WebviewWindow> {
+pub(crate) fn live(this: i64) -> Option<tauri::WebviewWindow> {
     let app = state(this, |w| w.app.clone())??;
     app.get_webview_window(MAIN_LABEL)
 }

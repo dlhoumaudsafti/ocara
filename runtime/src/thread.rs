@@ -42,13 +42,14 @@ struct OcaraThread {
     handle: Option<std::thread::JoinHandle<Option<String>>>,
 }
 
-/// Description d'une exception levée (`Type : message`), puis relâchée : le
-/// thread qui l'a levée s'arrête, le processus continue.
-fn describe_uncaught(value: i64, type_name: i64) -> String {
+/// Description d'une exception levée (`Type : message`), puis relâchée avec
+/// son nom de type : le thread qui l'a levée s'arrête, le processus continue.
+pub(crate) fn describe_uncaught(value: i64, type_name: i64) -> String {
     let kind = if type_name == 0 { "" } else { unsafe { crate::ptr_to_str(type_name) } };
     let kind = kind.split('|').next().unwrap_or("").to_string();
     let message = unsafe { crate::exception::raised_value_message(value) };
     crate::rc::__rc_release(value);
+    crate::rc::__rc_release(type_name);
     match message {
         Some(m) if !kind.is_empty() => format!("{} : {}", kind, m),
         Some(m) => m,

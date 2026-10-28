@@ -1,0 +1,42 @@
+// examples/advanced/tauri_events/main.oc
+// Événements entre la page et Ocara : la page émet `start`
+// (window.ocara.emit), Ocara répond par trois `progress` (ui.emit) que la
+// page affiche (window.ocara.on), puis la page émet `done` et Ocara ferme la
+// fenêtre.
+//
+// Depuis ce dossier (index.html est lu dans le répertoire courant) :
+//   ../../../target/release/ocara main.oc -o /tmp/tauri_events && /tmp/tauri_events
+
+architecture permissive
+
+import ocara.Tauri
+import ocara.Thread
+import ocara.JSON
+import ocara.IO
+
+const WINDOW:Tauri = use Tauri({ "title": "Événements", "width": 480, "height": 320, "url": "index.html" })
+
+function main(): void {
+    // `data` : le texte JSON de ce que la page a émis.
+    WINDOW.listen("start", nameless(data:string): void {
+        const request:map<string, mixed> = JSON::decode(data)
+        const total:int = request["total"]
+        IO::writeln(`start : ${data}`)
+        for step in 1 to total {
+            WINDOW.emit("progress", { "step": step, "total": total })
+        }
+    })
+
+    WINDOW.listen("done", nameless(data:string): void {
+        IO::writeln(`done : ${data}`)
+        const closer:Thread = use Thread()
+        closer.run(nameless(): void {
+            Thread::sleep(1000)
+            WINDOW.close()
+        })
+        closer.detach()
+    })
+
+    WINDOW.run()
+    IO::writeln("fenêtre fermée")
+}

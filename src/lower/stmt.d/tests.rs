@@ -167,4 +167,23 @@ mod native_counted_tests {
             .any(|i| matches!(i, Inst::Call { func, .. } if func == "__rc_release"));
         assert!(releases);
     }
+
+    /// Un objet `Tauri` est compté et finalisé (`W`, état de la fenêtre et
+    /// callbacks `listen` rendus) : il fuyait à chaque `use Tauri`.
+    #[test]
+    fn tauri_object_is_counted_and_finalized() {
+        let src = "import ocara.Tauri\n\
+                   function f(): void {\n\
+                       const ui:Tauri = use Tauri({ \"title\": \"t\" })\n\
+                       ui.setTitle(\"u\")\n\
+                   }\n";
+        let tokens = Lexer::new(src).tokenize().expect("lex");
+        let program = Parser::new(tokens).parse_program().expect("parse");
+        let module = lower_program(&program, "<test>");
+        assert!(module.rc_objects.contains("Tauri"));
+        let func = module.functions.iter().find(|f| f.name == "f").expect("fonction");
+        let releases = func.blocks.iter().flat_map(|b| &b.insts)
+            .any(|i| matches!(i, Inst::Call { func, .. } if func == "__rc_release"));
+        assert!(releases);
+    }
 }

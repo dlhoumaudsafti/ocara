@@ -3364,7 +3364,7 @@
         ],
         "returns": "void",
         "static": false,
-        "doc": "`emit(event:string, data:mixed)` → `void` — N'émet rien vers la vraie page — trace uniquement sur stdout",
+        "doc": "`emit(event:string, data:mixed)` → `void` — Envoie `data` (encodé en JSON) aux écouteurs `window.ocara.on(event, …)` de la page",
         "docFile": "Tauri.md"
       },
       {
@@ -3483,7 +3483,7 @@
         ],
         "returns": "void",
         "static": false,
-        "doc": "`listen(event:string, callback:Function<void(string)>)` → `void` — Enregistre un callback pour un événement nommé (jamais déclenché par un vrai événement JS)",
+        "doc": "`listen(event:string, callback:Function<void(string)>)` → `void` — Appelle `callback` avec le texte JSON de chaque `window.ocara.emit(event, data)` de la page",
         "docFile": "Tauri.md"
       },
       {

@@ -36,10 +36,22 @@ mémoire sans effet** sur la vraie fenêtre (`runtime_tauri/src/lib.rs`).
      fenêtre présentée sans heure d'interaction : `open()`/`restore()`
      appellent `present_with_time` de GTK avec l'heure du serveur X.
 
+3. **Événements réels** (`runtime_tauri/src/events.rs`) : `ui.emit(event,
+   data)` encode `data` en JSON et le remet aux écouteurs
+   `window.ocara.on(event, cb)` de la page (`eval` sur la vraie fenêtre) ;
+   `window.ocara.emit(event, data)` passe par la commande IPC réservée
+   `__ocara_event` et appelle chaque callback `ui.listen` avec le texte JSON.
+   Une exception d'un callback est rattrapée et signalée, la boucle continue
+   (`__call_closure_catching`, en ABI C : `runtime_tauri` embarque sa propre
+   copie du runtime, dont la pile des `try` n'est pas celle de
+   `__ocara_fail`). Vérifié par `examples/advanced/tauri_events/`.
+   Corrigé au passage : l'objet `Tauri` n'était jamais libéré (pas compté) ;
+   il est désormais compté et finalisé (lettre `W`, finaliseur enregistré
+   par `runtime_tauri`). Reste une fuite si un écouteur capture la fenêtre et
+   que `run()` n'est jamais appelé ([memoire-tauri-listen-cycle](memoire-tauri-listen-cycle.md)).
+
 ## À faire
 
-3. **Événements réels** : `emit` (Ocara → page) et `listen` (page → Ocara),
-   par le système d'événements de Tauri.
 4. **Boîtes de dialogue natives** (plugin officiel `dialog` : message,
    confirmation, ouverture et enregistrement de fichier) et **notifications**
    (plugin officiel `notification`), à la place des simulations.

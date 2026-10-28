@@ -4,9 +4,10 @@
 // Statut (voir docs/builtins/Tauri.md pour le détail) :
 //   - Fonctionnel : création de fenêtre réelle (title/width/height/url) + run(),
 //     état de la fenêtre (getTitle, setWidth, isOpen, focus, minimize…, réel
-//     pendant run(), voir examples/advanced/tauri_window/) et le pont IPC
+//     pendant run(), voir examples/advanced/tauri_window/), événements
+//     listen/emit (voir examples/advanced/tauri_events/) et le pont IPC
 //     JS -> Ocara ui.handler()/ui.handlers() ci-dessous.
-//   - Simulé (pas encore branché à la vraie fenêtre) : listen/emit/dialog/notify.
+//   - Simulé (pas encore branché à la vraie fenêtre) : dialog/notify.
 //     Ils sont montrés ici pour la surface d'API, mais n'ont aucun effet visible.
 //
 // Test rapide (compile-check seulement, n'ouvre pas de fenêtre — pas de run()) :
@@ -45,7 +46,7 @@ function main(): int {
         "ping": Backend::ping
     })
 
-    // ── Reste de l'API (encore simulé — voir docs/builtins/Tauri.md) ───────
+    // ── Événements : la page appelle window.ocara.emit("fromJS", data) ────
     ui.listen("fromJS", nameless(data:string): void {
         IO::writeln(`Message JS reçu : ${data}`)
     })
@@ -60,11 +61,13 @@ function main(): int {
     IO::writeln(`Nouveau titre : ${ui.getTitle()}`)
     IO::writeln(`Dimensions : ${ui.getWidth()}x${ui.getHeight()}`)
 
+    // Sans effet avant run() : aucune page chargée.
     ui.emit("backendReady", {
         "status": "ready",
         "version": "1.0.0"
     })
 
+    // ── Encore simulé (voir docs/builtins/Tauri.md) ─────────────────────
     ui.notify({
         "title": "Ocara Tauri",
         "body": "Application démarrée avec succès."

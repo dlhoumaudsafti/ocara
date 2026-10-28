@@ -3315,6 +3315,22 @@ pub(crate) fn run_closure_catching(func_ptr: i64, env_ptr: i64) -> Result<i64, (
     })
 }
 
+/// Appelle la closure Ocara `fat_ptr` à un argument (`Function<…(T)>`)
+/// depuis du code Rust qui n'a pas de `try` au-dessus de lui (boucle
+/// d'événements de `runtime_tauri`). Rend 0, ou la description (`Type :
+/// message`, chaîne +1) d'une exception levée et rattrapée ; le processus
+/// continue. ABI C : un crate séparé embarque sa propre copie de ce runtime,
+/// dont la pile des `try` n'est pas celle que lit `__ocara_fail`.
+#[unsafe(no_mangle)]
+pub extern "C" fn __call_closure_catching(fat_ptr: i64, arg: i64) -> i64 {
+    let func_ptr = unsafe { *(fat_ptr as *const i64) };
+    let env_ptr = unsafe { *((fat_ptr as *const i64).add(1)) };
+    match run_closure_catching_with_arg(func_ptr, env_ptr, arg) {
+        Ok(_) => 0,
+        Err((value, type_name)) => unsafe { alloc_str(&thread::describe_uncaught(value, type_name)) },
+    }
+}
+
 /// Comme `run_closure_catching`, mais pour une closure Ocara qui reçoit UN
 /// argument supplémentaire en plus de `env_ptr` (signature `fn(env_ptr: i64,
 /// arg1: i64) -> i64`) — nécessaire pour un patron "ouvrir une ressource,

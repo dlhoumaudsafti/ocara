@@ -257,10 +257,20 @@ unsafe fn object_mask<'a>(val: i64) -> &'a [u8] {
 
 /// Sans descripteur, la taille de l'instance est inconnue : elle n'est
 /// jamais libérée.
+/// Finaliseur des objets `Tauri` (lettre `W`), enregistré par `runtime_tauri`
+/// (`__rc_register_window_finalizer`) : ce runtime ne peut pas l'appeler par
+/// son nom, le crate n'étant lié que si le programme importe `ocara.Tauri`.
+static WINDOW_FINALIZER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+#[unsafe(no_mangle)]
+pub extern "C" fn __rc_register_window_finalizer(finalizer: extern "C" fn(i64)) {
+    WINDOW_FINALIZER.store(finalizer as usize, Ordering::SeqCst);
+}
+
 /// Finalisations d'un objet, une seule fois avant sa libération : un champ
 /// marqué d'une lettre est un handle de ressource fermé avec l'objet (puis
-/// remis à zéro) ; `X`/`T` ferment l'objet builtin opaque lui-même
-/// (`Mutex`, `Thread` jamais attendu, détaché).
+/// remis à zéro) ; `X`/`T`/`W` ferment l'objet builtin opaque lui-même
+/// (`Mutex`, `Thread` jamais attendu, détaché ; état d'une fenêtre `Tauri`).
 pub(crate) unsafe fn finalize_object(val: i64) {
     unsafe {
         for (i, &kind) in object_mask(val).iter().enumerate() {
@@ -269,6 +279,13 @@ pub(crate) unsafe fn finalize_object(val: i64) {
                 b'0' | b'1' | b's' => continue,
                 b'X' => crate::mutex::Mutex_destroy(val),
                 b'T' => crate::thread::Thread_detach(val),
+                b'W' => {
+                    let finalizer = WINDOW_FINALIZER.load(Ordering::SeqCst);
+                    if finalizer != 0 {
+                        let finalizer: extern "C" fn(i64) = std::mem::transmute(finalizer);
+                        finalizer(val);
+                    }
+                }
                 _ if *field == 0 => continue,
                 b'S' => crate::sqlite::SQLite_close(*field),
                 b'Y' => crate::mysql::MySQL_close(*field),

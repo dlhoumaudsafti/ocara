@@ -1,6 +1,6 @@
 # Builtin Tauri
 
-> ⚠️ **Statut : partiellement fonctionnel.** La fenêtre desktop réelle (basée sur Tauri v2 / WebKitGTK), son état (titre, taille, URL, réduction, agrandissement, focus, fermeture) et le pont IPC JS → Ocara (`ui.handler()` / `ui.handlers()`) sont implémentés et fonctionnels. `listen`, `emit`, `dialog` et `notify` restent une simulation en mémoire, sans effet réel — voir la section [Ce qui est simulé](#ce-qui-est-simulé-pas-encore-branché) plus bas. Prérequis système (GTK/WebKit) : voir [README.md](../../README.md#dépendances-gui-natives-builtin-tauri).
+> ⚠️ **Statut : partiellement fonctionnel.** La fenêtre desktop réelle (basée sur Tauri v2 / WebKitGTK), son état (titre, taille, URL, réduction, agrandissement, focus, fermeture), le pont IPC JS → Ocara (`ui.handler()` / `ui.handlers()`) et les événements entre la page et Ocara (`emit` / `listen`) sont implémentés et fonctionnels. `dialog` et `notify` restent une simulation en mémoire, sans effet réel — voir la section [Ce qui est simulé](#ce-qui-est-simulé-pas-encore-branché) plus bas. Prérequis système (GTK/WebKit) : voir [README.md](../../README.md#dépendances-gui-natives-builtin-tauri).
 
 Ce builtin permet d'interfacer Ocara avec Tauri pour créer des applications desktop multiplateformes avec une interface web native (WebKitGTK sur Linux).
 
@@ -65,6 +65,44 @@ function main(): void {
 - Après `run()`, `isOpen()` vaut `false`.
 
 Exemple complet, qui se ferme seul : `examples/advanced/tauri_window/`.
+
+## Événements entre la page et Ocara
+
+`ui.emit(event, data)` envoie `data` (encodé en JSON) aux écouteurs de la page ; `ui.listen(event, callback)` reçoit ce que la page envoie, sous forme de **texte JSON** (`JSON::decode` le lit) :
+
+```ocara
+import ocara.Tauri
+import ocara.JSON
+import ocara.IO
+
+function main(): void {
+    var ui:Tauri = use Tauri({ "title": "Import", "url": "index.html" })
+
+    ui.listen("start", nameless(data:string): void {
+        const request:map<string, mixed> = JSON::decode(data)
+        IO::writeln(`import demandé : ${request["file"]}`)
+        ui.emit("progress", { "step": 1, "total": 3 })
+    })
+
+    ui.run()
+}
+```
+
+Côté page, le script injecté par Ocara expose :
+
+```js
+// Page → Ocara (ui.listen) : data est encodé en JSON
+window.ocara.emit("start", { file: "voitures.csv" });
+
+// Ocara → page (ui.emit) : data arrive décodé ; rend une fonction de désabonnement
+const stop = window.ocara.on("progress", (data) => console.log(data.step, data.total));
+```
+
+- Les callbacks `listen` s'exécutent sur la boucle de Tauri, comme les handlers : `ui.emit`, `ui.setTitle`… y sont permis.
+- Une exception levée dans un callback `listen` est signalée sur la sortie d'erreur (`Tauri : écouteur de '…' : exception non rattrapée (…)`) ; la fenêtre continue.
+- `emit` est sans effet avant `run()` (aucune page chargée) ; plusieurs `listen` sur le même événement s'exécutent tous, dans l'ordre d'enregistrement.
+
+Exemple complet, qui se ferme seul : `examples/advanced/tauri_events/`.
 
 ## Appeler du code Ocara depuis le JS de la page (IPC)
 
@@ -203,6 +241,8 @@ Convention runtime : `Tauri_<méthode>`.
 | `handler(name:string, method:mixed)` → `void` | Enregistre `method` (référence de méthode statique, ex. `Classe::methode`) comme commande IPC nommée `name` |
 | `handlers(map:mixed)` → `void` | Enregistre plusieurs commandes en une fois (`{"nom": Classe::methode, ...}`) — même registre anti-doublon que `handler` |
 | `run()` → `void` | Ouvre la vraie fenêtre (bloquant jusqu'à sa fermeture, thread principal requis) |
+| `listen(event:string, callback:Function<void(string)>)` → `void` | Appelle `callback` avec le texte JSON de chaque `window.ocara.emit(event, data)` de la page |
+| `emit(event:string, data:mixed)` → `void` | Envoie `data` (encodé en JSON) aux écouteurs `window.ocara.on(event, …)` de la page |
 | `getTitle()` / `setTitle(title:string)` | Titre de la fenêtre |
 | `getWidth()` / `setWidth(width:int)` | Largeur intérieure (pixels logiques) |
 | `getHeight()` / `setHeight(height:int)` | Hauteur intérieure (pixels logiques) |
@@ -220,7 +260,5 @@ interface native ([roadmap](../roadmap.d/builtins-tauri.md)).
 
 | Méthode | Description (simulée) |
 |---|---|
-| `listen(event:string, callback:Function<void(string)>)` → `void` | Enregistre un callback pour un événement nommé (jamais déclenché par un vrai événement JS) |
-| `emit(event:string, data:mixed)` → `void` | N'émet rien vers la vraie page — trace uniquement sur stdout |
 | `dialog(options:map<string,mixed>)` → `string` | Ne montre aucune boîte de dialogue — retourne toujours `"ok"` |
 | `notify(options:map<string,mixed>)` → `void` | N'envoie aucune notification système — trace uniquement sur stdout |

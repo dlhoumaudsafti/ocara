@@ -1,0 +1,27 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Ocara — événements</title>
+<body style="font-family: sans-serif">
+<h1>Événements</h1>
+<ul id="log"></ul>
+<script>
+  function log(text) {
+    const item = document.createElement("li");
+    item.textContent = text;
+    document.getElementById("log").appendChild(item);
+  }
+
+  // Ocara → page : ui.emit("progress", {...})
+  window.ocara.on("progress", (data) => {
+    log(`progression ${data.step}/${data.total}`);
+    if (data.step === data.total) {
+      window.ocara.emit("done", { steps: data.total });
+    }
+  });
+
+  // Page → Ocara : ui.listen("start", ...)
+  window.addEventListener("load", () => {
+    window.ocara.emit("start", { total: 3, label: "import" });
+  });
+</script>
+</body>

@@ -10,6 +10,7 @@ use once_cell::sync::Lazy;
 
 use ocara_runtime::{alloc_str, ptr_to_str, free_str};
 
+mod events;
 mod window;
 
 /// Codes d'erreur TauriException (voir docs/builtins/Tauri.md)
@@ -37,8 +38,8 @@ pub(crate) struct OcaraTauriWindow {
     is_minimized: bool,
     is_maximized: bool,
     has_focus: bool,
-    // Gestion des callbacks JS → Ocara
-    event_callbacks: HashMap<String, i64>, // event_name → callback_ptr
+    /// Callbacks `ui.listen` par événement (retenus, voir events.rs).
+    event_callbacks: HashMap<String, Vec<i64>>,
     // Handlers JS→Ocara enregistrés via ui.handler(name, fn) / ui.handlers({...}).
     // Contrairement à event_callbacks (fire-and-forget), la valeur ici est
     // l'adresse d'un trampoline *généré par le compilateur* pour CE couple
@@ -76,6 +77,19 @@ unsafe fn map_get_int(options_ptr: i64, key: &str, default: i64) -> i64 {
     if val == 0 { default } else { val }
 }
 
+unsafe extern "C" {
+    /// runtime/src/rc.rs : finaliseur appelé à la libération d'un objet `Tauri`.
+    fn __rc_register_window_finalizer(finalizer: extern "C" fn(i64));
+}
+
+/// Libération de l'objet `Tauri` : son état et les callbacks `listen` retenus.
+extern "C" fn finalize_window(this: i64) {
+    let closed = TAURI_WINDOWS.lock().unwrap().remove(&this);
+    if let Some(win) = closed {
+        events::release_listeners(&win.lock().unwrap().event_callbacks);
+    }
+}
+
 /// Crée une nouvelle fenêtre Tauri avec les options (title, width, height, url...).
 ///
 /// `this` est le pointeur alloué par `use Tauri(...)` (voir Expr::New dans
@@ -88,6 +102,7 @@ unsafe fn map_get_int(options_ptr: i64, key: &str, default: i64) -> i64 {
 /// `ui.method()` suivants.
 #[unsafe(no_mangle)]
 pub extern "C" fn Tauri_init(this: i64, options_ptr: i64) {
+    unsafe { __rc_register_window_finalizer(finalize_window) };
     let win = Arc::new(Mutex::new(OcaraTauriWindow {
         title:  unsafe { map_get_str(options_ptr, "title", "Ocara App") },
         width:  unsafe { map_get_int(options_ptr, "width", 800) },
@@ -102,31 +117,6 @@ pub extern "C" fn Tauri_init(this: i64, options_ptr: i64) {
         app: None,
     }));
     TAURI_WINDOWS.lock().unwrap().insert(this, win);
-}
-
-/// Enregistre un handler d'événement JS → Ocara
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_listen(this: i64, event_ptr: i64, callback_ptr: i64) {
-    let event = unsafe { ptr_to_str(event_ptr).to_string() };
-    ocara_runtime::rc::__rc_retain(callback_ptr);
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(win) = map.get(&this) {
-        win.lock().unwrap().event_callbacks.insert(event, callback_ptr);
-    }
-}
-
-/// Émet un événement Ocara → JS
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_emit(this: i64, event_ptr: i64, data_ptr: i64) {
-    let event = unsafe { ptr_to_str(event_ptr as i64).to_string() };
-    let data = unsafe { ptr_to_str(data_ptr as i64).to_string() };
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(win) = map.get(&this) {
-        // Réservé pour un futur état à mettre à jour (dernier événement émis, etc.)
-        let _w = win.lock().unwrap();
-        // Ici, on pourrait appeler l'API Tauri réelle
-        println!("[Tauri_emit] {}: {}", event, data);
-    }
 }
 
 /// Ouvre une boîte de dialogue native
@@ -243,8 +233,9 @@ fn build_ipc_shim_script(this: i64) -> String {
     return window.__TAURI_INTERNALS__.invoke(cmd, payload, options);
   }};
 }})();
-"#,
-        names_json = names_json
+{events}"#,
+        names_json = names_json,
+        events = events::EVENTS_SHIM,
     )
 }
 
@@ -501,7 +492,7 @@ pub extern "C" fn Tauri_run(this: i64) {
     let match_all = glob::Pattern::new("*").expect("motif glob * invalide");
     let mut allowed_commands: std::collections::BTreeMap<String, Vec<tauri::utils::acl::resolved::ResolvedCommand>> =
         std::collections::BTreeMap::new();
-    for name in handler_names {
+    for name in handler_names.into_iter().chain([events::EVENT_COMMAND.to_string()]) {
         allowed_commands.insert(name, vec![tauri::utils::acl::resolved::ResolvedCommand {
             context: any_origin.clone(),
             windows: vec![match_all.clone()],
@@ -547,6 +538,13 @@ pub extern "C" fn Tauri_run(this: i64) {
             // ce que le trampoline généré rejette proprement (message d'erreur clair).
             tauri::ipc::InvokeBody::Raw(_) => "{}".to_string(),
         };
+
+        if command == events::EVENT_COMMAND {
+            let payload = serde_json::from_str(&args_json).unwrap_or(serde_json::Value::Null);
+            events::dispatch_to_ocara(this, &payload);
+            invoke.resolver.resolve(serde_json::Value::Null);
+            return true;
+        }
 
         match lookup_handler(this, &command) {
             Some(trampoline_addr) => {
@@ -628,5 +626,5 @@ pub extern "C" fn Tauri_run(this: i64) {
     // alors être retirée sans risque (jusqu'ici jamais faite : chaque
     // `use Tauri(...)` fuyait indéfiniment son état + ses registres
     // handlers/event_callbacks).
-    TAURI_WINDOWS.lock().unwrap().remove(&this);
+    finalize_window(this);
 }
