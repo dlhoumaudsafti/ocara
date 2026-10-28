@@ -287,6 +287,10 @@ for src in examples/ui/*.oc.ui; do
         failed="$failed $name"
     fi
 done
+if ! ./ci/ui_engine.sh; then
+    fail=1
+    failed="$failed ui/engine"
+fi
 
 rm -f "$TMP"
 

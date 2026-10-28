@@ -12,9 +12,10 @@ déclaré…) est une erreur de compilation, située à la ligne et à la colonn
 du `.oc.ui`. Le compilateur en tire un arbre JSON normalisé, embarqué dans
 le binaire et interprété par le moteur de rendu de la plateforme.
 
-> État : le schéma et sa validation sont en place. L'affichage (moteurs de
-> rendu) et `use UI("x.oc.ui")` arrivent avec les étapes 4 et 5 de
-> [la fiche `ocara.UI`](roadmap.d/langage-builtin-ui-multiplateforme.md).
+> État : le schéma, sa validation et les deux moteurs de rendu (desktop et
+> Android) sont en place, visibles par les aperçus ci-dessous. Le
+> branchement dans un programme (`use UI("x.oc.ui")`, `ui.on`) arrive avec
+> l'étape 5 de [la fiche `ocara.UI`](roadmap.d/langage-builtin-ui-multiplateforme.md).
 
 ## Vérifier un fichier
 
@@ -29,6 +30,30 @@ Les erreurs ont le format habituel du compilateur :
 garage.oc.ui:10:19: error: type de nœud 'buton' inconnu (vouliez-vous dire 'button' ?)
 garage.oc.ui:12:29: error: id 'name' déjà utilisé ligne 11
 ```
+
+## Aperçus
+
+**Desktop** : `--preview` écrit une page HTML autonome qui affiche
+l'interface avec le moteur de la fenêtre Tauri ; les événements s'affichent
+en bas de page.
+
+```sh
+ocara examples/ui/components.oc.ui --preview            # → /tmp/components.preview.html
+ocara examples/ui/components.oc.ui --preview -o ui.html
+```
+
+**Android** (build debug de `packaging/android`) : l'arbre produit par
+`--dump`, poussé dans le dossier de l'app, s'affiche à la place du contenu ;
+les événements vont dans `adb logcat -s ocara.UI`.
+
+```sh
+ocara examples/ui/components.oc.ui --dump > components.json
+adb push components.json /sdcard/Android/data/com.ocara.demo/files/
+adb shell am start -n com.ocara.demo/.MainActivity --es ocara.ui.preview components.json
+```
+
+Le fichier poussé peut aussi être `{ "tree": <arbre>, "screen": "list",
+"set": [["people", "items", [...]]] }` pour ouvrir un écran avec un état.
 
 ## Exemple
 
@@ -137,6 +162,28 @@ Propriétés communes à tous les nœuds :
 | `tauri`, `android` | surcharge de propriétés pour une plateforme (voir plus bas) |
 | présentation | `fontSize`, `bold`, `italic`, `color`, `background`, `padding`, `margin`, `radius`, `border`, `elevation` (aussi permises dans `styles`) |
 
+### Tailles par défaut
+
+Les deux moteurs suivent les mêmes règles :
+
+- dans une colonne, les champs (`input`, `select`, `slider`, `date`,
+  `time`, `radio`), `list`, `card`, `divider`, `progress`, `webview` et les
+  conteneurs prennent toute la largeur ; textes, titres, boutons, cases,
+  icônes et images gardent leur taille ;
+- dans une ligne, chaque enfant garde sa taille ; s'il manque de la place,
+  textes, cases et champs se la partagent (boutons, icônes et images ne
+  rétrécissent pas) ;
+- `spacer` prend l'espace libre ; `width: fill` (ligne) ou `height: fill`
+  (colonne) aussi ; `weight` le partage.
+
+### Icônes
+
+`icon.name`, `button.icon` et `iconButton.icon` nomment une icône du jeu
+commun (Material Icons) : `add`, `back`, `check`, `close`, `delete`,
+`edit`, `favorite`, `forward`, `home`, `info`, `menu`, `more`, `person`,
+`refresh`, `search`, `share`, `star`. Le dessin des icônes utilisées est
+copié dans l'arbre (`icons`) : il est le même sur les deux plateformes.
+
 ### Valeurs
 
 - **Longueurs** : nombres en pixels logiques (px CSS sur desktop, dp sur
@@ -190,12 +237,36 @@ une clé en double dans une table est une erreur.
 ## Arbre normalisé
 
 `--dump` affiche ce que le binaire embarque : `window`, `styles`, `start`,
-`screens` (chaque écran : `title`, `layout`), `menu`, plus `ids` (chaque `id`
-et le type de son nœud) et `actions` (liste triée), qui servent à vérifier
-les `ui.on` et les `get`/`set`.
+`screens` (chaque écran : `title`, `layout`), `menu`, `icons`, plus `ids`
+(chaque `id` et le type de son nœud) et `actions` (liste triée), qui
+servent à vérifier les `ui.on` et les `get`/`set`.
+
+## Moteurs de rendu
+
+| Plateforme | Moteur | Fichiers |
+|------------|--------|----------|
+| Desktop | DOM dans la vue de la fenêtre Tauri, sans framework | `runtime_tauri/src/ui/engine.js`, `engine.css` |
+| Android | Compose (Material 3) dans l'Activity | `packaging/android/…/bridge/OcaraUIEngine.kt`, `OcaraUINodes.kt` |
+
+Contrat commun :
+
+- `start(arbre)` / `show(arbre)` affiche l'écran `start` ; `set(id, prop,
+  valeur)` change l'état d'un nœud (`value`, `text`, `checked`, `visible`,
+  `enabled`, `items` d'une liste…) et le réaffiche ; `navigate(écran)`,
+  `back()` ;
+- l'état d'un nœud survit au changement d'écran ;
+- chaque valeur changée par l'utilisateur part en `{ id, prop, value }`
+  (l'état côté Ocara reste à jour, `get` n'a pas à interroger l'interface) ;
+  chaque action déclarée en `{ action, id, value, index }` (`index` pour
+  `onSelect`, `value` : l'élément de la liste) ; `ready` à l'affichage ;
+- `back` est traité par le moteur (écran précédent, bouton retour Android) ;
+  sur l'écran de départ, il remonte en action `back`.
+
+Les tests du moteur desktop (`ci/ui_engine.sh`, Chrome sans écran) font
+partie de `make regression`.
 
 ## Voir aussi
 
 - [Fiche `ocara.UI`](roadmap.d/langage-builtin-ui-multiplateforme.md) : principe, inventaire, API Ocara
 - [Tauri](builtins/Tauri.md), [AndroidUI](builtins/AndroidUI.md) : spécificités de chaque plateforme
-- Code : `src/core/ui_schema.d/` (lecteur YAML positionné, tables du schéma, validation)
+- Code : `src/core/ui_schema.d/` (lecteur YAML positionné, tables du schéma, icônes, validation, aperçu)

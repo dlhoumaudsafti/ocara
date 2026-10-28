@@ -1,0 +1,95 @@
+# Tous les composants d'`ocara.UI` (schéma : docs/oc-ui.md) : banc d'essai
+# des moteurs de rendu. Aperçu desktop : `ocara examples/ui/components.oc.ui --preview`.
+window:
+  title: "Composants"
+  width: 760
+  height: 720
+  theme: auto
+  primary: "#00796b"
+
+styles:
+  section: { fontSize: 13, bold: true, color: "#00796b" }
+
+start: form
+screens:
+  form:
+    title: "Formulaire"
+    layout:
+      type: column
+      spacing: 12
+      padding: 16
+      scroll: true
+      children:
+        - { type: heading, level: 1, value: "Inscription" }
+        - { type: text, value: "Champs, choix et boutons", style: section }
+        - { type: input, id: name, placeholder: "Nom", onSubmit: save }
+        - { type: input, id: password, kind: password, placeholder: "Mot de passe" }
+        - { type: input, id: notes, kind: multiline, placeholder: "Notes" }
+        - type: row
+          spacing: 16
+          children:
+            - { type: checkbox, id: terms, label: "J'accepte les conditions", onChange: terms_changed }
+            - { type: switch, id: news, label: "Lettre d'information", checked: true }
+        - { type: radio, id: plan, value: free, options: [{ value: free, text: "Gratuit" }, { value: pro, text: "Pro" }] }
+        - { type: select, id: country, value: fr, options: [{ value: fr, text: "France" }, { value: be, text: "Belgique" }, { value: ch, text: "Suisse" }] }
+        - { type: slider, id: volume, min: 0, max: 10, step: 1, value: 3, onChange: volume_changed }
+        - type: row
+          spacing: 8
+          children:
+            - { type: date, id: birthday }
+            - { type: time, id: alarm }
+        - { type: progress, id: upload, value: 0.4 }
+        - { type: progress }
+        - { type: divider }
+        - type: row
+          spacing: 8
+          children:
+            - { type: button, id: save, text: "Enregistrer", icon: check, onClick: save }
+            - { type: button, text: "Annuler", variant: secondary, onClick: cancel }
+            - { type: button, text: "Désactivé", variant: text, enabled: false }
+            - { type: spacer }
+            - { type: iconButton, icon: refresh, label: "Recharger", onClick: reload, tooltip: "Recharger" }
+            - { type: iconButton, icon: forward, label: "Liste", onClick: show_list }
+  list:
+    title: "Liste"
+    layout:
+      type: column
+      spacing: 12
+      padding: 16
+      children:
+        - type: card
+          spacing: 4
+          children:
+            - type: row
+              spacing: 8
+              children:
+                - { type: icon, name: info, color: "#00796b" }
+                - { type: text, id: summary, value: "Aucun élément", bold: true }
+            - { type: text, value: "Touchez un élément pour l'ouvrir.", color: "#757575", android: { fontSize: 14 } }
+        - type: list
+          id: people
+          spacing: 4
+          onSelect: open_person
+          item:
+            type: row
+            spacing: 12
+            children:
+              - { type: icon, name: person }
+              - type: column
+                weight: 1
+                children:
+                  - { type: text, bind: name, bold: true }
+                  - { type: text, bind: city }
+              - { type: icon, name: forward }
+        - type: grid
+          columns: 3
+          spacing: 8
+          children:
+            - { type: button, text: "Un", variant: secondary }
+            - { type: button, text: "Deux", variant: secondary }
+            - { type: button, text: "Trois", variant: secondary }
+        - type: stack
+          children:
+            - { type: card, height: 60, background: "#e0f2f1", children: [] }
+            - { type: text, value: "Superposé", align: center, padding: 18 }
+        - { type: button, text: "Retour", icon: back, variant: text, onClick: back }

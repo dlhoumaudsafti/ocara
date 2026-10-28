@@ -98,6 +98,17 @@ impl Checker<'_> {
                 Some(s) => self.fail(node, format!("{what} : valeur '{s}' inconnue, attendu : {}{}", allowed.join(", "), suggest(&s, allowed))),
                 None => self.fail(node, format!("{what} : attendu : {}", allowed.join(", "))),
             },
+            Ty::Icon => {
+                let names = super::icons::names();
+                match string {
+                    Some(s) if names.contains(&s.as_str()) => {
+                        self.icons.insert(s.clone());
+                        Some(Json::String(s))
+                    }
+                    Some(s) => self.fail(node, format!("{what} : icône '{s}' inconnue, attendu : {}{}", names.join(", "), suggest(&s, &names))),
+                    None => self.fail(node, format!("{what} : nom d'icône attendu ({})", names.join(", "))),
+                }
+            }
             Ty::Action => match string {
                 Some(s) if is_ident(&s) => {
                     self.actions.insert(s.clone());

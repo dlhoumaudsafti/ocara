@@ -1,0 +1,94 @@
+/* Apparence du moteur de rendu desktop d'`ocara.UI` (engine.js) : composants
+   sobres proches de Material 3, thème clair/sombre (`window.theme`). */
+:root {
+  --oc-primary: #3f51b5;
+  --oc-bg: #fafafa;
+  --oc-surface: #ffffff;
+  --oc-text: #1c1b1f;
+  --oc-muted: #5f5f66;
+  --oc-line: #d0d0d7;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="auto"] {
+    --oc-bg: #141218; --oc-surface: #1f1d24; --oc-text: #e6e1e5; --oc-muted: #a9a4ad; --oc-line: #49454f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --oc-bg: #141218; --oc-surface: #1f1d24; --oc-text: #e6e1e5; --oc-muted: #a9a4ad; --oc-line: #49454f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--oc-bg); color: var(--oc-text);
+  font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif;
+}
+#oc-root { display: flex; flex-direction: column; height: 100%; }
+.oc-bar {
+  display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 12px;
+  background: var(--oc-surface); border-bottom: 1px solid var(--oc-line);
+}
+.oc-bar-title { font-size: 18px; font-weight: 600; }
+.oc-screen { flex: 1; overflow: auto; display: flex; flex-direction: column; }
+.oc-screen > * { flex: 1 0 auto; }
+.oc-column, .oc-card, .oc-list { display: flex; flex-direction: column; }
+.oc-row { display: flex; flex-direction: row; align-items: center; }
+.oc-stack { display: grid; }
+.oc-stack > * { grid-area: 1 / 1; }
+.oc-grid { display: grid; }
+.oc-card {
+  background: var(--oc-surface); border-radius: 12px; padding: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .2);
+}
+.oc-clickable, .oc-list-item { cursor: pointer; }
+.oc-list-item { padding: 8px; border-radius: 8px; }
+.oc-list-item:hover { background: color-mix(in srgb, var(--oc-primary) 10%, transparent); }
+.oc-divider { width: 100%; border: 0; border-top: 1px solid var(--oc-line); margin: 4px 0; }
+.oc-spacer { flex: 1 1 0; }
+.oc-heading { margin: 0; font-weight: 600; }
+h1.oc-heading { font-size: 28px; } h2.oc-heading { font-size: 22px; } h3.oc-heading { font-size: 18px; }
+.oc-image { max-width: 100%; }
+.oc-icon { display: inline-flex; width: 24px; height: 24px; flex: none; }
+.oc-icon svg { width: 100%; height: 100%; }
+.oc-input {
+  font: inherit; color: inherit; background: var(--oc-surface);
+  border: 1px solid var(--oc-line); border-radius: 8px; padding: 8px 10px; min-width: 0;
+}
+.oc-input:focus { outline: 2px solid var(--oc-primary); outline-offset: -1px; border-color: transparent; }
+textarea.oc-input { min-height: 80px; resize: vertical; }
+.oc-checkbox, .oc-switch, .oc-radio label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.oc-radio { display: flex; flex-direction: column; gap: 4px; }
+.oc-checkbox input, .oc-radio input { accent-color: var(--oc-primary); width: 18px; height: 18px; margin: 0; }
+.oc-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.oc-switch-track {
+  position: relative; width: 40px; height: 22px; border-radius: 11px; flex: none;
+  background: var(--oc-line); transition: background .15s;
+}
+.oc-switch-track::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px;
+  border-radius: 50%; background: #fff; transition: transform .15s;
+}
+.oc-switch input:checked + .oc-switch-track { background: var(--oc-primary); }
+.oc-switch input:checked + .oc-switch-track::after { transform: translateX(18px); }
+.oc-switch input:focus-visible + .oc-switch-track { outline: 2px solid var(--oc-primary); outline-offset: 2px; }
+.oc-slider { accent-color: var(--oc-primary); }
+.oc-progress { width: 100%; accent-color: var(--oc-primary); }
+.oc-button {
+  font: inherit; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: 0; border-radius: 20px; padding: 8px 18px; cursor: pointer; font-weight: 500;
+}
+.oc-variant-primary { background: var(--oc-primary); color: #fff; }
+.oc-variant-secondary { background: transparent; color: var(--oc-primary); border: 1px solid var(--oc-line); }
+.oc-variant-text { background: transparent; color: var(--oc-primary); }
+.oc-icon-button { background: transparent; color: inherit; padding: 8px; border-radius: 50%; }
+.oc-button:hover { filter: brightness(1.08); }
+.oc-icon-button:hover, .oc-variant-secondary:hover, .oc-variant-text:hover { background: color-mix(in srgb, var(--oc-primary) 12%, transparent); }
+.oc-button:focus-visible { outline: 2px solid var(--oc-primary); outline-offset: 2px; }
+.oc-disabled, .oc-button:disabled { opacity: .45; pointer-events: none; }
+.oc-webview { min-height: 120px; border: 1px dashed var(--oc-line); border-radius: 8px; }
+/* Dans une colonne, champs, listes et conteneurs prennent la largeur ;
+   boutons, textes, cases et icônes gardent leur taille (comme Compose). */
+.oc-column > :is(.oc-button, .oc-text, .oc-heading, .oc-checkbox, .oc-switch, .oc-icon, .oc-image),
+.oc-card > :is(.oc-button, .oc-text, .oc-heading, .oc-checkbox, .oc-switch, .oc-icon, .oc-image) { align-self: flex-start; }

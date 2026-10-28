@@ -1,8 +1,10 @@
 package com.ocara.demo
 
 import android.annotation.SuppressLint
+import android.content.pm.ApplicationInfo
 import android.graphics.Color
 import android.os.Bundle
+import android.util.Log
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
@@ -27,10 +29,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.ocara.bridge.OcaraBridge
+import com.ocara.bridge.OcaraInterface
 import com.ocara.bridge.OcaraPermissions
 import com.ocara.bridge.OcaraUI
+import com.ocara.bridge.OcaraUIEngine
 import com.ocara.demo.theme.OcaraUIHybridDemoTheme
 import java.io.File
+import org.json.JSONArray
+import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
@@ -64,6 +70,7 @@ class MainActivity : ComponentActivity() {
     OcaraBridge.attach(this)
     OcaraUI.install(this)
     OcaraBridge.nativeStartServer(filesDir.absolutePath)
+    showPreview()
 
     // Barre de statut transparente (le contenu edge-to-edge de la WebView —
     // la nav sticky en haut de public/style.css — passe déjà dessous) MAIS
@@ -80,7 +87,10 @@ class MainActivity : ComponentActivity() {
     setContent {
       OcaraUIHybridDemoTheme {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-          OcaraWebViewScreen()
+          // Interface d'un `.oc.ui` affichée par `ocara.UI` (moteur Compose),
+          // sinon la page du serveur HTTP Ocara.
+          val tree = OcaraUIEngine.tree.value
+          if (tree != null) OcaraInterface(tree) else OcaraWebViewScreen()
         }
       }
     }
@@ -90,6 +100,35 @@ class MainActivity : ComponentActivity() {
     OcaraUI.release()
     OcaraBridge.detach(this)
     super.onDestroy()
+  }
+
+  /**
+   * Aperçu d'une interface, en build debug seulement : arbre JSON produit par
+   * `ocara x.oc.ui --dump`, poussé dans le dossier externe de l'app
+   * (docs/oc-ui.md, « Aperçu ») :
+   * `adb shell am start -n com.ocara.demo/.MainActivity --es ocara.ui.preview x.json`.
+   * Le fichier peut aussi être `{ "tree": …, "screen": "…", "set": [[id, prop, valeur]…] }`
+   * pour ouvrir un écran avec un état.
+   */
+  private fun showPreview() {
+    val debuggable = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    val name = intent?.getStringExtra("ocara.ui.preview") ?: return
+    if (!debuggable) return
+    val file = File(getExternalFilesDir(null), name)
+    try {
+      val json = JSONObject(file.readText())
+      val tree = json.optJSONObject("tree") ?: json
+      OcaraUIEngine.show(tree.toString())
+      json.optString("screen").takeIf { it.isNotEmpty() }?.let { OcaraUIEngine.navigate(it) }
+      val updates = json.optJSONArray("set") ?: JSONArray()
+      for (i in 0 until updates.length()) {
+        val update = updates.getJSONArray(i)
+        val value = update.get(2)
+        OcaraUIEngine.set(update.getString(0), update.getString(1), if (value is String) JSONObject.quote(value) else value.toString())
+      }
+    } catch (e: Exception) {
+      Log.e("ocara.UI", "aperçu impossible ($file) : ${e.message}")
+    }
   }
 
   /** Réponse à `AndroidPermissions::request`, attendue par le programme Ocara. */

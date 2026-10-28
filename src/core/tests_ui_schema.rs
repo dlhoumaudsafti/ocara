@@ -236,3 +236,20 @@ fn aliases_and_empty_file_are_refused() {
     single_error("", 1, "vide");
     single_error("a: &x 1\nb: *x\n", 2, "alias");
 }
+
+#[test]
+fn icons_are_checked_and_embedded() {
+    let spec = ok(&screen("    - { type: iconButton, icon: search, label: Chercher }\n    - { type: button, text: Ok, icon: check }\n"));
+    let icons = spec.tree["icons"].as_object().unwrap();
+    let names: Vec<&str> = icons.keys().map(String::as_str).collect();
+    assert_eq!(names, ["check", "search"]);
+    assert!(icons["search"].as_str().unwrap().starts_with("M15.5"));
+    single_error(&screen("    - { type: icon, name: serch }\n"), 4, "icône 'serch' inconnue");
+}
+
+#[test]
+fn components_example_is_valid() {
+    let spec = ok(include_str!("../../examples/ui/components.oc.ui"));
+    assert_eq!(spec.tree["start"], "form");
+    assert_eq!(spec.ids["people"], "list");
+}

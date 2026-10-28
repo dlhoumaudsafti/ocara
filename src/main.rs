@@ -43,7 +43,7 @@ fn run() {
     }
 
     if args.input.to_string_lossy().ends_with(".oc.ui") {
-        check_ui_file(&args.input, args.dump);
+        check_ui_file(&args);
         return;
     }
 
@@ -255,10 +255,20 @@ fn run() {
 }
 
 /// `ocara fichier.oc.ui` : valide l'interface (schéma `.oc.ui`) ; `--dump`
-/// affiche l'arbre JSON normalisé qu'embarque le binaire.
-fn check_ui_file(input: &std::path::Path, dump: bool) {
-    match core::ui_schema::check_file(input) {
-        Ok(spec) if dump => println!("{}", serde_json::to_string_pretty(&spec.tree).unwrap_or_default()),
+/// affiche l'arbre JSON normalisé qu'embarque le binaire, `--preview` écrit
+/// une page HTML qui l'affiche avec le moteur de rendu desktop.
+fn check_ui_file(args: &core::cli::CliArgs) {
+    match core::ui_schema::check_file(&args.input) {
+        Ok(spec) if args.preview => {
+            let page = core::ui_schema::preview::page(&spec);
+            let out = core::ui_schema::preview::output_path(&args.input, &args.output);
+            if let Err(e) = fs::write(&out, page) {
+                diagnostic::print_error(&out, 0, 0, &format!("écriture de '{}': {}", out.display(), e));
+                std::process::exit(1);
+            }
+            println!("aperçu : file://{}", fs::canonicalize(&out).unwrap_or(out).display());
+        }
+        Ok(spec) if args.dump => println!("{}", serde_json::to_string_pretty(&spec.tree).unwrap_or_default()),
         Ok(spec) => println!("check ok — {} id, {} action(s).", spec.ids.len(), spec.actions.len()),
         Err(diagnostics) => {
             for d in &diagnostics {

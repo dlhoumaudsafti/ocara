@@ -21,6 +21,8 @@ pub enum Ty {
     Enum(&'static [&'static str]),
     /// Identifiant de nœud (`id`), unique dans le fichier.
     Id,
+    /// Nom d'une icône du jeu commun (icons.rs).
+    Icon,
     /// Nom d'action, lié côté Ocara par `ui.on`.
     Action,
     /// Nom d'un style déclaré sous `styles:`.
@@ -104,7 +106,7 @@ const IMAGE: &[(&str, Ty)] = &[
     ("bind", Ty::Field),
     ("fit", Ty::Enum(&["contain", "cover", "fill", "none"])),
 ];
-const ICON: &[(&str, Ty)] = &[("name", Ty::Text)];
+const ICON: &[(&str, Ty)] = &[("name", Ty::Icon)];
 const PROGRESS: &[(&str, Ty)] = &[("value", Ty::Number(0.0, 1.0))];
 const LIST: &[(&str, Ty)] = &[
     ("item", Ty::Node),
@@ -156,11 +158,11 @@ const SLIDER: &[(&str, Ty)] = &[
 const DATE: &[(&str, Ty)] = &[("value", Ty::Text), ("onChange", Ty::Action)];
 const BUTTON: &[(&str, Ty)] = &[
     ("text", Ty::Text),
-    ("icon", Ty::Text),
+    ("icon", Ty::Icon),
     ("variant", Ty::Enum(&["primary", "secondary", "text"])),
     ("onClick", Ty::Action),
 ];
-const ICON_BUTTON: &[(&str, Ty)] = &[("icon", Ty::Text), ("onClick", Ty::Action)];
+const ICON_BUTTON: &[(&str, Ty)] = &[("icon", Ty::Icon), ("onClick", Ty::Action)];
 
 /// Types de nœuds, dans l'ordre des tableaux du §3.
 pub const NODE_TYPES: &[&str] = &[

@@ -9,6 +9,8 @@ pub struct CliArgs {
     pub dump:    bool,
     /// true = s'arrêter après l'analyse sémantique
     pub check:   bool,
+    /// true = aperçu HTML d'un `.oc.ui` (src/core/ui_schema.d/preview.rs)
+    pub preview: bool,
     /// true = produire le fichier .o mais ne pas linker
     pub no_link: bool,
     /// true = strip les symboles du binaire produit (via le linker)
@@ -71,6 +73,8 @@ pub fn print_help() {
     println!("Usage :");
     println!("  ocara <fichier.oc> [options]");
     println!("  ocara <fichier.oc.ui> [--dump]   Valide une interface .oc.ui (--dump : arbre JSON normalisé)");
+    println!("  ocara <fichier.oc.ui> --preview [-o page.html]");
+    println!("                Aperçu de l'interface dans un navigateur (moteur de rendu desktop)");
     println!();
     println!("Options :");
     println!("  -o <sortie>   Fichier de sortie (défaut : out)");
@@ -145,6 +149,7 @@ pub fn parse(args: &[String]) -> Result<CliArgs, String> {
     let mut output  = PathBuf::from("out");
     let mut dump    = false;
     let mut check   = false;
+    let mut preview = false;
     let mut no_link = false;
     let mut release = false;
     let mut profile = false;
@@ -169,6 +174,7 @@ pub fn parse(args: &[String]) -> Result<CliArgs, String> {
         match arg.as_str() {
             "--dump"    => dump    = true,
             "--check"   => check   = true,
+            "--preview" => preview = true,
             "--no-link" => no_link = true,
             "--release" => release = true,
             "--profile" => profile = true,
@@ -203,7 +209,7 @@ pub fn parse(args: &[String]) -> Result<CliArgs, String> {
     if !lsp && same_path(&input, &output) {
         return Err(format!("la sortie -o {} est le fichier source lui-même : il serait écrasé", output.display()));
     }
-    Ok(CliArgs { input, output, dump, check, no_link, release, profile, leak_check, coverage, check_architecture, coverage_points, architecture_report, src_dir, target, android_runtime, android_runtime_sdl, android_jni_bridge, android_ndk, when, lsp })
+    Ok(CliArgs { input, output, dump, check, preview, no_link, release, profile, leak_check, coverage, check_architecture, coverage_points, architecture_report, src_dir, target, android_runtime, android_runtime_sdl, android_jni_bridge, android_ndk, when, lsp })
 }
 
 /// `System::OS=android` (ou `OS=android`) → (`OS`, `android`), constante et

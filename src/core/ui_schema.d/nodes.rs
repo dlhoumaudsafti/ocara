@@ -84,15 +84,18 @@ impl Checker<'_> {
                 }
             }
         }
-        self.node_rules(node, ty, &out);
+        let written: Vec<&str> = entries.iter().map(|&(_, name, _)| name).collect();
+        self.node_rules(node, ty, &written, &out);
         Some(Json::Object(out))
     }
 
     /// Règles qui portent sur plusieurs propriétés à la fois.
-    fn node_rules(&mut self, node: &Node, ty: &str, props: &Map<String, Json>) {
+    /// `written` : clés écrites dans le fichier (une propriété obligatoire
+    /// présente mais invalide n'est signalée qu'une fois).
+    fn node_rules(&mut self, node: &Node, ty: &str, written: &[&str], props: &Map<String, Json>) {
         for required in schema::required_props(ty) {
             let names: Vec<&str> = required.split('|').collect();
-            if !names.iter().any(|name| props.contains_key(*name)) {
+            if !names.iter().any(|name| written.contains(name)) {
                 let quoted: Vec<String> = names.iter().map(|n| format!("'{n}'")).collect();
                 self.fail::<()>(node, format!("'{ty}' : propriété {} obligatoire", quoted.join(" ou ")));
             }

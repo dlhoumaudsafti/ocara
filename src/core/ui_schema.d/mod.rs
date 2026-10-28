@@ -10,12 +10,15 @@
 //
 //   { "window": {…}, "styles": {…}, "start": "home",
 //     "screens": { "home": { "title": …, "layout": <nœud> } },
-//     "menu": […], "ids": { "search": "input" }, "actions": ["search"] }
+//     "menu": […], "ids": { "search": "input" }, "actions": ["search"],
+//     "icons": { "search": "<tracé SVG 24×24>" } }
 //
 // Un `layout:` à la racine (sans `screens:`) est un écran unique `main`.
 // ─────────────────────────────────────────────────────────────────────────────
 
+mod icons;
 mod nodes;
+pub mod preview;
 pub mod schema;
 mod values;
 pub mod yaml;
@@ -61,6 +64,7 @@ pub fn check_source(file: &Path, source: &str) -> Result<UiSpec, Vec<Diagnostic>
         errors: Vec::new(),
         ids: BTreeMap::new(),
         actions: BTreeSet::new(),
+        icons: BTreeSet::new(),
         styles: BTreeSet::new(),
         in_item: 0,
     };
@@ -73,6 +77,8 @@ pub fn check_source(file: &Path, source: &str) -> Result<UiSpec, Vec<Diagnostic>
     let mut tree = tree.unwrap_or_default();
     tree.insert("ids".into(), json!(ids));
     tree.insert("actions".into(), json!(checker.actions));
+    let icons: Map<String, Json> = checker.icons.iter().filter_map(|name| Some((name.clone(), json!(icons::path(name)?)))).collect();
+    tree.insert("icons".into(), Json::Object(icons));
     Ok(UiSpec { tree: Json::Object(tree), ids, actions: checker.actions })
 }
 
@@ -92,6 +98,8 @@ pub(super) struct Checker<'a> {
     /// `id` → (type du nœud, ligne de déclaration).
     ids: BTreeMap<String, (String, usize)>,
     actions: BTreeSet<String>,
+    /// Icônes nommées, copiées dans l'arbre (`icons`).
+    icons: BTreeSet<String>,
     /// Noms déclarés sous `styles:`, connus avant les nœuds.
     styles: BTreeSet<String>,
     /// Profondeur dans un gabarit `item:` de liste (`bind` permis).
