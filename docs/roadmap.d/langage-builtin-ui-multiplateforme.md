@@ -468,18 +468,22 @@ Règles proposées :
    un avertissement ; lever une exception à l'appel, comme `ocara.Android*`
    hors Android, pour la cohérence des trois builtins ?
 
-## 10. Découpage proposé
+## 10. Découpage
 
-| Étape | Contenu | Complexité |
-|-------|---------|------------|
-| 1 | Schéma, lecteur YAML et validation des `.oc.ui` dans le compilateur, arbre JSON embarqué, tests unitaires des erreurs | Structurel |
-| 2 | Backend Tauri : fenêtre, moteur de contenu (column, row, text, input, button, checkbox), `on`/`get`/`set`, thread des gestionnaires, exemple et test ocaraunit | Structurel |
-| 3 | Backend Android : `runtime_android/ui` et `OcaraUI.kt` (moteur Compose, mêmes nœuds), événements JNI vers le thread Ocara, mises à jour vers le thread principal, vérification sur téléphone | Massive |
-| 4 | Navigation (`screens`), `list`/`setItems`, styles et thème, images embarquées | Structurel |
-| 5 | Composant `webview` des deux côtés (vraie vue web isolée) : contenu, navigation, liens autorisés, messages et appels JS ↔ Ocara ; vérification avec `mini_project_hexa` dans un panneau | Structurel |
-| 6 | Menus et services natifs (plugins Tauri `dialog`, `notification`, `clipboard-manager`, `opener` ; équivalents Android), surcharges `tauri:`/`android:` | Structurel |
-| 7 | Builtin `ocara.AndroidUI` et ajouts à `ocara.Tauri` (plusieurs fenêtres, tray, options de fenêtre) ; `ui.tauri()`/`ui.android()` | Structurel |
-| 8 | Outillage : schéma JSON des `.oc.ui` pour l'extension VS Code, complétion des `id` et des actions dans `get`/`set`/`on`, rechargement à chaud | Structurel |
+Ordre décidé (2026-10-28) : les deux plateformes d'abord, utiles seules et
+qui éprouvent les points difficiles (agir sur la fenêtre depuis un autre
+thread, faire remonter les événements d'interface vers Ocara), puis le pont
+`ocara.UI`. Ce qui fait partie du standard est codé dès les étapes 1 et 2
+avec les noms et signatures d'`ocara.UI`, une seule fois par plateforme.
+
+| Étape | Contenu | Complexité | Fiche |
+|-------|---------|------------|-------|
+| 1 | **Finaliser `ocara.Tauri`** : état de fenêtre réel après `run()`, `emit`/`listen` réels, boîtes de dialogue et notifications natives, menus, plusieurs fenêtres, tray, raccourcis globaux | Massive (six points Légère à Structurel) | [builtins-tauri](builtins-tauri.md) |
+| 2 | **Créer `ocara.AndroidUI`** dans l'app hybride : canal d'événements Kotlin → Ocara, barres système, orientation, plein écran, écran allumé, retour haptique, partage, boîtes de dialogue, messages brefs, bouton retour | Structurel | [packaging-android-gui-native](packaging-android-gui-native.md) |
+| 3 | **Schéma `.oc.ui`** : lecteur YAML et validation dans le compilateur (types, propriétés, `id` uniques, actions), arbre JSON embarqué, tests des erreurs | Structurel | cette fiche, §4 |
+| 4 | **Les deux moteurs de rendu** : contenu dans la fenêtre Tauri (column, row, text, input, button, checkbox d'abord), moteur Compose (`OcaraUI.kt`) dans l'Activity | Massive | cette fiche, §2 et §3 |
+| 5 | **Façade `ocara.UI`** : `use UI("x.oc.ui")`, `ui.on`, `get`/`set`, choix du backend selon la cible, `ui.tauri()`/`ui.android()` ; exemple desktop et Android, test ocaraunit | Structurel | cette fiche, §6 et §8 |
+| 6 | **Suite** : navigation (`screens`), listes (`setItems`), composant `webview` (vraie vue web isolée), styles et thème, images embarquées, surcharges `tauri:`/`android:`, schéma JSON des `.oc.ui` et complétion dans VS Code, rechargement à chaud | Structurel | cette fiche |
 
 ## Fichiers clés
 

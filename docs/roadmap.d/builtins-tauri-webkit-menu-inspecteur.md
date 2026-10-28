@@ -17,7 +17,7 @@ Aucun code de `runtime_tauri`/`ocara.Tauri` ne référence le menu contextuel (c
 
 ## Priorité / Complexité
 
-**Priorité Très Basse** — confort de développement/production (masquer le menu clic-droit en release, contrôler l'accès à l'inspecteur), aucun besoin fonctionnel bloquant identifié aujourd'hui. **Complexité Légère** pour l'inspecteur (feature Cargo + deux méthodes) ; **complexité non évaluée, probablement Modérée à Massive** pour le menu contextuel sur Linux (FFI WebKitGTK direct, hors de l'API `wry` normalement utilisée par ce projet).
+**Point 5 de l'étape 1 du chantier interface native** ([finaliser `ocara.Tauri`](builtins-tauri.md), Priorité Moyenne) — confort de développement/production (masquer le menu clic-droit en release, contrôler l'accès à l'inspecteur), aucun besoin fonctionnel bloquant identifié aujourd'hui. **Complexité Légère** pour l'inspecteur (feature Cargo + deux méthodes) ; **complexité non évaluée, probablement Modérée à Massive** pour le menu contextuel sur Linux (FFI WebKitGTK direct, hors de l'API `wry` normalement utilisée par ce projet).
 
 ## Fichiers clés
 
