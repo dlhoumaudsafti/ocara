@@ -13,6 +13,15 @@ Après [le hybride WebView](packaging-android-webview-hybrid.md) (étape "pour c
 
 Une fois l'une de ces deux pistes engagée, voir [langage-builtin-ui-multiplateforme](langage-builtin-ui-multiplateforme.md) : un builtin `ocara.UI` qui route vers le futur support GUI natif de Tauri sur desktop et vers le backend retenu ici sur Android, selon la cible de compilation — ticket séparé, dédié, car c'est un chantier de conception de langage à part entière, pas un détail d'implémentation de ce ticket-ci. Distinct de [`ocara.UIHybrid`](langage-builtin-ui-hybride.md) (WebView unifiée Tauri+WebKit/WebView Android) — deux builtins, chacun unifiant un seul paradigme, plutôt qu'un seul builtin universel.
 
+## Piste retenue par l'analyse d'`ocara.UI` (2026-10-28)
+
+L'app de `packaging/android` est déjà en Jetpack Compose (Material3,
+navigation3) : l'[analyse d'`ocara.UI`](langage-builtin-ui-multiplateforme.md)
+propose un moteur Compose qui interprète l'arbre d'un fichier `.ui`, piloté
+par le pont JNI existant (`runtime_android/common`) — ni `ANativeActivity`,
+ni un pont widget par widget. À confirmer (question 2 de cette
+analyse).
+
 ## Priorité / Complexité
 
 **Priorité Très Basse** — explicitement "on verra", pas de travail prévu avant que [le hybride WebView](packaging-android-webview-hybrid.md) soit fait. **Complexité non évaluée** — dépend entièrement de la piste choisie, qui n'a pas encore été discutée ni tranchée ; probablement Massive quelle que soit la piste (nouveau pont JNI large, ou nouveau backend basé sur SDL/`ANativeActivity` déjà disponible, dans les deux cas une zone entièrement neuve pour ce projet côté GUI).

@@ -1,44 +1,400 @@
-# Builtin `ocara.UI` (GUI native unifiée : Tauri natif futur ↔ GUI native Android)
+# Builtin `ocara.UI` : interface décrite en `.ui` (YAML), rendue par Tauri ou Android
 
-## Idée
+Statut : **analyse faite (2026-10-28), conception à trancher**, rien
+d'implémenté. Objectif fixé par David : un builtin `ocara.UI` qui affiche une
+interface décrite dans un fichier `.ui` au format YAML, rendue par Tauri sur
+desktop et par l'interface native d'Android sur Android, sans changer ni le
+`.ui` ni le code Ocara.
 
-Un builtin Ocara pour la GUI **native** (ex. `ocara.UI`), dont l'implémentation réelle change **selon la cible de compilation** :
+```yaml
+window:
+  title: "Mon application"
+  width: 800
+  height: 600
 
-- Compilé sans `--target` (hôte desktop) → route vers le futur support GUI natif complet de `ocara.Tauri` (voir "point d'attention" ci-dessous — **David a indiqué qu'à terme Tauri aura un support GUI complet**, au-delà de ce que le builtin `ocara.Tauri` actuel couvre).
-- Compilé avec `--target aarch64-linux-android` (ou autre triple Android, voir [packaging-android](packaging-android.md)) → route vers le futur backend GUI natif Android (voir [packaging-android-gui-native](packaging-android-gui-native.md), pas encore commencé).
+layout:
+  type: column
+  spacing: 12
+  padding: 16
+  children:
+    - type: text
+      id: greeting
+      value: "Bonjour"
+    - type: input
+      id: username
+      placeholder: "Votre nom"
+    - type: button
+      id: submit
+      text: "Valider"
+      onClick: submit_form
+```
 
-Distinct de [`ocara.UIHybrid`](langage-builtin-ui-hybride.md) (WebView unifiée, Tauri+WebKit ↔ WebView Android) — **scission décidée par David** plutôt qu'un unique builtin universel : deux builtins, chacun unifiant UN SEUL paradigme (natif ↔ natif ici ; web ↔ web pour `UIHybrid`), au lieu d'un seul builtin essayant de faire tenir deux paradigmes très différents dans la même API.
+## 1. Ce qui existe
 
-## Point d'attention — à clarifier avant de commencer
+| Côté | En place | Fichiers |
+|------|----------|----------|
+| Desktop | `ocara.Tauri` : vraie fenêtre Tauri v2 (WebKitGTK), page chargée par URL ou fichier, script injecté au chargement (`initialization_script`), appels JS → méthode statique Ocara typés (`ui.handler`/`ui.handlers`). `listen`, `emit`, `dialog`, `notify` et l'état de fenêtre après `run()` sont simulés. | `runtime_tauri/src/lib.rs`, `docs/builtins/Tauri.md`, [builtins-tauri](builtins-tauri.md) |
+| Android | App de `packaging/android` en **Jetpack Compose** (Material3, navigation3 déjà en dépendances) qui affiche une WebView ; pont JNI qui démarre le programme Ocara sur son propre thread et expose la JVM et la classe `OcaraBridge` ; appels Ocara → Kotlin (`runtime_android/common`) ; builtins natifs hors GUI (permissions, notifications, fichiers…). | `runtime_android_jni/`, `runtime_android/`, `packaging/android/`, [docs/android.md](../android.md) §4 et §6 |
+| Langage | Choix d'implémentation selon la cible : archive liée selon `--target` et talons ailleurs (modèle `android_feature_libs`, `src/codegen/link.rs`) ; déclarations conditionnelles `when System::OS is …` (EBNF §32). | `src/codegen/link.rs`, `src/codegen/emit.d/emitter.rs` |
+| Langage | `ocara.YAML` décode du YAML **à l'exécution** (runtime, `serde_yaml`) ; le compilateur ne lit pas de YAML aujourd'hui. | `runtime/src/yaml.rs` |
 
-Tauri (le framework upstream) est architecturalement **une fenêtre native + un moteur web embarqué** — il n'existe pas, à ce jour, de mode "rendu de widgets natifs sans WebView" dans Tauri lui-même. Ce que [builtins-tauri](builtins-tauri.md) appelle "vrai support Tauri" ("finaliser l'intégration") porte sur les API OS natives AUTOUR de la fenêtre (menus, dialogues natifs, tray, notifications système — actuellement simulés en mémoire, voir `docs/builtins/Tauri.md`), pas sur un rendu non-web à l'intérieur de la fenêtre.
+Conséquence pour le « point d'attention » de la version précédente de ce
+ticket : Tauri ne sait rendre qu'une page web. Sur desktop, `ocara.UI`
+dessinera donc en HTML/CSS dans la fenêtre Tauri, mais à partir d'un arbre
+abstrait — l'utilisateur n'écrit ni HTML ni JS. Le rendu réellement natif ne
+concerne qu'Android (Compose). Le choix du backend selon la cible ne demande
+aucun mécanisme de langage nouveau.
 
-Deux lectures possibles de "Tauri aura un support GUI complet", à trancher avec David avant de concevoir quoi que ce soit ici :
-1. "Complet" = chrome natif complet (menus/dialogues/tray/notifications réels) autour d'un contenu qui reste une WebView — dans ce cas, ce builtin `ocara.UI` (natif) et [`ocara.UIHybrid`](langage-builtin-ui-hybride.md) se recouvrent largement côté desktop (les deux finiraient par passer par Tauri), et la distinction natif/web ne se jouerait vraiment que côté Android.
-2. Un rendu de widgets vraiment natif (non-web) sur desktop est envisagé, hors de Tauri lui-même ou via un mécanisme que Tauri n'offre pas aujourd'hui — dans ce cas, la partie "desktop" de ce ticket dépend d'un chantier qui n'existe nulle part encore, distinct de `ocara.Tauri`/`runtime_tauri`.
+## 2. Principe proposé : un arbre déclaratif, un moteur de rendu par plateforme
 
-## Pourquoi ce n'est pas juste un routage mécanique
+Ne pas traduire chaque widget en appels natifs depuis le code généré, mais
+faire circuler **le même arbre** jusqu'à un moteur de rendu propre à chaque
+plateforme :
 
-Même en supposant la lecture (1) ci-dessus, Tauri (web) et une GUI Android native restent deux paradigmes différents :
+```
+fichier .ui (YAML)
+   │  compilation : lecture, validation (types, propriétés, id uniques, actions)
+   ▼
+arbre normalisé (JSON) embarqué dans le binaire
+   │  exécution : ui.run()
+   ├──► desktop : moteur JS injecté dans la WebView Tauri → DOM + CSS
+   └──► Android : moteur Compose (Kotlin, packaging/android) → composables Material3
 
-- **Tauri** : une fenêtre héberge un moteur web (WebKit/GTK sur Linux) ; l'UI est décrite en HTML/CSS/JS (ou généré, voir `ocara.HTML`/`HTMLComponent`), le code Ocara communique avec cette page via des handlers (voir `docs/builtins/Tauri.md`).
-- **GUI Android native** (voie non tranchée par [packaging-android-gui-native](packaging-android-gui-native.md)) : soit un rendu bas niveau (`ANativeWindow`, dans l'esprit de SDL), soit des Views/Compose Java/Kotlin pilotées par pont JNI — dans les deux cas, un arbre de widgets impératif, pas une page web.
+événements  : moteur → { action, id, valeur } → méthode Ocara liée par ui.on(...)
+mises à jour: ui.set(id, propriété, valeur) → moteur → réaffichage du seul nœud
+```
 
-Concevoir UNE API `ocara.UI` qui ait un sens dans les deux mondes (quels concepts communs ? fenêtre, bouton, texte, image, événement clic — probablement un plus petit dénominateur commun assez restreint) est un vrai travail de conception, pas de la plomberie. Risque explicite à garder en tête : appauvrir l'un des deux backends pour faire rentrer les deux dans la même API.
+Trois contrats suffisent à unifier les deux plateformes :
 
-## Ce qui est déjà en place, ce qui manque
+1. **Le schéma** : types de nœuds, propriétés, événements, unités (§4).
+2. **Le magasin d'état** : chaque nœud qui a un `id` a des propriétés lisibles
+   et modifiables depuis Ocara ; le moteur se met à jour à chaque modification
+   (DOM d'un côté, `mutableStateMapOf` de Compose de l'autre).
+3. **Le canal d'événements** : un événement porte le nom d'action déclaré dans
+   le `.ui` (`onClick: submit_form`), l'`id` du nœud et sa valeur. Ocara reçoit
+   tous les événements sur un même thread, l'un après l'autre (comme les
+   gestionnaires d'`HTTPServer`).
 
-- **En place** : `--target` (sélection de cible à la compilation, voir [packaging-android](packaging-android.md) sous-chantier 1) — le mécanisme de sélection à la compilation que ce builtin exploiterait existe déjà, pour un usage différent (codegen) mais le même principe.
-- **Manque tout le reste** : aucune GUI native Android n'existe encore ([packaging-android-gui-native](packaging-android-gui-native.md), non commencé). Le "support GUI complet" de Tauri évoqué par David n'est pas non plus scopé nulle part (voir "point d'attention" ci-dessus — [builtins-tauri](builtins-tauri.md) ne couvre que le chrome natif OS, pas un rendu non-web). Aucune conception de l'API commune `ocara.UI` n'a été commencée. Aucune réflexion sur comment le compilateur choisit l'implémentation réelle d'un builtin selon `--target` (aujourd'hui, `--target` influence seulement le codegen Cranelift bas niveau, jamais la résolution des builtins eux-mêmes — un mécanisme nouveau, potentiellement dans `src/codegen/runtime.rs`/la table des builtins, partagé avec [`ocara.UIHybrid`](langage-builtin-ui-hybride.md)).
+Les deux moteurs restent petits : le moteur JS fait quelques centaines de
+lignes sans framework, et le moteur Compose est une fonction récursive
+`Node(node)` sur le type du nœud. Le code Ocara ne voit jamais la plateforme.
 
-## Priorité / Complexité
+## 3. Inventaire des éléments unifiables
 
-**Priorité Très Basse** — spéculatif, dépend de deux prérequis non commencés et non tranchés ([packaging-android-gui-native](packaging-android-gui-native.md), et le "support GUI complet" de Tauri à clarifier avec David). **Complexité non évaluée, probablement Massive** — nouvelle abstraction de langage (résolution de builtin conditionnée par la cible de compilation, jamais fait dans Ocara), plus la conception d'une API UI commune à deux paradigmes très différents.
+Clé YAML proposée, puis l'équivalent de chaque côté. « ≈ » marque une
+correspondance approchée.
+
+### Fenêtres et écrans
+
+| Concept | `.ui` | Desktop (Tauri / DOM) | Android (Compose) | Remarque |
+|---------|-------|-----------------------|-------------------|----------|
+| Titre | `window.title` | titre de la fenêtre Tauri | `TopAppBar` (`Scaffold`) | |
+| Dimensions | `window.width`, `height` | taille de la fenêtre | ignorées (plein écran) | avertissement à la compilation pour une cible Android ? |
+| Taille mini, redimensionnable | `window.minWidth`, `resizable` | options de fenêtre Tauri | ignorées | propre au desktop |
+| Fermeture | `ui.close()`, événement `close` | fermeture de fenêtre | `Activity.finish()` | |
+| Plusieurs écrans | `screens:` (voir Navigation) | une vue affichée à la fois | une destination navigation3 | |
+| Plusieurs fenêtres | — | possible (Tauri) | impossible | **non unifiable** (§5) |
+
+### Disposition
+
+| Concept | `.ui` | Desktop | Android | Remarque |
+|---------|-------|---------|---------|----------|
+| Colonne | `type: column` | `display:flex; flex-direction:column` | `Column` | |
+| Ligne | `type: row` | `flex-direction:row` | `Row` | |
+| Superposition | `type: stack` | `position:relative` + enfants `absolute` | `Box` | |
+| Grille | `type: grid`, `columns` | CSS grid | `LazyVerticalGrid` ≈ | |
+| Espacement | `spacing` | `gap` | `Arrangement.spacedBy` | |
+| Marges internes / externes | `padding`, `margin` | `padding`, `margin` | `Modifier.padding` (pas de marge externe : padding du parent) | |
+| Alignement | `align` (`start`, `center`, `end`, `stretch`) | `align-items`, `justify-content` | `horizontalAlignment`, `verticalArrangement` | |
+| Poids, remplissage | `width: fill`/`wrap`/nombre, `weight` | `flex-grow`, `width:100%` | `fillMaxWidth`, `weight` | |
+| Défilement | `scroll: true` | `overflow:auto` | `verticalScroll` | |
+| Séparateur | `type: divider` | `<hr>` | `HorizontalDivider` | |
+| Espace libre | `type: spacer` | `flex:1` | `Spacer(weight)` | |
+
+### Affichage
+
+| Concept | `.ui` | Desktop | Android | Remarque |
+|---------|-------|---------|---------|----------|
+| Texte | `type: text`, `value`, `style` | `<span>`/`<p>` | `Text` | |
+| Titre | `type: heading`, `level` | `<h1>`…`<h3>` | `Text` + `MaterialTheme.typography` | |
+| Image | `type: image`, `src`, `fit` | `<img>` (`object-fit`) | `Image` (bitmap décodé) | fichiers à embarquer : §6 |
+| Icône | `type: icon`, `name` | jeu d'icônes embarqué (SVG) | `Icons.*` de Material | liste de noms commune à définir |
+| Progression | `type: progress`, `value` (0..1, absente : indéterminée) | `<progress>` | `LinearProgressIndicator` | |
+| Badge, carte | `type: card` | `<div>` avec ombre | `Card` | |
+| Liste répétée | `type: list`, `items`, `item:` (gabarit) | boucle DOM | `LazyColumn` | indispensable pour une vraie app (§4) |
+
+### Saisie
+
+| Concept | `.ui` | Desktop | Android | Remarque |
+|---------|-------|---------|---------|----------|
+| Champ texte | `type: input`, `placeholder`, `value`, `kind` (`text`, `password`, `email`, `number`, `multiline`) | `<input type=…>`, `<textarea>` | `OutlinedTextField` + `KeyboardOptions` | |
+| Case à cocher | `type: checkbox`, `checked`, `label` | `<input type=checkbox>` | `Checkbox` + `Text` | |
+| Interrupteur | `type: switch` | case à cocher stylée | `Switch` | |
+| Choix exclusif | `type: radio`, `options` | `<input type=radio>` | `RadioButton` | |
+| Liste déroulante | `type: select`, `options` | `<select>` | `ExposedDropdownMenuBox` | |
+| Curseur | `type: slider`, `min`, `max`, `step` | `<input type=range>` | `Slider` | |
+| Date, heure | `type: date`, `time` | `<input type=date>` | `DatePicker`/`TimePicker` (boîte) | rendu différent, même valeur ISO |
+| Désactivé, lecture seule | `enabled`, `readonly` | `disabled`, `readonly` | `enabled`, `readOnly` | |
+
+### Actions et événements
+
+| Concept | `.ui` | Desktop | Android | Remarque |
+|---------|-------|---------|---------|----------|
+| Bouton | `type: button`, `text`, `variant` (`primary`, `secondary`, `text`) | `<button>` | `Button`, `OutlinedButton`, `TextButton` | |
+| Bouton icône | `type: iconButton` | `<button>` + icône | `IconButton` | |
+| Clic | `onClick` | `click` | `onClick` | |
+| Changement de valeur | `onChange` | `input`/`change` | `onValueChange` | valeur : string, bool ou nombre |
+| Validation d'un champ | `onSubmit` | touche Entrée | action IME (`ImeAction.Done`) | |
+| Focus | `onFocus`, `onBlur` | `focus`/`blur` | `onFocusChanged` | |
+| Sélection dans une liste | `onSelect` (sur `list`) | clic sur un élément | clic sur un élément | porte l'index et l'`id` de l'élément |
+| Raccourci clavier | `shortcuts:` | `keydown` | clavier physique seulement | **à moitié unifiable** (§5) |
+
+### État
+
+| Concept | API Ocara | Desktop | Android |
+|---------|-----------|---------|---------|
+| Lire une propriété | `ui.get("username", "value")` | valeur gardée par le runtime, à jour des événements | idem |
+| Modifier une propriété | `ui.set("greeting", "value", "Bonjour Ada")` | message vers la page (`eval`) → DOM | message JNI → état Compose |
+| Visibilité, activation | `ui.set(id, "visible", false)` | `display:none`, `disabled` | rendu conditionnel, `enabled` |
+| Remplir une liste | `ui.setItems("cars", rows)` | régénération de la liste | nouvelle liste d'état |
+
+Le runtime garde l'état de chaque nœud. Il sert `get` sans aller-retour
+vers l'interface, et il permet de reconstruire l'interface après une
+recréation (rotation d'écran sur Android, rechargement de page sur desktop).
+
+### Navigation
+
+| Concept | `.ui` / Ocara | Desktop | Android |
+|---------|---------------|---------|---------|
+| Écrans nommés | `screens: { home: …, details: … }`, `start: home` | une vue affichée, les autres masquées | destinations navigation3 |
+| Aller à un écran | `ui.navigate("details")` | changement de vue | `backStack.add` |
+| Retour | `ui.back()`, événement `back` | bouton « précédent » éventuel | bouton retour système (`BackHandler`) |
+
+### Cycle de vie
+
+| Concept | Événement Ocara | Desktop | Android |
+|---------|-----------------|---------|---------|
+| Interface prête | `ready` | page chargée, moteur JS initialisé | premier rendu Compose |
+| Fermeture demandée | `close` (refusable) | `CloseRequested` de Tauri | retour sur l'écran de départ, `onDestroy` |
+| Mise en arrière-plan | `pause`, `resume` | perte/reprise du focus ≈ | `onPause`/`onResume` |
+
+### Thème, style, unités
+
+| Concept | `.ui` | Desktop | Android | Remarque |
+|---------|-------|---------|---------|----------|
+| Unité de longueur | nombres en pixels logiques | px CSS (viewport `device-width`) | dp | 1 px CSS = 1 dp dans une WebView Android : la même valeur donne la même taille |
+| Taille de texte | `fontSize` | px CSS | sp (suit le réglage d'accessibilité) | |
+| Couleurs | `color`, `background`, `#rrggbb` | CSS | `Color` | |
+| Styles nommés | `styles: { titre: { fontSize: 24, bold: true } }`, puis `style: titre` | classes CSS générées | objets `TextStyle`/`Modifier` | |
+| Thème clair/sombre | `theme: auto`/`light`/`dark`, `primary` | variables CSS + `prefers-color-scheme` | `MaterialTheme` (+ couleurs dynamiques) | |
+| Coins, bordure, ombre | `radius`, `border`, `elevation` | CSS | `RoundedCornerShape`, `BorderStroke`, `Card` | |
+
+### Services autour de l'interface
+
+| Concept | API Ocara | Desktop | Android | Remarque |
+|---------|-----------|---------|---------|----------|
+| Message bref | `ui.toast(text)` | bandeau dans la page | `Snackbar` | |
+| Boîte d'alerte, confirmation | `ui.alert(title, text)`, `ui.confirm(…)` → `bool` | boîte modale dans la page (ou plugin dialog de Tauri) | `AlertDialog` | bloque le thread Ocara jusqu'à la réponse, comme `AndroidPermissions::request` |
+| Choix de fichier | `ui.pickFile(filters)` → `string` | plugin dialog de Tauri | Storage Access Framework | voir [builtins natifs Android : suite](packaging-android-native-features.md) |
+| Notification système | — | — | — | déjà `ocara.AndroidNotifications` ; côté desktop, chantier [builtins-tauri](builtins-tauri.md) |
+| Info-bulle | `tooltip` | attribut `title` | `TooltipBox` (appui long) | |
+| Accessibilité | `label` (texte lu) | `aria-label` | `contentDescription` | à exiger sur `image` et `iconButton` |
+| Traduction | valeurs `"@cle"` résolues par une table | idem | idem | à rapprocher du `Language` de `mini_project_hexa` |
+
+## 4. Format `.ui` proposé
+
+Il reprend l'exemple de David et y ajoute les écrans, les styles et les
+listes :
+
+```yaml
+window:
+  title: "Garage"
+  width: 900
+  height: 640
+  theme: auto
+
+styles:
+  titre: { fontSize: 22, bold: true }
+
+start: home
+screens:
+  home:
+    layout:
+      type: column
+      spacing: 12
+      padding: 16
+      children:
+        - { type: heading, value: "Mes voitures", style: titre }
+        - type: row
+          spacing: 8
+          children:
+            - { type: input, id: search, placeholder: "Rechercher", onSubmit: search, width: fill }
+            - { type: iconButton, icon: search, label: "Rechercher", onClick: search }
+        - type: list
+          id: cars
+          onSelect: open_car
+          item:
+            type: row
+            spacing: 8
+            children:
+              - { type: text, bind: brand }
+              - { type: text, bind: model }
+  details:
+    title: "Détail"
+    layout:
+      type: column
+      padding: 16
+      children:
+        - { type: text, id: car_title, style: titre }
+        - { type: button, text: "Retour", onClick: back }
+```
+
+Règles proposées :
+
+- Un `id` est unique dans le fichier ; seuls les nœuds qui ont un `id` sont
+  accessibles depuis Ocara.
+- Un événement (`onClick`, `onChange`…) nomme une **action**, liée côté
+  Ocara par `ui.on`. Les actions `back` et `close` sont prédéfinies.
+- Dans le gabarit `item:` d'une liste, `bind: champ` lit le champ de chaque
+  élément passé à `ui.setItems`.
+- Une clé `desktop:` ou `android:` sur un nœud surcharge ses propriétés pour
+  cette plateforme seulement (échappatoire pour les écarts du §5).
+- Inconnu (type, propriété, valeur d'énumération) : **erreur de compilation**
+  avec la ligne du `.ui`, comme une erreur de syntaxe Ocara.
+
+## 5. Ce qui ne s'unifie pas
+
+| Élément | Plateforme | Traitement proposé |
+|---------|------------|--------------------|
+| Plusieurs fenêtres, fenêtre sans bordure, toujours au premier plan | desktop | hors de `ocara.UI` v1 ; `ocara.Tauri` reste disponible |
+| Barre de menus, icône de zone de notification (tray) | desktop | section `menu:` ignorée sur Android, ou menu de la barre d'app (`TopAppBar` actions) ≈ |
+| Survol, curseur, glisser-déposer de fichiers | desktop | propriétés `desktop:` uniquement |
+| Raccourcis clavier globaux | desktop | `shortcuts:` ignoré sur Android (sauf clavier physique) |
+| Bouton retour système, orientation, barres système, encoche | Android | événement `back` (géré sur les deux), `android: { orientation: portrait }` |
+| Gestes (balayage, appui long, tirer pour rafraîchir) | Android | `onLongPress` ≈ clic droit desktop ; le reste en `android:` |
+| HTML/CSS arbitraire | desktop | nœud `type: web` (contenu HTML ou URL) rendu par une WebView des deux côtés : seule échappatoire commune |
+| Composants Material propres (FAB, bottom sheet, tiroir) | Android | `android:` d'abord ; à unifier plus tard si un équivalent desktop raisonnable existe |
+
+Le risque signalé dans la version précédente de ce ticket demeure : appauvrir
+une plateforme pour l'aligner sur l'autre. La réponse proposée est un tronc
+commun (§3) suffisant pour des écrans de gestion (formulaires, listes,
+détails, navigation), avec les surcharges `desktop:` et `android:` et le nœud
+`web` pour le reste, plutôt qu'un plus petit dénominateur commun strict.
+
+## 6. API Ocara proposée
+
+<!-- doc-check: skip -->
+```ocara
+import ocara.UI
+
+class GarageController {
+    public static method search(ui:UI, event:UIEvent): void {
+        ui.setItems("cars", CarService::find(ui.get("search", "value")))
+    }
+
+    public static method openCar(ui:UI, event:UIEvent): void {
+        ui.set("car_title", "value", event.value)
+        ui.navigate("details")
+    }
+}
+
+function main(): void {
+    const ui:UI = use UI("garage.ui")
+    ui.on("search", GarageController::search)
+    ui.on("open_car", GarageController::openCar)
+    ui.run()     // affiche, bloque jusqu'à la fermeture
+}
+```
+
+| Méthode | Rôle |
+|---------|------|
+| `use UI(path)` | interface décrite par le `.ui` (lu à la compilation, voir Q3) |
+| `on(action, handler)` | lie une action du `.ui` à une méthode `(ui:UI, event:UIEvent): void` |
+| `get(id, prop)` → `mixed` / `set(id, prop, value)` | état d'un nœud |
+| `setItems(id, rows:array<map<string,mixed>>)` | contenu d'une `list` |
+| `navigate(screen)`, `back()` | navigation |
+| `toast`, `alert`, `confirm`, `pickFile` | services du §3 |
+| `run()`, `close()` | cycle de vie |
+
+`UIEvent` : `action`, `id`, `value` (`mixed`), `index` (pour `onSelect`).
+
+## 7. Modèle d'exécution
+
+Les deux plateformes diffèrent ; le contrat commun doit les absorber.
+
+| | Desktop (Tauri) | Android |
+|---|---|---|
+| Thread du programme Ocara | thread principal, pris par `run()` (exigence GTK) | thread lancé par le pont JNI ; le thread principal appartient à l'Activity |
+| Arrivée d'un événement | thread IPC de Tauri | thread principal Android (callback Compose) |
+| Mise à jour de l'interface | doit passer par la boucle de Tauri (`eval` sur la WebView) | doit passer par le thread principal (`runOnUiThread`, état Compose) |
+
+Contrat proposé :
+
+- Les gestionnaires d'actions s'exécutent sur **un thread Ocara dédié**,
+  l'un après l'autre (jamais sur le thread d'interface : un gestionnaire
+  lent ne gèle pas l'écran ; jamais en parallèle : pas de verrou à prévoir
+  dans le code utilisateur).
+- `ui.set`, `ui.navigate`… sont permis depuis n'importe quel thread : le
+  runtime les transmet au thread d'interface.
+- `run()` bloque le thread appelant jusqu'à la fermeture. Sur Android, il
+  envoie l'arbre au moteur Compose et attend la fin de l'Activity.
+
+## 8. Choix du backend selon la cible
+
+Même schéma que les builtins `ocara.Android*`, sans mécanisme de langage
+nouveau :
+
+- un crate par backend : `runtime_ui_tauri` (réutilise `runtime_tauri` :
+  fenêtre, IPC, script injecté ; ajoute le moteur JS et les mises à jour par
+  `eval`) et `runtime_android/ui` (JNI vers un `OcaraUI.kt` qui porte le
+  moteur Compose) ;
+- `link`/`link_android` lient le crate de la cible quand `ocara.UI` est
+  importé ; les signatures Cranelift sont communes (`UI_*`).
+
+## 9. Questions à trancher
+
+1. **Rendu desktop** : la WebView de Tauri suffit-elle (proposé), ou faut-il
+   un jour un rendu desktop non web (GTK, toolkit Rust) ? Le schéma reste le
+   même dans les deux cas : un troisième moteur s'ajouterait sans toucher aux
+   `.ui`.
+2. **Rendu Android** : Compose (proposé, déjà dans l'app), Views classiques,
+   ou d'abord le moteur JS dans la WebView Android (même moteur que le
+   desktop, Android disponible très tôt, mais pas natif) ?
+3. **Lecture du `.ui`** : à la compilation (proposé : erreurs avec ligne,
+   vérification des `ui.on` contre les actions déclarées, rien à livrer à
+   côté de l'APK ; il faut ajouter un lecteur YAML au compilateur), ou à
+   l'exécution (rechargement à chaud en mode debug) ? Les deux sont
+   compatibles : compilation par défaut, rechargement en option.
+4. **Liaison des actions** : `ui.on` explicite (proposé), ou liaison
+   automatique à un contrôleur (`ui.controller(GarageController)` relie
+   l'action `open_car` à la méthode `openCar`) ?
+5. **État** : impératif (`get`/`set`, proposé pour commencer) ou liaisons
+   déclaratives (`bind: user.name` sur un objet Ocara) plus tard ?
+6. **Relation avec `ocara.Tauri` et
+   [`ocara.UIHybrid`](langage-builtin-ui-hybride.md)** : `ocara.UI` sur
+   desktop reposant sur Tauri, `UIHybrid` garde-t-il un rôle (page web libre,
+   des deux côtés), ou devient-il le nœud `type: web` d'`ocara.UI` ?
+7. **Extension `.ui`** : YAML strict avec l'extension `.ui` (proposé, avec
+   un schéma JSON pour la complétion dans VS Code), ou `.ui.yaml` pour
+   bénéficier des outils YAML sans configuration ?
+
+## 10. Découpage proposé
+
+| Étape | Contenu | Complexité |
+|-------|---------|------------|
+| 1 | Schéma, lecteur YAML et validation dans le compilateur, arbre JSON embarqué, tests unitaires des erreurs | Structurel |
+| 2 | Backend desktop : moteur JS (column, row, text, input, button, checkbox), `on`/`get`/`set`, thread des gestionnaires, exemple et test ocaraunit | Structurel |
+| 3 | Backend Android : `OcaraUI.kt` (moteur Compose, mêmes nœuds), événements JNI vers le thread Ocara, mises à jour vers le thread principal, vérification sur téléphone | Massive |
+| 4 | Navigation (`screens`), `list`/`setItems`, styles et thème, images embarquées | Structurel |
+| 5 | Services (`toast`, `alert`, `confirm`, `pickFile`), surcharges `desktop:`/`android:`, nœud `web` | Structurel |
+| 6 | Outillage : schéma JSON du `.ui` pour l'extension VS Code, complétion des `id` et des actions dans `get`/`set`/`on`, rechargement à chaud | Structurel |
 
 ## Fichiers clés
 
-Aucun — chantier pas commencé, dépend de prérequis eux-mêmes non commencés ou non clarifiés. [packaging-android-gui-native](packaging-android-gui-native.md) (prérequis direct, pas fait), [builtins-tauri](builtins-tauri.md) (portée actuelle du "vrai support Tauri", à comparer avec l'intention de David), `docs/builtins/Tauri.md` (référence du builtin desktop existant), [langage-builtin-ui-hybride](langage-builtin-ui-hybride.md) (ticket frère, WebView unifiée), `src/codegen/runtime.rs`/table des builtins (mécanisme de résolution des builtins, à étendre pour dépendre de la cible).
-
-## Reste à faire — audit du 2026-10-13
-
-L'affirmation « `--target` n'influence jamais la résolution des builtins / mécanisme nouveau dans Ocara » est périmée : les déclarations conditionnelles `when System::OS is …` (EBNF §32, par exemple `when System::OS is not 'android' import ocara.Tauri`) sélectionnent déjà imports et déclarations selon la cible.
+`runtime_tauri/src/lib.rs` (fenêtre, IPC, script injecté), `runtime_android_jni/`
+et `runtime_android/common/` (pont JNI et appels Kotlin), `packaging/android/`
+(app Compose), `src/codegen/link.rs` (archive selon la cible), `docs/builtins/Tauri.md`,
+[langage-builtin-ui-hybride](langage-builtin-ui-hybride.md),
+[packaging-android-gui-native](packaging-android-gui-native.md) (rendu natif
+Android : piste Compose retenue ici),
+[builtins-tauri](builtins-tauri.md) (dialogues et notifications desktop).
