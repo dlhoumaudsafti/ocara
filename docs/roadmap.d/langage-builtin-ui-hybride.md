@@ -1,5 +1,11 @@
 # Builtin `ocara.UIHybrid` (WebView unifiée : Tauri+WebKit desktop ↔ WebView Android)
 
+> **Proposé : absorbé par [`ocara.UI`](langage-builtin-ui-multiplateforme.md)**
+> (2026-10-28). David veut la WebView de Tauri et celle d'Android comme
+> composant `webview` d'`ocara.UI`, avec contenu, navigation, messages et
+> appels JS ↔ Ocara (§3 « Vue web ») ; ce builtin séparé n'aurait alors plus
+> d'usage propre. À confirmer (question 4 de cette fiche).
+
 ## Idée
 
 Généraliser [le hybride WebView Android](packaging-android-webview-hybrid.md) en un builtin Ocara à part entière, `ocara.UIHybrid` : une fenêtre hébergeant un moteur web, qu'il s'agisse de WebKit/GTK via Tauri sur desktop ou de la `WebView` système sur Android — même paradigme des deux côtés (une page, un pont JS↔Ocara), contrairement à [`ocara.UI`](langage-builtin-ui-multiplateforme.md) (GUI native, paradigmes structurellement différents entre desktop et Android).
